@@ -21,7 +21,7 @@ for line in ifile:
     tmp_local_address = int(parsed_line[1])
     rand_address_to_sequential_int[tmp_local_address]= 1
   else :
-    if len( parsed_line) > 1: 
+    if len( parsed_line) > 4: 
       tmp_date = parsed_line[0]
       tmp_time = parsed_line[1]
       p_d = tmp_date.split('/')

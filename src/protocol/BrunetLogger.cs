@@ -85,9 +85,11 @@ public class BrunetLogger
 
       String addfile = _log_file;
       StreamWriter sw = new StreamWriter(addfile, true);
-      sw.WriteLine( DateTime.Now.ToUniversalTime().ToString() + "  " + bed.EventDescription +
+      sw.WriteLine( DateTime.Now.ToUniversalTime().ToString() + ":" + DateTime.Now.ToUniversalTime().Millisecond +
+		                    "  " + bed.EventDescription +
 				    "  " + bed.ConnectionType + 
-				    "  " + bed.RemoteAHAddress + " " ); 
+				    "  " + bed.RemoteAHAddress + 
+				    "  " + bed.SubType); 
       sw.Close();
 
       ///logging of connection events is moved to Linker.cs and ConnectionPacketHandler.cs

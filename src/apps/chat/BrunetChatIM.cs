@@ -104,6 +104,17 @@ public class BrunetChatIM
     _recipient_buddy = (Buddy)_brunet_chat_main.BuddyHash[_to_address]; 
     _text_buf_recipient.Text = _recipient_buddy.Alias;
     _sender_alias = (string)_brunet_chat_main.CurrentUser.Alias;
+    Gdk.Color red_color = new Gdk.Color (0xff, 0, 0);
+    Gdk.Color blue_color = new Gdk.Color (0, 0, 0xff);
+    
+    TextTag sendercolor = new TextTag("Sender Color");
+    sendercolor.ForegroundGdk = blue_color;
+    
+    TextTag recipientcolor = new TextTag("Recipient Color");
+    recipientcolor.ForegroundGdk = red_color;
+    _text_buf_display.TagTable.Add(sendercolor);
+    _text_buf_display.TagTable.Add(recipientcolor);
+    
   }
 
   /** Button click handler.  This sends input text to the node for delivery
@@ -115,7 +126,24 @@ public class BrunetChatIM
       if (_text_buf_input != null){
         if (_text_buf_input.CharCount > 0 ){
           SendText(_text_buf_input.Text);
-          _text_buf_display.Text += "<"+ _sender_alias +"> ";
+          string sender_preamble = "<"+ _sender_alias +"> ";
+          TextTag[] sender_ar;
+          sender_ar = new TextTag[1];
+          TextTag t_tag = _text_buf_display.TagTable.Lookup("Sender Color");
+          Console.WriteLine(t_tag.ForegroundGdk.ToString());
+          if (t_tag != null)
+          {
+            sender_ar[0] = t_tag;
+            _text_buf_display.InsertWithTags(
+              _text_buf_display.GetIterAtMark(_text_buf_display.InsertMark),
+              sender_preamble,
+              sender_ar
+              );
+          }
+          else
+          {
+            Console.WriteLine("Error: Back Text Tag In TextBuffer");
+          }
           _text_buf_display.Text += _text_buf_input.Text;
           _text_buf_display.Text += "\n";
           _text_buf_display.MoveMark(
@@ -165,9 +193,29 @@ public class BrunetChatIM
   {
     if (null != ob){
       string a_msg = (string)ob;
-      _text_buf_display.Insert(
-          _text_buf_display.EndIter,
-          "<"+_recipient_buddy.Alias+"> " );
+
+      string recipient_preamble = "<"+_recipient_buddy.Alias+"> ";
+      TextTag[] recipient_ar;
+      recipient_ar = new TextTag[1];
+      TextTag t_tag = _text_buf_display.TagTable.Lookup("Recipient Color");
+      Console.WriteLine(t_tag.ForegroundGdk.ToString());
+      if (t_tag != null)
+      {
+        recipient_ar[0] = t_tag;
+        _text_buf_display.InsertWithTags(
+            _text_buf_display.GetIterAtMark(_text_buf_display.InsertMark),
+            recipient_preamble,
+            recipient_ar  
+            );    
+      }
+      else
+      {
+        Console.WriteLine("Error: Back Text Tag In TextBuffer");
+      }
+
+      //_text_buf_display.Insert(
+      //    _text_buf_display.EndIter,
+      //    "<"+_recipient_buddy.Alias+"> " );
       
       Console.WriteLine(a_msg ); 
       

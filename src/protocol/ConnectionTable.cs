@@ -254,6 +254,7 @@ namespace Brunet
       bed.RemoteTAddress = e.RemoteTA.ToString();
       bed.RemoteAHAddress = a.ToBigInteger().ToString();
       bed.ConnectTime = DateTime.Now.Ticks;
+      bed.SubType = c.ConType;
 
       _logger.LogBrunetEvent( bed );
 #endif
@@ -335,6 +336,7 @@ namespace Brunet
         bed.RemoteTAddress = e.RemoteTA.ToString();
         bed.RemoteAHAddress = remote.ToBigInteger().ToString();
         bed.ConnectTime = DateTime.Now.Ticks;
+        bed.SubType = c.ConType;
 
         _logger.LogBrunetEvent( bed );
 #endif
@@ -680,6 +682,7 @@ namespace Brunet
         bed.RemoteTAddress = e.RemoteTA.ToString();
         bed.RemoteAHAddress = remote.ToBigInteger().ToString();
         bed.ConnectTime = DateTime.Now.Ticks;
+        bed.SubType = c.ConType;
 
         _logger.LogBrunetEvent( bed );
 #endif

@@ -32,6 +32,18 @@ namespace Brunet
         _message_sinks = value;
       }
     }
+
+    public Hashtable SenderToQueue
+    {
+      get
+      {
+        return _sender_to_queue;
+      }
+      set
+      {
+        _sender_to_queue = value;
+      }
+    }
    
     /** Constructor. Passes a mainapp reference.
      */

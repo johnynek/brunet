@@ -277,7 +277,7 @@ namespace Brunet {
     public override void Activate()
     {
 #if POB_DEBUG
-      Console.WriteLine("In Activate: {0}", _node.Address);
+      //Console.WriteLine("In Activate: {0}", _node.Address);
 #endif
       if( IsActive == false ) {
         return;
@@ -347,7 +347,7 @@ namespace Brunet {
 	  bool trying_near = false;
           if( NeedLeftNeighbor ) {
 #if POB_DEBUG
-      Console.WriteLine("NeedLeftNeighbor: {0}", _node.Address);
+      //Console.WriteLine("NeedLeftNeighbor: {0}", _node.Address);
 #endif
             target = new DirectionalAddress(DirectionalAddress.Direction.Left);
 	    ttl = (short)_desired_neighbors;
@@ -357,7 +357,7 @@ namespace Brunet {
           }
 	  if( NeedRightNeighbor ) {
 #if POB_DEBUG
-      Console.WriteLine("NeedRightNeighbor: {0}", _node.Address);
+      //Console.WriteLine("NeedRightNeighbor: {0}", _node.Address);
 #endif
             target = new DirectionalAddress(DirectionalAddress.Direction.Right);
 	    ttl = (short)_desired_neighbors;
@@ -373,7 +373,7 @@ namespace Brunet {
 	   */
 	  if( !trying_near && NeedShortcut ) {
 #if POB_DEBUG
-      Console.WriteLine("NeedShortcut: {0}", _node.Address);
+      //Console.WriteLine("NeedShortcut: {0}", _node.Address);
 #endif
             target = GetShortcutTarget(); 
 	    ttl = 1024;
@@ -391,7 +391,7 @@ namespace Brunet {
     protected void CheckState(object node, EventArgs eargs)
     {
 #if POB_DEBUG
-      Console.WriteLine("In Check for State");
+      //Console.WriteLine("In Check for State");
 #endif
       lock( _sync ) {
         if( IsActive == false ) {
@@ -402,7 +402,7 @@ namespace Brunet {
         TimeSpan elapsed = DateTime.Now - _last_connection_time;
 	if( elapsed.TotalSeconds >= _trim_delay ) {
 #if POB_DEBUG
-          Console.WriteLine("Go for State check");
+    //Console.WriteLine("Go for State check");
 #endif
 	  //else {
 #if TRIM
@@ -457,11 +457,11 @@ namespace Brunet {
           tmp_distance = t_ah_add.DistanceTo( (AHAddress)_node.Address).abs();
           if (tmp_distance > biggest_distance) {
             biggest_distance = tmp_distance;
-            Console.WriteLine("...finding far distance for trim: {0}",biggest_distance.ToString() );
+            //Console.WriteLine("...finding far distance for trim: {0}",biggest_distance.ToString() );
             to_trim = tc;
           }
         }
-        Console.WriteLine("Final distance for trim{0}: ",biggest_distance.ToString() );
+        //Console.WriteLine("Final distance for trim{0}: ",biggest_distance.ToString() );
 	      //Delete a random trim candidate:
 	      //int idx = _rand.Next( near_trim_candidates.Count );
 	      //Connection to_trim = (Connection)near_trim_candidates[idx];
@@ -841,10 +841,46 @@ namespace Brunet {
      */
     protected Address GetShortcutTarget()
     {
+#if false
+      //The old code:
       // Random distance from 2^1 - 2^159 (1/d distributed)
       int rand_exponent = _rand.Next(1, 159);
       BigInteger rand_dist = new BigInteger(2);
       rand_dist <<= (rand_exponent - 1);
+#else
+      /*
+       * If there are k nodes out of a total possible
+       * number of N ( =2^(160) ), the average distance
+       * between them is d_ave = N/k.  So we want to select a distance
+       * that is at least N/k from us.  We want to do this
+       * with prob(dist = d) ~ 1/d.  We can do this by selecting
+       * a uniformly distributed p, and sample:
+       * 
+       * d = d_ave(d_max/d_ave)^p
+       *   = d_ave( 2^(p log d_max - p log d_ave) )
+       *   = 2^( p log d_max + (1 - p) log d_ave )
+       *  
+       * since we can go either direction in the ring, d_max = N/2
+       * so: log d_ave = log N - log k, but k is the size of the network:
+       * 
+       * d = 2^( p (log N - 1) + (1 - p) log N - (1-p) log k)
+       *   = 2^( log N - p - (1-p)log k)
+       * 
+       */
+      double logN = (double)(Address.MemSize * 8);
+      double logk = Math.Log( (double)_node.NetworkSize, 2.0 );
+      double p = _rand.NextDouble();
+      double ex = logN -p - (1.0 - p)*logk;
+      int ex_i = (int)Math.Floor(ex);
+      double ex_f = ex - Math.Floor(ex);
+      //Make sure 2^(ex_long+1)  will fit in a long:
+      int ex_long = ex_i % 63;
+      int ex_big = ex_i - ex_long;
+      ulong dist_long = (ulong)Math.Pow(2.0, ex_long + ex_f);
+      //This is 2^(ex_big):
+      BigInteger dist_big = 1 << ex_big;
+      BigInteger rand_dist = dist_big * dist_long;
+#endif
 
       // Add or subtract random distance to the current address
       BigInteger t_add = _node.Address.ToBigInteger();
@@ -858,7 +894,6 @@ namespace Brunet {
       }
 
       BigInteger target_int = new BigInteger(t_add % Address.Full);
-
       return new AHAddress(target_int); 
     }
     
