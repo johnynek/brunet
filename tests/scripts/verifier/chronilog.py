@@ -68,7 +68,3 @@ timestamps.sort()
 for time_it in timestamps:
   for tr in time_to_data_list[time_it]:
     print time_it,tr[0],tr[1],rand_address_to_sequential_int[tr[2]],rand_address_to_sequential_int[tr[3]]
-   
-      
-
-  

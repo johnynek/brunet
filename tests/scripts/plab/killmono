@@ -1,0 +1,8 @@
+#!/bin/bash
+
+#ATTEMPTED_NODES_FILE contains the plab nodes that we would attempt to kill mono
+ATTEMPTED_NODES_FILE=$1
+PAR=30
+
+pssh -p $PAR -t 60 -h $ATTEMPTED_NODES_FILE -l uclaee_brunet1 -o /tmp/out/ -e /tmp/error/ killall -9 mono sleep
+

@@ -28,6 +28,8 @@ public class BrunetEventDescriptor
    */
   private ConnectionType _connection_type;
 
+  private string _sub_type;
+
   /** Description of the event e.g. 
    *  connection or disconnection
    */
@@ -75,7 +77,20 @@ public class BrunetEventDescriptor
     {
       _connection_type = value;
     }
-  }	    
+  }	  
+
+  [XmlAttribute("SubType")] 
+  public string SubType
+  {
+    get
+    {
+      return _sub_type;
+    }
+    set
+    {
+      _sub_type = value;
+    }
+  }	
   
   [XmlAttribute("LocalAHAddress")] 
   public string LocalAHAddress

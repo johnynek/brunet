@@ -18,6 +18,8 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+//#define PLAB_LOG
+
 using System;
 using System.Text;
 using System.Collections;
@@ -46,10 +48,10 @@ namespace Brunet
       //for example, node 0 on a machine will use port_selection # 0, node 1 on a machine will use port_selection # 1
 
       ///There will be multiple BruNet nodes on the same machine. The following is a list of possible ports used
-      int list_size = 10;
+      int list_size = 900;
       int [] port_list = new int[list_size];
       for(int i = 0; i < list_size; i++){
-	port_list[i] = 25010 + i*10;
+	port_list[i] = 25000 + i;
       }
 	
       ///The line below is used when there is only one node per machine
@@ -69,7 +71,8 @@ namespace Brunet
       //inforce type 0
       hashedbytes[Address.MemSize - 1] &= 0xFE;
       AHAddress _local_ahaddress = new AHAddress(hashedbytes);
-      Node this_node = new HybridNode( _local_ahaddress );
+//      Node this_node = new HybridNode( _local_ahaddress );
+      Node this_node = new StructuredNode( _local_ahaddress );
       ///Node this_node = new HybridNode( new AHAddress( new BigInteger( 2*(local_host_index+1) ) ) );      
 
       String file_string = "./data/brunetadd" + Convert.ToString(desired_port) + ".log";
@@ -77,10 +80,10 @@ namespace Brunet
       sw.WriteLine( "local_address " + this_node.Address.ToBigInteger().ToString() + " " + Dns.GetHostName()); 
       sw.Close();      
 
-      String ctm_file = "./data/ctm.log";
+/*      String ctm_file = "./data/ctm.log";
       StreamWriter ctm_sw = new StreamWriter(ctm_file, false);
       ctm_sw.WriteLine( "local_address " + this_node.Address.ToBigInteger().ToString() + " " + Dns.GetHostName()); 
-      ctm_sw.Close();
+      ctm_sw.Close();*/
 
       if ( local_ta_configuration.Protocol == "tcp" ) {
         this_node.AddEdgeListener( new TcpEdgeListener(port) );
@@ -90,7 +93,7 @@ namespace Brunet
       }
 
       int remote_node_index = local_host_index-1;
-      int num_remote_ta = 20; //20 nodes on the list to try to bootstrap to
+      int num_remote_ta = 100; //20 nodes on the list to try to bootstrap to
 
       if (local_host_index!=0) {
         NodeConfiguration remote_node_configuration = (NodeConfiguration)network_configuration.Nodes[0];
@@ -115,33 +118,15 @@ namespace Brunet
 
       //EchoTester echo_printer = new EchoTester();
       //this_node.Subscribe(AHPacket.Protocol.Echo, echo_printer);
-
-      this_node.Connect();
-#if PLAB_LOG
+      
+      #if PLAB_LOG
       ///Initialize Brunet logger
       BrunetLogger bl = new BrunetLogger(file_string);
       this_node.Logger = bl;
-#endif
-      String alive_file = "./data/alive.log";
-      if(File.Exists(alive_file)){
-        File.Delete(alive_file);
-      }
-            
-      int loop_count = 0, log_interval = 5000; //number of milliseconds for interval between logs
-      while(true){
-	StreamWriter sw_alive = new StreamWriter(alive_file, true);
-	if(loop_count == 0){
-        	sw_alive.WriteLine( "local_address " + this_node.Address.ToBigInteger().ToString() + " " + Dns.GetHostName());
-	        sw_alive.WriteLine( DateTime.Now.ToUniversalTime().ToString() + " Node_alive");
-	}
-	else{
-		sw_alive.WriteLine( DateTime.Now.ToUniversalTime().ToString() + " Node_alive");
-	}
-	sw_alive.Close();
-	loop_count++;
-	System.Threading.Thread.Sleep(log_interval);
-      }
+      #endif
 
+      this_node.Connect();
+     
     }//end of Main fcn
 
   }

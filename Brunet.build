@@ -75,8 +75,8 @@
 
     <nant buildfile="src/protocol/default.build" />
     <nant buildfile="src/apps/default.build" />
-    <nant buildfile="tests/protocol/default.build" />
     <nant buildfile="tests/util/default.build" />
+    <nant buildfile="tests/protocol/default.build" />
 
   </target>
 
