@@ -75,7 +75,7 @@ namespace Brunet
         + n.Address.ToString() + " connectTo: "
         + ctm.TargetAddress.ToString());*/
         Linker l = new Linker(n);
-        l.Link(ctm.TargetAddress, ctm.TransportAddresses, ctm.ConnectionType);
+        l.Link(ctm.Target.Address, ctm.Target.Transports, ctm.ConnectionType);
         /**
          * Send a response no matter what
          */
@@ -98,10 +98,10 @@ namespace Brunet
         }
         AHPacket response = new AHPacket(0, ttl,
                                          n.Address,
-                                         ctm.TargetAddress,
+                                         ctm.Target.Address,
                                          AHPacket.Protocol.Connection,
                                          local_response_ctm.ToByteArray());
-        if (!p.Source.Equals(ctm.TargetAddress) &&
+        if (!p.Source.Equals(ctm.Target.Address) &&
             !p.Source.Equals(n.Address) ) {
           //There is no point in forwarding through ourselves
           //This was a forwarded packet, we must send a forwarded response :

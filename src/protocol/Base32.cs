@@ -1,3 +1,7 @@
+#if BRUNET_NUNIT
+using NUnit.Framework;
+#endif
+
 namespace Brunet
 {
 
@@ -260,34 +264,7 @@ namespace Brunet
       }
     }
 
-    public static void Test()
-    {
-      System.Console.WriteLine("Testing Base32 : ");
 
-      byte[] test = new byte[] {
-                      0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
-      System.Console.WriteLine("Encoded :  {0}", Encode(test, false));
-
-      for (int j = 1; j < 1000; j++) {
-        test = new byte[j];
-        for (int k = 0; k < test.Length; k++) {
-          test[k] = (byte) (k ^ j + j * k);
-        }
-        //Test if encoding and decoding is transparant :
-        byte[] test2 = Decode(Encode(test, true));
-        for (int i = 0; i < test.Length; i++) {
-          if (test2[i] != test[i]) {
-            System.Console.
-            WriteLine("Index :  {0} not equal, {1} != {2}", i,
-                      test[i], test2[i]);
-          }
-          if (test2.Length != test.Length) {
-            System.Console.
-            WriteLine("Decoded length not equal to original!");
-          }
-        }
-      }
-    }
     public static void Main(string[] args)
     {
       foreach(string a in args)
@@ -301,6 +278,36 @@ namespace Brunet
       }
     }
   }
+
+#if BRUNET_NUNIT
+
+  [TestFixture]
+  public class Base32Tester {
+	  
+    [Test]
+    public void Test()
+    {
+      System.Random r = new System.Random();
+      bool same = true;
+      for(int i = 0; i < 100; i++) {
+        int len = r.Next(10000);
+	byte[] test = new byte[len];
+	r.NextBytes(test);
+	byte[] test2 = Base32.Decode(Base32.Encode(test, true));
+        same = true;
+	int j = 0;
+	while( same && j < len ) {
+          same &= test[j] == test2[j];
+          j++;
+	}
+        Assert.IsTrue(same, "Random Decode-Encode");
+	if(!same)
+          break;
+      }
+      
+    }
+  }
+#endif
 
 
 }
