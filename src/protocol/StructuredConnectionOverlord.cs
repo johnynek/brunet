@@ -391,7 +391,7 @@ namespace Brunet
         int total_shortcuts = _shortcut_edges.Count;
         int total_neighbors = total_structured - total_shortcuts;
 
-        if (total_neighbors<=(_total_desired_neighbors)) {
+        if (total_neighbors<=2*(_total_desired_neighbors)) {
           return;
         }
         
