@@ -102,18 +102,40 @@ namespace Brunet
         ConnectionMessage cm = _cmp.Parse(packet);
         if (cm.Dir == ConnectionMessage.Direction.Request) {
           ConnectionMessage response = null;
-          if (cm is PingMessage) {
-            /**
-            * PingMessage objects are used to verify the completion
-            * of the Link protocol.  If we receive a PingMessage request
-            * after we send a LinkMessage response, we know the other
-            * Node got our LinkMessage response, and the connection
-            * is active
-            */
+	  if (cm is PingMessage) {
+	    /**
+	     * Ping messages are just used to test that
+	     * a node is still active.
+	     */
             response = new PingMessage();
             response.Dir = ConnectionMessage.Direction.Response;
             response.Id = cm.Id;
             //log.Info("Sending Ping response:" + response.ToString());
+            from.Send(response.ToPacket());
+	  }
+	  else if (cm is StatusMessage) {
+            /**
+            * StatusMessage objects are used to verify the completion
+            * of the Link protocol.  If we receive a StatusMessage request
+            * after we send a LinkMessage response, we know the other
+            * Node got our LinkMessage response, and the connection
+            * is active
+            */
+	    StatusMessage sm = (StatusMessage)cm;
+	    ArrayList neighbors = new ArrayList();
+	    //Get the neighbors of this type:
+	    lock( _tab.SyncRoot ) {
+	      ArrayList edges = _tab.GetEdgesOfType(sm.NeighborType);
+	      ArrayList adds = _tab.GetAddressesOfType(sm.NeighborType);
+	      for(int i = 0; i < adds.Count; i++) {
+	        neighbors.Add( new NodeInfo( (Address)adds[i],
+					     ((Edge)edges[i]).RemoteTA ) );
+	      }
+	    }
+	    response = new StatusMessage(sm.NeighborType, neighbors);
+            response.Dir = ConnectionMessage.Direction.Response;
+            response.Id = cm.Id;
+            //log.Info("Sending Status response:" + response.ToString());
             from.Send(response.ToPacket());
 
             LinkMessage lm_to_add = null;
