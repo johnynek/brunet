@@ -85,7 +85,6 @@ namespace Brunet
     
     public void HandleAHPacket(object node, AHPacket p, Edge from)
     {
-      Threads.Enter();
       //extract text from packet
       MemoryStream mems = p.PayloadStream;
       string msg = Encoding.UTF8.GetString( mems.ToArray() );
@@ -102,12 +101,11 @@ namespace Brunet
         Console.WriteLine("This should never happen.");
         Console.WriteLine("Throw and exception here.");
       }
-
-      OpenChatSession( sourceaddress);
-      ImQueue tmpqueue = (ImQueue)_sender_to_queue[sourceaddress];
-      tmpqueue.Enqueue(msg);
-
-      Threads.Leave();
+      else {
+        OpenChatSession( sourceaddress);
+        ImQueue tmpqueue = (ImQueue)_sender_to_queue[sourceaddress];
+        tmpqueue.Enqueue(msg);
+      }
     }
     
     public bool HandlesAHProtocol(AHPacket.Protocol type)
