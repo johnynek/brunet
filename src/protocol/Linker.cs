@@ -688,8 +688,17 @@ namespace Brunet
                             new EdgeListener.EdgeCreationCallback(this.TryNext) );
         }
       }
+      catch(LinkException lx) {
+	//GetNextTA will throw a link exception when it is out of TAs
+#if POB_LINK_DEBUG
+        System.Console.WriteLine("LinkException in Link:{0} ", lx.ToString() );
+#endif        
+        Fail(lx.Message);
+      }
       catch(Exception ex) {
+#if POB_LINK_DEBUG
         System.Console.WriteLine("Exception in Link:{0} ", ex.ToString() );
+#endif
         Fail(ex.Message);
       }
     }
