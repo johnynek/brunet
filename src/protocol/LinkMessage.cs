@@ -10,6 +10,10 @@ using System.Xml;
 
 using Brunet;
 
+#if BRUNET_NUNIT
+using NUnit.Framework;
+#endif
+
 namespace Brunet
 {
 
@@ -132,7 +136,6 @@ namespace Brunet
 
 #if BRUNET_NUNIT
 //Here are some NUnit 2 test fixtures
-using NUnit.Framework;
   [TestFixture]
   public class LinkMessageTester {
 

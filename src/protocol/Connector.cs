@@ -213,8 +213,8 @@ namespace Brunet
               //_log.Info("Got CTM Response: " + cm.ToString());
               Linker l = new Linker(_local_node);
               _linkers.Add(l);
-              l.Link(new_ctm.TargetAddress,
-                     new_ctm.TransportAddresses,
+              l.Link(new_ctm.Target.Address,
+                     new_ctm.Target.Transports,
                      new_ctm.ConnectionType);
             }
           }

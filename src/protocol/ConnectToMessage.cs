@@ -26,6 +26,8 @@ namespace Brunet
    * processes the message.  ConnectToMessages are sent by
    * Connector objects.
    *
+   * This object is immutable
+   * 
    * @see CtmRequestHandler
    * @see Connector
    */
@@ -36,10 +38,10 @@ namespace Brunet
      * @param t connection type
      * @param target the Address of the target node
      */
-    public ConnectToMessage(ConnectionType t, Address target)
+    public ConnectToMessage(ConnectionType t, NodeInfo target)
     {
-      ConnectionType = t;
-      TargetAddress = target;
+      _ct = t;
+      _target_ni = target;
     }
     /**
      * Prefer this constructor
@@ -49,9 +51,8 @@ namespace Brunet
      */
     public ConnectToMessage(ConnectionType t, Address target, TransportAddress[] tas)
     {
-      ConnectionType = t;
-      TargetAddress = target;
-      _tas = tas;
+      _ct = t;
+      _target_ni = new NodeInfo(target, new ArrayList(tas));
     }
     /**
      * This constructor wraps the above constructor
@@ -61,10 +62,8 @@ namespace Brunet
      */
     public ConnectToMessage(ConnectionType t, Address target, ICollection tas)
     {
-      ConnectionType = t;
-      TargetAddress = target;
-      _tas = new TransportAddress[ tas.Count ];
-      tas.CopyTo(_tas, 0);
+      _ct = t;
+      _target_ni = new NodeInfo(target, new ArrayList(tas));
     }
     /**
      * Deserializes the ConnectTo element, not the whole <request />
@@ -79,7 +78,7 @@ namespace Brunet
       {
         switch (attr.Name) {
         case "type":
-          ConnectionType =
+          _ct =
             (ConnectionType) System.Enum.Parse(typeof(ConnectionType),
                                                attr.FirstChild.Value,
                                                true);
@@ -89,53 +88,19 @@ namespace Brunet
       //Read the children
       foreach(XmlNode nodes in encoded.ChildNodes)
       {
-        switch (nodes.Name) {
-        case "node":
-          //The node should have a child text node with
-          //the string
-          foreach(XmlNode sub in nodes.ChildNodes) {
-            if (sub.Name == "address") {
-              TargetAddress =
-                AddressParser.Parse(sub.FirstChild.Value);
-            }
-          }
-          break;
-        case "host":
-          foreach(XmlNode sub in nodes.ChildNodes) {
-            if (sub.Name == "address") {
-              TransportAddress t =
-                new TransportAddress(sub.FirstChild.Value);
-              ta_list.Add(t);
-            }
-          }
-          break;
-        }
+        if( nodes.Name == "node" ) {
+          _target_ni = new NodeInfo((XmlElement)nodes);
+	  break;
+	}
       }
-      //Now we have all the ta's
-      _tas = (TransportAddress[])ta_list.ToArray(typeof(TransportAddress));
     }
 
-    public ConnectToMessage()
-    {
-    }
+    protected ConnectionType _ct;
+    public ConnectionType ConnectionType { get { return _ct; } }
 
-    public ConnectionType ConnectionType;
-    /**
-     * The Address of the node you are connecting to
-     */
-    public Address TargetAddress;
-
-    protected TransportAddress[] _tas;
-    /**
-     * These are the transport addresses to try to connect to
-     */
-    public TransportAddress[] TransportAddresses {
-      get {
-        return _tas;
-      }
-      set {
-        _tas = value;
-      }
+    protected NodeInfo _target_ni;
+    public NodeInfo Target {
+      get { return _target_ni; }
     }
 
     public override void WriteTo(XmlWriter w)
@@ -150,20 +115,8 @@ namespace Brunet
       w.WriteStartAttribute("type", ns);
       w.WriteString(ConnectionType.ToString().ToLower());
       w.WriteEndAttribute();
-      //Write the child elements
-      w.WriteStartElement("node", ns);  //<node>
-      w.WriteStartElement("address", ns);       //<address>
-      w.WriteString(TargetAddress.ToString());
-      w.WriteEndElement();      //</address>
-      w.WriteEndElement();      //</node>
-      //Write all the possible addresses :
-      w.WriteStartElement("host", ns);  //<host>
-      foreach(TransportAddress ta in _tas) {
-        w.WriteStartElement("address", ns);     //<address>
-        w.WriteString( ta.ToString() );
-        w.WriteEndElement();    //</address>
-      }
-      w.WriteEndElement();      //</host>
+      //Write the NodeInfo
+      _target_ni.WriteTo(w); 
       //end the connectTo element
       w.WriteEndElement();      //</connectTo>
       w.WriteEndElement();      //</(request|response)>
