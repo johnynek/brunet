@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // Brunet.StructuredAddress;
 // Brunet.BigInteger;
 using System;
+using System.Security.Cryptography;
 
 namespace Brunet
 {
@@ -47,6 +48,16 @@ namespace Brunet
       }
     }
 
+    /**
+     * Return a random AHAddress initialized from the given rng
+     */
+    public AHAddress(RandomNumberGenerator rng)
+    {
+      buffer = new byte[MemSize];
+      rng.GetBytes(buffer);
+      SetClass(this.Class);
+    }
+    
     public AHAddress(byte[] add) : base(add)
     {
       if (ClassOf(add) != this.Class) {

@@ -181,7 +181,7 @@ namespace Brunet
   {
    
     ArrayList all_ta_list = new ArrayList();  
-    Random my_rand = new Random( unchecked((int)DateTime.Now.Ticks) ); 
+    RandomNumberGenerator rng = new RNGCryptoServiceProvider();
     
     //Initialize hosts
     Console.WriteLine("\n\n---------------------------------------\n\n");
@@ -201,12 +201,7 @@ namespace Brunet
     {
       //create and initialize new host
       //create one new node for each host
-      //Set the last bit to be zero so it will be class 0
-      
-      byte[] address = new byte[Address.MemSize];
-      my_rand.NextBytes(address);
-      address[Address.MemSize - 1] &= 0xFE;
-      AHAddress tmp_add = new AHAddress(address);
+      AHAddress tmp_add = new AHAddress(rng);
       Node tmp_node = new StructuredNode(tmp_add, "bstland");
       
       adds.Add(tmp_add);

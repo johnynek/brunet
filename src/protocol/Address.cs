@@ -18,11 +18,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-// Brunet.BigInteger;
-// Brunet.Base32;
-// Brunet.NumberSerializer
-
-
 namespace Brunet
 {
 
@@ -277,22 +272,24 @@ namespace Brunet
     }
 
     /**
-     * Sets the last bits of the address
-     * to guarantee it is of a given class.
-     * Used by subclasses for initialization
+     * Sets the last bits of a byte array
+     * to guarantee that it is of a given class
+     * @param buf bytes we want to set to myclass
+     * @param offset the offset to the bytes we want to set
+     * @param myclass the class we want to set to
      */
-    protected void SetClass(int myclass)
+    static public void SetClass(byte[] buf, int offset, int myclass)
     {
       int c = 0;
       int i = MemSize - 1;
       //Set the last bit to zero:
-      buffer[i] &= 0xFE;
+      buf[i+offset] &= 0xFE;
       do {
         int shifts = 0;
         uint val = 0x01;
         while ((myclass > 0) && (shifts < 8)) {
           //Set the bit to 1:
-          buffer[i] = (byte)(buffer[i] | val);
+          buf[i+offset] = (byte)(buf[i+offset] | val);
           val <<= 1;
           shifts++;
           myclass--;
@@ -300,6 +297,24 @@ namespace Brunet
         i--;
 
       } while ( (myclass > 0) && (i >= 0) );
+    }
+    
+    /**
+     * Same as SetClass(buf, 0, myclass)
+     */
+    static public void SetClass(byte[] buf, int myclass)
+    {
+      SetClass(buf, 0, myclass);
+    }
+    
+    /**
+     * Sets the last bits of the address
+     * to guarantee it is of a given class.
+     * Used by subclasses for initialization
+     */
+    protected void SetClass(int myclass)
+    {
+      SetClass(buffer, myclass);
     }
 
     /**
