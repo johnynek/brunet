@@ -243,13 +243,18 @@ namespace Brunet
                             true);
           lock(_sync) {
             /* Store the callback in the socket table temporarily: */
+            if( s == null ) {
+              Console.WriteLine("Null socket");
+	    }
             _sock_to_edge[s] = cs;
           }
           s.BeginConnect(end, new AsyncCallback(this.ConnectCallback), s);
         }
         catch(Exception x) {
           lock( _sync ) {
-            _sock_to_edge.Remove(s);
+            if( s != null ) {
+              _sock_to_edge.Remove(s);
+	    }
           }
           cs.ECB(false, null, x);
         }
@@ -347,16 +352,22 @@ namespace Brunet
           {
             //See if this is a new socket
             if( s == _listen_sock ) {
-              Socket new_s = s.Accept();
-              TcpEdge e = new TcpEdge(new_s, true);
-              lock( _sync ) {
-                _all_sockets.Add(new_s);
-                _sock_to_edge[new_s] = e;
-              }
-              e.CloseEvent += new EventHandler(this.CloseHandler);
-              e.SendStateChange += new EventHandler(this.SendStateHandler);
-              SendEdgeEvent(e);
-              e.Start();
+	      try {
+                Socket new_s = s.Accept();
+                TcpEdge e = new TcpEdge(new_s, true);
+                lock( _sync ) {
+                  _all_sockets.Add(new_s);
+                  _sock_to_edge[new_s] = e;
+                }
+                e.CloseEvent += new EventHandler(this.CloseHandler);
+                e.SendStateChange += new EventHandler(this.SendStateHandler);
+                SendEdgeEvent(e);
+                e.Start();
+	      }
+	      catch(SocketException sx) {
+                //Looks like this Accept has failed.  Do nothing
+
+	      }
             }
             else {
               TcpEdge e = null;
