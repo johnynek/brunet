@@ -74,7 +74,7 @@ namespace Brunet
 
     private int _hash_code;
 
-
+#if PLAB_LOG
     private BrunetLogger _logger;
     public BrunetLogger Logger{
 	get{
@@ -83,10 +83,13 @@ namespace Brunet
 	set
 	{
 	  _logger = value;
+#if PLAB_CONNECTION_LOG
+	  //The connection table only has a logger in this case
           _connection_table.Logger = value;
+#endif
 	}
     }
-
+#endif
     /**
      * Create a node with a given local address and
      * a set of Routers.
