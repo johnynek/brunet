@@ -700,17 +700,55 @@ namespace Brunet
     /**
      * Sends a packet to the address given.  The node keeps track of
      * which values to set for the TTL.
-     * @return true if we have some route to the destination
      */
     virtual public void SendTo(Address destination,
                                short ttl,
                                Brunet.AHPacket.Protocol p,
                                byte[] payload)
     {
-      AHAddress dest = destination as AHAddress;
-      AHPacket packet =
-        new AHPacket(0, ttl, _local_add, dest, p, payload);
+      AHPacket packet = new AHPacket(0, ttl, _local_add, destination, p, payload);
       Send(packet);
+    }
+
+    /**
+     * Sends a packet to the given address.  Estimates
+     * the correct TTL to use, so users of this library
+     * don't need to concern themselves with that.
+     *
+     * This is the recommended way for users of the library
+     * to send packets.
+     *
+     * By default it sets the TTL to be Ln^3 N for StructuredAddress
+     * types, and 2 Log_2 N, for UnstructuredAddress types.
+     */
+    virtual public void SendTo(Address destination,
+		               AHPacket.Protocol p,
+			       byte[] payload)
+    {
+      short ttl;
+      double ttld;
+      if( destination is StructuredAddress ) {
+	 //This is from the original papers on
+	 //small world routing.  The maximum distance
+	 //is almost certainly less than log^3 N
+        ttld = Math.Log( NetworkSize );
+        ttld = ttld * ttld * ttld;
+      }
+      else {
+	//Most random networks have diameter
+	//of size order Log N
+        ttld = Math.Log( NetworkSize, 2.0 );
+        ttld = 2.0 * ttld;
+      }
+      
+      if( ttld > (double)AHPacket.MaxTtl ) {
+        ttl = AHPacket.MaxTtl;
+      }
+      else {
+        ttl = (short)( ttld );
+      }
+
+      SendTo(destination, ttl, p, payload);
     }
 
     /**
