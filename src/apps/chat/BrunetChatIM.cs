@@ -47,34 +47,49 @@ public class BrunetChatIM
   private Gtk.TextBuffer _text_buf_input;
   private Gtk.TextBuffer _text_buf_recipient;
  
-  /**
-   * Reference to the BrunetChatMain.  We need
-   * to tell this object when we close the chat
-   * message
+  /** The BrunetNode for this chat program instance. This quantity is a
+   * reference to the node in BrunetChatMain.cs.
    */
-  private BrunetChatMain _bcm;
+  private StructuredNode _brunet_node;
+
+  /** A reference to the main chat window application object.
+   */
+  private BrunetChatMain _brunet_chat_main;
   
   /** The buddy who will recieve messages.
    */
   private Buddy _recipient_buddy;
-  public Buddy ToBuddy {
-    get { return _recipient_buddy; }
-  }
   
-  /**
-   * This is the user who is sending the chats
+  /** The Brunet address of the recipient.
    */
-  private User _user;
+  private AHAddress _to_address;
+
+  /** The Brunet address of the sender.
+   */
+  private AHAddress _from_address;
+  
+  /** This string is prepended before each outgoing message.
+   */
+  private string _sender_alias;
+  
+  public AHAddress ToAddress
+  {
+    get
+    {
+      return _to_address;
+    }
+  }
   
   /** ChatIM constructor. 
    *  @param core the main application
    *  @param r_add the recipient address
    */
-  public BrunetChatIM(User u, Buddy bud, BrunetChatMain bcm)
+  public BrunetChatIM(BrunetChatMain core,AHAddress r_add)
   {
-    _user = u;
-    _recipient_buddy = bud;
-    _bcm = bcm;
+    _brunet_chat_main = core;
+    _brunet_node = _brunet_chat_main.BrunetNode;
+    _from_address = (AHAddress)_brunet_node.Address; 
+    _to_address = r_add;
     
     string fname = "BrunetChat.glade";
     string root = "windowBrunetChatIM";
@@ -86,18 +101,9 @@ public class BrunetChatIM
     _text_buf_display = textviewDisplay.Buffer;
     _text_buf_input = textviewInput.Buffer;
     _text_buf_recipient = textviewRecipient.Buffer;
+    _recipient_buddy = (Buddy)_brunet_chat_main.BuddyHash[_to_address]; 
     _text_buf_recipient.Text = _recipient_buddy.Alias;
-    Gdk.Color red_color = new Gdk.Color (0xff, 0, 0);
-    Gdk.Color blue_color = new Gdk.Color (0, 0, 0xff);
-    
-    TextTag sendercolor = new TextTag("Sender Color");
-    sendercolor.ForegroundGdk = blue_color;
-    
-    TextTag recipientcolor = new TextTag("Recipient Color");
-    recipientcolor.ForegroundGdk = red_color;
-    _text_buf_display.TagTable.Add(sendercolor);
-    _text_buf_display.TagTable.Add(recipientcolor);
-    
+    _sender_alias = (string)_brunet_chat_main.CurrentUser.Alias;
   }
 
   /** Button click handler.  This sends input text to the node for delivery
@@ -108,27 +114,10 @@ public class BrunetChatIM
     if (null != obj){
       if (_text_buf_input != null){
         if (_text_buf_input.CharCount > 0 ){
-          _recipient_buddy.SendMessageText( _text_buf_input.Text );
-          string sender_preamble = "<"+ _user.Alias +"> ";
-          TextTag[] sender_ar;
-          sender_ar = new TextTag[1];
-          TextTag t_tag = _text_buf_display.TagTable.Lookup("Sender Color");
-          if (t_tag != null)
-          {
-            sender_ar[0] = t_tag;
-            _text_buf_display.InsertWithTags(
-              _text_buf_display.GetIterAtMark(_text_buf_display.InsertMark),
-              sender_preamble,
-              sender_ar
-              );
-          }
-          else
-          {
-            Console.WriteLine("Error: Back Text Tag In TextBuffer");
-          }
-	  _text_buf_display.Insert(_text_buf_display.EndIter, _text_buf_input.Text);
-          _text_buf_display.Insert(_text_buf_display.EndIter, System.Environment.NewLine);
-      
+          SendText(_text_buf_input.Text);
+          _text_buf_display.Text += "<"+ _sender_alias +"> ";
+          _text_buf_display.Text += _text_buf_input.Text;
+          _text_buf_display.Text += "\n";
           _text_buf_display.MoveMark(
               _text_buf_display.InsertMark, 
               _text_buf_display.EndIter);
@@ -149,6 +138,25 @@ public class BrunetChatIM
     }
   }
 
+  /** Packetize the text as UTF8 and send it.  Eventually we will want to use
+   * Jabber or some other standard meesage format.
+   * @param sendtext This string will be packetized and sent to the recipient.
+   */
+  protected void SendText(string sendtext)
+  {
+    byte[] payload = Encoding.UTF8.GetBytes(sendtext);
+    short hops =0;
+    short ttl =137;
+    AHPacket mp = new AHPacket(
+        hops,
+        ttl,
+        _from_address,
+        _to_address,
+        AHPacket.Protocol.Chat,
+        payload);	  
+    _brunet_node.Send(mp);
+  }
+ 
   /** This is called when new text arrives from the recipient.
    * Text is inserted into the display, the display is scrolled if needed and
    * the message is written to the console for debugging.
@@ -157,28 +165,11 @@ public class BrunetChatIM
   {
     if (null != ob){
       string a_msg = (string)ob;
-
-      string recipient_preamble = "<"+_recipient_buddy.Alias+"> ";
-      TextTag[] recipient_ar;
-      recipient_ar = new TextTag[1];
-      TextTag t_tag = _text_buf_display.TagTable.Lookup("Recipient Color");
-      if (t_tag != null)
-      {
-        recipient_ar[0] = t_tag;
-        _text_buf_display.InsertWithTags(
-            _text_buf_display.GetIterAtMark(_text_buf_display.InsertMark),
-            recipient_preamble,
-            recipient_ar  
-            );    
-      }
-      else
-      {
-        Console.WriteLine("Error: Back Text Tag In TextBuffer");
-      }
-
-      //_text_buf_display.Insert(
-      //    _text_buf_display.EndIter,
-      //    "<"+_recipient_buddy.Alias+"> " );
+      _text_buf_display.Insert(
+          _text_buf_display.EndIter,
+          "<"+_recipient_buddy.Alias+"> " );
+      
+      Console.WriteLine(a_msg ); 
       
       _text_buf_display.Insert(_text_buf_display.EndIter,a_msg);
       _text_buf_display.Insert(
@@ -200,11 +191,11 @@ public class BrunetChatIM
   }
 
   public void OnWindowDeleteEvent (object o, DeleteEventArgs args) 
-  {
-    args.RetVal = true;
+	{
+    _brunet_chat_main.MessageHandler.MessageSinks.Remove(_to_address);
+		args.RetVal = true;
     windowBrunetChatIM.Destroy();
-    _bcm.CloseChatSession(_recipient_buddy);
-  }
+	}
   
 }
 

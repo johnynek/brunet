@@ -31,7 +31,7 @@
     value="nunit-console"/> 
   <property
     name="gtk.dir"
-    value="/usr/lib/mono/gtk-sharp/"/>
+    value="/usr/share/dotnet/mono/gtk-sharp/"/>
 
   <!-- named configurations -->
   <target
@@ -88,7 +88,7 @@
           <include name="Buddylist.xml" />
           <include name="RemoteTransportAddresses.xml" />
           <include name="ucla_net_logo.png" />
-          <include name="Users.xml"/>
+          <include name="Users.cs"/>
        </fileset>
     </copy>
 
@@ -98,24 +98,29 @@
       output="${build.dir}/${package.name}/bin/${assembly}ChatMain.exe"
       doc="${build.dir}/${package.name}/bin/${assembly}.xml">
       <sources failonempty="true">
-        <include name="*.cs"/>
+        <include name="BrunetChatMain.cs"/>
+        <include name="BrunetChatIM.cs"/>
+        <include name="BrunetChatLogin.cs"/>
+        <include name="BrunetChatAddBuddy.cs"/>
+        <include name="Buddy.cs"/>
+        <include name="BuddyList.cs"/>
+        <include name="User.cs"/>
+        <include name="UserList.cs"/>
+        <include name="ChatMessageHandler.cs"/>
+        <include name="InstantMessage.cs"/>
+        <include name="LocalTcpPort.cs"/>
+        <include name="RemoteTAs.cs"/>
+        <include name="DelegateHashtable.cs"/>
+        <include name="ImQueue.cs"/>
+        <include name="ChatConfigSerialization.cs"/>
       </sources>
       <references>
         <include name="${lib.dir}/${assembly}.dll" />
         <include name="${lib.dir}/log4net.dll" />
+        <include name="${gtk.dir}gtk-sharp.dll" />
+        <include name="${gtk.dir}gdk-sharp.dll" />
+        <include name="${gtk.dir}glade-sharp.dll" />
       </references>
-      <pkg-references>
-         <package name="gtk-sharp-2.0"/>
-         <package name="glade-sharp-2.0"/>
-      </pkg-references>
-      <!--
-        This is the way we should be able to use pkg-config
-	to get the locations of the dlls we need, however,
-	this is not working in my version of Nant.
-      <pkg-references>
-        <package name="gtk-sharp" />
-      </pkg-references>
-      -->
       <resources dynamicprefix="true" basedir=".">
          <include name="BrunetChat.glade" />
       </resources>
