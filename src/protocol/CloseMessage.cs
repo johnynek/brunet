@@ -57,6 +57,33 @@ namespace Brunet
         if( close_element.FirstChild.Value != null )
           _reason = close_element.FirstChild.Value;
     }
+    
+    /**
+     * Read from the close tag on
+     */
+    public CloseMessage(Direction dir, int id, XmlReader xr)
+    {
+      if (xr.Name.ToLower() != "close") {
+        throw new ParseException("This is not a <close /> message");
+      }
+
+      _reason = "";
+      this.Dir = dir;
+      this.Id = id;
+      
+      bool finished = false;
+      while( xr.Read() && !finished ) {
+	if( xr.NodeType == XmlNodeType.EndElement ) {
+          finished = true;
+	}
+	else if (xr.NodeType == XmlNodeType.Text ) {
+          //This is the reason
+	  _reason = xr.Value;
+          finished = true;
+	  ///@todo be a little more robust against non-spec matching data
+	}
+      }
+    }
 
     protected string _reason;
     public string Reason {
@@ -82,6 +109,15 @@ namespace Brunet
     {
       return new CloseMessage(el);
     }
+
+    override public IXmlAble ReadFrom(XmlReader r)
+    {
+      Direction dir;
+      int id;
+      ReadStart(out dir, out id, r);
+      return new CloseMessage(dir, id, r);
+    }
+
     
     override public void WriteTo(System.Xml.XmlWriter w)
     {

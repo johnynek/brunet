@@ -21,6 +21,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using NUnit.Framework;
 #endif
 
+using System;
+
 namespace Brunet {
 
   /**
@@ -64,22 +66,37 @@ namespace Brunet {
     }
 
     /**
+     * Doing string operations is not cheap, and we do this a lot
+     * so it is worth improving the performance
+     */
+    static protected System.Collections.Hashtable _string_to_main_type
+	    = new System.Collections.Hashtable();
+    /**
      * Return the string representation of a ConnectionType
      */
     static public ConnectionType StringToMainType(string s)
     {
-      int dot_idx = s.IndexOf('.');
-      string maintype = s;
-      if( dot_idx > 0 ) {
-        maintype = s.Substring(0, dot_idx);
+      if( _string_to_main_type.ContainsKey(s) ) {
+        return (ConnectionType)_string_to_main_type[s];
       }
-      try {
-        return (ConnectionType) System.Enum.Parse(typeof(ConnectionType),
+      else {
+        int dot_idx = s.IndexOf('.');
+        string maintype = s;
+        if( dot_idx > 0 ) {
+          maintype = s.Substring(0, dot_idx);
+        }
+        try {
+	  ConnectionType retval = (ConnectionType)Enum.Parse(typeof(ConnectionType),
                                                maintype,
                                                true);
+          _string_to_main_type[s] = retval;
+	  return retval;
+        }
+        catch(System.Exception x) {
+        
+	}
       }
-      catch(System.Exception x) {
-      }
+      _string_to_main_type[s] = ConnectionType.Unknown;
       return ConnectionType.Unknown;
     }
 

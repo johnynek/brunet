@@ -49,6 +49,14 @@ namespace Brunet
     {
       XmlElement ping_element = (XmlElement)r.FirstChild;
     }
+    public PingMessage(ConnectionMessage.Direction dir, int id, XmlReader r)
+    {
+      if( !CanReadTag(r.Name) ) {
+        throw new ParseException("This is not a <ping /> message");
+      }
+      this.Dir = dir;
+      this.Id = id;
+    }
 
     override public bool CanReadTag(string tag)
     {
@@ -68,6 +76,14 @@ namespace Brunet
     override public IXmlAble ReadFrom(System.Xml.XmlElement el)
     {
       return new PingMessage(el);
+    }
+
+    override public IXmlAble ReadFrom(XmlReader r)
+    {
+      Direction dir;
+      int id;
+      ReadStart(out dir, out id, r);
+      return new PingMessage(dir, id, r);
     }
     
     override public void WriteTo(System.Xml.XmlWriter w)

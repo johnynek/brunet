@@ -24,6 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  * Brunet.ConnectionPacket
  */
 
+using System;
 using System.IO;
 using System.Xml;
 
@@ -59,6 +60,7 @@ namespace Brunet
         }
       }
     }
+
     public ConnectionMessage()
     {
     }
@@ -90,6 +92,48 @@ namespace Brunet
     }
     
     abstract public IXmlAble ReadFrom(XmlElement el);
+
+    abstract public IXmlAble ReadFrom(XmlReader xr);
+
+    /**
+     * this can be used by subclasses to get the XmlReader to the point
+     * where ReadPartial can take over.  The beginning of these
+     * messages are all the same
+     */
+    public static void ReadStart(out Direction dir, out int id, XmlReader xr)
+    {
+      bool finished = false;
+      dir = Direction.Undefined;
+      id = -1;
+      try {
+        while(xr.Read() && !finished) {
+          if( xr.NodeType == XmlNodeType.Element ) {
+            //Look for the <request /> or <response /> tag:
+	    /*
+	     * Looking for the strings explicitly is very significantly faster
+	     * than using Enum.Parse (at least in mono).
+	     */
+	    if( xr.Name == "request" ) {
+              dir = ConnectionMessage.Direction.Request;
+	    }
+	    else if( xr.Name == "response" ) {
+              dir = ConnectionMessage.Direction.Response;
+	    }
+	    else {
+              dir = ConnectionMessage.Direction.Undefined;
+	    }
+	    id = Int32.Parse(xr["id"]);
+	    finished = true;
+	  }
+        }
+      }
+      catch(Exception x) {
+        throw new ParseException("Could not ReadStart of this ConnectionMessage", x);
+      }
+      if( !finished ) {
+        throw new ParseException("Could not ReadStart of this ConnectionMessage");
+      }
+    }
     
     virtual public byte[]  ToByteArray()
     {
@@ -137,7 +181,15 @@ namespace Brunet
     virtual public void WriteTo(System.Xml.XmlWriter w)
     {
       string xml_ns = "";
-      w.WriteStartElement(Dir.ToString().ToLower(), xml_ns);
+      if( Dir == Direction.Request ) {
+        w.WriteStartElement("request", xml_ns);
+      }
+      else if( Dir == Direction.Response ) {
+        w.WriteStartElement("response", xml_ns);
+      }
+      else {
+        w.WriteStartElement("undefined", xml_ns);
+      }
       w.WriteStartAttribute("id", xml_ns);
       w.WriteString(Id.ToString());
       w.WriteEndAttribute();
@@ -145,6 +197,7 @@ namespace Brunet
 
     public enum Direction
     {
+      Undefined,
       Request,
       Response
     }

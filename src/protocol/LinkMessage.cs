@@ -112,6 +112,38 @@ namespace Brunet
       }
     }
 
+    public LinkMessage(Direction dir, int id, XmlReader r)
+    {
+      if( !CanReadTag(r.Name) ) {
+        throw new ParseException("This is not a <link /> message");
+      }
+      this.Id = id;
+      this.Dir = dir;
+      _contype = r["type"];
+      bool finished = false;
+      NodeInfo tmp = null;
+      while( r.Read() ) {
+        /*
+	 * We look for the remote and local parts of the
+	 * link message:
+	 */
+	if( r.NodeType == XmlNodeType.Element && r.Name.ToLower() == "node" ) {
+          tmp = new NodeInfo(r);
+	}
+	if( r.NodeType == XmlNodeType.EndElement ) {
+          //By now, we must have read the node info
+          if( r.Name.ToLower() == "local" ) {
+            _local_ni = tmp;
+	    tmp = null;
+	  }
+	  else if( r.Name.ToLower() == "remote" ) {
+            _remote_ni = tmp;
+	    tmp = null;
+	  }
+	}
+      }
+    }
+
     /* These are attributes in the <link/> tag */
     /**
      * @returns the Main ConnectionType of this message.
@@ -161,6 +193,14 @@ namespace Brunet
     {
       return new LinkMessage(el);
     }
+
+    public override IXmlAble ReadFrom(XmlReader r)
+    {
+      Direction dir;
+      int id;
+      ReadStart(out dir, out id, r);
+      return new LinkMessage(dir, id, r);
+    }   
     
     /**
      * Write this object into the XmlWriter w.

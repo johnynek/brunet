@@ -237,7 +237,7 @@ namespace Brunet
               //We send a response:
 	      NodeInfo local_info = new NodeInfo( _local_add, from.LocalTA );
 	      NodeInfo remote_info = new NodeInfo( null, from.RemoteTA );
-              response = new LinkMessage( lm.ConnectionType, local_info, remote_info );
+              response = new LinkMessage( lm.ConTypeString, local_info, remote_info );
               response.Id = lm.Id;
               response.Dir = ConnectionMessage.Direction.Response;
             }

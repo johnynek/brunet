@@ -55,7 +55,9 @@ namespace Brunet
 
     public ConnectionMessageParser()
     {
+#if DOM
       doc = new XmlDocument();
+#endif
     }
 
     /**
@@ -81,8 +83,13 @@ namespace Brunet
     }
     public ConnectionMessage Parse(Stream s)
     {
+#if DOM
       doc.Load(s);
       return Parse(doc);
+#else
+      XmlReader r = new XmlTextReader(s);
+      return Parse(r);
+#endif
     }
 
     /**
@@ -92,10 +99,15 @@ namespace Brunet
      */
     public ConnectionMessage Parse(string s)
     {
+#if DOM
       doc.Load(new StringReader(s));
       return Parse(doc);
+#else
+      XmlReader r = new XmlTextReader(new StringReader(s));
+      return Parse(r);
+#endif
     }
-    
+#if DOM
     static public ConnectionMessage Parse(XmlDocument doc)
     {
       //Now we have the ConnectionMessage in memory as a DOM document
@@ -136,6 +148,39 @@ namespace Brunet
       }
       return result;
     }
+#endif
+    static public ConnectionMessage Parse(XmlReader r)
+    {
+      ConnectionMessage result = null;
+      ConnectionMessage.Direction dir;
+      int id;
+      ConnectionMessage.ReadStart(out dir, out id, r);
+      switch( r.Name ) {
+          case "connectTo":
+            result = new ConnectToMessage(dir, id, r);
+            break;
+          case "link":
+            result = new LinkMessage(dir, id, r);
+            break;
+          case "close":
+            result = new CloseMessage(dir, id, r);
+            break;
+          case "ping":
+            result = new PingMessage(dir, id, r);
+            break;
+          case "error":
+            result = new ErrorMessage(dir, id, r);
+            break;
+	  case "status":
+	    result = new StatusMessage(dir, id, r);
+	    break;
+          default:
+            throw new
+            ParseException("Unknown ConnectionMessage Type: " + r.Name);
+      }
+      return result;
+    }
+
   }
 #if BRUNET_NUNIT
 
