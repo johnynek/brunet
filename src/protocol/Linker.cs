@@ -83,8 +83,8 @@ namespace Brunet
         return _local_add;
       }
     }
-    protected ConnectionType _contype;
-    public ConnectionType ConnectionType
+    protected string _contype;
+    public string ConnectionType
     {
       get
       {
@@ -203,6 +203,11 @@ namespace Brunet
       }
     }
 
+    public void Link(Address target, ICollection target_list, ConnectionType ct)
+    {
+      Link(target, target_list, Connection.ConnectionTypeToString(ct) );
+    }
+
     /**
      * When we want to initiate a connection of a given connection
      * type, use this
@@ -211,9 +216,9 @@ namespace Brunet
      * to.  Set to null if you don't know
      * @param target_list an enumerable list of TransportAddress of the
      *                    Host we want to connect to
-     * @param t ConnectionType of the new connection
+     * @param t ConnectionType string of the new connection
      */
-    public void Link(Address target, ICollection target_list, ConnectionType ct)
+    public void Link(Address target, ICollection target_list, string ct)
     {
       try {
 #if POB_LINK_DEBUG
@@ -305,10 +310,8 @@ namespace Brunet
 	  ArrayList neighbors = new ArrayList();
 	  //Get the neighbors of this type:
 	  lock( _tab.SyncRoot ) {
-            foreach(Connection c in _tab) {
-              if( c.ConType == lm.ConTypeString ) {
-                neighbors.Add( new NodeInfo( c.Address, c.Edge.RemoteTA ) );
-	      }
+            foreach(Connection c in _tab.GetConnections( lm.ConTypeString ) ) {
+              neighbors.Add( new NodeInfo( c.Address, c.Edge.RemoteTA ) );
 	    }
 	  }	  
           StatusMessage req = new StatusMessage( lm.ConTypeString, neighbors );
@@ -432,11 +435,11 @@ namespace Brunet
           throw new LinkException("cannot connect to self");
         else {
           lock( _tab.SyncRoot ) {
-            if( _tab.Contains( _contype, target) ) {
+            if( _tab.Contains( Connection.StringToMainType( _contype ), target) ) {
               throw new LinkException("already connected");
             }
             //Lock throws an InvalidOperationException if it cannot get the lock
-            _tab.Lock( target, _contype, this );
+            _tab.Lock( target, Connection.StringToMainType( _contype ), this );
             _target_lock = target;
           }
         }
@@ -485,7 +488,7 @@ namespace Brunet
          * add the connection.  Otherwise, we could have a race
          * condition
          */
-        _tab.Unlock( _target_lock, _contype, this );
+        _tab.Unlock( _target_lock, Connection.StringToMainType(_contype), this );
         if( FinishEvent != null )
           FinishEvent(this, null);
       }
@@ -501,7 +504,7 @@ namespace Brunet
     {
       Edge e_to_close;
       try {
-        _tab.Unlock( _target_lock, _contype, this );
+        _tab.Unlock( _target_lock, Connection.StringToMainType(_contype), this );
       }
       catch(Exception x) {
         //We apparantly are not holding this lock
@@ -648,7 +651,8 @@ namespace Brunet
               _tab.AddUnconnected(e);
             }
           } //End of lock on ConnectionTable:
-
+#if false
+	  ///@todo remove the edge promotion code below.
           //Check to see if this is an edge promotion:
           if( have_con ) {
             if( _contype == ConnectionType.Structured ) {
@@ -681,6 +685,7 @@ namespace Brunet
               }
             }
           }
+#endif
         }
         if( success ) {
           StartNextAttempt(e);

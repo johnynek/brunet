@@ -132,10 +132,10 @@ namespace Brunet
 
           string color = "";
           foreach(Connection con in item.ConnectionTable) {
-            if( con.Ct == ConnectionType.Leaf ) {
+            if( con.MainType == ConnectionType.Leaf ) {
               color = " [color= blue]";
 	    }
-	    else if (con.Ct == ConnectionType.Structured ) {
+	    else if (con.MainType == ConnectionType.Structured ) {
               color = " [color= red]";
 	    }
             string graph_line = String.Format("{0} -> {1}" + color + ";",

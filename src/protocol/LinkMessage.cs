@@ -113,8 +113,12 @@ namespace Brunet
     }
 
     /* These are attributes in the <link/> tag */
+    /**
+     * @returns the Main ConnectionType of this message.
+     * @todo Make sure the usage of this is consistent
+     */
     public ConnectionType ConnectionType {
-      get { return Connection.StringToConnectionType( _contype ); }
+      get { return Connection.StringToMainType( _contype ); }
     }
     
     protected string _contype;

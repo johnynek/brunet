@@ -145,10 +145,8 @@ namespace Brunet
 	    ArrayList neighbors = new ArrayList();
 	    //Get the neighbors of this type:
 	    lock( _tab.SyncRoot ) {
-	      foreach(Connection c in _tab) {
-		if( c.ConType == sm.NeighborType ) {
-                  neighbors.Add( new NodeInfo( c.Address, c.Edge.RemoteTA ) );
-		}
+	      foreach(Connection c in _tab.GetConnections( sm.NeighborType ) ) {
+                neighbors.Add( new NodeInfo( c.Address, c.Edge.RemoteTA ) );
 	      }
 	    }
 	    response = new StatusMessage(sm.NeighborType, neighbors);

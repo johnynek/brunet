@@ -203,7 +203,7 @@ namespace Brunet
     public void Add(Connection c)
     {
       int index;
-      ConnectionType t = c.Ct;
+      ConnectionType t = c.MainType;
       Address a = c.Address;
       Edge e = c.Edge;
 
@@ -449,7 +449,7 @@ namespace Brunet
       lock( _sync ) {
         if (edge_to_con.Contains(e)) {
           Connection c = (Connection)edge_to_con[e];
-          t = c.Ct;
+          t = c.MainType;
           index = ((ArrayList)type_to_edgelist[t]).IndexOf(e);
           add = (Address)((ArrayList)type_to_addlist[t])[index];
           have_con = true;
@@ -469,16 +469,34 @@ namespace Brunet
      */
     public Connection GetConnection(Edge e)
     {
-      ConnectionType t;
-      int index = 0;
-      Address a;
-      if( GetConnection(e, out t, out index, out a) ) {
-        return new Connection(e, a, t, null);
+      Connection c = null;
+      lock(_sync) {
+        if( e != null && edge_to_con.ContainsKey(e) ) {
+          c = (Connection)edge_to_con[e];
+	}
       }
-      else {
-        return null;
-      }
+      return c;
     }
+
+    /**
+     * Return all the connections of type t.
+     * @param t the Type of Connections we want
+     * @return an enumerable that we can foreach over
+     */
+    public IEnumerable GetConnections(ConnectionType t)
+    {
+      return new ConnectionTypeEnumerable(this, t);
+    }
+    /**
+     * Return all the connections of type t.
+     * @param t the Type of Connections we want
+     * @return an enumerable that we can foreach over
+     */
+    public IEnumerable GetConnections(string t)
+    {
+      return new ConnectionTypeEnumerable(this, t);
+    }
+    
     /**
      * Returns a ReadOnly ArrayList of the edges of a given
      * type
@@ -493,6 +511,23 @@ namespace Brunet
         else {
           return null;
         }
+      }
+    }
+    /**
+     * @return a random connection of type t
+     */
+    public Connection GetRandom(ConnectionType t)
+    {
+      lock(_sync) {
+        ArrayList these_edges = (ArrayList)type_to_edgelist[t];
+	int size = these_edges.Count;
+	if( size == 0 ) {
+          return null;
+	}
+	else {
+          int pos = _rand.Next( size );
+	  return GetConnection( (Edge)these_edges[pos] );
+	}
       }
     }
 
@@ -539,7 +574,7 @@ namespace Brunet
      * Before we can use a ConnectionType, that type must
      * be initialized 
      */
-    public void Init(ConnectionType t)
+    protected void Init(ConnectionType t)
     {
       lock(_sync) {
         type_to_addlist[t] = ArrayList.Synchronized(new ArrayList());
@@ -852,14 +887,55 @@ namespace Brunet
       
       IDictionaryEnumerator _edge_enumer;
       ConnectionTable _tab;
+      bool _filter;
+      ConnectionType _filter_type;
+      string _filter_string_type;
 	    
       public ConnectionEnumerator(ConnectionTable tab) {
 	_tab = tab;
+	_filter = false;
+	_filter_string_type = null;
 	Reset();
       }
 
+      public ConnectionEnumerator(ConnectionTable tab, ConnectionType ct) : this(tab) {
+        _filter = true;
+	_filter_type = ct;
+      }
+      
+      public ConnectionEnumerator(ConnectionTable tab, string contype) : this(tab) {
+	_filter_string_type = contype;
+      }
+
+      
       public bool MoveNext() {
-        return _edge_enumer.MoveNext();
+	if( _filter_string_type != null ) {
+          bool ret_val = false;
+	  Connection c = null;
+	  do {
+            ret_val = _edge_enumer.MoveNext();
+	    if( ret_val ) {
+	      c = (Connection)_edge_enumer.Value;
+	    }
+	  }
+	  while( (ret_val == true) && ( c.ConType != _filter_string_type ) );
+          return ret_val;
+	}
+	else if( _filter ) {
+          bool ret_val = false;
+	  Connection c = null;
+	  do {
+            ret_val = _edge_enumer.MoveNext();
+	    if( ret_val ) {
+	      c = (Connection)_edge_enumer.Value;
+	    }
+	  }
+	  while( (ret_val == true) && ( c.MainType != _filter_type ) );
+          return ret_val;
+	}
+	else {
+          return _edge_enumer.MoveNext();
+	}
       }
 
       public object Current {
@@ -872,6 +948,43 @@ namespace Brunet
 
       public void Reset() {
         _edge_enumer = _tab.edge_to_con.GetEnumerator();
+      }
+    }
+
+    /**
+     * Handles enumerating connection types, not just all
+     * connections
+     */
+    private class ConnectionTypeEnumerable : IEnumerable {
+
+      private ConnectionTable _tab;
+      private ConnectionType _ct;
+      private string _contype;
+      
+      public ConnectionTypeEnumerable(ConnectionTable tab, ConnectionType ct)
+      {
+        _tab = tab;
+	_ct = ct;
+	_contype = null;
+      }
+      
+      public ConnectionTypeEnumerable(ConnectionTable tab, string contype)
+      {
+        _tab = tab;
+	_contype = contype;
+      }
+    
+     /**
+      * Required for IEnumerable Interface
+      */
+      public IEnumerator GetEnumerator()
+      {
+        if( _contype == null ) {
+          return new ConnectionEnumerator(_tab, _ct);
+	}
+	else {
+          return new ConnectionEnumerator(_tab, _contype);
+	}
       }
     }
   }
@@ -913,20 +1026,31 @@ namespace Brunet
       AHAddress a2 = new AHAddress(buf2); 
       ConnectionTable tab = new ConnectionTable();
       
-      tab.Add(new Connection(e1, a1, ConnectionType.Structured, null));
-      tab.Add(new Connection(e2, a2, ConnectionType.StructuredNear, null));
+      tab.Add(new Connection(e1, a1, "structured", null));
+      tab.Add(new Connection(e2, a2, "structured.near", null));
 
-      Assert.AreEqual(tab.TotalCount, 2);
-      Assert.AreEqual(tab.Count(ConnectionType.Structured) , 1);
-      Assert.AreEqual(tab.Count(ConnectionType.StructuredNear),1);
+      Assert.AreEqual(tab.TotalCount, 2, "total count");
+      //Assert.AreEqual(tab.Count(ConnectionType.Structured) , 2, "structured count");
       
       int total = 0;
       foreach(Connection c in tab) {
 	total++;
         //Console.WriteLine("{0}\n",c);
       }
-      Assert.AreEqual(total,2);
-      
+      Assert.AreEqual(total,2,"all connections");
+     
+      int struct_tot = 0;
+      foreach(Connection c in tab.GetConnections(ConnectionType.Structured)) {
+        struct_tot++;
+        //Console.WriteLine("{0}\n",c);
+      }
+      Assert.AreEqual(struct_tot, 2, "structured connections");
+      int near_tot = 0;
+      foreach(Connection c in tab.GetConnections("structured.near")) {
+        near_tot++;
+        Console.WriteLine("{0}\n",c);
+      }
+      Assert.AreEqual(near_tot, 1, "structured near");
     }
   }
 

@@ -26,16 +26,14 @@ namespace Brunet
 {
 
   /**
-   * These are the various connection types.  The order
-   * of the enum goes from most important to least important.
-   * The connections should be added in this order.
+   * These are the Major connection types.  Connections can have subtypes,
+   * which are denoted with dots followed by these names:
+   * e.g. "structured.near" "structed.shortcut" etc...
    */
   public enum ConnectionType
   {
     Leaf,                       //Connections which are point-to-point edge.
     Structured,                 //Connections for routing structured addresses
-    StructuredNear,             //Near neighbor connections
-    StructuredShortcut,         //shortcut connection
     Unstructured,               //Connections for routing unstructured addresses
     Unknown                     //Refers to all connections which are not in the above
   }

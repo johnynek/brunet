@@ -218,12 +218,6 @@ namespace Brunet
 					 new NodeInfo(lmb,
 						      new TransportAddress("brunet.tcp://127.0.0.1:2001/") ) );
       
-      LinkMessage lm_s2 = new LinkMessage(ConnectionType.StructuredNear,
-		                         new NodeInfo(lma,
-						      new TransportAddress("brunet.tcp://127.0.0.1:2000/") ),
-					 new NodeInfo(lmb,
-						      new TransportAddress("brunet.tcp://127.0.0.1:2001/") ) );
-      Assert.AreEqual( lm_s, lm_s2 );
       Assert.AreEqual( lm_s, cmp.Parse(lm_string) );
 						      
     }
