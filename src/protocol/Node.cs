@@ -186,6 +186,19 @@ namespace Brunet
       }
     }
 
+    /**
+     * This is an estimate of the current
+     * network size.  It is not an exact
+     * value.
+     *
+     * A value of -1 means there is not
+     * enough information to make a meaningful
+     * estimate.
+     */
+    virtual public int NetworkSize {
+      get { return -1; }
+    }
+
     protected ArrayList _remote_ta;
     /**
      * These are all the remote TransportAddress objects that
