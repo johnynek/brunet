@@ -196,13 +196,12 @@ namespace Brunet
         s.EndConnect(ar);
         if (s.Connected) {
           //This new edge is NOT an incoming edge, thus the "false"
-          TcpEdge e = new TcpEdge(s, false);
+          TcpEdge e = new TcpEdge(s, false, this);
           lock( _sync ) {
             _all_sockets.Add(s);
             _sock_to_edge[s] = e;
           }
           e.CloseEvent += new EventHandler(this.CloseHandler);
-          e.SendStateChange += new EventHandler(this.SendStateHandler);
           //Start listening for incoming packets:
           e.Start();
           //We have success:
@@ -354,13 +353,12 @@ namespace Brunet
             if( s == _listen_sock ) {
 	      try {
                 Socket new_s = s.Accept();
-                TcpEdge e = new TcpEdge(new_s, true);
+                TcpEdge e = new TcpEdge(new_s, true, this);
                 lock( _sync ) {
                   _all_sockets.Add(new_s);
                   _sock_to_edge[new_s] = e;
                 }
                 e.CloseEvent += new EventHandler(this.CloseHandler);
-                e.SendStateChange += new EventHandler(this.SendStateHandler);
                 SendEdgeEvent(e);
                 e.Start();
 	      }
@@ -426,10 +424,14 @@ namespace Brunet
       }
       s.Close();
     }
-    protected void SendStateHandler(object edge, EventArgs arg)
+    
+    /**
+     * TcpEdge objects call this method when their
+     * send state changes (from true to false or vice-versa).
+     */
+    public void SendStateChange(TcpEdge e)
     {
       lock( _sync ) {
-        TcpEdge e = (TcpEdge)edge;
         if( e.NeedToSend ) {
           _send_sockets.Add(e.Socket);
         }

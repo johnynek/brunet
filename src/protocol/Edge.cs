@@ -62,11 +62,6 @@ namespace Brunet
         GetCurrentMethod().DeclaringType);*/
 
     /**
-     * When a packet comes in, a PacketCallback is called
-     */
-    public delegate void PacketCallback(Packet p, Edge from);
-
-    /**
      * Set to true once CloseEvent is fired.  This prevents it from
      * being fired twice
      */
@@ -239,9 +234,9 @@ namespace Brunet
       }
 #endif
       if ( _callbacks.ContainsKey(p.type) ) {
-        PacketCallback cb = (PacketCallback)_callbacks[p.type];
+        IPacketHandler cb = (IPacketHandler)_callbacks[p.type];
         _last_in_packet_datetime = DateTime.Now;
-        cb(p, this);
+        cb.HandlePacket(p, this);
       }
       else {
         //We don't record the time of this packet.  We don't
@@ -259,7 +254,7 @@ namespace Brunet
     /**
      * This sets a callback
      */
-    public virtual void SetCallback(Packet.ProtType t, PacketCallback cb)
+    public virtual void SetCallback(Packet.ProtType t, IPacketHandler cb)
     {
       _callbacks[t] = cb;
     }

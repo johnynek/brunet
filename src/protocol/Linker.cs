@@ -63,7 +63,7 @@ namespace Brunet
    * 
    */
 
-  public class Linker
+  public class Linker : IPacketHandler
   {
 
     /*private static readonly log4net.ILog log =
@@ -278,7 +278,7 @@ namespace Brunet
     /**
      * Handles packets to perform the outgoing link protocol
      */
-    public void OutLinkHandler(Packet p, Edge edge)
+    public void HandlePacket(Packet p, Edge edge)
     {
 #if POB_LINK_DEBUG
       Console.WriteLine("Start Linker({0}).OutLinkHandler({1})",_lid,edge);
@@ -749,8 +749,7 @@ namespace Brunet
     protected void StartNextAttempt(Edge e)
     {
       try {
-        e.SetCallback(Packet.ProtType.Connection,
-                      new Edge.PacketCallback(this.OutLinkHandler));
+        e.SetCallback(Packet.ProtType.Connection, this);
         e.CloseEvent += new EventHandler(this.CloseHandler);
 	NodeInfo my_info = new NodeInfo( _local_add, e.LocalTA );
 	NodeInfo remote_info = new NodeInfo( null, e.RemoteTA );
