@@ -100,7 +100,10 @@ namespace Brunet
     }
     protected ConnectionTable _tab;
     protected EdgeFactory _ef;
+    //This is the queue that has only the address we have not tried this attempt
     protected Queue _ta_queue;
+    //This is a copy of the original list of TAs
+    protected Queue _tas;
     protected Node _local_n;
     protected ConnectionMessageParser _cmp;
     protected Packet _last_sent_packet;
@@ -133,6 +136,12 @@ namespace Brunet
     protected readonly int _ms_timeout = 5000;
     protected TimeSpan _timeout;
 
+    //If we get an ErrorCode.InProgress, we restart after
+    //a period of time
+    protected readonly int _ms_restart_time = 1000;
+    protected int _restart_attempts = 4;
+    protected DateTime _last_start;
+    
 #if POB_LINK_DEBUG
     private int _lid;
 #endif
@@ -178,7 +187,7 @@ namespace Brunet
      *                    Host we want to connect to
      * @param t ConnectionType of the new connection
      */
-    public void Link(Address target, IList target_list, ConnectionType ct)
+    public void Link(Address target, ICollection target_list, ConnectionType ct)
     {
       try {
 #if POB_LINK_DEBUG
@@ -186,8 +195,11 @@ namespace Brunet
                           _lid,target,ct,_local_add);
 #endif
         lock (_sync ) {
-          _ta_queue = new Queue(target_list);
+          //If we retry, we need an original copy of the list
+          _tas = new Queue(target_list);
+          _ta_queue = new Queue( _tas );
           _contype = ct;
+          _timeouts = 0;
         }
         /**
          * If we cannot set this address as our target, we
@@ -202,6 +214,22 @@ namespace Brunet
          * the Link attempt Fails.
          */
         TryNext(false, null, null);
+      }
+      catch(InvalidOperationException x) {
+        //This is thrown when ConnectionTable cannot lock.  Lets try again:
+	if ( _restart_attempts > 0 ) {
+	  _restart_attempts--;
+	  //There is no need to Stop, because this is the case where
+	  //we never got going
+	  _last_start = DateTime.Now;
+          _local_n.HeartBeatEvent += new EventHandler(this.RestartLink);
+#if POB_LINK_DEBUG
+          Console.WriteLine("Restarting Linker({0})",_lid);
+#endif
+	}
+	else {
+          Fail("restarted maximum number of times");
+	}
       }
       catch(Exception x) {
         Fail(x.Message);
@@ -299,9 +327,26 @@ namespace Brunet
             //This may be a "double lock" condition.
 	    //We probably need to release our lock.  Wait
 	    //a random period, and try again.
+	    lock(_sync) {
+	      if ( _restart_attempts > 0 ) {
+	        _restart_attempts--;
+	        Stop("Restarting Linker");
+	        _last_start = DateTime.Now;
+                _local_n.HeartBeatEvent += new EventHandler(this.RestartLink);
+#if POB_LINK_DEBUG
+                Console.WriteLine("Restarting Linker({0})",_lid);
+#endif
+	      }
+	      else {
+                throw new LinkException("No more restarts");
+	      }
+	    }
 	  }
-	  Fail("connection attempt failed due to receiving Error: " + 
+	  else {
+            //Otherwise, this is some other kind of error
+	    Fail("connection attempt failed due to receiving Error: " + 
 	       error_code.ToString() + ", " + em.Message  );
+	  }
 	}
         else if (cm is PingMessage) {
             /**
@@ -420,25 +465,26 @@ namespace Brunet
       Console.WriteLine("End Linker({0}).Succeed",_lid);
 #endif
     }
+
     /**
-     * Called when the linker fails in either direction
+     * Stops this attempt in preparation for a Fail or restart
      */
-    protected void Fail(string log_message)
+    protected void Stop(string log_message)
     {
-      //log.Info("Link Failure");
-#if POB_LINK_DEBUG
-      Console.WriteLine("Start Linker({0}).Fail({1})",_lid,log_message);
-#endif
-      if( _is_finished ) { return; }
       Edge e_to_close;
-      lock(_sync) {
-        _is_finished = true;
+      try {
         _tab.Unlock( _target_lock, _contype, this );
-        //log.Error(log_message);
-        /* Stop the timer */
-        _local_n.HeartBeatEvent -= new EventHandler(this.OutgoingResendCallback);
-        e_to_close = _e;
       }
+      catch(Exception x) {
+        //We apparantly are not holding this lock
+#if POB_LINK_DEBUG
+      Console.WriteLine("Linker({0}).Stop Exception: {1}",_lid, x);
+#endif
+      }
+      //log.Error(log_message);
+      /* Stop the timer */
+      _local_n.HeartBeatEvent -= new EventHandler(this.OutgoingResendCallback);
+      e_to_close = _e;
       //Release the lock
       if( e_to_close != null ) {
         e_to_close.ClearCallback(Packet.ProtType.Connection);
@@ -448,6 +494,22 @@ namespace Brunet
         CloseMessage close = new CloseMessage(log_message);
         close.Dir = ConnectionMessage.Direction.Request;
         _local_n.GracefullyClose(_e, close);
+      }      
+    }
+    /**
+     * Stop the linker, and fire the FinishEvent
+     * Called when the linker fails in either direction
+     */
+    protected void Fail(string log_message)
+    {
+      //log.Info("Link Failure");
+#if POB_LINK_DEBUG
+      Console.WriteLine("Start Linker({0}).Fail({1})",_lid,log_message);
+#endif
+      lock(_sync) {
+        if( _is_finished ) { return; }
+        _is_finished = true;
+	Stop(log_message);
       }
       if( FinishEvent != null ) {
         FinishEvent(this, null);
@@ -509,6 +571,26 @@ namespace Brunet
 #endif
     }
 
+    /**
+     * When we fail due to a ErrorMessage.ErrorCode.InProgress error
+     * we wait restart to verify that we eventually got connected
+     */
+    protected void RestartLink(object node, EventArgs args)
+    {
+      TimeSpan restart_time = new TimeSpan(0,0,0,0,_ms_restart_time);
+      if( DateTime.Now - _last_start > restart_time ) { 
+        Random r = new Random();
+	if ( r.NextDouble() < 0.5 ) {
+#if POB_LINK_DEBUG
+          Console.WriteLine("restart: about to call Link({0})",_lid);
+#endif
+          Link( _target_lock, _tas, _contype);
+          _local_n.HeartBeatEvent -= new EventHandler(this.RestartLink);
+	  //Now we are done and their should be
+	}
+      }
+    }
+    
     /**
      * @param success if this is true, we have a new edge to try else, make a new edge
      * @param e the new edge, if success
