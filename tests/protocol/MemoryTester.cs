@@ -84,7 +84,7 @@ namespace Brunet
       //inforce type 0
       hashedbytes[Address.MemSize - 1] &= 0xFE;
       AHAddress _local_ahaddress = new AHAddress(hashedbytes);
-      Node this_node = new StructuredNode( _local_ahaddress );
+      Node this_node = new HybridNode( _local_ahaddress );
       ///Node this_node = new HybridNode( new AHAddress( new BigInteger( 2*(local_host_index+1) ) ) );      
 
       String file_string = "brunetadd" + Convert.ToString(desired_port) + ".log";
@@ -107,7 +107,7 @@ namespace Brunet
         TransportAddressConfiguration remote_ta_configuration = (TransportAddressConfiguration)remote_node_configuration.TransportAddresses[0];
 
         String remote_ta = remote_ta_configuration.GetTransportAddressURI(); 
-        this_node.RemoteTAs.Add( TransportAddressFactory.CreateInstance( remote_ta  ) );
+        this_node.RemoteTAs.Add( new TransportAddress( remote_ta  ) );
       }
       
       while ( (remote_node_index>=0) && (num_remote_ta>=0) ) { 
@@ -115,7 +115,7 @@ namespace Brunet
         TransportAddressConfiguration remote_ta_configuration = (TransportAddressConfiguration)remote_node_configuration.TransportAddresses[0];
 
         String remote_ta = remote_ta_configuration.GetTransportAddressURI(); 
-        this_node.RemoteTAs.Add( TransportAddressFactory.CreateInstance( remote_ta  ) );
+        this_node.RemoteTAs.Add( new TransportAddress( remote_ta  ) );
 
         System.Console.WriteLine("Adding {0}", remote_ta);
 
@@ -127,11 +127,11 @@ namespace Brunet
       //this_node.Subscribe(AHPacket.Protocol.Echo, echo_printer);
 
       this_node.Connect();
-#if PLAB_LOG
+
       ///Initialize Brunet logger
-      BrunetLogger bl = new BrunetLogger(desired_port, (AHAddress)this_node.Address);
+      BrunetLogger bl = new BrunetLogger(file_string);
       this_node.Logger = bl;
-#endif
+
       DateTime start_time = DateTime.Now;
       TimeSpan elapsed_time = System.DateTime.Now - start_time;
       StreamWriter memory_sw = new StreamWriter("memory_usage.log", true);

@@ -31,16 +31,13 @@ using System.Diagnostics;
 
 namespace Brunet
 {
-  public class PacketTester //:IAHPacketHandler
+  public class StructureTester //:IAHPacketHandler
   {
 
+    ///This tester simply establishes the Brunet network and log the edges made
 
     static void Main(string[] args)
     {
-      //first, remove the log file
-      if(File.Exists("time_stamp.log")){
-	File.Delete("time_stamp.log");
-      }
 
       String config_file = args[0];
       NetworkConfiguration network_configuration = NetworkConfiguration.Deserialize(config_file);
@@ -75,10 +72,15 @@ namespace Brunet
       Node this_node = new HybridNode( _local_ahaddress );
       ///Node this_node = new HybridNode( new AHAddress( new BigInteger( 2*(local_host_index+1) ) ) );      
 
-      String file_string = "brunetadd" + Convert.ToString(desired_port) + ".log";
+      String file_string = "./data/brunetadd" + Convert.ToString(desired_port) + ".log";
       StreamWriter sw = new StreamWriter(file_string, false);
       sw.WriteLine( "local_address " + this_node.Address.ToBigInteger().ToString() + " " + Dns.GetHostName()); 
       sw.Close();      
+
+      String ctm_file = "./data/ctm.log";
+      StreamWriter ctm_sw = new StreamWriter(ctm_file, false);
+      ctm_sw.WriteLine( "local_address " + this_node.Address.ToBigInteger().ToString() + " " + Dns.GetHostName()); 
+      ctm_sw.Close();
 
       if ( local_ta_configuration.Protocol == "tcp" ) {
         this_node.AddEdgeListener( new TcpEdgeListener(port) );
@@ -114,18 +116,34 @@ namespace Brunet
       //EchoTester echo_printer = new EchoTester();
       //this_node.Subscribe(AHPacket.Protocol.Echo, echo_printer);
 
+      this_node.Connect();
+
       ///Initialize Brunet logger
       BrunetLogger bl = new BrunetLogger(file_string);
       this_node.Logger = bl;
-      
-      StreamWriter stamp_sw = new StreamWriter("time_stamp.log", true);
-      stamp_sw.WriteLine("Local_node: {0} start_time_GMT: {1}:{2}", Dns.GetHostName(), DateTime.Now.ToUniversalTime().ToString(),
-			DateTime.Now.ToUniversalTime().Millisecond );
-      stamp_sw.Close();
 
-      this_node.Connect();
+      String alive_file = "./data/alive.log";
+      if(File.Exists(alive_file)){
+        File.Delete(alive_file);
+      }
+            
+      int loop_count = 0, log_interval = 5000; //number of milliseconds for interval between logs
+      while(true){
+	StreamWriter sw_alive = new StreamWriter(alive_file, true);
+	if(loop_count == 0){
+        	sw_alive.WriteLine( "local_address " + this_node.Address.ToBigInteger().ToString() + " " + Dns.GetHostName());
+	        sw_alive.WriteLine( DateTime.Now.ToUniversalTime().ToString() + " Node_alive");
+	}
+	else{
+		sw_alive.WriteLine( DateTime.Now.ToUniversalTime().ToString() + " Node_alive");
+	}
+	sw_alive.Close();
+	loop_count++;
+	System.Threading.Thread.Sleep(log_interval);
+      }
 
-    }
+    }//end of Main fcn
+
   }
 
 }

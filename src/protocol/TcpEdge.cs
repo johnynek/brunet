@@ -1,4 +1,24 @@
 /*
+This program is part of BruNet, a library for the creation of efficient overlay
+networks.
+Copyright (C) 2005  University of California
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+*/
+
+/*
  * Dependencies  :  
  * 
  * Brunet.Edge;
@@ -11,7 +31,7 @@
  */
 
 //#define POB_TCP_DEBUG
-
+#define JSK_TIME_STAMP
 /**
  * There are three implementations of TcpEdge:
  * 1) Asynchronous socket calls
@@ -783,6 +803,9 @@ namespace Brunet
             _send_state.Offset = 0;
             _send_state.Length = p.Length + 2;
             p.CopyTo( _send_state.Buffer, 2 );
+#if PLAB_PACKET_LOG
+	BrunetLogger.LogPacketTimeStamp(p, false); //logging the packet sent, false because it is sent
+#endif
           }
 
           if( _send_state.Length > 0 ) {
@@ -887,6 +910,9 @@ namespace Brunet
 #if POB_TCP_DEBUG
               //Console.WriteLine("edge: {0}, got packet {1}",this, p);
 #endif
+#if PLAB_PACKET_LOG
+              BrunetLogger.LogPacketTimeStamp(p, true); //logging packet p, true means the packet is received
+#endif
               //Reinit the rec_state
               _rec_state.Offset = 0;
               _rec_state.Length = 2;
@@ -914,6 +940,7 @@ namespace Brunet
       catch(Exception x) {
         Close();
       }
+
     }
 #endif
 

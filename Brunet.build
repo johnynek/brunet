@@ -77,6 +77,18 @@
     <nant buildfile="src/apps/default.build" />
 
   </target>
+
+  <target
+    name="recurse-plab-log"
+    description="Builds recursively all subprojects">
+    <property
+      name="configured"
+      value="true"/>
+
+    <nant buildfile="src/protocol/default.build" target="plab-log"/>
+    <nant buildfile="src/apps/default.build" />
+
+  </target>
  
   <target
     name="build"
@@ -104,6 +116,16 @@
       file="${lib.dir}/${assembly}-TestUtil.dll"
       failonerror="false"/>
 
+  </target>
+
+  <target
+    name="plab-log"
+    depends="init"
+    description="Builds the current configuration">
+    <property
+      name="target"
+      value="build"/>
+    <call target="recurse-plab-log"/>
   </target>
  
   <target
