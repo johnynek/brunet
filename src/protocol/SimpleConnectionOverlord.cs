@@ -453,11 +453,26 @@ namespace Brunet {
 	     * consider trimming the shortcuts
 	     */
 	    if( near_needs_trim ) {
+	      //Delete a farthest trim candidate:
+        BigInteger biggest_distance = new BigInteger(0);
+        BigInteger tmp_distance = new BigInteger(0);
+        Connection to_trim = null;
+        foreach(Connection tc in near_trim_candidates ) 
+        {
+          AHAddress t_ah_add = (AHAddress)tc.Address;
+          tmp_distance = t_ah_add.DistanceTo( (AHAddress)_node.Address);
+          if (tmp_distance > biggest_distance) {
+            biggest_distance = tmp_distance;
+            Console.WriteLine("...finding far distance for trim: {0}",biggest_distance.ToString() );
+            to_trim = tc;
+          }
+        }
+        Console.WriteLine("Final distance for trim{0}: ",biggest_distance.ToString() );
 	      //Delete a random trim candidate:
-	      int idx = _rand.Next( near_trim_candidates.Count );
-	      Connection to_trim = (Connection)near_trim_candidates[idx];
+	      //int idx = _rand.Next( near_trim_candidates.Count );
+	      //Connection to_trim = (Connection)near_trim_candidates[idx];
 #if POB_DEBUG
-              Console.WriteLine("Attempt to trim Near: {0}", to_trim);
+        Console.WriteLine("Attempt to trim Near: {0}", to_trim);
 #endif
 	      _node.GracefullyClose( to_trim.Edge );
 	    }

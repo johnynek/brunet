@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RemoteTAs xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <TAs>
+    <TransportAddress>brunet.tcp://128.97.88.154:20301</TransportAddress>
+    <TransportAddress>brunet.tcp://164.67.194.189:20301</TransportAddress>
+    <TransportAddress>brunet.tcp://164.67.195.85:20301</TransportAddress>
+    <TransportAddress>brunet.tcp://164.67.196.96:20301</TransportAddress>
+    <TransportAddress>brunet.tcp://164.67.195.88:20301</TransportAddress>
+    <TransportAddress>brunet.tcp://128.97.89.157:20301</TransportAddress>
+  </TAs>
+</RemoteTAs>
