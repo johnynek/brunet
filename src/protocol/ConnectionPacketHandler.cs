@@ -74,6 +74,7 @@ namespace Brunet
         GetCurrentMethod().DeclaringType);*/
 
     protected Address _local_add;
+    protected Node _local;
     protected ConnectionTable _tab;
     protected ConnectionMessageParser _cmp;
     /**
@@ -86,16 +87,15 @@ namespace Brunet
     protected object _sync;
 
     /**
-     * @param add Address of the Node we work for
-     * @param tab ConnectionTable to put new connections into
-     * @param el EdgeListener to listen to new edges from
+     * @param local the Node we work for
      */
-    public ConnectionPacketHandler(Address add, ConnectionTable tab)
+    public ConnectionPacketHandler(Node local)
     {
       _sync = new object();
       lock(_sync) {
-        _tab = tab;
-        _local_add = add;
+	_local = local;
+        _tab = local.ConnectionTable;
+        _local_add = local.Address;
         _edge_to_lm = new Hashtable();
         _cmp = new ConnectionMessageParser();
         /*
@@ -236,7 +236,11 @@ namespace Brunet
               //We send a response:
 	      NodeInfo local_info = new NodeInfo( _local_add, from.LocalTA );
 	      NodeInfo remote_info = new NodeInfo( null, from.RemoteTA );
-              response = new LinkMessage( lm.ConTypeString, local_info, remote_info );
+	      System.Collections.Specialized.StringDictionary attrs =
+	        new System.Collections.Specialized.StringDictionary();
+	      attrs["type"] = lm.ConTypeString;
+	      attrs["realm"] = _local.Realm;
+              response = new LinkMessage( attrs, local_info, remote_info );
               response.Id = lm.Id;
               response.Dir = ConnectionMessage.Direction.Response;
             }
@@ -279,7 +283,11 @@ namespace Brunet
       bool have_con = false;
       lock( _tab.SyncRoot ) {
 
-        if( _tab.Contains( lm.ConnectionType, lm.Local.Address) ) {
+	if( lm.Attributes["realm"] != _local.Realm ) {
+          err = new ErrorMessage(ErrorMessage.ErrorCode.RealmMismatch,
+			         "We are not in the same realm");
+	}
+	else if( _tab.Contains( lm.ConnectionType, lm.Local.Address) ) {
           //We already have a connection of this type to this address
           err = new ErrorMessage(ErrorMessage.ErrorCode.AlreadyConnected,
                                  "We are already connected");

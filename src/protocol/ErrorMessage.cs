@@ -171,6 +171,7 @@ namespace Brunet
       ErrorAck = 0, //Used to acknowledge an error request message.
       UnexpectedRequest = 1,
       UnknownConnectionType = 2,
+      RealmMismatch = 3,
       ConnectToSelf = 16,
       InProgress = 17, //When we are in the process of connecting, don't allow a second
                        //from the same node.

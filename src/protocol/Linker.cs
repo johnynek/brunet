@@ -312,6 +312,15 @@ namespace Brunet
           */
           //Build the neighbor list:
 	  LinkMessage lm = (LinkMessage)cm;
+          /*
+	   * Make sure the link message is Kosher:
+	   */
+	  if( lm.ConTypeString != _contype ) {
+            throw new LinkException("Link type mismatch: " + _contype + " != " + lm.ConTypeString );
+	  }
+	  if( lm.Attributes["realm"] != _local_n.Realm ) {
+            throw new LinkException("Realm mismatch: " + _local_n.Realm + " != " + lm.Attributes["realm"] );
+	  }
 	  ArrayList neighbors = new ArrayList();
 	  //Get the neighbors of this type:
 	  lock( _tab.SyncRoot ) {
@@ -753,7 +762,11 @@ namespace Brunet
         e.CloseEvent += new EventHandler(this.CloseHandler);
 	NodeInfo my_info = new NodeInfo( _local_add, e.LocalTA );
 	NodeInfo remote_info = new NodeInfo( null, e.RemoteTA );
-        LinkMessage request = new LinkMessage( _contype, my_info, remote_info );
+	System.Collections.Specialized.StringDictionary attrs
+		 = new System.Collections.Specialized.StringDictionary();
+        attrs["type"] = _contype;
+	attrs["realm"] = _local_n.Realm;
+        LinkMessage request = new LinkMessage( attrs, my_info, remote_info );
         request.Dir = ConnectionMessage.Direction.Request;
         request.Id = _id++;
 #if POB_LINK_DEBUG

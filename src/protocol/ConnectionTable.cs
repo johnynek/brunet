@@ -1048,7 +1048,7 @@ namespace Brunet
       int near_tot = 0;
       foreach(Connection c in tab.GetConnections("structured.near")) {
         near_tot++;
-        Console.WriteLine("{0}\n",c);
+        //Console.WriteLine("{0}\n",c);
       }
       Assert.AreEqual(near_tot, 1, "structured near");
     }

@@ -207,7 +207,7 @@ namespace Brunet
       my_rand.NextBytes(address);
       address[Address.MemSize - 1] &= 0xFE;
       AHAddress tmp_add = new AHAddress(address);
-      Node tmp_node = new StructuredNode(tmp_add);
+      Node tmp_node = new StructuredNode(tmp_add, "bstland");
       
       adds.Add(tmp_add);
       add_to_node[tmp_add] = tmp_node;

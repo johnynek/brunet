@@ -117,7 +117,7 @@ namespace Brunet
          * We must later make sure the EdgeEvent events from
          * any EdgeListeners are connected to _cph.EdgeHandler
          */
-        _cph = new ConnectionPacketHandler(add, _connection_table);
+        _cph = new ConnectionPacketHandler(this);
         /* Here are the transport addresses */
         /*@throw ArgumentNullException if the list ( new ArrayList()) is null.
          */
@@ -199,6 +199,17 @@ namespace Brunet
       get { return -1; }
     }
 
+    protected string _realm = "global";
+    /**
+     * Each Brunet Node is in exactly 1 realm.  This is 
+     * a namespacing feature.  This allows you to create
+     * Brunets which are separate from other Brunets.
+     *
+     * The default is "global" which is the standard
+     * namespace.
+     */
+    public string Realm { get { return _realm; } }
+    
     protected ArrayList _remote_ta;
     /**
      * These are all the remote TransportAddress objects that

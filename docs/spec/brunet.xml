@@ -221,7 +221,7 @@ preference of usage: most preferred to least preferred.
 Request:
 =================
 <request id="4512">
-  <link type="unstructured">
+  <link type="unstructured" realm="pobspace">
     <local>
       <node address="brunet:node:j764jjsdh912k434350jaf">
         <transport>brunet.udp://10.234.0.1:12345</transport>
@@ -238,7 +238,7 @@ Request:
 Response:
 =================
 <response id="4512">
-  <link type="unstructured">
+  <link type="unstructured" realm="pobspace">
     <remote>
       <node>
         <transport>brunet.udp://10.234.0.1:12345</transport>
@@ -255,6 +255,10 @@ Response:
 ]]>
 </artwork>
 </figure>
+The link may have many attributes.  There is one required attribute
+which is type.  The link may also specify the realm of the brunet
+node (which allows for <xref target="namespaces">namespaces</xref>).
+
 In the above, a request is made to a node to form a connection.  The
 local and remote host addresses are passed at the connection
 attempt (these may be useful for nodes to learn if they are behind any
@@ -303,6 +307,7 @@ Some already defined codes are listed below:
 <t>Code 0: error request acknowledgement</t>
 <t>Code 1: unexpected connection request</t>
 <t>Code 2: unknown connection type</t>
+<t>Code 3: Realm mismatch</t>
 <t>Code 16: Attempt to connect to self: refused</t>
 <t>Code 17: Connection to your address is already in process, this attempt
 refused</t>
@@ -400,7 +405,19 @@ their address, from lowest to highest.
 
 </section>
 </section>
+<section anchor="namespaces" title="Namespaces in Brunet">
+<t>
+Different users may have different applications for Brunet networks.  To
+prevent the unintentional merging of two different Brunets, we define a name
+for each Brunet which we call a "realm".  Each node is associated with exactly
+one realm.  A node must only accept connections for other nodes in the same
+realm.
 
+The realm is specified in the <xref target="sec.link">link message</xref> in
+the connection protocol.  If no realm is specified the default realm is
+"global".
+</t>
+</section>
 <section anchor="sec.protocol.addressable" title="Addressable Protocol (0x02)">
 <t>
 The main Brunet system
