@@ -1,5 +1,10 @@
 //using Brunet.ConnectionMessage;
 using Brunet;
+using System.Xml;
+
+#if BRUNET_NUNIT
+using NUnit.Framework;
+#endif
 
 namespace Brunet
 {
@@ -23,8 +28,9 @@ namespace Brunet
       _reason = reason;
     }
 
-    public CloseMessage(System.Xml.XmlElement close_element)
+    public CloseMessage(XmlElement r) : base(r)
     {
+      XmlElement close_element = (XmlElement)r.FirstChild;
       //Get the reason:
       _reason = "";
       if( close_element.FirstChild != null )
@@ -70,5 +76,21 @@ namespace Brunet
       w.WriteEndElement();      //</(request|response)>
     }
   }
+#if BRUNET_NUNIT
+  [TestFixture]
+  public class CloseMessageTester {
+    public CloseMessageTester()  { }
+
+    [Test]
+    public void CMTest()
+    {
+      CloseMessage cm1 = new CloseMessage("I've had it");
+      XmlAbleTester xt = new XmlAbleTester();
+      CloseMessage cm1a = (CloseMessage)xt.SerializeDeserialize(cm1);
+      Assert.AreEqual(cm1,cm1a);
+    }
+  }
+  
+#endif
 
 }

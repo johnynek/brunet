@@ -6,6 +6,10 @@
 using System.Xml;
 using System.Collections;
 
+#if BRUNET_NUNIT
+using NUnit.Framework;
+#endif
+
 namespace Brunet
 {
 
@@ -47,8 +51,9 @@ namespace Brunet
     /**
       * Deserializes the ErrorCode element
       */
-    public ErrorMessage(System.Xml.XmlElement encoded)
+    public ErrorMessage(System.Xml.XmlElement r) : base(r)
     {
+      XmlElement encoded = (XmlElement)r.FirstChild;
       //Read the attributes of the ErrorCode
       foreach(XmlNode attr in((XmlElement) encoded).Attributes)
       {
@@ -128,7 +133,28 @@ namespace Brunet
     }
 
   }
+#if BRUNET_NUNIT
 
+  [TestFixture]
+  public class ErrorMessageTester {
+    public ErrorMessageTester() { }
+
+    [Test]
+    public void EMTest()
+    {
+      XmlAbleTester xt = new XmlAbleTester();
+      ErrorMessage em1 = new ErrorMessage(ErrorMessage.ErrorCode.UnexpectedRequest,
+		                          "Who are you???");
+      ErrorMessage em1a = (ErrorMessage)xt.SerializeDeserialize(em1);
+      Assert.AreEqual(em1, em1a);
+
+      ErrorMessage em2 = new ErrorMessage(ErrorMessage.ErrorCode.AlreadyConnected, "We are BFF");
+      ErrorMessage em2a = (ErrorMessage)xt.SerializeDeserialize(em2);
+      Assert.AreEqual(em2, em2a);
+    }
+  }
+#endif
+  
 }
 
 

@@ -24,9 +24,20 @@ namespace Brunet
      * for the message type, not the whole <request />
      * or <response />
      */
-    public ConnectionMessage(System.Xml.XmlElement encoded)
+    public ConnectionMessage(System.Xml.XmlElement r)
     {
-
+      //Parse the direction :
+      Dir = (ConnectionMessage.Direction) System.Enum.
+        Parse(typeof(ConnectionMessage.Direction), r.Name, true);
+      //The outer node should be an XmlElement with an "id" attribute :
+      Id = 0;
+      foreach(XmlNode attr in((XmlElement) r).Attributes) {
+        if (attr.Name == "id") {
+          //The child of the attribute is a XmlText :
+          Id = System.Int32.Parse(attr.FirstChild.Value);
+          break;
+        }
+      }
     }
     public ConnectionMessage()
     {
@@ -36,7 +47,12 @@ namespace Brunet
      * @return true if this tag is supported
      */
     abstract public bool CanReadTag(string tag);
-   
+  
+    static public string GetTagOf(XmlElement r)
+    {
+      return r.FirstChild.Name;
+    }
+    
     abstract public IXmlAble ReadFrom(XmlElement el);
     
     virtual public byte[]  ToByteArray()

@@ -41,9 +41,13 @@ namespace Brunet
       _remote_ni = remote;
     }
 
-    public LinkMessage(System.Xml.XmlElement link_element)
+    /**
+     * Deserializes an entire request which should contain a link element
+     */
+    public LinkMessage(System.Xml.XmlElement r) : base(r)
     {
 
+      XmlElement link_element = (XmlElement)r.FirstChild;
       foreach(XmlNode attr in link_element.Attributes) {
         switch (attr.Name) {
         case "type":
@@ -63,13 +67,14 @@ namespace Brunet
           break;
         }
       }
-
+      //System.Console.Write("Looking in child nodes");
       //Read the NodeInfo
       foreach(XmlNode nodes in link_element.ChildNodes) {
         if( nodes.Name == "local") {
           foreach(XmlNode sub in nodes.ChildNodes) {
             if (sub.Name == "node") {
 	      _local_ni = new NodeInfo((XmlElement)sub);
+	      //System.Console.Write("Read local");
             }
           }
 	}
@@ -77,6 +82,7 @@ namespace Brunet
           foreach(XmlNode sub in nodes.ChildNodes) {
             if (sub.Name == "node") {
 	      _remote_ni = new NodeInfo((XmlElement)sub);
+	      //System.Console.Write("Read Remote");
             }
           }
 	}
@@ -109,9 +115,9 @@ namespace Brunet
       LinkMessage lm = olm as LinkMessage;
       if ( lm != null ) {
         bool same = true;
-	same &= lm.ConnectionType == this.ConnectionType;
-	same &= lm.Local.Equals(this.Local);
-	same &= lm.Remote.Equals(this.Remote);
+	same &= lm.ConnectionType == ConnectionType;
+	same &= lm.Local.Equals(_local_ni);
+	same &= lm.Remote.Equals(_remote_ni);
 	return same;
       }
       else {
@@ -174,8 +180,18 @@ namespace Brunet
     public LinkMessageTester() { }
 
     [Test]
-    public void LMSerializationTest() {
-      
+    public void LMSerializationTest()
+    {
+      LinkMessage l1 = new LinkMessage(ConnectionType.Structured,
+		                   new NodeInfo(null,
+				       new TransportAddress("brunet.tcp://127.0.0.1:45")),
+				   new NodeInfo(
+				       new DirectionalAddress(DirectionalAddress.Direction.Left),
+				       new TransportAddress("brunet.tcp://127.0.0.1:837")) );
+      XmlAbleTester xt = new XmlAbleTester();
+      LinkMessage l2 = (LinkMessage)xt.SerializeDeserialize(l1);
+      //System.Console.WriteLine("\nl1: {0}\n\nl2: {0}\n", l1, l2);
+      Assert.AreEqual(l1, l2, "LinkMessage test 1");
     }
   }
 
