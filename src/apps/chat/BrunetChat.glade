@@ -121,7 +121,7 @@
 		  <property name="overwrite">False</property>
 		  <property name="accepts_tab">False</property>
 		  <property name="justification">GTK_JUSTIFY_LEFT</property>
-		  <property name="wrap_mode">GTK_WRAP_CHAR</property>
+		  <property name="wrap_mode">GTK_WRAP_WORD</property>
 		  <property name="cursor_visible">False</property>
 		  <property name="pixels_above_lines">1</property>
 		  <property name="pixels_below_lines">1</property>
@@ -183,7 +183,7 @@
 		  <property name="overwrite">False</property>
 		  <property name="accepts_tab">True</property>
 		  <property name="justification">GTK_JUSTIFY_LEFT</property>
-		  <property name="wrap_mode">GTK_WRAP_CHAR</property>
+		  <property name="wrap_mode">GTK_WRAP_WORD</property>
 		  <property name="cursor_visible">True</property>
 		  <property name="pixels_above_lines">1</property>
 		  <property name="pixels_below_lines">1</property>
