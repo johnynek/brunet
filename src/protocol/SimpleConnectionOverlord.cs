@@ -46,15 +46,12 @@ namespace Brunet {
           new EventHandler(this.DisconnectHandler);
         _node.ConnectionTable.ConnectionEvent +=
           new EventHandler(this.ConnectHandler);      
-#if TRIM 
       /**
        * Every heartbeat we assess the trimming situation.
        * If we have excess edges and it has been more than
        * _trim_wait_time heartbeats then we trim.
        */
-        _node.HeartBeatEvent +=
-          new EventHandler(this.CheckForTrimConditions);
-#endif
+        _node.HeartBeatEvent += new EventHandler(this.CheckState);
       }
     }
 
@@ -70,6 +67,15 @@ namespace Brunet {
     protected object _sync;
 
     protected ArrayList _connectors;
+
+    /**
+     * Getting shortcuts on small networks is
+     * hard, for now, we only try once when we need one.
+     *
+     * Everytime we get one, we set this to false,
+     * Everytime we try one, we set this to true,
+     */
+    protected bool _tried_shortcut = false;
     
     /*
      * These are parameters of the Overlord.  These govern
@@ -81,6 +87,12 @@ namespace Brunet {
     static protected readonly int _desired_shortcuts = 1;
     ///How many seconds to wait between connections/disconnections to trim
     static protected readonly double _trim_delay = 30.0;
+    
+    /*
+     * We don't want to risk mistyping these strings.
+     */
+    static protected readonly string struc_near = "structured.near";
+    static protected readonly string struc_short = "structured.shortcut";
     
     /**
      * If we start compensating, we check to see if we need to
@@ -107,6 +119,21 @@ namespace Brunet {
       }
     }
     
+    /*
+     * In between connections or disconnections there is no
+     * need to recompute whether we need connections.
+     * So after each connection or disconnection, this becomes
+     * false.
+     *
+     * These are -1 when we don't know 0 is false, 1 is true
+     *
+     * This is just an optimization, however, running many nodes
+     * on one computer seems to benefit from this optimization
+     * (reducing cpu usage and thus the likely of timeouts).
+     */
+    protected int _need_left;
+    protected int _need_right;
+    protected int _need_short;
     /**
      * We know a left neighbor from a right neighbor because it is closer
      * on the left hand side.  Strictly speaking, this is not necessarily true
@@ -125,19 +152,43 @@ namespace Brunet {
      */
     protected bool NeedLeftNeighbor {
       get {
-	int left = 0;
-	AHAddress local = (AHAddress)_node.Address;
-	lock( _node.ConnectionTable.SyncRoot ) {
-          foreach(Connection c in _node.ConnectionTable.GetConnections("structured.near")) {
-            AHAddress adr = (AHAddress)c.Address;
-	    if( adr.IsLeftOf( local ) &&
+	lock( _sync ) {
+          if( _need_left != -1 ) {
+            return (_need_left == 1);
+	  }
+	  int left = 0;
+	  AHAddress local = (AHAddress)_node.Address;
+	  ConnectionTable tab = _node.ConnectionTable;
+	  lock( tab.SyncRoot ) {
+          //foreach(Connection c in _node.ConnectionTable.GetConnections(struc_near)) {
+            foreach(Connection c in tab.GetConnections(ConnectionType.Structured)) {
+              AHAddress adr = (AHAddress)c.Address;
+//#if POB_DEBUG
+#if false
+              Console.WriteLine("{0} -> {1}, lidx: {2}, is_left: {3}" ,
+			    _node.Address, adr, LeftPosition(adr), adr.IsLeftOf( local ) );
+#endif
+	      if( 
+	        //adr.IsLeftOf( local ) &&
                 (LeftPosition( adr ) < _desired_neighbors) ) {
-              //This is left neighbor:
-	      left++; 
+                //This is left neighbor:
+	        left++; 
+	      }
 	    }
 	  }
+//#if POB_DEBUG
+#if false
+          Console.WriteLine("{0} left: {1}" , _node.Address, left);
+#endif
+	  if( left < _desired_neighbors ) {
+            _need_left = 1;
+	    return true;
+	  } 
+	  else {
+            _need_left = 0;
+	    return false;
+	  }
 	}
-        return (left < _desired_neighbors);
       }
     }
 
@@ -146,19 +197,39 @@ namespace Brunet {
      */
     protected bool NeedRightNeighbor {
       get {
-	int right = 0;
-	AHAddress local = (AHAddress)_node.Address;
-	lock( _node.ConnectionTable.SyncRoot ) {
-          foreach(Connection c in _node.ConnectionTable.GetConnections("structured.near")) {
-            AHAddress adr = (AHAddress)c.Address;
-	    if( adr.IsRightOf( local ) &&
+	lock( _sync ) {
+          if( _need_right != -1 ) {
+            return (_need_right == 1);
+	  }
+	  int right = 0;
+	  AHAddress local = (AHAddress)_node.Address;
+	  ConnectionTable tab = _node.ConnectionTable;
+	  lock( tab.SyncRoot ) {
+            //foreach(Connection c in _node.ConnectionTable.GetConnections(struc_near)) {
+            foreach(Connection c in tab.GetConnections(ConnectionType.Structured)) {
+              AHAddress adr = (AHAddress)c.Address;
+//#if POB_DEBUG
+#if false
+              Console.WriteLine("{0} -> {1}, ridx: {2}, is_right: {3}",
+			    _node.Address, adr, RightPosition(adr), adr.IsRightOf( local) );
+#endif
+	      if(
+	        //adr.IsRightOf( local ) &&
                 (RightPosition( adr ) < _desired_neighbors) ) {
-              //This is left neighbor:
-	      right++; 
+                //This is right neighbor:
+	        right++; 
+	      }
 	    }
 	  }
-	}
-        return (right < _desired_neighbors);
+	  if( right < _desired_neighbors ) {
+            _need_right = 1;
+	    return true;
+	  } 
+	  else {
+            _need_right = 0;
+	    return false;
+	  }
+        }
       }
     }
     
@@ -167,13 +238,34 @@ namespace Brunet {
      */
     protected bool NeedShortcut {
       get {
-	int shortcuts = 0;
-	lock( _node.ConnectionTable.SyncRoot ) {
-          foreach(Connection c in _node.ConnectionTable.GetConnections("structured.shortcut")) {
-            shortcuts++;
+	lock( _sync ) {
+          if( _need_short != -1 ) {
+            return (_need_short == 1);
+	  }
+	  int shortcuts = 0;
+	  lock( _node.ConnectionTable.SyncRoot ) {
+            foreach(Connection c in _node.ConnectionTable.GetConnections(struc_short)) {
+              int left_pos = LeftPosition((AHAddress)c.Address);
+              int right_pos = RightPosition((AHAddress)c.Address); 
+	      if( left_pos >= _desired_neighbors &&
+	          right_pos >= _desired_neighbors ) {
+              /*
+	       * No matter what they say, don't count them
+	       * as a shortcut if they are one a close neighbor
+	       */
+                shortcuts++;
+	      }
+	    }
+	  }
+	  if( shortcuts < _desired_shortcuts ) {
+            _need_short = 1;
+	    return true;
+	  } 
+	  else {
+            _need_short = 0;
+	    return false;
 	  }
 	}
-        return (shortcuts < _desired_shortcuts);
       }
     }
     
@@ -182,9 +274,16 @@ namespace Brunet {
     /**
      * Starts the Overlord if we are active
      *
-     * When the Connector finishes.
+     * This method is called by the CheckState method
+     * IF we have not seen any connections in a while
+     * AND we still need some connections
+     *
      */
-    public override void Activate() {
+    public override void Activate()
+    {
+#if POB_DEBUG
+      Console.WriteLine("In Activate: {0}", _node.Address);
+#endif
       if( IsActive == false ) {
         return;
       }
@@ -195,9 +294,19 @@ namespace Brunet {
       Address target = null;
       short ttl = -1;
       string contype = "";
+      int structured_count = 0;
+      int leaf_count = 0;
       
       lock( tab.SyncRoot ) {
-	int structured_count = tab.Count(ConnectionType.Structured);
+	leaf_count = tab.Count(ConnectionType.Leaf);
+	if( leaf_count == 0 )
+	{
+          /*
+	   * We first need to get a Leaf connection
+	   */
+          return;
+	}
+	structured_count = tab.Count(ConnectionType.Structured);
 
 	if( structured_count < 2 ) {
           //We don't have enough connections to guarantee a connected
@@ -219,27 +328,8 @@ namespace Brunet {
 	    }
 	    ttl = 1024;
 	    //This is a near neighbor connection
-	    contype = "structured.near";
+	    contype = struc_near;
 	  }
-	}
-	else {
-          //We have enough structured connections to ignore the leafs
-          if( NeedLeftNeighbor ) {
-            target = new DirectionalAddress(DirectionalAddress.Direction.Left);
-	    ttl = (short)_desired_neighbors;
-	    contype = "structured.near";
-          }
-	  else if( NeedRightNeighbor ) {
-            target = new DirectionalAddress(DirectionalAddress.Direction.Right);
-	    ttl = (short)_desired_neighbors;
-	    contype = "structured.near";
-          }
-	  else 
-	    if( NeedShortcut ) {
-            target = GetShortcutTarget(); 
-	    ttl = 1024;
-	    contype = "structured.shortcut";
-          }
 	}
       }//End of ConnectionTable lock
       if( target != null ) {
@@ -250,6 +340,53 @@ namespace Brunet {
           ConnectTo(target, ttl, contype);
 	}
       }
+      if( structured_count > 0 && target == null ) {
+          //We have enough structured connections to ignore the leafs
+          
+	  /**
+	   * We need left or right neighbors we send
+	   * a ConnectToMessage in the directons we
+	   * need.
+	   */
+
+	  bool trying_near = false;
+          if( NeedLeftNeighbor ) {
+#if POB_DEBUG
+      Console.WriteLine("NeedLeftNeighbor: {0}", _node.Address);
+#endif
+            target = new DirectionalAddress(DirectionalAddress.Direction.Left);
+	    ttl = (short)_desired_neighbors;
+	    contype = struc_near;
+	    trying_near = true;
+            ConnectTo(target, ttl, contype);
+          }
+	  if( NeedRightNeighbor ) {
+#if POB_DEBUG
+      Console.WriteLine("NeedRightNeighbor: {0}", _node.Address);
+#endif
+            target = new DirectionalAddress(DirectionalAddress.Direction.Right);
+	    ttl = (short)_desired_neighbors;
+	    contype = struc_near;
+	    trying_near = true;
+            ConnectTo(target, ttl, contype);
+          }
+	  /*
+	   * If we are trying to get near connections it
+	   * is not smart to try to get a shortcut.  We
+	   * need to make sure we are on the proper place in
+	   * the ring before doing the below:
+	   */
+	  if( !trying_near && !_tried_shortcut && NeedShortcut ) {
+#if POB_DEBUG
+      Console.WriteLine("NeedShortcut: {0}", _node.Address);
+#endif
+            _tried_shortcut = true;
+            target = GetShortcutTarget(); 
+	    ttl = 1024;
+	    contype = struc_short;
+            ConnectTo(target, ttl, contype);
+          }
+      }
     }
 
     /**
@@ -257,19 +394,25 @@ namespace Brunet {
      *
      * We only trim one at a time.
      */
-    protected void CheckForTrimConditions(object node, EventArgs eargs)
+    protected void CheckState(object node, EventArgs eargs)
     {
 #if POB_DEBUG
-      Console.WriteLine("In Check for Trim");
+      Console.WriteLine("In Check for State");
 #endif
       lock( _sync ) {
+        if( IsActive == false ) {
+          //If we are not active, we do not care what
+	  //our state is.
+          return;
+        }
         TimeSpan elapsed = DateTime.Now - _last_connection_time;
 	if( elapsed.TotalSeconds >= _trim_delay ) {
 #if POB_DEBUG
-           Console.WriteLine("Go for Trim");
+          Console.WriteLine("Go for State check");
 #endif
-          //We may be able to trim connections.
-            //There is no reason to trim when we need connections.
+	  //else {
+#if TRIM
+            //We may be able to trim connections.
             ConnectionTable tab = _node.ConnectionTable;
 	    int not_near = 0;
 	    int nears = 0;
@@ -277,10 +420,18 @@ namespace Brunet {
 	    ArrayList near_trim_candidates = new ArrayList();
 	    lock( tab.SyncRoot ) {
 	      
-	      foreach(Connection c in tab.GetConnections("structured.shortcut")) {
-                sc_trim_candidates.Add(c);  
+	      foreach(Connection c in tab.GetConnections(struc_short)) {
+                int left_pos = LeftPosition((AHAddress)c.Address);
+                int right_pos = RightPosition((AHAddress)c.Address); 
+	        if( left_pos >= _desired_neighbors &&
+	          right_pos >= _desired_neighbors ) {
+	         /*
+		  * Verify that this shortcut is not close
+		  */
+                  sc_trim_candidates.Add(c);
+		}
 	      }
-	      foreach(Connection c in tab.GetConnections("structured.near")) {
+	      foreach(Connection c in tab.GetConnections(struc_near)) {
                 int right_pos = RightPosition((AHAddress)c.Address);
                 int left_pos = LeftPosition((AHAddress)c.Address);
 	    
@@ -323,7 +474,13 @@ namespace Brunet {
 #endif
 	      _node.GracefullyClose( to_trim.Edge );
 	    }
+#endif
+	  //}
+	  if( NeedConnection ) {
+            //Wake back up and try to get some
+            Activate();
 	  }
+	}
       }
     }
     /**
@@ -336,7 +493,12 @@ namespace Brunet {
       Address ltarget = null;
       Address rtarget = null;
 	    
-      lock( _sync ) { _last_connection_time = DateTime.Now; }
+      lock( _sync ) {
+        _last_connection_time = DateTime.Now;
+        _need_left = -1;
+        _need_right = -1;
+        _need_short = -1;
+      }
       if( IsActive == false ) {
         return;
       }
@@ -348,18 +510,15 @@ namespace Brunet {
       if( new_con.MainType == ConnectionType.Leaf ) {
 	/*
 	 * We just got a leaf.  Try to use it to get a shortcut.near
+	 * This leaf could be connecting a new part of the network
+	 * to us.  We try to connect to ourselves to make sure
+	 * the network is connected:
 	 */
 	Address target = GetSelfTarget();
 	short ttl = 1024;
 	//This is a near neighbor connection
-	string contype = "structured.near";
-	if( ! target.Equals( new_con.Address ) ) {
-	  //As long as the forwarder is not the target, forward
-          ForwardedConnectTo(new_con.Address, target, ttl, contype);
-	}
-	else {
-          ConnectTo(target, ttl, contype);
-	}
+	string contype = struc_near;
+        ForwardedConnectTo(new_con.Address, target, ttl, contype);
       }
       else if( new_con.MainType == ConnectionType.Structured ) {
        ConnectionTable tab = _node.ConnectionTable;
@@ -368,45 +527,76 @@ namespace Brunet {
         int right_pos = RightPosition((AHAddress)new_con.Address); 
 
 	if( left_pos < _desired_neighbors ) {
-        //This is a new left neighbor
+        /*
+	 * This is a new left neighbor.  Always
+	 * connect to the right of a left neighbor,
+	 * this will make sure we are connected to
+	 * our local neighborhood.
+	 */
           connect_right = true;
 	  if( left_pos < _desired_neighbors - 1) { 
+            /*
+	     * Don't connect to the left of our most
+	     * left neighbor.  If this is not our
+	     * most left neighbor, make sure we are
+	     * connected to his left
+	     */
             connect_left = true;
 	  }
 	}
 	if( right_pos < _desired_neighbors ) {
-        //This is a new right neighbor
+        /*
+	 * This is a new right neighbor.  Always
+	 * connect to the left of a right neighbor,
+	 * this will make sure we are connected to
+	 * our local neighborhood.
+	 */
           connect_left = true;
 	  if( right_pos < _desired_neighbors - 1) { 
+            /*
+	     * Don't connect to the right of our most
+	     * right neighbor.  If this is not our
+	     * most right neighbor, make sure we are
+	     * connected to his right
+	     */
             connect_right = true;
 	  }
 	}
 	
 	if( left_pos >= _desired_neighbors && right_pos >= _desired_neighbors ) {
         //This looks like a shortcut
-	
+	  
+	  if( new_con.ConType == struc_short ) {
+          //After we get a shortcut, we consider it possible again
+	  //and are willing to try
+            _tried_shortcut = false;	
+	  }
 	}
 
-	//See if any of this guy's neighbors should be our neighbors:
-	BigInteger ldist = 0;
-	BigInteger rdist = 0;
+	/*
+	 * Check to see if any of this node's neighbors
+	 * should be neighbors of us.  If they should, connect
+	 * to the closest such nodes on each side.
+	 */
+	BigInteger ldist = -1;
+	BigInteger rdist = -1;
 	AHAddress local = (AHAddress)_node.Address;
 	foreach(NodeInfo ni in new_con.Status.Neighbors) {
-          int n_left = LeftPosition( (AHAddress)ni.Address);
-          int n_right = RightPosition( (AHAddress)ni.Address);
-	  if( left_pos < _desired_neighbors || right_pos < _desired_neighbors ) {
+	  if( !tab.Contains(ConnectionType.Structured, ni.Address) ) {
+	    AHAddress adr = (AHAddress)ni.Address;
+            int n_left = LeftPosition( adr );
+            int n_right = RightPosition( adr );
+	    if( left_pos < _desired_neighbors || right_pos < _desired_neighbors ) {
             //We should connect to this node! if we are not already:
-	    if( !tab.Contains(ConnectionType.Structured, ni.Address) ) {
-	      AHAddress adr = (AHAddress)ni.Address;
 	      BigInteger adr_dist = local.LeftDistanceTo(adr);
-	      if( adr_dist < ldist || ldist == 0 ) {
+	      if( adr_dist < ldist || ldist == -1 ) {
                 ldist = adr_dist;
-		ltarget = ni.Address;
+		ltarget = adr;
 	      }
 	      adr_dist = local.RightDistanceTo(adr);
-	      if( adr_dist < rdist || rdist == 0 ) {
+	      if( adr_dist < rdist || rdist == -1 ) {
                 rdist = adr_dist;
-		rtarget = ni.Address;
+		rtarget = adr;
 	      }
 	    }
 	  }
@@ -418,22 +608,35 @@ namespace Brunet {
        * We want to make sure not to hold the lock on ConnectionTable
        * while we try to make new connections
        */
+      short f_ttl = 3; //2 would be enough, but 1 extra...
       if( rtarget != null ) {
-        ForwardedConnectTo(new_con.Address, rtarget, 3, "structured.near");
+        ForwardedConnectTo(new_con.Address, rtarget, f_ttl, struc_near);
       }
       if( ltarget != null ) {
-        ForwardedConnectTo(new_con.Address, ltarget, 3, "structured.near");
+        ForwardedConnectTo(new_con.Address, ltarget, f_ttl, struc_near);
       }
       //We also send directional messages.  In the future we may find this
       //to be unnecessary
       ///@todo evaluate the performance impact of this:
-      if( connect_right ) {
-        ConnectToOnEdge(new DirectionalAddress(DirectionalAddress.Direction.Right),
-                        new_con.Edge, 1, "structured.near"); 
-      }
-      if( connect_left ) {
-        ConnectToOnEdge(new DirectionalAddress(DirectionalAddress.Direction.Left),
-                        new_con.Edge, 1, "structured.near"); 
+
+      if( rtarget == null || ltarget == null ) {
+      /**
+       * Once we find nodes for which we can't get any closer, we
+       * make sure we are connected to the right and left of that node.
+       *
+       * When we connect to a neighbor's neighbor with directional addresses
+       * we need TTL = 2.  1 to get to the neighbor, 2 to get to the neighbor's
+       * neighbor.
+       */
+        short nn_ttl = 2;
+        if( connect_right ) {
+          ConnectToOnEdge(new DirectionalAddress(DirectionalAddress.Direction.Right),
+                        new_con.Edge, nn_ttl, struc_near); 
+        }
+        if( connect_left ) {
+          ConnectToOnEdge(new DirectionalAddress(DirectionalAddress.Direction.Left),
+                        new_con.Edge, nn_ttl, struc_near); 
+        }
       }
     }
 
@@ -446,7 +649,6 @@ namespace Brunet {
       lock( _sync ) {
         _connectors.Remove(connector);
       }
-      Activate();
     }
 
     /**
@@ -455,42 +657,37 @@ namespace Brunet {
      */
     protected void ConnectTo(Address target, short t_ttl, string contype)
     {
-      short t_hops = 0;
-      ConnectToMessage ctm =
-        new ConnectToMessage(contype, new NodeInfo( _node.Address, _node.LocalTAs )  );
-      ctm.Id = _rand.Next(1, Int32.MaxValue);
-      ctm.Dir = ConnectionMessage.Direction.Request;
-
-      AHPacket ctm_pack =
-        new AHPacket(t_hops, t_ttl, _node.Address, target,
-                     AHPacket.Protocol.Connection, ctm.ToByteArray());
-
-      #if DEBUG
-      System.Console.WriteLine("In ConnectTo:");
-      System.Console.WriteLine("Local:{0}", _node.Address);
-      System.Console.WriteLine("Target:{0}", target);
-      System.Console.WriteLine("Message ID:{0}", ctm.Id);
-      #endif
-
-      Connector con = new Connector(_node);
-      //Keep a reference to it does not go out of scope
-      lock( _sync ) {
-        _connectors.Add(con);
-      }
-      con.FinishEvent += new EventHandler(this.ConnectorEndHandler);
-      con.Connect(ctm_pack, ctm.Id);
-#if PLAB_CTM_LOG
-      this.Logger.LogCTMEvent(target);
-#endif
+      ConnectToOnEdge(target, _node, t_ttl, contype);
     }
 
     /**
      * A helper function that handles the making Connectors
      * and setting up the ConnectToMessage
+     *
+     * This returns immediately if we are already connected
+     * to this node.
      */
-    protected void ConnectToOnEdge(Address target, Edge edge, short t_ttl, string contype)
+    protected void ConnectToOnEdge(Address target, IPacketSender edge,
+		                   short t_ttl, string contype)
     {
-      short t_hops = 1;
+      //If we already have a connection to this node,
+      //don't try to get another one, it is a waste of 
+      //time.
+      ConnectionType mt = Connection.StringToMainType(contype);
+      if( _node.ConnectionTable.Contains( mt, target ) ) {
+        return; 
+      }
+      short t_hops = 0;
+      if( edge is Edge ) {
+	/*
+	 * In this case we are bypassing the router and sending
+	 * having the Connector talk directly to the neighbor
+	 * using the edge.  We need to go ahead an increment
+	 * the hops of the packet in order to make it the case
+	 * the the packet has taken 1 hop by the time it arrives
+	 */
+        t_hops = 1;
+      }
       ConnectToMessage ctm =
         new ConnectToMessage(contype, new NodeInfo(_node.Address, _node.LocalTAs) );
       ctm.Id = _rand.Next(1, Int32.MaxValue);
@@ -525,7 +722,12 @@ namespace Brunet {
      */
     protected void DisconnectHandler(object connectiontable, EventArgs args)
     { 
-      lock ( _sync ) { _last_connection_time = DateTime.Now; }
+      lock( _sync ) {
+        _last_connection_time = DateTime.Now;
+        _need_left = -1;
+        _need_right = -1;
+        _need_short = -1;
+      }
       Connection c = ((ConnectionEventArgs)args).Connection;
 
       if( IsActive ) {
@@ -536,21 +738,21 @@ namespace Brunet {
             //We lost a close friend.
             Address target = new DirectionalAddress(DirectionalAddress.Direction.Right);
 	    short ttl = (short)_desired_neighbors;
-	    string contype = "structured.near";
+	    string contype = struc_near;
             ConnectTo(target, ttl, contype);
 	  }
 	  if( left_pos < _desired_neighbors ) {
             //We lost a close friend.
             Address target = new DirectionalAddress(DirectionalAddress.Direction.Left);
 	    short ttl = (short)_desired_neighbors;
-	    string contype = "structured.near";
+	    string contype = struc_near;
             ConnectTo(target, ttl, contype);
 	  }
-          if( c.ConType == "structured.shortcut" ) {
+          if( c.ConType == struc_short ) {
             if( NeedShortcut ) {
               Address target = GetShortcutTarget(); 
 	      short ttl = 1024;
-	      string contype = "structured.shortcut";
+	      string contype = struc_short;
               ConnectTo(target, ttl, contype);
 	    }
           }
@@ -569,6 +771,13 @@ namespace Brunet {
                                       Address target,
                                       short t_ttl, string contype)
     {
+      //If we already have a connection to this node,
+      //don't try to get another one, it is a waste of 
+      //time.
+      ConnectionType mt = Connection.StringToMainType(contype);
+      if( _node.ConnectionTable.Contains( mt, target ) ) {
+        return; 
+      }
       ConnectToMessage ctm = new ConnectToMessage(contype,
                               new NodeInfo( _node.Address, _node.LocalTAs) );
       ctm.Dir = ConnectionMessage.Direction.Request;

@@ -184,10 +184,10 @@ namespace Brunet
 
           if (0 < item.ConnectionTable.Count(ConnectionType.Leaf) )
           {
-            ArrayList leaf_adds =
-              item.ConnectionTable.GetAddressesOfType(ConnectionType.Leaf);
-            foreach ( Address leaf_item in leaf_adds  )
-            {
+            ConnectionTable tab = item.ConnectionTable;
+            foreach(Connection con in tab.GetConnections(ConnectionType.Leaf))
+	    {
+	     Address leaf_item = con.Address;
               string graph_line = String.Format("{0} -> {1} [color= blue];",
                                                 item.Address.ToBigInteger().IntValue(),
                                                 leaf_item.ToBigInteger().IntValue() );
@@ -196,10 +196,10 @@ namespace Brunet
           }
           if (0 < item.ConnectionTable.Count(ConnectionType.Structured) )
           {
-            ArrayList struct_adds =
-              item.ConnectionTable.GetAddressesOfType(ConnectionType.Structured);
-            foreach ( Address struct_item in struct_adds  )
-            {
+            ConnectionTable tab = item.ConnectionTable;
+            foreach(Connection con in tab.GetConnections(ConnectionType.Structured))
+	    {
+	     Address struct_item = con.Address;
               string graph_line = String.Format("{0} -> {1} [color= red];",
                                                 item.Address.ToBigInteger().IntValue(),
                                                 struct_item.ToBigInteger().IntValue() );
