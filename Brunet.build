@@ -28,7 +28,7 @@
     value="build"/>
   <property
     name="nunit"
-    value="nunit"/>
+    value="nunit-console"/>
  
   <!-- named configurations -->
   <target
@@ -75,6 +75,8 @@
 
     <nant buildfile="src/protocol/default.build" />
     <nant buildfile="src/apps/default.build" />
+    <nant buildfile="tests/protocol/default.build" />
+    <nant buildfile="tests/util/default.build" />
 
   </target>
 

@@ -119,6 +119,16 @@ namespace Brunet
       _lco.IsActive = false;
       _sco.IsActive = false;
 
+      //Gracefully close all the edges:
+      ArrayList edges_to_close = new ArrayList();
+      lock( _connection_table.SyncRoot ) {
+        foreach(Connection c in _connection_table) {
+          edges_to_close.Add( c.Edge );
+        }
+      }
+      foreach(Edge e in edges_to_close) {
+        GracefullyClose(e);
+      }
       // stop all edge listeners to prevent other nodes
       // from connecting to us
       StopAllEdgeListeners();

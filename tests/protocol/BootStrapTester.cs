@@ -67,7 +67,11 @@ namespace Brunet
      */
     void ConnectionTableChangeHandler(object o, EventArgs arg) {
       lock( this ) {
-        ToDotFile(_node_list, _idx++);
+        _idx++;
+       // if( _idx % 20 == 0 ) { 
+	      //Only print every 20'th change.  This is a hack...
+          ToDotFile(_node_list, _idx);
+        //}
       }
     }
     
@@ -281,6 +285,26 @@ namespace Brunet
     //We are connected now, stop the threads:
     //t.Abort(); 
     System.Console.Out.WriteLine("Finished with BootStrapTester.Main");
+    Console.WriteLine("Press return to stop");
+    string this_command = Console.ReadLine();
+    while( this_command != "Q" ) {
+      int node = -1;
+      try {
+        node = Int32.Parse(this_command);
+        Node to_disconnect = (Node)node_list[node];
+	to_disconnect.Disconnect();
+      }
+      catch(Exception x) {
+
+      }
+      this_command = Console.ReadLine();
+    }
+    
+    foreach(Node n in node_list)
+    {
+      n.Disconnect();
+    }
+
   }
   }
 }

@@ -406,6 +406,13 @@ namespace Brunet
           }
         } //End of writesocks check
       }//End of infinite while loop
+
+      //If we are here, we will never hear or send packets again, so, lets close the sockets:
+      lock( _sync ) {
+        foreach(Socket s in _sock_to_edge.Keys) {
+          s.Close();
+        }
+      }
     }
 
     protected void CloseHandler(object edge, EventArgs arg)
@@ -417,6 +424,7 @@ namespace Brunet
         _all_sockets.Remove(s);
         _send_sockets.Remove(s);
       }
+      s.Close();
     }
     protected void SendStateHandler(object edge, EventArgs arg)
     {

@@ -353,7 +353,7 @@ namespace Brunet
 #endif
 
 
-      #if DEBUG
+      #if KML_DEBUG
         System.Console.WriteLine("Disconnect: DisconnectionEvent: address: " + remote.ToString() +
                                  ", edge: " + e.ToString() +
                                  ", type: " + t.ToString() +

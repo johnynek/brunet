@@ -152,9 +152,10 @@ namespace Brunet
       sw.WriteLine( "local_address " + this_node.Address.ToBigInteger().ToString() + " " + Dns.GetHostName()); 
       sw.Close();
 
+#if PLAB_LOG      
       ///Initialize Brunet logger
       BrunetLogger bl = new BrunetLogger(file_string);
-
+#endif
       if ( local_ta_configuration.Protocol == "tcp" ) {
         this_node.AddEdgeListener( new TcpEdgeListener(port) );
       } 
@@ -196,8 +197,9 @@ namespace Brunet
       this_node.Subscribe(AHPacket.Protocol.Echo, echo_printer);
 
       this_node.Connect();
+#if PLAB_LOG      
       this_node.Logger = bl;
- 
+#endif 
       //Send a "hello message" to a random neighbor
 
       int trial = 0;
