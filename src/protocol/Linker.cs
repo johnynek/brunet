@@ -289,6 +289,20 @@ namespace Brunet
 
 	  }
 	}
+	else if (cm is ErrorMessage) {
+          //Looks like things are not working out for us.
+	  ///@todo we should probably react differently to different types of errors.
+	  ErrorMessage em = (ErrorMessage)cm;
+	  int error_code = (int)em.Ec;
+	  if( em.Ec == ErrorMessage.ErrorCode.InProgress ) {
+            ///@todo handle "double lock" condition.
+            //This may be a "double lock" condition.
+	    //We probably need to release our lock.  Wait
+	    //a random period, and try again.
+	  }
+	  Fail("connection attempt failed due to receiving Error: " + 
+	       error_code.ToString() + ", " + em.Message  );
+	}
         else if (cm is PingMessage) {
             /**
             * This should never happen
