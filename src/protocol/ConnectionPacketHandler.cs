@@ -128,11 +128,12 @@ namespace Brunet
             //Release the lock before calling this function:
             if( lm_to_add != null ) {
               Console.WriteLine("About to add: {0},{1},{2}",
-                                lm_to_add.ConnectionType, lm_to_add.LocalNode,
+                                lm_to_add.ConnectionType,
+				lm_to_add.Local.Address,
                                 from );
-              _tab.Add( lm_to_add.ConnectionType, lm_to_add.LocalNode, from );
+              _tab.Add( lm_to_add.ConnectionType, lm_to_add.Local.Address, from );
               //Unlock after we add the connection
-              _tab.Unlock(lm_to_add.LocalNode, lm_to_add.ConnectionType, this);
+              _tab.Unlock(lm_to_add.Local.Address, lm_to_add.ConnectionType, this);
             }
           }
           else if (cm is CloseMessage) {
@@ -185,10 +186,9 @@ namespace Brunet
             //Now we prepare our response
             if( err == null ) {
               //We send a response:
-              response = new LinkMessage( lm.ConnectionType,
-                                          lm.LocalTA,
-                                          lm.RemoteTA,
-                                          _local_add );
+	      NodeInfo local_info = new NodeInfo( _local_add, from.LocalTA );
+	      NodeInfo remote_info = new NodeInfo( null, from.RemoteTA );
+              response = new LinkMessage( lm.ConnectionType, local_info, remote_info );
               response.Id = lm.Id;
               response.Dir = ConnectionMessage.Direction.Response;
             }
@@ -231,12 +231,12 @@ namespace Brunet
       bool have_con = false;
       lock( _tab.SyncRoot ) {
 
-        if( _tab.Contains( lm.ConnectionType, lm.LocalNode) ) {
+        if( _tab.Contains( lm.ConnectionType, lm.Local.Address) ) {
           //We already have a connection of this type to this address
           err = new ErrorMessage(ErrorMessage.ErrorCode.AlreadyConnected,
                                  "We are already connected");
         }
-        else if( lm.LocalNode.Equals( _local_add ) ) {
+        else if( lm.Local.Address.Equals( _local_add ) ) {
           //You are me!!!
           err = new ErrorMessage(ErrorMessage.ErrorCode.AlreadyConnected,
                                  "You are me");
@@ -244,7 +244,7 @@ namespace Brunet
         else {
           //Everything is looking good:
           try {
-            _tab.Lock( lm.LocalNode, lm.ConnectionType, this );
+            _tab.Lock( lm.Local.Address, lm.ConnectionType, this );
             int index;
             Address add;
             have_con = _tab.GetConnection( from, out ct, out index, out add );
@@ -252,7 +252,7 @@ namespace Brunet
           catch(InvalidOperationException iox) {
             //Lock can throw this type of exception
             err = new ErrorMessage(ErrorMessage.ErrorCode.AlreadyConnected,
-                                   "Address: " + lm.LocalNode.ToString() +
+                                   "Address: " + lm.Local.Address.ToString() +
                                    " is locked");
           }
         }
@@ -272,7 +272,7 @@ namespace Brunet
         }
         else {
           //We need to release the lock we have:
-          _tab.Unlock( lm.LocalNode, lm.ConnectionType, this );
+          _tab.Unlock( lm.Local.Address, lm.ConnectionType, this );
           //Cannot promote to types other that structured:
           err = new ErrorMessage(ErrorMessage.ErrorCode.AlreadyConnected,
                                  "Cannot promote edge to: "
@@ -306,7 +306,7 @@ namespace Brunet
         }
       }
       if( lm != null ) {
-        _tab.Unlock( lm.LocalNode, lm.ConnectionType, this );
+        _tab.Unlock( lm.Local.Address, lm.ConnectionType, this );
       }
     }
 
