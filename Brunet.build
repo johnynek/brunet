@@ -1,0 +1,158 @@
+<?xml version="1.0"?>
+ 
+<project
+  name="Brunet"
+  default="build">
+ 
+  <!-- default configuration -->
+  <property
+    name="project.version"
+    value="0.1"/>
+  <property
+    name="package.name"
+    value="${nant.project.name}-${project.version}"/>
+  <property
+    name="build.dir"
+    value="${nant.project.basedir}/build"/>
+  <property
+    name="lib.dir"
+    value="${nant.project.basedir}/lib"/>
+  <property
+    name="assembly"
+    value="Brunet"/>
+  <property
+    name="project.config"
+    value="release"/> <!-- debug|release -->
+  <property
+    name="target"
+    value="build"/>
+  <property
+    name="nunit"
+    value="nunit"/>
+ 
+  <!-- named configurations -->
+  <target
+    name="init"
+    description="Initializes building properties">
+    <call target="${project.config}"/>
+  </target>
+ 
+  <target
+    name="debug"
+    description="Configures a debug build">
+    <property
+      name="project.config"
+      value="debug"/>
+    <property
+      name="build.debug"
+      value="true"/>
+    <property
+      name="package.name"
+      value="${package.name}-${project.config}"/>
+  </target>
+ 
+  <target
+    name="release"
+    description="Configures a release build">
+    <property
+      name="project.config"
+      value="release"/>
+    <property
+      name="build.debug"
+      value="false" />
+    <property
+      name="package.name"
+      value="${package.name}-${project.config}"/>
+  </target>
+ 
+  <!-- build tasks -->
+  <target
+    name="recurse"
+    description="Builds recursively all subprojects">
+    <property
+      name="configured"
+      value="true"/>
+
+    <nant buildfile="src/protocol/default.build" />
+    <nant buildfile="src/apps/default.build" />
+
+  </target>
+ 
+  <target
+    name="build"
+    depends="init"
+    description="Builds the current configuration">
+    <property
+      name="target"
+      value="build"/>
+    <call target="recurse"/>
+  </target>
+ 
+  <target
+    name="clean"
+    depends="init"
+    description="Deletes the current configuration">
+    <delete
+      dir="${build.dir}/${package.name}"
+      failonerror="false"/>
+
+    <delete
+      file="${lib.dir}/${assembly}.dll"
+      failonerror="false"/>
+
+    <delete
+      file="${lib.dir}/${assembly}-TestUtil.dll"
+      failonerror="false"/>
+
+  </target>
+ 
+  <target
+    name="test"
+    description="Testing Brunet"
+    depends="build">
+ 
+    <csc target="library" output="${build.dir}/${package.name}/bin/${assembly}-Test.dll">
+      <sources>
+        <include name="tests/*.cs" />
+      </sources>
+      <references>
+        <include name="${build.dir}/${package.name}/bin/NUnit.Framework.dll" />
+        <include name="${build.dir}/${package.name}/bin/log4net.dll" />
+        <include name="${build.dir}/${package.name}/bin/${assembly}.dll" />
+      </references>
+    </csc>
+   
+    <exec
+      program="${nunit}"
+      workingdir="${build.dir}/${package.name}/bin"
+      commandline="${assembly}-Test.dll">
+    </exec>
+  </target>
+
+  <target
+    name="test-util"
+    description="Building the Brunet Test Utilities Library"
+    depends="build">
+
+    <property
+      name="configured"
+      value="true"/>
+
+    <nant buildfile="tests/util/default.build" />   
+
+  </target>
+
+  <target
+    name="test-apps"
+    description="Building Brunet Test Apps/Testers"
+    depends="build">
+
+    <property
+      name="configured"
+      value="true"/>
+
+    <nant buildfile="tests/protocol/default.build" />   
+
+  </target>
+
+</project>

@@ -1,0 +1,267 @@
+\documentclass[11pt]{article}
+
+\usepackage{graphicx}
+\usepackage{fullpage}
+
+\begin{document}
+\title{Practical issues about the Brunet Ad-hoc Network}
+\author{P. Oscar Boykin}
+\date{April 16, 2003}
+\maketitle
+\begin{abstract}
+This is an informal document which explains the hows and whys of the Brunet
+system, without going into the details of the specification.  It is meant to
+answer questions about properties which may not be clear, or are merely
+implied by the protocol itself.  This document also answers questions about
+applications of the Brunet system. 
+\end{abstract}
+
+\section{Introduction}
+The Brunet protocol specifies how nodes may join the brunet network, and how
+packets are routed to the appropriate destination nodes.  The routing
+algorithms and methods for joining and leaving the network are rather simple,
+however, the specification does not suggest any specific applications of the
+system.  Each packet has a one byte identifier which nodes can use to
+determine the type of data in the payload, however, the routing of packets is
+independent of the content.  There a few practical aspects that complicate
+the implementation of any theoretically derived protocol.  In particular, many
+networks protocols often have low practical limits on the number of
+connections (e.g. TCP on many systems), or cannot guarantee the delivery of
+messages (e.g. UDP, ethernet).  Additionally, many nodes may only be able to
+initiate connections and cannot accept incoming connections.
+
+\section{Firewalls}
+Nodes which cannot accept incoming connections are called firewalled nodes.
+Firewalled nodes, in general, do not have methods for applications to learn of
+the existence or properties of the firewall.  As such, it is desirable to
+design a protocol whose rules are uniform for each node, and do not depend on
+the knowledge as to whether or not that node is behind a firewall.
+\begin{figure}
+\centering
+\includegraphics[width=3.5in]{example}
+\caption{Example of a few nodes with structured edges.  Grey nodes are
+firewalled}
+\label{fig:firewall}
+\end{figure}
+In figure \ref{fig:firewall}, we give an example of a section of a network.
+In the figure, there are four nodes which are not firewalled (N1,N5,N10,N20),
+and there are three that are firewalled (N7,N8,N9).  Each node has two
+outgoing connections (those of N1 and N20 are omitted).
+
+There are three questions regarding firewalls that must be addressed: first,
+will the routing algorithm insure that each packet will reach its destination,
+second, will new nodes joining the network find the proper place, and last,
+when nodes exit will the structure remain correct?  We will first answer these
+questions for particular examples, and later address the issue with a proof
+that it will behave correctly in general.
+
+\subsection{Routing and Firewalled Nodes}
+As to the first point, it is clear that all the non-firewalled nodes will be
+found by the normal algorithm.  For firewalled nodes, in our example N7,N8 and
+N9, the story is not as clear.  Clearly if any node less than or equal to 5,
+or greater than or equal to 10 sends a message, it will reach them.  That is
+clear because that message will first reach N5 or N10 depending on the
+direction, and then it will reach the destination on the next hop.  There is
+one last case to consider, suppose N8 wants to address N9.  Recall that the
+routing algorithm is the following: always send the packet towards the address
+which brings it closest to the destination and decreases total distance
+\emph{except when there is no node
+closer} in which case you send it to the node in between which the destination
+node must be.  Hence, when addressing N9, N8 must send the packet to N10, as
+N10 is closer to N9 than N5 is.  Finally, N10 is connected directly to N9, so
+it passes the node to N9.  The key to seeing that this routing will work is
+that between any two non-firewalled nodes, all the nodes whose addresses lie
+in that interval are connected to both end points.  In between those two
+non-firewalled nodes, the ordering of the network is not strictly correct, in
+that those firewalled nodes are not connected to their nearest neighbors (who
+may be themselves firewalled), however, the end points are connected to
+\emph{all} the nodes in between, so the extra final step in the routing
+algorithm will always make sure a packet can reach its destination.
+
+A side effect of the above structure is that firewalled nodes will never be
+used in local routing, but for long range routing they may be recieve
+incoming packets on their shortcut connections.
+
+\subsection{Joining the Network}
+The second question is: will nodes join in the proper place?  To join, a node
+connects to a random node on the network, which acts as a proxy for a
+``bootstrap" message.  The bootstrap message is sent on the network to the
+address of the joining node.  Lets discuss two examples.  First, consider N3
+wants to join the network.  The message will be sent to N3, which will wind up
+being delivered to both N1 and N5, as they are the two closest to where N3
+should be.  Both N1 and N5 will respond to the request and will connect to N3
+if N3 is not firewalled.  If N3 is firewalled, then N3 will connect to both N1
+and N5.  In the firewalled case, N3 has two outbound connections, and as such
+is done connecting.  In the non-firewalled case, N3 will have two incoming
+connections, one from N1 and one from N5.  Now, it still have to create two
+outbound connections to the nearest neighbors not already connected to.  On
+connection, N3 will learn the nearest nieghbors of N1 and N5.  N3 may then use
+this information to find the nodes nearest to it which are not firewalled, to
+which it may connect.  Since N1 must have at least one outbound connection to
+the left, there exists at least one near neighbor for N3 to connect to towards
+the left.  Likewise for N5.
+
+The more complicated cases involve firewalled having addresses nearest to the
+joining node.  In particular, there are two cases: one of the nearest
+neighbors is firewalled or both of the nearest neighbors is firewalled.
+Suppose that N6 wants to join the network.  Clearly N5 and N7 (being the two
+nearest nodes, and neighbors of one another) will recieve the bootstrap
+message.  If N6 is not firewalled, then N5 and N7 will connect to N6.  After
+N6 is connected to N5 and N7, both of the latter nodes will communicate that
+each of their neighbors, some of whom may connect to N6.  In the case that N6
+is firewalled, N6 will be able to connect to N5, but N6 and N7 will not be
+able to connect.  After connecting to N5, N6 will learn the neighbors of N5,
+and as such will be able to connect to the proper nodes.  If we consider the
+node N8.5, a node that should be situated between N8 and N9, we see a slightly
+more complicated picture.  If the packet comes by way of N10, the routing
+rules say that the packet should then be sent to N8\footnote{the routing
+rule says to route to the node further from the current node when there are two
+equally distant from the destination}.  The node N8 will see that it cannot
+route the packet to a node nearer to N8.5, and will route to the second
+nearest node (on the other side of 8.5), which is back to N10.
+When N10 recieves the packet from a node which is closer to the destination,
+and it cannot route the packet directly to N8.5, then the packet stops at this
+point and N10 may process it.
+Thus, N8.5 will join
+between N8 and N10.  Once connected to N10, it will also find the addresses of
+N9 and N5.  If the packet had come from the direction of N5, the situation
+would have been reversed.  N5 would route the packet to N9 (being as close as
+N8 and on the far side of N8.5).  N9 would route it back to N5 (since there
+is not a node closer to N8.5, and N5 is the closest node on the opposite side
+of N8.5 to N9).  N5 would process the node as it recieved it from a neighbor
+which is closer to the destination that it is.
+Clearly this will allow N8.5 to find its proper place whether it
+is firewalled or not.
+ 
+\subsection{Exiting the Network}
+Exiting the network is pretty straight forward.  Ideally, a node sends a close
+request to all its neighbors.  Of course, there will be some cases where a
+close will not be sent (in the even of abrupt failures or loss of
+connectivity).  When a node losses a connection, it may replace that
+connection.  According to the protocol, every node keeps two outgoing
+connections.  If the target of a nodes outgoing connections leaves, it must be
+replaced.  Additionally, each node must attempt to be be connected to the two
+nearest neighbors in the network (the firewalls frustrate that slightly, but
+as we have seen it does not destroy routing).  Hence, if a node looses any
+connection which is the closest on either side, that connection may be
+replaced.  Lost local connections of nodes which are not outbound connections or
+nearest neighbors do not need to be replaced\footnote{shortcut connections do
+need to be replaced when lost, each node MUST have at least one shortcut
+connection}
+Since each node knows the addresses of all his neighbor's
+neighbors, then the node can go about replacing the connection.  A second way
+to verify that there are no hidden neighbors, is to send a connection request
+to the node just on the other side of halfway between a node and its presumed
+nearest neighbor.  Either the packet will be passed back, or it will reach a
+neighbor in between, at which point a connection is made.  Both of these
+approaches are used to verify that the ordering is proper after a node exits.
+
+\section{Transports}
+In a practical implementation of a protocol, it is not only important to have
+good scaling properties, it is also neccesary to have low resource
+requirements.  In the Brunet protocol, the node with the largest number of
+unstructured connections will have $O(N)$ connections, and for file sharing
+applications, each node will have $O(K)$ connections (where K is the number of
+share contents).  The number of nodes in a network could easily grow to
+hundreds of thousands or millions.  The number of files shared by a node might
+be equally large.  At the same time, the number of TCP connections that most
+operating systems support is considerably less than this.  As such, it is
+obvious that if IP is to be used a transport, UDP must be the mechanism for
+many, if not all, of the connections, however there are two problems with
+using the UDP protocol for transport: it provides no recovery of lost packets
+and it offers no flow control mechanism.
+
+\subsection{Packet Loss}
+Internet archetecture has worked remarkably well.  At the bottom, IP is a
+datagram protocol with no guarantees on delivery of packets.  UDP is a thin
+protocol that goes on top.  UDP packets can be up to 65535 bytes in size.
+Those that are too large to be sent in one IP packet, are fragmented into many
+IP packets.  If any one of those IP packets is lost, the entire UDP datagram
+is lost.  Packet loss rates on the internet vary widely.  When a host is
+overwhelmed by data, the packet loss rate will increase.  The packet loss rate
+is not predictable or completely stable.  If the packet loss is very low, it
+might be acceptable for the application.  However, for our networking
+protocol, which is layered on top of the internet, the loss rate would be
+critical.
+
+Ordinarily, one can expect packet loss rates of around $1\%$ under
+optimal conditions on the internet.  Since, our networking protocol requires
+many hops between hosts on the internet, that rate will increase dramatically.
+For instance, after 10 hops, that $1\%$ grows to $1-(1-0.01)^{10}\approx0.096$.
+After 20 hops we get $1-(1-0.01)^{20}\approx0.182$.  Note that these figures are
+based on an average of $1\%$ packet loss between any two hosts.  In fact, the
+packet loss rate will be more properly modeled by a random variable which is
+lognormally distributed (this comes from the multiplicative nature of combining
+packet losses between hosts).
+
+Note that some of the addresses in the Brunet system make use of sending packets
+with a probability given by the address.  One might be tempted to use the fact
+that UDP is unreliable to do some of the randomization for us.  The problem
+with this approach is that when you send a packet, the probability that it makes
+it to the destination is unknown and highly variable.  Any theory results which
+depend on percolation theory will not apply if the percolation probability
+itself is a random variable.  As such, it is probably best to handle the
+randomization by selecting random edges, but then requiring acknowledgement that
+the packet is recieved.
+
+\subsection{Flow control}
+An issue related to packet loss is flow control.  TCP offers a mechanism so that
+one peer does not overwhelm the other peer with data.  This is flow control.
+UDP offers no flow control, one peer may totally overwhelm the other with data.
+When a peer is flooded with data, packet loss increases dramatically.  Hence,
+the use of UDP without any mechanism for flow control, would likely increase the
+packet loss rate.
+
+The design of TCP is to allow the maximum throughput between two peers.  On the
+other hand, the Brunet system is not designed for high throughput applications.
+In fact, the exact opposite is true: Brunet attempts to provide a low bandwidth
+solution for applications requiring decentralized queries and location
+independent resource resolution.  As such, a very simple flow control mechanism
+should be sufficient for Brunet.  In particular, Brunet packets range from 100
+bytes to 1000 bytes or so, and internet latency is about 100ms.  If a Brunet
+implementation allows n packets of size b to be transit before requiring
+acknowledgement, and the round trip time is t, then the rate of the connection
+will simply be: $R=\frac{nb}{t}$.  If the packet size is about 200 bytes, and
+the round trip time is about 200 ms, then we see $R=n$ where R is measured in
+1000 bytes per second.
+
+So, the UDP transport described in the Brunet specification provides
+acknowledgement of packets.  The specification does not say how an application
+is to perform with regard to those packets.  By limiting the number of packets
+a Brunet implementation will send before recieving acknowledgement, a peer can
+limit the data rate of the packets sent.  By limiting the rate at which a node
+will acknowledge packets, it can control the rate at which it recieves data.
+
+The key to the UDP transport for Brunet is to offer mechanism to control packet
+loss and to implement simple flow control while not requiring large resources.
+An implementation should be able to handle millions of connections on the UDP
+transport.
+
+\section{Encrypting Datagrams Between Nodes}
+The Brunet system uses randomly generated addresses for many of the addresses in
+the system.  This offers some security benefits that do not exist in some other
+protocols.  Rather than selecting addresses at random, addresses could be
+derived from a cryptographic hash of some other data.  As such, the address
+serves authenticates itself.
+
+For instance, the entire network might use the Diffie-Hellman key agreement
+protocol.  Each node could have a private key and a public key.  As an example,
+consider a node with public key $g^a \ {\rm mod}\ p$, and private key $a$.
+The address could be selected as the SHA1 hash of the public key.  Of course, in
+order to make this a class 0 address, the last bit is replaced with '0'.
+When two nodes communicate their keys to each other, they each can verify that
+the key they have is the proper key for the address.
+In this way,
+when an address gives its public key, it is clear that the public key does
+indeed belong to this node.  This can be done for any public key protocol.
+
+\section{Content and Resource Addresses}
+In order to resolve (or find nodes which have) resources, we need a way to
+represent content as nodes in the network.  One way to do this, is that each
+host which wants knows how to find content connects to the network with a class
+1 address.  One way to do this is to take the URN (uniform resource name) for
+the resource, and hash that name with the SHA1 hash.  Finally, replace the last
+two bits with '01', and the result will be a class 1 address.  The node with the
+address obtained by this procedure may then be queried for the particular URN.
+
+\end{document}

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<NetworkConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Nodes>
+    <Node>
+      <TransportAddresses>
+        <TransportAddress>
+          <Protocol>tcp</Protocol>
+          <Address>plab2.ee.ucla.edu</Address>
+          <Port>5009</Port>
+        </TransportAddress>
+      </TransportAddresses>
+    </Node>
+    <Node>
+      <TransportAddresses>
+        <TransportAddress>
+          <Protocol>tcp</Protocol>
+          <Address>kupka.ee.ucla.edu</Address>
+          <Port>5001</Port>
+        </TransportAddress>
+      </TransportAddresses>
+    </Node>
+  </Nodes>
+</NetworkConfiguration>

@@ -1,0 +1,902 @@
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="rfc2629.xsl"?>
+<!DOCTYPE rfc SYSTEM "rfc2629.dtd">
+<?rfc toc="yes"?>
+<rfc ipr="none">
+<front>
+<title>Brunet Ad-hoc Peer-to-peer Network Protocol</title>
+<author initial="P.O." surname="Boykin" fullname="P. Oscar Boykin">
+<organization>UCLA Department of Electrical Engineering</organization>
+<address>
+<email>boykin@pobox.com</email>
+<uri>http://pobox.com/~boykin</uri>
+</address>
+</author>
+<date month="March" year="2003" />
+<keyword>P2P</keyword>
+<keyword>DHT</keyword>
+<keyword>Ad-hoc Networking</keyword>
+<abstract>
+  <t>
+    This note describes the protocol and data formats for the Brunet Ad-hoc
+    networking system.  This system supports two seperate applications,
+    namely an addressable system for content and resources and the a query
+    system.  This protocol defines a basic communications protocol for which
+    there may be many applications.  The most obvious of these would be systems
+    for file sharing and chat services.
+  </t>
+</abstract>
+</front>
+<middle>
+<section anchor="sec.introduction" title="Introduction">
+<t>
+  This document gives a specification for communicating according to the Brunet
+  protocol.  This protocol is a networking protocol that is agnostic of the
+  underlying transport mechanism.  This note will specify TCP/IP and UDP/IP
+  transports for the protocol.
+</t>
+<t>
+  There are two protocols we will describe in this document, the 
+  <xref target="sec.protocol.connection">connection protocol</xref> and the <xref
+  target="sec.protocol.addressable">addressable system</xref>.
+  The connection protocol is a protocol which nodes use to communicate in a
+  pair-wise fashion to form a network which predictable global properties.
+  The addressable system is network which makes use of results from complex
+  networks to form a hybrid system to allow both the efficient addressing of
+  all nodes and resources, as well as efficient global queries of the network.
+  This system is appropriate for distributed queries, chat room
+  systems, or grid computing applications.
+</t>
+<t>
+  This protocol is based on theory which suggests that it
+  should have communications cost that scale polylogarithmically with network
+  size.  This system represents state of the art performance.
+</t>
+<t>
+  The wire format specification of this protocol is based on lessons learned
+  from IP.  It should make this protocol easy to implement and very extensible.
+  This document only describes the general packet protocol, it does not
+  describe any application specific uses of the protocol.
+</t>
+<t>
+In addition to inspiration from IP, the Brunet protocol also uses XML where
+complex data needs to be represented.  In some sense, the verbosity of
+XML is completely opposite from the compact efficiency of IP.  In
+order to get the best of both worlds, IP-like binary headers are used
+for routing of all messages.  Once a message is delivered to a node,
+the payload may be XML.  Additionally, RFC1951 deflate may be used at
+the packet layer, so the size penalty of XML is reduced.
+</t>
+</section>
+
+<section anchor="sec.protocol" title="Protocol Specification">
+<t>
+The general Brunet protocol encapsulates any number of sub-protocols.  In
+general, messages in the system are finite length datagrams.  Packetizing the
+datagrams is left to a lower layer of the protocol, including supplying the
+total length of each datagram (see the <xref target="sec.transports">section on
+transports</xref>).  Any number is represented on the wire in network endian
+format.  Like IP, the header of any message is sufficient to route the message
+without needing to see what kind of data is contained in the payload.
+</t>
+<t>
+<figure>
+<preamble>
+Protocol format.  Each '+' character represents a byte boundary.  'P' is a byte that
+holds the protocol version represented as an 8 bit number.
+</preamble>
+<artwork>
++-+-
+|P| protocol specific data
++-+-
+</artwork>
+</figure>
+In the following sections we will describe what follows the protocol version for
+the defined cases.  Each of these protocols may have addresses associated with
+them.  The string representation of those addresses will in general look like:
+</t>
+<t>
+brunet:node:[protocol specific ASCII encoded address]
+</t>
+<t>
+The address format MUST be a valid URN.
+</t>
+
+<section anchor="sec.protocol.connection" title="Connection Protocol (0x01)">
+<t>
+The Brunet ad-hoc network protocol
+describes the routing and headers of associated packets.  In practice, this
+system is a virtual networking protocol on top of another layer (see the <xref
+target="sec.transports">section on transports</xref>).  At the transport layer,
+there must first be a connection made before packets from the unstructured
+system are routed.  This section describes the messages used to initiate, verify
+and destroy connections at the so-called transport layer.
+</t>
+<t>
+The header for the unstructured connection protocol packets look like:
+<figure>
+<preamble>
+Unstructured connection header format.  Each '+' character represents a byte
+boundary.
+</preamble>
+<artwork>
++----+---
+|0x01|message
++----+---
+</artwork>
+</figure>
+<list style="numbers">
+<t>0x01: The protocol number is 0x01 for the connection protocol</t>
+<t>Message: The protocol specific connection message.  Where possible,
+we will attempt to use a unified language for this message, preferably
+XML formatted</t>.
+</list>
+</t>
+<section anchor="connection-xml" title="Generic Connection XML Dialect">
+<t>
+This section describes the connection protocol used to connect pairs
+of nodes to form the <xref target="sec.protocol.addressable">ad-hoc network</xref>.
+</t>
+<t>
+An ad-hoc network often relies on some global structure or properties.
+In the Brunet system, this structure is created by use of the
+connection protocol.  A host is assumed to know at least one host in
+the system.  The new node "bootstraps" its appropriate position from
+that known host.  Once a position is found for the new node, that node makes
+a connection to the appropriate position.
+</t>
+<t>
+Each message is either a request or a response.  These requests and
+responses are appropriate to only one protocol at a time.  Every
+request has an id number, and the response echos that id number.
+The id number is 32 bit signed integer, but only values greater
+than zero may be used.  Negative numbers and 0 are reserved for
+other uses.
+Every request MUST have a response.  A request MAY have more than
+one response.
+</t>
+<t>
+There are several child XML-nodes to requests and responses, which
+represent the vocabulary of actions which the connection protocol
+supports:
+<list style="symbols">
+<!--
+<t>connectTo: this is the type of message sent to hosts joining the
+network.  The node recieving the message finds the appropriate place
+in the network to join.  This message allows new nodes to "bootstrap"
+to the proper place.</t>
+-->
+<t>link: once a place in the network is found for a node, that node
+"links" to its new neighbor.
+</t>
+<t>
+ping: a message which is used to test activity, or time responsiveness
+or a neighbor.
+</t>
+<t>close: before a node leaves the network, it SHOULD send a close
+message, which MUST be responded to with a close message.  Nodes
+cannot assume, however, that a node will send a close message before
+leaving (consider cases of abrupt loss of network connectivity, or
+total system failure).</t>
+</list>
+</t>
+<t>
+<!--
+The connectTo exchange looks like this:
+<figure>
+<preamble>Example connectTo Exchange:</preamble>
+<artwork>
+<![CDATA[
+Request:
+================
+<request id="183">
+    <connectTo type="shortcut">
+      <node>
+        <address>brunet:node:12341j13jkasf123dk</address>
+      </node>
+      <host>
+        <address>brunet.tcp://10.7.24.9:9832</address>
+        <address>brunet.udp://10.234.0.1:12345</address>
+      </host>
+    </connectTo>
+</request>
+================
+Response:
+================
+<response id="183">
+    <connectTo type="shortcut">
+      <node>
+        <address>brunet:node:k3455g297sfh25xnm2</address>
+      </node>
+      <host>
+        <address>brunet.tcp://10.7.24.9:9832</address>
+        <address>brunet.udp://10.234.0.1:12345</address>
+      </host>
+    </connectTo>
+</response>
+]]>
+</artwork>
+<postamble>The above gives an example connectTo message.  A node
+requests a connection.  This request is passed out to the network and
+nodes selected to connect to the node reply with a connection message.
+</postamble>
+</figure>
+Once a connectTo message is recieved, a connection should be made with the
+node which requested it.  The addresses should be tried in the order
+they were presented if possible.  If a type of edge is not
+supported, or not availible, that type may be skipped (for instance, a
+host may support only a limited number of TCP connections).
+-->
+<figure>
+<preamble>Example link exchange:</preamble>
+<artwork>
+<![CDATA[
+Request:
+=================
+<request id="4512">
+  <link type="unstructured">
+    <local>
+      <node><address>brunet:node:j764jjsdh912k434350jaf</address></node>
+      <host><address>brunet.udp://10.0.0.23:598</address></host>
+     </local>
+    <remote>
+      <host><address>brunet.udp://10.0.0.24:9800</address></host>
+    </remote>
+  </link>
+</request>
+=================
+Response:
+=================
+<response id="4512">
+  <link type="unstructured">
+    <remote>
+      <host><address>brunet.udp://10.0.0.23:598</address></host>
+    </remote>
+    <local>
+      <node><address>brunet:node:ithjwen34198jmrrm324n4</address></node>
+      <host><address>brunet.udp://10.0.0.24:9800</address></host>
+     </local>
+  </link>
+</request>
+=================
+]]>
+</artwork>
+</figure>
+In the above, a request is made to a node to form a connection.  The
+local and remote host addresses are passed at the connection
+attempt (these may be useful for nodes to learn if they are behind any
+network address translation (NAT) routers).
+Only connection messages (protocol=0x01) should be
+accepted until a link is made.  After the link, the linked protocol
+should be accepted.
+</t>
+<t>
+Connections are closed with the close message.
+<figure>
+<preamble>Example Close Message</preamble>
+<artwork>
+<![CDATA[
+<request id="13415">
+  <close />
+</request>
+]]>
+</artwork>
+</figure>
+Like all messages, the close request must be replied to with a
+response, which should be a close message as well.
+</t>
+<t>
+Connections may be tested with a ping message.
+<figure>
+<preamble>Example Ping Message</preamble>
+<artwork>
+<![CDATA[
+<request id="31416">
+  <ping />
+</request>
+]]>
+</artwork>
+</figure>
+</t>
+</section>
+</section>
+
+<section anchor="sec.protocol.addressable" title="Addressable Protocol (0x02)">
+<t>
+The main Brunet system
+is an addressable system and there is no need for large routing tables.  Routing
+is done purely based on the addresses of a nodes neighbors, i.e. packets are
+sent towards the neighbor closest to the destination.
+The addressable protocol is denoted by protocol number 2 (P=0x02).  The full header
+format is as follows:
+<figure>
+<preamble>
+DHT system header format.  Each '+' character represents a byte
+boundary.
+</preamble>
+<artwork>
++----+-+-+-+-+(20 bytes)++++(20 bytes)++++-+--
+|0x02|Hop|TTL|Source Add |Destination Add|N| Payload
++----+-+-+-+-+..........++++..........++++-+--
+</artwork>
+</figure>
+<list style="numbers">
+<t>P: the protocol number is 0x02</t>
+<t>Hop: the total number of hops the packet has taken.  This is a 2-byte
+signed integer stored as a network endian format.  Negative numbers are
+reserved for future use.</t>
+<t>TTL: the maximum number of hops the packet is allowed to take.  This is a
+2-byte signed integer in network endianism.  Negative numbers are reserved
+for future use.</t>
+<t>Source Address: 160 bits (20 bytes)</t>
+<t>Destination Address: 160 bits (20 bytes)</t>
+<t>N: Next header type.  This denotes the type of information carried in the
+payload.  This is irrelevant for routing.</t>
+<t>Payload: the data carried by the packet.  Recall that we assume
+that the transport layer gives the length of the datagram.  Since the header is
+always 46 bytes, the total length minus 46 is the length of the payload.</t>
+</list>
+</t>
+
+<section anchor="sec.protocol.dht.addresses" title="Addresses">
+<t>
+The address space is partitioned into many address types.  Each address is
+suffixed by 1 '0' followed by n '1's.  We will say an address is a class n address
+if it is suffixed by 1 '0' followed by exactly n '1's.  For instance, the last bit in
+a class 0 address is '0'.  The last two bits in a class 1 address are '01'.
+The last three bits in a class 2 address are '011' and so fourth.  It is
+trivial to find which class an address is from by going through the address
+backwards and
+counting how many '1's appear before the first '0'.
+The number of addresses in a
+class n address is 2^{159 - n}.  Therefore, the address which we will need more
+of should be lower class than those when we will need fewer of.  The address
+space is so far assigned in the following way:
+<list style="symbols">
+<t>Class 0: Node addresses: Each node has one of these addresses.
+The address should be generated randomly using a random number generator
+suitable for cryptographic applications.  The probability that any two nodes
+choose the same address will be very small until there are about 2^{79} nodes
+(this is the famous birthday problem).</t>
+
+<t>Class 1: Resource Addresses: A node may have more than one of these
+addresses.  These are used for resource resolution.  More than one node may have
+the same class 1 address.  This is in contrast to class 0 addresses.</t>
+
+<t>Class 2: Multicast Addresses: Multicast address work similar to their
+specification in IP.  Individual nodes may join a multicast group by adding this
+multicast address to the addresses it listens for.  The efficient handling of
+the multicast addresses is given in a later section.
+</t>
+<t>
+Class 124: Directional Structured Addresses: These are addresses that refer
+to directional routing rules in the structured system.  The last 125 bits are
+'0' followed by 124 '1's.  The first 32 bits form an integer.  This integer
+is an index into a table of subtypes of directional addresses.  The following
+two bits are unused at this time.
+</t>
+<t>Class 126: Random Walk and Percolation (RWP) Address: The class 126 addresses
+end with a '0' followed by 126 '1's.
+The first 32 bits 
+represent a floating point number in IEEE 754 Float standard stored in network
+endianism, we call this number p.
+The 33rd bit in the class 126 address, is a flag we call f.</t>
+
+<t>Class 159: Random Walk Termination Address (RWTA):
+Messages sent to this
+address go on a random walk, and the last node to recieve the message
+processes it.  This is a mechanism for selecting nodes in the network
+preferentially.  This address is primarily used for creating new
+connections.  It is different than the RWP address with p=0
+because for that address, EACH node that recieves the message
+processes it, NOT just the termination point.</t>
+</list>
+Classes 126 and greater are "unstructured" addresses.  They must only be routed
+over certain types of connections.
+Other classes of addresses may be given in the future.
+</t>
+<t>
+The string representation for these addresses is the following:
+brunet:node:[base32 representation of 160 bit address]
+</t>
+</section>
+
+<section title="Distance Metric For Addresses">
+<t>
+In the <xref target="sec.protocol.dht.addresses">previous
+section</xref>, we discussed addresses and a canonical
+partitioning of those addresses.  The theory results on the protocol
+assumes that the addresses are equally spread throughout the space.
+</t>
+<t>
+To calculate the distance between address x and address y, the
+addresses are considered as 160 bit numbers with the most significant
+bytes first.
+The numeric representation of x is n_x, and the
+numeric representation of y is n_y.  Assuming n_x > n_y,
+the distance between the two addresses is the min(n_x - n_y, 2^160 +
+n_y - n_x).  This distance is represented as |x-y|.
+</t>
+</section>
+<section title="Connection Types">
+<t>
+Connections between nodes are of one of two types:
+<list style="numbers">
+<t>Shortcut: Each node should be connected to at least one remote
+   node of distance d with
+   probability proportional to 1/d.  Unstructured addresses (class 136 and greater)
+   must not be sent over these connections.</t>
+<t>Neighbor: These are connections to the nearest nodes (in address distance metric).
+   Each node should be connected to the nearest nodes in the network.
+</t>
+<t>Unstructured: Not all nodes have unstructured connections.
+These are connections which are made which provide a subgraph
+on the network which should have a power-law degree distribution. 
+The probability that a node has k unstructured connections should be
+proportional to 1/k^2.  Each node on the unstructured subgraph should
+have at least two of these connections.</t>
+</list>
+</t>
+</section>
+<section title="Routing">
+<t>
+Routing in this system is simple.  If the source address is not a
+class 0 address, the packet MUST be dropped.
+Each packet has a destination address.  The class of the destination
+address determines the routing for the packet.
+</t>
+<t>
+A general routing rule shared by both structured and unstructured addresses
+is that when the ttl == hops, then the packet MAY be processed by the local
+node.  This property can be used to address k^th neighbors, or in the RWTA
+packet to address the last member of a random walk.
+</t>
+<section anchor="structured-routing" title="Routing Structured Addresses">
+<t>
+Structured addresses may be routed over any connections.
+A peer knows the addresses of all the nodes it is
+connected to.  The packet is routed to the peer which has the address
+which is the closest to the address of the destination packet.  If there
+are two or more nodes which are equally distant from the destination node,
+The packet must be routed to the node which is furthest from the current node.
+If the address is in the network, the packet will eventually reach a node with
+that address.
+</t>
+<t>
+In the case where the address is not in the network, there are two nodes
+which are in the network, which sit on either side of the where the
+address would be located in the address metric space.  If a packet
+cannot be routed precisely to a node with the address of the
+destination of the packet, it must arrive at the two nodes which have
+the closest addresses on either side of where the destination should be.
+</t>
+<t>
+If a node recieves a packet for an address, and the destination of the
+packet is not closer to any of the nodes neighbors than it is to the
+node, then the message is passed to the node which is second closest AND
+on the other side of the destination.
+If a node recieves a packet from a node that is closer to the destination
+than the recieving node is, the packet MUST NOT be forwarded unless it can
+be forwarded DIRECTLY to the destination.
+This guarantees that the the pair of nodes closest to where the
+destination should be (one on either side), will see the packet.
+It is very important that
+these rules are implemented properly, if not, it could result in an loop
+of two nodes forwarding the same packet back and fourth to one another.
+These two nodes MAY
+process the packet depending on the type of the payload.  This
+mechanism exists to facilitate nodes joining the network in the
+appropriate place on the virtual ring.  In particular, <xref
+target="net-structure-p">Network Structure Protocol</xref> messages MUST
+be processed by the two closest nodes if the packet cannot be routed
+directly to the destination.
+</t>
+<t>
+In some cases (not in the case of class 0 addresses), more than one
+node might have the same address.  In this case, the packet should be
+delivered to all nodes with a matching address.
+</t>
+<t>
+By observing the Hops variable and the source address of packets recieved across
+various connections, it a node might learn that the node with the closest address
+might not actually be closer to the destination.  If a node has a routing table
+that suggests that a destination address can be reached more quickly by passing
+a packet to a specific node, that is not a violation of this specification.
+It would be a violation to route a packet to an address which is
+further from the destination than the current address when such an address
+exists.  Further, a packet should only be routed to an address which is not the
+closest when there is good and recent evidence that it can reach its destination
+quicker.
+</t>
+<t>
+The direction addresses (class 124), work according to the following table:
+<list style="symbols">
+<t>1 : Send the packet to the closest node to the left</t>
+<t>2 : Send the packet to the closest node to the right</t>
+</list>
+In the future, other classes will be added.
+</t>
+</section>
+<section title="Routing Unstructured Addresses">
+<t>
+A subset of destination addresses
+are the "unstructured" addresses (class 136 and greater).
+They must only be sent over "unstructured"
+connections.  If a "unstructured" packet is recieved over a structured connections, that
+packet must be dropped.  Hence, when we say we send a packet to a random connection,
+we mean a random unstructured connection, as we must not route unstructured addresses
+over structured connections (the reverse is not true, we may, if it is helpful to, use
+unstructured connections to route structured addresses).
+</t>
+<t>
+RWP addresses are easy to route.  There is not much precendence for this
+sort of routing in current protocol designs, instead the protcol comes
+from theoretical results (specifically the field of percolation theory).
+</t>
+<t>
+Each RWP address has two variables, a flag f, and a probability p.  First, if
+the flag is set (f=1), then one of the neighbors is selected uniformly at random
+and the packet is forwarded to that node with the same destination address.
+Additionally, the destination address flag is flipped to unset (f=0).  Now, for
+each neighbor (other than the one selected in the first part) we handle the
+packet as though we recieved it with (f=0).  When a node recieves a packet with
+an RWP destination address with f unset, then it sends the packet to each
+neighbor with probability p.
+</t>
+<t>
+RWTA addresses are routed like RWP addresses with f=1 and p=0, except that only
+the node on which the packet terminates processes the packet.  We can think of
+the RWTA as simply a random walk in conjunction with the ttl==hops rule (that
+packets with ttl==hops are always delivered locally).
+This packet type
+is used to select nodes from the network preferentially, such that a node with
+k unstructured connections is selected with probability proportional to k.
+</t>
+</section>
+<section title="Packet Priorities">
+<t>
+The protocol makes no guarantees about the delivery of the packet.  The
+transport layer is assumed to provide integrity, meaning if the packet arrives
+it can be assumed that the packet arrives intact and correct.
+</t>
+<t>
+There is a priority system for the routing of packets.  As link capacity is
+exceeded, lower priority packets MUST be discared before higher priority
+packets.  The priority system is designed to make sure that the availible
+capacity is used optimally.
+<list style="numbers">
+<t>single destination addresses (Class 0, RWTA, etc...) have priority over
+multiple destination addresses (multicast, RWP, etc...)</t>
+<t>RWP addresses are the highest priority multiple destination addresses.</t>
+<t>RWP addresses with lower values of p have priority over RWP addresses with
+higher values of p.</t>
+<t>If none of the above rules apply, packets with lower hops have priority over
+packets with higher hops.</t>
+</list>
+</t>
+</section>
+</section>
+
+<section title="Time-To-Live">
+<t>
+The handling of TTLs and Hop counting is pretty simple.  Each packet starts out
+with a TTL of value 0 &lt; TTL &lt;= 65,535 and a Hops value set to 0.  Just
+before a packet crosses a connection between peers, the Hops is compared to the
+TTL.  If the Hops &lt; TTL, Hops is incremented and passed onto the next node.  The
+Hops value is the distance the packet has so far traveled and the TTL is the
+maximum allowed distance that a packet can travel.  The TTL value MUST never
+change.
+</t>
+<t>
+To be clear, no node should recieve a packet with Hops set to zero since it
+could not have both been initialized at 0 and incremented as it passed a connection,
+and finally arrived with Hops still set to 0.  The last node to recieve a packet
+will have Hops == TTL.
+</t>
+</section>
+
+<section title="Payload Types">
+<t>
+<list style="symbols">
+<t>0x01: RFC1951 Deflated payload.  The first byte of the payload is
+the original type.  The remainder of the payload is the original
+payload compressed with the deflate algorithm (see RFC1951).  The
+payload MUST not be compressed if the result is not smaller than the
+original.</t>
+<t>0x02: Network Structure Protocol. This is a protocol for arranging
+the network in a way that will make it navigable in polylogarithmic number
+of hops, and to make sure that unstructured connections follow the proper degree
+distribution.</t>
+<t>0x03: Forwarding Protocol.  The payload contains a next address to forward
+the packet to.  This is used for (amoung other things) bootstrapping.  This
+is only allowed when the original destination address is a class 0 address.
+</t>
+</list>
+</t>
+<section anchor="net-structure-p" title="Network Structure Protocol">
+<t>
+The theory that the Brunet ad-hoc network is based on applies to networks with
+very specific properties.  Namely, that the number of unstructured connections a node
+has follows a power-law proportional to 1/k^2.  Secondly, that for each node,
+that the it is connected to its nearest neighbors with structured connections, as well
+a being connected to a shortcut node, which is at a distance d with probability
+proportional to 1/d.
+</t>
+<t>
+This message type is to allow the network to be formed such that the above two
+properties hold.  If they hold, we know that the network will behave as desired.
+</t>
+<section title="Structured Connections">
+<t>
+The structured system is relies on a very simple network topology.  A node
+with address x, should be connected to the node closest to x which is
+greater than x, and the node which is closest to x and less than x.
+In addition, each node should have a "shortcut" connection to a
+distant node.  The probability that the shortcut goes to node y,
+should go like 1/|x-y|, where |x-y| is the distance between x and y.
+</t>
+<t>
+There is one serious complication of forming the ring of addresses
+described above: firewalled hosts.  Many hosts will be firewalled, and
+will only be able to make outbound edges to other hosts.
+Clearly, this means that all neighbors of a firewalled host are not
+firewalled.  So, for each host, either it or its neighbors (or both)
+are not firewalled.  In fact, if each node makes two outbound
+connections, one to the left and one to the right, to the nearest node
+which it is not already connected to, then it can be shown that the
+routing algorithm <xref target="structured-routing">previously
+described for structured addresses</xref> will succeed and take only
+one hop more than it would had no hosts in the path been firewalled.
+It is however, essential, that each node keep those two outbound
+connections.
+</t>
+<t>
+When nodes leave the network, special care must be made to make sure
+that the ring is not broken.
+Each node has two rules for local structured connections: keep two outgoing
+connections open (one to the left and one to the right) which are as
+close as possible to the nearest neighbors, and keep connected to the
+nearest neighbors.  If any connections which are satisfying those rules are
+removed they MUST be replaced, we call these "critical structured
+connections".  
+The protocol seeks to avoid the breaking
+of the ring, but also, if the ring should break there is a recovery
+method to quickly reconnect.  As described in the <xref
+target="connection-xml">section on the connection protocol</xref>,
+each node knows the addresses of its second neighbors in the
+structured links.  When a node leaves, its neighbors know the
+addresses to attempt to connect to repair the hole in the ring.  If the
+lost connection is a critical connection, it MUST be replaced.  If the nearest
+neighbors change as a result of a closed connection, the new neighbor must be
+verified as the closest.  This is done in the following way: suppose
+node A is connected to B.  Node A wants to verify that there is no node
+between it and B.  Assuming A &lt; B, A sends a connection message to
+C=A + |B-A|/2 + 1, which is between A and B, but closer to B.  If the
+message is returned to A, A knows that there is no node between A and B.
+This proceedure MUST be done after each time a nearest node changes.
+</t>
+<t>
+In the event that it is impossible, for whatever reason, to reconnect
+the ring, one may visualize the broken ring as a line with one node on
+one end, and the node to connect to on the other end.  Call one end,
+end A, the other, end B.  A wants to connect to B.  A has at least one
+long range connection, we will call the long range connection closest
+to B, C.  If A sends a connection message to the node at the position
+D = C + |B - C|/2 - 1, D will be closer to C than it is A, but also
+almost halfway from C to B.  A will connect to D.  This procedure may
+be repeated until it connects to B.  The number of steps required will
+be at most log N, where N is the number of nodes in the network.  Of
+course, every attempt should be made to prevent a break of the ring,
+however, a break can be sealed in a few steps.
+</t>
+</section>
+<section title="Unstructured Connections">
+<t>
+Each node should create 2 unstructured connections when joining the network.
+It should accept all requests to make new connections, and it should replace
+connections that are lost (regardless of whether it initiated them).
+</t>
+<t>To select nodes preferentially, messages MUST be sent to the class
+159 address.  The TTL for such messages should be twice the estimated
+diameter of the network in order to insure that the terminating node is not
+likely to be a near-neighbor 
+<figure>
+<preamble>Example Network Structure protocol request:</preamble>
+<artwork>
+<![CDATA[
+<request id="234">
+  <connectTo type="unstructured">
+    <node><address>brunet:node:25hjnwrj203452lj</address></node>
+    <host>
+      <address>brunet.udp://10.0.0.23:598</address>
+      <address>brunet.udp://10.0.0.24:9800</address>
+      <address>brunet.tcp://10.0.0.24:1025</address>
+    </host>
+  </connectTo>
+</request>
+]]>
+</artwork>
+</figure>
+The above request states that is not to be a structured connection,
+and a list of addresses to try connecting to (which should all be
+ip end points for the same host).  The
+node which recieves this request, attempts to connect to each address
+in the order presented
+(following the <xref target="sec.protocol.connection">connection
+protocol</xref>).
+Once connected, the address that the packet came from should be
+checked against the address of the connected node to verify that
+they are the same (this should limit some forms of protocol abuse).
+</t>
+<t>
+When a request is recieved, a response MUST be given AND connection attempts
+should be made to the addresses in the request.  If those connections fail (due
+to the requesting node being firewalled) then perhaps the request will contain
+addresses which will enable a connection.
+<figure>
+<preamble>Example Network Structure protocol response:</preamble>
+<artwork>
+<![CDATA[
+<response id="234">
+  <connectTo type="unstructured">
+    <node><address>brunet:node:erjn21349h2wkj432</address></node>
+    <host>
+      <address>brunet.udp://10.0.0.44:80</address>
+      <address>brunet.udp://10.0.0.44:8800</address>
+      <address>brunet.tcp://10.0.0.44:61025</address>
+    </host>
+  </connectTo>
+</request>
+]]>
+</artwork>
+</figure>
+In the above, a connection could not be established in one direction,
+so an attempt is made to make a connection in the opposite direction.
+The response must have the same id as the request (which is what allows the
+initiating node to identify the response).
+</t>
+<t>
+All messages must be valid against an xml schema (to be done).
+</t>
+</section>
+<section anchor="sec.forwarding" title="Forwarding Protocol">
+<t>
+<figure>
+<preamble>
+Forwarding protocol payload:
+</preamble>
+<artwork>
++----+-+-+-+-+(20 bytes)++++(20 bytes)++++----+-------+
+|0x02|Hop|TTL|Source Add |Destination Add|0x03| Full Packet
++----+-+-+-+-+..........++++..........++++----+-------+
+</artwork>
+</figure>
+If the destination is class 0, and the payload type is 0x03, then
+the payload is a complete packet which should be forwarded.
+The packet is resent
+from the current destination to the next destination with the current
+header removed.  The data structure of the encapsulated packet is
+exactly the same as a standard 0x02 packet.
+The forwarding node should set his address as the source address of
+the forwarded packet.
+</t>
+</section>
+</section>
+
+</section>
+
+</section>
+</section>
+
+<section anchor="sec.transports" title="Transports">
+<t>
+The Brunet system is designed to be readily transportable over a variety of
+lower level protocols.  The Brunet system is a datagram protocol which makes the
+assumption that a packet of size 65,535 bytes or less can be sent, and that
+the transport
+makes availible the size of each datagram.
+Like IP and Ethernet, there is no guarantee that a packet will arrive at
+its destination.  Reliability must be handled at higher levels.  In general
+this makes protocols such as UDP and Ethernet ideal for Brunet transport.
+</t>
+<t>
+An address for any transport must have a canonical URI representation.
+For instance: "brunet.udp://127.0.0.1:4632".
+</t>
+<section anchor="sec.transports.udp" title="UDP">
+<t>
+The UDP transport is the recommended transport.  Since the protocol requires
+that some nodes have a very large number of neighbor nodes, UDP is more
+efficient for most IP implementations.  The data required to for a UDP transport
+is simply the IP address and port number of the peer endpoint.
+</t>
+<section anchor="sec.transports.udp.format" title="Format of UDP packets">
+<t>
+Here we describe the format each udp datagram that carries brunet datagrams.
+We basically just put the Brunet packet into a UDP packet.  The UDP packet
+knows how long it is, so there in no concern about finding the length.
+Since all connections must be set up using the connection protocol before
+they are used, packets that are badly formed are easy to detect.
+</t>
+<t>
+The string format for UDP addresses is "brunet.udp://" followed by an
+IP address or
+resolvable domain name, followed by a ":" followed by the port number.
+</t>
+</section>
+
+</section>
+
+<section anchor="sec.transports.tcp" title="TCP">
+<t>
+The TCP transport is the easiest to implement but it has serious performance
+concerns.  Specifically, as we will see later, the node with the most
+connections in the ad-hoc network will have O(N) connections.  Opening large
+numbers of TCP connections presents problems for many TCP/IP implementations.
+TCP connections may be more appropriate to low bandwidth users who are very
+concerned with issues of flow control and being overwhelmed with messages.  A
+good rule of thumb is to not create more than 1 TCP connection, but accept as
+many as can be handled.
+</t>
+<section title="Format of TCP packets">
+<t>
+Since TCP already handles flow control and reliability, the only thing one has
+to do to make it a tranport for Brunet is to provide packetization.  For each
+packet we want to send, we compute the length of the entire packet (including
+any header information).  And we write that into the stream in network
+endianism.
+Immediately following that, all the data
+from the packet is written into the stream.
+</t>
+<t>
+The string format for TCP addresses is "brunet.tcp://" followed by an
+IP address or
+resolvable domain name, followed by a ":" followed by the port number.
+</t>
+</section>
+
+</section>
+
+<section anchor="sec.transports.ethernet" title="Ethernet">
+<t>
+This transport is yet to be determined.  Of particular interest is Brunet over
+ad-hoc 802.11.  This transport will be similar to UDP in that Ethernet is an
+unreliable datagram layer.
+</t>
+</section>
+
+</section>
+
+<section anchor="sec.integer" title="Integer Representation">
+<t>
+We describe a simple technique to represent arbitrarily large integer N, using
+not more than 2log(N/256) bytes.  The approach is simple and we describe it for
+both unsigned and twos-compliment signed integers in network endian format.
+This format is variable length
+</t>
+<t>
+For unsigned integers, the number represented by all 1s in binary is the
+largest.  The largest 8-byte number is 11111111 = 255.  The number we wish to
+store is N.  We start with L=8, which is the number of bits we attempt to store
+N with.  If N &lt; 2^L - 1, then we write out N in binary in the following L bits.
+If not, we write out L 1s, set L = 2*L, and repeat the proceedure.  Very quickly 
+we will find a value of L that can store N.
+</t>
+<t>
+Recieving a number formated in this way is easy to decode.  Start with L=8.
+Read the next L bits.  If they are all 1, then set L=2*L and repeat.  If the
+last set of bits read were not all 1, then these bits are a network endian
+representation of N.
+</t>
+<t>
+For signed integers, the process is the same except the that the largest
+positive signed integer is used.  In twos compliment representations, this is a
+single 0 followed by all 1s.  So, the encoding and decoding work the same except
+that they look for the 011...1 pattern.
+</t>
+</section>
+</middle>
+<back>
+
+</back>
+</rfc>
