@@ -7,10 +7,8 @@ import sys, time, copy, stats
 from datetime import timedelta, datetime
 infilename  = sys.argv[1]
 
-# bin size (milliseconds)
 deltatime = timedelta( milliseconds = float(sys.argv[2]) )
-direction = "total"
-#direction = sys.argv[3] # this should be "sent, received, total"
+direction = sys.argv[3] # this should be "sent, received, total"
 
 ifile = open( infilename, 'r')  # r for reading
 
@@ -122,40 +120,26 @@ for line in ifile:
  
 timestamps = datetime_to_packetlist.keys()
 timestamps.sort()
-tmp_total = 0
-tmp_size = 0
 for time_it in timestamps:
   if len(datetime_to_packetlist[time_it]) > 1:
     mtmp = stats.mean(datetime_to_packetlist[time_it])
     vtmp = stats.var(datetime_to_packetlist[time_it])
-    tmp_size = len(datetime_to_packetlist[time_it])
-    tmp_total = tmp_total + tmp_size*mtmp
-    packetstatsout.write( "%s %f %f %i %i\n" % \
-    (time_it,mtmp,vtmp,tmp_total,tmp_size) )    
+    packetstatsout.write( "%s %f %f %i\n" % (time_it,mtmp,vtmp,len(datetime_to_packetlist[time_it])) )    
   else :
     mtmp = stats.mean(datetime_to_packetlist[time_it])
-    tmp_size = len(datetime_to_packetlist[time_it])
-    tmp_total = tmp_total + tmp_size*mtmp
-    packetstatsout.write( "%s %f -1 %i %i\n" % \
-    (time_it,mtmp,tmp_total,tmp_size) )    
+    packetstatsout.write( "%s %f -1 %i\n" % (time_it,mtmp,len(datetime_to_packetlist[time_it])) )    
  
   #datetime_to_packetlist[time_it]
 
 timestamps = datetime_to_bytelist.keys()
 timestamps.sort()
-tmp_total = 0
-tmp_size = 0
 for time_it in timestamps:
   if len(datetime_to_bytelist[time_it]) > 1:
     mtmp = stats.mean(datetime_to_bytelist[time_it])
     vtmp = stats.var(datetime_to_bytelist[time_it])
-    tmp_size = len(datetime_to_bytelist[time_it])
-    tmp_total = tmp_total + tmp_size*mtmp
-    bytestatsout.write( "%s %f %f %f %i\n" % (time_it,mtmp,vtmp,tmp_total,tmp_size) )    
+    bytestatsout.write( "%s %f %f %i\n" % (time_it,mtmp,vtmp,len(datetime_to_bytelist[time_it])) )    
   else :
     mtmp = stats.mean(datetime_to_bytelist[time_it])
-    tmp_size = len(datetime_to_bytelist[time_it])
-    tmp_total = tmp_total + tmp_size*mtmp
-    bytestatsout.write( "%s %f -1 %f %i\n" % ( time_it,mtmp,tmp_total,tmp_size ) )    
+    bytestatsout.write( "%s %f -1 %i\n" % ( time_it,mtmp,len(datetime_to_bytelist[time_it]) ) )    
     
     
