@@ -154,11 +154,13 @@ than zero may be used.  Negative numbers and 0 are reserved for
 other uses.
 Every request MUST have a response.  A request MAY have more than
 one response.
-</t>
+
 <t>
 There are several child XML-nodes to requests and responses, which
 represent the vocabulary of actions which the connection protocol
 supports:
+</t>
+
 <list style="symbols">
 <!--
 <t>connectTo: this is the type of message sent to hosts joining the
@@ -167,11 +169,13 @@ in the network to join.  This message allows new nodes to "bootstrap"
 to the proper place.</t>
 -->
 <t>link: once a place in the network is found for a node, that node
-"links" to its new neighbor.
+"links" to another node.
 </t>
+<t>error: gives a code and a string to represent some kind of error in
+the connection protocol</t>
 <t>
 ping: a message which is used to test activity, or time responsiveness
-or a neighbor.
+of a node.
 </t>
 <t>close: before a node leaves the network, it SHOULD send a close
 message, which MUST be responded to with a close message.  Nodes
@@ -180,53 +184,36 @@ leaving (consider cases of abrupt loss of network connectivity, or
 total system failure).</t>
 </list>
 </t>
+<section anchor="node-xml" title="Representing Node Information">
 <t>
-<!--
-The connectTo exchange looks like this:
+We will need to communicate several types of information between nodes.
+For instance, we will need to communicate node address and transport addresses.
+This may be reused in different parts of the system:
 <figure>
-<preamble>Example connectTo Exchange:</preamble>
+<preamble>Example Node element</preamble>
 <artwork>
 <![CDATA[
-Request:
-================
-<request id="183">
-    <connectTo type="shortcut">
-      <node>
-        <address>brunet:node:12341j13jkasf123dk</address>
-      </node>
-      <host>
-        <address>brunet.tcp://10.7.24.9:9832</address>
-        <address>brunet.udp://10.234.0.1:12345</address>
-      </host>
-    </connectTo>
-</request>
-================
-Response:
-================
-<response id="183">
-    <connectTo type="shortcut">
-      <node>
-        <address>brunet:node:k3455g297sfh25xnm2</address>
-      </node>
-      <host>
-        <address>brunet.tcp://10.7.24.9:9832</address>
-        <address>brunet.udp://10.234.0.1:12345</address>
-      </host>
-    </connectTo>
-</response>
+<node address="brunet:node:12341j13jkasf123dk">
+        <transport>brunet.tcp://10.7.24.9:9832</transport>
+        <transport>brunet.udp://10.234.0.1:12345</transport>
+</node>
 ]]>
 </artwork>
-<postamble>The above gives an example connectTo message.  A node
-requests a connection.  This request is passed out to the network and
-nodes selected to connect to the node reply with a connection message.
+<postamble>
+The above is an example of how node information is serialized in
+Brunet.
 </postamble>
 </figure>
-Once a connectTo message is recieved, a connection should be made with the
-node which requested it.  The addresses should be tried in the order
-they were presented if possible.  If a type of edge is not
-supported, or not availible, that type may be skipped (for instance, a
-host may support only a limited number of TCP connections).
--->
+The node tag should be read in a liberal manner.  It may or may not contain
+all the above information.  It may also contain other attributes or elements
+which should be ignored if they are not understood.  There must be at least
+one transport address in each node tag.  In some cases the tag may not contain
+the address attribute.  If there are multiple transports, they indicate the
+preference of usage: most preferred to least preferred.
+</t>
+</section>
+<section anchor="sec.link" title="Link Message">
+<t>
 <figure>
 <preamble>Example link exchange:</preamble>
 <artwork>
@@ -236,11 +223,14 @@ Request:
 <request id="4512">
   <link type="unstructured">
     <local>
-      <node><address>brunet:node:j764jjsdh912k434350jaf</address></node>
-      <host><address>brunet.udp://10.0.0.23:598</address></host>
-     </local>
+      <node address="brunet:node:j764jjsdh912k434350jaf">
+        <transport>brunet.udp://10.234.0.1:12345</transport>
+      </node>
+    </local>
     <remote>
-      <host><address>brunet.udp://10.0.0.24:9800</address></host>
+      <node>
+        <transport>brunet.udp://10.0.0.24:9800<transport>
+      </node>
     </remote>
   </link>
 </request>
@@ -250,11 +240,14 @@ Response:
 <response id="4512">
   <link type="unstructured">
     <remote>
-      <host><address>brunet.udp://10.0.0.23:598</address></host>
+      <node>
+        <transport>brunet.udp://10.234.0.1:12345</transport>
+      </node>
     </remote>
     <local>
-      <node><address>brunet:node:ithjwen34198jmrrm324n4</address></node>
-      <host><address>brunet.udp://10.0.0.24:9800</address></host>
+       <node address="brunet:node:kj23h2ouhfd8h23kifiu">
+        <transport>brunet.udp://10.0.0.24:9800<transport>
+      </node>    
      </local>
   </link>
 </request>
@@ -271,6 +264,57 @@ accepted until a link is made.  After the link, the linked protocol
 should be accepted.
 </t>
 <t>
+The node element inside the local element MUST contain an address attribute as
+well as exactly one transport that corresponds to the local end of the current
+connection.  The node element inside the remote element MAY contain an address
+attribute, but MUST contain a transport element which corresponds to the
+remote end of the current connection.
+</t>
+</section>
+<section anchor="sec.error" title="Error Message">
+<t>
+There may be some error in the connection process.  This includes a node
+attempting to connect to itself.  A node connecting to another node it is
+already connected to with that type of connection (more than one connection is
+allowed between nodes as long as they are of different types).
+
+Usually an Error message will be sent in response to some request.  In that
+case, the error message should have the id of the request, but the content
+contained in the response will be an error message.  In some cases, an error
+message will be sent as a request.  This can happen when a previous response
+triggers an error.  These error requests should be responded to with an error
+message containing code 0, indicating acknowledgement of an error.
+<figure>
+<preamble>Example Error Message</preamble>
+<artwork>
+<![CDATA[
+<response id="13415">
+  <error code="18">Already Connected</error>
+</response>
+]]>
+</artwork>
+</figure>
+Error codes between 1 and 1999, are protocol errors.  Error codes 2000 to 2999
+are parsing errors.  Codes 3000-3999 are transport errors.  Codes
+4000-4999 are system errors (the host system is not working properly).
+
+Some already defined codes are listed below:
+<list>
+<t>Code 0: error request acknowledgement</t>
+<t>Code 1: unexpected connection request</t>
+<t>Code 2: unknown connection type</t>
+<t>Code 16: Attempt to connect to self: refused</t>
+<t>Code 17: Connection to your address is already in process, this attempt
+refused</t>
+<t>Code 18: Already connected with this type of connection.</t>
+<t>Code 2000: Parse error: Not well formed XML</t>
+<t>Code 2001: Parse error: Not conforming to spec</t>
+<t>Code 2002: Parse error: Unknown request/response type</t>
+</list>
+</t>
+</section>
+<section anchor="sec.close" title="Close Message">
+<t>
 Connections are closed with the close message.
 <figure>
 <preamble>Example Close Message</preamble>
@@ -282,9 +326,12 @@ Connections are closed with the close message.
 ]]>
 </artwork>
 </figure>
+The close tag may enclose a string which contains the reason for the close.
 Like all messages, the close request must be replied to with a
 response, which should be a close message as well.
 </t>
+</section>
+<section anchor="sec.ping" title="Ping Message">
 <t>
 Connections may be tested with a ping message.
 <figure>
@@ -298,6 +345,54 @@ Connections may be tested with a ping message.
 </artwork>
 </figure>
 </t>
+</section>
+<section anchor="sec.status" title="Status Message">
+<t>
+Nodes may need to exchange meta data about themselves with one another.
+The status message is used to send status information to a connected node.
+<figure>
+<preamble>Example Status Message</preamble>
+<artwork>
+<![CDATA[
+<request id="31416">
+  <status>
+    <neighbors type="structured.near">
+       <node address="brunet:node:kj23h2ouhfd8h23kifiu">
+        <transport>brunet.udp://10.0.0.24:9800<transport>
+      </node>    
+      <node address="brunet:node:j764jjsdh912k434350jaf">
+        <transport>brunet.udp://10.234.0.1:12345</transport>
+      </node>
+      <node address="brunet:node:12341j13jkasf123dk">
+        <transport>brunet.tcp://10.7.24.9:9832</transport>
+        <transport>brunet.udp://10.234.0.1:12345</transport>
+      </node>
+    </neighbors>
+  </status>
+</request>
+]]>
+</artwork>
+</figure>
+<t>
+In the above example, a node is sending a list of his neighbors with
+structured.local connections.  The response from the other node must include
+the same types of information as the request, but may include additional types
+as well.
+</t>
+<t>
+Some defined types of information are:
+<list>
+<t>neighbors:
+must have an attribute which gives the type of connections to these neighbors.
+the neighbors elements contains node elements in numerical order according to
+their address, from lowest to highest.
+</t>
+</list>
+</t>
+</t>
+</section>
+
+
 </section>
 </section>
 
@@ -420,14 +515,15 @@ n_y - n_x).  This distance is represented as |x-y|.
 </section>
 <section title="Connection Types">
 <t>
+Each connection has a type associated with it.  The type definition follows a
+hierarchy.  For instance there may be type x, and type x.y, and type x.y.z.
+The "." separator means subtype.
+</t>
 Connections between nodes are of one of two types:
 <list style="numbers">
-<t>Shortcut: Each node should be connected to at least one remote
-   node of distance d with
-   probability proportional to 1/d.  Unstructured addresses (class 136 and greater)
-   must not be sent over these connections.</t>
-<t>Neighbor: These are connections to the nearest nodes (in address distance metric).
-   Each node should be connected to the nearest nodes in the network.
+<t>Structured:
+These are connections which are used only to route packets with
+structured addresses as their destination.
 </t>
 <t>Unstructured: Not all nodes have unstructured connections.
 These are connections which are made which provide a subgraph
@@ -436,7 +532,17 @@ The probability that a node has k unstructured connections should be
 proportional to 1/k^2.  Each node on the unstructured subgraph should
 have at least two of these connections.</t>
 </list>
+<t>Structed connections can be of two subtypes:
 </t>
+<list style="numbers">
+<t>Structured.Shortcut: Each node should be connected to at least one remote
+   node of distance d with
+   probability proportional to 1/d.  Unstructured addresses (class 136 and greater)
+   must not be sent over these connections.</t>
+<t>Structured.Near: These are connections to the nearest nodes (in address distance metric).
+   Each node should be connected to the nearest nodes in the network.
+</t>
+</list>
 </section>
 <section title="Routing">
 <t>
@@ -706,12 +812,11 @@ likely to be a near-neighbor
 <![CDATA[
 <request id="234">
   <connectTo type="unstructured">
-    <node><address>brunet:node:25hjnwrj203452lj</address></node>
-    <host>
-      <address>brunet.udp://10.0.0.23:598</address>
-      <address>brunet.udp://10.0.0.24:9800</address>
-      <address>brunet.tcp://10.0.0.24:1025</address>
-    </host>
+    <node address="brunet:node:25hjnwrj203452lj">
+      <transport>brunet.udp://10.0.0.23:598</transport>
+      <transport>brunet.udp://10.0.0.24:9800</transport>
+      <transport>brunet.tcp://10.0.0.24:1025</transport>
+    </node>
   </connectTo>
 </request>
 ]]>
@@ -739,12 +844,11 @@ addresses which will enable a connection.
 <![CDATA[
 <response id="234">
   <connectTo type="unstructured">
-    <node><address>brunet:node:erjn21349h2wkj432</address></node>
-    <host>
-      <address>brunet.udp://10.0.0.44:80</address>
-      <address>brunet.udp://10.0.0.44:8800</address>
-      <address>brunet.tcp://10.0.0.44:61025</address>
-    </host>
+    <node address="brunet:node:erjn21349h2wkj432">
+      <transport>brunet.udp://10.0.0.44:80</transport>
+      <transport>brunet.udp://10.0.0.44:8800</transport>
+      <transport>brunet.tcp://10.0.0.44:61025</transport>
+    </node>
   </connectTo>
 </request>
 ]]>
