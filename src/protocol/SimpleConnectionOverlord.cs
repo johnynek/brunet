@@ -460,7 +460,7 @@ namespace Brunet {
         foreach(Connection tc in near_trim_candidates ) 
         {
           AHAddress t_ah_add = (AHAddress)tc.Address;
-          tmp_distance = t_ah_add.DistanceTo( (AHAddress)_node.Address);
+          tmp_distance = t_ah_add.DistanceTo( (AHAddress)_node.Address).abs();
           if (tmp_distance > biggest_distance) {
             biggest_distance = tmp_distance;
             Console.WriteLine("...finding far distance for trim: {0}",biggest_distance.ToString() );
