@@ -68,15 +68,6 @@ namespace Brunet {
 
     protected ArrayList _connectors;
 
-    /**
-     * Getting shortcuts on small networks is
-     * hard, for now, we only try once when we need one.
-     *
-     * Everytime we get one, we set this to false,
-     * Everytime we try one, we set this to true,
-     */
-    protected bool _tried_shortcut = false;
-    
     /*
      * These are parameters of the Overlord.  These govern
      * the way it reacts and works.
@@ -239,6 +230,10 @@ namespace Brunet {
     protected bool NeedShortcut {
       get {
 	lock( _sync ) {
+          if( _node.NetworkSize < 20 ) {
+            //There is no need to bother with shortcuts on small networks
+	    return false;
+	  }
           if( _need_short != -1 ) {
             return (_need_short == 1);
 	  }
@@ -376,11 +371,10 @@ namespace Brunet {
 	   * need to make sure we are on the proper place in
 	   * the ring before doing the below:
 	   */
-	  if( !trying_near && !_tried_shortcut && NeedShortcut ) {
+	  if( !trying_near && NeedShortcut ) {
 #if POB_DEBUG
       Console.WriteLine("NeedShortcut: {0}", _node.Address);
 #endif
-            _tried_shortcut = true;
             target = GetShortcutTarget(); 
 	    ttl = 1024;
 	    contype = struc_short;
@@ -581,11 +575,6 @@ namespace Brunet {
 	if( left_pos >= _desired_neighbors && right_pos >= _desired_neighbors ) {
         //This looks like a shortcut
 	  
-	  if( new_con.ConType == struc_short ) {
-          //After we get a shortcut, we consider it possible again
-	  //and are willing to try
-            _tried_shortcut = false;	
-	  }
 	}
 
 	/*
