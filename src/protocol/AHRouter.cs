@@ -68,13 +68,21 @@ namespace Brunet
       /*
        * The following cases don't require us to consult the Connection table
        */
-      if( dest == null ) { return 0; }
-      if( p.Hops > p.Ttl ) {
+      if( dest == null ) {
+	//This is not our kind of address
+        return 0;
+      }
+      else if( p.Hops > p.Ttl ) {
         //This should never have gotten here:
 	return 0;
       }
       else if( p.Hops == p.Ttl ) {
         //We are the last to get it:
+	deliverlocally = true;
+	return 0;
+      }
+      else if ( _local.Equals(dest) ) {
+        //This packet is for us!  Woo hoo!
 	deliverlocally = true;
 	return 0;
       }
