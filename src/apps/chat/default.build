@@ -88,7 +88,7 @@
           <include name="Buddylist.xml" />
           <include name="RemoteTransportAddresses.xml" />
           <include name="ucla_net_logo.png" />
-          <include name="Users.cs"/>
+          <include name="Users.xml"/>
        </fileset>
     </copy>
 
