@@ -14,7 +14,7 @@ namespace Brunet
    * Represents information about a node.  May be exchanged with
    * neighbors or serialized for later usage.
    */
-  public class NodeInfo
+  public class NodeInfo : IXmlAble
   {
 
     public NodeInfo(System.Xml.XmlElement encoded)
@@ -80,6 +80,14 @@ namespace Brunet
     }
 
     /**
+     * @return true this is a node tag
+     */
+    public bool CanReadTag(string tag)
+    {
+      return (tag == "node");
+    }
+    
+    /**
      * @return true if e is equivalent to this
      */
     public override bool Equals(object e)
@@ -87,7 +95,12 @@ namespace Brunet
       NodeInfo ne = e as NodeInfo;
       if ( ne != null ) {
         bool same = true;
-	same &= _address.Equals(ne.Address);
+	if (_address != null ) {
+	  same &= _address.Equals(ne.Address);
+	}
+	else {
+          same &= ne.Address == null;
+	}
 	same &= _tas.Count == ne.Transports.Count;
 	if( same ) {
 	  for(int i = 0; i < _tas.Count; i++) {
@@ -100,6 +113,16 @@ namespace Brunet
         return false;
       }
     }
+
+
+    /**
+     * @return a NodeInfo read from this element.
+     */
+    public IXmlAble ReadFrom(XmlElement encoded)
+    {
+      return new NodeInfo(encoded);
+    }
+    
     override public string ToString()
     {
       //Here is a buffer to write the connection message into :
@@ -149,32 +172,28 @@ namespace Brunet
       TransportAddress ta = new TransportAddress("brunet.tcp://127.0.0.1:5000");
       NodeInfo ni = new NodeInfo(a, ta);
 
-      //Write the NodeInfo out:
-      MemoryStream s = new MemoryStream(1024);
-      XmlWriter w = new XmlTextWriter(s, new System.Text.UTF8Encoding());
-      w.WriteStartDocument();
-      ni.WriteTo(w);
-      w.WriteEndDocument();
-      w.Flush();
-      //w.Close();
+      XmlAbleTester xt = new XmlAbleTester();
 
-      System.Console.WriteLine(s.ToString());
-      //Seek to the beginning, so we can read it in:
-      s.Seek(0, SeekOrigin.Begin);
-      XmlDocument doc = new XmlDocument();
-      doc.Load(s);
-      XmlNode r = doc.FirstChild;
-      //Find the first element :
-      foreach(XmlNode n in doc.ChildNodes) {
-        if (n is XmlElement) {
-          r = n;
-          break;
-        }
-      }
-      NodeInfo ni2 = new NodeInfo((XmlElement)r);
+      NodeInfo ni2 = (NodeInfo)xt.SerializeDeserialize(ni);
       //System.Console.WriteLine("n1: {0}\nn2: {1}", ni, ni2);
-      Assert.AreEqual(ni, ni2, "NodeInfo Parse");
-     
+      Assert.AreEqual(ni, ni2, "NodeInfo: address and 1 ta");
+      
+      //Test multiple tas:
+      ArrayList tas = new ArrayList();
+      tas.Add(ta);
+      for(int i = 5001; i < 5010; i++)
+        tas.Add(new TransportAddress("brunet.tcp://127.0.0.1:" + i.ToString()));
+      NodeInfo ni3 = new NodeInfo(a, tas);
+      
+      ni2 = (NodeInfo)xt.SerializeDeserialize(ni3);
+      Assert.AreEqual(ni3, ni2, "NodeInfo: address and 10 tas");
+
+      //Test null address:
+      NodeInfo ni4 = new NodeInfo(null, ta);
+      
+      ni2 = (NodeInfo)xt.SerializeDeserialize(ni4);
+      Assert.AreEqual(ni4, ni2, "NodeInfo: null address and 1 ta");
+
     }
   }
 #endif

@@ -36,6 +36,27 @@ namespace Brunet
     public string Reason {
     get { return _reason; }
     }
+
+    override public bool CanReadTag(string tag)
+    {
+      return (tag == "close");
+    }
+
+    override public bool Equals(object o)
+    {
+      if( o is CloseMessage ) {
+        return (((CloseMessage)o).Reason == _reason);
+      }
+      else {
+        return false;
+      }
+    }
+    
+    override public IXmlAble ReadFrom(System.Xml.XmlElement el)
+    {
+      return new CloseMessage(el);
+    }
+    
     override public void WriteTo(System.Xml.XmlWriter w)
     {
 
