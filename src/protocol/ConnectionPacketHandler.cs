@@ -146,7 +146,7 @@ namespace Brunet
 	    //Get the neighbors of this type:
 	    lock( _tab.SyncRoot ) {
 	      foreach(Connection c in _tab) {
-		if( c.Ct == sm.NeighborType ) {
+		if( c.ConType == sm.NeighborType ) {
                   neighbors.Add( new NodeInfo( c.Address, c.Edge.RemoteTA ) );
 		}
 	      }
@@ -169,12 +169,12 @@ namespace Brunet
             //Release the lock before calling this function:
             if( lm_to_add != null ) {
               Console.WriteLine("About to add: {0},{1},{2}",
-                                lm_to_add.ConnectionType,
+                                lm_to_add.ConTypeString,
 				lm_to_add.Local.Address,
                                 from );
 	      Connection con = new Connection(from,
 			                      lm_to_add.Local.Address,
-					      lm_to_add.ConnectionType,
+					      lm_to_add.ConTypeString,
 					      sm);
 	      _tab.Add(con);
               //Unlock after we add the connection

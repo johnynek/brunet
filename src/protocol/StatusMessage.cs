@@ -38,9 +38,15 @@ namespace Brunet {
      * @param neighbortype what type of connections exist to these neighbors
      * @param neighbors an ArrayList of NodeInfo objects
      */
-    public StatusMessage(ConnectionType neighbortype, ArrayList neighbors)
+    public StatusMessage(string neighbortype, ArrayList neighbors)
     {
       _neigh_ct = neighbortype;
+      _neighbors = neighbors;
+    }
+
+    public StatusMessage(ConnectionType ct, ArrayList neighbors)
+    {
+      _neigh_ct = Connection.ConnectionTypeToString(ct);
       _neighbors = neighbors;
     }
 	  
@@ -52,9 +58,7 @@ namespace Brunet {
         if( cn.Name == "neighbors" ) {
           foreach(XmlNode attr in cn.Attributes) {
             if ( attr.Name == "type" )  {
-              _neigh_ct = (ConnectionType)Enum.Parse(typeof(ConnectionType),
-                                               attr.FirstChild.Value,
-                                               true);
+              _neigh_ct = attr.FirstChild.Value;
 	    }
 	  }
           //Read the neighbors:
@@ -68,13 +72,13 @@ namespace Brunet {
       }
     }
  
-    protected ConnectionType _neigh_ct;
+    protected string _neigh_ct;
     /**
      * The status message holds at most one neighbor tag,
      * this is the type of neighbors: (it must be the same as
      * the type of the connection)
      */
-    public ConnectionType NeighborType {
+    public string NeighborType {
       get { return _neigh_ct; }
     }
     
@@ -128,7 +132,7 @@ namespace Brunet {
       w.WriteStartElement("neighbors", ns); //<neighbors>
       //Here is the type=" " attribute:
       w.WriteStartAttribute("type", ns);
-      w.WriteString( _neigh_ct.ToString().ToLower());
+      w.WriteString( _neigh_ct );
       w.WriteEndAttribute();
       //Now for the neighbor list:
       foreach(NodeInfo ni in _neighbors) {
@@ -175,7 +179,7 @@ namespace Brunet {
       //System.Console.WriteLine("\n{0}\n", sm2);
      
       //Here is a StatusMessage with no neighbors (that has to be a possibility)
-      StatusMessage sm3 = new StatusMessage(ConnectionType.Structured, new ArrayList());
+      StatusMessage sm3 = new StatusMessage("structured", new ArrayList());
       StatusMessage sm3a = (StatusMessage)xt.SerializeDeserialize(sm3);
       Assert.AreEqual(sm3,sm3a, "0 Neighbor test");
       //System.Console.WriteLine("\n{0}\n", sm3);
