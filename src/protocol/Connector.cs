@@ -257,6 +257,7 @@ namespace Brunet
     {
       bool finish = false;
       try {
+       lock( _sync ) {
         if( DateTime.Now - _last_packet_datetime > _timeout) {
           if( _ctm_send_timeouts >= MaxTimeOuts ) {
             finish = true;
@@ -269,6 +270,7 @@ namespace Brunet
           //We have timed out one more time
           _ctm_send_timeouts++;
         }
+       }
       }
       catch(Exception x) {
         finish = true;
@@ -281,6 +283,8 @@ namespace Brunet
           _local_node.Unsubscribe(AHPacket.Protocol.Connection, this);
           if(FinishEvent != null) {
             FinishEvent(this, null);
+	    //The below makes sure FinishEvent is only called once
+	    FinishEvent = null;
           }
         }
       }
