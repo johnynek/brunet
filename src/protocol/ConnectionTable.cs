@@ -3,17 +3,28 @@
  * Brunet.Address
  * Brunet.AHAddress
  * Brunet.AHAddressComparer
+ * Brunet.BrunetLogger
  * Brunet.ConnectionType
  * Brunet.ConnectionEventArgs
  * Brunet.Edge
  * Brunet.TransportAddress
  */
 
-#define KML_DEBUG
+//#define KML_DEBUG
 //#define LOCK_DEBUG
+
+#if BRUNET_NUNIT
+using NUnit.Framework;
+#endif
 
 using System;
 using System.Collections;
+using System.IO;
+using System.Globalization;
+using System.Xml.Serialization;
+using System.Xml;
+using System.Text;
+
 
 namespace Brunet
 {
@@ -32,7 +43,7 @@ namespace Brunet
    * 
    */
 
-  public class ConnectionTable
+  public class ConnectionTable : IEnumerable //, ICollection
   {
 
     /*private static readonly log4net.ILog _log =
@@ -41,6 +52,18 @@ namespace Brunet
 
     protected Random _rand;
 
+#if PLAB_CONNECTION_LOG
+    private BrunetLogger _logger;
+    public BrunetLogger Logger{
+	get{
+	  return _logger;
+	}
+	set
+	{
+	  _logger = value;          
+	}
+    }
+#endif
     protected Hashtable type_to_addlist;
     protected Hashtable type_to_edgelist;
     protected Hashtable edge_to_add;
@@ -83,12 +106,38 @@ namespace Brunet
         return _cmp;
       }
     }
+    
+    /**
+     * Returns the total number of Connections.
+     * This is for the ICollection interface
+     */
+    public int TotalCount {
+      get {
+	int count = 0;
+       	foreach(ConnectionType t in Enum.GetValues(typeof(ConnectionType)) ) {
+          count += Count(t);
+	} 
+	return count;
+      }
+    }
 
     /**
-     * Since address lists in the ConnectionTable are sorted,
-     * we need to assign the AHAddressComparer which does
-     * those comparisons.
+     * This is for the ICollection interface.
+     * Note, that ConnectionTable objects are synchronized, but if
+     * you don't want the table to change between method calls, you
+     * need to explicitly lock SyncRoot.
      */
+    public bool IsSynchronized {
+      get { return true; }
+    }
+
+   
+  /**
+   * Since address lists in the ConnectionTable are sorted,
+   * we need to assign the AHAddressComparer which does
+   * those comparisons.
+   */
+
     public ConnectionTable(AHAddressComparer cmp)
     {
       _rand = new Random(DateTime.Now.Millisecond);
@@ -117,12 +166,16 @@ namespace Brunet
 
         // init all--it is safer to do it this way and avoid null pointer exceptions
 
-        Init(ConnectionType.Leaf);
-        Init(ConnectionType.Structured);
-        Init(ConnectionType.Unstructured);
-        Init(ConnectionType.Unknown);
+	foreach(ConnectionType t in Enum.GetValues(typeof(ConnectionType)) ) {
+          Init(t);
+	}
       }
     }
+
+    /**
+     * Make a ConnectionTable with the default address comparer
+     */
+    public ConnectionTable() : this(new AHAddressComparer()) { }
 
     /**
      * Add the triplet, (t,a,e) at the index into the
@@ -182,11 +235,23 @@ namespace Brunet
         e.CloseEvent += new EventHandler(this.RemoveHandler);
       }
 
-      /*_log.Info("ConnectionEvent: address: " + a.ToString() +
-                  ", edge: " + e.ToString() +
-      ", type: " + t.ToString() +
-      ", index: " + index);*/
+      
+     /*_log.Info("ConnectionEvent: address: " + a.ToString() + 
+		                ", edge: " + e.ToString() +
+				", type: " + t.ToString() +
+				", index: " + index);*/
+#if PLAB_CONNECTION_LOG
+      BrunetEventDescriptor bed = new BrunetEventDescriptor();
+      bed.EventDescription = "connection";
+      bed.ConnectionType = t;
+      bed.LocalTAddress = e.LocalTA.ToString();     
+      bed.LocalPort = e.LocalTA.Port.ToString();
+      bed.RemoteTAddress = e.RemoteTA.ToString();
+      bed.RemoteAHAddress = a.ToBigInteger().ToString();
+      bed.ConnectTime = DateTime.Now.Ticks;
 
+      _logger.LogBrunetEvent( bed );
+#endif
 
       #if KML_DEBUG
       System.Console.WriteLine("ConnectionEvent: address: " + a.ToString() +
@@ -201,6 +266,7 @@ namespace Brunet
         ConnectionEvent(this, new ConnectionEventArgs(a, e, t, index) );
       return index;
     }
+
 
     /**
      * This function is to check if a given address of a given type
@@ -254,10 +320,20 @@ namespace Brunet
         }
       }
       if( have_con ) {
-        /*_log.Info("DisconnectionEvent: address: " + remote.ToString() +
-                    ", edge: " + e.ToString() +
-        ", type: " + t.ToString() +
-        ", index: " + index);*/
+
+#if PLAB_CONNECTION_LOG
+        BrunetEventDescriptor bed = new BrunetEventDescriptor();
+        bed.EventDescription = "disconnection";
+        bed.ConnectionType = t;
+        bed.LocalTAddress = e.LocalTA.ToString();
+        bed.RemoteTAddress = e.RemoteTA.ToString();
+        bed.RemoteAHAddress = remote.ToBigInteger().ToString();
+        bed.ConnectTime = DateTime.Now.Ticks;
+
+        _logger.LogBrunetEvent( bed );
+#endif
+
+
       #if DEBUG
         System.Console.WriteLine("Disconnect: DisconnectionEvent: address: " + remote.ToString() +
                                  ", edge: " + e.ToString() +
@@ -288,6 +364,14 @@ namespace Brunet
       }
     }
 
+    /**
+     * Required for IEnumerable Interface
+     */
+    public IEnumerator GetEnumerator()
+    {
+      return new ConnectionEnumerator(this);
+    }
+    
     /**
      * Gets the edge for the left structured neighbor of a given AHAddress
      */
@@ -382,6 +466,23 @@ namespace Brunet
         }
       }
       return have_con;
+    }
+
+    /**
+     * Returns a Connection for the given edge:
+     * @return Connection
+     */
+    public Connection GetConnection(Edge e)
+    {
+      ConnectionType t;
+      int index = 0;
+      Address a;
+      if( GetConnection(e, out t, out index, out a) ) {
+        return new Connection(e, a, t, null);
+      }
+      else {
+        return null;
+      }
     }
 
     /**
@@ -846,7 +947,88 @@ namespace Brunet
       }
     }
 
+    //Private
+    private class ConnectionEnumerator : IEnumerator {
+      
+      IDictionaryEnumerator _edge_enumer;
+      ConnectionTable _tab;
+	    
+      public ConnectionEnumerator(ConnectionTable tab) {
+	_tab = tab;
+	Reset();
+      }
+
+      public bool MoveNext() {
+        return _edge_enumer.MoveNext();
+      }
+
+      public object Current {
+        get {
+          Edge e = (Edge)_edge_enumer.Key;
+	  return _tab.GetConnection(e);
+	}
+      }
+
+      public void Reset() {
+        _edge_enumer = _tab.edge_to_type.GetEnumerator();
+      }
+    }
   }
 
+#if BRUNET_NUNIT
+
+  [TestFixture]
+  public class ConnectionTableTest
+  {
+    public ConnectionTableTest() { }
+
+    [Test]
+    public void LoopTest() {
+      //Make some fake edges: 
+      TransportAddress home_ta =
+        new TransportAddress("brunet.tcp://127.0.27.1:5000");
+      TransportAddress ta1 =
+        new TransportAddress("brunet.tcp://158.7.0.1:5000");
+      TransportAddress ta2 =
+        new TransportAddress("brunet.tcp://169.0.5.1:5000");
+      FakeEdge e1 = new FakeEdge(home_ta, ta1);
+      FakeEdge e2 = new FakeEdge(home_ta, ta2);
+      //Make some addresses:
+      byte[]  buf1 = new byte[20];
+      for (int i = 0; i <= 17; i++)
+      {
+        buf1[i] = 0xFF;
+      }
+      buf1[18] = 0xFF;
+      buf1[19] = 0xFE;
+      AHAddress a1 = new AHAddress(buf1);
+
+      byte[] buf2 = new byte[20];
+      for (int i = 0; i <= 17; i++) {
+        buf2[i] = 0x00;
+      }
+      buf2[18] = 0x00;
+      buf2[19] = 0x04;
+      AHAddress a2 = new AHAddress(buf2); 
+      ConnectionTable tab = new ConnectionTable();
+      
+      tab.Add(ConnectionType.Structured, a1, e1);
+      tab.Add(ConnectionType.StructuredNear, a2, e2);
+
+      Assert.AreEqual(tab.TotalCount, 2);
+      Assert.AreEqual(tab.Count(ConnectionType.Structured) , 1);
+      Assert.AreEqual(tab.Count(ConnectionType.StructuredNear),1);
+      
+      int total = 0;
+      foreach(Connection c in tab) {
+	total++;
+        //Console.WriteLine("{0}\n",c);
+      }
+      Assert.AreEqual(total,2);
+      
+    }
+  }
+
+#endif
 
 }
