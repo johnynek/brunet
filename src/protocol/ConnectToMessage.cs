@@ -9,6 +9,9 @@
 
 using System.Xml;
 using System.Collections;
+#if BRUNET_NUNIT
+using NUnit.Framework;
+#endif
 
 namespace Brunet
 {
@@ -66,12 +69,11 @@ namespace Brunet
       _target_ni = new NodeInfo(target, new ArrayList(tas));
     }
     /**
-     * Deserializes the ConnectTo element, not the whole <request />
-     * Just the <connectTo /> element
+     * Deserializes the whole <request />
      */
-    public ConnectToMessage(System.Xml.XmlElement encoded)
+    public ConnectToMessage(System.Xml.XmlElement r) : base(r)
     {
-
+      XmlElement encoded = (XmlElement)r.FirstChild;
       ArrayList ta_list = new ArrayList();
       //Read the attributes of the connectTo
       foreach(XmlNode attr in((XmlElement) encoded).Attributes)
@@ -147,5 +149,40 @@ namespace Brunet
     }
 
   }
+//Here are some Unit tests:
+#if BRUNET_NUNIT
+//Here are some NUnit 2 test fixtures
+  [TestFixture]
+  public class ConnectToMessageTester {
+
+    public ConnectToMessageTester() { }
+
+    [Test]
+    public void CTMSerializationTest()
+    {
+      Address a = new DirectionalAddress(DirectionalAddress.Direction.Left);
+      TransportAddress ta = new TransportAddress("brunet.tcp://127.0.0.1:5000"); 
+      NodeInfo ni = new NodeInfo(a, ta);
+      ConnectToMessage ctm1 = new ConnectToMessage(ConnectionType.Unstructured, ni);
+      XmlAbleTester xt = new XmlAbleTester();
+      
+      ConnectToMessage ctm1a = (ConnectToMessage)xt.SerializeDeserialize(ctm1);
+      Assert.AreEqual(ctm1, ctm1a, "CTM with 1 TA");
+
+      //Test multiple tas:
+      ArrayList tas = new ArrayList();
+      tas.Add(ta);
+      for(int i = 5001; i < 5010; i++)
+        tas.Add(new TransportAddress("brunet.tcp://127.0.0.1:" + i.ToString()));
+      NodeInfo ni2 = new NodeInfo(a, tas);
+
+      ConnectToMessage ctm2 = new ConnectToMessage(ConnectionType.Structured, ni2);
+      
+      ConnectToMessage ctm2a = (ConnectToMessage)xt.SerializeDeserialize(ctm2);
+      Assert.AreEqual(ctm2, ctm2a, "CTM with 10 TAs");
+    }
+  }
+
+#endif
 
 }

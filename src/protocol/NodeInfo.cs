@@ -96,7 +96,12 @@ namespace Brunet
       if ( ne != null ) {
         bool same = true;
 	if (_address != null ) {
-	  same &= _address.Equals(ne.Address);
+	  if ( ne.Address != null ) {
+	    same &= _address.Equals(ne.Address);
+	  }
+	  else {
+	    same = false;
+	  }
 	}
 	else {
           same &= ne.Address == null;
@@ -143,7 +148,7 @@ namespace Brunet
     public void WriteTo(System.Xml.XmlWriter w)
     {
       string ns = "";
-      w.WriteStartElement("node", ns);
+      w.WriteStartElement("node", ns);//<node>
       if ( _address != null ) {
         w.WriteStartAttribute("address", ns);
 	w.WriteString( _address.ToString());
@@ -154,6 +159,7 @@ namespace Brunet
 	w.WriteString(ta.ToString());
 	w.WriteEndElement();
       }
+      w.WriteEndElement(); //</node>
     }
    
   }

@@ -2,6 +2,11 @@
  * Dependencies : 
  * Brunet.ConnectionMessage
  */
+using System.Xml;
+
+#if BRUNET_NUNIT
+using NUnit.Framework;
+#endif
 
 namespace Brunet
 {
@@ -20,9 +25,9 @@ namespace Brunet
 
     }
 
-    public PingMessage(System.Xml.XmlElement ping_element)
+    public PingMessage(System.Xml.XmlElement r) : base(r)
     {
-
+      XmlElement ping_element = (XmlElement)r.FirstChild;
     }
 
     override public bool CanReadTag(string tag)
@@ -55,5 +60,22 @@ namespace Brunet
       w.WriteEndElement();      //</(request|response)>
     }
   }
+
+#if BRUNET_NUNIT
+  [TestFixture]
+  public class PingMessageTester {
+    public PingMessageTester() { }
+
+    [Test]
+    public void PMSerializationTest()
+    {
+      XmlAbleTester xt = new XmlAbleTester();
+      
+      PingMessage pm1 = new PingMessage();
+      PingMessage pm2 = (PingMessage)xt.SerializeDeserialize(pm1);
+      Assert.AreEqual(pm1, pm2);
+    }
+  }
+#endif
 
 }
