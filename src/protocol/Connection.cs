@@ -36,12 +36,15 @@ namespace Brunet {
     /**
      * Prefered constructor for a Connection
      */
-    public Connection(Edge e, Address a, string connectiontype, StatusMessage sm)
+    public Connection(Edge e, Address a,
+		      string connectiontype,
+		      StatusMessage sm, LinkMessage peerlm)
     {
       _e = e;
       _a = a;
       _ct = connectiontype;
       _stat = sm;
+      _lm = peerlm;
     }
 
     protected Address _a;
@@ -53,6 +56,14 @@ namespace Brunet {
     protected string _ct;
     public ConnectionType MainType { get { return StringToMainType(_ct); } }
     public string ConType { get { return _ct; } }
+   
+    protected LinkMessage _lm;
+    /**
+     * Holds the link message that our peer sent us when we made
+     * this connection.  This may hold useful information for
+     * dealing with NAT or Firewall settings
+     */
+    public LinkMessage PeerLinkMessage { get { return _lm; } }
     
     protected StatusMessage _stat;
     public StatusMessage Status { get { return _stat; } }

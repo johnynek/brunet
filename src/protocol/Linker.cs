@@ -363,7 +363,7 @@ namespace Brunet
              */
 	    _con = new Connection(edge, _peer_link_mes.Local.Address,
 			              _peer_link_mes.ConTypeString,
-				      (StatusMessage)cm);
+				      (StatusMessage)cm, _peer_link_mes);
             Succeed();
 	    return;
 	  }

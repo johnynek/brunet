@@ -362,6 +362,50 @@ namespace Brunet
       ConnectionEventArgs ce_args = (ConnectionEventArgs) args;
       Edge edge = ce_args.Edge;
       edge.SetCallback(Packet.ProtType.AH, this);
+
+      /*
+       * Here we record TransportAddress objects.
+       * This will allow us to connect to other nodes
+       * in the future, and better advertise how
+       * to connect to us:
+       */
+      if( edge.RemoteTANotEphemeral ) { 
+        //We should record this RemoteTA so
+	//that we might use it again in the future
+        lock( _sync ) {
+          if( ! _remote_ta.Contains( edge.RemoteTA ) ) {
+            //We don't know about this ta,
+	    //put it at the front of the list,
+	    //so more recently used addresses
+	    //appear at the head (and older addresses may
+	    //be ignored when we write to disk)
+	    _remote_ta.Insert(0, edge.RemoteTA );
+	  }
+	}
+      }
+      if( edge.LocalTANotEphemeral ) {
+        //We should record this LocalTA so
+	//that we might use it again in the future
+        lock( _sync ) {
+          if( ! _local_ta.Contains( edge.LocalTA ) ) {
+            //We don't know about this ta:
+	    //Put it at the head of the list:
+	    _local_ta.Insert(0, edge.LocalTA );
+	  }
+	  /*
+	   * If we are behind a NAT, the LocalTA may appear
+	   * different to us.
+	   * Note, we are remote to our peer.
+	   */
+	  TransportAddress reported_ta =
+            ce_args.Connection.PeerLinkMessage.Remote.FirstTA;
+          if( ! _local_ta.Contains( reported_ta ) ) {
+            //We don't know about this ta:
+	    //Put it at the head of the list:
+	    _local_ta.Insert(0, reported_ta );
+	  }
+	}
+      }
     }
 
     /**

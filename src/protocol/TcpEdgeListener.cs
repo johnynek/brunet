@@ -104,26 +104,7 @@ namespace Brunet
       /**
        * We get all the IPAddresses for this computer
        */
-      String StrLocalHost =  (Dns.GetHostName());
-      IPHostEntry IPEntry = Dns.GetHostByName (StrLocalHost);
-      IPAddress [] addr = IPEntry.AddressList;
-      _tas = new ArrayList();
-      foreach(IPAddress a in IPEntry.AddressList) {
-        /**
-         * We add Loopback addresses to the back, all others to the front
-         * This makes sure non-loopback addresses are listed first.
-         */
-        if( IPAddress.IsLoopback(a) ) {
-          //Put it at the back
-          _tas.Add( new TransportAddress(TransportAddress.TAType.Tcp,
-                                         new IPEndPoint(a, port) ) );
-        }
-        else {
-          //Put it at the front
-          _tas.Insert(0, new TransportAddress(TransportAddress.TAType.Tcp,
-                                              new IPEndPoint(a, port) ) );
-        }
-      }
+      _tas = GetIPTAs(TransportAddress.TAType.Tcp, port);
       _local_endpoint = new IPEndPoint(IPAddress.Any, port);
       _listen_sock = new Socket(AddressFamily.InterNetwork,
                                 SocketType.Stream, ProtocolType.Tcp);

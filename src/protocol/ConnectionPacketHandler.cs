@@ -178,7 +178,8 @@ namespace Brunet
 	      Connection con = new Connection(from,
 			                      lm_to_add.Local.Address,
 					      lm_to_add.ConTypeString,
-					      sm);
+					      sm,
+					      lm_to_add);
 	      _tab.Add(con);
               //Unlock after we add the connection
               _tab.Unlock(lm_to_add.Local.Address, lm_to_add.ConnectionType, this);

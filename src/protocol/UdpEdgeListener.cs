@@ -109,32 +109,31 @@ namespace Brunet
       get { return _running; }
     }
 
+    //This is our best guess of the local endpoint
+    protected IPEndPoint _local_ep;
+
     public UdpEdgeListener(int port)
     {
       /**
        * We get all the IPAddresses for this computer
        */
-      String StrLocalHost =  (Dns.GetHostName());
-      IPHostEntry IPEntry = Dns.GetHostByName (StrLocalHost);
-      IPAddress [] addr = IPEntry.AddressList;
-      _tas = new ArrayList();
-      foreach(IPAddress a in IPEntry.AddressList) {
-        /**
-         * We add Loopback addresses to the back, all others to the front
-         * This makes sure non-loopback addresses are listed first.
-         */
-        if( IPAddress.IsLoopback(a) ) {
-          //Put it at the back
-          _tas.Add( new TransportAddress(TransportAddress.TAType.Udp,
-                                         new IPEndPoint(a, port) ) );
-        }
-        else {
-          //Put it at the front
-          _tas.Insert(0, new TransportAddress(TransportAddress.TAType.Udp,
-                                              new IPEndPoint(a, port) ) );
-        }
+      _tas = GetIPTAs(TransportAddress.TAType.Udp, port);
+      IPAddress ipa = IPAddress.Loopback;
+      bool stop = false;
+      foreach(TransportAddress ta in _tas) {
+        ArrayList ips = ta.GetIPAddresses();
+	foreach(IPAddress ip in ips) {
+          if( !IPAddress.IsLoopback(ip) && (ip.Address != 0) ) {
+		  //0 is the 0.0.0.0, or any address
+            ipa = ip;
+	    stop = true;
+	    break;
+	  }
+	}
+	if( stop ) { break; }
       }
-
+      //ipa, now holds our best guess for an endpoint..
+      _local_ep = new IPEndPoint(ipa, port);
       /*
        * Use this to listen for data
        */
@@ -193,7 +192,7 @@ namespace Brunet
           id = _rand.Next();
         } while( _id_ht.Contains(id) );
 
-        e = new UdpEdge(this, false, end, (IPEndPoint)s.LocalEndPoint, id);
+        e = new UdpEdge(this, false, end, _local_ep, id);
         _id_ht[id] = e;
       }
       /* Tell me when you close so I can clean up the table */
@@ -250,7 +249,7 @@ namespace Brunet
             if (! _id_ht.Contains(id)) {
               edge = new UdpEdge(this,
                                  true, (IPEndPoint)end,
-                                 (IPEndPoint)s.LocalEndPoint, id);
+                                 _local_ep, id);
               /* Tell me when you close so I can clean up the table */
               edge.CloseEvent += new EventHandler(this.CloseHandler);
               _id_ht[id] = edge;
