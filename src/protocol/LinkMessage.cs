@@ -56,11 +56,17 @@ namespace Brunet
                        NodeInfo local,
                        NodeInfo remote)
     {
-      ConnectionType = t;
+      _contype = Connection.ConnectionTypeToString(t);
       _local_ni = local;
       _remote_ni = remote;
     }
 
+    public LinkMessage(string connection_type, NodeInfo local, NodeInfo remote)
+    {
+      _contype = connection_type;
+      _local_ni = local;
+      _remote_ni = remote;
+    }
     /**
      * Deserializes an entire request which should contain a link element
      */
@@ -80,10 +86,7 @@ namespace Brunet
            * at least one name represents by attr.FirstChild.Value is 
            * not of type typeof(ConnectionType).
            */
-          ConnectionType =
-            (ConnectionType) System.Enum.Parse(typeof(ConnectionType),
-                                               attr.FirstChild.Value,
-                                               true);
+          _contype =  attr.FirstChild.Value;
           break;
         }
       }
@@ -110,7 +113,12 @@ namespace Brunet
     }
 
     /* These are attributes in the <link/> tag */
-    public ConnectionType ConnectionType;
+    public ConnectionType ConnectionType {
+      get { return Connection.StringToConnectionType( _contype ); }
+    }
+    
+    protected string _contype;
+    public string ConTypeString { get { return _contype; } }
 
     protected NodeInfo _local_ni;
     public NodeInfo Local {
@@ -135,7 +143,7 @@ namespace Brunet
       LinkMessage lm = olm as LinkMessage;
       if ( lm != null ) {
         bool same = true;
-	same &= lm.ConnectionType == ConnectionType;
+	same &= lm.ConTypeString == _contype;
 	same &= lm.Local.Equals(_local_ni);
 	same &= lm.Remote.Equals(_remote_ni);
 	return same;
@@ -171,7 +179,7 @@ namespace Brunet
       /*@throw InvalidOperationException for WriteString if the
        * WriteState is Closed.
        */
-      w.WriteString(this.ConnectionType.ToString().ToLower());
+      w.WriteString( _contype );
       /*@throw InvalidOperationException for WriteEndAttribute if the
        * WriteState is Closed.
        */

@@ -176,7 +176,7 @@ namespace Brunet
 				  new TransportAddress("brunet.tcp://127.0.0.1:"
 					  + i.ToString())));
       }
-      StatusMessage statm = new StatusMessage(ConnectionType.Structured, neighbors);
+      StatusMessage statm = new StatusMessage("structured", neighbors);
       messages.Add(statm);
       
       ConnectionMessageParser cmp = new ConnectionMessageParser();
@@ -203,6 +203,29 @@ namespace Brunet
 		                                    new NodeInfo(ctma,
 					new TransportAddress("brunet.tcp://127.0.0.1:20293/") ) );
       Assert.AreEqual(ctm_s, cmp.Parse(ctm_string), "ConnectToMessage string test");
+
+      string lm_string = "<request id=\"42\"><link type=\"structured.near\">"
+	                + "<local><node address=\"brunet:node:XXXAAAAAAAAAAAAAAAAAAAAAAAAAAAAO\">"
+			  + "<transport>brunet.tcp://127.0.0.1:2000/</transport></node></local>"
+			  + "<remote><node address=\"brunet:node:YYYAAAAAAAAAAAAAAAAAAAAAAAAAAAAO\">"
+			  + "<transport>brunet.tcp://127.0.0.1:2001/</transport></node></remote>"
+			  + "</link></request>";
+      Address lma = AddressParser.Parse("brunet:node:XXXAAAAAAAAAAAAAAAAAAAAAAAAAAAAO");
+      Address lmb = AddressParser.Parse("brunet:node:YYYAAAAAAAAAAAAAAAAAAAAAAAAAAAAO");
+      LinkMessage lm_s = new LinkMessage("structured.near",
+		                         new NodeInfo(lma,
+						      new TransportAddress("brunet.tcp://127.0.0.1:2000/") ),
+					 new NodeInfo(lmb,
+						      new TransportAddress("brunet.tcp://127.0.0.1:2001/") ) );
+      
+      LinkMessage lm_s2 = new LinkMessage(ConnectionType.StructuredNear,
+		                         new NodeInfo(lma,
+						      new TransportAddress("brunet.tcp://127.0.0.1:2000/") ),
+					 new NodeInfo(lmb,
+						      new TransportAddress("brunet.tcp://127.0.0.1:2001/") ) );
+      Assert.AreEqual( lm_s, lm_s2 );
+      Assert.AreEqual( lm_s, cmp.Parse(lm_string) );
+						      
     }
   }
   

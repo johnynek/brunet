@@ -306,12 +306,12 @@ namespace Brunet
 	  //Get the neighbors of this type:
 	  lock( _tab.SyncRoot ) {
             foreach(Connection c in _tab) {
-              if( c.Ct == lm.ConnectionType ) {
+              if( c.ConType == lm.ConTypeString ) {
                 neighbors.Add( new NodeInfo( c.Address, c.Edge.RemoteTA ) );
 	      }
 	    }
 	  }	  
-          StatusMessage req = new StatusMessage( lm.ConnectionType, neighbors );
+          StatusMessage req = new StatusMessage( lm.ConTypeString, neighbors );
           req.Id = _id++;
           req.Dir = ConnectionMessage.Direction.Request;
           lock( _sync ) {
@@ -336,7 +336,7 @@ namespace Brunet
              * the recipient has seen our ping, we Succeed 
              */
 	    _con = new Connection(edge, _peer_link_mes.Local.Address,
-			              _peer_link_mes.ConnectionType,
+			              _peer_link_mes.ConTypeString,
 				      (StatusMessage)cm);
             Succeed();
 	    return;
@@ -473,7 +473,6 @@ namespace Brunet
 #endif
         /* Announce the connection */
 	_tab.Add(_con);
-        //_tab.Add(_peer_link_mes.ConnectionType, _peer_link_mes.Local.Address, _e);
       }
       catch(Exception x) {
         /* Looks like we could not add the connection */
