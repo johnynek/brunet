@@ -58,30 +58,30 @@ namespace Brunet
     public ConnectionMessage Parse(Stream s)
     {
       doc.Load(s);
-//Now we have the ConnectionMessage in memory as a DOM document
+      //Now we have the ConnectionMessage in memory as a DOM document
 
       XmlNode r = doc.FirstChild;
-//Find the first element : 
+      //Find the first element :
       foreach(XmlNode n in doc.ChildNodes) {
         if (n is XmlElement) {
           r = n;
           break;
         }
       }
-//Parse the direction : 
+      //Parse the direction :
       ConnectionMessage.Direction d =
         (ConnectionMessage.Direction) System.Enum.
         Parse(typeof(ConnectionMessage.Direction), r.Name, true);
-//The outer node should be an XmlElement with an "id" attribute : 
+      //The outer node should be an XmlElement with an "id" attribute :
       int id = 0;
       foreach(XmlNode attr in((XmlElement) r).Attributes) {
         if (attr.Name == "id") {
-  //The child of the attribute is a XmlText : 
+          //The child of the attribute is a XmlText :
           id = System.Int32.Parse(attr.FirstChild.Value);
           break;
         }
       }
-//Now we have the direction and the id for the request/response
+      //Now we have the direction and the id for the request/response
 
       ConnectionMessage result = null;
 
@@ -100,17 +100,17 @@ namespace Brunet
           case "ping":
             result = new PingMessage((XmlElement) mess);
             break;
-	  case "error":
+          case "error":
             result = new ErrorMessage((XmlElement) mess);
-	    break;
+            break;
           default:
             throw new
-              ParseException("Unknown ConnectionMessage Type: " +
-                             mess.Name);
+            ParseException("Unknown ConnectionMessage Type: " +
+                           mess.Name);
           }
         }
       }
-//We have not yet set the id and direction, this is the same for all
+      //We have not yet set the id and direction, this is the same for all
       result.Id = id;
       result.Dir = d;
       return result;

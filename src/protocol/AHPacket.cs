@@ -12,23 +12,23 @@ using System.IO;
 namespace Brunet
 {
 
- /**
-  * Type of Packet which is routed over the virtual Brunet
-  * network.  These packets can hold a general payload and
-  * can be routed to their destination only using the header.
-  */
+  /**
+   * Type of Packet which is routed over the virtual Brunet
+   * network.  These packets can hold a general payload and
+   * can be routed to their destination only using the header.
+   */
 
   public class AHPacket : Packet
   {
 
-  /** The number of bytes in the header, including the type 0x02 */
+    /** The number of bytes in the header, including the type 0x02 */
     public static readonly int HeaderSize = 46;
-  /** This is the largest positive short */
+    /** This is the largest positive short */
     public static readonly short MaxTtl = (short) 32767;
 
 
     protected byte[] _payload;
-	
+
     /**
      * @param s Stream to read the AHPacket from
      * @param length the lenght of the packet
@@ -42,8 +42,8 @@ namespace Brunet
       s.Read(header, 0, HeaderSize);
       if( header[0] != (byte)Packet.ProtType.AH ) {
         throw new System.
-          ArgumentException("Packet is not an AHPacket");
-      } 
+        ArgumentException("Packet is not an AHPacket");
+      }
       _hops = NumberSerializer.ReadShort(header, 1);
       _ttl = NumberSerializer.ReadShort(header, 3);
       _source = AddressParser.Parse(header, 5);
@@ -56,7 +56,7 @@ namespace Brunet
     {
       if (buf[offset] != (byte)Packet.ProtType.AH ) {
         throw new System.
-          ArgumentException("Packet is not an AHPacket");
+        ArgumentException("Packet is not an AHPacket");
       }
       _hops = NumberSerializer.ReadShort(buf, offset + 1);
       _ttl = NumberSerializer.ReadShort(buf, offset + 3);
@@ -65,9 +65,9 @@ namespace Brunet
       _pt = (Protocol) buf[offset + 45];
       _payload = new byte[length - HeaderSize];
       Array.Copy(buf, offset + HeaderSize,
-		 _payload, 0, length - HeaderSize);
+                 _payload, 0, length - HeaderSize);
     }
-    
+
     public AHPacket(byte[] buf, int length):this(buf, 0, length)
     {
     }
@@ -91,7 +91,7 @@ namespace Brunet
                     Address source,
                     Address destination,
                     Protocol payload_prot,
-		    byte[] payload, int off, int len)
+                    byte[] payload, int off, int len)
     {
       _hops = hops;
       _ttl = ttl;
@@ -110,10 +110,10 @@ namespace Brunet
                     Address source,
                     Address destination,
                     Protocol payload_prot,
-		    byte[] payload) : this(hops, ttl, source, destination,
-			                   payload_prot, payload, 0,
-					   payload.Length) {
-    
+                    byte[] payload) : this(hops, ttl, source, destination,
+                                               payload_prot, payload, 0,
+                                           payload.Length) {
+
     }
     /**
      * Makes a new packet with a new header but the same payload
@@ -131,34 +131,34 @@ namespace Brunet
       _pt = p._pt;
       _payload = p._payload;
     }
-    
+
     public override ProtType type { get { return Packet.ProtType.AH; } }
     public override int Length { get { return HeaderSize + _payload.Length; } }
     public override int PayloadLength { get { return _payload.Length; } }
-    
+
     protected short _hops;
-  /**
-   * The number of edges this packet has crossed
-   */
+    /**
+     * The number of edges this packet has crossed
+     */
     public short Hops { get { return _hops; } }
-  
+
     protected short _ttl;
-  /**
-   * The maximum number of edges this packet may cross
-   */
+    /**
+     * The maximum number of edges this packet may cross
+     */
     public short Ttl { get { return _ttl; } }
 
     protected Address _source;
-  /**
-   * The source of this packet
-   * The source should only be an AHAddress
-   */
+    /**
+     * The source of this packet
+     * The source should only be an AHAddress
+     */
     public Address Source { get { return _source; } }
-    
+
     protected Address _destination;
-  /**
-   * The destination of this packet
-   */
+    /**
+     * The destination of this packet
+     */
     public Address Destination { get { return _destination; } }
 
     protected Protocol _pt;
@@ -170,7 +170,7 @@ namespace Brunet
      */
     public override MemoryStream PayloadStream {
       get {
-	//Return a read-only MemoryStream of the Payload
+        //Return a read-only MemoryStream of the Payload
         return new MemoryStream(_payload, false);
       }
     }
@@ -193,8 +193,8 @@ namespace Brunet
       Array.Copy(_payload, 0, dest, off, PayloadLength);
       off += PayloadLength;
     }
-    
-    public enum Protocol:byte
+
+  public enum Protocol:byte
     {
       Deflate = 1,
       Connection = 2,
@@ -209,12 +209,12 @@ namespace Brunet
     public AHPacket IncrementHops()
     {
       return new AHPacket( (short)(_hops + 1),
-		           _ttl,
-			   _source,
-			   _destination,
-			   this );
+                           _ttl,
+                           _source,
+                           _destination,
+                           this );
     }
-    
+
     override public string ToString()
     {
       StringWriter sw = new StringWriter();

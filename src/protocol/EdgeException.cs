@@ -3,10 +3,10 @@ using System;
 namespace Brunet
 {
 
-/**
- * Everything that can go wrong with an edge is represented
- * by this exception
- */
+  /**
+   * Everything that can go wrong with an edge is represented
+   * by this exception
+   */
 
   public class EdgeException:Exception
   {

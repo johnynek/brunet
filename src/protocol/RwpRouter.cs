@@ -25,7 +25,7 @@ namespace Brunet
 
     public RwpRouter()
     {
-    
+
     }
 
     public System.Type RoutedAddressType
@@ -43,7 +43,7 @@ namespace Brunet
       {
         _connection_table = value;
       }
-      get 
+      get
       {
         return _connection_table;
       }
@@ -79,57 +79,57 @@ namespace Brunet
       }
       else {
         int num_sent_on = 0;
-	Edge e = null;
+        Edge e = null;
 
         if (flag) {
           //Send this packet to a random neighbor exactly as is;
           e = _connection_table.GetRandomUnstructuredEdge(from);
-          
+
           if (e != null) {
-	    AHPacket to_send = p.IncrementHops();
+            AHPacket to_send = p.IncrementHops();
             num_sent_on++;
             e.Send( to_send );
           }
-	}
+        }
 
-	//Now we send to each neighbor with probability p
-	AHPacket next_p = null;
-	if( flag ) {
+        //Now we send to each neighbor with probability p
+        AHPacket next_p = null;
+        if( flag ) {
           /*
-	   * In this case, we have to make a copy of the packet
-	   * because we have to change it and Packets are immutable
-	   */ 
+          * In this case, we have to make a copy of the packet
+          * because we have to change it and Packets are immutable
+          */ 
           RwpAddress old_dest = (RwpAddress)p.Destination;
           RwpAddress dest = new RwpAddress( false, old_dest.Prob );
-	  
-	  /**
-	   * Make a new packet from the old one, only changing the header
-	   */
+
+          /**
+           * Make a new packet from the old one, only changing the header
+           */
           next_p = new AHPacket( (short)(p.Hops + 1),
-			        p.Ttl,
-				p.Source,
-			        dest, 
-				p );
-	}
-	else {
+                                 p.Ttl,
+                                 p.Source,
+                                 dest,
+                                 p );
+        }
+        else {
           /*
-	   * Just increment the hops
-	   */
+          * Just increment the hops
+          */
           next_p = p.IncrementHops();
-	}
+        }
         ArrayList unstructured_edges = (ArrayList)_connection_table.GetEdgesOfType(ConnectionType.Unstructured);
         try {
-	  foreach(Edge next_edge in unstructured_edges) {
+          foreach(Edge next_edge in unstructured_edges) {
             if ( (next_edge==from) || (next_edge==e) )
-	      continue;
-	    else {
+              continue;
+            else {
               double val = _rand.NextDouble();
               if ( val <= prob ) {
                 num_sent_on++;
                 next_edge.Send( next_p );
               }
             }
-	    //end of for-loop
+            //end of for-loop
           }
         }
         catch (Exception ex) {

@@ -10,25 +10,25 @@ using System.Text;
 namespace Brunet
 {
 
-/**
- * Holds connection messages which are sent
- * only between adjacent hosts.  When a
- * ConnectionMessage is routed, it is 
- * embedded into an AHPacket.
- *
- * @see ConnectionMessage
- * @see ConnectionMessageParser
- */
+  /**
+   * Holds connection messages which are sent
+   * only between adjacent hosts.  When a
+   * ConnectionMessage is routed, it is 
+   * embedded into an AHPacket.
+   *
+   * @see ConnectionMessage
+   * @see ConnectionMessageParser
+   */
   public class ConnectionPacket : Packet
   {
-//This holds the entire binary represenation of the packet : 
+    //This holds the entire binary represenation of the packet :
     protected byte[]  _buffer;
     protected int _len;
 
     public override int Length { get { return _len; } }
-    public override int PayloadLength { get { return (_len - 1); } }	 
+    public override int PayloadLength { get { return (_len - 1); } }
     public override Packet.ProtType type {
-	    get { return Packet.ProtType.Connection; }
+      get { return Packet.ProtType.Connection; }
     }
     /**
      * This is the prefered way to access the payload since
@@ -36,7 +36,7 @@ namespace Brunet
      */
     public override MemoryStream PayloadStream {
       get {
-	//Return a read-only MemoryStream
+        //Return a read-only MemoryStream
         return new MemoryStream(_buffer, 1, PayloadLength, false);
       }
     }
@@ -47,7 +47,7 @@ namespace Brunet
     {
       if (binary[off] != (byte)Packet.ProtType.Connection ) {
         throw new System.
-          ArgumentException("Packet is not a ConnectionPacket");
+        ArgumentException("Packet is not a ConnectionPacket");
       }
       _buffer = new byte[len];
       Array.Copy(binary, off, _buffer, 0, len);
@@ -55,7 +55,7 @@ namespace Brunet
     }
 
     public ConnectionPacket(byte[] binary):this(binary, 0,
-                                               binary.Length)
+            binary.Length)
     {
 
     }

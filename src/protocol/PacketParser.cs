@@ -8,12 +8,12 @@
 namespace Brunet
 {
 
-/**
- * When a Packet comes in, the PacketParser reads
- * the type and then creates a Packet of that type
- * and returns it.  This allows us to use the RTTI
- * (run time type information) which .Net provides.
- */
+  /**
+   * When a Packet comes in, the PacketParser reads
+   * the type and then creates a Packet of that type
+   * and returns it.  This allows us to use the RTTI
+   * (run time type information) which .Net provides.
+   */
 
   public class PacketParser
   {

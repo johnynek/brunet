@@ -14,25 +14,25 @@ using System;
 namespace Brunet
 {
 
-/**
- * Parses ascii strings representations of an Address and returns
- * an instance of the appropriate class.
- */
+  /**
+   * Parses ascii strings representations of an Address and returns
+   * an instance of the appropriate class.
+   */
   public class AddressParser
   {
 
-  /**
-   * @param ascii an ascii representation of an Address
-   * @return a new address of the appropriate class
-   * @throw ParseException if the string is not a valid address
-   * This is the inverse of the Address.ToString() function
-   */
+    /**
+     * @param ascii an ascii representation of an Address
+     * @return a new address of the appropriate class
+     * @throw ParseException if the string is not a valid address
+     * This is the inverse of the Address.ToString() function
+     */
     public static Address Parse(string ascii)
     {
 
       string[] parts = ascii.Split(':');
-//It should be:  urn:brunet:node:[encoded address]
-// or brunet:node:[encoded address]
+      //It should be:  urn:brunet:node:[encoded address]
+      // or brunet:node:[encoded address]
       int offset = 0;
       if (parts[0].ToLower() == "urn") {
         offset = 1;
@@ -41,16 +41,16 @@ namespace Brunet
       if (brunet != "brunet")
       {
         throw new
-          ParseException
-          ("String is not a properly formated Brunet Address:" +
-           ascii);
+        ParseException
+        ("String is not a properly formated Brunet Address:" +
+         ascii);
       }
       string node = parts[offset + 1].ToLower();
       if (node != "node") {
         throw new
-          ParseException
-          ("String is not a properly formated Brunet Address:" +
-           ascii);
+        ParseException
+        ("String is not a properly formated Brunet Address:" +
+         ascii);
       }
       try {
         byte[] binadd = Base32.Decode(parts[offset + 2]);
@@ -62,11 +62,11 @@ namespace Brunet
       }
     }
 
-  /**
-   * Read the address out of the buffer  This makes a copy
-   * and calls Parse on the copy.  This is a "convienience" method.
-   * @throw ParseException if the buffer is not a valid address
-   */
+    /**
+     * Read the address out of the buffer  This makes a copy
+     * and calls Parse on the copy.  This is a "convienience" method.
+     * @throw ParseException if the buffer is not a valid address
+     */
     static public Address Parse(byte[] binadd, int offset)
     {
       try {
@@ -76,9 +76,9 @@ namespace Brunet
         case 0:
           a = new AHAddress(binadd, offset);
           break;
-	case 124:
-	  a = new DirectionalAddress(binadd, offset);
-	  break;
+        case 124:
+          a = new DirectionalAddress(binadd, offset);
+          break;
         case 126:
           a = new RwpAddress(binadd, offset);
           break;
@@ -105,12 +105,12 @@ namespace Brunet
       }
     }
 
-  /**
-   * Given the binadd, return an Address object which this
-   * binary representation corresponds to.  The buffer must
-   * be exactly Address.MemSize long, or an exception is thrown.
-   * @throw ParseException if the buffer is not a valid address
-   */
+    /**
+     * Given the binadd, return an Address object which this
+     * binary representation corresponds to.  The buffer must
+     * be exactly Address.MemSize long, or an exception is thrown.
+     * @throw ParseException if the buffer is not a valid address
+     */
     static public Address Parse(byte[] binadd)
     {
       return Parse(binadd, 0);

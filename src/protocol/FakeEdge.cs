@@ -10,11 +10,11 @@ using System;
 namespace Brunet
 {
 
- /**
-  * This a derived class from the base class Edge.
-  * It is designed for the sole purpose of testing the AHRoutingTable
-  * The only functionality is that it has the local and remote TransportAddress
-  */
+  /**
+   * This a derived class from the base class Edge.
+   * It is designed for the sole purpose of testing the AHRoutingTable
+   * The only functionality is that it has the local and remote TransportAddress
+   */
 
   public class FakeEdge:Brunet.Edge
   {
@@ -57,10 +57,10 @@ namespace Brunet
     public override DateTime LastOutPacketDateTime {
       get { return DateTime.Now; }
     }
-  /**
-   * @param p a Packet to send to the host on the other
-   * side of the Edge.
-   */
+    /**
+     * @param p a Packet to send to the host on the other
+     * side of the Edge.
+     */
     public override void Send(Brunet.Packet p)
     {
     }
@@ -72,9 +72,9 @@ namespace Brunet
         return false;
       }
     }
-  /**
-   * @return true if the edge is an in-degree
-   */
+    /**
+     * @return true if the edge is an in-degree
+     */
     public override bool IsInbound
     {
       get

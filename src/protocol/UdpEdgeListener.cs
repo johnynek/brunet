@@ -19,23 +19,23 @@ using System.Collections;
 namespace Brunet
 {
 
-        /**
-	 * A EdgeListener that uses UDP for the underlying
-	 * protocol.  This listener creates UDP edges.
-	 * 
-	 * The UdpEdgeListener creates one thread.  In that
-	 * thread it loops processing reads.  The UdpEdgeListener
-	 * keeps a Queue of packets to send also.  After each
-	 * read attempt, it sends all the packets in the Queue.
-	 *
-	 */
+  /**
+  * A EdgeListener that uses UDP for the underlying
+  * protocol.  This listener creates UDP edges.
+  * 
+  * The UdpEdgeListener creates one thread.  In that
+  * thread it loops processing reads.  The UdpEdgeListener
+  * keeps a Queue of packets to send also.  After each
+  * read attempt, it sends all the packets in the Queue.
+  *
+  */
 
   public class UdpEdgeListener:EdgeListener
   {
 
     protected IPEndPoint ipep;
     protected Socket s;
-    
+
     ///used for thread for the socket synchronization
     protected object _sync;
     ///this is the thread were the socket is read:
@@ -45,27 +45,27 @@ namespace Brunet
 
     ///Here is the queue for outgoing packets:
     protected Queue _send_queue;
-  
+
     /**
      * This is a simple little class just to hold the
      * two objects needed to do a send
      */
     private class SendQueueEntry {
-        public SendQueueEntry(Packet p, UdpEdge udpe) {
-          Packet = p;
-	  Sender = udpe;
-	}
-        public Packet Packet;
-	public UdpEdge Sender;
+      public SendQueueEntry(Packet p, UdpEdge udpe) {
+        Packet = p;
+        Sender = udpe;
+      }
+      public Packet Packet;
+      public UdpEdge Sender;
     }
-    
+
     /**
      * Hashtable of ID to Edges
      */
     protected Hashtable _id_ht;
-    
+
     protected Random _rand;
-    
+
     protected ArrayList _tas;
     public override ArrayList LocalTAs
     {
@@ -99,22 +99,22 @@ namespace Brunet
       IPAddress [] addr = IPEntry.AddressList;
       _tas = new ArrayList();
       foreach(IPAddress a in IPEntry.AddressList) {
-	/**
-	 * We add Loopback addresses to the back, all others to the front
-	 * This makes sure non-loopback addresses are listed first.
-	 */
+        /**
+         * We add Loopback addresses to the back, all others to the front
+         * This makes sure non-loopback addresses are listed first.
+         */
         if( IPAddress.IsLoopback(a) ) {
           //Put it at the back
           _tas.Add( new TransportAddress(TransportAddress.TAType.Udp,
-                                    new IPEndPoint(a, port) ) );
+                                         new IPEndPoint(a, port) ) );
         }
         else {
           //Put it at the front
           _tas.Insert(0, new TransportAddress(TransportAddress.TAType.Udp,
-                                    new IPEndPoint(a, port) ) );
-	}
-      }      
-      
+                                              new IPEndPoint(a, port) ) );
+        }
+      }
+
       /*
        * Use this to listen for data
        */
@@ -140,10 +140,10 @@ namespace Brunet
     {
       UdpEdge e = (UdpEdge)edge;
       lock( _id_ht ) {
-	_id_ht.Remove( e.ID );
+        _id_ht.Remove( e.ID );
       }
     }
-    
+
     /**
      * Implements the EdgeListener function to 
      * create edges of this type.
@@ -152,13 +152,13 @@ namespace Brunet
     {
       if( !IsStarted )
       {
-	ecb(false, null,
+        ecb(false, null,
             new EdgeException("UdpEdgeListener is not started") );
       }
       else if( ta.TransportAddressType != this.TAType ) {
-        ecb(false, null, 
+        ecb(false, null,
             new EdgeException(ta.TransportAddressType.ToString()
-			        + " is not my type: " + this.TAType.ToString() ) );
+                              + " is not my type: " + this.TAType.ToString() ) );
       }
       Edge e = null;
       ArrayList ip_addresses = ta.GetIPAddresses();
@@ -167,21 +167,21 @@ namespace Brunet
       IPEndPoint end = new IPEndPoint(first_ip, ta.Port);
       /* We have to keep our mapping of end point to edges up to date */
       lock( _id_ht ) {
-	//Get a random ID for this edge:
-	int id;
-	do {
-	  id = _rand.Next();
-	} while( _id_ht.Contains(id) );
-	  
+        //Get a random ID for this edge:
+        int id;
+        do {
+          id = _rand.Next();
+        } while( _id_ht.Contains(id) );
+
         e = new UdpEdge(new Edge.PacketCallback(this.SendCallback),
-			  false, end, (IPEndPoint)s.LocalEndPoint, id);
-	_id_ht[id] = e;
+                        false, end, (IPEndPoint)s.LocalEndPoint, id);
+        _id_ht[id] = e;
       }
       /* Tell me when you close so I can clean up the table */
       e.CloseEvent += new EventHandler(this.CloseHandler);
       ecb(true, e, null);
     }
-    
+
     public override void Start()
     {
       lock( _sync ) {
@@ -193,7 +193,7 @@ namespace Brunet
     }
     public override void Stop()
     {
-      _running = false; 
+      _running = false;
     }
 
     /**
@@ -206,81 +206,81 @@ namespace Brunet
       //Wait 10 ms before giving up on a read
       int microsecond_timeout = 10000;
       while(_running) {
-	bool read = false;
-	bool is_new_edge = false;
-	UdpEdge edge = null;
-	EndPoint end = new IPEndPoint(IPAddress.Any, 0);
-   	
-	/**
-	 * Note that at no time do we hold two locks, or
-	 * do we hold a lock across an external function call or event
-	 */
-	//Read if we can:
-	int rec_bytes = 0;
-	lock( _sync ) {
+        bool read = false;
+        bool is_new_edge = false;
+        UdpEdge edge = null;
+        EndPoint end = new IPEndPoint(IPAddress.Any, 0);
+
+        /**
+         * Note that at no time do we hold two locks, or
+         * do we hold a lock across an external function call or event
+         */
+        //Read if we can:
+        int rec_bytes = 0;
+        lock( _sync ) {
           read = s.Poll( microsecond_timeout, SelectMode.SelectRead );
-	  if( read ) {
-	    rec_bytes = s.ReceiveFrom(_packet_buffer, ref end);
-	  }
-	}
-	//Drop the socket lock.  We either read or we didn't
-	if( read ) {
+          if( read ) {
+            rec_bytes = s.ReceiveFrom(_packet_buffer, ref end);
+          }
+        }
+        //Drop the socket lock.  We either read or we didn't
+        if( read ) {
           //Get the id of this edge:
-	  int id = NumberSerializer.ReadInt(_packet_buffer, 0);
-	  lock ( _id_ht ) {
+          int id = NumberSerializer.ReadInt(_packet_buffer, 0);
+          lock ( _id_ht ) {
             if (! _id_ht.Contains(id)) {
               edge = new UdpEdge(new Edge.PacketCallback(this.SendCallback),
-			         true, (IPEndPoint)end,
-				 (IPEndPoint)s.LocalEndPoint, id);
-	      /* Tell me when you close so I can clean up the table */
-	      edge.CloseEvent += new EventHandler(this.CloseHandler);
+                                 true, (IPEndPoint)end,
+                                 (IPEndPoint)s.LocalEndPoint, id);
+              /* Tell me when you close so I can clean up the table */
+              edge.CloseEvent += new EventHandler(this.CloseHandler);
               _id_ht[id] = edge;
-	      is_new_edge = true;
+              is_new_edge = true;
             }
             else {
               edge = (UdpEdge) _id_ht[id];
             }
-	  }
-	  //Drop the ht lock and announce the edge and the packet:
-	  if( is_new_edge ) {
-	    SendEdgeEvent(edge);
- 	  }
+          }
+          //Drop the ht lock and announce the edge and the packet:
+          if( is_new_edge ) {
+            SendEdgeEvent(edge);
+          }
           Packet p = PacketParser.Parse(_packet_buffer, 4, rec_bytes - 4);
-	  //We have the edge, now tell the edge to announce the packet:
-	  edge.Push(p);
-	}
-	/*
-	 * We are done with handling the reads.  Now lets
-	 * deal with all the pending sends:
-	 */
+          //We have the edge, now tell the edge to announce the packet:
+          edge.Push(p);
+        }
+        /*
+         * We are done with handling the reads.  Now lets
+         * deal with all the pending sends:
+         */
         SendQueueEntry sqe = null;
-	bool more_to_send = false;
-	do {
+        bool more_to_send = false;
+        do {
           sqe = null;
           lock( _send_queue ) {
             if( _send_queue.Count > 0 ) {
               sqe = (SendQueueEntry)_send_queue.Dequeue();
               more_to_send = _send_queue.Count > 0;
-	    }
-	  } //Release the lock
-	  if( sqe != null ) {
+            }
+          } //Release the lock
+          if( sqe != null ) {
             //We have a packet to send
-	    Packet p = sqe.Packet;
-	    UdpEdge sender = sqe.Sender;
-	    EndPoint e = sender.End;
-	    //Get the lock on the socket (and buffer) to send
-	    lock( _sync ) {
-	      //Write the ID of the edge:
-	      NumberSerializer.WriteInt(sender.ID, _packet_buffer, 0);
-	      p.CopyTo(_packet_buffer, 4);
+            Packet p = sqe.Packet;
+            UdpEdge sender = sqe.Sender;
+            EndPoint e = sender.End;
+            //Get the lock on the socket (and buffer) to send
+            lock( _sync ) {
+              //Write the ID of the edge:
+              NumberSerializer.WriteInt(sender.ID, _packet_buffer, 0);
+              p.CopyTo(_packet_buffer, 4);
               s.SendTo(_packet_buffer, 0, 4 + p.Length, SocketFlags.None, e);
-	    }
-	  }
-	} while( more_to_send );
-	//Now it is time to see if we can read...
+            }
+          }
+        } while( more_to_send );
+        //Now it is time to see if we can read...
       }
     }
-   
+
     /**
      * When UdpEdge objects call Send, it calls this packet
      * callback:
@@ -288,10 +288,10 @@ namespace Brunet
     protected void SendCallback(Packet p, Edge from)
     {
       lock( _send_queue ) {
-	SendQueueEntry sqe = new SendQueueEntry(p, (UdpEdge)from);
+        SendQueueEntry sqe = new SendQueueEntry(p, (UdpEdge)from);
         _send_queue.Enqueue(sqe);
       }
     }
-    
+
   }
 }

@@ -1,10 +1,10 @@
 namespace Brunet
 {
 
-/**
- * Represents a problem parsing some input or network
- * data in the Brunet system
- */
+  /**
+   * Represents a problem parsing some input or network
+   * data in the Brunet system
+   */
   using System;
 
   public class ParseException:Exception
@@ -16,7 +16,7 @@ namespace Brunet
     {
     }
     public ParseException(string message, Exception inner)
-    : base(message, inner)
+        : base(message, inner)
     {
     }
   }

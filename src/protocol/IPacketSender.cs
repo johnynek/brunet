@@ -11,9 +11,9 @@ namespace Brunet
   public interface IPacketSender
   {
 
-  /**
-   * Represents objects which can send packets
-   */
+    /**
+     * Represents objects which can send packets
+     */
     void Send(Packet p);
   }
 

@@ -13,22 +13,22 @@ using Brunet;
 namespace Brunet
 {
 
-/**
- * Link messages are exchanged between hosts as
- * part of a connection forming handshake.
- * The local and remote transport
- * addresses are exchanged in order to help nodes
- * identify when they are behind a NAT, which is
- * translating their IP addresses and ports.
- */
+  /**
+   * Link messages are exchanged between hosts as
+   * part of a connection forming handshake.
+   * The local and remote transport
+   * addresses are exchanged in order to help nodes
+   * identify when they are behind a NAT, which is
+   * translating their IP addresses and ports.
+   */
 
   public class LinkMessage:ConnectionMessage
   {
 
-  /**
-   * Use this constructor if you prefer to set
-   * each Property using its accessor function
-   */
+    /**
+     * Use this constructor if you prefer to set
+     * each Property using its accessor function
+     */
     public LinkMessage()
     {
 
@@ -49,15 +49,15 @@ namespace Brunet
       foreach(XmlNode attr in link_element.Attributes) {
         switch (attr.Name) {
         case "type":
-  /*@throw ArgumentNullException for Enum.Parse if typeof(
-   * ConnectionType) or attr.FirstChild.Value is a null reference
-   * @throw ArguementException if typeof(ConnectionType) is not 
-   * a Type that describes Enum OR attr.FirstChild.Value is
-   * either equal to Empty or contains only white space. OR 
-   * attr.FirstChild.Value represents one or more names, and 
-   * at least one name represents by attr.FirstChild.Value is 
-   * not of type typeof(ConnectionType).
-   */
+          /*@throw ArgumentNullException for Enum.Parse if typeof(
+           * ConnectionType) or attr.FirstChild.Value is a null reference
+           * @throw ArguementException if typeof(ConnectionType) is not 
+           * a Type that describes Enum OR attr.FirstChild.Value is
+           * either equal to Empty or contains only white space. OR 
+           * attr.FirstChild.Value represents one or more names, and 
+           * at least one name represents by attr.FirstChild.Value is 
+           * not of type typeof(ConnectionType).
+           */
           ConnectionType =
             (ConnectionType) System.Enum.Parse(typeof(ConnectionType),
                                                attr.FirstChild.Value,
@@ -66,7 +66,7 @@ namespace Brunet
         }
       }
 
-//Read the addresses
+      //Read the addresses
       foreach(XmlNode nodes in link_element.ChildNodes) {
         switch (nodes.Name) {
         case "local":
@@ -105,7 +105,7 @@ namespace Brunet
       }
     }
 
-/* These are attributes in the <link/> tag */
+    /* These are attributes in the <link/> tag */
     public ConnectionType ConnectionType;
 
     public TransportAddress LocalTA;
@@ -118,24 +118,24 @@ namespace Brunet
       base.WriteTo(w);
 
       string ns = "";           //Xml namespace
-/*@throw InvalidOperationException for WriteStartElement if the WriteState
- * is Closed.
- */
+      /*@throw InvalidOperationException for WriteStartElement if the WriteState
+       * is Closed.
+       */
       w.WriteStartElement("link", ns);
-//Write the attributes : 
-/*@throw InvalidOperationException for WriteStartAttribute if the 
- * WriteState is Closed.
- */
+      //Write the attributes :
+      /*@throw InvalidOperationException for WriteStartAttribute if the
+       * WriteState is Closed.
+       */
       w.WriteStartAttribute("type", ns);
-/*@throw InvalidOperationException for WriteString if the 
- * WriteState is Closed.
- */
+      /*@throw InvalidOperationException for WriteString if the
+       * WriteState is Closed.
+       */
       w.WriteString(this.ConnectionType.ToString().ToLower());
-/*@throw InvalidOperationException for WriteEndAttribute if the 
- * WriteState is Closed.
- */
+      /*@throw InvalidOperationException for WriteEndAttribute if the
+       * WriteState is Closed.
+       */
       w.WriteEndAttribute();
-//@throw InvalidOperationException for all the Write* below
+      //@throw InvalidOperationException for all the Write* below
 
       w.WriteStartElement("local", ns); //<local>
       w.WriteStartElement("host", ns);  //<host>
@@ -158,7 +158,7 @@ namespace Brunet
       w.WriteEndElement();      //</host>
       w.WriteEndElement();      //</remote>
 
-//end of the link element : 
+      //end of the link element :
       w.WriteEndElement();      //</link>
       w.WriteEndElement();      //</(request|response)>
     }

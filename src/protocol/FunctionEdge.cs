@@ -21,23 +21,23 @@ using System.Collections;
 namespace Brunet
 {
 
-        /**
-	 * A Edge which does its transport locally
-	 * by calling a method on the other edge
-	 *
-	 * This Edge is for debugging purposes on
-	 * a single machine in a single process.
-	 */
+  /**
+  * A Edge which does its transport locally
+  * by calling a method on the other edge
+  *
+  * This Edge is for debugging purposes on
+  * a single machine in a single process.
+  */
 
   public class FunctionEdge:Brunet.Edge
   {
-    
+
     public static Random _rand = new Random(DateTime.Now.Millisecond);
 
     public static ArrayList edgeList = ArrayList.Synchronized(new ArrayList());
 
     public Queue packetQueue;
-  
+
     /**
      * Adding logger
      */
@@ -69,22 +69,22 @@ namespace Brunet
       _l_id = local_id;
       inbound = is_in;
       _is_closed = false;
-      
+
       _rand_id = _rand.Next(1, Int32.MaxValue);
 
-      packetQueue = Queue.Synchronized(new Queue());     
+      packetQueue = Queue.Synchronized(new Queue());
     }
 
     private int   _rand_id;
     public int RandId
     {
-      get 
-      { 
-        return _rand_id; 
+      get
+      {
+        return _rand_id;
       }
-      set 
-      { 
-        _rand_id = value; 
+      set
+      {
+        _rand_id = value;
       }
     }
     protected DateTime _last_out_packet_datetime;
@@ -96,7 +96,7 @@ namespace Brunet
     public override void Close()
     {
       FunctionEdge.edgeList.Remove(this);
-      base.Close();      
+      base.Close();
       _is_closed = true;
     }
 
@@ -121,86 +121,86 @@ namespace Brunet
     {
       get
       {
-        return _partner;   
+        return _partner;
       }
       set
       {
         _partner = value;
       }
     }
-    
 
-  /**
-   *  @return true if the calling Edge is equal to the Edge argument
-   *  We define two edges to be equal to each other if either of the following two cases hold : 
-   *  Case one, the two local Transport Addresses match each other and the two remote TA's match
-   *  Case two, the local TA of one edge matches with the remote TA of the second edge and vice versa
-   *  Also the random ids of both edges(assigned at creation time) should match.
-   */
-  public override bool Equals(object e)
-  {
-    if (e is Edge) {
-      FunctionEdge edge = e as FunctionEdge;
-      bool LocalEq = this.LocalTA.Equals(edge.LocalTA);
-      bool RemoteEq = this.RemoteTA.Equals(edge.RemoteTA);
-      bool RandIdEq = (this.RandId==edge.RandId);
-      return (LocalEq && RemoteEq && RandIdEq);
+
+    /**
+     *  @return true if the calling Edge is equal to the Edge argument
+     *  We define two edges to be equal to each other if either of the following two cases hold : 
+     *  Case one, the two local Transport Addresses match each other and the two remote TA's match
+     *  Case two, the local TA of one edge matches with the remote TA of the second edge and vice versa
+     *  Also the random ids of both edges(assigned at creation time) should match.
+     */
+    public override bool Equals(object e)
+    {
+      if (e is Edge) {
+        FunctionEdge edge = e as FunctionEdge;
+        bool LocalEq = this.LocalTA.Equals(edge.LocalTA);
+        bool RemoteEq = this.RemoteTA.Equals(edge.RemoteTA);
+        bool RandIdEq = (this.RandId==edge.RandId);
+        return (LocalEq && RemoteEq && RandIdEq);
+      }
+      else {
+        return false;
+      }
     }
-    else {
-      return false;
+
+    /**
+     *  @return the hash code of an edge
+     *  We take the hash codes of the local and remote TA's and the edge's random id and XOR them
+     *  The result is the Hash Code for the edge
+     */
+    public override int GetHashCode()
+    {
+      int num1 = this.LocalTA.GetHashCode();
+      int num2 = ~this.RemoteTA.GetHashCode();
+
+      return ( (num1 ^ num2) + RandId );
     }
-  }
-
-  /**
-   *  @return the hash code of an edge
-   *  We take the hash codes of the local and remote TA's and the edge's random id and XOR them
-   *  The result is the Hash Code for the edge
-   */
-  public override int GetHashCode()
-  {
-    int num1 = this.LocalTA.GetHashCode();
-    int num2 = ~this.RemoteTA.GetHashCode();
-
-    return ( (num1 ^ num2) + RandId );
-  }
 
     public override void Send(Brunet.Packet p)
     {
-     if( !_is_closed ) {
-	_last_out_packet_datetime = DateTime.Now;
+      if( !_is_closed ) {
+        _last_out_packet_datetime = DateTime.Now;
         /**
          * log before the send because else the send will show
-	 * up after the receive in the log
+        * up after the receive in the log
          */
-	string base64String;
+        string base64String;
         try {
-	   byte[] buffer = new byte[p.Length];
-	   p.CopyTo(buffer, 0);
-	   base64String = Convert.ToBase64String(buffer);
-	}
-        catch (System.ArgumentNullException){
-        //log.Error("Error: Packet is Null");
-               return;
+          byte[] buffer = new byte[p.Length];
+          p.CopyTo(buffer, 0);
+          base64String = Convert.ToBase64String(buffer);
         }
-	string GeneratedLog = "OutPacket: edge: " + ToString() +
-		              ", packet: " + base64String;
+        catch (System.ArgumentNullException){
+          //log.Error("Error: Packet is Null");
+          return;
+        }
+        string GeneratedLog = "OutPacket: edge: " + ToString() +
+                              ", packet: " + base64String;
         //log.Info(GeneratedLog);
-	// logging finished
+        // logging finished
 #if USE_FEDGE_QUEUE
-	lock(_queue_lock) {
+        lock(_queue_lock) {
           _packet_queue.Enqueue( p );
-	  _edge_queue.Enqueue( _partner );
-	}
+          _edge_queue.Enqueue( _partner );
+        }
 #else
-	//Tell the partner to send it:
+        //Tell the partner to send it:
         //_partner.ReceivedPacketEvent(p);
         _partner.packetQueue.Enqueue(p);
 #endif
-     }
-     else {
-     // THE FOLLOWING LINE SHOULD BE COMMENTED OUT FOR FUNCTION EDGE ONLY
-     //throw new EdgeException("Trying to send on a closed edge");
-     }
+      }
+      else {
+        // THE FOLLOWING LINE SHOULD BE COMMENTED OUT FOR FUNCTION EDGE ONLY
+        //throw new EdgeException("Trying to send on a closed edge");
+      }
     }
 
     public override Brunet.TransportAddress.TAType TAType
@@ -216,7 +216,7 @@ namespace Brunet
       get
       {
         return new TransportAddress("brunet.function://localhost:"
-			              + _l_id.ToString());
+                                    + _l_id.ToString());
       }
     }
     public override Brunet.TransportAddress RemoteTA
@@ -226,7 +226,7 @@ namespace Brunet
         return _partner.LocalTA;
       }
     }
-   
+
 #if USE_FEDGE_QUEUE
     static protected void StartQueueProcessing()
     {
@@ -236,27 +236,27 @@ namespace Brunet
       int no_packets = 0;
       while( no_packets < 1000 )
       {
-	System.Threading.Thread.Sleep(50);
+        System.Threading.Thread.Sleep(50);
         lock(_queue_lock) {
           if( _packet_queue.Count > 0 ) {
             p = (Packet)_packet_queue.Dequeue();
-	    e = (FunctionEdge)_edge_queue.Dequeue();
-	    send_packet = true;
-	    no_packets = 0;
-	  }
-	  else {
-	    no_packets++;
+            e = (FunctionEdge)_edge_queue.Dequeue();
+            send_packet = true;
+            no_packets = 0;
+          }
+          else {
+            no_packets++;
             send_packet = false;
-	  }
-	}
-	if( send_packet ) {
-         try {
-          e.ReceivedPacketEvent(p);
-	 }
-	 catch(EdgeException x) {
-         //log.Error("StartQueueProcessing: ", x); 
-	 }
-	}
+          }
+        }
+        if( send_packet ) {
+          try {
+            e.ReceivedPacketEvent(p);
+          }
+          catch(EdgeException x) {
+            //log.Error("StartQueueProcessing: ", x);
+          }
+        }
       }
     }
 #endif
@@ -266,46 +266,46 @@ namespace Brunet
 #if USE_FEDGE_QUEUE
 
 #else
-    string command;
-    bool all_done = false;
-    int num_done = 0;
-    while(true) {
+      string command;
+      bool all_done = false;
+      int num_done = 0;
+      while(true) {
 
-    //Console.WriteLine("Next iteration of all network edges. Press a key to continue.");
-    //System.Threading.Thread.Sleep(3000);
+        //Console.WriteLine("Next iteration of all network edges. Press a key to continue.");
+        //System.Threading.Thread.Sleep(3000);
 
       #if DEBUG
-      command = Console.ReadLine();
-      if (command=="end"){
-        return;
-      }
+        command = Console.ReadLine();
+        if (command=="end"){
+          return;
+        }
       #else
       if ( (all_done) && (num_done==2) ) {
         //Console.ReadLine();
         return;
-        }
+      }
       #endif
 
-      int i=0;
+        int i=0;
 
-      if (!all_done) {
-        num_done=0;
-      } else {
-        num_done++;
-      }
-
-      all_done = true;
-      while(i<edgeList.Count) {
-        FunctionEdge nextEdge = (FunctionEdge)edgeList[i];
-        if (nextEdge.packetQueue.Count>0) {
-          Packet p = (Packet)nextEdge.packetQueue.Dequeue();
-          all_done = all_done && (nextEdge.packetQueue.Count==0);      
-          nextEdge.ReceivedPacketEvent(p);
+        if (!all_done) {
+          num_done=0;
+        } else {
+          num_done++;
         }
-        i++;
-      }
 
-    }
+        all_done = true;
+        while(i<edgeList.Count) {
+          FunctionEdge nextEdge = (FunctionEdge)edgeList[i];
+          if (nextEdge.packetQueue.Count>0) {
+            Packet p = (Packet)nextEdge.packetQueue.Dequeue();
+            all_done = all_done && (nextEdge.packetQueue.Count==0);
+            nextEdge.ReceivedPacketEvent(p);
+          }
+          i++;
+        }
+
+      }
 #endif
     }
 

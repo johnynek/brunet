@@ -33,82 +33,82 @@ using System.Threading;
 namespace Brunet
 {
 
- /**
-  * This class represents endpoint of packet communication.
-  * There may be many nodes on each computer on the Brunet
-  * Network.  An example may be :  a user wants to chat, and
-  * share a file.  The file may be represented as a Node on
-  * the Brunet Network, and also the chat user may represent
-  * itself as a Node on the network.  Both of these Nodes
-  * reside on the same computer host.
-  *
-  * The Node also keeps itself connected and manages its
-  * connections. 
-  * 
-  */
+  /**
+   * This class represents endpoint of packet communication.
+   * There may be many nodes on each computer on the Brunet
+   * Network.  An example may be :  a user wants to chat, and
+   * share a file.  The file may be represented as a Node on
+   * the Brunet Network, and also the chat user may represent
+   * itself as a Node on the network.  Both of these Nodes
+   * reside on the same computer host.
+   *
+   * The Node also keeps itself connected and manages its
+   * connections. 
+   * 
+   */
   abstract public class Node:IPacketSender
   {
-  /*private static readonly log4net.ILog log =
-      log4net.LogManager.GetLogger(System.Reflection.MethodBase.
-      GetCurrentMethod().DeclaringType);*/
+    /*private static readonly log4net.ILog log =
+        log4net.LogManager.GetLogger(System.Reflection.MethodBase.
+        GetCurrentMethod().DeclaringType);*/
 
     private int _hash_code;
-    
-  /**
-   * Create a node with a given local address and
-   * a set of Routers.
-   */
+
+    /**
+     * Create a node with a given local address and
+     * a set of Routers.
+     */
     public Node(Address add)
     {
       //Start with the address hashcode:
       _hash_code = add.GetHashCode();
       _gracefully_close_edges  = new Hashtable();
       _cmp = new ConnectionMessageParser();
-      
+
       _sync = new Object();
       lock(_sync)
       {
-    /*
-     * Make all the hashtables : 
-     */
+        /*
+         * Make all the hashtables : 
+         */
         _local_add = add;
         AHAddressComparer cmp = new AHAddressComparer(add);
         _subscription_table = new Hashtable();
         _connection_table = new ConnectionTable(cmp);
-	_connection_table.ConnectionEvent +=
-		new EventHandler(this.ConnectionHandler);
-	/*
-	 * We must later make sure the EdgeEvent events from
-	 * any EdgeListeners are connected to _cph.EdgeHandler
-	 */
-        _cph = new ConnectionPacketHandler(add, _connection_table);	
-	/* Here are the transport addresses */
-	/*@throw ArgumentNullException if the list ( new ArrayList()) is null.
-	 */
-	_remote_ta = ArrayList.Synchronized( new ArrayList() );
-	/*@throw ArgumentNullException if the list ( new ArrayList()) is null.
-	 */
-	_local_ta = ArrayList.Synchronized( new ArrayList() );
-	/* EdgeListener's */
-	/*@throw ArgumentNullException if the list ( new ArrayList()) is null.
-	 */
-	_edgelistener_list = ArrayList.Synchronized( new ArrayList() );
+        _connection_table.ConnectionEvent +=
+          new EventHandler(this.ConnectionHandler);
+        /*
+         * We must later make sure the EdgeEvent events from
+         * any EdgeListeners are connected to _cph.EdgeHandler
+         */
+        _cph = new ConnectionPacketHandler(add, _connection_table);
+        /* Here are the transport addresses */
+        /*@throw ArgumentNullException if the list ( new ArrayList()) is null.
+         */
+        _remote_ta = ArrayList.Synchronized( new ArrayList() );
+        /*@throw ArgumentNullException if the list ( new ArrayList()) is null.
+         */
+        _local_ta = ArrayList.Synchronized( new ArrayList() );
+        /* EdgeListener's */
+        /*@throw ArgumentNullException if the list ( new ArrayList()) is null.
+         */
+        _edgelistener_list = ArrayList.Synchronized( new ArrayList() );
         _edge_factory = new EdgeFactory();
-        //Put all the Routers in : 
+        //Put all the Routers in :
         _routers = new Hashtable();
-	/* Set up the heartbeat */
-	_heart_period = 2000; //2000 ms, or 2 second.
-	_timer = new Timer(new TimerCallback(this.HeartBeatCallback),  	  
+        /* Set up the heartbeat */
+        _heart_period = 2000; //2000 ms, or 2 second.
+        _timer = new Timer(new TimerCallback(this.HeartBeatCallback),
                            null, _heart_period, _heart_period);
-	//Check the edges from time to time
-	this.HeartBeatEvent += new EventHandler(this.CheckEdgesCallback);
+        //Check the edges from time to time
+        this.HeartBeatEvent += new EventHandler(this.CheckEdgesCallback);
       }
     }
 
-  /**
-   * Keeps track of the objects which need to be notified 
-   * of certain packets.
-   */
+    /**
+     * Keeps track of the objects which need to be notified 
+     * of certain packets.
+     */
     protected Hashtable _subscription_table;
 
     /**
@@ -133,63 +133,63 @@ namespace Brunet
      *  my EdgeFactory
      */
     public EdgeFactory EdgeFactory { get { return _edge_factory; } }
-    
-  /**
-   * Here are all the EdgeListener objects for this Node
-   */
-  protected ArrayList _edgelistener_list;
-  protected ArrayList _local_ta;
-  /**
-   * These are all the local TransportAddress objects that
-   * refer to EdgeListener objects attached to this node.
-   * This ArrayList is ReadOnly
-   */
-  public ArrayList LocalTAs {
-    get {
-      return ArrayList.ReadOnly( _local_ta );
+
+    /**
+     * Here are all the EdgeListener objects for this Node
+     */
+    protected ArrayList _edgelistener_list;
+    protected ArrayList _local_ta;
+    /**
+     * These are all the local TransportAddress objects that
+     * refer to EdgeListener objects attached to this node.
+     * This ArrayList is ReadOnly
+     */
+    public ArrayList LocalTAs {
+      get {
+        return ArrayList.ReadOnly( _local_ta );
+      }
     }
-  }
-  
-  protected ArrayList _remote_ta;
-  /**
-   * These are all the remote TransportAddress objects that
-   * this Node may use to connect to remote Nodes
-   *
-   * This can be shared between nodes or not.
-   *
-   * This is the ONLY proper way to set the RemoteTAs for this
-   * node.
-   */
-  public ArrayList RemoteTAs {
-    get {
-      return _remote_ta;
+
+    protected ArrayList _remote_ta;
+    /**
+     * These are all the remote TransportAddress objects that
+     * this Node may use to connect to remote Nodes
+     *
+     * This can be shared between nodes or not.
+     *
+     * This is the ONLY proper way to set the RemoteTAs for this
+     * node.
+     */
+    public ArrayList RemoteTAs {
+      get {
+        return _remote_ta;
+      }
+      set {
+        _remote_ta = ArrayList.Synchronized(value);
+      }
     }
-    set {
-      _remote_ta = ArrayList.Synchronized(value);
-    }
-  }
-  
-  /**
-   * Holds the Router for each Address type
-   */
+
+    /**
+     * Holds the Router for each Address type
+     */
     protected Hashtable _routers;
 
     /** Object which we lock for thread safety */
     protected Object _sync;
-    
+
     protected ConnectionTable _connection_table;
 
 
     protected Hashtable _gracefully_close_edges;
 
     protected ConnectionMessageParser _cmp;
-  /**
-   * Manages the various mappings associated with connections
-   */
-    public virtual ConnectionTable ConnectionTable { get { return _connection_table; } } 
+    /**
+     * Manages the various mappings associated with connections
+     */
+    public virtual ConnectionTable ConnectionTable { get { return _connection_table; } }
     //The timer that tells us when to HeartBeatEvent
     protected Timer _timer;
-    
+
     protected int _heart_period;
     ///how many milliseconds between heartbeats
     public int HeartPeriod { get { return _heart_period; } }
@@ -200,113 +200,113 @@ namespace Brunet
     static protected readonly TimeSpan _edge_close_timeout = new TimeSpan(0,0,0,0,60000);
     ///The DateTime that we last checked the edges.  @see CheckEdgesCallback
     protected DateTime _last_edge_check;
-    
+
     ///after each HeartPeriod, the HeartBeat event is fired
     public event EventHandler HeartBeatEvent;
-    
-  public virtual void AddEdgeListener(EdgeListener el)
-  {
-    /* The EdgeFactory needs to be made aware of all EdgeListeners */
-    _edge_factory.AddListener(el);
-    _edgelistener_list.Add(el);  
-    _local_ta.AddRange( el.LocalTAs ); 
-    /**
-     * It is ESSENTIAL that the EdgeEvent of EdgeListener objects
-     * be connected to the EdgeHandler method of ConnectionPacketHandler
-     */
-    el.EdgeEvent += new EventHandler(_cph.EdgeHandler);
-  }
-  
-  /**
-   * Starts all edge listeners for the node.
-   * Useful for connect/disconnect operations
-   */
-  protected virtual void StartAllEdgeListeners()
-  {
-    foreach(EdgeListener el in _edgelistener_list) {
-#if DEBUG
-      Console.WriteLine("{0} starting {1}", Address, el);
-#endif
-      el.Start();
+
+    public virtual void AddEdgeListener(EdgeListener el)
+    {
+      /* The EdgeFactory needs to be made aware of all EdgeListeners */
+      _edge_factory.AddListener(el);
+      _edgelistener_list.Add(el);
+      _local_ta.AddRange( el.LocalTAs );
+      /**
+       * It is ESSENTIAL that the EdgeEvent of EdgeListener objects
+       * be connected to the EdgeHandler method of ConnectionPacketHandler
+       */
+      el.EdgeEvent += new EventHandler(_cph.EdgeHandler);
     }
-  }
 
-  /**
-   * Stops all edge listeners for the node.
-   * Useful for connect/disconnect operations
-   */
-  protected virtual void StopAllEdgeListeners()
-  {
-    foreach(EdgeListener el in _edgelistener_list)
+    /**
+     * Starts all edge listeners for the node.
+     * Useful for connect/disconnect operations
+     */
+    protected virtual void StartAllEdgeListeners()
+    {
+      foreach(EdgeListener el in _edgelistener_list) {
+#if DEBUG
+        Console.WriteLine("{0} starting {1}", Address, el);
+#endif
+        el.Start();
+      }
+    }
+
+    /**
+     * Stops all edge listeners for the node.
+     * Useful for connect/disconnect operations
+     */
+    protected virtual void StopAllEdgeListeners()
+    {
+      foreach(EdgeListener el in _edgelistener_list)
       el.Stop();
-  }
+    }
 
-  /**
-   * When a packet is to be delivered to this node,
-   * this method is called.  This method is public so that
-   * we can chain protocols through the node.  For instance,
-   * after a packet is handled, it may be a wrapped packet
-   * which actually contains another packet inside.  Thus,
-   * the unwrapped packet could be "Announced" by the handler
-   *
-   * One needs to be careful to prevent an infinite loop of
-   * a Handler announcing the packet it is supposed to handle.
-   */
+    /**
+     * When a packet is to be delivered to this node,
+     * this method is called.  This method is public so that
+     * we can chain protocols through the node.  For instance,
+     * after a packet is handled, it may be a wrapped packet
+     * which actually contains another packet inside.  Thus,
+     * the unwrapped packet could be "Announced" by the handler
+     *
+     * One needs to be careful to prevent an infinite loop of
+     * a Handler announcing the packet it is supposed to handle.
+     */
     public virtual void Announce(AHPacket p, Edge from)
     {
 
-    //System.Console.WriteLine("Announcing packet: {0}:", p.ToString() );
-    //System.Console.WriteLine("PayloadType: {0}:", p.PayloadType );      
+      //System.Console.WriteLine("Announcing packet: {0}:", p.ToString() );
+      //System.Console.WriteLine("PayloadType: {0}:", p.PayloadType );
 
       ArrayList handlers;
       //When Subscribe or unsubscribe are called,
       //they make copies of the ArrayList, thus we
-      //only need to hold the sync while we are 
+      //only need to hold the sync while we are
       //getting the list of handlers.
       lock(_sync) {
-          handlers = _subscription_table[p.PayloadType] as ArrayList;
+        handlers = _subscription_table[p.PayloadType] as ArrayList;
       }
       if (handlers != null) {
-      //log.Info("Announcing Packet: " + p.ToString() );
+        //log.Info("Announcing Packet: " + p.ToString() );
         foreach(IAHPacketHandler hand in handlers) {
-        //System.Console.WriteLine("Handler: {0}", hand);
+          //System.Console.WriteLine("Handler: {0}", hand);
           hand.HandleAHPacket(this, p, from);
         }
       }
       else {
-      /**
-       * @todo we should send some kind of ICMP message to the sender
-       * and let them know we don't know about this protocol
-       */
-      //log.Error("No Handler for: " + p.ToString());
+        /**
+         * @todo we should send some kind of ICMP message to the sender
+         * and let them know we don't know about this protocol
+         */
+        //log.Error("No Handler for: " + p.ToString());
       }
     }
     /**
      * This method is called when the Node should connect to the
      * network
      */
-    abstract public void Connect(); 
-  /**
-   * Disconnect to the network.
-   */
+    abstract public void Connect();
+    /**
+     * Disconnect to the network.
+     */
     abstract public void Disconnect();
 
-  /**
-   * When a ConnectionEvent occurs, this handler registers the
-   * information with the node
-   */
+    /**
+     * When a ConnectionEvent occurs, this handler registers the
+     * information with the node
+     */
     public virtual void ConnectionHandler(object ct, EventArgs args)
     {
       ConnectionEventArgs ce_args = (ConnectionEventArgs) args;
       Edge edge = ce_args.Edge;
       edge.SetCallback(Packet.ProtType.AH,
-		       new Edge.PacketCallback(this.Send));
+                       new Edge.PacketCallback(this.Send));
     }
 
-  /**
-   * @param t The type of address we need a router for
-   * @return null if there is no such router, otherwise a router
-   */
+    /**
+     * @param t The type of address we need a router for
+     * @return null if there is no such router, otherwise a router
+     */
     protected virtual IRouter GetRouterForType(System.Type t)
     {
       lock(_sync) {
@@ -315,7 +315,7 @@ namespace Brunet
           router = (IRouter) _routers[t];
         }
         else {
-  //Look for subclasses
+          //Look for subclasses
           IDictionaryEnumerator myEnumerator =
             _routers.GetEnumerator();
           while (myEnumerator.MoveNext() && router == null) {
@@ -333,9 +333,9 @@ namespace Brunet
      */
     public override int GetHashCode()
     {
-      return _hash_code; 
+      return _hash_code;
     }
-  
+
     /**
      * Close the edge after we get a response CloseMessage
      * from the node on the other end.
@@ -359,24 +359,24 @@ namespace Brunet
     public void GracefullyClose(Edge e, CloseMessage cm)
     {
       try {
-	e.SetCallback(Packet.ProtType.Connection,
-		  new Edge.PacketCallback(this.GracefulClosePacketCallback));
+        e.SetCallback(Packet.ProtType.Connection,
+                      new Edge.PacketCallback(this.GracefulClosePacketCallback));
         e.Send( cm.ToPacket() );
-	lock( _sync ) {
+        lock( _sync ) {
           _gracefully_close_edges[e] = cm;
-	}
-	/**
-	 * Close any connection on this edge, and
-	 * put the edge into the list of unconnected edges
-	 */
-	_connection_table.Disconnect(e);
+        }
+        /**
+         * Close any connection on this edge, and
+         * put the edge into the list of unconnected edges
+         */
+        _connection_table.Disconnect(e);
       }
       catch(EdgeException x) {
         //If the edge has some problem, don't do anything
-	e.Close();
+        e.Close();
       }
     }
-    
+
     /**
      * When we close gracefully, we wait for a response Close message
      * before closing.  This method is waiting for such a response
@@ -394,63 +394,63 @@ namespace Brunet
 #if DEBUG
         Console.WriteLine("Got cm: {0}\nfrom: {1}", cm, from);
 #endif
-	if( cm.Dir == ConnectionMessage.Direction.Response ) {
+        if( cm.Dir == ConnectionMessage.Direction.Response ) {
           //We expect a response to our close request:
-	  if( cm is CloseMessage ) {
+          if( cm is CloseMessage ) {
             remove = true;
-	  }
-	  else {
-            //This is some kind of other response.  We don't expect this.       
-	    //Resend the close request:
-	    from.Send( close_req.ToPacket() );
-	  }
-	}
-	else {
+          }
+          else {
+            //This is some kind of other response.  We don't expect this.
+            //Resend the close request:
+            from.Send( close_req.ToPacket() );
+          }
+        }
+        else {
           if( cm is CloseMessage ) {
             //Somehow this is a Close Request.  We were expecting
-	    //a close response.  In this case.  We just respond
-	    //to his request:
-	    CloseMessage close_res = new CloseMessage();
-	    close_res.Id = cm.Id;
-	    close_res.Dir = ConnectionMessage.Direction.Response;
-	    from.Send( close_res.ToPacket() );
-	  }
-	  else {
+            //a close response.  In this case.  We just respond
+            //to his request:
+            CloseMessage close_res = new CloseMessage();
+            close_res.Id = cm.Id;
+            close_res.Dir = ConnectionMessage.Direction.Response;
+            from.Send( close_res.ToPacket() );
+          }
+          else {
             //This is a request, we did not expect this
             ErrorMessage error_message =
-		    new ErrorMessage(ErrorMessage.ErrorCode.UnexpectedRequest,
-	                             "Expected Close Response");
+              new ErrorMessage(ErrorMessage.ErrorCode.UnexpectedRequest,
+                               "Expected Close Response");
             error_message.Id = cm.Id;
             error_message.Dir = ConnectionMessage.Direction.Response;
-	    from.Send( error_message.ToPacket() );
-	    //Re-request that the edge be closed:
-	    from.Send( close_req.ToPacket() );
-	  }
-	}
+            from.Send( error_message.ToPacket() );
+            //Re-request that the edge be closed:
+            from.Send( close_req.ToPacket() );
+          }
+        }
       }
       catch (InvalidCastException x) {
         Console.WriteLine( "Bad cast in node: " + x.ToString() );
       }
       catch( EdgeException ex ) {
         //Make sure the edge is closed:
-	from.Close();
+        from.Close();
       }
       finally {
         if( remove ) {
-	  lock( _sync ) {
-	    _gracefully_close_edges.Remove(from);
-	  }
+            lock( _sync ) {
+              _gracefully_close_edges.Remove(from);
+            }
 #if DEBUG
-          Console.WriteLine("{0} Got a response {2} to our close request, closing: {1}",
-			    Address,
-			    from,
-			    cm);
+            Console.WriteLine("{0} Got a response {2} to our close request, closing: {1}",
+                              Address,
+                              from,
+                              cm);
 #endif
-          from.Close();
-	}
+            from.Close();
+          }
       }
     }
-    
+
     /**
      * Check all the edges in the ConnectionTable and see if any of them
      * need to be pinged or closed.
@@ -460,83 +460,83 @@ namespace Brunet
     {
       if( DateTime.Now - _last_edge_check > _connection_timeout ) {
         //We are checking the edges now:
-	_last_edge_check = DateTime.Now;
-	ArrayList edges_to_ping = new ArrayList();
-	ArrayList edges_to_close = new ArrayList();
+        _last_edge_check = DateTime.Now;
+        ArrayList edges_to_ping = new ArrayList();
+        ArrayList edges_to_close = new ArrayList();
         lock( _connection_table.SyncRoot ) {
-	  foreach(ConnectionType t in Enum.GetValues(typeof(ConnectionType)) ) {
+          foreach(ConnectionType t in Enum.GetValues(typeof(ConnectionType)) ) {
             ArrayList edges = _connection_table.GetEdgesOfType(t);
-	    foreach(Edge e in edges) {
-	      if( _last_edge_check - e.LastInPacketDateTime  > _edge_close_timeout ) {
-		//After this period of time, we close the edge no matter what.
+            foreach(Edge e in edges) {
+              if( _last_edge_check - e.LastInPacketDateTime  > _edge_close_timeout ) {
+                //After this period of time, we close the edge no matter what.
                 edges_to_close.Add(e);
-	      }
-	      else if( _last_edge_check - e.LastInPacketDateTime  > _connection_timeout ) {
-		//Check to see if this connection is still active by pinging it
+              }
+              else if( _last_edge_check - e.LastInPacketDateTime  > _connection_timeout ) {
+                //Check to see if this connection is still active by pinging it
                 edges_to_ping.Add(e);
-	      }
-	    }
-	  }
-	  foreach(Edge e in _connection_table.GetUnconnectedEdges() ) {
-	    if( e.LastInPacketDateTime - _last_edge_check > _edge_close_timeout ) {
+              }
+            }
+          }
+          foreach(Edge e in _connection_table.GetUnconnectedEdges() ) {
+            if( e.LastInPacketDateTime - _last_edge_check > _edge_close_timeout ) {
               edges_to_close.Add(e);
-	      lock( _sync ) {
+              lock( _sync ) {
                 if( _gracefully_close_edges.Contains(e) ) {
                   _gracefully_close_edges.Remove(e);
-		}
-	      }
-	    }
-	  }
-	}
-	//We release the lock before we start messing with the edges:
-	int id = GetHashCode(); //This can be any number.
-	foreach(Edge e in edges_to_ping) {
+                }
+              }
+            }
+          }
+        }
+        //We release the lock before we start messing with the edges:
+        int id = GetHashCode(); //This can be any number.
+        foreach(Edge e in edges_to_ping) {
           try {
             PingMessage pm = new PingMessage();
-	    pm.Dir = ConnectionMessage.Direction.Request;
-	    pm.Id = id++;
-	    e.Send( pm.ToPacket() );
+            pm.Dir = ConnectionMessage.Direction.Request;
+            pm.Id = id++;
+            e.Send( pm.ToPacket() );
 #if DEBUG
-	    Console.WriteLine("Sending ping to: {0}", e);
+            Console.WriteLine("Sending ping to: {0}", e);
 #endif
-	  }
-	  catch(EdgeException ex) {
+          }
+          catch(EdgeException ex) {
             //This should only happen when the edge is closed.
-	    edges_to_close.Add(e);
-	  }
-	}
-	//Now we resend our close message to edges we are gracefully closing:
-	lock( _sync ) {
+            edges_to_close.Add(e);
+          }
+        }
+        //Now we resend our close message to edges we are gracefully closing:
+        lock( _sync ) {
           ArrayList edges_to_remove = new ArrayList();
-	  IDictionaryEnumerator grace_close_enum =
-		_gracefully_close_edges.GetEnumerator();
-	  while( grace_close_enum.MoveNext() ) {
-	    Edge e = (Edge)grace_close_enum.Key;
+          IDictionaryEnumerator grace_close_enum =
+            _gracefully_close_edges.GetEnumerator();
+          while( grace_close_enum.MoveNext() ) {
+            Edge e = (Edge)grace_close_enum.Key;
             try {
-	      CloseMessage cm = (CloseMessage)grace_close_enum.Value;
-	      e.Send( cm.ToPacket() );
-	    }
-	    catch(EdgeException x) {
+              CloseMessage cm = (CloseMessage)grace_close_enum.Value;
+              e.Send( cm.ToPacket() );
+            }
+            catch(EdgeException x) {
               //This edge is goofy, remove it:
-	      edges_to_remove.Add(e);
-	      edges_to_close.Add(e);
-	    }
-	  }
-	  //Now remove any bad edges:
-	  //We can't do it above because we would invalidate
-	  //the iterator.
-	  foreach(Edge erm in edges_to_remove) {
-	    _gracefully_close_edges.Remove(erm);
-	  }
-	  //Now it is safe to release lock
-	}
-	foreach(Edge e in edges_to_close) {
+              edges_to_remove.Add(e);
+              edges_to_close.Add(e);
+            }
+          }
+          //Now remove any bad edges:
+          //We can't do it above because we would invalidate
+          //the iterator.
+          foreach(Edge erm in edges_to_remove) {
+            _gracefully_close_edges.Remove(erm);
+          }
+          //Now it is safe to release lock
+        }
+        foreach(Edge e in edges_to_close) {
 #if DEBUG
-	  Console.WriteLine("{1} Timeout Close: {0}", e, Address);
+          Console.WriteLine("{1} Timeout Close: {0}", e, Address);
 #endif
           //This guy is dead, close him down
-	  e.Close();
-	}
+          e.Close();
+        }
       }
       else {
         //Don't do anything for now.
@@ -556,7 +556,7 @@ namespace Brunet
         Console.WriteLine("Exception in heartbeat: {0}", x.ToString() );
       }
     }
-    
+
     /**
      * Send the packet to the next hop AVOIDING edge f
      * This is used by HandlePacket, and some AHPacketHandlers
@@ -566,13 +566,13 @@ namespace Brunet
     virtual public void Send(Packet p, Edge from)
     {
 
-    //System.Console.WriteLine("Entering Send for node {0} packet {1}", this.Address, p.ToString() );
+      //System.Console.WriteLine("Entering Send for node {0} packet {1}", this.Address, p.ToString() );
 
       int sent = 0;
       AHPacket packet = (AHPacket) p;
       Address dest = packet.Destination;
       bool deliver_locally = false;
-      
+
       IRouter router = GetRouterForType(dest.GetType());
 
       //System.Console.WriteLine("Sending with Router: {0}", router.ToString());
@@ -581,16 +581,16 @@ namespace Brunet
         sent = router.Route(from, packet, out deliver_locally);
       }
       else {
-      /*log.Error(Address.ToString() + " No router for packet: "
-        + p.ToString());*/
+        /*log.Error(Address.ToString() + " No router for packet: "
+          + p.ToString());*/
       }
-      
+
       if( deliver_locally ) {
-	//This one's for us!
-        /*log.Info(Address.ToString() + " Delivering Locally: " 
+        //This one's for us!
+        /*log.Info(Address.ToString() + " Delivering Locally: "
           + packet.ToString());*/
 
-//#if DEBUG
+        //#if DEBUG
 #if false 
         System.Console.WriteLine("Delivering locally to node {0} packet {1}", this.Address, p.ToString() );
         //System.Console.ReadLine();
@@ -598,39 +598,39 @@ namespace Brunet
 
         Announce(packet, from);
       }
-      
+
       if (sent <= 0) {
-	//No edges got it
+        //No edges got it
         /*log.Warn(Address.ToString() + " Could not send to: "
           + packet.Destination.ToString() );*/
-	 if( !deliver_locally ) {
-         /*log.Warn(Address.ToString() + " Packet not delivered: "
-           + packet.ToString() );*/
-	    }
+        if( !deliver_locally ) {
+          /*log.Warn(Address.ToString() + " Packet not delivered: "
+            + packet.ToString() );*/
+        }
       }
       else
       {
-	//We did send it
+        //We did send it
         /*log.Info(Address.ToString() + " *_COULD_* send to: "
           + packet.Destination.ToString() );*/
       }
     }
-  /**
-   * This may be used when you have a complete packet to send
-   * 
-   * @param p the packet to send (including destination information)
-   */
+    /**
+     * This may be used when you have a complete packet to send
+     * 
+     * @param p the packet to send (including destination information)
+     */
     virtual public void Send(Packet p)
     {
       //Send without avoiding any edges
       Send(p, null);
     }
 
-  /**
-   * Sends a packet to the address given.  The node keeps track of
-   * which values to set for the TTL.
-   * @return true if we have some route to the destination
-   */
+    /**
+     * Sends a packet to the address given.  The node keeps track of
+     * which values to set for the TTL.
+     * @return true if we have some route to the destination
+     */
     virtual public void SendTo(Address destination,
                                short ttl,
                                Brunet.AHPacket.Protocol p,
@@ -642,10 +642,10 @@ namespace Brunet
       Send(packet);
     }
 
-  /**
-   * This replaces any existing IRouter objects with
-   * ones given as arguments
-   */
+    /**
+     * This replaces any existing IRouter objects with
+     * ones given as arguments
+     */
     virtual protected void SetRouters(IEnumerable routers)
     {
       lock(_sync) {
@@ -656,9 +656,9 @@ namespace Brunet
       }
     }
 
-  /**
-   * Where should we send these packets?
-   */
+    /**
+     * Where should we send these packets?
+     */
     virtual public void Subscribe(AHPacket.Protocol prot,
                                   IAHPacketHandler hand)
     {
@@ -666,20 +666,20 @@ namespace Brunet
         if (!_subscription_table.Contains(prot)) {
           _subscription_table[prot] = new ArrayList();
         }
-	/*
-	 * We COPY the list because otherwise, one thread
-	 * could be in announce, and then try to modify
-	 * the list.  This would invalidate iterators in Announce
-	 */
+        /*
+         * We COPY the list because otherwise, one thread
+         * could be in announce, and then try to modify
+         * the list.  This would invalidate iterators in Announce
+         */
         ArrayList a = new ArrayList( (ArrayList) _subscription_table[prot] );
         a.Add(hand);
-	_subscription_table[prot] = a;
+        _subscription_table[prot] = a;
       }
     }
 
-  /**
-   * This handler is going to stop listening
-   */
+    /**
+     * This handler is going to stop listening
+     */
     virtual public void Unsubscribe(AHPacket.Protocol prot,
                                     IAHPacketHandler hand)
     {
@@ -687,7 +687,7 @@ namespace Brunet
         if (_subscription_table.Contains(prot)) {
           ArrayList a = new ArrayList( (ArrayList) _subscription_table[prot] );
           a.Remove(hand);
-	  _subscription_table[prot] = a;
+          _subscription_table[prot] = a;
         }
       }
     }

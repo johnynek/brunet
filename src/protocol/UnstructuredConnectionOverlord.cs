@@ -24,18 +24,18 @@ using System.Collections;
 //using log4net;
 namespace Brunet
 {
- /**
-  * Makes sure we have at least two unstructured connections at all times.
-  * Also, when an unstructured connection is lost, it will be compensated.
-  * In addition, a node accepts all requests to make unstructured connections.
-  * Therefore, the number of a node's unstructured connection is non-decreasing.
-  */
+  /**
+   * Makes sure we have at least two unstructured connections at all times.
+   * Also, when an unstructured connection is lost, it will be compensated.
+   * In addition, a node accepts all requests to make unstructured connections.
+   * Therefore, the number of a node's unstructured connection is non-decreasing.
+   */
   public class UnstructuredConnectionOverlord:ConnectionOverlord
   {
-  /*private static readonly log4net.ILog log =
-      log4net.LogManager.GetLogger(System.Reflection.MethodBase.
-      GetCurrentMethod().DeclaringType);*/
-    
+    /*private static readonly log4net.ILog log =
+        log4net.LogManager.GetLogger(System.Reflection.MethodBase.
+        GetCurrentMethod().DeclaringType);*/
+
     protected Node _local;
     protected ConnectionTable _connection_table;
     protected ArrayList _remote_ta_list;
@@ -55,15 +55,15 @@ namespace Brunet
 
     // bootstrap the first uc_bootstrap_threshold unstructured connections
     // through a random leaf connection
-    protected short uc_bootstrap_threshold = 2; 
+    protected short uc_bootstrap_threshold = 2;
 
     //the total number of desired connections
     //the minimum number is two and this should be a non-decreasing number
-    protected short total_desired = 2; 
+    protected short total_desired = 2;
 
-    //this variable is for keeping track of the 
+    //this variable is for keeping track of the
     //total number of unstructured connections
-    protected short total_curr = 0; 
+    protected short total_curr = 0;
 
     protected Random _rand;
 
@@ -76,21 +76,21 @@ namespace Brunet
       _connection_table = _local.ConnectionTable;
       _rand = new Random(DateTime.Now.Millisecond);
       _connectors = new ArrayList();
-      _sync = new Object();      
-   
+      _sync = new Object();
+
       lock( _sync ) {
         _local.ConnectionTable.DisconnectionEvent +=
-              new EventHandler(this.CheckAndDisconnectHandler);
+          new EventHandler(this.CheckAndDisconnectHandler);
         _local.ConnectionTable.ConnectionEvent +=
-              new EventHandler(this.CheckAndConnectHandler);
+          new EventHandler(this.CheckAndConnectHandler);
       }
     }
 
     protected bool _compensate;
-  /**
-   * If we start compensating, we check to see if we need to
-   * make a connection : 
-   */
+    /**
+     * If we start compensating, we check to see if we need to
+     * make a connection : 
+     */
     override public bool IsActive
     {
       get
@@ -103,9 +103,9 @@ namespace Brunet
       }
     }
 
-  /**
-   * The ConnectionType this object is the Overlord of
-   */
+    /**
+     * The ConnectionType this object is the Overlord of
+     */
     override public ConnectionType ConnectionType
     {
       get
@@ -118,14 +118,14 @@ namespace Brunet
     {
 
       #if KML_DEBUG
-        System.Console.WriteLine("In Activate for UnstructuredConnectionOverlord.");
+      System.Console.WriteLine("In Activate for UnstructuredConnectionOverlord.");
       #endif
 
       if (IsActive && NeedConnection) {
-      //log.Info("UnstructuredConnectionOverlord :  seeking connection");
+        //log.Info("UnstructuredConnectionOverlord :  seeking connection");
 
         if ( _connection_table.Count(ConnectionType.Leaf) < 1 ) {
-        //log.Warn("We need connections, but have no leaves");
+          //log.Warn("We need connections, but have no leaves");
           // do nothing. we must wait for a leaf node
         } else {
           if (_connection_table.Count(ConnectionType.Unstructured) < uc_bootstrap_threshold) {
@@ -133,16 +133,16 @@ namespace Brunet
             //through a random leaf connection.
 
             //Get the leaf address we are going to use for forwarding the connection packet
-            Address leaf;           
+            Address leaf;
             Edge    edge;
 
-	    lock( _connection_table.SyncRoot ) {
+            lock( _connection_table.SyncRoot ) {
               int lidx = _rand.Next( _connection_table.Count(ConnectionType.Leaf) );
-	      _connection_table.GetConnection(ConnectionType.Leaf,
-	       		                   lidx,
-                                           out leaf,
-					   out edge);
-	    } 
+              _connection_table.GetConnection(ConnectionType.Leaf,
+                                              lidx,
+                                              out leaf,
+                                              out edge);
+            }
 
             // destination for the connect message
             RwtaAddress destination = new RwtaAddress();
@@ -156,31 +156,31 @@ namespace Brunet
 
     }
 
-  /**
-   * Does the work of getting unstructured connections in response to
-   * activation or connect/disconnect events.
-   */
+    /**
+     * Does the work of getting unstructured connections in response to
+     * activation or connect/disconnect events.
+     */
     public void CheckAndConnectHandler(object caller, EventArgs args)
     {
 
       #if KML_DEBUG
-        System.Console.WriteLine("In CheckAndConnectHandler for UnstructuredConnectionOverlord.");
+      System.Console.WriteLine("In CheckAndConnectHandler for UnstructuredConnectionOverlord.");
       #endif
-      
+
       ConnectionEventArgs conargs = (ConnectionEventArgs)args;
 
       if ( (conargs != null) && (conargs.ConnectionType == ConnectionType.Unstructured) )  {
-          if ( total_curr == total_desired ) {
-            total_desired++;
-          }
-          total_curr++;
+        if ( total_curr == total_desired ) {
+          total_desired++;
+        }
+        total_curr++;
       }
 
       if (IsActive && NeedConnection) {
-      //log.Info("UnstructuredConnectionOverlord :  seeking connection");
+        //log.Info("UnstructuredConnectionOverlord :  seeking connection");
 
         if ( _connection_table.Count(ConnectionType.Leaf) < 1 ){
-        //log.Warn("We need connections, but have no leaves");
+          //log.Warn("We need connections, but have no leaves");
           // do nothing. we must wait for a leaf node
         } else {
           if ( _connection_table.Count(ConnectionType.Unstructured) < 1 ) {
@@ -193,10 +193,10 @@ namespace Brunet
       }
     }
 
-  /**
-   * Does the work of getting unstructured connections in response to
-   * activation or connect/disconnect events.
-   */
+    /**
+     * Does the work of getting unstructured connections in response to
+     * activation or connect/disconnect events.
+     */
     public void CheckAndDisconnectHandler(object caller, EventArgs args)
     {
       ConnectionEventArgs conargs = (ConnectionEventArgs)args;
@@ -219,28 +219,28 @@ namespace Brunet
     }
 
     protected void ForwardedConnectTo(Address forwarder,
-		                      Address destination,
-				      short t_ttl)
+                                      Address destination,
+                                      short t_ttl)
     {
       ConnectToMessage ctm = new ConnectToMessage(ConnectionType.Unstructured,
-			           _local.Address, _local.LocalTAs);
+                             _local.Address, _local.LocalTAs);
       ctm.Dir = ConnectionMessage.Direction.Request;
       ctm.Id = _rand.Next(1, Int32.MaxValue);
       short t_hops = 0;
       //This is the packet we wish we could send: local -> target
       AHPacket ctm_pack = new AHPacket(t_hops,
-		                       t_ttl,
-				       _local.Address,
-			               destination, AHPacket.Protocol.Connection,
+                                       t_ttl,
+                                       _local.Address,
+                                       destination, AHPacket.Protocol.Connection,
                                        ctm.ToByteArray() );
       //We now have a packet that goes from local->forwarder, forwarder->target
       AHPacket forward_pack = PacketForwarder.WrapPacket(forwarder, 1, ctm_pack);
 
       #if KML_DEBUG
-        System.Console.WriteLine("In UnstructuredConnectioOverlord ForwardedConnectTo:");
-        System.Console.WriteLine("Local:{0}", _local.Address);
-        System.Console.WriteLine("Destination:{0}", destination);    
-        System.Console.WriteLine("Message ID:{0}", ctm.Id);  
+      System.Console.WriteLine("In UnstructuredConnectioOverlord ForwardedConnectTo:");
+      System.Console.WriteLine("Local:{0}", _local.Address);
+      System.Console.WriteLine("Destination:{0}", destination);
+      System.Console.WriteLine("Message ID:{0}", ctm.Id);
       #endif
 
       Connector con = new Connector(_local);
@@ -257,20 +257,20 @@ namespace Brunet
     {
       short t_hops = 0;
       ConnectToMessage ctm =
-              new ConnectToMessage(ConnectionType.Unstructured, _local.Address,
-			         _local.LocalTAs);
+        new ConnectToMessage(ConnectionType.Unstructured, _local.Address,
+                             _local.LocalTAs);
       ctm.Id = _rand.Next(1, Int32.MaxValue);
       ctm.Dir = ConnectionMessage.Direction.Request;
 
       AHPacket ctm_pack =
-              new AHPacket(t_hops, t_ttl, _local.Address, destination,
-                AHPacket.Protocol.Connection, ctm.ToByteArray());
+        new AHPacket(t_hops, t_ttl, _local.Address, destination,
+                     AHPacket.Protocol.Connection, ctm.ToByteArray());
 
       #if DEBUG
-        System.Console.WriteLine("In UnstructuredConnectionOverlord ConnectTo:");
-        System.Console.WriteLine("Local:{0}", _local.Address);
-        System.Console.WriteLine("Destination:{0}", destination);
-        System.Console.WriteLine("Message ID:{0}", ctm.Id);
+      System.Console.WriteLine("In UnstructuredConnectionOverlord ConnectTo:");
+      System.Console.WriteLine("Local:{0}", _local.Address);
+      System.Console.WriteLine("Destination:{0}", destination);
+      System.Console.WriteLine("Message ID:{0}", ctm.Id);
       #endif
 
       Connector con = new Connector(_local);
@@ -282,13 +282,13 @@ namespace Brunet
       con.Connect(ctm_pack, ctm.Id);
     }
 
-  /**
-   * @return true if you need a connection; an unstructured connection is needed when 
-   * the number of connections is less than the total number desired OR if the total_desired
-   * variable is less than two.  However, this variable should never be less than two.
-   */
+    /**
+     * @return true if you need a connection; an unstructured connection is needed when 
+     * the number of connections is less than the total number desired OR if the total_desired
+     * variable is less than two.  However, this variable should never be less than two.
+     */
     override public bool NeedConnection
-    {	    
+    {
       get {
         return (total_curr < total_desired || total_desired < 2);
       }

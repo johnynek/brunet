@@ -6,12 +6,12 @@
 namespace Brunet
 {
 
-/**
- * The ping message is sent and acknowledged
- * anytime a node wants to test a connection,
- * and ALWAYS after a successful link transaction
- * (by the initiator).
- */
+  /**
+   * The ping message is sent and acknowledged
+   * anytime a node wants to test a connection,
+   * and ALWAYS after a successful link transaction
+   * (by the initiator).
+   */
   public class PingMessage:ConnectionMessage
   {
 
