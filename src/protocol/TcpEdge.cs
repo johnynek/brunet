@@ -313,7 +313,11 @@ namespace Brunet
                           this, p.Length);
 #endif
         //Else just queue up the packet
-        _packet_queue.Enqueue(p);
+	if( _packet_queue.Count < 30 ) {
+          //Don't queue indefinitely...
+          _packet_queue.Enqueue(p);
+	}
+	//Console.WriteLine("Queue length: {0}", _packet_queue.Count);
       }
 #if POB_TCP_DEBUG
       Console.WriteLine("Setting NeedToSend");
