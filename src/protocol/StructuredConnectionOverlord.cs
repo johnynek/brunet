@@ -1,10 +1,31 @@
 /*
+This program is part of BruNet, a library for the creation of efficient overlay
+networks.
+Copyright (C) 2005  University of California
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+*/
+
+/*
  * Dependencies : 
  Brunet.Address;
  Brunet.AHAddress;
  Brunet.AHAddressComparer;
  Brunet.AHPacket;
  Brunet.BigInteger;
+ Brunet.BrunetLogger;
  Brunet.ConnectionType;
  Brunet.ConnectionTable;
  Brunet.ConnectionOverlord
@@ -58,8 +79,19 @@ namespace Brunet
     /**
      * The number of desired shortcut connections.
      */
-    static protected readonly short _total_desired_shortcuts = 0;
+    static protected readonly short _total_desired_shortcuts = 1;
 
+    /**
+     * The minimum number of HeartBeat events that must elapse between a connection.
+     * and a structured edge trimming.
+     */
+    static protected readonly double _minimum_trim_time_delay = 30.0;
+
+    /**
+     * This is the time that the most recent neighbor connection was made
+     */
+    protected DateTime _last_connection_time;
+    
     /**
      * These are the edges which are shortcuts.  There should
      * be less shortcuts than neighbors, so any edge that is not
@@ -99,6 +131,7 @@ namespace Brunet
      * An object we lock to get thread synchronization
      */
     protected object _sync;
+
     /**
      * @param a the address of the node in which the AHRoutingTable is located
      */
@@ -125,6 +158,14 @@ namespace Brunet
           new EventHandler(this.CheckAndConnectHandler);
 
       }
+      /**
+       * Every heartbeat we assess the trimming situation.
+       * If we have excess edges and it has been more than
+       * _trim_wait_time heartbeats then we trim.
+       */
+      local.HeartBeatEvent +=
+        new EventHandler(this.CheckForTrimConditions);
+
     }
 
     protected bool _compensate;
@@ -350,10 +391,6 @@ namespace Brunet
         int total_shortcuts = _shortcut_edges.Count;
         int total_neighbors = total_structured - total_shortcuts;
 
-        if (total_neighbors<=(2*_total_desired_neighbors)) {
-          return;
-        }
-
         int self_idx, left_start, left_end, right_start, right_end;
         int left_boundary, right_boundary;
         self_idx = _connection_table.IndexOf(ConnectionType.Structured,_local.Address);
@@ -419,6 +456,22 @@ namespace Brunet
       }
     }
 
+    /**
+     * Every heartbeat this method is called.
+     * CHeck to see if enough time has passed since the last (dis)connection
+     * and if it has check to see if we need to trim edges. 
+     */
+    public void CheckForTrimConditions(object connectiontable,
+                                       EventArgs args)
+    {
+      DateTime now = DateTime.Now;
+      TimeSpan elapsed = now.Subtract(_last_connection_time);
+      if ( _minimum_trim_time_delay <= elapsed.TotalSeconds )
+        TrimStructuredConnections();
+    }
+    
+
+    
     /**
      * When new ConnectionEvents occur, this method is called.
      * Usually, some action will need to be taken.
@@ -510,10 +563,12 @@ namespace Brunet
 
           if (st!=StructuredType.Shortcut) {
             /**
-             * When we get a neighbor connection we check to see if we have
-             * too many neighbor connections and if so, we trim some of them
+             * When we get a neighbor connection we note the time and then
+             * Edge trimming is performed at HeartBeats when the time until
+             * the last connection is sufficiently large.
              */
-            TrimStructuredConnections();
+             _last_connection_time = DateTime.Now; 
+            
           }
           else {
             // no trimming of shortcuts for now
@@ -634,6 +689,10 @@ namespace Brunet
       }
       con.FinishEvent += new EventHandler(this.ConnectionEndHandler);
       con.Connect(forward_pack, ctm.Id);
+#if PLAB_CTM_LOG
+      this.Logger.LogCTMEvent(target);
+#endif
+
     }
 
     protected void ConnectTo(Address target, short t_ttl)
@@ -663,6 +722,9 @@ namespace Brunet
       }
       con.FinishEvent += new EventHandler(this.ConnectionEndHandler);
       con.Connect(ctm_pack, ctm.Id);
+#if PLAB_CTM_LOG
+      this.Logger.LogCTMEvent(target);
+#endif
     }
 
     protected void ConnectToOnEdge(Address target, Edge edge, short t_ttl)
@@ -692,6 +754,9 @@ namespace Brunet
       }
       con.FinishEvent += new EventHandler(this.ConnectionEndHandler);
       con.Connect(edge, ctm_pack, ctm.Id);
+#if PLAB_CTM_LOG
+      this.Logger.LogCTMEvent(target);
+#endif
     }
 
     /**

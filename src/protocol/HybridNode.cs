@@ -1,3 +1,23 @@
+/*
+This program is part of BruNet, a library for the creation of efficient overlay
+networks.
+Copyright (C) 2005  University of California
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+*/
+
 /**
  * Dependencies : 
  * Brunet.AHAddress
@@ -18,8 +38,9 @@
  * Brunet.UnstructuredConnectionOverlord
  */
 
-#define PRODUCTION
+//#define PRODUCTION
 //to run the connecttester, make sure you change PRODUCTION to DEBUG
+#define DEBUG  //Unstructured network is not formed
 
 using System;
 using System.Collections;
@@ -28,8 +49,7 @@ namespace Brunet
 {
 
   /**
-   * A node that only makes connections on the structured system
-   * and only routes structured address packets.
+   * A node that makes connections on the structured and unstructured system 
    */
 
   public class HybridNode:Node
@@ -59,6 +79,9 @@ namespace Brunet
       _connectionoverlords[ co.ConnectionType ] = co;
       //DEBUG: forget about structured connections for now
       co = new StructuredConnectionOverlord(this);
+#if PLAB_LOG
+      co.Logger = this.Logger;
+#endif
       _connectionoverlords[ co.ConnectionType ] = co;
 
       co = new UnstructuredConnectionOverlord(this);
@@ -88,13 +111,20 @@ namespace Brunet
 
       lock(_sync) {
 	    #if DEBUG
-        Console.WriteLine("I am in DEBUG!!");
-        Console.ReadLine();
-        ConnectionType t = ConnectionType.Leaf;
-        LeafConnectionOverlord co = (LeafConnectionOverlord) _connectionoverlords[t];
-        if (co != null) {
-          co.IsActive = true;
-        }
+
+	//	Console.WriteLine("I am in DEBUG!!");
+	//	Console.ReadLine();
+	    ConnectionType tl = ConnectionType.Leaf;
+	    LeafConnectionOverlord col = (LeafConnectionOverlord) _connectionoverlords[tl];
+            if (col != null) {
+              col.IsActive = true;
+            }
+
+	    ConnectionType ts = ConnectionType.Structured;
+	    StructuredConnectionOverlord cos = (StructuredConnectionOverlord) _connectionoverlords[ts];
+            if (cos != null) {
+              cos.IsActive = true;
+            }
 
 	    #elif PRODUCTION	
         //Console.WriteLine("I am in PRODUCTION!!");

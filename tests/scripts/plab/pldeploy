@@ -1,0 +1,133 @@
+#!/bin/sh
+
+###############################################################################
+#
+# File:         pldeploy
+# CVS:          $Id: pldeploy,v 1.3 2004/01/27 20:48:41 sbirrer Exp $
+# Description:  Deploys a set of files to several nodes in parallel
+# Author:       Stefan Birrer
+#               Northwestern University
+# Language:     bash
+# Status:       Released
+#
+# (C) Copyright 2004, Northwestern University, all rights reserved.
+#
+###############################################################################
+
+LIST=$1;
+ID=$2;
+N_THREADS=30;
+PROG=`basename $0`;
+LOCK="${TMP:-/tmp}/${PROG}.lock";
+SEM="${TMP:-/tmp}/${PROG}.${ID}.lock";
+RC="${HOME}/.nixesrc";
+
+#register clean up handler
+DONE=0
+function cleanUp()
+{
+	if [[ ${DONE} == 0 ]]; then
+		${KILL} 0;
+	fi;
+}
+
+#Check arguments
+if [[ $# == 0 || $# > 2 ]]; then
+	echo "usage: $0 list-file"
+	exit 1;
+fi;
+
+if [ ! -f ${RC} ]; then
+	echo "${RC}: cannot find configuration file";
+	exit 1;
+fi;
+
+. ${RC} || exit 1;
+
+IDENTITY=${IDENTITY:?"must be specified in ${RC}"};
+SLICE=${SLICE:?"must be specified in ${RC}"};
+FILES=${FILES:?"must be specified in ${RC}"};
+FILESBIN=${FILESBIN:?"must be specified in ${RC}"};
+
+if [ ! -r ${IDENTITY} ]; then
+	echo "${IDENTITY}: access denied";
+	exit 1;
+fi;
+
+#programms
+SSH="ssh -i ${IDENTITY} -n -x -l ${SLICE}"
+SYNC="wget -N"
+RM="rm -f"
+KILL="kill -n 9"
+MKDIR="mkdir -p";
+TIME="date +%s";
+
+trap 'cleanUp' EXIT || exit 1;
+
+if [[ $# == 1 ]]; then
+	#start threads
+	${RM} ${LOCK};
+	i=0;
+	locks="";
+	while (( ${N_THREADS} - i )); do
+		SEM="${TMP:-/tmp}/${PROG}.${i}.lock"
+		${RM} ${SEM};
+		locks="${locks} ${SEM}";
+		lockfile -1 ${SEM};
+		$0 ${LIST} ${i} &
+		(( i=i+1 ));
+	done;
+	#wait for childs to terminate
+	lockfile -1 ${locks} ${LOCK};
+	${RM} ${locks};
+else
+	i=0;
+	for node in $(< ${LIST}); do
+		(( cur=i%${N_THREADS} ));
+		if [[ ${cur} == ${ID} ]]; then
+			log="${TMP:-/tmp}/${node}.log";
+			${RM} ${log};
+			echo Deploy to ${node} >> ${log};
+			cmdlist="";
+			for file in ${FILES}; do
+				wd=\$\{HOME\}/`dirname ${file}`
+				cmd="${MKDIR} ${wd} && cd ${wd} && ${SYNC} ${BASE}${file}";
+				if [[ -z ${cmdlist} ]]; then
+					cmdlist="${cmd}"
+				else
+					cmdlist="${cmdlist} && ${cmd}";
+				fi;		
+			done;			
+			for file in ${FILESBIN}; do
+				wd=\$\{HOME\}/`dirname ${file}`
+				cmd="${MKDIR} ${wd} && cd ${wd} && ${SYNC} ${BASE}${file} && chmod +x `basename ${file}`";
+				if [[ -z ${cmdlist} ]]; then
+					cmdlist="${cmd}"
+				else
+					cmdlist="${cmdlist} && ${cmd}";
+				fi;		
+			done;
+			echo ${cmdlist} >> ${log};
+			echo >> ${log};
+			
+			t_start=$(${TIME});
+			${SSH} ${node} "${cmdlist}" >> ${log} 2>&1
+			exit_code=$?;
+			t_end=$(${TIME});
+			(( total = ${t_end} - ${t_start} ));
+			echo Command took ${total} seconds and returned ${exit_code} >> ${log}
+			
+			lockfile -1 ${LOCK};
+			if [[ ${exit_code} == 0 ]]; then
+				echo -e "${node} done\r";
+			else
+				echo -e "${node} failed (see ${log})\r";
+			fi;
+			${RM} ${LOCK};
+		fi;
+		(( i=i+1 ));
+	done;
+	${RM} ${SEM};
+fi;
+
+DONE=1
