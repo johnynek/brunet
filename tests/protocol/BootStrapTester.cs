@@ -129,32 +129,22 @@ namespace Brunet
       foreach( Node item in node_list)
       {
         lock( item.ConnectionTable.SyncRoot ) {
-          
-        if (0 < item.ConnectionTable.Count(ConnectionType.Leaf) )
-        {
-          ArrayList leaf_adds = 
-            item.ConnectionTable.GetAddressesOfType(ConnectionType.Leaf);
-          foreach ( Address leaf_item in leaf_adds  )
-          {
-            string graph_line = String.Format("{0} -> {1} [color= blue];",
+
+          string color = "";
+          foreach(Connection con in item.ConnectionTable) {
+            if( con.Ct == ConnectionType.Leaf ) {
+              color = " [color= blue]";
+	    }
+	    else if (con.Ct == ConnectionType.Structured ) {
+              color = " [color= red]";
+	    }
+            string graph_line = String.Format("{0} -> {1}" + color + ";",
                 item.Address.ToBigInteger().IntValue(),
-                leaf_item.ToBigInteger().IntValue() );
+                con.Address.ToBigInteger().IntValue() );
             sw.WriteLine(graph_line);
-          }
+	    
+	  }
         }
-        if (0 < item.ConnectionTable.Count(ConnectionType.Structured) )
-        {
-          ArrayList struct_adds = 
-            item.ConnectionTable.GetAddressesOfType(ConnectionType.Structured);
-          foreach ( Address struct_item in struct_adds  )
-          {
-            string graph_line = String.Format("{0} -> {1} [color= red];",
-                item.Address.ToBigInteger().IntValue(),
-                struct_item.ToBigInteger().IntValue() );
-            sw.WriteLine(graph_line);
-          }
-        }
-       }
       }
       sw.WriteLine("}");
       sw.Close();
