@@ -108,18 +108,6 @@ namespace Brunet
       }
     }
 
-
-    /**
-     * The ConnectionType this object is the Overlord of
-     */
-    override public ConnectionType ConnectionType
-    {
-      get
-      {
-        return ConnectionType.Leaf;
-      }
-    }
-
     /**
      * Linker objects call this when they are done, and we start
      * again if we need to

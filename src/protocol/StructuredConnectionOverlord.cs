@@ -895,15 +895,6 @@ namespace Brunet
         }
       }
     }
-
-    override public ConnectionType ConnectionType
-    {
-      get
-      {
-        return ConnectionType.Structured;
-      }
-    }
-
     override public bool NeedConnection
     {
       get {
