@@ -158,9 +158,12 @@ namespace Brunet
     protected readonly int _max_timeouts = 3;
     protected int _timeouts;
     /**
-     * Timeout after 5 seconds of waiting for a packet.
+     * The timeout is adaptive.  It goes up
+     * by a factor of 2
+     * after each timeout.  It starts at 2 second.
+     * Then 4 seconds, then 8 seconds.
      */
-    protected readonly int _ms_timeout = 5000;
+    protected int _ms_timeout = 2000;
     protected TimeSpan _timeout;
 
     //If we get an ErrorCode.InProgress, we restart after
@@ -599,6 +602,9 @@ namespace Brunet
 #endif
             _e.Send( _last_sent_packet );
             _last_packet_datetime = DateTime.Now;
+	    //Increase the timeout by a factor of 4
+	    _ms_timeout = 4 * _ms_timeout;
+            _timeout = new TimeSpan(0,0,0,0,_ms_timeout);
             _timeouts++;
           }
           else if( _timeouts > _max_timeouts ) {

@@ -77,6 +77,8 @@ namespace Brunet
       inbound = is_in;
       end = remote_end_point;
       _is_closed = false;
+      _last_out_packet_datetime = DateTime.Now;
+      _last_in_packet_datetime = DateTime.Now;
       _remoteta = new TransportAddress(TAType, (IPEndPoint) end);
       _localta = new TransportAddress(TAType, (IPEndPoint) local_end_point);
       _id = id;

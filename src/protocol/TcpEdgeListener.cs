@@ -334,7 +334,7 @@ namespace Brunet
             else {
               TcpEdge e = null;
               lock( _sync ) {
-                if( _sock_to_edge.Contains(s) ) {
+                if( s != null && _sock_to_edge.Contains(s) ) {
                   e = (TcpEdge)_sock_to_edge[s];
                 }
               }
@@ -370,7 +370,7 @@ namespace Brunet
             else {
               TcpEdge e = null;
               lock( _sync ) {
-                if( _sock_to_edge.Contains(s) ) {
+                if( s != null && _sock_to_edge.Contains(s) ) {
                   e = (TcpEdge)_sock_to_edge[s];
 #if POB_DEBUG
                   Console.Error.WriteLine("DoReceive: {0}", e);
@@ -391,7 +391,7 @@ namespace Brunet
             else {
               TcpEdge e = null;
               lock( _sync ) {
-                if( _sock_to_edge.Contains(s) ) {
+                if( s != null && _sock_to_edge.Contains(s) ) {
                   e = (TcpEdge)_sock_to_edge[s];
 #if POB_DEBUG
                   Console.Error.WriteLine("DoSend: {0}", e);

@@ -178,6 +178,8 @@ namespace Brunet
         _sock = s;
         _is_closed = false;
         _is_sending = false;
+        _last_out_packet_datetime = DateTime.Now;
+        _last_in_packet_datetime = DateTime.Now;
         _size_buffer = new byte[2];
 #if TCP_POLL
         _packet_queue = Queue.Synchronized( new Queue() );
