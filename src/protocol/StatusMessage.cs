@@ -71,6 +71,28 @@ namespace Brunet {
 	}
       }
     }
+
+    public StatusMessage(ConnectionMessage.Direction dir, int id, XmlReader r)
+    {
+      if( !CanReadTag(r.Name) ) {
+        throw new ParseException("This is not a <status /> message");
+      }
+      this.Id = id;
+      this.Dir = dir;
+
+      while( r.Read() ) {
+        if( r.NodeType == XmlNodeType.Element ) {
+	  if( r.Name == "node" ) {
+            //Here comes a node info!
+	    _neighbors.Add( new NodeInfo(r) );
+	  }
+	  else if( r.Name == "neighbors" ) {
+            _neigh_ct = r["type"];
+	    _neighbors = new ArrayList();
+	  }
+	}
+      }
+    }
  
     protected string _neigh_ct;
     /**
@@ -121,6 +143,15 @@ namespace Brunet {
     public override IXmlAble ReadFrom(XmlElement el)
     {
       return new StatusMessage(el);
+    }
+
+    public override IXmlAble ReadFrom(XmlReader r)
+    {
+      Direction dir;
+      int id;
+      ReadStart(out dir, out id, r);
+
+      return new StatusMessage(dir, id, r);
     }
 
     public override void WriteTo(XmlWriter w)

@@ -43,7 +43,13 @@ namespace Brunet {
      * @return 
      */
     IXmlAble ReadFrom(System.Xml.XmlElement encoded);
-	    
+
+    /**
+     * This is a much more efficient way to read an
+     * XML document
+     */
+    IXmlAble ReadFrom(System.Xml.XmlReader reader);
+    
     /**
      * Write into w.  Does not close w after the writing.
      */
@@ -77,6 +83,8 @@ namespace Brunet {
 
       //Seek to the beginning, so we can read it in:
       s.Seek(0, SeekOrigin.Begin);
+#if false
+      //This is the dom:
       XmlDocument doc = new XmlDocument();
       doc.Load(s);
       XmlNode r = doc.FirstChild;
@@ -88,6 +96,12 @@ namespace Brunet {
         }
       }
       return a.ReadFrom((XmlElement)r);
+#else 
+      //I want your SAX
+      XmlReader r = new XmlTextReader(s);
+      r.Read();
+      return a.ReadFrom(r);
+#endif
     }
   }
 #endif

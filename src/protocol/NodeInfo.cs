@@ -54,6 +54,47 @@ namespace Brunet
       }
     }
 
+    public NodeInfo(XmlReader r)
+    {
+      while( r.NodeType != XmlNodeType.Element ) {
+	//Get positioned on the next Element
+        if( !r.Read() ) {
+          //No more to get:
+          throw new ParseException("Cannot find <node />");
+	}
+      }
+      if( !CanReadTag(r.Name) ) {
+        throw new ParseException("This is not a <node />");
+      }
+      string text_add = r["address"];
+      if( text_add != null ) {
+        _address = AddressParser.Parse( text_add );
+      }
+      else {
+        _address = null;
+      }
+      _tas = new ArrayList();
+      
+      bool in_transport = false;
+      while( r.Read() ) {
+        if( r.NodeType == XmlNodeType.Element && r.Name == "transport" ) {
+          in_transport = true;
+	}
+	else if( r.NodeType == XmlNodeType.Text && in_transport ) {
+          //This must be the transport address:
+	  _tas.Add( new TransportAddress( r.Value ) );
+	}
+	else if( r.NodeType == XmlNodeType.EndElement) {
+          if( r.Name == "transport" )
+            in_transport = false;
+	  else if( r.Name == "node" ) {
+            //This is the end of this one:
+	    break;
+	  }
+	}
+      }
+    }
+
     /**
      * @param a The Address of the node we are refering to
      * @param transports a list of TransportAddress objects
@@ -146,6 +187,11 @@ namespace Brunet
     public IXmlAble ReadFrom(XmlElement encoded)
     {
       return new NodeInfo(encoded);
+    }
+    
+    public IXmlAble ReadFrom(XmlReader r)
+    {
+      return new NodeInfo(r);
     }
     
     override public string ToString()

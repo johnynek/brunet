@@ -118,6 +118,24 @@ namespace Brunet
 	}
       }
     }
+    
+    public ConnectToMessage(Direction dir, int id, XmlReader r)
+    {
+      if (r.Name.ToLower() != "connectto") {
+        throw new ParseException("This is not a <connectTo /> message");
+      }
+      this.Dir = dir;
+      this.Id = id;
+      _ct = r["type"];
+      _target_ni = null;
+      
+      while( r.Read() && _target_ni == null ) {
+        if( r.NodeType == XmlNodeType.Element && r.Name.ToLower() == "node" ) {
+          //This is the target node info:
+	  _target_ni = new NodeInfo(r);
+	}
+      }
+    }
 
     protected string _ct;
     public string ConnectionType { get { return _ct; } }
@@ -149,6 +167,14 @@ namespace Brunet
     public override IXmlAble ReadFrom(XmlElement el)
     {
       return new ConnectToMessage(el);
+    }
+
+    public override IXmlAble ReadFrom(XmlReader r)
+    {
+      Direction dir;
+      int id;
+      ReadStart(out dir, out id, r);
+      return new ConnectToMessage(dir, id, r);
     }
     
     public override void WriteTo(XmlWriter w)

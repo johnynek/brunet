@@ -279,5 +279,14 @@ namespace Brunet
              direction + "remote: " + RemoteTA.ToString();
     }
   }
-
+#if false
+  /**
+   * Interfaces are much faster than delegates.
+   * Since every packet must be handled, we use
+   * an interface to represent handlers
+   */
+  public interface PacketHandler {
+    void Handle(Packet p, Edge from);
+  }
+#endif
 }

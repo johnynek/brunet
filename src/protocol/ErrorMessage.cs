@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  * Brunet.ConnectionMessage
  */
 
+using System;
 using System.Xml;
 using System.Collections;
 
@@ -89,6 +90,27 @@ namespace Brunet
       _message = encoded.FirstChild.Value;
     }
 
+    public ErrorMessage(Direction dir, int id, XmlReader r)
+    {
+      if (r.Name.ToLower() != "error") {
+        throw new ParseException("This is not a <error /> message");
+      }
+      this.Dir = dir;
+      this.Id = id;
+      _ec = (ErrorCode)Enum.Parse(typeof(ErrorCode), r["code"], true);
+      _message = "";
+      bool finished = false;
+      while( r.Read() && !finished ) {
+        if( r.NodeType == XmlNodeType.Text) {
+          //This is the error message
+	  _message = r.Value;
+	}
+	if( r.NodeType == XmlNodeType.EndElement && r.Name.ToLower() == "error" ) {
+          finished = true;
+	}
+      }
+    }
+
     public ErrorMessage()
     {
     }
@@ -115,6 +137,14 @@ namespace Brunet
     public override IXmlAble ReadFrom(XmlElement el)
     {
       return new ErrorMessage(el);
+    }
+
+    public override IXmlAble ReadFrom(XmlReader r)
+    {
+      Direction dir;
+      int id;
+      ReadStart(out dir, out id, r);
+      return new ErrorMessage(dir, id, r);
     }
     
     public override void WriteTo(XmlWriter w)
