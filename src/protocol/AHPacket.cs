@@ -220,7 +220,9 @@ namespace Brunet
       Connection = 2,
       Forwarding = 3,
       Echo = 4,
-      Tftp = 5
+      Tftp = 5,
+      Chat = 6,
+      IP = 7
     }
 
     /**
