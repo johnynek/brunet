@@ -66,7 +66,7 @@ namespace Brunet
    * connections. 
    * 
    */
-  abstract public class Node:IPacketSender
+  abstract public class Node:IPacketSender, IPacketHandler
   {
     /*private static readonly log4net.ILog log =
         log4net.LogManager.GetLogger(System.Reflection.MethodBase.
@@ -348,8 +348,7 @@ namespace Brunet
     {
       ConnectionEventArgs ce_args = (ConnectionEventArgs) args;
       Edge edge = ce_args.Edge;
-      edge.SetCallback(Packet.ProtType.AH,
-                       new Edge.PacketCallback(this.Send));
+      edge.SetCallback(Packet.ProtType.AH, this);
     }
 
     /**
@@ -408,8 +407,7 @@ namespace Brunet
     public void GracefullyClose(Edge e, CloseMessage cm)
     {
       try {
-        e.SetCallback(Packet.ProtType.Connection,
-                      new Edge.PacketCallback(this.GracefulClosePacketCallback));
+        e.SetCallback(Packet.ProtType.Connection, this);
         e.Send( cm.ToPacket() );
         lock( _sync ) {
           _gracefully_close_edges[e] = cm;
@@ -500,6 +498,19 @@ namespace Brunet
       }
     }
 
+    /**
+     * Implements the IPacketHandler interface
+     */
+    public void HandlePacket(Packet p, Edge from)
+    {
+      if( p.type == Packet.ProtType.AH ) {
+        Send(p, from);
+      }
+      else if( p.type == Packet.ProtType.Connection ) {
+        GracefulClosePacketCallback(p, from); 
+      }
+    }
+    
     /**
      * Check all the edges in the ConnectionTable and see if any of them
      * need to be pinged or closed.

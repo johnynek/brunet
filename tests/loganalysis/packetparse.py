@@ -7,8 +7,10 @@ import sys, time, copy, stats
 from datetime import timedelta, datetime
 infilename  = sys.argv[1]
 
+# bin size (milliseconds)
 deltatime = timedelta( milliseconds = float(sys.argv[2]) )
-direction = sys.argv[3] # this should be "sent, received, total"
+direction = "total"
+#direction = sys.argv[3] # this should be "sent, received, total"
 
 ifile = open( infilename, 'r')  # r for reading
 

@@ -66,7 +66,7 @@ namespace Brunet
    * @see Linker
    */
 
-  public class ConnectionPacketHandler
+  public class ConnectionPacketHandler : IPacketHandler
   {
 
     /*private static readonly log4net.ILog log =
@@ -107,7 +107,6 @@ namespace Brunet
     }
 
     /**
-     * This matches the delegate Edge.PacketCallback.
      * When a ConnectionPacket comes to an Edge, this
      * method is called.
      *
@@ -115,7 +114,7 @@ namespace Brunet
      * that it is connected to the Edge by the
      * ConnectionPacketHandler, and by no other object.
      */
-    protected void HandlePacket(Packet p, Edge from)
+    public void HandlePacket(Packet p, Edge from)
     {
       try {
         ConnectionPacket packet = (ConnectionPacket)p;
@@ -373,8 +372,7 @@ namespace Brunet
     public void EdgeHandler(object edge, EventArgs args)
     {
       Edge e = (Edge)edge;
-      e.SetCallback(Packet.ProtType.Connection,
-                    new Edge.PacketCallback(this.HandlePacket));
+      e.SetCallback(Packet.ProtType.Connection, this);
       e.CloseEvent += new EventHandler(this.CloseHandler);
       _tab.AddUnconnected(e);
     }
@@ -388,8 +386,7 @@ namespace Brunet
                                      EventArgs args)
     {
       Edge e = ((ConnectionEventArgs)args).Edge;
-      e.SetCallback(Packet.ProtType.Connection,
-                    new Edge.PacketCallback(this.HandlePacket));
+      e.SetCallback(Packet.ProtType.Connection, this);
       e.CloseEvent += new EventHandler(this.CloseHandler);
     }
   }

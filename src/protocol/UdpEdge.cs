@@ -30,6 +30,8 @@ using System;
 using System.Collections;
 using System.Net;
 
+//#define UDP_DEBUG
+
 namespace Brunet
 {
 
@@ -49,7 +51,7 @@ namespace Brunet
 
     protected bool inbound;
     protected bool _is_closed;
-    protected Edge.PacketCallback _send_cb;
+    protected IPacketHandler _send_cb;
 
     protected System.Net.EndPoint end;
     public System.Net.EndPoint End {
@@ -65,7 +67,7 @@ namespace Brunet
      * The send_cb is the method which actually does the
      * sending (which is in UdpEdgeListener).
      */
-    public UdpEdge(Edge.PacketCallback send_cb,
+    public UdpEdge(IPacketHandler send_cb,
                    bool is_in,
                    System.Net.IPEndPoint remote_end_point,
                    System.Net.IPEndPoint local_end_point,
@@ -119,8 +121,9 @@ namespace Brunet
 
     public override void Send(Brunet.Packet p)
     {
-      _send_cb(p, this);
+      _send_cb.HandlePacket(p, this);
       _last_out_packet_datetime = DateTime.Now;
+#if UDP_DEBUG
       /**
          * logging of outgoing packets
          */
@@ -138,7 +141,7 @@ namespace Brunet
       string GeneratedLog = "OutPacket: " + LocalTA.ToString()+", "+RemoteTA.ToString()+ ", " + base64String;
       //log.Info(GeneratedLog);
       // logging finished
-
+#endif
     }
 
     public override Brunet.TransportAddress.TAType TAType

@@ -54,7 +54,96 @@ namespace Brunet
 	 * out some things, including the TcpEdge and UdpEdge
 	 */
 
-  public class EdgeTester
+
+  public class ETServer : IPacketHandler
+  {
+    protected Queue _response_queue;
+    
+    public ETServer(Queue rq) {
+      _response_queue = rq;
+    }
+    
+    public void HandlePacket(Packet p, Edge edge)
+    {
+      byte[] int_buffer = new byte[4];
+      Stream s = p.PayloadStream;
+      s.Read(int_buffer, 0, 4);
+      int num = NumberSerializer.ReadInt(int_buffer, 0);
+      Console.WriteLine("Got packet number: {0}", num);
+      lock( _response_queue ) {
+        _response_queue.Enqueue(p);
+      }
+    }
+
+  }
+ 
+  public class ETClient : IPacketHandler
+  {
+    public int in_counter = 0;
+    public Random ran_obj2;
+    protected Queue _response_queue;
+    public byte[] buf2 = new byte[Packet.MaxLength];
+   
+    public ETClient(Queue q, int seed)
+    {
+      _response_queue = q;
+      ran_obj2 = new Random(seed);
+    }
+    
+    public  void HandlePacket(Packet p, Edge edge)
+    {
+     try {
+      in_counter++;
+      System.Console.WriteLine("Printing packet " + in_counter + ": ");
+      System.Console.WriteLine("Length: " + p.Length);
+//System.Console.WriteLine( p.ToString() );
+      lock( buf2 ) {
+      int size2 = ran_obj2.Next(1, Packet.MaxLength);
+      ran_obj2.NextBytes(buf2);
+      byte[] payload = p.PayloadStream.ToArray();
+      Console.WriteLine("Payload length: {0}", payload.Length);
+      int sent_count = NumberSerializer.ReadInt(payload, 0);
+      System.Console.WriteLine("Sent packet: {0}",sent_count);
+      bool cont = (size2 == p.Length) && (sent_count == in_counter);
+      int i = 4;
+      byte local, remote;
+      while (i < (size2 - 1)
+	     && cont)
+      {
+	//The payload has one less byte than the whole packet
+	remote = payload[i];
+	i++;
+	local = buf2[i];
+	if( local != remote )
+          cont = false;
+      }
+      if (!cont) {
+        Console.WriteLine("Wrong here!! ");
+	Console.WriteLine("my size: {0}",size2);
+	Console.WriteLine("local {0}, remote {1}",local, remote);
+//	\nmy buffer: {1}", size2,
+//			  Convert.ToBase64String(buf2) );
+	Console.WriteLine("packet size: {0}",p.Length);
+	//\npacket: {1}", p.Length,
+	//		  Convert.ToBase64String(p.Buffer, p.Offset, p.Length) );
+        //Console.ReadLine();
+      }
+      else
+        Console.WriteLine("Right so far!!");
+      }
+      //Send an echo back:
+      lock( _response_queue ) {
+        _response_queue.Enqueue(p);
+      }
+     }
+     catch(Exception x) {
+       Console.Error.WriteLine(x.ToString());
+     }
+    }
+
+  }
+	
+  public class EdgeTester 
   {
     //private static readonly ILog log = LogManager.GetLogger(typeof(EdgeTester));
 
@@ -63,12 +152,9 @@ namespace Brunet
     //Used by the client:
     public static Random ran_obj = new Random(seed);
     //Used by the server:
-    public static Random ran_obj2 = new Random(seed);
     //What packet number is this:
-    public static int in_counter = 0;
     public static int delay = 20;
     //The buffer used for the server
-    public static byte[] buf2 = new byte[Packet.MaxLength];
     public static byte[] int_buffer = new byte[4];
    
     public static Edge in_edge;
@@ -175,8 +261,8 @@ namespace Brunet
         if (e == null) {
           System.Console.WriteLine("edge is null");
         }
-        e.SetCallback(Packet.ProtType.Connection,
-		      new Edge.PacketCallback(SimplePrint));
+	IPacketHandler printer = new ETClient(response_queue, seed);
+        e.SetCallback(Packet.ProtType.Connection, printer );
 
         e.CloseEvent += new EventHandler(HandleClose);
         string line;
@@ -190,8 +276,6 @@ namespace Brunet
 	  lock( response_queue ) {
 	   if( counter == 0 || response_queue.Count > 0 )
 	   {
-            //if( response_queue.Count > 0) { response_queue.Dequeue(); }
-            
 	    counter++;
             int size = ran_obj.Next(1, Packet.MaxLength);
             ran_obj.NextBytes(buf);
@@ -246,68 +330,6 @@ namespace Brunet
 #endif
     }
     
-    public static void PrintPacket(Packet p, Edge edge)
-    {
-     try {
-      in_counter++;
-      System.Console.WriteLine("Printing packet " + in_counter + ": ");
-      System.Console.WriteLine("Length: " + p.Length);
-//System.Console.WriteLine( p.ToString() );
-      lock( buf2 ) {
-      int size2 = ran_obj2.Next(1, Packet.MaxLength);
-      ran_obj2.NextBytes(buf2);
-      byte[] payload = p.PayloadStream.ToArray();
-      Console.WriteLine("Payload length: {0}", payload.Length);
-      int sent_count = NumberSerializer.ReadInt(payload, 0);
-      System.Console.WriteLine("Sent packet: {0}",sent_count);
-      bool cont = (size2 == p.Length) && (sent_count == in_counter);
-      int i = 4;
-      byte local, remote;
-      while (i < (size2 - 1)
-	     && cont)
-      {
-	//The payload has one less byte than the whole packet
-	remote = payload[i];
-	i++;
-	local = buf2[i];
-	if( local != remote )
-          cont = false;
-      }
-      if (!cont) {
-        Console.WriteLine("Wrong here!! ");
-	Console.WriteLine("my size: {0}",size2);
-	Console.WriteLine("local {0}, remote {1}",local, remote);
-//	\nmy buffer: {1}", size2,
-//			  Convert.ToBase64String(buf2) );
-	Console.WriteLine("packet size: {0}",p.Length);
-	//\npacket: {1}", p.Length,
-	//		  Convert.ToBase64String(p.Buffer, p.Offset, p.Length) );
-        //Console.ReadLine();
-      }
-      else
-        Console.WriteLine("Right so far!!");
-      }
-      //Send an echo back:
-      lock( response_queue ) {
-      response_queue.Enqueue(p);
-      }
-     }
-     catch(Exception x) {
-       Console.Error.WriteLine(x.ToString());
-     }
-    }
-
-    public static void SimplePrint(Packet p, Edge edge)
-    {
-      byte[] int_buffer = new byte[4];
-      Stream s = p.PayloadStream;
-      s.Read(int_buffer, 0, 4);
-      int num = NumberSerializer.ReadInt(int_buffer, 0);
-      Console.WriteLine("Got packet number: {0}", num);
-      lock( response_queue ) {
-        response_queue.Enqueue(p);
-      }
-    }
 
                 /**
 		 * Handles new edges
@@ -320,18 +342,13 @@ namespace Brunet
       e.CloseEvent += new EventHandler(HandleClose);
       System.Console.WriteLine("Got an Edge");
       Console.WriteLine(e.ToString());
-
-      e.SetCallback(Packet.ProtType.Connection,
-		    new Edge.PacketCallback(PrintPacket));
-
+      IPacketHandler printer = new ETServer(response_queue);
+      e.SetCallback(Packet.ProtType.Connection, printer);
       in_edge = e;
     }
     public static void HandleClose(object edge, EventArgs args)
     {
       ran_obj = new Random(seed);
-      //Used by the server:
-      ran_obj2 = new Random(seed);
-      in_counter = 0;
       Console.WriteLine("Closing edge: " + edge.ToString() );
       _el.Stop();
       keep_running = false;

@@ -50,7 +50,7 @@ namespace Brunet
   *
   */
 
-  public class UdpEdgeListener:EdgeListener
+  public class UdpEdgeListener : EdgeListener, IPacketHandler
   {
 
     protected IPEndPoint ipep;
@@ -193,8 +193,7 @@ namespace Brunet
           id = _rand.Next();
         } while( _id_ht.Contains(id) );
 
-        e = new UdpEdge(new Edge.PacketCallback(this.SendCallback),
-                        false, end, (IPEndPoint)s.LocalEndPoint, id);
+        e = new UdpEdge(this, false, end, (IPEndPoint)s.LocalEndPoint, id);
         _id_ht[id] = e;
       }
       /* Tell me when you close so I can clean up the table */
@@ -249,7 +248,7 @@ namespace Brunet
           int id = NumberSerializer.ReadInt(_packet_buffer, 0);
           lock ( _id_ht ) {
             if (! _id_ht.Contains(id)) {
-              edge = new UdpEdge(new Edge.PacketCallback(this.SendCallback),
+              edge = new UdpEdge(this,
                                  true, (IPEndPoint)end,
                                  (IPEndPoint)s.LocalEndPoint, id);
               /* Tell me when you close so I can clean up the table */
@@ -305,7 +304,7 @@ namespace Brunet
      * When UdpEdge objects call Send, it calls this packet
      * callback:
      */
-    protected void SendCallback(Packet p, Edge from)
+    public void HandlePacket(Packet p, Edge from)
     {
       lock( _send_queue ) {
         SendQueueEntry sqe = new SendQueueEntry(p, (UdpEdge)from);

@@ -108,8 +108,8 @@ namespace Brunet
     protected byte[] _size_buffer;
 
 #if TCP_SELECT
-    public event EventHandler SendStateChange;
     protected bool _need_to_send;
+    protected TcpEdgeListener _tel;
     public bool NeedToSend {
       get {
         lock( _sync ) {
@@ -128,11 +128,11 @@ namespace Brunet
           }
         }
         //Release the lock and fire the event
-        if( send_event && (SendStateChange != null) ) {
+        if( send_event ) {
 #if POB_TCP_DEBUG
           Console.WriteLine("About to send event");
 #endif
-          SendStateChange(this, null);
+          _tel.SendStateChange(this);
         }
       }
     }
@@ -170,7 +170,7 @@ namespace Brunet
     private ReceiveState _rec_state;
 #endif
 
-    public TcpEdge(Socket s, bool is_in)
+    public TcpEdge(Socket s, bool is_in, TcpEdgeListener tel)
     {
       _sync = new Object();
       lock(_sync)
@@ -184,6 +184,7 @@ namespace Brunet
 #elif TCP_SELECT
         _packet_queue = new Queue();
         _need_to_send = false;
+	_tel = tel;
 #endif
         inbound = is_in;
         _local_ta =
