@@ -15,7 +15,7 @@ namespace Brunet
    * connections.
    */
 
-  abstract public class ConnectionMessage
+  abstract public class ConnectionMessage : IXmlAble
   {
 
     /**
@@ -32,7 +32,13 @@ namespace Brunet
     {
     }
 
-
+    /**
+     * @return true if this tag is supported
+     */
+    abstract public bool CanReadTag(string tag);
+   
+    abstract public IXmlAble ReadFrom(XmlElement el);
+    
     virtual public byte[]  ToByteArray()
     {
       //Here is a buffer to write the connection message into :

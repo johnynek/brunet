@@ -25,6 +25,26 @@ namespace Brunet
 
     }
 
+    override public bool CanReadTag(string tag)
+    {
+      return (tag == "ping");
+    }
+
+    override public bool Equals(object o)
+    {
+      if( o is PingMessage ) {
+        return true;
+      }
+      else {
+        return false;
+      }
+    }
+    
+    override public IXmlAble ReadFrom(System.Xml.XmlElement el)
+    {
+      return new PingMessage(el);
+    }
+    
     override public void WriteTo(System.Xml.XmlWriter w)
     {
       base.WriteTo(w);  //<(request|response)>

@@ -103,6 +103,30 @@ namespace Brunet
       get { return _target_ni; }
     }
 
+    public override bool CanReadTag(string tag)
+    {
+      return tag == "connectTo";
+    }
+
+    public override bool Equals(object o)
+    {
+      ConnectToMessage co = o as ConnectToMessage;
+      if( co != null ) {
+        bool same = true;
+	same &= co.ConnectionType == _ct;
+	same &= co.Target.Equals( _target_ni );
+	return same;
+      }
+      else {
+        return false;
+      }
+    }
+    
+    public override IXmlAble ReadFrom(XmlElement el)
+    {
+      return new ConnectToMessage(el);
+    }
+    
     public override void WriteTo(XmlWriter w)
     {
       //Write the request or response and id

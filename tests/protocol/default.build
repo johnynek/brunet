@@ -120,6 +120,7 @@
     <delete>
        <fileset>
          <include name="${out.dir}/*.exe" />
+         <include name="${out.dir}/*.dll" />
        </fileset>
     </delete>
   </target>

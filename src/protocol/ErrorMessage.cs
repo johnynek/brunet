@@ -68,6 +68,30 @@ namespace Brunet
     {
     }
 
+    public override bool CanReadTag(string tag)
+    {
+      return (tag == "error");
+    }
+
+    public override bool Equals(object o)
+    {
+      ErrorMessage eo = o as ErrorMessage;
+      if( eo != null ) {
+        bool same = true;
+	same &= eo.Ec == _ec;
+	same &= eo.Message == _message;
+	return same;
+      }
+      else {
+        return false;
+      }
+    }
+    
+    public override IXmlAble ReadFrom(XmlElement el)
+    {
+      return new ErrorMessage(el);
+    }
+    
     public override void WriteTo(XmlWriter w)
     {
       //Write the request or response and id

@@ -96,7 +96,39 @@ namespace Brunet
       get { return _remote_ni; } 
     }
 
-    override public void WriteTo(XmlWriter w)
+    public override bool CanReadTag(string tag)
+    {
+      return (tag == "link");
+    }
+    
+    /**
+     * @return true if olm is equivalent to this
+     */
+    public override bool Equals(object olm)
+    {
+      LinkMessage lm = olm as LinkMessage;
+      if ( lm != null ) {
+        bool same = true;
+	same &= lm.ConnectionType == this.ConnectionType;
+	same &= lm.Local.Equals(this.Local);
+	same &= lm.Remote.Equals(this.Remote);
+	return same;
+      }
+      else {
+        return false;
+      }
+    }
+   
+    public override IXmlAble ReadFrom(XmlElement el)
+    {
+      return new LinkMessage(el);
+    }
+    
+    /**
+     * Write this object into the XmlWriter w.
+     * This method may be used for serialization.
+     */
+    public override void WriteTo(XmlWriter w)
     {
       base.WriteTo(w);
 
@@ -142,7 +174,7 @@ namespace Brunet
     public LinkMessageTester() { }
 
     [Test]
-    public void SerializationTest() {
+    public void LMSerializationTest() {
       
     }
   }

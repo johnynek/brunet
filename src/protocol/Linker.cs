@@ -25,6 +25,10 @@
 
 //#define POB_LINK_DEBUG
 
+#if BRUNET_NUNIT
+using NUnit.Framework;
+#endif
+
 using System;
 using System.Collections;
 
