@@ -6,20 +6,20 @@
 namespace Brunet
 {
 
- /**
-  * Represents addresses on the Brunet system.  The Brunet
-  * system is a virtual network onto of lower layers (such
-  * as IP).  The Address represents addresses on 
-  * the virtual system.
-  *
-  * All Address subclasses are immutable.  Once created,
-  * they cannot be changed
-  */
+  /**
+   * Represents addresses on the Brunet system.  The Brunet
+   * system is a virtual network onto of lower layers (such
+   * as IP).  The Address represents addresses on 
+   * the virtual system.
+   *
+   * All Address subclasses are immutable.  Once created,
+   * they cannot be changed
+   */
 
   public abstract class Address
   {
 
-///The number of bytes to represent the address
+    ///The number of bytes to represent the address
     public static readonly int MemSize = 20;
 
     /**
@@ -27,16 +27,16 @@ namespace Brunet
      */
     static Address()
     {
-//Initialize _half
+      //Initialize _half
       byte[] tmp = new byte[MemSize];
       for (int i = 1; i < MemSize; i++)
       {
         tmp[i] = 0;
       }
-//Set the first bit to 1, all else to zero : 
+      //Set the first bit to 1, all else to zero :
       tmp[0] = 0x80;
-        _half = new BigInteger(tmp);
-        _full = _half * 2;
+      _half = new BigInteger(tmp);
+      _full = _half * 2;
     }
 
     public Address()
@@ -44,7 +44,7 @@ namespace Brunet
       buffer = new byte[MemSize];
       SetClass(this.Class);
     }
-    
+
     /**
      * Create an address from a buffer with an offset
      */
@@ -52,13 +52,13 @@ namespace Brunet
     {
       buffer = new byte[MemSize];
 
-    /**
-     * @throw ArgumentNullException if sourceArray or destinationArray
-     * is null.
-     * @throw RankException if sourceArray and destinationArray have 
-     * different ranks. 
-     * @throw ArgumentOutOfRangeException.
-     */
+      /**
+       * @throw ArgumentNullException if sourceArray or destinationArray
+       * is null.
+       * @throw RankException if sourceArray and destinationArray have 
+       * different ranks. 
+       * @throw ArgumentOutOfRangeException.
+       */
 
       System.Array.Copy(binary, offset, buffer, 0, MemSize);
     }
@@ -66,13 +66,13 @@ namespace Brunet
     public Address(byte[] binary)
     {
       buffer = new byte[MemSize];
-    /**
-     * @throw ArgumentNullException if sourceArray or destinationArray
-     * is null.
-     * @throw RankException if sourceArray and destinationArray have 
-     * different ranks.
-     * @throw ArgumentOutOfRangeException.
-     */
+      /**
+       * @throw ArgumentNullException if sourceArray or destinationArray
+       * is null.
+       * @throw RankException if sourceArray and destinationArray have 
+       * different ranks.
+       * @throw ArgumentOutOfRangeException.
+       */
 
       System.Array.Copy(binary, 0, buffer, 0, MemSize);
     }
@@ -85,10 +85,10 @@ namespace Brunet
     abstract public int Class
     {
       get;
-    }
+      }
 
-    protected byte[]  buffer;
-    
+      protected byte[]  buffer;
+
     public static int ClassOf(byte[] binary_add)
     {
       return ClassOf(binary_add, 0);
@@ -140,7 +140,7 @@ namespace Brunet
     public override int GetHashCode()
     {
       int ArrLength = MemSize / 4;
-//MemSize is the number of bytes and there are four bytes to an int
+      //MemSize is the number of bytes and there are four bytes to an int
       int hash = 0;
       for (int i = 0; i < ArrLength; i++) {
         hash ^= NumberSerializer.ReadInt(buffer, i * 4);
@@ -179,20 +179,20 @@ namespace Brunet
     public abstract bool IsUnicast
     {
       get;
-    }
+      }
 
-    /**
-     * Copy the buffer out
-     */
-    public virtual void CopyTo(byte[] b, int offset)
+      /**
+       * Copy the buffer out
+       */
+      public virtual void CopyTo(byte[] b, int offset)
     {
-    /**
-     * @throw ArgumentNullException if sourceArray or destinationArray
-     * is null.
-     * @throw RankException if sourceArray and destinationArray have 
-     * different ranks.
-     * @throw ArgumentOutOfRangeException.
-     */
+      /**
+       * @throw ArgumentNullException if sourceArray or destinationArray
+       * is null.
+       * @throw RankException if sourceArray and destinationArray have 
+       * different ranks.
+       * @throw ArgumentOutOfRangeException.
+       */
 
       System.Array.Copy(buffer, 0, b, offset, MemSize);
     }
@@ -214,46 +214,46 @@ namespace Brunet
      */
     protected void Set(BigInteger value)
     {
-	
-	byte[] bi_buf;
-	if( value < 0 ) {
-          //if we are less than 0, get 2^160 + value:
-          BigInteger value_plus = new BigInteger(value + Full);  
-	  bi_buf = value_plus.getBytes();
-	}
-	else {
-          bi_buf = value.getBytes();
-	}
-        if (bi_buf.Length < MemSize) {
-  //Missing some bytes at the beginning, pad with zero : 
-          byte[] tmp_bi = new byte[Address.MemSize];
-          int missing = (MemSize - bi_buf.Length);
-          for (int i = 0; i < missing; i++) {
-            tmp_bi[i] = (byte) 0;
-          }
+
+      byte[] bi_buf;
+      if( value < 0 ) {
+        //if we are less than 0, get 2^160 + value:
+        BigInteger value_plus = new BigInteger(value + Full);
+        bi_buf = value_plus.getBytes();
+      }
+      else {
+        bi_buf = value.getBytes();
+      }
+      if (bi_buf.Length < MemSize) {
+        //Missing some bytes at the beginning, pad with zero :
+        byte[] tmp_bi = new byte[Address.MemSize];
+        int missing = (MemSize - bi_buf.Length);
+        for (int i = 0; i < missing; i++) {
+          tmp_bi[i] = (byte) 0;
+        }
         /**
          * @todo throw an ArgumentNullException if sourceArray or destinationArray
          * is null.Throw RankException if sourceArray and destinationArray have 
          * different ranks. Throw ArgumentOutOfRangeException.
          */
-          System.Array.Copy(bi_buf, 0, tmp_bi, missing,
-                            bi_buf.Length);
-          bi_buf = tmp_bi;
-        }
-        else if (bi_buf.Length > MemSize) {
-	  throw new System.ArgumentException(
-			  "Integer too large to fit in 160 bits: " + value.ToString());
-        }
+        System.Array.Copy(bi_buf, 0, tmp_bi, missing,
+                          bi_buf.Length);
+        bi_buf = tmp_bi;
+      }
+      else if (bi_buf.Length > MemSize) {
+        throw new System.ArgumentException(
+          "Integer too large to fit in 160 bits: " + value.ToString());
+      }
 
-	if( ClassOf(bi_buf) == this.Class ) {
-          buffer = bi_buf;
-	}
-	else {
-           throw new System.
-             ArgumentException("Cannot set to a different address class,  " +
-			       this.ToString() + " is class " + this.Class
-			       + " not class " + ClassOf(buffer));
-        }
+      if( ClassOf(bi_buf) == this.Class ) {
+        buffer = bi_buf;
+      }
+      else {
+        throw new System.
+        ArgumentException("Cannot set to a different address class,  " +
+                          this.ToString() + " is class " + this.Class
+                          + " not class " + ClassOf(buffer));
+      }
     }
 
     /**
@@ -269,11 +269,11 @@ namespace Brunet
       buffer[i] &= 0xFE;
       do {
         int shifts = 0;
-	uint val = 0x01;
+        uint val = 0x01;
         while ((myclass > 0) && (shifts < 8)) {
           //Set the bit to 1:
           buffer[i] = (byte)(buffer[i] | val);
-	  val <<= 1;
+          val <<= 1;
           shifts++;
           myclass--;
         }
@@ -281,7 +281,7 @@ namespace Brunet
 
       } while ( (myclass > 0) && (i >= 0) );
     }
-   
+
     /**
      * @return an array of integers which represent the address
      */
@@ -289,7 +289,7 @@ namespace Brunet
     {
       int ArrLength = MemSize / 4;
       int[] int_array = new int[ArrLength];
-//MemSize is the number of bytes and there are four bytes to an int
+      //MemSize is the number of bytes and there are four bytes to an int
       for (int i = 0; i < ArrLength; i++) {
         int_array[i] = NumberSerializer.ReadInt(buffer, i * 4);
       }

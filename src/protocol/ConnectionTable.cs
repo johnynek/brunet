@@ -18,27 +18,27 @@ using System.Collections;
 namespace Brunet
 {
 
- /**
-  * Keeps track of all connections and all the
-  * mappings of Address -> Edge,
-  *             Edge -> Address,
-  *             Edge -> ConnectionType
-  *             ConnectionType -> Address List
-  *             ConnectionType -> Edge List
-  *
-  * All classes other than ConnectionOverlord should only use
-  * the ReadOnly methods (not Add or Remove).
-  * ConnectionOverlord objects can call Add and Remove
-  * 
-  */
+  /**
+   * Keeps track of all connections and all the
+   * mappings of Address -> Edge,
+   *             Edge -> Address,
+   *             Edge -> ConnectionType
+   *             ConnectionType -> Address List
+   *             ConnectionType -> Edge List
+   *
+   * All classes other than ConnectionOverlord should only use
+   * the ReadOnly methods (not Add or Remove).
+   * ConnectionOverlord objects can call Add and Remove
+   * 
+   */
 
   public class ConnectionTable
   {
 
-  /*private static readonly log4net.ILog _log =
-      log4net.LogManager.GetLogger(System.Reflection.MethodBase.
-      GetCurrentMethod().DeclaringType);*/
-  
+    /*private static readonly log4net.ILog _log =
+        log4net.LogManager.GetLogger(System.Reflection.MethodBase.
+        GetCurrentMethod().DeclaringType);*/
+
     protected Random _rand;
 
     protected Hashtable type_to_addlist;
@@ -74,7 +74,7 @@ namespace Brunet
      * When a connection is lost, this event is fired
      */
     public event EventHandler DisconnectionEvent;
-    
+
     protected AHAddressComparer _cmp;
     public AHAddressComparer AHAddressComparer
     {
@@ -84,11 +84,11 @@ namespace Brunet
       }
     }
 
-  /**
-   * Since address lists in the ConnectionTable are sorted,
-   * we need to assign the AHAddressComparer which does
-   * those comparisons.
-   */
+    /**
+     * Since address lists in the ConnectionTable are sorted,
+     * we need to assign the AHAddressComparer which does
+     * those comparisons.
+     */
     public ConnectionTable(AHAddressComparer cmp)
     {
       _rand = new Random(DateTime.Now.Millisecond);
@@ -105,13 +105,13 @@ namespace Brunet
         unconnected = ArrayList.Synchronized(new ArrayList());
 
         _address_locks = new Hashtable();
-	foreach(ConnectionType t in Enum.GetValues(typeof(ConnectionType)) ) {
-	  /**
-	   * We have a lock table for each type
-	   */
+        foreach(ConnectionType t in Enum.GetValues(typeof(ConnectionType)) ) {
+          /**
+           * We have a lock table for each type
+           */
           _address_locks[t] = new Hashtable();
-	}
-        
+        }
+
         // retrieve an edge by its remote ta. the local address is the same for all edges in this table
         ta_to_edge = new Hashtable();
 
@@ -119,7 +119,7 @@ namespace Brunet
 
         Init(ConnectionType.Leaf);
         Init(ConnectionType.Structured);
-        Init(ConnectionType.Unstructured);        
+        Init(ConnectionType.Unstructured);
         Init(ConnectionType.Unknown);
       }
     }
@@ -143,37 +143,37 @@ namespace Brunet
      * @return the index we insert to
      */
     public int Add(ConnectionType t,
-		    Address a,
-		    Edge e)
+                   Address a,
+                   Edge e)
     {
-     int index;
+      int index;
 
-     lock(_sync) {
+      lock(_sync) {
 
-      ArrayList adds = (ArrayList)type_to_addlist[t];
-      index = adds.BinarySearch(a, _cmp);
-      if (index < 0)
-      {
-        //This is a new address:
-	index = ~index;
-      }
-      else {
-        //This is an old address, no good
-	throw new Exception("Address: " + a.ToString() + " already in ConnectionTable");
-      }
-      adds.Insert(index, a);
-      ((ArrayList)type_to_edgelist[t]).Insert(index, e);
-      edge_to_add[e] = a;
-      edge_to_type[e] = t;
-      
-      ((Hashtable)ta_to_edge[t]).Add(e.RemoteTA.ToString(),e);
-     } /* we release the lock */
-      
+        ArrayList adds = (ArrayList)type_to_addlist[t];
+        index = adds.BinarySearch(a, _cmp);
+        if (index < 0)
+        {
+          //This is a new address:
+          index = ~index;
+        }
+        else {
+          //This is an old address, no good
+          throw new Exception("Address: " + a.ToString() + " already in ConnectionTable");
+        }
+        adds.Insert(index, a);
+        ((ArrayList)type_to_edgelist[t]).Insert(index, e);
+        edge_to_add[e] = a;
+        edge_to_type[e] = t;
+
+        ((Hashtable)ta_to_edge[t]).Add(e.RemoteTA.ToString(),e);
+      } /* we release the lock */
+
       //Now that we have registered the new CloseEvent handler,
       //we can remove the old one
       int ucidx = unconnected.IndexOf(e);
       if( ucidx >= 0 ) {
-	//Remove the edge from the unconnected table
+        //Remove the edge from the unconnected table
         unconnected.RemoveAt(ucidx);
       }
       else {
@@ -181,18 +181,18 @@ namespace Brunet
         /* Tell the edge to let you know when it dies: */
         e.CloseEvent += new EventHandler(this.RemoveHandler);
       }
-      
-      /*_log.Info("ConnectionEvent: address: " + a.ToString() + 
-		                ", edge: " + e.ToString() +
-				", type: " + t.ToString() +
-				", index: " + index);*/
+
+      /*_log.Info("ConnectionEvent: address: " + a.ToString() +
+                  ", edge: " + e.ToString() +
+      ", type: " + t.ToString() +
+      ", index: " + index);*/
 
 
       #if KML_DEBUG
-      System.Console.WriteLine("ConnectionEvent: address: " + a.ToString() + 
-		                ", edge: " + e.ToString() +
-				", type: " + t.ToString() +
-				", index: " + index);    
+      System.Console.WriteLine("ConnectionEvent: address: " + a.ToString() +
+                               ", edge: " + e.ToString() +
+                               ", type: " + t.ToString() +
+                               ", index: " + index);
       //System.Console.ReadLine();
       #endif
 
@@ -201,7 +201,7 @@ namespace Brunet
         ConnectionEvent(this, new ConnectionEventArgs(a, e, t, index) );
       return index;
     }
-  
+
     /**
      * This function is to check if a given address of a given type
      * is already in the table.  It is a synonym for IndexOf(t,a) >= 0.
@@ -220,17 +220,17 @@ namespace Brunet
      */
     public int Count(ConnectionType t)
     {
-     lock(_sync) {
-      object val = type_to_edgelist[t];
-      if( val == null ) {
-        return 0;
+      lock(_sync) {
+        object val = type_to_edgelist[t];
+        if( val == null ) {
+          return 0;
+        }
+        else {
+          return ((ArrayList)val).Count;
+        }
       }
-      else {
-        return ((ArrayList)val).Count;
-      }
-     }
     }
-   
+
     /**
      * This method removes the connection associated with an Edge,
      * then it adds this edge to the list of unconnected nodes.
@@ -248,87 +248,87 @@ namespace Brunet
       bool have_con = false;
       lock(_sync) {
         have_con = GetConnection(e, out t, out index, out remote);
-	if( have_con )  {
+        if( have_con )  {
           Remove(t, index);
-	  unconnected.Add(e);
-	}
+          unconnected.Add(e);
+        }
       }
       if( have_con ) {
-      /*_log.Info("DisconnectionEvent: address: " + remote.ToString() + 
-		                ", edge: " + e.ToString() +
-				", type: " + t.ToString() +
-				", index: " + index);*/
+        /*_log.Info("DisconnectionEvent: address: " + remote.ToString() +
+                    ", edge: " + e.ToString() +
+        ", type: " + t.ToString() +
+        ", index: " + index);*/
       #if DEBUG
-      System.Console.WriteLine("Disconnect: DisconnectionEvent: address: " + remote.ToString() + 
-		                ", edge: " + e.ToString() +
-				", type: " + t.ToString() +
-				", index: " + index);    
+        System.Console.WriteLine("Disconnect: DisconnectionEvent: address: " + remote.ToString() +
+                                 ", edge: " + e.ToString() +
+                                 ", type: " + t.ToString() +
+                                 ", index: " + index);
       #endif
         //Announce the disconnection:
         if( DisconnectionEvent != null )
           DisconnectionEvent(this, new ConnectionEventArgs(remote, e, t, index));
       }
     }
-    
-  public int UnconnectedCount
-  {
-    get
+
+    public int UnconnectedCount
     {
-      return unconnected.Count;
+      get
+      {
+        return unconnected.Count;
+      }
     }
-  }
 
     /**
      * Returns the Address associated with this Edge
      */
-  public Address GetAddressFor(Edge e)
-  {
-    lock( _sync ) {
-      return (Address) edge_to_add[e];
-    }
-  }
-
-  /**
-   * Gets the edge for the left structured neighbor of a given AHAddress
-   */
-  public Edge GetLeftStructuredNeighborOf(AHAddress address)
-  {
-    lock( _sync ) {
-      int i = IndexOf(ConnectionType.Structured, address);
-      if (i<0) {
-        i = ~i;
+    public Address GetAddressFor(Edge e)
+    {
+      lock( _sync ) {
+        return (Address) edge_to_add[e];
       }
-      else {
-        i++;
-      }
-
-      Address neighbor_add=null;
-      Edge    neighbor_edge=null;
-      GetConnection(ConnectionType.Structured, i, out neighbor_add, out neighbor_edge);
-
-      return neighbor_edge;
     }
-  }
 
-  /**
-   * Gets the edge for the right structured neighbor of a given AHAddress
-   */
-  public Edge GetRightStructuredNeighborOf(AHAddress address)
-  {
-    lock( _sync ) {
-      int i = IndexOf(ConnectionType.Structured, address);
-      if (i<0) {
-        i = ~i;
+    /**
+     * Gets the edge for the left structured neighbor of a given AHAddress
+     */
+    public Edge GetLeftStructuredNeighborOf(AHAddress address)
+    {
+      lock( _sync ) {
+        int i = IndexOf(ConnectionType.Structured, address);
+        if (i<0) {
+          i = ~i;
+        }
+        else {
+          i++;
+        }
+
+        Address neighbor_add=null;
+        Edge    neighbor_edge=null;
+        GetConnection(ConnectionType.Structured, i, out neighbor_add, out neighbor_edge);
+
+        return neighbor_edge;
       }
-
-      i--;
-      Address neighbor_add=null;
-      Edge    neighbor_edge=null;
-      GetConnection(ConnectionType.Structured, i, out neighbor_add, out neighbor_edge);
-
-      return neighbor_edge;
     }
-  }
+
+    /**
+     * Gets the edge for the right structured neighbor of a given AHAddress
+     */
+    public Edge GetRightStructuredNeighborOf(AHAddress address)
+    {
+      lock( _sync ) {
+        int i = IndexOf(ConnectionType.Structured, address);
+        if (i<0) {
+          i = ~i;
+        }
+
+        i--;
+        Address neighbor_add=null;
+        Edge    neighbor_edge=null;
+        GetConnection(ConnectionType.Structured, i, out neighbor_add, out neighbor_edge);
+
+        return neighbor_edge;
+      }
+    }
 
     /**
      * @param t the ConnectionType of connection in question
@@ -341,23 +341,23 @@ namespace Brunet
      * same as (index)
      */
     public void GetConnection(ConnectionType t, int index,
-		              out Address add, out Edge e)
+                              out Address add, out Edge e)
     {
-     lock(_sync ) {
-      int count = ((ArrayList)type_to_addlist[t]).Count;
-      if( count == 0 ) {
-        throw new System.ArgumentOutOfRangeException("index", index,
-			    "Trying to get and index from an empty Array");
+      lock(_sync ) {
+        int count = ((ArrayList)type_to_addlist[t]).Count;
+        if( count == 0 ) {
+          throw new System.ArgumentOutOfRangeException("index", index,
+              "Trying to get and index from an empty Array");
+        }
+        index %= count;
+        if( index < 0 ) {
+          index += count;
+        }
+        add = (Address)((ArrayList)type_to_addlist[t])[index];
+        e = (Edge)((ArrayList)type_to_edgelist[t])[index];
       }
-      index %= count;
-      if( index < 0 ) {
-        index += count;
-      }
-      add = (Address)((ArrayList)type_to_addlist[t])[index];
-      e = (Edge)((ArrayList)type_to_edgelist[t])[index];
-     }
     }
-   
+
     /**
      * @param e Edge to check for a connection
      * @param t the ConnectionType of the Edge if there is a connection
@@ -365,25 +365,25 @@ namespace Brunet
      * @param add the address for this Connection
      */
     public bool GetConnection(Edge e, out ConnectionType t, out int index,
-		              out Address add)
+                              out Address add)
     {
       bool have_con = false;
       lock( _sync ) {
-	t = GetConnectionType(e);
-	if( t != ConnectionType.Unknown ) {
+        t = GetConnectionType(e);
+        if( t != ConnectionType.Unknown ) {
           index = ((ArrayList)type_to_edgelist[t]).IndexOf(e);
           add = (Address)((ArrayList)type_to_addlist[t])[index];
-	  have_con = true;
-	}
-	else {
+          have_con = true;
+        }
+        else {
           index = -1;
-	  add = null;
-	  have_con = false;
-	}
+          add = null;
+          have_con = false;
+        }
       }
       return have_con;
     }
-    
+
     /**
      * Returns the ConnectionType for the given edge
      * @return ConnectionType.Unknown if the edge is not connected
@@ -395,7 +395,7 @@ namespace Brunet
         lock( _sync ) {
           if (edge_to_type.Contains(e))
             ret_val = (ConnectionType) edge_to_type[e];
-	}
+        }
       }
       return ret_val;
     }
@@ -406,15 +406,15 @@ namespace Brunet
      */
     public ArrayList GetAddressesOfType(ConnectionType t)
     {
-     lock( _sync ) {
-      object val = type_to_addlist[t];
-      if( val != null ) {
-        return ArrayList.ReadOnly( (ArrayList) val );
+      lock( _sync ) {
+        object val = type_to_addlist[t];
+        if( val != null ) {
+          return ArrayList.ReadOnly( (ArrayList) val );
+        }
+        else {
+          return null;
+        }
       }
-      else {
-        return null;
-      }
-     }
     }
 
     /**
@@ -423,17 +423,17 @@ namespace Brunet
      */
     public ArrayList GetEdgesOfType(ConnectionType t)
     {
-     lock(_sync) {
-      object val = type_to_edgelist[t];
-      if( val != null ) {
-        return ArrayList.ReadOnly( (ArrayList) val );
+      lock(_sync) {
+        object val = type_to_edgelist[t];
+        if( val != null ) {
+          return ArrayList.ReadOnly( (ArrayList) val );
+        }
+        else {
+          return null;
+        }
       }
-      else {
-        return null;
-      }
-     }
     }
- 
+
     /**
      * Returns a ReadOnly ArrayList of the unconnected edges
      */
@@ -441,7 +441,7 @@ namespace Brunet
     {
       return ArrayList.ReadOnly( unconnected );
     }
-    
+
     /**
      * Returns an edge of a given type at a given index.
      */
@@ -505,11 +505,11 @@ namespace Brunet
      */
     public void Init(ConnectionType t)
     {
-     lock(_sync) {
-      type_to_addlist[t] = ArrayList.Synchronized(new ArrayList());
-      type_to_edgelist[t] = ArrayList.Synchronized(new ArrayList());
-      ta_to_edge[t] = new Hashtable();
-     }
+      lock(_sync) {
+        type_to_addlist[t] = ArrayList.Synchronized(new ArrayList());
+        type_to_edgelist[t] = ArrayList.Synchronized(new ArrayList());
+        ta_to_edge[t] = new Hashtable();
+      }
     }
 
     /**
@@ -521,25 +521,25 @@ namespace Brunet
      */
     public int IndexOf(ConnectionType t, Address a)
     {
-     lock(_sync) {
-      int index = 0;
-      if( Count(t) == 0 ) {
-	//This item would be the first in the list
-        index = ~index;
+      lock(_sync) {
+        int index = 0;
+        if( Count(t) == 0 ) {
+          //This item would be the first in the list
+          index = ~index;
+        }
+        else {
+          //Search for the item
+          /**
+          * @throw an ArgumentNullException (ArgumentException)for the
+          * the BinarySearch.
+          */
+          ArrayList add_list = (ArrayList)type_to_addlist[t];
+          index = add_list.BinarySearch(a, _cmp);
+        }
+        return index;
       }
-      else {
-	//Search for the item
-        /**
-	 * @throw an ArgumentNullException (ArgumentException)for the
-	 * the BinarySearch.
-	 */
-        ArrayList add_list = (ArrayList)type_to_addlist[t];
-        index = add_list.BinarySearch(a, _cmp);
-      }
-      return index;
-     }
     }
-   
+
     /**
      * @param t the ConnectionType
      * @param e the Edge you want to know the index of
@@ -550,7 +550,7 @@ namespace Brunet
     {
       lock ( _sync )  {
         ArrayList edge_list = (ArrayList)type_to_edgelist[t];
-	return edge_list.IndexOf(e);
+        return edge_list.IndexOf(e);
       }
     }
     /**
@@ -565,32 +565,32 @@ namespace Brunet
     public void Lock(Address a, ConnectionType t, object locker)
     {
       if( a == null ) { return; }
-      
+
       lock( _sync ) {
-	Hashtable locks = (Hashtable)_address_locks[t];
+        Hashtable locks = (Hashtable)_address_locks[t];
         if( !locks.ContainsKey(a) ) {
-	  locks[a] = locker;
+          locks[a] = locker;
 #if LOCK_DEBUG
-	  Console.WriteLine("{0}, locker: {1} Locking: {2}", _cmp.Zero,
-			    locker, a);
+          Console.WriteLine("{0}, locker: {1} Locking: {2}", _cmp.Zero,
+                            locker, a);
 #endif
-	  return;
-	}
-	else {
+          return;
+        }
+        else {
 #if LOCK_DEBUG
           Console.WriteLine(
-			  "{0}, {1} tried to lock {2}, but {3} holds the lock",
-			    _cmp.Zero,
-			    locker,
-			    a,
-			    locks[a]);
+            "{0}, {1} tried to lock {2}, but {3} holds the lock",
+            _cmp.Zero,
+            locker,
+            a,
+            locks[a]);
 #endif
-	  throw new System.InvalidOperationException("Could not get lock on: " +
-			                             a.ToString());
-	}
+          throw new System.InvalidOperationException("Could not get lock on: " +
+              a.ToString());
+        }
       }
     }
-   
+
     /**
      * Remove the connection associated with an edge from the table
      * Should only be called by ConnectionOverlord or
@@ -606,47 +606,47 @@ namespace Brunet
       e.CloseEvent -= new EventHandler(this.RemoveHandler);
       lock(_sync) {
         have_con = GetConnection(e, out t, out index, out remote);
-	if( have_con ) 
+        if( have_con )
           Remove(t, index);
-	else
+        else
           unconnected.Remove(e);
       }
       if( have_con ) {
-      /*_log.Info("DisconnectionEvent: address: " + remote.ToString() + 
-		                ", edge: " + e.ToString() +
-				", type: " + t.ToString() +
-				", index: " + index);*/
+        /*_log.Info("DisconnectionEvent: address: " + remote.ToString() +
+                    ", edge: " + e.ToString() +
+        ", type: " + t.ToString() +
+        ", index: " + index);*/
       #if DEBUG
-      System.Console.WriteLine("Remove: DisconnectionEvent: address: " + remote.ToString() + 
-		                ", edge: " + e.ToString() +
-				", type: " + t.ToString() +
-				", index: " + index);    
+        System.Console.WriteLine("Remove: DisconnectionEvent: address: " + remote.ToString() +
+                                 ", edge: " + e.ToString() +
+                                 ", type: " + t.ToString() +
+                                 ", index: " + index);
       #endif
         //Announce the disconnection:
         if( DisconnectionEvent != null )
           DisconnectionEvent(this, new ConnectionEventArgs(remote, e, t, index));
       }
     }
-    
+
     /**
      * Remove an index from the table.
      * @param t ConnectionType of the removed edge
      * @param index index of the removed edge
      */
     protected void Remove(ConnectionType t, int index)
-    { 
-     lock(_sync) {
-      //Get the edge we are removing:
-      Edge e = (Edge)((ArrayList)type_to_edgelist[t])[index];
-      //Remove the edge from the lists:
-      ((ArrayList)type_to_addlist[t]).RemoveAt(index);
-      ((ArrayList)type_to_edgelist[t]).RemoveAt(index);
-      //Remove the edge from the tables:
-      edge_to_add.Remove(e);
-      edge_to_type.Remove(e);
+    {
+      lock(_sync) {
+        //Get the edge we are removing:
+        Edge e = (Edge)((ArrayList)type_to_edgelist[t])[index];
+        //Remove the edge from the lists:
+        ((ArrayList)type_to_addlist[t]).RemoveAt(index);
+        ((ArrayList)type_to_edgelist[t]).RemoveAt(index);
+        //Remove the edge from the tables:
+        edge_to_add.Remove(e);
+        edge_to_type.Remove(e);
 
-      ((Hashtable)ta_to_edge[t]).Remove(e.RemoteTA.ToString());
-     }
+        ((Hashtable)ta_to_edge[t]).Remove(e.RemoteTA.ToString());
+      }
     }
 
     /**
@@ -668,54 +668,54 @@ namespace Brunet
       IDictionaryEnumerator myEnumerator;
       sb.Append("------Begin Table------\n");
       sb.Append("Type : Address Table\n");
-     
-     lock(_sync) {
-      myEnumerator = type_to_addlist.GetEnumerator();
-      while (myEnumerator.MoveNext()) {
-        sb.Append("Type: ");
-        sb.Append(myEnumerator.Key.ToString() + "\n");
-        sb.Append("Address Table:\n");
-        ArrayList t = (ArrayList) myEnumerator.Value;
-        for (int i=0; i<t.Count; i++) {
-        System.Object o = (System.Object)t[i];
-        sb.Append("\t" + i + "---" + o.ToString() + "\n");
+
+      lock(_sync) {
+        myEnumerator = type_to_addlist.GetEnumerator();
+        while (myEnumerator.MoveNext()) {
+          sb.Append("Type: ");
+          sb.Append(myEnumerator.Key.ToString() + "\n");
+          sb.Append("Address Table:\n");
+          ArrayList t = (ArrayList) myEnumerator.Value;
+          for (int i=0; i<t.Count; i++) {
+            System.Object o = (System.Object)t[i];
+            sb.Append("\t" + i + "---" + o.ToString() + "\n");
+          }
+          /*foreach(System.Object o in t) {
+            sb.Append("\t" + o.ToString() + "\n");
+            }*/
         }
-        /*foreach(System.Object o in t) {
-          sb.Append("\t" + o.ToString() + "\n");
-          }*/
-      }
-      sb.Append("\nType : Edge Table\n");
-      myEnumerator = type_to_edgelist.GetEnumerator();
-      while (myEnumerator.MoveNext()) {
-        sb.Append("Type: ");
-        sb.Append(myEnumerator.Key.ToString() + "\n");
-        sb.Append("Edge Table:\n");
-        ArrayList t = (ArrayList) myEnumerator.Value;
-        foreach(System.Object o in t) {
-          sb.Append("\t" + o.ToString() + "\n");
+        sb.Append("\nType : Edge Table\n");
+        myEnumerator = type_to_edgelist.GetEnumerator();
+        while (myEnumerator.MoveNext()) {
+          sb.Append("Type: ");
+          sb.Append(myEnumerator.Key.ToString() + "\n");
+          sb.Append("Edge Table:\n");
+          ArrayList t = (ArrayList) myEnumerator.Value;
+          foreach(System.Object o in t) {
+            sb.Append("\t" + o.ToString() + "\n");
+          }
+        }
+        sb.Append("\nEdge : Address\n");
+        myEnumerator = edge_to_add.GetEnumerator();
+        while (myEnumerator.MoveNext()) {
+          sb.Append("Edge: ");
+          sb.Append(myEnumerator.Key.ToString() + "\n");
+          sb.Append("Address: ");
+          sb.Append(myEnumerator.Value.ToString() + "\n");
+        }
+        sb.Append("\nEdge : Type\n");
+        myEnumerator = edge_to_type.GetEnumerator();
+        while (myEnumerator.MoveNext()) {
+          sb.Append("Edge: ");
+          sb.Append(myEnumerator.Key.ToString() + "\n");
+          sb.Append("Type: ");
+          sb.Append(myEnumerator.Value.ToString() + "\n");
         }
       }
-      sb.Append("\nEdge : Address\n");
-      myEnumerator = edge_to_add.GetEnumerator();
-      while (myEnumerator.MoveNext()) {
-        sb.Append("Edge: ");
-        sb.Append(myEnumerator.Key.ToString() + "\n");
-        sb.Append("Address: ");
-        sb.Append(myEnumerator.Value.ToString() + "\n");
-      }
-      sb.Append("\nEdge : Type\n");
-      myEnumerator = edge_to_type.GetEnumerator();
-      while (myEnumerator.MoveNext()) {
-        sb.Append("Edge: ");
-        sb.Append(myEnumerator.Key.ToString() + "\n");
-        sb.Append("Type: ");
-        sb.Append(myEnumerator.Value.ToString() + "\n");
-      }
-     }
       sb.Append("\n------End of Table------\n\n");
       return sb.ToString();
     }
-    
+
     /**
      * We use this to make sure that two linkers are not
      * working on the same address
@@ -725,126 +725,126 @@ namespace Brunet
      */
     public void Unlock(Address a, ConnectionType t, object locker)
     {
-     if( a != null ) {
+      if( a != null ) {
+        lock( _sync ) {
+          Hashtable locks = (Hashtable)_address_locks[t];
+#if LOCK_DEBUG
+          Console.WriteLine("{0} Unlocking {1}",
+                            _cmp.Zero,
+                            a);
+#endif
+          if( !locks.ContainsKey(a) ) {
+#if LOCK_DEBUG
+            Console.WriteLine("On node " +
+                              _cmp.Zero.ToString() +
+                              ", " + locker.ToString() + " tried to unlock " +
+                              a.ToString() + " but no such lock" );
+
+#endif
+            throw new Exception("On node " +
+                                _cmp.Zero.ToString() +
+                                ", " + locker.ToString() + " tried to unlock " +
+                                a.ToString() + " but no such lock" );
+          }
+          object real_locker = locks[a];
+          if( real_locker != locker ) {
+#if LOCK_DEBUG
+            Console.WriteLine("On node " +
+                              _cmp.Zero.ToString() +
+                              ", " + locker.ToString() + " tried to unlock " +
+                              a.ToString() + " but not the owner" );
+#endif
+
+            throw new Exception("On node " +
+                                _cmp.Zero.ToString() +
+                                ", " + locker.ToString() + " tried to unlock " +
+                                a.ToString() + " but not the owner" );
+          }
+          locks.Remove(a);
+        }
+      }
+    }
+
+    /**
+     * When a new Edge is created by the the Linker or received
+     * by the ConnectionPacketHandler, they tell the ConnectionTable
+     * about it.  It is sort of a null connection.  The ConnectionTable
+     * should still know about all the Edge objects for the Node.
+     *
+     * When a connection is made, there is never a need to remove
+     * unconnected edges.  Either a connection is made (which will
+     * remove the edge from this list) or the edge will be closed
+     * (which will remove the edge from this list).
+     *
+     * @param e the new unconnected Edge
+     */
+    public void AddUnconnected(Edge e)
+    {
+      //System.Console.WriteLine("ADDING EDGE {0} TO UNCONNECTED", e.ToString());
       lock( _sync ) {
-        Hashtable locks = (Hashtable)_address_locks[t];
-#if LOCK_DEBUG
-        Console.WriteLine("{0} Unlocking {1}",
-			    _cmp.Zero,
-			    a);
-#endif
-	if( !locks.ContainsKey(a) ) {
-#if LOCK_DEBUG
-          Console.WriteLine("On node " +
-			     _cmp.Zero.ToString() +
-			     ", " + locker.ToString() + " tried to unlock " +
-			     a.ToString() + " but no such lock" );
-
-#endif
-          throw new Exception("On node " +
-			     _cmp.Zero.ToString() +
-			     ", " + locker.ToString() + " tried to unlock " +
-			     a.ToString() + " but no such lock" );
-	}
-	object real_locker = locks[a];
-	if( real_locker != locker ) {
-#if LOCK_DEBUG
-          Console.WriteLine("On node " +
-			     _cmp.Zero.ToString() +
-			     ", " + locker.ToString() + " tried to unlock " +
-			     a.ToString() + " but not the owner" );
-#endif
-
-          throw new Exception("On node " +
-			     _cmp.Zero.ToString() +
-			     ", " + locker.ToString() + " tried to unlock " +
-			     a.ToString() + " but not the owner" );
-	}
-        locks.Remove(a);
+        unconnected.Add(e);
       }
-     }
+      e.CloseEvent += new EventHandler(this.RemoveHandler);
     }
 
-  /**
-   * When a new Edge is created by the the Linker or received
-   * by the ConnectionPacketHandler, they tell the ConnectionTable
-   * about it.  It is sort of a null connection.  The ConnectionTable
-   * should still know about all the Edge objects for the Node.
-   *
-   * When a connection is made, there is never a need to remove
-   * unconnected edges.  Either a connection is made (which will
-   * remove the edge from this list) or the edge will be closed
-   * (which will remove the edge from this list).
-   *
-   * @param e the new unconnected Edge
-   */
-  public void AddUnconnected(Edge e)
-  {
-    //System.Console.WriteLine("ADDING EDGE {0} TO UNCONNECTED", e.ToString());
-    lock( _sync ) {
-      unconnected.Add(e);
+    /**
+     * @param remote TransportAddress of an edge to check
+     * @return true if there is an edge with this Remote TransportAddress
+     * in the the Unconnected Edge list
+     */
+    public bool IsInUnconnected(TransportAddress remote)
+    {
+      lock ( _sync ) {
+        foreach(Edge nextEdge in unconnected) {
+          // consider upper/lower case
+          if (remote.CompareTo(nextEdge.RemoteTA)==0) return true;
+        }
+      }
+      return false;
     }
-    e.CloseEvent += new EventHandler(this.RemoveHandler);
-  }
-
-  /**
-   * @param remote TransportAddress of an edge to check
-   * @return true if there is an edge with this Remote TransportAddress
-   * in the the Unconnected Edge list
-   */
-  public bool IsInUnconnected(TransportAddress remote)
-  {
-    lock ( _sync ) {
-      foreach(Edge nextEdge in unconnected) {
-        // consider upper/lower case
-        if (remote.CompareTo(nextEdge.RemoteTA)==0) return true;
+    /**
+     * @param edge Edge to check to see if it is an Unconnected Edge
+     * @return true if this edge is an unconnected edge
+     */
+    public bool IsUnconnected(Edge e)
+    {
+      lock( _sync ) {
+        return unconnected.Contains(e);
       }
     }
-    return false;
-  }
-  /**
-   * @param edge Edge to check to see if it is an Unconnected Edge
-   * @return true if this edge is an unconnected edge
-   */
-  public bool IsUnconnected(Edge e)
-  {
-    lock( _sync ) {
-      return unconnected.Contains(e);
-    }
-  }
 
-  public bool IsConnectedToRemoteTA(ConnectionType t, TransportAddress remote)
+    public bool IsConnectedToRemoteTA(ConnectionType t, TransportAddress remote)
     {
-    return ((Hashtable)ta_to_edge[t]).ContainsKey(remote.ToString());
+      return ((Hashtable)ta_to_edge[t]).ContainsKey(remote.ToString());
     }
 
-  public bool ConnectionReserved(ConnectionType t, TransportAddress remote)
-  {
-    return (IsInUnconnected(remote) || IsConnectedToRemoteTA(t,remote));
-  }
-
-  /*public bool ContainsUnconnectedTo(TransportAddress rta)
+    public bool ConnectionReserved(ConnectionType t, TransportAddress remote)
     {
-    return unconnected.ContainsKey(rta.ToString());
-    }*/
+      return (IsInUnconnected(remote) || IsConnectedToRemoteTA(t,remote));
+    }
 
-  public void PrintHashKeys( Hashtable hash ) 
-    { 
-
-    foreach (string s in hash.Keys)
+    /*public bool ContainsUnconnectedTo(TransportAddress rta)
       {
-      Console.WriteLine("{0} = {1}", s, hash[s]);
+      return unconnected.ContainsKey(rta.ToString());
+      }*/
+
+    public void PrintHashKeys( Hashtable hash )
+    {
+
+      foreach (string s in hash.Keys)
+      {
+        Console.WriteLine("{0} = {1}", s, hash[s]);
       }
 
     }
 
-  public void PrintListValues(ArrayList myList)
-  {
-    Console.WriteLine("active connections count: {0}", myList.Count);
-    foreach(object el in myList) {
-      Console.WriteLine(" {0}",el);
+    public void PrintListValues(ArrayList myList)
+    {
+      Console.WriteLine("active connections count: {0}", myList.Count);
+      foreach(object el in myList) {
+        Console.WriteLine(" {0}",el);
+      }
     }
-  }
 
   }
 

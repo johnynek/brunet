@@ -4,33 +4,33 @@ using System.Net;
 namespace Brunet
 {
 
-/**
- * Reads numbers in and out byte arrays
- */
+  /**
+   * Reads numbers in and out byte arrays
+   */
   public class NumberSerializer
   {
 
-  /**
-   * Reads a network endian (MSB) from bin
-   */
+    /**
+     * Reads a network endian (MSB) from bin
+     */
     public static int ReadInt(byte[] bin, int offset)
     {
       int net_val = BitConverter.ToInt32(bin, offset);
       int retval = IPAddress.NetworkToHostOrder(net_val);
-        return retval;
+      return retval;
     }
 
     public static long ReadLong(byte[] bin, int offset)
     {
       long l_val = BitConverter.ToInt64(bin, offset);
       return IPAddress.NetworkToHostOrder(l_val);
-    } 
-    
+    }
+
     public static short ReadShort(byte[] bin, int offset)
     {
       short net_val = BitConverter.ToInt16(bin, offset);
       short retval = IPAddress.NetworkToHostOrder(net_val);
-        return retval;
+      return retval;
     }
 
     /**
@@ -46,14 +46,14 @@ namespace Brunet
       if ( result == -1 ) {
         throw new Exception("Could not read 2 bytes from the stream to read a short");
       }
-      ret_val |= (short)result; 
+      ret_val |= (short)result;
       return ret_val;
     }
-    
+
     public static float ReadFloat(byte[] bin, int offset)
     {
       if (BitConverter.IsLittleEndian) {
-//Console.WriteLine("This machine uses Little Endian processor!");
+        //Console.WriteLine("This machine uses Little Endian processor!");
         byte[] arr = new byte[4];
         for (int i = 0; i < arr.Length; i++)
           arr[i] = bin[offset + arr.Length - 1 - i];
@@ -93,7 +93,7 @@ namespace Brunet
       byte[] arr = BitConverter.GetBytes(nval);
       Array.Copy(arr, 0, target, offset, arr.Length);
     }
-    
+
     public static void WriteFloat(float value, byte[] target,
                                   int offset)
     {

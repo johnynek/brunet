@@ -19,26 +19,26 @@ namespace Brunet
   public interface IRouter
   {
 
-  /**
-   * @return the Type of the Address this router supports 
-   */
+    /**
+     * @return the Type of the Address this router supports 
+     */
     System.Type RoutedAddressType
     {
       get;
-    }
+      }
 
-    ConnectionTable ConnectionTable
-    {
-      set;
-    }
+      ConnectionTable ConnectionTable
+      {
+        set;
+        }
 
-  /**
-   * @param p the AHPacket to route
-   * @param from The edge the packet came from
-   * @param deliverlocally set to true if the local node should Announce it
-   * @return the number of edges the packet it Sent on.
-   */
-    int Route(Edge from, AHPacket p, out bool deliverlocally);
+        /**
+         * @param p the AHPacket to route
+         * @param from The edge the packet came from
+         * @param deliverlocally set to true if the local node should Announce it
+         * @return the number of edges the packet it Sent on.
+         */
+        int Route(Edge from, AHPacket p, out bool deliverlocally);
   }
 
 }

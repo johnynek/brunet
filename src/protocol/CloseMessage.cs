@@ -4,10 +4,10 @@ using Brunet;
 namespace Brunet
 {
 
-/**
- * The close message is sent and acknowledged
- * when a connection is to be closed
- */
+  /**
+   * The close message is sent and acknowledged
+   * when a connection is to be closed
+   */
   public class CloseMessage:ConnectionMessage
   {
 
@@ -28,14 +28,14 @@ namespace Brunet
       //Get the reason:
       _reason = "";
       if( close_element.FirstChild != null )
-	if( close_element.FirstChild.Value != null )
+        if( close_element.FirstChild.Value != null )
           _reason = close_element.FirstChild.Value;
     }
 
     protected string _reason;
     public string Reason {
-      get { return _reason; }
-    } 
+    get { return _reason; }
+    }
     override public void WriteTo(System.Xml.XmlWriter w)
     {
 

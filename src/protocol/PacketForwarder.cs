@@ -22,10 +22,10 @@ namespace Brunet
   public class PacketForwarder:IAHPacketHandler
   {
 
-  /*private static readonly log4net.ILog _log =
-      log4net.LogManager.GetLogger(System.Reflection.MethodBase.
-      GetCurrentMethod().DeclaringType);*/
-	  
+    /*private static readonly log4net.ILog _log =
+        log4net.LogManager.GetLogger(System.Reflection.MethodBase.
+        GetCurrentMethod().DeclaringType);*/
+
     protected Address _local;
 
     public PacketForwarder(Address local)
@@ -33,28 +33,28 @@ namespace Brunet
       _local = local;
     }
 
-  /**
-   * This handles the packet forwarding protocol
-   */
+    /**
+     * This handles the packet forwarding protocol
+     */
     public void HandleAHPacket(object node, AHPacket p, Edge from)
     {
       if (p.Destination.IsUnicast) {
         Node n = (Node) node;
-	AHPacket f_pack = UnwrapPacket(p);
-	/*_log.Info("Forwarding source: " + f_pack.Source.ToString()
-			   + " forwarder: " + _local.ToString()
-			   + " destination: " + f_pack.Destination.ToString()
-			   + " P: " + p.ToString());*/
-	if( f_pack.Source.Equals( _local ) ) {
+        AHPacket f_pack = UnwrapPacket(p);
+        /*_log.Info("Forwarding source: " + f_pack.Source.ToString()
+        		   + " forwarder: " + _local.ToString()
+        		   + " destination: " + f_pack.Destination.ToString()
+        		   + " P: " + p.ToString());*/
+        if( f_pack.Source.Equals( _local ) ) {
           n.Send(f_pack, from);
-	}
-	else {
+        }
+        else {
           //The sender made an incorrect packet:
           //_log.Error("Forwarder: Wrapped Source != Local");
-	}
+        }
       }
       else {
-      //_log.Error("Forward to NONUNICAST address: " + p.Destination.ToString());
+        //_log.Error("Forward to NONUNICAST address: " + p.Destination.ToString());
       }
     }
 
@@ -63,20 +63,20 @@ namespace Brunet
       return (type == AHPacket.Protocol.Forwarding);
     }
 
-  /**
-   * Make forward packet
-   * @param packet_to_wrap the originally, fully constructed packet
-   * @param forwarder the address to send the forward through
-   * @param ttl_to_forwarder the ttl to use to reach the forwarder.
-   *
-   * The source of the resulting packet will be the source from
-   * the packet_to_wrap.  The "next destination" will be the destination
-   * from the packet_to_wrap, and the "next ttl" will be the the ttl
-   * from the packet_to_wrap
-   * 
-   * This wraps a packet which was going A->B, to A->C->B where
-   * C is the forwarder.
-   */
+    /**
+     * Make forward packet
+     * @param packet_to_wrap the originally, fully constructed packet
+     * @param forwarder the address to send the forward through
+     * @param ttl_to_forwarder the ttl to use to reach the forwarder.
+     *
+     * The source of the resulting packet will be the source from
+     * the packet_to_wrap.  The "next destination" will be the destination
+     * from the packet_to_wrap, and the "next ttl" will be the the ttl
+     * from the packet_to_wrap
+     * 
+     * This wraps a packet which was going A->B, to A->C->B where
+     * C is the forwarder.
+     */
     static public AHPacket WrapPacket(Address forwarder,
                                       short ttl_to_forwarder,
                                       AHPacket packet_to_wrap)
@@ -89,19 +89,19 @@ namespace Brunet
       forwarder.CopyTo(whole_packet, offset_to_src_add);
       //Put the whole packet into the payload of a new packet:
       AHPacket result = new AHPacket(0, ttl_to_forwarder,
-		          packet_to_wrap.Source,
-			  forwarder,
-			  AHPacket.Protocol.Forwarding,
-			  whole_packet);
+                                     packet_to_wrap.Source,
+                                     forwarder,
+                                     AHPacket.Protocol.Forwarding,
+                                     whole_packet);
       //System.Console.WriteLine("Result: {0}", result);
       return result;
     }
 
-  /**
-   * @todo make NUnit test for this method
-   * @param p the packet to forward
-   * @return the unwrapped packet
-   */
+    /**
+     * @todo make NUnit test for this method
+     * @param p the packet to forward
+     * @return the unwrapped packet
+     */
     static public AHPacket UnwrapPacket(AHPacket p)
     {
       //System.Console.WriteLine("Packet to Unwrap: {0}", p);

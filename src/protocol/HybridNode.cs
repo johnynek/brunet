@@ -48,13 +48,13 @@ namespace Brunet
       routers.Add(new DirectionalRouter(add));
       routers.Add(new RwpRouter());
       routers.Add(new RwtaRouter());
-        
+
       SetRouters(routers);
 
-    /**
-     * Here are the ConnectionOverlords
-     */ 
-      _connectionoverlords = new Hashtable();  
+      /**
+       * Here are the ConnectionOverlords
+       */ 
+      _connectionoverlords = new Hashtable();
       ConnectionOverlord co = new LeafConnectionOverlord(this);
       _connectionoverlords[ co.ConnectionType ] = co;
       //DEBUG: forget about structured connections for now
@@ -62,90 +62,90 @@ namespace Brunet
       _connectionoverlords[ co.ConnectionType ] = co;
 
       co = new UnstructuredConnectionOverlord(this);
-      _connectionoverlords[ co.ConnectionType ] = co;            
+      _connectionoverlords[ co.ConnectionType ] = co;
 
-    /**
-     * Turn on some protocol support : 
-     */
-/// Turn on Packet Forwarding Support : 
+      /**
+       * Turn on some protocol support : 
+       */
+      /// Turn on Packet Forwarding Support :
       IAHPacketHandler h = new PacketForwarder(add);
-        Subscribe(AHPacket.Protocol.Forwarding, h);
-    /**
-     * Here is how we handle ConnectToMessages : 
-     */
-        h = new CtmRequestHandler();
-        Subscribe(AHPacket.Protocol.Connection, h);
+      Subscribe(AHPacket.Protocol.Forwarding, h);
+      /**
+       * Here is how we handle ConnectToMessages : 
+       */
+      h = new CtmRequestHandler();
+      Subscribe(AHPacket.Protocol.Connection, h);
     }
 
-  /**
-   * Connect to the network.  This informs all the ConnectionOverlord objects
-   * to do their thing.
-   */
-    //ATTENTION: (Debug) To run the connecttester, do the following: 
+    /**
+     * Connect to the network.  This informs all the ConnectionOverlord objects
+     * to do their thing.
+     */
+    //ATTENTION: (Debug) To run the connecttester, do the following:
     override public void Connect()
     {
-        StartAllEdgeListeners();
+      StartAllEdgeListeners();
 
-        lock(_sync) {
+      lock(_sync) {
 	    #if DEBUG
-		Console.WriteLine("I am in DEBUG!!");
-		Console.ReadLine();
-	    ConnectionType t = ConnectionType.Leaf;
-	    LeafConnectionOverlord co = (LeafConnectionOverlord) _connectionoverlords[t];
-            if (co != null) {
-              co.IsActive = true;
-            }
-	    	    
+        Console.WriteLine("I am in DEBUG!!");
+        Console.ReadLine();
+        ConnectionType t = ConnectionType.Leaf;
+        LeafConnectionOverlord co = (LeafConnectionOverlord) _connectionoverlords[t];
+        if (co != null) {
+          co.IsActive = true;
+        }
+
 	    #elif PRODUCTION	
-            //Console.WriteLine("I am in PRODUCTION!!");
-		
-	    //And then, comment out the following up till ***
-	    foreach(ConnectionType t
-                  in System.Enum.GetValues(typeof(ConnectionType)))
-	    {
-              ConnectionOverlord co = (ConnectionOverlord) _connectionoverlords[t];
-              //Make sure we have this kind of ConnectionOverlord
-              if (co != null) {
-                co.IsActive = true;
-              }
-	    }
-	    foreach(ConnectionType t
-                  in System.Enum.GetValues(typeof(ConnectionType)))
-	    {
-              ConnectionOverlord co = (ConnectionOverlord) _connectionoverlords[t];
-              //Make sure we have this kind of ConnectionOverlord
-              if (co != null) {
-                co.Activate();
-              }
-	    }  
+        //Console.WriteLine("I am in PRODUCTION!!");
+
+        //And then, comment out the following up till ***
+        foreach(ConnectionType t
+                in System.Enum.GetValues(typeof(ConnectionType)))
+        {
+          ConnectionOverlord co = (ConnectionOverlord) _connectionoverlords[t];
+          //Make sure we have this kind of ConnectionOverlord
+          if (co != null) {
+            co.IsActive = true;
+          }
+        }
+        foreach(ConnectionType t
+                in System.Enum.GetValues(typeof(ConnectionType)))
+        {
+          ConnectionOverlord co = (ConnectionOverlord) _connectionoverlords[t];
+          //Make sure we have this kind of ConnectionOverlord
+          if (co != null) {
+            co.Activate();
+          }
+        }
 	  #endif
-	}
+      }
     }
-  /**
-   * This informs all the ConnectionOverlord objects
-   * to not respond to loss of edges, then to issue close messages to all the edges
-   * 
-   */
+    /**
+     * This informs all the ConnectionOverlord objects
+     * to not respond to loss of edges, then to issue close messages to all the edges
+     * 
+     */
     override public void Disconnect()
     {
-        lock(_sync) {
-          foreach(ConnectionType t
-                  in System.Enum.GetValues(typeof(ConnectionType))) {
-            ConnectionOverlord co =
-              (ConnectionOverlord) _connectionoverlords[t];
-            //Make sure we have this kind of ConnectionOverlord
-            if (co != null) {
-              co.IsActive = false;
-            }
+      lock(_sync) {
+        foreach(ConnectionType t
+                in System.Enum.GetValues(typeof(ConnectionType))) {
+          ConnectionOverlord co =
+            (ConnectionOverlord) _connectionoverlords[t];
+          //Make sure we have this kind of ConnectionOverlord
+          if (co != null) {
+            co.IsActive = false;
           }
-
-	  // close and remove all edges for the node
-          //ConnectionTable.CloseAllEdges();
-
-          // stop all edge listeners to prevent other nodes
-          // from connecting to us
-          StopAllEdgeListeners();
         }
+
+        // close and remove all edges for the node
+        //ConnectionTable.CloseAllEdges();
+
+        // stop all edge listeners to prevent other nodes
+        // from connecting to us
+        StopAllEdgeListeners();
+      }
     }
   }
 

@@ -6,19 +6,19 @@ using System;
 namespace Brunet
 {
 
- /**
-  * Represents unicast addresses which have a one to
-  * one relationship with Nodes in the Brunet system.
-  * Each node has at most one AHAddress, and each
-  * AHAddress has at most one Node associated with
-  * it.
-  */
+  /**
+   * Represents unicast addresses which have a one to
+   * one relationship with Nodes in the Brunet system.
+   * Each node has at most one AHAddress, and each
+   * AHAddress has at most one Node associated with
+   * it.
+   */
 
   public class AHAddress:Brunet.StructuredAddress
   {
     ///The class of this address type
     public static readonly int _class = 0;
-    
+
     public override int Class
     {
       get
@@ -31,8 +31,8 @@ namespace Brunet
     {
       if (ClassOf(add) != this.Class) {
         throw new System.
-          ArgumentException("This is not an AHAddress (Class 0) :  ",
-                            this.ToString());
+        ArgumentException("This is not an AHAddress (Class 0) :  ",
+                          this.ToString());
       }
     }
 
@@ -40,8 +40,8 @@ namespace Brunet
     {
       if (ClassOf(add,offset) != this.Class) {
         throw new System.
-          ArgumentException("This is not an AHAddress (Class 0) :  ",
-                            this.ToString());
+        ArgumentException("This is not an AHAddress (Class 0) :  ",
+                          this.ToString());
       }
     }
 
@@ -49,8 +49,8 @@ namespace Brunet
     {
       if (ClassOf(buffer) != this.Class) {
         throw new System.
-          ArgumentException("This is not an AHAddress (Class 0) :  ",
-                            this.ToString());
+        ArgumentException("This is not an AHAddress (Class 0) :  ",
+                          this.ToString());
       }
     }
 
@@ -70,7 +70,7 @@ namespace Brunet
         }
       }
       else {
-//If dist < -Address.Half
+        //If dist < -Address.Half
         if (0 > (Address.Half + dist)) {
           dist = dist + AHAddress.Full;
         }

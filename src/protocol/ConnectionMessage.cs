@@ -10,20 +10,20 @@ using System.Xml;
 namespace Brunet
 {
 
-/**
- * A simple request/response protocol for negotiating
- * connections.
- */
+  /**
+   * A simple request/response protocol for negotiating
+   * connections.
+   */
 
   abstract public class ConnectionMessage
   {
 
-  /**
-   * A constructor which reads the data message from
-   * a XmlElement.  This should just be the element
-   * for the message type, not the whole <request />
-   * or <response />
-   */
+    /**
+     * A constructor which reads the data message from
+     * a XmlElement.  This should just be the element
+     * for the message type, not the whole <request />
+     * or <response />
+     */
     public ConnectionMessage(System.Xml.XmlElement encoded)
     {
 
@@ -35,9 +35,9 @@ namespace Brunet
 
     virtual public byte[]  ToByteArray()
     {
-//Here is a buffer to write the connection message into : 
+      //Here is a buffer to write the connection message into :
       MemoryStream s = new MemoryStream(2048);
-      
+
       XmlWriter w =
         new XmlTextWriter(s, new System.Text.UTF8Encoding());
       w.WriteStartDocument();
@@ -50,9 +50,9 @@ namespace Brunet
 
     virtual public ConnectionPacket ToPacket()
     {
-//Here is a buffer to write the connection message into : 
+      //Here is a buffer to write the connection message into :
       MemoryStream s = new MemoryStream(2048);
-//This first byte says it is a ConnectionPacket : 
+      //This first byte says it is a ConnectionPacket :
       s.WriteByte((byte) Packet.ProtType.Connection);
       XmlWriter w =
         new XmlTextWriter(s, new System.Text.UTF8Encoding());
@@ -72,10 +72,10 @@ namespace Brunet
     {
       return System.Text.Encoding.UTF8.GetString( ToByteArray() );
     }
-    
-  /**
-   * Each message should be able to write themselves out
-   */
+
+    /**
+     * Each message should be able to write themselves out
+     */
     virtual public void WriteTo(System.Xml.XmlWriter w)
     {
       string xml_ns = "";
