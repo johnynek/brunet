@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #define POB_DEBUG
+#define TRIM
 
 using System;
 using System.Collections;
@@ -107,33 +108,36 @@ namespace Brunet {
     }
     
     /**
+     * We know a left neighbor from a right neighbor because it is closer
+     * on the left hand side.  Strictly speaking, this is not necessarily true
+     * but for networks greated than size 10 it is very likely:
+     *
+     * The probabililty that there are less than k neighbors on one half of the ring:
+     * \frac{1}{2^N} \sum_{i=0}^{k-1} {N \choose k}
+     * for k=2: (1+N)/(2^N)
+     * For N=10, the probability that a node is in this boat is already ~1/100.  For
+     * N ~ 100 this will never happen in the life of the universe.
+     */
+
+    /**
+     * 
      * @returns true if we have too few left neighbor connections
      */
     protected bool NeedLeftNeighbor {
       get {
-#if false
 	int left = 0;
+	AHAddress local = (AHAddress)_node.Address;
 	lock( _node.ConnectionTable.SyncRoot ) {
           foreach(Connection c in _node.ConnectionTable.GetConnections("structured.near")) {
-            if( LeftPosition((AHAddress) c.Address) < _desired_neighbors ) {
+            AHAddress adr = (AHAddress)c.Address;
+	    if( adr.IsLeftOf( local ) &&
+                (LeftPosition( adr ) < _desired_neighbors) ) {
               //This is left neighbor:
 	      left++; 
 	    }
 	  }
 	}
         return (left < _desired_neighbors);
-#else
-	//There seems to be no good way to be sure that a connection is to the left
-	//or right (especially in small networks).  As such, for now, we just
-	//define the condition of needing neighbors as having less than the total you need:
-        int nears = 0;	
-	lock( _node.ConnectionTable.SyncRoot ) {
-          foreach(Connection c in _node.ConnectionTable.GetConnections("structured.near")) {
-	    nears++; 
-	  }
-	}
-	return (nears < 2 * _desired_neighbors );
-#endif
       }
     }
 
@@ -142,29 +146,19 @@ namespace Brunet {
      */
     protected bool NeedRightNeighbor {
       get {
-#if false
 	int right = 0;
+	AHAddress local = (AHAddress)_node.Address;
 	lock( _node.ConnectionTable.SyncRoot ) {
           foreach(Connection c in _node.ConnectionTable.GetConnections("structured.near")) {
-            if( RightPosition((AHAddress) c.Address) < _desired_neighbors ) {
+            AHAddress adr = (AHAddress)c.Address;
+	    if( adr.IsRightOf( local ) &&
+                (RightPosition( adr ) < _desired_neighbors) ) {
               //This is left neighbor:
 	      right++; 
 	    }
 	  }
 	}
         return (right < _desired_neighbors);
-#else
-	//There seems to be no good way to be sure that a connection is to the left
-	//or right (especially in small networks).  As such, for now, we just
-	//define the condition of needing neighbors as having less than the total you need:
-        int nears = 0;	
-	lock( _node.ConnectionTable.SyncRoot ) {
-          foreach(Connection c in _node.ConnectionTable.GetConnections("structured.near")) {
-	    nears++; 
-	  }
-	}
-	return (nears < 2 * _desired_neighbors );
-#endif
       }
     }
     
@@ -230,7 +224,6 @@ namespace Brunet {
 	}
 	else {
           //We have enough structured connections to ignore the leafs
-#if false
           if( NeedLeftNeighbor ) {
             target = new DirectionalAddress(DirectionalAddress.Direction.Left);
 	    ttl = (short)_desired_neighbors;
@@ -242,7 +235,6 @@ namespace Brunet {
 	    contype = "structured.near";
           }
 	  else 
-#endif
 	    if( NeedShortcut ) {
             target = GetShortcutTarget(); 
 	    ttl = 1024;
@@ -301,7 +293,7 @@ namespace Brunet {
 	      }
 	    }//End of ConnectionTable lock
 
-	    bool sc_needs_trim = (sc_trim_candidates.Count > _desired_shortcuts);
+	    bool sc_needs_trim = (sc_trim_candidates.Count > 2 * _desired_shortcuts);
 	    bool near_needs_trim = (near_trim_candidates.Count > 0);
 	    /*
 	     * Prefer to trim near neighbors that are unneeded, since
