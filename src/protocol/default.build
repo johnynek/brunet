@@ -1,102 +1,139 @@
 <?xml version="1.0"?>
 
-<project name="Brunet" default="build">
-  <property name="assembly" value="Brunet"/>
-  <property name="build.dir" value="build"/>
-  <property name="lib.dir" value="../../lib"/>
-  <property name="build.define" value="TRACE"/>
-  <property name="build.debug" value="false"/>
-  <property name="last.nunit" value=""/>
-  <property name="last.build" value=""/>
+<project
+  name="Brunet"
+  default="build">
 
-  <target name="test" description="Makes a NUnit2 testable build">
-    <if test="${last.nunit != 'test'}">
-      <delete file="${build.dir}/${assembly}.Test.dll" failonerror="false" />
-      <property name="last.nunit" value="test"/>
-    </if>
+  <!-- determine whether the build environment
+       has been already configured -->
+  <ifnot test="${property::exists('configured')}">
+    <property
+      name="configured"
+      value="false"/>
+  </ifnot>
 
-    <mkdir dir="${build.dir}" failonerror="true"/>
+  <!-- default configuration -->
+  <property
+    name="assembly"
+    value="Brunet"/>
+  <property
+    name="package.name"
+    value="${nant.project.name}"
+    unless="${configured}"/>
+  <property
+    name="build.dir"
+    value="${nant.project.basedir}/build"
+    unless="${configured}"/>
+  <property
+    name="lib.dir"
+    value="../../lib"
+    unless="${configured}"/>
+  <property
+    name="project.config"
+    value="debug"
+    unless="${configured}"/>
 
-    <csc target="library" define="BRUNET_NUNIT" output="${build.dir}/${assembly}.Test.dll">
+  <!-- named configurations -->
+  <target
+    name="init"
+    description="Initializes build properties">
+    <call target="${project.config}"/>
+  </target>
+
+  <target
+    name="debug"
+    description="Configures a debug build">
+    <property
+      name="project.config"
+      value="debug"
+      unless="${configured}"/>
+    <property
+      name="build.debug"
+      value="false"
+      unless="${configured}"/>
+    <property
+      name="package.name"
+      value="${nant.project.name}-${project.config}"
+      unless="${configured}"/>
+  </target>
+
+  <target
+    name="release"
+    description="Configures a release build">
+    <property
+      name="project.config"
+      value="release"
+      unless="${configured}"/>
+    <property
+      name="build.debug"
+      value="false"
+      unless="${configured}"/>
+    <property
+      name="package.name"
+      value="${nant.project.name}-${project.config}"
+      unless="${configured}"/>
+  </target>
+
+  <target
+    name="build"
+    depends="init"
+    description="Builds the current configuration">
+    <echo message="Build Directory is ${build.dir}/${package.name}"/>
+    <mkdir
+      dir="${build.dir}/${package.name}/bin"
+      failonerror="false"/>
+
+    <!-- copy libraries -->
+    <copy todir="${build.dir}/${package.name}/bin">
+       <fileset basedir="${lib.dir}">
+          <include name="NUnit.Framework.dll" />
+          <include name="log4net.dll" />
+          <include name="logconfig.xml" />
+       </fileset>
+    </copy>
+
+    <csc
+      target="library"
+      debug="${build.debug}"
+      output="${build.dir}/${package.name}/bin/${assembly}.dll">
       <sources failonempty="true">
-        <include name="Util/*.cs"/>
-        <include name="Transport/*.cs"/>
         <include name="*.cs"/>
       </sources>
+ <!-- 
       <references>
-        <include name="${lib.dir}/NUnit.Framework.dll" />
+        <include name="${build.dir}/${package.name}/bin/log4net.dll" />
       </references>
+ -->
     </csc>
 
+    <!-- finally copy the newly compiled library to the lib directory  -->    
     <copy todir="${lib.dir}">
-      <fileset basedir="${build.dir}">
-          <include name="${assembly}.Test.dll" />
+       <fileset basedir="${build.dir}/${package.name}/bin">
+          <include name="${build.dir}/${package.name}/bin/${assembly}.dll" />
        </fileset>
     </copy>
+
   </target>
 
-  <target name="nunit_test" description="Builds nunit testable Brunet.dll">
-    <if test="${last.nunit != 'nunit_test'}">
-      <delete file="${build.dir}/${assembly}.Test.dll" failonerror="false" />
-      <property name="last.nunit" value="nunit_test"/>
-    </if>
+  <target name="clean"
+    depends="init"
+    description="Deletes the current configuration">
+    <delete
+      dir="${build.dir}/${package.name}"
+      failonerror="false"/>
 
-    <mkdir dir="${build.dir}" failonerror="true"/>
+    <delete
+      file="${lib.dir}/${assembly}.dll"
+      failonerror="false"/>
 
-    <csc target="library" define="BRUNET_NUNIT" optimize="true" output="${build.dir}/${assembly}.Test.dll">
-      <sources>
-        <include name="*.cs"/>
-        <include name="Util/*.cs"/>
-        <include name="Transport/*.cs"/>
-      </sources>
-      <references basedir="${build.dir}">
-        <include name="nunit.framework.dll" />
-      </references>
-    </csc>
-    <nunit2>
-      <formatter type="Plain" />
-      <test assemblyname="${build.dir}/${assembly}.Test.dll"/>
-    </nunit2>
   </target>
 
-  <target name="build_brunet">
-    <mkdir dir="${build.dir}" failonerror="true"/>
-
-    <csc target="library" debug="${build.debug}" define="${build.define}" optimize="true" output="${build.dir}/${assembly}.dll">
-      <sources failonempty="true">
-        <include name="*.cs"/>
-        <include name="Util/*.cs"/>
-        <include name="Transport/*.cs"/>
-      </sources>
-    </csc>
-
-    <copy todir="${lib.dir}">
-       <fileset basedir="${build.dir}">
-          <include name="${assembly}.dll" />
-       </fileset>
-    </copy>
+  <target
+    name="clean-all"
+    description="Deletes all the configurations">
+    <delete
+      dir="${build.dir}"
+      failonerror="false"/>
   </target>
 
-  <target name="build" description="Builds the current configuration">
-    <if test="${last.build != 'build_brunet'}">
-      <delete file="${build.dir}/${assembly}.dll" failonerror="false" />
-      <property name="last.build" value="build_brunet"/>
-    </if>
-
-    <call target="build_brunet"/>
-  </target>
-
-  <target name="simulator" description="Builds a Brunet Simulator!">
-    <if test="${last.build != 'simulator'}">
-      <delete file="${build.dir}/${assembly}.dll" failonerror="false" />
-      <property name="last.build" value="simulator"/>
-    </if>
-
-    <property name="build.define" value="${build.define},BRUNET_SIMULATOR"/>
-    <call target="build_brunet"/>
-  </target>
-
-  <target name="clean" description="Deletes all the configurations">
-    <delete dir="${build.dir}" failonerror="false"/>
-  </target>
 </project>

@@ -81,7 +81,6 @@
           <include name="NUnit.Framework.dll" />
           <include name="log4net.dll" />
           <include name="logconfig.xml" />
-          <include name="${assembly}.dll" />
        </fileset>
     </copy>
 

@@ -1,441 +1,214 @@
 /*
-This program is part of BruNet, a library for the creation of efficient overlay
-networks.
-Copyright (C) 2005  University of California
-Copyright (C) 2007 P. Oscar Boykin <boykin@pobox.com>, University of Florida
+ * Dependencies : 
+ * Brunet.Address;
+ * Brunet.AHPacket
+ * Brunet.CloseMessage
+ * Brunet.ConnectionEventArgs
+ * Brunet.ConnectionPacket
+ * Brunet.ConnectionMessage
+ * Brunet.ConnectionMessageParser
+ * Brunet.ConnectionType
+ * Brunet.ConnectionTable
+ * Brunet.Edge
+ * Brunet.EdgeException
+ * Brunet.LinkMessage
+ * Brunet.Packet
+ * Brunet.ParseException
+ * Brunet.PingMessage
+ * Brunet.TransportAddress
+ * Brunet.ErrorMessage
+ */
 
-This program is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation; either version 2
-of the License, or (at your option) any later version.
+//#define DEBUG
 
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-*/
+//#define POB_LINK_DEBUG
 
 using System;
-using System.Threading;
 using System.Collections;
-using System.Collections.Specialized;
 
 namespace Brunet
 {
 
-  /**
-   * ConnectionPacketHandler handles all the ConnectionPacket objects sent to
-   * the Node.  This includes responding to pings and performing the "incoming"
-   * side of the Link protocol.  The Linker performs the "outgoing" side of the
-   * Link protocol.
-   *
-   * This is an RPC handler for the following methods:
-   *
-   * IDictionary sys:link.Close(IDictionary)
-   * IDictionary sys:link.GetStatus(IDictionary)
-   * object sys:link.Ping(object)
-   * IDictionary sys:link.Start(IDictionary)
-   * 
-   * @see Linker
-   */
+/**
+ * ConnectionPacketHandler handles all the ConnectionPacket objects sent to
+ * the Node.  This includes responding to pings and performing the "incoming"
+ * side of the Link protocol.  The Linker performs the "outgoing" side of the
+ * Link protocol.
+ *
+ * Since ConnectionPacketHandler only responds to ConnectionPacket objects
+ * that it receives, it does not need any timing information.
+ *
+ * IMPORTANT: It is essential that the ConnectionPacketHandler is informed
+ * about all unconnected edges.
+ * 
+ * Also, ConnectionPacketHandler never closes edges unless it is asked to
+ * (with an appropriate CloseMessage).
+ * @see Linker
+ */
 
-  public class ConnectionPacketHandler : IRpcHandler
+  public class ConnectionPacketHandler 
   {
 
-    /*private static readonly log4net.ILog log =
-        log4net.LogManager.GetLogger(System.Reflection.MethodBase.
-        GetCurrentMethod().DeclaringType);*/
+  /*private static readonly log4net.ILog log =
+      log4net.LogManager.GetLogger(System.Reflection.MethodBase.
+      GetCurrentMethod().DeclaringType);*/
 
+    protected Address _local_add;
+    protected ConnectionTable _tab;
+    protected ConnectionMessageParser _cmp;
     /**
      * This is the only stateful object here.  The rest
      * do not need thread synchronization.
      */
-    protected readonly Hashtable _edge_to_cphstate;
-
-    protected readonly Node _node;
-
-    public class CphState : ILinkLocker {
-      public readonly Edge Edge;
-      public readonly LinkMessage LM;
-      protected Address _target_lock;
-      public Object TargetLock {
-        get { return _target_lock; }
-        set { _target_lock = (Address) value; }
-      }
-
-      public CphState(Edge e, LinkMessage lm) {
-        Edge = e;
-        LM = lm;
-      }
-
-      public bool AllowLockTransfer(Address a, string contype, ILinkLocker new_locker) {
-        return false;
-      }
-    }
-
+    protected Hashtable _edge_to_lm;
+    
     /** global lock for thread synchronization */
-    protected readonly object _sync;
-    protected readonly ListDictionary _to_close;
+    protected object _sync;
 
-    //This is true when the node starts to disconnect
-    protected int _disconnecting;
-    /**
-     * You should subscribe this to a Node, with the state being the node
-     * it is subscribed to.  It can work for more than one node
-     * simultaneously.
-     */
-    public ConnectionPacketHandler(Node n)
+  /**
+   * @param add Address of the Node we work for
+   * @param tab ConnectionTable to put new connections into
+   * @param el EdgeListener to listen to new edges from
+   */
+    public ConnectionPacketHandler(Address add, ConnectionTable tab)
     {
       _sync = new object();
-      _edge_to_cphstate = new Hashtable();
-      _node = n;
-      _node.HeartBeatEvent += this.DelayedCloseHandler;
-      _to_close = new ListDictionary();
-      _disconnecting = 0;
-      //When Disconnect is called, set disconnecting to true, disallowing new
-      //connections.
-      _node.DepartureEvent += delegate(object o, EventArgs a) {
-        Interlocked.Exchange(ref _disconnecting, 1);
-      };
-    }
-
-    /**
-     * Handle the notification that the other side is going to close the edge
-     */
-    public IDictionary Close(IDictionary close_message, ISender edge) {
-      Edge from = GetEdge(edge);
-      ConnectionTable tab = _node.ConnectionTable;
-      /**
-       * In order to make sure that we close gracefully, we simply
-       * move this edge to the unconnected list.  The node will
-       * close edges that have been there for some time
-       */
-      Connection c = tab.GetConnection(from);
-      if(ProtocolLog.LinkDebug.Enabled)
-        ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
-          "sys:link.Close on {0} connection: {1}", from, c));
-      tab.Disconnect(from);
-      /** 
-       * Release locks when the close message arrives; do not wait
-       * until the edge actually closes.
-       */
-      CloseHandler(from, null);
-
-      if(ProtocolLog.EdgeClose.Enabled) {
-        String reason = String.Empty;
-        if(close_message.Contains(reason)) {
-          reason = (String) close_message["reason"];
-        }
-        ProtocolLog.Write(ProtocolLog.EdgeClose, String.Format(
-                          "sys:link.Close - " + from + ": " + reason));
-      }
-      /**
-       * Try to close the edge after a small time span:
-       */
-      DateTime to_close = DateTime.UtcNow + new TimeSpan(0,0,0,5,0);
-      lock( _sync ) {
-        _to_close[from] = to_close;
-      }
-      return new ListDictionary();
-    }
-
-    /**
-     * This method looks to see if there are any edges we need to
-     * try to close.  We try this after the other side has asked
-     * up to close an edge (since we don't know if they got our
-     * response or not).
-     */
-    protected void DelayedCloseHandler(object n, EventArgs a) {
-      ArrayList l = null;
-      lock( _sync ) {
-        if( _to_close.Count == 0 ) { return; }
-        l = new ArrayList( _to_close.Count );
-        DateTime now = DateTime.UtcNow;
-        foreach(DictionaryEntry de in _to_close) {
-          DateTime to_close_date = (DateTime)de.Value;
-          Edge e = (Edge)de.Key;
-          if( now > to_close_date ) {
-            l.Add(e);
-          }
-        }
-        foreach(object e in l) {
-          _to_close.Remove(e);
-        }
-      }
-      if( l != null ) {
-        foreach(Edge e in l) {
-          _node.GracefullyClose(e, "CPH, delayed close handler.");
-        }
+      lock(_sync) {
+        _tab = tab;
+        _local_add = add;
+	_edge_to_lm = new Hashtable();
+        _cmp = new ConnectionMessageParser();
+	/*
+	 * Once a connection is made, we need to listen to the packets
+	 * on that connection for close and ping messages.
+	 */
+	_tab.ConnectionEvent += new EventHandler(this.ConnectionHandler);
       }
     }
 
     /**
-     * Return an IDictionary with entries:
-     * self -> my Address
-     * left -> Address of left neighbor
-     * right -> Address of right neighbor
-     * left2 -> Second left neighbor
-     * right2 -> Second right neighbor
+     * This matches the delegate Edge.PacketCallback.
+     * When a ConnectionPacket comes to an Edge, this
+     * method is called.
      *
-     * If the node has any shortcuts:
-     * shortcut -> Random shortcut connection
+     * It is a protected method so that it is clear
+     * that it is connected to the Edge by the
+     * ConnectionPacketHandler, and by no other object.
      */
-    public IDictionary GetNeighbors() {
-      AHAddress self = (AHAddress)_node.Address;
-      IDictionary result = new ListDictionary();
-      //Put it in:
-      result["self"] = self.ToString();
-
-      // if we have no connections, this throws an exception
+    protected void HandlePacket(Packet p, Edge from)
+    {
       try {
-        Connection left = _node.ConnectionTable.GetLeftStructuredNeighborOf(self);
-        if( left != null ) {
-          AHAddress la = (AHAddress)left.Address;
-          result["left"] = la.ToString();
-          Connection left2 = _node.ConnectionTable.GetLeftStructuredNeighborOf(la);
-          if( left2 != null ) {
-            result["left2"] = left2.Address.ToString();
+        ConnectionPacket packet = (ConnectionPacket)p;
+	ConnectionMessage cm = _cmp.Parse(packet);
+	if (cm.Dir == ConnectionMessage.Direction.Request) {
+          ConnectionMessage response = null;
+          if (cm is PingMessage) {
+            /**
+	     * PingMessage objects are used to verify the completion
+	     * of the Link protocol.  If we receive a PingMessage request
+	     * after we send a LinkMessage response, we know the other
+	     * Node got our LinkMessage response, and the connection
+	     * is active
+	     */
+            response = new PingMessage();
+            response.Dir = ConnectionMessage.Direction.Response;
+            response.Id = cm.Id;
+	    //log.Info("Sending Ping response:" + response.ToString());
+            from.Send(response.ToPacket());
+	    
+	    LinkMessage lm_to_add = null;
+	    lock( _sync ) {
+	      if( _edge_to_lm.ContainsKey( from ) ) {
+                //Add the connection:
+		lm_to_add = (LinkMessage)_edge_to_lm[from];
+		//We can forget about this LinkMessage now:
+		_edge_to_lm.Remove(from);
+	      }
+	    }
+	    //Release the lock before calling this function:
+	    if( lm_to_add != null ) {
+	      Console.WriteLine("About to add: {0},{1},{2}",
+			        lm_to_add.ConnectionType, lm_to_add.LocalNode,
+				from );
+              _tab.Add( lm_to_add.ConnectionType, lm_to_add.LocalNode, from );
+	      //Unlock after we add the connection
+	      _tab.Unlock(lm_to_add.LocalNode, lm_to_add.ConnectionType, this);
+	    }
           }
-        }
-      } catch {}
-      // If there are no connections, this throws an exception
-      try {
-        Connection right = _node.ConnectionTable.GetRightStructuredNeighborOf(self);
-        if( right != null ) {
-          AHAddress ra = (AHAddress)right.Address;
-          result["right"] = ra.ToString();
-          Connection right2 = _node.ConnectionTable.GetRightStructuredNeighborOf(ra);
-          if( right2 != null ) {
-            result["right2"] = right2.Address.ToString();
+          else if (cm is CloseMessage) {
+	    /**
+	     * Only Close an Edge when explicitly told
+	     * to do so.  ConnectionPacketHandler never
+	     * does so as a result of a timeout
+	     */
+            response = new CloseMessage();
+            response.Dir = ConnectionMessage.Direction.Response;
+            response.Id = cm.Id;
+            from.Send(response.ToPacket());
+	    /**
+	     * In order to make sure that we close gracefully, we simply
+	     * move this edge to the unconnected list.  The node will
+	     * close edges that have been there for some time
+	     */
+	    if( !_tab.IsUnconnected(from) ) {
+	      _tab.Disconnect(from);
+	    }
           }
-        }
+          else if (cm is LinkMessage) {
+            /**
+	     * When we get a LinkMessage there are three cases:
+	     *
+	     * 1) It is a LinkMessage from an edge that is starting a new Link
+	     * 2) It is a duplicate LinkMessage (due to packet duplication or error).
+	     *
+	     * @todo If the LinkMessage is not the same, send an error response
+	     * We must lock the address in case 1), but not in case 2).
+	     */
+	    LinkMessage lm = (LinkMessage)cm;
+	    ErrorMessage err = null;
+	    lock( _sync ) {
+              if( !_edge_to_lm.ContainsKey( from ) ) {
+		
+	        if( CanConnect(lm, from, out err) ) {
+                  //We can connect, add this LinkMessage to the table
+		  _edge_to_lm[from] = lm;
+		}
+		//We send a response after we drop the lock on _sync
+	      }
+	      else {
+                //Case 2: we have seen a LinkMessage from this edge
+	        /**
+		 * @todo what if this LinkMessage is different than the previous?
+		 */
+	      }
+	    }
+	    //Now we prepare our response
+	    if( err == null ) {
+              //We send a response:
+	      response = new LinkMessage( lm.ConnectionType,
+			                           lm.LocalTA,
+                                                   lm.RemoteTA,
+					           _local_add );
+ 	      response.Id = lm.Id;
+ 	      response.Dir = ConnectionMessage.Direction.Response;
+	    }
+	    else {
+              response = err;
+	    }
+	    //We know what we want to say, just send the response
+	    from.Send( response.ToPacket() );
+	  }
+	}
+	else {
+            /* This is a response, we should never get it */
+            /*log.Error("Got an unexpected ConnectionMessage response"
+              + cm.ToString());*/
+	}
       }
-      catch {}
-      //Get a random shortcut:
-      ArrayList shortcuts = new ArrayList();
-      // If there are no connections, this throws an exception
-      try {
-        foreach(Connection c in _node.ConnectionTable.GetConnections("structured.shortcut") ) {
-          shortcuts.Add(c);
-        }
+      catch(Exception x) {
+        /* Just don't do anything */
+	//log.Error("HandlePacket exception", x);
       }
-      catch {}
-      if( shortcuts.Count > 0 ) {
-        Random r = new Random();
-        Connection sc = (Connection)shortcuts[ r.Next( shortcuts.Count ) ];
-        result["shortcut"] = sc.Address.ToString();
-      }
-      return result;
-    }
-
-    /** Dispatch RPC requests
-     */
-    public void HandleRpc(ISender caller,
-                          string method, IList arguments, object request_state) {
-      object result;
-      switch(method) {
-        case "Ping": //Most common method
-          result = Ping(arguments[0],caller);
-          break;
-        case "Close":
-          result = Close((IDictionary)arguments[0],caller);
-          break;
-        case "GetLocalIPAddresses":
-          result = GetLocalIPAddresses();
-          break;
-        case "GetNeighbors":
-          result = GetNeighbors();
-          break;
-        case "GetStatus":
-          result = GetStatus((IDictionary)arguments[0],caller);
-          break;
-        case "Start":
-          result = Start((IDictionary)arguments[0],caller);
-          break;
-        default:
-          throw new Exception("Unknown method: " + method);
-      }
-      _node.Rpc.SendResult(request_state, result);
-    }
-
-    /**
-     * This starts a linking operation on the given edge
-     */
-    public IDictionary Start(IDictionary link_message, ISender edge) {
-      if(ProtocolLog.LinkDebug.Enabled)
-        ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
-          "{0} -start- sys:link.Start", _node.Address));
-
-      Edge from = GetEdge(edge);
-      LinkMessage lm = new LinkMessage(link_message);
-      if(ProtocolLog.LinkDebug.Enabled)
-        ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
-          "{0} -args- sys:link.Start({1},{2})", _node.Address,lm,from));
-
-      CphState cph = new CphState(from,lm);
-      lock( _sync ) {
-        if( !_edge_to_cphstate.ContainsKey( from ) ) {
-          _edge_to_cphstate[from] = cph;
-        }
-        else {
-          throw new AdrException((int)ErrorMessage.ErrorCode.InProgress,
-                                 "Already have a link in progress on this edge");
-        }
-      }
-      ErrorMessage err = null;
-      if( CanConnect(cph, out err) ) {
-        try {
-          //If the CloseEvent was already called, this throws an exception
-          from.CloseEvent += this.CloseHandler;
-        }
-        catch {
-          CloseHandler(from, null);
-          throw new AdrException((int)ErrorMessage.ErrorCode.EdgeClosed,
-                                      "Edge Closed after receiving message");
-        }
-      }
-      else {
-        lock( _sync ) {
-          _edge_to_cphstate.Remove(from);
-        }
-      }
-      //Now we prepare our response
-      LinkMessage lm_resp = null;
-      if( err == null ) {
-        //We send a response:
-        NodeInfo n_info = NodeInfo.CreateInstance( _node.Address, from.LocalTA );
-        NodeInfo remote_info = NodeInfo.CreateInstance( null, from.RemoteTA );
-        System.Collections.Specialized.StringDictionary attrs =
-                new System.Collections.Specialized.StringDictionary();
-        attrs["type"] = String.Intern( lm.ConTypeString );
-        attrs["realm"] = String.Intern( _node.Realm );
-        lm_resp = new LinkMessage( attrs, n_info, remote_info , lm.Token);
-      }
-      else {
-        if( err.Ec == ErrorMessage.ErrorCode.AlreadyConnected ) {
-          /**
-           * When we send the ErrorCode.AlreadyConnected,
-           * we could have a stale connection, lets try pinging
-           * the other node, if they are there, but have lost
-           * the Edge, this may trigger the edge to close, causing
-           * us to remove the Connection.
-           * @todo consider putting this address on a "fast track"
-           * to removal if we don't hear from it soon
-           */
-          ConnectionTable tab = _node.ConnectionTable;
-          Connection c = tab.GetConnection( lm.ConnectionType,
-                                             lm.Local.Address );
-          if( c != null ) {
-            RpcManager rpc = RpcManager.GetInstance(_node);
-            rpc.Invoke(c.Edge, null, "sys:link.Ping", String.Empty);
-          }
-        }
-      }
-      if( err != null ) {
-        throw new AdrException((int)err.Ec, err.Message);
-      }
-      if(ProtocolLog.LinkDebug.Enabled)
-        ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
-          "{0} -end- sys:link.Start()->{1}", _node.Address,lm_resp));
-      return lm_resp.ToDictionary();
-    }
-
-    /**
-     * This returns the edge for this sender, if it can figure it out
-     */
-    protected Edge GetEdge(ISender s) {
-      if( s is ReqrepManager.ReplyState ) {
-        return GetEdge( ((ReqrepManager.ReplyState) s).ReturnPath );
-      }
-      else {
-        return (Edge)s;
-      }
-    }
-    /**
-     * Get a StatusMessage for this node
-     */
-    public IDictionary GetStatus(IDictionary status_message, ISender edge) {
-      //we just got s status request
-      if( 1 == _disconnecting ) {
-        throw new AdrException((int)ErrorMessage.ErrorCode.Disconnecting, "disconnecting");
-      }
-      StatusMessage sm = new StatusMessage(status_message);
-      Edge from = GetEdge(edge);
-      if(ProtocolLog.LinkDebug.Enabled)
-        ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
-          "{0} -start- sys:link.GetStatus({1},{2})", _node.Address,sm,from));
-      CphState cphstate = (CphState)_edge_to_cphstate[from];
-     /**
-      * StatusMessage objects are used to verify the completion
-      * of the Link protocol.  If we receive a StatusMessage request
-      * after we send a LinkMessage response, we know the other
-      * Node got our LinkMessage response, and the connection
-      * is active
-      */
-      StatusMessage response = null;
-      ConnectionTable tab = _node.ConnectionTable;
-      if (cphstate != null) {
-        try {
-          LinkMessage lm_to_add = cphstate.LM;
-          //This is part of connection process:
-          response = _node.GetStatus( sm.NeighborType, lm_to_add.Local.Address );
-          Connection con = new Connection(from,
-                                        lm_to_add.Local.Address,
-                                        lm_to_add.ConTypeString,
-                                        sm,
-                                        lm_to_add);
-          tab.Add(con);
-        }
-        finally {
-          from.CloseEvent -= this.CloseHandler;
-          CloseHandler(from, null);
-        }
-      } else {
-        //This is just a "regular" status request
-        //update our table:
-        Address fadd = null;
-        Connection c = tab.GetConnection(from);
-        if( c != null ) {
-          fadd = c.Address;
-            tab.UpdateStatus(c, sm);
-        }  
-        response = _node.GetStatus( sm.NeighborType, fadd );
-      }
-      
-      if(ProtocolLog.LinkDebug.Enabled)
-        ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
-          "{0} -end- sys:link.GetStatus()->{1}", _node.Address,response));
-      return response.ToDictionary();
-    }
-
-    /**
-     * This just echos back the object passed to it
-     */
-    public object Ping(object o, ISender edge) {
-      if(ProtocolLog.LinkDebug.Enabled)
-        ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
-          "{0} sys:link.Ping({1},{2})", _node.Address,o,edge));
-      return o;
-    }
-
-    /**
-     * This returns an IList of the Local TAs
-     */
-    public IList GetLocalIPAddresses() {
-      ArrayList lta = new ArrayList();
-      foreach(TransportAddress ta in _node.LocalTAs) {
-        if(ta.TransportAddressType == TransportAddress.TAType.Udp || 
-          ta.TransportAddressType == TransportAddress.TAType.Tcp) {
-          string ip = ((IPTransportAddress) ta).Host;
-          if(!lta.Contains(ip) && !ip.Equals("127.0.0.1"))
-            lta.Add(ip);
-        }
-      }
-      return lta;
     }
 
     /**
@@ -446,96 +219,128 @@ namespace Brunet
      * if we can proceed.
      * If we cannot proceed, it gives an ErrorMessage to send
      * back to the other side.
-     * @param cph The CphState
+     * @param lm LinkMessage received from the other Node
+     * @param from Edge that lm came from
      * @param err ErrorMessage to return.  Is null if there is no error
      * @return true if we can connect, if false, err != null
      */
-    protected bool CanConnect(CphState cph, out ErrorMessage err)
+    protected bool CanConnect(LinkMessage lm, Edge from, out ErrorMessage err)
     {
-      ConnectionTable tab = _node.ConnectionTable;
-      Address local_add = _node.Address;
-      LinkMessage lm = cph.LM;
       err = null;
-      /* We lock the connection table so it doesn't change between
-       * the call to Contains and the call to Lock
-       */
-      if( lm.Attributes["realm"] != _node.Realm ) {
-        err = new ErrorMessage(ErrorMessage.ErrorCode.RealmMismatch,
-                               "We are not in the same realm");
-      }
-      else if( (lm.Remote.Address != null ) && !local_add.Equals( lm.Remote.Address ) ) {
-        /*
-         * They are trying to reach a specific node, but it's not
-         * us
-         */
-        err = new ErrorMessage(ErrorMessage.ErrorCode.TargetMismatch,
-                               String.Format("target is {0}, but reached {1}",
-                                             lm.Remote.Address, local_add));
-      }
-      else if( lm.Local.Address.Equals( local_add ) ) {
-        //You are me!!!
-        err = new ErrorMessage(ErrorMessage.ErrorCode.ConnectToSelf,
-                               "You are me: ");
-      }
-      else if( 1 == _disconnecting ) {
-        err = new ErrorMessage(ErrorMessage.ErrorCode.Disconnecting,
-                               String.Format("I am disconnecting. local: {0}", local_add));
-      }
-      else {
-        /*
-         * Now we go to the ConnectionTable and try to
-         * get a lock on the address so we can go forward
-         * with the linking
-         */
-        try {
-          if(ProtocolLog.LinkDebug.Enabled)
-            ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
-              "ConnectionPacketHandler - Trying to lock connection table: {0},{1}",
-                                  lm.Local.Address, lm.ConTypeString));
-
-          tab.Lock( lm.Local.Address, lm.ConTypeString, cph );
-          if(ProtocolLog.LinkDebug.Enabled)
-            ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
-              "ConnectionPacketHandler - Successfully locked connection table: {0},{1}",
-              lm.Local.Address, lm.ConTypeString));
-        }
-        catch(ConnectionExistsException) {
+      ConnectionType ct = ConnectionType.Unknown;
+      bool have_con = false;
+      lock( _tab.SyncRoot ) {
+	
+	if( _tab.Contains( lm.ConnectionType, lm.LocalNode) ) {
           //We already have a connection of this type to this address
           err = new ErrorMessage(ErrorMessage.ErrorCode.AlreadyConnected,
-                               String.Format("We are already connected: {0}", local_add));
-        }
-        catch(CTLockException) {
-          if(ProtocolLog.LinkDebug.Enabled)
-            ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
-              "ConnectionPacketHandler - Cannot lock connection table: {0},{1}",
-              lm.Local.Address, lm.ConTypeString));
-          //Lock can throw this type of exception
-          err = new ErrorMessage(ErrorMessage.ErrorCode.InProgress,
-                                 "Address: " + lm.Local.Address.ToString() +
-                                 " is locked");
-        }
+	                             "We are already connected");
+	}
+	else if( lm.LocalNode.Equals( _local_add ) ) {
+          //You are me!!!
+          err = new ErrorMessage(ErrorMessage.ErrorCode.AlreadyConnected,
+	                             "You are me");
+	}
+	else {
+          //Everything is looking good:
+	  try {
+            _tab.Lock( lm.LocalNode, lm.ConnectionType, this );
+	    int index;
+	    Address add;
+            have_con = _tab.GetConnection( from, out ct, out index, out add );
+          }
+	  catch(InvalidOperationException iox) {
+            //Lock can throw this type of exception
+            err = new ErrorMessage(ErrorMessage.ErrorCode.AlreadyConnected,
+	                             "Address: " + lm.LocalNode.ToString() +
+				     " is locked");
+          }
+	}
+      } //We can release the lock on the ConnectionTable now
+      if( have_con ) {
+        //We have some kind of connection on this edge
+        if( lm.ConnectionType == ConnectionType.Structured ) {
+	  /**
+	   * Everything else looks good.
+	   * We are promoting to a StructuredConnection.
+	   *
+	   * Steps:
+	   * 1) Disconnect the existing connection
+	   * 2) connect as usual
+	   */
+	    _tab.Disconnect(from);
+	}
+	else {
+          //We need to release the lock we have:
+	  _tab.Unlock( lm.LocalNode, lm.ConnectionType, this );
+          //Cannot promote to types other that structured:
+          err = new ErrorMessage(ErrorMessage.ErrorCode.AlreadyConnected,
+	                           "Cannot promote edge to: "
+				   + lm.ConnectionType.ToString() );
+	}
+      }
+      
+      /* 
+       * We have now checked all the error conditions, go
+       * forward if there was not an error
+       */
+      if( err != null ) {
+        err.Id = lm.Id;
+	err.Dir = ConnectionMessage.Direction.Response;
       }
       return ( err == null );
     }
-
+    
     /**
      * When an Edge closes, we must remove it from out
      * Hashtable.
      * @param edge the Edge that closed
      */
-    public void CloseHandler(object edge, EventArgs args)
+    protected void CloseHandler(object edge, EventArgs args)
     {
-      CphState cphstate = null;
+      LinkMessage lm = null;
       lock(_sync) {
-        cphstate = (CphState)_edge_to_cphstate[edge];
-        if( cphstate != null ) {
-          _edge_to_cphstate.Remove(edge);
-        }
+	if( _edge_to_lm.ContainsKey(edge) ) {
+          lm = (LinkMessage)_edge_to_lm[edge];
+          _edge_to_lm.Remove(edge);
+	}
       }
-      if( cphstate != null ) {
-        ConnectionTable tab = _node.ConnectionTable;
-        tab.Unlock( cphstate.LM.ConTypeString, cphstate );
+      if( lm != null ) {
+        _tab.Unlock( lm.LocalNode, lm.ConnectionType, this );
       }
+    }
+
+    /**
+     * This Handler should be connected to incoming EdgeEvent
+     * events.  If it is not, it cannot hear the new edges.
+     *
+     * When a new edge is created, we make sure we can hear
+     * the packets from it.  Also, we make sure we can hear
+     * the CloseEvent.
+     *
+     * @param edge the new Edge
+     */
+    public void EdgeHandler(object edge, EventArgs args)
+    {
+      Edge e = (Edge)edge;
+      e.SetCallback(Packet.ProtType.Connection,
+		    new Edge.PacketCallback(this.HandlePacket));
+      e.CloseEvent += new EventHandler(this.CloseHandler);
+      _tab.AddUnconnected(e);
+    }
+
+    /**
+     * When there is a new connection happens, this is
+     * how we find out about it.  We need to handle the
+     * connection packets on this edge.
+     */
+    protected void ConnectionHandler(object connectiontable,
+		                     EventArgs args)
+    {
+      Edge e = ((ConnectionEventArgs)args).Edge;
+      e.SetCallback(Packet.ProtType.Connection,
+		            new Edge.PacketCallback(this.HandlePacket));
+      e.CloseEvent += new EventHandler(this.CloseHandler);
     }
   }
 }

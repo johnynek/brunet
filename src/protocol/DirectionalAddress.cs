@@ -1,24 +1,3 @@
-/*
-This program is part of BruNet, a library for the creation of efficient overlay
-networks.
-Copyright (C) 2005  University of California
-Copyright (C) 2007 P. Oscar Boykin <boykin@pobox.com>  University of Florida
-
-This program is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation; either version 2
-of the License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-*/
-
 /**
  * Dependencies
  * Brunet.Address
@@ -36,30 +15,47 @@ namespace Brunet
   public class DirectionalAddress:StructuredAddress
   {
 
-    public DirectionalAddress(MemBlock mb)
+    public DirectionalAddress(byte[] binadd, int offset)
     {
-      if (ClassOf(mb) != this.Class) {
+      if (ClassOf(binadd, offset) != this.Class) {
         throw new System.
-        ArgumentException
-        ("This is not an AHAddress (Class 124) :  ",
-         this.ToString());
+          ArgumentException
+          ("This is not an AHAddress (Class 124) :  ",
+           this.ToString());
       }
-      _buffer = mb;
-      _dir = (Direction) NumberSerializer.ReadInt(mb, 0);
+      _dir = (Direction) NumberSerializer.ReadInt(binadd, offset);
+      
+      buffer = new byte[Address.MemSize];
+      SetClass(this.Class);
+      NumberSerializer.WriteInt((int)_dir, buffer, 0);
     }
-
-    public DirectionalAddress(DirectionalAddress.Direction bearing) : base()
+	  
+    public DirectionalAddress(byte[] binadd)
     {
-      byte[] buffer = new byte[ MemSize ];
-      NumberSerializer.WriteInt((int)bearing, buffer, 0);
-      SetClass(buffer, this.Class);
-      _dir = bearing;
-      _buffer = MemBlock.Reference(buffer, 0, MemSize);
+      if (ClassOf(binadd) != this.Class) {
+        throw new System.
+          ArgumentException
+          ("This is not an AHAddress (Class 124) :  ",
+           this.ToString());
+      }
+//The first 32 bits are an integer which refers to the
+//direction
+      _dir = (Direction) NumberSerializer.ReadInt(binadd, 0);
+      
+      buffer = new byte[Address.MemSize];
+      SetClass(this.Class);
+      NumberSerializer.WriteInt((int)_dir, buffer, 0);
     }
 
-    /**
-     * This is class 124
-     */
+   public DirectionalAddress(DirectionalAddress.Direction bearing) : base()
+   {
+     NumberSerializer.WriteInt((int)bearing, buffer, 0);
+     _dir = bearing;
+   }
+    
+  /**
+   * This is class 124
+   */
     public override int Class
     {
       get
@@ -68,9 +64,9 @@ namespace Brunet
       }
     }
 
-    /**
-     * This class is always unicast
-     */
+  /**
+   * This class is always unicast
+   */
     public override bool IsUnicast
     {
       get
@@ -79,21 +75,21 @@ namespace Brunet
       }
     }
 
-    /**
-     * These are defined in the spec
-     */
-  public enum Direction:int
+  /**
+   * These are defined in the spec
+   */
+    public enum Direction:int
     {
       ///Left is "clockwise", or increasing in numerical address
       Left = 1,
       ///Right is "counterclockwise", or decreasing
-      Right = 2
+      Right = 2 
     }
 
     protected Direction _dir;
-    /**
-     * Use the synonym "Bearing" for the Direction property
-     */
+  /**
+   * Use the synonym "Bearing" for the Direction property
+   */
     public Direction Bearing
     {
       get

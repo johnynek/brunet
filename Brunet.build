@@ -28,7 +28,7 @@
     value="build"/>
   <property
     name="nunit"
-    value="nunit-console"/>
+    value="nunit"/>
  
   <!-- named configurations -->
   <target
@@ -74,30 +74,7 @@
       value="true"/>
 
     <nant buildfile="src/protocol/default.build" />
-    <nant buildfile="src/dht/default.build" />
-    <nant buildfile="src/coordinate/default.build" />
     <nant buildfile="src/apps/default.build" />
-    <nant buildfile="src/xmlrpc/default.build" />
-    <nant buildfile="src/DhtService/default.build" />
-    <nant buildfile="src/BasicNode/default.build" />
-    <nant buildfile="tests/util/default.build" />
-    <nant buildfile="tests/protocol/default.build" />
-
-  </target>
-
-  <target
-    name="recurse-plab-log"
-    description="Builds recursively all subprojects">
-    <property
-      name="configured"
-      value="true"/>
-
-    <nant buildfile="src/protocol/default.build" target="plab-log"/>
-    <nant buildfile="src/apps/default.build" />
-    <nant buildfile="src/dht/default.build" />
-    <nant buildfile="src/coordinate/default.build" />
-    <nant buildfile="tests/util/default.build" />
-    <nant buildfile="tests/protocol/default.build" target="plab-log"/>
 
   </target>
  
@@ -127,16 +104,6 @@
       file="${lib.dir}/${assembly}-TestUtil.dll"
       failonerror="false"/>
 
-  </target>
-
-  <target
-    name="plab-log"
-    depends="init"
-    description="Builds the current configuration">
-    <property
-      name="target"
-      value="build"/>
-    <call target="recurse-plab-log"/>
   </target>
  
   <target
@@ -185,18 +152,6 @@
       value="true"/>
 
     <nant buildfile="tests/protocol/default.build" />   
-
-  </target>
-
-  <target name="plabtest-build"
-          description="make a zip file to be tested with grid-appliance.org system"
-          depends="build">
-    <zip zipfile="basicnode.zip"
-         encoding="utf-8">
-      <fileset basedir="src/BasicNode/build/" prefix="">
-          <include name="*" />
-      </fileset>
-    </zip>
 
   </target>
 

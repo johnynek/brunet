@@ -67,18 +67,18 @@ for file in files:
           print "struct: %i -> %i but not vice-versa" % (node, partner)
     else:
       print "%i has 0 structs" % node
-    #Check that x -> x+1 and x+2:
+    #Check that x -> x+2 and x+4:
     if node in struct_neighbors:
-      target = node + 1;
+      target = node + 2;
       if target > max_node:
-        target = target - max_node - 1 + min_node
+        target = target - max_node
       if target in struct_neighbors[node]:
         pass
       else:
         print "%i -> %i struct missing" % (node, target)
-      target = node + 2;
+      target = node + 4;
       if target > max_node:
-        target = target - max_node - 1 + min_node
+        target = target - max_node
       if target in struct_neighbors[node]:
         pass
       else:

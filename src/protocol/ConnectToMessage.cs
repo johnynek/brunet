@@ -1,206 +1,174 @@
 /*
-This program is part of BruNet, a library for the creation of efficient overlay
-networks.
-Copyright (C) 2005  University of California
-Copyright (C) 2007 P. Oscar Boykin <boykin@pobox.com>  University of Florida
+ * Dependencies : 
+ Brunet.Address
+ Brunet.AddressParser
+ Brunet.ConnectionMessage
+ Brunet.ConnectionType
+ Brunet.TransportAddress
+ */
 
-This program is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation; either version 2
-of the License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-*/
-
+using System.Xml;
 using System.Collections;
-using System.Collections.Specialized;
-#if BRUNET_NUNIT
-using System.Security.Cryptography;
-using NUnit.Framework;
-#endif
 
 namespace Brunet
 {
 
-  /**
-   * The ConnectionMessage that is sent out on the network
-   * to request connections be made to the sender.
-   *
-   * When a Node sends out a ConnectToMessage, it puts
-   * itself as the target.  This is because that node
-   * is requesting that the recipient of the ConnectToMessage
-   * connect to the sender (thus the sender is the target).
-   *
-   * When a node recieves a ConnectToMessage, the CtmRequestHandler
-   * processes the message.  ConnectToMessages are sent by
-   * Connector objects.
-   *
-   * This object is immutable
-   * 
-   * @see CtmRequestHandler
-   * @see Connector
-   */
-  public class ConnectToMessage
+/**
+ * The ConnectionMessage that is sent out on the network
+ * to request connections be made to the sender.
+ *
+ * When a Node sends out a ConnectToMessage, it puts
+ * itself as the target.  This is because that node
+ * is requesting that the recipient of the ConnectToMessage
+ * connect to the sender (thus the sender is the target).
+ *
+ * When a node recieves a ConnectToMessage, the CtmRequestHandler
+ * processes the message.  ConnectToMessages are sent by
+ * Connector objects.
+ *
+ * @see CtmRequestHandler
+ * @see Connector
+ */
+  public class ConnectToMessage:ConnectionMessage
   {
 
+  /**
+   * @param t connection type
+   * @param target the Address of the target node
+   */
+    public ConnectToMessage(ConnectionType t, Address target)
+    {
+      ConnectionType = t;
+      TargetAddress = target;
+    }
     /**
-     * @param t connection type
-     * @param target the Address of the target node
-     * @param token unique token used to associate all connection setup messages
-     *              with each other
+     * Prefer this constructor
+     * @param t ConnectionType for this message
+     * @param target the Address of the Node to connect to
+     * @param tas the TransportAddresses to connect to in order of preference
      */
-    public ConnectToMessage(ConnectionType t, NodeInfo target, string token)
+    public ConnectToMessage(ConnectionType t, Address target, TransportAddress[] tas)
     {
-      _ct = Connection.ConnectionTypeToString(t);
-      _target_ni = target;
-      _neighbors = new NodeInfo[0]; //Make sure this isn't null
-      _token = token;
+      ConnectionType = t;
+      TargetAddress = target;
+      _tas = tas;
     }
-    public ConnectToMessage(string contype, NodeInfo target, string token)
+    /**
+     * This constructor wraps the above constructor
+     * @param t ConnectionType for this message
+     * @param target the Address of the Node to connect to
+     * @param tas the TransportAddresses to connect to in order of preference
+     */
+    public ConnectToMessage(ConnectionType t, Address target, ICollection tas)
     {
-      _ct = contype;
-      _target_ni = target;
-      _neighbors = new NodeInfo[0]; //Make sure this isn't null
-      _token = token;
+      ConnectionType = t;
+      TargetAddress = target;
+      _tas = new TransportAddress[ tas.Count ];
+      tas.CopyTo(_tas, 0);
     }
-    public ConnectToMessage(string contype, NodeInfo target, NodeInfo[] neighbors, string token)
+  /**
+   * Deserializes the ConnectTo element, not the whole <request />
+   * Just the <connectTo /> element
+   */
+    public ConnectToMessage(System.Xml.XmlElement encoded)
     {
-      _ct = contype;
-      _target_ni = target;
-      _neighbors = neighbors;
-      _token = token;
-    }
 
-    public ConnectToMessage(IDictionary ht) {
-      _ct = (string)ht["type"];
-      _target_ni = NodeInfo.CreateInstance((IDictionary)ht["target"]);
-      _token = (string) ht["token"];
-      IList neighht = ht["neighbors"] as IList;
-      if( neighht != null ) {
-        _neighbors = new NodeInfo[ neighht.Count ];
-        for(int i = 0; i < neighht.Count; i++) {
-          _neighbors[i] = NodeInfo.CreateInstance( (IDictionary)neighht[i] );
+      ArrayList ta_list = new ArrayList();
+//Read the attributes of the connectTo
+      foreach(XmlNode attr in((XmlElement) encoded).Attributes)
+      {
+        switch (attr.Name) {
+        case "type":
+          ConnectionType =
+            (ConnectionType) System.Enum.Parse(typeof(ConnectionType),
+                                               attr.FirstChild.Value,
+                                               true);
+          break;
         }
       }
+//Read the children
+      foreach(XmlNode nodes in encoded.ChildNodes)
+      {
+        switch (nodes.Name) {
+        case "node":
+  //The node should have a child text node with
+  //the string
+          foreach(XmlNode sub in nodes.ChildNodes) {
+            if (sub.Name == "address") {
+              TargetAddress =
+                AddressParser.Parse(sub.FirstChild.Value);
+            }
+          }
+          break;
+        case "host":
+          foreach(XmlNode sub in nodes.ChildNodes) {
+            if (sub.Name == "address") {
+              TransportAddress t =
+                new TransportAddress(sub.FirstChild.Value);
+	        ta_list.Add(t);
+            }
+          }
+          break;
+        }
+      }
+      //Now we have all the ta's
+      _tas = (TransportAddress[])ta_list.ToArray(typeof(TransportAddress));
     }
 
-    protected string _ct;
-    public string ConnectionType { get { return _ct; } }
-
-    protected NodeInfo _target_ni;
-    public NodeInfo Target {
-      get { return _target_ni; }
-    }
-    protected NodeInfo[] _neighbors;
-    public NodeInfo[] Neighbors { get { return _neighbors; } }
-    
-    protected string _token;
-    public string Token { get { return _token; } }
-    
-    
-    public override bool Equals(object o)
+    public ConnectToMessage()
     {
-      ConnectToMessage co = o as ConnectToMessage;
-      if( co != null ) {
-        bool same = true;
-	same &= co.ConnectionType == _ct;
-	same &= co.Target.Equals( _target_ni );
-        same &= co.Token.Equals( _token );
-	if( _neighbors == null ) {
-          same &= co.Neighbors == null;
-	}
-	else {
-          int n_count = co.Neighbors.Length;
-	  for(int i = 0; i < n_count; i++) {
-            same &= co.Neighbors[i].Equals( Neighbors[i] );
-	  } 
-	}
-	return same;
-      }
-      else {
-        return false;
-      }
-    }
-    override public int GetHashCode() {
-      return Target.GetHashCode();
     }
 
-    public IDictionary ToDictionary() {
-      ListDictionary ht = new ListDictionary();
-      ht["type"] = _ct;
-      ht["target"] = _target_ni.ToDictionary();
-      ht["token"] = _token;
-      ArrayList neighs = new ArrayList(Neighbors.Length);
-      foreach(NodeInfo ni in Neighbors) {
-        neighs.Add( ni.ToDictionary() );
-      }
-      ht["neighbors"] = neighs;
-      return ht;
-    }
-    
-  }
-//Here are some Unit tests:
-#if BRUNET_NUNIT
-//Here are some NUnit 2 test fixtures
-  [TestFixture]
-  public class ConnectToMessageTester {
+    public ConnectionType ConnectionType;
+  /**
+   * The Address of the node you are connecting to
+   */
+    public Address TargetAddress;
 
-    public ConnectToMessageTester() { }
-    
-    public void HTRoundTrip(ConnectToMessage ctm) {
-      ConnectToMessage ctm2 = new ConnectToMessage( ctm.ToDictionary() );
-      Assert.AreEqual(ctm, ctm2, "CTM HT Roundtrip");
+    protected TransportAddress[] _tas;
+  /**
+   * These are the transport addresses to try to connect to
+   */
+    public TransportAddress[] TransportAddresses {
+      get {
+        return _tas;
+      }
+      set {
+        _tas = value;
+      }
     }
-    [Test]
-    public void CTMSerializationTest()
+
+    public override void WriteTo(XmlWriter w)
     {
-      Address a = new DirectionalAddress(DirectionalAddress.Direction.Left);
-      TransportAddress ta = TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:5000"); 
-      NodeInfo ni = NodeInfo.CreateInstance(a, ta);
+//Write the request or response and id
+      base.WriteTo(w);  //<(request|response)>
 
-      RandomNumberGenerator rng = new RNGCryptoServiceProvider();      
-      AHAddress tmp_add = new AHAddress(rng);
-      ConnectToMessage ctm1 = new ConnectToMessage(ConnectionType.Unstructured, ni, tmp_add.ToString());
-      
-      HTRoundTrip(ctm1);
-
-      //Test multiple tas:
-      ArrayList tas = new ArrayList();
-      tas.Add(ta);
-      for(int i = 5001; i < 5010; i++)
-        tas.Add(TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:" + i.ToString()));
-      NodeInfo ni2 = NodeInfo.CreateInstance(a, tas);
-
-      ConnectToMessage ctm2 = new ConnectToMessage(ConnectionType.Structured, ni2, tmp_add.ToString());
-      HTRoundTrip(ctm2);
-      //Here is a ConnectTo message with a neighbor list:
-      NodeInfo[] neighs = new NodeInfo[5];
-      for(int i = 0; i < 5; i++) {
-	string ta_tmp = "brunet.tcp://127.0.0.1:" + (i+80).ToString();
-        NodeInfo tmp =
-		NodeInfo.CreateInstance(new DirectionalAddress(DirectionalAddress.Direction.Left),
-	                     TransportAddressFactory.CreateInstance(ta_tmp)
-			    );
-	neighs[i] = tmp;
+      string ns = "";
+//Here we write out the specific stuff : 
+      w.WriteStartElement("connectTo", ns);     //<connectTo>
+//Write the attributes : 
+      w.WriteStartAttribute("type", ns);
+      w.WriteString(ConnectionType.ToString().ToLower());
+      w.WriteEndAttribute();
+//Write the child elements
+      w.WriteStartElement("node", ns);  //<node>
+      w.WriteStartElement("address", ns);       //<address>
+      w.WriteString(TargetAddress.ToString());
+      w.WriteEndElement();      //</address>
+      w.WriteEndElement();      //</node>
+//Write all the possible addresses : 
+      w.WriteStartElement("host", ns);  //<host>
+      foreach(TransportAddress ta in _tas) {
+        w.WriteStartElement("address", ns);     //<address>
+        w.WriteString( ta.ToString() );
+        w.WriteEndElement();    //</address>
       }
-      ConnectToMessage ctm3 = new ConnectToMessage("structured", ni, neighs, tmp_add.ToString());
-      HTRoundTrip(ctm3);
-#if false
-      Console.Error.WriteLine( ctm3.ToString() );
-      foreach(NodeInfo tni in ctm3a.Neighbors) {
-        Console.Error.WriteLine(tni.ToString());
-      }
-#endif
+      w.WriteEndElement();      //</host>
+//end the connectTo element
+      w.WriteEndElement();      //</connectTo>
+      w.WriteEndElement();      //</(request|response)>
     }
-  }
 
-#endif
+  }
 
 }
