@@ -140,6 +140,7 @@ namespace Brunet
      * remember it here
      */
     protected Address _target_lock;
+    protected Address _target;
 
     /** global lock for thread synchronization */
     protected object _sync;
@@ -157,16 +158,18 @@ namespace Brunet
     protected readonly int _max_timeouts = 3;
     protected int _timeouts;
     /**
-     * Timeout after 1 second of waiting for a packet.
+     * Timeout after 5 seconds of waiting for a packet.
      */
     protected readonly int _ms_timeout = 5000;
     protected TimeSpan _timeout;
 
     //If we get an ErrorCode.InProgress, we restart after
     //a period of time
-    protected readonly int _ms_restart_time = 1000;
+    protected readonly int _ms_restart_time = 5000;
     protected int _restart_attempts = 4;
     protected DateTime _last_start;
+
+    protected Random _rand;
     
 #if POB_LINK_DEBUG
     private int _lid;
@@ -193,6 +196,7 @@ namespace Brunet
         _id = GetHashCode()
               ^ _local_add.GetHashCode()
               ^ _cmp.GetHashCode();
+        _rand = new Random(_id);
         /* We do not use negative ids, the spec says they
          * are reserved for future use
          */
@@ -236,6 +240,7 @@ namespace Brunet
          * If we cannot set this address as our target, we
          * stop before we even try to make an edge.
          */
+	_target = target;
         SetTarget( target );
         /**
          * TryNext Asynchronously gets an edge, and then begin the
@@ -310,7 +315,13 @@ namespace Brunet
 	  ArrayList neighbors = new ArrayList();
 	  //Get the neighbors of this type:
 	  lock( _tab.SyncRoot ) {
-            foreach(Connection c in _tab.GetConnections( lm.ConTypeString ) ) {
+            /*
+	     * Send the list of all neighbors of this type.
+	     * @todo make sure we are not sending more than
+	     * will fit in a single packet.
+	     */
+            ConnectionType ct = Connection.StringToMainType( lm.ConTypeString );
+            foreach(Connection c in _tab.GetConnections( ct ) ) {
               neighbors.Add( new NodeInfo( c.Address, c.Edge.RemoteTA ) );
 	    }
 	  }	  
@@ -503,14 +514,9 @@ namespace Brunet
     protected void Stop(string log_message)
     {
       Edge e_to_close;
-      try {
+      if ( _target_lock != null ) {
         _tab.Unlock( _target_lock, Connection.StringToMainType(_contype), this );
-      }
-      catch(Exception x) {
-        //We apparantly are not holding this lock
-#if POB_LINK_DEBUG
-      Console.WriteLine("Linker({0}).Stop Exception: {1}",_lid, x);
-#endif
+	_target_lock = null;
       }
       //log.Error(log_message);
       /* Stop the timer */
@@ -608,16 +614,23 @@ namespace Brunet
      */
     protected void RestartLink(object node, EventArgs args)
     {
-      TimeSpan restart_time = new TimeSpan(0,0,0,0,_ms_restart_time);
-      if( DateTime.Now - _last_start > restart_time ) { 
-        Random r = new Random();
-	if ( r.NextDouble() < 0.5 ) {
+      if( _target != null 
+	  && _tab.Contains( Connection.StringToMainType( _contype ), _target) ) {
+        //Looks like we got connected in the mean time, stop now...
+        _local_n.HeartBeatEvent -= new EventHandler(this.RestartLink);
+	Fail("Connected before needed restart");
+      }
+      else {
+        TimeSpan restart_time = new TimeSpan(0,0,0,0,_ms_restart_time);
+        if( DateTime.Now - _last_start > restart_time ) { 
+	  if ( _rand.NextDouble() < 0.5 ) {
 #if POB_LINK_DEBUG
-          Console.WriteLine("restart: about to call Link({0})",_lid);
+            Console.WriteLine("restart: about to call Link({0})",_lid);
 #endif
-          Link( _target_lock, _tas, _contype);
-          _local_n.HeartBeatEvent -= new EventHandler(this.RestartLink);
-	  //Now we are done and their should be
+            Link( _target, _tas, _contype);
+            _local_n.HeartBeatEvent -= new EventHandler(this.RestartLink);
+	    //Now we are done and their should be
+	  }
 	}
       }
     }

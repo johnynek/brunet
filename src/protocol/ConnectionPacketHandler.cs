@@ -145,7 +145,13 @@ namespace Brunet
 	    ArrayList neighbors = new ArrayList();
 	    //Get the neighbors of this type:
 	    lock( _tab.SyncRoot ) {
-	      foreach(Connection c in _tab.GetConnections( sm.NeighborType ) ) {
+	      /*
+	       * Send the whole list of connections of this type.
+	       * @todo make sure we don't send more than will
+	       * fit in a packet.
+	       */
+	      ConnectionType ct = Connection.StringToMainType( sm.NeighborType );
+	      foreach(Connection c in _tab.GetConnections( ct ) ) {
                 neighbors.Add( new NodeInfo( c.Address, c.Edge.RemoteTA ) );
 	      }
 	    }
