@@ -47,6 +47,11 @@
   <target
     name="init"
     description="Initializes build properties">
+    <copy todir="./">
+      <fileset basedir="../../lib/">
+        <include name="*.dll" />
+      </fileset>
+    </copy>
     <call target="${project.config}"/>
   </target>
 

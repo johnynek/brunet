@@ -39,7 +39,7 @@ namespace Brunet
                                       new System.Text.UTF8Encoding());
 
         close.WriteTo(w);
-
+#if false
       LinkMessage link = new LinkMessage();
 
         link.Dir = ConnectionMessage.Direction.Request;
@@ -52,7 +52,6 @@ namespace Brunet
         cm[1] = link;
 
         link.WriteTo(w);
-
       ConnectToMessage ctm = new ConnectToMessage();
         ctm.TargetAddress = new AHAddress(new byte[20]);
 	TransportAddress[] ta = new TransportAddress[2];
@@ -62,6 +61,7 @@ namespace Brunet
         cm[2] = ctm;
 
         ctm.WriteTo(w);
+#endif
 
       PingMessage ping = new PingMessage();
         cm[3] = ping;

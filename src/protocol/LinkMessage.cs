@@ -20,27 +20,21 @@ namespace Brunet
    * addresses are exchanged in order to help nodes
    * identify when they are behind a NAT, which is
    * translating their IP addresses and ports.
+   *
+   *
+   * This class is immutable
    */
 
   public class LinkMessage:ConnectionMessage
   {
 
-    /**
-     * Use this constructor if you prefer to set
-     * each Property using its accessor function
-     */
-    public LinkMessage()
-    {
-
-    }
     public LinkMessage(ConnectionType t,
-                       TransportAddress local,
-                       TransportAddress remote, Address lnode)
+                       NodeInfo local,
+                       NodeInfo remote)
     {
       ConnectionType = t;
-      LocalTA = local;
-      RemoteTA = remote;
-      LocalNode = lnode;
+      _local_ni = local;
+      _remote_ni = remote;
     }
 
     public LinkMessage(System.Xml.XmlElement link_element)
@@ -66,52 +60,37 @@ namespace Brunet
         }
       }
 
-      //Read the addresses
+      //Read the NodeInfo
       foreach(XmlNode nodes in link_element.ChildNodes) {
-        switch (nodes.Name) {
-        case "local":
+        if( nodes.Name == "local") {
           foreach(XmlNode sub in nodes.ChildNodes) {
-            if (sub.Name == "host") {
-              foreach(XmlNode add in sub.ChildNodes) {
-                if (add.Name == "address") {
-                  LocalTA =
-                    new TransportAddress(add.FirstChild.Value);
-                }
-              }
-            }
-            else if (sub.Name == "node") {
-              foreach(XmlNode add in sub.ChildNodes) {
-                if (add.Name == "address") {
-                  LocalNode =
-                    AddressParser.Parse(add.FirstChild.Value);
-                }
-              }
+            if (sub.Name == "node") {
+	      _local_ni = new NodeInfo((XmlElement)sub);
             }
           }
-          break;
-        case "remote":
+	}
+	else if(nodes.Name == "remote") {
           foreach(XmlNode sub in nodes.ChildNodes) {
-            if (sub.Name == "host") {
-              foreach(XmlNode add in sub.ChildNodes) {
-                if (add.Name == "address") {
-                  RemoteTA =
-                    new TransportAddress(add.FirstChild.Value);
-                }
-              }
+            if (sub.Name == "node") {
+	      _remote_ni = new NodeInfo((XmlElement)sub);
             }
           }
-          break;
-        }
+	}
       }
     }
 
     /* These are attributes in the <link/> tag */
     public ConnectionType ConnectionType;
 
-    public TransportAddress LocalTA;
-    public TransportAddress RemoteTA;
+    protected NodeInfo _local_ni;
+    public NodeInfo Local {
+      get { return _local_ni; }
+    }
 
-    public Address LocalNode;
+    protected NodeInfo _remote_ni;
+    public NodeInfo Remote {
+      get { return _remote_ni; } 
+    }
 
     override public void WriteTo(XmlWriter w)
     {
@@ -138,24 +117,11 @@ namespace Brunet
       //@throw InvalidOperationException for all the Write* below
 
       w.WriteStartElement("local", ns); //<local>
-      w.WriteStartElement("host", ns);  //<host>
-      w.WriteStartElement("address", ns);       //<address>
-      w.WriteString(LocalTA.ToString());
-      w.WriteEndElement();      //</address>
-      w.WriteEndElement();      //</host>
-      w.WriteStartElement("node", ns);  //<node>
-      w.WriteStartElement("address", ns);       //<address>
-      w.WriteString(LocalNode.ToString());
-      w.WriteEndElement();      //</address>
-      w.WriteEndElement();      //</node>
+      _local_ni.WriteTo(w);
       w.WriteEndElement();      //</local>
-
+      
       w.WriteStartElement("remote", ns);        //<remote>
-      w.WriteStartElement("host", ns);  //<host>
-      w.WriteStartElement("address", ns);       //<address>
-      w.WriteString(RemoteTA.ToString());
-      w.WriteEndElement();      //</address>
-      w.WriteEndElement();      //</host>
+      _remote_ni.WriteTo(w);
       w.WriteEndElement();      //</remote>
 
       //end of the link element :
@@ -163,5 +129,21 @@ namespace Brunet
       w.WriteEndElement();      //</(request|response)>
     }
   }
+
+#if BRUNET_NUNIT
+//Here are some NUnit 2 test fixtures
+using NUnit.Framework;
+  [TestFixture]
+  public class LinkMessageTester {
+
+    public LinkMessageTester() { }
+
+    [Test]
+    public void SerializationTest() {
+      
+    }
+  }
+
+#endif
 
 }

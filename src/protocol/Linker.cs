@@ -246,7 +246,7 @@ namespace Brunet
           req.Id = _id++;
           req.Dir = ConnectionMessage.Direction.Request;
           lock( _sync ) {
-            Address target = ((LinkMessage) cm).LocalNode;
+            Address target = ((LinkMessage) cm).Local.Address;
             SetTarget( target );
             _peer_link_mes = (LinkMessage) cm;
             _last_sent_packet = req.ToPacket();
@@ -364,7 +364,7 @@ namespace Brunet
         }
 #endif
         /* Announce the connection */
-        _tab.Add(_peer_link_mes.ConnectionType, _peer_link_mes.LocalNode, _e);
+        _tab.Add(_peer_link_mes.ConnectionType, _peer_link_mes.Local.Address, _e);
       }
       catch(Exception x) {
         /* Looks like we could not add the connection */
@@ -580,10 +580,9 @@ namespace Brunet
         e.SetCallback(Packet.ProtType.Connection,
                       new Edge.PacketCallback(this.OutLinkHandler));
         e.CloseEvent += new EventHandler(this.CloseHandler);
-        LinkMessage request = new LinkMessage(_contype,
-                                              e.LocalTA,
-                                              e.RemoteTA,
-                                              _local_add);
+	NodeInfo my_info = new NodeInfo( _local_add, e.LocalTA );
+	NodeInfo remote_info = new NodeInfo( null, e.RemoteTA );
+        LinkMessage request = new LinkMessage( _contype, my_info, remote_info );
         request.Dir = ConnectionMessage.Direction.Request;
         request.Id = _id++;
 #if POB_LINK_DEBUG
