@@ -145,11 +145,10 @@ namespace Brunet
 	    ArrayList neighbors = new ArrayList();
 	    //Get the neighbors of this type:
 	    lock( _tab.SyncRoot ) {
-	      ArrayList edges = _tab.GetEdgesOfType(sm.NeighborType);
-	      ArrayList adds = _tab.GetAddressesOfType(sm.NeighborType);
-	      for(int i = 0; i < adds.Count; i++) {
-	        neighbors.Add( new NodeInfo( (Address)adds[i],
-					     ((Edge)edges[i]).RemoteTA ) );
+	      foreach(Connection c in _tab) {
+		if( c.Ct == sm.NeighborType ) {
+                  neighbors.Add( new NodeInfo( c.Address, c.Edge.RemoteTA ) );
+		}
 	      }
 	    }
 	    response = new StatusMessage(sm.NeighborType, neighbors);
@@ -173,7 +172,11 @@ namespace Brunet
                                 lm_to_add.ConnectionType,
 				lm_to_add.Local.Address,
                                 from );
-              _tab.Add( lm_to_add.ConnectionType, lm_to_add.Local.Address, from );
+	      Connection con = new Connection(from,
+			                      lm_to_add.Local.Address,
+					      lm_to_add.ConnectionType,
+					      sm);
+	      _tab.Add(con);
               //Unlock after we add the connection
               _tab.Unlock(lm_to_add.Local.Address, lm_to_add.ConnectionType, this);
             }

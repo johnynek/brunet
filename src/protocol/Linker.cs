@@ -108,6 +108,12 @@ namespace Brunet
         return _e;
       }
     }
+    protected Connection _con;
+    /**
+     * This is the Connection established by this Linker
+     */
+    public Connection Connection { get { return _con; } }
+    
     protected bool _is_finished;
     public bool IsFinished
     {
@@ -299,11 +305,10 @@ namespace Brunet
 	  ArrayList neighbors = new ArrayList();
 	  //Get the neighbors of this type:
 	  lock( _tab.SyncRoot ) {
-	    ArrayList edges = _tab.GetEdgesOfType(lm.ConnectionType);
-	    ArrayList adds = _tab.GetAddressesOfType(lm.ConnectionType);
-	    for(int i = 0; i < adds.Count; i++) {
-	      neighbors.Add( new NodeInfo( (Address)adds[i],
-					     ((Edge)edges[i]).RemoteTA ) );
+            foreach(Connection c in _tab) {
+              if( c.Ct == lm.ConnectionType ) {
+                neighbors.Add( new NodeInfo( c.Address, c.Edge.RemoteTA ) );
+	      }
 	    }
 	  }	  
           StatusMessage req = new StatusMessage( lm.ConnectionType, neighbors );
@@ -330,6 +335,9 @@ namespace Brunet
              * Once we get a StatusMessage response we know that
              * the recipient has seen our ping, we Succeed 
              */
+	    _con = new Connection(edge, _peer_link_mes.Local.Address,
+			              _peer_link_mes.ConnectionType,
+				      (StatusMessage)cm);
             Succeed();
 	    return;
 	  }
@@ -464,7 +472,8 @@ namespace Brunet
         }
 #endif
         /* Announce the connection */
-        _tab.Add(_peer_link_mes.ConnectionType, _peer_link_mes.Local.Address, _e);
+	_tab.Add(_con);
+        //_tab.Add(_peer_link_mes.ConnectionType, _peer_link_mes.Local.Address, _e);
       }
       catch(Exception x) {
         /* Looks like we could not add the connection */

@@ -32,6 +32,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define KML_DEBUG
 //#define LOCK_DEBUG
 
+
 #if BRUNET_NUNIT
 using NUnit.Framework;
 #endif
@@ -89,8 +90,6 @@ namespace Brunet
     protected Hashtable edge_to_type;
 
     protected ArrayList unconnected;
-
-    protected Hashtable ta_to_edge;
 
     /**
      * These are the addresses we are trying to connect to.
@@ -180,9 +179,6 @@ namespace Brunet
           _address_locks[t] = new Hashtable();
         }
 
-        // retrieve an edge by its remote ta. the local address is the same for all edges in this table
-        ta_to_edge = new Hashtable();
-
         // init all--it is safer to do it this way and avoid null pointer exceptions
 
 	foreach(ConnectionType t in Enum.GetValues(typeof(ConnectionType)) ) {
@@ -213,8 +209,10 @@ namespace Brunet
      * the ConnectionTable will react properly
      * 
      * @return the index we insert to
+     *
+     * @deprecated 
      */
-    public int Add(ConnectionType t,
+    protected int Add(ConnectionType t,
                    Address a,
                    Edge e)
     {
@@ -238,7 +236,6 @@ namespace Brunet
         edge_to_add[e] = a;
         edge_to_type[e] = t;
 
-        ((Hashtable)ta_to_edge[t]).Add(e.RemoteTA.ToString(),e);
       } /* we release the lock */
 
       //Now that we have registered the new CloseEvent handler,
@@ -286,6 +283,15 @@ namespace Brunet
       return index;
     }
 
+    /**
+     * Add a connection to the ConnectionTable
+     *
+     * This sends a ConnectionEvent
+     */
+    public void Add(Connection c)
+    {
+      Add(c.Ct, c.Address, c.Edge);
+    }
 
     /**
      * This function is to check if a given address of a given type
@@ -372,17 +378,6 @@ namespace Brunet
         return unconnected.Count;
       }
     }
-
-    /**
-     * Returns the Address associated with this Edge
-     */
-    public Address GetAddressFor(Edge e)
-    {
-      lock( _sync ) {
-        return (Address) edge_to_add[e];
-      }
-    }
-
     /**
      * Required for IEnumerable Interface
      */
@@ -460,7 +455,6 @@ namespace Brunet
         e = (Edge)((ArrayList)type_to_edgelist[t])[index];
       }
     }
-
     /**
      * @param e Edge to check for a connection
      * @param t the ConnectionType of the Edge if there is a connection
@@ -472,13 +466,14 @@ namespace Brunet
     {
       bool have_con = false;
       lock( _sync ) {
-        t = GetConnectionType(e);
-        if( t != ConnectionType.Unknown ) {
+        if (edge_to_type.Contains(e)) {
+          t = (ConnectionType) edge_to_type[e];
           index = ((ArrayList)type_to_edgelist[t]).IndexOf(e);
           add = (Address)((ArrayList)type_to_addlist[t])[index];
           have_con = true;
         }
         else {
+          t = ConnectionType.Unknown;
           index = -1;
           add = null;
           have_con = false;
@@ -486,7 +481,6 @@ namespace Brunet
       }
       return have_con;
     }
-
     /**
      * Returns a Connection for the given edge:
      * @return Connection
@@ -503,40 +497,6 @@ namespace Brunet
         return null;
       }
     }
-
-    /**
-     * Returns the ConnectionType for the given edge
-     * @return ConnectionType.Unknown if the edge is not connected
-     */
-    public ConnectionType GetConnectionType(Edge e)
-    {
-      ConnectionType ret_val = ConnectionType.Unknown;
-      if( e != null ) {
-        lock( _sync ) {
-          if (edge_to_type.Contains(e))
-            ret_val = (ConnectionType) edge_to_type[e];
-        }
-      }
-      return ret_val;
-    }
-
-    /**
-     * Returns a ReadOnly ArrayList of addresses of a given
-     * type
-     */
-    public ArrayList GetAddressesOfType(ConnectionType t)
-    {
-      lock( _sync ) {
-        object val = type_to_addlist[t];
-        if( val != null ) {
-          return ArrayList.ReadOnly( (ArrayList) val );
-        }
-        else {
-          return null;
-        }
-      }
-    }
-
     /**
      * Returns a ReadOnly ArrayList of the edges of a given
      * type
@@ -555,37 +515,11 @@ namespace Brunet
     }
 
     /**
-     * Returns a ReadOnly ArrayList of the unconnected edges
+     * Returns an IEnumerable of the unconnected edges
      */
-    public ArrayList GetUnconnectedEdges()
+    public IEnumerable GetUnconnectedEdges()
     {
-      return ArrayList.ReadOnly( unconnected );
-    }
-
-    /**
-     * Returns an edge of a given type at a given index.
-     */
-    public Edge GetEdgeTypeAt(ConnectionType t, int position)
-    {
-      // do not check for null because type_to_edgelist should
-      // be initialized for all edgetypes. this should improve
-      // the performance of the router code.
-      lock(_sync) {
-        return (Edge)((ArrayList)type_to_edgelist[t])[position];
-      }
-    }
-
-    /**
-     * Returns an unstructured edge at a given index.
-     */
-    public Edge GetUnstructuredEdgeAt(int position)
-    {
-      // do not check for null because type_to_edgelist should
-      // be initialized for all edgetypes. this should improve
-      // the performance of the router code.
-      lock(_sync) {
-        return (Edge)((ArrayList)type_to_edgelist[ConnectionType.Unstructured])[position];
-      }
+      return unconnected;
     }
 
     /**
@@ -628,7 +562,6 @@ namespace Brunet
       lock(_sync) {
         type_to_addlist[t] = ArrayList.Synchronized(new ArrayList());
         type_to_edgelist[t] = ArrayList.Synchronized(new ArrayList());
-        ta_to_edge[t] = new Hashtable();
       }
     }
 
@@ -657,20 +590,6 @@ namespace Brunet
           index = add_list.BinarySearch(a, _cmp);
         }
         return index;
-      }
-    }
-
-    /**
-     * @param t the ConnectionType
-     * @param e the Edge you want to know the index of
-     * @return the index.  If it equals -1, the edge is
-     * not of this type
-     */
-    public int IndexOf(ConnectionType t, Edge e)
-    {
-      lock ( _sync )  {
-        ArrayList edge_list = (ArrayList)type_to_edgelist[t];
-        return edge_list.IndexOf(e);
       }
     }
     /**
@@ -775,7 +694,6 @@ namespace Brunet
         edge_to_add.Remove(e);
         edge_to_type.Remove(e);
 
-        ((Hashtable)ta_to_edge[t]).Remove(e.RemoteTA.ToString());
       }
     }
 
@@ -916,22 +834,6 @@ namespace Brunet
       }
       e.CloseEvent += new EventHandler(this.RemoveHandler);
     }
-
-    /**
-     * @param remote TransportAddress of an edge to check
-     * @return true if there is an edge with this Remote TransportAddress
-     * in the the Unconnected Edge list
-     */
-    public bool IsInUnconnected(TransportAddress remote)
-    {
-      lock ( _sync ) {
-        foreach(Edge nextEdge in unconnected) {
-          // consider upper/lower case
-          if (remote.CompareTo(nextEdge.RemoteTA)==0) return true;
-        }
-      }
-      return false;
-    }
     /**
      * @param edge Edge to check to see if it is an Unconnected Edge
      * @return true if this edge is an unconnected edge
@@ -942,22 +844,6 @@ namespace Brunet
         return unconnected.Contains(e);
       }
     }
-
-    public bool IsConnectedToRemoteTA(ConnectionType t, TransportAddress remote)
-    {
-      return ((Hashtable)ta_to_edge[t]).ContainsKey(remote.ToString());
-    }
-
-    public bool ConnectionReserved(ConnectionType t, TransportAddress remote)
-    {
-      return (IsInUnconnected(remote) || IsConnectedToRemoteTA(t,remote));
-    }
-
-    /*public bool ContainsUnconnectedTo(TransportAddress rta)
-      {
-      return unconnected.ContainsKey(rta.ToString());
-      }*/
-
     public void PrintHashKeys( Hashtable hash )
     {
 
@@ -1041,8 +927,8 @@ namespace Brunet
       AHAddress a2 = new AHAddress(buf2); 
       ConnectionTable tab = new ConnectionTable();
       
-      tab.Add(ConnectionType.Structured, a1, e1);
-      tab.Add(ConnectionType.StructuredNear, a2, e2);
+      tab.Add(new Connection(e1, a1, ConnectionType.Structured, null));
+      tab.Add(new Connection(e2, a2, ConnectionType.StructuredNear, null));
 
       Assert.AreEqual(tab.TotalCount, 2);
       Assert.AreEqual(tab.Count(ConnectionType.Structured) , 1);
