@@ -41,9 +41,10 @@ namespace Brunet
          private static readonly ILog log =
 		 LogManager.GetLogger(typeof(BootStrapTester));
 		 */
-    BootStrapTester(ArrayList nodes)
+    BootStrapTester(ArrayList adds, ArrayList nodes)
     {
       _node_list = nodes;
+      _sorted_adds = adds;
       lock(this) {
         foreach(Node n in _node_list) {
           //When the tables change, we want to know about it.
@@ -55,6 +56,7 @@ namespace Brunet
 
     public int _idx = 0;
     
+    private ArrayList _sorted_adds;
     /* holds all the nodes */
     private ArrayList _node_list;
     public ArrayList NodeList {
@@ -70,12 +72,12 @@ namespace Brunet
         _idx++;
        // if( _idx % 20 == 0 ) { 
 	      //Only print every 20'th change.  This is a hack...
-          ToDotFile(_node_list, _idx);
+          ToDotFile(_sorted_adds, _node_list, _idx);
         //}
       }
     }
     
-    static void ToDotFile(ArrayList node_list, int index)
+    static void ToDotFile(ArrayList all_adds, ArrayList node_list, int index)
     {
       string file_name = string.Format("BootGraph_{0:000000}",index); 
       StreamWriter sw = File.CreateText(file_name);
@@ -84,18 +86,6 @@ namespace Brunet
       sw.WriteLine("graph [bb=\"0,0,800,800\"];");
       Process dot_proc;
       
-      AHAddress add = new AHAddress(new BigInteger(0));
-      ArrayList all_adds = new ArrayList();
-      AHAddressComparer cmp = new AHAddressComparer(add);
-      foreach( Node item in node_list)
-      {
-        int ins_index = all_adds.BinarySearch(item.Address, cmp);
-        if (ins_index < 0)
-        {
-	        ins_index = ~ins_index;
-          all_adds.Insert(ins_index,item.Address);
-        }
-      }
       double nodesize = .50;
       int canvassize = 576;
       double r = (double)canvassize/2.0 - 1.0 -36.0*nodesize;
@@ -114,15 +104,20 @@ namespace Brunet
          theta = (double)(4*(position))*phi;
          ringlayoutx = c + (int)(r*Math.Sin(theta));
          ringlayouty = c - (int)(r*Math.Cos(theta));
+	 
+	 //Find the index of this address:
+	 int idx = all_adds.IndexOf( item );
 
          string node_line = 
            String.Format("{0} [pos=\"{1:D},{2:D}\", width=\"{3:F2}\",height=\"{4:F2}\"];",
-                item.ToBigInteger().IntValue(),
+                //item.ToBigInteger().IntValue(),
+		idx,
                 ringlayoutx,
                 ringlayouty,
                 nodesize,
                 nodesize);
           sw.WriteLine(node_line);
+	  sw.WriteLine("//{0} = {1}",idx, item);
          position++;
       }
       
@@ -131,7 +126,9 @@ namespace Brunet
         lock( item.ConnectionTable.SyncRoot ) {
 
           string color = "";
+	  int item_idx = all_adds.IndexOf( item.Address );
           foreach(Connection con in item.ConnectionTable) {
+	    int con_idx = all_adds.IndexOf( con.Address );
             if( con.MainType == ConnectionType.Leaf ) {
               color = " [color= blue]";
 	    }
@@ -139,8 +136,11 @@ namespace Brunet
               color = " [color= red]";
 	    }
             string graph_line = String.Format("{0} -> {1}" + color + ";",
-                item.Address.ToBigInteger().IntValue(),
-                con.Address.ToBigInteger().IntValue() );
+                //item.Address.ToBigInteger().IntValue(),
+                //con.Address.ToBigInteger().IntValue()
+		item_idx,
+		con_idx
+		);
             sw.WriteLine(graph_line);
 	    
 	  }
@@ -180,7 +180,6 @@ namespace Brunet
   static void Main(string[] args)  
   {
    
-    ArrayList node_list = new ArrayList();
     ArrayList all_ta_list = new ArrayList();  
     Random my_rand = new Random( unchecked((int)DateTime.Now.Ticks) ); 
     
@@ -195,6 +194,8 @@ namespace Brunet
     if( args.Length > 1 ) {
       net_type = args[1];
     }
+    ArrayList adds = new ArrayList();
+    Hashtable add_to_node = new Hashtable();
     
     for (int loop=0;loop<net_size;loop++)
     {
@@ -202,12 +203,17 @@ namespace Brunet
       //create one new node for each host
       //Set the last bit to be zero so it will be class 0
       
-      //byte[] address = new byte[Address.MemSize];
-      //my_rand.NextBytes(address);
-      //address[Address.MemSize - 1] &= 0xFE;
-      //Node tmp_node = new StructuredNode(new AHAddress(address));
-      long small_add = 2*(loop+1);
-      Node tmp_node = new StructuredNode(new AHAddress( new BigInteger(small_add)) );
+      byte[] address = new byte[Address.MemSize];
+      my_rand.NextBytes(address);
+      address[Address.MemSize - 1] &= 0xFE;
+      AHAddress tmp_add = new AHAddress(address);
+      Node tmp_node = new StructuredNode(tmp_add);
+      
+      adds.Add(tmp_add);
+      add_to_node[tmp_add] = tmp_node;
+      
+      //long small_add = 2*(loop+1);
+      //Node tmp_node = new StructuredNode(new AHAddress( new BigInteger(small_add)) );
       switch(net_type) {
         case "tcp":
 		tmp_node.AddEdgeListener(new TcpEdgeListener(port+loop));
@@ -247,11 +253,16 @@ namespace Brunet
           tmp_node.RemoteTAs.Add(this_ta);
           }
       }
-      node_list.Add(tmp_node);
+    }
+    //Now sort the address list and make a list of nodes in that order:
+    adds.Sort(new AHAddressComparer());
+    ArrayList node_list = new ArrayList();
+    foreach(AHAddress addr in adds) {
+      node_list.Add( add_to_node[addr] );
     }
     
     //This logs the changes in connection table
-    BootStrapTester bst = new BootStrapTester(node_list);
+    BootStrapTester bst = new BootStrapTester(adds, node_list);
 
     //Get Connected:
     foreach( Node item in node_list)
