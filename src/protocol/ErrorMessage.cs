@@ -118,8 +118,16 @@ namespace Brunet
 
   public enum ErrorCode : int
     {
+      ErrorAck = 0, //Used to acknowledge an error request message.
       UnexpectedRequest = 1,
-      AlreadyConnected = 18
+      UnknownConnectionType = 2,
+      ConnectToSelf = 16,
+      InProgress = 17, //When we are in the process of connecting, don't allow a second
+                       //from the same node.
+      AlreadyConnected = 18,
+      BadXml = 2000,
+      SpecViolation = 2001,
+      UnknownConnectionMessage = 2002
     }
 
     protected ErrorCode _ec;

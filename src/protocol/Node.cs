@@ -419,7 +419,7 @@ namespace Brunet
             //This is a request, we did not expect this
             ErrorMessage error_message =
               new ErrorMessage(ErrorMessage.ErrorCode.UnexpectedRequest,
-                               "Expected Close Response");
+                               "Got Expected Response");
             error_message.Id = cm.Id;
             error_message.Dir = ConnectionMessage.Direction.Response;
             from.Send( error_message.ToPacket() );

@@ -260,7 +260,7 @@ namespace Brunet
         }
         else if( lm.Local.Address.Equals( _local_add ) ) {
           //You are me!!!
-          err = new ErrorMessage(ErrorMessage.ErrorCode.AlreadyConnected,
+          err = new ErrorMessage(ErrorMessage.ErrorCode.ConnectToSelf,
                                  "You are me");
         }
         else {
@@ -273,13 +273,14 @@ namespace Brunet
           }
           catch(InvalidOperationException iox) {
             //Lock can throw this type of exception
-            err = new ErrorMessage(ErrorMessage.ErrorCode.AlreadyConnected,
+            err = new ErrorMessage(ErrorMessage.ErrorCode.InProgress,
                                    "Address: " + lm.Local.Address.ToString() +
                                    " is locked");
           }
         }
       } //We can release the lock on the ConnectionTable now
       if( have_con ) {
+	 ///@todo remove Edge promotion.  This is a dead concept.
         //We have some kind of connection on this edge
         if( lm.ConnectionType == ConnectionType.Structured ) {
           /**
