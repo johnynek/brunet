@@ -138,6 +138,7 @@ namespace Brunet
                            null, _heart_period, _heart_period);
         //Check the edges from time to time
         this.HeartBeatEvent += new EventHandler(this.CheckEdgesCallback);
+        _last_edge_check = DateTime.Now;
       }
     }
 
@@ -255,9 +256,10 @@ namespace Brunet
     public int HeartPeriod { get { return _heart_period; } }
 
     ///If we don't hear anything from a *CONNECTION* in this time, ping it.
-    static protected readonly TimeSpan _connection_timeout = new TimeSpan(0,0,0,0,15000);
-    ///If we don't hear anything from any *EDGE* in this time, close it.
-    static protected readonly TimeSpan _edge_close_timeout = new TimeSpan(0,0,0,0,60000);
+    static protected readonly TimeSpan _connection_timeout = new TimeSpan(0,0,0,0,30000);
+    ///If we don't hear anything from any *EDGE* in this time, close it, 4 minutes is now
+    ///the close timeout
+    static protected readonly TimeSpan _edge_close_timeout = new TimeSpan(0,0,0,0,240000);
     ///The DateTime that we last checked the edges.  @see CheckEdgesCallback
     protected DateTime _last_edge_check;
 
@@ -535,21 +537,19 @@ namespace Brunet
         ArrayList edges_to_ping = new ArrayList();
         ArrayList edges_to_close = new ArrayList();
         lock( _connection_table.SyncRoot ) {
-          foreach(ConnectionType t in Enum.GetValues(typeof(ConnectionType)) ) {
-            ArrayList edges = _connection_table.GetEdgesOfType(t);
-            foreach(Edge e in edges) {
-              if( _last_edge_check - e.LastInPacketDateTime  > _edge_close_timeout ) {
-                //After this period of time, we close the edge no matter what.
-                edges_to_close.Add(e);
-              }
-              else if( _last_edge_check - e.LastInPacketDateTime  > _connection_timeout ) {
-                //Check to see if this connection is still active by pinging it
-                edges_to_ping.Add(e);
-              }
+          foreach(Connection con in _connection_table) {
+	    Edge e = con.Edge;
+            if( _last_edge_check - e.LastInPacketDateTime  > _edge_close_timeout ) {
+              //After this period of time, we close the edge no matter what.
+              edges_to_close.Add(e);
+            }
+            else if( _last_edge_check - e.LastInPacketDateTime  > _connection_timeout ) {
+              //Check to see if this connection is still active by pinging it
+              edges_to_ping.Add(e);
             }
           }
           foreach(Edge e in _connection_table.GetUnconnectedEdges() ) {
-            if( e.LastInPacketDateTime - _last_edge_check > _edge_close_timeout ) {
+            if( _last_edge_check - e.LastInPacketDateTime > _edge_close_timeout ) {
               edges_to_close.Add(e);
               lock( _sync ) {
                 if( _gracefully_close_edges.Contains(e) ) {
@@ -586,6 +586,9 @@ namespace Brunet
             try {
               CloseMessage cm = (CloseMessage)grace_close_enum.Value;
               e.Send( cm.ToPacket() );
+#if DEBUG
+            Console.WriteLine("Sending close to: {0}", e);
+#endif
             }
             catch(EdgeException x) {
               //This edge is goofy, remove it:

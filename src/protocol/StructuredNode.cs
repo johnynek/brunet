@@ -162,7 +162,7 @@ namespace Brunet
      */
     protected void EstimateSize(object contab, System.EventArgs args)
     {
-      Console.WriteLine("Estimate size: ");
+      //Console.WriteLine("Estimate size: ");
       try {
       ConnectionTable tab = (ConnectionTable)contab;
       int net_size = -1;
@@ -219,7 +219,7 @@ namespace Brunet
 
 	//Now we have our estimate:
 	_netsize = net_size;
-	Console.WriteLine("Network size: {0}", _netsize);
+	//Console.WriteLine("Network size: {0}", _netsize);
       }
       }catch(Exception x) {
         Console.Error.WriteLine(x.ToString());
