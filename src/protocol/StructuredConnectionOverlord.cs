@@ -391,6 +391,10 @@ namespace Brunet
         int total_shortcuts = _shortcut_edges.Count;
         int total_neighbors = total_structured - total_shortcuts;
 
+        if (total_neighbors<=(_total_desired_neighbors)) {
+          return;
+        }
+        
         int self_idx, left_start, left_end, right_start, right_end;
         int left_boundary, right_boundary;
         self_idx = _connection_table.IndexOf(ConnectionType.Structured,_local.Address);

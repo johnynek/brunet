@@ -117,11 +117,11 @@ namespace Brunet
       //this_node.Subscribe(AHPacket.Protocol.Echo, echo_printer);
 
       this_node.Connect();
-
+#if PLAB_LOG
       ///Initialize Brunet logger
       BrunetLogger bl = new BrunetLogger(file_string);
       this_node.Logger = bl;
-
+#endif
       String alive_file = "./data/alive.log";
       if(File.Exists(alive_file)){
         File.Delete(alive_file);
