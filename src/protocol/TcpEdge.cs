@@ -440,6 +440,14 @@ namespace Brunet
         return _local_ta;
       }
     }
+    /*
+     * If this is an inbound link
+     * then the LocalTA is not ephemeral
+     */
+    public override bool LocalTANotEphemeral {
+      get { return IsInbound; }
+    }
+    
     protected TransportAddress _remote_ta;
     public override Brunet.TransportAddress RemoteTA
     {
@@ -449,6 +457,14 @@ namespace Brunet
       }
     }
 
+    /*
+     * If this is an outbound link, which is to say
+     * not inbound, then the RemoteTA is not ephemeral
+     */
+    public override bool RemoteTANotEphemeral {
+      get { return !IsInbound; }
+    }
+    
     //********************
     //Protected Methods  :
 #if TCP_ASYNC

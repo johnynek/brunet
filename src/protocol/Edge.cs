@@ -94,6 +94,13 @@ namespace Brunet
       get;
       }
 
+    /**
+     * @return true if a peer CAN connect to the LocalTA.
+     * For some edges, one end of the edge is ephemeral (TCP for instance).
+     * If it is not ephemeral, this TA can be shared with peers
+     * to connect to us
+     */
+    public virtual bool LocalTANotEphemeral { get { return false; } }
       /**
        * For each Packet.ProtType, there may be a callback set
        * for it.  This Hashtable holds that mapping.
@@ -110,6 +117,13 @@ namespace Brunet
     {
       get;
       }
+    /**
+     * @return true if a peer CAN connect on this RemoteTA.
+     * For some edges, one end of the edge is ephemeral (TCP for instance).
+     * If it is not ephemeral, this TA can be shared with peers
+     * or stored to disk to connect to a peer later.
+     */
+    public virtual bool RemoteTANotEphemeral { get { return false; } }
 
 
       public abstract Brunet.TransportAddress.TAType TAType

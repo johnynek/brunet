@@ -159,11 +159,18 @@ namespace Brunet
     {
       get { return _localta; }
     }
+    //UDP ports are always bi-directional, and never ephemeral
+    public override bool LocalTANotEphemeral { get { return true; } }
+    
     protected TransportAddress _remoteta;
     public override Brunet.TransportAddress RemoteTA
     {
       get { return _remoteta; }
     }
+    
+    //UDP ports are always bi-directional, and never ephemeral
+    public override bool RemoteTANotEphemeral { get { return true; } }
+    
     public void Push(Packet p)
     {
       ReceivedPacketEvent(p);

@@ -25,6 +25,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using Brunet;
 using System;
+using System.Net;
+using System.Net.Sockets;
 using System.Collections;
 
 namespace Brunet
@@ -80,6 +82,47 @@ namespace Brunet
            * Start.
            */
           public abstract void CreateEdgeTo(TransportAddress ta, EdgeCreationCallback ecb);
+
+    /**
+     * Looks up the local IP addresses and returns a list
+     * of transport Address objects which match them.
+     * Loopback addresses will be at the end.
+     *
+     * Both UdpEdgeListener and TcpEdgeListener make use of this
+     *
+     * @todo it would be better to have a more precise method here
+     * than using the DNS.  It may have to be platform specific,
+     * and then fall back to the DNS technique.
+     */
+    static protected ArrayList GetIPTAs(TransportAddress.TAType tat, int port)
+    {
+      ArrayList tas = new ArrayList();
+      try {
+        String StrLocalHost =  (Dns.GetHostName());
+        IPHostEntry IPEntry = Dns.GetHostByName (StrLocalHost);
+        IPAddress [] addr = IPEntry.AddressList;
+        foreach(IPAddress a in IPEntry.AddressList) {
+          /**
+           * We add Loopback addresses to the back, all others to the front
+           * This makes sure non-loopback addresses are listed first.
+           */
+          if( IPAddress.IsLoopback(a) ) {
+            //Put it at the back
+            tas.Add( new TransportAddress(tat, new IPEndPoint(a, port) ) );
+          }
+          else {
+            //Put it at the front
+            tas.Insert(0, new TransportAddress(tat, new IPEndPoint(a, port) ) );
+          }
+        }
+      }
+      catch(SocketException x) {
+        //If the hostname is not properly configured, we could wind
+	//up here.  Just put the loopback address is:
+        tas.Add( new TransportAddress(tat, new IPEndPoint(IPAddress.Loopback, port) ) );
+      }
+      return tas;
+    }
 
     public event System.EventHandler EdgeEvent;
 

@@ -1029,8 +1029,8 @@ namespace Brunet
       AHAddress a2 = new AHAddress(buf2); 
       ConnectionTable tab = new ConnectionTable();
       
-      tab.Add(new Connection(e1, a1, "structured", null));
-      tab.Add(new Connection(e2, a2, "structured.near", null));
+      tab.Add(new Connection(e1, a1, "structured", null, null));
+      tab.Add(new Connection(e2, a2, "structured.near", null, null));
 
       Assert.AreEqual(tab.TotalCount, 2, "total count");
       //Assert.AreEqual(tab.Count(ConnectionType.Structured) , 2, "structured count");
