@@ -63,7 +63,12 @@ namespace Brunet
      */
     public ConnectToMessage(ConnectionType t, NodeInfo target)
     {
-      _ct = t;
+      _ct = Connection.ConnectionTypeToString(t);
+      _target_ni = target;
+    }
+    public ConnectToMessage(string contype, NodeInfo target)
+    {
+      _ct = contype;
       _target_ni = target;
     }
     /**
@@ -74,7 +79,7 @@ namespace Brunet
      */
     public ConnectToMessage(ConnectionType t, Address target, TransportAddress[] tas)
     {
-      _ct = t;
+      _ct = Connection.ConnectionTypeToString(t);
       _target_ni = new NodeInfo(target, new ArrayList(tas));
     }
     /**
@@ -85,7 +90,7 @@ namespace Brunet
      */
     public ConnectToMessage(ConnectionType t, Address target, ICollection tas)
     {
-      _ct = t;
+      _ct = Connection.ConnectionTypeToString(t);
       _target_ni = new NodeInfo(target, new ArrayList(tas));
     }
     /**
@@ -100,10 +105,7 @@ namespace Brunet
       {
         switch (attr.Name) {
         case "type":
-          _ct =
-            (ConnectionType) System.Enum.Parse(typeof(ConnectionType),
-                                               attr.FirstChild.Value,
-                                               true);
+          _ct = attr.FirstChild.Value;
           break;
         }
       }
@@ -117,8 +119,8 @@ namespace Brunet
       }
     }
 
-    protected ConnectionType _ct;
-    public ConnectionType ConnectionType { get { return _ct; } }
+    protected string _ct;
+    public string ConnectionType { get { return _ct; } }
 
     protected NodeInfo _target_ni;
     public NodeInfo Target {
@@ -159,7 +161,7 @@ namespace Brunet
       w.WriteStartElement("connectTo", ns);     //<connectTo>
       //Write the attributes :
       w.WriteStartAttribute("type", ns);
-      w.WriteString(ConnectionType.ToString().ToLower());
+      w.WriteString(_ct);
       w.WriteEndAttribute();
       //Write the NodeInfo
       _target_ni.WriteTo(w); 

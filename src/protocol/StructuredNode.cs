@@ -79,7 +79,8 @@ namespace Brunet
        * Here are the ConnectionOverlords
        */ 
       _lco = new LeafConnectionOverlord(this);
-      _sco = new StructuredConnectionOverlord(this);
+      //_sco = new StructuredConnectionOverlord(this);
+      _sco = new SimpleConnectionOverlord(this);
 
       /**
        * Turn on some protocol support : 

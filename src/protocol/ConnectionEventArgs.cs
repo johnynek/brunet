@@ -36,7 +36,7 @@ namespace Brunet
   {
 
     public Address RemoteAddress { get { return _con.Address; } }
-    public ConnectionType ConnectionType { get { return _con.Ct; } }
+    public ConnectionType ConnectionType { get { return _con.MainType; } }
     public Edge Edge { get { return _con.Edge; } }
     public int Index;
     

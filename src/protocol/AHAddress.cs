@@ -126,6 +126,53 @@ namespace Brunet
         return true;
       }
     }
+
+    /**
+     * The Left (increasing, clockwise) distance to
+     * the given AHAddress
+     * @param addr the AHAddress to compute the distance to
+     * @return the distance
+     */
+    public BigInteger LeftDistanceTo(AHAddress addr)
+    {
+      BigInteger n_x = ToBigInteger();
+      BigInteger n_y = addr.ToBigInteger();
+
+      BigInteger dist;
+      
+      if (n_y > n_x) {
+	//The given address is larger than us, just subtract
+        dist = n_y - n_x;
+      }
+      else {
+	//We need to add AHAddress.Full to the result:
+        dist = n_y - n_x + AHAddress.Full;
+      }
+      return dist;
+    }
+    /**
+     * The Right (decreasing, counterclockwise) distance to
+     * the given AHAddress
+     * @param addr the AHAddress to compute the distance to
+     * @return the distance
+     */
+    public BigInteger RightDistanceTo(AHAddress addr)
+    {
+      BigInteger n_x = ToBigInteger();
+      BigInteger n_y = addr.ToBigInteger();
+
+      BigInteger dist;
+      
+      if (n_y < n_x) {
+	//The given address is smaller than us, just subtract
+        dist = n_x - n_y;
+      }
+      else {
+	//We need to add AHAddress.Full to the result:
+        dist = n_x - n_y + AHAddress.Full;
+      }
+      return dist;
+    }
   }
 
 }

@@ -101,8 +101,7 @@ namespace Brunet
          */
         ConnectToMessage local_response_ctm =
           new ConnectToMessage(ctm.ConnectionType,
-                               n.Address,
-                               n.LocalTAs);
+			       new NodeInfo(n.Address, n.LocalTAs));
         local_response_ctm.Id = ctm.Id;
         local_response_ctm.Dir = ConnectionMessage.Direction.Response;
 

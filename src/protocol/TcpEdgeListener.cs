@@ -309,7 +309,7 @@ namespace Brunet
                           errorsocks,
                           timeout_ms * 1000);
           }
-          catch(SocketException x) {
+          catch(Exception x) {
             //One of the Sockets gave us problems.  Perhaps
             //it was closed after we released the lock.
 #if POB_DEBUG
