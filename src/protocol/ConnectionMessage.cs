@@ -47,7 +47,23 @@ namespace Brunet
      * @return true if this tag is supported
      */
     abstract public bool CanReadTag(string tag);
-  
+ 
+    /**
+     * Returns true if o is a ConnectionMessage and Direction and Id match
+     */
+    override public bool Equals(object o)
+    {
+      ConnectionMessage co = o as ConnectionMessage;
+      if( co != null ) {
+        bool same = true;
+	same &= co.Dir == this.Dir;
+	same &= co.Id == this.Id;
+	return same;
+      }
+      else {
+        return false;
+      } 
+    }
     static public string GetTagOf(XmlElement r)
     {
       return r.FirstChild.Name;

@@ -115,8 +115,9 @@
   </target>
 
   <target name="clean"
-    depends="init"
+    depends="clean-logs"
     description="Deletes the current configuration">
+    <call target="${project.config}"/>
     <delete>
        <fileset>
          <include name="${out.dir}/*.exe" />
@@ -126,8 +127,8 @@
   </target>
 
   <target name="clean-logs"
-    depends="init"
     description="Deletes old log files">
+    <call target="${project.config}"/>
     <delete>
       <fileset>
         <include name="${out.dir}/BootGraph_*" />

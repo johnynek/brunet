@@ -21,46 +21,37 @@ namespace Brunet
          private static readonly ILog log =
 		 LogManager.GetLogger(typeof(BootStrapTester));
 		 */
-    BootStrapTester()
+    BootStrapTester(ArrayList nodes)
     {
+      _node_list = nodes;
+      lock(this) {
+        foreach(Node n in _node_list) {
+          //When the tables change, we want to know about it.
+          n.ConnectionTable.ConnectionEvent += new EventHandler(this.ConnectionTableChangeHandler);
+          n.ConnectionTable.DisconnectionEvent += new EventHandler(this.ConnectionTableChangeHandler);
+        }
+      }
     }
 
-    public string l_u_f = null;
-    public string l_u_h = null;
-    public int _unchanged_loops = 0;
+    public int _idx = 0;
     
-
     /* holds all the nodes */
     private ArrayList _node_list;
     public ArrayList NodeList {
 	    get { return _node_list; }
-	    set { _node_list = value; }
     }
     
-    void DotThread()
-    {
-      ArrayList node_list = _node_list;
-      int idx = 0;
-      //Stop after we have not seen a change in 1000 steps
-      while ( _unchanged_loops < 1000 )
-      {
-        System.Threading.Thread.Sleep(50);
-	int threads, comp_ports;
-        if (node_list != null)
-        {
-          ToDotFile(node_list, idx);
-	  /*
-	  ThreadPool.GetAvailableThreads (out threads, out comp_ports);
-	  Console.WriteLine ("Available threads: {0} ports: {1}", threads,
-			     comp_ports); 
-	  */
-          idx++;
-        }
-      } 
-      System.Console.Out.WriteLine("Done with DotThread");
+    /**
+     * When any connectionTable changes, an event is fired.  This method
+     * is called, and the global graph is written out
+     */
+    void ConnectionTableChangeHandler(object o, EventArgs arg) {
+      lock( this ) {
+        ToDotFile(_node_list, _idx++);
+      }
     }
     
-    void ToDotFile(ArrayList node_list, int index)
+    static void ToDotFile(ArrayList node_list, int index)
     {
       string file_name = string.Format("BootGraph_{0:000000}",index); 
       StreamWriter sw = File.CreateText(file_name);
@@ -143,6 +134,7 @@ namespace Brunet
       }
       sw.WriteLine("}");
       sw.Close();
+      //We just wrote the file out.
       SHA1 sha1 = (SHA1) CryptoConfig.CreateFromName("SHA1");
       
       string neato_command = String.Format("/usr/bin/neato");
@@ -155,51 +147,6 @@ namespace Brunet
       //string cat_args = String.Format(" t_movie.ps {0}.ps > t_movie.ps",file_name);
       //string ps2ps_cmd = String.Format("/usr/bin/ps2ps");
       //string ps2ps_args = String.Format("t_movie.ps movie.ps");
-      FileStream fs_this = new FileStream (file_name,
-		                           FileMode.Open,
-					   FileAccess.Read);
-      if ( l_u_f != null )
-      {
-        string this_hash_string = Base32.Encode(sha1.ComputeHash (fs_this));
-        if( l_u_h == this_hash_string )
-        {
-          _unchanged_loops++;
-          if (File.Exists(file_name))
-          {
-             File.Delete(file_name);
-          }
-	  
-        }
-        else
-        {
-          _unchanged_loops = 0;
-          ProgramRunner(dot_command,dot_args);
-          ProgramRunner(neato_command,neato_args);
-          l_u_f = file_name;
-          FileStream fs_last = new FileStream (l_u_f, FileMode.Open, FileAccess.Read);
-          l_u_h = Base32.Encode(sha1.ComputeHash (fs_last));
-          fs_last.Close ();
-          //ProgramRunner(cat_cmd,cat_args);
-          //ProgramRunner(ps2ps_cmd,ps2ps_args);
-        }
-  
-      }
-      else
-      {
-        _unchanged_loops = 0;
-        //ProgramRunner(touch_cmd,touch_args);
-        ProgramRunner(dot_command,dot_args);
-        ProgramRunner(neato_command,neato_args);
-        l_u_f = file_name;
-        FileStream fs_last = new FileStream (
-            l_u_f, FileMode.Open, FileAccess.Read);
-        l_u_h = Base32.Encode(sha1.ComputeHash (fs_last)) ;
-        fs_last.Close ();
-        //ProgramRunner(cat_cmd,cat_args);
-        //ProgramRunner(ps2ps_cmd,ps2ps_args);
-      }
-  
-    fs_this.Close ();
     }
       
     static void ProgramRunner(string cmd, string cmd_args)
@@ -219,10 +166,7 @@ namespace Brunet
   static void Main(string[] args)  
   {
    
-    BootStrapTester bst = new BootStrapTester();
-    //NodeList
     ArrayList node_list = new ArrayList();
-    bst.NodeList = node_list;
     ArrayList all_ta_list = new ArrayList();  
     Random my_rand = new Random( unchecked((int)DateTime.Now.Ticks) ); 
     
@@ -291,11 +235,10 @@ namespace Brunet
       }
       node_list.Add(tmp_node);
     }
+    
+    //This logs the changes in connection table
+    BootStrapTester bst = new BootStrapTester(node_list);
 
-    //Start the dot thread:
-    System.Threading.Thread t = new System.Threading.Thread(
-		                    new System.Threading.ThreadStart(bst.DotThread));
-    t.Start();
     //Get Connected:
     foreach( Node item in node_list)
     {

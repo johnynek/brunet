@@ -241,18 +241,32 @@ namespace Brunet
           * When we receive a LinkMessage response, we know
           * the other party is willing to link with us.
           * To acknowledge that we can complete the link,
-          * we send them a PingMessage request.
+          * we send them a StatusMessage request.
           *
           * The other node must not consider the Edge connected
-          * until the PingMessage request is received.
+          * until the StatusMessage request is received.
           */
-          PingMessage req = new PingMessage();
+          //Build the neighbor list:
+	  LinkMessage lm = (LinkMessage)cm;
+	  ArrayList neighbors = new ArrayList();
+	  //Get the neighbors of this type:
+	  lock( _tab.SyncRoot ) {
+	    ArrayList edges = _tab.GetEdgesOfType(lm.ConnectionType);
+	    ArrayList adds = _tab.GetAddressesOfType(lm.ConnectionType);
+	    for(int i = 0; i < adds.Count; i++) {
+	      neighbors.Add( new NodeInfo( (Address)adds[i],
+					     ((Edge)edges[i]).RemoteTA ) );
+	    }
+	  }	  
+          StatusMessage req = new StatusMessage( lm.ConnectionType, neighbors );
           req.Id = _id++;
           req.Dir = ConnectionMessage.Direction.Request;
           lock( _sync ) {
-            Address target = ((LinkMessage) cm).Local.Address;
+            Address target = lm.Local.Address;
+	    //This will throw an exception if the target does not match
+	    //any previous value.
             SetTarget( target );
-            _peer_link_mes = (LinkMessage) cm;
+            _peer_link_mes = lm;
             _last_sent_packet = req.ToPacket();
             _timeouts = 0;
           }
@@ -262,23 +276,26 @@ namespace Brunet
 #endif
           edge.Send( _last_sent_packet );
         }
-        else if (cm is PingMessage) {
+	else if (cm is StatusMessage) {
           if( _peer_link_mes != null ) {
             /**
-            * Once we get a PingMessage response we know that
+             * Once we get a StatusMessage response we know that
              * the recipient has seen our ping, we Succeed 
              */
             Succeed();
-            return;
-          }
-          else {
+	    return;
+	  }
+	  else {
+
+	  }
+	}
+        else if (cm is PingMessage) {
             /**
             * This should never happen
             */
 #if POB_LINK_DEBUG
             Console.WriteLine("Saw Ping response before Link response");
 #endif
-          }
         }
         else {
           /**

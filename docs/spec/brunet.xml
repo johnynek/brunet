@@ -229,7 +229,7 @@ Request:
     </local>
     <remote>
       <node>
-        <transport>brunet.udp://10.0.0.24:9800<transport>
+        <transport>brunet.udp://10.0.0.24:9800</transport>
       </node>
     </remote>
   </link>
@@ -246,7 +246,7 @@ Response:
     </remote>
     <local>
        <node address="brunet:node:kj23h2ouhfd8h23kifiu">
-        <transport>brunet.udp://10.0.0.24:9800<transport>
+        <transport>brunet.udp://10.0.0.24:9800</transport>
       </node>    
      </local>
   </link>
@@ -348,7 +348,12 @@ Connections may be tested with a ping message.
 </section>
 <section anchor="sec.status" title="Status Message">
 <t>
-Nodes may need to exchange meta data about themselves with one another.
+After a Link message is responded to, the connection is activated
+by the exchange of a status message.  Once each side has the status
+of the other, the connection should be considered active.
+
+At other times nodes may need to exchange meta data about
+themselves with one another.
 The status message is used to send status information to a connected node.
 <figure>
 <preamble>Example Status Message</preamble>
