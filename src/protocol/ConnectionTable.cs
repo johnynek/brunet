@@ -87,7 +87,7 @@ namespace Brunet
     protected Hashtable type_to_addlist;
     protected Hashtable type_to_edgelist;
     protected Hashtable edge_to_add;
-    protected Hashtable edge_to_type;
+    protected Hashtable edge_to_con;
 
     protected ArrayList unconnected;
 
@@ -166,7 +166,7 @@ namespace Brunet
         type_to_addlist = new Hashtable();
         type_to_edgelist = new Hashtable();
         edge_to_add = new Hashtable();
-        edge_to_type = new Hashtable();
+        edge_to_con = new Hashtable();
 
         //unconnected = new Hashtable();
         unconnected = ArrayList.Synchronized(new ArrayList());
@@ -193,30 +193,19 @@ namespace Brunet
     public ConnectionTable() : this(new AHAddressComparer()) { }
 
     /**
-     * Add the triplet, (t,a,e) at the index into the
-     * table.  Only ConnectionOverlord objects should
-     * call this method.
-     *
-     * The Connection index is selected by inserting
-     * the Address such that the address list for each
-     * ConnectionType is sorted.
-     * 
      * When an Edge is added, the ConnectionTable listens
      * for the Edges close event, and at that time, the
      * edge is removed.  Edges should not be removed
      * explicitly from the ConnectionTable, rather the
      * Edge method Edge.Close() should be called, and
      * the ConnectionTable will react properly
-     * 
-     * @return the index we insert to
-     *
-     * @deprecated 
      */
-    protected int Add(ConnectionType t,
-                   Address a,
-                   Edge e)
+    public void Add(Connection c)
     {
       int index;
+      ConnectionType t = c.Ct;
+      Address a = c.Address;
+      Edge e = c.Edge;
 
       lock(_sync) {
 
@@ -234,7 +223,7 @@ namespace Brunet
         adds.Insert(index, a);
         ((ArrayList)type_to_edgelist[t]).Insert(index, e);
         edge_to_add[e] = a;
-        edge_to_type[e] = t;
+        edge_to_con[e] = c;
 
       } /* we release the lock */
 
@@ -279,18 +268,8 @@ namespace Brunet
 
       /* Send the event: */
       if( ConnectionEvent != null )
-        ConnectionEvent(this, new ConnectionEventArgs(a, e, t, index) );
-      return index;
-    }
-
-    /**
-     * Add a connection to the ConnectionTable
-     *
-     * This sends a ConnectionEvent
-     */
-    public void Add(Connection c)
-    {
-      Add(c.Ct, c.Address, c.Edge);
+        ConnectionEvent(this, new ConnectionEventArgs(c, index) );
+     // return index;
     }
 
     /**
@@ -336,10 +315,12 @@ namespace Brunet
       ConnectionType t;
       int index;
       Address remote;
+      Connection c = null;
       bool have_con = false;
       lock(_sync) {
         have_con = GetConnection(e, out t, out index, out remote);
         if( have_con )  {
+          c = GetConnection(e);	
           Remove(t, index);
           unconnected.Add(e);
         }
@@ -367,7 +348,7 @@ namespace Brunet
       #endif
         //Announce the disconnection:
         if( DisconnectionEvent != null )
-          DisconnectionEvent(this, new ConnectionEventArgs(remote, e, t, index));
+          DisconnectionEvent(this, new ConnectionEventArgs(c, index));
       }
     }
 
@@ -466,8 +447,9 @@ namespace Brunet
     {
       bool have_con = false;
       lock( _sync ) {
-        if (edge_to_type.Contains(e)) {
-          t = (ConnectionType) edge_to_type[e];
+        if (edge_to_con.Contains(e)) {
+          Connection c = (Connection)edge_to_con[e];
+          t = c.Ct;
           index = ((ArrayList)type_to_edgelist[t]).IndexOf(e);
           add = (Address)((ArrayList)type_to_addlist[t])[index];
           have_con = true;
@@ -642,11 +624,14 @@ namespace Brunet
       int index;
       Address remote;
       bool have_con = false;
+      Connection c = null;
       e.CloseEvent -= new EventHandler(this.RemoveHandler);
       lock(_sync) {
         have_con = GetConnection(e, out t, out index, out remote);
-        if( have_con )
+        if( have_con ) {
+          c = GetConnection(e);
           Remove(t, index);
+	}
         else
           unconnected.Remove(e);
       }
@@ -673,7 +658,7 @@ namespace Brunet
       #endif
         //Announce the disconnection:
         if( DisconnectionEvent != null )
-          DisconnectionEvent(this, new ConnectionEventArgs(remote, e, t, index));
+          DisconnectionEvent(this, new ConnectionEventArgs(c, index));
       }
     }
 
@@ -692,7 +677,7 @@ namespace Brunet
         ((ArrayList)type_to_edgelist[t]).RemoveAt(index);
         //Remove the edge from the tables:
         edge_to_add.Remove(e);
-        edge_to_type.Remove(e);
+        edge_to_con.Remove(e);
 
       }
     }
@@ -752,11 +737,11 @@ namespace Brunet
           sb.Append(myEnumerator.Value.ToString() + "\n");
         }
         sb.Append("\nEdge : Type\n");
-        myEnumerator = edge_to_type.GetEnumerator();
+        myEnumerator = edge_to_con.GetEnumerator();
         while (myEnumerator.MoveNext()) {
           sb.Append("Edge: ");
           sb.Append(myEnumerator.Key.ToString() + "\n");
-          sb.Append("Type: ");
+          sb.Append("Connection: ");
           sb.Append(myEnumerator.Value.ToString() + "\n");
         }
       }
@@ -879,13 +864,14 @@ namespace Brunet
 
       public object Current {
         get {
-          Edge e = (Edge)_edge_enumer.Key;
-	  return _tab.GetConnection(e);
+          //Edge e = (Edge)_edge_enumer.Key;
+	  //return _tab.GetConnection(e);
+	  return _edge_enumer.Value;
 	}
       }
 
       public void Reset() {
-        _edge_enumer = _tab.edge_to_type.GetEnumerator();
+        _edge_enumer = _tab.edge_to_con.GetEnumerator();
       }
     }
   }

@@ -35,19 +35,18 @@ namespace Brunet
   public class ConnectionEventArgs:System.EventArgs
   {
 
-    public Address RemoteAddress;
-    public ConnectionType ConnectionType;
-    public Edge Edge;
+    public Address RemoteAddress { get { return _con.Address; } }
+    public ConnectionType ConnectionType { get { return _con.Ct; } }
+    public Edge Edge { get { return _con.Edge; } }
     public int Index;
+    
+    protected Connection _con;
+    public Connection Connection { get { return _con; } }
 
-    public ConnectionEventArgs(Address remote,
-                               Edge edge,
-                               ConnectionType t,
+    public ConnectionEventArgs(Connection c,
                                int index)
     {
-      this.RemoteAddress = remote;
-      this.ConnectionType = t;
-      this.Edge = edge;
+      _con = c;
       this.Index = index;
     }
   }
