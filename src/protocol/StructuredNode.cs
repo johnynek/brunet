@@ -97,6 +97,17 @@ namespace Brunet
       _connection_table.ConnectionEvent += new EventHandler(this.EstimateSize);
       _connection_table.DisconnectionEvent += new EventHandler(this.EstimateSize);
     }
+    
+    /**
+     * If you want to create a node in a realm other
+     * than the default "global" realm, use this
+     * @param add AHAddress of this node
+     * @param realm Realm this node is to be a member of
+     */
+    public StructuredNode(AHAddress add, string realm) : this(add)
+    {
+      _realm = realm;
+    }
 
     protected int _netsize = -1;
     override public int NetworkSize {

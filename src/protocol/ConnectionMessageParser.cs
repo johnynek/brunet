@@ -38,6 +38,7 @@ using System.IO;
 using System.Xml;
 
 #if BRUNET_NUNIT
+using System.Collections.Specialized;
 using NUnit.Framework;
 #endif
 
@@ -249,7 +250,7 @@ namespace Brunet
 					new TransportAddress("brunet.tcp://127.0.0.1:20293/") ) );
       Assert.AreEqual(ctm_s, cmp.Parse(ctm_string), "ConnectToMessage string test");
 
-      string lm_string = "<request id=\"42\"><link type=\"structured.near\">"
+      string lm_string = "<request id=\"42\"><link type=\"structured.near\" realm=\"pobland\">"
 	                + "<local><node address=\"brunet:node:XXXAAAAAAAAAAAAAAAAAAAAAAAAAAAAO\">"
 			  + "<transport>brunet.tcp://127.0.0.1:2000/</transport></node></local>"
 			  + "<remote><node address=\"brunet:node:YYYAAAAAAAAAAAAAAAAAAAAAAAAAAAAO\">"
@@ -257,7 +258,10 @@ namespace Brunet
 			  + "</link></request>";
       Address lma = AddressParser.Parse("brunet:node:XXXAAAAAAAAAAAAAAAAAAAAAAAAAAAAO");
       Address lmb = AddressParser.Parse("brunet:node:YYYAAAAAAAAAAAAAAAAAAAAAAAAAAAAO");
-      LinkMessage lm_s = new LinkMessage("structured.near",
+      StringDictionary attrs = new StringDictionary();
+      attrs["type"] = "structured.near";
+      attrs["realm"] = "pobland";
+      LinkMessage lm_s = new LinkMessage(attrs,
 		                         new NodeInfo(lma,
 						      new TransportAddress("brunet.tcp://127.0.0.1:2000/") ),
 					 new NodeInfo(lmb,

@@ -27,7 +27,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
 using System.Xml;
-
+using System.Collections.Specialized;
 using Brunet;
 
 #if BRUNET_NUNIT
@@ -56,14 +56,22 @@ namespace Brunet
                        NodeInfo local,
                        NodeInfo remote)
     {
-      _contype = Connection.ConnectionTypeToString(t);
+      _attributes = new StringDictionary();
+      _attributes["type"] = Connection.ConnectionTypeToString(t);
       _local_ni = local;
       _remote_ni = remote;
     }
 
     public LinkMessage(string connection_type, NodeInfo local, NodeInfo remote)
     {
-      _contype = connection_type;
+      _attributes = new StringDictionary();
+      _attributes["type"] = connection_type;
+      _local_ni = local;
+      _remote_ni = remote;
+    }
+    public LinkMessage(StringDictionary attributes, NodeInfo local, NodeInfo remote)
+    {
+      _attributes = attributes;
       _local_ni = local;
       _remote_ni = remote;
     }
@@ -74,21 +82,9 @@ namespace Brunet
     {
 
       XmlElement link_element = (XmlElement)r.FirstChild;
+      _attributes = new StringDictionary();
       foreach(XmlNode attr in link_element.Attributes) {
-        switch (attr.Name) {
-        case "type":
-          /*@throw ArgumentNullException for Enum.Parse if typeof(
-           * ConnectionType) or attr.FirstChild.Value is a null reference
-           * @throw ArguementException if typeof(ConnectionType) is not 
-           * a Type that describes Enum OR attr.FirstChild.Value is
-           * either equal to Empty or contains only white space. OR 
-           * attr.FirstChild.Value represents one or more names, and 
-           * at least one name represents by attr.FirstChild.Value is 
-           * not of type typeof(ConnectionType).
-           */
-          _contype =  attr.FirstChild.Value;
-          break;
-        }
+	_attributes[ attr.Name ] = attr.FirstChild.Value;
       }
       //System.Console.Write("Looking in child nodes");
       //Read the NodeInfo
@@ -119,7 +115,20 @@ namespace Brunet
       }
       this.Id = id;
       this.Dir = dir;
-      _contype = r["type"];
+      //Read the attributes:
+      if( !r.MoveToFirstAttribute() ) {
+        throw new ParseException("There is no type for this <link /> message");
+      }
+      _attributes = new StringDictionary();
+      do {
+        _attributes[ r.Name ] = r.Value;
+      }
+      while( r.MoveToNextAttribute() );
+      
+      if( !_attributes.ContainsKey("type") ) {
+        throw new ParseException("There is no type for this <link /> message");
+      }
+      
       bool finished = false;
       NodeInfo tmp = null;
       while( r.Read() ) {
@@ -150,11 +159,14 @@ namespace Brunet
      * @todo Make sure the usage of this is consistent
      */
     public ConnectionType ConnectionType {
-      get { return Connection.StringToMainType( _contype ); }
+      get { return Connection.StringToMainType( ConTypeString ); }
     }
     
-    protected string _contype;
-    public string ConTypeString { get { return _contype; } }
+    protected StringDictionary _attributes;
+    public StringDictionary Attributes {
+      get { return _attributes; }
+    }
+    public string ConTypeString { get { return _attributes["type"]; } }
 
     protected NodeInfo _local_ni;
     public NodeInfo Local {
@@ -179,7 +191,14 @@ namespace Brunet
       LinkMessage lm = olm as LinkMessage;
       if ( lm != null ) {
         bool same = true;
-	same &= lm.ConTypeString == _contype;
+	same &= (lm.Attributes.Count == Attributes.Count );
+	same &= lm.ConTypeString == ConTypeString;
+	if( same ) {
+          //Make sure all the attributes match:
+	  foreach(string key in lm.Attributes.Keys) {
+            same &= lm.Attributes[key] == Attributes[key];
+	  }
+	}
 	same &= lm.Local.Equals(_local_ni);
 	same &= lm.Remote.Equals(_remote_ni);
 	return same;
@@ -219,15 +238,9 @@ namespace Brunet
       /*@throw InvalidOperationException for WriteStartAttribute if the
        * WriteState is Closed.
        */
-      w.WriteStartAttribute("type", ns);
-      /*@throw InvalidOperationException for WriteString if the
-       * WriteState is Closed.
-       */
-      w.WriteString( _contype );
-      /*@throw InvalidOperationException for WriteEndAttribute if the
-       * WriteState is Closed.
-       */
-      w.WriteEndAttribute();
+      foreach(string key in _attributes.Keys) {
+        w.WriteAttributeString( key, _attributes[key] );
+      }
       //@throw InvalidOperationException for all the Write* below
 
       w.WriteStartElement("local", ns); //<local>
