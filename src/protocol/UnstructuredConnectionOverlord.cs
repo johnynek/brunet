@@ -122,18 +122,6 @@ namespace Brunet
         _compensate = value;
       }
     }
-
-    /**
-     * The ConnectionType this object is the Overlord of
-     */
-    override public ConnectionType ConnectionType
-    {
-      get
-      {
-        return ConnectionType.Unstructured;
-      }
-    }
-
     override public void Activate()
     {
 

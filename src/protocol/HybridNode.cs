@@ -76,16 +76,16 @@ namespace Brunet
        */ 
       _connectionoverlords = new Hashtable();
       ConnectionOverlord co = new LeafConnectionOverlord(this);
-      _connectionoverlords[ co.ConnectionType ] = co;
+      _connectionoverlords[ ConnectionType.Leaf ] = co;
       //DEBUG: forget about structured connections for now
       co = new StructuredConnectionOverlord(this);
 #if PLAB_LOG
       co.Logger = this.Logger;
 #endif
-      _connectionoverlords[ co.ConnectionType ] = co;
+      _connectionoverlords[ ConnectionType.Structured ] = co;
 
       co = new UnstructuredConnectionOverlord(this);
-      _connectionoverlords[ co.ConnectionType ] = co;
+      _connectionoverlords[ ConnectionType.Unstructured ] = co;
 
       /**
        * Turn on some protocol support : 

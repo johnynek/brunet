@@ -61,14 +61,6 @@ namespace Brunet
      */
     abstract public void Activate();
 
-    /**
-     * The ConnectionType this object is the Overlord of
-     */
-    abstract public ConnectionType ConnectionType
-    {
-      get;
-      }
-
       /**
       * When IsActive is false, the ConnectionOverlord does nothing
       * to replace lost connections, or to get connections it needs.
