@@ -590,7 +590,7 @@ namespace Brunet {
 	    AHAddress adr = (AHAddress)ni.Address;
             int n_left = LeftPosition( adr );
             int n_right = RightPosition( adr );
-	    if( left_pos < _desired_neighbors || right_pos < _desired_neighbors ) {
+	    if( n_left < _desired_neighbors || n_right < _desired_neighbors ) {
             //We should connect to this node! if we are not already:
 	      BigInteger adr_dist = local.LeftDistanceTo(adr);
 	      if( adr_dist < ldist || ldist == -1 ) {
