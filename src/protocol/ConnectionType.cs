@@ -12,10 +12,12 @@ namespace Brunet
    */
   public enum ConnectionType
   {
-    Leaf=1,                       //Connections which are point-to-point edge.
-    Structured=2,                 //Connections for routing structured addresses
-    Unstructured=3,               //Connections for routing unstructured addresses
-    Unknown=4                     //Refers to all connections which are not in the above
+    Leaf,                       //Connections which are point-to-point edge.
+    Structured,                 //Connections for routing structured addresses
+    StructuredNear,             //Near neighbor connections
+    StructuredShortcut,         //shortcut connection
+    Unstructured,               //Connections for routing unstructured addresses
+    Unknown                     //Refers to all connections which are not in the above
   }
 
 }
