@@ -129,7 +129,7 @@ namespace Brunet
       this_node.Connect();
 #if PLAB_LOG
       ///Initialize Brunet logger
-      BrunetLogger bl = new BrunetLogger(file_string);
+      BrunetLogger bl = new BrunetLogger(desired_port, (AHAddress)this_node.Address);
       this_node.Logger = bl;
 #endif
       DateTime start_time = DateTime.Now;

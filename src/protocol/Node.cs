@@ -83,10 +83,11 @@ namespace Brunet
 	set
 	{
 	  _logger = value;
-#if PLAB_CONNECTION_LOG
 	  //The connection table only has a logger in this case
           _connection_table.Logger = value;
-#endif
+          foreach(EdgeListener el in _edgelistener_list) {
+             el.Logger = value;
+	  }
 	}
     }
 #endif

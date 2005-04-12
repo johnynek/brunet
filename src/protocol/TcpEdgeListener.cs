@@ -178,6 +178,9 @@ namespace Brunet
         if (s.Connected) {
           //This new edge is NOT an incoming edge, thus the "false"
           TcpEdge e = new TcpEdge(s, false, this);
+#if PLAB_LOG
+          e.Logger = this.Logger;
+#endif
           lock( _sync ) {
             _all_sockets.Add(s);
             _sock_to_edge[s] = e;
@@ -335,6 +338,9 @@ namespace Brunet
 	      try {
                 Socket new_s = s.Accept();
                 TcpEdge e = new TcpEdge(new_s, true, this);
+#if PLAB_LOG
+                e.Logger = this.Logger;
+#endif
                 lock( _sync ) {
                   _all_sockets.Add(new_s);
                   _sock_to_edge[new_s] = e;

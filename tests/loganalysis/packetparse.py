@@ -122,26 +122,40 @@ for line in ifile:
  
 timestamps = datetime_to_packetlist.keys()
 timestamps.sort()
+tmp_total = 0
+tmp_size = 0
 for time_it in timestamps:
   if len(datetime_to_packetlist[time_it]) > 1:
     mtmp = stats.mean(datetime_to_packetlist[time_it])
     vtmp = stats.var(datetime_to_packetlist[time_it])
-    packetstatsout.write( "%s %f %f %i\n" % (time_it,mtmp,vtmp,len(datetime_to_packetlist[time_it])) )    
+    tmp_size = len(datetime_to_packetlist[time_it])
+    tmp_total = tmp_total + tmp_size*mtmp
+    packetstatsout.write( "%s %f %f %i %i\n" % \
+    (time_it,mtmp,vtmp,tmp_total,tmp_size) )    
   else :
     mtmp = stats.mean(datetime_to_packetlist[time_it])
-    packetstatsout.write( "%s %f -1 %i\n" % (time_it,mtmp,len(datetime_to_packetlist[time_it])) )    
+    tmp_size = len(datetime_to_packetlist[time_it])
+    tmp_total = tmp_total + tmp_size*mtmp
+    packetstatsout.write( "%s %f -1 %i %i\n" % \
+    (time_it,mtmp,tmp_total,tmp_size) )    
  
   #datetime_to_packetlist[time_it]
 
 timestamps = datetime_to_bytelist.keys()
 timestamps.sort()
+tmp_total = 0
+tmp_size = 0
 for time_it in timestamps:
   if len(datetime_to_bytelist[time_it]) > 1:
     mtmp = stats.mean(datetime_to_bytelist[time_it])
     vtmp = stats.var(datetime_to_bytelist[time_it])
-    bytestatsout.write( "%s %f %f %i\n" % (time_it,mtmp,vtmp,len(datetime_to_bytelist[time_it])) )    
+    tmp_size = len(datetime_to_bytelist[time_it])
+    tmp_total = tmp_total + tmp_size*mtmp
+    bytestatsout.write( "%s %f %f %f %i\n" % (time_it,mtmp,vtmp,tmp_total,tmp_size) )    
   else :
     mtmp = stats.mean(datetime_to_bytelist[time_it])
-    bytestatsout.write( "%s %f -1 %i\n" % ( time_it,mtmp,len(datetime_to_bytelist[time_it]) ) )    
+    tmp_size = len(datetime_to_bytelist[time_it])
+    tmp_total = tmp_total + tmp_size*mtmp
+    bytestatsout.write( "%s %f -1 %f %i\n" % ( time_it,mtmp,tmp_total,tmp_size ) )    
     
     

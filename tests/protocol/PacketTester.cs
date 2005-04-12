@@ -115,7 +115,7 @@ namespace Brunet
       //this_node.Subscribe(AHPacket.Protocol.Echo, echo_printer);
 #if PLAB_LOG
       ///Initialize Brunet logger
-      BrunetLogger bl = new BrunetLogger(file_string);
+      BrunetLogger bl = new BrunetLogger(desired_port, (AHAddress)this_node.Address);
       this_node.Logger = bl;
 #endif      
       StreamWriter stamp_sw = new StreamWriter("time_stamp.log", true);

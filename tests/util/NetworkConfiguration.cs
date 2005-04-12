@@ -115,6 +115,36 @@ namespace Brunet
       return -1;
     }
 
+    public int GetLocalHostIndex(int port_desired, string host_ip) 
+    {
+      string local_host_name = host_ip;
+
+      if ( _nodes!=null ) {
+        int current_index=0;
+        foreach(NodeConfiguration nc in _nodes) {
+          if ( nc!=null ) {
+            ArrayList tas = nc.TransportAddresses;
+            if ( tas!=null ) {
+              foreach (TransportAddressConfiguration address in tas) {
+              System.Console.WriteLine("HERE: {0}", address.Address);
+                if ( address.Address.StartsWith(local_host_name) ) {
+		  TransportAddressConfiguration local_ta_configuration = (TransportAddressConfiguration)nc.TransportAddresses[0];
+		  short port = local_ta_configuration.Port;
+	          if(port == port_desired){
+              	    System.Console.WriteLine("THERE: {0}, {1}", address.Address,current_index);
+                    return current_index;
+                  }
+                }
+              }
+            }
+          }
+          current_index++;
+        }
+      }
+      return -1;
+    }
+
+
   //public static void Main(string[]args)
       //{    
 

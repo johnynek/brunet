@@ -12,7 +12,7 @@ ifile_brunet = open( infilename, 'r')  # r for reading
 ifile_icmp = open( infilename2, 'r')  # r for reading
 
 # the bin size in milliseconds
-binsize = 5.0
+binsize = 5
 
 brunet_address_pair_to_times = {}
 icmp_address_pair_to_times = {}
@@ -45,8 +45,10 @@ while line:
   line = ifile_icmp.readline()
 ifile_icmp.close()
   
+count = 0  
 for add_pair in brunet_address_pair_to_times :
   if add_pair in icmp_address_pair_to_times :
+    count = count +1
     icmp_time_list = icmp_address_pair_to_times[add_pair]
     brunet_time_list = brunet_address_pair_to_times[add_pair]
     icmp_len = len(icmp_time_list)
@@ -68,6 +70,8 @@ for add_pair in brunet_address_pair_to_times :
           else :
             timebin_to_time_list[bin_index] = [rdp_tmp]
           timebin_to_time_list[bin_index] = tmp1_list
+
+#print timebin_to_time_list
 
 bin_final_list = timebin_to_time_list.keys()
 bin_final_list.sort()
