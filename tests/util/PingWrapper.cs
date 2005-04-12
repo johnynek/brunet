@@ -41,7 +41,6 @@ namespace Brunet{
      */
     public double Ping(string target, int wait_time)
     {
-
       string prog_string = "ping";
       string arg_string = String.Format("-c 1 {0}", target);
       //the argument parameters specified as followed: -c is number of pings, 
@@ -75,15 +74,14 @@ namespace Brunet{
         {
 	  time_index++;	  
         }
-	ping_time = double.Parse(split_line[time_index+1]);           
-
+	ping_time = double.Parse(split_line[time_index+1]);    
+        return ping_time;
       }
-      Console.WriteLine("Ping time is: {0} ms", ping_time);
-      return ping_time;
-      
+      else
+      {
+        return -1.0;
+      }
     }
-
-
     
   }
 }

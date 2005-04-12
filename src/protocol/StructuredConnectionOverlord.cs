@@ -693,9 +693,6 @@ namespace Brunet
       }
       con.FinishEvent += new EventHandler(this.ConnectionEndHandler);
       con.Connect(forward_pack, ctm.Id);
-#if PLAB_CTM_LOG
-      this.Logger.LogCTMEvent(target);
-#endif
 
     }
 
@@ -726,9 +723,6 @@ namespace Brunet
       }
       con.FinishEvent += new EventHandler(this.ConnectionEndHandler);
       con.Connect(ctm_pack, ctm.Id);
-#if PLAB_CTM_LOG
-      this.Logger.LogCTMEvent(target);
-#endif
     }
 
     protected void ConnectToOnEdge(Address target, Edge edge, short t_ttl)
@@ -758,9 +752,6 @@ namespace Brunet
       }
       con.FinishEvent += new EventHandler(this.ConnectionEndHandler);
       con.Connect(edge, ctm_pack, ctm.Id);
-#if PLAB_CTM_LOG
-      this.Logger.LogCTMEvent(target);
-#endif
     }
 
     /**

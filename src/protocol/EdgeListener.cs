@@ -44,6 +44,19 @@ namespace Brunet
   public abstract class EdgeListener
   {
 
+#if PLAB_LOG
+    private BrunetLogger _logger;
+    public BrunetLogger Logger{
+	get{
+	  return _logger;
+	}
+	set
+	{
+	  _logger = value;          
+	}
+    }
+#endif
+
     /**
      * @param success if the CreateEdgeTo was successful, this is true
      * @param e the newly created edge, if success is true, else e is null

@@ -161,7 +161,7 @@
     </copy>
   </target>
 
-<!-- all options are: PLAB -->
+<!-- all options are: PLAB_LOG,PLAB_CONNECTION_LOG,PLAB_PACKET_LOG,PLAB_RDP_LOG -->
   <target
     name="plab-log"
     depends="init"
@@ -183,7 +183,7 @@
     <csc
       target="library"
       debug="${build.debug}"
-      define="PLAB_LOG,PLAB_CONNECTION_LOG"   
+      define="PLAB_LOG,PLAB_CONNECTION_LOG,PLAB_RDP_LOG"   
       output="${build.dir}/${package.name}/bin/${assembly}.dll">
       <sources failonempty="true">
         <include name="*.cs"/>

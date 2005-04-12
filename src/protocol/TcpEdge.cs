@@ -31,7 +31,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
 //#define POB_TCP_DEBUG
-#define JSK_TIME_STAMP
+
 /**
  * There are three implementations of TcpEdge:
  * 1) Asynchronous socket calls
@@ -67,6 +67,20 @@ namespace Brunet
 
   public class TcpEdge:Brunet.Edge
   {
+
+#if PLAB_LOG
+    private BrunetLogger _logger;
+    public BrunetLogger Logger{
+	get{
+	  return _logger;
+	}
+	set
+	{
+	  _logger = value;          
+	}
+    }
+#endif
+
     /**
      * Represents the state of the packet sending
      */
@@ -826,8 +840,20 @@ namespace Brunet
             _send_state.Offset = 0;
             _send_state.Length = p.Length + 2;
             p.CopyTo( _send_state.Buffer, 2 );
+#if PLAB_RDP_LOG
+	    //Console.WriteLine("*******In TcpEdge.DoSend() function");
+	    if(p.type == Packet.ProtType.AH){	    
+		//Console.WriteLine("ProtoType is AH in DoSend()");
+	        AHPacket ahp = (AHPacket)p;
+	        if(ahp.PayloadType == AHPacket.Protocol.Echo && ahp.Source.Equals(_logger.LocalAHAddress)
+				&& p.PayloadStream.ToArray()[0] > 0){
+    		    //Console.WriteLine("Type is Echo in DoSend()");
+		    _logger.LogBrunetPing(p, false); 
+	        }
+	    }
+#endif
 #if PLAB_PACKET_LOG
-	BrunetLogger.LogPacketTimeStamp(p, false); //logging the packet sent, false because it is sent
+	    _logger.LogPacketTimeStamp(p, false); //logging the packet sent, false because it is sent
 #endif
           }
 
@@ -933,8 +959,20 @@ namespace Brunet
 #if POB_TCP_DEBUG
               //Console.WriteLine("edge: {0}, got packet {1}",this, p);
 #endif
+#if PLAB_RDP_LOG
+	    //Console.WriteLine("*******In TcpEdge.DoReceive() function");
+	    if(p.type == Packet.ProtType.AH){	 
+		//Console.WriteLine("ProtoType is AH in DoReceive()");
+	        AHPacket ahp = (AHPacket)p;
+	        if(ahp.PayloadType == AHPacket.Protocol.Echo && ahp.Destination.Equals(_logger.LocalAHAddress)
+				&& p.PayloadStream.ToArray()[0] == 0){
+    		    //Console.WriteLine("Type is Echo in DoReceive()");
+		    _logger.LogBrunetPing(p, true); 
+	        }
+	    }
+#endif
 #if PLAB_PACKET_LOG
-              BrunetLogger.LogPacketTimeStamp(p, true); //logging packet p, true means the packet is received
+              _logger.LogPacketTimeStamp(p, true); //logging packet p, true means the packet is received
 #endif
               //Reinit the rec_state
               _rec_state.Offset = 0;

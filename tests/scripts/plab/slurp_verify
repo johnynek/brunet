@@ -18,6 +18,7 @@ SLURP_FAIL_FILE="/home/jskong/scripts/temp/slurp_fail.txt"
 MAX_SLURP_ITER=5
 PAR=50
 last_node=""
+start=`date +%s`
 
 > $EXE_NODES_FILE
 while read word0 word1; do
@@ -46,13 +47,12 @@ while read word0 word1 word2; do
    fi
 done < $DUMMY_FILE
 
-
 SLURP_ITER=0
 while [[ -e $SLURP_FAIL_FILE && $SLURP_ITER < $MAX_SLURP_ITER ]]; do
   sleep 5
   #pslurp -r -h $SLURP_FAIL_FILE  -o /tmp/out/ -e /tmp/error/ -p $PAR -t 80 -L ~/results/data/ -l uclaee_brunet1 \
   #/home/uclaee_brunet1/joe/data/ ./ > $DUMMY_FILE
-  ~/scripts/prsyncsucks.py $EXE_NODES_FILE > $DUMMY_FILE
+  ~/scripts/prsyncsucks.py $SLURP_FAIL_FILE > $DUMMY_FILE
   rm $SLURP_FAIL_FILE
   echo Following nodes fail to obtain data on iteration number $SLURP_ITER:
   while read word0 word1 word2; do
@@ -85,3 +85,5 @@ echo The results are in $RESULTS_FILE #and $ALIVE_RESULTS_FILE
 cp $RESULTS_FILE ./results_log/`date -u +%m_%d_%Y_%H_%M_%S`"results.txt"
 cp $NET_EVOL_FILE ./results_log/`date -u +%m_%d_%Y_%H_%M_%S`"net_evol.txt"
 cp $REMOVAL_VERIFIER_FILE ./results_log/`date -u +%m_%d_%Y_%H_%M_%S`"verifier.txt"
+end=`date +%s`
+echo Slurp and verify took $(( end - start )) seconds

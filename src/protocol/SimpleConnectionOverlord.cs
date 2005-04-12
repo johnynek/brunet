@@ -715,9 +715,6 @@ namespace Brunet {
       }
       con.FinishEvent += new EventHandler(this.ConnectorEndHandler);
       con.Connect(edge, ctm_pack, ctm.Id);
-#if PLAB_CTM_LOG
-      this.Logger.LogCTMEvent(target);
-#endif
     }
     
     /**
@@ -810,9 +807,6 @@ namespace Brunet {
       }
       con.FinishEvent += new EventHandler(this.ConnectorEndHandler);
       con.Connect(forward_pack, ctm.Id);
-#if PLAB_CTM_LOG
-      this.Logger.LogCTMEvent(target);
-#endif
 
     }
 
@@ -878,7 +872,8 @@ namespace Brunet {
       int ex_big = ex_i - ex_long;
       ulong dist_long = (ulong)Math.Pow(2.0, ex_long + ex_f);
       //This is 2^(ex_big):
-      BigInteger dist_big = 1 << ex_big;
+      BigInteger big_one = 1;
+      BigInteger dist_big = big_one << ex_big;
       BigInteger rand_dist = dist_big * dist_long;
 #endif
 

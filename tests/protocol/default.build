@@ -107,6 +107,7 @@
                    <include name="${lib.dir}/log4net.dll" />
                    <include name="${lib.dir}/${assembly}.dll" />
                    <include name="${lib.dir}/${assembly}-TestUtil.dll" />
+		   <include name="/usr/share/dotnet/mono/1.0/Mono.Posix.dll" />
                 </references>
              </csc>
        </do>
@@ -137,6 +138,7 @@
                    <include name="${lib.dir}/log4net.dll" />
                    <include name="${lib.dir}/${assembly}.dll" />
                    <include name="${lib.dir}/${assembly}-TestUtil.dll" />
+		   <include name="/usr/share/dotnet/mono/1.0/Mono.Posix.dll" />
                 </references>
              </csc>
        </do>
