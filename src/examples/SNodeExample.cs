@@ -7,7 +7,7 @@ using System.Security.Cryptography;
  * connects to other nodes.
  * 
  * Compile this code with:
- * gmcs SNodeExample.cs -r:Brunet.dll
+ * mcs SNodeExample.cs -r Brunet.dll
  * 
  * you should make a copy of Brunet.dll into the local directory,
  * so the program can use the Brunet library.
@@ -64,25 +64,19 @@ public class SNodeExample {
      * Tell the node who it can connect to:
      */
     for(int i = 2; i < args.Length; i++) {
-      tmp_node.RemoteTAs.Add( Brunet.TransportAddressFactory.CreateInstance( args[i] ) );
+      tmp_node.RemoteTAs.Add( new Brunet.TransportAddress( args[i] ) );
     }
     /**
-     * Now we connect, this blocks until Disconnect is called (in some
-     * other thread or by some IDataHandler subscribed (see below).
-     *
-     * If you want to start Connect in its own thread do:
-     * System.Threading.Thread t = new System.Threading.Thread(
-     *    delegate() { tmp_node.Connect(); } );
-     * t.Start();
+     * Now we connect
      */
     tmp_node.Connect();
-    
+    Console.WriteLine("Connected");
     /**
-     * In a real application, we would create some IDataHandler 
+     * In a real application, we would create some IAHPacketHandler
      * objects and do:
-     * tmp_node.GetTypeSource(PType...).Subscribe(my_handler, my_state)
-     *
-     * Then we can send some packets using AHSender, AHExactSender, etc...
+     * tmp_node.Subscribe( )
+     * finally, we could send packets using tmp_node.Send( ) or
+     * tmp_node.SendTo( )
      */
 	 
     return 1;
