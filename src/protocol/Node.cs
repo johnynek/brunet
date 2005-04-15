@@ -789,7 +789,11 @@ namespace Brunet
         ttld = 2.0 * ttld;
       }
       
-      if( ttld > (double)AHPacket.MaxTtl ) {
+      if( ttld < 3.0 ) {
+        //Don't send too short a distance
+	ttl = 3;
+      }
+      else if( ttld > (double)AHPacket.MaxTtl ) {
         ttl = AHPacket.MaxTtl;
       }
       else {
