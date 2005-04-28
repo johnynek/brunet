@@ -55,8 +55,10 @@ namespace Brunet
   public class HybridNode:Node
   {
 
-    protected Hashtable _connectionoverlords;
-
+    protected ConnectionOverlord _sco;
+    protected ConnectionOverlord _lco;
+    protected ConnectionOverlord _uco;
+    
     protected int _netsize = -1;
     override public int NetworkSize {
       get {
@@ -81,18 +83,9 @@ namespace Brunet
       /**
        * Here are the ConnectionOverlords
        */ 
-      _connectionoverlords = new Hashtable();
-      ConnectionOverlord co = new LeafConnectionOverlord(this);
-      _connectionoverlords[ ConnectionType.Leaf ] = co;
-      //DEBUG: forget about structured connections for now
-      co = new StructuredConnectionOverlord(this);
-#if PLAB_LOG
-      co.Logger = this.Logger;
-#endif
-      _connectionoverlords[ ConnectionType.Structured ] = co;
-
-      co = new UnstructuredConnectionOverlord(this);
-      _connectionoverlords[ ConnectionType.Unstructured ] = co;
+      _lco = new LeafConnectionOverlord(this);
+      _sco = new SimpleConnectionOverlord(this);
+      _uco = new UnstructuredConnectionOverlord(this);
 
       /**
        * Turn on some protocol support : 
@@ -123,48 +116,13 @@ namespace Brunet
     override public void Connect()
     {
       StartAllEdgeListeners();
+      _lco.IsActive = true;
+      _sco.IsActive = true;
+      _uco.IsActive = true;
 
-      lock(_sync) {
-	    #if DEBUG
-
-	//	Console.WriteLine("I am in DEBUG!!");
-	//	Console.ReadLine();
-	    ConnectionType tl = ConnectionType.Leaf;
-	    LeafConnectionOverlord col = (LeafConnectionOverlord) _connectionoverlords[tl];
-            if (col != null) {
-              col.IsActive = true;
-            }
-
-	    ConnectionType ts = ConnectionType.Structured;
-	    StructuredConnectionOverlord cos = (StructuredConnectionOverlord) _connectionoverlords[ts];
-            if (cos != null) {
-              cos.IsActive = true;
-            }
-
-	    #elif PRODUCTION	
-        //Console.WriteLine("I am in PRODUCTION!!");
-
-        //And then, comment out the following up till ***
-        foreach(ConnectionType t
-                in System.Enum.GetValues(typeof(ConnectionType)))
-        {
-          ConnectionOverlord co = (ConnectionOverlord) _connectionoverlords[t];
-          //Make sure we have this kind of ConnectionOverlord
-          if (co != null) {
-            co.IsActive = true;
-          }
-        }
-        foreach(ConnectionType t
-                in System.Enum.GetValues(typeof(ConnectionType)))
-        {
-          ConnectionOverlord co = (ConnectionOverlord) _connectionoverlords[t];
-          //Make sure we have this kind of ConnectionOverlord
-          if (co != null) {
-            co.Activate();
-          }
-        }
-	  #endif
-      }
+      _lco.Activate();
+      _sco.Activate();
+      _uco.Activate();
     }
     /**
      * This informs all the ConnectionOverlord objects
@@ -173,24 +131,22 @@ namespace Brunet
      */
     override public void Disconnect()
     {
-      lock(_sync) {
-        foreach(ConnectionType t
-                in System.Enum.GetValues(typeof(ConnectionType))) {
-          ConnectionOverlord co =
-            (ConnectionOverlord) _connectionoverlords[t];
-          //Make sure we have this kind of ConnectionOverlord
-          if (co != null) {
-            co.IsActive = false;
-          }
+
+      _lco.IsActive = false;
+      _sco.IsActive = false;
+      _uco.IsActive = false;
+
+      //Gracefully close all the edges:
+      ArrayList edges_to_close = new ArrayList();
+      lock( _connection_table.SyncRoot ) {
+        foreach(Connection c in _connection_table) {
+          edges_to_close.Add( c.Edge );
         }
-
-        // close and remove all edges for the node
-        //ConnectionTable.CloseAllEdges();
-
-        // stop all edge listeners to prevent other nodes
-        // from connecting to us
-        StopAllEdgeListeners();
       }
+      foreach(Edge e in edges_to_close) {
+        GracefullyClose(e);
+      }
+      StopAllEdgeListeners();
     }
 
     /**
