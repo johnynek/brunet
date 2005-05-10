@@ -75,8 +75,8 @@ namespace Brunet
     private int _hash_code;
 
 #if PLAB_LOG
-    private BrunetLogger _logger;
-    public BrunetLogger Logger{
+    protected BrunetLogger _logger;
+    virtual public BrunetLogger Logger{
 	get{
 	  return _logger;
 	}
@@ -475,6 +475,32 @@ namespace Brunet
       return _hash_code;
     }
 
+
+    /**
+     * return a status message for this node.
+     * Currently this provides neighbor list exchange
+     * but may be used for other features in the future
+     * such as network size estimate sharing.
+     * @param con_type_string string representation of the desired type.
+     */
+    public StatusMessage GetStatus(string con_type_string)
+    {
+      ArrayList neighbors = new ArrayList();
+      //Get the neighbors of this type:
+      lock( _connection_table.SyncRoot ) {
+        /*
+         * Send the list of all neighbors of this type.
+         * @todo make sure we are not sending more than
+         * will fit in a single packet.
+         */
+        ConnectionType ct = Connection.StringToMainType( con_type_string );
+        foreach(Connection c in _connection_table.GetConnections( ct ) ) {
+          neighbors.Add( new NodeInfo( c.Address, c.Edge.RemoteTA ) );
+        }
+      }	  
+      return new StatusMessage( con_type_string, neighbors );
+    }
+    
     /**
      * Close the edge after we get a response CloseMessage
      * from the node on the other end.

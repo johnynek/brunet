@@ -18,40 +18,31 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-/**
- * Dependencies : 
- * Brunet.AHPacket
- * Brunet.BrunetLogger
+/*
+ * Brunet.Address;
  * Brunet.Edge
+ * Brunet.ConnectionType;
  */
 
 namespace Brunet
 {
 
   /**
-   * When objects want to handle packets delivered to local nodes
-   * they implement this interface and Subscribe to particular
-   * protocols on the Node
+   * When a Connection is created, an EventHandler is called
+   * with (edge, StatusResponseEventArgs) as the parameters
    */
-  public interface IAHPacketHandler
-  {
-#if PLAB_LOG
-    BrunetLogger Logger{
-      get;
-      set;
-    } 
-#endif
-    /**
-     * @param node The node that got the packet
-     * @param p the packet
-     * @param from the edge we got the packet from
-     */
-    void HandleAHPacket(object node, AHPacket p, Edge from);
 
-    /**
-     * @return true if you handle this type
-     */
-    //bool HandlesAHProtocol(AHPacket.Protocol type);
+  public class StatusResponseEventArgs:System.EventArgs
+  {
+
+    public StatusMessage Status { get { return _sm; } }
+    
+    protected StatusMessage _sm;
+
+    public StatusResponseEventArgs(StatusMessage sm)
+    {
+      _sm = sm;
+    }
   }
 
 }

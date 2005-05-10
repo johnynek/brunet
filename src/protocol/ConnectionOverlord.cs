@@ -40,46 +40,44 @@ namespace Brunet
   public abstract class ConnectionOverlord
   {
     /*private static readonly log4net.ILog log =
-        log4net.LogManager.GetLogger(System.Reflection.MethodBase.
-        GetCurrentMethod().DeclaringType);*/
-
+      log4net.LogManager.GetLogger(System.Reflection.MethodBase.
+      GetCurrentMethod().DeclaringType);*/
 #if PLAB_LOG
     private BrunetLogger _logger;
     public BrunetLogger Logger{
-	get{
-	  return _logger;
-	}
-	set
-	{
-	  _logger = value;          
-	}
+      get{
+        return _logger;
+      }
+      set
+      {
+        _logger = value;          
+      }
     }
 #endif
-
     /**
      * If IsActive, then start trying to get connections.
      */
     abstract public void Activate();
 
-      /**
-      * When IsActive is false, the ConnectionOverlord does nothing
-      * to replace lost connections, or to get connections it needs.
-      * When IsActive is true, then any missing connections are
-      * made up for
-      */
-      abstract public bool IsActive
-      {
-        get;
-          set;
-          }
+    /**
+     * When IsActive is false, the ConnectionOverlord does nothing
+     * to replace lost connections, or to get connections it needs.
+     * When IsActive is true, then any missing connections are
+     * made up for
+     */
+    abstract public bool IsActive
+    {
+      get;
+      set;
+    }
 
-          /**
-           * @return true if the ConnectionOverlord needs a connection
-           */
-          abstract public bool NeedConnection
-          {
-            get;
-            }
-          }
+    /**
+     * @return true if the ConnectionOverlord needs a connection
+     */
+    abstract public bool NeedConnection
+    {
+      get;
+    }
+  }
 
 }

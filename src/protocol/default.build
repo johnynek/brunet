@@ -183,7 +183,7 @@
     <csc
       target="library"
       debug="${build.debug}"
-      define="PLAB_LOG,PLAB_CONNECTION_LOG,PLAB_RDP_LOG"   
+      define="PLAB_LOG,PLAB_CONNECTION_LOG"   
       output="${build.dir}/${package.name}/bin/${assembly}.dll">
       <sources failonempty="true">
         <include name="*.cs"/>

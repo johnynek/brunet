@@ -38,9 +38,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  * Brunet.UnstructuredConnectionOverlord
  */
 
-//#define PRODUCTION
+#define PRODUCTION
 //to run the connecttester, make sure you change PRODUCTION to DEBUG
-#define DEBUG  //Unstructured network is not formed
+//#define DEBUG  //Unstructured network is not formed
 
 using System;
 using System.Collections;
@@ -54,6 +54,26 @@ namespace Brunet
 
   public class HybridNode:Node
   {
+
+    protected Hashtable _connectionoverlords;
+#if PLAB_LOG
+    override public BrunetLogger Logger{
+      get{
+        return _logger;
+      }
+      set
+      {
+        _logger = value;
+        //The connection table only has a logger in this case
+        _connection_table.Logger = value;
+        //_sco.Logger = value;
+        foreach(EdgeListener el in _edgelistener_list) {
+          el.Logger = value;
+        }
+      }
+    } 
+#endif
+
 
     protected ConnectionOverlord _sco;
     protected ConnectionOverlord _lco;
@@ -85,6 +105,9 @@ namespace Brunet
        */ 
       _lco = new LeafConnectionOverlord(this);
       _sco = new SimpleConnectionOverlord(this);
+#if PLAB_LOG
+      ((SimpleConnectionOverlord)_sco).Logger = this.Logger;
+#endif
       _uco = new UnstructuredConnectionOverlord(this);
 
       /**

@@ -192,18 +192,18 @@ namespace Brunet
          * log before the send because else the send will show
         * up after the receive in the log
          */
-        string base64String;
-        try {
-          byte[] buffer = new byte[p.Length];
-          p.CopyTo(buffer, 0);
-          base64String = Convert.ToBase64String(buffer);
-        }
-        catch (System.ArgumentNullException){
+        //string base64String;
+        //try {
+        //  byte[] buffer = new byte[p.Length];
+        //  p.CopyTo(buffer, 0);
+        //  base64String = Convert.ToBase64String(buffer);
+        //}
+        //catch (System.ArgumentNullException){
           //log.Error("Error: Packet is Null");
-          return;
-        }
-        string GeneratedLog = "OutPacket: edge: " + ToString() +
-                              ", packet: " + base64String;
+        //  return;
+        //}
+        //string GeneratedLog = "OutPacket: edge: " + ToString() +
+        //                      ", packet: " + base64String;
         //log.Info(GeneratedLog);
         // logging finished
 #if USE_FEDGE_QUEUE
@@ -286,7 +286,9 @@ namespace Brunet
 #if USE_FEDGE_QUEUE
 
 #else
+      #if DEBUG
       string command;
+      #endif      
       bool all_done = false;
       int num_done = 0;
       while(true) {

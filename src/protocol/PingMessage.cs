@@ -47,7 +47,6 @@ namespace Brunet
 
     public PingMessage(System.Xml.XmlElement r) : base(r)
     {
-      XmlElement ping_element = (XmlElement)r.FirstChild;
     }
     public PingMessage(ConnectionMessage.Direction dir, int id, XmlReader r)
     {

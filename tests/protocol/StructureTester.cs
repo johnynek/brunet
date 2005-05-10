@@ -18,7 +18,11 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 //#define LOWER_PORTS
-#define ECHO
+//#define ECHO
+#define PACKET_LOG
+//#define MEMORY_LOG
+///WARNING: ECHO and MEMORY_LOG cannot be turned on at the same time
+///To-do: implement memory logging on a separate thread
 
 using System;
 using System.Text;
@@ -27,7 +31,6 @@ using System.IO;
 using System.Net;
 using System.Security.Cryptography;
 using System.Diagnostics;
-using System;
 using Mono.Posix;
 using System.Runtime.InteropServices;
 
@@ -45,10 +48,12 @@ namespace Brunet
     ///This tester simply establishes the Brunet network and log the edges made
      private BrunetLogger bl;
      private bool log_rdp;
+     private static int echo_uid;
 
-     public StructureTester(int port, AHAddress local_add, bool net_stream, String server_ipadd, int server_port)
+     public StructureTester(int port, AHAddress local_add, bool net_stream, String server_ipadd, 
+		     int server_port, int offset, StreamWriter fs)
      {
-          bl = new BrunetLogger(port, local_add, net_stream, server_ipadd, server_port); 
+          bl = new BrunetLogger(port, local_add, net_stream, server_ipadd, server_port, offset, fs); 
           log_rdp = false;
      }
     
@@ -108,7 +113,7 @@ namespace Brunet
 
         //System.Console.WriteLine("{0}", packet.ToString());
 
-        if (payload[0] > 0) {
+        if (payload[0] > 0 && packet.Destination.Equals(node_handler.Address)) {
           //Send a reply back, this is a request  
           payload[0] = (byte) 0;
           AHPacket resp = new AHPacket( 0,
@@ -118,6 +123,9 @@ namespace Brunet
 
           node_handler.Send(resp);
         }
+	else if(payload[0] == 0 && packet.Destination.Equals(node_handler.Address)){
+          echo_uid = NumberSerializer.ReadInt(packet.PayloadStream.ToArray(), 2);
+	}
       }
     }
 
@@ -179,15 +187,24 @@ namespace Brunet
       //inforce type 0
       hashedbytes[Address.MemSize - 1] &= 0xFE;
       AHAddress _local_ahaddress = new AHAddress(hashedbytes);
-//      Node this_node = new HybridNode( _local_ahaddress );
-      Node this_node = new StructuredNode( _local_ahaddress );
+      Node this_node = new HybridNode( _local_ahaddress );
+      //Node this_node = new StructuredNode( _local_ahaddress );
       ///Node this_node = new HybridNode( new AHAddress( new BigInteger( 2*(local_host_index+1) ) ) );      
 
-      String file_string = "./data/brunetadd" + Convert.ToString(desired_port) + ".log";
+/*      String file_string = "./data/brunetadd" + Convert.ToString(desired_port) + ".log";
       StreamWriter sw = new StreamWriter(file_string, false);
-      sw.WriteLine( "local_address " + this_node.Address.ToBigInteger().ToString() + " " + Dns.GetHostName()); 
-      sw.Close();      
-
+      sw.WriteLine( "local_address " + this_node.Address.ToBigInteger().ToString() + " " + Dns.GetHostName() + ":" + desired_port);
+      sw.Flush();
+      sw.Close();  */
+#if PACKET_LOG
+      String file_packet = "./data/packet" + Convert.ToString(desired_port) + ".log";
+      StreamWriter packet_sw = new StreamWriter(file_packet, false);
+      packet_sw.WriteLine("Local_node: {0}:{1} start_time_GMT: {2}:{3} local_address {4}", Dns.GetHostName(), 
+		      desired_port, DateTime.Now.ToUniversalTime().ToString("MM'/'dd'/'yyyy' 'HH':'mm':'ss"), 
+		      DateTime.Now.ToUniversalTime().Millisecond, this_node.Address.ToBigInteger().ToString() ); 
+      packet_sw.Close(); 
+#endif
+      
       if ( local_ta_configuration.Protocol == "tcp" ) {
         this_node.AddEdgeListener( new TcpEdgeListener(port) );
       } 
@@ -213,95 +230,127 @@ namespace Brunet
         String remote_ta = remote_ta_configuration.GetTransportAddressURI(); 
         this_node.RemoteTAs.Add( new TransportAddress( remote_ta  ) );
 
-        System.Console.WriteLine("Adding {0}", remote_ta);
+        //System.Console.WriteLine("Adding {0}", remote_ta);
 
           remote_node_index--;
           num_remote_ta--;
         }
+
+      int time_diff = 0;
+      String td_file_string = "~/joe/time_diff.txt";
+      if(File.Exists(td_file_string)){
+         StreamReader sr = new StreamReader(td_file_string);
+         time_diff = Convert.ToInt32( sr.ReadLine() );     
+	 sr.Close();
+      }           
+      String _connection_log_file = "./data/" + "brunetadd" + Convert.ToString(desired_port) + ".log";
+      if(File.Exists(_connection_log_file)){
+	 File.Delete(_connection_log_file);
+      }
+      StreamWriter fs = new StreamWriter(_connection_log_file, true);
+      fs.AutoFlush = true;
       
-#if PLAB_LOG
       ///Initialize Brunet logger      
       //bl = new BrunetLogger(desired_port, (AHAddress)this_node.Address, true, "tcp://cantor.ee.ucla.edu:8003");
       //The line below is for cantor
-      StructureTester st = new StructureTester(desired_port, (AHAddress)this_node.Address, true, "128.97.88.154", 8002); 
+      StructureTester st = new StructureTester(desired_port, (AHAddress)this_node.Address, 
+		      false, "128.97.88.154", 8002, time_diff, fs); 
       //The line below is for cobweb
-      //StructureTester st = new StructureTester(desired_port, (AHAddress)this_node.Address, true, "164.67.194.45", 8002); 
+      //StructureTester st = new StructureTester(desired_port, (AHAddress)this_node.Address, false, "164.67.194.45", 8002); 
       //set true for network stream
+#if PLAB_LOG
       this_node.Logger = st.bl;
 
 #if ECHO
       this_node.Subscribe(AHPacket.Protocol.Echo, st);
 #endif
            
-      Syscall.signal(31, new Syscall.sighandler_t(st.SignalCatcher));
-      Syscall.signal(18, new Syscall.sighandler_t(st.SignalCatcherStartRDP));      
+      //Syscall.signal(31, new Syscall.sighandler_t(st.SignalCatcher));
+      //Syscall.signal(18, new Syscall.sighandler_t(st.SignalCatcherStartRDP));      
 #endif
 
-      this_node.Connect();      
+      this_node.Connect();   
+
+#if MEMORY_LOG
+      //first, remove the log file
+      String file_memory = "./data/memory" + Convert.ToString(desired_port) + ".log";
+      if(File.Exists(file_memory)){
+	File.Delete(file_memory);
+      }
+      StreamWriter memory_sw = new StreamWriter(file_memory, true);
+      memory_sw.WriteLine("Local_node: {0}:{1} start_time_GMT: {2}:{3} local_address {4}", Dns.GetHostName(), 
+		      desired_port, DateTime.Now.ToUniversalTime().ToString("MM'/'dd'/'yyyy' 'HH':'mm':'ss"), 
+		      DateTime.Now.ToUniversalTime().Millisecond, this_node.Address.ToBigInteger().ToString() ); 
+      memory_sw.WriteLine("Time \t \t RSS(KB) \t VSZ(KB)");
+      memory_sw.Flush();
+      PsWrapper psw = new PsWrapper();
+      int interval_min = 1;
+      TimeSpan elapsed_time;
+      DateTime start_time = DateTime.Now;
+      while(true){ //we log for 3000 seconds
+	elapsed_time = System.DateTime.Now - start_time;
+	try{
+	   psw.Ps();
+	   memory_sw.WriteLine("{0} \t {1} \t \t {2}", elapsed_time.TotalMilliseconds, psw.Rss, psw.Vsz );
+	   memory_sw.Flush();
+	   System.Threading.Thread.Sleep(interval_min*60*1000);               
+	}
+	catch(Exception e){
+           memory_sw.WriteLine("Fail to start the ps process");
+	   memory_sw.Flush();
+           break;
+	}
+      }
+      //memory_sw.Close();
+#endif
       
-#if ECHO
-      //Send a "hello message" to a random neighbor
-
-/*      int trial = 0;
-      ASCIIEncoding ascii = new ASCIIEncoding();
-
-      //Make the target addresses      
-      AHAddress target  = new AHAddress( new BigInteger( 2*(remote_node_index+1) ) );
-
-      string hello_msg = "hello, brunet";
-      int byteCount = ascii.GetByteCount(hello_msg);
-      byte[] bytes = new byte[byteCount + 1];
-      int bytesEncodedCount = ascii.GetBytes(hello_msg,
-                                                    0,
-                                                    hello_msg.Length,
-                                                    bytes,
-                                                    1);
-
-      // update the payload
-      // This is a request, so the first byte is greater than zero
-      bytes[0] = (byte) 1;
-      AHPacket p = new AHPacket(0, 30,   this_node.Address,
-                                     target,
-                                     AHPacket.Protocol.Echo, bytes);
-
-      ///RDP Experiment: sending the echo packet periodically
-      int seq = 0;
-      while(true){
-	int start_time = System.DateTime.Now.Millisecond;
-	this_node.Send(p);
-	Console.WriteLine("Seq = {0}, Start Time = {1}", seq, start_time);
-        System.Threading.Thread.Sleep(10000);
-	seq++;
-      }*/
-
-
-///The following is a while-loop for the local node to Brunet-ping all other nodes in the network
-      int sleep_time_min = 300;
+#if ECHO 
+      ///The following is a while-loop for the local node to Brunet-ping all other nodes in the network
+      int sleep_time_min = 240;
       System.Threading.Thread.Sleep(sleep_time_min*60*1000);  ///IMPORTANT: change this parameter so we wait longer for larger network
       /*while(!st.log_rdp){
          System.Threading.Thread.Sleep(5000);
       }*/
       Random uid_generator = new Random( DateTime.Now.Millisecond + local_ta.GetHashCode() + port);
-      byte[] bytes = new byte[5];
-      int target_index = 0, num_pings = 10, wait_time = 10000; //the wait_time is in ms
+      byte[] bytes = new byte[6];
+      int target_index = 0, num_pings = 10, wait_time = 2000, uid; //the wait_time is in ms
       double ping_time;
       PingWrapper pw = new PingWrapper();    
       AHPacket p;
       while( target_index < network_configuration.Nodes.Count ){
 	  NodeConfiguration target_node_configuration = (NodeConfiguration)network_configuration.Nodes[target_index];
 	  TransportAddressConfiguration target_ta_configuration = (TransportAddressConfiguration)target_node_configuration.TransportAddresses[0];
-          if(target_index != local_host_index && target_ta_configuration.Address != local_ta){///we do not ping the local machine
+          if(target_index != local_host_index && target_ta_configuration.Address != local_ta_configuration.Address){///we do not ping the local machine
 	      short target_port = target_ta_configuration.Port;
-	      double ping1 = pw.Ping(target_ta_configuration.Address, 10000);
-	      double ping2 = pw.Ping(target_ta_configuration.Address, 10000);
-	      if(ping1 >= 0 || ping2 >= 0){ //we gather the data only when the node is ping-able
-		  sha = new SHA1CryptoServiceProvider();
-		  String target_ta = target_ta_configuration.GetTransportAddressURI();
-		  //We take the transport address plus the port number to be hashed to obtain a random AHAddress
-		  hashedbytes = sha.ComputeHash(Encoding.UTF8.GetBytes(target_ta + target_port));
-		  //inforce type 0
-		  hashedbytes[Address.MemSize - 1] &= 0xFE;
-		  AHAddress _target_ahaddress = new AHAddress(hashedbytes);	      
+	      uid = uid_generator.Next(); //this is the unique id of the packet
+	      // update the payload
+	      // This is a request, so the first byte is greater than zero
+	      sha = new SHA1CryptoServiceProvider();
+	      String target_ta = target_ta_configuration.GetTransportAddressURI();
+	      //We take the transport address plus the port number to be hashed to obtain a random AHAddress
+	      hashedbytes = sha.ComputeHash(Encoding.UTF8.GetBytes(target_ta + target_port));
+	      //inforce type 0
+	      hashedbytes[Address.MemSize - 1] &= 0xFE;
+	      AHAddress _target_ahaddress = new AHAddress(hashedbytes);	
+	      bytes[0] = (byte) 1;
+	      bytes[1] = (byte) 1; /// 1 for testing to see node up or not
+	      NumberSerializer.WriteInt(uid, bytes, 2);
+	      p = new AHPacket(0, 30, this_node.Address, _target_ahaddress, AHPacket.Protocol.Echo, bytes);
+              this_node.Send(p);
+	      Console.WriteLine("Brunet-pinging {0} on port {1} with uid {2}", target_ta_configuration.Address, target_port, uid);
+	      bool received = false;
+	      int receive_counter = 0;
+	      while(!received && receive_counter < 10){
+                 receive_counter++;
+                 System.Threading.Thread.Sleep(1000);
+		 if(echo_uid == uid){
+                    received = true;
+		    Console.WriteLine("Got echo packet with uid {0} on loop {1}", echo_uid, receive_counter);
+		 }	
+	      }
+	      double ping1 = pw.Ping(target_ta_configuration.Address, wait_time);
+	      double ping2 = pw.Ping(target_ta_configuration.Address, wait_time);
+	      if(received && (ping1 >= 0 || ping2 >= 0)){ //we gather the data only when the node is ping-able      
 #if PLAB_LOG
 		  ///Write the header to a log file  
 		  st.bl.LogBPHeader(local_ta_configuration.Address, local_ta_configuration.Port, 
@@ -311,23 +360,32 @@ namespace Brunet
 #endif
 		  for(int i = 0; i < num_pings; i++){
 		    //ping and Brunet-ping the target node for a number of times
-		    int uid = uid_generator.Next(); //this is the unique id of the packet
+		    uid = uid_generator.Next(); //this is the unique id of the packet
 		    // update the payload
 		    // This is a request, so the first byte is greater than zero
 		    bytes[0] = (byte) 1;
-		    NumberSerializer.WriteInt(uid, bytes, 1);
+		    bytes[1] = (byte) 0; /// 0 for regular brunet-pinging
+		    NumberSerializer.WriteInt(uid, bytes, 2);
 		    p = new AHPacket(0, 30, this_node.Address, _target_ahaddress, AHPacket.Protocol.Echo, bytes);
 
 		    this_node.Send(p);
 		    ping_time = pw.Ping(target_ta_configuration.Address, wait_time); //wait wait_time number of ms
 #if PLAB_LOG
 		    st.bl.LogPing(ping_time);	
-#endif
-		    System.Threading.Thread.Sleep(wait_time); 
-		  }//end of for-loop 
-		  System.Threading.Thread.Sleep(2*wait_time); 
-		}                  
-
+#endif		   
+		    System.Threading.Thread.Sleep(1000); 
+		  }//end of for-loop 		  
+	        }
+	        received = false;
+	        receive_counter = 0;
+	        while(!received && receive_counter < 5){
+                  receive_counter++;
+                  System.Threading.Thread.Sleep(1000);
+		  if(echo_uid == uid){
+                    received = true;
+		    Console.WriteLine("Got echo packet with uid {0} on loop {1}", echo_uid, receive_counter);
+		  }	
+	        }
           }//end of if-loop        
     	  target_index++;
        }//end of while-loop

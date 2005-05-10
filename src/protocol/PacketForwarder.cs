@@ -45,7 +45,19 @@ namespace Brunet
     /*private static readonly log4net.ILog _log =
         log4net.LogManager.GetLogger(System.Reflection.MethodBase.
         GetCurrentMethod().DeclaringType);*/
-
+#if PLAB_LOG
+    protected BrunetLogger _logger;
+    public BrunetLogger Logger{
+      get{
+        return _logger;
+      }
+      set
+      {
+        _logger = value;
+      }
+    }
+#endif
+    
     protected Address _local;
 
     public PacketForwarder(Address local)
@@ -66,6 +78,13 @@ namespace Brunet
         		   + " destination: " + f_pack.Destination.ToString()
         		   + " P: " + p.ToString());*/
         if( f_pack.Source.Equals( _local ) ) {
+#if PLAB_LOG
+          BrunetEventDescriptor bed = new BrunetEventDescriptor();      
+          bed.RemoteAHAddress = f_pack.Destination.ToBigInteger().ToString();
+          bed.EventDescription = "PacketForwarder.HAP.target";
+          Logger.LogAttemptEvent( bed );
+#endif
+
           n.Send(f_pack, from);
         }
         else {

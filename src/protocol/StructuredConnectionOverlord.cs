@@ -348,7 +348,6 @@ namespace Brunet
       ArrayList result = new ArrayList();
       lock( _connection_table.SyncRoot ) {
         ArrayList structured_edges =_connection_table.GetEdgesOfType(ConnectionType.Structured);
-        int total_neighbors = 0;
         int next_index = start;
         bool more = true;
 

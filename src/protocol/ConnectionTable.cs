@@ -75,13 +75,13 @@ namespace Brunet
 #if PLAB_CONNECTION_LOG
     private BrunetLogger _logger;
     public BrunetLogger Logger{
-	get{
-	  return _logger;
-	}
-	set
-	{
-	  _logger = value;          
-	}
+      get{
+        return _logger;
+      }
+      set
+      {
+        _logger = value;          
+      }
     }
 #endif
     protected Hashtable type_to_addlist;
@@ -115,6 +115,10 @@ namespace Brunet
      * When a connection is lost, this event is fired
      */
     public event EventHandler DisconnectionEvent;
+    /**
+     * When status changes, this event is fired
+     */
+    public event EventHandler StatusChangedEvent;
 
     protected AHAddressComparer _cmp;
     public AHAddressComparer AHAddressComparer
@@ -253,10 +257,13 @@ namespace Brunet
       bed.LocalPort = e.LocalTA.Port.ToString();
       bed.RemoteTAddress = e.RemoteTA.ToString();
       bed.RemoteAHAddress = a.ToBigInteger().ToString();
+      bed.RemoteAHAddressBase32 = a.ToString();
       bed.ConnectTime = DateTime.Now.Ticks;
-      bed.SubType = c.ConType;      
+      bed.SubType = c.ConType;     
+      bed.StructureDegree = Count(ConnectionType.Structured);
 
       _logger.LogBrunetEvent( bed );
+      //Console.WriteLine("Table size is: {0}", TotalCount);
 #endif
 
       #if KML_DEBUG
@@ -281,7 +288,6 @@ namespace Brunet
      */
     public bool Contains(ConnectionType t, Address a)
     {
-      ArrayList al = (ArrayList)type_to_addlist[t];
       bool result = (IndexOf(t,a) >= 0);
       return result;
     }
@@ -335,8 +341,10 @@ namespace Brunet
         bed.LocalTAddress = e.LocalTA.ToString();
         bed.RemoteTAddress = e.RemoteTA.ToString();
         bed.RemoteAHAddress = remote.ToBigInteger().ToString();
+        bed.RemoteAHAddressBase32 = remote.ToString();
         bed.ConnectTime = DateTime.Now.Ticks;
         bed.SubType = c.ConType;
+        bed.StructureDegree = Count(ConnectionType.Structured);
 
         _logger.LogBrunetEvent( bed );
 #endif
@@ -681,8 +689,10 @@ namespace Brunet
         bed.LocalTAddress = e.LocalTA.ToString();
         bed.RemoteTAddress = e.RemoteTA.ToString();
         bed.RemoteAHAddress = remote.ToBigInteger().ToString();
+        bed.RemoteAHAddressBase32 = remote.ToString();
         bed.ConnectTime = DateTime.Now.Ticks;
         bed.SubType = c.ConType;
+        bed.StructureDegree = Count(ConnectionType.Structured);
 
         _logger.LogBrunetEvent( bed );
 #endif
@@ -836,6 +846,44 @@ namespace Brunet
       }
     }
 
+    /**
+     * update the StatusMessage for a particular Connection.  Since 
+     * Connections are immutable so we make a new Connection object 
+     * with the new StatusMessage. All other constructor arguments
+     * are taken from the old Connection instance.
+     * This will fail if the con argument is not present.
+     * @param con Connection to update.
+     * @param sm StatusMessage to replace the old.
+     */
+    public void UpdateStatus(Connection con, StatusMessage sm)
+    {
+      int index;
+      ConnectionType t = con.MainType;
+      Address a = con.Address;
+      Edge e = con.Edge;
+      string con_type = con.ConType;
+      LinkMessage plm = con.PeerLinkMessage;
+
+      Connection newcon = null;
+      lock(_sync) {
+
+        ArrayList adds = (ArrayList)type_to_addlist[t];
+        index = adds.BinarySearch(a, _cmp);
+        if (index < 0)
+        {
+          //This is a new address:
+          throw new Exception("Address: " + a.ToString() + " not in ConnectionTable. Cannot UpdateStatus.");
+        }
+        newcon = new Connection(e,a,con_type,sm,plm);
+        edge_to_con[e] = newcon;
+
+      } /* we release the lock */
+     
+      /* Send the event: */
+      if( StatusChangedEvent != null )
+        StatusChangedEvent(sm, new ConnectionEventArgs(newcon, index) );
+    }
+   
     /**
      * When a new Edge is created by the the Linker or received
      * by the ConnectionPacketHandler, they tell the ConnectionTable

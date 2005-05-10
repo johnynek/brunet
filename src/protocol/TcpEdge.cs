@@ -846,7 +846,7 @@ namespace Brunet
 		//Console.WriteLine("ProtoType is AH in DoSend()");
 	        AHPacket ahp = (AHPacket)p;
 	        if(ahp.PayloadType == AHPacket.Protocol.Echo && ahp.Source.Equals(_logger.LocalAHAddress)
-				&& p.PayloadStream.ToArray()[0] > 0){
+				&& p.PayloadStream.ToArray()[0] > 0 && p.PayloadStream.ToArray()[1] == 0){
     		    //Console.WriteLine("Type is Echo in DoSend()");
 		    _logger.LogBrunetPing(p, false); 
 	        }
@@ -965,7 +965,7 @@ namespace Brunet
 		//Console.WriteLine("ProtoType is AH in DoReceive()");
 	        AHPacket ahp = (AHPacket)p;
 	        if(ahp.PayloadType == AHPacket.Protocol.Echo && ahp.Destination.Equals(_logger.LocalAHAddress)
-				&& p.PayloadStream.ToArray()[0] == 0){
+				&& p.PayloadStream.ToArray()[0] == 0 && p.PayloadStream.ToArray()[1] == 0){
     		    //Console.WriteLine("Type is Echo in DoReceive()");
 		    _logger.LogBrunetPing(p, true); 
 	        }
