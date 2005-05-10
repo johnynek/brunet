@@ -129,7 +129,6 @@ namespace Brunet
         throw new ParseException("There is no type for this <link /> message");
       }
       
-      bool finished = false;
       NodeInfo tmp = null;
       while( r.Read() ) {
         /*

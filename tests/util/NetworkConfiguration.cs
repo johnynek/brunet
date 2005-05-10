@@ -72,9 +72,9 @@ namespace Brunet
             ArrayList tas = nc.TransportAddresses;
             if ( tas!=null ) {
               foreach (TransportAddressConfiguration address in tas) {
-              System.Console.WriteLine("HERE: {0}", address.Address);
+              //System.Console.WriteLine("HERE: {0}", address.Address);
                 if ( address.Address.StartsWith(local_host_name) ) {
-              System.Console.WriteLine("THERE: {0}, {1}", address.Address,current_index);
+              //System.Console.WriteLine("THERE: {0}, {1}", address.Address,current_index);
                   return current_index;
                 }
               }
@@ -97,12 +97,12 @@ namespace Brunet
             ArrayList tas = nc.TransportAddresses;
             if ( tas!=null ) {
               foreach (TransportAddressConfiguration address in tas) {
-              System.Console.WriteLine("HERE: {0}", address.Address);
+              //System.Console.WriteLine("HERE: {0}", address.Address);
                 if ( address.Address.StartsWith(local_host_name) ) {
 		  TransportAddressConfiguration local_ta_configuration = (TransportAddressConfiguration)nc.TransportAddresses[0];
 		  short port = local_ta_configuration.Port;
 	          if(port == port_desired){
-              	    System.Console.WriteLine("THERE: {0}, {1}", address.Address,current_index);
+              	    //System.Console.WriteLine("THERE: {0}, {1}", address.Address,current_index);
                     return current_index;
                   }
                 }
@@ -126,12 +126,12 @@ namespace Brunet
             ArrayList tas = nc.TransportAddresses;
             if ( tas!=null ) {
               foreach (TransportAddressConfiguration address in tas) {
-              System.Console.WriteLine("HERE: {0}", address.Address);
+              //System.Console.WriteLine("HERE: {0}", address.Address);
                 if ( address.Address.StartsWith(local_host_name) ) {
 		  TransportAddressConfiguration local_ta_configuration = (TransportAddressConfiguration)nc.TransportAddresses[0];
 		  short port = local_ta_configuration.Port;
 	          if(port == port_desired){
-              	    System.Console.WriteLine("THERE: {0}, {1}", address.Address,current_index);
+              	    //System.Console.WriteLine("THERE: {0}, {1}", address.Address,current_index);
                     return current_index;
                   }
                 }

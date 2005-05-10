@@ -109,6 +109,46 @@ namespace Brunet
       _realm = realm;
     }
 
+#if PLAB_LOG
+    override public BrunetLogger Logger{
+      get{
+        return _logger;
+      }
+      set
+      {
+        _logger = value;
+        //The connection table only has a logger in this case
+        _connection_table.Logger = value;
+        _sco.Logger = value;
+        foreach(EdgeListener el in _edgelistener_list) {
+          el.Logger = value;
+        }
+        foreach(AHPacket.Protocol prot in _subscription_table.Keys) {
+          if(prot == AHPacket.Protocol.Forwarding){
+            ArrayList handlers = (ArrayList)_subscription_table[prot];
+            foreach(IAHPacketHandler handler in handlers){ 
+              try{
+                ((PacketForwarder)handler).Logger = Logger;
+              }
+              catch(InvalidCastException e){}             
+            }
+          }
+          else if(prot == AHPacket.Protocol.Connection){
+            ArrayList handlers = (ArrayList)_subscription_table[prot];
+            foreach(IAHPacketHandler handler in handlers){ 
+              try{
+                ((CtmRequestHandler)handler).Logger = Logger;
+              }
+              catch(InvalidCastException e){}             
+            }
+          }
+
+        }
+      }
+    } 
+#endif
+
+
     protected int _netsize = -1;
     override public int NetworkSize {
       get {
@@ -122,6 +162,9 @@ namespace Brunet
      */
     override public void Connect()
     {
+#if PLAB_LOG
+      //_sco.Logger = this.Logger;
+#endif
       StartAllEdgeListeners();
 
       _lco.IsActive = true;
@@ -219,7 +262,9 @@ namespace Brunet
 
 	//Now we have our estimate:
 	_netsize = net_size;
-	//Console.WriteLine("Network size: {0}", _netsize);
+	Console.WriteLine("Network size: {0} at {1}:{2}", _netsize, 
+			DateTime.Now.ToUniversalTime().ToString("MM'/'dd'/'yyyy' 'HH':'mm':'ss"),
+		        DateTime.Now.ToUniversalTime().Millisecond);
       }
       }catch(Exception x) {
         Console.Error.WriteLine(x.ToString());

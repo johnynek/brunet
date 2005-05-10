@@ -17,41 +17,24 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
+using System;
 
-/**
- * Dependencies : 
- * Brunet.AHPacket
- * Brunet.BrunetLogger
- * Brunet.Edge
- */
+namespace Brunet{
 
-namespace Brunet
-{
-
-  /**
-   * When objects want to handle packets delivered to local nodes
-   * they implement this interface and Subscribe to particular
-   * protocols on the Node
-   */
-  public interface IAHPacketHandler
+  public class RemoteObjectFactory: MarshalByRefObject
   {
-#if PLAB_LOG
-    BrunetLogger Logger{
-      get;
-      set;
-    } 
-#endif
-    /**
-     * @param node The node that got the packet
-     * @param p the packet
-     * @param from the edge we got the packet from
-     */
-    void HandleAHPacket(object node, AHPacket p, Edge from);
+    protected int _start_index;
 
-    /**
-     * @return true if you handle this type
-     */
-    //bool HandlesAHProtocol(AHPacket.Protocol type);
+    public RemoteObjectFactory(){
+      _start_index = 0;
+    }
+
+    public BrunetRemoteObject Create(int num_nodes)
+    {
+      BrunetRemoteObject bro = new BrunetRemoteObject(_start_index, num_nodes);
+      _start_index += num_nodes;
+      return bro;
+    }
   }
 
 }

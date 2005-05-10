@@ -65,6 +65,18 @@ namespace Brunet
     /*private static readonly log4net.ILog _log =
         log4net.LogManager.GetLogger(System.Reflection.MethodBase.
         GetCurrentMethod().DeclaringType);*/
+#if PLAB_LOG
+    protected BrunetLogger _logger;
+    public BrunetLogger Logger{
+      get{
+        return _logger;
+      }
+      set
+      {
+        _logger = value;
+      }
+    }
+#endif
 
     protected Node _local_node;
     /**
@@ -201,6 +213,21 @@ namespace Brunet
         _ctm_send_timeouts = 0;
         //_log.Info("Sending CTM Request:");
         //_log.Info("CTM Packet:\n" + request_packet.ToString());
+#if PLAB_LOG
+        if(request_packet.PayloadType == AHPacket.Protocol.Forwarding){
+            AHPacket tmp_pack = PacketForwarder.UnwrapPacket(request_packet);
+            BrunetEventDescriptor bed1 = new BrunetEventDescriptor();      
+            bed1.RemoteAHAddress = request_packet.Destination.ToBigInteger().ToString();
+            bed1.EventDescription = "Connector.Connect.forwarder";
+            Logger.LogAttemptEvent( bed1 );
+            
+            BrunetEventDescriptor bed2 = new BrunetEventDescriptor();      
+            bed2.RemoteAHAddress = tmp_pack.Destination.ToBigInteger().ToString();
+            bed2.EventDescription = "Connector.Connect.target";
+            Logger.LogAttemptEvent( bed2 );
+        }                              
+#endif
+
         _sender.Send(_con_packet);
         _last_packet_datetime = DateTime.Now;
         _ctm_send_timeouts = 1;

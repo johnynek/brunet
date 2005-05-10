@@ -61,6 +61,18 @@ namespace Brunet
   public class CtmRequestHandler:IAHPacketHandler
   {
     //private static readonly ILog _log = LogManager.GetLogger( typeof(CtmRequestHandler) );
+#if PLAB_LOG
+    protected BrunetLogger _logger;
+    public BrunetLogger Logger{
+      get{
+        return _logger;
+      }
+      set
+      {
+        _logger = value;
+      }
+    }
+#endif
     protected ConnectionMessageParser _cmp;
     /**
      */
@@ -86,6 +98,12 @@ namespace Brunet
         if (ctm.Dir == ConnectionMessage.Direction.Response) {
           return;
         }
+#if PLAB_LOG
+        BrunetEventDescriptor bed = new BrunetEventDescriptor();      
+        bed.RemoteAHAddress = ctm.Target.Address.ToBigInteger().ToString();
+        bed.EventDescription = "CtmRequestHandler.HAP.target";
+        Logger.LogAttemptEvent( bed );
+#endif
 
         /*System.Console.WriteLine("Got CTM Request,"
         + n.Address.ToString() + " connectTo: "

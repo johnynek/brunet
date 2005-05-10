@@ -203,7 +203,6 @@ namespace Brunet
         cs.ECB(false, null, new EdgeException("No more IP Addresses") );
       }
       else {
-        EdgeCreationCallback ecb = cs.ECB;
         Socket s = null;
         try {
           IPAddress ipaddr = (IPAddress)cs.IPAddressQueue.Dequeue();

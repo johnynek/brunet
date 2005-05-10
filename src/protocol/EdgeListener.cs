@@ -113,7 +113,6 @@ namespace Brunet
       try {
         String StrLocalHost =  (Dns.GetHostName());
         IPHostEntry IPEntry = Dns.GetHostByName (StrLocalHost);
-        IPAddress [] addr = IPEntry.AddressList;
         foreach(IPAddress a in IPEntry.AddressList) {
           /**
            * We add Loopback addresses to the back, all others to the front

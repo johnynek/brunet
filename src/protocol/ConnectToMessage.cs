@@ -99,7 +99,6 @@ namespace Brunet
     public ConnectToMessage(System.Xml.XmlElement r) : base(r)
     {
       XmlElement encoded = (XmlElement)r.FirstChild;
-      ArrayList ta_list = new ArrayList();
       //Read the attributes of the connectTo
       foreach(XmlNode attr in((XmlElement) encoded).Attributes)
       {

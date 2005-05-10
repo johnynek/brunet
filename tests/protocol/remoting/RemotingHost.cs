@@ -17,41 +17,23 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
+using System;
+using System.Runtime.Remoting;
+using System.Runtime.Remoting.Channels;
+using System.Runtime.Remoting.Channels.Tcp;
 
-/**
- * Dependencies : 
- * Brunet.AHPacket
- * Brunet.BrunetLogger
- * Brunet.Edge
- */
+namespace Brunet{
 
-namespace Brunet
-{
-
-  /**
-   * When objects want to handle packets delivered to local nodes
-   * they implement this interface and Subscribe to particular
-   * protocols on the Node
-   */
-  public interface IAHPacketHandler
-  {
-#if PLAB_LOG
-    BrunetLogger Logger{
-      get;
-      set;
-    } 
-#endif
-    /**
-     * @param node The node that got the packet
-     * @param p the packet
-     * @param from the edge we got the packet from
-     */
-    void HandleAHPacket(object node, AHPacket p, Edge from);
-
-    /**
-     * @return true if you handle this type
-     */
-    //bool HandlesAHProtocol(AHPacket.Protocol type);
+  public class RemotingHost {
+    public static void Main(string[] args) {
+      ChannelServices.RegisterChannel(new TcpChannel(25050));
+      RemotingConfiguration.RegisterWellKnownServiceType(
+          typeof(RemoteObjectFactory), "echo" , 
+          WellKnownObjectMode.Singleton);
+      int hours = 20;
+      System.Threading.Thread.Sleep(hours*3600*1000);
+      //Console.WriteLine("Press Enter to exit.");
+      //Console.ReadLine();
+    }
   }
-
 }

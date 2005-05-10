@@ -48,11 +48,14 @@ public class BrunetEventDescriptor
   private string _local_ta_address;
   private string _local_port;
   private string _remote_ta_address;
+  private string _remote_ah_address_base32;
+
 
   /** This 64-bit integer is the output of the
    * System.DateTime.Ticks property
    */
   private long _connect_time;
+  private int _structure_degree;
   
   [XmlAttribute("EventDescription")] 
   public string EventDescription
@@ -150,6 +153,19 @@ public class BrunetEventDescriptor
       _remote_ta_address = value;
     }
   }
+
+  [XmlAttribute("RemoteAHAddressBase32")] 
+  public string RemoteAHAddressBase32
+  {
+    get
+    {
+      return _remote_ah_address_base32;
+    }
+    set
+    {
+      _remote_ah_address_base32 = value;
+    }
+  }
 	  
   [XmlAttribute("ConnectTime")] 
   public long ConnectTime{
@@ -160,6 +176,18 @@ public class BrunetEventDescriptor
     set
     {
       _connect_time = value;
+    }
+  } 
+
+  [XmlAttribute("StructureDegree")] 
+  public int StructureDegree{
+    get
+    {
+      return _structure_degree;
+    }
+    set
+    {
+      _structure_degree = value;
     }
   } 
   

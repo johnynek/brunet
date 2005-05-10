@@ -43,6 +43,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //#define POB_LINK_DEBUG
 
+//#define JSAB_UNSTRUCT_REJECT
 using System;
 using System.Collections;
 
@@ -69,6 +70,15 @@ namespace Brunet
   public class ConnectionPacketHandler : IPacketHandler
   {
 
+     /**
+     * When a status response arrives it means that we may need to make a new
+     * connection.
+     * SimpleConnectionOverlord listens for this event and decides based on
+     * the content of the StatusMessage whether a new connection should be
+     * made
+     */
+    public event EventHandler StatusResponseArrivedEvent;
+    
     /*private static readonly log4net.ILog log =
         log4net.LogManager.GetLogger(System.Reflection.MethodBase.
         GetCurrentMethod().DeclaringType);*/
@@ -85,7 +95,19 @@ namespace Brunet
 
     /** global lock for thread synchronization */
     protected object _sync;
-
+#if JSAB_UNSTRUCT_REJECT
+    protected double _prob_of_unstructured_rejection =0.0;
+   
+    public double ProbOfUnstructuredRejection
+    {
+      get{
+        return _prob_of_unstructured_rejection;
+      }
+      set{
+        _prob_of_unstructured_rejection = value;
+      }
+    }
+#endif    
     /**
      * @param local the Node we work for
      */
@@ -141,20 +163,7 @@ namespace Brunet
             * is active
             */
 	    StatusMessage sm = (StatusMessage)cm;
-	    ArrayList neighbors = new ArrayList();
-	    //Get the neighbors of this type:
-	    lock( _tab.SyncRoot ) {
-	      /*
-	       * Send the whole list of connections of this type.
-	       * @todo make sure we don't send more than will
-	       * fit in a packet.
-	       */
-	      ConnectionType ct = Connection.StringToMainType( sm.NeighborType );
-	      foreach(Connection c in _tab.GetConnections( ct ) ) {
-                neighbors.Add( new NodeInfo( c.Address, c.Edge.RemoteTA ) );
-	      }
-	    }
-	    response = new StatusMessage(sm.NeighborType, neighbors);
+	    response = _local.GetStatus( sm.NeighborType);
             response.Dir = ConnectionMessage.Direction.Response;
             response.Id = cm.Id;
             //log.Info("Sending Status response:" + response.ToString());
@@ -171,10 +180,10 @@ namespace Brunet
             }
             //Release the lock before calling this function:
             if( lm_to_add != null ) {
-              Console.WriteLine("About to add: {0},{1},{2}",
+              /*Console.WriteLine("About to add: {0},{1},{2}",
                                 lm_to_add.ConTypeString,
 				lm_to_add.Local.Address,
-                                from );
+                                from );*/
 	      Connection con = new Connection(from,
 			                      lm_to_add.Local.Address,
 					      lm_to_add.ConTypeString,
@@ -203,6 +212,11 @@ namespace Brunet
             if( !_tab.IsUnconnected(from) ) {
               _tab.Disconnect(from);
             }
+            /** 
+             * Release locks when the close message arrives; do not wait
+             * until the edge actually closes.
+             */
+            CloseHandler(from, null);
           }
           else if (cm is LinkMessage) {
             /**
@@ -253,9 +267,19 @@ namespace Brunet
           }
         }
         else {
-          /* This is a response, we should never get it */
-          /*log.Error("Got an unexpected ConnectionMessage response"
-            + cm.ToString());*/
+          if (cm is StatusMessage) {
+            /**
+             * Here we see if we should connect to any of these 
+             * 
+             * StatusMessage objects are used to verify the completion
+             * of the Link protocol.  We also use it to exchange neighbor
+             * lists.
+             */
+            
+            StatusMessage sm = (StatusMessage)cm;
+            Connection con = _tab.GetConnection(from);
+            _tab.UpdateStatus(con,sm);
+          }
         }
       }
       catch(Exception x) {
@@ -298,13 +322,22 @@ namespace Brunet
           err = new ErrorMessage(ErrorMessage.ErrorCode.ConnectToSelf,
                                  "You are me");
         }
+#if JSAB_UNSTRUCT_REJECT        
+        else if(lm.ConnectionType == ConnectionType.Unstructured) {
+          Random rand =  new Random(DateTime.Now.Millisecond);
+          if (rand.NextDouble() < _prob_of_unstructured_rejection )
+          {
+            err = new ErrorMessage(ErrorMessage.ErrorCode.DiscretionaryConnectionRefusal,
+			         "Unstructured connection refused probabilistically for structural reasons");
+          }
+          // With probability p we will reject an incoming request to
+          // form an unstructured edge.
+        }
+#endif        
         else {
           //Everything is looking good:
           try {
             _tab.Lock( lm.Local.Address, lm.ConnectionType, this );
-            int index;
-            Address add;
-            have_con = _tab.GetConnection( from, out ct, out index, out add );
           }
           catch(InvalidOperationException iox) {
             //Lock can throw this type of exception
@@ -314,29 +347,6 @@ namespace Brunet
           }
         }
       } //We can release the lock on the ConnectionTable now
-      if( have_con ) {
-	 ///@todo remove Edge promotion.  This is a dead concept.
-        //We have some kind of connection on this edge
-        if( lm.ConnectionType == ConnectionType.Structured ) {
-          /**
-           * Everything else looks good.
-           * We are promoting to a StructuredConnection.
-           *
-           * Steps:
-           * 1) Disconnect the existing connection
-           * 2) connect as usual
-           */
-          _tab.Disconnect(from);
-        }
-        else {
-          //We need to release the lock we have:
-          _tab.Unlock( lm.Local.Address, lm.ConnectionType, this );
-          //Cannot promote to types other that structured:
-          err = new ErrorMessage(ErrorMessage.ErrorCode.AlreadyConnected,
-                                 "Cannot promote edge to: "
-                                 + lm.ConnectionType.ToString() );
-        }
-      }
 
       /*
        * We have now checked all the error conditions, go

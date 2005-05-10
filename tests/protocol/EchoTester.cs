@@ -38,6 +38,19 @@ namespace Brunet
             log4net.LogManager.GetLogger(System.Reflection.MethodBase.
                                         GetCurrentMethod().
                                         DeclaringType);*/
+#if PLAB_LOG
+    protected BrunetLogger _logger;
+    public BrunetLogger Logger{
+      get{
+        return _logger;
+      }
+      set
+      {
+        _logger = value;
+      }
+    }
+#endif
+
     public static Hashtable uid_starttime = new Hashtable();
     public static Hashtable uid_brunetpingtime = new Hashtable();
     public static Hashtable uid_pingtime = new Hashtable();

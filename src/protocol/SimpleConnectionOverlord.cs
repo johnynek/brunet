@@ -45,7 +45,9 @@ namespace Brunet {
         _node.ConnectionTable.DisconnectionEvent +=
           new EventHandler(this.DisconnectHandler);
         _node.ConnectionTable.ConnectionEvent +=
-          new EventHandler(this.ConnectHandler);      
+          new EventHandler(this.ConnectHandler);     
+        _node.ConnectionTable.StatusChangedEvent += 
+          new EventHandler(this.StatusChangedHandler);
       /**
        * Every heartbeat we assess the trimming situation.
        * If we have excess edges and it has been more than
@@ -148,7 +150,6 @@ namespace Brunet {
             return (_need_left == 1);
 	  }
 	  int left = 0;
-	  AHAddress local = (AHAddress)_node.Address;
 	  ConnectionTable tab = _node.ConnectionTable;
 	  lock( tab.SyncRoot ) {
           //foreach(Connection c in _node.ConnectionTable.GetConnections(struc_near)) {
@@ -156,6 +157,7 @@ namespace Brunet {
               AHAddress adr = (AHAddress)c.Address;
 //#if POB_DEBUG
 #if false
+	  AHAddress local = (AHAddress)_node.Address;
               Console.WriteLine("{0} -> {1}, lidx: {2}, is_left: {3}" ,
 			    _node.Address, adr, LeftPosition(adr), adr.IsLeftOf( local ) );
 #endif
@@ -193,7 +195,6 @@ namespace Brunet {
             return (_need_right == 1);
 	  }
 	  int right = 0;
-	  AHAddress local = (AHAddress)_node.Address;
 	  ConnectionTable tab = _node.ConnectionTable;
 	  lock( tab.SyncRoot ) {
             //foreach(Connection c in _node.ConnectionTable.GetConnections(struc_near)) {
@@ -201,6 +202,7 @@ namespace Brunet {
               AHAddress adr = (AHAddress)c.Address;
 //#if POB_DEBUG
 #if false
+	  AHAddress local = (AHAddress)_node.Address;
               Console.WriteLine("{0} -> {1}, ridx: {2}, is_right: {3}",
 			    _node.Address, adr, RightPosition(adr), adr.IsRightOf( local) );
 #endif
@@ -230,7 +232,7 @@ namespace Brunet {
     protected bool NeedShortcut {
       get {
 	lock( _sync ) {
-          if( _node.NetworkSize < 20 ) {
+          if( _node.NetworkSize < 1 ) {///JOE_DEBUG: changed the value from 20 to 1
             //There is no need to bother with shortcuts on small networks
 	    return false;
 	  }
@@ -408,8 +410,6 @@ namespace Brunet {
 #if TRIM
             //We may be able to trim connections.
             ConnectionTable tab = _node.ConnectionTable;
-	    int not_near = 0;
-	    int nears = 0;
 	    ArrayList sc_trim_candidates = new ArrayList();
 	    ArrayList near_trim_candidates = new ArrayList();
 	    lock( tab.SyncRoot ) {
@@ -466,7 +466,7 @@ namespace Brunet {
 	      //int idx = _rand.Next( near_trim_candidates.Count );
 	      //Connection to_trim = (Connection)near_trim_candidates[idx];
 #if POB_DEBUG
-        Console.WriteLine("Attempt to trim Near: {0}", to_trim);
+        //Console.WriteLine("Attempt to trim Near: {0}", to_trim);
 #endif
 	      _node.GracefullyClose( to_trim.Edge );
 	    }
@@ -479,7 +479,7 @@ namespace Brunet {
 	      int idx = _rand.Next( sc_trim_candidates.Count );
 	      Connection to_trim = (Connection)sc_trim_candidates[idx];
 #if POB_DEBUG
-              Console.WriteLine("Attempt to trim Shortcut: {0}", to_trim);
+              //Console.WriteLine("Attempt to trim Shortcut: {0}", to_trim);
 #endif
 	      _node.GracefullyClose( to_trim.Edge );
 	    }
@@ -501,6 +501,8 @@ namespace Brunet {
       //These are the two closest target addresses
       Address ltarget = null;
       Address rtarget = null;
+      Address nltarget = null;
+      Address nrtarget = null;
 	    
       lock( _sync ) {
         _last_connection_time = DateTime.Now;
@@ -579,32 +581,15 @@ namespace Brunet {
 
 	/*
 	 * Check to see if any of this node's neighbors
-	 * should be neighbors of us.  If they should, connect
-	 * to the closest such nodes on each side.
+	 * should be neighbors of us. It provides modified
+   * Address targets ltarget and rtarget.
 	 */
-	BigInteger ldist = -1;
-	BigInteger rdist = -1;
-	AHAddress local = (AHAddress)_node.Address;
-	foreach(NodeInfo ni in new_con.Status.Neighbors) {
-	  if( !tab.Contains(ConnectionType.Structured, ni.Address) ) {
-	    AHAddress adr = (AHAddress)ni.Address;
-            int n_left = LeftPosition( adr );
-            int n_right = RightPosition( adr );
-	    if( n_left < _desired_neighbors || n_right < _desired_neighbors ) {
-            //We should connect to this node! if we are not already:
-	      BigInteger adr_dist = local.LeftDistanceTo(adr);
-	      if( adr_dist < ldist || ldist == -1 ) {
-                ldist = adr_dist;
-		ltarget = adr;
-	      }
-	      adr_dist = local.RightDistanceTo(adr);
-	      if( adr_dist < rdist || rdist == -1 ) {
-                rdist = adr_dist;
-		rtarget = adr;
-	      }
-	    }
-	  }
-	}//We have looked at all his neighbors
+  
+  CheckForNearerNeighbors(new_con.Status,
+      ltarget,out nltarget,
+      rtarget,out nrtarget,
+      new_con,tab);
+       
        }
       }//Release the lock on the connection_table
       
@@ -613,17 +598,39 @@ namespace Brunet {
        * while we try to make new connections
        */
       short f_ttl = 3; //2 would be enough, but 1 extra...
-      if( rtarget != null ) {
-        ForwardedConnectTo(new_con.Address, rtarget, f_ttl, struc_near);
+      if( nrtarget != null ) {
+        ForwardedConnectTo(new_con.Address, nrtarget, f_ttl, struc_near);
+#if PLAB_LOG
+        BrunetEventDescriptor bed1 = new BrunetEventDescriptor();      
+        bed1.RemoteAHAddress = new_con.Address.ToBigInteger().ToString();
+        bed1.EventDescription = "SCO.ConnectHandler.rforwarder";
+        Logger.LogAttemptEvent( bed1 );
+
+        BrunetEventDescriptor bed2 = new BrunetEventDescriptor();      
+        bed2.RemoteAHAddress = nrtarget.ToBigInteger().ToString();
+        bed2.EventDescription = "SCO.ConnectHandler.rtarget";
+        Logger.LogAttemptEvent( bed2 );                    
+#endif
       }
-      if( ltarget != null ) {
-        ForwardedConnectTo(new_con.Address, ltarget, f_ttl, struc_near);
+      if( nltarget != null && !nltarget.Equals(nrtarget) ) {
+        ForwardedConnectTo(new_con.Address, nltarget, f_ttl, struc_near);
+#if PLAB_LOG
+        BrunetEventDescriptor bed1 = new BrunetEventDescriptor();      
+        bed1.RemoteAHAddress = new_con.Address.ToBigInteger().ToString();
+        bed1.EventDescription = "SCO.ConnectHandler.lforwarder";
+        Logger.LogAttemptEvent( bed1 );
+
+        BrunetEventDescriptor bed2 = new BrunetEventDescriptor();      
+        bed2.RemoteAHAddress = nltarget.ToBigInteger().ToString();
+        bed2.EventDescription = "SCO.ConnectHandler.ltarget";
+        Logger.LogAttemptEvent( bed2 );                   
+#endif
       }
       //We also send directional messages.  In the future we may find this
       //to be unnecessary
       ///@todo evaluate the performance impact of this:
 
-      if( rtarget == null || ltarget == null ) {
+      if( nrtarget == null || nltarget == null ) {
       /**
        * Once we find nodes for which we can't get any closer, we
        * make sure we are connected to the right and left of that node.
@@ -644,6 +651,49 @@ namespace Brunet {
       }
     }
 
+    
+    /*
+     * Check to see if any of this node's neighbors
+     * should be neighbors of us.  If they should, connect
+     * to the closest such nodes on each side.
+     *
+     * This function accepts several ref params in order to provide a
+     * "pass-through" type function for the examining of neighbor lists in
+     * several different functions. This function does not provide locking.
+     * Please lock and unlock as needed. "new_con" and "tab" are not altered
+     */
+    protected void CheckForNearerNeighbors(StatusMessage sm, 
+        Address ltarget,out Address nltarget, Address rtarget, out Address nrtarget,Connection new_con, 
+        ConnectionTable tab)
+    {
+      BigInteger ldist = -1;
+      BigInteger rdist = -1;
+      AHAddress local = (AHAddress)_node.Address;
+      foreach(NodeInfo ni in sm.Neighbors) {
+        if( !tab.Contains(ConnectionType.Structured, ni.Address) ) {
+          AHAddress adr = (AHAddress)ni.Address;
+          int n_left = LeftPosition( adr );
+          int n_right = RightPosition( adr );
+          if( n_left < _desired_neighbors || n_right < _desired_neighbors ) {
+            //We should connect to this node! if we are not already:
+            BigInteger adr_dist = local.LeftDistanceTo(adr);
+            if( adr_dist < ldist || ldist == -1 ) {
+              ldist = adr_dist;
+              ltarget = adr;
+            }
+            adr_dist = local.RightDistanceTo(adr);
+            if( adr_dist < rdist || rdist == -1 ) {
+              rdist = adr_dist;
+              rtarget = adr;
+            }
+          }
+        }
+      }
+      nltarget = ltarget;
+      nrtarget = rtarget;
+    }
+    
+    
     /**
      * When a Connector finishes his job, this method is called to
      * clean up
@@ -766,6 +816,40 @@ namespace Brunet {
     }
     
     /**
+     * This method is called when there is a change in a Connection's status
+     */
+    protected void StatusChangedHandler(object connectiontable,EventArgs args)
+    {
+      //These are the two closest target addresses
+      Address ltarget = null;
+      Address rtarget = null;
+      Address nltarget = null;
+      Address nrtarget = null;
+    
+      ConnectionTable tab = _node.ConnectionTable;
+      Connection c = ((ConnectionEventArgs)args).Connection; 
+      StatusMessage sm = c.Status;
+      lock( tab.SyncRoot ) {
+        CheckForNearerNeighbors(c.Status,
+            ltarget,out nltarget,
+          rtarget,out nrtarget,
+          c,tab);
+      }
+       /* 
+       * We want to make sure not to hold the lock on ConnectionTable
+       * while we try to make new connections
+       */
+      short f_ttl = 3; //2 would be enough, but 1 extra...
+      if( nrtarget != null ) {
+        ForwardedConnectTo(c.Address, nrtarget, f_ttl, struc_near);
+      }
+      if( nltarget != null && !nltarget.Equals(nrtarget) ) {
+        ForwardedConnectTo(c.Address, nltarget, f_ttl , struc_near);
+      }
+      
+    }
+    
+    /**
      * This is a helper function.
      */
     protected void ForwardedConnectTo(Address forwarder,
@@ -801,6 +885,18 @@ namespace Brunet {
       #endif
 
       Connector con = new Connector(_node);
+#if PLAB_LOG
+      con.Logger = Logger;
+      BrunetEventDescriptor bed1 = new BrunetEventDescriptor();      
+      bed1.RemoteAHAddress = forwarder.ToBigInteger().ToString();
+      bed1.EventDescription = "SCO.FCT.forwarder";
+      Logger.LogAttemptEvent( bed1 );
+
+      BrunetEventDescriptor bed2 = new BrunetEventDescriptor();      
+      bed2.RemoteAHAddress = target.ToBigInteger().ToString();
+      bed2.EventDescription = "SCO.FCT.target";
+      Logger.LogAttemptEvent( bed2 );  
+#endif
       //Keep a reference to it does not go out of scope
       lock( _sync ) {
         _connectors.Add(con);

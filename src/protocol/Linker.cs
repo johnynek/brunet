@@ -324,36 +324,24 @@ namespace Brunet
 	  if( lm.Attributes["realm"] != _local_n.Realm ) {
             throw new LinkException("Realm mismatch: " + _local_n.Realm + " != " + lm.Attributes["realm"] );
 	  }
-	  ArrayList neighbors = new ArrayList();
-	  //Get the neighbors of this type:
-	  lock( _tab.SyncRoot ) {
-            /*
-	     * Send the list of all neighbors of this type.
-	     * @todo make sure we are not sending more than
-	     * will fit in a single packet.
-	     */
-            ConnectionType ct = Connection.StringToMainType( lm.ConTypeString );
-            foreach(Connection c in _tab.GetConnections( ct ) ) {
-              neighbors.Add( new NodeInfo( c.Address, c.Edge.RemoteTA ) );
-	    }
-	  }	  
-          StatusMessage req = new StatusMessage( lm.ConTypeString, neighbors );
-          req.Id = _id++;
-          req.Dir = ConnectionMessage.Direction.Request;
-          lock( _sync ) {
-            Address target = lm.Local.Address;
-	    //This will throw an exception if the target does not match
-	    //any previous value.
-            SetTarget( target );
-            _peer_link_mes = lm;
-            _last_sent_packet = req.ToPacket();
-            _timeouts = 0;
-          }
+
+    StatusMessage req = _local_n.GetStatus(lm.ConTypeString);
+    req.Id = _id++;
+    req.Dir = ConnectionMessage.Direction.Request;
+    lock( _sync ) {
+      Address target = lm.Local.Address;
+      //This will throw an exception if the target does not match
+      //any previous value.
+      SetTarget( target );
+      _peer_link_mes = lm;
+      _last_sent_packet = req.ToPacket();
+      _timeouts = 0;
+    }
 #if POB_LINK_DEBUG
-          Console.WriteLine("Start Linker({0}).OutLinkHandler send {1}",
-                            _lid,req);
+    Console.WriteLine("Start Linker({0}).OutLinkHandler send {1}",
+        _lid,req);
 #endif
-          edge.Send( _last_sent_packet );
+    edge.Send( _last_sent_packet );
         }
 	else if (cm is StatusMessage) {
           if( _peer_link_mes != null ) {
@@ -365,6 +353,10 @@ namespace Brunet
 			              _peer_link_mes.ConTypeString,
 				      (StatusMessage)cm, _peer_link_mes);
             Succeed();
+
+            //send extra status messages to new connection's neighbors
+            SendStatusMessagesToNeighbors();
+            
 	    return;
 	  }
 	  else {
@@ -375,6 +367,10 @@ namespace Brunet
           //Looks like things are not working out for us.
 	  ///@todo we should probably react differently to different types of errors.
 	  ErrorMessage em = (ErrorMessage)cm;
+#if PLAB_LOG
+    Console.Write("{0}:{1} {2} \n", DateTime.Now.ToUniversalTime().ToString("MM'/'dd'/'yyyy' 'HH':'mm':'ss"), 
+          DateTime.Now.ToUniversalTime().Millisecond, em.ToString() );
+#endif
 	  int error_code = (int)em.Ec;
 	  if( em.Ec == ErrorMessage.ErrorCode.InProgress ) {
             ///@todo handle "double lock" condition.
@@ -430,6 +426,38 @@ namespace Brunet
 
     /************  protected methods ***************/
 
+    /**
+     * Sends a StatusMessage request (local node) to the nearest right and 
+     * left neighbors (in the local node's ConnectionTable) of the new Connection.
+     */
+    protected void SendStatusMessagesToNeighbors()
+    {
+      
+      //the new connection's status response
+      StatusMessage new_status = _con.Status;
+      
+      //our request for the new connections' neighbors
+      string con_type_string = _peer_link_mes.ConTypeString;
+      StatusMessage req = _local_n.GetStatus(con_type_string);
+      req.Dir = ConnectionMessage.Direction.Request;
+      
+      AHAddress new_address = (AHAddress)_peer_link_mes.Local.Address;
+      Edge left_edge = _tab.GetLeftStructuredNeighborOf(new_address);
+      Edge right_edge = _tab.GetRightStructuredNeighborOf(new_address);
+
+      Packet tp = null;
+      if( left_edge != null ) {
+        req.Id = _id++;
+        tp = req.ToPacket();
+        left_edge.Send(tp);
+      }
+      if( right_edge != null && !left_edge.Equals(right_edge) ) {
+        req.Id = _id++;
+        tp = req.ToPacket();
+        right_edge.Send(tp);
+      }      
+    }
+    
     /**
      * Set the _target member variable and check for sanity
      * We only set the target if we can get a lock on the address
@@ -679,41 +707,7 @@ namespace Brunet
               _tab.AddUnconnected(e);
             }
           } //End of lock on ConnectionTable:
-#if false
-	  ///@todo remove the edge promotion code below.
-          //Check to see if this is an edge promotion:
-          if( have_con ) {
-            if( _contype == ConnectionType.Structured ) {
-              /**
-               * Since we must maintain an ordered ring, we cannot
-               * allow existing connections to block the formation
-               * of structured connections.  If we are trying to 
-               * make a structured connection, we may promote any
-               * other type of connection to structured.
-               * 
-               * The proceedure is:
-               * 1) Check to see if we are in the promotion case
-               * 2) Disconnect the existing connection and add
-               *    the edge to the Unconnected edges in the connection table
-               * 3) Connect as usual
-               */
-              if( ct != ConnectionType.Structured ) {
-                /*
-                * This is the case of edge promotion.
-                * Disconnect the edge, and add it to unconnected:
-                */
-#if POB_LINK_DEBUG
-                Console.WriteLine("Linker({0}) doing an edge promotion on {1}",_lid,e);
-#endif
                 _tab.Disconnect(e);
-              }
-              else {
-                //We cannot promote this edge.
-                success = false;
-              }
-            }
-          }
-#endif
         }
         if( success ) {
           StartNextAttempt(e);

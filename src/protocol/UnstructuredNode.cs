@@ -56,6 +56,25 @@ namespace Brunet
 
     protected Hashtable _connectionoverlords;
 
+#if PLAB_LOG
+    override public BrunetLogger Logger{
+      get{
+        return _logger;
+      }
+      set
+      {
+        _logger = value;     
+        //The connection table only has a logger in this case
+        _connection_table.Logger = value;
+        //_sco.Logger = value;
+        foreach(EdgeListener el in _edgelistener_list) {
+          el.Logger = value;
+        }
+      }
+    }
+#endif
+
+
     public UnstructuredNode(AHAddress add):base(add)
     {
 
@@ -76,7 +95,7 @@ namespace Brunet
       _connectionoverlords[ ConnectionType.Leaf ] = co;
       co = new UnstructuredConnectionOverlord(this);
 #if PLAB_LOG
-      co.Logger = this.Logger;
+      //co.Logger = this.Logger;
 #endif
       _connectionoverlords[ ConnectionType.Unstructured ] = co;
 

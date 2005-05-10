@@ -198,7 +198,6 @@ namespace Brunet
 
     public override void CopyTo(byte[] dest, int off)
     {
-      int start_off = off;
       dest[off] = (byte)Packet.ProtType.AH;
       off += 1;
       NumberSerializer.WriteShort(_hops, dest, off);

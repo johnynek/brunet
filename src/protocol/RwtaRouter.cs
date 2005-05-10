@@ -77,7 +77,6 @@ namespace Brunet
      */
     public int Route(Edge from, AHPacket p, out bool deliverlocally)
     {
-      RwtaAddress dest = (RwtaAddress) p.Destination;
       int size = _connection_table.Count(ConnectionType.Unstructured);
       deliverlocally = false;
 

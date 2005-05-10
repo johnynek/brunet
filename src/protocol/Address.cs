@@ -280,7 +280,6 @@ namespace Brunet
      */
     static public void SetClass(byte[] buf, int offset, int myclass)
     {
-      int c = 0;
       int i = MemSize - 1;
       //Set the last bit to zero:
       buf[i+offset] &= 0xFE;

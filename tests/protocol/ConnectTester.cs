@@ -57,7 +57,19 @@ namespace Brunet
    */
   public class ConnectTester : IAHPacketHandler
   {
-  
+ #if PLAB_LOG
+    protected BrunetLogger _logger;
+    public BrunetLogger Logger{
+      get{
+        return _logger;
+      }
+      set
+      {
+        _logger = value;
+      }
+    }
+#endif
+ 
   ConnectTester()
   {
 
