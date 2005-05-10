@@ -20,35 +20,36 @@ using Brunet;
  *
  * You can do basically the same thing with a HybridNode.
  */
-public class ReqrepExample : IDataHandler, Brunet.IReplyHandler {
+public class ReqrepExample : Brunet.IRequestHandler, Brunet.IReplyHandler {
 
-  public void HandleData(MemBlock data, ISender return_path, object state)
+  public void HandleRequest(ReqrepManager man, ReqrepManager.ReqrepType rt,
+		   object req,
+		   AHPacket.Protocol prot,
+		   System.IO.MemoryStream payload, AHPacket packet)
   {
     /*
      * Write the messages:
      */
-    Console.WriteLine("Msg from: {0}", return_path);
-    data.ToMemoryStream().WriteTo( System.Console.OpenStandardOutput() );
+    Console.WriteLine("Msg from: {0}", packet.Source);
+    payload.WriteTo( System.Console.OpenStandardOutput() );
     Console.WriteLine();
-    return_path.Send( new CopyList(PType.Protocol.Chat, MemBlock.Null) );
+    man.SendReply(req, new byte[0]);
   }
 
   public bool HandleReply(ReqrepManager man, ReqrepManager.ReqrepType rt,
 		   int mid,
-		   PType prot,
-		   MemBlock payload,
-		   ISender from,
-		   Brunet.ReqrepManager.Statistics s,
+		   AHPacket.Protocol prot,
+		   System.IO.MemoryStream payload, AHPacket packet,
 		   object state)
   {
-    Console.WriteLine("{0} got our message", from);
+    Console.WriteLine("{0} got our message", packet.Source);
     return false;
   }
 
   public void HandleError(ReqrepManager man, int message_number,
-		   ReqrepManager.ReqrepError err, ISender from, object state)
+		   ReqrepManager.ReqrepError err, object state)
   {
-    Console.WriteLine("Got Error from: {0}, {1}, {2}", from, message_number, err);
+    Console.WriteLine("Got Error from: {0}, {1}", message_number, err);
   }
   
   public static int Main(string[] args) {
@@ -87,9 +88,9 @@ public class ReqrepExample : IDataHandler, Brunet.IReplyHandler {
      * namespace (or realm) called "testspace"
      */
     Brunet.Node tmp_node = new Brunet.StructuredNode(tmp_add, "testspace");
-    Brunet.ReqrepManager rrman = Brunet.ReqrepManager.GetInstance(tmp_node);
+    Brunet.ReqrepManager rrman = new Brunet.ReqrepManager(tmp_node);
     ReqrepExample irh = new ReqrepExample();
-    tmp_node.GetTypeSource(PType.Protocol.Chat).Subscribe(irh, tmp_node);
+    rrman.Bind(AHPacket.Protocol.Chat, irh);
     /**
      * Add the EdgeListener
      */
@@ -98,7 +99,7 @@ public class ReqrepExample : IDataHandler, Brunet.IReplyHandler {
      * Tell the node who it can connect to:
      */
     for(int i = 2; i < args.Length; i++) {
-      tmp_node.RemoteTAs.Add( TransportAddressFactory.CreateInstance( args[i] ) );
+      tmp_node.RemoteTAs.Add( new Brunet.TransportAddress( args[i] ) );
     }
     /**
      * Now we connect
@@ -124,10 +125,8 @@ public class ReqrepExample : IDataHandler, Brunet.IReplyHandler {
       int length = coder.GetByteCount(msg);
       byte[] payload = new byte[length];
       coder.GetBytes(msg, 0, msg.Length, payload, 0);
-      ISender sender = new AHSender(tmp_node, dest);
-      rrman.SendRequest(sender, ReqrepManager.ReqrepType.Request,
-                        new CopyList(PType.Protocol.Chat, MemBlock.Reference(payload)),
-			irh , null);
+      rrman.SendRequest(dest, ReqrepManager.ReqrepType.Request, AHPacket.Protocol.Chat,
+		        payload, irh , null);
      }
     }
 	 
