@@ -39,6 +39,22 @@ namespace Brunet
       int retval = IPAddress.NetworkToHostOrder(net_val);
       return retval;
     }
+    /**
+     * Read an Int from the stream and advance the stream
+     */
+    public static int ReadInt(System.IO.Stream s) {
+      int bytes = 4;
+      int val = 0;
+      int tmp;
+      while( bytes-- > 0 ) {
+        tmp = s.ReadByte();
+	if ( tmp == -1 ) {
+          throw new Exception("Could not read 4 bytes from the stream to read an int");
+        }
+        val = (val << 8) | tmp;
+      }
+      return val;
+    }
 
     public static long ReadLong(byte[] bin, int offset)
     {

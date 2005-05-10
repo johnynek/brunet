@@ -45,7 +45,7 @@ namespace Brunet
     /**
      * @return true if you handle this type
      */
-    bool HandlesAHProtocol(AHPacket.Protocol type);
+    //bool HandlesAHProtocol(AHPacket.Protocol type);
   }
 
 }

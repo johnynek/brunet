@@ -279,7 +279,40 @@ namespace Brunet
        */
       el.EdgeEvent += new EventHandler(_cph.EdgeHandler);
     }
-
+    
+    /**
+     * The default TTL for this destination 
+     */
+    public virtual short DefaultTTLFor(Address destination)
+    {
+      short ttl;
+      double ttld;
+      if( destination is StructuredAddress ) {
+	 //This is from the original papers on
+	 //small world routing.  The maximum distance
+	 //is almost certainly less than log^3 N
+        ttld = Math.Log( NetworkSize );
+        ttld = ttld * ttld * ttld;
+      }
+      else {
+	//Most random networks have diameter
+	//of size order Log N
+        ttld = Math.Log( NetworkSize, 2.0 );
+        ttld = 2.0 * ttld;
+      }
+      
+      if( ttld < 2.0 ) {
+        //Don't send too short a distance
+	ttl = 2;
+      }
+      else if( ttld > (double)AHPacket.MaxTtl ) {
+        ttl = AHPacket.MaxTtl;
+      }
+      else {
+        ttl = (short)( ttld );
+      }
+      return ttl;
+    }
     /**
      * Starts all edge listeners for the node.
      * Useful for connect/disconnect operations
@@ -773,33 +806,7 @@ namespace Brunet
 		               AHPacket.Protocol p,
 			       byte[] payload)
     {
-      short ttl;
-      double ttld;
-      if( destination is StructuredAddress ) {
-	 //This is from the original papers on
-	 //small world routing.  The maximum distance
-	 //is almost certainly less than log^3 N
-        ttld = Math.Log( NetworkSize );
-        ttld = ttld * ttld * ttld;
-      }
-      else {
-	//Most random networks have diameter
-	//of size order Log N
-        ttld = Math.Log( NetworkSize, 2.0 );
-        ttld = 2.0 * ttld;
-      }
-      
-      if( ttld < 3.0 ) {
-        //Don't send too short a distance
-	ttl = 3;
-      }
-      else if( ttld > (double)AHPacket.MaxTtl ) {
-        ttl = AHPacket.MaxTtl;
-      }
-      else {
-        ttl = (short)( ttld );
-      }
-
+      short ttl = DefaultTTLFor(destination);
       SendTo(destination, ttl, p, payload);
     }
 
