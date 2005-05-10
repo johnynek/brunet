@@ -212,6 +212,10 @@ namespace Brunet
             if( !_tab.IsUnconnected(from) ) {
               _tab.Disconnect(from);
             }
+	    /**
+	     * We stop listening to packets from this edge.
+	     */
+	    from.ClearCallback(Packet.ProtType.Connection);
             /** 
              * Release locks when the close message arrives; do not wait
              * until the edge actually closes.

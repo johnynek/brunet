@@ -71,6 +71,7 @@ namespace Brunet
      */
     public virtual void Close()
     {
+      _callbacks.Clear(); 
       if (! _have_fired_close ) {
         //log.Warn("EdgeClose: edge: " + ToString());
 #if POB_DEBUG

@@ -561,12 +561,17 @@ namespace Brunet
         if( cm.Dir == ConnectionMessage.Direction.Response ) {
           //We expect a response to our close request:
           if( cm is CloseMessage ) {
+            /*
+             * Make sure we do not accept any more packets from
+             * this Edge:
+             */
+            from.ClearCallback(Packet.ProtType.Connection);
             remove = true;
           }
           else {
             //This is some kind of other response.  We don't expect this.
             //Resend the close request:
-            from.Send( close_req.ToPacket() );
+            if( close_req != null ) from.Send( close_req.ToPacket() );
           }
         }
         else {
@@ -578,6 +583,16 @@ namespace Brunet
             close_res.Id = cm.Id;
             close_res.Dir = ConnectionMessage.Direction.Response;
             from.Send( close_res.ToPacket() );
+            /**
+             * In order to make sure that we close gracefully, we simply
+             * move this edge to the unconnected list.  The node will
+             * close edges that have been there for some time
+             */
+            lock( _connection_table.SyncRoot ) {
+              if( !_connection_table.IsUnconnected(from) ) {
+                _connection_table.Disconnect(from);
+              }
+            }
           }
           else {
             //This is a request, we did not expect this
@@ -588,7 +603,7 @@ namespace Brunet
             error_message.Dir = ConnectionMessage.Direction.Response;
             from.Send( error_message.ToPacket() );
             //Re-request that the edge be closed:
-            from.Send( close_req.ToPacket() );
+            if( close_req != null ) from.Send( close_req.ToPacket() );
           }
         }
       }
