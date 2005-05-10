@@ -191,7 +191,8 @@ namespace Brunet
     public override MemoryStream PayloadStream {
       get {
         //Return a read-only MemoryStream of the Payload
-        return new MemoryStream(_payload, false);
+        //return new MemoryStream(_payload, false);
+	return GetPayloadStream(0);
       }
     }
 
@@ -214,6 +215,13 @@ namespace Brunet
       off += PayloadLength;
     }
 
+    /**
+     * @param offset the offset into the payload to start the stream
+     */
+    virtual public MemoryStream GetPayloadStream(int offset) {
+      return new MemoryStream(_payload, offset, _payload.Length - offset, false);
+    }
+
   public enum Protocol:byte
     {
       Deflate = 1,
@@ -222,7 +230,8 @@ namespace Brunet
       Echo = 4,
       Tftp = 5,
       Chat = 6,
-      IP = 7
+      IP = 7,
+      ReqRep = 8
     }
 
     /**
