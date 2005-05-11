@@ -169,7 +169,7 @@ namespace Brunet
     //If we get an ErrorCode.InProgress, we restart after
     //a period of time
     protected readonly int _ms_restart_time = 5000;
-    protected int _restart_attempts = 4;
+    protected int _restart_attempts = 16;
     protected DateTime _last_start;
 
     protected Random _rand;
@@ -666,7 +666,7 @@ namespace Brunet
       else {
         TimeSpan restart_time = new TimeSpan(0,0,0,0,_ms_restart_time);
         if( DateTime.Now - _last_start > restart_time ) { 
-	  if ( _rand.NextDouble() < 0.5 ) {
+	  if ( _rand.NextDouble() < 0.1 ) {
 #if POB_LINK_DEBUG
             Console.WriteLine("restart: about to call Link({0})",_lid);
 #endif

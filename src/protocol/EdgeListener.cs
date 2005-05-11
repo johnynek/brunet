@@ -141,7 +141,8 @@ namespace Brunet
     //This function sends the New Edge event
     protected void SendEdgeEvent(Edge e)
     {
-      EdgeEvent(e, EventArgs.Empty);
+      if( EdgeEvent != null ) 
+        EdgeEvent(e, EventArgs.Empty);
     }
 
     /**
