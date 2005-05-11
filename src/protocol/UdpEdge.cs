@@ -63,6 +63,12 @@ namespace Brunet
     protected int _id;
     public int ID { get { return _id; } }
 
+    protected int _remoteid;
+    public int RemoteID {
+      get { return _remoteid; }
+      set { _remoteid = value; }
+    }
+    
     /**
      * The send_cb is the method which actually does the
      * sending (which is in UdpEdgeListener).
@@ -71,7 +77,7 @@ namespace Brunet
                    bool is_in,
                    System.Net.IPEndPoint remote_end_point,
                    System.Net.IPEndPoint local_end_point,
-                   int id)
+                   int id, int remoteid)
     {
       _send_cb = send_cb;
       inbound = is_in;
@@ -82,6 +88,7 @@ namespace Brunet
       _remoteta = new TransportAddress(TAType, (IPEndPoint) end);
       _localta = new TransportAddress(TAType, (IPEndPoint) local_end_point);
       _id = id;
+      _remoteid = remoteid;
     }
 
     public override void Close()
@@ -114,7 +121,7 @@ namespace Brunet
     {
       if( o is UdpEdge ) {
         UdpEdge other = (UdpEdge)o;
-        return this.ID == other.ID;
+        return (this.ID == other.ID) && (this.RemoteID == other.RemoteID);
       }
       else {
         return false;

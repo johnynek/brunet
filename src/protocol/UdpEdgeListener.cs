@@ -143,8 +143,8 @@ namespace Brunet
       _id_ht = new Hashtable();
       _sync = new object();
       _running = false;
-      //There is a 4 byte ID for each edge we need to make room for
-      _packet_buffer = new byte[ 4 + Packet.MaxLength ];
+      //There are two 4 byte IDs for each edge we need to make room for
+      _packet_buffer = new byte[ 8 + Packet.MaxLength ];
       _send_queue = new Queue();
       //Use our hashcode as the seed (terribly insecure business...)
       _rand = new Random( GetHashCode() );
@@ -179,6 +179,7 @@ namespace Brunet
             new EdgeException(ta.TransportAddressType.ToString()
                               + " is not my type: " + this.TAType.ToString() ) );
       }
+      
       Edge e = null;
       ArrayList ip_addresses = ta.GetIPAddresses();
       IPAddress first_ip = (IPAddress)ip_addresses[0];
@@ -190,16 +191,15 @@ namespace Brunet
         int id;
         do {
           id = _rand.Next();
-        } while( _id_ht.Contains(id) );
-
-        e = new UdpEdge(this, false, end, _local_ep, id);
+        } while( _id_ht.Contains(id) || id == 0 );
+        e = new UdpEdge(this, false, end, _local_ep, id, 0);
         _id_ht[id] = e;
       }
       /* Tell me when you close so I can clean up the table */
       e.CloseEvent += new EventHandler(this.CloseHandler);
       ecb(true, e, null);
     }
-
+    
     public override void Start()
     {
       lock( _sync ) {
@@ -242,30 +242,56 @@ namespace Brunet
           }
         }
         //Drop the socket lock.  We either read or we didn't
+        bool read_packet = true;
         if( read ) {
           //Get the id of this edge:
-          int id = NumberSerializer.ReadInt(_packet_buffer, 0);
+          int remoteid = NumberSerializer.ReadInt(_packet_buffer, 0);
+          int localid = NumberSerializer.ReadInt(_packet_buffer, 4);
           lock ( _id_ht ) {
-            if (! _id_ht.Contains(id)) {
+            edge = (UdpEdge)_id_ht[localid];
+            if( localid == 0 ) {
+              //This is a new incoming edge
+              is_new_edge = true;
+              //We need to assign it a local ID:
+              do {
+                localid = _rand.Next();
+              } while( _id_ht.Contains(localid) || localid == 0 );
               edge = new UdpEdge(this,
                                  true, (IPEndPoint)end,
-                                 _local_ep, id);
-              /* Tell me when you close so I can clean up the table */
+                                 _local_ep, localid, remoteid);
+              _id_ht[localid] = edge;
               edge.CloseEvent += new EventHandler(this.CloseHandler);
-              _id_ht[id] = edge;
-              is_new_edge = true;
             }
-            else {
-              edge = (UdpEdge) _id_ht[id];
+            else if ( edge == null ) {
+              /*
+               * This is the case where the Edge is not a new edge,
+               * but we don't know about it.  It is probably an old edge
+               * that we have closed.  We can ignore this packet
+               */
+              read_packet = false;
+            }
+            else if ( edge.RemoteID == 0 ) {
+              /* This is the response to our edge creation */
+              edge.RemoteID = remoteid;
+            }
+            else if( edge.RemoteID != remoteid ) {
+              /*
+               * This could happen as a result of packet loss or duplication
+               * on the first packet.  We should ignore any packet that
+               * does not have both ids matching.
+               */
+              read_packet = false;
             }
           }
           //Drop the ht lock and announce the edge and the packet:
           if( is_new_edge ) {
             SendEdgeEvent(edge);
           }
-          Packet p = PacketParser.Parse(_packet_buffer, 4, rec_bytes - 4);
-          //We have the edge, now tell the edge to announce the packet:
-          edge.Push(p);
+          if( read_packet ) {
+            Packet p = PacketParser.Parse(_packet_buffer, 8, rec_bytes - 8);
+            //We have the edge, now tell the edge to announce the packet:
+            edge.Push(p);
+          }
         }
         /*
          * We are done with handling the reads.  Now lets
@@ -288,10 +314,12 @@ namespace Brunet
             EndPoint e = sender.End;
             //Get the lock on the socket (and buffer) to send
             lock( _sync ) {
-              //Write the ID of the edge:
+              //Write the IDs of the edge:
+              //[local id 4 bytes][remote id 4 bytes][packet]
               NumberSerializer.WriteInt(sender.ID, _packet_buffer, 0);
-              p.CopyTo(_packet_buffer, 4);
-              s.SendTo(_packet_buffer, 0, 4 + p.Length, SocketFlags.None, e);
+              NumberSerializer.WriteInt(sender.RemoteID, _packet_buffer, 4);
+              p.CopyTo(_packet_buffer, 8);
+              s.SendTo(_packet_buffer, 0, 8 + p.Length, SocketFlags.None, e);
             }
           }
         } while( more_to_send );
