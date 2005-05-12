@@ -43,7 +43,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //#define POB_LINK_DEBUG
 
-//#define JSAB_UNSTRUCT_REJECT
 using System;
 using System.Collections;
 
@@ -95,19 +94,6 @@ namespace Brunet
 
     /** global lock for thread synchronization */
     protected object _sync;
-#if JSAB_UNSTRUCT_REJECT
-    protected double _prob_of_unstructured_rejection =0.0;
-   
-    public double ProbOfUnstructuredRejection
-    {
-      get{
-        return _prob_of_unstructured_rejection;
-      }
-      set{
-        _prob_of_unstructured_rejection = value;
-      }
-    }
-#endif    
     /**
      * @param local the Node we work for
      */
@@ -326,18 +312,6 @@ namespace Brunet
           err = new ErrorMessage(ErrorMessage.ErrorCode.ConnectToSelf,
                                  "You are me");
         }
-#if JSAB_UNSTRUCT_REJECT        
-        else if(lm.ConnectionType == ConnectionType.Unstructured) {
-          Random rand =  new Random(DateTime.Now.Millisecond);
-          if (rand.NextDouble() < _prob_of_unstructured_rejection )
-          {
-            err = new ErrorMessage(ErrorMessage.ErrorCode.DiscretionaryConnectionRefusal,
-			         "Unstructured connection refused probabilistically for structural reasons");
-          }
-          // With probability p we will reject an incoming request to
-          // form an unstructured edge.
-        }
-#endif        
         else {
           //Everything is looking good:
           try {
