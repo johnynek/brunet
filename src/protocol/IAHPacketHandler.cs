@@ -35,12 +35,6 @@ namespace Brunet
    */
   public interface IAHPacketHandler
   {
-#if PLAB_LOG
-    BrunetLogger Logger{
-      get;
-      set;
-    } 
-#endif
     /**
      * @param node The node that got the packet
      * @param p the packet
