@@ -77,7 +77,6 @@ namespace Brunet
      */
     public int Route(Edge from, AHPacket p, out bool deliverlocally)
     {
-      int size = _connection_table.Count(ConnectionType.Unstructured);
       deliverlocally = false;
 
       if (p.Hops == p.Ttl) {
@@ -88,21 +87,22 @@ namespace Brunet
         return 0;  //do nothing
       }
       else {
-        if (size <= 1) {
-          deliverlocally = true;
-          return 0;
-        }
-        else {
-          Edge e =_connection_table.GetRandomUnstructuredEdge(from);
-
-          if (e!=null) {
+          //get a random unstructured edge (if there is one) for the next hop
+          Connection temp_con = _connection_table.GetRandom(ConnectionType.Unstructured);
+          if (temp_con != null) {
+            Edge e = temp_con.Edge;
             e.Send( p.IncrementHops() );
             return 1;  //packet is routed to only one edge
           }
           else {
+            /*
+             * If we cannot get even one random connection,
+             * this means we cannot pass the packet on, so
+             * we should process it locally.
+             */
+            deliverlocally = true;
             return 0;
           }
-        }
       }
     }
 
