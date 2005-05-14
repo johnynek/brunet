@@ -73,17 +73,13 @@ namespace Brunet
      */
     protected object _sync;
 
-    // bootstrap the first uc_bootstrap_threshold unstructured connections
-    // through a random leaf connection
-    protected short uc_bootstrap_threshold = 2;
-
     //the total number of desired connections
     //the minimum number is two and this should be a non-decreasing number
-    protected short total_desired = 2;
+    protected int total_desired = 2;
 
     //this variable is for keeping track of the
     //total number of unstructured connections
-    protected short total_curr = 0;
+    protected int total_curr = 0;
 
     protected Random _rand;
 
@@ -131,37 +127,25 @@ namespace Brunet
 
       if (IsActive && NeedConnection) {
         //log.Info("UnstructuredConnectionOverlord :  seeking connection");
-
-        if ( _connection_table.Count(ConnectionType.Leaf) < 1 ) {
-          //log.Warn("We need connections, but have no leaves");
-          // do nothing. we must wait for a leaf node
-        } else {
-          if (_connection_table.Count(ConnectionType.Unstructured) < uc_bootstrap_threshold) {
-            //try to get an unstructured connection by doing a forwarded connect
-            //through a random leaf connection.
-
-            //Get the leaf address we are going to use for forwarding the connection packet
-            Address leaf;
-            Edge    edge;
-
-            lock( _connection_table.SyncRoot ) {
-              int lidx = _rand.Next( _connection_table.Count(ConnectionType.Leaf) );
-              _connection_table.GetConnection(ConnectionType.Leaf,
-                                              lidx,
-                                              out leaf,
-                                              out edge);
-            }
-
-            // destination for the connect message
-            RwtaAddress destination = new RwtaAddress();
-            ForwardedConnectTo(leaf, destination,  unstructured_connect_ttl);
-          } else {
-            CheckAndConnectHandler(null, null);
-          }
+        Connection tmp_leaf = _connection_table.GetRandom(ConnectionType.Leaf);
+        if( tmp_leaf == null ) {
+          /*
+           * We don't have any leafs to forward with
+           */
         }
-
+        else {
+          /*
+           * Make a random walk to find a new node.
+           * We always forward through a leaf because
+           * we want to start from an approximately random
+           * point on the network.
+           */
+          RwtaAddress destination = new RwtaAddress();
+          ForwardedConnectTo(tmp_leaf.Address, destination,
+                             unstructured_connect_ttl);
+          
+        }
       }
-
     }
 
     /**
@@ -176,29 +160,17 @@ namespace Brunet
       #endif
 
       ConnectionEventArgs conargs = (ConnectionEventArgs)args;
-
-      if ( (conargs != null) && (conargs.ConnectionType == ConnectionType.Unstructured) )  {
-        if ( total_curr == total_desired ) {
-          total_desired++;
-        }
-        total_curr++;
-      }
-
-      if (IsActive && NeedConnection) {
-        //log.Info("UnstructuredConnectionOverlord :  seeking connection");
-
-        if ( _connection_table.Count(ConnectionType.Leaf) < 1 ){
-          //log.Warn("We need connections, but have no leaves");
-          // do nothing. we must wait for a leaf node
-        } else {
-          if ( _connection_table.Count(ConnectionType.Unstructured) < 1 ) {
-            Activate();
-          } else {
-            RwtaAddress destination = new RwtaAddress();
-            ConnectTo(destination, unstructured_connect_ttl);
+      lock( _sync ) {
+        if ( (conargs != null) &&
+             (conargs.ConnectionType == ConnectionType.Unstructured) )  {
+          if ( total_curr == total_desired ) {
+            total_desired++;
           }
+          total_curr++;
         }
       }
+      Activate();
+      
     }
 
     /**
@@ -209,11 +181,14 @@ namespace Brunet
     {
       ConnectionEventArgs conargs = (ConnectionEventArgs)args;
 
-      if ( (conargs != null) && (conargs.ConnectionType == ConnectionType.Unstructured) )
+      if ( (conargs != null) &&
+           (conargs.ConnectionType == ConnectionType.Unstructured) )
       {
-        total_curr--;
-        CheckAndConnectHandler(null, null);
+        lock( _sync ) {
+          total_curr--;
+        }
       }
+      Activate();
     }
 
     // This handles the Finish event from the connectors created in SCO.
@@ -261,6 +236,12 @@ namespace Brunet
       con.Connect(forward_pack, ctm.Id);
     }
 
+
+    /**
+     * This method of getting unstructured connections is depracated.
+     * ALL Unstructured connections are obtained by forwarding through
+     * a randomly selected leaf connection.
+     */
     protected void ConnectTo(Address destination, short t_ttl)
     {
       short t_hops = 0;
@@ -298,7 +279,9 @@ namespace Brunet
     override public bool NeedConnection
     {
       get {
-        return (total_curr < total_desired || total_desired < 2);
+        lock( _sync ) {
+          return (total_curr < total_desired || total_desired < 2);
+        }
       }
     }
 
