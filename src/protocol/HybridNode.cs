@@ -132,6 +132,13 @@ namespace Brunet
     }
 
     /**
+     * Create a hybrid node in a given Realm (namespace)
+     */
+    public HybridNode(AHAddress add, string realm) : this(add)
+    {
+      _realm = realm;
+    }
+    /**
      * Connect to the network.  This informs all the ConnectionOverlord objects
      * to do their thing.
      */
