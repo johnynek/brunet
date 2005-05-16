@@ -135,6 +135,9 @@ namespace Brunet
 	    else if (con.MainType == ConnectionType.Structured ) {
               color = " [color= red]";
 	    }
+	    else if (con.MainType == ConnectionType.Unstructured ) {
+              color = " [color= green]";
+	    }
             string graph_line = String.Format("{0} -> {1}" + color + ";",
                 //item.Address.ToBigInteger().IntValue(),
                 //con.Address.ToBigInteger().IntValue()
@@ -202,7 +205,8 @@ namespace Brunet
       //create and initialize new host
       //create one new node for each host
       AHAddress tmp_add = new AHAddress(rng);
-      Node tmp_node = new StructuredNode(tmp_add, "bstland");
+      //Node tmp_node = new StructuredNode(tmp_add, "bstland");
+      Node tmp_node = new HybridNode(tmp_add, "bstland");
       
       adds.Add(tmp_add);
       add_to_node[tmp_add] = tmp_node;
@@ -260,12 +264,15 @@ namespace Brunet
     BootStrapTester bst = new BootStrapTester(adds, node_list);
 
     //Get Connected:
+    int total_started = 0;
     foreach( Node item in node_list)
     {
       item.Connect();
       Console.WriteLine(item.Address.ToString()
 		      + " RemoteTAs count: " + item.RemoteTAs.Count);
-
+      total_started++;
+      Console.WriteLine("Started: " + total_started.ToString());
+      Thread.Sleep(5000);
       //Console.ReadLine();
 
       //foreach (TransportAddress item2 in item.RemoteTAs)

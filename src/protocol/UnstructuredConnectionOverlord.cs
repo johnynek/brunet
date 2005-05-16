@@ -125,8 +125,18 @@ namespace Brunet
       System.Console.WriteLine("In Activate for UnstructuredConnectionOverlord.");
       #endif
 
-      if (IsActive && NeedConnection) {
-        //log.Info("UnstructuredConnectionOverlord :  seeking connection");
+      bool try_now = false;
+      lock( _sync ) {
+        if( _connectors.Count == 0 && IsActive && NeedConnection ) {
+          /**
+	   * We only try one connector at a time.  When that connector finishes
+	   * we will check to see if we should try again.  This prevents us from
+	   * building up too many connections too quickly.
+	   */
+          try_now = true;
+        }
+      }
+      if ( try_now ) {
         Connection tmp_leaf = _connection_table.GetRandom(ConnectionType.Leaf);
         if( tmp_leaf == null ) {
           /*
@@ -165,6 +175,14 @@ namespace Brunet
              (conargs.ConnectionType == ConnectionType.Unstructured) )  {
           if ( total_curr == total_desired ) {
             total_desired++;
+	    /**
+	     * To make the degree distribution close to 1/k^2, with probability
+	     * p we reactively get a new connection.  Each new connection attempt
+	     * will create 1/(1-p) edges, so p should not be too close to 1.
+	     */
+	    if( _rand.NextDouble() < 0.5 ) {
+              total_desired++;
+	    }
           }
           total_curr++;
         }
