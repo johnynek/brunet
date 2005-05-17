@@ -272,7 +272,7 @@ namespace Brunet
 		      + " RemoteTAs count: " + item.RemoteTAs.Count);
       total_started++;
       Console.WriteLine("Started: " + total_started.ToString());
-      Thread.Sleep(5000);
+      Thread.Sleep(10000);
       //Console.ReadLine();
 
       //foreach (TransportAddress item2 in item.RemoteTAs)
