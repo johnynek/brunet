@@ -174,21 +174,37 @@ namespace Brunet
         if ( (conargs != null) &&
              (conargs.ConnectionType == ConnectionType.Unstructured) )  {
           if ( total_curr == total_desired ) {
+            /**
+             * To handle deletion compensation, we increase the number
+             * of edges we want once we have met our goal.
+             * Then, if we lose one, we will automatically seek to
+             * replace it.
+             *
+             * @todo perhaps we should only increase this with some probability.
+             * Otherwise, the number of edges in the system is strictly increasing.
+             */
             total_desired++;
-	    /**
-	     * To make the degree distribution close to 1/k^2, with probability
-	     * p we reactively get a new connection.  Each new connection attempt
-	     * will create 1/(1-p) edges, so p should not be too close to 1.
-	     */
-	    if( _rand.NextDouble() < 0.5 ) {
-              total_desired++;
-	    }
           }
+	  /**
+           * For each connection, we want to react by making a double-preferential
+           * connection with some probability.
+           *
+	   * To make the degree distribution close to 1/k^2, with probability
+	   * p we reactively get a new connection.  Each new connection attempt
+           * 1/(1 - 2p) connections, so we need p < 0.5
+           *
+           * @todo this is not true double-preferential attachment because
+           * we are reacting the same way on both sides of the edge.  We need
+           * to know which side initiated the connection to do this properly.
+           * We should only react on the side that was selected preferentially.
+	   */
+	  if( _rand.NextDouble() < 0.25 ) {
+            total_desired++;
+	  }
           total_curr++;
         }
       }
       Activate();
-      
     }
 
     /**
