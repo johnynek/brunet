@@ -22,7 +22,7 @@ public interface IReplyHandler {
    */
   bool HandleReply(ReqrepManager man, ReqrepManager.ReqrepType rt,
 		   int mid,
-		   AHPacket.Protocol prot,
+		   string prot,
 		   System.IO.MemoryStream payload, AHPacket packet,
 		   object state);
   /**

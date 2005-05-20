@@ -41,8 +41,6 @@ namespace Brunet
   public class AHPacket : Packet
   {
 
-    /** The number of bytes in the header, including the type 0x02 */
-    public static readonly int HeaderSize = 46;
     /** This is the largest positive short */
     public static readonly short MaxTtl = (short) 32767;
 
@@ -55,37 +53,58 @@ namespace Brunet
      */
     public AHPacket(Stream s, int length)
     {
-      if( s.Length < length || length < HeaderSize ) {
+      if( s.Length < length ) {
         throw new ArgumentException("Cannot read AHPacket from Stream");
       }
-      byte[] header = new byte[HeaderSize];
-      s.Read(header, 0, HeaderSize);
-      if( header[0] != (byte)Packet.ProtType.AH ) {
-        throw new System.
-        ArgumentException("Packet is not an AHPacket");
-      }
-      _hops = NumberSerializer.ReadShort(header, 1);
-      _ttl = NumberSerializer.ReadShort(header, 3);
-      _source = AddressParser.Parse(header, 5);
-      _destination = AddressParser.Parse(header, 25);
-      _pt = (Protocol) header[45];
-      _payload = new byte[length - HeaderSize];
-      s.Read(_payload, 0, _payload.Length);
-    }
-    public AHPacket(byte[] buf, int offset, int length)
-    {
+      byte[] buf = new byte[length];
+      s.Read(buf, 0, length);
+      int offset = 0; 
+      //Now this is exactly the same code as below:
+      int off = offset;
       if (buf[offset] != (byte)Packet.ProtType.AH ) {
         throw new System.
         ArgumentException("Packet is not an AHPacket");
       }
-      _hops = NumberSerializer.ReadShort(buf, offset + 1);
-      _ttl = NumberSerializer.ReadShort(buf, offset + 3);
-      _source = AddressParser.Parse(buf, offset + 5);
-      _destination = AddressParser.Parse(buf, offset + 25);
-      _pt = (Protocol) buf[offset + 45];
-      _payload = new byte[length - HeaderSize];
-      Array.Copy(buf, offset + HeaderSize,
-                 _payload, 0, length - HeaderSize);
+      offset += 1;
+      _hops = NumberSerializer.ReadShort(buf, offset);
+      offset += 2;
+      _ttl = NumberSerializer.ReadShort(buf, offset);
+      offset += 2;
+      _source = AddressParser.Parse(buf, offset);
+      offset += 20;
+      _destination = AddressParser.Parse(buf, offset);
+      offset += 20;
+      int len = 0;
+      _pt = NumberSerializer.ReadString(buf, offset, out len);
+      offset += len;
+      int headersize = offset - off;
+      int payload_len = length - headersize;
+      _payload = new byte[payload_len];
+      Array.Copy(buf, offset, _payload, 0, payload_len);
+    }
+    public AHPacket(byte[] buf, int offset, int length)
+    {
+      int off = offset;
+      if (buf[offset] != (byte)Packet.ProtType.AH ) {
+        throw new System.
+        ArgumentException("Packet is not an AHPacket");
+      }
+      offset += 1;
+      _hops = NumberSerializer.ReadShort(buf, offset);
+      offset += 2;
+      _ttl = NumberSerializer.ReadShort(buf, offset);
+      offset += 2;
+      _source = AddressParser.Parse(buf, offset);
+      offset += 20;
+      _destination = AddressParser.Parse(buf, offset);
+      offset += 20;
+      int len = 0;
+      _pt = NumberSerializer.ReadString(buf, offset, out len);
+      offset += len;
+      int headersize = offset - off;
+      int payload_len = length - headersize;
+      _payload = new byte[payload_len];
+      Array.Copy(buf, offset, _payload, 0, payload_len);
     }
 
     public AHPacket(byte[] buf, int length):this(buf, 0, length)
@@ -110,7 +129,7 @@ namespace Brunet
                     short ttl,
                     Address source,
                     Address destination,
-                    Protocol payload_prot,
+                    string payload_prot,
                     byte[] payload, int off, int len)
     {
       _hops = hops;
@@ -129,7 +148,7 @@ namespace Brunet
                     short ttl,
                     Address source,
                     Address destination,
-                    Protocol payload_prot,
+                    string payload_prot,
                     byte[] payload) : this(hops, ttl, source, destination,
                                                payload_prot, payload, 0,
                                            payload.Length) {
@@ -155,6 +174,16 @@ namespace Brunet
     public override ProtType type { get { return Packet.ProtType.AH; } }
     public override int Length { get { return HeaderSize + _payload.Length; } }
     public override int PayloadLength { get { return _payload.Length; } }
+    
+    /**
+     * The number of bytes in the header, including the type 0x02 
+     * Since the payload type is a string, this is a variable.
+     */
+    public int HeaderSize {
+      get {
+        return 45 + NumberSerializer.GetByteCount(_pt);
+      }
+    }
 
     protected short _hops;
     /**
@@ -181,8 +210,8 @@ namespace Brunet
      */
     public Address Destination { get { return _destination; } }
 
-    protected Protocol _pt;
-    public Protocol PayloadType { get { return _pt; } }
+    protected string _pt;
+    public string PayloadType { get { return _pt; } }
 
     /**
      * This is the prefered way to access the payload
@@ -208,8 +237,7 @@ namespace Brunet
       off += 20;
       _destination.CopyTo(dest, off);
       off += 20;
-      dest[off] = (byte)_pt;
-      off += 1;
+      off += NumberSerializer.WriteString(_pt, dest, off);
       Array.Copy(_payload, 0, dest, off, PayloadLength);
       off += PayloadLength;
     }
@@ -221,16 +249,19 @@ namespace Brunet
       return new MemoryStream(_payload, offset, _payload.Length - offset, false);
     }
 
-  public enum Protocol:byte
+    /**
+     * Static inner class which is just a namespace for the protocols
+     * This is just for convenience.  You can ignore this if you like.
+     */
+    public class Protocol 
     {
-      Deflate = 1,
-      Connection = 2,
-      Forwarding = 3,
-      Echo = 4,
-      Tftp = 5,
-      Chat = 6,
-      IP = 7,
-      ReqRep = 8
+      public static readonly string Connection = "c";
+      public static readonly string Forwarding = "f";
+      public static readonly string Echo = "e";
+      public static readonly string Tftp = "tftp";
+      public static readonly string Chat = "chat";
+      public static readonly string IP = "i";
+      public static readonly string ReqRep = "r";
     }
 
     /**
@@ -253,8 +284,7 @@ namespace Brunet
       sw.WriteLine("Ttl: " + this.Ttl);
       sw.WriteLine("Source: " + this.Source.ToString());
       sw.WriteLine("Destination: " + this.Destination.ToString());
-      sw.WriteLine("Payload Protocol: " +
-                   this.PayloadType.ToString());
+      sw.WriteLine("Payload Protocol: " + this.PayloadType);
       sw.WriteLine("Payload Length: {0}", this.PayloadLength);
       sw.WriteLine("Payload: ");
       System.Text.Encoding e = new System.Text.UTF8Encoding();

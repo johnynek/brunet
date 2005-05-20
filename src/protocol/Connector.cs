@@ -272,7 +272,7 @@ namespace Brunet
       }
     }
 
-    public bool HandlesAHProtocol(AHPacket.Protocol type)
+    public bool HandlesAHProtocol(string type)
     {
       return (type == AHPacket.Protocol.Connection);
     }

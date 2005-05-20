@@ -825,7 +825,7 @@ namespace Brunet
      */
     virtual public void SendTo(Address destination,
                                short ttl,
-                               Brunet.AHPacket.Protocol p,
+                               string p,
                                byte[] payload)
     {
       AHPacket packet = new AHPacket(0, ttl, _local_add, destination, p, payload);
@@ -844,7 +844,7 @@ namespace Brunet
      * types, and 2 Log_2 N, for UnstructuredAddress types.
      */
     virtual public void SendTo(Address destination,
-		               AHPacket.Protocol p,
+		               string p,
 			       byte[] payload)
     {
       short ttl = DefaultTTLFor(destination);
@@ -868,8 +868,7 @@ namespace Brunet
     /**
      * Where should we send these packets?
      */
-    virtual public void Subscribe(AHPacket.Protocol prot,
-                                  IAHPacketHandler hand)
+    virtual public void Subscribe(string prot, IAHPacketHandler hand)
     {
       lock(_sync) {
         if (!_subscription_table.Contains(prot)) {
@@ -889,8 +888,7 @@ namespace Brunet
     /**
      * This handler is going to stop listening
      */
-    virtual public void Unsubscribe(AHPacket.Protocol prot,
-                                    IAHPacketHandler hand)
+    virtual public void Unsubscribe(string prot, IAHPacketHandler hand)
     {
       lock(_sync) {
         if (_subscription_table.Contains(prot)) {
