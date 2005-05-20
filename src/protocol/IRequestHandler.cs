@@ -20,7 +20,7 @@ public interface IRequestHandler {
    */
   void HandleRequest(ReqrepManager man, ReqrepManager.ReqrepType rt,
 		   object req,
-		   AHPacket.Protocol prot,
+		   string prot,
 		   System.IO.MemoryStream payload, AHPacket packet);
 	
 }

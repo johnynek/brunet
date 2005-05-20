@@ -79,7 +79,7 @@ public class ReqrepManager : IAHPacketHandler {
     public AHPacket Reply;
     public DateTime RepDate;
     public AHPacket Request;
-    public AHPacket.Protocol PayloadType;
+    public string PayloadType;
   }
   // Member variables:
   
@@ -111,7 +111,8 @@ public class ReqrepManager : IAHPacketHandler {
     ReqrepType rt = (ReqrepType)((byte)ms.ReadByte());
     int idnum = NumberSerializer.ReadInt(ms);
     if( rt == ReqrepType.Request || rt == ReqrepType.LossyRequest ) {
-      AHPacket.Protocol pt = (AHPacket.Protocol)( (byte)ms.ReadByte() );
+      int count = 0;
+      string pt = NumberSerializer.ReadString(ms, out count);
       /**
        * Lets see if we have been asked this question before
        */
@@ -155,8 +156,11 @@ public class ReqrepManager : IAHPacketHandler {
             /*
              * When this request is finishes, the method SendReply
              * is called
+             *
+             * Skip over the 1 byte that says what kind of request,
+             * 4 byte request id, and the length of the protocol type
              */
-	    System.IO.MemoryStream offsetpayload = p.GetPayloadStream(6);
+	    System.IO.MemoryStream offsetpayload = p.GetPayloadStream(5 + count);
             irh.HandleRequest(this,rt,rs,pt,offsetpayload,p);
           }
           catch(Exception x) {
@@ -184,11 +188,12 @@ public class ReqrepManager : IAHPacketHandler {
       }
     }
     else if( rt == ReqrepType.Reply ) {
-      AHPacket.Protocol pt = (AHPacket.Protocol)( (byte)ms.ReadByte() );
+      int count = 0;
+      string pt = NumberSerializer.ReadString(ms, out count);
       lock( _sync ) {
         RequestState reqs = (RequestState)_req_state_table[idnum];
         if( reqs != null ) {
-	  System.IO.MemoryStream offsetpayload = p.GetPayloadStream(6);
+	  System.IO.MemoryStream offsetpayload = p.GetPayloadStream(5 + count);
           bool continue_listening = 
                   reqs.ReplyHandler.HandleReply(this, rt, idnum, pt,
                                                 offsetpayload, p, reqs.UserState);
@@ -242,7 +247,7 @@ public class ReqrepManager : IAHPacketHandler {
 		                short ttl,
 		                ReqrepType rt,
                                 int next_rep,
-                                AHPacket.Protocol prot,
+                                string prot,
 				byte[] payload)
   {
       //Here we make the payload while we will send:
@@ -250,14 +255,18 @@ public class ReqrepManager : IAHPacketHandler {
        * The format is:
        * 1 byte to give the type of request/reply
        * 4 byte integer ID
-       * 1 byte type of payload
+       * protocol_len bytes type of payload
        * payload.Length bytes for the payload
        */
-      byte[] req_payload = new byte[ 1 + 4 + 1 + payload.Length ];
-      req_payload[0] = (byte)rt;
+      int protocol_len = NumberSerializer.GetByteCount(prot);
+      byte[] req_payload = new byte[ 1 + 4 + protocol_len + payload.Length ];
+      int offset = 0;
+      req_payload[offset] = (byte)rt;
+      offset += 1;
       NumberSerializer.WriteInt( next_rep, req_payload, 1 );
-      req_payload[5] = (byte)prot;
-      Array.Copy(payload, 0, req_payload, 6, payload.Length);
+      offset += 4;
+      offset += NumberSerializer.WriteString(prot, req_payload, offset);
+      Array.Copy(payload, 0, req_payload, offset, payload.Length);
       AHPacket packet = new AHPacket(0, ttl, _node.Address, destination,
                                      AHPacket.Protocol.ReqRep, req_payload);
       return packet;
@@ -273,7 +282,7 @@ public class ReqrepManager : IAHPacketHandler {
    *
    */
   public int SendRequest(Address destination, ReqrepType reqt,
-                         AHPacket.Protocol prot,
+                         string prot,
 		         byte[] payload, IReplyHandler reply, object state)
   {
     if ( reqt != ReqrepType.Request && reqt != ReqrepType.LossyRequest ) {
@@ -339,7 +348,7 @@ public class ReqrepManager : IAHPacketHandler {
    *
    * @throws Exception if there is another IRequestHandler already Binded.
    */
-  public void Bind(AHPacket.Protocol p, IRequestHandler reqh) {
+  public void Bind(string p, IRequestHandler reqh) {
     lock( _sync ) {
       if( _req_handler_table.ContainsKey(p) ) {
         //Someone is already bound
@@ -414,7 +423,7 @@ public class ReqrepManager : IAHPacketHandler {
    * Unbind the given IRequestHandler.
    * @throws Exception if the given IRequestHandler is not bound to the protocol.
    */
-  public void Unbind(AHPacket.Protocol p, IRequestHandler reqh) {
+  public void Unbind(string p, IRequestHandler reqh) {
     lock( _sync ) {
       object o = _req_handler_table[p];
       if( o != reqh ) {

@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using System;
 using System.Net;
+using System.Text;
 
 namespace Brunet
 {
@@ -30,6 +31,14 @@ namespace Brunet
   public class NumberSerializer
   {
 
+    /**
+     * When we are serializing bytes this is the length we need
+     */
+    public static int GetByteCount(string s)
+    {
+      //We just need one more byte than the UTF8 encoding does
+      return Encoding.UTF8.GetByteCount(s) + 1; 
+    }
     /**
      * Reads a network endian (MSB) from bin
      */
@@ -86,6 +95,40 @@ namespace Brunet
       return ret_val;
     }
 
+    /**
+     * This method reads UTF-8 strings out of byte arrays by looking
+     * for the string up to the first zero byte.
+     * 
+     * While strings are not numbers, this serialization code
+     * is put here anyway.
+     *
+     * @param bin the byte array
+     * @param offset where to start looking.
+     * @param bytelength how many bytes did we ready out
+     *
+     */
+    public static string ReadString(byte[] bin, int offset, out int bytelength)
+    {
+      //Find the end of the string:
+      int string_end = offset;
+      while( bin[string_end] != 0 ) {
+        string_end++;
+      }
+      bytelength = string_end - offset;
+      Encoding e = Encoding.UTF8;
+      return e.GetString(bin, offset, bytelength); 
+    }
+    /**
+     * Read a UTF8 string from the stream
+     * @param s the stream to read from
+     * @param count the number of bytes we read from the stream.
+     */
+    public static string ReadString(System.IO.Stream s, out int len)
+    {
+      len = 0;
+      return "";
+    }
+    
     public static float ReadFloat(byte[] bin, int offset)
     {
       if (BitConverter.IsLittleEndian) {
@@ -121,6 +164,22 @@ namespace Brunet
       short net_value = IPAddress.HostToNetworkOrder(value);
       byte[] arr = BitConverter.GetBytes(net_value);
       Array.Copy(arr, 0, target, offset, arr.Length);
+    }
+    /**
+     * Write a UTF8 encoding of the string into the byte array
+     * and terminate it with a "0x00" byte.
+     * @param svalue the string to write into the byte array
+     * @param target the byte array to write into
+     * @param offset the number of bytes into the target to start
+     * @return the number of bytes written
+     */
+    public static int WriteString(string svalue, byte[] target, int offset)
+    {
+      Encoding e = Encoding.UTF8;
+      int bcount = e.GetBytes(svalue, 0, svalue.Length, target, offset);
+      //Write the null:
+      target[offset + bcount] = 0;
+      return bcount + 1;
     }
 
     public static void WriteLong(int lval, byte[] target, int offset)
