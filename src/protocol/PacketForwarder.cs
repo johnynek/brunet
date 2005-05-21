@@ -120,7 +120,14 @@ namespace Brunet
                                       short ttl_to_forwarder,
                                       AHPacket packet_to_wrap)
     {
-      //System.Console.WriteLine("Packet to wrap: {0}", packet_to_wrap);
+#if false
+      System.Console.WriteLine("Packet to wrap: {0}", packet_to_wrap);
+      System.Console.WriteLine("HeaderSize: {0} PayloadLength: {1} Length: {2}",
+		                packet_to_wrap.HeaderSize,
+		                packet_to_wrap.PayloadLength,
+		                packet_to_wrap.Length);
+#endif
+      
       byte[] whole_packet = new byte[packet_to_wrap.Length];
       packet_to_wrap.CopyTo(whole_packet, 0);
       //Change the source address to forwarder:
@@ -132,7 +139,13 @@ namespace Brunet
                                      forwarder,
                                      AHPacket.Protocol.Forwarding,
                                      whole_packet);
-      //System.Console.WriteLine("Result: {0}", result);
+#if false
+      System.Console.WriteLine("Result: {0}", result);
+      System.Console.WriteLine("HeaderSize: {0} PayloadLength: {1} Length: {2}",
+		                result.HeaderSize,
+		                result.PayloadLength,
+		                result.Length);
+#endif
       return result;
     }
 
