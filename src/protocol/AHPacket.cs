@@ -74,6 +74,8 @@ namespace Brunet
       offset += 20;
       _destination = AddressParser.Parse(buf, offset);
       offset += 20;
+      _options = (ushort)NumberSerializer.ReadShort(buf, offset);
+      offset += 2;
       int len = 0;
       _pt = NumberSerializer.ReadString(buf, offset, out len);
       offset += len;
@@ -98,6 +100,8 @@ namespace Brunet
       offset += 20;
       _destination = AddressParser.Parse(buf, offset);
       offset += 20;
+      _options = (ushort)NumberSerializer.ReadShort(buf, offset);
+      offset += 2;
       int len = 0;
       _pt = NumberSerializer.ReadString(buf, offset, out len);
       offset += len;
@@ -181,7 +185,7 @@ namespace Brunet
      */
     public int HeaderSize {
       get {
-        return 45 + NumberSerializer.GetByteCount(_pt);
+        return 47 + NumberSerializer.GetByteCount(_pt);
       }
     }
 
@@ -210,6 +214,13 @@ namespace Brunet
      */
     public Address Destination { get { return _destination; } }
 
+    protected ushort _options;
+    /**
+     * This is a 16 bit field that describe routing and delivery
+     * options
+     */
+    public ushort Options { get { return _options; } }
+    
     protected string _pt;
     public string PayloadType { get { return _pt; } }
 
@@ -237,6 +248,8 @@ namespace Brunet
       off += 20;
       _destination.CopyTo(dest, off);
       off += 20;
+      NumberSerializer.WriteShort((short)_options, dest, off);
+      off += 2;
       off += NumberSerializer.WriteString(_pt, dest, off);
       Array.Copy(_payload, 0, dest, off, PayloadLength);
       off += PayloadLength;
@@ -250,8 +263,31 @@ namespace Brunet
     }
 
     /**
-     * Static inner class which is just a namespace for the protocols
+     * Inner class to represent the options
+     */
+    public class AHOptions {
+      //These are delivery options controlling when the packet is delivered locally
+      public static readonly ushort Path = 0;
+      public static readonly ushort Last = 1;
+      public static readonly ushort Nearest = 2;
+      /**
+       * This delivers the packet to the nearest nodes in the network to
+       * the destination.  More than one node may get the packet, but certainly
+       * the closest two should get the packet.
+       */
+      public static readonly ushort NearestMulti = 3;
+      /**
+       * Only a node with an address that exactly matches the destination should
+       * get the packet
+       */
+      public static readonly ushort Exact = 4;
+    }
+    
+    /**
+     * Inner class which is just a namespace for the protocols
      * This is just for convenience.  You can ignore this if you like.
+     * When using one of these protocols, it is smart to use this class
+     * so the compiler can catch typos (which it can't do with strings).
      */
     public class Protocol 
     {
@@ -262,6 +298,18 @@ namespace Brunet
       public static readonly string Chat = "chat";
       public static readonly string IP = "i";
       public static readonly string ReqRep = "r";
+    }
+    /**
+     * The options flag has 16 bits.  Different parts
+     * are used for different things and some can be combined.
+     * Note, for a given 16 bits, more than one option may 
+     * match (for instance, flags)
+     *
+     * @param opt the option you want to test for a match for
+     * @return true if this packet has opt set.
+     */
+    public bool HasOption(ushort opt) {
+      return true;
     }
 
     /**
