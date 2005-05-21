@@ -4,7 +4,7 @@
 <?rfc toc="yes"?>
 <rfc ipr="none">
 <front>
-<title>Brunet Ad-hoc Peer-to-peer Network Protocol</title>
+<title abbrev="Brunet">Brunet Ad-hoc Peer-to-peer Network Protocol</title>
 <author initial="P.O." surname="Boykin" fullname="P. Oscar Boykin">
 <organization>UCLA Department of Electrical Engineering</organization>
 <address>
@@ -416,6 +416,8 @@ realm.
 The realm is specified in the <xref target="sec.link">link message</xref> in
 the connection protocol.  If no realm is specified the default realm is
 "global".
+
+A namespace SHOULD be a unique uri.
 </t>
 </section>
 <section anchor="sec.protocol.addressable" title="Addressable Protocol (0x02)">
@@ -432,9 +434,9 @@ DHT system header format.  Each '+' character represents a byte
 boundary.
 </preamble>
 <artwork>
-+----+-+-+-+-+(20 bytes)++++(20 bytes)++++-+--
-|0x02|Hop|TTL|Source Add |Destination Add|N| Payload
-+----+-+-+-+-+..........++++..........++++-+--
++----+-+-+-+-+(20 bytes)++++(20 bytes)++++-+-+.+--
+|0x02|Hop|TTL|Source Add |Destination Add| O |N| Payload
++----+-+-+-+-+..........++++..........++++-+-+.+--
 </artwork>
 </figure>
 <list style="numbers">
@@ -447,11 +449,12 @@ reserved for future use.</t>
 for future use.</t>
 <t>Source Address: 160 bits (20 bytes)</t>
 <t>Destination Address: 160 bits (20 bytes)</t>
-<t>N: Next header type.  This denotes the type of information carried in the
+<t>Options: 16 bits of routing and delivery options</t>
+<t>N: Next header type.  This is a null terminated UTF8
+string.  This denotes the type of information carried in the
 payload.  This is irrelevant for routing.</t>
 <t>Payload: the data carried by the packet.  Recall that we assume
-that the transport layer gives the length of the datagram.  Since the header is
-always 46 bytes, the total length minus 46 is the length of the payload.</t>
+that the transport layer gives the length of the datagram.</t>
 </list>
 </t>
 
@@ -725,20 +728,20 @@ will have Hops == TTL.
 
 <section title="Payload Types">
 <t>
+The empty string "" and all single character strings, and all strings
+with the prefix "brunet:" are reserved protocol strings.  User defined
+strings must not use a string from the above set.
 <list style="symbols">
-<t>0x01: RFC1951 Deflated payload.  The first byte of the payload is
-the original type.  The remainder of the payload is the original
-payload compressed with the deflate algorithm (see RFC1951).  The
-payload MUST not be compressed if the result is not smaller than the
-original.</t>
-<t>0x02: Network Structure Protocol. This is a protocol for arranging
+<t>c: Network Structure Protocol. This is a protocol for arranging
 the network in a way that will make it navigable in polylogarithmic number
 of hops, and to make sure that unstructured connections follow the proper degree
 distribution.</t>
-<t>0x03: Forwarding Protocol.  The payload contains a next address to forward
+<t>f: Forwarding Protocol.  The payload contains a next address to forward
 the packet to.  This is used for (amoung other things) bootstrapping.  This
 is only allowed when the original destination address is a class 0 address.
 </t>
+<t>r: Request/Response Protocol: This is a generic protocol to handle semi-reliable
+requests/response messaging in a standard way.</t>
 </list>
 </t>
 <section anchor="net-structure-p" title="Network Structure Protocol">
@@ -892,12 +895,12 @@ All messages must be valid against an xml schema (to be done).
 Forwarding protocol payload:
 </preamble>
 <artwork>
-+----+-+-+-+-+(20 bytes)++++(20 bytes)++++----+-------+
-|0x02|Hop|TTL|Source Add |Destination Add|0x03| Full Packet
-+----+-+-+-+-+..........++++..........++++----+-------+
++----+-+-+-+-+(20 bytes)++++(20 bytes)++++-+-+---+-+-------+
+|0x02|Hop|TTL|Source Add |Destination Add| O |'f' 0| Full Packet
++----+-+-+-+-+..........++++..........++++-+-+---+-+-------+
 </artwork>
 </figure>
-If the destination is class 0, and the payload type is 0x03, then
+If the destination is class 0, and the payload type is 'f', then
 the payload is a complete packet which should be forwarded.
 The packet is resent
 from the current destination to the next destination with the current
