@@ -24,7 +24,7 @@ public class ReqrepExample : Brunet.IRequestHandler, Brunet.IReplyHandler {
 
   public void HandleRequest(ReqrepManager man, ReqrepManager.ReqrepType rt,
 		   object req,
-		   AHPacket.Protocol prot,
+		   string prot,
 		   System.IO.MemoryStream payload, AHPacket packet)
   {
     /*
@@ -38,7 +38,7 @@ public class ReqrepExample : Brunet.IRequestHandler, Brunet.IReplyHandler {
 
   public bool HandleReply(ReqrepManager man, ReqrepManager.ReqrepType rt,
 		   int mid,
-		   AHPacket.Protocol prot,
+		   string prot,
 		   System.IO.MemoryStream payload, AHPacket packet,
 		   object state)
   {

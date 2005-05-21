@@ -165,7 +165,7 @@ namespace Brunet
       mylist.Add(e5);
 
 
-      AHPacket.Protocol prot = AHPacket.Protocol.Connection;
+      string prot = AHPacket.Protocol.Connection;
       AHPacket mypacket = new AHPacket(2, 8, test_address_1,
                                        test_address_3, prot, buf1);     //the destination is a RWP address
 

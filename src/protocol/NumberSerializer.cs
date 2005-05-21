@@ -114,9 +114,11 @@ namespace Brunet
       while( bin[string_end] != 0 ) {
         string_end++;
       }
-      bytelength = string_end - offset;
+      //Add 1 for the null terminator
+      bytelength = string_end - offset + 1;
       Encoding e = Encoding.UTF8;
-      return e.GetString(bin, offset, bytelength); 
+      //subtract 1 for the null terminator
+      return e.GetString(bin, offset, bytelength - 1); 
     }
     /**
      * Read a UTF8 string from the stream
@@ -125,8 +127,35 @@ namespace Brunet
      */
     public static string ReadString(System.IO.Stream s, out int len)
     {
-      len = 0;
-      return "";
+      bool cont = true; 
+      //Here is the initial buffer we make for reading the string:
+      byte[] str_buf = new byte[32];
+      int pos = 0;
+      do {
+        int val = s.ReadByte();
+        if( val == 0 ) {
+          //This is the end of the string.
+          cont = false;
+        }
+        else if( val < 0 ) {
+          //Some kind of error occured
+          string str = Encoding.UTF8.GetString(str_buf);
+          throw new Exception("Could not read the next byte from stream, string so far: " + str);
+        }
+        else {
+          str_buf[pos] = (byte)val;
+          pos++;
+          if( str_buf.Length <= pos ) {
+            //We can't fit anymore into this buffer.
+            //Make a new buffer twice as long
+            byte[] tmp_buf = new byte[ str_buf.Length * 2 ];
+            Array.Copy(str_buf, 0, tmp_buf, 0, str_buf.Length);
+            str_buf = tmp_buf;
+          }
+        }
+      } while( cont == true );
+      len = pos + 1; //1 byte for the null
+      return Encoding.UTF8.GetString(str_buf);
     }
     
     public static float ReadFloat(byte[] bin, int offset)

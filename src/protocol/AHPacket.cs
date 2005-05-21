@@ -63,7 +63,7 @@ namespace Brunet
       int off = offset;
       if (buf[offset] != (byte)Packet.ProtType.AH ) {
         throw new System.
-        ArgumentException("Packet is not an AHPacket");
+        ArgumentException("Packet is not an AHPacket: " + buf[offset].ToString());
       }
       offset += 1;
       _hops = NumberSerializer.ReadShort(buf, offset);

@@ -197,6 +197,10 @@ namespace Brunet
     if( args.Length > 1 ) {
       net_type = args[1];
     }
+    int ms_sleep = 0;
+    if( args.Length > 2 ) {
+      ms_sleep = Int32.Parse(args[2]);
+    }
     ArrayList adds = new ArrayList();
     Hashtable add_to_node = new Hashtable();
     
@@ -272,7 +276,7 @@ namespace Brunet
 		      + " RemoteTAs count: " + item.RemoteTAs.Count);
       total_started++;
       Console.WriteLine("Started: " + total_started.ToString());
-      Thread.Sleep(10000);
+      Thread.Sleep(ms_sleep);
       //Console.ReadLine();
 
       //foreach (TransportAddress item2 in item.RemoteTAs)
