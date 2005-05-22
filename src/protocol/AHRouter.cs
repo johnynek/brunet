@@ -78,13 +78,21 @@ namespace Brunet
       }
       else if( p.Hops == p.Ttl ) {
         //We are the last to get it:
-	deliverlocally = true;
+	if( p.HasOption( AHPacket.AHOptions.Last ) ) {
+	  deliverlocally = true;
+	}
 	return 0;
       }
       else if ( _local.Equals(dest) ) {
         //This packet is for us!  Woo hoo!
+	//There is no option that does not mean deliver in this case
 	deliverlocally = true;
+	//We can stop routing now, no one is closer than us.
 	return 0;
+      }
+      else if ( p.HasOption( AHPacket.AHOptions.Path ) ) {
+        //Everyone gets this one:
+	deliverlocally = true;
       }
       /*
        * else we know p.Hops < p.Ttl, we can route:
@@ -129,14 +137,20 @@ namespace Brunet
 	  }
 	  if( closest_con == null ) {
             //We can't move it at all, we should delivery it locally:
-	    deliverlocally = true;
+	    if( p.HasOption( AHPacket.AHOptions.Nearest ) ||
+	        p.HasOption( AHPacket.AHOptions.NearestMulti ) ) {
+	      deliverlocally = true;
+            }
 	  }
 	  else if( p.Hops <= 1 || closest_dist < prev_dist ) {
             //We can get it closer than the previous node could
 	    next_con = closest_con;
 	    if( our_dist < closest_dist ) {
               //We may be closest
-	      deliverlocally = true;
+	      if( p.HasOption( AHPacket.AHOptions.Nearest ) ||
+	          p.HasOption( AHPacket.AHOptions.NearestMulti ) ) {
+	        deliverlocally = true;
+              }
 	    }
 	  }
 	  else {
@@ -144,7 +158,9 @@ namespace Brunet
 	    //than the previous node was.
 	    //
 	    //We may be closest:
-	    deliverlocally = true;
+	    if (p.HasOption( AHPacket.AHOptions.NearestMulti ) ) {
+	      deliverlocally = true;
+            }
 	  }
 	}
 	else {

@@ -134,12 +134,35 @@ namespace Brunet
                     Address source,
                     Address destination,
                     string payload_prot,
+                    byte[] payload, int off, int len) :
+	                    this(hops, ttl, source, destination,
+                                 AHOptions.AddClassDefault,
+                                 payload_prot, payload, off,len)
+    {
+    }
+    /**
+     * @param hops Hops for this packet
+     * @param ttl TTL for this packet
+     * @param source Source Address for this packet
+     * @param destination Destination Address for this packet
+     * @param payload_prot AHPacket.Protocol of the Payload
+     * @param payload buffer holding the payload
+     * @param off Offset to the zeroth byte of payload
+     * @param len Length of the payload
+     */
+    public AHPacket(short hops,
+                    short ttl,
+                    Address source,
+                    Address destination,
+		    ushort options,
+                    string payload_prot,
                     byte[] payload, int off, int len)
     {
       _hops = hops;
       _ttl = ttl;
       _source = source;
       _destination = destination;
+      _options = options;
       _pt = payload_prot;
       _payload = new byte[len];
       Array.Copy(payload, off, _payload, 0, len);
@@ -152,8 +175,24 @@ namespace Brunet
                     short ttl,
                     Address source,
                     Address destination,
+		    ushort options,
+                    string payload_prot,
+                    byte[] payload) : this(hops, ttl, source, destination, options,
+                                               payload_prot, payload, 0,
+                                           payload.Length) {
+
+    }
+    /**
+     * Same as similar constructor with offset and len, only
+     * we assume the entired buffer is the payload
+     */
+    public AHPacket(short hops,
+                    short ttl,
+                    Address source,
+                    Address destination,
                     string payload_prot,
                     byte[] payload) : this(hops, ttl, source, destination,
+                                               AHOptions.AddClassDefault,
                                                payload_prot, payload, 0,
                                            payload.Length) {
 
@@ -166,11 +205,13 @@ namespace Brunet
                     short ttl,
                     Address source,
                     Address destination,
+		    ushort options,
                     AHPacket p) {
       _hops = hops;
       _ttl = ttl;
       _source = source;
       _destination = destination;
+      _options = options;
       _pt = p._pt;
       _payload = p._payload;
     }
@@ -267,20 +308,21 @@ namespace Brunet
      */
     public class AHOptions {
       //These are delivery options controlling when the packet is delivered locally
-      public static readonly ushort Path = 0;
+      public static readonly ushort AddClassDefault = 0;
       public static readonly ushort Last = 1;
-      public static readonly ushort Nearest = 2;
+      public static readonly ushort Path = 2;
+      public static readonly ushort Nearest = 3;
       /**
        * This delivers the packet to the nearest nodes in the network to
        * the destination.  More than one node may get the packet, but certainly
        * the closest two should get the packet.
        */
-      public static readonly ushort NearestMulti = 3;
+      public static readonly ushort NearestMulti = 4;
       /**
        * Only a node with an address that exactly matches the destination should
        * get the packet
        */
-      public static readonly ushort Exact = 4;
+      public static readonly ushort Exact = 5;
     }
     
     /**
@@ -309,7 +351,27 @@ namespace Brunet
      * @return true if this packet has opt set.
      */
     public bool HasOption(ushort opt) {
-      return true;
+      ushort my_opts = _options;
+      if( my_opts == AHOptions.AddClassDefault ) {
+        if( Destination is AHAddress ) {
+          my_opts = AHOptions.NearestMulti;
+        }
+        else if( Destination is DirectionalAddress ) {
+          my_opts = AHOptions.Last;
+        }
+        else if( Destination is RwtaAddress ) {
+          my_opts = AHOptions.Last;
+        }
+        else if( Destination is UnstructuredAddress ) {
+          my_opts = AHOptions.Path;
+        }
+        else if( Destination is StructuredAddress ) {
+          my_opts = AHOptions.Nearest;
+        }
+      }
+      
+      Console.WriteLine("Options: {0}, my_opt: {1}, opt: {2}", _options, my_opts, opt);
+      return (opt == my_opts);
     }
 
     /**
@@ -321,6 +383,7 @@ namespace Brunet
                            _ttl,
                            _source,
                            _destination,
+                           _options,
                            this );
     }
 

@@ -91,10 +91,16 @@ namespace Brunet
       bool  flag = add.Flag;
       int   neighbors_size = _connection_table.Count(ConnectionType.Unstructured);
 
-      //Every node in the path processes add packet
-      deliverlocally = true;
+      deliverlocally = false;
+      if( p.HasOption( AHPacket.AHOptions.Path ) ) {
+        //Every node in the path processes add packet
+        deliverlocally = true;
+      }
 
       if (neighbors_size < 2 || p.Hops >= p.Ttl) {
+	if( p.HasOption( AHPacket.AHOptions.Last ) ) {
+          deliverlocally = true;
+	}
         return 0; //do nothing
       }
       else {
@@ -129,6 +135,7 @@ namespace Brunet
                                  p.Ttl,
                                  p.Source,
                                  dest,
+				 p.Options,
                                  p );
         }
         else {
@@ -155,6 +162,10 @@ namespace Brunet
         catch (Exception ex) {
           // log it. do a code review and log the exceptions that should be logged
         }
+	if( num_sent_on == 0 && p.HasOption( AHPacket.AHOptions.Last ) ) {
+          //If we are not sending it on, and the last node should get it...
+          deliverlocally = true;
+	}
         return num_sent_on;
       }
     }

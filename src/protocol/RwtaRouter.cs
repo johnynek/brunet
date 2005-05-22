@@ -78,9 +78,14 @@ namespace Brunet
     public int Route(Edge from, AHPacket p, out bool deliverlocally)
     {
       deliverlocally = false;
+      if( p.HasOption( AHPacket.AHOptions.Path ) ) {
+        deliverlocally = true;
+      }
 
       if (p.Hops == p.Ttl) {
-        deliverlocally = true;
+        if( p.HasOption( AHPacket.AHOptions.Last ) ) {
+          deliverlocally = true;
+        }
         return 0;  //do nothing
       }
       else if (p.Hops > p.Ttl) {

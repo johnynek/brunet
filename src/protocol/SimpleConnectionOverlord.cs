@@ -747,8 +747,12 @@ namespace Brunet {
       ctm.Id = _rand.Next(1, Int32.MaxValue);
       ctm.Dir = ConnectionMessage.Direction.Request;
 
+      ushort options = AHPacket.AHOptions.AddClassDefault;
+      if( contype == struc_short ) {
+        options = AHPacket.AHOptions.Nearest;
+      }
       AHPacket ctm_pack =
-        new AHPacket(t_hops, t_ttl, _node.Address, target,
+        new AHPacket(t_hops, t_ttl, _node.Address, target, options,
                      AHPacket.Protocol.Connection, ctm.ToByteArray());
 
       #if DEBUG
