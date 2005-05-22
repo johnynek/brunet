@@ -238,7 +238,7 @@ public class ReqrepManager : IAHPacketHandler {
     req_payload[0] = (byte)ReqrepType.Error;
     NumberSerializer.WriteInt( next_rep, req_payload, 1 );
     req_payload[5] = (byte)err;
-    AHPacket packet = new AHPacket(0, ttl, _node.Address, destination,
+    AHPacket packet = new AHPacket(0, ttl, _node.Address, destination, AHPacket.AHOptions.Exact,
                                      AHPacket.Protocol.ReqRep, req_payload);
     return packet;
   }
@@ -267,7 +267,15 @@ public class ReqrepManager : IAHPacketHandler {
       offset += 4;
       offset += NumberSerializer.WriteString(prot, req_payload, offset);
       Array.Copy(payload, 0, req_payload, offset, payload.Length);
-      AHPacket packet = new AHPacket(0, ttl, _node.Address, destination,
+      ushort options;
+      if( rt == ReqrepType.Reply ) {
+        options = AHPacket.AHOptions.Exact;
+      }
+      else {
+        options = AHPacket.AHOptions.AddClassDefault;
+      }
+      
+      AHPacket packet = new AHPacket(0, ttl, _node.Address, destination, options,
                                      AHPacket.Protocol.ReqRep, req_payload);
       return packet;
   }

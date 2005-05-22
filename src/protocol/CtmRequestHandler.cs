@@ -136,6 +136,7 @@ namespace Brunet
         AHPacket response = new AHPacket(0, ttl,
                                          n.Address,
                                          ctm.Target.Address,
+					 AHPacket.AHOptions.Exact,
                                          AHPacket.Protocol.Connection,
                                          local_response_ctm.ToByteArray());
         if (!p.Source.Equals(ctm.Target.Address) &&

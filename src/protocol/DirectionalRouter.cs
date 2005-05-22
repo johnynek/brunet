@@ -147,8 +147,14 @@ namespace Brunet
             }
           }
         } /* This is the end of the atomic ConnectionTable operation set */
-        //This is the ttl == hops rule
-        deliverlocally |= (p.Hops == p.Ttl);
+	if( p.HasOption( AHPacket.AHOptions.Path ) ) {
+          deliverlocally = true;
+	}
+	else if( p.HasOption( AHPacket.AHOptions.Last ) ) {
+          if( next == null || p.Hops == p.Ttl ) {
+            deliverlocally = true;
+	  }
+	}
         if ( (next != null)
              && (p.Hops < p.Ttl) //Send only packets with some Ttl left
              && (next != from) ) { //Don't send it the way it came no matter what
@@ -156,10 +162,6 @@ namespace Brunet
           //If we send it, set sent to 1
           next.Send( p.IncrementHops() );
           sent = 1;
-        }
-        else {
-          //Looks like it is up to us
-          deliverlocally = true;
         }
       }
       catch(System.Exception x) {
