@@ -749,7 +749,11 @@ namespace Brunet {
 
       ushort options = AHPacket.AHOptions.AddClassDefault;
       if( contype == struc_short ) {
-        options = AHPacket.AHOptions.Nearest;
+	/*
+	 * We only want one node to get this packet, so
+	 * we send it only the last node in the path.
+	 */
+        options = AHPacket.AHOptions.Last;
       }
       AHPacket ctm_pack =
         new AHPacket(t_hops, t_ttl, _node.Address, target, options,
