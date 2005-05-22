@@ -162,7 +162,12 @@ namespace Brunet
       _ttl = ttl;
       _source = source;
       _destination = destination;
-      _options = options;
+      if( options == AHOptions.AddClassDefault ) {
+        _options = GetDefaultOption( _destination );
+      }
+      else {
+        _options = options;
+      }
       _pt = payload_prot;
       _payload = new byte[len];
       Array.Copy(payload, off, _payload, 0, len);
@@ -211,7 +216,12 @@ namespace Brunet
       _ttl = ttl;
       _source = source;
       _destination = destination;
-      _options = options;
+      if( options == AHOptions.AddClassDefault ) {
+        _options = GetDefaultOption( _destination );
+      }
+      else {
+        _options = options;
+      }
       _pt = p._pt;
       _payload = p._payload;
     }
@@ -309,20 +319,23 @@ namespace Brunet
     public class AHOptions {
       //These are delivery options controlling when the packet is delivered locally
       public static readonly ushort AddClassDefault = 0;
+      /**
+       * Only the very last node to see the packet gets it delivered in this
+       * case.  It may be when TTL==HOPs, or it my be the last in some route.
+       */
       public static readonly ushort Last = 1;
       public static readonly ushort Path = 2;
-      public static readonly ushort Nearest = 3;
       /**
        * This delivers the packet to the nearest nodes in the network to
        * the destination.  More than one node may get the packet, but certainly
        * the closest two should get the packet.
        */
-      public static readonly ushort NearestMulti = 4;
+      public static readonly ushort Nearest = 3;
       /**
        * Only a node with an address that exactly matches the destination should
        * get the packet
        */
-      public static readonly ushort Exact = 5;
+      public static readonly ushort Exact = 4;
     }
     
     /**
@@ -341,6 +354,23 @@ namespace Brunet
       public static readonly string IP = "i";
       public static readonly string ReqRep = "r";
     }
+    static protected ushort GetDefaultOption(Address dest) {
+        //This is the default option:
+        ushort my_opts = AHOptions.Last;
+        if( dest is DirectionalAddress ) {
+          my_opts = AHOptions.Last;
+        }
+        else if( dest is RwtaAddress ) {
+          my_opts = AHOptions.Last;
+        }
+        else if( dest is UnstructuredAddress ) {
+          my_opts = AHOptions.Path;
+        }
+        else if( dest is StructuredAddress ) {
+          my_opts = AHOptions.Nearest;
+        }
+        return my_opts;
+    }
     /**
      * The options flag has 16 bits.  Different parts
      * are used for different things and some can be combined.
@@ -353,24 +383,9 @@ namespace Brunet
     public bool HasOption(ushort opt) {
       ushort my_opts = _options;
       if( my_opts == AHOptions.AddClassDefault ) {
-        if( Destination is AHAddress ) {
-          my_opts = AHOptions.NearestMulti;
-        }
-        else if( Destination is DirectionalAddress ) {
-          my_opts = AHOptions.Last;
-        }
-        else if( Destination is RwtaAddress ) {
-          my_opts = AHOptions.Last;
-        }
-        else if( Destination is UnstructuredAddress ) {
-          my_opts = AHOptions.Path;
-        }
-        else if( Destination is StructuredAddress ) {
-          my_opts = AHOptions.Nearest;
-        }
+        my_opts = GetDefaultOption( Destination );
       }
-      
-      Console.WriteLine("Options: {0}, my_opt: {1}, opt: {2}", _options, my_opts, opt);
+      //Console.WriteLine("Options: {0}, my_opt: {1}, opt: {2}", _options, my_opts, opt);
       return (opt == my_opts);
     }
 

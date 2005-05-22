@@ -77,11 +77,18 @@ namespace Brunet
 	return 0;
       }
       else if( p.Hops == p.Ttl ) {
-        //We are the last to get it:
+        //We are the last to route the packet.
 	if( p.HasOption( AHPacket.AHOptions.Last ) ) {
+          /*
+           * No need to check any routing tables.  We get it
+           */
 	  deliverlocally = true;
+	  return 0;
 	}
-	return 0;
+	else {
+          //We only deliver it if we are the nearest.
+          //We check this below.
+	}
       }
       else if ( _local.Equals(dest) ) {
         //This packet is for us!  Woo hoo!
@@ -136,10 +143,19 @@ namespace Brunet
 	    }
 	  }
 	  if( closest_con == null ) {
-            //We can't move it at all, we should delivery it locally:
-	    if( p.HasOption( AHPacket.AHOptions.Nearest ) ||
-	        p.HasOption( AHPacket.AHOptions.NearestMulti ) ) {
+            /*
+	     * We can't move it at all, we should delivery it locally:
+	     * 1) If the delivery mode is path, everyone gets it.
+	     * 2) If the delivery mode is last, we are the last
+	     * 3) If the delivery mode is nearest, we are nearest
+	     */
+            if( !p.HasOption( AHPacket.AHOptions.Exact ) ) { 
 	      deliverlocally = true;
+            }
+            else {
+              //If local == dest, we would have returned
+              //at the beginning of this method.  This
+              //section should never be reached when local == dest
             }
 	  }
 	  else if( p.Hops <= 1 || closest_dist < prev_dist ) {
@@ -147,24 +163,33 @@ namespace Brunet
 	    next_con = closest_con;
 	    if( our_dist < closest_dist ) {
               //We may be closest
-	      if( p.HasOption( AHPacket.AHOptions.Nearest ) ||
-	          p.HasOption( AHPacket.AHOptions.NearestMulti ) ) {
+	      if( p.HasOption( AHPacket.AHOptions.Nearest ) ) {
 	        deliverlocally = true;
               }
 	    }
+            else {
+             /*
+              * The next_con is closer than the previous
+              * and closer than we are.  There is no need
+              * to deliver the packet locally unless
+              * the option is AHOptions.Last.  We will
+              * check that condition later.
+              */
+            }
 	  }
 	  else {
             //The closest is further than local, and further
 	    //than the previous node was.
 	    //
 	    //We may be closest:
-	    if (p.HasOption( AHPacket.AHOptions.NearestMulti ) ) {
+	    if (p.HasOption( AHPacket.AHOptions.Nearest ) ) {
 	      deliverlocally = true;
             }
 	  }
 	}
 	else {
-          //We found the next_con already.
+          //We can route directly to the destination.
+          //In no case do we deliver this locally.
 	}
       }//End of ConnectionTable lock
 
@@ -172,11 +197,18 @@ namespace Brunet
        * Now we have next_con if we can send it somewhere closer.
        */
       try {
-	if( next_con != null ) {
+	if( next_con != null && (p.Hops < p.Ttl) ) {
+          //We can send it on
           next_con.Edge.Send( p.IncrementHops() );
 	  return 1;
 	}
 	else {
+          /*
+           * We are not passing it on.  We are the last
+           */
+	  if (p.HasOption( AHPacket.AHOptions.Last ) ) {
+	    deliverlocally = true;
+          }
           return 0;
 	}
       }
