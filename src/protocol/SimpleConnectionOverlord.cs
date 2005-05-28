@@ -755,6 +755,9 @@ namespace Brunet {
 	 */
         options = AHPacket.AHOptions.Last;
       }
+      else {
+        options = AHPacket.AHOptions.Annealing;
+      }
       AHPacket ctm_pack =
         new AHPacket(t_hops, t_ttl, _node.Address, target, options,
                      AHPacket.Protocol.Connection, ctm.ToByteArray());
