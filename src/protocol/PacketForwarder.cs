@@ -137,7 +137,7 @@ namespace Brunet
       AHPacket result = new AHPacket(0, ttl_to_forwarder,
                                      packet_to_wrap.Source,
                                      forwarder,
-				     AHPacket.AHOptions.Nearest,
+				     AHPacket.AHOptions.Greedy,
                                      AHPacket.Protocol.Forwarding,
                                      whole_packet);
 #if false

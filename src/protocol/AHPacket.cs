@@ -322,20 +322,31 @@ namespace Brunet
       /**
        * Only the very last node to see the packet gets it delivered in this
        * case.  It may be when TTL==HOPs, or it my be the last in some route.
+       * This mode assumes the Greedy routing mode for structured addresses
        */
       public static readonly ushort Last = 1;
+      /*
+       * This mode assumes the Annealing routing mode for structured addresses
+       */
       public static readonly ushort Path = 2;
       /**
-       * This delivers the packet to the nearest nodes in the network to
-       * the destination.  More than one node may get the packet, but certainly
-       * the closest two should get the packet.
+       * This uses the greedy routing algorithm.  The packet always
+       * gets closer to the destination until it can get no closer,
+       * as is delivered to that node.
        */
-      public static readonly ushort Nearest = 3;
+      public static readonly ushort Greedy = 3;
+      /**
+       * This mode allows the packet to "go uphill" for one step.
+       * However, every local minimum will get the packet.  So,
+       * more than one node may receive the packet.
+       * This mode is slightly fault tolerant.
+       */
+      public static readonly ushort Annealing = 4;
       /**
        * Only a node with an address that exactly matches the destination should
        * get the packet
        */
-      public static readonly ushort Exact = 4;
+      public static readonly ushort Exact = 5;
     }
     
     /**
@@ -367,7 +378,7 @@ namespace Brunet
           my_opts = AHOptions.Path;
         }
         else if( dest is StructuredAddress ) {
-          my_opts = AHOptions.Nearest;
+          my_opts = AHOptions.Annealing;
         }
         return my_opts;
     }
