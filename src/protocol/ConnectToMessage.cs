@@ -71,6 +71,12 @@ namespace Brunet
       _ct = contype;
       _target_ni = target;
     }
+    public ConnectToMessage(string contype, NodeInfo target, NodeInfo[] neighbors)
+    {
+      _ct = contype;
+      _target_ni = target;
+      _neighbors = neighbors;
+    }
     /**
      * Prefer this constructor
      * @param t ConnectionType for this message
@@ -113,7 +119,16 @@ namespace Brunet
       {
         if( nodes.Name == "node" ) {
           _target_ni = new NodeInfo((XmlElement)nodes);
-	  break;
+	}
+	if( nodes.Name == "neighbors" ) {
+          ArrayList neighs = new ArrayList();
+          foreach(XmlNode neigh in nodes.ChildNodes) {
+            if( neigh.Name == "node" ) {
+              neighs.Add( new NodeInfo((XmlElement)neigh) );
+	    }
+	  }
+	  _neighbors = new NodeInfo[ neighs.Count ];
+	  neighs.CopyTo(_neighbors);
 	}
       }
     }
@@ -128,10 +143,30 @@ namespace Brunet
       _ct = r["type"];
       _target_ni = null;
       
-      while( r.Read() && _target_ni == null ) {
+      bool reading_neigh = false;
+      ArrayList neighbors = new ArrayList();
+      while( r.Read() ) {
         if( r.NodeType == XmlNodeType.Element && r.Name.ToLower() == "node" ) {
           //This is the target node info:
-	  _target_ni = new NodeInfo(r);
+	  NodeInfo tempni = new NodeInfo(r);
+	  if( reading_neigh ) {
+            neighbors.Add( tempni );
+	  }
+	  else {
+	    _target_ni = tempni;
+	  }
+	}
+	else if( r.Name.ToLower() == "neighbors" ) {
+          if( r.NodeType == XmlNodeType.Element ) {
+            //This is the start of the neighbors list
+	    reading_neigh = true; 
+	  }
+	  else if( r.NodeType == XmlNodeType.EndElement ) {
+            //This is the end
+	    reading_neigh = false;
+	    _neighbors = new NodeInfo[ neighbors.Count ];
+	    neighbors.CopyTo(_neighbors);
+	  }
 	}
       }
     }
@@ -143,6 +178,8 @@ namespace Brunet
     public NodeInfo Target {
       get { return _target_ni; }
     }
+    protected NodeInfo[] _neighbors;
+    public NodeInfo[] Neighbors { get { return _neighbors; } }
 
     public override bool CanReadTag(string tag)
     {
@@ -156,6 +193,15 @@ namespace Brunet
         bool same = true;
 	same &= co.ConnectionType == _ct;
 	same &= co.Target.Equals( _target_ni );
+	if( _neighbors == null ) {
+          same &= co.Neighbors == null;
+	}
+	else {
+          int n_count = co.Neighbors.Length;
+	  for(int i = 0; i < n_count; i++) {
+            same &= co.Neighbors[i].Equals( Neighbors[i] );
+	  } 
+	}
 	return same;
       }
       else {
@@ -190,6 +236,13 @@ namespace Brunet
       w.WriteEndAttribute();
       //Write the NodeInfo
       _target_ni.WriteTo(w); 
+      if( Neighbors != null ) {
+        w.WriteStartElement("neighbors"); //<neighbors>
+	foreach(NodeInfo n in Neighbors) {
+          n.WriteTo(w);
+	}
+	w.WriteEndElement(); //</neighbors>
+      }
       //end the connectTo element
       w.WriteEndElement();      //</connectTo>
       w.WriteEndElement();      //</(request|response)>
@@ -227,6 +280,24 @@ namespace Brunet
       
       ConnectToMessage ctm2a = (ConnectToMessage)xt.SerializeDeserialize(ctm2);
       Assert.AreEqual(ctm2, ctm2a, "CTM with 10 TAs");
+      //Here is a ConnectTo message with a neighbor list:
+      NodeInfo[] neighs = new NodeInfo[5];
+      for(int i = 0; i < 5; i++) {
+        NodeInfo tmp =
+		new NodeInfo(new DirectionalAddress(DirectionalAddress.Direction.Left),
+	                     new TransportAddress("brunet.tcp://127.0.0.1:" + i.ToString())
+			    );
+	neighs[i] = tmp;
+      }
+      ConnectToMessage ctm3 = new ConnectToMessage("structured", ni, neighs);
+      ConnectToMessage ctm3a = (ConnectToMessage)xt.SerializeDeserialize(ctm3);
+      Assert.AreEqual(ctm2, ctm2a, "CTM with neighborlist");
+#if false
+      System.Console.WriteLine( ctm3.ToString() );
+      foreach(NodeInfo tni in ctm3a.Neighbors) {
+        System.Console.WriteLine(tni.ToString());
+      }
+#endif
     }
   }
 
