@@ -524,6 +524,36 @@ namespace Brunet
       }
     }
     /**
+     * Returns at most i structured connections which are nearest
+     * to destination
+     * @param dest the target we are asking for connections close to
+     * @param i the maximum number of connections to return
+     * @return a list of structured connections closest to the destination
+     */
+    public ArrayList GetNearestTo(AHAddress dest, int i)
+    {
+      ArrayList ret_val = new ArrayList();
+      lock( _sync ) {
+        int max = Count(ConnectionType.Structured);
+	if( i > max ) {
+          i = max;
+	}
+        int idx = IndexOf(ConnectionType.Structured, dest);
+	if( idx < 0 ) {
+          idx = ~idx;
+	}
+	int start = idx - i/2;
+	int end = start + i;
+	for( int pos = start; pos < end; pos++) {
+          Edge e = null;
+          Address a = null;
+          GetConnection(ConnectionType.Structured, i, out a, out e);
+          ret_val.Add( GetConnection(e) );
+        }
+      }
+      return ret_val;
+    }
+    /**
      * @return a random connection of type t
      */
     public Connection GetRandom(ConnectionType t)

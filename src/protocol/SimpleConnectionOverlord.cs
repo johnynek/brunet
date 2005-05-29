@@ -577,7 +577,7 @@ namespace Brunet {
 	if( left_pos >= _desired_neighbors && right_pos >= _desired_neighbors ) {
         //This looks like a shortcut
 	  
-	}
+        }
 
 	/*
 	 * Check to see if any of this node's neighbors
@@ -585,13 +585,12 @@ namespace Brunet {
    * Address targets ltarget and rtarget.
 	 */
   
-  CheckForNearerNeighbors(new_con.Status,
-      ltarget,out nltarget,
-      rtarget,out nrtarget,
-      new_con,tab);
+        CheckForNearerNeighbors(new_con.Status.Neighbors,
+                                ltarget,out nltarget,
+                                rtarget,out nrtarget);
        
-       }
-      }//Release the lock on the connection_table
+       } //Release the lock on the connection_table
+      }
       
       /* 
        * We want to make sure not to hold the lock on ConnectionTable
@@ -660,16 +659,18 @@ namespace Brunet {
      * This function accepts several ref params in order to provide a
      * "pass-through" type function for the examining of neighbor lists in
      * several different functions. This function does not provide locking.
-     * Please lock and unlock as needed. "new_con" and "tab" are not altered
+     * Please lock and unlock as needed.
      */
-    protected void CheckForNearerNeighbors(StatusMessage sm, 
-        Address ltarget,out Address nltarget, Address rtarget, out Address nrtarget,Connection new_con, 
-        ConnectionTable tab)
+    protected void CheckForNearerNeighbors(IEnumerable neighbors, 
+        Address ltarget, out Address nltarget,
+        Address rtarget, out Address nrtarget)
     {
+
+      ConnectionTable tab = _node.ConnectionTable;
       BigInteger ldist = -1;
       BigInteger rdist = -1;
       AHAddress local = (AHAddress)_node.Address;
-      foreach(NodeInfo ni in sm.Neighbors) {
+      foreach(NodeInfo ni in neighbors) {
         if( !tab.Contains(ConnectionType.Structured, ni.Address) ) {
           AHAddress adr = (AHAddress)ni.Address;
           int n_left = LeftPosition( adr );
@@ -702,6 +703,31 @@ namespace Brunet {
     {
       lock( _sync ) {
         _connectors.Remove(connector);
+        /**
+         * Take a look at see if there is some node we should connect to.
+         */
+        Connector ctr = (Connector)connector;
+        ArrayList neighs = new ArrayList();
+        foreach(ConnectToMessage ctm in ctr.ReceivedCTMs) {
+          if( ctm.Neighbors != null ) {
+            neighs.AddRange( ctm.Neighbors );
+          }
+        }
+        Address ltarget = null;
+        Address nltarget = null;
+        Address rtarget = null;
+        Address nrtarget = null;
+
+        lock( _node.ConnectionTable.SyncRoot ) {
+          CheckForNearerNeighbors(neighs, ltarget, out nltarget,
+                                rtarget, out nrtarget);
+        }
+        if( nrtarget != null ) {
+          ConnectTo(nrtarget, _node.DefaultTTLFor(nrtarget), struc_near);
+        }
+        if( nltarget != null && !nltarget.Equals(nrtarget) ) {
+          ConnectTo(nltarget, _node.DefaultTTLFor(nltarget), struc_near);
+        }
       }
     }
 
@@ -841,10 +867,8 @@ namespace Brunet {
       Connection c = ((ConnectionEventArgs)args).Connection; 
       StatusMessage sm = c.Status;
       lock( tab.SyncRoot ) {
-        CheckForNearerNeighbors(c.Status,
-            ltarget,out nltarget,
-          rtarget,out nrtarget,
-          c,tab);
+        CheckForNearerNeighbors(c.Status.Neighbors, ltarget, out nltarget,
+                                rtarget, out nrtarget);
       }
        /* 
        * We want to make sure not to hold the lock on ConnectionTable
