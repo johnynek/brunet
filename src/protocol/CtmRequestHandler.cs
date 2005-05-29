@@ -117,9 +117,18 @@ namespace Brunet
         /**
          * Send a response no matter what
          */
+	//Send the 6 neighbors closest to this node:
+	ArrayList nearest = n.ConnectionTable.GetNearestTo(
+			(AHAddress)ctm.Target.Address, 6);
+	NodeInfo[] near_ni = new NodeInfo[nearest.Count];
+	int i = 0;
+	foreach(Connection cons in nearest) {
+          near_ni[i] = new NodeInfo(cons.Address, cons.Edge.RemoteTA);
+	  i++;
+	}
         ConnectToMessage local_response_ctm =
           new ConnectToMessage(ctm.ConnectionType,
-			       new NodeInfo(n.Address, n.LocalTAs));
+			       new NodeInfo(n.Address, n.LocalTAs), near_ni);
         local_response_ctm.Id = ctm.Id;
         local_response_ctm.Dir = ConnectionMessage.Direction.Response;
 
