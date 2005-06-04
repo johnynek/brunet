@@ -11,7 +11,7 @@ using System.IO;
 using System.Xml;
 using System.Xml.Serialization;
 using System.Security.Cryptography;
-public class BrunetChatIM 
+public class BrunetChatIM : IReplyHandler
 {
   /** The chat window widget. There is precisely one ChatIM for each
    * conversation.
@@ -172,17 +172,14 @@ public class BrunetChatIM
    */
   protected void SendText(string sendtext)
   {
+    Console.WriteLine("sending {0}",sendtext);
     byte[] payload = Encoding.UTF8.GetBytes(sendtext);
-    short hops =0;
-    short ttl =137;
-    AHPacket mp = new AHPacket(
-        hops,
-        ttl,
-        _from_address,
-        _to_address,
-        AHPacket.Protocol.Chat,
-        payload);	  
-    _brunet_node.Send(mp);
+    int req_num = _brunet_chat_main.RRMan.SendRequest( _to_address,
+                                        ReqrepManager.ReqrepType.Request,
+                                        AHPacket.Protocol.Chat,
+                                        payload,
+                                        this,
+                                        null);
   }
  
   /** This is called when new text arrives from the recipient.
@@ -236,6 +233,29 @@ public class BrunetChatIM
     }
     else
       Console.WriteLine("Message is NULL" ); 
+  }
+
+  //Implements IReplyHandler.HandleError
+  public void HandleError(ReqrepManager man, int req_num, ReqrepManager.ReqrepError er,
+                          object state)
+  {
+    /** @todo we should tell the user the message was not delivered */
+    
+  }
+  
+  //Here we deal with the reply to our chats.  In fact, the replies
+  //are currently empty and only used so we know that the chat made it
+  //to the recipient
+  public bool HandleReply(ReqrepManager man, ReqrepManager.ReqrepType rt,
+                  int mid, string prot, System.IO.MemoryStream payload,
+                  AHPacket packet, object state)
+  {
+    /**
+     * @todo we may want to add some feedback to the user that the message
+     * was recieved
+     */
+    //Stop listening for further responses:
+    return false;
   }
 
   public void OnWindowDeleteEvent (object o, DeleteEventArgs args) 

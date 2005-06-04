@@ -139,7 +139,7 @@ namespace Brunet
         }
         else if( val < 0 ) {
           //Some kind of error occured
-          string str = Encoding.UTF8.GetString(str_buf);
+          string str = Encoding.UTF8.GetString(str_buf, 0, pos);
           throw new Exception("Could not read the next byte from stream, string so far: " + str);
         }
         else {
@@ -155,7 +155,7 @@ namespace Brunet
         }
       } while( cont == true );
       len = pos + 1; //1 byte for the null
-      return Encoding.UTF8.GetString(str_buf);
+      return Encoding.UTF8.GetString(str_buf, 0, pos);
     }
     
     public static float ReadFloat(byte[] bin, int offset)

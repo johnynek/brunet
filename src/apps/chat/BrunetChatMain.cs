@@ -58,6 +58,12 @@ public class BrunetChatMain
   /** email -> Buddy
    */
   private Hashtable _buddy_hash; 
+
+  /**
+   * Allows us to use the request/reply protocol for chats
+   */
+  protected ReqrepManager _rrman;
+  public ReqrepManager RRMan { get { return _rrman; } }
   
   /** the brunet node of the chat client.
    */
@@ -212,7 +218,9 @@ public class BrunetChatMain
       Console.WriteLine(ta);
     }
     _message_handler = new ChatMessageHandler(this);
-    _brunet_node.Subscribe(AHPacket.Protocol.Chat,_message_handler);
+    //_brunet_node.Subscribe(AHPacket.Protocol.Chat,_message_handler);
+    _rrman = new ReqrepManager(_brunet_node);
+    _rrman.Bind( AHPacket.Protocol.Chat, _message_handler);
     _brunet_node.Connect();
   }
 

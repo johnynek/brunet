@@ -12,7 +12,7 @@ namespace Brunet
 /**
  *
  */
-  public class ChatMessageHandler:IAHPacketHandler
+  public class ChatMessageHandler:IRequestHandler
   {
     
     private Hashtable _sender_to_queue;
@@ -119,11 +119,35 @@ namespace Brunet
         tmpqueue.Enqueue(msg);
       }
     }
-    
-    public bool HandlesAHProtocol(AHPacket.Protocol type)
+
+    /*
+     * This is a request of us.
+     */
+    public void HandleRequest(ReqrepManager man, ReqrepManager.ReqrepType rt,
+		              object req, string prot, System.IO.MemoryStream payload, AHPacket packet)
     {
-      return (type == AHPacket.Protocol.Chat);
+      Console.WriteLine("Got request");
+      string msg = Encoding.UTF8.GetString( payload.ToArray() );
+      AHAddress sourceaddress = (AHAddress)(packet.Source);
+       
+      bool ismessagefromself = sourceaddress.Equals( _core_app.BrunetNode.Address);
+       
+      if (true == ismessagefromself)
+      {
+        Console.WriteLine("Message is from myself.");
+        Console.WriteLine("This should never happen.");
+        Console.WriteLine("Throw and exception here.");
+      }
+      else {
+        Console.WriteLine("Got: {0}.", msg);
+        OpenChatSession( sourceaddress);
+        ImQueue tmpqueue = (ImQueue)_sender_to_queue[sourceaddress];
+        tmpqueue.Enqueue(msg);
+      }
+      //Now send the reply
+      man.SendReply(req, new byte[1]);
     }
+    
   }
 
 }
