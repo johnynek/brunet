@@ -130,7 +130,7 @@ public class BrunetChatIM : IReplyHandler
           TextTag[] sender_ar;
           sender_ar = new TextTag[1];
           TextTag t_tag = _text_buf_display.TagTable.Lookup("Sender Color");
-          Console.WriteLine(t_tag.ForegroundGdk.ToString());
+          //Console.WriteLine(t_tag.ForegroundGdk.ToString());
           if (t_tag != null)
           {
             sender_ar[0] = t_tag;
@@ -259,11 +259,11 @@ public class BrunetChatIM : IReplyHandler
   }
 
   public void OnWindowDeleteEvent (object o, DeleteEventArgs args) 
-	{
-    _brunet_chat_main.MessageHandler.MessageSinks.Remove(_to_address);
-		args.RetVal = true;
+  {
+    args.RetVal = true;
     windowBrunetChatIM.Destroy();
-	}
+    _brunet_chat_main.MessageHandler.CloseChatSession(_to_address);
+  }
   
 }
 
