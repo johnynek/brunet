@@ -15,8 +15,6 @@ namespace Brunet
   public class ChatMessageHandler:IRequestHandler
   {
     
-    private Hashtable _sender_to_queue;
-    
     private Hashtable _message_sinks;
     
     private BrunetChatMain _core_app;
@@ -33,48 +31,43 @@ namespace Brunet
       }
     }
 
-    public Hashtable SenderToQueue
-    {
-      get
-      {
-        return _sender_to_queue;
-      }
-      set
-      {
-        _sender_to_queue = value;
-      }
-    }
-   
     /** Constructor. Passes a mainapp reference.
      */
     public ChatMessageHandler(BrunetChatMain core)
     {
       _core_app = core;
-      _sender_to_queue = new Hashtable();
       _message_sinks = new Hashtable();
     }
 
+    /**
+     * Close a chat session once we are done with it.
+     * @param dest the destination address to close the chat session with
+     */
+    public void CloseChatSession(AHAddress dest)
+    {
+      _message_sinks.Remove(dest);
+    }
+    
     /** Takes an email address and converts to AHAddress
      * @param remoteemailaddress email of the recipient
      */
-    public void OpenChatSession(string remoteemailaddress)
+    public BrunetChatIM OpenChatSession(string remoteemailaddress)
     {
       SHA1 sha = new SHA1CryptoServiceProvider(); 
       byte[] hashedemail = sha.ComputeHash(Encoding.UTF8.GetBytes(remoteemailaddress));
       //inforce type 0
       hashedemail[Address.MemSize - 1] &= 0xFE;
       AHAddress remoteahaddress = new AHAddress(hashedemail);
-      OpenChatSession(remoteahaddress);
+      return OpenChatSession(remoteahaddress);
     }
     
     /** Creates a new chat session or raises an existing one in response to a
      * new message.
      * @param remoteahaddress AHAddress of the recipient
      */
-    public void OpenChatSession(AHAddress remoteahaddress)
+    public BrunetChatIM OpenChatSession(AHAddress remoteahaddress)
     {
       bool doeswindowexist =  _message_sinks.Contains( remoteahaddress );
-      bool doesqueueexist =  _sender_to_queue.Contains( remoteahaddress );
       
       BrunetChatIM sink;
       if ( !doeswindowexist  ){
@@ -87,39 +80,9 @@ namespace Brunet
         ///
       }
       
-      if ( !doesqueueexist ){
-        ImQueue newqueue = new ImQueue(remoteahaddress);
-        _sender_to_queue.Add(remoteahaddress,newqueue);
-        newqueue.Enqueued += new ImQueue.EnqueueHandler(sink.DeliverMessage);
-      }
+      return sink;
     }
     
-    
-    public void HandleAHPacket(object node, AHPacket p, Edge from)
-    {
-      //extract text from packet
-      MemoryStream mems = p.PayloadStream;
-      string msg = Encoding.UTF8.GetString( mems.ToArray() );
-      AHAddressComparer cmp = new AHAddressComparer();
-      AHAddress sourceaddress = (AHAddress)(p.Source);
-       
-      bool ismessagefromself = ( 0 == cmp.Compare( 
-            sourceaddress ,
-            (AHAddress)_core_app.BrunetNode.Address)  );
-       
-      if (true == ismessagefromself)
-      {
-        Console.WriteLine("Message is from myself.");
-        Console.WriteLine("This should never happen.");
-        Console.WriteLine("Throw and exception here.");
-      }
-      else {
-        OpenChatSession( sourceaddress);
-        ImQueue tmpqueue = (ImQueue)_sender_to_queue[sourceaddress];
-        tmpqueue.Enqueue(msg);
-      }
-    }
-
     /*
      * This is a request of us.
      */
@@ -140,9 +103,10 @@ namespace Brunet
       }
       else {
         Console.WriteLine("Got: {0}.", msg);
-        OpenChatSession( sourceaddress);
-        ImQueue tmpqueue = (ImQueue)_sender_to_queue[sourceaddress];
-        tmpqueue.Enqueue(msg);
+        Threads.Enter();
+        BrunetChatIM imwin = OpenChatSession( sourceaddress);
+        imwin.DeliverMessage(msg);
+        Threads.Leave();
       }
       //Now send the reply
       man.SendReply(req, new byte[1]);
