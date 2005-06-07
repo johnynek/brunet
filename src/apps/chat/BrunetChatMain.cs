@@ -169,7 +169,9 @@ public class BrunetChatMain
     //inforce type 0
     hashedemail[Address.MemSize - 1] &= 0xFE;
     _local_ahaddress = new AHAddress(hashedemail);
-    _brunet_node = new StructuredNode(_local_ahaddress);
+    //We make the node in the "chatrealm" so it won't interfere with
+    //testing of any other Brunet nodes.
+    _brunet_node = new StructuredNode(_local_ahaddress, "chatrealm");
 
     _chat_config = chat_config;
     _chat_config.BuddyListFilename = "Buddylist.xml";
