@@ -25,10 +25,9 @@ public class RemoteTAs
     set{
       if (null == value ) 
 	      return;
-      string[] tas = (string[])value;
       remoteTAList.Clear();
-      foreach (string ta in tas)
-	      remoteTAList.Add(ta);
+      foreach (string ta in value)
+	      remoteTAList.Add( ta );
     }
   }
   
@@ -38,6 +37,19 @@ public class RemoteTAs
   
   public void ClearTAs(){
     remoteTAList.Clear();
+  }
+
+  /**
+   * This method can be used to set the TAs from an enumerable list
+   * of TransportAddress objects
+   */
+  public void SetTAs(IEnumerable tas)
+  {
+    remoteTAList.Clear();
+    foreach(TransportAddress ta in tas)
+    {
+      remoteTAList.Add( ta.ToString() );
+    }
   }
 	  
 }

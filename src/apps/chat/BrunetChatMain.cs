@@ -259,10 +259,11 @@ public class BrunetChatMain
   }
 
   public void OnWindowBrunetChatMainDeleteEvent (object o, DeleteEventArgs args) 
-	{
-		args.RetVal = true;
+  {
+    args.RetVal = true;
     
-    ///\todo harvest new TAs from the node
+    //Write out the RemoteTAs that we may have learned:
+    _chat_config.RemoteTAs.SetTAs( _brunet_node.RemoteTAs );
     _chat_config.SerializeRemoteTAs();
     
     // write updated buddylist to file
@@ -272,7 +273,7 @@ public class BrunetChatMain
     Console.WriteLine("quit");
     _brunet_node.Disconnect();
     Application.Quit();
-	}
+  }
 
   //Double clicks on the tree view
   public void on_treeviewBuddies_row_activated (object o, EventArgs args)
