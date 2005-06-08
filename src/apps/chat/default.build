@@ -31,7 +31,7 @@
     value="nunit-console"/> 
   <property
     name="gtk.dir"
-    value="/usr/share/dotnet/mono/gtk-sharp/"/>
+    value="/usr/lib/mono/gtk-sharp/"/>
 
   <!-- named configurations -->
   <target
@@ -121,6 +121,14 @@
         <include name="${gtk.dir}gdk-sharp.dll" />
         <include name="${gtk.dir}glade-sharp.dll" />
       </references>
+      <!--
+        This is the way we should be able to use pkg-config
+	to get the locations of the dlls we need, however,
+	this is not working in my version of Nant.
+      <pkg-references>
+        <package name="gtk-sharp" />
+      </pkg-references>
+      -->
       <resources dynamicprefix="true" basedir=".">
          <include name="BrunetChat.glade" />
       </resources>
