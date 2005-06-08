@@ -2,6 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
+Copyright (C) 2005  P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -55,6 +56,10 @@ namespace Brunet
 
     protected Random _rnd;
 
+    //We start at a 10 second interval
+    protected TimeSpan _default_retry_interval;
+    protected TimeSpan _current_retry_interval;
+    protected DateTime _last_retry;
     /**
      * This list keeps all of our active linkers
      * in scope.  They are removed from this list
@@ -69,6 +74,10 @@ namespace Brunet
       _linkers = new ArrayList();
       _rnd = new Random( _local.GetHashCode() ^ this.GetHashCode()
                          ^ unchecked((int)DateTime.Now.Ticks) );
+      _default_retry_interval = new TimeSpan(0,0,0,0,10000);
+      _current_retry_interval = new TimeSpan(0,0,0,0,10000);
+      //We initialize at at year 1 to start with:
+      _last_retry = DateTime.MinValue;
       /*
        * When a node is removed from the ConnectionTable,
        * we should check to see if we need to work to get a
@@ -115,27 +124,45 @@ namespace Brunet
     public void CheckAndConnectHandler(object linker, EventArgs args)
     {
       if (IsActive && NeedConnection) {
+	DateTime now = DateTime.Now;
+	if( _last_retry == DateTime.MinValue ) {
+          //This is the first time through:
+	  _last_retry = now;
+	}
+	else if( now - _last_retry < _current_retry_interval ) {
+          //It is not yet time to restart.
+	  return;
+	}
+	else {
+          //Now we double the retry interval.  When we get a connection
+	  //We reset it back to the default value:
+	  _last_retry = now;
+	  _current_retry_interval = _current_retry_interval + _current_retry_interval;
+	}
         //log.Info("LeafConnectionOverlord :  seeking connection");
         //Get a random address to connect to:
 
-        //Make a randomize the list of TransportAddress nodes to connect to:
+	//Make a copy:
         TransportAddress[] tas;
         lock( _local.RemoteTAs.SyncRoot ) {
-          Hashtable hit_list = new Hashtable();
           tas = new TransportAddress[ _local.RemoteTAs.Count ];
-          for(int j = 0; j < _local.RemoteTAs.Count; j++) {
-            int i = _rnd.Next(0, _local.RemoteTAs.Count);
-            //Keep looking until we find a new one:
-            while( hit_list.Contains(i) )
-            {
-              i++;
-              i %= _local.RemoteTAs.Count;
-            }
-            //Have not added this one yet:
-            tas[j] = (TransportAddress)_local.RemoteTAs[i];
-            hit_list[i] = true;
-          }
-        }
+	  _local.RemoteTAs.CopyTo( tas );
+	}
+        /*
+	 * Make a randomized list of TransportAddress objects to connect to:
+	 * This is a very nice algorithm.  It is optimal in that it produces
+	 * a permutation of a list using N swaps and log(N!) bits
+	 * of entropy.
+	 */
+        for(int j = 0; j < tas.Length; j++) {
+          //Swap the j^th position with this position:
+          int i = _rnd.Next(j, tas.Length);
+	  if( i != j ) {
+            TransportAddress temp_ta = tas[i];
+	    tas[i] = tas[j];
+	    tas[j] = temp_ta;
+	  }
+	}
         /**
          * Make a Link to a remote node 
          */
@@ -146,6 +173,8 @@ namespace Brunet
         l.Link(null, tas, ConnectionType.Leaf);
       }
       else if (args is ConnectionEventArgs) {
+        //Reset the connection interval to the default value:
+	_current_retry_interval = _default_retry_interval;
         /**
         * When we get a new connection, we check to see if we have
         * too many.  If we do, we close one of the OLD ONES!!
