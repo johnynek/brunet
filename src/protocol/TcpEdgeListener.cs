@@ -167,8 +167,9 @@ namespace Brunet
     protected void ConnectCallback(IAsyncResult ar)
     {
       CreationState cs = null;
+      Socket s = null;
       try {
-        Socket s = (Socket)ar.AsyncState;
+        s = (Socket)ar.AsyncState;
         lock( _sync ) {
           cs = (CreationState)_sock_to_edge[s];
           _sock_to_edge.Remove(s);
@@ -191,8 +192,14 @@ namespace Brunet
           //We have success:
           cs.ECB(true, e, null);
         }
+        else {
+          //This did not work out, close the socket and release the resources:
+          s.Close();
+        }
       }
       catch(Exception x) {
+        //This did not work out, close the socket and release the resources:
+        if( s != null) { s.Close(); }
         TryNextIP( cs );
       }
     }

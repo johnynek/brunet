@@ -9,6 +9,9 @@ using System.Security.Cryptography;
 using System.Text;
 public class BrunetChatMain
 {
+  [Glade.Widget]
+  private Gtk.MenuBar mainMenu;
+  
   /** Button initiates a new chat conversation.
    */
   [Glade.Widget]      
