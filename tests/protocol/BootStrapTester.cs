@@ -292,7 +292,7 @@ namespace Brunet
     //We are connected now, stop the threads:
     //t.Abort(); 
     System.Console.Out.WriteLine("Finished with BootStrapTester.Main");
-    Console.WriteLine("Press return to stop");
+    Console.WriteLine("Enter Q to stop");
     string this_command = Console.ReadLine();
     while( this_command != "Q" ) {
       int node = -1;
