@@ -2,6 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
+Copyright (C) 2005  P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -104,9 +105,10 @@ namespace Brunet
     }
 
     protected bool _running;
+    protected bool _isstarted;
     public override bool IsStarted
     {
-      get { return _running; }
+      get { return _isstarted; }
     }
 
     //This is our best guess of the local endpoint
@@ -143,6 +145,7 @@ namespace Brunet
       _id_ht = new Hashtable();
       _sync = new object();
       _running = false;
+      _isstarted = false;
       //There are two 4 byte IDs for each edge we need to make room for
       _packet_buffer = new byte[ 8 + Packet.MaxLength ];
       _send_queue = new Queue();
@@ -200,15 +203,29 @@ namespace Brunet
       ecb(true, e, null);
     }
     
+    /**
+     * This method may be called once to start listening.
+     * @throw Exception if start is called more than once (including
+     * after a Stop
+     */
     public override void Start()
     {
       lock( _sync ) {
+        if( _isstarted ) {
+          //We can't start twice... too bad, so sad:
+          throw new Exception("Restart never allowed");
+        }
         s.Bind(ipep);
+        _isstarted = true;
+        _running = true;
       }
-      _running = true;
       _thread = new Thread( new ThreadStart(this.SocketThread) );
       _thread.Start();
     }
+
+    /**
+     * To stop listening, this method is called
+     */
     public override void Stop()
     {
       _running = false;
@@ -324,6 +341,9 @@ namespace Brunet
           }
         } while( more_to_send );
         //Now it is time to see if we can read...
+      }
+      lock( _sync ) {
+        s.Close();
       }
     }
 

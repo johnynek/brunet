@@ -2,6 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
+Copyright (C) 2005  P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -46,7 +47,7 @@ namespace Brunet
    * protocol.  This listener creates TCP edges.
    */
 
-  public class TcpEdgeListener:EdgeListener
+  public class TcpEdgeListener : EdgeListener
   {
     protected Socket _listen_sock;
     protected IPEndPoint _local_endpoint;
@@ -140,6 +141,10 @@ namespace Brunet
     public override void Start()
     {
       lock( _sync ) {
+       if( _is_started ) {
+         //We are calling start again, that is not good.
+         throw new Exception("Cannot start more than once");
+       }
         _is_started = true;
         _listen_sock.Bind(_local_endpoint);
         _listen_sock.Listen(10);
@@ -229,7 +234,7 @@ namespace Brunet
            */
           s.SetSocketOption(SocketOptionLevel.Tcp,
                             SocketOptionName.NoDelay,
-                            true);
+                            1);
           lock(_sync) {
             /* Store the callback in the socket table temporarily: */
             if( s == null ) {
@@ -352,6 +357,9 @@ namespace Brunet
                   _sock_to_edge[new_s] = e;
                 }
                 e.CloseEvent += new EventHandler(this.CloseHandler);
+#if POB_DEBUG
+                Console.Error.WriteLine("New Edge: {0}", e);
+#endif
                 SendEdgeEvent(e);
                 e.Start();
 	      }
@@ -403,6 +411,8 @@ namespace Brunet
         foreach(Socket s in _sock_to_edge.Keys) {
           s.Close();
         }
+        //Close the main socket:
+        _listen_sock.Close();
       }
     }
 
