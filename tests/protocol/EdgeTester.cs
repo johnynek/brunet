@@ -106,7 +106,8 @@ namespace Brunet
       System.Console.WriteLine("Sent packet: {0}",sent_count);
       bool cont = (size2 == p.Length) && (sent_count == in_counter);
       int i = 4;
-      byte local, remote;
+      //Create local with some default values
+      byte local = 0, remote = 1;
       while (i < (size2 - 1)
 	     && cont)
       {
