@@ -106,6 +106,12 @@ namespace Brunet
         Threads.Enter();
         BrunetChatIM imwin = OpenChatSession( sourceaddress);
         imwin.DeliverMessage(msg);
+	/*
+	 * Send a terminal bell when we get a message.
+	 * Otherwise, we tend not to notice our Buddies
+	 */
+	char bell_char = (char)7;
+	System.Console.Write(bell_char);
         Threads.Leave();
       }
       //Now send the reply
