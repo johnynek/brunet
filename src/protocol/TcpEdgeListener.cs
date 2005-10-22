@@ -204,8 +204,20 @@ namespace Brunet
       }
       catch(Exception x) {
         //This did not work out, close the socket and release the resources:
+	System.Console.Error.WriteLine( x );
         if( s != null) { s.Close(); }
-        TryNextIP( cs );
+        if( cs != null ) {
+          /*
+	   * If the connection fails and we can't look up the connection state,
+	   * we must stop.  So, only TryNextIP if we can look up the connection
+	   * state.
+	   *
+	   * On shutdown, we may get a:
+	   * System.ObjectDisposedException: The object was used after being disposed.
+           * in <0x000ba> System.Net.Sockets.Socket:EndConnect (IAsyncResult result)
+	   */
+	  TryNextIP( cs );
+	}
       }
     }
 
