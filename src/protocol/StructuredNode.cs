@@ -210,13 +210,18 @@ namespace Brunet
       ConnectionTable tab = (ConnectionTable)contab;
       int net_size = -1;
       lock( tab.SyncRoot ) {
+	/*
+	 * We know we are in the network, so the network
+	 * has size at least 1.  And all our connections
+	 * plus us is certainly a lower bound.
+	 */
 	int leafs = tab.Count(ConnectionType.Leaf);
-        if( leafs > net_size ) {
-          net_size = leafs;
+        if( leafs + 1 > net_size ) {
+          net_size = leafs + 1;
 	}
 	int structs = tab.Count(ConnectionType.Structured);
-        if( structs > net_size ) {
-          net_size = structs;
+        if( structs + 1 > net_size ) {
+          net_size = structs + 1;
 	}
         /*
 	 * We estimate the density of nodes in the address space,
