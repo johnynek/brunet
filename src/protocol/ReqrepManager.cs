@@ -378,6 +378,7 @@ public class ReqrepManager : IAHPacketHandler {
     if( now - _last_check > _reqtimeout ) {
       //Here is a list of all the handlers for the requests that timed out
       ArrayList timeout_hands = new ArrayList();
+      ArrayList to_resend = new ArrayList();
       lock( _sync ) {
         _last_check = now;
         IDictionaryEnumerator reqe = _req_state_table.GetEnumerator();
@@ -390,7 +391,7 @@ public class ReqrepManager : IAHPacketHandler {
               if( reqs.RequestType != ReqrepType.LossyRequest ) {
                 //We don't resend LossyRequests
                 reqs.ReqDate = now;
-                _node.Send( reqs.Request );
+		to_resend.Add( reqs.Request );
               }
             }
             else {
@@ -413,6 +414,16 @@ public class ReqrepManager : IAHPacketHandler {
         foreach(ReplyState reps in timedout_replies) {
           _replies.Remove(reps);
         }
+      }
+      /*
+       * It is important not to hold the lock while we call
+       * functions that could result in this object being
+       * accessed.
+       *
+       * We have released the lock, now we can send the packets:
+       */
+      foreach(Packet p in to_resend) {
+        _node.Send(p);
       }
       /*
        * Once we have released the lock, tell the handlers
