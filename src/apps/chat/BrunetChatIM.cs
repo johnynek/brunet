@@ -144,8 +144,9 @@ public class BrunetChatIM : IReplyHandler
           {
             Console.WriteLine("Error: Back Text Tag In TextBuffer");
           }
-          _text_buf_display.Text += _text_buf_input.Text;
-          _text_buf_display.Text += "\n";
+	  _text_buf_display.Insert(_text_buf_display.EndIter, _text_buf_input.Text);
+          _text_buf_display.Insert(_text_buf_display.EndIter, System.Environment.NewLine);
+      
           _text_buf_display.MoveMark(
               _text_buf_display.InsertMark, 
               _text_buf_display.EndIter);
