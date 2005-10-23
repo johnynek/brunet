@@ -35,6 +35,10 @@ public class BrunetChatMain
   /** Column where buddy email is displayed.
    */
   private TreeViewColumn _email_col;
+  /**
+   * Where we put the status
+   */
+  private TreeViewColumn _status_col;
   
   /** This is the user of the chat program. In the future one will be able to
    * log out and log in as a different user.
@@ -186,9 +190,10 @@ public class BrunetChatMain
         new TcpEdgeListener(_chat_config.LocalTcpPort.TcpPort) );
     
     treeviewBuddies = (TreeView)gxml["treeviewBuddies"];
-    _store = new ListStore(typeof(string),typeof(string));
+    _store = new ListStore(typeof(string),typeof(string),typeof(string));
     treeviewBuddies.Model = _store;
 
+    //Here is the first column
     _buddy_col = new TreeViewColumn ();
     CellRenderer buddyrenderer = new CellRendererText ();
     _buddy_col.Title = "Buddy";
@@ -196,6 +201,7 @@ public class BrunetChatMain
     _buddy_col.AddAttribute (buddyrenderer, "text", 0);
     treeviewBuddies.AppendColumn (_buddy_col);
     
+    //Here is the second column
     _email_col = new TreeViewColumn ();
     CellRenderer emailrenderer = new CellRendererText ();
     _email_col.Title = "Email";
@@ -203,16 +209,21 @@ public class BrunetChatMain
     _email_col.AddAttribute (emailrenderer, "text", 1);
     treeviewBuddies.AppendColumn (_email_col);
     
+    //Here is the third column
+    _status_col = new TreeViewColumn ();
+    CellRenderer statusrenderer = new CellRendererText ();
+    _status_col.Title = "Status";
+    _status_col.PackStart (statusrenderer, true);
+    _status_col.AddAttribute (statusrenderer, "text", 2);
+    treeviewBuddies.AppendColumn (_status_col);
+    
     _chat_config.DeserializeBuddyList();
     _buddy_hash = new Hashtable();
     foreach (Buddy bud in _chat_config.BuddyList.Buddies){
-      byte[] budhashedemail = sha.ComputeHash(
-          Encoding.UTF8.GetBytes(bud.Email));
-      //inforce type 0
-      budhashedemail[Address.MemSize - 1] &= 0xFE;
-      AHAddress ahaddress = new AHAddress(budhashedemail);
-      _buddy_hash.Add(ahaddress,bud);
-      _store.AppendValues(bud.Alias, bud.Email);
+      if( bud.Address != null ) {
+        _buddy_hash.Add(bud.Address,bud);
+        _store.AppendValues(bud.Alias, bud.Email, bud.Status);
+      }
     }
     
     _chat_config.DeserializeRemoteTAs();
@@ -235,16 +246,11 @@ public class BrunetChatMain
     dialog.dialogBrunetChatAddBuddy.Run();
     Buddy newbud = dialog.NewBuddy;
     if (newbud != null){
-      SHA1 sha = new SHA1CryptoServiceProvider();  
-      byte[] budhashedemail = sha.ComputeHash(Encoding.UTF8.GetBytes(newbud.Email));
-      //inforce type 0
-      budhashedemail[Address.MemSize - 1] &= 0xFE;
-      AHAddress ahaddress = new AHAddress(budhashedemail);
       /// check that the new buddy is not already in the buddy hashtable
-      if (! _buddy_hash.Contains(ahaddress) ){
-        _buddy_hash.Add(ahaddress,newbud);
+      if (! _buddy_hash.Contains( newbud.Address ) ){
+        _buddy_hash.Add( newbud.Address, newbud );
         _chat_config.BuddyList.Add(newbud);
-        _store.AppendValues(newbud.Alias, newbud.Email);
+        _store.AppendValues(newbud.Alias, newbud.Email, newbud.Status);
       }
     }
     
