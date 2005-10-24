@@ -56,16 +56,17 @@ public class BrunetChatMain
   /** Serialization of configuration data.
    */
   private ChatConfigSerialization _chat_config;
+  public BuddyList Buddies {
+    get {
+      return _chat_config.BuddyList;
+    }
+  }
   
   /** Handles incoming chat messages and routes them to the correct ChatIM
    * window.
    */
   private ChatMessageHandler _message_handler;
   
-  /** email -> Buddy
-   */
-  private Hashtable _buddy_hash; 
-
   /**
    * Allows us to use the request/reply protocol for chats
    */
@@ -75,16 +76,6 @@ public class BrunetChatMain
   /** the brunet node of the chat client.
    */
   private StructuredNode _brunet_node;
-  
-  public AHAddress LocalAhAddress
-  {
-    set{
-      _local_ahaddress = value;
-    }
-    get{
-      return _local_ahaddress;
-    }
-  }
   
   public User CurrentUser
   {
@@ -110,18 +101,6 @@ public class BrunetChatMain
     }
   }
   
-  public Hashtable BuddyHash
-  {
-    get
-    {
-      return _buddy_hash;
-    }
-    set
-    {
-      _buddy_hash = value;
-    }
-  }
- 
   /** Main program. Logs in the user and creates the main window.
    */
   public static void Main (string[] args)
@@ -217,11 +196,15 @@ public class BrunetChatMain
     _status_col.AddAttribute (statusrenderer, "text", 2);
     treeviewBuddies.AppendColumn (_status_col);
     
+    _message_handler = new ChatMessageHandler(this);
+    //_brunet_node.Subscribe(AHPacket.Protocol.Chat,_message_handler);
+    _rrman = new ReqrepManager(_brunet_node);
+    _rrman.Bind( AHPacket.Protocol.Chat, _message_handler);
+    
     _chat_config.DeserializeBuddyList();
-    _buddy_hash = new Hashtable();
-    foreach (Buddy bud in _chat_config.BuddyList.Buddies){
+    foreach (Buddy bud in Buddies){
       if( bud.Address != null ) {
-        _buddy_hash.Add(bud.Address,bud);
+	bud.RRMan = _rrman;
         _store.AppendValues(bud.Alias, bud.Email, bud.Status);
       }
     }
@@ -233,10 +216,6 @@ public class BrunetChatMain
       _brunet_node.RemoteTAs.Add(new TransportAddress(ta) );
       Console.WriteLine(ta);
     }
-    _message_handler = new ChatMessageHandler(this);
-    //_brunet_node.Subscribe(AHPacket.Protocol.Chat,_message_handler);
-    _rrman = new ReqrepManager(_brunet_node);
-    _rrman.Bind( AHPacket.Protocol.Chat, _message_handler);
     _brunet_node.Connect();
   }
 
@@ -245,11 +224,11 @@ public class BrunetChatMain
     BrunetChatAddBuddy dialog = new BrunetChatAddBuddy();
     dialog.dialogBrunetChatAddBuddy.Run();
     Buddy newbud = dialog.NewBuddy;
+    newbud.RRMan = RRMan; 
     if (newbud != null){
       /// check that the new buddy is not already in the buddy hashtable
-      if (! _buddy_hash.Contains( newbud.Address ) ){
-        _buddy_hash.Add( newbud.Address, newbud );
-        _chat_config.BuddyList.Add(newbud);
+      if (! Buddies.Contains( newbud ) ){
+        Buddies.Add(newbud);
         _store.AppendValues(newbud.Alias, newbud.Email, newbud.Status);
       }
     }
@@ -265,7 +244,8 @@ public class BrunetChatMain
     TreeModel model;
     if ( row_sel.GetSelected (out model, out iter) ){
       string val = (string) model.GetValue (iter, 1);
-      _message_handler.OpenChatSession(val);
+      Buddy b = Buddies.GetBuddyWithEmail(val);
+      _message_handler.OpenChatSession(b);
     }
   }
 
@@ -297,7 +277,8 @@ public class BrunetChatMain
     try{
       if ( row_sel.GetSelected (out model, out iter) ){
         string val = (string) model.GetValue (iter, 1);
-        _message_handler.OpenChatSession(val);
+        Buddy b = Buddies.GetBuddyWithEmail(val);
+        _message_handler.OpenChatSession(b);
       }
     }  
     catch(Exception ex){
