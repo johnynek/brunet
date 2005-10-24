@@ -11,7 +11,7 @@ using System.IO;
 using System.Xml;
 using System.Xml.Serialization;
 using System.Security.Cryptography;
-public class BrunetChatIM : IReplyHandler
+public class BrunetChatIM 
 {
   /** The chat window widget. There is precisely one ChatIM for each
    * conversation.
@@ -47,49 +47,34 @@ public class BrunetChatIM : IReplyHandler
   private Gtk.TextBuffer _text_buf_input;
   private Gtk.TextBuffer _text_buf_recipient;
  
-  /** The BrunetNode for this chat program instance. This quantity is a
-   * reference to the node in BrunetChatMain.cs.
+  /**
+   * Reference to the ChatMessageHandler.  We need
+   * to tell this object when we close the chat
+   * message
    */
-  private StructuredNode _brunet_node;
-
-  /** A reference to the main chat window application object.
-   */
-  private BrunetChatMain _brunet_chat_main;
+  private ChatMessageHandler _cmh;
   
   /** The buddy who will recieve messages.
    */
   private Buddy _recipient_buddy;
-  
-  /** The Brunet address of the recipient.
-   */
-  private AHAddress _to_address;
-
-  /** The Brunet address of the sender.
-   */
-  private AHAddress _from_address;
-  
-  /** This string is prepended before each outgoing message.
-   */
-  private string _sender_alias;
-  
-  public AHAddress ToAddress
-  {
-    get
-    {
-      return _to_address;
-    }
+  public Buddy ToBuddy {
+    get { return _recipient_buddy; }
   }
+  
+  /**
+   * This is the user who is sending the chats
+   */
+  private User _user;
   
   /** ChatIM constructor. 
    *  @param core the main application
    *  @param r_add the recipient address
    */
-  public BrunetChatIM(BrunetChatMain core,AHAddress r_add)
+  public BrunetChatIM(User u, Buddy bud, ChatMessageHandler cmh)
   {
-    _brunet_chat_main = core;
-    _brunet_node = _brunet_chat_main.BrunetNode;
-    _from_address = (AHAddress)_brunet_node.Address; 
-    _to_address = r_add;
+    _user = u;
+    _recipient_buddy = bud;
+    _cmh = cmh;
     
     string fname = "BrunetChat.glade";
     string root = "windowBrunetChatIM";
@@ -101,9 +86,7 @@ public class BrunetChatIM : IReplyHandler
     _text_buf_display = textviewDisplay.Buffer;
     _text_buf_input = textviewInput.Buffer;
     _text_buf_recipient = textviewRecipient.Buffer;
-    _recipient_buddy = (Buddy)_brunet_chat_main.BuddyHash[_to_address]; 
     _text_buf_recipient.Text = _recipient_buddy.Alias;
-    _sender_alias = (string)_brunet_chat_main.CurrentUser.Alias;
     Gdk.Color red_color = new Gdk.Color (0xff, 0, 0);
     Gdk.Color blue_color = new Gdk.Color (0, 0, 0xff);
     
@@ -125,8 +108,8 @@ public class BrunetChatIM : IReplyHandler
     if (null != obj){
       if (_text_buf_input != null){
         if (_text_buf_input.CharCount > 0 ){
-          SendText(_text_buf_input.Text);
-          string sender_preamble = "<"+ _sender_alias +"> ";
+          _recipient_buddy.SendMessageText( _text_buf_input.Text );
+          string sender_preamble = "<"+ _user.Alias +"> ";
           TextTag[] sender_ar;
           sender_ar = new TextTag[1];
           TextTag t_tag = _text_buf_display.TagTable.Lookup("Sender Color");
@@ -167,22 +150,6 @@ public class BrunetChatIM : IReplyHandler
     }
   }
 
-  /** Packetize the text as UTF8 and send it.  Eventually we will want to use
-   * Jabber or some other standard meesage format.
-   * @param sendtext This string will be packetized and sent to the recipient.
-   */
-  protected void SendText(string sendtext)
-  {
-    Console.WriteLine("sending {0}",sendtext);
-    byte[] payload = Encoding.UTF8.GetBytes(sendtext);
-    int req_num = _brunet_chat_main.RRMan.SendRequest( _to_address,
-                                        ReqrepManager.ReqrepType.Request,
-                                        AHPacket.Protocol.Chat,
-                                        payload,
-                                        this,
-                                        null);
-  }
- 
   /** This is called when new text arrives from the recipient.
    * Text is inserted into the display, the display is scrolled if needed and
    * the message is written to the console for debugging.
@@ -236,34 +203,11 @@ public class BrunetChatIM : IReplyHandler
       Console.WriteLine("Message is NULL" ); 
   }
 
-  //Implements IReplyHandler.HandleError
-  public void HandleError(ReqrepManager man, int req_num, ReqrepManager.ReqrepError er,
-                          object state)
-  {
-    /** @todo we should tell the user the message was not delivered */
-    
-  }
-  
-  //Here we deal with the reply to our chats.  In fact, the replies
-  //are currently empty and only used so we know that the chat made it
-  //to the recipient
-  public bool HandleReply(ReqrepManager man, ReqrepManager.ReqrepType rt,
-                  int mid, string prot, System.IO.MemoryStream payload,
-                  AHPacket packet, object state)
-  {
-    /**
-     * @todo we may want to add some feedback to the user that the message
-     * was recieved
-     */
-    //Stop listening for further responses:
-    return false;
-  }
-
   public void OnWindowDeleteEvent (object o, DeleteEventArgs args) 
   {
     args.RetVal = true;
     windowBrunetChatIM.Destroy();
-    _brunet_chat_main.MessageHandler.CloseChatSession(_to_address);
+    _cmh.CloseChatSession(_recipient_buddy);
   }
   
 }
