@@ -1,6 +1,3 @@
-using System.Xml;
-using System.Xml.Serialization;
-
 namespace Brunet.Chat {
 
 [System.Xml.Serialization.XmlTypeAttribute("presence")]
@@ -37,33 +34,7 @@ public class Presence {
     set { _status = value; }
   }
   public Presence() { }
-
-  public override string ToString() {
-    XmlSerializer ser = new XmlSerializer(typeof(Brunet.Chat.Presence));
-    System.IO.StringWriter sw = new System.IO.StringWriter();
-    XmlWriter w = new XmlTextWriter(sw);
-    ser.Serialize(w, this);
-    return sw.ToString();
-  }
-  /**
-   * This inner class holds some constants
-   */
-  public class ShowValues {
-    public static readonly string Away = "away";
-    public static readonly string Chat = "chat";
-    public static readonly string Dnd = "dnd";
-    public static readonly string Xa = "xa";
-  }
-  public class TypeValues {
-    public static readonly string Error = "error";
-    public static readonly string Probe = "probe";
-    public static readonly string Subscribe = "subscribe";
-    public static readonly string Subscribed = "subscribed";
-    public static readonly string Unavailable = "unavailable";
-    public static readonly string Unsubscribe = "unsubscribe";
-    public static readonly string Unsubscribed = "unsubscribed";
-
-  }
+	
 }
 
 }

@@ -1,4 +1,3 @@
-using System.Xml;
 using System.Xml.Serialization;
 
 namespace Brunet.Chat {
@@ -32,14 +31,7 @@ public class Message {
     set { _body = value; }
   }
   public Message() { }
-
-  public override string ToString() {
-    XmlSerializer ser = new XmlSerializer(typeof(Brunet.Chat.Message));
-    System.IO.StringWriter sw = new System.IO.StringWriter();
-    XmlWriter w = new XmlTextWriter(sw);
-    ser.Serialize(w, this);
-    return sw.ToString();
-  }
+	
 	
 }
 

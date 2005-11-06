@@ -1,3 +1,4 @@
+using System.Xml;
 using System.Xml.Serialization;
 using System.Security.Cryptography;
 using System.Text;
@@ -110,12 +111,19 @@ public class Buddy : IReplyHandler
    */
   public void SendMessageText(string sendtext)
   {
-    //Console.WriteLine("sending {0}",sendtext);
-    byte[] payload = Encoding.UTF8.GetBytes(sendtext);
+    /*
+     * Prepare a Message object
+     */
+    XmlSerializer mser = new XmlSerializer(typeof(Brunet.Chat.Message));
+    System.IO.MemoryStream ms = new System.IO.MemoryStream();
+    XmlWriter w = new XmlTextWriter(ms, System.Text.Encoding.UTF8);
+    Brunet.Chat.Message m = new Brunet.Chat.Message();
+    m.Body = sendtext;
+    mser.Serialize(w, m);
     int req_num = RRMan.SendRequest( this.Address,
                                         ReqrepManager.ReqrepType.Request,
                                         AHPacket.Protocol.Chat,
-                                        payload,
+                                        ms.ToArray(),
                                         this,
                                         null);
   }
