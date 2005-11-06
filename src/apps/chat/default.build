@@ -98,21 +98,7 @@
       output="${build.dir}/${package.name}/bin/${assembly}ChatMain.exe"
       doc="${build.dir}/${package.name}/bin/${assembly}.xml">
       <sources failonempty="true">
-        <include name="BrunetChatMain.cs"/>
-        <include name="BrunetChatIM.cs"/>
-        <include name="BrunetChatLogin.cs"/>
-        <include name="BrunetChatAddBuddy.cs"/>
-        <include name="Buddy.cs"/>
-        <include name="BuddyList.cs"/>
-        <include name="User.cs"/>
-        <include name="UserList.cs"/>
-        <include name="ChatMessageHandler.cs"/>
-        <include name="InstantMessage.cs"/>
-        <include name="LocalTcpPort.cs"/>
-        <include name="RemoteTAs.cs"/>
-        <include name="DelegateHashtable.cs"/>
-        <include name="ImQueue.cs"/>
-        <include name="ChatConfigSerialization.cs"/>
+        <include name="*.cs"/>
       </sources>
       <references>
         <include name="${lib.dir}/${assembly}.dll" />

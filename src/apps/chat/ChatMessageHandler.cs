@@ -78,11 +78,27 @@ namespace Brunet
      * This is a request of us.
      */
     public void HandleRequest(ReqrepManager man, ReqrepManager.ReqrepType rt,
-		              object req, string prot, System.IO.MemoryStream payload, AHPacket packet)
+		              object req, string prot,
+			      System.IO.MemoryStream payload, AHPacket packet)
     {
-      Console.WriteLine("Got request");
-      string msg = Encoding.UTF8.GetString( payload.ToArray() );
-      AHAddress sourceaddress = (AHAddress)(packet.Source);
+      XmlReader r = new XmlTextReader(payload);
+      //Here is the Message Handling:
+      XmlSerializer mser = new XmlSerializer(typeof(Brunet.Chat.Message));
+      if( mser.CanDeserialize(r) ) {
+        Brunet.Chat.Message mes = (Brunet.Chat.Message)mser.Deserialize(r);
+	byte[] resp = HandleMessage(packet, mes);
+	man.SendReply(req, resp);
+      }
+    }
+
+    /**
+     * When we get a message, this function handles it
+     * @param p the Packet that the message came in?
+     * @param message the data sent to us
+     * @return the data to send the message sender
+     */
+    protected byte[] HandleMessage(AHPacket p, Brunet.Chat.Message message) {
+      AHAddress sourceaddress = (AHAddress)(p.Source);
        
       bool ismessagefromself = sourceaddress.Equals( _core_app.BrunetNode.Address);
        
@@ -93,11 +109,10 @@ namespace Brunet
         Console.WriteLine("Throw and exception here.");
       }
       else {
-        Console.WriteLine("Got: {0}.", msg);
         Threads.Enter();
 	Buddy b = _core_app.Buddies.GetBuddyWithAddress( sourceaddress );
         BrunetChatIM imwin = OpenChatSession(b);
-        imwin.DeliverMessage(msg);
+        imwin.DeliverMessage(message.Body);
 	/*
 	 * Send a terminal bell when we get a message.
 	 * Otherwise, we tend not to notice our Buddies
@@ -106,8 +121,8 @@ namespace Brunet
 	System.Console.Write(bell_char);
         Threads.Leave();
       }
-      //Now send the reply
-      man.SendReply(req, new byte[1]);
+      //Just let the recipient know we got it
+      return new byte[1];
     }
     
   }
