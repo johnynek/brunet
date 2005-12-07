@@ -98,14 +98,19 @@ namespace Brunet
       get { lock( _sync ) { return _is_started; } }
     }
 
-    public TcpEdgeListener(int port)
+    public TcpEdgeListener(int port):this(port, null)
+    {
+    }
+    
+    public TcpEdgeListener(int port, IPAddress[] ipList)
     {
       _is_started = false;
-
+      
       /**
        * We get all the IPAddresses for this computer
        */
-      _tas = GetIPTAs(TransportAddress.TAType.Tcp, port);
+      _tas = GetIPTAs(TransportAddress.TAType.Tcp, port, ipList);
+
       _local_endpoint = new IPEndPoint(IPAddress.Any, port);
       _listen_sock = new Socket(AddressFamily.InterNetwork,
                                 SocketType.Stream, ProtocolType.Tcp);

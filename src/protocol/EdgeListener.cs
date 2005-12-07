@@ -107,13 +107,21 @@ namespace Brunet
      * than using the DNS.  It may have to be platform specific,
      * and then fall back to the DNS technique.
      */
-    static protected ArrayList GetIPTAs(TransportAddress.TAType tat, int port)
+    static protected ArrayList GetIPTAs(TransportAddress.TAType tat, int port, 
+					IPAddress[] ipList)
     {
       ArrayList tas = new ArrayList();
+      IPAddress[] addressList = null;
       try {
-        String StrLocalHost =  (Dns.GetHostName());
-        IPHostEntry IPEntry = Dns.GetHostByName (StrLocalHost);
-        foreach(IPAddress a in IPEntry.AddressList) {
+	if (ipList == null || ipList.Length == 0) {
+	  String StrLocalHost =  (Dns.GetHostName());
+	  IPHostEntry IPEntry = Dns.GetHostByName (StrLocalHost);
+	  addressList = IPEntry.AddressList;
+	} else {
+	  addressList = ipList;
+	}
+
+        foreach(IPAddress a in addressList) {
           /**
            * We add Loopback addresses to the back, all others to the front
            * This makes sure non-loopback addresses are listed first.

@@ -245,7 +245,14 @@ namespace Brunet
          * stop before we even try to make an edge.
          */
 	_target = target;
+#if ARI_LINK_DEBUG
+	Console.WriteLine("Linker ({0}) attempting to lock {1}", _lid, target);
+#endif 
+
         SetTarget( target );
+#if ARI_LINK_DEBUG
+	Console.WriteLine("Linker ({0}) acquired lock on {1}", _lid, target);
+#endif 
         /**
          * TryNext Asynchronously gets an edge, and then begin the
          * link attempt with it.  If it fails, and there
@@ -257,14 +264,17 @@ namespace Brunet
       }
       catch(InvalidOperationException x) {
         //This is thrown when ConnectionTable cannot lock.  Lets try again:
+#if ARI_LINK_DEBUG
+	Console.WriteLine("Linker ({0}) failed to lock {1}", _lid, target);
+#endif         
 	if ( _restart_attempts > 0 ) {
 	  _restart_attempts--;
 	  //There is no need to Stop, because this is the case where
 	  //we never got going
 	  _last_start = DateTime.Now;
           _local_n.HeartBeatEvent += new EventHandler(this.RestartLink);
-#if POB_LINK_DEBUG
-          Console.WriteLine("Restarting Linker({0})",_lid);
+#if ARI_LINK_DEBUG
+          Console.WriteLine("Scheduling restart Linker({0})",_lid);
 #endif
 	}
 	else {
@@ -305,6 +315,11 @@ namespace Brunet
                                   + cm.ToString());
         }
         else if (cm is LinkMessage) {
+#if ARI_LINK_DEBUG
+	  Console.WriteLine("Linker({0}).OutLinkHandler got link response.",
+			    _lid);
+#endif
+
           /**
           * When we receive a LinkMessage response, we know
           * the other party is willing to link with us.
@@ -325,34 +340,56 @@ namespace Brunet
 	  if( lm.Attributes["realm"] != _local_n.Realm ) {
             throw new LinkException("Realm mismatch: " + _local_n.Realm + " != " + lm.Attributes["realm"] );
 	  }
-
-    StatusMessage req = _local_n.GetStatus(lm.ConTypeString);
-    req.Id = _id++;
-    req.Dir = ConnectionMessage.Direction.Request;
-    lock( _sync ) {
-      Address target = lm.Local.Address;
-      //This will throw an exception if the target does not match
-      //any previous value.
-      SetTarget( target );
-      _peer_link_mes = lm;
-      _last_sent_packet = req.ToPacket();
-      _timeouts = 0;
-    }
-#if POB_LINK_DEBUG
-    Console.WriteLine("Start Linker({0}).OutLinkHandler send {1}",
-        _lid,req);
+	  
+	  StatusMessage req = _local_n.GetStatus(lm.ConTypeString, lm.Local.Address);
+	  req.Id = _id++;
+	  req.Dir = ConnectionMessage.Direction.Request;
+	  lock( _sync ) {
+	    Address target = lm.Local.Address;
+	    //This will throw an exception if the target does not match
+	    //any previous value.
+#if ARI_LINK_DEBUG
+	    Console.WriteLine("Linker({0}).OutLinkHandler attempting to lock {1}",
+			      _lid, target );
 #endif
-    edge.Send( _last_sent_packet );
+	    SetTarget( target );
+#if ARI_LINK_DEBUG
+	    Console.WriteLine("Linker({0}).OutLinkHandler locks {1}",
+			      _lid, target);
+#endif
+	    _peer_link_mes = lm;
+	    _last_sent_packet = req.ToPacket();
+	    _timeouts = 0;
+	  }
+#if POB_LINK_DEBUG
+	  Console.WriteLine("Start Linker({0}).OutLinkHandler send {1}",
+			    _lid,req);
+#endif
+#if ARI_LINK_DEBUG
+	  Console.WriteLine("Start Linker({0}).OutLinkHandler send status request edge: {1} ; length: {2}",
+			    _lid, edge, _last_sent_packet.Length);
+	  
+#endif
+	  edge.Send( _last_sent_packet );
         }
 	else if (cm is StatusMessage) {
+#if ARI_LINK_DEBUG
+	  Console.WriteLine("Linker({0}).OutLinkHandler got Status reponse",
+			    _lid);
+#endif
           if( _peer_link_mes != null ) {
             /**
              * Once we get a StatusMessage response we know that
              * the recipient has seen our ping, we Succeed 
              */
+
 	    _con = new Connection(edge, _peer_link_mes.Local.Address,
 			              _peer_link_mes.ConTypeString,
 				      (StatusMessage)cm, _peer_link_mes);
+#if ARI_LINK_DEBUG
+	  Console.WriteLine("Linker({0}).OutLinkHandler creating a new connection: {1}",
+			    _lid, _con);
+#endif
             Succeed();
 
             //send extra status messages to new connection's neighbors
@@ -365,6 +402,10 @@ namespace Brunet
 	  }
 	}
 	else if (cm is ErrorMessage) {
+#if ARI_LINK_DEBUG
+	  Console.WriteLine("Linker({0}).OutLinkHandler got error message",
+			    _lid);
+#endif
           //Looks like things are not working out for us.
 	  ///@todo we should probably react differently to different types of errors.
 	  ErrorMessage em = (ErrorMessage)cm;
@@ -378,6 +419,10 @@ namespace Brunet
             //This may be a "double lock" condition.
 	    //We probably need to release our lock.  Wait
 	    //a random period, and try again.
+#if ARI_LINK_DEBUG
+	    Console.WriteLine("Linker({0}).OutLinkHandler looks like connection is progress",
+			    _lid);
+#endif
 	    lock(_sync) {
 	      if ( _restart_attempts > 0 ) {
 	        _restart_attempts--;
@@ -439,7 +484,7 @@ namespace Brunet
       
       //our request for the new connections' neighbors
       string con_type_string = _peer_link_mes.ConTypeString;
-      StatusMessage req = _local_n.GetStatus(con_type_string);
+      StatusMessage req = _local_n.GetStatus(con_type_string, null);
       req.Dir = ConnectionMessage.Direction.Request;
       
       AHAddress new_address = (AHAddress)_peer_link_mes.Local.Address;

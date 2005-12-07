@@ -209,8 +209,8 @@ namespace Brunet
       //create and initialize new host
       //create one new node for each host
       AHAddress tmp_add = new AHAddress(rng);
-      //Node tmp_node = new StructuredNode(tmp_add, "bstland");
-      Node tmp_node = new HybridNode(tmp_add, "bstland");
+      Node tmp_node = new StructuredNode(tmp_add, "bstland");
+      //Node tmp_node = new HybridNode(tmp_add, "bstland");
       
       adds.Add(tmp_add);
       add_to_node[tmp_add] = tmp_node;
@@ -276,6 +276,7 @@ namespace Brunet
 		      + " RemoteTAs count: " + item.RemoteTAs.Count);
       total_started++;
       Console.WriteLine("Started: " + total_started.ToString());
+      //Thread.Sleep(10000);
       Thread.Sleep(ms_sleep);
       //Console.ReadLine();
 

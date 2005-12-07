@@ -64,6 +64,11 @@ namespace Brunet
      */
     protected ConnectionOverlord _lco;
     protected ConnectionOverlord _sco;
+    //added the new ChotaConnectionOverlord
+    protected ConnectionOverlord _cco;
+
+    //maximum number of neighbors we report in our status
+    protected static readonly int MAX_NEIGHBORS = 6;
 
     public StructuredNode(AHAddress add):base(add)
     {
@@ -81,6 +86,8 @@ namespace Brunet
       _lco = new LeafConnectionOverlord(this);
       //_sco = new StructuredConnectionOverlord(this);
       _sco = new SimpleConnectionOverlord(this);
+      //ChotaConnectionOverlord
+      _cco = new ChotaConnectionOverlord(this);
 
       /**
        * Turn on some protocol support : 
@@ -169,9 +176,11 @@ namespace Brunet
 
       _lco.IsActive = true;
       _sco.IsActive = true;
+      _cco.IsActive = true;
 
       _lco.Activate();
       _sco.Activate();
+      _cco.Activate();
     }
     /**
      * This informs all the ConnectionOverlord objects
@@ -183,6 +192,7 @@ namespace Brunet
     {
       _lco.IsActive = false;
       _sco.IsActive = false;
+      _cco.IsActive = false;
 
       //Gracefully close all the edges:
       ArrayList edges_to_close = new ArrayList();
@@ -276,8 +286,47 @@ namespace Brunet
       }
 
     }
+    /**
+     * return a status message for this node.
+     * Currently this provides neighbor list exchange
+     * but may be used for other features in the future
+     * such as network size estimate sharing.
+     * @param con_type_string string representation of the desired type.
+     * @param addr address of the new node we just connected to.
+     */
+    override public StatusMessage GetStatus(string con_type_string, Address addr)
+    {
+      ArrayList neighbors = new ArrayList();
+      //Get the neighbors of this type:
+      lock( _connection_table.SyncRoot ) {
+        /*
+         * Send the list of all neighbors of this type.
+         * @todo make sure we are not sending more than
+         * will fit in a single packet.
+         */
+        ConnectionType ct = Connection.StringToMainType( con_type_string );
+	AHAddress ah_addr = addr as AHAddress;
+	if (ah_addr != null) {
+	  //we need to find the MAX_NEIGHBORS closest guys to addr
+	  foreach(Connection c in  _connection_table.GetNearestTo(ah_addr, MAX_NEIGHBORS))
+	  {
+	    neighbors.Add( new NodeInfo( c.Address, c.Edge.RemoteTA ) );
+	  }
+	} else {
+	//if address is null, we send the list of
+	  int count = 0;
+	  foreach(Connection c in _connection_table.GetConnections( ct ) ) {
+	    neighbors.Add( new NodeInfo( c.Address, c.Edge.RemoteTA ) );
+	    count++;
+	    if (count == MAX_NEIGHBORS) {
+	      break;
+	    }
+	  }
+        }
+      }	  
+      return new StatusMessage( con_type_string, neighbors );
+    }
   }
-
 }
 
 

@@ -113,13 +113,18 @@ namespace Brunet
 
     //This is our best guess of the local endpoint
     protected IPEndPoint _local_ep;
-
-    public UdpEdgeListener(int port)
+    
+    public UdpEdgeListener(int port):this(port, null)
+    {
+      
+    }
+    public UdpEdgeListener(int port, IPAddress[] ipList)
     {
       /**
        * We get all the IPAddresses for this computer
        */
-      _tas = GetIPTAs(TransportAddress.TAType.Udp, port);
+      _tas = GetIPTAs(TransportAddress.TAType.Udp, port, ipList);
+      
       IPAddress ipa = IPAddress.Loopback;
       bool stop = false;
       foreach(TransportAddress ta in _tas) {

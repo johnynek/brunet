@@ -267,6 +267,9 @@ namespace Brunet
     ///after each HeartPeriod, the HeartBeat event is fired
     public event EventHandler HeartBeatEvent;
 
+    /// on each packet send we raise this event
+    public event EventHandler SendPacketEvent;
+
     public virtual void AddEdgeListener(EdgeListener el)
     {
       /* The EdgeFactory needs to be made aware of all EdgeListeners */
@@ -482,8 +485,9 @@ namespace Brunet
      * but may be used for other features in the future
      * such as network size estimate sharing.
      * @param con_type_string string representation of the desired type.
+     * @param addr address of the new node we just connected to.
      */
-    public StatusMessage GetStatus(string con_type_string)
+    virtual public StatusMessage GetStatus(string con_type_string, Address addr)
     {
       ArrayList neighbors = new ArrayList();
       //Get the neighbors of this type:
@@ -817,6 +821,9 @@ namespace Brunet
     {
       //Send without avoiding any edges
       Send(p, null);
+      if (SendPacketEvent != null) {
+	SendPacketEvent(this, new SendPacketEventArgs(p));
+      }
     }
 
     /**

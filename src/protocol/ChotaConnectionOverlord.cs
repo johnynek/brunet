@@ -1,7 +1,7 @@
 /*
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
-Copyright (C) 2005-2006  University of Florida
+Copyright (C) 2005  University of California
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -20,72 +20,87 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using System;
 using System.Collections;
-using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace Brunet {
   public class NodeRankComparer : System.Collections.IComparer {
     public int Compare(object x, object y) {
-      if( x == y ) {
-        //This is trivial, but we need to deal with it:
-        return 0;
-      }
       NodeRankInformation x1 = (NodeRankInformation) x;
       NodeRankInformation y1 = (NodeRankInformation) y;
       if (x1.Equals(y1) && x1.Count == y1.Count) {
-        /*
-         * Since each Address is in our list at most once,
-         * this is an Error, so lets print it out and hope
-         * someone sees it.
-         */
-	      return 0;
-      } else if (x1.Count <= y1.Count) {
-	      return 1;
-      } else if (x1.Count > y1.Count) {
-	      return -1;
+	Console.WriteLine("Comparer: Equality");
+	return 0;
+      }
+      if (x1.Count <= y1.Count) {
+	return 1;
+      }
+      if (x1.Count > y1.Count) {
+	return -1;
       }
       return -1;
     }
   }
-
   public class NodeRankInformation { 
     //address of the node
     private Address _addr;
     //rank - score is a better name though
     private int _count;
     
+    //when was the last retry made
+    private DateTime _last_retry = DateTime.MinValue;
+
+    //connector associated with the connection
+    private Connector _con = null;
+
+    
+
     //constructor
     public NodeRankInformation(Address addr) {
       _addr = addr;
       _count = 0;
     }
     public int Count {
-      get { return _count; }
-      set { _count = value; }
+      get {
+	return _count;
+      }
+      set {
+	_count = value;
+      }
     }
-
-    public Address Addr { get { return _addr; } }
+    public DateTime LastRetryInstant {
+      get {
+        return _last_retry;
+      }
+      set {
+       _last_retry = value; 
+      }
+    }
+    public Connector Connector {
+     get {
+       return _con;
+     }
+     set {
+       _con = value; 
+     }
+    }
+    
+    public Address Addr {
+      get {
+	return _addr;
+      }
+    }
 
     override public bool Equals(Object other ) {
-      if( Object.ReferenceEquals(other, this) ) {
-        return true;
+      NodeRankInformation other1 = (NodeRankInformation) other;
+      if (_addr.Equals(other1.Addr)) {
+	//Console.WriteLine("equal ranks");
+	return true;
       }
-
-      NodeRankInformation other1 =  other as NodeRankInformation;
-      if( Object.ReferenceEquals(other1, null)) {
-        return false;
-      } else if (_addr.Equals(other1.Addr)) {
-	      return true;
-      }
+      //Console.WriteLine("ranks not equal");
       return false;
     }
-
-    override public int GetHashCode() {
-      // This should be safe, we shouldn't have more than one per Address.
-      return _addr.GetHashCode();
-    }
-
     override public string ToString() {
-      return _addr.ToString() + ":" + _count;
+      return _addr.ToString() + ": " + _count + ": " + _last_retry;
     }
   }
 
@@ -94,7 +109,10 @@ namespace Brunet {
    *  structured connections between pairs of highly communicating nodes.
    *  Chota - in Hindi means small. 
    */
-  public class ChotaConnectionOverlord : ConnectionOverlord, IDataHandler {
+  public class ChotaConnectionOverlord : ConnectionOverlord {
+    //the node we are attached to
+    protected Node _node;
+
     //used for locking
     protected object _sync;
     //our random number generator
@@ -103,165 +121,378 @@ namespace Brunet {
     //if the overlord is active
     protected bool _active;
     
-    //minimum score before we start forming chota connections
-    private static readonly int MIN_SCORE_THRESHOLD = SAMPLE_SIZE + 1;
-
     //the maximum number of Chota connections we plan to support
-    private static readonly int MAX_CHOTA = 200;
+    private static readonly int max_chota = 5;
+    
+    //maximum number of entries in the node_rank table
+    private static readonly int node_rank_capacity = 10;
+
+    //retry interval fro Chota connections
+    private static readonly double _retry_delay = 5.0;
+
     
     //hashtable of destinations. for each destination we maintain 
     //how frequently we communicate with it. Just like the LRU in virtual
     // memory context - Arijit Ganguly. 
-    protected ArrayList _node_rank_list;
-    /*
-     * Allows us to quickly look up the node rank for a destination
-     */
-    protected Hashtable _dest_to_node_rank;
+    protected ArrayList node_rank_list;
+
+    protected ArrayList _connectors;
 
     //node rank comparer
     protected NodeRankComparer _cmp;
-
-    protected static readonly int SAMPLE_SIZE = 4;
     
     /*
      * We don't want to risk mistyping these strings.
      */
     static protected readonly string struc_chota = "structured.chota";
-
-    public ChotaConnectionOverlord(Node n)
+    
+    
+    public ChotaConnectionOverlord(Node n) 
     {
       _node = n;
       _cmp = new NodeRankComparer();
       _sync = new object();
       _rand = new Random();
-      _node_rank_list = new ArrayList();
-      _dest_to_node_rank = new Hashtable();
-
+      _connectors = new ArrayList();
       lock( _sync ) {
-      	// we assess trimming/growing situation on every heart beat
-        _node.HeartBeatEvent += this.CheckState;
-	      //subscribe the ip_handler to IP packets
-        _node.GetTypeSource(PType.Protocol.IP).Subscribe(this, null);
-        // this is for security
-        _node.GetTypeSource(new PType(29)).Subscribe(this, null);
-      }
-    }
 
+	_node.ConnectionTable.ConnectionEvent +=
+          new EventHandler(this.ConnectHandler); 
+
+	// we assess trimming/growing situation on every heart beat
+        _node.HeartBeatEvent += new EventHandler(this.CheckState);
+	_node.SendPacketEvent += new EventHandler(this.UpdateTable);
+      }
+      node_rank_list = new ArrayList();
+      
+    }
     /**
      * On every activation, the ChotaConnectionOverlord trims any connections
      * that are unused, and also creates any new connections of needed
+     * 
      */
     override public void Activate() {
-      if(!_active) {
-        return;
+      if (!IsActive) {
+#if ARI_CHOTA_DEBUG
+	Console.WriteLine("ChotaConnectionOverlord is inactive");
+#endif
+	return;
       }
+      //it is now that we do things with connections
+      ConnectionTable tab = _node.ConnectionTable;
 
-      ConnectionList cons = _node.ConnectionTable.GetConnections(Connection.StringToMainType(struc_chota));
+      NodeRankInformation to_add = null;
+      Connection to_trim = null;
 
-      // Trim and add OUTSIDE of the lock!
-      List<Edge> to_trim = new List<Edge>();
-      List<Address> to_add = new List<Address>();
+      lock(tab.SyncRoot) {//lock the connection table
+	lock(_sync) {//lock the score table
+	  int structured_count = tab.Count(ConnectionType.Structured);
+	  //we assume that we are well-connected before ChotaConnections are needed. 
+	  if( structured_count < 2 ) {
+#if ARI_CHOTA_DEBUG
+	    Console.WriteLine("Not sufficient structured connections to bootstrap Chotas.");
+#endif
+	    //if we do not have sufficient structured connections
+	    //we do not;
+	    return;
+	  }
+#if ARI_CHOTA_DEBUG
+	  Console.WriteLine("Finding a connection to trim... ");
+#endif
+	  //find out the lowest score guy to trim
+	  for (int i = node_rank_list.Count - 1; i >= max_chota && i > 0; i--)  
+	  {
+	    NodeRankInformation node_rank = (NodeRankInformation) node_rank_list[i];
+	    bool trim = false;
+	    foreach(Connection c in tab.GetConnections(struc_chota)) {
+	      if (node_rank.Addr.Equals(c.Address)) {
+		to_trim = c;
+		trim = true;
+		break;
+	      }
+	      if (trim) {
+		break;
+	      }
+	    }
+	  }
+#if ARI_CHOTA_DEBUG
+	  Console.WriteLine("Finding connections to open... ");
+#endif
+	  //find out the highest score  guy who need connections
+	  for (int i = 0; i < node_rank_list.Count && i < max_chota; i++) 
+	  {
+	    //we are traversing the list in descending order of 
+	    bool add = true;
+	    NodeRankInformation node_rank = (NodeRankInformation) node_rank_list[i];
+#if ARI_CHOTA_DEBUG
+	    Console.WriteLine("Testing: {0}", node_rank);
+#endif
+	    if (node_rank.Count == 0 ) {
+#if ARI_CHOTA_DEBUG
+	      Console.WriteLine("To poor score for a connection");
+#endif
+	      //too low score to create a connection
+	      continue;
+	    }
+	    //TimeSpan elapsed = DateTime.Now - node_rank.LastRetryInstant;
+	    //if (elapsed.TotalSeconds < _retry_delay) {
+	    //Console.WriteLine("To early for retry, Now = {0} and {1} < {2}", 
+	    //			DateTime.Now, elapsed.TotalSeconds, _retry_delay);
+	      //wait for some time before sending a connection request again
+	      //continue;
+	    //}
+	    //check if there is an active connector
+	    if (node_rank.Connector != null) {
+#if ARI_CHOTA_DEBUG
+	      Console.WriteLine("To early for retry: already an active connector"); 
+#endif
+	      continue;
+	    }
 
-      lock(_sync) {
-        _node_rank_list.Sort( _cmp );
-        // Find the guys to trim....
-        for (int i = _node_rank_list.Count - 1; i >= MAX_CHOTA && i > 0; i--) {
-          NodeRankInformation node_rank = (NodeRankInformation) _node_rank_list[i];
-          // Must remove from _dest_to_node_rank to prevent memory leak
-          _dest_to_node_rank.Remove(node_rank.Addr);
-          // Now check to see if ChotaCO owns this connections and add to_trim if it does
-          int idx = cons.IndexOf(node_rank.Addr);
-          if(idx >= 0 && cons[idx].ConType.Equals(struc_chota)) {
-            to_trim.Add(cons[idx].Edge);
-          }
-        }
-
-        // Don't keep around stale state
-        if(_node_rank_list.Count > MAX_CHOTA) {
-          _node_rank_list.RemoveRange(MAX_CHOTA, _node_rank_list.Count - MAX_CHOTA);
-        }
-
-        // Find guys to connect to!
-        for (int i = 0; i < _node_rank_list.Count && i < MAX_CHOTA; i++) {
-          //we are traversing the list in descending order of 
-          NodeRankInformation node_rank = (NodeRankInformation) _node_rank_list[i];
-          if (node_rank.Count < MIN_SCORE_THRESHOLD ) {
-            //too low score to create a connection
-            continue;
-          } else if(cons.IndexOf(node_rank.Addr) >= 0) {
-            // already have a connection to that node!
-            continue;
-          }
-          to_add.Add(node_rank.Addr);
-        }
-      }
-
-      foreach(Edge e in to_trim) {
-        _node.GracefullyClose(e, "From Chota, low score trim.");
-      }
-
-      foreach(Address addr in to_add) {
-	      ConnectTo(addr, struc_chota);
+#if ARI_CHOTA_DEBUG
+	    Console.WriteLine("{0} looks good chota connection.", node_rank);
+#endif
+	    //make sure that this guy doesn't have any Structured or Leaf Connection already
+	    foreach(Connection c in tab.GetConnections(ConnectionType.Structured)) {
+	      if (node_rank.Addr.Equals(c.Address)) {
+#if ARI_CHOTA_DEBUG
+		Console.WriteLine("{0} already has a structured connection - {1}. ", node_rank, c.ConType);
+#endif
+		add = false;
+		break;
+	      }
+	    }
+	    foreach(Connection c in tab.GetConnections(ConnectionType.Leaf)) {
+	      if (node_rank.Addr.Equals(c.Address)) {
+#if ARI_CHOTA_DEBUG
+		Console.WriteLine("{0} already has a leaf connection. ", node_rank);
+#endif
+		add = false;
+		break;
+	      }
+	    }
+	    if (add) {
+	      to_add = node_rank;
+	      break;
+	    }
+	  }
+	}
+	
+	//connection to add
+	if (to_add != null) {
+	  //the first connection would have the highest score
+#if ARI_CHOTA_DEBUG
+	  Console.WriteLine("Forming a chota connection to addr: {0}", to_add.Addr);
+#endif
+	  to_add.LastRetryInstant = DateTime.Now;
+	  ConnectTo(to_add.Addr, 1024, struc_chota);
+	} else {
+#if ARI_CHOTA_DEBUG
+	  Console.WriteLine("No new connection to add... ");
+#endif
+	}
+	//now pick some guy who can be trimmed off 
+	if (to_trim != null) {
+	  //lets pick the guy who possibly has the lowest score
+#if ARI_CHOTA_DEBUG
+	  Console.WriteLine("Trimming chota connection with addr: {0}", to_trim.Address);
+#endif
+	  _node.GracefullyClose(to_trim.Edge);
+	} else {
+#if ARI_CHOTA_DEBUG
+	  Console.WriteLine("No connection to trim... ");
+#endif
+	}
       }
     }
     
-    override public bool NeedConnection { get { return true; } }
-
+    override public bool NeedConnection 
+    {
+      get {
+	return true;
+      } 
+    }
     public override bool IsActive 
     {
-      get { return _active; }
-      set { _active = value; }
+      get {
+	return _active;
+      }
+      set {
+	_active = value;
+      }
     }
-
     /**
-     * We count incoming IP packets here
+     * Everytime we the node sends a packet out this method is invoked. 
+     * Since multiple invocations may exist, take care of synchronization. 
      */
-    public void HandleData(MemBlock p, ISender from, object state) {
-      AHSender ahs = from as AHSender;
-      if( ahs == null ) {
-        return;
+    public void UpdateTable(object node, EventArgs eargs) {
+      //update information in the connection table.
+      SendPacketEventArgs speargs = (SendPacketEventArgs) eargs;
+      AHPacket p  = speargs.Packet as AHPacket;
+      if (p == null) {
+	return;
       }
-
-      // Sample every 1 / SAMPLE_SIZE
-      if( _rand.Next(SAMPLE_SIZE) != 0 ) {
-        return;
+      if (!p.PayloadType.Equals(AHPacket.Protocol.IP)) {
+	return;
       }
-
-      Address dest = ahs.Destination;
-
+#if ARI_CHOTA_DEBUG
+      Console.WriteLine("Receiving an IP-packet send event...");
+      Console.WriteLine("IP packet: update table");
+#endif
       lock(_sync) {
-        NodeRankInformation node_rank =
-          (NodeRankInformation) _dest_to_node_rank[dest];
-        if( node_rank == null ) {
-          node_rank = new NodeRankInformation(dest);
-          _node_rank_list.Add( node_rank );
-          _dest_to_node_rank[dest] = node_rank;
-        }
-        // Increment by SAMPLE_SIZE
-        node_rank.Count += SAMPLE_SIZE;
+	NodeRankInformation node_rank = new NodeRankInformation(p.Destination);
+#if ARI_CHOTA_DEBUG
+	Console.WriteLine("Before, List size: {0}", node_rank_list.Count);
+#endif
+	int index = node_rank_list.IndexOf(node_rank);
+#if ARI_CHOTA_DEBUG
+	Console.WriteLine("IndexOf: {0}", index);
+#endif
+	if (index >= 0) {
+	  node_rank = (NodeRankInformation) node_rank_list[index];
+	  node_rank_list.RemoveAt(index);
+#if ARI_CHOTA_DEBUG
+	  Console.WriteLine("Post-removal, List size: {0}", node_rank_list.Count);
+#endif
+	} 
+#if ARI_CHOTA_DEBUG
+	Console.WriteLine("After, List size: {0}", node_rank_list.Count);
+	Console.WriteLine("Pre-increment -> SendPacket: {0}", node_rank);
+#endif
+	int count = node_rank.Count;
+	node_rank.Count = count + 1;
+#if ARI_CHOTA_DEBUG
+	Console.WriteLine("Post-increment -> SendPacket: {0}", node_rank);
+#endif
+	//find a suitable place to put this back
+	index = node_rank_list.BinarySearch(node_rank, _cmp);
+	if (index < 0) {
+	  index = ~index;
+	  node_rank_list.Insert(index, node_rank);
+	  if (node_rank_list.Count > node_rank_capacity) {//we are exceeding capacity
+            //trim the list
+	    node_rank_list.RemoveAt(node_rank_list.Count - 1);    
+	  }
+	} else {
+#if ARI_CHOTA_DEBUG
+	  Console.WriteLine("Not supposed to happen");
+#endif
+	  Debug.Assert(false);
+	}
       }
     }
-
     /**
      * On every heartbeat this method is invoked.
-     * Sort the table, decrement node rank, and run Activate.
-     */
+     * We decide which edge to trim and which one to add
+     */ 
     public void CheckState(object node, EventArgs eargs) {
-      if(!_active) {
-        return;
+#if ARI_CHOTA_DEBUG
+      Console.WriteLine("Receiving a heart beat event...");
+#endif
+      //in this case we decrement the rank
+      //update information in the connection table.
+      lock(_sync) {
+	IEnumerator ie = node_rank_list.GetEnumerator();
+	while (ie.MoveNext()) {
+	  NodeRankInformation node_rank = (NodeRankInformation) ie.Current;
+#if ARI_CHOTA_DEBUG
+	  Console.WriteLine("Pre-decrement -> Heartbeat: {0}", node_rank);
+#endif
+	  int count = node_rank.Count;
+	  if (node_rank.Count > 0) {
+	    node_rank.Count = count - 1;
+	  }
+#if ARI_CHOTA_DEBUG
+	  Console.WriteLine("Post-decrement -> Heartbeat: {0}", node_rank);
+#endif
+	}
       }
-
-      if( _rand.Next(SAMPLE_SIZE) != 0 ) {
-        return;
-      }
-
-    	lock(_sync) { //lock the score table
-        foreach(NodeRankInformation node_rank in _node_rank_list) {
-          node_rank.Count = (node_rank.Count > SAMPLE_SIZE) ? node_rank.Count - SAMPLE_SIZE : 0;
-        }
-      }
-
+      //everything fine now take a look at connections
+      //let us see which connections are to trim
+#if ARI_CHOTA_DEBUG
+      Console.WriteLine("Calling activate... ");
+#endif
       Activate();
+    }
+
+    /**
+     * When a Connector finishes his job, this method is called to
+     * clean up
+     */
+    protected void ConnectorEndHandler(object connector, EventArgs args)
+    {
+      lock( _sync ) {
+        _connectors.Remove(connector);
+	Connector ctr = (Connector)connector;
+#if ARI_CHOTA_DEBUG
+	foreach(ConnectToMessage ctm in ctr.ReceivedCTMs) {
+	  Console.WriteLine("CTM response from: {0}" + ctm.Target);
+	}
+#endif
+	//also update the correspondinf node rank
+	NodeRankInformation node_rank = new NodeRankInformation(ctr.Packet.Destination);
+	int index = node_rank_list.IndexOf(node_rank);
+	if (index >= 0) {
+	  node_rank = (NodeRankInformation) node_rank_list[index];
+	  node_rank.Connector = null;
+	} 
+      }
+    }
+       /**
+     * This method is called when a new Connection is added
+     * to the ConnectionTable
+     */
+    protected void ConnectHandler(object contab, EventArgs eargs)
+    {
+      ConnectionEventArgs args = (ConnectionEventArgs)eargs;
+      Connection new_con = args.Connection;
+      
+#if ARI_CHOTA_DEBUG
+      Console.WriteLine("Forming connection: {0}", new_con);
+#endif
+    }
+    
+
+    protected void ConnectTo(Address target,
+			     short t_ttl, string contype)
+    {
+      //If we already have a connection to this node,
+      //don't try to get another one, it is a waste of 
+      //time.
+      ConnectionType mt = Connection.StringToMainType(contype);
+      if( _node.ConnectionTable.Contains( mt, target ) ) {
+#if ARI_CHOTA_DEBUG
+	Console.WriteLine("Looks like we are already connected to the target: {0}"
+			  , target);
+#endif
+        return; 
+      }
+      short t_hops = 0;
+      ConnectToMessage ctm =
+        new ConnectToMessage(contype, new NodeInfo(_node.Address, _node.LocalTAs) );
+      ctm.Id = _rand.Next(1, Int32.MaxValue);
+      ctm.Dir = ConnectionMessage.Direction.Request;
+
+      AHPacket ctm_pack =
+        new AHPacket(t_hops, t_ttl, _node.Address, target, AHPacket.AHOptions.Exact,
+                     AHPacket.Protocol.Connection, ctm.ToByteArray());
+
+      Connector con = new Connector(_node);
+      lock( _sync ) {
+	NodeRankInformation node_rank = new NodeRankInformation(target);
+        int index = node_rank_list.IndexOf(node_rank);
+        if (index >= 0) {
+	  node_rank = (NodeRankInformation) node_rank_list[index];
+	  node_rank.Connector = con;
+        }
+        _connectors.Add(con);
+      }
+      con.FinishEvent += new EventHandler(this.ConnectorEndHandler);
+
+#if ARI_CHOTA_DEBUG
+      Console.WriteLine("Actually trying to connect...");
+#endif
+      con.Connect(_node, ctm_pack, ctm.Id);
     }
   }
 }
