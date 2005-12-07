@@ -228,6 +228,10 @@ namespace Brunet
         }                              
 #endif
 
+#if ARI_CTM_DEBUG
+	Console.WriteLine("Connector - Send CTM request; target: {0}.", 
+			  _con_packet.Destination);
+#endif
         _sender.Send(_con_packet);
         _last_packet_datetime = DateTime.Now;
         _ctm_send_timeouts = 1;
@@ -254,6 +258,10 @@ namespace Brunet
               * to!
               * @todo see if the type of connection is the same
                */
+#if ARI_CTM_DEBUG
+	      Console.WriteLine("Got CTM Response: " + cm.ToString());
+              Console.WriteLine("Initiating a linking protocol on response... ");
+#endif
               ConnectToMessage new_ctm = (ConnectToMessage)cm;
               _got_ctm = true;
               _got_ctms.Add(new_ctm);

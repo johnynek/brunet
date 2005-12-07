@@ -130,6 +130,11 @@ namespace Brunet
         if (cm.Dir == ConnectionMessage.Direction.Request) {
           ConnectionMessage response = null;
 	  if (cm is PingMessage) {
+#if ARI_LINK_DEBUG
+	    Console.WriteLine("ConnectionPacketHandler - Getting a ping request; edge: {0}; length: {1}",
+                              from, p.Length);
+#endif
+
 	    /**
 	     * Ping messages are just used to test that
 	     * a node is still active.
@@ -141,21 +146,12 @@ namespace Brunet
             from.Send(response.ToPacket());
 	  }
 	  else if (cm is StatusMessage) {
-            /**
-            * StatusMessage objects are used to verify the completion
-            * of the Link protocol.  If we receive a StatusMessage request
-            * after we send a LinkMessage response, we know the other
-            * Node got our LinkMessage response, and the connection
-            * is active
-            */
-	    StatusMessage sm = (StatusMessage)cm;
-	    response = _local.GetStatus( sm.NeighborType);
-            response.Dir = ConnectionMessage.Direction.Response;
-            response.Id = cm.Id;
-            //log.Info("Sending Status response:" + response.ToString());
-            from.Send(response.ToPacket());
-
-            LinkMessage lm_to_add = null;
+#if ARI_LINK_DEBUG
+	    Console.WriteLine("ConnectionPacketHandler - Getting a status request; edge: {0}; length: {1}",
+                              from, p.Length);
+#endif
+	    //we just got s status request
+	    LinkMessage lm_to_add = null;
             lock( _sync ) {
               if( _edge_to_lm.ContainsKey( from ) ) {
                 //Add the connection:
@@ -164,6 +160,25 @@ namespace Brunet
                 _edge_to_lm.Remove(from);
               }
             }
+            /**
+            * StatusMessage objects are used to verify the completion
+            * of the Link protocol.  If we receive a StatusMessage request
+            * after we send a LinkMessage response, we know the other
+            * Node got our LinkMessage response, and the connection
+            * is active
+            */
+	    StatusMessage sm = (StatusMessage)cm;
+	    if (lm_to_add != null) {
+	      response = _local.GetStatus( sm.NeighborType, lm_to_add.Local.Address );
+	    } else {
+	      response = _local.GetStatus( sm.NeighborType, null );
+	    }
+            response.Dir = ConnectionMessage.Direction.Response;
+            response.Id = cm.Id;
+            //log.Info("Sending Status response:" + response.ToString());
+            from.Send(response.ToPacket());
+
+            
             //Release the lock before calling this function:
             if( lm_to_add != null ) {
               /*Console.WriteLine("About to add: {0},{1},{2}",
@@ -175,12 +190,19 @@ namespace Brunet
 					      lm_to_add.ConTypeString,
 					      sm,
 					      lm_to_add);
+#if ARI_LINK_DEBUG
+	      Console.WriteLine("ConnectionPacketHandler - Creating a new connection: {0}", con);
+#endif
 	      _tab.Add(con);
               //Unlock after we add the connection
               _tab.Unlock(lm_to_add.Local.Address, lm_to_add.ConnectionType, this);
             }
           }
           else if (cm is CloseMessage) {
+#if ARI_LINK_DEBUG
+	    Console.WriteLine("ConnectionPacketHandler - Getting a close request; edge: {0}; length: {1}",
+                              from, p.Length);
+#endif
             /**
              * Only Close an Edge when explicitly told
              * to do so.  ConnectionPacketHandler never
@@ -209,6 +231,10 @@ namespace Brunet
             CloseHandler(from, null);
           }
           else if (cm is LinkMessage) {
+#if ARI_LINK_DEBUG
+	    Console.WriteLine("ConnectionPacketHandler - Getting a link request; edge: {0}; length: {1}",
+                              from, p.Length);
+#endif
             /**
             * When we get a LinkMessage there are three cases:
             *
@@ -222,8 +248,13 @@ namespace Brunet
             ErrorMessage err = null;
             lock( _sync ) {
               if( !_edge_to_lm.ContainsKey( from ) ) {
-
+#if ARI_LINK_DEBUG
+		Console.WriteLine("ConnectionPacketHandler - Checking if can connect.");
+#endif
                 if( CanConnect(lm, from, out err) ) {
+#if ARI_LINK_DEBUG
+		  Console.WriteLine("ConnectionPacketHandler - Yes we can connect connect.");
+#endif
                   //We can connect, add this LinkMessage to the table
                   _edge_to_lm[from] = lm;
                 }
@@ -248,8 +279,14 @@ namespace Brunet
               response = new LinkMessage( attrs, local_info, remote_info );
               response.Id = lm.Id;
               response.Dir = ConnectionMessage.Direction.Response;
+#if ARI_LINK_DEBUG
+	      Console.WriteLine("ConnectionPacketHandler - Sending a link response.");
+#endif
             }
             else {
+#if ARI_LINK_DEBUG
+	      Console.WriteLine("ConnectionPacketHandler - Sending an error response.");
+#endif
               response = err;
             }
             //We know what we want to say, just send the response
@@ -258,6 +295,10 @@ namespace Brunet
         }
         else {
           if (cm is StatusMessage) {
+#if ARI_LINK_DEBUG
+	    Console.WriteLine("ConnectionPacketHandler - Getting a status response -- testlink-- edge: {0}; length: {1}",
+                              from, p.Length);
+#endif
             /**
              * Here we see if we should connect to any of these 
              * 
@@ -315,9 +356,18 @@ namespace Brunet
         else {
           //Everything is looking good:
           try {
+#if ARI_LINK_DEBUG
+	    Console.WriteLine("ConnectionPacketHandler - Trying to lock connection table: {0}", lm);
+#endif
             _tab.Lock( lm.Local.Address, lm.ConnectionType, this );
+#if ARI_LINK_DEBUG
+	    Console.WriteLine("ConnectionPacketHandler - Successfully locked connection table: {0}", lm);
+#endif
           }
           catch(InvalidOperationException iox) {
+#if ARI_LINK_DEBUG
+	    Console.WriteLine("ConnectionPacketHandler - Cannot lock connection table: {0}", lm);
+#endif
             //Lock can throw this type of exception
             err = new ErrorMessage(ErrorMessage.ErrorCode.InProgress,
                                    "Address: " + lm.Local.Address.ToString() +

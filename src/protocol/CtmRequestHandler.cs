@@ -105,10 +105,12 @@ namespace Brunet
         Logger.LogAttemptEvent( bed );
 #endif
 
-        /*System.Console.WriteLine("Got CTM Request,"
-        + n.Address.ToString() + " connectTo: "
-        + ctm.TargetAddress.ToString() + " ConType: " + ctm.ConnectionType);*/
-
+#if ARI_CTM_DEBUG
+        System.Console.WriteLine("CtmRequestHandler - Got CTM Request,"
+				 + n.Address.ToString() + " connectTo: "
+				 + ctm.Target.Address.ToString() + " ConType: " + ctm.ConnectionType);
+	Console.WriteLine("CtmRequestHandler - Initiating link protocol on request.");
+#endif
         /*_log.Info("Got CTM Request,"
         + n.Address.ToString() + " connectTo: "
         + ctm.TargetAddress.ToString());*/
@@ -157,6 +159,11 @@ namespace Brunet
             PacketForwarder.WrapPacket(p.Source, ttl, response);
         }
         //_log.Info("Sending CTM Response");
+#if ARI_CTM_DEBUG
+        System.Console.WriteLine("CtmRequestHandler - Sending CTM response,"
+				 + n.Address.ToString() + " connectTo: "
+				 + ctm.Target.Address.ToString() + " ConType: " + ctm.ConnectionType);
+#endif
         n.Send(response);
       }
       catch(Exception x) {
