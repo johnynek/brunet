@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<project name="ipop-common" default="build" basedir=".">
+  <description> Builds the common files for IPOP-1.0 and IPOP-1.1. </description>
+  <property name="debug" value="true" overwrite="false" />
+  <property name="lib.dir" value="../../lib"/>
+  <property name="build.dir" value="build" />
+  <target name="clean" description="Remove ipop-common.dll">
+      <delete dir="${build.dir}" failonerror="true"/>
+  </target>
+  <target name="build" description="Build IPRouter.exe and SimpleNode.exe">
+      <mkdir dir="${build.dir}" failonerror="true"/>
+      <copy todir="${build.dir}" failonerror="true">
+          <fileset basedir="${lib.dir}">
+	      <include name="Brunet.dll" />
+	      <include name="Ipop-common.dll" />
+	      <include name="libtuntap.so" />
+	  </fileset>
+      </copy>
+      <csc target="exe" output="${build.dir}/IPRouter.exe">
+          <sources failonempty="true">
+	     <include name="IPRouter.cs"/>
+	  </sources>
+	  <references>
+             <include name="${lib.dir}/Brunet.dll"/>
+             <include name="${lib.dir}/Ipop-common.dll"/>
+             <include name="Mono.Security.dll"/>
+	  </references>
+      </csc>
+      <csc target="exe" output="${build.dir}/SimpleNode.exe">
+          <sources failonempty="true">
+	     <include name="SimpleNode.cs"/>
+	  </sources>
+	  <references>
+             <include name="${lib.dir}/Brunet.dll"/>
+             <include name="${lib.dir}/Ipop-common.dll"/>
+             <include name="Mono.Security.dll"/>
+	  </references>
+      </csc>
+
+  </target>
+</project>
+      

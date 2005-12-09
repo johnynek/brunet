@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<project name="ipop-common" default="build" basedir=".">
+  <description> Builds the common files for IPOP-1.0 and IPOP-1.1. </description>
+  <property name="debug" value="true" overwrite="false" />
+  <property name="lib.dir" value="../../lib"/>
+  <property name="lib.name" value="Ipop-common"/>
+  <property name="build.dir" value="build" />
+  <target name="clean" description="Remove ipop-common.dll">
+      <delete dir="${build.dir}" failonerror="true"/>
+      <delete file="${lib.dir}/${lib.name}.dll" failonerror="true"/>
+  </target>
+  <target name="build" description="Build ipop-common.dll">
+      <mkdir dir="${build.dir}" failonerror="true"/>
+      <csc target="library" output="${build.dir}/${lib.name}.dll">
+          <sources failonempty="true">
+	     <include name="*.cs"/>
+	  </sources>
+	  <references>
+             <include name="${lib.dir}/Brunet.dll"/>
+	  </references>
+      </csc>
+      <copy todir="${lib.dir}" failonerror="true">
+          <fileset basedir="${build.dir}">
+	      <include name="${lib.name}.dll" />
+	  </fileset>
+      </copy>
+  </target>
+</project>
+      
