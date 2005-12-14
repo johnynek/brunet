@@ -102,6 +102,7 @@ namespace Brunet
       Subscribe(AHPacket.Protocol.Connection, h);
 
       _connection_table.ConnectionEvent += new EventHandler(this.EstimateSize);
+      _connection_table.ConnectionEvent += new EventHandler(this.UpdateNeighborStatus);
       _connection_table.DisconnectionEvent += new EventHandler(this.EstimateSize);
     }
     
@@ -217,6 +218,7 @@ namespace Brunet
     {
       //Console.WriteLine("Estimate size: ");
       try {
+      //Estimate the new size:
       ConnectionTable tab = (ConnectionTable)contab;
       int net_size = -1;
       lock( tab.SyncRoot ) {
@@ -326,6 +328,49 @@ namespace Brunet
       }	  
       return new StatusMessage( con_type_string, neighbors );
     }
+
+    /**
+     * Sends a StatusMessage request (local node) to the nearest right and 
+     * left neighbors (in the local node's ConnectionTable) of the new Connection.
+     */
+    protected void UpdateNeighborStatus(object contab, EventArgs args)
+    {
+     try {
+      //our request for the new connections' neighbors
+      ConnectionTable tab = this.ConnectionTable;
+      if( tab.Count(ConnectionType.Structured) <= 1 ) {
+        //There is only one neighbor, no communication will help:
+	return;
+      }
+      //Update the relevant neighbors on the status:
+      Connection con = ((ConnectionEventArgs)args).Connection;
+      
+      string con_type_string = con.ConType;
+      AHAddress new_address = (AHAddress)con.Address;
+      
+      Connection lc = tab.GetLeftStructuredNeighborOf(new_address);
+      Connection rc = tab.GetRightStructuredNeighborOf(new_address);
+      Packet tp = null;
+      int id = 0; 
+      if( lc != null ) {
+        StatusMessage req = GetStatus(con_type_string, lc.Address);
+        req.Dir = ConnectionMessage.Direction.Request;
+        req.Id = id++;
+        tp = req.ToPacket();
+        lc.Edge.Send(tp);
+      }
+      if( rc != null && (lc != rc) ) {
+        StatusMessage req = GetStatus(con_type_string, rc.Address);
+        req.Dir = ConnectionMessage.Direction.Request;
+        req.Id = id++;
+        tp = req.ToPacket();
+        rc.Edge.Send(tp);
+      }      
+     } catch(Exception x) {
+        Console.Error.WriteLine(x.ToString());
+     }
+    }
+    
   }
 }
 

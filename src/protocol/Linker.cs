@@ -19,29 +19,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-/*
- * Dependencies : 
- * Brunet.Address;
- * Brunet.AHPacket
- * Brunet.CloseMessage
- * Brunet.ConnectionPacket
- * Brunet.ConnectionMessage
- * Brunet.ConnectionMessageParser
- * Brunet.ConnectionType
- * Brunet.ConnectionTable
- * Brunet.Edge
- * Brunet.EdgeException
- * Brunet.EdgeFactory
- * Brunet.LinkMessage
- * Brunet.LinkException
- * Brunet.Node
- * Brunet.Packet
- * Brunet.ParseException
- * Brunet.PingMessage
- * Brunet.TransportAddress
- * Brunet.ErrorMessage
- */
-
 //#define DEBUG
 
 //#define POB_LINK_DEBUG
@@ -76,39 +53,8 @@ namespace Brunet
      */
     protected int _id;
 
-    protected Address _local_add;
-    public Address Address
-    {
-      get
-      {
-        return _local_add;
-      }
-    }
     protected string _contype;
-    public string ConnectionType
-    {
-      get
-      {
-        return _contype;
-      }
-    }
-    protected LinkMessage _peer_link_mes;
-    public LinkMessage PeerLinkMessage
-    {
-      get
-      {
-        return _peer_link_mes;
-      }
-    }
-
     protected Edge _e;
-    public Edge Edge
-    {
-      get
-      {
-        return _e;
-      }
-    }
     protected Connection _con;
     /**
      * This is the Connection established by this Linker
@@ -125,22 +71,15 @@ namespace Brunet
         }
       }
     }
-    protected ConnectionTable _tab;
-    protected EdgeFactory _ef;
     //This is the queue that has only the address we have not tried this attempt
     protected Queue _ta_queue;
-    //This is a copy of the original list of TAs
-    protected Queue _tas;
     protected Node _local_n;
-    protected ConnectionMessageParser _cmp;
-    protected Packet _last_sent_packet;
     protected DateTime _last_packet_datetime;
 
     /* If we know the address of the node we are trying
      * to make an outgoing connection to, we lock it, and
      * remember it here
      */
-    protected Address _target_lock;
     protected Address _target;
 
     /** global lock for thread synchronization */
@@ -169,12 +108,15 @@ namespace Brunet
 
     //If we get an ErrorCode.InProgress, we restart after
     //a period of time
-    protected readonly int _ms_restart_time = 5000;
-    protected int _restart_attempts = 16;
+    protected static readonly int _ms_restart_time = 5000;
+    protected static readonly int _MAX_RESTARTS = 16;
+    protected int _restart_attempts = _MAX_RESTARTS;
     protected DateTime _last_start;
 
     protected Random _rand;
-    
+   
+    protected LinkProtocolState _link_state;
+    protected IEnumerator _link_enumerator;
 #if POB_LINK_DEBUG
     private int _lid;
 #endif
@@ -192,14 +134,9 @@ namespace Brunet
       lock(_sync) {
         _is_finished = false;
         _local_n = local;
-        _local_add = local.Address;
-        _cmp = new ConnectionMessageParser();
-        _ef = local.EdgeFactory;
         //Hopefully at least one of these will be somewhat unpredictable
         ///@todo think seriously about getting truely random ids
-        _id = GetHashCode()
-              ^ _local_add.GetHashCode()
-              ^ _cmp.GetHashCode();
+        _id = GetHashCode() ^ local.Address.GetHashCode();
         _rand = new Random(_id);
         /* We do not use negative ids, the spec says they
          * are reserved for future use
@@ -207,7 +144,6 @@ namespace Brunet
         if( _id < 0 ) {
           _id = ~_id;
         }
-        _tab = local.ConnectionTable;
       }
     }
 
@@ -228,351 +164,294 @@ namespace Brunet
      */
     public void Link(Address target, ICollection target_list, string ct)
     {
+      lock (_sync ) {
+        //If we retry, we need an original copy of the list
+        _ta_queue = new Queue( target_list );
+        _contype = ct;
+        _target = target;
+      }
+      StartLink();
+    }
+
+    protected void StartLink() {
       try {
-#if POB_LINK_DEBUG
-        Console.WriteLine("Start for {3} Linker({0}).Link({1},{2})",
-                          _lid,target,ct,_local_add);
-#endif
-        lock (_sync ) {
-          //If we retry, we need an original copy of the list
-          _tas = new Queue(target_list);
-          _ta_queue = new Queue( _tas );
-          _contype = ct;
-          _timeouts = 0;
-        }
-        /**
+        /*
          * If we cannot set this address as our target, we
          * stop before we even try to make an edge.
          */
-	_target = target;
-#if ARI_LINK_DEBUG
-	Console.WriteLine("Linker ({0}) attempting to lock {1}", _lid, target);
-#endif 
-
-        SetTarget( target );
-#if ARI_LINK_DEBUG
-	Console.WriteLine("Linker ({0}) acquired lock on {1}", _lid, target);
-#endif 
-        /**
-         * TryNext Asynchronously gets an edge, and then begin the
+        //This manages the link protocol state, but not the sending
+        //of packets, resends, restarts, etc...
+	TransportAddress next_ta = null;
+	lock( _sync ) {
+          if( _ta_queue.Count > 0 ) {
+            next_ta = (TransportAddress)_ta_queue.Peek();
+            _link_state = new LinkProtocolState(_local_n, _contype, _id);
+            _link_state.SetTarget(_target);
+	  }
+	}
+        /*
+         * Asynchronously gets an edge, and then begin the
          * link attempt with it.  If it fails, and there
          * are more TransportAddress objects, this method
          * will call itself again.  If there are no more TAs
          * the Link attempt Fails.
          */
-        TryNext(false, null, null);
+        if( next_ta != null ) {
+          _local_n.EdgeFactory.CreateEdgeTo( next_ta,
+			    new EdgeListener.EdgeCreationCallback(this.TryNext) );
+        }
+        else {
+          Fail("No more TAs");
+        }
       }
       catch(InvalidOperationException x) {
         //This is thrown when ConnectionTable cannot lock.  Lets try again:
-#if ARI_LINK_DEBUG
-	Console.WriteLine("Linker ({0}) failed to lock {1}", _lid, target);
-#endif         
-	if ( _restart_attempts > 0 ) {
-	  _restart_attempts--;
-	  //There is no need to Stop, because this is the case where
-	  //we never got going
-	  _last_start = DateTime.Now;
-          _local_n.HeartBeatEvent += new EventHandler(this.RestartLink);
-#if ARI_LINK_DEBUG
-          Console.WriteLine("Scheduling restart Linker({0})",_lid);
-#endif
-	}
-	else {
-          Fail("restarted maximum number of times");
-	}
+        RetryThisTA();
       }
       catch(Exception x) {
         Fail(x.Message);
       }
-#if POB_LINK_DEBUG
-      Console.WriteLine("End Linker({0}).Link",_lid);
-#endif
     }
 
     /**
-     * Handles packets to perform the outgoing link protocol
+     * Is a state machine to handle the link protocol
      */
-    public void HandlePacket(Packet p, Edge edge)
-    {
-#if POB_LINK_DEBUG
-      Console.WriteLine("Start Linker({0}).OutLinkHandler({1})",_lid,edge);
-#endif
-      if( _is_finished ) { return; }
-      try {
-        ConnectionPacket packet = (ConnectionPacket) p;
-        ConnectionMessage cm;
-        lock( _sync ) {
-          cm = _cmp.Parse(packet);
-          //Note the time we got this packet
-          _last_packet_datetime = DateTime.Now;
-        }
-#if POB_LINK_DEBUG
-        Console.WriteLine("Start Linker({0}).OutLinkHandler got {1}",
-                          _lid,cm);
-#endif
-        if (cm.Dir != ConnectionMessage.Direction.Response) {
-          throw new LinkException("Got request, expected response"
-                                  + cm.ToString());
-        }
-        else if (cm is LinkMessage) {
-#if ARI_LINK_DEBUG
-	  Console.WriteLine("Linker({0}).OutLinkHandler got link response.",
-			    _lid);
-#endif
-
-          /**
-          * When we receive a LinkMessage response, we know
-          * the other party is willing to link with us.
-          * To acknowledge that we can complete the link,
-          * we send them a StatusMessage request.
-          *
-          * The other node must not consider the Edge connected
-          * until the StatusMessage request is received.
-          */
-          //Build the neighbor list:
-	  LinkMessage lm = (LinkMessage)cm;
-          /*
-	   * Make sure the link message is Kosher:
-	   */
-	  if( lm.ConTypeString != _contype ) {
-            throw new LinkException("Link type mismatch: " + _contype + " != " + lm.ConTypeString );
-	  }
-	  if( lm.Attributes["realm"] != _local_n.Realm ) {
-            throw new LinkException("Realm mismatch: " + _local_n.Realm + " != " + lm.Attributes["realm"] );
-	  }
-	  
-	  StatusMessage req = _local_n.GetStatus(lm.ConTypeString, lm.Local.Address);
-	  req.Id = _id++;
-	  req.Dir = ConnectionMessage.Direction.Request;
-	  lock( _sync ) {
-	    Address target = lm.Local.Address;
-	    //This will throw an exception if the target does not match
-	    //any previous value.
-#if ARI_LINK_DEBUG
-	    Console.WriteLine("Linker({0}).OutLinkHandler attempting to lock {1}",
-			      _lid, target );
-#endif
-	    SetTarget( target );
-#if ARI_LINK_DEBUG
-	    Console.WriteLine("Linker({0}).OutLinkHandler locks {1}",
-			      _lid, target);
-#endif
-	    _peer_link_mes = lm;
-	    _last_sent_packet = req.ToPacket();
-	    _timeouts = 0;
-	  }
-#if POB_LINK_DEBUG
-	  Console.WriteLine("Start Linker({0}).OutLinkHandler send {1}",
-			    _lid,req);
-#endif
-#if ARI_LINK_DEBUG
-	  Console.WriteLine("Start Linker({0}).OutLinkHandler send status request edge: {1} ; length: {2}",
-			    _lid, edge, _last_sent_packet.Length);
-	  
-#endif
-	  edge.Send( _last_sent_packet );
-        }
-	else if (cm is StatusMessage) {
-#if ARI_LINK_DEBUG
-	  Console.WriteLine("Linker({0}).OutLinkHandler got Status reponse",
-			    _lid);
-#endif
-          if( _peer_link_mes != null ) {
-            /**
-             * Once we get a StatusMessage response we know that
-             * the recipient has seen our ping, we Succeed 
-             */
-
-	    _con = new Connection(edge, _peer_link_mes.Local.Address,
-			              _peer_link_mes.ConTypeString,
-				      (StatusMessage)cm, _peer_link_mes);
-#if ARI_LINK_DEBUG
-	  Console.WriteLine("Linker({0}).OutLinkHandler creating a new connection: {1}",
-			    _lid, _con);
-#endif
-            Succeed();
-
-            //send extra status messages to new connection's neighbors
-            SendStatusMessagesToNeighbors();
+    protected class LinkProtocolState {
+     
+      protected ConnectionMessageParser _cmp;
             
-	    return;
-	  }
-	  else {
-
-	  }
-	}
-	else if (cm is ErrorMessage) {
-#if ARI_LINK_DEBUG
-	  Console.WriteLine("Linker({0}).OutLinkHandler got error message",
-			    _lid);
-#endif
-          //Looks like things are not working out for us.
-	  ///@todo we should probably react differently to different types of errors.
-	  ErrorMessage em = (ErrorMessage)cm;
-#if PLAB_LOG
-    Console.Write("{0}:{1} {2} \n", DateTime.Now.ToUniversalTime().ToString("MM'/'dd'/'yyyy' 'HH':'mm':'ss"), 
-          DateTime.Now.ToUniversalTime().Millisecond, em.ToString() );
-#endif
-	  int error_code = (int)em.Ec;
-	  if( em.Ec == ErrorMessage.ErrorCode.InProgress ) {
-            ///@todo handle "double lock" condition.
-            //This may be a "double lock" condition.
-	    //We probably need to release our lock.  Wait
-	    //a random period, and try again.
-#if ARI_LINK_DEBUG
-	    Console.WriteLine("Linker({0}).OutLinkHandler looks like connection is progress",
-			    _lid);
-#endif
-	    lock(_sync) {
-	      if ( _restart_attempts > 0 ) {
-	        _restart_attempts--;
-	        Stop("Restarting Linker");
-	        _last_start = DateTime.Now;
-                _local_n.HeartBeatEvent += new EventHandler(this.RestartLink);
-#if POB_LINK_DEBUG
-                Console.WriteLine("Restarting Linker({0})",_lid);
-#endif
-	      }
-	      else {
-                throw new LinkException("No more restarts");
-	      }
-	    }
-	  }
-	  else {
-            //Otherwise, this is some other kind of error
-	    Fail("connection attempt failed due to receiving Error: " + 
-	       error_code.ToString() + ", " + em.Message  );
-	  }
-	}
-        else if (cm is PingMessage) {
-            /**
-            * This should never happen
-            */
-#if POB_LINK_DEBUG
-            Console.WriteLine("Saw Ping response before Link response");
-#endif
-        }
-        else {
-          /**
-          * If there is an ErrorMessage response, or some other
-          * response, we Fail
-          */
-          throw new LinkException("Got unexpected response" + cm.ToString());
+      protected Packet _last_r_packet;
+      protected ConnectionMessage _last_r_mes;
+      /**
+       * Set the last packet and check for error conditions.
+       * If the packet contains an ErrorMessage, that ErrorMessage
+       * is returned, else null
+       */
+      public ErrorMessage SetLastRPacket(Packet p) {
+          ConnectionPacket cp = (ConnectionPacket)p;
+          ConnectionMessage cm = _cmp.Parse(cp);
+          //Check to see that the id matches and it is a request:
+          if( cm.Id != _last_s_mes.Id ) {
+            //There is an ID mismatch
+            throw new LinkException("ID number mismatch");
+          }
+          if( cm.Dir != ConnectionMessage.Direction.Response ) {
+            //This is not a response, as we expect.
+            throw new LinkException("received a message that is not a Response");
+          }
+          if( cm is ErrorMessage ) {
+            return (ErrorMessage)cm;
+          }
+          //Everything else looks good, lets make sure it is the right type:
+          if( ! cm.GetType().Equals( _last_s_mes.GetType() ) ) {
+            //This is not the same type 
+            throw new LinkException("ConnectionMessage type mismatch");
+          }
+          //They must be sane, or the above would have thrown exceptions
+          _last_r_packet = cp;
+          _last_r_mes = cm;
+	  return null;
+      }
+      
+      protected ConnectionMessage _last_s_mes;
+      protected Packet _last_s_packet;
+      public Packet LastSPacket {
+        get {
+          return _last_s_packet;
         }
       }
-      catch(Exception ex) {
-        /* Something generally bad has happened */
-        //log.Error("OutLink exception:", ex);
-        Fail("exception: " + ex.Message);
+      protected Node _node;
+      protected string _contype;
+      protected Address _target_lock;
+      public Address TargetLock { get { return _target_lock; } }
+      protected int _id;
+      
+      public LinkProtocolState(Node n, string contype, int id) {
+        _node = n;
+        _contype = contype;
+        _id = id;
+        _target_lock = null;
+        _cmp = new ConnectionMessageParser();
       }
-#if POB_LINK_DEBUG
-      Console.WriteLine("End Linker({0}).OutLinkHandler",_lid);
-#endif
-    }
-
-    /************  protected methods ***************/
-
-    /**
-     * Sends a StatusMessage request (local node) to the nearest right and 
-     * left neighbors (in the local node's ConnectionTable) of the new Connection.
-     */
-    protected void SendStatusMessagesToNeighbors()
-    {
-      
-      //the new connection's status response
-      StatusMessage new_status = _con.Status;
-      
-      //our request for the new connections' neighbors
-      string con_type_string = _peer_link_mes.ConTypeString;
-      StatusMessage req = _local_n.GetStatus(con_type_string, null);
-      req.Dir = ConnectionMessage.Direction.Request;
-      
-      AHAddress new_address = (AHAddress)_peer_link_mes.Local.Address;
-      Edge left_edge = _tab.GetLeftStructuredNeighborOf(new_address);
-      Edge right_edge = _tab.GetRightStructuredNeighborOf(new_address);
-
-      Packet tp = null;
-      if( left_edge != null ) {
-        req.Id = _id++;
-        tp = req.ToPacket();
-        left_edge.Send(tp);
-      }
-      if( right_edge != null && !left_edge.Equals(right_edge) ) {
-        req.Id = _id++;
-        tp = req.ToPacket();
-        right_edge.Send(tp);
-      }      
-    }
-    
-    /**
-     * Set the _target member variable and check for sanity
-     * We only set the target if we can get a lock on the address
-     * We can call this method more than once as long as we always
-     * call it with the same value for target
-     * If target is null we just return
-     * 
-     * @param target the value to set the target to.
-     * 
-     * @throws LinkException if the target is already * set to a different address
-     * @throws System.InvalidOperationException if we cannot get the lock
-     */
-    protected void SetTarget(Address target)
-    {
-      if ( target == null )
-        return;
-
-      lock( _sync ) {
+      /**
+       * Set the _target member variable and check for sanity
+       * We only set the target if we can get a lock on the address
+       * We can call this method more than once as long as we always
+       * call it with the same value for target
+       * If target is null we just return
+       * 
+       * @param target the value to set the target to.
+       * 
+       * @throws LinkException if the target is already * set to a different address
+       * @throws System.InvalidOperationException if we cannot get the lock
+       */
+      public void SetTarget(Address target)
+      {
+        if ( target == null )
+          return;
+  
+        ConnectionTable tab = _node.ConnectionTable;
         if( _target_lock != null ) {
           //This is the case where _target_lock has been set once
           if( ! target.Equals( _target_lock ) ) {
             throw new LinkException("Target lock already set to a different address");
           }
         }
-        else if( target.Equals( _local_n.Address ) )
+        else if( target.Equals( _node.Address ) )
           throw new LinkException("cannot connect to self");
         else {
-          lock( _tab.SyncRoot ) {
-            if( _tab.Contains( Connection.StringToMainType( _contype ), target) ) {
+          lock( tab.SyncRoot ) {
+            if( tab.Contains( Connection.StringToMainType( _contype ), target) ) {
               throw new LinkException("already connected");
             }
             //Lock throws an InvalidOperationException if it cannot get the lock
-            _tab.Lock( target, Connection.StringToMainType( _contype ), this );
+            tab.Lock( target, Connection.StringToMainType( _contype ), this );
             _target_lock = target;
           }
         }
       }
+      
+      public IEnumerator GetPacketEnumerator(Edge e) {
+        //Here we make and yield the LinkMessage request.
+	NodeInfo my_info = new NodeInfo( _node.Address, e.LocalTA );
+	NodeInfo remote_info = new NodeInfo( null, e.RemoteTA );
+	System.Collections.Specialized.StringDictionary attrs
+		 = new System.Collections.Specialized.StringDictionary();
+        attrs["type"] = _contype;
+	attrs["realm"] = _node.Realm;
+        _last_s_mes = new LinkMessage( attrs, my_info, remote_info );
+        _last_s_mes.Dir = ConnectionMessage.Direction.Request;
+        _last_s_mes.Id = _id++;
+        _last_s_packet = _last_s_mes.ToPacket();
+        yield return _last_s_packet;
+        //We should now have the response:
+        /**
+         * When we receive a LinkMessage response, we know
+         * the other party is willing to link with us.
+         * To acknowledge that we can complete the link,
+         * we send them a StatusMessage request.
+         *
+         * The other node must not consider the Edge connected
+         * until the StatusMessage request is received.
+         */
+        //Build the neighbor list:
+	LinkMessage lm = (LinkMessage)_last_r_mes;
+        /*
+         * So, we must have our link message now:
+	 * Make sure the link message is Kosher.
+         * This are critical errors.  This Link fails if these occur
+	 */
+	if( lm.ConTypeString != _contype ) {
+          throw new LinkException("Link type mismatch: "
+                                  + _contype + " != " + lm.ConTypeString );
+	}
+	if( lm.Attributes["realm"] != _node.Realm ) {
+          throw new LinkException("Realm mismatch: " +
+                                  _node.Realm + " != " + lm.Attributes["realm"] );
+	}
+        //Make sure we have the lock on this address, this could 
+        //throw an exception halting this link attempt.
+	SetTarget( lm.Local.Address );
+	
+	_last_s_mes = _node.GetStatus(lm.ConTypeString, lm.Local.Address);
+	_last_s_mes.Id = _id++;
+	_last_s_mes.Dir = ConnectionMessage.Direction.Request;
+        _last_s_packet = _last_s_mes.ToPacket();
+        yield return _last_s_packet;
+	StatusMessage sm = (StatusMessage)_last_r_mes;
+        Connection con = new Connection(e, lm.Local.Address, lm.ConTypeString,
+				        sm, lm);
+        //Return the connection, now we are done!
+        yield return con;
+      }
     }
+    
+    public void HandlePacket(Packet p, Edge edge)
+    {
+      if( _is_finished ) { return; }
+      ErrorMessage em = null;
+      try {
+        em = _link_state.SetLastRPacket(p);
+        //Note the time we got this packet
+        _last_packet_datetime = DateTime.Now;
+        _timeouts = 0;
+      }
+      catch(Exception x) {
+        /*
+         * SetLastRPacket can throw an exception on expected packets
+         * for now, we just ignore them and resend the most recently
+         * sent packet:
+         */
+        edge.Send( _link_state.LastSPacket );
+        return;
+      }
+      //If we get here, the packet must have been what we were expecting,
+      //or an ErrorMessage
+      if( em != null ) {
+        //We got an error
+	if( em.Ec == ErrorMessage.ErrorCode.InProgress ) {
+          RetryThisTA();
+        }
+        else {
+          //We failed.
+          Fail( "Got error: " + em.ToString() );
+        }
+      }
+      else {
+        try {
+          //Advance one step in the protocol
+	  object o = null;
+	  lock( _sync ) {
+            if( _link_enumerator.MoveNext() ) {
+              o = _link_enumerator.Current;
+	    }
+            else {
+              //We should never get here
+            }
+	  }
+          if( o is Packet ) {
+            //We need to send this packet
+            edge.Send( (Packet)o );
+          }
+          else if ( o is Connection ) {
+            //We have created our connection, Success!
+            Connection c = (Connection)o;
+            Succeed(c);
+          }
+        }
+        catch(InvalidOperationException x) {
+          //This is thrown when ConnectionTable cannot lock.  Lets try again:
+          RetryThisTA();
+        }
+        catch(Exception x) {
+          //The protocol was not followed correctly by the other node, fail
+          Fail(x.Message);
+        }
+      }
+    }
+
+    /************  protected methods ***************/
 
     /**
      * Called when there is a successful completion
      */
-    protected void Succeed()
+    protected void Succeed(Connection c)
     {
-#if POB_LINK_DEBUG
-      Console.WriteLine("Start Linker({0}).Succeed",_lid);
-#endif
+      ConnectionTable tab = _local_n.ConnectionTable;
       //log.Info("Link Success");
       if( _is_finished ) { return; }
       lock(_sync) {
         _is_finished = true;
+        _con = c;
         /* Stop the timer */
-        _local_n.HeartBeatEvent -= new EventHandler(this.OutgoingResendCallback);
+        _local_n.HeartBeatEvent -= new EventHandler(this.PacketResendCallback);
         /* Stop listening for close events */
         _e.ClearCallback(Packet.ProtType.Connection);
         _e.CloseEvent -= new EventHandler(this.CloseHandler);
       }
       try {
-#if POB_LINK_DEBUG
-        //This should never happen
-        if( _peer_link_mes == null ) {
-          Console.WriteLine("PeerLink is null!!!");
-        }
-        if( _e == null ) {
-          Console.WriteLine("Edge is null!!!");
-        }
-#endif
         /* Announce the connection */
-	_tab.Add(_con);
+	tab.Add(c);
       }
       catch(Exception x) {
         /* Looks like we could not add the connection */
@@ -585,13 +464,13 @@ namespace Brunet
          * add the connection.  Otherwise, we could have a race
          * condition
          */
-        _tab.Unlock( _target_lock, Connection.StringToMainType(_contype), this );
+	lock( _sync ) {
+          Address tlock = _link_state.TargetLock;
+          tab.Unlock( tlock, Connection.StringToMainType(_contype), _link_state );
+	}
         if( FinishEvent != null )
           FinishEvent(this, null);
       }
-#if POB_LINK_DEBUG
-      Console.WriteLine("End Linker({0}).Succeed",_lid);
-#endif
     }
 
     /**
@@ -599,24 +478,33 @@ namespace Brunet
      */
     protected void Stop(string log_message)
     {
-      Edge e_to_close;
-      if ( _target_lock != null ) {
-        _tab.Unlock( _target_lock, Connection.StringToMainType(_contype), this );
-	_target_lock = null;
+      Edge edge_to_clean = null;
+      lock( _sync ) {
+        if( _link_state != null ) {
+	  Address tlock = _link_state.TargetLock;
+          if ( tlock != null ) {
+            ConnectionTable tab = _local_n.ConnectionTable;
+            tab.Unlock( tlock, Connection.StringToMainType(_contype), _link_state );
+          }
+	  _link_state = null;
+	  _link_enumerator = null;
+	}
+	edge_to_clean = _e;
+	_e = null;
       }
       //log.Error(log_message);
       /* Stop the timer */
-      _local_n.HeartBeatEvent -= new EventHandler(this.OutgoingResendCallback);
-      e_to_close = _e;
+      _local_n.HeartBeatEvent -= new EventHandler(this.PacketResendCallback);
       //Release the lock
-      if( e_to_close != null ) {
-        e_to_close.ClearCallback(Packet.ProtType.Connection);
+      
+      if( edge_to_clean != null ) {
+        edge_to_clean.ClearCallback(Packet.ProtType.Connection);
         /* Stop listening for close events */
-        e_to_close.CloseEvent -= new EventHandler(this.CloseHandler);
+        edge_to_clean.CloseEvent -= new EventHandler(this.CloseHandler);
         /* Close the edge if it is not already in the table */
         CloseMessage close = new CloseMessage(log_message);
         close.Dir = ConnectionMessage.Direction.Request;
-        _local_n.GracefullyClose(_e, close);
+        _local_n.GracefullyClose(edge_to_clean, close);
       }      
     }
     /**
@@ -625,7 +513,6 @@ namespace Brunet
      */
     protected void Fail(string log_message)
     {
-      //log.Info("Link Failure");
 #if POB_LINK_DEBUG
       Console.WriteLine("Start Linker({0}).Fail({1})",_lid,log_message);
 #endif
@@ -642,39 +529,14 @@ namespace Brunet
 #endif
     }
 
-    /**
-     * Pops off the next TransportAddress in the _ta_queue if
-     * there is one, else it returns null
-     * @throw LinkException if there are no more TransportAddress objects
-     */
-    protected TransportAddress GetNextTA()
+    protected void PacketResendCallback(object node, EventArgs args)
     {
-      lock( _ta_queue ) {
-        if( _ta_queue.Count <= 0 )
-          throw new LinkException("no more TransportAddress objects");
-
-        /**
-         * As long as we have more TransportAddress objects, we just
-         * return the top of the queue
-         */
-        return (TransportAddress) _ta_queue.Dequeue();
-      }
-    }
-
-    protected void OutgoingResendCallback(object node, EventArgs args)
-    {
-#if POB_LINK_DEBUG
-      //Console.WriteLine("Start Linker({0}).OutgoingResendCallback",_lid);
-#endif
       try {
         lock( _sync ) {
           if( (! _is_finished) &&
               (DateTime.Now - _last_packet_datetime > _timeout ) &&
               (_timeouts <= _max_timeouts) ) {
-#if POB_LINK_DEBUG
-            Console.WriteLine("Linker({0}).Resending",_lid);
-#endif
-            _e.Send( _last_sent_packet );
+            _e.Send( _link_state.LastSPacket );
             _last_packet_datetime = DateTime.Now;
 	    //Increase the timeout by a factor of 4
 	    _ms_timeout = 4 * _ms_timeout;
@@ -682,29 +544,83 @@ namespace Brunet
             _timeouts++;
           }
           else if( _timeouts > _max_timeouts ) {
-            throw new LinkException("Linker timed out");
+            //This edge is not working, we need to restart on a new edge.
+            MoveToNextTA();   
           }
         }
       }
-      catch(LinkException lx) {
-        Fail(lx.Message);
+      catch(Exception ex) {
+	MoveToNextTA();
       }
-      catch(EdgeException ex) {
-        Fail(ex.Message);
-      }
-#if POB_LINK_DEBUG
-      //Console.WriteLine("End Linker({0}).OutgoingResendCallback",_lid);
-#endif
     }
 
+    /*
+     * This happens when an edge is bad: too much packet loss, unexpected
+     * edge closure, etc..
+     * There is no waiting here: we try immediately.
+     */
+    protected void MoveToNextTA() {
+      /*
+       * Here we drop the lock, and close the edge properly
+       */
+      Stop("restarting");
+      lock( _sync ) {
+	_link_state = null;
+	_link_enumerator = null;
+        //Time to go on to the next TransportAddress, and give up on this one
+        _restart_attempts = _MAX_RESTARTS;
+        _ta_queue.Dequeue();
+      }
+      StartLink();
+    }
+
+    /**
+     * We sleep some random period, and retry to connect without moving
+     * to the next TA.  This happens when we have the "double-lock" error.
+     */
+    protected void RetryThisTA() {
+      /*
+       * Here we drop the lock, and close the edge properly
+       */
+      Stop("restarting");
+      bool fail = false;
+      lock( _sync ) {
+	_link_state = null;
+	_link_enumerator = null;
+        //We can restart on this TA *if* 
+        if ( _restart_attempts > 0 ) {
+          _restart_attempts--;
+        }
+        else {
+          //Time to go on to the next TransportAddress, and give up on this one
+	  if( _ta_queue.Count > 0 ) {
+            _restart_attempts = _MAX_RESTARTS;
+            _ta_queue.Dequeue();
+	  }
+	  else {
+            //No more addresses to try, oh no!!
+            fail = true;
+	  }
+	}
+	_last_start = DateTime.Now;
+      }
+      if( fail ) {
+        Fail("no more tas to restart with");
+      }
+      else {
+        _local_n.HeartBeatEvent += new EventHandler(this.RestartLink);
+      }
+    }
+    
     /**
      * When we fail due to a ErrorMessage.ErrorCode.InProgress error
      * we wait restart to verify that we eventually got connected
      */
     protected void RestartLink(object node, EventArgs args)
     {
+      ConnectionTable tab = _local_n.ConnectionTable;
       if( _target != null 
-	  && _tab.Contains( Connection.StringToMainType( _contype ), _target) ) {
+	  && tab.Contains( Connection.StringToMainType( _contype ), _target) ) {
         //Looks like we got connected in the mean time, stop now...
         _local_n.HeartBeatEvent -= new EventHandler(this.RestartLink);
 	Fail("Connected before needed restart");
@@ -713,12 +629,9 @@ namespace Brunet
         TimeSpan restart_time = new TimeSpan(0,0,0,0,_ms_restart_time);
         if( DateTime.Now - _last_start > restart_time ) { 
 	  if ( _rand.NextDouble() < 0.1 ) {
-#if POB_LINK_DEBUG
-            Console.WriteLine("restart: about to call Link({0})",_lid);
-#endif
-            Link( _target, _tas, _contype);
+            //Time to start up again
             _local_n.HeartBeatEvent -= new EventHandler(this.RestartLink);
-	    //Now we are done and their should be
+            StartLink();
 	  }
 	}
       }
@@ -731,56 +644,46 @@ namespace Brunet
      */
     protected void TryNext(bool success, Edge e, Exception x)
     {
-#if POB_LINK_DEBUG
-      Console.WriteLine("TryNext ({0}): {1},{2},{3}",_local_n.Address,success,e,x);
-#endif
       try {
         if( success ) {
-          bool have_con = false;
-          ConnectionType ct;
-          lock( _tab.SyncRoot ) {
-            if( _tab.IsUnconnected( e ) ) {
-              //This edge is already in the midst of connected
-              success = false;
-            }
-            int index;
-            Address add;
-            have_con = _tab.GetConnection(e, out ct, out index, out add);
-            if( have_con == false ) {
-              /*
-              * This edge has no connection on it already.
-              */
-              _tab.AddUnconnected(e);
-            }
-          } //End of lock on ConnectionTable:
-                _tab.Disconnect(e);
-        }
-        if( success ) {
-          StartNextAttempt(e);
+          Packet p = null;
+          lock( _sync ) {
+            _e = e;
+            //We consider each edge a fresh start.
+            _timeouts = 0;
+            _restart_attempts = _MAX_RESTARTS;
+            _link_enumerator = _link_state.GetPacketEnumerator(e);
+            _link_enumerator.MoveNext(); //Move the protocol forward:
+            p = (Packet)_link_enumerator.Current;
+            _last_packet_datetime = DateTime.Now;
+          }
+          e.SetCallback(Packet.ProtType.Connection, this);
+          e.CloseEvent += new EventHandler(this.CloseHandler);
+          e.Send(p);
           //Register the call back:
-          _local_n.HeartBeatEvent
-          += new EventHandler(this.OutgoingResendCallback);
+          _local_n.HeartBeatEvent += new EventHandler(this.PacketResendCallback);
         }
         else {
-          //Stop listening to heartbeat event
-          _local_n.HeartBeatEvent -= new EventHandler(this.OutgoingResendCallback);
-          //Try to get another edge:
-          _ef.CreateEdgeTo( GetNextTA(),
-                            new EdgeListener.EdgeCreationCallback(this.TryNext) );
+          TransportAddress ta = null;
+          lock( _sync ) {
+            //Try to get another edge:
+            _ta_queue.Dequeue();
+            if( _ta_queue.Count > 0 ) {
+              ta = (TransportAddress)_ta_queue.Peek();
+            }
+          }
+          if( ta != null ) {
+            _local_n.EdgeFactory.CreateEdgeTo( ta,
+			    new EdgeListener.EdgeCreationCallback(this.TryNext) );
+          }
+          else {
+            Fail("No more TAs");
+          }
         }
       }
-      catch(LinkException lx) {
-	//GetNextTA will throw a link exception when it is out of TAs
-#if POB_LINK_DEBUG
-        System.Console.WriteLine("LinkException in Link:{0} ", lx.ToString() );
-#endif        
-        Fail(lx.Message);
-      }
       catch(Exception ex) {
-#if POB_LINK_DEBUG
-        System.Console.WriteLine("Exception in Link:{0} ", ex.ToString() );
-#endif
-        Fail(ex.Message);
+        //Fail(ex.Message);
+	MoveToNextTA();
       }
     }
 
@@ -789,53 +692,11 @@ namespace Brunet
      */
     protected void CloseHandler(object edge, EventArgs args)
     {
-#if POB_LINK_DEBUG
-      Console.WriteLine("Start Linker({0}).CloseHandler({1})",_lid,edge);
-#endif
-      Fail("edge closed");
-#if POB_LINK_DEBUG
-      Console.WriteLine("End Linker({0}).CloseHandler",_lid);
-#endif
-    }
-
-    /**
-     * @throw LinkException if we cannot start
-     */
-    protected void StartNextAttempt(Edge e)
-    {
-      try {
-        e.SetCallback(Packet.ProtType.Connection, this);
-        e.CloseEvent += new EventHandler(this.CloseHandler);
-	NodeInfo my_info = new NodeInfo( _local_add, e.LocalTA );
-	NodeInfo remote_info = new NodeInfo( null, e.RemoteTA );
-	System.Collections.Specialized.StringDictionary attrs
-		 = new System.Collections.Specialized.StringDictionary();
-        attrs["type"] = _contype;
-	attrs["realm"] = _local_n.Realm;
-        LinkMessage request = new LinkMessage( attrs, my_info, remote_info );
-        request.Dir = ConnectionMessage.Direction.Request;
-        request.Id = _id++;
-#if POB_LINK_DEBUG
-        Console.WriteLine("Linker({0}) on ({1}) sending ({2})",GetHashCode(),
-                          e, request);
-#endif
-        Packet rpack = request.ToPacket();
-        e.Send(rpack);
-        //Note the time we got this packet
-        lock( _sync ) {
-          //Update all the member variables
-          _e = e;
-          _last_packet_datetime = DateTime.Now;
-          _last_sent_packet = rpack;
-          _timeouts = 0;
-        }
-      }
-      catch(EdgeException x) {
-#if POB_LINK_DEBUG
-        Console.WriteLine("Linker({0}) got exception {1})",GetHashCode(), x);
-#endif
-        throw new LinkException("could not start", x);
-      }
+      /*
+       * This edge is no good
+       * Try the next available edge:
+       */
+      MoveToNextTA();
     }
   }
 }

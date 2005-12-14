@@ -71,14 +71,14 @@ for file in files:
     if node in struct_neighbors:
       target = node + 1;
       if target > max_node:
-        target = target - max_node
+        target = target - max_node - 1 + min_node
       if target in struct_neighbors[node]:
         pass
       else:
         print "%i -> %i struct missing" % (node, target)
       target = node + 2;
       if target > max_node:
-        target = target - max_node
+        target = target - max_node - 1 + min_node
       if target in struct_neighbors[node]:
         pass
       else:

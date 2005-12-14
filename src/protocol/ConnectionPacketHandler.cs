@@ -169,9 +169,18 @@ namespace Brunet
             */
 	    StatusMessage sm = (StatusMessage)cm;
 	    if (lm_to_add != null) {
+	      //This is part of connection process:
 	      response = _local.GetStatus( sm.NeighborType, lm_to_add.Local.Address );
 	    } else {
-	      response = _local.GetStatus( sm.NeighborType, null );
+	      //This is just a "regular" status request
+	      //update our table:
+	      Address fadd = null;
+	      Connection c = _tab.GetConnection(from);
+	      if( c != null ) {
+	        fadd = c.Address;
+		_tab.UpdateStatus(c, sm);
+              }  
+	      response = _local.GetStatus( sm.NeighborType, fadd );
 	    }
             response.Dir = ConnectionMessage.Direction.Response;
             response.Id = cm.Id;
