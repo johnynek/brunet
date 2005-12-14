@@ -378,9 +378,9 @@ namespace Brunet
     }
     
     /**
-     * Gets the edge for the left structured neighbor of a given AHAddress
+     * Gets the Connection for the left structured neighbor of a given AHAddress
      */
-    public Edge GetLeftStructuredNeighborOf(AHAddress address)
+    public Connection GetLeftStructuredNeighborOf(AHAddress address)
     {
       lock( _sync ) {
         int i = IndexOf(ConnectionType.Structured, address);
@@ -394,15 +394,15 @@ namespace Brunet
         Address neighbor_add=null;
         Edge    neighbor_edge=null;
         GetConnection(ConnectionType.Structured, i, out neighbor_add, out neighbor_edge);
-
-        return neighbor_edge;
+        
+        return GetConnection( neighbor_edge );
       }
     }
 
     /**
-     * Gets the edge for the right structured neighbor of a given AHAddress
+     * Gets the Connection for the right structured neighbor of a given AHAddress
      */
-    public Edge GetRightStructuredNeighborOf(AHAddress address)
+    public Connection GetRightStructuredNeighborOf(AHAddress address)
     {
       lock( _sync ) {
         int i = IndexOf(ConnectionType.Structured, address);
@@ -415,7 +415,7 @@ namespace Brunet
         Edge    neighbor_edge=null;
         GetConnection(ConnectionType.Structured, i, out neighbor_add, out neighbor_edge);
 
-        return neighbor_edge;
+        return GetConnection( neighbor_edge );
       }
     }
 
@@ -527,27 +527,27 @@ namespace Brunet
      * Returns at most i structured connections which are nearest
      * to destination
      * @param dest the target we are asking for connections close to
-     * @param i the maximum number of connections to return
+     * @param max_count the maximum number of connections to return
      * @return a list of structured connections closest to the destination
      */
-    public ArrayList GetNearestTo(AHAddress dest, int i)
+    public ArrayList GetNearestTo(AHAddress dest, int max_count)
     {
       ArrayList ret_val = new ArrayList();
       lock( _sync ) {
         int max = Count(ConnectionType.Structured);
-	if( i > max ) {
-          i = max;
+	if( max_count > max ) {
+          max_count = max;
 	}
         int idx = IndexOf(ConnectionType.Structured, dest);
 	if( idx < 0 ) {
           idx = ~idx;
 	}
-	int start = idx - i/2;
-	int end = start + i;
+	int start = idx - max_count/2;
+	int end = start + max_count;
 	for( int pos = start; pos < end; pos++) {
           Edge e = null;
           Address a = null;
-          GetConnection(ConnectionType.Structured, i, out a, out e);
+          GetConnection(ConnectionType.Structured, pos, out a, out e);
           ret_val.Add( GetConnection(e) );
         }
       }

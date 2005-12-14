@@ -29,11 +29,25 @@ namespace Brunet {
    * All LinkExceptions should be caught inside Linker.
    */
   public class LinkException : Exception {
+ 
+    protected bool _critical = false;
+    //this is true if we should halt the current link protocol
+    public bool IsCritical { get { return _critical; } }
+   
+    protected ErrorMessage _em;
+    public ErrorMessage EMToSend {
+      get { return _em; }
+    }
+    
     public LinkException():base()
     {
     }
     public LinkException(string message):base(message)
     {
+    }
+    public LinkException(string message, bool crit, ErrorMessage em) : base(message) {
+      _critical = crit;
+      _em = em;
     }
     public LinkException(string mes, Exception inner):base(mes, inner)
     {

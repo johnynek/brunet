@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define POB_DEBUG
 #define TRIM
+//#define PERIODIC_NEIGHBOR_CHK
 
 using System;
 using System.Collections;
@@ -403,13 +404,54 @@ namespace Brunet {
         }
         TimeSpan elapsed = DateTime.Now - _last_connection_time;
 	if( elapsed.TotalSeconds >= _trim_delay ) {
+          ConnectionTable tab = _node.ConnectionTable;
 #if POB_DEBUG
     //Console.WriteLine("Go for State check");
 #endif
-	  //else {
+
+#if PERIODIC_NEIGHBOR_CHK
+        /*
+         * If we haven't had any connections in a while, we check, our
+         * neighbors to see if there are node we should try to 
+         * connect to:
+         * This is basically the same code as in ConnectorEndHandler
+         */
+          Address ltarget = null;
+          Address nltarget = null;
+          Address rtarget = null;
+          Address nrtarget = null;
+          Hashtable neighbors_to_con = new Hashtable();
+          Hashtable add_to_neighbor = new Hashtable();
+          lock( tab.SyncRoot ) {
+            ArrayList neighs = new ArrayList();
+            foreach(Connection c in tab.GetConnections(ConnectionType.Structured)) {
+              foreach(NodeInfo n in c.Status.Neighbors) {
+                neighbors_to_con[n] = c;
+                add_to_neighbor[n.Address] = n;
+              }
+              neighs.AddRange( c.Status.Neighbors );
+            }
+            CheckForNearerNeighbors(neighs, ltarget, out nltarget,
+                                rtarget, out nrtarget);
+          }
+          if( nrtarget != null ) {
+            NodeInfo target_info = (NodeInfo)add_to_neighbor[nrtarget];
+            Connection con = (Connection)neighbors_to_con[target_info];
+            Address forwarder = con.Address;
+            short ttl = _node.DefaultTTLFor( forwarder );
+            ForwardedConnectTo(forwarder, nrtarget, ttl, struc_near);
+          }
+          if( nltarget != null && !nltarget.Equals(nrtarget) ) {
+            NodeInfo target_info = (NodeInfo)add_to_neighbor[nltarget];
+            Connection con = (Connection)neighbors_to_con[target_info];
+            Address forwarder = con.Address;
+            short ttl = _node.DefaultTTLFor( forwarder );
+            ForwardedConnectTo(forwarder, nltarget, ttl, struc_near);
+          }
+#endif
+
 #if TRIM
             //We may be able to trim connections.
-            ConnectionTable tab = _node.ConnectionTable;
 	    ArrayList sc_trim_candidates = new ArrayList();
 	    ArrayList near_trim_candidates = new ArrayList();
 	    lock( tab.SyncRoot ) {
@@ -671,7 +713,8 @@ namespace Brunet {
       BigInteger rdist = -1;
       AHAddress local = (AHAddress)_node.Address;
       foreach(NodeInfo ni in neighbors) {
-        if( !tab.Contains(ConnectionType.Structured, ni.Address) ) {
+        if( !( _node.Address.Equals(ni.Address) ||
+	       tab.Contains(ConnectionType.Structured, ni.Address) ) ) {
           AHAddress adr = (AHAddress)ni.Address;
           int n_left = LeftPosition( adr );
           int n_right = RightPosition( adr );
@@ -708,8 +751,14 @@ namespace Brunet {
          */
         Connector ctr = (Connector)connector;
         ArrayList neighs = new ArrayList();
+        Hashtable neighbors_to_ctm = new Hashtable();
+        Hashtable add_to_neighbor = new Hashtable();
         foreach(ConnectToMessage ctm in ctr.ReceivedCTMs) {
           if( ctm.Neighbors != null ) {
+            foreach(NodeInfo n in ctm.Neighbors) {
+              neighbors_to_ctm[n] = ctm;
+              add_to_neighbor[n.Address] = n;
+            }
             neighs.AddRange( ctm.Neighbors );
           }
         }
@@ -717,16 +766,23 @@ namespace Brunet {
         Address nltarget = null;
         Address rtarget = null;
         Address nrtarget = null;
-
         lock( _node.ConnectionTable.SyncRoot ) {
           CheckForNearerNeighbors(neighs, ltarget, out nltarget,
                                 rtarget, out nrtarget);
         }
         if( nrtarget != null ) {
-          ConnectTo(nrtarget, _node.DefaultTTLFor(nrtarget), struc_near);
+          NodeInfo target_info = (NodeInfo)add_to_neighbor[nrtarget];
+          ConnectToMessage ctm = (ConnectToMessage)neighbors_to_ctm[target_info];
+          Address forwarder = ctm.Target.Address;
+          short ttl = _node.DefaultTTLFor( forwarder );
+          ForwardedConnectTo(forwarder, nrtarget, ttl, struc_near);
         }
         if( nltarget != null && !nltarget.Equals(nrtarget) ) {
-          ConnectTo(nltarget, _node.DefaultTTLFor(nltarget), struc_near);
+          NodeInfo target_info = (NodeInfo)add_to_neighbor[nltarget];
+          ConnectToMessage ctm = (ConnectToMessage)neighbors_to_ctm[target_info];
+          Address forwarder = ctm.Target.Address;
+          short ttl = _node.DefaultTTLFor( forwarder );
+          ForwardedConnectTo(forwarder, nltarget, ttl, struc_near);
         }
       }
     }
@@ -865,11 +921,11 @@ namespace Brunet {
     
       ConnectionTable tab = _node.ConnectionTable;
       Connection c = ((ConnectionEventArgs)args).Connection; 
-      StatusMessage sm = c.Status;
       lock( tab.SyncRoot ) {
         CheckForNearerNeighbors(c.Status.Neighbors, ltarget, out nltarget,
                                 rtarget, out nrtarget);
       }
+      //Console.WriteLine("Status Changed:\n{0}\n{1}\n{2}\n{3}",c, c.Status, nltarget, nrtarget);
        /* 
        * We want to make sure not to hold the lock on ConnectionTable
        * while we try to make new connections
