@@ -140,6 +140,12 @@ namespace Brunet
      * of scope
      */
     protected ArrayList _linkers;
+    public ArrayList Linkers {
+      get {
+	return _linkers;
+      }
+    }
+    
     /**
      * How many time outs are allowed before assuming failure
      */
@@ -165,6 +171,11 @@ namespace Brunet
      * We lock this when we need thread safety
      */
     protected object _sync;
+    public Object SyncRoot {
+      get {
+	return _sync;
+      }
+    }
     static Connector() {
       _timeout = new TimeSpan(0, 0, 0, 0, AHMsTimeOut);
     }

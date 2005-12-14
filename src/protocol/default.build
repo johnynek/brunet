@@ -161,7 +161,7 @@
     </copy>
   </target>
 
-<!-- Arijit Ganguly - enables POB_LINK_DEBUG, ARI_LINK_DEBUG, ARI_CHOTA_DEBUG, ARI_CTM_DEBUG-->
+<!-- Arijit Ganguly - enables LINK_DEBUG, ARI_CHOTA_DEBUG, ARI_CTM_DEBUG-->
   <target
     name="ari-build"
     depends="init"
@@ -184,7 +184,7 @@
     <csc
       target="library"
       debug="${build.debug}"
-      define="POB_LINK_DEBUG,ARI_LINK_DEBUG,ARI_CHOTA_DEBUG,ARI_CTM_DEBUG" 	
+      define="LINK_DEBUG,ARI_CHOTA_DEBUG,ARI_CTM_DEBUG" 	
       output="${build.dir}/${package.name}/bin/${assembly}.dll">
       <sources failonempty="true">
         <include name="*.cs"/>

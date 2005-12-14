@@ -84,6 +84,11 @@ namespace Brunet
 
     /** global lock for thread synchronization */
     protected object _sync;
+    public Object SyncRoot {
+      get {
+	return _sync;
+      }
+    }
 
     /**
      * When we are all done working, this event is fired
@@ -103,7 +108,10 @@ namespace Brunet
      * after each timeout.  It starts at 2 second.
      * Then 4 seconds, then 8 seconds.
      */
-    protected int _ms_timeout = 2000;
+    protected static readonly int DEFAULT_TIMEOUT = 2000;
+    protected int _ms_timeout = DEFAULT_TIMEOUT;
+    
+
     protected TimeSpan _timeout;
 
     //If we get an ErrorCode.InProgress, we restart after
@@ -117,7 +125,7 @@ namespace Brunet
    
     protected LinkProtocolState _link_state;
     protected IEnumerator _link_enumerator;
-#if POB_LINK_DEBUG
+#if LINK_DEBUG
     private int _lid;
 #endif
     /**
@@ -125,7 +133,7 @@ namespace Brunet
      */
     public Linker(Node local)
     {
-#if POB_LINK_DEBUG
+#if LINK_DEBUG
       _lid = GetHashCode() + (int)DateTime.Now.Ticks;
       Console.WriteLine("Making Linker: {0}",_lid);
 #endif
@@ -186,7 +194,14 @@ namespace Brunet
           if( _ta_queue.Count > 0 ) {
             next_ta = (TransportAddress)_ta_queue.Peek();
             _link_state = new LinkProtocolState(_local_n, _contype, _id);
+#if LINK_DEBUG
+	    Console.WriteLine("Linker ({0}) attempting to lock {1}", _lid, _target);
+#endif
             _link_state.SetTarget(_target);
+#if LINK_DEBUG
+	    Console.WriteLine("Linker ({0}) acquired lock on {1}", _lid, _target);
+#endif
+
 	  }
 	}
         /*
@@ -197,6 +212,9 @@ namespace Brunet
          * the Link attempt Fails.
          */
         if( next_ta != null ) {
+#if LINK_DEBUG
+	  Console.WriteLine("Linker: ({0}) Trying TA: {1}", _lid, next_ta);
+#endif
           _local_n.EdgeFactory.CreateEdgeTo( next_ta,
 			    new EdgeListener.EdgeCreationCallback(this.TryNext) );
         }
@@ -205,6 +223,9 @@ namespace Brunet
         }
       }
       catch(InvalidOperationException x) {
+#if LINK_DEBUG
+        Console.WriteLine("Linker ({0}) failed to lock {1}", _lid, _target);
+#endif
         //This is thrown when ConnectionTable cannot lock.  Lets try again:
         RetryThisTA();
       }
@@ -323,6 +344,9 @@ namespace Brunet
         _last_s_mes.Dir = ConnectionMessage.Direction.Request;
         _last_s_mes.Id = _id++;
         _last_s_packet = _last_s_mes.ToPacket();
+#if LINK_DEBUG
+        Console.WriteLine("LinkState: To send link request: {0}; Length: {1}", _last_s_mes, _last_s_packet.Length);
+#endif
         yield return _last_s_packet;
         //We should now have the response:
         /**
@@ -357,10 +381,16 @@ namespace Brunet
 	_last_s_mes.Id = _id++;
 	_last_s_mes.Dir = ConnectionMessage.Direction.Request;
         _last_s_packet = _last_s_mes.ToPacket();
+#if LINK_DEBUG
+        Console.WriteLine("LinkState: To send status request: {0}; Length: {1}", _last_s_mes, _last_s_packet.Length);
+#endif
         yield return _last_s_packet;
 	StatusMessage sm = (StatusMessage)_last_r_mes;
         Connection con = new Connection(e, lm.Local.Address, lm.ConTypeString,
 				        sm, lm);
+#if LINK_DEBUG
+        Console.WriteLine("LinkState: New connection added. ");
+#endif
         //Return the connection, now we are done!
         yield return con;
       }
@@ -513,7 +543,7 @@ namespace Brunet
      */
     protected void Fail(string log_message)
     {
-#if POB_LINK_DEBUG
+#if LINK_DEBUG
       Console.WriteLine("Start Linker({0}).Fail({1})",_lid,log_message);
 #endif
       lock(_sync) {
@@ -524,7 +554,7 @@ namespace Brunet
       if( FinishEvent != null ) {
         FinishEvent(this, null);
       }
-#if POB_LINK_DEBUG
+#if LINK_DEBUG
       Console.WriteLine("End Linker({0}).Fail",_lid);
 #endif
     }
@@ -536,6 +566,9 @@ namespace Brunet
           if( (! _is_finished) &&
               (DateTime.Now - _last_packet_datetime > _timeout ) &&
               (_timeouts <= _max_timeouts) ) {
+#if LINK_DEBUG
+            Console.WriteLine("Linker ({0}) resending packet; attempt # {1}; length: {2}", _lid, _timeouts, _link_state.LastSPacket.Length);
+#endif
             _e.Send( _link_state.LastSPacket );
             _last_packet_datetime = DateTime.Now;
 	    //Increase the timeout by a factor of 4
@@ -545,6 +578,9 @@ namespace Brunet
           }
           else if( _timeouts > _max_timeouts ) {
             //This edge is not working, we need to restart on a new edge.
+#if LINK_DEBUG
+            Console.WriteLine("Linker ({0}) giving up the TA, moving on to next", _lid);
+#endif
             MoveToNextTA();   
           }
         }
@@ -568,7 +604,13 @@ namespace Brunet
 	_link_state = null;
 	_link_enumerator = null;
         //Time to go on to the next TransportAddress, and give up on this one
+        //TODO: set the timeout to default value
         _restart_attempts = _MAX_RESTARTS;
+	_ms_timeout = DEFAULT_TIMEOUT;
+
+#if LINK_DEBUG
+        Console.WriteLine("Linker: {0} Move on to the next TA", _lid);
+#endif
         _ta_queue.Dequeue();
       }
       StartLink();
@@ -589,12 +631,18 @@ namespace Brunet
 	_link_enumerator = null;
         //We can restart on this TA *if* 
         if ( _restart_attempts > 0 ) {
+#if LINK_DEBUG
+	  Console.WriteLine("Linker ({0}) restarting; remaining attempts: {1}", _lid, _restart_attempts);
+#endif
+
           _restart_attempts--;
         }
         else {
           //Time to go on to the next TransportAddress, and give up on this one
 	  if( _ta_queue.Count > 0 ) {
+            /** TODO: make aure that you set the timeout to original value. */
             _restart_attempts = _MAX_RESTARTS;
+	    _ms_timeout = DEFAULT_TIMEOUT;
             _ta_queue.Dequeue();
 	  }
 	  else {
@@ -667,12 +715,21 @@ namespace Brunet
           TransportAddress ta = null;
           lock( _sync ) {
             //Try to get another edge:
+#if LINK_DEBUG
+	    Console.WriteLine("Linker: {0}; Move on to the next TA", _lid);
+#endif
+	    _ms_timeout = DEFAULT_TIMEOUT;
             _ta_queue.Dequeue();
             if( _ta_queue.Count > 0 ) {
               ta = (TransportAddress)_ta_queue.Peek();
+
             }
           }
           if( ta != null ) {
+#if LINK_DEBUG
+	    Console.WriteLine("Linker: {0}; Trying TA: {1}", _lid, ta);
+#endif
+
             _local_n.EdgeFactory.CreateEdgeTo( ta,
 			    new EdgeListener.EdgeCreationCallback(this.TryNext) );
           }
