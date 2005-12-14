@@ -184,7 +184,9 @@ namespace Brunet
 	    }
             response.Dir = ConnectionMessage.Direction.Response;
             response.Id = cm.Id;
-            //log.Info("Sending Status response:" + response.ToString());
+#if ARI_LINK_DEBUG
+	    Console.WriteLine("ConnectionPacketHandler -  Sending status response: {0}; length: {1}", response, response.ToPacket().Length);
+#endif
             from.Send(response.ToPacket());
 
             
