@@ -48,11 +48,11 @@ public class BrunetChatIM
   private Gtk.TextBuffer _text_buf_recipient;
  
   /**
-   * Reference to the ChatMessageHandler.  We need
+   * Reference to the BrunetChatMain.  We need
    * to tell this object when we close the chat
    * message
    */
-  private ChatMessageHandler _cmh;
+  private BrunetChatMain _bcm;
   
   /** The buddy who will recieve messages.
    */
@@ -70,11 +70,11 @@ public class BrunetChatIM
    *  @param core the main application
    *  @param r_add the recipient address
    */
-  public BrunetChatIM(User u, Buddy bud, ChatMessageHandler cmh)
+  public BrunetChatIM(User u, Buddy bud, BrunetChatMain bcm)
   {
     _user = u;
     _recipient_buddy = bud;
-    _cmh = cmh;
+    _bcm = bcm;
     
     string fname = "BrunetChat.glade";
     string root = "windowBrunetChatIM";
@@ -207,7 +207,7 @@ public class BrunetChatIM
   {
     args.RetVal = true;
     windowBrunetChatIM.Destroy();
-    _cmh.CloseChatSession(_recipient_buddy);
+    _bcm.CloseChatSession(_recipient_buddy);
   }
   
 }

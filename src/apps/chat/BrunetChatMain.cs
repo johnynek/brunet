@@ -62,11 +62,6 @@ public class BrunetChatMain
     }
   }
   
-  /** Handles incoming chat messages and routes them to the correct ChatIM
-   * window.
-   */
-  private ChatMessageHandler _message_handler;
-  
   /**
    * Allows us to use the request/reply protocol for chats
    */
@@ -93,14 +88,8 @@ public class BrunetChatMain
     }
   }
 
-  public ChatMessageHandler MessageHandler
-  {
-    get
-    {
-      return _message_handler;
-    }
-  }
-  
+  private Hashtable _message_sinks;
+
   /** Main program. Logs in the user and creates the main window.
    */
   public static void Main (string[] args)
@@ -139,7 +128,7 @@ public class BrunetChatMain
    * @param a_user The local user who will being chatting
    * @param chat_config Serializable meta-data 
    */
-  public BrunetChatMain(User a_user ,ChatConfigSerialization chat_config)
+  public BrunetChatMain(User a_user, ChatConfigSerialization chat_config)
   {
     string fname = "BrunetChat.glade";
     string root = "windowBrunetChatMain";
@@ -195,13 +184,15 @@ public class BrunetChatMain
     _status_col.PackStart (statusrenderer, true);
     _status_col.AddAttribute (statusrenderer, "text", 2);
     treeviewBuddies.AppendColumn (_status_col);
+   
+    _message_sinks = new Hashtable();
     
-    _message_handler = new ChatMessageHandler(this);
-    //_brunet_node.Subscribe(AHPacket.Protocol.Chat,_message_handler);
     _rrman = new ReqrepManager(_brunet_node);
-    _rrman.Bind( AHPacket.Protocol.Chat, _message_handler);
     
     _chat_config.DeserializeBuddyList();
+    _rrman.Bind( AHPacket.Protocol.Chat, this.Buddies );
+    //Handle the chat events locally
+    this.Buddies.ChatEvent += this.IncomingChatHandler;
     foreach (Buddy bud in Buddies){
       if( bud.Address != null ) {
 	bud.RRMan = _rrman;
@@ -219,6 +210,38 @@ public class BrunetChatMain
     _brunet_node.Connect();
   }
 
+  /**
+   * The buddy list sends an event when there is an incoming chat
+   */
+  public void IncomingChatHandler(object buddy, System.EventArgs args)
+  {
+    Buddy b = (Buddy)buddy;
+    ChatEventArgs cea = (ChatEventArgs)args;
+    Address sourceaddress = cea.Source;
+    Brunet.Chat.Message mes = cea.Message;
+       
+    bool ismessagefromself = sourceaddress.Equals( BrunetNode.Address );
+       
+    if (true == ismessagefromself)
+    {
+      Console.WriteLine("Message is from myself.");
+      Console.WriteLine("This should never happen.");
+      Console.WriteLine("Throw an exception here.");
+    }
+    else {
+      BrunetChatIM imwin = OpenChatSession(b);
+      Threads.Enter();
+      imwin.DeliverMessage(mes.Body);
+      Threads.Leave();
+      /*
+       * Send a terminal bell when we get a message.
+       * Otherwise, we tend not to notice our Buddies
+       */
+      char bell_char = (char)7;
+      System.Console.Write(bell_char);
+    }
+  }
+  
   public void OnButtonAddBuddyClicked(System.Object obj, EventArgs args) 
   {
     BrunetChatAddBuddy dialog = new BrunetChatAddBuddy();
@@ -245,7 +268,7 @@ public class BrunetChatMain
     if ( row_sel.GetSelected (out model, out iter) ){
       string val = (string) model.GetValue (iter, 1);
       Buddy b = Buddies.GetBuddyWithEmail(val);
-      _message_handler.OpenChatSession(b);
+      OpenChatSession(b);
     }
   }
 
@@ -266,6 +289,38 @@ public class BrunetChatMain
     Application.Quit();
   }
 
+    /**
+     * Close a chat session once we are done with it.
+     * @param dest the destination address to close the chat session with
+     */
+    public void CloseChatSession(Buddy b)
+    {
+      _message_sinks.Remove(b);
+    }
+    
+    /**
+     * Creates a new chat session or raises an existing one in response to a
+     * new message.
+     * @param recipient Buddy the message is from
+     */
+    public BrunetChatIM OpenChatSession(Buddy recipient)
+    {
+      bool doeswindowexist = _message_sinks.Contains( recipient );
+      
+      BrunetChatIM sink = null;
+      if ( !doeswindowexist ) {
+         sink = new BrunetChatIM(CurrentUser, recipient, this);
+         _message_sinks.Add(recipient , sink );
+      }
+      else {
+        sink = (BrunetChatIM)_message_sinks[recipient];
+        ///\todo raise window
+        ///
+      }
+      
+      return sink;
+    }
+  
   //Double clicks on the tree view
   public void on_treeviewBuddies_row_activated (object o, EventArgs args)
   {
@@ -278,7 +333,7 @@ public class BrunetChatMain
       if ( row_sel.GetSelected (out model, out iter) ){
         string val = (string) model.GetValue (iter, 1);
         Buddy b = Buddies.GetBuddyWithEmail(val);
-        _message_handler.OpenChatSession(b);
+        OpenChatSession(b);
       }
     }  
     catch(Exception ex){
