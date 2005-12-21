@@ -1,12 +1,13 @@
 using System;	
 using System.IO;
 using System.Collections;
+using System.Xml;
 using System.Xml.Serialization;
 
 namespace Brunet{
 
 [XmlRootAttribute("BuddyList")]
-public class BuddyList
+public class BuddyList : IRequestHandler
 {
   private ArrayList buddyArrayList;
   
@@ -39,6 +40,12 @@ public class BuddyList
     }
   }
   
+  /**
+   * When a chat message is received, this event is
+   * fired
+   */
+  public event EventHandler ChatEvent;
+        
   protected Hashtable _add_to_buddy;
   protected Hashtable _email_to_buddy;
   
@@ -84,5 +91,48 @@ public class BuddyList
   {
     return buddyArrayList.GetEnumerator(); 
   }
+
+    /*
+     * This is a request of us.
+     */
+    public void HandleRequest(ReqrepManager man, ReqrepManager.ReqrepType rt,
+		              object req, string prot,
+			      System.IO.MemoryStream payload, AHPacket packet)
+    {
+      XmlReader r = new XmlTextReader(payload);
+      //Here is the Message Handling:
+      XmlSerializer mser = new XmlSerializer(typeof(Brunet.Chat.Message));
+      if( mser.CanDeserialize(r) ) {
+        Brunet.Chat.Message mes = (Brunet.Chat.Message)mser.Deserialize(r);
+        EventArgs args = new ChatEventArgs(packet.Source, mes);
+        Buddy b = GetBuddyWithAddress(packet.Source);
+        ChatEvent(b, args);
+	byte[] resp = new byte[1];
+	man.SendReply(req, resp);
+      }
+    }
 }
+
+
+  /**
+   * These are the arguments for the event of a chat
+   */
+  public class ChatEventArgs : System.EventArgs {
+
+    protected Brunet.Chat.Message _message;
+    public Brunet.Chat.Message Message {
+      get {
+        return _message;
+      }
+    }
+    protected Address _source;
+    public Address Source { get { return _source; } }
+
+    public ChatEventArgs(Address source, Brunet.Chat.Message m)
+    {
+      _source = source; 
+      _message = m;
+    }
+  }
+
 }
