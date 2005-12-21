@@ -39,7 +39,19 @@ public class BuddyList : IRequestHandler
       }
     }
   }
-  
+ 
+  protected User _user;
+  [XmlIgnore]
+  public User User {
+    get { return _user; }
+    set {
+      if( _user == null ) {
+        //Only set this once:
+        _user = value;
+        _user.Changed += this.UserHandler;
+      }
+    }
+  }
   /**
    * When a chat message is received, this event is
    * fired
@@ -99,16 +111,60 @@ public class BuddyList : IRequestHandler
 		              object req, string prot,
 			      System.IO.MemoryStream payload, AHPacket packet)
     {
+      /*
+       * Ignore requests from ourselves:
+       */
+      if( packet.Source.Equals( User.Address ) ||
+	  !packet.Destination.Equals( User.Address ) ) {
+	//Ignore these requests
+        return;
+      }
       XmlReader r = new XmlTextReader(payload);
       //Here is the Message Handling:
       XmlSerializer mser = new XmlSerializer(typeof(Brunet.Chat.Message));
-      if( mser.CanDeserialize(r) ) {
+      XmlSerializer pser = new XmlSerializer(typeof(Brunet.Chat.Presence));
+      try {
+       if( mser.CanDeserialize(r) ) {
         Brunet.Chat.Message mes = (Brunet.Chat.Message)mser.Deserialize(r);
         EventArgs args = new ChatEventArgs(packet.Source, mes);
         Buddy b = GetBuddyWithAddress(packet.Source);
         ChatEvent(b, args);
 	byte[] resp = new byte[1];
 	man.SendReply(req, resp);
+       }
+       else if( pser.CanDeserialize(r) ) {
+        //This is a presence request, handle it:
+        Brunet.Chat.Presence pres = (Brunet.Chat.Presence)pser.Deserialize(r);
+        Buddy b = GetBuddyWithAddress(packet.Source);
+        if( b != null ) {
+          b.Presence = pres; 
+          System.IO.MemoryStream ms = new System.IO.MemoryStream();
+          XmlWriter w = new XmlTextWriter(ms, System.Text.Encoding.UTF8);
+          Brunet.Chat.Presence local_p = new Brunet.Chat.Presence();
+          local_p.From = User.Address.ToString();
+          local_p.To = b.Address.ToString();
+          local_p.Show = User.Show;
+          local_p.Status = User.Status;
+          pser.Serialize(w, local_p);
+          man.SendReply( req, ms.ToArray() ); 
+         }
+         else {
+          //Who is this? as if we are going to reply....
+         }
+       }
+      }
+      catch(System.Xml.XmlException x) {
+        //We couldn't deserialize...
+      }
+    }
+    /**
+     * When the user changes, this code handles it:
+     */
+    public void UserHandler(object user, System.EventArgs args)
+    {
+      //Send new status to all buddies:
+      foreach(Buddy b in this) {
+        b.SendPresence(); 
       }
     }
 }
