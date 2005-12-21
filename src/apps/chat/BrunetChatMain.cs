@@ -1,12 +1,13 @@
-namespace Brunet {
 using System;
 using System.Collections;
 using GtkSharp;
 using Gtk;
 using Gdk;
 using Glade;
-using System.Security.Cryptography;
 using System.Text;
+
+namespace Brunet {
+
 public class BrunetChatMain
 {
   [Glade.Widget]
@@ -90,6 +91,10 @@ public class BrunetChatMain
 
   private Hashtable _message_sinks;
 
+  /**
+   * When we are exiting the app this is set to true
+   */
+  private bool _shutting_down = false;
   /** Main program. Logs in the user and creates the main window.
    */
   public static void Main (string[] args)
@@ -136,17 +141,10 @@ public class BrunetChatMain
     //Glade.XML gxml = new Glade.XML (null,fname, root, null);
     gxml.Autoconnect(this);
     
-    //compute the sha1 hash of the email address(UTF-8 encoded) and
-    //use that the hash as the 160-bit address.
     _current_user = a_user;
-    SHA1 sha = new SHA1CryptoServiceProvider(); 
-    byte[] hashedemail = sha.ComputeHash(Encoding.UTF8.GetBytes(_current_user.Email));
-    //inforce type 0
-    hashedemail[Address.MemSize - 1] &= 0xFE;
-    _local_ahaddress = new AHAddress(hashedemail);
     //We make the node in the "chatrealm" so it won't interfere with
     //testing of any other Brunet nodes.
-    _brunet_node = new StructuredNode(_local_ahaddress, "chatrealm");
+    _brunet_node = new StructuredNode(a_user.Address, "chatrealm");
 
     _chat_config = chat_config;
     _chat_config.BuddyListFilename = "Buddylist.xml";
@@ -191,11 +189,14 @@ public class BrunetChatMain
     
     _chat_config.DeserializeBuddyList();
     _rrman.Bind( AHPacket.Protocol.Chat, this.Buddies );
+    this.Buddies.User = CurrentUser;
     //Handle the chat events locally
     this.Buddies.ChatEvent += this.IncomingChatHandler;
     foreach (Buddy bud in Buddies){
       if( bud.Address != null ) {
 	bud.RRMan = _rrman;
+	bud.User = CurrentUser;
+        bud.StatusChanged += this.BuddyChangeHandler;
         _store.AppendValues(bud.Alias, bud.Email, bud.Status);
       }
     }
@@ -207,7 +208,13 @@ public class BrunetChatMain
       _brunet_node.RemoteTAs.Add(new TransportAddress(ta) );
       Console.WriteLine(ta);
     }
+    _brunet_node.ConnectionTable.ConnectionEvent += this.OnConnectionChange;
+    _brunet_node.ConnectionTable.DisconnectionEvent += this.OnConnectionChange;
     _brunet_node.Connect();
+    /*
+     * Now set our status, so we can send it to the other neighbors:
+     */
+    CurrentUser.Show = Brunet.Chat.Presence.ShowValues.Chat;
   }
 
   /**
@@ -229,8 +236,9 @@ public class BrunetChatMain
       Console.WriteLine("Throw an exception here.");
     }
     else {
-      BrunetChatIM imwin = OpenChatSession(b);
       Threads.Enter();
+      //These are GTK operations which need to be synchronized
+      BrunetChatIM imwin = OpenChatSession(b);
       imwin.DeliverMessage(mes.Body);
       Threads.Leave();
       /*
@@ -247,7 +255,9 @@ public class BrunetChatMain
     BrunetChatAddBuddy dialog = new BrunetChatAddBuddy();
     dialog.dialogBrunetChatAddBuddy.Run();
     Buddy newbud = dialog.NewBuddy;
-    newbud.RRMan = RRMan; 
+    newbud.RRMan = RRMan;
+    newbud.User = CurrentUser;
+    newbud.StatusChanged += this.BuddyChangeHandler;
     if (newbud != null){
       /// check that the new buddy is not already in the buddy hashtable
       if (! Buddies.Contains( newbud ) ){
@@ -275,7 +285,7 @@ public class BrunetChatMain
   public void OnWindowBrunetChatMainDeleteEvent (object o, DeleteEventArgs args) 
   {
     args.RetVal = true;
-    
+    CurrentUser.Show = Brunet.Chat.Presence.TypeValues.Unavailable; 
     //Write out the RemoteTAs that we may have learned:
     _chat_config.RemoteTAs.SetTAs( _brunet_node.RemoteTAs );
     _chat_config.SerializeRemoteTAs();
@@ -285,8 +295,35 @@ public class BrunetChatMain
 
     windowBrunetChatMain.Hide();
     Console.WriteLine("quit");
+    _shutting_down = true;
     _brunet_node.Disconnect();
-    Application.Quit();
+  }
+
+  public void OnConnectionChange(object contab, EventArgs args)
+  {
+    if( _shutting_down == true ) {
+      ConnectionTable tab = (ConnectionTable)contab;
+      if( tab.Count(ConnectionType.Structured) == 0 ) {
+        //Looks like we are done:
+	Application.Quit();
+      }
+    }
+    else {
+      //Looks like we just got a connection, if we don't have any buddies
+      //online, lets just check them again...
+      int online = 0;
+      foreach(Buddy b in Buddies) {
+        if( b.Status == Brunet.Chat.Presence.ShowValues.Chat ) {
+          online++;
+	}
+      }
+      if( online == 0 ) {
+        //Send presence to the buddies, maybe we just got connected:
+	foreach(Buddy b in Buddies) {
+          b.SendPresence();
+	}
+      }
+    }
   }
 
     /**
@@ -296,6 +333,29 @@ public class BrunetChatMain
     public void CloseChatSession(Buddy b)
     {
       _message_sinks.Remove(b);
+    }
+    
+
+    /**
+     * When a buddy changes, and we need to display it, this method
+     * handles it
+     */
+    public void BuddyChangeHandler(object buddy, System.EventArgs args)
+    {
+      TreeIter it;
+      Buddy b = (Buddy)buddy;
+      Threads.Enter();
+      if( _store.GetIterFirst(out it) ) {
+        //Let's find the info for this buddy:
+	do {
+          string buddy_alias = (string)_store.GetValue(it,0);
+	  if( b.Alias.Equals( buddy_alias ) ) {
+            _store.SetValue(it,2, b.Status);
+	    //Now we are done
+	  }
+	} while( _store.IterNext(ref it) );
+      }
+      Threads.Leave();
     }
     
     /**
