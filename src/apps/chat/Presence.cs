@@ -1,3 +1,6 @@
+using System.Xml;
+using System.Xml.Serialization;
+
 namespace Brunet.Chat {
 
 [System.Xml.Serialization.XmlTypeAttribute("presence")]
@@ -35,6 +38,13 @@ public class Presence {
   }
   public Presence() { }
 
+  public override string ToString() {
+    XmlSerializer ser = new XmlSerializer(typeof(Brunet.Chat.Presence));
+    System.IO.StringWriter sw = new System.IO.StringWriter();
+    XmlWriter w = new XmlTextWriter(sw);
+    ser.Serialize(w, this);
+    return sw.ToString();
+  }
   /**
    * This inner class holds some constants
    */
