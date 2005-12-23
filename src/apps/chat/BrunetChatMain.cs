@@ -206,15 +206,11 @@ public class BrunetChatMain
     foreach (string ta in tas)
     {
       _brunet_node.RemoteTAs.Add(new TransportAddress(ta) );
-      Console.WriteLine(ta);
+      //Console.WriteLine(ta);
     }
     _brunet_node.ConnectionTable.ConnectionEvent += this.OnConnectionChange;
     _brunet_node.ConnectionTable.DisconnectionEvent += this.OnConnectionChange;
     _brunet_node.Connect();
-    /*
-     * Now set our status, so we can send it to the other neighbors:
-     */
-    CurrentUser.Show = Brunet.Chat.Presence.ShowValues.Chat;
   }
 
   /**
@@ -231,16 +227,22 @@ public class BrunetChatMain
        
     if (true == ismessagefromself)
     {
-      Console.WriteLine("Message is from myself.");
-      Console.WriteLine("This should never happen.");
-      Console.WriteLine("Throw an exception here.");
+      Console.Error.WriteLine("Message is from myself.");
+      Console.Error.WriteLine("This should never happen.");
+      Console.Error.WriteLine("Throw an exception here.");
     }
     else {
-      Threads.Enter();
-      //These are GTK operations which need to be synchronized
-      BrunetChatIM imwin = OpenChatSession(b);
-      imwin.DeliverMessage(mes.Body);
-      Threads.Leave();
+      /*
+       * We use an anonymous delegate here to handle the threading.
+       */
+      Gtk.ThreadNotify notify = new ThreadNotify(
+	delegate {
+          //These are GTK operations which need to be synchronized
+          BrunetChatIM imwin = OpenChatSession(b);
+          imwin.DeliverMessage(mes.Body);
+	});
+      notify.WakeupMain();
+      //Threads.Leave();
       /*
        * Send a terminal bell when we get a message.
        * Otherwise, we tend not to notice our Buddies
@@ -294,21 +296,39 @@ public class BrunetChatMain
     _chat_config.SerializeBuddyList();
 
     windowBrunetChatMain.Hide();
-    Console.WriteLine("quit");
+    //Console.WriteLine("quit");
     _shutting_down = true;
     _brunet_node.Disconnect();
+    lock( _brunet_node.ConnectionTable.SyncRoot ) {
+      if( _brunet_node.ConnectionTable.TotalCount == 0 ) {
+        //there are no connections, go ahead and finish
+	Application.Quit();
+      }
+    }
   }
 
   public void OnConnectionChange(object contab, EventArgs args)
   {
+    ConnectionTable tab = (ConnectionTable)contab;
     if( _shutting_down == true ) {
-      ConnectionTable tab = (ConnectionTable)contab;
-      if( tab.Count(ConnectionType.Structured) == 0 ) {
+      if( tab.TotalCount == 0 ) {
         //Looks like we are done:
 	Application.Quit();
       }
     }
     else {
+     /*
+      * The Chat system uses the structured connections.
+      * Once we have a few, it might be worth updating
+      * our status
+      */
+     if( tab.Count(ConnectionType.Structured) > 0 ) {
+       /*
+        * Now set our status, so we can send it to the other neighbors:
+        */
+      CurrentUser.Show = Brunet.Chat.Presence.ShowValues.Chat;
+
+	     
       //Looks like we just got a connection, if we don't have any buddies
       //online, lets just check them again...
       int online = 0;
@@ -323,6 +343,7 @@ public class BrunetChatMain
           b.SendPresence();
 	}
       }
+     }
     }
   }
 
@@ -342,20 +363,25 @@ public class BrunetChatMain
      */
     public void BuddyChangeHandler(object buddy, System.EventArgs args)
     {
-      TreeIter it;
       Buddy b = (Buddy)buddy;
-      Threads.Enter();
-      if( _store.GetIterFirst(out it) ) {
-        //Let's find the info for this buddy:
-	do {
-          string buddy_alias = (string)_store.GetValue(it,0);
-	  if( b.Alias.Equals( buddy_alias ) ) {
-            _store.SetValue(it,2, b.Status);
-	    //Now we are done
-	  }
-	} while( _store.IterNext(ref it) );
-      }
-      Threads.Leave();
+      /*
+       * We use an anonymous delegate here to handle the threading.
+       */
+      Gtk.ThreadNotify notify = new ThreadNotify(
+	delegate {
+          TreeIter it;
+          if( _store.GetIterFirst(out it) ) {
+            //Let's find the info for this buddy:
+            do {
+              string buddy_alias = (string)_store.GetValue(it,0);
+    	      if( b.Alias.Equals( buddy_alias ) ) {
+                _store.SetValue(it,2, b.Status);
+    	      //Now we are done
+    	      }
+    	    } while( _store.IterNext(ref it) );
+          }
+	});
+      notify.WakeupMain();
     }
     
     /**

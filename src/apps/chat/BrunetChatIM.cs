@@ -113,7 +113,6 @@ public class BrunetChatIM
           TextTag[] sender_ar;
           sender_ar = new TextTag[1];
           TextTag t_tag = _text_buf_display.TagTable.Lookup("Sender Color");
-          //Console.WriteLine(t_tag.ForegroundGdk.ToString());
           if (t_tag != null)
           {
             sender_ar[0] = t_tag;
@@ -163,7 +162,6 @@ public class BrunetChatIM
       TextTag[] recipient_ar;
       recipient_ar = new TextTag[1];
       TextTag t_tag = _text_buf_display.TagTable.Lookup("Recipient Color");
-      Console.WriteLine(t_tag.ForegroundGdk.ToString());
       if (t_tag != null)
       {
         recipient_ar[0] = t_tag;
@@ -181,8 +179,6 @@ public class BrunetChatIM
       //_text_buf_display.Insert(
       //    _text_buf_display.EndIter,
       //    "<"+_recipient_buddy.Alias+"> " );
-      
-      Console.WriteLine(a_msg ); 
       
       _text_buf_display.Insert(_text_buf_display.EndIter,a_msg);
       _text_buf_display.Insert(

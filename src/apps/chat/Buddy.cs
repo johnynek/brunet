@@ -137,6 +137,7 @@ public class Buddy : IReplyHandler
     }
     //This buddy had an error, unless it was about Presence, we should check
     //presence:
+    System.Console.WriteLine("In HandleError with: {0}",o);
     if( o is Brunet.Chat.Presence ) {
       //I guess this buddy is offline:
       Status = Brunet.Chat.Presence.TypeValues.Unavailable;
