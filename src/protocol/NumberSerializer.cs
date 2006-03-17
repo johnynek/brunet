@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using System;
+using System.IO;
 using System.Net;
 using System.Text;
 
@@ -38,6 +39,15 @@ namespace Brunet
     {
       //We just need one more byte than the UTF8 encoding does
       return Encoding.UTF8.GetByteCount(s) + 1; 
+    }
+    public static bool ReadBool(Stream s)
+    {
+      int val = s.ReadByte();
+      if( val < 0 ) {
+        throw new Exception("Reached EOF");
+      }
+      //If the value is 0, false, otherwise true 
+      return (val > 0);
     }
     /**
      * Reads a network endian (MSB) from bin
@@ -186,6 +196,25 @@ namespace Brunet
       byte[] arr = BitConverter.GetBytes(net_value);
       Array.Copy(arr, 0, target, offset, arr.Length);
     }
+    public static void WriteInt(int val, Stream s)
+    {
+      byte[] data = new byte[4];
+      WriteInt(val, data, 0);
+      s.Write(data, 0, 4);
+    }
+    public static void WriteUInt(uint val, byte[] target, int offset)
+    {
+      for(int i = 0; i < 4; i++) {
+        target[offset + i] = (byte)(0xFF & (val >> 8*(3-i)));
+      }
+    }
+    public static void WriteUInt(uint val, Stream s)
+    {
+      for(int i = 0; i < 4; i++) {
+        byte tmp = (byte)(0xFF & (val >> 8*(3-i)));
+	s.WriteByte(tmp);
+      }
+    }
 
     public static void WriteShort(short value, byte[] target,
                                   int offset)
@@ -193,6 +222,24 @@ namespace Brunet
       short net_value = IPAddress.HostToNetworkOrder(value);
       byte[] arr = BitConverter.GetBytes(net_value);
       Array.Copy(arr, 0, target, offset, arr.Length);
+    }
+    public static void WriteShort(short val, Stream s)
+    {
+      byte[] data = new byte[2];
+      WriteShort(val, data, 0);
+      s.Write(data, 0, 2);
+    }
+    public static void WriteUShort(ushort val, byte[] target, int offset)
+    {
+      target[offset] = (byte)( 0xFF & (val >> 8) );
+      target[offset + 1] = (byte)( 0xFF & (val) );
+    }
+    public static void WriteUShort(ushort val, Stream s)
+    {
+      byte one = (byte)( 0xFF & (val >> 8) );
+      byte two = (byte)( 0xFF & (val) );
+      s.WriteByte(one);
+      s.WriteByte(two);
     }
     /**
      * Write a UTF8 encoding of the string into the byte array
@@ -209,6 +256,23 @@ namespace Brunet
       //Write the null:
       target[offset + bcount] = 0;
       return bcount + 1;
+    }
+    /**
+     * Write a UTF8 encoding of the string into the byte array
+     * and terminate it with a "0x00" byte.
+     * @param svalue the string to write into the byte array
+     * @param the Stream to write it into
+     * @return the number of bytes written
+     */
+    public static int WriteString(string svalue, Stream s)
+    {
+      Encoding e = Encoding.UTF8;
+      byte[] data = e.GetBytes(svalue);
+      //Write the data:
+      s.Write(data, 0, data.Length);
+      //Write the null:
+      s.WriteByte(0);
+      return data.Length + 1;
     }
 
     public static void WriteLong(int lval, byte[] target, int offset)

@@ -4,29 +4,20 @@ Serialization is similar to ASN.1 and the DBUS method signature system
 Objects have variable length headers that give the type and
 possibly the length:
 
-Constants:
-0 : null
-T : boolean true
-F : boolean false
-
 Non-numeric types:
-_ : null terminated UTF-8 string.  The reason for this character "_"
-    is because using any letter will make the string harder to read
-    when looking at the byte stream as ASCII text by a human, and
-    "_" seemed the least intrusive.
+b : boolean
+s : null terminated UTF-8 string
+0 : null value.
 
-Integral Typecodes (uses network endianism):
-b : signed byte
-B : unsigned byte
-s : signed short
-S : unsigned short
+Numeric Typecodes (uses network endianism):
+y : signed byte
+Y : unsigned byte
+h : signed short
+H : unsigned short
 i : signed int
 I : unsigned int
 l : signed long
 L : unsigned long
-
-non-integral numbers
-f : float (32 bit)
 
 numeric arrays:
 a : array.  Immediately following the 'a' character there is
@@ -36,23 +27,20 @@ a : array.  Immediately following the 'a' character there is
     their typecode prefix.
 
 delimited structures:
-(,) : list of objects: ex: (bbbb) a list of 4 bytes.
-{,} : mapping of objects: ex: {_i_i_i} a map of three key-value pairs.
+(,) : list of objects: ex: (yyyy) a list of 4 bytes.
+{,} : mapping of objects: ex: {sisisi} a map of three key-value pairs.
       must enclose an even number of objects.
 
 Exceptions:
-X..x : a mapping like structure delimited with x,
-       which may have the following keys
-    code -> int
-    message -> string
-    stacktrace -> string
+x : Represents an exception: a 4 byte integer followed by a null terminated
+    string.  Example: x\0\0\0\0something bad\0 
     
     
 Examples (using \n to represent the byte with value n, and \xN as hex)
 
 sHello World\x0   is "Hello World"
 y\xEF is 128
-aY\x02i\0\0\0\128\0\0\0\55  is int[] { 128, 55 }
+aiY\x02\128\55  is int[] { 128, 55 }
 (y\x11(b\x0b\x01))  is list(17, list(false, true) )
 
 
