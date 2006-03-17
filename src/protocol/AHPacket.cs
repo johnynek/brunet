@@ -312,6 +312,13 @@ namespace Brunet
     virtual public MemoryStream GetPayloadStream(int offset) {
       return new MemoryStream(_payload, offset, _payload.Length - offset, false);
     }
+    
+    /** Method to convert an  AHPacket, into a DirectPacket.
+     *  @param direct_packet ooresponding DirectPacket (out paramater)
+     */
+    public void ToDirectPacket(out DirectPacket direct_packet) {
+      direct_packet = new DirectPacket(_pt, _payload);
+    }
 
     /**
      * Inner class to represent the options

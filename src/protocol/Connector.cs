@@ -277,14 +277,14 @@ namespace Brunet
               _got_ctm = true;
               _got_ctms.Add(new_ctm);
               //_log.Info("Got CTM Response: " + cm.ToString());
-              Linker l = new Linker(_local_node);
-              _linkers.Add(l);
-              l.Link(new_ctm.Target.Address,
-                     new_ctm.Target.Transports,
-                     new_ctm.ConnectionType);
-            }
-          }
-        }
+	      //we have to be careful that we don't create a linker flood. 
+
+	      ConnectionSetupManager c_mgr = _local_node.ConnectionSetupManager;
+	      c_mgr.StartLinking(new_ctm.Target.Address, new_ctm.Target.Transports, 
+				 new_ctm.ConnectionType);
+	    }
+	  }
+	}
         catch(Exception x) {
           //_log.Error(x);
         }

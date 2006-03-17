@@ -130,7 +130,7 @@ namespace Brunet
         if (cm.Dir == ConnectionMessage.Direction.Request) {
           ConnectionMessage response = null;
 	  if (cm is PingMessage) {
-#if ARI_LINK_DEBUG
+#if LINK_DEBUG
 	    Console.WriteLine("ConnectionPacketHandler - Getting a ping request; edge: {0}; length: {1}",
                               from, p.Length);
 #endif
@@ -146,7 +146,7 @@ namespace Brunet
             from.Send(response.ToPacket());
 	  }
 	  else if (cm is StatusMessage) {
-#if ARI_LINK_DEBUG
+#if LINK_DEBUG
 	    Console.WriteLine("ConnectionPacketHandler - Getting a status request; edge: {0}; length: {1}",
                               from, p.Length);
 #endif
@@ -184,7 +184,7 @@ namespace Brunet
 	    }
             response.Dir = ConnectionMessage.Direction.Response;
             response.Id = cm.Id;
-#if ARI_LINK_DEBUG
+#if LINK_DEBUG
 	    Console.WriteLine("ConnectionPacketHandler -  Sending status response: {0}; length: {1}", response, response.ToPacket().Length);
 #endif
             from.Send(response.ToPacket());
@@ -201,7 +201,7 @@ namespace Brunet
 					      lm_to_add.ConTypeString,
 					      sm,
 					      lm_to_add);
-#if ARI_LINK_DEBUG
+#if LINK_DEBUG
 	      Console.WriteLine("ConnectionPacketHandler - Creating a new connection: {0}", con);
 #endif
 	      _tab.Add(con);
@@ -210,7 +210,7 @@ namespace Brunet
             }
           }
           else if (cm is CloseMessage) {
-#if ARI_LINK_DEBUG
+#if LINK_DEBUG
 	    Console.WriteLine("ConnectionPacketHandler - Getting a close request; edge: {0}; length: {1}",
                               from, p.Length);
 #endif
@@ -242,7 +242,7 @@ namespace Brunet
             CloseHandler(from, null);
           }
           else if (cm is LinkMessage) {
-#if ARI_LINK_DEBUG
+#if LINK_DEBUG
 	    Console.WriteLine("ConnectionPacketHandler - Getting a link request; edge: {0}; length: {1}",
                               from, p.Length);
 #endif
@@ -259,11 +259,11 @@ namespace Brunet
             ErrorMessage err = null;
             lock( _sync ) {
               if( !_edge_to_lm.ContainsKey( from ) ) {
-#if ARI_LINK_DEBUG
+#if LINK_DEBUG
 		Console.WriteLine("ConnectionPacketHandler - Checking if can connect.");
 #endif
                 if( CanConnect(lm, from, out err) ) {
-#if ARI_LINK_DEBUG
+#if LINK_DEBUG
 		  Console.WriteLine("ConnectionPacketHandler - Yes we can connect connect.");
 #endif
                   //We can connect, add this LinkMessage to the table
@@ -290,12 +290,12 @@ namespace Brunet
               response = new LinkMessage( attrs, local_info, remote_info );
               response.Id = lm.Id;
               response.Dir = ConnectionMessage.Direction.Response;
-#if ARI_LINK_DEBUG
+#if LINK_DEBUG
 	      Console.WriteLine("ConnectionPacketHandler - Sending a link response.");
 #endif
             }
             else {
-#if ARI_LINK_DEBUG
+#if LINK_DEBUG
 	      Console.WriteLine("ConnectionPacketHandler - Sending an error response.");
 #endif
               response = err;
@@ -306,7 +306,7 @@ namespace Brunet
         }
         else {
           if (cm is StatusMessage) {
-#if ARI_LINK_DEBUG
+#if LINK_DEBUG
 	    Console.WriteLine("ConnectionPacketHandler - Getting a status response -- testlink-- edge: {0}; length: {1}",
                               from, p.Length);
 #endif
@@ -367,16 +367,16 @@ namespace Brunet
         else {
           //Everything is looking good:
           try {
-#if ARI_LINK_DEBUG
+#if LINK_DEBUG
 	    Console.WriteLine("ConnectionPacketHandler - Trying to lock connection table: {0}", lm);
 #endif
             _tab.Lock( lm.Local.Address, lm.ConnectionType, this );
-#if ARI_LINK_DEBUG
+#if LINK_DEBUG
 	    Console.WriteLine("ConnectionPacketHandler - Successfully locked connection table: {0}", lm);
 #endif
           }
           catch(InvalidOperationException iox) {
-#if ARI_LINK_DEBUG
+#if LINK_DEBUG
 	    Console.WriteLine("ConnectionPacketHandler - Cannot lock connection table: {0}", lm);
 #endif
             //Lock can throw this type of exception

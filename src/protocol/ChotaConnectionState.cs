@@ -22,7 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using System;
 using System.Collections;
 
-/** The class maintains the ChotaConnectionState. 
+/** The class maintains the state of prospective ChotaConnections. 
  *  This is used by ChotaConnectionOverlord to decide if we should make
  *  connection attempt.
  */
@@ -31,37 +31,42 @@ namespace Brunet {
   public class ChotaConnectionState {
     /** target we are keeping state about. */
     protected Address _target;
+
     /** connector associated with the state. */
     protected Connector _con = null;
-    /** linkers associated with the connection. */
-    protected ArrayList _linkers;
-#if ARI_CHOTA_DEBUG
-    public ArrayList Linkers {
+    
+    //boolean flag indicating we got a packet back from the node
+    //we initiate ChotaConnections only if we observe bidirectional connectivity
+    private bool _received;
+
+    public bool Received {
       get {
-	return _linkers;
+	return _received;
+      }
+      set {
+#if ARI_CHOTA_DEBUG
+	if (value) {
+	  Console.WriteLine("ChotaConnectionState:  Detecting bidirectional connectivity");
+	}
+#endif
+	_received = value;
       }
     }
-#endif
 
+    
     public Address Address {
       get {
 	return _target;
       }
     }
+
     /** default constructor. */
     public ChotaConnectionState(Address target) {
-      _linkers = new ArrayList();
       _target = target;
     }
  
-    /** Whether the linker is associated with this state. 
-     *  (Needed when searching for linker that has ended)
-     */    
-    public bool ContainsLinker(Linker l) {
-      return _linkers.Contains(l);
-    }
-    /** wther we should make a connection attempt. 
-     *  only when there are no active linkers or connectors. 
+    /** whether we should make a connection attempt. 
+     *  only when there are no active connectors. 
      */
     public bool CanConnect {
       get {
@@ -69,11 +74,11 @@ namespace Brunet {
 	if (_con != null) {
 	  Console.WriteLine("ChotaConnectionState:  Active connector exists. (Don't reattempt)");
 	}
-	if (_linkers.Count > 0) {
-	  Console.WriteLine("ChotaConnectionState:  Active linker exists. (Don't reattempt)");
+	if (!_received) {
+	  Console.WriteLine("ChotaConnectionState:  No bidirectional connectivity (Don't reattempt)");
 	}
 #endif
-	if (_con == null && _linkers.Count == 0) {
+	if (_con == null && _received) {
 	  return true;
 	}
 	return false;
@@ -89,15 +94,6 @@ namespace Brunet {
       get {
 	return _con;
       }
-    }
-    
-    /** Connector just ended. We add all unfinished linkers here. */
-    public void AddLinker(Linker l) {
-      _linkers.Insert(0, l);
-    }
-    /** Remove a linker from the state. The linker just ended. */
-    public void RemoveLinker(Linker l) {
-      _linkers.Remove(l);
     }
   }
 }

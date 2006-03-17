@@ -65,6 +65,10 @@ namespace Brunet
       case Packet.ProtType.AH:
         p = new AHPacket(binpack, off, length);
         break;
+      case Packet.ProtType.Direct:
+	//the new packet type that we have added into the system
+	p = new DirectPacket(binpack, off, length);
+	break;
       default:
         throw new ParseException("Unrecognized Packet Type");
       }

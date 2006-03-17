@@ -111,6 +111,9 @@ namespace Brunet
         _local_add = add;
         AHAddressComparer cmp = new AHAddressComparer(add);
         _subscription_table = new Hashtable();
+
+	_connection_setup_manager = new ConnectionSetupManager(this);
+
         _connection_table = new ConnectionTable(cmp);
         _connection_table.ConnectionEvent +=
           new EventHandler(this.ConnectionHandler);
@@ -148,6 +151,13 @@ namespace Brunet
      * of certain packets.
      */
     protected Hashtable _subscription_table;
+
+    /**
+     * Keep track of all the linkers that are currently active. 
+     * We do not want to create a linker flood.
+     */
+    protected ConnectionSetupManager _connection_setup_manager;
+
 
     /**
      * This object handles new Edge objects, and
@@ -249,6 +259,15 @@ namespace Brunet
      * Manages the various mappings associated with connections
      */
     public virtual ConnectionTable ConnectionTable { get { return _connection_table; } }
+
+    /** public accessor to get access to the linkers table. */
+    public ConnectionSetupManager ConnectionSetupManager {
+      get {
+	return _connection_setup_manager;
+      }
+    }
+
+
     //The timer that tells us when to HeartBeatEvent
     protected Timer _timer;
 
@@ -399,6 +418,11 @@ namespace Brunet
       ConnectionEventArgs ce_args = (ConnectionEventArgs) args;
       Edge edge = ce_args.Edge;
       edge.SetCallback(Packet.ProtType.AH, this);
+      //by Arijit Ganguly
+      //also register a callback for direct packets which we may get
+#if ARI_DIRECT_ENABLE
+      edge.SetCallback(Packet.ProtType.Direct, this);
+#endif      
 
       /*
        * Here we record TransportAddress objects.
@@ -642,6 +666,12 @@ namespace Brunet
       if( p.type == Packet.ProtType.AH ) {
         Send(p, from);
       }
+#if ARI_DIRECT_ENABLE
+      //added by Arijit Ganguly for handling direct packets
+      if (p.type == Packet.ProtType.Direct) {
+	HandleDirectPacket(from, (DirectPacket) p);
+      }
+#endif      
       else if( p.type == Packet.ProtType.Connection ) {
         GracefulClosePacketCallback(p, from); 
       }
@@ -766,11 +796,13 @@ namespace Brunet
       //System.Console.WriteLine("Entering Send for node {0} packet {1}", this.Address, p.ToString() );
 
       int sent = 0;
+
       AHPacket packet = (AHPacket) p;
       Address dest = packet.Destination;
+      IRouter router = GetRouterForType(dest.GetType());
+      
       bool deliver_locally = false;
 
-      IRouter router = GetRouterForType(dest.GetType());
 
       //System.Console.WriteLine("Sending with Router: {0}", router.ToString());
 
@@ -820,7 +852,24 @@ namespace Brunet
     virtual public void Send(Packet p)
     {
       //Send without avoiding any edges
-      Send(p, null);
+      bool directly_routable = false;
+      AHPacket packet = (AHPacket) p;
+#if ARI_DIRECT_ENABLE
+      //directly routable packets enabled.
+      DirectlyRoute(packet, out directly_routable);
+#endif      
+      if (!directly_routable) {
+#if ARI_DIRECT_DEBUG
+	Console.WriteLine("Packet not routed directly. Using regular router means.");
+#endif
+	Send(p, null);
+      } else {
+#if ARI_DIRECT_DEBUG
+	Console.WriteLine("Packet routed directlty. Bypassing all routers. ");
+#endif
+      }
+
+
       if (SendPacketEvent != null) {
 	SendPacketEvent(this, new SendPacketEventArgs(p));
       }
@@ -906,6 +955,119 @@ namespace Brunet
       }
     }
 
-  }
+    /** Method to convert DirectPacket into an AHPacket
+     *  @param edge edge the packet came from 
+     *  @param direct_packet direct_packet which we just received
+     *  @param ah_packet corresponding AHPacket (out paramater)
+     */
+    void HandleDirectPacket(Edge edge, DirectPacket direct_packet) {
+#if ARI_DIRECT_DEBUG
+      Console.WriteLine("Received a direct packet. Looking to handle it..");
+#endif
 
+      //to find out the source address, we simply have to lookup the connection table
+      lock(_connection_table.SyncRoot) {
+	Connection c = _connection_table.GetConnection(edge);
+	string payload_prot = direct_packet.PayloadType;
+	if (c.Address is AHAddress && _local_add is AHAddress && 
+	    payload_prot == AHPacket.Protocol.IP) {
+#if ARI_DIRECT_DEBUG
+	  Console.WriteLine("Sanity check (address type checks, payload protocol) successfull, deflating packet");
+#endif
+
+	  Address source = c.Address;
+	  Address dest = _local_add;
+	  short ttl = 0;
+	  short hops = 1;
+	  AHPacket packet = new AHPacket(hops, ttl, source, dest, payload_prot, 
+					 direct_packet.Payload);
+	  //deliver the packet locally, wihout going through any routing hastle
+#if ARI_DIRECT_DEBUG
+	  Console.WriteLine("Inflated packet from {0} to {1} bytes", direct_packet.Length, 
+			    packet.Length);
+      Console.WriteLine("Announcing packet reception....");
+#endif
+
+	  Announce(packet, edge);
+	} else {
+	  //protocol is only restricted to structured nodes; why did we get this packet
+	  //from this edge
+	  ; //ignore
+#if ARI_DIRECT_DEBUG
+      Console.WriteLine("Sanity check (address type checks, payload protocol) failed, ignoring packet");
+#endif
+	}
+      }
+    }
+    /** 
+     * Method that checks if the packet is routable as a direct packet.
+     * Please note that we do such tricks only for AHAddress packets
+     */
+    void DirectlyRoute(AHPacket packet, out bool directly_routable) {
+#if ARI_DIRECT_DEBUG
+      Console.WriteLine("Testing if packet is routable directly. ");
+#endif
+      directly_routable = false;
+      Address dest = packet.Destination as AHAddress;
+      string payload_prot = packet.PayloadType;
+
+      //only if destination is a structured node. and payload protocol is IP
+      if (dest != null && payload_prot == AHPacket.Protocol.IP) {
+#if ARI_DIRECT_DEBUG
+	Console.WriteLine("Packet is addressed to a structured address, and has IP-payload ");
+#endif
+	Connection next_con = null;
+	lock(_connection_table.SyncRoot)
+	  {
+	    //check if there is a leaf connection
+	    foreach(Connection c in _connection_table.GetConnections(ConnectionType.Leaf)) {
+	      if( c.Address.Equals(dest) ) {
+		//We can route it to this 
+		next_con = c;
+#if ARI_DIRECT_DEBUG
+		Console.WriteLine("Found a leaf connection to send packet on.. ");
+#endif
+		break;
+	      }
+	    }
+	    //otherwise look for a structured connection
+	    if (next_con == null) {
+	      //check if there is a structured connection
+	      foreach(Connection c in _connection_table.GetConnections(ConnectionType.Structured)) {
+		if( c.Address.Equals(dest) ) {
+		  //We can route it to this 
+		  next_con = c;
+#if ARI_DIRECT_DEBUG
+		  Console.WriteLine("Found a structured connection to send packet on.. ");
+#endif
+		  break;
+		}
+	      }
+	    }
+	  }//end of connection table lock;
+	if (next_con != null) {//directly routable
+	  directly_routable = true;
+#if ARI_DIRECT_DEBUG
+	  Console.WriteLine("Converting to direct packet.... ");
+#endif
+	  DirectPacket direct_packet = null;
+	  packet.ToDirectPacket(out direct_packet);
+#if ARI_DIRECT_DEBUG
+	  Console.WriteLine("Converted AHPacket: {0} to DirectPacket {1} bytes", packet.Length, 
+			    direct_packet.Length);
+	  Console.WriteLine("Using the edge directly to send away the direct packet. ");
+#endif
+	  next_con.Edge.Send(direct_packet);
+	} else {
+#if ARI_DIRECT_DEBUG
+	  Console.WriteLine("Couldn't find an edge to send packet on. ");
+#endif  
+	}
+      } else {
+#if ARI_DIRECT_DEBUG
+	Console.WriteLine("Packet not suitable for direct delivery ");
+#endif  
+      }
+    }
+  }
 }
