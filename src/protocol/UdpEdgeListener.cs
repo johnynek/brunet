@@ -241,7 +241,7 @@ namespace Brunet
      * We loop waiting for edges that need to send,
      * or data on the socket.
      */
-    protected void SocketThread()
+    protected void SocketThread() // error happening here
     {
       //Wait 10 ms before giving up on a read
       int microsecond_timeout = 10000;
@@ -341,7 +341,13 @@ namespace Brunet
               NumberSerializer.WriteInt(sender.ID, _packet_buffer, 0);
               NumberSerializer.WriteInt(sender.RemoteID, _packet_buffer, 4);
               p.CopyTo(_packet_buffer, 8);
-              s.SendTo(_packet_buffer, 0, 8 + p.Length, SocketFlags.None, e);
+	      
+	      try {	//catching SocketException
+              	s.SendTo(_packet_buffer, 0, 8 + p.Length, SocketFlags.None, e);
+	      }
+	      catch (SocketException) {
+		      Console.WriteLine("Network is unreachable");
+	      }
             }
           }
         } while( more_to_send );

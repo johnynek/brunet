@@ -102,6 +102,8 @@
         <include name="*.cs"/>
       </sources>
       <references>
+        <include name="Mono.Security.dll" />
+        
  <!-- 
         <include name="${build.dir}/${package.name}/bin/log4net.dll" />
         <include name="${lib.dir}/NUnit.Framework.dll" />
@@ -146,6 +148,7 @@
         <include name="*.cs"/>
       </sources>
       <references>
+        <include name="Mono.Security.dll" />
  <!-- 
         <include name="${build.dir}/${package.name}/bin/log4net.dll" />
         <include name="${lib.dir}/NUnit.Framework.dll" />
@@ -161,7 +164,7 @@
     </copy>
   </target>
 
-<!-- Arijit Ganguly - enables LINK_DEBUG, ARI_CHOTA_DEBUG, ARI_CTM_DEBUG-->
+<!-- Arijit Ganguly - enables LINK_DEBUG, ARI_CHOTA_DEBUG, ARI_CTM_DEBUG, CNX_SETUP_DEBUG -->
   <target
     name="ari-build"
     depends="init"
@@ -184,12 +187,105 @@
     <csc
       target="library"
       debug="${build.debug}"
-      define="LINK_DEBUG,ARI_CHOTA_DEBUG,ARI_CTM_DEBUG" 	
+      define="LINK_DEBUG,ARI_CHOTA_DEBUG,ARI_CTM_DEBUG,CNX_SETUP_DEBUG,POB_TCP_DEBUG" 	
       output="${build.dir}/${package.name}/bin/${assembly}.dll">
       <sources failonempty="true">
         <include name="*.cs"/>
       </sources>
       <references>
+        <include name="Mono.Security.dll" />
+ <!-- 
+        <include name="${build.dir}/${package.name}/bin/log4net.dll" />
+        <include name="${lib.dir}/NUnit.Framework.dll" />
+ -->
+      </references>
+    </csc>
+
+    <!-- finally copy the newly compiled library to the lib directory  -->    
+    <copy todir="${lib.dir}">
+       <fileset basedir="${build.dir}/${package.name}/bin">
+          <include name="${build.dir}/${package.name}/bin/${assembly}.dll" />
+       </fileset>
+    </copy>
+  </target>
+
+<!-- Arijit Ganguly - enables direct packets for single-hop packets ARI_DIRECT_ENABLE -->
+  <target
+    name="ari-build-direct"
+    depends="init"
+    description="Builds the current configuration">
+    <echo message="Build Directory is ${build.dir}/${package.name}"/>
+    <mkdir
+      dir="${build.dir}/${package.name}/bin"
+      failonerror="false"/>
+
+    <!-- copy libraries -->
+    <copy todir="${build.dir}/${package.name}/bin">
+       <fileset basedir="${lib.dir}">
+          <!-- <include name="NUnit.Framework.dll" /> -->
+          <!-- <include name="nunit.framework.dll" /> -->
+          <include name="log4net.dll" />
+          <include name="logconfig.xml" />
+       </fileset>
+    </copy>
+
+    <csc
+      target="library"
+      debug="${build.debug}"
+      define="ARI_DIRECT_ENABLE" 	
+      output="${build.dir}/${package.name}/bin/${assembly}.dll">
+      <sources failonempty="true">
+        <include name="*.cs"/>
+      </sources>
+      <references>
+        <include name="Mono.Security.dll" />
+ <!-- 
+        <include name="${build.dir}/${package.name}/bin/log4net.dll" />
+        <include name="${lib.dir}/NUnit.Framework.dll" />
+ -->
+      </references>
+    </csc>
+
+    <!-- finally copy the newly compiled library to the lib directory  -->    
+    <copy todir="${lib.dir}">
+       <fileset basedir="${build.dir}/${package.name}/bin">
+          <include name="${build.dir}/${package.name}/bin/${assembly}.dll" />
+       </fileset>
+    </copy>
+  </target>
+
+
+<!-- Arijit Ganguly - enables ARI_EXP_DEBUG-->
+  <target
+    name="ari-build-exp"
+    depends="init"
+    description="Builds the current configuration">
+    <echo message="Build Directory is ${build.dir}/${package.name}"/>
+    <mkdir
+      dir="${build.dir}/${package.name}/bin"
+      failonerror="false"/>
+
+    <!-- copy libraries -->
+    <copy todir="${build.dir}/${package.name}/bin">
+       <fileset basedir="${lib.dir}">
+          <!-- <include name="NUnit.Framework.dll" /> -->
+          <!-- <include name="nunit.framework.dll" /> -->
+          <include name="log4net.dll" />
+          <include name="logconfig.xml" />
+       </fileset>
+    </copy>
+
+    <csc
+      target="library"
+      debug="${build.debug}"
+      define="ARI_EXP_DEBUG" 	
+      output="${build.dir}/${package.name}/bin/${assembly}.dll">
+      <sources failonempty="true">
+        <include name="*.cs"/>
+      </sources>
+      <references>
+        <include name="Mono.Security.dll" />
+
  <!-- 
         <include name="${build.dir}/${package.name}/bin/log4net.dll" />
         <include name="${lib.dir}/NUnit.Framework.dll" />

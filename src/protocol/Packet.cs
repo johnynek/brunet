@@ -40,36 +40,38 @@ namespace Brunet
 
     public abstract int Length { get; }
 
-      public abstract ProtType type
-      {
-        get;
-        }
-
-        public abstract int PayloadLength { get; }
-          /**
-           * @returns a System.IO.MemoryStream object which
-           * can only be read from that holds the Payload
-           * This does not require a copy operation
-           */
-          public abstract MemoryStream PayloadStream { get; }
-
-            /**
-             * Table of Brunet sub-protocols.  Currently, only two
-             * are defined
-             */
-public enum ProtType:byte
-            {
-              Connection = 1,
-              AH = 2
-            }
-            /**
-             * Copy the binary representation of the Packet into
-             * destination starting at offset
-             * @param destination the byte array to copy the packet into
-             * @param offset the offset of the array to start at
-             * @return the number of bytes written into the array
-             */
-            abstract public void CopyTo(byte[] destination, int offset);
+    public abstract ProtType type
+    {
+      get;
+    }
+    
+    public abstract int PayloadLength { get; }
+    /**
+     * @returns a System.IO.MemoryStream object which
+     * can only be read from that holds the Payload
+     * This does not require a copy operation
+     */
+    public abstract MemoryStream PayloadStream { get; }
+    
+    /**
+     * Table of Brunet sub-protocols.  Currently, only two
+     * are defined
+     */
+    public enum ProtType:byte
+    {
+      Connection = 1,
+	AH = 2,
+	Direct = 3
+      //added the new packet type, which doesn't have a Brunet header
+      //useful only when sourse and destination are direcly connected
+    }
+    /**
+     * Copy the binary representation of the Packet into
+     * destination starting at offset
+     * @param destination the byte array to copy the packet into
+     * @param offset the offset of the array to start at
+     * @return the number of bytes written into the array
+     */
+    abstract public void CopyTo(byte[] destination, int offset);
   }
-
 }

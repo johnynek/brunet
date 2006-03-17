@@ -42,7 +42,9 @@ namespace Brunet
       Unknown,
       Tcp,
       Udp,
-      Function
+      Function,
+      Tls,
+      TlsTest
     }
 
     public TAType TransportAddressType
@@ -95,7 +97,6 @@ namespace Brunet
       } catch(Exception e) {
         // log this exception!
       }
-
       return _ips;
     }
 

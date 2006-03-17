@@ -109,13 +109,23 @@ namespace Brunet
         System.Console.WriteLine("CtmRequestHandler - Got CTM Request,"
 				 + n.Address.ToString() + " connectTo: "
 				 + ctm.Target.Address.ToString() + " ConType: " + ctm.ConnectionType);
+	Console.WriteLine("CtmRequestHandler - CtmRequest: {0}", ctm);
 	Console.WriteLine("CtmRequestHandler - Initiating link protocol on request.");
 #endif
         /*_log.Info("Got CTM Request,"
         + n.Address.ToString() + " connectTo: "
         + ctm.TargetAddress.ToString());*/
-        Linker l = new Linker(n);
-        l.Link(ctm.Target.Address, ctm.Target.Transports, ctm.ConnectionType);
+
+
+#if ARI_CTM_DEBUG
+        System.Console.WriteLine("CtmRequestHandler - Trying to start a linking attempt,"
+				 + n.Address.ToString() + " connectTo: "
+				 + ctm.Target.Address.ToString() + " ConType: " + ctm.ConnectionType);
+#endif
+	ConnectionSetupManager c_mgr = n.ConnectionSetupManager;
+	c_mgr.StartLinking(ctm.Target.Address, ctm.Target.Transports, 
+			   ctm.ConnectionType);
+
         /**
          * Send a response no matter what
          */
