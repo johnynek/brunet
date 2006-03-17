@@ -76,8 +76,9 @@ namespace Brunet
 
 //Testing the ReadFlag function
         Console.
-        WriteLine("Please enter an integer between 0 and 255 :  ");
-      string str = Console.ReadLine();
+        WriteLine("Please enter an integer between 0 and 255 (147) :  ");
+      //string str = Console.ReadLine();
+      string str = "147";
         Console.
         WriteLine
         ("For byte >= 128, result is true; for byte <128, result is false");
@@ -88,6 +89,7 @@ namespace Brunet
         ("After writing and reading to a byte array, we have :  {0}",
          result);
 
+	AdrConverter.Test();
 
 
     }

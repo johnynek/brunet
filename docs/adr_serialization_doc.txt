@@ -1,0 +1,46 @@
+Serialization is similar to ASN.1 and the DBUS method signature system
+(and an old format I worked with years ago).
+
+Objects have variable length headers that give the type and
+possibly the length:
+
+Non-numeric types:
+b : boolean
+s : null terminated UTF-8 string
+0 : null value.
+
+Numeric Typecodes (uses network endianism):
+y : signed byte
+Y : unsigned byte
+h : signed short
+H : unsigned short
+i : signed int
+I : unsigned int
+l : signed long
+L : unsigned long
+
+numeric arrays:
+a : array.  Immediately following the 'a' character there is
+    an integral type with represents the count of the objects
+    in the array.  Followed by the typecode for the objects
+    in the array, followed by the serialized objects without
+    their typecode prefix.
+
+delimited structures:
+(,) : list of objects: ex: (yyyy) a list of 4 bytes.
+{,} : mapping of objects: ex: {sisisi} a map of three key-value pairs.
+      must enclose an even number of objects.
+
+Exceptions:
+x : Represents an exception: a 4 byte integer followed by a null terminated
+    string.  Example: x\0\0\0\0something bad\0 
+    
+    
+Examples (using \n to represent the byte with value n, and \xN as hex)
+
+sHello World\x0   is "Hello World"
+y\xEF is 128
+aiY\x02\128\55  is int[] { 128, 55 }
+(y\x11(b\x0b\x01))  is list(17, list(false, true) )
+
+
