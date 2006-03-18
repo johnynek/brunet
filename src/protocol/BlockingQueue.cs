@@ -68,7 +68,7 @@ public class BlockingQueue : Queue {
   }
 
   /**
-   * Once this method is called,
+   * Once this method is called, and the queue is emptied,
    * all future Dequeue's will throw exceptions
    */
   public void Close() {
@@ -113,19 +113,25 @@ public class BlockingQueue : Queue {
 #if DEBUG
 	System.Console.WriteLine("Not empty");
 #endif
+	timedout = false;
         val = base.Dequeue();
+	return val;
       }
       else if ( _closed ) {
         //We are closed and empty, no need to wait:
 #if DEBUG
 	System.Console.WriteLine("Closed Queue");
 #endif
+	/*
+	 * When the queue is empty, this throws
+	 * InvalidOperationException.  When
+	 * the queue is closed and empty, it can never
+	 * be full again.
+	 */
+        timedout = false;
         val = base.Dequeue();
+	return val;
       }
-    }
-    if( val != null ) {
-      timedout = false;
-      return val;
     }
     bool got_set = _are.WaitOne(millisec, false);
     lock( this ) {
