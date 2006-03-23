@@ -262,67 +262,23 @@ public class AdrConverter {
       return 5 + bytes; //the typecode + int + the serialized string
     }
     else if ( t.IsArray ) {
-      s.WriteByte((byte)'a');
-      int total_bytes = 1;
-      Array my_a = (Array)o;
-      if( my_a.Length <= Byte.MaxValue ) {
-        //Length will fit in byte:
-	byte l = (byte) my_a.Length;
-	total_bytes += Serialize(l, s);
-      }
-      else if( my_a.Length <= UInt16.MaxValue ) {
-	ushort l = (ushort)my_a.Length;
-	total_bytes += Serialize(l, s);
-      }
-      else if( my_a.LongLength <= UInt32.MaxValue ) {
-	uint l = (uint)my_a.Length;
-	total_bytes += Serialize(l, s);
-      }
-      else {
-        throw new Exception("Array too large: " + my_a.Length.ToString() );
-      }
       Type elt = t.GetElementType();
-      
-      if( elt.Equals(typeof(byte)) ) {
-        //This is a byte array:
-        s.WriteByte((byte)'Y');
-        total_bytes++;
-        //Now write each byte:
-        foreach(byte b in my_a) {
-          s.WriteByte(b);
-        }
-        total_bytes += my_a.Length;
-      }
-      else if (elt.Equals(typeof(int))) {
-        //This is a byte array:
-        s.WriteByte((byte)'i');
-        total_bytes++;
-        //Now write each byte:
-        foreach(int i in my_a) {
-          NumberSerializer.WriteInt(i,s);
-        }
-        total_bytes += 4 * my_a.Length;
+      ///@todo add more array serialization types here:
+      if( elt.Equals(typeof(byte)) ||
+          elt.Equals(typeof(int)) ) {
+        return SerializeArray((Array)o, t, elt, s);
       }
       else {
-        throw new Exception("Unsupported array type: " + elt.ToString() );
+        //All arrays are ILists, but this may take more space than the above
+        return SerializeList( (IList)o, s );
       }
-      return total_bytes;
     }
     else  {
-     IList list = o as IList;
-     IDictionary dict = o as IDictionary;
-     if ( list != null ) {
-      //Here is a list...
-      int total_bytes = 2; //For the '(' and ')' bytes
-      s.WriteByte((byte)'('); //Start of list, so lispy!:
-      foreach(object it in list) {
-	//Time for recursion:
-        total_bytes += Serialize(it, s);
-      }
-      s.WriteByte((byte)')'); //end of list:
-      return total_bytes;
+     if ( o is IList ) {
+       return SerializeList( (IList)o, s);
      }
-     else if ( dict != null ) {
+     else if ( o is IDictionary ) {
+      IDictionary dict = o as IDictionary;
       //Here is a map...
       int total_bytes = 2; //For the '{' and '}' bytes
       s.WriteByte((byte)'{'); //Start of map:
@@ -393,6 +349,66 @@ public class AdrConverter {
       throw new Exception("Cannot unbox, Unknown type: " + t.ToString());
     }
     return result;
+  }
+
+  protected static int SerializeArray(Array my_a, Type t, Type elt, Stream s)
+  {
+      s.WriteByte((byte)'a');
+      int total_bytes = 1;
+      if( my_a.Length <= Byte.MaxValue ) {
+        //Length will fit in byte:
+	byte l = (byte) my_a.Length;
+	total_bytes += Serialize(l, s);
+      }
+      else if( my_a.Length <= UInt16.MaxValue ) {
+	ushort l = (ushort)my_a.Length;
+	total_bytes += Serialize(l, s);
+      }
+      else if( my_a.LongLength <= UInt32.MaxValue ) {
+	uint l = (uint)my_a.Length;
+	total_bytes += Serialize(l, s);
+      }
+      else {
+        throw new Exception("Array too large: " + my_a.Length.ToString() );
+      }
+      if( elt.Equals(typeof(byte)) ) {
+        //This is a byte array:
+        s.WriteByte((byte)'Y');
+        total_bytes++;
+        //Now write each byte:
+        foreach(byte b in my_a) {
+          s.WriteByte(b);
+        }
+        total_bytes += my_a.Length;
+      }
+      else if (elt.Equals(typeof(int))) {
+        //This is a byte array:
+        s.WriteByte((byte)'i');
+        total_bytes++;
+        //Now write each byte:
+        foreach(int i in my_a) {
+          NumberSerializer.WriteInt(i,s);
+        }
+        total_bytes += 4 * my_a.Length;
+      }
+      else {
+        throw new Exception("Unsupported array type: " + elt.ToString() );
+      }
+      return total_bytes;
+
+  }
+
+  static protected int SerializeList(IList list, Stream s)
+  {
+    //Here is a list...
+    int total_bytes = 2; //For the '(' and ')' bytes
+    s.WriteByte((byte)'('); //Start of list, so lispy!:
+    foreach(object it in list) {
+      //Time for recursion:
+      total_bytes += Serialize(it, s);
+    }
+    s.WriteByte((byte)')'); //end of list:
+    return total_bytes;
   }
   
   /**
