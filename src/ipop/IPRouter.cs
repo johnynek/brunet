@@ -157,9 +157,9 @@ namespace Ipop {
 	    break;
 	  }
 	  output = output.Trim();
-	  if (output.StartsWith("inet")) {
+	  if (output.StartsWith("inet addr")) {
 	    string[] arr = output.Split(' ');
-	    if (arr.Length > 2) {
+	    if (arr.Length > 1) {
 	      string[] s_arr = arr[1].Split(':');
 	      if (s_arr.Length > 1) {
 		System.Net.IPAddress ip = System.Net.IPAddress.Parse(s_arr[1]);
