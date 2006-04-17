@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<project name="ipop-common" default="build" basedir=".">
+<project name="ipop-common" default="ari-debug" basedir=".">
   <description> Builds the common files for IPOP-1.0 and IPOP-1.1. </description>
   <property name="debug" value="true" overwrite="false" />
   <property name="lib.dir" value="../../lib"/>
@@ -12,6 +12,22 @@
   <target name="build" description="Build ipop-common.dll">
       <mkdir dir="${build.dir}" failonerror="true"/>
       <csc target="library" output="${build.dir}/${lib.name}.dll">
+          <sources failonempty="true">
+	     <include name="*.cs"/>
+	  </sources>
+	  <references>
+             <include name="${lib.dir}/Brunet.dll"/>
+	  </references>
+      </csc>
+      <copy todir="${lib.dir}" failonerror="true">
+          <fileset basedir="${build.dir}">
+	      <include name="${lib.name}.dll" />
+	  </fileset>
+      </copy>
+  </target>
+  <target name="ari-debug" description="Build ipop-common.dll">
+      <mkdir dir="${build.dir}" failonerror="true"/>
+      <csc target="library" output="${build.dir}/${lib.name}.dll" define="IPOP_RECEIVE_DEBUG">
           <sources failonempty="true">
 	     <include name="*.cs"/>
 	  </sources>

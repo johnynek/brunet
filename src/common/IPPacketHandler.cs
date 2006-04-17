@@ -13,17 +13,20 @@ namespace Ipop
     Ethernet ether;
     bool debug;
     IPAddress myAddress;
-    private int count1;    
+#if IPOP_RECEIVE_DEBUG
+    private int count1;
+#endif
     public IPPacketHandler(Ethernet ethernet, bool debugging, IPAddress addr)
     {
       ether = ethernet;
       debug = debugging;
       myAddress = addr;
+#if IPOP_RECEIVE_DEBUG
       count1 = 0;
+#endif
     }
     public void HandleAHPacket(object node, AHPacket p, Edge from)
     {
-	count1++;
       //Console.WriteLine("Just received a packet from Brunet...");
       //Console.WriteLine("Can read: " + p.PayloadStream.CanRead);
       byte[] packet = new byte[p.PayloadStream.Length];
@@ -39,11 +42,15 @@ namespace Ipop
         IPAddress dstAddr = IPPacketParser.DestAddr(packet); 
 	Console.WriteLine("Incoming packet:: IP src: {0}, IP dst: {1}, p2p hops: {2}", srcAddr, dstAddr, p.Hops); 
       }
-      if (count1%30 == 0) {
+#if IPOP_RECEIVE_DEBUG
+      count1++;
+      if (count1 == 1000) {
 	IPAddress srcAddr = IPPacketParser.SrcAddr(packet);     
         IPAddress dstAddr = IPPacketParser.DestAddr(packet); 
-	//Console.WriteLine("Incoming packet:: IP src: {0}, IP dst: {1}, p2p hops: {2}", srcAddr, dstAddr, p.Hops); 
+	Console.WriteLine("Incoming packet:: IP src: {0}, IP dst: {1}, p2p hops: {2}", srcAddr, dstAddr, p.Hops); 
+	count1 = 0;
       }
+#endif
       IPAddress destAddr = IPPacketParser.DestAddr(packet);
       if (!destAddr.Equals(myAddress)) {
           Console.WriteLine("Incoming packet not for me:: IP dst: {0}", destAddr);
