@@ -172,10 +172,11 @@ namespace Brunet
     {
       if (BitConverter.IsLittleEndian) {
         //Console.WriteLine("This machine uses Little Endian processor!");
-        byte[] arr = new byte[4];
-        for (int i = 0; i < arr.Length; i++)
-          arr[i] = bin[offset + arr.Length - 1 - i];
-        return BitConverter.ToSingle(arr, 0);
+        SwapEndianism(bin, offset, 4);
+        float result = BitConverter.ToSingle(bin, offset);
+        //Swap it back:
+        SwapEndianism(bin, offset, 4);
+        return result;
       }
       else
         return BitConverter.ToSingle(bin, offset);
@@ -285,16 +286,12 @@ namespace Brunet
     public static void WriteFloat(float value, byte[] target,
                                   int offset)
     {
-      byte[] arr = new byte[4];
-      arr = BitConverter.GetBytes(value);
+      byte[] arr = BitConverter.GetBytes(value);
       if (BitConverter.IsLittleEndian) {
-        for (int i = 0; i < arr.Length; i++)
-          target[i + offset] = arr[arr.Length - 1 - i];
+        //Make sure we are Network Endianism
+	SwapEndianism(arr, 0, 4);
       }
-      else {
-        for (int i = 0; i < arr.Length; i++)
-          target[i + offset] = arr[i];
-      }
+      Array.Copy(arr, 0, target, offset, 4);
     }
 
     public static void WriteFlag(bool flag, byte[] target, int offset)
@@ -308,6 +305,16 @@ namespace Brunet
       target[offset] = var;
     }
 
+    //Swap the bytes at offset
+    protected static void SwapEndianism(byte[] data, int offset, int length)
+    {
+      int steps = length / 2;
+      for(int i = 0; i < steps; i++) {
+        byte tmp = data[offset + i];
+	data[offset + i] = data[offset + length - i - 1];
+	data[offset + length - i - 1] = tmp;
+      }
+    }
 
   }
 
