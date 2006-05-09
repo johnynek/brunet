@@ -88,7 +88,7 @@ public class ReqrepExample : Brunet.IRequestHandler, Brunet.IReplyHandler {
      * namespace (or realm) called "testspace"
      */
     Brunet.Node tmp_node = new Brunet.StructuredNode(tmp_add, "testspace");
-    Brunet.ReqrepManager rrman = new Brunet.ReqrepManager(tmp_node);
+    Brunet.ReqrepManager rrman = Brunet.ReqrepManager.GetInstance(tmp_node);
     ReqrepExample irh = new ReqrepExample();
     rrman.Bind(AHPacket.Protocol.Chat, irh);
     /**

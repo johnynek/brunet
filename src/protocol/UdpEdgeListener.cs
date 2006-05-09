@@ -356,8 +356,8 @@ namespace Brunet
       try {	//catching SocketException
         s.SendTo(_send_buffer, 0, 8 + p.Length, SocketFlags.None, e);
       }
-      catch (SocketException) {
-        Console.WriteLine("Network is unreachable");
+      catch (SocketException sc) {
+        Console.Error.WriteLine("Error in Socket send: {0}", sc);
       }
     }
 
