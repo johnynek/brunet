@@ -2,7 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
-Copyright (C) 2005  P. Oscar Boykin <boykin@pobox.com>, University of Florida
+Copyright (C) 2005,2006  P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -44,14 +44,13 @@ namespace Brunet
   * A EdgeListener that uses UDP for the underlying
   * protocol.  This listener creates UDP edges.
   * 
-  * The UdpEdgeListener creates one thread.  In that
-  * thread it loops processing reads.  The UdpEdgeListener
-  * keeps a Queue of packets to send also.  After each
-  * read attempt, it sends all the packets in the Queue.
-  *
+  * This uses UDP (and is compatible with nodes running other
+  * UdpEdgeListener), but this uses the Asynchronous .NET interfaces.
+  * It *may* perform much better, or it *may* cause deadlocks (due
+  * to overuse of the ThreadPool).
   */
 
-  public class UdpEdgeListener : EdgeListener, IPacketHandler
+  public class ASUdpEdgeListener : EdgeListener, IPacketHandler
   {
 
     protected IPEndPoint ipep;
@@ -59,10 +58,11 @@ namespace Brunet
 
     ///used for thread for the socket synchronization
     protected object _sync;
-    ///this is the thread were the socket is read:
-    protected Thread _thread;
+    protected object _read_lock;
+    
+    protected IAsyncResult _read_asr;
     ///Buffer to read the packets into
-    protected byte[] _packet_buffer;
+    protected byte[] _rec_buffer;
     protected byte[] _send_buffer;
 
     ///Here is the queue for outgoing packets:
@@ -115,11 +115,11 @@ namespace Brunet
     //This is our best guess of the local endpoint
     protected IPEndPoint _local_ep;
     
-    public UdpEdgeListener(int port):this(port, null)
+    public ASUdpEdgeListener(int port):this(port, null)
     {
       
     }
-    public UdpEdgeListener(int port, IPAddress[] ipList)
+    public ASUdpEdgeListener(int port, IPAddress[] ipList)
     {
       /**
        * We get all the IPAddresses for this computer
@@ -150,10 +150,11 @@ namespace Brunet
                      SocketType.Dgram, ProtocolType.Udp);
       _id_ht = new Hashtable();
       _sync = new object();
+      _read_lock = new object();
       _running = false;
       _isstarted = false;
       //There are two 4 byte IDs for each edge we need to make room for
-      _packet_buffer = new byte[ 8 + Packet.MaxLength ];
+      _rec_buffer = new byte[ 8 + Packet.MaxLength ];
       _send_buffer = new byte[ 8 + Packet.MaxLength ];
       _send_queue = new Queue();
       //Use our hashcode as the seed (terribly insecure business...)
@@ -224,10 +225,14 @@ namespace Brunet
         }
         s.Bind(ipep);
         _isstarted = true;
-        _running = true;
       }
-      _thread = new Thread( new ThreadStart(this.SocketThread) );
-      _thread.Start();
+      lock( _read_lock ) {
+        _running = true;
+        EndPoint end = new IPEndPoint(IPAddress.Any, 0);
+	//Console.WriteLine("About to BeingReceiveFrom");
+        _read_asr = s.BeginReceiveFrom(_rec_buffer, 0, _rec_buffer.Length,
+		         SocketFlags.None, ref end, this.ReceiveHandler, end);
+      }
     }
 
     /**
@@ -235,115 +240,125 @@ namespace Brunet
      */
     public override void Stop()
     {
-      _running = false;
+      lock( _read_lock ) {
+        _running = false;
+        try {
+          EndPoint end = (EndPoint)_read_asr;
+          s.EndReceiveFrom(_read_asr, ref end);
+	}
+	catch(Exception x) {
+          Console.Error.WriteLine("In ASUdpEdgeListener.Stop: {0}",x);
+	}
+	s.Close();
+      }
     }
 
     /**
-     * This is a System.Threading.ThreadStart delegate
-     * We loop waiting for edges that need to send,
-     * or data on the socket.
+     * When we get a packet this event is called
      */
-    protected void SocketThread() // error happening here
-    {
-      //Wait 10 ms before giving up on a read
-      int microsecond_timeout = 10000;
-      while(_running) {
-        bool read = false;
+    protected void ReceiveHandler(IAsyncResult asr) {
+      try {
+      	
+        EndPoint end = (EndPoint)asr.AsyncState;
+        
+	int rec_bytes = s.EndReceiveFrom(asr, ref end);
+        //Get the id of this edge:
+        int remoteid = NumberSerializer.ReadInt(_rec_buffer, 0);
+        int localid = NumberSerializer.ReadInt(_rec_buffer, 4);
+	bool read_packet = true;
         bool is_new_edge = false;
-        UdpEdge edge = null;
-        EndPoint end = new IPEndPoint(IPAddress.Any, 0);
-
-        /**
-         * Note that at no time do we hold two locks, or
-         * do we hold a lock across an external function call or event
-         */
-        //Read if we can:
-        int rec_bytes = 0;
-        lock( _sync ) {
-          read = s.Poll( microsecond_timeout, SelectMode.SelectRead );
-          if( read ) {
-            rec_bytes = s.ReceiveFrom(_packet_buffer, ref end);
+	UdpEdge edge = null;
+        lock ( _id_ht ) {
+          edge = (UdpEdge)_id_ht[localid];
+          if( localid == 0 ) {
+            //This is a new incoming edge
+            is_new_edge = true;
+            //We need to assign it a local ID:
+            do {
+              localid = _rand.Next();
+            } while( _id_ht.Contains(localid) || localid == 0 );
+            edge = new UdpEdge(this,
+                               true, (IPEndPoint)end,
+                               _local_ep, localid, remoteid);
+            _id_ht[localid] = edge;
+            edge.CloseEvent += new EventHandler(this.CloseHandler);
+          }
+          else if ( edge == null ) {
+            /*
+             * This is the case where the Edge is not a new edge,
+             * but we don't know about it.  It is probably an old edge
+             * that we have closed.  We can ignore this packet
+             */
+            read_packet = false;
+          }
+          else if ( edge.RemoteID == 0 ) {
+            /* This is the response to our edge creation */
+            edge.RemoteID = remoteid;
+          }
+          else if( edge.RemoteID != remoteid ) {
+            /*
+             * This could happen as a result of packet loss or duplication
+             * on the first packet.  We should ignore any packet that
+             * does not have both ids matching.
+             */
+            read_packet = false;
           }
         }
-        //Drop the socket lock.  We either read or we didn't
-        bool read_packet = true;
-        if( read ) {
-          //Get the id of this edge:
-          int remoteid = NumberSerializer.ReadInt(_packet_buffer, 0);
-          int localid = NumberSerializer.ReadInt(_packet_buffer, 4);
-          lock ( _id_ht ) {
-            edge = (UdpEdge)_id_ht[localid];
-            if( localid == 0 ) {
-              //This is a new incoming edge
-              is_new_edge = true;
-              //We need to assign it a local ID:
-              do {
-                localid = _rand.Next();
-              } while( _id_ht.Contains(localid) || localid == 0 );
-              edge = new UdpEdge(this,
-                                 true, (IPEndPoint)end,
-                                 _local_ep, localid, remoteid);
-              _id_ht[localid] = edge;
-              edge.CloseEvent += new EventHandler(this.CloseHandler);
-            }
-            else if ( edge == null ) {
-              /*
-               * This is the case where the Edge is not a new edge,
-               * but we don't know about it.  It is probably an old edge
-               * that we have closed.  We can ignore this packet
-               */
-              read_packet = false;
-            }
-            else if ( edge.RemoteID == 0 ) {
-              /* This is the response to our edge creation */
-              edge.RemoteID = remoteid;
-            }
-            else if( edge.RemoteID != remoteid ) {
-              /*
-               * This could happen as a result of packet loss or duplication
-               * on the first packet.  We should ignore any packet that
-               * does not have both ids matching.
-               */
-              read_packet = false;
-            }
-          }
-          //Drop the ht lock and announce the edge and the packet:
-          if( is_new_edge ) {
-            SendEdgeEvent(edge);
-          }
-          if( read_packet ) {
-            Packet p = PacketParser.Parse(_packet_buffer, 8, rec_bytes - 8);
-            //We have the edge, now tell the edge to announce the packet:
-            edge.Push(p);
-          }
+        //Drop the ht lock and announce the edge and the packet:
+        if( is_new_edge ) {
+          SendEdgeEvent(edge);
         }
-        /*
-         * We are done with handling the reads.  Now lets
-         * deal with all the pending sends:
-         */
-        SendQueueEntry sqe = null;
-        bool more_to_send = false;
-        do {
-          sqe = null;
-          lock( _send_queue ) {
-            if( _send_queue.Count > 0 ) {
-              sqe = (SendQueueEntry)_send_queue.Dequeue();
-      //        if (sqe != null) { Send(sqe); }
-              more_to_send = _send_queue.Count > 0;
-            }
-          } //Release the lock
-          lock( _sync ) { if (sqe != null) { Send(sqe); } }
-        } while( more_to_send );
-        //Now it is time to see if we can read...
+        if( read_packet ) {
+          Packet p = PacketParser.Parse(_rec_buffer, 8, rec_bytes - 8);
+          //We have the edge, now tell the edge to announce the packet:
+          edge.Push(p);
+	  //Console.WriteLine("Got packet: {0}", p);
+        }
+	/*
+	 * We have finished reading the packet, now read the next one
+	 */
       }
-      lock( _sync ) {
-        s.Close();
+      catch(Exception x) {
+        System.Console.Error.WriteLine("Exception: {0}",x);
+      }
+      finally {
+        lock( _read_lock ) {
+          if( _running ) {
+            //Start the next round:
+            EndPoint end = new IPEndPoint(IPAddress.Any, 0);
+            _read_asr = s.BeginReceiveFrom(_rec_buffer, 0,
+			 _rec_buffer.Length, SocketFlags.None, ref end,
+			 this.ReceiveHandler, end);
+	  }
+	}
       }
     }
-
-    private void Send(SendQueueEntry sqe)
+    /**
+     * When UdpEdge objects call Send, it calls this packet
+     * callback:
+     */
+    public void HandlePacket(Packet p, Edge from)
     {
-      //We have a packet to send
+      //Console.WriteLine("About to StartSend on: {0}\n{1}",from, p); 
+      lock( _send_queue ) {
+        SendQueueEntry sqe = new SendQueueEntry(p, (UdpEdge)from);
+        _send_queue.Enqueue(sqe);
+	if( _send_queue.Count == 1 ) {
+          //We have just one item, go ahead and start to send:
+	  StartSend(sqe);
+	}
+	else {
+          //There is already a send going on, it will run until
+	  //it empties the queue.
+	}
+      }
+    }
+    
+    /**
+     * Make sure to hold the lock on the _send_queue *PRIOR* to
+     * calling this method
+     */
+    private void StartSend(SendQueueEntry sqe) {
       Packet p = sqe.Packet;
       UdpEdge sender = sqe.Sender;
       EndPoint e = sender.End;
@@ -352,28 +367,31 @@ namespace Brunet
       NumberSerializer.WriteInt(sender.ID, _send_buffer, 0);
       NumberSerializer.WriteInt(sender.RemoteID, _send_buffer, 4);
       p.CopyTo(_send_buffer, 8);
-	      
-      try {	//catching SocketException
-        s.SendTo(_send_buffer, 0, 8 + p.Length, SocketFlags.None, e);
-      }
-      catch (SocketException) {
-        Console.WriteLine("Network is unreachable");
-      }
+      //Console.WriteLine("About to BeginSendTo"); 
+      s.BeginSendTo(_send_buffer, 0, 8 + p.Length, SocketFlags.None, e,
+			this.SendHandler, null);
     }
-
-    /**
-     * When UdpEdge objects call Send, it calls this packet
-     * callback:
-     */
-    public void HandlePacket(Packet p, Edge from)
-    {
-      lock( _send_queue ) {
-        SendQueueEntry sqe = new SendQueueEntry(p, (UdpEdge)from);
-        _send_queue.Enqueue(sqe);
-        
-        ///@todo this could be very unsafe.  We are assuming it is okay to
-        ///send while receiving (which seems to work), but it may not be okay
-        //Send(sqe);
+    
+    protected void SendHandler(IAsyncResult asr) {
+      try {
+        //int sent = 
+        s.EndSendTo(asr);
+        //Console.WriteLine("EndSendTo"); 
+	//Check to see if there is anymore to send:
+	lock( _send_queue ) {
+          //We just sent the first element, get rid of it:
+	  _send_queue.Dequeue();
+	  if( _send_queue.Count > 0 ) {
+            SendQueueEntry sqe = (SendQueueEntry)_send_queue.Peek();
+            StartSend(sqe);
+	  }
+	  else {
+            //We have emptied the queue
+	  }
+	}
+      }
+      catch(Exception x) {
+        Console.Error.WriteLine("In SendHandler: {0}",x);
       }
     }
 
