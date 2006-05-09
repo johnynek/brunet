@@ -63,6 +63,26 @@ public class RpcResult {
  */
 public class RpcManager : IReplyHandler, IRequestHandler {
  
+  protected class InvocationRecord {
+    private ReqrepManager _manager;
+    private object _request;
+    public ReqrepManager ReqRepManager {
+      get {
+	return _manager;
+      }
+    }
+    public Object Request {
+      get {
+	return _request;
+      }
+    }
+    public InvocationRecord(ReqrepManager man, Object req)
+    {
+      _manager = man;
+      _request = req;
+    }
+  }
+ 
   protected Hashtable _method_handlers;
   protected Hashtable _method_packet_handlers;
   protected object _sync;
@@ -137,7 +157,7 @@ public class RpcManager : IReplyHandler, IRequestHandler {
                    string prot,
                    System.IO.MemoryStream payload, AHPacket packet)
   {
-    object result = null; 
+    Exception exception = null; 
     try {
       object data = AdrConverter.Deserialize(payload);
       IList l = data as IList;
@@ -171,20 +191,28 @@ public class RpcManager : IReplyHandler, IRequestHandler {
       //Console.WriteLine("About to call: {0}.{1} with args",handler, mname);
       //foreach(object arg in pa) { Console.WriteLine("arg: {0}",arg); }
       MethodInfo mi = handler.GetType().GetMethod(mname);
-      result = mi.Invoke( handler, pa.ToArray() );
+      //make the following happen asynchronously in a separate thread
+      //build an invocation record for the call
+      InvocationRecord inv = new InvocationRecord(man, req);
+      RpcMethodInvokeDelegate inv_dlgt = new RpcMethodInvokeDelegate(RpcMethodInvoke);
+      inv_dlgt.BeginInvoke(inv, mi, handler, pa.ToArray(), 
+			   new AsyncCallback(RpcMethodFinish),
+			   inv_dlgt);
+      //we have setup an asynchronous invoke here
     }
     catch(ArgumentException argx) {
-      result = new AdrException(-32602, argx.Message);
+      exception = new AdrException(-32602, argx.Message);
     }
     catch(TargetParameterCountException argx) {
-      result = new AdrException(-32602, argx.Message);
+      exception = new AdrException(-32602, argx.Message);
     }
     catch(Exception x) {
-      result = x;
+      exception = x;
     }
-    finally {
+    if (exception != null) {
+      //something failed even before invocation began
       MemoryStream ms = new MemoryStream();
-      AdrConverter.Serialize(result, ms);
+      AdrConverter.Serialize(exception, ms);
       man.SendReply( req, ms.ToArray() );
     }
   }
@@ -244,8 +272,42 @@ public class RpcManager : IReplyHandler, IRequestHandler {
                        "rpc", ms.ToArray(), this, bq_results);
     return bq_results;
   }
- 
   
+  protected void RpcMethodInvoke(InvocationRecord inv, MethodInfo mi, Object handler, 
+				 Object[] param_list) {
+    ReqrepManager man = inv.ReqRepManager;
+    Object req = inv.Request;
+
+    Object result = null;
+    try {
+      result = mi.Invoke(handler, param_list);
+    } catch(ArgumentException argx) {
+      result = new AdrException(-32602, argx.Message);
+    }
+    catch(TargetParameterCountException argx) {
+      result = new AdrException(-32602, argx.Message);
+    }
+    catch(Exception x) {
+      result = x;
+    }
+    finally {
+      MemoryStream ms = new MemoryStream();
+      AdrConverter.Serialize(result, ms);
+      man.SendReply( req, ms.ToArray() );    
+    }
+  }
+  
+  protected void RpcMethodFinish(IAsyncResult ar) {
+    RpcMethodInvokeDelegate  dlgt = (RpcMethodInvokeDelegate) ar.AsyncState;
+    //call EndInvoke to do cleanup
+    //ideally no exception should be thrown, since the delegate catches everything
+    dlgt.EndInvoke(ar);
+  }
+  
+  /** We need to do the method invocation in a thread from the thrread pool. 
+   */
+  protected delegate void RpcMethodInvokeDelegate(InvocationRecord inv, MethodInfo mi, 
+						  Object handler, 
+						  Object[] param_list);
 }
-	
 }

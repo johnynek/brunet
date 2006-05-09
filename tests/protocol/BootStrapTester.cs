@@ -222,7 +222,8 @@ namespace Brunet
 		tmp_node.AddEdgeListener(new TcpEdgeListener(port+loop));
 	        break;
         case "udp":
-		tmp_node.AddEdgeListener(new UdpEdgeListener(port+loop));
+		//tmp_node.AddEdgeListener(new UdpEdgeListener(port+loop));
+		tmp_node.AddEdgeListener(new ASUdpEdgeListener(port+loop));
 	        break;
 	case "function":
                 tmp_node.AddEdgeListener(new FunctionEdgeListener(port+loop));
@@ -269,7 +270,19 @@ namespace Brunet
 
     //Get Connected:
     int total_started = 0;
-    foreach( Node item in node_list)
+    ArrayList rnd_list = (ArrayList)node_list.Clone();
+    Random rnd = new Random();
+    for(int j = 0; j < rnd_list.Count; j++) {
+          //Swap the j^th position with this position:
+          int i = rnd.Next(j, rnd_list.Count);
+          if( i != j ) {
+            object o = rnd_list[i];
+            rnd_list[i] = rnd_list[j];
+            rnd_list[j] = o;
+          }
+    }
+    
+    foreach( Node item in rnd_list)
     {
       item.Connect();
       Console.WriteLine(item.Address.ToString()

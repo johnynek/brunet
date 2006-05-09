@@ -45,8 +45,8 @@ namespace Brunet {
       }
       set {
 #if ARI_CHOTA_DEBUG
-	if (value) {
-	  Console.WriteLine("ChotaConnectionState:  Detecting bidirectional connectivity");
+	if (!_received && value) {
+	  Console.WriteLine("ChotaConnectionState: Recording bidirectional connectivity");
 	}
 #endif
 	_received = value;

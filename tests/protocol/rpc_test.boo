@@ -13,7 +13,7 @@ def make_rpc(port as int, remote as string):
   node = StructuredNode( addr )
   node.AddEdgeListener( UdpEdgeListener(port) )
   node.RemoteTAs.Add( TransportAddress( remote ) )
-  rpc = RpcManager( ReqrepManager(node) )
+  rpc = RpcManager( ReqrepManager.GetInstance(node) )
   node.Connect();
   return rpc
 
