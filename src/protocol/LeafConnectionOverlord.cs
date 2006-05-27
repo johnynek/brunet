@@ -61,17 +61,20 @@ namespace Brunet
     protected TimeSpan _current_retry_interval;
     protected DateTime _last_retry;
     /**
-     * This list keeps all of our active linkers
-     * in scope.  They are removed from this list
-     * when their finish event is called.
+     * This is our active linker.  We only have one
+     * at a time.  Otherwise, we may waste a lot
+     * of bandwidth.
      */
-    protected ArrayList _linkers;
+    protected Linker _linker;
+
+    protected object _sync;
 
     public LeafConnectionOverlord(Node local)
     {
       _compensate = false;
       _local = local;
-      _linkers = new ArrayList();
+      _linker = null;
+      _sync = new object();
       _rnd = new Random( _local.GetHashCode() ^ this.GetHashCode()
                          ^ unchecked((int)DateTime.Now.Ticks) );
       _default_retry_interval = new TimeSpan(0,0,0,0,10000);
@@ -83,15 +86,17 @@ namespace Brunet
        * we should check to see if we need to work to get a
        * replacement
        */
-      local.ConnectionTable.DisconnectionEvent +=
+      lock(_sync) {
+       local.ConnectionTable.DisconnectionEvent +=
         new EventHandler(this.CheckAndConnectHandler);
-      local.ConnectionTable.ConnectionEvent +=
+       local.ConnectionTable.ConnectionEvent +=
         new EventHandler(this.CheckAndConnectHandler);
       /**
        * Every heartbeat we check to see if we need to act
        */
-      local.HeartBeatEvent +=
+       local.HeartBeatEvent +=
         new EventHandler(this.CheckAndConnectHandler);
+      }
     }
 
     override public void Activate()
@@ -123,7 +128,8 @@ namespace Brunet
      */
     public void CheckAndConnectHandler(object linker, EventArgs args)
     {
-      if (IsActive && NeedConnection) {
+     lock(_sync) {
+      if ( IsActive && NeedConnection && (_linker == null) ) {
 	DateTime now = DateTime.Now;
 	if( _last_retry == DateTime.MinValue ) {
           //This is the first time through:
@@ -166,11 +172,9 @@ namespace Brunet
         /**
          * Make a Link to a remote node 
          */
-        Linker l = new Linker(_local);
-        //Add the linker to our list of linker so it won't get GC'ed
-        _linkers.Add(l);
-        l.FinishEvent += new EventHandler(this.LinkerFinishHandler);
-        l.Link(null, tas, ConnectionType.Leaf);
+        _linker = new Linker(_local);
+        _linker.FinishEvent += new EventHandler(this.LinkerFinishHandler);
+        _linker.Link(null, tas, ConnectionType.Leaf);
       }
       else if (args is ConnectionEventArgs) {
         //Reset the connection interval to the default value:
@@ -202,6 +206,7 @@ namespace Brunet
         //We are not seeking another connection
         //log.Info("LeafConnectionOverlord :  not seeking connection");
       }
+     }
     }
 
     /**
@@ -211,7 +216,9 @@ namespace Brunet
     protected void LinkerFinishHandler(object linker, EventArgs args)
     {
       //We need to remove this linker from our list:
-      _linkers.Remove(linker);
+      lock( _sync ) {
+        _linker = null;
+      }
     }
 
     /**
