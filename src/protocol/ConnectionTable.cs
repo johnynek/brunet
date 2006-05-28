@@ -63,7 +63,7 @@ namespace Brunet
    * 
    */
 
-  public class ConnectionTable : IEnumerable //, ICollection
+  public sealed class ConnectionTable : IEnumerable //, ICollection
   {
 
     /*private static readonly log4net.ILog _log =

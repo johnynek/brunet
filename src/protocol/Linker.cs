@@ -21,7 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //#define DEBUG
 
-//#define POB_LINK_DEBUG
+//#define LINK_DEBUG
 
 #if BRUNET_NUNIT
 using NUnit.Framework;
@@ -100,15 +100,16 @@ namespace Brunet
     /**
      * How many time outs are allowed before assuming failure
      */
-    protected readonly int _max_timeouts = 3;
+    protected static readonly int _MAX_TIMEOUTS = 3;
     protected int _timeouts;
     /**
      * The timeout is adaptive.  It goes up
-     * by a factor of 2
-     * after each timeout.  It starts at 2 second.
-     * Then 4 seconds, then 8 seconds.
+     * by a factor of _TIMEOUT_FACTOR
+     * after each timeout.  It starts at DEFAULT_TIMEOUT second.
+     * Then _TIMEOUT_FACTOR * DEFAULT_TIMEOUT ...
      */
-    protected static readonly int DEFAULT_TIMEOUT = 2000;
+    protected static readonly int _TIMEOUT_FACTOR = 4;
+    protected static readonly int DEFAULT_TIMEOUT = 1000;
     protected int _ms_timeout = DEFAULT_TIMEOUT;
     
 
@@ -116,10 +117,11 @@ namespace Brunet
 
     //If we get an ErrorCode.InProgress, we restart after
     //a period of time
-    protected static readonly int _ms_restart_time = 5000;
+    protected static readonly int _MS_RESTART_TIME = 10000;
     protected static readonly int _MAX_RESTARTS = 16;
     protected int _restart_attempts = _MAX_RESTARTS;
     protected DateTime _last_start;
+    protected DateTime _next_start;
 
     protected Random _rand;
    
@@ -242,6 +244,9 @@ namespace Brunet
       protected ConnectionMessageParser _cmp;
             
       protected Packet _last_r_packet;
+      public Packet LastRPacket {
+        get { return _last_r_packet; }
+      }
       protected ConnectionMessage _last_r_mes;
       /**
        * Set the last packet and check for error conditions.
@@ -284,7 +289,6 @@ namespace Brunet
       protected Node _node;
       protected string _contype;
       protected Address _target_lock;
-      public Address TargetLock { get { return _target_lock; } }
       protected int _id;
       
       public LinkProtocolState(Node n, string contype, int id) {
@@ -293,6 +297,14 @@ namespace Brunet
         _id = id;
         _target_lock = null;
         _cmp = new ConnectionMessageParser();
+      }
+
+      //Make sure we are unlocked.
+      ~LinkProtocolState() {
+        if( _target_lock != null ) {
+	  Console.Error.WriteLine("Lock released by destructor");
+          Unlock();
+	}
       }
       /**
        * Set the _target member variable and check for sanity
@@ -330,6 +342,15 @@ namespace Brunet
             _target_lock = target;
           }
         }
+      }
+
+      /**
+       * Unlock any lock which is held by this state
+       */
+      public void Unlock() {
+        ConnectionTable tab = _node.ConnectionTable;
+        tab.Unlock( _target_lock, Connection.StringToMainType(_contype), this );
+	_target_lock = null;
       }
       
       public IEnumerator GetPacketEnumerator(Edge e) {
@@ -398,21 +419,27 @@ namespace Brunet
     
     public void HandlePacket(Packet p, Edge edge)
     {
-      if( _is_finished ) { return; }
       ErrorMessage em = null;
-      try {
+      Packet p_to_resend = null;
+      lock( _sync ) {
+       if( _is_finished ) { return; }
+       try {
         em = _link_state.SetLastRPacket(p);
         //Note the time we got this packet
         _last_packet_datetime = DateTime.Now;
         _timeouts = 0;
-      }
-      catch(Exception x) {
+       }
+       catch(Exception x) {
         /*
          * SetLastRPacket can throw an exception on expected packets
          * for now, we just ignore them and resend the most recently
          * sent packet:
          */
-        edge.Send( _link_state.LastSPacket );
+	p_to_resend = _link_state.LastSPacket;
+       }
+      }
+      if( null != p_to_resend) {
+        edge.Send( p_to_resend );
         return;
       }
       //If we get here, the packet must have been what we were expecting,
@@ -420,6 +447,9 @@ namespace Brunet
       if( em != null ) {
         //We got an error
 	if( em.Ec == ErrorMessage.ErrorCode.InProgress ) {
+#if LINK_DEBUG
+        Console.WriteLine("Linker ({0}) InProgress: from: {1}", _lid, edge);
+#endif
           RetryThisTA();
         }
         else {
@@ -451,6 +481,9 @@ namespace Brunet
         }
         catch(InvalidOperationException x) {
           //This is thrown when ConnectionTable cannot lock.  Lets try again:
+#if LINK_DEBUG
+        Console.WriteLine("Linker ({0}): Could not lock in HandlePacket", _lid);
+#endif
           RetryThisTA();
         }
         catch(Exception x) {
@@ -495,46 +528,52 @@ namespace Brunet
          * condition
          */
 	lock( _sync ) {
-          Address tlock = _link_state.TargetLock;
-          tab.Unlock( tlock, Connection.StringToMainType(_contype), _link_state );
+	  _link_state.Unlock();
 	}
         if( FinishEvent != null )
           FinishEvent(this, null);
       }
     }
 
+    protected void Stop(string log_message)
+    {
+      Stop(log_message, true);
+    }
     /**
      * Stops this attempt in preparation for a Fail or restart
+     * @param log_message The message to send to the other node when closing.
+     * @param send_close if true, send a close message, otherwise, just close the edge
      */
-    protected void Stop(string log_message)
+    protected void Stop(string log_message, bool send_close)
     {
       Edge edge_to_clean = null;
       lock( _sync ) {
         if( _link_state != null ) {
-	  Address tlock = _link_state.TargetLock;
-          if ( tlock != null ) {
-            ConnectionTable tab = _local_n.ConnectionTable;
-            tab.Unlock( tlock, Connection.StringToMainType(_contype), _link_state );
-          }
+	  _link_state.Unlock();
 	  _link_state = null;
 	  _link_enumerator = null;
 	}
 	edge_to_clean = _e;
 	_e = null;
+        //log.Error(log_message);
+        /* Stop the timer */
+        _local_n.HeartBeatEvent -= new EventHandler(this.PacketResendCallback);
       }
-      //log.Error(log_message);
-      /* Stop the timer */
-      _local_n.HeartBeatEvent -= new EventHandler(this.PacketResendCallback);
       //Release the lock
       
       if( edge_to_clean != null ) {
         edge_to_clean.ClearCallback(Packet.ProtType.Connection);
         /* Stop listening for close events */
         edge_to_clean.CloseEvent -= new EventHandler(this.CloseHandler);
-        /* Close the edge if it is not already in the table */
-        CloseMessage close = new CloseMessage(log_message);
-        close.Dir = ConnectionMessage.Direction.Request;
-        _local_n.GracefullyClose(edge_to_clean, close);
+	if( send_close ) {
+          /* Close the edge if it is not already in the table */
+          CloseMessage close = new CloseMessage(log_message);
+          close.Dir = ConnectionMessage.Direction.Request;
+          _local_n.GracefullyClose(edge_to_clean, close);
+	}
+	else {
+          edge_to_clean.Close();
+	}
       }      
     }
     /**
@@ -563,20 +602,21 @@ namespace Brunet
     {
       try {
         lock( _sync ) {
+	  DateTime now = DateTime.Now;
           if( (! _is_finished) &&
-              (DateTime.Now - _last_packet_datetime > _timeout ) &&
-              (_timeouts <= _max_timeouts) ) {
+              (now - _last_packet_datetime > _timeout ) &&
+              (_timeouts < _MAX_TIMEOUTS) ) {
 #if LINK_DEBUG
             Console.WriteLine("Linker ({0}) resending packet; attempt # {1}; length: {2}", _lid, _timeouts, _link_state.LastSPacket.Length);
 #endif
             _e.Send( _link_state.LastSPacket );
-            _last_packet_datetime = DateTime.Now;
+            _last_packet_datetime = now;
 	    //Increase the timeout by a factor of 4
-	    _ms_timeout = 4 * _ms_timeout;
+	    _ms_timeout = _TIMEOUT_FACTOR * _ms_timeout;
             _timeout = new TimeSpan(0,0,0,0,_ms_timeout);
             _timeouts++;
           }
-          else if( _timeouts > _max_timeouts ) {
+          else if( _timeouts >= _MAX_TIMEOUTS ) {
             //This edge is not working, we need to restart on a new edge.
 #if LINK_DEBUG
             Console.WriteLine("Linker ({0}) giving up the TA, moving on to next", _lid);
@@ -599,12 +639,15 @@ namespace Brunet
       /*
        * Here we drop the lock, and close the edge properly
        */
-      Stop("restarting");
+      bool send_close = false;
+      if( _link_state != null ) {
+        send_close = (_link_state.LastRPacket != null);
+      }
+      Stop("Moving on", send_close);
       lock( _sync ) {
 	_link_state = null;
 	_link_enumerator = null;
         //Time to go on to the next TransportAddress, and give up on this one
-        //TODO: set the timeout to default value
         _restart_attempts = _MAX_RESTARTS;
 	_ms_timeout = DEFAULT_TIMEOUT;
 
@@ -621,12 +664,12 @@ namespace Brunet
      * to the next TA.  This happens when we have the "double-lock" error.
      */
     protected void RetryThisTA() {
-      /*
-       * Here we drop the lock, and close the edge properly
-       */
-      Stop("restarting");
+      Stop("retrying this TA");
       bool fail = false;
       lock( _sync ) {
+        if( null != _link_state ) {
+	  _link_state.Unlock();
+	}
 	_link_state = null;
 	_link_enumerator = null;
         //We can restart on this TA *if* 
@@ -651,6 +694,9 @@ namespace Brunet
 	  }
 	}
 	_last_start = DateTime.Now;
+	int restart_sec = (int)(_rand.NextDouble() * _MS_RESTART_TIME);
+	TimeSpan interval = new TimeSpan(0,0,0,0,restart_sec);
+	_next_start = _last_start + interval; 
       }
       if( fail ) {
         Fail("no more tas to restart with");
@@ -674,9 +720,8 @@ namespace Brunet
 	Fail("Connected before needed restart");
       }
       else {
-        TimeSpan restart_time = new TimeSpan(0,0,0,0,_ms_restart_time);
-        if( DateTime.Now - _last_start > restart_time ) { 
-	  if ( _rand.NextDouble() < 0.1 ) {
+        if( DateTime.Now > _next_start ) { 
+	  if ( _rand.NextDouble() < 0.5 ) {
             //Time to start up again
             _local_n.HeartBeatEvent -= new EventHandler(this.RestartLink);
             StartLink();
