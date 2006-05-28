@@ -85,6 +85,7 @@ namespace Brunet
      * Hashtable of ID to Edges
      */
     protected Hashtable _id_ht;
+    protected Hashtable _remote_id_ht;
 
     protected Random _rand;
 
@@ -149,6 +150,7 @@ namespace Brunet
       s = new Socket(AddressFamily.InterNetwork,
                      SocketType.Dgram, ProtocolType.Udp);
       _id_ht = new Hashtable();
+      _remote_id_ht = new Hashtable();
       _sync = new object();
       _read_lock = new object();
       _running = false;
@@ -171,6 +173,10 @@ namespace Brunet
       UdpEdge e = (UdpEdge)edge;
       lock( _id_ht ) {
         _id_ht.Remove( e.ID );
+	object re = _remote_id_ht[ e.RemoteID ];
+	if( re == e ) {
+          _remote_id_ht.Remove( e.RemoteID );
+	}
       }
     }
 
@@ -271,17 +277,36 @@ namespace Brunet
         lock ( _id_ht ) {
           edge = (UdpEdge)_id_ht[localid];
           if( localid == 0 ) {
-            //This is a new incoming edge
+            //This is a potentially a new incoming edge
             is_new_edge = true;
-            //We need to assign it a local ID:
-            do {
-              localid = _rand.Next();
-            } while( _id_ht.Contains(localid) || localid == 0 );
-            edge = new UdpEdge(this,
+
+            //Check to see if it is a dup:
+            UdpEdge e_dup = (UdpEdge)_remote_id_ht[remoteid];
+            if( e_dup != null ) {
+              //Lets check to see if this is a true dup:
+              if( e_dup.End.Equals( end ) ) {
+                //Same id from the same endpoint, looks like a dup...
+                is_new_edge = false;
+                //Console.WriteLine("Stopped a Dup on: {0}", e_dup);
+                //Reuse the existing edge:
+                edge = e_dup;
+              }
+              else {
+                //This is just a coincidence.
+              }
+            }
+            if( is_new_edge ) {
+              //We need to assign it a local ID:
+              do {
+                localid = _rand.Next();
+              } while( _id_ht.Contains(localid) || localid == 0 );
+              edge = new UdpEdge(this,
                                true, (IPEndPoint)end,
                                _local_ep, localid, remoteid);
-            _id_ht[localid] = edge;
-            edge.CloseEvent += new EventHandler(this.CloseHandler);
+              _id_ht[localid] = edge;
+              _remote_id_ht[remoteid] = edge;
+              edge.CloseEvent += new EventHandler(this.CloseHandler);
+            }
           }
           else if ( edge == null ) {
             /*
@@ -302,6 +327,7 @@ namespace Brunet
              * does not have both ids matching.
              */
             read_packet = false;
+            Console.WriteLine("Received Dup on: {0}", edge);
           }
         }
         //Drop the ht lock and announce the edge and the packet:

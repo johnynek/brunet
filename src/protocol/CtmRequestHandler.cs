@@ -27,7 +27,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  * Brunet.ConnectToMessage
  * Brunet.Edge
  * Brunet.IAHPacketHandler
- * Brunet.Linker
  * Brunet.Node
  * Brunet.AHPacket
  * Brunet.Packet
@@ -53,7 +52,6 @@ namespace Brunet
    * initiates the Connection operations.
    *
    * @see Connector
-   * @see Linker
    * @see Node
    * 
    */

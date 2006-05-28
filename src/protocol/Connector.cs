@@ -29,7 +29,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  * Brunet.Edge
  * Brunet.IAHPacketHandler
  * Brunet.IPacketSender
- * Brunet.Linker
  * Brunet.Node
  * Brunet.AHPacket
  * Brunet.Packet
@@ -54,7 +53,6 @@ namespace Brunet
    * making sure the nodes have the proper neighbors.
    * 
    * @see CtmRequestHandler
-   * @see Linker
    * @see StructuredConnectionOverlord
    * @see UnstructuredConnectionOverlord
    */
@@ -134,19 +132,6 @@ namespace Brunet
     protected ConnectionMessageParser _cmp;
 
     /**
-     * All the Linker objects created by this Connector
-     * are in this array (in the order created).
-     * This is to make sure each Linker does not go out
-     * of scope
-     */
-    protected ArrayList _linkers;
-    public ArrayList Linkers {
-      get {
-	return _linkers;
-      }
-    }
-    
-    /**
      * How many time outs are allowed before assuming failure
      */
     protected readonly int MaxTimeOuts = 3;
@@ -189,7 +174,6 @@ namespace Brunet
       _local_node = local;
 
       _got_ctms = new ArrayList();
-      _linkers = new ArrayList();
       _got_ctm = false;
       _cmp = new ConnectionMessageParser();
     }
