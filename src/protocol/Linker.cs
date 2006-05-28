@@ -604,8 +604,12 @@ namespace Brunet
         lock( _sync ) {
 	  DateTime now = DateTime.Now;
           if( (! _is_finished) &&
-              (now - _last_packet_datetime > _timeout ) &&
-              (_timeouts < _MAX_TIMEOUTS) ) {
+              (now - _last_packet_datetime > _timeout ) ) {
+            /*
+             * It is time to check to see if we should resend, or move on
+             */
+
+            if (_timeouts < _MAX_TIMEOUTS) {
 #if LINK_DEBUG
             Console.WriteLine("Linker ({0}) resending packet; attempt # {1}; length: {2}", _lid, _timeouts, _link_state.LastSPacket.Length);
 #endif
@@ -615,13 +619,14 @@ namespace Brunet
 	    _ms_timeout = _TIMEOUT_FACTOR * _ms_timeout;
             _timeout = new TimeSpan(0,0,0,0,_ms_timeout);
             _timeouts++;
-          }
-          else if( _timeouts >= _MAX_TIMEOUTS ) {
-            //This edge is not working, we need to restart on a new edge.
+            }
+            else if( _timeouts >= _MAX_TIMEOUTS ) {
+              //This edge is not working, we need to restart on a new edge.
 #if LINK_DEBUG
-            Console.WriteLine("Linker ({0}) giving up the TA, moving on to next", _lid);
+              Console.WriteLine("Linker ({0}) giving up the TA, moving on to next", _lid);
 #endif
-            MoveToNextTA();   
+              MoveToNextTA();   
+            }
           }
         }
       }
@@ -641,6 +646,7 @@ namespace Brunet
        */
       bool send_close = false;
       if( _link_state != null ) {
+        //Only send a close message if we saw something from this node
         send_close = (_link_state.LastRPacket != null);
       }
       Stop("Moving on", send_close);
