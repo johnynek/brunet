@@ -206,7 +206,7 @@ namespace Brunet
 #endif
 	      _tab.Add(con);
               //Unlock after we add the connection
-              _tab.Unlock(lm_to_add.Local.Address, lm_to_add.ConnectionType, this);
+              _tab.Unlock(lm_to_add.Local.Address, lm_to_add.ConTypeString, this);
             }
           }
           else if (cm is CloseMessage) {
@@ -370,7 +370,7 @@ namespace Brunet
 #if LINK_DEBUG
 	    Console.WriteLine("ConnectionPacketHandler - Trying to lock connection table: {0}", lm);
 #endif
-            _tab.Lock( lm.Local.Address, lm.ConnectionType, this );
+            _tab.Lock( lm.Local.Address, lm.ConTypeString, this );
 #if LINK_DEBUG
 	    Console.WriteLine("ConnectionPacketHandler - Successfully locked connection table: {0}", lm);
 #endif
@@ -413,7 +413,7 @@ namespace Brunet
         }
       }
       if( lm != null ) {
-        _tab.Unlock( lm.Local.Address, lm.ConnectionType, this );
+        _tab.Unlock( lm.Local.Address, lm.ConTypeString, this );
       }
     }
 
