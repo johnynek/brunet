@@ -338,7 +338,7 @@ namespace Brunet
               throw new LinkException("already connected");
             }
             //Lock throws an InvalidOperationException if it cannot get the lock
-            tab.Lock( target, Connection.StringToMainType( _contype ), this );
+            tab.Lock( target, _contype, this );
             _target_lock = target;
           }
         }
@@ -349,7 +349,7 @@ namespace Brunet
        */
       public void Unlock() {
         ConnectionTable tab = _node.ConnectionTable;
-        tab.Unlock( _target_lock, Connection.StringToMainType(_contype), this );
+        tab.Unlock( _target_lock, _contype, this );
 	_target_lock = null;
       }
       

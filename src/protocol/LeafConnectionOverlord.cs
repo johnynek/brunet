@@ -129,7 +129,9 @@ namespace Brunet
     public void CheckAndConnectHandler(object linker, EventArgs args)
     {
      lock(_sync) {
-      if ( IsActive && NeedConnection && (_linker == null) ) {
+      //Check in order of cheapness, so we can avoid hard work...
+      if ( (_linker == null) &&
+           IsActive && NeedConnection ) {
 	DateTime now = DateTime.Now;
 	if( _last_retry == DateTime.MinValue ) {
           //This is the first time through:

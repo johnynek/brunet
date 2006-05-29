@@ -176,13 +176,6 @@ namespace Brunet
         unconnected = ArrayList.Synchronized(new ArrayList());
 
         _address_locks = new Hashtable();
-        foreach(ConnectionType t in Enum.GetValues(typeof(ConnectionType)) ) {
-          /**
-           * We have a lock table for each type
-           */
-          _address_locks[t] = new Hashtable();
-        }
-
         // init all--it is safer to do it this way and avoid null pointer exceptions
 
 	foreach(ConnectionType t in Enum.GetValues(typeof(ConnectionType)) ) {
@@ -651,19 +644,24 @@ namespace Brunet
     }
     /**
      * @param a the Address to lock
+     * @param t the type of connection
      * @param locker the object wishing to hold the lock
      *
      * We use this to make sure that two linkers are not
-     * working on the same address
+     * working on the same address for the same connection type
      *
      * @throws System.InvalidOperationException if we cannot get the lock
      */
-    public void Lock(Address a, ConnectionType t, object locker)
+    public void Lock(Address a, string t, object locker)
     {
       if( a == null ) { return; }
 
       lock( _sync ) {
         Hashtable locks = (Hashtable)_address_locks[t];
+	if( locks == null ) {
+          locks = new Hashtable();
+	  _address_locks[t] = locks;
+	}
         if( !locks.ContainsKey(a) ) {
           locks[a] = locker;
 #if LOCK_DEBUG
@@ -831,10 +829,11 @@ namespace Brunet
      * We use this to make sure that two linkers are not
      * working on the same address
      * @param a Address to unlock
+     * @param t the type of connection.
      * @param locker the object which holds the lock.
      * @throw Exception if the lock is not held by locker
      */
-    public void Unlock(Address a, ConnectionType t, object locker)
+    public void Unlock(Address a, string t, object locker)
     {
       if( a != null ) {
         lock( _sync ) {
