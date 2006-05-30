@@ -254,8 +254,8 @@ namespace Brunet
      */
     protected void SocketThread() // error happening here
     {
-      //Wait 10 ms before giving up on a read
-      int microsecond_timeout = 10000;
+      //Wait 1 ms before giving up on a read
+      int microsecond_timeout = 1000;
       while(_running) {
         bool read = false;
         bool is_new_edge = false;
