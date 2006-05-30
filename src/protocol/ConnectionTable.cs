@@ -652,7 +652,7 @@ namespace Brunet
      *
      * @throws System.InvalidOperationException if we cannot get the lock
      */
-    public void Lock(Address a, string t, object locker)
+    public void Lock(Address a, string t, ILinkLocker locker)
     {
       if( a == null ) { return; }
 
@@ -662,7 +662,8 @@ namespace Brunet
           locks = new Hashtable();
 	  _address_locks[t] = locks;
 	}
-        if( !locks.ContainsKey(a) ) {
+	ILinkLocker old_locker = (ILinkLocker)locks[a];
+        if( null == old_locker ) {
           locks[a] = locker;
 #if LOCK_DEBUG
           Console.WriteLine("{0}, locker: {1} Locking: {2}", _cmp.Zero,
@@ -670,6 +671,10 @@ namespace Brunet
 #endif
           return;
         }
+	else if ( old_locker.AllowLockTransfer(a,t,locker) ) {
+	  //See if we can transfer the lock:
+          locks[a] = locker;
+	}
         else {
 #if LOCK_DEBUG
           Console.WriteLine(
@@ -833,7 +838,7 @@ namespace Brunet
      * @param locker the object which holds the lock.
      * @throw Exception if the lock is not held by locker
      */
-    public void Unlock(Address a, string t, object locker)
+    public void Unlock(Address a, string t, ILinkLocker locker)
     {
       if( a != null ) {
         lock( _sync ) {

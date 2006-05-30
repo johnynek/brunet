@@ -31,7 +31,7 @@ namespace Brunet
    * they cannot be changed
    */
 
-  public abstract class Address
+  public abstract class Address : System.IComparable
   {
 
     ///The number of bytes to represent the address
@@ -130,6 +130,33 @@ namespace Brunet
        * all the bytes.  
        */
       return c;
+    }
+
+    /**
+     * Compares address by treating them as BigIntegers
+     */
+    public int CompareTo(object obj) {
+      Address a = obj as Address;
+      if( null != a ) {
+        if ( this.Equals( a ) ) {
+          return 0;
+	}
+	else {
+          BigInteger me = this.ToBigInteger();  
+	  BigInteger other = a.ToBigInteger();
+	  if (me < other) {
+            return -1;
+	  }
+	  else {
+            return 1;
+	  }
+	}
+      }
+      else {
+        //These are really incomparable.
+	throw new System.ArgumentException("Cannot compare " + ToString() + " to "
+	                    + obj.ToString());
+      }
     }
 
     public override bool Equals(object a)

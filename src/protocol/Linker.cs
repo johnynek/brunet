@@ -239,7 +239,7 @@ namespace Brunet
     /**
      * Is a state machine to handle the link protocol
      */
-    protected class LinkProtocolState {
+    protected class LinkProtocolState : ILinkLocker {
      
       protected ConnectionMessageParser _cmp;
             
@@ -278,6 +278,7 @@ namespace Brunet
           _last_r_mes = cm;
 	  return null;
       }
+      protected bool _sent_status;
       
       protected ConnectionMessage _last_s_mes;
       protected Packet _last_s_packet;
@@ -296,6 +297,7 @@ namespace Brunet
         _contype = contype;
         _id = id;
         _target_lock = null;
+        _sent_status = false;
         _cmp = new ConnectionMessageParser();
       }
 
@@ -305,6 +307,32 @@ namespace Brunet
 	  Console.Error.WriteLine("Lock released by destructor");
           Unlock();
 	}
+      }
+
+      public bool AllowLockTransfer(Address a, string contype, ILinkLocker l)
+      {
+        //We should allow it as long as it is not another LinkProtocolState:
+	LinkProtocolState lps = l as LinkProtocolState;
+	bool allow = false;
+	if ( lps == null ) {
+          /**
+	   * We only allow a lock transfer in the following case:
+           * 0) We have not sent the StatusRequest yet.
+	   * 1) We are not transfering to another LinkProtocolState
+	   * 2) The lock matches the lock we hold
+	   * 3) The address we are locking is greater than our own address
+	   */
+	  lock( this ) {
+            if( (!_sent_status )
+                && a.Equals( _target_lock )
+	        && contype == _contype 
+		&& ( a.CompareTo( _node.Address ) > 0) ) {
+              _target_lock = null; 
+              allow = true;
+	    }
+	  }
+	}
+	return allow;
       }
       /**
        * Set the _target member variable and check for sanity
@@ -322,7 +350,8 @@ namespace Brunet
       {
         if ( target == null )
           return;
-  
+ 
+       lock(this) {
         ConnectionTable tab = _node.ConnectionTable;
         if( _target_lock != null ) {
           //This is the case where _target_lock has been set once
@@ -342,15 +371,18 @@ namespace Brunet
             _target_lock = target;
           }
         }
+       }
       }
 
       /**
        * Unlock any lock which is held by this state
        */
       public void Unlock() {
+       lock( this ) {
         ConnectionTable tab = _node.ConnectionTable;
         tab.Unlock( _target_lock, _contype, this );
 	_target_lock = null;
+       }
       }
       
       public IEnumerator GetPacketEnumerator(Edge e) {
@@ -396,7 +428,11 @@ namespace Brunet
 	}
         //Make sure we have the lock on this address, this could 
         //throw an exception halting this link attempt.
-	SetTarget( lm.Local.Address );
+        lock( this ) {
+	  SetTarget( lm.Local.Address );
+          //At this point, we cannot be pre-empted.
+          _sent_status = true;
+        }
 	
 	_last_s_mes = _node.GetStatus(lm.ConTypeString, lm.Local.Address);
 	_last_s_mes.Id = _id++;
