@@ -66,7 +66,7 @@ namespace Brunet
    * @see Linker
    */
 
-  public class ConnectionPacketHandler : IPacketHandler
+  public class ConnectionPacketHandler : IPacketHandler, ILinkLocker
   {
 
      /**
@@ -114,6 +114,16 @@ namespace Brunet
       }
     }
 
+    /**
+     * Implement the ILockLinker interface.  These objects never
+     * transfer locks since if they hold them, they must have received
+     * a packet.  This means their locks are held only when connectivity
+     * is guaranteed (unlike Linkers).
+     */
+    public bool AllowLockTransfer(Address a, string contype, ILinkLocker holder)
+    {
+      return false;
+    }
     /**
      * When a ConnectionPacket comes to an Edge, this
      * method is called.
