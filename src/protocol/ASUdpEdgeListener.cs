@@ -371,7 +371,16 @@ namespace Brunet
         _send_queue.Enqueue(sqe);
 	if( _send_queue.Count == 1 ) {
           //We have just one item, go ahead and start to send:
-	  StartSend(sqe);
+	  try {
+	    StartSend(sqe);
+	  }
+	  catch(Exception x) {
+            Console.Error.WriteLine("In HandlePacket.  Edge: {0}\n{1}", sqe.Sender, x);
+	    /*
+	     * This is a packet loss, remove it from the queue:
+	     */
+            _send_queue.Dequeue();
+	  }
 	}
 	else {
           //There is already a send going on, it will run until
@@ -395,30 +404,46 @@ namespace Brunet
       p.CopyTo(_send_buffer, 8);
       //Console.WriteLine("About to BeginSendTo"); 
       s.BeginSendTo(_send_buffer, 0, 8 + p.Length, SocketFlags.None, e,
-			this.SendHandler, null);
+			this.SendHandler, sqe);
     }
     
     protected void SendHandler(IAsyncResult asr) {
       try {
         //int sent = 
         s.EndSendTo(asr);
-        //Console.WriteLine("EndSendTo"); 
-	//Check to see if there is anymore to send:
-	lock( _send_queue ) {
-          //We just sent the first element, get rid of it:
-	  _send_queue.Dequeue();
-	  if( _send_queue.Count > 0 ) {
-            SendQueueEntry sqe = (SendQueueEntry)_send_queue.Peek();
-            StartSend(sqe);
-	  }
-	  else {
-            //We have emptied the queue
-	  }
-	}
       }
       catch(Exception x) {
-        Console.Error.WriteLine("In SendHandler: {0}",x);
+        /*
+         * This is just a lost packet.  No big deal
+         */
+	SendQueueEntry sqeo = (SendQueueEntry)asr.AsyncState;
+        Console.Error.WriteLine("In SendHandler, EndSendTo.  Edge: {0}\n{1}", sqeo.Sender, x);
       }
+      //Console.WriteLine("EndSendTo"); 
+      //Check to see if there is anymore to send:
+      lock( _send_queue ) {
+        //Remove the packet we just finished sending:
+	_send_queue.Dequeue();
+	//Now try to send another:
+        bool done = ( _send_queue.Count == 0);
+        while(!done) {
+	  SendQueueEntry sqe = null;
+          try {
+            sqe = (SendQueueEntry)_send_queue.Peek();
+            StartSend(sqe);
+            done = true;
+          }
+          catch(Exception x) {
+            Console.Error.WriteLine("StartSend failed: Edge: {0}\n{1}", sqe.Sender, x);
+	    /*
+	     * This is a packet loss, remove it from the queue:
+	     */
+            _send_queue.Dequeue();
+	    done = ( _send_queue.Count == 0);
+	    //If _send_queue.Count == 0, then there are no more to send, and we are done
+          }
+        }
+      } //Release the lock
     }
 
   }
