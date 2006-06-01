@@ -385,7 +385,7 @@ namespace Brunet
         s.SendTo(_send_buffer, 0, 8 + p.Length, SocketFlags.None, e);
       }
       catch (SocketException sc) {
-        Console.Error.WriteLine("Error in Socket send: {0}", sc);
+        Console.Error.WriteLine("Error in Socket send. Edge: {0}\n{1}", sender, sc);
       }
     }
 
