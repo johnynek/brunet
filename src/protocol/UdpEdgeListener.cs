@@ -2,7 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
-Copyright (C) 2005  P. Oscar Boykin <boykin@pobox.com>, University of Florida
+Copyright (C) 2005,2006  P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -334,6 +334,13 @@ namespace Brunet
                */
               read_packet = false;
             }
+	    if( (edge != null) && !edge.End.Equals(end) ) {
+              //This happens when a NAT mapping changes
+	      System.Console.WriteLine(
+	          "NAT Mapping changed on Edge: {0}\n{1} -> {2}",
+		  edge, edge.End, end); 
+	      edge.End = end;
+	    }
           }
           //Drop the ht lock and announce the edge and the packet:
           if( is_new_edge ) {

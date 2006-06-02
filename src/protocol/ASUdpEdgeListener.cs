@@ -329,6 +329,13 @@ namespace Brunet
             read_packet = false;
             Console.WriteLine("Received Dup on: {0}", edge);
           }
+          if( ( edge != null ) && !edge.End.Equals(end) ) {
+            //This happens when a NAT mapping changes
+	    System.Console.WriteLine(
+	          "NAT Mapping changed on Edge: {0}\n{1} -> {2}",
+		  edge, edge.End, end); 
+	    edge.End = end;
+	  }
         }
         //Drop the ht lock and announce the edge and the packet:
         if( is_new_edge ) {

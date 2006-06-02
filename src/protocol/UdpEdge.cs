@@ -54,9 +54,17 @@ namespace Brunet
     protected IPacketHandler _send_cb;
 
     protected System.Net.EndPoint end;
+    /**
+     * This is the IPEndPoint for this UdpEdge.
+     * No one other than the EdgeListeners that created
+     * this edge should access this.
+     */
     public System.Net.EndPoint End {
       get {
         return end;
+      }
+      set {
+        end = value;
       }
     }
 

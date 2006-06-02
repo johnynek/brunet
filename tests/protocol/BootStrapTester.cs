@@ -222,7 +222,9 @@ namespace Brunet
 		tmp_node.AddEdgeListener(new TcpEdgeListener(port+loop));
 	        break;
         case "udp":
-		//tmp_node.AddEdgeListener(new UdpEdgeListener(port+loop));
+		tmp_node.AddEdgeListener(new UdpEdgeListener(port+loop));
+		break;
+        case "udp-as":
 		tmp_node.AddEdgeListener(new ASUdpEdgeListener(port+loop));
 	        break;
 	case "function":
