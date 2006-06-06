@@ -112,12 +112,12 @@ namespace Brunet
     
     int port_A = 8000;
     int port_B = 8008;
-    int dummyport = 8888;
 
     Node node_A = new StructuredNode(address_A);
     node_A.AddEdgeListener(new TcpEdgeListener(port_A));
     node_A.RemoteTAs.Add(new TransportAddress("brunet.tcp://127.0.0.1:" +
                      port_B));
+    //int dummyport = 8888;
     //node_A.RemoteTAs.Add(new TransportAddress("brunet.tcp://127.0.0.1:" +
       //               dummyport));
 
@@ -175,7 +175,7 @@ namespace Brunet
 	      ta_list_B.Add(new TransportAddress("brunet.tcp://127.0.0.1:" +
 				port_B));
 
-	      CtmRequestHandler my_handler = new CtmRequestHandler();
+	      //CtmRequestHandler my_handler = new CtmRequestHandler();
 	      System.Threading.Thread.Sleep(500);
 	      
 	      ArrayList ta_list_A = new ArrayList();

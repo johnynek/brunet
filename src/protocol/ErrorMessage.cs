@@ -2,6 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
+Copyright (C) 2006 P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -132,6 +133,9 @@ namespace Brunet
       else {
         return false;
       }
+    }
+    override public int GetHashCode() {
+      return base.GetHashCode() ^ (int)this.Ec;
     }
     
     public override IXmlAble ReadFrom(XmlElement el)

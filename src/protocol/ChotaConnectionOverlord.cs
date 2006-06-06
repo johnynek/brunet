@@ -1,7 +1,7 @@
 /*
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
-Copyright (C) 2005  University of California
+Copyright (C) 2005-2006  University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -87,6 +87,9 @@ namespace Brunet {
       //Console.WriteLine("ranks not equal");
       return false;
     }
+    override public int GetHashCode() {
+      return _addr.GetHashCode();
+    }
     override public string ToString() {
       return _addr.ToString() + ": " + _count + ": " + _last_retry;
     }
@@ -119,7 +122,7 @@ namespace Brunet {
     private static readonly int node_rank_capacity = max_chota;
 
     //retry interval for Chota connections
-    private static readonly double _retry_delay = 5.0;
+    //private static readonly double _retry_delay = 5.0;
 
     
     //hashtable of destinations. for each destination we maintain 
@@ -494,12 +497,14 @@ namespace Brunet {
 	Connector ctr = (Connector)connector;
 	//we do not need to lock the connector; since it is already over
 	IDictionaryEnumerator ide = _chota_connection_state.GetEnumerator();
+#if ARI_CHOTA_DEBUG
 	Address addr_key = null;
+#endif
 	while(ide.MoveNext()) {
 	  ChotaConnectionState state = (ChotaConnectionState) ide.Value;
 	  if (state.Connector != null && state.Connector.Equals(ctr)) {
-	    addr_key = (Address) ide.Key;
 #if ARI_CHOTA_DEBUG
+	    addr_key = (Address) ide.Key;
 	    Console.WriteLine("ConnectorEndHandler: Connector (Chota) ended for target: {0}", 
 			      addr_key);
 #endif
@@ -546,15 +551,15 @@ namespace Brunet {
      */
     protected void ConnectHandler(object contab, EventArgs eargs)
     {
-      ConnectionEventArgs args = (ConnectionEventArgs)eargs;
-      Connection new_con = args.Connection;
-      
 #if ARI_CHOTA_DEBUG
-      Console.WriteLine("Forming a connection: {0}", new_con);
+      Connection new_con1 = ((ConnectionEventArgs)eargs).Connection; 
+      Console.WriteLine("Forming a connection: {0}", new_con1);
 #endif
 #if ARI_EXP_DEBUG
-      if (new_con.ConType.Equals(struc_chota)) {
-	Console.WriteLine("Forming a chota connection: {0} at :{1}", new_con, DateTime.Now);
+      Connection new_con2 = ((ConnectionEventArgs)eargs).Connection; 
+      if (new_con2.ConType.Equals(struc_chota)) {
+	Console.WriteLine("Forming a chota connection: {0} at :{1}",
+	                  new_con2, DateTime.Now);
       }
 #endif
     }
@@ -563,15 +568,16 @@ namespace Brunet {
      */
     protected void DisconnectHandler(object contab, EventArgs eargs)
     {
-      ConnectionEventArgs args = (ConnectionEventArgs)eargs;
-      Connection new_con = args.Connection;
       
 #if ARI_CHOTA_DEBUG
-      Console.WriteLine("Disconnect connection: {0}", new_con);
+      Connection new_con1 = ((ConnectionEventArgs)eargs).Connection;
+      Console.WriteLine("Disconnect connection: {0}", new_con1);
 #endif
 #if ARI_EXP_DEBUG
-      if (new_con.ConType.Equals(struc_chota)) {
-	Console.WriteLine("Disconnect a chota connection: {0} at: {1}", new_con, DateTime.Now);
+      Connection new_con2 = ((ConnectionEventArgs)eargs).Connection;
+      if (new_con2.ConType.Equals(struc_chota)) {
+	Console.WriteLine("Disconnect a chota connection: {0} at: {1}",
+	                  new_con2, DateTime.Now);
       }
 #endif
     }

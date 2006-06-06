@@ -168,8 +168,8 @@ namespace Brunet
       string prot = AHPacket.Protocol.Connection;
       AHPacket mypacket = new AHPacket(2, 8, test_address_1,
                                        test_address_3, prot, buf1);     //the destination is a RWP address
+      Console.WriteLine("A packet with RWP address: {0}", mypacket);
 
-      bool deliverlocally;
 
 //Testing RwtaAddress
       Console.
@@ -188,6 +188,7 @@ namespace Brunet
                         test_address_5.Class);
       AHPacket mypacket2 = new AHPacket(2, 8, test_address_1,
                                         test_address_4, prot, buf1);    //the destination is a RWTA address
+      Console.WriteLine("A packet with RWTA address: {0}", mypacket2);
 
 
     }

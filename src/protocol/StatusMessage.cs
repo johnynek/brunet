@@ -139,6 +139,9 @@ namespace Brunet {
         return false;
       }
     }
+    public override int GetHashCode() {
+      return base.GetHashCode() ^ _neighbors.Count;
+    }
 
     public override IXmlAble ReadFrom(XmlElement el)
     {

@@ -69,15 +69,6 @@ namespace Brunet
   public class ConnectionPacketHandler : IPacketHandler, ILinkLocker
   {
 
-     /**
-     * When a status response arrives it means that we may need to make a new
-     * connection.
-     * SimpleConnectionOverlord listens for this event and decides based on
-     * the content of the StatusMessage whether a new connection should be
-     * made
-     */
-    public event EventHandler StatusResponseArrivedEvent;
-    
     /*private static readonly log4net.ILog log =
         log4net.LogManager.GetLogger(System.Reflection.MethodBase.
         GetCurrentMethod().DeclaringType);*/
@@ -356,8 +347,6 @@ namespace Brunet
     protected bool CanConnect(LinkMessage lm, Edge from, out ErrorMessage err)
     {
       err = null;
-      ConnectionType ct = ConnectionType.Unknown;
-      bool have_con = false;
       lock( _tab.SyncRoot ) {
 
 	if( lm.Attributes["realm"] != _local.Realm ) {

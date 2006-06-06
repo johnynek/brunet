@@ -177,10 +177,7 @@ namespace Brunet
       }
 
       EdgeFactory ef = new EdgeFactory();
-      System.Net.Sockets.Socket new_s;
       int port = System.Int16.Parse(args[2]);
-      int l;
-      string ip_address;
 
       response_queue = new Queue();
 
@@ -266,8 +263,6 @@ namespace Brunet
         e.SetCallback(Packet.ProtType.Connection, printer );
 
         e.CloseEvent += new EventHandler(HandleClose);
-        string line;
-        System.Text.Encoding enc = new System.Text.ASCIIEncoding();
 	int counter = 0;
 	byte[] buf = new byte[Packet.MaxLength];
 	int tries = 100;

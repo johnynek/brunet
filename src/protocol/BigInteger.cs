@@ -2460,7 +2460,8 @@ namespace Brunet
 
       BigInteger t = p_sub1 >> s;
 
-      int bits = thisVal.bitCount();
+      //POB: The below is not used and causes a compiler warning.
+      //int bits = thisVal.bitCount();
       BigInteger a = 2;
 
       // b = a^t mod p
@@ -3360,6 +3361,18 @@ namespace Brunet
 
 
       BigInteger bi1 = new BigInteger(pseudoPrime1);
+      Console.WriteLine("\n\nPrimality testing for\n" +
+                        bi1.ToString() + "\n");
+      Console.WriteLine("SolovayStrassenTest(5) = " +
+                        bi1.SolovayStrassenTest(5));
+      Console.WriteLine("RabinMillerTest(5) = " +
+                        bi1.RabinMillerTest(5));
+      Console.WriteLine("FermatLittleTest(5) = " +
+                        bi1.FermatLittleTest(5));
+      Console.WriteLine("isProbablePrime() = " +
+                        bi1.isProbablePrime());
+      /* POB: added the above also for pseudoPrime2 to clear compiler warning */
+      bi1 = new BigInteger(pseudoPrime2);
       Console.WriteLine("\n\nPrimality testing for\n" +
                         bi1.ToString() + "\n");
       Console.WriteLine("SolovayStrassenTest(5) = " +

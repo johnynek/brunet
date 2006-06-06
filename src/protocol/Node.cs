@@ -853,8 +853,8 @@ namespace Brunet
     {
       //Send without avoiding any edges
       bool directly_routable = false;
-      AHPacket packet = (AHPacket) p;
 #if ARI_DIRECT_ENABLE
+      AHPacket packet = (AHPacket) p;
       //directly routable packets enabled.
       DirectlyRoute(packet, out directly_routable);
 #endif      
@@ -955,6 +955,7 @@ namespace Brunet
       }
     }
 
+#if ARI_DIRECT_ENABLE
     /** Method to convert DirectPacket into an AHPacket
      *  @param edge edge the packet came from 
      *  @param direct_packet direct_packet which we just received
@@ -1069,5 +1070,6 @@ namespace Brunet
 #endif  
       }
     }
+#endif
   }
 }

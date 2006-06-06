@@ -206,7 +206,6 @@ namespace Brunet
 
        //Send a "hello message" to a random neighbor
 
-      int trial = 0;
       ASCIIEncoding ascii = new ASCIIEncoding();
 
       //Make the target addresses      
@@ -215,11 +214,7 @@ namespace Brunet
       string hello_msg = "hello, brunet";
       int byteCount = ascii.GetByteCount(hello_msg);
       byte[] bytes = new byte[byteCount + 1];
-      int bytesEncodedCount = ascii.GetBytes(hello_msg,
-                                                    0,
-                                                    hello_msg.Length,
-                                                    bytes,
-                                                    1);
+      ascii.GetBytes(hello_msg, 0, hello_msg.Length, bytes, 1);
 
       // update the payload
       // This is a request, so the first byte is greater than zero
@@ -283,6 +278,8 @@ namespace Brunet
 		    ping_time = pw.Ping(target_ta_configuration.Address, wait_time); //wait wait_time number of ms
 #if PLAB_LOG
 		    bl.LogPing(ping_time);	
+#else
+		    System.Console.WriteLine("Ping time: {0}",ping_time);
 #endif
 		    System.Threading.Thread.Sleep(wait_time); 
 		  }//end of for-loop 

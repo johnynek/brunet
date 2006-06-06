@@ -84,7 +84,6 @@ namespace Brunet
       sw.WriteLine("digraph bootgraph { ");
       //sw.WriteLine("size=\"8,8\";");
       sw.WriteLine("graph [bb=\"0,0,800,800\"];");
-      Process dot_proc;
       
       double nodesize = .50;
       int canvassize = 576;
@@ -152,8 +151,7 @@ namespace Brunet
       sw.WriteLine("}");
       sw.Close();
       //We just wrote the file out.
-      SHA1 sha1 = (SHA1) CryptoConfig.CreateFromName("SHA1");
-      
+#if USE_GRAPHVIZ
       string neato_command = String.Format("/usr/bin/neato");
       string neato_args =String.Format("-Tps -o {0}_circle.ps -n -s72 {0}",file_name );
       string dot_command = String.Format("/usr/bin/dot");
@@ -164,12 +162,13 @@ namespace Brunet
       //string cat_args = String.Format(" t_movie.ps {0}.ps > t_movie.ps",file_name);
       //string ps2ps_cmd = String.Format("/usr/bin/ps2ps");
       //string ps2ps_args = String.Format("t_movie.ps movie.ps");
+#endif
     }
-      
+
+#if USE_GRAPHVIZ
     static void ProgramRunner(string cmd, string cmd_args)
     {
       //There is some bug I have not diagnosed using mono 0.31.  POB
-#if false
       if (File.Exists(cmd))
       {
         //ProcessStartInfo proc_start_info = new ProcessStartInfo(cmd,cmd_args);
@@ -177,13 +176,12 @@ namespace Brunet
 	System.Console.Out.WriteLine("starting: " + cmd + " " + cmd_args);
 	Process.Start(cmd, cmd_args);
       }
-#endif
     }
+#endif
     
   static void Main(string[] args)  
   {
    
-    ArrayList all_ta_list = new ArrayList();  
     RandomNumberGenerator rng = new RNGCryptoServiceProvider();
     
     //Initialize hosts
@@ -269,7 +267,10 @@ namespace Brunet
     
     //This logs the changes in connection table
     BootStrapTester bst = new BootStrapTester(adds, node_list);
-
+    if( bst != null ) {
+    //This is just here to prevent a warning for
+    //not using bst, which is just an observer
+    }
     //Get Connected:
     int total_started = 0;
     ArrayList rnd_list = (ArrayList)node_list.Clone();

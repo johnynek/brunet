@@ -46,14 +46,14 @@ namespace Brunet
 
     ///This tester simply establishes the Brunet network and log the edges made
      private BrunetLogger bl;
-     private bool log_rdp;
+#if ECHO
      private static int echo_uid;
+#endif
 
      public StructureTester(int port, AHAddress local_add, bool net_stream, String server_ipadd, 
 		     int server_port, int offset, StreamWriter fs)
      {
           bl = new BrunetLogger(port, local_add, net_stream, server_ipadd, server_port, offset, fs); 
-          log_rdp = false;
      }
     
      public void SignalCatcher(int v)
@@ -66,7 +66,6 @@ namespace Brunet
      public void SignalCatcherStartRDP(int v)
      {
           Console.WriteLine("Signal received: " + v);
-	  log_rdp = true;
      }  
 #if ECHO
 /*    public static Hashtable uid_starttime = new Hashtable();
@@ -235,6 +234,7 @@ namespace Brunet
           num_remote_ta--;
         }
 
+#if PLAB_LOG
       int time_diff = 0;
       String td_file_string = "~/joe/time_diff.txt";
       if(File.Exists(td_file_string)){
@@ -257,7 +257,6 @@ namespace Brunet
       //The line below is for cobweb
       //StructureTester st = new StructureTester(desired_port, (AHAddress)this_node.Address, false, "164.67.194.45", 8002); 
       //set true for network stream
-#if PLAB_LOG
       this_node.Logger = st.bl;
 
 #if ECHO
@@ -307,9 +306,11 @@ namespace Brunet
       ///The following is a while-loop for the local node to Brunet-ping all other nodes in the network
       int sleep_time_min = 240;
       System.Threading.Thread.Sleep(sleep_time_min*60*1000);  ///IMPORTANT: change this parameter so we wait longer for larger network
-      /*while(!st.log_rdp){
+      /*
+      while(!st.log_rdp){
          System.Threading.Thread.Sleep(5000);
-      }*/
+      }
+      */
       Random uid_generator = new Random( DateTime.Now.Millisecond + local_ta.GetHashCode() + port);
       byte[] bytes = new byte[6];
       int target_index = 0, num_pings = 10, wait_time = 2000, uid; //the wait_time is in ms
