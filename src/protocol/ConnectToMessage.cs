@@ -185,7 +185,6 @@ namespace Brunet
     {
       return tag == "connectTo";
     }
-
     public override bool Equals(object o)
     {
       ConnectToMessage co = o as ConnectToMessage;
@@ -208,7 +207,9 @@ namespace Brunet
         return false;
       }
     }
-    
+    override public int GetHashCode() {
+      return base.GetHashCode() ^ this.Neighbors.Length;
+    }
     public override IXmlAble ReadFrom(XmlElement el)
     {
       return new ConnectToMessage(el);

@@ -109,6 +109,7 @@ namespace Brunet
         num_remote_ta--;
       }
 
+#if PLAB_LOG
       bool net_stream = false;
       String server_ipadd = "cantor.ee.ucla.edu";
       int server_port = 8002;
@@ -119,6 +120,7 @@ namespace Brunet
         time_diff = Convert.ToInt32( sr.ReadLine() );     
         sr.Close();
       }  
+#endif
       //String file_string = "./data/brunetadd" + Convert.ToString(desired_port) + ".log";
       fs.WriteLine( "local_address " + node.Address.ToBigInteger().ToString() 
           + " " + Dns.GetHostName() + ":" + desired_port);
@@ -126,10 +128,10 @@ namespace Brunet
           ":" + DateTime.Now.ToUniversalTime().Millisecond +
           "  Start  Start  " + node.Address.ToBigInteger().ToString() + '\n'); 
       fs.Flush(); 
+#if PLAB_LOG
       BrunetLogger bl = new BrunetLogger(desired_port, (AHAddress)node.Address, 
           net_stream, server_ipadd, server_port, time_diff, fs); 
 
-#if PLAB_LOG
       node.Logger = bl;
 #endif
       //bool log_rdp = false;	  

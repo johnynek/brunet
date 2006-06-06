@@ -2,6 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
+Copyright (C) 2006 P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -141,6 +142,12 @@ namespace Brunet
     }
 
     /**
+     * We don't only want to compute the Hash once:
+     */
+    protected bool _done_hash = false;
+    protected int _code;
+
+    /**
      * @return true this is a node tag
      */
     public bool CanReadTag(string tag)
@@ -180,6 +187,17 @@ namespace Brunet
       }
     }
 
+    public override int GetHashCode() {
+      if( !_done_hash ) {
+        _code = 0;
+        if( _address != null ) { _code = _address.GetHashCode(); }
+        foreach(TransportAddress ta in _tas) {
+          _code ^= ta.GetHashCode();
+        }
+	_done_hash = true;
+      }
+      return _code;
+    }
 
     /**
      * @return a NodeInfo read from this element.

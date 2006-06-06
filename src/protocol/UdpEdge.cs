@@ -135,6 +135,11 @@ namespace Brunet
         return false;
       }
     }
+    public override int GetHashCode()
+    {
+      //This should be random since IDs are randomly assigned
+      return (this.ID ^ this.RemoteID);
+    }
 
     public override void Send(Brunet.Packet p)
     {

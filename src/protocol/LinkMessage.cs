@@ -207,6 +207,10 @@ namespace Brunet
       }
     }
    
+    public override int GetHashCode() {
+      return base.GetHashCode() ^ ConTypeString.GetHashCode();
+    }
+
     public override IXmlAble ReadFrom(XmlElement el)
     {
       return new LinkMessage(el);

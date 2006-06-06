@@ -94,6 +94,9 @@ namespace Brunet
     {
       return (tag == "close");
     }
+    override public int GetHashCode() {
+      return base.GetHashCode() ^ _reason.GetHashCode();
+    }
 
     override public bool Equals(object o)
     {
@@ -104,7 +107,6 @@ namespace Brunet
         return false;
       }
     }
-    
     override public IXmlAble ReadFrom(System.Xml.XmlElement el)
     {
       return new CloseMessage(el);
