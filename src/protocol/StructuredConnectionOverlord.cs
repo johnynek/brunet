@@ -18,661 +18,951 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-/*
- * Dependencies : 
- Brunet.Address;
- Brunet.AHAddress;
- Brunet.AHAddressComparer;
- Brunet.AHPacket;
- Brunet.BigInteger;
- Brunet.BrunetLogger;
- Brunet.ConnectionType;
- Brunet.ConnectionTable;
- Brunet.ConnectionOverlord
- Brunet.Connector
- Brunet.ConnectToMessage
- Brunet.ConnectionMessage
- Brunet.CloseMessage
- Brunet.ConnectionPacket
- Brunet.TransportAddress;
- Brunet.DirectionalAddress;
- Brunet.Edge;
- Brunet.Node;
- Brunet.StructuredAddress;
- Brunet.PacketForwarder;
- Brunet.ConnectionEventArgs;
- */
-
-// #define DEBUG
+#define POB_DEBUG
+#define TRIM
+//#define PERIODIC_NEIGHBOR_CHK
 
 using System;
 using System.Collections;
-//using log4net;
-namespace Brunet
-{
+
+namespace Brunet {
 
   /**
-   * Manages the ordered Address, Edge table which
-   * is used to find the Edge which is closest
-   * to the destination Address
-   *
-   * This is only for Structured Addresses, or subclasses
-   * of AHAddress
-   *
+   * This is an attempt to write a simple version of
+   * StructuredConnectionOverlord which is currently quite complex,
+   * difficult to understand, and difficult to debug.
    */
-
-  public class StructuredConnectionOverlord:ConnectionOverlord
-  {
-    /*private static readonly log4net.ILog log =
-        log4net.LogManager.GetLogger(System.Reflection.MethodBase.
-        GetCurrentMethod().DeclaringType);*/
-    protected Node _local;
-    ///The local TransportAddress objects we can use to get connections
-
-    protected ConnectionTable _connection_table;
-    /**
-     * The number of desired neighbor connections.  Same value for left and 
-     * right.
-     */
-    static protected readonly short _total_desired_neighbors = 2;
-
-    /**
-     * The number of desired shortcut connections.
-     */
-    static protected readonly short _total_desired_shortcuts = 1;
-
-    /**
-     * The minimum number of HeartBeat events that must elapse between a connection.
-     * and a structured edge trimming.
-     */
-    static protected readonly double _minimum_trim_time_delay = 30.0;
-
-    /**
-     * This is the time that the most recent neighbor connection was made
-     */
-    protected DateTime _last_connection_time;
+  public class StructuredConnectionOverlord : ConnectionOverlord {
     
-    /**
-     * These are the edges which are shortcuts.  There should
-     * be less shortcuts than neighbors, so any edge that is not
-     * in the list, must be a neighbor.
-     *
-     * This is a first draft at trying to make sure neighbors
-     * don't "become" shortcuts simply by virtue of more neighbors
-     * joining.  This could confuse the statistics of the bona fide
-     * shortcuts.
-     *
-     * Also, we need to close "old" neighbors that are displaced by
-     * closer neighbors (say when we have twice as many as we need).
-     * @todo deal with the situation where we get too many neighbors
-     */
-    protected ArrayList _shortcut_edges;
-
-    /**
-     * These are all the connectors that are currently working.
-     * When they are done, their FinishEvent is fired, and we
-     * will remove them from this list.  This makes sure they
-     * are not garbage collected.
-     */
-    protected ArrayList _connectors;
-
-    /**
-     * When we trim an edge, we add it to this list.
-     * When the disconnect event is fired, we remove
-     * it from the list.
-     */
-    protected ArrayList _trimmed_edges;
-
-    protected Random _rand;
-    //This is the last leaf address we used to bootstrap
-    protected Address _last_leaf;
-
-    /**
-     * An object we lock to get thread synchronization
-     */
-    protected object _sync;
-
-    /**
-     * @param a the address of the node in which the AHRoutingTable is located
-     */
-    public StructuredConnectionOverlord(Node local)
+    public StructuredConnectionOverlord(Node n)
     {
-      _local = local;
-      _last_leaf = null;
-      _compensate = true;
-      _connection_table = _local.ConnectionTable;
-      _shortcut_edges = new ArrayList();
-      _trimmed_edges = new ArrayList();
-      //Try to make sure each SCO has a different seed:
-      int seed = GetHashCode() ^ local.GetHashCode()
-                 ^ DateTime.Now.Millisecond;
-      _rand = new Random(seed);
-
-      _connectors = new ArrayList();
-
+      _node = n;
+      _rand = new Random();
       _sync = new Object();
+      _connectors = new ArrayList();
+      _last_connection_time = DateTime.Now;
       lock( _sync ) {
-        _local.ConnectionTable.DisconnectionEvent +=
-          new EventHandler(this.CheckAndDisconnectHandler);
-        _local.ConnectionTable.ConnectionEvent +=
-          new EventHandler(this.CheckAndConnectHandler);
-
-      }
+      //Listen for connection events:
+        _node.ConnectionTable.DisconnectionEvent +=
+          new EventHandler(this.DisconnectHandler);
+        _node.ConnectionTable.ConnectionEvent +=
+          new EventHandler(this.ConnectHandler);     
+        _node.ConnectionTable.StatusChangedEvent += 
+          new EventHandler(this.StatusChangedHandler);
       /**
        * Every heartbeat we assess the trimming situation.
        * If we have excess edges and it has been more than
        * _trim_wait_time heartbeats then we trim.
        */
-      local.HeartBeatEvent +=
-        new EventHandler(this.CheckForTrimConditions);
-
+        _node.HeartBeatEvent += new EventHandler(this.CheckState);
+      }
     }
 
+    ///////  Attributes /////////////////
+
+    protected Node _node;
+    protected Random _rand;
+
     protected bool _compensate;
+    //We use this to make sure we don't trim connections
+    //too fast.  We want to only trim in the "steady state"
+    protected DateTime _last_connection_time;
+    protected object _sync;
+
+    protected ArrayList _connectors;
+
+    /*
+     * These are parameters of the Overlord.  These govern
+     * the way it reacts and works.
+     */
+    
+    ///How many neighbors do we want (same value for left and right)
+    static protected readonly int _desired_neighbors = 2;
+    static protected readonly int _desired_shortcuts = 1;
+    ///How many seconds to wait between connections/disconnections to trim
+    static protected readonly double _trim_delay = 30.0;
+    
+    /*
+     * We don't want to risk mistyping these strings.
+     */
+    static protected readonly string struc_near = "structured.near";
+    static protected readonly string struc_short = "structured.shortcut";
+    
     /**
      * If we start compensating, we check to see if we need to
      * make new neighbor or shortcut connections : 
      */
     override public bool IsActive
     {
-      get
-      {
-        return _compensate;
-      }
-      set
-      {
-        _compensate = value;
+      get { return _compensate; }
+      set { _compensate = value; }
+    }    
+
+    override public bool NeedConnection 
+    {
+      get {
+	int structs = _node.ConnectionTable.Count(ConnectionType.Structured);
+	if( structs < (2 * _desired_neighbors + _desired_shortcuts) ) {
+          //We don't have enough connections for what we need:
+          return true;
+	}
+	else {
+          //The total is enough, but we may be missing some edges
+          return NeedShortcut || NeedLeftNeighbor || NeedRightNeighbor;
+	}
       }
     }
-
-    protected bool _initiated_shortcut = false;
-    /**
-     * Shows wether we have tried to establish a shortcut to a random address. 
-     * Due to race conditions certain short-distance connections may be classified
-     * as shortcuts. We want to make sure that every node has tried to get at least one
-     * real shortcut in order to avoid the possibility of fake shortcuts preventing nodes
-     * from getting at least one real shortcut. It is important to ensure that nodes try
-     * to get at least one real shortcut in order to guarantee the desired performance 
-     * of the network.
+    
+    /*
+     * In between connections or disconnections there is no
+     * need to recompute whether we need connections.
+     * So after each connection or disconnection, this becomes
+     * false.
+     *
+     * These are -1 when we don't know 0 is false, 1 is true
+     *
+     * This is just an optimization, however, running many nodes
+     * on one computer seems to benefit from this optimization
+     * (reducing cpu usage and thus the likely of timeouts).
      */
-    public bool TriedShortcut
-    {
-      get
-      {
-        return _initiated_shortcut;
-      }
-      set
-      {
-        _initiated_shortcut = value;
+    protected int _need_left;
+    protected int _need_right;
+    protected int _need_short;
+    /**
+     * We know a left neighbor from a right neighbor because it is closer
+     * on the left hand side.  Strictly speaking, this is not necessarily true
+     * but for networks greated than size 10 it is very likely:
+     *
+     * The probabililty that there are less than k neighbors on one half of the ring:
+     * \frac{1}{2^N} \sum_{i=0}^{k-1} {N \choose k}
+     * for k=2: (1+N)/(2^N)
+     * For N=10, the probability that a node is in this boat is already ~1/100.  For
+     * N ~ 100 this will never happen in the life of the universe.
+     */
+
+    /**
+     * 
+     * @returns true if we have too few left neighbor connections
+     */
+    protected bool NeedLeftNeighbor {
+      get {
+	lock( _sync ) {
+          if( _need_left != -1 ) {
+            return (_need_left == 1);
+	  }
+	  int left = 0;
+	  ConnectionTable tab = _node.ConnectionTable;
+	  lock( tab.SyncRoot ) {
+          //foreach(Connection c in _node.ConnectionTable.GetConnections(struc_near)) {
+            foreach(Connection c in tab.GetConnections(ConnectionType.Structured)) {
+              AHAddress adr = (AHAddress)c.Address;
+//#if POB_DEBUG
+#if false
+	  AHAddress local = (AHAddress)_node.Address;
+              Console.WriteLine("{0} -> {1}, lidx: {2}, is_left: {3}" ,
+			    _node.Address, adr, LeftPosition(adr), adr.IsLeftOf( local ) );
+#endif
+	      if( 
+	        //adr.IsLeftOf( local ) &&
+                (LeftPosition( adr ) < _desired_neighbors) ) {
+                //This is left neighbor:
+	        left++; 
+	      }
+	    }
+	  }
+//#if POB_DEBUG
+#if false
+          Console.WriteLine("{0} left: {1}" , _node.Address, left);
+#endif
+	  if( left < _desired_neighbors ) {
+            _need_left = 1;
+	    return true;
+	  } 
+	  else {
+            _need_left = 0;
+	    return false;
+	  }
+	}
       }
     }
 
     /**
-    * These are the structured types.  This provides convenient book-keeping
-    * for the structuredconnectionoverlord.
-    */
-    public enum StructuredType
+     * @returns true if we have too few right neighbor connections
+     */
+    protected bool NeedRightNeighbor {
+      get {
+	lock( _sync ) {
+          if( _need_right != -1 ) {
+            return (_need_right == 1);
+	  }
+	  int right = 0;
+	  ConnectionTable tab = _node.ConnectionTable;
+	  lock( tab.SyncRoot ) {
+            //foreach(Connection c in _node.ConnectionTable.GetConnections(struc_near)) {
+            foreach(Connection c in tab.GetConnections(ConnectionType.Structured)) {
+              AHAddress adr = (AHAddress)c.Address;
+//#if POB_DEBUG
+#if false
+	  AHAddress local = (AHAddress)_node.Address;
+              Console.WriteLine("{0} -> {1}, ridx: {2}, is_right: {3}",
+			    _node.Address, adr, RightPosition(adr), adr.IsRightOf( local) );
+#endif
+	      if(
+	        //adr.IsRightOf( local ) &&
+                (RightPosition( adr ) < _desired_neighbors) ) {
+                //This is right neighbor:
+	        right++; 
+	      }
+	    }
+	  }
+	  if( right < _desired_neighbors ) {
+            _need_right = 1;
+	    return true;
+	  } 
+	  else {
+            _need_right = 0;
+	    return false;
+	  }
+        }
+      }
+    }
+    
+    /**
+     * @returns true if we have too few right shortcut connections
+     */
+    protected bool NeedShortcut {
+      get {
+	lock( _sync ) {
+          if( _node.NetworkSize < 1 ) {///JOE_DEBUG: changed the value from 20 to 1
+            //There is no need to bother with shortcuts on small networks
+	    return false;
+	  }
+          if( _need_short != -1 ) {
+            return (_need_short == 1);
+	  }
+	  int shortcuts = 0;
+	  lock( _node.ConnectionTable.SyncRoot ) {
+            foreach(Connection c in _node.ConnectionTable.GetConnections(struc_short)) {
+              int left_pos = LeftPosition((AHAddress)c.Address);
+              int right_pos = RightPosition((AHAddress)c.Address); 
+	      if( left_pos >= _desired_neighbors &&
+	          right_pos >= _desired_neighbors ) {
+              /*
+	       * No matter what they say, don't count them
+	       * as a shortcut if they are one a close neighbor
+	       */
+                shortcuts++;
+	      }
+	    }
+	  }
+	  if( shortcuts < _desired_shortcuts ) {
+            _need_short = 1;
+	    return true;
+	  } 
+	  else {
+            _need_short = 0;
+	    return false;
+	  }
+	}
+      }
+    }
+    
+    ///////////////// Methods //////////////////////
+    
+    /**
+     * Starts the Overlord if we are active
+     *
+     * This method is called by the CheckState method
+     * IF we have not seen any connections in a while
+     * AND we still need some connections
+     *
+     */
+    public override void Activate()
     {
-      None,
-      RightNeighbor,              //Neighbor to the right.
-      LeftNeighbor,               //Neighbor to the left.
-      Self,                       //Self.
-      Shortcut                    //Shortcut.
+#if POB_DEBUG
+      //Console.WriteLine("In Activate: {0}", _node.Address);
+#endif
+      if( IsActive == false ) {
+        return;
+      }
+      ConnectionTable tab = _node.ConnectionTable;
+      //If we are going to connect to someone, this is how we
+      //know who to use
+      Address forwarder = null;
+      Address target = null;
+      short ttl = -1;
+      string contype = "";
+      int structured_count = 0;
+      int leaf_count = 0;
+      
+      lock( tab.SyncRoot ) {
+	leaf_count = tab.Count(ConnectionType.Leaf);
+	if( leaf_count == 0 )
+	{
+          /*
+	   * We first need to get a Leaf connection
+	   */
+          return;
+	}
+	structured_count = tab.Count(ConnectionType.Structured);
+
+	if( structured_count < 2 ) {
+          //We don't have enough connections to guarantee a connected
+	  //graph.  Use a leaf connection to get another connection
+	  Connection leaf = null;
+	  do {
+            leaf = tab.GetRandom(ConnectionType.Leaf);
+	  }
+	  while( leaf != null &&
+	         tab.Count( ConnectionType.Leaf ) > 1 &&
+		 tab.Contains( ConnectionType.Structured, leaf.Address ) );
+	  //Now we have a random leaf that is not a
+	  //structured neighbor to try to get a new neighbor with:
+	  if( leaf != null ) {
+	    target = GetSelfTarget();
+	    if( ! target.Equals( leaf.Address ) ) {
+	      //As long as the forwarder is not the target, forward
+              forwarder = leaf.Address;
+	    }
+	    ttl = 1024;
+	    //This is a near neighbor connection
+	    contype = struc_near;
+	  }
+	}
+      }//End of ConnectionTable lock
+      if( target != null ) {
+        if( forwarder != null ) {
+          ForwardedConnectTo(forwarder, target, ttl, contype);
+	}
+	else {
+          ConnectTo(target, ttl, contype);
+	}
+      }
+      if( structured_count > 0 && target == null ) {
+          //We have enough structured connections to ignore the leafs
+          
+	  /**
+	   * We need left or right neighbors we send
+	   * a ConnectToMessage in the directons we
+	   * need.
+	   */
+
+	  bool trying_near = false;
+          if( NeedLeftNeighbor ) {
+#if POB_DEBUG
+      //Console.WriteLine("NeedLeftNeighbor: {0}", _node.Address);
+#endif
+            target = new DirectionalAddress(DirectionalAddress.Direction.Left);
+	    ttl = (short)_desired_neighbors;
+	    contype = struc_near;
+	    trying_near = true;
+            ConnectTo(target, ttl, contype);
+          }
+	  if( NeedRightNeighbor ) {
+#if POB_DEBUG
+      //Console.WriteLine("NeedRightNeighbor: {0}", _node.Address);
+#endif
+            target = new DirectionalAddress(DirectionalAddress.Direction.Right);
+	    ttl = (short)_desired_neighbors;
+	    contype = struc_near;
+	    trying_near = true;
+            ConnectTo(target, ttl, contype);
+          }
+	  /*
+	   * If we are trying to get near connections it
+	   * is not smart to try to get a shortcut.  We
+	   * need to make sure we are on the proper place in
+	   * the ring before doing the below:
+	   */
+	  if( !trying_near && NeedShortcut ) {
+#if POB_DEBUG
+      //Console.WriteLine("NeedShortcut: {0}", _node.Address);
+#endif
+            target = GetShortcutTarget(); 
+	    ttl = 1024;
+	    contype = struc_short;
+            ConnectTo(target, ttl, contype);
+          }
+      }
     }
 
-  public enum StructuredRingDirection:int
+    /**
+     * Every heartbeat we take a look to see if we should trim
+     *
+     * We only trim one at a time.
+     */
+    protected void CheckState(object node, EventArgs eargs)
     {
-      // Left is "clockwise", or increasing in numerical address
-      Left = +1,
-      // Right is "counterclockwise", or decreasing
-      Right = -1
+#if POB_DEBUG
+      //Console.WriteLine("In Check for State");
+#endif
+      lock( _sync ) {
+        if( IsActive == false ) {
+          //If we are not active, we do not care what
+	  //our state is.
+          return;
+        }
+        TimeSpan elapsed = DateTime.Now - _last_connection_time;
+	if( elapsed.TotalSeconds >= _trim_delay ) {
+          ConnectionTable tab = _node.ConnectionTable;
+#if POB_DEBUG
+    //Console.WriteLine("Go for State check");
+#endif
+
+#if PERIODIC_NEIGHBOR_CHK
+        /*
+         * If we haven't had any connections in a while, we check, our
+         * neighbors to see if there are node we should try to 
+         * connect to:
+         * This is basically the same code as in ConnectorEndHandler
+         */
+          Address ltarget = null;
+          Address nltarget = null;
+          Address rtarget = null;
+          Address nrtarget = null;
+          Hashtable neighbors_to_con = new Hashtable();
+          Hashtable add_to_neighbor = new Hashtable();
+          lock( tab.SyncRoot ) {
+            ArrayList neighs = new ArrayList();
+            foreach(Connection c in tab.GetConnections(ConnectionType.Structured)) {
+              foreach(NodeInfo n in c.Status.Neighbors) {
+                neighbors_to_con[n] = c;
+                add_to_neighbor[n.Address] = n;
+              }
+              neighs.AddRange( c.Status.Neighbors );
+            }
+            CheckForNearerNeighbors(neighs, ltarget, out nltarget,
+                                rtarget, out nrtarget);
+          }
+          if( nrtarget != null ) {
+            NodeInfo target_info = (NodeInfo)add_to_neighbor[nrtarget];
+            Connection con = (Connection)neighbors_to_con[target_info];
+            Address forwarder = con.Address;
+            short ttl = _node.DefaultTTLFor( forwarder );
+            ForwardedConnectTo(forwarder, nrtarget, ttl, struc_near);
+          }
+          if( nltarget != null && !nltarget.Equals(nrtarget) ) {
+            NodeInfo target_info = (NodeInfo)add_to_neighbor[nltarget];
+            Connection con = (Connection)neighbors_to_con[target_info];
+            Address forwarder = con.Address;
+            short ttl = _node.DefaultTTLFor( forwarder );
+            ForwardedConnectTo(forwarder, nltarget, ttl, struc_near);
+          }
+#endif
+
+#if TRIM
+            //We may be able to trim connections.
+	    ArrayList sc_trim_candidates = new ArrayList();
+	    ArrayList near_trim_candidates = new ArrayList();
+	    lock( tab.SyncRoot ) {
+	      
+	      foreach(Connection c in tab.GetConnections(struc_short)) {
+                int left_pos = LeftPosition((AHAddress)c.Address);
+                int right_pos = RightPosition((AHAddress)c.Address); 
+	        if( left_pos >= _desired_neighbors &&
+	          right_pos >= _desired_neighbors ) {
+	         /*
+		  * Verify that this shortcut is not close
+		  */
+                  sc_trim_candidates.Add(c);
+		}
+	      }
+	      foreach(Connection c in tab.GetConnections(struc_near)) {
+                int right_pos = RightPosition((AHAddress)c.Address);
+                int left_pos = LeftPosition((AHAddress)c.Address);
+	    
+	        if( right_pos > 2 * _desired_neighbors &&
+		    left_pos > 2 * _desired_neighbors ) {
+	          //These are near neighbors that are not so near
+	          near_trim_candidates.Add(c);
+		}
+                
+	      }
+	    }//End of ConnectionTable lock
+
+	    bool sc_needs_trim = (sc_trim_candidates.Count > 2 * _desired_shortcuts);
+	    bool near_needs_trim = (near_trim_candidates.Count > 0);
+	    /*
+	     * Prefer to trim near neighbors that are unneeded, since
+	     * they are not as useful for routing
+	     * If there are no unneeded near neighbors, then
+	     * consider trimming the shortcuts
+	     */
+	    if( near_needs_trim ) {
+	      //Delete a farthest trim candidate:
+        BigInteger biggest_distance = new BigInteger(0);
+        BigInteger tmp_distance = new BigInteger(0);
+        Connection to_trim = null;
+        foreach(Connection tc in near_trim_candidates ) 
+        {
+          AHAddress t_ah_add = (AHAddress)tc.Address;
+          tmp_distance = t_ah_add.DistanceTo( (AHAddress)_node.Address).abs();
+          if (tmp_distance > biggest_distance) {
+            biggest_distance = tmp_distance;
+            //Console.WriteLine("...finding far distance for trim: {0}",biggest_distance.ToString() );
+            to_trim = tc;
+          }
+        }
+        //Console.WriteLine("Final distance for trim{0}: ",biggest_distance.ToString() );
+	      //Delete a random trim candidate:
+	      //int idx = _rand.Next( near_trim_candidates.Count );
+	      //Connection to_trim = (Connection)near_trim_candidates[idx];
+#if POB_DEBUG
+        //Console.WriteLine("Attempt to trim Near: {0}", to_trim);
+#endif
+	      _node.GracefullyClose( to_trim.Edge );
+	    }
+	    else if( sc_needs_trim ) {
+	      /**
+	       * @todo use a better algorithm here, such as Nima's
+	       * algorithm for biasing towards more distant nodes:
+	       */
+	      //Delete a random trim candidate:
+	      int idx = _rand.Next( sc_trim_candidates.Count );
+	      Connection to_trim = (Connection)sc_trim_candidates[idx];
+#if POB_DEBUG
+              //Console.WriteLine("Attempt to trim Shortcut: {0}", to_trim);
+#endif
+	      _node.GracefullyClose( to_trim.Edge );
+	    }
+#endif
+	  //}
+	  if( NeedConnection ) {
+            //Wake back up and try to get some
+            Activate();
+	  }
+	}
+      }
+    }
+    /**
+     * This method is called when a new Connection is added
+     * to the ConnectionTable
+     */
+    protected void ConnectHandler(object contab, EventArgs eargs)
+    {
+      //These are the two closest target addresses
+      Address ltarget = null;
+      Address rtarget = null;
+      Address nltarget = null;
+      Address nrtarget = null;
+	    
+      lock( _sync ) {
+        _last_connection_time = DateTime.Now;
+        _need_left = -1;
+        _need_right = -1;
+        _need_short = -1;
+      }
+      if( IsActive == false ) {
+        return;
+      }
+      ConnectionEventArgs args = (ConnectionEventArgs)eargs;
+      Connection new_con = args.Connection;
+      bool connect_left = false;
+      bool connect_right = false;
+      
+      if( new_con.MainType == ConnectionType.Leaf ) {
+	/*
+	 * We just got a leaf.  Try to use it to get a shortcut.near
+	 * This leaf could be connecting a new part of the network
+	 * to us.  We try to connect to ourselves to make sure
+	 * the network is connected:
+	 */
+	Address target = GetSelfTarget();
+	short ttl = 1024;
+	//This is a near neighbor connection
+	string contype = struc_near;
+        ForwardedConnectTo(new_con.Address, target, ttl, contype);
+      }
+      else if( new_con.MainType == ConnectionType.Structured ) {
+       ConnectionTable tab = _node.ConnectionTable;
+       lock( tab.SyncRoot ) {
+        int left_pos = LeftPosition((AHAddress)new_con.Address);
+        int right_pos = RightPosition((AHAddress)new_con.Address); 
+
+	if( left_pos < _desired_neighbors ) {
+        /*
+	 * This is a new left neighbor.  Always
+	 * connect to the right of a left neighbor,
+	 * this will make sure we are connected to
+	 * our local neighborhood.
+	 */
+          connect_right = true;
+	  if( left_pos < _desired_neighbors - 1) { 
+            /*
+	     * Don't connect to the left of our most
+	     * left neighbor.  If this is not our
+	     * most left neighbor, make sure we are
+	     * connected to his left
+	     */
+            connect_left = true;
+	  }
+	}
+	if( right_pos < _desired_neighbors ) {
+        /*
+	 * This is a new right neighbor.  Always
+	 * connect to the left of a right neighbor,
+	 * this will make sure we are connected to
+	 * our local neighborhood.
+	 */
+          connect_left = true;
+	  if( right_pos < _desired_neighbors - 1) { 
+            /*
+	     * Don't connect to the right of our most
+	     * right neighbor.  If this is not our
+	     * most right neighbor, make sure we are
+	     * connected to his right
+	     */
+            connect_right = true;
+	  }
+	}
+	
+	if( left_pos >= _desired_neighbors && right_pos >= _desired_neighbors ) {
+        //This looks like a shortcut
+	  
+        }
+
+	/*
+	 * Check to see if any of this node's neighbors
+	 * should be neighbors of us. It provides modified
+   * Address targets ltarget and rtarget.
+	 */
+  
+        CheckForNearerNeighbors(new_con.Status.Neighbors,
+                                ltarget,out nltarget,
+                                rtarget,out nrtarget);
+       
+       } //Release the lock on the connection_table
+      }
+      
+      /* 
+       * We want to make sure not to hold the lock on ConnectionTable
+       * while we try to make new connections
+       */
+      short f_ttl = 3; //2 would be enough, but 1 extra...
+      if( nrtarget != null ) {
+        ForwardedConnectTo(new_con.Address, nrtarget, f_ttl, struc_near);
+#if PLAB_LOG
+        BrunetEventDescriptor bed1 = new BrunetEventDescriptor();      
+        bed1.RemoteAHAddress = new_con.Address.ToBigInteger().ToString();
+        bed1.EventDescription = "SCO.ConnectHandler.rforwarder";
+        Logger.LogAttemptEvent( bed1 );
+
+        BrunetEventDescriptor bed2 = new BrunetEventDescriptor();      
+        bed2.RemoteAHAddress = nrtarget.ToBigInteger().ToString();
+        bed2.EventDescription = "SCO.ConnectHandler.rtarget";
+        Logger.LogAttemptEvent( bed2 );                    
+#endif
+      }
+      if( nltarget != null && !nltarget.Equals(nrtarget) ) {
+        ForwardedConnectTo(new_con.Address, nltarget, f_ttl, struc_near);
+#if PLAB_LOG
+        BrunetEventDescriptor bed1 = new BrunetEventDescriptor();      
+        bed1.RemoteAHAddress = new_con.Address.ToBigInteger().ToString();
+        bed1.EventDescription = "SCO.ConnectHandler.lforwarder";
+        Logger.LogAttemptEvent( bed1 );
+
+        BrunetEventDescriptor bed2 = new BrunetEventDescriptor();      
+        bed2.RemoteAHAddress = nltarget.ToBigInteger().ToString();
+        bed2.EventDescription = "SCO.ConnectHandler.ltarget";
+        Logger.LogAttemptEvent( bed2 );                   
+#endif
+      }
+      //We also send directional messages.  In the future we may find this
+      //to be unnecessary
+      ///@todo evaluate the performance impact of this:
+
+      if( nrtarget == null || nltarget == null ) {
+      /**
+       * Once we find nodes for which we can't get any closer, we
+       * make sure we are connected to the right and left of that node.
+       *
+       * When we connect to a neighbor's neighbor with directional addresses
+       * we need TTL = 2.  1 to get to the neighbor, 2 to get to the neighbor's
+       * neighbor.
+       */
+        short nn_ttl = 2;
+        if( connect_right ) {
+          ConnectToOnEdge(new DirectionalAddress(DirectionalAddress.Direction.Right),
+                        new_con.Edge, nn_ttl, struc_near); 
+        }
+        if( connect_left ) {
+          ConnectToOnEdge(new DirectionalAddress(DirectionalAddress.Direction.Left),
+                        new_con.Edge, nn_ttl, struc_near); 
+        }
+      }
     }
 
-    // This handles the Finish event from the connectors created in SCO.
-    public void ConnectionEndHandler(object connector, EventArgs args)
+    
+    /*
+     * Check to see if any of this node's neighbors
+     * should be neighbors of us.  If they should, connect
+     * to the closest such nodes on each side.
+     *
+     * This function accepts several ref params in order to provide a
+     * "pass-through" type function for the examining of neighbor lists in
+     * several different functions. This function does not provide locking.
+     * Please lock and unlock as needed.
+     */
+    protected void CheckForNearerNeighbors(IEnumerable neighbors, 
+        Address ltarget, out Address nltarget,
+        Address rtarget, out Address nrtarget)
+    {
+
+      ConnectionTable tab = _node.ConnectionTable;
+      BigInteger ldist = -1;
+      BigInteger rdist = -1;
+      AHAddress local = (AHAddress)_node.Address;
+      foreach(NodeInfo ni in neighbors) {
+        if( !( _node.Address.Equals(ni.Address) ||
+	       tab.Contains(ConnectionType.Structured, ni.Address) ) ) {
+          AHAddress adr = (AHAddress)ni.Address;
+          int n_left = LeftPosition( adr );
+          int n_right = RightPosition( adr );
+          if( n_left < _desired_neighbors || n_right < _desired_neighbors ) {
+            //We should connect to this node! if we are not already:
+            BigInteger adr_dist = local.LeftDistanceTo(adr);
+            if( adr_dist < ldist || ldist == -1 ) {
+              ldist = adr_dist;
+              ltarget = adr;
+            }
+            adr_dist = local.RightDistanceTo(adr);
+            if( adr_dist < rdist || rdist == -1 ) {
+              rdist = adr_dist;
+              rtarget = adr;
+            }
+          }
+        }
+      }
+      nltarget = ltarget;
+      nrtarget = rtarget;
+    }
+    
+    
+    /**
+     * When a Connector finishes his job, this method is called to
+     * clean up
+     */
+    protected void ConnectorEndHandler(object connector, EventArgs args)
     {
       lock( _sync ) {
         _connectors.Remove(connector);
+        /**
+         * Take a look at see if there is some node we should connect to.
+         */
+        Connector ctr = (Connector)connector;
+        ArrayList neighs = new ArrayList();
+        Hashtable neighbors_to_ctm = new Hashtable();
+        Hashtable add_to_neighbor = new Hashtable();
+        foreach(ConnectToMessage ctm in ctr.ReceivedCTMs) {
+          if( ctm.Neighbors != null ) {
+            foreach(NodeInfo n in ctm.Neighbors) {
+              neighbors_to_ctm[n] = ctm;
+              add_to_neighbor[n.Address] = n;
+            }
+            neighs.AddRange( ctm.Neighbors );
+          }
+        }
+        Address ltarget = null;
+        Address nltarget = null;
+        Address rtarget = null;
+        Address nrtarget = null;
+        lock( _node.ConnectionTable.SyncRoot ) {
+          CheckForNearerNeighbors(neighs, ltarget, out nltarget,
+                                rtarget, out nrtarget);
+        }
+        if( nrtarget != null ) {
+          NodeInfo target_info = (NodeInfo)add_to_neighbor[nrtarget];
+          ConnectToMessage ctm = (ConnectToMessage)neighbors_to_ctm[target_info];
+          Address forwarder = ctm.Target.Address;
+          short ttl = _node.DefaultTTLFor( forwarder );
+          ForwardedConnectTo(forwarder, nrtarget, ttl, struc_near);
+        }
+        if( nltarget != null && !nltarget.Equals(nrtarget) ) {
+          NodeInfo target_info = (NodeInfo)add_to_neighbor[nltarget];
+          ConnectToMessage ctm = (ConnectToMessage)neighbors_to_ctm[target_info];
+          Address forwarder = ctm.Target.Address;
+          short ttl = _node.DefaultTTLFor( forwarder );
+          ForwardedConnectTo(forwarder, nltarget, ttl, struc_near);
+        }
       }
-      //log.Info("ended connection attempt: node: " + _local.Address.ToString() );
-      Activate();
     }
 
     /**
-     * This method sends a forwarded ConnectTo message using leaf
-     * as the forwarder.  We target our own address.  This helps us
-     * bootstrap by finding the nodes closest to us on the other
-     * side of each leaf
-     * @param leaf The address of the leaf node to forward through
+     * A helper function that handles the making Connectors
+     * and setting up the ConnectToMessage
      */
-    protected void ConnectToSelfUsing(Address leaf)
+    protected void ConnectTo(Address target, short t_ttl, string contype)
     {
-      /**
-       * try to get at least one neighbor using forwarding through the 
-       * leaf .  The forwarded address is 2 larger than the address of
-       * the new node that is getting connected.
-       */
-      BigInteger local_int_add = _local.Address.ToBigInteger();
-      //must have even addresses so increment twice
-      local_int_add += 2;
-      //Make sure we don't overflow:
-      BigInteger tbi = new BigInteger(local_int_add % Address.Full);
-      AHAddress target = new AHAddress(tbi);
+      ConnectToOnEdge(target, _node, t_ttl, contype);
+    }
 
-      short ttl = 1024; //160; //We use a large ttl to reach remote addresses
-      if( leaf.Equals(target) ) {
-        //This is dumb luck, we have no need to forward:
-        ConnectTo(target, ttl);
+    /**
+     * A helper function that handles the making Connectors
+     * and setting up the ConnectToMessage
+     *
+     * This returns immediately if we are already connected
+     * to this node.
+     */
+    protected void ConnectToOnEdge(Address target, IPacketSender edge,
+		                   short t_ttl, string contype)
+    {
+      //If we already have a connection to this node,
+      //don't try to get another one, it is a waste of 
+      //time.
+      ConnectionType mt = Connection.StringToMainType(contype);
+      if( _node.ConnectionTable.Contains( mt, target ) ) {
+        return; 
+      }
+      short t_hops = 0;
+      if( edge is Edge ) {
+	/*
+	 * In this case we are bypassing the router and sending
+	 * having the Connector talk directly to the neighbor
+	 * using the edge.  We need to go ahead an increment
+	 * the hops of the packet in order to make it the case
+	 * the the packet has taken 1 hop by the time it arrives
+	 */
+        t_hops = 1;
+      }
+      ConnectToMessage ctm =
+        new ConnectToMessage(contype, new NodeInfo(_node.Address, _node.LocalTAs) );
+      ctm.Id = _rand.Next(1, Int32.MaxValue);
+      ctm.Dir = ConnectionMessage.Direction.Request;
+
+      ushort options = AHPacket.AHOptions.AddClassDefault;
+      if( contype == struc_short ) {
+	/*
+	 * We only want one node to get this packet, so
+	 * we send it only the last node in the path.
+	 */
+        options = AHPacket.AHOptions.Last;
       }
       else {
-        //we try to get this leaf to forward to the correct node
-        ForwardedConnectTo(leaf, target, ttl);
+        options = AHPacket.AHOptions.Annealing;
       }
-    }
+      AHPacket ctm_pack =
+        new AHPacket(t_hops, t_ttl, _node.Address, target, options,
+                     AHPacket.Protocol.Connection, ctm.ToByteArray());
 
-    /**
-     * Get the index following the given one in the specified direction along
-     * the structured ring.
-     */
-    static int GetNextIndex(int current_index, int total, StructuredRingDirection direction)
-    {
-      if (direction==StructuredRingDirection.Right) {
-        if (current_index==0) {
-          return total-1;
-        }
-        else {
-          return --current_index;
-        }
+      #if DEBUG
+      System.Console.WriteLine("In ConnectToOnEdge:");
+      System.Console.WriteLine("Local:{0}", _node.Address);
+      System.Console.WriteLine("Target:{0}", target);
+      System.Console.WriteLine("Message ID:{0}", ctm.Id);
+      #endif
+
+      Connector con = new Connector(_node);
+      //Keep a reference to it does not go out of scope
+      lock( _sync ) {
+        _connectors.Add(con);
       }
-      else if (direction==StructuredRingDirection.Left) {
-        if (current_index==(total-1)) {
-          return 0;
-        }
-        else {
-          return ++current_index;
-        }
-      }
-
-      //  should not be here
-      return -1;
-    }
-
-    /**
-     * finds the boundary index, *after* which going in the given direction until end, it is ok to close
-     * neighbor(not shortcut) connections. this method should be called twice for finding the boundary
-     * to the left and to the right. 
-     */  
-    public int OptimalNeighborsBoundary(int start, int end, int total,
-                                        StructuredRingDirection direction)
-    {
-      int result = start;
-      lock( _connection_table.SyncRoot ) {
-        ArrayList structured_edges =_connection_table.GetEdgesOfType(ConnectionType.Structured);
-
-        int next_index = start;
-        int total_neighbors = 0;
-        bool more = true;
-        try {
-          do {
-            more = (next_index!=end);
-
-            Edge next_edge = (Edge)structured_edges[next_index];
-            // first check if this is a shortcut
-            int sc_idx = _shortcut_edges.IndexOf( next_edge );
-            if( sc_idx >= 0 ) {
-              //This is a shortcut:
-              if (more) {
-                next_index = GetNextIndex(next_index, total, direction);
-              }
-            }
-            else {
-              total_neighbors++;
-              result=next_index;
-              next_index = GetNextIndex(next_index, total, direction);
-              more = more && (total_neighbors<_total_desired_neighbors);
-            }
-          } while (more);
-        } catch (Exception e) {
-          System.Console.WriteLine("EXCEPTION IN OptimalNeighborsBoundary:{0}", e);
-        }
-      }
-      return result;
-    }
-
-    /**
-     * Get all the neighbors(not shortcuts) between start and end inclusive and put them in an array list
-     */
-    public ArrayList EdgesToRemove(int start, int end, int total,
-                                   StructuredRingDirection direction)
-    {
-      ArrayList result = new ArrayList();
-      lock( _connection_table.SyncRoot ) {
-        ArrayList structured_edges =_connection_table.GetEdgesOfType(ConnectionType.Structured);
-        int next_index = start;
-        bool more = true;
-
-        try {
-          do {
-            more = (next_index!=end);
-
-            Edge next_edge = (Edge)structured_edges[next_index];
-            // first check if this is a shortcut
-            int sc_idx = _shortcut_edges.IndexOf( next_edge );
-
-            if( sc_idx >= 0 ) {
-              //This is a shortcut:
-              if (more) {
-                next_index = GetNextIndex(next_index, total, direction);
-              }
-            } else {
-              result.Add(next_edge);
-              next_index = GetNextIndex(next_index, total, direction);
-            }
-          } while (more);
-        } catch (Exception e) {
-          System.Console.WriteLine("EXCEPTION IN EdgesToRemove: {0}", e);
-        }
-
-      }
-      return result;
-    }
-
-    /**
-     * Check the list of structured connections and remove and
-     * if necessary close the ones that are not among the desired
-     * immediate left or right neighbors.
-     */
-    public void TrimStructuredConnections()
-    {
-      ArrayList edges_to_remove;
-      lock( _connection_table.SyncRoot ) {
-        int total_structured = _connection_table.Count(ConnectionType.Structured);
-        int total_shortcuts = _shortcut_edges.Count;
-        int total_neighbors = total_structured - total_shortcuts;
-
-        if (total_neighbors<=2*(_total_desired_neighbors)) {
-          return;
-        }
-        
-        int self_idx, left_start, left_end, right_start, right_end;
-        int left_boundary, right_boundary;
-        self_idx = _connection_table.IndexOf(ConnectionType.Structured,_local.Address);
-        if (self_idx<0) {
-          self_idx=~self_idx;
-        }
-
-        if (self_idx<total_structured) {
-          right_start = GetNextIndex(self_idx, total_structured, StructuredRingDirection.Right);
-          right_end   = self_idx;
-          left_start  = self_idx;
-          left_end    = GetNextIndex(self_idx, total_structured, StructuredRingDirection.Right);//yes,both are right
-        }
-        else {
-          right_start = total_structured-1;
-          right_end   = 0;
-          left_start  = 0;
-          left_end    = total_structured-1;
-        }
-
-        left_boundary = OptimalNeighborsBoundary(left_start,
-                        left_end,
-                        total_structured,
-                        StructuredRingDirection.Left);
-        right_boundary = OptimalNeighborsBoundary(right_start,
-                         right_end,
-                         total_structured,
-                         StructuredRingDirection.Right);
-
-        int remove_start = GetNextIndex(left_boundary,
-                                        total_structured,
-                                        StructuredRingDirection.Left);
-        int remove_end = GetNextIndex(right_boundary,
-                                      total_structured,
-                                      StructuredRingDirection.Right);
-
-        if ( remove_start>left_end ) {
-          if ( (remove_end > left_end) && (remove_end < remove_start) ) return;
-          edges_to_remove = EdgesToRemove(remove_start,
-                                          remove_end,
-                                          total_structured,
-                                          StructuredRingDirection.Left);
-        }
-        else {
-          if (remove_start > remove_end) return;
-          edges_to_remove = EdgesToRemove(remove_start,
-                                          remove_end,
-                                          total_structured,
-                                          StructuredRingDirection.Left);
-        }
-      }
-      //Release the lock on the connection table before calling external functions
-      foreach(Edge e in edges_to_remove) {
-        /**
-        * We note all the edges which we are trimming.
-        * This prevents us from reacting to its closure
-        */
-        lock( _sync ) {
-          _trimmed_edges.Add(e);
-        }
-        _local.GracefullyClose(e);
-        Console.WriteLine("{0} Trimming: {1}", _local.Address, e);
-      }
-    }
-
-    /**
-     * Every heartbeat this method is called.
-     * CHeck to see if enough time has passed since the last (dis)connection
-     * and if it has check to see if we need to trim edges. 
-     */
-    public void CheckForTrimConditions(object connectiontable,
-                                       EventArgs args)
-    {
-      DateTime now = DateTime.Now;
-      TimeSpan elapsed = now.Subtract(_last_connection_time);
-      if ( _minimum_trim_time_delay <= elapsed.TotalSeconds )
-        TrimStructuredConnections();
+      con.FinishEvent += new EventHandler(this.ConnectorEndHandler);
+      con.Connect(edge, ctm_pack, ctm.Id);
     }
     
+    /**
+     * This method is called when there is a Disconnection from
+     * the ConnectionTable
+     */
+    protected void DisconnectHandler(object connectiontable, EventArgs args)
+    { 
+      lock( _sync ) {
+        _last_connection_time = DateTime.Now;
+        _need_left = -1;
+        _need_right = -1;
+        _need_short = -1;
+      }
+      Connection c = ((ConnectionEventArgs)args).Connection;
 
+      if( IsActive ) {
+        if( c.MainType == ConnectionType.Structured ) {
+          int right_pos = RightPosition((AHAddress)c.Address);
+          int left_pos = LeftPosition((AHAddress)c.Address);
+	  if( right_pos < _desired_neighbors ) {
+            //We lost a close friend.
+            Address target = new DirectionalAddress(DirectionalAddress.Direction.Right);
+	    short ttl = (short)_desired_neighbors;
+	    string contype = struc_near;
+            ConnectTo(target, ttl, contype);
+	  }
+	  if( left_pos < _desired_neighbors ) {
+            //We lost a close friend.
+            Address target = new DirectionalAddress(DirectionalAddress.Direction.Left);
+	    short ttl = (short)_desired_neighbors;
+	    string contype = struc_near;
+            ConnectTo(target, ttl, contype);
+	  }
+          if( c.ConType == struc_short ) {
+            if( NeedShortcut ) {
+              Address target = GetShortcutTarget(); 
+	      short ttl = 1024;
+	      string contype = struc_short;
+              ConnectTo(target, ttl, contype);
+	    }
+          }
+        }
+        else {
+          //Just activate and see what happens:
+	  Activate();
+        }
+      }
+    }
     
     /**
-     * When new ConnectionEvents occur, this method is called.
-     * Usually, some action will need to be taken.
-     * @see ConnectionTable
+     * This method is called when there is a change in a Connection's status
      */
-    public void CheckAndConnectHandler(object connectiontable,
-                                       EventArgs args)
+    protected void StatusChangedHandler(object connectiontable,EventArgs args)
     {
-      ConnectionEventArgs conargs = (ConnectionEventArgs)args;
-
-      if (conargs.ConnectionType == ConnectionType.Leaf ) {
-        /**
-        * When there is a new leaf connection it may be connecting
-        * a previously disconnected part of the network.  To make
-        * sure the ring has the proper structure, we try a forwarded
-        * connectTo our own address:
-        */
-        if( _compensate ) {
-          ConnectToSelfUsing( conargs.RemoteAddress );
-        }
+      //These are the two closest target addresses
+      Address ltarget = null;
+      Address rtarget = null;
+      Address nltarget = null;
+      Address nrtarget = null;
+    
+      ConnectionTable tab = _node.ConnectionTable;
+      Connection c = ((ConnectionEventArgs)args).Connection; 
+      lock( tab.SyncRoot ) {
+        CheckForNearerNeighbors(c.Status.Neighbors, ltarget, out nltarget,
+                                rtarget, out nrtarget);
       }
-      else if (conargs.ConnectionType == ConnectionType.Structured ) {
-        /**
-         * If this is a new structured connection, see if it
-         * was a neighbor, or shortcut, and increase the count
-         */
-        // do book-keeping for added edge
-        int left_distance, right_distance, shortest_dist;
-        GetIdxDistancesTo(conargs.Index, out left_distance, out right_distance);
-        shortest_dist = System.Math.Min(left_distance, right_distance);
-        bool is_boundary = (shortest_dist == _total_desired_neighbors);
-        StructuredType st;
-
-        if( shortest_dist > _total_desired_neighbors ) {
-          /**
-          * This is not close enough to be a neighbor, so we
-          * consider it a shortcut.  All we need to do is add
-          * it to our list of shortcuts:
-          */
-          lock( _sync ) {
-            _shortcut_edges.Add( conargs.Edge );
-          }
-          st = StructuredType.Shortcut;
-        }
-        else if( left_distance == shortest_dist ) {
-          st = StructuredType.LeftNeighbor;
-        }
-        else {
-          st = StructuredType.RightNeighbor;
-        }
-
-        if( _compensate ) {
-          short ttl = 2; //We look for neighbors of neighbors
-          if( st == StructuredType.RightNeighbor ) {
-            ConnectToOnEdge(new DirectionalAddress(DirectionalAddress.Direction.Left),
-                            conargs.Edge,
-                            ttl);
-            if( ! is_boundary ) {
-              ConnectToOnEdge(new DirectionalAddress(DirectionalAddress.Direction.Right),
-                              conargs.Edge,
-                              ttl);
-            }
-          }
-          else if( st == StructuredType.LeftNeighbor ) {
-            ConnectToOnEdge(new DirectionalAddress(DirectionalAddress.Direction.Right),
-                            conargs.Edge,
-                            ttl);
-            if( ! is_boundary ) {
-              ConnectToOnEdge(new DirectionalAddress(DirectionalAddress.Direction.Left),
-                              conargs.Edge,
-                              ttl);
-            }
-
-            int total_structured = _connection_table.Count(ConnectionType.Structured);
-            int total_shortcuts  = _shortcut_edges.Count;
-            int total_neighbors  = total_structured - total_shortcuts;
-
-            if ( (total_neighbors >= 2*_total_desired_neighbors) &&
-                 ( (total_shortcuts < _total_desired_shortcuts) || (!TriedShortcut) ) )  {
-              GetShortcut();
-            }
-          }
-          else if (st == StructuredType.Shortcut) {
-            /*
-            * When we get a new shortcut, we don't react.
-            * Above we added this shortcut to our list, but that's it.
-            */
-          }
-
-          if (st!=StructuredType.Shortcut) {
-            /**
-             * When we get a neighbor connection we note the time and then
-             * Edge trimming is performed at HeartBeats when the time until
-             * the last connection is sufficiently large.
-             */
-             _last_connection_time = DateTime.Now; 
-            
-          }
-          else {
-            // no trimming of shortcuts for now
-          }
-          //System.Console.ReadLine();
-        }
+      //Console.WriteLine("Status Changed:\n{0}\n{1}\n{2}\n{3}",c, c.Status, nltarget, nrtarget);
+       /* 
+       * We want to make sure not to hold the lock on ConnectionTable
+       * while we try to make new connections
+       */
+      short f_ttl = 3; //2 would be enough, but 1 extra...
+      if( nrtarget != null ) {
+        ForwardedConnectTo(c.Address, nrtarget, f_ttl, struc_near);
       }
-
+      if( nltarget != null && !nltarget.Equals(nrtarget) ) {
+        ForwardedConnectTo(c.Address, nltarget, f_ttl , struc_near);
+      }
+      
     }
-
+    
     /**
-     * This method is called on the DisconnectionEvent.  @see ConnectionTable.
-     * 
-     * If we lost a connection, we may need to replace it.  This
-     * code does so.
+     * This is a helper function.
      */
-    public void CheckAndDisconnectHandler(object connectiontable,
-                                          EventArgs args)
-    {
-      ConnectionEventArgs conargs = (ConnectionEventArgs)args;
-      if ( conargs.ConnectionType == ConnectionType.Structured )
-      {
-        // do book-keeping for added edge
-        bool is_shortcut = false;
-        bool need_shortcut = false;
-        lock( _sync ) {
-          int sc_idx = _shortcut_edges.IndexOf( conargs.Edge );
-          if( sc_idx >= 0 ) {
-            /**
-            * When we loose a Shortcut, we remove it from our list
-            * and if we no longer have enough, we will attempt to
-            * get a new one
-            */
-            _shortcut_edges.RemoveAt(sc_idx);
-            is_shortcut = true;
-            if( _shortcut_edges.Count < _total_desired_shortcuts ) {
-              need_shortcut = true;
-            }
-          }
-        }
-        if ( is_shortcut ) {
-          if( need_shortcut ) {
-            GetShortcut();
-          }
-        }
-        else {
-          //Else it was a neighbor.
-          /**
-           * Anytime we loose a neighbor (which we did not Close)
-           * we connect to the node (_total_desired_neighbors) hops
-           * in the direction of the lost node
-           */
-          bool was_not_trimmed = true;
-          lock( _sync ) {
-            int idx =_trimmed_edges.IndexOf( conargs.Edge );
-            if( idx >= 0 ) {
-              /*
-               * This edge was trimmed.  No need to compensate for it
-               */
-              was_not_trimmed = false;
-              _trimmed_edges.RemoveAt(idx);
-            }
-            else {
-              was_not_trimmed = true;
-            }
-          }
-          //If the edge was not trimmed, and we are compensating:
-          if( was_not_trimmed && _compensate ) {
-            int left_distance, right_distance, shortest_dist;
-            GetIdxDistancesTo(conargs.Index, out left_distance, out right_distance);
-            shortest_dist = System.Math.Min(left_distance, right_distance);
-
-            // review again
-            if (shortest_dist > _total_desired_neighbors) return;
-
-            if( shortest_dist == left_distance ) {
-              ConnectTo(new DirectionalAddress(DirectionalAddress.Direction.Left),
-                        _total_desired_neighbors);
-            }
-            else {
-              ConnectTo(new DirectionalAddress(DirectionalAddress.Direction.Right),
-                        _total_desired_neighbors);
-            }
-          }
-        }
-      }
-    }
-
     protected void ForwardedConnectTo(Address forwarder,
                                       Address target,
-                                      short t_ttl)
+                                      short t_ttl, string contype)
     {
-      ConnectToMessage ctm = new ConnectToMessage(ConnectionType.Structured,
-                             _local.Address, _local.LocalTAs);
+      //If we already have a connection to this node,
+      //don't try to get another one, it is a waste of 
+      //time.
+      ConnectionType mt = Connection.StringToMainType(contype);
+      if( _node.ConnectionTable.Contains( mt, target ) ) {
+        return; 
+      }
+      ConnectToMessage ctm = new ConnectToMessage(contype,
+                              new NodeInfo( _node.Address, _node.LocalTAs) );
       ctm.Dir = ConnectionMessage.Direction.Request;
       ctm.Id = _rand.Next(1, Int32.MaxValue);
       short t_hops = 0;
       //This is the packet we wish we could send: local -> target
       AHPacket ctm_pack = new AHPacket(t_hops,
                                        t_ttl,
-                                       _local.Address,
+                                       _node.Address,
                                        target, AHPacket.Protocol.Connection,
                                        ctm.ToByteArray() );
       //We now have a packet that goes from local->forwarder, forwarder->target
@@ -680,95 +970,102 @@ namespace Brunet
 
       #if DEBUG
       System.Console.WriteLine("In ForwardedConnectTo:");
-      System.Console.WriteLine("Local:{0}", _local.Address);
+      System.Console.WriteLine("Local:{0}", _node.Address);
       System.Console.WriteLine("Target:{0}", target);
       System.Console.WriteLine("Message ID:{0}", ctm.Id);
       #endif
 
-      Connector con = new Connector(_local);
+      Connector con = new Connector(_node);
+#if PLAB_LOG
+      con.Logger = Logger;
+      BrunetEventDescriptor bed1 = new BrunetEventDescriptor();      
+      bed1.RemoteAHAddress = forwarder.ToBigInteger().ToString();
+      bed1.EventDescription = "SCO.FCT.forwarder";
+      Logger.LogAttemptEvent( bed1 );
+
+      BrunetEventDescriptor bed2 = new BrunetEventDescriptor();      
+      bed2.RemoteAHAddress = target.ToBigInteger().ToString();
+      bed2.EventDescription = "SCO.FCT.target";
+      Logger.LogAttemptEvent( bed2 );  
+#endif
       //Keep a reference to it does not go out of scope
       lock( _sync ) {
         _connectors.Add(con);
       }
-      con.FinishEvent += new EventHandler(this.ConnectionEndHandler);
+      con.FinishEvent += new EventHandler(this.ConnectorEndHandler);
       con.Connect(forward_pack, ctm.Id);
 
     }
 
-    protected void ConnectTo(Address target, short t_ttl)
+    /**
+     * When we want to connect to the address closest
+     * to us, we use this address.
+     */
+    protected Address GetSelfTarget()
     {
-      short t_hops = 0;
-      ConnectToMessage ctm =
-        new ConnectToMessage(ConnectionType.Structured, _local.Address,
-                             _local.LocalTAs);
-      ctm.Id = _rand.Next(1, Int32.MaxValue);
-      ctm.Dir = ConnectionMessage.Direction.Request;
-
-      AHPacket ctm_pack =
-        new AHPacket(t_hops, t_ttl, _local.Address, target,
-                     AHPacket.Protocol.Connection, ctm.ToByteArray());
-
-      #if DEBUG
-      System.Console.WriteLine("In ConnectTo:");
-      System.Console.WriteLine("Local:{0}", _local.Address);
-      System.Console.WriteLine("Target:{0}", target);
-      System.Console.WriteLine("Message ID:{0}", ctm.Id);
-      #endif
-
-      Connector con = new Connector(_local);
-      //Keep a reference to it does not go out of scope
-      lock( _sync ) {
-        _connectors.Add(con);
-      }
-      con.FinishEvent += new EventHandler(this.ConnectionEndHandler);
-      con.Connect(ctm_pack, ctm.Id);
-    }
-
-    protected void ConnectToOnEdge(Address target, Edge edge, short t_ttl)
-    {
-      short t_hops = 1;
-      ConnectToMessage ctm =
-        new ConnectToMessage(ConnectionType.Structured, _local.Address,
-                             _local.LocalTAs);
-      ctm.Id = _rand.Next(1, Int32.MaxValue);
-      ctm.Dir = ConnectionMessage.Direction.Request;
-
-      AHPacket ctm_pack =
-        new AHPacket(t_hops, t_ttl, _local.Address, target,
-                     AHPacket.Protocol.Connection, ctm.ToByteArray());
-
-      #if DEBUG
-      System.Console.WriteLine("In ConnectToOnEdge:");
-      System.Console.WriteLine("Local:{0}", _local.Address);
-      System.Console.WriteLine("Target:{0}", target);
-      System.Console.WriteLine("Message ID:{0}", ctm.Id);
-      #endif
-
-      Connector con = new Connector(_local);
-      //Keep a reference to it does not go out of scope
-      lock( _sync ) {
-        _connectors.Add(con);
-      }
-      con.FinishEvent += new EventHandler(this.ConnectionEndHandler);
-      con.Connect(edge, ctm_pack, ctm.Id);
+      /**
+       * try to get at least one neighbor using forwarding through the 
+       * leaf .  The forwarded address is 2 larger than the address of
+       * the new node that is getting connected.
+       */
+      BigInteger local_int_add = _node.Address.ToBigInteger();
+      //must have even addresses so increment twice
+      local_int_add += 2;
+      //Make sure we don't overflow:
+      BigInteger tbi = new BigInteger(local_int_add % Address.Full);
+      return new AHAddress(tbi);
     }
 
     /**
-     * add a new shortcut to the left or right with equal probability 
+     * Return a random shortcut target with the
+     * correct distance distribution
      */
-    public void GetShortcut()
+    protected Address GetShortcutTarget()
     {
-      /**
-       * add a new shortcut to the left or right with equal probability 
-       */
-
+#if false
+      //The old code:
       // Random distance from 2^1 - 2^159 (1/d distributed)
       int rand_exponent = _rand.Next(1, 159);
       BigInteger rand_dist = new BigInteger(2);
       rand_dist <<= (rand_exponent - 1);
+#else
+      /*
+       * If there are k nodes out of a total possible
+       * number of N ( =2^(160) ), the average distance
+       * between them is d_ave = N/k.  So we want to select a distance
+       * that is at least N/k from us.  We want to do this
+       * with prob(dist = d) ~ 1/d.  We can do this by selecting
+       * a uniformly distributed p, and sample:
+       * 
+       * d = d_ave(d_max/d_ave)^p
+       *   = d_ave( 2^(p log d_max - p log d_ave) )
+       *   = 2^( p log d_max + (1 - p) log d_ave )
+       *  
+       * since we can go either direction in the ring, d_max = N/2
+       * so: log d_ave = log N - log k, but k is the size of the network:
+       * 
+       * d = 2^( p (log N - 1) + (1 - p) log N - (1-p) log k)
+       *   = 2^( log N - p - (1-p)log k)
+       * 
+       */
+      double logN = (double)(Address.MemSize * 8);
+      double logk = Math.Log( (double)_node.NetworkSize, 2.0 );
+      double p = _rand.NextDouble();
+      double ex = logN -p - (1.0 - p)*logk;
+      int ex_i = (int)Math.Floor(ex);
+      double ex_f = ex - Math.Floor(ex);
+      //Make sure 2^(ex_long+1)  will fit in a long:
+      int ex_long = ex_i % 63;
+      int ex_big = ex_i - ex_long;
+      ulong dist_long = (ulong)Math.Pow(2.0, ex_long + ex_f);
+      //This is 2^(ex_big):
+      BigInteger big_one = 1;
+      BigInteger dist_big = big_one << ex_big;
+      BigInteger rand_dist = dist_big * dist_long;
+#endif
 
       // Add or subtract random distance to the current address
-      BigInteger t_add = _local.Address.ToBigInteger();
+      BigInteger t_add = _node.Address.ToBigInteger();
 
       // Random number that is 0 or 1
       if( _rand.Next(2) == 0 ) {
@@ -779,177 +1076,52 @@ namespace Brunet
       }
 
       BigInteger target_int = new BigInteger(t_add % Address.Full);
-
-      AHAddress target = new AHAddress(target_int);
-      short t_ttl = 1024; //160;
-
-      #if DEBUG
-      System.Console.WriteLine("---");
-      System.Console.WriteLine("INITIATING A NEW SHORTCUT FROM {0} TO {1}", _local.Address, target);
-      System.Console.WriteLine("---");
-      #endif
-
-      ConnectTo(target, t_ttl);
-      TriedShortcut = true;
+      return new AHAddress(target_int); 
     }
-
+    
     /**
-     * Activate looks at all the connections we have, sees which we need most
-     * and tries to get one of that type.  Once we get a connection, other
-     * methods will take over.
-     * 
-     * This method is a general: get-started-again method.  If connections never
-     * failed, this would never need to be called.  But since there can be failed
-     * connections, we may sometimes need to trigger this method.
-     *
+     * Given an address, we see how many of our connections
+     * are closer than this address to the left
      */
-    override public void Activate()
+    protected int LeftPosition(AHAddress addr)
     {
-      int total_structured = _connection_table.Count(ConnectionType.Structured);
-      int total_shortcuts = _shortcut_edges.Count;
-      int total_neighbors = total_structured - total_shortcuts;
-      //log.Info("Trying: " + _local.Address.ToString());
-      //no book-keeping needed.  Enter connect loop.
-      if (IsActive && NeedConnection) {
-        if ( total_neighbors < 2 ) {
-          /**
-          * We have less than two neighbors
-          * This is bad because a new network can have a bunch of
-          * dimers, each with one neighbor, but no way to connect
-          * to other nodes.  We fix this by continuing to use
-          * leafs until we get at least 2 connections, and then
-          * it is almost certain the graph is connected
-          */
-          if ( _connection_table.Count(ConnectionType.Leaf) < 1 ) {
-            //log.Warn("We need connections, but have no leaves");
-            ///do nothing. we must wait for a leaf node
-          }
-          else {
-            /**
-             * If we don't have 2 neighbors, try a random leaf connection.
-             */
-            Address leaf;
-            lock( _connection_table.SyncRoot ) {
-              /**
-               * We start at a random leaf.  We then go through the ConnectionTable
-               * until we find a leaf we are not connected to.
-               */
-              int size = _connection_table.Count(ConnectionType.Leaf);
-              int lidx = _rand.Next( size );
-              do {
-                Edge edge;
-                _connection_table.GetConnection(ConnectionType.Leaf,
-                                                lidx,
-                                                out leaf,
-                                                out edge);
-                lidx++;
-                size--;
-              }
-              while( _connection_table.Contains(ConnectionType.Structured,leaf)
-                     && (size > 0) );
-            }
-            ConnectToSelfUsing(leaf);
-          }
-        }
-        else if( total_neighbors < 2 * _total_desired_neighbors )
-        {
-          /**
-           * When we don't have enough neighbors we try to connect to
-           * the right and to the left.
-           * @todo find which we have more of, left or right neighbors.
-           */
-          DirectionalAddress target;
-          /// send a left CTM packet
-          target = new DirectionalAddress(DirectionalAddress.Direction.Left);
-          ConnectTo(target, _total_desired_neighbors);
-          /// send a right CTM packet
-          target = new DirectionalAddress(DirectionalAddress.Direction.Right);
-          ConnectTo(target, _total_desired_neighbors);
-        }
-        else if ( (total_shortcuts < _total_desired_shortcuts)
-                  || (!TriedShortcut) )
-        {
-          GetShortcut();
-        }
-        else {
-          //This should never happen
-          ///@todo make this smarter
-        }
+      AHAddress local = (AHAddress)_node.Address;
+      BigInteger addr_dist = local.LeftDistanceTo(addr);
+      //Don't let the Table change while we do this:
+      ConnectionTable tab = _node.ConnectionTable;
+      int closer_count = 0;
+      lock( tab.SyncRoot ) {
+        foreach(Connection c in tab.GetConnections(ConnectionType.Structured)) {
+          AHAddress c_addr = (AHAddress)c.Address;
+	  if( local.LeftDistanceTo( c_addr ) < addr_dist ) {
+            closer_count++;
+	  }
+	}
       }
-      else {
-        if ( !IsActive ) {
-          //log.Info("We are not Active!");
-        }
-        else if( !NeedConnection ) {
-          //log.Info("Don't NeedConnection");
-        }
-      }
+      return closer_count;
     }
-    override public bool NeedConnection
-    {
-      get {
-        int total_structured = _connection_table.Count(ConnectionType.Structured);
-        int total_shortcuts = _shortcut_edges.Count;
-        int total_neighbors = total_structured - total_shortcuts;
-
-        return ( total_neighbors < 2 * _total_desired_neighbors ||
-                 total_shortcuts < _total_desired_shortcuts );
-      }
-    }
-
     /**
-     * Since all structured addresses are on a ring,
-     * in our ConnectionTable, each index is a certain distance
-     * to the left, and to the right.  This function tells us
-     * how far in each direction to the given index.
-     *
-     * @param index the index of the new connection
-     * @param left_distance the number of positions to the left to the index
-     * @param right_distance the number of positions to the right to the index
+     * Given an address, we see how many of our connections
+     * are closer than this address to the right.
      */
-    protected void GetIdxDistancesTo(int index,
-                                     out int left_distance,
-                                     out int right_distance)
+    protected int RightPosition(AHAddress addr)
     {
-      int self_idx, count;
-      lock( _connection_table.SyncRoot ) {
-        self_idx = _connection_table.IndexOf(ConnectionType.Structured,
-                                             _local.Address);
-        count = _connection_table.Count(ConnectionType.Structured);
+      AHAddress local = (AHAddress)_node.Address;
+      BigInteger addr_dist = local.RightDistanceTo(addr);
+      //Don't let the Table change while we do this:
+      ConnectionTable tab = _node.ConnectionTable;
+      int closer_count = 0;
+      lock( tab.SyncRoot ) {
+        foreach(Connection c in tab.GetConnections(ConnectionType.Structured)) {
+          AHAddress c_addr = (AHAddress)c.Address;
+	  if( local.RightDistanceTo( c_addr ) < addr_dist ) {
+            closer_count++;
+	  }
+	}
       }
-
-      if( self_idx == index ) {
-        left_distance = 0;
-        right_distance = 0;
-        return;
-      }
-
-      /*
-       * We count the distance in the ConnectionTable (both
-       * from the left and the right) to the given index
-       */
-      if( self_idx < 0 ) {
-        //We are not in the table:
-        self_idx = ~self_idx;
-        if( index < self_idx ) {
-          //It is right of us in the table:
-          right_distance = self_idx - index;
-          left_distance = count - right_distance + 1;
-        }
-        else {
-          //It is left of us in the table:
-          //And we need to add one to the distance, since we are
-          //not actually in the table and self_idx is where we *WOULD* be
-          left_distance = index - self_idx + 1;
-          right_distance = count - left_distance + 1;
-        }
-      }
-      else {
-        ///We are in the table, and we should not be.
-        //AHHHHHH
-        throw new Exception();
-      }
+      return closer_count;
     }
+    
   }
 
 }

@@ -243,7 +243,11 @@ namespace Brunet
 		this_ta = new TransportAddress("gnucla.tcp://127.0.0.1:"
 				               + other_port );
 	        break;
-        case "udp":
+            case "udp":
+		this_ta = new TransportAddress("gnucla.udp://127.0.0.1:"
+				               + other_port );
+	        break;
+            case "udp-as":
 		this_ta = new TransportAddress("gnucla.udp://127.0.0.1:"
 				               + other_port );
 	        break;
