@@ -31,7 +31,6 @@ namespace Brunet{
   public class PingWrapper{
   
     private Process _tr_process;
-    private string _target;
 
      /** Perform the ping
      * @param target a string with the address.
@@ -53,10 +52,8 @@ namespace Brunet{
       _tr_process.StartInfo.RedirectStandardError = true;
       _tr_process.Start();
       _tr_process.WaitForExit(wait_time);
-      int hop_index = 0;
       string input;
       string[] split_line; 
-      bool good_ping;//did the ping succeed?
       double ping_time = -1.0;
       _tr_process.StandardOutput.ReadLine();
       input =_tr_process.StandardOutput.ReadLine();
@@ -65,7 +62,6 @@ namespace Brunet{
       { 
 	Console.WriteLine(input);
         int time_index = 0;
-        good_ping = true;
         split_line = input.Split(new Char[]{'=', ' '});
         //parsing the line is a little tricky since
         //the String.Split method in c# splits indiviual equal sign and whitespaceinto

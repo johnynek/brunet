@@ -104,9 +104,9 @@ namespace Brunet
        * Here are the ConnectionOverlords
        */ 
       _lco = new LeafConnectionOverlord(this);
-      _sco = new SimpleConnectionOverlord(this);
+      _sco = new StructuredConnectionOverlord(this);
 #if PLAB_LOG
-      ((SimpleConnectionOverlord)_sco).Logger = this.Logger;
+      ((StructuredConnectionOverlord)_sco).Logger = this.Logger;
 #endif
       _uco = new UnstructuredConnectionOverlord(this);
 
