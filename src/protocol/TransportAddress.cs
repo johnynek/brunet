@@ -96,6 +96,7 @@ namespace Brunet
         _ips = new ArrayList(IPHost.AddressList);
       } catch(Exception e) {
         // log this exception!
+	System.Console.Error.WriteLine("In GetIPAddress(): {0}", e);
       }
       return _ips;
     }
