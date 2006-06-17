@@ -237,7 +237,7 @@ namespace Brunet
         EndPoint end = new IPEndPoint(IPAddress.Any, 0);
 	//Console.WriteLine("About to BeingReceiveFrom");
         _read_asr = s.BeginReceiveFrom(_rec_buffer, 0, _rec_buffer.Length,
-		         SocketFlags.None, ref end, this.ReceiveHandler, end);
+		         SocketFlags.None, ref end, new AsyncCallback(this.ReceiveHandler), end);
       }
     }
 
@@ -361,7 +361,7 @@ namespace Brunet
             EndPoint end = new IPEndPoint(IPAddress.Any, 0);
             _read_asr = s.BeginReceiveFrom(_rec_buffer, 0,
 			 _rec_buffer.Length, SocketFlags.None, ref end,
-			 this.ReceiveHandler, end);
+			 new AsyncCallback(this.ReceiveHandler), end);
 	  }
 	}
       }
@@ -411,7 +411,7 @@ namespace Brunet
       p.CopyTo(_send_buffer, 8);
       //Console.WriteLine("About to BeginSendTo"); 
       s.BeginSendTo(_send_buffer, 0, 8 + p.Length, SocketFlags.None, e,
-			this.SendHandler, sqe);
+			new AsyncCallback(this.SendHandler), sqe);
     }
     
     protected void SendHandler(IAsyncResult asr) {
