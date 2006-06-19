@@ -1,0 +1,38 @@
+Brunet P2P library
+
+Building Brunet
+================
+Brunet uses the NAnt build tool.  To build all the code run NAnt in the
+top level directory.  It will recursively build all the code.
+
+If you are interested in building the Brunet.dll library, you can go
+into the src/protocol directory and run NAnt.  The resulting library
+will be placed in the lib/ directory.
+
+Tests
+======
+The tests/protocol directory has some simple interactive tests.  Some tests
+have been created in the src/protocol directory as nunit tests.  You can
+build an nunit testable Brunet.dll by going into src/protocol and building
+the target "test", (command: nant test).
+
+Example uses of Brunet
+=========
+For simple examples of writing an application which uses Brunet see
+src/examples.
+
+Brunet Chat
+=========
+There is a functional GTK# chat program in the src/apps/chat/ directory.
+It should give a (somewhat unclean) example of using GTK#/Glade as well
+as a non-trivial Brunet application.
+
+Help:
+============
+Contact P. Oscar Boykin <boykin@pobox.com> if you have questions/comments
+about Brunet.
+
+License:
+===========
+This code is licensed under the GPLv2 (or at your option any later version).
+
