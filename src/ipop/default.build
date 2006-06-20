@@ -32,8 +32,6 @@
 	  </sources>
 	  <references>
              <include name="${lib.dir}/Brunet.dll"/>
-             <include name="${lib.dir}/Ipop-common.dll"/>
-             <include name="Mono.Security.dll"/>
 	  </references>
       </csc>
 

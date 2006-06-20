@@ -252,6 +252,12 @@ namespace Ipop {
        } else if (transport.Equals("udp")) {
            tmp_node.AddEdgeListener(new UdpEdgeListener(port, tas));
        }
+       else if (transport.Equals("udp-as")) {
+           tmp_node.AddEdgeListener(new ASUdpEdgeListener(port, tas));
+       }
+       else {
+         throw new Exception("Unrecognized transport: " + transport);
+       }
        //else if (transport.Equals("tls")) {
        //	   X509Certificate cert = X509Certificate.CreateFromCertFile("ssl.cer");
        //           PrivateKey priv = PrivateKey.CreateFromFile("ssl.pvk");

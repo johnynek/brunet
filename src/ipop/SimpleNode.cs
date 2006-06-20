@@ -84,6 +84,9 @@ namespace PeerVM {
        } else if (transport.Equals("udp")) {
            tmp_node.AddEdgeListener(new UdpEdgeListener(port));
        }
+       else if (transport.Equals("udp-as")) {
+           tmp_node.AddEdgeListener(new ASUdpEdgeListener(port));
+       }
 
        //Here is where we connect to; some well-known Brunet endpoint
        TransportAddress ta = new TransportAddress(remoteTA);
