@@ -552,6 +552,7 @@ namespace Brunet
     public void GracefullyClose(Edge e, CloseMessage cm)
     {
       try {
+        e.CloseEvent += new EventHandler(this.GracefulCloseHandler);
         e.SetCallback(Packet.ProtType.Connection, this);
         e.Send( cm.ToPacket() );
         lock( _sync ) {
@@ -566,6 +567,16 @@ namespace Brunet
       catch(EdgeException x) {
         //If the edge has some problem, don't do anything
         e.Close();
+      }
+    }
+
+    /*
+     * When an edge we are gracefully closing closes, this cleans up
+     */
+    protected void GracefulCloseHandler(object sender, EventArgs args)
+    {
+      lock( _sync ) {
+        _gracefully_close_edges.Remove(sender);
       }
     }
 

@@ -144,6 +144,9 @@ namespace Brunet
 
     public override void Send(Brunet.Packet p)
     {
+      if( _is_closed ) {
+        throw new EdgeException("Tried to send on a closed socket"); 
+      }
       _send_cb.HandlePacket(p, this);
       _last_out_packet_datetime = DateTime.Now;
 #if UDP_DEBUG

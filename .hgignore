@@ -1,2 +1,8 @@
 .arch-ids/.*
 \{arch\}/.*
+build\/
+tests/protocol/.*\.dll
+tests/protocol/.*\.exe
+lib/Brunet.*dll
+\..*\.swp
+BootGraph
