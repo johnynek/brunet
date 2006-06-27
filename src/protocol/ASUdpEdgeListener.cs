@@ -81,6 +81,11 @@ namespace Brunet
       public UdpEdge Sender;
     }
 
+    protected enum ControlCode : int
+    {
+      EdgeClosed = 1
+    }
+
     /**
      * Hashtable of ID to Edges
      */
@@ -208,6 +213,7 @@ namespace Brunet
         int id;
         do {
           id = _rand.Next();
+	  if( id < 0 ) { id = ~id; }
         } while( _id_ht.Contains(id) || id == 0 );
         e = new UdpEdge(this, false, end, _local_ep, id, 0);
         _id_ht[id] = e;
@@ -216,7 +222,156 @@ namespace Brunet
       e.CloseEvent += new EventHandler(this.CloseHandler);
       ecb(true, e, null);
     }
-    
+
+    /**
+     * This handles lightweight control messages that may be sent
+     * by UDP
+     */
+    protected void HandleControlPacket(int remoteid, int n_localid, byte[] buffer)
+    {
+      int local_id = ~n_localid;
+      UdpEdge e = null;
+      lock( _id_ht ) {
+        e = (UdpEdge)_id_ht[local_id];
+      }
+      if( (e != null) && (e.RemoteID == remoteid) ) {
+        //This edge has some control information, the information starts at byte 8.
+	ControlCode code = (ControlCode)NumberSerializer.ReadInt(buffer, 8);
+        System.Console.WriteLine("Got control from: {0}", e);
+	if( code == ControlCode.EdgeClosed ) {
+          //The edge has been closed on the other side
+	  e.Close();
+	}
+      }
+    }
+
+    /**
+     * This reads a packet from buf which came from end, with
+     * the given ids
+     */
+    protected void HandleDataPacket(int remoteid, int localid,
+                                    byte[] buf, int off, int len,
+                                    EndPoint end)
+    {
+      bool read_packet = true;
+      bool is_new_edge = false;
+      UdpEdge edge = null;
+      lock ( _id_ht ) {
+       edge = (UdpEdge)_id_ht[localid];
+       if( localid == 0 ) {
+         //This is a potentially a new incoming edge
+         is_new_edge = true;
+
+         //Check to see if it is a dup:
+         UdpEdge e_dup = (UdpEdge)_remote_id_ht[remoteid];
+         if( e_dup != null ) {
+           //Lets check to see if this is a true dup:
+           if( e_dup.End.Equals( end ) ) {
+             //Same id from the same endpoint, looks like a dup...
+             is_new_edge = false;
+             //Console.WriteLine("Stopped a Dup on: {0}", e_dup);
+             //Reuse the existing edge:
+             edge = e_dup;
+           }
+           else {
+             //This is just a coincidence.
+           }
+         }
+         if( is_new_edge ) {
+           //We need to assign it a local ID:
+           do {
+             localid = _rand.Next();
+             //Make sure not to use negative ids
+             if( localid < 0 ) { localid = ~localid; }
+           } while( _id_ht.Contains(localid) || localid == 0 );
+           edge = new UdpEdge(this,
+                          true, (IPEndPoint)end,
+                          _local_ep, localid, remoteid);
+           _id_ht[localid] = edge;
+           _remote_id_ht[remoteid] = edge;
+           edge.CloseEvent += new EventHandler(this.CloseHandler);
+         }
+       }
+       else if ( edge == null ) {
+         /*
+          * This is the case where the Edge is not a new edge,
+          * but we don't know about it.  It is probably an old edge
+          * that we have closed.  We can ignore this packet
+          */
+         read_packet = false;
+	 //Send a control packet
+         SendControlPacket(end, remoteid, localid, ControlCode.EdgeClosed);
+       }
+       else if ( edge.RemoteID == 0 ) {
+         /* This is the response to our edge creation */
+         edge.RemoteID = remoteid;
+       }
+       else if( edge.RemoteID != remoteid ) {
+         /*
+          * This could happen as a result of packet loss or duplication
+          * on the first packet.  We should ignore any packet that
+          * does not have both ids matching.
+          */
+         read_packet = false;
+	 //Tell the other guy to close this ignored edge
+         SendControlPacket(end, remoteid, localid, ControlCode.EdgeClosed);
+       }
+       if( (edge != null) && !edge.End.Equals(end) ) {
+         //This happens when a NAT mapping changes
+         System.Console.WriteLine(
+	    "NAT Mapping changed on Edge: {0}\n{1} -> {2}",
+            edge, edge.End, end); 
+            edge.End = end;
+       }
+      }
+      //Drop the ht lock and announce the edge and the packet:
+      if( is_new_edge ) {
+       SendEdgeEvent(edge);
+      }
+      if( read_packet ) {
+        try {
+          Packet p = PacketParser.Parse(buf, off, len);
+          //We have the edge, now tell the edge to announce the packet:
+          edge.Push(p);
+        }
+        catch(ParseException pe) {
+          System.Console.Error.WriteLine(
+             "Edge: {0} sent us an unparsable packet: {1}", edge, pe);
+	}
+      }
+    }
+
+    protected void SendControlPacket(EndPoint end, int remoteid, int localid,
+                                     ControlCode c)
+    {
+      lock(_sync) {
+        byte[] tmp_buf = new byte[12];
+        NumberSerializer.WriteInt(localid, tmp_buf, 0);
+        //Bit flip to indicate this is a control packet
+        NumberSerializer.WriteInt(~remoteid, tmp_buf, 4);
+        NumberSerializer.WriteInt((int)c, tmp_buf, 8);
+
+        try {	//catching SocketException
+          System.Console.WriteLine("Sending control to: {0}", end);
+          s.BeginSendTo(tmp_buf, 0, 12, SocketFlags.None, end,
+			new AsyncCallback(this.SendControlPacketCallback), null);
+        }
+        catch (SocketException sc) {
+          Console.Error.WriteLine(
+            "Error in Socket.SendTo. Endpoint: {0}\n{1}", end, sc);
+        }
+      }
+    }
+
+    protected void SendControlPacketCallback(IAsyncResult asr)
+    {
+      try {
+        s.EndSendTo(asr);
+      }
+      catch(Exception x) {
+        Console.Error.WriteLine("{0}", x);
+      }
+    }
     /**
      * This method may be called once to start listening.
      * @throw Exception if start is called more than once (including
@@ -271,82 +426,18 @@ namespace Brunet
         //Get the id of this edge:
         int remoteid = NumberSerializer.ReadInt(_rec_buffer, 0);
         int localid = NumberSerializer.ReadInt(_rec_buffer, 4);
-	bool read_packet = true;
-        bool is_new_edge = false;
-	UdpEdge edge = null;
-        lock ( _id_ht ) {
-          edge = (UdpEdge)_id_ht[localid];
-          if( localid == 0 ) {
-            //This is a potentially a new incoming edge
-            is_new_edge = true;
-
-            //Check to see if it is a dup:
-            UdpEdge e_dup = (UdpEdge)_remote_id_ht[remoteid];
-            if( e_dup != null ) {
-              //Lets check to see if this is a true dup:
-              if( e_dup.End.Equals( end ) ) {
-                //Same id from the same endpoint, looks like a dup...
-                is_new_edge = false;
-                //Console.WriteLine("Stopped a Dup on: {0}", e_dup);
-                //Reuse the existing edge:
-                edge = e_dup;
-              }
-              else {
-                //This is just a coincidence.
-              }
-            }
-            if( is_new_edge ) {
-              //We need to assign it a local ID:
-              do {
-                localid = _rand.Next();
-              } while( _id_ht.Contains(localid) || localid == 0 );
-              edge = new UdpEdge(this,
-                               true, (IPEndPoint)end,
-                               _local_ep, localid, remoteid);
-              _id_ht[localid] = edge;
-              _remote_id_ht[remoteid] = edge;
-              edge.CloseEvent += new EventHandler(this.CloseHandler);
-            }
-          }
-          else if ( edge == null ) {
-            /*
-             * This is the case where the Edge is not a new edge,
-             * but we don't know about it.  It is probably an old edge
-             * that we have closed.  We can ignore this packet
-             */
-            read_packet = false;
-          }
-          else if ( edge.RemoteID == 0 ) {
-            /* This is the response to our edge creation */
-            edge.RemoteID = remoteid;
-          }
-          else if( edge.RemoteID != remoteid ) {
-            /*
-             * This could happen as a result of packet loss or duplication
-             * on the first packet.  We should ignore any packet that
-             * does not have both ids matching.
-             */
-            read_packet = false;
-            Console.WriteLine("Received Dup on: {0}", edge);
-          }
-          if( ( edge != null ) && !edge.End.Equals(end) ) {
-            //This happens when a NAT mapping changes
-	    System.Console.WriteLine(
-	          "NAT Mapping changed on Edge: {0}\n{1} -> {2}",
-		  edge, edge.End, end); 
-	    edge.End = end;
-	  }
-        }
-        //Drop the ht lock and announce the edge and the packet:
-        if( is_new_edge ) {
-          SendEdgeEvent(edge);
-        }
-        if( read_packet ) {
-          Packet p = PacketParser.Parse(_rec_buffer, 8, rec_bytes - 8);
-          //We have the edge, now tell the edge to announce the packet:
-          edge.Push(p);
-	  //Console.WriteLine("Got packet: {0}", p);
-        }
+        if( localid < 0 ) {
+	    /*
+	     * We never give out negative id's, so if we got one
+	     * back the other node must be sending us a control
+	     * message.
+	     */
+          HandleControlPacket(remoteid, localid, _rec_buffer);
+	}
+	else {
+	  HandleDataPacket(remoteid, localid, _rec_buffer, 8,
+                             rec_bytes - 8, end);
+	}
 	/*
 	 * We have finished reading the packet, now read the next one
 	 */
