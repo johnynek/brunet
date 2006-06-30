@@ -318,6 +318,7 @@ namespace Brunet
          read_packet = false;
 	 //Tell the other guy to close this ignored edge
          SendControlPacket(end, remoteid, localid, ControlCode.EdgeClosed);
+         edge = null;
        }
        if( (edge != null) && !edge.End.Equals(end) ) {
          //This happens when a NAT mapping changes
