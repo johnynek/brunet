@@ -1115,24 +1115,34 @@ namespace Brunet
       tab.Add(new Connection(e2, a2, "structured.near", null, null));
 
       Assert.AreEqual(tab.TotalCount, 2, "total count");
-      //Assert.AreEqual(tab.Count(ConnectionType.Structured) , 2, "structured count");
+      Assert.AreEqual(tab.Count(ConnectionType.Structured) , 2, "structured count");
       
       int total = 0;
       foreach(Connection c in tab) {
 	total++;
-        //Console.WriteLine("{0}\n",c);
+	//Mostly a hack to make sure the compiler doesn't complain about an
+	//unused variable
+	Assert.IsNotNull(c);
+       
+       	//Console.WriteLine("{0}\n",c);
       }
       Assert.AreEqual(total,2,"all connections");
      
       int struct_tot = 0;
       foreach(Connection c in tab.GetConnections(ConnectionType.Structured)) {
         struct_tot++;
+	//Mostly a hack to make sure the compiler doesn't complain about an
+	//unused variable
+	Assert.IsNotNull(c);
         //Console.WriteLine("{0}\n",c);
       }
       Assert.AreEqual(struct_tot, 2, "structured connections");
       int near_tot = 0;
       foreach(Connection c in tab.GetConnections("structured.near")) {
         near_tot++;
+	//Mostly a hack to make sure the compiler doesn't complain about an
+	//unused variable
+	Assert.IsNotNull(c);
         //Console.WriteLine("{0}\n",c);
       }
       Assert.AreEqual(near_tot, 1, "structured near");

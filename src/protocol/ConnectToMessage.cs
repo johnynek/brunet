@@ -284,15 +284,16 @@ namespace Brunet
       //Here is a ConnectTo message with a neighbor list:
       NodeInfo[] neighs = new NodeInfo[5];
       for(int i = 0; i < 5; i++) {
+	string ta_tmp = "brunet.tcp://127.0.0.1:" + (i+80).ToString();
         NodeInfo tmp =
 		new NodeInfo(new DirectionalAddress(DirectionalAddress.Direction.Left),
-	                     new TransportAddress("brunet.tcp://127.0.0.1:" + i.ToString())
+	                     new TransportAddress(ta_tmp)
 			    );
 	neighs[i] = tmp;
       }
       ConnectToMessage ctm3 = new ConnectToMessage("structured", ni, neighs);
       ConnectToMessage ctm3a = (ConnectToMessage)xt.SerializeDeserialize(ctm3);
-      Assert.AreEqual(ctm2, ctm2a, "CTM with neighborlist");
+      Assert.AreEqual(ctm3, ctm3a, "CTM with neighborlist");
 #if false
       System.Console.WriteLine( ctm3.ToString() );
       foreach(NodeInfo tni in ctm3a.Neighbors) {
