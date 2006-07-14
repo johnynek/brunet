@@ -14,16 +14,20 @@
 	      <include name="Brunet.dll" />
 	      <include name="Ipop-common.dll" />
 	      <include name="libtuntap.so" />
+	      <include name="DHCPCommon.dll" />
 	  </fileset>
       </copy>
       <csc target="exe" output="${build.dir}/IPRouter.exe">
           <sources failonempty="true">
 	     <include name="IPRouter.cs"/>
+             <include name="../dhcp/DHCPClient.cs"/>
 	  </sources>
 	  <references>
              <include name="${lib.dir}/Brunet.dll"/>
              <include name="${lib.dir}/Ipop-common.dll"/>
              <include name="Mono.Security.dll"/>
+	     <include name="System.Runtime.Remoting.dll"/>
+	     <include name="${lib.dir}/DHCPCommon.dll"/>
 	  </references>
       </csc>
       <csc target="exe" output="${build.dir}/SimpleNode.exe">

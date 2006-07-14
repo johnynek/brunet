@@ -1,5 +1,3 @@
-#define DAVID_DHCP
-
 using System;
 using Brunet;
 using System.Text;
@@ -28,9 +26,6 @@ namespace Ipop {
 
     //IP Init type
     private static string ipInit;
-
-    //DHCP Server Address
-    private static System.Net.IPAddress dhcpServer;
 
     //the namespace or realm we belong to
     private static string realm;
@@ -99,8 +94,7 @@ namespace Ipop {
 
       if(ipInit == "dhcp")
       {
-        line = NextLine(sr);
-        dhcpServer = System.Net.IPAddress.Parse(line);
+        DHCPClient.DHCPInit(NextLine(sr));
       }
     }
 
@@ -116,6 +110,7 @@ namespace Ipop {
 
     private static string GetTapAddress()
     {
+      string result = null;
       System.Diagnostics.Process proc = new System.Diagnostics.Process();
       proc.EnableRaisingEvents = false;
       proc.StartInfo.RedirectStandardOutput = true;
@@ -124,13 +119,16 @@ namespace Ipop {
       proc.StartInfo.Arguments = device;
       proc.Start();
       proc.WaitForExit();
-
-      StreamReader sr = proc.StandardOutput;
-      sr.ReadLine();
-      string output = sr.ReadLine();
-      int point1 = output.IndexOf("inet addr:") + 10;
-      int point2 = output.IndexOf("Bcast:") - 2 - point1;
-      return output.Substring(point1, point2);
+      try {
+        StreamReader sr = proc.StandardOutput;
+        sr.ReadLine();
+        string output = sr.ReadLine();
+        int point1 = output.IndexOf("inet addr:") + 10;
+        int point2 = output.IndexOf("Bcast:") - 2 - point1;
+        result = output.Substring(point1, point2);
+      }
+      catch {}
+      return result;
     }
 
     private static string GetTapMAC()
@@ -330,11 +328,25 @@ namespace Ipop {
 
         int destPort = (buffer[22] << 8) + buffer[23];
         int srcPort = (buffer[20] << 8) + buffer[21];
-        int protocol = buffer[9]; 
+        int protocol = buffer[9];
 
         if (debug) {
-          Console.WriteLine("Outgoing {0} packet::IP src: {1}:{2}, IP dst: {3}:{4}", 
-            protocol, srcAddr, srcPort, destAddr, destPort);
+          Console.WriteLine("Outgoing {0} packet::IP src: {1}:{2}," + 
+            "IP dst: {3}:{4}", protocol, srcAddr, srcPort, destAddr,
+            destPort);
+        }
+
+        if(srcPort == 68 && destPort == 67 && protocol == 17 && 
+          ipInit == "dhcp") {
+          DHCPPacket dhcpPacket = new DHCPPacket(buffer);
+          dhcpPacket.DecodePacket();
+          DHCPPacket returnPacket = new DHCPPacket(
+            DHCPClient.SendMessage(dhcpPacket.returnDecodedPacket()));
+          returnPacket.EncodePacket();
+          if (debug) {
+            Console.WriteLine("DHCP Packet");
+          }
+          ether.SendPacket(returnPacket.returnPacket());
         }
 
         if(status == 1) {
@@ -343,7 +355,6 @@ namespace Ipop {
             target = new AHAddress(GetHash(destAddr));
             routes.AddRoute(destAddr, target);
           }
-
           //build an IP packet
           buffer = IPPacketBuilder.BuildPacket(buffer, IPPacketBuilder.Protocol.IP_PACKET);
           if (debug) {
@@ -351,25 +362,11 @@ namespace Ipop {
           }
           brunet.SendPacket(target, buffer);
         }
-
-        if(srcPort == 68 && destPort == 67 && protocol == 17 && ipInit == "dhcp") {
-          if (debug) {
-            Console.WriteLine("DHCP Packet");
-          }
-          UdpClient dhcpClient = new UdpClient(dhcpServer.ToString(), 61234);
-          dhcpClient.Send(buffer, buffer.Length);
-          IPEndPoint dhcpEndPoint = new IPEndPoint(dhcpServer, 61234);
-          buffer = new byte[512];
-          buffer = dhcpClient.Receive(ref dhcpEndPoint);
-          ether.SendPacket(buffer);
-          Thread.Sleep(5000);
-          //Assume it works for now...
+        else {
+          /* See if DHCP has yet to run its course */
           string new_address = GetTapAddress();
-          if(ipAddress != null) {
-            string old_address = ipAddress.ToString();
-            Console.WriteLine("{0} {1}", old_address, new_address);
-          }
-          if(ipAddress == null || ipAddress.ToString() != new_address) {
+          if(new_address != null) {
+            Console.WriteLine(new_address);
             ipAddress = new IPAddress(new_address);
             brunet = Start();
             routes = new RoutingTable();
