@@ -51,11 +51,9 @@ namespace Brunet
 
   /**
    * Keeps track of all connections and all the
-   * mappings of Address -> Edge,
-   *             Edge -> Address,
-   *             Edge -> ConnectionType
-   *             ConnectionType -> Address List
-   *             ConnectionType -> Edge List
+   * mappings of Address -> Connection,
+   *             Edge -> Connection,
+   *             ConnectionType -> Connection List
    *
    * All classes other than ConnectionOverlord should only use
    * the ReadOnly methods (not Add or Remove).
@@ -86,7 +84,6 @@ namespace Brunet
 #endif
     protected Hashtable type_to_addlist;
     protected Hashtable type_to_edgelist;
-    protected Hashtable edge_to_add;
     protected Hashtable edge_to_con;
 
     protected ArrayList unconnected;
@@ -169,7 +166,6 @@ namespace Brunet
         _cmp = cmp;
         type_to_addlist = new Hashtable();
         type_to_edgelist = new Hashtable();
-        edge_to_add = new Hashtable();
         edge_to_con = new Hashtable();
 
         //unconnected = new Hashtable();
@@ -205,11 +201,8 @@ namespace Brunet
       Edge e = c.Edge;
 
       lock(_sync) {
-
-        ArrayList adds = (ArrayList)type_to_addlist[t];
-        index = adds.BinarySearch(a, _cmp);
-        if (index < 0)
-        {
+        index = IndexOf(t, a);
+        if (index < 0) {
           //This is a new address:
           index = ~index;
         }
@@ -217,9 +210,11 @@ namespace Brunet
           //This is an old address, no good
           throw new Exception("Address: " + a.ToString() + " already in ConnectionTable");
         }
-        adds.Insert(index, a);
+        /*
+         * Here we actually do the storing:
+         */
+        ((ArrayList)type_to_addlist[t]).Insert(index, a);
         ((ArrayList)type_to_edgelist[t]).Insert(index, e);
-        edge_to_add[e] = a;
         edge_to_con[e] = c;
 
       } /* we release the lock */
@@ -312,16 +307,15 @@ namespace Brunet
      */
     public void Disconnect(Edge e)
     {
-      ConnectionType t;
-      int index;
-      Address remote;
+      int index = -1;
       Connection c = null;
       bool have_con = false;
       lock(_sync) {
-        have_con = GetConnection(e, out t, out index, out remote);
+        c = GetConnection(e);	
+        have_con = (c != null);
         if( have_con )  {
-          c = GetConnection(e);	
-          Remove(t, index);
+          index = IndexOf(c.MainType, c.Address);
+          Remove(c.MainType, index);
           unconnected.Add(e);
         }
       }
@@ -330,11 +324,11 @@ namespace Brunet
 #if PLAB_CONNECTION_LOG
         BrunetEventDescriptor bed = new BrunetEventDescriptor();
         bed.EventDescription = "disconnection";
-        bed.ConnectionType = t;
-        bed.LocalTAddress = e.LocalTA.ToString();
-        bed.RemoteTAddress = e.RemoteTA.ToString();
-        bed.RemoteAHAddress = remote.ToBigInteger().ToString();
-        bed.RemoteAHAddressBase32 = remote.ToString();
+        bed.ConnectionType = c.MainType;
+        bed.LocalTAddress = c.Edge.LocalTA.ToString();
+        bed.RemoteTAddress = c.Edge.RemoteTA.ToString();
+        bed.RemoteAHAddress = c.Address.ToBigInteger().ToString();
+        bed.RemoteAHAddressBase32 = c.Address.ToString();
         bed.ConnectTime = DateTime.Now.Ticks;
         bed.SubType = c.ConType;
         bed.StructureDegree = Count(ConnectionType.Structured);
@@ -383,12 +377,7 @@ namespace Brunet
         else {
           i++;
         }
-
-        Address neighbor_add=null;
-        Edge    neighbor_edge=null;
-        GetConnection(ConnectionType.Structured, i, out neighbor_add, out neighbor_edge);
-        
-        return GetConnection( neighbor_edge );
+        return GetConnection(ConnectionType.Structured, i);
       }
     }
 
@@ -402,69 +391,55 @@ namespace Brunet
         if (i<0) {
           i = ~i;
         }
-
         i--;
-        Address neighbor_add=null;
-        Edge    neighbor_edge=null;
-        GetConnection(ConnectionType.Structured, i, out neighbor_add, out neighbor_edge);
-
-        return GetConnection( neighbor_edge );
+        return GetConnection(ConnectionType.Structured, i);
       }
     }
 
     /**
      * @param t the ConnectionType of connection in question
      * @param index the index of the connection in question
-     * @param add the Address of the node in the connection
-     * @param e the edge to the node in the connection
      *
      * The index "wraps around", or equivalently, 
      * the result of getting (index + count) is the
      * same as (index)
      */
-    public void GetConnection(ConnectionType t, int index,
-                              out Address add, out Edge e)
+    public Connection GetConnection(ConnectionType t, int index)
     {
+      Connection c = null;
       lock(_sync ) {
-        int count = ((ArrayList)type_to_addlist[t]).Count;
+        ArrayList list = (ArrayList)type_to_edgelist[t];
+        int count = list.Count;
         if( count == 0 ) {
           throw new System.ArgumentOutOfRangeException("index", index,
-              "Trying to get and index from an empty Array");
+              "Trying to get an index from an empty Array");
         }
         index %= count;
         if( index < 0 ) {
           index += count;
         }
-        add = (Address)((ArrayList)type_to_addlist[t])[index];
-        e = (Edge)((ArrayList)type_to_edgelist[t])[index];
+        Edge e = (Edge)list[index];
+        c = GetConnection(e);
       }
+      return c;
     }
     /**
-     * @param e Edge to check for a connection
-     * @param t the ConnectionType of the Edge if there is a connection
-     * @param index the index in the ConnectionTable of this connection
-     * @param add the address for this Connection
+     * Convienience function.  Same as IndexOf followed by GetConnection
+     * Get the Connection for a given address
+     * @param t ConnectionType we want
+     * @param a the address we are looking for
+     * @return null if there is no such connection
      */
-    public bool GetConnection(Edge e, out ConnectionType t, out int index,
-                              out Address add)
+    public Connection GetConnection(ConnectionType t, Address a)
     {
-      bool have_con = false;
+      Connection c = null;
       lock( _sync ) {
-        if (edge_to_con.Contains(e)) {
-          Connection c = (Connection)edge_to_con[e];
-          t = c.MainType;
-          index = ((ArrayList)type_to_edgelist[t]).IndexOf(e);
-          add = (Address)((ArrayList)type_to_addlist[t])[index];
-          have_con = true;
-        }
-        else {
-          t = ConnectionType.Unknown;
-          index = -1;
-          add = null;
-          have_con = false;
+        int idx = IndexOf(t, a);
+        if( idx >= 0 ) {
+          c = GetConnection(t, idx);
         }
       }
-      return have_con;
+      return c;
     }
     /**
      * Returns a Connection for the given edge:
@@ -499,23 +474,6 @@ namespace Brunet
     {
       return new ConnectionTypeEnumerable(this, t);
     }
-    
-    /**
-     * Returns a ReadOnly ArrayList of the edges of a given
-     * type
-     */
-    public ArrayList GetEdgesOfType(ConnectionType t)
-    {
-      lock(_sync) {
-        object val = type_to_edgelist[t];
-        if( val != null ) {
-          return ArrayList.ReadOnly( (ArrayList) val );
-        }
-        else {
-          return null;
-        }
-      }
-    }
     /**
      * Returns at most i structured connections which are nearest
      * to destination
@@ -538,10 +496,8 @@ namespace Brunet
 	int start = idx - max_count/2;
 	int end = start + max_count;
 	for( int pos = start; pos < end; pos++) {
-          Edge e = null;
-          Address a = null;
-          GetConnection(ConnectionType.Structured, pos, out a, out e);
-          ret_val.Add( GetConnection(e) );
+          Connection c = GetConnection(ConnectionType.Structured, pos);
+          ret_val.Add( c );
         }
       }
       return ret_val;
@@ -552,14 +508,13 @@ namespace Brunet
     public Connection GetRandom(ConnectionType t)
     {
       lock(_sync) {
-        ArrayList these_edges = (ArrayList)type_to_edgelist[t];
-	int size = these_edges.Count;
+        int size = Count(t);
 	if( size == 0 ) {
           return null;
 	}
 	else {
           int pos = _rand.Next( size );
-	  return GetConnection( (Edge)these_edges[pos] );
+	  return GetConnection(t, pos);
 	}
       }
     }
@@ -570,37 +525,6 @@ namespace Brunet
     public IEnumerable GetUnconnectedEdges()
     {
       return unconnected;
-    }
-
-    /**
-     * Returns a random unstructured edge which is different from the from Edge.
-     * @param from The edge to avoid.
-     */
-    public Edge GetRandomUnstructuredEdge(Edge from)
-    {
-      lock(_sync) {
-        object val = type_to_edgelist[ConnectionType.Unstructured];
-        // do not check for null because type_to_edgelist should
-        // be initialized for all edgetypes. this should improve
-        // the performance of the router code.
-        ArrayList unstructured_edges = (ArrayList)val;
-        int size = unstructured_edges.Count;
-        if (size<1) return null;
-
-        int position = _rand.Next(size - 1);
-
-        Edge e = (Edge) unstructured_edges[position];
-        if (e!=from) return e;
-
-        if (size==1) return null;
-
-        if (position == size-1) {
-          position = 0;
-        } else {
-          position++;
-        }
-        return (Edge) unstructured_edges[position];
-      }
     }
 
     /**
@@ -698,18 +622,17 @@ namespace Brunet
      */
     protected void Remove(Edge e)
     {
-      ConnectionType t;
-      int index;
-      Address remote;
+      int index = -1;
       bool have_con = false;
       Connection c = null;
       e.CloseEvent -= new EventHandler(this.RemoveHandler);
       lock(_sync) {
-        have_con = GetConnection(e, out t, out index, out remote);
-        if( have_con ) {
-          c = GetConnection(e);
-          Remove(t, index);
-	}
+        c = GetConnection(e);	
+        have_con = (c != null);
+        if( have_con )  {
+          index = IndexOf(c.MainType, c.Address);
+          Remove(c.MainType, index);
+        }
         else
           unconnected.Remove(e);
       }
@@ -757,7 +680,6 @@ namespace Brunet
         ((ArrayList)type_to_addlist[t]).RemoveAt(index);
         ((ArrayList)type_to_edgelist[t]).RemoveAt(index);
         //Remove the edge from the tables:
-        edge_to_add.Remove(e);
         edge_to_con.Remove(e);
 
       }
@@ -808,14 +730,6 @@ namespace Brunet
           foreach(System.Object o in t) {
             sb.Append("\t" + o.ToString() + "\n");
           }
-        }
-        sb.Append("\nEdge : Address\n");
-        myEnumerator = edge_to_add.GetEnumerator();
-        while (myEnumerator.MoveNext()) {
-          sb.Append("Edge: ");
-          sb.Append(myEnumerator.Key.ToString() + "\n");
-          sb.Append("Address: ");
-          sb.Append(myEnumerator.Value.ToString() + "\n");
         }
         sb.Append("\nEdge : Type\n");
         myEnumerator = edge_to_con.GetEnumerator();
@@ -900,13 +814,12 @@ namespace Brunet
 
       Connection newcon = null;
       lock(_sync) {
-
-        ArrayList adds = (ArrayList)type_to_addlist[t];
-        index = adds.BinarySearch(a, _cmp);
-        if (index < 0)
+        index = IndexOf(t, a);
+        if ( index < 0 )
         {
           //This is a new address:
-          throw new Exception("Address: " + a.ToString() + " not in ConnectionTable. Cannot UpdateStatus.");
+          throw new Exception("Address: " + a.ToString()
+                              + " not in ConnectionTable. Cannot UpdateStatus.");
         }
         newcon = new Connection(e,a,con_type,sm,plm);
         edge_to_con[e] = newcon;
@@ -949,24 +862,6 @@ namespace Brunet
         return unconnected.Contains(e);
       }
     }
-    public void PrintHashKeys( Hashtable hash )
-    {
-
-      foreach (string s in hash.Keys)
-      {
-        Console.WriteLine("{0} = {1}", s, hash[s]);
-      }
-
-    }
-
-    public void PrintListValues(ArrayList myList)
-    {
-      Console.WriteLine("active connections count: {0}", myList.Count);
-      foreach(object el in myList) {
-        Console.WriteLine(" {0}",el);
-      }
-    }
-
     //Private
     private class ConnectionEnumerator : IEnumerator {
       
@@ -1024,11 +919,7 @@ namespace Brunet
       }
 
       public object Current {
-        get {
-          //Edge e = (Edge)_edge_enumer.Key;
-	  //return _tab.GetConnection(e);
-	  return _edge_enumer.Value;
-	}
+        get { return _edge_enumer.Value; }
       }
 
       public void Reset() {

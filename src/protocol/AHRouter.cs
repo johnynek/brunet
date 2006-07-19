@@ -109,14 +109,7 @@ namespace Brunet
       
       /* Don't let the routing table change */
       lock( _tab.SyncRoot ) {
-	   
-        //See if we can use a leaf connection:
-        foreach(Connection c in _tab.GetConnections(ConnectionType.Leaf)) {
-          if( c.Address.Equals(dest) ) {
-            //We can route it to this 
-	    next_con = c;
-	  }
-	}
+	next_con = _tab.GetConnection(ConnectionType.Leaf, dest);
 	if( next_con == null ) {
           /*
 	   * We do not have a leaf connection to use, now we must
