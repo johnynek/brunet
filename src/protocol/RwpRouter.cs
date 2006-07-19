@@ -109,9 +109,10 @@ namespace Brunet
 
         if (flag) {
           //Send this packet to a random neighbor exactly as is;
-          e = _connection_table.GetRandomUnstructuredEdge(from);
+	  Connection rc = _connection_table.GetRandom(ConnectionType.Unstructured);
 
-          if (e != null) {
+          if (rc != null) {
+	    e = rc.Edge;
             AHPacket to_send = p.IncrementHops();
             num_sent_on++;
             e.Send( to_send );
@@ -144,20 +145,27 @@ namespace Brunet
           */
           next_p = p.IncrementHops();
         }
-        ArrayList unstructured_edges = (ArrayList)_connection_table.GetEdgesOfType(ConnectionType.Unstructured);
         try {
-          foreach(Edge next_edge in unstructured_edges) {
-            if ( (next_edge==from) || (next_edge==e) )
-              continue;
-            else {
-              double val = _rand.NextDouble();
-              if ( val <= prob ) {
-                num_sent_on++;
-                next_edge.Send( next_p );
+          ArrayList to_send = new ArrayList();
+          lock( _connection_table.SyncRoot ) {
+            //Hold the lock while we build the list:
+            foreach(Connection c in _connection_table.GetConnections(ConnectionType.Unstructured)) {
+              if( (c.Edge == from) || (c.Edge == e) ) {
+                continue;
+              }
+              else {
+                double val = _rand.NextDouble();
+                if ( val <= prob ) {
+                  to_send.Add(c);
+                }
               }
             }
-            //end of for-loop
           }
+          //Now we drop the lock and actually send:
+          foreach(Connection c in to_send) {
+            c.Edge.Send( next_p );
+          }
+          num_sent_on += to_send.Count;
         }
         catch (Exception ex) {
           // log it. do a code review and log the exceptions that should be logged

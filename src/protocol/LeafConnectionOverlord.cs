@@ -189,16 +189,15 @@ namespace Brunet
 
         Edge to_close = null;
         lock ( _local.ConnectionTable.SyncRoot ) {
-          ArrayList leafs =
-            _local.ConnectionTable.GetEdgesOfType(ConnectionType.Leaf);
-          if( leafs.Count > 2 * _desired_cons ) {
-            int idx = _rnd.Next(0, leafs.Count);
-            to_close = (Edge)leafs[ idx ];
-            //Don't close the edge we just got, close the one after it.
-            if( to_close == ce.Edge ) {
-              idx = (idx + 1) % leafs.Count;
-              to_close = (Edge)leafs[ idx ];
-            }
+          if( _local.ConnectionTable.Count(ConnectionType.Leaf)
+	      > 2 * _desired_cons ) {
+	    //There must be at least 2 leafs, so both can't be the one we just got:
+	    Connection c = null;
+	    do {
+	      c = _local.ConnectionTable.GetRandom(ConnectionType.Leaf);
+	    }
+	    while( c == ce.Connection );
+	    to_close = c.Edge;
           }
         }
         //Release the lock

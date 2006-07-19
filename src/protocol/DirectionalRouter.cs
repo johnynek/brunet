@@ -77,7 +77,6 @@ namespace Brunet
      */
     public int Route(Edge from, AHPacket p, out bool deliverlocally)
     {
-
       Edge next = null;
       deliverlocally = false;
       int sent = 0;
@@ -89,62 +88,28 @@ namespace Brunet
         DirectionalAddress dir_add = (DirectionalAddress) p.Destination;
         /* We need to do a few atomic operations on the ConnectionTable */
         lock( _con_tab.SyncRoot ) {
-          int count =  _con_tab.Count(ConnectionType.Structured);
-          if (count > 0) {
-            //In this case we send it to an address based
-            //on its position in our routing table :
-            //Find ourselves in the routing table
-            int index = _con_tab.IndexOf(ConnectionType.Structured, _local);
-            Address next_add;
-            if (dir_add.Bearing == DirectionalAddress.Direction.Left) {
-              if (index < 0) {
-                //Since we are going Left, we choose the larger address,
-                //which is where index already is
-                index = ~index;
-              }
-              else {
-                //Since we are going Left, we choose the larger address
-                index++;
-              }
-              /* Get the Edge for this index */
-              _con_tab.GetConnection(ConnectionType.Structured,
-                                     index,
-                                     out next_add,
-                                     out next);
-              if( from == next ) {
-                //We skip where we came from:
-                index++;
-                _con_tab.GetConnection(ConnectionType.Structured,
-                                       index,
-                                       out next_add,
-                                       out next);
-              }
+          Connection next_con = null;
+          if ( dir_add.Bearing == DirectionalAddress.Direction.Left ) {
+            //Get the left structured neighbor of us:
+            next_con = _con_tab.GetLeftStructuredNeighborOf((AHAddress)_local);
+            if( next_con.Edge == from ) {
+              //skip the person it came from
+              AHAddress f_add = (AHAddress)next_con.Address;
+              next_con = _con_tab.GetLeftStructuredNeighborOf(f_add);
             }
-            else if (dir_add.Bearing == DirectionalAddress.Direction.Right) {
-              //Find ourselves in the routing table
-              if (index < 0) {
-                index = ~index;
-              }
-              /*
-              * No matter what, we decrement the index.  If we are
-              * in the table, decrement to go the right.  If we are
-              * not in the table, we need to choose the smaller index
-              */
-              index--;
-              /* Get the Edge for this index */
-              _con_tab.GetConnection(ConnectionType.Structured,
-                                     index,
-                                     out next_add,
-                                     out next);
-              if( from == next ) {
-                //We skip where we came from:
-                index--;
-                _con_tab.GetConnection(ConnectionType.Structured,
-                                       index,
-                                       out next_add,
-                                       out next);
-              }
+          }
+          else if (dir_add.Bearing == DirectionalAddress.Direction.Right) {
+            //Get the left structured neighbor of us:
+            next_con = _con_tab.GetRightStructuredNeighborOf((AHAddress)_local);
+            if( next_con.Edge == from ) {
+              //skip the person it came from
+              AHAddress f_add = (AHAddress)next_con.Address;
+              next_con = _con_tab.GetRightStructuredNeighborOf(f_add);
             }
+          }
+          if (next_con != null ) {
+            //Here is the edge to go to next
+            next = next_con.Edge;
           }
         } /* This is the end of the atomic ConnectionTable operation set */
 	if( p.HasOption( AHPacket.AHOptions.Path ) ) {

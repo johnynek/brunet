@@ -32,6 +32,10 @@ namespace Brunet {
   [TestFixture]
 #endif
   public class Connection {
+#if BRUNET_NUNIT
+    //NUnit needs a default constructor
+    public Connection() { }
+#endif
 
     /**
      * Prefered constructor for a Connection
