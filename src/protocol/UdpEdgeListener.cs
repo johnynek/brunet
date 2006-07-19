@@ -39,30 +39,14 @@ using System.Collections;
 
 namespace Brunet
 {
-
   /**
-  * A EdgeListener that uses UDP for the underlying
-  * protocol.  This listener creates UDP edges.
-  * 
-  * The UdpEdgeListener creates one thread.  In that
-  * thread it loops processing reads.  The UdpEdgeListener
-  * keeps a Queue of packets to send also.  After each
-  * read attempt, it sends all the packets in the Queue.
-  *
-  */
-
-  public class UdpEdgeListener : EdgeListener, IPacketHandler
+   * There are multiple implementations of Udp transports for
+   * Brunet.  This is a base class with the shared code.
+   */
+  public abstract class UdpEdgeListenerBase : EdgeListener
   {
-
-    protected IPEndPoint ipep;
-    protected Socket s;
-
-    ///used for thread for the socket synchronization
-    protected object _sync;
-    ///this is the thread were the socket is read:
-    protected Thread _thread;
     ///Buffer to read the packets into
-    protected byte[] _packet_buffer;
+    protected byte[] _rec_buffer;
     protected byte[] _send_buffer;
 
     ///Here is the queue for outgoing packets:
@@ -72,7 +56,7 @@ namespace Brunet
      * This is a simple little class just to hold the
      * two objects needed to do a send
      */
-    private class SendQueueEntry {
+    protected class SendQueueEntry {
       public SendQueueEntry(Packet p, UdpEdge udpe) {
         Packet = p;
         Sender = udpe;
@@ -81,6 +65,10 @@ namespace Brunet
       public UdpEdge Sender;
     }
 
+    /*
+     * This is the object which we pass to UdpEdges when we create them.
+     */
+    protected IPacketHandler _send_handler;
     /**
      * Hashtable of ID to Edges
      */
@@ -105,7 +93,10 @@ namespace Brunet
         return TransportAddress.TAType.Udp;
       }
     }
-
+    
+    ///used for thread for the socket synchronization
+    protected object _sync;
+    
     protected bool _running;
     protected bool _isstarted;
     public override bool IsStarted
@@ -120,53 +111,7 @@ namespace Brunet
     {
       EdgeClosed = 1
     }
-
-    public UdpEdgeListener(int port):this(port, null)
-    {
-      
-    }
-    public UdpEdgeListener(int port, IPAddress[] ipList)
-    {
-      /**
-       * We get all the IPAddresses for this computer
-       */
-      _tas = GetIPTAs(TransportAddress.TAType.Udp, port, ipList);
-      
-      IPAddress ipa = IPAddress.Loopback;
-      bool stop = false;
-      foreach(TransportAddress ta in _tas) {
-        ArrayList ips = ta.GetIPAddresses();
-	foreach(IPAddress ip in ips) {
-          if( !IPAddress.IsLoopback(ip) && (ip.Address != 0) ) {
-		  //0 is the 0.0.0.0, or any address
-            ipa = ip;
-	    stop = true;
-	    break;
-	  }
-	}
-	if( stop ) { break; }
-      }
-      //ipa, now holds our best guess for an endpoint..
-      _local_ep = new IPEndPoint(ipa, port);
-      /*
-       * Use this to listen for data
-       */
-      ipep = new IPEndPoint(IPAddress.Any, port);
-      s = new Socket(AddressFamily.InterNetwork,
-                     SocketType.Dgram, ProtocolType.Udp);
-      _id_ht = new Hashtable();
-      _remote_id_ht = new Hashtable();
-      _sync = new object();
-      _running = false;
-      _isstarted = false;
-      //There are two 4 byte IDs for each edge we need to make room for
-      _packet_buffer = new byte[ 8 + Packet.MaxLength ];
-      _send_buffer = new byte[ 8 + Packet.MaxLength ];
-      _send_queue = new Queue();
-      //Use our hashcode as the seed (terribly insecure business...)
-      _rand = new Random( GetHashCode() );
-    }
-
+    
     /**
      * When a UdpEdge closes we need to remove it from
      * our table, so we will know it is new if it comes
@@ -186,46 +131,7 @@ namespace Brunet
 	}
       }
     }
-
-    /**
-     * Implements the EdgeListener function to 
-     * create edges of this type.
-     */
-    public override void CreateEdgeTo(TransportAddress ta, EdgeCreationCallback ecb)
-    {
-      if( !IsStarted )
-      {
-        ecb(false, null,
-            new EdgeException("UdpEdgeListener is not started") );
-      }
-      else if( ta.TransportAddressType != this.TAType ) {
-        ecb(false, null,
-            new EdgeException(ta.TransportAddressType.ToString()
-                              + " is not my type: " + this.TAType.ToString() ) );
-      }
-      
-      Edge e = null;
-      ArrayList ip_addresses = ta.GetIPAddresses();
-      IPAddress first_ip = (IPAddress)ip_addresses[0];
-
-      IPEndPoint end = new IPEndPoint(first_ip, ta.Port);
-      /* We have to keep our mapping of end point to edges up to date */
-      lock( _id_ht ) {
-        //Get a random ID for this edge:
-        int id;
-        do {
-          id = _rand.Next();
-	  //Make sure we don't have negative ids
-	  if( id < 0 ) { id = ~id; }
-        } while( _id_ht.Contains(id) || id == 0 );
-        e = new UdpEdge(this, false, end, _local_ep, id, 0);
-        _id_ht[id] = e;
-      }
-      /* Tell me when you close so I can clean up the table */
-      e.CloseEvent += new EventHandler(this.CloseHandler);
-      ecb(true, e, null);
-    }
-   
+    
     /**
      * This handles lightweight control messages that may be sent
      * by UDP
@@ -287,7 +193,7 @@ namespace Brunet
              //Make sure not to use negative ids
              if( localid < 0 ) { localid = ~localid; }
            } while( _id_ht.Contains(localid) || localid == 0 );
-           edge = new UdpEdge(this,
+           edge = new UdpEdge(_send_handler,
                           true, (IPEndPoint)end,
                           _local_ep, localid, remoteid);
            _id_ht[localid] = edge;
@@ -345,7 +251,121 @@ namespace Brunet
       }
     }
 
-    protected void SendControlPacket(EndPoint end, int remoteid, int localid,
+    /**
+     * Each implementation may have its own way of doing this
+     */
+    protected abstract void SendControlPacket(EndPoint end, int remoteid, int localid,
+                                     ControlCode c);
+
+  }
+
+  /**
+  * A EdgeListener that uses UDP for the underlying
+  * protocol.  This listener creates UDP edges.
+  * 
+  * The UdpEdgeListener creates one thread.  In that
+  * thread it loops processing reads.  The UdpEdgeListener
+  * keeps a Queue of packets to send also.  After each
+  * read attempt, it sends all the packets in the Queue.
+  *
+  */
+
+  public class UdpEdgeListener : UdpEdgeListenerBase, IPacketHandler
+  {
+
+    protected IPEndPoint ipep;
+    protected Socket s;
+
+    ///this is the thread were the socket is read:
+    protected Thread _thread;
+
+    public UdpEdgeListener(int port):this(port, null)
+    {
+      
+    }
+    public UdpEdgeListener(int port, IPAddress[] ipList)
+    {
+      /**
+       * We get all the IPAddresses for this computer
+       */
+      _tas = GetIPTAs(TransportAddress.TAType.Udp, port, ipList);
+      
+      IPAddress ipa = IPAddress.Loopback;
+      bool stop = false;
+      foreach(TransportAddress ta in _tas) {
+        ArrayList ips = ta.GetIPAddresses();
+	foreach(IPAddress ip in ips) {
+          if( !IPAddress.IsLoopback(ip) && (ip.Address != 0) ) {
+		  //0 is the 0.0.0.0, or any address
+            ipa = ip;
+	    stop = true;
+	    break;
+	  }
+	}
+	if( stop ) { break; }
+      }
+      //ipa, now holds our best guess for an endpoint..
+      _local_ep = new IPEndPoint(ipa, port);
+      /*
+       * Use this to listen for data
+       */
+      ipep = new IPEndPoint(IPAddress.Any, port);
+      s = new Socket(AddressFamily.InterNetwork,
+                     SocketType.Dgram, ProtocolType.Udp);
+      _id_ht = new Hashtable();
+      _remote_id_ht = new Hashtable();
+      _sync = new object();
+      _running = false;
+      _isstarted = false;
+      //There are two 4 byte IDs for each edge we need to make room for
+      _rec_buffer = new byte[ 8 + Packet.MaxLength ];
+      _send_buffer = new byte[ 8 + Packet.MaxLength ];
+      _send_queue = new Queue();
+      //Use our hashcode as the seed (terribly insecure business...)
+      _rand = new Random( GetHashCode() );
+      _send_handler = this;
+    }
+
+    /**
+     * Implements the EdgeListener function to 
+     * create edges of this type.
+     */
+    public override void CreateEdgeTo(TransportAddress ta, EdgeCreationCallback ecb)
+    {
+      if( !IsStarted )
+      {
+        ecb(false, null,
+            new EdgeException("UdpEdgeListener is not started") );
+      }
+      else if( ta.TransportAddressType != this.TAType ) {
+        ecb(false, null,
+            new EdgeException(ta.TransportAddressType.ToString()
+                              + " is not my type: " + this.TAType.ToString() ) );
+      }
+      
+      Edge e = null;
+      ArrayList ip_addresses = ta.GetIPAddresses();
+      IPAddress first_ip = (IPAddress)ip_addresses[0];
+
+      IPEndPoint end = new IPEndPoint(first_ip, ta.Port);
+      /* We have to keep our mapping of end point to edges up to date */
+      lock( _id_ht ) {
+        //Get a random ID for this edge:
+        int id;
+        do {
+          id = _rand.Next();
+	  //Make sure we don't have negative ids
+	  if( id < 0 ) { id = ~id; }
+        } while( _id_ht.Contains(id) || id == 0 );
+        e = new UdpEdge(this, false, end, _local_ep, id, 0);
+        _id_ht[id] = e;
+      }
+      /* Tell me when you close so I can clean up the table */
+      e.CloseEvent += new EventHandler(this.CloseHandler);
+      ecb(true, e, null);
+    }
+   
+    protected override void SendControlPacket(EndPoint end, int remoteid, int localid,
                                      ControlCode c)
     {
       lock(_sync) {
@@ -414,24 +434,24 @@ namespace Brunet
         lock( _sync ) {
           read = s.Poll( microsecond_timeout, SelectMode.SelectRead );
           if( read ) {
-            rec_bytes = s.ReceiveFrom(_packet_buffer, ref end);
+            rec_bytes = s.ReceiveFrom(_rec_buffer, ref end);
           }
         }
         //Drop the socket lock.  We either read or we didn't
         if( read ) {
           //Get the id of this edge:
-          int remoteid = NumberSerializer.ReadInt(_packet_buffer, 0);
-          int localid = NumberSerializer.ReadInt(_packet_buffer, 4);
+          int remoteid = NumberSerializer.ReadInt(_rec_buffer, 0);
+          int localid = NumberSerializer.ReadInt(_rec_buffer, 4);
 	  if( localid < 0 ) {
 	    /*
 	     * We never give out negative id's, so if we got one
 	     * back the other node must be sending us a control
 	     * message.
 	     */
-            HandleControlPacket(remoteid, localid, _packet_buffer);
+            HandleControlPacket(remoteid, localid, _rec_buffer);
 	  }
 	  else {
-	    HandleDataPacket(remoteid, localid, _packet_buffer, 8,
+	    HandleDataPacket(remoteid, localid, _rec_buffer, 8,
                              rec_bytes - 8, end);
 	  }
         }
