@@ -9,12 +9,14 @@
   </target>
   <target name="build" description="Build DHCPCommon.dll and DHCPServer.exe">
       <mkdir dir="${build.dir}" failonerror="true"/>
+      <mkdir dir="${lib.dir}" failonerror="true"/>
       <csc target="library" output="${build.dir}/DHCPCommon.dll">
           <sources failonempty="true">
 	     <include name="common/DHCPCommon.cs"/>
              <include name="common/DHCPPacket.cs"/>
              <include name="common/DHCPOptionsList.cs"/>
 	     <include name="common/DHCPLease.cs"/>
+	     <include name="common/DHCPServerConfig.cs"/>
 	  </sources>
           <references>
 	     <include name="System.Runtime.Remoting.dll"/>

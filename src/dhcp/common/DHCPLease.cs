@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Collections;
 
 namespace Ipop {
@@ -9,42 +10,92 @@ namespace Ipop {
   }
 
   class DHCPLease {
-    SortedList leaselist;
-    int index, end;
+    int index, size, leasetime;
+    string namespace_value;
+    byte [] netmask;
+    byte [] lower;
+    byte [] upper;
+    byte [][] reservedIP;
+    byte [][] reservedMask;
+    ArrayList LeaseIPs;
+    ArrayList LeaseHWAddrs;
+    ArrayList LeaseExpirations;
+    object LeaseLock;
 
-    public DHCPLease(int end) {
-      leaselist = new SortedList(); 
-      index = 0;
-      this.end = end;
+    public DHCPLease(IPOPNamespace config) {
+      leasetime = config.leasetime;
+      namespace_value = config.value;
+      lower = DHCPCommon.StringToBytes(config.pool.lower, '.');
+      upper = DHCPCommon.StringToBytes(config.pool.upper, '.');
+      netmask = DHCPCommon.StringToBytes(config.netmask, '.');
+
+      if(config.reserved != null) {
+        reservedIP = new byte[config.reserved.value.Length + 1][];
+        reservedMask = new byte[config.reserved.value.Length + 1][];
+        for(int i = 1; i < config.reserved.value.Length + 1; i++) {
+          reservedIP[i] = DHCPCommon.StringToBytes(
+            config.reserved.value[i-1].ip, '.');
+          reservedMask[i] = DHCPCommon.StringToBytes(
+            config.reserved.value[i-1].mask, '.');
+        }
+      }
+      else {
+        reservedIP = new byte[1][];
+        reservedMask = new byte[1][];
+      }
+      reservedIP[0] = new byte[4];
+
+      for(int i = 0; i < 3; i++)
+        reservedIP[0][i] = (byte) (lower[i] & netmask[i]);
+      reservedIP[0][3] = 1;
+      reservedMask[0] = new byte[4] {255, 255, 255, 255};
+
+      this.index = 0;
+      this.size = 0;
+      LeaseIPs = new ArrayList();
+      LeaseHWAddrs = new ArrayList();
+      LeaseExpirations = new ArrayList();
+      LeaseLock = new object();
+      this.ReadLog();
     }
 
-    public byte [] GetLease(byte [] hwaddr, byte [] ip) {
-      int index = CheckForPreviousLease(hwaddr);
-      if(keygen(ip) != 0 && index == -1)
-        index = CheckRequestedIP(ip);
-      if(index == -1)
-        index = GetNextAvailableIP(hwaddr);
-      if(index >= 0) {
-        Lease lease = (Lease) leaselist.GetByIndex(index);
-        lease.hwaddr = hwaddr;
-        lease.expiration = DateTime.Now.AddDays(7);
-        leaselist.SetByIndex(index, lease);
-        ip = lease.ip;
+    public byte [] GetLease(byte [] hwaddr) {
+      byte []ip = new byte[4] {0,0,0,0};
+      lock(LeaseLock)
+      {
+        int index = CheckForPreviousLease(hwaddr);
+        if(index == -1)
+          index = GetNextAvailableIP(hwaddr);
+        if(index >= 0) {
+          ip = (byte []) LeaseIPs[index];
+          LeaseHWAddrs[index] = hwaddr;
+          LeaseExpirations[index] = DateTime.Now.AddDays(leasetime);
+          UpdateLog(index);
+        }
       }
       return ip;
     }
 
     public int CheckForPreviousLease(byte [] hwaddr) {
-      int key = keygen(hwaddr);
-      if(leaselist.Contains(key))
-        return leaselist.IndexOfKey(key);
+      for (int i = 0; i < LeaseHWAddrs.Count; i++) {
+        for (int j = 0; j < hwaddr.Length; j++) {
+          if (hwaddr[j] != ((byte []) LeaseHWAddrs[i])[j])
+            break;
+          else if(j == hwaddr.Length - 1)
+            return i;
+        }
+      }
       return -1;
     }
 
+/*  We no longer acknowledge requests for specific IPs
     public int CheckRequestedIP(byte [] ip) {
+      if(!ValidIP(ip))
+        return -1;
       int start = 0, end = leaselist.Count;
       int index = leaselist.Count / 2, ip_check;
-      int ip_key = keygen(ip), count = 0, term = (int) Math.Ceiling(Math.Log((double) end));
+      int ip_key = keygen(ip), count = 0, term = (int)
+        Math.Ceiling(Math.Log((double) end));
 
       if(leaselist.Count == 0)
         return -1;
@@ -64,32 +115,62 @@ namespace Ipop {
         count++;
       }
       return -1;
-    }
+    }*/
 
     public int GetNextAvailableIP(byte [] hwaddr) {
-      int temp = this.index, count = leaselist.Count;
+      int temp = this.index, count = LeaseIPs.Count;
       DateTime now = DateTime.Now;
+      byte [] ip = null;
 
-      /* Unused Lease, create new Lease and return its index */
-      if(this.index == count) {
-        Lease lease = new Lease();
-        if(count == 0)
-          lease.ip = new byte[] {10, 128, 0, 2};
-        else
-          lease.ip = IncrementIP(((Lease) leaselist.GetByIndex(this.index - 1)).ip);
-        leaselist.Add(keygen(hwaddr), lease);
-        return this.index++;
+      if(this.size == 0) {
+        if(count == 0) {
+          ip = lower;
+          if(!ValidIP(ip))
+            ip = IncrementIP(lower);
+        }
+        else {
+          ip = IncrementIP((byte []) ((byte []) 
+            LeaseIPs[this.index-1]).Clone());
+        }
       }
-
-      /* Find the first expired lease and return it */
-      do {
-        if(this.index == this.end)
-          this.index = 0;
-        if(((Lease)leaselist[this.index]).expiration < now)
-          return this.index;
-        this.index++;
-      } while(this.index != temp);
+      if(this.size == 0) {
+          LeaseIPs.Add(ip);
+          LeaseHWAddrs.Add(hwaddr.Clone());
+          LeaseExpirations.Add(now.AddDays(leasetime));
+          return this.index++;
+      }
+      else {
+        /* Find the first expired lease and return it */
+        do {
+          if(this.index >= this.size)
+            this.index = 0;
+          if(((DateTime) LeaseExpirations[index]) < now)
+            return this.index;
+          this.index++;
+        } while(this.index != temp);
+      }
       return -1;
+    }
+
+    public bool ValidIP(byte [] ip) {
+      /* No 255 or 0 in ip[3]] */
+      if(ip[3] == 255 || ip[3] == 0)
+        return false;
+      /* Check range */
+      for(int i = 0; i < ip.Length; i++)
+        if(ip[i] < lower[i] || ip[i] > upper[i])
+          return false;
+      /* Check Reserved */
+      for(int i = 0; i < reservedIP.Length; i++) {
+        for(int j = 0; j < reservedIP[i].Length; j++) {
+          if((ip[j] & reservedMask[i][j]) != 
+            (reservedIP[i][j] & reservedMask[i][j]))
+            break;
+          if(j == reservedIP[i].Length - 1)
+            return false;
+        }
+      }
+      return true;
     }
 
     public int keygen(byte [] input) {
@@ -100,26 +181,97 @@ namespace Ipop {
     }
 
     public byte [] IncrementIP(byte [] ip) {
-      if(ip[3] == 0 || ip[3] == 1) {
-        ip[3] = 2;
+      if(ip[3] == 0) {
+        ip[3] = 1;
       }
-      else if(ip[3] == 255) {
-        ip[3] = 2;
-        if(ip[2] < 255)
+      else if(ip[3] == 254 || ip[3] == upper[3]) {
+        ip[3] = lower[3];
+        if(ip[2] < upper[2])
           ip[2]++;
         else {
-          ip[2] = 0;
-          if(ip[1] < 255)
+          ip[2] = lower[2];
+          if(ip[1] < upper[1])
             ip[1]++;
-          else 
-            ip[1] = 128;
+          else {
+            ip[1] = lower[1];
+            if(ip[0] < upper[0])
+              ip[0]++;
+            else {
+              ip[0] = lower[0];
+              this.size = this.index;
+              this.index = 0;
+            }
+          }
         }
       }
       else {
         ip[3]++;
       }
 
+      if(!ValidIP(ip))
+        ip = IncrementIP(ip);
+
       return ip;
+    }
+
+    public void UpdateLog(int index) {
+      FileStream file = new FileStream("logs/" + namespace_value + ".log",
+        FileMode.Append, FileAccess.Write);
+      StreamWriter sw = new StreamWriter(file);
+      sw.WriteLine(index);
+      sw.WriteLine(DHCPCommon.BytesToString((byte[]) LeaseIPs[index], '.'));
+      sw.WriteLine(DHCPCommon.BytesToString((byte[]) LeaseHWAddrs[index], ':'));
+      sw.WriteLine(((DateTime) LeaseExpirations[index]).Ticks);
+      sw.Close();
+      file.Close();
+    }
+
+    public void NewLog() {
+      FileStream file = new FileStream("logs/" + namespace_value + ".log",
+        FileMode.Append, FileAccess.Write);
+      StreamWriter sw = new StreamWriter(file);
+      for(int i = 0; i < LeaseIPs.Count; i++) {
+        sw.WriteLine(i);
+        sw.WriteLine(DHCPCommon.BytesToString((byte[]) LeaseIPs[i], '.'));
+        sw.WriteLine(DHCPCommon.BytesToString((byte[]) LeaseHWAddrs[i], ':'));
+        sw.WriteLine(((DateTime) LeaseExpirations[i]).Ticks);
+      }
+      sw.Close();
+      file.Close();
+    }
+
+    public void ReadLog() {
+      FileStream file = new FileStream("logs/" + namespace_value + ".log",
+        FileMode.OpenOrCreate, FileAccess.Read);
+      StreamReader sr = new StreamReader(file);
+      string value = "";
+      int index = 0;
+      while((value = sr.ReadLine()) != null) {
+        index = Int32.Parse(value);
+        if(LeaseIPs.Count <= index) {
+          LeaseIPs.Add(DHCPCommon.StringToBytes(sr.ReadLine(), '.'));
+          LeaseHWAddrs.Add(DHCPCommon.StringToBytes(sr.ReadLine(), ':'));
+          LeaseExpirations.Add(new DateTime(long.Parse(sr.ReadLine())));
+          this.index++;
+        }
+        else {
+          LeaseIPs[index] = DHCPCommon.StringToBytes(sr.ReadLine(), '.');
+          LeaseHWAddrs[index] = DHCPCommon.StringToBytes(sr.ReadLine(), ':');
+          LeaseExpirations[index] = new DateTime(long.Parse(sr.ReadLine()));
+        }
+      }
+      sr.Close();
+      file.Close();
+    }
+
+    public void WriteCache() {
+      for(int i = 0; i < LeaseIPs.Count; i++) {
+        Console.WriteLine(i);
+        Console.WriteLine(DHCPCommon.BytesToString((byte[]) LeaseIPs[i], '.'));
+        Console.WriteLine(DHCPCommon.BytesToString((byte[]) LeaseHWAddrs[i], ':'));
+        Console.WriteLine(((DateTime) LeaseExpirations[i]).Ticks);
+        Console.WriteLine("\n");
+      }
     }
   }
 }

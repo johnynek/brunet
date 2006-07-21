@@ -1,0 +1,31 @@
+<DHCPServerConfig>
+  <brunet_namespace>condor_wow</brunet_namespace>
+  <ipop_namespace>
+    <IPOPNamespace>
+      <value>Condor</value>
+      <netmask>255.128.0.0</netmask>
+      <pool>
+        <lower>10.128.0.0</lower>
+        <upper>10.130.255.255</upper>
+      </pool>
+      <reserved>
+        <value>
+          <DHCPReservedIP>
+            <ip>0.0.0.2</ip>
+            <mask>0.0.0.255</mask>
+          </DHCPReservedIP>
+        </value>
+      </reserved>
+      <LeaseTime>7</LeaseTime>
+    </IPOPNamespace>
+    <IPOPNamespace>
+      <value>Test</value>
+      <netmask>255.128.0.0</netmask>
+      <pool>
+        <lower>10.255.255.0</lower>
+        <upper>10.255.255.2</upper>
+      </pool>
+      <LeaseTime>7</LeaseTime>
+    </IPOPNamespace>
+  </ipop_namespace>
+</DHCPServerConfig>

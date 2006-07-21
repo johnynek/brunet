@@ -1,0 +1,20 @@
+IPOP
+
+Introduction and Overview
+Running SimpleNode.exe
+Running IPRouter.exe
+Explanation of Configuration Files
+
+Introduction and Overview
+
+Through the use of IPOP, users can create P2P virtual networks with relative ease.  IPOP comes with two executables, SimpleNode.exe and IPRouter.exe, an overview of each follows.
+
+IPRouter.exe allows a node to communicate with other nodes over the P2P network.  IPRouter.exe requires a tap device and must be run under a Unix variant supporting tap devices, testing has only been done on Linux.
+
+SimpleNode.exe provides interconnectivity between P2P virtual network nodes.  While the process does can not send or receive packets directly, it relays them to nodes running IPRouter.exe.  Thus they should be able to run in a user mode on computers which the owner of the P2P network doesn't own.  This is especially useful for running P2P networks on PlanetLab.
+
+Running SimpleNode.exe
+
+Running IPRouter.exe
+
+Explanation of Configuration Files

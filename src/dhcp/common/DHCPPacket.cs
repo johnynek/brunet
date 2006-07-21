@@ -239,5 +239,14 @@ namespace Ipop {
 
     public DecodedDHCPPacket returnDecodedPacket() { return this.decodedPacket; }
     public byte [] returnPacket() { return this.packet; }
+
+    public void AddNamespaces(string brunet, string ipop) {
+      decodedPacket.brunet_namespace = brunet;
+      decodedPacket.ipop_namespace = ipop;
+    }
+
+    public void AddNodeAddress(string NodeAddress) {
+      decodedPacket.NodeAddress = NodeAddress;
+    }
   }
 }

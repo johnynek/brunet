@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Runtime.Remoting.Lifetime;
 
 /* For a complete description of the contents of a DHCP packet see
      http://rfc.net/rfc2131.html for the DHCP main portion and ...
@@ -26,45 +27,64 @@ namespace Ipop {
     public DHCPOption [] options;
     public string brunet_namespace;
     public string ipop_namespace;
+    public string return_message;
+    public string NodeAddress;
   }
 
   public class DHCPServer : MarshalByRefObject {
-    DHCPLease leases;
-    int [] CurrentIP;
+    SortedList leases;
+    DHCPServerConfig config;
     byte [] ServerIP;
 
-    public DHCPServer() { 
-      leases = new DHCPLease(1000);
-      CurrentIP = new int[4];
-      CurrentIP[0] = 10;
-      CurrentIP[1] = 128;
-      CurrentIP[2] = 0;
-      CurrentIP[3] = 2;
-      this.ServerIP = new byte[4] {0, 0, 0, 0};
+    public DHCPServer() {;} // Dummy for Client
+
+    public DHCPServer(byte [] ServerIP, string filename) { 
+      this.ServerIP = ServerIP;
+      this.config = DHCPServerConfigurationReader.ReadConfig(filename);
+      leases = new SortedList();
+      foreach(IPOPNamespace item in this.config.ipop_namespace) {
+        DHCPLease lease = new DHCPLease(item);
+        leases.Add(item.value, lease);
+      }
     }
 
-    public DHCPServer(byte [] ServerIP) { 
-      leases = new DHCPLease(1000);
-      CurrentIP = new int[4];
-      CurrentIP[0] = 10;
-      CurrentIP[1] = 128;
-      CurrentIP[2] = 0;
-      CurrentIP[3] = 2;
-      this.ServerIP = ServerIP;
+    public override Object InitializeLifetimeService()
+    {
+      ILease lease = (ILease)base.InitializeLifetimeService();
+      if (lease.CurrentState == LeaseState.Initial)
+        lease.InitialLeaseTime = TimeSpan.FromDays(365);
+      return lease;
     }
+
 
     public DecodedDHCPPacket SendMessage(DecodedDHCPPacket packet) {
       DecodedDHCPPacket returnPacket = packet;
+
+      if(packet.brunet_namespace != config.brunet_namespace) {
+        returnPacket.return_message = "Invalid Brunet Namespace";
+        return returnPacket;
+      }
+
+      if(packet.ipop_namespace == null || !leases.Contains(
+        packet.ipop_namespace)) {
+        returnPacket.return_message = "Invalid IPOP Namespace";
+        return returnPacket;
+      }
+
       byte messageType = 0;
-      byte [] requestedIP = new byte[] {0, 0, 0, 0};
       for(int i = 0; i < packet.options.Length; i++) {
         if(packet.options[i].type == 53)
           messageType = packet.options[i].byte_value[0];
-        else if(packet.options[i].type == 50)
-          requestedIP = packet.options[i].byte_value;
       }
+
+      returnPacket.yiaddr = ((DHCPLease) leases[packet.ipop_namespace]).
+        GetLease(DHCPCommon.StringToBytes(packet.NodeAddress, ':'));
+      if(returnPacket.yiaddr[0] == 0) {
+        returnPacket.return_message = "No more available leases";
+        return returnPacket;
+      }
+
       returnPacket.op = 2; /* BOOT REPLY */
-      returnPacket.yiaddr = leases.GetLease(packet.chaddr, requestedIP);
       returnPacket.siaddr = this.ServerIP;
       ArrayList options = new ArrayList();
       string string_value = "";
@@ -73,7 +93,7 @@ namespace Ipop {
       /* Subnet Mask */
       options.Add((DHCPOption) CreateOption(1, new byte[]{255, 128, 0, 0}));
       /* DNS */
-      options.Add((DHCPOption) CreateOption(6, new byte[]{192, 168, 121, 2}));
+/*      options.Add((DHCPOption) CreateOption(6, new byte[]{192, 168, 121, 2})); */
       /* Lease Time */
       options.Add((DHCPOption) CreateOption(51, new byte[]{0, 0, 255, 255}));
       /* MTU Size */
@@ -81,7 +101,7 @@ namespace Ipop {
       /* Server Identifier */
       options.Add((DHCPOption) CreateOption(54, this.ServerIP));
 
-      /* Host name */
+      /* Host and Domain name */
       string_value = "C";
       for(int i = 1; i < 4; i++) {
         if(returnPacket.yiaddr[i] < 10)
@@ -91,7 +111,8 @@ namespace Ipop {
         string_value += returnPacket.yiaddr[i].ToString();
       }
       options.Add((DHCPOption) CreateOption(12, string_value));
-      /* End Host Name */
+      options.Add((DHCPOption) CreateOption(15, string_value));
+      /* End Host and Domain Name */
 
       /* DHCP Response Type */
       if(messageType == 1)
@@ -104,6 +125,7 @@ namespace Ipop {
       /* End Response Type */
 
       returnPacket.options = (DHCPOption []) options.ToArray(typeof(DHCPOption));
+      returnPacket.return_message = "Success";
       return returnPacket;
     }
 
@@ -123,6 +145,35 @@ namespace Ipop {
       option.length = value.Length;
       option.encoding = "string";
       return option;
+    }
+  }
+
+  public class DHCPCommon {
+    public static byte [] StringToBytes(string input, char sep) {
+      char [] separator = {sep};
+      string[] ss = input.Split(separator);
+      byte [] ret = new byte[ss.Length];
+      for (int i = 0; i < ss.Length; i++) {
+	ret[i] = Byte.Parse(ss[i].Trim());
+      }
+      return ret;
+    }
+
+    public static string BytesToString(byte [] input, char sep) {
+      string return_msg = "";
+      for(int i = 0; i < input.Length - 1; i++)
+        return_msg += input[i].ToString() + sep.ToString();
+      return_msg += input[input.Length - 1];
+      return return_msg;
+    }
+  }
+
+  public class LifeTimeSponsor : ISponsor {
+    public TimeSpan Renewal (ILease lease)
+    {
+      TimeSpan ts = new TimeSpan();
+      ts = TimeSpan.FromDays(365);
+      return ts;
     }
   }
 }
