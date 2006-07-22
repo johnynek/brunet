@@ -244,9 +244,14 @@ namespace Brunet
       CopyTo(b, 0);
     }
 
+    private bool _made_big_int = false;
+    private BigInteger _big_int;
     public virtual BigInteger ToBigInteger()
     {
-      return new BigInteger(buffer);
+      if( !_made_big_int ) {
+        _big_int = new BigInteger(buffer);
+      }
+      return _big_int;
     }
 
     /**

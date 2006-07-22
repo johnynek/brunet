@@ -199,6 +199,11 @@ namespace Brunet
     if( args.Length > 2 ) {
       ms_sleep = Int32.Parse(args[2]);
     }
+    bool wait_after_connect = true;
+    if( args.Length > 3 ) {
+      ///@todo we really need better option parsing here
+      wait_after_connect = false;
+    }
     ArrayList adds = new ArrayList();
     Hashtable add_to_node = new Hashtable();
     
@@ -313,8 +318,11 @@ namespace Brunet
     //We are connected now, stop the threads:
     //t.Abort(); 
     System.Console.Out.WriteLine("Finished with BootStrapTester.Main");
-    Console.WriteLine("Enter Q to stop");
-    string this_command = Console.ReadLine();
+    string this_command = "Q";
+    if( wait_after_connect) {
+      Console.WriteLine("Enter Q to stop");
+      this_command = Console.ReadLine();
+    }
     while( this_command != "Q" ) {
       int node = -1;
       try {
@@ -325,7 +333,9 @@ namespace Brunet
       catch(Exception x) {
 
       }
-      this_command = Console.ReadLine();
+      if( wait_after_connect ) {
+        this_command = Console.ReadLine();
+      }
     }
     
     foreach(Node n in node_list)
