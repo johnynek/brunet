@@ -125,7 +125,7 @@ namespace Brunet
      * The AH Network is slower than IP, give it a little
      * while to get to the end node
      */
-    protected static readonly int AHMsTimeOut = 5000;
+    protected static readonly int AHMsTimeOut = 10000;
     protected static readonly TimeSpan _timeout;
     protected DateTime _last_packet_datetime;
 
@@ -342,7 +342,8 @@ namespace Brunet
           }
           else if( _got_ctm == false && _ctm_send_timeouts < MaxTimeOuts ) {
             //There has been no response, resend the request
-            Console.WriteLine("Resending: {0}", _con_packet);
+            //Console.WriteLine("Resending:({0})\n{1}", _ctm_send_timeouts,
+            //                                          _con_packet);
             _sender.Send( _con_packet );
           }
           _last_packet_datetime = DateTime.Now;

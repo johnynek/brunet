@@ -624,7 +624,7 @@ namespace Brunet {
 	/*
 	 * Check to see if any of this node's neighbors
 	 * should be neighbors of us. It provides modified
-   * Address targets ltarget and rtarget.
+         * Address targets ltarget and rtarget.
 	 */
   
         CheckForNearerNeighbors(new_con.Status.Neighbors,
@@ -747,44 +747,77 @@ namespace Brunet {
     {
       lock( _sync ) {
         _connectors.Remove(connector);
-        /**
-         * Take a look at see if there is some node we should connect to.
-         */
-        Connector ctr = (Connector)connector;
-        ArrayList neighs = new ArrayList();
-        Hashtable neighbors_to_ctm = new Hashtable();
-        Hashtable add_to_neighbor = new Hashtable();
-        foreach(ConnectToMessage ctm in ctr.ReceivedCTMs) {
-          if( ctm.Neighbors != null ) {
-            foreach(NodeInfo n in ctm.Neighbors) {
-              neighbors_to_ctm[n] = ctm;
-              add_to_neighbor[n.Address] = n;
-            }
-            neighs.AddRange( ctm.Neighbors );
+      }
+      /**
+       * Take a look at see if there is some node we should connect to.
+       */
+      Connector ctr = (Connector)connector;
+      ConnectToNearer(ctr.ReceivedCTMs);
+    }
+    /**
+     * Given an array of CTM messages, look for any neighbor nodes
+     * that we should be connected to, and start a new Connector
+     */
+    protected void ConnectToNearer(IEnumerable ctms) {
+      ArrayList neighs = new ArrayList();
+      Hashtable neighbors_to_ctm = new Hashtable();
+      Hashtable add_to_neighbor = new Hashtable();
+      foreach(ConnectToMessage ctm in ctms) {
+        if( ctm.Neighbors != null ) {
+          foreach(NodeInfo n in ctm.Neighbors) {
+            neighbors_to_ctm[n] = ctm;
+            add_to_neighbor[n.Address] = n;
           }
+          neighs.AddRange( ctm.Neighbors );
         }
-        Address ltarget = null;
-        Address nltarget = null;
-        Address rtarget = null;
-        Address nrtarget = null;
-        lock( _node.ConnectionTable.SyncRoot ) {
-          CheckForNearerNeighbors(neighs, ltarget, out nltarget,
+      }
+      Address ltarget = null;
+      Address nltarget = null;
+      Address rtarget = null;
+      Address nrtarget = null;
+      lock( _node.ConnectionTable.SyncRoot ) {
+        CheckForNearerNeighbors(neighs, ltarget, out nltarget,
+                              rtarget, out nrtarget);
+      }
+      if( nrtarget != null ) {
+        NodeInfo target_info = (NodeInfo)add_to_neighbor[nrtarget];
+        ConnectToMessage ctm = (ConnectToMessage)neighbors_to_ctm[target_info];
+        Address forwarder = ctm.Target.Address;
+        short ttl = _node.DefaultTTLFor( forwarder );
+        ForwardedConnectTo(forwarder, nrtarget, ttl, struc_near);
+      }
+      if( nltarget != null && !nltarget.Equals(nrtarget) ) {
+        NodeInfo target_info = (NodeInfo)add_to_neighbor[nltarget];
+        ConnectToMessage ctm = (ConnectToMessage)neighbors_to_ctm[target_info];
+        Address forwarder = ctm.Target.Address;
+        short ttl = _node.DefaultTTLFor( forwarder );
+        ForwardedConnectTo(forwarder, nltarget, ttl, struc_near);
+      }
+    }
+    /**
+     * Similar to the above
+     */
+    protected void ConnectToNearer(Address forwarder, IEnumerable ni)
+    {
+      Address ltarget = null;
+      Address rtarget = null;
+      Address nltarget = null;
+      Address nrtarget = null;
+    
+      lock( _node.ConnectionTable.SyncRoot ) {
+        CheckForNearerNeighbors(ni, ltarget, out nltarget,
                                 rtarget, out nrtarget);
-        }
-        if( nrtarget != null ) {
-          NodeInfo target_info = (NodeInfo)add_to_neighbor[nrtarget];
-          ConnectToMessage ctm = (ConnectToMessage)neighbors_to_ctm[target_info];
-          Address forwarder = ctm.Target.Address;
-          short ttl = _node.DefaultTTLFor( forwarder );
-          ForwardedConnectTo(forwarder, nrtarget, ttl, struc_near);
-        }
-        if( nltarget != null && !nltarget.Equals(nrtarget) ) {
-          NodeInfo target_info = (NodeInfo)add_to_neighbor[nltarget];
-          ConnectToMessage ctm = (ConnectToMessage)neighbors_to_ctm[target_info];
-          Address forwarder = ctm.Target.Address;
-          short ttl = _node.DefaultTTLFor( forwarder );
-          ForwardedConnectTo(forwarder, nltarget, ttl, struc_near);
-        }
+      }
+       /* 
+       * We want to make sure not to hold the lock on ConnectionTable
+       * while we try to make new connections
+       */
+      short f_ttl = 3; //2 would be enough, but 1 extra...
+      if( nrtarget != null ) {
+        ForwardedConnectTo(forwarder, nrtarget, f_ttl, struc_near);
+      }
+      if( nltarget != null && !nltarget.Equals(nrtarget) ) {
+        ForwardedConnectTo(forwarder, nltarget, f_ttl , struc_near);
       }
     }
 
@@ -930,37 +963,19 @@ namespace Brunet {
                             ctm_resp.Target.Transports,
                             ctm_resp.ConnectionType);
       _node.TaskQueue.Enqueue( l );
+      /**
+       * Check this guys neighbors:
+       */
+      ConnectToNearer(ctm_resp.Target.Address, ctm_resp.Neighbors);
     }
     /**
      * This method is called when there is a change in a Connection's status
      */
     protected void StatusChangedHandler(object connectiontable,EventArgs args)
     {
-      //These are the two closest target addresses
-      Address ltarget = null;
-      Address rtarget = null;
-      Address nltarget = null;
-      Address nrtarget = null;
-    
-      ConnectionTable tab = _node.ConnectionTable;
-      Connection c = ((ConnectionEventArgs)args).Connection; 
-      lock( tab.SyncRoot ) {
-        CheckForNearerNeighbors(c.Status.Neighbors, ltarget, out nltarget,
-                                rtarget, out nrtarget);
-      }
       //Console.WriteLine("Status Changed:\n{0}\n{1}\n{2}\n{3}",c, c.Status, nltarget, nrtarget);
-       /* 
-       * We want to make sure not to hold the lock on ConnectionTable
-       * while we try to make new connections
-       */
-      short f_ttl = 3; //2 would be enough, but 1 extra...
-      if( nrtarget != null ) {
-        ForwardedConnectTo(c.Address, nrtarget, f_ttl, struc_near);
-      }
-      if( nltarget != null && !nltarget.Equals(nrtarget) ) {
-        ForwardedConnectTo(c.Address, nltarget, f_ttl , struc_near);
-      }
-      
+      Connection c = ((ConnectionEventArgs)args).Connection; 
+      ConnectToNearer(c.Address, c.Status.Neighbors);
     }
     
     /**

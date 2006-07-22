@@ -68,7 +68,7 @@ namespace Brunet
     protected ConnectionOverlord _cco;
 
     //maximum number of neighbors we report in our status
-    protected static readonly int MAX_NEIGHBORS = 6;
+    protected static readonly int MAX_NEIGHBORS = 4;
 
     public StructuredNode(AHAddress add):base(add)
     {
