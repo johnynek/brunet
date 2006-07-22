@@ -1,8 +1,0 @@
-#This script configures the tap device on the host. 
-#It is invoked by the Dhcp server implementation to set the IP address of tap. 
-dev=$1
-ip=$2
-ifconfig $dev down
-ifconfig $dev $ip up
-route add -net 172.16.0.0 gw 172.16.0.1 netmask 255.255.0.0 device tap0
-arp -s 172.16.0.1 FE:FD:00:00:00:00
