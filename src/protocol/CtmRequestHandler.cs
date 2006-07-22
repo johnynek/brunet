@@ -113,9 +113,9 @@ namespace Brunet
         /**
          * Send a response no matter what
          */
-	//Send the 6 neighbors closest to this node:
+	//Send the 4 neighbors closest to this node:
 	ArrayList nearest = n.ConnectionTable.GetNearestTo(
-			(AHAddress)ctm.Target.Address, 6);
+			(AHAddress)ctm.Target.Address, 4);
 	NodeInfo[] near_ni = new NodeInfo[nearest.Count];
 	int i = 0;
 	foreach(Connection cons in nearest) {
