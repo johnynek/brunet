@@ -18,33 +18,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-/*
- * Dependencies : 
- * Brunet.Address;
- * Brunet.AHAddress
- * Brunet.AHAddressComparer
- * Brunet.AHPacket;
- * Brunet.BrunetLogger;
- * Brunet.ConnectionEventArgs
- * Brunet.ConnectionPacketHandler
- * Brunet.ConnectionPacket
- * Brunet.ConnectionTable;
- * Brunet.ConnectionType
- * Brunet.ConnectionMessage
- * Brunet.ConnectionMessageParser
- * Brunet.CloseMessage
- * Brunet.Edge;
- * Brunet.EdgeException
- * Brunet.EdgeListener
- * Brunet.EdgeFactory
- * Brunet.ErrorMessage
- * Brunet.IAHPacketHandler
- * Brunet.IPacketSender
- * Brunet.IRouter
- * Brunet.Packet
- * Brunet.PingMessage
- */
-
 //#define DEBUG
 using System;
 using System.Collections;
@@ -112,8 +85,7 @@ namespace Brunet
         AHAddressComparer cmp = new AHAddressComparer(add);
         _subscription_table = new Hashtable();
 
-	_connection_setup_manager = new ConnectionSetupManager(this);
-
+        _task_queue = new TaskQueue();
         _connection_table = new ConnectionTable(cmp);
         _connection_table.ConnectionEvent +=
           new EventHandler(this.ConnectionHandler);
@@ -151,13 +123,6 @@ namespace Brunet
      * of certain packets.
      */
     protected Hashtable _subscription_table;
-
-    /**
-     * Keep track of all the linkers that are currently active. 
-     * We do not want to create a linker flood.
-     */
-    protected ConnectionSetupManager _connection_setup_manager;
-
 
     /**
      * This object handles new Edge objects, and
@@ -260,13 +225,11 @@ namespace Brunet
      */
     public virtual ConnectionTable ConnectionTable { get { return _connection_table; } }
 
-    /** public accessor to get access to the linkers table. */
-    public ConnectionSetupManager ConnectionSetupManager {
-      get {
-	return _connection_setup_manager;
-      }
-    }
-
+    protected TaskQueue _task_queue;
+    /**
+     * This is the TaskQueue for this Node
+     */
+    public TaskQueue TaskQueue { get { return _task_queue; } }
 
     //The timer that tells us when to HeartBeatEvent
     protected Timer _timer;

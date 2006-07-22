@@ -18,25 +18,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-/**
- * Dependencies : 
- * Brunet.Address
- * Brunet.AHPacket
- * Brunet.ConnectionOverlord
- * Brunet.ConnectionTable
- * Brunet.ConnectionType
- * Brunet.Edge
- * Brunet.Linker
- * Brunet.Node
- * Brunet.RwtaAddress
- * Brunet.ConnectToMessage
- * Brunet.ConnectionMessage
- * Brunet.Connector
- * Brunet.TransportAddress
- * Brunet.PacketForwarder
- * Brunet.ConnectionEventArgs
- */
-
 //#define KML_DEBUG
 
 using System;
@@ -260,14 +241,13 @@ namespace Brunet
       System.Console.WriteLine("Message ID:{0}", ctm.Id);
       #endif
 
-      Connector con = new Connector(_local);
+      Connector con = new Connector(_local, forward_pack, ctm, this);
       //Keep a reference to it does not go out of scope
       lock( _sync ) {
         _connectors.Add(con);
       }
       con.FinishEvent += new EventHandler(this.ConnectionEndHandler);
-
-      con.Connect(forward_pack, ctm.Id);
+      con.Start();
     }
 
 
@@ -296,13 +276,28 @@ namespace Brunet
       System.Console.WriteLine("Message ID:{0}", ctm.Id);
       #endif
 
-      Connector con = new Connector(_local);
+      Connector con = new Connector(_local, ctm_pack, ctm, this);
       //Keep a reference to it does not go out of scope
       lock( _sync ) {
         _connectors.Add(con);
       }
       con.FinishEvent += new EventHandler(this.ConnectionEndHandler);
-      con.Connect(ctm_pack, ctm.Id);
+      con.Start();
+    }
+
+    /**
+     * When we get ConnectToMessage responses the connector tells us.
+     */
+    override public void HandleCtmResponse(Connector c, AHPacket resp_p,
+                                           ConnectToMessage ctm_resp)
+    {
+      /**
+       * Time to start linking:
+       */
+      Linker l = new Linker(_local, ctm_resp.Target.Address,
+                            ctm_resp.Target.Transports,
+                            ctm_resp.ConnectionType);
+      _local.TaskQueue.Enqueue( l );
     }
 
     /**

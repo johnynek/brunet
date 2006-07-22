@@ -78,6 +78,14 @@ namespace Brunet
     {
       get;
     }
+    
+    /**
+     * Connectors just send and receive ConnectToMessages.  They return all responses
+     * to the ConnectionOverlord that initiated the ConnectToMessage
+     */
+    virtual public void HandleCtmResponse(Connector c, AHPacket resp_p, ConnectToMessage resp) {
+    
+    }
   }
 
 }

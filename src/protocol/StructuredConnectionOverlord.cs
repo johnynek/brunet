@@ -670,7 +670,7 @@ namespace Brunet {
       //We also send directional messages.  In the future we may find this
       //to be unnecessary
       ///@todo evaluate the performance impact of this:
-
+#if false
       if( nrtarget == null || nltarget == null ) {
       /**
        * Once we find nodes for which we can't get any closer, we
@@ -690,6 +690,7 @@ namespace Brunet {
                         new_con.Edge, nn_ttl, struc_near); 
         }
       }
+#endif
     }
 
     
@@ -810,8 +811,14 @@ namespace Brunet {
       //don't try to get another one, it is a waste of 
       //time.
       ConnectionType mt = Connection.StringToMainType(contype);
-      if( _node.ConnectionTable.Contains( mt, target ) ) {
-        return; 
+      /*
+       * Don't connect if the following function is true
+       */
+      Connector.AbortCheck abort = delegate(Connector c) {
+        return ( _node.ConnectionTable.Contains( mt, target ) );
+      };
+      if ( abort(null) ) {
+        return;
       }
       short t_hops = 0;
       if( edge is Edge ) {
@@ -851,13 +858,15 @@ namespace Brunet {
       System.Console.WriteLine("Message ID:{0}", ctm.Id);
       #endif
 
-      Connector con = new Connector(_node);
+      Connector con = new Connector(_node, edge, ctm_pack, ctm, this);
+      con.AbortIf = abort;
       //Keep a reference to it does not go out of scope
       lock( _sync ) {
         _connectors.Add(con);
       }
       con.FinishEvent += new EventHandler(this.ConnectorEndHandler);
-      con.Connect(edge, ctm_pack, ctm.Id);
+      //Start up this Task:
+      _node.TaskQueue.Enqueue(con);
     }
     
     /**
@@ -909,6 +918,20 @@ namespace Brunet {
     }
     
     /**
+     * When we get ConnectToMessage responses the connector tells us.
+     */
+    override public void HandleCtmResponse(Connector c, AHPacket resp_p,
+                                           ConnectToMessage ctm_resp)
+    {
+      /**
+       * Time to start linking:
+       */
+      Linker l = new Linker(_node, ctm_resp.Target.Address,
+                            ctm_resp.Target.Transports,
+                            ctm_resp.ConnectionType);
+      _node.TaskQueue.Enqueue( l );
+    }
+    /**
      * This method is called when there is a change in a Connection's status
      */
     protected void StatusChangedHandler(object connectiontable,EventArgs args)
@@ -951,8 +974,14 @@ namespace Brunet {
       //don't try to get another one, it is a waste of 
       //time.
       ConnectionType mt = Connection.StringToMainType(contype);
-      if( _node.ConnectionTable.Contains( mt, target ) ) {
-        return; 
+      Connector.AbortCheck abort = delegate(Connector c) {
+        return ( _node.ConnectionTable.Contains( mt, target ) );
+      };
+      /*
+       * See if we are already connected
+       */
+      if( abort(null) ) {
+        return;
       }
       ConnectToMessage ctm = new ConnectToMessage(contype,
                               new NodeInfo( _node.Address, _node.LocalTAs) );
@@ -975,7 +1004,7 @@ namespace Brunet {
       System.Console.WriteLine("Message ID:{0}", ctm.Id);
       #endif
 
-      Connector con = new Connector(_node);
+      Connector con = new Connector(_node, forward_pack, ctm, this);
 #if PLAB_LOG
       con.Logger = Logger;
       BrunetEventDescriptor bed1 = new BrunetEventDescriptor();      
@@ -992,9 +1021,10 @@ namespace Brunet {
       lock( _sync ) {
         _connectors.Add(con);
       }
+      con.AbortIf = abort;
       con.FinishEvent += new EventHandler(this.ConnectorEndHandler);
-      con.Connect(forward_pack, ctm.Id);
-
+      //Start the job
+      _node.TaskQueue.Enqueue(con);
     }
 
     /**

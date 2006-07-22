@@ -19,18 +19,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-/**
- * Dependencies : 
- * Brunet.ConnectionEventArgs
- * Brunet.ConnectionOverlord
- * Brunet.ConnectionTable
- * Brunet.ConnectionType
- * Brunet.Edge
- * Brunet.Linker
- * Brunet.Node
- * Brunet.TransportAddress
- */
-
 using System;
 using System.Collections;
 //using log4net;
@@ -174,9 +162,9 @@ namespace Brunet
         /**
          * Make a Link to a remote node 
          */
-        _linker = new Linker(_local);
+        _linker = new Linker(_local, null, tas, "leaf");
         _linker.FinishEvent += new EventHandler(this.LinkerFinishHandler);
-        _linker.Link(null, tas, ConnectionType.Leaf);
+        _linker.Start();
       }
       else if (args is ConnectionEventArgs) {
         //Reset the connection interval to the default value:
