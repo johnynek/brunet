@@ -170,7 +170,6 @@ namespace Brunet
       {
 	      Console.WriteLine("We are ready!");
 	      System.Threading.Thread.Sleep(2500);
-	      Connector my_con = new Connector(node_A);
 	      ArrayList ta_list_B = new ArrayList();
 	      ta_list_B.Add(new TransportAddress("brunet.tcp://127.0.0.1:" +
 				port_B));
@@ -187,7 +186,9 @@ namespace Brunet
               ctm.Dir = ConnectionMessage.Direction.Request;
               AHPacket ctm_pack = new AHPacket(0, 8, address_A, address_B, 
 			AHPacket.Protocol.Connection, ctm.ToByteArray() );
-	      my_con.Connect(ctm_pack, ctm.Id);
+              ///@todo the below is broken, the null must be a ConnectionOverlord
+	      Connector my_con = new Connector(node_A, ctm_pack, ctm, null);
+	      my_con.Start();
 	      Console.WriteLine("Sending the following packet: ");
               Console.WriteLine( ctm_pack.ToString() );            
 

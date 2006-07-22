@@ -193,9 +193,6 @@ namespace Brunet {
       //it is now that we do things with connections
       ConnectionTable tab = _node.ConnectionTable;
 
-      //connection setup manager for the node
-      ConnectionSetupManager cs_manager = _node.ConnectionSetupManager;
-
       NodeRankInformation to_add = null;
       Connection to_trim = null;
 
@@ -276,14 +273,6 @@ namespace Brunet {
 #endif
 	      continue;
 	    }
-	    if (cs_manager.IsActive(node_rank.Addr, struc_chota)) 
-	    {
-#if ARI_CHOTA_DEBUG
-	      Console.WriteLine("No point connecting. Active linking is on."); 
-#endif	      
-	      continue;
-	    }
-
 
 #if ARI_CHOTA_DEBUG
 	    Console.WriteLine("{0} looks good chota connection.", node_rank);
@@ -357,6 +346,21 @@ namespace Brunet {
 	_active = value;
       }
     }
+    /**
+     * When we get ConnectToMessage responses the connector tells us.
+     */
+    override public void HandleCtmResponse(Connector c, AHPacket resp_p,
+                                           ConnectToMessage ctm_resp)
+    {
+      /**
+       * Time to start linking:
+       */
+      Linker l = new Linker(_node, ctm_resp.Target.Address,
+                            ctm_resp.Target.Transports,
+                            ctm_resp.ConnectionType);
+      _node.TaskQueue.Enqueue( l );
+    }
+
     /**
      * Everytime we the node sends a packet out this method is invoked. 
      * Since multiple invocations may exist, take care of synchronization. 
@@ -606,7 +610,7 @@ namespace Brunet {
         new AHPacket(t_hops, t_ttl, _node.Address, target, AHPacket.AHOptions.Exact,
                      AHPacket.Protocol.Connection, ctm.ToByteArray());
 
-      Connector con = new Connector(_node);
+      Connector con = new Connector(_node, ctm_pack, ctm, this);
       lock( _sync ) {
 	ChotaConnectionState state = null;
 	if (!_chota_connection_state.ContainsKey(target)) {
@@ -626,13 +630,6 @@ namespace Brunet {
 	  return;
 #endif	  
 	}
-	if (_node.ConnectionSetupManager.IsActive(target, struc_chota)) 
-	{
-#if ARI_CHOTA_DEBUG
-	  Console.WriteLine("Active linking is on (Shouldn't have got here).");
-	  return;
-#endif	  
-	}
 	state.Connector = con;
       }
       con.FinishEvent += new EventHandler(this.ConnectorEndHandler);
@@ -645,7 +642,8 @@ namespace Brunet {
       Console.WriteLine("ChotaConnectionOverlord: Starting a real chota connection attempt to: {0} at {1}", target, DateTime.Now);
 #endif
 
-      con.Connect(_node, ctm_pack, ctm.Id);
+      //Start work on connecting
+      _node.TaskQueue.Enqueue( con );
     }
   }
 }

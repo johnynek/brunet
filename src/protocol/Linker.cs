@@ -2,7 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
-Copyright (C) 2005  P. Oscar Boykin <boykin@pobox.com>, University of Florida
+Copyright (C) 2005,2006  P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -41,7 +41,7 @@ namespace Brunet
    * 
    */
 
-  public class Linker : IPacketHandler
+  public class Linker : TaskWorker, IPacketHandler
   {
 
     /*private static readonly log4net.ILog log =
@@ -61,16 +61,6 @@ namespace Brunet
      */
     public Connection Connection { get { return _con; } }
     
-    protected bool _is_finished;
-    public bool IsFinished
-    {
-      get
-      {
-        lock(_sync) {
-          return _is_finished;
-        }
-      }
-    }
     //This is the queue that has only the address we have not tried this attempt
     protected Queue _ta_queue;
     protected Node _local_n;
@@ -84,16 +74,17 @@ namespace Brunet
 
     /** global lock for thread synchronization */
     protected object _sync;
-    public Object SyncRoot {
+    public object SyncRoot {
       get {
 	return _sync;
       }
     }
-
-    /**
-     * When we are all done working, this event is fired
-     */
-    public event EventHandler FinishEvent;
+    protected bool _is_finished;
+    override public bool IsFinished {
+      get {
+        lock( _sync ) { return _is_finished; }
+      }
+    }
     /**
      * @todo we should probably signal if we fail
      */
@@ -131,9 +122,51 @@ namespace Brunet
     private int _lid;
 #endif
     /**
-     * @param local the local Node to connect to the remote node
+     * These represent the task of linking used by TaskWorked
      */
-    public Linker(Node local)
+    protected class LinkTask {
+      protected Address _local;
+      protected Address _target;
+      protected string _ct;
+
+      public LinkTask(Address local, Address target, string ct) {
+        _local = local;
+        _target = target;
+        _ct = ct;
+      }
+      override public int GetHashCode() {
+        int code = _local.GetHashCode() ^ _ct.GetHashCode();
+        if( _target != null ) {
+          code ^= _target.GetHashCode();
+        }
+        return code;
+      }
+      override public bool Equals(object o) {
+        LinkTask lt = o as LinkTask;
+        bool eq = false;
+        if( lt != null ) {
+          eq = (lt._local.Equals( this._local) )
+              && (lt._ct.Equals( this._ct) );
+          if( _target != null ) {
+            eq &= _target.Equals( lt._target );
+          }
+        }
+        return eq;
+      }
+    }
+    protected object _task;
+    override public object Task {
+      get { return _task; }
+    }
+    /**
+     * @param local the local Node to connect to the remote node
+     * @param target the address of the node you are trying to connect
+     * to.  Set to null if you don't know
+     * @param target_list an enumerable list of TransportAddress of the
+     *                    Host we want to connect to
+     * @param t ConnectionType string of the new connection
+     */
+    public Linker(Node local, Address target, ICollection target_list, string ct)
     {
 #if LINK_DEBUG
       _lid = GetHashCode() + (int)DateTime.Now.Ticks;
@@ -141,6 +174,7 @@ namespace Brunet
 #endif
       _timeout = new TimeSpan(0,0,0,0,_ms_timeout);
       _sync = new object();
+      _task = new LinkTask(local.Address, target, ct);
       lock(_sync) {
         _is_finished = false;
         _local_n = local;
@@ -154,36 +188,20 @@ namespace Brunet
         if( _id < 0 ) {
           _id = ~_id;
         }
-      }
-    }
-
-    public void Link(Address target, ICollection target_list, ConnectionType ct)
-    {
-      Link(target, target_list, Connection.ConnectionTypeToString(ct) );
-    }
-
-    /**
-     * When we want to initiate a connection of a given connection
-     * type, use this
-     *
-     * @param target the address of the node you are trying to connect
-     * to.  Set to null if you don't know
-     * @param target_list an enumerable list of TransportAddress of the
-     *                    Host we want to connect to
-     * @param t ConnectionType string of the new connection
-     */
-    public void Link(Address target, ICollection target_list, string ct)
-    {
-      lock (_sync ) {
         //If we retry, we need an original copy of the list
         _ta_queue = new Queue( target_list );
         _contype = ct;
         _target = target;
       }
-      StartLink();
     }
+#if false
+    public void Link(Address target, ICollection target_list, ConnectionType ct)
+    {
+      Link(target, target_list, Connection.ConnectionTypeToString(ct) );
+    }
+#endif
 
-    protected void StartLink() {
+    override public void Start() {
       try {
         /*
          * If we cannot set this address as our target, we
@@ -566,8 +584,7 @@ namespace Brunet
 	lock( _sync ) {
 	  _link_state.Unlock();
 	}
-        if( FinishEvent != null )
-          FinishEvent(this, null);
+        FireFinished();
       }
     }
 
@@ -626,9 +643,7 @@ namespace Brunet
         _is_finished = true;
 	Stop(log_message);
       }
-      if( FinishEvent != null ) {
-        FinishEvent(this, null);
-      }
+      FireFinished();
 #if LINK_DEBUG
       Console.WriteLine("End Linker({0}).Fail",_lid);
 #endif
@@ -698,7 +713,7 @@ namespace Brunet
 #endif
         _ta_queue.Dequeue();
       }
-      StartLink();
+      Start();
     }
 
     /**
@@ -766,7 +781,7 @@ namespace Brunet
 	  if ( _rand.NextDouble() < 0.5 ) {
             //Time to start up again
             _local_n.HeartBeatEvent -= new EventHandler(this.RestartLink);
-            StartLink();
+            Start();
 	  }
 	}
       }

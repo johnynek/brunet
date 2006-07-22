@@ -18,22 +18,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-/*
- * Dependencies : 
- * Brunet.ConnectionPacket
- * Brunet.ConnectionMessage
- * Brunet.ConnectionMessageParser
- * Brunet.ConnectionType
- * Brunet.ConnectToMessage
- * Brunet.Edge
- * Brunet.IAHPacketHandler
- * Brunet.Node
- * Brunet.AHPacket
- * Brunet.Packet
- * Brunet.PacketForwarder
- * Brunet.TransportAddress
- */
-
 using System;
 using System.Collections;
 //using log4net;
@@ -120,9 +104,11 @@ namespace Brunet
 				 + n.Address.ToString() + " connectTo: "
 				 + ctm.Target.Address.ToString() + " ConType: " + ctm.ConnectionType);
 #endif
-	ConnectionSetupManager c_mgr = n.ConnectionSetupManager;
-	c_mgr.StartLinking(ctm.Target.Address, ctm.Target.Transports, 
-			   ctm.ConnectionType);
+        Linker l = new Linker(n, ctm.Target.Address,
+                              ctm.Target.Transports,
+                              ctm.ConnectionType);
+        //Here we start the job:
+        n.TaskQueue.Enqueue( l );
 
         /**
          * Send a response no matter what
