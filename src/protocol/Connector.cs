@@ -293,6 +293,16 @@ namespace Brunet
       lock(_sync) {
         try {
           if (p.PayloadType == AHPacket.Protocol.Connection) {
+            /*
+             * This is an unfortunate architecture because every
+             * active connector calls Parse on every packet.  so
+             * if there are 5 active connectors, the packet is parsed
+             * 5 times.  This has been mitigated to some degree by
+             * the implementation of a cache system inside
+             * ConnectionMessageParser.  Ideally, we could check
+             * to see if this is the packet we are looking for
+             * without decoding XML.  Perhaps using the ReqrepManager
+             */
             ConnectionMessage cm = _cmp.Parse(p);
             if ((cm != null) &&
                 (cm.Id == _ctm.Id) &&

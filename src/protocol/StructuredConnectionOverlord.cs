@@ -22,6 +22,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define TRIM
 //#define PERIODIC_NEIGHBOR_CHK
 
+/*
+ * When new near neighbors show up, should we ALWAYS send a directional
+ * ConnectTo message to their neighbors.
+ */
+//#define SEND_DIRECTIONAL_TO_NEAR
+
 using System;
 using System.Collections;
 
@@ -557,8 +563,10 @@ namespace Brunet {
       }
       ConnectionEventArgs args = (ConnectionEventArgs)eargs;
       Connection new_con = args.Connection;
+#if SEND_DIRECTIONAL_TO_NEAR
       bool connect_left = false;
       bool connect_right = false;
+#endif
       
       if( new_con.MainType == ConnectionType.Leaf ) {
 	/*
@@ -576,6 +584,8 @@ namespace Brunet {
       else if( new_con.MainType == ConnectionType.Structured ) {
        ConnectionTable tab = _node.ConnectionTable;
        lock( tab.SyncRoot ) {
+
+#if SEND_DIRECTIONAL_TO_NEAR
         int left_pos = LeftPosition((AHAddress)new_con.Address);
         int right_pos = RightPosition((AHAddress)new_con.Address); 
 
@@ -620,7 +630,7 @@ namespace Brunet {
         //This looks like a shortcut
 	  
         }
-
+#endif
 	/*
 	 * Check to see if any of this node's neighbors
 	 * should be neighbors of us. It provides modified
@@ -670,7 +680,7 @@ namespace Brunet {
       //We also send directional messages.  In the future we may find this
       //to be unnecessary
       ///@todo evaluate the performance impact of this:
-#if false
+#if SEND_DIRECTIONAL_TO_NEAR
       if( nrtarget == null || nltarget == null ) {
       /**
        * Once we find nodes for which we can't get any closer, we

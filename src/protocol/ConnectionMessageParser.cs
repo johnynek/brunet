@@ -2,6 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
+Copyright (C) 2006 P. Oscar Boykin <boykin@pobox.com>  University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -18,25 +19,10 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-/*
- * Brunet.AHAddress;
- * Brunet.AddressParser;
- * Brunet.ConnectionType;
- * Brunet.ConnectionPacket;
- * Brunet.ConnectionMessage;
- * Brunet.ConnectToMessage;
- * Brunet.CloseMessage;
- * Brunet.ErrorMessage
- * Brunet.LinkMessage;
- * Brunet.Packet;
- * Brunet.ParseException
- * Brunet.PingMessage
- * Brunet.TransportAddress;
- */
-
+using System;
 using System.IO;
 using System.Xml;
-
+using System.Collections;
 #if BRUNET_NUNIT
 using System.Collections.Specialized;
 using NUnit.Framework;
@@ -52,15 +38,131 @@ namespace Brunet
   public class ConnectionMessageParser
   {
 
+#if DOM
     protected XmlDocument doc;
-
+#endif
+    
     public ConnectionMessageParser()
     {
 #if DOM
       doc = new XmlDocument();
 #endif
+   
     }
+    protected class ParsedPacket : IComparable {
+      protected System.WeakReference _packet;
+      protected ConnectionMessage _cm;
 
+      public ParsedPacket(Packet p, ConnectionMessage cm) {
+        _packet = new System.WeakReference(p);
+        _cm = cm;
+      }
+      /**
+       * Is the Packet still referenced by the system
+       */
+      public bool IsAlive { 
+        get {
+          bool retv = _packet.IsAlive;
+          if( !retv ) {
+            //Free up the ConnectionMessage;
+            _cm = null;
+          }
+          return retv;
+        }
+      }
+      /**
+       * Check to see if this parsed packet corresponds to a given
+       * packet and if it is alive.
+       */
+      public ConnectionMessage Parse(Packet p) {
+        ConnectionMessage result = null;
+        try {
+          if( IsAlive ) {
+            if( _packet.Target == p ) {
+              result = _cm;
+            }
+          }
+        }
+        catch(Exception x) {
+          //Go ahead and get rid of this reference
+          _cm = null;
+        }
+        return result;
+      }
+      /**
+       * This is for sorting the list
+       */
+      public int CompareTo(object o) {
+        ParsedPacket po = o as ParsedPacket;
+        if( null == po ) {
+          return -1;
+        }
+        else {
+          if( IsAlive == po._packet.IsAlive ) {
+            //They are both alive or dead:
+            return 0; 
+          }
+          else {
+            //Put live references before dead ones.
+            if( IsAlive ) {
+              return -1;
+            }
+            else {
+              return 1;
+            }
+          }
+        }
+      }
+    }
+    /*
+     * An ArrayList of Parsed Packets;
+     */
+    static protected ArrayList _parsed_packets;
+    static ConnectionMessageParser() {
+      _parsed_packets = new ArrayList();
+    }
+    static protected ConnectionMessage GetCachedParse(Packet p) {
+      ConnectionMessage result = null;
+      lock( _parsed_packets ) {
+        int count = _parsed_packets.Count;
+        for(int i = 0; i < count; i++) {
+          ParsedPacket pp = (ParsedPacket) _parsed_packets[i];
+          result = pp.Parse(p);
+          if( result != null ) {
+            //We hit the jackpot:
+            return result;
+          }
+        }
+      }
+      return result;
+    }
+    static protected void CacheParsed(Packet p, ConnectionMessage cm) {
+      ParsedPacket pp = new ParsedPacket(p, cm);
+      lock( _parsed_packets ) {
+        _parsed_packets.Add( pp );
+        /*
+         * Presumably we see new packets less often than cached packets
+         * so we only parse when we add a new item
+         */
+
+        int count = _parsed_packets.Count;
+        if( count > 0 ) {
+          _parsed_packets.Sort();
+          int first_dead = count+1;
+          /*
+           * Find the last element in the list that is not alive.
+           */
+          do {
+            first_dead--;
+            pp = (ParsedPacket)_parsed_packets[first_dead - 1];
+          } while(!pp.IsAlive);
+          //Now we remove the from the last_alive to the end:
+          if( count > first_dead ) {
+            _parsed_packets.RemoveRange(first_dead, count - first_dead);
+          }
+        }
+      }
+    }
     /**
      * Parse the payload of the given packet
      * @param p Packet whose payload we parse
@@ -69,7 +171,20 @@ namespace Brunet
      */
     public ConnectionMessage Parse(Packet p)
     {
-      return Parse( p.PayloadStream );
+      /*
+       * Parsing is expensive.  Packets are immutable.  So,
+       * we keep a weakreference to each packet we have already
+       * parsed.
+       */
+      ConnectionMessage result = null;
+      lock( _parsed_packets ) {
+        result = GetCachedParse(p);
+        if( result == null ) {
+          result = Parse(p.PayloadStream);
+          CacheParsed(p, result);
+        }
+      }
+      return result;
     }
 
     public ConnectionMessage Parse(byte[] bin)
@@ -229,6 +344,12 @@ namespace Brunet
       foreach(ConnectionMessage cm in messages) {
         ConnectionMessage cm2 = cmp.Parse( cm.ToByteArray() );
 	Assert.AreEqual(cm, cm2);
+        Packet p = cm.ToPacket();
+        ConnectionMessage cm3 = cmp.Parse(p);
+        //Do this twice to test caching:
+        ConnectionMessage cm4 = cmp.Parse(p);
+        Assert.AreEqual(cm, cm3);
+        Assert.AreEqual(cm, cm4);
       }
       //Here are some string tests:
       string close_string = "<request id=\"12\"><close>Byebye</close></request>";
