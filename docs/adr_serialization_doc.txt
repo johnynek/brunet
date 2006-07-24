@@ -32,15 +32,18 @@ delimited structures:
       must enclose an even number of objects.
 
 Exceptions:
-x : Represents an exception: a 4 byte integer followed by a null terminated
-    string.  Example: x\0\0\0\0something bad\0 
+X..x : a mapping like structure delimited with x,
+       which may have the following keys
+    code -> int
+    message -> string
+    stacktrace -> string
     
     
 Examples (using \n to represent the byte with value n, and \xN as hex)
 
 sHello World\x0   is "Hello World"
 y\xEF is 128
-aiY\x02\128\55  is int[] { 128, 55 }
+aY\x02i\0\0\0\128\0\0\0\55  is int[] { 128, 55 }
 (y\x11(b\x0b\x01))  is list(17, list(false, true) )
 
 

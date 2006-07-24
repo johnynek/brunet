@@ -201,10 +201,10 @@ public class RpcManager : IReplyHandler, IRequestHandler {
       //we have setup an asynchronous invoke here
     }
     catch(ArgumentException argx) {
-      exception = new AdrException(-32602, argx.Message);
+      exception = new AdrException(-32602, argx);
     }
     catch(TargetParameterCountException argx) {
-      exception = new AdrException(-32602, argx.Message);
+      exception = new AdrException(-32602, argx);
     }
     catch(Exception x) {
       exception = x;
@@ -282,10 +282,10 @@ public class RpcManager : IReplyHandler, IRequestHandler {
     try {
       result = mi.Invoke(handler, param_list);
     } catch(ArgumentException argx) {
-      result = new AdrException(-32602, argx.Message);
+      result = new AdrException(-32602, argx);
     }
     catch(TargetParameterCountException argx) {
-      result = new AdrException(-32602, argx.Message);
+      result = new AdrException(-32602, argx);
     }
     catch(Exception x) {
       result = x;

@@ -74,6 +74,22 @@ namespace Brunet
       }
       return val;
     }
+    /**
+     * Read a Long from the stream and advance the stream
+     */
+    public static long ReadLong(System.IO.Stream s) {
+      int bytes = 8;
+      long val = 0;
+      int tmp;
+      while( bytes-- > 0 ) {
+        tmp = s.ReadByte();
+	if ( tmp == -1 ) {
+          throw new Exception("Could not read 8 bytes from the stream to read a long");
+        }
+        val = (val << 8) | tmp;
+      }
+      return val;
+    }
 
     public static long ReadLong(byte[] bin, int offset)
     {
@@ -281,6 +297,20 @@ namespace Brunet
       long nval = IPAddress.HostToNetworkOrder(lval);
       byte[] arr = BitConverter.GetBytes(nval);
       Array.Copy(arr, 0, target, offset, arr.Length);
+    }
+    public static void WriteLong(long val, Stream s)
+    {
+      for(int i = 0; i < 8; i++) {
+        byte tmp = (byte)(0xFF & (val >> 8*(7-i)));
+	s.WriteByte(tmp);
+      }
+    }
+    public static void WriteULong(ulong val, Stream s)
+    {
+      for(int i = 0; i < 8; i++) {
+        byte tmp = (byte)(0xFF & (val >> 8*(7-i)));
+	s.WriteByte(tmp);
+      }
     }
 
     public static void WriteFloat(float value, byte[] target,
