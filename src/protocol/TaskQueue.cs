@@ -105,19 +105,36 @@ public class TaskQueue {
   }
   
   /**
+   * @return true if there is at least one TaskWorker for this task.
+   */
+  public bool HasTask(object task) {
+    lock( _sync ) {
+      return _task_to_workers.ContainsKey(task);
+    }
+  }
+  /**
    * When a TaskWorker completes, we remove it from the queue and
    * start the next in that task queue
    */
   protected void TaskEndHandler(object worker, EventArgs args)
   {
-    TaskWorker this_worker = (TaskWorker)worker;   
     TaskWorker new_worker = null;
     lock( _sync ) {
-      Queue work_queue = (Queue)_task_to_workers[this_worker.Task];
+      TaskWorker this_worker = (TaskWorker)worker;   
+      object task = this_worker.Task;
+      Queue work_queue = (Queue)_task_to_workers[task];
       work_queue.Dequeue();
       if( work_queue.Count > 0 ) {
         //Now the new job is at the head of the queue:
         new_worker = (TaskWorker)work_queue.Peek();
+      }
+      else {
+        /*
+         * There are no more elements in the queue, forget it:
+         * If we leave a 0 length queue, this would be a memory
+         * leak
+         */
+        _task_to_workers.Remove(task);
       }
     }
     if( new_worker != null ) {

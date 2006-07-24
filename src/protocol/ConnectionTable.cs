@@ -579,12 +579,12 @@ namespace Brunet
     public void Lock(Address a, string t, ILinkLocker locker)
     {
       if( a == null ) { return; }
-
+      ConnectionType mt = Connection.StringToMainType(t);
       lock( _sync ) {
-        Hashtable locks = (Hashtable)_address_locks[t];
+        Hashtable locks = (Hashtable)_address_locks[mt];
 	if( locks == null ) {
           locks = new Hashtable();
-	  _address_locks[t] = locks;
+	  _address_locks[mt] = locks;
 	}
 	ILinkLocker old_locker = (ILinkLocker)locks[a];
         if( null == old_locker ) {
@@ -756,7 +756,8 @@ namespace Brunet
     {
       if( a != null ) {
         lock( _sync ) {
-          Hashtable locks = (Hashtable)_address_locks[t];
+          ConnectionType mt = Connection.StringToMainType(t);
+          Hashtable locks = (Hashtable)_address_locks[mt];
 #if LOCK_DEBUG
           Console.WriteLine("{0} Unlocking {1}",
                             _cmp.Zero,
