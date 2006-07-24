@@ -1,17 +1,130 @@
+/*
+This program is part of BruNet, a library for the creation of efficient overlay
+networks.
+Copyright (C) 2006 P. Oscar Boykin <boykin@pobox.com>,  University of Florida
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+*/
+
 using System;
 using System.IO;
 using System.Collections;
 
+#if BRUNET_NUNIT
+using NUnit.Framework;
+#endif
+
 namespace Brunet {
         
 public class AdrException : Exception {
-
-  protected int _code;
-  public int Code { get { return _code; } }
-
+  
+  /**
+   * Use this one to make a new exception in a method designed to work
+   * with these Adr Serialization
+   */
   public AdrException(int code, string message) : base(message) {
-    _code = code;
+    _data = new Hashtable();
+    _data["code"] = code;
+    _data["message"] = message;
   }
+  /**
+   * In serialization we map a given exception to one of ours
+   */
+  public AdrException(Exception x) {
+    _data = new Hashtable();
+    _data["message"] = x.Message;
+    _data["stacktrace"] = x.StackTrace;
+  }
+  /**
+   * In serialization we map a given exception to one of ours
+   */
+  public AdrException(int code, Exception x) {
+    _data = new Hashtable();
+    _data["code"] = code;
+    _data["message"] = x.Message;
+    _data["stacktrace"] = x.StackTrace;
+  }
+  public AdrException(Hashtable ht) {
+    _data = ht;
+  }
+
+  protected Hashtable _data;
+  
+  public int Code {
+    get {
+      object c = _data["code"];
+      if ( c == null ) {
+        return 0;
+      }
+      else {
+        return (int)c;
+      }
+    }
+  }
+
+  public override int GetHashCode() {
+    return Code.GetHashCode() ^ Message.GetHashCode();
+  }
+
+  public override string Message {
+    get {
+      object m = _data["message"];
+      if( m == null ) {
+        return "";
+      }
+      else {
+        return (string)m;
+      }
+    }
+  }
+  public override string StackTrace {
+    get {
+      object m = _data["stacktrace"];
+      if( m == null ) {
+        return base.StackTrace;
+      }
+      else {
+        return (string)m;
+      }
+    }
+  }
+
+  public override bool Equals(object o) {
+    if( o is AdrException ) {
+      AdrException x = (AdrException)o;
+      return (x.Code == this.Code) && (x.Message == this.Message)
+             && (x.StackTrace == this.StackTrace);
+    }
+    else if (o is Exception ) {
+      AdrException x = new AdrException((Exception)o);
+      return this.Equals(x);
+    }
+    else {
+      return false;
+    }
+  }
+  public Hashtable ToHashTable() {
+    Hashtable xht = (Hashtable)_data.Clone();
+    object st = xht["stacktrace"];
+    //The above is set when thrown:
+    if( st == null && (this.StackTrace != "") ) {
+      xht["stacktrace"] = this.StackTrace; 
+    }
+    return xht;
+  }
+  
 }
 
 /**
@@ -82,18 +195,44 @@ public class AdrConverter {
 	  //unsigned int:
 	  result = unchecked( (uint)NumberSerializer.ReadInt(s) );
 	  break;
+        case 'l':
+          //signed long:
+          result = NumberSerializer.ReadLong(s);
+          break;
+        case 'L':
+          //signed long:
+          result = unchecked((ulong)NumberSerializer.ReadLong(s));
+          break;
 	case 's':
 	  //UTF-8 String:
           int bytelength = 0;
 	  result = NumberSerializer.ReadString(s, out bytelength);
           break;
-        case 'x':
-          //This is a serialized exception, we don't throw it, we just return it
-          int code = NumberSerializer.ReadInt(s);
-          int meslen = 0;
-	  string message = NumberSerializer.ReadString(s, out meslen);
-          result = new AdrException(code, message);
-          break;
+	case 'X':
+	  //Start of an excepton:
+	  Hashtable xht = new Hashtable();
+	  bool xfinished = false;
+	  do {
+	    //Magical recursion strikes again
+            object key = Deserialize(s, 'x', out xfinished);
+	    if( !xfinished ) {
+              object valu = Deserialize(s);
+	      xht.Add(key, valu);
+	    }
+	  } while (false == xfinished);
+          result = new AdrException(xht);
+	  break;
+	case 'x':
+	  //End of an exception:
+	  if (terminator == 'x') {
+            //We were reading a list and now we are done:
+	    finished = true;
+	  }
+	  else {
+            throw new Exception("Unexpected terminator: } != " + terminator);
+	  }
+	  result = null;
+	  break;
 	case 'a':
 	  //Array:
 	  //Read the length:
@@ -221,7 +360,8 @@ public class AdrConverter {
     }
     else if ( t.Equals(typeof(sbyte)) ) {
       s.WriteByte((byte)'y');
-      s.WriteByte(unchecked((byte)o));
+      long v = UnboxToLong(o);
+      s.WriteByte((byte)v);
       return 2;
     }
     else if ( t.Equals(typeof(short)) ) {
@@ -242,24 +382,35 @@ public class AdrConverter {
     else if ( t.Equals(typeof(uint)) ) {
       s.WriteByte((byte)'I');
       NumberSerializer.WriteUInt((uint)o,s);
-      return 5; //1 typecode + 2 bytes for int
+      return 5; //1 typecode + 4 bytes for uint
+    }
+    else if ( t.Equals(typeof(long)) ) {
+      s.WriteByte((byte)'l');
+      NumberSerializer.WriteLong((long)o,s);
+      return 9; //1 typecode + 8 bytes for long 
+    }
+    else if ( t.Equals(typeof(ulong)) ) {
+      s.WriteByte((byte)'L');
+      NumberSerializer.WriteULong((ulong)o,s);
+      return 9; //1 typecode + 8 bytes for ulong
     }
     else if ( o is Exception ) {
-      //We are serializing an exception:
       AdrException ax = o as AdrException;
-      int code = 0;
-      string message;
-      if( ax != null ) {
-        code = ax.Code;
-        message = ax.Message;
+      if( ax == null ) {
+        ax = new AdrException((Exception)o);
       }
-      else {
-        message = ((Exception)o).Message;
+      Hashtable xht = ax.ToHashTable();
+      //Here is a map...
+      int total_bytes = 2; //For the 'X' and 'x' bytes
+      s.WriteByte((byte)'X'); //Start of map:
+      IDictionaryEnumerator my_en = xht.GetEnumerator();
+      while( my_en.MoveNext() ) {
+	//Time for recursion:
+        total_bytes += Serialize(my_en.Key, s);
+        total_bytes += Serialize(my_en.Value, s);
       }
-      s.WriteByte((byte)'x');
-      NumberSerializer.WriteInt(code, s);
-      int bytes = NumberSerializer.WriteString(message, s);
-      return 5 + bytes; //the typecode + int + the serialized string
+      s.WriteByte((byte)'x'); //End of map:
+      return total_bytes;
     }
     else if ( t.IsArray ) {
       Type elt = t.GetElementType();
@@ -411,17 +562,213 @@ public class AdrConverter {
     return total_bytes;
   }
   
+#if BRUNET_NUNIT
+ [TestFixture]
+ public class AdrTester {
+  
+  public bool ArrayEquals(Array a1, Array a2)
+  {
+    bool equals = true;
+    equals = a1.Length == a2.Length;
+    for(int i = 0; i < a1.Length; i++ ) {
+      equals &= AdrEquals(a1.GetValue(i), a2.GetValue(i));
+      if( !equals ) { break; }
+    }
+    return equals;
+  }
+  public bool IListEquals(IList l1, IList l2) {
+    bool equals = true;
+    bool end_1 = false;
+    bool end_2 = false;
+    //We don't know how long this thing is unfortunately
+    int i = 0;
+    try {
+      for(i=0; i < Int32.MaxValue; i++) {
+        equals &= AdrEquals(l1[i], l2[i]); 
+        if( !equals ) { break; }
+      }
+    }
+    catch(ArgumentOutOfRangeException x) { }
+    object o1 = null, o2 = null;
+    try { //This should throw an exception:
+      o1 = l1[i];
+    }
+    catch(ArgumentOutOfRangeException x) { end_1 = true; }
+    try { //This should throw an exception:
+      o2 = l2[i];
+    }
+    catch(ArgumentOutOfRangeException x) { end_2 = true; }
+    if( o2 != null ) {
+      equals &= o2.Equals(o1);
+    }
+    else {
+      equals &= (o1 == null);
+    }
+    equals &= end_1 && end_2;
+    return equals;
+  }
+  public bool DictEquals(IDictionary d1, IDictionary d2) {
+    bool this_eq = true;
+    IDictionaryEnumerator my_en = d1.GetEnumerator();
+    while( my_en.MoveNext() ) {
+      this_eq = this_eq && ( AdrEquals( d2[ my_en.Key ], my_en.Value ) );
+      if( !this_eq ) { break; }
+    }
+    my_en = d2.GetEnumerator();
+    while( my_en.MoveNext() ) {
+      this_eq = this_eq && ( AdrEquals( d1[ my_en.Key ], my_en.Value ) );
+      if( !this_eq ) { break; }
+    }
+    return this_eq;
+  }
+  public bool AdrEquals(object o1, object o2)
+  {
+    if( o1 == o2 ) { return true; }
+    if( ( o1 == null ) || (o2 == null ) ) {
+      //If both were null, we would have already returned true
+      return false;
+    }
+    Type t1 = o1.GetType();
+    Type t2 = o2.GetType();
+    bool equals = t1.Equals( t2 );
+    if( equals ) {
+      if( t1.IsArray ) {
+        return ArrayEquals((Array)o1,(Array)o2);
+      }
+      else if(o1 is IList) {
+        return IListEquals((IList)o1,(IList)o2);
+      }
+      else if(o1 is IDictionary) {
+        return DictEquals((IDictionary)o1, (IDictionary)o2);
+      }
+      else if( o1 is AdrException ) {
+        //AdrExceptions are looser on what they consider equality
+        return o1.Equals(o2);
+      }
+      else if( o2 is AdrException ) {
+        //AdrExceptions are looser on what they consider equality
+        return o2.Equals(o1);
+      }
+      else {
+        return o1.Equals(o2) && o2.Equals(o1);
+      }
+    }
+    else if( (o1 is Exception) || (o2 is Exception) ) {
+      //The types don't match in this case
+      if( o1 is AdrException ) {
+        //AdrExceptions are looser on what they consider equality
+        return o1.Equals(o2);
+      }
+      else if( o2 is AdrException ) {
+        //AdrExceptions are looser on what they consider equality
+        return o2.Equals(o1);
+      }
+      else {
+        return o1.Equals(o2) && o2.Equals(o1);
+      }
+    }
+    return equals;
+  }
+  protected void AssertSD(object o, string message)
+  {
+   try {
+    MemoryStream ms = new MemoryStream();
+    Serialize(o, ms);
+    ms.Seek(0, SeekOrigin.Begin);
+    object dso = Deserialize(ms);
+    if( !AdrEquals(o, dso ) ) {
+      Console.Error.WriteLine("{0} != {1}\n", o, dso);
+    }
+    Assert.IsTrue( AdrEquals(o, dso), message );
+   }
+   catch(Exception x) {
+     Console.Error.WriteLine("{0}: {1}", message, x);
+     Assert.IsTrue(false, message);
+   }
+  }
+  protected void AssertE(object o, byte[] data, string message) {
+    if( !(o is IDictionary) && !(o is Exception) ) {
+      //The above types won't encode to be byte for byte identical
+      MemoryStream ms = new MemoryStream();
+      Serialize(o, ms);
+      byte[] bin = ms.ToArray();
+      if( ! AdrEquals(bin, data) ) { 
+        Console.WriteLine("{0} != {1}", bin, data);
+      }
+      Assert.IsTrue( AdrEquals(bin, data), "Encoding match: " + message);
+    }
+    object dso = Deserialize(new MemoryStream(data));
+    if( ! AdrEquals(o, dso) ) { 
+      Console.WriteLine("{0} != {1}", o, dso);
+    }
+    Assert.IsTrue( AdrEquals(o, dso), "Decoding match: " + message);
+  }
   /**
    * This is just a method which executes some tests:
    */
-  public static void Test() {
+  [Test]
+  public void Test() {
 
+    //Here are some hand constructed examples:
+    byte[] hand_test = new byte[]{(byte)'s', (byte)'H', (byte)'e', (byte)'y',0};
+    AssertE("Hey", hand_test, "string");
+    hand_test = new byte[]{(byte)'0'};
+    AssertE(null, hand_test, "null");
+    hand_test = new byte[]{ (byte)'Y', (byte)128 };
+    AssertE((byte)128, hand_test, "byte");
+    hand_test = new byte[]{ (byte)'i', 0, 128, 0, 128 };
+    int t_val = 128;
+    t_val <<= 16;
+    t_val += 128;
+    AssertE(t_val, hand_test, "integer");
+    hand_test = new byte[]{ (byte)'a', (byte)'Y', 2, (byte)'i', 0,0,0,128, 0,0,0,55};
+    AssertE(new int[]{128, 55}, hand_test, "int array");
+    hand_test = new byte[]{ (byte)'X',
+                            (byte)'s', (byte)'c', (byte)'o', (byte)'d', (byte)'e', 0,
+                            (byte)'i',0,0,0,128,
+                            (byte)'s',(byte)'m',(byte)'e',(byte)'s',(byte)'s',(byte)'a',(byte)'g',(byte)'e', 0,
+                            (byte)'s', (byte)'n', (byte)'o', (byte)'!', 0,
+                            (byte)'x' };
+    AssertE(new AdrException(128, "no!"), hand_test, "exception hand test");
     //Lets do some round tripping:
+    AssertSD(true, "bool true");
+    AssertSD(false, "bool false");
+    AssertSD(null, "null");
+    AssertSD("test string", "string");
+    AssertSD((sbyte)(-42),"sbyte");
+    AssertSD((byte)42, "byte");
+    AssertSD((short)(-4242), "short");
+    AssertSD((ushort)(4242), "ushort");
+    AssertSD((int)(-424242), "int");
+    AssertSD((uint)(424242), "uint");
+    AssertSD((long)(-424242424242), "long");
+    AssertSD((ulong)(424242424242), "ulong");
+    AssertSD(new AdrException(42, "something bad"), "exception");
+    AssertSD(new Exception("standard exception"), "std. exception");
+    try {
+      //Stack traces are set by throw
+      throw new AdrException(0,"test with Stack");
+    }
+    catch(Exception x) {
+      AssertSD(x, "AdrException with stacktrace");
+      //Console.WriteLine(new AdrException(x));
+    }
+    try {
+      //Stack traces are set by throw
+      throw new Exception("test base with Stack");
+    }
+    catch(Exception x) {
+      AssertSD(x, "exception with stacktrace");
+      //Console.WriteLine(new AdrException(x));
+    }
+    //Here is a list:
     ArrayList l = new ArrayList();
     l.Add(1); l.Add("hello"); l.Add("world"); l.Add(true); l.Add(-1); l.Add((short)100);
     l.Add(null);
     l.Add((ushort)10);
     l.Add((uint)2);
+    AssertSD(l, "shallow list");
+    //Now lets put some more complex stuff inside:
     byte[] byte_array = new byte[10];
     l.Add(byte_array);
     ArrayList list2 = new ArrayList();
@@ -430,82 +777,35 @@ public class AdrConverter {
     Hashtable ht = new Hashtable();
     ht["key0"] = "value0";
     ht["key1"] = "value1";
+    //Lets check the hash table:
+    AssertSD(ht, "shallow hash table");
     l.Add(ht);
-    //Exception x = new Exception("test exception");
-    //l.Add(x);
-    MemoryStream ms = new MemoryStream();
-    Serialize(l, ms);
-    /*
-    System.IO.FileStream fs = new System.IO.FileStream("test",FileMode.Create);
-    ms.WriteTo(fs);
-    fs.Flush();
-    fs.Close();
-    */
-    ms.Seek(0, SeekOrigin.Begin);
-    object list = Deserialize(ms);
-   
-    bool list_eq = (l.Count == ((IList)list).Count);
-    bool this_eq = false;
-    for(int i = 0; i < l.Count; i++) {
-      //Console.WriteLine("{0}",o);
-      object it = ((IList)list)[i];
-      if( l[i] == null ) {
-        this_eq =  ( it == null );
-      }
-      else if ( l[i] is IList ) {
-        //Check inside:
-        IList orig = (IList)l[i];
-        IList des = (IList)it;
-        this_eq = orig.Count == des.Count;
-	if( !this_eq ) { Console.WriteLine("inner list count not equal"); }
-        for(int j = 0; j < orig.Count; j++) {
-          this_eq = this_eq && (orig[j].Equals( des[j] ));
-        }
-      }
-      else if (l[i] is IDictionary ) {
-        IDictionary orig = (IDictionary)(l[i]);
-        IDictionary des = (IDictionary)it;
-        IDictionaryEnumerator my_en = orig.GetEnumerator();
-        this_eq = true;
-        while( my_en.MoveNext() ) {
-          this_eq = this_eq && ( des[ my_en.Key ].Equals( my_en.Value ) );
-        }
-      }
-      else {
-        this_eq = l[i].Equals( it );
-      }
-      if( !this_eq ) {
-        Console.WriteLine("l[{0}] = {1}\t list[{0}] = {2}",i, l[i], it);
-      }
-      list_eq = list_eq && this_eq;
-    } 
-    if( !list_eq ) { Console.WriteLine("Lists not equal"); }
+    AssertSD(l, "list of array and hash");
     Random r = new Random();
     //Some random data tests:
-    for( int i = 0; i< 1000; i++ ) {
-      int len = r.Next(10000);
+    for( int i = 0; i< 100; i++ ) {
+      int len = r.Next(1000);
       byte[] test = new byte[len];
       r.NextBytes(test);
-      ms.Seek(0, SeekOrigin.Begin);
-      Serialize(test, ms);
-      ms.Seek(0, SeekOrigin.Begin);
-      object bindata = Deserialize(ms);
-      byte[] test2 = (byte[])bindata;
-      bool equal = test.Length == test.Length;
-      for(int j = 0; j < test.Length; j++) {
-        equal = equal && (test2[j] == test[j]);
-      }
-      if( equal ) {
-        //Console.WriteLine("Successful byte array roundtrip");
-      }
-      else {
-        Console.WriteLine("**Unsuccessful byte array roundtrip");
-      }
+      AssertSD(test, "byte array");
     }
+    for( int i = 0; i < 100; i++) {
+      int[] test = new int[ r.Next(1000) ];
+      for(int j = 0; j < test.Length; j++) {
+        test[j] = r.Next();
+      }
+      AssertSD(test, "int array");
+    }
+    //Here is a hashtable with a list and a hashtable:
+    Hashtable ht2 = (Hashtable)ht.Clone();
+    ht2["list"] = l;
+    ht2["hash"] = ht;
+    ht2[ 12 ] = "twelve";
+    AssertSD(ht2, "hash of list and hash");
 
-    
-  }
-	
+  }//End of Test()
+ } //End of AdrTester()
+#endif
 }
 
 }
