@@ -589,16 +589,35 @@ namespace Brunet {
     protected void ConnectTo(Address target,
 			     short t_ttl, string contype)
     {
-      //If we already have a connection to this node,
-      //don't try to get another one, it is a waste of 
-      //time.
       ConnectionType mt = Connection.StringToMainType(contype);
-      if( _node.ConnectionTable.Contains( mt, target ) ) {
+      /*
+       * This is an anonymous delegate which is called before
+       * the Connector starts.  If it returns true, the Connector
+       * will finish immediately without sending an ConnectToMessage
+       */
+      Connector.AbortCheck abort = delegate(Connector c) {
+        bool stop = false;
+        lock( _node.ConnectionTable.SyncRoot ) {
+          stop = _node.ConnectionTable.Contains( mt, target );
+          if (!stop ) {
+            /*
+             * Make a linker to get the task.  We won't use
+             * this linker.
+             * No need in sending a ConnectToMessage if we
+             * already have a linker going.
+             */
+            Linker l = new Linker(_node, target, null, contype);
+            stop = _node.TaskQueue.HasTask( l.Task );
+          }
+        }
+        return stop;
+      };
+      if ( abort(null) ) {
 #if ARI_CHOTA_DEBUG
 	Console.WriteLine("Looks like we are already connected to the target: {0}"
 			  , target);
 #endif
-        return; 
+        return;
       }
       short t_hops = 0;
       ConnectToMessage ctm =
@@ -643,6 +662,7 @@ namespace Brunet {
 #endif
 
       //Start work on connecting
+      con.AbortIf = abort;
       _node.TaskQueue.Enqueue( con );
     }
   }

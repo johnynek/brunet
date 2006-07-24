@@ -127,12 +127,12 @@ namespace Brunet
     protected class LinkTask {
       protected Address _local;
       protected Address _target;
-      protected string _ct;
+      protected ConnectionType _ct;
 
       public LinkTask(Address local, Address target, string ct) {
         _local = local;
         _target = target;
-        _ct = ct;
+        _ct = Connection.StringToMainType(ct);
       }
       override public int GetHashCode() {
         int code = _local.GetHashCode() ^ _ct.GetHashCode();
@@ -189,7 +189,12 @@ namespace Brunet
           _id = ~_id;
         }
         //If we retry, we need an original copy of the list
-        _ta_queue = new Queue( target_list );
+        if( target_list != null ) {
+          _ta_queue = new Queue( target_list );
+        }
+        else {
+          _ta_queue = new Queue();
+        }
         _contype = ct;
         _target = target;
       }

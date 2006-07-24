@@ -850,15 +850,28 @@ namespace Brunet {
     protected void ConnectToOnEdge(Address target, IPacketSender edge,
 		                   short t_ttl, string contype)
     {
-      //If we already have a connection to this node,
-      //don't try to get another one, it is a waste of 
-      //time.
       ConnectionType mt = Connection.StringToMainType(contype);
       /*
-       * Don't connect if the following function is true
+       * This is an anonymous delegate which is called before
+       * the Connector starts.  If it returns true, the Connector
+       * will finish immediately without sending an ConnectToMessage
        */
       Connector.AbortCheck abort = delegate(Connector c) {
-        return ( _node.ConnectionTable.Contains( mt, target ) );
+        bool stop = false;
+        lock( _node.ConnectionTable.SyncRoot ) {
+          stop = _node.ConnectionTable.Contains( mt, target );
+          if (!stop ) {
+            /*
+             * Make a linker to get the task.  We won't use
+             * this linker.
+             * No need in sending a ConnectToMessage if we
+             * already have a linker going.
+             */
+            Linker l = new Linker(_node, target, null, contype);
+            stop = _node.TaskQueue.HasTask( l.Task );
+          }
+        }
+        return stop;
       };
       if ( abort(null) ) {
         return;
@@ -995,12 +1008,28 @@ namespace Brunet {
                                       Address target,
                                       short t_ttl, string contype)
     {
-      //If we already have a connection to this node,
-      //don't try to get another one, it is a waste of 
-      //time.
       ConnectionType mt = Connection.StringToMainType(contype);
+      /*
+       * This is an anonymous delegate which is called before
+       * the Connector starts.  If it returns true, the Connector
+       * will finish immediately without sending an ConnectToMessage
+       */
       Connector.AbortCheck abort = delegate(Connector c) {
-        return ( _node.ConnectionTable.Contains( mt, target ) );
+        bool stop = false;
+        lock( _node.ConnectionTable.SyncRoot ) {
+          stop = _node.ConnectionTable.Contains( mt, target );
+          if (!stop ) {
+            /*
+             * Make a linker to get the task.  We won't use
+             * this linker.
+             * No need in sending a ConnectToMessage if we
+             * already have a linker going.
+             */
+            Linker l = new Linker(_node, target, null, contype);
+            stop = _node.TaskQueue.HasTask( l.Task );
+          }
+        }
+        return stop;
       };
       /*
        * See if we are already connected
