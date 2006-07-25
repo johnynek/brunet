@@ -480,6 +480,7 @@ namespace Brunet
      * @param dest the target we are asking for connections close to
      * @param max_count the maximum number of connections to return
      * @return a list of structured connections closest to the destination
+     * EXCLUDING The destination itself.
      */
     public ArrayList GetNearestTo(AHAddress dest, int max_count)
     {
@@ -490,12 +491,19 @@ namespace Brunet
           max_count = max;
 	}
         int idx = IndexOf(ConnectionType.Structured, dest);
+        bool skip_idx = false;
 	if( idx < 0 ) {
           idx = ~idx;
 	}
+        else {
+          //We need to skip the idx, because idx is present:
+          skip_idx = true;
+        }
 	int start = idx - max_count/2;
 	int end = start + max_count;
+        if( skip_idx ) { end++; }
 	for( int pos = start; pos < end; pos++) {
+          if( skip_idx && ( pos == idx ) ) { pos++; }
           Connection c = GetConnection(ConnectionType.Structured, pos);
           ret_val.Add( c );
         }

@@ -319,7 +319,7 @@ namespace Brunet
 	  foreach(Connection c in _connection_table.GetConnections( ct ) ) {
 	    neighbors.Add( new NodeInfo( c.Address, c.Edge.RemoteTA ) );
 	    count++;
-	    if (count == MAX_NEIGHBORS) {
+	    if (count >= MAX_NEIGHBORS) {
 	      break;
 	    }
 	  }
