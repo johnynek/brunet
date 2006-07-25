@@ -117,14 +117,7 @@ namespace Brunet
      */
     public event EventHandler StatusChangedEvent;
 
-    protected AHAddressComparer _cmp;
-    public AHAddressComparer AHAddressComparer
-    {
-      get
-      {
-        return _cmp;
-      }
-    }
+    protected Address _local;
     
     /**
      * Returns the total number of Connections.
@@ -152,18 +145,16 @@ namespace Brunet
 
    
   /**
-   * Since address lists in the ConnectionTable are sorted,
-   * we need to assign the AHAddressComparer which does
-   * those comparisons.
+   * @param local the Address associated with the local node
    */
 
-    public ConnectionTable(AHAddressComparer cmp)
+    public ConnectionTable(Address local)
     {
       _rand = new Random(DateTime.Now.Millisecond);
 
       _sync = new Object();
       lock( _sync ) {
-        _cmp = cmp;
+        _local = local;
         type_to_addlist = new Hashtable();
         type_to_edgelist = new Hashtable();
         edge_to_con = new Hashtable();
@@ -183,7 +174,7 @@ namespace Brunet
     /**
      * Make a ConnectionTable with the default address comparer
      */
-    public ConnectionTable() : this(new AHAddressComparer()) { }
+    public ConnectionTable() : this(null) { }
 
     /**
      * When an Edge is added, the ConnectionTable listens
@@ -569,7 +560,7 @@ namespace Brunet
           * the BinarySearch.
           */
           ArrayList add_list = (ArrayList)type_to_addlist[t];
-          index = add_list.BinarySearch(a, _cmp);
+          index = add_list.BinarySearch(a);
         }
         return index;
       }
@@ -598,7 +589,7 @@ namespace Brunet
         if( null == old_locker ) {
           locks[a] = locker;
 #if LOCK_DEBUG
-          Console.WriteLine("{0}, locker: {1} Locking: {2}", _cmp.Zero,
+          Console.WriteLine("{0}, locker: {1} Locking: {2}", _local,
                             locker, a);
 #endif
           return;
@@ -611,7 +602,7 @@ namespace Brunet
 #if LOCK_DEBUG
           Console.WriteLine(
             "{0}, {1} tried to lock {2}, but {3} holds the lock",
-            _cmp.Zero,
+            _local,
             locker,
             a,
             locks[a]);
@@ -768,19 +759,19 @@ namespace Brunet
           Hashtable locks = (Hashtable)_address_locks[mt];
 #if LOCK_DEBUG
           Console.WriteLine("{0} Unlocking {1}",
-                            _cmp.Zero,
+                            _local,
                             a);
 #endif
           if( !locks.ContainsKey(a) ) {
 #if LOCK_DEBUG
             Console.WriteLine("On node " +
-                              _cmp.Zero.ToString() +
+                              _local.ToString() +
                               ", " + locker.ToString() + " tried to unlock " +
                               a.ToString() + " but no such lock" );
 
 #endif
             throw new Exception("On node " +
-                                _cmp.Zero.ToString() +
+                                _local.ToString() +
                                 ", " + locker.ToString() + " tried to unlock " +
                                 a.ToString() + " but no such lock" );
           }
@@ -788,13 +779,13 @@ namespace Brunet
           if( real_locker != locker ) {
 #if LOCK_DEBUG
             Console.WriteLine("On node " +
-                              _cmp.Zero.ToString() +
+                              _local.ToString() +
                               ", " + locker.ToString() + " tried to unlock " +
                               a.ToString() + " but not the owner" );
 #endif
 
             throw new Exception("On node " +
-                                _cmp.Zero.ToString() +
+                                _local.ToString() +
                                 ", " + locker.ToString() + " tried to unlock " +
                                 a.ToString() + " but not the owner" );
           }
