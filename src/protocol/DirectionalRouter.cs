@@ -22,7 +22,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  * Dependencies
  * Brunet.Address
  * Brunet.AHPacket
- * Brunet.AHAddressComparer
  * Brunet.ConnectionTable
  * Brunet.ConnectionType
  * Brunet.DirectionalAddress

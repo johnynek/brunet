@@ -18,11 +18,12 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-// Brunet.Address
-// Brunet.StructuredAddress;
-// Brunet.BigInteger;
 using System;
 using System.Security.Cryptography;
+
+#if BRUNET_NUNIT
+using NUnit.Framework;
+#endif
 
 namespace Brunet
 {
@@ -185,6 +186,61 @@ namespace Brunet
       return dist;
     }
   }
+#if BRUNET_NUNIT
+  [TestFixture]
+  public class AHAddressTester {
+    [Test]
+    public void Test() {
+      byte[]  buf1 = new byte[20];
+      for (int i = 0; i <= 18; i++)
+      {
+        buf1[i] = 0x00;
+      }
+      buf1[19] = 0x0A;
+      AHAddress test_address_1 = new AHAddress(buf1);
+
+      byte[] buf2 = new byte[20];
+      for (int i = 0; i <= 18; i++) {
+        buf2[i] = 0xFF;
+      }
+      buf2[19] = 0xFE;
+      AHAddress test_address_2 = new AHAddress(buf2);
+      //test_address_1 is to the left of test_address_2
+      //because it only a few steps in the clockwise direction:
+      Assert.IsTrue( test_address_1.IsLeftOf( test_address_2 ), "IsLeftOf");
+      Assert.IsTrue( test_address_2.IsRightOf( test_address_1 ), "IsRightOf");
+      //This distance is twelve:
+      Assert.AreEqual( test_address_2.DistanceTo( test_address_1),
+                       new BigInteger(12), "DistanceTo");
+      Assert.IsTrue( test_address_1.CompareTo(test_address_2) < 0, "CompareTo");
+      Assert.IsTrue( test_address_2.CompareTo(test_address_1) > 0, "CompareTo");
+      byte[] buf3 = new byte[Address.MemSize];
+      test_address_2.CopyTo(buf3);
+      AHAddress test3 = new AHAddress(buf3); 
+      Assert.IsTrue( test3.CompareTo( test_address_2 ) == 0 , "CompareTo");
+      Assert.IsTrue( test3.CompareTo( test3 ) == 0, "CompareTo");
+      //As long as the address does not wrap around, adding should increase it:
+      AHAddress a4 = new AHAddress( test_address_1.ToBigInteger() + 100 );
+      Assert.IsTrue( a4.CompareTo( test_address_1 ) > 0, "adding increases");
+      Assert.IsTrue( a4.CompareTo( test_address_2 ) < 0, "smaller than biggest");
+      //Here are some consistency tests:
+      for( int i = 0; i < 100; i++) {
+        System.Random r = new Random();
+        byte[] b1 = new byte[Address.MemSize];
+        r.NextBytes(b1);
+        //Make sure it is class 0:
+        b1[Address.MemSize - 1] = (byte)(b1[Address.MemSize - 1] &= 0xFE);
+        byte[] b2 = new byte[Address.MemSize];
+        r.NextBytes(b2);
+        //Make sure it is class 0:
+        b2[Address.MemSize - 1] = (byte)(b2[Address.MemSize - 1] &= 0xFE);
+        Address a5 = new AHAddress(b1);
+        Address a6 = new AHAddress(b2);
+        Assert.IsTrue( a5.CompareTo(a6) == -1 * a6.CompareTo(a5), "consistency");
+      }
+    }
+  }
+#endif
 
 }
 
