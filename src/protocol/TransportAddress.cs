@@ -70,10 +70,15 @@ namespace Brunet
     public TransportAddress(TransportAddress.TAType t,
                             System.Net.IPAddress add, int port):
           base("brunet." + t.ToString().ToLower() + "://"
-         + add.ToString() + ":" + port.ToString()) { }
+         + add.ToString() + ":" + port.ToString())
+    {
+      _ips = new ArrayList();
+      _ips.Add( add );
+    }
     public TransportAddress(TransportAddress.TAType t,
                             System.Net.IPEndPoint ep) :
-    this(t, ep.Address, ep.Port) { }
+    this(t, ep.Address, ep.Port) {
+    }
 
     public ArrayList GetIPAddresses()
     {
