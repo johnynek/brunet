@@ -18,6 +18,11 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+#if BRUNET_NUNIT
+using NUnit.Framework;
+#endif
+
+
 namespace Brunet
 {
 
@@ -100,5 +105,25 @@ namespace Brunet
     }
 
   }
-
+#if BRUNET_NUNIT
+  [TestFixture]
+  public class AHAddCompTester {
+    [Test]
+    public void Test() {
+      Address a1 = new AHAddress( Address.Half );
+      Address a2 = new AHAddress(new byte[Address.MemSize]);
+      Address a3 = new AHAddress(Address.Full - 2);
+      AHAddressComparer cmp = new AHAddressComparer();
+      //The default zero is half, since a1 is half, it is zero,
+      //the below should all be true:
+      Assert.IsTrue( cmp.Compare(a1, a2) > 0, "Half is greater than 0");
+      Assert.IsTrue( cmp.Compare(a3, a2) > 0, "Biggest is greater than 0");
+      Assert.IsTrue( cmp.Compare(a3, a1) > 0, "Biggest is greater than half");
+      Assert.IsTrue( a1.CompareTo( a2 ) == cmp.Compare(a1, a2),
+                      "CompareTo and Compare 1");
+      Assert.IsTrue( a1.CompareTo( a3 ) == cmp.Compare(a1, a3),
+                     "CompareTo and Compare 2");
+    }
+  }
+#endif
 }

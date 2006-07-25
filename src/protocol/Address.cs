@@ -97,12 +97,11 @@ namespace Brunet
       this.Set(big_int);
     }
 
-    abstract public int Class
-    {
+    abstract public int Class {
       get;
-      }
+    }
 
-      protected byte[]  buffer;
+    protected byte[]  buffer;
 
     public static int ClassOf(byte[] binary_add)
     {
@@ -136,21 +135,21 @@ namespace Brunet
      * Compares address by treating them as BigIntegers
      */
     public int CompareTo(object obj) {
+      if( obj == this ) { return 0; }
       Address a = obj as Address;
       if( null != a ) {
-        if ( this.Equals( a ) ) {
-          return 0;
-	}
-	else {
-          BigInteger me = this.ToBigInteger();  
-	  BigInteger other = a.ToBigInteger();
-	  if (me < other) {
+        byte[] buf1 = this.buffer;
+        byte[] buf2 = a.buffer;
+        for(int i = 0; i < MemSize; i++) {
+          if( buf1[i] < buf2[i] ) {
             return -1;
-	  }
-	  else {
+          }
+          else if (buf1[i] > buf2[i]) {
             return 1;
-	  }
-	}
+          }
+        }
+        //If we made it through the above, they must be equal:
+        return 0;
       }
       else {
         //These are really incomparable.
@@ -161,6 +160,7 @@ namespace Brunet
 
     public override bool Equals(object a)
     {
+      if( a == this ) { return true; }
       Address add = a as Address;
       if (add != null) {
         byte[] buf_x = buffer;
