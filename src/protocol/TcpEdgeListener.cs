@@ -60,7 +60,7 @@ namespace Brunet
     protected ArrayList _send_sockets;
     protected Hashtable _sock_to_edge;
     protected ArrayList _tas;
-
+    protected TAAuthorizer _ta_auth;
     /**
      * This inner class holds the connection state information
      */
@@ -101,8 +101,11 @@ namespace Brunet
     public TcpEdgeListener(int port):this(port, null)
     {
     }
-    
     public TcpEdgeListener(int port, IPAddress[] ipList)
+           : this(port, ipList, null)
+    {
+    }
+    public TcpEdgeListener(int port, IPAddress[] ipList, TAAuthorizer ta_auth)
     {
       _is_started = false;
       
@@ -114,7 +117,11 @@ namespace Brunet
       _local_endpoint = new IPEndPoint(IPAddress.Any, port);
       _listen_sock = new Socket(AddressFamily.InterNetwork,
                                 SocketType.Stream, ProtocolType.Tcp);
-
+      _ta_auth = ta_auth;
+      if( _ta_auth == null ) {
+        //Always authorize in this case:
+        _ta_auth = new ConstantAuthorizer(TAAuthorizer.Decision.Allow);
+      }
       _sync = new Object();
       _send_edge_events = false;
       _run = true;
@@ -137,10 +144,18 @@ namespace Brunet
             new EdgeException(ta.TransportAddressType.ToString()
                               + " is not my type: " + this.TAType.ToString() ) );
       }
-      CreationState cs = new CreationState(ecb,
+      else if( _ta_auth.Authorize(ta) == TAAuthorizer.Decision.Deny ) {
+        //Too bad.  Can't make this edge:
+        ecb(false, null,
+            new EdgeException( ta.ToString() + " is not authorized") );
+      }
+      else {
+        //Everything looks good:
+        CreationState cs = new CreationState(ecb,
                                            new Queue( ta.GetIPAddresses() ),
                                            ta.Port);
-      TryNextIP( cs );
+        TryNextIP( cs );
+      }
     }
 
     public override void Start()
@@ -365,20 +380,31 @@ namespace Brunet
             if( s == _listen_sock ) {
 	      try {
                 Socket new_s = s.Accept();
-                TcpEdge e = new TcpEdge(new_s, true, this);
-#if PLAB_LOG
-                e.Logger = this.Logger;
-#endif
-                lock( _sync ) {
-                  _all_sockets.Add(new_s);
-                  _sock_to_edge[new_s] = e;
+                TransportAddress rta = new TransportAddress(this.TAType,
+                                        (IPEndPoint)s.RemoteEndPoint);
+                if( _ta_auth.Authorize(rta)
+                    == TAAuthorizer.Decision.Deny ) {
+                  //No thank you Dr. Evil
+                  Console.Error.WriteLine("Denying: {0}", rta);
+                  s.Close();
                 }
-                e.CloseEvent += new EventHandler(this.CloseHandler);
-#if POB_DEBUG
-                Console.Error.WriteLine("New Edge: {0}", e);
+                else {
+                  //This edge looks clean
+                  TcpEdge e = new TcpEdge(new_s, true, this);
+#if PLAB_LOG
+                  e.Logger = this.Logger;
 #endif
-                SendEdgeEvent(e);
-                e.Start();
+                  lock( _sync ) {
+                    _all_sockets.Add(new_s);
+                    _sock_to_edge[new_s] = e;
+                  }
+                  e.CloseEvent += new EventHandler(this.CloseHandler);
+#if POB_DEBUG
+                  Console.Error.WriteLine("New Edge: {0}", e);
+#endif
+                  SendEdgeEvent(e);
+                  e.Start();
+                }
 	      }
 	      catch(SocketException sx) {
                 //Looks like this Accept has failed.  Do nothing

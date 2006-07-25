@@ -60,34 +60,25 @@ namespace Brunet
     protected object _read_lock;
     
     protected IAsyncResult _read_asr;
-    
+
     public ASUdpEdgeListener(int port):this(port, null)
     {
       
     }
     public ASUdpEdgeListener(int port, IPAddress[] ipList)
+           : this(port, ipList, null) { }
+    public ASUdpEdgeListener(int port, IPAddress[] ipList, TAAuthorizer ta_auth)
     {
       /**
        * We get all the IPAddresses for this computer
        */
       _tas = GetIPTAs(TransportAddress.TAType.Udp, port, ipList);
-      
-      IPAddress ipa = IPAddress.Loopback;
-      bool stop = false;
-      foreach(TransportAddress ta in _tas) {
-        ArrayList ips = ta.GetIPAddresses();
-	foreach(IPAddress ip in ips) {
-          if( !IPAddress.IsLoopback(ip) && (ip.Address != 0) ) {
-		  //0 is the 0.0.0.0, or any address
-            ipa = ip;
-	    stop = true;
-	    break;
-	  }
-	}
-	if( stop ) { break; }
+      _local_ep = GuessLocalEndPoint(_tas);
+      _ta_auth = ta_auth;
+      if( _ta_auth == null ) {
+        //Always authorize in this case:
+        _ta_auth = new ConstantAuthorizer(TAAuthorizer.Decision.Allow);
       }
-      //ipa, now holds our best guess for an endpoint..
-      _local_ep = new IPEndPoint(ipa, port);
       /*
        * Use this to listen for data
        */
@@ -125,26 +116,32 @@ namespace Brunet
             new EdgeException(ta.TransportAddressType.ToString()
                               + " is not my type: " + this.TAType.ToString() ) );
       }
-      
-      Edge e = null;
-      ArrayList ip_addresses = ta.GetIPAddresses();
-      IPAddress first_ip = (IPAddress)ip_addresses[0];
-
-      IPEndPoint end = new IPEndPoint(first_ip, ta.Port);
-      /* We have to keep our mapping of end point to edges up to date */
-      lock( _id_ht ) {
-        //Get a random ID for this edge:
-        int id;
-        do {
-          id = _rand.Next();
-	  if( id < 0 ) { id = ~id; }
-        } while( _id_ht.Contains(id) || id == 0 );
-        e = new UdpEdge(this, false, end, _local_ep, id, 0);
-        _id_ht[id] = e;
+      else if( _ta_auth.Authorize(ta) == TAAuthorizer.Decision.Deny ) {
+        //Too bad.  Can't make this edge:
+        ecb(false, null,
+            new EdgeException( ta.ToString() + " is not authorized") );
       }
-      /* Tell me when you close so I can clean up the table */
-      e.CloseEvent += new EventHandler(this.CloseHandler);
-      ecb(true, e, null);
+      else { 
+        Edge e = null;
+        ArrayList ip_addresses = ta.GetIPAddresses();
+        IPAddress first_ip = (IPAddress)ip_addresses[0];
+  
+        IPEndPoint end = new IPEndPoint(first_ip, ta.Port);
+        /* We have to keep our mapping of end point to edges up to date */
+        lock( _id_ht ) {
+          //Get a random ID for this edge:
+          int id;
+          do {
+            id = _rand.Next();
+  	  if( id < 0 ) { id = ~id; }
+          } while( _id_ht.Contains(id) || id == 0 );
+          e = new UdpEdge(this, false, end, _local_ep, id, 0);
+          _id_ht[id] = e;
+        }
+        /* Tell me when you close so I can clean up the table */
+        e.CloseEvent += new EventHandler(this.CloseHandler);
+        ecb(true, e, null);
+      }
     }
 
     protected override void SendControlPacket(EndPoint end, int remoteid, int localid,
