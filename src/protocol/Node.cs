@@ -82,11 +82,10 @@ namespace Brunet
          * Make all the hashtables : 
          */
         _local_add = add;
-        AHAddressComparer cmp = new AHAddressComparer(add);
         _subscription_table = new Hashtable();
 
         _task_queue = new TaskQueue();
-        _connection_table = new ConnectionTable(cmp);
+        _connection_table = new ConnectionTable(_local_add);
         _connection_table.ConnectionEvent +=
           new EventHandler(this.ConnectionHandler);
         /*
