@@ -124,12 +124,12 @@ namespace Brunet
     /**
      * These represent the task of linking used by TaskWorked
      */
-    protected class LinkTask {
+    protected class LinkerTask {
       protected Address _local;
       protected Address _target;
       protected ConnectionType _ct;
 
-      public LinkTask(Address local, Address target, string ct) {
+      public LinkerTask(Address local, Address target, string ct) {
         _local = local;
         _target = target;
         _ct = Connection.StringToMainType(ct);
@@ -142,7 +142,7 @@ namespace Brunet
         return code;
       }
       override public bool Equals(object o) {
-        LinkTask lt = o as LinkTask;
+        LinkerTask lt = o as LinkerTask;
         bool eq = false;
         if( lt != null ) {
           eq = (lt._local.Equals( this._local) )
@@ -174,7 +174,7 @@ namespace Brunet
 #endif
       _timeout = new TimeSpan(0,0,0,0,_ms_timeout);
       _sync = new object();
-      _task = new LinkTask(local.Address, target, ct);
+      _task = new LinkerTask(local.Address, target, ct);
       lock(_sync) {
         _is_finished = false;
         _local_n = local;
