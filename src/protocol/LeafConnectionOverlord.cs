@@ -63,7 +63,7 @@ namespace Brunet
       _local = local;
       _linker = null;
       _sync = new object();
-      _rnd = new Random( _local.GetHashCode() ^ this.GetHashCode()
+      _rnd = new Random( _local.GetHashCode()
                          ^ unchecked((int)DateTime.Now.Ticks) );
       _default_retry_interval = new TimeSpan(0,0,0,0,10000);
       _current_retry_interval = new TimeSpan(0,0,0,0,10000);

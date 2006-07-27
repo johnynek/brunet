@@ -348,8 +348,8 @@ namespace Brunet
       _rec_buffer = new byte[ 8 + Packet.MaxLength ];
       _send_buffer = new byte[ 8 + Packet.MaxLength ];
       _send_queue = new Queue();
-      //Use our hashcode as the seed (terribly insecure business...)
-      _rand = new Random( GetHashCode() );
+      ///@todo, we need a system for using the cryographic RNG
+      _rand = new Random();
       _send_handler = this;
     }
 
