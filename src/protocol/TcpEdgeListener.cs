@@ -381,12 +381,12 @@ namespace Brunet
 	      try {
                 Socket new_s = s.Accept();
                 TransportAddress rta = new TransportAddress(this.TAType,
-                                        (IPEndPoint)s.RemoteEndPoint);
+                                        (IPEndPoint)new_s.RemoteEndPoint);
                 if( _ta_auth.Authorize(rta)
                     == TAAuthorizer.Decision.Deny ) {
                   //No thank you Dr. Evil
                   Console.Error.WriteLine("Denying: {0}", rta);
-                  s.Close();
+                  new_s.Close();
                 }
                 else {
                   //This edge looks clean
@@ -408,7 +408,7 @@ namespace Brunet
 	      }
 	      catch(SocketException sx) {
                 //Looks like this Accept has failed.  Do nothing
-
+                Console.Error.WriteLine("New incoming edge failed: {0}", sx);
 	      }
             }
             else {
