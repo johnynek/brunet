@@ -91,6 +91,12 @@ namespace Brunet
     //a period of time
     protected static readonly int _MS_RESTART_TIME = 10000;
     protected static readonly int _MAX_RESTARTS = 16;
+    /**
+     * As an optimization, we may make more than one attempt to
+     * different TAs simulataneously.  This controls the
+     * maximum number of parallel attempts
+     */
+    protected static readonly int _MAX_PARALLEL_ATTEMPTS = 2;
     /*
      * This inner class keeps state information for restarting
      * on a particular TransportAddress
@@ -268,7 +274,22 @@ namespace Brunet
         if( _started ) { throw new Exception("Linker already Started"); }
         _started = true;
       }
-      MoveToNextTA(null);
+      //Get the set of addresses to try:
+      ArrayList tas = new ArrayList();
+      for(int i = 0; i < _MAX_PARALLEL_ATTEMPTS; i++) {
+        TransportAddress next_ta = MoveToNextTA(null);
+        tas.Add(next_ta);
+      }
+      /**
+       * Now we have set up all our attempts.
+       * We have to do the above so that if one attempt
+       * finishes before the next one starts, it won't think
+       * there are no more attempts and prematurely finish.
+       * Thread synchronization is a pain.
+       */
+      foreach(TransportAddress ta in tas) {
+        StartAttempt(ta);
+      }
     } 
     /**
      * This manages a new attempt to connect on a given TransportAddress
@@ -393,7 +414,8 @@ namespace Brunet
        case LinkProtocolState.Result.MoveToNextTA:
          //Hold the lock, it will be transferred:
          // old LPS -> Linker -> new LPS
-         MoveToNextTA(lps.TA);
+         TransportAddress next = MoveToNextTA(lps.TA);
+         StartAttempt(next);
          break;
        case LinkProtocolState.Result.RetryThisTA:
          //Release the lock while we wait:
@@ -463,9 +485,45 @@ namespace Brunet
      */
     protected void Succeed(LinkProtocolState lps)
     {
-      ConnectionTable tab = _local_n.ConnectionTable;
+      /**
+       * We can potentially create more than one connection since
+       * more than one parallel attempt might succeed.  We just
+       * take what we can get, but after one, we will finish
+       * if AreActiveElements is false
+       */
+      Connection c = lps.Connection;
+      try {
+        /* Announce the connection */
+	_local_n.ConnectionTable.Add(c);
+      }
+      catch(Exception x) {
+        /* Looks like we could not add the connection */
+        //log.Error("Could not Add:", x);
+        _local_n.GracefullyClose( c.Edge );
+      }
+      
       //log.Info("Link Success");
       lock(_sync) {
+        TransportAddress ta = lps.TA;
+        _active_lps.Remove(ta);
+        lps.Unlock();
+        //Check to see if there if this TA corresponds to a waiting Restart:
+        RestartState rss = (RestartState)_ta_to_restart_state[ta];
+        if( rss != null ) {
+          if( rss.IsWaiting ) {
+            //This should not happen:
+            throw new Exception("Failed a waiting TA: " + ta.ToString());
+          }
+          else {
+            //This guy is done, remove it:
+            //Console.WriteLine("Fail removing: {0}\nReason: {1}", ta, log_message);
+            _ta_to_restart_state.Remove(ta);
+          }
+        }
+        if( AreActiveElements ) {
+          //Others are still working, lets let them finish
+          return;
+        }
         if( _is_finished ) {
           /*
            * This shouldn't ever happen
@@ -473,30 +531,16 @@ namespace Brunet
           Console.Error.WriteLine(
                         "There were two finishes, and this one succeeded {0}",
                         lps.Connection);
-          _local_n.GracefullyClose( lps.Connection.Edge );
+          _local_n.GracefullyClose( c.Edge );
           return;
         }
         _is_finished = true;
-        _con = lps.Connection;
+        _con = c;
       }
-      try {
-        /* Announce the connection */
-	tab.Add(lps.Connection);
-      }
-      catch(Exception x) {
-        /* Looks like we could not add the connection */
-        //log.Error("Could not Add:", x);
-        _local_n.GracefullyClose( lps.Connection.Edge );
-      }
-      finally {
-        /*
-         * It is essential that we Unlock the address AFTER we
-         * add the connection.  Otherwise, we could have a race
-         * condition
-         */
-	lps.Unlock();
-        FireFinished();
-      }
+      /**
+       * If we got here, it must be safe to fire the finish event
+       */
+      FireFinished();
     }
 
     /**
@@ -551,13 +595,14 @@ namespace Brunet
 #endif
     }
 
-    /*
-     * This happens when an edge is bad: too much packet loss, unexpected
-     * edge closure, etc..
-     * There is no waiting here: we try immediately.
+    /**
+     * Clean up any state information for the given TransportAddress
+     * and setup for the next run and return the next TransportAddress
+     * to try, or null if there is no other address to try.
      * @param old_ta the previous TransportAddress that we tried
+     * @return the next TransportAddress to try, or null if there are no more
      */
-    protected void MoveToNextTA(TransportAddress old_ta) {
+    protected TransportAddress MoveToNextTA(TransportAddress old_ta) {
       /*
        * Here we drop the lock, and close the edge properly
        */
@@ -578,7 +623,7 @@ namespace Brunet
 #if LINK_DEBUG
       Console.WriteLine("Linker: {0} Move on to the next TA: {1}", _lid, next_ta);
 #endif
-      StartAttempt(next_ta);
+      return next_ta;
     }
 
     /**
@@ -655,7 +700,9 @@ namespace Brunet
           lps.Start();
         }
         else {
-	  MoveToNextTA(target_ta);
+          //Get the next TA to try.
+	  TransportAddress next_ta = MoveToNextTA(target_ta);
+          StartAttempt(next_ta);
         }
       }
       catch(Exception ex) {
