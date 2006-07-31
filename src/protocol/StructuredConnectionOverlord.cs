@@ -1008,77 +1008,8 @@ namespace Brunet {
                                       Address target,
                                       short t_ttl, string contype)
     {
-      ConnectionType mt = Connection.StringToMainType(contype);
-      /*
-       * This is an anonymous delegate which is called before
-       * the Connector starts.  If it returns true, the Connector
-       * will finish immediately without sending an ConnectToMessage
-       */
-      Connector.AbortCheck abort = delegate(Connector c) {
-        bool stop = false;
-        lock( _node.ConnectionTable.SyncRoot ) {
-          stop = _node.ConnectionTable.Contains( mt, target );
-          if (!stop ) {
-            /*
-             * Make a linker to get the task.  We won't use
-             * this linker.
-             * No need in sending a ConnectToMessage if we
-             * already have a linker going.
-             */
-            Linker l = new Linker(_node, target, null, contype);
-            stop = _node.TaskQueue.HasTask( l.Task );
-          }
-        }
-        return stop;
-      };
-      /*
-       * See if we are already connected
-       */
-      if( abort(null) ) {
-        return;
-      }
-      ConnectToMessage ctm = new ConnectToMessage(contype,
-                              new NodeInfo( _node.Address, _node.LocalTAs) );
-      ctm.Dir = ConnectionMessage.Direction.Request;
-      ctm.Id = _rand.Next(1, Int32.MaxValue);
-      short t_hops = 0;
-      //This is the packet we wish we could send: local -> target
-      AHPacket ctm_pack = new AHPacket(t_hops,
-                                       t_ttl,
-                                       _node.Address,
-                                       target, AHPacket.Protocol.Connection,
-                                       ctm.ToByteArray() );
-      //We now have a packet that goes from local->forwarder, forwarder->target
-      AHPacket forward_pack = PacketForwarder.WrapPacket(forwarder, 1, ctm_pack);
-
-      #if DEBUG
-      System.Console.WriteLine("In ForwardedConnectTo:");
-      System.Console.WriteLine("Local:{0}", _node.Address);
-      System.Console.WriteLine("Target:{0}", target);
-      System.Console.WriteLine("Message ID:{0}", ctm.Id);
-      #endif
-
-      Connector con = new Connector(_node, forward_pack, ctm, this);
-#if PLAB_LOG
-      con.Logger = Logger;
-      BrunetEventDescriptor bed1 = new BrunetEventDescriptor();      
-      bed1.RemoteAHAddress = forwarder.ToBigInteger().ToString();
-      bed1.EventDescription = "SCO.FCT.forwarder";
-      Logger.LogAttemptEvent( bed1 );
-
-      BrunetEventDescriptor bed2 = new BrunetEventDescriptor();      
-      bed2.RemoteAHAddress = target.ToBigInteger().ToString();
-      bed2.EventDescription = "SCO.FCT.target";
-      Logger.LogAttemptEvent( bed2 );  
-#endif
-      //Keep a reference to it does not go out of scope
-      lock( _sync ) {
-        _connectors.Add(con);
-      }
-      con.AbortIf = abort;
-      con.FinishEvent += new EventHandler(this.ConnectorEndHandler);
-      //Start the job
-      _node.TaskQueue.Enqueue(con);
+      IPacketSender f_sender = new ForwardingSender(_node, forwarder, 1);
+      ConnectToOnEdge(target, f_sender, t_ttl, contype);
     }
 
     /**
