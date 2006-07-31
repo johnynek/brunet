@@ -115,84 +115,176 @@ namespace Brunet
 	   * We do not have a leaf connection to use, now we must
 	   * find a Structured connection over which to route the packet
 	   */
-          Connection prev = null;
-	  BigInteger prev_dist = Address.Full; //Maximum distance
-          prev = _tab.GetConnection(prev_e);
-          if( prev != null ) {
-	    prev_dist = dest.DistanceTo( (AHAddress)prev.Address).abs();
-	  }
-          BigInteger our_dist = dest.DistanceTo(_local).abs();
-
-	  BigInteger closest_dist = Address.Full;
-	  Connection closest_con = null;
-          //We could not use a leaf connection, now check structured:
-          foreach(Connection c in _tab.GetConnections(ConnectionType.Structured)) {
-	    if ( c != prev ) {
-              //This is not the previous.
-	      BigInteger this_dist = dest.DistanceTo( (AHAddress)c.Address).abs();
-	      if( this_dist < closest_dist ) {
-                closest_dist = this_dist;
-		closest_con = c;
-	      }
-	    }
-	  }
-	  /**
-	   * Here we consider the various routing modes
-	   */
-	  if( p.HasOption( AHPacket.AHOptions.Greedy ) ) {
-            if( p.Hops <= 1 || closest_dist < our_dist ) {
-              //We pass it on
-	      next_con = closest_con;
-	    }
-	    else {
-              //We keep it.
-	      deliverlocally = true;
-	    }
-	  }
-          //else if( p.HasOption( AHPacket.AHOptions.Annealing ) )
+          int dest_idx = _tab.IndexOf(ConnectionType.Structured, dest);
+          if( dest_idx >= 0 ) {
+            //We actually have a connection to this node:
+            next_con = _tab.GetConnection(ConnectionType.Structured, dest_idx);
+          }
+          else if( _tab.Count(ConnectionType.Structured) == 0 ) {
+            //We don't have any structured connections.  I guess we are the closest:
+            deliverlocally = true;
+            next_con = null;
+          }
           else {
-            //All the other routing modes use the Annealing rule
-            if( p.Hops <= 1 || closest_dist < prev_dist ) {
-              //We pass it on
-	      next_con = closest_con;
-	      if( our_dist < closest_dist ) {
-                //The local minima get the packet
+            //dest_idx is not in the table:
+            dest_idx = ~dest_idx;
+            /*
+             * Here are the right and left neighbors of the destination
+             * left is increasing, right is decreasing.
+             * Remember the ConnectionTable wraps around, so no need to worry
+             * about the size of index
+             */
+            int left_idx = dest_idx;
+            Connection left_n = _tab.GetConnection(ConnectionType.Structured, left_idx);
+            int right_idx = dest_idx - 1;
+            Connection right_n = _tab.GetConnection(ConnectionType.Structured, right_idx);
+            //We check the a couple of connections:
+            BigInteger l_dist = dest.DistanceTo((AHAddress)left_n.Address).abs();
+            BigInteger r_dist = dest.DistanceTo((AHAddress)right_n.Address).abs();
+            Connection closest_con;
+            Connection other_con;
+            BigInteger closest_dist;
+            if( l_dist < r_dist ) {
+              closest_con = left_n;
+              other_con = right_n;
+              closest_dist = l_dist;
+            }
+            else {
+              closest_con = right_n;
+              other_con = left_n;
+              closest_dist = r_dist;
+            }
+            BigInteger our_dist = dest.DistanceTo(_local).abs();
+            /**
+             * Here we consider the various routing modes
+             */
+            if( p.HasOption( AHPacket.AHOptions.Greedy ) ) {
+              /*
+               * We pass it ONLY IF we can get it closer than we are.
+               */
+              if( closest_dist < our_dist ) {
+                if( closest_con.Edge != prev_e ) {
+	          next_con = closest_con;
+                }
+                else {
+                  //This should never happen, a buggy client must have given
+                  //us a packet they shouldn't have:
+                  System.Console.Error.WriteLine("Got wrong greedy packet from: {0}", prev_e);
+                  next_con = null;
+                }
+	        deliverlocally = false;
+	      }
+	      else {
+                //We keep it.
+                next_con = null;
 	        deliverlocally = true;
 	      }
 	    }
             else {
-              //We don't pass it on, but we may deliver it locally:
-              if( our_dist < prev_dist ) {
-                deliverlocally = true;
+              //All the other routing modes use the Annealing rule
+              
+              /*
+               * If we are to the left or right of the destination, and
+               * we are not in the table, as we should not be, then we share a common
+               * left neighbor with the destination
+               */
+              Connection d_con = _tab.GetConnection(ConnectionType.Structured, dest_idx);
+              int our_idx = _tab.IndexOf(ConnectionType.Structured, _local);
+              if( our_idx < 0 ) {
+                our_idx = ~our_idx;
               }
-            }
-	  }
-          //Here are the other modes:
-          if( p.HasOption( AHPacket.AHOptions.Last ) ) {
-            if( next_con == null ) {
-              deliverlocally = true;
-            }
-            else {
-              deliverlocally = false;
-            }
-          }
-          else if( p.HasOption( AHPacket.AHOptions.Path ) ) {
-            deliverlocally = true;
-          }
-          else if( p.HasOption( AHPacket.AHOptions.Exact ) ) {
-            if( _local.Equals(dest) ) {
-              deliverlocally = true;
-              next_con = null;
-            }
-            else {
-              deliverlocally = false;
-            }
-          }
+              else {
+                System.Console.Error.WriteLine(
+                  "ERROR: we are in the ConnectionTable: {0}", _local);
+              }
+              Connection o_con = _tab.GetConnection(ConnectionType.Structured, our_idx);
+              if( d_con == o_con ) {
+                /*
+                 * We share a common left neighbor, so we should deliver locally
+                 */
+                deliverlocally = true;
+                //The next step should be the node on the "other side"
+                if( _local.IsLeftOf( dest ) ) {
+                  next_con = right_n;
+                }
+                else {
+                  next_con = left_n;
+                }
+                if( prev_e == next_con.Edge ) {
+                  //Don't send it back the way it came
+                  next_con = null;
+                }
+              }
+              else {
+                /*
+                 * We are not a neighbor of the destination (according to our table)
+                 */
+                deliverlocally = false;
+                if( closest_con.Edge == prev_e ) {
+                  if( other_con.Edge != prev_e ) {
+                    next_con = other_con;
+                  }
+                  else {
+                    /*
+                     * Both other_con and closest_con are the same: the previous edge
+                     * This is the case of there being only one neighbor
+                     */
+                    next_con = null;
+                  }
+                }
+                else {
+                  next_con = closest_con;
+                }
+                Connection prev = _tab.GetConnection(prev_e);
+                BigInteger prev_dist = Address.Full;
+                if( prev != null ) {
+                  prev_dist = dest.DistanceTo( (AHAddress)prev.Address ).abs();
+                }
+                
+                if( p.Hops <= 1 || closest_dist < prev_dist ) {
+                  /*
+                   * If the Hops <= 1, then this is the zeroth or first hop.
+                   * We will let it get further for one step, it might help
+                   * us when the ring is disordered
+                   *
+                   * Note: we have already set up next_con, so this is
+                   * just a comment, no code is in this block.
+                   */
+                }
+                else {
+                  //Don't send it if you can't get it closer than it was before
+                  next_con = null;
+                }
+              }//End of non-neareast neighbor case
+            }//End of Annealing case
+          }//End of the case where we had to find a near route
 	}
 	else {
           //We can route directly to the destination.
 	}
       }//End of ConnectionTable lock
+          
+      //Here are the other modes:
+      if( p.HasOption( AHPacket.AHOptions.Last ) ) {
+        if( next_con == null ) {
+          deliverlocally = true;
+        }
+        else {
+          deliverlocally = false;
+        }
+      }
+      else if( p.HasOption( AHPacket.AHOptions.Path ) ) {
+        deliverlocally = true;
+      }
+      else if( p.HasOption( AHPacket.AHOptions.Exact ) ) {
+        if( _local.Equals(dest) ) {
+          deliverlocally = true;
+          next_con = null;
+        }
+        else {
+          deliverlocally = false;
+        }
+      }
 
       /*
        * Now we have next_con if we can send it somewhere closer.

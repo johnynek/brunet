@@ -402,8 +402,7 @@ namespace Brunet
         ArrayList list = (ArrayList)type_to_edgelist[t];
         int count = list.Count;
         if( count == 0 ) {
-          throw new System.ArgumentOutOfRangeException("index", index,
-              "Trying to get an index from an empty Array");
+          return null;
         }
         index %= count;
         if( index < 0 ) {
