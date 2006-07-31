@@ -164,4 +164,30 @@ namespace Brunet
     }
   }
 
+  /**
+   * This is an IPacketSender which first wraps the packet before
+   * sending it
+   */
+  public class ForwardingSender : IPacketSender {
+    protected IPacketSender _ips;
+    protected Address _forwarder;
+    protected short _ttl;
+
+    public ForwardingSender(IPacketSender ips, Address forwarder, short ttl) {
+      _ips = ips;
+      _forwarder = forwarder;
+      _ttl = ttl;
+    }
+
+    /* 
+     * Send a packet by forwarding it first.
+     */
+    public void Send(Packet p) {
+      AHPacket ahp = p as AHPacket;
+      if( ahp != null ) {
+        AHPacket wrapped = PacketForwarder.WrapPacket(_forwarder, _ttl, ahp);
+        _ips.Send( wrapped );
+      }
+    }
+  }
 }
