@@ -21,7 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //#define DEBUG
 
-#define LINK_DEBUG
+//#define LINK_DEBUG
 
 #if BRUNET_NUNIT
 using NUnit.Framework;
@@ -104,6 +104,7 @@ namespace Brunet
     protected class RestartState {
       protected int _restart_attempts;
       public int RemainingAttempts { get { return _restart_attempts; } }
+      protected Linker _linker;
       protected DateTime _last_start;
       protected DateTime _next_start;
       protected Random _rand;
@@ -117,9 +118,10 @@ namespace Brunet
        * When it is time to restart, we fire this
        * event
        */
-      public event EventHandler RestartEvent;
+      public event EventHandler FinishEvent;
 
-      public RestartState(TransportAddress ta) {
+      public RestartState(Linker l, TransportAddress ta) {
+        _linker = l;
         _ta = ta;
         _restart_attempts = _MAX_RESTARTS;
         _rand = new Random();
@@ -129,7 +131,8 @@ namespace Brunet
       /**
        * Schedule the restart using the Heartbeat of the given node
        */
-      public void ScheduleRestart(Node n) {
+      public void Start() {
+        Node n = _linker.LocalNode;
         lock( this ) {
         _restart_attempts--;
 	if( _restart_attempts < 0 ) { throw new Exception("restarted too many times"); }
@@ -149,21 +152,31 @@ namespace Brunet
       {
         bool fire_event = false;
         lock( this ) {
-          if( DateTime.Now > _next_start ) { 
+          Node n = _linker.LocalNode;
+          if( n.ConnectionTable.Contains(
+                  Connection.StringToMainType( _linker.ConType ), _linker.Target) ) {
+            //We are already connected, stop waiting...
+            fire_event = true;
+          }
+          else if( DateTime.Now > _next_start ) { 
   	    if ( _rand.NextDouble() < 0.5 ) {
-              Node local_n = (Node)node;
-              //Time to start up again
-              local_n.HeartBeatEvent -= new EventHandler(this.RestartLink);
               fire_event = true;
-              _is_waiting = false; 
   	    }
+          }
+          if( fire_event ) {
+            /*
+             * No matter why we are firing the event, we are no longer waiting,
+             * and we don't need to hear from the heartbeat event any longer
+             */
+            _is_waiting = false; 
+            n.HeartBeatEvent -= this.RestartLink;
           }
         }
         if( fire_event ) {
           //Fire the event without holding a lock
-          if( RestartEvent != null ) {
-            RestartEvent(this, EventArgs.Empty);
-            RestartEvent = null;
+          if( FinishEvent != null ) {
+            FinishEvent(this, EventArgs.Empty);
+            FinishEvent = null;
           }
         }
       }
@@ -579,7 +592,10 @@ namespace Brunet
         if( AreActiveElements ) { 
           //There are more active LinkProtocolState machines working.
           //Wait till the last one goes, to really fail:
-          Console.WriteLine("Still Active\nReason: {0}", log_message);
+#if LINK_DEBUG
+          Console.WriteLine("Linker: ({0}): Still Active, Reason: {1}", _lid,
+                            log_message);
+#endif
           return;
         }
         if( _is_finished ) { return; }
@@ -639,7 +655,7 @@ namespace Brunet
           rss = (RestartState)_ta_to_restart_state[ta];
           if( rss == null ) {
             //This is the first time we are restarting
-            rss = new RestartState(ta);
+            rss = new RestartState(this, ta);
             _ta_to_restart_state[ta] = rss;
           }
           //We can restart on this TA *if* 
@@ -652,7 +668,7 @@ namespace Brunet
             //Time to go on to the next TransportAddress, and give up on this one
     	    if( _ta_queue.Count > 0 ) {
               ta = (TransportAddress)_ta_queue.Dequeue();
-              rss = new RestartState(ta);
+              rss = new RestartState(this, ta);
               _ta_to_restart_state[ta] = rss;
     	    }
           }
@@ -671,8 +687,8 @@ namespace Brunet
                             _lid, rss.RemainingAttempts);
 #endif
         //Actually schedule the restart
-        rss.RestartEvent += this.RestartHandler;
-        rss.ScheduleRestart( _local_n );
+        rss.FinishEvent += this.RestartHandler;
+        rss.Start();
       }
     }
     protected void RestartHandler(object orss, EventArgs args) {

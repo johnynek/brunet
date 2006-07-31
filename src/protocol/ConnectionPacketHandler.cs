@@ -18,30 +18,9 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-/*
- * Dependencies : 
- * Brunet.Address;
- * Brunet.AHPacket
- * Brunet.CloseMessage
- * Brunet.ConnectionEventArgs
- * Brunet.ConnectionPacket
- * Brunet.ConnectionMessage
- * Brunet.ConnectionMessageParser
- * Brunet.ConnectionType
- * Brunet.ConnectionTable
- * Brunet.Edge
- * Brunet.EdgeException
- * Brunet.LinkMessage
- * Brunet.Packet
- * Brunet.ParseException
- * Brunet.PingMessage
- * Brunet.TransportAddress
- * Brunet.ErrorMessage
- */
-
 //#define DEBUG
 
-#define LINK_DEBUG
+//#define LINK_DEBUG
 
 using System;
 using System.Collections;
