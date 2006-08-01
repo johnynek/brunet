@@ -70,10 +70,10 @@ namespace Brunet
     void ConnectionTableChangeHandler(object o, EventArgs arg) {
       lock( this ) {
         _idx++;
-       // if( _idx % 20 == 0 ) { 
+       if( _idx % 20 == 0 ) { 
 	      //Only print every 20'th change.  This is a hack...
           ToDotFile(_sorted_adds, _node_list, _idx);
-        //}
+       }
       }
     }
     

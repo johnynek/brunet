@@ -145,7 +145,7 @@ namespace Brunet
     }
 
     protected override void SendControlPacket(EndPoint end, int remoteid, int localid,
-                                     ControlCode c)
+                                     ControlCode c, object state)
     {
       lock(_sync) {
         byte[] tmp_buf = new byte[12];
@@ -235,11 +235,11 @@ namespace Brunet
 	     * back the other node must be sending us a control
 	     * message.
 	     */
-          HandleControlPacket(remoteid, localid, _rec_buffer);
+          HandleControlPacket(remoteid, localid, _rec_buffer, null);
 	}
 	else {
 	  HandleDataPacket(remoteid, localid, _rec_buffer, 8,
-                             rec_bytes - 8, end);
+                             rec_bytes - 8, end, null);
 	}
 	/*
 	 * We have finished reading the packet, now read the next one
