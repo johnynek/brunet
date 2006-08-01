@@ -159,8 +159,7 @@ namespace Brunet
         type_to_edgelist = new Hashtable();
         edge_to_con = new Hashtable();
 
-        //unconnected = new Hashtable();
-        unconnected = ArrayList.Synchronized(new ArrayList());
+        unconnected = new ArrayList();
 
         _address_locks = new Hashtable();
         // init all--it is safer to do it this way and avoid null pointer exceptions
@@ -344,7 +343,9 @@ namespace Brunet
     {
       get
       {
-        return unconnected.Count;
+        lock (_sync ) {
+          return unconnected.Count;
+        }
       }
     }
     /**
@@ -522,7 +523,7 @@ namespace Brunet
      */
     public IEnumerable GetUnconnectedEdges()
     {
-      return unconnected;
+      return new ArrayList(unconnected);
     }
 
     /**
@@ -532,8 +533,8 @@ namespace Brunet
     protected void Init(ConnectionType t)
     {
       lock(_sync) {
-        type_to_addlist[t] = ArrayList.Synchronized(new ArrayList());
-        type_to_edgelist[t] = ArrayList.Synchronized(new ArrayList());
+        type_to_addlist[t] = new ArrayList();
+        type_to_edgelist[t] = new ArrayList();
       }
     }
 

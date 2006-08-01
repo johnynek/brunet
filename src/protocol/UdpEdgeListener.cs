@@ -51,7 +51,8 @@ namespace Brunet
 
     ///Here is the queue for outgoing packets:
     protected Queue _send_queue;
-
+    //This is true if there is something in the queue
+    protected bool _queue_not_empty;
     /**
      * This is a simple little class just to hold the
      * two objects needed to do a send
@@ -157,7 +158,8 @@ namespace Brunet
      * This handles lightweight control messages that may be sent
      * by UDP
      */
-    protected void HandleControlPacket(int remoteid, int n_localid, byte[] buffer)
+    protected void HandleControlPacket(int remoteid, int n_localid, byte[] buffer,
+                                       object state)
     {
       int local_id = ~n_localid;
       UdpEdge e = null;
@@ -181,7 +183,7 @@ namespace Brunet
      */
     protected void HandleDataPacket(int remoteid, int localid,
                                     byte[] buf, int off, int len,
-                                    EndPoint end)
+                                    EndPoint end, object state)
     {
       bool read_packet = true;
       bool is_new_edge = false;
@@ -240,7 +242,7 @@ namespace Brunet
           */
          read_packet = false;
 	 //Send a control packet
-         SendControlPacket(end, remoteid, localid, ControlCode.EdgeClosed);
+         SendControlPacket(end, remoteid, localid, ControlCode.EdgeClosed, state);
        }
        else if ( edge.RemoteID == 0 ) {
          /* This is the response to our edge creation */
@@ -254,7 +256,7 @@ namespace Brunet
           */
          read_packet = false;
 	 //Tell the other guy to close this ignored edge
-         SendControlPacket(end, remoteid, localid, ControlCode.EdgeClosed);
+         SendControlPacket(end, remoteid, localid, ControlCode.EdgeClosed, state);
          edge = null;
        }
        if( (edge != null) && !edge.End.Equals(end) ) {
@@ -286,7 +288,7 @@ namespace Brunet
      * Each implementation may have its own way of doing this
      */
     protected abstract void SendControlPacket(EndPoint end, int remoteid, int localid,
-                                     ControlCode c);
+                                     ControlCode c, object state);
 
   }
 
@@ -305,7 +307,7 @@ namespace Brunet
   {
 
     protected IPEndPoint ipep;
-    protected Socket s;
+    protected Socket _s;
 
     ///this is the thread were the socket is read:
     protected Thread _thread;
@@ -337,8 +339,6 @@ namespace Brunet
        * Use this to listen for data
        */
       ipep = new IPEndPoint(IPAddress.Any, port);
-      s = new Socket(AddressFamily.InterNetwork,
-                     SocketType.Dgram, ProtocolType.Udp);
       _id_ht = new Hashtable();
       _remote_id_ht = new Hashtable();
       _sync = new object();
@@ -348,6 +348,7 @@ namespace Brunet
       _rec_buffer = new byte[ 8 + Packet.MaxLength ];
       _send_buffer = new byte[ 8 + Packet.MaxLength ];
       _send_queue = new Queue();
+      _queue_not_empty = false;
       ///@todo, we need a system for using the cryographic RNG
       _rand = new Random();
       _send_handler = this;
@@ -399,23 +400,22 @@ namespace Brunet
     }
    
     protected override void SendControlPacket(EndPoint end, int remoteid, int localid,
-                                     ControlCode c)
+                                     ControlCode c, object state)
     {
-      lock(_sync) {
+        Socket s = (Socket)state;
         NumberSerializer.WriteInt(localid, _send_buffer, 0);
         //Bit flip to indicate this is a control packet
         NumberSerializer.WriteInt(~remoteid, _send_buffer, 4);
         NumberSerializer.WriteInt((int)c, _send_buffer, 8);
 
         try {	//catching SocketException
-          System.Console.WriteLine("Sending control to: {0}", end);
           s.SendTo(_send_buffer, 0, 12, SocketFlags.None, end);
+          System.Console.WriteLine("Sending control to: {0}", end);
         }
         catch (SocketException sc) {
           Console.Error.WriteLine(
             "Error in Socket.SendTo. Endpoint: {0}\n{1}", end, sc);
         }
-      }
     }
     /**
      * This method may be called once to start listening.
@@ -429,7 +429,8 @@ namespace Brunet
           //We can't start twice... too bad, so sad:
           throw new Exception("Restart never allowed");
         }
-        s.Bind(ipep);
+        _s = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        _s.Bind(ipep);
         _isstarted = true;
         _running = true;
       }
@@ -449,11 +450,20 @@ namespace Brunet
      * This is a System.Threading.ThreadStart delegate
      * We loop waiting for edges that need to send,
      * or data on the socket.
+     *
+     * This is the only thread that can touch the socket,
+     * therefore, we do not need to lock the socket.
      */
     protected void SocketThread() // error happening here
     {
       //Wait 1 ms before giving up on a read
       int microsecond_timeout = 1000;
+      //Make sure only this thread can see the socket from now on!
+      Socket s = null;
+      lock( _sync ) { 
+        s = _s;
+        _s = null;
+      }
       while(_running) {
         bool read = false;
         EndPoint end = new IPEndPoint(IPAddress.Any, 0);
@@ -464,11 +474,11 @@ namespace Brunet
          */
         //Read if we can:
         int rec_bytes = 0;
-        lock( _sync ) {
-          read = s.Poll( microsecond_timeout, SelectMode.SelectRead );
-          if( read ) {
-            rec_bytes = s.ReceiveFrom(_rec_buffer, ref end);
-          }
+        //this is the only thread that can touch the socket!!!!!
+        //otherwise we must lock!!!
+        read = s.Poll( microsecond_timeout, SelectMode.SelectRead );
+        if( read ) {
+          rec_bytes = s.ReceiveFrom(_rec_buffer, ref end);
         }
         //Drop the socket lock.  We either read or we didn't
         if( read ) {
@@ -481,30 +491,41 @@ namespace Brunet
 	     * back the other node must be sending us a control
 	     * message.
 	     */
-            HandleControlPacket(remoteid, localid, _rec_buffer);
+            HandleControlPacket(remoteid, localid, _rec_buffer, s);
 	  }
 	  else {
 	    HandleDataPacket(remoteid, localid, _rec_buffer, 8,
-                             rec_bytes - 8, end);
+                             rec_bytes - 8, end, s);
 	  }
         }
         /*
          * We are done with handling the reads.  Now lets
          * deal with all the pending sends:
+         *
+         * Note, we don't get a lock before checking the queue.
+         * There is no race condition or deadlock here because
+         * if we don't get the packets this round, we get them
+         * next time.  Getting locks is expensive, so we don't 
+         * want to do it here since we don't have to, and this
+         * is a tight loop.
          */
-        SendQueueEntry sqe = null;
-        bool more_to_send = false;
-        do {
-          sqe = null;
+        if( _queue_not_empty ) {
           lock( _send_queue ) {
-            if( _send_queue.Count > 0 ) {
-              sqe = (SendQueueEntry)_send_queue.Dequeue();
-      //        if (sqe != null) { Send(sqe); }
-              more_to_send = _send_queue.Count > 0;
-            }
-          } //Release the lock
-          lock( _sync ) { if (sqe != null) { Send(sqe); } }
-        } while( more_to_send );
+            bool more_to_send = false;
+            int count;
+            do {
+              count = _send_queue.Count;
+              if( count > 0 ) {
+                SendQueueEntry sqe = (SendQueueEntry)_send_queue.Dequeue();
+                Send(sqe, s);
+              }
+              //We sent exactly one, so if there was more than one, there is more to send
+              more_to_send = count > 1;
+            } while( more_to_send );
+            //Before we unlock the send_queue, reset the flag:
+            _queue_not_empty = false;
+          }
+        }
         //Now it is time to see if we can read...
       }
       lock( _sync ) {
@@ -512,7 +533,7 @@ namespace Brunet
       }
     }
 
-    private void Send(SendQueueEntry sqe)
+    private void Send(SendQueueEntry sqe, Socket s)
     {
       //We have a packet to send
       Packet p = sqe.Packet;
@@ -541,10 +562,7 @@ namespace Brunet
       lock( _send_queue ) {
         SendQueueEntry sqe = new SendQueueEntry(p, (UdpEdge)from);
         _send_queue.Enqueue(sqe);
-        
-        ///@todo this could be very unsafe.  We are assuming it is okay to
-        ///send while receiving (which seems to work), but it may not be okay
-        //Send(sqe);
+        _queue_not_empty = true;
       }
     }
 
