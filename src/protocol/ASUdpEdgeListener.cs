@@ -207,13 +207,13 @@ namespace Brunet
       lock( _read_lock ) {
         _running = false;
         try {
-          EndPoint end = (EndPoint)_read_asr;
-          s.EndReceiveFrom(_read_asr, ref end);
+	  s.Close();
+          //EndPoint end = (EndPoint)_read_asr.AsyncState;
+          //s.EndReceiveFrom(_read_asr, ref end);
 	}
 	catch(Exception x) {
           Console.Error.WriteLine("In ASUdpEdgeListener.Stop: {0}",x);
 	}
-	s.Close();
       }
     }
 
@@ -295,6 +295,14 @@ namespace Brunet
      * calling this method
      */
     private void StartSend(SendQueueEntry sqe) {
+      if( !_running ) {
+        //Don't even bother if we are not running
+        lock( _send_queue ) {
+          //Make sure the queue is empty
+          _send_queue.Clear();
+        }
+        return;
+      }
       Packet p = sqe.Packet;
       UdpEdge sender = sqe.Sender;
       EndPoint e = sender.End;
@@ -323,6 +331,12 @@ namespace Brunet
       //Console.WriteLine("EndSendTo"); 
       //Check to see if there is anymore to send:
       lock( _send_queue ) {
+        if( !_running ) {
+          //Don't even bother if we are not running
+          //Make sure the queue is empty
+          _send_queue.Clear();
+          return;
+        }
         //Remove the packet we just finished sending:
 	_send_queue.Dequeue();
 	//Now try to send another:
