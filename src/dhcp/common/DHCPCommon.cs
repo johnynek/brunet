@@ -24,7 +24,7 @@ namespace Ipop {
     public byte [] yiaddr;
     public byte [] siaddr;
     public byte [] chaddr;
-    public DHCPOption [] options;
+    public SortedList options;
     public string brunet_namespace;
     public string ipop_namespace;
     public string return_message;
@@ -72,10 +72,7 @@ namespace Ipop {
       }
 
       byte messageType = 0;
-      for(int i = 0; i < packet.options.Length; i++) {
-        if(packet.options[i].type == 53)
-          messageType = packet.options[i].byte_value[0];
-      }
+      messageType = ((DHCPOption) packet.options[53]).byte_value[0];
 
       returnPacket.yiaddr = ((DHCPLease) leases[packet.ipop_namespace]).
         GetLease(DHCPCommon.StringToBytes(packet.NodeAddress, ':'));
@@ -86,20 +83,18 @@ namespace Ipop {
 
       returnPacket.op = 2; /* BOOT REPLY */
       returnPacket.siaddr = this.ServerIP;
-      ArrayList options = new ArrayList();
+      returnPacket.options = new SortedList();
       string string_value = "";
       byte [] byte_value = null;
 
       /* Subnet Mask */
-      options.Add((DHCPOption) CreateOption(1, new byte[]{255, 128, 0, 0}));
-      /* DNS */
-/*      options.Add((DHCPOption) CreateOption(6, new byte[]{192, 168, 121, 2})); */
+      returnPacket.options.Add(1, (DHCPOption) CreateOption(1, new byte[]{255, 128, 0, 0}));
       /* Lease Time */
-      options.Add((DHCPOption) CreateOption(51, new byte[]{0, 0, 255, 255}));
+      returnPacket.options.Add(51, (DHCPOption) CreateOption(51, new byte[]{0, 0x9, 0x3a, 0x80}));
       /* MTU Size */
-      options.Add((DHCPOption) CreateOption(26, new byte[]{5, 46}));
+      returnPacket.options.Add(26, (DHCPOption) CreateOption(26, new byte[]{5, 46}));
       /* Server Identifier */
-      options.Add((DHCPOption) CreateOption(54, this.ServerIP));
+      returnPacket.options.Add(54, (DHCPOption) CreateOption(54, this.ServerIP));
 
       /* Host and Domain name */
       string_value = "C";
@@ -110,8 +105,7 @@ namespace Ipop {
           string_value += "0";
         string_value += returnPacket.yiaddr[i].ToString();
       }
-      options.Add((DHCPOption) CreateOption(12, string_value));
-      options.Add((DHCPOption) CreateOption(15, string_value));
+      returnPacket.options.Add(12, (DHCPOption) CreateOption(12, string_value));
       /* End Host and Domain Name */
 
       /* DHCP Response Type */
@@ -121,10 +115,9 @@ namespace Ipop {
         byte_value = new byte[1] {5};
       else
         byte_value = new byte[1] {6};
-      options.Add((DHCPOption) CreateOption(53, byte_value));
+      returnPacket.options.Add(53, (DHCPOption) CreateOption(53, byte_value));
       /* End Response Type */
 
-      returnPacket.options = (DHCPOption []) options.ToArray(typeof(DHCPOption));
       returnPacket.return_message = "Success";
       return returnPacket;
     }

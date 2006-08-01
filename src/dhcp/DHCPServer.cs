@@ -7,9 +7,9 @@ using System.Runtime.Remoting.Lifetime;
 namespace Ipop {
   class Server {
     static void Main(string[] args) {
-      ChannelServices.RegisterChannel(new TcpChannel(61234));
+      ChannelServices.RegisterChannel(new TcpChannel(Int32.Parse(args[0])));
       byte []serverIP = new byte[4] {192, 168, 0 , 1};
-      DHCPServer server = new DHCPServer(serverIP, args[0]);
+      DHCPServer server = new DHCPServer(serverIP, args[1]);
       RemotingServices.Marshal(server, "DHCPServer.rem");
 
       ISponsor sponsor = new LifeTimeSponsor();
@@ -17,9 +17,7 @@ namespace Ipop {
       ILease lifetime = (ILease)server.GetLifetimeService();
       // registering our sponsor
       lifetime.Register(sponsor);
-
-      Console.WriteLine("Press enter to shutdown"); 
-      Console.ReadLine(); 
+      while(true) System.Threading.Thread.Sleep(9999999);
     }
   }
 }

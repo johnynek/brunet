@@ -3,12 +3,12 @@ using System.Collections;
 
 namespace Ipop {
   public class DHCPPacket {
-    byte [] packet;
-    DecodedDHCPPacket decodedPacket;
+    public byte [] packet;
+    public DecodedDHCPPacket decodedPacket;
 
     public DHCPPacket(byte [] packet) { this.packet = packet; }
 
-    public DHCPPacket(DecodedDHCPPacket packet) { this.decodedPacket = packet; }
+    public DHCPPacket(DecodedDHCPPacket packet) { this.decodedPacket = packet;  }
 
     public void DecodePacket() {
       this.decodedPacket = new DecodedDHCPPacket();
@@ -44,7 +44,7 @@ namespace Ipop {
       current += 4; /* Magic cookie */
       /* Parse the options */
       int current_option = 0;
-      ArrayList options = new ArrayList();
+      this.decodedPacket.options = new SortedList();
       /*  255 is end of options */
       while(packet[current] != 255) {
         /* 0 is padding */
@@ -79,30 +79,28 @@ namespace Ipop {
           }
           current += option.length;
           current_option++; /* Next Option*/
-          options.Add((DHCPOption) option);
+          this.decodedPacket.options.Add(option.type, (DHCPOption) option);
         }
         else
           current++;
       }
-      this.decodedPacket.options = (DHCPOption [])
-        options.ToArray(typeof(DHCPOption));
     }
 
     public void EncodePacket() {
       /* Create the options array first, then merge the UDP header, 
          dhcp body, and dhcp options later                          */
       ArrayList byte_list = new ArrayList();
-      for (int i = 0; i < this.decodedPacket.options.Length; i++) {
-        byte_list.Add((byte) this.decodedPacket.options[i].type);
-        byte_list.Add((byte) this.decodedPacket.options[i].length);
-        if(this.decodedPacket.options[i].encoding == "string") {
-          for(int j = 0; j < this.decodedPacket.options[i].length; j++)
-            byte_list.Add((byte) ((char)
-            this.decodedPacket.options[i].string_value[j]));
+      for(int i = 0; i < decodedPacket.options.Count; i++) {
+        DHCPOption option = (DHCPOption) decodedPacket.options.GetByIndex(i);
+        byte_list.Add((byte) option.type);
+        byte_list.Add((byte) option.length);
+        if(option.encoding == "string") {
+          for(int j = 0; j < option.length; j++)
+            byte_list.Add((byte) ((char) option.string_value[j]));
         }
         else {
-          for(int j = 0; j < this.decodedPacket.options[i].length; j++)
-            byte_list.Add((byte) this.decodedPacket.options[i].byte_value[j]);
+          for(int j = 0; j < option.length; j++)
+            byte_list.Add((byte) option.byte_value[j]);
         }
       }
       byte [] encodedPacket = new byte[268 + byte_list.Count + 1];
@@ -213,17 +211,17 @@ namespace Ipop {
       for(int i = 0; i < 6; i++)
         temp += this.decodedPacket.chaddr[i] + " ";
       Console.WriteLine("chaddr : {0}", temp);
-      for(int i = 0; i < this.decodedPacket.options.Length; i++) {
-        if(this.decodedPacket.options[i].encoding == "string")
+      for(int i = 0; i < decodedPacket.options.Count; i++) {
+        DHCPOption option = (DHCPOption) decodedPacket.options.GetByIndex(i);
+        if(option.encoding == "string")
           Console.WriteLine("{0} : {1}", 
-            DHCPOptions.DHCPOptionsList[this.decodedPacket.options[i].type],
-            this.decodedPacket.options[i].string_value);
+            DHCPOptions.DHCPOptionsList[option.type], option.string_value);
         else {
           temp = "";
-          for(int j = 0; j < this.decodedPacket.options[i].length; j++)
-            temp += this.decodedPacket.options[i].byte_value[j] + " ";
-          Console.WriteLine("{0} : {1}", 
-            DHCPOptions.DHCPOptionsList[this.decodedPacket.options[i].type], temp);
+          for(int j = 0; j < option.length; j++)
+            temp += option.byte_value[j] + " ";
+          Console.WriteLine("{0} : {1}", DHCPOptions.DHCPOptionsList[
+            option.type], temp);
         }
       }
     }
@@ -235,18 +233,6 @@ namespace Ipop {
           this.packet[i+2], this.packet[i+3]);
           for(; i < this.packet.Length; i++)
         Console.WriteLine("{0}", this.packet[i]);
-    }
-
-    public DecodedDHCPPacket returnDecodedPacket() { return this.decodedPacket; }
-    public byte [] returnPacket() { return this.packet; }
-
-    public void AddNamespaces(string brunet, string ipop) {
-      decodedPacket.brunet_namespace = brunet;
-      decodedPacket.ipop_namespace = ipop;
-    }
-
-    public void AddNodeAddress(string NodeAddress) {
-      decodedPacket.NodeAddress = NodeAddress;
     }
   }
 }

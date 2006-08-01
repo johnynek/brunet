@@ -14,6 +14,7 @@ namespace Ipop {
     public string netmask;
     public DHCPIPPool pool;
     public DHCPReservedIPs reserved;
+    public int LogSize;
   }
   public class DHCPIPPool {
     public string lower;

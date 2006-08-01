@@ -11,6 +11,7 @@ namespace Ipop {
 
   class DHCPLease {
     int index, size, leasetime;
+    long logsize;
     string namespace_value;
     byte [] netmask;
     byte [] lower;
@@ -25,6 +26,7 @@ namespace Ipop {
     public DHCPLease(IPOPNamespace config) {
       leasetime = config.leasetime;
       namespace_value = config.value;
+      logsize = config.LogSize * 1024; /* Bytes */
       lower = DHCPCommon.StringToBytes(config.pool.lower, '.');
       upper = DHCPCommon.StringToBytes(config.pool.upper, '.');
       netmask = DHCPCommon.StringToBytes(config.netmask, '.');
@@ -224,6 +226,30 @@ namespace Ipop {
       sw.WriteLine(((DateTime) LeaseExpirations[index]).Ticks);
       sw.Close();
       file.Close();
+
+      file = new FileStream("logs/" + namespace_value + ".log",
+        FileMode.OpenOrCreate, FileAccess.Read);
+      long length = file.Length;
+      file.Close();
+      if(length > logsize) {
+        StoreOldLog();
+        NewLog();
+      }
+    }
+
+    public void StoreOldLog() {
+      FileStream fileold = new FileStream("logs/" + namespace_value + ".log",
+        FileMode.OpenOrCreate, FileAccess.Read);
+      FileStream filenew = new FileStream("logs/" + namespace_value + ".log.bak",
+        FileMode.OpenOrCreate, FileAccess.Write);
+      StreamReader sr = new StreamReader(fileold);
+      StreamWriter sw = new StreamWriter(filenew);
+      sw.Write(sr.ReadToEnd());
+      sr.Close();
+      sw.Close();
+      fileold.Close();
+      filenew.Close();
+
     }
 
     public void NewLog() {
