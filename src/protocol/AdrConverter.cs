@@ -115,7 +115,7 @@ public class AdrException : Exception {
       return false;
     }
   }
-  public Hashtable ToHashTable() {
+  public Hashtable ToHashtable() {
     Hashtable xht = (Hashtable)_data.Clone();
     object st = xht["stacktrace"];
     //The above is set when thrown:
@@ -247,10 +247,9 @@ public class AdrConverter {
               case 'Y':
 	        //unsigned byte:
                 byte[] aYresult = new byte[length];
-                for(int i = 0; i < aYresult.Length; i++) {
-                  int tempval = s.ReadByte();
-	          if ( tempval < 0 ) { throw new Exception("Could not read byte for array"); }
-                  aYresult[i] = (byte)tempval;
+                int read_b = s.Read(aYresult, 0, (int)length);
+                if( read_b != length ) {
+                  throw new Exception("Could not read byte for array"); 
                 }
                 result = aYresult;
                 break;
@@ -262,7 +261,7 @@ public class AdrConverter {
                 }
                 result = airesult;
                 break;
-                ///TODO add more array types
+                ///@todo add more array types
               default:
                 throw new Exception("Unsupported array type code: " + atype);
 	  }
@@ -399,7 +398,7 @@ public class AdrConverter {
       if( ax == null ) {
         ax = new AdrException((Exception)o);
       }
-      Hashtable xht = ax.ToHashTable();
+      Hashtable xht = ax.ToHashtable();
       //Here is a map...
       int total_bytes = 2; //For the 'X' and 'x' bytes
       s.WriteByte((byte)'X'); //Start of map:
