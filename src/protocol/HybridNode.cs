@@ -18,26 +18,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-/**
- * Dependencies : 
- * Brunet.AHAddress
- * Brunet.AHRouter
- * Brunet.RwpRouter
- * Brunet.RwtaRouter
- * Brunet.AHPacket
- * Brunet.Address
- * Brunet.CtmRequestHandler
- * Brunet.ConnectionOverlord
- * Brunet.ConnectionType
- * Brunet.DirectionalRouter
- * Brunet.LeafConnectionOverlord
- * Brunet.IAHPacketHandler
- * Brunet.Node
- * Brunet.PacketForwarder
- * Brunet.StructuredConnectionOverlord
- * Brunet.UnstructuredConnectionOverlord
- */
-
 #define PRODUCTION
 //to run the connecttester, make sure you change PRODUCTION to DEBUG
 //#define DEBUG  //Unstructured network is not formed
@@ -86,6 +66,23 @@ namespace Brunet
       }
     }
     
+    /**
+     * Right now, this just asks if the main ConnectionOverlords
+     * are looking for connections, with the assumption being
+     * that if they are, we are not correctly connected.
+     *
+     * In the future, it might use a smarter algorithm
+     */
+    public override bool IsConnected {
+      get {
+        lock( _sync ) {
+          //To be routable,
+          return !(_lco.NeedConnection || _sco.NeedConnection);
+        }
+      }
+    }
+
+
     public HybridNode(AHAddress add):base(add)
     {
 

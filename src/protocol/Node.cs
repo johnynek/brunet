@@ -101,8 +101,6 @@ namespace Brunet
          */
         _local_ta = ArrayList.Synchronized( new ArrayList() );
         /* EdgeListener's */
-        /*@throw ArgumentNullException if the list ( new ArrayList()) is null.
-         */
         _edgelistener_list = ArrayList.Synchronized( new ArrayList() );
         _edge_factory = new EdgeFactory();
         //Put all the Routers in :
@@ -224,6 +222,15 @@ namespace Brunet
      */
     public virtual ConnectionTable ConnectionTable { get { return _connection_table; } }
 
+    /**
+     * This is true if the Node is properly connected in the network.
+     * If you want to know when it is safe to assume you are connected,
+     * listen to all for Node.ConnectionTable.ConnectionEvent and
+     * Node.ConnectionTable.DisconnectionEvent and then check
+     * this property.  If it is true, you should probably wait
+     * until it is false if you need the Node to be connected
+     */
+    public abstract bool IsConnected { get; }
     protected TaskQueue _task_queue;
     /**
      * This is the TaskQueue for this Node

@@ -18,25 +18,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-/**
- * Dependencies : 
- * Brunet.AHAddress
- * Brunet.AHRouter
- * Brunet.AHPacket
- * Brunet.Address
- * Brunet.CtmRequestHandler
- * Brunet.ConnectionOverlord
- * Brunet.ConnectionType
- * Brunet.DirectionalRouter
- * Brunet.Edge
- * Brunet.LeafConnectionOverlord
- * Brunet.Linker
- * Brunet.IAHPacketHandler
- * Brunet.Node
- * Brunet.PacketForwarder
- * Brunet.StructuredConnectionOverlord
- */
-
 #define PRODUCTION
 //to run the connecttester, make sure you change PRODUCTION to DEBUG
 
@@ -70,6 +51,22 @@ namespace Brunet
     //maximum number of neighbors we report in our status
     protected static readonly int MAX_NEIGHBORS = 4;
 
+
+    /**
+     * Right now, this just asks if the main ConnectionOverlords
+     * are looking for connections, with the assumption being
+     * that if they are, we are not correctly connected.
+     *
+     * In the future, it might use a smarter algorithm
+     */
+    public override bool IsConnected {
+      get {
+        lock( _sync ) {
+          //To be routable, 
+          return !(_lco.NeedConnection || _sco.NeedConnection);
+        }
+      }
+    }
     public StructuredNode(AHAddress add):base(add)
     {
       /**
@@ -104,7 +101,7 @@ namespace Brunet
       _connection_table.ConnectionEvent += new EventHandler(this.UpdateNeighborStatus);
       _connection_table.DisconnectionEvent += new EventHandler(this.EstimateSize);
     }
-    
+     
     /**
      * If you want to create a node in a realm other
      * than the default "global" realm, use this

@@ -18,25 +18,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-/**
- * Dependencies : 
- * Brunet.AHAddress
- * Brunet.AHRouter
- * Brunet.RwpRouter
- * Brunet.RwtaRouter
- * Brunet.AHPacket
- * Brunet.Address
- * Brunet.CtmRequestHandler
- * Brunet.ConnectionOverlord
- * Brunet.ConnectionType
- * Brunet.DirectionalRouter
- * Brunet.LeafConnectionOverlord
- * Brunet.IAHPacketHandler
- * Brunet.Node
- * Brunet.PacketForwarder
- * Brunet.UnstructuredConnectionOverlord
- */
-
 //#define PRODUCTION
 //to run the connecttester, make sure you change PRODUCTION to DEBUG
 #define DEBUG  //Unstructured network is not formed
@@ -54,7 +35,8 @@ namespace Brunet
   public class UnstructuredNode:Node
   {
 
-    protected Hashtable _connectionoverlords;
+    protected ConnectionOverlord _lco;
+    protected ConnectionOverlord _uco;
 
 #if PLAB_LOG
     override public BrunetLogger Logger{
@@ -73,8 +55,23 @@ namespace Brunet
       }
     }
 #endif
+    /**
+     * Right now, this just asks if the main ConnectionOverlords
+     * are looking for connections, with the assumption being
+     * that if they are, we are not correctly connected.
+     *
+     * In the future, it might use a smarter algorithm
+     */
+    public override bool IsConnected {
+      get {
+        lock( _sync ) {
+          //To be routable,
+          return !(_lco.NeedConnection || _uco.NeedConnection);
+        }
+      }
+    }
 
-
+ 
     public UnstructuredNode(AHAddress add):base(add)
     {
 
@@ -90,16 +87,11 @@ namespace Brunet
       /**
        * Here are the ConnectionOverlords
        */ 
-      _connectionoverlords = new Hashtable();
-      ConnectionOverlord co = new LeafConnectionOverlord(this);
-      _connectionoverlords[ ConnectionType.Leaf ] = co;
-      co = new UnstructuredConnectionOverlord(this);
+      _lco = new LeafConnectionOverlord(this);
+      _uco = new UnstructuredConnectionOverlord(this);
 #if PLAB_LOG
       //co.Logger = this.Logger;
 #endif
-      _connectionoverlords[ ConnectionType.Unstructured ] = co;
-
-
       /**
        * Turn on some protocol support : 
        */
@@ -121,27 +113,11 @@ namespace Brunet
     override public void Connect()
     {
       StartAllEdgeListeners();
-
-      lock(_sync) {
-        foreach(ConnectionType t
-                in System.Enum.GetValues(typeof(ConnectionType)))
-        {
-          ConnectionOverlord co = (ConnectionOverlord) _connectionoverlords[t];
-          //Make sure we have this kind of ConnectionOverlord
-          if (co != null) {
-            co.IsActive = true;
-          }
-        }
-        foreach(ConnectionType t
-                in System.Enum.GetValues(typeof(ConnectionType)))
-        {
-          ConnectionOverlord co = (ConnectionOverlord) _connectionoverlords[t];
-          //Make sure we have this kind of ConnectionOverlord
-          if (co != null) {
-            co.Activate();
-          }
-        }
-      }
+      _lco.IsActive = true;
+      _uco.IsActive = true;
+      
+      _lco.Activate();
+      _uco.Activate();
     }
     /**
      * This informs all the ConnectionOverlord objects
@@ -151,15 +127,8 @@ namespace Brunet
     override public void Disconnect()
     {
       lock(_sync) {
-        foreach(ConnectionType t
-                in System.Enum.GetValues(typeof(ConnectionType))) {
-          ConnectionOverlord co =
-            (ConnectionOverlord) _connectionoverlords[t];
-          //Make sure we have this kind of ConnectionOverlord
-          if (co != null) {
-            co.IsActive = false;
-          }
-        }
+        _lco.IsActive = false;
+        _uco.IsActive = false;
 
         // close and remove all edges for the node
         //ConnectionTable.CloseAllEdges();
