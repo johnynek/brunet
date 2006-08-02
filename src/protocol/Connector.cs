@@ -126,8 +126,8 @@ namespace Brunet
      * while to get to the end node
      */
     protected static readonly int AHMsTimeOut = 10000;
-    protected static readonly TimeSpan _timeout;
-    protected DateTime _last_packet_datetime;
+    protected static readonly long _timeout;
+    protected long _last_packet_datetime;
 
     /**
      * Either a Node or an Edge to use to send the
@@ -148,7 +148,7 @@ namespace Brunet
       }
     }
     static Connector() {
-      _timeout = new TimeSpan(0, 0, 0, 0, AHMsTimeOut);
+      _timeout = TimeUtils.MsToNsTicks(AHMsTimeOut);
     }
     /**
      * Represents the Task this connector works on for the TaskWorker
@@ -278,7 +278,7 @@ namespace Brunet
 			  _con_packet.Destination);
 #endif
         _sender.Send(_con_packet);
-        _last_packet_datetime = DateTime.Now;
+        _last_packet_datetime = TimeUtils.NoisyNowTicks;
         _ctm_send_timeouts = 1;
         _local_node.HeartBeatEvent += new EventHandler(this.ResendCtmHandler);
       }
@@ -346,7 +346,7 @@ namespace Brunet
           //It is okay to stop now
           _is_finished = true; 
         }
-        else if( DateTime.Now - _last_packet_datetime > _timeout) {
+        else if( TimeUtils.NoisyNowTicks - _last_packet_datetime > _timeout) {
           if( _ctm_send_timeouts >= MaxTimeOuts ) {
             _is_finished = true;
           }
@@ -356,7 +356,7 @@ namespace Brunet
             //                                          _con_packet);
             _sender.Send( _con_packet );
           }
-          _last_packet_datetime = DateTime.Now;
+          _last_packet_datetime = TimeUtils.NoisyNowTicks;
           //We have timed out one more time
           _ctm_send_timeouts++;
         }

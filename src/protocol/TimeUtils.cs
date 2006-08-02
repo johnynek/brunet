@@ -40,9 +40,11 @@ namespace Brunet {
 
    static protected long _t_zero_l;
    static protected int _t_zero_i;
+   static object _sync;
    static TimeUtils() {
      _t_zero_i = System.Environment.TickCount;
      _t_zero_l = System.DateTime.Now.Ticks;
+     _sync = new object();
      //Those two numbers represent the same instants in time
    }
    /**
@@ -68,9 +70,26 @@ namespace Brunet {
      get {
        int now = System.Environment.TickCount;
        //1 millisecond is 10000 of 100 nanoseconds.
-       long delta_100_ns = WrappedDifference(_t_zero_i, now) * 10000;
-       return delta_100_ns + _t_zero_l;
+       long delta_ms = WrappedDifference(_t_zero_i, now);
+       long return_val = MsToNsTicks(delta_ms) + _t_zero_l;
+       if( delta_ms > (Int32.MaxValue/2) ) {
+         //two wrap arounds will confuse us, better update:
+         //note that a wrap around will happen about once a month
+         lock( _sync ) {
+           _t_zero_i = System.Environment.TickCount;
+           _t_zero_l = System.DateTime.Now.Ticks;
+         }
+       }
+       return return_val;
      }
+   }
+
+   /**
+    * Sometimes time is measured in milliseconds, sometimes
+    * in 100 ns ticks.  This goes from ms -> 100 ns ticks
+    */
+   public static long MsToNsTicks(long millisec) {
+     return millisec * 10000;
    }
 
    /**
