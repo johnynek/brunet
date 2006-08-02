@@ -45,7 +45,6 @@ namespace Brunet
         log4net.LogManager.GetLogger(System.Reflection.MethodBase.
         GetCurrentMethod().DeclaringType);*/
 
-    private int _hash_code;
 
 #if PLAB_LOG
     protected BrunetLogger _logger;
@@ -71,7 +70,6 @@ namespace Brunet
     public Node(Address add)
     {
       //Start with the address hashcode:
-      _hash_code = add.GetHashCode();
       _gracefully_close_edges  = new Hashtable();
       _cmp = new ConnectionMessageParser();
 
@@ -462,15 +460,6 @@ namespace Brunet
         return router;
       }
     }
-
-    /**
-     * Implements method from Object
-     */
-    public override int GetHashCode()
-    {
-      return _hash_code;
-    }
-
 
     /**
      * return a status message for this node.

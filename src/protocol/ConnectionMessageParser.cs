@@ -47,121 +47,30 @@ namespace Brunet
 #if DOM
       doc = new XmlDocument();
 #endif
-   
+      _parsed_packets = null;
     }
-    protected class ParsedPacket : IComparable {
-      protected System.WeakReference _packet;
-      protected ConnectionMessage _cm;
-
-      public ParsedPacket(Packet p, ConnectionMessage cm) {
-        _packet = new System.WeakReference(p);
-        _cm = cm;
-      }
-      /**
-       * Is the Packet still referenced by the system
-       */
-      public bool IsAlive { 
-        get {
-          bool retv = _packet.IsAlive;
-          if( !retv ) {
-            //Free up the ConnectionMessage;
-            _cm = null;
-          }
-          return retv;
-        }
-      }
-      /**
-       * Check to see if this parsed packet corresponds to a given
-       * packet and if it is alive.
-       */
-      public ConnectionMessage Parse(Packet p) {
-        ConnectionMessage result = null;
-        try {
-          if( IsAlive ) {
-            if( _packet.Target == p ) {
-              result = _cm;
-            }
-          }
-        }
-        catch(Exception x) {
-          //Go ahead and get rid of this reference
-          _cm = null;
-        }
-        return result;
-      }
-      /**
-       * This is for sorting the list
-       */
-      public int CompareTo(object o) {
-        ParsedPacket po = o as ParsedPacket;
-        if( null == po ) {
-          return -1;
-        }
-        else {
-          if( IsAlive == po._packet.IsAlive ) {
-            //They are both alive or dead:
-            return 0; 
-          }
-          else {
-            //Put live references before dead ones.
-            if( IsAlive ) {
-              return -1;
-            }
-            else {
-              return 1;
-            }
-          }
+    public ConnectionMessageParser(Node n) {
+      lock( _node_to_wht ) {
+        _parsed_packets = (WeakHashtable)_node_to_wht[n];
+        if( _parsed_packets == null ) {
+          _parsed_packets = new WeakHashtable();
+          _node_to_wht[n] = _parsed_packets;
         }
       }
     }
     /*
      * An ArrayList of Parsed Packets;
      */
-    static protected ArrayList _parsed_packets;
-    static ConnectionMessageParser() {
-      _parsed_packets = new ArrayList();
-    }
-    static protected ConnectionMessage GetCachedParse(Packet p) {
-      ConnectionMessage result = null;
-      lock( _parsed_packets ) {
-        int count = _parsed_packets.Count;
-        for(int i = 0; i < count; i++) {
-          ParsedPacket pp = (ParsedPacket) _parsed_packets[i];
-          result = pp.Parse(p);
-          if( result != null ) {
-            //We hit the jackpot:
-            return result;
-          }
-        }
-      }
-      return result;
-    }
-    static protected void CacheParsed(Packet p, ConnectionMessage cm) {
-      ParsedPacket pp = new ParsedPacket(p, cm);
-      lock( _parsed_packets ) {
-        _parsed_packets.Add( pp );
-        /*
-         * Presumably we see new packets less often than cached packets
-         * so we only parse when we add a new item
-         */
+    protected WeakHashtable _parsed_packets;
+    
+    /**
+     * We can keep a per node cache of parsed
+     * packets, this keeps them for all the nodes
+     */
+    static protected Hashtable _node_to_wht;
 
-        int count = _parsed_packets.Count;
-        if( count > 0 ) {
-          _parsed_packets.Sort();
-          int first_dead = count+1;
-          /*
-           * Find the last element in the list that is not alive.
-           */
-          do {
-            first_dead--;
-            pp = (ParsedPacket)_parsed_packets[first_dead - 1];
-          } while(!pp.IsAlive);
-          //Now we remove the from the last_alive to the end:
-          if( count > first_dead ) {
-            _parsed_packets.RemoveRange(first_dead, count - first_dead);
-          }
-        }
-      }
+    static ConnectionMessageParser() {
+      _node_to_wht = new Hashtable();
     }
     /**
      * Parse the payload of the given packet
@@ -177,13 +86,21 @@ namespace Brunet
        * parsed.
        */
       ConnectionMessage result = null;
-      lock( _parsed_packets ) {
-        result = GetCachedParse(p);
-        if( result == null ) {
-          result = Parse(p.PayloadStream);
-          CacheParsed(p, result);
+      if( _parsed_packets != null ) {
+        //We have a cache...
+        lock( _parsed_packets ) {
+          result = (ConnectionMessage)_parsed_packets[p];
+          if( result == null ) {
+            result = Parse(p.PayloadStream);
+            _parsed_packets[p] = result;
+          }
         }
       }
+      else {
+        //No cache..
+        result = Parse(p.PayloadStream);
+      }
+      //Console.WriteLine("Parsed: {0}\n{1}\n",p, result);
       return result;
     }
 

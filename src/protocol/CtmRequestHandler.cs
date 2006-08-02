@@ -60,7 +60,7 @@ namespace Brunet
      */
     public CtmRequestHandler()
     {
-      _cmp = new ConnectionMessageParser();
+      _cmp = null;
     }
 
     /**
@@ -74,8 +74,12 @@ namespace Brunet
     public void HandleAHPacket(object node, AHPacket p, Edge from)
     {
       try {
-        ConnectToMessage ctm = (ConnectToMessage)_cmp.Parse(p);
         Node n = (Node) node;
+        if( _cmp == null ) {
+          //Setup a ConnectionMessageParser with per-node cache
+          _cmp = new ConnectionMessageParser(n);
+        }
+        ConnectToMessage ctm = (ConnectToMessage)_cmp.Parse(p);
         //stop now if we don't have a ConnectToMessage Request
         if (ctm.Dir == ConnectionMessage.Direction.Response) {
           return;
