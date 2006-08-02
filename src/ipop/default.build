@@ -21,6 +21,8 @@
           <sources failonempty="true">
 	     <include name="IPRouter.cs"/>
              <include name="../dhcp/DHCPClient.cs"/>
+             <include name="../OSDependent/abstract.cs"/>
+             <include name="../OSDependent/linux.cs"/>
 	  </sources>
 	  <references>
              <include name="${lib.dir}/Brunet.dll"/>

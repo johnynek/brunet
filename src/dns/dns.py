@@ -18,8 +18,6 @@ class DNSRequestHandler (DatagramRequestHandler):
       if self.data[self.data[12] + 1] == 0:
         if self.check_name_node():
           bad = 0
-        elif self.check_name_manager() == 1:
-          bad = 0
 
     if bad == 0:
       if(self.ip[1] < 256 and self.ip[2] < 256 and self.ip[3] < 255 \
@@ -58,17 +56,6 @@ class DNSRequestHandler (DatagramRequestHandler):
         self.ip = [10, int(self.data[14:17].tostring()), \
           int(self.data[17:20].tostring()), \
           int(self.data[20:23].tostring())]
-        return True
-    return False
-
-  def check_name_manager(self):
-    name = string.lower(self.data[13:20].tostring())
-    if name == "manager":
-      num_size = self.data[12] - 7
-      if self.data[20:20+num_size].tostring().isdigit():
-        manager_number = int(self.data[20:20+num_size].tostring())
-        self.ip = [10, 128 + ((manager_number & 0xFF00) >> 8), \
-          manager_number & 0x00FF, 2]
         return True
     return False
 

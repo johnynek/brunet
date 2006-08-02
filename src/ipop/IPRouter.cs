@@ -22,9 +22,20 @@ namespace Ipop {
     public EdgeListener [] EdgeListeners;
     public string IPConfig;
     public string DHCPServerIP;
-    public string StaticIP;
-    public string StaticNetmask;
     public string NodeAddress;
+    public string System;
+    public string Hostname;
+    public StaticInfo StaticData;
+    public DHCPInfo DHCPData;
+  }
+
+  public class StaticInfo {
+    public string IPAddress;
+    public string Netmask;
+  }
+
+  public class DHCPInfo {
+    public string DHCPServerAddress;
   }
 
   public class EdgeListener {
@@ -45,161 +56,10 @@ namespace Ipop {
 
     private static ArrayList RemoteTAs;
 
+    private static OSDependent routines;
     private static ArrayList Nameservers;
-
-    private static string IPAddr;
+    private static string Virtual_IPAddress;
     private static string Netmask;
-
-/* Linux Only */
-
-    private static string GetTapAddress() {
-      try {
-        System.Diagnostics.Process proc = new System.Diagnostics.Process();
-        proc.EnableRaisingEvents = false;
-        proc.StartInfo.RedirectStandardOutput = true;
-        proc.StartInfo.UseShellExecute = false;
-        proc.StartInfo.FileName = "/sbin/ifconfig";
-        proc.StartInfo.Arguments = config.device;
-        proc.Start();
-        proc.WaitForExit();
-
-        StreamReader sr = proc.StandardOutput;
-        sr.ReadLine();
-        string output = sr.ReadLine();
-        int point1 = output.IndexOf("inet addr:") + 10;
-        int point2 = output.IndexOf("Bcast:") - 2 - point1;
-        return output.Substring(point1, point2);
-      }
-      catch (Exception e) {
-         if(config.IPConfig == "static") {
-           Console.WriteLine(e);
-           Environment.Exit(0);
-         }
-         return null;
-      }
-    }
-
-    private static string GetTapMAC() {
-      System.Diagnostics.Process proc = new System.Diagnostics.Process();
-      proc.EnableRaisingEvents = false;
-      proc.StartInfo.RedirectStandardOutput = true;
-      proc.StartInfo.UseShellExecute = false;
-      proc.StartInfo.FileName = "/sbin/ifconfig";
-      proc.StartInfo.Arguments = config.device;
-      proc.Start();
-      proc.WaitForExit();
-
-      StreamReader sr = proc.StandardOutput;
-      string output = sr.ReadLine();
-      return output.Substring(output.IndexOf("HWaddr") + 7, 17);
-    }
-
-    private static string GetTapNetmask() {
-      string result = null;
-      System.Diagnostics.Process proc = new System.Diagnostics.Process();
-      proc.EnableRaisingEvents = false;
-      proc.StartInfo.RedirectStandardOutput = true;
-      proc.StartInfo.UseShellExecute = false;
-      proc.StartInfo.FileName = "/sbin/ifconfig";
-      proc.StartInfo.Arguments = config.device;
-      proc.Start();
-      proc.WaitForExit();
-
-      StreamReader sr = proc.StandardOutput;
-      sr.ReadLine();
-      string output = sr.ReadLine();
-      int point1 = output.IndexOf("Mask:") + 5;
-      result = output.Substring(point1, output.Length - point1);
-      return result;
-    }
-
-    private static void SetupRouteAndArp(byte [] ip, byte [] netmask) {
-      string router = "", net = "", nm = "";
-      for(int i = 0; i < ip.Length - 1; i++) {
-        router += (ip[i] & netmask[i]) + ".";
-        nm += netmask[i] + ".";
-      }
-      net = router + "0";
-      router += "1";
-      nm += netmask[netmask.Length - 1];
-
-      System.Diagnostics.Process proc = new System.Diagnostics.Process();
-      proc.EnableRaisingEvents = false;
-      proc.StartInfo.UseShellExecute = false;
-      proc.StartInfo.FileName = "route";
-      proc.StartInfo.Arguments = "add -net " + net + " gw " + router + 
-        " netmask " + nm + " " + config.device;
-      proc.Start();
-      proc.WaitForExit();
-
-      proc = new System.Diagnostics.Process();
-      proc.EnableRaisingEvents = false;
-      proc.StartInfo.UseShellExecute = false;
-      proc.StartInfo.FileName = "arp";
-      proc.StartInfo.Arguments = "-s " + router + " FE:FD:00:00:00:00";
-      proc.Start();
-      proc.WaitForExit();
-
-      SetHostname();
-    }
-
-    private static void DHCPSetupRouteAndArp() {
-      while(GetTapAddress() == null) ;
-        Thread.Sleep(1000);
-      SetupRouteAndArp(
-        DHCPCommon.StringToBytes(GetTapAddress(), '.'),
-        DHCPCommon.StringToBytes(GetTapNetmask(), '.'));
-    }
-
-    private static void ParseResolvConf() {
-      Nameservers = new ArrayList();
-      FileStream file = new FileStream("/etc/resolv.conf",
-        FileMode.OpenOrCreate, FileAccess.Read);
-      StreamReader sr = new StreamReader(file);
-      string temp = "", nameserver = "";
-      while((temp = sr.ReadLine()) != null) {
-        if(temp.StartsWith("nameserver")) {
-          nameserver = temp.Substring(11, temp.Length - 11);
-          if(nameserver != "127.0.0.1" && nameserver != "0.0.0.0" && nameserver != "")
-            Nameservers.Add(nameserver);
-        }
-      }
-      sr.Close();
-      file.Close();
-    }
-
-    private static void SetHostname() {
-      byte []ip_bytes = DHCPCommon.StringToBytes(IPAddr, '.');
-      string hostname = "C";
-      for(int i = 1; i < 4; i++) {
-        if(ip_bytes[i] < 10)
-          hostname += "00";
-        else if(ip_bytes[i] < 100)
-          hostname += "0";
-        hostname += ip_bytes[i].ToString();
-      }
-
-      System.Diagnostics.Process proc = new System.Diagnostics.Process();
-      proc.EnableRaisingEvents = false;
-      proc.StartInfo.UseShellExecute = false;
-      proc.StartInfo.FileName = "hostname";
-      proc.StartInfo.Arguments = hostname;
-      proc.Start();
-      proc.WaitForExit();
-    }
-
-    private static void SetupTapDevice() {
-      System.Diagnostics.Process proc = new System.Diagnostics.Process();
-      proc.EnableRaisingEvents = false;
-      proc.StartInfo.UseShellExecute = false;
-      proc.StartInfo.FileName = "ifconfig";
-      proc.StartInfo.Arguments = config.device + " " + config.StaticIP +
-        " netmask " + config.StaticNetmask;
-      proc.Start();
-      proc.WaitForExit();
-    }
-
-/* End Linux Only */
 
 /*  Generic */
 
@@ -235,70 +95,6 @@ namespace Ipop {
        return new BigInteger(hash);
     }
 
-    private static System.Net.IPAddress[] GetIPTAs() {
-      ArrayList tas = new ArrayList();
-      try {
-	//we make a call to ifconfig here
-	ArrayList addr_list = new ArrayList();
-	System.Diagnostics.Process proc = new System.Diagnostics.Process();
-	proc.EnableRaisingEvents = false;
-	proc.StartInfo.RedirectStandardOutput = true;
-	proc.StartInfo.UseShellExecute = false;
-	proc.StartInfo.FileName = "ifconfig";
-	
-	proc.Start();
-	proc.WaitForExit();
-	
-	StreamReader sr = proc.StandardOutput;
-	while (true) {
-	  string output = sr.ReadLine();
-	  if (output == null) {
-	    break;
-	  }
-	  output = output.Trim();
-	  if (output.StartsWith("inet addr")) {
-	    string[] arr = output.Split(' ');
-	    if (arr.Length > 1) {
-	      string[] s_arr = arr[1].Split(':');
-	      if (s_arr.Length > 1) {
-		System.Net.IPAddress ip = System.Net.IPAddress.Parse(s_arr[1]);
-		Console.WriteLine("Discovering: {0}", ip);
-		addr_list.Insert(0, ip);
-	      }
-	    }
-	  }
-	}
-        foreach(System.Net.IPAddress a in addr_list) {
-	  //first and foremost, test if it is a virtual IP
-          IPAddress testIp = new IPAddress(a.GetAddressBytes());
-          IPAddress temp = new IPAddress(IPAddr);
-	  if (temp.Equals(testIp)) {
-	    Console.WriteLine("Detected {0} as virtual Ip.", IPAddr);
-	    continue;
-	  }
-          /**
-           * We add Loopback addresses to the back, all others to the front
-           * This makes sure non-loopback addresses are listed first.
-           */
-          if( System.Net.IPAddress.IsLoopback(a) ) {
-            //Put it at the back
-            tas.Add(a);
-          }
-          else {
-            //Put it at the front
-            tas.Insert(0, a);
-          }
-        }
-      }
-      catch(Exception x) {
-        //If the hostname is not properly configured, we could wind
-        //up here.  Just put the loopback address is:
-        tas.Add(System.Net.IPAddress.Loopback);
-      }
-      return (System.Net.IPAddress[]) tas.ToArray(typeof(System.Net.IPAddress));
-    }
-
-
     static BrunetTransport Start() {
       //Should be active now
       status = 1;
@@ -312,16 +108,16 @@ namespace Ipop {
           break;
       value = 32 - value;
       TAAuthorizer ta_auth = new NetmaskTAAuthorizer(
-        System.Net.IPAddress.Parse(IPAddr), value,
+        System.Net.IPAddress.Parse(Virtual_IPAddress), value,
         TAAuthorizer.Decision.Deny, TAAuthorizer.Decision.Allow);
       //local node
-      AHAddress us = new AHAddress(GetHash(new IPAddress(IPAddr)));
+      AHAddress us = new AHAddress(GetHash(new IPAddress(Virtual_IPAddress)));
       Console.WriteLine("Generated address: {0}", us);
       //AHAddress us = new AHAddress(new BigInteger(Int32.Parse(args[1])));
       Node tmp_node = new StructuredNode(us, config.brunet_namespace);
 
       //Where do we listen:
-      System.Net.IPAddress[] tas = GetIPTAs();
+      System.Net.IPAddress[] tas = routines.GetIPTAs(Virtual_IPAddress);
       foreach(EdgeListener item in config.EdgeListeners) {
         if (item.type =="tcp") { 
             tmp_node.AddEdgeListener(new TcpEdgeListener(item.port, tas, 
@@ -347,7 +143,7 @@ namespace Ipop {
       //subscribe to the IP protocol packet
 
       IPPacketHandler ip_handler = new IPPacketHandler(ether, debug, 
-        new IPAddress(IPAddr));
+        new IPAddress(Virtual_IPAddress));
       tmp_node.Subscribe(AHPacket.Protocol.IP, ip_handler);
 
 
@@ -372,8 +168,10 @@ namespace Ipop {
         debug = false;
       }
 
+      routines = new OSDependent();
       System.Console.WriteLine("IPRouter starting up...");
-      ether = new Ethernet(config.device, GetTapMAC(), "FE:FD:00:00:00:00");
+      ether = new Ethernet(config.device, routines.GetTapMAC(config.device),
+        "FE:FD:00:00:00:00");
       if (ether.Open() < 0) {
         Console.WriteLine("unable to set up the tap");
         return;
@@ -381,28 +179,25 @@ namespace Ipop {
 
       BrunetTransport brunet = null;
       RoutingTable routes = null;
-      byte [] netmask = null;
-      byte [] ip = null;
 
       if(config.IPConfig == "static")
       {
-        SetupTapDevice();
-        IPAddr = GetTapAddress();
-        Netmask = GetTapNetmask();
-        netmask = DHCPCommon.StringToBytes(Netmask, '.');
-        ip = DHCPCommon.StringToBytes(IPAddr, '.');
-
-        SetupRouteAndArp(ip, netmask);
+        Virtual_IPAddress = config.StaticData.IPAddress;
+        Netmask = config.StaticData.Netmask;
+        routines.SetTapDevice(config.device, Virtual_IPAddress, Netmask);
+        routines.SetRouteAndArp(config.device, Virtual_IPAddress, Netmask);
+        if(config.Hostname != null)
+          routines.SetHostname(config.Hostname);
         //setup Brunet node
         brunet = Start();
         //build a new routes table and populate it artificially
         routes = new RoutingTable();
       }
       else {
-        ParseResolvConf();
-        IPAddr = null;
+        Nameservers = routines.GetNameservers();
+        Virtual_IPAddress = null;
         Netmask = null;
-        DHCPClient.DHCPInit(config.DHCPServerIP);
+        DHCPClient.DHCPInit(config.DHCPData.DHCPServerAddress);
       }
       // else wait for dhcp packet below
 
@@ -469,13 +264,18 @@ namespace Ipop {
             returnPacket.EncodePacket();
             ether.SendPacket(returnPacket.packet);
         /* Do we have a new IP address, if so (re)start Brunet */
-            ip = returnPacket.decodedPacket.yiaddr;
+            byte [] ip = returnPacket.decodedPacket.yiaddr;
             string newAddress = DHCPCommon.BytesToString(ip, '.');
-            (new Thread(DHCPSetupRouteAndArp)).Start();
-            if(IPAddr == null || IPAddr != newAddress) {
-              IPAddr = newAddress;
+            routines.DHCPSetTapDeviceName(config.device);
+            (new Thread(routines.DHCPSetRouteAndArp)).Start();
+            if(Virtual_IPAddress == null || Virtual_IPAddress != newAddress) {
+              Virtual_IPAddress = newAddress;
               Netmask = DHCPCommon.BytesToString(((DHCPOption) returnPacket.
                 decodedPacket.options[1]).byte_value, '.');
+              if(config.Hostname == null)
+                routines.SetHostname(routines.DHCPGetHostname(Virtual_IPAddress));
+              else
+                routines.SetHostname(config.Hostname);
               brunet = Start();
               routes = new RoutingTable();
             }

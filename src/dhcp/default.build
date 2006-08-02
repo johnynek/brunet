@@ -3,9 +3,11 @@
   <description> Builds DHCP files for IPOP-1.0 and IPOP-1.1. </description>
   <property name="debug" value="true" overwrite="false" />
   <property name="lib.dir" value="../../lib"/>
+  <property name="lib.name" value="DHCPCommon.dll"/>
   <property name="build.dir" value="build" />
   <target name="clean" description="Remove DHCPCommon.dll and DHCPServer.exe">
       <delete dir="${build.dir}" failonerror="true"/>
+      <delete file="${lib.dir}/${lib.name}.dll" failonerror="true"/>
   </target>
   <target name="build" description="Build DHCPCommon.dll and DHCPServer.exe">
       <mkdir dir="${build.dir}" failonerror="true"/>
@@ -23,8 +25,8 @@
 	  </references>
       </csc>
       <copy todir="${lib.dir}" failonerror="true">
-          <fileset basedir="${lib.dir}">
-	      <include name="${build.dir}/DHCPCommon.dll" />
+          <fileset basedir="${build.dir}">
+	      <include name="DHCPCommon.dll" />
 	  </fileset>
       </copy>
       <csc target="exe" output="${build.dir}/DHCPServer.exe">
