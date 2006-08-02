@@ -215,7 +215,7 @@ namespace Brunet
 
       _got_ctms = new ArrayList();
       _got_ctm = false;
-      _cmp = new ConnectionMessageParser();
+      _cmp = new ConnectionMessageParser(local);
       _sender = ps;
       _ctm = ctm;
       _co = co;
