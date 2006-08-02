@@ -44,13 +44,8 @@ namespace Brunet
     public Packet LastRPacket {
       get { return _last_r_packet; }
     }
-    protected DateTime _last_packet_datetime;
-    /**
-     * When was the last packet received or sent
-     */
-    public DateTime LastPacketDateTime {
-      get { return _last_packet_datetime; }
-    }
+    protected long _last_packet_datetime;
+    
     protected ConnectionMessage _last_r_mes;
     protected bool _sent_status;
     
@@ -110,10 +105,11 @@ namespace Brunet
     protected int _ms_timeout = DEFAULT_TIMEOUT;
     
     /**
-     * Holds a TimeSpan representing the current timeout, which
+     * Holds a long representing the current timeout, which
      * is a function of how many previous timeouts there have been
+     * This is measured in 100 ns ticks (What DateTime uses)
      */
-    protected TimeSpan _timeout;
+    protected long _timeout;
 
     /*
      * The enumerator holds the state of the current attempt
@@ -148,7 +144,7 @@ namespace Brunet
       _id = 1;
       _target_lock = null;
       _sent_status = false;
-      _timeout = new TimeSpan(0,0,0,0,_ms_timeout);
+      _timeout = TimeUtils.MsToNsTicks( _ms_timeout ); //_timeout is in 100 ns ticks
       _cmp = new ConnectionMessageParser();
       _ta = ta;
       _is_finished = false;
@@ -304,7 +300,7 @@ namespace Brunet
       _last_s_mes.Dir = ConnectionMessage.Direction.Request;
       _last_s_mes.Id = _id++;
       _last_s_packet = _last_s_mes.ToPacket();
-      _last_packet_datetime = DateTime.Now;
+      _last_packet_datetime = TimeUtils.NoisyNowTicks;
 #if LINK_DEBUG
       Console.WriteLine("LinkState: To send link request: {0}; Length: {1}", _last_s_mes, _last_s_packet.Length);
 #endif
@@ -474,9 +470,9 @@ namespace Brunet
       bool finish = false;
       try {
         lock( _sync ) {
-	  DateTime now = DateTime.Now;
+	  long now = TimeUtils.NoisyNowTicks;
           if( (! _is_finished) &&
-              (now - LastPacketDateTime > _timeout ) ) {
+              (now - _last_packet_datetime > _timeout ) ) {
             /*
              * It is time to check to see if we should resend, or move on
              */
@@ -489,7 +485,8 @@ namespace Brunet
             _last_packet_datetime = now;
 	    //Increase the timeout by a factor of 4
 	    _ms_timeout = _TIMEOUT_FACTOR * _ms_timeout;
-            _timeout = new TimeSpan(0,0,0,0,_ms_timeout);
+            //_timeout is in 100 ns ticks
+            _timeout = TimeUtils.MsToNsTicks( _ms_timeout );
             _timeouts++;
             }
             else if( _timeouts >= _MAX_TIMEOUTS ) {
@@ -542,7 +539,7 @@ namespace Brunet
         //They must be sane, or the above would have thrown exceptions
         _last_r_packet = cp;
         _last_r_mes = cm;
-        _last_packet_datetime = DateTime.Now;
+        _last_packet_datetime = TimeUtils.NoisyNowTicks;
 	  return null;
     }
   }
