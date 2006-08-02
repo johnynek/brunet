@@ -139,16 +139,25 @@ namespace Brunet
          */
         public abstract void Send(Brunet.Packet p);
 
-    public abstract DateTime LastOutPacketDateTime {
-      get;
-      }
-
-      protected DateTime _last_in_packet_datetime;
     /**
      * The DateTime of the last received packet
+     * This is not neccesarily more accurate than
+     * 500 milliseconds.  If you need something
+     * more accurate, you have to add it yourself
+     */
+    public abstract DateTime LastOutPacketDateTime {
+      get;
+    }
+
+    protected long _last_in_packet_datetime;
+    /**
+     * The DateTime of the last received packet
+     * This is not neccesarily more accurate than
+     * 500 milliseconds.  If you need something
+     * more accurate, you have to add it yourself
      */
     public virtual DateTime LastInPacketDateTime {
-    get { return _last_in_packet_datetime; }
+    get { return new DateTime(_last_in_packet_datetime); }
     }
 
     public abstract bool IsClosed
@@ -250,7 +259,7 @@ namespace Brunet
 #endif
       if ( _callbacks.ContainsKey(p.type) ) {
         IPacketHandler cb = (IPacketHandler)_callbacks[p.type];
-        _last_in_packet_datetime = DateTime.Now;
+        _last_in_packet_datetime = TimeUtils.NoisyNowTicks;
         cb.HandlePacket(p, this);
       }
       else {

@@ -91,8 +91,8 @@ namespace Brunet
       _send_cb = send_cb;
       inbound = is_in;
       _is_closed = false;
-      _last_out_packet_datetime = DateTime.Now;
-      _last_in_packet_datetime = DateTime.Now;
+      _last_out_packet_datetime = TimeUtils.NoisyNowTicks;
+      _last_in_packet_datetime = _last_out_packet_datetime;
       //This will update both the end point and the remote TA
       this.End = remote_end_point;
       _localta = new TransportAddress(TAType, (IPEndPoint) local_end_point);
@@ -121,9 +121,9 @@ namespace Brunet
       }
     }
 
-    protected DateTime _last_out_packet_datetime;
+    protected long _last_out_packet_datetime;
     public override DateTime LastOutPacketDateTime {
-      get { return _last_out_packet_datetime; }
+      get { return new DateTime(_last_out_packet_datetime); }
     }
 
     public override bool Equals(object o)
@@ -148,7 +148,7 @@ namespace Brunet
         throw new EdgeException("Tried to send on a closed socket"); 
       }
       _send_cb.HandlePacket(p, this);
-      _last_out_packet_datetime = DateTime.Now;
+      _last_out_packet_datetime = TimeUtils.NoisyNowTicks;
 #if UDP_DEBUG
       /**
          * logging of outgoing packets
