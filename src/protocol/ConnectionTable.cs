@@ -17,18 +17,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-/**
- * Dependencies
- * Brunet.Address
- * Brunet.AHAddress
- * Brunet.AHAddressComparer
- * Brunet.BrunetLogger
- * Brunet.ConnectionType
- * Brunet.ConnectionEventArgs
- * Brunet.Edge
- * Brunet.TransportAddress
- */
-
 //#define KML_DEBUG
 //#define LOCK_DEBUG
 
@@ -83,8 +71,14 @@ namespace Brunet
     }
 #endif
     protected Hashtable type_to_addlist;
-    protected Hashtable type_to_edgelist;
+    protected Hashtable type_to_conlist;
     protected Hashtable edge_to_con;
+
+    //We mostly deal with structured connections,
+    //so we keep a ref to the address list for sructured
+    //this is an optimization.
+    protected ArrayList _struct_addlist;
+    protected ArrayList _struct_conlist;
 
     protected ArrayList unconnected;
 
@@ -156,7 +150,7 @@ namespace Brunet
       lock( _sync ) {
         _local = local;
         type_to_addlist = new Hashtable();
-        type_to_edgelist = new Hashtable();
+        type_to_conlist = new Hashtable();
         edge_to_con = new Hashtable();
 
         unconnected = new ArrayList();
@@ -204,7 +198,7 @@ namespace Brunet
          * Here we actually do the storing:
          */
         ((ArrayList)type_to_addlist[t]).Insert(index, a);
-        ((ArrayList)type_to_edgelist[t]).Insert(index, e);
+        ((ArrayList)type_to_conlist[t]).Insert(index, c);
         edge_to_con[e] = c;
 
       } /* we release the lock */
@@ -276,12 +270,18 @@ namespace Brunet
     public int Count(ConnectionType t)
     {
       lock(_sync) {
-        object val = type_to_edgelist[t];
-        if( val == null ) {
-          return 0;
+        if( t == ConnectionType.Structured ) {
+          //Optimize the most common case to avoid the hashtable
+          return _struct_conlist.Count;
         }
         else {
-          return ((ArrayList)val).Count;
+          ArrayList list = (ArrayList)type_to_conlist[t];
+          if( list == null ) {
+            return 0;
+          }
+          else {
+            return list.Count;
+          }
         }
       }
     }
@@ -400,7 +400,14 @@ namespace Brunet
     {
       Connection c = null;
       lock(_sync ) {
-        ArrayList list = (ArrayList)type_to_edgelist[t];
+        ArrayList list;
+        if( t == ConnectionType.Structured ) {
+          //Optimize the most common case to avoid the hashtable
+          list = _struct_conlist;
+        }
+        else {
+          list = (ArrayList)type_to_conlist[t];
+        }
         int count = list.Count;
         if( count == 0 ) {
           return null;
@@ -409,8 +416,7 @@ namespace Brunet
         if( index < 0 ) {
           index += count;
         }
-        Edge e = (Edge)list[index];
-        c = GetConnection(e);
+        c = (Connection)list[index];
       }
       return c;
     }
@@ -533,8 +539,16 @@ namespace Brunet
     protected void Init(ConnectionType t)
     {
       lock(_sync) {
-        type_to_addlist[t] = new ArrayList();
-        type_to_edgelist[t] = new ArrayList();
+        if( t == ConnectionType.Structured ) {
+          _struct_addlist = new ArrayList(); 
+          _struct_conlist = new ArrayList(); 
+          type_to_addlist[t] = _struct_addlist;
+          type_to_conlist[t] = _struct_conlist;
+        }
+        else {
+          type_to_addlist[t] = new ArrayList();
+          type_to_conlist[t] = new ArrayList();
+        }
       }
     }
 
@@ -549,7 +563,15 @@ namespace Brunet
     {
       lock(_sync) {
         int index = 0;
-        if( Count(t) == 0 ) {
+        ArrayList add_list;
+        if( t == ConnectionType.Structured ) {
+          //Optimize the most common case to avoid the hashtable
+          add_list = _struct_addlist;
+        }
+        else {
+          add_list = (ArrayList)type_to_addlist[t];
+        }
+        if( add_list.Count == 0 ) {
           //This item would be the first in the list
           index = ~index;
         }
@@ -559,7 +581,6 @@ namespace Brunet
           * @throw an ArgumentNullException (ArgumentException)for the
           * the BinarySearch.
           */
-          ArrayList add_list = (ArrayList)type_to_addlist[t];
           index = add_list.BinarySearch(a);
         }
         return index;
@@ -674,13 +695,13 @@ namespace Brunet
     {
       lock(_sync) {
         //Get the edge we are removing:
-        Edge e = (Edge)((ArrayList)type_to_edgelist[t])[index];
+        Connection c = (Connection)((ArrayList)type_to_conlist[t])[index];
+        Edge e = c.Edge;
         //Remove the edge from the lists:
         ((ArrayList)type_to_addlist[t]).RemoveAt(index);
-        ((ArrayList)type_to_edgelist[t]).RemoveAt(index);
+        ((ArrayList)type_to_conlist[t]).RemoveAt(index);
         //Remove the edge from the tables:
         edge_to_con.Remove(e);
-
       }
     }
 
@@ -720,7 +741,7 @@ namespace Brunet
             }*/
         }
         sb.Append("\nType : Edge Table\n");
-        myEnumerator = type_to_edgelist.GetEnumerator();
+        myEnumerator = type_to_conlist.GetEnumerator();
         while (myEnumerator.MoveNext()) {
           sb.Append("Type: ");
           sb.Append(myEnumerator.Key.ToString() + "\n");
