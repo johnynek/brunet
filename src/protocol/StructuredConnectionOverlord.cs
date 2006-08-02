@@ -1097,44 +1097,93 @@ namespace Brunet {
     /**
      * Given an address, we see how many of our connections
      * are closer than this address to the left
+     * @todo provide unit tests for this method due to its importance
      */
     protected int LeftPosition(AHAddress addr)
     {
       AHAddress local = (AHAddress)_node.Address;
-      BigInteger addr_dist = local.LeftDistanceTo(addr);
       //Don't let the Table change while we do this:
       ConnectionTable tab = _node.ConnectionTable;
-      int closer_count = 0;
+      int dist = 0;
       lock( tab.SyncRoot ) {
-        foreach(Connection c in tab.GetConnections(ConnectionType.Structured)) {
-          AHAddress c_addr = (AHAddress)c.Address;
-	  if( local.LeftDistanceTo( c_addr ) < addr_dist ) {
-            closer_count++;
-	  }
-	}
+        int addr_idx = tab.IndexOf(ConnectionType.Structured, addr);
+        if( addr_idx < 0 ) {
+          //Here is where we would be:
+          addr_idx = ~addr_idx;
+        }
+        int local_idx = tab.IndexOf(ConnectionType.Structured, local);
+        if( local_idx < 0 ) {
+          //Here is where we would be:
+          local_idx = ~local_idx;
+        }
+        int count = tab.Count(ConnectionType.Structured);
+        //Measure the distance to the left: (increasing):
+        dist = addr_idx - local_idx;
+        if( dist < 0 ) {
+          //Handle the wrap around:
+          dist += count;
+        }
+        else if( dist == 0 ) {
+          //If both addresses are not present, we can
+          //get dist=0 when we mean dist = count.
+          if( local.CompareTo(addr) > 0 ) {
+            //We are actually to the left of the node,
+            //so, we need to adjust the distance:
+            dist = count;
+          }
+        }
       }
-      return closer_count;
+      return dist;
     }
     /**
      * Given an address, we see how many of our connections
      * are closer than this address to the right.
+     * This one is tricker due to the fact that we have to account
+     * for the fact that the way insertion works (we have to add 1 or
+     * subtract 1 in some cases).
+     * @todo provide unit tests for this method due to its importance
      */
     protected int RightPosition(AHAddress addr)
     {
       AHAddress local = (AHAddress)_node.Address;
-      BigInteger addr_dist = local.RightDistanceTo(addr);
       //Don't let the Table change while we do this:
       ConnectionTable tab = _node.ConnectionTable;
-      int closer_count = 0;
+      int dist = 0;
       lock( tab.SyncRoot ) {
-        foreach(Connection c in tab.GetConnections(ConnectionType.Structured)) {
-          AHAddress c_addr = (AHAddress)c.Address;
-	  if( local.RightDistanceTo( c_addr ) < addr_dist ) {
-            closer_count++;
-	  }
-	}
+        int addr_idx = tab.IndexOf(ConnectionType.Structured, addr);
+        if( addr_idx < 0 ) {
+          //Here is where we would be:
+          addr_idx = ~addr_idx;
+          /*
+           * We have to be extra careful to compare local to
+           */
+          dist = 1;
+        }
+        int local_idx = tab.IndexOf(ConnectionType.Structured, local);
+        if( local_idx < 0 ) {
+          //Here is where we would be:
+          local_idx = ~local_idx;
+        }
+        int count = tab.Count(ConnectionType.Structured);
+        //Measure the distance to the right: (decreasing):
+        //Since the insertion would happen one unit after an existing
+        //address, we must subtract 1 here:
+        dist = local_idx - addr_idx - 1;
+        if( dist < 0 ) {
+          //Handle the wrap around:
+          dist += count;
+        }
+        else if( dist == 0 ) {
+          //If both addresses are not present, we can
+          //get dist=0 when we mean dist = count.
+          if( local.CompareTo(addr) < 0 ) {
+            //We are actually to the right of the node,
+            //so, we need to adjust the distance:
+            dist = count;
+          }
+        }
       }
-      return closer_count;
+      return dist;
     }
     
   }
