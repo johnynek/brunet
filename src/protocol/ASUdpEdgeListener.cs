@@ -171,6 +171,13 @@ namespace Brunet
       try {
         s.EndSendTo(asr);
       }
+      catch(System.ObjectDisposedException odx) {
+        //If we are no longer running, this is to be expected.
+        if( _running ) {
+          //If we are running print it out
+          Console.Error.WriteLine("{0}", odx);
+        }
+      }
       catch(Exception x) {
         Console.Error.WriteLine("{0}", x);
       }
@@ -244,6 +251,13 @@ namespace Brunet
 	/*
 	 * We have finished reading the packet, now read the next one
 	 */
+      }
+      catch(System.ObjectDisposedException odx) {
+        //If we are no longer running, this is to be expected.
+        if( _running ) {
+          //If we are running print it out
+          Console.Error.WriteLine("{0}", odx);
+        }
       }
       catch(Exception x) {
         System.Console.Error.WriteLine("Exception: {0}",x);
@@ -320,6 +334,13 @@ namespace Brunet
       try {
         //int sent = 
         s.EndSendTo(asr);
+      }
+      catch(System.ObjectDisposedException odx) {
+        //If we are no longer running, this is to be expected.
+        if( _running ) {
+          //If we are running print it out
+          Console.Error.WriteLine("{0}", odx);
+        }
       }
       catch(Exception x) {
         /*

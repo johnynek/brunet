@@ -37,7 +37,7 @@ namespace Brunet
 
     protected ConnectionTable _tab;
     public ConnectionTable ConnectionTable { set { _tab = value; } }
-    
+    protected static readonly int _MAX_UPHILL_HOPS = 1; 
     /**
      * The type of address this class routes
      */
@@ -144,15 +144,18 @@ namespace Brunet
             Connection closest_con;
             Connection other_con;
             BigInteger closest_dist;
+            BigInteger other_dist;
             if( l_dist < r_dist ) {
               closest_con = left_n;
               other_con = right_n;
               closest_dist = l_dist;
+              other_dist = r_dist;
             }
             else {
               closest_con = right_n;
               other_con = left_n;
               closest_dist = r_dist;
+              other_dist = l_dist;
             }
             BigInteger our_dist = dest.DistanceTo(_local).abs();
             /**
@@ -201,6 +204,9 @@ namespace Brunet
               if( d_con == o_con ) {
                 /*
                  * We share a common left neighbor, so we should deliver locally
+                 * This is the only case where we should deliver locally,
+                 * otherwise there is at least one node on either side of the
+                 * target, so one of them should probably get the packet.
                  */
                 deliverlocally = true;
                 //The next step should be the node on the "other side"
@@ -215,45 +221,86 @@ namespace Brunet
                   next_con = null;
                 }
               }
-              else {
+              else if ( p.Hops == 0 ) {
                 /*
-                 * We are not a neighbor of the destination (according to our table)
+                 * This is the case that we sent the packet, and we are not
+                 * a neighbor of the packet (the previous case)
+                 * So, the closest_con must be good since we are the source
                  */
-                deliverlocally = false;
-                if( closest_con.Edge == prev_e ) {
+                next_con = closest_con;
+              }
+              else if (p.Hops <= _MAX_UPHILL_HOPS ) {
+                /*
+                 * We will allow the packet to go uphill (get further from the source)
+                 * at first, but this has to stop in order to prevent loops
+                 *
+                 * This may help the network form in the massive join case, or under
+                 * heavy churn. @todo analyze approaches for improving stabilization
+                 * in massively disordered cases.
+                 */
+                if( closest_con.Edge != prev_e ) {
+                  //Awesome.  This is an easy case...
+                  next_con = closest_con;
+                }
+                else {
+                  /*
+                   * Look at the two next closest and choose the minimum distance of
+                   * the three
+                   */
+                  int sc_idx = -1;
+                  if( closest_con == right_n ) {
+                    //move one over
+                    sc_idx = right_idx - 1;
+                  }
+                  else {
+                    //Must be the left:
+                    sc_idx = left_idx + 1;
+                  }
+                  Connection second_closest = _tab.GetConnection(ConnectionType.Structured,
+                                                                 sc_idx);
+                  BigInteger second_dist =
+                                 dest.DistanceTo( (AHAddress)second_closest.Address).abs();
+                  if( second_dist < other_dist ) {
+                    other_con = second_closest;
+                  }
                   if( other_con.Edge != prev_e ) {
+                    //If we only have one neighbor,
+                    //other and closest might be the same
                     next_con = other_con;
                   }
                   else {
-                    /*
-                     * Both other_con and closest_con are the same: the previous edge
-                     * This is the case of there being only one neighbor
-                     */
+                    //We just can't win...
                     next_con = null;
                   }
                 }
-                else {
-                  next_con = closest_con;
+              }
+              else {
+                /*
+                 * This is the case where we are not a neighbor of the destination
+                 * according to our table, and the packet has taken at least 2 hops.
+                 */
+                deliverlocally = false;
+                if( ( closest_con.Edge == prev_e ) 
+                    && ( other_con.Edge != prev_e ) ) {
+                  closest_dist = other_dist;
+                  closest_con = other_con;
                 }
                 Connection prev = _tab.GetConnection(prev_e);
-                BigInteger prev_dist = Address.Full;
                 if( prev != null ) {
-                  prev_dist = dest.DistanceTo( (AHAddress)prev.Address ).abs();
-                }
-                
-                if( p.Hops <= 1 || closest_dist < prev_dist ) {
-                  /*
-                   * If the Hops <= 1, then this is the zeroth or first hop.
-                   * We will let it get further for one step, it might help
-                   * us when the ring is disordered
-                   *
-                   * Note: we have already set up next_con, so this is
-                   * just a comment, no code is in this block.
-                   */
+                  BigInteger prev_dist = dest.DistanceTo( (AHAddress)prev.Address ).abs();
+                  if( closest_dist >= prev_dist ) {
+                    //Don't send it if you can't get it closer than it was before
+                    next_con = null;
+                  }
+                  else {
+                    next_con = closest_con;
+                  }
                 }
                 else {
-                  //Don't send it if you can't get it closer than it was before
-                  next_con = null;
+                  //This is the case that we don't have a connection
+                  //on the Edge the packet came from, this shouldn't happen,
+                  //but it is not a disaster.
+                  next_con = closest_con;
                 }
               }//End of non-neareast neighbor case
             }//End of Annealing case
