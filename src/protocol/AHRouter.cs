@@ -28,20 +28,50 @@ namespace Brunet
    */
   public class AHRouter : IRouter
   {
+    protected class CachedRoute {
+      public Connection Route;
+      public AHAddress Destination;
+      public bool DeliverLocally;
 
+      public CachedRoute(AHAddress dest, Connection route, bool send_local) {
+        Route = route;
+        Destination = dest;
+        DeliverLocally = send_local;
+      }
+    }
+    
+    protected Cache _route_cache;
     public AHRouter(AHAddress local)
     {
-      _local = local; 
+      _local = local;
+      /*
+       * Store the 1000 most commonly used routes.
+       * Since this may cause us to keep an extra 1000
+       * AHAddress objects in memory, each of which requires
+       * about 20 bytes, this costs on the order of 10-100 KB
+       */
+      _route_cache = new Cache(1000);
     }
     protected AHAddress _local;
 
     protected ConnectionTable _tab;
-    public ConnectionTable ConnectionTable { set { _tab = value; } }
+    public ConnectionTable ConnectionTable {
+      set {
+        if( _tab != null ) {
+          //Clear the old events:
+          _tab.ConnectionEvent -= this.ConnectionTableChangeHandler;
+          _tab.DisconnectionEvent -= this.ConnectionTableChangeHandler;
+        }
+        _tab = value;
+        _tab.ConnectionEvent += this.ConnectionTableChangeHandler;
+        _tab.DisconnectionEvent += this.ConnectionTableChangeHandler;
+      }
+    }
     protected static readonly int _MAX_UPHILL_HOPS = 1; 
     /**
      * The type of address this class routes
      */
-    public System.Type RoutedAddressType { get { return typeof(AHAddress); } }
+    public System.Collections.IEnumerable RoutedAddressClasses { get { return new int[]{0}; } }
    
     /**
      * Route the packet p which came from edge e, and set
@@ -102,11 +132,18 @@ namespace Brunet
           //We check this below.
 	}
       }
+      CachedRoute cr = (CachedRoute)_route_cache[dest];
+      if( cr != null ) {
+        //Awesome, we already know the path to this node.
+        //This cuts down on latency
+        next_con = cr.Route;
+        deliverlocally = cr.DeliverLocally;
+      }
+      else {
       /*
        * else we know p.Hops < p.Ttl, we can route:
        * We now need to check the ConnectionTable
        */
-      
       /* Don't let the routing table change */
       lock( _tab.SyncRoot ) {
 	next_con = _tab.GetConnection(ConnectionType.Leaf, dest);
@@ -309,8 +346,9 @@ namespace Brunet
 	else {
           //We can route directly to the destination.
 	}
-      }//End of ConnectionTable lock
-          
+       }//End of ConnectionTable lock
+       _route_cache[dest] = new CachedRoute(dest, next_con, deliverlocally);
+      }//End of cache check   
       //Here are the other modes:
       if( p.HasOption( AHPacket.AHOptions.Last ) ) {
         if( next_con == null ) {
@@ -360,6 +398,14 @@ namespace Brunet
 	return -1;
       }
     }
+
+    /**
+     * When the ConnectionTable changes, our cached routes are all trash
+     */
+    protected void ConnectionTableChangeHandler(object o, System.EventArgs args) {
+      _route_cache.Clear();
+    }
+
   }
 	
 }

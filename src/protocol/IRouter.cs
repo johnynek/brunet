@@ -18,15 +18,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-/**
- * Dependencies : 
- * Brunet.Address
- * Brunet.AHPacket
- * Brunet.Edge
- * Brunet.ConnectionType
- * Brunet.ConnectionTable
- */
-
 namespace Brunet
 {
 
@@ -42,23 +33,23 @@ namespace Brunet
     /**
      * @return the Type of the Address this router supports 
      */
-    System.Type RoutedAddressType
+    System.Collections.IEnumerable RoutedAddressClasses
     {
       get;
-      }
+    }
 
-      ConnectionTable ConnectionTable
-      {
-        set;
-        }
+    ConnectionTable ConnectionTable
+    {
+      set;
+    }
 
-        /**
-         * @param p the AHPacket to route
-         * @param from The edge the packet came from
-         * @param deliverlocally set to true if the local node should Announce it
-         * @return the number of edges the packet it Sent on.
-         */
-        int Route(Edge from, AHPacket p, out bool deliverlocally);
+    /**
+     * @param p the AHPacket to route
+     * @param from The edge the packet came from
+     * @param deliverlocally set to true if the local node should Announce it
+     * @return the number of edges the packet it Sent on.
+     */
+    int Route(Edge from, AHPacket p, out bool deliverlocally);
   }
 
 }
