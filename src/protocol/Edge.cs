@@ -51,7 +51,7 @@ namespace Brunet
 
     public Edge()
     {
-      _callbacks = new Hashtable();
+      _callbacks = new IPacketHandler[ Byte.MaxValue ];
       _have_fired_close = false;
     }
     /**
@@ -71,7 +71,9 @@ namespace Brunet
      */
     public virtual void Close()
     {
-      _callbacks.Clear(); 
+      for(int i = 0; i < _callbacks.Length; i++) {
+        _callbacks[i] = null;
+      }
       if (! _have_fired_close ) {
         //log.Warn("EdgeClose: edge: " + ToString());
 #if POB_DEBUG
@@ -104,9 +106,9 @@ namespace Brunet
     public virtual bool LocalTANotEphemeral { get { return false; } }
       /**
        * For each Packet.ProtType, there may be a callback set
-       * for it.  This Hashtable holds that mapping.
+       * for it.  This list holds that mapping.
        */
-      protected Hashtable _callbacks;
+      protected IPacketHandler[] _callbacks;
     /**
      * When an edge is closed (either due to the Close method
      * being called or due to some error during the receive loop)
@@ -175,7 +177,7 @@ namespace Brunet
 
         public virtual void ClearCallback(Packet.ProtType t)
       {
-        _callbacks.Remove(t);
+        _callbacks[(byte)t] = null;
       }
 
     public int CompareTo(object e)
@@ -257,8 +259,8 @@ namespace Brunet
         //log.Error("Error: Packet is Null");
       }
 #endif
-      if ( _callbacks.ContainsKey(p.type) ) {
-        IPacketHandler cb = (IPacketHandler)_callbacks[p.type];
+      IPacketHandler cb = _callbacks[(byte)p.type];
+      if ( cb != null ) {
         _last_in_packet_datetime = TimeUtils.NoisyNowTicks;
         cb.HandlePacket(p, this);
       }
@@ -280,7 +282,7 @@ namespace Brunet
      */
     public virtual void SetCallback(Packet.ProtType t, IPacketHandler cb)
     {
-      _callbacks[t] = cb;
+      _callbacks[(byte)t] = cb;
     }
     /**
      * Prints the local address, the direction and the remote address

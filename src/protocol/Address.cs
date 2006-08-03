@@ -178,18 +178,32 @@ namespace Brunet
         return false;
       }
     }
-
+    protected bool _computed_hash = false;
+    protected int _hc;
+#if false
     public override int GetHashCode()
     {
-      int ArrLength = MemSize / 4;
-      //MemSize is the number of bytes and there are four bytes to an int
-      int hash = 0;
-      for (int i = 0; i < ArrLength; i++) {
-        hash ^= NumberSerializer.ReadInt(buffer, i * 4);
+      if( !_computed_hash ) {
+        int ArrLength = MemSize / 4;
+        //MemSize is the number of bytes and there are four bytes to an int
+        int hash = 0;
+        for (int i = 0; i < ArrLength; i++) {
+          hash ^= NumberSerializer.ReadInt(buffer, i * 4);
+        }
+        _hc = hash;
+        _computed_hash = true;
       }
-      return hash;
+      return _hc;
     }
-
+#endif
+    //The first int in the buffer should be good enough
+    public override int GetHashCode() {
+      if( !_computed_hash ) {
+        _hc = System.BitConverter.ToInt32(buffer, 0); 
+        _computed_hash = true;
+      }
+      return _hc;
+    }
     protected static BigInteger _half;
     /**
      * Half is 2^159
