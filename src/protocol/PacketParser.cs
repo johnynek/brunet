@@ -59,11 +59,11 @@ namespace Brunet
       Packet p;
 
       switch (ptype) {
-      case Packet.ProtType.Connection:
-        p = new ConnectionPacket(binpack, off, length);
-        break;
       case Packet.ProtType.AH:
         p = new AHPacket(binpack, off, length);
+        break;
+      case Packet.ProtType.Connection:
+        p = new ConnectionPacket(binpack, off, length);
         break;
       case Packet.ProtType.Direct:
 	//the new packet type that we have added into the system

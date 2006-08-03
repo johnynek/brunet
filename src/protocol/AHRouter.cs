@@ -157,7 +157,6 @@ namespace Brunet
               closest_dist = r_dist;
               other_dist = l_dist;
             }
-            BigInteger our_dist = dest.DistanceTo(_local).abs();
             /**
              * Here we consider the various routing modes
              */
@@ -165,6 +164,7 @@ namespace Brunet
               /*
                * We pass it ONLY IF we can get it closer than we are.
                */
+              BigInteger our_dist = dest.DistanceTo(_local).abs();
               if( closest_dist < our_dist ) {
                 if( closest_con.Edge != prev_e ) {
 	          next_con = closest_con;

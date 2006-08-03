@@ -100,7 +100,7 @@ namespace Brunet {
    *  structured connections between pairs of highly communicating nodes.
    *  Chota - in Hindi means small. 
    */
-  public class ChotaConnectionOverlord : ConnectionOverlord {
+  public class ChotaConnectionOverlord : ConnectionOverlord, IAHPacketHandler {
     //the node we are attached to
     protected Node _node;
 
@@ -165,13 +165,9 @@ namespace Brunet {
 
 	// we assess trimming/growing situation on every heart beat
         _node.HeartBeatEvent += new EventHandler(this.CheckState);
-	_node.SendPacketEvent += new EventHandler(this.UpdateTable);
-	
+        _node.SubscribeToSends(AHPacket.Protocol.IP, this);
 	//subscribe the ip_handler to IP packets
-	_node.Subscribe(AHPacket.Protocol.IP, _ip_handler);
-	
-	//also register the event handler
-	_ip_handler.ReceivePacketEvent += new EventHandler(this.ReceivePacketHandler);
+	_node.Subscribe(AHPacket.Protocol.IP, this);
       }
 #if ARI_EXP_DEBUG
       Console.WriteLine("ChotaConnectionOverlord starting : {0}", DateTime.Now);
@@ -360,15 +356,27 @@ namespace Brunet {
                             ctm_resp.ConnectionType);
       _node.TaskQueue.Enqueue( l );
     }
-
+    /**
+     * Here is how we handle Send subscriptions
+     */
+    public void HandleAHPacket(object node, AHPacket p, Edge from) {
+      if( from == null ) {
+        /*
+         * This is a Send, or a packet that came from us
+         */
+        UpdateTable((Node)node, p);
+      }
+      else {
+        //This is an incoming packet
+        ReceivePacketHandler(p);
+      }
+    }
     /**
      * Everytime we the node sends a packet out this method is invoked. 
      * Since multiple invocations may exist, take care of synchronization. 
      */
-    public void UpdateTable(object node, EventArgs eargs) {
+    public void UpdateTable(Node node, AHPacket p) {
       //update information in the connection table.
-      SendPacketEventArgs speargs = (SendPacketEventArgs) eargs;
-      AHPacket p  = speargs.Packet as AHPacket;
       if (p == null) {
 	return;
       }
@@ -530,11 +538,8 @@ namespace Brunet {
      * All this does is to update the ChotaConnectionState "bidirectional connectivity"
      * flag.
      */
-    public void ReceivePacketHandler(object node, EventArgs eargs) {
+    public void ReceivePacketHandler(AHPacket p) {
       //update information in chota_connection_state.
-      SendPacketEventArgs speargs = (SendPacketEventArgs) eargs;
-      AHPacket p  = speargs.Packet as AHPacket;
-
 
 #if ARI_CHOTA_DEBUG
       Console.WriteLine("Got an IP packet from src: {0} ", p.Source);

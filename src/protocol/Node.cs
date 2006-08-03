@@ -81,6 +81,7 @@ namespace Brunet
          */
         _local_add = add;
         _subscription_table = new Hashtable();
+        _send_subs = new Hashtable();
 
         _task_queue = new TaskQueue();
         _connection_table = new ConnectionTable(_local_add);
@@ -118,6 +119,10 @@ namespace Brunet
      * of certain packets.
      */
     protected Hashtable _subscription_table;
+    /**
+     * Same thing as the above, except for sends
+     */
+    protected Hashtable _send_subs;
 
     /**
      * This object handles new Edge objects, and
@@ -252,9 +257,6 @@ namespace Brunet
 
     ///after each HeartPeriod, the HeartBeat event is fired
     public event EventHandler HeartBeatEvent;
-
-    /// on each packet send we raise this event
-    public event EventHandler SendPacketEvent;
 
     public virtual void AddEdgeListener(EdgeListener el)
     {
@@ -443,11 +445,8 @@ namespace Brunet
     protected virtual IRouter GetRouterForType(System.Type t)
     {
       lock(_sync) {
-        IRouter router = null;
-        if (_routers.Contains(t)) {
-          router = (IRouter) _routers[t];
-        }
-        else {
+        IRouter router = (IRouter)_routers[t];
+        if(router == null) {
           //Look for subclasses
           IDictionaryEnumerator myEnumerator =
             _routers.GetEnumerator();
@@ -839,8 +838,19 @@ namespace Brunet
       }
 
 
-      if (SendPacketEvent != null) {
-	SendPacketEvent(this, new SendPacketEventArgs(p));
+      //Like Announce:
+      AHPacket ahp = p as AHPacket;
+      if( ahp != null ) {
+        ArrayList handlers = null;
+        lock( _sync ) {
+          handlers = (ArrayList)_send_subs[ahp.PayloadType];
+        }
+        if( handlers != null ) {
+          foreach(IAHPacketHandler hand in handlers) {
+            //System.Console.WriteLine("Handler: {0}", hand);
+            hand.HandleAHPacket(this, ahp, null);
+          }
+        }
       }
     }
 
@@ -909,6 +919,29 @@ namespace Brunet
         _subscription_table[prot] = a;
       }
     }
+    /**
+     * Subscribe to outgoing packets.  Use Subscribe to get incoming
+     * packets
+     */
+    virtual public void SubscribeToSends(string prot, IAHPacketHandler hand)
+    {
+      lock(_sync) {
+        ArrayList a = (ArrayList)_send_subs[prot];
+        /*
+         * We COPY the list because otherwise, one thread
+         * could be in announce, and then try to modify
+         * the list.  This would invalidate iterators in Announce
+         */
+        if (a == null) {
+          a = new ArrayList();
+        }
+        else {
+          a = new ArrayList();
+        }
+        a.Add(hand);
+        _send_subs[prot] = a;
+      }
+    }
 
     /**
      * This handler is going to stop listening
@@ -917,9 +950,27 @@ namespace Brunet
     {
       lock(_sync) {
         if (_subscription_table.Contains(prot)) {
+          //Make a copy to make sure there are no thread safety issues
+          //with any Announces that might be going on.
           ArrayList a = new ArrayList( (ArrayList) _subscription_table[prot] );
           a.Remove(hand);
           _subscription_table[prot] = a;
+        }
+      }
+    }
+    /**
+     * This handler is going to stop listening to sends of a given
+     * type
+     */
+    virtual public void UnsubscribeToSends(string prot, IAHPacketHandler hand)
+    {
+      lock(_sync) {
+        ArrayList a = (ArrayList)_send_subs[prot];
+        if ( a != null) {
+          //Make a copy for thread safety
+          a = new ArrayList(a);
+          a.Remove(hand);
+          _send_subs[prot] = a;
         }
       }
     }
