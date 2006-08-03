@@ -47,12 +47,12 @@ namespace Brunet
     {
 
     }
-
-    public System.Type RoutedAddressType
+    
+    public IEnumerable RoutedAddressClasses
     {
       get
       {
-        return typeof(RwpAddress);
+        return new int[]{ 126 };
       }
     }
 

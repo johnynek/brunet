@@ -50,11 +50,11 @@ namespace Brunet
       _local = a;
     }
 
-    public System.Type RoutedAddressType
+    public IEnumerable RoutedAddressClasses
     {
       get
       {
-        return typeof(DirectionalAddress);
+        return new int[]{ 124 };
       }
     }
 

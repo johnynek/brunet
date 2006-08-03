@@ -103,7 +103,7 @@ namespace Brunet
         _edgelistener_list = ArrayList.Synchronized( new ArrayList() );
         _edge_factory = new EdgeFactory();
         //Put all the Routers in :
-        _routers = new Hashtable();
+        _routers = new IRouter[ 161 ];
         /* Set up the heartbeat */
         _heart_period = 2000; //2000 ms, or 2 second.
         _timer = new Timer(new TimerCallback(this.HeartBeatCallback),
@@ -209,7 +209,7 @@ namespace Brunet
     /**
      * Holds the Router for each Address type
      */
-    protected Hashtable _routers;
+    protected IRouter[] _routers;
 
     /** Object which we lock for thread safety */
     protected Object _sync;
@@ -439,25 +439,12 @@ namespace Brunet
     }
 
     /**
-     * @param t The type of address we need a router for
+     * @param a The address we need a router for
      * @return null if there is no such router, otherwise a router
      */
-    protected virtual IRouter GetRouterForType(System.Type t)
+    protected virtual IRouter GetRouterFor(Address a)
     {
-      lock(_sync) {
-        IRouter router = (IRouter)_routers[t];
-        if(router == null) {
-          //Look for subclasses
-          IDictionaryEnumerator myEnumerator =
-            _routers.GetEnumerator();
-          while (myEnumerator.MoveNext() && router == null) {
-            if (t.IsSubclassOf((System.Type) myEnumerator.Key)) {
-              router = (IRouter) myEnumerator.Value;
-            }
-          }
-        }
-        return router;
-      }
+      return (IRouter)_routers[a.Class];
     }
 
     /**
@@ -767,7 +754,7 @@ namespace Brunet
 
       AHPacket packet = (AHPacket) p;
       Address dest = packet.Destination;
-      IRouter router = GetRouterForType(dest.GetType());
+      IRouter router = GetRouterFor(dest);
       
       bool deliver_locally = false;
 
@@ -894,8 +881,10 @@ namespace Brunet
     {
       lock(_sync) {
         foreach(IRouter r in routers) {
-          _routers[r.RoutedAddressType] = r;
-          r.ConnectionTable = _connection_table;
+          foreach(int addclass in r.RoutedAddressClasses) {
+            _routers[addclass] = r;
+            r.ConnectionTable = _connection_table;
+          }
         }
       }
     }

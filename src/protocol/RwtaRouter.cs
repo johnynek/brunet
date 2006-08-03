@@ -49,11 +49,11 @@ namespace Brunet
 
     }
 
-    public System.Type RoutedAddressType
+    public IEnumerable RoutedAddressClasses
     {
       get
       {
-        return typeof(RwtaAddress);
+        return new int[]{ 159 };
       }
     }
 
