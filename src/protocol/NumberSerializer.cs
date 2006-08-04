@@ -392,6 +392,25 @@ namespace Brunet
         WriteLong(val, buffer, 0);
         Assert.AreEqual( val, ReadLong( buffer, 0) );
       }
+      /*
+       * Round tripping is great, but we still might have some
+       * brain damage: we could be cancel out the error when reading
+       * the data back in.
+       */
+      Assert.AreEqual( (short)511, ReadShort(new byte[]{1, 255}, 0) );
+      Assert.AreEqual( (short)511,
+           ReadShort(new MemoryStream(new byte[]{1, 255}) ) );
+      Assert.AreEqual( (short)1535, ReadShort(new byte[]{5, 255}, 0) );
+      Assert.AreEqual( (short)1535,
+            ReadShort(new MemoryStream(new byte[]{5, 255}) ) );
+      Assert.AreEqual( 43046721,
+                       ReadInt( new byte[]{2,144,215,65}, 0 ) );
+      Assert.AreEqual( 43046721,
+            ReadInt(new MemoryStream(new byte[]{2,144,215,65}) ) );
+      Assert.AreEqual( 59296646043258912L,
+       ReadLong( new byte[]{0,210,169,252,67,199,208,32}, 0 ) );
+      Assert.AreEqual( 59296646043258912L,
+       ReadLong( new MemoryStream(new byte[]{0,210,169,252,67,199,208,32}) ) );
     }
 #endif
 
