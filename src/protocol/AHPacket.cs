@@ -18,16 +18,12 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-/*
- * Dependencies : 
- * Brunet.Address;
- * Brunet.AddressParser;
- * Brunet.Packet;
- * Brunet.NumberSerializer;
- */
-
 using System;
 using System.IO;
+#if BRUNET_NUNIT
+using NUnit.Framework;
+using System.Security.Cryptography;
+#endif
 
 namespace Brunet
 {
@@ -45,8 +41,7 @@ namespace Brunet
     public static readonly short MaxTtl = (short) 32767;
 
 
-    protected byte[] _payload;
-
+    protected byte[] _buffer;
     /**
      * @param s Stream to read the AHPacket from
      * @param length the lenght of the packet
@@ -56,59 +51,41 @@ namespace Brunet
       if( s.Length < length ) {
         throw new ArgumentException("Cannot read AHPacket from Stream");
       }
-      byte[] buf = new byte[length];
-      s.Read(buf, 0, length);
+      _buffer = new byte[length];
+      s.Read(_buffer, 0, length);
       int offset = 0; 
       //Now this is exactly the same code as below:
-      int off = offset;
-      if (buf[offset] != (byte)Packet.ProtType.AH ) {
+      if (_buffer[offset] != (byte)Packet.ProtType.AH ) {
         throw new System.
-        ArgumentException("Packet is not an AHPacket: " + buf[offset].ToString());
+        ArgumentException("Packet is not an AHPacket: " + _buffer[offset].ToString());
       }
       offset += 1;
-      _hops = NumberSerializer.ReadShort(buf, offset);
+      _hops = NumberSerializer.ReadShort(_buffer, offset);
       offset += 2;
-      _ttl = NumberSerializer.ReadShort(buf, offset);
+      _ttl = NumberSerializer.ReadShort(_buffer, offset);
       offset += 2;
-      _source = AddressParser.Parse(buf, offset);
-      offset += 20;
-      _destination = AddressParser.Parse(buf, offset);
-      offset += 20;
-      _options = (ushort)NumberSerializer.ReadShort(buf, offset);
-      offset += 2;
-      int len = 0;
-      _pt = NumberSerializer.ReadString(buf, offset, out len);
-      offset += len;
-      int headersize = offset - off;
-      int payload_len = length - headersize;
-      _payload = new byte[payload_len];
-      Array.Copy(buf, offset, _payload, 0, payload_len);
+      //Skip the addresses
+      offset += 40;
+      _options = (ushort)NumberSerializer.ReadShort(_buffer, offset);
     }
-    public AHPacket(byte[] buf, int offset, int length)
+    public AHPacket(byte[] buf, int off, int length)
     {
-      int off = offset;
-      if (buf[offset] != (byte)Packet.ProtType.AH ) {
+      //Now this is exactly the same code as below:
+      if (buf[off] != (byte)Packet.ProtType.AH ) {
         throw new System.
-        ArgumentException("Packet is not an AHPacket");
+        ArgumentException("Packet is not an AHPacket: " + buf[off].ToString());
       }
+      _buffer = new byte[length];
+      Array.Copy(buf, off, _buffer, 0, length);
+      int offset = 0; 
       offset += 1;
-      _hops = NumberSerializer.ReadShort(buf, offset);
+      _hops = NumberSerializer.ReadShort(_buffer, offset);
       offset += 2;
-      _ttl = NumberSerializer.ReadShort(buf, offset);
+      _ttl = NumberSerializer.ReadShort(_buffer, offset);
       offset += 2;
-      _source = AddressParser.Parse(buf, offset);
-      offset += 20;
-      _destination = AddressParser.Parse(buf, offset);
-      offset += 20;
-      _options = (ushort)NumberSerializer.ReadShort(buf, offset);
-      offset += 2;
-      int len = 0;
-      _pt = NumberSerializer.ReadString(buf, offset, out len);
-      offset += len;
-      int headersize = offset - off;
-      int payload_len = length - headersize;
-      _payload = new byte[payload_len];
-      Array.Copy(buf, offset, _payload, 0, payload_len);
+      //Skip the addresses
+      offset += 40;
+      _options = (ushort)NumberSerializer.ReadShort(_buffer, offset);
     }
 
     public AHPacket(byte[] buf, int length):this(buf, 0, length)
@@ -118,6 +95,16 @@ namespace Brunet
     public AHPacket(byte[] buf):this(buf, 0, buf.Length)
     {
     }
+
+    private bool _buf_hops_is_correct = true;
+    /*
+     * This is a constructor that allows a Packets to share
+     * buffers.  The only field that is allowed to be incorrect
+     * is the hops field (the only field that changes as a packet
+     * moves).  All the rest must be the same as what was deserialized
+     * from the buffer (otherwise you'll have problems).
+     */
+    private AHPacket() { }
 
     /**
      * @param hops Hops for this packet
@@ -147,7 +134,7 @@ namespace Brunet
      * @param destination Destination Address for this packet
      * @param payload_prot AHPacket.Protocol of the Payload
      * @param payload buffer holding the payload
-     * @param off Offset to the zeroth byte of payload
+     * @param poff Offset to the zeroth byte of payload
      * @param len Length of the payload
      */
     public AHPacket(short hops,
@@ -156,7 +143,7 @@ namespace Brunet
                     Address destination,
 		    ushort options,
                     string payload_prot,
-                    byte[] payload, int off, int len)
+                    byte[] payload, int poff, int len)
     {
       _hops = hops;
       _ttl = ttl;
@@ -169,8 +156,23 @@ namespace Brunet
         _options = options;
       }
       _pt = payload_prot;
-      _payload = new byte[len];
-      Array.Copy(payload, off, _payload, 0, len);
+      int total_size = 47 + NumberSerializer.GetByteCount(_pt) + len;
+      _buffer = new byte[ total_size ]; 
+      int off = 0;
+      _buffer[off] = (byte)Packet.ProtType.AH;
+      off += 1;
+      NumberSerializer.WriteShort(_hops, _buffer, off);
+      off += 2;
+      NumberSerializer.WriteShort(_ttl, _buffer, off);
+      off += 2;
+      _source.CopyTo(_buffer, off);
+      off += 20;
+      _destination.CopyTo(_buffer, off);
+      off += 20;
+      NumberSerializer.WriteShort((short)_options, _buffer, off);
+      off += 2;
+      off += NumberSerializer.WriteString(_pt, _buffer, off);
+      Array.Copy(payload, poff, _buffer, off, len);
     }
     /**
      * Same as similar constructor with offset and len, only
@@ -202,33 +204,9 @@ namespace Brunet
                                            payload.Length) {
 
     }
-    /**
-     * Makes a new packet with a new header but the same payload
-     * without copying the Payload, just a reference to the payload
-     */
-    public AHPacket(short hops,
-                    short ttl,
-                    Address source,
-                    Address destination,
-		    ushort options,
-                    AHPacket p) {
-      _hops = hops;
-      _ttl = ttl;
-      _source = source;
-      _destination = destination;
-      if( options == AHOptions.AddClassDefault ) {
-        _options = GetDefaultOption( _destination );
-      }
-      else {
-        _options = options;
-      }
-      _pt = p._pt;
-      _payload = p._payload;
-    }
-
     public override ProtType type { get { return Packet.ProtType.AH; } }
-    public override int Length { get { return HeaderSize + _payload.Length; } }
-    public override int PayloadLength { get { return _payload.Length; } }
+    public override int Length { get { return _buffer.Length; } }
+    public override int PayloadLength { get { return this.Length - this.HeaderSize; } }
     
     /**
      * The number of bytes in the header, including the type 0x02 
@@ -236,7 +214,7 @@ namespace Brunet
      */
     public int HeaderSize {
       get {
-        return 47 + NumberSerializer.GetByteCount(_pt);
+        return 47 + NumberSerializer.GetByteCount( this.PayloadType );
       }
     }
 
@@ -257,13 +235,27 @@ namespace Brunet
      * The source of this packet
      * The source should only be an AHAddress
      */
-    public Address Source { get { return _source; } }
+    public Address Source {
+      get {
+        if( _source == null ) {
+          _source = AddressParser.Parse(_buffer, 5);
+        }
+        return _source;
+      }
+    }
 
     protected Address _destination;
     /**
      * The destination of this packet
      */
-    public Address Destination { get { return _destination; } }
+    public Address Destination {
+      get {
+        if( _destination == null ) {
+          _destination = AddressParser.Parse( _buffer, 25 );
+        }
+        return _destination;
+      }
+    }
 
     protected ushort _options;
     /**
@@ -273,7 +265,15 @@ namespace Brunet
     public ushort Options { get { return _options; } }
     
     protected string _pt;
-    public string PayloadType { get { return _pt; } }
+    public string PayloadType {
+      get {
+        if( _pt == null ) {
+          int length;
+          _pt = NumberSerializer.ReadString(_buffer, 47, out length);
+        }
+        return _pt;
+      }
+   }
 
     /**
      * This is the prefered way to access the payload
@@ -283,41 +283,32 @@ namespace Brunet
       get {
         //Return a read-only MemoryStream of the Payload
         //return new MemoryStream(_payload, false);
-	return GetPayloadStream(0);
+	return GetPayloadStream( 0 );
       }
     }
 
     public override void CopyTo(byte[] dest, int off)
     {
-      dest[off] = (byte)Packet.ProtType.AH;
-      off += 1;
-      NumberSerializer.WriteShort(_hops, dest, off);
-      off += 2;
-      NumberSerializer.WriteShort(_ttl, dest, off);
-      off += 2;
-      _source.CopyTo(dest, off);
-      off += 20;
-      _destination.CopyTo(dest, off);
-      off += 20;
-      NumberSerializer.WriteShort((short)_options, dest, off);
-      off += 2;
-      off += NumberSerializer.WriteString(_pt, dest, off);
-      Array.Copy(_payload, 0, dest, off, PayloadLength);
-      off += PayloadLength;
+      Array.Copy( _buffer, 0, dest, off, _buffer.Length );
+      if( ! _buf_hops_is_correct ) {
+        //Write the correct Hops
+        NumberSerializer.WriteShort(_hops, dest, off + 1);
+      }
     }
 
     /**
      * @param offset the offset into the payload to start the stream
      */
     virtual public MemoryStream GetPayloadStream(int offset) {
-      return new MemoryStream(_payload, offset, _payload.Length - offset, false);
+      return new MemoryStream(_buffer, this.HeaderSize + offset,
+                              this.PayloadLength - offset, false);
     }
     
     /** Method to convert an  AHPacket, into a DirectPacket.
      *  @param direct_packet ooresponding DirectPacket (out paramater)
      */
     public void ToDirectPacket(out DirectPacket direct_packet) {
-      direct_packet = new DirectPacket(_pt, _payload);
+      direct_packet = new DirectPacket(this.PayloadType, this.PayloadStream.ToArray());
     }
 
     /**
@@ -412,12 +403,23 @@ namespace Brunet
      */
     public AHPacket IncrementHops()
     {
-      return new AHPacket( (short)(_hops + 1),
-                           _ttl,
-                           _source,
-                           _destination,
-                           _options,
-                           this );
+      AHPacket p = new AHPacket();
+      p._buffer = _buffer;
+      
+      p._hops = (short)(_hops + 1);
+      //Since the incremented version will be sent on, go ahead and change
+      //the hops so it only has to be done once, the original packet will probably
+      //never be written to:
+      NumberSerializer.WriteShort(p._hops, _buffer, 1);
+      p._buf_hops_is_correct = true;
+      _buf_hops_is_correct = false; //We need to fix the hops if we do a CopyTo
+      
+      p._ttl = _ttl;
+      p._source = _source;
+      p._destination = _destination;
+      p._options = _options;
+      p._pt = _pt;
+      return p;
     }
 
     override public string ToString()
@@ -434,7 +436,7 @@ namespace Brunet
       System.Text.Encoding e = new System.Text.UTF8Encoding();
       //this is the original line that Oscar had
 #if true
-      sw.WriteLine(e.GetString(_payload));
+      sw.WriteLine(e.GetString( this.PayloadStream.ToArray() ));
 #else
       // the following is a hack for debugging purposes
       String pl = e.GetString(_payload);
@@ -446,5 +448,65 @@ namespace Brunet
       return sw.ToString();
     }
   }
+
+#if BRUNET_NUNIT
+  /**
+   * This is an NUnit test class
+   */
+  [TestFixture]
+  public class AHPacketTester {
+  
+    public void AssertEqualAHPackets(AHPacket p1, AHPacket p2) {
+      Assert.AreEqual(p1.Hops, p2.Hops, "Hops");
+      Assert.AreEqual(p1.Ttl, p2.Ttl, "Ttl");
+      Assert.AreEqual(p1.Source, p2.Source, "Source");
+      Assert.AreEqual(p1.Destination, p2.Destination, "Dest");
+      Assert.AreEqual(p1.Options, p2.Options, "Options");
+      Assert.AreEqual(p1.PayloadType, p2.PayloadType, "Payload Type");
+      byte[] payload1 = p1.PayloadStream.ToArray();
+      byte[] payload2 = p2.PayloadStream.ToArray();
+      Assert.AreEqual(payload1.Length, payload2.Length, "Payload length");
+      for(int i = 0; i < payload1.Length; i++) {
+        Assert.AreEqual(payload1[i], payload2[i], "Payload[" + i.ToString() + "]");
+      }
+      Assert.AreEqual(p1.Length, p2.Length, "Total Length");
+    }
+    public AHPacket RoundTrip(AHPacket p) {
+        byte[] binary_packet = new byte[ p.Length ];
+        p.CopyTo( binary_packet, 0);
+        return (AHPacket)PacketParser.Parse(binary_packet);
+    }
+    [Test]
+    public void Test() {
+      /*
+       * Make some random packets and see if they round trip properly.
+       */
+      RandomNumberGenerator rng = new RNGCryptoServiceProvider();
+      Random simple_rng = new Random();
+      for(int i = 0; i < 100; i++) {
+        AHAddress source = new AHAddress(rng);
+        AHAddress dest = new AHAddress(rng);
+        short ttl = (short)simple_rng.Next(Int16.MaxValue);
+        short hops = (short)simple_rng.Next(Int16.MaxValue);
+        ushort options = (ushort)simple_rng.Next(UInt16.MaxValue);
+        byte[] bin_prot = new byte[ simple_rng.Next(4) ];
+        simple_rng.NextBytes(bin_prot);
+        string random_prot = Base32.Encode( bin_prot );
+        byte[] payload = new byte[ simple_rng.Next(1024) ];
+        AHPacket p = new AHPacket(hops, ttl, source, dest,
+                                  options, random_prot, payload);
+        AssertEqualAHPackets(p, RoundTrip(p) );
+        AHPacket phops = new AHPacket((short)(hops + 1), ttl, source, dest,
+                                  options, random_prot, payload);
+        AHPacket inc_hops = p.IncrementHops();
+        AssertEqualAHPackets(phops, inc_hops );
+        //Round trip them all:
+        AssertEqualAHPackets(p, RoundTrip(p));
+        AssertEqualAHPackets(inc_hops, RoundTrip(inc_hops));
+        AssertEqualAHPackets(phops, RoundTrip(phops));
+      }
+    }
+  }
+#endif
 
 }
