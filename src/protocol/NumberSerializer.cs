@@ -23,12 +23,19 @@ using System.IO;
 using System.Net;
 using System.Text;
 
+#if BRUNET_NUNIT
+using NUnit.Framework;
+#endif
+
 namespace Brunet
 {
 
   /**
    * Reads numbers in and out byte arrays
    */
+#if BRUNET_NUNIT
+  [TestFixture]
+#endif
   public class NumberSerializer
   {
 
@@ -51,12 +58,15 @@ namespace Brunet
     }
     /**
      * Reads a network endian (MSB) from bin
+     * coded by hand for speed (profiled on mono)
      */
     public static int ReadInt(byte[] bin, int offset)
     {
-      int net_val = BitConverter.ToInt32(bin, offset);
-      int retval = IPAddress.NetworkToHostOrder(net_val);
-      return retval;
+      int val = 0;
+      for(int i = 0; i < 4; i++) {
+        val = (val << 8) | bin[i + offset];
+      }
+      return val;
     }
     /**
      * Read an Int from the stream and advance the stream
@@ -76,6 +86,7 @@ namespace Brunet
     }
     /**
      * Read a Long from the stream and advance the stream
+     * coded by hand for speed (profiled on mono)
      */
     public static long ReadLong(System.IO.Stream s) {
       int bytes = 8;
@@ -91,17 +102,20 @@ namespace Brunet
       return val;
     }
 
+    // coded by hand for speed (profiled on mono)
     public static long ReadLong(byte[] bin, int offset)
     {
-      long l_val = BitConverter.ToInt64(bin, offset);
-      return IPAddress.NetworkToHostOrder(l_val);
+      long val = 0;
+      for(int i = 0; i < 8; i++) {
+        val = (val << 8) | bin[i + offset];
+      }
+      return val;
     }
 
+    // coded by hand for speed (profiled on mono)
     public static short ReadShort(byte[] bin, int offset)
     {
-      short net_val = BitConverter.ToInt16(bin, offset);
-      short retval = IPAddress.NetworkToHostOrder(net_val);
-      return retval;
+      return (short)( (bin[offset] << 8) | bin[offset + 1] );
     }
 
     /**
@@ -293,11 +307,12 @@ namespace Brunet
       return data.Length + 1;
     }
 
-    public static void WriteLong(int lval, byte[] target, int offset)
+    public static void WriteLong(long lval, byte[] target, int offset)
     {
-      long nval = IPAddress.HostToNetworkOrder(lval);
-      byte[] arr = BitConverter.GetBytes(nval);
-      Array.Copy(arr, 0, target, offset, arr.Length);
+      for(int i = 0; i < 8; i++) {
+        byte tmp = (byte)(0xFF & (lval >> 8*(7-i)));
+        target[i + offset] = tmp;
+      }
     }
     public static void WriteLong(long val, Stream s)
     {
@@ -346,6 +361,39 @@ namespace Brunet
 	data[offset + length - i - 1] = tmp;
       }
     }
+#if BRUNET_NUNIT
+    //Constructor for NUnit
+    public NumberSerializer() {
+
+    }
+    [Test]
+    public void Test() {
+      //8 is long enough to hold all the numbers:
+      byte[] buffer = new byte[8];
+      System.Random r = new System.Random();
+      int tests = 100;
+      //Here are shorts:
+      for(int i = 0; i < tests; i++) {
+        short val = (short)r.Next(Int16.MaxValue);
+        WriteShort(val, buffer, 0);
+        Assert.AreEqual( val, ReadShort( buffer, 0) );
+      }
+      //Ints:
+      for(int i = 0; i < tests; i++) {
+        int val = r.Next();
+        WriteInt(val, buffer, 0);
+        Assert.AreEqual( val, ReadInt( buffer, 0) );
+      }
+      //Longs:
+      for(int i = 0; i < tests; i++) {
+        long val = r.Next();
+        val <<= 4;
+        val |= r.Next();
+        WriteLong(val, buffer, 0);
+        Assert.AreEqual( val, ReadLong( buffer, 0) );
+      }
+    }
+#endif
 
   }
 
