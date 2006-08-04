@@ -1,6 +1,7 @@
 /*
 This program is part of BruNet, a library for the creation of efficient overlay networks.
 Copyright (C) 2005  University of California
+Copyright (C) 2006 P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -247,8 +248,14 @@ namespace Brunet
       #endif
 
       /* Send the event: */
-      if( ConnectionEvent != null )
-        ConnectionEvent(this, new ConnectionEventArgs(c, index) );
+      if( ConnectionEvent != null ) {
+        try {
+          ConnectionEvent(this, new ConnectionEventArgs(c, index) );
+        }
+        catch(Exception x) {
+          Console.Error.WriteLine("ConnectionEvent triggered exception: {0}\n{1}", c, x);
+        }
+      }
      // return index;
     }
 
@@ -334,8 +341,14 @@ namespace Brunet
                                  ", index: " + index);
       #endif
         //Announce the disconnection:
-        if( DisconnectionEvent != null )
-          DisconnectionEvent(this, new ConnectionEventArgs(c, index));
+        if( DisconnectionEvent != null ) {
+          try {
+            DisconnectionEvent(this, new ConnectionEventArgs(c, index));
+          }
+          catch(Exception x) {
+            Console.Error.WriteLine("DisconnectionEvent triggered exception: {0}\n{1}", c, x);
+          }
+        }
       }
     }
 
@@ -681,8 +694,14 @@ namespace Brunet
                                  ", index: " + index);
       #endif
         //Announce the disconnection:
-        if( DisconnectionEvent != null )
-          DisconnectionEvent(this, new ConnectionEventArgs(c, index));
+        if( DisconnectionEvent != null ) {
+          try {
+            DisconnectionEvent(this, new ConnectionEventArgs(c, index));
+          }
+          catch(Exception x) {
+            Console.Error.WriteLine("DisconnectionEvent triggered exception: {0}\n{1}", c, x);
+          }
+        }
       }
     }
 
@@ -842,14 +861,23 @@ namespace Brunet
           throw new Exception("Address: " + a.ToString()
                               + " not in ConnectionTable. Cannot UpdateStatus.");
         }
+        //Make the new connection and replace it in our data structures:
         newcon = new Connection(e,a,con_type,sm,plm);
         edge_to_con[e] = newcon;
+        ArrayList l = (ArrayList)type_to_conlist[t];
+        l[ index ] = newcon;
 
       } /* we release the lock */
      
       /* Send the event: */
-      if( StatusChangedEvent != null )
-        StatusChangedEvent(sm, new ConnectionEventArgs(newcon, index) );
+      if( StatusChangedEvent != null ) {
+        try {
+          StatusChangedEvent(sm, new ConnectionEventArgs(newcon, index) );
+        }
+        catch(Exception x) {
+          Console.Error.WriteLine("StatusChangedEvent triggered exception: {0}\n{1}", newcon, x);
+        }
+      }
     }
    
     /**
