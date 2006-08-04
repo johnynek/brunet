@@ -25,10 +25,19 @@ using System.Diagnostics;
 namespace Brunet {
   public class NodeRankComparer : System.Collections.IComparer {
     public int Compare(object x, object y) {
+      if( x == y ) {
+        //This is trivial, but we need to deal with it:
+        return 0;
+      }
       NodeRankInformation x1 = (NodeRankInformation) x;
       NodeRankInformation y1 = (NodeRankInformation) y;
       if (x1.Equals(y1) && x1.Count == y1.Count) {
-	Console.WriteLine("Comparer: Equality");
+        /*
+         * Since each Address is in our list at most once,
+         * this is an Error, so lets print it out and hope
+         * someone sees it.
+         */
+        Console.Error.WriteLine("NodeRankComparer.Comparer: Equality: {0} == {1}", x1, y1);
 	return 0;
       }
       if (x1.Count <= y1.Count) {
@@ -129,6 +138,10 @@ namespace Brunet {
     //how frequently we communicate with it. Just like the LRU in virtual
     // memory context - Arijit Ganguly. 
     protected ArrayList node_rank_list;
+    /*
+     * Allows us to quickly look up the node rank for a destination
+     */
+    protected Hashtable _dest_to_node_rank;
 
     //maintains if bidirectional connectivity and also active linkers and connectors
     protected Hashtable _chota_connection_state;
@@ -158,6 +171,7 @@ namespace Brunet {
       _chota_connection_state = new Hashtable();
       _ip_handler = new ChotaConnectionIPPacketHandler();
       node_rank_list = new ArrayList();
+      _dest_to_node_rank = new Hashtable();
 
       lock( _sync ) {
 	_node.ConnectionTable.ConnectionEvent +=
@@ -208,6 +222,7 @@ namespace Brunet {
 	  Console.WriteLine("Finding a connection to trim... ");
 #endif
 	  //find out the lowest score guy to trim
+          SortTable();
 	  for (int i = node_rank_list.Count - 1; i >= max_chota && i > 0; i--)  
 	  {
 	    NodeRankInformation node_rank = (NodeRankInformation) node_rank_list[i];
@@ -388,44 +403,33 @@ namespace Brunet {
       Console.WriteLine("IP packet: update table");
 #endif
       lock(_sync) {
-	NodeRankInformation node_rank = new NodeRankInformation(p.Destination);
-#if ARI_CHOTA_DEBUG
-	Console.WriteLine("Before, List size: {0}", node_rank_list.Count);
-#endif
-	int index = node_rank_list.IndexOf(node_rank);
-#if ARI_CHOTA_DEBUG
-	Console.WriteLine("IndexOf: {0}", index);
-#endif
-	if (index >= 0) {
-	  node_rank = (NodeRankInformation) node_rank_list[index];
-	  node_rank_list.RemoveAt(index);
-#if ARI_CHOTA_DEBUG
-	  Console.WriteLine("Post-removal, List size: {0}", node_rank_list.Count);
-#endif
-	} 
-#if ARI_CHOTA_DEBUG
-	Console.WriteLine("After, List size: {0}", node_rank_list.Count);
-	Console.WriteLine("Pre-increment -> SendPacket: {0}", node_rank);
-#endif
-	int count = node_rank.Count;
-	node_rank.Count = count + 1;
-#if ARI_CHOTA_DEBUG
-	Console.WriteLine("Post-increment -> SendPacket: {0}", node_rank);
-#endif
-	//find a suitable place to put this back
-	index = node_rank_list.BinarySearch(node_rank, _cmp);
-	if (index < 0) {
-	  index = ~index;
-	  node_rank_list.Insert(index, node_rank);
-	  if (node_rank_list.Count > node_rank_capacity) {//we are exceeding capacity
-            //trim the list
-	    node_rank_list.RemoveAt(node_rank_list.Count - 1);    
-	  }
-	} else {
-#if ARI_CHOTA_DEBUG
-	  Console.WriteLine("Not supposed to happen");
-#endif
-	  Debug.Assert(false);
+        NodeRankInformation node_rank =
+          (NodeRankInformation)_dest_to_node_rank[p.Destination];
+        if( node_rank == null ) {
+          //This is a new guy:
+	  node_rank = new NodeRankInformation(p.Destination);
+          node_rank_list.Add( node_rank );
+          _dest_to_node_rank[p.Destination] = node_rank;
+        }
+        node_rank.Count = node_rank.Count + 1;
+        //There, we have updated the node_rank
+      }
+    }
+    /**
+     * We only need to do this before we take action based on the
+     * table, in the mean time, it can get disordered
+     */
+    protected void SortTable() {
+      lock( _sync ) {
+        //Keep the table sorted according to _cmp
+        node_rank_list.Sort( _cmp );
+	if (node_rank_list.Count > node_rank_capacity) {
+          //we are exceeding capacity
+          //trim the list
+          int rmv_idx = node_rank_list.Count - 1;
+          NodeRankInformation nr = (NodeRankInformation)node_rank_list[ rmv_idx ];
+	  node_rank_list.RemoveAt(rmv_idx);    
+          _dest_to_node_rank.Remove( nr.Addr );
 	}
       }
     }
@@ -441,14 +445,13 @@ namespace Brunet {
       //in this case we decrement the rank
       //update information in the connection table.
       lock(_sync) {
-	IEnumerator ie = node_rank_list.GetEnumerator();
-	while (ie.MoveNext()) {
-	  NodeRankInformation node_rank = (NodeRankInformation) ie.Current;
+        SortTable();
+        foreach(NodeRankInformation node_rank in node_rank_list) {
 #if ARI_CHOTA_DEBUG
 	  Console.WriteLine("Pre-decrement -> Heartbeat: {0}", node_rank);
 #endif
 	  int count = node_rank.Count;
-	  if (node_rank.Count > 0) {
+	  if (count > 0) {
 	    node_rank.Count = count - 1;
 	  }
 #if ARI_CHOTA_DEBUG
@@ -546,9 +549,9 @@ namespace Brunet {
 #endif
 
       lock(_sync) {
-	if (_chota_connection_state.ContainsKey(p.Source)) {
-	  ChotaConnectionState state = 
-	    (ChotaConnectionState) _chota_connection_state[p.Source];
+        ChotaConnectionState state =
+             (ChotaConnectionState) _chota_connection_state[p.Source];
+	if ( state != null ) {
 	  state.Received = true;
 	}
       }
