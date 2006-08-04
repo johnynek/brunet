@@ -199,7 +199,9 @@ namespace Brunet
     //The first int in the buffer should be good enough
     public override int GetHashCode() {
       if( !_computed_hash ) {
-        _hc = System.BitConverter.ToInt32(buffer, 0); 
+        //There is no race here because calling the function
+        //more than once has the same result.
+        _hc = NumberSerializer.ReadInt(buffer, 0); 
         _computed_hash = true;
       }
       return _hc;
