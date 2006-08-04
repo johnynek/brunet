@@ -207,17 +207,18 @@ namespace Brunet
         return false;
     }
 
-    public static void WriteInt(int value, byte[] target, int offset)
+    public static void WriteInt(int val, byte[] target, int offset)
     {
-      int net_value = IPAddress.HostToNetworkOrder(value);
-      byte[] arr = BitConverter.GetBytes(net_value);
-      Array.Copy(arr, 0, target, offset, arr.Length);
+      for(int i = 0; i < 4; i++) {
+        target[offset + i] = (byte)(0xFF & (val >> 8*(3-i)));
+      }
     }
     public static void WriteInt(int val, Stream s)
     {
-      byte[] data = new byte[4];
-      WriteInt(val, data, 0);
-      s.Write(data, 0, 4);
+      for(int i = 0; i < 4; i++) {
+        byte tmp = (byte)(0xFF & (val >> 8*(3-i)));
+	s.WriteByte(tmp);
+      }
     }
     public static void WriteUInt(uint val, byte[] target, int offset)
     {
@@ -233,18 +234,18 @@ namespace Brunet
       }
     }
 
-    public static void WriteShort(short value, byte[] target,
+    public static void WriteShort(short val, byte[] target,
                                   int offset)
     {
-      short net_value = IPAddress.HostToNetworkOrder(value);
-      byte[] arr = BitConverter.GetBytes(net_value);
-      Array.Copy(arr, 0, target, offset, arr.Length);
+      target[offset] = (byte)(0xFF & (val >> 8));
+      target[offset + 1] = (byte)(0xFF & (val));
     }
     public static void WriteShort(short val, Stream s)
     {
-      byte[] data = new byte[2];
-      WriteShort(val, data, 0);
-      s.Write(data, 0, 2);
+      byte one = (byte)( 0xFF & (val >> 8) );
+      byte two = (byte)( 0xFF & (val) );
+      s.WriteByte(one);
+      s.WriteByte(two);
     }
     public static void WriteUShort(ushort val, byte[] target, int offset)
     {

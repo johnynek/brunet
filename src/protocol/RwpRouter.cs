@@ -137,7 +137,8 @@ namespace Brunet
                                  p.Source,
                                  dest,
 				 p.Options,
-                                 p );
+                                 p.PayloadType,
+                                 p.PayloadStream.ToArray() );
         }
         else {
           /*
