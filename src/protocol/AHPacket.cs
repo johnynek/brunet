@@ -96,7 +96,6 @@ namespace Brunet
     {
     }
 
-    private bool _buf_hops_is_correct = true;
     /*
      * This is a constructor that allows a Packets to share
      * buffers.  The only field that is allowed to be incorrect
@@ -156,7 +155,8 @@ namespace Brunet
         _options = options;
       }
       _pt = payload_prot;
-      int total_size = 47 + NumberSerializer.GetByteCount(_pt) + len;
+      _type_length = NumberSerializer.GetByteCount(_pt);
+      int total_size = 47 + _type_length + len;
       _buffer = new byte[ total_size ]; 
       int off = 0;
       _buffer[off] = (byte)Packet.ProtType.AH;
@@ -206,7 +206,11 @@ namespace Brunet
     }
     public override ProtType type { get { return Packet.ProtType.AH; } }
     public override int Length { get { return _buffer.Length; } }
-    public override int PayloadLength { get { return this.Length - this.HeaderSize; } }
+    public override int PayloadLength {
+      get {
+        return _buffer.Length - this.HeaderSize;
+      }
+    }
     
     /**
      * The number of bytes in the header, including the type 0x02 
@@ -214,7 +218,11 @@ namespace Brunet
      */
     public int HeaderSize {
       get {
-        return 47 + NumberSerializer.GetByteCount( this.PayloadType );
+        if( _type_length < 0 ) {
+          //We have not initalized it yet:
+          _pt = NumberSerializer.ReadString(_buffer, 47, out _type_length);
+        }
+        return 47 + _type_length;
       }
     }
 
@@ -264,12 +272,12 @@ namespace Brunet
      */
     public ushort Options { get { return _options; } }
     
+    protected int _type_length = -1;
     protected string _pt;
     public string PayloadType {
       get {
         if( _pt == null ) {
-          int length;
-          _pt = NumberSerializer.ReadString(_buffer, 47, out length);
+          _pt = NumberSerializer.ReadString(_buffer, 47, out _type_length);
         }
         return _pt;
       }
@@ -290,10 +298,8 @@ namespace Brunet
     public override void CopyTo(byte[] dest, int off)
     {
       Array.Copy( _buffer, 0, dest, off, _buffer.Length );
-      if( ! _buf_hops_is_correct ) {
-        //Write the correct Hops
-        NumberSerializer.WriteShort(_hops, dest, off + 1);
-      }
+      //Hops is the only field that can be out of sync:
+      NumberSerializer.WriteShort(_hops, dest, off + 1);
     }
 
     /**
@@ -407,13 +413,6 @@ namespace Brunet
       p._buffer = _buffer;
       
       p._hops = (short)(_hops + 1);
-      //Since the incremented version will be sent on, go ahead and change
-      //the hops so it only has to be done once, the original packet will probably
-      //never be written to:
-      NumberSerializer.WriteShort(p._hops, _buffer, 1);
-      p._buf_hops_is_correct = true;
-      _buf_hops_is_correct = false; //We need to fix the hops if we do a CopyTo
-      
       p._ttl = _ttl;
       p._source = _source;
       p._destination = _destination;
