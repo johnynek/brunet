@@ -392,6 +392,12 @@ namespace Brunet
         WriteLong(val, buffer, 0);
         Assert.AreEqual( val, ReadLong( buffer, 0) );
       }
+      //Floats:
+      for(int i = 0; i < tests; i++) {
+        float val = (float)r.NextDouble();
+        WriteFloat(val, buffer, 0);
+        Assert.AreEqual( val, ReadFloat( buffer, 0) );
+      }
       /*
        * Round tripping is great, but we still might have some
        * brain damage: we could be cancel out the error when reading

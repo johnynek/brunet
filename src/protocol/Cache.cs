@@ -35,15 +35,13 @@ public class Cache {
 
   protected Hashtable _ht;
   protected int _max_size;
-  protected object _sync;
-  protected bool _cleaning;
   protected Random _rand;
 
   public Cache(int max_size) {
-    _ht = new Hashtable();
+    //Bias towards being faster at the expense of using more memory
+    float load = 0.15f;
+    _ht = Hashtable.Synchronized(new Hashtable(_max_size, load));
     _max_size = max_size;
-    _sync = new object();
-    _cleaning = false;
     _rand = new Random();
   }
 
@@ -57,42 +55,25 @@ public class Cache {
   }
 
   public void Add(object key, object val) {
-    bool start_bal = false;
-    if( !_cleaning ) {
-      lock( _sync ) {
-        _ht[key] = val;
-        if( _ht.Count > _max_size ) {
-          _cleaning = true;
-          start_bal = true;
-        }
-      }
-    }
-    if ( start_bal ) {
+    _ht[key] = val;
+    if( _ht.Count > _max_size ) {
       //Start balancing
       ThreadPool.QueueUserWorkItem(this.Clean);
     }
   }
   public void Clear() {
-    lock( _sync ) {
-      _ht.Clear();
-    }
+    _ht.Clear();
   }
 
   public object Get(object key) {
-    object res = null;
-    if( !_cleaning ) {
-      lock( _sync ) {
-        res = _ht[key]; 
-      }
-    }
-    return res;
+    return _ht[key];
   }
 
   /**
    * Right now, just remove a random half of the elements
    */
   protected void Clean(object state) {
-    lock( _sync ) {
+    try {
       IDictionaryEnumerator en = _ht.GetEnumerator();
       ArrayList to_remove = new ArrayList();
       while( en.MoveNext() ) {
@@ -104,10 +85,11 @@ public class Cache {
       foreach(object key in to_remove) {
         _ht.Remove(key);
       }
-      //We are done now
-      _cleaning = false; 
+    }
+    catch(Exception x) {
+      //If the _ht changes while we are cleaning, we get an exception.
+      //Just go on with life, we can finish cleaning later
     }
   }
 }
-
 }

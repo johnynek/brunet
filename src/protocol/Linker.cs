@@ -180,6 +180,11 @@ namespace Brunet
           }
         }
       }
+      public override string ToString() {
+        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        sb.AppendFormat("RestartState: TA: {0}\n{1}", _ta, _linker);
+        return sb.ToString();
+      }
     }
     
     /**
@@ -408,6 +413,12 @@ namespace Brunet
         }
 	return allow;       
     }
+
+    public override string ToString() {
+      System.Text.StringBuilder sb = new System.Text.StringBuilder();
+      sb.AppendFormat("Linker: Target: {0} Contype: {1}", _target, _contype);
+      return sb.ToString();
+    }
     /************  protected methods ***************/
    protected bool AreActiveElements {
      get {
@@ -450,6 +461,7 @@ namespace Brunet
            _active_lps.Remove(lps.TA);
          }
          lps.Unlock();
+         this.Unlock();
          throw new Exception("unrecognized result: " + lps.MyResult.ToString());
      }
    }
@@ -525,7 +537,9 @@ namespace Brunet
         if( rss != null ) {
           if( rss.IsWaiting ) {
             //This should not happen:
-            throw new Exception("Failed a waiting TA: " + ta.ToString());
+            Unlock();
+            throw new Exception("Succeeded while waiting restart: "
+                                + rss.ToString());
           }
           else {
             //This guy is done, remove it:
@@ -555,7 +569,14 @@ namespace Brunet
        */
       FireFinished();
     }
-
+    /*
+     * If we hold a lock permanently, we may prevent connections
+     * to a given address
+     */
+    protected void Unlock() {
+      ConnectionTable tab = LocalNode.ConnectionTable;
+      tab.Unlock( _target_lock, _contype, this );
+    }
     /**
      * When a particular attempt for a TransportAddress fails,
      * we call this.
@@ -580,7 +601,9 @@ namespace Brunet
           if( rss != null ) {
             if( rss.IsWaiting ) {
               //This should not happen:
-              throw new Exception("Failed a waiting TA: " + ta.ToString());
+              Unlock();
+              throw new Exception("Failed a waiting TA: " + ta.ToString()
+                                  + ", " + log_message);
             }
             else {
               //This guy is done, remove it:
@@ -601,8 +624,7 @@ namespace Brunet
         if( _is_finished ) { return; }
         _is_finished = true;
         //Unlock:
-        ConnectionTable tab = LocalNode.ConnectionTable;
-        tab.Unlock( _target_lock, _contype, this );
+        Unlock();
       }
 
       FireFinished();

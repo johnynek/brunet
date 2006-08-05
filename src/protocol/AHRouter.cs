@@ -95,16 +95,16 @@ namespace Brunet
       Connection next_con = null;  //the next connection to send the packet to
       deliverlocally = false;
       
-      AHAddress dest = p.Destination as AHAddress;
+      AHAddress dest = (AHAddress)p.Destination;
       /*
        * The following cases don't require us to consult the Connection table
        */
-      if( dest == null ) {
-	//This is not our kind of address
-        return 0;
-      }
-      else if( p.Hops > p.Ttl ) {
+      short hops = p.Hops;
+      short ttl = p.Ttl;
+      if( hops > ttl ) {
         //This should never have gotten here:
+        System.Console.Error.WriteLine(
+             "Bad Packet from: {0}, hops({1}) > ttl({2})", prev_e, hops, ttl);
 	return 0;
       }
       else if ( _local.Equals(dest) ) {
@@ -118,7 +118,7 @@ namespace Brunet
 #endif
 	return 0;
       }
-      else if( p.Hops == p.Ttl ) {
+      else if( hops == ttl ) {
         //We are the last to route the packet.
 	if( p.HasOption( AHPacket.AHOptions.Last ) ) {
           /*
@@ -141,7 +141,7 @@ namespace Brunet
       }
       else {
       /*
-       * else we know p.Hops < p.Ttl, we can route:
+       * else we know hops < ttl, we can route:
        * We now need to check the ConnectionTable
        */
       /* Don't let the routing table change */
@@ -258,7 +258,7 @@ namespace Brunet
                   next_con = null;
                 }
               }
-              else if ( p.Hops == 0 ) {
+              else if ( hops == 0 ) {
                 /*
                  * This is the case that we sent the packet, and we are not
                  * a neighbor of the packet (the previous case)
@@ -266,7 +266,7 @@ namespace Brunet
                  */
                 next_con = closest_con;
               }
-              else if (p.Hops <= _MAX_UPHILL_HOPS ) {
+              else if (hops <= _MAX_UPHILL_HOPS ) {
                 /*
                  * We will allow the packet to go uphill (get further from the source)
                  * at first, but this has to stop in order to prevent loops
@@ -375,7 +375,7 @@ namespace Brunet
        * Now we have next_con if we can send it somewhere closer.
        */
       try {
-	if( next_con != null && (p.Hops < p.Ttl) ) {
+	if( next_con != null && (hops < ttl) ) {
           //We can send it on
           next_con.Edge.Send( p.IncrementHops() );
 #if AHROUTER_DEBUG

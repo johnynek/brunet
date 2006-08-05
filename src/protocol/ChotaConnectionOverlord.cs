@@ -379,7 +379,7 @@ namespace Brunet {
         /*
          * This is a Send, or a packet that came from us
          */
-        UpdateTable((Node)node, p);
+        UpdateTable(p);
       }
       else {
         //This is an incoming packet
@@ -390,19 +390,35 @@ namespace Brunet {
      * Everytime we the node sends a packet out this method is invoked. 
      * Since multiple invocations may exist, take care of synchronization. 
      */
-    public void UpdateTable(Node node, AHPacket p) {
-      //update information in the connection table.
+    public void UpdateTable(AHPacket p) {
+    /*
+     * We know the following conditions are never true because
+     * we are only subscribed to IP packets, and the Node will
+     * not send null packets
+      
       if (p == null) {
 	return;
       }
       if (!p.PayloadType.Equals(AHPacket.Protocol.IP)) {
 	return;
       }
+      */
 #if ARI_CHOTA_DEBUG
       Console.WriteLine("Receiving an IP-packet send event...");
       Console.WriteLine("IP packet: update table");
 #endif
+      /*
+       * We don't need to keep a perfectly accurate count.
+       * As an optimization, we could just sample:
+       */
+      if( _rand.Next(3) == 0 ) {
+        return;
+      }
       lock(_sync) {
+        /*
+         * We have to lock here to make the following an atomic
+         * operation, otherwise we could leave this table inconsistent
+         */
         NodeRankInformation node_rank =
           (NodeRankInformation)_dest_to_node_rank[p.Destination];
         if( node_rank == null ) {
@@ -548,12 +564,11 @@ namespace Brunet {
       Console.WriteLine("Got an IP packet from src: {0} ", p.Source);
 #endif
 
-      lock(_sync) {
-        ChotaConnectionState state =
-             (ChotaConnectionState) _chota_connection_state[p.Source];
-	if ( state != null ) {
-	  state.Received = true;
-	}
+      //Getting from a Hashtable is threadsafe... no need to lock
+      ChotaConnectionState state =
+        (ChotaConnectionState) _chota_connection_state[p.Source];
+      if ( state != null ) {
+	state.Received = true;
       }
     }
 
