@@ -16,11 +16,14 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+//#define DEBUG
+
 using System.Collections;
 using System.Threading;
 using System;
-
-//#define DEBUG
+#if BRUNET_NUNIT
+using NUnit.Framework;
+#endif
 
 namespace Brunet
 {
@@ -30,6 +33,9 @@ namespace Brunet
  * between threads (or in the same thread).  The Dequeue
  * method will block until there is something in the Queue
  */
+#if BRUNET_NUNIT
+[TestFixture]
+#endif
 public class BlockingQueue : Queue {
   
   public BlockingQueue() {
@@ -45,8 +51,7 @@ public class BlockingQueue : Queue {
 
   public bool Closed { get { lock ( this ) { return _closed; } } }
   
-  //Make sure we lock before getting the Count
-  public override int Count { get { lock( this ) { return base.Count; } } }
+  public override int Count { get { return base.Count; } }
  
   /**
    * When an item is enqueued, this event is fire
@@ -106,8 +111,6 @@ public class BlockingQueue : Queue {
   {
     object val = null;
     lock( this ) {
-      //Make sure we don't have any old signals waiting...
-      _are.Reset();
       if( _exception != null ) { throw _exception; }
       if( Count > 0 ) {
 #if DEBUG
@@ -132,6 +135,8 @@ public class BlockingQueue : Queue {
         val = base.Dequeue();
 	return val;
       }
+      //Make sure we don't have any old signals waiting...
+      _are.Reset();
     }
     bool got_set = _are.WaitOne(millisec, false);
     lock( this ) {
@@ -209,12 +214,12 @@ public class BlockingQueue : Queue {
       else {
         //We are closed, ignore all future enqueues.
       }
-    }
-    //Wake up any waiting threads
+      //Wake up any waiting threads
 #if DEBUG
-    System.Console.WriteLine("Enqueue set: count {0}", Count);
+      System.Console.WriteLine("Enqueue set: count {0}", Count);
 #endif
-    _are.Set();
+      _are.Set();
+    }
     //After we have alerted any blocking threads (Set), fire
     //the event:
     if( fire && (EnqueueEvent != null) ) {
@@ -236,34 +241,33 @@ public class BlockingQueue : Queue {
     _are.Set();
   }
 
-#if false
-  public void Test()
+#if BRUNET_NUNIT
+  public void TestThread1()
   {
-    string line;
-    do {
-      line = System.Console.ReadLine();
-      Enqueue(line);
-    }  while( line != "q" );
+    //See a random number generator with the number 1.
+    Random r = new Random(1);
+    for(int i = 0; i < 100000; i++) { 
+      Enqueue( r.Next() );
+    }
+    Close();
   }
   
-  public static void Main(string[] args)
+  [Test]
+  public void TestThread2()
   {
-    Console.WriteLine("About to make BlockingQueue");
-    BlockingQueue tq = new BlockingQueue();
-    Console.WriteLine("Made Queue");
-    
-    Thread t = new Thread(new ThreadStart( tq.Test ));
-
+    Thread t = new Thread(this.TestThread1);
     t.Start();
-    Console.WriteLine("Started Thread");
-    string line;
-    do {
-      Console.WriteLine("About to Dequeue");
-      line = (string)tq.Dequeue();
-      System.Console.WriteLine(line);
-    } while( line != "q" );
-    tq.Close();
-    
+    Random r = new Random(1);
+    for(int i = 0; i < 100000; i++) { 
+      Assert.AreEqual( Dequeue(), r.Next(), "dequeue equality test" );
+    }
+    //The next dequeue should throw an exception
+    bool got_exception = false;
+    try {
+      Dequeue();
+    }
+    catch(Exception x) { got_exception = true; }
+    Assert.IsTrue(got_exception, "got exception");
   }
 #endif
 }
