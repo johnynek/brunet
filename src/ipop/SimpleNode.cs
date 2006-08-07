@@ -1,102 +1,86 @@
 using System;
 using Brunet;
 using System.IO;
+using System.Collections;
+using System.Xml;
+using System.Xml.Serialization;
 
 /* The SimpleNode just works for a p2p router
  * (Doesn't generate or sink any packets)
  * Could sink; in case no route to destination is available!
  */
 namespace PeerVM {
-  public class SimpleNode
-  {
-    private static string realm;
-    //transport (tcp,udp)
-    private static string transport;
+  public class SimpleNodeConfig {
+    public string brunet_namespace;
+    [XmlArrayItem (typeof(string), ElementName = "transport")]
+    public string [] RemoteTAs;
+    public EdgeListener [] EdgeListeners;
+  }
 
-    //local port where Brunet is running
-    private static int local_port; 
-    
-    //remote TA
-    private static string remoteTA;
-    
-    private static string NextLine(StreamReader sr) {
-      while (true) {
-	string line = sr.ReadLine();
-	if (line == null) {
-	  return null;
-	}
-	if (line.StartsWith("#")) {
-	  continue;
-	}
-	Console.WriteLine(line);
-	return line;
-      }
-      
-    }
+  public class EdgeListener {
+    [XmlAttribute]
+    public string type;
+    public int port;
+  }
+
+  public class SimpleNode {
+    static SimpleNodeConfig config;
+    static ArrayList RemoteTAs;
+
     private static void ReadConfiguration(string configFile) {
-      FileStream fs = new FileStream(configFile, FileMode.Open, FileAccess.Read);
-      StreamReader sr = new StreamReader(fs);
-      //network namespace we belong to
-      string line = NextLine(sr);
-      realm = line;
-      //first argument is the transport type (udp or tcp)
-      line = NextLine(sr);
-      transport = line.Trim();
-      
-      //next argument to read is the local brunet port
-      line =  NextLine(sr);
-      local_port = Int32.Parse(line.Trim());
+      XmlSerializer serializer = new XmlSerializer(typeof(SimpleNodeConfig));
+      FileStream fs = new FileStream(configFile, FileMode.Open);
+      config = (SimpleNodeConfig) serializer.Deserialize(fs);
+      RemoteTAs = new ArrayList();
+      foreach(string TA in config.RemoteTAs) {
+        TransportAddress ta = new TransportAddress(TA);
+        RemoteTAs.Add(ta);
+      }
+      fs.Close();
+    }
 
-      //next argument is the remote TA
-      line = NextLine(sr);
-      remoteTA = line;
-     }
+    public static void Main(string []args) {
+      if (args.Length < 1) {
+        Console.WriteLine("please specify the configuration file... ");
+      }
 
-     public static void Main(string []args)
-     {
-       if (args.Length < 1) {
-           Console.WriteLine("please specify the configuration file... ");
-       }
-       //configuration file 
-       string configFile = args[0];
-       ReadConfiguration(configFile);
+      //configuration file 
+      ReadConfiguration(args[0]);
 
+      System.Console.WriteLine("SimpleNode starting up...");
 
-       System.Console.WriteLine("IPRouter starting up...");
-       System.Console.WriteLine("local brunet port: " + local_port);
-       System.Console.WriteLine("remote TA: " + remoteTA);
+      //Make a random address
+      Random my_rand = new Random();
+      byte[] address = new byte[Address.MemSize];
+      my_rand.NextBytes(address);
+      address[Address.MemSize -1] &= 0xFE;
 
-       //Make a random address
-       Random my_rand = new Random();
-       byte[] address = new byte[Address.MemSize];
-       my_rand.NextBytes(address);
-       address[Address.MemSize -1] &= 0xFE;
-       
-       //local node
-       Node tmp_node = new StructuredNode(new AHAddress(address), realm);
+      //local node
+      Node tmp_node = new StructuredNode(new AHAddress(address), config.brunet_namespace);
 
-       //First argument is port, for local node
-       int port = local_port;
+      //Where do we listen 
+      foreach(EdgeListener item in config.EdgeListeners) {
+        if (item.type =="tcp") { 
+            tmp_node.AddEdgeListener(new TcpEdgeListener(item.port));
+        }
+        else if (item.type == "udp") {
+            tmp_node.AddEdgeListener(new UdpEdgeListener(item.port));
+        }
+        else if (item.type == "udp-as") {
+            tmp_node.AddEdgeListener(new ASUdpEdgeListener(item.port));
+        }
+        else {
+          throw new Exception("Unrecognized transport: " + item.type);
+        }
+      }
 
-       //Where do we listen:
-       if (transport.Equals("tcp")) { 
-           tmp_node.AddEdgeListener(new TcpEdgeListener(port));
-       } else if (transport.Equals("udp")) {
-           tmp_node.AddEdgeListener(new UdpEdgeListener(port));
-       }
-       else if (transport.Equals("udp-as")) {
-           tmp_node.AddEdgeListener(new ASUdpEdgeListener(port));
-       }
+      //Here is where we connect to some well-known Brunet endpoints
+      tmp_node.RemoteTAs = RemoteTAs;
 
-       //Here is where we connect to; some well-known Brunet endpoint
-       TransportAddress ta = new TransportAddress(remoteTA);
-
-       tmp_node.RemoteTAs.Add(ta);
-
-
-       tmp_node.Connect();
-       System.Console.WriteLine("Called Connect");
-     }
+      tmp_node.Connect();
+      System.Console.WriteLine("Called Connect");
+      while(true) System.Threading.Thread.Sleep(1000*60*60);
+    }
   }
 }
 
