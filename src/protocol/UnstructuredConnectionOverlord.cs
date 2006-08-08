@@ -221,7 +221,7 @@ namespace Brunet
                                       short t_ttl)
     {
       ConnectToMessage ctm = new ConnectToMessage(ConnectionType.Unstructured,
-                             _local.Address, _local.LocalTAs);
+                                                  _local.GetNodeInfo(6) );
       ctm.Dir = ConnectionMessage.Direction.Request;
       ctm.Id = _rand.Next(1, Int32.MaxValue);
       short t_hops = 0;
@@ -260,8 +260,8 @@ namespace Brunet
     {
       short t_hops = 0;
       ConnectToMessage ctm =
-        new ConnectToMessage(ConnectionType.Unstructured, _local.Address,
-                             _local.LocalTAs);
+        new ConnectToMessage(ConnectionType.Unstructured,
+                             _local.GetNodeInfo(6));
       ctm.Id = _rand.Next(1, Int32.MaxValue);
       ctm.Dir = ConnectionMessage.Direction.Request;
 

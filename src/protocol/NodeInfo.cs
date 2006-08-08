@@ -100,7 +100,7 @@ namespace Brunet
      * @param a The Address of the node we are refering to
      * @param transports a list of TransportAddress objects
      */
-    public NodeInfo(Address a, ArrayList transports)
+    public NodeInfo(Address a, IList transports)
     {
       _address = a;
       _tas = transports;
@@ -133,11 +133,11 @@ namespace Brunet
     public TransportAddress FirstTA {
       get { return (TransportAddress)_tas[0]; }
     }
-    protected ArrayList _tas;
+    protected IList _tas;
     /**
      * a List of the TransportAddresses associated with this node
      */
-    public ArrayList Transports {
+    public IList Transports {
       get { return _tas; }
     }
 

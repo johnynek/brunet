@@ -181,7 +181,8 @@ namespace Brunet
 	      ta_list_A.Add(new TransportAddress("brunet.tcp://127.0.0.1:" +
 				port_A));
 	      ConnectToMessage ctm = new ConnectToMessage(
-			      ConnectionType.Structured, address_A, ta_list_A);
+			      ConnectionType.Structured,
+			      new NodeInfo(address_A, ta_list_A));
 	      ctm.Id = my_rand.Next(1, Int32.MaxValue);
               ctm.Dir = ConnectionMessage.Direction.Request;
               AHPacket ctm_pack = new AHPacket(0, 8, address_A, address_B, 

@@ -108,6 +108,10 @@ namespace Brunet
 				 + n.Address.ToString() + " connectTo: "
 				 + ctm.Target.Address.ToString() + " ConType: " + ctm.ConnectionType);
 #endif
+        if( ctm.Target.Address.Equals( n.Address ) ) {
+          //Ignore our own CTM requests.
+          return;
+        }
         Linker l = new Linker(n, ctm.Target.Address,
                               ctm.Target.Transports,
                               ctm.ConnectionType);
@@ -127,8 +131,7 @@ namespace Brunet
 	  i++;
 	}
         ConnectToMessage local_response_ctm =
-          new ConnectToMessage(ctm.ConnectionType,
-			       new NodeInfo(n.Address, n.LocalTAs), near_ni);
+          new ConnectToMessage(ctm.ConnectionType, n.GetNodeInfo(6), near_ni);
         local_response_ctm.Id = ctm.Id;
         local_response_ctm.Dir = ConnectionMessage.Direction.Response;
 

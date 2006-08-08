@@ -224,7 +224,7 @@ namespace Brunet
       }
       catch(Exception x) {
         //This did not work out, close the socket and release the resources:
-	System.Console.Error.WriteLine( x );
+	//System.Console.Error.WriteLine( x );
         if( s != null) { s.Close(); }
         if( cs != null ) {
           /*

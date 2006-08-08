@@ -166,6 +166,79 @@ namespace Brunet
      * until this is called
      */
     public abstract void Stop();
-  }
 
+    /**
+     * When a new Connection is added, we may need to update the list
+     * of TAs to make sure it is not too long, and that the it is sorted
+     * from most likely to least likely to be successful
+     * @param list the list of TransportAddress objects to update
+     * @param e the new Edge
+     * @param ta the TransportAddress our TA according to our peer
+     */
+    public virtual void UpdateLocalTAs(IList list, Edge e, TransportAddress ta) {
+      if( e.TAType == this.TAType ) {
+        //Ignore TAs which are not our kind, what do we know about them?
+        /*
+         * Here we record TransportAddress objects.
+         * This will allow us to connect to other nodes
+         * in the future, and better advertise how
+         * to connect to us:
+         */
+        if( e.LocalTANotEphemeral ) {
+          //Put our guess in first, so it will be after the reported one
+          //which is more likely to be correct where there is translation
+          UpdateTA(list, e.LocalTA);
+          if( false == ta.Equals( e.LocalTA ) ) {
+            //The reported TA is not the same as the one we just added
+            UpdateTA(list, ta);
+          }
+        }        
+      }
+    }
+    /**
+     * We learn RemotaTAs in case we need to get connected again in the
+     * future.  These are TransportAddress objects that should be good
+     * at some point in the future.
+     * @param list the list of TransportAddress objects to update
+     * @param e the new Edge
+     * @param ta the TransportAddress the remote end of the
+     * edge according to our peer
+     */
+    public virtual void UpdateRemoteTAs(IList list, Edge e, TransportAddress ta) {
+      if( e.TAType == this.TAType ) {
+        if( e.RemoteTANotEphemeral ) {
+          //There is some chance this will be good again in the future
+          //But, we only keep non-natted TAs, since NAT mappings change
+          //so frequently, a NATed TA will probably be bad in the future
+          if( ta.Equals( e.RemoteTA ) ) {
+            //This node is not behind a NAT.
+            UpdateTA(list, ta);
+          }
+        }
+      }
+    }
+    
+    /*
+     * Given a TA, this removes any TA from the list l which
+     * matches the TAType and Host of ta.  Then it puts ta
+     * at the top of the front.
+     */
+    protected void UpdateTA(IList l, TransportAddress ta) {
+      
+      ArrayList to_remove = new ArrayList();
+      //Find the potential duplicates:
+      foreach(TransportAddress tmp_ta in l) {
+        if( tmp_ta.Host.Equals(ta.Host)
+            && tmp_ta.TransportAddressType.Equals(ta.TransportAddressType) ) {
+          to_remove.Add(tmp_ta);
+        }
+      }
+      //Remove those:
+      foreach(TransportAddress tmp_ta in to_remove) {
+        l.Remove(tmp_ta);
+      }
+      //Put this at the front:
+      l.Insert(0, ta);
+    }
+  }
 }

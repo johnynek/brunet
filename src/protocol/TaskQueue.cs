@@ -75,9 +75,25 @@ public class TaskQueue {
   protected Hashtable _task_to_workers;
   protected object _sync;
 
+  /**
+   * When the TaskQueue completely empties,
+   * this event is fired, every time.
+   */
+  public event EventHandler EmptyEvent;
+
+  protected int _worker_count;
+  public int WorkerCount {
+    get {
+      lock( _sync ) {
+        return _worker_count;
+      }
+    }
+  }
+
   public TaskQueue() {
     _task_to_workers = new Hashtable();
     _sync = new object();
+    _worker_count = 0;
   }
 
   public void Enqueue(TaskWorker new_worker)
@@ -95,6 +111,7 @@ public class TaskQueue {
       //In any case, add the worker:
       new_worker.FinishEvent += this.TaskEndHandler;
       work_queue.Enqueue(new_worker);
+      _worker_count++;
     }
     /*
      * Get to work!
@@ -136,10 +153,14 @@ public class TaskQueue {
          */
         _task_to_workers.Remove(task);
       }
+      _worker_count--;
     }
     if( new_worker != null ) {
       //You start me up!
       new_worker.Start();
+    }
+    if( (_worker_count == 0 ) && (EmptyEvent != null) ) {
+      EmptyEvent(this, EventArgs.Empty);
     }
   }
 }

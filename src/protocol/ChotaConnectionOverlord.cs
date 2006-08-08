@@ -411,7 +411,7 @@ namespace Brunet {
        * We don't need to keep a perfectly accurate count.
        * As an optimization, we could just sample:
        */
-      if( _rand.Next(3) == 0 ) {
+      if( _rand.Next(4) != 0 ) {
         return;
       }
       lock(_sync) {
@@ -427,7 +427,10 @@ namespace Brunet {
           node_rank_list.Add( node_rank );
           _dest_to_node_rank[p.Destination] = node_rank;
         }
-        node_rank.Count = node_rank.Count + 1;
+        //Since we only update once every fourth time, go ahead
+        //and bump the count by 4 each time, so the count represents
+        //the expected number of packets we have sent.
+        node_rank.Count = node_rank.Count + 4;
         //There, we have updated the node_rank
       }
     }
@@ -618,6 +621,8 @@ namespace Brunet {
        * the Connector starts.  If it returns true, the Connector
        * will finish immediately without sending an ConnectToMessage
        */
+      Linker l = new Linker(_node, target, null, contype);
+      object link_task = l.Task;
       Connector.AbortCheck abort = delegate(Connector c) {
         bool stop = false;
         lock( _node.ConnectionTable.SyncRoot ) {
@@ -629,8 +634,7 @@ namespace Brunet {
              * No need in sending a ConnectToMessage if we
              * already have a linker going.
              */
-            Linker l = new Linker(_node, target, null, contype);
-            stop = _node.TaskQueue.HasTask( l.Task );
+            stop = _node.TaskQueue.HasTask( link_task );
           }
         }
         return stop;
@@ -644,7 +648,7 @@ namespace Brunet {
       }
       short t_hops = 0;
       ConnectToMessage ctm =
-        new ConnectToMessage(contype, new NodeInfo(_node.Address, _node.LocalTAs) );
+        new ConnectToMessage(contype, _node.GetNodeInfo(6) );
       ctm.Id = _rand.Next(1, Int32.MaxValue);
       ctm.Dir = ConnectionMessage.Direction.Request;
 
