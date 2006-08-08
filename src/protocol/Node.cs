@@ -84,6 +84,11 @@ namespace Brunet
         _send_subs = new Hashtable();
 
         _task_queue = new TaskQueue();
+        //Here is the thread for announcing packets
+        _packet_queue = new BlockingQueue();
+        _running = false;
+        _announce_thread = new Thread(this.AnnounceThread);
+        
         _connection_table = new ConnectionTable(_local_add);
         _connection_table.ConnectionEvent +=
           new EventHandler(this.ConnectionHandler);
@@ -155,9 +160,9 @@ namespace Brunet
     /**
      * These are all the local TransportAddress objects that
      * refer to EdgeListener objects attached to this node.
-     * This ArrayList is ReadOnly
+     * This IList is ReadOnly
      */
-    public ArrayList LocalTAs {
+    public IList LocalTAs {
       get {
         return ArrayList.ReadOnly( _local_ta );
       }
@@ -175,6 +180,7 @@ namespace Brunet
     virtual public int NetworkSize {
       get { return -1; }
     }
+    protected BlockingQueue _packet_queue;
 
     protected string _realm = "global";
     /**
@@ -210,9 +216,16 @@ namespace Brunet
      * Holds the Router for each Address type
      */
     protected IRouter[] _routers;
+    /**
+     * This is true after Connect is called and false after
+     * Disconnect is called.
+     */
+    protected bool _running;
 
     /** Object which we lock for thread safety */
     protected Object _sync;
+
+    protected Thread _announce_thread;
 
     protected ConnectionTable _connection_table;
 
@@ -248,10 +261,15 @@ namespace Brunet
     public int HeartPeriod { get { return _heart_period; } }
 
     ///If we don't hear anything from a *CONNECTION* in this time, ping it.
-    static protected readonly TimeSpan _connection_timeout = new TimeSpan(0,0,0,0,30000);
+    static protected readonly TimeSpan _CONNECTION_TIMEOUT = new TimeSpan(0,0,0,0,30000);
     ///If we don't hear anything from any *EDGE* in this time, close it, 4 minutes is now
     ///the close timeout
-    static protected readonly TimeSpan _edge_close_timeout = new TimeSpan(0,0,0,0,240000);
+    static protected readonly TimeSpan _EDGE_CLOSE_TIMEOUT = new TimeSpan(0,0,0,0,240000);
+    /**
+     * Maximum number of TAs we keep in both for local and remote.
+     * This does not control how many we send to our neighbors.
+     */
+    static protected readonly int _MAX_RECORDED_TAS = 10000;
     ///The DateTime that we last checked the edges.  @see CheckEdgesCallback
     protected DateTime _last_edge_check;
 
@@ -316,6 +334,8 @@ namespace Brunet
 #endif
         el.Start();
       }
+      _running = true;
+      _announce_thread.Start();
     }
 
     /**
@@ -324,10 +344,38 @@ namespace Brunet
      */
     protected virtual void StopAllEdgeListeners()
     {
-      foreach(EdgeListener el in _edgelistener_list)
-      el.Stop();
+      foreach(EdgeListener el in _edgelistener_list) {
+        el.Stop();
+      }
+      _running = false;
+      //This makes sure we don't block forever on the last packet
+      _packet_queue.Close();
     }
-
+    /**
+     * When we do announces using the seperate thread, this is
+     * what we pass
+     */
+    private class AnnounceState {
+      public AHPacket Pack;
+      public Edge From;
+      public AnnounceState(AHPacket p, Edge from) {
+        Pack = p;
+        From = from;
+      }
+    }
+    private void AnnounceThread() {
+      try {
+       while( _running ) {
+        AnnounceState a_state = (AnnounceState)_packet_queue.Dequeue();
+        Announce(a_state.Pack, a_state.From);
+       }
+      }
+      catch(System.InvalidOperationException iox) {
+        //This is thrown when Dequeue is called on an empty queue
+        //which happens when the BlockingQueue is closed, which
+        //happens on Disconnect
+      }
+    }
     /**
      * When a packet is to be delivered to this node,
      * this method is called.  This method is public so that
@@ -345,17 +393,25 @@ namespace Brunet
       //System.Console.WriteLine("Announcing packet: {0}:", p.ToString() );
       //System.Console.WriteLine("PayloadType: {0}:", p.PayloadType );
 
-      ArrayList handlers;
       //When Subscribe or unsubscribe are called,
       //they make copies of the ArrayList, thus we
       //only need to hold the sync while we are
       //getting the list of handlers.
-      lock(_sync) {
-        handlers = _subscription_table[p.PayloadType] as ArrayList;
-      }
+
+      /* 
+       * Note that getting from Hashtable is threadsafe, multiple
+       * threads writing is a problem
+       */
+      ArrayList handlers = _subscription_table[p.PayloadType] as ArrayList;
       if (handlers != null) {
         //log.Info("Announcing Packet: " + p.ToString() );
-        foreach(IAHPacketHandler hand in handlers) {
+        /*
+         * Ordinarily I prefer foreach, but for is faster in this
+         * case and this code gets called for every packet we receive
+         */
+        int count = handlers.Count;
+        for(int i = 0; i < count; i++) {
+          IAHPacketHandler hand = (IAHPacketHandler)handlers[i];
           //System.Console.WriteLine("Handler: {0}", hand);
           hand.HandleAHPacket(this, p, from);
         }
@@ -392,61 +448,44 @@ namespace Brunet
 #if ARI_DIRECT_ENABLE
       edge.SetCallback(Packet.ProtType.Direct, this);
 #endif      
-
-      /*
-       * Here we record TransportAddress objects.
-       * This will allow us to connect to other nodes
-       * in the future, and better advertise how
-       * to connect to us:
-       */
-      if( edge.RemoteTANotEphemeral ) { 
-        //We should record this RemoteTA so
-	//that we might use it again in the future
-        lock( _sync ) {
-          if( ! _remote_ta.Contains( edge.RemoteTA ) ) {
-            //We don't know about this ta,
-	    //put it at the front of the list,
-	    //so more recently used addresses
-	    //appear at the head (and older addresses may
-	    //be ignored when we write to disk)
-	    _remote_ta.Insert(0, edge.RemoteTA );
-	  }
-	}
-      }
-      if( edge.LocalTANotEphemeral ) {
-        //We should record this LocalTA so
-	//that we might use it again in the future
-        lock( _sync ) {
-          if( ! _local_ta.Contains( edge.LocalTA ) ) {
-            //We don't know about this ta:
-	    //Put it at the head of the list:
-	    _local_ta.Insert(0, edge.LocalTA );
-	  }
-	  /*
-	   * If we are behind a NAT, the LocalTA may appear
-	   * different to us.
-	   * Note, we are remote to our peer.
-	   */
-	  TransportAddress reported_ta =
+      //Our peer's remote is us
+      TransportAddress reported_ta =
             ce_args.Connection.PeerLinkMessage.Remote.FirstTA;
-          if( ! _local_ta.Contains( reported_ta ) ) {
-            //We don't know about this ta:
-	    //Put it at the head of the list:
-	    _local_ta.Insert(0, reported_ta );
-	  }
-	}
+      //Our peer's local is them
+      TransportAddress remote_ta =
+            ce_args.Connection.PeerLinkMessage.Local.FirstTA;
+      lock( _sync ) {
+        foreach(EdgeListener el in _edgelistener_list) {
+          //Update our local list:
+          el.UpdateLocalTAs(_local_ta, edge, reported_ta);
+          el.UpdateRemoteTAs( _remote_ta, edge, remote_ta);
+        }
+        //Make sure we don't keep too many of these things:
+        int count = _local_ta.Count;
+        if( count > _MAX_RECORDED_TAS ) {
+          int rm_count = count - _MAX_RECORDED_TAS;
+          _local_ta.RemoveRange(_MAX_RECORDED_TAS, rm_count);
+        }
+        count = _remote_ta.Count;
+        if( count > _MAX_RECORDED_TAS ) {
+          int rm_count = count - _MAX_RECORDED_TAS;
+          _remote_ta.RemoveRange(_MAX_RECORDED_TAS, rm_count);
+        }
+
       }
     }
-
     /**
-     * @param a The address we need a router for
-     * @return null if there is no such router, otherwise a router
+     * Return a NodeInfo object for this node containing
+     * at most max_local local Transport addresses
      */
-    protected virtual IRouter GetRouterFor(Address a)
-    {
-      return (IRouter)_routers[a.Class];
+    virtual public NodeInfo GetNodeInfo(int max_local) {
+      ArrayList l = new ArrayList( _local_ta );
+      if( l.Count > max_local ) {
+        int rm_count = l.Count - max_local;
+        l.RemoveRange( max_local, rm_count );
+      }
+      return new NodeInfo( this.Address, l);
     }
-
     /**
      * return a status message for this node.
      * Currently this provides neighbor list exchange
@@ -639,7 +678,7 @@ namespace Brunet
      */
     virtual protected void CheckEdgesCallback(object node, EventArgs args)
     {
-      if( DateTime.Now - _last_edge_check > _connection_timeout ) {
+      if( DateTime.Now - _last_edge_check > _CONNECTION_TIMEOUT ) {
         //We are checking the edges now:
         _last_edge_check = DateTime.Now;
         ArrayList edges_to_ping = new ArrayList();
@@ -647,17 +686,17 @@ namespace Brunet
         lock( _connection_table.SyncRoot ) {
           foreach(Connection con in _connection_table) {
 	    Edge e = con.Edge;
-            if( _last_edge_check - e.LastInPacketDateTime  > _edge_close_timeout ) {
+            if( _last_edge_check - e.LastInPacketDateTime  > _EDGE_CLOSE_TIMEOUT ) {
               //After this period of time, we close the edge no matter what.
               edges_to_close.Add(e);
             }
-            else if( _last_edge_check - e.LastInPacketDateTime  > _connection_timeout ) {
+            else if( _last_edge_check - e.LastInPacketDateTime  > _CONNECTION_TIMEOUT ) {
               //Check to see if this connection is still active by pinging it
               edges_to_ping.Add(e);
             }
           }
           foreach(Edge e in _connection_table.GetUnconnectedEdges() ) {
-            if( _last_edge_check - e.LastInPacketDateTime > _edge_close_timeout ) {
+            if( _last_edge_check - e.LastInPacketDateTime > _EDGE_CLOSE_TIMEOUT ) {
               edges_to_close.Add(e);
               lock( _sync ) {
                 if( _gracefully_close_edges.Contains(e) ) {
@@ -754,7 +793,7 @@ namespace Brunet
 
       AHPacket packet = (AHPacket) p;
       Address dest = packet.Destination;
-      IRouter router = GetRouterFor(dest);
+      IRouter router = (IRouter)_routers[dest.Class];
       
       bool deliver_locally = false;
 
@@ -779,8 +818,11 @@ namespace Brunet
         System.Console.WriteLine("Delivering locally to node {0} packet {1}", this.Address, p.ToString() );
         //System.Console.ReadLine();
 #endif  
-
+        /*
         Announce(packet, from);
+        */
+        AnnounceState astate = new AnnounceState(packet, from);
+        _packet_queue.Enqueue(astate);
       }
 
       if (sent <= 0) {
@@ -828,12 +870,16 @@ namespace Brunet
       //Like Announce:
       AHPacket ahp = p as AHPacket;
       if( ahp != null ) {
-        ArrayList handlers = null;
-        lock( _sync ) {
-          handlers = (ArrayList)_send_subs[ahp.PayloadType];
-        }
+        //Note that reading from an Hashtable is threadsafe
+        ArrayList handlers = (ArrayList)_send_subs[ahp.PayloadType];
         if( handlers != null ) {
-          foreach(IAHPacketHandler hand in handlers) {
+        /*
+         * Ordinarily I prefer foreach, but for is faster in this
+         * case and this code gets called for every packet we send
+         */
+          int count = handlers.Count;
+          for(int i = 0; i < count; i++) {
+            IAHPacketHandler hand = (IAHPacketHandler)handlers[i];
             //System.Console.WriteLine("Handler: {0}", hand);
             hand.HandleAHPacket(this, ahp, null);
           }
@@ -925,7 +971,7 @@ namespace Brunet
           a = new ArrayList();
         }
         else {
-          a = new ArrayList();
+          a = new ArrayList(a);
         }
         a.Add(hand);
         _send_subs[prot] = a;

@@ -33,13 +33,17 @@ namespace Brunet
    * one particular attempt, on one particular Edge, which
    * was created using one TransportAddress
    */
-  public class LinkProtocolState : ILinkLocker, IPacketHandler {
+  public class LinkProtocolState : TaskWorker, ILinkLocker, IPacketHandler {
    
     /**
      * When this state machine reaches the end, it fires this event
      */
-    public event EventHandler FinishEvent;
     protected bool _is_finished;
+    public override bool IsFinished {
+      get {
+        lock( _sync ) { return _is_finished; }
+      }
+    }
     protected Packet _last_r_packet;
     public Packet LastRPacket {
       get { return _last_r_packet; }
@@ -88,6 +92,12 @@ namespace Brunet
     protected Edge _e;
     protected TransportAddress _ta;
     public TransportAddress TA { get { return _ta; } }
+
+    //This is an object that represents the task
+    //we are working on.
+    public override object Task {
+      get { return _ta; }
+    }
   
     /**
      * How many time outs are allowed before assuming failure
@@ -166,30 +176,33 @@ namespace Brunet
     public bool AllowLockTransfer(Address a, string contype, ILinkLocker l)
     {
 	bool allow = false;
-        if( l is Linker ) {
-          //We will allow it if we are done:
-          if( _is_finished ) {
-            allow = true;
+	lock( _sync ) {
+          if( l is Linker ) {
+            //We will allow it if we are done:
+            if( _is_finished ) {
+              allow = true;
+              _target_lock = null;
+            }
+          }
+          else if ( false == (l is LinkProtocolState) ) {
+            /**
+  	   * We only allow a lock transfer in the following case:
+             * 0) We have not sent the StatusRequest yet.
+  	   * 1) We are not transfering to another LinkProtocolState
+  	   * 2) The lock matches the lock we hold
+  	   * 3) The address we are locking is greater than our own address
+  	   */
+            if( (!_sent_status )
+                  && a.Equals( _target_lock )
+  	        && contype == _contype 
+  		&& ( a.CompareTo( _node.Address ) > 0) ) {
+                _target_lock = null; 
+                allow = true;
+  	    }
+  	  }
+          if( allow ) {
             _target_lock = null;
           }
-        }
-	else if ( false == (l is LinkProtocolState) ) {
-          /**
-	   * We only allow a lock transfer in the following case:
-           * 0) We have not sent the StatusRequest yet.
-	   * 1) We are not transfering to another LinkProtocolState
-	   * 2) The lock matches the lock we hold
-	   * 3) The address we are locking is greater than our own address
-	   */
-	  lock( _sync ) {
-            if( (!_sent_status )
-                && a.Equals( _target_lock )
-	        && contype == _contype 
-		&& ( a.CompareTo( _node.Address ) > 0) ) {
-              _target_lock = null; 
-              allow = true;
-	    }
-	  }
 	}
 	return allow;
     }
@@ -233,9 +246,11 @@ namespace Brunet
       else {
         //We got a connection, don't close it!
       }
-      if( FinishEvent != null ) {
-        FinishEvent(this, EventArgs.Empty);
-      }
+      FireFinished();
+      /**
+       * We have to make sure the lock is eventually released:
+       */
+      this.Unlock();
     }
     /**
      * Set the _target member variable and check for sanity
@@ -395,6 +410,29 @@ namespace Brunet
           _result = Result.RetryThisTA;
           finish = true;
         }
+        else if ( _em.Ec == ErrorMessage.ErrorCode.AlreadyConnected ) {
+          /*
+           * The other side thinks we are already connected.  This is
+           * odd, let's see if we agree
+           */
+          Address target = _linker.Target;
+          ConnectionTable tab = _node.ConnectionTable;
+          if( tab.Contains( Connection.StringToMainType( _contype ), target) ) {
+            //This shouldn't happen
+            _result = Result.ProtocolError;
+            finish = true;
+            Console.Error.WriteLine("LPS: already connected: {0}, {1}",
+                                    _contype, target);
+          }
+          else {
+            //The other guy thinks we are connected, but we disagree,
+            //let's retry.  This can happen if we get disconnected
+            //and reconnect, but the other node hasn't realized we
+            //are disconnected.
+            _result = Result.RetryThisTA;
+            finish = true;
+          }
+        }
         else {
           //We failed.
           _result = Result.ProtocolError;
@@ -445,7 +483,7 @@ namespace Brunet
       }
     }
 
-    public void Start() {
+    public override void Start() {
       _link_enumerator = GetEnumerator();
       _link_enumerator.MoveNext(); //Move the protocol forward:
       Packet p = (Packet)_link_enumerator.Current;

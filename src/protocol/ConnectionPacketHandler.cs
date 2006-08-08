@@ -279,6 +279,25 @@ namespace Brunet
 	      Console.WriteLine("ConnectionPacketHandler - Sending an error response.");
 #endif
               response = err;
+              if( err.Ec == ErrorMessage.ErrorCode.AlreadyConnected ) {
+                /**
+                 * When we send the ErrorCode.AlreadyConnected,
+                 * we could have a stale connection, lets try pinging
+                 * the other node, if they are there, but have lost
+                 * the Edge, this may trigger the edge to close, causing
+                 * us to remove the Connection.
+                 * @todo consider putting this address on a "fast track"
+                 * to removal if we don't hear from it soon
+                 */
+                Connection c = _tab.GetConnection( lm.ConnectionType,
+                                                   lm.Local.Address );
+                if( c != null ) {
+                  ConnectionMessage preq = new PingMessage();
+                  preq.Dir = ConnectionMessage.Direction.Request;
+                  preq.Id = 1;
+                  c.Edge.Send(preq.ToPacket());
+                }
+              }
             }
             //We know what we want to say, just send the response
             from.Send( response.ToPacket() );

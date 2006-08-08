@@ -387,6 +387,7 @@ namespace Brunet {
             target = GetShortcutTarget(); 
 	    ttl = 1024;
 	    contype = struc_short;
+            Console.WriteLine("Making Connector for shortcut to: {0}", target);
             ConnectTo(target, ttl, contype);
           }
       }
@@ -856,6 +857,8 @@ namespace Brunet {
        * the Connector starts.  If it returns true, the Connector
        * will finish immediately without sending an ConnectToMessage
        */
+      Linker l = new Linker(_node, target, null, contype);
+      object linker_task = l.Task;  //This is what we check for
       Connector.AbortCheck abort = delegate(Connector c) {
         bool stop = false;
         lock( _node.ConnectionTable.SyncRoot ) {
@@ -867,8 +870,7 @@ namespace Brunet {
              * No need in sending a ConnectToMessage if we
              * already have a linker going.
              */
-            Linker l = new Linker(_node, target, null, contype);
-            stop = _node.TaskQueue.HasTask( l.Task );
+            stop = _node.TaskQueue.HasTask( linker_task );
           }
         }
         return stop;
@@ -888,7 +890,7 @@ namespace Brunet {
         t_hops = 1;
       }
       ConnectToMessage ctm =
-        new ConnectToMessage(contype, new NodeInfo(_node.Address, _node.LocalTAs) );
+        new ConnectToMessage(contype, _node.GetNodeInfo(6));
       ctm.Id = _rand.Next(1, Int32.MaxValue);
       ctm.Dir = ConnectionMessage.Direction.Request;
 
@@ -1056,17 +1058,17 @@ namespace Brunet {
        *   = d_ave( 2^(p log d_max - p log d_ave) )
        *   = 2^( p log d_max + (1 - p) log d_ave )
        *  
-       * since we can go either direction in the ring, d_max = N/2
-       * so: log d_ave = log N - log k, but k is the size of the network:
+       * since we can go all the way around the ring d_max = N
+       * and: log d_ave = log N - log k, but k is the size of the network:
        * 
-       * d = 2^( p (log N - 1) + (1 - p) log N - (1-p) log k)
-       *   = 2^( log N - p - (1-p)log k)
+       * d = 2^( p log N + (1 - p) log N - (1-p) log k)
+       *   = 2^( log N - (1-p)log k)
        * 
        */
       double logN = (double)(Address.MemSize * 8);
       double logk = Math.Log( (double)_node.NetworkSize, 2.0 );
       double p = _rand.NextDouble();
-      double ex = logN -p - (1.0 - p)*logk;
+      double ex = logN - (1.0 - p)*logk;
       int ex_i = (int)Math.Floor(ex);
       double ex_f = ex - Math.Floor(ex);
       //Make sure 2^(ex_long+1)  will fit in a long:

@@ -78,28 +78,6 @@ namespace Brunet
       _neighbors = neighbors;
     }
     /**
-     * Prefer this constructor
-     * @param t ConnectionType for this message
-     * @param target the Address of the Node to connect to
-     * @param tas the TransportAddresses to connect to in order of preference
-     */
-    public ConnectToMessage(ConnectionType t, Address target, TransportAddress[] tas)
-    {
-      _ct = Connection.ConnectionTypeToString(t);
-      _target_ni = new NodeInfo(target, new ArrayList(tas));
-    }
-    /**
-     * This constructor wraps the above constructor
-     * @param t ConnectionType for this message
-     * @param target the Address of the Node to connect to
-     * @param tas the TransportAddresses to connect to in order of preference
-     */
-    public ConnectToMessage(ConnectionType t, Address target, ICollection tas)
-    {
-      _ct = Connection.ConnectionTypeToString(t);
-      _target_ni = new NodeInfo(target, new ArrayList(tas));
-    }
-    /**
      * Deserializes the whole <request />
      */
     public ConnectToMessage(System.Xml.XmlElement r) : base(r)

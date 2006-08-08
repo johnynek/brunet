@@ -20,7 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //#define KML_DEBUG
 //#define LOCK_DEBUG
-
+#define PRINT_CONNECTIONS
 
 #if BRUNET_NUNIT
 using NUnit.Framework;
@@ -239,14 +239,9 @@ namespace Brunet
       //Console.WriteLine("Table size is: {0}", TotalCount);
 #endif
 
-      #if KML_DEBUG
-      System.Console.WriteLine("ConnectionEvent: address: " + a.ToString() +
-                               ", edge: " + e.ToString() +
-                               ", type: " + t.ToString() +
-                               ", index: " + index);
-      //System.Console.ReadLine();
-      #endif
-
+#if PRINT_CONNECTIONS
+      System.Console.WriteLine("New Connection[{0}]: {1}", index, c);
+#endif
       /* Send the event: */
       if( ConnectionEvent != null ) {
         try {
@@ -334,12 +329,9 @@ namespace Brunet
 #endif
 
 
-      #if KML_DEBUG
-        System.Console.WriteLine("Disconnect: DisconnectionEvent: address: " + remote.ToString() +
-                                 ", edge: " + e.ToString() +
-                                 ", type: " + t.ToString() +
-                                 ", index: " + index);
-      #endif
+#if PRINT_CONNECTIONS
+      System.Console.WriteLine("New disconnection[{0}]: {1}", index, c);
+#endif
         //Announce the disconnection:
         if( DisconnectionEvent != null ) {
           try {
