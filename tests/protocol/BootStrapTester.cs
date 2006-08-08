@@ -32,7 +32,7 @@ using System.Text;
 namespace Brunet 
 {
   /** 
-   * This class tests the bootstrapping of the gnucla system.
+   * This class tests the bootstrapping of the brunet system.
    *
    */
   public class BootStrapTester
@@ -249,19 +249,19 @@ namespace Brunet
 	  TransportAddress this_ta = null;
           switch(net_type) {
             case "tcp":
-		this_ta = new TransportAddress("gnucla.tcp://127.0.0.1:"
+		this_ta = new TransportAddress("brunet.tcp://127.0.0.1:"
 				               + other_port );
 	        break;
             case "udp":
-		this_ta = new TransportAddress("gnucla.udp://127.0.0.1:"
+		this_ta = new TransportAddress("brunet.udp://127.0.0.1:"
 				               + other_port );
 	        break;
             case "udp-as":
-		this_ta = new TransportAddress("gnucla.udp://127.0.0.1:"
+		this_ta = new TransportAddress("brunet.udp://127.0.0.1:"
 				               + other_port );
 	        break;
 	    case "function":
-		this_ta = new TransportAddress("gnucla.function://localhost:"
+		this_ta = new TransportAddress("brunet.function://localhost:"
 				               + other_port );
                 break;
 	    default:
