@@ -295,7 +295,13 @@ namespace Brunet
                   ConnectionMessage preq = new PingMessage();
                   preq.Dir = ConnectionMessage.Direction.Request;
                   preq.Id = 1;
-                  c.Edge.Send(preq.ToPacket());
+                  try {
+                    c.Edge.Send(preq.ToPacket());
+                  }
+                  catch(EdgeException ex) {
+                    //This edge could close on us when we least expect it.
+                    //if it does, it will throw an exception, we catch it.
+                  }
                 }
               }
             }
