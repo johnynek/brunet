@@ -57,7 +57,7 @@ namespace Ipop
           return;
       }
 
-      if(!ether.SendPacket(packet)) {
+      if(!ether.SendPacket(packet, 0x800)) {
 	Console.WriteLine("error reading packet from ethernet");
 	return;
       }

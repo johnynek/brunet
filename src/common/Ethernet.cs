@@ -46,23 +46,17 @@ namespace Ipop {
       int n = read_tap(tap_fd, packet, packet.Length);
       if (n == 0 || n == -1) 
 	return null;
-      //Console.WriteLine(packet[2*ETHER_ADDR_LEN]);
-      //Console.WriteLine(packet[2*ETHER_ADDR_LEN + 1]);
-      //now remove the ethernet header
-      byte[] ip_packet = new byte[n - ETHER_HEADER_SIZE];
-      //now copy ip datagram and return;
-      Array.Copy(packet, ETHER_HEADER_SIZE, ip_packet, 0, ip_packet.Length);
-      return ip_packet;
+      return packet;
     }
-    public bool SendPacket(byte []ip_packet) {
+    public bool SendPacket(byte []l3_packet, int type) {
       //this takes care of adding the ethernet header
-      byte[] packet = new byte[ip_packet.Length + ETHER_HEADER_SIZE];
+      byte[] packet = new byte[l3_packet.Length + ETHER_HEADER_SIZE];
       //now add the necassary stuff
       Array.Copy(dst_addr, 0, packet, 0, ETHER_ADDR_LEN);
       Array.Copy(src_addr, 0, packet, ETHER_ADDR_LEN, ETHER_ADDR_LEN);
-      packet[2*ETHER_ADDR_LEN] = 8;
-      packet[2*ETHER_ADDR_LEN + 1] = 0;
-      Array.Copy(ip_packet, 0, packet, ETHER_HEADER_SIZE, ip_packet.Length);
+      packet[2*ETHER_ADDR_LEN] = (byte) ((type >> 8) & 255);
+      packet[2*ETHER_ADDR_LEN + 1] = (byte) (type & 255);
+      Array.Copy(l3_packet, 0, packet, ETHER_HEADER_SIZE, l3_packet.Length);
       int n = send_tap(tap_fd, packet, packet.Length);
       if (n != packet.Length) {
 	return false;

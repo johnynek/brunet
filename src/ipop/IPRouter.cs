@@ -23,7 +23,7 @@ namespace Ipop {
     public string IPConfig;
     public string DHCPServerIP;
     public string NodeAddress;
-    public string System;
+    public string Setup;
     public string Hostname;
     public StaticInfo StaticData;
     public DHCPInfo DHCPData;
@@ -36,6 +36,8 @@ namespace Ipop {
 
   public class DHCPInfo {
     public string DHCPServerAddress;
+    public string IPAddress;
+    public string Netmask;
   }
 
   public class EdgeListener {
@@ -78,11 +80,19 @@ namespace Ipop {
         byte [] temp = new byte[16];
         rng.GetBytes(temp);
         config.NodeAddress = DHCPCommon.BytesToString(temp, ':');
-        fs = new FileStream(configFile, FileMode.OpenOrCreate, 
-          FileAccess.Write);
-        serializer.Serialize(fs, config);
-        fs.Close();
+        UpdateConfiguration(configFile);
       }
+      if(config.Setup == null) {
+        config.Setup = "auto";
+      }
+    }
+
+    private static void UpdateConfiguration(string configFile) {
+      FileStream fs = new FileStream(configFile, FileMode.OpenOrCreate, 
+        FileAccess.Write);
+      XmlSerializer serializer = new XmlSerializer(typeof(IPRouterConfig));
+      serializer.Serialize(fs, config);
+      fs.Close();
     }
 
     private static BigInteger GetHash(IPAddress addr) {
@@ -170,7 +180,7 @@ namespace Ipop {
 
       routines = new OSDependent();
       System.Console.WriteLine("IPRouter starting up...");
-      ether = new Ethernet(config.device, routines.GetTapMAC(config.device),
+      ether = new Ethernet(config.device, "FE:FD:00:00:00:01", 
         "FE:FD:00:00:00:00");
       if (ether.Open() < 0) {
         Console.WriteLine("unable to set up the tap");
@@ -180,14 +190,18 @@ namespace Ipop {
       BrunetTransport brunet = null;
       RoutingTable routes = null;
 
+      if(config.Setup == "auto")
+        routines.SetTapMAC(config.device);
+
       if(config.IPConfig == "static")
       {
         Virtual_IPAddress = config.StaticData.IPAddress;
         Netmask = config.StaticData.Netmask;
-        routines.SetTapDevice(config.device, Virtual_IPAddress, Netmask);
-        routines.SetRouteAndArp(config.device, Virtual_IPAddress, Netmask);
-        if(config.Hostname != null)
-          routines.SetHostname(config.Hostname);
+        if(config.Setup == "auto") {
+          routines.SetTapDevice(config.device, Virtual_IPAddress, Netmask);
+          if(config.Hostname != null)
+            routines.SetHostname(config.Hostname);
+        }
         //setup Brunet node
         brunet = Start();
         //build a new routes table and populate it artificially
@@ -195,9 +209,23 @@ namespace Ipop {
       }
       else {
         Nameservers = routines.GetNameservers();
-        Virtual_IPAddress = null;
-        Netmask = null;
         DHCPClient.DHCPInit(config.DHCPData.DHCPServerAddress);
+        if(config.DHCPData.IPAddress != null && config.DHCPData.Netmask != null) {
+          Virtual_IPAddress = config.DHCPData.IPAddress;
+          Netmask = config.DHCPData.Netmask;
+          brunet = Start();
+          routes = new RoutingTable();
+          if(config.Setup == "auto") {
+            if(config.Hostname == null)
+              routines.SetHostname(routines.DHCPGetHostname(Virtual_IPAddress));
+            else
+              routines.SetHostname(config.Hostname);
+          }
+        }
+        else {
+          Virtual_IPAddress = null;
+          Netmask = null;
+        }
       }
       // else wait for dhcp packet below
 
@@ -210,8 +238,50 @@ namespace Ipop {
           Console.WriteLine("error reading packet from ethernet");
           continue;
         }
-        //write a primitive copy method
-        byte [] buffer = packet;
+
+        /*  ARP Packet Handler */
+        int type = (packet[12] << 8) + packet[13];
+        byte [] buffer = new byte[packet.Length - 14];
+
+        if(type == 0x806 || type == 0x800)
+          Array.Copy(packet, 14, buffer, 0, buffer.Length);
+        else
+          continue;
+
+        if(type == 0x806) {
+          /* Set HWAddr of dest to FE:FD:00:00:00:00 */
+          buffer[7] = 2;
+          byte [] temp;
+          if(buffer[14] == 0)
+            temp = new byte[] {0xFF, 0xFF, 0xFF, 0xFF};
+          else
+            temp = new byte[] {buffer[14], buffer[15], buffer[16], buffer[17]};
+          buffer[8] = 0xFE;
+          buffer[9] = 0xFD;
+          buffer[10] = 0x00;
+          buffer[11] = 0x00;
+          buffer[12] = 0x00;
+          buffer[13] = 0x00;
+
+          buffer[14] = buffer[24];
+          buffer[15] = buffer[25];
+          buffer[16] = buffer[26];
+          buffer[17] = buffer[27];
+
+          buffer[18] = 0xFE;
+          buffer[19] = 0xFD;
+          buffer[20] = 0x00;
+          buffer[21] = 0x00;
+          buffer[22] = 0x00;
+          buffer[23] = 0x01;
+
+          buffer[24] = temp[0];
+          buffer[25] = temp[1];
+          buffer[26] = temp[2];
+          buffer[27] = temp[3];
+          ether.SendPacket(buffer, 0x806);
+          continue;
+        }
 
         IPAddress destAddr = IPPacketParser.DestAddr(buffer);
         IPAddress srcAddr = IPPacketParser.SrcAddr(buffer);
@@ -262,23 +332,27 @@ namespace Ipop {
 
         /* Convert the packet into byte format, run Arp and Route updater */
             returnPacket.EncodePacket();
-            ether.SendPacket(returnPacket.packet);
+            ether.SendPacket(returnPacket.packet, 0x800);
         /* Do we have a new IP address, if so (re)start Brunet */
             byte [] ip = returnPacket.decodedPacket.yiaddr;
             string newAddress = DHCPCommon.BytesToString(ip, '.');
-            routines.DHCPSetTapDeviceName(config.device);
-            (new Thread(routines.DHCPSetRouteAndArp)).Start();
             if(Virtual_IPAddress == null || Virtual_IPAddress != newAddress) {
               Virtual_IPAddress = newAddress;
               Netmask = DHCPCommon.BytesToString(((DHCPOption) returnPacket.
                 decodedPacket.options[1]).byte_value, '.');
-              if(config.Hostname == null)
-                routines.SetHostname(routines.DHCPGetHostname(Virtual_IPAddress));
-              else
-                routines.SetHostname(config.Hostname);
+              config.DHCPData.IPAddress = Virtual_IPAddress;
+              config.DHCPData.Netmask = Netmask;
+              UpdateConfiguration(args[0]);
+              if(config.Setup == "auto") {
+                if(config.Hostname == null)
+                  routines.SetHostname(routines.DHCPGetHostname(Virtual_IPAddress));
+                else
+                  routines.SetHostname(config.Hostname);
+              }
               brunet = Start();
               routes = new RoutingTable();
             }
+            continue;
           }
           else {
         /* Not a success, means we can't continue on, sorry, 

@@ -109,21 +109,6 @@ namespace Ipop {
       }
     }
 
-    public override string GetTapMAC(string device) {
-      System.Diagnostics.Process proc = new System.Diagnostics.Process();
-      proc.EnableRaisingEvents = false;
-      proc.StartInfo.RedirectStandardOutput = true;
-      proc.StartInfo.UseShellExecute = false;
-      proc.StartInfo.FileName = "ifconfig";
-      proc.StartInfo.Arguments = device;
-      proc.Start();
-      proc.WaitForExit();
-
-      StreamReader sr = proc.StandardOutput;
-      string output = sr.ReadLine();
-      return output.Substring(output.IndexOf("HWaddr") + 7, 17);
-    }
-
     public override string GetTapNetmask(string device) {
       string result = null;
       System.Diagnostics.Process proc = new System.Diagnostics.Process();
@@ -153,33 +138,6 @@ namespace Ipop {
       proc.WaitForExit();
     }
 
-    public override void SetRouteAndArp(string device, string IPAddress, string Netmask) {
-      byte [] ip = DHCPCommon.StringToBytes(IPAddress, '.');
-      byte [] netmask = DHCPCommon.StringToBytes(Netmask, '.');
-      string router = "", net = "";
-      for(int i = 0; i < ip.Length - 1; i++)
-        router += (ip[i] & netmask[i]) + ".";
-      net = router + "0";
-      router += "1";
-
-      System.Diagnostics.Process proc = new System.Diagnostics.Process();
-      proc.EnableRaisingEvents = false;
-      proc.StartInfo.UseShellExecute = false;
-      proc.StartInfo.FileName = "route";
-      proc.StartInfo.Arguments = "add -net " + net + " gw " + router + 
-        " netmask " + Netmask + " " + device;
-      proc.Start();
-      proc.WaitForExit();
-
-      proc = new System.Diagnostics.Process();
-      proc.EnableRaisingEvents = false;
-      proc.StartInfo.UseShellExecute = false;
-      proc.StartInfo.FileName = "arp";
-      proc.StartInfo.Arguments = "-s " + router + " FE:FD:00:00:00:00";
-      proc.Start();
-      proc.WaitForExit();
-    }
-
     public override void SetTapDevice(string device, string IPAddress, string Netmask) {
       System.Diagnostics.Process proc = new System.Diagnostics.Process();
       proc.EnableRaisingEvents = false;
@@ -187,6 +145,21 @@ namespace Ipop {
       proc.StartInfo.FileName = "ifconfig";
       proc.StartInfo.Arguments = device + " " + IPAddress +
         " netmask " + Netmask;
+      proc.Start();
+      proc.WaitForExit();
+    }
+
+    public override void SetTapMAC(string device) {
+      System.Diagnostics.Process proc = new System.Diagnostics.Process();
+      proc.EnableRaisingEvents = false;
+      proc.StartInfo.UseShellExecute = false;
+      proc.StartInfo.FileName = "ifconfig";
+
+      proc.StartInfo.Arguments = device + " down hw ether FE:FD:00:00:00:01";
+      proc.Start();
+      proc.WaitForExit();
+
+      proc.StartInfo.Arguments = device + " up";
       proc.Start();
       proc.WaitForExit();
     }
