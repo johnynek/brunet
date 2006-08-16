@@ -387,7 +387,7 @@ namespace Brunet {
             target = GetShortcutTarget(); 
 	    ttl = 1024;
 	    contype = struc_short;
-            Console.WriteLine("Making Connector for shortcut to: {0}", target);
+            //Console.WriteLine("Making Connector for shortcut to: {0}", target);
             ConnectTo(target, ttl, contype);
           }
       }
