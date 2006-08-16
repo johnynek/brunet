@@ -25,6 +25,7 @@ namespace Ipop {
     public string NodeAddress;
     public string Setup;
     public string Hostname;
+    public string TapMAC;
     public StaticInfo StaticData;
     public DHCPInfo DHCPData;
   }
@@ -180,8 +181,12 @@ namespace Ipop {
 
       routines = new OSDependent();
       System.Console.WriteLine("IPRouter starting up...");
-      ether = new Ethernet(config.device, "FE:FD:00:00:00:01", 
-        "FE:FD:00:00:00:00");
+      if(config.TapMAC != null)
+        ether = new Ethernet(config.device, config.TapMAC,
+          "FE:FD:00:00:00:00");
+      else
+        ether = new Ethernet(config.device, "FE:FD:00:00:00:01", 
+          "FE:FD:00:00:00:00");
       if (ether.Open() < 0) {
         Console.WriteLine("unable to set up the tap");
         return;
@@ -268,12 +273,23 @@ namespace Ipop {
           buffer[16] = buffer[26];
           buffer[17] = buffer[27];
 
-          buffer[18] = 0xFE;
-          buffer[19] = 0xFD;
-          buffer[20] = 0x00;
-          buffer[21] = 0x00;
-          buffer[22] = 0x00;
-          buffer[23] = 0x01;
+          if(config.TapMAC != null && config.Setup == "manual") {
+            byte [] temp1 = DHCPCommon.StringToBytes(config.TapMAC, '.');
+            buffer[18] = temp1[0];
+            buffer[19] = temp1[1];
+            buffer[20] = temp1[2];
+            buffer[21] = temp1[3];
+            buffer[22] = temp1[4];
+            buffer[23] = temp1[5];
+          }
+          else {
+            buffer[18] = 0xFE;
+            buffer[19] = 0xFD;
+            buffer[20] = 0x00;
+            buffer[21] = 0x00;
+            buffer[22] = 0x00;
+            buffer[23] = 0x01;
+          }
 
           buffer[24] = temp[0];
           buffer[25] = temp[1];
