@@ -185,8 +185,39 @@ namespace Brunet
       }
       return dist;
     }
+    /** Utility method to determine if some key lies between
+     *  two addresses (to the left of "us"). 
+     *  @return 1 in case its within
+     *  @return -1 in case its on th
+     */
+    public bool IsToLeftWithin(AHAddress start, AHAddress end) {
+      AHAddressComparer cmp = new AHAddressComparer();
+      //simple case of no wrap around where "within" is greater
+      if (cmp.Compare(start, end) < 0) {
+	return cmp.Compare(start, this) < 0 && cmp.Compare(this, end) < 0;
+      }
+      //in case there is a wrap around
+      //"within" has become lesser than "us"
+      return cmp.Compare(start, this) < 0 || cmp.Compare(this, end) < 0;
+    }
+    
+    /** Utility method to determine if some key lies between
+     *  two addresses (to the right of "us"). 
+     */
+    public bool IsToRightWithin(AHAddress start, AHAddress end){
+      AHAddressComparer cmp = new AHAddressComparer();
+      //simple case of no wrap around where "within" is lesser
+      if (cmp.Compare(start, end) > 0) {
+	return cmp.Compare(start, this) > 0 && cmp.Compare(this, end) > 0;
+      }
+      //in case there is a wrap around
+      //"within" has become greater than "us"
+      return cmp.Compare(start, this) > 0 || cmp.Compare(this, end) > 0;
+    }
   }
-#if BRUNET_NUNIT
+  
+  
+  #if BRUNET_NUNIT
   [TestFixture]
   public class AHAddressTester {
     [Test]

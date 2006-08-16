@@ -1,701 +1,598 @@
-/*
-Copyright (C) 2007  David Wolinsky <davidiw@ufl.edu>, University of Florida
-
-This program is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation; either version 2
-of the License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-*/
-
 using System;
-using System.IO;
 using System.Text;
 using System.Collections;
 using System.Security.Cryptography;
-using System.Collections.Generic;
-
-#if BRUNET_NUNIT
-using NUnit.Framework;
-using System.Threading;
-#endif
 
 using Brunet;
 
-namespace Brunet.DistributedServices {
+namespace Brunet.Dht {
+
+
+public class TableServer {
+
+  class TableKey {
+    protected readonly byte[] _buf;
+
+    public byte[] Buffer { 
+      get { 
+	return _buf;
+      } 
+    }
+
+    public TableKey(byte[] buffer) {
+      _buf = buffer;
+    }
+    public override bool Equals(Object o) {
+      TableKey other = o as TableKey;
+      if (other == null) {
+	return false;
+      }
+      
+      if (other.Buffer.Length != Buffer.Length) {
+	return false;
+      }
+      for (int i = 0; i < Buffer.Length; i++) {
+	if (Buffer[i] != other.Buffer[i]) {
+	  return false;
+	}
+      }
+      return true;
+    }
+    public override int GetHashCode() {
+      try {
+      int hash = 0;
+      if (Buffer.Length >= 4) {
+
+
+	hash = Brunet.NumberSerializer.ReadInt(Buffer, Buffer.Length - 4);
+#if DHT_DEBUG
+	Console.WriteLine("Hashcode returned is: {0}", hash);
+#endif
+	return hash;
+      }
+      hash = Brunet.NumberSerializer.ReadInt(Buffer, 0);
+#if DHT_DEBUG
+      Console.WriteLine("Hashcode returned is: {0}", hash);
+#endif
+      return hash;
+      } catch (Exception e) {
+#if DHT_DEBUG
+	Console.WriteLine("Exception in GetHashCode(): {0}", e);
+#endif
+	//this is arbitrary
+	return 1;
+      }
+    }
+    public AHAddress GetTargetAddress() {
+      HashAlgorithm hashAlgo = HashAlgorithm.Create();
+      byte[] hash = hashAlgo.ComputeHash(Buffer);
+      hash[Address.MemSize -1] &= 0xFE;
+      AHAddress target = new AHAddress(new BigInteger(hash));
+      return target;
+    }
+  }  
+  
+  
+  protected object _sync;
+  
+  //maintain a list of keys that are expiring:
+  //list of keys sorted on expiration times
+  protected ArrayList _expiring_entries;
+
+  protected Hashtable _ht;
+  protected int _max_idx;
+
+  protected Node _node;
+  public TableServer(Node node) {
+    /**
+     * @todo make sure there is a second copy of all data
+     * in the network.  When a neighbor is lost, make sure
+     * the new neighbor is updated with the correct content
+     */
+    _sync = new object();
+    _node = node;
+    _expiring_entries = new ArrayList();
+    _ht = new Hashtable();
+    _max_idx = 0;
+  }
+
+  protected  bool ValidatePasswordFormat(string password, 
+					 out string hash_name,
+					 out string base64_val) {
+    
+    string[] ss = password.Split(new char[] {':'});
+    if (ss.Length != 2) {
+      hash_name = "invalid";
+      base64_val = null;
+      return false;
+    }
+    hash_name = ss[0];
+    base64_val = ss[1];
+    return true;
+  }
+
+  public int GetCount() {
+    int count = 0;
+    lock(_sync) {
+      //delete keys that have expired
+      DeleteExpired();
+#if DHT_DEBUG
+      Console.WriteLine("[DhtServer] Cleaned up expired entries.");
+#endif
+      foreach (Object val in _ht.Values) 
+      {
+	ArrayList entry_list = (ArrayList) val;
+	count += entry_list.Count;
+      }
+    }
+    //Alternatively, we could also have count as number of keys
+    //return _ht.Count;
+
+    return count;
+  }
+  public int Put(byte[] key, int ttl, string hashed_password, byte[] data) {
+#if DHT_DEBUG
+    Console.WriteLine("[DhtServer]: Put().");
+#endif
+
+    string hash_name = null;
+    string base64_val = null;
+    if (!ValidatePasswordFormat(hashed_password, out hash_name, 
+				out base64_val)) {
+      throw new Exception("Invalid password format.");
+    }
+    
+    DateTime create_time = DateTime.Now;
+    TimeSpan ts = new TimeSpan(0,0,ttl);
+    DateTime end_time = create_time + ts;
+   
+    lock(_sync) {
+      //delete all keys that have expired
+      DeleteExpired();
+#if DHT_DEBUG
+      Console.WriteLine("[DhtServer] Cleaned up expired entries.");
+#endif
+      TableKey ht_key = new TableKey(key);
+      ArrayList entry_list = (ArrayList)_ht[ht_key];
+      if( entry_list != null ) {
+        //Make sure we only keep one reference to a key to save memory:
+	//Arijit Ganguly - I had no idea what this was about. Now I know...
+#if DHT_DEBUG
+	Console.WriteLine("[DhtServer]: Key exists.");
+#endif
+        key = ((Entry)entry_list[0]).Key;
+      }
+      else {
+        //This is a new key:
+        entry_list = new ArrayList();
+	//added the new TableKey to hashtable
+#if DHT_DEBUG
+	Console.WriteLine("[DhtServer]: Key doesn't exist. Created new entry_list.");
+#endif
+	_ht[ht_key] = entry_list;
+      }
+      _max_idx++; //Increment the maximum index
+
+      foreach(Entry ent in entry_list) {
+	if (ent.Password.Equals(hashed_password)) {
+#if DHT_DEBUG
+	  Console.WriteLine("[DhtServer]: Attempting to duplicate. (No put).");
+#endif
+	  return entry_list.Count;
+	}
+      }
+
+
+      //Look up 
+      Entry e = new Entry(key, hashed_password,  create_time, end_time,
+                         data, _max_idx);
+      
+      //Add the entry to the end of the list.
+      entry_list.Add(e);
+      //Further add this to sorted list _expired_entries list
+      InsertToSorted(e);
+     
+      ///@todo, we might need to tell a neighbor about this object
+      return entry_list.Count;
+    }
+  }
+
   /**
-  <summary>The TableServer provides the Dht server end point.</summary>
-  <remarks>Besides providing entry points for dht operations such as Get, Put,
-  and Create; it also contains the logic necessary to transfer keys when there
-  is churn in the system, this is implemented in ConnectionHandler,
-  DepartureHandler, and TransferState.</remarks>
-  */
-  public class TableServer : IRpcHandler {
-    /// <summary>Used to lock the TableServerData.</summary>
-    protected readonly Object _sync;
-    /// <summary>Used to lock connection and transfer state.</summary>
-    protected readonly Object _transfer_sync;
-    /// <summary>The data store for this dht server</summary>
-    protected readonly TableServerData _data;
-    /// <summary>The node the dht is serving from.</summary>
-    protected readonly Node _node;
-    /// <summary>Our right neighbors address.</summary>
-    protected Address _right_addr = null;
-    /// <summary>Our left neighbors address.</summary>
-    protected Address _left_addr = null;
-    /// <summary>The current transfer state to our right.</summary>
-    protected TransferState _right_transfer_state = null;
-    /// <summary>The current transfer state to our left.</summary>
-    protected TransferState _left_transfer_state = null;
-    /**  <summary>Do not allow dht operations until
-    StructuredConnectionOverlord is connected.</summary>*/
-    protected bool _dhtactivated = false;
-    /// <summary>This is set once Disconnect is called on _node.</summary>
-    protected bool disconnected = false;
-    /// <summary>True if the dht is usable.</summary>
-    public bool Activated { get { return _dhtactivated; } }
-    /// <summary>Total count of key:value pairs stored locally.</summary>
-    public int Count { get { return _data.Count; } }
-    /// <summary>Maximum size for all values stored here.</summary>
-    public const int MAX_BYTES = 1024;
-    /// <summary>The RpcManager the dht is serving from.</summary>
-    protected readonly RpcManager _rpc;
+   * This method differs from put() in the key is already mapped
+   * we fail
+   * @param key key associated with the date item
+   * @param ttl time-to-live in seconds
+   * @param hashed_password <hash_name>:<base64(hashed_pass)>
+   * @param data data associated with the key
+   * @return true on success, false on failure
+   */
+  
+  public bool Create(byte[] key, int ttl, string hashed_password, byte[] data) 
+  {
 
-    /**
-    <summary>Creates a new TableServer object and registers it to the "dht"
-    handler in the node's RpcManager.</summary>
-    <param name="node">The node the dht is to serve from.</param>
-    */
-    public TableServer(Node node) {
-      _sync = new Object();
-      _transfer_sync = new Object();
-
-      _node = node;
-      _rpc = RpcManager.GetInstance(node);
-
-      _data = new TableServerData(_node);
-      lock(_transfer_sync) {
-        node.ConnectionTable.ConnectionEvent += this.ConnectionHandler;
-        node.ConnectionTable.DisconnectionEvent += this.ConnectionHandler;
-        node.ConnectionTable.StatusChangedEvent += this.StatusChangedHandler;
-        node.DepartureEvent += this.DepartureHandler;
-      }
-
-      _rpc.AddHandler("dht", this);
+#if DHT_DEBUG
+    Console.WriteLine("[DhtServer]: Create().");
+#endif
+    string hash_name = null;
+    string base64_val = null;
+    if (!ValidatePasswordFormat(hashed_password, out hash_name,
+				out base64_val)) {
+      throw new Exception("Invalid password format.");
     }
-
-    /**
-    <summary>This provides faster translation for Rpc methods as well as allows
-    for Asynchronous Rpc calls which are required for Puts and Creates.
-    </summary>
-    <param name="caller">The ISender who made the request.</param>
-    <param name="method">The method requested.</param>
-    <param name="args">A list of arguments to pass to the method.</param>
-    <param name="rs">The return state sent back to the RpcManager so that it
-    knows who to return the result to.</param>
-    <exception cref="Brunet::DistributedServices::Dht::Exception">Thrown when
-    there the method is not Put, PutHandler, Get, Dump, or Count</exception>
-    */
-    public void HandleRpc(ISender caller, string method, IList args, object rs) {
-      object result = null;
-      try {
-        if(method.Equals("Put")) {
-          MemBlock key = (byte[]) args[0];
-          MemBlock value = (byte[]) args[1];
-          int ttl = (int) args[2];
-          bool unique = (bool) args[3];
-          Put(key, value, ttl, unique, rs);
-          return;
-        }
-        else if(method.Equals("PutHandler")) {
-          MemBlock key = (byte[]) args[0];
-          MemBlock value = (byte[]) args[1];
-          int ttl = (int) args[2];
-          bool unique = (bool) args[3];
-          result = PutHandler(key, value, ttl, unique);
-        }
-        else if(method.Equals("Get")) {
-          MemBlock key = (byte[]) args[0];
-          // Hack for backwards compatibility, supports forwards too
-          int token_pos = args.Count - 1;
-          if(args[token_pos] == null) {
-           result = Get(key, null);
-          }
-          else {
-            result = Get(key, (byte[]) args[token_pos]);
-          }
-        }
-        else if(method.Equals("Dump")) {
-          lock(_sync) {
-            result = _data.Dump();
-          }
-        }
-        else if(method.Equals("Count")) {
-          result = Count;
-        }
-        else {
-          throw new Exception("Dht.Exception:  Invalid method");
-        }
+    DateTime create_time = DateTime.Now;
+    TimeSpan ts = new TimeSpan(0,0,ttl);
+    DateTime end_time = create_time + ts;
+    
+    lock(_sync) {
+      //delete all keys that have expired
+      DeleteExpired();
+#if DHT_DEBUG
+      Console.WriteLine("[DhtServer] Cleaned up expired entries.");
+#endif
+      TableKey ht_key = new TableKey(key);
+      ArrayList entry_list = (ArrayList)_ht[ht_key];
+      if( entry_list != null ) {
+#if DHT_DEBUG
+	Console.WriteLine("[DhtServer]: No duplication allowed. Key exists.");
+#endif
+	//we already have the key mapped to something. return false
+	throw new Exception("Attempting to re-create key. Entry exists. ");
       }
-      catch (Exception e) {
-        result = new AdrException(-32602, e);
-      }
-      _rpc.SendResult(rs, result);
-    }
-
-    /**
-    <summary>Called by a Dht client to store data here, this supports both Puts
-    and Creates by using the unique parameter.</summary>
-    <remarks>Puts will store the value no matter what, Creates will only store
-    the value if they are the first ones to store data on that key.  This is
-    the first part of a Put operation.  This calls PutHandler on itself and
-    the neighbor nearest to the key, which actually places the data into the
-    store.  The result is returned to the client upon completion of the call
-    to the neighbor, if that fails the data is removed locally and an exception
-    is sent to the client indicating failure.</remarks>
-    <param name="key">The index to store the data at.</param>
-    <param name="value">Data to store at the key.</param>
-    <param name="ttl">Dht lease time in seconds</param>
-    <param name="unique">True if this should perform a create, false otherwise.
-    </param>
-    <param name="rs">The return state sent back to the RpcManager so that it
-    knows who to return the result to.</param>
-    <returns>True on success, thrown exception on failure</returns>
-    <exception cref="Exception">Data is too large, unresolved remote issues,
-    or the create is no successful</exception>
-    */
-
-    public bool Put(MemBlock key, MemBlock value, int ttl, bool unique, object rs) {
-      if(value.Length > MAX_BYTES) {
-        throw new Exception(String.Format(
-          "Dht only supports storing data smaller than {0} bytes.", MAX_BYTES));
-      }
-      PutHandler(key, value, ttl, unique);
-      Channel remote_put = new Channel();
-      remote_put.CloseAfterEnqueue();
-      remote_put.CloseEvent += delegate(Object o, EventArgs eargs) {
-        object result = false;
-        try {
-          result = remote_put.Dequeue();
-          RpcResult rpcResult = (RpcResult) result;
-          result = rpcResult.Result;
-          if(result.GetType() != typeof(bool)) {
-            throw new Exception("Incompatible return value.");
-          }
-          else if(!(bool) result) {
-            throw new Exception("Unknown error!");
-          }
-        }
-        catch (Exception e) {
-          lock(_sync) {
-            _data.RemoveEntry(key, value);
-          }
-          result = new AdrException(-32602, e);
-        }
-        _rpc.SendResult(rs, result);
-      };
-
-      try {
-        Address key_address = new AHAddress(key);
-        ISender s = null;
-        // We need to forward this to the appropriate node!
-        if(((AHAddress)_node.Address).IsLeftOf((AHAddress) key_address)) {
-          Connection con = _node.ConnectionTable.GetRightStructuredNeighborOf((AHAddress) _node.Address);
-          s = con.Edge;
-        }
-        else {
-          Connection con = _node.ConnectionTable.GetLeftStructuredNeighborOf((AHAddress) _node.Address);
-          s = con.Edge;
-        }
-        _rpc.Invoke(s, remote_put, "dht.PutHandler", key, value, ttl, unique);
-      }
-      catch (Exception) {
-        lock(_sync) {
-          _data.RemoveEntry(key, value);
-        }
-        throw;
-      }
+      //This is a new key:
+      entry_list = new ArrayList();
+      _ht[ht_key] = entry_list;
+#if DHT_DEBUG
+      Console.WriteLine("[DhtServer]: Key doesn't exist. Created new entry_list.");
+#endif      
+      _max_idx++; //Increment the maximum index
+      //Look up 
+      Entry e = new Entry(key, hashed_password,  create_time, end_time,
+			  data, _max_idx);
+      //Add the entry to the end of the list.
+      entry_list.Add(e);
+      //Further add the entry to the sorted list _expired_entries
+      InsertToSorted(e);
+      
+      ///@todo, we might need to tell a neighbor about this object
       return true;
+    } //release the lock
+  }
+
+  public IList Get(byte[] key, int maxbytes, byte[] token)
+  {
+
+#if DHT_DEBUG
+    Console.WriteLine("[DhtServer]: Get().");
+#endif
+
+    int seen_start_idx = -1;
+    int seen_end_idx = -1;
+    if( token != null ) {
+      
+      //This is a continuing get...
+      //This should be an array of ints:
+      int[] bounds = (int[])AdrConverter.Deserialize(new System.IO.MemoryStream(token));
+      seen_start_idx = bounds[0];
+      seen_end_idx = bounds[1];
+#if DHT_DEBUG
+      Console.WriteLine("[DhtServer]: seen_start_idx: " + seen_start_idx);
+      Console.WriteLine("[DhtServer]: seen_end_idx: " + seen_end_idx);
+#endif
+    } else {
+#if DHT_DEBUG
+      Console.WriteLine("[DhtServer]: null token.");
+#endif  
     }
+    int consumed_bytes = 0;
+    
+    ArrayList result = new ArrayList();
+    ArrayList values = new ArrayList();
+    int remaining_items = 0;
+    byte[] next_token = null;
+    
+    lock(_sync ) { 
+    //delete keys that have expired
+    DeleteExpired();
+#if DHT_DEBUG
+      Console.WriteLine("[DhtServer] Cleaned up expired entries.");
+#endif      
 
-    /**
-    <summary>Attempts to store the key:value pair into this server.</summary>
-    <remarks>First the dht deletes any expired entries stored at the key,
-    second it retrieves the entries from the data store.  If it is empty it
-    creates a new entry and returns.  Otherwise, it looks for the value in
-    the list and updates the lease time.  If there is no entry for that
-    key:value pair it either adds it in the case of a put or throws an
-    exception if it is a create.</remarks>
-    <param name="key">The index to store the data at.</param>
-    <param name="value">Data to store at the key.</param>
-    <param name="ttl">Dht lease time in seconds</param>
-    <param name="unique">True if this should perform a create, false otherwise.
-    </param>
-    <returns>True on success, thrown exception on failure</returns>
-    <exception cref="Exception">Data is too large, unresolved remote issues,
-    or the create is no successful</exception>
-    */
+    TableKey ht_key = new TableKey(key);  
+    ArrayList entry_list = (ArrayList)_ht[ht_key];
 
-    public bool PutHandler(MemBlock key, MemBlock value, int ttl, bool unique) {
-      DateTime create_time = DateTime.UtcNow;
-      DateTime end_time = create_time.AddSeconds(ttl);
+    int seen = 0; //Number we have already seen for this key
+    if( entry_list != null ) {
+#if DHT_DEBUG
+      Console.WriteLine("[DhtServer]: Key exists. Browing the entry_list.");
+#endif
 
-      lock(_sync) {
-        _data.DeleteExpired(key);
-        LinkedList<Entry> data = _data.GetEntries(key);
-        if(data != null) {
-          foreach(Entry ent in data) {
-            if(ent.Value.Equals(value)) {
-              if(end_time > ent.EndTime) {
-                _data.UpdateEntry(ent.Key, ent.Value, end_time);
-              }
-              return true;
-            }
-          }
-          // If this is a create we didn't find an previous entry, so failure, else add it
-          if(unique) {
-            throw new Exception("ENTRY_ALREADY_EXISTS");
-          }
-        }
-
-        // This is either a new key or a new value (put only)
-        Entry e = new Entry(key, value, create_time, end_time);
-        _data.AddEntry(e);
-      } // end of lock
-      return true;
-    }
-
-    /**
-    <summary>Retrieves data from the Dht.</summary>
-    <remarks>First old entries for the key are deleted from the dht, second a
-    look up is performed, and finally using the token a range of data is
-    selectively returned.</remarks>
-    <param name="key">The index used to look up.</summary>
-    <param name="token">Contains the data necessary to do follow up look ups
-    if all the data stored in a key is to big for MAX_BYTES.</param>
-    <returns>IList of hashtables containing the results.  Compatible with
-    DhtGetResult.</returns>
-    */
-
-    public IList Get(MemBlock key, byte[] token) {
-      int seen_start_idx = 0;
-      int seen_end_idx = 0;
-      if( token != null ) {
-        using(MemoryStream ms = new MemoryStream(token)) {
-          int[] bounds = (int[])AdrConverter.Deserialize(ms);
-          seen_start_idx = bounds[0];
-          seen_end_idx = bounds[1];
-          seen_start_idx = seen_end_idx + 1;
-        }
-      }
-
-      int consumed_bytes = 0;
-      Entry[] data = null;
-
-      lock(_sync ) {
-        _data.DeleteExpired(key);
-        LinkedList<Entry> ll_data = _data.GetEntries(key);
-
-        // Keys exist!
-        if( ll_data != null ) {
-          data = new Entry[ll_data.Count];
-          ll_data.CopyTo(data, 0);
-        }
-      }
-
-      ArrayList result = null;
-
-      if(data != null) {
-        result = new ArrayList();
-        ArrayList values = new ArrayList();
-        int remaining_items = 0;
-        byte[] next_token = null;
-
-        seen_end_idx = data.Length - 1;
-        for(int i = seen_start_idx; i < data.Length; i++) {
-          Entry e = (Entry) data[i];
-          if(e.Value.Length + consumed_bytes <= MAX_BYTES) {
-            int age = (int) (DateTime.UtcNow - e.CreateTime).TotalSeconds;
-            int ttl = (int) (e.EndTime - DateTime.UtcNow).TotalSeconds;
-            consumed_bytes += e.Value.Length;
+      int max_index = seen_end_idx;
+      foreach(Entry e in entry_list) {
+        if( e.Index > seen_end_idx ) { 
+          //We may add this one:
+          if( e.Data.Length + consumed_bytes <= maxbytes ) {
+            //Lets add it
+            TimeSpan age = DateTime.Now - e.CreatedTime;
+            int age_i = (int)age.TotalSeconds;
+            consumed_bytes += e.Data.Length;
             Hashtable item = new Hashtable();
-            item["age"] = age;
-            item["value"] = (byte[])e.Value;
-            item["ttl"] = ttl;
+            item["age"] = age_i;
+            item["data"] = e.Data;
             values.Add(item);
+#if DHT_DEBUG
+	    Console.WriteLine("[DhtServer]: Added value to results.");
+#endif
+	    if (e.Index > max_index) {
+	      max_index= e.Index;
+	    }
           }
-          else {
-            seen_end_idx = i - 1;
-            break;
-          }
-        }
-        remaining_items = data.Length - (seen_end_idx + 1);
-
-        //Token creation
-        int[] new_bounds = new int[2];
-        new_bounds[0] = seen_start_idx;
-        new_bounds[1] = seen_end_idx;
-        using(MemoryStream ms = new System.IO.MemoryStream()) {
-          AdrConverter.Serialize(new_bounds, ms);
-          next_token = ms.ToArray();
-        }
-        result.Add(values);
-        result.Add(remaining_items);
-        result.Add(next_token);
-      }
-      return result;
-    }
-
-    /**
-    <summary>This method checks to see if the node is connected and activates
-    the Dht if it is.</summary>
-    <param name="contab">Unimportant to us!</param>
-    <param name="eargs">Unimportant to us!</param>
-    */
-    protected void StatusChangedHandler(object contab, EventArgs eargs) {
-      if(!_dhtactivated && _node.IsConnected) {
-            _dhtactivated = true;
-      }
-    }
-
-    /**
-    <summary>This is called whenever there is a disconnect or a connect, the
-    idea is to determine if there is a new left or right node, if there is and
-    here is a pre-existing transfer, we must interupt it, and start a new
-    transfer.</summary>
-    <remarks>The possible scenarios where this would be active:
-     - no change on left
-     - new left node with no previous node (from disc or new node)
-     - left disconnect and new left ready
-     - left disconnect and no one ready
-     - no change on right
-     - new right node with no previous node (from disc or new node)
-     - right disconnect and new right ready
-     - right disconnect and no one ready
-    </remarks>
-    <param name="o">Unimportant</param>
-    <param name="eargs">Contains the ConnectionEventArgs, which lets us know
-    if this was a Structured Connection change and if it is, we should check
-    the state of the system to see if we have a new left or right neighbor.
-    </param>
-    */
-
-    protected void ConnectionHandler(object o, EventArgs eargs) {
-      if(disconnected) {
-        return;
-      }
-
-      ConnectionEventArgs cargs = eargs as ConnectionEventArgs;
-      Connection old_con = cargs.Connection;
-      //first make sure that it is a new StructuredConnection
-      if (old_con.MainType != ConnectionType.Structured) {
-        return;
-      }
-      lock(_transfer_sync) {
-        if(disconnected) {
-          return;
-        }
-        ConnectionTable tab = _node.ConnectionTable;
-        Connection lc = null, rc = null;
-        try {
-          lc = tab.GetLeftStructuredNeighborOf((AHAddress) _node.Address);
-        }
-        catch(Exception) {}
-        try {
-          rc = tab.GetRightStructuredNeighborOf((AHAddress) _node.Address);
-        }
-        catch(Exception) {}
-
-        if(lc != null) {
-          if(lc.Address != _left_addr) {
-            if(_left_transfer_state != null) {
-              _left_transfer_state.Interrupt();
-              _left_transfer_state = null;
-            }
-            _left_addr = lc.Address;
-            if(Count > 0) {
-              _left_transfer_state = new TransferState(lc, this);
-            }
-          }
-        }
-        else if(_left_addr != null) {
-          if(_left_transfer_state != null) {
-            _left_transfer_state.Interrupt();
-            _left_transfer_state = null;
-          }
-          _left_addr = null;
-        }
-
-        if(rc != null) {
-          if(rc.Address != _right_addr) {
-            if(_right_transfer_state != null) {
-              _right_transfer_state.Interrupt();
-              _right_transfer_state = null;
-            }
-            _right_addr = rc.Address;
-            if(Count > 0) {
-              _right_transfer_state = new TransferState(rc, this);
-            }
-          }
-        }
-        else if(_right_addr != null) {
-          if(_right_transfer_state != null) {
-            _right_transfer_state.Interrupt();
-            _right_transfer_state = null;
-          }
-          _right_addr = null;
-        }
-      }
-    }
-
-    /**
-    <summary>Called by Node.Disconnect to trigger shutting down of the dht.
-    This shuts down transfer states and prevent any more transfers.
-    </summary>
-    <param name="o">Unimportant.</param>
-    <param name="eargs">Unimportant.</param>
-    */
-    protected void DepartureHandler(Object o, EventArgs eargs) {
-      lock(_transfer_sync) {
-        if(_right_transfer_state != null) {
-          _right_transfer_state.Interrupt();
-          _right_transfer_state = null;
-        }
-        if(_left_transfer_state != null) {
-          _left_transfer_state.Interrupt();
-          _left_transfer_state = null;
-        }
-        this.disconnected = true;
-      }
-    }
-      /* Since there is support for parallel transfers, the methods for 
-    * inserting the first n versus the follow up puts are different,
-    * consider it an optimization.  The foreach loop goes through all the
-    * keys in the local ht, if it finds one that should be transferred, it
-    * goes through all the values for that key.  Once it reaches max 
-    * parallel transfers, it is done.
-      */
-    /**
-    <summary>This contains all the logic used to do the actual transfers.  This
-    does MAX_PARALLEL_TRANSFERS parallel transfer to speed up the transferring
-    of data to the new neighbor.  When a transfer is done, the next data to
-    transfer is transferred until they all are done.  The method Interrupt() is
-    an asynchronous call to stop transferring, it prevents new transfers from
-    starting but allows previously started ones to continue on.
-    </remarks>
-    */
-    protected class TransferState {
-      /// <summary>Lock for the enumeration of data to transfer</summary>
-      protected Object _sync = new Object();
-      /// <summary>The maximum amount of transfers to make in parallel.</summary>
-      protected const int MAX_PARALLEL_TRANSFERS = 10;
-      /// <summary>Set when no more transfers should be made.</summary>
-      protected volatile bool _interrupted = false;
-      /// <summary>A linkedlist of Entry arrays containing data to transfer.</summary>
-      LinkedList<Entry[]> key_entries = new LinkedList<Entry[]>();
-      /// <summary>An enumerator for key_entries.</summary>
-      protected IEnumerator _entry_enumerator;
-      /// <summary>The connection to the neighbor we're sending the data to.</summary>
-      Connection _con;
-      /// <summary>The tableserver we're providing the transfer for.</summary>
-      TableServer _ts;
-
-      /**
-      <summary>Begins a new transfer state to the neighbor connected via con.
-      </summary>
-      <param name="con">The connection to the neigbhor we will be transferring
-      data to.</param>
-      <param name="ts">The table server we're providing the transfer for.  C#
-      does not allow sub-class objects to have access to their parent objects
-      member variables, so we pass it in like this.</param>
-      <remarks>
-      Step 1:
-
-      Get all the keys between me and my new neighbor.
-
-      Step 2:
-
-      Get all values for those keys, we copy so that we don't worry about
-      changes to the dht during this interaction.  This is only a pointer
-      copy and since we let the OS deal with removing the contents of an
-      entry, we don't need to make copies of the actual entry.
-
-      Step 3:
-
-      Generate another list of keys of up to max parallel transfers and begin
-      transferring, that way we do not need to lock access to the entry
-      enumerator until non-constructor puts.
-
-      Step 4:
-
-      End constructor, results from puts, cause the next entry to be sent.
-      */
-      public TransferState(Connection con, TableServer ts) {
-        this._ts = ts;
-        this._con = con;
-        // Get all keys between me and my new neighbor
-        LinkedList<MemBlock> keys;
-        lock(_ts._sync) {
-          keys = _ts._data.GetKeysBetween((AHAddress) _ts._node.Address,
-                                      (AHAddress) _con.Address);
-        }
-        if(Dht.DhtLog.Enabled) {
-          ProtocolLog.Write(Dht.DhtLog, String.Format(
-                            "Starting transfer from {0} to {1}", 
-                            _ts._node.Address, _con.Address));
-        }
-        int total_entries = 0;
-        /* Get all values for those keys, we copy so that we don't worry about
-         * changes to the dht during this interaction.  This is only a pointer
-         * copy and since we let the OS deal with removing the contents of an
-         * entry, we don't need to make copies of the actual entry.
-         */
-        foreach(MemBlock key in keys) {
-          Entry[] entries;
-          lock(_ts._sync) {
-            LinkedList<Entry> llentries = _ts._data.GetEntries(key);
-            if(llentries == null) {
-              continue;
-            }
-            entries = new Entry[llentries.Count];
-            total_entries += llentries.Count;
-            llentries.CopyTo(entries, 0);
-          }
-          key_entries.AddLast(entries);
-        }
-        if(Dht.DhtLog.Enabled) {
-          ProtocolLog.Write(Dht.DhtLog, String.Format(
-                            "Total keys: {0}, total entries: {1}.", 
-                            key_entries.Count, total_entries));
-        }
-        _entry_enumerator = GetEntryEnumerator();
-
-        /* Here we generate another list of keys that we would like to 
-         * this is done here, so that we can lock up the _entry_enumerator
-         * only during this stage and not during the RpcManager.Invoke
-         */
-        LinkedList<Entry> local_entries = new LinkedList<Entry>();
-        for(int i = 0; i < MAX_PARALLEL_TRANSFERS && _entry_enumerator.MoveNext(); i++) {
-          local_entries.AddLast((Entry) _entry_enumerator.Current);
-        }
-
-        foreach(Entry ent in local_entries) {
-          Channel queue = new Channel();
-          queue.CloseAfterEnqueue();
-          queue.CloseEvent += this.NextTransfer;
-          int ttl = (int) (ent.EndTime - DateTime.UtcNow).TotalSeconds;
-          try {
-            _ts._rpc.Invoke(_con.Edge, queue, "dht.PutHandler", ent.Key, ent.Value, ttl, false);
-          }
-          catch {
-            if(_con.Edge.IsClosed) {
-              _interrupted = true;
-              Done();
-              break;
-            }
-          }
-        }
-      }
-
-      /**
-      <summary>Returns an enumerator for key_entries.</summary>
-      <returns>The enumerator for key_entries.</returns>
-      */
-      protected IEnumerator GetEntryEnumerator() {
-        foreach(Entry[] entries in key_entries) {
-          foreach(Entry entry in entries) {
-            yield return entry;
-          }
-        }
-      }
-
-      /**
-      <summary>This is called by all completed transfers.  It checks to see if
-      there is another value to transfer, transfers it if there is.  Otherwise
-      it calls Done.</summary>
-      <param name="o">The Channel where the result of the previous transfer is
-      stored.</param>
-      <param name="eargs">Null</param>
-      */
-      protected void NextTransfer(Object o, EventArgs eargs) {
-        Channel queue = (Channel) o;
-        queue.CloseEvent -= this.NextTransfer;
-        /* No point in dequeueing, if we've been interrupted, we most likely
-         * will get an exception!
-         */
-        if(_interrupted) {
-          return;
-        }
-        try {
-          queue.Dequeue();
-        }
-        catch (Exception){
-          if(_con.Edge.IsClosed) {
-            _interrupted = true;
-            Done();
-            return;
-          }
-        }
-
-        /* An exception could be thrown if Done is called in another thread or
-        there are no more entries available. */
-        Entry ent = null;
-        try {
-          lock(_sync) {
-            if(_entry_enumerator.MoveNext()) {
-              ent = (Entry) _entry_enumerator.Current;
-            }
-          }
-        }
-        catch{}
-        if(ent != null) {
-          queue = new Channel();
-          queue.CloseAfterEnqueue();
-          queue.CloseEvent += this.NextTransfer;
-          int ttl = (int) (ent.EndTime - DateTime.UtcNow).TotalSeconds;
-          try {
-            _ts._rpc.Invoke(_con.Edge, queue, "dht.PutHandler", ent.Key, ent.Value, ttl, false);
-          }
-          catch {
-            if(_con.Edge.IsClosed) {
-              _interrupted = true;
-            }
+	    else {
+            //We are all full up
+	      break;
           }
         }
         else {
-          Done();
-          if(Dht.DhtLog.Enabled) {
-            ProtocolLog.Write(Dht.DhtLog, String.Format(
-                              "Successfully complete transfer from {0} to {1}",
-                              _ts._node.Address, _con.Address));
-          }
+          //This is one we have seen, don't count it in the
+          //count of seen items;
+          seen++;
         }
       }
+      seen_end_idx = max_index;
+      /*
+       * Now compute how many items remain:
+       * We have either already seen them, sending them now, or not yet seen them.
+       */
 
-      /**
-      <summary>An asyncronous interrupt that prevents future transfers, but
-      does not stop current transfers.  Calls done.</summary>
-      */
-      public void Interrupt() {
-        _interrupted = true;
-        Done();
+
+#if DHT_DEBUG
+      Console.WriteLine("[DhtServer]: # Total entries: " + entry_list.Count);
+      Console.WriteLine("[DhtServer]: # Seen: " + seen);
+      Console.WriteLine("[DhtServer]: # Values returned: " + values.Count);
+#endif
+
+      remaining_items = entry_list.Count - seen - values.Count;
+    }
+    else {
+#if DHT_DEBUG
+      Console.WriteLine("[DhtServer]: Key doesn't exist.");
+#endif
+
+      //Don't know about this key
+    }
+    }//End of lock
+
+    //we have added new item: update the token
+    int[] new_bounds = new int[2];
+    new_bounds[0] = seen_start_idx;
+    new_bounds[1] = seen_end_idx;
+    //new_bounds has to be converted to a new token
+    System.IO.MemoryStream ms = new System.IO.MemoryStream();
+    AdrConverter.Serialize(new_bounds, ms);
+    next_token = ms.ToArray();
+    
+    result.Add(values);
+    result.Add(remaining_items);
+    result.Add(next_token);
+    return result;
+
+  }
+  /**
+   *  delete a key from the Table
+   *  @param password <hash_algo>:<base64(plain_text_password)>
+   *  @throws exception if invalid password
+   */
+  public void Delete(byte[] key, string password)
+  {
+#if DHT_DEBUG
+    Console.WriteLine("[DhtServer]: Delete().");
+#endif    
+    string hash_name = null;
+    string base64_pass = null;
+    if (!ValidatePasswordFormat(password, out hash_name, 
+				out base64_pass)) {
+      throw new Exception("Invalid password format.");
+    }
+    HashAlgorithm algo = null;
+    if (hash_name.Equals("SHA1")) {
+      algo = new SHA1CryptoServiceProvider();
+    } else if  (hash_name.Equals("MD5")) {
+      algo = new MD5CryptoServiceProvider();
+    }
+    
+    byte[] bin_pass = Convert.FromBase64String(base64_pass);
+    byte [] sha1_hash = algo.ComputeHash(bin_pass);
+    string base64_hash = Convert.ToBase64String(sha1_hash);
+    string stored_pass =  hash_name + ":" + base64_hash;
+    
+    
+    lock(_sync ) { 
+      //delete keys that have expired
+      DeleteExpired();  
+      
+      TableKey ht_key = new TableKey(key);
+      ArrayList entry_list = (ArrayList)_ht[ht_key];
+      bool found = false;
+      if (entry_list != null) {
+#if DHT_DEBUG
+	Console.WriteLine("[DhtServer]: Key exists. Browing the entry_list.");
+#endif
+	ArrayList to_delete = new ArrayList();
+
+	//we will ony delete the entry which corresponds to the 
+	//password provided
+	//we therefore have to verify the password
+	foreach(Entry e in entry_list) {
+	  if (e.Password.Equals(stored_pass)) {
+#if DHT_DEBUG
+	    Console.WriteLine("[DhtServer]: Found a key to delete.");
+#endif
+	    found = true;
+	    //we have found a key to delete
+	    to_delete.Add(e);
+	  }
+	}
+	foreach (Entry e in to_delete) {
+	  entry_list.Remove(e);
+	  //further remove the entry from the sorted list
+	  DeleteFromSorted(e);  
+	}
+	//in case that the entry_list has shrinked to size 0, make it null
+	if (entry_list.Count == 0) {
+	  _ht.Remove(ht_key);
+	}
+      } else {
+	Console.WriteLine("[DhtServer]: Key doesn't exist.");
       }
+      if (!found) {
+	//raise an error
+	throw new Exception("Access control violation on key. Incorrect password");	
+      }
+    }
+  }
+  /** protected methods. */
 
-      /**
-      <summary>Used to clear out the key_entries when done to assist in
-      garbage collection.</summary>
-      */
-      protected void Done() {
-        key_entries.Clear();
+  /** The method gets rid of keys that have expired. 
+   *  (Assuming that _expiring_entries is sorted).
+   */
+  protected void DeleteExpired() {
+    //scan through the list and remove entries 
+    //whose expiration times have elapsed
+#if DHT_DEBUG
+    Console.WriteLine("[DhtServer] Getting rid of expired entries.");
+#endif
+    int del_count = 0;
+    for (int i = 0; i < _expiring_entries.Count; i++) {
+      Entry e = (Entry) _expiring_entries[i];
+      DateTime end_time = e.EndTime; 
+      //first entry that hasn't expired, rest all should stay
+      if (end_time > DateTime.Now) 
+      {
+	break;
+      }
+      //we certainly are lookin at an entry that has expired
+      //get rid of this entry
+      TableKey key = new TableKey(e.Key);
+      ArrayList entry_list = (ArrayList) _ht[key];
+      //remove this from the entry list
+      entry_list.Remove(e);
+      if (entry_list.Count == 0) {
+	_ht.Remove(key);
+      }
+      del_count++;
+    }
+#if DHT_DEBUG
+    Console.WriteLine("[DhtServer] {0} entries stand expired.", del_count);
+#endif
+    if (del_count > 0) {
+      _expiring_entries.RemoveRange(0, del_count);
+#if DHT_DEBUG
+      Console.WriteLine("[DhtServer] {0} entries deleted.", del_count);
+#endif
+    }
+  }
+
+  /** Add to _expiring entries. */
+  protected void InsertToSorted(Entry new_entry) {
+    int idx = 0;
+    foreach(Entry e in _expiring_entries) {
+      if (new_entry.EndTime < e.EndTime) {
+	break;
+      }
+      idx++;
+    }
+#if DHT_DEBUG
+    Console.WriteLine("[DhtServer] New entry ranks: {0} in sorted array.",
+		      idx);
+#endif
+    _expiring_entries.Insert(idx, new_entry);
+  }
+  /** we further need a way to get rid of entries that are deleted.*/
+  protected void DeleteFromSorted(Entry e) {
+#if DHT_DEBUG
+    Console.WriteLine("[DhtServer] Removing an entry from sorted list. ");
+#endif
+    _expiring_entries.Remove(e);
+  }
+  
+  /** Methods not exposed by DHT but available only within DHT. */
+
+  
+
+
+  /** Not RPC related methods. */
+  /** Invoked by local DHT object. */
+  public ArrayList GetValues(byte[] key) {
+    lock(_sync) {
+      TableKey ht_key = new TableKey(key);  
+      ArrayList entry_list = (ArrayList)_ht[ht_key];
+      return entry_list;
+    }
+  }
+
+
+  /** Get all the keys to left of some address.
+   *  Note that this depends on whether the ring is stored clockwise or
+   *  anti-clockwise (which are internals of connection table).
+   *  
+   */
+  public Hashtable GetKeysToLeft(AHAddress us, AHAddress within) {
+    lock(_sync) {
+      Hashtable key_list = new Hashtable();
+      foreach (TableKey key in _ht.Keys) {
+	AHAddress target = key.GetTargetAddress();
+	if (target.IsToLeftWithin(us, within)) {
+	  //this is a relevant key
+	  //we want to share it
+	  ArrayList entry_list = (ArrayList)_ht[key];
+	  key_list[key.Buffer] = entry_list.Clone();
+	}
+      }
+      return key_list;
+    }
+
+  }
+
+  /** Get all the keys to right of some address.
+   *  Note that this depends on whether the ring is stored clockwise or
+   *  anti-clockwise (which are internals of connection table).
+   *  
+   */
+  public Hashtable GetKeysToRight(AHAddress us, AHAddress within) {
+    lock(_sync) {
+      Hashtable key_list = new Hashtable();
+      foreach (TableKey key in _ht.Keys) {
+	AHAddress target = key.GetTargetAddress();
+	if (target.IsToRightWithin(us, within)) {
+	  //this is a relevant key
+	  //we want to share it
+	  ArrayList entry_list = (ArrayList) _ht[key];
+	  key_list[key.Buffer] = entry_list.Clone();
+
+	}
+      }
+      return key_list;
+    }
+  }
+
+  //Note: This is critical method, and allows dropping complete range of keys.
+  public void AdminDelete(Hashtable key_list) {
+    lock(_sync ) { 
+      //delete keys that have expired
+      DeleteExpired();
+      foreach (byte[] k in key_list.Keys) {
+	//all the values to get rid
+	TableKey ht_key = new TableKey(k);
+	ArrayList entry_list = (ArrayList) _ht[ht_key];
+	//essentially delete all the values for that key
+	if (entry_list != null) {
+	  foreach(Entry e in entry_list) {
+	    DeleteFromSorted(e);
+	  }
+	}
+	_ht.Remove(ht_key);
       }
     }
   }
 }
+}
+  
