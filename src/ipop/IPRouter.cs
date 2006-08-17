@@ -274,7 +274,7 @@ namespace Ipop {
           buffer[17] = buffer[27];
 
           if(config.TapMAC != null && config.Setup == "manual") {
-            byte [] temp1 = DHCPCommon.StringToBytes(config.TapMAC, '.');
+            byte [] temp1 = DHCPCommon.HexStringToBytes(config.TapMAC, ':');
             buffer[18] = temp1[0];
             buffer[19] = temp1[1];
             buffer[20] = temp1[2];

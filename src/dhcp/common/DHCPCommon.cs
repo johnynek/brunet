@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Collections;
 using System.Runtime.Remoting.Lifetime;
 
@@ -143,11 +144,23 @@ namespace Ipop {
 
   public class DHCPCommon {
     public static byte [] StringToBytes(string input, char sep) {
+      //Console.WriteLine("Input: " + input);
       char [] separator = {sep};
       string[] ss = input.Split(separator);
       byte [] ret = new byte[ss.Length];
       for (int i = 0; i < ss.Length; i++) {
 	ret[i] = Byte.Parse(ss[i].Trim());
+      }
+      return ret;
+    }
+
+    public static byte [] HexStringToBytes(string input, char sep) {
+      //Console.WriteLine("Input: " + input);
+      char [] separator = {sep};
+      string[] ss = input.Split(separator);
+      byte [] ret = new byte[ss.Length];
+      for (int i = 0; i < ss.Length; i++) {
+	ret[i] = Byte.Parse(ss[i].Trim(), NumberStyles.HexNumber);
       }
       return ret;
     }
