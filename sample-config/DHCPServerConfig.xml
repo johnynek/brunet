@@ -3,7 +3,7 @@
   <ipop_namespace>
     <IPOPNamespace>
       <value>Condor</value>
-      <netmask>255.128.0.0</netmask>
+      <netmask>255.192.0.0</netmask>
       <pool>
         <lower>10.129.0.0</lower>
         <upper>10.131.255.255</upper>
@@ -16,17 +16,17 @@
           </DHCPReservedIP>
         </value>
       </reserved>
-      <LeaseTime>7</LeaseTime>
+      <leasetime>604800</leasetime>
       <LogSize>20480</LogSize>
     </IPOPNamespace>
     <IPOPNamespace>
       <value>Test</value>
-      <netmask>255.128.0.0</netmask>
+      <netmask>255.192.0.0</netmask>
       <pool>
-        <lower>10.255.255.0</lower>
-        <upper>10.255.255.255</upper>
+        <lower>10.191.255.0</lower>
+        <upper>10.191.255.255</upper>
       </pool>
-      <LeaseTime>7</LeaseTime>
+      <leasetime>86400</leasetime>
       <LogSize>5120</LogSize>
     </IPOPNamespace>
   </ipop_namespace>

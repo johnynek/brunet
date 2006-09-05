@@ -9,6 +9,12 @@ namespace Ipop {
     public DateTime expiration;
   }
 
+  public struct DHCPLeaseResponse {
+    public byte [] ip;
+    public byte [] netmask;
+    public byte [] leasetime;
+  }
+
   class DHCPLease {
     int index, size, leasetime;
     long logsize;
@@ -16,6 +22,7 @@ namespace Ipop {
     byte [] netmask;
     byte [] lower;
     byte [] upper;
+    byte [] leasetimeb;
     byte [][] reservedIP;
     byte [][] reservedMask;
     ArrayList LeaseIPs;
@@ -25,6 +32,10 @@ namespace Ipop {
 
     public DHCPLease(IPOPNamespace config) {
       leasetime = config.leasetime;
+      leasetimeb = new byte[]{((byte) ((leasetime >> 24))),
+        ((byte) ((leasetime >> 16))),
+        ((byte) ((leasetime >> 8))),
+        ((byte) (leasetime))};
       namespace_value = config.value;
       logsize = config.LogSize * 1024; /* Bytes */
       lower = DHCPCommon.StringToBytes(config.pool.lower, '.');
@@ -61,7 +72,7 @@ namespace Ipop {
       this.ReadLog();
     }
 
-    public byte [] GetLease(byte [] hwaddr) {
+    public DHCPLeaseResponse GetLease(byte [] hwaddr) {
       byte []ip = new byte[4] {0,0,0,0};
       lock(LeaseLock)
       {
@@ -71,11 +82,15 @@ namespace Ipop {
         if(index >= 0) {
           ip = (byte []) LeaseIPs[index];
           LeaseHWAddrs[index] = hwaddr;
-          LeaseExpirations[index] = DateTime.Now.AddDays(leasetime);
+          LeaseExpirations[index] = DateTime.Now.AddSeconds(leasetime);
           UpdateLog(index);
         }
       }
-      return ip;
+      DHCPLeaseResponse leaseReturn = new DHCPLeaseResponse();
+      leaseReturn.ip = ip;
+      leaseReturn.netmask = netmask;
+      leaseReturn.leasetime = leasetimeb;
+      return leaseReturn;
     }
 
     public int CheckForPreviousLease(byte [] hwaddr) {
@@ -254,7 +269,7 @@ namespace Ipop {
 
     public void NewLog() {
       FileStream file = new FileStream("logs/" + namespace_value + ".log",
-        FileMode.Append, FileAccess.Write);
+        FileMode.Create, FileAccess.Write);
       StreamWriter sw = new StreamWriter(file);
       for(int i = 0; i < LeaseIPs.Count; i++) {
         sw.WriteLine(i);
@@ -274,15 +289,19 @@ namespace Ipop {
       int index = 0;
       while((value = sr.ReadLine()) != null) {
         index = Int32.Parse(value);
+        string ip_str = sr.ReadLine();
+        string hw_str = sr.ReadLine();
+        Console.WriteLine(ip_str);
+        Console.WriteLine(hw_str);
         if(LeaseIPs.Count <= index) {
-          LeaseIPs.Add(DHCPCommon.StringToBytes(sr.ReadLine(), '.'));
-          LeaseHWAddrs.Add(DHCPCommon.StringToBytes(sr.ReadLine(), ':'));
+          LeaseIPs.Add(DHCPCommon.StringToBytes(ip_str, '.'));
+          LeaseHWAddrs.Add(DHCPCommon.StringToBytes(hw_str, ':'));
           LeaseExpirations.Add(new DateTime(long.Parse(sr.ReadLine())));
           this.index++;
         }
         else {
-          LeaseIPs[index] = DHCPCommon.StringToBytes(sr.ReadLine(), '.');
-          LeaseHWAddrs[index] = DHCPCommon.StringToBytes(sr.ReadLine(), ':');
+          LeaseIPs[index] = DHCPCommon.StringToBytes(ip_str, '.');
+          LeaseHWAddrs[index] = DHCPCommon.StringToBytes(hw_str, ':');
           LeaseExpirations[index] = new DateTime(long.Parse(sr.ReadLine()));
         }
       }

@@ -1,20 +1,77 @@
 IPOP
 
-Introduction and Overview
-Running SimpleNode.exe
-Running IPRouter.exe
-Explanation of Configuration Files
+1   Introduction and Overview
+2   SimpleNode and IPRouter
+3   DHCPServer
+4   Regarding 'mkbundle' Version, Running IPOP without Mono
+5   DNS
+6   Compiling
 
-Introduction and Overview
+Section 1:  Introduction and Overview
 
-Through the use of IPOP, users can create P2P virtual networks with relative ease.  IPOP comes with two executables, SimpleNode.exe and IPRouter.exe, an overview of each follows.
+Through the use of IPOP, users can create P2P virtual networks with relative ease.  IPOP comes with three executables, SimpleNode.exe, IPRouter.exe, and DHCPServer.exe, an overview of each follows.
 
-IPRouter.exe allows a node to communicate with other nodes over the P2P network.  IPRouter.exe requires a tap device and must be run under a Unix variant supporting tap devices, testing has only been done on Linux.
+IPRouter allows a node to communicate with other nodes over the P2P network.  IPRouter.exe requires a tap device and must be run under a Unix variant supporting tap devices, testing has only been done on Linux.
 
-SimpleNode.exe provides interconnectivity between P2P virtual network nodes.  While the process does can not send or receive packets directly, it relays them to nodes running IPRouter.exe.  Thus they should be able to run in a user mode on computers which the owner of the P2P network doesn't own.  This is especially useful for running P2P networks on PlanetLab.
+SimpleNode provides interconnectivity between P2P virtual network nodes.  While the process does can not send or receive packets directly, it relays them to nodes running IPRouter.exe, acting as a bridge between nodes.  Thus they should be able to run in a user mode on computers which the owner of the P2P network doesn't own.  This is especially useful for running P2P networks on PlanetLab.
 
-Running SimpleNode.exe
+Section 2:  Running SimpleNode and IPRouter
 
-Running IPRouter.exe
+Subsection A:  SimpleNode and IPRouter Configuration
 
-Explanation of Configuration Files
+Sample configuration files can be found in the directory "sample-config".  The programs are run by specifying the input parameter to the program as the configuration file, i.e. "mono SimpleNode simplenode.config".  Everything is case sensitive.
+
+Below is a list and description of the fields for the config files a '*' is placed next to those that only apply to IPRouter.
+
+- brunet-namespace - Used to create logical partitions inside the virtual network.  All nodes inside a virtual network must specify the same brunet-namespace or they will be unable to communicate.
+- RemoteTAs - A list of transport nodes where an IPOP process is currently running.  The protocol is unimport; however the address and the port must specify a specific node.
+- EdgeListeners - Allows the specifying of several local edges, so that the user can specify TCP, UDP, and UDP asynchronous connections (tcp, udp, and udp-as, respectively).
+- *ipop-namespace - Used by the dhcp server to give an IP in a given range
+- *device - Specifies the virtual tap device IPOP will be reading and writing data on
+- *IPConfig - Used to specify if the user wants to use a DHCP server or statically set their IP address (options: "dhcp" or "static")
+- *DHCPData - Contains the DHCPServerAddress, which specifies the address and port where the DHCP server resides.
+- *StaticData - Contains IPAddress and Netmask.  This is used to specify the IP address and netmask of the virtual network device.  In the case where Setup = "manual", the user must also specify the MAC address by setting the suboption 
+- *Setup - Determines whether or not the commands to setup the TAP device are run automatically or by the user.  The options are "auto" or "manual".  "auto" is default and "manual" should only be run on non-Unix compatible systems, cases where the user doesn't have super-user access, or when IPOP is run in dom0 of Xen while domU sends data over IPOP.  If the user selects manual, they will need to set the IP address and netmask.  The user may either set the MAC Address to FE:FD:00:00:00:01 or set the TAP MAC address in StaticData.
+- *TapMAC - Optionally used in Setup = "manual".  Contains the MAC address of the TAP device, if the user has not set the MAC address of the TAP device to "FE:FD:00:00:00:01".
+
+Subsection B:  Running SimpleNode and IPRouter
+
+Once you've finalized your configuration file, you are ready to deploy IPOP.  To begin, you should place SimpleNode on a few computers, where it can run without hassle.  Add these machines to your "RemoteTAs" list.  EdgeListeners should be left alone, since data suggests that "udp" is the fastest transport.  Please specify a different brunet-namespace other than "condor_wow", otherwise there is a possibility of undesirable private network intersection / merging.  SimpleNode can then be run by using the command "mono SimpleNode simplenode.config".  From here on out, discussion pertains only to IPRouter.
+
+There are scripts included to configure an "auto" based IPOP node.  Furthermore, it is strongly advised to setup a DHCP Server to avoid IP address collision and to run in "auto" mode to remove possible user introduced errors.  The scripts as configured, require IPRouter be installed in "/usr/local/ipop".
+
+After configuration is completed, a TAP device must be created by running "tunctl".  In the case of "manual" setup, you must then configure the TAP devices IP address and netmask (optionally the MAC address to FE:FD:00:00:01).  If you did not configure the MAC address, you must specify it in the configuration file (TapMAC).  Now the IPRouter is ready to run, execute it by running "mono IPRouter.exe ipop_config".  DHCP is initiated by running a DHCP client on your Tap device.
+
+Section 3:  DHCP Server
+
+The DHCP Server is a fully functional IPOP only DHCP Server.  The DHCP Server receives a message from the IPRouter and submits back a message containing data such as IP address, netmask, and lease times.
+
+Below is a list and description of elements in the DHCP Server configuration files:
+
+- brunet-namespace - Used to ensure only nodes inside a specific brunet namespace are given IPs.
+- ipop-namespace - Used to specify one or more pools of IP addresses.
+- value (under ipop-namespace) - Used to distinguish between different IP address pools.
+- netmask - Specifies the netmask for the pool.
+- pool - Specifies the lower and upper bounds for the IP address pool.
+- reserved - Used to specify specific IP address to reserve.  The algorithm used to determine if a node is included or not is [(possible IP address and netmask) != ip], otherwise the IP address is valid.
+- LeaseTime - The time in seconds in which leases must be renewed or they will be overwritten.
+- LogSize - Specifies the max size of the log file before it is trimmed.
+
+The DHCP Server is run by running "mono DHCPServer DHCPServerConfig.xml port#".  Where port number i sthe Port on which the DHCP Server runs.
+
+Section 4:  Regarding 'mkbundle' Version, Running IPOP without Mono
+
+All the above programs have equivalent 'mkbundle' versions.  Since the ability to run these on different platforms is limited, no support can be given and the mono binaries are provided as well.  If a 'mkbundle' version does not work, attempt to run the mono version.
+
+Section 5:  DNS
+
+IPOP has an included DNS server for host names based upon IP address, default is C + IP[1] + IP[2] + IP[3].  In order to function properly, the following entries must be appended to the DHCP Server configuration (this is the case for dhclient, others are unknown).
+
+prepend domain-name-servers 127.0.0.1;
+supersede domain-name "ipop";
+
+The dns server must then be run locally.
+
+Section 6:  Compiling from Source
+
+To compile from source, run compile.sh, found in "scripts".

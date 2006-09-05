@@ -74,8 +74,9 @@ namespace Ipop {
       byte messageType = 0;
       messageType = ((DHCPOption) packet.options[53]).byte_value[0];
 
-      returnPacket.yiaddr = ((DHCPLease) leases[packet.ipop_namespace]).
+      DHCPLeaseResponse leaseReturn = ((DHCPLease) leases[packet.ipop_namespace]).
         GetLease(DHCPCommon.StringToBytes(packet.NodeAddress, ':'));
+      returnPacket.yiaddr = leaseReturn.ip;
       if(returnPacket.yiaddr[0] == 0) {
         returnPacket.return_message = "No more available leases";
         return returnPacket;
@@ -88,9 +89,9 @@ namespace Ipop {
       byte [] byte_value = null;
 
       /* Subnet Mask */
-      returnPacket.options.Add(1, (DHCPOption) CreateOption(1, new byte[]{255, 128, 0, 0}));
+      returnPacket.options.Add(1, (DHCPOption) CreateOption(1, leaseReturn.netmask));
       /* Lease Time */
-      returnPacket.options.Add(51, (DHCPOption) CreateOption(51, new byte[]{0, 0x9, 0x3a, 0x80}));
+      returnPacket.options.Add(51, (DHCPOption) CreateOption(51, leaseReturn.leasetime));
       /* MTU Size */
       returnPacket.options.Add(26, (DHCPOption) CreateOption(26, new byte[]{5, 46}));
       /* Server Identifier */
