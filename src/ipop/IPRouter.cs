@@ -274,13 +274,7 @@ namespace Ipop {
           buffer[17] = buffer[27];
 
           if(config.TapMAC != null && config.Setup == "manual") {
-<<<<<<< /mnt/backup/code/ipop/src/ipop/IPRouter.cs.orig.632510984
-            byte [] temp1 = DHCPCommon.StringToBytes(config.TapMAC, ':');
-||||||| /tmp/IPRouter.cs~base.q1Usp9
-            byte [] temp1 = DHCPCommon.StringToBytes(config.TapMAC, '.');
-=======
             byte [] temp1 = DHCPCommon.HexStringToBytes(config.TapMAC, ':');
->>>>>>> /tmp/IPRouter.cs~other.ECr2ru
             buffer[18] = temp1[0];
             buffer[19] = temp1[1];
             buffer[20] = temp1[2];
