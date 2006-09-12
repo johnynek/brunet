@@ -388,8 +388,8 @@ namespace Ipop {
             routes.AddRoute(destAddr, target);
           }
           //build an IP packet
-          buffer = IPPacketBuilder.BuildPacket(buffer,
-            IPPacketBuilder.Protocol.IP_PACKET);
+          //buffer = IPPacketBuilder.BuildPacket(buffer,
+          //IPPacketBuilder.Protocol.IP_PACKET);
           if (debug) {
             Console.WriteLine("Brunet destination ID: {0}", target);
           }

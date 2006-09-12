@@ -32,11 +32,11 @@ namespace Ipop
       byte[] packet = new byte[p.PayloadStream.Length];
       int count = p.PayloadStream.Read(packet, 0, packet.Length);
       //we need to extract the header from what we got
-      IPPacketBuilder.Protocol proto = IPPacketBuilder.GetProtocol(packet);
-      if (IPPacketBuilder.GetProtocol(packet) != IPPacketBuilder.Protocol.IP_PACKET) {
-	Console.WriteLine("Received a non-IP packet from brunet");
-      }
-      packet = IPPacketBuilder.GetPayload(packet);
+      //IPPacketBuilder.Protocol proto = IPPacketBuilder.GetProtocol(packet);
+      //if (IPPacketBuilder.GetProtocol(packet) != IPPacketBuilder.Protocol.IP_PACKET) {
+      //Console.WriteLine("Received a non-IP packet from brunet");
+      //}
+      //packet = IPPacketBuilder.GetPayload(packet);
       if (debug) {
 	IPAddress srcAddr = IPPacketParser.SrcAddr(packet);     
         IPAddress dstAddr = IPPacketParser.DestAddr(packet); 
