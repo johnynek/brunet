@@ -11,9 +11,13 @@ namespace Brunet.Dht {
   public class DhtTest {
     public static void Main(string[] args) 
     {
+      EntryFactory.Media media = EntryFactory.Media.Disk;
       string proto = args[0];
       int port = Int32.Parse(args[1]);
       string remote_ta = args[2];
+      if (args[3].Equals("disk")) {
+	media = EntryFactory.Media.Disk;
+      }
       AHAddress addr = new AHAddress(new RNGCryptoServiceProvider());
       Console.WriteLine(addr);
       Node node = new StructuredNode(addr);
@@ -24,7 +28,7 @@ namespace Brunet.Dht {
       }
       node.RemoteTAs.Add(new TransportAddress(remote_ta));
 
-      Dht dht = new Dht(node);
+      Dht dht = new Dht(node, media);
 
       if (dht == null) {
 	Console.WriteLine("Something is terribly wrong....");

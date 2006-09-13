@@ -8,7 +8,12 @@ using Brunet.Dht;
 namespace Brunet.Dht {	
 
   public class Dht {
+    //we checkpoint the state of DHT every 1000 seconds.
+    private static readonly int _CHECKPOINT_INTERVAL = 1000;
 
+    //when should next checkpoint be done.
+    private DateTime _next_checkpoint;
+    
     //lock for the Dht
     protected object _sync;
     //the we are attached to
@@ -167,6 +172,7 @@ namespace Brunet.Dht {
     protected TransferState _left_transfer_state = null;
     protected TransferState _right_transfer_state = null;
     
+    
     public Address LeftAddress {
       get {
 	return _left_addr;
@@ -187,18 +193,18 @@ namespace Brunet.Dht {
 	return _table.GetCount();
       }
     }
-    public Dht(Node node) {
+    public Dht(Node node, EntryFactory.Media media) {
       _sync = new object();
       
       _node = node;
       //we initially do not have eny structured neighbors to start
       _left_addr = _right_addr = null;
 
-      node.ConnectionTable.ConnectionEvent += 
-	new EventHandler(ConnectHandler);
 
-      node.ConnectionTable.DisconnectionEvent += 
-	new EventHandler(DisconnectHandler);
+      //initialize the EntryFactory
+      EntryFactory ef = EntryFactory.GetInstance(node);
+      ef.SetMedia(media);
+      _table = new TableServer(ef);
 
       //get an instance of ReqrepManager
       ReqrepManager rrman = ReqrepManager.GetInstance(node);
@@ -206,10 +212,19 @@ namespace Brunet.Dht {
       //create a new rpc manager
       _rpc = new RpcManager(rrman);
       
-      _table = new TableServer(node);
+
       //register the table with the RpcManagers
       _rpc.AddHandler("dht", _table);
-
+      
+      lock(_sync) {
+	node.ConnectionTable.ConnectionEvent += 
+	  new EventHandler(ConnectHandler);
+      
+	node.ConnectionTable.DisconnectionEvent += 
+	  new EventHandler(DisconnectHandler);
+	
+	node.HeartBeatEvent += new EventHandler(CheckpointHandler);
+      }
     }
 
     protected Address GetInvocationTarget(byte[] key) {
@@ -538,5 +553,17 @@ namespace Brunet.Dht {
 	}
       }
     }
-  } 
+    /** 
+     *  This method Checkpoints the table state periodically.
+     */
+    public void CheckpointHandler(object node, EventArgs eargs) {
+      lock(_sync) {
+	if (DateTime.Now > _next_checkpoint) {
+	  
+	  TimeSpan interval = new TimeSpan(0,0,0,0, _CHECKPOINT_INTERVAL);
+	  _next_checkpoint = DateTime.Now + interval; 
+	}
+      }    
+    } 
+  }
 }
