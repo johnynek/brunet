@@ -16,7 +16,10 @@ namespace Brunet.Dht {
       string proto = args[0];
       int net_size = Int32.Parse(args[1]);
       int base_port = Int32.Parse(args[2]);
-      
+      EntryFactory.Media media = EntryFactory.Media.Memory;
+      if (args[3].Equals("disk")) {
+	media = EntryFactory.Media.Disk;
+      }      
       ArrayList node_list = new ArrayList();
       ArrayList dht_list = new ArrayList();
       ArrayList port_list = new ArrayList();
@@ -51,7 +54,7 @@ namespace Brunet.Dht {
 	node.Connect();
 	node_list.Add(node);
 	//create a Dht
-	Dht dht = new Dht(node);
+	Dht dht = new Dht(node, media);
 	//add the dht to the list:
 	dht_list.Add(dht);
 	port_list.Add(port);
@@ -171,7 +174,7 @@ namespace Brunet.Dht {
 	  BlockingQueue q = dht.Get(utf8_key, 500, null);
 	  int count = 0;
 
-	  while (count++ < 3) {
+	  while (count++ < 2) {
 	    RpcResult res = q.Dequeue() as RpcResult;
 	    ArrayList result = res.Result as ArrayList;
 
@@ -241,7 +244,7 @@ namespace Brunet.Dht {
 	  node.Connect();
 	  node_list.Add(node);
 	  //create a Dht
-	  Dht dht = new Dht(node);
+	  Dht dht = new Dht(node, media);
 	  //add the dht to the list:
 	  dht_list.Add(dht);
 	  port_list.Add(port);
@@ -290,6 +293,12 @@ namespace Brunet.Dht {
 	} catch (Exception e) {
 	  Console.WriteLine(e);
 	}
+	//we should also have a user specified sleep here at the end
+	Console.Write("Enter sleep time:");
+	string str_sleep = Console.ReadLine();	
+	int sleep_time = Int32.Parse(str_sleep.Trim());
+	Console.WriteLine("Going to sleep for some time");
+	Thread.Sleep(sleep_time);
       }
     }
   }

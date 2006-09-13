@@ -16,7 +16,11 @@ namespace Brunet.Dht {
       int net_size = Int32.Parse(args[0]);
       int base_port = Int32.Parse(args[1]);
       int num_keys = Int32.Parse(args[2]);
-      
+      EntryFactory.Media media = EntryFactory.Media.Memory;
+      if (args[3].Equals("disk")) {
+	media = EntryFactory.Media.Disk;
+      }
+
       ArrayList node_list = new ArrayList();
       ArrayList dht_list = new ArrayList();
       
@@ -39,12 +43,12 @@ namespace Brunet.Dht {
 	node.Connect();
 	node_list.Add(node);
 	//create a Dht
-	Dht dht = new Dht(node);
+	Dht dht = new Dht(node, media);
 	//add the dht to the list:
 	dht_list.Add(dht);
 
-	//sleep 5 seconds
-	Thread.Sleep(60000);
+	//sleep 10 seconds
+	Thread.Sleep(30000);
 
 	//test if we have a correct ring
 	Dht curr_dht = (Dht) dht_list[0];
@@ -140,7 +144,7 @@ namespace Brunet.Dht {
 	} catch (Exception e) {
 	  Console.WriteLine(e);
 	}
-	Thread.Sleep(1000);
+	Thread.Sleep(10000);
       }
       //now we have all the keys in place, start querying them:
       for (int i = 0; i < key_list.Count; i++) {

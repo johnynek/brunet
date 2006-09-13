@@ -82,15 +82,17 @@ public class TableServer {
   protected Hashtable _ht;
   protected int _max_idx;
 
-  protected Node _node;
-  public TableServer(Node node) {
+  //protected Node _node;
+  protected EntryFactory _ef;
+  public TableServer(EntryFactory ef) {
     /**
      * @todo make sure there is a second copy of all data
      * in the network.  When a neighbor is lost, make sure
      * the new neighbor is updated with the correct content
      */
     _sync = new object();
-    _node = node;
+    //_node = node;
+    _ef = ef;
     _expiring_entries = new ArrayList();
     _ht = new Hashtable();
     _max_idx = 0;
@@ -184,7 +186,7 @@ public class TableServer {
 
 
       //Look up 
-      Entry e = new Entry(key, hashed_password,  create_time, end_time,
+      Entry e = _ef.CreateEntry(key, hashed_password,  create_time, end_time,
                          data, _max_idx);
       
       //Add the entry to the end of the list.
@@ -246,7 +248,7 @@ public class TableServer {
 #endif      
       _max_idx++; //Increment the maximum index
       //Look up 
-      Entry e = new Entry(key, hashed_password,  create_time, end_time,
+      Entry e = _ef.CreateEntry(key, hashed_password,  create_time, end_time,
 			  data, _max_idx);
       //Add the entry to the end of the list.
       entry_list.Add(e);

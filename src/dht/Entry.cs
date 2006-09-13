@@ -1,14 +1,15 @@
 using System;
+using System.IO;
 
 namespace Brunet.Dht {
 
 public class Entry {
- 
   protected byte[] _key;
   public byte[] Key { get { return _key; } }
 
+
   protected byte[] _data;
-  public byte[] Data { get { return _data; } }
+  public virtual byte[] Data { get { return _data; } }
 
   protected DateTime _create_time;
   public DateTime CreatedTime { get { return _create_time; } }
@@ -18,7 +19,7 @@ public class Entry {
   
   protected string _password;
   public string Password { get { return _password; } }
-
+  
   protected int _index;
   public int Index { get { return _index; } }
   
@@ -28,17 +29,55 @@ public class Entry {
   protected int _idx;
   
   public Entry(byte[] key, string password,
-               DateTime create_time, DateTime end_time,
-	       byte[] data, int idx)
+		DateTime create_time, 
+		DateTime end_time,
+		byte[] data, int idx)
   {
     _key = key;
     _password = password;
-    _data = data;
     _index = idx;
+    _data = data;
     _create_time = create_time;
     _end_time = end_time;
   }
-
 }
-	
+  public class DiskEntry: Entry {
+    protected static readonly int _MAX_DATA = 1000;
+
+    protected string _file;
+
+    public override byte[] Data {
+      get {
+	FileStream fStream = new FileStream(_file, FileMode.Open, FileAccess.Read);
+	BinaryReader br = new BinaryReader(fStream);
+	byte[] data = br.ReadBytes(_MAX_DATA);
+
+#if DHT_DEBUG      
+	Console.WriteLine("[DiskEntry] Reading data of len: {0} from file: {1}", data.Length, _file);
+#endif
+	return data;
+      }
+    }
+    
+    public DiskEntry(string fname, byte[] key, string password,
+		     DateTime create_time, 
+		     DateTime end_time,
+		     byte[] data, int idx):base(key, password, create_time, end_time, null, idx)
+    {
+      object o = (object) idx;
+      //initialization
+      _file = fname + "/" + o.ToString();
+
+      
+      FileStream fStream = new FileStream(_file, FileMode.CreateNew);
+      BinaryWriter bw = new BinaryWriter(fStream);
+#if DHT_DEBUG      
+      Console.WriteLine("[DiskEntry] Creating data of len: {0} inside file: {1}", data.Length, _file);
+#endif
+      bw.Write(data);
+      bw.Flush();
+      bw.Close();
+      fStream.Close();
+    } 
+  }  
 }
