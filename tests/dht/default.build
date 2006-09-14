@@ -153,6 +153,33 @@
       </references>
     </csc>
   </target>
+  <target
+    name="tracer"
+    depends="init"
+    description="Builds the current input file">
+    <exec program="python" commandline="DhtTraceGen.py" output="tracer.in"/>
+    <copy todir="${build.dir}/${package.name}/bin/" failonerror="true">
+        <fileset>
+            <include name="tracer.in" />
+        </fileset>
+    </copy>
+
+    <csc
+      target="exe"
+      debug="${build.debug}"
+      output="${build.dir}/${package.name}/bin/DhtTraceTester.exe">
+      doc="${build.dir}/${package.name}/bin/${assembly}.xml">
+      <sources failonempty="true">
+        <include name="DhtTraceTester.cs"/>
+      </sources>
+      <references>
+        <!--include name="${build.dir}/${package.name}/bin/${assembly}.dll" /-->
+        <include name="${build.dir}/${package.name}/bin/log4net.dll" />
+        <include name="${build.dir}/${package.name}/bin/Brunet.dll" />
+        <include name="${build.dir}/${package.name}/bin/Brunet.Dht.dll" />
+      </references>
+    </csc>
+  </target>
 
 
   <target name="clean"

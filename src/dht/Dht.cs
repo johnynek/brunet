@@ -193,6 +193,12 @@ namespace Brunet.Dht {
 	return _table.GetCount();
       }
     }
+    public Hashtable All {
+      get {
+	return _table.GetAll();
+      }
+    }
+    
     public Dht(Node node, EntryFactory.Media media) {
       _sync = new object();
       
