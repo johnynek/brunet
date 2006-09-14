@@ -85,12 +85,6 @@ namespace Ipop {
         config.NodeAddress = DHCPCommon.BytesToString(temp, ':');
         UpdateConfiguration(configFile);
       }
-      else if(config.EdgeListeners[0].port != null) {
-        config.EdgeListeners[0].port = null;
-        config.EdgeListeners[0].port_hi = "15099";
-        config.EdgeListeners[0].port_low = "15000";
-        UpdateConfiguration(configFile);
-      }
       if(config.Setup == null) {
         config.Setup = "auto";
       }
