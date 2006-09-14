@@ -101,7 +101,7 @@ namespace Brunet.Dht {
       Random rr = new Random();
       //now put 10 keys from arbitrary points in the network
       while(true) {
-	Console.Write("Enter operation (Get/Put/Create/Delete/Start/Kill/Print/Test):");
+	Console.Write("Enter operation (Get/Put/Create/Delete/Start/Kill/Print/Test/Sleep):");
 	string str_oper = Console.ReadLine();
 	try {
 	if (str_oper.Equals("Put")) {
@@ -113,7 +113,8 @@ namespace Brunet.Dht {
 	  string str_pass = Console.ReadLine();
 	  Console.Write("Enter TTL:");
 	  int ttl = Int32.Parse(Console.ReadLine());	  
-
+	  Console.WriteLine("Put on key:{0}",str_key);
+	  
 	  byte[] utf8_key = Encoding.UTF8.GetBytes(str_key);
 	  byte[] utf8_data = Encoding.UTF8.GetBytes(str_data);
 	  
@@ -197,6 +198,7 @@ namespace Brunet.Dht {
 	  string str_key = Console.ReadLine();
 	  Console.Write("Enter password:");
 	  string str_pass = Console.ReadLine();
+	  Console.WriteLine("Delete on key: {0}", str_key );
 
 	  byte[] utf8_key = Encoding.UTF8.GetBytes(str_key);
 	  byte[] utf8_pass = Encoding.UTF8.GetBytes(str_pass);
@@ -209,7 +211,8 @@ namespace Brunet.Dht {
 	  BlockingQueue q = dht.Delete(utf8_key, send_pass);
 	  RpcResult res = q.Dequeue() as RpcResult;
 	  object o = res.Result;
-	} else if (str_oper.Equals("Kill")) { 
+	} else if (str_oper.Equals("Kill") && node_list.Count > 1) { 
+	  Console.WriteLine("Killing a node");
 	  int idx = rr.Next(0, node_list.Count);
 	  Node n = (Node) node_list[idx];
 	  Console.WriteLine("Killing: {0}", n.Address);
@@ -218,8 +221,9 @@ namespace Brunet.Dht {
 	  dht_list.RemoveAt(idx);
 	  port_list.RemoveAt(idx);
 	} else if (str_oper.Equals("Start")) { 
+	  Console.WriteLine("Starting new node");
 	  AHAddress addr = new AHAddress(new RNGCryptoServiceProvider());
-	  Console.WriteLine("Creating: {0}", addr);
+	  Console.WriteLine("Starting: {0}", addr);
 	  Node node = new StructuredNode(addr);
 	  int port = base_port + net_size;
 	  net_size++;
@@ -287,18 +291,30 @@ namespace Brunet.Dht {
 	  for (int k = 0; k < node_list.Count; k++) {
 	    Dht dht = (Dht) dht_list[k];
 	    Console.WriteLine("{0}: # of key-value pairs: {1}", dht.Address, dht.Count);
+	    Hashtable ht = dht.All;
+	    foreach(byte[] key in ht.Keys) {
+	      string str_key = Encoding.UTF8.GetString(key);
+	      Console.WriteLine("Key: {0}", str_key);
+	    }
 	  }
-
-	}
+	} else if (str_oper.Equals("Sleep")) {
+	  //we should also have a user specified sleep here at the end
+	  Console.Write("Enter sleep time:");
+	  string str_sleep = Console.ReadLine();	
+	  Console.WriteLine("You want me to sleep for: {0} ms", str_sleep);
+	  int sleep_time = (int) Double.Parse(str_sleep.Trim());
+	  if (sleep_time < 0) {
+	    break;
+	  }
+	  Console.WriteLine("Going to sleep for some time: {0} ms", sleep_time);
+	  Thread.Sleep(sleep_time);
+	}	  
 	} catch (Exception e) {
 	  Console.WriteLine(e);
 	}
-	//we should also have a user specified sleep here at the end
-	Console.Write("Enter sleep time:");
-	string str_sleep = Console.ReadLine();	
-	int sleep_time = Int32.Parse(str_sleep.Trim());
-	Console.WriteLine("Going to sleep for some time");
-	Thread.Sleep(sleep_time);
+      }
+      foreach (Node n in node_list) {
+	n.Disconnect();
       }
     }
   }

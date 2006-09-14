@@ -443,7 +443,9 @@ public class TableServer {
 	  _ht.Remove(ht_key);
 	}
       } else {
+#if DHT_DEBUG
 	Console.WriteLine("[DhtServer]: Key doesn't exist.");
+#endif
       }
       if (!found) {
 	//raise an error
@@ -593,6 +595,17 @@ public class TableServer {
 	}
 	_ht.Remove(ht_key);
       }
+    }
+  }
+  //Note: Another critical method, dumps the Hashtable data (for debugging only!)
+  public Hashtable GetAll() {
+    lock(_sync ) { 
+      Hashtable rt = new Hashtable();
+      foreach (TableKey key in _ht.Keys) {
+	ArrayList entry_list = (ArrayList) _ht[key];
+	rt[key.Buffer] = entry_list.Clone();
+      }
+      return rt;
     }
   }
 }
