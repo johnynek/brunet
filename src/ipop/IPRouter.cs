@@ -44,7 +44,9 @@ namespace Ipop {
   public class EdgeListener {
     [XmlAttribute]
     public string type;
-    public int port;
+    public string port;
+    public string port_hi;
+    public string port_low;
   }
 
   public class IPRouter {
@@ -81,6 +83,12 @@ namespace Ipop {
         byte [] temp = new byte[16];
         rng.GetBytes(temp);
         config.NodeAddress = DHCPCommon.BytesToString(temp, ':');
+        UpdateConfiguration(configFile);
+      }
+      else if(config.EdgeListeners[0].port != null) {
+        config.EdgeListeners[0].port = null;
+        config.EdgeListeners[0].port_hi = "15099";
+        config.EdgeListeners[0].port_low = "15000";
         UpdateConfiguration(configFile);
       }
       if(config.Setup == null) {
@@ -130,16 +138,25 @@ namespace Ipop {
       //Where do we listen:
       System.Net.IPAddress[] tas = routines.GetIPTAs(Virtual_IPAddress);
       foreach(EdgeListener item in config.EdgeListeners) {
+        int port = 0;
+        if(item.port_hi != null && item.port_low != null && item.port == null) {
+          int port_hi = Int32.Parse(item.port_hi);
+          int port_low = Int32.Parse(item.port_low);
+          Random random = new Random();
+          port = (random.Next() % (port_hi - port_low)) + port_low;
+        }
+        else
+            port = Int32.Parse(item.port);
         if (item.type =="tcp") { 
-            tmp_node.AddEdgeListener(new TcpEdgeListener(item.port, tas, 
+            tmp_node.AddEdgeListener(new TcpEdgeListener(port, tas, 
               ta_auth));
         }
         else if (item.type == "udp") {
-            tmp_node.AddEdgeListener(new UdpEdgeListener(item.port , tas, 
+            tmp_node.AddEdgeListener(new UdpEdgeListener(port , tas, 
               ta_auth));
         }
         else if (item.type == "udp-as") {
-            tmp_node.AddEdgeListener(new ASUdpEdgeListener(item.port, tas, 
+            tmp_node.AddEdgeListener(new ASUdpEdgeListener(port, tas, 
               ta_auth));
         }
         else {
@@ -246,10 +263,12 @@ namespace Ipop {
 
         /*  ARP Packet Handler */
         int type = (packet[12] << 8) + packet[13];
-        byte [] buffer = new byte[packet.Length - 14];
+        byte [] buffer = null;
 
-        if(type == 0x806 || type == 0x800)
+        if(type == 0x806 || type == 0x800) {
+          buffer =  new byte[packet.Length - 14];
           Array.Copy(packet, 14, buffer, 0, buffer.Length);
+        }
         else
           continue;
 
@@ -387,9 +406,7 @@ namespace Ipop {
             target = new AHAddress(GetHash(destAddr));
             routes.AddRoute(destAddr, target);
           }
-          //build an IP packet
-          //buffer = IPPacketBuilder.BuildPacket(buffer,
-          //IPPacketBuilder.Protocol.IP_PACKET);
+
           if (debug) {
             Console.WriteLine("Brunet destination ID: {0}", target);
           }

@@ -10,6 +10,7 @@ namespace Ipop {
       }
       return new IPAddress(address);
     }
+
     public static IPAddress SrcAddr(byte[] packet) {
       byte[] address = new byte[IPAddress.IP_ADDR_LEN];
       for (int i = 0, k = SRC_ADDR_START; i < address.Length; i++, k++) {
@@ -17,6 +18,5 @@ namespace Ipop {
       }
       return new IPAddress(address);
     }
-  
   }
 }

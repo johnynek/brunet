@@ -10,12 +10,12 @@ cd ..
 cd dhcp
 nant
 cd build
-mkbundle --deps --config-dir . -o dhcpserver DHCPServer.exe DHCPCommon.dll
+mkbundle --static --deps --config-dir . -o dhcpserver DHCPServer.exe DHCPCommon.dll
 cd ../..
 cd ipop
 nant
 cd build
-mkbundle --deps --config-dir . -o iprouter IPRouter.exe DHCPCommon.dll Brunet.dll Ipop-common.dll /usr/local/lib/mono/1.0/Mono.Posix.dll
+mkbundle --static --deps --config-dir . -o iprouter IPRouter.exe DHCPCommon.dll Brunet.dll Ipop-common.dll /usr/local/lib/mono/1.0/Mono.Posix.dll
 cd ../../..
 mkdir packages
 cd packages

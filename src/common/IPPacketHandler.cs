@@ -27,30 +27,27 @@ namespace Ipop
     }
     public void HandleAHPacket(object node, AHPacket p, Edge from)
     {
-      //Console.WriteLine("Just received a packet from Brunet...");
-      //Console.WriteLine("Can read: " + p.PayloadStream.CanRead);
       byte[] packet = new byte[p.PayloadStream.Length];
-      int count = p.PayloadStream.Read(packet, 0, packet.Length);
-      //we need to extract the header from what we got
-      //IPPacketBuilder.Protocol proto = IPPacketBuilder.GetProtocol(packet);
-      //if (IPPacketBuilder.GetProtocol(packet) != IPPacketBuilder.Protocol.IP_PACKET) {
-      //Console.WriteLine("Received a non-IP packet from brunet");
-      //}
-      //packet = IPPacketBuilder.GetPayload(packet);
+      p.PayloadStream.Read(packet, 0, packet.Length);
+
       if (debug) {
-	IPAddress srcAddr = IPPacketParser.SrcAddr(packet);     
+        IPAddress srcAddr = IPPacketParser.SrcAddr(packet);
         IPAddress dstAddr = IPPacketParser.DestAddr(packet); 
-	Console.WriteLine("Incoming packet:: IP src: {0}, IP dst: {1}, p2p hops: {2}", srcAddr, dstAddr, p.Hops); 
+        Console.WriteLine("Incoming packet:: IP src: {0}, IP dst: {1}, p2p " +
+          "hops: {2}", srcAddr, dstAddr, p.Hops); 
       }
+
 #if IPOP_RECEIVE_DEBUG
       count1++;
       if (count1 == 1000) {
-	IPAddress srcAddr = IPPacketParser.SrcAddr(packet);     
-        IPAddress dstAddr = IPPacketParser.DestAddr(packet); 
-	Console.WriteLine("Incoming packet:: IP src: {0}, IP dst: {1}, p2p hops: {2}", srcAddr, dstAddr, p.Hops); 
-	count1 = 0;
+        IPAddress srcAddr = IPPacketParser.SrcAddr(packet);
+        IPAddress dstAddr = IPPacketParser.DestAddr(packet);
+        Console.WriteLine("Incoming packet:: IP src: {0}, IP dst: {1}, " +
+          "p2p hops: {2}", srcAddr, dstAddr, p.Hops); 
+        count1 = 0;
       }
 #endif
+
       IPAddress destAddr = IPPacketParser.DestAddr(packet);
       if (!destAddr.Equals(myAddress)) {
           Console.WriteLine("Incoming packet not for me:: IP dst: {0}", destAddr);
@@ -62,6 +59,5 @@ namespace Ipop
 	return;
       }
     }
-    
   }
 }

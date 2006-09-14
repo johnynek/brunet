@@ -145,7 +145,6 @@ namespace Ipop {
 
   public class DHCPCommon {
     public static byte [] StringToBytes(string input, char sep) {
-      //Console.WriteLine("Input: " + input);
       char [] separator = {sep};
       string[] ss = input.Split(separator);
       byte [] ret = new byte[ss.Length];
@@ -156,7 +155,6 @@ namespace Ipop {
     }
 
     public static byte [] HexStringToBytes(string input, char sep) {
-      //Console.WriteLine("Input: " + input);
       char [] separator = {sep};
       string[] ss = input.Split(separator);
       byte [] ret = new byte[ss.Length];

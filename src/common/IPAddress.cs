@@ -52,7 +52,7 @@ namespace Ipop {
       }
       return hash;
     }
-    
+
     public override string ToString() {
       StringBuilder sb = new StringBuilder();
       for (int i = 0; i < IP_ADDR_LEN; i++) {
@@ -64,8 +64,6 @@ namespace Ipop {
       return sb.ToString();
     }
     /*public static void Main(string[] args) {
-      
     }*/
-    
   }
 }
