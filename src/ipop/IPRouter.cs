@@ -267,6 +267,10 @@ namespace Ipop {
           continue;
 
         if(type == 0x806) {
+          string IP = buffer[24].ToString() + "." + buffer[25].ToString() + "." 
+            + buffer[26].ToString() + "." + buffer[27].ToString();
+          if(Virtual_IPAddress == IP)
+            continue;
           /* Set HWAddr of dest to FE:FD:00:00:00:00 */
           buffer[7] = 2;
           byte [] temp;
