@@ -16,7 +16,7 @@ namespace Brunet.Dht {
       string proto = args[0];
       int base_port = Int32.Parse(args[1]);
       EntryFactory.Media media = EntryFactory.Media.Memory;
-      if (args[3].Equals("disk")) {
+      if (args[2].Equals("disk")) {
 	media = EntryFactory.Media.Disk;
       }      
 
@@ -26,77 +26,77 @@ namespace Brunet.Dht {
 
       Console.WriteLine("Building the network...");
 
-      //create a network:
-      for (int loop1 = 0; loop1 < net_size; loop1++) { 
-	Console.WriteLine("Creating node: {0}", loop1);
-	AHAddress addr = new AHAddress(new RNGCryptoServiceProvider());
-	Console.WriteLine(addr);
-	Node node = new StructuredNode(addr);
-	int port = base_port + loop1;
-	if (proto.Equals("udp")) {
-	  node.AddEdgeListener(new UdpEdgeListener(port));
-	} else 	if (proto.Equals("tcp")) {
-	  node.AddEdgeListener(new TcpEdgeListener(port));
-	}
+//       //create a network:
+//       for (int loop1 = 0; loop1 < net_size; loop1++) { 
+// 	Console.WriteLine("Creating node: {0}", loop1);
+// 	AHAddress addr = new AHAddress(new RNGCryptoServiceProvider());
+// 	Console.WriteLine(addr);
+// 	Node node = new StructuredNode(addr);
+// 	int port = base_port + loop1;
+// 	if (proto.Equals("udp")) {
+// 	  node.AddEdgeListener(new UdpEdgeListener(port));
+// 	} else 	if (proto.Equals("tcp")) {
+// 	  node.AddEdgeListener(new TcpEdgeListener(port));
+// 	}
 	
-	for (int loop2 = 0; loop2 < loop1; loop2++) {
-	  //we dont want to make us our own TA
+// 	for (int loop2 = 0; loop2 < loop1; loop2++) {
+// 	  //we dont want to make us our own TA
 	  
-	  int remote_port = base_port + loop2;
-	  string remoteTA = null;
-	  if (proto.Equals("udp")) {
-	    remoteTA = "gnucla.udp://localhost:" + remote_port;
-	  } else if (proto.Equals("tcp")) {
-	    remoteTA = "gnucla.tcp://localhost:" + remote_port;
-	  } 
-	  node.RemoteTAs.Add(new TransportAddress(remoteTA));
-	}
-	node.Connect();
-	node_list.Add(node);
-	//create a Dht
-	Dht dht = new Dht(node, media);
-	//add the dht to the list:
-	dht_list.Add(dht);
-	port_list.Add(port);
+// 	  int remote_port = base_port + loop2;
+// 	  string remoteTA = null;
+// 	  if (proto.Equals("udp")) {
+// 	    remoteTA = "gnucla.udp://localhost:" + remote_port;
+// 	  } else if (proto.Equals("tcp")) {
+// 	    remoteTA = "gnucla.tcp://localhost:" + remote_port;
+// 	  } 
+// 	  node.RemoteTAs.Add(new TransportAddress(remoteTA));
+// 	}
+// 	node.Connect();
+// 	node_list.Add(node);
+// 	//create a Dht
+// 	Dht dht = new Dht(node, media);
+// 	//add the dht to the list:
+// 	dht_list.Add(dht);
+// 	port_list.Add(port);
 
-	//sleep 60 seconds
-	Thread.Sleep(60000);
+// 	//sleep 60 seconds
+// 	Thread.Sleep(60000);
 
-	//test if we have a correct ring
-	Dht curr_dht = (Dht) dht_list[0];
-	Address start_addr = curr_dht.Address;
+// 	//test if we have a correct ring
+// 	Dht curr_dht = (Dht) dht_list[0];
+// 	Address start_addr = curr_dht.Address;
 
 
-	Address curr_addr = start_addr;
+// 	Address curr_addr = start_addr;
 	
-	Console.WriteLine("Starting to crawl the ring");
-	for (int loop3 = 0; loop3 <= loop1; loop3++) {
-	  Console.WriteLine("Hop#: {0}, at {1}", loop3+1, curr_addr);
-	  curr_addr = curr_dht.LeftAddress;
-	  if (curr_addr == null) {
-	    break;
-	  }
-	  for (int k = 0; k < dht_list.Count; k++) {
-	    Dht test_dht = (Dht) dht_list[k];
-	    if (test_dht.Address.Equals(curr_addr)) {
-	      curr_dht = test_dht;
-	      break;
-	    }
-	  }
-	}
-	Console.WriteLine("Finsihed crawling the ring");
-	//eventually the next address should point back to us;
-	if (curr_addr == null) {
-	  Console.WriteLine("Broken ring detected at: {0}", curr_dht.Address);
-	}
-	else if (!curr_addr.Equals(start_addr)) {
-	  Console.WriteLine("Incomplete ring: Test failed");
-	} 
-	else {
-	  Console.WriteLine("Complete ring: Test passed.");
-	}
+// 	Console.WriteLine("Starting to crawl the ring");
+// 	for (int loop3 = 0; loop3 <= loop1; loop3++) {
+// 	  Console.WriteLine("Hop#: {0}, at {1}", loop3+1, curr_addr);
+// 	  curr_addr = curr_dht.LeftAddress;
+// 	  if (curr_addr == null) {
+// 	    break;
+// 	  }
+// 	  for (int k = 0; k < dht_list.Count; k++) {
+// 	    Dht test_dht = (Dht) dht_list[k];
+// 	    if (test_dht.Address.Equals(curr_addr)) {
+// 	      curr_dht = test_dht;
+// 	      break;
+// 	    }
+// 	  }
+// 	}
+// 	Console.WriteLine("Finsihed crawling the ring");
+// 	//eventually the next address should point back to us;
+// 	if (curr_addr == null) {
+// 	  Console.WriteLine("Broken ring detected at: {0}", curr_dht.Address);
+// 	}
+// 	else if (!curr_addr.Equals(start_addr)) {
+// 	  Console.WriteLine("Incomplete ring: Test failed");
+// 	} 
+// 	else {
+// 	  Console.WriteLine("Complete ring: Test passed.");
+// 	}
 	
-      }
+//       }
 
       int net_size = 0;
       //until this point a network is already up and running
