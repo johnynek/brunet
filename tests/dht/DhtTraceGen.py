@@ -59,7 +59,7 @@ def add_to_list(e):
     event_list.insert(k, e)            
             
 max_time = 360.0
-if len(sys.argv) > 0:
+if len(sys.argv) > 1:
     max_time = int(sys.argv[1])
 #60 second arrival
 node_birth_rate = 1.0/(60)
