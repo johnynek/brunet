@@ -167,10 +167,10 @@
     <csc
       target="exe"
       debug="${build.debug}"
-      output="${build.dir}/${package.name}/bin/DhtTraceTester.exe">
+      output="${build.dir}/${package.name}/bin/DhtAdvancedTester.exe">
       doc="${build.dir}/${package.name}/bin/${assembly}.xml">
       <sources failonempty="true">
-        <include name="DhtTraceTester.cs"/>
+        <include name="DhtAdvancedTester.cs"/>
       </sources>
       <references>
         <!--include name="${build.dir}/${package.name}/bin/${assembly}.dll" /-->
