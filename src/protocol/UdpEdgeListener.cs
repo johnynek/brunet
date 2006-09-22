@@ -166,12 +166,18 @@ namespace Brunet
       UdpEdge e = (UdpEdge)_id_ht[local_id];
       if( (e != null) && (e.RemoteID == remoteid) ) {
         //This edge has some control information, the information starts at byte 8.
-	ControlCode code = (ControlCode)NumberSerializer.ReadInt(buffer, 8);
-        System.Console.WriteLine("Got control from: {0}", e);
-	if( code == ControlCode.EdgeClosed ) {
-          //The edge has been closed on the other side
-	  e.Close();
-	}
+        try {
+	  ControlCode code = (ControlCode)NumberSerializer.ReadInt(buffer, 8);
+          System.Console.WriteLine("Got control from: {0}", e);
+	  if( code == ControlCode.EdgeClosed ) {
+            //The edge has been closed on the other side
+	    e.Close();
+ 	  }
+        }
+        catch(Exception x) {
+        //This could happen if this is some control message we don't understand
+          Console.Error.WriteLine(x);
+        }
       }
     }
 
@@ -487,27 +493,30 @@ namespace Brunet
         int rec_bytes = 0;
         //this is the only thread that can touch the socket!!!!!
         //otherwise we must lock!!!
-        read = s.Poll( microsecond_timeout, SelectMode.SelectRead );
-        if( read ) {
-          rec_bytes = s.ReceiveFrom(_rec_buffer, ref end);
+        try {
+          read = s.Poll( microsecond_timeout, SelectMode.SelectRead );
+          if( read ) {
+            rec_bytes = s.ReceiveFrom(_rec_buffer, ref end);
+            //Get the id of this edge:
+            int remoteid = NumberSerializer.ReadInt(_rec_buffer, 0);
+            int localid = NumberSerializer.ReadInt(_rec_buffer, 4);
+  	    if( localid < 0 ) {
+  	    /*
+  	     * We never give out negative id's, so if we got one
+  	     * back the other node must be sending us a control
+  	     * message.
+  	     */
+              HandleControlPacket(remoteid, localid, _rec_buffer, s);
+  	    }
+  	    else {
+  	      HandleDataPacket(remoteid, localid, _rec_buffer, 8,
+                               rec_bytes - 8, end, s);
+  	    }
+          }
         }
-        //Drop the socket lock.  We either read or we didn't
-        if( read ) {
-          //Get the id of this edge:
-          int remoteid = NumberSerializer.ReadInt(_rec_buffer, 0);
-          int localid = NumberSerializer.ReadInt(_rec_buffer, 4);
-	  if( localid < 0 ) {
-	    /*
-	     * We never give out negative id's, so if we got one
-	     * back the other node must be sending us a control
-	     * message.
-	     */
-            HandleControlPacket(remoteid, localid, _rec_buffer, s);
-	  }
-	  else {
-	    HandleDataPacket(remoteid, localid, _rec_buffer, 8,
-                             rec_bytes - 8, end, s);
-	  }
+        catch(Exception x) {
+          //Possible socket error. Just ignore the packet.
+          Console.Error.WriteLine(x);
         }
         /*
          * We are done with handling the reads.  Now lets

@@ -32,11 +32,13 @@ namespace Brunet
       public Connection Route;
       public AHAddress Destination;
       public bool DeliverLocally;
+      public Edge Previous;
 
-      public CachedRoute(AHAddress dest, Connection route, bool send_local) {
+      public CachedRoute(AHAddress dest, Edge prev, Connection route, bool send_local) {
         Route = route;
         Destination = dest;
         DeliverLocally = send_local;
+        Previous = prev;
       }
     }
     
@@ -51,8 +53,11 @@ namespace Brunet
        * about 20 bytes, this costs on the order of 10-100 KB
        */
       _route_cache = new Cache(1000);
+      _our_left_n = null;
     }
     protected AHAddress _local;
+    ///This is our left neighbor.  We often need to look at this.
+    protected Connection _our_left_n;
 
     protected ConnectionTable _tab;
     public ConnectionTable ConnectionTable {
@@ -133,7 +138,7 @@ namespace Brunet
 	}
       }
       CachedRoute cr = (CachedRoute)_route_cache[dest];
-      if( cr != null ) {
+      if( cr != null && (cr.Previous == prev_e) ) {
         //Awesome, we already know the path to this node.
         //This cuts down on latency
         next_con = cr.Route;
@@ -228,17 +233,22 @@ namespace Brunet
                * we are not in the table, as we should not be, then we share a common
                * left neighbor with the destination
                */
-              Connection d_con = _tab.GetConnection(ConnectionType.Structured, dest_idx);
-              int our_idx = _tab.IndexOf(ConnectionType.Structured, _local);
-              if( our_idx < 0 ) {
-                our_idx = ~our_idx;
+              if( _our_left_n == null ) {
+                /*
+                 * Compute our left neighbor.  We only need to do this when it
+                 * has changed.
+                 */
+                int our_idx = _tab.IndexOf(ConnectionType.Structured, _local);
+                if( our_idx < 0 ) {
+                  our_idx = ~our_idx;
+                }
+                else {
+                  System.Console.Error.WriteLine(
+                    "ERROR: we are in the ConnectionTable: {0}", _local);
+                }
+                _our_left_n = _tab.GetConnection(ConnectionType.Structured, our_idx);
               }
-              else {
-                System.Console.Error.WriteLine(
-                  "ERROR: we are in the ConnectionTable: {0}", _local);
-              }
-              Connection o_con = _tab.GetConnection(ConnectionType.Structured, our_idx);
-              if( d_con == o_con ) {
+              if( left_n == _our_left_n ) {
                 /*
                  * We share a common left neighbor, so we should deliver locally
                  * This is the only case where we should deliver locally,
@@ -347,7 +357,11 @@ namespace Brunet
           //We can route directly to the destination.
 	}
        }//End of ConnectionTable lock
-       _route_cache[dest] = new CachedRoute(dest, next_con, deliverlocally);
+       /*
+        * We update the route cache with the most recent Edge to send to
+        * that destination.
+        */
+       _route_cache[dest] = new CachedRoute(dest, prev_e, next_con, deliverlocally);
       }//End of cache check   
       //Here are the other modes:
       if( p.HasOption( AHPacket.AHOptions.Last ) ) {
@@ -404,6 +418,8 @@ namespace Brunet
      */
     protected void ConnectionTableChangeHandler(object o, System.EventArgs args) {
       _route_cache.Clear();
+      //Our left neighbor may have changed:
+      _our_left_n = null;
     }
 
   }
