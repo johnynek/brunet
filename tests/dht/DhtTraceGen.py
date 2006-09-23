@@ -37,7 +37,7 @@ class CreateEvent(Event):
         print self.entry.key
         print self.entry.data
         print self.entry.passwd
-        print 10000
+        print 100000
 
 class DeleteEvent(Event):
     def __init__(self,time,entry):
@@ -47,6 +47,15 @@ class DeleteEvent(Event):
         print "Delete"
         print self.entry.key
         print self.entry.passwd
+
+class GetEvent(Event):
+    def __init__(self,time,entry):
+        self.time = time
+        self.entry = entry
+    def fire(self):
+        print "Check"
+        print self.entry.key
+
 
 def add_to_list(e):
     k  = 0
@@ -66,7 +75,7 @@ node_birth_rate = 1.0/(60)
 #60 second departure
 node_death_rate = 1.0/(60)
 
-key_birth_rate = 1.0/(30)
+key_birth_rate = 1.0/(60)
 key_death_rate = 1.0/(60)
 
 #now generate a schedule for node arrival
@@ -87,22 +96,29 @@ while time < max_time:
 #now schedule creation of keys
 time = 0.0
 idx = 0
-while time < 360:
+while time < max_time:
     add_time = time + random.expovariate(key_birth_rate)
-    entry = Entry(idx, "xxx", "abc123")
-    idx = idx + 1
+    entry = Entry(idx, "%d"%idx , "abc123")
     e = CreateEvent(add_time, entry)
     add_to_list(e)
     #wewill also have to deceide on delete time for the key
     del_time = add_time + random.expovariate(key_birth_rate)
     e = DeleteEvent(del_time, entry)
     add_to_list(e)
+
+    #we also add a Get() for the same key sometime (1.0 seconds).
+    get_time = del_time + 1.0
+    e = GetEvent(get_time, entry);
+    add_to_list(e)
+
     time = add_time
+    idx = idx + 1
     
+
 
 #finally schedule the arrival events
 for i in range(0, len(event_list)):
-    print "Print"
+    print "Global_Check"
     event = event_list[i]
     event.fire()
     print "Sleep"
@@ -110,7 +126,7 @@ for i in range(0, len(event_list)):
         n_event = event_list[i+1]
         print (n_event.time - event.time)*1000
     else:
-        print -1
+        print -1.0
 
 
     

@@ -82,16 +82,16 @@ public class TableServer {
   protected Hashtable _ht;
   protected int _max_idx;
 
-  //protected Node _node;
+  protected Node _node;
   protected EntryFactory _ef;
-  public TableServer(EntryFactory ef) {
+  public TableServer(EntryFactory ef, Node node) {
     /**
      * @todo make sure there is a second copy of all data
      * in the network.  When a neighbor is lost, make sure
      * the new neighbor is updated with the correct content
      */
     _sync = new object();
-    //_node = node;
+    _node = node;
     _ef = ef;
     _expiring_entries = new ArrayList();
     _ht = new Hashtable();
@@ -119,7 +119,7 @@ public class TableServer {
       //delete keys that have expired
       DeleteExpired();
 #if DHT_DEBUG
-      Console.WriteLine("[DhtServer] Cleaned up expired entries.");
+      Console.WriteLine("[DhtServer: {0}] Cleaned up expired entries.", _node.Address);
 #endif
       foreach (Object val in _ht.Values) 
       {
@@ -134,7 +134,7 @@ public class TableServer {
   }
   public int Put(byte[] key, int ttl, string hashed_password, byte[] data) {
 #if DHT_DEBUG
-    Console.WriteLine("[DhtServer]: Put().");
+    Console.WriteLine("[DhtServer: {0}]: Put() on key: {1}", _node.Address, Encoding.UTF8.GetString(key));
 #endif
 
     string hash_name = null;
@@ -152,7 +152,7 @@ public class TableServer {
       //delete all keys that have expired
       DeleteExpired();
 #if DHT_DEBUG
-      Console.WriteLine("[DhtServer] Cleaned up expired entries.");
+      Console.WriteLine("[DhtServer: {0}] Cleaned up expired entries.", _node.Address);
 #endif
       TableKey ht_key = new TableKey(key);
       ArrayList entry_list = (ArrayList)_ht[ht_key];
@@ -160,7 +160,7 @@ public class TableServer {
         //Make sure we only keep one reference to a key to save memory:
 	//Arijit Ganguly - I had no idea what this was about. Now I know...
 #if DHT_DEBUG
-	Console.WriteLine("[DhtServer]: Key exists.");
+	Console.WriteLine("[DhtServer: {0}]: Key exists.", _node.Address);
 #endif
         key = ((Entry)entry_list[0]).Key;
       }
@@ -169,7 +169,7 @@ public class TableServer {
         entry_list = new ArrayList();
 	//added the new TableKey to hashtable
 #if DHT_DEBUG
-	Console.WriteLine("[DhtServer]: Key doesn't exist. Created new entry_list.");
+	Console.WriteLine("[DhtServer: {0}]: Key doesn't exist. Created new entry_list.", _node.Address);
 #endif
 	_ht[ht_key] = entry_list;
       }
@@ -178,7 +178,7 @@ public class TableServer {
       foreach(Entry ent in entry_list) {
 	if (ent.Password.Equals(hashed_password)) {
 #if DHT_DEBUG
-	  Console.WriteLine("[DhtServer]: Attempting to duplicate. (No put).");
+	  Console.WriteLine("[DhtServer: {0}]: Attempting to duplicate. (No put).", _node.Address);
 #endif
 	  return entry_list.Count;
 	}
@@ -213,7 +213,8 @@ public class TableServer {
   {
 
 #if DHT_DEBUG
-    Console.WriteLine("[DhtServer]: Create().");
+    Console.WriteLine("[DhtServer: {0}]: Create() on key: {1}.", 
+		      _node.Address, Encoding.UTF8.GetString(key));
 #endif
     string hash_name = null;
     string base64_val = null;
@@ -229,13 +230,13 @@ public class TableServer {
       //delete all keys that have expired
       DeleteExpired();
 #if DHT_DEBUG
-      Console.WriteLine("[DhtServer] Cleaned up expired entries.");
+      Console.WriteLine("[DhtServer: {0}] Cleaned up expired entries.", _node.Address);
 #endif
       TableKey ht_key = new TableKey(key);
       ArrayList entry_list = (ArrayList)_ht[ht_key];
       if( entry_list != null ) {
 #if DHT_DEBUG
-	Console.WriteLine("[DhtServer]: No duplication allowed. Key exists.");
+	Console.WriteLine("[DhtServer: {0}]: No duplication allowed. Key exists.", _node.Address);
 #endif
 	//we already have the key mapped to something. return false
 	throw new Exception("Attempting to re-create key. Entry exists. ");
@@ -244,7 +245,7 @@ public class TableServer {
       entry_list = new ArrayList();
       _ht[ht_key] = entry_list;
 #if DHT_DEBUG
-      Console.WriteLine("[DhtServer]: Key doesn't exist. Created new entry_list.");
+      Console.WriteLine("[DhtServer:{0}]: Key doesn't exist. Created new entry_list.", _node.Address);
 #endif      
       _max_idx++; //Increment the maximum index
       //Look up 
@@ -264,7 +265,7 @@ public class TableServer {
   {
 
 #if DHT_DEBUG
-    Console.WriteLine("[DhtServer]: Get().");
+    Console.WriteLine("[DhtServer: {0}]: Get() on key: {1}", _node.Address, Encoding.UTF8.GetString(key));
 #endif
 
     int seen_start_idx = -1;
@@ -277,12 +278,12 @@ public class TableServer {
       seen_start_idx = bounds[0];
       seen_end_idx = bounds[1];
 #if DHT_DEBUG
-      Console.WriteLine("[DhtServer]: seen_start_idx: " + seen_start_idx);
-      Console.WriteLine("[DhtServer]: seen_end_idx: " + seen_end_idx);
+      Console.WriteLine("[DhtServer: {0}]: seen_start_idx: {1}", _node.Address,  seen_start_idx);
+      Console.WriteLine("[DhtServer: {0}]: seen_end_idx: {1}", _node.Address, seen_end_idx);
 #endif
     } else {
 #if DHT_DEBUG
-      Console.WriteLine("[DhtServer]: null token.");
+      Console.WriteLine("[DhtServer: {0}]: null token.", _node.Address);
 #endif  
     }
     int consumed_bytes = 0;
@@ -296,7 +297,7 @@ public class TableServer {
     //delete keys that have expired
     DeleteExpired();
 #if DHT_DEBUG
-      Console.WriteLine("[DhtServer] Cleaned up expired entries.");
+      Console.WriteLine("[DhtServer: {0}] Cleaned up expired entries.", _node.Address);
 #endif      
 
     TableKey ht_key = new TableKey(key);  
@@ -305,7 +306,7 @@ public class TableServer {
     int seen = 0; //Number we have already seen for this key
     if( entry_list != null ) {
 #if DHT_DEBUG
-      Console.WriteLine("[DhtServer]: Key exists. Browing the entry_list.");
+      Console.WriteLine("[DhtServer: {0}]: Key exists. Browing the entry_list.", _node.Address);
 #endif
 
       int max_index = seen_end_idx;
@@ -322,7 +323,7 @@ public class TableServer {
             item["data"] = e.Data;
             values.Add(item);
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtServer]: Added value to results.");
+	    Console.WriteLine("[DhtServer: {0}]: Added value to results.", _node.Address);
 #endif
 	    if (e.Index > max_index) {
 	      max_index= e.Index;
@@ -347,16 +348,16 @@ public class TableServer {
 
 
 #if DHT_DEBUG
-      Console.WriteLine("[DhtServer]: # Total entries: " + entry_list.Count);
-      Console.WriteLine("[DhtServer]: # Seen: " + seen);
-      Console.WriteLine("[DhtServer]: # Values returned: " + values.Count);
+      Console.WriteLine("[DhtServer: {0}]: # Total entries: {1}", _node.Address, entry_list.Count);
+      Console.WriteLine("[DhtServer: {0}]: # Seen: {1}", _node.Address,seen);
+      Console.WriteLine("[DhtServer: {0}]: # Values returned: {1}", _node.Address, values.Count);
 #endif
 
       remaining_items = entry_list.Count - seen - values.Count;
     }
     else {
 #if DHT_DEBUG
-      Console.WriteLine("[DhtServer]: Key doesn't exist.");
+      Console.WriteLine("[DhtServer: {0}]: Key doesn't exist.", _node.Address);
 #endif
 
       //Don't know about this key
@@ -386,7 +387,7 @@ public class TableServer {
   public void Delete(byte[] key, string password)
   {
 #if DHT_DEBUG
-    Console.WriteLine("[DhtServer]: Delete().");
+    Console.WriteLine("[DhtServer: {0}]: Delete().", _node.Address);
 #endif    
     string hash_name = null;
     string base64_pass = null;
@@ -416,7 +417,7 @@ public class TableServer {
       bool found = false;
       if (entry_list != null) {
 #if DHT_DEBUG
-	Console.WriteLine("[DhtServer]: Key exists. Browing the entry_list.");
+	Console.WriteLine("[DhtServer: {0}]: Key exists. Browing the entry_list.", _node.Address);
 #endif
 	ArrayList to_delete = new ArrayList();
 
@@ -426,7 +427,7 @@ public class TableServer {
 	foreach(Entry e in entry_list) {
 	  if (e.Password.Equals(stored_pass)) {
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtServer]: Found a key to delete.");
+	    Console.WriteLine("[DhtServer: {0}]: Found a key to delete.", _node.Address);
 #endif
 	    found = true;
 	    //we have found a key to delete
@@ -444,7 +445,7 @@ public class TableServer {
 	}
       } else {
 #if DHT_DEBUG
-	Console.WriteLine("[DhtServer]: Key doesn't exist.");
+	Console.WriteLine("[DhtServer: {0}]: Key doesn't exist.", _node.Address);
 #endif
       }
       if (!found) {
@@ -462,7 +463,7 @@ public class TableServer {
     //scan through the list and remove entries 
     //whose expiration times have elapsed
 #if DHT_DEBUG
-    Console.WriteLine("[DhtServer] Getting rid of expired entries.");
+    Console.WriteLine("[DhtServer: {0}] Getting rid of expired entries.", _node.Address);
 #endif
     int del_count = 0;
     for (int i = 0; i < _expiring_entries.Count; i++) {
@@ -485,12 +486,12 @@ public class TableServer {
       del_count++;
     }
 #if DHT_DEBUG
-    Console.WriteLine("[DhtServer] {0} entries stand expired.", del_count);
+    Console.WriteLine("[DhtServer: {0}] {1} entries stand expired.", _node.Address,del_count);
 #endif
     if (del_count > 0) {
       _expiring_entries.RemoveRange(0, del_count);
 #if DHT_DEBUG
-      Console.WriteLine("[DhtServer] {0} entries deleted.", del_count);
+      Console.WriteLine("[DhtServer: {0}] {1} entries deleted.", _node.Address,del_count);
 #endif
     }
   }
@@ -505,7 +506,7 @@ public class TableServer {
       idx++;
     }
 #if DHT_DEBUG
-    Console.WriteLine("[DhtServer] New entry ranks: {0} in sorted array.",
+    Console.WriteLine("[DhtServer: {0}] New entry ranks: {1} in sorted array.",_node.Address,
 		      idx);
 #endif
     _expiring_entries.Insert(idx, new_entry);
@@ -513,7 +514,7 @@ public class TableServer {
   /** we further need a way to get rid of entries that are deleted.*/
   protected void DeleteFromSorted(Entry e) {
 #if DHT_DEBUG
-    Console.WriteLine("[DhtServer] Removing an entry from sorted list. ");
+    Console.WriteLine("[DhtServer: {0}] Removing an entry from sorted list. ", _node.Address);
 #endif
     _expiring_entries.Remove(e);
   }

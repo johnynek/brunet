@@ -17,6 +17,8 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
+
+#define RPC_DEBUG
 using System;
 using System.IO;
 using System.Collections;
@@ -168,6 +170,11 @@ public class RpcManager : IReplyHandler, IRequestHandler {
       }
       
       string methname = (string)l[0];
+#if RPC_DEBUG
+      Console.WriteLine("[RpcServer: {0}] Getting invocation request,  method: {1}",
+                     _rrman.Node.Address, methname);
+#endif
+
       string[] parts = methname.Split('.');
 
       string hname = parts[0];
@@ -267,6 +274,11 @@ public class RpcManager : IReplyHandler, IRequestHandler {
     
     MemoryStream ms = new MemoryStream();
     AdrConverter.Serialize(rpc_call, ms);
+
+#if RPC_DEBUG
+    Console.WriteLine("[RpcClient: {0}] Invoking method: {1} on target: {2}",
+                     _rrman.Node.Address, method, target);
+#endif
     
     _rrman.SendRequest(target, ReqrepManager.ReqrepType.Request,
                        "rpc", ms.ToArray(), this, bq_results);

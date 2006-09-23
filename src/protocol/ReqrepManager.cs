@@ -1,3 +1,24 @@
+/*
+This program is part of BruNet, a library for the creation of efficient overlay
+networks.
+Copyright (C) 2005  University of California
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+*/
+
+#define RPC_DEBUG
 using System;
 using System.Collections;
 
@@ -41,6 +62,8 @@ public class ReqrepManager : IAHPacketHandler {
    */
   protected ReqrepManager(Node node) {
     _node = node;
+    _is_active = false;
+
     _sync = new Object();
     _rand = new Random();
     _req_handler_table = new Hashtable();
@@ -54,31 +77,51 @@ public class ReqrepManager : IAHPacketHandler {
     _reptimeout = new TimeSpan(0,0,0,0,50000);
     _last_check = DateTime.Now;
 
+    _node.ArrivalEvent += delegate(object node, EventArgs args) { 
+#if RPC_DEBUG
+      Console.WriteLine("[ReqrepManager: {0}] Activated.",
+			_node.Address);
+#endif
+      _is_active = true;
+    };
+    _node.DepartureEvent += delegate(object node, EventArgs args) { 
+#if RPC_DEBUG
+      Console.WriteLine("[ReqrepManager: {0}] Deactivated.",
+			_node.Address);
+#endif
+      _is_active = false;
+    };
+
     //Subscribe on the node:
     _node.Subscribe(AHPacket.Protocol.ReqRep, this);
     _node.HeartBeatEvent += new EventHandler(this.TimeoutChecker);
+
   }
 
   /** static hashtable to keep track of ReqrepManager objects. */
   protected static Hashtable _rrm_table;
+  /** static lock for protecting the Hashtable above. */
+  protected static object _class_lock = new object();
       
   /** 
    * Static method to create ReqrepManager objects
    * @param node The node we work for
    */
   public static ReqrepManager GetInstance(Node node) {
-    if (_rrm_table == null) {
-      _rrm_table = new Hashtable();
+    lock(_class_lock) {
+      if (_rrm_table == null) {
+	_rrm_table = new Hashtable();
+      }
+      //check if there is already an instance object for this node
+      if (_rrm_table.ContainsKey(node)) {
+	return (ReqrepManager) _rrm_table[node];
+      }
+      //in case no instance exists, create one
+      ReqrepManager rrm  = new ReqrepManager(node); 
+      _rrm_table[node] = rrm;
+      return rrm;
     }
-    //check if there is already an instance object for this node
-    if (_rrm_table.ContainsKey(node)) {
-      return (ReqrepManager) _rrm_table[node];
-    }
-    //in case no instance exists, create one
-    ReqrepManager rrm  = new ReqrepManager(node); 
-    _rrm_table[node] = rrm;
-    return rrm;
-   }
+  }
 
    /**
     * This is an inner class used to keep track
@@ -109,6 +152,8 @@ public class ReqrepManager : IAHPacketHandler {
    protected Node _node;
    public Node Node { get { return _node; } }
 
+   protected volatile bool _is_active;
+
    protected object _sync;
    protected Random _rand;
    protected Hashtable _req_state_table;
@@ -126,9 +171,15 @@ public class ReqrepManager : IAHPacketHandler {
     * for it, and pass the packet to the handler
     */
    public void HandleAHPacket(object node, AHPacket p, Edge from) {
+     if (!_is_active) {
+#if RPC_DEBUG
+       Console.WriteLine("[ReqrepManager: {0}] Inactive. Simply return (HandleAHPacket).",
+			 _node.Address);
+#endif
+       return;
+     }
      //Simulate packet loss
      //if ( _rand.NextDouble() < 0.1 ) { return; }
-
      //Is it a request or reply?
      System.IO.MemoryStream ms = p.PayloadStream;
      ReqrepType rt = (ReqrepType)((byte)ms.ReadByte());
@@ -154,6 +205,12 @@ public class ReqrepManager : IAHPacketHandler {
 	   }
 	 }
 	 if ( rs == null ) {
+#if RPC_DEBUG
+	   Console.WriteLine("[ReqrepServer: {0}] Receiving request (to process): {1} from node: {2}",
+			     _node.Address, idnum, p.Source);
+#endif
+
+
 	   //Looks like we need to handle this request
 	   //Make a new ReplyState:
 	   rs = new ReplyState();
@@ -316,6 +373,14 @@ public class ReqrepManager : IAHPacketHandler {
                          string prot,
 		         byte[] payload, IReplyHandler reply, object state)
   {
+    if (!_is_active) {
+#if RPC_DEBUG
+      Console.WriteLine("[ReqrepManager: {0}] Inactive. Simply return (SendRequest).",
+			_node.Address);
+#endif
+      //we are no longer active
+      return -1;
+    }
     if ( reqt != ReqrepType.Request && reqt != ReqrepType.LossyRequest ) {
       throw new Exception("Not a request");
     }
@@ -338,6 +403,11 @@ public class ReqrepManager : IAHPacketHandler {
       rs.UserState = state;
       _req_state_table[ next_req ] = rs;
     }
+#if RPC_DEBUG
+    Console.WriteLine("[ReqrepClient: {0}] Sending a request: {1} to node: {2}",
+		      _node.Address, rs.RequestID, destination);
+#endif
+
     _node.Send( rs.Request );
     return rs.RequestID;
   }
@@ -348,6 +418,14 @@ public class ReqrepManager : IAHPacketHandler {
    */
   public void SendReply(object request, byte[] response)
   {
+    if (!_is_active) {
+      //ignore!
+#if RPC_DEBUG
+      Console.WriteLine("[ReqrepManager: {0}] Inactive. Simply return (SendReply).",
+			_node.Address);
+#endif
+      return;
+    }
     ReplyState rs = (ReplyState)request;
     AHPacket p = rs.Request;
     if( response != null ) {
@@ -477,5 +555,5 @@ public class ReqrepManager : IAHPacketHandler {
     }
   }
 }
-	
+  
 }

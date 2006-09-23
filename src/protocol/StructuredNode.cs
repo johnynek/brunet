@@ -169,6 +169,8 @@ namespace Brunet
 #if PLAB_LOG
       //_sco.Logger = this.Logger;
 #endif
+
+      base.Connect();
       StartAllEdgeListeners();
 
       _lco.IsActive = true;
@@ -187,6 +189,7 @@ namespace Brunet
      */
     override public void Disconnect()
     {
+      base.Disconnect();
       _lco.IsActive = false;
       _sco.IsActive = false;
       _cco.IsActive = false;
