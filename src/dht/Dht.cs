@@ -1,4 +1,5 @@
 using System;
+using System.Text;
 using System.Collections;
 using System.Security.Cryptography;
 
@@ -33,7 +34,21 @@ namespace Brunet.Dht {
       protected object _sync;
       protected RpcManager _rpc;
       protected AHAddress _our_addr;
+      protected bool _to_delete = false;
+
+      public bool ToDelete {
+	get {
+	  return _to_delete;
+	}
+      }
+
       protected AHAddress _target;
+      public AHAddress Target {
+	get {
+	  return _target;
+	}
+      }
+      
       protected Hashtable _key_list;
       
 
@@ -42,14 +57,21 @@ namespace Brunet.Dht {
 
       protected TransferCompleteCallback _tcb = null;
       
-      public TransferState(RpcManager rpcman, AHAddress our_addr, AHAddress target, Hashtable key_list) 
+      public TransferState(RpcManager rpcman, AHAddress our_addr, AHAddress target, Hashtable key_list,
+			   bool to_delete) 
       {
 	_sync = new object();
 	_rpc = rpcman;
 	_our_addr = our_addr;
 	_target = target;
 	_key_list = key_list;
+	_to_delete = to_delete;
 	_entry_enumerator = GetEntryEnumerator();
+#if DHT_DEBUG
+	Console.WriteLine("[DhtLogic] {0}: Creating a new transfer state to: {1}, # of keys: {2}, to_delete: {3}. ", 
+			  _our_addr, _target, _key_list.Count, _to_delete);
+#endif
+
       }
 
       public IEnumerator GetEntryEnumerator() {
@@ -66,14 +88,16 @@ namespace Brunet.Dht {
 	_tcb = tcb;
 	lock(_sync) {
 #if DHT_DEBUG
-	  Console.WriteLine("[DhtLogic] {0}: Getting the next value to transfer.", _our_addr);
+	  Console.WriteLine("[DhtLogic] {0}: StartTransfer. Getting the next value to transfer.", 
+			    _our_addr);
 #endif
 
 	  if (_entry_enumerator.MoveNext()) {
 	    Entry e = (Entry) _entry_enumerator.Current;
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Found a value. Making an RPC call to: {1}",
+	    Console.WriteLine("[DhtLogic] {0}: Found a value. Making an Put() on key: {1} call to target: {2}",
 			      _our_addr,
+			      Encoding.UTF8.GetString(e.Key),
 			      _target);
 #endif
 	    TimeSpan t_span = e.EndTime - DateTime.Now;
@@ -85,7 +109,7 @@ namespace Brunet.Dht {
 					e.Password, 
 					e.Data);
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Found a value. Returning non-blocking RPC from: {1}",
+	    Console.WriteLine("[DhtLogic] {0}: Returning non-blocking Put() call to: {1}",
 			      _our_addr, _target);
 #endif
 	    _driver_queue.EnqueueEvent += new EventHandler(NextTransfer);
@@ -107,9 +131,24 @@ namespace Brunet.Dht {
       public void NextTransfer(Object o, EventArgs args) {
 	lock(_sync) {
 #if DHT_DEBUG
-	  Console.WriteLine("[DhtLogic] {0}: Finished transferring a value. Will try to pick next.", _our_addr);
+	  Console.WriteLine("[DhtLogic] {0}: NextTransfer.Finished transferring a value. ", _our_addr);
 #endif
 	  BlockingQueue q =  (BlockingQueue) o;
+	  try {
+	    RpcResult res = q.Dequeue() as RpcResult;
+	    q.Close();
+#if DHT_DEBUG
+	    Console.WriteLine("[DhtLogic] {0}: Return value from transfer: {1}.", _our_addr, res.Result);
+#endif
+
+	  } catch (Exception e) {
+#if DHT_DEBUG
+	    Console.WriteLine("[DhtLogic] {0}: Return of Put() was an exception: {1}", _our_addr, e);
+#endif
+	  }
+#if DHT_DEBUG
+	  Console.WriteLine("[DhtLogic] {0}: Now see if there is another key to transfer. ", _our_addr);
+#endif	  
 	  
 	  //unregister any future enqueue events
 	  q.EnqueueEvent -= new EventHandler(NextTransfer);
@@ -123,19 +162,21 @@ namespace Brunet.Dht {
 #endif
 	  
 	  if (_entry_enumerator.MoveNext()) {
-#if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Found a value. Making an RPC call to: {1}",
-			      _our_addr,
-			      _target);
-#endif
 	    Entry e = (Entry) _entry_enumerator.Current;
 	    TimeSpan t_span = e.EndTime - DateTime.Now;
+#if DHT_DEBUG
+	    Console.WriteLine("[DhtLogic] {0}: Found a value. Making a Put() on key: {1} call to target: {2}",
+			      _our_addr,
+			      Encoding.UTF8.GetString(e.Key),
+			      _target);
+#endif
+
 	    _driver_queue = _rpc.Invoke(_target, "dht.Put", e.Key, 
 					(int) t_span.TotalSeconds,
 					e.Password, 
 					e.Data);
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Found a value. Returning non-blocking RPC from: {1}",
+	    Console.WriteLine("[DhtLogic] {0}: . Returning non-blocking Put() call to: {1}",
 			      _our_addr, _target);
 #endif
 
@@ -210,7 +251,7 @@ namespace Brunet.Dht {
       //initialize the EntryFactory
       EntryFactory ef = EntryFactory.GetInstance(node);
       ef.SetMedia(media);
-      _table = new TableServer(ef);
+      _table = new TableServer(ef, node);
 
       //get an instance of ReqrepManager
       ReqrepManager rrman = ReqrepManager.GetInstance(node);
@@ -250,9 +291,6 @@ namespace Brunet.Dht {
 #endif
       Address target = GetInvocationTarget(key);
 
-#if DHT_DEBUG
-      Console.WriteLine("[DhtClient] Doing an RPC-invoke..");
-#endif      
       //we now know the invocation target
       BlockingQueue q = _rpc.Invoke(target, "dht.Put", key, ttl, hashed_password, data);
 #if DHT_DEBUG
@@ -364,8 +402,9 @@ namespace Brunet.Dht {
 	  if (_left_transfer_state == null) {
 	    //pass on some keys to him now
 	    _left_transfer_state = new TransferState(_rpc, our_addr, new_left_addr,
-						     _table.GetKeysToLeft(our_addr, new_left_addr));
-	    _left_transfer_state.StartTransfer(null);
+						     _table.GetKeysToLeft(our_addr, new_left_addr), 
+						     false);
+	    _left_transfer_state.StartTransfer(TransferCompleteHandler);
 	    
 	  } else {
 #if DHT_DEBUG
@@ -379,10 +418,15 @@ namespace Brunet.Dht {
 	  Console.WriteLine("[DhtLogic] {0}: New left  neighbor: {1}", our_addr, new_left_addr);
 #endif
 	  if (_left_transfer_state != null) {
+#if DHT_DEBUG
+	    Console.WriteLine("[DhtLogic] {0}: Interrupt an existing left transfer to: {1}. ", 
+			      our_addr, _left_transfer_state.Target);
+#endif
 	    _left_transfer_state.InterruptTransfer();
 	  }
 	  _left_transfer_state = new TransferState(_rpc, our_addr, new_left_addr,
-						   _table.GetKeysToLeft(new_left_addr, _left_addr));
+						   _table.GetKeysToLeft(new_left_addr, _left_addr), 
+						   true);
 	  _left_transfer_state.StartTransfer(TransferCompleteHandler);
 	  //we also have to initiate a deletion of extra keys (for later).
 	}
@@ -402,8 +446,9 @@ namespace Brunet.Dht {
 	  if (_right_transfer_state == null) {
 	    //pass on some keys to him now
 	    _right_transfer_state = new TransferState(_rpc, our_addr, new_right_addr,
-						     _table.GetKeysToRight(our_addr, new_right_addr));
-	    _right_transfer_state.StartTransfer(null);
+						     _table.GetKeysToRight(our_addr, new_right_addr), 
+						      false);
+	    _right_transfer_state.StartTransfer(TransferCompleteHandler);
 	    
 	  } else {
 #if DHT_DEBUG
@@ -420,10 +465,15 @@ namespace Brunet.Dht {
 #endif
 
 	  if (_right_transfer_state != null) {
+#if DHT_DEBUG
+	    Console.WriteLine("[DhtLogic] {0}: Interrupt an existing right transfer to: {1}. ", 
+			      our_addr, _right_transfer_state.Target);
+#endif
 	    _right_transfer_state.InterruptTransfer();
 	  }
 	  _right_transfer_state = new TransferState(_rpc, our_addr, new_right_addr,
-						     _table.GetKeysToRight(new_right_addr, _right_addr));
+						     _table.GetKeysToRight(new_right_addr, _right_addr), 
+						    true);
 	  _right_transfer_state.StartTransfer(TransferCompleteHandler);
 
 
@@ -494,6 +544,10 @@ namespace Brunet.Dht {
 #endif
 	  //there is nothing that we can do, it just went away.
 	  if (_left_transfer_state != null) {
+#if DHT_DEBUG
+	    Console.WriteLine("[DhtLogic] {0}: Interrupt an existing left transfer to: {1}. ", 
+			      our_addr, _left_transfer_state.Target);
+#endif
 	    _left_transfer_state.InterruptTransfer();
 	    _left_transfer_state = null;
 	  }
@@ -503,11 +557,16 @@ namespace Brunet.Dht {
 	  Console.WriteLine("[DhtLogic] {0}: New left  neighbor: {1}", our_addr, new_left_addr);
 #endif
 	  if (_left_transfer_state != null) {
+#if DHT_DEBUG
+	    Console.WriteLine("[DhtLogic] {0}: Interrupt an existing left transfer to: {1}. ", 
+			      our_addr, _left_transfer_state.Target);
+#endif
 	    _left_transfer_state.InterruptTransfer();
 	  }
 	  _left_transfer_state = new TransferState(_rpc, our_addr, new_left_addr,
-						   _table.GetKeysToLeft(our_addr, _left_addr));
-	  _left_transfer_state.StartTransfer(null);
+						   _table.GetKeysToLeft(our_addr, _left_addr), 
+						   false);
+	  _left_transfer_state.StartTransfer(TransferCompleteHandler);
 	}
 		   
 	_left_addr = new_left_addr;
@@ -521,6 +580,10 @@ namespace Brunet.Dht {
 #endif
 	  //nothing that we can do, the guy just went away.
 	  if (_right_transfer_state != null) {
+#if DHT_DEBUG
+	    Console.WriteLine("[DhtLogic] {0}: Interrupt an existing right transfer to: {1}. ", 
+			      our_addr, _right_transfer_state.Target);
+#endif
 	    _right_transfer_state.InterruptTransfer();
 	    _right_transfer_state = null;
 	  }
@@ -530,11 +593,16 @@ namespace Brunet.Dht {
 	  Console.WriteLine("[DhtLogic] {0}: New right  neighbor: {1}", our_addr, new_right_addr);
 #endif
 	  if (_right_transfer_state != null) {
+#if DHT_DEBUG
+	    Console.WriteLine("[DhtLogic] {0}: Interrupt an existing right transfer to: {1}. ", 
+			      our_addr, _right_transfer_state.Target);
+#endif
 	    _right_transfer_state.InterruptTransfer();
 	  }
 	  _right_transfer_state = new TransferState(_rpc, our_addr, new_right_addr,
-						    _table.GetKeysToRight(our_addr, _right_addr));
-	  _right_transfer_state.StartTransfer(null);
+						    _table.GetKeysToRight(our_addr, _right_addr), 
+						    false);
+	  _right_transfer_state.StartTransfer(TransferCompleteHandler);
 	}
 	_right_addr = new_right_addr;
 		   
@@ -547,11 +615,23 @@ namespace Brunet.Dht {
       lock(_sync) {
 	AHAddress our_addr = _node.Address as AHAddress;
 	//make sure that this transfer is still valid
-	if (state == _left_transfer_state || state == _right_transfer_state) {
+	if (state == _left_transfer_state ) { 
 #if DHT_DEBUG
 	  Console.WriteLine("[DhtLogic] {0}: # of keys to delete: {1}", our_addr, key_list.Keys.Count);
 #endif	  
-	  _table.AdminDelete(key_list);
+	  if (state.ToDelete) {
+	    _table.AdminDelete(key_list);
+	  }
+	  //we also have to reset the transfer state
+	  _left_transfer_state = null;
+	} else if (state == _right_transfer_state) {
+#if DHT_DEBUG
+	  Console.WriteLine("[DhtLogic] {0}: # of keys to delete: {1}", our_addr, key_list.Keys.Count);
+#endif	  
+	  if (state.ToDelete) {
+	    _table.AdminDelete(key_list);	  
+	  }
+	  _right_transfer_state = null;
 	} else {//otherwise this transfer is no longer valid
 #if DHT_DEBUG
 	  Console.WriteLine("[DhtLogic] {0}: Illegal transfer state. No actual deletion.");

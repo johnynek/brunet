@@ -275,6 +275,12 @@ namespace Brunet
 
     ///after each HeartPeriod, the HeartBeat event is fired
     public event EventHandler HeartBeatEvent;
+    
+    //add an event handler which conveys the fact that Disconnect has been called on the node
+    public event EventHandler DepartureEvent;
+
+    //add an event handler which conveys the fact that Cconnect has been called on the node
+    public event EventHandler ArrivalEvent;
 
     public virtual void AddEdgeListener(EdgeListener el)
     {
@@ -428,11 +434,19 @@ namespace Brunet
      * This method is called when the Node should connect to the
      * network
      */
-    abstract public void Connect();
+    public virtual void Connect() {
+      if (ArrivalEvent != null) {
+	ArrivalEvent(this, null);
+      } 
+    }
     /**
      * Disconnect to the network.
      */
-    abstract public void Disconnect();
+    public virtual void Disconnect() {
+      if (DepartureEvent != null) {
+	DepartureEvent(this, null);      
+      }
+    }
 
     /**
      * When a ConnectionEvent occurs, this handler registers the

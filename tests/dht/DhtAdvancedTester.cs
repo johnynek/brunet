@@ -23,6 +23,10 @@ namespace Brunet.Dht {
       ArrayList node_list = new ArrayList();
       ArrayList dht_list = new ArrayList();
       ArrayList port_list = new ArrayList();
+      
+      //keep a list of all keys that should exist in the network
+      ArrayList key_list = new ArrayList();
+      
 
       Console.WriteLine("Building the network...");
 
@@ -51,13 +55,13 @@ namespace Brunet.Dht {
 	  } 
 	  node.RemoteTAs.Add(new TransportAddress(remoteTA));
 	}
-	node.Connect();
 	node_list.Add(node);
 	//create a Dht
 	Dht dht = new Dht(node, media);
 	//add the dht to the list:
 	dht_list.Add(dht);
 	port_list.Add(port);
+	node.Connect();
 
 	//sleep 60 seconds
 	Thread.Sleep(60000);
@@ -101,7 +105,7 @@ namespace Brunet.Dht {
       Random rr = new Random();
       //now put 10 keys from arbitrary points in the network
       while(true) {
-	Console.Write("Enter operation (Get/Put/Create/Delete/Start/Kill/Print/Test/Sleep):");
+	Console.Write("Enter operation (Get/Put/Create/Delete/Start/Kill/Print/Test/Sleep/Check/Global_Check):");
 	string str_oper = Console.ReadLine();
 	try {
 	if (str_oper.Equals("Put")) {
@@ -113,7 +117,7 @@ namespace Brunet.Dht {
 	  string str_pass = Console.ReadLine();
 	  Console.Write("Enter TTL:");
 	  int ttl = Int32.Parse(Console.ReadLine());	  
-	  Console.WriteLine("Put on key:{0}",str_key);
+	  Console.WriteLine("Put() on key:{0}",str_key);
 	  
 	  byte[] utf8_key = Encoding.UTF8.GetBytes(str_key);
 	  byte[] utf8_data = Encoding.UTF8.GetBytes(str_data);
@@ -130,9 +134,17 @@ namespace Brunet.Dht {
 	  
 	  int idx = rr.Next(0, node_list.Count);
 	  Dht dht = (Dht) dht_list[idx];
+	  Node n  = (Node) node_list[idx];
+	  Console.WriteLine("Issuing the Put() command on idx: {0} address: {1}", idx, n.Address);
+	  
 	  BlockingQueue q = dht.Put(utf8_key, ttl, stored_pass, utf8_data);
 	  RpcResult res = q.Dequeue() as RpcResult;
+	  q.Close();
+	  
+	  
+	  key_list.Add(utf8_key);
 	  Console.WriteLine("RpcResult for Put(): {0}", res.Result);
+
 	} else if (str_oper.Equals("Create")) {
 	  Console.Write("Enter key:");
 	  string str_key = Console.ReadLine();
@@ -142,7 +154,7 @@ namespace Brunet.Dht {
 	  string str_pass = Console.ReadLine();
 	  Console.Write("Enter TTL:");
 	  int ttl = Int32.Parse(Console.ReadLine());
-	  
+	  Console.WriteLine("Create() on key:{0}",str_key);	  
 
 	  byte[] utf8_key = Encoding.UTF8.GetBytes(str_key);
 	  byte[] utf8_data = Encoding.UTF8.GetBytes(str_data);
@@ -159,10 +171,15 @@ namespace Brunet.Dht {
 	  //Console.WriteLine(base64_pass.Length);
 	  int idx = rr.Next(0, node_list.Count);
 	  Dht dht = (Dht) dht_list[idx];
+
+	  Node n  = (Node) node_list[idx];
+	  Console.WriteLine("Issuing the Create() command on idx: {0} address: {1}", idx, n.Address);
+
 	  BlockingQueue q = dht.Create(utf8_key, ttl, stored_pass, utf8_data);
 	  RpcResult res = q.Dequeue() as RpcResult;
+	  q.Close();
 	  Console.WriteLine("RpcResult for Create(): {0}", res.Result);
-
+	  key_list.Add(utf8_key);
 	} else if (str_oper.Equals("Get")) {
 	  Console.Write("Enter key:");
 	  string str_key = Console.ReadLine();
@@ -171,7 +188,9 @@ namespace Brunet.Dht {
 
 	  int idx = rr.Next(0, node_list.Count);
 	  Dht dht = (Dht) dht_list[idx];
-	  
+	  Node n  = (Node) node_list[idx];
+	  Console.WriteLine("Issuing the Get() command on idx: {0} address: {1}", idx, n.Address);
+	  Console.WriteLine("Get() on key: {0}", str_key );
 	  BlockingQueue q = dht.Get(utf8_key, 500, null);
 	  int count = 0;
 
@@ -193,6 +212,7 @@ namespace Brunet.Dht {
 	      Console.WriteLine(val);
 	    }
 	  }
+	  q.Close();
 	} else if (str_oper.Equals("Delete")) {
 	  Console.Write("Enter key:");
 	  string str_key = Console.ReadLine();
@@ -208,9 +228,29 @@ namespace Brunet.Dht {
 
 	  int idx = rr.Next(0, node_list.Count);
 	  Dht dht = (Dht) dht_list[idx];
+	  Node n  = (Node) node_list[idx];
+	  Console.WriteLine("Issuing the Delete() command on idx: {0} address: {1}", idx, n.Address);
+
+	  int r_idx = -1;
+	  for (int i = 0; i < key_list.Count; i++) {
+	    byte[] key = (byte[]) key_list[i];
+	    string skey =  Encoding.UTF8.GetString(key);
+	    if (str_key.Equals(skey)) {
+	      r_idx = i;
+	      break;
+	    }
+	  }
+	  if (r_idx >= 0) {
+	    key_list.RemoveAt(r_idx);
+	  } else {
+	    Console.WriteLine("Fatal: Requested deletion of a non-existent key: {0}", str_key);
+	  }
+
+
 	  BlockingQueue q = dht.Delete(utf8_key, send_pass);
 	  RpcResult res = q.Dequeue() as RpcResult;
 	  object o = res.Result;
+	  q.Close();
 	} else if (str_oper.Equals("Kill") && node_list.Count > 1) { 
 	  Console.WriteLine("Killing a node");
 	  int idx = rr.Next(0, node_list.Count);
@@ -245,13 +285,15 @@ namespace Brunet.Dht {
 	    } 
 	    node.RemoteTAs.Add(new TransportAddress(remoteTA));
 	  }
-	  node.Connect();
 	  node_list.Add(node);
 	  //create a Dht
 	  Dht dht = new Dht(node, media);
 	  //add the dht to the list:
 	  dht_list.Add(dht);
 	  port_list.Add(port);
+
+	  node.Connect();
+
 	} else if (str_oper.Equals("Test")) { 
 	//test if we have a correct ring
 	  Dht curr_dht = (Dht) dht_list[0];
@@ -308,7 +350,102 @@ namespace Brunet.Dht {
 	  }
 	  Console.WriteLine("Going to sleep for some time: {0} ms", sleep_time);
 	  Thread.Sleep(sleep_time);
-	}	  
+	} else if (str_oper.Equals("Check")) {
+	  Console.Write("Enter key:");
+	  string str_key = Console.ReadLine();
+	  
+	  byte[] utf8_key = Encoding.UTF8.GetBytes(str_key);
+
+	  int idx = rr.Next(0, node_list.Count);
+	  Dht dht = (Dht) dht_list[idx];
+	  Node n  = (Node) node_list[idx];
+	  Console.WriteLine("Issuing the Check() command on idx: {0} address: {1}", idx, n.Address);
+	  Console.WriteLine("Check() on key: {0}", str_key );
+	  BlockingQueue q = dht.Get(utf8_key, 500, null);
+	  int count = 0;
+
+	  while (count++ < 2) {
+	    RpcResult res = q.Dequeue() as RpcResult;
+	    ArrayList result = res.Result as ArrayList;
+
+	    if (result == null || result.Count < 3) {
+	      Console.WriteLine("Something messed up with Get()...");
+	      continue;
+	    }
+	    Console.WriteLine("Result from Get() looks good: " + result.Count);
+	    ArrayList values = (ArrayList) result[0];
+	    Console.WriteLine("# of matching entries: " + values.Count);
+	    if (values.Count > 0) {
+	      Console.WriteLine("Warning: We found key: {0} in DHT. Should not exist any more.", str_key);
+	    }
+	    foreach (Hashtable ht in values) {
+	      Console.WriteLine(ht["age"]);
+	      byte[] data = (byte[]) ht["data"];
+	      string val = Encoding.UTF8.GetString(data);
+	      Console.WriteLine(val);
+	    }
+	  }
+	  q.Close();
+	} else if (str_oper.Equals("Global_Check")) {
+	  Console.WriteLine("Global consistency check requested.");
+	  Console.WriteLine("First check if all keys are present on atleast 2 nodes, #keys: {0}", 
+			    key_list.Count);
+	  foreach (byte[] key in key_list) {
+	    string str_key = Encoding.UTF8.GetString(key);
+	    Console.WriteLine("Testing consistency of key: {0} in the DHT", str_key);
+	    int instances = 0;
+	    for (int k = 0; k < node_list.Count; k++) {
+	      Dht dht = (Dht) dht_list[k];
+	      //Console.WriteLine("{0}: # of key-value pairs: {1}", dht.Address, dht.Count);
+	      Hashtable ht = dht.All;
+	      
+	      foreach(byte[] key_1 in ht.Keys) {
+		string skey = Encoding.UTF8.GetString(key_1);
+		if (str_key.Equals(skey)) {
+		  Console.WriteLine("We found key: {0} on node: {1}", str_key, 
+				    dht.Address);
+		  instances++;
+		}
+	      }
+	    }
+	    Console.WriteLine("We could find key: {0} on {1} locations", str_key, instances);
+	    if (node_list.Count > 1 && instances != 2) {
+	      Console.WriteLine("Warning: We could find key: {0} on {1} locations", str_key, instances);
+	    }
+	    if (node_list.Count == 1 && instances < 1) {
+	      Console.WriteLine("Warning: We could find key: {0} on {1} locations", str_key, instances);
+	    }
+	    
+	  }
+	  //now ckeck that all keys are actually present in DHT are supposed to be present
+	  Console.WriteLine("First check if there are no remanants on DHT nodes.");
+	  Console.WriteLine("# of nodes in DHT: {0}", node_list.Count);
+	  //(check for remanents)
+	  for (int k = 0; k < node_list.Count; k++) {
+	    Dht dht = (Dht) dht_list[k];
+	    Console.WriteLine("Testing node: {0}, # of key-value pairs: {1}", dht.Address, dht.Count);
+	    Hashtable ht = dht.All;
+	    
+	    foreach(byte[] key in ht.Keys) {
+	      string str_key = Encoding.UTF8.GetString(key);
+	      //check if this key is in our records
+	      bool found = false;
+	      foreach (byte[] key_1 in key_list) {
+		string skey = Encoding.UTF8.GetString(key_1);
+		if (str_key.Equals(skey)) {
+		  found = true;
+		}
+	      }
+	      if (!found) {
+		Console.WriteLine("Warning: We found remanent of key: {0} on node: {1}", 
+				  str_key, dht.Address);
+	      } else {
+		Console.WriteLine("We found key: {0} on node: {1}",
+				  str_key, dht.Address);	
+	      }
+	    }
+	  }	  
+	}
 	} catch (Exception e) {
 	  Console.WriteLine(e);
 	}
