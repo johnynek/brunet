@@ -33,6 +33,7 @@ class CreateEvent(Event):
         self.time = time
         self.entry = entry
     def fire(self):
+        print "Test"
         print "Create"
         print self.entry.key
         print self.entry.data
@@ -44,6 +45,7 @@ class DeleteEvent(Event):
         self.time = time
         self.entry = entry
     def fire(self):
+        print "Test"
         print "Delete"
         print self.entry.key
         print self.entry.passwd

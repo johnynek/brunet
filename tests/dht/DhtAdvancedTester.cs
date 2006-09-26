@@ -11,6 +11,33 @@ using Brunet.Dht;
 namespace Brunet.Dht {
 
   public class DhtAdvancedTester {
+    public static Random rr = new Random();
+
+    public static ArrayList node_list = new ArrayList();
+    public static ArrayList dht_list = new ArrayList();
+    public static ArrayList port_list = new ArrayList();
+    public static ArrayList key_list = new ArrayList();
+
+    private static Node last_start_node = null;
+    //60 seconds
+    private static readonly TimeSpan timeout = new TimeSpan(0,0,0,0,60000);
+    private static DateTime last_start_time = DateTime.Now;
+
+    public static int NextIdx() {
+      int idx = -1;
+      DateTime now = DateTime.Now;
+      while(true) {
+	idx = rr.Next(0, node_list.Count);
+	Node n = (Node) node_list[idx];
+	if (now - last_start_time < timeout && n == last_start_node) {
+	  continue;
+	} else {
+	  break;
+	}
+      }
+      return idx;
+    }
+    
     public static void Main(string[] args) 
     {
       string proto = args[0];
@@ -21,11 +48,7 @@ namespace Brunet.Dht {
 	media = EntryFactory.Media.Disk;
       }      
       ArrayList node_list = new ArrayList();
-      ArrayList dht_list = new ArrayList();
-      ArrayList port_list = new ArrayList();
-      
-      //keep a list of all keys that should exist in the network
-      ArrayList key_list = new ArrayList();
+
       
 
       Console.WriteLine("Building the network...");
@@ -102,10 +125,10 @@ namespace Brunet.Dht {
 	
       }
       
-      Random rr = new Random();
       //now put 10 keys from arbitrary points in the network
+      int oper_count = 0;
       while(true) {
-	Console.Write("Enter operation (Get/Put/Create/Delete/Start/Kill/Print/Test/Sleep/Check/Global_Check):");
+	Console.Write("{0}: Enter operation (Get/Put/Create/Delete/Start/Kill/Print/Test/Sleep/Check/Global_Check):", oper_count++);
 	string str_oper = Console.ReadLine();
 	try {
 	if (str_oper.Equals("Put")) {
@@ -132,7 +155,7 @@ namespace Brunet.Dht {
 	  Console.WriteLine(utf8_data.Length);
 	  Console.WriteLine(base64_pass.Length);
 	  
-	  int idx = rr.Next(0, node_list.Count);
+	  int idx = NextIdx();
 	  Dht dht = (Dht) dht_list[idx];
 	  Node n  = (Node) node_list[idx];
 	  Console.WriteLine("Issuing the Put() command on idx: {0} address: {1}", idx, n.Address);
@@ -169,7 +192,7 @@ namespace Brunet.Dht {
 	  //Console.WriteLine(utf8_key.Length);
 	  //Console.WriteLine(utf8_data.Length);
 	  //Console.WriteLine(base64_pass.Length);
-	  int idx = rr.Next(0, node_list.Count);
+	  int idx = NextIdx();
 	  Dht dht = (Dht) dht_list[idx];
 
 	  Node n  = (Node) node_list[idx];
@@ -186,7 +209,7 @@ namespace Brunet.Dht {
 	  
 	  byte[] utf8_key = Encoding.UTF8.GetBytes(str_key);
 
-	  int idx = rr.Next(0, node_list.Count);
+	  int idx = NextIdx();
 	  Dht dht = (Dht) dht_list[idx];
 	  Node n  = (Node) node_list[idx];
 	  Console.WriteLine("Issuing the Get() command on idx: {0} address: {1}", idx, n.Address);
@@ -226,7 +249,7 @@ namespace Brunet.Dht {
 	  string base64_pass = Convert.ToBase64String(utf8_pass);
 	  string send_pass = "SHA1:" + base64_pass;
 
-	  int idx = rr.Next(0, node_list.Count);
+	  int idx = NextIdx();
 	  Dht dht = (Dht) dht_list[idx];
 	  Node n  = (Node) node_list[idx];
 	  Console.WriteLine("Issuing the Delete() command on idx: {0} address: {1}", idx, n.Address);
@@ -285,14 +308,18 @@ namespace Brunet.Dht {
 	    } 
 	    node.RemoteTAs.Add(new TransportAddress(remoteTA));
 	  }
-	  node_list.Add(node);
 	  //create a Dht
 	  Dht dht = new Dht(node, media);
 	  //add the dht to the list:
+	  node.Connect();
+	  
+	  //we do not add the node until it actually connects
+	  node_list.Add(node);
 	  dht_list.Add(dht);
 	  port_list.Add(port);
-
-	  node.Connect();
+	  
+	  last_start_node = node;
+	  last_start_time = DateTime.Now;
 
 	} else if (str_oper.Equals("Test")) { 
 	//test if we have a correct ring
@@ -356,7 +383,7 @@ namespace Brunet.Dht {
 	  
 	  byte[] utf8_key = Encoding.UTF8.GetBytes(str_key);
 
-	  int idx = rr.Next(0, node_list.Count);
+	  int idx = NextIdx();
 	  Dht dht = (Dht) dht_list[idx];
 	  Node n  = (Node) node_list[idx];
 	  Console.WriteLine("Issuing the Check() command on idx: {0} address: {1}", idx, n.Address);
@@ -447,7 +474,7 @@ namespace Brunet.Dht {
 	  }	  
 	}
 	} catch (Exception e) {
-	  Console.WriteLine(e);
+	  Console.Error.WriteLine(e);
 	}
       }
       foreach (Node n in node_list) {
