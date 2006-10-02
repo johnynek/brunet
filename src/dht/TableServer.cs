@@ -387,7 +387,7 @@ public class TableServer {
   public void Delete(byte[] key, string password)
   {
 #if DHT_DEBUG
-    Console.WriteLine("[DhtServer: {0}]: Delete().", _node.Address);
+    Console.WriteLine("[DhtServer: {0}]: Delete() on key: {1}.", _node.Address, Encoding.UTF8.GetString(key));
 #endif    
     string hash_name = null;
     string base64_pass = null;

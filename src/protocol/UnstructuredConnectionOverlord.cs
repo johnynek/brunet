@@ -313,7 +313,15 @@ namespace Brunet
         }
       }
     }
-
+    /**
+     * @return true if we have sufficient connections for functionality
+     */
+    override public bool IsConnected
+    {
+      get {
+        throw new Exception("Not implemented! Unstructured connection overlord (IsConnected)");
+      }
+    }
   }
 
 }

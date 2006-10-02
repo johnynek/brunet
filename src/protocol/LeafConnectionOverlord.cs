@@ -219,6 +219,15 @@ namespace Brunet
         return ( _local.ConnectionTable.Count(ConnectionType.Leaf) < _desired_cons);
       }
     }
+    /**
+     * @return true if we have sufficient connections for functionality
+     */
+    override public bool IsConnected
+    {
+      get {
+        throw new Exception("Not implemented! Leaf connection overlord (IsConnected)");
+      }
+    }
   }
 
 }

@@ -18,7 +18,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-#define RPC_DEBUG
+#define REQREP_DEBUG
 using System;
 using System.Collections;
 
@@ -78,14 +78,14 @@ public class ReqrepManager : IAHPacketHandler {
     _last_check = DateTime.Now;
 
     _node.ArrivalEvent += delegate(object node, EventArgs args) { 
-#if RPC_DEBUG
+#if REQREP_DEBUG
       Console.WriteLine("[ReqrepManager: {0}] Activated.",
 			_node.Address);
 #endif
       _is_active = true;
     };
     _node.DepartureEvent += delegate(object node, EventArgs args) { 
-#if RPC_DEBUG
+#if REQREP_DEBUG
       Console.WriteLine("[ReqrepManager: {0}] Deactivated.",
 			_node.Address);
 #endif
@@ -139,6 +139,7 @@ public class ReqrepManager : IAHPacketHandler {
      public ReqrepType RequestType;
      public int RequestID;
      public object UserState;
+     public bool Replied;
    }
    protected class ReplyState {
      public int RequestID;
@@ -166,13 +167,29 @@ public class ReqrepManager : IAHPacketHandler {
    protected DateTime _last_check;
    // Methods /////
 
+
+   public static void DebugPacket(AHAddress local, AHPacket p, Edge from) {
+     System.IO.MemoryStream ms = p.PayloadStream;
+     ReqrepType rt = (ReqrepType)((byte)ms.ReadByte());
+     int idnum = NumberSerializer.ReadInt(ms);
+     if ( rt == ReqrepType.Request || rt == ReqrepType.LossyRequest ) {
+       Console.WriteLine("[ReqrepManager Debug Hook: {0}] Request id: {1} from node: {2}",
+			 local, idnum, p.Source);
+     } else if ( rt == ReqrepType.Reply) {
+       Console.WriteLine("[ReqrepManager Debug Hook: {0}] Reply id: {1} from node: {2}",
+			 local, idnum, p.Source);       
+     } else {
+       Console.WriteLine("[ReqrepManager Debug Hook: {0}] Unknown id: {1} from node: {2}",
+			 local, idnum, p.Source);              
+     }
+   }
    /**
     * This is either a request or response.  Look up the handler
     * for it, and pass the packet to the handler
     */
    public void HandleAHPacket(object node, AHPacket p, Edge from) {
      if (!_is_active) {
-#if RPC_DEBUG
+#if REQREP_DEBUG
        Console.WriteLine("[ReqrepManager: {0}] Inactive. Simply return (HandleAHPacket).",
 			 _node.Address);
 #endif
@@ -205,7 +222,7 @@ public class ReqrepManager : IAHPacketHandler {
 	   }
 	 }
 	 if ( rs == null ) {
-#if RPC_DEBUG
+#if REQREP_DEBUG
 	   Console.WriteLine("[ReqrepServer: {0}] Receiving request (to process): {1} from node: {2}",
 			     _node.Address, idnum, p.Source);
 #endif
@@ -277,6 +294,8 @@ public class ReqrepManager : IAHPacketHandler {
 	   bool continue_listening = 
 		   reqs.ReplyHandler.HandleReply(this, rt, idnum, pt,
 						 offsetpayload, p, reqs.UserState);
+	   //the request has been served
+	   reqs.Replied = true;
 	   if( !continue_listening ) {
 	     //Now remove the RequestState:
 	     _req_state_table.Remove(idnum);
@@ -374,7 +393,7 @@ public class ReqrepManager : IAHPacketHandler {
 		         byte[] payload, IReplyHandler reply, object state)
   {
     if (!_is_active) {
-#if RPC_DEBUG
+#if REQREP_DEBUG
       Console.WriteLine("[ReqrepManager: {0}] Inactive. Simply return (SendRequest).",
 			_node.Address);
 #endif
@@ -401,9 +420,10 @@ public class ReqrepManager : IAHPacketHandler {
       rs.ReqDate = DateTime.Now;
       rs.RequestType = reqt;
       rs.UserState = state;
+      rs.Replied = false;
       _req_state_table[ next_req ] = rs;
     }
-#if RPC_DEBUG
+#if REQREP_DEBUG
     Console.WriteLine("[ReqrepClient: {0}] Sending a request: {1} to node: {2}",
 		      _node.Address, rs.RequestID, destination);
 #endif
@@ -420,7 +440,7 @@ public class ReqrepManager : IAHPacketHandler {
   {
     if (!_is_active) {
       //ignore!
-#if RPC_DEBUG
+#if REQREP_DEBUG
       Console.WriteLine("[ReqrepManager: {0}] Inactive. Simply return (SendReply).",
 			_node.Address);
 #endif
@@ -489,10 +509,12 @@ public class ReqrepManager : IAHPacketHandler {
             reqs.Timeouts--;
             if( reqs.Timeouts >= 0 ) {
               //Resend:
-              if( reqs.RequestType != ReqrepType.LossyRequest ) {
+              if( reqs.RequestType != ReqrepType.LossyRequest) {
                 //We don't resend LossyRequests
-                reqs.ReqDate = now;
-		to_resend.Add( reqs.Request );
+		if (!reqs.Replied) {
+		  reqs.ReqDate = now;
+		  to_resend.Add( reqs.Request );
+		}
               }
             }
             else {

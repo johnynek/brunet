@@ -78,7 +78,14 @@ namespace Brunet
     {
       get;
     }
-    
+    /**
+     * @return true if the ConnectionOverlord has sufficient connections
+     *  for connectivity (no routing performance yet!)
+     */
+    abstract public bool IsConnected
+    {
+      get;
+    }    
     /**
      * Connectors just send and receive ConnectToMessages.  They return all responses
      * to the ConnectionOverlord that initiated the ConnectToMessage

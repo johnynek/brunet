@@ -18,7 +18,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-//#define AHROUTER_DEBUG
+#define AHROUTER_DEBUG
 
 namespace Brunet
 {
@@ -66,10 +66,15 @@ namespace Brunet
           //Clear the old events:
           _tab.ConnectionEvent -= this.ConnectionTableChangeHandler;
           _tab.DisconnectionEvent -= this.ConnectionTableChangeHandler;
+	  _tab.StatusChangedEvent -= this.StatusChangedHandler;
         }
         _tab = value;
         _tab.ConnectionEvent += this.ConnectionTableChangeHandler;
         _tab.DisconnectionEvent += this.ConnectionTableChangeHandler;
+	
+	//new stuff added to ensure we dont get into problem of
+	//unequal references for objects that are otherwise equal
+	_tab.StatusChangedEvent += this.StatusChangedHandler;
       }
     }
     protected static readonly int _MAX_UPHILL_HOPS = 1; 
@@ -97,6 +102,13 @@ namespace Brunet
      */
     public int Route(Edge prev_e, AHPacket p, out bool deliverlocally)
     {
+#if AHROUTER_DEBUG
+      bool debug = false;
+      if (p.PayloadType == AHPacket.Protocol.ReqRep) {
+	ReqrepManager.DebugPacket(_local,  p, prev_e);
+	debug = true;
+      }
+#endif
       Connection next_con = null;  //the next connection to send the packet to
       deliverlocally = false;
       
@@ -118,8 +130,11 @@ namespace Brunet
 	deliverlocally = true;
 	//We can stop routing now, no one is closer than us.
 #if AHROUTER_DEBUG
-        System.Console.WriteLine("Delloc: {0}\n from: {1}\n delloc: {2}",
-                            p,prev_e,deliverlocally);
+	if (debug) {
+	  System.Console.WriteLine("Delloc: {0}\n from: {1}\n delloc: {2}",
+				   p,prev_e,deliverlocally);
+	  System.Console.WriteLine("{0}: We are the destination, WOW!", _local);
+	}
 #endif
 	return 0;
       }
@@ -130,6 +145,9 @@ namespace Brunet
            * No need to check any routing tables.  We get it
            */
 	  deliverlocally = true;
+#if AHROUTER_DEBUG
+	  if (debug) System.Console.WriteLine("{0}: TTL expired. Still deliverlocally (option Last).", _local);
+#endif
 	  return 0;
 	}
 	else {
@@ -143,6 +161,18 @@ namespace Brunet
         //This cuts down on latency
         next_con = cr.Route;
         deliverlocally = cr.DeliverLocally;
+#if AHROUTER_DEBUG
+	if (debug) 
+	{
+	  if (next_con != null) {
+	    System.Console.WriteLine("{0}: We found a cached route. local delivery: {1}, next_con: {2}.",
+				     _local, deliverlocally, next_con.Address);
+	  } else {
+	    System.Console.WriteLine("{0}: We found a cached route. local delivery: {1}, next_con = null.",
+				     _local, deliverlocally);
+	  }
+	}
+#endif
       }
       else {
       /*
@@ -157,9 +187,15 @@ namespace Brunet
 	   * We do not have a leaf connection to use, now we must
 	   * find a Structured connection over which to route the packet
 	   */
+#if AHROUTER_DEBUG
+	  if (debug) System.Console.WriteLine("{0}: We do not have a leaf connection.", _local);
+#endif
           int dest_idx = _tab.IndexOf(ConnectionType.Structured, dest);
           if( dest_idx >= 0 ) {
             //We actually have a connection to this node:
+#if AHROUTER_DEBUG
+	    if (debug) System.Console.WriteLine("{0}: We have a structured connection to destination.", _local);
+#endif
             next_con = _tab.GetConnection(ConnectionType.Structured, dest_idx);
           }
           else if( _tab.Count(ConnectionType.Structured) == 0 ) {
@@ -169,6 +205,11 @@ namespace Brunet
           }
           else {
             //dest_idx is not in the table:
+
+#if AHROUTER_DEBUG
+	    if (debug) System.Console.WriteLine("{0}: We do not have a structured connection to destination.", 
+				     _local);
+#endif
             dest_idx = ~dest_idx;
             /*
              * Here are the right and left neighbors of the destination
@@ -178,8 +219,18 @@ namespace Brunet
              */
             int left_idx = dest_idx;
             Connection left_n = _tab.GetConnection(ConnectionType.Structured, left_idx);
+#if AHROUTER_DEBUG
+	    if (debug && left_n != null) System.Console.WriteLine("{0}: key left connection: {1}.",
+						_local, left_n.Address);
+#endif
+	    
             int right_idx = dest_idx - 1;
             Connection right_n = _tab.GetConnection(ConnectionType.Structured, right_idx);
+#if AHROUTER_DEBUG
+	    if (debug && right_n != null) System.Console.WriteLine("{0}: key right connection: {1}.",
+	                                                         _local, right_n.Address);
+#endif
+		     
             //We check the a couple of connections:
             BigInteger l_dist = dest.DistanceTo((AHAddress)left_n.Address).abs();
             BigInteger r_dist = dest.DistanceTo((AHAddress)right_n.Address).abs();
@@ -192,26 +243,43 @@ namespace Brunet
               other_con = right_n;
               closest_dist = l_dist;
               other_dist = r_dist;
+#if AHROUTER_DEBUG
+	      if (debug)  System.Console.WriteLine("{0}: Going the left way (since it is closer).", _local);
+#endif
             }
             else {
               closest_con = right_n;
               other_con = left_n;
               closest_dist = r_dist;
               other_dist = l_dist;
+#if AHROUTER_DEBUG
+	      if (debug) System.Console.WriteLine("{0}: Going the right way (since it is closer).", _local);
+#endif
             }
             /**
              * Here we consider the various routing modes
              */
             if( p.HasOption( AHPacket.AHOptions.Greedy ) ) {
+#if AHROUTER_DEBUG
+	      if (debug) System.Console.WriteLine("{0}: Greedy routing mode.", _local);
+#endif
               /*
                * We pass it ONLY IF we can get it closer than we are.
                */
               BigInteger our_dist = dest.DistanceTo(_local).abs();
               if( closest_dist < our_dist ) {
                 if( closest_con.Edge != prev_e ) {
+#if AHROUTER_DEBUG
+		  if (debug)  System.Console.WriteLine("{0}: Greedy. Closest distance is lesser than our distance.", 
+					   _local);
+#endif
 	          next_con = closest_con;
                 }
                 else {
+#if AHROUTER_DEBUG
+		  if (debug)  System.Console.WriteLine("Got wrong greedy packet from: {0}", prev_e);
+#endif
+
                   //This should never happen, a buggy client must have given
                   //us a packet they shouldn't have:
                   System.Console.Error.WriteLine("Got wrong greedy packet from: {0}", prev_e);
@@ -221,11 +289,18 @@ namespace Brunet
 	      }
 	      else {
                 //We keep it.
+#if AHROUTER_DEBUG
+		if (debug)  System.Console.WriteLine("{0}: Closest distance not lesser than us. Lets keep it.", 
+					 _local);
+#endif
                 next_con = null;
 	        deliverlocally = true;
 	      }
 	    }
             else {
+#if AHROUTER_DEBUG
+	      if (debug)  System.Console.WriteLine("{0}: Annealing routing mode.", _local);
+#endif
               //All the other routing modes use the Annealing rule
               
               /*
@@ -248,7 +323,32 @@ namespace Brunet
                 }
                 _our_left_n = _tab.GetConnection(ConnectionType.Structured, our_idx);
               }
+#if AHROUTER_DEBUG
+	      if (debug) {
+		if (_our_left_n != null) {
+		  System.Console.WriteLine("{0}: our left connection: {1}", _local, _our_left_n.Address);
+		} else {
+		  System.Console.WriteLine("{0}: our left connection: null");
+		}
+		try {
+		  System.Console.WriteLine("{0}: Testing == between: {1} and {2}, equality: {3}", 
+					   _local, left_n.Address, _our_left_n.Address, 
+					   (left_n == _our_left_n));
+		  System.Console.WriteLine("{0}: Operand 1, hashcode: {1}, tostring(): {2}",
+					   _local, left_n.GetHashCode(), left_n);
+		  System.Console.WriteLine("{0}: Operand 2, hashcode: {1}, tostring(): {2}",
+					   _local, _our_left_n.GetHashCode(), _our_left_n);
+		  System.Console.WriteLine("{0}: Hashcode equality: {1}", _local, (left_n.GetHashCode() == _our_left_n.GetHashCode()));
+		} catch(System.Exception e) {
+		  System.Console.WriteLine("{0}: excption in debugging code!", _local); 
+		}
+	      }
+#endif
+	      
               if( left_n == _our_left_n ) {
+#if AHROUTER_DEBUG
+		if (debug)  System.Console.WriteLine("{0}: I am adjacent to the destination (matching neighbors)", _local);
+#endif
                 /*
                  * We share a common left neighbor, so we should deliver locally
                  * This is the only case where we should deliver locally,
@@ -256,15 +356,39 @@ namespace Brunet
                  * target, so one of them should probably get the packet.
                  */
                 deliverlocally = true;
+#if AHROUTER_DEBUG
+		if (debug) System.Console.WriteLine("{0}: Local delivery for sure. Who else gets it.", _local);
+#endif
                 //The next step should be the node on the "other side"
                 if( _local.IsLeftOf( dest ) ) {
                   next_con = right_n;
+#if AHROUTER_DEBUG
+		  if (debug) {
+		    if (next_con != null) {
+		      System.Console.WriteLine("{0}: Adjacent, also give to the guy on right: {1}", _local, next_con.Address);
+		    } else {
+		      System.Console.WriteLine("{0}: Adjacent, also give to the guy on right: null", _local);
+		    }
+		  }
+#endif
                 }
                 else {
                   next_con = left_n;
+#if AHROUTER_DEBUG
+		  if (debug) {
+		    if (next_con != null) {
+		      System.Console.WriteLine("{0}: Adjacent, also give to the guy on left: {1}", _local, next_con.Address);	 
+		    } else {
+		      System.Console.WriteLine("{0}: Adjacent, also give to the guy on left: null", _local);	 
+		    }
+		  }
+#endif
                 }
                 if( prev_e == next_con.Edge ) {
                   //Don't send it back the way it came
+#if AHROUTER_DEBUG
+		  if (debug) System.Console.WriteLine("{0}: Adjacent, dont send it back", _local);
+#endif
                   next_con = null;
                 }
               }
@@ -393,21 +517,27 @@ namespace Brunet
           //We can send it on
           next_con.Edge.Send( p.IncrementHops() );
 #if AHROUTER_DEBUG
-          System.Console.WriteLine("Sending {0}\n from: {1} to: {2}\n delloc: {3}",
-                            p,prev_e,next_con,deliverlocally);
+	  if (debug) {
+	    System.Console.WriteLine("Sending {0}\n from: {1} to: {2}\n delloc: {3}",
+				     p,prev_e,next_con,deliverlocally);
+	  }
 #endif
 	  return 1;
 	}
 	else {
 #if AHROUTER_DEBUG
-          System.Console.WriteLine("Not sending {0}\n from: {1}\n delloc: {2}",
-                            p,prev_e,deliverlocally);
+	  if (debug) {
+	    System.Console.WriteLine("Not sending {0}\n from: {1}\n delloc: {2}",
+				     p,prev_e,deliverlocally);
+	  }
 #endif
           return 0;
 	}
       }
       catch(EdgeException x) {
 	System.Console.Error.WriteLine(x);
+	System.Console.WriteLine("{0}: Edge exception encountered while sending from: {1} delloc: {2}",
+				 _local,prev_e,deliverlocally);
         next_con.Edge.Close();
 	return -1;
       }
@@ -421,7 +551,14 @@ namespace Brunet
       //Our left neighbor may have changed:
       _our_left_n = null;
     }
-
+    protected void StatusChangedHandler(object ct, System.EventArgs args) {
+      ConnectionEventArgs ce = (ConnectionEventArgs)args;
+      Connection new_con = ce.Connection;
+      if (_our_left_n != null) {
+	if( new_con.Edge == _our_left_n.Edge ) {
+	  _our_left_n = new_con;
+	}
+      } 
+    }
   }
-	
 }

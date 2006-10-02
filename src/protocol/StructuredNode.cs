@@ -59,13 +59,20 @@ namespace Brunet
      *
      * In the future, it might use a smarter algorithm
      */
+    //     public override bool IsConnected {
+    //       get {
+    //         lock( _sync ) {
+    //           //To be routable, 
+    //           return !(_lco.NeedConnection || _sco.NeedConnection);
+    //         }
+    //       }
+    //     }
+
     public override bool IsConnected {
       get {
-        lock( _sync ) {
-          //To be routable, 
-          return !(_lco.NeedConnection || _sco.NeedConnection);
-        }
+	return _sco.IsConnected;
       }
+
     }
     public StructuredNode(AHAddress add):base(add)
     {
