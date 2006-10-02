@@ -7,6 +7,9 @@ using Brunet;
 using Brunet.Dht;
 
 namespace Brunet.Dht {	
+  public class DhtException: Exception {
+    public DhtException(string message): base(message) {}
+  }
 
   public class Dht {
     //we checkpoint the state of DHT every 1000 seconds.
@@ -21,6 +24,14 @@ namespace Brunet.Dht {
     protected RpcManager _rpc;
     //node we are associated with
     protected Node _node = null;
+
+    //flag indicating if we are ready to perform the DHT logic
+    protected bool _activated = false;
+    public bool Activated {
+      get {
+	return _activated;
+      }
+    }
 
     //table server
     protected TableServer _table;
@@ -242,8 +253,10 @@ namespace Brunet.Dht {
     
     public Dht(Node node, EntryFactory.Media media) {
       _sync = new object();
-      
       _node = node;
+      //activated not until we acquire a connection
+      _activated = false;
+
       //we initially do not have eny structured neighbors to start
       _left_addr = _right_addr = null;
 
@@ -270,7 +283,7 @@ namespace Brunet.Dht {
 	node.ConnectionTable.DisconnectionEvent += 
 	  new EventHandler(DisconnectHandler);
 	
-	node.HeartBeatEvent += new EventHandler(CheckpointHandler);
+	//node.HeartBeatEvent += new EventHandler(CheckpointHandler);
       }
     }
 
@@ -289,6 +302,12 @@ namespace Brunet.Dht {
 #if DHT_DEBUG
       Console.WriteLine("[DhtClient] Invoking a Dht::Put()");
 #endif
+      if (!_activated) {
+#if DHT_DEBUG
+	Console.WriteLine("[DhtClient] Not yet activated. Throwing exception!");
+#endif	
+	throw new DhtException("DhtClient: Not yet activated.");
+      }
       Address target = GetInvocationTarget(key);
 
       //we now know the invocation target
@@ -305,6 +324,14 @@ namespace Brunet.Dht {
 #if DHT_DEBUG
       Console.WriteLine("[DhtClient] Invoking a Dht::Create()");
 #endif
+
+      if (!_activated) {
+#if DHT_DEBUG
+	Console.WriteLine("[DhtClient] Not yet activated. Throwing exception!");
+#endif	
+	throw new DhtException("DhtClient: Not yet activated.");
+      }
+      
       Address target = GetInvocationTarget(key);
       
       //we now know the invocation target
@@ -318,6 +345,13 @@ namespace Brunet.Dht {
 #if DHT_DEBUG
       Console.WriteLine("[DhtClient] Invoking a Dht::Get()");
 #endif
+      if (!_activated) {
+#if DHT_DEBUG
+	Console.WriteLine("[DhtClient] Not yet activated. Throwing exception!");
+#endif	
+	throw new DhtException("DhtClient: Not yet activated.");
+      }
+
       Address target = GetInvocationTarget(key);
       
       //we now know the invocation target
@@ -332,6 +366,14 @@ namespace Brunet.Dht {
 #if DHT_DEBUG
       Console.WriteLine("[DhtClient] Invoking a Dht::Delete()");
 #endif
+
+      if (!_activated) {
+#if DHT_DEBUG
+	Console.WriteLine("[DhtClient] Not yet activated. Throwing exception!");
+#endif	
+	throw new DhtException("DhtClient: Not yet activated.");
+      }
+
       Address target = GetInvocationTarget(key);
       
       //we now know the invocation target
@@ -358,7 +400,6 @@ namespace Brunet.Dht {
 #endif 
 	return;
       }
-      
       //now comes the important part
       ConnectionTable con_table = _node.ConnectionTable;
       AHAddress new_left_addr = null;
@@ -366,12 +407,23 @@ namespace Brunet.Dht {
 
       lock(_sync) {
       lock(con_table.SyncRoot) {//lock the connection table
+	//we need to check if we are ready for DhtLogic
+	if (!_activated) {
+	  if (_node.IsConnected ) {
+#if DHT_DEBUG
+	    Console.WriteLine("[DhtLogic] {0}: Activated.", our_addr);
+#endif	
+	    _activated = true;
+	  } 
+	}
+
 	try {
 	  Connection new_left_con = con_table.GetLeftStructuredNeighborOf(our_addr);
 	  new_left_addr = new_left_con.Address as AHAddress;
 	} catch (Exception e) {
 #if DHT_DEBUG
 	  Console.WriteLine("[DhtLogic] {0}: Error getting left neighbor information. ", our_addr);
+	  Console.WriteLine("[DhtLogic] {0}, exception: {1}", our_addr, e);
 #endif	  
 	}
 	try {
@@ -380,6 +432,7 @@ namespace Brunet.Dht {
 	} catch(Exception e) {
 #if DHT_DEBUG
 	  Console.WriteLine("[DhtLogic] {0}: Error getting right neighbor information. ", our_addr);
+	  Console.WriteLine("[DhtLogic] {0}, exception: {1}", our_addr, e);
 #endif	  
 	}
 
@@ -401,10 +454,16 @@ namespace Brunet.Dht {
 #endif
 	  if (_left_transfer_state == null) {
 	    //pass on some keys to him now
-	    _left_transfer_state = new TransferState(_rpc, our_addr, new_left_addr,
-						     _table.GetKeysToLeft(our_addr, new_left_addr), 
-						     false);
-	    _left_transfer_state.StartTransfer(TransferCompleteHandler);
+	    if(_activated) {
+	      _left_transfer_state = new TransferState(_rpc, our_addr, new_left_addr,
+						       _table.GetKeysToLeft(our_addr, new_left_addr), 
+						       false);
+	      _left_transfer_state.StartTransfer(TransferCompleteHandler);
+	    } else {
+#if DHT_DEBUG
+	      Console.WriteLine("[DhtLogic] {0}: Not activated (don't do any transfers).", our_addr);
+#endif
+	    }
 	    
 	  } else {
 #if DHT_DEBUG
@@ -424,11 +483,16 @@ namespace Brunet.Dht {
 #endif
 	    _left_transfer_state.InterruptTransfer();
 	  }
-	  _left_transfer_state = new TransferState(_rpc, our_addr, new_left_addr,
-						   _table.GetKeysToLeft(new_left_addr, _left_addr), 
-						   true);
-	  _left_transfer_state.StartTransfer(TransferCompleteHandler);
-	  //we also have to initiate a deletion of extra keys (for later).
+	  if (_activated) {
+	    _left_transfer_state = new TransferState(_rpc, our_addr, new_left_addr,
+						     _table.GetKeysToLeft(new_left_addr, _left_addr), 
+						     true);
+	    _left_transfer_state.StartTransfer(TransferCompleteHandler);
+	  } else {
+#if DHT_DEBUG
+	    Console.WriteLine("[DhtLogic] {0}: Not activated (don't do any transfers).", our_addr);
+#endif
+	  }
 	}
 	
 	_left_addr = new_left_addr;
@@ -444,11 +508,17 @@ namespace Brunet.Dht {
 	  Console.WriteLine("[DhtLogic] {0}: Connected to my first right neighbor: {1}", our_addr, new_right_addr);
 #endif
 	  if (_right_transfer_state == null) {
-	    //pass on some keys to him now
-	    _right_transfer_state = new TransferState(_rpc, our_addr, new_right_addr,
-						     _table.GetKeysToRight(our_addr, new_right_addr), 
-						      false);
-	    _right_transfer_state.StartTransfer(TransferCompleteHandler);
+	    if (_activated) {
+	      //pass on some keys to him now
+	      _right_transfer_state = new TransferState(_rpc, our_addr, new_right_addr,
+							_table.GetKeysToRight(our_addr, new_right_addr), 
+							false);
+	      _right_transfer_state.StartTransfer(TransferCompleteHandler);
+	    } else {
+#if DHT_DEBUG
+	      Console.WriteLine("[DhtLogic] {0}: Not activated (don't do any transfers).", our_addr);
+#endif
+	    }
 	    
 	  } else {
 #if DHT_DEBUG
@@ -471,17 +541,20 @@ namespace Brunet.Dht {
 #endif
 	    _right_transfer_state.InterruptTransfer();
 	  }
-	  _right_transfer_state = new TransferState(_rpc, our_addr, new_right_addr,
-						     _table.GetKeysToRight(new_right_addr, _right_addr), 
-						    true);
-	  _right_transfer_state.StartTransfer(TransferCompleteHandler);
-
-
+	  if (_activated) {
+	    _right_transfer_state = new TransferState(_rpc, our_addr, new_right_addr,
+						      _table.GetKeysToRight(new_right_addr, _right_addr), 
+						      true);
+	    _right_transfer_state.StartTransfer(TransferCompleteHandler);
+	  } else {
+#if DHT_DEBUG
+	    Console.WriteLine("[DhtLogic] {0}: Not activated (don't do any transfers).", our_addr);
+#endif
+	  }
 	}
 	_right_addr = new_right_addr;
-
       } //release lock on the connection table
-      }
+      }//release out own lock
     }
 
 
@@ -511,6 +584,16 @@ namespace Brunet.Dht {
       
       lock(_sync) {
       lock(con_table.SyncRoot) {  //lock the connection table
+	//we need to check if we can Put() our keys away.
+	//we only do that if we have sufficient number of connections
+	if (!_activated) {
+	  if (_node.IsConnected ) {
+#if DHT_DEBUG
+	    Console.WriteLine("[DhtLogic] {0}: Activated.", our_addr);
+#endif	
+	    _activated = true;
+	  } 
+	}
 	try {
 	  Connection new_left_con = con_table.GetLeftStructuredNeighborOf(our_addr);
 	  new_left_addr = new_left_con.Address as AHAddress;
@@ -563,10 +646,16 @@ namespace Brunet.Dht {
 #endif
 	    _left_transfer_state.InterruptTransfer();
 	  }
-	  _left_transfer_state = new TransferState(_rpc, our_addr, new_left_addr,
-						   _table.GetKeysToLeft(our_addr, _left_addr), 
-						   false);
-	  _left_transfer_state.StartTransfer(TransferCompleteHandler);
+	  if (_activated) {
+	    _left_transfer_state = new TransferState(_rpc, our_addr, new_left_addr,
+						     _table.GetKeysToLeft(our_addr, _left_addr), 
+						     false);
+	    _left_transfer_state.StartTransfer(TransferCompleteHandler);
+	  } else {
+#if DHT_DEBUG
+	    Console.WriteLine("[DhtLogic] {0}: Not activated (don't do any transfers).", our_addr);
+#endif
+	  }
 	}
 		   
 	_left_addr = new_left_addr;
@@ -599,10 +688,17 @@ namespace Brunet.Dht {
 #endif
 	    _right_transfer_state.InterruptTransfer();
 	  }
-	  _right_transfer_state = new TransferState(_rpc, our_addr, new_right_addr,
-						    _table.GetKeysToRight(our_addr, _right_addr), 
-						    false);
-	  _right_transfer_state.StartTransfer(TransferCompleteHandler);
+	  if (_activated) {
+	    _right_transfer_state = new TransferState(_rpc, our_addr, new_right_addr,
+						      _table.GetKeysToRight(our_addr, _right_addr), 
+						      false);
+	    _right_transfer_state.StartTransfer(TransferCompleteHandler);
+	  }else {
+#if DHT_DEBUG
+           Console.WriteLine("[DhtLogic] {0}: Not activated (don't do any transfers).", our_addr);
+#endif
+          }
+	  
 	}
 	_right_addr = new_right_addr;
 		   
@@ -641,6 +737,7 @@ namespace Brunet.Dht {
     }
     /** 
      *  This method Checkpoints the table state periodically.
+     *  (Still an incomplete implementation!)
      */
     public void CheckpointHandler(object node, EventArgs eargs) {
       lock(_sync) {
@@ -650,6 +747,45 @@ namespace Brunet.Dht {
 	  _next_checkpoint = DateTime.Now + interval; 
 	}
       }    
-    } 
+    }
+    /** 
+     * Useful for debugging , code save 30 minutes of my time atleast.
+     * Warning: This method should not be used at all.
+     */
+    public void Reset(EntryFactory.Media media) {
+      lock(_sync) {
+	//unsubscribe the disconnection
+	_node.ConnectionTable.ConnectionEvent -= 
+	  new EventHandler(ConnectHandler);
+	_node.ConnectionTable.DisconnectionEvent -= 
+	  new EventHandler(DisconnectHandler);
+	if (_left_transfer_state != null) {
+	  _left_transfer_state.InterruptTransfer();
+	  _left_transfer_state = null;
+	}
+	if (_right_transfer_state != null) {
+	  _right_transfer_state.InterruptTransfer();
+	  _right_transfer_state.InterruptTransfer();
+	}
+	_left_addr = _right_addr = null;
+
+
+	EntryFactory ef = EntryFactory.GetInstance(_node);
+	ef.SetMedia(media);
+
+
+	_table = new TableServer(ef, _node);
+
+
+	//register a new TableServer with RpcManager
+	_rpc.RemoveHandler("dht");
+	_rpc.AddHandler("dht", _table);
+
+	_node.ConnectionTable.ConnectionEvent += 
+	  new EventHandler(ConnectHandler);
+	_node.ConnectionTable.DisconnectionEvent += 
+	  new EventHandler(DisconnectHandler);
+      } //end of lock
+    }
   }
 }

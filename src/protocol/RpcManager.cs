@@ -115,6 +115,15 @@ public class RpcManager : IReplyHandler, IRequestHandler {
       _method_handlers.Add(name, handler);
     }
   }
+  /**
+   * Allows to unregister existing handlers and register.
+   */
+  public void RemoveHandler(string name)
+  {
+    lock( _sync ) {
+      _method_handlers.Remove(name);
+    }
+  }
 
   /**
    * This is the same as AddHandler, except
@@ -133,6 +142,13 @@ public class RpcManager : IReplyHandler, IRequestHandler {
   {
     lock( _sync ) {
       _method_packet_handlers.Add(name, handler);
+    }
+  }
+  
+  public void RemoveHandlerP(string name)
+  {
+    lock( _sync ) {
+      _method_packet_handlers.Remove(name);
     }
   }
   /**

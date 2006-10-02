@@ -118,6 +118,70 @@ namespace Brunet {
 	}
       }
     }
+    /**
+     * @return true if we have sufficient connections for functionality
+     */
+    override public bool IsConnected
+    {
+      get {
+	ConnectionTable tab = _node.ConnectionTable;
+	AHAddress our_addr = _node.Address as AHAddress;
+	  
+	lock( tab.SyncRoot ) {
+	  Connection lc = null; 
+	  try {
+	    lc = tab.GetLeftStructuredNeighborOf(our_addr);
+	  } catch(Exception e) {
+	  }
+	  
+	  Connection rc = null;
+	  try {
+	    rc = tab.GetRightStructuredNeighborOf(our_addr);
+	  } catch (Exception e) {
+	  }
+	  if (rc == null || lc == null) {
+	    Console.WriteLine("{0}: No left or right neighbor (false)", our_addr);
+	    return false;
+	  }
+	  if (rc == lc) {
+	    Console.WriteLine("{0}: same left or right neighbor (false)", our_addr);
+	    return false;
+	  }
+	  //now make sure things are good about Status Messages
+	  AHAddress left_addr = lc.Address as AHAddress;
+	  AHAddress right_addr = rc.Address as AHAddress;
+	  
+	  
+	  //status of our left neighbor; is fine
+	  StatusMessage l_sm = lc.Status;
+	  ArrayList l_arr = l_sm.Neighbors;
+	  //we have to make sure than nothing is between us and left
+	  foreach (NodeInfo n_info in l_arr) {
+	    AHAddress stat_addr = n_info.Address as AHAddress;
+	    if (stat_addr.IsToLeftWithin(our_addr, left_addr)) {
+	      //we are expecting a better candidate for left neighbor!
+	      Console.WriteLine("{0}: Better left (false)", our_addr);
+	      return false;
+	    }
+	  }
+	  
+	  //status of our left neighbor; is fine
+	  StatusMessage r_sm = rc.Status;
+	  ArrayList r_arr = r_sm.Neighbors;
+	  //we have to make sure than nothing is between us and left
+	  foreach (NodeInfo n_info in r_arr) {
+	    AHAddress stat_addr = n_info.Address as AHAddress;
+	    if (stat_addr.IsToRightWithin(our_addr, right_addr)) {
+	      //we are expecting a better candidate for left neighbor!
+	      Console.WriteLine("{0}: Better right (false)", our_addr);
+	      return false;
+	    }
+	  }
+	  Console.WriteLine("{0}:  Returning (true)", our_addr);	  
+	  return true;
+	}
+      }
+    }
     
     /*
      * In between connections or disconnections there is no

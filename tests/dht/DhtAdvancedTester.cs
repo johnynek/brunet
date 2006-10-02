@@ -24,16 +24,18 @@ namespace Brunet.Dht {
     private static DateTime last_start_time = DateTime.Now;
 
     public static int NextIdx() {
+      int attempts = 0;
       int idx = -1;
       DateTime now = DateTime.Now;
-      while(true) {
+      while(attempts++ < node_list.Count) {
 	idx = rr.Next(0, node_list.Count);
-	Node n = (Node) node_list[idx];
-	if (now - last_start_time < timeout && n == last_start_node) {
-	  continue;
-	} else {
+	Dht d = (Dht) dht_list[idx];
+	if (d.Activated) {
 	  break;
 	}
+      }
+      if (attempts >= 10) {
+	return -1;
       }
       return idx;
     }
@@ -47,9 +49,6 @@ namespace Brunet.Dht {
       if (args[3].Equals("disk")) {
 	media = EntryFactory.Media.Disk;
       }      
-      ArrayList node_list = new ArrayList();
-
-      
 
       Console.WriteLine("Building the network...");
 
@@ -98,7 +97,7 @@ namespace Brunet.Dht {
 	
 	Console.WriteLine("Starting to crawl the ring");
 	for (int loop3 = 0; loop3 <= loop1; loop3++) {
-	  Console.WriteLine("Hop#: {0}, at {1}", loop3+1, curr_addr);
+	  Console.WriteLine("Hop#: {0}, at {1}, activated: {2}", loop3+1, curr_addr, curr_dht.Activated);
 	  curr_addr = curr_dht.LeftAddress;
 	  if (curr_addr == null) {
 	    break;
@@ -114,10 +113,10 @@ namespace Brunet.Dht {
 	Console.WriteLine("Finsihed crawling the ring");
 	//eventually the next address should point back to us;
 	if (curr_addr == null) {
-	  Console.WriteLine("Broken ring detected at: {0}", curr_dht.Address);
+	  Console.Error.WriteLine("Broken ring detected at: {0}", curr_dht.Address);
 	}
 	else if (!curr_addr.Equals(start_addr)) {
-	  Console.WriteLine("Incomplete ring: Test failed");
+	  Console.Error.WriteLine("Incomplete ring: Test failed");
 	} 
 	else {
 	  Console.WriteLine("Complete ring: Test passed.");
@@ -217,7 +216,7 @@ namespace Brunet.Dht {
 	  BlockingQueue q = dht.Get(utf8_key, 500, null);
 	  int count = 0;
 
-	  while (count++ < 2) {
+	  //while (count++ < 1) {
 	    RpcResult res = q.Dequeue() as RpcResult;
 	    ArrayList result = res.Result as ArrayList;
 
@@ -234,7 +233,7 @@ namespace Brunet.Dht {
 	      string val = Encoding.UTF8.GetString(data);
 	      Console.WriteLine(val);
 	    }
-	  }
+	    //}
 	  q.Close();
 	} else if (str_oper.Equals("Delete")) {
 	  Console.Write("Enter key:");
@@ -331,7 +330,7 @@ namespace Brunet.Dht {
 	
 	  Console.WriteLine("Starting to crawl the ring");
 	  for (int loop3 = 0; loop3 < node_list.Count; loop3++) {
-	    Console.WriteLine("Hop#: {0}, at {1}", loop3+1, curr_addr);
+	    Console.WriteLine("Hop#: {0}, at {1}, activated: {2}", loop3+1, curr_addr, curr_dht.Activated);
 	    curr_addr = curr_dht.LeftAddress;
 	    if (curr_addr == null) {
 	      break;
@@ -450,7 +449,8 @@ namespace Brunet.Dht {
 	  //(check for remanents)
 	  for (int k = 0; k < node_list.Count; k++) {
 	    Dht dht = (Dht) dht_list[k];
-	    Console.WriteLine("Testing node: {0}, # of key-value pairs: {1}", dht.Address, dht.Count);
+	    Console.WriteLine("Testing node: {0}, # of key-value pairs: {1}, DHT activated: {2}", dht.Address, dht.Count, 
+			      dht.Activated);
 	    Hashtable ht = dht.All;
 	    
 	    foreach(byte[] key in ht.Keys) {
@@ -471,7 +471,40 @@ namespace Brunet.Dht {
 				  str_key, dht.Address);	
 	      }
 	    }
-	  }	  
+	  }  
+	  Console.WriteLine("Check that the ring is complete.");
+	  Dht curr_dht = (Dht) dht_list[0];
+	  Address start_addr = curr_dht.Address;
+
+
+	  Address curr_addr = start_addr;
+	
+	  Console.WriteLine("Starting to crawl the ring");
+	  for (int loop3 = 0; loop3 < node_list.Count; loop3++) {
+	    Console.WriteLine("Hop#: {0}, at {1}, activated: {2}", loop3+1, curr_addr, curr_dht.Activated);
+	    curr_addr = curr_dht.LeftAddress;
+	    if (curr_addr == null) {
+	      break;
+	    }
+	    for (int k = 0; k < dht_list.Count; k++) {
+	      Dht test_dht = (Dht) dht_list[k];
+	      if (test_dht.Address.Equals(curr_addr)) {
+		curr_dht = test_dht;
+		break;
+	      }
+	    }
+	  }
+	  Console.WriteLine("Finsihed crawling the ring");
+	  //eventually the next address should point back to us;
+	  if (curr_addr == null) {
+	    Console.WriteLine("Broken ring detected at: {0}", curr_dht.Address);
+	  }
+	  else if (!curr_addr.Equals(start_addr)) {
+	    Console.WriteLine("Incomplete ring: Test failed");
+	  } 
+	  else {
+	    Console.WriteLine("Complete ring: Test passed.");
+	  }
 	}
 	} catch (Exception e) {
 	  Console.Error.WriteLine(e);

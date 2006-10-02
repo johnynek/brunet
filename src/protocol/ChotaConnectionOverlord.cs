@@ -342,11 +342,20 @@ namespace Brunet {
       }
     }
     
-  override public bool NeedConnection 
+    override public bool NeedConnection 
     {
       get {
 	return true;
       } 
+    }
+    /**
+     * @return true if we have sufficient connections for functionality
+     */
+    override public bool IsConnected
+    {
+      get {
+        throw new Exception("Not implemented! Chota connection overlord (IsConnected)");
+      }
     }
     public override bool IsActive 
     {
