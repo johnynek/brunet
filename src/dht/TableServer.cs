@@ -537,7 +537,7 @@ public class TableServer {
 
   /** Get all the keys to left of some address.
    *  Note that this depends on whether the ring is stored clockwise or
-   *  anti-clockwise (which are internals of connection table).
+   *  anti-clockwise, we assume clockwise!
    *  
    */
   public Hashtable GetKeysToLeft(AHAddress us, AHAddress within) {
@@ -545,7 +545,7 @@ public class TableServer {
       Hashtable key_list = new Hashtable();
       foreach (TableKey key in _ht.Keys) {
 	AHAddress target = key.GetTargetAddress();
-	if (target.IsToLeftWithin(us, within)) {
+	if (target.IsBetweenFromLeft(us, within)) {
 	  //this is a relevant key
 	  //we want to share it
 	  ArrayList entry_list = (ArrayList)_ht[key];
@@ -559,7 +559,7 @@ public class TableServer {
 
   /** Get all the keys to right of some address.
    *  Note that this depends on whether the ring is stored clockwise or
-   *  anti-clockwise (which are internals of connection table).
+   *  anti-clockwise, we assume clockwise!
    *  
    */
   public Hashtable GetKeysToRight(AHAddress us, AHAddress within) {
@@ -567,7 +567,7 @@ public class TableServer {
       Hashtable key_list = new Hashtable();
       foreach (TableKey key in _ht.Keys) {
 	AHAddress target = key.GetTargetAddress();
-	if (target.IsToRightWithin(us, within)) {
+	if (target.IsBetweenFromRight(us, within)) {
 	  //this is a relevant key
 	  //we want to share it
 	  ArrayList entry_list = (ArrayList) _ht[key];

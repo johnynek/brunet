@@ -185,34 +185,38 @@ namespace Brunet
       }
       return dist;
     }
-    /** Utility method to determine if some key lies between
-     *  two addresses (to the left of "us"). 
+    /** Utility method to determine if this address is between start and end
+     *  from the left, i.e. it satisfies the following constraints:
+     *  1. Is to the left of start, and
+     *  2. Is to the right of end.
      *  @return 1 in case its within
-     *  @return -1 in case its on th
+     *  @return -1 in case it is not
      */
-    public bool IsToLeftWithin(AHAddress start, AHAddress end) {
-      AHAddressComparer cmp = new AHAddressComparer();
+    public bool IsBetweenFromLeft(AHAddress start, AHAddress end) {
       //simple case of no wrap around where "within" is greater
-      if (cmp.Compare(start, end) < 0) {
-	return cmp.Compare(start, this) < 0 && cmp.Compare(this, end) < 0;
+      if (start.CompareTo(end) < 0) {
+	return start.CompareTo(this) < 0 && this.CompareTo(end) < 0;
       }
       //in case there is a wrap around
-      //"within" has become lesser than "us"
-      return cmp.Compare(start, this) < 0 || cmp.Compare(this, end) < 0;
+      //"within" has become lesser than "this"
+      return start.CompareTo(this) < 0 || this.CompareTo(end) < 0;
     }
     
-    /** Utility method to determine if some key lies between
-     *  two addresses (to the right of "us"). 
+    /** Utility method to determine if this address is between start and end
+     *  from the right, i.e. its satisfies the following constraints:
+     *  1. Is to the right of start, and
+     *  2. Is to the left of end
+     *  @return 1 in case its within
+     *  @return -1 in case it is not
      */
-    public bool IsToRightWithin(AHAddress start, AHAddress end){
-      AHAddressComparer cmp = new AHAddressComparer();
+    public bool IsBetweenFromRight(AHAddress start, AHAddress end){
       //simple case of no wrap around where "within" is lesser
-      if (cmp.Compare(start, end) > 0) {
-	return cmp.Compare(start, this) > 0 && cmp.Compare(this, end) > 0;
+      if (start.CompareTo(end) > 0) {
+	return start.CompareTo(this) > 0 && this.CompareTo(end) > 0;
       }
       //in case there is a wrap around
-      //"within" has become greater than "us"
-      return cmp.Compare(start, this) > 0 || cmp.Compare(this, end) > 0;
+      //"within" has become greater than "this"
+      return start.CompareTo(this) > 0 || this.CompareTo(end) > 0;
     }
   }
   

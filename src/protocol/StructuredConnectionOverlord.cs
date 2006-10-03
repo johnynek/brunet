@@ -158,7 +158,7 @@ namespace Brunet {
 	  //we have to make sure than nothing is between us and left
 	  foreach (NodeInfo n_info in l_arr) {
 	    AHAddress stat_addr = n_info.Address as AHAddress;
-	    if (stat_addr.IsToLeftWithin(our_addr, left_addr)) {
+	    if (stat_addr.IsBetweenFromLeft(our_addr, left_addr)) {
 	      //we are expecting a better candidate for left neighbor!
 	      Console.WriteLine("{0}: Better left (false)", our_addr);
 	      return false;
@@ -171,7 +171,7 @@ namespace Brunet {
 	  //we have to make sure than nothing is between us and left
 	  foreach (NodeInfo n_info in r_arr) {
 	    AHAddress stat_addr = n_info.Address as AHAddress;
-	    if (stat_addr.IsToRightWithin(our_addr, right_addr)) {
+	    if (stat_addr.IsBetweenFromRight(our_addr, right_addr)) {
 	      //we are expecting a better candidate for left neighbor!
 	      Console.WriteLine("{0}: Better right (false)", our_addr);
 	      return false;
