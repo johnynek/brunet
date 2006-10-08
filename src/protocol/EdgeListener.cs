@@ -187,9 +187,20 @@ namespace Brunet
         if( e.LocalTANotEphemeral ) {
           //Put our guess in first, so it will be after the reported one
           //which is more likely to be correct where there is translation
-          UpdateTA(list, e.LocalTA);
-          if( false == ta.Equals( e.LocalTA ) ) {
+          if( ta.Equals( e.LocalTA ) ) {
+            //This is the NON-NAT case, make sure this address is at the top of the queue
+            UpdateTA(list, ta);
+          }
+          else {
+            //This is the NAT Case:
             //The reported TA is not the same as the one we just added
+            if( !list.Contains( e.LocalTA ) ) {
+              //Only update the localTA if it is not already in the list:
+              //We don't want to move a meaninglist TA to the top of the list
+              //in the NAT case, but we do want the LocalTA in the list
+              //in case we see someone from our network:
+              UpdateTA(list, e.LocalTA);
+            }
             UpdateTA(list, ta);
           }
         }        
