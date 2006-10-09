@@ -168,12 +168,12 @@ namespace Brunet
      * think so.
      * This is how long (in millisec) we wait between attempts.
      */
-    protected static readonly int _MS_RESTART_TIME = 10000;
+    protected static readonly int _MS_RESTART_TIME = 5000;
     /**
      * This is the number of times we will restart or retry
      * a particular TA before moving on.
      */
-    protected static readonly int _MAX_RESTARTS = 16;
+    protected static readonly int _MAX_RESTARTS = 8;
     /**
      * If we are passed some insane number of TAs it could take
      * a long time to get through all of them.  Only try the first
@@ -186,7 +186,7 @@ namespace Brunet
      * different TAs simulataneously.  This controls the
      * maximum number of parallel attempts
      */
-    protected static readonly int _MAX_PARALLEL_ATTEMPTS = 2;
+    protected static readonly int _MAX_PARALLEL_ATTEMPTS = 3;
     
     
 ////////////////
