@@ -77,14 +77,14 @@ public class ReqrepManager : IAHPacketHandler {
     _reptimeout = new TimeSpan(0,0,0,0,50000);
     _last_check = DateTime.Now;
 
-    _node.ArrivalEvent += delegate(object node, EventArgs args) { 
+    _node.ArrivalEvent += delegate(object n, EventArgs args) { 
 #if REQREP_DEBUG
       Console.WriteLine("[ReqrepManager: {0}] Activated.",
 			_node.Address);
 #endif
       _is_active = true;
     };
-    _node.DepartureEvent += delegate(object node, EventArgs args) { 
+    _node.DepartureEvent += delegate(object n, EventArgs args) { 
 #if REQREP_DEBUG
       Console.WriteLine("[ReqrepManager: {0}] Deactivated.",
 			_node.Address);
