@@ -3,6 +3,11 @@ using System.Text;
 using System.Collections;
 using System.Security.Cryptography;
 
+#if DHT_LOG
+using log4net;
+using log4net.Config;
+#endif
+
 using Brunet;
 using Brunet.Dht;
 
@@ -12,6 +17,12 @@ namespace Brunet.Dht {
   }
 
   public class Dht {
+#if DHT_LOG
+    private static readonly log4net.ILog _log =
+    log4net.LogManager.GetLogger(System.Reflection.MethodBase.
+				 GetCurrentMethod().DeclaringType);
+#endif
+
     //we checkpoint the state of DHT every 1000 seconds.
     private static readonly int _CHECKPOINT_INTERVAL = 1000;
 
@@ -282,6 +293,9 @@ namespace Brunet.Dht {
       
 	node.ConnectionTable.DisconnectionEvent += 
 	  new EventHandler(DisconnectHandler);
+
+	node.ConnectionTable.StatusChangedEvent +=
+	  new EventHandler(StatusChangedHandler);
 	
 	//node.HeartBeatEvent += new EventHandler(CheckpointHandler);
       }
@@ -310,6 +324,11 @@ namespace Brunet.Dht {
       }
       Address target = GetInvocationTarget(key);
 
+#if DHT_LOG
+      _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::InvokePut::::" +
+		 + Encoding.UTF8.GetString(key) + "::::" + target);
+#endif
+
       //we now know the invocation target
       BlockingQueue q = _rpc.Invoke(target, "dht.Put", key, ttl, hashed_password, data);
 #if DHT_DEBUG
@@ -333,6 +352,11 @@ namespace Brunet.Dht {
       }
       
       Address target = GetInvocationTarget(key);
+
+#if DHT_LOG
+      _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::InvokeCreate::::" +
+		 + Encoding.UTF8.GetString(key) + "::::" + target);
+#endif
       
       //we now know the invocation target
       BlockingQueue q = _rpc.Invoke(target, "dht.Create", key, ttl, hashed_password, data);
@@ -353,7 +377,10 @@ namespace Brunet.Dht {
       }
 
       Address target = GetInvocationTarget(key);
-      
+#if DHT_LOG
+      _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::InvokeGet::::" +
+		 + Encoding.UTF8.GetString(key) + "::::" + target);
+#endif      
       //we now know the invocation target
       BlockingQueue q = _rpc.Invoke(target, "dht.Get", key, maxbytes, token);
       return q;
@@ -375,6 +402,11 @@ namespace Brunet.Dht {
       }
 
       Address target = GetInvocationTarget(key);
+
+#if DHT_LOG
+      _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::InvokeDelete::::" +
+		 + Encoding.UTF8.GetString(key) + "::::" + target);
+#endif
       
       //we now know the invocation target
       BlockingQueue q = _rpc.Invoke(target, "dht.Delete", key, password);
@@ -388,6 +420,21 @@ namespace Brunet.Dht {
       //AHAddress new_addr = new_con.Address as AHAddress;
       
       AHAddress our_addr = _node.Address as AHAddress;
+#if DHT_LOG
+      string status = "StatusBegin";
+      StatusMessage sm = new_con.Status;
+      ArrayList arr = sm.Neighbors;
+      foreach (NodeInfo n_info in arr) {
+	AHAddress stat_addr = n_info.Address as AHAddress;
+	status += ("::::" + stat_addr);
+      }
+      status += "::::StatusEnd";
+      _log.Debug(our_addr + "::::" + DateTime.UtcNow.Ticks + "::::Connection::::" +
+		 new_con.ConType + "::::" + new_con.Address + "::::" +
+		 new_con.Edge.LocalTA.ToString() + "::::" + new_con.Edge.RemoteTA.ToString() + "::::" + status + "::::Connected::::" +
+		 _node.IsConnected);
+#endif
+
       
 #if DHT_DEBUG
       Console.WriteLine("[DhtLogic] {0}: Acquired a new connection to {1}.", our_addr, new_con.Address);
@@ -563,6 +610,13 @@ namespace Brunet.Dht {
       ConnectionEventArgs cargs = eargs as ConnectionEventArgs;
       Connection old_con = cargs.Connection;
       AHAddress our_addr = _node.Address as AHAddress;
+
+#if DHT_LOG
+      _log.Debug(our_addr + "::::" + DateTime.UtcNow.Ticks + "::::Disconnection::::" +
+		 old_con.ConType + "::::" + old_con.Address + "::::" +
+		 old_con.Edge.LocalTA.ToString() + "::::" + old_con.Edge.RemoteTA.ToString() + "::::Connected::::"  +
+		 _node.IsConnected);
+#endif
 
 
 #if DHT_DEBUG
@@ -759,6 +813,9 @@ namespace Brunet.Dht {
 	  new EventHandler(ConnectHandler);
 	_node.ConnectionTable.DisconnectionEvent -= 
 	  new EventHandler(DisconnectHandler);
+	_node.ConnectionTable.StatusChangedEvent -=
+	  new EventHandler(StatusChangedHandler);
+
 	if (_left_transfer_state != null) {
 	  _left_transfer_state.InterruptTransfer();
 	  _left_transfer_state = null;
@@ -785,7 +842,28 @@ namespace Brunet.Dht {
 	  new EventHandler(ConnectHandler);
 	_node.ConnectionTable.DisconnectionEvent += 
 	  new EventHandler(DisconnectHandler);
+	_node.ConnectionTable.StatusChangedEvent +=
+	  new EventHandler(StatusChangedHandler);
       } //end of lock
+    }
+    protected void StatusChangedHandler(object contab, EventArgs eargs) {
+      ConnectionEventArgs args = (ConnectionEventArgs)eargs;
+      Connection new_con = args.Connection;
+      AHAddress our_addr = _node.Address as AHAddress;
+#if DHT_LOG
+      string status = "StatusBegin";
+      StatusMessage sm = new_con.Status;
+      ArrayList arr = sm.Neighbors;
+      foreach (NodeInfo n_info in arr) {
+	AHAddress stat_addr = n_info.Address as AHAddress;
+	status += ("::::" + stat_addr);
+      }
+      status += "::::StatusEnd";
+      _log.Debug(our_addr + "::::" + DateTime.UtcNow.Ticks + "::::StatusChanged::::" +
+		 new_con.ConType + "::::" + new_con.Address + "::::" +
+		 new_con.Edge.LocalTA.ToString() + "::::" + new_con.Edge.RemoteTA.ToString() + "::::" + status + "::::Connected::::" +
+		 _node.IsConnected);
+#endif
     }
   }
 }
