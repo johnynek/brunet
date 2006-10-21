@@ -5,11 +5,20 @@ using System.Security.Cryptography;
 
 using Brunet;
 
+#if DHT_LOG
+using log4net;
+using log4net.Config;
+#endif
+
 namespace Brunet.Dht {
 
 
 public class TableServer {
-
+#if DHT_LOG
+    private static readonly log4net.ILog _log =
+    log4net.LogManager.GetLogger(System.Reflection.MethodBase.
+				 GetCurrentMethod().DeclaringType);
+#endif
   class TableKey {
     protected readonly byte[] _buf;
 
@@ -133,6 +142,11 @@ public class TableServer {
     return count;
   }
   public int Put(byte[] key, int ttl, string hashed_password, byte[] data) {
+#if DHT_LOG
+    _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::RequestPut::::" + 
+	       + Encoding.UTF8.GetString(key));
+#endif
+
 #if DHT_DEBUG
     Console.WriteLine("[DhtServer: {0}]: Put() on key: {1}", _node.Address, Encoding.UTF8.GetString(key));
 #endif
@@ -193,7 +207,11 @@ public class TableServer {
       entry_list.Add(e);
       //Further add this to sorted list _expired_entries list
       InsertToSorted(e);
-     
+
+#if DHT_LOG
+      _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::SuccessPut::::" + 
+		 + Encoding.UTF8.GetString(key));
+#endif     
       ///@todo, we might need to tell a neighbor about this object
       return entry_list.Count;
     }
@@ -211,7 +229,10 @@ public class TableServer {
   
   public bool Create(byte[] key, int ttl, string hashed_password, byte[] data) 
   {
-
+#if DHT_LOG
+    _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::RequestCreate::::" + 
+	       + Encoding.UTF8.GetString(key));
+#endif
 #if DHT_DEBUG
     Console.WriteLine("[DhtServer: {0}]: Create() on key: {1}.", 
 		      _node.Address, Encoding.UTF8.GetString(key));
@@ -256,6 +277,10 @@ public class TableServer {
       //Further add the entry to the sorted list _expired_entries
       InsertToSorted(e);
       
+#if DHT_LOG
+    _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::SuccessCreate::::" + 
+	       + Encoding.UTF8.GetString(key));
+#endif
       ///@todo, we might need to tell a neighbor about this object
       return true;
     } //release the lock
@@ -263,7 +288,10 @@ public class TableServer {
 
   public IList Get(byte[] key, int maxbytes, byte[] token)
   {
-
+#if DHT_LOG
+    _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::RequestGet::::" + 
+	       + Encoding.UTF8.GetString(key));
+#endif
 #if DHT_DEBUG
     Console.WriteLine("[DhtServer: {0}]: Get() on key: {1}", _node.Address, Encoding.UTF8.GetString(key));
 #endif
@@ -386,6 +414,11 @@ public class TableServer {
    */
   public void Delete(byte[] key, string password)
   {
+#if DHT_LOG
+    _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::RequestDelete::::" + 
+	       + Encoding.UTF8.GetString(key));
+#endif
+
 #if DHT_DEBUG
     Console.WriteLine("[DhtServer: {0}]: Delete() on key: {1}.", _node.Address, Encoding.UTF8.GetString(key));
 #endif    
@@ -443,6 +476,10 @@ public class TableServer {
 	if (entry_list.Count == 0) {
 	  _ht.Remove(ht_key);
 	}
+#if DHT_LOG
+	_log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::SuccessDelete::::" + 
+		   + Encoding.UTF8.GetString(key));
+#endif
       } else {
 #if DHT_DEBUG
 	Console.WriteLine("[DhtServer: {0}]: Key doesn't exist.", _node.Address);
@@ -594,6 +631,10 @@ public class TableServer {
 	    DeleteFromSorted(e);
 	  }
 	}
+#if DHT_LOG
+	_log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::AdminDelete::::" + 
+		   + Encoding.UTF8.GetString(k));
+#endif
 	_ht.Remove(ht_key);
       }
     }
