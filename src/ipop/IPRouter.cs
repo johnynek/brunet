@@ -112,7 +112,7 @@ namespace Ipop {
       //Should be active now
       status = 1;
       //Setup TAAuthorizer
-/*      byte [] netmask = DHCPCommon.StringToBytes(Netmask, '.');
+      byte [] netmask = DHCPCommon.StringToBytes(Netmask, '.');
       int nm_value = (netmask[0] << 24) + (netmask[1] << 16) +
         (netmask[2] << 8) + netmask[3];
       int value = 0;
@@ -122,7 +122,7 @@ namespace Ipop {
       value = 32 - value;
       TAAuthorizer ta_auth = new NetmaskTAAuthorizer(
         System.Net.IPAddress.Parse(Virtual_IPAddress), value,
-        TAAuthorizer.Decision.Deny, TAAuthorizer.Decision.Allow);*/
+        TAAuthorizer.Decision.Deny, TAAuthorizer.Decision.Allow);
       //local node
       AHAddress us = new AHAddress(GetHash(new IPAddress(Virtual_IPAddress)));
       Console.WriteLine("Generated address: {0}", us);
@@ -142,16 +142,16 @@ namespace Ipop {
         else
             port = Int32.Parse(item.port);
         if (item.type =="tcp") { 
-            tmp_node.AddEdgeListener(new TcpEdgeListener(port, tas)/*, 
-              ta_auth));*/
+            tmp_node.AddEdgeListener(new TcpEdgeListener(port, tas, 
+              ta_auth));
         }
         else if (item.type == "udp") {
-            tmp_node.AddEdgeListener(new UdpEdgeListener(port , tas)/*, 
-              ta_auth));*/
+            tmp_node.AddEdgeListener(new UdpEdgeListener(port , tas, 
+              ta_auth));
         }
         else if (item.type == "udp-as") {
-            tmp_node.AddEdgeListener(new ASUdpEdgeListener(port, tas)/*, 
-              ta_auth));*/
+            tmp_node.AddEdgeListener(new ASUdpEdgeListener(port, tas, 
+              ta_auth));
         }
         else {
           throw new Exception("Unrecognized transport: " + item.type);

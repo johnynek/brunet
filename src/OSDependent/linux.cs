@@ -52,7 +52,7 @@ namespace Ipop {
            */
           if( System.Net.IPAddress.IsLoopback(a) ) {
             //Put it at the back
-            tas.Add(a);
+//            tas.Add(a);  Disabled as a temporary fix / check
           }
           else {
             //Put it at the front
