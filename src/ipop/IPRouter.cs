@@ -176,6 +176,80 @@ namespace Ipop {
       return brunet;
     }
 
+    string ProcessDHCP(DHCPPacket dhcpPacket)
+    {
+      /* Create new DHCPPacket, parse the bytes, add relevant data, 
+          and send to DHCP Server */
+      dhcpPacket.DecodePacket();
+      dhcpPacket.decodedPacket.brunet_namespace = config.brunet_namespace;
+      dhcpPacket.decodedPacket.ipop_namespace = config.ipop_namespace;
+      dhcpPacket.decodedPacket.NodeAddress = config.NodeAddress;
+
+      /* DHCP Server returns our incoming packet, which we decode, if it
+          is successful, we continue, otherwise we fail and print out a message */
+      DHCPPacket returnPacket = null;
+      try {
+        DHCPPacket returnPacket = new DHCPPacket(
+          DHCPClient.SendMessage(dhcpPacket.decodedPacket));
+      }
+      catch (Exception e)
+      {
+        System.Console.WriteLine(e);
+        Sleep(600);
+      }
+      if(returnPacket != null &&
+        returnPacket.decodedPacket.return_message == "Success") {
+        /* Add nameservers if it doesn't contain it already - this is */
+        /* deprecated and will removed soon */
+        if(!returnPacket.decodedPacket.options.Contains(6)) {
+          DHCPOption option = new DHCPOption();
+          option.type = 6;
+          option.length = Nameservers.Count * 4;
+          option.encoding = "int";
+          option.byte_value = new byte[option.length];
+          int i = 0, ci = 4;
+
+          foreach(string item0 in Nameservers) {
+            byte [] temp = DHCPCommon.StringToBytes(item0, '.');
+            for(; i < ci; i++)
+              option.byte_value[i] = temp[i%4];
+            ci += 4;
+           }
+           returnPacket.decodedPacket.options.Add(option.type, option);
+         }
+         /* Expected removal date November 1st */
+
+        /* Convert the packet into byte format, run Arp and Route updater */
+            returnPacket.EncodePacket();
+            ether.SendPacket(returnPacket.packet, 0x800);
+        /* Do we have a new IP address, if so (re)start Brunet */
+            string newAddress = DHCPCommon.BytesToString(
+              returnPacket.decodedPacket.yiaddr, '.');
+            String newNetmask = DHCPCommon.BytesToString(((DHCPOption) returnPacket.
+              decodedPacket.options[1]).byte_value, '.');
+            if(Virtual_IPAddress == null || Virtual_IPAddress != newAddress ||
+                newNetmask != Netmask) {
+              Netmask = newNetmask;
+              Virtual_IPAddress = newAddress;
+              config.DHCPData.IPAddress = Virtual_IPAddress;
+              config.DHCPData.Netmask = Netmask;
+              UpdateConfiguration(args[0]);
+              if(config.Setup == "auto") {
+                if(config.Hostname == null)
+                  routines.SetHostname(routines.DHCPGetHostname(Virtual_IPAddress));
+                else
+                  routines.SetHostname(config.Hostname);
+              }
+              brunet = Start();
+              routes = new RoutingTable();
+            }
+          }
+      else if (returnPacket == null)
+        return "null";
+      return returnPacket.decodedPacket.return_message;
+    }
+
+
     static void Main(string []args) {
       //configuration file 
       if (args.Length < 1) {
@@ -316,6 +390,8 @@ namespace Ipop {
           continue;
         }
 
+        /*  End Arp */
+
         IPAddress destAddr = IPPacketParser.DestAddr(buffer);
         IPAddress srcAddr = IPPacketParser.SrcAddr(buffer);
 
@@ -333,70 +409,15 @@ namespace Ipop {
           config.IPConfig == "dhcp") {
           if (debug)
             Console.WriteLine("DHCP Packet");
-        /* Create new DHCPPacket, parse the bytes, add relevant data, 
-            and send to DHCP Server */
           DHCPPacket dhcpPacket = new DHCPPacket(buffer);
-          dhcpPacket.DecodePacket();
-          dhcpPacket.decodedPacket.brunet_namespace = config.brunet_namespace;
-          dhcpPacket.decodedPacket.ipop_namespace = config.ipop_namespace;
-          dhcpPacket.decodedPacket.NodeAddress = config.NodeAddress;
-        /* DHCP Server returns our incoming packet, which we decode, if it
-            is successful, we continue, otherwise we fail and print out a message */
-          DHCPPacket returnPacket = new DHCPPacket(
-            DHCPClient.SendMessage(dhcpPacket.decodedPacket));
-          if(returnPacket.decodedPacket.return_message == "Success") {
-            /* Add nameservers if it doesn't contain it already */
-            if(!returnPacket.decodedPacket.options.Contains(6)) {
-              DHCPOption option = new DHCPOption();
-              option.type = 6;
-              option.length = Nameservers.Count * 4;
-              option.encoding = "int";
-              option.byte_value = new byte[option.length];
-              int i = 0, ci = 4;
-
-              foreach(string item0 in Nameservers) {
-                byte [] temp = DHCPCommon.StringToBytes(item0, '.');
-                for(; i < ci; i++)
-                  option.byte_value[i] = temp[i%4];
-                ci += 4;
-              }
-              returnPacket.decodedPacket.options.Add(option.type, option);
-            }
-
-        /* Convert the packet into byte format, run Arp and Route updater */
-            returnPacket.EncodePacket();
-            ether.SendPacket(returnPacket.packet, 0x800);
-        /* Do we have a new IP address, if so (re)start Brunet */
-            byte [] ip = returnPacket.decodedPacket.yiaddr;
-            string newAddress = DHCPCommon.BytesToString(ip, '.');
-            String newNetmask = DHCPCommon.BytesToString(((DHCPOption) returnPacket.
-              decodedPacket.options[1]).byte_value, '.');
-            if(Virtual_IPAddress == null || Virtual_IPAddress != newAddress ||
-                newNetmask != Netmask) {
-              Netmask = newNetmask;
-              Virtual_IPAddress = newAddress;
-              config.DHCPData.IPAddress = Virtual_IPAddress;
-              config.DHCPData.Netmask = Netmask;
-              UpdateConfiguration(args[0]);
-              if(config.Setup == "auto") {
-                if(config.Hostname == null)
-                  routines.SetHostname(routines.DHCPGetHostname(Virtual_IPAddress));
-                else
-                  routines.SetHostname(config.Hostname);
-              }
-              brunet = Start();
-              routes = new RoutingTable();
-            }
-            continue;
-          }
-          else {
-        /* Not a success, means we can't continue on, sorry, 
-            print the friendly server message */
+          string response = ProcessDHCP(dhcpPacket);
+          if(response != "success") {
+            /* Not a success, means we can't continue on, sorry, 
+              print the friendly server message */
             Console.WriteLine("The DHCP Server has a message to share with you...");
-            Console.WriteLine("\n" +
-              returnPacket.decodedPacket.return_message);
-            Console.WriteLine("\nSorry, this program will now close.");
-            Environment.Exit(0);
+            Console.WriteLine("\n" + returnPacket.decodedPacket.return_message);
+            Console.WriteLine("\nSorry, this program will sleep and try again later.");
+            Thread.Sleep(600);
           }
         }
 

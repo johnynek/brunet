@@ -77,6 +77,11 @@ namespace Ipop {
 
       DHCPLeaseResponse leaseReturn = ((DHCPLease) leases[packet.ipop_namespace]).
         GetLease(DHCPCommon.StringToBytes(packet.NodeAddress, ':'));
+      if(leaseReturn == null) {
+        returnPacket.return_message = "There are some faults occurring when " +
+          "attempting to request a lease, please try again later.";
+        return returnPacket;
+      }
       returnPacket.yiaddr = leaseReturn.ip;
       if(returnPacket.yiaddr[0] == 0) {
         returnPacket.return_message = "No more available leases";

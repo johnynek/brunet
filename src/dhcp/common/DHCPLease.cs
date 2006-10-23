@@ -9,7 +9,7 @@ namespace Ipop {
     public DateTime expiration;
   }
 
-  public struct DHCPLeaseResponse {
+  public class DHCPLeaseResponse {
     public byte [] ip;
     public byte [] netmask;
     public byte [] leasetime;
@@ -69,10 +69,13 @@ namespace Ipop {
       LeaseHWAddrs = new ArrayList();
       LeaseExpirations = new ArrayList();
       LeaseLock = new object();
-      this.ReadLog();
+      if(!this.ReadLog()) {
+        System.Console.WriteLine("Error can't read log files!\nShutting down...");
+      }
     }
 
     public DHCPLeaseResponse GetLease(byte [] hwaddr) {
+      bool success = true;
       byte []ip = new byte[4] {0,0,0,0};
       lock(LeaseLock)
       {
@@ -83,13 +86,25 @@ namespace Ipop {
           ip = (byte []) LeaseIPs[index];
           LeaseHWAddrs[index] = hwaddr;
           LeaseExpirations[index] = DateTime.Now.AddSeconds(leasetime);
-          UpdateLog(index);
+          success = UpdateLog(index);
         }
       }
-      DHCPLeaseResponse leaseReturn = new DHCPLeaseResponse();
-      leaseReturn.ip = ip;
-      leaseReturn.netmask = netmask;
-      leaseReturn.leasetime = leasetimeb;
+      DHCPLeaseResponse leaseReturn;
+      if(success)
+      {
+        leaseReturn = new DHCPLeaseResponse();
+        leaseReturn.ip = ip;
+        leaseReturn.netmask = netmask;
+        leaseReturn.leasetime = leasetimeb;
+      }
+      else
+      {
+        /* This effectively nullifies any dhcp requests that occur when */
+        /* there are some faults occuring */
+        index--;
+        LeaseExpirations[index] = 0;
+        leaseReturn = null;
+      }
       return leaseReturn;
     }
 
@@ -149,12 +164,10 @@ namespace Ipop {
           ip = IncrementIP((byte []) ((byte []) 
             LeaseIPs[this.index-1]).Clone());
         }
-      }
-      if(this.size == 0) {
-          LeaseIPs.Add(ip);
-          LeaseHWAddrs.Add(hwaddr.Clone());
-          LeaseExpirations.Add(now.AddDays(leasetime));
-          return this.index++;
+        LeaseIPs.Add(ip);
+        LeaseHWAddrs.Add(hwaddr.Clone());
+        LeaseExpirations.Add(now.AddDays(leasetime));
+        return this.index++;
       }
       else {
         /* Find the first expired lease and return it */
@@ -231,82 +244,114 @@ namespace Ipop {
       return ip;
     }
 
-    public void UpdateLog(int index) {
-      FileStream file = new FileStream("logs/" + namespace_value + ".log",
-        FileMode.Append, FileAccess.Write);
-      StreamWriter sw = new StreamWriter(file);
-      sw.WriteLine(index);
-      sw.WriteLine(DHCPCommon.BytesToString((byte[]) LeaseIPs[index], '.'));
-      sw.WriteLine(DHCPCommon.BytesToString((byte[]) LeaseHWAddrs[index], ':'));
-      sw.WriteLine(((DateTime) LeaseExpirations[index]).Ticks);
-      sw.Close();
-      file.Close();
+    public bool UpdateLog(int index) {
+      bool success = true;
+      try {
+        FileStream file = new FileStream("logs/" + namespace_value + ".log",
+            FileMode.Append, FileAccess.Write);
+        StreamWriter sw = new StreamWriter(file);
+        sw.WriteLine(index);
+        sw.WriteLine(DHCPCommon.BytesToString((byte[]) LeaseIPs[index], '.'));
+        sw.WriteLine(DHCPCommon.BytesToString((byte[]) LeaseHWAddrs[index], ':'));
+        sw.WriteLine(((DateTime) LeaseExpirations[index]).Ticks);
+        sw.Close();
+        file.Close();
 
-      file = new FileStream("logs/" + namespace_value + ".log",
-        FileMode.OpenOrCreate, FileAccess.Read);
-      long length = file.Length;
-      file.Close();
-      if(length > logsize) {
-        StoreOldLog();
-        NewLog();
-      }
-    }
-
-    public void StoreOldLog() {
-      FileStream fileold = new FileStream("logs/" + namespace_value + ".log",
-        FileMode.OpenOrCreate, FileAccess.Read);
-      FileStream filenew = new FileStream("logs/" + namespace_value + ".log.bak",
-        FileMode.OpenOrCreate, FileAccess.Write);
-      StreamReader sr = new StreamReader(fileold);
-      StreamWriter sw = new StreamWriter(filenew);
-      sw.Write(sr.ReadToEnd());
-      sr.Close();
-      sw.Close();
-      fileold.Close();
-      filenew.Close();
-
-    }
-
-    public void NewLog() {
-      FileStream file = new FileStream("logs/" + namespace_value + ".log",
-        FileMode.Create, FileAccess.Write);
-      StreamWriter sw = new StreamWriter(file);
-      for(int i = 0; i < LeaseIPs.Count; i++) {
-        sw.WriteLine(i);
-        sw.WriteLine(DHCPCommon.BytesToString((byte[]) LeaseIPs[i], '.'));
-        sw.WriteLine(DHCPCommon.BytesToString((byte[]) LeaseHWAddrs[i], ':'));
-        sw.WriteLine(((DateTime) LeaseExpirations[i]).Ticks);
-      }
-      sw.Close();
-      file.Close();
-    }
-
-    public void ReadLog() {
-      FileStream file = new FileStream("logs/" + namespace_value + ".log",
-        FileMode.OpenOrCreate, FileAccess.Read);
-      StreamReader sr = new StreamReader(file);
-      string value = "";
-      int index = 0;
-      while((value = sr.ReadLine()) != null) {
-        index = Int32.Parse(value);
-        string ip_str = sr.ReadLine();
-        string hw_str = sr.ReadLine();
-        Console.WriteLine(ip_str);
-        Console.WriteLine(hw_str);
-        if(LeaseIPs.Count <= index) {
-          LeaseIPs.Add(DHCPCommon.StringToBytes(ip_str, '.'));
-          LeaseHWAddrs.Add(DHCPCommon.StringToBytes(hw_str, ':'));
-          LeaseExpirations.Add(new DateTime(long.Parse(sr.ReadLine())));
-          this.index++;
-        }
-        else {
-          LeaseIPs[index] = DHCPCommon.StringToBytes(ip_str, '.');
-          LeaseHWAddrs[index] = DHCPCommon.StringToBytes(hw_str, ':');
-          LeaseExpirations[index] = new DateTime(long.Parse(sr.ReadLine()));
+        file = new FileStream("logs/" + namespace_value + ".log",
+            FileMode.OpenOrCreate, FileAccess.Read);
+        long length = file.Length;
+        file.Close();
+        if(length > logsize) {
+            success = StoreOldLog();
+            if(success)
+                success = NewLog();
         }
       }
-      sr.Close();
-      file.Close();
+      catch (Exception)
+      {
+        success = false;
+      }
+      return success;
+    }
+
+    public bool StoreOldLog() {
+      bool success = true;
+      try {
+        FileStream fileold = new FileStream("logs/" + namespace_value + ".log",
+            FileMode.OpenOrCreate, FileAccess.Read);
+        FileStream filenew = new FileStream("logs/" + namespace_value + ".log.bak",
+            FileMode.OpenOrCreate, FileAccess.Write);
+        StreamReader sr = new StreamReader(fileold);
+        StreamWriter sw = new StreamWriter(filenew);
+        sw.Write(sr.ReadToEnd());
+        sr.Close();
+        sw.Close();
+        fileold.Close();
+        filenew.Close();
+      }
+      catch (Exception)
+      {
+        success = false;
+      }
+      return success;
+    }
+
+    public bool NewLog() {
+      bool success = true;
+      try {
+        FileStream file = new FileStream("logs/" + namespace_value + ".log",
+            FileMode.Create, FileAccess.Write);
+        StreamWriter sw = new StreamWriter(file);
+        for(int i = 0; i < LeaseIPs.Count; i++) {
+            sw.WriteLine(i);
+            sw.WriteLine(DHCPCommon.BytesToString((byte[]) LeaseIPs[i], '.'));
+            sw.WriteLine(DHCPCommon.BytesToString((byte[]) LeaseHWAddrs[i], ':'));
+            sw.WriteLine(((DateTime) LeaseExpirations[i]).Ticks);
+        }
+        sw.Close();
+        file.Close();
+      }
+      catch (Exception)
+      {
+        success = false;
+      }
+      return success;
+    }
+
+    public bool ReadLog() {
+      bool success = true;
+      try {
+        FileStream file = new FileStream("logs/" + namespace_value + ".log",
+            FileMode.OpenOrCreate, FileAccess.Read);
+        StreamReader sr = new StreamReader(file);
+        string value = "";
+        int index = 0;
+        while((value = sr.ReadLine()) != null) {
+            index = Int32.Parse(value);
+            string ip_str = sr.ReadLine();
+            string hw_str = sr.ReadLine();
+            Console.WriteLine(ip_str);
+            Console.WriteLine(hw_str);
+            if(LeaseIPs.Count <= index) {
+            LeaseIPs.Add(DHCPCommon.StringToBytes(ip_str, '.'));
+            LeaseHWAddrs.Add(DHCPCommon.StringToBytes(hw_str, ':'));
+            LeaseExpirations.Add(new DateTime(long.Parse(sr.ReadLine())));
+            this.index++;
+            }
+            else {
+            LeaseIPs[index] = DHCPCommon.StringToBytes(ip_str, '.');
+            LeaseHWAddrs[index] = DHCPCommon.StringToBytes(hw_str, ':');
+            LeaseExpirations[index] = new DateTime(long.Parse(sr.ReadLine()));
+            }
+        }
+        sr.Close();
+        file.Close();
+      }
+      catch (Exception)
+      {
+        success = false;
+      }
+      return success;
     }
 
     public void WriteCache() {
