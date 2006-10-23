@@ -65,6 +65,9 @@ namespace Ipop {
     private static ArrayList Nameservers;
     private static string Virtual_IPAddress;
     private static string Netmask;
+    private static string ConfigFile;
+    private static BrunetTransport brunet;
+    private static RoutingTable routes;
 
 /*  Generic */
 
@@ -103,7 +106,7 @@ namespace Ipop {
        HashAlgorithm hashAlgo = HashAlgorithm.Create();
        //hashAlgo.HashSize = AHAddress.MemSize;
        //Console.WriteLine("hash size: {0}" + hashAlgo.HashSize);
-       byte[] hash = hashAlgo.ComputeHash(addr.IPBuffer);
+       byte[] hash = hashAlgo.ComputeHash(addr.GetAddressBytes());
        hash[Address.MemSize -1] &= 0xFE;
        return new BigInteger(hash);
     }
@@ -121,16 +124,16 @@ namespace Ipop {
           break;
       value = 32 - value;
       TAAuthorizer ta_auth = new NetmaskTAAuthorizer(
-        System.Net.IPAddress.Parse(Virtual_IPAddress), value,
+        IPAddress.Parse(Virtual_IPAddress), value,
         TAAuthorizer.Decision.Deny, TAAuthorizer.Decision.Allow);
       //local node
-      AHAddress us = new AHAddress(GetHash(new IPAddress(Virtual_IPAddress)));
+      AHAddress us = new AHAddress(GetHash(IPAddress.Parse(Virtual_IPAddress)));
       Console.WriteLine("Generated address: {0}", us);
       //AHAddress us = new AHAddress(new BigInteger(Int32.Parse(args[1])));
       Node tmp_node = new StructuredNode(us, config.brunet_namespace);
 
       //Where do we listen:
-      System.Net.IPAddress[] tas = routines.GetIPTAs(Virtual_IPAddress);
+      IPAddress[] tas = routines.GetIPTAs(Virtual_IPAddress);
       foreach(EdgeListener item in config.EdgeListeners) {
         int port = 0;
         if(item.port_hi != null && item.port_low != null && item.port == null) {
@@ -165,7 +168,7 @@ namespace Ipop {
       //subscribe to the IP protocol packet
 
       IPPacketHandler ip_handler = new IPPacketHandler(ether, debug, 
-        new IPAddress(Virtual_IPAddress));
+        IPAddress.Parse(Virtual_IPAddress));
       tmp_node.Subscribe(AHPacket.Protocol.IP, ip_handler);
 
 
@@ -176,7 +179,7 @@ namespace Ipop {
       return brunet;
     }
 
-    string ProcessDHCP(DHCPPacket dhcpPacket)
+    private static string ProcessDHCP(DHCPPacket dhcpPacket)
     {
       /* Create new DHCPPacket, parse the bytes, add relevant data, 
           and send to DHCP Server */
@@ -189,13 +192,13 @@ namespace Ipop {
           is successful, we continue, otherwise we fail and print out a message */
       DHCPPacket returnPacket = null;
       try {
-        DHCPPacket returnPacket = new DHCPPacket(
+        returnPacket = new DHCPPacket(
           DHCPClient.SendMessage(dhcpPacket.decodedPacket));
       }
       catch (Exception e)
       {
         System.Console.WriteLine(e);
-        Sleep(600);
+        return e.ToString();
       }
       if(returnPacket != null &&
         returnPacket.decodedPacket.return_message == "Success") {
@@ -233,7 +236,7 @@ namespace Ipop {
               Virtual_IPAddress = newAddress;
               config.DHCPData.IPAddress = Virtual_IPAddress;
               config.DHCPData.Netmask = Netmask;
-              UpdateConfiguration(args[0]);
+              UpdateConfiguration(ConfigFile);
               if(config.Setup == "auto") {
                 if(config.Hostname == null)
                   routines.SetHostname(routines.DHCPGetHostname(Virtual_IPAddress));
@@ -254,10 +257,10 @@ namespace Ipop {
       //configuration file 
       if (args.Length < 1) {
         Console.WriteLine("please specify the configuration file name...");
-	return;
+        return;
       }
-
-      ReadConfiguration(args[0]);
+      ConfigFile = args[0];
+      ReadConfiguration(ConfigFile);
       if (args.Length == 2) {
         debug = true;
       } else {
@@ -277,8 +280,8 @@ namespace Ipop {
         return;
       }
 
-      BrunetTransport brunet = null;
-      RoutingTable routes = null;
+      brunet = null;
+      routes = null;
 
       if(config.Setup == "auto")
         routines.SetTapMAC(config.device);
@@ -415,10 +418,11 @@ namespace Ipop {
             /* Not a success, means we can't continue on, sorry, 
               print the friendly server message */
             Console.WriteLine("The DHCP Server has a message to share with you...");
-            Console.WriteLine("\n" + returnPacket.decodedPacket.return_message);
+            Console.WriteLine("\n" + response);
             Console.WriteLine("\nSorry, this program will sleep and try again later.");
             Thread.Sleep(600);
           }
+          continue;
         }
 
         if(status == 1) {

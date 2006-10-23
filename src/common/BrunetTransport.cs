@@ -11,8 +11,8 @@ namespace Ipop {
     //method to send a packet out on the network
     public void SendPacket(AHAddress target, byte[] packet) {
       AHPacket p = new AHPacket(0, 30,   brunetNode.Address,
-				target, AHPacket.AHOptions.Exact,
-				AHPacket.Protocol.IP, packet);
+        target, AHPacket.AHOptions.Exact,
+        AHPacket.Protocol.IP, packet);
       brunetNode.Send(p);
     }
   }

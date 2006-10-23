@@ -4,6 +4,8 @@
 using System;
 using Brunet;
 using System.Collections;
+using System.Net;
+
 namespace Ipop {
   class RoutingTableEntry {
     //an entry times out after these many seconds 

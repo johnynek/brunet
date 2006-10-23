@@ -1,6 +1,7 @@
 //this class simulates the ethernet; and ARP free
 using System;
 using System.Runtime.InteropServices;
+using System.Net;
 namespace Ipop {
   public class Ethernet {
 
