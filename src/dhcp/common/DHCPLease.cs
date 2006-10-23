@@ -327,22 +327,20 @@ namespace Ipop {
         string value = "";
         int index = 0;
         while((value = sr.ReadLine()) != null) {
-            index = Int32.Parse(value);
-            string ip_str = sr.ReadLine();
-            string hw_str = sr.ReadLine();
-            Console.WriteLine(ip_str);
-            Console.WriteLine(hw_str);
-            if(LeaseIPs.Count <= index) {
+          index = Int32.Parse(value);
+          string ip_str = sr.ReadLine();
+          string hw_str = sr.ReadLine();
+          if(LeaseIPs.Count <= index) {
             LeaseIPs.Add(DHCPCommon.StringToBytes(ip_str, '.'));
             LeaseHWAddrs.Add(DHCPCommon.StringToBytes(hw_str, ':'));
             LeaseExpirations.Add(new DateTime(long.Parse(sr.ReadLine())));
             this.index++;
-            }
-            else {
+          }
+          else {
             LeaseIPs[index] = DHCPCommon.StringToBytes(ip_str, '.');
             LeaseHWAddrs[index] = DHCPCommon.StringToBytes(hw_str, ':');
             LeaseExpirations[index] = new DateTime(long.Parse(sr.ReadLine()));
-            }
+          }
         }
         sr.Close();
         file.Close();
