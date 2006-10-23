@@ -150,6 +150,12 @@
     name="simple"
     depends="init"
     description="Builds the current configuration">
+    <copy todir="${build.dir}/${package.name}/bin/" failonerror="true">
+       <fileset basedir="${lib.dir}">
+          <include name="simpledht.config.tcp" />
+       </fileset>
+    </copy>
+
     <csc
       target="exe"
       debug="${build.debug}"
@@ -177,7 +183,11 @@
             <include name="tracer.in" />
         </fileset>
     </copy>
-
+    <copy todir="${build.dir}/${package.name}/bin/" failonerror="true">
+       <fileset basedir="${lib.dir}">
+          <include name="simpledht.config.tcp" />
+       </fileset>
+    </copy>
     <csc
       target="exe"
       debug="${build.debug}"
