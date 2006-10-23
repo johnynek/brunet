@@ -23,10 +23,14 @@
              <include name="../dhcp/DHCPClient.cs"/>
              <include name="../OSDependent/abstract.cs"/>
              <include name="../OSDependent/linux.cs"/>
+             <include name="Ethernet.cs"/>
+             <include name="IPPacketHandler.cs"/>
+             <include name="IPPacketParser.cs"/>
+             <include name="RoutingTable.cs"/>
+             <include name="BrunetTransport.cs"/>
 	  </sources>
 	  <references>
              <include name="${lib.dir}/Brunet.dll"/>
-             <include name="${lib.dir}/Ipop-common.dll"/>
              <include name="Mono.Security.dll"/>
 	     <include name="System.Runtime.Remoting.dll"/>
 	     <include name="${lib.dir}/DHCPCommon.dll"/>

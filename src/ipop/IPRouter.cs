@@ -179,8 +179,9 @@ namespace Ipop {
       return brunet;
     }
 
-    private static string ProcessDHCP(DHCPPacket dhcpPacket)
+    private static void ProcessDHCP(byte []buffer)
     {
+      DHCPPacket dhcpPacket = new DHCPPacket(buffer);
       /* Create new DHCPPacket, parse the bytes, add relevant data, 
           and send to DHCP Server */
       dhcpPacket.DecodePacket();
@@ -191,6 +192,7 @@ namespace Ipop {
       /* DHCP Server returns our incoming packet, which we decode, if it
           is successful, we continue, otherwise we fail and print out a message */
       DHCPPacket returnPacket = null;
+      string response = null;
       try {
         returnPacket = new DHCPPacket(
           DHCPClient.SendMessage(dhcpPacket.decodedPacket));
@@ -198,7 +200,7 @@ namespace Ipop {
       catch (Exception e)
       {
         System.Console.WriteLine(e);
-        return e.ToString();
+        response = e.ToString();
       }
       if(returnPacket != null &&
         returnPacket.decodedPacket.return_message == "Success") {
@@ -217,39 +219,46 @@ namespace Ipop {
             for(; i < ci; i++)
               option.byte_value[i] = temp[i%4];
             ci += 4;
-           }
-           returnPacket.decodedPacket.options.Add(option.type, option);
-         }
+          }
+          returnPacket.decodedPacket.options.Add(option.type, option);
+        }
          /* Expected removal date November 1st */
 
         /* Convert the packet into byte format, run Arp and Route updater */
-            returnPacket.EncodePacket();
-            ether.SendPacket(returnPacket.packet, 0x800);
+         returnPacket.EncodePacket();
+         ether.SendPacket(returnPacket.packet, 0x800);
         /* Do we have a new IP address, if so (re)start Brunet */
-            string newAddress = DHCPCommon.BytesToString(
-              returnPacket.decodedPacket.yiaddr, '.');
-            String newNetmask = DHCPCommon.BytesToString(((DHCPOption) returnPacket.
-              decodedPacket.options[1]).byte_value, '.');
-            if(Virtual_IPAddress == null || Virtual_IPAddress != newAddress ||
-                newNetmask != Netmask) {
-              Netmask = newNetmask;
-              Virtual_IPAddress = newAddress;
-              config.DHCPData.IPAddress = Virtual_IPAddress;
-              config.DHCPData.Netmask = Netmask;
-              UpdateConfiguration(ConfigFile);
-              if(config.Setup == "auto") {
-                if(config.Hostname == null)
-                  routines.SetHostname(routines.DHCPGetHostname(Virtual_IPAddress));
-                else
-                  routines.SetHostname(config.Hostname);
-              }
-              brunet = Start();
-              routes = new RoutingTable();
-            }
+         string newAddress = DHCPCommon.BytesToString(
+          returnPacket.decodedPacket.yiaddr, '.');
+        String newNetmask = DHCPCommon.BytesToString(((DHCPOption) returnPacket.
+          decodedPacket.options[1]).byte_value, '.');
+        if(Virtual_IPAddress == null || Virtual_IPAddress != newAddress ||
+          newNetmask != Netmask) {
+          Netmask = newNetmask;
+          Virtual_IPAddress = newAddress;
+          config.DHCPData.IPAddress = Virtual_IPAddress;
+          config.DHCPData.Netmask = Netmask;
+          UpdateConfiguration(ConfigFile);
+          if(config.Setup == "auto") {
+            if(config.Hostname == null)
+              routines.SetHostname(routines.DHCPGetHostname(Virtual_IPAddress));
+            else
+              routines.SetHostname(config.Hostname);
           }
-      else if (returnPacket == null)
-        return "null";
-      return returnPacket.decodedPacket.return_message;
+          brunet = Start();
+          routes = new RoutingTable();
+        }
+      }
+      else {
+        if (returnPacket != null)
+          response = returnPacket.decodedPacket.return_message;
+        /* Not a success, means we can't continue on, sorry, 
+           print the friendly server message */
+        Console.WriteLine("The DHCP Server has a message to share with you...");
+        Console.WriteLine("\n" + response);
+        Console.WriteLine("\nSorry, this program will sleep and try again later.");
+        Thread.Sleep(600);
+      }
     }
 
 
@@ -362,19 +371,13 @@ namespace Ipop {
           buffer[12] = 0x00;
           buffer[13] = 0x00;
 
-          buffer[14] = buffer[24];
-          buffer[15] = buffer[25];
-          buffer[16] = buffer[26];
-          buffer[17] = buffer[27];
+          for(int i = 0; i <= 3; i++)
+            buffer[14+i] = buffer[24+i];
 
           if(config.TapMAC != null && config.Setup == "manual") {
             byte [] temp1 = DHCPCommon.HexStringToBytes(config.TapMAC, ':');
-            buffer[18] = temp1[0];
-            buffer[19] = temp1[1];
-            buffer[20] = temp1[2];
-            buffer[21] = temp1[3];
-            buffer[22] = temp1[4];
-            buffer[23] = temp1[5];
+            for(int i = 0; i <= 5; i ++)
+              buffer[18+i] = temp1[i];
           }
           else {
             buffer[18] = 0xFE;
@@ -385,10 +388,8 @@ namespace Ipop {
             buffer[23] = 0x01;
           }
 
-          buffer[24] = temp[0];
-          buffer[25] = temp[1];
-          buffer[26] = temp[2];
-          buffer[27] = temp[3];
+          for(int i = 0; i <= 3; i++)
+            buffer[24+i] = temp[i];
           ether.SendPacket(buffer, 0x806);
           continue;
         }
@@ -412,16 +413,7 @@ namespace Ipop {
           config.IPConfig == "dhcp") {
           if (debug)
             Console.WriteLine("DHCP Packet");
-          DHCPPacket dhcpPacket = new DHCPPacket(buffer);
-          string response = ProcessDHCP(dhcpPacket);
-          if(response != "success") {
-            /* Not a success, means we can't continue on, sorry, 
-              print the friendly server message */
-            Console.WriteLine("The DHCP Server has a message to share with you...");
-            Console.WriteLine("\n" + response);
-            Console.WriteLine("\nSorry, this program will sleep and try again later.");
-            Thread.Sleep(600);
-          }
+          ProcessDHCP(buffer);
           continue;
         }
 
