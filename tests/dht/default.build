@@ -45,7 +45,7 @@
           <include name="Brunet.dll" />
           <include name="Brunet.Dht.dll" />
           <include name="log4net.dll" />
-          <include name="logconfig.xml" />
+          <include name="logconfig.xml.new" />
        </fileset>
     </copy>
   </target>
@@ -171,6 +171,13 @@
     name="simple-client"
     depends="init"
     description="Builds the current configuration">
+    <exec program="python" commandline="DhtKeyTraceGen.py" output="tracer.in"/>
+    <copy todir="${build.dir}/${package.name}/bin/" failonerror="true">
+        <fileset>
+            <include name="tracer.in" />
+        </fileset>
+    </copy>
+
     <csc
       target="exe"
       debug="${build.debug}"

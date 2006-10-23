@@ -54,7 +54,7 @@ namespace Brunet.Dht {
     }
 
     public static void Main(string []args) {
-      XmlConfigurator.Configure(new System.IO.FileInfo("logconfig.xml"));
+      XmlConfigurator.Configure(new System.IO.FileInfo("logconfig.xml.new"));
       if (args.Length < 1) {
         Console.WriteLine("please specify the configuration file... ");
       }
