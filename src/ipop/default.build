@@ -12,6 +12,8 @@
       <copy todir="${build.dir}" failonerror="true">
           <fileset basedir="${lib.dir}">
 	      <include name="Brunet.dll" />
+	      <include name="Brunet.Dht.dll" />
+	      <include name="log4net.dll" />
 	      <include name="Ipop-common.dll" />
 	      <include name="libtuntap.so" />
 	      <include name="DHCPCommon.dll" />
@@ -30,10 +32,12 @@
              <include name="BrunetTransport.cs"/>
 	  </sources>
 	  <references>
-             <include name="${lib.dir}/Brunet.dll"/>
+             <include name="${build.dir}/Brunet.dll"/>
+             <include name="${build.dir}/Brunet.Dht.dll"/>
+             <include name="${build.dir}/log4net.dll"/>
              <include name="Mono.Security.dll"/>
 	     <include name="System.Runtime.Remoting.dll"/>
-	     <include name="${lib.dir}/DHCPCommon.dll"/>
+	     <include name="${build.dir}/DHCPCommon.dll"/>
 	  </references>
       </csc>
       <csc target="exe" output="${build.dir}/SimpleNode.exe">
@@ -41,7 +45,54 @@
 	     <include name="SimpleNode.cs"/>
 	  </sources>
 	  <references>
-             <include name="${lib.dir}/Brunet.dll"/>
+             <include name="${build.dir}/Brunet.dll"/>
+             <include name="${build.dir}/Brunet.Dht.dll"/>
+             <include name="${build.dir}/log4net.dll"/>
+	  </references>
+      </csc>
+
+  </target>
+  <target name="logging" description="Build IPRouter.exe and SimpleNode.exe with support for logging">
+      <mkdir dir="${build.dir}" failonerror="true"/>
+      <copy todir="${build.dir}" failonerror="true">
+          <fileset basedir="${lib.dir}">
+	      <include name="Brunet.dll" />
+	      <include name="Brunet.Dht.dll" />
+	      <include name="log4net.dll" />
+	      <include name="Ipop-common.dll" />
+	      <include name="libtuntap.so" />
+	      <include name="DHCPCommon.dll" />
+	  </fileset>
+      </copy>
+      <csc target="exe" output="${build.dir}/IPRouter.exe" define="IPOP_LOG">
+          <sources failonempty="true">
+	     <include name="IPRouter.cs"/>
+             <include name="../dhcp/DHCPClient.cs"/>
+             <include name="../OSDependent/abstract.cs"/>
+             <include name="../OSDependent/linux.cs"/>
+             <include name="Ethernet.cs"/>
+             <include name="IPPacketHandler.cs"/>
+             <include name="IPPacketParser.cs"/>
+             <include name="RoutingTable.cs"/>
+             <include name="BrunetTransport.cs"/>
+	  </sources>
+	  <references>
+             <include name="${build.dir}/Brunet.dll"/>
+             <include name="${build.dir}/Brunet.Dht.dll"/>
+             <include name="${build.dir}/log4net.dll"/>
+             <include name="Mono.Security.dll"/>
+	     <include name="System.Runtime.Remoting.dll"/>
+	     <include name="${build.dir}/DHCPCommon.dll"/>
+	  </references>
+      </csc>
+      <csc target="exe" output="${build.dir}/SimpleNode.exe" define="IPOP_LOG">
+          <sources failonempty="true">
+	     <include name="SimpleNode.cs"/>
+	  </sources>
+	  <references>
+             <include name="${build.dir}/Brunet.dll"/>
+             <include name="${build.dir}/Brunet.Dht.dll"/>
+             <include name="${build.dir}/log4net.dll"/>
 	  </references>
       </csc>
 

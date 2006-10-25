@@ -1,5 +1,6 @@
 using System;
 using Brunet;
+using Brunet.Dht;
 using System.Text;
 using System.Threading;
 using System.Collections;
@@ -12,10 +13,17 @@ using System.Xml;
 using System.Xml.Serialization;
 using Mono.Security.Authenticode;
 
+#if IPOP_LOG
+using log4net;
+using log4net.Config;
+[assembly: log4net.Config.XmlConfigurator(ConfigFileExtension="log4net",Watch=true)]
+#endif
+
 namespace Ipop {
   public class IPRouterConfig {
     public string ipop_namespace;
     public string brunet_namespace;
+    public string dht_media;
     public string device;
     [XmlArrayItem (typeof(string), ElementName = "transport")]
     public string [] RemoteTAs;
@@ -50,6 +58,11 @@ namespace Ipop {
   }
 
   public class IPRouter {
+#if IPOP_LOG
+    private static readonly log4net.ILog _log =
+    log4net.LogManager.GetLogger(System.Reflection.MethodBase.
+                                 GetCurrentMethod().DeclaringType);
+#endif
     //if debugging information is needed
     private static bool debug;
     //the class modeling the ethernet;
@@ -134,6 +147,10 @@ namespace Ipop {
 
       //Where do we listen:
       IPAddress[] tas = routines.GetIPTAs(Virtual_IPAddress);
+#if IPOP_LOG
+	string listener_log = "BeginListener::::";
+#endif
+
       foreach(EdgeListener item in config.EdgeListeners) {
         int port = 0;
         if(item.port_hi != null && item.port_low != null && item.port == null) {
@@ -144,6 +161,9 @@ namespace Ipop {
         }
         else
             port = Int32.Parse(item.port);
+#if IPOP_LOG
+	listener_log += item.type + "::::" + port + "::::";
+#endif	
         if (item.type =="tcp") { 
             tmp_node.AddEdgeListener(new TcpEdgeListener(port, tas, 
               ta_auth));
@@ -160,7 +180,9 @@ namespace Ipop {
           throw new Exception("Unrecognized transport: " + item.type);
         }
       }
-
+#if IPOP_LOG
+      listener_log += "EndListener";
+#endif
       //Here is where we connect to some well-known Brunet endpoints
       tmp_node.RemoteTAs = RemoteTAs;
 
@@ -171,7 +193,19 @@ namespace Ipop {
         IPAddress.Parse(Virtual_IPAddress));
       tmp_node.Subscribe(AHPacket.Protocol.IP, ip_handler);
 
-
+      //following line of code enables DHT support inside the IPRouter
+      Dht dht = null;
+      if (config.dht_media == null || config.dht_media.Equals("disk")) {
+        dht = new Dht(tmp_node, EntryFactory.Media.Disk);
+      } else if (config.dht_media.Equals("memory")) {
+        dht = new Dht(tmp_node, EntryFactory.Media.Memory);
+      }
+      
+#if IPOP_LOG
+      _log.Debug("IGNORE");
+      _log.Debug(tmp_node.Address + "::::" + DateTime.UtcNow.Ticks
+                 + "::::Connecting::::" + System.Net.Dns.GetHostName() + "::::" + listener_log);
+#endif   
       tmp_node.Connect();
       System.Console.WriteLine("Called Connect");
 
