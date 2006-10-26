@@ -331,20 +331,26 @@ namespace Brunet
        * until the StatusMessage request is received.
        */
       //Build the neighbor list:
-	LinkMessage lm = (LinkMessage)_last_r_mes;
+      LinkMessage lm = (LinkMessage)_last_r_mes;
       /*
        * So, we must have our link message now:
 	 * Make sure the link message is Kosher.
        * This are critical errors.  This Link fails if these occur
 	 */
-	if( lm.ConTypeString != _contype ) {
+      if( lm.ConTypeString != _contype ) {
         throw new LinkException("Link type mismatch: "
                                 + _contype + " != " + lm.ConTypeString );
-	}
-	if( lm.Attributes["realm"] != _node.Realm ) {
+      }
+      if( lm.Attributes["realm"] != _node.Realm ) {
         throw new LinkException("Realm mismatch: " +
                                 _node.Realm + " != " + lm.Attributes["realm"] );
-	}
+      }
+      if( (_linker.Target != null) && (!lm.Local.Address.Equals( _linker.Target )) ) {
+        //This is super goofy.  Somehow we got a response from some node
+        //we didn't mean to connect to.
+        throw new LinkException(String.Format("Target mismatch: {0} != {1}",
+                                              _linker.Target, lm.Local.Address), true, null );
+      }
       //Make sure we have the lock on this address, this could 
       //throw an exception halting this link attempt.
       lock( _sync ) {
@@ -469,6 +475,16 @@ namespace Brunet
 #endif
           _x = x;
           _result = Result.RetryThisTA;
+          finish = true;
+        }
+        catch(LinkException x) {
+          _x = x;
+          if( x.IsCritical ) {
+            _result = Result.MoveToNextTA;
+          }
+          else {
+            _result = Result.RetryThisTA;
+          }
           finish = true;
         }
         catch(Exception x) {
