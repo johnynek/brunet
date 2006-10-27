@@ -40,10 +40,9 @@ namespace Ipop {
 	}
         foreach(System.Net.IPAddress a in addr_list) {
 	  //first and foremost, test if it is a virtual IP
-          IPAddress testIp = new IPAddress(a.GetAddressBytes());
-          IPAddress temp = IPAddress.Parse(Virtual_IPAddr);
-	  if (temp.Equals(testIp)) {
-	    Console.WriteLine("Detected {0} as virtual Ip.", Virtual_IPAddr);
+          IPAddress virtual_ip = IPAddress.Parse(Virtual_IPAddr);
+	  if (a.Equals(virtual_ip)) {
+	    Console.WriteLine("Detected {0} as virtual Ip.", virtual_ip);
 	    continue;
 	  }
           /**
