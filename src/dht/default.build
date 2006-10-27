@@ -144,6 +144,42 @@
     </copy>
   </target>
 
+  <target
+    name="dht-log"
+    depends="init"
+    description="Builds the current configuration">
+
+    <!-- copy libraries -->
+    <copy todir="${build.dir}/${package.name}/bin">
+       <fileset basedir="${lib.dir}">
+          <include name="log4net.dll" />
+          <include name="Brunet.dll" />
+          <include name="logconfig.xml" />
+       </fileset>
+    </copy>
+
+    <csc
+      target="library"
+      debug="${build.debug}"
+      define="DHT_DEBUG,DHT_LOG"
+      output="${build.dir}/${package.name}/bin/Brunet.Dht.dll">
+      doc="${build.dir}/${package.name}/bin/${assembly}.xml">
+      <sources failonempty="true">
+        <include name="*.cs"/>
+      </sources>
+      <references>
+        <!--include name="${build.dir}/${package.name}/bin/${assembly}.dll" /-->
+        <include name="${build.dir}/${package.name}/bin/log4net.dll" />
+        <include name="${build.dir}/${package.name}/bin/Brunet.dll" />
+      </references>
+    </csc>
+    <!-- finally copy the newly compiled library to the lib directory  -->
+    <copy todir="${lib.dir}">
+      <fileset basedir="${build.dir}/${package.name}/bin">
+           <include name="${build.dir}/${package.name}/bin/${assembly}.dll" />
+      </fileset>
+    </copy>
+  </target>
   <target name="clean"
     depends="init"
     description="Deletes the current configuration">
