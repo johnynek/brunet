@@ -7,7 +7,7 @@
   <target name="clean" description="Remove ipop-common.dll">
       <delete dir="${build.dir}" failonerror="true"/>
   </target>
-  <target name="build" description="Build IPRouter.exe and SimpleNode.exe">
+  <target name="build" description="Build IPRouter.exe and SimpleNode.exe and SimpleDhtClient">
       <mkdir dir="${build.dir}" failonerror="true"/>
       <copy todir="${build.dir}" failonerror="true">
           <fileset basedir="${lib.dir}">
@@ -50,9 +50,19 @@
              <include name="${build.dir}/log4net.dll"/>
 	  </references>
       </csc>
+      <csc target="exe" output="${build.dir}/SimpleDhtClient.exe">
+          <sources failonempty="true">
+             <include name="SimpleDhtClient.cs"/>
+          </sources>
+          <references>
+             <include name="${build.dir}/Brunet.dll"/>
+             <include name="${build.dir}/Brunet.Dht.dll"/>
+             <include name="${build.dir}/log4net.dll"/>
+          </references>
+      </csc>
 
   </target>
-  <target name="logging" description="Build IPRouter.exe and SimpleNode.exe with support for logging">
+  <target name="logging" description="Build IPRouter.exe and SimpleNode.exe and SimpleDhtClient.exe with support for logging">
       <mkdir dir="${build.dir}" failonerror="true"/>
       <copy todir="${build.dir}" failonerror="true">
           <fileset basedir="${lib.dir}">
@@ -95,6 +105,17 @@
              <include name="${build.dir}/log4net.dll"/>
 	  </references>
       </csc>
+      <csc target="exe" output="${build.dir}/SimpleDhtClient.exe" define="IPOP_LOG">
+          <sources failonempty="true">
+             <include name="SimpleDhtClient.cs"/>
+          </sources>
+          <references>
+             <include name="${build.dir}/Brunet.dll"/>
+             <include name="${build.dir}/Brunet.Dht.dll"/>
+             <include name="${build.dir}/log4net.dll"/>
+          </references>
+      </csc>
+
 
   </target>
 </project>
