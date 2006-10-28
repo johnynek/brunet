@@ -9,7 +9,7 @@ using System.Xml.Serialization;
 #if IPOP_LOG
 using log4net;
 using log4net.Config;
-[assembly: log4net.Config.XmlConfigurator(ConfigFileExtension="log4net",Watch=true)]
+//[assembly: log4net.Config.XmlConfigurator(ConfigFileExtension="log4net",Watch=true)]
 #endif
 
 
@@ -55,6 +55,9 @@ namespace PeerVM {
     }
 
     public static void Main(string []args) {
+#if IPOP_LOG
+      XmlConfigurator.Configure(new System.IO.FileInfo("logconfig.xml.new"));
+#endif
       if (args.Length < 1) {
         Console.WriteLine("please specify the configuration file... ");
       }
