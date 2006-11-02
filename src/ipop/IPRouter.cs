@@ -16,7 +16,6 @@ using Mono.Security.Authenticode;
 #if IPOP_LOG
 using log4net;
 using log4net.Config;
-//[assembly: log4net.Config.XmlConfigurator(ConfigFileExtension="log4net",Watch=true)]
 #endif
 
 namespace Ipop {
@@ -297,17 +296,24 @@ namespace Ipop {
 
 
     static void Main(string []args) {
-#if IPOP_LOG
-      XmlConfigurator.Configure(new System.IO.FileInfo("logconfig.xml.new"));
-#endif
       //configuration file 
       if (args.Length < 1) {
         Console.WriteLine("please specify the configuration file name...");
-        return;
+        Environment.Exit(0);
       }
       ConfigFile = args[0];
+
+#if IPOP_LOG
+      if (args.Length < 2) {
+        Console.WriteLine("please specify the full path to the Logger " + 
+          "configuration file...");
+        Environment.Exit(1);
+      }
+      XmlConfigurator.Configure(new System.IO.FileInfo(args[1]));
+#endif
+
       ReadConfiguration(ConfigFile);
-      if (args.Length == 2) {
+      if (args.Length == 3) {
         debug = true;
       } else {
         debug = false;

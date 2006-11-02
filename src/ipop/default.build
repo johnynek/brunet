@@ -14,7 +14,6 @@
 	      <include name="Brunet.dll" />
 	      <include name="Brunet.Dht.dll" />
 	      <include name="log4net.dll" />
-	      <include name="Ipop-common.dll" />
 	      <include name="libtuntap.so" />
 	      <include name="DHCPCommon.dll" />
 	  </fileset>
@@ -69,7 +68,6 @@
 	      <include name="Brunet.dll" />
 	      <include name="Brunet.Dht.dll" />
 	      <include name="log4net.dll" />
-	      <include name="Ipop-common.dll" />
 	      <include name="libtuntap.so" />
 	      <include name="DHCPCommon.dll" />
 	  </fileset>
