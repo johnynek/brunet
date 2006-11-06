@@ -32,6 +32,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using Brunet;
 using System;
+using System.IO;
 using System.Threading;
 using System.Net.Sockets;
 using System.Net;
@@ -65,7 +66,6 @@ namespace Brunet
       public Packet Packet;
       public UdpEdge Sender;
     }
-
     /*
      * This is the object which we pass to UdpEdges when we create them.
      */
@@ -111,7 +111,8 @@ namespace Brunet
     
     protected enum ControlCode : int
     {
-      EdgeClosed = 1
+      EdgeClosed = 1,
+      EdgeDataAnnounce = 2 ///Send a dictionary of various data about the edge
     }
     
     /**
@@ -173,6 +174,31 @@ namespace Brunet
             //The edge has been closed on the other side
 	    e.Close();
  	  }
+          else if( code == ControlCode.EdgeDataAnnounce ) {
+            //our NAT mapping may have changed:
+            IDictionary info =
+              (IDictionary)AdrConverter.Deserialize(
+                  new MemoryStream(buffer, 12, buffer.Length - 12) );
+            string our_local_ta = (string)info["RemoteTA"]; //his remote is our local
+            if( our_local_ta != null ) {
+              //Update our list:
+              TransportAddress new_ta = new TransportAddress(our_local_ta);
+              TransportAddress old_ta = e.PeerViewOfLocalTA;
+              if( ! new_ta.Equals( old_ta ) ) {
+                System.Console.WriteLine(
+	        "Local NAT Mapping changed on Edge: {0}\n{1} => {2}",
+                 e, old_ta, new_ta); 
+                //Looks like matters have changed:
+                this.UpdateLocalTAs(e, new_ta);
+                /**
+                 * @todo, maybe we should ping the other edges sharing this
+                 * EndPoint, but we need to be careful not to do some O(E^2)
+                 * operation, which could easily happen if each EdgeDataAnnounce
+                 * triggered E packets to be sent
+                 */
+              }
+            }
+          }
         }
         catch(Exception x) {
         //This could happen if this is some control message we don't understand
@@ -279,9 +305,12 @@ namespace Brunet
       if( (edge != null) && !edge.End.Equals(end) ) {
         //This happens when a NAT mapping changes
         System.Console.WriteLine(
-	    "NAT Mapping changed on Edge: {0}\n{1} -> {2}",
+	    "Remote NAT Mapping changed on Edge: {0}\n{1} -> {2}",
            edge, edge.End, end); 
-           edge.End = end;
+        //Actually update:
+        edge.End = end;
+        //Tell the other guy:
+        SendControlPacket(end, remoteid, localid, ControlCode.EdgeDataAnnounce, state);
       }
       if( is_new_edge ) {
        SendEdgeEvent(edge);
@@ -296,6 +325,46 @@ namespace Brunet
           System.Console.Error.WriteLine(
              "Edge: {0} sent us an unparsable packet: {1}", edge, pe);
 	}
+      }
+    }
+    /**
+     * When a new Connection is added, we may need to update the list
+     * of TAs to make sure it is not too long, and that the it is sorted
+     * from most likely to least likely to be successful
+     * @param e the new Edge
+     * @param ta the TransportAddress our TA according to our peer
+     */
+    public virtual void UpdateLocalTAs(Edge e, TransportAddress ta) {
+      if( e.TAType == this.TAType ) {
+        UdpEdge ue = (UdpEdge)e;
+        ue.PeerViewOfLocalTA = ta;
+        //Ignore TAs which are not our kind, what do we know about them?
+        /*
+         * Here we record TransportAddress objects.
+         * This will allow us to connect to other nodes
+         * in the future, and better advertise how
+         * to connect to us:
+         */
+        if( e.LocalTANotEphemeral ) {
+          //Put our guess in first, so it will be after the reported one
+          //which is more likely to be correct where there is translation
+          if( ta.Equals( e.LocalTA ) ) {
+            //This is the NON-NAT case, make sure this address is at the top of the queue
+            UpdateTA(_tas, ta);
+          }
+          else {
+            //This is the NAT Case:
+            //The reported TA is not the same as the one we just added
+            if( !_tas.Contains( e.LocalTA ) ) {
+              //Only update the localTA if it is not already in the list:
+              //We don't want to move a meaninglist TA to the top of the list
+              //in the NAT case, but we do want the LocalTA in the list
+              //in case we see someone from our network:
+              UpdateTA(_tas, e.LocalTA);
+            }
+            UpdateTA(_tas, ta);
+          }
+        }        
       }
     }
 
@@ -420,13 +489,26 @@ namespace Brunet
                                      ControlCode c, object state)
     {
         Socket s = (Socket)state;
-        NumberSerializer.WriteInt(localid, _send_buffer, 0);
+        MemoryStream ms = new MemoryStream();
+        NumberSerializer.WriteInt(localid, ms);
         //Bit flip to indicate this is a control packet
-        NumberSerializer.WriteInt(~remoteid, _send_buffer, 4);
-        NumberSerializer.WriteInt((int)c, _send_buffer, 8);
+        NumberSerializer.WriteInt(~remoteid, ms);
+        NumberSerializer.WriteInt((int)c, ms);
+        if( c == ControlCode.EdgeDataAnnounce ) {
+          UdpEdge e = (UdpEdge)_id_ht[localid];
+          if( (e != null) && (e.RemoteID == remoteid) ) {
+            Hashtable t = new Hashtable();
+            t["RemoteTA"] = e.RemoteTA.ToString();
+            t["LocalTA"] = e.LocalTA.ToString();
+            AdrConverter.Serialize(t, ms);
+          }
+          else {
+            Console.Error.WriteLine("Problem sending EdgeData: EndPoint: {0}, remoteid: {1}, localid: {2}, Edge: {3}", end, remoteid, localid, e);
+          }
+        }
 
         try {	//catching SocketException
-          s.SendTo(_send_buffer, 0, 12, SocketFlags.None, end);
+          s.SendTo( ms.ToArray(), end);
           System.Console.WriteLine("Sending control to: {0}", end);
         }
         catch (SocketException sc) {

@@ -103,7 +103,6 @@ namespace Brunet
         _remote_ta = ArrayList.Synchronized( new ArrayList() );
         /*@throw ArgumentNullException if the list ( new ArrayList()) is null.
          */
-        _local_ta = ArrayList.Synchronized( new ArrayList() );
         /* EdgeListener's */
         _edgelistener_list = ArrayList.Synchronized( new ArrayList() );
         _edge_factory = new EdgeFactory();
@@ -156,7 +155,6 @@ namespace Brunet
      * Here are all the EdgeListener objects for this Node
      */
     protected ArrayList _edgelistener_list;
-    protected ArrayList _local_ta;
     /**
      * These are all the local TransportAddress objects that
      * refer to EdgeListener objects attached to this node.
@@ -164,7 +162,17 @@ namespace Brunet
      */
     public IList LocalTAs {
       get {
-        return ArrayList.ReadOnly( _local_ta );
+        //Make sure we don't keep too many of these things:
+        ArrayList local_ta = new ArrayList();
+        foreach(EdgeListener el in _edgelistener_list) {
+           local_ta.AddRange( el.LocalTAs );
+        }
+        int count = local_ta.Count;
+        if( count > _MAX_RECORDED_TAS ) {
+          int rm_count = count - _MAX_RECORDED_TAS;
+          local_ta.RemoveRange(_MAX_RECORDED_TAS, rm_count);
+        }
+        return local_ta;
       }
     }
 
@@ -287,7 +295,6 @@ namespace Brunet
       /* The EdgeFactory needs to be made aware of all EdgeListeners */
       _edge_factory.AddListener(el);
       _edgelistener_list.Add(el);
-      _local_ta.AddRange( el.LocalTAs );
       /**
        * It is ESSENTIAL that the EdgeEvent of EdgeListener objects
        * be connected to the EdgeHandler method of ConnectionPacketHandler
@@ -471,16 +478,10 @@ namespace Brunet
       lock( _sync ) {
         foreach(EdgeListener el in _edgelistener_list) {
           //Update our local list:
-          el.UpdateLocalTAs(_local_ta, edge, reported_ta);
+          el.UpdateLocalTAs(edge, reported_ta);
           el.UpdateRemoteTAs( _remote_ta, edge, remote_ta);
         }
-        //Make sure we don't keep too many of these things:
-        int count = _local_ta.Count;
-        if( count > _MAX_RECORDED_TAS ) {
-          int rm_count = count - _MAX_RECORDED_TAS;
-          _local_ta.RemoveRange(_MAX_RECORDED_TAS, rm_count);
-        }
-        count = _remote_ta.Count;
+        int count = _remote_ta.Count;
         if( count > _MAX_RECORDED_TAS ) {
           int rm_count = count - _MAX_RECORDED_TAS;
           _remote_ta.RemoveRange(_MAX_RECORDED_TAS, rm_count);
@@ -493,7 +494,7 @@ namespace Brunet
      * at most max_local local Transport addresses
      */
     virtual public NodeInfo GetNodeInfo(int max_local) {
-      ArrayList l = new ArrayList( _local_ta );
+      ArrayList l = new ArrayList( this.LocalTAs );
       if( l.Count > max_local ) {
         int rm_count = l.Count - max_local;
         l.RemoveRange( max_local, rm_count );

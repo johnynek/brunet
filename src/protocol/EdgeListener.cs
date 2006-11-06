@@ -71,7 +71,7 @@ namespace Brunet
     public abstract ArrayList LocalTAs
     {
       get;
-      }
+    }
 
       /**
        * What type of TransportAddress does this EdgeListener use
@@ -171,40 +171,11 @@ namespace Brunet
      * When a new Connection is added, we may need to update the list
      * of TAs to make sure it is not too long, and that the it is sorted
      * from most likely to least likely to be successful
-     * @param list the list of TransportAddress objects to update
      * @param e the new Edge
      * @param ta the TransportAddress our TA according to our peer
      */
-    public virtual void UpdateLocalTAs(IList list, Edge e, TransportAddress ta) {
-      if( e.TAType == this.TAType ) {
-        //Ignore TAs which are not our kind, what do we know about them?
-        /*
-         * Here we record TransportAddress objects.
-         * This will allow us to connect to other nodes
-         * in the future, and better advertise how
-         * to connect to us:
-         */
-        if( e.LocalTANotEphemeral ) {
-          //Put our guess in first, so it will be after the reported one
-          //which is more likely to be correct where there is translation
-          if( ta.Equals( e.LocalTA ) ) {
-            //This is the NON-NAT case, make sure this address is at the top of the queue
-            UpdateTA(list, ta);
-          }
-          else {
-            //This is the NAT Case:
-            //The reported TA is not the same as the one we just added
-            if( !list.Contains( e.LocalTA ) ) {
-              //Only update the localTA if it is not already in the list:
-              //We don't want to move a meaninglist TA to the top of the list
-              //in the NAT case, but we do want the LocalTA in the list
-              //in case we see someone from our network:
-              UpdateTA(list, e.LocalTA);
-            }
-            UpdateTA(list, ta);
-          }
-        }        
-      }
+    public virtual void UpdateLocalTAs(Edge e, TransportAddress ta) {
+    
     }
     /**
      * We learn RemotaTAs in case we need to get connected again in the
