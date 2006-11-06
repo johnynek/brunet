@@ -32,6 +32,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using Brunet;
 using System;
+using System.IO;
 using System.Threading;
 using System.Net.Sockets;
 using System.Net;
@@ -148,15 +149,27 @@ namespace Brunet
                                      ControlCode c, object state)
     {
       lock(_sync) {
-        byte[] tmp_buf = new byte[12];
-        NumberSerializer.WriteInt(localid, tmp_buf, 0);
+        MemoryStream ms = new MemoryStream();
+        NumberSerializer.WriteInt(localid, ms);
         //Bit flip to indicate this is a control packet
-        NumberSerializer.WriteInt(~remoteid, tmp_buf, 4);
-        NumberSerializer.WriteInt((int)c, tmp_buf, 8);
-
+        NumberSerializer.WriteInt(~remoteid, ms);
+        NumberSerializer.WriteInt((int)c, ms);
+        if( c == ControlCode.EdgeDataAnnounce ) {
+          UdpEdge e = (UdpEdge)_id_ht[localid];
+          if( (e != null) && (e.RemoteID == remoteid) ) {
+            Hashtable t = new Hashtable();
+            t["RemoteTA"] = e.RemoteTA.ToString();
+            t["LocalTA"] = e.LocalTA.ToString();
+            AdrConverter.Serialize(t, ms);
+          }
+          else {
+            Console.Error.WriteLine("Problem sending EdgeData: EndPoint: {0}, remoteid: {1}, localid: {2}, Edge: {3}", end, remoteid, localid, e);
+          }
+        }
         try {	//catching SocketException
+          byte[] tmp_buf = ms.ToArray();
           System.Console.WriteLine("Sending control to: {0}", end);
-          s.BeginSendTo(tmp_buf, 0, 12, SocketFlags.None, end,
+          s.BeginSendTo(tmp_buf, 0, tmp_buf.Length, SocketFlags.None, end,
 			new AsyncCallback(this.SendControlPacketCallback), null);
         }
         catch (SocketException sc) {

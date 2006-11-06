@@ -183,6 +183,16 @@ namespace Brunet
     {
       get { return _localta; }
     }
+    protected TransportAddress _pvlocal;
+    /**
+     * the other end (due to NAT) may see our LocalTA differently than
+     * we do.  This is the view of the LocalTA from the point of
+     * view of our Peer
+     */
+    public TransportAddress PeerViewOfLocalTA {
+      get { return _pvlocal; }
+      set { _pvlocal = value; }
+    }
     //UDP ports are always bi-directional, and never ephemeral
     public override bool LocalTANotEphemeral { get { return true; } }
     
