@@ -8,8 +8,7 @@ namespace Ipop {
 /*  If any exceptions occur in these, excepted listed below, the methods 
     should exit the program w/ an exception */
 /*  Have a try / catch in case the hostname isn't configured properly */
-    public abstract System.Net.IPAddress[] GetIPTAs(string Virtual_IPAddr);
-    public abstract ArrayList GetNameservers();
+    public abstract System.Net.IPAddress[] GetIPTAs(string [] devices);
 /*  Returns null if none set yet, not an exception */
     public abstract string GetTapAddress(string device);
     public abstract string GetTapNetmask(string device);

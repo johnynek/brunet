@@ -1,6 +1,5 @@
 using System;
 using Brunet;
-using Brunet.Dht;
 using System.Text;
 using System.Threading;
 using System.Collections;
@@ -13,49 +12,7 @@ using System.Xml;
 using System.Xml.Serialization;
 using Mono.Security.Authenticode;
 
-#if IPOP_LOG
-using log4net;
-using log4net.Config;
-#endif
-
 namespace Ipop {
-  public class IPRouterConfig {
-    public string ipop_namespace;
-    public string brunet_namespace;
-    public string dht_media;
-    public string device;
-    [XmlArrayItem (typeof(string), ElementName = "transport")]
-    public string [] RemoteTAs;
-    public EdgeListener [] EdgeListeners;
-    public string IPConfig;
-    public string DHCPServerIP;
-    public string NodeAddress;
-    public string Setup;
-    public string Hostname;
-    public string TapMAC;
-    public StaticInfo StaticData;
-    public DHCPInfo DHCPData;
-  }
-
-  public class StaticInfo {
-    public string IPAddress;
-    public string Netmask;
-  }
-
-  public class DHCPInfo {
-    public string DHCPServerAddress;
-    public string IPAddress;
-    public string Netmask;
-  }
-
-  public class EdgeListener {
-    [XmlAttribute]
-    public string type;
-    public string port;
-    public string port_hi;
-    public string port_low;
-  }
-
   public class IPRouter {
 #if IPOP_LOG
     private static readonly log4net.ILog _log =
@@ -74,7 +31,6 @@ namespace Ipop {
     private static ArrayList RemoteTAs;
 
     private static OSDependent routines;
-    private static ArrayList Nameservers;
     private static string Virtual_IPAddress;
     private static string Netmask;
     private static string ConfigFile;
@@ -82,37 +38,6 @@ namespace Ipop {
     private static RoutingTable routes;
 
 /*  Generic */
-
-    private static void ReadConfiguration(string configFile) {
-      XmlSerializer serializer = new XmlSerializer(typeof(IPRouterConfig));
-      FileStream fs = new FileStream(configFile, FileMode.Open);
-      config = (IPRouterConfig) serializer.Deserialize(fs);
-      RemoteTAs = new ArrayList();
-      foreach(string TA in config.RemoteTAs) {
-        TransportAddress ta = new TransportAddress(TA);
-        RemoteTAs.Add(ta);
-      }
-      fs.Close();
-      if(config.NodeAddress == null) {
-        RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
-        byte [] temp = new byte[16];
-        rng.GetBytes(temp);
-        config.NodeAddress = DHCPCommon.BytesToString(temp, ':');
-        UpdateConfiguration(configFile);
-      }
-      if(config.Setup == null) {
-        config.Setup = "auto";
-      }
-    }
-
-    private static void UpdateConfiguration(string configFile) {
-      FileStream fs = new FileStream(configFile, FileMode.OpenOrCreate, 
-        FileAccess.Write);
-      XmlSerializer serializer = new XmlSerializer(typeof(IPRouterConfig));
-      serializer.Serialize(fs, config);
-      fs.Close();
-    }
-
     private static BigInteger GetHash(IPAddress addr) {
        //Console.WriteLine("The IP addr: {0}", addr);
        HashAlgorithm hashAlgo = HashAlgorithm.Create();
@@ -126,18 +51,6 @@ namespace Ipop {
     static BrunetTransport Start() {
       //Should be active now
       status = 1;
-      //Setup TAAuthorizer
-      byte [] netmask = DHCPCommon.StringToBytes(Netmask, '.');
-      int nm_value = (netmask[0] << 24) + (netmask[1] << 16) +
-        (netmask[2] << 8) + netmask[3];
-      int value = 0;
-      for(value = 0; value < 32; value++)
-        if((1 << value) == (nm_value & (1 << value)))
-          break;
-      value = 32 - value;
-      TAAuthorizer ta_auth = new NetmaskTAAuthorizer(
-        IPAddress.Parse(Virtual_IPAddress), value,
-        TAAuthorizer.Decision.Deny, TAAuthorizer.Decision.Allow);
       //local node
       AHAddress us = new AHAddress(GetHash(IPAddress.Parse(Virtual_IPAddress)));
       Console.WriteLine("Generated address: {0}", us);
@@ -145,43 +58,32 @@ namespace Ipop {
       Node tmp_node = new StructuredNode(us, config.brunet_namespace);
 
       //Where do we listen:
-      IPAddress[] tas = routines.GetIPTAs(Virtual_IPAddress);
-#if IPOP_LOG
-	string listener_log = "BeginListener::::";
-#endif
+      IPAddress[] tas = routines.GetIPTAs(config.DevicesToBind);
 
       foreach(EdgeListener item in config.EdgeListeners) {
         int port = 0;
-        if(item.port_hi != null && item.port_low != null && item.port == null) {
-          int port_hi = Int32.Parse(item.port_hi);
+        if(item.port_high != null && item.port_low != null && item.port == null) {
+          int port_high = Int32.Parse(item.port_high);
           int port_low = Int32.Parse(item.port_low);
           Random random = new Random();
-          port = (random.Next() % (port_hi - port_low)) + port_low;
-        }
+          port = (random.Next() % (port_high - port_low)) + port_low;
+          }
         else
             port = Int32.Parse(item.port);
-#if IPOP_LOG
-	listener_log += item.type + "::::" + port + "::::";
-#endif	
         if (item.type =="tcp") { 
-            tmp_node.AddEdgeListener(new TcpEdgeListener(port, tas, 
-              ta_auth));
+            tmp_node.AddEdgeListener(new TcpEdgeListener(port, tas));
         }
         else if (item.type == "udp") {
-            tmp_node.AddEdgeListener(new UdpEdgeListener(port , tas, 
-              ta_auth));
+            tmp_node.AddEdgeListener(new UdpEdgeListener(port , tas));
         }
         else if (item.type == "udp-as") {
-            tmp_node.AddEdgeListener(new ASUdpEdgeListener(port, tas, 
-              ta_auth));
+            tmp_node.AddEdgeListener(new ASUdpEdgeListener(port, tas));
         }
         else {
           throw new Exception("Unrecognized transport: " + item.type);
         }
       }
-#if IPOP_LOG
-      listener_log += "EndListener";
-#endif
+
       //Here is where we connect to some well-known Brunet endpoints
       tmp_node.RemoteTAs = RemoteTAs;
 
@@ -192,19 +94,6 @@ namespace Ipop {
         IPAddress.Parse(Virtual_IPAddress));
       tmp_node.Subscribe(AHPacket.Protocol.IP, ip_handler);
 
-      //following line of code enables DHT support inside the IPRouter
-      Dht dht = null;
-      if (config.dht_media == null || config.dht_media.Equals("disk")) {
-        dht = new Dht(tmp_node, EntryFactory.Media.Disk);
-      } else if (config.dht_media.Equals("memory")) {
-        dht = new Dht(tmp_node, EntryFactory.Media.Memory);
-      }
-      
-#if IPOP_LOG
-      _log.Debug("IGNORE");
-      _log.Debug(tmp_node.Address + "::::" + DateTime.UtcNow.Ticks
-                 + "::::Connecting::::" + System.Net.Dns.GetHostName() + "::::" + listener_log);
-#endif   
       tmp_node.Connect();
       System.Console.WriteLine("Called Connect");
 
@@ -237,26 +126,6 @@ namespace Ipop {
       }
       if(returnPacket != null &&
         returnPacket.decodedPacket.return_message == "Success") {
-        /* Add nameservers if it doesn't contain it already - this is */
-        /* deprecated and will removed soon */
-        if(!returnPacket.decodedPacket.options.Contains(6)) {
-          DHCPOption option = new DHCPOption();
-          option.type = 6;
-          option.length = Nameservers.Count * 4;
-          option.encoding = "int";
-          option.byte_value = new byte[option.length];
-          int i = 0, ci = 4;
-
-          foreach(string item0 in Nameservers) {
-            byte [] temp = DHCPCommon.StringToBytes(item0, '.');
-            for(; i < ci; i++)
-              option.byte_value[i] = temp[i%4];
-            ci += 4;
-          }
-          returnPacket.decodedPacket.options.Add(option.type, option);
-        }
-         /* Expected removal date November 1st */
-
         /* Convert the packet into byte format, run Arp and Route updater */
          returnPacket.EncodePacket();
          ether.SendPacket(returnPacket.packet, 0x800);
@@ -271,7 +140,7 @@ namespace Ipop {
           Virtual_IPAddress = newAddress;
           config.DHCPData.IPAddress = Virtual_IPAddress;
           config.DHCPData.Netmask = Netmask;
-          UpdateConfiguration(ConfigFile);
+          IPRouterConfigHandler.Write(ConfigFile, config);
           if(config.Setup == "auto") {
             if(config.Hostname == null)
               routines.SetHostname(routines.DHCPGetHostname(Virtual_IPAddress));
@@ -312,7 +181,21 @@ namespace Ipop {
       XmlConfigurator.Configure(new System.IO.FileInfo(args[1]));
 #endif
 
-      ReadConfiguration(ConfigFile);
+      config = IPRouterConfigHandler.Read(ConfigFile);
+      RemoteTAs = new ArrayList();
+      foreach(string TA in config.RemoteTAs) {
+        TransportAddress ta = new TransportAddress(TA);
+        RemoteTAs.Add(ta);
+      }
+
+      if(config.NodeAddress == null) {
+        RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
+        byte [] temp = new byte[16];
+        rng.GetBytes(temp);
+        config.NodeAddress = DHCPCommon.BytesToString(temp, ':');
+        IPRouterConfigHandler.Write(ConfigFile, config);
+      }
+
       if (args.Length == 3) {
         debug = true;
       } else {
@@ -353,7 +236,6 @@ namespace Ipop {
         routes = new RoutingTable();
       }
       else {
-        Nameservers = routines.GetNameservers();
         DHCPClient.DHCPInit(config.DHCPData.DHCPServerAddress);
         if(config.DHCPData.IPAddress != null && config.DHCPData.Netmask != null) {
           Virtual_IPAddress = config.DHCPData.IPAddress;

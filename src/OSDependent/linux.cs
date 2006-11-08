@@ -2,87 +2,16 @@ using System;
 using System.IO;
 using System.Collections;
 using System.Net;
+using System.Diagnostics;
+using System.Text.RegularExpressions;
 
 namespace Ipop {
   public class OSDependent : OSDependentAbstract {
-    public override System.Net.IPAddress[] GetIPTAs(string Virtual_IPAddr) {
-      ArrayList tas = new ArrayList();
-      try {
-	//we make a call to ifconfig here
-	ArrayList addr_list = new ArrayList();
-	System.Diagnostics.Process proc = new System.Diagnostics.Process();
-	proc.EnableRaisingEvents = false;
-	proc.StartInfo.RedirectStandardOutput = true;
-	proc.StartInfo.UseShellExecute = false;
-	proc.StartInfo.FileName = "ifconfig";
-	
-	proc.Start();
-	proc.WaitForExit();
-	
-	StreamReader sr = proc.StandardOutput;
-	while (true) {
-	  string output = sr.ReadLine();
-	  if (output == null) {
-	    break;
-	  }
-	  output = output.Trim();
-	  if (output.StartsWith("inet addr")) {
-	    string[] arr = output.Split(' ');
-	    if (arr.Length > 1) {
-	      string[] s_arr = arr[1].Split(':');
-	      if (s_arr.Length > 1) {
-		System.Net.IPAddress ip = System.Net.IPAddress.Parse(s_arr[1]);
-		Console.WriteLine("Discovering: {0}", ip);
-		addr_list.Insert(0, ip);
-	      }
-	    }
-	  }
-	}
-        foreach(System.Net.IPAddress a in addr_list) {
-	  //first and foremost, test if it is a virtual IP
-          IPAddress virtual_ip = IPAddress.Parse(Virtual_IPAddr);
-	  if (a.Equals(virtual_ip)) {
-	    Console.WriteLine("Detected {0} as virtual Ip.", virtual_ip);
-	    continue;
-	  }
-          /**
-           * We add Loopback addresses to the back, all others to the front
-           * This makes sure non-loopback addresses are listed first.
-           */
-          if( System.Net.IPAddress.IsLoopback(a) ) {
-            //Put it at the back
-//            tas.Add(a);  Disabled as a temporary fix / check
-          }
-          else {
-            //Put it at the front
-            tas.Insert(0, a);
-          }
-        }
-      }
-      catch(Exception x) {
-        //If the hostname is not properly configured, we could wind
-        //up here.  Just put the loopback address is:
-        tas.Add(System.Net.IPAddress.Loopback);
-      }
-      return (System.Net.IPAddress[]) tas.ToArray(typeof(System.Net.IPAddress));
-    }
-
-    public override ArrayList GetNameservers() {
-      ArrayList Nameservers = new ArrayList();
-      FileStream file = new FileStream("/etc/resolv.conf",
-        FileMode.OpenOrCreate, FileAccess.Read);
-      StreamReader sr = new StreamReader(file);
-      string temp = "", nameserver = "";
-      while((temp = sr.ReadLine()) != null) {
-        if(temp.StartsWith("nameserver")) {
-          nameserver = temp.Substring(11, temp.Length - 11);
-          if(nameserver != "127.0.0.1" && nameserver != "0.0.0.0" && nameserver != "")
-            Nameservers.Add(nameserver);
-        }
-      }
-      sr.Close();
-      file.Close();
-      return Nameservers;
+    public override IPAddress[] GetIPTAs(string [] devices) {
+      IPAddress []tas = (IPAddress[]) Array.CreateInstance(typeof(IPAddress), devices.Length);
+      for (int i = 0; i < devices.Length; i++)
+        tas[i] = GetIPOfIF(devices[i]);
+      return tas;
     }
 
     public override string GetTapAddress(string device) {
@@ -161,6 +90,43 @@ namespace Ipop {
       proc.StartInfo.Arguments = device + " up";
       proc.Start();
       proc.WaitForExit();
+    }
+
+    public IPAddress GetIPOfIF(string if_name) {
+      ProcessStartInfo cmd = new ProcessStartInfo("/sbin/ifconfig");
+      cmd.RedirectStandardOutput = true;
+      cmd.UseShellExecute = false;
+      Process p = Process.Start(cmd);
+      string line = p.StandardOutput.ReadLine();
+      //string this_if = null;
+      Regex if_line = new Regex(@"^(\S+)\s+Link encap:(.*)$");
+      Regex ip_info = new Regex(@"inet addr:(\S+)");
+      string this_if = null;
+      IPAddress result = null;
+      while( line != null ) {
+        Match m = if_line.Match(line);
+        if( m.Success ) {
+          //System.Console.WriteLine(line);
+          Group g = m.Groups[1];
+          CaptureCollection cc = g.Captures;
+          //System.Console.WriteLine(cc[0]);
+          this_if = cc[0].ToString();
+        }
+        m = ip_info.Match(line);
+        if( m.Success ) {
+          //System.Console.WriteLine(line);
+          Group g = m.Groups[1];
+          CaptureCollection cc = g.Captures;
+          //System.Console.WriteLine(cc[0]);
+          if( this_if.Equals( if_name ) ) {
+            //We got our interface:
+            result = IPAddress.Parse( cc[0].ToString() ); 
+            break;
+          }
+        }
+        line = p.StandardOutput.ReadLine();
+      }
+      return result;
     }
   }
 }
