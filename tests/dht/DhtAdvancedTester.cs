@@ -127,7 +127,7 @@ namespace Brunet.Dht {
       //now put 10 keys from arbitrary points in the network
       int oper_count = 0;
       while(true) {
-	Console.Write("{0}: Enter operation (Get/Put/Create/Delete/Start/Kill/Print/Test/Sleep/Check/Global_Check):", oper_count++);
+	Console.Write("{0}: Enter operation (Get/Put/Create/Recreate/Delete/Start/Kill/Print/Test/Sleep/Check/Global_Check):", oper_count++);
 	string str_oper = Console.ReadLine();
 	try {
 	if (str_oper.Equals("Put")) {
@@ -201,6 +201,53 @@ namespace Brunet.Dht {
 	  RpcResult res = q.Dequeue() as RpcResult;
 	  q.Close();
 	  Console.WriteLine("RpcResult for Create(): {0}", res.Result);
+	  key_list.Add(utf8_key);
+	} else if (str_oper.Equals("Recreate")) {
+
+	  Console.Write("Enter key:");
+	  string str_key = Console.ReadLine();
+	  Console.Write("Enter current password:");
+	  string old_str_pass = Console.ReadLine();
+
+
+
+	  Console.Write("Enter data:");
+	  string str_data = Console.ReadLine();
+	  Console.Write("Enter new password:");
+	  string new_str_pass = Console.ReadLine();
+	  Console.Write("Enter TTL:");
+	  int ttl = Int32.Parse(Console.ReadLine());
+
+	  Console.WriteLine("Recreate() on key:{0}",str_key);	  
+
+	  byte[] old_utf8_pass = Encoding.UTF8.GetBytes(old_str_pass);
+	  string old_base64_pass = Convert.ToBase64String(old_utf8_pass);
+	  string old_send_pass = "SHA1:" + old_base64_pass;
+
+
+	  byte[] utf8_key = Encoding.UTF8.GetBytes(str_key);
+	  byte[] utf8_data = Encoding.UTF8.GetBytes(str_data);
+	  
+	  HashAlgorithm algo = new SHA1CryptoServiceProvider();
+
+	  byte[] new_utf8_pass = Encoding.UTF8.GetBytes(new_str_pass);
+	  byte [] new_sha1_pass = algo.ComputeHash(new_utf8_pass);
+	  string new_base64_pass = Convert.ToBase64String(new_sha1_pass);
+	  string new_stored_pass = "SHA1:" + new_base64_pass;
+
+	  //Console.WriteLine(utf8_key.Length);
+	  //Console.WriteLine(utf8_data.Length);
+	  //Console.WriteLine(base64_pass.Length);
+	  int idx = NextIdx();
+	  Dht dht = (Dht) dht_list[idx];
+
+	  Node n  = (Node) node_list[idx];
+	  Console.WriteLine("Issuing the Recreate() command on idx: {0} address: {1}", idx, n.Address);
+
+	  BlockingQueue q = dht.Recreate(utf8_key, old_send_pass, ttl, new_stored_pass, utf8_data);
+	  RpcResult res = q.Dequeue() as RpcResult;
+	  q.Close();
+	  Console.WriteLine("RpcResult for Recreate(): {0}", res.Result);
 	  key_list.Add(utf8_key);
 	} else if (str_oper.Equals("Get")) {
 	  Console.Write("Enter key:");
@@ -508,6 +555,7 @@ namespace Brunet.Dht {
 	}
 	} catch (Exception e) {
 	  Console.Error.WriteLine(e);
+	  Console.Error.WriteLine(e.Message);
 	}
       }
       foreach (Node n in node_list) {

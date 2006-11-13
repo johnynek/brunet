@@ -74,10 +74,6 @@ def add_to_list(e):
 max_time = 360.0
 if len(sys.argv) > 1:
     max_time = int(sys.argv[1])
-#60 second arrival
-node_birth_rate = 1.0/(60)
-#60 second departure
-node_death_rate = 1.0/(60)
 
 key_birth_rate = 1.0/(60)
 key_death_rate = 1.0/(60)
