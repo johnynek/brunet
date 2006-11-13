@@ -334,7 +334,7 @@ namespace Brunet
      * @param e the new Edge
      * @param ta the TransportAddress our TA according to our peer
      */
-    public virtual void UpdateLocalTAs(Edge e, TransportAddress ta) {
+    public override void UpdateLocalTAs(Edge e, TransportAddress ta) {
       if( e.TAType == this.TAType ) {
         UdpEdge ue = (UdpEdge)e;
         ue.PeerViewOfLocalTA = ta;

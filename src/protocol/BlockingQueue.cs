@@ -241,7 +241,7 @@ public class BlockingQueue : Queue {
     _are.Set();
   }
 
-  public static ArrayList[] ParallelFetch(BlockingQueue[] queues, int max_results_per_queue, int timeout) {
+  public static ArrayList[] ParallelFetch(BlockingQueue[] queues, int max_results_per_queue) {
     FetchDelegate [] fetch_dlgt = new FetchDelegate[queues.Length];
     IAsyncResult [] ar = new IAsyncResult[queues.Length];
     for (int k = 0; k < queues.Length; k++) {
@@ -273,7 +273,7 @@ public class BlockingQueue : Queue {
     return results;
   }
   
-  protected delegate ArrayList FetchDelegate(BlockingQueue q, int max_replies, int timeout);
+  protected delegate ArrayList FetchDelegate(BlockingQueue q, int max_replies);
   protected static ArrayList Fetch(BlockingQueue q, int max_replies) {
     ArrayList replies = new ArrayList();
     while (max_replies > 0) {
@@ -285,7 +285,7 @@ public class BlockingQueue : Queue {
 	break;
       }
     }
-    Console.WriteLine("fetch finished");
+    //Console.WriteLine("fetch finished");
     return replies;
   }
 
