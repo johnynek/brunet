@@ -364,6 +364,30 @@ namespace Brunet.Dht {
       //RpcResult res = q.Dequeue() as RpcResult;
       //return Convert.ToBoolean(res.Result);
     }
+
+    public BlockingQueue Recreate(byte[] key, string old_password, int ttl, string new_hashed_password, byte[] data) {
+#if DHT_DEBUG
+      Console.WriteLine("[DhtClient] Invoking a Dht::Recreate()");
+#endif
+
+      if (!_activated) {
+#if DHT_DEBUG
+	Console.WriteLine("[DhtClient] Not yet activated. Throwing exception!");
+#endif	
+	throw new DhtException("DhtClient: Not yet activated.");
+      }
+      
+      Address target = GetInvocationTarget(key);
+
+#if DHT_LOG
+      _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::InvokeRecreate::::" +
+		 + Encoding.UTF8.GetString(key) + "::::" + target);
+#endif
+      
+      //we now know the invocation target
+      BlockingQueue q = _rpc.Invoke(target, "dht.Recreate", key, old_password, ttl, new_hashed_password, data);
+      return q;
+    }
     
     public BlockingQueue Get(byte[] key, int maxbytes, byte[] token) {
 #if DHT_DEBUG
