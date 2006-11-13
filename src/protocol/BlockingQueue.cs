@@ -241,6 +241,54 @@ public class BlockingQueue : Queue {
     _are.Set();
   }
 
+  public static ArrayList[] ParallelFetch(BlockingQueue[] queues, int max_results_per_queue, int timeout) {
+    FetchDelegate [] fetch_dlgt = new FetchDelegate[queues.Length];
+    IAsyncResult [] ar = new IAsyncResult[queues.Length];
+    for (int k = 0; k < queues.Length; k++) {
+      fetch_dlgt[k] = new FetchDelegate(Fetch);
+      ar[k]  = fetch_dlgt[k].BeginInvoke(queues[k], max_results_per_queue, null, null);
+    }
+    //we now wait for all invocations to finish
+    bool done = false;
+    while (!done) {
+      //sleep for 2 seconds
+      Thread.Sleep(2000);
+      done = true;
+      for (int k = 0; k < queues.Length; k++) {
+	if (!ar[k].IsCompleted) {
+	  done = false;
+	  Console.WriteLine("fetch not finished on queue: {0}", k);
+	  //break;
+	} else {
+	  Console.WriteLine("fetch finished on queue: {0}", k);
+	}
+      }
+    }
+    //we know that all invocations of Fetch have completed
+    ArrayList []results = new ArrayList[queues.Length];
+    for (int k = 0; k < queues.Length; k++) {
+      //BlockingQueue q = (BlockingQueue) queues[k];
+      results[k] = fetch_dlgt[k].EndInvoke(ar[k]);
+    }
+    return results;
+  }
+  
+  protected delegate ArrayList FetchDelegate(BlockingQueue q, int max_replies, int timeout);
+  protected static ArrayList Fetch(BlockingQueue q, int max_replies) {
+    ArrayList replies = new ArrayList();
+    while (max_replies > 0) {
+      try{
+	RpcResult res = q.Dequeue() as RpcResult;
+	replies.Add(res);
+	max_replies--;
+      } catch (InvalidOperationException e) {
+	break;
+      }
+    }
+    Console.WriteLine("fetch finished");
+    return replies;
+  }
+
 #if BRUNET_NUNIT
   public void TestThread1()
   {
