@@ -2,18 +2,43 @@
     provided by Brunet; assuming that the node is connected to the network
  **/
 using Brunet;
+using Brunet.Dht;
 namespace Ipop {
   public class BrunetTransport {
-    Node brunetNode;
+    protected Node _brunet_node;
+    public Node Node {
+      get {
+	return _brunet_node;
+      }
+    }
+    protected Dht _dht;
+    public Dht Dht {
+      get {
+	return _dht;
+      }
+    }
+
+    protected IPPacketHandler _ip_handler;
+
     public BrunetTransport(Node node) {
-      brunetNode = node;
+      _dht = null;
+      _brunet_node = node;
+    }
+    public BrunetTransport(Node node, Dht dht) {
+      _brunet_node = node;
+      _dht = dht;
     }
     //method to send a packet out on the network
     public void SendPacket(AHAddress target, byte[] packet) {
-      AHPacket p = new AHPacket(0, 30,   brunetNode.Address,
+      AHPacket p = new AHPacket(0, 30,   _brunet_node.Address,
         target, AHPacket.AHOptions.Exact,
         AHPacket.Protocol.IP, packet);
-      brunetNode.Send(p);
+      _brunet_node.Send(p);
+    }
+    public void Resubscribe(IPPacketHandler ip_handler) {
+      _brunet_node.Unsubscribe(AHPacket.Protocol.IP, _ip_handler);
+      _ip_handler = ip_handler;
+      _brunet_node.Subscribe(AHPacket.Protocol.IP, ip_handler);
     }
   }
 }

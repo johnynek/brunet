@@ -9,7 +9,7 @@ namespace Ipop {
     static void Main(string[] args) {
       ChannelServices.RegisterChannel(new TcpChannel(Int32.Parse(args[0])));
       byte []serverIP = new byte[4] {192, 168, 0 , 1};
-      DHCPServer server = new DHCPServer(serverIP, args[1]);
+      DHCPServer server = new SoapDHCPServer(serverIP, args[1]);
       RemotingServices.Marshal(server, "DHCPServer.rem");
 
       ISponsor sponsor = new LifeTimeSponsor();

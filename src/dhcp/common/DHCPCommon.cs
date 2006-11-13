@@ -1,8 +1,19 @@
+#define DHCP_DEBUG
+
+
 using System;
+using System.Text;
+using System.IO;
+
 using System.Globalization;
 using System.Collections;
 using System.Runtime.Remoting.Lifetime;
 
+using System.Xml;
+using System.Xml.Serialization;
+
+using Brunet;
+using Brunet.Dht;
 /* For a complete description of the contents of a DHCP packet see
      http://rfc.net/rfc2131.html for the DHCP main portion and ...
      http://rfc.net/rfc2132.html for the options                     */
@@ -30,44 +41,26 @@ namespace Ipop {
     public string ipop_namespace;
     public string return_message;
     public string NodeAddress;
+    public string StoredPassword;
   }
-
-  public class DHCPServer : MarshalByRefObject {
-    SortedList leases;
-    DHCPServerConfig config;
-    byte [] ServerIP;
-
-    public DHCPServer() {;} // Dummy for Client
-
-    public DHCPServer(byte [] ServerIP, string filename) { 
-      this.ServerIP = ServerIP;
-      this.config = DHCPServerConfigurationReader.ReadConfig(filename);
-      leases = new SortedList();
-      foreach(IPOPNamespace item in this.config.ipop_namespace) {
-        DHCPLease lease = new DHCPLease(item);
-        leases.Add(item.value, lease);
-      }
-    }
-
-    public override Object InitializeLifetimeService()
-    {
-      ILease lease = (ILease)base.InitializeLifetimeService();
-      if (lease.CurrentState == LeaseState.Initial)
-        lease.InitialLeaseTime = TimeSpan.FromDays(365);
-      return lease;
-    }
-
+  abstract public class DHCPServer : MarshalByRefObject {
+    protected byte[] ServerIP;
+    protected SortedList leases;
 
     public DecodedDHCPPacket SendMessage(DecodedDHCPPacket packet) {
       DecodedDHCPPacket returnPacket = packet;
-
-      if(packet.brunet_namespace != config.brunet_namespace) {
+      if (!IsValidBrunetNamespace(packet.brunet_namespace)) {
         returnPacket.return_message = "Invalid Brunet Namespace";
-        return returnPacket;
+        return returnPacket;	
       }
 
-      if(packet.ipop_namespace == null || !leases.Contains(
-        packet.ipop_namespace)) {
+      if (packet.ipop_namespace == null) {
+        returnPacket.return_message = "Invalid IPOP Namespace";
+        return returnPacket;
+      }
+      
+      DHCPLease dhcp_lease = GetDHCPLease(packet.ipop_namespace);
+      if (dhcp_lease == null) {
         returnPacket.return_message = "Invalid IPOP Namespace";
         return returnPacket;
       }
@@ -75,13 +68,16 @@ namespace Ipop {
       byte messageType = 0;
       messageType = ((DHCPOption) packet.options[53]).byte_value[0];
 
-      DHCPLeaseResponse leaseReturn = ((DHCPLease) leases[packet.ipop_namespace]).
-        GetLease(DHCPCommon.StringToBytes(packet.NodeAddress, ':'));
+      DHCPLeaseResponse leaseReturn = GetLease(dhcp_lease, packet);
+      
       if(leaseReturn == null) {
         returnPacket.return_message = "There are some faults occurring when " +
           "attempting to request a lease, please try again later.";
         return returnPacket;
       }
+      //we will have the password set to a new value
+      returnPacket.StoredPassword = leaseReturn.password;
+
       returnPacket.yiaddr = leaseReturn.ip;
       if(returnPacket.yiaddr[0] == 0) {
         returnPacket.return_message = "No more available leases";
@@ -93,6 +89,7 @@ namespace Ipop {
       returnPacket.options = new SortedList();
       string string_value = "";
       byte [] byte_value = null;
+
 
       /* Subnet Mask */
       returnPacket.options.Add(1, (DHCPOption) CreateOption(1, leaseReturn.netmask));
@@ -145,6 +142,119 @@ namespace Ipop {
       option.length = value.Length;
       option.encoding = "string";
       return option;
+    }    
+    abstract protected bool IsValidBrunetNamespace(string brunet_namespace);
+    abstract protected DHCPLease GetDHCPLease(string ipop_namespace);
+    abstract protected DHCPLeaseResponse GetLease(DHCPLease dhcp_lease, DecodedDHCPPacket packet);
+  }
+  public class SoapDHCPServer : DHCPServer {
+    string brunet_namespace;
+  
+    DHCPServerConfig config;
+
+    public SoapDHCPServer() {;} // Dummy for Client
+
+    public SoapDHCPServer(byte [] server_ip, string filename) { 
+      this.ServerIP = server_ip;
+      this.config = DHCPServerConfigurationReader.ReadConfig(filename);
+
+      this.brunet_namespace = config.brunet_namespace;
+
+      leases = new SortedList();
+      foreach(IPOPNamespace item in this.config.ipop_namespace) {
+        DHCPLease lease = new SoapDHCPLease(item);
+        leases.Add(item.value, lease);
+      }
+    }
+
+    public override Object InitializeLifetimeService()
+    {
+      ILease lease = (ILease)base.InitializeLifetimeService();
+      if (lease.CurrentState == LeaseState.Initial)
+        lease.InitialLeaseTime = TimeSpan.FromDays(365);
+      return lease;
+    }
+    protected override DHCPLease GetDHCPLease(string ipop_namespace) {
+      if (!leases.ContainsKey(ipop_namespace)) {
+	return null;
+      }
+      return (DHCPLease) leases[ipop_namespace];
+    }
+    protected override bool IsValidBrunetNamespace(string brunet_namespace) {
+      return (this.brunet_namespace.Equals(brunet_namespace));
+    }
+    protected override DHCPLeaseResponse GetLease(DHCPLease dhcp_lease, DecodedDHCPPacket packet) {
+      return dhcp_lease.GetLease(new SoapDHCPLeaseParam(DHCPCommon.StringToBytes(packet.NodeAddress, ':')));
+    }
+  }
+
+  public class DhtDHCPServer: DHCPServer {
+    protected Dht _dht; 
+    public DhtDHCPServer(byte []server_ip, Dht dht) {
+      _dht = dht;
+      this.ServerIP = server_ip;
+      this.leases = new SortedList();
+      //do not have to even be concerned about brunet namespace so far
+      
+    }
+    protected override bool IsValidBrunetNamespace(string brunet_namespace) {
+      return true;
+    }
+    protected override DHCPLease GetDHCPLease(string ipop_namespace) {
+      if (leases.ContainsKey(ipop_namespace)) {
+	return (DHCPLease) leases[ipop_namespace];
+      }
+      string ns_key = "dhcp:ipop_namespace:" + ipop_namespace;
+#if DHCP_DEBUG
+      Console.WriteLine("searchig for key: {0}", ns_key);   
+#endif
+      byte[] utf8_key = Encoding.UTF8.GetBytes(ns_key);
+      //get a maximum of 500 bytes only
+      BlockingQueue q = _dht.Get(utf8_key, 1000, null);
+      //we do expect to get atleast 1 result
+      ArrayList result = null;
+      try{
+        while (true) {
+          RpcResult res = q.Dequeue() as RpcResult;
+          result = res.Result as ArrayList;
+          if (result == null || result.Count < 3) {
+            continue;
+          }
+          break;
+        }
+      } catch (Exception e) {
+        return null;
+      }
+      ArrayList values = (ArrayList) result[0];
+#if DHCP_DEBUG
+      Console.WriteLine("# of matching entries: " + values.Count);
+#endif
+      string xml_str = null;
+      foreach (Hashtable ht in values) {
+#if DHCP_DEBUG
+        Console.WriteLine(ht["age"]);
+#endif
+        byte[] data = (byte[]) ht["data"];
+        xml_str = Encoding.UTF8.GetString(data);
+#if DHCP_DEBUG
+        Console.WriteLine(xml_str);
+#endif
+        break;
+      }
+      if (xml_str == null) {
+        return null;
+      }
+      XmlSerializer serializer = new XmlSerializer(typeof(IPOPNamespace));
+      TextReader stringReader = new StringReader(xml_str);
+      IPOPNamespace ipop_ns = (IPOPNamespace) serializer.Deserialize(stringReader);
+      DHCPLease dhcp_lease = new DhtDHCPLease(_dht, ipop_ns);
+      leases[ipop_namespace] = dhcp_lease;
+      return dhcp_lease;
+    }    
+    protected override DHCPLeaseResponse GetLease(DHCPLease dhcp_lease, DecodedDHCPPacket packet) {
+      DhtDHCPLeaseParam dht_param = new DhtDHCPLeaseParam(packet.yiaddr, packet.StoredPassword, DHCPCommon.StringToBytes(packet.NodeAddress, ':'));
+      DHCPLeaseResponse ret = dhcp_lease.GetLease(dht_param);
+      return ret;
     }
   }
 
