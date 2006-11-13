@@ -315,6 +315,12 @@ public class RpcManager : IReplyHandler, IRequestHandler {
     catch(TargetParameterCountException argx) {
       result = new AdrException(-32602, argx);
     }
+    catch(TargetInvocationException x) {
+#if RPC_DEBUG
+      Console.WriteLine("[RpcServer: {0}] Exception thrown by method: {1}, {2}", _rrman.Node.Address, mi, x.InnerException.Message);
+#endif
+      result = new AdrException(-32608, x.InnerException);
+    }
     catch(Exception x) {
       result = x;
     }

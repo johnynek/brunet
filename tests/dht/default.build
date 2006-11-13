@@ -39,12 +39,13 @@
     description="Initializes build properties">
     <call target="${project.config}"/>
     
-    <!-- copy libraries -->
+    <!-- copy libraries and necassary files -->
     <copy todir="${build.dir}/${package.name}/bin">
        <fileset basedir="${lib.dir}">
           <include name="Brunet.dll" />
           <include name="Brunet.Dht.dll" />
-          <include name="logconfig.xml" />
+          <include name="log4net.dll" />
+          <include name="logconfig.xml.new" />
        </fileset>
     </copy>
   </target>
@@ -83,15 +84,6 @@
     name="test"
     depends="init"
     description="Builds the current configuration">
-
-    <!-- copy libraries -->
-    <copy todir="${build.dir}/${package.name}/bin">
-       <fileset basedir="${lib.dir}">
-          <include name="Brunet.dll" />
-          <include name="Brunet.Dht.dll" />
-          <include name="logconfig.xml" />
-       </fileset>
-    </copy>
 
     <csc
       target="exe"
@@ -153,6 +145,66 @@
       </references>
     </csc>
   </target>
+
+   <target
+    name="simple"
+    depends="init"
+    description="Builds the current configuration">
+    <copy todir="${build.dir}/${package.name}/bin/" failonerror="true">
+       <fileset basedir="${lib.dir}">
+          <include name="simpledht.config.tcp" />
+       </fileset>
+    </copy>
+
+    <csc
+      target="exe"
+      debug="${build.debug}"
+      output="${build.dir}/${package.name}/bin/SimpleDht.exe">
+      doc="${build.dir}/${package.name}/bin/${assembly}.xml">
+      <sources failonempty="true">
+        <include name="SimpleDht.cs"/>
+      </sources>
+     <references>
+        <!--include name="${build.dir}/${package.name}/bin/${assembly}.dll" /-->
+        <include name="${build.dir}/${package.name}/bin/log4net.dll" />
+        <include name="${build.dir}/${package.name}/bin/Brunet.dll" />
+        <include name="${build.dir}/${package.name}/bin/Brunet.Dht.dll" />
+      </references>
+    </csc>
+  </target>
+
+  <target
+    name="simple-client"
+    depends="init"
+    description="Builds the current configuration">
+    <exec program="python" commandline="DhtKeyTraceGen.py" output="tracer.in"/>
+    <copy todir="${build.dir}/${package.name}/bin/" failonerror="true">
+        <fileset>
+            <include name="tracer.in" />
+        </fileset>
+    </copy>
+    <copy todir="${build.dir}/${package.name}/bin/" failonerror="true">
+       <fileset basedir="${lib.dir}">
+          <include name="simpledht.config.tcp" />
+       </fileset>
+    </copy>
+    <csc
+      target="exe"
+      debug="${build.debug}"
+      output="${build.dir}/${package.name}/bin/SimpleDhtClient.exe">
+      doc="${build.dir}/${package.name}/bin/${assembly}.xml">
+      <sources failonempty="true">
+        <include name="SimpleDhtClient.cs"/>
+      </sources>
+      <references>
+        <!--include name="${build.dir}/${package.name}/bin/${assembly}.dll" /-->
+        <include name="${build.dir}/${package.name}/bin/log4net.dll" />
+        <include name="${build.dir}/${package.name}/bin/Brunet.dll" />
+        <include name="${build.dir}/${package.name}/bin/Brunet.Dht.dll" />
+      </references>
+    </csc>
+  </target>
+
   <target
     name="tracer"
     depends="init"
