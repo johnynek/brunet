@@ -6,15 +6,16 @@ using System.Diagnostics;
 using System.Text.RegularExpressions;
 
 namespace Ipop {
-  public class OSDependent : OSDependentAbstract {
-    public override IPAddress[] GetIPTAs(string [] devices) {
-      IPAddress []tas = (IPAddress[]) Array.CreateInstance(typeof(IPAddress), devices.Length);
+  public class Routines {
+    public static IPAddress[] GetIPTAs(string [] devices) {
+      IPAddress []tas = (IPAddress[]) Array.CreateInstance(typeof(IPAddress),
+        devices.Length);
       for (int i = 0; i < devices.Length; i++)
         tas[i] = GetIPOfIF(devices[i]);
       return tas;
     }
 
-    public override string GetTapAddress(string device) {
+    public static string GetTapAddress(string device) {
       try {
         System.Diagnostics.Process proc = new System.Diagnostics.Process();
         proc.EnableRaisingEvents = false;
@@ -37,7 +38,30 @@ namespace Ipop {
       }
     }
 
-    public override string GetTapNetmask(string device) {
+    public static string GetTapMAC(string device) {
+      try {
+        System.Diagnostics.Process proc = new System.Diagnostics.Process();
+        proc.EnableRaisingEvents = false;
+        proc.StartInfo.RedirectStandardOutput = true;
+        proc.StartInfo.UseShellExecute = false;
+        proc.StartInfo.FileName = "ifconfig";
+        proc.StartInfo.Arguments = device;
+        proc.Start();
+        proc.WaitForExit();
+
+        StreamReader sr = proc.StandardOutput;
+        sr.ReadLine();
+        string output = sr.ReadLine();
+        int point1 = output.IndexOf("HWaddr") + 7;
+        int point2 = point1 + 15;
+        return output.Substring(point1, point2);
+      }
+      catch (Exception e) {
+        return null;
+      }
+    }
+
+    public static string GetTapNetmask(string device) {
       string result = null;
       System.Diagnostics.Process proc = new System.Diagnostics.Process();
       proc.EnableRaisingEvents = false;
@@ -56,7 +80,7 @@ namespace Ipop {
       return result;
     }
 
-    public override void SetHostname(string hostname) {
+    public static void SetHostname(string hostname) {
       System.Diagnostics.Process proc = new System.Diagnostics.Process();
       proc.EnableRaisingEvents = false;
       proc.StartInfo.UseShellExecute = false;
@@ -66,7 +90,7 @@ namespace Ipop {
       proc.WaitForExit();
     }
 
-    public override void SetTapDevice(string device, string IPAddress, string Netmask) {
+    public static void SetTapDevice(string device, string IPAddress, string Netmask) {
       System.Diagnostics.Process proc = new System.Diagnostics.Process();
       proc.EnableRaisingEvents = false;
       proc.StartInfo.UseShellExecute = false;
@@ -77,7 +101,7 @@ namespace Ipop {
       proc.WaitForExit();
     }
 
-    public override void SetTapMAC(string device) {
+    public static void SetTapMAC(string device) {
       System.Diagnostics.Process proc = new System.Diagnostics.Process();
       proc.EnableRaisingEvents = false;
       proc.StartInfo.UseShellExecute = false;
@@ -92,7 +116,7 @@ namespace Ipop {
       proc.WaitForExit();
     }
 
-    public IPAddress GetIPOfIF(string if_name) {
+    public static IPAddress GetIPOfIF(string if_name) {
       ProcessStartInfo cmd = new ProcessStartInfo("/sbin/ifconfig");
       cmd.RedirectStandardOutput = true;
       cmd.UseShellExecute = false;

@@ -62,7 +62,6 @@ namespace Ipop {
       //local node
       Node tmp_node = new StructuredNode(new AHAddress(address),
         config.brunet_namespace);
-      OSDependent routines = new OSDependent();
       //Where do we listen 
       foreach(EdgeListener item in config.EdgeListeners) {
         int port = 0;
@@ -96,4 +95,3 @@ namespace Ipop {
     }
   }
 }
-

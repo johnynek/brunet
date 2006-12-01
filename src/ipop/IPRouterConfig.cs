@@ -13,27 +13,16 @@ namespace Ipop {
     [XmlArrayItem (typeof(string), ElementName = "transport")]
     public string [] RemoteTAs;
     public EdgeListener [] EdgeListeners;
-    public string IPConfig;
-    public string DHCPServerIP;
     public string NodeAddress;
-    public string Setup;
-    public string Hostname;
-    public string TapMAC;
-    public StaticInfo StaticData;
-    public DHCPInfo DHCPData;
+    public AddressInfo AddressData;
     [XmlArrayItem (typeof(string), ElementName = "Device")]
     public string [] DevicesToBind;
   }
 
-  public class StaticInfo {
+  public class AddressInfo {
     public string IPAddress;
     public string Netmask;
-  }
-
-  public class DHCPInfo {
     public string DHCPServerAddress;
-    public string IPAddress;
-    public string Netmask;
   }
 
   public class EdgeListener {

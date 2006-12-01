@@ -28,6 +28,8 @@
         <include name="RoutingTable.cs"/>
         <include name="BrunetTransport.cs"/>
         <include name="IPRouterConfig.cs"/>
+        <include name="IPOP_Common.cs"/>
+        <include name="NodeMapping.cs"/>
 	    </sources>
 	    <references>
         <include name="${build.dir}/Brunet.dll"/>
