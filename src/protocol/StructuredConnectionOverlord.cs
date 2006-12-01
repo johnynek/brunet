@@ -160,7 +160,7 @@ namespace Brunet {
 	    AHAddress stat_addr = n_info.Address as AHAddress;
 	    if (stat_addr.IsBetweenFromLeft(our_addr, left_addr)) {
 	      //we are expecting a better candidate for left neighbor!
-	      Console.WriteLine("{0}: Better left (false)", our_addr);
+	      Console.WriteLine("{0}: Better left: {1} (false)", our_addr, stat_addr);
 	      return false;
 	    }
 	  }
@@ -173,7 +173,7 @@ namespace Brunet {
 	    AHAddress stat_addr = n_info.Address as AHAddress;
 	    if (stat_addr.IsBetweenFromRight(our_addr, right_addr)) {
 	      //we are expecting a better candidate for left neighbor!
-	      Console.WriteLine("{0}: Better right (false)", our_addr);
+	      Console.WriteLine("{0}: Better right: {1} (false)", our_addr, stat_addr);
 	      return false;
 	    }
 	  }

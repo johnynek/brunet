@@ -241,29 +241,28 @@ public class BlockingQueue : Queue {
     _are.Set();
   }
 
+
   public static ArrayList[] ParallelFetch(BlockingQueue[] queues, int max_results_per_queue) {
+    return ParallelFetch(queues, max_results_per_queue, new FetchDelegate(Fetch)); 
+  }
+
+  public static ArrayList[] ParallelFetch(BlockingQueue[] queues, 
+					  int max_results_per_queue,
+					  FetchDelegate fetch_delegate) {
+
     FetchDelegate [] fetch_dlgt = new FetchDelegate[queues.Length];
     IAsyncResult [] ar = new IAsyncResult[queues.Length];
+    //we also maintain an array of WaitHandles
+    WaitHandle [] wait_handle = new WaitHandle[queues.Length];
+    
     for (int k = 0; k < queues.Length; k++) {
-      fetch_dlgt[k] = new FetchDelegate(Fetch);
+      fetch_dlgt[k] = new FetchDelegate(fetch_delegate);
       ar[k]  = fetch_dlgt[k].BeginInvoke(queues[k], max_results_per_queue, null, null);
+      wait_handle[k] = ar[k].AsyncWaitHandle;
     }
     //we now wait for all invocations to finish
-    bool done = false;
-    while (!done) {
-      //sleep for 2 seconds
-      Thread.Sleep(2000);
-      done = true;
-      for (int k = 0; k < queues.Length; k++) {
-	if (!ar[k].IsCompleted) {
-	  done = false;
-	  Console.WriteLine("fetch not finished on queue: {0}", k);
-	  //break;
-	} else {
-	  Console.WriteLine("fetch finished on queue: {0}", k);
-	}
-      }
-    }
+    Console.WriteLine("Waiting for all invocations to finish...");
+    WaitHandle.WaitAll(wait_handle);
     //we know that all invocations of Fetch have completed
     ArrayList []results = new ArrayList[queues.Length];
     for (int k = 0; k < queues.Length; k++) {
@@ -272,22 +271,69 @@ public class BlockingQueue : Queue {
     }
     return results;
   }
-  
-  protected delegate ArrayList FetchDelegate(BlockingQueue q, int max_replies);
+
+  public static ArrayList[] ParallelFetchWithTimeout(BlockingQueue[] queues, int millisec) {
+    return ParallelFetchWithTimeout(queues, millisec, new FetchDelegate(Fetch)); 
+  }  
+  public static ArrayList[] ParallelFetchWithTimeout(BlockingQueue[] queues, 
+						     int millisec,
+						     FetchDelegate fetch_delegate) {
+
+    FetchDelegate [] fetch_dlgt = new FetchDelegate[queues.Length];
+    IAsyncResult [] ar = new IAsyncResult[queues.Length];
+    //we also maintain an array of WaitHandles
+    WaitHandle [] wait_handle = new WaitHandle[queues.Length];
+    
+    for (int k = 0; k < queues.Length; k++) {
+      fetch_dlgt[k] = new FetchDelegate(fetch_delegate);
+      ar[k]  = fetch_dlgt[k].BeginInvoke(queues[k], -1, null, null);
+      wait_handle[k] = ar[k].AsyncWaitHandle;
+    }
+    //we now forcefully kill all the queues after waiting for the timeout
+    Thread.Sleep(millisec);
+    for (int k = 0; k < queues.Length; k++) {
+      try {
+	Console.WriteLine("Closing queue: {0}", k);	
+	queues[k].Close();
+      } catch(InvalidOperationException e) {
+	
+      }
+    }
+    //we now wait for all invocations to finish
+    Console.WriteLine("Waiting for all parallel invocations to finish...");
+    WaitHandle.WaitAll(wait_handle);
+    Console.WriteLine("All parallel invocations to are over.");
+    //we know that all invocations of Fetch have completed
+    ArrayList []results = new ArrayList[queues.Length];
+    for (int k = 0; k < queues.Length; k++) {
+      //BlockingQueue q = (BlockingQueue) queues[k];
+      results[k] = fetch_dlgt[k].EndInvoke(ar[k]);
+    }
+    return results;
+  }  
+
+
+
+  public delegate ArrayList FetchDelegate(BlockingQueue q, int max_replies);
   protected static ArrayList Fetch(BlockingQueue q, int max_replies) {
     ArrayList replies = new ArrayList();
-    while (max_replies > 0) {
-      try{
-	RpcResult res = q.Dequeue() as RpcResult;
+    try {
+      while (true) {
+	if (max_replies == 0) {
+	  break;
+	}
+	object res = q.Dequeue();
 	replies.Add(res);
 	max_replies--;
-      } catch (InvalidOperationException e) {
-	break;
       }
+    } catch (InvalidOperationException e) {
     }
     //Console.WriteLine("fetch finished");
     return replies;
   }
+
+
+
 
 #if BRUNET_NUNIT
   public void TestThread1()
