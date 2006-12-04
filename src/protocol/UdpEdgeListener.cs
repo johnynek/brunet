@@ -133,6 +133,9 @@ namespace Brunet
 	  _remote_id_ht.Remove( e.RemoteID );
 	}
       }
+      NatDataPoint dp = new EdgeClosePoint(DateTime.Now, e);
+      _nat_handler = NatHandlerFactory.CreateHandler(
+                                          _nat_handler.History.Add(dp) );
     }
    
     protected IPEndPoint GuessLocalEndPoint(IEnumerable tas) {
@@ -315,6 +318,8 @@ namespace Brunet
         SendControlPacket(end, remoteid, localid, ControlCode.EdgeDataAnnounce, state);
       }
       if( is_new_edge ) {
+       NatDataPoint dp = new NewEdgePoint(DateTime.Now, edge);
+       _nat_handler = NatHandlerFactory.CreateHandler(_nat_handler.History.Add( dp ) );
        SendEdgeEvent(edge);
       }
       if( read_packet ) {
@@ -336,7 +341,7 @@ namespace Brunet
      * @param e the new Edge
      * @param ta the TransportAddress our TA according to our peer
      */
-    public virtual void UpdateLocalTAs(Edge e, TransportAddress ta) {
+    public override void UpdateLocalTAs(Edge e, TransportAddress ta) {
       if( e.TAType == this.TAType ) {
         UdpEdge ue = (UdpEdge)e;
         ue.PeerViewOfLocalTA = ta;
@@ -467,6 +472,8 @@ namespace Brunet
         }
         /* Tell me when you close so I can clean up the table */
         e.CloseEvent += new EventHandler(this.CloseHandler);
+        NatDataPoint dp = new NewEdgePoint(DateTime.Now, e);
+        _nat_handler = NatHandlerFactory.CreateHandler(_nat_handler.History.Add( dp ) );
         ecb(true, e, null);
       }
     }
