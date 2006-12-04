@@ -69,9 +69,11 @@ public abstract class NatDataPoint {
    */
   static public int GetEdgeNumberOf(Edge e) {
     int no = 0;
+    lock( _edge_nos ) {
     object v = _edge_nos[e];
     if( v != null ) {
       no = (int)v;
+    }
     }
     return no;
   }
@@ -81,6 +83,7 @@ public abstract class NatDataPoint {
       _edge_no = 0;
     }
     else {
+     lock( _edge_nos ) {
       object v = _edge_nos[e];
       if( v != null ) {
         _edge_no = (int)v;
@@ -90,6 +93,7 @@ public abstract class NatDataPoint {
         _next_edge_no++;
         _edge_nos[e] = _edge_no;
       }
+     }
     }
   }
 }

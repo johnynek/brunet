@@ -198,38 +198,6 @@ namespace Brunet
     }
 
     /**
-     *  @return true if the calling Edge is equal to the Edge argument
-     *  We define two edges to be equal to each other if either of the following two cases hold : 
-     *  Case one, the two local Transport Addresses match each other and the two remote TA's match
-     *  Case two, the local TA of one edge matches with the remote TA of the second edge and vice versa
-     */
-    public override bool Equals(object e)
-    {
-      if (e is Edge) {
-        Edge edge = e as Edge;
-        bool LocalEq = this.LocalTA.Equals(edge.LocalTA);
-        bool RemoteEq = this.RemoteTA.Equals(edge.RemoteTA);
-        return (LocalEq && RemoteEq);
-      }
-      else {
-        return false;
-      }
-    }
-
-    /**
-     *  @return the hash code of an edge
-     *  We take the hash codes of the local and remote TA's and XOR them
-     *  The result is the Hash Code for the edge
-     */
-    public override int GetHashCode()
-    {
-      int num1 = this.LocalTA.GetHashCode();
-      int num2 = ~this.RemoteTA.GetHashCode();
-
-      return ( num1 ^ num2);
-    }
-
-    /**
      * This method is used by subclasses.
      * @param p the packet to send a ReceivedPacket event for
      */
