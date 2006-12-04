@@ -79,12 +79,12 @@ namespace Brunet
     protected Random _rand;
 
     protected TAAuthorizer _ta_auth;
-    protected ArrayList _tas;
+    protected NatHandler _nat_handler;
     public override ArrayList LocalTAs
     {
       get
       {
-        return ArrayList.ReadOnly(_tas);
+        return new ArrayList( _nat_handler.TargetTAs );
       }
     }
 
@@ -309,6 +309,8 @@ namespace Brunet
            edge, edge.End, end); 
         //Actually update:
         edge.End = end;
+        NatDataPoint dp = new RemoteMappingChangePoint(DateTime.Now, edge);
+        _nat_handler = NatHandlerFactory.CreateHandler( _nat_handler.History.Add(dp) );
         //Tell the other guy:
         SendControlPacket(end, remoteid, localid, ControlCode.EdgeDataAnnounce, state);
       }
@@ -338,33 +340,8 @@ namespace Brunet
       if( e.TAType == this.TAType ) {
         UdpEdge ue = (UdpEdge)e;
         ue.PeerViewOfLocalTA = ta;
-        //Ignore TAs which are not our kind, what do we know about them?
-        /*
-         * Here we record TransportAddress objects.
-         * This will allow us to connect to other nodes
-         * in the future, and better advertise how
-         * to connect to us:
-         */
-        if( e.LocalTANotEphemeral ) {
-          //Put our guess in first, so it will be after the reported one
-          //which is more likely to be correct where there is translation
-          if( ta.Equals( e.LocalTA ) ) {
-            //This is the NON-NAT case, make sure this address is at the top of the queue
-            UpdateTA(_tas, ta);
-          }
-          else {
-            //This is the NAT Case:
-            //The reported TA is not the same as the one we just added
-            if( !_tas.Contains( e.LocalTA ) ) {
-              //Only update the localTA if it is not already in the list:
-              //We don't want to move a meaninglist TA to the top of the list
-              //in the NAT case, but we do want the LocalTA in the list
-              //in case we see someone from our network:
-              UpdateTA(_tas, e.LocalTA);
-            }
-            UpdateTA(_tas, ta);
-          }
-        }        
+        NatDataPoint dp = new LocalMappingChangePoint(DateTime.Now, e, ta);
+        _nat_handler = NatHandlerFactory.CreateHandler( _nat_handler.History.Add(dp) );
       }
     }
 
@@ -412,8 +389,17 @@ namespace Brunet
       /**
        * We get all the IPAddresses for this computer
        */
-      _tas = GetIPTAs(TransportAddress.TAType.Udp, port, ipList);
-      _local_ep = GuessLocalEndPoint(_tas); 
+      ArrayList tas = GetIPTAs(TransportAddress.TAType.Udp, port, ipList);
+      _local_ep = GuessLocalEndPoint(tas); 
+      //Put them opposite order, since the Nat history considers later
+      //points more recent
+      tas.Reverse();
+      NatHistory hist = new NatHistory();
+      DateTime dt = DateTime.Now;
+      foreach(TransportAddress ta in tas) {
+        hist = hist.Add( new LocalConfigPoint(dt, ta) );
+      }
+      _nat_handler = NatHandlerFactory.CreateHandler(hist);
       _ta_auth = ta_auth;
       if( _ta_auth == null ) {
         //Always authorize in this case:
