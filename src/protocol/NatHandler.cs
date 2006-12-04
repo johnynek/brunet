@@ -268,8 +268,13 @@ public class NatHistory {
    */
   public IEnumerable PointsForIP(IPAddress a) {
     Filter f = delegate(NatDataPoint p) {
-      IPAddress this_ip = (IPAddress)(p.PeerViewOfLocalTA.GetIPAddresses()[0]);
-      return a.Equals(this_ip);
+      TransportAddress ta = p.PeerViewOfLocalTA;
+      if( ta != null ) {
+        return a.Equals( ta.GetIPAddresses()[0] );
+      }
+      else {
+        return false;
+      }
     };
     return new FilteredNDP(_points, f);
   }
