@@ -1,3 +1,4 @@
+#define DHCP_DEBUG
 using System;
 using System.IO;
 using System.Text;
@@ -78,7 +79,7 @@ namespace Ipop {
 
 
     public DHCPLease(IPOPNamespace config) {
-      leasetime = 300; //config.leasetime;
+      leasetime = 1000; //config.leasetime;
       leasetimeb = new byte[]{((byte) ((leasetime >> 24))),
         ((byte) ((leasetime >> 16))),
         ((byte) ((leasetime >> 8))),
@@ -496,7 +497,7 @@ namespace Ipop {
 	  for (int k = 0; k < queues.Length; k++) {
 	    string str_key = "dhcp:ipop_namespace:" + namespace_value + ":ip:" + guessed_ip_str + ":" + k;
 #if DHCP_DEBUG
-	    Console.WriteLine("Invoking recreate on: {0}", str_key);
+	    Console.WriteLine("Invoking recreate() on: {0}", str_key);
 #endif
 	    dht_key[k] = Encoding.UTF8.GetBytes(str_key);
 	    queues[k] = _dht.Recreate(dht_key[k], old_password, leasetime, new_hashed_password, brunet_id);
@@ -504,7 +505,7 @@ namespace Ipop {
 	  int max_results_per_queue = 2;
 	  int min_majority = 3;
 	  
-	  ArrayList []results = BlockingQueue.ParallelFetch(queues, max_results_per_queue);
+	  ArrayList []results = BlockingQueue.ParallelFetchWithTimeout(queues, 3000);
 #if DHCP_DEBUG
 	  Console.WriteLine("Parellel fetch returning {0} results.", results.Length);
 #endif
@@ -517,7 +518,7 @@ namespace Ipop {
 	    ArrayList q_result = results[i];
 	    if (q_result.Count < max_results_per_queue) {
 #if DHCP_DEBUG
-	      Console.WriteLine("queue:{0} has fewer results", i);
+	      Console.WriteLine("queue:{0} has fewer results: {1} ({2} expercted).", i, q_result.Count, max_results_per_queue);
 #endif
 	      continue;
 	    }
@@ -549,10 +550,10 @@ namespace Ipop {
 	    for (int k = 0; k < queues.Length; k++) {
 	      queues[k] = _dht.Delete(dht_key[k], new_password);
 	    }
-	    BlockingQueue.ParallelFetch(queues, 1); //atmost 1 result is sufficient
+	    BlockingQueue.ParallelFetchWithTimeout(queues, 1000); //atmost 1 result is sufficient
 	  } else {
 #if DHCP_DEBUG
-	    Console.WriteLine("successfully acquired IP address: {0}", guesses_ip_str);
+	    Console.WriteLine("successfully acquired IP address: {0}", guessed_ip_str);
 #endif
 	    return guessed_ip;
 	  }

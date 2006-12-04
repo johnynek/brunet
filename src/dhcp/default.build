@@ -22,6 +22,8 @@
 	  </sources>
           <references>
 	     <include name="System.Runtime.Remoting.dll"/>
+             <include name="${lib.dir}/Brunet.dll" />
+             <include name="${lib.dir}/Brunet.Dht.dll" />
 	  </references>
       </csc>
       <copy todir="${lib.dir}" failonerror="true">
@@ -36,6 +38,8 @@
 	  <references>
              <include name="System.Runtime.Remoting.dll" />
              <include name="${lib.dir}/DHCPCommon.dll" />
+             <include name="${lib.dir}/Brunet.dll" />
+             <include name="${lib.dir}/Brunet.Dht.dll" />
 	  </references>
       </csc>
   </target>

@@ -209,7 +209,7 @@ namespace Ipop {
       Console.WriteLine("searchig for key: {0}", ns_key);   
 #endif
       byte[] utf8_key = Encoding.UTF8.GetBytes(ns_key);
-      //get a maximum of 500 bytes only
+      //get a maximum of 1000 bytes only
       BlockingQueue q = _dht.Get(utf8_key, 1000, null);
       //we do expect to get atleast 1 result
       ArrayList result = null;
