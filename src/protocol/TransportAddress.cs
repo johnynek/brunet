@@ -92,7 +92,7 @@ namespace Brunet
         _ips.Add(a);
         return _ips;
       }
-      catch(Exception e) {
+      catch(Exception) {
 
       }
 

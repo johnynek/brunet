@@ -86,7 +86,7 @@ public class Cache {
         _ht.Remove(key);
       }
     }
-    catch(Exception x) {
+    catch(Exception) {
       //If the _ht changes while we are cleaning, we get an exception.
       //Just go on with life, we can finish cleaning later
     }

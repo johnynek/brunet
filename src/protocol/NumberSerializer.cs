@@ -94,10 +94,13 @@ namespace Brunet
       int tmp;
       while( bytes-- > 0 ) {
         tmp = s.ReadByte();
-	if ( tmp == -1 ) {
+	if ( tmp < 0 ) {
           throw new Exception("Could not read 8 bytes from the stream to read a long");
         }
-        val = (val << 8) | tmp;
+        //tmp should be in the interval [0, 255] this is to
+        //avoid a mono compiler warning
+        byte btmp = (byte)tmp; 
+        val = (val << 8) | btmp;
       }
       return val;
     }

@@ -254,7 +254,7 @@ namespace Brunet
             _sock.Close();
           }
         }
-        catch(Exception ex) {
+        catch(Exception) {
           //log.Error("Problem Closing", ex);
         }
         finally {
@@ -880,7 +880,7 @@ namespace Brunet
         //Be careful not to hold the lock here, because this sends an event
         NeedToSend = need_to_send;
       }
-      catch(Exception x) {
+      catch(Exception) {
         Close();
       }
     }
@@ -998,7 +998,7 @@ namespace Brunet
         Console.WriteLine("edge: {0} out of DoReceive", this);
 #endif
       }
-      catch(Exception x) {
+      catch(Exception) {
         Close();
       }
 

@@ -329,7 +329,7 @@ namespace Brunet
 	    }
 	  }
 	}
-        catch(Exception x) {
+        catch(Exception) {
           //_log.Error(x);
         }
       }
@@ -362,7 +362,7 @@ namespace Brunet
         }
        }
       }
-      catch(Exception x) {
+      catch(Exception) {
         _is_finished = true;
       }
       finally {

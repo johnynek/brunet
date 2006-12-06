@@ -298,7 +298,7 @@ namespace Brunet
                   try {
                     c.Edge.Send(preq.ToPacket());
                   }
-                  catch(EdgeException ex) {
+                  catch(EdgeException) {
                     //This edge could close on us when we least expect it.
                     //if it does, it will throw an exception, we catch it.
                   }
@@ -329,7 +329,7 @@ namespace Brunet
           }
         }
       }
-      catch(Exception x) {
+      catch(Exception) {
         /* Just don't do anything */
         //log.Error("HandlePacket exception", x);
       }
@@ -378,7 +378,7 @@ namespace Brunet
 	    Console.WriteLine("ConnectionPacketHandler - Successfully locked connection table: {0}", lm);
 #endif
           }
-          catch(InvalidOperationException iox) {
+          catch(InvalidOperationException) {
 #if LINK_DEBUG
 	    Console.WriteLine("ConnectionPacketHandler - Cannot lock connection table: {0}", lm);
 #endif

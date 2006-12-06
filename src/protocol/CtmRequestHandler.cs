@@ -167,7 +167,7 @@ namespace Brunet
 #endif
         n.Send(response);
       }
-      catch(Exception x) {
+      catch(Exception) {
         /*_log.Error("CtmRequestionHandler got exception on packet: " +
           p.ToString(), x); */
       }
