@@ -107,7 +107,7 @@ namespace Brunet {
           _string_to_main_type[s] = retval;
 	  return retval;
         }
-        catch(System.Exception x) {
+        catch(System.Exception) {
         
 	}
       }

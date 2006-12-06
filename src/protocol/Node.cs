@@ -383,7 +383,7 @@ namespace Brunet
         Announce(a_state.Pack, a_state.From);
        }
       }
-      catch(System.InvalidOperationException iox) {
+      catch(System.InvalidOperationException) {
         //This is thrown when Dequeue is called on an empty queue
         //which happens when the BlockingQueue is closed, which
         //happens on Disconnect
@@ -562,7 +562,7 @@ namespace Brunet
          */
         _connection_table.Disconnect(e);
       }
-      catch(EdgeException x) {
+      catch(EdgeException) {
         //If the edge has some problem, don't do anything
         e.Close();
       }
@@ -647,7 +647,7 @@ namespace Brunet
       catch (InvalidCastException x) {
         Console.WriteLine( "Bad cast in node: " + x.ToString() );
       }
-      catch( EdgeException ex ) {
+      catch( EdgeException ) {
         //Make sure the edge is closed:
         from.Close();
       }
@@ -733,7 +733,7 @@ namespace Brunet
             Console.WriteLine("Sending ping to: {0}", e);
 #endif
           }
-          catch(EdgeException ex) {
+          catch(EdgeException) {
             //This should only happen when the edge is closed.
             edges_to_close.Add(e);
           }
@@ -752,7 +752,7 @@ namespace Brunet
             Console.WriteLine("Sending close to: {0}", e);
 #endif
             }
-            catch(EdgeException x) {
+            catch(EdgeException) {
               //This edge is goofy, remove it:
               edges_to_remove.Add(e);
               edges_to_close.Add(e);

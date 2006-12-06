@@ -260,7 +260,7 @@ public class ReqrepManager : IAHPacketHandler {
 	     System.IO.MemoryStream offsetpayload = p.GetPayloadStream(5 + count);
 	     irh.HandleRequest(this,rt,rs,pt,offsetpayload,p);
 	   }
-	   catch(Exception x) {
+	   catch(Exception) {
 	     //Something has gone wrong
 	     short ttl = _node.DefaultTTLFor( p.Source );
 	     error = MakeError(p.Source, ttl, idnum,

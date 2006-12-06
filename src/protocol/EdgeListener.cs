@@ -136,7 +136,7 @@ namespace Brunet
           }
         }
       }
-      catch(SocketException x) {
+      catch(SocketException) {
         //If the hostname is not properly configured, we could wind
 	//up here.  Just put the loopback address is:
         tas.Add( new TransportAddress(tat, new IPEndPoint(IPAddress.Loopback, port) ) );
