@@ -126,22 +126,6 @@ namespace Brunet
       get { return new DateTime(_last_out_packet_datetime); }
     }
 
-    public override bool Equals(object o)
-    {
-      if( o is UdpEdge ) {
-        UdpEdge other = (UdpEdge)o;
-        return (this.ID == other.ID) && (this.RemoteID == other.RemoteID);
-      }
-      else {
-        return false;
-      }
-    }
-    public override int GetHashCode()
-    {
-      //This should be random since IDs are randomly assigned
-      return (this.ID ^ this.RemoteID);
-    }
-
     public override void Send(Brunet.Packet p)
     {
       if( _is_closed ) {

@@ -391,7 +391,7 @@ namespace Brunet
         _em = SetLastRPacket(p);
         _timeouts = 0;
        }
-       catch(Exception x) {
+       catch(Exception) {
         /*
          * SetLastRPacket can throw an exception on expected packets
          * for now, we just ignore them and resend the most recently

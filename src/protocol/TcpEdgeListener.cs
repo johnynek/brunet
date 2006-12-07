@@ -222,7 +222,7 @@ namespace Brunet
           s.Close();
         }
       }
-      catch(Exception x) {
+      catch(Exception) {
         //This did not work out, close the socket and release the resources:
 	//System.Console.Error.WriteLine( x );
         if( s != null) { s.Close(); }
@@ -335,7 +335,7 @@ namespace Brunet
                           errorsocks,
                           timeout_ms * 1000);
           }
-          catch(Exception x) {
+          catch(Exception) {
             //One of the Sockets gave us problems.  Perhaps
             //it was closed after we released the lock.
 #if POB_DEBUG

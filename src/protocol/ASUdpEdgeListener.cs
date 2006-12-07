@@ -73,8 +73,15 @@ namespace Brunet
       /**
        * We get all the IPAddresses for this computer
        */
-      _tas = GetIPTAs(TransportAddress.TAType.Udp, port, ipList);
-      _local_ep = GuessLocalEndPoint(_tas);
+      ArrayList tas = GetIPTAs(TransportAddress.TAType.Udp, port, ipList);
+      _local_ep = GuessLocalEndPoint(tas);
+      tas.Reverse();
+      NatHistory hist = new NatHistory();
+      DateTime dt = DateTime.Now;
+      foreach(TransportAddress ta in tas) {
+        hist = hist.Add( new LocalConfigPoint(dt, ta) );
+      }
+      _nat_handler = NatHandlerFactory.CreateHandler(hist);
       _ta_auth = ta_auth;
       if( _ta_auth == null ) {
         //Always authorize in this case:
