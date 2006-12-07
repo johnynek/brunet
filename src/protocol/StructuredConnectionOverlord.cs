@@ -131,13 +131,13 @@ namespace Brunet {
 	  Connection lc = null; 
 	  try {
 	    lc = tab.GetLeftStructuredNeighborOf(our_addr);
-	  } catch(Exception e) {
+	  } catch(Exception) {
 	  }
 	  
 	  Connection rc = null;
 	  try {
 	    rc = tab.GetRightStructuredNeighborOf(our_addr);
-	  } catch (Exception e) {
+	  } catch (Exception) {
 	  }
 	  if (rc == null || lc == null) {
 	    Console.WriteLine("{0}: No left or right neighbor (false)", our_addr);

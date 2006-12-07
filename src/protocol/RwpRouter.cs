@@ -168,7 +168,7 @@ namespace Brunet
           }
           num_sent_on += to_send.Count;
         }
-        catch (Exception ex) {
+        catch (Exception) {
           // log it. do a code review and log the exceptions that should be logged
         }
 	if( num_sent_on == 0 && p.HasOption( AHPacket.AHOptions.Last ) ) {

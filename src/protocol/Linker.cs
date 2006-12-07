@@ -580,7 +580,7 @@ namespace Brunet
         Console.WriteLine("Linker({0}) added {1}", _lid, c);
 #endif
       }
-      catch(Exception x) {
+      catch(Exception) {
 #if LINK_DEBUG
         Console.WriteLine("Linker({0}) exception trying to add: {1}", _lid, c);
 #endif
@@ -612,12 +612,12 @@ namespace Brunet
         lps.FinishEvent +=  this.LinkProtocolStateFinishHandler;
         _task_queue.Enqueue(lps);
       }
-      catch(LinkException lx) {
+      catch(LinkException) {
         //This happens if SetTarget sees that we are already connected
         //Our only choice here is to close the edge and give up.
         close_edge = true;
       }
-      catch(InvalidOperationException iox) {
+      catch(InvalidOperationException) {
         /*
          * SetTarget could not get the lock on the address.
          * Try again later
@@ -625,7 +625,7 @@ namespace Brunet
         close_edge = true;
         RetryThis( ew.TA );
       }
-      catch(EdgeException edx) {
+      catch(EdgeException) {
         /*
          * If there is some problem creating the edge,
          * we wind up here.  Just move on
@@ -645,7 +645,7 @@ namespace Brunet
         try {
           ew.NewEdge.Close();
         }
-        catch(Exception x) {
+        catch(Exception) {
           //Ignore any exception
         }
       }
@@ -900,14 +900,14 @@ namespace Brunet
          //Start it going
          _task_queue.Enqueue(ew);
       }
-      catch(InvalidOperationException x) {
+      catch(InvalidOperationException) {
 #if LINK_DEBUG
         Console.WriteLine("Linker ({0}) failed to lock {1}", _lid, _target);
 #endif
         //This is thrown when ConnectionTable cannot lock.  Lets try again:
         RetryThis(next_ta);
       }
-      catch(Exception x) {
+      catch(Exception) {
         //Fail(next_ta, x.Message);
       }
     }

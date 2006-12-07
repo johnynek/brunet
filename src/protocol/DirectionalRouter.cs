@@ -128,7 +128,7 @@ namespace Brunet
           sent = 1;
         }
       }
-      catch(System.Exception x) {
+      catch(System.Exception) {
         //_log.Error("DirectionalRouter exception:", x);
       }
       return sent;
