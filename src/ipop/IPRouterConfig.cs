@@ -44,7 +44,7 @@ namespace Ipop {
 
     public static void Write(string configFile, 
       IPRouterConfig config) {
-      FileStream fs = new FileStream(configFile, FileMode.OpenOrCreate, 
+      FileStream fs = new FileStream(configFile, FileMode.Create, 
         FileAccess.Write);
       XmlSerializer serializer = new XmlSerializer(typeof(IPRouterConfig));
       serializer.Serialize(fs, config);
