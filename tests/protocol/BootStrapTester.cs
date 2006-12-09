@@ -334,7 +334,7 @@ namespace Brunet
         Node to_disconnect = (Node)node_list[node];
 	to_disconnect.Disconnect();
       }
-      catch(Exception x) {
+      catch(Exception) {
 
       }
       if( wait_after_connect ) {

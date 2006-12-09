@@ -68,7 +68,7 @@ namespace Brunet
      * A ReadOnly list of TransportAddress objects for
      * this EdgeListener
      */
-    public abstract ArrayList LocalTAs
+    public abstract IEnumerable LocalTAs
     {
       get;
     }

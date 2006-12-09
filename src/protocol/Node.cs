@@ -100,11 +100,11 @@ namespace Brunet
         /* Here are the transport addresses */
         /*@throw ArgumentNullException if the list ( new ArrayList()) is null.
          */
-        _remote_ta = ArrayList.Synchronized( new ArrayList() );
+        _remote_ta = new ArrayList();
         /*@throw ArgumentNullException if the list ( new ArrayList()) is null.
          */
         /* EdgeListener's */
-        _edgelistener_list = ArrayList.Synchronized( new ArrayList() );
+        _edgelistener_list = new ArrayList();
         _edge_factory = new EdgeFactory();
         //Put all the Routers in :
         _routers = new IRouter[ 161 ];
@@ -165,12 +165,15 @@ namespace Brunet
         //Make sure we don't keep too many of these things:
         ArrayList local_ta = new ArrayList();
         foreach(EdgeListener el in _edgelistener_list) {
-           local_ta.AddRange( el.LocalTAs );
-        }
-        int count = local_ta.Count;
-        if( count > _MAX_RECORDED_TAS ) {
-          int rm_count = count - _MAX_RECORDED_TAS;
-          local_ta.RemoveRange(_MAX_RECORDED_TAS, rm_count);
+          foreach(TransportAddress ta in el.LocalTAs) {
+            local_ta.Add(ta);
+            if( local_ta.Count >= _MAX_RECORDED_TAS ) {
+              break;
+            }
+          }
+          if( local_ta.Count >= _MAX_RECORDED_TAS ) {
+            break;
+          }
         }
         return local_ta;
       }
@@ -216,7 +219,7 @@ namespace Brunet
         return _remote_ta;
       }
       set {
-        _remote_ta = ArrayList.Synchronized(value);
+        _remote_ta = value;
       }
     }
 
