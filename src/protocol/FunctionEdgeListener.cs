@@ -64,7 +64,7 @@ namespace Brunet
      * The uri's for this type look like:
      * brunet.function:[edge_id]
      */
-    public override ArrayList LocalTAs
+    public override IEnumerable LocalTAs
     {
       get
       {
