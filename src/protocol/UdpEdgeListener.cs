@@ -136,7 +136,7 @@ namespace Brunet
 	}
       }
       NatDataPoint dp = new EdgeClosePoint(DateTime.Now, e);
-      _nat_hist = _nat_hist.Add(dp);
+      _nat_hist = new NatHistory(_nat_hist, dp);
       _nat_tas = new NatTAs( _tas, _nat_hist );
     }
    
@@ -315,14 +315,14 @@ namespace Brunet
         //Actually update:
         edge.End = end;
         NatDataPoint dp = new RemoteMappingChangePoint(DateTime.Now, edge);
-        _nat_hist = _nat_hist.Add(dp);
+        _nat_hist = new NatHistory(_nat_hist, dp);
         _nat_tas = new NatTAs( _tas, _nat_hist );
         //Tell the other guy:
         SendControlPacket(end, remoteid, localid, ControlCode.EdgeDataAnnounce, state);
       }
       if( is_new_edge ) {
        NatDataPoint dp = new NewEdgePoint(DateTime.Now, edge);
-       _nat_hist = _nat_hist.Add(dp);
+       _nat_hist = new NatHistory(_nat_hist, dp);
        _nat_tas = new NatTAs( _tas, _nat_hist );
        SendEdgeEvent(edge);
       }
@@ -350,7 +350,7 @@ namespace Brunet
         UdpEdge ue = (UdpEdge)e;
         ue.PeerViewOfLocalTA = ta;
         NatDataPoint dp = new LocalMappingChangePoint(DateTime.Now, e, ta);
-        _nat_hist = _nat_hist.Add(dp);
+        _nat_hist = new NatHistory(_nat_hist, dp);
         _nat_tas = new NatTAs( _tas, _nat_hist );
       }
     }
@@ -473,7 +473,7 @@ namespace Brunet
         /* Tell me when you close so I can clean up the table */
         e.CloseEvent += new EventHandler(this.CloseHandler);
         NatDataPoint dp = new NewEdgePoint(DateTime.Now, e);
-        _nat_hist = _nat_hist.Add( dp );
+        _nat_hist = new NatHistory(_nat_hist, dp);
         _nat_tas = new NatTAs( _tas, _nat_hist );
         ecb(true, e, null);
       }
