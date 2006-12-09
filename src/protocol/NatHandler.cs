@@ -179,6 +179,16 @@ public class NatHistory : IEnumerable {
     _head.NDP = p;
     _head.Prev = null;
   }
+  /**
+   * Makes a new history by appending this new NatDataPoint.
+   * Does not change the old history.
+   */
+  public NatHistory(NatHistory nh, NatDataPoint p) {
+    _head = new LLPoint();
+    _head.Prev = nh._head;
+    _head.NDP = p;
+  }
+
  
   /**
    * Returns the most recent NatDataPoint, or null if empty
@@ -295,19 +305,6 @@ public class NatHistory : IEnumerable {
       return null;
     };
     return new FilteredNDP(this, f);
-  }
-
-  /**
-   * Makes a new history and returns it, this DOES NOT CHANGE
-   * the current NatHistory
-   */
-  public NatHistory Add(NatDataPoint p) {
-    LLPoint lp = new LLPoint();
-    lp.Prev = _head;
-    lp.NDP = p;
-    NatHistory hist = new NatHistory();
-    hist._head = lp;
-    return hist;
   }
 
 }
