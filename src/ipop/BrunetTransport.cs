@@ -11,8 +11,8 @@ namespace Ipop {
 	return _brunet_node;
       }
     }
-    protected Dht _dht;
-    public Dht Dht {
+    protected FDht _dht;
+    public FDht Dht {
       get {
 	return _dht;
       }
@@ -24,7 +24,7 @@ namespace Ipop {
       _dht = null;
       _brunet_node = node;
     }
-    public BrunetTransport(Node node, Dht dht) {
+    public BrunetTransport(Node node, FDht dht) {
       _brunet_node = node;
       _dht = dht;
     }

@@ -425,12 +425,12 @@ namespace Ipop {
     }
   }
   public class DhtDHCPLease: DHCPLease {
-    protected Dht _dht;
+    protected FDht _dht;
     protected Random _rand;
     protected DateTime _last_assigned_instant;
     protected DHCPLeaseResponse _last_assigned_lease;
     
-    public DhtDHCPLease(Dht dht, IPOPNamespace config):base(config) {
+    public DhtDHCPLease(FDht dht, IPOPNamespace config):base(config) {
       _dht = dht;
       _rand = new Random();
       _last_assigned_lease = null;
@@ -492,16 +492,15 @@ namespace Ipop {
 #if DHCP_DEBUG
 	  Console.WriteLine("attempting to acquire: {0}", guessed_ip_str);
 #endif
-	  byte [][]dht_key = new byte[5][];
-	  BlockingQueue [] queues = new BlockingQueue[5];
-	  for (int k = 0; k < queues.Length; k++) {
-	    string str_key = "dhcp:ipop_namespace:" + namespace_value + ":ip:" + guessed_ip_str + ":" + k;
+	  string str_key = "dhcp:ipop_namespace:" + namespace_value + ":ip:" + guessed_ip_str;
+	  byte[] dht_key = Encoding.UTF8.GetBytes(str_key);
+
 #if DHCP_DEBUG
-	    Console.WriteLine("Invoking recreate() on: {0}", str_key);
+	  Console.WriteLine("Invoking recreate() on: {0}", str_key);
 #endif
-	    dht_key[k] = Encoding.UTF8.GetBytes(str_key);
-	    queues[k] = _dht.Recreate(dht_key[k], old_password, leasetime, new_hashed_password, brunet_id);
-	  }
+	  
+	  BlockingQueue [] queues = _dht.RecreateF(dht_key, old_password, leasetime, new_hashed_password, brunet_id);
+
 	  int max_results_per_queue = 2;
 	  int min_majority = 3;
 	  
@@ -547,10 +546,8 @@ namespace Ipop {
 	  }
 	  if (min_majority > 0) {
 	    //we have not been able to acquire a majority, delete all keys
-	    for (int k = 0; k < queues.Length; k++) {
-	      queues[k] = _dht.Delete(dht_key[k], new_password);
-	    }
-	    BlockingQueue.ParallelFetchWithTimeout(queues, 1000); //atmost 1 result is sufficient
+	    queues = _dht.DeleteF(dht_key, new_password);
+	    BlockingQueue.ParallelFetch(queues, 1);//1 reply is sufficient
 	  } else {
 #if DHCP_DEBUG
 	    Console.WriteLine("successfully acquired IP address: {0}", guessed_ip_str);

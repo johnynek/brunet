@@ -24,7 +24,7 @@ namespace Ipop {
     }
   }
   public class DhtDHCPClient: DHCPClient {
-    public DhtDHCPClient(Dht dht) {
+    public DhtDHCPClient(FDht dht) {
       _dhcp_server = new DhtDHCPServer(new byte[4] {192, 168, 0 , 1}, dht);
     }
     public override DecodedDHCPPacket SendMessage(DecodedDHCPPacket packet) {

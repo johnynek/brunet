@@ -189,8 +189,8 @@ namespace Ipop {
   }
 
   public class DhtDHCPServer: DHCPServer {
-    protected Dht _dht; 
-    public DhtDHCPServer(byte []server_ip, Dht dht) {
+    protected FDht _dht; 
+    public DhtDHCPServer(byte []server_ip, FDht dht) {
       _dht = dht;
       this.ServerIP = server_ip;
       this.leases = new SortedList();
@@ -210,12 +210,12 @@ namespace Ipop {
 #endif
       byte[] utf8_key = Encoding.UTF8.GetBytes(ns_key);
       //get a maximum of 1000 bytes only
-      BlockingQueue q = _dht.Get(utf8_key, 1000, null);
+      BlockingQueue[] q = _dht.GetF(utf8_key, 1000, null);
       //we do expect to get atleast 1 result
       ArrayList result = null;
       try{
         while (true) {
-          RpcResult res = q.Dequeue() as RpcResult;
+          RpcResult res = q[0].Dequeue() as RpcResult;
           result = res.Result as ArrayList;
           if (result == null || result.Count < 3) {
             continue;

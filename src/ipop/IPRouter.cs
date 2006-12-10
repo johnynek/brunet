@@ -274,11 +274,11 @@ namespace Ipop {
       tmp_node.RemoteTAs = RemoteTAs;
 
       //following line of code enables DHT support inside the IPRouter
-      Dht dht = null;
+      FDht dht = null;
       if (config.dht_media == null || config.dht_media.Equals("disk")) {
-        dht = new Dht(tmp_node, EntryFactory.Media.Disk);
+        dht = new FDht(tmp_node, EntryFactory.Media.Disk, 5);
       } else if (config.dht_media.Equals("memory")) {
-        dht = new Dht(tmp_node, EntryFactory.Media.Memory);
+        dht = new FDht(tmp_node, EntryFactory.Media.Memory, 5);
       }
       
 #if IPOP_LOG
