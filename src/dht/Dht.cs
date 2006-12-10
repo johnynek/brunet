@@ -301,7 +301,7 @@ namespace Brunet.Dht {
       }
     }
 
-    protected Address GetInvocationTarget(byte[] key) {
+    protected static Address GetInvocationTarget(byte[] key) {
       HashAlgorithm hashAlgo = HashAlgorithm.Create();
       byte[] hash = hashAlgo.ComputeHash(key);
       hash[Address.MemSize -1] &= 0xFE;
