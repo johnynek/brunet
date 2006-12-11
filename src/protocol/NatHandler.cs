@@ -163,56 +163,53 @@ public class NatHistory : IEnumerable {
    */
   public delegate object Filter(NatDataPoint p);
 
-  //We store the data points in a linked list:
-  protected class LLPoint {
-    public NatDataPoint NDP;
-    public LLPoint Prev;
-  }
+  /*
+   * The NatHistory is a linked list, this is how
+   * we store it:
+   */
+  protected NatDataPoint _head;
+  /**
+   * Return the most recent NatDataPoint
+   */
+  public NatDataPoint Head { get { return _head; } }
+  protected NatHistory _tail;
+  /**
+   * Return the history excluding the most recent point.
+   * If there is only one point, the tail is null
+   */
+  public NatHistory Tail { get { return _tail; } }
 
-  protected LLPoint _head;
-
-  public NatHistory() {
-    _head = null;
-  }
   public NatHistory(NatDataPoint p) {
-    _head = new LLPoint();
-    _head.NDP = p;
-    _head.Prev = null;
+    _head = p;
+    _tail = null;
   }
   /**
    * Makes a new history by appending this new NatDataPoint.
    * Does not change the old history.
    */
   public NatHistory(NatHistory nh, NatDataPoint p) {
-    _head = new LLPoint();
-    _head.Prev = nh._head;
-    _head.NDP = p;
+    _head = p;
+    _tail = nh;
   }
 
- 
   /**
-   * Returns the most recent NatDataPoint, or null if empty
+   * This is syntactic sugar so we can do:
+   * hist = hist + p
+   * to append a data point.
    */
-  public NatDataPoint Head {
-    get {
-      if( _head != null ) {
-        return _head.NDP;
-      }
-      else {
-        return null;
-      }
-    }
+  public static NatHistory operator + (NatHistory hist, NatDataPoint p) {
+    return new NatHistory(hist, p);
   }
-
   /**
    * This goes from most recent to least recent data point
    */
   public IEnumerator GetEnumerator() {
-    LLPoint tmp_p = _head;
-    while( tmp_p != null ) {
-      yield return tmp_p.NDP;
-      tmp_p = tmp_p.Prev;
+    NatHistory hist = this;
+    do {
+      yield return hist.Head;
+      hist = hist.Tail;
     }
+    while( hist != null );
   }
 
   /**
@@ -593,7 +590,7 @@ public class NatTAs : IEnumerable {
 
   /**
    * @param local_config_tas the list of TAs to use as last resort
-   * @param NatHistory history information learned from talking to peers
+   * @param NatHistory history information learned from talking to peers (may be null)
    */
   public NatTAs(IEnumerable local_config_tas, NatHistory hist) {
     _hist = hist;
@@ -633,33 +630,35 @@ public class NatTAs : IEnumerable {
   }
 
   protected void GenerateTAs() {
-    /*
-     * we go through the list from most likely to least likely:
-     */
-    if( _list_of_remote_ips == null ) {
-      InitRemoteIPs();
-    }
     ArrayList gtas = new ArrayList();
     Hashtable ht = new Hashtable();
-    foreach(IPAddressRecord r in _list_of_remote_ips) {
-      IEnumerable points = _hist.PointsForIP(r.IP);
-      IEnumerator hand_it = NatTAs.AllHandlers();
-      bool yielded = false;
-      while( hand_it.MoveNext() && (false == yielded) ) {
-        NatHandler hand = (NatHandler)hand_it.Current;
-        if( hand.IsMyType( points ) ) {
-#if DEBUG
-          System.Console.WriteLine("NatHandler: {0}", hand.GetType() );
-#endif
-          IList tas = hand.TargetTAs( points );
-          foreach(TransportAddress ta in tas) {
-            if( false == ht.Contains(ta) ) {
-              ht[ta] = true;
-              gtas.Add(ta);
+    if( _hist != null ) {
+      /*
+       * we go through the list from most likely to least likely:
+       */
+      if( _list_of_remote_ips == null ) {
+        InitRemoteIPs();
+      }
+      foreach(IPAddressRecord r in _list_of_remote_ips) {
+        IEnumerable points = _hist.PointsForIP(r.IP);
+        IEnumerator hand_it = NatTAs.AllHandlers();
+        bool yielded = false;
+        while( hand_it.MoveNext() && (false == yielded) ) {
+          NatHandler hand = (NatHandler)hand_it.Current;
+          if( hand.IsMyType( points ) ) {
+  #if DEBUG
+            System.Console.WriteLine("NatHandler: {0}", hand.GetType() );
+  #endif
+            IList tas = hand.TargetTAs( points );
+            foreach(TransportAddress ta in tas) {
+              if( false == ht.Contains(ta) ) {
+                ht[ta] = true;
+                gtas.Add(ta);
+              }
             }
+            //Break out of the while loop, we found the handler.
+            yielded = true;
           }
-          //Break out of the while loop, we found the handler.
-          yielded = true;
         }
       }
     }
@@ -671,6 +670,13 @@ public class NatTAs : IEnumerable {
       }
     }
     _generated_ta_list = gtas; 
+#if DEBUG 
+    int i = 0;
+    foreach(TransportAddress ta in _generated_ta_list) {
+      Console.WriteLine("LocalTA({0}): {1}",i,ta);
+      i++;
+    }
+#endif
   }
 
   /**

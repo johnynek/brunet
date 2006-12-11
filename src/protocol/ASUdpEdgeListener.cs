@@ -75,7 +75,7 @@ namespace Brunet
        */
       _tas = GetIPTAs(TransportAddress.TAType.Udp, port, ipList);
       _local_ep = GuessLocalEndPoint(_tas);
-      _nat_hist = new NatHistory();
+      _nat_hist = null;
       _nat_tas = new NatTAs( _tas, _nat_hist );
       _ta_auth = ta_auth;
       if( _ta_auth == null ) {
