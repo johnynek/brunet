@@ -401,8 +401,6 @@ namespace Brunet
        */
       _tas = GetIPTAs(TransportAddress.TAType.Udp, port, ipList);
       _local_ep = GuessLocalEndPoint(_tas); 
-      //Put them opposite order, since the Nat history considers later
-      //points more recent
       _nat_hist = null;
       _nat_tas = new NatTAs( _tas, _nat_hist );
       _ta_auth = ta_auth;
