@@ -18,6 +18,7 @@ i : signed int
 I : unsigned int
 l : signed long
 L : unsigned long
+f : float (32 bit)
 
 numeric arrays:
 a : array.  Immediately following the 'a' character there is

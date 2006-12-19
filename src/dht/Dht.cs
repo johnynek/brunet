@@ -277,11 +277,8 @@ namespace Brunet.Dht {
       ef.SetMedia(media);
       _table = new TableServer(ef, node);
 
-      //get an instance of ReqrepManager
-      ReqrepManager rrman = ReqrepManager.GetInstance(node);
-      
-      //create a new rpc manager
-      _rpc = new RpcManager(rrman);
+      //get an instance of RpcManager for the node
+      _rpc = RpcManager.GetInstance(node);
       
 
       //register the table with the RpcManagers

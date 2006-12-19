@@ -203,6 +203,10 @@ public class AdrConverter {
           //signed long:
           result = unchecked((ulong)NumberSerializer.ReadLong(s));
           break;
+        case 'f':
+	  //floating-point number
+	  result = NumberSerializer.ReadFloat(s);
+	  break;
 	case 's':
 	  //UTF-8 String:
           int bytelength = 0;
@@ -392,6 +396,11 @@ public class AdrConverter {
       s.WriteByte((byte)'L');
       NumberSerializer.WriteULong((ulong)o,s);
       return 9; //1 typecode + 8 bytes for ulong
+    } 
+    else if ( t.Equals(typeof(float)) ) {
+      s.WriteByte((byte)'f');
+      NumberSerializer.WriteFloat((float)o, s);
+      return 5; //1 typecode + 4 bytes for float
     }
     else if ( o is Exception ) {
       AdrException ax = o as AdrException;
