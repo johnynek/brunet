@@ -244,6 +244,7 @@ namespace Brunet.Coordinate {
 	  
 	  ProcessSample(end, neighbor, o_position, o_weightedError, o_rawLatency);
 
+
 #if NC_LOG
 	  Sample sample = (Sample) _samples[neighbor];
 	  ss = _node.Address + "::::" + DateTime.UtcNow.Ticks + "::::Sample::::";
