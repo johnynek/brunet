@@ -10,21 +10,15 @@ namespace Ipop
 {
   public class IPPacketHandler: IAHPacketHandler
   {
-    //ethernet model
     Ethernet ether;
     bool debug;
-    IPAddress myAddress;
-#if IPOP_RECEIVE_DEBUG
-    private int count1;
-#endif
-    public IPPacketHandler(Ethernet ethernet, bool debugging, IPAddress addr)
+    NodeMapping node;
+
+    public IPPacketHandler(Ethernet ethernet, bool debugging, NodeMapping node)
     {
       ether = ethernet;
       debug = debugging;
-      myAddress = addr;
-#if IPOP_RECEIVE_DEBUG
-      count1 = 0;
-#endif
+      this.node = node;
     }
     public void HandleAHPacket(object node, AHPacket p, Edge from)
     {
@@ -38,26 +32,13 @@ namespace Ipop
           "hops: {2}", srcAddr, dstAddr, p.Hops); 
       }
 
-#if IPOP_RECEIVE_DEBUG
-      count1++;
-      if (count1 == 1000) {
-        IPAddress srcAddr = IPPacketParser.SrcAddr(packet);
-        IPAddress dstAddr = IPPacketParser.DestAddr(packet);
-        Console.WriteLine("Incoming packet:: IP src: {0}, IP dst: {1}, " +
-          "p2p hops: {2}", srcAddr, dstAddr, p.Hops); 
-        count1 = 0;
-      }
-#endif
-
       IPAddress destAddr = IPPacketParser.DestAddr(packet);
-      if (!destAddr.Equals(myAddress)) {
-          Console.WriteLine("Incoming packet not for me:: IP dst: {0}", destAddr);
-          return;
+      if (!destAddr.Equals(this.node.ip)) {
+        Console.WriteLine("Incoming packet not for me:: IP dst: {0}", destAddr);
       }
-
-      if(!ether.SendPacket(packet, 0x800)) {
-	Console.WriteLine("error reading packet from ethernet");
-	return;
+      else if(this.node.mac != null && 
+        !ether.SendPacket(packet, 0x800, this.node.mac)) {
+	      Console.WriteLine("error writing packet from ethernet");
       }
     }
   }

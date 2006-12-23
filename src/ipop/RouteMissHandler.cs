@@ -128,7 +128,7 @@ namespace Ipop {
       
 	//we are now done
 	_route_miss_result_table.Remove(ip);
-      } catch(Exception e) {
+      } catch(Exception) {
 	//in case of the exception too, clear thhe Brunet-ARP entry
 	_route_miss_result_table.Remove(ip);
       }
@@ -173,7 +173,7 @@ namespace Ipop {
 	    _route_miss_delegate(ip, best_addr);
 	  }
 	  max_replies--;
-	} catch (InvalidOperationException e) {
+	} catch (InvalidOperationException) {
 	  break;
 	}
       }
