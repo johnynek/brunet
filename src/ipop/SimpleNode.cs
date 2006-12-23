@@ -1,10 +1,13 @@
 using System;
-using Brunet;
-using Brunet.Dht;
 using System.IO;
 using System.Collections;
 using System.Xml;
 using System.Xml.Serialization;
+
+using Brunet;
+using Brunet.Dht;
+using Brunet.Coordinate;
+
 
 #if IPOP_LOG
 using log4net;
@@ -117,8 +120,11 @@ namespace PeerVM {
       if (config.dht_media == null || config.dht_media.Equals("disk")) {
         dht = new Dht(tmp_node, EntryFactory.Media.Disk);
       } else if (config.dht_media.Equals("memory")) {
-        dht = new Dht(tmp_node, EntryFactory.Media.Memory);
-      }
+	dht = new Dht(tmp_node, EntryFactory.Media.Memory);
+      }	
+      NCService nc = new NCService();
+      nc.InstallOnNode(tmp_node);
+
       System.Console.WriteLine("Calling Connect");
 #if IPOP_LOG
       _log.Debug("IGNORE");

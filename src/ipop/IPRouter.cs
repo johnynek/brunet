@@ -1,6 +1,4 @@
 using System;
-using Brunet;
-using Brunet.Dht;
 using System.Text;
 using System.Threading;
 using System.Collections;
@@ -13,6 +11,10 @@ using System.Xml;
 using System.Xml.Serialization;
 using Mono.Security.Authenticode;
 using Mono.Unix.Native;
+
+using Brunet;
+using Brunet.Dht;
+using Brunet.Coordinate;
 
 #if IPOP_LOG
 using log4net;
@@ -280,7 +282,9 @@ namespace Ipop {
       } else if (config.dht_media.Equals("memory")) {
         dht = new FDht(tmp_node, EntryFactory.Media.Memory, 5);
       }
-      
+      //install an NCService on the node
+      NCService nc = new NCService();
+      nc.InstallOnNode(tmp_node);
 #if IPOP_LOG
       _log.Debug("IGNORE");
       _log.Debug(tmp_node.Address + "::::" + DateTime.UtcNow.Ticks

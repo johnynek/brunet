@@ -13,6 +13,7 @@
           <fileset basedir="${lib.dir}">
 	      <include name="Brunet.dll" />
 	      <include name="Brunet.Dht.dll" />
+	      <include name="Brunet.Coordinate.dll" />
 	      <include name="log4net.dll" />
 	      <include name="libtuntap.so" />
 	      <include name="DHCPCommon.dll" />
@@ -34,6 +35,7 @@
 	  <references>
              <include name="${build.dir}/Brunet.dll"/>
              <include name="${build.dir}/Brunet.Dht.dll"/>
+             <include name="${build.dir}/Brunet.Coordinate.dll"/>
              <include name="${build.dir}/log4net.dll"/>
              <include name="Mono.Security.dll"/>
              <include name="Mono.Posix.dll"/>
@@ -48,6 +50,7 @@
 	  <references>
              <include name="${build.dir}/Brunet.dll"/>
              <include name="${build.dir}/Brunet.Dht.dll"/>
+             <include name="${build.dir}/Brunet.Coordinate.dll"/>
              <include name="${build.dir}/log4net.dll"/>
 	  </references>
       </csc>
@@ -58,6 +61,7 @@
           <references>
              <include name="${build.dir}/Brunet.dll"/>
              <include name="${build.dir}/Brunet.Dht.dll"/>
+             <include name="${build.dir}/Brunet.Coordinate.dll"/>
              <include name="${build.dir}/log4net.dll"/>
           </references>
       </csc>
@@ -69,6 +73,7 @@
           <fileset basedir="${lib.dir}">
 	      <include name="Brunet.dll" />
 	      <include name="Brunet.Dht.dll" />
+	      <include name="Brunet.Coordinate.dll" />
 	      <include name="log4net.dll" />
 	      <include name="libtuntap.so" />
 	      <include name="DHCPCommon.dll" />
@@ -90,6 +95,7 @@
 	  <references>
              <include name="${build.dir}/Brunet.dll"/>
              <include name="${build.dir}/Brunet.Dht.dll"/>
+             <include name="${build.dir}/Brunet.Coordinate.dll"/>
              <include name="${build.dir}/log4net.dll"/>
              <include name="Mono.Security.dll"/>
              <include name="Mono.Posix.dll"/>
@@ -104,6 +110,7 @@
 	  <references>
              <include name="${build.dir}/Brunet.dll"/>
              <include name="${build.dir}/Brunet.Dht.dll"/>
+             <include name="${build.dir}/Brunet.Coordinate.dll"/>
              <include name="${build.dir}/log4net.dll"/>
 	  </references>
       </csc>
@@ -114,6 +121,7 @@
           <references>
              <include name="${build.dir}/Brunet.dll"/>
              <include name="${build.dir}/Brunet.Dht.dll"/>
+             <include name="${build.dir}/Brunet.Coordinate.dll"/>
              <include name="${build.dir}/log4net.dll"/>
           </references>
       </csc>
