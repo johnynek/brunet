@@ -56,7 +56,7 @@ namespace Ipop {
 
     public static byte [] GenerateAddress() {
       RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
-      byte [] temp = new byte[16];
+      byte [] temp = new byte[20];
       rng.GetBytes(temp);
       return temp;
     }

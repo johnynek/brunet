@@ -4,7 +4,7 @@ using Brunet;
 namespace Ipop {
   public class NodeMapping {
     public IPAddress ip;
-    public string netmask;
+    public string netmask, nodeAddress, password, ipop_namespace;
     public byte [] mac;
     public BrunetTransport brunet;
 
@@ -13,6 +13,9 @@ namespace Ipop {
       netmask = null;
       mac = null;
       brunet = null;
+      nodeAddress = null;
+      password = null;
+      ipop_namespace = null;
     }
   }
 }

@@ -1,4 +1,3 @@
-#define DHCP_DEBUG
 using System;
 using System.IO;
 using System.Text;
@@ -182,7 +181,7 @@ namespace Ipop {
       LeaseLock = new object();
       if(!this.ReadLog()) {
         System.Console.WriteLine("Error can't read log files!\nShutting down...");
-      }     
+      }
     }
     public override DHCPLeaseResponse GetLease(DHCPLeaseParam param) {
       SoapDHCPLeaseParam soap_param = param as SoapDHCPLeaseParam;
@@ -205,15 +204,13 @@ namespace Ipop {
         }
       }
       DHCPLeaseResponse leaseReturn;
-      if(success)
-      {
+      if(success) {
         leaseReturn = new DHCPLeaseResponse();
         leaseReturn.ip = ip;
         leaseReturn.netmask = netmask;
         leaseReturn.leasetime = leasetimeb;
       }
-      else
-      {
+      else {
         /* This effectively nullifies any dhcp requests that occur when */
         /* there are some faults occuring */
         index--;
@@ -234,35 +231,6 @@ namespace Ipop {
       }
       return -1;
     }
-
-/*  We no longer acknowledge requests for specific IPs
-    public int CheckRequestedIP(byte [] ip) {
-      if(!ValidIP(ip))
-        return -1;
-      int start = 0, end = leaselist.Count;
-      int index = leaselist.Count / 2, ip_check;
-      int ip_key = keygen(ip), count = 0, term = (int)
-        Math.Ceiling(Math.Log((double) end));
-
-      if(leaselist.Count == 0)
-        return -1;
-
-      while(count != term) {
-        ip_check = keygen(((Lease)leaselist.GetByIndex(index)).ip);
-        if(ip_key == ip_check)
-          return index;
-        else if(ip_key > ip_check) {
-          start = index;
-          index = (index + end) / 2;
-        }
-        else {
-          end = index;
-          index = (start + index) / 2;
-        }
-        count++;
-      }
-      return -1;
-    }*/
 
     public int GetNextAvailableIP(byte [] hwaddr) {
       int temp = this.index, count = LeaseIPs.Count;
@@ -424,6 +392,7 @@ namespace Ipop {
       }
     }
   }
+
   public class DhtDHCPLease: DHCPLease {
     protected FDht _dht;
     protected Random _rand;
@@ -479,7 +448,7 @@ namespace Ipop {
       if (old_password == null) {
 	old_password = new_password;
       }
-      
+
       byte[] guessed_ip = preferred_ip;
 
       while (true) {
@@ -574,6 +543,7 @@ namespace Ipop {
       }
       return null;
     }
+
     private byte[] GuessIPAddress() {
       byte[] guessed_ip = new byte[4];
       bool smaller = true;

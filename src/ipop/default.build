@@ -15,6 +15,7 @@
 	      <include name="libtuntap.so" />
 	      <include name="DHCPCommon.dll" />
               <include name="Brunet.Dht.dll" />
+	      <include name="log4net.dll" />
 	    </fileset>
     </copy>
     <csc target="exe" output="${build.dir}/IPRouter.exe">

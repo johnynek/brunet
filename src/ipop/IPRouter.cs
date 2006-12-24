@@ -33,7 +33,7 @@ namespace Ipop {
     private static ArrayList RemoteTAs;
     private static string ConfigFile;
     private static NodeMapping node;
-    private static byte []routerMAC;
+    private static byte []routerMAC = new byte[]{0xFE, 0xFD, 0, 0, 0, 0};
 
 /*  DHT added code */
 
@@ -43,11 +43,6 @@ namespace Ipop {
 
 /*  Generic */
     private static void BrunetStart() {
-      if(node.brunet != null) {
-        node.brunet.Disconnect();
-/* Until Arijit adds a feature to Brunet */
-        Thread.Sleep(5000);
-      }
       node.brunet = new BrunetTransport(ether, config.brunet_namespace,
         node, config.EdgeListeners, config.DevicesToBind, RemoteTAs, debug,
         config.dht_media);
@@ -55,7 +50,7 @@ namespace Ipop {
       RouteMissHandler.RouteMissDelegate dlgt =
         new RouteMissHandler.RouteMissDelegate(RouteMissCallback);
       route_miss_handler = new RouteMissHandler(node.brunet.dht,
-        config.ipop_namespace, dlgt);
+        node.ipop_namespace, dlgt);
     }
 
     private static bool ARPHandler(byte []packet) {
@@ -66,8 +61,8 @@ namespace Ipop {
 
       /* Must return nothing if the node is checking availability of IPs */
       /* Or he is looking himself up. */
-      if(((node.ip != null) && node.ip.Equals(TargetIPAddress)) || 
-        TargetIPAddress.Equals("255.255.255.255") || 
+      if(((node.ip != null) && node.ip.Equals(TargetIPAddress)) ||
+        TargetIPAddress.Equals("255.255.255.255") ||
         TargetIPAddress.Equals("0.0.0.0"))
         return false;
 
@@ -105,7 +100,7 @@ namespace Ipop {
       dhcpPacket.DecodePacket();
       dhcpPacket.decodedPacket.brunet_namespace = config.brunet_namespace;
       dhcpPacket.decodedPacket.ipop_namespace = config.ipop_namespace;
-      dhcpPacket.decodedPacket.NodeAddress = config.NodeAddress;
+      dhcpPacket.decodedPacket.NodeAddress = node.nodeAddress;
 
       if (config.DhtDHCP && config.AddressData.IPAddress != null &&
         config.AddressData.Password != null) {
@@ -143,7 +138,6 @@ namespace Ipop {
           config.AddressData.IPAddress = newAddress;
           config.AddressData.Netmask = node.netmask;
           IPRouterConfigHandler.Write(ConfigFile, config);
-          BrunetStart();
         }
       }
       else {
@@ -208,8 +202,6 @@ namespace Ipop {
       if (args.Length == 3)
         debug = true;
 
-      routerMAC = new byte[]{0xFE, 0xFD, 0, 0, 0, 0};
-
       System.Console.WriteLine("IPRouter starting up...");
       ether = new Ethernet(config.device, routerMAC);
       if (ether.Open() < 0) {
@@ -218,19 +210,23 @@ namespace Ipop {
       }
 
       node = new NodeMapping();
-      if(config.AddressData != null && config.AddressData.DHCPServerAddress != null)
-        dhcpClient = new SoapDHCPClient(config.AddressData.DHCPServerAddress);
-      else
-        dhcpClient = new DhtDHCPClient(node.brunet.dht);
+      node.nodeAddress = config.NodeAddress;
+      node.ipop_namespace = config.ipop_namespace;
 
       if(config.AddressData != null && config.AddressData.IPAddress != null 
         && config.AddressData.Netmask != null) {
         node.ip = IPAddress.Parse(config.AddressData.IPAddress);
         node.netmask = config.AddressData.Netmask;
-        //setup Brunet node
+        node.password = config.AddressData.Password;
       }
 
       BrunetStart();
+
+      if(config.AddressData != null && 
+        config.AddressData.DHCPServerAddress != null && !config.DhtDHCP)
+        dhcpClient = new SoapDHCPClient(config.AddressData.DHCPServerAddress);
+      else
+        dhcpClient = new DhtDHCPClient(node.brunet.dht);
 
       ethernet = false;
       //start the asynchronous communication now
@@ -271,11 +267,16 @@ namespace Ipop {
         /* else if(type == 0x800) */
 
         IPAddress srcAddr = IPPacketParser.SrcAddr(buffer);
-        System.Console.WriteLine(node.ip + " " + srcAddr);
-        if(!srcAddr.Equals(IPAddress.Parse("0.0.0.0")) && (node.ip == null || !node.ip.Equals(srcAddr))) {
+        if(!srcAddr.Equals(IPAddress.Parse("0.0.0.0")) && (node.ip == null ||
+          !node.ip.Equals(srcAddr))) {
           Console.WriteLine("Switching IP Address " + node.ip + " with " + srcAddr);
-          node.ip = srcAddr;
-          BrunetStart();
+          if(!node.brunet.Update(srcAddr.ToString()))
+            continue;
+          if(config.AddressData == null)
+            config.AddressData = new AddressInfo();
+          config.AddressData.IPAddress = node.ip.ToString();
+          config.AddressData.Netmask = node.netmask;
+          config.AddressData.Password = node.password;
         }
 
         IPAddress destAddr = IPPacketParser.DestAddr(buffer);
