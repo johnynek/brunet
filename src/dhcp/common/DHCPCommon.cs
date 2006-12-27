@@ -222,7 +222,7 @@ namespace Ipop {
           }
           break;
         }
-      } catch (Exception e) {
+      } catch (Exception) {
         return null;
       }
       ArrayList values = (ArrayList) result[0];

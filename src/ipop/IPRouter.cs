@@ -277,6 +277,7 @@ namespace Ipop {
           config.AddressData.IPAddress = node.ip.ToString();
           config.AddressData.Netmask = node.netmask;
           config.AddressData.Password = node.password;
+          IPRouterConfigHandler.Write(ConfigFile, config);
         }
 
         IPAddress destAddr = IPPacketParser.DestAddr(buffer);

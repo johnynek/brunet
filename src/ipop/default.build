@@ -11,17 +11,15 @@
     <mkdir dir="${build.dir}" failonerror="true"/>
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${lib.dir}">
-	      <include name="Brunet.dll" />
-	      <include name="libtuntap.so" />
-	      <include name="DHCPCommon.dll" />
-              <include name="Brunet.Dht.dll" />
-	      <include name="log4net.dll" />
-	    </fileset>
+        <include name="Brunet.dll" />
+        <include name="libtuntap.so" />
+        <include name="Brunet.Dht.dll" />
+        <include name="log4net.dll" />
+      </fileset>
     </copy>
     <csc target="exe" output="${build.dir}/IPRouter.exe">
       <sources failonempty="true">
-	      <include name="IPRouter.cs"/>
-        <include name="../dhcp/DHCPClient.cs"/>
+        <include name="IPRouter.cs"/>
         <include name="../OSDependent/abstract.cs"/>
         <include name="../OSDependent/linux.cs"/>
         <include name="Ethernet.cs"/>
@@ -31,28 +29,32 @@
         <include name="IPRouterConfig.cs"/>
         <include name="IPOP_Common.cs"/>
         <include name="NodeMapping.cs"/>
-	<include name="RouteMissHandler.cs"/>
-	    </sources>
-	    <references>
+        <include name="RouteMissHandler.cs"/>
+        <include name="../dhcp/DHCPClient.cs"/>
+        <include name="../dhcp/common/DHCPCommon.cs"/>
+        <include name="../dhcp/common/DHCPPacket.cs"/>
+        <include name="../dhcp/common/DHCPOptionsList.cs"/>
+        <include name="../dhcp/common/DHCPLease.cs"/>
+        <include name="../dhcp/common/DHCPServerConfig.cs"/>
+        </sources>
+      <references>
         <include name="${build.dir}/Brunet.dll"/>
-	<include name="${build.dir}/Brunet.Dht.dll" />
+        <include name="${build.dir}/Brunet.Dht.dll" />
         <include name="Mono.Security.dll"/>
-	      <include name="System.Runtime.Remoting.dll"/>
-	      <include name="${build.dir}/DHCPCommon.dll"/>
-              <include name="Mono.Posix.dll"/>
-  	  </references>
+        <include name="System.Runtime.Remoting.dll"/>
+        <include name="Mono.Posix.dll"/>
+      </references>
     </csc>
     <csc target="exe" output="${build.dir}/SimpleNode.exe">
       <sources failonempty="true">
         <include name="../OSDependent/abstract.cs"/>
         <include name="../OSDependent/linux.cs"/>
-	      <include name="SimpleNode.cs"/>
-  	  </sources>
-	    <references>
+        <include name="SimpleNode.cs"/>
+      </sources>
+      <references>
         <include name="${build.dir}/Brunet.dll"/>
-        <include name="${build.dir}/DHCPCommon.dll"/>
         <include name="${build.dir}/Brunet.Dht.dll"/>
-  	  </references>
+      </references>
     </csc>
     <csc target="exe" output="${build.dir}/IPRouterConfigUpdate.exe">
       <sources failonempty="true">
@@ -62,4 +64,3 @@
     </csc>
   </target>
 </project>
-      

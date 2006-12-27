@@ -14,7 +14,7 @@ namespace Ipop {
     byte[] _hwaddr;
     public byte[] HwAddr {
       get {
-	return _hwaddr;
+        return _hwaddr;
       }
     }
     public SoapDHCPLeaseParam(byte[] hwaddr) {
@@ -25,22 +25,22 @@ namespace Ipop {
     byte[] _preferred_ip;
     public byte[] PreferredIP {
       get {
-	return _preferred_ip;
+        return _preferred_ip;
       }
     }
     string _stored_password;
     public string StoredPassword {
       get {
-	return _stored_password;
+        return _stored_password;
       }
       set {
-	_stored_password = value;
+        _stored_password = value;
       }
     }
     byte[] _brunet_id;
     public byte[] BrunetId {
       get {
-	return _brunet_id;
+        return _brunet_id;
       }
     }
 
@@ -186,7 +186,7 @@ namespace Ipop {
     public override DHCPLeaseResponse GetLease(DHCPLeaseParam param) {
       SoapDHCPLeaseParam soap_param = param as SoapDHCPLeaseParam;
       if (soap_param == null) {
-	return null;
+        return null;
       }
       byte[] hwaddr = soap_param.HwAddr;
       bool success = true;
@@ -408,18 +408,18 @@ namespace Ipop {
     public override DHCPLeaseResponse GetLease(DHCPLeaseParam param) {
       DhtDHCPLeaseParam dht_param = param as DhtDHCPLeaseParam;
       if (dht_param == null) {
-	return null;
+        return null;
       }
       TimeSpan t_span = DateTime.Now - _last_assigned_instant;
       if (_last_assigned_lease != null && t_span.TotalSeconds < 0.5*leasetime) {
-	return _last_assigned_lease;
+        return _last_assigned_lease;
       }
       
       byte[] preferred_ip = dht_param.PreferredIP;
       if (preferred_ip[0] == 0 && preferred_ip[1] == 0 && 
-	  preferred_ip[2] == 0 && preferred_ip[3] == 0) {
-	//we should make a guess
-	preferred_ip = GuessIPAddress();
+          preferred_ip[2] == 0 && preferred_ip[3] == 0) {
+        //we should make a guess
+        preferred_ip = GuessIPAddress();
       }
       DHCPLeaseResponse leaseReturn = new DHCPLeaseResponse();
       string new_password; 
@@ -446,100 +446,67 @@ namespace Ipop {
       string new_hashed_password = "SHA1:" + Convert.ToBase64String(sha1_pass);
 
       if (old_password == null) {
-	old_password = new_password;
+        old_password = new_password;
       }
 
       byte[] guessed_ip = preferred_ip;
 
       while (true) {
-	try {
-	  string guessed_ip_str = "";
-	  for (int k = 0; k < guessed_ip.Length-1; k++) {
-	    guessed_ip_str += (guessed_ip[k] + ".");
-	  }
-	  guessed_ip_str += guessed_ip[guessed_ip.Length - 1];
-#if DHCP_DEBUG
-	  Console.WriteLine("attempting to acquire: {0}", guessed_ip_str);
-#endif
-	  string str_key = "dhcp:ipop_namespace:" + namespace_value + ":ip:" + guessed_ip_str;
-	  byte[] dht_key = Encoding.UTF8.GetBytes(str_key);
+        try {
+          string guessed_ip_str = "";
+          for (int k = 0; k < guessed_ip.Length-1; k++) {
+            guessed_ip_str += (guessed_ip[k] + ".");
+          }
+          guessed_ip_str += guessed_ip[guessed_ip.Length - 1];
+          string str_key = "dhcp:ipop_namespace:" + namespace_value + ":ip:" + guessed_ip_str;
+          byte[] dht_key = Encoding.UTF8.GetBytes(str_key);
 
-#if DHCP_DEBUG
-	  Console.WriteLine("Invoking recreate() on: {0}", str_key);
-#endif
-	  
-	  BlockingQueue [] queues = _dht.RecreateF(dht_key, old_password, leasetime, new_hashed_password, brunet_id);
+          BlockingQueue [] queues = _dht.RecreateF(dht_key, old_password, leasetime, new_hashed_password, brunet_id);
 
-	  int max_results_per_queue = 2;
-	  int min_majority = 3;
-	  
-	  ArrayList []results = BlockingQueue.ParallelFetchWithTimeout(queues, 3000);
-#if DHCP_DEBUG
-	  Console.WriteLine("Parellel fetch returning {0} results.", results.Length);
-#endif
-	  //this method will return as soon as we have results available
-	  for (int i = 0; i < results.Length; i++) {
-#if DHCP_DEBUG
-	    Console.WriteLine("analysing queue:{0}", i);
-#endif
-	    bool success = true;
-	    ArrayList q_result = results[i];
-	    if (q_result.Count < max_results_per_queue) {
-#if DHCP_DEBUG
-	      Console.WriteLine("queue:{0} has fewer results: {1} ({2} expercted).", i, q_result.Count, max_results_per_queue);
-#endif
-	      continue;
-	    }
-	    foreach (RpcResult rpc_result in q_result) {
-	      try {
-		bool result = (bool) rpc_result.Result;
-#if DHCP_DEBUG
-		Console.WriteLine("queue: {0}, result for acquire: {1}", i, result);
-#endif
-		continue;
-	      } catch(AdrException e) {
-#if DHCP_DEBUG
-		Console.WriteLine(e);
-		Console.WriteLine(e.Message);
-#endif
-		success = false;
-		continue;
-	      }
-	    }
-	    if (success) {
-#if DHCP_DEBUG
-	      Console.WriteLine("queue:{0} had the desired results", i);
-#endif
-	      min_majority--;
-	    }
-	  }
-	  if (min_majority > 0) {
-	    //we have not been able to acquire a majority, delete all keys
-	    queues = _dht.DeleteF(dht_key, new_password);
-	    BlockingQueue.ParallelFetch(queues, 1);//1 reply is sufficient
-	  } else {
-#if DHCP_DEBUG
-	    Console.WriteLine("successfully acquired IP address: {0}", guessed_ip_str);
-#endif
-	    return guessed_ip;
-	  }
-	  if (max_attempts > 0) {
-	    //guess a new IP address
-	    guessed_ip = GuessIPAddress();
-#if DHCP_DEBUG
-	    Console.WriteLine("wating for 5 seconds, before trying another guess");
-#endif
-	    System.Threading.Thread.Sleep(5000);
-	    continue;
-	  } 
-	  break;
-	} catch(DhtException ex) {
-#if DHCP_DEBUG
-	  System.Console.WriteLine(ex);
-#endif
-	  //sleep 10 seconds and retry
-	  System.Threading.Thread.Sleep(10000);
-	}
+          int max_results_per_queue = 2;
+          int min_majority = 3;
+
+          ArrayList []results = BlockingQueue.ParallelFetchWithTimeout(queues, 3000);
+
+          //this method will return as soon as we have results available
+          for (int i = 0; i < results.Length; i++) {
+            bool success = true;
+            ArrayList q_result = results[i];
+            if (q_result.Count < max_results_per_queue) {
+              continue;
+            }
+            foreach (RpcResult rpc_result in q_result) {
+              try {
+                if((bool) rpc_result.Result) 
+                  continue;
+                continue;
+              } catch(AdrException) {
+                success = false;
+                continue;
+              }
+            }
+            if (success) {
+              min_majority--;
+            }
+          }
+          if (min_majority > 0) {
+            //we have not been able to acquire a majority, delete all keys
+            queues = _dht.DeleteF(dht_key, new_password);
+            BlockingQueue.ParallelFetch(queues, 1);//1 reply is sufficient
+          } else {
+            return guessed_ip;
+          }
+          if (max_attempts > 0) {
+            //guess a new IP address
+            guessed_ip = GuessIPAddress();
+            System.Threading.Thread.Sleep(5000);
+            continue;
+          } 
+          break;
+        } catch(DhtException) {
+          //sleep 10 seconds and retry
+          System.Threading.Thread.Sleep(10000);
+        }
       }
       return null;
     }
@@ -548,28 +515,28 @@ namespace Ipop {
       byte[] guessed_ip = new byte[4];
       bool smaller = true;
       for (int k = 0; k < guessed_ip.Length; k++) {
-	if (lower[k] == upper[k]) {
-	  guessed_ip[k] = lower[k];
-	  smaller = false;
-	}
-	if (lower[k] < upper[k]) {
-	  guessed_ip[k] = (byte) _rand.Next((int) lower[k], (int) upper[k] + 1);
-	  continue;
-	} 
-	if (smaller && lower[k] > upper[k])
-	{
-	  int max_offset = 255  - (int) lower[k] + (int) upper[k] + 2;
-	  int offset = _rand.Next(0, max_offset);
-	  guessed_ip[k] = (byte) (((int) lower[k] + offset)%255);
-	}
-	if (!smaller && lower[k] > upper[k]) {
-	  Console.Error.WriteLine("Invalid IPOP namespace IP range: lower > upper");
-	}
+        if (lower[k] == upper[k]) {
+          guessed_ip[k] = lower[k];
+          smaller = false;
+        }
+        if (lower[k] < upper[k]) {
+          guessed_ip[k] = (byte) _rand.Next((int) lower[k], (int) upper[k] + 1);
+          continue;
+        } 
+        if (smaller && lower[k] > upper[k])
+        {
+          int max_offset = 255  - (int) lower[k] + (int) upper[k] + 2;
+          int offset = _rand.Next(0, max_offset);
+          guessed_ip[k] = (byte) (((int) lower[k] + offset)%255);
+        }
+        if (!smaller && lower[k] > upper[k]) {
+          Console.Error.WriteLine("Invalid IPOP namespace IP range: lower > upper");
+        }
       }
       if (!ValidIP(guessed_ip)) {
-	guessed_ip = GuessIPAddress();
+        guessed_ip = GuessIPAddress();
       }
       return guessed_ip;
-    }      
+    }
   }
 }

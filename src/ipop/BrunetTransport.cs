@@ -155,10 +155,11 @@ namespace Ipop {
 
         foreach (RpcResult rpc_result in q_result) {
           try {
-            bool result = (bool) rpc_result.Result;
+            if((bool) rpc_result.Result)
+              continue;
             continue;
           }
-          catch(AdrException e) {
+          catch(AdrException) {
             success = false;
             continue;
           }
