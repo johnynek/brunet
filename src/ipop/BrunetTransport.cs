@@ -128,8 +128,7 @@ namespace Ipop {
           queues = dht.DeleteF(dht_key, node.password);
         }
 
-        dht_key = Encoding.UTF8.GetBytes("dhcp:ipop_namespace:" + 
-          node.ipop_namespace + ":ip:" + ip);
+        dht_key = Encoding.UTF8.GetBytes("dhcp:ip:" + ip);
 
         byte [] nodeAddress = IPOP_Common.StringToBytes(node.nodeAddress, ':');
         if(node.password == null)

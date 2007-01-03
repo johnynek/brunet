@@ -7,29 +7,30 @@ using Brunet.Dht;
 
 namespace Ipop {
   abstract public class DHCPClient {
-    protected DHCPServer _dhcp_server;
+    public DHCPServer _dhcp_server;
     abstract public DecodedDHCPPacket SendMessage(DecodedDHCPPacket packet);
   }
-  public class SoapDHCPClient: DHCPClient {
+  public class SoapDHCPClient : DHCPClient {
     public SoapDHCPClient(string ipAddress) {
       TcpChannel ch = new TcpChannel();
       ChannelServices.RegisterChannel(ch);
-      RemotingConfiguration.RegisterWellKnownClientType(typeof(DHCPServer),
-							"tcp://" + ipAddress + "/DHCPServer.rem");      
+      RemotingConfiguration.RegisterWellKnownClientType(typeof(SoapDHCPServer),
+        "tcp://" + ipAddress + "/DHCPServer.rem");
       _dhcp_server = new SoapDHCPServer();
     }
+
     public override DecodedDHCPPacket SendMessage(DecodedDHCPPacket packet) {
-      DecodedDHCPPacket response = _dhcp_server.SendMessage(packet);
-      return response;
+      return _dhcp_server.SendMessage(packet);
     }
   }
+
   public class DhtDHCPClient: DHCPClient {
     public DhtDHCPClient(FDht dht) {
       _dhcp_server = new DhtDHCPServer(new byte[4] {192, 168, 0 , 1}, dht);
     }
+
     public override DecodedDHCPPacket SendMessage(DecodedDHCPPacket packet) {
-      DecodedDHCPPacket response = _dhcp_server.SendMessage(packet);
-      return response;
+      return _dhcp_server.SendMessage(packet);
     }
   }
 }

@@ -104,7 +104,7 @@ namespace Ipop {
 
       if (config.DhtDHCP && config.AddressData.IPAddress != null &&
         config.AddressData.Password != null) {
-        dhcpPacket.decodedPacket.yiaddr = 
+        dhcpPacket.decodedPacket.yiaddr =
           IPAddress.Parse(config.AddressData.IPAddress).GetAddressBytes();
         dhcpPacket.decodedPacket.StoredPassword = config.AddressData.Password;
       }
@@ -115,7 +115,7 @@ namespace Ipop {
       string response = null;
       try {
         returnPacket = new DHCPPacket(
-          dhcpClient.SendMessage(dhcpPacket.decodedPacket));
+          dhcpClient._dhcp_server.SendMessage(dhcpPacket.decodedPacket));
       }
       catch (Exception e) {
         System.Console.WriteLine(e);
@@ -133,6 +133,8 @@ namespace Ipop {
           returnPacket.decodedPacket.options[1]).byte_value, '.');
         if(node.ip == null || node.ip.ToString() != newAddress || 
           node.netmask !=  newNetmask) {
+          if(!config.DhtDHCP)
+            node.brunet.Update(newAddress);
           node.netmask = newNetmask;
           node.ip = IPAddress.Parse(newAddress);
           config.AddressData.IPAddress = newAddress;
@@ -222,7 +224,7 @@ namespace Ipop {
 
       BrunetStart();
 
-      if(config.AddressData != null && 
+      if(config.AddressData != null &&
         config.AddressData.DHCPServerAddress != null && !config.DhtDHCP)
         dhcpClient = new SoapDHCPClient(config.AddressData.DHCPServerAddress);
       else

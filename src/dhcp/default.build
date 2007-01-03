@@ -19,6 +19,9 @@
              <include name="common/DHCPOptionsList.cs"/>
 	     <include name="common/DHCPLease.cs"/>
 	     <include name="common/DHCPServerConfig.cs"/>
+             <include name="common/SoapDHCPServer.cs"/>
+             <include name="common/DhtDHCPServer.cs"/>
+             <include name="common/DhtDHCPLease.cs"/>
 	  </sources>
           <references>
 	     <include name="System.Runtime.Remoting.dll"/>

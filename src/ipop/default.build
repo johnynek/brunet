@@ -15,6 +15,7 @@
         <include name="libtuntap.so" />
         <include name="Brunet.Dht.dll" />
         <include name="log4net.dll" />
+        <include name="DHCPCommon.dll" />
       </fileset>
     </copy>
     <csc target="exe" output="${build.dir}/IPRouter.exe">
@@ -31,15 +32,11 @@
         <include name="NodeMapping.cs"/>
         <include name="RouteMissHandler.cs"/>
         <include name="../dhcp/DHCPClient.cs"/>
-        <include name="../dhcp/common/DHCPCommon.cs"/>
-        <include name="../dhcp/common/DHCPPacket.cs"/>
-        <include name="../dhcp/common/DHCPOptionsList.cs"/>
-        <include name="../dhcp/common/DHCPLease.cs"/>
-        <include name="../dhcp/common/DHCPServerConfig.cs"/>
         </sources>
       <references>
         <include name="${build.dir}/Brunet.dll"/>
         <include name="${build.dir}/Brunet.Dht.dll" />
+	<include name="${build.dir}/DHCPCommon.dll" />
         <include name="Mono.Security.dll"/>
         <include name="System.Runtime.Remoting.dll"/>
         <include name="Mono.Posix.dll"/>
