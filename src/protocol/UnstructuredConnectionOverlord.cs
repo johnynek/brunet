@@ -71,7 +71,7 @@ namespace Brunet
       _compensate = false;
       _local = local;
       _connection_table = _local.ConnectionTable;
-      _rand = new Random(DateTime.Now.Millisecond);
+      _rand = new Random();
       _connectors = new ArrayList();
       _sync = new Object();
 

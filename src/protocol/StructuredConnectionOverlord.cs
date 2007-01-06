@@ -46,7 +46,7 @@ namespace Brunet {
       _rand = new Random();
       _sync = new Object();
       _connectors = new ArrayList();
-      _last_connection_time = DateTime.Now;
+      _last_connection_time = DateTime.UtcNow;
       lock( _sync ) {
       //Listen for connection events:
         _node.ConnectionTable.DisconnectionEvent +=
@@ -473,7 +473,7 @@ namespace Brunet {
 	  //our state is.
           return;
         }
-        TimeSpan elapsed = DateTime.Now - _last_connection_time;
+        TimeSpan elapsed = DateTime.UtcNow - _last_connection_time;
 	if( elapsed.TotalSeconds >= _trim_delay ) {
           ConnectionTable tab = _node.ConnectionTable;
 #if POB_DEBUG
@@ -618,7 +618,7 @@ namespace Brunet {
       Address nrtarget = null;
 	    
       lock( _sync ) {
-        _last_connection_time = DateTime.Now;
+        _last_connection_time = DateTime.UtcNow;
         _need_left = -1;
         _need_right = -1;
         _need_short = -1;
@@ -998,7 +998,7 @@ namespace Brunet {
     protected void DisconnectHandler(object connectiontable, EventArgs args)
     { 
       lock( _sync ) {
-        _last_connection_time = DateTime.Now;
+        _last_connection_time = DateTime.UtcNow;
         _need_left = -1;
         _need_right = -1;
         _need_short = -1;

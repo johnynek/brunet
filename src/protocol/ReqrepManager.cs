@@ -75,7 +75,7 @@ public class ReqrepManager : IAHPacketHandler {
     //Hold on to a reply for 50 seconds.
     ///@todo, we should also make sure to keep a maximum number of replies
     _reptimeout = new TimeSpan(0,0,0,0,50000);
-    _last_check = DateTime.Now;
+    _last_check = DateTime.UtcNow;
 
     _node.ArrivalEvent += delegate(object n, EventArgs args) { 
 #if REQREP_DEBUG
@@ -217,7 +217,7 @@ public class ReqrepManager : IAHPacketHandler {
 	     repstate.Request.Source.Equals( p.Source ) ) {
 	     //This is old news
 	     rs = repstate;
-	     repstate.RepDate = DateTime.Now;
+	     repstate.RepDate = DateTime.UtcNow;
 	     break;
 	   }
 	 }
@@ -417,7 +417,7 @@ public class ReqrepManager : IAHPacketHandler {
       short ttl = _node.DefaultTTLFor(destination);
       rs.ReplyHandler = reply;
       rs.Request = MakePacket(destination, ttl, reqt, next_req, prot, payload);
-      rs.ReqDate = DateTime.Now;
+      rs.ReqDate = DateTime.UtcNow;
       rs.RequestType = reqt;
       rs.UserState = state;
       rs.Replied = false;
@@ -459,7 +459,7 @@ public class ReqrepManager : IAHPacketHandler {
        */
       rs.Reply = null;
     }
-    rs.RepDate = DateTime.Now;
+    rs.RepDate = DateTime.UtcNow;
     lock( _sync ) {
       _replies.Add( rs );
     }
@@ -495,7 +495,7 @@ public class ReqrepManager : IAHPacketHandler {
    */
   protected void TimeoutChecker(object node, EventArgs args)
   {
-    DateTime now = DateTime.Now;
+    DateTime now = DateTime.UtcNow;
     if( now - _last_check > _reqtimeout ) {
       //Here is a list of all the handlers for the requests that timed out
       ArrayList timeout_hands = new ArrayList();

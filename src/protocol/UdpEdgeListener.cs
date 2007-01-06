@@ -135,7 +135,7 @@ namespace Brunet
 	  _remote_id_ht.Remove( e.RemoteID );
 	}
       }
-      NatDataPoint dp = new EdgeClosePoint(DateTime.Now, e);
+      NatDataPoint dp = new EdgeClosePoint(DateTime.UtcNow, e);
       _nat_hist = _nat_hist + dp;
       _nat_tas = new NatTAs( _tas, _nat_hist );
     }
@@ -314,14 +314,14 @@ namespace Brunet
            edge, edge.End, end); 
         //Actually update:
         edge.End = end;
-        NatDataPoint dp = new RemoteMappingChangePoint(DateTime.Now, edge);
+        NatDataPoint dp = new RemoteMappingChangePoint(DateTime.UtcNow, edge);
         _nat_hist = _nat_hist + dp;
         _nat_tas = new NatTAs( _tas, _nat_hist );
         //Tell the other guy:
         SendControlPacket(end, remoteid, localid, ControlCode.EdgeDataAnnounce, state);
       }
       if( is_new_edge ) {
-       NatDataPoint dp = new NewEdgePoint(DateTime.Now, edge);
+       NatDataPoint dp = new NewEdgePoint(DateTime.UtcNow, edge);
        _nat_hist = _nat_hist + dp;
        _nat_tas = new NatTAs( _tas, _nat_hist );
        SendEdgeEvent(edge);
@@ -349,7 +349,7 @@ namespace Brunet
       if( e.TAType == this.TAType ) {
         UdpEdge ue = (UdpEdge)e;
         ue.PeerViewOfLocalTA = ta;
-        NatDataPoint dp = new LocalMappingChangePoint(DateTime.Now, e, ta);
+        NatDataPoint dp = new LocalMappingChangePoint(DateTime.UtcNow, e, ta);
         _nat_hist = _nat_hist + dp;
         _nat_tas = new NatTAs( _tas, _nat_hist );
       }
@@ -470,7 +470,7 @@ namespace Brunet
         }
         /* Tell me when you close so I can clean up the table */
         e.CloseEvent += new EventHandler(this.CloseHandler);
-        NatDataPoint dp = new NewEdgePoint(DateTime.Now, e);
+        NatDataPoint dp = new NewEdgePoint(DateTime.UtcNow, e);
         _nat_hist = _nat_hist + dp;
         _nat_tas = new NatTAs( _tas, _nat_hist );
         ecb(true, e, null);
