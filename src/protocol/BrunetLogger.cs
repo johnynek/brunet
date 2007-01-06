@@ -85,7 +85,7 @@ namespace Brunet{
       }	
 
     public BrunetLogger(){
-      start_time = DateTime.Now;
+      start_time = DateTime.UtcNow;
       String _dir = "./data/";
       int port = 25000;
       _connection_log_file = _dir + "brunetadd" + Convert.ToString(port) + ".log";
@@ -103,7 +103,7 @@ namespace Brunet{
       _packet_log_file = _dir + "packet" + Convert.ToString(port) + ".log";
       _local_ahaddress = local_add;
 
-      start_time = DateTime.Now;
+      start_time = DateTime.UtcNow;
     }
 
     public BrunetLogger(int port, AHAddress local_add, bool net_stream, String server_ipadd, 
@@ -141,7 +141,7 @@ namespace Brunet{
 
       }
 
-      start_time = DateTime.Now.AddSeconds((double)_time_offset);
+      start_time = DateTime.UtcNow.AddSeconds((double)_time_offset);
     }
 
     protected Object logEventLock = new Object(); //This is for logging in connectiontable 
@@ -155,17 +155,17 @@ namespace Brunet{
     {
       lock(logEventLock) {  
 
-        DateTime CurrTime = DateTime.Now.AddSeconds((double)_time_offset);
+        DateTime CurrTime = DateTime.UtcNow.AddSeconds((double)_time_offset);
         //using(StreamWriter fs = new StreamWriter(_connection_log_file, true)){
-        fs.Write( CurrTime.ToUniversalTime().ToString("MM'/'dd'/'yyyy' 'HH':'mm':'ss") + 
-            ":" + CurrTime.ToUniversalTime().Millisecond +
+        fs.Write( CurrTime.ToString("MM'/'dd'/'yyyy' 'HH':'mm':'ss") + 
+            ":" + CurrTime.Millisecond +
             "  " + bed.EventDescription +
             "  " + bed.ConnectionType + 
             "  " + bed.RemoteAHAddress + 
             "  " + bed.SubType +
             "  " + bed.StructureDegree + '\n');
-        /*fs.Write( CurrTime.ToUniversalTime().ToString("MM'/'dd'/'yyyy' 'HH':'mm':'ss") + 
-            ":" + CurrTime.ToUniversalTime().Millisecond +
+        /*fs.Write( CurrTime.ToString("MM'/'dd'/'yyyy' 'HH':'mm':'ss") + 
+            ":" + CurrTime.Millisecond +
             "  " + bed.RemoteAHAddressBase32 + '\n'); */
         fs.Flush();
         //fs.Close();
@@ -173,8 +173,8 @@ namespace Brunet{
 
         if(_net_stream){
           try{
-            _sw.WriteLine( "con_0 " + CurrTime.ToUniversalTime().ToString("MM'/'dd'/'yyyy' 'HH':'mm':'ss") + 
-                ":" + CurrTime.ToUniversalTime().Millisecond +
+            _sw.WriteLine( "con_0 " + CurrTime.ToString("MM'/'dd'/'yyyy' 'HH':'mm':'ss") + 
+                ":" + CurrTime.Millisecond +
                 "  " + bed.EventDescription +
                 "  " + bed.ConnectionType + 
                 "  " + this.LocalAHAddress.ToBigInteger().ToString()  + 
@@ -194,9 +194,9 @@ namespace Brunet{
     public void LogAttemptEvent(BrunetEventDescriptor bed)
     {
       lock(logEventLock) {          
-        DateTime CurrTime = DateTime.Now.AddSeconds((double)_time_offset);
-        fs.Write( CurrTime.ToUniversalTime().ToString("MM'/'dd'/'yyyy' 'HH':'mm':'ss") + 
-            ":" + CurrTime.ToUniversalTime().Millisecond +
+        DateTime CurrTime = DateTime.UtcNow.AddSeconds((double)_time_offset);
+        fs.Write( CurrTime.ToString("MM'/'dd'/'yyyy' 'HH':'mm':'ss") + 
+            ":" + CurrTime.Millisecond +
             "  " + bed.EventDescription +
             "  " + "Attempt" + 
             "  " + bed.RemoteAHAddress + 
@@ -221,7 +221,7 @@ namespace Brunet{
      */
     public void LogPacketTimeStamp(Packet p, bool received)
     {       
-      TimeSpan elapsed_time = System.DateTime.Now.AddSeconds((double)_time_offset) - start_time;
+      TimeSpan elapsed_time = System.DateTime.UtcNow.AddSeconds((double)_time_offset) - start_time;
       lock(logTimeStampLock){
         String str_rec, str_payload_type;
         if(received){
@@ -252,7 +252,7 @@ namespace Brunet{
      */
     public void LogBrunetPing(Packet p, bool received)
     {       
-      TimeSpan elapsed_time = System.DateTime.Now.AddSeconds((double)_time_offset) - start_time;
+      TimeSpan elapsed_time = System.DateTime.UtcNow.AddSeconds((double)_time_offset) - start_time;
       lock(BPLock){	
         StreamWriter bp_sw = new StreamWriter(_brunet_ping_log_file, true);
         if(received){ 
@@ -275,7 +275,7 @@ namespace Brunet{
     public void LogPing(double ping_time)
     {      
       lock(PingLock){
-        TimeSpan elapsed_time = System.DateTime.Now.AddSeconds((double)_time_offset) - start_time;
+        TimeSpan elapsed_time = System.DateTime.UtcNow.AddSeconds((double)_time_offset) - start_time;
         StreamWriter icmp_sw = new StreamWriter(_icmp_ping_log_file, true);
         icmp_sw.WriteLine("{0} \t \t {1}", elapsed_time.TotalMilliseconds, ping_time);
         icmp_sw.Flush();
@@ -290,8 +290,8 @@ namespace Brunet{
       lock(BPLock){
         StreamWriter bp_sw = new StreamWriter(_brunet_ping_log_file, true);
         bp_sw.WriteLine( "local: " + local + ":" + local_port + " remote: " + target + ":" + target_port + " "
-            + DateTime.Now.AddSeconds((double)_time_offset).ToUniversalTime().ToString() + 
-            ":" + DateTime.Now.AddSeconds((double)_time_offset).ToUniversalTime().Millisecond); 	        
+            + DateTime.UtcNow.AddSeconds((double)_time_offset).ToString() + 
+            ":" + DateTime.UtcNow.AddSeconds((double)_time_offset).Millisecond); 	        
         bp_sw.Flush(); 
         bp_sw.Close();
       }
@@ -302,8 +302,8 @@ namespace Brunet{
       lock(PingLock){	      
         StreamWriter icmp_sw = new StreamWriter(_icmp_ping_log_file, true);
         icmp_sw.WriteLine( "local: " + local + ":" + local_port + " remote: " + target + ":" + target_port + " "
-            + DateTime.Now.AddSeconds((double)_time_offset).ToUniversalTime().ToString() 
-            + ":" + DateTime.Now.AddSeconds((double)_time_offset).ToUniversalTime().Millisecond); 	        
+            + DateTime.UtcNow.AddSeconds((double)_time_offset).ToString() 
+            + ":" + DateTime.UtcNow.AddSeconds((double)_time_offset).Millisecond); 	        
         icmp_sw.Flush(); 
         icmp_sw.Close();
       }

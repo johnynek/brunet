@@ -184,7 +184,7 @@ namespace Brunet {
 	_node.Subscribe(AHPacket.Protocol.IP, this);
       }
 #if ARI_EXP_DEBUG
-      Console.WriteLine("ChotaConnectionOverlord starting : {0}", DateTime.Now);
+      Console.WriteLine("ChotaConnectionOverlord starting : {0}", DateTime.UtcNow);
 #endif
       
     }
@@ -257,10 +257,10 @@ namespace Brunet {
 	      //too low score to create a connection
 	      continue;
 	    }
-	    //TimeSpan elapsed = DateTime.Now - node_rank.LastRetryInstant;
+	    //TimeSpan elapsed = DateTime.UtcNow - node_rank.LastRetryInstant;
 	    //if (elapsed.TotalSeconds < _retry_delay) {
 	    //Console.WriteLine("To early for retry, Now = {0} and {1} < {2}", 
-	    //			DateTime.Now, elapsed.TotalSeconds, _retry_delay);
+	    //			DateTime.UtcNow, elapsed.TotalSeconds, _retry_delay);
 	      //wait for some time before sending a connection request again
 	      //continue;
 	    //}
@@ -320,7 +320,7 @@ namespace Brunet {
 #if ARI_CHOTA_DEBUG
 	  Console.WriteLine("Trying to form a chota connection to addr: {0}", to_add.Addr);
 #endif
-	  to_add.LastRetryInstant = DateTime.Now;
+	  to_add.LastRetryInstant = DateTime.UtcNow;
 	  ConnectTo(to_add.Addr, 1024, struc_chota);
 	} else {
 #if ARI_CHOTA_DEBUG
@@ -598,7 +598,7 @@ namespace Brunet {
       Connection new_con2 = ((ConnectionEventArgs)eargs).Connection; 
       if (new_con2.ConType.Equals(struc_chota)) {
 	Console.WriteLine("Forming a chota connection: {0} at :{1}",
-	                  new_con2, DateTime.Now);
+	                  new_con2, DateTime.UtcNow);
       }
 #endif
     }
@@ -616,7 +616,7 @@ namespace Brunet {
       Connection new_con2 = ((ConnectionEventArgs)eargs).Connection;
       if (new_con2.ConType.Equals(struc_chota)) {
 	Console.WriteLine("Disconnect a chota connection: {0} at: {1}",
-	                  new_con2, DateTime.Now);
+	                  new_con2, DateTime.UtcNow);
       }
 #endif
     }
@@ -694,7 +694,7 @@ namespace Brunet {
 #endif
 
 #if ARI_EXP_DEBUG
-      Console.WriteLine("ChotaConnectionOverlord: Starting a real chota connection attempt to: {0} at {1}", target, DateTime.Now);
+      Console.WriteLine("ChotaConnectionOverlord: Starting a real chota connection attempt to: {0} at {1}", target, DateTime.UtcNow);
 #endif
 
       //Start work on connecting

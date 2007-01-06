@@ -64,7 +64,7 @@ namespace Brunet
       _linker = null;
       _sync = new object();
       _rnd = new Random( _local.GetHashCode()
-                         ^ unchecked((int)DateTime.Now.Ticks) );
+                         ^ unchecked((int)DateTime.UtcNow.Ticks) );
       _default_retry_interval = new TimeSpan(0,0,0,0,10000);
       _current_retry_interval = new TimeSpan(0,0,0,0,10000);
       //We initialize at at year 1 to start with:
@@ -120,7 +120,7 @@ namespace Brunet
       //Check in order of cheapness, so we can avoid hard work...
       if ( (_linker == null) &&
            IsActive && NeedConnection ) {
-	DateTime now = DateTime.Now;
+	DateTime now = DateTime.UtcNow;
 	if( _last_retry == DateTime.MinValue ) {
           //This is the first time through:
 	  _last_retry = now;

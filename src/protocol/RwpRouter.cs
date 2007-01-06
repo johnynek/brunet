@@ -41,7 +41,7 @@ namespace Brunet
 
   public class RwpRouter:IRouter
   {
-    protected static Random _rand =  new Random(DateTime.Now.Millisecond);
+    protected static Random _rand =  new Random();
 
     public RwpRouter()
     {

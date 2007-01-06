@@ -114,7 +114,7 @@ namespace Brunet
                            null, _heart_period, _heart_period);
         //Check the edges from time to time
         this.HeartBeatEvent += new EventHandler(this.CheckEdgesCallback);
-        _last_edge_check = DateTime.Now;
+        _last_edge_check = DateTime.UtcNow;
       }
     }
 
@@ -696,9 +696,9 @@ namespace Brunet
      */
     virtual protected void CheckEdgesCallback(object node, EventArgs args)
     {
-      if( DateTime.Now - _last_edge_check > _CONNECTION_TIMEOUT ) {
+      if( DateTime.UtcNow - _last_edge_check > _CONNECTION_TIMEOUT ) {
         //We are checking the edges now:
-        _last_edge_check = DateTime.Now;
+        _last_edge_check = DateTime.UtcNow;
         ArrayList edges_to_ping = new ArrayList();
         ArrayList edges_to_close = new ArrayList();
         lock( _connection_table.SyncRoot ) {
