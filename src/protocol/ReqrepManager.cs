@@ -99,7 +99,7 @@ public class ReqrepManager : IAHPacketHandler {
   }
 
   /** static hashtable to keep track of ReqrepManager objects. */
-  protected static Hashtable _rrm_table;
+  protected static Hashtable _rrm_table  = new Hashtable();
   /** static lock for protecting the Hashtable above. */
   protected static object _class_lock = new object();
       
@@ -108,10 +108,7 @@ public class ReqrepManager : IAHPacketHandler {
    * @param node The node we work for
    */
   public static ReqrepManager GetInstance(Node node) {
-    lock(_class_lock) {
-      if (_rrm_table == null) {
-	_rrm_table = new Hashtable();
-      }
+    lock(_rrm_table) {
       //check if there is already an instance object for this node
       if (_rrm_table.ContainsKey(node)) {
 	return (ReqrepManager) _rrm_table[node];
@@ -123,6 +120,11 @@ public class ReqrepManager : IAHPacketHandler {
     }
   }
 
+  public class Statistics {
+    public int SendCount;
+    public Statistics() {
+    }
+  }
    /**
     * This is an inner class used to keep track
     * of all the information for a request
@@ -140,6 +142,8 @@ public class ReqrepManager : IAHPacketHandler {
      public int RequestID;
      public object UserState;
      public bool Replied;
+     //number of times request has been sent out
+     public int SendCount;
    }
    protected class ReplyState {
      public int RequestID;
@@ -291,9 +295,11 @@ public class ReqrepManager : IAHPacketHandler {
 	 RequestState reqs = (RequestState)_req_state_table[idnum];
 	 if( reqs != null ) {
 	   System.IO.MemoryStream offsetpayload = p.GetPayloadStream(5 + count);
+	   Statistics statistics = new Statistics();
+	   statistics.SendCount = reqs.SendCount;
 	   bool continue_listening = 
 		   reqs.ReplyHandler.HandleReply(this, rt, idnum, pt,
-						 offsetpayload, p, reqs.UserState);
+						 offsetpayload, p, statistics, reqs.UserState);
 	   //the request has been served
 	   reqs.Replied = true;
 	   if( !continue_listening ) {
@@ -421,6 +427,7 @@ public class ReqrepManager : IAHPacketHandler {
       rs.RequestType = reqt;
       rs.UserState = state;
       rs.Replied = false;
+      rs.SendCount = 1;
       _req_state_table[ next_req ] = rs;
     }
 #if REQREP_DEBUG
@@ -513,6 +520,7 @@ public class ReqrepManager : IAHPacketHandler {
                 //We don't resend LossyRequests
 		if (!reqs.Replied) {
 		  reqs.ReqDate = now;
+		  reqs.SendCount++;
 		  to_resend.Add( reqs.Request );
 		}
               }

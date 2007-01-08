@@ -5,11 +5,20 @@ using System.Security.Cryptography;
 
 using Brunet;
 
+#if DHT_LOG
+using log4net;
+using log4net.Config;
+#endif
+
 namespace Brunet.Dht {
 
 
 public class TableServer {
-
+#if DHT_LOG
+    private static readonly log4net.ILog _log =
+    log4net.LogManager.GetLogger(System.Reflection.MethodBase.
+				 GetCurrentMethod().DeclaringType);
+#endif
   class TableKey {
     protected readonly byte[] _buf;
 
@@ -133,6 +142,11 @@ public class TableServer {
     return count;
   }
   public int Put(byte[] key, int ttl, string hashed_password, byte[] data) {
+#if DHT_LOG
+    _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::RequestPut::::" + 
+	       + Encoding.UTF8.GetString(key));
+#endif
+
 #if DHT_DEBUG
     Console.WriteLine("[DhtServer: {0}]: Put() on key: {1}", _node.Address, Encoding.UTF8.GetString(key));
 #endif
@@ -193,7 +207,11 @@ public class TableServer {
       entry_list.Add(e);
       //Further add this to sorted list _expired_entries list
       InsertToSorted(e);
-     
+
+#if DHT_LOG
+      _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::SuccessPut::::" + 
+		 + Encoding.UTF8.GetString(key));
+#endif     
       ///@todo, we might need to tell a neighbor about this object
       return entry_list.Count;
     }
@@ -211,7 +229,10 @@ public class TableServer {
   
   public bool Create(byte[] key, int ttl, string hashed_password, byte[] data) 
   {
-
+#if DHT_LOG
+    _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::RequestCreate::::" + 
+	       + Encoding.UTF8.GetString(key));
+#endif
 #if DHT_DEBUG
     Console.WriteLine("[DhtServer: {0}]: Create() on key: {1}.", 
 		      _node.Address, Encoding.UTF8.GetString(key));
@@ -256,14 +277,115 @@ public class TableServer {
       //Further add the entry to the sorted list _expired_entries
       InsertToSorted(e);
       
+#if DHT_LOG
+    _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::SuccessCreate::::" + 
+	       + Encoding.UTF8.GetString(key));
+#endif
       ///@todo, we might need to tell a neighbor about this object
       return true;
     } //release the lock
   }
 
+  public bool Recreate(byte[] key, string old_password, int ttl, string new_hashed_password , byte[] new_data) 
+  {
+#if DHT_LOG
+    _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::RequestRecreate::::" + 
+	       + Encoding.UTF8.GetString(key));
+#endif
+
+#if DHT_DEBUG
+    Console.WriteLine("[DhtServer: {0}]: Recreate() on key: {1}.", _node.Address, Encoding.UTF8.GetString(key));
+#endif    
+    string hash_name = null;
+    string base64_pass = null;
+    if (!ValidatePasswordFormat(old_password, out hash_name, 
+				out base64_pass)) {
+      throw new Exception("Invalid password format.");
+    }
+    HashAlgorithm algo = null;
+    if (hash_name.Equals("SHA1")) {
+      algo = new SHA1CryptoServiceProvider();
+    } else if  (hash_name.Equals("MD5")) {
+      algo = new MD5CryptoServiceProvider();
+    }
+    
+    byte[] bin_pass = Convert.FromBase64String(base64_pass);
+    byte [] sha1_hash = algo.ComputeHash(bin_pass);
+    string base64_hash = Convert.ToBase64String(sha1_hash);
+    string stored_pass =  hash_name + ":" + base64_hash;
+    
+    
+    lock(_sync ) { 
+      //delete keys that have expired
+      DeleteExpired();  
+      
+      TableKey ht_key = new TableKey(key);
+      ArrayList entry_list = (ArrayList)_ht[ht_key];
+      if (entry_list != null) {
+#if DHT_DEBUG
+	Console.WriteLine("[DhtServer: {0}]: Key exists. Browing the entry_list.", _node.Address);
+#endif
+	if (entry_list.Count > 1) {
+	  //this could lead to duplication
+	  throw new Exception("Recreate on key could lead to duplication (Fail). ");
+	}
+	//there is just a single entry
+	Entry e = (Entry) entry_list[0];
+	if (e.Password.Equals(stored_pass)) {
+#if DHT_DEBUG
+	  Console.WriteLine("[DhtServer: {0}]: Found the key to recreate.", _node.Address);
+#endif
+	  entry_list.Remove(e);
+	  //further remove the entry from the sorted list
+	  DeleteFromSorted(e);  
+	} else {
+	  //raise an error
+#if DHT_DEBUG
+	  Console.WriteLine("[DhtServer: {0}]: Incorrect password", _node.Address);
+#endif
+	  throw new Exception("Access control violation on key. Incorrect password.");
+	}
+      } else { 
+	entry_list = new ArrayList();
+	_ht[ht_key] = entry_list;
+#if DHT_DEBUG
+	Console.WriteLine("[DhtServer:{0}]: Key didn't exist a prior. Created new entry_list.", _node.Address);
+#endif      
+      }
+      hash_name = null;
+      base64_pass = null;
+      if (!ValidatePasswordFormat(new_hashed_password, out hash_name,
+				  out base64_pass)) {
+	throw new Exception("Invalid password format.");
+      }
+      DateTime create_time = DateTime.Now;
+      TimeSpan ts = new TimeSpan(0,0,ttl);
+      DateTime end_time = create_time + ts;
+      
+      _max_idx++; //Increment the maximum index
+      //Look up 
+      Entry e_new = _ef.CreateEntry(key, new_hashed_password,  create_time, end_time,
+				    new_data, _max_idx);
+      //Add the entry to the end of the list.
+      entry_list.Add(e_new);
+      //Further add the entry to the sorted list _expired_entries
+      InsertToSorted(e_new);
+      
+#if DHT_LOG
+      _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::SuccessRecreate::::" + 
+		 + Encoding.UTF8.GetString(key));
+#endif
+      return true;	
+    }//end of lock
+  }
+      
+
   public IList Get(byte[] key, int maxbytes, byte[] token)
   {
-
+#if DHT_LOG
+    _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::RequestGet::::" + 
+	       + Encoding.UTF8.GetString(key));
+#endif
 #if DHT_DEBUG
     Console.WriteLine("[DhtServer: {0}]: Get() on key: {1}", _node.Address, Encoding.UTF8.GetString(key));
 #endif
@@ -386,6 +508,11 @@ public class TableServer {
    */
   public void Delete(byte[] key, string password)
   {
+#if DHT_LOG
+    _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::RequestDelete::::" + 
+	       + Encoding.UTF8.GetString(key));
+#endif
+
 #if DHT_DEBUG
     Console.WriteLine("[DhtServer: {0}]: Delete() on key: {1}.", _node.Address, Encoding.UTF8.GetString(key));
 #endif    
@@ -443,13 +570,21 @@ public class TableServer {
 	if (entry_list.Count == 0) {
 	  _ht.Remove(ht_key);
 	}
+#if DHT_LOG
+	_log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::SuccessDelete::::" + 
+		   + Encoding.UTF8.GetString(key));
+#endif
       } else {
 #if DHT_DEBUG
 	Console.WriteLine("[DhtServer: {0}]: Key doesn't exist.", _node.Address);
+	return;
 #endif
       }
       if (!found) {
 	//raise an error
+#if DHT_DEBUG
+	Console.WriteLine("[DhtServer: {0}]: Incorrect password", _node.Address);
+#endif
 	throw new Exception("Access control violation on key. Incorrect password");	
       }
     }
@@ -594,6 +729,10 @@ public class TableServer {
 	    DeleteFromSorted(e);
 	  }
 	}
+#if DHT_LOG
+	_log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::AdminDelete::::" + 
+		   + Encoding.UTF8.GetString(k));
+#endif
 	_ht.Remove(ht_key);
       }
     }

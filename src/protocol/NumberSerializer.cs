@@ -214,7 +214,17 @@ namespace Brunet
       else
         return BitConverter.ToSingle(bin, offset);
     }
-
+    public static float ReadFloat(Stream s) {
+      byte[] b = new byte[4];
+      for (int i = 0; i < b.Length; i++) {
+	int res = s.ReadByte();
+	if (res < 0) {
+	  throw new Exception("Reached EOF");
+	}
+	b[i] = (byte) res;
+      }
+      return ReadFloat(b, 0);
+    }
     public static bool ReadFlag(byte[] bin, int offset)
     {
       byte var = (byte) (0x80 & bin[offset]);
@@ -341,6 +351,14 @@ namespace Brunet
 	SwapEndianism(arr, 0, 4);
       }
       Array.Copy(arr, 0, target, offset, 4);
+    }
+    
+    public static void WriteFloat(float value, Stream s) {
+      byte[] b = new byte[4];
+      WriteFloat(value, b, 0);
+      for (int i = 0; i < b.Length; i++) {
+	s.WriteByte(b[i]);
+      }
     }
 
     public static void WriteFlag(bool flag, byte[] target, int offset)

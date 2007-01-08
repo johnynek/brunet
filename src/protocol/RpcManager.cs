@@ -36,7 +36,20 @@ public class RpcResult {
     _packet = p;
     _result = res;
   }
-  
+
+  public RpcResult(Packet p, object res, ReqrepManager.Statistics stats) {
+    _packet = p;
+    _result = res;
+    _statistics = stats;
+  }
+
+  //statistical information from the ReqreplyManager
+  protected ReqrepManager.Statistics _statistics;
+  public ReqrepManager.Statistics Statistics {
+    get {
+      return _statistics;
+    }
+  }
   protected Packet _packet;
   /**
    * This is the packet that carried the result.  Check this
@@ -57,7 +70,7 @@ public class RpcResult {
       return _result;
     }
   }
-
+  
 }
 	
 /**
@@ -90,7 +103,7 @@ public class RpcManager : IReplyHandler, IRequestHandler {
   protected object _sync;
   protected ReqrepManager _rrman;
         
-  public RpcManager(ReqrepManager rrm) {
+  protected RpcManager(ReqrepManager rrm) {
 
     _method_handlers = new Hashtable();
     _method_packet_handlers = new Hashtable();
@@ -99,6 +112,24 @@ public class RpcManager : IReplyHandler, IRequestHandler {
     _rrman = rrm;
     //Listen for RPC messages
     rrm.Bind("rpc", this);
+  }
+  /** static hashtable to keep track of RpcManager objects. */
+  protected static Hashtable _rpc_table = new Hashtable();
+  /** 
+   * Static method to create RpcManager objects
+   * @param node The node we work for
+   */
+  public static RpcManager GetInstance(Node node) {
+    lock(_rpc_table) {
+      //check if there is already an instance object for this node
+      if (_rpc_table.ContainsKey(node)) {
+	return (RpcManager) _rpc_table[node];
+      }
+      //in case no instance exists, create one
+      RpcManager rpc  = new RpcManager(ReqrepManager.GetInstance(node)); 
+      _rpc_table[node] = rpc;
+      return rpc;
+    }
   }
    
   /**
@@ -152,21 +183,22 @@ public class RpcManager : IReplyHandler, IRequestHandler {
     }
   }
   /**
-   * Implements the IReplyHandler
+   * Implements the IReplyHandler (also provides some light-weight statistics)
    */
   public bool HandleReply(ReqrepManager man, ReqrepManager.ReqrepType rt,
-                   int mid,
-                   string prot,
-                   System.IO.MemoryStream payload, AHPacket packet,
-                   object state)
+			  int mid,
+			  string prot,
+			  System.IO.MemoryStream payload, AHPacket packet,
+			  ReqrepManager.Statistics statistics, object state)
   {
     //Here
     object data = AdrConverter.Deserialize(payload);
     BlockingQueue bq = (BlockingQueue)state;
-    RpcResult res = new RpcResult(packet, data);
+    RpcResult res = new RpcResult(packet, data, statistics);
     bq.Enqueue(res);
     return ( false == bq.Closed );
   }
+
   /**
    * When requests come in this handles it
    */
@@ -314,6 +346,12 @@ public class RpcManager : IReplyHandler, IRequestHandler {
     }
     catch(TargetParameterCountException argx) {
       result = new AdrException(-32602, argx);
+    }
+    catch(TargetInvocationException x) {
+#if RPC_DEBUG
+      Console.WriteLine("[RpcServer: {0}] Exception thrown by method: {1}, {2}", _rrman.Node.Address, mi, x.InnerException.Message);
+#endif
+      result = new AdrException(-32608, x.InnerException);
     }
     catch(Exception x) {
       result = x;

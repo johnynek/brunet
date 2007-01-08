@@ -49,6 +49,7 @@
        </fileset>
     </copy>
   </target>
+
   <target
     name="debug"
     description="Configures a debug build">
@@ -65,32 +66,41 @@
       value="${nant.project.name}-${project.config}"
       unless="${configured}"/>
   </target>
+
+  <target
+    name="release"
+    description="Configures a release build">
+    <property
+      name="project.config"
+      value="release"
+      unless="${configured}"/>
+    <property
+      name="build.debug"
+      value="false"
+      unless="${configured}"/>
+  </target>
+
   <target
     name="test"
     depends="init"
-    debug="${build.debug}"
     description="Builds the current configuration">
-    <foreach item="File" property="filename">
-       <in>
-           <items>
-              <include name="*.cs" />
-           </items>
-       </in>
-       <do>
-         <csc target="exe" output="${build.dir}/${package.name}/bin/${string::replace(path::get-file-name(filename),'.cs', '.exe')}">
-           <sources failonempty="true">
-             <include name="${filename}"/>
-           </sources>
-           <references>
-             <include name="${build.dir}/${package.name}/bin/log4net.dll" />
-             <include name="${build.dir}/${package.name}/bin/Brunet.dll" />
-             <include name="${build.dir}/${package.name}/bin/Brunet.Coordinate.dll" />
-           </references>
-        </csc>
-       </do>
-    </foreach>
-  </target>
 
+    <csc
+      target="exe"
+      debug="${build.debug}"
+      output="${build.dir}/${package.name}/bin/NCTester.exe">
+      doc="${build.dir}/${package.name}/bin/${assembly}.xml">
+      <sources failonempty="true">
+        <include name="NCTester.cs"/>
+      </sources>
+      <references>
+        <!--include name="${build.dir}/${package.name}/bin/${assembly}.dll" /-->
+        <include name="${build.dir}/${package.name}/bin/log4net.dll" />
+        <include name="${build.dir}/${package.name}/bin/Brunet.dll" />
+        <include name="${build.dir}/${package.name}/bin/Brunet.Coordinate.dll" />
+      </references>
+    </csc>
+  </target>
   <target name="clean"
     depends="init"
     description="Deletes the current configuration">
