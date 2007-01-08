@@ -53,6 +53,17 @@
         <include name="${build.dir}/Brunet.Dht.dll"/>
       </references>
     </csc>
+    <csc target="exe" output="${build.dir}/SimpleDhtClient.exe">
+      <sources failonempty="true">
+        <include name="../OSDependent/abstract.cs"/>
+        <include name="../OSDependent/linux.cs"/>
+        <include name="SimpleDhtClient.cs"/>
+      </sources>
+      <references>
+        <include name="${build.dir}/Brunet.dll"/>
+        <include name="${build.dir}/Brunet.Dht.dll"/>
+      </references>
+    </csc>
     <csc target="exe" output="${build.dir}/IPRouterConfigUpdate.exe">
       <sources failonempty="true">
         <include name="IPRouterConfigUpdate.cs"/>

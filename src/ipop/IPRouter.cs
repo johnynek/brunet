@@ -234,7 +234,8 @@ namespace Ipop {
       //start the asynchronous communication now
       while(true) {
         //now the packet
-        byte [] packet = ether.ReceivePacket();
+        int packet_size = 0;
+        byte [] packet = ether.ReceivePacket(out packet_size);
         //Console.WriteLine("read a packet of length: {0}", packet.Length);
         if (packet == null) {
           Console.WriteLine("error reading packet from ethernet");
@@ -251,9 +252,10 @@ namespace Ipop {
         int type = (packet[12] << 8) + packet[13];
         /*  ARP Packet Handler */
         byte [] buffer = null;
+        System.Console.WriteLine(packet_size);
 
         if(type == 0x806 || type == 0x800) {
-          buffer =  new byte[packet.Length - 14];
+          buffer =  new byte[packet_size - 14];
           Array.Copy(packet, 14, buffer, 0, buffer.Length);
         }
         else

@@ -31,9 +31,9 @@ namespace Ipop {
     public int Open() {
       return tapFD = open_tap(device);
     }
-    public byte[] ReceivePacket() {
+    public byte[] ReceivePacket(out int n) {
       byte[] packet = new byte[MTU + ETHER_HEADER_SIZE];
-      int n = read_tap(tapFD, packet, packet.Length);
+      n = read_tap(tapFD, packet, packet.Length);
       if (n == 0 || n == -1) 
       	return null;
       return packet;
