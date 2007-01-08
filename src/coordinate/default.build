@@ -15,7 +15,7 @@
   <!-- default configuration -->
   <property
     name="assembly"
-    value="Brunet.Dht"/>
+    value="Brunet.Coordinate"/>
   <property
     name="package.name"
     value="${nant.project.name}"
@@ -88,7 +88,7 @@
       target="library"
       debug="${build.debug}"
       define=""
-      output="${build.dir}/${package.name}/bin/Brunet.Dht.dll">
+      output="${build.dir}/${package.name}/bin/Brunet.Coordinate.dll">
       doc="${build.dir}/${package.name}/bin/${assembly}.xml">
       <sources failonempty="true">
         <include name="*.cs"/>
@@ -108,7 +108,7 @@
   </target>
 
   <target
-    name="dht-debug"
+    name="nc-debug"
     depends="init"
     description="Builds the current configuration">
 
@@ -124,8 +124,8 @@
     <csc
       target="library"
       debug="${build.debug}"
-      define="DHT_DEBUG"
-      output="${build.dir}/${package.name}/bin/Brunet.Dht.dll">
+      define="NC_DEBUG"
+      output="${build.dir}/${package.name}/bin/Brunet.Coordinate.dll">
       doc="${build.dir}/${package.name}/bin/${assembly}.xml">
       <sources failonempty="true">
         <include name="*.cs"/>
@@ -145,7 +145,7 @@
   </target>
 
   <target
-    name="dht-log"
+    name="nc-log"
     depends="init"
     description="Builds the current configuration">
 
@@ -161,8 +161,8 @@
     <csc
       target="library"
       debug="${build.debug}"
-      define="DHT_DEBUG,DHT_LOG"
-      output="${build.dir}/${package.name}/bin/Brunet.Dht.dll">
+      define="NC_DEBUG,NC_LOG"
+      output="${build.dir}/${package.name}/bin/Brunet.Coordinate.dll">
       doc="${build.dir}/${package.name}/bin/${assembly}.xml">
       <sources failonempty="true">
         <include name="*.cs"/>
