@@ -60,6 +60,8 @@ namespace Brunet {
        * If we have excess edges and it has been more than
        * _trim_wait_time heartbeats then we trim.
        */
+        _last_retry_time = DateTime.UtcNow;
+        _current_retry_interval = _DEFAULT_RETRY_INTERVAL;
         _node.HeartBeatEvent += new EventHandler(this.CheckState);
       }
     }
@@ -87,7 +89,10 @@ namespace Brunet {
     static protected readonly int _desired_shortcuts = 1;
     ///How many seconds to wait between connections/disconnections to trim
     static protected readonly double _trim_delay = 30.0;
-    
+    ///By default, we only wake up every 10 seconds, but we back off exponentially
+    static protected readonly TimeSpan _DEFAULT_RETRY_INTERVAL = new TimeSpan(0,0,0,0,10000); 
+    protected TimeSpan _current_retry_interval;
+    protected DateTime _last_retry_time;
     /*
      * We don't want to risk mistyping these strings.
      */
@@ -355,6 +360,15 @@ namespace Brunet {
       if( IsActive == false ) {
         return;
       }
+      DateTime now = DateTime.UtcNow;
+      if( now - _last_retry_time < _current_retry_interval ) {
+        //Not time yet...
+	return;
+      }
+      _last_retry_time = now;
+      //Double the length of time we wait (resets to default on connections)
+      _current_retry_interval = _current_retry_interval + _current_retry_interval;
+
       ConnectionTable tab = _node.ConnectionTable;
       //If we are going to connect to someone, this is how we
       //know who to use
@@ -380,12 +394,16 @@ namespace Brunet {
           //We don't have enough connections to guarantee a connected
 	  //graph.  Use a leaf connection to get another connection
 	  Connection leaf = null;
+	  //Make sure the following loop can't go on forever
+	  int attempts = 2 * leaf_count;
 	  do {
             leaf = tab.GetRandom(ConnectionType.Leaf);
+	    attempts--;
 	  }
 	  while( leaf != null &&
 	         tab.Count( ConnectionType.Leaf ) > 1 &&
-		 tab.Contains( ConnectionType.Structured, leaf.Address ) );
+		 tab.Contains( ConnectionType.Structured, leaf.Address ) &&
+		 (attempts > 0) );
 	  //Now we have a random leaf that is not a
 	  //structured neighbor to try to get a new neighbor with:
 	  if( leaf != null ) {
@@ -619,6 +637,7 @@ namespace Brunet {
 	    
       lock( _sync ) {
         _last_connection_time = DateTime.UtcNow;
+        _current_retry_interval = _DEFAULT_RETRY_INTERVAL;
         _need_left = -1;
         _need_right = -1;
         _need_short = -1;
@@ -1002,6 +1021,7 @@ namespace Brunet {
         _need_left = -1;
         _need_right = -1;
         _need_short = -1;
+        _current_retry_interval = _DEFAULT_RETRY_INTERVAL;
       }
       Connection c = ((ConnectionEventArgs)args).Connection;
 
