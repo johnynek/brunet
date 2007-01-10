@@ -384,41 +384,114 @@ public class NullNatHandler : NatHandler {
 public class ConeNatHandler : NatHandler {
   /**
    * The cone nat uses exactly one port on each IP address
-   * @todo handle NAT mapping changes which can occasionally occur on a Cone NAT
    */
   override public bool IsMyType(IEnumerable h) {
-    bool got_first = false;
-    int port = 0;
-    foreach( NatDataPoint dp in h ) {
-        if( !got_first ) {
-          port = dp.PeerViewOfLocalTA.Port;
-          got_first = true;
-        }
-        else {
-          if( port != dp.PeerViewOfLocalTA.Port ) {
-            //There are several ports on the IP mapping to our address
-            return false;
-          }
-        }
+    /*
+     * We go through the list.  At each moment we see how many active
+     * ports there are.  A cone nat should be using 1, but due to NAT mapping
+     * changes, it may take us a little while to notice a change, which may
+     * make it appear that we are using 2 ports (assuming we notice much faster
+     * than the changes happen).
+     * It is also a neccesary condition that we have connections to at least two
+     * IP addresses using the same port (part of the definition of a cone nat).
+     */
+    bool multiple_remote_ip_same_port = false;
+    int max_active_ports = 0;
+    Hashtable port_to_remote = new Hashtable();
+    //Reverse the list to go from least recent to most recent:
+    ArrayList all_points = new ArrayList();
+    foreach(NatDataPoint dp in h) {
+      all_points.Add( dp );
     }
-    return true;
+    all_points.Reverse();
+    Hashtable edge_no_to_most_recent_point = new Hashtable();
+    bool is_cone = true;
+    foreach(NatDataPoint dp in all_points) {
+      TransportAddress ta = dp.PeerViewOfLocalTA;
+      if( ta == null ) { continue; }
+      int port = ta.Port;
+      NatDataPoint old_dp = (NatDataPoint)edge_no_to_most_recent_point[ dp.EdgeNumber ];
+      
+      if( dp is NewEdgePoint ) {
+        //There is a new mapping:
+        ArrayList l = AddRemoteTA( port_to_remote, port, dp.RemoteTA );
+	multiple_remote_ip_same_port |= (l.Count > 1);
+        max_active_ports = Math.Max(max_active_ports, port_to_remote.Count);
+      }
+      else if( dp is EdgeClosePoint ) {
+        //Remove a mapping, this obviously can't increase the number of active ports,
+        //or change the multiple_remote_ip_same_port variable
+        RemoveRemoteTA(port_to_remote, port, dp.RemoteTA);
+      }
+      else if( dp is LocalMappingChangePoint ) {
+        //Look at the old port, remove from the old port, and put into the new port.
+        if( old_dp != null ) {
+          int old_port = old_dp.PeerViewOfLocalTA.Port;
+          RemoveRemoteTA(port_to_remote, old_port, old_dp.RemoteTA);
+        }
+        ArrayList l = AddRemoteTA( port_to_remote, port, dp.RemoteTA );
+	multiple_remote_ip_same_port |= (l.Count > 1);
+        max_active_ports = Math.Max(max_active_ports, port_to_remote.Count);
+      }
+      else if (dp is RemoteMappingChangePoint ) {
+        //Remove the old RemoteTA, and put in the new one:
+        if( old_dp != null ) {
+          RemoveRemoteTA(port_to_remote, port, old_dp.RemoteTA);
+        }
+        ArrayList l = AddRemoteTA( port_to_remote, port, dp.RemoteTA );
+	multiple_remote_ip_same_port |= (l.Count > 1);
+        max_active_ports = Math.Max(max_active_ports, port_to_remote.Count);
+      }
+      edge_no_to_most_recent_point[ dp.EdgeNumber ] = dp;
+      //is_cone = (max_active_ports < 3) && ( multiple_remote_ip_same_port);
+      is_cone = (max_active_ports < 3);
+      if( ! is_cone ) {
+        //We can stop now, we are clearly not in the cone case.
+        break;
+      }
+    }
+    return is_cone;
   }
-
+  //Return the set of TAs for the given port
+  protected ArrayList AddRemoteTA(Hashtable ht, int port, TransportAddress ta) {
+    ArrayList l = (ArrayList)ht[ port ];
+    if (l == null) { l = new ArrayList(); }
+    int idx = l.IndexOf(ta);
+    if( idx < 0 ) {	
+      //We don't already know about this
+      l.Add( ta );
+    }
+    ht[port] = l;
+    return l;
+  }
+  //Remote the TA from the set
+  protected void RemoveRemoteTA(Hashtable ht, int port, TransportAddress ta) {
+    ArrayList l = (ArrayList)ht[ port ];
+    l.Remove(ta);
+    if( l.Count == 0 ) {
+      //Get this out of here.
+      ht.Remove(port);
+    }
+  }
   /**
    * return the list of TAs that should be tried
    */
   override public IList TargetTAs(IEnumerable hist) {
       /*
        * The trick here is, for a cone nat, we should only report
-       * the most recently used ip/port pair.  Not more than one
-       * port for a given ip.
+       * the most recently used ip/port pair. 
+       * For safety, we return the most recent two
        */
       ArrayList tas = new ArrayList();
       foreach(NatDataPoint p in hist) {
         TransportAddress last_reported = p.PeerViewOfLocalTA;
         if( last_reported != null ) {
-          tas.Add( last_reported );
-          return tas;
+          if( tas.Count == 0 || !last_reported.Equals( tas[0] ) ) {
+            tas.Add( last_reported );
+          }
+          if( tas.Count == 2 ) {
+            return tas;
+          }
         }
       }
       return tas;
