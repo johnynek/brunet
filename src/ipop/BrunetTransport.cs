@@ -121,7 +121,7 @@ namespace Ipop {
       BlockingQueue [] queues = null;
 
       try {
-        /* Release our old IP Address */
+        // Release our old IP Address
         if(node.ip != null && !node.ip.Equals(ip) && node.password != null) {
           dht_key = Encoding.UTF8.GetBytes("dhcp:ipop_namespace:" + 
           node.ipop_namespace + ":ip:" + node.ip.ToString());
@@ -176,9 +176,10 @@ namespace Ipop {
         node.password = null;
         return false;
       }
-      System.Console.WriteLine("Got the requested ip address " + ip);
-      node.ip = IPAddress.Parse(ip);
+
       node.password = new_password;
+      node.ip = IPAddress.Parse(ip);
+      System.Console.WriteLine("Got the requested ip address " + ip);
       return true;
     }
   }

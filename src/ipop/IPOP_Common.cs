@@ -58,6 +58,7 @@ namespace Ipop {
       RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
       byte [] temp = new byte[20];
       rng.GetBytes(temp);
+      temp[19] &= 0xFE;
       return temp;
     }
   }

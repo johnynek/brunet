@@ -11,18 +11,8 @@ using System.Xml;
 using System.Xml.Serialization;
 using Mono.Unix.Native;
 
-#if IPOP_LOG
-using log4net;
-using log4net.Config;
-#endif
-
 namespace Ipop {
   public class IPRouter {
-#if IPOP_LOG
-    private static readonly log4net.ILog _log =
-    log4net.LogManager.GetLogger(System.Reflection.MethodBase.
-                                 GetCurrentMethod().DeclaringType);
-#endif
     //if debugging information is needed
     private static bool debug;
     //the class modeling the ethernet;
@@ -43,6 +33,10 @@ namespace Ipop {
 
 /*  Generic */
     private static void BrunetStart() {
+      if(node.brunet != null) {
+        node.brunet.disconnect();
+        Thread.Sleep(10);
+      }
       node.brunet = new BrunetTransport(ether, config.brunet_namespace,
         node, config.EdgeListeners, config.DevicesToBind, RemoteTAs, debug,
         config.dht_media);
@@ -102,11 +96,11 @@ namespace Ipop {
       dhcpPacket.decodedPacket.ipop_namespace = config.ipop_namespace;
       dhcpPacket.decodedPacket.NodeAddress = node.nodeAddress;
 
-      if (config.DhtDHCP && config.AddressData.IPAddress != null &&
-        config.AddressData.Password != null) {
+      if (config.DhtDHCP && config.AddressData.IPAddress != null) {
+//        && config.AddressData.Password != null) {
         dhcpPacket.decodedPacket.yiaddr =
           IPAddress.Parse(config.AddressData.IPAddress).GetAddressBytes();
-        dhcpPacket.decodedPacket.StoredPassword = config.AddressData.Password;
+//        dhcpPacket.decodedPacket.StoredPassword = config.AddressData.Password;
       }
 
       /* DHCP Server returns our incoming packet, which we decode, if it
@@ -134,7 +128,8 @@ namespace Ipop {
         if(node.ip == null || node.ip.ToString() != newAddress || 
           node.netmask !=  newNetmask) {
           if(!config.DhtDHCP)
-            node.brunet.Update(newAddress);
+              BrunetStart();
+//            node.brunet.Update(newAddress);
           node.netmask = newNetmask;
           node.ip = IPAddress.Parse(newAddress);
           config.AddressData.IPAddress = newAddress;
@@ -176,16 +171,12 @@ namespace Ipop {
       }
       ConfigFile = args[0];
 
-#if IPOP_LOG
-      if (args.Length < 2) {
-        Console.WriteLine("please specify the full path to the Logger " + 
-          "configuration file...");
-        Environment.Exit(1);
-      }
-      XmlConfigurator.Configure(new System.IO.FileInfo(args[1]));
-#endif
-
       config = IPRouterConfigHandler.Read(ConfigFile);
+      if(config.DhtDHCP) {
+        System.Console.WriteLine("No DhtDHCP supported at this time.");
+        Environment.Exit(2);
+      }
+
       RemoteTAs = new ArrayList();
       foreach(string TA in config.RemoteTAs) {
         TransportAddress ta = new TransportAddress(TA);
@@ -219,7 +210,7 @@ namespace Ipop {
         && config.AddressData.Netmask != null) {
         node.ip = IPAddress.Parse(config.AddressData.IPAddress);
         node.netmask = config.AddressData.Netmask;
-        node.password = config.AddressData.Password;
+//        node.password = config.AddressData.Password;
       }
 
       BrunetStart();
@@ -236,7 +227,6 @@ namespace Ipop {
         //now the packet
         int packet_size = 0;
         byte [] packet = ether.ReceivePacket(out packet_size);
-        //Console.WriteLine("read a packet of length: {0}", packet.Length);
         if (packet == null) {
           Console.WriteLine("error reading packet from ethernet");
           continue;
@@ -252,7 +242,6 @@ namespace Ipop {
         int type = (packet[12] << 8) + packet[13];
         /*  ARP Packet Handler */
         byte [] buffer = null;
-        System.Console.WriteLine(packet_size);
 
         if(type == 0x806 || type == 0x800) {
           buffer =  new byte[packet_size - 14];
@@ -274,13 +263,14 @@ namespace Ipop {
         if(!srcAddr.Equals(IPAddress.Parse("0.0.0.0")) && (node.ip == null ||
           !node.ip.Equals(srcAddr))) {
           Console.WriteLine("Switching IP Address " + node.ip + " with " + srcAddr);
-          if(!node.brunet.Update(srcAddr.ToString()))
-            continue;
+//          if(!node.brunet.Update(srcAddr.ToString()))
+//            continue;
+          node.ip = srcAddr;
           if(config.AddressData == null)
             config.AddressData = new AddressInfo();
           config.AddressData.IPAddress = node.ip.ToString();
           config.AddressData.Netmask = node.netmask;
-          config.AddressData.Password = node.password;
+//          config.AddressData.Password = node.password;
           IPRouterConfigHandler.Write(ConfigFile, config);
         }
 
@@ -301,12 +291,14 @@ namespace Ipop {
           ThreadPool.QueueUserWorkItem(new WaitCallback(ProcessDHCP), (object) buffer);
           continue;
         }
-        AHAddress target = (AHAddress) brunet_arp_cache.Get(destAddr);
+/*        AHAddress target = (AHAddress) brunet_arp_cache.Get(destAddr);
         if (target == null) {
           Console.WriteLine("Incurring a route miss for virtual ip: {0}", destAddr);
           route_miss_handler.HandleRouteMiss(destAddr);
           continue;
-        }
+        }*/
+// Fix until DHT works properly
+        AHAddress target = new AHAddress(IPOP_Common.GetHash(destAddr));
         if (debug) {
           Console.WriteLine("Brunet destination ID: {0}", target);
         }
