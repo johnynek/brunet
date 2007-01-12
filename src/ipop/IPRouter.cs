@@ -34,8 +34,8 @@ namespace Ipop {
 /*  Generic */
     private static void BrunetStart() {
       if(node.brunet != null) {
-        node.brunet.disconnect();
-        Thread.Sleep(10);
+        node.brunet.Disconnect();
+        Thread.Sleep(5000);
       }
       node.brunet = new BrunetTransport(ether, config.brunet_namespace,
         node, config.EdgeListeners, config.DevicesToBind, RemoteTAs, debug,
@@ -96,11 +96,10 @@ namespace Ipop {
       dhcpPacket.decodedPacket.ipop_namespace = config.ipop_namespace;
       dhcpPacket.decodedPacket.NodeAddress = node.nodeAddress;
 
-      if (config.DhtDHCP && config.AddressData.IPAddress != null) {
-//        && config.AddressData.Password != null) {
+      if (config.AddressData.IPAddress != null && config.AddressData.Password != null) {
         dhcpPacket.decodedPacket.yiaddr =
           IPAddress.Parse(config.AddressData.IPAddress).GetAddressBytes();
-//        dhcpPacket.decodedPacket.StoredPassword = config.AddressData.Password;
+        dhcpPacket.decodedPacket.StoredPassword = config.AddressData.Password;
       }
 
       /* DHCP Server returns our incoming packet, which we decode, if it
@@ -112,7 +111,6 @@ namespace Ipop {
           dhcpClient._dhcp_server.SendMessage(dhcpPacket.decodedPacket));
       }
       catch (Exception e) {
-        System.Console.WriteLine(e);
         response = e.ToString();
       }
       if(returnPacket != null &&
@@ -127,9 +125,16 @@ namespace Ipop {
           returnPacket.decodedPacket.options[1]).byte_value, '.');
         if(node.ip == null || node.ip.ToString() != newAddress || 
           node.netmask !=  newNetmask) {
-          if(!config.DhtDHCP)
-              BrunetStart();
-//            node.brunet.Update(newAddress);
+          if(!config.AddressData.DhtDHCP) {
+            BrunetStart();
+            // We didn't get out IP Address
+            if(!node.brunet.Update(newAddress))
+              return;
+          }
+          else {
+            node.password = returnPacket.decodedPacket.StoredPassword;
+            config.AddressData.Password = node.password;
+          }
           node.netmask = newNetmask;
           node.ip = IPAddress.Parse(newAddress);
           config.AddressData.IPAddress = newAddress;
@@ -145,7 +150,7 @@ namespace Ipop {
         Console.WriteLine("The DHCP Server has a message to share with you...");
         Console.WriteLine("\n" + response);
         Console.WriteLine("\nSorry, this program will sleep and try again later.");
-        Thread.Sleep(600);
+        Thread.Sleep(10000);
       }
     }
 
@@ -171,8 +176,8 @@ namespace Ipop {
       }
       ConfigFile = args[0];
 
-      config = IPRouterConfigHandler.Read(ConfigFile);
-      if(config.DhtDHCP) {
+      config = IPRouterConfigHandler.Read(ConfigFile, true);
+      if(config.AddressData.DhtDHCP) {
         System.Console.WriteLine("No DhtDHCP supported at this time.");
         Environment.Exit(2);
       }
@@ -192,7 +197,7 @@ namespace Ipop {
       Stdlib.signal(Signum.SIGINT, new SignalHandler(InterruptHandler));
 
       debug = false;
-      if (args.Length == 3)
+      if (args.Length == 2)
         debug = true;
 
       System.Console.WriteLine("IPRouter starting up...");
@@ -206,17 +211,15 @@ namespace Ipop {
       node.nodeAddress = config.NodeAddress;
       node.ipop_namespace = config.ipop_namespace;
 
-      if(config.AddressData != null && config.AddressData.IPAddress != null 
-        && config.AddressData.Netmask != null) {
+      if(config.AddressData.IPAddress != null && config.AddressData.Netmask != null) {
         node.ip = IPAddress.Parse(config.AddressData.IPAddress);
         node.netmask = config.AddressData.Netmask;
-//        node.password = config.AddressData.Password;
+        node.password = config.AddressData.Password;
       }
 
       BrunetStart();
 
-      if(config.AddressData != null &&
-        config.AddressData.DHCPServerAddress != null && !config.DhtDHCP)
+      if(config.AddressData.DHCPServerAddress != null && !config.AddressData.DhtDHCP)
         dhcpClient = new SoapDHCPClient(config.AddressData.DHCPServerAddress);
       else
         dhcpClient = new DhtDHCPClient(node.brunet.dht);
@@ -263,14 +266,12 @@ namespace Ipop {
         if(!srcAddr.Equals(IPAddress.Parse("0.0.0.0")) && (node.ip == null ||
           !node.ip.Equals(srcAddr))) {
           Console.WriteLine("Switching IP Address " + node.ip + " with " + srcAddr);
-//          if(!node.brunet.Update(srcAddr.ToString()))
-//            continue;
+          if(!node.brunet.Update(srcAddr.ToString()))
+            continue;
           node.ip = srcAddr;
-          if(config.AddressData == null)
-            config.AddressData = new AddressInfo();
           config.AddressData.IPAddress = node.ip.ToString();
           config.AddressData.Netmask = node.netmask;
-//          config.AddressData.Password = node.password;
+          config.AddressData.Password = node.password;
           IPRouterConfigHandler.Write(ConfigFile, config);
         }
 

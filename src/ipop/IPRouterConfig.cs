@@ -18,7 +18,6 @@ namespace Ipop {
     public AddressInfo AddressData;
     [XmlArrayItem (typeof(string), ElementName = "Device")]
     public string [] DevicesToBind;
-    public bool DhtDHCP;
   }
 
   public class AddressInfo {
@@ -26,6 +25,7 @@ namespace Ipop {
     public string Netmask;
     public string DHCPServerAddress;
     public string Password;
+    public bool DhtDHCP;
   }
 
   public class EdgeListener {
@@ -44,6 +44,24 @@ namespace Ipop {
       fs.Close();
       return config;
     }
+
+    public static IPRouterConfig Read(string configFile, bool fixPorts) {
+      IPRouterConfig config = Read(configFile);
+      foreach (EdgeListener edge in config.EdgeListeners) {
+        if(edge.port_high != null && edge.port_low != null) {
+          int port_high = Int32.Parse(edge.port_high);
+          int port_low = Int32.Parse(edge.port_low);
+          Random random = new Random();
+          int port = (random.Next() % (port_high - port_low)) + port_low;
+          edge.port = port.ToString();
+          edge.port_high = null;
+          edge.port_low = null;
+        }
+      }
+      Write(configFile, config);
+      return config;
+    }
+
 
     public static void Write(string configFile, 
       IPRouterConfig config) {
