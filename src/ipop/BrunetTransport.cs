@@ -95,7 +95,7 @@ namespace Ipop {
     }
 
     public bool Update(string ip) {
-/*      HashAlgorithm algo = new SHA1CryptoServiceProvider();
+      HashAlgorithm algo = new SHA1CryptoServiceProvider();
       byte[] bin_password = new byte[10];
       Random rand = new Random();
       rand.NextBytes(bin_password);
@@ -169,7 +169,7 @@ namespace Ipop {
 
       node.password = new_password;
       node.ip = IPAddress.Parse(ip);
-      System.Console.WriteLine("Got the requested ip address " + ip);*/
+      System.Console.WriteLine("Got the requested ip address " + ip);
       return true;
     }
   }

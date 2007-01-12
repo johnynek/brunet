@@ -59,6 +59,7 @@ namespace Ipop {
       byte [] temp = new byte[20];
       rng.GetBytes(temp);
       temp[19] &= 0xFE;
+      temp[0] = 0;
       return temp;
     }
   }

@@ -292,14 +292,14 @@ namespace Ipop {
           ThreadPool.QueueUserWorkItem(new WaitCallback(ProcessDHCP), (object) buffer);
           continue;
         }
-/*        AHAddress target = (AHAddress) brunet_arp_cache.Get(destAddr);
+        AHAddress target = (AHAddress) brunet_arp_cache.Get(destAddr);
         if (target == null) {
           Console.WriteLine("Incurring a route miss for virtual ip: {0}", destAddr);
           route_miss_handler.HandleRouteMiss(destAddr);
           continue;
-        }*/
+        }
 // Fix until DHT works properly
-        AHAddress target = new AHAddress(IPOP_Common.GetHash(destAddr));
+//        AHAddress target = new AHAddress(IPOP_Common.GetHash(destAddr));
         if (debug) {
           Console.WriteLine("Brunet destination ID: {0}", target);
         }
