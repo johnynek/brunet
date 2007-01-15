@@ -86,8 +86,7 @@ namespace Ipop {
       return true;
     }
 
-    private static void ProcessDHCP(object arg) {
-      byte[] buffer = (byte[]) arg;
+    private static void ProcessDHCP(byte [] buffer) {
       DHCPPacket dhcpPacket = new DHCPPacket(buffer);
       /* Create new DHCPPacket, parse the bytes, add relevant data, 
           and send to DHCP Server */
@@ -99,7 +98,7 @@ namespace Ipop {
       if (config.AddressData.IPAddress != null && config.AddressData.Password != null) {
         dhcpPacket.decodedPacket.yiaddr =
           IPAddress.Parse(config.AddressData.IPAddress).GetAddressBytes();
-        dhcpPacket.decodedPacket.StoredPassword = config.AddressData.Password;
+        dhcpPacket.decodedPacket.StoredPassword = node.password;
       }
 
       /* DHCP Server returns our incoming packet, which we decode, if it
@@ -115,6 +114,9 @@ namespace Ipop {
       }
       if(returnPacket != null &&
         returnPacket.decodedPacket.return_message == "Success") {
+        // Close the IP Address refresher thread in Brunet if it is running
+        if(config.AddressData.DhtDHCP)
+          node.brunet.InterruptRefresher();
         /* Convert the packet into byte format, run Arp and Route updater */
          returnPacket.EncodePacket();
          ether.SendPacket(returnPacket.packet, 0x800, node.mac);
@@ -125,9 +127,7 @@ namespace Ipop {
           returnPacket.decodedPacket.options[1]).byte_value, '.');
         if(node.ip == null || node.ip.ToString() != newAddress || 
           node.netmask !=  newNetmask) {
-          if(!config.AddressData.DhtDHCP) {
-            // We didn't get out IP Address
-            if(!node.brunet.Update(newAddress))
+          if(!config.AddressData.DhtDHCP && !node.brunet.Update(newAddress)) {
               return;
           }
           else {
@@ -156,6 +156,7 @@ namespace Ipop {
     private static void InterruptHandler(int signal) {
       Console.Error.WriteLine("Receiving signal: {0}. Exiting", signal);
       if (node.brunet != null) {
+        node.brunet.InterruptRefresher();
         node.brunet.Disconnect();
       }
       Console.WriteLine("Exiting....");
@@ -272,7 +273,7 @@ namespace Ipop {
         if(srcPort == 68 && destPort == 67 && protocol == 17) {
           if (debug)
             Console.WriteLine("DHCP Packet");
-          ThreadPool.QueueUserWorkItem(new WaitCallback(ProcessDHCP), (object) buffer);
+          ProcessDHCP(buffer);
           continue;
         }
 

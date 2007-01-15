@@ -98,17 +98,26 @@ namespace Ipop {
     }
 
     public void RefreshThread() {
-      while(node.ip != null && node.password != null) {
-        Thread.Sleep(302400);
-        if(node.ip == null || node.password == null)
-          break;
-        Refresh();
+      try {
+        while(node.ip != null && node.password != null) {
+          Thread.Sleep(604800);
+          if(node.ip == null || node.password == null)
+            break;
+          Refresh();
+        }
       }
+      catch (Exception) {;}
+      System.Console.WriteLine("Closing Refresher Thread");
       Refresher = null;
     }
 
     public bool Refresh() {
       return Update(node.ip.ToString());
+    }
+
+    public void InterruptRefresher() {
+      if(Refresher != null)
+        Refresher.Interrupt();
     }
 
     public bool Update(string ip) {

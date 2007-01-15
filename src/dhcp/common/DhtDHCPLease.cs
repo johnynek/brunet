@@ -81,7 +81,7 @@ namespace Ipop {
     }
 
     private byte[] ReAllocateIPAddress (byte[] preferred_ip, byte[] brunet_id, string old_password, out string new_password) {
-      int max_attempts = 10, max_renew_attempts = 10;
+      int max_attempts = 10, max_renew_attempts = 3;
       bool renew_attempt = false;
       HashAlgorithm algo = new SHA1CryptoServiceProvider();
       byte[] bin_password = new byte[10];
