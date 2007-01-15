@@ -47,7 +47,7 @@ namespace Ipop {
 
 
     public DHCPLease(IPOPNamespace config) {
-      leasetime = 1000; //config.leasetime;
+      leasetime = config.leasetime;
       leasetimeb = new byte[]{((byte) ((leasetime >> 24))),
         ((byte) ((leasetime >> 16))),
         ((byte) ((leasetime >> 8))),

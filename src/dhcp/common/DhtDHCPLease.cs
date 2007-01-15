@@ -81,7 +81,8 @@ namespace Ipop {
     }
 
     private byte[] ReAllocateIPAddress (byte[] preferred_ip, byte[] brunet_id, string old_password, out string new_password) {
-      int max_attempts = 10;
+      int max_attempts = 10, max_renew_attempts = 10;
+      bool renew_attempt = false;
       HashAlgorithm algo = new SHA1CryptoServiceProvider();
       byte[] bin_password = new byte[10];
       _rand = new Random();
@@ -91,9 +92,10 @@ namespace Ipop {
       byte[] sha1_pass = algo.ComputeHash(bin_password);
       string new_hashed_password = "SHA1:" + Convert.ToBase64String(sha1_pass);
 
-      if (old_password == null) {
+      if (old_password == null)
         old_password = new_password;
-      }
+      else
+        renew_attempt = true;
 
       byte[] guessed_ip = preferred_ip;
 
@@ -107,52 +109,50 @@ namespace Ipop {
           string str_key = "dhcp:ip:" + guessed_ip_str;
           byte[] dht_key = Encoding.UTF8.GetBytes(str_key);
 
-          BlockingQueue [] queues = _dht.RecreateF(dht_key, old_password, leasetime, new_hashed_password, brunet_id);
+          do {
+            BlockingQueue [] queues = _dht.RecreateF(dht_key, old_password, leasetime, new_hashed_password, brunet_id);
 
-          int max_results_per_queue = 2;
-          int min_majority = 3;
+            int max_results_per_queue = 2;
+            int min_majority = 3;
 
-          ArrayList []results = BlockingQueue.ParallelFetchWithTimeout(queues, 3000);
+            ArrayList []results = BlockingQueue.ParallelFetchWithTimeout(queues, 5000);
 
-          //this method will return as soon as we have results available
-          for (int i = 0; i < results.Length; i++) {
-            bool success = true;
-            ArrayList q_result = results[i];
-            if (q_result.Count < max_results_per_queue) {
-              continue;
-            }
-            foreach (RpcResult rpc_result in q_result) {
-              try {
-                if((bool) rpc_result.Result) 
-                  continue;
-                continue;
-              } catch(AdrException) {
-                success = false;
+            //this method will return as soon as we have results available
+            for (int i = 0; i < results.Length; i++) {
+              bool success = true;
+              ArrayList q_result = results[i];
+              if (q_result.Count < max_results_per_queue) {
                 continue;
               }
+              foreach (RpcResult rpc_result in q_result) {
+                try {
+                  if((success = (bool) rpc_result.Result) == true)
+                    break;
+                } catch(Exception) {
+                  success = false;
+                }
+              }
+              if (success) {
+                min_majority--;
+              }
             }
-            if (success) {
-              min_majority--;
+            if (min_majority > 0) {
+              //we have not been able to acquire a majority, delete all keys
+              queues = _dht.DeleteF(dht_key, new_password);
+              BlockingQueue.ParallelFetch(queues, 1);//1 reply is sufficient
             }
-          }
-          if (min_majority > 0) {
-            //we have not been able to acquire a majority, delete all keys
-            queues = _dht.DeleteF(dht_key, new_password);
-            BlockingQueue.ParallelFetch(queues, 1);//1 reply is sufficient
-          } else {
-            return guessed_ip;
-          }
+            else {
+              return guessed_ip;
+            }
+          } while(max_renew_attempts-- > 0 && renew_attempt);
           if (max_attempts > 0) {
             //guess a new IP address
             guessed_ip = GuessIPAddress();
-            System.Threading.Thread.Sleep(5000);
             continue;
-          } 
+          }
           break;
-        } catch(DhtException) {
-          //sleep 10 seconds and retry
-          System.Threading.Thread.Sleep(10000);
         }
+        catch(Exception) { System.Threading.Thread.Sleep(10000); }
       }
       return null;
     }

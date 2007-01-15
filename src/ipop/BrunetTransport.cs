@@ -9,6 +9,7 @@ using System;
 using System.Security.Cryptography;
 using System.IO;
 using System.Text;
+using System.Threading;
 
 namespace Ipop {
   public class BrunetTransport {
@@ -18,6 +19,7 @@ namespace Ipop {
     public FDht dht;
     object sync;
     bool debug;
+    Thread Refresher;
 
     public BrunetTransport(Ethernet ether, string brunet_namespace, 
       NodeMapping node, EdgeListener []EdgeListeners, string [] DevicesToBind,
@@ -30,6 +32,7 @@ namespace Ipop {
       AHAddress us = new AHAddress(IPOP_Common.StringToBytes(node.nodeAddress, ':'));
       Console.WriteLine("Generated address: {0}", us);
       brunetNode = new StructuredNode(us, brunet_namespace);
+      Refresher = null;
 
       //Where do we listen:
       IPAddress[] tas = Routines.GetIPTAs(DevicesToBind);
@@ -94,6 +97,20 @@ namespace Ipop {
       brunetNode.Disconnect();
     }
 
+    public void RefreshThread() {
+      while(node.ip != null && node.password != null) {
+        Thread.Sleep(302400);
+        if(node.ip == null || node.password == null)
+          break;
+        Refresh();
+      }
+      Refresher = null;
+    }
+
+    public bool Refresh() {
+      return Update(node.ip.ToString());
+    }
+
     public bool Update(string ip) {
       HashAlgorithm algo = new SHA1CryptoServiceProvider();
       byte[] bin_password = new byte[10];
@@ -121,10 +138,7 @@ namespace Ipop {
         dht_key = Encoding.UTF8.GetBytes("dhcp:ip:" + ip);
 
         byte [] nodeAddress = IPOP_Common.StringToBytes(node.nodeAddress, ':');
-        if(node.password == null)
-          queues = dht.CreateF(dht_key, 86400, new_hashed_password, nodeAddress);
-        else
-          queues = dht.RecreateF(dht_key, node.password, 86400, new_hashed_password, nodeAddress);
+        queues = dht.RecreateF(dht_key, node.password, 604800, new_hashed_password, nodeAddress);
       }
       catch (Exception) {
         System.Console.WriteLine("Somehow a program is supposed to know it doesn\'t have DHT enabled yet... how????");
@@ -133,7 +147,7 @@ namespace Ipop {
 
       int max_results_per_queue = 2;
       int min_majority = 3;
-      ArrayList []results = BlockingQueue.ParallelFetchWithTimeout(queues, 3000);
+      ArrayList []results = BlockingQueue.ParallelFetchWithTimeout(queues, 5000);
 
       //this method will return as soon as we have results available
       for (int i = 0; i < results.Length; i++) {
@@ -144,16 +158,14 @@ namespace Ipop {
 
         foreach (RpcResult rpc_result in q_result) {
           try {
-            if((bool) rpc_result.Result)
-              continue;
-            continue;
+            if((success = (bool) rpc_result.Result) == true)
+              break;
           }
           catch(AdrException) {
             success = false;
             continue;
           }
         }
-
         if (success)
           min_majority--;
       }
@@ -170,6 +182,8 @@ namespace Ipop {
       node.password = new_password;
       node.ip = IPAddress.Parse(ip);
       System.Console.WriteLine("Got the requested ip address " + ip);
+      if(Refresher == null)
+        Refresher = new Thread(new ThreadStart(RefreshThread));
       return true;
     }
   }

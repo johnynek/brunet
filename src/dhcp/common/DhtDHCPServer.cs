@@ -33,7 +33,7 @@ namespace Ipop {
       }
       string ns_key = "dhcp:ipop_namespace:" + ipop_namespace;
 #if DHCP_DEBUG
-      Console.WriteLine("searchig for key: {0}", ns_key);
+      Console.WriteLine("searching for key: {0}", ns_key);
 #endif
       byte[] utf8_key = Encoding.UTF8.GetBytes(ns_key);
       //get a maximum of 1000 bytes only
