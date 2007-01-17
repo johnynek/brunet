@@ -269,10 +269,10 @@ namespace Brunet
     public int HeartPeriod { get { return _heart_period; } }
 
     ///If we don't hear anything from a *CONNECTION* in this time, ping it.
-    static protected readonly TimeSpan _CONNECTION_TIMEOUT = new TimeSpan(0,0,0,0,30000);
-    ///If we don't hear anything from any *EDGE* in this time, close it, 4 minutes is now
+    static protected readonly TimeSpan _CONNECTION_TIMEOUT = new TimeSpan(0,0,0,0,15000);
+    ///If we don't hear anything from any *EDGE* in this time, close it, 45 seconds is now
     ///the close timeout
-    static protected readonly TimeSpan _EDGE_CLOSE_TIMEOUT = new TimeSpan(0,0,0,0,240000);
+    static protected readonly TimeSpan _EDGE_CLOSE_TIMEOUT = new TimeSpan(0,0,0,0,45000);
     /**
      * Maximum number of TAs we keep in both for local and remote.
      * This does not control how many we send to our neighbors.

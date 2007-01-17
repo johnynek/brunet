@@ -21,7 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //#define DEBUG
 
-//#define LINK_DEBUG
+#define LINK_DEBUG
 
 #if BRUNET_NUNIT
 using NUnit.Framework;

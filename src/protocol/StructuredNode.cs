@@ -107,6 +107,7 @@ namespace Brunet
       _connection_table.ConnectionEvent += new EventHandler(this.EstimateSize);
       _connection_table.ConnectionEvent += new EventHandler(this.UpdateNeighborStatus);
       _connection_table.DisconnectionEvent += new EventHandler(this.EstimateSize);
+      _connection_table.DisconnectionEvent += new EventHandler(this.UpdateNeighborStatus);
     }
      
     /**
