@@ -1,3 +1,4 @@
+#define USE_HEIGHT
 using System;
 
 namespace Brunet.Coordinate {
@@ -48,7 +49,7 @@ namespace Brunet.Coordinate {
       return unitVector;
     }
     public float GetEucledianDistance(Point p) {
-      return GetPlanarDistance(p) + Math.Abs(_height + p.Height);
+      return GetPlanarDistance(p) + _height + p.Height;
     }
     public float GetPlanarDistance(Point p) {
       float sum = 0;
@@ -70,7 +71,10 @@ namespace Brunet.Coordinate {
 	_side[i] = (float) _rr.NextDouble();
 	Console.WriteLine("after bump side ({0}): {1}", i, _side[i]);
       }
+#if USE_HEIGHT      
+      //only then do we bump the height (not otherwise)
       _height = (float) _rr.NextDouble();
+#endif
       Console.WriteLine("after bump height: {0}", _height);
     }
     
@@ -93,9 +97,11 @@ namespace Brunet.Coordinate {
       _height = p.Height;
     }
     public void CheckHeight() {
-      if (_height < MIN_HEIGHT) {
+#if USE_HEIGHT
+      while (_height < MIN_HEIGHT) {
 	_height = (float) _rr.NextDouble();
       }
+#endif
     }
     public static Point GetRandomUnitVector () {
       Point unitVector = new Point();
@@ -110,6 +116,9 @@ namespace Brunet.Coordinate {
 	unitVector.Side[i] /= length;
       }	
       unitVector.Height = 0.0f;
+#if USE_HEIGHT
+      unitVector.Height = (float) _rr.NextDouble();
+#endif
       return unitVector;
     }
     public override string ToString() {

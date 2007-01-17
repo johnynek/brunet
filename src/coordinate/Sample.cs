@@ -50,6 +50,10 @@ namespace Brunet.Coordinate {
       _sample_list.Add(sample);
     }
     public float GetSample() {
+      if (_sample_list.Count < PING_HISTORY_COUNT/2) {
+	//we just dont start assuming samples to be correct; unless we have many of those
+	return -1;
+      }
       ArrayList sorted_samples = new ArrayList(_sample_list);
       sorted_samples.Sort();
       int percentile = (int) (PING_SAMPLE_PERCENTILE * _sample_list.Count);
