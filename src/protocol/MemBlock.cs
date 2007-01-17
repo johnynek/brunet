@@ -52,8 +52,9 @@ public class MemBlock : System.IComparable {
    * after creating this object you are in for trouble.  It is your
    * responsibility to copy the data if you plan to overwrite data
    * @see MemBlock.Copy
+   * @see MemBlock.Reference
    */
-  public MemBlock(byte[] data, int offset, int length) {
+  protected MemBlock(byte[] data, int offset, int length) {
     _buffer = data;
     _offset = offset;
     _length = length;
@@ -167,7 +168,14 @@ public class MemBlock : System.IComparable {
     
     return 0;
   }
-
+  /**
+   * Make a reference to the given byte array, it does not make a copy.
+   * This is used rather than a constructor to make it obvious to the
+   * caller that this is only making a reference, not a copy
+   */
+  static public MemBlock Reference(byte[] data, int offset, int length) {
+    return new MemBlock(data, offset, length);
+  }
   /**
    * Returns a new MemBlock which starts at a given offset in the
    * current block and runs a given total length
