@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2005  P. Oscar Boykin <boykin@pobox.com>, University of Florida
+Copyright (C) 2005-2007  P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -39,12 +39,12 @@ namespace Brunet
 public class BlockingQueue : Queue {
   
   public BlockingQueue() {
-    _are = new AutoResetEvent(false); 
+    _re = new AutoResetEvent(false); 
     _closed = false;
     _exception = null;
   }
  
-  protected AutoResetEvent _are;
+  protected AutoResetEvent _re;
  
   protected Exception _exception;
   protected bool _closed;
@@ -79,12 +79,12 @@ public class BlockingQueue : Queue {
   public void Close() {
     lock( this ) {
       _closed = true;
+      _re.Set();
     }
     //Wake up any blocking threads:
 #if DEBUG
     System.Console.WriteLine("Close set");
 #endif
-    _are.Set();
   }
   
   public override bool Contains(object o) {
@@ -110,48 +110,33 @@ public class BlockingQueue : Queue {
   public object Dequeue(int millisec, out bool timedout)
   {
     object val = null;
-    lock( this ) {
-      if( _exception != null ) { throw _exception; }
-      if( Count > 0 ) {
-#if DEBUG
-	System.Console.WriteLine("Not empty");
-#endif
-	timedout = false;
-        val = base.Dequeue();
-	return val;
-      }
-      else if ( _closed ) {
-        //We are closed and empty, no need to wait:
-#if DEBUG
-	System.Console.WriteLine("Closed Queue");
-#endif
-	/*
-	 * When the queue is empty, this throws
-	 * InvalidOperationException.  When
-	 * the queue is closed and empty, it can never
-	 * be full again.
-	 */
-        timedout = false;
-        val = base.Dequeue();
-	return val;
-      }
-      //Make sure we don't have any old signals waiting...
-      _are.Reset();
+    bool got_set = _re.WaitOne(millisec, false);
+    if( !got_set ) {
+      timedout = true;
+      return null;
     }
-    bool got_set = _are.WaitOne(millisec, false);
-    lock( this ) {
-      if( _exception != null ) { throw _exception; }
-      if( got_set ) {
+    else {
+      lock( this ) {
+        if( _exception != null ) {
+          Exception x = _exception;
+          _exception = null;
+          throw x;
+        }
 #if DEBUG
 	System.Console.WriteLine("Got set: count {0}", Count);
 #endif
+        if( base.Count > 1 || _closed ) {
+          /*
+           * If the queue is closed, we want Dequeues to suceed immediately
+           * if there are elements in the queue, we want Dequeues to succeed
+           * immediately, otherwise, the AutoResetEvent would have been reset
+           * so no one else will get past WaitOne until the queue is closed
+           * or there is an Enqueue event.
+           */
+          _re.Set();
+        }
         val = base.Dequeue();
         timedout = false;
-      }
-      else {
-        //We timed out
-        timedout = true;
-        val = null;
       }
     }
     return val;    
@@ -174,31 +159,19 @@ public class BlockingQueue : Queue {
   public object Peek(int millisec, out bool timedout)
   {
     object val = null;
-    lock( this ) {
-      if( _exception != null ) { throw _exception; }
-      if( Count > 0 ) {
-        val = base.Peek();
-      }
-      else if ( _closed ) {
-        //We are closed and empty, no need to wait:
-        val = base.Peek();
-      }
+    bool got_set = _re.WaitOne(millisec, false);
+    if( !got_set ) {
+      timedout = true;
+      return null;
     }
-    if( val != null ) {
-      timedout = false;
-      return val;
-    }
-    bool got_set = _are.WaitOne(millisec, false);
-    lock( this ) {
-      if( _exception != null ) { throw _exception; }
-      if( got_set ) {
-        val = base.Peek();
+    else {
+      lock( this ) {
+        if( _exception != null ) { _exception = null; throw _exception; }
+        //We didn't take any out, so we should still be ready to go!
+        _re.Set();
         timedout = false;
-      }
-      else {
-        //We timed out
-        timedout = true;
-        val = null;
+        
+        val = base.Peek();
       }
     }
     return val;    
@@ -218,8 +191,8 @@ public class BlockingQueue : Queue {
 #if DEBUG
       System.Console.WriteLine("Enqueue set: count {0}", Count);
 #endif
-      _are.Set();
     }
+    _re.Set();
     //After we have alerted any blocking threads (Set), fire
     //the event:
     if( fire && (EnqueueEvent != null) ) {
@@ -235,10 +208,10 @@ public class BlockingQueue : Queue {
     lock( this ) {
       _exception = x;
     }
+    _re.Set();
 #if DEBUG
     System.Console.WriteLine("Exception set: ex {0}", x);
 #endif
-    _are.Set();
   }
 
 
@@ -355,12 +328,20 @@ public class BlockingQueue : Queue {
     for(int i = 0; i < 100000; i++) { 
       Assert.AreEqual( Dequeue(), r.Next(), "dequeue equality test" );
     }
+//    System.Console.WriteLine("Trying to get an exception");
     //The next dequeue should throw an exception
     bool got_exception = false;
     try {
       Dequeue();
     }
-    catch(Exception x) { got_exception = true; }
+    catch(Exception) { got_exception = true; }
+    Assert.IsTrue(got_exception, "got exception");
+    //Try it again
+    got_exception = false;
+    try {
+      Dequeue();
+    }
+    catch(Exception) { got_exception = true; }
     Assert.IsTrue(got_exception, "got exception");
   }
 #endif
