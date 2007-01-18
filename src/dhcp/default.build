@@ -22,6 +22,7 @@
              <include name="common/SoapDHCPServer.cs"/>
              <include name="common/DhtDHCPServer.cs"/>
              <include name="common/DhtDHCPLease.cs"/>
+             <include name="common/DhtIP.cs"/>
 	  </sources>
           <references>
 	     <include name="System.Runtime.Remoting.dll"/>

@@ -78,6 +78,7 @@ namespace PeerVM {
       byte[] address = new byte[Address.MemSize];
       my_rand.NextBytes(address);
       address[Address.MemSize -1] &= 0xFE;
+      address[3] = 0;
 
       //local node
       Node tmp_node = new StructuredNode(new AHAddress(address),

@@ -24,6 +24,7 @@ namespace Ipop {
     private static string ConfigFile;
     private static NodeMapping node;
     private static byte []routerMAC = new byte[]{0xFE, 0xFD, 0, 0, 0, 0};
+    private static bool in_dht;
 
 /*  DHT added code */
 
@@ -86,7 +87,18 @@ namespace Ipop {
       return true;
     }
 
-    private static void ProcessDHCP(byte [] buffer) {
+    private static void IPUpdate(object ip) {
+      if(node.brunet.Update((string) ip.ToString())) {
+        config.AddressData.IPAddress = node.ip.ToString();
+        config.AddressData.Netmask = node.netmask;
+        config.AddressData.Password = node.password;
+        IPRouterConfigHandler.Write(ConfigFile, config);
+      }
+      in_dht = false;
+    }
+
+    private static void ProcessDHCP(object buffero) {
+      byte [] buffer = (byte []) buffero;
       DHCPPacket dhcpPacket = new DHCPPacket(buffer);
       /* Create new DHCPPacket, parse the bytes, add relevant data, 
           and send to DHCP Server */
@@ -128,6 +140,7 @@ namespace Ipop {
         if(node.ip == null || node.ip.ToString() != newAddress || 
           node.netmask !=  newNetmask) {
           if(!config.AddressData.DhtDHCP && !node.brunet.Update(newAddress)) {
+              in_dht = false;
               return;
           }
           else {
@@ -151,6 +164,7 @@ namespace Ipop {
         Console.WriteLine("\nSorry, this program will sleep and try again later.");
         Thread.Sleep(10000);
       }
+      in_dht = false;
     }
 
     private static void InterruptHandler(int signal) {
@@ -219,6 +233,7 @@ namespace Ipop {
         dhcpClient = new SoapDHCPClient(config.AddressData.DHCPServerAddress);
       else
         dhcpClient = new DhtDHCPClient(node.brunet.dht);
+     in_dht = false;
 
       ethernet = false;
       //start the asynchronous communication now
@@ -236,6 +251,11 @@ namespace Ipop {
           node.mac = new byte[6];
           Array.Copy(packet, 6, node.mac, 0, 6);
           ethernet = true;
+        }
+        else if(in_dht) {
+          if(debug)
+            Console.WriteLine("In a dht process");
+          continue;
         }
 
         int type = (packet[12] << 8) + packet[13];
@@ -273,20 +293,19 @@ namespace Ipop {
         if(srcPort == 68 && destPort == 67 && protocol == 17) {
           if (debug)
             Console.WriteLine("DHCP Packet");
-          ProcessDHCP(buffer);
+          if(!in_dht) {
+            in_dht = true;
+            ThreadPool.QueueUserWorkItem(new WaitCallback(ProcessDHCP), (object) buffer);
+          }
           continue;
         }
 
         if(!srcAddr.Equals(IPAddress.Parse("0.0.0.0")) && (node.ip == null ||
           !node.ip.Equals(srcAddr))) {
           Console.WriteLine("Switching IP Address " + node.ip + " with " + srcAddr);
-          if(!node.brunet.Update(srcAddr.ToString()))
-            continue;
-          node.ip = srcAddr;
-          config.AddressData.IPAddress = node.ip.ToString();
-          config.AddressData.Netmask = node.netmask;
-          config.AddressData.Password = node.password;
-          IPRouterConfigHandler.Write(ConfigFile, config);
+          in_dht = true;
+          ThreadPool.QueueUserWorkItem(new WaitCallback(IPUpdate), (object) srcAddr.ToString());
+          continue;
         }
 
         AHAddress target = (AHAddress) brunet_arp_cache.Get(destAddr);

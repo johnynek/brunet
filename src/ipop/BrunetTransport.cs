@@ -28,7 +28,6 @@ namespace Ipop {
       sync = new object();
       this.debug = debug;
       //local node
-      System.Console.WriteLine("test " + node.nodeAddress);
       AHAddress us = new AHAddress(IPOP_Common.StringToBytes(node.nodeAddress, ':'));
       Console.WriteLine("Generated address: {0}", us);
       brunetNode = new StructuredNode(us, brunet_namespace);
@@ -45,13 +44,13 @@ namespace Ipop {
         int port = Int32.Parse(item.port);
         System.Console.WriteLine(port + " " + tas[0]);
         if (item.type =="tcp") {
-            brunetNode.AddEdgeListener(new TcpEdgeListener(port, tas));
+            brunetNode.AddEdgeListener(new TcpEdgeListener(port));
         }
         else if (item.type == "udp") {
-            brunetNode.AddEdgeListener(new UdpEdgeListener(port , tas));
+            brunetNode.AddEdgeListener(new UdpEdgeListener(port));
         }
         else if (item.type == "udp-as") {
-            brunetNode.AddEdgeListener(new ASUdpEdgeListener(port, tas));
+            brunetNode.AddEdgeListener(new ASUdpEdgeListener(port));
         }
         else {
           throw new Exception("Unrecognized transport: " + item.type);
@@ -121,79 +120,32 @@ namespace Ipop {
     }
 
     public bool Update(string ip) {
-      HashAlgorithm algo = new SHA1CryptoServiceProvider();
-      byte[] bin_password = new byte[10];
-      Random rand = new Random();
-      rand.NextBytes(bin_password);
+      String new_password;
 
-      string new_password = "SHA1:" + Convert.ToBase64String(bin_password);
-      byte[] sha1_pass = algo.ComputeHash(bin_password);
-      string new_hashed_password = "SHA1:" + Convert.ToBase64String(sha1_pass);
-
-      if (node.password == null)
-        node.password = new_password;
-
-      byte[] dht_key = null;
-      BlockingQueue [] queues = null;
-
-      try {
-        // Release our old IP Address
-        if(node.ip != null && !node.ip.Equals(ip) && node.password != null) {
-          dht_key = Encoding.UTF8.GetBytes("dhcp:ipop_namespace:" + 
-          node.ipop_namespace + ":ip:" + node.ip.ToString());
-          queues = dht.DeleteF(dht_key, node.password);
-        }
-
-        dht_key = Encoding.UTF8.GetBytes("dhcp:ip:" + ip);
-
-        byte [] nodeAddress = IPOP_Common.StringToBytes(node.nodeAddress, ':');
-        queues = dht.RecreateF(dht_key, node.password, 604800, new_hashed_password, nodeAddress);
-      }
-      catch (Exception) {
-        System.Console.WriteLine("Somehow a program is supposed to know it doesn\'t have DHT enabled yet... how????");
-        return false;
-      }
-
-      int max_results_per_queue = 2;
-      int min_majority = 3;
-      ArrayList []results = BlockingQueue.ParallelFetchWithTimeout(queues, 5000);
-
-      //this method will return as soon as we have results available
-      for (int i = 0; i < results.Length; i++) {
-        bool success = true;
-        ArrayList q_result = results[i];
-        if (q_result.Count < max_results_per_queue)
-          continue;
-
-        foreach (RpcResult rpc_result in q_result) {
-          try {
-            if((success = (bool) rpc_result.Result) == true)
-              break;
-          }
-          catch(AdrException) {
-            success = false;
-            continue;
-          }
-        }
-        if (success)
-          min_majority--;
-      }
-
-      if (min_majority > 0) {
-        //we have not been able to acquire a majority, delete all keys
-        queues = dht.DeleteF(dht_key, new_password);
-        BlockingQueue.ParallelFetch(queues, 1);//1 reply is sufficient
-        System.Console.WriteLine("Unable to get requested ip address " + ip);
+      if(node.ip != null && !node.ip.Equals(ip) && node.password != null) {
+        BlockingQueue [] queues = dht.DeleteF(
+          Encoding.UTF8.GetBytes("dhcp:ipop_namespace:" + node.ipop_namespace +
+            ":ip:" + node.ip.ToString()),
+          node.password);
+        BlockingQueue.ParallelFetch(queues, 0);
         node.password = null;
-        return false;
+        node.ip = null;
       }
 
-      node.password = new_password;
-      node.ip = IPAddress.Parse(ip);
-      System.Console.WriteLine("Got the requested ip address " + ip);
-      if(Refresher == null)
-        Refresher = new Thread(new ThreadStart(RefreshThread));
-      return true;
+      string dht_key = "dhcp:ip:" + ip;
+      byte [] brunet_id = IPOP_Common.StringToBytes(node.nodeAddress, ':');
+
+      if(DhtIP.GetIP(dht, dht_key, node.password, 6048000, brunet_id, out new_password)) {
+        node.password = new_password;
+        node.ip = IPAddress.Parse(ip);
+        if(Refresher == null)
+          Refresher = new Thread(new ThreadStart(RefreshThread));
+        return true;
+      }
+
+      node.password = null;
+      node.ip = null;
+      return false;
     }
   }
 }
