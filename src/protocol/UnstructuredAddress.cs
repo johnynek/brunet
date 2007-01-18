@@ -40,12 +40,7 @@ namespace Brunet
     {
 
     }
-    public UnstructuredAddress(byte[] add):base(add)
-    {
-
-    }
-    public UnstructuredAddress(byte[] add, int offset):base(add,
-              offset)
+    public UnstructuredAddress(MemBlock mb):base(mb)
     {
 
     }

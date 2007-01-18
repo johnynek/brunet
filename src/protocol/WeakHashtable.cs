@@ -387,7 +387,7 @@ public class WeakHashtable {
     try {
       wht[ null ] = "oh no";
     }
-    catch(ArgumentNullException x) {
+    catch(ArgumentNullException) {
      can_add_null = false;
     }
     Assert.IsFalse(can_add_null, "Null key test");
@@ -400,7 +400,7 @@ public class WeakHashtable {
       wht.Add(key2, "first");
       wht.Add(key2, "second");
     }
-    catch(ArgumentException x) {
+    catch(ArgumentException) {
       can_add_twice = false;
     }
     Assert.IsFalse(can_add_twice, "double Add");

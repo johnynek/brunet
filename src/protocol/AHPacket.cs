@@ -246,7 +246,7 @@ namespace Brunet
     public Address Source {
       get {
         if( _source == null ) {
-          _source = AddressParser.Parse(_buffer, 5);
+          _source = AddressParser.Parse( MemBlock.Reference(_buffer, 5, Address.MemSize) );
         }
         return _source;
       }
@@ -259,7 +259,7 @@ namespace Brunet
     public Address Destination {
       get {
         if( _destination == null ) {
-          _destination = AddressParser.Parse( _buffer, 25 );
+          _destination = AddressParser.Parse( MemBlock.Reference(_buffer, 25, Address.MemSize) );
         }
         return _destination;
       }

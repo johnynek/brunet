@@ -2,6 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
+Copyright (C) 2007 P. Oscar Boykin <boykin@pobox.com>  University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -35,42 +36,25 @@ namespace Brunet
   public class DirectionalAddress:StructuredAddress
   {
 
-    public DirectionalAddress(byte[] binadd, int offset)
+    public DirectionalAddress(MemBlock mb)
     {
-      if (ClassOf(binadd, offset) != this.Class) {
+      if (ClassOf(mb) != this.Class) {
         throw new System.
         ArgumentException
         ("This is not an AHAddress (Class 124) :  ",
          this.ToString());
       }
-      _dir = (Direction) NumberSerializer.ReadInt(binadd, offset);
-
-      buffer = new byte[Address.MemSize];
-      SetClass(this.Class);
-      NumberSerializer.WriteInt((int)_dir, buffer, 0);
-    }
-
-    public DirectionalAddress(byte[] binadd)
-    {
-      if (ClassOf(binadd) != this.Class) {
-        throw new System.
-        ArgumentException
-        ("This is not an AHAddress (Class 124) :  ",
-         this.ToString());
-      }
-      //The first 32 bits are an integer which refers to the
-      //direction
-      _dir = (Direction) NumberSerializer.ReadInt(binadd, 0);
-
-      buffer = new byte[Address.MemSize];
-      SetClass(this.Class);
-      NumberSerializer.WriteInt((int)_dir, buffer, 0);
+      _buffer = mb;
+      _dir = (Direction) NumberSerializer.ReadInt(mb);
     }
 
     public DirectionalAddress(DirectionalAddress.Direction bearing) : base()
     {
+      byte[] buffer = new byte[ MemSize ];
       NumberSerializer.WriteInt((int)bearing, buffer, 0);
+      SetClass(buffer, this.Class);
       _dir = bearing;
+      _buffer = MemBlock.Reference(buffer, 0, MemSize);
     }
 
     /**

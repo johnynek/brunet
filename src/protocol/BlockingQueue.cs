@@ -268,7 +268,7 @@ public class BlockingQueue : Queue {
       try {
 	Console.WriteLine("Closing queue: {0}", k);	
 	queues[k].Close();
-      } catch(InvalidOperationException e) {
+      } catch(InvalidOperationException) {
 	
       }
     }
@@ -299,7 +299,8 @@ public class BlockingQueue : Queue {
 	replies.Add(res);
 	max_replies--;
       }
-    } catch (InvalidOperationException e) {
+    } catch (InvalidOperationException ) {
+
     }
     //Console.WriteLine("fetch finished");
     return replies;

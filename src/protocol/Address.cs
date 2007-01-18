@@ -17,7 +17,9 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
-
+#if BRUNET_NUNIT
+using NUnit.Framework;
+#endif
 namespace Brunet
 {
 
@@ -36,6 +38,8 @@ namespace Brunet
 
     ///The number of bytes to represent the address
     public static readonly int MemSize = 20;
+
+    protected MemBlock  _buffer;
 
     /**
      * Static constructor initializes _half and _full
@@ -56,100 +60,75 @@ namespace Brunet
 
     public Address()
     {
-      buffer = new byte[MemSize];
-      SetClass(this.Class);
+      byte[] buffer = new byte[MemSize];
+      SetClass(buffer, this.Class);
+      _buffer = MemBlock.Reference(buffer, 0, MemSize);
     }
 
     /**
-     * Create an address from a buffer with an offset
+     * Create an address from a MemBlock
      */
-    public Address(byte[] binary, int offset)
+    public Address(MemBlock mb)
     {
-      buffer = new byte[MemSize];
-
-      /**
-       * @throw ArgumentNullException if sourceArray or destinationArray
-       * is null.
-       * @throw RankException if sourceArray and destinationArray have 
-       * different ranks. 
-       * @throw ArgumentOutOfRangeException.
-       */
-
-      System.Array.Copy(binary, offset, buffer, 0, MemSize);
-    }
-
-    public Address(byte[] binary)
-    {
-      buffer = new byte[MemSize];
-      /**
-       * @throw ArgumentNullException if sourceArray or destinationArray
-       * is null.
-       * @throw RankException if sourceArray and destinationArray have 
-       * different ranks.
-       * @throw ArgumentOutOfRangeException.
-       */
-
-      System.Array.Copy(binary, 0, buffer, 0, MemSize);
+      _buffer = mb;
+      if (ClassOf(_buffer) != this.Class) {
+        throw new System.
+        ArgumentException("Class of address is not my class:  ",
+                          this.ToString());
+      }
     }
 
     public Address(BigInteger big_int)
     {
-      this.Set(big_int);
+      byte[] buffer = ConvertToAddressBuffer(big_int);
+      _buffer = MemBlock.Reference(buffer, 0, MemSize);
+      if (ClassOf(_buffer) != this.Class) {
+        throw new System.
+        ArgumentException("Class of address is not my class:  ",
+                          this.ToString());
+      }
     }
 
     abstract public int Class {
       get;
     }
 
-    protected byte[]  buffer;
 
-    public static int ClassOf(byte[] binary_add)
+    /**
+     * Gives the class of the Address at the given MemBlock
+     */
+    public static int ClassOf(MemBlock mb)
     {
-      return ClassOf(binary_add, 0);
-    }
-    public static int ClassOf(byte[] binary_add, int offset)
-    {
-      int c = 0;
-      int i = MemSize + offset - 1;
+      int i = MemSize - 1;
+      byte[] mask = { 0x01, 0x02, 0x04, 0x08,
+                      0x10, 0x20, 0x40, 0x80 };
+      byte this_byte = mb[i];
+      
+      //For the do while, we start with one less:
+      int consecutive_ones = -1;
+      int idx = -1;
       do {
-        uint t = binary_add[i];
-        int shifts = 0;
-        while (((t & 0x01) == 0x01) && (shifts < 8)) {
-          t >>= 1;
-          shifts++;
-          c++;
+        consecutive_ones++;
+        idx++;
+        if( idx > 7 ) {
+          //Move to the next byte:
+          idx = 0;
+          i--;
+          this_byte = mb[i];
         }
-        i--;
-
-      } while (c % 8 == 0 && c >= 8 && c <= (8 * MemSize) && i >= 0);
-      /**
-       * One would need to go to the next byte only if the first
-       * zero has not been found yet A do-while loop is the most
-       * appropriate here since we don't have to go through
-       * all the bytes.  
-       */
-      return c;
+      }
+      while( (this_byte & mask[idx]) != 0 );
+      return consecutive_ones;
     }
 
     /**
-     * Compares address by treating them as BigIntegers
+     * Compares them by treating them as MSB first integers
      */
     public int CompareTo(object obj) {
       if( obj == this ) { return 0; }
       Address a = obj as Address;
       if( null != a ) {
-        byte[] buf1 = this.buffer;
-        byte[] buf2 = a.buffer;
-        for(int i = 0; i < MemSize; i++) {
-          if( buf1[i] < buf2[i] ) {
-            return -1;
-          }
-          else if (buf1[i] > buf2[i]) {
-            return 1;
-          }
-        }
-        //If we made it through the above, they must be equal:
-        return 0;
+        return this._buffer.CompareTo( a._buffer );
       }
       else {
         //These are really incomparable.
@@ -161,47 +140,20 @@ namespace Brunet
     public override bool Equals(object a)
     {
       if( a == this ) { return true; }
-      Address add = a as Address;
-      if (add != null) {
-        byte[] buf_x = buffer;
-        byte[] buf_y = add.buffer;
-
-        bool equal = true;
-        int i = 0;
-        while (equal && (i < MemSize)) {
-          equal = (buf_x[i] == buf_y[i]);
-          i++;
-        }
-        return equal;
+      Address addr = a as Address;
+      if (addr != null) {
+        return this._buffer.Equals( addr._buffer );
       }
-      else {
-        return false;
-      }
+      return false;
     }
     protected bool _computed_hash = false;
     protected int _hc;
-#if false
-    public override int GetHashCode()
-    {
-      if( !_computed_hash ) {
-        int ArrLength = MemSize / 4;
-        //MemSize is the number of bytes and there are four bytes to an int
-        int hash = 0;
-        for (int i = 0; i < ArrLength; i++) {
-          hash ^= NumberSerializer.ReadInt(buffer, i * 4);
-        }
-        _hc = hash;
-        _computed_hash = true;
-      }
-      return _hc;
-    }
-#endif
     //The first int in the buffer should be good enough
     public override int GetHashCode() {
       if( !_computed_hash ) {
         //There is no race here because calling the function
         //more than once has the same result.
-        _hc = NumberSerializer.ReadInt(buffer, 0); 
+        _hc = _buffer.GetHashCode(); 
         _computed_hash = true;
       }
       return _hc;
@@ -237,22 +189,14 @@ namespace Brunet
     public abstract bool IsUnicast
     {
       get;
-      }
+    }
 
-      /**
-       * Copy the buffer out
-       */
-      public virtual void CopyTo(byte[] b, int offset)
+    /**
+     * Copy the buffer out
+     */
+    public virtual void CopyTo(byte[] b, int offset)
     {
-      /**
-       * @throw ArgumentNullException if sourceArray or destinationArray
-       * is null.
-       * @throw RankException if sourceArray and destinationArray have 
-       * different ranks.
-       * @throw ArgumentOutOfRangeException.
-       */
-
-      System.Array.Copy(buffer, 0, b, offset, MemSize);
+      _buffer.CopyTo(b,offset);
     }
 
     public virtual void CopyTo(byte[] b)
@@ -265,17 +209,18 @@ namespace Brunet
     public virtual BigInteger ToBigInteger()
     {
       if( !_made_big_int ) {
+        byte[] buffer = new byte[ MemSize ];
+        _buffer.CopyTo(buffer,0);
         _big_int = new BigInteger(buffer);
       }
       return _big_int;
     }
 
     /**
-     * Set the address from a BigInteger
-     * @throw System.ArgumentException if the BigInteger is not
-     * the same address class as the object.
+     * Return a byte[] of length MemSize, which holds the integer as a
+     * buffer which is a binary representation of an Address
      */
-    protected void Set(BigInteger value)
+    static public byte[] ConvertToAddressBuffer(BigInteger value)
     {
 
       byte[] bi_buf;
@@ -307,16 +252,7 @@ namespace Brunet
         throw new System.ArgumentException(
           "Integer too large to fit in 160 bits: " + value.ToString());
       }
-
-      if( ClassOf(bi_buf) == this.Class ) {
-        buffer = bi_buf;
-      }
-      else {
-        throw new System.
-        ArgumentException("Cannot set to a different address class,  " +
-                          this.ToString() + " is class " + this.Class
-                          + " not class " + ClassOf(buffer));
-      }
+      return bi_buf;
     }
 
     /**
@@ -328,22 +264,35 @@ namespace Brunet
      */
     static public void SetClass(byte[] buf, int offset, int myclass)
     {
-      int i = MemSize - 1;
-      //Set the last bit to zero:
-      buf[i+offset] &= 0xFE;
-      do {
-        int shifts = 0;
-        uint val = 0x01;
-        while ((myclass > 0) && (shifts < 8)) {
-          //Set the bit to 1:
-          buf[i+offset] = (byte)(buf[i+offset] | val);
-          val <<= 1;
-          shifts++;
-          myclass--;
+      /*
+       * If you want x ones, you want to xor with one_masks[x];
+       */
+      byte[] one_masks = { 0x00, 0x01, 0x03, 0x07, 0x0F,
+                                 0x1F, 0x3F, 0x7F, 0xFF };
+      /*
+       * if you want a zero in the x position and with zero_mask[x]
+       */
+      byte[] zero_masks = { 0xFE, 0xFD, 0xFB, 0xF7,
+                            0xEF, 0xDF, 0xBF, 0x7F, 0xFF };
+      int i = offset + MemSize - 1;
+      //Put the ones in:
+      int ones_to_go = myclass;
+      while( ones_to_go >= 0 ) {
+        //We can put any number of ones from 0 to 8:
+        int this_one_count = System.Math.Min(ones_to_go, 8);
+        ones_to_go -= this_one_count;
+        //Put the ones in:
+        byte o_mask = one_masks[ this_one_count ];
+        //Put the zero in the this_one_count position:
+        byte z_mask = zero_masks[ this_one_count  ];
+        buf[i] = (byte)( (buf[i] | o_mask) & z_mask );
+        if( this_one_count < 8 ) {
+          //We just did the last one:
+          ones_to_go = -1;
         }
+        //Move on to the next:
         i--;
-
-      } while ( (myclass > 0) && (i >= 0) );
+      }
     }
     
     /**
@@ -354,33 +303,39 @@ namespace Brunet
       SetClass(buf, 0, myclass);
     }
     
-    /**
-     * Sets the last bits of the address
-     * to guarantee it is of a given class.
-     * Used by subclasses for initialization
-     */
-    protected void SetClass(int myclass)
-    {
-      SetClass(buffer, myclass);
-    }
-
-    /**
-     * @return an array of integers which represent the address
-     */
-    public virtual int[] ToIntArray()
-    {
-      int ArrLength = MemSize / 4;
-      int[] int_array = new int[ArrLength];
-      //MemSize is the number of bytes and there are four bytes to an int
-      for (int i = 0; i < ArrLength; i++) {
-        int_array[i] = NumberSerializer.ReadInt(buffer, i * 4);
-      }
-      return int_array;
-    }
     public override string ToString()
     {
+      byte[] buffer = new byte[ MemSize ];
+      _buffer.CopyTo(buffer,0);
       return ("brunet:" + "node:" + Base32.Encode(buffer));
     }
+        #if BRUNET_NUNIT
+    [TestFixture]
+    public class AddressTester {
+      [Test]
+      public void Test() {
+        System.Random r = new System.Random();
+        for(int i = 0; i < 100; i++) {
+          //Test ClassOf and SetClass:
+          int c = r.Next(160);
+          byte[] buf0 = new byte[Address.MemSize];
+          //Fill it with junk
+          r.NextBytes(buf0);
+          Address.SetClass(buf0, c);
+          int c2 = Address.ClassOf(MemBlock.Reference(buf0, 0, Address.MemSize));
+          Assert.AreEqual(c,c2, "Class Round Trip");
+          //Test BigInteger stuff:
+          int size = r.Next(1, MemSize + 1);
+          byte[] buf1 = new byte[size];
+          r.NextBytes(buf1);
+          BigInteger b1 = new BigInteger(buf1);
+          byte[] buf2 = Address.ConvertToAddressBuffer(b1);
+          BigInteger b2 = new BigInteger(buf2);
+          Assert.AreEqual(b1, b2, "BigInteger round trip");
+        }
+      }
+    }
+    #endif
   }
 
 }
