@@ -128,6 +128,10 @@ namespace Brunet
     {
       return (short)( (bin[offset] << 8) | bin[offset + 1] );
     }
+    public static short ReadShort(MemBlock bin, int offset)
+    {
+      return (short)( (bin[offset] << 8) | bin[offset + 1] );
+    }
 
     /**
      * Read a short from the stream and advance the stream

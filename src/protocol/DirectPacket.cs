@@ -28,11 +28,17 @@ namespace Brunet {
    */
   public class DirectPacket: Packet {
     //the payload contained inside the packet
-    protected byte[] _payload;
+    protected MemBlock _buffer;
     
     //the higher level protocol for the payload
     protected string _pt;
-    public string PayloadType { get { return _pt; } }
+    protected int _type_length;
+    public string PayloadType {
+      get {
+        InitType();
+        return _pt;
+      }
+    }
 
     /**
      * Constructor
@@ -41,25 +47,26 @@ namespace Brunet {
      */
     public DirectPacket(string payload_prot, byte[] payload) {
       _pt = payload_prot;
-      _payload = payload;
+      _type_length = NumberSerializer.GetByteCount(_pt);
+      byte[] buf = new byte[ 1 + _type_length + payload.Length ];
+      buf[0] = (byte) Packet.ProtType.Direct;
+      NumberSerializer.WriteString(_pt, buf, 1);
+      System.Array.Copy(payload, 0, buf, _type_length + 1, payload.Length);
+      _buffer = MemBlock.Reference(buf, 0, buf.Length);
     }
     /**
      * Constructor used by PacketParser to build the packet.
      */
-    public DirectPacket(byte[] buf, int offset, int length) {
-      int off = offset;
-      if (buf[offset] != (byte) Packet.ProtType.Direct) {
+    public DirectPacket(byte[] buf, int offset, int length)
+     : this(MemBlock.Copy(buf, offset, length))
+    {
+    
+    }
+    public DirectPacket(MemBlock buf) {
+      if (buf[0] != (byte) Packet.ProtType.Direct) {
         throw new System.ArgumentException("Packet is not a direct packet");
       }
-      offset += 1;
-      int len = 0;
-      _pt = NumberSerializer.ReadString(buf, offset, out len);
-      offset += len;
-      int headersize = offset - off;
-      int payload_len = length - headersize;
-      _payload = new byte[payload_len];
-      Array.Copy(buf, offset, _payload, 0, payload_len);
-
+      _buffer = buf;
     }
     /**
      * The header is a shrinked header, with 1 byte identifying the 
@@ -67,7 +74,8 @@ namespace Brunet {
      */
     public int HeaderSize {
       get {
-	return 1 + NumberSerializer.GetByteCount(_pt);
+        InitType();
+	return 1 + _type_length;
       }
     }
     /**
@@ -80,42 +88,44 @@ namespace Brunet {
     }
     public override int Length {
       get {
-	return HeaderSize + _payload.Length;
+	return _buffer.Length;
       }
     }
     public override int PayloadLength {
       get {
-	return _payload.Length;
+	return _buffer.Length - HeaderSize;
       }
     }
     public byte[] Payload {
       get {
-	return _payload;
+        byte[] buf = new byte[ PayloadLength ];
+	_buffer.Slice(HeaderSize).CopyTo(buf, 0);
+        return buf;
       }
     }
+    protected void InitType() {
+      if( _pt == null ) {
+        //Lazily get the type
+        _type_length = _buffer.Slice(1).Search(0);
+        _pt = _buffer.Slice(1, _type_length).GetString(System.Text.Encoding.UTF8);
+        _type_length = _type_length + 1;
+      }
+    }
+
     public override MemoryStream PayloadStream {
       get {
-        //Return a read-only MemoryStream of the Payload
-        //return new MemoryStream(_payload, false);
 	return GetPayloadStream(0);
       }
     }
     public override void CopyTo(byte[] dest, int off) {
-      //1 byte for packet type - direct
-      dest[off] = (byte)Packet.ProtType.Direct;
-      off += 1;
-      //protocol type which is a string
-      off += NumberSerializer.WriteString(_pt, dest, off);
-      //copying off the payload
-      Array.Copy(_payload, 0, dest, off, PayloadLength);
-      off += PayloadLength;
+      _buffer.CopyTo(dest, off);
     }
 
     /**
      * @param offset the offset into the payload to start the stream
      */
     virtual public MemoryStream GetPayloadStream(int offset) {
-      return new MemoryStream(_payload, offset, _payload.Length - offset, false);
+      return _buffer.Slice(HeaderSize + offset).ToMemoryStream();
     }
   }
 }
