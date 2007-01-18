@@ -74,7 +74,8 @@ namespace Brunet
       }
       try {
         byte[] binadd = Base32.Decode(parts[offset + 2]);
-        return Parse(binadd);
+        MemBlock mb =MemBlock.Reference(binadd, 0, binadd.Length);
+        return Parse(mb);
       }
       catch(System.ArgumentOutOfRangeException ex) {
         throw new ParseException("Failed to parse Address string",
@@ -87,53 +88,39 @@ namespace Brunet
      * and calls Parse on the copy.  This is a "convienience" method.
      * @throw ParseException if the buffer is not a valid address
      */
-    static public Address Parse(byte[] binadd, int offset)
+    static public Address Parse(MemBlock mb)
     {
       try {
-        int add_class = Address.ClassOf(binadd, offset);
+        int add_class = Address.ClassOf(mb);
         Address a = null;
         switch (add_class) {
         case 0:
-          a = new AHAddress(binadd, offset);
+          a = new AHAddress(mb);
           break;
         case 124:
-          a = new DirectionalAddress(binadd, offset);
+          a = new DirectionalAddress(mb);
           break;
         case 126:
-          a = new RwpAddress(binadd, offset);
+          a = new RwpAddress(mb);
           break;
         case 159:
-          a = new RwtaAddress(binadd, offset);
+          a = new RwtaAddress(mb);
           break;
         default:
           throw new ParseException("Unknown Address Class: " +
                                    add_class + ", buffer:" +
-                                   binadd.ToString() + " offset: " +
-                                   offset);
+                                   mb.ToString());
         }
         return a;
       }
       catch(ArgumentOutOfRangeException ex) {
         throw new ParseException("Address too short: " +
-                                 binadd.ToString() + "offset: " +
-                                 offset, ex);
+                                 mb.ToString(), ex);
       }
       catch(ArgumentException ex) {
         throw new ParseException("Could not parse: " +
-                                 binadd.ToString() + "offset: " +
-                                 offset, ex);
+                                 mb.ToString(), ex);
       }
-    }
-
-    /**
-     * Given the binadd, return an Address object which this
-     * binary representation corresponds to.  The buffer must
-     * be exactly Address.MemSize long, or an exception is thrown.
-     * @throw ParseException if the buffer is not a valid address
-     */
-    static public Address Parse(byte[] binadd)
-    {
-      return Parse(binadd, 0);
     }
   }
 

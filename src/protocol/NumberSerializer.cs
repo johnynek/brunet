@@ -68,6 +68,14 @@ namespace Brunet
       }
       return val;
     }
+    public static int ReadInt(MemBlock mb)
+    {
+      int val = 0;
+      for(int i = 0; i < 4; i++) {
+        val = (val << 8) | mb[i];
+      }
+      return val;
+    }
     /**
      * Read an Int from the stream and advance the stream
      */
@@ -213,6 +221,12 @@ namespace Brunet
       }
       else
         return BitConverter.ToSingle(bin, offset);
+    }
+    public static float ReadFloat(MemBlock mb)
+    {
+      byte[] bin = new byte[4];
+      mb.CopyTo(bin,0);
+      return ReadFloat(bin, 0);
     }
     public static float ReadFloat(Stream s) {
       byte[] b = new byte[4];
