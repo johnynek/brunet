@@ -338,29 +338,57 @@ public abstract class NatHandler {
 }
 
 /**
- * This is the case where the node is not behind any NAT whatsoever
- * This will only work when the peer views all match some local view
- * of the TA.
+ * For a public node, there is never any port translation, so, local
+ * ports always match remote ports.
+ * We assume here only one port is used.
  */
 public class PublicNatHandler : NatHandler {
   override public bool IsMyType(IEnumerable h) {
-    //First make a hashtable of the local views:
-    Hashtable ht = new Hashtable();
-    foreach(NatDataPoint p in h) {
-      ht[p.LocalTA] = true;
-    }
-    //Now check to see the peer view is a local ta:
+    int port = 0;
+    bool port_is_set = false;
     bool retv = true;
     foreach(NatDataPoint p in h) {
+      int this_port = p.LocalTA.Port;
+      if( port_is_set == false ) {
+        port = this_port;
+        port_is_set = true;
+      }
+      else {
+        retv = retv && (this_port == port);
+      }
       TransportAddress pv = p.PeerViewOfLocalTA;
       if( pv != null ) {
-        retv = retv && ht.Contains(pv);
-        if( false == retv ) {
-          break;
-        }
+        //Check that everything is okay:
+        retv = retv && (pv.Port == port);
+      }
+      if( retv == false ) {
+        break;
       }
     }
     return retv;
+  }
+  /*
+   * This is easy, just return the most recent non-null PeerViewTA.
+   */
+  override public IList TargetTAs(IEnumerable hist) {
+    ArrayList l = new ArrayList();
+    TransportAddress local = null;
+    foreach(NatDataPoint p in hist) {
+      if( local == null ) {
+        //Get the most recent local
+        local = p.LocalTA;
+      }
+      TransportAddress pv = p.PeerViewOfLocalTA;
+      if( pv != null ) {
+        l.Add(pv);
+        break;
+      } 
+    }
+    if( l.Count == 0 && (local != null) ) {
+      //We never found one, just use a local one
+      l.Add(local);
+    }
+    return l;
   }
 }
 
@@ -767,8 +795,7 @@ public class NatTAs : IEnumerable {
    * Enumerator that will go through all the NatHandlers in a fixed order
    */
   static protected IEnumerator AllHandlers() {
-    //The ConeNatHandler can handle public nodes, so don't bother with public
-    //yield return new PublicNatHandler();
+    yield return new PublicNatHandler();
     yield return new ConeNatHandler();
     yield return new LinuxNatHandler();
     yield return new SymmetricNatHandler();
