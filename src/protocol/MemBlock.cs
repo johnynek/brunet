@@ -166,6 +166,13 @@ public class MemBlock : System.IComparable {
     return val;
   }
   /**
+   * Use the given Encoding to read a string out of the MemBlock
+   */
+  public string GetString(System.Text.Encoding e)
+  {
+    return e.GetString(_buffer, _offset, _length);
+  }
+  /**
    * Make a reference to the given byte array, it does not make a copy.
    * This is used rather than a constructor to make it obvious to the
    * caller that this is only making a reference, not a copy
@@ -173,6 +180,22 @@ public class MemBlock : System.IComparable {
   static public MemBlock Reference(byte[] data, int offset, int length) {
     return new MemBlock(data, offset, length);
   }
+  
+  /**
+   * Search through the current buffer for a byte b, and return
+   * the index to it.  If it is not found, return -1
+   */
+  public int Search(byte b)
+  {
+    int max = _offset + _length;
+    for(int idx = _offset; idx < max; idx++) {
+      if( _buffer[idx] == b ) {
+        return (idx - _offset);
+      }
+    }
+    return -1;
+  }
+
   /**
    * Returns a new MemBlock which starts at a given offset in the
    * current block and runs a given total length
@@ -187,6 +210,13 @@ public class MemBlock : System.IComparable {
    */
   public MemBlock Slice(int offset) {
     return new MemBlock(_buffer, _offset + offset, _length - offset);
+  }
+
+  /**
+   * Returns a read-only MemoryStream of the current MemBlock
+   */
+  public System.IO.MemoryStream ToMemoryStream() {
+    return new System.IO.MemoryStream(_buffer, _offset, _length, false);
   }
 
 #if BRUNET_NUNIT

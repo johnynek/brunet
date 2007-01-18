@@ -48,9 +48,14 @@ namespace Brunet
     }
     public static Packet Parse(byte[] binpack, int off, int length)
     {
+      return Parse(MemBlock.Copy(binpack, off, length));
+    }
+
+    public static Packet Parse(MemBlock binpack)
+    {
       Packet.ProtType ptype;
       try {
-        ptype = (Packet.ProtType) binpack[off];
+        ptype = (Packet.ProtType) binpack[0];
       }
       catch(System.Exception ex) {
         throw new ParseException("Unrecognized Packet Type", ex);
@@ -60,14 +65,14 @@ namespace Brunet
 
       switch (ptype) {
       case Packet.ProtType.AH:
-        p = new AHPacket(binpack, off, length);
+        p = new AHPacket(binpack);
         break;
       case Packet.ProtType.Connection:
-        p = new ConnectionPacket(binpack, off, length);
+        p = new ConnectionPacket(binpack);
         break;
       case Packet.ProtType.Direct:
 	//the new packet type that we have added into the system
-	p = new DirectPacket(binpack, off, length);
+	p = new DirectPacket(binpack);
 	break;
       default:
         throw new ParseException("Unrecognized Packet Type");
