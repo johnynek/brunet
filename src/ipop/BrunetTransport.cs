@@ -28,7 +28,10 @@ namespace Ipop {
       sync = new object();
       this.debug = debug;
       //local node
-      AHAddress us = new AHAddress(IPOP_Common.StringToBytes(node.nodeAddress, ':'));
+
+      AHAddress us = new AHAddress(IPOP_Common.GetHash(node.ip));
+//Dht DHCP
+//      AHAddress us = new AHAddress(IPOP_Common.StringToBytes(node.nodeAddress, ':'));
       Console.WriteLine("Generated address: {0}", us);
       brunetNode = new StructuredNode(us, brunet_namespace);
       Refresher = null;

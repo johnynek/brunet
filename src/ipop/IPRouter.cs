@@ -34,6 +34,8 @@ namespace Ipop {
 
 /*  Generic */
     private static void BrunetStart() {
+      if(node.ip == null)
+        return;
       if(node.brunet != null) {
         node.brunet.Disconnect();
         Thread.Sleep(5000);
@@ -41,11 +43,12 @@ namespace Ipop {
       node.brunet = new BrunetTransport(ether, config.brunet_namespace,
         node, config.EdgeListeners, config.DevicesToBind, RemoteTAs, debug,
         config.dht_media);
-      brunet_arp_cache = new Cache(100);
+//Dht code
+/*      brunet_arp_cache = new Cache(100);
       RouteMissHandler.RouteMissDelegate dlgt =
         new RouteMissHandler.RouteMissDelegate(RouteMissCallback);
       route_miss_handler = new RouteMissHandler(node.brunet.dht,
-        node.ipop_namespace, dlgt);
+        node.ipop_namespace, dlgt);*/
     }
 
     private static bool ARPHandler(byte []packet) {
@@ -139,18 +142,19 @@ namespace Ipop {
           returnPacket.decodedPacket.options[1]).byte_value, '.');
         if(node.ip == null || node.ip.ToString() != newAddress || 
           node.netmask !=  newNetmask) {
-          if(!config.AddressData.DhtDHCP && !node.brunet.Update(newAddress)) {
+   /*       if(!config.AddressData.DhtDHCP && !node.brunet.Update(newAddress)) {
               in_dht = false;
               return;
           }
           else {
             node.password = returnPacket.decodedPacket.StoredPassword;
             config.AddressData.Password = node.password;
-          }
+          }*/
           node.netmask = newNetmask;
           node.ip = IPAddress.Parse(newAddress);
           config.AddressData.IPAddress = newAddress;
           config.AddressData.Netmask = node.netmask;
+          BrunetStart();
           IPRouterConfigHandler.Write(ConfigFile, config);
         }
       }
@@ -302,18 +306,23 @@ namespace Ipop {
 
         if(!srcAddr.Equals(IPAddress.Parse("0.0.0.0")) && (node.ip == null ||
           !node.ip.Equals(srcAddr))) {
-          Console.WriteLine("Switching IP Address " + node.ip + " with " + srcAddr);
+          node.ip = srcAddr;
+          BrunetStart();
+// Dht code
+/*          Console.WriteLine("Switching IP Address " + node.ip + " with " + srcAddr);
           in_dht = true;
-          ThreadPool.QueueUserWorkItem(new WaitCallback(IPUpdate), (object) srcAddr.ToString());
+          ThreadPool.QueueUserWorkItem(new WaitCallback(IPUpdate), (object) srcAddr.ToString());*/
           continue;
         }
 
-        AHAddress target = (AHAddress) brunet_arp_cache.Get(destAddr);
+        AHAddress target = new AHAddress(IPOP_Common.GetHash(destAddr));
+// Dht code
+/*        AHAddress target = (AHAddress) brunet_arp_cache.Get(destAddr);
         if (target == null) {
           Console.WriteLine("Incurring a route miss for virtual ip: {0}", destAddr);
           route_miss_handler.HandleRouteMiss(destAddr);
           continue;
-        }
+        }*/
         if (debug) {
           Console.WriteLine("Brunet destination ID: {0}", target);
         }
