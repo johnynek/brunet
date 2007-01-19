@@ -262,8 +262,7 @@ namespace Brunet
      */
     public bool Contains(ConnectionType t, Address a)
     {
-      bool result = (IndexOf(t,a) >= 0);
-      return result;
+      return (IndexOf(t,a) >= 0);
     }
     /**
      * @param t the ConnectionType we want to know the count of
@@ -271,19 +270,17 @@ namespace Brunet
      */
     public int Count(ConnectionType t)
     {
-      lock(_sync) {
-        if( t == ConnectionType.Structured ) {
-          //Optimize the most common case to avoid the hashtable
-          return _struct_conlist.Count;
+      if( t == ConnectionType.Structured ) {
+        //Optimize the most common case to avoid the hashtable
+        return _struct_conlist.Count;
+      }
+      else {
+        ArrayList list = (ArrayList)type_to_conlist[t];
+        if( list == null ) {
+          return 0;
         }
         else {
-          ArrayList list = (ArrayList)type_to_conlist[t];
-          if( list == null ) {
-            return 0;
-          }
-          else {
-            return list.Count;
-          }
+          return list.Count;
         }
       }
     }
@@ -348,9 +345,7 @@ namespace Brunet
     {
       get
       {
-        lock (_sync ) {
-          return unconnected.Count;
-        }
+        return unconnected.Count;
       }
     }
     /**
@@ -403,27 +398,23 @@ namespace Brunet
      */
     public Connection GetConnection(ConnectionType t, int index)
     {
-      Connection c = null;
-      lock(_sync ) {
-        ArrayList list;
-        if( t == ConnectionType.Structured ) {
-          //Optimize the most common case to avoid the hashtable
-          list = _struct_conlist;
-        }
-        else {
-          list = (ArrayList)type_to_conlist[t];
-        }
-        int count = list.Count;
-        if( count == 0 ) {
-          return null;
-        }
-        index %= count;
-        if( index < 0 ) {
-          index += count;
-        }
-        c = (Connection)list[index];
+      ArrayList list;
+      if( t == ConnectionType.Structured ) {
+        //Optimize the most common case to avoid the hashtable
+        list = _struct_conlist;
       }
-      return c;
+      else {
+        list = (ArrayList)type_to_conlist[t];
+      }
+      int count = list.Count;
+      if( count == 0 ) {
+        return null;
+      }
+      index %= count;
+      if( index < 0 ) {
+        index += count;
+      }
+      return (Connection)list[index];
     }
     /**
      * Convienience function.  Same as IndexOf followed by GetConnection
@@ -566,30 +557,28 @@ namespace Brunet
      */
     public int IndexOf(ConnectionType t, Address a)
     {
-      lock(_sync) {
-        int index = 0;
-        ArrayList add_list;
-        if( t == ConnectionType.Structured ) {
-          //Optimize the most common case to avoid the hashtable
-          add_list = _struct_addlist;
-        }
-        else {
-          add_list = (ArrayList)type_to_addlist[t];
-        }
-        if( add_list.Count == 0 ) {
-          //This item would be the first in the list
-          index = ~index;
-        }
-        else {
-          //Search for the item
-          /**
-          * @throw an ArgumentNullException (ArgumentException)for the
-          * the BinarySearch.
-          */
-          index = add_list.BinarySearch(a);
-        }
-        return index;
+      int index = 0;
+      ArrayList add_list;
+      if( t == ConnectionType.Structured ) {
+        //Optimize the most common case to avoid the hashtable
+        add_list = _struct_addlist;
       }
+      else {
+        add_list = (ArrayList)type_to_addlist[t];
+      }
+      if( add_list.Count == 0 ) {
+        //This item would be the first in the list
+        index = ~index;
+      }
+      else {
+        //Search for the item
+        /**
+        * @throw an ArgumentNullException (ArgumentException)for the
+        * the BinarySearch.
+        */
+        index = add_list.BinarySearch(a);
+      }
+      return index;
     }
     /**
      * @param a the Address to lock
@@ -658,8 +647,9 @@ namespace Brunet
           index = IndexOf(c.MainType, c.Address);
           Remove(c.MainType, index);
         }
-        else
+        else {
           unconnected.Remove(e);
+        }
       }
       if( have_con ) {
 
@@ -709,8 +699,36 @@ namespace Brunet
         Connection c = (Connection)((ArrayList)type_to_conlist[t])[index];
         Edge e = c.Edge;
         //Remove the edge from the lists:
-        ((ArrayList)type_to_addlist[t]).RemoveAt(index);
-        ((ArrayList)type_to_conlist[t]).RemoveAt(index);
+        /*
+         * We never modify lists after putting them into the hashtables.
+         * This guarantees that reading operations are sane, and only
+         * "writing" operations need to lock.  Since writing operations
+         * are rare compared to reading, this makes a lot of sense.
+         */
+        ArrayList this_list = (ArrayList)type_to_addlist[t];
+        ArrayList copy = new ArrayList(this_list.Count - 1);
+        //Put all but the index we don't want into the copy:
+        for(int i = 0; i < this_list.Count; i++) {
+          if( i != index ) { copy.Add( this_list[i] ); }
+        }
+        if( t == ConnectionType.Structured ) {
+          //Optimize the most common case to avoid the hashtable
+          _struct_addlist = copy;
+        }
+        type_to_addlist[t] = copy;
+        
+        //Now change the conlist:
+        this_list = (ArrayList)type_to_conlist[t];
+        copy = new ArrayList(this_list.Count - 1);
+        //Put all but the index we don't want into the copy:
+        for(int i = 0; i < this_list.Count; i++) {
+          if( i != index ) { copy.Add( this_list[i] ); }
+        }
+        if( t == ConnectionType.Structured ) {
+          //Optimize the most common case to avoid the hashtable
+          _struct_conlist = copy;
+        }
+        type_to_conlist[t] = copy;
         //Remove the edge from the tables:
         edge_to_con.Remove(e);
       }
