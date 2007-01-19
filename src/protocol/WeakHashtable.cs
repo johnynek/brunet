@@ -227,7 +227,8 @@ public class WeakHashtable {
        * in another thread (keep the lists immutable once created)
        */
       ArrayList live_ones = null;
-      foreach(Element e in l) {
+      for(int i = 0; i < l.Count; i++) {
+        Element e = (Element)l[i];
         if( key.Equals( e.Key ) ) {
           res = e;
         }
@@ -269,7 +270,8 @@ public class WeakHashtable {
     IList l = (IList)_table[ hc & _mask ];
     if( l != null ) {
       ArrayList to_keep = null;
-      foreach(Element e in l) {
+      for(int i = 0; i < l.Count; i++) {
+        Element e = (Element)l[i];
         object this_key = e.Key;
         if( (this_key != null ) && (! key.Equals(this_key) ) ) {
           if( to_keep == null ) { to_keep = new ArrayList(); }
@@ -353,7 +355,8 @@ public class WeakHashtable {
       }
       //Add all the elements into the reseted table
       Init(new_expon);
-      foreach(Element e in all_elements) {
+      for(int i = 0; i < all_elements.Count; i++) {
+        Element e = (Element)all_elements[i];
         object key = e.Key;
         if( key != null ) {
           //Make sure the key doesn't disappear until it is added
