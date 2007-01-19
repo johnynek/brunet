@@ -35,7 +35,8 @@ namespace Brunet.Coordinate {
 	    node.RemoteTAs.Add(new TransportAddress(remoteTA));
 	}
 
-	NCService nc  = NCService.GetInstance(node);
+	NCService nc  = new NCService();
+	nc.InstallOnNode(node);
 	node.Connect();
 
 	node_list.Add(node);

@@ -85,8 +85,8 @@ namespace Brunet.Dht {
 	port_list.Add(port);
 	node.Connect();
 
-	//sleep 60 seconds
-	Thread.Sleep(60000);
+	//sleep 30 seconds
+	Thread.Sleep(30000);
 
 	//test if we have a correct ring
 	Dht curr_dht = (Dht) dht_list[0];

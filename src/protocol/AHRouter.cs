@@ -107,6 +107,8 @@ namespace Brunet
       if (p.PayloadType == AHPacket.Protocol.ReqRep) {
 	ReqrepManager.DebugPacket(_local,  p, prev_e);
 	debug = true;
+      } else if (p.PayloadType == AHPacket.Protocol.IP) {
+	debug = true;
       }
 #endif
       Connection next_con = null;  //the next connection to send the packet to

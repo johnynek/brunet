@@ -20,7 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //#define DEBUG
 
-//#define LINK_DEBUG
+#define LINK_DEBUG
 
 using System;
 using System.Collections;
@@ -122,6 +122,10 @@ namespace Brunet
             response = new PingMessage();
             response.Dir = ConnectionMessage.Direction.Response;
             response.Id = cm.Id;
+#if LINK_DEBUG
+	    Console.WriteLine("ConnectionPacketHandler - Sending a ping response; edge: {0};",
+                              from);
+#endif
             //log.Info("Sending Ping response:" + response.ToString());
             from.Send(response.ToPacket());
 	  }
