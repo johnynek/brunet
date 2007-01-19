@@ -241,7 +241,7 @@ namespace Brunet
           try {
             in_edge.Send( (Packet) response_queue.Dequeue() ); 
 	  }
-	  catch(EdgeException x) {
+	  catch(EdgeException) {
             //The edge is closed
 	    keep_running = false;
 	    _el.Stop();

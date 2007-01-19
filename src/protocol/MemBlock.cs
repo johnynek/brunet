@@ -185,7 +185,7 @@ public class MemBlock : System.IComparable {
    * Search through the current buffer for a byte b, and return
    * the index to it.  If it is not found, return -1
    */
-  public int Search(byte b)
+  public int IndexOf(byte b)
   {
     int max = _offset + _length;
     for(int idx = _offset; idx < max; idx++) {

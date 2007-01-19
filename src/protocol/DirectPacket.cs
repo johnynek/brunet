@@ -106,7 +106,7 @@ namespace Brunet {
     protected void InitType() {
       if( _pt == null ) {
         //Lazily get the type
-        _type_length = _buffer.Slice(1).Search(0);
+        _type_length = _buffer.Slice(1).IndexOf(0);
         _pt = _buffer.Slice(1, _type_length).GetString(System.Text.Encoding.UTF8);
         _type_length = _type_length + 1;
       }

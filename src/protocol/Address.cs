@@ -217,40 +217,32 @@ namespace Brunet
     }
 
     /**
-     * Return a byte[] of length MemSize, which holds the integer as a
-     * buffer which is a binary representation of an Address
+     * Return a byte[] of length MemSize, which holds the integer % Full
+     * as a buffer which is a binary representation of an Address
      */
-    static public byte[] ConvertToAddressBuffer(BigInteger value)
+    static public byte[] ConvertToAddressBuffer(BigInteger num)
     {
-
       byte[] bi_buf;
-      if( value < 0 ) {
-        //if we are less than 0, get 2^160 + value:
-        BigInteger value_plus = new BigInteger(value + Full);
-        bi_buf = value_plus.getBytes();
+      
+      BigInteger val = num % Full;
+      if( val < 0 ) {
+        val = val + Full;
       }
-      else {
-        bi_buf = value.getBytes();
-      }
-      if (bi_buf.Length < MemSize) {
+      bi_buf = val.getBytes();
+      int missing = (MemSize - bi_buf.Length);
+      if( missing > 0 ) {
         //Missing some bytes at the beginning, pad with zero :
         byte[] tmp_bi = new byte[Address.MemSize];
-        int missing = (MemSize - bi_buf.Length);
         for (int i = 0; i < missing; i++) {
           tmp_bi[i] = (byte) 0;
         }
-        /**
-         * @todo throw an ArgumentNullException if sourceArray or destinationArray
-         * is null.Throw RankException if sourceArray and destinationArray have 
-         * different ranks. Throw ArgumentOutOfRangeException.
-         */
         System.Array.Copy(bi_buf, 0, tmp_bi, missing,
                           bi_buf.Length);
         bi_buf = tmp_bi;
       }
-      else if (bi_buf.Length > MemSize) {
+      else if (missing < 0) {
         throw new System.ArgumentException(
-          "Integer too large to fit in 160 bits: " + value.ToString());
+          "Integer too large to fit in 160 bits: " + num.ToString());
       }
       return bi_buf;
     }
@@ -315,7 +307,7 @@ namespace Brunet
       [Test]
       public void Test() {
         System.Random r = new System.Random();
-        for(int i = 0; i < 100; i++) {
+        for(int i = 0; i < 1024; i++) {
           //Test ClassOf and SetClass:
           int c = r.Next(160);
           byte[] buf0 = new byte[Address.MemSize];
@@ -330,6 +322,26 @@ namespace Brunet
           r.NextBytes(buf1);
           BigInteger b1 = new BigInteger(buf1);
           byte[] buf2 = Address.ConvertToAddressBuffer(b1);
+          //Check to see if the bytes are equivalent:
+          int min_len = System.Math.Min(buf1.Length, buf2.Length);
+          bool all_eq = true;
+          for(int j = 0; j < min_len; j++) {
+            all_eq = all_eq
+                    && (buf2[buf2.Length - j - 1] == buf1[buf1.Length - j - 1]);
+          }
+          if( !all_eq ) {
+            System.Console.WriteLine("Buf1: ");
+            foreach(byte b in buf1) {
+              System.Console.Write("{0} ",b);
+            }
+            System.Console.WriteLine();
+            System.Console.WriteLine("Buf2: ");
+            foreach(byte b in buf2) {
+              System.Console.Write("{0} ",b);
+            }
+            System.Console.WriteLine();
+          }
+          Assert.IsTrue(all_eq, "bytes are equivalent");
           BigInteger b2 = new BigInteger(buf2);
           Assert.AreEqual(b1, b2, "BigInteger round trip");
         }

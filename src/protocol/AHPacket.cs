@@ -229,7 +229,7 @@ namespace Brunet
            * the first null.  Then, since the type length includes the null,
            * we add 1 to it.
            */
-          _type_length = _buffer.Slice(47).Search(0);
+          _type_length = _buffer.Slice(47).IndexOf(0);
           _pt = _buffer.Slice(47, _type_length).GetString(System.Text.Encoding.UTF8);
           _type_length = _type_length + 1;
         }
@@ -288,7 +288,7 @@ namespace Brunet
     public string PayloadType {
       get {
         if( _pt == null ) {
-          _type_length = _buffer.Slice(47).Search(0);
+          _type_length = _buffer.Slice(47).IndexOf(0);
           _pt = _buffer.Slice(47, _type_length).GetString(System.Text.Encoding.UTF8);
           _type_length = _type_length + 1;
         }
