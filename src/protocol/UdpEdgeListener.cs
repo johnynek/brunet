@@ -78,7 +78,6 @@ namespace Brunet
 
     protected Random _rand;
 
-    protected TAAuthorizer _ta_auth;
     protected ArrayList _tas;
     protected NatHistory _nat_hist;
     protected IEnumerable _nat_tas;
@@ -117,6 +116,31 @@ namespace Brunet
       EdgeDataAnnounce = 2 ///Send a dictionary of various data about the edge
     }
     
+    override public TAAuthorizer TAAuth {
+      /**
+       * When we add a new TAAuthorizer, we have to check to see
+       * if any of the old addresses are no good, in which case, we
+       * close them
+       */
+      set {
+        ArrayList bad_edges = new ArrayList();
+        lock( _id_ht ) {
+          _ta_auth = value;
+          IDictionaryEnumerator en = _id_ht.GetEnumerator();
+          while( en.MoveNext() ) {
+            Edge e = (Edge)en.Value;
+            if( _ta_auth.Authorize( e.RemoteTA ) == TAAuthorizer.Decision.Deny ) {
+              bad_edges.Add(e);
+            }
+          }
+        }
+        //Close the newly bad Edges.
+        foreach(Edge e in bad_edges) {
+          e.Close();   
+        }
+      }
+    }
+
     /**
      * When a UdpEdge closes we need to remove it from
      * our table, so we will know it is new if it comes
@@ -313,12 +337,22 @@ namespace Brunet
 	    "Remote NAT Mapping changed on Edge: {0}\n{1} -> {2}",
            edge, edge.End, end); 
         //Actually update:
-        edge.End = end;
-        NatDataPoint dp = new RemoteMappingChangePoint(DateTime.UtcNow, edge);
-        _nat_hist = _nat_hist + dp;
-        _nat_tas = new NatTAs( _tas, _nat_hist );
-        //Tell the other guy:
-        SendControlPacket(end, remoteid, localid, ControlCode.EdgeDataAnnounce, state);
+        TransportAddress rta = new TransportAddress(this.TAType,(IPEndPoint)end);
+        if( _ta_auth.Authorize(rta) != TAAuthorizer.Decision.Deny ) {
+          edge.End = end;
+          NatDataPoint dp = new RemoteMappingChangePoint(DateTime.UtcNow, edge);
+          _nat_hist = _nat_hist + dp;
+          _nat_tas = new NatTAs( _tas, _nat_hist );
+          //Tell the other guy:
+          SendControlPacket(end, remoteid, localid, ControlCode.EdgeDataAnnounce, state);
+        }
+        else {
+          /*
+           * Looks like the new TA is no longer authorized.
+           */
+          SendControlPacket(end, remoteid, localid, ControlCode.EdgeClosed, state);
+          edge.Close();
+        }
       }
       if( is_new_edge ) {
        NatDataPoint dp = new NewEdgePoint(DateTime.UtcNow, edge);

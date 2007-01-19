@@ -2,7 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
-Copyright (C) 2005  P. Oscar Boykin <boykin@pobox.com>, University of Florida
+Copyright (C) 2005-2007  P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -18,15 +18,6 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
-
-/*
- * Dependencies:
- * Brunet.Edge;
- * Brunet.EdgeException
- * Brunet.EdgeListener;
- * Brunet.TransportAddress;
- * Brunet.TcpEdge;
- */
 
 //This flag must only be defined when the same flag is defined
 //in TcpEdge
@@ -60,7 +51,6 @@ namespace Brunet
     protected ArrayList _send_sockets;
     protected Hashtable _sock_to_edge;
     protected ArrayList _tas;
-    protected TAAuthorizer _ta_auth;
     /**
      * This inner class holds the connection state information
      */
@@ -97,6 +87,31 @@ namespace Brunet
     {
       get { lock( _sync ) { return _is_started; } }
     }
+
+    override public TAAuthorizer TAAuth {
+      /**
+       * When we add a new TAAuthorizer, we have to check to see
+       * if any of the old addresses are no good, in which case, we
+       * close them
+       */
+      set {
+        ArrayList bad_edges = new ArrayList();
+        lock( _sync ) {
+          _ta_auth = value;
+          IDictionaryEnumerator en = _sock_to_edge.GetEnumerator();
+          while( en.MoveNext() ) {
+            Edge e = (Edge)en.Value;
+            if( _ta_auth.Authorize( e.RemoteTA ) == TAAuthorizer.Decision.Deny ) {
+              bad_edges.Add(e);
+            }
+          }
+        }
+        //Close the newly bad Edges.
+        foreach(Edge e in bad_edges) {
+          e.Close();   
+        }
+      }
+    }    
 
     public TcpEdgeListener(int port):this(port, null)
     {
