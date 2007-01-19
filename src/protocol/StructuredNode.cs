@@ -287,8 +287,8 @@ namespace Brunet
 	//Now we have our estimate:
 	_netsize = net_size;
 	Console.WriteLine("Network size: {0} at {1}:{2}", _netsize, 
-			DateTime.Now.ToUniversalTime().ToString("MM'/'dd'/'yyyy' 'HH':'mm':'ss"),
-		        DateTime.Now.ToUniversalTime().Millisecond);
+			DateTime.UtcNow.ToString("MM'/'dd'/'yyyy' 'HH':'mm':'ss"),
+		        DateTime.UtcNow.Millisecond);
       }
       }catch(Exception x) {
         Console.Error.WriteLine(x.ToString());

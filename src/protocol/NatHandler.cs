@@ -18,6 +18,8 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+#define DEBUG
+
 using System;
 using System.Net;
 using System.Collections;
@@ -70,10 +72,10 @@ public abstract class NatDataPoint {
   static public int GetEdgeNumberOf(Edge e) {
     int no = 0;
     lock( _edge_nos ) {
-    object v = _edge_nos[e];
-    if( v != null ) {
-      no = (int)v;
-    }
+      object v = _edge_nos[e];
+      if( v != null ) {
+        no = (int)v;
+      }
     }
     return no;
   }
@@ -95,19 +97,6 @@ public abstract class NatDataPoint {
       }
      }
     }
-  }
-}
-
-/**
- * When you start an EdgeListener you often know (or guess) what the
- * TransportAddress to connect to that listern is.  This represents
- * that kind of data point
- */
-public class LocalConfigPoint : NatDataPoint {
-  public LocalConfigPoint(DateTime dt, TransportAddress ta) {
-    SetEdgeNumber(null);
-    _local = ta;
-    _date = dt;
   }
 }
 
@@ -165,26 +154,62 @@ public class RemoteMappingChangePoint : NatDataPoint {
  * The ordered list of all the NatDataPoint objects
  * provides several methods to make selecting subsets easier
  */
-public class NatHistory {
+public class NatHistory : IEnumerable {
 
-  protected ArrayList _points;
+  /**
+   * Given a data point, return some object which is a function
+   * of it.
+   * if this function returns null, the output will be skipped
+   */
+  public delegate object Filter(NatDataPoint p);
 
-  public delegate bool Filter(NatDataPoint p);
+  /*
+   * The NatHistory is a linked list, this is how
+   * we store it:
+   */
+  protected NatDataPoint _head;
+  /**
+   * Return the most recent NatDataPoint
+   */
+  public NatDataPoint Head { get { return _head; } }
+  protected NatHistory _tail;
+  /**
+   * Return the history excluding the most recent point.
+   * If there is only one point, the tail is null
+   */
+  public NatHistory Tail { get { return _tail; } }
 
-  public NatHistory() {
-    _points = new ArrayList();
-  }
   public NatHistory(NatDataPoint p) {
-    _points = new ArrayList();
-    _points.Add(p);
+    _head = p;
+    _tail = null;
   }
-  
-  protected NatHistory(ArrayList l) {
-    _points = l;
+  /**
+   * Makes a new history by appending this new NatDataPoint.
+   * Does not change the old history.
+   */
+  public NatHistory(NatHistory nh, NatDataPoint p) {
+    _head = p;
+    _tail = nh;
   }
 
+  /**
+   * This is syntactic sugar so we can do:
+   * hist = hist + p
+   * to append a data point.
+   */
+  public static NatHistory operator + (NatHistory hist, NatDataPoint p) {
+    return new NatHistory(hist, p);
+  }
+  /**
+   * This goes from most recent to least recent data point
+   */
   public IEnumerator GetEnumerator() {
-    return _points.GetEnumerator();
+    NatHistory hist = this;
+    do {
+      yield return hist.Head;
+      hist = hist.Tail;
+    }
+    while( hist != null );
   }
 
   /**
@@ -192,12 +217,14 @@ public class NatHistory {
    * where f is true.
    */
   public IEnumerable FilteredEnumerator(Filter f) {
-    return new FilteredNDP( _points, f);
+    return new FilteredNDP(this, f);
   }
 
   /**
    * Given an IEnumerable of NatDataPoints, you can filter it to create
    * another.
+   * Only the non-null returned values from the Filter will be returned
+   * in the IEnumerator
    */
   public class FilteredNDP : IEnumerable {
     protected Filter _filter;
@@ -209,57 +236,55 @@ public class NatHistory {
 
     public IEnumerator GetEnumerator() {
       foreach(NatDataPoint ndp in _ie) {
-        if( _filter(ndp) ) {
-          yield return ndp;
+        object o = _filter(ndp);
+        if( o != null ) {
+          yield return o;
         }
       }
     }
   }
 
-  /**
-   * Allows us to enumerate over all the distinct IPAddress objects which
-   * are reported to us by our peers
-   */
-  protected class IPEnumerator : IEnumerable {
-    protected IEnumerable _points;
-    public IPEnumerator(IEnumerable p) {
-      _points = p;
-    }
-
-    public IEnumerator GetEnumerator() {
-     Hashtable ht = new Hashtable();
-     foreach(NatDataPoint p in _points) {
-      TransportAddress ta = p.PeerViewOfLocalTA;
-      if( ta != null ) {
-        IPAddress this_ip = (IPAddress)(ta.GetIPAddresses()[0]);
-        if ( ht.Contains( this_ip ) == false ) {
-          ht[this_ip] = true;
-          yield return this_ip;
-        }
-      }
-     }
-    }
-  }
   /**
    * Gets a list of all the IPAddress objects which may
    * represent NATs we are behind
    */
   public IEnumerable PeerViewIPs() {
-    return new IPEnumerator( _points );
+    Filter f = delegate(NatDataPoint p) {
+      TransportAddress ta = p.PeerViewOfLocalTA;
+      if( ta != null ) {
+        return ta.GetIPAddresses()[0];
+      }
+      return null;
+    };
+    IEnumerable e = new FilteredNDP( this, f );
+    /*
+     * Go through all the addresses, but only keep
+     * one copy of each, with the most recent address last.
+     */
+    ArrayList list = new ArrayList();
+    foreach(IPAddress a in e) {
+      if( list.Contains(a) ) {
+        list.Remove(a);
+      } 
+      list.Add(a);
+    }
+    return list;
   }
 
   /**
    * An IEnumerator of all the LocalTAs (our view of them, not peer view)
    */
-  public IEnumerator LocalTAs() {
+  public IEnumerable LocalTAs() {
     Hashtable ht = new Hashtable();
-    foreach(NatDataPoint p in _points) {
+    Filter f = delegate(NatDataPoint p) {
       TransportAddress ta = p.LocalTA;
       if( ta != null && (false == ht.Contains(ta)) ) {
         ht[ta] = true;
-        yield return ta;
+        return ta;
       }
-    }
+      return null;
+    };
+    return new FilteredNDP( this, f );
   }
 
   /**
@@ -270,22 +295,13 @@ public class NatHistory {
     Filter f = delegate(NatDataPoint p) {
       TransportAddress ta = p.PeerViewOfLocalTA;
       if( ta != null ) {
-        return a.Equals( ta.GetIPAddresses()[0] );
+        if( a.Equals( ta.GetIPAddresses()[0] ) ) {
+          return p;
+        }
       }
-      else {
-        return false;
-      }
+      return null;
     };
-    return new FilteredNDP(_points, f);
-  }
-
-  /**
-   * Makes a new history and returns it
-   */
-  public NatHistory Add(NatDataPoint p) {
-    ArrayList np = (ArrayList)_points.Clone();
-    np.Add(p);
-    return new NatHistory(np);
+    return new FilteredNDP(this, f);
   }
 
 }
@@ -296,19 +312,56 @@ public class NatHistory {
  */
 public abstract class NatHandler {
   
-  protected NatHistory _hist;
-  public NatHistory History {
-    get { return _hist; }
-    set { _hist = value; }
-  }
-
   /**
    * @return true if the handler can handle this kind of NAT
    */
-  abstract public bool IsMyType(NatHistory hist);
+  abstract public bool IsMyType(IEnumerable hist);
 
-  abstract public IList TargetTAs { get; }
+  /**
+   * @return a list of TAs which should correspond to the local NAT
+   */
+  virtual public IList TargetTAs(IEnumerable hist) {
+    //Put each TA in once, but the most recently used ones should be first:
+    ArrayList tas = new ArrayList();
+    foreach(NatDataPoint np in hist) {
+      TransportAddress ta = np.PeerViewOfLocalTA;
+      if( ta != null ) {
+        if( !tas.Contains(ta) ) {
+          //If we haven't already seen this, put it in
+          tas.Add( ta );
+        }
+      }
+    }
+    return tas;  
+  }
 
+}
+
+/**
+ * This is the case where the node is not behind any NAT whatsoever
+ * This will only work when the peer views all match some local view
+ * of the TA.
+ */
+public class PublicNatHandler : NatHandler {
+  override public bool IsMyType(IEnumerable h) {
+    //First make a hashtable of the local views:
+    Hashtable ht = new Hashtable();
+    foreach(NatDataPoint p in h) {
+      ht[p.LocalTA] = true;
+    }
+    //Now check to see the peer view is a local ta:
+    bool retv = true;
+    foreach(NatDataPoint p in h) {
+      TransportAddress pv = p.PeerViewOfLocalTA;
+      if( pv != null ) {
+        retv = retv && ht.Contains(pv);
+        if( false == retv ) {
+          break;
+        }
+      }
+    }
+    return retv;
+  }
 }
 
 /**
@@ -321,31 +374,8 @@ public class NullNatHandler : NatHandler {
   /**
    * This NatHandler thinks it can handle anything.
    */
-  override public bool IsMyType(NatHistory h) { return true; }
+  override public bool IsMyType(IEnumerable h) { return true; }
   
-  /**
-   * return the list of TAs that should be tried
-   */
-  override public IList TargetTAs {
-    get {
-      Hashtable ht = new Hashtable();
-      //Put each TA in once, but the most recently used ones should be first:
-      ArrayList tas = new ArrayList();
-      foreach(NatDataPoint np in _hist) {
-        TransportAddress ta = np.PeerViewOfLocalTA;
-        if( ta == null ) {
-          //We use our own guess:
-          ta = np.LocalTA;
-        }
-        if( ht.Contains(ta) == false ) {
-          tas.Add( ta );
-        }
-      }
-      //Now reverse it so the most recently used is first:
-      tas.Reverse();
-      return tas;
-    }
-  }
 }
 
 /**
@@ -354,95 +384,416 @@ public class NullNatHandler : NatHandler {
 public class ConeNatHandler : NatHandler {
   /**
    * The cone nat uses exactly one port on each IP address
-   * @todo handle NAT mapping changes which can occasionally occur on a Cone NAT
    */
-  override public bool IsMyType(NatHistory h) {
-    foreach( IPAddress a in h.PeerViewIPs() ) {
-      bool got_first = false;
-      int port = 0;
-      foreach( NatDataPoint dp in h.PointsForIP(a) ) {
-        if( !got_first ) {
-          port = dp.PeerViewOfLocalTA.Port;
-          got_first = true;
+  override public bool IsMyType(IEnumerable h) {
+    /*
+     * We go through the list.  At each moment we see how many active
+     * ports there are.  A cone nat should be using 1, but due to NAT mapping
+     * changes, it may take us a little while to notice a change, which may
+     * make it appear that we are using 2 ports (assuming we notice much faster
+     * than the changes happen).
+     * It is also a neccesary condition that we have connections to at least two
+     * IP addresses using the same port (part of the definition of a cone nat).
+     */
+    bool multiple_remote_ip_same_port = false;
+    int max_active_ports = 0;
+    Hashtable port_to_remote = new Hashtable();
+    //Reverse the list to go from least recent to most recent:
+    ArrayList all_points = new ArrayList();
+    foreach(NatDataPoint dp in h) {
+      all_points.Add( dp );
+    }
+    all_points.Reverse();
+    Hashtable edge_no_to_most_recent_point = new Hashtable();
+    bool is_cone = true;
+    foreach(NatDataPoint dp in all_points) {
+      TransportAddress ta = dp.PeerViewOfLocalTA;
+      if( ta == null ) { continue; }
+      int port = ta.Port;
+      NatDataPoint old_dp = (NatDataPoint)edge_no_to_most_recent_point[ dp.EdgeNumber ];
+      
+      if( dp is NewEdgePoint ) {
+        //There is a new mapping:
+        ArrayList l = AddRemoteTA( port_to_remote, port, dp.RemoteTA );
+	multiple_remote_ip_same_port |= (l.Count > 1);
+        max_active_ports = Math.Max(max_active_ports, port_to_remote.Count);
+      }
+      else if( dp is EdgeClosePoint ) {
+        //Remove a mapping, this obviously can't increase the number of active ports,
+        //or change the multiple_remote_ip_same_port variable
+        RemoveRemoteTA(port_to_remote, port, dp.RemoteTA);
+      }
+      else if( dp is LocalMappingChangePoint ) {
+        //Look at the old port, remove from the old port, and put into the new port.
+        if( old_dp != null ) {
+          int old_port = old_dp.PeerViewOfLocalTA.Port;
+          RemoveRemoteTA(port_to_remote, old_port, old_dp.RemoteTA);
         }
-        else {
-          if( port != dp.PeerViewOfLocalTA.Port ) {
-            //There are several ports on the IP mapping to our address
-            return false;
-          }
+        ArrayList l = AddRemoteTA( port_to_remote, port, dp.RemoteTA );
+	multiple_remote_ip_same_port |= (l.Count > 1);
+        max_active_ports = Math.Max(max_active_ports, port_to_remote.Count);
+      }
+      else if (dp is RemoteMappingChangePoint ) {
+        //Remove the old RemoteTA, and put in the new one:
+        if( old_dp != null ) {
+          RemoveRemoteTA(port_to_remote, port, old_dp.RemoteTA);
         }
-
+        ArrayList l = AddRemoteTA( port_to_remote, port, dp.RemoteTA );
+	multiple_remote_ip_same_port |= (l.Count > 1);
+        max_active_ports = Math.Max(max_active_ports, port_to_remote.Count);
+      }
+      edge_no_to_most_recent_point[ dp.EdgeNumber ] = dp;
+      //is_cone = (max_active_ports < 3) && ( multiple_remote_ip_same_port);
+      is_cone = (max_active_ports < 3);
+      if( ! is_cone ) {
+        //We can stop now, we are clearly not in the cone case.
+        break;
       }
     }
-    return true;
+    return is_cone;
   }
-
+  //Return the set of TAs for the given port
+  protected ArrayList AddRemoteTA(Hashtable ht, int port, TransportAddress ta) {
+    ArrayList l = (ArrayList)ht[ port ];
+    if (l == null) { l = new ArrayList(); }
+    int idx = l.IndexOf(ta);
+    if( idx < 0 ) {	
+      //We don't already know about this
+      l.Add( ta );
+    }
+    ht[port] = l;
+    return l;
+  }
+  //Remote the TA from the set
+  protected void RemoveRemoteTA(Hashtable ht, int port, TransportAddress ta) {
+    ArrayList l = (ArrayList)ht[ port ];
+    l.Remove(ta);
+    if( l.Count == 0 ) {
+      //Get this out of here.
+      ht.Remove(port);
+    }
+  }
   /**
    * return the list of TAs that should be tried
    */
-  override public IList TargetTAs {
-    get {
-      //When we add LocalTAs, we want to make sure they aren't duplicated
-      Hashtable ht = new Hashtable();
-      //Put each IP in once, but the most recently used ones should be first:
+  override public IList TargetTAs(IEnumerable hist) {
+      /*
+       * The trick here is, for a cone nat, we should only report
+       * the most recently used ip/port pair. 
+       * For safety, we return the most recent two
+       */
       ArrayList tas = new ArrayList();
-      foreach(IPAddress a in _hist.PeerViewIPs() ) {
-        TransportAddress most_recent = null;
-        //Loop through, but only keep the last TA
-        foreach(NatDataPoint dp in _hist.PointsForIP(a) ) {
-          most_recent = dp.PeerViewOfLocalTA;
-        }
-        if( most_recent != null ) {
-          tas.Add( most_recent );
-          ht[ most_recent ] = true;
-        }
-      }
-      //Reverse the list to make most recent first:
-      tas.Reverse();
-      //Now put in the localTAs:
-      ArrayList locals = new ArrayList();
-      IEnumerator ie = _hist.LocalTAs();
-      while( ie.MoveNext() ) {
-        TransportAddress ta = (TransportAddress)ie.Current;
-        if( false == ht.Contains(ta) ) {
-          //This is a new one:
-          locals.Add(ta);
+      foreach(NatDataPoint p in hist) {
+        TransportAddress last_reported = p.PeerViewOfLocalTA;
+        if( last_reported != null ) {
+          if( tas.Count == 0 || !last_reported.Equals( tas[0] ) ) {
+            tas.Add( last_reported );
+          }
+          if( tas.Count == 2 ) {
+            return tas;
+          }
         }
       }
-      locals.Reverse();
-      tas.AddRange( locals );
       return tas;
-    }
   }
 }
 
-/**
- * This is the object that creates the correct NatHandler for a given NatHistory
- */
-public class NatHandlerFactory {
+public class SymmetricNatHandler : NatHandler {
 
-  static public NatHandler CreateHandler(NatHistory hist) {
-    /*
-     * we go through the list from most likely to least likely:
-     */
-    IEnumerator hand_it = NatHandlerFactory.AllHandlers();
-    while( hand_it.MoveNext() ) {
-      NatHandler hand = (NatHandler)hand_it.Current;
-      if( hand.IsMyType( hist ) ) {
-        hand.History = hist;
-        return hand;
+  ///How many std. dev. on each side of the mean to use
+  protected static readonly double SAFETY = 2.0;
+
+  override public bool IsMyType(IEnumerable h) {
+    ArrayList l = PredictPorts(h); 
+    //If our prediction gives a narrow enough range, it must be good:
+    return ( (0 < l.Count) && (l.Count < 15) );
+  }
+
+  /*
+   * Given an IEnumerable of NatDataPoints, return a list of 
+   * ports from most likely to least likely to be the
+   * next port used by the NAT
+   */
+  protected ArrayList PredictPorts(IEnumerable ndps) {
+    ArrayList all_diffs = new ArrayList();
+    //Get an increasing subset of the ports:
+    int prev = Int32.MinValue; 
+    uint sum = 0;
+    uint sum2 = 0;
+    bool got_extra_data = false;
+    TransportAddress.TAType t = TransportAddress.TAType.Unknown;
+    string host = "";
+    foreach(NatDataPoint ndp in ndps) {
+      if( false == (ndp is EdgeClosePoint) ) {
+        //Ignore closing events for prediction, they'll screw up the port prediction
+        TransportAddress ta = ndp.PeerViewOfLocalTA;
+        if( ta != null ) {
+          int port = ta.Port;
+          if( !got_extra_data ) {
+            t = ta.TransportAddressType;
+            host = ta.Host;
+          }
+          if( prev > port ) {
+            uint diff = (uint)(prev - port); //Clearly diff is always non-neg
+            all_diffs.Add( diff );
+            sum += diff;
+            sum2 += diff * diff;
+          }
+          prev = port;
+        }
       }
     }
-    //No one can handle this....
-    return null;
+    /**
+     * Now look at the mean and variance of the diffs
+     */
+    ArrayList prediction = new ArrayList();
+    if( all_diffs.Count > 1 ) {
+      double n = (double)all_diffs.Count;
+      double sd = (double)sum;
+      double mean = sd/n;
+      double s2 = ((double)sum2) - sd*sd/n;
+      s2 = s2/(double)(all_diffs.Count - 1);
+      double stddev = Math.Sqrt(s2);
+      double max_delta = mean + SAFETY * stddev;
+      int delta = (int)(mean - SAFETY * stddev);
+      while(delta < max_delta) {
+        if( delta > 0 ) {
+          int pred_port = prev + delta;
+          prediction.Add(new TransportAddress(t, host, pred_port) );
+        }
+        else {
+          //Increment the max by one just to keep a constant width:
+          max_delta += 1.001; //Giving a little extra to make sure we get 1
+        }
+        delta++;
+      }
+    }
+    return prediction;
+  }
+
+  override public IList TargetTAs(IEnumerable hist) {
+    return PredictPorts(hist); 
+  }
+
+}
+
+/**
+ * The standard IPTables NAT in Linux is similar to a symmetric NAT.
+ * It will try to avoid translating the port number, but if it can't
+ * (due to another node behind the NAT already using that port to contact
+ * the same remote IP/port), then it will assign a new port. 
+ *
+ * So, we should try to use the "default" port first, but if that doesn't
+ * work, use port prediction.
+ */
+public class LinuxNatHandler : SymmetricNatHandler {
+  
+  /**
+   * Check to see that at least some of the remote ports match the local
+   * port
+   */
+  override public bool IsMyType(IEnumerable h) {
+    bool retv = false;
+    MakeTargets(h, out retv);
+    return retv;
+  }
+  
+  protected IList MakeTargets(IEnumerable h, out bool success) {
+    bool there_is_a_match = false;
+    int matched_port = 0;
+    TransportAddress matched_ta = null;
+    foreach(NatDataPoint p in h) {
+      TransportAddress l = p.LocalTA;
+      TransportAddress pv = p.PeerViewOfLocalTA;
+      if( l != null && pv != null ) {
+        there_is_a_match = (l.Port == pv.Port);
+        if( there_is_a_match ) {
+          //Move on.
+          matched_port = l.Port;
+          matched_ta = pv;
+          break;
+        }
+      }
+    }
+    if( there_is_a_match ) {
+      //Now we filter to look at only the unmatched ports:
+      NatHistory.Filter f = delegate(NatDataPoint p) {
+        TransportAddress pv = p.PeerViewOfLocalTA;
+        if( (pv != null) && (pv.Port != matched_port) ) {
+          return p;
+        }
+        return null;
+      };
+      //This is all the non-matching data points:
+      IEnumerable non_matched = new NatHistory.FilteredNDP(h, f);
+      ArrayList l = PredictPorts( non_matched );
+      //Put in the matched port at the top of the list:
+      l.Insert(0, matched_ta);
+      success = true;
+      return l;
+    }
+    else {
+      success = false;
+      return null;
+    }
+  }
+
+  public override IList TargetTAs(IEnumerable h) {
+    bool success = false;
+    IList result = MakeTargets(h, out success);
+    if( success ) {
+      return result;
+    }
+    else {
+      return new ArrayList();
+    }
+  }
+
+}
+
+/**
+ * This is an enumerable object to create the TAs for a given history
+ */
+public class NatTAs : IEnumerable {
+
+  protected NatHistory _hist;
+  protected ArrayList _list_of_remote_ips;
+  protected IEnumerable _local_config;
+  protected IEnumerable _generated_ta_list;
+
+  /**
+   * @param local_config_tas the list of TAs to use as last resort
+   * @param NatHistory history information learned from talking to peers (may be null)
+   */
+  public NatTAs(IEnumerable local_config_tas, NatHistory hist) {
+    _hist = hist;
+    _local_config = local_config_tas;
+  }
+  protected void InitRemoteIPs() {
+    NatHistory.Filter f = delegate(NatDataPoint p) {
+      TransportAddress ta = p.PeerViewOfLocalTA;
+      if( ta != null ) {
+        return ta.GetIPAddresses()[0];
+      }
+      return null;
+    };
+    IEnumerable all_ips = _hist.FilteredEnumerator(f);
+    Hashtable ht = new Hashtable();
+    foreach(IPAddress a in all_ips) {
+      if( false == ht.Contains(a) ) {
+        IPAddressRecord r = new IPAddressRecord();
+        r.IP = a;
+        r.Count = 1;
+        ht[a] = r;
+      }
+      else {
+        IPAddressRecord r = (IPAddressRecord)ht[a];
+        r.Count++;
+      }
+    }
+    
+    _list_of_remote_ips = new ArrayList();  
+    IDictionaryEnumerator de = ht.GetEnumerator();
+    while(de.MoveNext()) {
+      IPAddressRecord r = (IPAddressRecord)de.Value;
+      _list_of_remote_ips.Add(r);
+    }
+    //Now we have a list of the most used to least used IPs
+    _list_of_remote_ips.Sort();
+  }
+
+  protected void GenerateTAs() {
+    ArrayList gtas = new ArrayList();
+    Hashtable ht = new Hashtable();
+    if( _hist != null ) {
+      /*
+       * we go through the list from most likely to least likely:
+       */
+      if( _list_of_remote_ips == null ) {
+        InitRemoteIPs();
+      }
+      foreach(IPAddressRecord r in _list_of_remote_ips) {
+        IEnumerable points = _hist.PointsForIP(r.IP);
+        IEnumerator hand_it = NatTAs.AllHandlers();
+        bool yielded = false;
+        while( hand_it.MoveNext() && (false == yielded) ) {
+          NatHandler hand = (NatHandler)hand_it.Current;
+          if( hand.IsMyType( points ) ) {
+  #if DEBUG
+            System.Console.WriteLine("NatHandler: {0}", hand.GetType() );
+  #endif
+            IList tas = hand.TargetTAs( points );
+            foreach(TransportAddress ta in tas) {
+              if( false == ht.Contains(ta) ) {
+                ht[ta] = true;
+                gtas.Add(ta);
+              }
+            }
+            //Break out of the while loop, we found the handler.
+            yielded = true;
+          }
+        }
+      }
+    }
+    //Now we should yield the locally configured points:
+    foreach(TransportAddress ta in _local_config) {
+      if( false == ht.Contains(ta) ) {
+        //Don't yield the same address more than once
+        gtas.Add(ta);
+      }
+    }
+    _generated_ta_list = gtas; 
+#if DEBUG 
+    int i = 0;
+    foreach(TransportAddress ta in _generated_ta_list) {
+      Console.WriteLine("LocalTA({0}): {1}",i,ta);
+      i++;
+    }
+#endif
+  }
+
+  /**
+   * This is the main method, this enumerates (in order) the
+   * TAs for this history
+   */
+  public IEnumerator GetEnumerator() {
+    if( _generated_ta_list == null ) {
+      GenerateTAs();
+    }
+    return _generated_ta_list.GetEnumerator();
   }
 
   /**
    * Enumerator that will go through all the NatHandlers in a fixed order
    */
-  static public IEnumerator AllHandlers() {
+  static protected IEnumerator AllHandlers() {
+    //The ConeNatHandler can handle public nodes, so don't bother with public
+    //yield return new PublicNatHandler();
     yield return new ConeNatHandler();
+    yield return new LinuxNatHandler();
+    yield return new SymmetricNatHandler();
     yield return new NullNatHandler();
+  }
+
+  protected class IPAddressRecord : IComparable {
+    public IPAddress IP;
+    public int Count;
+    /**
+     * Sort them from largest count to least count
+     */
+    public int CompareTo(object o) {
+      if( this == o ) { return 0; }
+      IPAddressRecord other = (IPAddressRecord)o;
+      if( Count > other.Count ) {
+        return -1;
+      }
+      else if( Count < other.Count ) {
+        return 1;
+      }
+      else {
+        return 0;
+      }
+    }
   }
 
 }

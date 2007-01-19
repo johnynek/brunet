@@ -79,7 +79,7 @@ namespace Brunet
 
     }
 
-    public override ArrayList LocalTAs
+    public override IEnumerable LocalTAs
     {
       get { return ArrayList.ReadOnly( _tas ); }
     }

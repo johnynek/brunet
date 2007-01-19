@@ -43,7 +43,7 @@ namespace Brunet {
    static object _sync;
    static TimeUtils() {
      _t_zero_i = System.Environment.TickCount;
-     _t_zero_l = System.DateTime.Now.Ticks;
+     _t_zero_l = System.DateTime.UtcNow.Ticks;
      _sync = new object();
      //Those two numbers represent the same instants in time
    }
@@ -77,7 +77,7 @@ namespace Brunet {
          //note that a wrap around will happen about once a month
          lock( _sync ) {
            _t_zero_i = System.Environment.TickCount;
-           _t_zero_l = System.DateTime.Now.Ticks;
+           _t_zero_l = System.DateTime.UtcNow.Ticks;
          }
        }
        return return_val;
@@ -113,11 +113,11 @@ namespace Brunet {
    }
    [Test]
    public void Test() {
-     DateTime t0_dt = DateTime.Now;
+     DateTime t0_dt = DateTime.UtcNow;
      DateTime t0_n = new DateTime(TimeUtils.NoisyNowTicks);
      Thread.Sleep(2000); //Sleep 2 seconds;
-     DateTime t1_dt = DateTime.Now;
-     //System.Console.WriteLine("DateTime.Now: {0}", t1_dt);
+     DateTime t1_dt = DateTime.UtcNow;
+     //System.Console.WriteLine("DateTime.UtcNow: {0}", t1_dt);
      DateTime t1_n = new DateTime(TimeUtils.NoisyNowTicks);
      //System.Console.WriteLine("NoisyNow: {0}", t1_n);
      //Now see if the difference in is close:
