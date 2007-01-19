@@ -285,7 +285,7 @@ namespace Brunet
         Node n = _linker.LocalNode;
         lock( this ) {
 	if( _restart_attempts < 0 ) { throw new Exception("restarted too many times"); }
-        _last_start = DateTime.Now;
+        _last_start = DateTime.UtcNow;
 	int restart_sec = (int)(_rand.NextDouble() * _MS_RESTART_TIME);
 	TimeSpan interval = new TimeSpan(0,0,0,0,restart_sec);
 	_next_start = _last_start + interval; 
@@ -305,7 +305,7 @@ namespace Brunet
             //We are already connected, stop waiting...
             fire_event = true;
           }
-          else if( DateTime.Now > _next_start ) { 
+          else if( DateTime.UtcNow > _next_start ) { 
   	    if ( _rand.NextDouble() < 0.5 ) {
               fire_event = true;
   	    }

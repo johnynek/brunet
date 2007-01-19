@@ -42,7 +42,7 @@ namespace Brunet
   {
 
     protected ConnectionTable _connection_table;
-    protected static Random _rand =  new Random(DateTime.Now.Millisecond);
+    protected static Random _rand =  new Random();
 
     public RwtaRouter()
     {

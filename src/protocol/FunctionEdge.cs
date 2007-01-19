@@ -52,7 +52,7 @@ namespace Brunet
   public class FunctionEdge:Brunet.Edge
   {
 
-    public static Random _rand = new Random(DateTime.Now.Millisecond);
+    public static Random _rand = new Random();
 
     public static ArrayList edgeList = ArrayList.Synchronized(new ArrayList());
 
@@ -187,7 +187,7 @@ namespace Brunet
     public override void Send(Brunet.Packet p)
     {
       if( !_is_closed ) {
-        _last_out_packet_datetime = DateTime.Now;
+        _last_out_packet_datetime = DateTime.UtcNow;
         /**
          * log before the send because else the send will show
         * up after the receive in the log

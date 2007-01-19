@@ -68,6 +68,13 @@ namespace Brunet
 
     public TransportAddress(string uri):base(uri) { }
     public TransportAddress(TransportAddress.TAType t,
+                            string host, int port):
+          base("brunet." + t.ToString().ToLower() + "://"
+         + host + ":" + port.ToString())
+    {
+      _ips = null;
+    }
+    public TransportAddress(TransportAddress.TAType t,
                             System.Net.IPAddress add, int port):
           base("brunet." + t.ToString().ToLower() + "://"
          + add.ToString() + ":" + port.ToString())

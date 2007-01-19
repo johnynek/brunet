@@ -79,12 +79,14 @@ namespace Brunet
     protected Random _rand;
 
     protected TAAuthorizer _ta_auth;
-    protected NatHandler _nat_handler;
-    public override ArrayList LocalTAs
+    protected ArrayList _tas;
+    protected NatHistory _nat_hist;
+    protected IEnumerable _nat_tas;
+    public override IEnumerable LocalTAs
     {
       get
       {
-        return new ArrayList( _nat_handler.TargetTAs );
+        return _nat_tas;
       }
     }
 
@@ -133,9 +135,9 @@ namespace Brunet
 	  _remote_id_ht.Remove( e.RemoteID );
 	}
       }
-      NatDataPoint dp = new EdgeClosePoint(DateTime.Now, e);
-      _nat_handler = NatHandlerFactory.CreateHandler(
-                                          _nat_handler.History.Add(dp) );
+      NatDataPoint dp = new EdgeClosePoint(DateTime.UtcNow, e);
+      _nat_hist = _nat_hist + dp;
+      _nat_tas = new NatTAs( _tas, _nat_hist );
     }
    
     protected IPEndPoint GuessLocalEndPoint(IEnumerable tas) {
@@ -312,14 +314,16 @@ namespace Brunet
            edge, edge.End, end); 
         //Actually update:
         edge.End = end;
-        NatDataPoint dp = new RemoteMappingChangePoint(DateTime.Now, edge);
-        _nat_handler = NatHandlerFactory.CreateHandler( _nat_handler.History.Add(dp) );
+        NatDataPoint dp = new RemoteMappingChangePoint(DateTime.UtcNow, edge);
+        _nat_hist = _nat_hist + dp;
+        _nat_tas = new NatTAs( _tas, _nat_hist );
         //Tell the other guy:
         SendControlPacket(end, remoteid, localid, ControlCode.EdgeDataAnnounce, state);
       }
       if( is_new_edge ) {
-       NatDataPoint dp = new NewEdgePoint(DateTime.Now, edge);
-       _nat_handler = NatHandlerFactory.CreateHandler(_nat_handler.History.Add( dp ) );
+       NatDataPoint dp = new NewEdgePoint(DateTime.UtcNow, edge);
+       _nat_hist = _nat_hist + dp;
+       _nat_tas = new NatTAs( _tas, _nat_hist );
        SendEdgeEvent(edge);
       }
       if( read_packet ) {
@@ -345,8 +349,9 @@ namespace Brunet
       if( e.TAType == this.TAType ) {
         UdpEdge ue = (UdpEdge)e;
         ue.PeerViewOfLocalTA = ta;
-        NatDataPoint dp = new LocalMappingChangePoint(DateTime.Now, e, ta);
-        _nat_handler = NatHandlerFactory.CreateHandler( _nat_handler.History.Add(dp) );
+        NatDataPoint dp = new LocalMappingChangePoint(DateTime.UtcNow, e, ta);
+        _nat_hist = _nat_hist + dp;
+        _nat_tas = new NatTAs( _tas, _nat_hist );
       }
     }
 
@@ -394,17 +399,10 @@ namespace Brunet
       /**
        * We get all the IPAddresses for this computer
        */
-      ArrayList tas = GetIPTAs(TransportAddress.TAType.Udp, port, ipList);
-      _local_ep = GuessLocalEndPoint(tas); 
-      //Put them opposite order, since the Nat history considers later
-      //points more recent
-      tas.Reverse();
-      NatHistory hist = new NatHistory();
-      DateTime dt = DateTime.Now;
-      foreach(TransportAddress ta in tas) {
-        hist = hist.Add( new LocalConfigPoint(dt, ta) );
-      }
-      _nat_handler = NatHandlerFactory.CreateHandler(hist);
+      _tas = GetIPTAs(TransportAddress.TAType.Udp, port, ipList);
+      _local_ep = GuessLocalEndPoint(_tas); 
+      _nat_hist = null;
+      _nat_tas = new NatTAs( _tas, _nat_hist );
       _ta_auth = ta_auth;
       if( _ta_auth == null ) {
         //Always authorize in this case:
@@ -472,8 +470,9 @@ namespace Brunet
         }
         /* Tell me when you close so I can clean up the table */
         e.CloseEvent += new EventHandler(this.CloseHandler);
-        NatDataPoint dp = new NewEdgePoint(DateTime.Now, e);
-        _nat_handler = NatHandlerFactory.CreateHandler(_nat_handler.History.Add( dp ) );
+        NatDataPoint dp = new NewEdgePoint(DateTime.UtcNow, e);
+        _nat_hist = _nat_hist + dp;
+        _nat_tas = new NatTAs( _tas, _nat_hist );
         ecb(true, e, null);
       }
     }

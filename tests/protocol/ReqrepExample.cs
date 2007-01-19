@@ -39,7 +39,9 @@ public class ReqrepExample : Brunet.IRequestHandler, Brunet.IReplyHandler {
   public bool HandleReply(ReqrepManager man, ReqrepManager.ReqrepType rt,
 		   int mid,
 		   string prot,
-		   System.IO.MemoryStream payload, AHPacket packet,
+		   System.IO.MemoryStream payload,
+		   AHPacket packet,
+		   Brunet.ReqrepManager.Statistics s,
 		   object state)
   {
     Console.WriteLine("{0} got our message", packet.Source);

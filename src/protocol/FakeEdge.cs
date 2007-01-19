@@ -75,7 +75,7 @@ namespace Brunet
       }
     }
     public override DateTime LastOutPacketDateTime {
-      get { return DateTime.Now; }
+      get { return DateTime.UtcNow; }
     }
     /**
      * @param p a Packet to send to the host on the other

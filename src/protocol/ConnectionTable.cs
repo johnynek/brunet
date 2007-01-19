@@ -145,7 +145,7 @@ namespace Brunet
 
     public ConnectionTable(Address local)
     {
-      _rand = new Random(DateTime.Now.Millisecond);
+      _rand = new Random();
 
       _sync = new Object();
       lock( _sync ) {
@@ -231,7 +231,7 @@ namespace Brunet
       bed.RemoteTAddress = e.RemoteTA.ToString();
       bed.RemoteAHAddress = a.ToBigInteger().ToString();
       bed.RemoteAHAddressBase32 = a.ToString();
-      bed.ConnectTime = DateTime.Now.Ticks;
+      bed.ConnectTime = DateTime.UtcNow.Ticks;
       bed.SubType = c.ConType;     
       bed.StructureDegree = Count(ConnectionType.Structured);
 
@@ -321,7 +321,7 @@ namespace Brunet
         bed.RemoteTAddress = c.Edge.RemoteTA.ToString();
         bed.RemoteAHAddress = c.Address.ToBigInteger().ToString();
         bed.RemoteAHAddressBase32 = c.Address.ToString();
-        bed.ConnectTime = DateTime.Now.Ticks;
+        bed.ConnectTime = DateTime.UtcNow.Ticks;
         bed.SubType = c.ConType;
         bed.StructureDegree = Count(ConnectionType.Structured);
 
@@ -671,7 +671,7 @@ namespace Brunet
         bed.RemoteTAddress = e.RemoteTA.ToString();
         bed.RemoteAHAddress = remote.ToBigInteger().ToString();
         bed.RemoteAHAddressBase32 = remote.ToString();
-        bed.ConnectTime = DateTime.Now.Ticks;
+        bed.ConnectTime = DateTime.UtcNow.Ticks;
         bed.SubType = c.ConType;
         bed.StructureDegree = Count(ConnectionType.Structured);
 
