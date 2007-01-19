@@ -37,7 +37,7 @@ namespace Ipop {
 
       ArrayList []results = null;
       try {
-        results = BlockingQueue.ParallelFetchWithTimeout(queues, 5000);
+        results = BlockingQueue.ParallelFetchWithTimeout(queues, 3000);
       }
       catch (Exception) {
         System.Console.WriteLine("Dht error....");
@@ -53,11 +53,11 @@ namespace Ipop {
         }
         foreach (RpcResult rpc_result in q_result) {
           try {
-            if((success = (bool) rpc_result.Result) == true)
-              break;
+            success = (bool) rpc_result.Result;
             }
           catch(Exception) {
             success = false;
+            break;
           }
         }
         if (success) {
