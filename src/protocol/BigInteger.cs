@@ -2710,14 +2710,19 @@ namespace Brunet
       int pos = 0;
       uint tempVal, val = data[dataLength - 1];
 
-      if ((tempVal = (val >> 24 & 0xFF)) != 0)
+      //We ignore leading zeros, but once we see the first, we keep going
+      if ((tempVal = (val >> 24 & 0xFF)) != 0 || (pos != 0)) {
         result[pos++] = (byte) tempVal;
-      if ((tempVal = (val >> 16 & 0xFF)) != 0)
+      }
+      if ((tempVal = (val >> 16 & 0xFF)) != 0 || (pos != 0) ) {
         result[pos++] = (byte) tempVal;
-      if ((tempVal = (val >> 8 & 0xFF)) != 0)
+      }
+      if ((tempVal = (val >> 8 & 0xFF)) != 0 || (pos != 0) ) {
         result[pos++] = (byte) tempVal;
-      if ((tempVal = (val & 0xFF)) != 0)
+      }
+      if ((tempVal = (val & 0xFF)) != 0 || (pos != 0) ) {
         result[pos++] = (byte) tempVal;
+      }
 
       for (int i = dataLength - 2; i >= 0; i--, pos += 4) {
         val = data[i];
