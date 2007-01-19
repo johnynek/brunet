@@ -2,6 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
+Copyright (C) 2007 P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -18,10 +19,9 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-/*
- * using Brunet.UnstructuredAddress;
- * using Brunet.NumberSerializer;
- */
+#if BRUNET_NUNIT
+using NUnit.Framework;
+#endif
 
 namespace Brunet
 {
@@ -35,26 +35,24 @@ namespace Brunet
   {
     ///The class of this address:
     public static readonly int _class = 126;
+    protected float _prob;
 
-    public RwpAddress(byte[] add):base(add)
+    public RwpAddress(MemBlock mb) : base(mb)
     {
-      if (ClassOf(add) != _class) {
+      if (ClassOf(mb) != _class) {
         throw new System.
         ArgumentException("This is not a Class 126 address :  ",
                           this.ToString());
       }
-    }
-    public RwpAddress(byte[] add, int offset):base(add, offset)
-    {
-      if (ClassOf(add,offset) != _class) {
-        throw new System.
-        ArgumentException("This is not a Class 126 address :  ",
-                          this.ToString());
-      }
+      _prob = -1.0f;
     }
     public RwpAddress(bool flag, float p) : base() {
-      NumberSerializer.WriteFlag(flag, buffer, 4);
+      byte[] buffer = new byte[ MemSize ];
       NumberSerializer.WriteFloat(p, buffer, 0);
+      NumberSerializer.WriteFlag(flag, buffer, 4);
+      _prob = p;
+      SetClass(buffer, this.Class);
+      _buffer = MemBlock.Reference(buffer, 0, MemSize);
     }
 
     public override int Class
@@ -68,7 +66,7 @@ namespace Brunet
     {
       get
       {
-        return NumberSerializer.ReadFlag(buffer, 4);
+        return ((_buffer[4] & 0x80) == 0x80);
       }
     }
 
@@ -80,7 +78,7 @@ namespace Brunet
     {
       get
       {
-        return (this.Prob == 0.0);
+        return (_prob == 0.0);
       }
     }
 
@@ -88,10 +86,39 @@ namespace Brunet
     {
       get
       {
-        return Brunet.NumberSerializer.ReadFloat(buffer, 0);
+        if( _prob < 0.0 ) {
         //The probability is stored in the first 4 bytes of the buffer
+          _prob = NumberSerializer.ReadFloat( _buffer.Slice(0,4) );
+        }
+        return _prob;
       }
     }
+
+    #if BRUNET_NUNIT
+    [TestFixture]
+    public class RwpAddressTester {
+      [Test]
+      public void Test() {
+        byte[] buf = new byte[Address.MemSize];
+        System.Random r = new System.Random();
+        for(int i = 0; i < 100; i++) {
+          float val = (float)r.NextDouble();
+          bool flag = (r.Next() & 0x80) == 0x80;
+          RwpAddress a1 = new RwpAddress(flag, val);
+          
+          NumberSerializer.WriteFloat(val, buf, 0);
+          NumberSerializer.WriteFlag(flag, buf, 4);
+          //Make it a class 126 address:
+          SetClass(buf, 126);
+          RwpAddress a2 = new RwpAddress(MemBlock.Reference(buf,0,Address.MemSize));
+          
+          Assert.AreEqual(a1, a2, "RwpAddress Equality");
+          Assert.AreEqual(val, a1.Prob, "Probability round trip");
+          Assert.AreEqual(flag, a1.Flag, "Flag round trip");
+        }
+      }
+    }
+    #endif
   }
 
 }

@@ -54,34 +54,41 @@ namespace Brunet
      */
     public AHAddress(RandomNumberGenerator rng)
     {
-      buffer = new byte[MemSize];
+      byte[] buffer = new byte[MemSize];
       rng.GetBytes(buffer);
-      SetClass(this.Class);
-    }
-    
-    public AHAddress(byte[] add) : base(add)
-    {
-      if (ClassOf(add) != this.Class) {
-        throw new System.
-        ArgumentException("This is not an AHAddress (Class 0) :  ",
-                          this.ToString());
-      }
+      SetClass(buffer, this.Class);
+      _buffer = MemBlock.Reference(buffer, 0, MemSize);
     }
 
-    public AHAddress(byte[] add, int offset):base(add, offset)
+    /**
+     * @deprecated
+     * This makes a copy of b and initializes the AHAddress with
+     * that value
+     */
+    public AHAddress(byte[] b) : this(MemBlock.Copy(b, 0, MemSize)) { }
+    
+    /**
+     * @deprecated
+     * This makes a copy of b and initializes the AHAddress with
+     * that value
+     */
+    public AHAddress(byte[] b, int off) : this(MemBlock.Copy(b, off, MemSize))
+    { }
+    
+    public AHAddress(MemBlock mb) : base(mb)
     {
-      if (ClassOf(add,offset) != this.Class) {
+      if (ClassOf(_buffer) != this.Class) {
         throw new System.
-        ArgumentException("This is not an AHAddress (Class 0) :  ",
+        ArgumentException("Class of address is not my class:  ",
                           this.ToString());
       }
     }
 
     public AHAddress(BigInteger big_int):base(big_int)
     {
-      if (ClassOf(buffer) != this.Class) {
+      if (ClassOf(_buffer) != this.Class) {
         throw new System.
-        ArgumentException("This is not an AHAddress (Class 0) :  ",
+        ArgumentException("Class of address is not my class:  ",
                           this.ToString());
       }
     }
@@ -232,14 +239,14 @@ namespace Brunet
         buf1[i] = 0x00;
       }
       buf1[19] = 0x0A;
-      AHAddress test_address_1 = new AHAddress(buf1);
+      AHAddress test_address_1 = new AHAddress( MemBlock.Reference(buf1, 0, buf1.Length) );
 
       byte[] buf2 = new byte[20];
       for (int i = 0; i <= 18; i++) {
         buf2[i] = 0xFF;
       }
       buf2[19] = 0xFE;
-      AHAddress test_address_2 = new AHAddress(buf2);
+      AHAddress test_address_2 = new AHAddress( MemBlock.Reference(buf2, 0, buf2.Length) );
       //test_address_1 is to the left of test_address_2
       //because it only a few steps in the clockwise direction:
       Assert.IsTrue( test_address_1.IsLeftOf( test_address_2 ), "IsLeftOf");
@@ -251,7 +258,7 @@ namespace Brunet
       Assert.IsTrue( test_address_2.CompareTo(test_address_1) > 0, "CompareTo");
       byte[] buf3 = new byte[Address.MemSize];
       test_address_2.CopyTo(buf3);
-      AHAddress test3 = new AHAddress(buf3); 
+      AHAddress test3 = new AHAddress(MemBlock.Reference(buf3,0,buf3.Length)); 
       Assert.IsTrue( test3.CompareTo( test_address_2 ) == 0 , "CompareTo");
       Assert.IsTrue( test3.CompareTo( test3 ) == 0, "CompareTo");
       //As long as the address does not wrap around, adding should increase it:
@@ -269,8 +276,8 @@ namespace Brunet
         r.NextBytes(b2);
         //Make sure it is class 0:
         b2[Address.MemSize - 1] = (byte)(b2[Address.MemSize - 1] &= 0xFE);
-        Address a5 = new AHAddress(b1);
-        Address a6 = new AHAddress(b2);
+        Address a5 = new AHAddress( MemBlock.Reference(b1,0,b1.Length) );
+        Address a6 = new AHAddress( MemBlock.Reference(b2,0,b2.Length) );
         Assert.IsTrue( a5.CompareTo(a6) == -1 * a6.CompareTo(a5), "consistency");
       }
     }

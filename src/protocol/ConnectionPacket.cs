@@ -2,6 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
+Copyright (C) 2007 P. Oscar Boykin, <boykin@pobox.com>  University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -17,11 +18,6 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
-
-/*
- * Dependencies : 
- * Brunet.Packet
- */
 
 using System;
 using System.IO;
@@ -42,11 +38,10 @@ namespace Brunet
   public class ConnectionPacket : Packet
   {
     //This holds the entire binary represenation of the packet :
-    protected byte[]  _buffer;
-    protected int _len;
+    protected MemBlock  _buffer;
 
-    public override int Length { get { return _len; } }
-    public override int PayloadLength { get { return (_len - 1); } }
+    public override int Length { get { return _buffer.Length; } }
+    public override int PayloadLength { get { return (_buffer.Length - 1); } }
     public override Packet.ProtType type {
       get { return Packet.ProtType.Connection; }
     }
@@ -56,22 +51,25 @@ namespace Brunet
      */
     public override MemoryStream PayloadStream {
       get {
-        //Return a read-only MemoryStream
-        return new MemoryStream(_buffer, 1, PayloadLength, false);
+        //Starting at the first byte, return a stream
+        return _buffer.Slice(1).ToMemoryStream();
       }
     }
     /**
      * @throws ArgumentException if this is not a ConnectionPacket
      */
-    public ConnectionPacket(byte[] binary, int off, int len)
+    public ConnectionPacket(byte[] binary, int off, int len) : this(MemBlock.Copy(binary, off,len))
+    { }
+    /**
+     * @throws ArgumentException if this is not a ConnectionPacket
+     */
+    public ConnectionPacket(MemBlock mb)
     {
-      if (binary[off] != (byte)Packet.ProtType.Connection ) {
+      if (mb[0] != (byte)Packet.ProtType.Connection ) {
         throw new System.
         ArgumentException("Packet is not a ConnectionPacket");
       }
-      _buffer = new byte[len];
-      Array.Copy(binary, off, _buffer, 0, len);
-      _len = len;
+      _buffer = mb;
     }
 
     public ConnectionPacket(byte[] binary):this(binary, 0,
@@ -82,7 +80,7 @@ namespace Brunet
 
     override public void CopyTo(byte[] dest, int offset)
     {
-      Array.Copy(_buffer, 0, dest, offset, Length);
+      _buffer.CopyTo(dest, offset);
     }
 
     override public string ToString()
@@ -91,7 +89,9 @@ namespace Brunet
       sw.WriteLine("Packet Protocol :  " + this.type.ToString());
       sw.WriteLine("Payload : ");
       System.Text.Encoding e = new System.Text.ASCIIEncoding();
-      sw.WriteLine(e.GetString(_buffer));
+      byte[] buffer = new byte[ _buffer.Length ];
+      _buffer.CopyTo(buffer, 0);
+      sw.WriteLine(e.GetString(buffer));
       sw.WriteLine();
       return sw.ToString();
     }

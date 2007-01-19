@@ -596,16 +596,16 @@ public class AdrConverter {
         if( !equals ) { break; }
       }
     }
-    catch(ArgumentOutOfRangeException x) { }
+    catch(ArgumentOutOfRangeException) { }
     object o1 = null, o2 = null;
     try { //This should throw an exception:
       o1 = l1[i];
     }
-    catch(ArgumentOutOfRangeException x) { end_1 = true; }
+    catch(ArgumentOutOfRangeException) { end_1 = true; }
     try { //This should throw an exception:
       o2 = l2[i];
     }
-    catch(ArgumentOutOfRangeException x) { end_2 = true; }
+    catch(ArgumentOutOfRangeException) { end_2 = true; }
     if( o2 != null ) {
       equals &= o2.Equals(o1);
     }

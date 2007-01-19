@@ -41,7 +41,7 @@ namespace Brunet
     public static readonly short MaxTtl = (short) 32767;
 
 
-    protected byte[] _buffer;
+    protected MemBlock _buffer;
     /**
      * @param s Stream to read the AHPacket from
      * @param length the lenght of the packet
@@ -51,32 +51,35 @@ namespace Brunet
       if( s.Length < length ) {
         throw new ArgumentException("Cannot read AHPacket from Stream");
       }
-      _buffer = new byte[length];
-      s.Read(_buffer, 0, length);
+      byte[] buffer = new byte[length];
+      s.Read(buffer, 0, length);
       int offset = 0; 
       //Now this is exactly the same code as below:
-      if (_buffer[offset] != (byte)Packet.ProtType.AH ) {
+      if (buffer[offset] != (byte)Packet.ProtType.AH ) {
         throw new System.
-        ArgumentException("Packet is not an AHPacket: " + _buffer[offset].ToString());
+        ArgumentException("Packet is not an AHPacket: " + buffer[offset].ToString());
       }
       offset += 1;
-      _hops = NumberSerializer.ReadShort(_buffer, offset);
+      _hops = NumberSerializer.ReadShort(buffer, offset);
       offset += 2;
-      _ttl = NumberSerializer.ReadShort(_buffer, offset);
+      _ttl = NumberSerializer.ReadShort(buffer, offset);
       offset += 2;
       //Skip the addresses
       offset += 40;
-      _options = (ushort)NumberSerializer.ReadShort(_buffer, offset);
+      _options = (ushort)NumberSerializer.ReadShort(buffer, offset);
+      _buffer = MemBlock.Reference(buffer, 0, length);
     }
-    public AHPacket(byte[] buf, int off, int length)
+    public AHPacket(byte[] buf, int off, int length) : this(MemBlock.Copy(buf, off, length))
+    { }
+
+    public AHPacket(MemBlock buf)
     {
       //Now this is exactly the same code as below:
-      if (buf[off] != (byte)Packet.ProtType.AH ) {
+      if (buf[0] != (byte)Packet.ProtType.AH ) {
         throw new System.
-        ArgumentException("Packet is not an AHPacket: " + buf[off].ToString());
+        ArgumentException("Packet is not an AHPacket: " + buf[0].ToString());
       }
-      _buffer = new byte[length];
-      Array.Copy(buf, off, _buffer, 0, length);
+      _buffer = buf;
       int offset = 0; 
       offset += 1;
       _hops = NumberSerializer.ReadShort(_buffer, offset);
@@ -157,22 +160,23 @@ namespace Brunet
       _pt = payload_prot;
       _type_length = NumberSerializer.GetByteCount(_pt);
       int total_size = 47 + _type_length + len;
-      _buffer = new byte[ total_size ]; 
+      byte[] buffer = new byte[ total_size ]; 
       int off = 0;
-      _buffer[off] = (byte)Packet.ProtType.AH;
+      buffer[off] = (byte)Packet.ProtType.AH;
       off += 1;
-      NumberSerializer.WriteShort(_hops, _buffer, off);
+      NumberSerializer.WriteShort(_hops, buffer, off);
       off += 2;
-      NumberSerializer.WriteShort(_ttl, _buffer, off);
+      NumberSerializer.WriteShort(_ttl, buffer, off);
       off += 2;
-      _source.CopyTo(_buffer, off);
+      _source.CopyTo(buffer, off);
       off += 20;
-      _destination.CopyTo(_buffer, off);
+      _destination.CopyTo(buffer, off);
       off += 20;
-      NumberSerializer.WriteShort((short)_options, _buffer, off);
+      NumberSerializer.WriteShort((short)_options, buffer, off);
       off += 2;
-      off += NumberSerializer.WriteString(_pt, _buffer, off);
-      Array.Copy(payload, poff, _buffer, off, len);
+      off += NumberSerializer.WriteString(_pt, buffer, off);
+      Array.Copy(payload, poff, buffer, off, len);
+      _buffer = MemBlock.Reference(buffer, 0, total_size);
     }
     /**
      * Same as similar constructor with offset and len, only
@@ -219,8 +223,15 @@ namespace Brunet
     public int HeaderSize {
       get {
         if( _type_length < 0 ) {
-          //We have not initalized it yet:
-          _pt = NumberSerializer.ReadString(_buffer, 47, out _type_length);
+          //We have not initalized it yet
+          /*
+           * We take the slice starting with position 47, and we search for
+           * the first null.  Then, since the type length includes the null,
+           * we add 1 to it.
+           */
+          _type_length = _buffer.Slice(47).Search(0);
+          _pt = _buffer.Slice(47, _type_length).GetString(System.Text.Encoding.UTF8);
+          _type_length = _type_length + 1;
         }
         return 47 + _type_length;
       }
@@ -246,7 +257,7 @@ namespace Brunet
     public Address Source {
       get {
         if( _source == null ) {
-          _source = AddressParser.Parse(_buffer, 5);
+          _source = AddressParser.Parse( _buffer.Slice(5, Address.MemSize) );
         }
         return _source;
       }
@@ -259,7 +270,7 @@ namespace Brunet
     public Address Destination {
       get {
         if( _destination == null ) {
-          _destination = AddressParser.Parse( _buffer, 25 );
+          _destination = AddressParser.Parse( _buffer.Slice(25, Address.MemSize) );
         }
         return _destination;
       }
@@ -277,7 +288,9 @@ namespace Brunet
     public string PayloadType {
       get {
         if( _pt == null ) {
-          _pt = NumberSerializer.ReadString(_buffer, 47, out _type_length);
+          _type_length = _buffer.Slice(47).Search(0);
+          _pt = _buffer.Slice(47, _type_length).GetString(System.Text.Encoding.UTF8);
+          _type_length = _type_length + 1;
         }
         return _pt;
       }
@@ -297,7 +310,7 @@ namespace Brunet
 
     public override void CopyTo(byte[] dest, int off)
     {
-      Array.Copy( _buffer, 0, dest, off, _buffer.Length );
+      _buffer.CopyTo(dest, off);
       //Hops is the only field that can be out of sync:
       NumberSerializer.WriteShort(_hops, dest, off + 1);
     }
@@ -306,8 +319,10 @@ namespace Brunet
      * @param offset the offset into the payload to start the stream
      */
     virtual public MemoryStream GetPayloadStream(int offset) {
-      return new MemoryStream(_buffer, this.HeaderSize + offset,
-                              this.PayloadLength - offset, false);
+      int buf_off = this.HeaderSize + offset;
+      int len = this.PayloadLength - offset;
+      MemBlock payload_offset = _buffer.Slice( buf_off, len);
+      return payload_offset.ToMemoryStream();
     }
     
     /** Method to convert an  AHPacket, into a DirectPacket.
