@@ -247,7 +247,7 @@ namespace Brunet
               try{
                 thr.Abort();
               }
-              catch( ThreadAbortException e){
+              catch( ThreadAbortException ){
 
               }
               port_bt.Remove(port);
