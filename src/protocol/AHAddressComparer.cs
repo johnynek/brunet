@@ -42,7 +42,7 @@ namespace Brunet
     public AHAddress Zero { get { return _zero; } }
     public AHAddressComparer()
     {
-      _zero = new AHAddress(Address.Half.getBytes());
+      _zero = new AHAddress( MemBlock.Reference(Address.Half.getBytes(), 0, Address.MemSize) );
     }
 
     /**
@@ -53,8 +53,8 @@ namespace Brunet
       byte[] binzero = new byte[Address.MemSize];
       zero.CopyTo(binzero);
       //Make sure the last bit is zero, so the address is class 0
-      binzero[Address.MemSize - 1] &= 0xFE;
-      _zero = new AHAddress(binzero);
+      Address.SetClass(binzero, 0);
+      _zero = new AHAddress( MemBlock.Reference(binzero, 0, Address.MemSize) );
     }
 
     public int Compare(object x, object y)
@@ -111,7 +111,7 @@ namespace Brunet
     [Test]
     public void Test() {
       Address a1 = new AHAddress( Address.Half );
-      Address a2 = new AHAddress(new byte[Address.MemSize]);
+      Address a2 = new AHAddress(MemBlock.Reference(new byte[Address.MemSize], 0, Address.MemSize) );
       Address a3 = new AHAddress(Address.Full - 2);
       AHAddressComparer cmp = new AHAddressComparer();
       //The default zero is half, since a1 is half, it is zero,

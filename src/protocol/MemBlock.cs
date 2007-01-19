@@ -126,7 +126,7 @@ public class MemBlock : System.IComparable {
 
   /**
    * Copy the entire contents of the MemBlock into an Array starting
-   * at the given offset.  If you want to only copy a range, Splice
+   * at the given offset.  If you want to only copy a range, Slice
    * a smaller MemBlock first, and use that.
    * @param dest the destination for the copy
    * @param offset_into_dest the offset to start at in dest
@@ -157,16 +157,20 @@ public class MemBlock : System.IComparable {
 
   //Uses the first few bytes as the hashcode
   public override int GetHashCode() {
-    int l = this.Length;
-    if( l > 3 ) {
-      return NumberSerializer.ReadInt(_buffer, _offset);
+    //Use at most 4 bytes:
+    int l = System.Math.Min(this.Length, 4) + _offset;
+    int val = 0;
+    for(int i = _offset; i < l; i++) {
+      val = (val << 8) | _buffer[i];
     }
-    if( l > 1 ) {
-      return (int)NumberSerializer.ReadShort(_buffer, _offset);
-    }
-    if( l == 1 ) { return (int)_buffer[_offset]; }
-    
-    return 0;
+    return val;
+  }
+  /**
+   * Use the given Encoding to read a string out of the MemBlock
+   */
+  public string GetString(System.Text.Encoding e)
+  {
+    return e.GetString(_buffer, _offset, _length);
   }
   /**
    * Make a reference to the given byte array, it does not make a copy.
@@ -176,11 +180,27 @@ public class MemBlock : System.IComparable {
   static public MemBlock Reference(byte[] data, int offset, int length) {
     return new MemBlock(data, offset, length);
   }
+  
+  /**
+   * Search through the current buffer for a byte b, and return
+   * the index to it.  If it is not found, return -1
+   */
+  public int Search(byte b)
+  {
+    int max = _offset + _length;
+    for(int idx = _offset; idx < max; idx++) {
+      if( _buffer[idx] == b ) {
+        return (idx - _offset);
+      }
+    }
+    return -1;
+  }
+
   /**
    * Returns a new MemBlock which starts at a given offset in the
    * current block and runs a given total length
    */
-  public MemBlock Splice(int offset, int length) {
+  public MemBlock Slice(int offset, int length) {
     return new MemBlock(_buffer, _offset + offset, length);
   }
   
@@ -188,8 +208,15 @@ public class MemBlock : System.IComparable {
    * Return the "tail" of the current MemBlock starting at a given
    * offset.
    */
-  public MemBlock Splice(int offset) {
+  public MemBlock Slice(int offset) {
     return new MemBlock(_buffer, _offset + offset, _length - offset);
+  }
+
+  /**
+   * Returns a read-only MemoryStream of the current MemBlock
+   */
+  public System.IO.MemoryStream ToMemoryStream() {
+    return new System.IO.MemoryStream(_buffer, _offset, _length, false);
   }
 
 #if BRUNET_NUNIT
@@ -206,9 +233,9 @@ public class MemBlock : System.IComparable {
       MemBlock mb1a = MemBlock.Copy(data, 0, data.Length);
       Assert.AreEqual(mb1, mb1a, "MemBlock.Copy");
       MemBlock mb2 = new MemBlock(data, offset, data.Length - offset);
-      MemBlock mb2a = mb1.Splice(offset);
+      MemBlock mb2a = mb1.Slice(offset);
       MemBlock mb3 = new MemBlock(data, 0, offset);
-      MemBlock mb3a = mb1.Splice(0, offset);
+      MemBlock mb3a = mb1.Slice(0, offset);
       Assert.IsTrue(mb3.Equals( mb3a ), "mb3.Equals(mb3a)");
       Assert.IsTrue(mb3a.Equals( mb3 ), "mb3a.Equals(mb3)");
       Assert.AreEqual(mb3.CompareTo(mb2) + mb2.CompareTo(mb3), 0, "CompareTo");
