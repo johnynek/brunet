@@ -2,6 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
+Copyright (C) 2007 P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -17,11 +18,6 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
-
-/*
- * using Brunet.TransportAddress;
- * using Brunet.Edge;
- */
 
 using Brunet;
 using System;
@@ -56,6 +52,11 @@ namespace Brunet
 	}
     }
 #endif
+    protected TAAuthorizer _ta_auth;
+    virtual public TAAuthorizer TAAuth {
+      get { return _ta_auth; }
+      set { _ta_auth = value; }
+    }
 
     /**
      * @param success if the CreateEdgeTo was successful, this is true
@@ -76,25 +77,25 @@ namespace Brunet
       /**
        * What type of TransportAddress does this EdgeListener use
        */
-      public abstract Brunet.TransportAddress.TAType TAType
-      {
-        get;
-        }
+    public abstract Brunet.TransportAddress.TAType TAType
+    {
+      get;
+    }
 
         /**
          * @return true if the Start method has been called
          */
-        public abstract bool IsStarted
-        {
-          get;
-          }
+    public abstract bool IsStarted
+    {
+      get;
+    }
           /**
            * @param ta TransportAddress to create an edge to
            * @param ecb the EdgeCreationCallback to call when done
            * @throw EdgeException if we try to call this before calling
            * Start.
            */
-          public abstract void CreateEdgeTo(TransportAddress ta, EdgeCreationCallback ecb);
+    public abstract void CreateEdgeTo(TransportAddress ta, EdgeCreationCallback ecb);
 
     /**
      * Looks up the local IP addresses and returns a list
