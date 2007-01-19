@@ -37,16 +37,16 @@ namespace Ipop {
        */
       public Address GetBestResult() {
 	lock(_sync) {
-	int max = -1;
-	Address best_addr = null;
-	IDictionaryEnumerator iter = _tab.GetEnumerator();
-	while(iter.MoveNext()) {
-	  int count = (int) iter.Value;
-	  if (count > max) {
-	    best_addr = (Address) iter.Key; 
+	  int max = -1;
+	  Address best_addr = null;
+	  IDictionaryEnumerator iter = _tab.GetEnumerator();
+	  while(iter.MoveNext()) {
+	    int count = (int) iter.Value;
+	    if (count > max) {
+	      best_addr = (Address) iter.Key; 
+	    }
 	  }
-	}
-	return best_addr;
+	  return best_addr;
 	}
       }
       public RouteMissResult(IPAddress ip) {

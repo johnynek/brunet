@@ -73,9 +73,9 @@ namespace Ipop {
       brunetNode.Subscribe(AHPacket.Protocol.IP, ip_handler);
 
       if (dht_media == null || dht_media.Equals("disk")) {
-        dht = new FDht(brunetNode, EntryFactory.Media.Disk, 5);
+        dht = new FDht(brunetNode, EntryFactory.Media.Disk, 3);
       } else if (dht_media.Equals("memory")) {
-        dht = new FDht(brunetNode, EntryFactory.Media.Memory, 5);
+        dht = new FDht(brunetNode, EntryFactory.Media.Memory, 3);
       }
 
       lock(sync) {

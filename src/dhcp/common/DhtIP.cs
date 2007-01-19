@@ -24,7 +24,7 @@ namespace Ipop {
         old_password = new_password;
 
       int max_results_per_queue = 2;
-      int min_majority = 3;
+      int min_majority = _dht.Degree/2 + 1;
       byte[] dht_key_bytes = Encoding.UTF8.GetBytes(dht_key);
       BlockingQueue [] queues = null;
       try {

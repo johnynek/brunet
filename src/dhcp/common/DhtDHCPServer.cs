@@ -38,19 +38,28 @@ namespace Ipop {
       byte[] utf8_key = Encoding.UTF8.GetBytes(ns_key);
       //get a maximum of 1000 bytes only
       BlockingQueue[] q = _dht.GetF(utf8_key, 1000, null);
-      //we do expect to get atleast 1 result
+      //wait a second; we do expect to get atleast 1 result
+      ArrayList [] results = BlockingQueue.ParallelFetchWithTimeout(q, 1000);
+
       ArrayList result = null;
-      try{
-        while (true) {
-          RpcResult res = q[0].Dequeue() as RpcResult;
-          result = res.Result as ArrayList;
-          if (result == null || result.Count < 3) {
-            continue;
-          }
-          break;
-        }
-      } catch (Exception) {
-        return null;
+      for (int i = 0; i < results.Length; i++) {
+	ArrayList q_replies = results[i];
+	foreach (RpcResult rpc_replies in q_replies) {
+         //investigating individual results
+         try{
+           ArrayList rpc_result = (ArrayList) rpc_replies.Result;
+           if (rpc_result == null || rpc_result.Count < 3) {
+             continue;
+           }
+           result = rpc_result;
+           break;
+         } catch (Exception e) {
+           return null;
+         }
+       }
+      }
+      if (result == null) {
+	return null;
       }
       ArrayList values = (ArrayList) result[0];
 #if DHCP_DEBUG

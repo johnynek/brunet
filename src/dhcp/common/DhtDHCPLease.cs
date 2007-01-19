@@ -57,7 +57,7 @@ namespace Ipop {
         return null;
       }
       TimeSpan t_span = DateTime.Now - _last_assigned_instant;
-      if (_last_assigned_lease != null && t_span.TotalSeconds < 0.5*leasetime) {
+      if (_last_assigned_lease != null && t_span.TotalSeconds < 0.25*leasetime) {
         return _last_assigned_lease;
       }
 

@@ -64,6 +64,18 @@
         <include name="${build.dir}/Brunet.Dht.dll"/>
       </references>
     </csc>
+    <csc target="exe" output="${build.dir}/SimpleMultiNode.exe">
+      <sources failonempty="true">
+        <include name="SimpleMultiNode.cs"/>
+      </sources>
+      <references>
+        <include name="${build.dir}/Brunet.dll"/>
+        <include name="${build.dir}/Brunet.Dht.dll"/>
+        <include name="${build.dir}/Brunet.Coordinate.dll"/>
+        <include name="${build.dir}/log4net.dll"/>
+      </references>
+    </csc>
+
     <csc target="exe" output="${build.dir}/IPRouterConfigUpdate.exe">
       <sources failonempty="true">
         <include name="IPRouterConfigUpdate.cs"/>

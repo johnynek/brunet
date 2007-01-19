@@ -109,11 +109,11 @@ namespace PeerVM {
       //Here is where we connect to some well-known Brunet endpoints
       tmp_node.RemoteTAs = RemoteTAs;
       //create a Dht instance on this node
-      Dht dht = null;
+      FDht dht = null;
       if (config.dht_media.Equals("disk")) {
-	dht = new Dht(tmp_node, EntryFactory.Media.Disk);
+	dht = new FDht(tmp_node, EntryFactory.Media.Disk, 3);
       } else if (config.dht_media.Equals("memory")) {
-	dht = new Dht(tmp_node, EntryFactory.Media.Memory);	
+	dht = new FDht(tmp_node, EntryFactory.Media.Memory, 3);	
       }
 
 #if IPOP_LOG
@@ -154,9 +154,11 @@ namespace PeerVM {
 	  Console.WriteLine(utf8_data.Length);
 	  Console.WriteLine(base64_pass.Length);
 	  
-	  BlockingQueue q = dht.Put(utf8_key, ttl, stored_pass, utf8_data);
-	  RpcResult res = q.Dequeue() as RpcResult;
-	  q.Close();
+	  BlockingQueue[] q = dht.PutF(utf8_key, ttl, stored_pass, utf8_data);
+	  RpcResult res = q[0].Dequeue() as RpcResult;
+	  for (int i = 0; i < q.Length; i++) {
+	    q[i].Close();
+	  }
 	  key_list.Add(utf8_key);
 	  Console.WriteLine("RpcResult for Put(): {0}", res.Result);
 
@@ -181,9 +183,11 @@ namespace PeerVM {
 	  string base64_pass = Convert.ToBase64String(sha1_pass);
 	  string stored_pass = "SHA1:" + base64_pass;
 
-	  BlockingQueue q = dht.Create(utf8_key, ttl, stored_pass, utf8_data);
-	  RpcResult res = q.Dequeue() as RpcResult;
-	  q.Close();
+	  BlockingQueue[] q = dht.CreateF(utf8_key, ttl, stored_pass, utf8_data);
+	  RpcResult res = q[0].Dequeue() as RpcResult;
+	  for (int i = 0; i < q.Length; i++) {
+	    q[i].Close();
+	  }
 	  Console.WriteLine("RpcResult for Create(): {0}", res.Result);
 	  key_list.Add(utf8_key);
 	} else if (str_oper.Equals("Get")) {
@@ -192,28 +196,28 @@ namespace PeerVM {
 	  
 	  byte[] utf8_key = Encoding.UTF8.GetBytes(str_key);
 
-	  BlockingQueue q = dht.Get(utf8_key, 500, null);
+	  BlockingQueue[] q = dht.GetF(utf8_key, 500, null);
 	  int count = 0;
 
-	  //while (count++ < 1) {
-	    RpcResult res = q.Dequeue() as RpcResult;
-	    ArrayList result = res.Result as ArrayList;
-
-	    if (result == null || result.Count < 3) {
-	      Console.WriteLine("Something messed up with Get()...");
-	      continue;
-	    }
-	    Console.WriteLine("Result from Get() looks good: " + result.Count);
-	    ArrayList values = (ArrayList) result[0];
-	    Console.WriteLine("# of matching entries: " + values.Count);
-	    foreach (Hashtable ht in values) {
-	      Console.WriteLine(ht["age"]);
-	      byte[] data = (byte[]) ht["data"];
-	      string val = Encoding.UTF8.GetString(data);
-	      Console.WriteLine(val);
-	    }
-	    //}
-	  q.Close();
+	  RpcResult res = q[0].Dequeue() as RpcResult;
+	  ArrayList result = res.Result as ArrayList;
+	  
+	  if (result == null || result.Count < 3) {
+	    Console.WriteLine("Something messed up with Get()...");
+	    continue;
+	  }
+	  Console.WriteLine("Result from Get() looks good: " + result.Count);
+	  ArrayList values = (ArrayList) result[0];
+	  Console.WriteLine("# of matching entries: " + values.Count);
+	  foreach (Hashtable ht in values) {
+	    Console.WriteLine(ht["age"]);
+	    byte[] data = (byte[]) ht["data"];
+	    string val = Encoding.UTF8.GetString(data);
+	    Console.WriteLine(val);
+	  }
+	  for (int i = 0; i < q.Length; i++) {
+	    q[i].Close();
+	  }
 	} else if (str_oper.Equals("Delete")) {
 	  Console.Write("Enter key:");
 	  string str_key = Console.ReadLine();
@@ -241,12 +245,12 @@ namespace PeerVM {
 	  } else {
 	    Console.WriteLine("Fatal: Requested deletion of a non-existent key: {0}", str_key);
 	  }
-
-
-	  BlockingQueue q = dht.Delete(utf8_key, send_pass);
-	  RpcResult res = q.Dequeue() as RpcResult;
+	  BlockingQueue[] q = dht.DeleteF(utf8_key, send_pass);
+	  RpcResult res = q[0].Dequeue() as RpcResult;
 	  object o = res.Result;
-	  q.Close();
+	  for (int i = 0; i < q.Length; i++) {
+	    q[i].Close();
+	  }
 	} else if (str_oper.Equals("Done")) {
 	  System.Console.WriteLine("Time to disconnect,,,"); 
 #if IPOP_LOG
@@ -255,9 +259,9 @@ namespace PeerVM {
 #endif
 	  tmp_node.Disconnect();
 
-	  System.Console.WriteLine("Sleep for 30000 ms,,,");
-	  //additional 30 seconds for disconnect to complete
-	  System.Threading.Thread.Sleep(30000);
+	  System.Console.WriteLine("Sleep for 10000 ms,,,");
+	  //additional 10 seconds for disconnect to complete
+	  System.Threading.Thread.Sleep(10000);
 	  break;
 	} else if (str_oper.Equals("Sleep")) {
 	  Console.Write("Enter sleep time:");
