@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.IO;
 
 using Brunet;
 
@@ -7,6 +8,8 @@ using Brunet;
 using log4net;
 using log4net.Config;
 #endif
+
+
 
 namespace Brunet.Coordinate {
   public class NCService {
@@ -19,25 +22,15 @@ namespace Brunet.Coordinate {
 
 
     private static Hashtable _nc_service_table = new Hashtable();
-    //every 5 seconds get a new sample for latency
-    private static readonly int SAMPLE_INTERVAL = 5;
-    
-    //sample not valid beyond 30 minutes
-    protected static readonly long SAMPLE_EXPIRATION = 1800;
+    //every 20 seconds get a new sample for latency
+    private static readonly int SAMPLE_INTERVAL = 20;
 
+    //update coordinate on file interval (60 seconds)
+    private static readonly int UPDATE_FILE_INTERVAL = 60;
     
-    public static NCService GetInstance(Node node) {
-      lock(_nc_service_table) {
-	//check if there is already an instance object for this node
-	if (_nc_service_table.ContainsKey(node)) {
-	  return (NCService) _nc_service_table[node];
-	}
-	//in case no instance exists, create one
-	NCService nc_service  = new NCService(node); 
-	_nc_service_table[node] = nc_service;
-	return nc_service;	
-      }
-    }
+    //sample not valid beyond 15 minutes
+    protected static readonly long SAMPLE_EXPIRATION = 900;
+
     
     public class NCServer {
       private NCService _local_service;
@@ -89,7 +82,7 @@ namespace Brunet.Coordinate {
     }
     protected RpcManager _rpc;
     protected DateTime _last_sample_instant;
-
+    protected DateTime _last_update_file_instant;
 
     /** Vivaldi related stuff. */
     protected static readonly float DAMPENING_FRACTION = 0.25f;
@@ -131,21 +124,17 @@ namespace Brunet.Coordinate {
 	}
       }
     }
+    protected static string _coordinate_cache_dir = "coordinates";
+    protected static string _coordinate_cache_file = "coordinates.log";
 
-    protected NCService(Node node) {
-#if NC_DEBUG
-      Console.WriteLine("[NCService] {0} Creating a new instance", node.Address);
-#endif 
+    public NCService() {
       _sync = new object();
+      _node = null;
       lock(_sync) {
-	_node = node;
-	_last_sample_instant = DateTime.MinValue;
-	_rpc = RpcManager.GetInstance(node);
 
-	_server = new NCServer(this);
-	//register the table with the RpcManagers
-	_rpc.AddHandler("ncserver", _server);      
-      
+	_last_sample_instant = DateTime.MinValue;
+	_last_update_file_instant = DateTime.MinValue;
+
 	//initial vivaldi-related stuff
 	_samples = new Hashtable();
 	_trial_state = new TrialState();
@@ -154,11 +143,92 @@ namespace Brunet.Coordinate {
 	_vivaldi_state.WeightedError = INITIAL_WEIGHTED_ERROR;
 	_vivaldi_state.Position = new Point();
 	_vivaldi_state.DistanceDelta = 0.0f;
+      }
+    }
 
+    public void InstallOnNode(Node node) {
+      if (_node != null) {
+	throw new Exception("Service is already bound to: " +  _node.ToString());
+      }
+      lock(_nc_service_table) {
+	if (_nc_service_table.ContainsKey(node)) {
+	  throw new Exception("Attempting to install another instant of NCService on: " + node.ToString());
+	}
+	//in case no instance exists, install one
+	_nc_service_table[node] = this;
+      } //end of lock
+      lock(_sync) {
+#if NC_DEBUG
+	Console.WriteLine("[NCService] {0} Installing an instance of NCService", node.Address);
+#endif 
+	_node = node;
+	_rpc = RpcManager.GetInstance(node);      
+	_server = new NCServer(this);
+	//register the table with the RpcManagers
+	_rpc.AddHandler("ncserver", _server);
 	_node.HeartBeatEvent += new EventHandler(GetSample);
       }
     }
-    
+//     protected void TryInitializeFromFile() {
+//       lock(_sync) {
+// 	string dir_name = _coordinate_cache_dir + "/" + _node.Address.ToString();
+// 	if (!Directory.Exists(dir_name)) {
+// 	  Directory.CreateDirectory(dir_name);
+// 	  return;
+// 	}
+// 	string fname = dir_name + "/" + _coordinate_cache_file;
+// 	  try {
+// 	    FileStream fStream = new FileStream(fname, FileMode.Open, FileAccess.Read);
+// 	    StreamReader br = new StreamReader(fStream);
+// 	    //first line are the coordinates; assume 2 dimernsions
+// 	    string s = br.ReadLine();
+// 	    string[] ss = s.Split();
+// 	    if (ss.Length != Point.DIMENSIONS) {
+// 	      throw new Exception("Incorrect number of dimensions in euclidien space" );
+// 	    }
+// 	    float[] side = new float[Point.DIMENSIONS];
+// 	    for (int i = 0; i < Point.DIMENSIONS; i++) {
+// 	      side[i] = (float) Double.Parse(ss[i].Trim());
+// 	    }
+// 	    //next line is the height
+// 	    s = br.ReadLine();
+// 	    float height = (float) Double.Parse(s.Trim());
+// 	    //next value is the error
+// 	    s = br.ReadLine();
+// 	    float error = (float) Double.Parse(s.Trim());
+// 	    _vivaldi_state = new VivaldiState();
+// 	    _vivaldi_state.Position = new Point();
+// 	    _vivaldi_state.Position.Side = side;
+// 	    _vivaldi_state.Position.Height = height;
+// 	    _vivaldi_state.WeightedError = error;
+// 	  } catch(Exception e) {
+// 	    Console.Error.WriteLine(e);
+// 	    _vivaldi_state = null;
+// 	  }
+//       }
+//     }
+//     protected void UpdateToFile() {
+//       lock(_sync) {
+// 	try {
+// 	  string fname = _coordinate_cache_dir + "/" + _node.Address.ToString() + "/" + _coordinate_cache_file;
+	  
+// 	  FileStream fStream = new FileStream(fname, FileMode.Truncate);
+// 	  StreamWriter sw = new StreamWriter(fStream);
+	  
+// 	  for (int i = 0; i < Point.DIMENSIONS; i++) {
+// 	    sw.Write("{0} ", _vivaldi_state.Position.Side[i]);
+// 	  }
+// 	  sw.WriteLine();
+// 	  sw.WriteLine("{0} ", _vivaldi_state.Position.Height);
+// 	  sw.WriteLine("{0} ", _vivaldi_state.WeightedError);	
+	  
+// 	  //this is important; only on close are updates actually made in some cases
+// 	  sw.Close();
+// 	} catch (Exception e) {
+// 	  Console.Error.WriteLine(e);	  
+// 	}
+//       }
+//     }
     protected void GetSample(object node, EventArgs args) {
       TimeSpan elapsed = DateTime.Now - _last_sample_instant;
       if (elapsed.TotalSeconds < SAMPLE_INTERVAL) {
@@ -242,15 +312,13 @@ namespace Brunet.Coordinate {
 	  _log.Debug(ss);
 #endif
 	  
+
 	  ProcessSample(end, neighbor, o_position, o_weightedError, o_rawLatency);
 
-
-#if NC_LOG
-	  Sample sample = (Sample) _samples[neighbor];
-	  ss = _node.Address + "::::" + DateTime.UtcNow.Ticks + "::::Sample::::";
-	  ss += (neighbor + "::::" + c.Edge.RemoteTA.ToString() + "::::" + sample.GetSample());
-	  _log.Debug(ss);
-#endif
+// 	  if ((end - _last_update_file_instant).TotalSeconds > UPDATE_FILE_INTERVAL) {
+// 	    UpdateToFile();
+// 	    _last_update_file_instant = end;
+// 	  }
 	} else {
 	  Console.Error.WriteLine("[NCService] {0} ignore sample (multiple sends).", _node.Address);	  
 	}
@@ -264,12 +332,26 @@ namespace Brunet.Coordinate {
      *  @param o_weightedError at the neighbor
      *  @param o_rawLatency latency of the sample
      */
-    protected void ProcessSample(DateTime o_stamp, Address neighbor, Point o_position, float o_weightedError, float o_rawLatency) {
+    public void ProcessSample(DateTime o_stamp, Address neighbor, Point o_position, float o_weightedError, float o_rawLatency) {
       lock(_sync) {
 #if NC_DEBUG
 	Console.WriteLine("[Sample] stamp: {0}, neighbor: {1}, position: {2}, error: {3}, latency: {4}", 
 			  o_stamp, neighbor, o_position, o_weightedError, o_rawLatency);
 #endif
+
+#if NC_LOG
+	Connection c = null;
+	string ss = null;
+	if (_node != null) {
+	  c = _node.ConnectionTable.GetConnection(ConnectionType.Structured, neighbor);
+	  ss = _node.Address + "::::" + DateTime.UtcNow.Ticks + "::::RawSample::::";
+	  ss += (neighbor + "::::" + c.Edge.RemoteTA.ToString() + "::::" + o_rawLatency);
+	  _log.Debug(ss);
+	}
+#endif
+
+
+
 	Sample sample = null;
 	if (_samples.ContainsKey(neighbor)) {
 	  sample = (Sample) _samples[neighbor];
@@ -279,6 +361,18 @@ namespace Brunet.Coordinate {
 	}
 	sample.AddSample(o_stamp, o_rawLatency, o_position, o_weightedError);
 	float o_latency = sample.GetSample();
+	if (o_latency < 0) {
+	  return;
+	}
+
+#if NC_LOG
+	if (_node != null) {
+	  c = _node.ConnectionTable.GetConnection(ConnectionType.Structured, neighbor);
+	  ss = _node.Address + "::::" + DateTime.UtcNow.Ticks + "::::Sample::::";
+	  ss += (neighbor + "::::" + c.Edge.RemoteTA.ToString() + "::::" + o_rawLatency);
+	  _log.Debug(ss);
+	}
+#endif
 
 	float o_distance = _vivaldi_state.Position.GetEucledianDistance(o_position);
 	while (o_distance == 0) {
@@ -387,7 +481,7 @@ namespace Brunet.Coordinate {
 #if NC_DEBUG
 	Console.WriteLine("position: {0}", _vivaldi_state.Position);
 #endif
-	_vivaldi_state.DistanceDelta = (float) (0.05 * Math.Abs(o_force.Length()) + 0.95*_vivaldi_state.DistanceDelta);
+	//_vivaldi_state.DistanceDelta = (float) (0.05 * Math.Abs(o_force.Length()) + 0.95*_vivaldi_state.DistanceDelta);
       }
     }
   }

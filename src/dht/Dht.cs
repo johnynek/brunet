@@ -119,7 +119,7 @@ namespace Brunet.Dht {
 #if DHT_DEBUG
 	    Console.WriteLine("[DhtLogic] {0}: Found a value. Making an Put() on key: {1} call to target: {2}",
 			      _our_addr,
-			      Encoding.UTF8.GetString(e.Key),
+			      Convert.ToBase64String(e.Key),
 			      _target);
 #endif
 	    TimeSpan t_span = e.EndTime - DateTime.Now;
@@ -189,7 +189,7 @@ namespace Brunet.Dht {
 #if DHT_DEBUG
 	    Console.WriteLine("[DhtLogic] {0}: Found a value. Making a Put() on key: {1} call to target: {2}",
 			      _our_addr,
-			      Encoding.UTF8.GetString(e.Key),
+			      Convert.ToBase64String(e.Key),
 			      _target);
 #endif
 
@@ -298,15 +298,11 @@ namespace Brunet.Dht {
       }
     }
 
-    protected static Address GetInvocationTarget(byte[] key) {
+    protected static byte[] MapToRing(byte[] key) {
       HashAlgorithm hashAlgo = HashAlgorithm.Create();
       byte[] hash = hashAlgo.ComputeHash(key);
       hash[Address.MemSize -1] &= 0xFE;
-      Address target = new AHAddress(new BigInteger(hash));
-#if DHT_DEBUG
-      Console.WriteLine("[DhtClient] Invocation target: {0}", target);
-#endif
-      return target;
+      return hash;
     }
     
     public BlockingQueue Put(byte[] key, int ttl, string hashed_password, byte[] data) {
@@ -319,21 +315,23 @@ namespace Brunet.Dht {
 #endif	
 	throw new DhtException("DhtClient: Not yet activated.");
       }
-      Address target = GetInvocationTarget(key);
+      byte[] b = MapToRing(key);
+      Address target = new AHAddress(b);
+#if DHT_DEBUG
+      Console.WriteLine("[DhtClient] Invocation target: {0}", target);
+#endif
+
 
 #if DHT_LOG
       _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::InvokePut::::" +
-		 + Encoding.UTF8.GetString(key) + "::::" + target);
+		 + Convert.ToBase64String(b) + "::::" + target);
 #endif
-
       //we now know the invocation target
-      BlockingQueue q = _rpc.Invoke(target, "dht.Put", key, ttl, hashed_password, data);
+      BlockingQueue q = _rpc.Invoke(target, "dht.Put", b, ttl, hashed_password, data);
 #if DHT_DEBUG
       Console.WriteLine("[DhtClient] Returning a blocking queue..");
 #endif
       return q;
-      //RpcResult res = q.Dequeue() as RpcResult;
-      //return Convert.ToInt32(res.Result);
     }
 
     public BlockingQueue Create(byte[] key, int ttl, string hashed_password, byte[] data) {
@@ -348,18 +346,20 @@ namespace Brunet.Dht {
 	throw new DhtException("DhtClient: Not yet activated.");
       }
       
-      Address target = GetInvocationTarget(key);
+      byte[] b = MapToRing(key);
+      Address target = new AHAddress(b);
+#if DHT_DEBUG
+      Console.WriteLine("[DhtClient] Invocation target: {0}", target);
+#endif
 
 #if DHT_LOG
       _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::InvokeCreate::::" +
-		 + Encoding.UTF8.GetString(key) + "::::" + target);
+		 + Convert.ToBase64String(b) + "::::" + target);
 #endif
       
       //we now know the invocation target
-      BlockingQueue q = _rpc.Invoke(target, "dht.Create", key, ttl, hashed_password, data);
+      BlockingQueue q = _rpc.Invoke(target, "dht.Create", b, ttl, hashed_password, data);
       return q;
-      //RpcResult res = q.Dequeue() as RpcResult;
-      //return Convert.ToBoolean(res.Result);
     }
 
     public BlockingQueue Recreate(byte[] key, string old_password, int ttl, string new_hashed_password, byte[] data) {
@@ -373,16 +373,20 @@ namespace Brunet.Dht {
 #endif	
 	throw new DhtException("DhtClient: Not yet activated.");
       }
-      
-      Address target = GetInvocationTarget(key);
+      byte[] b= MapToRing(key);
+      Address target = new AHAddress(b);
+#if DHT_DEBUG
+      Console.WriteLine("[DhtClient] Invocation target: {0}", target);
+#endif
+
 
 #if DHT_LOG
       _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::InvokeRecreate::::" +
-		 + Encoding.UTF8.GetString(key) + "::::" + target);
+		 + Convert.ToBase64String(b) + "::::" + target);
 #endif
       
       //we now know the invocation target
-      BlockingQueue q = _rpc.Invoke(target, "dht.Recreate", key, old_password, ttl, new_hashed_password, data);
+      BlockingQueue q = _rpc.Invoke(target, "dht.Recreate", b, old_password, ttl, new_hashed_password, data);
       return q;
     }
     
@@ -397,17 +401,20 @@ namespace Brunet.Dht {
 	throw new DhtException("DhtClient: Not yet activated.");
       }
 
-      Address target = GetInvocationTarget(key);
+      byte[] b = MapToRing(key);
+      Address target = new AHAddress(b);
+#if DHT_DEBUG
+      Console.WriteLine("[DhtClient] Invocation target: {0}", target);
+#endif
+
+
 #if DHT_LOG
       _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::InvokeGet::::" +
-		 + Encoding.UTF8.GetString(key) + "::::" + target);
+		 + Convert.ToBase64String(b) + "::::" + target);
 #endif      
       //we now know the invocation target
-      BlockingQueue q = _rpc.Invoke(target, "dht.Get", key, maxbytes, token);
+      BlockingQueue q = _rpc.Invoke(target, "dht.Get", b, maxbytes, token);
       return q;
-      //RpcResult res = q.Dequeue() as RpcResult;
-      //IList data_list = res.Result as IList;
-      //return data_list;
     }
     public BlockingQueue Delete(byte[] key, string password)
     {  
@@ -422,15 +429,20 @@ namespace Brunet.Dht {
 	throw new DhtException("DhtClient: Not yet activated.");
       }
 
-      Address target = GetInvocationTarget(key);
+      byte[] b = MapToRing(key);
+      Address target = new AHAddress(b);
+#if DHT_DEBUG
+      Console.WriteLine("[DhtClient] Invocation target: {0}", target);
+#endif
+
 
 #if DHT_LOG
       _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::InvokeDelete::::" +
-		 + Encoding.UTF8.GetString(key) + "::::" + target);
+		 + Convert.ToBase64String(b) + "::::" + target);
 #endif
       
       //we now know the invocation target
-      BlockingQueue q = _rpc.Invoke(target, "dht.Delete", key, password);
+      BlockingQueue q = _rpc.Invoke(target, "dht.Delete", b, password);
       return q;
     }
     
@@ -479,7 +491,7 @@ namespace Brunet.Dht {
 	if (!_activated) {
 	  if (_node.IsConnected ) {
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Activated.", our_addr);
+	    Console.WriteLine("[DhtLogic] {0}: Activated (on connection) at time: {1}.", our_addr, DateTime.Now);
 #endif	
 	    _activated = true;
 	  } 
@@ -664,7 +676,7 @@ namespace Brunet.Dht {
 	if (!_activated) {
 	  if (_node.IsConnected ) {
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Activated.", our_addr);
+	    Console.WriteLine("[DhtLogic] {0}: Activated (on disconnection) at time: {1}.", our_addr, DateTime.Now);
 #endif	
 	    _activated = true;
 	  } 
@@ -871,6 +883,16 @@ namespace Brunet.Dht {
       ConnectionEventArgs args = (ConnectionEventArgs)eargs;
       Connection new_con = args.Connection;
       AHAddress our_addr = _node.Address as AHAddress;
+      lock(_node.ConnectionTable.SyncRoot) {  //lock the connection table
+	if (!_activated) {
+	  if (_node.IsConnected ) {
+#if DHT_DEBUG
+	    Console.WriteLine("[DhtLogic] {0}: Activated (on status change) at time: {1}.", our_addr, DateTime.Now);
+#endif	
+	    _activated = true;
+	  } 
+	}
+      }
 #if DHT_LOG
       string status = "StatusBegin";
       StatusMessage sm = new_con.Status;
