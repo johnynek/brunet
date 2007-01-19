@@ -46,6 +46,7 @@
       <sources failonempty="true">
         <include name="../OSDependent/abstract.cs"/>
         <include name="../OSDependent/linux.cs"/>
+        <include name="IPOP_Common.cs"/>
         <include name="SimpleNode.cs"/>
       </sources>
       <references>
