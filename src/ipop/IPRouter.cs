@@ -1,3 +1,4 @@
+
 using System;
 using Brunet;
 using Brunet.Dht;
@@ -43,6 +44,8 @@ namespace Ipop {
       node.brunet = new BrunetTransport(ether, config.brunet_namespace,
         node, config.EdgeListeners, config.DevicesToBind, RemoteTAs, debug,
         config.dht_media);
+/* Remove this when we go back to Dht */
+      node.brunet.UpdateTAAuthorizer();
 //Dht code
 /*      brunet_arp_cache = new Cache(100);
       RouteMissHandler.RouteMissDelegate dlgt =
@@ -149,6 +152,7 @@ namespace Ipop {
           else {
             node.password = returnPacket.decodedPacket.StoredPassword;
             config.AddressData.Password = node.password;
+            node.brunet.UpdateTAAuthorizer();
           }*/
           node.netmask = newNetmask;
           node.ip = IPAddress.Parse(newAddress);
@@ -224,11 +228,11 @@ namespace Ipop {
       node = new NodeMapping();
       node.nodeAddress = config.NodeAddress;
       node.ipop_namespace = config.ipop_namespace;
+      node.netmask = config.AddressData.Netmask;
+      node.password = config.AddressData.Password;
 
-      if(config.AddressData.IPAddress != null && config.AddressData.Netmask != null) {
+      if(config.AddressData.IPAddress != null) {
         node.ip = IPAddress.Parse(config.AddressData.IPAddress);
-        node.netmask = config.AddressData.Netmask;
-        node.password = config.AddressData.Password;
       }
 
       BrunetStart();
@@ -307,10 +311,12 @@ namespace Ipop {
         if(!srcAddr.Equals(IPAddress.Parse("0.0.0.0")) && (node.ip == null ||
           !node.ip.Equals(srcAddr))) {
           node.ip = srcAddr;
+          config.AddressData.IPAddress = srcAddr.ToString();
+          IPRouterConfigHandler.Write(ConfigFile, config);
           BrunetStart();
 // Dht code
-/*          Console.WriteLine("Switching IP Address " + node.ip + " with " + srcAddr);
-          in_dht = true;
+          Console.WriteLine("Switching IP Address " + node.ip + " with " + srcAddr);
+/*          in_dht = true;
           ThreadPool.QueueUserWorkItem(new WaitCallback(IPUpdate), (object) srcAddr.ToString());*/
           continue;
         }

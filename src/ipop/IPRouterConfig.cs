@@ -59,6 +59,10 @@ namespace Ipop {
         }
       }
       Write(configFile, config);
+      if(config.AddressData == null) {
+        config.AddressData = new AddressInfo();
+        config.AddressData.DhtDHCP = false;
+      }
       return config;
     }
 

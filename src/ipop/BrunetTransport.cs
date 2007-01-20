@@ -20,6 +20,7 @@ namespace Ipop {
     object sync;
     bool debug;
     Thread Refresher;
+    ArrayList edgeListeners;
 
     public BrunetTransport(Ethernet ether, string brunet_namespace, 
       NodeMapping node, EdgeListener []EdgeListeners, string [] DevicesToBind,
@@ -43,21 +44,22 @@ namespace Ipop {
       string listener_log = "BeginListener::::";
 #endif
 
+      edgeListeners = new ArrayList();
+
       foreach(EdgeListener item in EdgeListeners) {
         int port = Int32.Parse(item.port);
         System.Console.WriteLine(port + " " + tas[0]);
-        if (item.type =="tcp") {
-            brunetNode.AddEdgeListener(new TcpEdgeListener(port));
-        }
-        else if (item.type == "udp") {
-            brunetNode.AddEdgeListener(new UdpEdgeListener(port));
-        }
-        else if (item.type == "udp-as") {
-            brunetNode.AddEdgeListener(new ASUdpEdgeListener(port));
-        }
-        else {
+        Brunet.EdgeListener edge = null;
+        if (item.type =="tcp")
+            edge = new TcpEdgeListener(port);
+        else if (item.type == "udp")
+            edge = new UdpEdgeListener(port);
+        else if (item.type == "udp-as")
+            edge = new ASUdpEdgeListener(port);
+        else
           throw new Exception("Unrecognized transport: " + item.type);
-        }
+        edgeListeners.Add(edge);
+        brunetNode.AddEdgeListener(edge);
       }
 
       //Here is where we connect to some well-known Brunet endpoints
@@ -143,12 +145,31 @@ namespace Ipop {
         node.ip = IPAddress.Parse(ip);
         if(Refresher == null)
           Refresher = new Thread(new ThreadStart(RefreshThread));
+        node.brunet.UpdateTAAuthorizer();
         return true;
       }
 
       node.password = null;
       node.ip = null;
       return false;
+    }
+
+    public void UpdateTAAuthorizer() {
+      if(node.netmask == null)
+        return;
+      byte [] netmask = DHCPCommon.StringToBytes(node.netmask, '.');
+      int nm_value = (netmask[0] << 24) + (netmask[1] << 16) +
+        (netmask[2] << 8) + netmask[3];
+      int value = 0;
+      for(value = 0; value < 32; value++)
+        if((1 << value) == (nm_value & (1 << value)))
+      break;
+      value = 32 - value;
+      System.Console.WriteLine("Updating TAAuthorizer with " + node.ip.ToString() + "/" + value);
+      TAAuthorizer taAuth = new NetmaskTAAuthorizer(node.ip, value,
+        TAAuthorizer.Decision.Deny, TAAuthorizer.Decision.None);
+      foreach (Brunet.EdgeListener el in edgeListeners)
+        el.TAAuth = taAuth;
     }
   }
 }

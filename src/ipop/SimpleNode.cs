@@ -17,7 +17,7 @@ using log4net.Config;
  * (Doesn't generate or sink any packets)
  * Could sink; in case no route to destination is available!
  */
-namespace PeerVM {
+namespace Ipop {
   public class SimpleNodeConfig {
     public string brunet_namespace;
     public string dht_media;
@@ -73,15 +73,8 @@ namespace PeerVM {
       XmlConfigurator.Configure(new System.IO.FileInfo(args[1]));
 #endif
 
-      //Make a random address
-      Random my_rand = new Random();
-      byte[] address = new byte[Address.MemSize];
-      my_rand.NextBytes(address);
-      address[Address.MemSize -1] &= 0xFE;
-      address[3] = 0;
-
       //local node
-      Node tmp_node = new StructuredNode(new AHAddress(address),
+      Node tmp_node = new StructuredNode(IPOP_Common.GenerateAHAddress(),
         config.brunet_namespace);
 #if IPOP_LOG
       string listener_log = "BeginListener::::";
