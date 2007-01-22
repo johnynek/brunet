@@ -67,7 +67,7 @@ namespace Ipop {
     }
 
 
-    public static void Write(string configFile, 
+    public static void Write(string configFile,
       IPRouterConfig config) {
       FileStream fs = new FileStream(configFile, FileMode.Create, 
         FileAccess.Write);

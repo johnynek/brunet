@@ -37,40 +37,37 @@ namespace Ipop {
       brunetNode = new StructuredNode(us, brunet_namespace);
       Refresher = null;
 
-      //Where do we listen:
-      IPAddress[] tas = Routines.GetIPTAs(DevicesToBind);
-
-#if IPOP_LOG
-      string listener_log = "BeginListener::::";
-#endif
-
       edgeListeners = new ArrayList();
 
       foreach(EdgeListener item in EdgeListeners) {
         int port = Int32.Parse(item.port);
-        System.Console.WriteLine(port + " " + tas[0]);
-        Brunet.EdgeListener edge = null;
-        if (item.type =="tcp")
-            edge = new TcpEdgeListener(port);
-        else if (item.type == "udp")
-            edge = new UdpEdgeListener(port);
-        else if (item.type == "udp-as")
-            edge = new ASUdpEdgeListener(port);
-        else
-          throw new Exception("Unrecognized transport: " + item.type);
-        edgeListeners.Add(edge);
-        brunetNode.AddEdgeListener(edge);
+        Brunet.EdgeListener el = null;
+        if(DevicesToBind == null) {
+          if (item.type =="tcp")
+            el = new TcpEdgeListener(port);
+          else if (item.type == "udp")
+            el = new UdpEdgeListener(port);
+          else if (item.type == "udp-as")
+            el = new ASUdpEdgeListener(port);
+          else
+            throw new Exception("Unrecognized transport: " + item.type);
+        }
+        else {
+/*          if (item.type =="tcp")
+            el = new TcpEdgeListener(port, (IEnumerable) (new IPAddresses(DevicesToBind)), null);*/
+          if (item.type == "udp")
+            el = new UdpEdgeListener(port, (IEnumerable) new IPAddresses(DevicesToBind));
+/*          else if (item.type == "udp-as")
+            el = new ASUdpEdgeListener(port, (IEnumerable) (new IPAddresses(DevicesToBind)), null);*/
+          else
+            throw new Exception("Unrecognized transport: " + item.type);
+        }
+        edgeListeners.Add(el);
+        brunetNode.AddEdgeListener(el);
       }
 
       //Here is where we connect to some well-known Brunet endpoints
       brunetNode.RemoteTAs = RemoteTAs;
-
-#if IPOP_LOG
-      _log.Debug("IGNORE");
-      _log.Debug(tmp_node.Address + "::::" + DateTime.UtcNow.Ticks
-        + "::::Connecting::::" + System.Net.Dns.GetHostName() + 
-        "::::" + listener_log);
-#endif
 
       //now try sending some messages out 
       //subscribe to the IP protocol packet

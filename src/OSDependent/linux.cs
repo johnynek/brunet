@@ -7,77 +7,75 @@ using System.Text.RegularExpressions;
 
 namespace Ipop {
   public class Routines {
-    public static IPAddress[] GetIPTAs(string [] devices) {
-      IPAddress []tas = (IPAddress[]) Array.CreateInstance(typeof(IPAddress),
-        devices.Length);
-      for (int i = 0; i < devices.Length; i++)
-        tas[i] = GetIPOfIF(devices[i]);
-      return tas;
-    }
+    public static IList GetOutput() {
+      ProcessStartInfo cmd = new ProcessStartInfo("/sbin/ifconfig");
+      cmd.RedirectStandardOutput = true;
+      cmd.UseShellExecute = false;
+      Process p = Process.Start(cmd);
 
-    public static string GetTapAddress(string device) {
-      try {
-        System.Diagnostics.Process proc = new System.Diagnostics.Process();
-        proc.EnableRaisingEvents = false;
-        proc.StartInfo.RedirectStandardOutput = true;
-        proc.StartInfo.UseShellExecute = false;
-        proc.StartInfo.FileName = "ifconfig";
-        proc.StartInfo.Arguments = device;
-        proc.Start();
-        proc.WaitForExit();
+      string line = p.StandardOutput.ReadLine();
+      //string this_if = null;
+      Regex if_line = new Regex(@"^(\S+)\s+Link encap:");
 
-        StreamReader sr = proc.StandardOutput;
-        sr.ReadLine();
-        string output = sr.ReadLine();
-        int point1 = output.IndexOf("inet addr:") + 10;
-        int point2 = output.IndexOf("Bcast:") - 2 - point1;
-        return output.Substring(point1, point2);
+      Hashtable keys = new Hashtable();
+      keys["inet addr"] = new Regex(@"inet addr:(\S+)");
+      keys["Bcast"] = new Regex(@"Bcast:(\S+)");
+      keys["Mask"] = new Regex(@"Mask:(\S+)");
+      keys["HWaddr"] = new Regex(@"HWaddr ([0-9A-F:]+)");
+      keys["MTU"] = new Regex(@"MTU:([0-9]+)");
+
+      ArrayList result = new ArrayList();
+      Hashtable entry = null;
+      while( line != null ) {
+        //Get the interface:
+        Match m = if_line.Match(line);
+        if( m.Success ) {
+        /*
+         * This is a new Interface, add the old one to the list:
+         */
+          if( entry != null ) {
+            result.Add(entry);
+          }
+          entry = new Hashtable();
+          //System.Console.WriteLine(line);
+          Group g = m.Groups[1];
+          CaptureCollection cc = g.Captures;
+          //System.Console.WriteLine(cc[0]);
+          entry["interface"] = cc[0].ToString();
+        }
+        IDictionaryEnumerator key_en = keys.GetEnumerator();
+        while(key_en.MoveNext() ) {
+          AddIfMatch((Regex)key_en.Value, line, entry, (string)key_en.Key);
+        }
+        line = p.StandardOutput.ReadLine();
       }
-      catch (Exception) {
-        return null;
+      if( entry != null ) {
+        result.Add(entry);
       }
-    }
-
-    public static string GetTapMAC(string device) {
-      try {
-        System.Diagnostics.Process proc = new System.Diagnostics.Process();
-        proc.EnableRaisingEvents = false;
-        proc.StartInfo.RedirectStandardOutput = true;
-        proc.StartInfo.UseShellExecute = false;
-        proc.StartInfo.FileName = "ifconfig";
-        proc.StartInfo.Arguments = device;
-        proc.Start();
-        proc.WaitForExit();
-
-        StreamReader sr = proc.StandardOutput;
-        sr.ReadLine();
-        string output = sr.ReadLine();
-        int point1 = output.IndexOf("HWaddr") + 7;
-        int point2 = point1 + 15;
-        return output.Substring(point1, point2);
-      }
-      catch (Exception) {
-        return null;
-      }
-    }
-
-    public static string GetTapNetmask(string device) {
-      string result = null;
-      System.Diagnostics.Process proc = new System.Diagnostics.Process();
-      proc.EnableRaisingEvents = false;
-      proc.StartInfo.RedirectStandardOutput = true;
-      proc.StartInfo.UseShellExecute = false;
-      proc.StartInfo.FileName = "ifconfig";
-      proc.StartInfo.Arguments = device;
-      proc.Start();
-      proc.WaitForExit();
-
-      StreamReader sr = proc.StandardOutput;
-      sr.ReadLine();
-      string output = sr.ReadLine();
-      int point1 = output.IndexOf("Mask:") + 5;
-      result = output.Substring(point1, output.Length - point1);
       return result;
+    }
+
+    protected static bool AddIfMatch(Regex re, string line, Hashtable ht, string key) {
+      Match m = re.Match(line);
+      if( m.Success ) {
+        //System.Console.WriteLine(line);
+        Group g = m.Groups[1];
+        CaptureCollection cc = g.Captures;
+        //System.Console.WriteLine(cc[0]);
+        ht[key] = cc[0].ToString();
+        return true;
+      }
+      return false;
+    }
+
+    protected static void Print(IList l) {
+      foreach(Hashtable ht in l) {
+        IDictionaryEnumerator en = ht.GetEnumerator();
+        while(en.MoveNext()) {
+          System.Console.WriteLine("{0}: {1}", en.Key, en.Value);
+        }
+        System.Console.WriteLine();
+      }
     }
 
     public static void SetHostname(string hostname) {
@@ -115,42 +113,41 @@ namespace Ipop {
       proc.Start();
       proc.WaitForExit();
     }
+  }
 
-    public static IPAddress GetIPOfIF(string if_name) {
-      ProcessStartInfo cmd = new ProcessStartInfo("/sbin/ifconfig");
-      cmd.RedirectStandardOutput = true;
-      cmd.UseShellExecute = false;
-      Process p = Process.Start(cmd);
-      string line = p.StandardOutput.ReadLine();
-      //string this_if = null;
-      Regex if_line = new Regex(@"^(\S+)\s+Link encap:(.*)$");
-      Regex ip_info = new Regex(@"inet addr:(\S+)");
-      string this_if = null;
-      IPAddress result = null;
-      while( line != null ) {
-        Match m = if_line.Match(line);
-        if( m.Success ) {
-          //System.Console.WriteLine(line);
-          Group g = m.Groups[1];
-          CaptureCollection cc = g.Captures;
-          //System.Console.WriteLine(cc[0]);
-          this_if = cc[0].ToString();
-        }
-        m = ip_info.Match(line);
-        if( m.Success ) {
-          //System.Console.WriteLine(line);
-          Group g = m.Groups[1];
-          CaptureCollection cc = g.Captures;
-          //System.Console.WriteLine(cc[0]);
-          if( this_if.Equals( if_name ) ) {
-            //We got our interface:
-            result = IPAddress.Parse( cc[0].ToString() ); 
-            break;
+/* This needs to be moved into OSDependent.cs when we get a chance */
+
+  public class IPAddresses : IEnumerable {
+    protected ArrayList _ints;
+
+    public IPAddresses(string[] interfaces) {
+      _ints = new ArrayList(interfaces);
+    }
+
+    /**
+     * Get all the IPAddresses
+     */
+    public IPAddresses() {
+      _ints = null;
+    }
+
+    /**
+     * This is for IEnumerable/foreach support
+     * 
+     */
+    public IEnumerator GetEnumerator() {
+      IList all_interfaces = Routines.GetOutput();
+      foreach(Hashtable ht in all_interfaces) {
+        if( ht.ContainsKey("interface") && ht.ContainsKey("inet addr") ) {
+          string iface = (string)ht["interface"];
+          if( _ints == null ) {
+            yield return IPAddress.Parse( (string)ht["inet addr"] );
+          }
+          else if( _ints.Contains(iface) ) {
+            yield return IPAddress.Parse( (string)ht["inet addr"] );
           }
         }
-        line = p.StandardOutput.ReadLine();
       }
-      return result;
     }
   }
 }
