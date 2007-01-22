@@ -50,7 +50,7 @@ namespace Brunet
     protected ArrayList _all_sockets;
     protected ArrayList _send_sockets;
     protected Hashtable _sock_to_edge;
-    protected ArrayList _tas;
+    protected IEnumerable _tas;
     /**
      * This inner class holds the connection state information
      */
@@ -71,7 +71,7 @@ namespace Brunet
 
     public override IEnumerable LocalTAs
     {
-      get { return ArrayList.ReadOnly( _tas ); }
+      get { return  _tas; }
     }
 
     public override TransportAddress.TAType TAType

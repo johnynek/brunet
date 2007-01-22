@@ -114,6 +114,60 @@ namespace Brunet
       return _ips;
     }
 
+    /**
+     * Creates an IEnumerable of TransportAddresses for a fixed type and port,
+     * over a list of IPAddress objects.
+     */
+    public static IEnumerable Create(TransportAddress.TAType tat, int port, IEnumerable ips)
+    {
+      ArrayList tas = new ArrayList();
+      ArrayList back_list = null;
+      foreach(IPAddress ip in ips) {
+        /**
+         * We add Loopback addresses to the back, all others to the front
+         * This makes sure non-loopback addresses are listed first.
+         */
+        ArrayList l = tas;
+        if( IPAddress.IsLoopback(ip) ) {
+          //Put it at the back
+          if( back_list == null ) { back_list = new ArrayList(); }
+          l = back_list;
+        }
+        l.Add( new TransportAddress(tat, new IPEndPoint(ip, port) ) );
+      }
+      if (back_list != null ) {
+        //Add all these to the end:
+        foreach(object o in back_list) {
+          tas.Add(o);
+        }
+      }
+      return tas;
+    }
+    
+    /**
+     * This gets the name of the local machine, then does a DNS lookup on that
+     * name, and finally does the same as TransportAddress.Create for that
+     * list of IPAddress objects.
+     *
+     * If the DNS hostname is not correctly configured, it will return the
+     * loopback address.
+     */
+    public static IEnumerable CreateForLocalHost(TransportAddress.TAType tat, int port) {
+      try {
+        string StrLocalHost = Dns.GetHostName();
+        IPHostEntry IPEntry = Dns.GetHostByName(StrLocalHost);
+        return Create(tat, port, IPEntry.AddressList);
+      }
+      catch(Exception) {
+        //Oh, well, that didn't work.
+        ArrayList tas = new ArrayList();
+        //Just put the loopback address, it might help us talk to some other
+        //local node.
+        tas.Add( new TransportAddress(tat, new IPEndPoint(IPAddress.Loopback, port) ) );
+        return tas;
+      }
+ 
+    }
   }
 
 }
