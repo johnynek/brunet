@@ -114,34 +114,34 @@ namespace Brunet
       return _ips;
     }
 
+    protected class TransportEnum : IEnumerable {
+      TransportAddress.TAType _tat;
+      int _port;
+      IEnumerable _ips;
+
+      public TransportEnum(TransportAddress.TAType tat, int port, IEnumerable ips) {
+        _tat = tat;
+        _port = port;
+        _ips = ips;
+      }
+
+      public IEnumerator GetEnumerator() {
+        foreach(IPAddress ip in _ips) {  
+          yield return new TransportAddress(_tat, new IPEndPoint(ip, _port) );  
+        }
+      }
+    }
+
     /**
      * Creates an IEnumerable of TransportAddresses for a fixed type and port,
      * over a list of IPAddress objects.
+     * Each time this the result is enumerated, ips.GetEnumerator is called,
+     * so, if it changes, that is okay, (this is like a map() over a list, and
+     * the original list can change).
      */
     public static IEnumerable Create(TransportAddress.TAType tat, int port, IEnumerable ips)
     {
-      ArrayList tas = new ArrayList();
-      ArrayList back_list = null;
-      foreach(IPAddress ip in ips) {
-        /**
-         * We add Loopback addresses to the back, all others to the front
-         * This makes sure non-loopback addresses are listed first.
-         */
-        ArrayList l = tas;
-        if( IPAddress.IsLoopback(ip) ) {
-          //Put it at the back
-          if( back_list == null ) { back_list = new ArrayList(); }
-          l = back_list;
-        }
-        l.Add( new TransportAddress(tat, new IPEndPoint(ip, port) ) );
-      }
-      if (back_list != null ) {
-        //Add all these to the end:
-        foreach(object o in back_list) {
-          tas.Add(o);
-        }
-      }
-      return tas;
+      return new TransportEnum(tat, port, ips);
     }
     
     /**
