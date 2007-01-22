@@ -785,6 +785,7 @@ namespace Brunet {
         }
       }
 #endif
+      ConnectToNearer(new_con.Address, new_con.Status.Neighbors);
     }
 
     
