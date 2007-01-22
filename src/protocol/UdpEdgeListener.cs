@@ -78,7 +78,7 @@ namespace Brunet
 
     protected Random _rand;
 
-    protected ArrayList _tas;
+    protected IEnumerable _tas;
     protected NatHistory _nat_hist;
     protected IEnumerable _nat_tas;
     public override IEnumerable LocalTAs
@@ -417,7 +417,8 @@ namespace Brunet
     ///this is the thread were the socket is read:
     protected Thread _thread;
 
-    public UdpEdgeListener(int port):this(port, null)
+    public UdpEdgeListener(int port)
+    : this(port, TransportAddress.CreateForLocalHost(TransportAddress.TAType.Udp, port), null)
     {
       
     }
@@ -429,11 +430,23 @@ namespace Brunet
      * @param ta_auth the TAAuthorizer for outgoing and incoming TransportAddresses
      */
     public UdpEdgeListener(int port, IPAddress[] ipList, TAAuthorizer ta_auth)
+    : this(port, TransportAddress.Create(TransportAddress.TAType.Udp, port, ipList), ta_auth)
+    {
+        
+    }
+    /**
+     * @param port the local port to bind to
+     * @param local_tas an IEnumerable object which gives the list of local
+     * TAs.  This is consulted every time LocalTAs is accessed, so it can
+     * change as new interfaces are added
+     * @param ta_auth the TAAuthorizer for packets incoming
+     */
+    public UdpEdgeListener(int port, IEnumerable local_config_tas, TAAuthorizer ta_auth)
     {
       /**
        * We get all the IPAddresses for this computer
        */
-      _tas = GetIPTAs(TransportAddress.TAType.Udp, port, ipList);
+      _tas = local_config_tas;
       _local_ep = GuessLocalEndPoint(_tas); 
       _nat_hist = null;
       _nat_tas = new NatTAs( _tas, _nat_hist );
