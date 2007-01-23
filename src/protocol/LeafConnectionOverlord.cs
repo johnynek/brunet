@@ -35,8 +35,8 @@ namespace Brunet
         log4net.LogManager.GetLogger(System.Reflection.MethodBase.
         GetCurrentMethod().DeclaringType);*/
 
-    private static readonly int _desired_cons = 2;
-    //After 5 minutes of not seeing any new connections or disconnections,
+    private static readonly int _desired_cons = 3;
+    //After this many secs of not seeing any new connections or disconnections,
     //we decide we don't need leafs anymore.
     private static readonly double TIME_SCALE = 600.0;
     /*
