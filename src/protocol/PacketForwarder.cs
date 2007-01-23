@@ -158,7 +158,7 @@ namespace Brunet
     static public AHPacket UnwrapPacket(AHPacket p)
     {
       //System.Console.WriteLine("Packet to Unwrap: {0}", p);
-      AHPacket result = new AHPacket( p.PayloadStream, p.PayloadLength );
+      AHPacket result = new AHPacket( p.Payload );
       //System.Console.WriteLine("Result: {0}", result);
       return result;
     }

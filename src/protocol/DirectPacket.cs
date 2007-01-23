@@ -96,11 +96,9 @@ namespace Brunet {
 	return _buffer.Length - HeaderSize;
       }
     }
-    public byte[] Payload {
+    override public MemBlock  Payload {
       get {
-        byte[] buf = new byte[ PayloadLength ];
-	_buffer.Slice(HeaderSize).CopyTo(buf, 0);
-        return buf;
+	return _buffer.Slice(HeaderSize);
       }
     }
     protected void InitType() {

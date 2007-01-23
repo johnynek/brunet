@@ -308,6 +308,13 @@ namespace Brunet
       }
     }
 
+    public override MemBlock Payload {
+      get {
+        //Get everything after the header
+        return _buffer.Slice( HeaderSize );
+      }
+    }
+
     public override void CopyTo(byte[] dest, int off)
     {
       _buffer.CopyTo(dest, off);
