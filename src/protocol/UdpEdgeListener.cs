@@ -106,9 +106,14 @@ namespace Brunet
     {
       get { return _isstarted; }
     }
-
+    
+    protected int _port;
     //This is our best guess of the local endpoint
-    protected IPEndPoint _local_ep;
+    protected IPEndPoint _local_ep {
+      get {
+        return GuessLocalEndPoint(_tas); 
+      }
+    }
     
     protected enum ControlCode : int
     {
@@ -167,7 +172,7 @@ namespace Brunet
     protected IPEndPoint GuessLocalEndPoint(IEnumerable tas) {
       IPAddress ipa = IPAddress.Loopback;
       bool stop = false;
-      int port = 0;
+      int port = _port;
       foreach(TransportAddress ta in tas) {
         ArrayList ips = ta.GetIPAddresses();
         port = ta.Port;
@@ -442,7 +447,6 @@ namespace Brunet
       else {
         _tas = TransportAddress.Create(TransportAddress.TAType.Udp, port, local_config_ips);
       }
-      _local_ep = GuessLocalEndPoint(_tas); 
       _nat_hist = null;
       _nat_tas = new NatTAs( _tas, _nat_hist );
       _ta_auth = ta_auth;
@@ -453,6 +457,7 @@ namespace Brunet
       /*
        * Use this to listen for data
        */
+      _port = port;
       ipep = new IPEndPoint(IPAddress.Any, port);
       //We start out expecting around 30 edges with
       //a load factor of 0.15 (to make edge lookup fast)
