@@ -52,7 +52,12 @@ namespace Brunet
     public override MemoryStream PayloadStream {
       get {
         //Starting at the first byte, return a stream
-        return _buffer.Slice(1).ToMemoryStream();
+        return Payload.ToMemoryStream();
+      }
+    }
+    public override MemBlock Payload {
+      get {
+        return _buffer.Slice(1);
       }
     }
     /**

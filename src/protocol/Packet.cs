@@ -52,7 +52,11 @@ namespace Brunet
      * This does not require a copy operation
      */
     public abstract MemoryStream PayloadStream { get; }
-    
+   
+    /**
+     * Get a MemBlock of the Payload.
+     */
+    public abstract MemBlock Payload { get; }
     /**
      * Table of Brunet sub-protocols.  Currently, only two
      * are defined
