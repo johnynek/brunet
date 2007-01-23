@@ -35,10 +35,39 @@ namespace Brunet
         log4net.LogManager.GetLogger(System.Reflection.MethodBase.
         GetCurrentMethod().DeclaringType);*/
 
-    /**
-     * The LeafConnectionOverlord wants 2 connections
-     */
     private static readonly int _desired_cons = 2;
+    //After 5 minutes of not seeing any new connections or disconnections,
+    //we decide we don't need leafs anymore.
+    private static readonly double TIME_SCALE = 600.0;
+    /*
+     * The LeafConnectionOverlord wants 2 connections by default,
+     * but if we go a long time without any non-leaf connection events,
+     * we decrease this.
+     */
+    protected int DesiredConnections {
+      get {
+        if( _last_non_leaf_connection_event == DateTime.MinValue ) {
+          return _desired_cons;
+        }
+        else {
+           /*
+            * Linearly decrease the number we want so that after zero seconds,
+            * we want _desired_cons, and after TIME_SCALE, we want zero
+            * y = mx + b
+            */
+           double b = (double)_desired_cons;
+           double m = - b / TIME_SCALE;
+           double x = (DateTime.UtcNow - _last_non_leaf_connection_event).TotalSeconds;
+           double y = m*x + b;
+           if( y > 0 ) {
+             return (int)Math.Round(y);
+           }
+           else {
+            return 0;
+           }
+        }
+      }
+    }
 
     protected Node _local;
 
@@ -48,6 +77,11 @@ namespace Brunet
     protected TimeSpan _default_retry_interval;
     protected TimeSpan _current_retry_interval;
     protected DateTime _last_retry;
+    protected DateTime _last_non_leaf_connection_event;
+    protected DateTime _last_trim;
+    //Every _trim_interval we check to see if we should trim any leaf
+    //connections (currently 2 minutes)
+    private static readonly TimeSpan _trim_interval = new TimeSpan(0,2,0);
     /**
      * This is our active linker.  We only have one
      * at a time.  Otherwise, we may waste a lot
@@ -69,6 +103,8 @@ namespace Brunet
       _current_retry_interval = new TimeSpan(0,0,0,0,10000);
       //We initialize at at year 1 to start with:
       _last_retry = DateTime.MinValue;
+      _last_non_leaf_connection_event = DateTime.MinValue;
+      _last_trim = DateTime.MinValue;
       /*
        * When a node is removed from the ConnectionTable,
        * we should check to see if we need to work to get a
@@ -116,25 +152,23 @@ namespace Brunet
      */
     public void CheckAndConnectHandler(object linker, EventArgs args)
     {
+     ConnectionEventArgs cea = args as ConnectionEventArgs;
+     DateTime now = DateTime.UtcNow;
+     if( cea != null ) {
+       //This is a connection event.
+       if( cea.Connection.MainType != ConnectionType.Leaf ) {
+         _last_non_leaf_connection_event = now;
+       }
+     }
      lock(_sync) {
       //Check in order of cheapness, so we can avoid hard work...
+      bool time_to_start = (now - _last_retry >= _current_retry_interval );
       if ( (_linker == null) &&
-           IsActive && NeedConnection ) {
-	DateTime now = DateTime.UtcNow;
-	if( _last_retry == DateTime.MinValue ) {
-          //This is the first time through:
-	  _last_retry = now;
-	}
-	else if( now - _last_retry < _current_retry_interval ) {
-          //It is not yet time to restart.
-	  return;
-	}
-	else {
-          //Now we double the retry interval.  When we get a connection
-	  //We reset it back to the default value:
-	  _last_retry = now;
-	  _current_retry_interval = _current_retry_interval + _current_retry_interval;
-	}
+           IsActive && NeedConnection && time_to_start ) {
+        //Now we double the retry interval.  When we get a connection
+	//We reset it back to the default value:
+	_last_retry = now;
+	_current_retry_interval = _current_retry_interval + _current_retry_interval;
         //log.Info("LeafConnectionOverlord :  seeking connection");
         //Get a random address to connect to:
 
@@ -166,35 +200,14 @@ namespace Brunet
         _linker.FinishEvent += new EventHandler(this.LinkerFinishHandler);
         _linker.Start();
       }
-      else if (args is ConnectionEventArgs) {
+      else if (cea != null) {
         //Reset the connection interval to the default value:
 	_current_retry_interval = _default_retry_interval;
-        /**
-        * When we get a new connection, we check to see if we have
-        * too many.  If we do, we close one of the OLD ONES!!
-        */
-        ConnectionEventArgs ce = (ConnectionEventArgs)args;
-
-        Edge to_close = null;
-        lock ( _local.ConnectionTable.SyncRoot ) {
-          if( _local.ConnectionTable.Count(ConnectionType.Leaf)
-	      > 2 * _desired_cons ) {
-	    //There must be at least 2 leafs, so both can't be the one we just got:
-	    Connection c = null;
-	    do {
-	      c = _local.ConnectionTable.GetRandom(ConnectionType.Leaf);
-	    }
-	    while( c == ce.Connection );
-	    to_close = c.Edge;
-          }
-        }
-        //Release the lock
-        if( to_close != null ) {
-          _local.GracefullyClose( to_close );
-        }
         //We are not seeking another connection
         //log.Info("LeafConnectionOverlord :  not seeking connection");
       }
+      //Check to see if it is time to trim.
+      Trim();
      }
     }
 
@@ -216,7 +229,7 @@ namespace Brunet
     override public bool NeedConnection
     {
       get {
-        return ( _local.ConnectionTable.Count(ConnectionType.Leaf) < _desired_cons);
+        return ( _local.ConnectionTable.Count(ConnectionType.Leaf) < DesiredConnections);
       }
     }
     /**
@@ -226,6 +239,55 @@ namespace Brunet
     {
       get {
         throw new Exception("Not implemented! Leaf connection overlord (IsConnected)");
+      }
+    }
+
+    /**
+     * We periodically check to see if we have too many leafs and we trim them
+     */
+    protected void Trim() {
+      DateTime now = DateTime.UtcNow;
+      if( now - _last_trim > _trim_interval ) {
+        _last_trim = now;
+        
+        Edge to_close = null;
+        lock ( _local.ConnectionTable.SyncRoot ) {
+          int leafs = _local.ConnectionTable.Count(ConnectionType.Leaf);
+          int surplus = leafs - DesiredConnections;
+          if( surplus > 0 ) {
+            /*
+             * Since only public nodes can accept leaf connections (to a good
+             * approximation), there could be insufficient public nodes to fit
+             * all the connections.  Thus, we make the maximum we accept
+             * "soft" by only deleting with some probability.  This makes the
+             * system tend toward balance but allows nodes to have more than
+             * a fixed number of leafs.
+             */
+            double d_s = (double)(surplus);
+            double prob = 0.0;
+            if( surplus > 1 ) {
+              prob = 1.0 - 1.0/d_s;
+            }
+            else {
+              //surplus == 1
+              //With 25% chance trim the excess connection
+              prob = 0.25;
+            }
+            if( _rnd.NextDouble() < prob ) {
+	      Connection c = _local.ConnectionTable.GetRandom(ConnectionType.Leaf);
+              //Then we will delete an old node:
+              //as surplus -> infinity, prob -> 1, and we always close.
+	      to_close = c.Edge;
+            }
+            else {
+              //We just add the new edge without closing
+            }
+          }
+        }
+        //Release the lock
+        if( to_close != null ) {
+          _local.GracefullyClose( to_close );
+        }
       }
     }
   }

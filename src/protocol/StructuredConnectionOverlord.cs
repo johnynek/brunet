@@ -377,20 +377,18 @@ namespace Brunet {
       short ttl = -1;
       string contype = "";
       int structured_count = 0;
-      int leaf_count = 0;
       
       lock( tab.SyncRoot ) {
-	leaf_count = tab.Count(ConnectionType.Leaf);
-	if( leaf_count == 0 )
-	{
-          /*
-	   * We first need to get a Leaf connection
-	   */
-          return;
-	}
 	structured_count = tab.Count(ConnectionType.Structured);
-
 	if( structured_count < 2 ) {
+	  int leaf_count = tab.Count(ConnectionType.Leaf);
+	  if( leaf_count == 0 )
+	  {
+            /*
+	     * We first need to get a Leaf connection
+	     */
+            return;
+	  }
           //We don't have enough connections to guarantee a connected
 	  //graph.  Use a leaf connection to get another connection
 	  Connection leaf = null;
