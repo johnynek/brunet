@@ -191,8 +191,8 @@ public class BlockingQueue : Queue {
 #if DEBUG
       System.Console.WriteLine("Enqueue set: count {0}", Count);
 #endif
+      _re.Set();
     }
-    _re.Set();
     //After we have alerted any blocking threads (Set), fire
     //the event:
     if( fire && (EnqueueEvent != null) ) {
@@ -207,8 +207,8 @@ public class BlockingQueue : Queue {
   public void Throw(Exception x) {
     lock( this ) {
       _exception = x;
+      _re.Set();
     }
-    _re.Set();
 #if DEBUG
     System.Console.WriteLine("Exception set: ex {0}", x);
 #endif
