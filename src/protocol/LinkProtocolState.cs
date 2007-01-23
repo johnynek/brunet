@@ -346,8 +346,15 @@ namespace Brunet
                                 _node.Realm + " != " + lm.Attributes["realm"] );
       }
       if( (_linker.Target != null) && (!lm.Local.Address.Equals( _linker.Target )) ) {
-        //This is super goofy.  Somehow we got a response from some node
-        //we didn't mean to connect to.
+        /*
+         * This is super goofy.  Somehow we got a response from some node
+         * we didn't mean to connect to.
+         * This can happen in some cases with NATs since nodes behind NATs are
+         * guessing which ports are correct, their guess may be incorrect, and
+         * the NAT may send the packet to a different node.
+         * In this case, we have a critical error, this TA is not correct, we
+         * must move on to the next TA.
+         */
         throw new LinkException(String.Format("Target mismatch: {0} != {1}",
                                               _linker.Target, lm.Local.Address), true, null );
       }
