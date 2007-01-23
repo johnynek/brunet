@@ -90,7 +90,6 @@ namespace Brunet
        * We get all the IPAddresses for this computer
        */
       _tas = local_config_tas;
-      _local_ep = GuessLocalEndPoint(_tas);
       _nat_hist = null;
       _nat_tas = new NatTAs( _tas, _nat_hist );
       _ta_auth = ta_auth;
@@ -101,6 +100,7 @@ namespace Brunet
       /*
        * Use this to listen for data
        */
+      _port = port;
       ipep = new IPEndPoint(IPAddress.Any, port);
       s = new Socket(AddressFamily.InterNetwork,
                      SocketType.Dgram, ProtocolType.Udp);
