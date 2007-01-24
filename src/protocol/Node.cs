@@ -427,9 +427,17 @@ namespace Brunet
          */
         int count = handlers.Count;
         for(int i = 0; i < count; i++) {
-          IAHPacketHandler hand = (IAHPacketHandler)handlers[i];
-          //System.Console.WriteLine("Handler: {0}", hand);
-          hand.HandleAHPacket(this, p, from);
+          IAHPacketHandler hand = null;
+          try {
+            hand = (IAHPacketHandler)handlers[i];
+            //System.Console.WriteLine("Handler: {0}", hand);
+            hand.HandleAHPacket(this, p, from);
+          }
+          catch(Exception x) {
+            System.Console.WriteLine("ERROR: Packet Handling Exception");
+            System.Console.WriteLine("Hander: {0}\tEdge: {1}\tPacket: {2}",hand, from, p);
+            System.Console.WriteLine("Exception: {0}", x);
+          }
         }
       }
       else {
