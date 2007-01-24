@@ -74,6 +74,7 @@ namespace Brunet
         return Brunet.TransportAddress.TAType.Tcp;
       }
     }
+    public override DateTime CreatedDateTime { get { return DateTime.UtcNow; } }
     public override DateTime LastOutPacketDateTime {
       get { return DateTime.UtcNow; }
     }
