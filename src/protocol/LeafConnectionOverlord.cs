@@ -123,6 +123,18 @@ namespace Brunet
       }
     }
 
+    //We use this to get the oldest edge
+    protected class EdgeDateComparer : IComparer {
+      public int Compare(object o1, object o2) {
+        if ( o1 == o2 ) {
+          return 0;
+        }
+        Edge e1 = (Edge)o1;
+        Edge e2 = (Edge)o2;
+        return e1.CreatedDateTime.CompareTo( e2.CreatedDateTime );
+      }
+    }
+
     override public void Activate()
     {
       //Starts the process of looking for a Leaf connection
@@ -274,10 +286,17 @@ namespace Brunet
               prob = 0.25;
             }
             if( _rnd.NextDouble() < prob ) {
-	      Connection c = _local.ConnectionTable.GetRandom(ConnectionType.Leaf);
-              //Then we will delete an old node:
               //as surplus -> infinity, prob -> 1, and we always close.
-	      to_close = c.Edge;
+              IEnumerable lenum =
+                        _local.ConnectionTable.GetConnections(ConnectionType.Leaf);
+              ArrayList all_leafs = new ArrayList();
+              foreach(Connection c in lenum) {
+                all_leafs.Add(c.Edge);
+              }
+              //Now sort them, and get the oldest:
+              all_leafs.Sort(new EdgeDateComparer());
+              //Here is the oldest:
+              to_close = (Edge)all_leafs[0];
             }
             else {
               //We just add the new edge without closing
