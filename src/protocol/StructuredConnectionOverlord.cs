@@ -308,7 +308,7 @@ namespace Brunet {
     protected bool NeedShortcut {
       get {
 	lock( _sync ) {
-          if( _node.NetworkSize < 1 ) {///JOE_DEBUG: changed the value from 20 to 1
+          if( _node.NetworkSize < 10 ) {
             //There is no need to bother with shortcuts on small networks
 	    return false;
 	  }
@@ -566,8 +566,16 @@ namespace Brunet {
                 
 	      }
 	    }//End of ConnectionTable lock
-
-	    bool sc_needs_trim = (sc_trim_candidates.Count > 2 * _desired_shortcuts);
+            /*
+             * The maximum number of shortcuts we allow is log N,
+             * but we only want 1.  This gives some flexibility to
+             * prevent too much edge churning
+             */
+            int max_sc = 2 * _desired_shortcuts;
+            if( _node.NetworkSize > 2 ) {
+              max_sc = (int)(Math.Log(_node.NetworkSize)/Math.Log(2.0)) + 1;
+            }
+	    bool sc_needs_trim = (sc_trim_candidates.Count > max_sc);
 	    bool near_needs_trim = (near_trim_candidates.Count > 0);
 	    /*
 	     * Prefer to trim near neighbors that are unneeded, since
