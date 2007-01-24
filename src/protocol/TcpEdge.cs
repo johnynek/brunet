@@ -192,7 +192,8 @@ namespace Brunet
         _sock = s;
         _is_closed = false;
         _is_sending = false;
-        _last_out_packet_datetime = TimeUtils.NoisyNowTicks;
+        _create_dt = DateTime.UtcNow;
+        _last_out_packet_datetime = _create_dt;
         _last_in_packet_datetime = _last_out_packet_datetime;
         _size_buffer = new byte[2];
 #if TCP_POLL
@@ -282,9 +283,13 @@ namespace Brunet
       }
     }
 
-    protected long _last_out_packet_datetime;
+    protected DateTime _create_dt;
+    public override DateTime CreatedDateTime {
+      get { return _create_dt; }
+    }
+    protected DateTime _last_out_packet_datetime;
     public override DateTime LastOutPacketDateTime {
-      get { return new DateTime(_last_out_packet_datetime); }
+      get { return _last_out_packet_datetime; }
     }
     /**
      * @param p the Packet to send
@@ -300,7 +305,7 @@ namespace Brunet
       if( _is_closed ) {
         throw new EdgeException("Tried to send on a closed socket");
       }
-      _last_out_packet_datetime = TimeUtils.NoisyNowTicks;
+      _last_out_packet_datetime = DateTime.UtcNow;
 #if POB_TCP_DEBUG
       Console.WriteLine("edge: {0}, About to enqueue packet of length: {1}",
                         this, p.Length);
@@ -324,7 +329,7 @@ namespace Brunet
         if( _is_closed ) {
           throw new EdgeException("Tried to send on a closed socket");
         }
-        _last_out_packet_datetime = TimeUtils.NoisyNowTicks;
+        _last_out_packet_datetime = DateTime.UtcNow;
 #if POB_TCP_DEBUG
         Console.WriteLine("edge: {0}, About to enqueue packet of length: {1}",
                           this, p.Length);
@@ -364,7 +369,7 @@ namespace Brunet
 #endif
             throw new EdgeException("Tried to send on a closed socket");
           }
-          _last_out_packet_datetime = TimeUtils.NoisyNowTicks;
+          _last_out_packet_datetime = DateTime.UtcNow;
 #if POB_TCP_DEBUG
           Console.WriteLine("edge: {0}, BeginSend: {1}",this,p);
 #endif

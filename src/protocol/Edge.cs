@@ -2,6 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
+Copyright (C) 2007 P. Oscar Boykin <boykin@pobox.com>,  University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -17,15 +18,6 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
-
-/*
- * Dependencies : 
- * Brunet.EdgeException
- * Brunet.IPacketSender
- * Brunet.Packet
- * Brunet.TransportAddress
- * Brunet.ConnectionType
- */
 
 /**
  * Logging packets is expensive because they must be converted to
@@ -95,7 +87,7 @@ namespace Brunet
     public abstract Brunet.TransportAddress LocalTA
     {
       get;
-      }
+    }
 
     /**
      * @return true if a peer CAN connect to the LocalTA.
@@ -108,7 +100,7 @@ namespace Brunet
        * For each Packet.ProtType, there may be a callback set
        * for it.  This list holds that mapping.
        */
-      protected IPacketHandler[] _callbacks;
+    protected IPacketHandler[] _callbacks;
     /**
      * When an edge is closed (either due to the Close method
      * being called or due to some error during the receive loop)
@@ -119,7 +111,7 @@ namespace Brunet
     public abstract Brunet.TransportAddress RemoteTA
     {
       get;
-      }
+    }
     /**
      * @return true if a peer CAN connect on this RemoteTA.
      * For some edges, one end of the edge is ephemeral (TCP for instance).
@@ -129,43 +121,43 @@ namespace Brunet
     public virtual bool RemoteTANotEphemeral { get { return false; } }
 
 
-      public abstract Brunet.TransportAddress.TAType TAType
-      {
-        get;
-        }
+    public abstract Brunet.TransportAddress.TAType TAType
+    {
+      get;
+    }
 
         /**
          * @param p a Packet to send to the host on the other
          * side of the Edge.
          * @throw EdgeException if any problem happens
          */
-        public abstract void Send(Brunet.Packet p);
+    public abstract void Send(Brunet.Packet p);
 
     /**
-     * The DateTime of the last received packet
-     * This is not neccesarily more accurate than
-     * 500 milliseconds.  If you need something
-     * more accurate, you have to add it yourself
+     * This is the time (in UTC) when the edge
+     * was created.
+     */
+    public abstract DateTime CreatedDateTime { get; }
+
+    /**
+     * The DateTime of the last received packet (in UTC)
      */
     public abstract DateTime LastOutPacketDateTime {
       get;
     }
 
-    protected long _last_in_packet_datetime;
+    protected DateTime _last_in_packet_datetime;
     /**
-     * The DateTime of the last received packet
-     * This is not neccesarily more accurate than
-     * 500 milliseconds.  If you need something
-     * more accurate, you have to add it yourself
+     * The DateTime (UTC) of the last received packet
      */
     public virtual DateTime LastInPacketDateTime {
-    get { return new DateTime(_last_in_packet_datetime); }
+      get { return _last_in_packet_datetime; }
     }
 
     public abstract bool IsClosed
     {
       get;
-      }
+    }
 
       /**
        * @return true if the edge is an in-degree
@@ -229,7 +221,7 @@ namespace Brunet
 #endif
       IPacketHandler cb = _callbacks[(byte)p.type];
       if ( cb != null ) {
-        _last_in_packet_datetime = TimeUtils.NoisyNowTicks;
+        _last_in_packet_datetime = DateTime.UtcNow;
         cb.HandlePacket(p, this);
       }
       else {

@@ -79,6 +79,7 @@ namespace Brunet
     {
       _packet_queue = new Queue();
       _edge_queue = new Queue();
+      _create_dt = DateTime.UtcNow;
       _queue_lock = new System.Object();
       _queue_thread = new Thread(new ThreadStart(StartQueueProcessing));
       _queue_thread.Start();
@@ -106,6 +107,10 @@ namespace Brunet
       {
         _rand_id = value;
       }
+    }
+    protected DateTime _create_dt;
+    public override DateTime CreatedDateTime {
+      get { return _create_dt; }
     }
     protected DateTime _last_out_packet_datetime;
     public override DateTime LastOutPacketDateTime {
