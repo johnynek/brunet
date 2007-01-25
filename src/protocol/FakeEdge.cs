@@ -48,10 +48,6 @@ namespace Brunet
       remote_add = remote;
     }
 
-    public override void Close()
-    {
-    }
-
     public override Brunet.TransportAddress LocalTA
     {
       get
