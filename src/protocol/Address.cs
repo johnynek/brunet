@@ -215,6 +215,12 @@ namespace Brunet
       }
       return _big_int;
     }
+    /**
+     * @return the Address as a MemBlock
+     */
+    public virtual MemBlock ToMemBlock() {
+      return _buffer;
+    }
 
     /**
      * Return a byte[] of length MemSize, which holds the integer % Full

@@ -30,13 +30,11 @@ namespace Brunet
   {
     protected class CachedRoute {
       public Connection Route;
-      public AHAddress Destination;
       public bool DeliverLocally;
       public Edge Previous;
 
-      public CachedRoute(AHAddress dest, Edge prev, Connection route, bool send_local) {
+      public CachedRoute(Edge prev, Connection route, bool send_local) {
         Route = route;
-        Destination = dest;
         DeliverLocally = send_local;
         Previous = prev;
       }
@@ -157,7 +155,7 @@ namespace Brunet
           //We check this below.
 	}
       }
-      CachedRoute cr = (CachedRoute)_route_cache[dest];
+      CachedRoute cr = (CachedRoute)_route_cache[ dest.ToMemBlock() ];
       if( cr != null && (cr.Previous == prev_e) ) {
         //Awesome, we already know the path to this node.
         //This cuts down on latency
@@ -487,7 +485,9 @@ namespace Brunet
         * We update the route cache with the most recent Edge to send to
         * that destination.
         */
-       _route_cache[dest] = new CachedRoute(dest, prev_e, next_con, deliverlocally);
+       //Make sure not to keep a reference to the whole packet:
+       object key = dest.ToMemBlock().Clone();
+       _route_cache[key] = new CachedRoute(prev_e, next_con, deliverlocally);
       }//End of cache check   
       //Here are the other modes:
       if( p.HasOption( AHPacket.AHOptions.Last ) ) {
