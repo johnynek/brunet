@@ -111,7 +111,7 @@ namespace Brunet
       _running = false;
       _isstarted = false;
       //There are two 4 byte IDs for each edge we need to make room for
-      _rec_buffer = new byte[ 8 + Packet.MaxLength ];
+      AdvanceBuffer(-1); //Initialize _rec_buffer
       _send_buffer = new byte[ 8 + Packet.MaxLength ];
       _send_queue = new Queue();
       ///@todo we need to use the cryptographic RNG
@@ -232,7 +232,8 @@ namespace Brunet
         _running = true;
         EndPoint end = new IPEndPoint(IPAddress.Any, 0);
 	//Console.WriteLine("About to BeingReceiveFrom");
-        _read_asr = s.BeginReceiveFrom(_rec_buffer, 0, _rec_buffer.Length,
+	int max = _rec_buffer.Length - _rec_buffer_offset;
+        _read_asr = s.BeginReceiveFrom(_rec_buffer, _rec_buffer_offset, max,
 		         SocketFlags.None, ref end, new AsyncCallback(this.ReceiveHandler), end);
       }
     }
@@ -265,19 +266,20 @@ namespace Brunet
         
 	int rec_bytes = s.EndReceiveFrom(asr, ref end);
         //Get the id of this edge:
-        int remoteid = NumberSerializer.ReadInt(_rec_buffer, 0);
-        int localid = NumberSerializer.ReadInt(_rec_buffer, 4);
+        int remoteid = NumberSerializer.ReadInt(_rec_buffer, _rec_buffer_offset);
+        int localid = NumberSerializer.ReadInt(_rec_buffer, _rec_buffer_offset + 4);
+	MemBlock packet = MemBlock.Reference(_rec_buffer, _rec_buffer_offset + 8, rec_bytes - 8);
+	AdvanceBuffer(rec_bytes);
         if( localid < 0 ) {
 	    /*
 	     * We never give out negative id's, so if we got one
 	     * back the other node must be sending us a control
 	     * message.
 	     */
-          HandleControlPacket(remoteid, localid, _rec_buffer, null);
+          HandleControlPacket(remoteid, localid, packet, null);
 	}
 	else {
-	  HandleDataPacket(remoteid, localid, _rec_buffer, 8,
-                             rec_bytes - 8, end, null);
+	  HandleDataPacket(remoteid, localid, packet, end, null);
 	}
 	/*
 	 * We have finished reading the packet, now read the next one
@@ -298,8 +300,9 @@ namespace Brunet
           if( _running ) {
             //Start the next round:
             EndPoint end = new IPEndPoint(IPAddress.Any, 0);
-            _read_asr = s.BeginReceiveFrom(_rec_buffer, 0,
-			 _rec_buffer.Length, SocketFlags.None, ref end,
+	    int max = _rec_buffer.Length - _rec_buffer_offset;
+            _read_asr = s.BeginReceiveFrom(_rec_buffer, _rec_buffer_offset,
+			 max, SocketFlags.None, ref end,
 			 new AsyncCallback(this.ReceiveHandler), end);
 	  }
 	}

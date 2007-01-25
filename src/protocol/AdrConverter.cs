@@ -144,6 +144,9 @@ public class AdrConverter {
     return Deserialize(s, '_', out finished);
   }
 
+  public static object Deserialize(MemBlock mb) {
+    return Deserialize( mb.ToMemoryStream() );
+  }
   /*
    * This is how the above is implemented to support recursion
    */
