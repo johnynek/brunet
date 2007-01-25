@@ -31,7 +31,7 @@ namespace Brunet {
 #if BRUNET_NUNIT
 [TestFixture]
 #endif
-public class MemBlock : System.IComparable {
+public class MemBlock : System.IComparable, System.ICloneable {
 
   protected byte[] _buffer;
   protected int _offset;
@@ -72,6 +72,15 @@ public class MemBlock : System.IComparable {
     _length = 0;
   }
 
+  /**
+   * Implements ICloneable.  This copies the underlying buffer.
+   * Might be useful if you want to keep something around that
+   * would otherwise prevent a large amount of memory from being
+   * GC'ed
+   */
+  public object Clone() {
+    return Copy(_buffer, _offset, _length);
+  }
   /**
    * Shorter MemBlocks are less than longer ones.  MemBlocks of identical
    * length are compared from first byte to last byte.  The first byte
