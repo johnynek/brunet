@@ -40,7 +40,7 @@ public class Cache {
   public Cache(int max_size) {
     //Bias towards being faster at the expense of using more memory
     float load = 0.15f;
-    _ht = Hashtable.Synchronized(new Hashtable(_max_size, load));
+    _ht = new Hashtable(_max_size, load);
     _max_size = max_size;
     _rand = new Random();
   }
@@ -75,16 +75,15 @@ public class Cache {
   protected void Clean(object state) {
     try {
       IDictionaryEnumerator en = _ht.GetEnumerator();
-      ArrayList to_remove = new ArrayList();
+      float load = 0.15f;
+      Hashtable ht = new Hashtable(_max_size, load);
       while( en.MoveNext() ) {
         if( _rand.Next(2) == 0 ) {
-          //Remove this item
-          to_remove.Add( en.Key );
+          //Add this item:
+          ht[ en.Key ] = en.Value;
         }
       }
-      foreach(object key in to_remove) {
-        _ht.Remove(key);
-      }
+      _ht = ht;
     }
     catch(Exception) {
       //If the _ht changes while we are cleaning, we get an exception.
