@@ -288,57 +288,13 @@ namespace Brunet
     /**
      * This method removes the connection associated with an Edge,
      * then it adds this edge to the list of unconnected nodes.
-     * This would be almost the same as Remove(e); AddUnconnected(e);
-     * but Remove would fire an event which should not be fired
-     * until after the Edge is added to the Unconnected list
      * 
      * @param e The edge to disconnect
      */
     public void Disconnect(Edge e)
     {
-      int index = -1;
-      Connection c = null;
-      bool have_con = false;
-      lock(_sync) {
-        c = GetConnection(e);	
-        have_con = (c != null);
-        if( have_con )  {
-          index = IndexOf(c.MainType, c.Address);
-          Remove(c.MainType, index);
-          unconnected.Add(e);
-        }
-      }
-      if( have_con ) {
-
-#if PLAB_CONNECTION_LOG
-        BrunetEventDescriptor bed = new BrunetEventDescriptor();
-        bed.EventDescription = "disconnection";
-        bed.ConnectionType = c.MainType;
-        bed.LocalTAddress = c.Edge.LocalTA.ToString();
-        bed.RemoteTAddress = c.Edge.RemoteTA.ToString();
-        bed.RemoteAHAddress = c.Address.ToBigInteger().ToString();
-        bed.RemoteAHAddressBase32 = c.Address.ToString();
-        bed.ConnectTime = DateTime.UtcNow.Ticks;
-        bed.SubType = c.ConType;
-        bed.StructureDegree = Count(ConnectionType.Structured);
-
-        _logger.LogBrunetEvent( bed );
-#endif
-
-
-#if PRINT_CONNECTIONS
-      System.Console.WriteLine("New disconnection[{0}]: {1}", index, c);
-#endif
-        //Announce the disconnection:
-        if( DisconnectionEvent != null ) {
-          try {
-            DisconnectionEvent(this, new ConnectionEventArgs(c, index));
-          }
-          catch(Exception x) {
-            Console.Error.WriteLine("DisconnectionEvent triggered exception: {0}\n{1}", c, x);
-          }
-        }
-      }
+      //Remove the edge, but keep a reference to it.
+      Remove(e, true);
     }
 
     public int UnconnectedCount
@@ -630,25 +586,32 @@ namespace Brunet
 
     /**
      * Remove the connection associated with an edge from the table
-     * Should only be called by ConnectionOverlord or
-     * if you REALLY, REALLY know what you are doing!
-     * param e Edge whose connection should be removed
+     * @param e Edge whose connection should be removed
+     * @param add_unconnected if true, keep a reference to the edge in the
+     * unconnected list
      */
-    protected void Remove(Edge e)
+    protected void Remove(Edge e, bool add_unconnected)
     {
       int index = -1;
       bool have_con = false;
       Connection c = null;
-      e.CloseEvent -= new EventHandler(this.RemoveHandler);
       lock(_sync) {
         c = GetConnection(e);	
         have_con = (c != null);
         if( have_con )  {
           index = IndexOf(c.MainType, c.Address);
           Remove(c.MainType, index);
+	  if( add_unconnected ) {
+            unconnected.Add(e);
+	  }
         }
         else {
-          unconnected.Remove(e);
+	  //We didn't have a connection, so, check to see if we have it in
+	  //unconnected:
+	  if( !add_unconnected ) {
+	    //Don't keep this edge around at all:
+            unconnected.Remove(e);
+	  }
         }
       }
       if( have_con ) {
@@ -675,6 +638,9 @@ namespace Brunet
                                  ", type: " + t.ToString() +
                                  ", index: " + index);
       #endif
+#if PRINT_CONNECTIONS
+        System.Console.WriteLine("New disconnection[{0}]: {1}", index, c);
+#endif
         //Announce the disconnection:
         if( DisconnectionEvent != null ) {
           try {
@@ -740,7 +706,10 @@ namespace Brunet
      */
     protected void RemoveHandler(object edge, EventArgs args)
     {
-      Remove((Edge)edge);
+      Edge e = (Edge)edge;
+      e.CloseEvent -= new EventHandler(this.RemoveHandler);
+      //Get rid of the edge and don't add it to our unconnected list
+      Remove(e, false);
     }
 
     /**
