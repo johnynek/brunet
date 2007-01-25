@@ -199,25 +199,44 @@ namespace Brunet
         /*
          * Here we actually do the storing:
          */
-        ((ArrayList)type_to_addlist[t]).Insert(index, a);
-        ((ArrayList)type_to_conlist[t]).Insert(index, c);
+        /*
+         * Copy so we don't mess up an old list
+         */
+        ArrayList copy;
+        copy = (ArrayList)((ArrayList)type_to_addlist[t]).Clone();
+        copy.Insert(index, a);
+        type_to_addlist[t] = copy;
+        if( t == ConnectionType.Structured ) {
+          //Optimize the most common case to avoid the hashtable
+          _struct_addlist = copy;
+        }
+        
+        copy = (ArrayList)((ArrayList)type_to_conlist[t]).Clone();
+        copy.Insert(index, c);
+        type_to_conlist[t] = copy;
+        
         edge_to_con[e] = c;
+        if( t == ConnectionType.Structured ) {
+          //Optimize the most common case to avoid the hashtable
+          _struct_conlist = copy;
+        }
 
+
+        //Now that we have registered the new CloseEvent handler,
+        //we can remove the old one
+        int ucidx = unconnected.IndexOf(e);
+        if( ucidx >= 0 ) {
+          //Remove the edge from the unconnected table
+          copy = (ArrayList)unconnected.Clone();
+          copy.RemoveAt(ucidx);
+          unconnected = copy;
+        }
+        else {
+          //This is a new connection, so we need to add the CloseEvent
+          /* Tell the edge to let you know when it dies: */
+          e.CloseEvent += new EventHandler(this.RemoveHandler);
+        }
       } /* we release the lock */
-
-      //Now that we have registered the new CloseEvent handler,
-      //we can remove the old one
-      int ucidx = unconnected.IndexOf(e);
-      if( ucidx >= 0 ) {
-        //Remove the edge from the unconnected table
-        unconnected.RemoveAt(ucidx);
-      }
-      else {
-        //This is a new connection, so we need to add the CloseEvent
-        /* Tell the edge to let you know when it dies: */
-        e.CloseEvent += new EventHandler(this.RemoveHandler);
-      }
-
       
      /*_log.Info("ConnectionEvent: address: " + a.ToString() + 
 		                ", edge: " + e.ToString() +
@@ -310,7 +329,10 @@ namespace Brunet
      */
     public IEnumerator GetEnumerator()
     {
-      return new ConnectionEnumerator(this);
+      IDictionaryEnumerator en = edge_to_con.GetEnumerator();
+      while( en.MoveNext() ) {
+        yield return en.Value;
+      }
     }
     
     /**
@@ -398,10 +420,8 @@ namespace Brunet
     public Connection GetConnection(Edge e)
     {
       Connection c = null;
-      lock(_sync) {
-        if( e != null && edge_to_con.ContainsKey(e) ) {
-          c = (Connection)edge_to_con[e];
-	}
+      if( e != null ) {
+        c = (Connection)edge_to_con[e];
       }
       return c;
     }
@@ -731,7 +751,9 @@ namespace Brunet
           index = IndexOf(c.MainType, c.Address);
           Remove(c.MainType, index);
 	  if( add_unconnected ) {
-            unconnected.Add(e);
+            ArrayList copy = (ArrayList)unconnected.Clone();
+            copy.Add(e);
+            unconnected = copy;
 	  }
         }
         else {
@@ -739,7 +761,12 @@ namespace Brunet
 	  //unconnected:
 	  if( !add_unconnected ) {
 	    //Don't keep this edge around at all:
-            unconnected.Remove(e);
+            int idx = unconnected.IndexOf(e);
+            if( idx >= 0 ) {
+              ArrayList copy = (ArrayList)unconnected.Clone();
+              copy.RemoveAt(idx);
+              unconnected = copy;
+            }
 	  }
         }
       }
@@ -1005,7 +1032,12 @@ namespace Brunet
     {
       //System.Console.WriteLine("ADDING EDGE {0} TO UNCONNECTED", e.ToString());
       lock( _sync ) {
-        unconnected.Add(e);
+        int idx = unconnected.IndexOf(e);
+        if( idx < 0 ) {
+          ArrayList copy = (ArrayList)unconnected.Clone();
+          copy.Add(e);
+          unconnected = copy;
+        }
       }
       e.CloseEvent += new EventHandler(this.RemoveHandler);
     }
@@ -1015,75 +1047,8 @@ namespace Brunet
      */
     public bool IsUnconnected(Edge e)
     {
-      lock( _sync ) {
-        return unconnected.Contains(e);
-      }
+      return unconnected.Contains(e);
     }
-    //Private
-    private class ConnectionEnumerator : IEnumerator {
-      
-      IDictionaryEnumerator _edge_enumer;
-      ConnectionTable _tab;
-      bool _filter;
-      ConnectionType _filter_type;
-      string _filter_string_type;
-	    
-      public ConnectionEnumerator(ConnectionTable tab) {
-	_tab = tab;
-	_filter = false;
-	_filter_string_type = null;
-	Reset();
-      }
-
-      public ConnectionEnumerator(ConnectionTable tab, ConnectionType ct) : this(tab) {
-        _filter = true;
-	_filter_type = ct;
-      }
-      
-      public ConnectionEnumerator(ConnectionTable tab, string contype) : this(tab) {
-	_filter_string_type = contype;
-      }
-
-      
-      public bool MoveNext() {
-	if( _filter_string_type != null ) {
-          bool ret_val = false;
-	  Connection c = null;
-	  do {
-            ret_val = _edge_enumer.MoveNext();
-	    if( ret_val ) {
-	      c = (Connection)_edge_enumer.Value;
-	    }
-	  }
-	  while( (ret_val == true) && ( c.ConType != _filter_string_type ) );
-          return ret_val;
-	}
-	else if( _filter ) {
-          bool ret_val = false;
-	  Connection c = null;
-	  do {
-            ret_val = _edge_enumer.MoveNext();
-	    if( ret_val ) {
-	      c = (Connection)_edge_enumer.Value;
-	    }
-	  }
-	  while( (ret_val == true) && ( c.MainType != _filter_type ) );
-          return ret_val;
-	}
-	else {
-          return _edge_enumer.MoveNext();
-	}
-      }
-
-      public object Current {
-        get { return _edge_enumer.Value; }
-      }
-
-      public void Reset() {
-        _edge_enumer = _tab.edge_to_con.GetEnumerator();
-      }
-    }
-
     /**
      * Handles enumerating connection types, not just all
      * connections
@@ -1105,6 +1070,7 @@ namespace Brunet
       {
         _tab = tab;
 	_contype = contype;
+        _ct = Connection.StringToMainType(contype);
       }
     
      /**
@@ -1112,12 +1078,19 @@ namespace Brunet
       */
       public IEnumerator GetEnumerator()
       {
+        ArrayList cons = (ArrayList)_tab.type_to_conlist[ _ct ];
         if( _contype == null ) {
-          return new ConnectionEnumerator(_tab, _ct);
-	}
-	else {
-          return new ConnectionEnumerator(_tab, _contype);
-	}
+          foreach(Connection c in cons) {
+            yield return c;
+          }
+        }
+        else {
+          foreach(Connection c in cons) {
+            if (c.ConType == _contype ) {
+              yield return c;
+            }
+          }
+        }
       }
     }
   }
@@ -1264,6 +1237,31 @@ namespace Brunet
         //Console.WriteLine("LIC(a,b): {0}, RIC(b,a): {1}", l_c2, r_c);
         Assert.AreEqual(l_c, r_c2, "RIC(a2, a1) == LIC(a1, a2)");
         Assert.AreEqual(r_c, l_c2, "LIC(a2, a1) == RIC(a1, a2)");
+        }
+        //Do some removals:
+        while(tab.Count(ConnectionType.Structured) > 0) {
+          //Check that the table is sorted:
+          Address last_a = null;
+          foreach(Connection cn in tab.GetConnections(ConnectionType.Structured)) {
+            if( last_a != null ) {
+              Assert.IsTrue( last_a.CompareTo( cn.Address ) < 0, "Sorted table");
+            }
+            last_a = cn.Address;
+          }
+          Connection c = tab.GetRandom(ConnectionType.Structured);
+          int before = tab.Count(ConnectionType.Structured);
+          int uc_count = tab.UnconnectedCount;
+          tab.Disconnect(c.Edge);
+          int after = tab.Count(ConnectionType.Structured);
+          int uc_count_a = tab.UnconnectedCount;
+          Assert.IsTrue( before == (after + 1), "Disconnect subtracted one");
+          Assert.IsTrue( uc_count == (uc_count_a - 1), "Disconnect added one unconnected");
+          Assert.IsTrue( tab.IndexOf(ConnectionType.Structured, c.Address) < 0, "Removal worked");
+          Assert.IsNull( tab.GetConnection(c.Edge), "Connection is gone");
+          Assert.IsTrue( tab.IsUnconnected( c.Edge ), "Edge is unconnected" );
+          c.Edge.Close(); //Should trigger removal completely:
+          Assert.IsFalse( tab.IsUnconnected( c.Edge ), "Edge is completely gone");
+          Assert.IsNull( tab.GetConnection( c.Edge ), "Connection is still gone");
         }
       }
     }
