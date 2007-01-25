@@ -2,6 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
+Copyright (C) 2007 P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -271,14 +272,42 @@ namespace Brunet
         byte[] b1 = new byte[Address.MemSize];
         r.NextBytes(b1);
         //Make sure it is class 0:
-        b1[Address.MemSize - 1] = (byte)(b1[Address.MemSize - 1] &= 0xFE);
+        Address.SetClass(b1, 0);
         byte[] b2 = new byte[Address.MemSize];
         r.NextBytes(b2);
         //Make sure it is class 0:
-        b2[Address.MemSize - 1] = (byte)(b2[Address.MemSize - 1] &= 0xFE);
-        Address a5 = new AHAddress( MemBlock.Reference(b1,0,b1.Length) );
-        Address a6 = new AHAddress( MemBlock.Reference(b2,0,b2.Length) );
+        Address.SetClass(b2, 0);
+        byte[] b3 = new byte[Address.MemSize];
+        r.NextBytes(b3);
+        //Make sure it is class 0:
+        Address.SetClass(b3, 0);
+        AHAddress a5 = new AHAddress( MemBlock.Reference(b1,0,b1.Length) );
+        AHAddress a6 = new AHAddress( MemBlock.Reference(b2,0,b2.Length) );
+        AHAddress a7 = new AHAddress( MemBlock.Reference(b3,0,b3.Length) );
         Assert.IsTrue( a5.CompareTo(a6) == -1 * a6.CompareTo(a5), "consistency");
+        if ( a5.IsBetweenFromLeft(a6, a7) ) {
+          //Then the following must be true:
+          Assert.IsTrue( a6.LeftDistanceTo(a5) < a6.LeftDistanceTo(a7),
+                         "BetweenLeft true");
+        }
+        else {
+          //Then the following must be false:
+          Assert.IsFalse( a6.LeftDistanceTo(a5) < a6.LeftDistanceTo(a7),
+                          "BetweenLeft false");
+        }
+        if ( a5.IsBetweenFromRight(a6, a7) ) {
+          //Then the following must be true:
+          Assert.IsTrue( a6.RightDistanceTo(a5) < a6.RightDistanceTo(a7),
+                         "BetweenRight true");
+        }
+        else {
+          //Then the following must be false:
+          Assert.IsFalse( a6.RightDistanceTo(a5) < a6.RightDistanceTo(a7),
+                          "BetweenRight false");
+        }
+        Assert.AreNotEqual( a5.IsBetweenFromLeft(a6, a7),
+                            a5.IsBetweenFromRight(a6, a7),
+                            "can't be between left and between right");
       }
     }
   }
