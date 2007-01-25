@@ -201,13 +201,20 @@ namespace Brunet
      *  @return -1 in case it is not
      */
     public bool IsBetweenFromLeft(AHAddress start, AHAddress end) {
+      int se_comp = start.CompareTo(end);
       //simple case of no wrap around where "within" is greater
-      if (start.CompareTo(end) < 0) {
+      if (se_comp < 0) {
 	return start.CompareTo(this) < 0 && this.CompareTo(end) < 0;
       }
-      //in case there is a wrap around
-      //"within" has become lesser than "this"
-      return start.CompareTo(this) < 0 || this.CompareTo(end) < 0;
+      else if( se_comp == 0 ) {
+        //When start == end, nothing is between them
+        return false;
+      }
+      else {
+        //in case there is a wrap around
+        //"within" has become lesser than "this"
+        return start.CompareTo(this) < 0 || this.CompareTo(end) < 0;
+      }
     }
     
     /** Utility method to determine if this address is between start and end
@@ -218,13 +225,20 @@ namespace Brunet
      *  @return -1 in case it is not
      */
     public bool IsBetweenFromRight(AHAddress start, AHAddress end){
+      int se_comp = start.CompareTo(end);
       //simple case of no wrap around where "within" is lesser
-      if (start.CompareTo(end) > 0) {
+      if (se_comp > 0) {
 	return start.CompareTo(this) > 0 && this.CompareTo(end) > 0;
       }
-      //in case there is a wrap around
-      //"within" has become greater than "this"
-      return start.CompareTo(this) > 0 || this.CompareTo(end) > 0;
+      else if( se_comp == 0 ) {
+        //When start == end, nothing is between them
+        return false;
+      }
+      else {
+        //in case there is a wrap around
+        //"within" has become greater than "this"
+        return start.CompareTo(this) > 0 || this.CompareTo(end) > 0;
+      }
     }
   }
   
@@ -285,6 +299,15 @@ namespace Brunet
         AHAddress a6 = new AHAddress( MemBlock.Reference(b2,0,b2.Length) );
         AHAddress a7 = new AHAddress( MemBlock.Reference(b3,0,b3.Length) );
         Assert.IsTrue( a5.CompareTo(a6) == -1 * a6.CompareTo(a5), "consistency");
+        //Nothing is between the same address:
+        Assert.IsFalse( a5.IsBetweenFromLeft(a6, a6), "Empty Between Left");
+        Assert.IsFalse( a5.IsBetweenFromRight(a7, a7), "Empty Between Right");
+        //Endpoints are not between:
+        Assert.IsFalse( a6.IsBetweenFromLeft(a6, a7), "End point Between Left");
+        Assert.IsFalse( a6.IsBetweenFromRight(a6, a7), "End point Between Right");
+        Assert.IsFalse( a7.IsBetweenFromLeft(a6, a7), "End point Between Left");
+        Assert.IsFalse( a7.IsBetweenFromRight(a6, a7), "End point Between Right");
+
         if ( a5.IsBetweenFromLeft(a6, a7) ) {
           //Then the following must be true:
           Assert.IsTrue( a6.LeftDistanceTo(a5) < a6.LeftDistanceTo(a7),

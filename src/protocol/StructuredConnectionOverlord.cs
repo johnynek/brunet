@@ -2,6 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
+Copyright (C) 2007 P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -1190,93 +1191,24 @@ namespace Brunet {
     /**
      * Given an address, we see how many of our connections
      * are closer than this address to the left
-     * @todo provide unit tests for this method due to its importance
      */
     protected int LeftPosition(AHAddress addr)
     {
       AHAddress local = (AHAddress)_node.Address;
       //Don't let the Table change while we do this:
       ConnectionTable tab = _node.ConnectionTable;
-      int dist = 0;
-      lock( tab.SyncRoot ) {
-        int addr_idx = tab.IndexOf(ConnectionType.Structured, addr);
-        if( addr_idx < 0 ) {
-          //Here is where we would be:
-          addr_idx = ~addr_idx;
-        }
-        int local_idx = tab.IndexOf(ConnectionType.Structured, local);
-        if( local_idx < 0 ) {
-          //Here is where we would be:
-          local_idx = ~local_idx;
-        }
-        int count = tab.Count(ConnectionType.Structured);
-        //Measure the distance to the left: (increasing):
-        dist = addr_idx - local_idx;
-        if( dist < 0 ) {
-          //Handle the wrap around:
-          dist += count;
-        }
-        else if( dist == 0 ) {
-          //If both addresses are not present, we can
-          //get dist=0 when we mean dist = count.
-          if( local.CompareTo(addr) > 0 ) {
-            //We are actually to the left of the node,
-            //so, we need to adjust the distance:
-            dist = count;
-          }
-        }
-      }
-      return dist;
+      return tab.LeftInclusiveCount(local, addr);
     }
     /**
      * Given an address, we see how many of our connections
      * are closer than this address to the right.
-     * This one is tricker due to the fact that we have to account
-     * for the fact that the way insertion works (we have to add 1 or
-     * subtract 1 in some cases).
-     * @todo provide unit tests for this method due to its importance
      */
     protected int RightPosition(AHAddress addr)
     {
       AHAddress local = (AHAddress)_node.Address;
       //Don't let the Table change while we do this:
       ConnectionTable tab = _node.ConnectionTable;
-      int dist = 0;
-      lock( tab.SyncRoot ) {
-        int addr_idx = tab.IndexOf(ConnectionType.Structured, addr);
-        if( addr_idx < 0 ) {
-          //Here is where we would be:
-          addr_idx = ~addr_idx;
-          /*
-           * We have to be extra careful to compare local to
-           */
-          dist = 1;
-        }
-        int local_idx = tab.IndexOf(ConnectionType.Structured, local);
-        if( local_idx < 0 ) {
-          //Here is where we would be:
-          local_idx = ~local_idx;
-        }
-        int count = tab.Count(ConnectionType.Structured);
-        //Measure the distance to the right: (decreasing):
-        //Since the insertion would happen one unit after an existing
-        //address, we must subtract 1 here:
-        dist = local_idx - addr_idx - 1;
-        if( dist < 0 ) {
-          //Handle the wrap around:
-          dist += count;
-        }
-        else if( dist == 0 ) {
-          //If both addresses are not present, we can
-          //get dist=0 when we mean dist = count.
-          if( local.CompareTo(addr) < 0 ) {
-            //We are actually to the right of the node,
-            //so, we need to adjust the distance:
-            dist = count;
-          }
-        }
-      }
-      return dist;
+      return tab.RightInclusiveCount(local, addr);
     }
     
   }

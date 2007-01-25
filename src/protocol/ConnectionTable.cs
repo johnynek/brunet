@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PRINT_CONNECTIONS
 
 #if BRUNET_NUNIT
+#undef PRINT_CONNECTIONS
 using NUnit.Framework;
 #endif
 
@@ -536,6 +537,134 @@ namespace Brunet
       }
       return index;
     }
+
+    /**
+     * @return the number of Structured Connections in the interval
+     * (a1, a2) (not including the end points) when we move to the left.
+     */
+    public int LeftInclusiveCount(AHAddress a1, AHAddress a2) {
+      if( a1.Equals(a2) ) { return 0; }
+      int dist;
+      lock( _sync ) {
+        /*
+         * There are four cases, we deal with each separately:
+         * 0) neither a1 nor a2 are in the table
+         * 1) a1 is not, but a2 is
+         * 2) a1 is, but a2 is not
+         * 3) a1 and a2 are.
+         */
+        int a2_idx = IndexOf(ConnectionType.Structured, a2);
+        int a1_idx = IndexOf(ConnectionType.Structured, a1);
+        int count = Count(ConnectionType.Structured);
+
+        bool a2_present = true;
+        bool a1_present = true;
+        if( a2_idx < 0 ) {
+          a2_present = false;
+          a2_idx = ~a2_idx;
+        }
+        if( a1_idx < 0 ) {
+          a1_present = false;
+          a1_idx = ~a1_idx;
+        }
+        if( a1_idx == a2_idx ) {
+          //This is an easy case:
+          int max_dist = count;
+          if( a2_present ) {
+            max_dist--;
+          }
+          if( a1_present ) {
+            max_dist--;
+          }
+          if( a2.CompareTo( a1 ) > 0 ) {
+            dist = 0;  
+          }
+          else {
+            dist = max_dist;
+          }
+        }
+        else {
+          //These two indices are different:
+          dist = a2_idx - a1_idx;
+          if( dist < 0 ) {
+            //Wrap around.
+            dist += count;
+          }
+          if( a1_present ) {
+            /*
+             * In thie case, our calculations are too much by one, in both
+             * cases (dist > 0, dist < 0), so we decrease by one:
+             */
+            dist = dist - 1;
+          }
+        }
+      }
+      return dist;
+    }
+    /**
+     * @return the number of Structured Connections in the interval
+     * (a1, a2) (not including the end points) when we move to the right.
+     */
+    public int RightInclusiveCount(AHAddress a1, AHAddress a2) {
+      if( a1.Equals(a2) ) { return 0; }
+      int dist;
+      lock( _sync ) {
+        /*
+         * There are four cases, we deal with each separately:
+         * 0) neither a1 nor a2 are in the table
+         * 1) a1 is not, but a2 is
+         * 2) a1 is, but a2 is not
+         * 3) a1 and a2 are.
+         */
+        int a2_idx = IndexOf(ConnectionType.Structured, a2);
+        int a1_idx = IndexOf(ConnectionType.Structured, a1);
+        int count = Count(ConnectionType.Structured);
+
+        bool a2_present = true;
+        bool a1_present = true;
+        if( a2_idx < 0 ) {
+          a2_present = false;
+          a2_idx = ~a2_idx;
+        }
+        if( a1_idx < 0 ) {
+          a1_present = false;
+          a1_idx = ~a1_idx;
+        }
+        if( a1_idx == a2_idx ) {
+          //This is an easy case:
+          int max_dist = count;
+          if( a2_present ) {
+            max_dist--;
+          }
+          if( a1_present ) {
+            max_dist--;
+          }
+          if( a2.CompareTo( a1 ) < 0 ) {
+            dist = 0;  
+          }
+          else {
+            dist = max_dist;
+          }
+        }
+        else {
+          //These two indices are different:
+          dist = a1_idx - a2_idx;
+          if( dist < 0 ) {
+            //Wrap around.
+            dist += count;
+          }
+          if( a2_present ) {
+            /*
+             * In thie case, our calculations are too much by one, in both
+             * cases (dist > 0, dist < 0), so we decrease by one:
+             */
+            dist = dist - 1;
+          }
+        }
+      }
+      return dist;
+    }
+
     /**
      * @param a the Address to lock
      * @param t the type of connection
@@ -994,7 +1123,6 @@ namespace Brunet
   }
 
 #if BRUNET_NUNIT
-
   [TestFixture]
   public class ConnectionTableTest
   {
@@ -1065,6 +1193,79 @@ namespace Brunet
         //Console.WriteLine("{0}\n",c);
       }
       Assert.AreEqual(near_tot, 1, "structured near");
+
+      /*
+       * Here are some randomized tests:
+       */
+      Random r = new Random();
+      for(int i = 0; i < 100; i++) {
+        //Make a random connection table:
+        int count = r.Next(1,100); //At most 99 connections:
+        tab = new ConnectionTable();
+        for(int j = 0; j < count; j++) {
+          //Add the connections:
+          byte[] buf = new byte[ Address.MemSize ];
+          r.NextBytes(buf);
+          Address.SetClass(buf, 0);
+          AHAddress a = new AHAddress( MemBlock.Reference(buf, 0, buf.Length) );
+          FakeEdge e = new FakeEdge(home_ta, ta2);
+          //Must put different edges in each time.
+          Connection c = new Connection(e, a, "structured", null, null);
+          tab.Add( c );
+        }
+        //Now do some tests:
+        for(int k = 0; k < 100; k++) {
+        if( r.Next(2) == 0 ) {
+          byte[] buf = new byte[ Address.MemSize ];
+          r.NextBytes(buf);
+          Address.SetClass(buf, 0);
+          a1 = new AHAddress( MemBlock.Reference(buf, 0, buf.Length) );
+        }
+        else {
+          //Get a random connection:
+          Connection c_r = tab.GetRandom(ConnectionType.Structured);
+          a1 = (AHAddress)c_r.Address;
+        }
+        //Do the same for a2:
+        if( r.Next(2) == 0 ) {
+          byte[] buf = new byte[ Address.MemSize ];
+          r.NextBytes(buf);
+          Address.SetClass(buf, 0);
+          a2 = new AHAddress( MemBlock.Reference(buf, 0, buf.Length) );
+        }
+        else {
+          //Get a random connection:
+          Connection c_r = tab.GetRandom(ConnectionType.Structured);
+          a2 = (AHAddress)c_r.Address;
+        }
+        //Now do some checks:
+        int r_c = tab.RightInclusiveCount(a1, a2);
+        int l_c = tab.LeftInclusiveCount(a1, a2);
+        //Now manually count them:
+        int r_c_manual = 0;
+        int l_c_manual = 0;
+        int iterated = 0;
+        foreach(Connection c in tab) {
+          AHAddress a3 = (AHAddress)c.Address;
+          if( a3.IsBetweenFromLeft(a1, a2) ) {
+            l_c_manual++;
+          }
+          if( a3.IsBetweenFromRight(a1, a2) ) {
+            r_c_manual++;
+          }
+          iterated++;
+        }
+        Assert.AreEqual(iterated, count, "Enumeration of structured");
+        Assert.AreEqual(r_c, r_c_manual, "RightInclusive test");
+        Assert.AreEqual(l_c, l_c_manual, "LeftInclusive test");
+        //Check symmetry:
+        int r_c2 = tab.RightInclusiveCount(a2, a1);
+        int l_c2 = tab.LeftInclusiveCount(a2, a1);
+        //Console.WriteLine("LIC(a,b): {0}, RIC(b,a): {1}", l_c2, r_c);
+        Assert.AreEqual(l_c, r_c2, "RIC(a2, a1) == LIC(a1, a2)");
+        Assert.AreEqual(r_c, l_c2, "LIC(a2, a1) == RIC(a1, a2)");
+        }
+      }
     }
   }
 
