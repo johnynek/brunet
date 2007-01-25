@@ -48,6 +48,8 @@ namespace Brunet
   {
     ///Buffer to read the packets into
     protected byte[] _rec_buffer;
+    ///The offset we will write into next in the _rec_buffer
+    protected int _rec_buffer_offset;
     protected byte[] _send_buffer;
 
     ///Here is the queue for outgoing packets:
@@ -145,7 +147,32 @@ namespace Brunet
         }
       }
     }
-
+    
+    /*
+     * To avoid making copies, we make direct references to the _rec_buffer,
+     * but when it fills up, we have to allocate a new buffer.  This code
+     * manages this
+     * @param size, the number of bytes in the _rec_buffer we just wrote
+     * if size < 0, reinitialize the _rec_buffer
+     */
+    protected void AdvanceBuffer(int size) {
+      bool reset = (size < 0);
+      if( false == reset ) {
+        int new_offset = _rec_buffer_offset + size;
+	if( _rec_buffer.Length - new_offset > (Packet.MaxLength + 8) ) {
+          //We can still fit another packet
+	  _rec_buffer_offset = new_offset;
+	}
+	else {
+          reset = true;
+	}
+      }
+      if( reset ) {
+        //Initialize
+	_rec_buffer = new byte[ 3 * Packet.MaxLength ];
+	_rec_buffer_offset = 0;
+      }
+    }
     /**
      * When a UdpEdge closes we need to remove it from
      * our table, so we will know it is new if it comes
@@ -193,16 +220,16 @@ namespace Brunet
      * This handles lightweight control messages that may be sent
      * by UDP
      */
-    protected void HandleControlPacket(int remoteid, int n_localid, byte[] buffer,
+    protected void HandleControlPacket(int remoteid, int n_localid, MemBlock buffer,
                                        object state)
     {
       int local_id = ~n_localid;
       //Reading from a hashtable is treadsafe
       UdpEdge e = (UdpEdge)_id_ht[local_id];
       if( (e != null) && (e.RemoteID == remoteid) ) {
-        //This edge has some control information, the information starts at byte 8.
+        //This edge has some control information.
         try {
-	  ControlCode code = (ControlCode)NumberSerializer.ReadInt(buffer, 8);
+	  ControlCode code = (ControlCode)NumberSerializer.ReadInt(buffer, 0);
           System.Console.WriteLine("Got control from: {0}", e);
 	  if( code == ControlCode.EdgeClosed ) {
             //The edge has been closed on the other side
@@ -211,8 +238,7 @@ namespace Brunet
           else if( code == ControlCode.EdgeDataAnnounce ) {
             //our NAT mapping may have changed:
             IDictionary info =
-              (IDictionary)AdrConverter.Deserialize(
-                  new MemoryStream(buffer, 12, buffer.Length - 12) );
+              (IDictionary)AdrConverter.Deserialize( buffer.Slice(4) );
             string our_local_ta = (string)info["RemoteTA"]; //his remote is our local
             if( our_local_ta != null ) {
               //Update our list:
@@ -246,8 +272,7 @@ namespace Brunet
      * the given ids
      */
     protected void HandleDataPacket(int remoteid, int localid,
-                                    byte[] buf, int off, int len,
-                                    EndPoint end, object state)
+                                    MemBlock packet, EndPoint end, object state)
     {
       bool read_packet = true;
       bool is_new_edge = false;
@@ -367,7 +392,7 @@ namespace Brunet
       }
       if( read_packet ) {
         try {
-          Packet p = PacketParser.Parse(buf, off, len);
+          Packet p = PacketParser.Parse(packet);
           //We have the edge, now tell the edge to announce the packet:
           edge.Push(p);
         }
@@ -466,8 +491,7 @@ namespace Brunet
       _sync = new object();
       _running = false;
       _isstarted = false;
-      //There are two 4 byte IDs for each edge we need to make room for
-      _rec_buffer = new byte[ 8 + Packet.MaxLength ];
+      AdvanceBuffer(-1); //Initialize _rec_buffer
       _send_buffer = new byte[ 8 + Packet.MaxLength ];
       _send_queue = new Queue();
       _queue_not_empty = false;
@@ -617,21 +641,30 @@ namespace Brunet
         try {
           read = s.Poll( microsecond_timeout, SelectMode.SelectRead );
           if( read ) {
-            rec_bytes = s.ReceiveFrom(_rec_buffer, ref end);
+	    int max = _rec_buffer.Length - _rec_buffer_offset;
+            rec_bytes = s.ReceiveFrom(_rec_buffer, _rec_buffer_offset, max,
+	                              SocketFlags.None, 
+				      ref end);
             //Get the id of this edge:
-            int remoteid = NumberSerializer.ReadInt(_rec_buffer, 0);
-            int localid = NumberSerializer.ReadInt(_rec_buffer, 4);
+            int remoteid = NumberSerializer.ReadInt(_rec_buffer, _rec_buffer_offset);
+            int localid = NumberSerializer.ReadInt(_rec_buffer, _rec_buffer_offset + 4);
+	    /*
+	     * Make a reference to this memory, don't copy.
+	     */
+	    MemBlock packet_buffer = MemBlock.Reference(_rec_buffer,
+	                                                _rec_buffer_offset + 8,
+							rec_bytes - 8);
+            AdvanceBuffer(rec_bytes);
   	    if( localid < 0 ) {
   	    /*
   	     * We never give out negative id's, so if we got one
   	     * back the other node must be sending us a control
   	     * message.
   	     */
-              HandleControlPacket(remoteid, localid, _rec_buffer, s);
+              HandleControlPacket(remoteid, localid, packet_buffer, s);
   	    }
   	    else {
-  	      HandleDataPacket(remoteid, localid, _rec_buffer, 8,
-                               rec_bytes - 8, end, s);
+  	      HandleDataPacket(remoteid, localid, packet_buffer, end, s);
   	    }
           }
         }

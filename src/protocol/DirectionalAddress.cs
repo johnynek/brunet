@@ -45,7 +45,7 @@ namespace Brunet
          this.ToString());
       }
       _buffer = mb;
-      _dir = (Direction) NumberSerializer.ReadInt(mb);
+      _dir = (Direction) NumberSerializer.ReadInt(mb, 0);
     }
 
     public DirectionalAddress(DirectionalAddress.Direction bearing) : base()

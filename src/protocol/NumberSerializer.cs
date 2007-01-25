@@ -68,11 +68,12 @@ namespace Brunet
       }
       return val;
     }
-    public static int ReadInt(MemBlock mb)
+    //Too bad we can't use a template here, .Net generics *may* do the job
+    public static int ReadInt(MemBlock mb, int offset)
     {
       int val = 0;
       for(int i = 0; i < 4; i++) {
-        val = (val << 8) | mb[i];
+        val = (val << 8) | mb[i + offset];
       }
       return val;
     }
