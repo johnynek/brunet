@@ -12,10 +12,10 @@
   <target name="build" description="Build libtuntap.so">
       <mkdir dir="${build.dir}" failonerror="true"/>
       <copy todir="${build.dir}">
-          <fileset><include name="tap.c"/> </fileset>
+          <fileset><include name="linux_tap.c"/> </fileset>
       </copy>
-      <exec program="gcc" commandline="-fPIC -c tap.c" workingdir="${build.dir}"/>
-      <exec program="gcc" commandline="-shared -o libtuntap.so tap.o" workingdir="${build.dir}"/>
+      <exec program="gcc" commandline="-fPIC -c linux_tap.c" workingdir="${build.dir}"/>
+      <exec program="gcc" commandline="-shared -o libtuntap.so linux_tap.o" workingdir="${build.dir}"/>
       <copy todir="${lib.dir}" failonerror="true">
           <fileset basedir="${build.dir}">
 	      <include name="${lib.name}.so" />

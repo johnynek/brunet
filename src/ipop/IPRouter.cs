@@ -1,4 +1,3 @@
-
 using System;
 using Brunet;
 using Brunet.Dht;
@@ -10,6 +9,7 @@ using System.Net;
 using System.IO;
 using System.Xml;
 using System.Xml.Serialization;
+
 using Mono.Unix.Native;
 
 namespace Ipop {
@@ -175,17 +175,6 @@ namespace Ipop {
       in_dht = false;
     }
 
-    private static void InterruptHandler(int signal) {
-      Console.Error.WriteLine("Receiving signal: {0}. Exiting", signal);
-      if (node.brunet != null) {
-        node.brunet.InterruptRefresher();
-        node.brunet.Disconnect();
-      }
-      Console.WriteLine("Exiting....");
-      Thread.Sleep(5000);
-      Environment.Exit(1);
-    }
-
     public static void RouteMissCallback(IPAddress ip, Address target) {
       brunet_arp_cache.Add(ip, target);
     }
@@ -212,7 +201,10 @@ namespace Ipop {
         IPRouterConfigHandler.Write(ConfigFile, config);
       }
 
-      Stdlib.signal(Signum.SIGINT, new SignalHandler(InterruptHandler));
+      OSDependent.Setup();
+      if(OSDependent.OSVers == 0) {
+        Stdlib.signal(Signum.SIGINT, new SignalHandler(IPRouter.InterruptHandler));
+      }
 
       debug = false;
       if (args.Length == 2)
@@ -334,6 +326,21 @@ namespace Ipop {
         }
         node.brunet.SendPacket(target, buffer);
       }
+    }
+
+    public static void InterruptHandler(int signal) {
+      Console.Error.WriteLine("Receiving signal: {0}. Exiting", signal);
+      Shutdown();
+  }
+
+    public static void Shutdown() {
+      if (node.brunet != null) {
+        node.brunet.InterruptRefresher();
+        node.brunet.Disconnect();
+      }
+      Console.WriteLine("Exiting....");
+      Thread.Sleep(5000);
+      Environment.Exit(1);
     }
   }
 }

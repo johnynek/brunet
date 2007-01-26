@@ -6,8 +6,40 @@ using System.Diagnostics;
 using System.Text.RegularExpressions;
 
 namespace Ipop {
-  public class Routines {
-    public static IList GetOutput() {
+  public class IPAddressesLinux : IEnumerable {
+    protected ArrayList _ints;
+
+    public IPAddressesLinux(string[] interfaces) {
+      _ints = new ArrayList(interfaces);
+    }
+
+    /**
+     * Get all the IPAddresses
+     */
+    public IPAddressesLinux() {
+      _ints = null;
+    }
+
+    /**
+     * This is for IEnumerable/foreach support
+     * 
+     */
+    public IEnumerator GetEnumerator() {
+      IList all_interfaces = GetOutput();
+      foreach(Hashtable ht in all_interfaces) {
+        if( ht.ContainsKey("interface") && ht.ContainsKey("inet addr") ) {
+          string iface = (string)ht["interface"];
+          if( _ints == null ) {
+            yield return IPAddress.Parse( (string)ht["inet addr"] );
+          }
+          else if( _ints.Contains(iface) ) {
+            yield return IPAddress.Parse( (string)ht["inet addr"] );
+          }
+        }
+      }
+    }
+
+    public IList GetOutput() {
       ProcessStartInfo cmd = new ProcessStartInfo("/sbin/ifconfig");
       cmd.RedirectStandardOutput = true;
       cmd.UseShellExecute = false;
@@ -52,10 +84,12 @@ namespace Ipop {
       if( entry != null ) {
         result.Add(entry);
       }
+      Print(result);
       return result;
     }
 
-    protected static bool AddIfMatch(Regex re, string line, Hashtable ht, string key) {
+    protected bool AddIfMatch(Regex re, string line, Hashtable ht, string
+key) {
       Match m = re.Match(line);
       if( m.Success ) {
         //System.Console.WriteLine(line);
@@ -68,85 +102,14 @@ namespace Ipop {
       return false;
     }
 
-    protected static void Print(IList l) {
+    protected void Print(IList l) {
+      System.Console.WriteLine("Network list:\n");
       foreach(Hashtable ht in l) {
         IDictionaryEnumerator en = ht.GetEnumerator();
         while(en.MoveNext()) {
-          System.Console.WriteLine("{0}: {1}", en.Key, en.Value);
+          System.Console.WriteLine("\t{0}: {1}", en.Key, en.Value);
         }
         System.Console.WriteLine();
-      }
-    }
-
-    public static void SetHostname(string hostname) {
-      System.Diagnostics.Process proc = new System.Diagnostics.Process();
-      proc.EnableRaisingEvents = false;
-      proc.StartInfo.UseShellExecute = false;
-      proc.StartInfo.FileName = "hostname";
-      proc.StartInfo.Arguments = hostname;
-      proc.Start();
-      proc.WaitForExit();
-    }
-
-    public static void SetTapDevice(string device, string IPAddress, string Netmask) {
-      System.Diagnostics.Process proc = new System.Diagnostics.Process();
-      proc.EnableRaisingEvents = false;
-      proc.StartInfo.UseShellExecute = false;
-      proc.StartInfo.FileName = "ifconfig";
-      proc.StartInfo.Arguments = device + " " + IPAddress +
-        " netmask " + Netmask;
-      proc.Start();
-      proc.WaitForExit();
-    }
-
-    public static void SetTapMAC(string device) {
-      System.Diagnostics.Process proc = new System.Diagnostics.Process();
-      proc.EnableRaisingEvents = false;
-      proc.StartInfo.UseShellExecute = false;
-      proc.StartInfo.FileName = "ifconfig";
-
-      proc.StartInfo.Arguments = device + " down hw ether FE:FD:00:00:00:01";
-      proc.Start();
-      proc.WaitForExit();
-
-      proc.StartInfo.Arguments = device + " up";
-      proc.Start();
-      proc.WaitForExit();
-    }
-  }
-
-/* This needs to be moved into OSDependent.cs when we get a chance */
-
-  public class IPAddresses : IEnumerable {
-    protected ArrayList _ints;
-
-    public IPAddresses(string[] interfaces) {
-      _ints = new ArrayList(interfaces);
-    }
-
-    /**
-     * Get all the IPAddresses
-     */
-    public IPAddresses() {
-      _ints = null;
-    }
-
-    /**
-     * This is for IEnumerable/foreach support
-     * 
-     */
-    public IEnumerator GetEnumerator() {
-      IList all_interfaces = Routines.GetOutput();
-      foreach(Hashtable ht in all_interfaces) {
-        if( ht.ContainsKey("interface") && ht.ContainsKey("inet addr") ) {
-          string iface = (string)ht["interface"];
-          if( _ints == null ) {
-            yield return IPAddress.Parse( (string)ht["inet addr"] );
-          }
-          else if( _ints.Contains(iface) ) {
-            yield return IPAddress.Parse( (string)ht["inet addr"] );
-          }
-        }
       }
     }
   }

@@ -56,7 +56,7 @@ namespace Ipop {
 /*          if (item.type =="tcp")
             el = new TcpEdgeListener(port, (IEnumerable) (new IPAddresses(DevicesToBind)), null);*/
           if (item.type == "udp")
-            el = new UdpEdgeListener(port, (IEnumerable) new IPAddresses(DevicesToBind));
+            el = new UdpEdgeListener(port, OSDependent.GetIPAddresses(DevicesToBind));
 /*          else if (item.type == "udp-as")
             el = new ASUdpEdgeListener(port, (IEnumerable) (new IPAddresses(DevicesToBind)), null);*/
           else

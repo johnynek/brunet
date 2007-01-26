@@ -23,6 +23,7 @@
         <include name="IPRouter.cs"/>
         <include name="../OSDependent/abstract.cs"/>
         <include name="../OSDependent/linux.cs"/>
+        <include name="../OSDependent/windows.cs"/>
         <include name="Ethernet.cs"/>
         <include name="IPPacketHandler.cs"/>
         <include name="IPPacketParser.cs"/>
@@ -36,7 +37,7 @@
       <references>
         <include name="${build.dir}/Brunet.dll"/>
         <include name="${build.dir}/Brunet.Dht.dll" />
-	<include name="${build.dir}/DHCPCommon.dll" />
+      	<include name="${build.dir}/DHCPCommon.dll" />
         <include name="Mono.Security.dll"/>
         <include name="System.Runtime.Remoting.dll"/>
         <include name="Mono.Posix.dll"/>
@@ -46,6 +47,7 @@
       <sources failonempty="true">
         <include name="../OSDependent/abstract.cs"/>
         <include name="../OSDependent/linux.cs"/>
+        <include name="../OSDependent/windows.cs"/>
         <include name="IPOP_Common.cs"/>
         <include name="IPRouterConfig.cs"/>
         <include name="SimpleNode.cs"/>
@@ -59,6 +61,7 @@
       <sources failonempty="true">
         <include name="../OSDependent/abstract.cs"/>
         <include name="../OSDependent/linux.cs"/>
+        <include name="../OSDependent/windows.cs"/>
         <include name="SimpleDhtClient.cs"/>
       </sources>
       <references>

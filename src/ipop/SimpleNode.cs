@@ -14,6 +14,7 @@ using Brunet.Dht;
 namespace Ipop {
   public class SimpleNode {
     public static void Main(string []args) {
+      OSDependent.DetectOS();
       if (args.Length < 1) {
         Console.WriteLine("please specify the SimpleNode configuration " + 
           "file... ");
@@ -44,7 +45,7 @@ namespace Ipop {
 /*          if (item.type =="tcp")
             el = new TcpEdgeListener(port, (IEnumerable) (new IPAddresses(config.DevicesToBind)), null);*/
           if (item.type == "udp")
-            el = new UdpEdgeListener(port, (IEnumerable) new IPAddresses(config.DevicesToBind));
+            el = new UdpEdgeListener(port, OSDependent.GetIPAddresses(config.DevicesToBind));
 /*          else if (item.type == "udp-as")
             el = new ASUdpEdgeListener(port, (IEnumerable) (new IPAddresses(config.DevicesToBind)), null);*/
           else
