@@ -20,7 +20,7 @@ namespace Brunet.Dht {
       _media = media;
       if (_media == Media.Disk) {
 	//create a directory for the node's data
-	Directory.CreateDirectory("data/" + _node.Address.ToString());
+	Directory.CreateDirectory("data" + OS.OSDir() + _node.Address.ToString());
 #if DHT_DEBUG	
 	Console.WriteLine("[EntryFactory]: Created a directory: data/{0}", _node.Address);
 #endif
@@ -56,7 +56,7 @@ namespace Brunet.Dht {
 	return new Entry(key, password, create_time, end_time, data, idx);
       }
       if (_media == Media.Disk) {
-	return new DiskEntry("data/" + _node.Address.ToString(), key, password, create_time, end_time, data, idx);
+	return new DiskEntry("data" + OS.OSDir() + _node.Address.ToString(), key, password, create_time, end_time, data, idx);
       } 
 
       return null;
