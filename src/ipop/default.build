@@ -38,9 +38,7 @@
         <include name="${build.dir}/Brunet.dll"/>
         <include name="${build.dir}/Brunet.Dht.dll" />
       	<include name="${build.dir}/DHCPCommon.dll" />
-        <include name="Mono.Security.dll"/>
         <include name="System.Runtime.Remoting.dll"/>
-        <include name="Mono.Posix.dll"/>
       </references>
     </csc>
     <csc target="exe" output="${build.dir}/SimpleNode.exe">

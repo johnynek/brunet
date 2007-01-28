@@ -84,7 +84,6 @@ namespace Ipop {
       if( entry != null ) {
         result.Add(entry);
       }
-      Print(result);
       return result;
     }
 

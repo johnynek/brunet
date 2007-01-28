@@ -10,7 +10,7 @@ using System.IO;
 using System.Xml;
 using System.Xml.Serialization;
 
-using Mono.Unix.Native;
+//using Mono.Unix.Native;
 
 namespace Ipop {
   public class IPRouter {
@@ -55,17 +55,20 @@ namespace Ipop {
     }
 
     private static bool ARPHandler(byte []packet) {
-      string TargetIPAddress = "";
-      for(int i = 0; i < 3; i++)  
-        TargetIPAddress += packet[14+i].ToString() + ".";
-      TargetIPAddress += packet[17].ToString();
-
+      string TargetIPAddress = "", SenderIPAddress = "";
+      for(int i = 0; i < 3; i++) { 
+        TargetIPAddress += packet[24+i].ToString() + ".";
+        SenderIPAddress += packet[14+i].ToString() + ".";
+      }
+      SenderIPAddress += packet[17].ToString();
+      TargetIPAddress += packet[27].ToString();
       /* Must return nothing if the node is checking availability of IPs */
       /* Or he is looking himself up. */
-      if(((node.ip != null) && node.ip.Equals(TargetIPAddress)) ||
-        TargetIPAddress.Equals("255.255.255.255") ||
-        TargetIPAddress.Equals("0.0.0.0"))
+      if((node.ip == null) || node.ip.Equals(IPAddress.Parse(TargetIPAddress)) ||
+        SenderIPAddress.Equals("255.255.255.255") ||
+        SenderIPAddress.Equals("0.0.0.0")) {
         return false;
+      }
 
       byte [] replyPacket = new byte[packet.Length];
       /* Same base */
@@ -203,7 +206,7 @@ namespace Ipop {
 
       OSDependent.Setup();
       if(OSDependent.OSVers == 0) {
-        Stdlib.signal(Signum.SIGINT, new SignalHandler(IPRouter.InterruptHandler));
+        //Stdlib.signal(Signum.SIGINT, new SignalHandler(IPRouter.InterruptHandler));
       }
 
       debug = false;
