@@ -17,7 +17,7 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
-
+//#define ARI_CTM_DEBUG
 using System;
 using System.Collections;
 
@@ -274,8 +274,8 @@ namespace Brunet
 #endif
 
 #if ARI_CTM_DEBUG
-	Console.WriteLine("Connector - Send CTM request; target: {0}.", 
-			  _con_packet.Destination);
+	Console.WriteLine("Connector - Send CTM request; src: {0}, target: {1}.", 
+			  _con_packet.Source, _con_packet.Destination);
 #endif
         _sender.Send(_con_packet);
         _last_packet_datetime = TimeUtils.NoisyNowTicks;

@@ -82,6 +82,14 @@ public class TaskQueue {
   public event EventHandler EmptyEvent;
 
   protected int _worker_count;
+  //if the queue can start workers (added by Arijit Ganguly)
+  protected bool _is_active;
+  public bool IsActive {
+    set {
+      _is_active = value;
+    }
+  }
+  
   public int WorkerCount {
     get {
       lock( _sync ) {
@@ -94,6 +102,8 @@ public class TaskQueue {
     _task_to_workers = new Hashtable();
     _sync = new object();
     _worker_count = 0;
+    //is active by default
+    _is_active = true;
   }
 
   public void Enqueue(TaskWorker new_worker)
@@ -116,7 +126,7 @@ public class TaskQueue {
     /*
      * Get to work!
      */
-    if( start ) {
+    if( start  && _is_active) {//added the _is_active check (Arijit Ganguly)
       new_worker.Start();
     }
   }
@@ -155,7 +165,7 @@ public class TaskQueue {
       }
       _worker_count--;
     }
-    if( new_worker != null ) {
+    if( new_worker != null && _is_active) {//added the _is_active check (Arijit Ganguly)
       //You start me up!
       new_worker.Start();
     }

@@ -119,11 +119,11 @@ public class TableServer {
   public int Put(byte[] key, int ttl, string hashed_password, byte[] data) {
 #if DHT_LOG
     _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::RequestPut::::" + 
-    	       + Convert.ToBase64String(key));
+    	       + Base32.Encode(key));
 #endif
 
 #if DHT_DEBUG
-    Console.WriteLine("[DhtServer: {0}]: Put() on key: {1}", _node.Address, Convert.ToBase64String(key));
+    Console.WriteLine("[DhtServer: {0}]: Put() on key: {1}", _node.Address, Base32.Encode(key));
 #endif
 
     string hash_name = null;
@@ -185,7 +185,7 @@ public class TableServer {
 
 #if DHT_LOG
       _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::SuccessPut::::" + 
-		+ Convert.ToBase64String(key));
+		+ Base32.Encode(key));
 #endif     
       ///@todo, we might need to tell a neighbor about this object
       return entry_list.Count;
@@ -206,11 +206,11 @@ public class TableServer {
   {
 #if DHT_LOG
     _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::RequestCreate::::" + 
-	       + Convert.ToBase64String(key));
+	       + Base32.Encode(key));
 #endif
 #if DHT_DEBUG
     Console.WriteLine("[DhtServer: {0}]: Create() on key: {1}.", 
-		      _node.Address, Convert.ToBase64String(key));
+		      _node.Address, Base32.Encode(key));
 #endif
     string hash_name = null;
     string base64_val = null;
@@ -254,7 +254,7 @@ public class TableServer {
       
 #if DHT_LOG
       _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::SuccessCreate::::" + 
-		 + Convert.ToBase64String(key));
+		 + Base32.Encode(key));
 #endif
       return true;
     } //release the lock
@@ -264,11 +264,11 @@ public class TableServer {
   {
 #if DHT_LOG
     _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::RequestRecreate::::" + 
-	       + Convert.ToBase64String(key));
+	       + Base32.Encode(key));
 #endif
 
 #if DHT_DEBUG
-    Console.WriteLine("[DhtServer: {0}]: Recreate() on key: {1}.", _node.Address, Convert.ToBase64String(key));
+    Console.WriteLine("[DhtServer: {0}]: Recreate() on key: {1}.", _node.Address, Base32.Encode(key));
 #endif    
     string hash_name = null;
     string base64_pass = null;
@@ -347,7 +347,7 @@ public class TableServer {
       
 #if DHT_LOG
       _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::SuccessRecreate::::" + 
-		 + Convert.ToBase64String(key));
+		 + Base32.Encode(key));
 #endif
       return true;	
     }//end of lock
@@ -358,11 +358,11 @@ public class TableServer {
   {
 #if DHT_LOG
     _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::RequestGet::::" + 
-	       + Convert.ToBase64String(key));
+	       + Base32.Encode(key));
 #endif
 
 #if DHT_DEBUG
-    Console.WriteLine("[DhtServer: {0}]: Get() on key: {1}", _node.Address, Convert.ToBase64String(key));
+    Console.WriteLine("[DhtServer: {0}]: Get() on key: {1}", _node.Address, Base32.Encode(key));
 #endif
 
     int seen_start_idx = -1;
@@ -485,11 +485,11 @@ public class TableServer {
   {
 #if DHT_LOG
     _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::RequestDelete::::" + 
-	       + Convert.ToBase64String(key));
+	       + Base32.Encode(key));
 #endif
 
 #if DHT_DEBUG
-    Console.WriteLine("[DhtServer: {0}]: Delete() on key: {1}.", _node.Address, Convert.ToBase64String(key));
+    Console.WriteLine("[DhtServer: {0}]: Delete() on key: {1}.", _node.Address, Base32.Encode(key));
 #endif    
     string hash_name = null;
     string base64_pass = null;
@@ -547,7 +547,7 @@ public class TableServer {
 	}
 #if DHT_LOG
 	_log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::SuccessDelete::::" + 
-		   + Convert.ToBase64String(key));
+		   + Base32.Encode(key));
 #endif
       } else {
 #if DHT_DEBUG
@@ -703,7 +703,7 @@ public class TableServer {
 	}
 #if DHT_LOG
 	_log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::AdminDelete::::" + 
-		   + Convert.ToBase64String(k));
+		   + Base32.Encode(k));
 #endif
 	_ht.Remove(ht_key);
       }
