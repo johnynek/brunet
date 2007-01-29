@@ -142,6 +142,9 @@ namespace Brunet.Dht {
 	  Console.WriteLine("Put() on key:{0}",str_key);
 	  
 	  byte[] utf8_key = Encoding.UTF8.GetBytes(str_key);
+	  //the key is actually re-mapped to store_key
+	  byte[] store_key = Dht.MapToRing(utf8_key);
+
 	  byte[] utf8_data = Encoding.UTF8.GetBytes(str_data);
 	  
 	  HashAlgorithm algo = new SHA1CryptoServiceProvider();
@@ -163,8 +166,9 @@ namespace Brunet.Dht {
 	  RpcResult res = q.Dequeue() as RpcResult;
 	  q.Close();
 	  
+	  //the key is actually re-mapped to store_key
+	  key_list.Add(store_key);
 	  
-	  key_list.Add(utf8_key);
 	  Console.WriteLine("RpcResult for Put(): {0}", res.Result);
 
 	} else if (str_oper.Equals("Create")) {
@@ -179,6 +183,9 @@ namespace Brunet.Dht {
 	  Console.WriteLine("Create() on key:{0}",str_key);	  
 
 	  byte[] utf8_key = Encoding.UTF8.GetBytes(str_key);
+	  //the key is actually re-mapped to store_key
+	  byte[] store_key = Dht.MapToRing(utf8_key);
+
 	  byte[] utf8_data = Encoding.UTF8.GetBytes(str_data);
 	  
 	  HashAlgorithm algo = new SHA1CryptoServiceProvider();
@@ -201,7 +208,8 @@ namespace Brunet.Dht {
 	  RpcResult res = q.Dequeue() as RpcResult;
 	  q.Close();
 	  Console.WriteLine("RpcResult for Create(): {0}", res.Result);
-	  key_list.Add(utf8_key);
+
+	  key_list.Add(store_key);
 	} else if (str_oper.Equals("Recreate")) {
 
 	  Console.Write("Enter key:");
@@ -248,7 +256,6 @@ namespace Brunet.Dht {
 	  RpcResult res = q.Dequeue() as RpcResult;
 	  q.Close();
 	  Console.WriteLine("RpcResult for Recreate(): {0}", res.Result);
-	  key_list.Add(utf8_key);
 	} else if (str_oper.Equals("Get")) {
 	  Console.Write("Enter key:");
 	  string str_key = Console.ReadLine();
@@ -263,24 +270,22 @@ namespace Brunet.Dht {
 	  BlockingQueue q = dht.Get(utf8_key, 500, null);
 	  int count = 0;
 
-	  //while (count++ < 1) {
-	    RpcResult res = q.Dequeue() as RpcResult;
-	    ArrayList result = res.Result as ArrayList;
+	  RpcResult res = q.Dequeue() as RpcResult;
+	  ArrayList result = res.Result as ArrayList;
 
-	    if (result == null || result.Count < 3) {
-	      Console.WriteLine("Something messed up with Get()...");
-	      continue;
-	    }
-	    Console.WriteLine("Result from Get() looks good: " + result.Count);
-	    ArrayList values = (ArrayList) result[0];
-	    Console.WriteLine("# of matching entries: " + values.Count);
-	    foreach (Hashtable ht in values) {
-	      Console.WriteLine(ht["age"]);
-	      byte[] data = (byte[]) ht["data"];
-	      string val = Encoding.UTF8.GetString(data);
-	      Console.WriteLine(val);
-	    }
-	    //}
+	  if (result == null || result.Count < 3) {
+	    Console.WriteLine("Something messed up with Get()...");
+	    continue;
+	  }
+	  Console.WriteLine("Result from Get() looks good: " + result.Count);
+	  ArrayList values = (ArrayList) result[0];
+	  Console.WriteLine("# of matching entries: " + values.Count);
+	  foreach (Hashtable ht in values) {
+	    Console.WriteLine(ht["age"]);
+	    byte[] data = (byte[]) ht["data"];
+	    string val = Encoding.UTF8.GetString(data);
+	    Console.WriteLine(val);
+	  }
 	  q.Close();
 	} else if (str_oper.Equals("Delete")) {
 	  Console.Write("Enter key:");
@@ -290,6 +295,9 @@ namespace Brunet.Dht {
 	  Console.WriteLine("Delete on key: {0}", str_key );
 
 	  byte[] utf8_key = Encoding.UTF8.GetBytes(str_key);
+	  //the key is actually re-mapped to store_key
+	  byte[] store_key = Dht.MapToRing(utf8_key);
+
 	  byte[] utf8_pass = Encoding.UTF8.GetBytes(str_pass);
 
 	  string base64_pass = Convert.ToBase64String(utf8_pass);
@@ -303,8 +311,7 @@ namespace Brunet.Dht {
 	  int r_idx = -1;
 	  for (int i = 0; i < key_list.Count; i++) {
 	    byte[] key = (byte[]) key_list[i];
-	    string skey =  Encoding.UTF8.GetString(key);
-	    if (str_key.Equals(skey)) {
+	    if (Base32.Encode(store_key).Equals(Base32.Encode(key))) {
 	      r_idx = i;
 	      break;
 	    }
@@ -329,6 +336,7 @@ namespace Brunet.Dht {
 	  node_list.RemoveAt(idx);
 	  dht_list.RemoveAt(idx);
 	  port_list.RemoveAt(idx);
+	  //Thread.Sleep(5000);
 	} else if (str_oper.Equals("Start")) { 
 	  Console.WriteLine("Starting new node");
 	  AHAddress addr = new AHAddress(new RNGCryptoServiceProvider());
@@ -408,7 +416,7 @@ namespace Brunet.Dht {
 	    Console.WriteLine("{0}: # of key-value pairs: {1}", dht.Address, dht.Count);
 	    Hashtable ht = dht.All;
 	    foreach(byte[] key in ht.Keys) {
-	      string str_key = Encoding.UTF8.GetString(key);
+	      string str_key = Base32.Encode(key);
 	      Console.WriteLine("Key: {0}", str_key);
 	    }
 	  }
@@ -464,7 +472,7 @@ namespace Brunet.Dht {
 	  Console.WriteLine("First check if all keys are present on atleast 2 nodes, #keys: {0}", 
 			    key_list.Count);
 	  foreach (byte[] key in key_list) {
-	    string str_key = Encoding.UTF8.GetString(key);
+	    string str_key = Base32.Encode(key);
 	    Console.WriteLine("Testing consistency of key: {0} in the DHT", str_key);
 	    int instances = 0;
 	    for (int k = 0; k < node_list.Count; k++) {
@@ -473,7 +481,7 @@ namespace Brunet.Dht {
 	      Hashtable ht = dht.All;
 	      
 	      foreach(byte[] key_1 in ht.Keys) {
-		string skey = Encoding.UTF8.GetString(key_1);
+		string skey = Base32.Encode(key_1);
 		if (str_key.Equals(skey)) {
 		  Console.WriteLine("We found key: {0} on node: {1}", str_key, 
 				    dht.Address);
@@ -501,11 +509,11 @@ namespace Brunet.Dht {
 	    Hashtable ht = dht.All;
 	    
 	    foreach(byte[] key in ht.Keys) {
-	      string str_key = Encoding.UTF8.GetString(key);
+	      string str_key = Base32.Encode(key);
 	      //check if this key is in our records
 	      bool found = false;
 	      foreach (byte[] key_1 in key_list) {
-		string skey = Encoding.UTF8.GetString(key_1);
+		string skey = Base32.Encode(key_1);
 		if (str_key.Equals(skey)) {
 		  found = true;
 		}

@@ -119,7 +119,7 @@ namespace Brunet.Dht {
 #if DHT_DEBUG
 	    Console.WriteLine("[DhtLogic] {0}: Found a value. Making an Put() on key: {1} call to target: {2}",
 			      _our_addr,
-			      Convert.ToBase64String(e.Key),
+			      Base32.Encode(e.Key),
 			      _target);
 #endif
 	    TimeSpan t_span = e.EndTime - DateTime.Now;
@@ -189,7 +189,7 @@ namespace Brunet.Dht {
 #if DHT_DEBUG
 	    Console.WriteLine("[DhtLogic] {0}: Found a value. Making a Put() on key: {1} call to target: {2}",
 			      _our_addr,
-			      Convert.ToBase64String(e.Key),
+			      Base32.Encode(e.Key),
 			      _target);
 #endif
 
@@ -298,7 +298,7 @@ namespace Brunet.Dht {
       }
     }
 
-    protected static byte[] MapToRing(byte[] key) {
+    public static byte[] MapToRing(byte[] key) {
       HashAlgorithm hashAlgo = HashAlgorithm.Create();
       byte[] hash = hashAlgo.ComputeHash(key);
       hash[Address.MemSize -1] &= 0xFE;
@@ -324,7 +324,7 @@ namespace Brunet.Dht {
 
 #if DHT_LOG
       _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::InvokePut::::" +
-		 + Convert.ToBase64String(b) + "::::" + target);
+		 + Base32.Encode(b) + "::::" + target);
 #endif
       //we now know the invocation target
       BlockingQueue q = _rpc.Invoke(target, "dht.Put", b, ttl, hashed_password, data);
@@ -354,7 +354,7 @@ namespace Brunet.Dht {
 
 #if DHT_LOG
       _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::InvokeCreate::::" +
-		 + Convert.ToBase64String(b) + "::::" + target);
+		 + Base32.Encode(b) + "::::" + target);
 #endif
       
       //we now know the invocation target
@@ -382,7 +382,7 @@ namespace Brunet.Dht {
 
 #if DHT_LOG
       _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::InvokeRecreate::::" +
-		 + Convert.ToBase64String(b) + "::::" + target);
+		 + Base32.Encode(b) + "::::" + target);
 #endif
       
       //we now know the invocation target
@@ -410,7 +410,7 @@ namespace Brunet.Dht {
 
 #if DHT_LOG
       _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::InvokeGet::::" +
-		 + Convert.ToBase64String(b) + "::::" + target);
+		 + Base32.Encode(b) + "::::" + target);
 #endif      
       //we now know the invocation target
       BlockingQueue q = _rpc.Invoke(target, "dht.Get", b, maxbytes, token);
@@ -438,7 +438,7 @@ namespace Brunet.Dht {
 
 #if DHT_LOG
       _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::InvokeDelete::::" +
-		 + Convert.ToBase64String(b) + "::::" + target);
+		 + Base32.Encode(b) + "::::" + target);
 #endif
       
       //we now know the invocation target
@@ -835,6 +835,35 @@ namespace Brunet.Dht {
 	}
       }    
     }
+    protected void StatusChangedHandler(object contab, EventArgs eargs) {
+      ConnectionEventArgs args = (ConnectionEventArgs)eargs;
+      Connection new_con = args.Connection;
+      AHAddress our_addr = _node.Address as AHAddress;
+      lock(_node.ConnectionTable.SyncRoot) {  //lock the connection table
+	if (!_activated) {
+	  if (_node.IsConnected ) {
+#if DHT_DEBUG
+	    Console.WriteLine("[DhtLogic] {0}: Activated (on status change) at time: {1}.", our_addr, DateTime.Now);
+#endif	
+	    _activated = true;
+	  } 
+	}
+      }
+#if DHT_LOG
+      string status = "StatusBegin";
+      StatusMessage sm = new_con.Status;
+      ArrayList arr = sm.Neighbors;
+      foreach (NodeInfo n_info in arr) {
+	AHAddress stat_addr = n_info.Address as AHAddress;
+	status += ("::::" + stat_addr);
+      }
+      status += "::::StatusEnd";
+      _log.Debug(our_addr + "::::" + DateTime.UtcNow.Ticks + "::::StatusChanged::::" +
+		 new_con.ConType + "::::" + new_con.Address + "::::" +
+		 new_con.Edge.LocalTA.ToString() + "::::" + new_con.Edge.RemoteTA.ToString() + "::::" + status + "::::Connected::::" +
+		 _node.IsConnected);
+#endif
+    }
     /** 
      * Useful for debugging , code save 30 minutes of my time atleast.
      * Warning: This method should not be used at all.
@@ -879,34 +908,6 @@ namespace Brunet.Dht {
 	  new EventHandler(StatusChangedHandler);
       } //end of lock
     }
-    protected void StatusChangedHandler(object contab, EventArgs eargs) {
-      ConnectionEventArgs args = (ConnectionEventArgs)eargs;
-      Connection new_con = args.Connection;
-      AHAddress our_addr = _node.Address as AHAddress;
-      lock(_node.ConnectionTable.SyncRoot) {  //lock the connection table
-	if (!_activated) {
-	  if (_node.IsConnected ) {
-#if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Activated (on status change) at time: {1}.", our_addr, DateTime.Now);
-#endif	
-	    _activated = true;
-	  } 
-	}
-      }
-#if DHT_LOG
-      string status = "StatusBegin";
-      StatusMessage sm = new_con.Status;
-      ArrayList arr = sm.Neighbors;
-      foreach (NodeInfo n_info in arr) {
-	AHAddress stat_addr = n_info.Address as AHAddress;
-	status += ("::::" + stat_addr);
-      }
-      status += "::::StatusEnd";
-      _log.Debug(our_addr + "::::" + DateTime.UtcNow.Ticks + "::::StatusChanged::::" +
-		 new_con.ConType + "::::" + new_con.Address + "::::" +
-		 new_con.Edge.LocalTA.ToString() + "::::" + new_con.Edge.RemoteTA.ToString() + "::::" + status + "::::Connected::::" +
-		 _node.IsConnected);
-#endif
-    }
+
   }
 }

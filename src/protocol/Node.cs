@@ -461,6 +461,10 @@ namespace Brunet
      * Disconnect to the network.
      */
     public virtual void Disconnect() {
+#if DEBUG
+      Console.WriteLine("[Connect: {0}] deactivating task queue", _local_add);
+#endif
+      _task_queue.IsActive = false;
       if (DepartureEvent != null) {
 	DepartureEvent(this, null);      
       }

@@ -31,7 +31,7 @@ namespace Brunet.Dht {
       _degree = (int) System.Math.Pow(2, n);
     }
     
-    protected static byte[][] MapToRing(byte[] key, int num_targets) {
+    public static byte[][] MapToRing(byte[] key, int num_targets) {
       HashAlgorithm hashAlgo = HashAlgorithm.Create();
       byte[] hash = hashAlgo.ComputeHash(key);
       hash[Address.MemSize -1] &= 0xFE;
@@ -71,7 +71,7 @@ namespace Brunet.Dht {
 	Address target = new AHAddress(b[k]);
 #if DHT_LOG
 	_log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::InvokePut::::" +
-		   + Convert.ToBase64String(b[k]) + "::::" + target);
+		   + Base32.Encode(b[k]) + "::::" + target);
 #endif
 	q[k] = _rpc.Invoke(target, "dht.Put", b[k], ttl, hashed_password, data);
       }
@@ -97,7 +97,7 @@ namespace Brunet.Dht {
 	Address target = new AHAddress(b[k]);
 #if DHT_LOG
 	_log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::InvokeCreate::::" +
-		   + Convert.ToBase64String(b[k]) + "::::" + target);
+		   + Base32.Encode(b[k]) + "::::" + target);
 #endif
 	q[k] = _rpc.Invoke(target, "dht.Create", b[k], ttl, hashed_password, data);
       }
@@ -123,7 +123,7 @@ namespace Brunet.Dht {
 	Address target = new AHAddress(b[k]);
 #if DHT_LOG
 	_log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::InvokeRecreate::::" +
-		   + Convert.ToBase64String(b[k]) + "::::" + target);
+		   + Base32.Encode(b[k]) + "::::" + target);
 #endif
 	q[k] = _rpc.Invoke(target, "dht.Recreate", b[k], old_password, ttl, new_hashed_password, data);
       }
@@ -147,7 +147,7 @@ namespace Brunet.Dht {
 	Address target = new AHAddress(b[k]);
 #if DHT_LOG
 	_log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::InvokeGet::::" +
-		   + Convert.ToBase64String(b[k]) + "::::" + target);
+		   + Base32.Encode(b[k]) + "::::" + target);
 #endif      
 	q[k] = _rpc.Invoke(target, "dht.Get", b[k], maxbytes, token);
       }
@@ -172,7 +172,7 @@ namespace Brunet.Dht {
 	Address target = new AHAddress(b[k]);
 #if DHT_LOG
 	_log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::InvokeDelete::::" +
-		   + Convert.ToBase64String(b[k]) + "::::" + target);
+		   + Base32.Encode(b[k]) + "::::" + target);
 #endif
 	q[k] = _rpc.Invoke(target, "dht.Delete", b[k], password);
       }

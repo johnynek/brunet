@@ -72,15 +72,18 @@ def add_to_list(e):
     event_list.insert(k, e)            
             
 max_time = 360.0
+pre_start = 0
 if len(sys.argv) > 1:
     max_time = int(sys.argv[1])
+if len(sys.argv) > 2:
+    pre_start = int(sys.argv[2])
 #60 second arrival
 node_birth_rate = 1.0/(60)
 #60 second departure
 node_death_rate = 1.0/(60)
 
-key_birth_rate = 1.0/(60)
-key_death_rate = 1.0/(60)
+key_birth_rate = 1.0/(30)
+key_death_rate = 1.0/(30)
 
 #now generate a schedule for node arrival
 time = 0.0
@@ -119,7 +122,13 @@ while time < max_time:
     idx = idx + 1
     
 
-
+#lets start some nodes articifially
+for i in range(0, pre_start):
+    print "Start"
+    print "Sleep"
+    print "5000"
+print "Sleep"
+print 100000
 #finally schedule the arrival events
 for i in range(0, len(event_list)):
     print "Global_Check"

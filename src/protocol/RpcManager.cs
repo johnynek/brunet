@@ -342,9 +342,15 @@ public class RpcManager : IReplyHandler, IRequestHandler {
     try {
       result = mi.Invoke(handler, param_list);
     } catch(ArgumentException argx) {
+#if RPC_DEBUG
+      Console.WriteLine("[RpcServer: {0}] Argument exception. {1}", _rrman.Node.Address, mi);
+#endif
       result = new AdrException(-32602, argx);
     }
     catch(TargetParameterCountException argx) {
+#if RPC_DEBUG
+      Console.WriteLine("[RpcServer: {0}] Parameter count exception. {1}", _rrman.Node.Address, mi);
+#endif
       result = new AdrException(-32602, argx);
     }
     catch(TargetInvocationException x) {
@@ -354,6 +360,9 @@ public class RpcManager : IReplyHandler, IRequestHandler {
       result = new AdrException(-32608, x.InnerException);
     }
     catch(Exception x) {
+#if RPC_DEBUG
+      Console.WriteLine("[RpcServer: {0}] General exception. {1}", _rrman.Node.Address, mi);
+#endif
       result = x;
     }
     finally {

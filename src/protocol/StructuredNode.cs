@@ -47,6 +47,9 @@ namespace Brunet
     protected ConnectionOverlord _sco;
     //added the new ChotaConnectionOverlord
     protected ConnectionOverlord _cco;
+    
+    //keep track of CtmRequestHandler
+    protected CtmRequestHandler _ctm_handler;
 
     //maximum number of neighbors we report in our status
     protected static readonly int MAX_NEIGHBORS = 4;
@@ -101,8 +104,8 @@ namespace Brunet
       /**
        * Here is how we handle ConnectToMessages : 
        */
-      h = new CtmRequestHandler();
-      Subscribe(AHPacket.Protocol.Connection, h);
+      _ctm_handler = new CtmRequestHandler();
+      Subscribe(AHPacket.Protocol.Connection, _ctm_handler);
 
       _connection_table.ConnectionEvent += new EventHandler(this.EstimateSize);
       _connection_table.ConnectionEvent += new EventHandler(this.UpdateNeighborStatus);
@@ -201,6 +204,9 @@ namespace Brunet
       _lco.IsActive = false;
       _sco.IsActive = false;
       _cco.IsActive = false;
+      
+
+      Unsubscribe(AHPacket.Protocol.Connection, _ctm_handler);
 
       //Gracefully close all the edges:
       ArrayList edges_to_close = new ArrayList();
