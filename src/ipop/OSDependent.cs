@@ -1,20 +1,10 @@
 using System;
 using System.Collections;
 
-using Brunet;
-using Brunet.Dht;
-using System.Text;
-using System.Threading;
-using System.Net.Sockets;
-using System.Net;
-using System.IO;
-using System.Xml;
-using System.Xml.Serialization;
-
 namespace Ipop {
   public class OSDependent {
-// 0 - Linux
-// 1 - Windows
+    public static int Linux {get { return 0; } }
+    public static int Windows {get { return 1; } }
     private static int OSVersion;
     public static int OSVers {
       get {
@@ -23,11 +13,9 @@ namespace Ipop {
     }
 //    private static OSDependent routines;
     public static IEnumerable GetIPAddresses(string [] interfaces) {
-      if(OSVersion != 0 || OSVersion != 1)
-        DetectOS();
-      if(OSVersion == 0)
+      if(OSVers == Linux)
         return new IPAddressesLinux(interfaces);
-      else if(OSVersion == 1)
+      else if(OSVers == Windows)
         return new IPAddressesWindows(interfaces);
       System.Console.WriteLine("Invalid Operating System");
       return null;
@@ -42,11 +30,11 @@ namespace Ipop {
     public static void DetectOS() {
       int p = (int) Environment.OSVersion.Platform;
       if ((p == 4) || (p == 128)) {
-        OSVersion = 0;
-//        routines = new LinuxOSDependent();
+        OSVersion = Linux;
+//        LinuxRoutines.Setup();
       }
       else {
-        OSVersion = 1;
+        OSVersion = Windows;
 //        routines = new WindowsOSDependent();
       }
     }

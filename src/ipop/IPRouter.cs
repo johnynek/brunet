@@ -10,8 +10,6 @@ using System.IO;
 using System.Xml;
 using System.Xml.Serialization;
 
-//using Mono.Unix.Native;
-
 namespace Ipop {
   public class IPRouter {
     //if debugging information is needed
@@ -23,9 +21,10 @@ namespace Ipop {
     private static IPRouterConfig config;
     private static ArrayList RemoteTAs;
     private static string ConfigFile;
-    private static NodeMapping node;
+    public static NodeMapping node;
     private static byte []routerMAC = new byte[]{0xFE, 0xFD, 0, 0, 0, 0};
     private static bool in_dht;
+    private Shutdown shut;
 
 /*  DHT added code */
 
@@ -205,8 +204,8 @@ namespace Ipop {
       }
 
       OSDependent.Setup();
-      if(OSDependent.OSVers == 0) {
-        //Stdlib.signal(Signum.SIGINT, new SignalHandler(IPRouter.InterruptHandler));
+      if(OSDependent.OSVers == OSDependent.Linux) {
+        Shutdown shut = new LinuxShutdown();
       }
 
       debug = false;
@@ -329,21 +328,6 @@ namespace Ipop {
         }
         node.brunet.SendPacket(target, buffer);
       }
-    }
-
-    public static void InterruptHandler(int signal) {
-      Console.Error.WriteLine("Receiving signal: {0}. Exiting", signal);
-      Shutdown();
-  }
-
-    public static void Shutdown() {
-      if (node.brunet != null) {
-        node.brunet.InterruptRefresher();
-        node.brunet.Disconnect();
-      }
-      Console.WriteLine("Exiting....");
-      Thread.Sleep(5000);
-      Environment.Exit(1);
     }
   }
 }
