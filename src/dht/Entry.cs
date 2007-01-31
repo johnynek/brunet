@@ -66,7 +66,7 @@ public class Entry {
     {
       object o = (object) idx;
       //initialization
-      _file = fname + "/" + o.ToString();
+      _file = Path.Combine(fname, o.ToString());
 
       
       FileStream fStream = new FileStream(_file, FileMode.CreateNew);
