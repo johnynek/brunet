@@ -214,11 +214,6 @@ namespace Brunet.Dht {
 
 	  Console.Write("Enter key:");
 	  string str_key = Console.ReadLine();
-	  Console.Write("Enter current password:");
-	  string old_str_pass = Console.ReadLine();
-
-
-
 	  Console.Write("Enter data:");
 	  string str_data = Console.ReadLine();
 	  Console.Write("Enter new password:");
@@ -227,11 +222,6 @@ namespace Brunet.Dht {
 	  int ttl = Int32.Parse(Console.ReadLine());
 
 	  Console.WriteLine("Recreate() on key:{0}",str_key);	  
-
-	  byte[] old_utf8_pass = Encoding.UTF8.GetBytes(old_str_pass);
-	  string old_base64_pass = Convert.ToBase64String(old_utf8_pass);
-	  string old_send_pass = "SHA1:" + old_base64_pass;
-
 
 	  byte[] utf8_key = Encoding.UTF8.GetBytes(str_key);
 	  byte[] utf8_data = Encoding.UTF8.GetBytes(str_data);
@@ -252,7 +242,7 @@ namespace Brunet.Dht {
 	  Node n  = (Node) node_list[idx];
 	  Console.WriteLine("Issuing the Recreate() command on idx: {0} address: {1}", idx, n.Address);
 
-	  BlockingQueue q = dht.Recreate(utf8_key, old_send_pass, ttl, new_stored_pass, utf8_data);
+	  BlockingQueue q = dht.Recreate(utf8_key, ttl, new_stored_pass, utf8_data);
 	  RpcResult res = q.Dequeue() as RpcResult;
 	  q.Close();
 	  Console.WriteLine("RpcResult for Recreate(): {0}", res.Result);

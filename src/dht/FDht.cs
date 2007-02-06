@@ -104,7 +104,7 @@ namespace Brunet.Dht {
       return q;
     }
 
-    public BlockingQueue[] RecreateF(byte[] key, string old_password, int ttl, string new_hashed_password, byte[] data) {
+    public BlockingQueue[] RecreateF(byte[] key, int ttl, string hashed_password, byte[] data) {
 #if DHT_DEBUG
       Console.WriteLine("[DhtClient] Invoking a Dht::Recreate()");
 #endif
@@ -125,7 +125,7 @@ namespace Brunet.Dht {
 	_log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::InvokeRecreate::::" +
 		   + Base32.Encode(b[k]) + "::::" + target);
 #endif
-	q[k] = _rpc.Invoke(target, "dht.Recreate", b[k], old_password, ttl, new_hashed_password, data);
+	q[k] = _rpc.Invoke(target, "dht.Recreate", b[k], ttl, hashed_password, data);
       }
       return q;
     }

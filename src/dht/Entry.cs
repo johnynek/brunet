@@ -55,6 +55,8 @@ public class Entry {
 #if DHT_DEBUG      
 	Console.WriteLine("[DiskEntry] Reading data of len: {0} from file: {1}", data.Length, _file);
 #endif
+	br.Close();
+	fStream.Close();
 	return data;
       }
     }
@@ -69,7 +71,7 @@ public class Entry {
       _file = Path.Combine(fname, o.ToString());
 
       
-      FileStream fStream = new FileStream(_file, FileMode.CreateNew);
+      FileStream fStream = new FileStream(_file, FileMode.Create);
       BinaryWriter bw = new BinaryWriter(fStream);
 #if DHT_DEBUG      
       Console.WriteLine("[DiskEntry] Creating data of len: {0} inside file: {1}", data.Length, _file);

@@ -363,7 +363,7 @@ namespace Brunet.Dht {
       return q;
     }
 
-    public BlockingQueue Recreate(byte[] key, string old_password, int ttl, string new_hashed_password, byte[] data) {
+    public BlockingQueue Recreate(byte[] key, int ttl, string hashed_password, byte[] data) {
 #if DHT_DEBUG
       Console.WriteLine("[DhtClient] Invoking a Dht::Recreate()");
 #endif
@@ -387,7 +387,7 @@ namespace Brunet.Dht {
 #endif
       
       //we now know the invocation target
-      BlockingQueue q = _rpc.Invoke(target, "dht.Recreate", b, old_password, ttl, new_hashed_password, data);
+      BlockingQueue q = _rpc.Invoke(target, "dht.Recreate", b, ttl, hashed_password, data);
       return q;
     }
     
