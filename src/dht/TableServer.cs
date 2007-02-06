@@ -116,6 +116,15 @@ public class TableServer {
 
     return count;
   }
+
+  /**
+   * This method puts in a key-value pair. (now this is idempotent).
+   * @param key key associated with the date item
+   * @param ttl time-to-live in seconds
+   * @param hashed_password <hash_name>:<base64(hashed_pass)>
+   * @param data data associated with the key
+   * @return true on success, false on failure
+   */
   public int Put(byte[] key, int ttl, string hashed_password, byte[] data) {
 #if DHT_LOG
     _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::RequestPut::::" + 
@@ -195,7 +204,7 @@ public class TableServer {
 
   /**
    * This method differs from put() in the key is already mapped
-   * we fail
+   * we fail. (now this is idempotent).
    * @param key key associated with the date item
    * @param ttl time-to-live in seconds
    * @param hashed_password <hash_name>:<base64(hashed_pass)>
@@ -233,26 +242,43 @@ public class TableServer {
       ArrayList entry_list = (ArrayList)_ht[ht_key];
       if( entry_list != null ) {
 #if DHT_DEBUG
-	Console.WriteLine("[DhtServer: {0}]: No duplication allowed. Key exists.", _node.Address);
+	Console.WriteLine("[DhtServer: {0}]: Key exists (check for password and value match).", _node.Address);
 #endif
-	//we already have the key mapped to something. return false
-	throw new Exception("Attempting to re-create key. Entry exists. ");
-      }
-      //This is a new key:
-      entry_list = new ArrayList();
-      _ht[ht_key] = entry_list;
+	bool match = false;
+	foreach(Entry e in entry_list) {
+	  if (!e.Password.Equals(hashed_password)) {
+	    continue;
+	  }
+	  MemBlock arg_data = MemBlock.Reference(data, 0, data.Length);
+	  MemBlock e_data = MemBlock.Reference(e.Data, 0, e.Data.Length);
+	  if (!e_data.Equals(arg_data)) {
+	    continue;
+	  }
+	  match = true;
+	}
+	if (!match) {
 #if DHT_DEBUG
-      Console.WriteLine("[DhtServer:{0}]: Key doesn't exist. Created new entry_list.", _node.Address);
+	  Console.WriteLine("[DhtServer: {0}]: No duplication allowed. Key exists.", _node.Address);
+#endif
+	  //we already have the key mapped to something.
+	  throw new Exception("Attempting to duplicate the key. Entry exists.");
+	}
+      } else {
+	//This is a new key:
+	entry_list = new ArrayList();
+	_ht[ht_key] = entry_list;
+#if DHT_DEBUG
+	Console.WriteLine("[DhtServer:{0}]: Key doesn't exist. Created new entry_list.", _node.Address);
 #endif      
-      _max_idx++; //Increment the maximum index
-      //Look up 
-      Entry e = _ef.CreateEntry(key, hashed_password,  create_time, end_time,
-			  data, _max_idx);
-      //Add the entry to the end of the list.
-      entry_list.Add(e);
-      //Further add the entry to the sorted list _expired_entries
-      InsertToSorted(e);
-      
+	_max_idx++; //Increment the maximum index
+	//Look up 
+	Entry new_e = _ef.CreateEntry(key, hashed_password,  create_time, end_time,
+				      data, _max_idx);
+	//Add the entry to the end of the list.
+	entry_list.Add(new_e);
+	//Further add the entry to the sorted list _expired_entries
+	InsertToSorted(new_e);
+      }
 #if DHT_LOG
       _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::SuccessCreate::::" + 
 		 + Base32.Encode(key));
@@ -260,8 +286,16 @@ public class TableServer {
       return true;
     } //release the lock
   }
-
-  public bool Recreate(byte[] key, string old_password, int ttl, string new_hashed_password , byte[] new_data) 
+  /**
+   * This method allows renewing the lifetime of an existing key-value
+   * which has a password and value match. (equivalent to a create if the key already does not exist).
+   * Can be invoked multiple times now.
+   * @param key key associated with the date item
+   * @param ttl time-to-live in seconds
+   * @param hashed_password <hash_name>:<base64(hashed_pass)> 
+   * @return true on success, false on failure
+   */
+  public bool Recreate(byte[] key, int ttl, string hashed_password, byte[] data)
   {
 #if DHT_LOG
     _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::RequestRecreate::::" + 
@@ -271,84 +305,71 @@ public class TableServer {
 #if DHT_DEBUG
     Console.WriteLine("[DhtServer: {0}]: Recreate() on key: {1}.", _node.Address, Base32.Encode(key));
 #endif    
+
     string hash_name = null;
-    string base64_pass = null;
-    if (!ValidatePasswordFormat(old_password, out hash_name, 
-				out base64_pass)) {
+    string base64_val = null;
+    if (!ValidatePasswordFormat(hashed_password, out hash_name, 
+				out base64_val)) {
       throw new Exception("Invalid password format.");
     }
-    HashAlgorithm algo = null;
-    if (hash_name.Equals("SHA1")) {
-      algo = new SHA1CryptoServiceProvider();
-    } else if  (hash_name.Equals("MD5")) {
-      algo = new MD5CryptoServiceProvider();
-    }
+    DateTime create_time = DateTime.Now;
+    TimeSpan ts = new TimeSpan(0,0,ttl);
+    DateTime end_time = create_time + ts;
     
-    byte[] bin_pass = Convert.FromBase64String(base64_pass);
-    byte [] sha1_hash = algo.ComputeHash(bin_pass);
-    string base64_hash = Convert.ToBase64String(sha1_hash);
-    string stored_pass =  hash_name + ":" + base64_hash;
-    
-    
-    lock(_sync ) { 
-      //delete keys that have expired
-      DeleteExpired();  
-      
+    lock(_sync) {
+      //delete all keys that have expired
+      DeleteExpired();
+#if DHT_DEBUG
+      Console.WriteLine("[DhtServer: {0}] Cleaned up expired entries.", _node.Address);
+#endif
       MemBlock ht_key = MemBlock.Reference(key, 0, key.Length);
       ArrayList entry_list = (ArrayList)_ht[ht_key];
-      if (entry_list != null) {
+      if( entry_list != null ) {
 #if DHT_DEBUG
-	Console.WriteLine("[DhtServer: {0}]: Key exists. Browing the entry_list.", _node.Address);
+	Console.WriteLine("[DhtServer: {0}]: Key exists (check for password and value match).", _node.Address);
 #endif
-	if (entry_list.Count > 1) {
-	  //this could lead to duplication, there is one already!
-	  //may be someone used Put() to create the key
-	  throw new Exception("Recreate on key could lead to duplication (Fail). ");
+	Entry to_renew = null;
+	foreach(Entry e in entry_list) {
+	  if (!e.Password.Equals(hashed_password)) {
+	    continue;
+	  }
+	  MemBlock arg_data = MemBlock.Reference(data, 0, data.Length);
+	  MemBlock e_data = MemBlock.Reference(e.Data, 0, e.Data.Length);
+	  if (!e_data.Equals(arg_data)) {
+	    continue;
+	  }
+	  to_renew = e; 
 	}
-	//there is just a single entry
-	Entry e = (Entry) entry_list[0];
-	if (e.Password.Equals(stored_pass)) {
-#if DHT_DEBUG
-	  Console.WriteLine("[DhtServer: {0}]: Found the key to recreate.", _node.Address);
-#endif
-	  entry_list.Remove(e);
-	  //further remove the entry from the sorted list
-	  DeleteFromSorted(e);  
-	} else {
-	  //raise an error
-#if DHT_DEBUG
-	  Console.WriteLine("[DhtServer: {0}]: Incorrect password", _node.Address);
-#endif
-	  throw new Exception("Access control violation on key. Incorrect password.");
+	if (to_renew == null) {
+	  throw new Exception("Unable to find a key-value pair to renew.");
 	}
-      } else { 
+	if (end_time < to_renew.EndTime) {
+	  throw new Exception("Cannot shorten lifetime of a key-value.");
+	}
+        key = ((Entry)entry_list[0]).Key;
+	DeleteFromSorted(to_renew);
+	
+	Entry new_e = _ef.CreateEntry(key, hashed_password, to_renew.CreatedTime, end_time,
+				      data, to_renew.Index);
+	InsertToSorted(new_e);
+      } else {     
+	//This is a new key, just a regular Create()
 	entry_list = new ArrayList();
 	_ht[ht_key] = entry_list;
 #if DHT_DEBUG
-	Console.WriteLine("[DhtServer:{0}]: Key didn't exist a prior. Created new entry_list.", _node.Address);
+	Console.WriteLine("[DhtServer:{0}]: Key doesn't exist. Created new entry_list.", _node.Address);
 #endif      
+	_max_idx++; //Increment the maximum index
+	//Look up 
+	Entry e = _ef.CreateEntry(key, hashed_password,  create_time, end_time,
+				  data, _max_idx);
+	//Add the entry to the end of the list.
+	entry_list.Add(e);
+	//Further add the entry to the sorted list _expired_entries
+	InsertToSorted(e);
       }
-      hash_name = null;
-      base64_pass = null;
-      if (!ValidatePasswordFormat(new_hashed_password, out hash_name,
-				  out base64_pass)) {
-	throw new Exception("Invalid password format.");
-      }
-      DateTime create_time = DateTime.Now;
-      TimeSpan ts = new TimeSpan(0,0,ttl);
-      DateTime end_time = create_time + ts;
-      
-      _max_idx++; //Increment the maximum index
-      //Look up 
-      Entry e_new = _ef.CreateEntry(key, new_hashed_password,  create_time, end_time,
-				    new_data, _max_idx);
-      //Add the entry to the end of the list.
-      entry_list.Add(e_new);
-      //Further add the entry to the sorted list _expired_entries
-      InsertToSorted(e_new);
-      
 #if DHT_LOG
-      _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::SuccessRecreate::::" + 
+      _log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::SuccessRenew::::" + 
 		 + Base32.Encode(key));
 #endif
       return true;	
