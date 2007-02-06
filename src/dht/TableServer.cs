@@ -143,7 +143,7 @@ public class TableServer {
 #if DHT_DEBUG
       Console.WriteLine("[DhtServer: {0}] Cleaned up expired entries.", _node.Address);
 #endif
-      TableKey ht_key = new TableKey(key);
+      MemBlock ht_key = MemBlock.Reference(key, 0, key.Length);
       ArrayList entry_list = (ArrayList)_ht[ht_key];
       if( entry_list != null ) {
         //Make sure we only keep one reference to a key to save memory:
@@ -152,11 +152,12 @@ public class TableServer {
 	Console.WriteLine("[DhtServer: {0}]: Key exists.", _node.Address);
 #endif
         key = ((Entry)entry_list[0]).Key;
+	ht_key = MemBlock.Reference(key, 0, key.Length);
       }
       else {
         //This is a new key:
         entry_list = new ArrayList();
-	//added the new TableKey to hashtable
+	//added the new key to hashtable
 #if DHT_DEBUG
 	Console.WriteLine("[DhtServer: {0}]: Key doesn't exist. Created new entry_list.", _node.Address);
 #endif
@@ -228,7 +229,7 @@ public class TableServer {
 #if DHT_DEBUG
       Console.WriteLine("[DhtServer: {0}] Cleaned up expired entries.", _node.Address);
 #endif
-      TableKey ht_key = new TableKey(key);
+      MemBlock ht_key = MemBlock.Reference(key, 0, key.Length);
       ArrayList entry_list = (ArrayList)_ht[ht_key];
       if( entry_list != null ) {
 #if DHT_DEBUG
@@ -293,14 +294,15 @@ public class TableServer {
       //delete keys that have expired
       DeleteExpired();  
       
-      TableKey ht_key = new TableKey(key);
+      MemBlock ht_key = MemBlock.Reference(key, 0, key.Length);
       ArrayList entry_list = (ArrayList)_ht[ht_key];
       if (entry_list != null) {
 #if DHT_DEBUG
 	Console.WriteLine("[DhtServer: {0}]: Key exists. Browing the entry_list.", _node.Address);
 #endif
 	if (entry_list.Count > 1) {
-	  //this could lead to duplication
+	  //this could lead to duplication, there is one already!
+	  //may be someone used Put() to create the key
 	  throw new Exception("Recreate on key could lead to duplication (Fail). ");
 	}
 	//there is just a single entry
@@ -397,7 +399,7 @@ public class TableServer {
       Console.WriteLine("[DhtServer: {0}] Cleaned up expired entries.", _node.Address);
 #endif      
 
-    TableKey ht_key = new TableKey(key);  
+    MemBlock ht_key = MemBlock.Reference(key, 0, key.Length);  
     ArrayList entry_list = (ArrayList)_ht[ht_key];
 
     int seen = 0; //Number we have already seen for this key
@@ -514,7 +516,7 @@ public class TableServer {
       //delete keys that have expired
       DeleteExpired();  
       
-      TableKey ht_key = new TableKey(key);
+      MemBlock ht_key = MemBlock.Reference(key, 0, key.Length);
       ArrayList entry_list = (ArrayList)_ht[ht_key];
       bool found = false;
       if (entry_list != null) {
@@ -541,7 +543,7 @@ public class TableServer {
 	  //further remove the entry from the sorted list
 	  DeleteFromSorted(e);  
 	}
-	//in case that the entry_list has shrinked to size 0, make it null
+	//in case that the entry_list has shrunk to size 0, make it null
 	if (entry_list.Count == 0) {
 	  _ht.Remove(ht_key);
 	}
@@ -586,7 +588,7 @@ public class TableServer {
       }
       //we certainly are lookin at an entry that has expired
       //get rid of this entry
-      TableKey key = new TableKey(e.Key);
+      MemBlock key = MemBlock.Reference(e.Key, 0, e.Key.Length);
       ArrayList entry_list = (ArrayList) _ht[key];
       //remove this from the entry list
       entry_list.Remove(e);
@@ -635,7 +637,7 @@ public class TableServer {
   /** Invoked by local DHT object. */
   public ArrayList GetValues(byte[] key) {
     lock(_sync) {
-      TableKey ht_key = new TableKey(key);  
+      MemBlock ht_key = MemBlock.Reference(key, 0, key.Length);  
       ArrayList entry_list = (ArrayList)_ht[ht_key];
       return entry_list;
     }
@@ -650,13 +652,13 @@ public class TableServer {
   public Hashtable GetKeysToLeft(AHAddress us, AHAddress within) {
     lock(_sync) {
       Hashtable key_list = new Hashtable();
-      foreach (TableKey key in _ht.Keys) {
-	AHAddress target = new AHAddress(key.Buffer);
+      foreach (MemBlock key in _ht.Keys) {
+	AHAddress target = new AHAddress(key);
 	if (target.IsBetweenFromLeft(us, within)) {
 	  //this is a relevant key
 	  //we want to share it
 	  ArrayList entry_list = (ArrayList)_ht[key];
-	  key_list[key.Buffer] = entry_list.Clone();
+	  key_list[key.Clone()] = entry_list.Clone();
 	}
       }
       return key_list;
@@ -672,13 +674,15 @@ public class TableServer {
   public Hashtable GetKeysToRight(AHAddress us, AHAddress within) {
     lock(_sync) {
       Hashtable key_list = new Hashtable();
-      foreach (TableKey key in _ht.Keys) {
-	AHAddress target = new AHAddress(key.Buffer);
+      foreach (MemBlock key in _ht.Keys) {
+	AHAddress target = new AHAddress(key);
 	if (target.IsBetweenFromRight(us, within)) {
 	  //this is a relevant key
 	  //we want to share it
 	  ArrayList entry_list = (ArrayList) _ht[key];
-	  key_list[key.Buffer] = entry_list.Clone();
+	  byte[] k = new byte[key.Length];
+	  key.CopyTo(k, 0);
+	  key_list[k] = entry_list.Clone();
 
 	}
       }
@@ -693,7 +697,7 @@ public class TableServer {
       DeleteExpired();
       foreach (byte[] k in key_list.Keys) {
 	//all the values to get rid
-	TableKey ht_key = new TableKey(k);
+	MemBlock ht_key = MemBlock.Reference(k, 0, k.Length);
 	ArrayList entry_list = (ArrayList) _ht[ht_key];
 	//essentially delete all the values for that key
 	if (entry_list != null) {
@@ -713,9 +717,11 @@ public class TableServer {
   public Hashtable GetAll() {
     lock(_sync ) { 
       Hashtable rt = new Hashtable();
-      foreach (TableKey key in _ht.Keys) {
+      foreach (MemBlock key in _ht.Keys) {
 	ArrayList entry_list = (ArrayList) _ht[key];
-	rt[key.Buffer] = entry_list.Clone();
+	byte[] k = new byte[key.Length];
+	key.CopyTo(k, 0);
+	rt[k] = entry_list.Clone();
       }
       return rt;
     }
