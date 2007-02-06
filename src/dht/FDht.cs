@@ -35,21 +35,21 @@ namespace Brunet.Dht {
       HashAlgorithm hashAlgo = HashAlgorithm.Create();
       byte[] hash = hashAlgo.ComputeHash(key);
       hash[Address.MemSize -1] &= 0xFE;
+
       //find targets which are as far apart on the ring as possible
       byte[][] target = new byte[num_targets][];
       target[0] = hash;
+      Address.SetClass(target[0], AHAddress._class);      
 
+      //add these increments to the base address
       BigInteger inc_addr = Address.Full/num_targets; 
 
-      //add such increments to the base address
       BigInteger curr_addr = new BigInteger(target[0]);
       for (int k = 1; k < target.Length; k++) {
 	//add an increment
-	curr_addr = (curr_addr + inc_addr)%Address.Full;
-	//make sure that last bit of address is 0
-	BigInteger even = curr_addr - curr_addr%2;
-	
-	target[k] = even.getBytes();
+	curr_addr = curr_addr + inc_addr;
+	target[k] = Address.ConvertToAddressBuffer(curr_addr);
+	Address.SetClass(target[k], AHAddress._class);
       }
       return target;
     }

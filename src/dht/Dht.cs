@@ -301,7 +301,7 @@ namespace Brunet.Dht {
     public static byte[] MapToRing(byte[] key) {
       HashAlgorithm hashAlgo = HashAlgorithm.Create();
       byte[] hash = hashAlgo.ComputeHash(key);
-      hash[Address.MemSize -1] &= 0xFE;
+      Address.SetClass(hash, AHAddress._class);
       return hash;
     }
     
@@ -315,6 +315,7 @@ namespace Brunet.Dht {
 #endif	
 	throw new DhtException("DhtClient: Not yet activated.");
       }
+
       byte[] b = MapToRing(key);
       Address target = new AHAddress(b);
 #if DHT_DEBUG
@@ -838,6 +839,8 @@ namespace Brunet.Dht {
     protected void StatusChangedHandler(object contab, EventArgs eargs) {
       ConnectionEventArgs args = (ConnectionEventArgs)eargs;
       Connection new_con = args.Connection;
+
+
       AHAddress our_addr = _node.Address as AHAddress;
       lock(_node.ConnectionTable.SyncRoot) {  //lock the connection table
 	if (!_activated) {
