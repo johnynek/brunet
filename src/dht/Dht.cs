@@ -126,7 +126,7 @@ namespace Brunet.Dht {
 	    //Console.WriteLine("Endtime: {0}, Current: {1}", e.EndTime, DateTime.Now);
 	    //Console.WriteLine("TTL for transferred value: {0}", (int) t_span.TotalSeconds);
 
-	    _driver_queue = _rpc.Invoke(_target, "dht.Put", e.Key, 
+	    _driver_queue = _rpc.InvokeNode(_target, "dht.Put", e.Key, 
 					(int) t_span.TotalSeconds, 
 					e.Password, 
 					e.Data);
@@ -193,7 +193,7 @@ namespace Brunet.Dht {
 			      _target);
 #endif
 
-	    _driver_queue = _rpc.Invoke(_target, "dht.Put", e.Key, 
+	    _driver_queue = _rpc.InvokeNode(_target, "dht.Put", e.Key, 
 					(int) t_span.TotalSeconds,
 					e.Password, 
 					e.Data);

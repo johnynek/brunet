@@ -19,10 +19,15 @@ namespace Brunet.Dht {
     public void SetMedia(Media media) {
       _media = media;
       if (_media == Media.Disk) {
+	string dir_path = Path.Combine("data", _node.Address.ToString().Substring(12));
+	if(Directory.Exists(dir_path)) {
+            //flush the cache
+	    Directory.Delete(dir_path, true);
+	}
 	//create a directory for the node's data
-	Directory.CreateDirectory(Path.Combine("data", _node.Address.ToString().Substring(12)));
+	Directory.CreateDirectory(dir_path);
 #if DHT_DEBUG	
-	Console.WriteLine("[EntryFactory]: Created a directory: data/{0}", _node.Address);
+	Console.WriteLine("[EntryFactory]: Created a directory: {0}", dir_path);
 #endif
 
       }
