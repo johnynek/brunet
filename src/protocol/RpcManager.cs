@@ -97,6 +97,19 @@ public class RpcManager : IReplyHandler, IRequestHandler {
       _request = req;
     }
   }
+  /** Our Rpc system can make following types of calls.
+   */
+  public enum RpcRequestType: byte 
+  {
+    RpcKey = 1, //an invocation on P2P key (inexact invocation); in this case we expect two distinct replies back
+    RpcNode = 2 //an invocation on a P2P node  (exact invocation)
+  }
+
+  protected class RpcRequestState {
+    public RpcRequestType type;
+    public BlockingQueue result_queue;
+    public Address first_target;
+  }
  
   protected Hashtable _method_handlers;
   protected Hashtable _method_packet_handlers;
@@ -193,10 +206,28 @@ public class RpcManager : IReplyHandler, IRequestHandler {
   {
     //Here
     object data = AdrConverter.Deserialize(payload);
-    BlockingQueue bq = (BlockingQueue)state;
+    RpcRequestState rs = (RpcRequestState) state;
+    BlockingQueue bq = rs.result_queue;
     RpcResult res = new RpcResult(packet, data, statistics);
     bq.Enqueue(res);
-    return ( false == bq.Closed );
+
+    //now we check if the request is finished or not
+    if (bq.Closed) {
+      return false;
+    }
+    //check if it is a RpcNode we are done
+    if (rs.type == RpcRequestType.RpcNode) {
+      return false;
+    }
+    //otherwise we see if this is a distinct reply
+    if (rs.first_target == null) {//first reply
+      rs.first_target = packet.Source;
+      return true;
+    } else if (rs.first_target.Equals(packet.Source)) {//same reply
+      return true;
+    }
+    //we are done
+    return false;
   }
 
   /**
@@ -311,8 +342,12 @@ public class RpcManager : IReplyHandler, IRequestHandler {
                               string method,
                               params object[] args)
   {
-    BlockingQueue bq_results = new BlockingQueue();
-    
+    //build state for the RPC call
+    RpcRequestState rs = new RpcRequestState();
+    rs.type = RpcRequestType.RpcKey;
+    rs.result_queue = new BlockingQueue();
+    rs.first_target = null;
+
     ArrayList arglist = new ArrayList();
     arglist.AddRange(args);
     //foreach(object o in arglist) { Console.WriteLine("arg: {0}",o); } 
@@ -329,10 +364,47 @@ public class RpcManager : IReplyHandler, IRequestHandler {
 #endif
     
     _rrman.SendRequest(target, ReqrepManager.ReqrepType.Request,
-                       "rpc", ms.ToArray(), this, bq_results);
-    return bq_results;
+                       "rpc", ms.ToArray(), this, rs);
+    return rs.result_queue;
   }
   
+  /**
+   * This is how you invoke a method on a remote host (exact mode).
+   * Results are put into the BlockingQueue.
+   *
+   * When a result comes back, we put and RpcResult into the Queue.
+   * 
+   */
+  public BlockingQueue InvokeNode(Address target,
+                              string method,
+                              params object[] args)
+  {
+    //build state for the RPC call
+    RpcRequestState rs = new RpcRequestState();
+    rs.type = RpcRequestType.RpcNode;
+    rs.result_queue = new BlockingQueue();
+    rs.first_target = null;
+
+    ArrayList arglist = new ArrayList();
+    arglist.AddRange(args);
+    //foreach(object o in arglist) { Console.WriteLine("arg: {0}",o); } 
+    ArrayList rpc_call = new ArrayList();
+    rpc_call.Add(method);
+    rpc_call.Add(arglist);
+    
+    MemoryStream ms = new MemoryStream();
+    AdrConverter.Serialize(rpc_call, ms);
+
+#if RPC_DEBUG
+    Console.WriteLine("[RpcClient: {0}] Invoking method: {1} on target: {2}",
+                     _rrman.Node.Address, method, target);
+#endif
+    
+    _rrman.SendExactRequest(target, ReqrepManager.ReqrepType.Request,
+                       "rpc", ms.ToArray(), this, rs);
+    return rs.result_queue;
+  }
+
   protected void RpcMethodInvoke(InvocationRecord inv, MethodInfo mi, Object handler, 
 				 Object[] param_list) {
     ReqrepManager man = inv.ReqRepManager;

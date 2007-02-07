@@ -141,7 +141,8 @@ public class ReqrepManager : IAHPacketHandler {
      public ReqrepType RequestType;
      public int RequestID;
      public object UserState;
-     public bool Replied;
+     //this is something we need to get rid of 
+     //public bool Replied;
      //number of times request has been sent out
      public int SendCount;
    }
@@ -301,7 +302,7 @@ public class ReqrepManager : IAHPacketHandler {
 		   reqs.ReplyHandler.HandleReply(this, rt, idnum, pt,
 						 offsetpayload, p, statistics, reqs.UserState);
 	   //the request has been served
-	   reqs.Replied = true;
+	   //reqs.Replied = true;
 	   if( !continue_listening ) {
 	     //Now remove the RequestState:
 	     _req_state_table.Remove(idnum);
@@ -353,6 +354,7 @@ public class ReqrepManager : IAHPacketHandler {
 				 ReqrepType rt,
 				 int next_rep,
 				 string prot,
+				 ushort options,
 				 byte[] payload)
    {
        //Here we make the payload while we will send:
@@ -371,19 +373,18 @@ public class ReqrepManager : IAHPacketHandler {
        NumberSerializer.WriteInt( next_rep, req_payload, 1 );
        offset += 4;
        offset += NumberSerializer.WriteString(prot, req_payload, offset);
-      Array.Copy(payload, 0, req_payload, offset, payload.Length);
-      ushort options;
-      if( rt == ReqrepType.Reply ) {
-        options = AHPacket.AHOptions.Exact;
-      }
-      else {
-        options = AHPacket.AHOptions.AddClassDefault;
-      }
-      
-      AHPacket packet = new AHPacket(0, ttl, _node.Address, destination, options,
-                                     AHPacket.Protocol.ReqRep, req_payload);
-      return packet;
-  }
+       Array.Copy(payload, 0, req_payload, offset, payload.Length);
+//       ushort options;
+//       if( rt == ReqrepType.Reply ) {
+//         options = AHPacket.AHOptions.Exact;
+//       }
+//       else {
+//         options = AHPacket.AHOptions.AddClassDefault;
+//       }
+       AHPacket packet = new AHPacket(0, ttl, _node.Address, destination, options,
+				      AHPacket.Protocol.ReqRep, req_payload);
+       return packet;
+   }
   /**
    * @param destination the Node to recieve the request
    * @param prot the protocol of the payload
@@ -422,11 +423,66 @@ public class ReqrepManager : IAHPacketHandler {
       rs.RequestID = next_req;
       short ttl = _node.DefaultTTLFor(destination);
       rs.ReplyHandler = reply;
-      rs.Request = MakePacket(destination, ttl, reqt, next_req, prot, payload);
+      rs.Request = MakePacket(destination, ttl, reqt, next_req, prot, AHPacket.AHOptions.AddClassDefault, payload);
       rs.ReqDate = DateTime.UtcNow;
       rs.RequestType = reqt;
       rs.UserState = state;
-      rs.Replied = false;
+      //rs.Replied = false;
+      rs.SendCount = 1;
+      _req_state_table[ next_req ] = rs;
+    }
+#if REQREP_DEBUG
+    Console.WriteLine("[ReqrepClient: {0}] Sending a request: {1} to node: {2}",
+		      _node.Address, rs.RequestID, destination);
+#endif
+
+    _node.Send( rs.Request );
+    return rs.RequestID;
+  }
+  
+  /**
+   * @param destination the Node to recieve the request (this operates in Exact routing mode).
+   * @param prot the protocol of the payload
+   * @param payload the Payload to send
+   * @param reqt the type of request to make
+   * @param reply the handler to handle the reply
+   * @param state some state object to attach to this request
+   * @return the identifier for this request
+   *
+   */
+  public int SendExactRequest(Address destination, ReqrepType reqt,
+                         string prot,
+		         byte[] payload, IReplyHandler reply, object state)
+  {
+    if (!_is_active) {
+#if REQREP_DEBUG
+      Console.WriteLine("[ReqrepManager: {0}] Inactive. Simply return (SendRequest).",
+			_node.Address);
+#endif
+      //we are no longer active
+      return -1;
+    }
+    if ( reqt != ReqrepType.Request && reqt != ReqrepType.LossyRequest ) {
+      throw new Exception("Not a request");
+    }
+    RequestState rs = new RequestState();
+    lock( _sync ) {
+      //Get the index 
+      int next_req = _rand.Next();
+      do {
+        next_req = _rand.Next();
+      } while( _req_state_table.ContainsKey( next_req ) );
+      /*
+       * Now we store the request
+       */
+      rs.RequestID = next_req;
+      short ttl = _node.DefaultTTLFor(destination);
+      rs.ReplyHandler = reply;
+      rs.Request = MakePacket(destination, ttl, reqt, next_req, prot, AHPacket.AHOptions.Exact, payload);
+      rs.ReqDate = DateTime.UtcNow;
+      rs.RequestType = reqt;
+      rs.UserState = state;
+      //rs.Replied = false;
       rs.SendCount = 1;
       _req_state_table[ next_req ] = rs;
     }
@@ -457,7 +513,7 @@ public class ReqrepManager : IAHPacketHandler {
     AHPacket p = rs.Request;
     if( response != null ) {
       short ttl = _node.DefaultTTLFor( p.Source );
-      rs.Reply = MakePacket(p.Source, ttl, ReqrepType.Reply, rs.RequestID, rs.PayloadType, response);
+      rs.Reply = MakePacket(p.Source, ttl, ReqrepType.Reply, rs.RequestID, rs.PayloadType, AHPacket.AHOptions.Exact, response);
     }
     else {
       /**
@@ -518,11 +574,12 @@ public class ReqrepManager : IAHPacketHandler {
               //Resend:
               if( reqs.RequestType != ReqrepType.LossyRequest) {
                 //We don't resend LossyRequests
-		if (!reqs.Replied) {
-		  reqs.ReqDate = now;
-		  reqs.SendCount++;
-		  to_resend.Add( reqs.Request );
-		}
+		//if (!reqs.Replied) {
+		//requests are now resent no matter what
+		reqs.ReqDate = now;
+		reqs.SendCount++;
+		to_resend.Add( reqs.Request );
+		//}
               }
             }
             else {
