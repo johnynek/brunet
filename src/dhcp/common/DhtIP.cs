@@ -24,7 +24,7 @@ namespace Ipop {
         old_password = new_password;
 
       int max_results_per_queue = 2;
-      int min_majority = 3;
+      int min_majority = _dht.Degree/2 + 1;
       byte[] dht_key_bytes = Encoding.UTF8.GetBytes(dht_key);
       BlockingQueue [] queues = null;
       try {
@@ -37,7 +37,7 @@ namespace Ipop {
 
       ArrayList []results = null;
       try {
-        results = BlockingQueue.ParallelFetchWithTimeout(queues, 5000);
+        results = BlockingQueue.ParallelFetchWithTimeout(queues, 3000);
       }
       catch (Exception) {
         System.Console.WriteLine("Dht error....");
@@ -53,11 +53,11 @@ namespace Ipop {
         }
         foreach (RpcResult rpc_result in q_result) {
           try {
-            if((success = (bool) rpc_result.Result) == true)
-              break;
+            success = (bool) rpc_result.Result;
             }
           catch(Exception) {
             success = false;
+            break;
           }
         }
         if (success) {

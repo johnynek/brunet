@@ -57,7 +57,7 @@ namespace Ipop {
         return null;
       }
       TimeSpan t_span = DateTime.Now - _last_assigned_instant;
-      if (_last_assigned_lease != null && t_span.TotalSeconds < 0.5*leasetime) {
+      if (_last_assigned_lease != null && t_span.TotalSeconds < 0.25*leasetime) {
         return _last_assigned_lease;
       }
 
@@ -81,13 +81,17 @@ namespace Ipop {
     }
 
     private byte[] ReAllocateIPAddress (byte[] preferred_ip, byte[] brunet_id, string old_password, out string new_password) {
-      int max_attempts = 10, max_renew_attempts = 3;
+      int max_attempts = 1, max_renew_attempts = 2;
       bool renew_attempt = false;
+      byte[] guessed_ip = null;
 
-      if (old_password != null)
+      if (old_password != null) {
         renew_attempt = true;
-
-      byte[] guessed_ip = preferred_ip;
+        guessed_ip = preferred_ip;
+        max_attempts++;
+      }
+      else
+        guessed_ip = GuessIPAddress();
 
       while (true) {
         do {
@@ -101,7 +105,7 @@ namespace Ipop {
           if(DhtIP.GetIP(_dht, dht_key, old_password, leasetime, brunet_id, out new_password))
             return guessed_ip;
         } while(max_renew_attempts-- > 0 && renew_attempt);
-        if (max_attempts > 0) {
+        if (--max_attempts > 0) {
           //guess a new IP address
           guessed_ip = GuessIPAddress();
         }
