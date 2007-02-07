@@ -19,44 +19,6 @@ public class TableServer {
     log4net.LogManager.GetLogger(System.Reflection.MethodBase.
 				 GetCurrentMethod().DeclaringType);
 #endif
-  class TableKey {
-    protected readonly byte[] _buf;
-
-    public byte[] Buffer { 
-      get { 
-	return _buf;
-      } 
-    }
-
-    public TableKey(byte[] buffer) {
-      _buf = buffer;
-    }
-    public override bool Equals(Object o) {
-      TableKey other = o as TableKey;
-      if (other == null) {
-	return false;
-      }
-      
-      if (other.Buffer.Length != Buffer.Length) {
-	return false;
-      }
-      for (int i = 0; i < Buffer.Length; i++) {
-	if (Buffer[i] != other.Buffer[i]) {
-	  return false;
-	}
-      }
-      return true;
-    }
-    public override int GetHashCode() {
-      try {
-	return new AHAddress(Buffer).GetHashCode();
-      } catch (Exception e) {
-	return 1;//arbitrary
-      }
-    }
-  }  
-  
-  
   protected object _sync;
   
   //maintain a list of keys that are expiring:
@@ -656,9 +618,8 @@ public class TableServer {
 
   /** Not RPC related methods. */
   /** Invoked by local DHT object. */
-  public ArrayList GetValues(byte[] key) {
+  public ArrayList GetValues(MemBlock ht_key) {
     lock(_sync) {
-      MemBlock ht_key = MemBlock.Reference(key, 0, key.Length);  
       ArrayList entry_list = (ArrayList)_ht[ht_key];
       return entry_list;
     }
@@ -679,7 +640,7 @@ public class TableServer {
 	  //this is a relevant key
 	  //we want to share it
 	  ArrayList entry_list = (ArrayList)_ht[key];
-	  key_list[key.Clone()] = entry_list.Clone();
+	  key_list[key] = entry_list.Clone();
 	}
       }
       return key_list;
@@ -701,10 +662,7 @@ public class TableServer {
 	  //this is a relevant key
 	  //we want to share it
 	  ArrayList entry_list = (ArrayList) _ht[key];
-	  byte[] k = new byte[key.Length];
-	  key.CopyTo(k, 0);
-	  key_list[k] = entry_list.Clone();
-
+	  key_list[key] = entry_list.Clone();
 	}
       }
       return key_list;
@@ -716,9 +674,8 @@ public class TableServer {
     lock(_sync ) { 
       //delete keys that have expired
       DeleteExpired();
-      foreach (byte[] k in key_list.Keys) {
+      foreach (MemBlock ht_key in key_list.Keys) {
 	//all the values to get rid
-	MemBlock ht_key = MemBlock.Reference(k, 0, k.Length);
 	ArrayList entry_list = (ArrayList) _ht[ht_key];
 	//essentially delete all the values for that key
 	if (entry_list != null) {
@@ -740,9 +697,7 @@ public class TableServer {
       Hashtable rt = new Hashtable();
       foreach (MemBlock key in _ht.Keys) {
 	ArrayList entry_list = (ArrayList) _ht[key];
-	byte[] k = new byte[key.Length];
-	key.CopyTo(k, 0);
-	rt[k] = entry_list.Clone();
+	rt[key] = entry_list.Clone();
       }
       return rt;
     }

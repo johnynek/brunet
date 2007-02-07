@@ -405,8 +405,10 @@ namespace Brunet.Dht {
 	    Dht dht = (Dht) dht_list[k];
 	    Console.WriteLine("{0}: # of key-value pairs: {1}", dht.Address, dht.Count);
 	    Hashtable ht = dht.All;
-	    foreach(byte[] key in ht.Keys) {
-	      string str_key = Base32.Encode(key);
+	    foreach(MemBlock key in ht.Keys) {
+	      byte[] kk = new byte[key.Length];
+	      key.CopyTo(kk, 0);
+	      string str_key = Base32.Encode(kk);
 	      Console.WriteLine("Key: {0}", str_key);
 	    }
 	  }
@@ -470,8 +472,10 @@ namespace Brunet.Dht {
 	      //Console.WriteLine("{0}: # of key-value pairs: {1}", dht.Address, dht.Count);
 	      Hashtable ht = dht.All;
 	      
-	      foreach(byte[] key_1 in ht.Keys) {
-		string skey = Base32.Encode(key_1);
+	      foreach(MemBlock key_1 in ht.Keys) {
+		byte[] kk = new byte[key_1.Length];
+		key_1.CopyTo(kk, 0);
+		string skey = Base32.Encode(kk);
 		if (str_key.Equals(skey)) {
 		  Console.WriteLine("We found key: {0} on node: {1}", str_key, 
 				    dht.Address);
@@ -498,8 +502,10 @@ namespace Brunet.Dht {
 			      dht.Activated);
 	    Hashtable ht = dht.All;
 	    
-	    foreach(byte[] key in ht.Keys) {
-	      string str_key = Base32.Encode(key);
+	    foreach(MemBlock key in ht.Keys) {
+	      byte[] kk = new byte[key.Length];
+	      key.CopyTo(kk, 0);
+	      string str_key = Base32.Encode(kk);
 	      //check if this key is in our records
 	      bool found = false;
 	      foreach (byte[] key_1 in key_list) {

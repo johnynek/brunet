@@ -97,7 +97,7 @@ namespace Brunet.Dht {
       }
 
       public IEnumerator GetEntryEnumerator() {
-	foreach (byte[] k in _key_list.Keys) {
+	foreach (MemBlock k in _key_list.Keys) {
 	  ArrayList values = (ArrayList) _key_list[k];
 	  foreach (Entry e in values) {
 	    yield return e;

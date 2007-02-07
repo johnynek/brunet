@@ -73,10 +73,13 @@ def add_to_list(e):
             
 max_time = 360.0
 pre_start = 0
+growth = 0
 if len(sys.argv) > 1:
     max_time = int(sys.argv[1])
 if len(sys.argv) > 2:
     pre_start = int(sys.argv[2])
+if len(sys.argv) > 3:
+    growth = int(sys.argv[3])    
 #60 second arrival
 node_birth_rate = 1.0/(60)
 #60 second departure
@@ -123,12 +126,37 @@ while time < max_time:
     
 
 #lets start some nodes articifially
+#these nodes that we start will also do Creates on the way
 for i in range(0, pre_start):
     print "Start"
     print "Sleep"
     print "5000"
+
 print "Sleep"
-print 100000
+print "100000"
+  
+for i in range(0, growth):
+    print "Global_Check"
+ 
+    print "Start"
+
+    print "Sleep"
+    print "20000"
+
+    print "Create"
+    print "growth_%d"%i
+    print "growth_%d"%i
+    print "abc123"
+    print "100000"
+    
+    print "Sleep"
+    print "20000"
+    
+    
+
+print "Sleep"
+print "100000"
+
 #finally schedule the arrival events
 for i in range(0, len(event_list)):
     print "Global_Check"
