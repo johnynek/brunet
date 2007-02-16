@@ -103,9 +103,11 @@ namespace Brunet
 #if AHROUTER_DEBUG
       bool debug = false;
       if (p.PayloadType == AHPacket.Protocol.ReqRep) {
+	System.Console.WriteLine("{0}: We have a ReqRep packet to route at: {1}", _local, System.DateTime.Now);
 	ReqrepManager.DebugPacket(_local,  p, prev_e);
 	debug = true;
       } else if (p.PayloadType == AHPacket.Protocol.IP) {
+	System.Console.WriteLine("{0}: We have a IP to route at: {1}", _local, System.DateTime.Now);
 	debug = true;
       }
 #endif

@@ -200,6 +200,10 @@ public class ReqrepManager : IAHPacketHandler {
 #endif
        return;
      }
+#if REQREP_DEBUG
+     Console.WriteLine("[ReqrepServer: {0}] Receiving request at: {1}.", _node.Address, DateTime.Now);
+#endif
+
      //Simulate packet loss
      //if ( _rand.NextDouble() < 0.1 ) { return; }
      //Is it a request or reply?
@@ -226,11 +230,19 @@ public class ReqrepManager : IAHPacketHandler {
 	     break;
 	   }
 	 }
+#if REQREP_DEBUG
+	 Console.WriteLine("[ReqrepServer: {0}] Receiving request id: {1} from node: {2}",
+			   _node.Address, idnum, p.Source);
+#endif
+
+
+
 	 if ( rs == null ) {
 #if REQREP_DEBUG
-	   Console.WriteLine("[ReqrepServer: {0}] Receiving request (to process): {1} from node: {2}",
-			     _node.Address, idnum, p.Source);
+	   Console.WriteLine("[ReqrepServer: {0}] This is a new request, actually invoke handler",
+			     _node.Address);
 #endif
+
 
 
 	   //Looks like we need to handle this request
@@ -249,6 +261,10 @@ public class ReqrepManager : IAHPacketHandler {
 
        if( start_new_rh ) {
 	 if( irh == null ) {
+#if REQREP_DEBUG
+	   Console.WriteLine("[ReqrepServer: {0}] No handler found for request.",
+			     _node.Address);
+#endif
 	   //We have no handler
 	   short ttl = _node.DefaultTTLFor( p.Source );
 	   error = MakeError(p.Source, ttl, idnum, ReqrepError.NoHandler);
@@ -263,9 +279,17 @@ public class ReqrepManager : IAHPacketHandler {
 	      * 4 byte request id, and the length of the protocol type
 	      */
 	     System.IO.MemoryStream offsetpayload = p.GetPayloadStream(5 + count);
+#if REQREP_DEBUG
+	     Console.WriteLine("[ReqrepServer: {0}] Calling appropriate handler.", 
+			       _node.Address);
+#endif
 	     irh.HandleRequest(this,rt,rs,pt,offsetpayload,p);
 	   }
 	   catch(Exception) {
+#if REQREP_DEBUG
+	     Console.WriteLine("[ReqrepServer: {0}] Something went wrong in request handler.", 
+			       _node.Address);
+#endif
 	     //Something has gone wrong
 	     short ttl = _node.DefaultTTLFor( p.Source );
 	     error = MakeError(p.Source, ttl, idnum,
@@ -275,8 +299,17 @@ public class ReqrepManager : IAHPacketHandler {
        } 
        //Now just send this reply
        if( error == null ) {
-	 if( rs.Reply != null )
+#if REQREP_DEBUG
+	 Console.WriteLine("[ReqrepServer: {0}] No.error.",
+			   _node.Address, idnum, p.Source);
+#endif
+	 if( rs.Reply != null ) {
+#if REQREP_DEBUG
+	   Console.WriteLine("[ReqrepServer: {0}] Sending reply to {1}",
+			     _node.Address, p.Source);
+#endif
 	   _node.Send( rs.Reply );
+	 }
        }
        else {
 	 /*
@@ -285,6 +318,10 @@ public class ReqrepManager : IAHPacketHandler {
 	  * back for one particular request.
 	  */
 	 if( p.Destination.Equals( _node.Address ) ) {
+#if REQREP_DEBUG
+	   Console.WriteLine("[ReqrepServer: {0}] Sending error to {1}. ",
+			   _node.Address, p.Source);
+#endif
 	   _node.Send( error );
 	 }
        }
@@ -301,6 +338,10 @@ public class ReqrepManager : IAHPacketHandler {
 	   bool continue_listening = 
 		   reqs.ReplyHandler.HandleReply(this, rt, idnum, pt,
 						 offsetpayload, p, statistics, reqs.UserState);
+#if REQREP_DEBUG
+      Console.WriteLine("[ReqrepManager: {0}] Contine listening on request is: {1}, is: {2}", 
+			_node.Address, idnum, continue_listening);
+#endif
 	   //the request has been served
 	   //reqs.Replied = true;
 	   if( !continue_listening ) {

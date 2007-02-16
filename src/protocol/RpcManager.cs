@@ -208,8 +208,9 @@ public class RpcManager : IReplyHandler, IRequestHandler {
     object data = AdrConverter.Deserialize(payload);
     RpcRequestState rs = (RpcRequestState) state;
     BlockingQueue bq = rs.result_queue;
-    RpcResult res = new RpcResult(packet, data, statistics);
-    bq.Enqueue(res);
+
+    bool retval = false;
+    bool enqueue_result = false;
 
     //now we check if the request is finished or not
     if (bq.Closed) {
@@ -217,17 +218,42 @@ public class RpcManager : IReplyHandler, IRequestHandler {
     }
     //check if it is a RpcNode we are done
     if (rs.type == RpcRequestType.RpcNode) {
-      return false;
+      if (rs.first_target == null) {
+	rs.first_target = packet.Source;
+	enqueue_result = true;
+	retval = false;
+      } else {
+	Console.Error.WriteLine("How did we get here (a second result for a RpcNode)");
+	enqueue_result = false;
+	retval = false;
+      }
     }
-    //otherwise we see if this is a distinct reply
-    if (rs.first_target == null) {//first reply
-      rs.first_target = packet.Source;
-      return true;
-    } else if (rs.first_target.Equals(packet.Source)) {//same reply
-      return true;
+    if (rs.type == RpcRequestType.RpcKey) {
+      //otherwise we see if this is a distinct reply
+      if (rs.first_target == null) {//first reply
+	rs.first_target = packet.Source;
+	enqueue_result = true;
+	retval = true;
+      } else if (rs.first_target.Equals(packet.Source)) {//same reply
+	//we should not actually do an enqueue here
+	enqueue_result = false;
+	retval = true;
+      } else {
+	//enqueue this for sure
+	enqueue_result = true;
+	retval = false;
+      }
+    } 
+#if RPC_DEBUG    
+    Console.WriteLine("enqueue_packet: {0}", enqueue_result);    
+    Console.WriteLine("continue listening: {0}", retval);
+#endif
+
+    if (enqueue_result) {
+      RpcResult res = new RpcResult(packet, data, statistics);
+      bq.Enqueue(res);
     }
-    //we are done
-    return false;
+    return retval;
   }
 
   /**
@@ -239,6 +265,10 @@ public class RpcManager : IReplyHandler, IRequestHandler {
                    System.IO.MemoryStream payload, AHPacket packet)
   {
     Exception exception = null; 
+#if RPC_DEBUG
+    Console.WriteLine("[RpcServer: {0}] Getting method invocation request at: {1}.",
+                     _rrman.Node.Address, DateTime.Now);
+#endif
     try {
       object data = AdrConverter.Deserialize(payload);
       IList l = data as IList;
@@ -297,6 +327,10 @@ public class RpcManager : IReplyHandler, IRequestHandler {
     }
     if (exception != null) {
       //something failed even before invocation began
+#if RPC_DEBUG
+      Console.WriteLine("[RpcServer: {0}] Something failed even before invocation began.",
+                     _rrman.Node.Address);
+#endif
       MemoryStream ms = new MemoryStream();
       AdrConverter.Serialize(exception, ms);
       man.SendReply( req, ms.ToArray() );
@@ -310,7 +344,8 @@ public class RpcManager : IReplyHandler, IRequestHandler {
                    ReqrepManager.ReqrepError err, object state)
   {
     Exception x = null;
-    BlockingQueue bq = (BlockingQueue)state;
+    RpcRequestState rs = (RpcRequestState) state;
+    BlockingQueue bq = rs.result_queue;
     switch(err) {
         case ReqrepManager.ReqrepError.NoHandler:
           x = new AdrException(-32601, "No RPC Handler on remote host");
@@ -412,6 +447,9 @@ public class RpcManager : IReplyHandler, IRequestHandler {
 
     Object result = null;
     try {
+#if RPC_DEBUG
+      Console.WriteLine("[RpcServer: {0}] Invoking method: {1}", _rrman.Node.Address, mi);
+#endif
       result = mi.Invoke(handler, param_list);
     } catch(ArgumentException argx) {
 #if RPC_DEBUG

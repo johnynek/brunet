@@ -308,12 +308,16 @@ public class TableServer {
 	if (end_time < to_renew.EndTime) {
 	  throw new Exception("Cannot shorten lifetime of a key-value.");
 	}
-        key = ((Entry)entry_list[0]).Key;
+	//we should also remove this entry, and put a new one
+	entry_list.Remove(to_renew);
 	DeleteFromSorted(to_renew);
-	
-	Entry new_e = _ef.CreateEntry(key, hashed_password, to_renew.CreatedTime, end_time,
+
+	Entry new_e = _ef.CreateEntry(to_renew.Key, hashed_password, to_renew.CreatedTime, end_time,
 				      data, to_renew.Index);
+	//add the new entry
+	entry_list.Add(new_e);
 	InsertToSorted(new_e);
+	
       } else {     
 	//This is a new key, just a regular Create()
 	entry_list = new ArrayList();
@@ -561,18 +565,24 @@ public class TableServer {
     Console.WriteLine("[DhtServer: {0}] Getting rid of expired entries.", _node.Address);
 #endif
     int del_count = 0;
-    for (int i = 0; i < _expiring_entries.Count; i++) {
-      Entry e = (Entry) _expiring_entries[i];
+    DateTime now = DateTime.Now;
+    foreach(Entry e in _expiring_entries) {
       DateTime end_time = e.EndTime; 
+      //Console.WriteLine("analysing an entry now: {0}, endtime: {1}", now, end_time);
       //first entry that hasn't expired, rest all should stay
-      if (end_time > DateTime.Now) 
+      if (end_time > now) 
       {
+	//Console.WriteLine("entry not expired (break)");
 	break;
       }
       //we certainly are lookin at an entry that has expired
       //get rid of this entry
+      //Console.WriteLine("entry has expired: {0}", e.Key);
       MemBlock key = MemBlock.Reference(e.Key, 0, e.Key.Length);
       ArrayList entry_list = (ArrayList) _ht[key];
+      if (entry_list == null) {
+	Console.WriteLine("This is fatal, the expired key is not recorded in hashtable.");
+      }
       //remove this from the entry list
       entry_list.Remove(e);
       if (entry_list.Count == 0) {
@@ -694,6 +704,7 @@ public class TableServer {
   //Note: Another critical method, dumps the Hashtable data (for debugging only!)
   public Hashtable GetAll() {
     lock(_sync ) { 
+      DeleteExpired();
       Hashtable rt = new Hashtable();
       foreach (MemBlock key in _ht.Keys) {
 	ArrayList entry_list = (ArrayList) _ht[key];

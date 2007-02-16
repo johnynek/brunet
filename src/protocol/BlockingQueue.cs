@@ -214,6 +214,21 @@ public class BlockingQueue : Queue {
 #endif
   }
 
+//   public static BlockingQueue Select(ArrayList queues, int timeout) {
+//     WaitHandle[] wait_handle = new WaitHandle[queues.Count];
+//     for (int i = 0; i < queues.Count; i++) {
+//       BlockingQueue q = (BlockingQueue) queues[i];
+//       wait_handle[i] = q._re;
+//     }
+//     int idx = WaitHandle.WaitAny(wait_handle, timeout, true);
+//     if (idx == WaitHandle.WaitTimeout) {
+//       Console.WriteLine("wait any returned: {0}", idx);
+//       return null;
+//     }
+//     BlockingQueue t = (BlockingQueue) queues[idx];
+//     t._re.Set();
+//     return t;
+//   }
 
   public static ArrayList[] ParallelFetch(BlockingQueue[] queues, int max_results_per_queue) {
     return ParallelFetch(queues, max_results_per_queue, new FetchDelegate(Fetch)); 
@@ -262,7 +277,7 @@ public class BlockingQueue : Queue {
       ar[k]  = fetch_dlgt[k].BeginInvoke(queues[k], -1, null, null);
       wait_handle[k] = ar[k].AsyncWaitHandle;
     }
-    //we now forcefully kill all the queues after waiting for the timeout
+    //we now forcefully close all the queues after waiting for the timeout
     Thread.Sleep(millisec);
     for (int k = 0; k < queues.Length; k++) {
       try {
@@ -275,7 +290,7 @@ public class BlockingQueue : Queue {
     //we now wait for all invocations to finish
     Console.WriteLine("Waiting for all parallel invocations to finish...");
     WaitHandle.WaitAll(wait_handle);
-    Console.WriteLine("All parallel invocations to are over.");
+    Console.WriteLine("All parallel invocations are over.");
     //we know that all invocations of Fetch have completed
     ArrayList []results = new ArrayList[queues.Length];
     for (int k = 0; k < queues.Length; k++) {
@@ -305,10 +320,6 @@ public class BlockingQueue : Queue {
     //Console.WriteLine("fetch finished");
     return replies;
   }
-
-
-
-
 #if BRUNET_NUNIT
   public void TestThread1()
   {
@@ -348,4 +359,85 @@ public class BlockingQueue : Queue {
 #endif
 }
 
+
+// #if BRUNET_NUNIT
+// [TestFixture]
+//   public class SelectTester {
+//     private ArrayList _queues;
+//     public void TestThreadProducer()
+//     {
+//       Console.WriteLine("producer thread begins");
+//       //See a random number generator with the number 1.
+//       Random[] r = new Random[_queues.Count];
+//       for (int i = 0; i < r.Length; i++) {
+// 	r[i] = new Random(i);
+//       }
+//       Console.WriteLine("created all random number generators");
+//       for(int k = 0; k < 100000; k++) { 
+// 	for (int i = 0; i < _queues.Count; i++) {
+// 	  BlockingQueue q = (BlockingQueue) _queues[i];
+// 	  int val = r[i].Next();
+// 	  Console.WriteLine("enqueing val: {0} into queue: {1}", val, i);
+// 	  q.Enqueue(val) ;
+// 	}
+//       }
+//       Console.WriteLine("finsished all iterations");
+//       for (int i = 0; i < _queues.Count; i++) {
+// 	Console.WriteLine("closing queue: {0}", i);
+// 	BlockingQueue q = (BlockingQueue) _queues[i];
+// 	q.Close();
+//       }
+//       Console.WriteLine("closed all queues");
+//     }
+    
+//     [Test]
+//     public void TestMainThread()
+//     {
+//       Hashtable rr = new Hashtable();
+//       _queues = new ArrayList();
+//       for (int i = 0; i < 8; i++) {
+// 	BlockingQueue q = new BlockingQueue();
+// 	_queues.Add(q);
+// 	rr[q] = new Random(i);
+//       }
+      
+//       Thread t = new Thread(this.TestThreadProducer);
+//       Console.WriteLine("starting producer thread");
+//       t.Start();
+      
+//       ArrayList local_list = (ArrayList) _queues.Clone();
+
+//       while(true) {
+// 	Console.WriteLine("queues.count: {0}", local_list.Count);
+// 	if (local_list.Count == 0) {
+// 	  break;
+// 	}
+// 	//a 10 second timeout
+// 	BlockingQueue q = BlockingQueue.Select(local_list, 10000);
+// 	if (q == null) {
+// 	  Console.WriteLine("select returned a null");
+// 	  continue;
+// 	}
+// 	int idx = _queues.IndexOf(q);
+// 	Console.WriteLine("select returning queue: {0}", idx);
+// 	//get random number generator
+// 	Random r = (Random) rr[q];
+// 	try {
+// 	  Console.WriteLine("attempting a dequeue at: {0}", idx);
+// 	  bool timedout;
+// 	  object o = q.Dequeue(0, out timedout);
+// 	  if (!timedout) {
+// 	    Assert.AreEqual( o, r.Next(), "dequeue equality test" );
+// 	  } else {
+// 	    Console.WriteLine("nothing dequeued");
+// 	  }
+// 	} catch(InvalidOperationException e) {
+// 	  //in case the queue closed down
+// 	  Console.WriteLine("removing queue: {0} from the list", idx);
+// 	  local_list.Remove(q);
+// 	}
+//       }
+//     }
+//   }
+// #endif 
 }
