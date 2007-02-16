@@ -530,17 +530,19 @@ public class SymmetricNatHandler : NatHandler {
 
   ///How many std. dev. on each side of the mean to use
   protected static readonly double SAFETY = 2.0;
+  protected static readonly double MAX_STD_DEV = 5.0;
 
   override public bool IsMyType(IEnumerable h) {
     ArrayList l = PredictPorts(h); 
-    //If our prediction gives a narrow enough range, it must be good:
-    return ( (0 < l.Count) && (l.Count < 15) );
+    return ( 0 < l.Count );
   }
 
   /*
    * Given an IEnumerable of NatDataPoints, return a list of 
    * ports from most likely to least likely to be the
    * next port used by the NAT
+   *
+   * @return an empty list if this is not our type
    */
   protected ArrayList PredictPorts(IEnumerable ndps) {
     ArrayList all_diffs = new ArrayList();
@@ -560,6 +562,7 @@ public class SymmetricNatHandler : NatHandler {
           if( !got_extra_data ) {
             t = ta.TransportAddressType;
             host = ta.Host;
+            got_extra_data = true;
           }
           if( prev > port ) {
             uint diff = (uint)(prev - port); //Clearly diff is always non-neg
@@ -582,18 +585,28 @@ public class SymmetricNatHandler : NatHandler {
       double s2 = ((double)sum2) - sd*sd/n;
       s2 = s2/(double)(all_diffs.Count - 1);
       double stddev = Math.Sqrt(s2);
-      double max_delta = mean + SAFETY * stddev;
-      int delta = (int)(mean - SAFETY * stddev);
-      while(delta < max_delta) {
-        if( delta > 0 ) {
-          int pred_port = prev + delta;
-          prediction.Add(new TransportAddress(t, host, pred_port) );
+      if ( stddev < MAX_STD_DEV ) {
+        try {
+          double max_delta = mean + SAFETY * stddev;
+          int delta = (int)(mean - SAFETY * stddev);
+          while(delta < max_delta) {
+            if( delta > 0 ) {
+              int pred_port = prev + delta;
+              prediction.Add(new TransportAddress(t, host, pred_port) );
+            }
+            else {
+              //Increment the max by one just to keep a constant width:
+              max_delta += 1.001; //Giving a little extra to make sure we get 1
+            }
+            delta++;
+          }
         }
-        else {
-          //Increment the max by one just to keep a constant width:
-          max_delta += 1.001; //Giving a little extra to make sure we get 1
+        catch {
+         //Just ignore any bad transport addresses.
         }
-        delta++;
+      }
+      else {
+        //The standard deviation is too wide to make a meaningful prediction
       }
     }
     return prediction;
