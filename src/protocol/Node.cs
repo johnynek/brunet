@@ -718,6 +718,7 @@ namespace Brunet
 	    Edge e = con.Edge;
             if( _last_edge_check - e.LastInPacketDateTime  > _EDGE_CLOSE_TIMEOUT ) {
               //After this period of time, we close the edge no matter what.
+	      Console.WriteLine("On an edge timeout, closing connection: {0}", con);
               edges_to_close.Add(e);
             }
             else if( _last_edge_check - e.LastInPacketDateTime  > _CONNECTION_TIMEOUT ) {
