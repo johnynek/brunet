@@ -110,10 +110,10 @@ namespace Brunet
         if (cm.Dir == ConnectionMessage.Direction.Request) {
           ConnectionMessage response = null;
 	  if (cm is PingMessage) {
-#if LINK_DEBUG
-	    Console.WriteLine("ConnectionPacketHandler - Getting a ping request; edge: {0}; length: {1}",
-                              from, p.Length);
-#endif
+// #if LINK_DEBUG
+// 	    Console.WriteLine("ConnectionPacketHandler - Getting a ping request; edge: {0}; length: {1}",
+//                               from, p.Length);
+// #endif
 
 	    /**
 	     * Ping messages are just used to test that
@@ -122,10 +122,10 @@ namespace Brunet
             response = new PingMessage();
             response.Dir = ConnectionMessage.Direction.Response;
             response.Id = cm.Id;
-#if LINK_DEBUG
-	    Console.WriteLine("ConnectionPacketHandler - Sending a ping response; edge: {0};",
-                              from);
-#endif
+// #if LINK_DEBUG
+// 	    Console.WriteLine("ConnectionPacketHandler - Sending a ping response; edge: {0};",
+//                               from);
+// #endif
             //log.Info("Sending Ping response:" + response.ToString());
             from.Send(response.ToPacket());
 	  }
@@ -169,7 +169,8 @@ namespace Brunet
             response.Dir = ConnectionMessage.Direction.Response;
             response.Id = cm.Id;
 #if LINK_DEBUG
-	    Console.WriteLine("ConnectionPacketHandler -  Sending status response: {0}; length: {1}", response, response.ToPacket().Length);
+	    Console.WriteLine("ConnectionPacketHandler -  Sending status response: {0}; length: {1}", response, 
+			      response.ToPacket().Length);
 #endif
             from.Send(response.ToPacket());
 

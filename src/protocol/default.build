@@ -165,9 +165,9 @@
     </copy>
   </target>
 
-<!-- Arijit Ganguly - enables LINK_DEBUG, ARI_CHOTA_DEBUG, ARI_CTM_DEBUG, CNX_SETUP_DEBUG -->
+<!-- Arijit Ganguly - enables LINK_DEBUG, ARI_CTM_DEBUG, ARI_CHOTA_DEBUG -->
   <target
-    name="ari-build"
+    name="test-build"
     depends="init"
     description="Builds the current configuration">
     <echo message="Build Directory is ${build.dir}/${package.name}"/>
@@ -188,7 +188,7 @@
     <csc
       target="library"
       debug="${build.debug}"
-      define="LINK_DEBUG,ARI_CHOTA_DEBUG,ARI_CTM_DEBUG,CNX_SETUP_DEBUG,POB_TCP_DEBUG" 	
+      define="LINK_DEBUG,ARI_CTM_DEBUG" 	
       output="${build.dir}/${package.name}/bin/${assembly}.dll">
       <sources failonempty="true">
         <include name="*.cs"/>
