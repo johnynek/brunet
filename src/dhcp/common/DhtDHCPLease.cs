@@ -57,7 +57,7 @@ namespace Ipop {
         return null;
       }
       TimeSpan t_span = DateTime.Now - _last_assigned_instant;
-      if (_last_assigned_lease != null && t_span.TotalSeconds < 0.25*leasetime) {
+      if (_last_assigned_lease != null && t_span.TotalSeconds < 0.10*leasetime) {
         return _last_assigned_lease;
       }
 
@@ -67,9 +67,12 @@ namespace Ipop {
         //we should make a guess
         preferred_ip = GuessIPAddress();
       }
-      DHCPLeaseResponse leaseReturn = new DHCPLeaseResponse();
       string new_password; 
       byte[] new_ip = ReAllocateIPAddress(preferred_ip, dht_param.BrunetId, dht_param.StoredPassword, out new_password);
+      if (new_ip == null) {
+	return null;
+      }
+      DHCPLeaseResponse leaseReturn = new DHCPLeaseResponse();
       leaseReturn.ip = new_ip;
       leaseReturn.netmask = netmask;
       leaseReturn.password = new_password;
@@ -100,9 +103,8 @@ namespace Ipop {
             guessed_ip_str += (guessed_ip[k] + ".");
           }
           guessed_ip_str += guessed_ip[guessed_ip.Length - 1];
-          string dht_key = "dhcp:ip:" + guessed_ip_str;
 
-          if(DhtIP.GetIP(_dht, dht_key, old_password, leasetime, brunet_id, out new_password))
+          if(DhtIP.GetIP(_dht, namespace_value, guessed_ip_str, leasetime, brunet_id, old_password, out new_password))
             return guessed_ip;
         } while(max_renew_attempts-- > 0 && renew_attempt);
         if (--max_attempts > 0) {

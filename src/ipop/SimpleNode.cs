@@ -65,9 +65,9 @@ namespace Ipop {
       //following line of code enables DHT support inside the SimpleNode
       FDht dht = null;
       if (config.dht_media == null || config.dht_media.Equals("disk")) {
-        dht = new FDht(tmp_node, EntryFactory.Media.Disk, 3);
+        dht = new FDht(brunetNode, EntryFactory.Media.Disk, 3);
       } else if (config.dht_media.Equals("memory")) {
-	dht = new FDht(tmp_node, EntryFactory.Media.Memory, 3);
+	dht = new FDht(brunetNode, EntryFactory.Media.Memory, 3);
       }	
 
       System.Console.WriteLine("Calling Connect");

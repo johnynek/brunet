@@ -58,9 +58,14 @@
         <include name="Mono.Posix.dll"/>
       </references>
     </csc>
+
     <csc target="exe" output="${build.dir}/SimpleDhtClient.exe">
       <sources failonempty="true">
         <include name="OSDependent.cs"/>
+        <include name="linux.cs"/>
+        <include name="windows.cs"/>
+        <include name="IPOP_Common.cs"/>
+        <include name="IPRouterConfig.cs"/>
         <include name="SimpleDhtClient.cs"/>
         <include name="IPAddresses.cs"/>
       </sources>
@@ -70,18 +75,23 @@
         <include name="Mono.Posix.dll"/>
       </references>
     </csc>
+
     <csc target="exe" output="${build.dir}/SimpleMultiNode.exe">
       <sources failonempty="true">
+        <include name="OSDependent.cs"/>
+        <include name="linux.cs"/>
+        <include name="windows.cs"/>
+        <include name="IPOP_Common.cs"/>
+        <include name="IPRouterConfig.cs"/>
         <include name="SimpleMultiNode.cs"/>
+        <include name="IPAddresses.cs"/>
       </sources>
       <references>
         <include name="${build.dir}/Brunet.dll"/>
         <include name="${build.dir}/Brunet.Dht.dll"/>
-        <include name="${build.dir}/Brunet.Coordinate.dll"/>
-        <include name="${build.dir}/log4net.dll"/>
+        <include name="Mono.Posix.dll"/>
       </references>
     </csc>
-
     <csc target="exe" output="${build.dir}/IPRouterConfigUpdate.exe">
       <sources failonempty="true">
         <include name="IPRouterConfigUpdate.cs"/>

@@ -1,3 +1,4 @@
+#define DHCP_DEBUG
 using System;
 using System.Text;
 using System.IO;
@@ -33,7 +34,7 @@ namespace Ipop {
       }
       string ns_key = "dhcp:ipop_namespace:" + ipop_namespace;
 #if DHCP_DEBUG
-      Console.WriteLine("searching for key: {0}", ns_key);
+      Console.WriteLine("Searching for namespace key: {0} at time: {1}", ns_key, DateTime.Now);
 #endif
       byte[] utf8_key = Encoding.UTF8.GetBytes(ns_key);
       //get a maximum of 1000 bytes only
@@ -85,6 +86,9 @@ namespace Ipop {
       IPOPNamespace ipop_ns = (IPOPNamespace) serializer.Deserialize(stringReader);
       DHCPLease dhcp_lease = new DhtDHCPLease(_dht, ipop_ns);
       leases[ipop_namespace] = dhcp_lease;
+#if DHCP_DEBUG
+      Console.WriteLine("Retrieved valid namespace information at time: {0}", DateTime.Now);
+#endif
       return dhcp_lease;
     }
 
