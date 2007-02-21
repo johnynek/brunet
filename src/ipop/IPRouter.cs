@@ -280,7 +280,7 @@ namespace Ipop {
 
         if(srcPort == 68 && destPort == 67 && protocol == 17) {
           if (debug)
-            Console.WriteLine("DHCP Packet at time: {0}, status: {1}", DateTime.Now, in_dht);
+            Console.WriteLine("DHCP packet at time: {0}, status: {1}", DateTime.Now, in_dht);
           if(!in_dht) {
             in_dht = true;
             ThreadPool.QueueUserWorkItem(new WaitCallback(ProcessDHCP), (object) buffer);
