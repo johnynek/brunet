@@ -396,7 +396,7 @@ public class ReqrepManager : IAHPacketHandler {
 				 int next_rep,
 				 string prot,
 				 ushort options,
-				 byte[] payload)
+				 MemBlock payload)
    {
        //Here we make the payload while we will send:
        /**
@@ -414,18 +414,21 @@ public class ReqrepManager : IAHPacketHandler {
        NumberSerializer.WriteInt( next_rep, req_payload, 1 );
        offset += 4;
        offset += NumberSerializer.WriteString(prot, req_payload, offset);
-       Array.Copy(payload, 0, req_payload, offset, payload.Length);
-//       ushort options;
-//       if( rt == ReqrepType.Reply ) {
-//         options = AHPacket.AHOptions.Exact;
-//       }
-//       else {
-//         options = AHPacket.AHOptions.AddClassDefault;
-//       }
+       payload.CopyTo(req_payload, offset);
        AHPacket packet = new AHPacket(0, ttl, _node.Address, destination, options,
 				      AHPacket.Protocol.ReqRep, req_payload);
        return packet;
    }
+  /**
+   * @deprecated use the one with a MemBlock instead
+   */
+  public int SendRequest(Address destination, ReqrepType reqt,
+                         string prot,
+		         byte[] payload, IReplyHandler reply, object state)
+  {
+    MemBlock pl = MemBlock.Reference(payload, 0, payload.Length);
+    return SendRequest(destination, reqt, prot, pl, reply, state);
+  }
   /**
    * @param destination the Node to recieve the request
    * @param prot the protocol of the payload
@@ -438,7 +441,7 @@ public class ReqrepManager : IAHPacketHandler {
    */
   public int SendRequest(Address destination, ReqrepType reqt,
                          string prot,
-		         byte[] payload, IReplyHandler reply, object state)
+		         MemBlock payload, IReplyHandler reply, object state)
   {
     if (!_is_active) {
 #if REQREP_DEBUG
@@ -464,7 +467,8 @@ public class ReqrepManager : IAHPacketHandler {
       rs.RequestID = next_req;
       short ttl = _node.DefaultTTLFor(destination);
       rs.ReplyHandler = reply;
-      rs.Request = MakePacket(destination, ttl, reqt, next_req, prot, AHPacket.AHOptions.AddClassDefault, payload);
+      rs.Request = MakePacket(destination, ttl, reqt, next_req, prot,
+                              AHPacket.AHOptions.AddClassDefault, payload);
       rs.ReqDate = DateTime.UtcNow;
       rs.RequestType = reqt;
       rs.UserState = state;
@@ -480,7 +484,16 @@ public class ReqrepManager : IAHPacketHandler {
     _node.Send( rs.Request );
     return rs.RequestID;
   }
-  
+  /**
+   * @deprecated use the one that takes a MemBlock
+   */
+  public int SendExactRequest(Address destination, ReqrepType reqt,
+                         string prot,
+		         byte[] payload, IReplyHandler reply, object state)
+  {
+    MemBlock pl = MemBlock.Reference(payload, 0, payload.Length);
+    return SendExactRequest(destination, reqt, prot, pl, reply, state);
+  }
   /**
    * @param destination the Node to recieve the request (this operates in Exact routing mode).
    * @param prot the protocol of the payload
@@ -493,7 +506,7 @@ public class ReqrepManager : IAHPacketHandler {
    */
   public int SendExactRequest(Address destination, ReqrepType reqt,
                          string prot,
-		         byte[] payload, IReplyHandler reply, object state)
+		         MemBlock payload, IReplyHandler reply, object state)
   {
     if (!_is_active) {
 #if REQREP_DEBUG
@@ -519,7 +532,8 @@ public class ReqrepManager : IAHPacketHandler {
       rs.RequestID = next_req;
       short ttl = _node.DefaultTTLFor(destination);
       rs.ReplyHandler = reply;
-      rs.Request = MakePacket(destination, ttl, reqt, next_req, prot, AHPacket.AHOptions.Exact, payload);
+      rs.Request = MakePacket(destination, ttl, reqt, next_req, prot,
+                              AHPacket.AHOptions.Exact, payload);
       rs.ReqDate = DateTime.UtcNow;
       rs.RequestType = reqt;
       rs.UserState = state;
@@ -535,12 +549,22 @@ public class ReqrepManager : IAHPacketHandler {
     _node.Send( rs.Request );
     return rs.RequestID;
   }
-
+  /**
+   * @deprecated use the one that takes a MemBlock
+   */
+  public void SendReply(object request, byte[] response)
+  {
+    MemBlock resp = null;
+    if( response != null ) {
+      resp = MemBlock.Reference(response, 0, response.Length);
+    }
+    SendReply(request, resp );
+  }
   /**
    * @param request this object allows the manager to know what Request this is a response to
    * @param response the payload for the response.
    */
-  public void SendReply(object request, byte[] response)
+  public void SendReply(object request, MemBlock response)
   {
     if (!_is_active) {
       //ignore!
@@ -554,7 +578,8 @@ public class ReqrepManager : IAHPacketHandler {
     AHPacket p = rs.Request;
     if( response != null ) {
       short ttl = _node.DefaultTTLFor( p.Source );
-      rs.Reply = MakePacket(p.Source, ttl, ReqrepType.Reply, rs.RequestID, rs.PayloadType, AHPacket.AHOptions.Exact, response);
+      rs.Reply = MakePacket(p.Source, ttl, ReqrepType.Reply, rs.RequestID,
+                            rs.PayloadType, AHPacket.AHOptions.Exact, response);
     }
     else {
       /**
