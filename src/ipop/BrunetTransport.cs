@@ -145,7 +145,7 @@ namespace Ipop {
     }
 
     public void UpdateTAAuthorizer() {
-      if(node.netmask == null)
+/*      if(node.netmask == null)
         return;
       byte [] netmask = DHCPCommon.StringToBytes(node.netmask, '.');
       int nm_value = (netmask[0] << 24) + (netmask[1] << 16) +
@@ -153,13 +153,15 @@ namespace Ipop {
       int value = 0;
       for(value = 0; value < 32; value++)
         if((1 << value) == (nm_value & (1 << value)))
-      break;
+          break;
       value = 32 - value;
       System.Console.WriteLine("Updating TAAuthorizer with " + node.ip.ToString() + "/" + value);
       TAAuthorizer taAuth = new NetmaskTAAuthorizer(node.ip, value,
         TAAuthorizer.Decision.Deny, TAAuthorizer.Decision.None);
-      foreach (Brunet.EdgeListener el in edgeListeners)
+      foreach (Brunet.EdgeListener el in edgeListeners) {
+        System.Console.WriteLine("ERHERHEH" + el.ToString());
         el.TAAuth = taAuth;
+      }*/
     }
   }
 }

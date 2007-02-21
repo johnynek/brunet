@@ -52,7 +52,7 @@ namespace Ipop {
       TargetIPAddress += packet[27].ToString();
       /* Must return nothing if the node is checking availability of IPs */
       /* Or he is looking himself up. */
-      if((node.ip == null) || node.ip.Equals(IPAddress.Parse(TargetIPAddress)) ||
+      if((node.ip != null) && node.ip.Equals(IPAddress.Parse(TargetIPAddress)) ||
         SenderIPAddress.Equals("255.255.255.255") ||
         SenderIPAddress.Equals("0.0.0.0")) {
         return false;
@@ -86,6 +86,7 @@ namespace Ipop {
 
     private static void IPUpdate(object ip) {
       if(node.brunet.Update((string) ip.ToString())) {
+        Console.WriteLine("MY IP " + node.ip);
         config.AddressData.IPAddress = node.ip.ToString();
         config.AddressData.Netmask = node.netmask;
         config.AddressData.Password = node.password;
@@ -127,7 +128,6 @@ namespace Ipop {
         if(config.AddressData.DhtDHCP) {
           node.brunet.InterruptRefresher();
         }
-
         /* Convert the packet into byte format, run Arp and Route updater */
         returnPacket.EncodePacket();
         ether.SendPacket(returnPacket.packet, 0x800, node.mac);
@@ -136,7 +136,7 @@ namespace Ipop {
           returnPacket.decodedPacket.yiaddr, '.');
         string newNetmask = IPOP_Common.BytesToString(((DHCPOption)
           returnPacket.decodedPacket.options[1]).byte_value, '.');
-        if(node.ip == null || node.ip.ToString() != newAddress || 
+        if(node.ip == null || node.ip.ToString() != newAddress ||
           node.netmask !=  newNetmask) {
           if(!config.AddressData.DhtDHCP && !node.brunet.Update(newAddress)) {
             in_dht = false;
@@ -162,9 +162,9 @@ namespace Ipop {
         Console.WriteLine("The DHCP Server has a message to share with you...");
         Console.WriteLine("\n" + response);
         Console.WriteLine("\nSorry, this program will sleep and try again later.");
-        Thread.Sleep(10000);
       }
       in_dht = false;
+      return;
     }
 
     public static void RouteMissCallback(IPAddress ip, Address target) {
@@ -278,9 +278,9 @@ namespace Ipop {
             destPort);
         }
 
-        if(srcPort == 68 && destPort == 67 && protocol == 17 && !in_dht) {
+        if(srcPort == 68 && destPort == 67 && protocol == 17) {
           if (debug)
-            Console.WriteLine("DHCP Packet at time: {0}", DateTime.Now);
+            Console.WriteLine("DHCP Packet at time: {0}, status: {1}", DateTime.Now, in_dht);
           if(!in_dht) {
             in_dht = true;
             ThreadPool.QueueUserWorkItem(new WaitCallback(ProcessDHCP), (object) buffer);
@@ -288,12 +288,7 @@ namespace Ipop {
           continue;
         }
 
-        if(!srcAddr.Equals(IPAddress.Parse("0.0.0.0")) && (node.ip == null ||
-          !node.ip.Equals(srcAddr)) && !in_dht) {
-          node.ip = srcAddr;
-          config.AddressData.IPAddress = srcAddr.ToString();
-          IPRouterConfigHandler.Write(ConfigFile, config);
-
+        if(!srcAddr.Equals(IPAddress.Parse("0.0.0.0")) && !srcAddr.Equals(node.ip) && !in_dht) {
           Console.WriteLine("Switching IP Address " + node.ip + " with " + srcAddr);
           in_dht = true;
           ThreadPool.QueueUserWorkItem(new WaitCallback(IPUpdate), (object) srcAddr.ToString());

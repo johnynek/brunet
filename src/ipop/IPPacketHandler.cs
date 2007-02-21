@@ -34,7 +34,7 @@ namespace Ipop
 
       IPAddress destAddr = IPPacketParser.DestAddr(packet);
       if (!destAddr.Equals(this.node.ip)) {
-        Console.WriteLine("Incoming packet not for me:: IP dst: {0}", destAddr);
+        Console.WriteLine("Incoming packet not for me {0}:: IP dst: {1}", this.node.ip, destAddr);
       }
       else if(this.node.mac != null && 
         !ether.SendPacket(packet, 0x800, this.node.mac)) {
