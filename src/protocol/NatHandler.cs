@@ -20,6 +20,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define DEBUG
 
+#if BRUNET_NUNIT
+using NUnit.Framework;
+#endif
+
 using System;
 using System.Net;
 using System.Collections;
@@ -548,6 +552,7 @@ public class SymmetricNatHandler : NatHandler {
     ArrayList all_diffs = new ArrayList();
     //Get an increasing subset of the ports:
     int prev = Int32.MinValue; 
+    int most_recent_port = -1;
     uint sum = 0;
     uint sum2 = 0;
     bool got_extra_data = false;
@@ -559,9 +564,11 @@ public class SymmetricNatHandler : NatHandler {
         TransportAddress ta = ndp.PeerViewOfLocalTA;
         if( ta != null ) {
           int port = ta.Port;
+//          Console.WriteLine("port: {0}", port);
           if( !got_extra_data ) {
             t = ta.TransportAddressType;
             host = ta.Host;
+            most_recent_port = port;
             got_extra_data = true;
           }
           if( prev > port ) {
@@ -585,13 +592,19 @@ public class SymmetricNatHandler : NatHandler {
       double s2 = ((double)sum2) - sd*sd/n;
       s2 = s2/(double)(all_diffs.Count - 1);
       double stddev = Math.Sqrt(s2);
+      //Console.WriteLine("stddev: {0}", stddev);
       if ( stddev < MAX_STD_DEV ) {
         try {
           double max_delta = mean + SAFETY * stddev;
+          if( max_delta < mean + 0.001 ) {
+            //This means the stddev is very small, just go up one above the
+            //mean:
+            max_delta = mean + 1.001;
+          }
           int delta = (int)(mean - SAFETY * stddev);
           while(delta < max_delta) {
             if( delta > 0 ) {
-              int pred_port = prev + delta;
+              int pred_port = most_recent_port + delta;
               prediction.Add(new TransportAddress(t, host, pred_port) );
             }
             else {
@@ -838,6 +851,72 @@ public class NatTAs : IEnumerable {
 
 }
 
+#if BRUNET_NUNIT
+[TestFixture]
+public class NatTest {
+
+  [Test]
+  public void TestPortPrediction() {
+    Edge e = new FakeEdge( new TransportAddress("brunet.udp://127.0.0.1:80"),
+                           new TransportAddress("brunet.udp://127.0.0.1:1080"));
+    NatHistory h = null;
+    h = h + new NewEdgePoint(DateTime.UtcNow, e);
+    h = h + new LocalMappingChangePoint(DateTime.UtcNow, e,
+                         new TransportAddress("brunet.udp://128.128.128.128:80"));
+    NatHandler nh = new PublicNatHandler();
+    Assert.IsTrue( nh.IsMyType(h), "PublicNatHandler");
+    IList tas = nh.TargetTAs(h);
+    Assert.IsTrue( tas.Contains(
+                     new TransportAddress("brunet.udp://128.128.128.128:80")
+                   ), "ConeNatHandler.TargetTAs");
+    
+    nh = new ConeNatHandler();
+    Assert.IsTrue( nh.IsMyType(h), "ConeNatHandler");
+    tas = nh.TargetTAs(h);
+    //foreach(object ta in tas) { Console.WriteLine(ta); }
+    Assert.IsTrue( tas.Contains(
+                     new TransportAddress("brunet.udp://128.128.128.128:80")
+                   ), "ConeNatHandler.TargetTAs");
+   /* 
+    * Now, let's try Port prediction:
+    */
+    int local_port = 80;
+    int port = local_port;
+    h = null;
+    while( port < 86 ) {
+      e = new FakeEdge( new TransportAddress("brunet.udp://127.0.0.1:"
+                                              + local_port.ToString() ),
+                           new TransportAddress("brunet.udp://127.0.0.1:1081"));
+      h = h + new NewEdgePoint(DateTime.UtcNow, e);
+      
+      h = h + new LocalMappingChangePoint(DateTime.UtcNow, e,
+                         new TransportAddress("brunet.udp://128.128.128.128:"
+                           + port.ToString()
+                         ));
+      port = port + 1;
+    }
+    nh = new SymmetricNatHandler();
+    Assert.IsTrue( nh.IsMyType(h), "SymmetricNatHandler");
+    tas = nh.TargetTAs(h);
+    //foreach(object ta in tas) { Console.WriteLine(ta); }
+    Assert.IsTrue( tas.Contains(
+                     new TransportAddress("brunet.udp://128.128.128.128:86")
+                   ), "SymmetricNatHandler.TargetTAs");
+    nh = new LinuxNatHandler();
+    Assert.IsTrue( nh.IsMyType(h), "LinuxNatHandler");
+    tas = nh.TargetTAs(h);
+    //foreach(object ta in tas) { Console.WriteLine(ta); }
+    Assert.IsTrue( tas.Contains(
+                     new TransportAddress("brunet.udp://128.128.128.128:86")
+                   ), "LinuxNatHandler.TargetTAs");
+    Assert.IsTrue( tas.Contains(
+                     new TransportAddress("brunet.udp://128.128.128.128:80")
+                   ), "LinuxNatHandler.TargetTAs");
+  }
+
+}
+
+#endif
 
 }
 
