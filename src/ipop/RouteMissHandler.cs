@@ -111,7 +111,7 @@ namespace Ipop {
     {
       IPAddress ip = o as IPAddress;
       try {
-        string str_key = "dhcp:ipop_namespace:" + _ipop_namespace + ":ip:" + ip.ToString();
+        string str_key = "dhcp:ip:" + ip.ToString();
 	
 	byte[] dht_key = Encoding.UTF8.GetBytes(str_key);
 #if ROUTE_MISS_DEBUG

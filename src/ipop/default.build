@@ -58,7 +58,6 @@
         <include name="Mono.Posix.dll"/>
       </references>
     </csc>
-
     <csc target="exe" output="${build.dir}/SimpleDhtClient.exe">
       <sources failonempty="true">
         <include name="OSDependent.cs"/>
@@ -75,7 +74,6 @@
         <include name="Mono.Posix.dll"/>
       </references>
     </csc>
-
     <csc target="exe" output="${build.dir}/SimpleMultiNode.exe">
       <sources failonempty="true">
         <include name="OSDependent.cs"/>

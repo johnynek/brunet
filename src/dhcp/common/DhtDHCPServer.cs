@@ -54,7 +54,7 @@ namespace Ipop {
            }
            result = rpc_result;
            break;
-         } catch (Exception e) {
+         } catch (Exception) {
            return null;
          }
        }
