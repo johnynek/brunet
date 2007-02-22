@@ -306,7 +306,7 @@ namespace Brunet
     protected IEnumerator GetEnumerator() {
       //Here we make and yield the LinkMessage request.
       NodeInfo my_info = new NodeInfo( _node.Address, _e.LocalTA );
-      NodeInfo remote_info = new NodeInfo( null, _e.RemoteTA );
+      NodeInfo remote_info = new NodeInfo( _linker.Target, _e.RemoteTA );
       System.Collections.Specialized.StringDictionary attrs
           = new System.Collections.Specialized.StringDictionary();
       attrs["type"] = _contype;
@@ -451,6 +451,18 @@ namespace Brunet
             _result = Result.RetryThisTA;
             finish = true;
           }
+        }
+        else if ( _em.Ec == ErrorMessage.ErrorCode.TargetMismatch ) {
+          /*
+           * This could happen in some NAT cases, or perhaps due to
+           * some other as of yet undiagnosed bug.
+           *
+           * Move to the next TA since this TA definitely connects to
+           * the wrong guy.
+           */
+          Console.Error.WriteLine("LPS: from {0} target mismatch: {1}", edge, _em);
+          _result = Result.MoveToNextTA;
+          finish = true;
         }
         else {
           //We failed.

@@ -180,6 +180,7 @@ namespace Brunet
       InProgress = 17, //When we are in the process of connecting, don't allow a second
                        //from the same node.
       AlreadyConnected = 18,
+      TargetMismatch = 19,
       BadXml = 2000,
       SpecViolation = 2001,
       UnknownConnectionMessage = 2002,
