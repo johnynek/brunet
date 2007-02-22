@@ -430,7 +430,13 @@ namespace Brunet
            */
           Address target = _linker.Target;
           ConnectionTable tab = _node.ConnectionTable;
-          if( tab.Contains( Connection.StringToMainType( _contype ), target) ) {
+          if( target == null ) {
+            //This can happen with leaf connections.  In this case, we
+            //should move on to another TA.
+            _result = Result.MoveToNextTA;
+            finish = true;
+          }
+          else if( tab.Contains( Connection.StringToMainType( _contype ), target) ) {
             //This shouldn't happen
             _result = Result.ProtocolError;
             finish = true;
