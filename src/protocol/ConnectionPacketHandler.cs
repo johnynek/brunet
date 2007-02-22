@@ -362,15 +362,25 @@ namespace Brunet
           err = new ErrorMessage(ErrorMessage.ErrorCode.RealmMismatch,
 			         "We are not in the same realm");
 	}
+        else if( (lm.Remote.Address != null )
+                 && !_local_add.Equals( lm.Remote.Address ) ) {
+          /*
+           * They are trying to reach a specific node, but it's not
+           * us
+           */
+          err = new ErrorMessage(ErrorMessage.ErrorCode.TargetMismatch,
+                                 String.Format("target is {0}, but reached {1}",
+                                               lm.Remote.Address, _local_add));
+        }
 	else if( _tab.Contains( lm.ConnectionType, lm.Local.Address) ) {
           //We already have a connection of this type to this address
           err = new ErrorMessage(ErrorMessage.ErrorCode.AlreadyConnected,
-                                 "We are already connected");
+                                 String.Format("We are already connected: {0}", _local_add));
         }
         else if( lm.Local.Address.Equals( _local_add ) ) {
           //You are me!!!
           err = new ErrorMessage(ErrorMessage.ErrorCode.ConnectToSelf,
-                                 "You are me");
+                                 "You are me: ");
         }
         else {
           //Everything is looking good:
