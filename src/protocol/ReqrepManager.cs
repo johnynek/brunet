@@ -201,7 +201,7 @@ public class ReqrepManager : IAHPacketHandler {
        return;
      }
 #if REQREP_DEBUG
-     Console.WriteLine("[ReqrepServer: {0}] Receiving request at: {1}.", _node.Address, DateTime.Now);
+     Console.WriteLine("[ReqrepManager: {0}] Receiving packet at: {1}.", _node.Address, DateTime.Now);
 #endif
 
      //Simulate packet loss
