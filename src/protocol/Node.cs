@@ -290,7 +290,7 @@ namespace Brunet
     //add an event handler which conveys the fact that Disconnect has been called on the node
     public event EventHandler DepartureEvent;
 
-    //add an event handler which conveys the fact that Cconnect has been called on the node
+    //add an event handler which conveys the fact that Connect has been called on the node
     public event EventHandler ArrivalEvent;
 
     public virtual void AddEdgeListener(EdgeListener el)

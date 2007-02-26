@@ -150,19 +150,25 @@ namespace Brunet {
 	    return false;
 	  }
 	  if (rc == lc) {
-	    Console.WriteLine("{0}: same left or right neighbor (false)", our_addr);
-	    return false;
+            /*
+             * In this case, we only have one neighbor.
+             * If the network only has two nodes, us and the other
+             * guy, we might be stuck in this case.
+             * We will consider ourselves connected, if the other
+             * guy has no neighbors other than us
+             */
+            bool only_us = true;
+            foreach(NodeInfo ni in rc.Status.Neighbors) {
+              only_us = only_us && ni.Address.Equals(our_addr);
+            }
+            return only_us;
 	  }
 	  //now make sure things are good about Status Messages
 	  AHAddress left_addr = lc.Address as AHAddress;
 	  AHAddress right_addr = rc.Address as AHAddress;
 	  
-	  
-	  //status of our left neighbor; is fine
-	  StatusMessage l_sm = lc.Status;
-	  ArrayList l_arr = l_sm.Neighbors;
 	  //we have to make sure than nothing is between us and left
-	  foreach (NodeInfo n_info in l_arr) {
+	  foreach (NodeInfo n_info in lc.Status.Neighbors) {
 	    AHAddress stat_addr = n_info.Address as AHAddress;
 	    if (stat_addr.IsBetweenFromLeft(our_addr, left_addr)) {
 	      //we are expecting a better candidate for left neighbor!
@@ -171,11 +177,8 @@ namespace Brunet {
 	    }
 	  }
 	  
-	  //status of our left neighbor; is fine
-	  StatusMessage r_sm = rc.Status;
-	  ArrayList r_arr = r_sm.Neighbors;
 	  //we have to make sure than nothing is between us and left
-	  foreach (NodeInfo n_info in r_arr) {
+	  foreach (NodeInfo n_info in rc.Status.Neighbors) {
 	    AHAddress stat_addr = n_info.Address as AHAddress;
 	    if (stat_addr.IsBetweenFromRight(our_addr, right_addr)) {
 	      //we are expecting a better candidate for left neighbor!
