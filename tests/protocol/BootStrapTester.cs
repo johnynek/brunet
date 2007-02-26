@@ -45,17 +45,21 @@ namespace Brunet
     {
       _node_list = nodes;
       _sorted_adds = adds;
+      _ctable_to_node = new Hashtable();
       lock(this) {
         foreach(Node n in _node_list) {
           //When the tables change, we want to know about it.
           n.ConnectionTable.ConnectionEvent += new EventHandler(this.ConnectionTableChangeHandler);
           n.ConnectionTable.DisconnectionEvent += new EventHandler(this.ConnectionTableChangeHandler);
+	  _ctable_to_node[ n.ConnectionTable ] = n; 
         }
       }
     }
 
     public int _idx = 0;
     
+    protected Hashtable _ctable_to_node;
+
     private ArrayList _sorted_adds;
     /* holds all the nodes */
     private ArrayList _node_list;
@@ -70,6 +74,7 @@ namespace Brunet
     void ConnectionTableChangeHandler(object o, EventArgs arg) {
       lock( this ) {
         _idx++;
+	Node n = (Node)_ctable_to_node[o];
 #if EVERY_20
        if( _idx % 20 == 0 ) { 
 	      //Only print every 20'th change.  This is a hack...
@@ -78,6 +83,7 @@ namespace Brunet
 #else
           ToDotFile(_sorted_adds, _node_list, _idx);
 #endif
+	  Console.WriteLine("Node({0}).IsConnected == {1}", n.Address, n.IsConnected);
       }
     }
     
