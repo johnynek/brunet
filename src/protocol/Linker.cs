@@ -180,7 +180,7 @@ namespace Brunet
      * ones given by _MAX_REMOTETAS.  This is motivated by old (and
      * now considered buggy) clients passing large TA lists
      */
-    protected static readonly int _MAX_REMOTETAS = 8;
+    protected static readonly int _MAX_REMOTETAS = 12;
     /**
      * As an optimization, we may make more than one attempt to
      * different TAs simulataneously.  This controls the
@@ -406,9 +406,17 @@ namespace Brunet
           int count = 0;
           foreach(TransportAddress ta in target_list ) {
             _ta_queue.Enqueue(ta);
-            //Make sure we don't go insane with TAs
-            count++;
-            if( count >= _MAX_REMOTETAS ) { break; }
+            if( target != null ) {
+              /*
+               * Make sure we don't go insane with TAs
+               * we know who we want to try to connect to,
+               * if it doesn't work after some number of
+               * attempts, give up.  Don't go arbitrarily
+               * long
+               */
+              count++;
+              if( count >= _MAX_REMOTETAS ) { break; }
+            }
           }
         }
         _contype = ct;
