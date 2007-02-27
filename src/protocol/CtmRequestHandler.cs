@@ -95,8 +95,8 @@ namespace Brunet
         System.Console.WriteLine("CtmRequestHandler - Got CTM Request,"
 				 + n.Address.ToString() + " connectTo: "
 				 + ctm.Target.Address.ToString() + " ConType: " + ctm.ConnectionType);
-	Console.WriteLine("CtmRequestHandler - CtmRequest: {0}", ctm);
-	Console.WriteLine("CtmRequestHandler - Initiating link protocol on request.");
+	Console.WriteLine("CtmRequestHandler - CtmRequest at: {0} -  {1}", DateTime.Now, ctm);
+	Console.WriteLine("CtmRequestHandler - Initiating link protocol on CTM request.");
 #endif
         /*_log.Info("Got CTM Request,"
         + n.Address.ToString() + " connectTo: "

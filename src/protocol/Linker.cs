@@ -444,7 +444,7 @@ namespace Brunet
      */
     override public void Start() {
 #if LINK_DEBUG
-      System.Console.WriteLine("Linker({0}).Start", _lid);
+      System.Console.WriteLine("Linker({0}).Start at: {1}", _lid, DateTime.Now);
 #endif
       //Just move to the next (first) TA
       lock( _sync ) {
@@ -577,7 +577,7 @@ namespace Brunet
 	_local_n.ConnectionTable.Add(c);
         _con = c;
 #if LINK_DEBUG
-        Console.WriteLine("Linker({0}) added {1}", _lid, c);
+        Console.WriteLine("Linker({0}) added {1} at: {2}", _lid, c, DateTime.Now);
 #endif
       }
       catch(Exception) {
@@ -668,7 +668,7 @@ namespace Brunet
       }
       if( fire_finished ) {
 #if LINK_DEBUG
-        Console.WriteLine("Linker({0}) finished", _lid);
+        Console.WriteLine("Linker({0}) finished at: {1}", _lid, DateTime.Now);
 #endif
         FireFinished();
       }
@@ -677,8 +677,8 @@ namespace Brunet
    protected void LinkProtocolStateFinishHandler(object olps, EventArgs args) {
      LinkProtocolState lps = (LinkProtocolState)olps;
 #if LINK_DEBUG
-     Console.WriteLine("Linker({0}): {1} finished with result: {2}", _lid,
-                       lps, lps.MyResult);
+     Console.WriteLine("Linker({0}): {1} finished with result: {2} at: {3}", _lid,
+                       lps, lps.MyResult, DateTime.Now);
 #endif
      switch( lps.MyResult ) {
        case LinkProtocolState.Result.Success:

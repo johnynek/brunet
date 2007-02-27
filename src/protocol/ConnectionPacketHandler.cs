@@ -131,8 +131,8 @@ namespace Brunet
 	  }
 	  else if (cm is StatusMessage) {
 #if LINK_DEBUG
-	    Console.WriteLine("ConnectionPacketHandler - Getting a status request; edge: {0}; length: {1}",
-                              from, p.Length);
+	    Console.WriteLine("ConnectionPacketHandler - Getting a status request; edge: {0}; length: {1} at: {2}",
+                              from, p.Length, DateTime.Now);
 #endif
 	    //we just got s status request
 	    LinkMessage lm_to_add = null;
@@ -169,8 +169,8 @@ namespace Brunet
             response.Dir = ConnectionMessage.Direction.Response;
             response.Id = cm.Id;
 #if LINK_DEBUG
-	    Console.WriteLine("ConnectionPacketHandler -  Sending status response: {0}; length: {1}", response, 
-			      response.ToPacket().Length);
+	    Console.WriteLine("ConnectionPacketHandler -  Sending status response: {0}; length: {1}, at: {2}", response, 
+			      response.ToPacket().Length, DateTime.Now);
 #endif
             from.Send(response.ToPacket());
 
@@ -187,7 +187,7 @@ namespace Brunet
 					      sm,
 					      lm_to_add);
 #if LINK_DEBUG
-	      Console.WriteLine("ConnectionPacketHandler - Creating a new connection: {0}", con);
+	      Console.WriteLine("ConnectionPacketHandler - Creating a new connection: {0}, at: {1}", con, DateTime.Now);
 #endif
 	      _tab.Add(con);
               //Unlock after we add the connection
@@ -196,8 +196,8 @@ namespace Brunet
           }
           else if (cm is CloseMessage) {
 #if LINK_DEBUG
-	    Console.WriteLine("ConnectionPacketHandler - Getting a close request; edge: {0}; length: {1}",
-                              from, p.Length);
+	    Console.WriteLine("ConnectionPacketHandler - Getting a close request; edge: {0}; length: {1}, at: {2}",
+                              from, p.Length, DateTime.Now);
 #endif
             /**
              * Only Close an Edge when explicitly told
@@ -228,8 +228,8 @@ namespace Brunet
           }
           else if (cm is LinkMessage) {
 #if LINK_DEBUG
-	    Console.WriteLine("ConnectionPacketHandler - Getting a link request; edge: {0}; length: {1}",
-                              from, p.Length);
+	    Console.WriteLine("ConnectionPacketHandler - Getting a link request; edge: {0}; length: {1} at: {2}",
+                              from, p.Length, DateTime.Now);
 #endif
             /**
             * When we get a LinkMessage there are three cases:
@@ -276,12 +276,12 @@ namespace Brunet
               response.Id = lm.Id;
               response.Dir = ConnectionMessage.Direction.Response;
 #if LINK_DEBUG
-	      Console.WriteLine("ConnectionPacketHandler - Sending a link response.");
+	      Console.WriteLine("ConnectionPacketHandler - Sending a link response on : {0} at {1}.", from, DateTime.Now);
 #endif
             }
             else {
 #if LINK_DEBUG
-	      Console.WriteLine("ConnectionPacketHandler - Sending an error response.");
+	      Console.WriteLine("ConnectionPacketHandler - Sending an error response on: {0} at {1}.", from, DateTime.Now);
 #endif
               response = err;
               if( err.Ec == ErrorMessage.ErrorCode.AlreadyConnected ) {
@@ -317,7 +317,7 @@ namespace Brunet
         else {
           if (cm is StatusMessage) {
 #if LINK_DEBUG
-	    Console.WriteLine("ConnectionPacketHandler - Getting a status response -- testlink-- edge: {0}; length: {1}",
+	    Console.WriteLine("ConnectionPacketHandler - Getting a status message -- testlink-- edge: {0}; length: {1}",
                               from, p.Length);
 #endif
             /**
