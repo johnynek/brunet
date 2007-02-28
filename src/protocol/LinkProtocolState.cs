@@ -110,7 +110,7 @@ namespace Brunet
      * after each timeout.  It starts at DEFAULT_TIMEOUT second.
      * Then _TIMEOUT_FACTOR * DEFAULT_TIMEOUT ...
      */
-    protected static readonly int _TIMEOUT_FACTOR = 4;
+    protected static readonly int _TIMEOUT_FACTOR = 2;
     protected static readonly int DEFAULT_TIMEOUT = 1000;
     protected int _ms_timeout = DEFAULT_TIMEOUT;
     
