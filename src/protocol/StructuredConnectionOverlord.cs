@@ -379,7 +379,7 @@ namespace Brunet {
       Address forwarder = null;
       Address target = null;
       short ttl = -1;
-      string contype = "";
+      string contype = String.Empty;
       int structured_count = 0;
       
       lock( tab.SyncRoot ) {

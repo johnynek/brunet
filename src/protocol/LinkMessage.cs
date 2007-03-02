@@ -232,7 +232,7 @@ namespace Brunet
     {
       base.WriteTo(w);
 
-      string ns = "";           //Xml namespace
+      string ns = System.String.Empty;           //Xml namespace
       /*@throw InvalidOperationException for WriteStartElement if the WriteState
        * is Closed.
        */

@@ -185,7 +185,7 @@ namespace Brunet
      */
     virtual public void WriteTo(System.Xml.XmlWriter w)
     {
-      string xml_ns = "";
+      string xml_ns = System.String.Empty;
       if( Dir == Direction.Request ) {
         w.WriteStartElement("request", xml_ns);
       }

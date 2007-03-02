@@ -99,7 +99,7 @@ namespace Brunet
       this.Dir = dir;
       this.Id = id;
       _ec = (ErrorCode)Enum.Parse(typeof(ErrorCode), r["code"], true);
-      _message = "";
+      _message = String.Empty;
       bool finished = false;
       while( r.Read() && !finished ) {
         if( r.NodeType == XmlNodeType.Text) {
@@ -158,7 +158,7 @@ namespace Brunet
 
       //then write this: <error code="12">Already connected</error>
 
-      string ns = "";
+      string ns = String.Empty;
       //Here we write out the specific stuff :
       w.WriteStartElement("error", ns);     //<error>
       //Write the attributes :
