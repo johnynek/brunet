@@ -557,7 +557,7 @@ public class SymmetricNatHandler : NatHandler {
     uint sum2 = 0;
     bool got_extra_data = false;
     TransportAddress.TAType t = TransportAddress.TAType.Unknown;
-    string host = "";
+    string host = String.Empty;
     foreach(NatDataPoint ndp in ndps) {
       if( false == (ndp is EdgeClosePoint) ) {
         //Ignore closing events for prediction, they'll screw up the port prediction

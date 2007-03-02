@@ -206,7 +206,7 @@ namespace Brunet
       //Write the request or response and id
       base.WriteTo(w);  //<(request|response)>
 
-      string ns = "";
+      string ns = System.String.Empty;
       //Here we write out the specific stuff :
       w.WriteStartElement("connectTo", ns);     //<connectTo>
       //Write the attributes :

@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //using Brunet.ConnectionMessage;
 using Brunet;
+using System;
 using System.Xml;
 
 #if BRUNET_NUNIT
@@ -38,7 +39,7 @@ namespace Brunet
 
     public CloseMessage()
     {
-      _reason = "";
+      _reason = String.Empty;
     }
     /**
      * Make a close message with a non-empty reason string
@@ -52,7 +53,7 @@ namespace Brunet
     {
       XmlElement close_element = (XmlElement)r.FirstChild;
       //Get the reason:
-      _reason = "";
+      _reason = String.Empty;
       if( close_element.FirstChild != null )
         if( close_element.FirstChild.Value != null )
           _reason = close_element.FirstChild.Value;
@@ -67,7 +68,7 @@ namespace Brunet
         throw new ParseException("This is not a <close /> message");
       }
 
-      _reason = "";
+      _reason = String.Empty;
       this.Dir = dir;
       this.Id = id;
       
@@ -125,7 +126,7 @@ namespace Brunet
     {
 
       base.WriteTo(w);  //<(request|response)>
-      string xml_ns = "";
+      string xml_ns = String.Empty;
       w.WriteStartElement("close", xml_ns);     //<close>
       if( _reason.Length > 0 ) {
         w.WriteString( _reason );
