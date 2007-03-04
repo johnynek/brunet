@@ -82,7 +82,7 @@ public class AdrException : Exception {
     get {
       object m = _data["message"];
       if( m == null ) {
-        return "";
+        return String.Empty;
       }
       else {
         return (string)m;
@@ -119,7 +119,7 @@ public class AdrException : Exception {
     Hashtable xht = (Hashtable)_data.Clone();
     object st = xht["stacktrace"];
     //The above is set when thrown:
-    if( st == null && (this.StackTrace != "") ) {
+    if( st == null && (this.StackTrace != String.Empty) ) {
       xht["stacktrace"] = this.StackTrace; 
     }
     return xht;

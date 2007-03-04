@@ -93,7 +93,7 @@ namespace Brunet
     {
       base.WriteTo(w);  //<(request|response)>
 
-      string xml_ns = "";
+      string xml_ns = System.String.Empty;
       w.WriteStartElement("ping", xml_ns);      //<ping>
       w.WriteEndElement();      //</ping>
       w.WriteEndElement();      //</(request|response)>

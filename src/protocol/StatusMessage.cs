@@ -160,7 +160,7 @@ namespace Brunet {
     public override void WriteTo(XmlWriter w)
     {
       base.WriteTo(w);
-      string ns = ""; //Xml namespace;
+      string ns = String.Empty; //Xml namespace;
 
       w.WriteStartElement("status", ns); //<status>
       w.WriteStartElement("neighbors", ns); //<neighbors>

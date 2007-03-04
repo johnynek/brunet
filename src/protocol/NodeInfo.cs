@@ -231,7 +231,7 @@ namespace Brunet
      */
     public void WriteTo(System.Xml.XmlWriter w)
     {
-      string ns = "";
+      string ns = System.String.Empty;
       w.WriteStartElement("node", ns);//<node>
       if ( _address != null ) {
         w.WriteStartAttribute("address", ns);
