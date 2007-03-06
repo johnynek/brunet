@@ -656,8 +656,18 @@ namespace Brunet {
         return;
       }
       short t_hops = 0;
+      //Send the 4 neighbors closest to this node:
+      ArrayList nearest = _node.ConnectionTable.GetNearestTo(
+							 (AHAddress)_node.Address, 4);
+      NodeInfo[] near_ni = new NodeInfo[nearest.Count];
+      int i = 0;
+      foreach(Connection cons in nearest) {
+	near_ni[i] = new NodeInfo(cons.Address, cons.Edge.RemoteTA);
+	i++;
+      }
+
       ConnectToMessage ctm =
-        new ConnectToMessage(contype, _node.GetNodeInfo(6) );
+        new ConnectToMessage(contype, _node.GetNodeInfo(6), near_ni);
       ctm.Id = _rand.Next(1, Int32.MaxValue);
       ctm.Dir = ConnectionMessage.Direction.Request;
 
