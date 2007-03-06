@@ -44,7 +44,8 @@ namespace Brunet
       Udp,
       Function,
       Tls,
-      TlsTest
+      TlsTest,
+      Tunnel,
     }
 
     public TAType TransportAddressType
