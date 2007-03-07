@@ -50,7 +50,7 @@ namespace Brunet
       _tas = new ArrayList();
       foreach(XmlNode trans in encoded.ChildNodes) {
         if( trans.Name == "transport" ) {
-          _tas.Add( new TransportAddress( trans.FirstChild.Value ) );
+          _tas.Add(TransportAddressFactory.CreateInstance( trans.FirstChild.Value ) );
 	}
       }
     }
@@ -83,7 +83,7 @@ namespace Brunet
 	}
 	else if( r.NodeType == XmlNodeType.Text && in_transport ) {
           //This must be the transport address:
-	  _tas.Add( new TransportAddress( r.Value ) );
+	  _tas.Add(TransportAddressFactory.CreateInstance( r.Value ) );
 	}
 	else if( r.NodeType == XmlNodeType.EndElement) {
           if( r.Name == "transport" )
@@ -259,7 +259,7 @@ namespace Brunet
     public void TestWriteAndParse()
     {
       Address a = new DirectionalAddress(DirectionalAddress.Direction.Left);
-      TransportAddress ta = new TransportAddress("brunet.tcp://127.0.0.1:5000");
+      TransportAddress ta = TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:5000");
       NodeInfo ni = new NodeInfo(a, ta);
 
       XmlAbleTester xt = new XmlAbleTester();
@@ -272,7 +272,7 @@ namespace Brunet
       ArrayList tas = new ArrayList();
       tas.Add(ta);
       for(int i = 5001; i < 5010; i++)
-        tas.Add(new TransportAddress("brunet.tcp://127.0.0.1:" + i.ToString()));
+        tas.Add(TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:" + i.ToString()));
       NodeInfo ni3 = new NodeInfo(a, tas);
       
       ni2 = (NodeInfo)xt.SerializeDeserialize(ni3);

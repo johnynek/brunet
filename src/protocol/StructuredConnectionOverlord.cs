@@ -1089,6 +1089,7 @@ namespace Brunet {
       /**
        * Time to start linking:
        */
+      
       Linker l = new Linker(_node, ctm_resp.Target.Address,
                             ctm_resp.Target.Transports,
                             ctm_resp.ConnectionType);
