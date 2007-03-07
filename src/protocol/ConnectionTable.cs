@@ -1105,11 +1105,11 @@ namespace Brunet
     public void LoopTest() {
       //Make some fake edges: 
       TransportAddress home_ta =
-        new TransportAddress("brunet.tcp://127.0.27.1:5000");
+        TransportAddressFactory.CreateInstance("brunet.tcp://127.0.27.1:5000");
       TransportAddress ta1 =
-        new TransportAddress("brunet.tcp://158.7.0.1:5000");
+        TransportAddressFactory.CreateInstance("brunet.tcp://158.7.0.1:5000");
       TransportAddress ta2 =
-        new TransportAddress("brunet.tcp://169.0.5.1:5000");
+        TransportAddressFactory.CreateInstance("brunet.tcp://169.0.5.1:5000");
       FakeEdge e1 = new FakeEdge(home_ta, ta1);
       FakeEdge e2 = new FakeEdge(home_ta, ta2);
       //Make some addresses:

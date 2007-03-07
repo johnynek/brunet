@@ -256,7 +256,7 @@ public class NatHistory : IEnumerable {
     Filter f = delegate(NatDataPoint p) {
       TransportAddress ta = p.PeerViewOfLocalTA;
       if( ta != null ) {
-        return ta.GetIPAddresses()[0];
+        return ((IPTransportAddress) ta).GetIPAddresses()[0];
       }
       return null;
     };
@@ -299,7 +299,7 @@ public class NatHistory : IEnumerable {
     Filter f = delegate(NatDataPoint p) {
       TransportAddress ta = p.PeerViewOfLocalTA;
       if( ta != null ) {
-        if( a.Equals( ta.GetIPAddresses()[0] ) ) {
+        if( a.Equals( ((IPTransportAddress)ta).GetIPAddresses()[0] ) ) {
           return p;
         }
       }
@@ -352,7 +352,7 @@ public class PublicNatHandler : NatHandler {
     bool port_is_set = false;
     bool retv = true;
     foreach(NatDataPoint p in h) {
-      int this_port = p.LocalTA.Port;
+      int this_port = ((IPTransportAddress) p.LocalTA).Port;
       if( port_is_set == false ) {
         port = this_port;
         port_is_set = true;
@@ -363,7 +363,7 @@ public class PublicNatHandler : NatHandler {
       TransportAddress pv = p.PeerViewOfLocalTA;
       if( pv != null ) {
         //Check that everything is okay:
-        retv = retv && (pv.Port == port);
+        retv = retv && (((IPTransportAddress) pv).Port == port);
       }
       if( retv == false ) {
         break;
@@ -441,7 +441,7 @@ public class ConeNatHandler : NatHandler {
     foreach(NatDataPoint dp in all_points) {
       TransportAddress ta = dp.PeerViewOfLocalTA;
       if( ta == null ) { continue; }
-      int port = ta.Port;
+      int port = ((IPTransportAddress)ta).Port;
       NatDataPoint old_dp = (NatDataPoint)edge_no_to_most_recent_point[ dp.EdgeNumber ];
       
       if( dp is NewEdgePoint ) {
@@ -458,7 +458,7 @@ public class ConeNatHandler : NatHandler {
       else if( dp is LocalMappingChangePoint ) {
         //Look at the old port, remove from the old port, and put into the new port.
         if( old_dp != null ) {
-          int old_port = old_dp.PeerViewOfLocalTA.Port;
+          int old_port = ((IPTransportAddress) old_dp.PeerViewOfLocalTA).Port;
           RemoveRemoteTA(port_to_remote, old_port, old_dp.RemoteTA);
         }
         ArrayList l = AddRemoteTA( port_to_remote, port, dp.RemoteTA );
@@ -563,11 +563,11 @@ public class SymmetricNatHandler : NatHandler {
         //Ignore closing events for prediction, they'll screw up the port prediction
         TransportAddress ta = ndp.PeerViewOfLocalTA;
         if( ta != null ) {
-          int port = ta.Port;
+          int port = ((IPTransportAddress) ta).Port;
 //          Console.WriteLine("port: {0}", port);
           if( !got_extra_data ) {
             t = ta.TransportAddressType;
-            host = ta.Host;
+            host = ((IPTransportAddress) ta).Host;
             most_recent_port = port;
             got_extra_data = true;
           }
@@ -605,7 +605,7 @@ public class SymmetricNatHandler : NatHandler {
           while(delta < max_delta) {
             if( delta > 0 ) {
               int pred_port = most_recent_port + delta;
-              prediction.Add(new TransportAddress(t, host, pred_port) );
+              prediction.Add(TransportAddressFactory.CreateInstance(t, host, pred_port) );
             }
             else {
               //Increment the max by one just to keep a constant width:
@@ -660,10 +660,10 @@ public class LinuxNatHandler : SymmetricNatHandler {
       TransportAddress l = p.LocalTA;
       TransportAddress pv = p.PeerViewOfLocalTA;
       if( l != null && pv != null ) {
-        there_is_a_match = (l.Port == pv.Port);
+        there_is_a_match = (((IPTransportAddress)l).Port == ((IPTransportAddress) pv).Port);
         if( there_is_a_match ) {
           //Move on.
-          matched_port = l.Port;
+          matched_port = ((IPTransportAddress) l).Port;
           matched_ta = pv;
           break;
         }
@@ -673,7 +673,7 @@ public class LinuxNatHandler : SymmetricNatHandler {
       //Now we filter to look at only the unmatched ports:
       NatHistory.Filter f = delegate(NatDataPoint p) {
         TransportAddress pv = p.PeerViewOfLocalTA;
-        if( (pv != null) && (pv.Port != matched_port) ) {
+        if( (pv != null) && (((IPTransportAddress) pv).Port != matched_port) ) {
           return p;
         }
         return null;
@@ -727,7 +727,7 @@ public class NatTAs : IEnumerable {
     NatHistory.Filter f = delegate(NatDataPoint p) {
       TransportAddress ta = p.PeerViewOfLocalTA;
       if( ta != null ) {
-        return ta.GetIPAddresses()[0];
+        return ((IPTransportAddress)ta).GetIPAddresses()[0];
       }
       return null;
     };
@@ -857,17 +857,17 @@ public class NatTest {
 
   [Test]
   public void TestPortPrediction() {
-    Edge e = new FakeEdge( new TransportAddress("brunet.udp://127.0.0.1:80"),
-                           new TransportAddress("brunet.udp://127.0.0.1:1080"));
+    Edge e = new FakeEdge( TransportAddressFactory.CreateInstance("brunet.udp://127.0.0.1:80"),
+                           TransportAddressFactory.CreateInstance("brunet.udp://127.0.0.1:1080"));
     NatHistory h = null;
     h = h + new NewEdgePoint(DateTime.UtcNow, e);
     h = h + new LocalMappingChangePoint(DateTime.UtcNow, e,
-                         new TransportAddress("brunet.udp://128.128.128.128:80"));
+                         TransportAddressFactory.CreateInstance("brunet.udp://128.128.128.128:80"));
     NatHandler nh = new PublicNatHandler();
     Assert.IsTrue( nh.IsMyType(h), "PublicNatHandler");
     IList tas = nh.TargetTAs(h);
     Assert.IsTrue( tas.Contains(
-                     new TransportAddress("brunet.udp://128.128.128.128:80")
+                     TransportAddressFactory.CreateInstance("brunet.udp://128.128.128.128:80")
                    ), "ConeNatHandler.TargetTAs");
     
     nh = new ConeNatHandler();
@@ -875,7 +875,7 @@ public class NatTest {
     tas = nh.TargetTAs(h);
     //foreach(object ta in tas) { Console.WriteLine(ta); }
     Assert.IsTrue( tas.Contains(
-                     new TransportAddress("brunet.udp://128.128.128.128:80")
+                     TransportAddressFactory.CreateInstance("brunet.udp://128.128.128.128:80")
                    ), "ConeNatHandler.TargetTAs");
    /* 
     * Now, let's try Port prediction:
@@ -884,13 +884,13 @@ public class NatTest {
     int port = local_port;
     h = null;
     while( port < 86 ) {
-      e = new FakeEdge( new TransportAddress("brunet.udp://127.0.0.1:"
+      e = new FakeEdge( TransportAddressFactory.CreateInstance("brunet.udp://127.0.0.1:"
                                               + local_port.ToString() ),
-                           new TransportAddress("brunet.udp://127.0.0.1:1081"));
+                           TransportAddressFactory.CreateInstance("brunet.udp://127.0.0.1:1081"));
       h = h + new NewEdgePoint(DateTime.UtcNow, e);
       
       h = h + new LocalMappingChangePoint(DateTime.UtcNow, e,
-                         new TransportAddress("brunet.udp://128.128.128.128:"
+                         TransportAddressFactory.CreateInstance("brunet.udp://128.128.128.128:"
                            + port.ToString()
                          ));
       port = port + 1;
@@ -900,17 +900,17 @@ public class NatTest {
     tas = nh.TargetTAs(h);
     //foreach(object ta in tas) { Console.WriteLine(ta); }
     Assert.IsTrue( tas.Contains(
-                     new TransportAddress("brunet.udp://128.128.128.128:86")
+                     TransportAddressFactory.CreateInstance("brunet.udp://128.128.128.128:86")
                    ), "SymmetricNatHandler.TargetTAs");
     nh = new LinuxNatHandler();
     Assert.IsTrue( nh.IsMyType(h), "LinuxNatHandler");
     tas = nh.TargetTAs(h);
     //foreach(object ta in tas) { Console.WriteLine(ta); }
     Assert.IsTrue( tas.Contains(
-                     new TransportAddress("brunet.udp://128.128.128.128:86")
+                     TransportAddressFactory.CreateInstance("brunet.udp://128.128.128.128:86")
                    ), "LinuxNatHandler.TargetTAs");
     Assert.IsTrue( tas.Contains(
-                     new TransportAddress("brunet.udp://128.128.128.128:80")
+                     TransportAddressFactory.CreateInstance("brunet.udp://128.128.128.128:80")
                    ), "LinuxNatHandler.TargetTAs");
   }
 

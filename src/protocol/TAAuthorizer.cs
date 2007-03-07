@@ -144,7 +144,7 @@ public class NetmaskTAAuthorizer : TAAuthorizer {
   protected TAAuthorizer.Decision _result_on_mismatch;
 
   public override TAAuthorizer.Decision Authorize(TransportAddress a) {
-    IPAddress ipa = (IPAddress)( a.GetIPAddresses()[0] );
+    IPAddress ipa = (IPAddress)( ((IPTransportAddress) a).GetIPAddresses()[0] );
     byte[] add_bytes = ipa.GetAddressBytes();
     int bits = _bit_c;
     int block = 0;
@@ -209,7 +209,7 @@ public class AuthorizerTester {
   [Test]
   public void Test() {
     TAAuthorizer a1 = new ConstantAuthorizer(TAAuthorizer.Decision.Allow);
-    TransportAddress ta = new TransportAddress("brunet.udp://127.0.0.1:45");
+    TransportAddress ta = TransportAddressFactory.CreateInstance("brunet.udp://127.0.0.1:45");
     Assert.IsTrue( a1.IsNotDenied( ta ), "constant allow");
     TAAuthorizer a2 = new ConstantAuthorizer(TAAuthorizer.Decision.Deny);
     Assert.IsFalse( a2.IsNotDenied( ta ), "constant deny");
@@ -218,9 +218,9 @@ public class AuthorizerTester {
     TAAuthorizer a3 = new NetmaskTAAuthorizer(network, 9,
                                               TAAuthorizer.Decision.Deny,
                                               TAAuthorizer.Decision.None);
-    TransportAddress ta2 = new TransportAddress("brunet.udp://10.255.255.255:80");
+    TransportAddress ta2 = TransportAddressFactory.CreateInstance("brunet.udp://10.255.255.255:80");
     Assert.AreEqual(a3.Authorize(ta2), TAAuthorizer.Decision.Deny, "Netmask Deny");
-    TransportAddress ta3 = new TransportAddress("brunet.udp://10.1.255.255:80");
+    TransportAddress ta3 = TransportAddressFactory.CreateInstance("brunet.udp://10.1.255.255:80");
     Assert.AreEqual(a3.Authorize(ta3), TAAuthorizer.Decision.None, "Netmask None");
     //Here is the series:
     //If Netmask doesn't say no, constant says yes:

@@ -112,6 +112,7 @@ namespace Brunet
           //Ignore our own CTM requests.
           return;
         }
+
         Linker l = new Linker(n, ctm.Target.Address,
                               ctm.Target.Transports,
                               ctm.ConnectionType);

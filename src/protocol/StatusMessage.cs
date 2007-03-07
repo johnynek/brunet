@@ -189,7 +189,7 @@ namespace Brunet {
     public void SMTest()
     {
       Address a = new DirectionalAddress(DirectionalAddress.Direction.Left);
-      TransportAddress ta = new TransportAddress("brunet.tcp://127.0.0.1:5000");
+      TransportAddress ta = TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:5000");
       NodeInfo ni = new NodeInfo(a, ta);
       
       //Test with one neighbor:
@@ -204,7 +204,7 @@ namespace Brunet {
         
       for(int i = 5001; i < 5010; i++) {
         neighbors.Add(new NodeInfo(a,
-				  new TransportAddress("brunet.tcp://127.0.0.1:"
+				  TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:"
 					  + i.ToString())));
       }
       StatusMessage sm2 = new StatusMessage(ConnectionType.Unstructured, neighbors);

@@ -65,7 +65,7 @@ namespace Brunet
       }
       set {
         end = value;
-        _remoteta = new TransportAddress(TAType, (IPEndPoint) end);
+        _remoteta = TransportAddressFactory.CreateInstance(TAType, (IPEndPoint) end);
       }
     }
 
@@ -96,7 +96,7 @@ namespace Brunet
       _last_in_packet_datetime = _last_out_packet_datetime;
       //This will update both the end point and the remote TA
       this.End = remote_end_point;
-      _localta = new TransportAddress(TAType, (IPEndPoint) local_end_point);
+      _localta = TransportAddressFactory.CreateInstance(TAType, (IPEndPoint) local_end_point);
       _id = id;
       _remoteid = remoteid;
     }

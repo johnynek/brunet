@@ -120,14 +120,20 @@ namespace Brunet
            : this(port, ipList, null)
     {
     }
-    public TcpEdgeListener(int port, IPAddress[] ipList, TAAuthorizer ta_auth)
+    public TcpEdgeListener(int port, IEnumerable local_config_ips, TAAuthorizer ta_auth)
     {
       _is_started = false;
       
       /**
        * We get all the IPAddresses for this computer
        */
-      _tas = GetIPTAs(TransportAddress.TAType.Tcp, port, ipList);
+      if( local_config_ips == null ) {
+        _tas = TransportAddressFactory.CreateForLocalHost(TransportAddress.TAType.Tcp, port);
+      }
+      else {
+        _tas = TransportAddressFactory.Create(TransportAddress.TAType.Tcp, port, local_config_ips);
+      }
+      //_tas = GetIPTAs(TransportAddress.TAType.Tcp, port, ipList);
 
       _local_endpoint = new IPEndPoint(IPAddress.Any, port);
       _listen_sock = new Socket(AddressFamily.InterNetwork,
@@ -167,8 +173,8 @@ namespace Brunet
       else {
         //Everything looks good:
         CreationState cs = new CreationState(ecb,
-                                           new Queue( ta.GetIPAddresses() ),
-                                           ta.Port);
+                                           new Queue( ((IPTransportAddress)ta).GetIPAddresses() ),
+                                           ((IPTransportAddress) ta).Port);
         TryNextIP( cs );
       }
     }
@@ -395,7 +401,7 @@ namespace Brunet
             if( s == _listen_sock ) {
 	      try {
                 Socket new_s = s.Accept();
-                TransportAddress rta = new TransportAddress(this.TAType,
+                TransportAddress rta = TransportAddressFactory.CreateInstance(this.TAType,
                                         (IPEndPoint)new_s.RemoteEndPoint);
                 if( _ta_auth.Authorize(rta)
                     == TAAuthorizer.Decision.Deny ) {
