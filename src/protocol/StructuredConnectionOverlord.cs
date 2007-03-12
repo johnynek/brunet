@@ -1088,10 +1088,48 @@ namespace Brunet {
     {
       /**
        * Time to start linking:
+       * (also added support for Tunnel edges).
        */
       
+      //make a copy of target transports
+      ArrayList transports = new ArrayList();
+      if (ctm_resp.Target.Transports != null) {
+	transports.AddRange(ctm_resp.Target.Transports);
+      }
+      NodeInfo []remote_ni = ctm_resp.Neighbors;
+	if (remote_ni != null) {
+
+	  int tun_count = 0;
+	  //pick at most 2 forwarding transports
+	  lock(_node.ConnectionTable.SyncRoot) {
+	    for (int k = 0; k < remote_ni.Length && tun_count < 2; k++) {
+	      if (_node.ConnectionTable.Contains(ConnectionType.Leaf, remote_ni[k].Address) || 
+		  _node.ConnectionTable.Contains(ConnectionType.Structured, remote_ni[k].Address)) 
+	      {
+		TunnelTransportAddress tun_ta = new TunnelTransportAddress(ctm_resp.Target.Address, remote_ni[k].Address);
+		transports.Add(tun_ta);
+#if ARI_CTM_DEBUG
+		Console.WriteLine("(StructuredOverlord) Adding TA: {0}", tun_ta);
+#endif
+		tun_count++;
+	      } else {
+#if ARI_CTM_DEBUG
+		Console.WriteLine("(StructuredOerlord) Not using forwarder: {0}", remote_ni[k].Address);
+#endif		
+	      }
+	    }
+	  }
+	} else {
+	  Console.WriteLine("(StructuredOvelord) Not added any tunnel TAs");
+	}
+	Console.WriteLine("(StructuredOverlord) TA list used for creating the linker");
+	foreach (TransportAddress ta in transports) {
+	  Console.WriteLine(ta);
+	}      
+
       Linker l = new Linker(_node, ctm_resp.Target.Address,
-                            ctm_resp.Target.Transports,
+                            //ctm_resp.Target.Transports,
+			    transports,
                             ctm_resp.ConnectionType);
       _node.TaskQueue.Enqueue( l );
       /**

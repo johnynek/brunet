@@ -238,6 +238,13 @@ namespace Brunet
       }
 
       protected void HandleEdge(bool success, Edge e, Exception x) {
+#if LINK_DEBUG
+	if (success) {
+	  Console.WriteLine("(Linker) Handle edge success{0}: ", e);
+	} else {
+	  Console.WriteLine("(Linker) Handle edge failure{0}: ", x);
+	}
+#endif
         _is_finished = true;
         _x = x;
         _edge = e;

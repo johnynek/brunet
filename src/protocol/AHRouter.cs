@@ -109,6 +109,12 @@ namespace Brunet
       } else if (p.PayloadType == AHPacket.Protocol.IP) {
 	System.Console.WriteLine("{0}: We have a IP to route at: {1}", _local, System.DateTime.Now);
 	debug = true;
+      } else if (p.PayloadType == AHPacket.Protocol.Forwarding) {
+	System.Console.WriteLine("{0}: We have a Forwarding to route at: {1}", _local, System.DateTime.Now);
+	debug = true;
+      } else if (p.PayloadType == AHPacket.Protocol.Tunneling) {
+	System.Console.WriteLine("{0}: We have a Tunnel to route at: {1}", _local, System.DateTime.Now);
+	debug = true;
       }
 #endif
       Connection next_con = null;  //the next connection to send the packet to

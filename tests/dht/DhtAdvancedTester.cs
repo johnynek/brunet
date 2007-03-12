@@ -27,6 +27,7 @@ namespace Brunet.Dht {
       int attempts = 0;
       int idx = -1;
       DateTime now = DateTime.Now;
+
       while(attempts++ < node_list.Count) {
 	idx = rr.Next(0, node_list.Count);
 	Dht d = (Dht) dht_list[idx];
@@ -37,6 +38,7 @@ namespace Brunet.Dht {
       if (attempts >= 10) {
 	return -1;
       }
+      Console.WriteLine("Returning index: {0}, node_list.Count: {1}", idx, node_list.Count);
       return idx;
     }
     
@@ -75,7 +77,7 @@ namespace Brunet.Dht {
 	  } else if (proto.Equals("tcp")) {
 	    remoteTA = "gnucla.tcp://localhost:" + remote_port;
 	  } 
-	  node.RemoteTAs.Add(new TransportAddress(remoteTA));
+	  node.RemoteTAs.Add(TransportAddressFactory.CreateInstance(remoteTA));
 	}
 	node_list.Add(node);
 	//create a Dht
@@ -350,7 +352,7 @@ namespace Brunet.Dht {
 	    } else if (proto.Equals("tcp")) {
 	      remoteTA = "gnucla.tcp://localhost:" + remote_port;
 	    } 
-	    node.RemoteTAs.Add(new TransportAddress(remoteTA));
+	    node.RemoteTAs.Add(TransportAddressFactory.CreateInstance(remoteTA));
 	  }
 	  //create a Dht
 	  Dht dht = new Dht(node, media);
