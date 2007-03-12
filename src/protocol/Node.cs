@@ -106,6 +106,18 @@ namespace Brunet
         /* EdgeListener's */
         _edgelistener_list = new ArrayList();
         _edge_factory = new EdgeFactory();
+
+	/** adding a default tunnel edge listener. */
+// 	EdgeListener tun_el = new TunnelEdgeListener(this);
+// 	_edge_factory.AddListener(tun_el);
+// 	_edgelistener_list.Add(tun_el);
+// 	/**
+// 	 * It is ESSENTIAL that the EdgeEvent of EdgeListener objects
+// 	 * be connected to the EdgeHandler method of ConnectionPacketHandler
+// 	 */
+// 	tun_el.EdgeEvent += new EventHandler(_cph.EdgeHandler);
+	/** end of tunnel edge listener*/
+
         //Put all the Routers in :
         _routers = new IRouter[ 161 ];
         /* Set up the heartbeat */
@@ -729,7 +741,8 @@ namespace Brunet
           foreach(Edge e in _connection_table.GetUnconnectedEdges() ) {
             if( _last_edge_check - e.LastInPacketDateTime > _EDGE_CLOSE_TIMEOUT ) {
               edges_to_close.Add(e);
-              lock( _sync ) {
+	      Console.WriteLine("Close an unconnected edge: {0}", e);
+	      lock( _sync ) {
                 if( _gracefully_close_edges.Contains(e) ) {
                   _gracefully_close_edges.Remove(e);
                 }

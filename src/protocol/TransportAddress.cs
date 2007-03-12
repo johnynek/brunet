@@ -64,8 +64,7 @@ namespace Brunet
 	return new IPTransportAddress(s);
       }
       if (ta_type ==  TransportAddress.TAType.Tunnel) {
-	//need to handle this
-	return null;
+	return new TunnelTransportAddress(s);
       }
       return null;
     }
@@ -274,6 +273,25 @@ namespace Brunet
 	return _forwarder;
       }
     }
+    public TunnelTransportAddress(string s):base(s) {
+      int k = s.IndexOf(":") + 3;
+      //k is at beginning of something like brunet:node:xxx/brunet:node:yyy
+      k = k + 12;
+      int len = 0;
+      while(s[k + len] != '/') {
+	len++;
+      }
+      byte []addr_t  = Base32.Decode(s.Substring(k, len)); 
+      _target = new AHAddress(addr_t);
+      
+
+      k = k + len + 1;
+      k = k + 12;
+
+      byte [] addr_f = Base32.Decode(s.Substring(k));
+      _forwarder = new AHAddress(addr_f);
+    }
+
     public TunnelTransportAddress(Address target, Address forwarder):
       base("brunet.tunnel://" +  
 	   target.ToString() + "/" + forwarder.ToString()) {
@@ -289,6 +307,17 @@ namespace Brunet
     public override string ToString() {
       return "brunet.tunnel://" + _target.ToString() + "/" + _forwarder.ToString();
     }
+    public override bool Equals(object o) {
+      if ( o == this ) { return true; }
+      TunnelTransportAddress other = o as TunnelTransportAddress;
+      if ( other == null ) { return false; }
+      return (TransportAddressType == other.TransportAddressType && 
+	      Target.Equals(other.Target) && 
+	      Forwarder.Equals(other.Forwarder));
+    }
+    public override int GetHashCode() {
+      return base.GetHashCode();
+    }
   }
 #if BRUNET_NUNIT
 
@@ -301,6 +330,10 @@ namespace Brunet
       
       TransportAddress ta2 = TransportAddressFactory.CreateInstance("brunet.udp://10.5.144.69:5000"); 
       Assert.AreEqual(ta1, ta2, "Testing TA Equals");
+      
+      string ta_string = "brunet.tunnel://brunet:node:UBU72YLHU5C3SY7JMYMJRTKK4D5BGW22/brunet:node:FE4QWASNSYAR5RH5JHSHJECC7M3AAADE";
+      TransportAddress ta = TransportAddressFactory.CreateInstance("brunet.tunnel://brunet:node:UBU72YLHU5C3SY7JMYMJRTKK4D5BGW22/brunet:node:FE4QWASNSYAR5RH5JHSHJECC7M3AAADE");
+      Assert.AreEqual(ta.ToString(), ta_string, "testing tunnel TA parsing");
     }
   }
 #endif
