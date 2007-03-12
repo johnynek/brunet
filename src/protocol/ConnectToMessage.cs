@@ -2,6 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
+Copyright (C) 2007 P. Oscar Boykin <boykin@pobox.com>  University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -17,15 +18,6 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
-
-/*
- * Dependencies : 
- Brunet.Address
- Brunet.AddressParser
- Brunet.ConnectionMessage
- Brunet.ConnectionType
- Brunet.TransportAddress
- */
 
 using System.Xml;
 using System.Collections;
@@ -65,11 +57,13 @@ namespace Brunet
     {
       _ct = Connection.ConnectionTypeToString(t);
       _target_ni = target;
+      _neighbors = new NodeInfo[0]; //Make sure this isn't null
     }
     public ConnectToMessage(string contype, NodeInfo target)
     {
       _ct = contype;
       _target_ni = target;
+      _neighbors = new NodeInfo[0]; //Make sure this isn't null
     }
     public ConnectToMessage(string contype, NodeInfo target, NodeInfo[] neighbors)
     {
@@ -93,22 +87,22 @@ namespace Brunet
         }
       }
       //Read the children
+      ArrayList neighs = new ArrayList();
       foreach(XmlNode nodes in encoded.ChildNodes)
       {
         if( nodes.Name == "node" ) {
           _target_ni = new NodeInfo((XmlElement)nodes);
 	}
 	if( nodes.Name == "neighbors" ) {
-          ArrayList neighs = new ArrayList();
           foreach(XmlNode neigh in nodes.ChildNodes) {
             if( neigh.Name == "node" ) {
               neighs.Add( new NodeInfo((XmlElement)neigh) );
 	    }
 	  }
-	  _neighbors = new NodeInfo[ neighs.Count ];
-	  neighs.CopyTo(_neighbors);
 	}
       }
+      _neighbors = new NodeInfo[ neighs.Count ];
+      neighs.CopyTo(_neighbors);
     }
     
     public ConnectToMessage(Direction dir, int id, XmlReader r)
@@ -142,11 +136,11 @@ namespace Brunet
 	  else if( r.NodeType == XmlNodeType.EndElement ) {
             //This is the end
 	    reading_neigh = false;
-	    _neighbors = new NodeInfo[ neighbors.Count ];
-	    neighbors.CopyTo(_neighbors);
 	  }
 	}
       }
+      _neighbors = new NodeInfo[ neighbors.Count ];
+      neighbors.CopyTo(_neighbors);
     }
 
     protected string _ct;
