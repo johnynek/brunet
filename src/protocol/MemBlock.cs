@@ -31,7 +31,7 @@ namespace Brunet {
 #if BRUNET_NUNIT
 [TestFixture]
 #endif
-public class MemBlock : System.IComparable, System.ICloneable {
+public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable {
 
   protected byte[] _buffer;
   protected int _offset;
@@ -117,17 +117,18 @@ public class MemBlock : System.IComparable, System.ICloneable {
   }
 
   /**
-   * Concatenate the given MemBlock objects into one
+   * Concatenate the given ICopyable objects into one MemBlock.
+   * @see CopySet if you don't want to do the copy now
    */
-  static public MemBlock Concat(params MemBlock[] blocks) {
+  static public MemBlock Concat(params ICopyable[] blocks) {
     int total_length = 0;
-    foreach(MemBlock mb in blocks) {
+    foreach(ICopyable mb in blocks) {
       total_length += mb.Length;
     }
     byte[] buffer = new byte[ total_length ];
 
     int offset = 0;
-    foreach(MemBlock mb in blocks) {
+    foreach(ICopyable mb in blocks) {
       offset += mb.CopyTo(buffer, offset);
     }
     return new MemBlock(buffer, 0, total_length);
@@ -159,9 +160,31 @@ public class MemBlock : System.IComparable, System.ICloneable {
     System.Array.Copy(source, offset, buffer, 0, length);
     return new MemBlock(buffer, 0, length);
   }
+  /**
+   * Same as the above except offset is zero and we copy the whole lenght
+   */
+  public static MemBlock Copy(byte[] source) {
+    return Copy(source, 0, source.Length);
+  }
+  /**
+   * Copy an ICopyable object into a MemBlock.  You might do this
+   * if you wanted to access the i^th byte, something you can't do with
+   * ICopyable
+   */
+  public static MemBlock Copy(ICopyable c) {
+    byte[] buffer = new byte[c.Length];
+    c.CopyTo(buffer, 0);
+    return new MemBlock(buffer, 0, buffer.Length);
+  }
   
   public override bool Equals(object a) {
-    return (this.CompareTo(a) == 0);
+    if (this == a) {
+      //Clearly we are the Equal to ourselves
+      return true;
+    }
+    else {
+      return (this.CompareTo(a) == 0);
+    }
   }
 
   //Uses the first few bytes as the hashcode
@@ -188,6 +211,12 @@ public class MemBlock : System.IComparable, System.ICloneable {
    */
   static public MemBlock Reference(byte[] data, int offset, int length) {
     return new MemBlock(data, offset, length);
+  }
+  /**
+   * Same as the above with offset = 0 and length the whole array
+   */
+  static public MemBlock Reference(byte[] data) {
+    return Reference(data, 0, data.Length);
   }
   
   /**

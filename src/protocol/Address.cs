@@ -33,7 +33,7 @@ namespace Brunet
    * they cannot be changed
    */
 
-  public abstract class Address : System.IComparable
+  public abstract class Address : System.IComparable, Brunet.ICopyable
   {
 
     ///The number of bytes to represent the address
@@ -181,6 +181,8 @@ namespace Brunet
       }
     }
 
+    ///For the ICopyable interface
+    public int Length { get { return MemSize; } }
     /**
      * If this address is unicast (can only be passed to one Node)
      * this is true.  If it may be passed to more than one Node
@@ -194,9 +196,10 @@ namespace Brunet
     /**
      * Copy the buffer out
      */
-    public virtual void CopyTo(byte[] b, int offset)
+    public virtual int CopyTo(byte[] b, int offset)
     {
       _buffer.CopyTo(b,offset);
+      return MemSize;
     }
 
     public virtual void CopyTo(byte[] b)

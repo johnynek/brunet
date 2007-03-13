@@ -83,9 +83,9 @@ namespace Brunet
 
     }
 
-    override public void CopyTo(byte[] dest, int offset)
+    override public int CopyTo(byte[] dest, int offset)
     {
-      _buffer.CopyTo(dest, offset);
+      return _buffer.CopyTo(dest, offset);
     }
 
     override public string ToString()
