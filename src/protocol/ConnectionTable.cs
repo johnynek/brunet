@@ -778,8 +778,8 @@ namespace Brunet
         bed.ConnectionType = t;
         bed.LocalTAddress = e.LocalTA.ToString();
         bed.RemoteTAddress = e.RemoteTA.ToString();
-        bed.RemoteAHAddress = remote.ToBigInteger().ToString();
-        bed.RemoteAHAddressBase32 = remote.ToString();
+        bed.RemoteAHAddress = c.Address.ToBigInteger().ToString();
+        bed.RemoteAHAddressBase32 = c.Address.ToString();
         bed.ConnectTime = DateTime.UtcNow.Ticks;
         bed.SubType = c.ConType;
         bed.StructureDegree = Count(ConnectionType.Structured);
@@ -789,10 +789,7 @@ namespace Brunet
 
 
       #if DEBUG
-        System.Console.WriteLine("Remove: DisconnectionEvent: address: " + remote.ToString() +
-                                 ", edge: " + e.ToString() +
-                                 ", type: " + t.ToString() +
-                                 ", index: " + index);
+        System.Console.WriteLine("Remove: DisconnectionEvent[{0}]: {1}", index, c);
       #endif
 #if PRINT_CONNECTIONS
         System.Console.WriteLine("New disconnection[{0}]: {1}", index, c);
