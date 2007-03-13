@@ -315,11 +315,12 @@ namespace Brunet
       }
     }
 
-    public override void CopyTo(byte[] dest, int off)
+    public override int CopyTo(byte[] dest, int off)
     {
       _buffer.CopyTo(dest, off);
       //Hops is the only field that can be out of sync:
       NumberSerializer.WriteShort(_hops, dest, off + 1);
+      return _buffer.Length;
     }
 
     /**

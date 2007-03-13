@@ -30,7 +30,7 @@ namespace Brunet
    * copy-by-reference is fine due to immutability
    */
 
-  abstract public class Packet
+  abstract public class Packet : Brunet.ICopyable
   {
     /**
      * Maximum size of a packet, this is the largest number
@@ -76,6 +76,6 @@ namespace Brunet
      * @param offset the offset of the array to start at
      * @return the number of bytes written into the array
      */
-    abstract public void CopyTo(byte[] destination, int offset);
+    abstract public int CopyTo(byte[] destination, int offset);
   }
 }

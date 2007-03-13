@@ -115,8 +115,8 @@ namespace Brunet {
 	return GetPayloadStream(0);
       }
     }
-    public override void CopyTo(byte[] dest, int off) {
-      _buffer.CopyTo(dest, off);
+    public override int CopyTo(byte[] dest, int off) {
+      return _buffer.CopyTo(dest, off);
     }
 
     /**
