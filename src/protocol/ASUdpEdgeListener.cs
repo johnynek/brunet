@@ -51,7 +51,7 @@ namespace Brunet
   * to overuse of the ThreadPool).
   */
 
-  public class ASUdpEdgeListener : UdpEdgeListenerBase, IPacketHandler
+  public class ASUdpEdgeListener : UdpEdgeListenerBase, IEdgeSendHandler
   {
 
     protected IPEndPoint ipep;
@@ -312,7 +312,7 @@ namespace Brunet
      * When UdpEdge objects call Send, it calls this packet
      * callback:
      */
-    public void HandlePacket(Packet p, Edge from)
+    public void HandleEdgeSend(Edge from, ICopyable p)
     {
       //Console.WriteLine("About to StartSend on: {0}\n{1}",from, p); 
       lock( _send_queue ) {
@@ -351,7 +351,7 @@ namespace Brunet
         }
         return;
       }
-      Packet p = sqe.Packet;
+      ICopyable p = sqe.Packet;
       UdpEdge sender = sqe.Sender;
       EndPoint e = sender.End;
       //Write the IDs of the edge:

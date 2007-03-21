@@ -131,7 +131,8 @@ namespace Brunet
          * side of the Edge.
          * @throw EdgeException if any problem happens
          */
-    public abstract void Send(Brunet.Packet p);
+    public void Send(Packet p) { Send( (ICopyable)p); }
+    public abstract void Send(ICopyable p);
 
     /**
      * This is the time (in UTC) when the edge
@@ -260,14 +261,13 @@ namespace Brunet
              direction + "remote: " + RemoteTA.ToString();
     }
   }
-#if false
+  
   /**
    * Interfaces are much faster than delegates.
    * Since every packet must be handled, we use
    * an interface to represent handlers
    */
-  public interface PacketHandler {
-    void Handle(Packet p, Edge from);
+  public interface IEdgeSendHandler {
+    void HandleEdgeSend(Edge from, ICopyable data);
   }
-#endif
 }

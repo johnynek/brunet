@@ -78,7 +78,7 @@ namespace Brunet
      * @param p a Packet to send to the host on the other
      * side of the Edge.
      */
-    public override void Send(Brunet.Packet p)
+    public override void Send(ICopyable p)
     {
     }
 

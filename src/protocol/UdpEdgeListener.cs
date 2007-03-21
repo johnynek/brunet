@@ -61,17 +61,17 @@ namespace Brunet
      * two objects needed to do a send
      */
     protected class SendQueueEntry {
-      public SendQueueEntry(Packet p, UdpEdge udpe) {
+      public SendQueueEntry(ICopyable p, UdpEdge udpe) {
         Packet = p;
         Sender = udpe;
       }
-      public Packet Packet;
+      public ICopyable Packet;
       public UdpEdge Sender;
     }
     /*
      * This is the object which we pass to UdpEdges when we create them.
      */
-    protected IPacketHandler _send_handler;
+    protected IEdgeSendHandler _send_handler;
     /**
      * Hashtable of ID to Edges
      */
@@ -438,7 +438,7 @@ namespace Brunet
   *
   */
 
-  public class UdpEdgeListener : UdpEdgeListenerBase, IPacketHandler
+  public class UdpEdgeListener : UdpEdgeListenerBase, IEdgeSendHandler
   {
 
     protected IPEndPoint ipep;
@@ -710,7 +710,7 @@ namespace Brunet
     private void Send(SendQueueEntry sqe, Socket s)
     {
       //We have a packet to send
-      Packet p = sqe.Packet;
+      ICopyable p = sqe.Packet;
       UdpEdge sender = sqe.Sender;
       EndPoint e = sender.End;
       //Write the IDs of the edge:
@@ -731,7 +731,7 @@ namespace Brunet
      * When UdpEdge objects call Send, it calls this packet
      * callback:
      */
-    public void HandlePacket(Packet p, Edge from)
+    public void HandleEdgeSend(Edge from, ICopyable p)
     {
       lock( _send_queue ) {
         SendQueueEntry sqe = new SendQueueEntry(p, (UdpEdge)from);

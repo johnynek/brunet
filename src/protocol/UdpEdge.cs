@@ -51,7 +51,7 @@ namespace Brunet
 
     protected bool inbound;
     protected bool _is_closed;
-    protected IPacketHandler _send_cb;
+    protected IEdgeSendHandler _send_cb;
 
     protected System.Net.EndPoint end;
     /**
@@ -82,7 +82,7 @@ namespace Brunet
      * The send_cb is the method which actually does the
      * sending (which is in UdpEdgeListener).
      */
-    public UdpEdge(IPacketHandler send_cb,
+    public UdpEdge(IEdgeSendHandler send_cb,
                    bool is_in,
                    System.Net.IPEndPoint remote_end_point,
                    System.Net.IPEndPoint local_end_point,
@@ -130,12 +130,12 @@ namespace Brunet
       get { return _last_out_packet_datetime; }
     }
 
-    public override void Send(Brunet.Packet p)
+    public override void Send(ICopyable p)
     {
       if( _is_closed ) {
         throw new EdgeException("Tried to send on a closed socket"); 
       }
-      _send_cb.HandlePacket(p, this);
+      _send_cb.HandleEdgeSend(this, p);
       _last_out_packet_datetime = DateTime.UtcNow;
 #if UDP_DEBUG
       /**

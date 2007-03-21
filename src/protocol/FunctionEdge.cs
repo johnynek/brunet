@@ -189,7 +189,7 @@ namespace Brunet
       return ( (num1 ^ num2) + RandId );
     }
 
-    public override void Send(Brunet.Packet p)
+    public override void Send(ICopyable p)
     {
       if( !_is_closed ) {
         _last_out_packet_datetime = DateTime.UtcNow;
