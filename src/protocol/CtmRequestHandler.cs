@@ -113,43 +113,9 @@ namespace Brunet
           return;
         }
 
-	//make a copy of target transports
-	ArrayList transports = new ArrayList();
-	if (ctm.Target.Transports != null) {
-	  transports.AddRange(ctm.Target.Transports);
-	}
-	NodeInfo []remote_ni = ctm.Neighbors;
-	if (remote_ni != null) {
 
-	  //pick at most 2 forwarding transports
-	  lock(n.ConnectionTable.SyncRoot) {
-	    for (int k = 0, tun_count = 0; k < remote_ni.Length && tun_count < 2; k++) {
-	      if (n.ConnectionTable.Contains(ConnectionType.Leaf, remote_ni[k].Address) || 
-		  n.ConnectionTable.Contains(ConnectionType.Structured, remote_ni[k].Address)) 
-	      {
-		TunnelTransportAddress tun_ta = new TunnelTransportAddress(ctm.Target.Address, remote_ni[k].Address);
-		transports.Add(tun_ta);
-#if ARI_CTM_DEBUG
-		Console.WriteLine("(CtmRequestHandler) Adding TA: {0}", tun_ta);
-#endif
-		tun_count++;
-	      } else {
-#if ARI_CTM_DEBUG
-		Console.WriteLine("(CtmRequestHandler) Not using forwarder: {0}", remote_ni[k].Address);
-#endif		
-	      }
-	    }
-	  }
-	} else {
-	  Console.WriteLine("(CtmRequestHandler) Not added any tunnel TAs");
-	}
-	Console.WriteLine("(CtmRequestHandler) TA list used for creating the linker");
-	foreach (TransportAddress ta in transports) {
-	  Console.WriteLine(ta);
-	}
         Linker l = new Linker(n, ctm.Target.Address,
-			      //ctm.Target.Transports,
-                              transports,
+			      ctm.Target.Transports,
                               ctm.ConnectionType);
         //Here we start the job:
         n.TaskQueue.Enqueue( l );
@@ -167,7 +133,7 @@ namespace Brunet
 	  i++;
 	}
         ConnectToMessage local_response_ctm =
-          new ConnectToMessage(ctm.ConnectionType, n.GetNodeInfo(6), near_ni);
+          new ConnectToMessage(ctm.ConnectionType, n.GetNodeInfo(8), near_ni);
         local_response_ctm.Id = ctm.Id;
         local_response_ctm.Dir = ConnectionMessage.Direction.Response;
 
