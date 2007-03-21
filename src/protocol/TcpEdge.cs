@@ -320,7 +320,7 @@ namespace Brunet
 
 #if TCP_SELECT
     //Here is the Select version
-    public override void Send(Packet p)
+    public override void Send(ICopyable p)
     {
       lock( _sync ) {
 #if POB_TCP_DEBUG
@@ -840,7 +840,7 @@ namespace Brunet
         lock(_sync) {
           if( _send_state.Length == 0 && _packet_queue.Count > 0 ) {
             //It is time to get a new packet
-            Packet p = (Packet)_packet_queue.Dequeue();
+            ICopyable p = (ICopyable)_packet_queue.Dequeue();
             NumberSerializer.WriteShort((short)p.Length,_send_state.Buffer, 0);
             _send_state.Offset = 0;
             _send_state.Length = p.Length + 2;
