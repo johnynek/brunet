@@ -42,9 +42,24 @@ namespace Brunet
      */
     public override IEnumerable LocalTAs
     {
-      //returns an exmpty list
       get {
-	return new ArrayList();
+	lock(_node.ConnectionTable.SyncRoot) {
+	  ArrayList nearest = _node.ConnectionTable.GetNearestTo(
+								 (AHAddress) _node.Address, 6);
+	  ArrayList tas = new ArrayList();
+	  foreach(Connection cons in nearest) {
+	    if (cons.Edge.TAType != TransportAddress.TAType.Tunnel) {
+	      TunnelTransportAddress tun_ta = new TunnelTransportAddress(_node.Address, cons.Address);
+	      tas.Add(tun_ta);
+	      Console.WriteLine("TunnedEdgeListener: added tunnel TA: {0}", tun_ta);
+	      //atmost 3 TAs are added
+	      if (tas.Count >= 3) {
+		break;
+	      }
+	    }
+	  }
+	  return tas;
+	}
       }
     }
 
@@ -108,13 +123,25 @@ namespace Brunet
 	ecb(false, null,
             new EdgeException(ta.TransportAddressType.ToString()
                               + " is not my type: " + this.TAType.ToString() ) );
-      } else {
+      }
+      else {
 #if TUNNEL_DEBUG
 	Console.WriteLine("Creating TunnelEdge to: {0}", ta);
 #endif            
 	//when we want to create an edge,we fabricate a create packet ourselves
 	//which we send through the node
 	TunnelTransportAddress tun_ta = ta as TunnelTransportAddress;
+        lock(_node.ConnectionTable.SyncRoot) {
+	  Connection con = _node.ConnectionTable.GetConnection(ConnectionType.Leaf, tun_ta.Forwarder);
+	  con = _node.ConnectionTable.GetConnection(ConnectionType.Leaf, tun_ta.Forwarder);
+	  if (con == null || con.Edge.TAType == TransportAddress.TAType.Tunnel) {
+	    ecb(false, null, new EdgeException("Cannot tunnel over: " + tun_ta.Forwarder.ToString()));
+	    return;
+	  }
+	}
+	
+
+
 	ForwardingSender fs = new ForwardingSender(_node, tun_ta.Forwarder, 1);
 	
 	//choose a locally unique id
@@ -232,7 +259,6 @@ namespace Brunet
 	  //also remove this edge from the list
 	  _id_ht.Remove(ecs.Id);
 	  
-
 	  ecs.ECB(false, null, new Exception("Timed out on edge creation."));
 
 	}
@@ -380,6 +406,7 @@ namespace Brunet
 	  _id_ht[localid] = e;
 	  _remote_id_ht[remoteid] = e;
 	  e.CloseEvent += new EventHandler(this.CloseHandler);
+	  Console.WriteLine("announcing tunnel edge (incoming)");
 	  SendEdgeEvent(e);
 	}
 	//we also have to send a response back now
@@ -453,6 +480,7 @@ namespace Brunet
 	  _ecs_ht.Remove(localid);
 
 	  //ecs.ECB(false, null, new Exception("something which i just made up"));
+	  Console.WriteLine("announcing tunnel edge (outgoing)");
 	  ecs.ECB(true, e, null);
 
 	}
@@ -521,6 +549,7 @@ namespace Brunet
      */
     public void CloseHandler(object edge, EventArgs args)
     {
+      Console.WriteLine("closing tunnel edge");
       TunnelEdge e = (TunnelEdge)edge;
       lock( _sync ) {
         _id_ht.Remove( e.ID );
