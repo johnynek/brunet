@@ -165,7 +165,7 @@
     </copy>
   </target>
 
-<!-- Arijit Ganguly - enables LINK_DEBUG, ARI_CTM_DEBUG, ARI_CHOTA_DEBUG -->
+<!-- Arijit Ganguly - enables LINK_DEBUG, TUNNEL_DEBUG, ARI_CTM_DEBUG, ARI_CHOTA_DEBUG -->
   <target
     name="test-build"
     depends="init"
@@ -188,7 +188,7 @@
     <csc
       target="library"
       debug="${build.debug}"
-      define="LINK_DEBUG,ARI_CTM_DEBUG" 	
+      define="LINK_DEBUG,ARI_CTM_DEBUG,TUNNEL_DEBUG" 	
       output="${build.dir}/${package.name}/bin/${assembly}.dll">
       <sources failonempty="true">
         <include name="*.cs"/>

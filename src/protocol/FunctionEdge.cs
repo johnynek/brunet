@@ -240,7 +240,7 @@ namespace Brunet
     {
       get
       {
-        return new TransportAddress("brunet.function://localhost:"
+        return TransportAddressFactory.CreateInstance("brunet.function://localhost:"
                                     + _l_id.ToString());
       }
     }

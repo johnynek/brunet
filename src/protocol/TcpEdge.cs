@@ -205,10 +205,10 @@ namespace Brunet
 #endif
         inbound = is_in;
         _local_ta =
-          new TransportAddress(TAType,
+          TransportAddressFactory.CreateInstance(TAType,
                                (IPEndPoint) _sock.LocalEndPoint);
         _remote_ta =
-          new TransportAddress(TAType,
+          TransportAddressFactory.CreateInstance(TAType,
                                (IPEndPoint) _sock.RemoteEndPoint);
 #if TCP_POLL
         _poll_thread = new Thread(new ThreadStart(PollLoop));

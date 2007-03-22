@@ -115,17 +115,17 @@ namespace Brunet
 
     Node node_A = new StructuredNode(address_A);
     node_A.AddEdgeListener(new TcpEdgeListener(port_A));
-    node_A.RemoteTAs.Add(new TransportAddress("brunet.tcp://127.0.0.1:" +
+    node_A.RemoteTAs.Add(TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:" +
                      port_B));
     //int dummyport = 8888;
-    //node_A.RemoteTAs.Add(new TransportAddress("brunet.tcp://127.0.0.1:" +
+    //node_A.RemoteTAs.Add(TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:" +
       //               dummyport));
 
     Node node_B = new StructuredNode(address_B);
     node_B.AddEdgeListener(new TcpEdgeListener(port_B));
-    node_B.RemoteTAs.Add(new TransportAddress("brunet.tcp://127.0.0.1:" +
+    node_B.RemoteTAs.Add(TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:" +
 				port_A));
-    //node_B.RemoteTAs.Add(new TransportAddress("brunet.tcp://127.0.0.1:" +
+    //node_B.RemoteTAs.Add(TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:" +
       //               dummyport));
 
     node_list.Add(node_A);
@@ -171,14 +171,14 @@ namespace Brunet
 	      Console.WriteLine("We are ready!");
 	      System.Threading.Thread.Sleep(2500);
 	      ArrayList ta_list_B = new ArrayList();
-	      ta_list_B.Add(new TransportAddress("brunet.tcp://127.0.0.1:" +
+	      ta_list_B.Add(TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:" +
 				port_B));
 
 	      //CtmRequestHandler my_handler = new CtmRequestHandler();
 	      System.Threading.Thread.Sleep(500);
 	      
 	      ArrayList ta_list_A = new ArrayList();
-	      ta_list_A.Add(new TransportAddress("brunet.tcp://127.0.0.1:" +
+	      ta_list_A.Add(TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:" +
 				port_A));
 	      ConnectToMessage ctm = new ConnectToMessage(
 			      ConnectionType.Structured,

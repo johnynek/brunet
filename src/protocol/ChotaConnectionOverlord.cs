@@ -375,6 +375,7 @@ namespace Brunet {
       /**
        * Time to start linking:
        */
+
       Linker l = new Linker(_node, ctm_resp.Target.Address,
                             ctm_resp.Target.Transports,
                             ctm_resp.ConnectionType);
@@ -656,14 +657,25 @@ namespace Brunet {
         return;
       }
       short t_hops = 0;
+      //Send the 4 neighbors closest to this node:
+      ArrayList nearest = _node.ConnectionTable.GetNearestTo(
+							 (AHAddress)_node.Address, 4);
+      NodeInfo[] near_ni = new NodeInfo[nearest.Count];
+      int i = 0;
+      foreach(Connection cons in nearest) {
+	near_ni[i] = new NodeInfo(cons.Address, cons.Edge.RemoteTA);
+	i++;
+      }
+
       ConnectToMessage ctm =
-        new ConnectToMessage(contype, _node.GetNodeInfo(6) );
+        new ConnectToMessage(contype, _node.GetNodeInfo(8), near_ni);
       ctm.Id = _rand.Next(1, Int32.MaxValue);
       ctm.Dir = ConnectionMessage.Direction.Request;
 
       AHPacket ctm_pack =
         new AHPacket(t_hops, t_ttl, _node.Address, target, AHPacket.AHOptions.Exact,
                      AHPacket.Protocol.Connection, ctm.ToByteArray());
+      Console.WriteLine("Size of CTM packet: {0}", ctm_pack.Length);
 
       Connector con = new Connector(_node, ctm_pack, ctm, this);
       lock( _sync ) {
