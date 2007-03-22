@@ -106,16 +106,16 @@ namespace Brunet
      *
      * @deprecated see TransportAddress.Create
      */
-    static protected IEnumerable GetIPTAs(TransportAddress.TAType tat, int port, 
-					IPAddress[] ipList)
-    {
-      if( ipList == null ) {
-        return TransportAddress.CreateForLocalHost(tat,port);
-      }
-      else {
-        return TransportAddress.Create(tat,port,ipList);
-      }
-    }
+//     static protected IEnumerable GetIPTAs(TransportAddress.TAType tat, int port, 
+// 					IPAddress[] ipList)
+//     {
+//       if( ipList == null ) {
+//         return TransportAddress.CreateForLocalHost(tat,port);
+//       }
+//       else {
+//         return TransportAddress.Create(tat,port,ipList);
+//       }
+//     }
 
     public event System.EventHandler EdgeEvent;
 
@@ -167,33 +167,10 @@ namespace Brunet
           //so frequently, a NATed TA will probably be bad in the future
           if( ta.Equals( e.RemoteTA ) ) {
             //This node is not behind a NAT.
-            UpdateTA(list, ta);
+            list.Insert(0, ta);
           }
         }
       }
-    }
-    
-    /*
-     * Given a TA, this removes any TA from the list l which
-     * matches the TAType and Host of ta.  Then it puts ta
-     * at the top of the front.
-     */
-    protected void UpdateTA(IList l, TransportAddress ta) {
-      
-      ArrayList to_remove = new ArrayList();
-      //Find the potential duplicates:
-      foreach(TransportAddress tmp_ta in l) {
-        if( tmp_ta.Host.Equals(ta.Host)
-            && tmp_ta.TransportAddressType.Equals(ta.TransportAddressType) ) {
-          to_remove.Add(tmp_ta);
-        }
-      }
-      //Remove those:
-      foreach(TransportAddress tmp_ta in to_remove) {
-        l.Remove(tmp_ta);
-      }
-      //Put this at the front:
-      l.Insert(0, ta);
     }
   }
 }

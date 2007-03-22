@@ -252,27 +252,26 @@ namespace Brunet
       if (loop != loop2)
       {
           int other_port = port+loop2;
-	  TransportAddress this_ta = null;
+	  string ta_str = null;
           switch(net_type) {
             case "tcp":
-		this_ta = new TransportAddress("brunet.tcp://127.0.0.1:"
-				               + other_port );
+		ta_str = "brunet.tcp://127.0.0.1:";
 	        break;
             case "udp":
-		this_ta = new TransportAddress("brunet.udp://127.0.0.1:"
-				               + other_port );
+		ta_str = "brunet.udp://127.0.0.1:";
 	        break;
             case "udp-as":
-		this_ta = new TransportAddress("brunet.udp://127.0.0.1:"
-				               + other_port );
+		ta_str = "brunet.udp://127.0.0.1:";
 	        break;
 	    case "function":
-		this_ta = new TransportAddress("brunet.function://localhost:"
-				               + other_port );
+		ta_str = "brunet.function://localhost:";
                 break;
 	    default:
 		throw new Exception("Unknown net type: " + net_type);
           }
+	  ta_str = ta_str + other_port.ToString();
+	  TransportAddress this_ta =
+	                    TransportAddressFactory.CreateInstance(ta_str);
           tmp_node.RemoteTAs.Add(this_ta);
           }
       }

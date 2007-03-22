@@ -85,7 +85,7 @@ namespace Brunet
       _listener_id = id;
       _listener_map[id] = this;
       _tas = new ArrayList();
-      _tas.Add( new TransportAddress("brunet.function://localhost:" +
+      _tas.Add(TransportAddressFactory.CreateInstance("brunet.function://localhost:" +
                                      _listener_id.ToString()) );
     }
 
@@ -112,7 +112,7 @@ namespace Brunet
 
       Edge e = null;
       if( ta.TransportAddressType == this.TAType ) {
-        int remote_id = ta.Port;
+        int remote_id = ((IPTransportAddress) ta).Port;
         //Get the edgelistener:
         FunctionEdgeListener remote = (FunctionEdgeListener)
                                       _listener_map[remote_id];

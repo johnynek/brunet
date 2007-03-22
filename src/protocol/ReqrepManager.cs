@@ -201,7 +201,7 @@ public class ReqrepManager : IAHPacketHandler {
        return;
      }
 #if REQREP_DEBUG
-     Console.WriteLine("[ReqrepServer: {0}] Receiving request at: {1}.", _node.Address, DateTime.Now);
+     Console.WriteLine("[ReqrepManager: {0}] Receiving packet at: {1}.", _node.Address, DateTime.Now);
 #endif
 
      //Simulate packet loss
@@ -335,13 +335,14 @@ public class ReqrepManager : IAHPacketHandler {
 	   System.IO.MemoryStream offsetpayload = p.GetPayloadStream(5 + count);
 	   Statistics statistics = new Statistics();
 	   statistics.SendCount = reqs.SendCount;
+#if REQREP_DEBUG
+	   Console.WriteLine("[ReqrepManager: {0}] Receiving reply on request id: {1}, from: {2}", 
+			     _node.Address, idnum, p.Source);
+#endif
+
 	   bool continue_listening = 
 		   reqs.ReplyHandler.HandleReply(this, rt, idnum, pt,
 						 offsetpayload, p, statistics, reqs.UserState);
-#if REQREP_DEBUG
-      Console.WriteLine("[ReqrepManager: {0}] Contine listening on request is: {1}, is: {2}", 
-			_node.Address, idnum, continue_listening);
-#endif
 	   //the request has been served
 	   //reqs.Replied = true;
 	   if( !continue_listening ) {

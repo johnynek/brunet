@@ -190,7 +190,7 @@ namespace Brunet
         el.Start();
 	ef.AddListener(el);
 	el.CreateEdgeTo(
-	     new TransportAddress("brunet.function://localhost:" + port),
+	     TransportAddressFactory.CreateInstance("brunet.function://localhost:" + port),
 	     new EdgeListener.EdgeCreationCallback(ClientLoop));
       }
       else if (args[0] == "server") {
@@ -226,7 +226,7 @@ namespace Brunet
         }
 	ef.AddListener(el);
 	_el = el;
-	ta = new TransportAddress( "brunet." + args[1] + "://"
+	ta = TransportAddressFactory.CreateInstance( "brunet." + args[1] + "://"
 			           + NameToIP(args[3]) + ":" + port );
 	System.Console.WriteLine("Making edge to {0}\n", ta.ToString());
 	el.Start();

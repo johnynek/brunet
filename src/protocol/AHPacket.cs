@@ -386,6 +386,8 @@ namespace Brunet
     {
       public static readonly string Connection = "c";
       public static readonly string Forwarding = "f";
+      //for tunnel edges
+      public static readonly string Tunneling = "t";
       public static readonly string Echo = "e";
       public static readonly string Tftp = "tftp";
       public static readonly string Chat = "chat";

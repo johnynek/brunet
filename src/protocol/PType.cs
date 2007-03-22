@@ -82,7 +82,7 @@ public class PType : ICopyable {
    * Parse the PType starting at mb, and return all of mb <b>after</b>
    * the PType.
    */
-  static PType Parse(MemBlock mb, out MemBlock rest) {
+  public static PType Parse(MemBlock mb, out MemBlock rest) {
     MemBlock raw_data = null;
     PType result = new PType();
     if( IsValidNumeric( (int)( mb[0] ) ) ) {

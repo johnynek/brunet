@@ -272,10 +272,10 @@ namespace Brunet
     {
       LinkMessage l1 = new LinkMessage(ConnectionType.Structured,
 		                   new NodeInfo(null,
-				       new TransportAddress("brunet.tcp://127.0.0.1:45")),
+				       TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:45")),
 				   new NodeInfo(
 				       new DirectionalAddress(DirectionalAddress.Direction.Left),
-				       new TransportAddress("brunet.tcp://127.0.0.1:837")) );
+				       TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:837")) );
       XmlAbleTester xt = new XmlAbleTester();
       LinkMessage l2 = (LinkMessage)xt.SerializeDeserialize(l1);
       //System.Console.WriteLine("\nl1: {0}\n\nl2: {0}\n", l1, l2);

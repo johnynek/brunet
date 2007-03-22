@@ -110,7 +110,7 @@ namespace Brunet
      * after each timeout.  It starts at DEFAULT_TIMEOUT second.
      * Then _TIMEOUT_FACTOR * DEFAULT_TIMEOUT ...
      */
-    protected static readonly int _TIMEOUT_FACTOR = 4;
+    protected static readonly int _TIMEOUT_FACTOR = 2;
     protected static readonly int DEFAULT_TIMEOUT = 1000;
     protected int _ms_timeout = DEFAULT_TIMEOUT;
     
@@ -317,7 +317,7 @@ namespace Brunet
       _last_s_packet = _last_s_mes.ToPacket();
       _last_packet_datetime = TimeUtils.NoisyNowTicks;
 #if LINK_DEBUG
-      Console.WriteLine("LinkState: To send link request: {0}; Length: {1}", _last_s_mes, _last_s_packet.Length);
+      Console.WriteLine("LinkState: To send link request: {0}; Length: {1} at: {2}", _last_s_mes, _last_s_packet.Length, DateTime.Now);
 #endif
       yield return _last_s_packet;
       //We should now have the response:
@@ -371,7 +371,7 @@ namespace Brunet
       _last_s_mes.Dir = ConnectionMessage.Direction.Request;
       _last_s_packet = _last_s_mes.ToPacket();
 #if LINK_DEBUG
-      Console.WriteLine("LinkState: To send status request: {0}; Length: {1}", _last_s_mes, _last_s_packet.Length);
+      Console.WriteLine("LinkState: To send status request: {0}; Length: {1} at: {2}", _last_s_mes, _last_s_packet.Length, DateTime.Now);
 #endif
       yield return _last_s_packet;
       StatusMessage sm = (StatusMessage)_last_r_mes;

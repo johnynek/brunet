@@ -26,7 +26,7 @@ namespace Brunet.Dht {
       } if (proto.Equals("udp")) {
 	node.AddEdgeListener(new UdpEdgeListener(port));
       }
-      node.RemoteTAs.Add(new TransportAddress(remote_ta));
+      node.RemoteTAs.Add(TransportAddressFactory.CreateInstance(remote_ta));
 
       Dht dht = new Dht(node, media);
 

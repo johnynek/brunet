@@ -234,7 +234,7 @@ namespace Brunet
     public void CTMSerializationTest()
     {
       Address a = new DirectionalAddress(DirectionalAddress.Direction.Left);
-      TransportAddress ta = new TransportAddress("brunet.tcp://127.0.0.1:5000"); 
+      TransportAddress ta = TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:5000"); 
       NodeInfo ni = new NodeInfo(a, ta);
       ConnectToMessage ctm1 = new ConnectToMessage(ConnectionType.Unstructured, ni);
       XmlAbleTester xt = new XmlAbleTester();
@@ -246,7 +246,7 @@ namespace Brunet
       ArrayList tas = new ArrayList();
       tas.Add(ta);
       for(int i = 5001; i < 5010; i++)
-        tas.Add(new TransportAddress("brunet.tcp://127.0.0.1:" + i.ToString()));
+        tas.Add(TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:" + i.ToString()));
       NodeInfo ni2 = new NodeInfo(a, tas);
 
       ConnectToMessage ctm2 = new ConnectToMessage(ConnectionType.Structured, ni2);
@@ -259,7 +259,7 @@ namespace Brunet
 	string ta_tmp = "brunet.tcp://127.0.0.1:" + (i+80).ToString();
         NodeInfo tmp =
 		new NodeInfo(new DirectionalAddress(DirectionalAddress.Direction.Left),
-	                     new TransportAddress(ta_tmp)
+	                     TransportAddressFactory.CreateInstance(ta_tmp)
 			    );
 	neighs[i] = tmp;
       }

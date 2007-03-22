@@ -95,8 +95,8 @@ namespace Brunet
         System.Console.WriteLine("CtmRequestHandler - Got CTM Request,"
 				 + n.Address.ToString() + " connectTo: "
 				 + ctm.Target.Address.ToString() + " ConType: " + ctm.ConnectionType);
-	Console.WriteLine("CtmRequestHandler - CtmRequest: {0}", ctm);
-	Console.WriteLine("CtmRequestHandler - Initiating link protocol on request.");
+	Console.WriteLine("CtmRequestHandler - CtmRequest at: {0} -  {1}", DateTime.Now, ctm);
+	Console.WriteLine("CtmRequestHandler - Initiating link protocol on CTM request.");
 #endif
         /*_log.Info("Got CTM Request,"
         + n.Address.ToString() + " connectTo: "
@@ -112,8 +112,10 @@ namespace Brunet
           //Ignore our own CTM requests.
           return;
         }
+
+
         Linker l = new Linker(n, ctm.Target.Address,
-                              ctm.Target.Transports,
+			      ctm.Target.Transports,
                               ctm.ConnectionType);
         //Here we start the job:
         n.TaskQueue.Enqueue( l );
@@ -131,7 +133,7 @@ namespace Brunet
 	  i++;
 	}
         ConnectToMessage local_response_ctm =
-          new ConnectToMessage(ctm.ConnectionType, n.GetNodeInfo(6), near_ni);
+          new ConnectToMessage(ctm.ConnectionType, n.GetNodeInfo(8), near_ni);
         local_response_ctm.Id = ctm.Id;
         local_response_ctm.Dir = ConnectionMessage.Direction.Response;
 

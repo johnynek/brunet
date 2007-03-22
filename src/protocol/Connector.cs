@@ -274,8 +274,8 @@ namespace Brunet
 #endif
 
 #if ARI_CTM_DEBUG
-	Console.WriteLine("Connector - Send CTM request; src: {0}, target: {1}.", 
-			  _con_packet.Source, _con_packet.Destination);
+	Console.WriteLine("Connector - Send CTM request; src: {0}, target: {1} at: {2}", 
+			  _con_packet.Source, _con_packet.Destination, DateTime.Now);
 #endif
         _sender.Send(_con_packet);
         _last_packet_datetime = TimeUtils.NoisyNowTicks;
@@ -314,8 +314,8 @@ namespace Brunet
               * @todo see if the type of connection is the same
                */
 #if ARI_CTM_DEBUG
-	      Console.WriteLine("Got CTM Response: " + cm.ToString());
-              Console.WriteLine("Initiating a linking protocol on response... ");
+	      Console.WriteLine("Got CTM Response from: {0} at: {1} - {2}", p.Source, DateTime.Now, cm);
+              Console.WriteLine("Initiating a linking protocol on CTM response.");
 #endif
               ConnectToMessage new_ctm = (ConnectToMessage)cm;
               _got_ctm = true;

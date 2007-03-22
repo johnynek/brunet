@@ -95,7 +95,7 @@ namespace Brunet
         TransportAddressConfiguration remote_ta_configuration = (TransportAddressConfiguration)remote_node_configuration.TransportAddresses[0];
 
         String remote_ta = remote_ta_configuration.GetTransportAddressURI(); 
-        this_node.RemoteTAs.Add( new TransportAddress( remote_ta  ) );
+        this_node.RemoteTAs.Add( TransportAddressFactory.CreateInstance( remote_ta  ) );
       }
       
       while ( (remote_node_index>=0) && (num_remote_ta>=0) ) { 
@@ -103,7 +103,7 @@ namespace Brunet
         TransportAddressConfiguration remote_ta_configuration = (TransportAddressConfiguration)remote_node_configuration.TransportAddresses[0];
 
         String remote_ta = remote_ta_configuration.GetTransportAddressURI(); 
-        this_node.RemoteTAs.Add( new TransportAddress( remote_ta  ) );
+        this_node.RemoteTAs.Add( TransportAddressFactory.CreateInstance( remote_ta  ) );
 
         System.Console.WriteLine("Adding {0}", remote_ta);
 

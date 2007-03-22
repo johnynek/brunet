@@ -201,8 +201,8 @@ namespace Brunet
       bool stop = false;
       int port = _port;
       foreach(TransportAddress ta in tas) {
-        ArrayList ips = ta.GetIPAddresses();
-        port = ta.Port;
+        ArrayList ips = ((IPTransportAddress) ta).GetIPAddresses();
+        port = ((IPTransportAddress) ta).Port;
 	foreach(IPAddress ip in ips) {
           if( !IPAddress.IsLoopback(ip) && (ip.Address != 0) ) {
 		  //0 is the 0.0.0.0, or any address
@@ -242,7 +242,7 @@ namespace Brunet
             string our_local_ta = (string)info["RemoteTA"]; //his remote is our local
             if( our_local_ta != null ) {
               //Update our list:
-              TransportAddress new_ta = new TransportAddress(our_local_ta);
+              TransportAddress new_ta = TransportAddressFactory.CreateInstance(our_local_ta);
               TransportAddress old_ta = e.PeerViewOfLocalTA;
               if( ! new_ta.Equals( old_ta ) ) {
                 System.Console.WriteLine(
@@ -298,7 +298,7 @@ namespace Brunet
           }
         }
         if( is_new_edge ) {
-          TransportAddress rta = new TransportAddress(this.TAType,(IPEndPoint)end);
+          TransportAddress rta = TransportAddressFactory.CreateInstance(this.TAType,(IPEndPoint)end);
           if( _ta_auth.Authorize(rta) == TAAuthorizer.Decision.Deny ) {
             //This is bad news... Ignore it...
             ///@todo perhaps we should send a control message... I don't know
@@ -367,7 +367,7 @@ namespace Brunet
 	    "Remote NAT Mapping changed on Edge: {0}\n{1} -> {2}",
            edge, edge.End, end); 
         //Actually update:
-        TransportAddress rta = new TransportAddress(this.TAType,(IPEndPoint)end);
+        TransportAddress rta = TransportAddressFactory.CreateInstance(this.TAType,(IPEndPoint)end);
         if( _ta_auth.Authorize(rta) != TAAuthorizer.Decision.Deny ) {
           edge.End = end;
           NatDataPoint dp = new RemoteMappingChangePoint(DateTime.UtcNow, edge);
@@ -419,7 +419,9 @@ namespace Brunet
       }
     }
 
-    /**
+ 
+
+   /**
      * Each implementation may have its own way of doing this
      */
     protected abstract void SendControlPacket(EndPoint end, int remoteid, int localid,
@@ -467,10 +469,10 @@ namespace Brunet
        * We get all the IPAddresses for this computer
        */
       if( local_config_ips == null ) {
-        _tas = TransportAddress.CreateForLocalHost(TransportAddress.TAType.Udp, port);
+        _tas = TransportAddressFactory.CreateForLocalHost(TransportAddress.TAType.Udp, port);
       }
       else {
-        _tas = TransportAddress.Create(TransportAddress.TAType.Udp, port, local_config_ips);
+        _tas = TransportAddressFactory.Create(TransportAddress.TAType.Udp, port, local_config_ips);
       }
       _nat_hist = null;
       _nat_tas = new NatTAs( _tas, _nat_hist );
@@ -523,10 +525,10 @@ namespace Brunet
       }
       else {
         Edge e = null;
-        ArrayList ip_addresses = ta.GetIPAddresses();
+        ArrayList ip_addresses = ((IPTransportAddress) ta).GetIPAddresses();
         IPAddress first_ip = (IPAddress)ip_addresses[0];
   
-        IPEndPoint end = new IPEndPoint(first_ip, ta.Port);
+        IPEndPoint end = new IPEndPoint(first_ip, ((IPTransportAddress) ta).Port);
         /* We have to keep our mapping of end point to edges up to date */
         lock( _id_ht ) {
           //Get a random ID for this edge:

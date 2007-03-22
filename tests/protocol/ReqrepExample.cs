@@ -101,7 +101,7 @@ public class ReqrepExample : Brunet.IRequestHandler, Brunet.IReplyHandler {
      * Tell the node who it can connect to:
      */
     for(int i = 2; i < args.Length; i++) {
-      tmp_node.RemoteTAs.Add( new Brunet.TransportAddress( args[i] ) );
+      tmp_node.RemoteTAs.Add( TransportAddressFactory.CreateInstance( args[i] ) );
     }
     /**
      * Now we connect

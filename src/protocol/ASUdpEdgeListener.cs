@@ -63,7 +63,7 @@ namespace Brunet
     protected IAsyncResult _read_asr;
 
     public ASUdpEdgeListener(int port)
-    : this(port, TransportAddress.CreateForLocalHost(TransportAddress.TAType.Udp, port), null)
+    : this(port, TransportAddressFactory.CreateForLocalHost(TransportAddress.TAType.Udp, port), null)
     {
       
     }
@@ -73,7 +73,7 @@ namespace Brunet
     
     }
     public ASUdpEdgeListener(int port, IPAddress[] ipList, TAAuthorizer ta_auth)
-    : this(port, TransportAddress.Create(TransportAddress.TAType.Udp, port, ipList), ta_auth)
+    : this(port, TransportAddressFactory.Create(TransportAddress.TAType.Udp, port, ipList), ta_auth)
     {
 
     }
@@ -142,10 +142,10 @@ namespace Brunet
       }
       else { 
         Edge e = null;
-        ArrayList ip_addresses = ta.GetIPAddresses();
+        ArrayList ip_addresses = ((IPTransportAddress)ta).GetIPAddresses();
         IPAddress first_ip = (IPAddress)ip_addresses[0];
   
-        IPEndPoint end = new IPEndPoint(first_ip, ta.Port);
+        IPEndPoint end = new IPEndPoint(first_ip, ((IPTransportAddress) ta).Port);
         /* We have to keep our mapping of end point to edges up to date */
         lock( _id_ht ) {
           //Get a random ID for this edge:
