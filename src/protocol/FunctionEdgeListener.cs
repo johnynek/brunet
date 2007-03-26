@@ -18,18 +18,10 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-/*
- * Dependencies : 
- * Brunet.Edge
- * Brunet.EdgeException
- * Brunet.EdgeListener;
- * Brunet.TransportAddress;
- * Brunet.FunctionEdge;
- */
-
 using Brunet;
 using System;
 using System.Collections;
+using System.Threading;
 
 namespace Brunet
 {
@@ -44,7 +36,7 @@ namespace Brunet
   *
   */
 
-  public class FunctionEdgeListener:EdgeListener
+  public class FunctionEdgeListener : EdgeListener, IEdgeSendHandler
   {
 
     /**
@@ -72,6 +64,14 @@ namespace Brunet
       }
     }
 
+    protected class FQEntry {
+      public FQEntry(FunctionEdge e, ICopyable p) { Edge = e; P = p; }
+      public FunctionEdge Edge;
+      public ICopyable P;
+    }
+    protected BlockingQueue _queue;
+    protected Thread _queue_thread;
+
     public override TransportAddress.TAType TAType
     {
       get
@@ -80,6 +80,7 @@ namespace Brunet
       }
     }
 
+
     public FunctionEdgeListener(int id)
     {
       _listener_id = id;
@@ -87,6 +88,8 @@ namespace Brunet
       _tas = new ArrayList();
       _tas.Add(TransportAddressFactory.CreateInstance("brunet.function://localhost:" +
                                      _listener_id.ToString()) );
+      _queue = new BlockingQueue();
+      _queue_thread = new Thread(new ThreadStart(StartQueueProcessing));
     }
 
     protected bool _is_started = false;
@@ -108,6 +111,7 @@ namespace Brunet
         // for graceful disconnect and preventing others to
         // connect to us after we've disconnected.
         ecb(false, null, null);
+        return;
       }
 
       Edge e = null;
@@ -117,9 +121,9 @@ namespace Brunet
         FunctionEdgeListener remote = (FunctionEdgeListener)
                                       _listener_map[remote_id];
         //Outbound edge:
-        FunctionEdge fe_l = new FunctionEdge(_listener_id, false);
+        FunctionEdge fe_l = new FunctionEdge(this, _listener_id, false);
         //Inbound edge:
-        FunctionEdge fe_r = new FunctionEdge(remote_id, true);
+        FunctionEdge fe_r = new FunctionEdge(remote, remote_id, true);
         fe_l.Partner = fe_r;
         fe_r.Partner = fe_l;
         remote.SendEdgeEvent(fe_r);
@@ -134,8 +138,6 @@ namespace Brunet
         System.Console.WriteLine("New Edge {0}", fe_l.ToString());
         System.Console.WriteLine("New Edge {0}", fe_r.ToString());
 #endif
-        FunctionEdge.edgeList.Add(fe_l);
-        FunctionEdge.edgeList.Add(fe_r);
 
 #if false
         System.Console.WriteLine("Press enter to continue.");
@@ -153,11 +155,27 @@ namespace Brunet
     public override void Start()
     {
       _is_started = true;
+      _queue_thread.Start();
     }
 
     public override void Stop()
     {
       _is_started = false;
+    }
+
+    protected void StartQueueProcessing() {
+      while( _is_started ) {
+        //Wait 100 ms for an a packet to be sent:
+        bool timedout;
+        FQEntry ent = (FQEntry)_queue.Dequeue(100, out timedout);
+        if( !timedout ) {
+          ent.Edge.Partner.Push( (Packet)ent.P);
+        }
+      }
+    }
+
+    public void HandleEdgeSend(Edge from, ICopyable p) {
+      _queue.Enqueue( new FQEntry((FunctionEdge)from, p) );
     }
 
   }
