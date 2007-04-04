@@ -493,6 +493,16 @@ namespace Brunet.Dht {
 	  if (_node.IsConnected ) {
 #if DHT_DEBUG
 	    Console.WriteLine("[DhtLogic] {0}: Activated (on connection) at time: {1}.", our_addr, DateTime.Now);
+	    try {
+	      Console.WriteLine("Activated left: {0}", con_table.GetLeftStructuredNeighborOf(our_addr));
+	    } catch(Exception e) {
+	      Console.WriteLine(e);
+	    }
+	    try {
+	      Console.WriteLine("Activated right: {0}", con_table.GetRightStructuredNeighborOf(our_addr));
+	    } catch(Exception e) {
+	      Console.WriteLine(e);
+	    } 
 #endif	
 	    _activated = true;
 	  } 
@@ -516,6 +526,7 @@ namespace Brunet.Dht {
 	  Console.WriteLine("[DhtLogic] {0}, exception: {1}", our_addr, e);
 #endif	  
 	}
+	
 
 	/** Here;s the algorithm we plan to use. 
 	 *  A---C and later becomes A---B---C.
@@ -678,6 +689,16 @@ namespace Brunet.Dht {
 	  if (_node.IsConnected ) {
 #if DHT_DEBUG
 	    Console.WriteLine("[DhtLogic] {0}: Activated (on disconnection) at time: {1}.", our_addr, DateTime.Now);
+	    try {
+	      Console.WriteLine("Activated left: {0}", con_table.GetLeftStructuredNeighborOf(our_addr));
+	    } catch(Exception e) {
+	      Console.WriteLine(e);
+	    }
+	    try {
+	      Console.WriteLine("Activated right: {0}", con_table.GetRightStructuredNeighborOf(our_addr));
+	    } catch(Exception e) {
+	      Console.WriteLine(e);
+	    }
 #endif	
 	    _activated = true;
 	  } 
@@ -840,13 +861,22 @@ namespace Brunet.Dht {
       ConnectionEventArgs args = (ConnectionEventArgs)eargs;
       Connection new_con = args.Connection;
 
-
+      ConnectionTable con_table = _node.ConnectionTable;
       AHAddress our_addr = _node.Address as AHAddress;
-      lock(_node.ConnectionTable.SyncRoot) {  //lock the connection table
+      lock(con_table.SyncRoot) {  //lock the connection table
 	if (!_activated) {
 	  if (_node.IsConnected ) {
 #if DHT_DEBUG
 	    Console.WriteLine("[DhtLogic] {0}: Activated (on status change) at time: {1}.", our_addr, DateTime.Now);
+	    try {
+	      Console.WriteLine("Activated left: {0}", con_table.GetLeftStructuredNeighborOf(our_addr));
+	    } catch(Exception e) {
+	      Console.WriteLine(e);
+	    } try {
+	      Console.WriteLine("Activated right: {0}", con_table.GetRightStructuredNeighborOf(our_addr));
+	    } catch(Exception e) {
+	      Console.WriteLine(e);
+	    }
 #endif	
 	    _activated = true;
 	  } 

@@ -48,15 +48,20 @@ namespace Brunet
 								 (AHAddress) _node.Address, 6);
 	  ArrayList tas = new ArrayList();
 	  foreach(Connection cons in nearest) {
+#if TUNNEL_DEBUG
+	    Console.WriteLine("TunnelEdgeListener: testing if we can tunnel using connection: {0}", cons.Address);
+#endif
 	    if (cons.Edge.TAType != TransportAddress.TAType.Tunnel) {
 	      TunnelTransportAddress tun_ta = new TunnelTransportAddress(_node.Address, cons.Address);
 	      tas.Add(tun_ta);
+#if TUNNEL_DEBUG
 	      Console.WriteLine("TunnedEdgeListener: added tunnel TA: {0}", tun_ta);
+#endif
 	      //atmost 3 TAs are added
 	      if (tas.Count >= 3) {
 		break;
 	      }
-	    }
+	    } 
 	  }
 	  return tas;
 	}
@@ -132,8 +137,7 @@ namespace Brunet
 	//which we send through the node
 	TunnelTransportAddress tun_ta = ta as TunnelTransportAddress;
         lock(_node.ConnectionTable.SyncRoot) {
-	  Connection con = _node.ConnectionTable.GetConnection(ConnectionType.Leaf, tun_ta.Forwarder);
-	  con = _node.ConnectionTable.GetConnection(ConnectionType.Leaf, tun_ta.Forwarder);
+	  Connection con = _node.ConnectionTable.GetConnection(ConnectionType.Structured, tun_ta.Forwarder);
 	  if (con == null || con.Edge.TAType == TransportAddress.TAType.Tunnel) {
 	    ecb(false, null, new EdgeException("Cannot tunnel over: " + tun_ta.Forwarder.ToString()));
 	    return;
