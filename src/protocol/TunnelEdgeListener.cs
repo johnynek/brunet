@@ -52,13 +52,14 @@ namespace Brunet
 	    Console.WriteLine("TunnelEdgeListener: testing if we can tunnel using connection: {0}", cons.Address);
 #endif
 	    if (cons.Edge.TAType != TransportAddress.TAType.Tunnel) {
+	      //we only take the first 5 bytes in the address
 	      TunnelTransportAddress tun_ta = new TunnelTransportAddress(_node.Address, cons.Address);
 	      tas.Add(tun_ta);
 #if TUNNEL_DEBUG
-	      Console.WriteLine("TunnedEdgeListener: added tunnel TA: {0}", tun_ta);
+	      Console.WriteLine("TunnelEdgeListener: added tunnel TA: {0}", tun_ta);
 #endif
 	      //atmost 3 TAs are added
-	      if (tas.Count >= 3) {
+	      if (tas.Count >= 4) {
 		break;
 	      }
 	    } 
@@ -131,23 +132,49 @@ namespace Brunet
       }
       else {
 #if TUNNEL_DEBUG
-	Console.WriteLine("Creating TunnelEdge to: {0}", ta);
-#endif            
-	//when we want to create an edge,we fabricate a create packet ourselves
-	//which we send through the node
+	Console.WriteLine("CreateEdgeTo TunnelEdge to: {0}", ta);
+#endif  
+	
 	TunnelTransportAddress tun_ta = ta as TunnelTransportAddress;
+	Connection forwarding_con = null;
+	try {
         lock(_node.ConnectionTable.SyncRoot) {
-	  Connection con = _node.ConnectionTable.GetConnection(ConnectionType.Structured, tun_ta.Forwarder);
-	  if (con == null || con.Edge.TAType == TransportAddress.TAType.Tunnel) {
-	    ecb(false, null, new EdgeException("Cannot tunnel over: " + tun_ta.Forwarder.ToString()));
-	    return;
+	  Console.WriteLine("TunnelEdgeListener: Retrieving list of structured connections");
+	  IEnumerable struc_cons = _node.ConnectionTable.GetConnections(ConnectionType.Structured);
+	  if (struc_cons ==  null) {
+	    Console.WriteLine("List of structured connections is null");
+	  }
+	  Console.WriteLine("TunnelEdgeListener: Browsing list of structured connections");
+	  foreach (Connection con in struc_cons) {
+	    Console.WriteLine("TunnelEdgeListener: Testing : {0}", con.Address);
+	    if (con.Edge.TAType == TransportAddress.TAType.Tunnel) {
+	      Console.WriteLine("Cannot tunnel over tunnel: " + con.Address.ToString());
+	      continue;
+	    }
+
+	    TunnelTransportAddress test_ta = new TunnelTransportAddress(tun_ta.Target, con.Address);
+	    Console.WriteLine("comparing tun_ta: {0}", tun_ta);
+	    Console.WriteLine("comparing test_ta: {0}", test_ta);
+	    if (!test_ta.Equals(tun_ta)) {
+	      Console.WriteLine("Cannot tunnel over connection: " + con.Address.ToString());
+	      continue;
+	    }
+#if TUNNEL_DEBUG
+	    Console.WriteLine("Can tunnel over connection: " + con.Address.ToString());
+#endif
+	    forwarding_con = con;
+	    break;
 	  }
 	}
-	
+	} catch(Exception e) {
+	  Console.WriteLine(e);
+	}
+	if (forwarding_con == null) {
+	  ecb(false, null, new EdgeException("Cannot create edge over TA: " + tun_ta));
+	  return;
+	}
+	ForwardingSender fs = new ForwardingSender(_node, forwarding_con.Address, 1);
 
-
-	ForwardingSender fs = new ForwardingSender(_node, tun_ta.Forwarder, 1);
-	
 	//choose a locally unique id
 	int localid;
 	int remoteid = 0;
@@ -161,7 +188,7 @@ namespace Brunet
 	  } while( _id_ht.Contains(localid) || localid == 0 );      
 	  //looks like the new edge is ready
 	  TunnelEdge e = new TunnelEdge(this, false, _node, tun_ta.Target,
-				      tun_ta.Forwarder, localid, remoteid, new byte[ 1 + 8 + Packet.MaxLength ]);
+				      forwarding_con.Address, localid, remoteid, new byte[ 1 + 8 + Packet.MaxLength ]);
 #if TUNNEL_DEBUG
 	  Console.WriteLine("Creating an instance of TunnelEdge: {0}", e);
 	  Console.WriteLine("remoteid: {0}, localid: {1}", remoteid, localid);

@@ -110,6 +110,25 @@ public class SeriesTAAuthorizer : TAAuthorizer {
   }
 }
 
+  /**
+     Denies any attempt on a particular port.
+     @param port port to which edge creation attempt is denied
+  */
+ 
+public class PortTAAuthorizer : TAAuthorizer {
+  protected int _denied_port;
+  public PortTAAuthorizer(int port) {
+    _denied_port = port;
+  }
+  public override TAAuthorizer.Decision Authorize(TransportAddress a) {
+    if (_denied_port == ((IPTransportAddress) a).Port) {
+      return TAAuthorizer.Decision.Deny;
+    } else {
+      //else this decision should not matter
+      return TAAuthorizer.Decision.None;
+    }
+  }
+}
 public class NetmaskTAAuthorizer : TAAuthorizer {
 
   /**
