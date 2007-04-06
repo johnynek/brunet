@@ -306,7 +306,7 @@ namespace Brunet
 						      TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:2001/") ) );
       
       Assert.AreEqual( lm_s, cmp.Parse(lm_string) );
-      string tun_lm_string = "<?xml version=\"1.0\" encoding=\"utf-8\"?><request id=\"1\"><link type=\"structured.chota\" realm=\"ari_dht\"><local><node address=\"brunet:node:UBU72YLHU5C3SY7JMYMJRTKK4D5BGW22\"><transport>brunet.tunnel://brunet:node:UBU72YLHU5C3SY7JMYMJRTKK4D5BGW22/brunet:node:FE4QWASNSYAR5RH5JHSHJECC7M3AAADE</transport></node></local><remote><node address=\"brunet:node:IJVH4C5PXTHEGLNNKAHAI667VX47UMA6\"><transport>brunet.tunnel://brunet:node:IJVH4C5PXTHEGLNNKAHAI667VX47UMA6/brunet:node:FE4QWASNSYAR5RH5JHSHJECC7M3AAADE</transport></node></remote></link></request>";
+      string tun_lm_string = "<?xml version=\"1.0\" encoding=\"utf-8\"?><request id=\"1\"><link type=\"structured.chota\" realm=\"ari_dht\"><local><node address=\"brunet:node:UBU72YLHU5C3SY7JMYMJRTKK4D5BGW22\"><transport>brunet.tunnel://UBU72YLHU5C3SY7JMYMJRTKK4D5BGW22/FE4QWASN</transport></node></local><remote><node address=\"brunet:node:IJVH4C5PXTHEGLNNKAHAI667VX47UMA6\"><transport>brunet.tunnel://IJVH4C5PXTHEGLNNKAHAI667VX47UMA6/FE4QWASN</transport></node></remote></link></request>";
       LinkMessage tun_lm = (LinkMessage) cmp.Parse(tun_lm_string);
       Assert.AreEqual(tun_lm.ToString(), tun_lm_string);
     }
