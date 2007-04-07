@@ -38,7 +38,7 @@ namespace Brunet.Dht {
 	  //we dont want to make us our own TA
 	    int port = base_port + loop2;
 	    string remoteTA = "gnucla.udp://localhost:" + port;
-	    node.RemoteTAs.Add(new TransportAddress(remoteTA));
+	    node.RemoteTAs.Add(TransportAddressFactory.CreateInstance(remoteTA));
 	}
 	node.Connect();
 	node_list.Add(node);
