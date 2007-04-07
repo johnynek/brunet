@@ -68,12 +68,16 @@ namespace Ipop {
 		el = new UdpEdgeListener(port);
 	      else if (item.type == "udp-as")
 		el = new ASUdpEdgeListener(port);
+	      else if (item.type == "tunnel")
+		el = new TunnelEdgeListener(brunetNode);
 	      else
 		throw new Exception("Unrecognized transport: " + item.type);
 	    }
 	    else {
 	      if (item.type == "udp")
 		el = new UdpEdgeListener(port, OSDependent.GetIPAddresses(config.DevicesToBind));
+	      else if (item.type == "tunnel")
+		el = new TunnelEdgeListener(brunetNode);
 	      else
 		throw new Exception("Unrecognized transport: " + item.type);
 	    }
@@ -83,7 +87,7 @@ namespace Ipop {
 	  //Here is where we connect to some well-known Brunet endpoints
 	  ArrayList RemoteTAs = new ArrayList();
 	  foreach(string ta in config.RemoteTAs)
-	    RemoteTAs.Add(new TransportAddress(ta));
+	    RemoteTAs.Add(TransportAddressFactory.CreateInstance(ta));
 	  brunetNode.RemoteTAs = RemoteTAs;
 
 
@@ -101,6 +105,8 @@ namespace Ipop {
 	  node_list.Add(brunetNode);
 	  dht_list.Add(dht);
 	  
+	  Console.WriteLine("Started node: {0}. Waiting for 10 seconds.", count);
+	  System.Threading.Thread.Sleep(10000);
 	  
 	} catch(Exception e) {
 	  Console.Error.WriteLine("Unable to start node: " + count);

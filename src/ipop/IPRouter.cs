@@ -149,6 +149,7 @@ namespace Ipop {
           }
           node.netmask = newNetmask;
           node.ip = IPAddress.Parse(newAddress);
+	  Console.WriteLine("Following DHCP my IP: {0}", node.ip);
           config.AddressData.IPAddress = newAddress;
           config.AddressData.Netmask = node.netmask;
           IPRouterConfigHandler.Write(ConfigFile, config);
@@ -183,7 +184,7 @@ namespace Ipop {
 
       RemoteTAs = new ArrayList();
       foreach(string TA in config.RemoteTAs) {
-        TransportAddress ta = new TransportAddress(TA);
+        TransportAddress ta = TransportAddressFactory.CreateInstance(TA);
         RemoteTAs.Add(ta);
       }
 
@@ -288,12 +289,12 @@ namespace Ipop {
           continue;
         }
 
-        if(!srcAddr.Equals(IPAddress.Parse("0.0.0.0")) && !srcAddr.Equals(node.ip) && !in_dht) {
-          Console.WriteLine("Switching IP Address " + node.ip + " with " + srcAddr);
-          in_dht = true;
-          ThreadPool.QueueUserWorkItem(new WaitCallback(IPUpdate), (object) srcAddr.ToString());
-          continue;
-        }
+//         if(!srcAddr.Equals(IPAddress.Parse("0.0.0.0")) && !srcAddr.Equals(node.ip) && !in_dht) {
+//           Console.WriteLine("Switching IP Address " + node.ip + " with " + srcAddr);
+//           in_dht = true;
+//           ThreadPool.QueueUserWorkItem(new WaitCallback(IPUpdate), (object) srcAddr.ToString());
+//           continue;
+//         }
 
         AHAddress target = (AHAddress) brunet_arp_cache.Get(destAddr);
         if (target == null) {

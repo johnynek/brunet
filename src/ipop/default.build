@@ -90,6 +90,23 @@
         <include name="Mono.Posix.dll"/>
       </references>
     </csc>
+    <csc target="exe" output="${build.dir}/BrokenRingTester.exe">
+      <sources failonempty="true">
+        <include name="OSDependent.cs"/>
+        <include name="linux.cs"/>
+        <include name="windows.cs"/>
+        <include name="IPOP_Common.cs"/>
+        <include name="IPRouterConfig.cs"/>
+        <include name="BrokenRingTester.cs"/>
+        <include name="IPAddresses.cs"/>
+      </sources>
+      <references>
+        <include name="${build.dir}/Brunet.dll"/>
+        <include name="${build.dir}/Brunet.Dht.dll"/>
+        <include name="Mono.Posix.dll"/>
+      </references>
+    </csc>
+
     <csc target="exe" output="${build.dir}/IPRouterConfigUpdate.exe">
       <sources failonempty="true">
         <include name="IPRouterConfigUpdate.cs"/>

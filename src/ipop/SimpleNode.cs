@@ -1,3 +1,5 @@
+#define HACK
+
 using System;
 using System.IO;
 using System.Collections;
@@ -20,7 +22,6 @@ namespace Ipop {
           "file... ");
         Environment.Exit(0);
       }
-
       //configuration file 
       IPRouterConfig config = IPRouterConfigHandler.Read(args[0]);
 
@@ -38,6 +39,8 @@ namespace Ipop {
             el = new UdpEdgeListener(port);
           else if (item.type == "udp-as")
             el = new ASUdpEdgeListener(port);
+	  else if (item.type == "tunnel")
+            el = new TunnelEdgeListener(brunetNode);
           else
             throw new Exception("Unrecognized transport: " + item.type);
         }
@@ -48,16 +51,19 @@ namespace Ipop {
             el = new UdpEdgeListener(port, OSDependent.GetIPAddresses(config.DevicesToBind));
 /*          else if (item.type == "udp-as")
             el = new ASUdpEdgeListener(port, (IEnumerable) (new IPAddresses(config.DevicesToBind)), null);*/
+	  else if (item.type == "tunnel")
+            el = new TunnelEdgeListener(brunetNode);
+
           else
             throw new Exception("Unrecognized transport: " + item.type);
         }
         brunetNode.AddEdgeListener(el);
       }
-
+      
       //Here is where we connect to some well-known Brunet endpoints
       ArrayList RemoteTAs = new ArrayList();
       foreach(string ta in config.RemoteTAs)
-        RemoteTAs.Add(new TransportAddress(ta));
+        RemoteTAs.Add(TransportAddressFactory.CreateInstance(ta));
       brunetNode.RemoteTAs = RemoteTAs;
 
 
