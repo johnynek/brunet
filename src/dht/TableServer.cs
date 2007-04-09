@@ -693,10 +693,10 @@ public class TableServer {
 	    DeleteFromSorted(e);
 	  }
 	}
-#if DHT_LOG
-	_log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::AdminDelete::::" + 
-		   + Base32.Encode(k));
-#endif
+// #if DHT_LOG
+// 	_log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::AdminDelete::::" + 
+//		   + Base32.Encode(k));
+//#endif
 	_ht.Remove(ht_key);
       }
     }
