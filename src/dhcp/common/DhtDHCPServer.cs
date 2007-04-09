@@ -1,3 +1,4 @@
+#define DHCP_DEBUG
 using System;
 using System.Text;
 using System.IO;
@@ -33,24 +34,33 @@ namespace Ipop {
       }
       string ns_key = "dhcp:ipop_namespace:" + ipop_namespace;
 #if DHCP_DEBUG
-      Console.WriteLine("searching for key: {0}", ns_key);
+      Console.WriteLine("Searching for namespace key: {0} at time: {1}", ns_key, DateTime.Now);
 #endif
       byte[] utf8_key = Encoding.UTF8.GetBytes(ns_key);
       //get a maximum of 1000 bytes only
       BlockingQueue[] q = _dht.GetF(utf8_key, 1000, null);
-      //we do expect to get atleast 1 result
+      //wait a second; we do expect to get atleast 1 result
+      ArrayList [] results = BlockingQueue.ParallelFetchWithTimeout(q, 1000);
+
       ArrayList result = null;
-      try{
-        while (true) {
-          RpcResult res = q[0].Dequeue() as RpcResult;
-          result = res.Result as ArrayList;
-          if (result == null || result.Count < 3) {
-            continue;
-          }
-          break;
-        }
-      } catch (Exception) {
-        return null;
+      for (int i = 0; i < results.Length; i++) {
+	ArrayList q_replies = results[i];
+	foreach (RpcResult rpc_replies in q_replies) {
+         //investigating individual results
+         try{
+           ArrayList rpc_result = (ArrayList) rpc_replies.Result;
+           if (rpc_result == null || rpc_result.Count < 3) {
+             continue;
+           }
+           result = rpc_result;
+           break;
+         } catch (Exception) {
+           return null;
+         }
+       }
+      }
+      if (result == null) {
+	return null;
       }
       ArrayList values = (ArrayList) result[0];
 #if DHCP_DEBUG
@@ -76,6 +86,9 @@ namespace Ipop {
       IPOPNamespace ipop_ns = (IPOPNamespace) serializer.Deserialize(stringReader);
       DHCPLease dhcp_lease = new DhtDHCPLease(_dht, ipop_ns);
       leases[ipop_namespace] = dhcp_lease;
+#if DHCP_DEBUG
+      Console.WriteLine("Retrieved valid namespace information at time: {0}", DateTime.Now);
+#endif
       return dhcp_lease;
     }
 

@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+
+<project
+  name="Ipop" default="build">
+  
+  <!-- Here is some configuration -->
+  <property name="brunet-dir" value="../brunet-dev" />
+
+  <!-- Here's the main target -->
+  <target name="build"
+          description="Build Brunet and all the IPOP code">
+
+  <nant buildfile="${brunet-dir}/Brunet.build" />
+  <!-- copy the dlls -->
+  <copy todir="./lib">
+    <fileset basedir="${brunet-dir}/lib/">
+      <include name="*.dll" />
+    </fileset>
+  </copy>
+  <nant buildfile="src/dhcp/default.build" />
+  <nant buildfile="src/c-lib/default.build" />
+  <nant buildfile="src/ipop/default.build" />
+  <copy file="sample-config/ipop.config"
+        tofile="./src/ipop/build/ipop.config"/>
+  </target>
+</project>

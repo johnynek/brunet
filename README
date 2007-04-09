@@ -1,0 +1,17 @@
+Here's how to build IPOP
+
+First you have probably already done:
+
+hg clone <url to brunet> brunet-dev
+hg clone <url to ipop> ipop
+cd ipop
+
+if you put your brunet source somewhere other than ../brunet-dev change
+the property in ipop.build.
+
+nant
+cd src/ipop/build
+<the following as root>
+tunctl
+mono IPRouter.exe ipop.config >> output.txt &
+dhclient tap0

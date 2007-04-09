@@ -37,16 +37,16 @@ namespace Ipop {
        */
       public Address GetBestResult() {
 	lock(_sync) {
-	int max = -1;
-	Address best_addr = null;
-	IDictionaryEnumerator iter = _tab.GetEnumerator();
-	while(iter.MoveNext()) {
-	  int count = (int) iter.Value;
-	  if (count > max) {
-	    best_addr = (Address) iter.Key; 
+	  int max = -1;
+	  Address best_addr = null;
+	  IDictionaryEnumerator iter = _tab.GetEnumerator();
+	  while(iter.MoveNext()) {
+	    int count = (int) iter.Value;
+	    if (count > max) {
+	      best_addr = (Address) iter.Key; 
+	    }
 	  }
-	}
-	return best_addr;
+	  return best_addr;
 	}
       }
       public RouteMissResult(IPAddress ip) {
@@ -102,7 +102,7 @@ namespace Ipop {
 	ThreadPool.QueueUserWorkItem(new WaitCallback(this.BrunetARPHandler), (object) ip);
       }
     }
-
+    
     /** 
      * The following method is invoked everytime something is placed into the queue
      * The entire code should be thread safe.
@@ -111,7 +111,7 @@ namespace Ipop {
     {
       IPAddress ip = o as IPAddress;
       try {
-	string str_key = "dhcp:ip:" + ip.ToString();
+	string str_key = "dhcp:ipop_namespace:" + _ipop_namespace + ":ip:" + ip.ToString();	
 	byte[] dht_key = Encoding.UTF8.GetBytes(str_key);
 #if ROUTE_MISS_DEBUG
 	Console.WriteLine("Invoking get() on: {0}", str_key);

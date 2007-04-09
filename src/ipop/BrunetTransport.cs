@@ -20,6 +20,7 @@ namespace Ipop {
     object sync;
     bool debug;
     Thread Refresher;
+    ArrayList edgeListeners;
 
     public BrunetTransport(Ethernet ether, string brunet_namespace, 
       NodeMapping node, EdgeListener []EdgeListeners, string [] DevicesToBind,
@@ -28,44 +29,49 @@ namespace Ipop {
       sync = new object();
       this.debug = debug;
       //local node
+
+      //AHAddress us = new AHAddress(IPOP_Common.GetHash(node.ip));
+      //Dht DHCP
       AHAddress us = new AHAddress(IPOP_Common.StringToBytes(node.nodeAddress, ':'));
       Console.WriteLine("Generated address: {0}", us);
       brunetNode = new StructuredNode(us, brunet_namespace);
       Refresher = null;
 
-      //Where do we listen:
-      IPAddress[] tas = Routines.GetIPTAs(DevicesToBind);
-
-#if IPOP_LOG
-      string listener_log = "BeginListener::::";
-#endif
+      edgeListeners = new ArrayList();
 
       foreach(EdgeListener item in EdgeListeners) {
         int port = Int32.Parse(item.port);
-        System.Console.WriteLine(port + " " + tas[0]);
-        if (item.type =="tcp") {
-            brunetNode.AddEdgeListener(new TcpEdgeListener(port));
-        }
-        else if (item.type == "udp") {
-            brunetNode.AddEdgeListener(new UdpEdgeListener(port));
-        }
-        else if (item.type == "udp-as") {
-            brunetNode.AddEdgeListener(new ASUdpEdgeListener(port));
+        Brunet.EdgeListener el = null;
+        if(DevicesToBind == null) {
+          if (item.type =="tcp")
+            el = new TcpEdgeListener(port);
+          else if (item.type == "udp")
+            el = new UdpEdgeListener(port);
+          else if (item.type == "udp-as")
+            el = new ASUdpEdgeListener(port);
+	  else if (item.type == "tunnel")
+            el = new TunnelEdgeListener(brunetNode);
+          else
+            throw new Exception("Unrecognized transport: " + item.type);
         }
         else {
-          throw new Exception("Unrecognized transport: " + item.type);
+/*          if (item.type =="tcp")
+            el = new TcpEdgeListener(port, (IEnumerable) (new IPAddresses(DevicesToBind)), null);*/
+          if (item.type == "udp")
+            el = new UdpEdgeListener(port, OSDependent.GetIPAddresses(DevicesToBind));
+	  /*	  else if (item.type == "udp-as")
+		  el = new ASUdpEdgeListener(port, OSDependent.GetIPAddresses(DevicesToBind), null);*/
+	  else if (item.type == "tunnel")
+            el = new TunnelEdgeListener(brunetNode);
+          else
+            throw new Exception("Unrecognized transport: " + item.type);
         }
+        edgeListeners.Add(el);
+        brunetNode.AddEdgeListener(el);
       }
 
       //Here is where we connect to some well-known Brunet endpoints
       brunetNode.RemoteTAs = RemoteTAs;
-
-#if IPOP_LOG
-      _log.Debug("IGNORE");
-      _log.Debug(tmp_node.Address + "::::" + DateTime.UtcNow.Ticks
-        + "::::Connecting::::" + System.Net.Dns.GetHostName() + 
-        "::::" + listener_log);
-#endif
 
       //now try sending some messages out 
       //subscribe to the IP protocol packet
@@ -73,14 +79,14 @@ namespace Ipop {
       brunetNode.Subscribe(AHPacket.Protocol.IP, ip_handler);
 
       if (dht_media == null || dht_media.Equals("disk")) {
-        dht = new FDht(brunetNode, EntryFactory.Media.Disk, 5);
+        dht = new FDht(brunetNode, EntryFactory.Media.Disk, 3);
       } else if (dht_media.Equals("memory")) {
-        dht = new FDht(brunetNode, EntryFactory.Media.Memory, 5);
+        dht = new FDht(brunetNode, EntryFactory.Media.Memory, 3);
       }
 
       lock(sync) {
         brunetNode.Connect();
-        System.Console.WriteLine("Called Connect");
+        System.Console.WriteLine("Called Connect at time: {0}", DateTime.Now);
       }
     }
 
@@ -120,32 +126,46 @@ namespace Ipop {
     }
 
     public bool Update(string ip) {
-      String new_password;
-
       if(node.ip != null && !node.ip.Equals(ip) && node.password != null) {
-        BlockingQueue [] queues = dht.DeleteF(
-          Encoding.UTF8.GetBytes("dhcp:ipop_namespace:" + node.ipop_namespace +
-            ":ip:" + node.ip.ToString()),
-          node.password);
-        BlockingQueue.ParallelFetch(queues, 0);
+        DhtIP.ReleaseIP(dht, node.ipop_namespace, node.ip.ToString(), node.password);
         node.password = null;
         node.ip = null;
       }
-
-      string dht_key = "dhcp:ip:" + ip;
+      string password = node.password;
       byte [] brunet_id = IPOP_Common.StringToBytes(node.nodeAddress, ':');
 
-      if(DhtIP.GetIP(dht, dht_key, node.password, 6048000, brunet_id, out new_password)) {
-        node.password = new_password;
+      if(DhtIP.GetIP(dht, node.ipop_namespace, ip.ToString(), 6048000, brunet_id, ref password)) {
+        node.password = password;
         node.ip = IPAddress.Parse(ip);
         if(Refresher == null)
           Refresher = new Thread(new ThreadStart(RefreshThread));
+        node.brunet.UpdateTAAuthorizer();
         return true;
       }
 
       node.password = null;
       node.ip = null;
       return false;
+    }
+
+    public void UpdateTAAuthorizer() {
+/*      if(node.netmask == null)
+        return;
+      byte [] netmask = DHCPCommon.StringToBytes(node.netmask, '.');
+      int nm_value = (netmask[0] << 24) + (netmask[1] << 16) +
+        (netmask[2] << 8) + netmask[3];
+      int value = 0;
+      for(value = 0; value < 32; value++)
+        if((1 << value) == (nm_value & (1 << value)))
+          break;
+      value = 32 - value;
+      System.Console.WriteLine("Updating TAAuthorizer with " + node.ip.ToString() + "/" + value);
+      TAAuthorizer taAuth = new NetmaskTAAuthorizer(node.ip, value,
+        TAAuthorizer.Decision.Deny, TAAuthorizer.Decision.None);
+      foreach (Brunet.EdgeListener el in edgeListeners) {
+        System.Console.WriteLine("ERHERHEH" + el.ToString());
+        el.TAAuth = taAuth;
+      }*/
     }
   }
 }

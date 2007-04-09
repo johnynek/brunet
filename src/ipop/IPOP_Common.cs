@@ -55,12 +55,14 @@ namespace Ipop {
     }
 
     public static byte [] GenerateAddress() {
-      RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
-      byte [] temp = new byte[20];
-      rng.GetBytes(temp);
-      temp[19] &= 0xFE;
-      temp[0] = 0;
-      return temp;
+      AHAddress temp = GenerateAHAddress();
+      byte [] tempb = new byte[20];
+      temp.CopyTo(tempb);
+      return tempb;
+    }
+
+    public static AHAddress GenerateAHAddress() {
+      return new AHAddress(new RNGCryptoServiceProvider());
     }
 
     public static AHAddress GenerateAHAddress() {

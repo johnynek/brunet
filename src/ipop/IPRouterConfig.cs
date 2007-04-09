@@ -59,11 +59,15 @@ namespace Ipop {
         }
       }
       Write(configFile, config);
+      if(config.AddressData == null) {
+        config.AddressData = new AddressInfo();
+        config.AddressData.DhtDHCP = false;
+      }
       return config;
     }
 
 
-    public static void Write(string configFile, 
+    public static void Write(string configFile,
       IPRouterConfig config) {
       FileStream fs = new FileStream(configFile, FileMode.Create, 
         FileAccess.Write);

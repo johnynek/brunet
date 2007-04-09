@@ -25,7 +25,6 @@ int open_tap(char *dev)
 {
   struct ifreq ifr;
   int fd, err;
-                                                                                                                             
   if((fd = open("/dev/net/tun", O_RDWR)) < 0){
     perror("Failed to open /dev/net/tun");
     return(-1);
