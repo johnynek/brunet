@@ -746,14 +746,15 @@ public class NatTAs : IEnumerable {
       }
     }
     
-    _list_of_remote_ips = new ArrayList();  
+    ArrayList rips = new ArrayList();
     IDictionaryEnumerator de = ht.GetEnumerator();
     while(de.MoveNext()) {
       IPAddressRecord r = (IPAddressRecord)de.Value;
-      _list_of_remote_ips.Add(r);
+      rips.Add(r);
     }
     //Now we have a list of the most used to least used IPs
-    _list_of_remote_ips.Sort();
+    rips.Sort();
+    _list_of_remote_ips = rips;
   }
 
   protected void GenerateTAs() {

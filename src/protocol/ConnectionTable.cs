@@ -202,24 +202,25 @@ namespace Brunet
         /*
          * Copy so we don't mess up an old list
          */
-        ArrayList copy;
-        copy = (ArrayList)((ArrayList)type_to_addlist[t]).Clone();
-        copy.Insert(index, a);
-        type_to_addlist[t] = copy;
+        ArrayList list;
+        
+        list = (ArrayList)type_to_addlist[t];
+        list = Functional.Insert(list, index, a);
+        type_to_addlist[t] = list;
         if( t == ConnectionType.Structured ) {
           //Optimize the most common case to avoid the hashtable
-          _struct_addlist = copy;
+          _struct_addlist = list;
         }
         
-        copy = (ArrayList)((ArrayList)type_to_conlist[t]).Clone();
-        copy.Insert(index, c);
-        type_to_conlist[t] = copy;
-        
-        edge_to_con[e] = c;
+        list = (ArrayList)type_to_conlist[t];
+        list = Functional.Insert(list, index, c);
+        type_to_conlist[t] = list;
         if( t == ConnectionType.Structured ) {
           //Optimize the most common case to avoid the hashtable
-          _struct_conlist = copy;
+          _struct_conlist = list;
         }
+        
+        edge_to_con = Functional.Add(edge_to_con, e, c);
 
 
         //Now that we have registered the new CloseEvent handler,
@@ -227,9 +228,7 @@ namespace Brunet
         int ucidx = unconnected.IndexOf(e);
         if( ucidx >= 0 ) {
           //Remove the edge from the unconnected table
-          copy = (ArrayList)unconnected.Clone();
-          copy.RemoveAt(ucidx);
-          unconnected = copy;
+          unconnected = Functional.RemoveAt(unconnected, ucidx);
         }
         else {
           //This is a new connection, so we need to add the CloseEvent
@@ -751,9 +750,7 @@ namespace Brunet
           index = IndexOf(c.MainType, c.Address);
           Remove(c.MainType, index);
 	  if( add_unconnected ) {
-            ArrayList copy = (ArrayList)unconnected.Clone();
-            copy.Add(e);
-            unconnected = copy;
+            unconnected = Functional.Add(unconnected, e);
 	  }
         }
         else {
@@ -763,9 +760,7 @@ namespace Brunet
 	    //Don't keep this edge around at all:
             int idx = unconnected.IndexOf(e);
             if( idx >= 0 ) {
-              ArrayList copy = (ArrayList)unconnected.Clone();
-              copy.RemoveAt(idx);
-              unconnected = copy;
+              unconnected = Functional.RemoveAt(unconnected, idx);
             }
 	  }
         }
@@ -824,12 +819,11 @@ namespace Brunet
          * "writing" operations need to lock.  Since writing operations
          * are rare compared to reading, this makes a lot of sense.
          */
-        ArrayList this_list = (ArrayList)type_to_addlist[t];
-        ArrayList copy = new ArrayList(this_list.Count - 1);
-        //Put all but the index we don't want into the copy:
-        for(int i = 0; i < this_list.Count; i++) {
-          if( i != index ) { copy.Add( this_list[i] ); }
-        }
+        ArrayList this_list;
+        ArrayList copy;
+        
+        this_list = (ArrayList)type_to_addlist[t];
+        copy = Functional.RemoveAt(this_list, index);
         if( t == ConnectionType.Structured ) {
           //Optimize the most common case to avoid the hashtable
           _struct_addlist = copy;
@@ -838,18 +832,15 @@ namespace Brunet
         
         //Now change the conlist:
         this_list = (ArrayList)type_to_conlist[t];
-        copy = new ArrayList(this_list.Count - 1);
-        //Put all but the index we don't want into the copy:
-        for(int i = 0; i < this_list.Count; i++) {
-          if( i != index ) { copy.Add( this_list[i] ); }
-        }
+        copy = Functional.RemoveAt(this_list, index);
         if( t == ConnectionType.Structured ) {
           //Optimize the most common case to avoid the hashtable
           _struct_conlist = copy;
         }
         type_to_conlist[t] = copy;
+        
         //Remove the edge from the tables:
-        edge_to_con.Remove(e);
+        edge_to_con = Functional.Remove(edge_to_con,e);
       }
     }
 
@@ -984,7 +975,8 @@ namespace Brunet
       string con_type = con.ConType;
       LinkMessage plm = con.PeerLinkMessage;
 
-      Connection newcon = null;
+        //Make the new connection and replace it in our data structures:
+      Connection newcon = new Connection(e,a,con_type,sm,plm);
       lock(_sync) {
         index = IndexOf(t, a);
         if ( index < 0 )
@@ -993,11 +985,11 @@ namespace Brunet
           throw new Exception("Address: " + a.ToString()
                               + " not in ConnectionTable. Cannot UpdateStatus.");
         }
-        //Make the new connection and replace it in our data structures:
-        newcon = new Connection(e,a,con_type,sm,plm);
-        edge_to_con[e] = newcon;
+        
+        edge_to_con = Functional.SetElement(edge_to_con, e, newcon);
+        
         ArrayList l = (ArrayList)type_to_conlist[t];
-        l[ index ] = newcon;
+        type_to_conlist[t] = Functional.SetElement(l, index, newcon);
 
       } /* we release the lock */
      
@@ -1031,9 +1023,7 @@ namespace Brunet
       lock( _sync ) {
         int idx = unconnected.IndexOf(e);
         if( idx < 0 ) {
-          ArrayList copy = (ArrayList)unconnected.Clone();
-          copy.Add(e);
-          unconnected = copy;
+          unconnected = Functional.Add(unconnected, e);
         }
       }
       e.CloseEvent += new EventHandler(this.RemoveHandler);
