@@ -206,7 +206,7 @@ namespace Brunet
         
         list = (ArrayList)type_to_addlist[t];
         list = Functional.Insert(list, index, a);
-        type_to_addlist[t] = list;
+        type_to_addlist = Functional.SetElement(type_to_addlist, t, list);
         if( t == ConnectionType.Structured ) {
           //Optimize the most common case to avoid the hashtable
           _struct_addlist = list;
@@ -214,7 +214,7 @@ namespace Brunet
         
         list = (ArrayList)type_to_conlist[t];
         list = Functional.Insert(list, index, c);
-        type_to_conlist[t] = list;
+        type_to_conlist = Functional.SetElement(type_to_conlist, t, list);
         if( t == ConnectionType.Structured ) {
           //Optimize the most common case to avoid the hashtable
           _struct_conlist = list;
@@ -828,7 +828,7 @@ namespace Brunet
           //Optimize the most common case to avoid the hashtable
           _struct_addlist = copy;
         }
-        type_to_addlist[t] = copy;
+        type_to_addlist = Functional.SetElement(type_to_addlist, t, copy);
         
         //Now change the conlist:
         this_list = (ArrayList)type_to_conlist[t];
@@ -837,7 +837,7 @@ namespace Brunet
           //Optimize the most common case to avoid the hashtable
           _struct_conlist = copy;
         }
-        type_to_conlist[t] = copy;
+        type_to_conlist = Functional.SetElement(type_to_conlist, t, copy);
         
         //Remove the edge from the tables:
         edge_to_con = Functional.Remove(edge_to_con,e);
