@@ -882,20 +882,20 @@ namespace Brunet.Dht {
 	  } 
 	}
       }
-#if DHT_LOG
-      string status = "StatusBegin";
-      StatusMessage sm = new_con.Status;
-      ArrayList arr = sm.Neighbors;
-      foreach (NodeInfo n_info in arr) {
-	AHAddress stat_addr = n_info.Address as AHAddress;
-	status += ("::::" + stat_addr);
-      }
-      status += "::::StatusEnd";
-      _log.Debug(our_addr + "::::" + DateTime.UtcNow.Ticks + "::::StatusChanged::::" +
-		 new_con.ConType + "::::" + new_con.Address + "::::" +
-		 new_con.Edge.LocalTA.ToString() + "::::" + new_con.Edge.RemoteTA.ToString() + "::::" + status + "::::Connected::::" +
-		 _node.IsConnected);
-#endif
+// #if DHT_LOG
+//       string status = "StatusBegin";
+//       StatusMessage sm = new_con.Status;
+//       ArrayList arr = sm.Neighbors;
+//       foreach (NodeInfo n_info in arr) {
+// 	AHAddress stat_addr = n_info.Address as AHAddress;
+// 	status += ("::::" + stat_addr);
+//       }
+//       status += "::::StatusEnd";
+//       _log.Debug(our_addr + "::::" + DateTime.UtcNow.Ticks + "::::StatusChanged::::" +
+// 		 new_con.ConType + "::::" + new_con.Address + "::::" +
+// 		 new_con.Edge.LocalTA.ToString() + "::::" + new_con.Edge.RemoteTA.ToString() + "::::" + status + "::::Connected::::" +
+// 		 _node.IsConnected);
+// #endif
     }
     /** 
      * Useful for debugging , code save 30 minutes of my time atleast.
