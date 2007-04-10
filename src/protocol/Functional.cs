@@ -21,12 +21,19 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using System;
 using System.Collections;
 
+#if BRUNET_NUNIT
+using NUnit.Framework;
+#endif
+
 namespace Brunet {
 
 /**
  * A collection of static pure functions to do some functional
  * programming
  */
+#if BRUNET_NUNIT
+[TestFixture]
+#endif
 public class Functional {
 
   static public ArrayList Add(ArrayList l, object o) {
@@ -67,7 +74,35 @@ public class Functional {
     copy[k] = v;
     return ArrayList.ReadOnly(copy);
   }
-   
+  #if BRUNET_NUNIT
+  [Test]
+  public void Test() {
+    const int TEST_LENGTH = 1000;
+
+    ArrayList l = new ArrayList();
+    ArrayList mut = new ArrayList();
+    Random r = new Random();
+    for(int i = 0; i < TEST_LENGTH; i++ ) {
+      int j = r.Next();
+      l = Add(l, j);
+      mut.Add(j);
+    }
+    Assert.AreEqual(l.Count, mut.Count, "List count");
+    for(int i = 0; i < TEST_LENGTH; i++) {
+      Assert.AreEqual(l[i], mut[i], "element equality");
+    }
+    //Do a bunch of random sets:
+    for(int i = 0; i < TEST_LENGTH; i++) {
+      int j = r.Next(TEST_LENGTH);
+      int k = r.Next();
+      l = SetElement(l, j, k);
+      mut[j] = k;
+    }
+    for(int i = 0; i < TEST_LENGTH; i++) {
+      Assert.AreEqual(l[i], mut[i], "element equality after sets");
+    }
+  }
+  #endif
 }
 
 }
