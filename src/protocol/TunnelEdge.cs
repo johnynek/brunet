@@ -35,10 +35,10 @@ namespace Brunet
     protected Node _node;
     protected IEdgeSendHandler _send_cb;
 
-    protected ForwardingSender _forwarding_sender;
-    public ForwardingSender PacketSender {
+    protected IPacketSender _packet_sender;
+    public IPacketSender PacketSender {
       get {
-	return _forwarding_sender;
+	return _packet_sender;
       }
     }
 
@@ -118,7 +118,13 @@ namespace Brunet
 
       _node = n;
       //we assume that forwarder is just 1 hop away
-      _forwarding_sender = new ForwardingSender(n, forwarder, 1);
+      //look into the connection table to find out the corresponding edge
+      //_packet_sender = new ForwardingSender(n, forwarder, 1);
+
+      Connection cons = n.ConnectionTable.GetConnection(ConnectionType.Structured, forwarder);
+      if (cons != null) {
+	_packet_sender = cons.Edge;
+      }
       _target = target;
       
       _localta = new TunnelTransportAddress(_node.Address, forwarder);

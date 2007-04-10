@@ -346,12 +346,16 @@ namespace Brunet
 
       bool match = false;
       foreach (TransportAddress test_ta1 in locals) {
-	Console.WriteLine("test_ta: {0}", test_ta1);
+	//Console.WriteLine("test_ta: {0}", test_ta1);
 	if (test_ta1.Equals(local_ta)) {
 	  match = true;
 	}
       }
       Assert.AreEqual(match, true, "testing local TA matches");
+      //testing function TA
+      TransportAddress func_ta = TransportAddressFactory.CreateInstance("brunet.function://localhost:3000");
+      Assert.AreEqual(func_ta.ToString(), "brunet.function://localhost:3000/", "Testing function TA parsing");
+      
     }
   }
 #endif
