@@ -31,7 +31,7 @@ namespace Brunet {
     public void HandleAHPacket(object node, AHPacket p, Edge from)
     {
 #if ARI_CHOTA_DEBUG
-      Console.WriteLine("ChotaConnectionIPPacketHandler: Got an IP packet. ");
+      Console.Error.WriteLine("ChotaConnectionIPPacketHandler: Got an IP packet. ");
 #endif
       //raise an event into the subscriber
       if (ReceivePacketEvent != null) {

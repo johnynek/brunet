@@ -217,7 +217,7 @@ namespace Brunet
     public static float ReadFloat(byte[] bin, int offset)
     {
       if (BitConverter.IsLittleEndian) {
-        //Console.WriteLine("This machine uses Little Endian processor!");
+        //Console.Error.WriteLine("This machine uses Little Endian processor!");
         SwapEndianism(bin, offset, 4);
         float result = BitConverter.ToSingle(bin, offset);
         //Swap it back:

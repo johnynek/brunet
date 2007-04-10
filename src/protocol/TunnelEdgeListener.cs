@@ -51,7 +51,7 @@ namespace Brunet
 	    if (cons.Edge.TAType != TransportAddress.TAType.Tunnel) {
 	      TunnelTransportAddress tun_ta = new TunnelTransportAddress(_node.Address, cons.Address);
 	      tas.Add(tun_ta);
-	      Console.WriteLine("TunnedEdgeListener: added tunnel TA: {0}", tun_ta);
+	      Console.Error.WriteLine("TunnedEdgeListener: added tunnel TA: {0}", tun_ta);
 	      //atmost 3 TAs are added
 	      if (tas.Count >= 3) {
 		break;
@@ -126,7 +126,7 @@ namespace Brunet
       }
       else {
 #if TUNNEL_DEBUG
-	Console.WriteLine("Creating TunnelEdge to: {0}", ta);
+	Console.Error.WriteLine("Creating TunnelEdge to: {0}", ta);
 #endif            
 	//when we want to create an edge,we fabricate a create packet ourselves
 	//which we send through the node
@@ -159,8 +159,8 @@ namespace Brunet
 	  TunnelEdge e = new TunnelEdge(this, false, _node, tun_ta.Target,
 				      tun_ta.Forwarder, localid, remoteid, new byte[ 1 + 8 + Packet.MaxLength ]);
 #if TUNNEL_DEBUG
-	  Console.WriteLine("Creating an instance of TunnelEdge: {0}", e);
-	  Console.WriteLine("remoteid: {0}, localid: {1}", remoteid, localid);
+	  Console.Error.WriteLine("Creating an instance of TunnelEdge: {0}", e);
+	  Console.Error.WriteLine("remoteid: {0}, localid: {1}", remoteid, localid);
 #endif      
 	  _id_ht[localid] = e;
 	  //we will defer the new edge event for later
@@ -187,7 +187,7 @@ namespace Brunet
 	  _ecs_ht[localid] = ecs;
 
 #if TUNNEL_DEBUG
-	  Console.WriteLine("Created an edge creation state for the tunnel edge: {0}", e);
+	  Console.Error.WriteLine("Created an edge creation state for the tunnel edge: {0}", e);
 #endif
 	}
       }
@@ -215,7 +215,7 @@ namespace Brunet
 
 
 #if TUNNEL_DEBUG
-      Console.WriteLine("TimeoutChecker: Checking edge creation states at: {0}.", DateTime.Now);
+      Console.Error.WriteLine("TimeoutChecker: Checking edge creation states at: {0}.", DateTime.Now);
 #endif
       ArrayList to_remove = new ArrayList();
       ArrayList to_send = new ArrayList();
@@ -226,26 +226,26 @@ namespace Brunet
 	  int id = (int) ide.Key;
 	  EdgeCreationState ecs = (EdgeCreationState) ide.Value;
 	  if (ecs == null) {
-	    Console.WriteLine("This is wierd. How can ECS be null?");
+	    Console.Error.WriteLine("This is wierd. How can ECS be null?");
 	  }
 	  TunnelEdge e = (TunnelEdge) _id_ht[id];
 	  
 	  if (e == null) 
 	  {
 #if TUNNEL_DEBUG
-	    Console.WriteLine("TimeoutChecker: removing ECS (localid: {0}) for null edge. ", ecs.Id);
+	    Console.Error.WriteLine("TimeoutChecker: removing ECS (localid: {0}) for null edge. ", ecs.Id);
 #endif
 	    to_remove.Add(ecs);
 	  }
 	  else if (e.RemoteID > 0) {
 #if TUNNEL_DEBUG
-	    Console.WriteLine("TimeoutChecker: removing ECS (complete edge localid: {0}) for: {1}", ecs.Id, e);
+	    Console.Error.WriteLine("TimeoutChecker: removing ECS (complete edge localid: {0}) for: {1}", ecs.Id, e);
 #endif
 	    to_remove.Add(ecs);
 	  }
 	  else if (ecs.Attempts <= 0) {
 #if TUNNEL_DEBUG
-	    Console.WriteLine("TimeoutChecker: removing ECS (timed out local id: {0}) for: {1}", ecs.Id, e);
+	    Console.Error.WriteLine("TimeoutChecker: removing ECS (timed out local id: {0}) for: {1}", ecs.Id, e);
 #endif
 	    to_remove.Add(ecs);
 	  }
@@ -267,7 +267,7 @@ namespace Brunet
       foreach (EdgeCreationState ecs in to_send) {
 	ecs.Attempts--;
 #if TUNNEL_DEBUG
-	Console.WriteLine("Sending edge (localid: {0}) request: {1}", ecs.Id, ecs.RequestPacket);
+	Console.Error.WriteLine("Sending edge (localid: {0}) request: {1}", ecs.Id, ecs.RequestPacket);
 #endif
 	ecs.Sender.Send(ecs.RequestPacket);
       }
@@ -286,7 +286,7 @@ namespace Brunet
           throw new Exception("Restart never allowed");
         }
 #if TUNNEL_DEBUG
-	Console.WriteLine("Starting TunnelEdgeListener");
+	Console.Error.WriteLine("Starting TunnelEdgeListener");
 #endif
         _isstarted = true;
         _running = true;
@@ -308,7 +308,7 @@ namespace Brunet
     public TunnelEdgeListener(Node n) {
       _sync = new object();
 #if TUNNEL_DEBUG
-      Console.WriteLine("Creating an instance of TunnelEdgeListsner");
+      Console.Error.WriteLine("Creating an instance of TunnelEdgeListsner");
 #endif
       lock(_sync) {
 	_node = n;
@@ -349,7 +349,7 @@ namespace Brunet
       int localid = NumberSerializer.ReadInt(mb, 5);
 
 #if TUNNEL_DEBUG
-      Console.WriteLine("Receiving edge packet, remoteid: {0}, localid: {1}", remoteid, localid);
+      Console.Error.WriteLine("Receiving edge packet, remoteid: {0}, localid: {1}", remoteid, localid);
 #endif
 
       
@@ -359,7 +359,7 @@ namespace Brunet
      //in case this is an incomig edge request
       if (type == MessageType.EdgeRequest) {
 #if TUNNEL_DEBUG
-	Console.WriteLine("Receiving edge request: {0}", packet);
+	Console.Error.WriteLine("Receiving edge request: {0}", packet);
 #endif
 	//assert (localid == 0)
 	//probably a new incoming edge
@@ -375,7 +375,7 @@ namespace Brunet
 	    //the fellow sent a duplicate edge request
 	    is_new_edge = false;
 #if TUNNEL_DEBUG
-	    Console.WriteLine("Duplicate edge request: from {0}", remote_ta);
+	    Console.Error.WriteLine("Duplicate edge request: from {0}", remote_ta);
 #endif
 	    //but do send a response back
 	    //we also have to send a response back now
@@ -399,14 +399,14 @@ namespace Brunet
 	  TunnelEdge e = new TunnelEdge(this, true, _node, target, packet.Source, localid, 
 					remoteid, new byte[ 1 + 8 + Packet.MaxLength ]);
 #if TUNNEL_DEBUG
-	  Console.WriteLine("Creating an instance of TunnelEdge: {0}", e);
-	  Console.WriteLine("remoteid: {0}, localid: {1}", remoteid, localid);
+	  Console.Error.WriteLine("Creating an instance of TunnelEdge: {0}", e);
+	  Console.Error.WriteLine("remoteid: {0}, localid: {1}", remoteid, localid);
 #endif      
 
 	  _id_ht[localid] = e;
 	  _remote_id_ht[remoteid] = e;
 	  e.CloseEvent += new EventHandler(this.CloseHandler);
-	  Console.WriteLine("announcing tunnel edge (incoming)");
+	  Console.Error.WriteLine("announcing tunnel edge (incoming)");
 	  SendEdgeEvent(e);
 	}
 	//we also have to send a response back now
@@ -422,7 +422,7 @@ namespace Brunet
 				AHPacket.Protocol.Tunneling, payload);
 	ForwardingSender fs = new ForwardingSender(_node, packet.Source, 1);
 #if TUNNEL_DEBUG
-	Console.WriteLine("Sending edge response: {0}", p);
+	Console.Error.WriteLine("Sending edge response: {0}", p);
 #endif      
 	
 	fs.Send(p);
@@ -430,7 +430,7 @@ namespace Brunet
       else if (type == MessageType.EdgeResponse) { //EdgeResponse
 	//assert (localid > 0) 
 #if TUNNEL_DEBUG
-	Console.WriteLine("Receiving edge response: {0}", packet);
+	Console.Error.WriteLine("Receiving edge response: {0}", packet);
 #endif
 	//unlikely to be a new edge
 	is_new_edge = false;
@@ -443,20 +443,20 @@ namespace Brunet
 	} 
 	else if (e.RemoteID == 0) {
 #if TUNNEL_DEBUG
-	  Console.WriteLine("Must verify the remoteTA for the response: {0}", packet);
+	  Console.Error.WriteLine("Must verify the remoteTA for the response: {0}", packet);
 #endif
 	  //possible response to our create edge request, make sure this 
 	  //is the case by verifying the remote TA
 	  target = new AHAddress(mb.Slice(9));
 	  TunnelTransportAddress remote_ta = new TunnelTransportAddress(target, packet.Source);
 #if TUNNEL_DEBUG
-	  Console.WriteLine("response.RemoteTA: {0}", remote_ta);
-	  Console.WriteLine("edge.RemotTA: {0}", e.RemoteTA);
+	  Console.Error.WriteLine("response.RemoteTA: {0}", remote_ta);
+	  Console.Error.WriteLine("edge.RemotTA: {0}", e.RemoteTA);
 #endif
 	  if (e.RemoteTA.Equals(remote_ta)) {
 	    e.RemoteID = remoteid;
 #if TUNNEL_DEBUG
-	    Console.WriteLine("Edge protocol complete: {0}", e);
+	    Console.Error.WriteLine("Edge protocol complete: {0}", e);
 #endif
 	    //raise an edge creation event 
 	    //this was an outgoing edge
@@ -472,7 +472,7 @@ namespace Brunet
 	if (is_new_edge) {
 	  //this would be an outgoing edge
 #if TUNNEL_DEBUG
-	  Console.WriteLine("remoteid: {0}, localid: {1}", remoteid, localid);
+	  Console.Error.WriteLine("remoteid: {0}, localid: {1}", remoteid, localid);
 #endif      
 	  e.CloseEvent += new EventHandler(this.CloseHandler);
 
@@ -480,20 +480,20 @@ namespace Brunet
 	  _ecs_ht.Remove(localid);
 
 	  //ecs.ECB(false, null, new Exception("something which i just made up"));
-	  Console.WriteLine("announcing tunnel edge (outgoing)");
+	  Console.Error.WriteLine("announcing tunnel edge (outgoing)");
 	  ecs.ECB(true, e, null);
 
 	}
       } else {//type == MessageType.EdgeData
 #if TUNNEL_DEBUG
-	Console.WriteLine("Receiving edge data");
+	Console.Error.WriteLine("Receiving edge data");
 #endif
 	TunnelEdge edge_to_read = (TunnelEdge) _id_ht[localid];
 	if (edge_to_read != null) {
 	  if (edge_to_read.RemoteID == remoteid) {
 	    try {
 #if TUNNEL_DEBUG
-	      Console.WriteLine("Receiving data on edge: {0}", edge_to_read);
+	      Console.Error.WriteLine("Receiving data on edge: {0}", edge_to_read);
 #endif
 	      Packet p = PacketParser.Parse(mb.Slice(9));
 	      edge_to_read.Push(p);
@@ -503,12 +503,12 @@ namespace Brunet
 	    }
 	  } else {
 #if TUNNEL_DEBUG
-	    Console.WriteLine("No correspondig edge to push packet into (Id mismatch).");
+	    Console.Error.WriteLine("No correspondig edge to push packet into (Id mismatch).");
 #endif
 	  }
 	} else {
 #if TUNNEL_DEBUG
-	  Console.WriteLine("No correspondig edge to push packet into (null edge).");
+	  Console.Error.WriteLine("No correspondig edge to push packet into (null edge).");
 #endif
 	}
       }
@@ -528,7 +528,7 @@ namespace Brunet
 	NumberSerializer.WriteInt(tun_edge.ID, tun_edge.SendBuffer, 1);
 	NumberSerializer.WriteInt(tun_edge.RemoteID, tun_edge.SendBuffer, 5);
 #if TUNNEL_DEBUG
-	Console.WriteLine("For data, tun_edge remoteID: {0}, localID: {1}", tun_edge.RemoteID, tun_edge.ID);
+	Console.Error.WriteLine("For data, tun_edge remoteID: {0}, localID: {1}", tun_edge.RemoteID, tun_edge.ID);
 #endif
 	packet.CopyTo(tun_edge.SendBuffer, 9);
 	Packet p = new AHPacket(0, 1, _node.Address, tun_edge.Target, AHPacket.AHOptions.Exact,
@@ -549,7 +549,7 @@ namespace Brunet
      */
     public void CloseHandler(object edge, EventArgs args)
     {
-      Console.WriteLine("closing tunnel edge");
+      Console.Error.WriteLine("closing tunnel edge");
       TunnelEdge e = (TunnelEdge)edge;
       lock( _sync ) {
         _id_ht.Remove( e.ID );

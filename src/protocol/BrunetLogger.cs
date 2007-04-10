@@ -120,7 +120,7 @@ namespace Brunet{
 
       fs = fs_writer;
       //fs.AutoFlush = true;
-      //Console.WriteLine("***********Instantiating StreamWriter");
+      //Console.Error.WriteLine("***********Instantiating StreamWriter");
 
       if(_net_stream){ 
         ipep = new IPEndPoint(IPAddress.Parse(server_ipadd), server_port);
@@ -129,8 +129,8 @@ namespace Brunet{
           sock.Connect(ipep);
         }
         catch(SocketException e){
-          Console.WriteLine("Unable to connect to server.");
-          Console.WriteLine(e.ToString());
+          Console.Error.WriteLine("Unable to connect to server.");
+          Console.Error.WriteLine(e.ToString());
           Environment.Exit(0);
         }
         /*Uri uri = new Uri(tcp_server);
@@ -183,8 +183,8 @@ namespace Brunet{
             _sw.Flush();
           }
           catch(SocketException e){
-            Console.WriteLine("Unable to connect to server.");
-            Console.WriteLine(e.ToString());
+            Console.Error.WriteLine("Unable to connect to server.");
+            Console.Error.WriteLine(e.ToString());
             this.GracefullyCloseStream();
           }
         }

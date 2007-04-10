@@ -146,7 +146,7 @@ namespace Brunet {
 	  } catch (Exception) {
 	  }
 	  if (rc == null || lc == null) {
-	    Console.WriteLine("{0}: No left or right neighbor (false)", our_addr);
+	    Console.Error.WriteLine("{0}: No left or right neighbor (false)", our_addr);
 	    return false;
 	  }
 	  if (rc == lc) {
@@ -172,7 +172,7 @@ namespace Brunet {
 	    AHAddress stat_addr = n_info.Address as AHAddress;
 	    if (stat_addr.IsBetweenFromLeft(our_addr, left_addr)) {
 	      //we are expecting a better candidate for left neighbor!
-	      Console.WriteLine("{0}: Better left: {1} (false)", our_addr, stat_addr);
+	      Console.Error.WriteLine("{0}: Better left: {1} (false)", our_addr, stat_addr);
 	      return false;
 	    }
 	  }
@@ -182,11 +182,11 @@ namespace Brunet {
 	    AHAddress stat_addr = n_info.Address as AHAddress;
 	    if (stat_addr.IsBetweenFromRight(our_addr, right_addr)) {
 	      //we are expecting a better candidate for left neighbor!
-	      Console.WriteLine("{0}: Better right: {1} (false)", our_addr, stat_addr);
+	      Console.Error.WriteLine("{0}: Better right: {1} (false)", our_addr, stat_addr);
 	      return false;
 	    }
 	  }
-	  Console.WriteLine("{0}:  Returning (true)", our_addr);	  
+	  Console.Error.WriteLine("{0}:  Returning (true)", our_addr);	  
 	  return true;
 	}
       }
@@ -238,7 +238,7 @@ namespace Brunet {
 //#if POB_DEBUG
 #if false
 	  AHAddress local = (AHAddress)_node.Address;
-              Console.WriteLine("{0} -> {1}, lidx: {2}, is_left: {3}" ,
+              Console.Error.WriteLine("{0} -> {1}, lidx: {2}, is_left: {3}" ,
 			    _node.Address, adr, LeftPosition(adr), adr.IsLeftOf( local ) );
 #endif
 	      if( 
@@ -251,7 +251,7 @@ namespace Brunet {
 	  }
 //#if POB_DEBUG
 #if false
-          Console.WriteLine("{0} left: {1}" , _node.Address, left);
+          Console.Error.WriteLine("{0} left: {1}" , _node.Address, left);
 #endif
 	  if( left < _desired_neighbors ) {
             _need_left = 1;
@@ -283,7 +283,7 @@ namespace Brunet {
 //#if POB_DEBUG
 #if false
 	  AHAddress local = (AHAddress)_node.Address;
-              Console.WriteLine("{0} -> {1}, ridx: {2}, is_right: {3}",
+              Console.Error.WriteLine("{0} -> {1}, ridx: {2}, is_right: {3}",
 			    _node.Address, adr, RightPosition(adr), adr.IsRightOf( local) );
 #endif
 	      if(
@@ -359,7 +359,7 @@ namespace Brunet {
     public override void Activate()
     {
 #if POB_DEBUG
-      //Console.WriteLine("In Activate: {0}", _node.Address);
+      //Console.Error.WriteLine("In Activate: {0}", _node.Address);
 #endif
       if( IsActive == false ) {
         return;
@@ -440,7 +440,7 @@ namespace Brunet {
 	  bool trying_near = false;
           if( NeedLeftNeighbor ) {
 #if POB_DEBUG
-      //Console.WriteLine("NeedLeftNeighbor: {0}", _node.Address);
+      //Console.Error.WriteLine("NeedLeftNeighbor: {0}", _node.Address);
 #endif
             target = new DirectionalAddress(DirectionalAddress.Direction.Left);
 	    ttl = (short)_desired_neighbors;
@@ -450,7 +450,7 @@ namespace Brunet {
           }
 	  if( NeedRightNeighbor ) {
 #if POB_DEBUG
-      //Console.WriteLine("NeedRightNeighbor: {0}", _node.Address);
+      //Console.Error.WriteLine("NeedRightNeighbor: {0}", _node.Address);
 #endif
             target = new DirectionalAddress(DirectionalAddress.Direction.Right);
 	    ttl = (short)_desired_neighbors;
@@ -466,12 +466,12 @@ namespace Brunet {
 	   */
 	  if( !trying_near && NeedShortcut ) {
 #if POB_DEBUG
-      //Console.WriteLine("NeedShortcut: {0}", _node.Address);
+      //Console.Error.WriteLine("NeedShortcut: {0}", _node.Address);
 #endif
             target = GetShortcutTarget(); 
 	    ttl = 1024;
 	    contype = struc_short;
-            //Console.WriteLine("Making Connector for shortcut to: {0}", target);
+            //Console.Error.WriteLine("Making Connector for shortcut to: {0}", target);
             ConnectTo(target, ttl, contype);
           }
       }
@@ -485,7 +485,7 @@ namespace Brunet {
     protected void CheckState(object node, EventArgs eargs)
     {
 #if POB_DEBUG
-      //Console.WriteLine("In Check for State");
+      //Console.Error.WriteLine("In Check for State");
 #endif
       lock( _sync ) {
         if( IsActive == false ) {
@@ -497,7 +497,7 @@ namespace Brunet {
 	if( elapsed.TotalSeconds >= _trim_delay ) {
           ConnectionTable tab = _node.ConnectionTable;
 #if POB_DEBUG
-    //Console.WriteLine("Go for State check");
+    //Console.Error.WriteLine("Go for State check");
 #endif
 
 #if PERIODIC_NEIGHBOR_CHK
@@ -598,16 +598,16 @@ namespace Brunet {
           tmp_distance = t_ah_add.DistanceTo( (AHAddress)_node.Address).abs();
           if (tmp_distance > biggest_distance) {
             biggest_distance = tmp_distance;
-            //Console.WriteLine("...finding far distance for trim: {0}",biggest_distance.ToString() );
+            //Console.Error.WriteLine("...finding far distance for trim: {0}",biggest_distance.ToString() );
             to_trim = tc;
           }
         }
-        //Console.WriteLine("Final distance for trim{0}: ",biggest_distance.ToString() );
+        //Console.Error.WriteLine("Final distance for trim{0}: ",biggest_distance.ToString() );
 	      //Delete a random trim candidate:
 	      //int idx = _rand.Next( near_trim_candidates.Count );
 	      //Connection to_trim = (Connection)near_trim_candidates[idx];
 #if POB_DEBUG
-        //Console.WriteLine("Attempt to trim Near: {0}", to_trim);
+        //Console.Error.WriteLine("Attempt to trim Near: {0}", to_trim);
 #endif
 	      _node.GracefullyClose( to_trim.Edge );
 	    }
@@ -620,7 +620,7 @@ namespace Brunet {
 	      int idx = _rand.Next( sc_trim_candidates.Count );
 	      Connection to_trim = (Connection)sc_trim_candidates[idx];
 #if POB_DEBUG
-              //Console.WriteLine("Attempt to trim Shortcut: {0}", to_trim);
+              //Console.Error.WriteLine("Attempt to trim Shortcut: {0}", to_trim);
 #endif
 	      _node.GracefullyClose( to_trim.Edge );
 	    }
@@ -1012,13 +1012,13 @@ namespace Brunet {
       AHPacket ctm_pack =
         new AHPacket(t_hops, t_ttl, _node.Address, target, options,
                      AHPacket.Protocol.Connection, ctm.ToByteArray());
-      Console.WriteLine("Size of CTM packet: {0}", ctm_pack.Length);
+      Console.Error.WriteLine("Size of CTM packet: {0}", ctm_pack.Length);
 
       #if DEBUG
-      System.Console.WriteLine("In ConnectToOnEdge:");
-      System.Console.WriteLine("Local:{0}", _node.Address);
-      System.Console.WriteLine("Target:{0}", target);
-      System.Console.WriteLine("Message ID:{0}", ctm.Id);
+      System.Console.Error.WriteLine("In ConnectToOnEdge:");
+      System.Console.Error.WriteLine("Local:{0}", _node.Address);
+      System.Console.Error.WriteLine("Target:{0}", target);
+      System.Console.Error.WriteLine("Message ID:{0}", ctm.Id);
       #endif
 
       Connector con = new Connector(_node, edge, ctm_pack, ctm, this);
@@ -1105,7 +1105,7 @@ namespace Brunet {
      */
     protected void StatusChangedHandler(object connectiontable,EventArgs args)
     {
-      //Console.WriteLine("Status Changed:\n{0}\n{1}\n{2}\n{3}",c, c.Status, nltarget, nrtarget);
+      //Console.Error.WriteLine("Status Changed:\n{0}\n{1}\n{2}\n{3}",c, c.Status, nltarget, nrtarget);
       Connection c = ((ConnectionEventArgs)args).Connection; 
       ConnectToNearer(c.Address, c.Status.Neighbors);
     }

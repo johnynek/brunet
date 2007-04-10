@@ -90,10 +90,10 @@ namespace Brunet {
     override public bool Equals(Object other ) {
       NodeRankInformation other1 = (NodeRankInformation) other;
       if (_addr.Equals(other1.Addr)) {
-	//Console.WriteLine("equal ranks");
+	//Console.Error.WriteLine("equal ranks");
 	return true;
       }
-      //Console.WriteLine("ranks not equal");
+      //Console.Error.WriteLine("ranks not equal");
       return false;
     }
     override public int GetHashCode() {
@@ -184,7 +184,7 @@ namespace Brunet {
 	_node.Subscribe(AHPacket.Protocol.IP, this);
       }
 #if ARI_EXP_DEBUG
-      Console.WriteLine("ChotaConnectionOverlord starting : {0}", DateTime.UtcNow);
+      Console.Error.WriteLine("ChotaConnectionOverlord starting : {0}", DateTime.UtcNow);
 #endif
       
     }
@@ -196,7 +196,7 @@ namespace Brunet {
     override public void Activate() {
       if (!IsActive) {
 #if ARI_CHOTA_DEBUG || ARI_EXP_DEBUG
-	Console.WriteLine("ChotaConnectionOverlord is inactive");
+	Console.Error.WriteLine("ChotaConnectionOverlord is inactive");
 #endif
 	return;
       }
@@ -212,14 +212,14 @@ namespace Brunet {
 	  //we assume that we are well-connected before ChotaConnections are needed. 
 	  if( structured_count < 2 ) {
 #if ARI_CHOTA_DEBUG
-	    Console.WriteLine("Not sufficient structured connections to bootstrap Chotas.");
+	    Console.Error.WriteLine("Not sufficient structured connections to bootstrap Chotas.");
 #endif
 	    //if we do not have sufficient structured connections
 	    //we do not;
 	    return;
 	  }
 #if ARI_CHOTA_DEBUG
-	  Console.WriteLine("Finding a connection to trim... ");
+	  Console.Error.WriteLine("Finding a connection to trim... ");
 #endif
 	  //find out the lowest score guy to trim
           SortTable();
@@ -239,7 +239,7 @@ namespace Brunet {
 	    }
 	  }
 #if ARI_CHOTA_DEBUG
-	  Console.WriteLine("Finding connections to open... ");
+	  Console.Error.WriteLine("Finding connections to open... ");
 #endif
 	  //find out the highest score  guy who need connections
 	  for (int i = 0; i < node_rank_list.Count && i < max_chota; i++) 
@@ -248,18 +248,18 @@ namespace Brunet {
 	    bool add = true;
 	    NodeRankInformation node_rank = (NodeRankInformation) node_rank_list[i];
 #if ARI_CHOTA_DEBUG
-	    Console.WriteLine("Testing: {0}", node_rank);
+	    Console.Error.WriteLine("Testing: {0}", node_rank);
 #endif
 	    if (node_rank.Count < MIN_SCORE_THRESHOLD ) {
 #if ARI_CHOTA_DEBUG
-	      Console.WriteLine("To poor score for a connection....");
+	      Console.Error.WriteLine("To poor score for a connection....");
 #endif
 	      //too low score to create a connection
 	      continue;
 	    }
 	    //TimeSpan elapsed = DateTime.UtcNow - node_rank.LastRetryInstant;
 	    //if (elapsed.TotalSeconds < _retry_delay) {
-	    //Console.WriteLine("To early for retry, Now = {0} and {1} < {2}", 
+	    //Console.Error.WriteLine("To early for retry, Now = {0} and {1} < {2}", 
 	    //			DateTime.UtcNow, elapsed.TotalSeconds, _retry_delay);
 	      //wait for some time before sending a connection request again
 	      //continue;
@@ -272,7 +272,7 @@ namespace Brunet {
 	      state = (ChotaConnectionState) _chota_connection_state[node_rank.Addr];
 	    } else {
 #if ARI_CHOTA_DEBUG
-	      Console.WriteLine("Creating a new chota connection state."); 
+	      Console.Error.WriteLine("Creating a new chota connection state."); 
 #endif	      
 	      state = new ChotaConnectionState(node_rank.Addr);
 	      _chota_connection_state[node_rank.Addr] = state;
@@ -280,19 +280,19 @@ namespace Brunet {
 	    if (!state.CanConnect)
 	    {
 #if ARI_CHOTA_DEBUG
-	      Console.WriteLine("No point connecting. Active connector or no recorded bidirectionality."); 
+	      Console.Error.WriteLine("No point connecting. Active connector or no recorded bidirectionality."); 
 #endif
 	      continue;
 	    }
 
 #if ARI_CHOTA_DEBUG
-	    Console.WriteLine("{0} looks good chota connection.", node_rank);
+	    Console.Error.WriteLine("{0} looks good chota connection.", node_rank);
 #endif
 	    //make sure that this guy doesn't have any Structured or Leaf Connection already
 	    foreach(Connection c in tab.GetConnections(ConnectionType.Structured)) {
 	      if (node_rank.Addr.Equals(c.Address)) {
 #if ARI_CHOTA_DEBUG
-		Console.WriteLine("{0} already has a structured connection - {1}. ", node_rank, c.ConType);
+		Console.Error.WriteLine("{0} already has a structured connection - {1}. ", node_rank, c.ConType);
 #endif
 		add = false;
 		break;
@@ -301,7 +301,7 @@ namespace Brunet {
 	    foreach(Connection c in tab.GetConnections(ConnectionType.Leaf)) {
 	      if (node_rank.Addr.Equals(c.Address)) {
 #if ARI_CHOTA_DEBUG
-		Console.WriteLine("{0} already has a leaf connection. ", node_rank);
+		Console.Error.WriteLine("{0} already has a leaf connection. ", node_rank);
 #endif
 		add = false;
 		break;
@@ -318,25 +318,25 @@ namespace Brunet {
 	if (to_add != null) {
 	  //the first connection would have the highest score
 #if ARI_CHOTA_DEBUG
-	  Console.WriteLine("Trying to form a chota connection to addr: {0}", to_add.Addr);
+	  Console.Error.WriteLine("Trying to form a chota connection to addr: {0}", to_add.Addr);
 #endif
 	  to_add.LastRetryInstant = DateTime.UtcNow;
 	  ConnectTo(to_add.Addr, 1024, struc_chota);
 	} else {
 #if ARI_CHOTA_DEBUG
-	  Console.WriteLine("No new connection to add... ");
+	  Console.Error.WriteLine("No new connection to add... ");
 #endif
 	}
 	//now pick some guy who can be trimmed off 
 	if (to_trim != null) {
 	  //lets pick the guy who possibly has the lowest score
 #if ARI_CHOTA_DEBUG
-	  Console.WriteLine("Trimming chota connection with addr: {0}", to_trim.Address);
+	  Console.Error.WriteLine("Trimming chota connection with addr: {0}", to_trim.Address);
 #endif
 	  _node.GracefullyClose(to_trim.Edge);
 	} else {
 #if ARI_CHOTA_DEBUG
-	  Console.WriteLine("No connection to trim... ");
+	  Console.Error.WriteLine("No connection to trim... ");
 #endif
 	}
       }
@@ -414,8 +414,8 @@ namespace Brunet {
       }
       */
 #if ARI_CHOTA_DEBUG
-      Console.WriteLine("Receiving an IP-packet send event...");
-      Console.WriteLine("IP packet: update table");
+      Console.Error.WriteLine("Receiving an IP-packet send event...");
+      Console.Error.WriteLine("IP packet: update table");
 #endif
       /*
        * We don't need to keep a perfectly accurate count.
@@ -468,7 +468,7 @@ namespace Brunet {
      */ 
     public void CheckState(object node, EventArgs eargs) {
 #if ARI_CHOTA_DEBUG
-      Console.WriteLine("Receiving a heart beat event...");
+      Console.Error.WriteLine("Receiving a heart beat event...");
       debug_counter++;
 #endif
       //in this case we decrement the rank
@@ -477,14 +477,14 @@ namespace Brunet {
         SortTable();
         foreach(NodeRankInformation node_rank in node_rank_list) {
 #if ARI_CHOTA_DEBUG
-	  Console.WriteLine("Pre-decrement -> Heartbeat: {0}", node_rank);
+	  Console.Error.WriteLine("Pre-decrement -> Heartbeat: {0}", node_rank);
 #endif
 	  int count = node_rank.Count;
 	  if (count > 0) {
 	    node_rank.Count = count - 1;
 	  }
 #if ARI_CHOTA_DEBUG
-	  Console.WriteLine("Post-decrement -> Heartbeat: {0}", node_rank);
+	  Console.Error.WriteLine("Post-decrement -> Heartbeat: {0}", node_rank);
 #endif
 	  //should also forget connectivity issues once we fall below MIN_SCORE_THRESHOLD
 	  if (node_rank.Count < MIN_SCORE_THRESHOLD) {
@@ -493,7 +493,7 @@ namespace Brunet {
 		(ChotaConnectionState) _chota_connection_state[node_rank.Addr];
 	      state.Received = false;
 #if ARI_CHOTA_DEBUG
-	      Console.WriteLine("ChotaConnectionState -  Reverting to unidirectional: {0}", node_rank.Addr);
+	      Console.Error.WriteLine("ChotaConnectionState -  Reverting to unidirectional: {0}", node_rank.Addr);
 #endif
 	    }
 	  }
@@ -509,10 +509,10 @@ namespace Brunet {
 	    ChotaConnectionState state = (ChotaConnectionState) ide.Value;
 	    Address addr_key = (Address) ide.Key;
 	    if (state.Connector != null) {
-	      Console.WriteLine("ChotaConnectionState: {0} => Active Connector; Connectivity: {1}"
+	      Console.Error.WriteLine("ChotaConnectionState: {0} => Active Connector; Connectivity: {1}"
 				, addr_key, state.Received);
 	    } else {
-	      Console.WriteLine("ChotaConnectionState: {0} => No connector; Connectivity: {1}"
+	      Console.Error.WriteLine("ChotaConnectionState: {0} => No connector; Connectivity: {1}"
 				, addr_key, state.Received);
 	    }
 	  }
@@ -522,7 +522,7 @@ namespace Brunet {
 #endif
 
 #if ARI_CHOTA_DEBUG
-      Console.WriteLine("Calling activate... ");
+      Console.Error.WriteLine("Calling activate... ");
 #endif
       //everything fine now take a look at connections
       //let us see which connections are to trim
@@ -549,7 +549,7 @@ namespace Brunet {
 	  if (state.Connector != null && state.Connector.Equals(ctr)) {
 #if ARI_CHOTA_DEBUG
 	    addr_key = (Address) ide.Key;
-	    Console.WriteLine("ConnectorEndHandler: Connector (Chota) ended for target: {0}", 
+	    Console.Error.WriteLine("ConnectorEndHandler: Connector (Chota) ended for target: {0}", 
 			      addr_key);
 #endif
 	    //set the associated connector to null;
@@ -559,7 +559,7 @@ namespace Brunet {
 	}
 #if ARI_CHOTA_DEBUG
 	if (addr_key == null) {
-	  Console.WriteLine("Finshed connector not in our records. We may have trimmed this info before.");
+	  Console.Error.WriteLine("Finshed connector not in our records. We may have trimmed this info before.");
 	}
 #endif
       }
@@ -574,7 +574,7 @@ namespace Brunet {
       //update information in chota_connection_state.
 
 #if ARI_CHOTA_DEBUG
-      Console.WriteLine("Got an IP packet from src: {0} ", p.Source);
+      Console.Error.WriteLine("Got an IP packet from src: {0} ", p.Source);
 #endif
 
       //Getting from a Hashtable is threadsafe... no need to lock
@@ -593,12 +593,12 @@ namespace Brunet {
     {
 #if ARI_CHOTA_DEBUG
       Connection new_con1 = ((ConnectionEventArgs)eargs).Connection; 
-      Console.WriteLine("Forming a connection: {0}", new_con1);
+      Console.Error.WriteLine("Forming a connection: {0}", new_con1);
 #endif
 #if ARI_EXP_DEBUG
       Connection new_con2 = ((ConnectionEventArgs)eargs).Connection; 
       if (new_con2.ConType.Equals(struc_chota)) {
-	Console.WriteLine("Forming a chota connection: {0} at :{1}",
+	Console.Error.WriteLine("Forming a chota connection: {0} at :{1}",
 	                  new_con2, DateTime.UtcNow);
       }
 #endif
@@ -611,12 +611,12 @@ namespace Brunet {
       
 #if ARI_CHOTA_DEBUG
       Connection new_con1 = ((ConnectionEventArgs)eargs).Connection;
-      Console.WriteLine("Disconnect connection: {0}", new_con1);
+      Console.Error.WriteLine("Disconnect connection: {0}", new_con1);
 #endif
 #if ARI_EXP_DEBUG
       Connection new_con2 = ((ConnectionEventArgs)eargs).Connection;
       if (new_con2.ConType.Equals(struc_chota)) {
-	Console.WriteLine("Disconnect a chota connection: {0} at: {1}",
+	Console.Error.WriteLine("Disconnect a chota connection: {0} at: {1}",
 	                  new_con2, DateTime.UtcNow);
       }
 #endif
@@ -651,7 +651,7 @@ namespace Brunet {
       };
       if ( abort(null) ) {
 #if ARI_CHOTA_DEBUG
-	Console.WriteLine("Looks like we are already connected to the target: {0}"
+	Console.Error.WriteLine("Looks like we are already connected to the target: {0}"
 			  , target);
 #endif
         return;
@@ -675,7 +675,7 @@ namespace Brunet {
       AHPacket ctm_pack =
         new AHPacket(t_hops, t_ttl, _node.Address, target, AHPacket.AHOptions.Exact,
                      AHPacket.Protocol.Connection, ctm.ToByteArray());
-      Console.WriteLine("Size of CTM packet: {0}", ctm_pack.Length);
+      Console.Error.WriteLine("Size of CTM packet: {0}", ctm_pack.Length);
 
       Connector con = new Connector(_node, ctm_pack, ctm, this);
       lock( _sync ) {
@@ -684,7 +684,7 @@ namespace Brunet {
 	  //state = new ChotaConnectionState(target);
 	  //_chota_connection_state[target] = state;
 #if ARI_CHOTA_DEBUG
-	  Console.WriteLine("We can't be asked to connect without ChotaConnectionState (Shouldn't have happened).");
+	  Console.Error.WriteLine("We can't be asked to connect without ChotaConnectionState (Shouldn't have happened).");
 	  return;
 #endif
 	} else {
@@ -693,7 +693,7 @@ namespace Brunet {
 	if (!state.CanConnect) 
 	{ 
 #if ARI_CHOTA_DEBUG
-	  Console.WriteLine("Can't connect: Active connector or no recorded bidirectionality (Shouldn't have got here).");
+	  Console.Error.WriteLine("Can't connect: Active connector or no recorded bidirectionality (Shouldn't have got here).");
 	  return;
 #endif	  
 	}
@@ -702,11 +702,11 @@ namespace Brunet {
       con.FinishEvent += new EventHandler(this.ConnectorEndHandler);
       
 #if ARI_CHOTA_DEBUG
-      Console.WriteLine("ChotaConnectionOverlord: Starting a real chota connection attempt to: {0}", target);
+      Console.Error.WriteLine("ChotaConnectionOverlord: Starting a real chota connection attempt to: {0}", target);
 #endif
 
 #if ARI_EXP_DEBUG
-      Console.WriteLine("ChotaConnectionOverlord: Starting a real chota connection attempt to: {0} at {1}", target, DateTime.UtcNow);
+      Console.Error.WriteLine("ChotaConnectionOverlord: Starting a real chota connection attempt to: {0} at {1}", target, DateTime.UtcNow);
 #endif
 
       //Start work on connecting

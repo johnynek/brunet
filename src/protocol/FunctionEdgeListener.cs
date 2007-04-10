@@ -134,14 +134,14 @@ namespace Brunet
 
 
 #if false
-        System.Console.WriteLine("Adding New Pair of Edges:");
-        System.Console.WriteLine("New Edge {0}", fe_l.ToString());
-        System.Console.WriteLine("New Edge {0}", fe_r.ToString());
+        System.Console.Error.WriteLine("Adding New Pair of Edges:");
+        System.Console.Error.WriteLine("New Edge {0}", fe_l.ToString());
+        System.Console.Error.WriteLine("New Edge {0}", fe_r.ToString());
 #endif
 
 #if false
-        System.Console.WriteLine("Press enter to continue.");
-        System.Console.WriteLine("------------------------");
+        System.Console.Error.WriteLine("Press enter to continue.");
+        System.Console.Error.WriteLine("------------------------");
         System.Console.ReadLine();
 #endif
         ecb(true, e, null);

@@ -186,7 +186,7 @@ namespace Brunet
         }
         try {	//catching SocketException
           byte[] tmp_buf = ms.ToArray();
-          System.Console.WriteLine("Sending control to: {0}", end);
+          System.Console.Error.WriteLine("Sending control to: {0}", end);
           s.BeginSendTo(tmp_buf, 0, tmp_buf.Length, SocketFlags.None, end,
 			new AsyncCallback(this.SendControlPacketCallback), null);
         }
@@ -231,7 +231,7 @@ namespace Brunet
       lock( _read_lock ) {
         _running = true;
         EndPoint end = new IPEndPoint(IPAddress.Any, 0);
-	//Console.WriteLine("About to BeingReceiveFrom");
+	//Console.Error.WriteLine("About to BeingReceiveFrom");
 	int max = _rec_buffer.Length - _rec_buffer_offset;
         _read_asr = s.BeginReceiveFrom(_rec_buffer, _rec_buffer_offset, max,
 		         SocketFlags.None, ref end, new AsyncCallback(this.ReceiveHandler), end);
@@ -314,7 +314,7 @@ namespace Brunet
      */
     public void HandleEdgeSend(Edge from, ICopyable p)
     {
-      //Console.WriteLine("About to StartSend on: {0}\n{1}",from, p); 
+      //Console.Error.WriteLine("About to StartSend on: {0}\n{1}",from, p); 
       lock( _send_queue ) {
         SendQueueEntry sqe = new SendQueueEntry(p, (UdpEdge)from);
         _send_queue.Enqueue(sqe);
@@ -359,7 +359,7 @@ namespace Brunet
       NumberSerializer.WriteInt(sender.ID, _send_buffer, 0);
       NumberSerializer.WriteInt(sender.RemoteID, _send_buffer, 4);
       p.CopyTo(_send_buffer, 8);
-      //Console.WriteLine("About to BeginSendTo"); 
+      //Console.Error.WriteLine("About to BeginSendTo"); 
       s.BeginSendTo(_send_buffer, 0, 8 + p.Length, SocketFlags.None, e,
 			new AsyncCallback(this.SendHandler), sqe);
     }
@@ -383,7 +383,7 @@ namespace Brunet
 	SendQueueEntry sqeo = (SendQueueEntry)asr.AsyncState;
         Console.Error.WriteLine("In SendHandler, EndSendTo.  Edge: {0}\n{1}", sqeo.Sender, x);
       }
-      //Console.WriteLine("EndSendTo"); 
+      //Console.Error.WriteLine("EndSendTo"); 
       //Check to see if there is anymore to send:
       lock( _send_queue ) {
         if( !_running ) {

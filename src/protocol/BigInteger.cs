@@ -440,7 +440,7 @@ namespace Brunet
       while (dataLength > 1 && data[dataLength - 1] == 0)
         dataLength--;
 
-      //Console.WriteLine("Len = " + dataLength);
+      //Console.Error.WriteLine("Len = " + dataLength);
     }
 
 
@@ -485,7 +485,7 @@ namespace Brunet
       while (dataLength > 1 && data[dataLength - 1] == 0)
         dataLength--;
 
-      //Console.WriteLine("Len = " + dataLength);
+      //Console.Error.WriteLine("Len = " + dataLength);
     }
 
 
@@ -509,7 +509,7 @@ namespace Brunet
       while (dataLength > 1 && data[dataLength - 1] == 0)
         dataLength--;
 
-      //Console.WriteLine("Len = " + dataLength);
+      //Console.Error.WriteLine("Len = " + dataLength);
     }
 
 
@@ -847,7 +847,7 @@ namespace Brunet
         if (count < shiftAmount)
           shiftAmount = count;
 
-        //Console.WriteLine("shiftAmount = {0}", shiftAmount);
+        //Console.Error.WriteLine("shiftAmount = {0}", shiftAmount);
 
         ulong carry = 0;
         for (int i = 0; i < bufLen; i++) {
@@ -909,7 +909,7 @@ namespace Brunet
       while (bufLen > 1 && buffer[bufLen - 1] == 0)
         bufLen--;
 
-      //Console.WriteLine("bufLen = " + bufLen + " buffer.Length = " + buffer.Length);
+      //Console.Error.WriteLine("bufLen = " + bufLen + " buffer.Length = " + buffer.Length);
 
       for (int count = shiftVal; count > 0;) {
         if (count < shiftAmount) {
@@ -917,7 +917,7 @@ namespace Brunet
           invShift = 32 - shiftAmount;
         }
 
-        //Console.WriteLine("shiftAmount = {0}", shiftAmount);
+        //Console.Error.WriteLine("shiftAmount = {0}", shiftAmount);
 
         ulong carry = 0;
         for (int i = bufLen - 1; i >= 0; i--) {
@@ -1143,8 +1143,8 @@ namespace Brunet
         mask >>= 1;
       }
 
-      //Console.WriteLine("shift = {0}", shift);
-      //Console.WriteLine("Before bi1 Len = {0}, bi2 Len = {1}", bi1.dataLength, bi2.dataLength);
+      //Console.Error.WriteLine("shift = {0}", shift);
+      //Console.Error.WriteLine("Before bi1 Len = {0}, bi2 Len = {1}", bi1.dataLength, bi2.dataLength);
 
       for (int i = 0; i < bi1.dataLength; i++)
         remainder[i] = bi1.data[i];
@@ -1152,11 +1152,11 @@ namespace Brunet
       bi2 = bi2 << shift;
 
       /*
-       * Console.WriteLine("bi1 Len = {0}, bi2 Len = {1}", bi1.dataLength, bi2.dataLength);
-       * Console.WriteLine("dividend = " + bi1 + "\ndivisor = " + bi2);
+       * Console.Error.WriteLine("bi1 Len = {0}, bi2 Len = {1}", bi1.dataLength, bi2.dataLength);
+       * Console.Error.WriteLine("dividend = " + bi1 + "\ndivisor = " + bi2);
        * for(int q = remainderLen - 1; q >= 0; q--)
        * Console.Write("{0 : x2}", remainder[q]);
-       * Console.WriteLine();
+       * Console.Error.WriteLine();
        */
 
       int j = remainderLen - bi2.dataLength;
@@ -1171,12 +1171,12 @@ namespace Brunet
       while (j > 0) {
         ulong dividend =
           ((ulong) remainder[pos] << 32) + (ulong) remainder[pos - 1];
-        //Console.WriteLine("dividend = {0}", dividend);
+        //Console.Error.WriteLine("dividend = {0}", dividend);
 
         ulong q_hat = dividend / firstDivisorByte;
         ulong r_hat = dividend % firstDivisorByte;
 
-        //Console.WriteLine("q_hat = {0 : X}, r_hat = {1 : X}", q_hat, r_hat);
+        //Console.Error.WriteLine("q_hat = {0 : X}, r_hat = {1 : X}", q_hat, r_hat);
 
         bool done = false;
         while (!done) {
@@ -1199,26 +1199,26 @@ namespace Brunet
         BigInteger kk = new BigInteger(dividendPart);
         BigInteger ss = bi2 * (long) q_hat;
 
-        //Console.WriteLine("ss before = " + ss);
+        //Console.Error.WriteLine("ss before = " + ss);
         while (ss > kk) {
           q_hat--;
           ss -= bi2;
-          //Console.WriteLine(ss);
+          //Console.Error.WriteLine(ss);
         }
         BigInteger yy = kk - ss;
 
-        //Console.WriteLine("ss = " + ss);
-        //Console.WriteLine("kk = " + kk);
-        //Console.WriteLine("yy = " + yy);
+        //Console.Error.WriteLine("ss = " + ss);
+        //Console.Error.WriteLine("kk = " + kk);
+        //Console.Error.WriteLine("yy = " + yy);
 
         for (int h = 0; h < divisorLen; h++)
           remainder[pos - h] = yy.data[bi2.dataLength - h];
 
         /*
-         * Console.WriteLine("dividend = ");
+         * Console.Error.WriteLine("dividend = ");
          * for(int q = remainderLen - 1; q >= 0; q--)
          * Console.Write("{0 : x2}", remainder[q]);
-         * Console.WriteLine("\n************ q_hat = {0 : X}\n", q_hat);
+         * Console.Error.WriteLine("\n************ q_hat = {0 : X}\n", q_hat);
          */
 
         result[resultPos++] = (uint) q_hat;
@@ -1276,8 +1276,8 @@ namespace Brunet
       int pos = outRemainder.dataLength - 1;
       ulong dividend = (ulong) outRemainder.data[pos];
 
-      //Console.WriteLine("divisor = " + divisor + " dividend = " + dividend);
-      //Console.WriteLine("divisor = " + bi2 + "\ndividend = " + bi1);
+      //Console.Error.WriteLine("divisor = " + divisor + " dividend = " + dividend);
+      //Console.Error.WriteLine("divisor = " + bi2 + "\ndividend = " + bi1);
 
       if (dividend >= divisor) {
         ulong quotient = dividend / divisor;
@@ -1288,7 +1288,7 @@ namespace Brunet
       pos--;
 
       while (pos >= 0) {
-        //Console.WriteLine(pos);
+        //Console.Error.WriteLine(pos);
 
         dividend =
           ((ulong) outRemainder.data[pos + 1] << 32) +
@@ -1298,7 +1298,7 @@ namespace Brunet
 
         outRemainder.data[pos + 1] = 0;
         outRemainder.data[pos--] = (uint) (dividend % divisor);
-        //Console.WriteLine(">>>> " + bi1);
+        //Console.Error.WriteLine(">>>> " + bi1);
       }
 
       outQuotient.dataLength = resultPos;
@@ -1658,7 +1658,7 @@ namespace Brunet
       // perform squaring and multiply exponentiation
       for (int pos = 0; pos < exp.dataLength; pos++) {
         uint mask = 0x01;
-        //Console.WriteLine("pos = " + pos);
+        //Console.Error.WriteLine("pos = " + pos);
 
         for (int index = 0; index < 32; index++) {
           if ((exp.data[pos] & mask) != 0)
@@ -1955,7 +1955,7 @@ namespace Brunet
 
         if (resultLen > 1
             || (resultLen == 1 && expResult.data[0] != 1)) {
-          //Console.WriteLine("a = " + a.ToString());
+          //Console.Error.WriteLine("a = " + a.ToString());
           return false;
         }
       }
@@ -2056,10 +2056,10 @@ namespace Brunet
         BigInteger b = a.modPow(t, thisVal);
 
         /*
-         * Console.WriteLine("a = " + a.ToString(10));
-         * Console.WriteLine("b = " + b.ToString(10));
-         * Console.WriteLine("t = " + t.ToString(10));
-         * Console.WriteLine("s = " + s);
+         * Console.Error.WriteLine("a = " + a.ToString(10));
+         * Console.Error.WriteLine("b = " + b.ToString(10));
+         * Console.Error.WriteLine("t = " + t.ToString(10));
+         * Console.Error.WriteLine("s = " + s);
          */
 
         bool result = false;
@@ -2165,8 +2165,8 @@ namespace Brunet
         // calculate Jacobi symbol
         BigInteger jacob = Jacobi(a, thisVal);
 
-        //Console.WriteLine("a = " + a.ToString(10) + " b = " + thisVal.ToString(10));
-        //Console.WriteLine("expResult = " + expResult.ToString(10) + " Jacob = " + jacob.ToString(10));
+        //Console.Error.WriteLine("a = " + a.ToString(10) + " b = " + thisVal.ToString(10));
+        //Console.Error.WriteLine("expResult = " + expResult.ToString(10) + " Jacob = " + jacob.ToString(10));
 
         // if they are different then it is not prime
         if (expResult != jacob)
@@ -2240,7 +2240,7 @@ namespace Brunet
               return false;
           }
 
-          //Console.WriteLine(D);
+          //Console.Error.WriteLine(D);
           D = (Math.Abs(D) + 2) * sign;
           sign = -sign;
         }
@@ -2250,11 +2250,11 @@ namespace Brunet
       long Q = (1 - D) >> 2;
 
       /*
-       * Console.WriteLine("D = " + D);
-       * Console.WriteLine("Q = " + Q);
-       * Console.WriteLine("(n,D) = " + thisVal.gcd(D));
-       * Console.WriteLine("(n,Q) = " + thisVal.gcd(Q));
-       * Console.WriteLine("J(D|n) = " + BigInteger.Jacobi(D, thisVal));
+       * Console.Error.WriteLine("D = " + D);
+       * Console.Error.WriteLine("Q = " + Q);
+       * Console.Error.WriteLine("(n,D) = " + thisVal.gcd(D));
+       * Console.Error.WriteLine("(n,Q) = " + thisVal.gcd(Q));
+       * Console.Error.WriteLine("J(D|n) = " + BigInteger.Jacobi(D, thisVal));
        */
 
       BigInteger p_add1 = thisVal + 1;
@@ -2365,7 +2365,7 @@ namespace Brunet
         BigInteger resultNum = thisVal % divisor;
         if (resultNum.IntValue() == 0) {
           /*
-           * Console.WriteLine("Not prime!  Divisible by {0}\n",
+           * Console.Error.WriteLine("Not prime!  Divisible by {0}\n",
            * primesBelow2000[p]);
            */
           return false;
@@ -2375,7 +2375,7 @@ namespace Brunet
       if (thisVal.RabinMillerTest(confidence))
         return true;
       else {
-        //Console.WriteLine("Not prime!  Failed primality test\n");
+        //Console.Error.WriteLine("Not prime!  Failed primality test\n");
         return false;
       }
     }
@@ -2432,7 +2432,7 @@ namespace Brunet
 
         BigInteger resultNum = thisVal % divisor;
         if (resultNum.IntValue() == 0) {
-          //Console.WriteLine("Not prime!  Divisible by {0}\n",
+          //Console.Error.WriteLine("Not prime!  Divisible by {0}\n",
           //                  primesBelow2000[p]);
 
           return false;
@@ -2613,7 +2613,7 @@ namespace Brunet
 
       while (!done) {
         result.genRandomBits(bits, rand);
-        //Console.WriteLine(result.ToString(16));
+        //Console.Error.WriteLine(result.ToString(16));
 
         // gcd test
         BigInteger g = result.gcd(this);
@@ -2660,8 +2660,8 @@ namespace Brunet
           multiByteDivide(a, b, quotient, remainder);
 
         /*
-         * Console.WriteLine(quotient.dataLength);
-         * Console.WriteLine("{0} = {1}({2}) + {3}  p = {4}", a.ToString(10),
+         * Console.Error.WriteLine(quotient.dataLength);
+         * Console.Error.WriteLine("{0} = {1}({2}) + {3}  p = {4}", a.ToString(10),
          * b.ToString(10), quotient.ToString(10), remainder.ToString(10),
          * p[1].ToString(10));
          */
@@ -2705,7 +2705,7 @@ namespace Brunet
 
       byte[] result = new byte[numBytes];
 
-      //Console.WriteLine(result.Length);
+      //Console.Error.WriteLine(result.Length);
 
       int pos = 0;
       uint tempVal, val = data[dataLength - 1];
@@ -2904,7 +2904,7 @@ namespace Brunet
 
       BigInteger t = k >> s;
 
-      //Console.WriteLine("s = " + s + " t = " + t);
+      //Console.Error.WriteLine("s = " + s + " t = " + t);
       return LucasSequenceHelper(P, Q, t, n, constant, s);
     }
 
@@ -2938,7 +2938,7 @@ namespace Brunet
 
       for (int i = k.dataLength - 1; i >= 0; i--)       // iterate on the binary expansion of k
       {
-        //Console.WriteLine("round");
+        //Console.Error.WriteLine("round");
         while (mask != 0) {
           if (i == 0 && mask == 0x00000001)     // last bit
             break;
@@ -3066,7 +3066,7 @@ namespace Brunet
         while (val2[0] == 0)
           val2[0] = (byte) (rand.NextDouble() * 256);
 
-        Console.WriteLine(count);
+        Console.Error.WriteLine(count);
         BigInteger bn1 = new BigInteger(val, t1);
         BigInteger bn2 = new BigInteger(val2, t2);
 
@@ -3082,12 +3082,12 @@ namespace Brunet
 
         // Make sure they're the same
         if (bn5 != bn1) {
-          Console.WriteLine("Error at " + count);
-          Console.WriteLine(bn1 + "\n");
-          Console.WriteLine(bn2 + "\n");
-          Console.WriteLine(bn3 + "\n");
-          Console.WriteLine(bn4 + "\n");
-          Console.WriteLine(bn5 + "\n");
+          Console.Error.WriteLine("Error at " + count);
+          Console.Error.WriteLine(bn1 + "\n");
+          Console.Error.WriteLine(bn2 + "\n");
+          Console.Error.WriteLine(bn3 + "\n");
+          Console.Error.WriteLine(bn4 + "\n");
+          Console.Error.WriteLine(bn5 + "\n");
           return;
         }
       }
@@ -3122,9 +3122,9 @@ namespace Brunet
         ("e8e77781f36a7b3188d711c2190b560f205a52391b3479cdb99fa010745cbeba5f2adc08e1de6bf38398a0487c4a73610d94ec36f17f3f46ad75e17bc1adfec99839589f45f95ccc94cb2a5c500b477eb3323d8cfab0c8458c96f0147a45d27e45a4d11d54d77684f65d48f15fafcc1ba208e71e921b9bd9017c16a5231af7f",
          16);
 
-      Console.WriteLine("e =\n" + bi_e.ToString(10));
-      Console.WriteLine("\nd =\n" + bi_d.ToString(10));
-      Console.WriteLine("\nn =\n" + bi_n.ToString(10) + "\n");
+      Console.Error.WriteLine("e =\n" + bi_e.ToString(10));
+      Console.Error.WriteLine("\nd =\n" + bi_d.ToString(10));
+      Console.Error.WriteLine("\nn =\n" + bi_n.ToString(10) + "\n");
 
       for (int count = 0; count < rounds; count++) {
         // generate data of random length
@@ -3157,11 +3157,11 @@ namespace Brunet
 
         // compare
         if (bi_decrypted != bi_data) {
-          Console.WriteLine("\nError at round " + count);
-          Console.WriteLine(bi_data + "\n");
+          Console.Error.WriteLine("\nError at round " + count);
+          Console.Error.WriteLine(bi_data + "\n");
           return;
         }
-        Console.WriteLine(" <PASSED>.");
+        Console.Error.WriteLine(" <PASSED>.");
       }
 
     }
@@ -3226,9 +3226,9 @@ namespace Brunet
         BigInteger bi_e = bi_pq.genCoPrime(512, rand);
         BigInteger bi_d = bi_e.modInverse(bi_pq);
 
-        Console.WriteLine("\ne =\n" + bi_e.ToString(10));
-        Console.WriteLine("\nd =\n" + bi_d.ToString(10));
-        Console.WriteLine("\nn =\n" + bi_n.ToString(10) + "\n");
+        Console.Error.WriteLine("\ne =\n" + bi_e.ToString(10));
+        Console.Error.WriteLine("\nd =\n" + bi_d.ToString(10));
+        Console.Error.WriteLine("\nn =\n" + bi_n.ToString(10) + "\n");
 
         // generate data of random length
         int t1 = 0;
@@ -3260,11 +3260,11 @@ namespace Brunet
 
         // compare
         if (bi_decrypted != bi_data) {
-          Console.WriteLine("\nError at round " + count);
-          Console.WriteLine(bi_data + "\n");
+          Console.Error.WriteLine("\nError at round " + count);
+          Console.Error.WriteLine(bi_data + "\n");
           return;
         }
-        Console.WriteLine(" <PASSED>.");
+        Console.Error.WriteLine(" <PASSED>.");
       }
 
     }
@@ -3293,11 +3293,11 @@ namespace Brunet
 
         // check that b is the largest integer such that b*b <= a
         if (c <= a) {
-          Console.WriteLine("\nError at round " + count);
-          Console.WriteLine(a + "\n");
+          Console.Error.WriteLine("\nError at round " + count);
+          Console.Error.WriteLine(a + "\n");
           return;
         }
-        Console.WriteLine(" <PASSED>.");
+        Console.Error.WriteLine(" <PASSED>.");
       }
     }
 
@@ -3351,7 +3351,7 @@ namespace Brunet
       int limit = 100, count = 0;
       for (int i = 0; i < 2000; i++) {
         if (i >= limit) {
-          Console.WriteLine();
+          Console.Error.WriteLine();
           limit += 100;
         }
 
@@ -3362,43 +3362,43 @@ namespace Brunet
           count++;
         }
       }
-      Console.WriteLine("\nCount = " + count);
+      Console.Error.WriteLine("\nCount = " + count);
 
 
       BigInteger bi1 = new BigInteger(pseudoPrime1);
-      Console.WriteLine("\n\nPrimality testing for\n" +
+      Console.Error.WriteLine("\n\nPrimality testing for\n" +
                         bi1.ToString() + "\n");
-      Console.WriteLine("SolovayStrassenTest(5) = " +
+      Console.Error.WriteLine("SolovayStrassenTest(5) = " +
                         bi1.SolovayStrassenTest(5));
-      Console.WriteLine("RabinMillerTest(5) = " +
+      Console.Error.WriteLine("RabinMillerTest(5) = " +
                         bi1.RabinMillerTest(5));
-      Console.WriteLine("FermatLittleTest(5) = " +
+      Console.Error.WriteLine("FermatLittleTest(5) = " +
                         bi1.FermatLittleTest(5));
-      Console.WriteLine("isProbablePrime() = " +
+      Console.Error.WriteLine("isProbablePrime() = " +
                         bi1.isProbablePrime());
       /* POB: added the above also for pseudoPrime2 to clear compiler warning */
       bi1 = new BigInteger(pseudoPrime2);
-      Console.WriteLine("\n\nPrimality testing for\n" +
+      Console.Error.WriteLine("\n\nPrimality testing for\n" +
                         bi1.ToString() + "\n");
-      Console.WriteLine("SolovayStrassenTest(5) = " +
+      Console.Error.WriteLine("SolovayStrassenTest(5) = " +
                         bi1.SolovayStrassenTest(5));
-      Console.WriteLine("RabinMillerTest(5) = " +
+      Console.Error.WriteLine("RabinMillerTest(5) = " +
                         bi1.RabinMillerTest(5));
-      Console.WriteLine("FermatLittleTest(5) = " +
+      Console.Error.WriteLine("FermatLittleTest(5) = " +
                         bi1.FermatLittleTest(5));
-      Console.WriteLine("isProbablePrime() = " +
+      Console.Error.WriteLine("isProbablePrime() = " +
                         bi1.isProbablePrime());
 
       Console.Write("\nGenerating 512-bits random pseudoprime. . .");
       Random rand = new Random();
       BigInteger prime = BigInteger.genPseudoPrime(512, 5, rand);
-      Console.WriteLine("\n" + prime);
+      Console.Error.WriteLine("\n" + prime);
 
       //int dwStart = System.Environment.TickCount;
       //BigInteger.MulDivTest(100000);
       //BigInteger.RSATest(10);
       //BigInteger.RSATest2(10);
-      //Console.WriteLine(System.Environment.TickCount - dwStart);
+      //Console.Error.WriteLine(System.Environment.TickCount - dwStart);
 
     }
   }

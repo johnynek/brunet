@@ -43,7 +43,7 @@ namespace Brunet
     public static TransportAddress CreateInstance(string s) {
       string scheme = s.Substring(0, s.IndexOf(":"));
       string t = scheme.Substring(scheme.IndexOf('.') + 1);
-      //Console.WriteLine(t);
+      //Console.Error.WriteLine(t);
       TransportAddress.TAType ta_type =  
 	(TransportAddress.TAType) System.Enum.Parse(typeof(TransportAddress.TAType), t, true);
       

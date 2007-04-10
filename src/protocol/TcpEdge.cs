@@ -132,7 +132,7 @@ namespace Brunet
       }
       set {
 #if POB_TCP_DEBUG
-        Console.WriteLine("In NeedToSend");
+        Console.Error.WriteLine("In NeedToSend");
 #endif
         bool send_event = false;
         lock( _sync ) {
@@ -144,7 +144,7 @@ namespace Brunet
         //Release the lock and fire the event
         if( send_event ) {
 #if POB_TCP_DEBUG
-          Console.WriteLine("About to send event");
+          Console.Error.WriteLine("About to send event");
 #endif
           _tel.SendStateChange(this);
         }
@@ -242,7 +242,7 @@ namespace Brunet
     public override void Close()
     {
 #if POB_TCP_DEBUG
-      Console.WriteLine("edge: {0}, Closing",this);
+      Console.Error.WriteLine("edge: {0}, Closing",this);
 #endif
       //Don't hold the lock while we close:
       base.Close();
@@ -300,20 +300,20 @@ namespace Brunet
     public override void Send(Packet p)
     {
 #if POB_TCP_DEBUG
-      Console.WriteLine("edge: {0}, Entering Send",this);
+      Console.Error.WriteLine("edge: {0}, Entering Send",this);
 #endif
       if( _is_closed ) {
         throw new EdgeException("Tried to send on a closed socket");
       }
       _last_out_packet_datetime = DateTime.UtcNow;
 #if POB_TCP_DEBUG
-      Console.WriteLine("edge: {0}, About to enqueue packet of length: {1}",
+      Console.Error.WriteLine("edge: {0}, About to enqueue packet of length: {1}",
                         this, p.Length);
 #endif
       //Else just queue up the packet
       _packet_queue.Enqueue(p);
 #if POB_TCP_DEBUG
-      Console.WriteLine("edge: {0}, Leaving Send",this);
+      Console.Error.WriteLine("edge: {0}, Leaving Send",this);
 #endif
     }
 #endif
@@ -324,14 +324,14 @@ namespace Brunet
     {
       lock( _sync ) {
 #if POB_TCP_DEBUG
-        Console.WriteLine("edge: {0}, Entering Send",this);
+        Console.Error.WriteLine("edge: {0}, Entering Send",this);
 #endif
         if( _is_closed ) {
           throw new EdgeException("Tried to send on a closed socket");
         }
         _last_out_packet_datetime = DateTime.UtcNow;
 #if POB_TCP_DEBUG
-        Console.WriteLine("edge: {0}, About to enqueue packet of length: {1}",
+        Console.Error.WriteLine("edge: {0}, About to enqueue packet of length: {1}",
                           this, p.Length);
 #endif
         //Else just queue up the packet
@@ -339,15 +339,15 @@ namespace Brunet
           //Don't queue indefinitely...
           _packet_queue.Enqueue(p);
 	}
-	//Console.WriteLine("Queue length: {0}", _packet_queue.Count);
+	//Console.Error.WriteLine("Queue length: {0}", _packet_queue.Count);
       }
 #if POB_TCP_DEBUG
-      Console.WriteLine("Setting NeedToSend");
+      Console.Error.WriteLine("Setting NeedToSend");
 #endif
       NeedToSend = true;
 #if POB_TCP_DEBUG
-      Console.WriteLine("Need to send: {0}", NeedToSend);
-      Console.WriteLine("edge: {0}, Leaving Send",this);
+      Console.Error.WriteLine("Need to send: {0}", NeedToSend);
+      Console.Error.WriteLine("edge: {0}, Leaving Send",this);
 #endif
     }
 #endif
@@ -365,18 +365,18 @@ namespace Brunet
         lock(_sync) {
           if( _is_closed ) {
 #if POB_TCP_DEBUG
-            Console.WriteLine("Exception edge: {0}",this);
+            Console.Error.WriteLine("Exception edge: {0}",this);
 #endif
             throw new EdgeException("Tried to send on a closed socket");
           }
           _last_out_packet_datetime = DateTime.UtcNow;
 #if POB_TCP_DEBUG
-          Console.WriteLine("edge: {0}, BeginSend: {1}",this,p);
+          Console.Error.WriteLine("edge: {0}, BeginSend: {1}",this,p);
 #endif
 
           if( _is_sending ) {
 #if POB_TCP_DEBUG
-            Console.WriteLine("edge: {0}, Queueing",this);
+            Console.Error.WriteLine("edge: {0}, Queueing",this);
 #endif
             //We can't do two simulateous sends
             //System.Console.Error.WriteLine("queueing");
@@ -393,7 +393,7 @@ namespace Brunet
             state.SendingSize = true;
             state.PacketToSend = p;
 #if POB_TCP_DEBUG
-            Console.WriteLine("edge: {0}, about to call BeginSend",this);
+            Console.Error.WriteLine("edge: {0}, about to call BeginSend",this);
 #endif
             _sock.BeginSend(state.Buffer, state.Offset, state.Length,
                             SocketFlags.None,
@@ -405,12 +405,12 @@ namespace Brunet
       }
       catch(SocketException x) {
 #if POB_TCP_DEBUG
-        Console.WriteLine("Exception edge: {0}, {1}",this,x);
+        Console.Error.WriteLine("Exception edge: {0}, {1}",this,x);
 #endif
         throw new EdgeException("Could not Send", x);
       }
 #if POB_TCP_DEBUG
-      Console.WriteLine("edge: {0}, Leaving Send(Packet)",this);
+      Console.Error.WriteLine("edge: {0}, Leaving Send(Packet)",this);
 #endif
     }
     //End of the Overlapped IO version
@@ -490,7 +490,7 @@ namespace Brunet
     protected void ContinueRead(IAsyncResult ar)
     {
 #if POB_TCP_DEBUG
-      Console.WriteLine("edge: {0}, In: ContinueRead",this);
+      Console.Error.WriteLine("edge: {0}, In: ContinueRead",this);
 #endif
       try {
         bool parse_packet = false;
@@ -508,7 +508,7 @@ namespace Brunet
           if( state.LastReadLength > 0 ) {
             //Keep reading
 #if POB_TCP_DEBUG
-            Console.WriteLine("edge: {0}, Continuing to read",this);
+            Console.Error.WriteLine("edge: {0}, Continuing to read",this);
 #endif
             _sock.BeginReceive(state.Buffer,
                                state.LastReadOffset,
@@ -525,7 +525,7 @@ namespace Brunet
                 (ushort) NumberSerializer.ReadShort(state.Buffer,
                                                     state.Offset);
 #if POB_TCP_DEBUG
-              Console.WriteLine("edge: {0}, Just read size: {1}",this, temp_length);
+              Console.Error.WriteLine("edge: {0}, Just read size: {1}",this, temp_length);
 #endif
               if( temp_length > 0 ) {
                 byte[] packet_buffer = new byte[temp_length];
@@ -536,7 +536,7 @@ namespace Brunet
                 state.LastReadLength = state.Length;
                 state.ReadingSize = false;
 #if POB_TCP_DEBUG
-                Console.WriteLine("edge: {0}, About to read the packet",this);
+                Console.Error.WriteLine("edge: {0}, About to read the packet",this);
 #endif
                 _sock.BeginReceive(state.Buffer,
                                    state.LastReadOffset,
@@ -548,7 +548,7 @@ namespace Brunet
               else {
                 //We just got a 0 length packet, huh?
 #if POB_TCP_DEBUG
-                Console.WriteLine("edge: {0}, got zero length packet",this);
+                Console.Error.WriteLine("edge: {0}, got zero length packet",this);
 #endif
                 Close();
                 return;
@@ -567,7 +567,7 @@ namespace Brunet
                                         state.Offset,
                                         state.Length);
 #if POB_TCP_DEBUG
-          Console.WriteLine("edge: {0}, got packet {1}",this, p);
+          Console.Error.WriteLine("edge: {0}, got packet {1}",this, p);
 #endif
           ReceivedPacketEvent(p);
         }
@@ -576,7 +576,7 @@ namespace Brunet
         lock( _sync ) {
           if( parse_packet ) {
 #if POB_TCP_DEBUG
-            Console.WriteLine("edge: {0}, Starting Next Packet Read",this);
+            Console.Error.WriteLine("edge: {0}, Starting Next Packet Read",this);
 #endif
             //Read the next length
             state.Buffer = _size_buffer;
@@ -596,20 +596,20 @@ namespace Brunet
       }
       catch(Exception x) {
 #if POB_TCP_DEBUG
-        Console.WriteLine("edge: {0}, ContinueRead got exception {1}",this, x);
+        Console.Error.WriteLine("edge: {0}, ContinueRead got exception {1}",this, x);
 #endif
         //log.Error("ContinueRead Exception: edge:" + ToString(), x);
         Close();
       }
 #if POB_TCP_DEBUG
-      Console.WriteLine("edge: {0}, Leaving ContinueRead",this);
+      Console.Error.WriteLine("edge: {0}, Leaving ContinueRead",this);
 #endif
     }
 
     protected void ContinueSend(IAsyncResult ar)
     {
 #if POB_TCP_DEBUG
-      Console.WriteLine("edge: {0}, In: ContinueSend",this);
+      Console.Error.WriteLine("edge: {0}, In: ContinueSend",this);
 #endif
       lock(_sync) {
 
@@ -626,7 +626,7 @@ namespace Brunet
             state.Length -= sent_bytes;
             if( state.Length > 0 ) {
 #if POB_TCP_DEBUG
-              Console.WriteLine("edge: {0}, sent {1} bytes, keep sending",this,
+              Console.Error.WriteLine("edge: {0}, sent {1} bytes, keep sending",this,
                                 sent_bytes);
 #endif
               //We have to keep sending
@@ -642,7 +642,7 @@ namespace Brunet
               //We are done sending that part.
               if( state.SendingSize ) {
 #if POB_TCP_DEBUG
-                Console.WriteLine("edge: {0}, just sent size, send packet now",this);
+                Console.Error.WriteLine("edge: {0}, just sent size, send packet now",this);
 #endif
                 //Now we must send the packet:
                 state.SendingSize = false;
@@ -668,12 +668,12 @@ namespace Brunet
                 string GeneratedLog = "OutPacket: edge: " + ToString()
                                       + ", packet: " + base64String;
 #if POB_TCP_DEBUG
-                Console.WriteLine("edge: {0}, sent {1}",this, p);
+                Console.Error.WriteLine("edge: {0}, sent {1}",this, p);
 #endif
                 //log.Info(GeneratedLog);
                 if( _packet_queue.Count > 0 ) {
 #if POB_TCP_DEBUG
-                  Console.WriteLine("edge: {0}, sending the next packet in queue",this);
+                  Console.Error.WriteLine("edge: {0}, sending the next packet in queue",this);
 #endif
                   _is_sending = true;
                   //We can have a next packet to start sending:
@@ -704,14 +704,14 @@ namespace Brunet
         catch(Exception x) {
           //In this case, we close:
 #if POB_TCP_DEBUG
-          Console.WriteLine("edge: {0}, got exception {1}",this, x);
+          Console.Error.WriteLine("edge: {0}, got exception {1}",this, x);
 #endif
           //log.Error("ContinueSend Exception: edge:" + ToString(), x);
           Close();
         }
       }
 #if POB_TCP_DEBUG
-      Console.WriteLine("edge: {0}, Leaving ContinueSend",this);
+      Console.Error.WriteLine("edge: {0}, Leaving ContinueSend",this);
 #endif
     }
 #endif
@@ -767,7 +767,7 @@ namespace Brunet
                 if( rpacket_pos == rpacket_buf.Length ) {
                   Packet p = PacketParser.Parse(rpacket_buf);
 #if POB_TCP_DEBUG
-                  Console.WriteLine("edge: {0}, got packet {1}",this, p);
+                  Console.Error.WriteLine("edge: {0}, got packet {1}",this, p);
 #endif
                   ReceivedPacketEvent(p);
                   //Start reading the size of the next packet:
@@ -779,15 +779,15 @@ namespace Brunet
             }
             //Check to see if there are any packets to send:
 #if POB_TCP_DEBUG
-            Console.WriteLine("edge: {0}, About to send all the packets in queue",this);
+            Console.Error.WriteLine("edge: {0}, About to send all the packets in queue",this);
 #endif
 #if POB_TCP_DEBUG
-            Console.WriteLine("edge: {0}, Queue Count: {1}",this, _packet_queue.Count);
+            Console.Error.WriteLine("edge: {0}, Queue Count: {1}",this, _packet_queue.Count);
 #endif
             while( _packet_queue.Count > 0 ) {
               Packet p = (Packet)_packet_queue.Dequeue();
 #if POB_TCP_DEBUG
-              Console.WriteLine("edge: {0}, There is a packet to send length: {1}",
+              Console.Error.WriteLine("edge: {0}, There is a packet to send length: {1}",
                                 this, p.Length);
 #endif
               NumberSerializer.WriteShort((short)p.Length, ssize_buf, 0);
@@ -834,7 +834,7 @@ namespace Brunet
     {
       try {
 #if POB_TCP_DEBUG
-        Console.WriteLine("edge: {0} in DoSend", this);
+        Console.Error.WriteLine("edge: {0} in DoSend", this);
 #endif
         bool need_to_send = false;
         lock(_sync) {
@@ -846,13 +846,13 @@ namespace Brunet
             _send_state.Length = p.Length + 2;
             p.CopyTo( _send_state.Buffer, 2 );
 #if PLAB_RDP_LOG
-	    //Console.WriteLine("*******In TcpEdge.DoSend() function");
+	    //Console.Error.WriteLine("*******In TcpEdge.DoSend() function");
 	    if(p.type == Packet.ProtType.AH){	    
-		//Console.WriteLine("ProtoType is AH in DoSend()");
+		//Console.Error.WriteLine("ProtoType is AH in DoSend()");
 	        AHPacket ahp = (AHPacket)p;
 	        if(ahp.PayloadType == AHPacket.Protocol.Echo && ahp.Source.Equals(_logger.LocalAHAddress)
 				&& p.PayloadStream.ToArray()[0] > 0 && p.PayloadStream.ToArray()[1] == 0){
-    		    //Console.WriteLine("Type is Echo in DoSend()");
+    		    //Console.Error.WriteLine("Type is Echo in DoSend()");
 		    _logger.LogBrunetPing(p, false); 
 	        }
 	    }
@@ -899,7 +899,7 @@ namespace Brunet
     {
       try {
 #if POB_TCP_DEBUG
-        Console.WriteLine("edge: {0} in DoReceive", this);
+        Console.Error.WriteLine("edge: {0} in DoReceive", this);
 #endif
         Packet p = null;
         lock(_sync) {
@@ -962,16 +962,16 @@ namespace Brunet
                                      _rec_state.Offset,
                                      _rec_state.Length);
 #if POB_TCP_DEBUG
-              //Console.WriteLine("edge: {0}, got packet {1}",this, p);
+              //Console.Error.WriteLine("edge: {0}, got packet {1}",this, p);
 #endif
 #if PLAB_RDP_LOG
-	    //Console.WriteLine("*******In TcpEdge.DoReceive() function");
+	    //Console.Error.WriteLine("*******In TcpEdge.DoReceive() function");
 	    if(p.type == Packet.ProtType.AH){	 
-		//Console.WriteLine("ProtoType is AH in DoReceive()");
+		//Console.Error.WriteLine("ProtoType is AH in DoReceive()");
 	        AHPacket ahp = (AHPacket)p;
 	        if(ahp.PayloadType == AHPacket.Protocol.Echo && ahp.Destination.Equals(_logger.LocalAHAddress)
 				&& p.PayloadStream.ToArray()[0] == 0 && p.PayloadStream.ToArray()[1] == 0){
-    		    //Console.WriteLine("Type is Echo in DoReceive()");
+    		    //Console.Error.WriteLine("Type is Echo in DoReceive()");
 		    _logger.LogBrunetPing(p, true); 
 	        }
 	    }
@@ -991,7 +991,7 @@ namespace Brunet
           else {
             //There is more to read, we have to wait until it is here!
 #if POB_TCP_DEBUG
-            Console.WriteLine("edge: {0}, can't read",this);
+            Console.Error.WriteLine("edge: {0}, can't read",this);
 #endif
           }
         }
@@ -1000,7 +1000,7 @@ namespace Brunet
           ReceivedPacketEvent(p);
         }
 #if POB_TCP_DEBUG
-        Console.WriteLine("edge: {0} out of DoReceive", this);
+        Console.Error.WriteLine("edge: {0} out of DoReceive", this);
 #endif
       }
       catch(Exception) {

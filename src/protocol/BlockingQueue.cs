@@ -83,7 +83,7 @@ public class BlockingQueue : Queue {
     }
     //Wake up any blocking threads:
 #if DEBUG
-    System.Console.WriteLine("Close set");
+    System.Console.Error.WriteLine("Close set");
 #endif
   }
   
@@ -123,7 +123,7 @@ public class BlockingQueue : Queue {
           throw x;
         }
 #if DEBUG
-	System.Console.WriteLine("Got set: count {0}", Count);
+	System.Console.Error.WriteLine("Got set: count {0}", Count);
 #endif
         if( base.Count > 1 || _closed ) {
           /*
@@ -189,7 +189,7 @@ public class BlockingQueue : Queue {
       }
       //Wake up any waiting threads
 #if DEBUG
-      System.Console.WriteLine("Enqueue set: count {0}", Count);
+      System.Console.Error.WriteLine("Enqueue set: count {0}", Count);
 #endif
       _re.Set();
     }
@@ -210,7 +210,7 @@ public class BlockingQueue : Queue {
       _re.Set();
     }
 #if DEBUG
-    System.Console.WriteLine("Exception set: ex {0}", x);
+    System.Console.Error.WriteLine("Exception set: ex {0}", x);
 #endif
   }
 
@@ -222,7 +222,7 @@ public class BlockingQueue : Queue {
 //     }
 //     int idx = WaitHandle.WaitAny(wait_handle, timeout, true);
 //     if (idx == WaitHandle.WaitTimeout) {
-//       Console.WriteLine("wait any returned: {0}", idx);
+//       Console.Error.WriteLine("wait any returned: {0}", idx);
 //       return null;
 //     }
 //     BlockingQueue t = (BlockingQueue) queues[idx];
@@ -249,7 +249,7 @@ public class BlockingQueue : Queue {
       wait_handle[k] = ar[k].AsyncWaitHandle;
     }
     //we now wait for all invocations to finish
-    Console.WriteLine("Waiting for all invocations to finish...");
+    Console.Error.WriteLine("Waiting for all invocations to finish...");
     WaitHandle.WaitAll(wait_handle);
     //we know that all invocations of Fetch have completed
     ArrayList []results = new ArrayList[queues.Length];
@@ -281,16 +281,16 @@ public class BlockingQueue : Queue {
     Thread.Sleep(millisec);
     for (int k = 0; k < queues.Length; k++) {
       try {
-	Console.WriteLine("Closing queue: {0}", k);	
+	Console.Error.WriteLine("Closing queue: {0}", k);	
 	queues[k].Close();
       } catch(InvalidOperationException) {
 	
       }
     }
     //we now wait for all invocations to finish
-    Console.WriteLine("Waiting for all parallel invocations to finish...");
+    Console.Error.WriteLine("Waiting for all parallel invocations to finish...");
     WaitHandle.WaitAll(wait_handle);
-    Console.WriteLine("All parallel invocations are over.");
+    Console.Error.WriteLine("All parallel invocations are over.");
     //we know that all invocations of Fetch have completed
     ArrayList []results = new ArrayList[queues.Length];
     for (int k = 0; k < queues.Length; k++) {
@@ -317,7 +317,7 @@ public class BlockingQueue : Queue {
     } catch (InvalidOperationException ) {
 
     }
-    //Console.WriteLine("fetch finished");
+    //Console.Error.WriteLine("fetch finished");
     return replies;
   }
 #if BRUNET_NUNIT
@@ -340,7 +340,7 @@ public class BlockingQueue : Queue {
     for(int i = 0; i < 100000; i++) { 
       Assert.AreEqual( Dequeue(), r.Next(), "dequeue equality test" );
     }
-//    System.Console.WriteLine("Trying to get an exception");
+//    System.Console.Error.WriteLine("Trying to get an exception");
     //The next dequeue should throw an exception
     bool got_exception = false;
     try {
@@ -366,28 +366,28 @@ public class BlockingQueue : Queue {
 //     private ArrayList _queues;
 //     public void TestThreadProducer()
 //     {
-//       Console.WriteLine("producer thread begins");
+//       Console.Error.WriteLine("producer thread begins");
 //       //See a random number generator with the number 1.
 //       Random[] r = new Random[_queues.Count];
 //       for (int i = 0; i < r.Length; i++) {
 // 	r[i] = new Random(i);
 //       }
-//       Console.WriteLine("created all random number generators");
+//       Console.Error.WriteLine("created all random number generators");
 //       for(int k = 0; k < 100000; k++) { 
 // 	for (int i = 0; i < _queues.Count; i++) {
 // 	  BlockingQueue q = (BlockingQueue) _queues[i];
 // 	  int val = r[i].Next();
-// 	  Console.WriteLine("enqueing val: {0} into queue: {1}", val, i);
+// 	  Console.Error.WriteLine("enqueing val: {0} into queue: {1}", val, i);
 // 	  q.Enqueue(val) ;
 // 	}
 //       }
-//       Console.WriteLine("finsished all iterations");
+//       Console.Error.WriteLine("finsished all iterations");
 //       for (int i = 0; i < _queues.Count; i++) {
-// 	Console.WriteLine("closing queue: {0}", i);
+// 	Console.Error.WriteLine("closing queue: {0}", i);
 // 	BlockingQueue q = (BlockingQueue) _queues[i];
 // 	q.Close();
 //       }
-//       Console.WriteLine("closed all queues");
+//       Console.Error.WriteLine("closed all queues");
 //     }
     
 //     [Test]
@@ -402,38 +402,38 @@ public class BlockingQueue : Queue {
 //       }
       
 //       Thread t = new Thread(this.TestThreadProducer);
-//       Console.WriteLine("starting producer thread");
+//       Console.Error.WriteLine("starting producer thread");
 //       t.Start();
       
 //       ArrayList local_list = (ArrayList) _queues.Clone();
 
 //       while(true) {
-// 	Console.WriteLine("queues.count: {0}", local_list.Count);
+// 	Console.Error.WriteLine("queues.count: {0}", local_list.Count);
 // 	if (local_list.Count == 0) {
 // 	  break;
 // 	}
 // 	//a 10 second timeout
 // 	BlockingQueue q = BlockingQueue.Select(local_list, 10000);
 // 	if (q == null) {
-// 	  Console.WriteLine("select returned a null");
+// 	  Console.Error.WriteLine("select returned a null");
 // 	  continue;
 // 	}
 // 	int idx = _queues.IndexOf(q);
-// 	Console.WriteLine("select returning queue: {0}", idx);
+// 	Console.Error.WriteLine("select returning queue: {0}", idx);
 // 	//get random number generator
 // 	Random r = (Random) rr[q];
 // 	try {
-// 	  Console.WriteLine("attempting a dequeue at: {0}", idx);
+// 	  Console.Error.WriteLine("attempting a dequeue at: {0}", idx);
 // 	  bool timedout;
 // 	  object o = q.Dequeue(0, out timedout);
 // 	  if (!timedout) {
 // 	    Assert.AreEqual( o, r.Next(), "dequeue equality test" );
 // 	  } else {
-// 	    Console.WriteLine("nothing dequeued");
+// 	    Console.Error.WriteLine("nothing dequeued");
 // 	  }
 // 	} catch(InvalidOperationException e) {
 // 	  //in case the queue closed down
-// 	  Console.WriteLine("removing queue: {0} from the list", idx);
+// 	  Console.Error.WriteLine("removing queue: {0} from the list", idx);
 // 	  local_list.Remove(q);
 // 	}
 //       }

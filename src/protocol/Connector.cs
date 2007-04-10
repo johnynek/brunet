@@ -274,7 +274,7 @@ namespace Brunet
 #endif
 
 #if ARI_CTM_DEBUG
-	Console.WriteLine("Connector - Send CTM request; src: {0}, target: {1} at: {2}", 
+	Console.Error.WriteLine("Connector - Send CTM request; src: {0}, target: {1} at: {2}", 
 			  _con_packet.Source, _con_packet.Destination, DateTime.Now);
 #endif
         _sender.Send(_con_packet);
@@ -314,8 +314,8 @@ namespace Brunet
               * @todo see if the type of connection is the same
                */
 #if ARI_CTM_DEBUG
-	      Console.WriteLine("Got CTM Response from: {0} at: {1} - {2}", p.Source, DateTime.Now, cm);
-              Console.WriteLine("Initiating a linking protocol on CTM response.");
+	      Console.Error.WriteLine("Got CTM Response from: {0} at: {1} - {2}", p.Source, DateTime.Now, cm);
+              Console.Error.WriteLine("Initiating a linking protocol on CTM response.");
 #endif
               ConnectToMessage new_ctm = (ConnectToMessage)cm;
               _got_ctm = true;
@@ -352,7 +352,7 @@ namespace Brunet
           }
           else if( _got_ctm == false && _ctm_send_timeouts < MaxTimeOuts ) {
             //There has been no response, resend the request
-            //Console.WriteLine("Resending:({0})\n{1}", _ctm_send_timeouts,
+            //Console.Error.WriteLine("Resending:({0})\n{1}", _ctm_send_timeouts,
             //                                          _con_packet);
             _sender.Send( _con_packet );
           }

@@ -289,12 +289,12 @@ namespace Brunet
     {
       foreach(string a in args)
       {
-        System.Console.WriteLine("{0}:", a);
+        System.Console.Error.WriteLine("{0}:", a);
         byte[] data = Decode(a);
         foreach(byte datum in data){
           System.Console.Write("{0}:", datum);
         }
-        System.Console.WriteLine("\n--");
+        System.Console.Error.WriteLine("\n--");
       }
     }
   }

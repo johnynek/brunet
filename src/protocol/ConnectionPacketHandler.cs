@@ -111,7 +111,7 @@ namespace Brunet
           ConnectionMessage response = null;
 	  if (cm is PingMessage) {
 // #if LINK_DEBUG
-// 	    Console.WriteLine("ConnectionPacketHandler - Getting a ping request; edge: {0}; length: {1}",
+// 	    Console.Error.WriteLine("ConnectionPacketHandler - Getting a ping request; edge: {0}; length: {1}",
 //                               from, p.Length);
 // #endif
 
@@ -123,7 +123,7 @@ namespace Brunet
             response.Dir = ConnectionMessage.Direction.Response;
             response.Id = cm.Id;
 // #if LINK_DEBUG
-// 	    Console.WriteLine("ConnectionPacketHandler - Sending a ping response; edge: {0};",
+// 	    Console.Error.WriteLine("ConnectionPacketHandler - Sending a ping response; edge: {0};",
 //                               from);
 // #endif
             //log.Info("Sending Ping response:" + response.ToString());
@@ -131,7 +131,7 @@ namespace Brunet
 	  }
 	  else if (cm is StatusMessage) {
 #if LINK_DEBUG
-	    Console.WriteLine("ConnectionPacketHandler - Getting a status request; edge: {0}; length: {1} at: {2}",
+	    Console.Error.WriteLine("ConnectionPacketHandler - Getting a status request; edge: {0}; length: {1} at: {2}",
                               from, p.Length, DateTime.Now);
 #endif
 	    //we just got s status request
@@ -169,7 +169,7 @@ namespace Brunet
             response.Dir = ConnectionMessage.Direction.Response;
             response.Id = cm.Id;
 #if LINK_DEBUG
-	    Console.WriteLine("ConnectionPacketHandler -  Sending status response: {0}; length: {1}, at: {2}", response, 
+	    Console.Error.WriteLine("ConnectionPacketHandler -  Sending status response: {0}; length: {1}, at: {2}", response, 
 			      response.ToPacket().Length, DateTime.Now);
 #endif
             from.Send(response.ToPacket());
@@ -177,7 +177,7 @@ namespace Brunet
             
             //Release the lock before calling this function:
             if( lm_to_add != null ) {
-              /*Console.WriteLine("About to add: {0},{1},{2}",
+              /*Console.Error.WriteLine("About to add: {0},{1},{2}",
                                 lm_to_add.ConTypeString,
 				lm_to_add.Local.Address,
                                 from );*/
@@ -187,7 +187,7 @@ namespace Brunet
 					      sm,
 					      lm_to_add);
 #if LINK_DEBUG
-	      Console.WriteLine("ConnectionPacketHandler - Creating a new connection: {0}, at: {1}", con, DateTime.Now);
+	      Console.Error.WriteLine("ConnectionPacketHandler - Creating a new connection: {0}, at: {1}", con, DateTime.Now);
 #endif
 	      _tab.Add(con);
               //Unlock after we add the connection
@@ -196,7 +196,7 @@ namespace Brunet
           }
           else if (cm is CloseMessage) {
 #if LINK_DEBUG
-	    Console.WriteLine("ConnectionPacketHandler - Getting a close request; edge: {0}; length: {1}, at: {2}",
+	    Console.Error.WriteLine("ConnectionPacketHandler - Getting a close request; edge: {0}; length: {1}, at: {2}",
                               from, p.Length, DateTime.Now);
 #endif
             /**
@@ -228,7 +228,7 @@ namespace Brunet
           }
           else if (cm is LinkMessage) {
 #if LINK_DEBUG
-	    Console.WriteLine("ConnectionPacketHandler - Getting a link request; edge: {0}; length: {1} at: {2}",
+	    Console.Error.WriteLine("ConnectionPacketHandler - Getting a link request; edge: {0}; length: {1} at: {2}",
                               from, p.Length, DateTime.Now);
 #endif
             /**
@@ -245,11 +245,11 @@ namespace Brunet
             lock( _sync ) {
               if( !_edge_to_lm.ContainsKey( from ) ) {
 #if LINK_DEBUG
-		Console.WriteLine("ConnectionPacketHandler - Checking if can connect.");
+		Console.Error.WriteLine("ConnectionPacketHandler - Checking if can connect.");
 #endif
                 if( CanConnect(lm, from, out err) ) {
 #if LINK_DEBUG
-		  Console.WriteLine("ConnectionPacketHandler - Yes we can connect connect.");
+		  Console.Error.WriteLine("ConnectionPacketHandler - Yes we can connect connect.");
 #endif
                   //We can connect, add this LinkMessage to the table
                   _edge_to_lm[from] = lm;
@@ -276,12 +276,12 @@ namespace Brunet
               response.Id = lm.Id;
               response.Dir = ConnectionMessage.Direction.Response;
 #if LINK_DEBUG
-	      Console.WriteLine("ConnectionPacketHandler - Sending a link response on : {0} at {1}.", from, DateTime.Now);
+	      Console.Error.WriteLine("ConnectionPacketHandler - Sending a link response on : {0} at {1}.", from, DateTime.Now);
 #endif
             }
             else {
 #if LINK_DEBUG
-	      Console.WriteLine("ConnectionPacketHandler - Sending an error response on: {0} at {1}.", from, DateTime.Now);
+	      Console.Error.WriteLine("ConnectionPacketHandler - Sending an error response on: {0} at {1}.", from, DateTime.Now);
 #endif
               response = err;
               if( err.Ec == ErrorMessage.ErrorCode.AlreadyConnected ) {
@@ -317,7 +317,7 @@ namespace Brunet
         else {
           if (cm is StatusMessage) {
 #if LINK_DEBUG
-	    Console.WriteLine("ConnectionPacketHandler - Getting a status message -- testlink-- edge: {0}; length: {1}",
+	    Console.Error.WriteLine("ConnectionPacketHandler - Getting a status message -- testlink-- edge: {0}; length: {1}",
                               from, p.Length);
 #endif
             /**
@@ -386,16 +386,16 @@ namespace Brunet
           //Everything is looking good:
           try {
 #if LINK_DEBUG
-	    Console.WriteLine("ConnectionPacketHandler - Trying to lock connection table: {0}", lm);
+	    Console.Error.WriteLine("ConnectionPacketHandler - Trying to lock connection table: {0}", lm);
 #endif
             _tab.Lock( lm.Local.Address, lm.ConTypeString, this );
 #if LINK_DEBUG
-	    Console.WriteLine("ConnectionPacketHandler - Successfully locked connection table: {0}", lm);
+	    Console.Error.WriteLine("ConnectionPacketHandler - Successfully locked connection table: {0}", lm);
 #endif
           }
           catch(InvalidOperationException) {
 #if LINK_DEBUG
-	    Console.WriteLine("ConnectionPacketHandler - Cannot lock connection table: {0}", lm);
+	    Console.Error.WriteLine("ConnectionPacketHandler - Cannot lock connection table: {0}", lm);
 #endif
             //Lock can throw this type of exception
             err = new ErrorMessage(ErrorMessage.ErrorCode.InProgress,

@@ -245,8 +245,8 @@ public class RpcManager : IReplyHandler, IRequestHandler {
       }
     } 
 #if RPC_DEBUG    
-    Console.WriteLine("enqueue_packet: {0}", enqueue_result);    
-    Console.WriteLine("continue listening: {0}", retval);
+    Console.Error.WriteLine("enqueue_packet: {0}", enqueue_result);    
+    Console.Error.WriteLine("continue listening: {0}", retval);
 #endif
 
     if (enqueue_result) {
@@ -266,7 +266,7 @@ public class RpcManager : IReplyHandler, IRequestHandler {
   {
     Exception exception = null; 
 #if RPC_DEBUG
-    Console.WriteLine("[RpcServer: {0}] Getting method invocation request at: {1}.",
+    Console.Error.WriteLine("[RpcServer: {0}] Getting method invocation request at: {1}.",
                      _rrman.Node.Address, DateTime.Now);
 #endif
     try {
@@ -280,7 +280,7 @@ public class RpcManager : IReplyHandler, IRequestHandler {
       
       string methname = (string)l[0];
 #if RPC_DEBUG
-      Console.WriteLine("[RpcServer: {0}] Getting invocation request,  method: {1}",
+      Console.Error.WriteLine("[RpcServer: {0}] Getting invocation request,  method: {1}",
                      _rrman.Node.Address, methname);
 #endif
 
@@ -304,8 +304,8 @@ public class RpcManager : IReplyHandler, IRequestHandler {
           throw new AdrException(-32601, "No Handler for method: " + methname);
         }
       }
-      //Console.WriteLine("About to call: {0}.{1} with args",handler, mname);
-      //foreach(object arg in pa) { Console.WriteLine("arg: {0}",arg); }
+      //Console.Error.WriteLine("About to call: {0}.{1} with args",handler, mname);
+      //foreach(object arg in pa) { Console.Error.WriteLine("arg: {0}",arg); }
       MethodInfo mi = handler.GetType().GetMethod(mname);
       //make the following happen asynchronously in a separate thread
       //build an invocation record for the call
@@ -328,7 +328,7 @@ public class RpcManager : IReplyHandler, IRequestHandler {
     if (exception != null) {
       //something failed even before invocation began
 #if RPC_DEBUG
-      Console.WriteLine("[RpcServer: {0}] Something failed even before invocation began.",
+      Console.Error.WriteLine("[RpcServer: {0}] Something failed even before invocation began.",
                      _rrman.Node.Address);
 #endif
       MemoryStream ms = new MemoryStream();
@@ -385,7 +385,7 @@ public class RpcManager : IReplyHandler, IRequestHandler {
 
     ArrayList arglist = new ArrayList();
     arglist.AddRange(args);
-    //foreach(object o in arglist) { Console.WriteLine("arg: {0}",o); } 
+    //foreach(object o in arglist) { Console.Error.WriteLine("arg: {0}",o); } 
     ArrayList rpc_call = new ArrayList();
     rpc_call.Add(method);
     rpc_call.Add(arglist);
@@ -394,7 +394,7 @@ public class RpcManager : IReplyHandler, IRequestHandler {
     AdrConverter.Serialize(rpc_call, ms);
 
 #if RPC_DEBUG
-    Console.WriteLine("[RpcClient: {0}] Invoking method: {1} on target: {2}",
+    Console.Error.WriteLine("[RpcClient: {0}] Invoking method: {1} on target: {2}",
                      _rrman.Node.Address, method, target);
 #endif
     
@@ -422,7 +422,7 @@ public class RpcManager : IReplyHandler, IRequestHandler {
 
     ArrayList arglist = new ArrayList();
     arglist.AddRange(args);
-    //foreach(object o in arglist) { Console.WriteLine("arg: {0}",o); } 
+    //foreach(object o in arglist) { Console.Error.WriteLine("arg: {0}",o); } 
     ArrayList rpc_call = new ArrayList();
     rpc_call.Add(method);
     rpc_call.Add(arglist);
@@ -431,7 +431,7 @@ public class RpcManager : IReplyHandler, IRequestHandler {
     AdrConverter.Serialize(rpc_call, ms);
 
 #if RPC_DEBUG
-    Console.WriteLine("[RpcClient: {0}] Invoking method: {1} on target: {2}",
+    Console.Error.WriteLine("[RpcClient: {0}] Invoking method: {1} on target: {2}",
                      _rrman.Node.Address, method, target);
 #endif
     
@@ -448,30 +448,30 @@ public class RpcManager : IReplyHandler, IRequestHandler {
     Object result = null;
     try {
 #if RPC_DEBUG
-      Console.WriteLine("[RpcServer: {0}] Invoking method: {1}", _rrman.Node.Address, mi);
+      Console.Error.WriteLine("[RpcServer: {0}] Invoking method: {1}", _rrman.Node.Address, mi);
 #endif
       result = mi.Invoke(handler, param_list);
     } catch(ArgumentException argx) {
 #if RPC_DEBUG
-      Console.WriteLine("[RpcServer: {0}] Argument exception. {1}", _rrman.Node.Address, mi);
+      Console.Error.WriteLine("[RpcServer: {0}] Argument exception. {1}", _rrman.Node.Address, mi);
 #endif
       result = new AdrException(-32602, argx);
     }
     catch(TargetParameterCountException argx) {
 #if RPC_DEBUG
-      Console.WriteLine("[RpcServer: {0}] Parameter count exception. {1}", _rrman.Node.Address, mi);
+      Console.Error.WriteLine("[RpcServer: {0}] Parameter count exception. {1}", _rrman.Node.Address, mi);
 #endif
       result = new AdrException(-32602, argx);
     }
     catch(TargetInvocationException x) {
 #if RPC_DEBUG
-      Console.WriteLine("[RpcServer: {0}] Exception thrown by method: {1}, {2}", _rrman.Node.Address, mi, x.InnerException.Message);
+      Console.Error.WriteLine("[RpcServer: {0}] Exception thrown by method: {1}, {2}", _rrman.Node.Address, mi, x.InnerException.Message);
 #endif
       result = new AdrException(-32608, x.InnerException);
     }
     catch(Exception x) {
 #if RPC_DEBUG
-      Console.WriteLine("[RpcServer: {0}] General exception. {1}", _rrman.Node.Address, mi);
+      Console.Error.WriteLine("[RpcServer: {0}] General exception. {1}", _rrman.Node.Address, mi);
 #endif
       result = x;
     }

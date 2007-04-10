@@ -92,11 +92,11 @@ namespace Brunet
 #endif
 
 #if ARI_CTM_DEBUG
-        System.Console.WriteLine("CtmRequestHandler - Got CTM Request,"
+        System.Console.Error.WriteLine("CtmRequestHandler - Got CTM Request,"
 				 + n.Address.ToString() + " connectTo: "
 				 + ctm.Target.Address.ToString() + " ConType: " + ctm.ConnectionType);
-	Console.WriteLine("CtmRequestHandler - CtmRequest at: {0} -  {1}", DateTime.Now, ctm);
-	Console.WriteLine("CtmRequestHandler - Initiating link protocol on CTM request.");
+	Console.Error.WriteLine("CtmRequestHandler - CtmRequest at: {0} -  {1}", DateTime.Now, ctm);
+	Console.Error.WriteLine("CtmRequestHandler - Initiating link protocol on CTM request.");
 #endif
         /*_log.Info("Got CTM Request,"
         + n.Address.ToString() + " connectTo: "
@@ -104,7 +104,7 @@ namespace Brunet
 
 
 #if ARI_CTM_DEBUG
-        System.Console.WriteLine("CtmRequestHandler - Trying to start a linking attempt,"
+        System.Console.Error.WriteLine("CtmRequestHandler - Trying to start a linking attempt,"
 				 + n.Address.ToString() + " connectTo: "
 				 + ctm.Target.Address.ToString() + " ConType: " + ctm.ConnectionType);
 #endif
@@ -163,7 +163,7 @@ namespace Brunet
         }
         //_log.Info("Sending CTM Response");
 #if ARI_CTM_DEBUG
-        System.Console.WriteLine("CtmRequestHandler - Sending CTM response,"
+        System.Console.Error.WriteLine("CtmRequestHandler - Sending CTM response,"
 				 + n.Address.ToString() + " connectTo: "
 				 + ctm.Target.Address.ToString() + " ConType: " + ctm.ConnectionType);
 #endif
