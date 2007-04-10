@@ -564,7 +564,9 @@ namespace Brunet
 	packet.CopyTo(tun_edge.SendBuffer, 9);
 	Packet p = new AHPacket(0, 1, _node.Address, tun_edge.Target, AHPacket.AHOptions.Exact,
 				AHPacket.Protocol.Tunneling, tun_edge.SendBuffer, 0, 9 + packet.Length);
-	tun_edge.PacketSender.Send(p);
+	if (tun_edge.PacketSender != null) {
+	  tun_edge.PacketSender.Send(p);
+	}
       }
     }
     
