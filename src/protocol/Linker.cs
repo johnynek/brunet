@@ -240,9 +240,9 @@ namespace Brunet
       protected void HandleEdge(bool success, Edge e, Exception x) {
 #if LINK_DEBUG
 	if (success) {
-	  Console.WriteLine("(Linker) Handle edge success{0}: ", e);
+	  Console.Error.WriteLine("(Linker) Handle edge success{0}: ", e);
 	} else {
-	  Console.WriteLine("(Linker) Handle edge failure{0}: ", x);
+	  Console.Error.WriteLine("(Linker) Handle edge failure{0}: ", x);
 	}
 #endif
         _is_finished = true;
@@ -437,11 +437,11 @@ namespace Brunet
 #if LINK_DEBUG
       _last_lid++;
       _lid = _last_lid;
-      Console.WriteLine("Making {0}",this);
+      Console.Error.WriteLine("Making {0}",this);
       if( target_list != null ) {
-        Console.WriteLine("TAs:");
+        Console.Error.WriteLine("TAs:");
         foreach(TransportAddress ta in target_list) {
-          Console.WriteLine(ta);
+          Console.Error.WriteLine(ta);
         }
       }
 #endif
@@ -459,7 +459,7 @@ namespace Brunet
      */
     override public void Start() {
 #if LINK_DEBUG
-      System.Console.WriteLine("Linker({0}).Start at: {1}", _lid, DateTime.Now);
+      System.Console.Error.WriteLine("Linker({0}).Start at: {1}", _lid, DateTime.Now);
 #endif
       //Just move to the next (first) TA
       lock( _sync ) {
@@ -573,7 +573,7 @@ namespace Brunet
           }
 	}//Lock
 #if LINK_DEBUG
-        Console.WriteLine("Linker({0}) {1}: transfering lock on {2} to {3}",
+        Console.Error.WriteLine("Linker({0}) {1}: transfering lock on {2} to {3}",
                           _lid, allow, a, l);
 #endif
 	return allow;       
@@ -601,12 +601,12 @@ namespace Brunet
 	_local_n.ConnectionTable.Add(c);
         _con = c;
 #if LINK_DEBUG
-        Console.WriteLine("Linker({0}) added {1} at: {2}", _lid, c, DateTime.Now);
+        Console.Error.WriteLine("Linker({0}) added {1} at: {2}", _lid, c, DateTime.Now);
 #endif
       }
       catch(Exception) {
 #if LINK_DEBUG
-        Console.WriteLine("Linker({0}) exception trying to add: {1}", _lid, c);
+        Console.Error.WriteLine("Linker({0}) exception trying to add: {1}", _lid, c);
 #endif
         /* Looks like we could not add the connection */
         //log.Error("Could not Add:", x);
@@ -692,7 +692,7 @@ namespace Brunet
       }
       if( fire_finished ) {
 #if LINK_DEBUG
-        Console.WriteLine("Linker({0}) finished at: {1}", _lid, DateTime.Now);
+        Console.Error.WriteLine("Linker({0}) finished at: {1}", _lid, DateTime.Now);
 #endif
         FireFinished();
       }
@@ -701,7 +701,7 @@ namespace Brunet
    protected void LinkProtocolStateFinishHandler(object olps, EventArgs args) {
      LinkProtocolState lps = (LinkProtocolState)olps;
 #if LINK_DEBUG
-     Console.WriteLine("Linker({0}): {1} finished with result: {2} at: {3}", _lid,
+     Console.Error.WriteLine("Linker({0}): {1} finished with result: {2} at: {3}", _lid,
                        lps, lps.MyResult, DateTime.Now);
 #endif
      switch( lps.MyResult ) {
@@ -760,7 +760,7 @@ namespace Brunet
           //Don't start another if we have already succeeded
           next_ta = (TransportAddress)_ta_queue.Dequeue();
           if( _completed_tas.ContainsKey(next_ta) ) {
-            Console.WriteLine("TA: {0} appeared in list twice", next_ta);
+            Console.Error.WriteLine("TA: {0} appeared in list twice", next_ta);
             next_ta = null;
             //Keep looking only if there are more to look at:
             keep_looking = (_ta_queue.Count > 0);
@@ -774,7 +774,7 @@ namespace Brunet
         }
       }
 #if LINK_DEBUG
-      Console.WriteLine("Linker({0}) Move on to the next TA: {1}", _lid, next_ta);
+      Console.Error.WriteLine("Linker({0}) Move on to the next TA: {1}", _lid, next_ta);
 #endif
       return next_ta;
     }
@@ -821,12 +821,12 @@ namespace Brunet
       if( rss == null ) {
 #if LINK_DEBUG
         //Fail(ta, "no more tas to restart with");
-        Console.WriteLine("Linker({0}), no more tas to restart with");
+        Console.Error.WriteLine("Linker({0}), no more tas to restart with");
 #endif
       }
       else {
 #if LINK_DEBUG
-        Console.WriteLine("Linker({0}) restarting; remaining attempts: {1}",
+        Console.Error.WriteLine("Linker({0}) restarting; remaining attempts: {1}",
                             _lid, rss.RemainingAttempts);
 #endif
         //Actually schedule the restart
@@ -898,7 +898,7 @@ namespace Brunet
          * stop before we even try to make an edge.
          */
 #if LINK_DEBUG
-	  Console.WriteLine("Linker ({0}) attempting to lock {1}", _lid, _target);
+	  Console.Error.WriteLine("Linker ({0}) attempting to lock {1}", _lid, _target);
 #endif
          /*
           * Locks flow around in complex ways, but we
@@ -907,7 +907,7 @@ namespace Brunet
           */
           SetTarget(_target);
 #if LINK_DEBUG
-	  Console.WriteLine("Linker ({0}) acquired lock on {1}", _lid, _target);
+	  Console.Error.WriteLine("Linker ({0}) acquired lock on {1}", _lid, _target);
 #endif
         /*
          * Asynchronously gets an edge, and then begin the
@@ -917,7 +917,7 @@ namespace Brunet
          * the Link attempt Fails.
          */
 #if LINK_DEBUG
-	  Console.WriteLine("Linker: ({0}) Trying TA: {1}", _lid, next_ta);
+	  Console.Error.WriteLine("Linker: ({0}) Trying TA: {1}", _lid, next_ta);
 #endif
          TaskWorker ew = new EdgeWorker(_local_n.EdgeFactory, next_ta);
          ew.FinishEvent += this.EdgeWorkerHandler;
@@ -926,7 +926,7 @@ namespace Brunet
       }
       catch(InvalidOperationException) {
 #if LINK_DEBUG
-        Console.WriteLine("Linker ({0}) failed to lock {1}", _lid, _target);
+        Console.Error.WriteLine("Linker ({0}) failed to lock {1}", _lid, _target);
 #endif
         //This is thrown when ConnectionTable cannot lock.  Lets try again:
         RetryThis(next_ta);

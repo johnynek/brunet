@@ -255,11 +255,11 @@ namespace Brunet
       bed.StructureDegree = Count(ConnectionType.Structured);
 
       _logger.LogBrunetEvent( bed );
-      //Console.WriteLine("Table size is: {0}", TotalCount);
+      //Console.Error.WriteLine("Table size is: {0}", TotalCount);
 #endif
 
 #if PRINT_CONNECTIONS
-      System.Console.WriteLine("New Connection[{0}]: {1}", index, c);
+      System.Console.Error.WriteLine("New Connection[{0}]: {1}", index, c);
 #endif
       /* Send the event: */
       if( ConnectionEvent != null ) {
@@ -708,7 +708,7 @@ namespace Brunet
         if( null == old_locker ) {
           locks[a] = locker;
 #if LOCK_DEBUG
-          Console.WriteLine("{0}, locker: {1} Locking: {2}", _local,
+          Console.Error.WriteLine("{0}, locker: {1} Locking: {2}", _local,
                             locker, a);
 #endif
           return;
@@ -719,7 +719,7 @@ namespace Brunet
 	}
         else {
 #if LOCK_DEBUG
-          Console.WriteLine(
+          Console.Error.WriteLine(
             "{0}, {1} tried to lock {2}, but {3} holds the lock",
             _local,
             locker,
@@ -784,10 +784,10 @@ namespace Brunet
 
 
       #if DEBUG
-        System.Console.WriteLine("Remove: DisconnectionEvent[{0}]: {1}", index, c);
+        System.Console.Error.WriteLine("Remove: DisconnectionEvent[{0}]: {1}", index, c);
       #endif
 #if PRINT_CONNECTIONS
-        System.Console.WriteLine("New disconnection[{0}]: {1}", index, c);
+        System.Console.Error.WriteLine("New disconnection[{0}]: {1}", index, c);
 #endif
         //Announce the disconnection:
         if( DisconnectionEvent != null ) {
@@ -921,13 +921,13 @@ namespace Brunet
           ConnectionType mt = Connection.StringToMainType(t);
           Hashtable locks = (Hashtable)_address_locks[mt];
 #if LOCK_DEBUG
-          Console.WriteLine("{0} Unlocking {1}",
+          Console.Error.WriteLine("{0} Unlocking {1}",
                             _local,
                             a);
 #endif
           if( !locks.ContainsKey(a) ) {
 #if LOCK_DEBUG
-            Console.WriteLine("On node " +
+            Console.Error.WriteLine("On node " +
                               _local.ToString() +
                               ", " + locker.ToString() + " tried to unlock " +
                               a.ToString() + " but no such lock" );
@@ -941,7 +941,7 @@ namespace Brunet
           object real_locker = locks[a];
           if( real_locker != locker ) {
 #if LOCK_DEBUG
-            Console.WriteLine("On node " +
+            Console.Error.WriteLine("On node " +
                               _local.ToString() +
                               ", " + locker.ToString() + " tried to unlock " +
                               a.ToString() + " but not the owner" );
@@ -1019,7 +1019,7 @@ namespace Brunet
      */
     public void AddUnconnected(Edge e)
     {
-      //System.Console.WriteLine("ADDING EDGE {0} TO UNCONNECTED", e.ToString());
+      //System.Console.Error.WriteLine("ADDING EDGE {0} TO UNCONNECTED", e.ToString());
       lock( _sync ) {
         int idx = unconnected.IndexOf(e);
         if( idx < 0 ) {
@@ -1131,7 +1131,7 @@ namespace Brunet
 	//unused variable
 	Assert.IsNotNull(c);
        
-       	//Console.WriteLine("{0}\n",c);
+       	//Console.Error.WriteLine("{0}\n",c);
       }
       Assert.AreEqual(total,2,"all connections");
      
@@ -1141,7 +1141,7 @@ namespace Brunet
 	//Mostly a hack to make sure the compiler doesn't complain about an
 	//unused variable
 	Assert.IsNotNull(c);
-        //Console.WriteLine("{0}\n",c);
+        //Console.Error.WriteLine("{0}\n",c);
       }
       Assert.AreEqual(struct_tot, 2, "structured connections");
       int near_tot = 0;
@@ -1150,7 +1150,7 @@ namespace Brunet
 	//Mostly a hack to make sure the compiler doesn't complain about an
 	//unused variable
 	Assert.IsNotNull(c);
-        //Console.WriteLine("{0}\n",c);
+        //Console.Error.WriteLine("{0}\n",c);
       }
       Assert.AreEqual(near_tot, 1, "structured near");
 
@@ -1221,7 +1221,7 @@ namespace Brunet
         //Check symmetry:
         int r_c2 = tab.RightInclusiveCount(a2, a1);
         int l_c2 = tab.LeftInclusiveCount(a2, a1);
-        //Console.WriteLine("LIC(a,b): {0}, RIC(b,a): {1}", l_c2, r_c);
+        //Console.Error.WriteLine("LIC(a,b): {0}, RIC(b,a): {1}", l_c2, r_c);
         Assert.AreEqual(l_c, r_c2, "RIC(a2, a1) == LIC(a1, a2)");
         Assert.AreEqual(r_c, l_c2, "LIC(a2, a1) == RIC(a1, a2)");
         }

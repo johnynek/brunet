@@ -278,7 +278,7 @@ namespace Brunet
 				       TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:837")) );
       XmlAbleTester xt = new XmlAbleTester();
       LinkMessage l2 = (LinkMessage)xt.SerializeDeserialize(l1);
-      //System.Console.WriteLine("\nl1: {0}\n\nl2: {0}\n", l1, l2);
+      //System.Console.Error.WriteLine("\nl1: {0}\n\nl2: {0}\n", l1, l2);
       Assert.AreEqual(l1, l2, "LinkMessage test 1");
     }
   }

@@ -124,7 +124,7 @@ public class WeakHashtable {
   }
   protected void Init(int exp) {
 #if DEBUG
-    Console.WriteLine("Old exp: {0}, new exp: {1}", _expon, exp);
+    Console.Error.WriteLine("Old exp: {0}, new exp: {1}", _expon, exp);
 #endif
     _expon = exp;
     _size = 1 << _expon; //2^exp
@@ -152,7 +152,7 @@ public class WeakHashtable {
    */
   protected void Add(object key, object val, bool replace, bool rebalance) {
 #if DEBUG
-    Console.WriteLine("WeakHashtable.Add({0},{1})", key, val);
+    Console.Error.WriteLine("WeakHashtable.Add({0},{1})", key, val);
 #endif
     Element old = GetElement(key);
     if( old == null ) {
@@ -179,7 +179,7 @@ public class WeakHashtable {
       Rebalance();
     }
 #if DEBUG
-    Console.WriteLine("Done: Add");
+    Console.Error.WriteLine("Done: Add");
 #endif
   }
   /**
@@ -211,7 +211,7 @@ public class WeakHashtable {
    */
   protected Element GetElement(object key) {
 #if DEBUG
-    Console.WriteLine("WeakHashtable.GetElement({0})", key);
+    Console.Error.WriteLine("WeakHashtable.GetElement({0})", key);
 #endif
     if( key == null ) {
       throw new ArgumentNullException("Key cannot be null");
@@ -249,7 +249,7 @@ public class WeakHashtable {
       _count += live_count - l.Count;
     }
 #if DEBUG
-    Console.WriteLine("Done: GetElement: {0}", res);
+    Console.Error.WriteLine("Done: GetElement: {0}", res);
 #endif
     return res;
   }
@@ -260,7 +260,7 @@ public class WeakHashtable {
    */
   public void Remove(object key) {
 #if DEBUG
-    Console.WriteLine("WeakHashtable.Remove({0})", key);
+    Console.Error.WriteLine("WeakHashtable.Remove({0})", key);
 #endif
     if( key == null ) {
       throw new ArgumentNullException("Key cannot be null");
@@ -294,7 +294,7 @@ public class WeakHashtable {
     }
     Rebalance();
 #if DEBUG
-    Console.WriteLine("Done: Remove");
+    Console.Error.WriteLine("Done: Remove");
 #endif
   }
 
@@ -311,12 +311,12 @@ public class WeakHashtable {
     }
     set {
 #if DEBUG
-    Console.WriteLine("WeakHashtable[{0}] = {1}", key, value);
+    Console.Error.WriteLine("WeakHashtable[{0}] = {1}", key, value);
 #endif
       //Just call Add
       Add(key, value, true, true);
 #if DEBUG
-    Console.WriteLine("Done set");
+    Console.Error.WriteLine("Done set");
 #endif
     }
   }
@@ -327,7 +327,7 @@ public class WeakHashtable {
    */
   protected void Rebalance() {
 #if DEBUG
-    Console.WriteLine("Rebalance");
+    Console.Error.WriteLine("Rebalance");
 #endif
     int new_expon = _expon;
     if( ( ( 2 * _count ) >  _size ) ) {
@@ -345,7 +345,7 @@ public class WeakHashtable {
     }
     if( new_expon != _expon ) {
 #if DEBUG
-      Console.WriteLine("Rebalance: go");
+      Console.Error.WriteLine("Rebalance: go");
 #endif
       ArrayList all_elements = new ArrayList();
       foreach(IList l in _table) {

@@ -46,7 +46,7 @@ namespace Brunet {
       set {
 #if ARI_CHOTA_DEBUG
 	if (!_received && value) {
-	  Console.WriteLine("ChotaConnectionState: Recording bidirectional connectivity");
+	  Console.Error.WriteLine("ChotaConnectionState: Recording bidirectional connectivity");
 	}
 #endif
 	_received = value;
@@ -72,10 +72,10 @@ namespace Brunet {
       get {
 #if ARI_CHOTA_DEBUG
 	if (_con != null) {
-	  Console.WriteLine("ChotaConnectionState:  Active connector exists. (Don't reattempt)");
+	  Console.Error.WriteLine("ChotaConnectionState:  Active connector exists. (Don't reattempt)");
 	}
 	if (!_received) {
-	  Console.WriteLine("ChotaConnectionState:  No bidirectional connectivity (Don't reattempt)");
+	  Console.Error.WriteLine("ChotaConnectionState:  No bidirectional connectivity (Don't reattempt)");
 	}
 #endif
 	if (_con == null && _received) {

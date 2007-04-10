@@ -230,7 +230,7 @@ namespace Brunet
         //This edge has some control information.
         try {
 	  ControlCode code = (ControlCode)NumberSerializer.ReadInt(buffer, 0);
-          System.Console.WriteLine("Got control from: {0}", e);
+          System.Console.Error.WriteLine("Got control from: {0}", e);
 	  if( code == ControlCode.EdgeClosed ) {
             //The edge has been closed on the other side
 	    e.Close();
@@ -245,7 +245,7 @@ namespace Brunet
               TransportAddress new_ta = TransportAddressFactory.CreateInstance(our_local_ta);
               TransportAddress old_ta = e.PeerViewOfLocalTA;
               if( ! new_ta.Equals( old_ta ) ) {
-                System.Console.WriteLine(
+                System.Console.Error.WriteLine(
 	        "Local NAT Mapping changed on Edge: {0}\n{1} => {2}",
                  e, old_ta, new_ta); 
                 //Looks like matters have changed:
@@ -289,7 +289,7 @@ namespace Brunet
           if( e_dup.End.Equals( end ) ) {
             //Same id from the same endpoint, looks like a dup...
             is_new_edge = false;
-            //Console.WriteLine("Stopped a Dup on: {0}", e_dup);
+            //Console.Error.WriteLine("Stopped a Dup on: {0}", e_dup);
             //Reuse the existing edge:
             edge = e_dup;
           }
@@ -363,7 +363,7 @@ namespace Brunet
       }
       if( (edge != null) && !edge.End.Equals(end) ) {
         //This happens when a NAT mapping changes
-        System.Console.WriteLine(
+        System.Console.Error.WriteLine(
 	    "Remote NAT Mapping changed on Edge: {0}\n{1} -> {2}",
            edge, edge.End, end); 
         //Actually update:
@@ -574,7 +574,7 @@ namespace Brunet
 
         try {	//catching SocketException
           s.SendTo( ms.ToArray(), end);
-          System.Console.WriteLine("Sending control to: {0}", end);
+          System.Console.Error.WriteLine("Sending control to: {0}", end);
         }
         catch (SocketException sc) {
           Console.Error.WriteLine(

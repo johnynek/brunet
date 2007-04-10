@@ -79,14 +79,14 @@ public class ReqrepManager : IAHPacketHandler {
 
     _node.ArrivalEvent += delegate(object n, EventArgs args) { 
 #if REQREP_DEBUG
-      Console.WriteLine("[ReqrepManager: {0}] Activated.",
+      Console.Error.WriteLine("[ReqrepManager: {0}] Activated.",
 			_node.Address);
 #endif
       _is_active = true;
     };
     _node.DepartureEvent += delegate(object n, EventArgs args) { 
 #if REQREP_DEBUG
-      Console.WriteLine("[ReqrepManager: {0}] Deactivated.",
+      Console.Error.WriteLine("[ReqrepManager: {0}] Deactivated.",
 			_node.Address);
 #endif
       _is_active = false;
@@ -178,13 +178,13 @@ public class ReqrepManager : IAHPacketHandler {
      ReqrepType rt = (ReqrepType)((byte)ms.ReadByte());
      int idnum = NumberSerializer.ReadInt(ms);
      if ( rt == ReqrepType.Request || rt == ReqrepType.LossyRequest ) {
-       Console.WriteLine("[ReqrepManager Debug Hook: {0}] Request id: {1} from node: {2}",
+       Console.Error.WriteLine("[ReqrepManager Debug Hook: {0}] Request id: {1} from node: {2}",
 			 local, idnum, p.Source);
      } else if ( rt == ReqrepType.Reply) {
-       Console.WriteLine("[ReqrepManager Debug Hook: {0}] Reply id: {1} from node: {2}",
+       Console.Error.WriteLine("[ReqrepManager Debug Hook: {0}] Reply id: {1} from node: {2}",
 			 local, idnum, p.Source);       
      } else {
-       Console.WriteLine("[ReqrepManager Debug Hook: {0}] Unknown id: {1} from node: {2}",
+       Console.Error.WriteLine("[ReqrepManager Debug Hook: {0}] Unknown id: {1} from node: {2}",
 			 local, idnum, p.Source);              
      }
    }
@@ -195,13 +195,13 @@ public class ReqrepManager : IAHPacketHandler {
    public void HandleAHPacket(object node, AHPacket p, Edge from) {
      if (!_is_active) {
 #if REQREP_DEBUG
-       Console.WriteLine("[ReqrepManager: {0}] Inactive. Simply return (HandleAHPacket).",
+       Console.Error.WriteLine("[ReqrepManager: {0}] Inactive. Simply return (HandleAHPacket).",
 			 _node.Address);
 #endif
        return;
      }
 #if REQREP_DEBUG
-     Console.WriteLine("[ReqrepManager: {0}] Receiving packet at: {1}.", _node.Address, DateTime.Now);
+     Console.Error.WriteLine("[ReqrepManager: {0}] Receiving packet at: {1}.", _node.Address, DateTime.Now);
 #endif
 
      //Simulate packet loss
@@ -231,7 +231,7 @@ public class ReqrepManager : IAHPacketHandler {
 	   }
 	 }
 #if REQREP_DEBUG
-	 Console.WriteLine("[ReqrepServer: {0}] Receiving request id: {1} from node: {2}",
+	 Console.Error.WriteLine("[ReqrepServer: {0}] Receiving request id: {1} from node: {2}",
 			   _node.Address, idnum, p.Source);
 #endif
 
@@ -239,7 +239,7 @@ public class ReqrepManager : IAHPacketHandler {
 
 	 if ( rs == null ) {
 #if REQREP_DEBUG
-	   Console.WriteLine("[ReqrepServer: {0}] This is a new request, actually invoke handler",
+	   Console.Error.WriteLine("[ReqrepServer: {0}] This is a new request, actually invoke handler",
 			     _node.Address);
 #endif
 
@@ -262,7 +262,7 @@ public class ReqrepManager : IAHPacketHandler {
        if( start_new_rh ) {
 	 if( irh == null ) {
 #if REQREP_DEBUG
-	   Console.WriteLine("[ReqrepServer: {0}] No handler found for request.",
+	   Console.Error.WriteLine("[ReqrepServer: {0}] No handler found for request.",
 			     _node.Address);
 #endif
 	   //We have no handler
@@ -280,14 +280,14 @@ public class ReqrepManager : IAHPacketHandler {
 	      */
 	     System.IO.MemoryStream offsetpayload = p.GetPayloadStream(5 + count);
 #if REQREP_DEBUG
-	     Console.WriteLine("[ReqrepServer: {0}] Calling appropriate handler.", 
+	     Console.Error.WriteLine("[ReqrepServer: {0}] Calling appropriate handler.", 
 			       _node.Address);
 #endif
 	     irh.HandleRequest(this,rt,rs,pt,offsetpayload,p);
 	   }
 	   catch(Exception) {
 #if REQREP_DEBUG
-	     Console.WriteLine("[ReqrepServer: {0}] Something went wrong in request handler.", 
+	     Console.Error.WriteLine("[ReqrepServer: {0}] Something went wrong in request handler.", 
 			       _node.Address);
 #endif
 	     //Something has gone wrong
@@ -300,12 +300,12 @@ public class ReqrepManager : IAHPacketHandler {
        //Now just send this reply
        if( error == null ) {
 #if REQREP_DEBUG
-	 Console.WriteLine("[ReqrepServer: {0}] No.error.",
+	 Console.Error.WriteLine("[ReqrepServer: {0}] No.error.",
 			   _node.Address, idnum, p.Source);
 #endif
 	 if( rs.Reply != null ) {
 #if REQREP_DEBUG
-	   Console.WriteLine("[ReqrepServer: {0}] Sending reply to {1}",
+	   Console.Error.WriteLine("[ReqrepServer: {0}] Sending reply to {1}",
 			     _node.Address, p.Source);
 #endif
 	   _node.Send( rs.Reply );
@@ -319,7 +319,7 @@ public class ReqrepManager : IAHPacketHandler {
 	  */
 	 if( p.Destination.Equals( _node.Address ) ) {
 #if REQREP_DEBUG
-	   Console.WriteLine("[ReqrepServer: {0}] Sending error to {1}. ",
+	   Console.Error.WriteLine("[ReqrepServer: {0}] Sending error to {1}. ",
 			   _node.Address, p.Source);
 #endif
 	   _node.Send( error );
@@ -336,7 +336,7 @@ public class ReqrepManager : IAHPacketHandler {
 	   Statistics statistics = new Statistics();
 	   statistics.SendCount = reqs.SendCount;
 #if REQREP_DEBUG
-	   Console.WriteLine("[ReqrepManager: {0}] Receiving reply on request id: {1}, from: {2}", 
+	   Console.Error.WriteLine("[ReqrepManager: {0}] Receiving reply on request id: {1}, from: {2}", 
 			     _node.Address, idnum, p.Source);
 #endif
 
@@ -446,7 +446,7 @@ public class ReqrepManager : IAHPacketHandler {
   {
     if (!_is_active) {
 #if REQREP_DEBUG
-      Console.WriteLine("[ReqrepManager: {0}] Inactive. Simply return (SendRequest).",
+      Console.Error.WriteLine("[ReqrepManager: {0}] Inactive. Simply return (SendRequest).",
 			_node.Address);
 #endif
       //we are no longer active
@@ -478,7 +478,7 @@ public class ReqrepManager : IAHPacketHandler {
       _req_state_table[ next_req ] = rs;
     }
 #if REQREP_DEBUG
-    Console.WriteLine("[ReqrepClient: {0}] Sending a request: {1} to node: {2}",
+    Console.Error.WriteLine("[ReqrepClient: {0}] Sending a request: {1} to node: {2}",
 		      _node.Address, rs.RequestID, destination);
 #endif
 
@@ -511,7 +511,7 @@ public class ReqrepManager : IAHPacketHandler {
   {
     if (!_is_active) {
 #if REQREP_DEBUG
-      Console.WriteLine("[ReqrepManager: {0}] Inactive. Simply return (SendRequest).",
+      Console.Error.WriteLine("[ReqrepManager: {0}] Inactive. Simply return (SendRequest).",
 			_node.Address);
 #endif
       //we are no longer active
@@ -543,7 +543,7 @@ public class ReqrepManager : IAHPacketHandler {
       _req_state_table[ next_req ] = rs;
     }
 #if REQREP_DEBUG
-    Console.WriteLine("[ReqrepClient: {0}] Sending a request: {1} to node: {2}",
+    Console.Error.WriteLine("[ReqrepClient: {0}] Sending a request: {1} to node: {2}",
 		      _node.Address, rs.RequestID, destination);
 #endif
 
@@ -570,7 +570,7 @@ public class ReqrepManager : IAHPacketHandler {
     if (!_is_active) {
       //ignore!
 #if REQREP_DEBUG
-      Console.WriteLine("[ReqrepManager: {0}] Inactive. Simply return (SendReply).",
+      Console.Error.WriteLine("[ReqrepManager: {0}] Inactive. Simply return (SendReply).",
 			_node.Address);
 #endif
       return;

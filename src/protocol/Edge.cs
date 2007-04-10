@@ -69,7 +69,7 @@ namespace Brunet
       if (! _have_fired_close ) {
         //log.Warn("EdgeClose: edge: " + ToString());
 #if POB_DEBUG
-        Console.WriteLine("EdgeClose: edge: {0}", this);
+        Console.Error.WriteLine("EdgeClose: edge: {0}", this);
 #endif
         /*
          * Set to true *BEFORE* firing the event since some of
@@ -232,7 +232,7 @@ namespace Brunet
         //This packet is going into the trash:
         //log.Error("Packet LOST: " + p.ToString());
 #if DEBUG
-        Console.WriteLine("{0} lost packet {1}",this,p);
+        Console.Error.WriteLine("{0} lost packet {1}",this,p);
 #endif
 
       }

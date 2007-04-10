@@ -291,7 +291,7 @@ namespace Brunet
           lock(_sync) {
             /* Store the callback in the socket table temporarily: */
             if( s == null ) {
-              Console.WriteLine("Null socket");
+              Console.Error.WriteLine("Null socket");
 	    }
             _sock_to_edge[s] = cs;
           }
@@ -348,7 +348,7 @@ namespace Brunet
             writesocks != null ) {
           //There are some socket operations to do
 #if POB_DEBUG
-          Console.WriteLine("Selecting");
+          Console.Error.WriteLine("Selecting");
 #endif
           try {
             Socket.Select(readsocks,
@@ -368,7 +368,7 @@ namespace Brunet
         else {
           //Wait 10ms and try again
 #if POB_DEBUG
-          Console.WriteLine("Waiting");
+          Console.Error.WriteLine("Waiting");
 #endif
           Thread.Sleep(timeout_ms);
         }
