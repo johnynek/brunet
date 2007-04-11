@@ -55,7 +55,7 @@ namespace Brunet
     ///Here is the queue for outgoing packets:
     protected Queue _send_queue;
     //This is true if there is something in the queue
-    protected bool _queue_not_empty;
+    volatile protected bool _queue_not_empty;
     /**
      * This is a simple little class just to hold the
      * two objects needed to do a send
@@ -102,8 +102,8 @@ namespace Brunet
     ///used for thread for the socket synchronization
     protected object _sync;
     
-    protected bool _running;
-    protected bool _isstarted;
+    volatile protected bool _running;
+    volatile protected bool _isstarted;
     public override bool IsStarted
     {
       get { return _isstarted; }
