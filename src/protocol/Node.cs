@@ -347,7 +347,7 @@ namespace Brunet
     {
       foreach(EdgeListener el in _edgelistener_list) {
 #if DEBUG
-        Console.WriteLine("{0} starting {1}", Address, el);
+        Console.Error.WriteLine("{0} starting {1}", Address, el);
 #endif
         el.Start();
       }
@@ -407,8 +407,8 @@ namespace Brunet
     public virtual void Announce(AHPacket p, Edge from)
     {
 
-      //System.Console.WriteLine("Announcing packet: {0}:", p.ToString() );
-      //System.Console.WriteLine("PayloadType: {0}:", p.PayloadType );
+      //System.Console.Error.WriteLine("Announcing packet: {0}:", p.ToString() );
+      //System.Console.Error.WriteLine("PayloadType: {0}:", p.PayloadType );
 
       //When Subscribe or unsubscribe are called,
       //they make copies of the ArrayList, thus we
@@ -431,13 +431,13 @@ namespace Brunet
           IAHPacketHandler hand = null;
           try {
             hand = (IAHPacketHandler)handlers[i];
-            //System.Console.WriteLine("Handler: {0}", hand);
+            //System.Console.Error.WriteLine("Handler: {0}", hand);
             hand.HandleAHPacket(this, p, from);
           }
           catch(Exception x) {
-            System.Console.WriteLine("ERROR: Packet Handling Exception");
-            System.Console.WriteLine("Hander: {0}\tEdge: {1}\tPacket: {2}",hand, from, p);
-            System.Console.WriteLine("Exception: {0}", x);
+            System.Console.Error.WriteLine("ERROR: Packet Handling Exception");
+            System.Console.Error.WriteLine("Hander: {0}\tEdge: {1}\tPacket: {2}",hand, from, p);
+            System.Console.Error.WriteLine("Exception: {0}", x);
           }
         }
       }
@@ -463,7 +463,7 @@ namespace Brunet
      */
     public virtual void Disconnect() {
 #if DEBUG
-      Console.WriteLine("[Connect: {0}] deactivating task queue", _local_add);
+      Console.Error.WriteLine("[Connect: {0}] deactivating task queue", _local_add);
 #endif
       _task_queue.IsActive = false;
       if (DepartureEvent != null) {
@@ -609,7 +609,7 @@ namespace Brunet
       try {
         cm = _cmp.Parse((ConnectionPacket)p);
 #if DEBUG
-        Console.WriteLine("Got cm: {0}\nfrom: {1}", cm, from);
+        Console.Error.WriteLine("Got cm: {0}\nfrom: {1}", cm, from);
 #endif
         if( cm.Dir == ConnectionMessage.Direction.Response ) {
           //We expect a response to our close request:
@@ -661,7 +661,7 @@ namespace Brunet
         }
       }
       catch (InvalidCastException x) {
-        Console.WriteLine( "Bad cast in node: " + x.ToString() );
+        Console.Error.WriteLine( "Bad cast in node: " + x.ToString() );
       }
       catch( EdgeException ) {
         //Make sure the edge is closed:
@@ -673,7 +673,7 @@ namespace Brunet
               _gracefully_close_edges.Remove(from);
             }
 #if DEBUG
-            Console.WriteLine("{0} Got a response {2} to our close request, closing: {1}",
+            Console.Error.WriteLine("{0} Got a response {2} to our close request, closing: {1}",
                               Address,
                               from,
                               cm);
@@ -719,7 +719,7 @@ namespace Brunet
 	    Edge e = con.Edge;
             if( _last_edge_check - e.LastInPacketDateTime  > _EDGE_CLOSE_TIMEOUT ) {
               //After this period of time, we close the edge no matter what.
-	      Console.WriteLine("On an edge timeout, closing connection: {0}", con);
+	      Console.Error.WriteLine("On an edge timeout, closing connection: {0}", con);
               edges_to_close.Add(e);
             }
             else if( _last_edge_check - e.LastInPacketDateTime  > _CONNECTION_TIMEOUT ) {
@@ -730,7 +730,7 @@ namespace Brunet
           foreach(Edge e in _connection_table.GetUnconnectedEdges() ) {
             if( _last_edge_check - e.LastInPacketDateTime > _EDGE_CLOSE_TIMEOUT ) {
               edges_to_close.Add(e);
-	      Console.WriteLine("Close an unconnected edge: {0}", e);
+	      Console.Error.WriteLine("Close an unconnected edge: {0}", e);
 	      lock( _sync ) {
                 if( _gracefully_close_edges.Contains(e) ) {
                   _gracefully_close_edges.Remove(e);
@@ -748,7 +748,7 @@ namespace Brunet
             pm.Id = id++;
             e.Send( pm.ToPacket() );
 #if DEBUG
-            Console.WriteLine("Sending ping to: {0}", e);
+            Console.Error.WriteLine("Sending ping to: {0}", e);
 #endif
           }
           catch(EdgeException) {
@@ -767,7 +767,7 @@ namespace Brunet
               CloseMessage cm = (CloseMessage)grace_close_enum.Value;
               e.Send( cm.ToPacket() );
 #if DEBUG
-            Console.WriteLine("Sending close to: {0}", e);
+            Console.Error.WriteLine("Sending close to: {0}", e);
 #endif
             }
             catch(EdgeException) {
@@ -786,7 +786,7 @@ namespace Brunet
         }
         foreach(Edge e in edges_to_close) {
 #if DEBUG
-          Console.WriteLine("{1} Timeout Close: {0}", e, Address);
+          Console.Error.WriteLine("{1} Timeout Close: {0}", e, Address);
 #endif
           //This guy is dead, close him down
           e.Close();
@@ -807,7 +807,7 @@ namespace Brunet
           HeartBeatEvent(this, EventArgs.Empty);
       }
       catch(Exception x) {
-        Console.WriteLine("Exception in heartbeat: {0}", x.ToString() );
+        Console.Error.WriteLine("Exception in heartbeat: {0}", x.ToString() );
       }
     }
 
@@ -820,7 +820,7 @@ namespace Brunet
     virtual public void Send(Packet p, Edge from)
     {
 
-      //System.Console.WriteLine("Entering Send for node {0} packet {1}", this.Address, p.ToString() );
+      //System.Console.Error.WriteLine("Entering Send for node {0} packet {1}", this.Address, p.ToString() );
 
       int sent = 0;
 
@@ -831,7 +831,7 @@ namespace Brunet
       bool deliver_locally = false;
 
 
-      //System.Console.WriteLine("Sending with Router: {0}", router.ToString());
+      //System.Console.Error.WriteLine("Sending with Router: {0}", router.ToString());
 
       if (router != null) {
         sent = router.Route(from, packet, out deliver_locally);
@@ -848,7 +848,7 @@ namespace Brunet
 
         //#if DEBUG
 #if false 
-        System.Console.WriteLine("Delivering locally to node {0} packet {1}", this.Address, p.ToString() );
+        System.Console.Error.WriteLine("Delivering locally to node {0} packet {1}", this.Address, p.ToString() );
         //System.Console.ReadLine();
 #endif  
         /*
@@ -890,12 +890,12 @@ namespace Brunet
 #endif      
       if (!directly_routable) {
 #if ARI_DIRECT_DEBUG
-	Console.WriteLine("Packet not routed directly. Using regular router means.");
+	Console.Error.WriteLine("Packet not routed directly. Using regular router means.");
 #endif
 	Send(p, null);
       } else {
 #if ARI_DIRECT_DEBUG
-	Console.WriteLine("Packet routed directlty. Bypassing all routers. ");
+	Console.Error.WriteLine("Packet routed directlty. Bypassing all routers. ");
 #endif
       }
 
@@ -913,7 +913,7 @@ namespace Brunet
           int count = handlers.Count;
           for(int i = 0; i < count; i++) {
             IAHPacketHandler hand = (IAHPacketHandler)handlers[i];
-            //System.Console.WriteLine("Handler: {0}", hand);
+            //System.Console.Error.WriteLine("Handler: {0}", hand);
             hand.HandleAHPacket(this, ahp, null);
           }
         }
@@ -1051,7 +1051,7 @@ namespace Brunet
      */
     void HandleDirectPacket(Edge edge, DirectPacket direct_packet) {
 #if ARI_DIRECT_DEBUG
-      Console.WriteLine("Received a direct packet. Looking to handle it..");
+      Console.Error.WriteLine("Received a direct packet. Looking to handle it..");
 #endif
 
       //to find out the source address, we simply have to lookup the connection table
@@ -1061,7 +1061,7 @@ namespace Brunet
 	if (c.Address is AHAddress && _local_add is AHAddress && 
 	    payload_prot == AHPacket.Protocol.IP) {
 #if ARI_DIRECT_DEBUG
-	  Console.WriteLine("Sanity check (address type checks, payload protocol) successfull, deflating packet");
+	  Console.Error.WriteLine("Sanity check (address type checks, payload protocol) successfull, deflating packet");
 #endif
 
 	  Address source = c.Address;
@@ -1072,9 +1072,9 @@ namespace Brunet
 					 direct_packet.Payload);
 	  //deliver the packet locally, wihout going through any routing hastle
 #if ARI_DIRECT_DEBUG
-	  Console.WriteLine("Inflated packet from {0} to {1} bytes", direct_packet.Length, 
+	  Console.Error.WriteLine("Inflated packet from {0} to {1} bytes", direct_packet.Length, 
 			    packet.Length);
-      Console.WriteLine("Announcing packet reception....");
+      Console.Error.WriteLine("Announcing packet reception....");
 #endif
 
 	  Announce(packet, edge);
@@ -1083,7 +1083,7 @@ namespace Brunet
 	  //from this edge
 	  ; //ignore
 #if ARI_DIRECT_DEBUG
-      Console.WriteLine("Sanity check (address type checks, payload protocol) failed, ignoring packet");
+      Console.Error.WriteLine("Sanity check (address type checks, payload protocol) failed, ignoring packet");
 #endif
 	}
       }
@@ -1094,7 +1094,7 @@ namespace Brunet
      */
     void DirectlyRoute(AHPacket packet, out bool directly_routable) {
 #if ARI_DIRECT_DEBUG
-      Console.WriteLine("Testing if packet is routable directly. ");
+      Console.Error.WriteLine("Testing if packet is routable directly. ");
 #endif
       directly_routable = false;
       Address dest = packet.Destination as AHAddress;
@@ -1103,7 +1103,7 @@ namespace Brunet
       //only if destination is a structured node. and payload protocol is IP
       if (dest != null && payload_prot == AHPacket.Protocol.IP) {
 #if ARI_DIRECT_DEBUG
-	Console.WriteLine("Packet is addressed to a structured address, and has IP-payload ");
+	Console.Error.WriteLine("Packet is addressed to a structured address, and has IP-payload ");
 #endif
 	Connection next_con = null;
 	lock(_connection_table.SyncRoot)
@@ -1114,7 +1114,7 @@ namespace Brunet
 		//We can route it to this 
 		next_con = c;
 #if ARI_DIRECT_DEBUG
-		Console.WriteLine("Found a leaf connection to send packet on.. ");
+		Console.Error.WriteLine("Found a leaf connection to send packet on.. ");
 #endif
 		break;
 	      }
@@ -1127,7 +1127,7 @@ namespace Brunet
 		  //We can route it to this 
 		  next_con = c;
 #if ARI_DIRECT_DEBUG
-		  Console.WriteLine("Found a structured connection to send packet on.. ");
+		  Console.Error.WriteLine("Found a structured connection to send packet on.. ");
 #endif
 		  break;
 		}
@@ -1137,24 +1137,24 @@ namespace Brunet
 	if (next_con != null) {//directly routable
 	  directly_routable = true;
 #if ARI_DIRECT_DEBUG
-	  Console.WriteLine("Converting to direct packet.... ");
+	  Console.Error.WriteLine("Converting to direct packet.... ");
 #endif
 	  DirectPacket direct_packet = null;
 	  packet.ToDirectPacket(out direct_packet);
 #if ARI_DIRECT_DEBUG
-	  Console.WriteLine("Converted AHPacket: {0} to DirectPacket {1} bytes", packet.Length, 
+	  Console.Error.WriteLine("Converted AHPacket: {0} to DirectPacket {1} bytes", packet.Length, 
 			    direct_packet.Length);
-	  Console.WriteLine("Using the edge directly to send away the direct packet. ");
+	  Console.Error.WriteLine("Using the edge directly to send away the direct packet. ");
 #endif
 	  next_con.Edge.Send(direct_packet);
 	} else {
 #if ARI_DIRECT_DEBUG
-	  Console.WriteLine("Couldn't find an edge to send packet on. ");
+	  Console.Error.WriteLine("Couldn't find an edge to send packet on. ");
 #endif  
 	}
       } else {
 #if ARI_DIRECT_DEBUG
-	Console.WriteLine("Packet not suitable for direct delivery ");
+	Console.Error.WriteLine("Packet not suitable for direct delivery ");
 #endif  
       }
     }

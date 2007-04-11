@@ -117,9 +117,9 @@ namespace Brunet {
      DateTime t0_n = new DateTime(TimeUtils.NoisyNowTicks);
      Thread.Sleep(2000); //Sleep 2 seconds;
      DateTime t1_dt = DateTime.UtcNow;
-     //System.Console.WriteLine("DateTime.UtcNow: {0}", t1_dt);
+     //System.Console.Error.WriteLine("DateTime.UtcNow: {0}", t1_dt);
      DateTime t1_n = new DateTime(TimeUtils.NoisyNowTicks);
-     //System.Console.WriteLine("NoisyNow: {0}", t1_n);
+     //System.Console.Error.WriteLine("NoisyNow: {0}", t1_n);
      //Now see if the difference in is close:
      TimeSpan close = new TimeSpan(0,0,0,0,500); //They should be within 500 milliseconds;
      TimeSpan delta_dt = t1_dt - t0_dt;
@@ -131,7 +131,7 @@ namespace Brunet {
      else {
        diff = delta_dt - delta_n;
      }
-     //System.Console.WriteLine("diff is: {0}", diff);
+     //System.Console.Error.WriteLine("diff is: {0}", diff);
      Assert.IsTrue(  diff < close, "NoisyNowTicks is close");
    }
 #endif

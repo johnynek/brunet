@@ -121,8 +121,8 @@ namespace Brunet
                                       AHPacket packet_to_wrap)
     {
 #if false
-      System.Console.WriteLine("Packet to wrap: {0}", packet_to_wrap);
-      System.Console.WriteLine("HeaderSize: {0} PayloadLength: {1} Length: {2}",
+      System.Console.Error.WriteLine("Packet to wrap: {0}", packet_to_wrap);
+      System.Console.Error.WriteLine("HeaderSize: {0} PayloadLength: {1} Length: {2}",
 		                packet_to_wrap.HeaderSize,
 		                packet_to_wrap.PayloadLength,
 		                packet_to_wrap.Length);
@@ -141,8 +141,8 @@ namespace Brunet
                                      AHPacket.Protocol.Forwarding,
                                      whole_packet);
 #if false
-      System.Console.WriteLine("Result: {0}", result);
-      System.Console.WriteLine("HeaderSize: {0} PayloadLength: {1} Length: {2}",
+      System.Console.Error.WriteLine("Result: {0}", result);
+      System.Console.Error.WriteLine("HeaderSize: {0} PayloadLength: {1} Length: {2}",
 		                result.HeaderSize,
 		                result.PayloadLength,
 		                result.Length);
@@ -157,9 +157,9 @@ namespace Brunet
      */
     static public AHPacket UnwrapPacket(AHPacket p)
     {
-      //System.Console.WriteLine("Packet to Unwrap: {0}", p);
+      //System.Console.Error.WriteLine("Packet to Unwrap: {0}", p);
       AHPacket result = new AHPacket( p.Payload );
-      //System.Console.WriteLine("Result: {0}", result);
+      //System.Console.Error.WriteLine("Result: {0}", result);
       return result;
     }
   }

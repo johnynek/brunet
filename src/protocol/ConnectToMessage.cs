@@ -267,9 +267,9 @@ namespace Brunet
       ConnectToMessage ctm3a = (ConnectToMessage)xt.SerializeDeserialize(ctm3);
       Assert.AreEqual(ctm3, ctm3a, "CTM with neighborlist");
 #if false
-      System.Console.WriteLine( ctm3.ToString() );
+      System.Console.Error.WriteLine( ctm3.ToString() );
       foreach(NodeInfo tni in ctm3a.Neighbors) {
-        System.Console.WriteLine(tni.ToString());
+        System.Console.Error.WriteLine(tni.ToString());
       }
 #endif
     }

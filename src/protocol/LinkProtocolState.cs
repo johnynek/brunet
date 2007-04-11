@@ -317,7 +317,7 @@ namespace Brunet
       _last_s_packet = _last_s_mes.ToPacket();
       _last_packet_datetime = TimeUtils.NoisyNowTicks;
 #if LINK_DEBUG
-      Console.WriteLine("LinkState: To send link request: {0}; Length: {1} at: {2}", _last_s_mes, _last_s_packet.Length, DateTime.Now);
+      Console.Error.WriteLine("LinkState: To send link request: {0}; Length: {1} at: {2}", _last_s_mes, _last_s_packet.Length, DateTime.Now);
 #endif
       yield return _last_s_packet;
       //We should now have the response:
@@ -371,14 +371,14 @@ namespace Brunet
       _last_s_mes.Dir = ConnectionMessage.Direction.Request;
       _last_s_packet = _last_s_mes.ToPacket();
 #if LINK_DEBUG
-      Console.WriteLine("LinkState: To send status request: {0}; Length: {1} at: {2}", _last_s_mes, _last_s_packet.Length, DateTime.Now);
+      Console.Error.WriteLine("LinkState: To send status request: {0}; Length: {1} at: {2}", _last_s_mes, _last_s_packet.Length, DateTime.Now);
 #endif
       yield return _last_s_packet;
       StatusMessage sm = (StatusMessage)_last_r_mes;
       Connection con = new Connection(_e, lm.Local.Address, lm.ConTypeString,
 				        sm, lm);
 #if LINK_DEBUG
-      Console.WriteLine("LinkState: New connection added. ");
+      Console.Error.WriteLine("LinkState: New connection added. ");
 #endif
       //Return the connection, now we are done!
       yield return con;
@@ -390,7 +390,7 @@ namespace Brunet
     {
       Packet p_to_resend = null;
 #if LINK_DEBUG
-      Console.WriteLine("From: {0}\nPacket: {1}\n\n",edge, p);
+      Console.Error.WriteLine("From: {0}\nPacket: {1}\n\n",edge, p);
 #endif
       lock( _sync ) {
        if( _is_finished ) { return; }
@@ -418,7 +418,7 @@ namespace Brunet
         //We got an error
 	if( _em.Ec == ErrorMessage.ErrorCode.InProgress ) {
 #if LINK_DEBUG
-        Console.WriteLine("Linker ({0}) InProgress: from: {1}", _linker.Lid, edge);
+        Console.Error.WriteLine("Linker ({0}) InProgress: from: {1}", _linker.Lid, edge);
 #endif
           _result = Result.RetryThisTA;
           finish = true;
@@ -496,7 +496,7 @@ namespace Brunet
         catch(InvalidOperationException x) {
           //This is thrown when ConnectionTable cannot lock.  Lets try again:
 #if LINK_DEBUG
-        Console.WriteLine("Linker ({0}): Could not lock in HandlePacket", _linker.Lid);
+        Console.Error.WriteLine("Linker ({0}): Could not lock in HandlePacket", _linker.Lid);
 #endif
           _x = x;
           _result = Result.RetryThisTA;
@@ -558,7 +558,7 @@ namespace Brunet
 
             if (_timeouts < _MAX_TIMEOUTS) {
 #if LINK_DEBUG
-            Console.WriteLine("Linker ({0}) resending packet; attempt # {1}; length: {2}", _linker.Lid, _timeouts,                              LastSPacket.Length);
+            Console.Error.WriteLine("Linker ({0}) resending packet; attempt # {1}; length: {2}", _linker.Lid, _timeouts,                              LastSPacket.Length);
 #endif
             _e.Send( LastSPacket );
             _last_packet_datetime = now;
@@ -571,7 +571,7 @@ namespace Brunet
             else if( _timeouts >= _MAX_TIMEOUTS ) {
               //This edge is not working, we need to restart on a new edge.
 #if LINK_DEBUG
-              Console.WriteLine("Linker ({0}) giving up the TA, moving on to next", _linker.Lid);
+              Console.Error.WriteLine("Linker ({0}) giving up the TA, moving on to next", _linker.Lid);
 #endif
               _result = Result.MoveToNextTA;
               finish = true;

@@ -229,7 +229,7 @@ namespace Brunet
      */
     protected void EstimateSize(object contab, System.EventArgs args)
     {
-      //Console.WriteLine("Estimate size: ");
+      //Console.Error.WriteLine("Estimate size: ");
       try {
       //Estimate the new size:
       ConnectionTable tab = (ConnectionTable)contab;
@@ -292,7 +292,7 @@ namespace Brunet
 
 	//Now we have our estimate:
 	_netsize = net_size;
-	Console.WriteLine("Network size: {0} at {1}:{2}", _netsize, 
+	Console.Error.WriteLine("Network size: {0} at {1}:{2}", _netsize, 
 			DateTime.UtcNow.ToString("MM'/'dd'/'yyyy' 'HH':'mm':'ss"),
 		        DateTime.UtcNow.Millisecond);
       }

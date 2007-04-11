@@ -103,7 +103,7 @@ namespace Brunet
     {
 
       #if KML_DEBUG
-      System.Console.WriteLine("In Activate for UnstructuredConnectionOverlord.");
+      System.Console.Error.WriteLine("In Activate for UnstructuredConnectionOverlord.");
       #endif
 
       bool try_now = false;
@@ -147,7 +147,7 @@ namespace Brunet
     {
 
       #if KML_DEBUG
-      System.Console.WriteLine("In CheckAndConnectHandler for UnstructuredConnectionOverlord.");
+      System.Console.Error.WriteLine("In CheckAndConnectHandler for UnstructuredConnectionOverlord.");
       #endif
 
       ConnectionEventArgs conargs = (ConnectionEventArgs)args;
@@ -235,10 +235,10 @@ namespace Brunet
       AHPacket forward_pack = PacketForwarder.WrapPacket(forwarder, 1, ctm_pack);
 
       #if KML_DEBUG
-      System.Console.WriteLine("In UnstructuredConnectioOverlord ForwardedConnectTo:");
-      System.Console.WriteLine("Local:{0}", _local.Address);
-      System.Console.WriteLine("Destination:{0}", destination);
-      System.Console.WriteLine("Message ID:{0}", ctm.Id);
+      System.Console.Error.WriteLine("In UnstructuredConnectioOverlord ForwardedConnectTo:");
+      System.Console.Error.WriteLine("Local:{0}", _local.Address);
+      System.Console.Error.WriteLine("Destination:{0}", destination);
+      System.Console.Error.WriteLine("Message ID:{0}", ctm.Id);
       #endif
 
       Connector con = new Connector(_local, forward_pack, ctm, this);
@@ -270,10 +270,10 @@ namespace Brunet
                      AHPacket.Protocol.Connection, ctm.ToByteArray());
 
       #if DEBUG
-      System.Console.WriteLine("In UnstructuredConnectionOverlord ConnectTo:");
-      System.Console.WriteLine("Local:{0}", _local.Address);
-      System.Console.WriteLine("Destination:{0}", destination);
-      System.Console.WriteLine("Message ID:{0}", ctm.Id);
+      System.Console.Error.WriteLine("In UnstructuredConnectionOverlord ConnectTo:");
+      System.Console.Error.WriteLine("Local:{0}", _local.Address);
+      System.Console.Error.WriteLine("Destination:{0}", destination);
+      System.Console.Error.WriteLine("Message ID:{0}", ctm.Id);
       #endif
 
       Connector con = new Connector(_local, ctm_pack, ctm, this);
