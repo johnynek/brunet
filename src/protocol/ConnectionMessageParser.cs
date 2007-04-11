@@ -100,7 +100,7 @@ namespace Brunet
         //No cache..
         result = Parse(p.PayloadStream);
       }
-      //Console.WriteLine("Parsed: {0}\n{1}\n",p, result);
+      //Console.Error.WriteLine("Parsed: {0}\n{1}\n",p, result);
       return result;
     }
 

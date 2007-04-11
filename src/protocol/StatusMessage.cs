@@ -207,7 +207,7 @@ namespace Brunet {
       XmlAbleTester xt = new XmlAbleTester();
       StatusMessage sm1a = (StatusMessage)xt.SerializeDeserialize(sm1);
       Assert.AreEqual(sm1, sm1a, "Single neighbor test");
-      //System.Console.WriteLine("\n{0}\n", sm1);
+      //System.Console.Error.WriteLine("\n{0}\n", sm1);
       //Test with many neighbors:
         
       for(int i = 5001; i < 5010; i++) {
@@ -218,13 +218,13 @@ namespace Brunet {
       StatusMessage sm2 = new StatusMessage(ConnectionType.Unstructured, neighbors);
       StatusMessage sm2a = (StatusMessage)xt.SerializeDeserialize(sm2);
       Assert.AreEqual(sm2,sm2a, "10 Neighbor test");
-      //System.Console.WriteLine("\n{0}\n", sm2);
+      //System.Console.Error.WriteLine("\n{0}\n", sm2);
      
       //Here is a StatusMessage with no neighbors (that has to be a possibility)
       StatusMessage sm3 = new StatusMessage("structured", new ArrayList());
       StatusMessage sm3a = (StatusMessage)xt.SerializeDeserialize(sm3);
       Assert.AreEqual(sm3,sm3a, "0 Neighbor test");
-      //System.Console.WriteLine("\n{0}\n", sm3);
+      //System.Console.Error.WriteLine("\n{0}\n", sm3);
 
     }
   }

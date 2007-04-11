@@ -704,13 +704,13 @@ public class AdrConverter {
       Serialize(o, ms);
       byte[] bin = ms.ToArray();
       if( ! AdrEquals(bin, data) ) { 
-        Console.WriteLine("{0} != {1}", bin, data);
+        Console.Error.WriteLine("{0} != {1}", bin, data);
       }
       Assert.IsTrue( AdrEquals(bin, data), "Encoding match: " + message);
     }
     object dso = Deserialize(new MemoryStream(data));
     if( ! AdrEquals(o, dso) ) { 
-      Console.WriteLine("{0} != {1}", o, dso);
+      Console.Error.WriteLine("{0} != {1}", o, dso);
     }
     Assert.IsTrue( AdrEquals(o, dso), "Decoding match: " + message);
   }
@@ -762,7 +762,7 @@ public class AdrConverter {
     }
     catch(Exception x) {
       AssertSD(x, "AdrException with stacktrace");
-      //Console.WriteLine(new AdrException(x));
+      //Console.Error.WriteLine(new AdrException(x));
     }
     try {
       //Stack traces are set by throw
@@ -770,7 +770,7 @@ public class AdrConverter {
     }
     catch(Exception x) {
       AssertSD(x, "exception with stacktrace");
-      //Console.WriteLine(new AdrException(x));
+      //Console.Error.WriteLine(new AdrException(x));
     }
     //Here is a list:
     ArrayList l = new ArrayList();

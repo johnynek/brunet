@@ -564,7 +564,7 @@ public class SymmetricNatHandler : NatHandler {
         TransportAddress ta = ndp.PeerViewOfLocalTA;
         if( ta != null ) {
           int port = ((IPTransportAddress) ta).Port;
-//          Console.WriteLine("port: {0}", port);
+//          Console.Error.WriteLine("port: {0}", port);
           if( !got_extra_data ) {
             t = ta.TransportAddressType;
             host = ((IPTransportAddress) ta).Host;
@@ -592,7 +592,7 @@ public class SymmetricNatHandler : NatHandler {
       double s2 = ((double)sum2) - sd*sd/n;
       s2 = s2/(double)(all_diffs.Count - 1);
       double stddev = Math.Sqrt(s2);
-      //Console.WriteLine("stddev: {0}", stddev);
+      //Console.Error.WriteLine("stddev: {0}", stddev);
       if ( stddev < MAX_STD_DEV ) {
         try {
           double max_delta = mean + SAFETY * stddev;
@@ -775,7 +775,7 @@ public class NatTAs : IEnumerable {
           NatHandler hand = (NatHandler)hand_it.Current;
           if( hand.IsMyType( points ) ) {
   #if DEBUG
-            System.Console.WriteLine("NatHandler: {0}", hand.GetType() );
+            System.Console.Error.WriteLine("NatHandler: {0}", hand.GetType() );
   #endif
             IList tas = hand.TargetTAs( points );
             foreach(TransportAddress ta in tas) {
@@ -801,7 +801,7 @@ public class NatTAs : IEnumerable {
 #if DEBUG 
     int i = 0;
     foreach(TransportAddress ta in _generated_ta_list) {
-      Console.WriteLine("LocalTA({0}): {1}",i,ta);
+      Console.Error.WriteLine("LocalTA({0}): {1}",i,ta);
       i++;
     }
 #endif
@@ -874,7 +874,7 @@ public class NatTest {
     nh = new ConeNatHandler();
     Assert.IsTrue( nh.IsMyType(h), "ConeNatHandler");
     tas = nh.TargetTAs(h);
-    //foreach(object ta in tas) { Console.WriteLine(ta); }
+    //foreach(object ta in tas) { Console.Error.WriteLine(ta); }
     Assert.IsTrue( tas.Contains(
                      TransportAddressFactory.CreateInstance("brunet.udp://128.128.128.128:80")
                    ), "ConeNatHandler.TargetTAs");
@@ -899,14 +899,14 @@ public class NatTest {
     nh = new SymmetricNatHandler();
     Assert.IsTrue( nh.IsMyType(h), "SymmetricNatHandler");
     tas = nh.TargetTAs(h);
-    //foreach(object ta in tas) { Console.WriteLine(ta); }
+    //foreach(object ta in tas) { Console.Error.WriteLine(ta); }
     Assert.IsTrue( tas.Contains(
                      TransportAddressFactory.CreateInstance("brunet.udp://128.128.128.128:86")
                    ), "SymmetricNatHandler.TargetTAs");
     nh = new LinuxNatHandler();
     Assert.IsTrue( nh.IsMyType(h), "LinuxNatHandler");
     tas = nh.TargetTAs(h);
-    //foreach(object ta in tas) { Console.WriteLine(ta); }
+    //foreach(object ta in tas) { Console.Error.WriteLine(ta); }
     Assert.IsTrue( tas.Contains(
                      TransportAddressFactory.CreateInstance("brunet.udp://128.128.128.128:86")
                    ), "LinuxNatHandler.TargetTAs");

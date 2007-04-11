@@ -425,7 +425,7 @@ namespace Brunet
       if( my_opts == AHOptions.AddClassDefault ) {
         my_opts = GetDefaultOption( Destination );
       }
-      //Console.WriteLine("Options: {0}, my_opt: {1}, opt: {2}", _options, my_opts, opt);
+      //Console.Error.WriteLine("Options: {0}, my_opt: {1}, opt: {2}", _options, my_opts, opt);
       return (opt == my_opts);
     }
 

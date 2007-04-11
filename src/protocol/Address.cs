@@ -339,16 +339,16 @@ namespace Brunet
                     && (buf2[buf2.Length - j - 1] == buf1[buf1.Length - j - 1]);
           }
           if( !all_eq ) {
-            System.Console.WriteLine("Buf1: ");
+            System.Console.Error.WriteLine("Buf1: ");
             foreach(byte b in buf1) {
               System.Console.Write("{0} ",b);
             }
-            System.Console.WriteLine();
-            System.Console.WriteLine("Buf2: ");
+            System.Console.Error.WriteLine();
+            System.Console.Error.WriteLine("Buf2: ");
             foreach(byte b in buf2) {
               System.Console.Write("{0} ",b);
             }
-            System.Console.WriteLine();
+            System.Console.Error.WriteLine();
           }
           Assert.IsTrue(all_eq, "bytes are equivalent");
           BigInteger b2 = new BigInteger(buf2);
