@@ -46,12 +46,6 @@ namespace Brunet
    */
   public abstract class UdpEdgeListenerBase : EdgeListener
   {
-    ///Buffer to read the packets into
-    protected byte[] _rec_buffer;
-    ///The offset we will write into next in the _rec_buffer
-    protected int _rec_buffer_offset;
-    protected byte[] _send_buffer;
-
     ///Here is the queue for outgoing packets:
     protected Queue _send_queue;
     //This is true if there is something in the queue
@@ -81,8 +75,8 @@ namespace Brunet
     protected Random _rand;
 
     protected IEnumerable _tas;
-    protected NatHistory _nat_hist;
-    protected IEnumerable _nat_tas;
+    volatile protected NatHistory _nat_hist;
+    volatile protected IEnumerable _nat_tas;
     public override IEnumerable LocalTAs
     {
       get
@@ -154,14 +148,16 @@ namespace Brunet
      * manages this
      * @param size, the number of bytes in the _rec_buffer we just wrote
      * if size < 0, reinitialize the _rec_buffer
+     * @param buffer the buffer to advance
+     * @param offset the current offset
+     * @return the new offset into the buffer
      */
-    protected void AdvanceBuffer(int size) {
+    static protected int AdvanceBuffer(int size, ref byte[] buffer, int offset) {
       bool reset = (size < 0);
+      int new_offset = offset + size;
       if( false == reset ) {
-        int new_offset = _rec_buffer_offset + size;
-	if( _rec_buffer.Length - new_offset > (Packet.MaxLength + 8) ) {
+	if( buffer.Length - new_offset > (Packet.MaxLength + 8) ) {
           //We can still fit another packet
-	  _rec_buffer_offset = new_offset;
 	}
 	else {
           reset = true;
@@ -169,9 +165,10 @@ namespace Brunet
       }
       if( reset ) {
         //Initialize
-	_rec_buffer = new byte[ 3 * Packet.MaxLength ];
-	_rec_buffer_offset = 0;
+	buffer = new byte[ 3 * Packet.MaxLength ];
+	new_offset = 0;
       }
+      return new_offset;
     }
     /**
      * When a UdpEdge closes we need to remove it from
@@ -493,8 +490,6 @@ namespace Brunet
       _sync = new object();
       _running = false;
       _isstarted = false;
-      AdvanceBuffer(-1); //Initialize _rec_buffer
-      _send_buffer = new byte[ 8 + Packet.MaxLength ];
       _send_queue = new Queue();
       _queue_not_empty = false;
       ///@todo, we need a system for using the cryographic RNG
@@ -629,6 +624,9 @@ namespace Brunet
         _s = null;
       }
       EndPoint end = new IPEndPoint(IPAddress.Any, 0);
+      byte[] send_buffer = new byte[ Packet.MaxLength + 8];
+      byte[] buffer = new byte[0];
+      int offset = AdvanceBuffer(-1, ref buffer, 0); //Initialize buffer
       while(_running) {
         bool read = false;
 
@@ -643,20 +641,16 @@ namespace Brunet
         try {
           read = s.Poll( microsecond_timeout, SelectMode.SelectRead );
           if( read ) {
-	    int max = _rec_buffer.Length - _rec_buffer_offset;
-            rec_bytes = s.ReceiveFrom(_rec_buffer, _rec_buffer_offset, max,
-	                              SocketFlags.None, 
-				      ref end);
+	    int max = buffer.Length - offset;
+            rec_bytes = s.ReceiveFrom(buffer, offset, max, SocketFlags.None, ref end);
             //Get the id of this edge:
-            int remoteid = NumberSerializer.ReadInt(_rec_buffer, _rec_buffer_offset);
-            int localid = NumberSerializer.ReadInt(_rec_buffer, _rec_buffer_offset + 4);
+            int remoteid = NumberSerializer.ReadInt(buffer, offset);
+            int localid = NumberSerializer.ReadInt(buffer, offset + 4);
 	    /*
 	     * Make a reference to this memory, don't copy.
 	     */
-	    MemBlock packet_buffer = MemBlock.Reference(_rec_buffer,
-	                                                _rec_buffer_offset + 8,
-							rec_bytes - 8);
-            AdvanceBuffer(rec_bytes);
+	    MemBlock packet_buffer = MemBlock.Reference(buffer, offset + 8, rec_bytes - 8);
+            offset = AdvanceBuffer(rec_bytes, ref buffer, offset);
   	    if( localid < 0 ) {
   	    /*
   	     * We never give out negative id's, so if we got one
@@ -687,17 +681,10 @@ namespace Brunet
          */
         if( _queue_not_empty ) {
           lock( _send_queue ) {
-            bool more_to_send = false;
-            int count;
-            do {
-              count = _send_queue.Count;
-              if( count > 0 ) {
-                SendQueueEntry sqe = (SendQueueEntry)_send_queue.Dequeue();
-                Send(sqe, s);
-              }
-              //We sent exactly one, so if there was more than one, there is more to send
-              more_to_send = count > 1;
-            } while( more_to_send );
+            while( _send_queue.Count > 0 ) {
+              SendQueueEntry sqe = (SendQueueEntry)_send_queue.Dequeue();
+              Send(sqe, s, send_buffer);
+            }
             //Before we unlock the send_queue, reset the flag:
             _queue_not_empty = false;
           }
@@ -709,7 +696,7 @@ namespace Brunet
       }
     }
 
-    private void Send(SendQueueEntry sqe, Socket s)
+    private void Send(SendQueueEntry sqe, Socket s, byte[] buffer)
     {
       //We have a packet to send
       ICopyable p = sqe.Packet;
@@ -717,12 +704,12 @@ namespace Brunet
       EndPoint e = sender.End;
       //Write the IDs of the edge:
       //[local id 4 bytes][remote id 4 bytes][packet]
-      NumberSerializer.WriteInt(sender.ID, _send_buffer, 0);
-      NumberSerializer.WriteInt(sender.RemoteID, _send_buffer, 4);
-      p.CopyTo(_send_buffer, 8);
+      NumberSerializer.WriteInt(sender.ID, buffer, 0);
+      NumberSerializer.WriteInt(sender.RemoteID, buffer, 4);
+      p.CopyTo(buffer, 8);
 	      
       try {	//catching SocketException
-        s.SendTo(_send_buffer, 0, 8 + p.Length, SocketFlags.None, e);
+        s.SendTo(buffer, 0, 8 + p.Length, SocketFlags.None, e);
       }
       catch (SocketException sc) {
         Console.Error.WriteLine("Error in Socket send. Edge: {0}\n{1}", sender, sc);
