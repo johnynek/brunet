@@ -232,7 +232,7 @@ namespace Brunet
      * This is true after Connect is called and false after
      * Disconnect is called.
      */
-    protected bool _running;
+    volatile protected bool _running;
 
     /** Object which we lock for thread safety */
     protected Object _sync;

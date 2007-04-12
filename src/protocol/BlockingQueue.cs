@@ -41,12 +41,10 @@ public class BlockingQueue : Queue {
   public BlockingQueue() {
     _re = new AutoResetEvent(false); 
     _closed = false;
-    _exception = null;
   }
  
   protected AutoResetEvent _re;
  
-  protected Exception _exception;
   protected bool _closed;
 
   public bool Closed { get { lock ( this ) { return _closed; } } }
@@ -117,11 +115,6 @@ public class BlockingQueue : Queue {
     }
     else {
       lock( this ) {
-        if( _exception != null ) {
-          Exception x = _exception;
-          _exception = null;
-          throw x;
-        }
 #if DEBUG
 	System.Console.Error.WriteLine("Got set: count {0}", Count);
 #endif
@@ -166,7 +159,6 @@ public class BlockingQueue : Queue {
     }
     else {
       lock( this ) {
-        if( _exception != null ) { _exception = null; throw _exception; }
         //We didn't take any out, so we should still be ready to go!
         _re.Set();
         timedout = false;
@@ -198,20 +190,6 @@ public class BlockingQueue : Queue {
     if( fire && (EnqueueEvent != null) ) {
       EnqueueEvent(this, EventArgs.Empty);
     }
-  }
-
-  /*
-   * On the next (or pending) Dequeue, throw
-   * the given exception.
-   */
-  public void Throw(Exception x) {
-    lock( this ) {
-      _exception = x;
-      _re.Set();
-    }
-#if DEBUG
-    System.Console.Error.WriteLine("Exception set: ex {0}", x);
-#endif
   }
 
 //   public static BlockingQueue Select(ArrayList queues, int timeout) {
