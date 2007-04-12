@@ -1,7 +1,7 @@
 /*
 This program is part of BruNet, a library for the creation of efficient overlay networks.
 Copyright (C) 2005  University of California
-Copyright (C) 2006 P. Oscar Boykin <boykin@pobox.com>, University of Florida
+Copyright (C) 2006-2007 P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -72,17 +72,24 @@ namespace Brunet
       }
     }
 #endif
-    protected Hashtable type_to_addlist;
-    protected Hashtable type_to_conlist;
-    protected Hashtable edge_to_con;
+    /*
+     * These objects are often being reset (since we don't ever
+     * modify the data structures once set).
+     * So, I *think* we need these to be volatile if we are
+     * not going to lock every access of them).  This needs
+     * more study to make sure we are handling this correctly.
+     */
+    volatile protected Hashtable _type_to_addlist;
+    volatile protected Hashtable _type_to_conlist;
+    volatile protected Hashtable _edge_to_con;
 
     //We mostly deal with structured connections,
     //so we keep a ref to the address list for sructured
     //this is an optimization.
-    protected ArrayList _struct_addlist;
-    protected ArrayList _struct_conlist;
+    volatile protected ArrayList _struct_addlist;
+    volatile protected ArrayList _struct_conlist;
 
-    protected ArrayList unconnected;
+    volatile protected ArrayList _unconnected;
 
     /**
      * These are the addresses we are trying to connect to.
@@ -151,11 +158,11 @@ namespace Brunet
       _sync = new Object();
       lock( _sync ) {
         _local = local;
-        type_to_addlist = new Hashtable();
-        type_to_conlist = new Hashtable();
-        edge_to_con = new Hashtable();
+        _type_to_addlist = new Hashtable();
+        _type_to_conlist = new Hashtable();
+        _edge_to_con = new Hashtable();
 
-        unconnected = new ArrayList();
+        _unconnected = new ArrayList();
 
         _address_locks = new Hashtable();
         // init all--it is safer to do it this way and avoid null pointer exceptions
@@ -204,31 +211,31 @@ namespace Brunet
          */
         ArrayList list;
         
-        list = (ArrayList)type_to_addlist[t];
+        list = (ArrayList)_type_to_addlist[t];
         list = Functional.Insert(list, index, a);
-        type_to_addlist = Functional.SetElement(type_to_addlist, t, list);
+        _type_to_addlist = Functional.SetElement(_type_to_addlist, t, list);
         if( t == ConnectionType.Structured ) {
           //Optimize the most common case to avoid the hashtable
           _struct_addlist = list;
         }
         
-        list = (ArrayList)type_to_conlist[t];
+        list = (ArrayList)_type_to_conlist[t];
         list = Functional.Insert(list, index, c);
-        type_to_conlist = Functional.SetElement(type_to_conlist, t, list);
+        _type_to_conlist = Functional.SetElement(_type_to_conlist, t, list);
         if( t == ConnectionType.Structured ) {
           //Optimize the most common case to avoid the hashtable
           _struct_conlist = list;
         }
         
-        edge_to_con = Functional.Add(edge_to_con, e, c);
+        _edge_to_con = Functional.Add(_edge_to_con, e, c);
 
 
         //Now that we have registered the new CloseEvent handler,
         //we can remove the old one
-        int ucidx = unconnected.IndexOf(e);
+        int ucidx = _unconnected.IndexOf(e);
         if( ucidx >= 0 ) {
-          //Remove the edge from the unconnected table
-          unconnected = Functional.RemoveAt(unconnected, ucidx);
+          //Remove the edge from the _unconnected table
+          _unconnected = Functional.RemoveAt(_unconnected, ucidx);
         }
         else {
           //This is a new connection, so we need to add the CloseEvent
@@ -289,19 +296,17 @@ namespace Brunet
      */
     public int Count(ConnectionType t)
     {
+      ArrayList list = null;
       if( t == ConnectionType.Structured ) {
         //Optimize the most common case to avoid the hashtable
-        return _struct_conlist.Count;
+        list = _struct_conlist;
       }
       else {
-        ArrayList list = (ArrayList)type_to_conlist[t];
-        if( list == null ) {
-          return 0;
-        }
-        else {
-          return list.Count;
-        }
+        list = (ArrayList)_type_to_conlist[t];
       }
+      if( list == null ) { return 0; }
+      
+      return list.Count;
     }
 
     /**
@@ -320,7 +325,7 @@ namespace Brunet
     {
       get
       {
-        return unconnected.Count;
+        return _unconnected.Count;
       }
     }
     /**
@@ -328,7 +333,7 @@ namespace Brunet
      */
     public IEnumerator GetEnumerator()
     {
-      IDictionaryEnumerator en = edge_to_con.GetEnumerator();
+      IDictionaryEnumerator en = _edge_to_con.GetEnumerator();
       while( en.MoveNext() ) {
         yield return en.Value;
       }
@@ -382,7 +387,7 @@ namespace Brunet
         list = _struct_conlist;
       }
       else {
-        list = (ArrayList)type_to_conlist[t];
+        list = (ArrayList)_type_to_conlist[t];
       }
       int count = list.Count;
       if( count == 0 ) {
@@ -418,11 +423,8 @@ namespace Brunet
      */
     public Connection GetConnection(Edge e)
     {
-      Connection c = null;
-      if( e != null ) {
-        c = (Connection)edge_to_con[e];
-      }
-      return c;
+      if( e == null ) { return null; } //Is this really a good idea?
+      return (Connection)_edge_to_con[e];
     }
 
     /**
@@ -497,11 +499,11 @@ namespace Brunet
     }
 
     /**
-     * Returns an IEnumerable of the unconnected edges
+     * Returns an IEnumerable of the _unconnected edges
      */
     public IEnumerable GetUnconnectedEdges()
     {
-      return new ArrayList(unconnected);
+      return _unconnected;
     }
 
     /**
@@ -510,17 +512,15 @@ namespace Brunet
      */
     protected void Init(ConnectionType t)
     {
-      lock(_sync) {
-        if( t == ConnectionType.Structured ) {
-          _struct_addlist = new ArrayList(); 
-          _struct_conlist = new ArrayList(); 
-          type_to_addlist[t] = _struct_addlist;
-          type_to_conlist[t] = _struct_conlist;
-        }
-        else {
-          type_to_addlist[t] = new ArrayList();
-          type_to_conlist[t] = new ArrayList();
-        }
+      if( t == ConnectionType.Structured ) {
+        _struct_addlist = new ArrayList(); 
+        _struct_conlist = new ArrayList(); 
+        _type_to_addlist[t] = _struct_addlist;
+        _type_to_conlist[t] = _struct_conlist;
+      }
+      else {
+        _type_to_addlist[t] = new ArrayList();
+        _type_to_conlist[t] = new ArrayList();
       }
     }
 
@@ -540,7 +540,7 @@ namespace Brunet
         add_list = _struct_addlist;
       }
       else {
-        add_list = (ArrayList)type_to_addlist[t];
+        add_list = (ArrayList)_type_to_addlist[t];
       }
       if( add_list.Count == 0 ) {
         //This item would be the first in the list
@@ -735,10 +735,10 @@ namespace Brunet
     /**
      * Remove the connection associated with an edge from the table
      * @param e Edge whose connection should be removed
-     * @param add_unconnected if true, keep a reference to the edge in the
-     * unconnected list
+     * @param add__unconnected if true, keep a reference to the edge in the
+     * _unconnected list
      */
-    protected void Remove(Edge e, bool add_unconnected)
+    protected void Remove(Edge e, bool add__unconnected)
     {
       int index = -1;
       bool have_con = false;
@@ -749,18 +749,18 @@ namespace Brunet
         if( have_con )  {
           index = IndexOf(c.MainType, c.Address);
           Remove(c.MainType, index);
-	  if( add_unconnected ) {
-            unconnected = Functional.Add(unconnected, e);
+	  if( add__unconnected ) {
+            _unconnected = Functional.Add(_unconnected, e);
 	  }
         }
         else {
 	  //We didn't have a connection, so, check to see if we have it in
-	  //unconnected:
-	  if( !add_unconnected ) {
+	  //_unconnected:
+	  if( !add__unconnected ) {
 	    //Don't keep this edge around at all:
-            int idx = unconnected.IndexOf(e);
+            int idx = _unconnected.IndexOf(e);
             if( idx >= 0 ) {
-              unconnected = Functional.RemoveAt(unconnected, idx);
+              _unconnected = Functional.RemoveAt(_unconnected, idx);
             }
 	  }
         }
@@ -810,7 +810,7 @@ namespace Brunet
     {
       lock(_sync) {
         //Get the edge we are removing:
-        Connection c = (Connection)((ArrayList)type_to_conlist[t])[index];
+        Connection c = (Connection)((ArrayList)_type_to_conlist[t])[index];
         Edge e = c.Edge;
         //Remove the edge from the lists:
         /*
@@ -822,25 +822,25 @@ namespace Brunet
         ArrayList this_list;
         ArrayList copy;
         
-        this_list = (ArrayList)type_to_addlist[t];
+        this_list = (ArrayList)_type_to_addlist[t];
         copy = Functional.RemoveAt(this_list, index);
         if( t == ConnectionType.Structured ) {
           //Optimize the most common case to avoid the hashtable
           _struct_addlist = copy;
         }
-        type_to_addlist = Functional.SetElement(type_to_addlist, t, copy);
+        _type_to_addlist = Functional.SetElement(_type_to_addlist, t, copy);
         
         //Now change the conlist:
-        this_list = (ArrayList)type_to_conlist[t];
+        this_list = (ArrayList)_type_to_conlist[t];
         copy = Functional.RemoveAt(this_list, index);
         if( t == ConnectionType.Structured ) {
           //Optimize the most common case to avoid the hashtable
           _struct_conlist = copy;
         }
-        type_to_conlist = Functional.SetElement(type_to_conlist, t, copy);
+        _type_to_conlist = Functional.SetElement(_type_to_conlist, t, copy);
         
         //Remove the edge from the tables:
-        edge_to_con = Functional.Remove(edge_to_con,e);
+        _edge_to_con = Functional.Remove(_edge_to_con,e);
       }
     }
 
@@ -852,7 +852,7 @@ namespace Brunet
     {
       Edge e = (Edge)edge;
       e.CloseEvent -= new EventHandler(this.RemoveHandler);
-      //Get rid of the edge and don't add it to our unconnected list
+      //Get rid of the edge and don't add it to our _unconnected list
       Remove(e, false);
     }
 
@@ -868,7 +868,7 @@ namespace Brunet
       sb.Append("Type : Address Table\n");
 
       lock(_sync) {
-        myEnumerator = type_to_addlist.GetEnumerator();
+        myEnumerator = _type_to_addlist.GetEnumerator();
         while (myEnumerator.MoveNext()) {
           sb.Append("Type: ");
           sb.Append(myEnumerator.Key.ToString() + "\n");
@@ -883,7 +883,7 @@ namespace Brunet
             }*/
         }
         sb.Append("\nType : Edge Table\n");
-        myEnumerator = type_to_conlist.GetEnumerator();
+        myEnumerator = _type_to_conlist.GetEnumerator();
         while (myEnumerator.MoveNext()) {
           sb.Append("Type: ");
           sb.Append(myEnumerator.Key.ToString() + "\n");
@@ -894,7 +894,7 @@ namespace Brunet
           }
         }
         sb.Append("\nEdge : Type\n");
-        myEnumerator = edge_to_con.GetEnumerator();
+        myEnumerator = _edge_to_con.GetEnumerator();
         while (myEnumerator.MoveNext()) {
           sb.Append("Edge: ");
           sb.Append(myEnumerator.Key.ToString() + "\n");
@@ -986,10 +986,11 @@ namespace Brunet
                               + " not in ConnectionTable. Cannot UpdateStatus.");
         }
         
-        edge_to_con = Functional.SetElement(edge_to_con, e, newcon);
+        _edge_to_con = Functional.SetElement(_edge_to_con, e, newcon);
         
-        ArrayList l = (ArrayList)type_to_conlist[t];
-        type_to_conlist[t] = Functional.SetElement(l, index, newcon);
+        ArrayList l = (ArrayList)_type_to_conlist[t];
+        l = Functional.SetElement(l, index, newcon);
+        _type_to_conlist = Functional.SetElement(_type_to_conlist, t, l);
 
       } /* we release the lock */
      
@@ -1011,30 +1012,30 @@ namespace Brunet
      * should still know about all the Edge objects for the Node.
      *
      * When a connection is made, there is never a need to remove
-     * unconnected edges.  Either a connection is made (which will
+     * _unconnected edges.  Either a connection is made (which will
      * remove the edge from this list) or the edge will be closed
      * (which will remove the edge from this list).
      *
-     * @param e the new unconnected Edge
+     * @param e the new _unconnected Edge
      */
     public void AddUnconnected(Edge e)
     {
       //System.Console.Error.WriteLine("ADDING EDGE {0} TO UNCONNECTED", e.ToString());
       lock( _sync ) {
-        int idx = unconnected.IndexOf(e);
+        int idx = _unconnected.IndexOf(e);
         if( idx < 0 ) {
-          unconnected = Functional.Add(unconnected, e);
+          _unconnected = Functional.Add(_unconnected, e);
         }
       }
       e.CloseEvent += new EventHandler(this.RemoveHandler);
     }
     /**
      * @param edge Edge to check to see if it is an Unconnected Edge
-     * @return true if this edge is an unconnected edge
+     * @return true if this edge is an _unconnected edge
      */
     public bool IsUnconnected(Edge e)
     {
-      return unconnected.Contains(e);
+      return _unconnected.Contains(e);
     }
     /**
      * Handles enumerating connection types, not just all
@@ -1065,7 +1066,7 @@ namespace Brunet
       */
       public IEnumerator GetEnumerator()
       {
-        ArrayList cons = (ArrayList)_tab.type_to_conlist[ _ct ];
+        ArrayList cons = (ArrayList)_tab._type_to_conlist[ _ct ];
         if( _contype == null ) {
           foreach(Connection c in cons) {
             yield return c;
@@ -1242,10 +1243,10 @@ namespace Brunet
           int after = tab.Count(ConnectionType.Structured);
           int uc_count_a = tab.UnconnectedCount;
           Assert.IsTrue( before == (after + 1), "Disconnect subtracted one");
-          Assert.IsTrue( uc_count == (uc_count_a - 1), "Disconnect added one unconnected");
+          Assert.IsTrue( uc_count == (uc_count_a - 1), "Disconnect added one _unconnected");
           Assert.IsTrue( tab.IndexOf(ConnectionType.Structured, c.Address) < 0, "Removal worked");
           Assert.IsNull( tab.GetConnection(c.Edge), "Connection is gone");
-          Assert.IsTrue( tab.IsUnconnected( c.Edge ), "Edge is unconnected" );
+          Assert.IsTrue( tab.IsUnconnected( c.Edge ), "Edge is _unconnected" );
           c.Edge.Close(); //Should trigger removal completely:
           Assert.IsFalse( tab.IsUnconnected( c.Edge ), "Edge is completely gone");
           Assert.IsNull( tab.GetConnection( c.Edge ), "Connection is still gone");
