@@ -62,6 +62,11 @@ namespace Brunet
     
     protected IAsyncResult _read_asr;
 
+    protected byte[] _rec_buffer;
+    ///The offset we will write into next in the _rec_buffer
+    protected int _rec_buffer_offset;
+    protected byte[] _send_buffer;
+
     public ASUdpEdgeListener(int port)
     : this(port, TransportAddressFactory.CreateForLocalHost(TransportAddress.TAType.Udp, port), null)
     {
@@ -111,7 +116,7 @@ namespace Brunet
       _running = false;
       _isstarted = false;
       //There are two 4 byte IDs for each edge we need to make room for
-      AdvanceBuffer(-1); //Initialize _rec_buffer
+      _rec_buffer_offset = AdvanceBuffer(-1, ref _rec_buffer, 0); //Initialize _rec_buffer
       _send_buffer = new byte[ 8 + Packet.MaxLength ];
       _send_queue = new Queue();
       ///@todo we need to use the cryptographic RNG
@@ -269,7 +274,7 @@ namespace Brunet
         int remoteid = NumberSerializer.ReadInt(_rec_buffer, _rec_buffer_offset);
         int localid = NumberSerializer.ReadInt(_rec_buffer, _rec_buffer_offset + 4);
 	MemBlock packet = MemBlock.Reference(_rec_buffer, _rec_buffer_offset + 8, rec_bytes - 8);
-	AdvanceBuffer(rec_bytes);
+        _rec_buffer_offset = AdvanceBuffer(rec_bytes, ref _rec_buffer, _rec_buffer_offset);
         if( localid < 0 ) {
 	    /*
 	     * We never give out negative id's, so if we got one
