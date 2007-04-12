@@ -2,6 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
+Copyright (C) 2007 P. Oscar Boykin <boykin@pobox.com> University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -84,7 +85,6 @@ namespace Brunet
     public FunctionEdgeListener(int id)
     {
       _listener_id = id;
-      _listener_map[id] = this;
       _tas = new ArrayList();
       _tas.Add(TransportAddressFactory.CreateInstance("brunet.function://localhost:" +
                                      _listener_id.ToString()) );
@@ -92,7 +92,7 @@ namespace Brunet
       _queue_thread = new Thread(new ThreadStart(StartQueueProcessing));
     }
 
-    protected bool _is_started = false;
+    volatile protected bool _is_started = false;
     public override bool IsStarted
     {
       get { return _is_started; }
@@ -114,37 +114,29 @@ namespace Brunet
         return;
       }
 
-      Edge e = null;
       if( ta.TransportAddressType == this.TAType ) {
         int remote_id = ((IPTransportAddress) ta).Port;
         //Get the edgelistener:
-        FunctionEdgeListener remote = (FunctionEdgeListener)
-                                      _listener_map[remote_id];
+        
         //Outbound edge:
-        FunctionEdge fe_l = new FunctionEdge(this, _listener_id, false);
-        //Inbound edge:
-        FunctionEdge fe_r = new FunctionEdge(remote, remote_id, true);
-        fe_l.Partner = fe_r;
-        fe_r.Partner = fe_l;
-        remote.SendEdgeEvent(fe_r);
-        //Here is the new edge:
-        e = fe_l;
-
-        // add this to the global edge table for step-by-step simulation
-
-
-#if false
-        System.Console.Error.WriteLine("Adding New Pair of Edges:");
-        System.Console.Error.WriteLine("New Edge {0}", fe_l.ToString());
-        System.Console.Error.WriteLine("New Edge {0}", fe_r.ToString());
-#endif
-
-#if false
-        System.Console.Error.WriteLine("Press enter to continue.");
-        System.Console.Error.WriteLine("------------------------");
-        System.Console.ReadLine();
-#endif
-        ecb(true, e, null);
+        FunctionEdge fe_l = new FunctionEdge(this, _listener_id,
+                                             remote_id, false);
+        lock( _listener_map ) { 
+          FunctionEdgeListener remote
+                      = (FunctionEdgeListener) _listener_map[remote_id];
+          if( remote != null ) {
+            FunctionEdge fe_r = new FunctionEdge(remote, remote_id,
+                                                 _listener_id, true);
+            fe_l.Partner = fe_r;
+            fe_r.Partner = fe_l;
+            remote.SendEdgeEvent(fe_r);
+          }
+          else {
+            //There is no other edge, for now, we use "udp-like"
+            //behavior of just making an edge that goes nowhere.
+          }
+        }
+        ecb(true, fe_l, null);
       }
       else {
         //Can't make an edge of this type
@@ -155,6 +147,9 @@ namespace Brunet
     public override void Start()
     {
       _is_started = true;
+      lock( _listener_map ) {
+        _listener_map[ _listener_id ] = this;
+      }
       _queue_thread.Start();
     }
 
@@ -164,12 +159,13 @@ namespace Brunet
     }
 
     protected void StartQueueProcessing() {
+      bool timedout;
       while( _is_started ) {
         //Wait 100 ms for an a packet to be sent:
-        bool timedout;
         FQEntry ent = (FQEntry)_queue.Dequeue(100, out timedout);
         if( !timedout ) {
-          ent.Edge.Partner.Push( (Packet)ent.P);
+          FunctionEdge fe = ent.Edge.Partner;
+          if( fe != null ) { fe.Push( (Packet)ent.P); }
         }
       }
     }
