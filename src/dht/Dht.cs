@@ -90,7 +90,7 @@ namespace Brunet.Dht {
 	_to_delete = to_delete;
 	_entry_enumerator = GetEntryEnumerator();
 #if DHT_DEBUG
-	Console.WriteLine("[DhtLogic] {0}: Creating a new transfer state to: {1}, # of keys: {2}, to_delete: {3}. ", 
+	Console.Error.WriteLine("[DhtLogic] {0}: Creating a new transfer state to: {1}, # of keys: {2}, to_delete: {3}. ", 
 			  _our_addr, _target, _key_list.Count, _to_delete);
 #endif
 
@@ -110,39 +110,39 @@ namespace Brunet.Dht {
 	_tcb = tcb;
 	lock(_sync) {
 #if DHT_DEBUG
-	  Console.WriteLine("[DhtLogic] {0}: StartTransfer. Getting the next value to transfer.", 
+	  Console.Error.WriteLine("[DhtLogic] {0}: StartTransfer. Getting the next value to transfer.", 
 			    _our_addr);
 #endif
 
 	  if (_entry_enumerator.MoveNext()) {
 	    Entry e = (Entry) _entry_enumerator.Current;
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Found a value. Making an Put() on key: {1} call to target: {2}",
+	    Console.Error.WriteLine("[DhtLogic] {0}: Found a value. Making an Put() on key: {1} call to target: {2}",
 			      _our_addr,
 			      Base32.Encode(e.Key),
 			      _target);
 #endif
 	    TimeSpan t_span = e.EndTime - DateTime.Now;
-	    //Console.WriteLine("Endtime: {0}, Current: {1}", e.EndTime, DateTime.Now);
-	    //Console.WriteLine("TTL for transferred value: {0}", (int) t_span.TotalSeconds);
+	    //Console.Error.WriteLine("Endtime: {0}, Current: {1}", e.EndTime, DateTime.Now);
+	    //Console.Error.WriteLine("TTL for transferred value: {0}", (int) t_span.TotalSeconds);
 
 	    _driver_queue = _rpc.InvokeNode(_target, "dht.Put", e.Key, 
 					(int) t_span.TotalSeconds, 
 					e.Password, 
 					e.Data);
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Returning non-blocking Put() call to: {1}",
+	    Console.Error.WriteLine("[DhtLogic] {0}: Returning non-blocking Put() call to: {1}",
 			      _our_addr, _target);
 #endif
 	    _driver_queue.EnqueueEvent += new EventHandler(NextTransfer);
 	  } else {
 	    //we are done with the transfer
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Finished transferring all values to: {1}", _our_addr, _target);
+	    Console.Error.WriteLine("[DhtLogic] {0}: Finished transferring all values to: {1}", _our_addr, _target);
 #endif
 	    if (_tcb != null) {
 #if DHT_DEBUG
-	      Console.WriteLine("[DhtLogic] {0}: Now do a sequence of deletes on us. ", _our_addr);
+	      Console.Error.WriteLine("[DhtLogic] {0}: Now do a sequence of deletes on us. ", _our_addr);
 #endif
 	      _tcb(this, _key_list);
 	    }
@@ -153,23 +153,23 @@ namespace Brunet.Dht {
       public void NextTransfer(Object o, EventArgs args) {
 	lock(_sync) {
 #if DHT_DEBUG
-	  Console.WriteLine("[DhtLogic] {0}: NextTransfer.Finished transferring a value. ", _our_addr);
+	  Console.Error.WriteLine("[DhtLogic] {0}: NextTransfer.Finished transferring a value. ", _our_addr);
 #endif
 	  BlockingQueue q =  (BlockingQueue) o;
 	  try {
 	    RpcResult res = q.Dequeue() as RpcResult;
 	    q.Close();
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Return value from transfer: {1}.", _our_addr, res.Result);
+	    Console.Error.WriteLine("[DhtLogic] {0}: Return value from transfer: {1}.", _our_addr, res.Result);
 #endif
 
 	  } catch (Exception e) {
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Return of Put() was an exception: {1}", _our_addr, e);
+	    Console.Error.WriteLine("[DhtLogic] {0}: Return of Put() was an exception: {1}", _our_addr, e);
 #endif
 	  }
 #if DHT_DEBUG
-	  Console.WriteLine("[DhtLogic] {0}: Now see if there is another key to transfer. ", _our_addr);
+	  Console.Error.WriteLine("[DhtLogic] {0}: Now see if there is another key to transfer. ", _our_addr);
 #endif	  
 	  
 	  //unregister any future enqueue events
@@ -180,14 +180,14 @@ namespace Brunet.Dht {
 	  
 	  //initiate next transfer
 #if DHT_DEBUG
-	  Console.WriteLine("[DhtLogic] {0}: Getting the next value to transfer to: {1}.", _our_addr, _target);
+	  Console.Error.WriteLine("[DhtLogic] {0}: Getting the next value to transfer to: {1}.", _our_addr, _target);
 #endif
 	  
 	  if (_entry_enumerator.MoveNext()) {
 	    Entry e = (Entry) _entry_enumerator.Current;
 	    TimeSpan t_span = e.EndTime - DateTime.Now;
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Found a value. Making a Put() on key: {1} call to target: {2}",
+	    Console.Error.WriteLine("[DhtLogic] {0}: Found a value. Making a Put() on key: {1} call to target: {2}",
 			      _our_addr,
 			      Base32.Encode(e.Key),
 			      _target);
@@ -198,7 +198,7 @@ namespace Brunet.Dht {
 					e.Password, 
 					e.Data);
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: . Returning non-blocking Put() call to: {1}",
+	    Console.Error.WriteLine("[DhtLogic] {0}: . Returning non-blocking Put() call to: {1}",
 			      _our_addr, _target);
 #endif
 
@@ -206,11 +206,11 @@ namespace Brunet.Dht {
 	  } else {
 	    //we are done with the transfer
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Finished transferring all values to: {1} ", _our_addr, _target);
+	    Console.Error.WriteLine("[DhtLogic] {0}: Finished transferring all values to: {1} ", _our_addr, _target);
 #endif
 	    if (_tcb != null) {
 #if DHT_DEBUG
-	      Console.WriteLine("[DhtLogic] {0}: Now do a sequence of deletes on us. ", _our_addr);
+	      Console.Error.WriteLine("[DhtLogic] {0}: Now do a sequence of deletes on us. ", _our_addr);
 #endif
 	      _tcb(this, _key_list);
 	    }
@@ -307,11 +307,11 @@ namespace Brunet.Dht {
     
     public BlockingQueue Put(byte[] key, int ttl, string hashed_password, byte[] data) {
 #if DHT_DEBUG
-      Console.WriteLine("[DhtClient] Invoking a Dht::Put()");
+      Console.Error.WriteLine("[DhtClient] Invoking a Dht::Put()");
 #endif
       if (!_activated) {
 #if DHT_DEBUG
-	Console.WriteLine("[DhtClient] Not yet activated. Throwing exception!");
+	Console.Error.WriteLine("[DhtClient] Not yet activated. Throwing exception!");
 #endif	
 	throw new DhtException("DhtClient: Not yet activated.");
       }
@@ -319,7 +319,7 @@ namespace Brunet.Dht {
       byte[] b = MapToRing(key);
       Address target = new AHAddress(b);
 #if DHT_DEBUG
-      Console.WriteLine("[DhtClient] Invocation target: {0}", target);
+      Console.Error.WriteLine("[DhtClient] Invocation target: {0}", target);
 #endif
 
 
@@ -330,19 +330,19 @@ namespace Brunet.Dht {
       //we now know the invocation target
       BlockingQueue q = _rpc.Invoke(target, "dht.Put", b, ttl, hashed_password, data);
 #if DHT_DEBUG
-      Console.WriteLine("[DhtClient] Returning a blocking queue..");
+      Console.Error.WriteLine("[DhtClient] Returning a blocking queue..");
 #endif
       return q;
     }
 
     public BlockingQueue Create(byte[] key, int ttl, string hashed_password, byte[] data) {
 #if DHT_DEBUG
-      Console.WriteLine("[DhtClient] Invoking a Dht::Create()");
+      Console.Error.WriteLine("[DhtClient] Invoking a Dht::Create()");
 #endif
 
       if (!_activated) {
 #if DHT_DEBUG
-	Console.WriteLine("[DhtClient] Not yet activated. Throwing exception!");
+	Console.Error.WriteLine("[DhtClient] Not yet activated. Throwing exception!");
 #endif	
 	throw new DhtException("DhtClient: Not yet activated.");
       }
@@ -350,7 +350,7 @@ namespace Brunet.Dht {
       byte[] b = MapToRing(key);
       Address target = new AHAddress(b);
 #if DHT_DEBUG
-      Console.WriteLine("[DhtClient] Invocation target: {0}", target);
+      Console.Error.WriteLine("[DhtClient] Invocation target: {0}", target);
 #endif
 
 #if DHT_LOG
@@ -365,19 +365,19 @@ namespace Brunet.Dht {
 
     public BlockingQueue Recreate(byte[] key, int ttl, string hashed_password, byte[] data) {
 #if DHT_DEBUG
-      Console.WriteLine("[DhtClient] Invoking a Dht::Recreate()");
+      Console.Error.WriteLine("[DhtClient] Invoking a Dht::Recreate()");
 #endif
 
       if (!_activated) {
 #if DHT_DEBUG
-	Console.WriteLine("[DhtClient] Not yet activated. Throwing exception!");
+	Console.Error.WriteLine("[DhtClient] Not yet activated. Throwing exception!");
 #endif	
 	throw new DhtException("DhtClient: Not yet activated.");
       }
       byte[] b= MapToRing(key);
       Address target = new AHAddress(b);
 #if DHT_DEBUG
-      Console.WriteLine("[DhtClient] Invocation target: {0}", target);
+      Console.Error.WriteLine("[DhtClient] Invocation target: {0}", target);
 #endif
 
 
@@ -393,11 +393,11 @@ namespace Brunet.Dht {
     
     public BlockingQueue Get(byte[] key, int maxbytes, byte[] token) {
 #if DHT_DEBUG
-      Console.WriteLine("[DhtClient] Invoking a Dht::Get()");
+      Console.Error.WriteLine("[DhtClient] Invoking a Dht::Get()");
 #endif
       if (!_activated) {
 #if DHT_DEBUG
-	Console.WriteLine("[DhtClient] Not yet activated. Throwing exception!");
+	Console.Error.WriteLine("[DhtClient] Not yet activated. Throwing exception!");
 #endif	
 	throw new DhtException("DhtClient: Not yet activated.");
       }
@@ -405,7 +405,7 @@ namespace Brunet.Dht {
       byte[] b = MapToRing(key);
       Address target = new AHAddress(b);
 #if DHT_DEBUG
-      Console.WriteLine("[DhtClient] Invocation target: {0}", target);
+      Console.Error.WriteLine("[DhtClient] Invocation target: {0}", target);
 #endif
 
 
@@ -420,12 +420,12 @@ namespace Brunet.Dht {
     public BlockingQueue Delete(byte[] key, string password)
     {  
 #if DHT_DEBUG
-      Console.WriteLine("[DhtClient] Invoking a Dht::Delete()");
+      Console.Error.WriteLine("[DhtClient] Invoking a Dht::Delete()");
 #endif
 
       if (!_activated) {
 #if DHT_DEBUG
-	Console.WriteLine("[DhtClient] Not yet activated. Throwing exception!");
+	Console.Error.WriteLine("[DhtClient] Not yet activated. Throwing exception!");
 #endif	
 	throw new DhtException("DhtClient: Not yet activated.");
       }
@@ -433,7 +433,7 @@ namespace Brunet.Dht {
       byte[] b = MapToRing(key);
       Address target = new AHAddress(b);
 #if DHT_DEBUG
-      Console.WriteLine("[DhtClient] Invocation target: {0}", target);
+      Console.Error.WriteLine("[DhtClient] Invocation target: {0}", target);
 #endif
 
 
@@ -471,13 +471,13 @@ namespace Brunet.Dht {
 
       
 #if DHT_DEBUG
-      Console.WriteLine("[DhtLogic] {0}: Acquired a new connection to {1}.", our_addr, new_con.Address);
+      Console.Error.WriteLine("[DhtLogic] {0}: Acquired a new connection to {1}.", our_addr, new_con.Address);
 #endif 
       
       //first mke sure that it is a new StructuredConnection
       if (new_con.MainType != ConnectionType.Structured) {
 #if DHT_DEBUG
-	Console.WriteLine("[DhtLogic] {0}: Not a structured connection, but {1}, ignore!", our_addr, new_con.ConType);
+	Console.Error.WriteLine("[DhtLogic] {0}: Not a structured connection, but {1}, ignore!", our_addr, new_con.ConType);
 #endif 
 	return;
       }
@@ -492,16 +492,16 @@ namespace Brunet.Dht {
 	if (!_activated) {
 	  if (_node.IsConnected ) {
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Activated (on connection) at time: {1}.", our_addr, DateTime.Now);
+	    Console.Error.WriteLine("[DhtLogic] {0}: Activated (on connection) at time: {1}.", our_addr, DateTime.Now);
 	    try {
-	      Console.WriteLine("Activated left: {0}", con_table.GetLeftStructuredNeighborOf(our_addr));
+	      Console.Error.WriteLine("Activated left: {0}", con_table.GetLeftStructuredNeighborOf(our_addr));
 	    } catch(Exception e) {
-	      Console.WriteLine(e);
+	      Console.Error.WriteLine(e);
 	    }
 	    try {
-	      Console.WriteLine("Activated right: {0}", con_table.GetRightStructuredNeighborOf(our_addr));
+	      Console.Error.WriteLine("Activated right: {0}", con_table.GetRightStructuredNeighborOf(our_addr));
 	    } catch(Exception e) {
-	      Console.WriteLine(e);
+	      Console.Error.WriteLine(e);
 	    } 
 #endif	
 	    _activated = true;
@@ -513,8 +513,8 @@ namespace Brunet.Dht {
 	  new_left_addr = new_left_con.Address as AHAddress;
 	} catch (Exception e) {
 #if DHT_DEBUG
-	  Console.WriteLine("[DhtLogic] {0}: Error getting left neighbor information. ", our_addr);
-	  Console.WriteLine("[DhtLogic] {0}, exception: {1}", our_addr, e);
+	  Console.Error.WriteLine("[DhtLogic] {0}: Error getting left neighbor information. ", our_addr);
+	  Console.Error.WriteLine("[DhtLogic] {0}, exception: {1}", our_addr, e);
 #endif	  
 	}
 	try {
@@ -522,8 +522,8 @@ namespace Brunet.Dht {
 	  new_right_addr = new_right_con.Address as AHAddress;
 	} catch(Exception e) {
 #if DHT_DEBUG
-	  Console.WriteLine("[DhtLogic] {0}: Error getting right neighbor information. ", our_addr);
-	  Console.WriteLine("[DhtLogic] {0}, exception: {1}", our_addr, e);
+	  Console.Error.WriteLine("[DhtLogic] {0}: Error getting right neighbor information. ", our_addr);
+	  Console.Error.WriteLine("[DhtLogic] {0}, exception: {1}", our_addr, e);
 #endif	  
 	}
 	
@@ -541,7 +541,7 @@ namespace Brunet.Dht {
 	  //acquired a left neighbor
 	  //share some keys with him
 #if DHT_DEBUG
-	  Console.WriteLine("[DhtLogic] {0}: Connected to my first left neighbor: {1}", 
+	  Console.Error.WriteLine("[DhtLogic] {0}: Connected to my first left neighbor: {1}", 
 			    our_addr, new_left_addr);
 #endif
 	  if (_left_transfer_state == null) {
@@ -553,24 +553,24 @@ namespace Brunet.Dht {
 	      _left_transfer_state.StartTransfer(TransferCompleteHandler);
 	    } else {
 #if DHT_DEBUG
-	      Console.WriteLine("[DhtLogic] {0}: Not activated (don't do any transfers).", our_addr);
+	      Console.Error.WriteLine("[DhtLogic] {0}: Not activated (don't do any transfers).", our_addr);
 #endif
 	    }
 	    
 	  } else {
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Just acquired first left neighbor. " + 
+	    Console.Error.WriteLine("[DhtLogic] {0}: Just acquired first left neighbor. " + 
 			      "Still an existing transfer state (Error).", our_addr);
 #endif
 	  }
 	} else if (new_left_addr != null && !new_left_addr.Equals(_left_addr)) {
 	  //its a changed left neighbor
 #if DHT_DEBUG
-	  Console.WriteLine("[DhtLogic] {0}: New left  neighbor: {1}", our_addr, new_left_addr);
+	  Console.Error.WriteLine("[DhtLogic] {0}: New left  neighbor: {1}", our_addr, new_left_addr);
 #endif
 	  if (_left_transfer_state != null) {
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Interrupt an existing left transfer to: {1}. ", 
+	    Console.Error.WriteLine("[DhtLogic] {0}: Interrupt an existing left transfer to: {1}. ", 
 			      our_addr, _left_transfer_state.Target);
 #endif
 	    _left_transfer_state.InterruptTransfer();
@@ -582,7 +582,7 @@ namespace Brunet.Dht {
 	    _left_transfer_state.StartTransfer(TransferCompleteHandler);
 	  } else {
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Not activated (don't do any transfers).", our_addr);
+	    Console.Error.WriteLine("[DhtLogic] {0}: Not activated (don't do any transfers).", our_addr);
 #endif
 	  }
 	}
@@ -597,7 +597,7 @@ namespace Brunet.Dht {
 	  //acquired a right neighbor
 	  //share some keys with him
 #if DHT_DEBUG
-	  Console.WriteLine("[DhtLogic] {0}: Connected to my first right neighbor: {1}", our_addr, new_right_addr);
+	  Console.Error.WriteLine("[DhtLogic] {0}: Connected to my first right neighbor: {1}", our_addr, new_right_addr);
 #endif
 	  if (_right_transfer_state == null) {
 	    if (_activated) {
@@ -608,13 +608,13 @@ namespace Brunet.Dht {
 	      _right_transfer_state.StartTransfer(TransferCompleteHandler);
 	    } else {
 #if DHT_DEBUG
-	      Console.WriteLine("[DhtLogic] {0}: Not activated (don't do any transfers).", our_addr);
+	      Console.Error.WriteLine("[DhtLogic] {0}: Not activated (don't do any transfers).", our_addr);
 #endif
 	    }
 	    
 	  } else {
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Just acquired first right neighbor. " + 
+	    Console.Error.WriteLine("[DhtLogic] {0}: Just acquired first right neighbor. " + 
 			      "Still an existing transfer state (Error).", our_addr);
 #endif
 	  }
@@ -622,13 +622,13 @@ namespace Brunet.Dht {
 	} else if (new_right_addr != null && !new_right_addr.Equals(_right_addr)) {
 	  //its a changed right neighbor
 #if DHT_DEBUG
-	  Console.WriteLine("[DhtLogic] {0}: New right  neighbor: {1}", 
+	  Console.Error.WriteLine("[DhtLogic] {0}: New right  neighbor: {1}", 
 			    our_addr, new_right_addr);
 #endif
 
 	  if (_right_transfer_state != null) {
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Interrupt an existing right transfer to: {1}. ", 
+	    Console.Error.WriteLine("[DhtLogic] {0}: Interrupt an existing right transfer to: {1}. ", 
 			      our_addr, _right_transfer_state.Target);
 #endif
 	    _right_transfer_state.InterruptTransfer();
@@ -640,7 +640,7 @@ namespace Brunet.Dht {
 	    _right_transfer_state.StartTransfer(TransferCompleteHandler);
 	  } else {
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Not activated (don't do any transfers).", our_addr);
+	    Console.Error.WriteLine("[DhtLogic] {0}: Not activated (don't do any transfers).", our_addr);
 #endif
 	  }
 	}
@@ -665,14 +665,14 @@ namespace Brunet.Dht {
 
 
 #if DHT_DEBUG
-      Console.WriteLine("[DhtLogic] {0}: Lost a connection to: {1}.", our_addr, old_con.Address);
+      Console.Error.WriteLine("[DhtLogic] {0}: Lost a connection to: {1}.", our_addr, old_con.Address);
 #endif 
 
 
       //first mke sure that it is a new StructuredConnection
       if (old_con.MainType != ConnectionType.Structured) {
 #if DHT_DEBUG
-	Console.WriteLine("[DhtLogic] {0} Not a structured connection, but {1}, ignore!", our_addr, old_con.ConType);
+	Console.Error.WriteLine("[DhtLogic] {0} Not a structured connection, but {1}, ignore!", our_addr, old_con.ConType);
 #endif 
 	return;
       }
@@ -688,16 +688,16 @@ namespace Brunet.Dht {
 	if (!_activated) {
 	  if (_node.IsConnected ) {
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Activated (on disconnection) at time: {1}.", our_addr, DateTime.Now);
+	    Console.Error.WriteLine("[DhtLogic] {0}: Activated (on disconnection) at time: {1}.", our_addr, DateTime.Now);
 	    try {
-	      Console.WriteLine("Activated left: {0}", con_table.GetLeftStructuredNeighborOf(our_addr));
+	      Console.Error.WriteLine("Activated left: {0}", con_table.GetLeftStructuredNeighborOf(our_addr));
 	    } catch(Exception e) {
-	      Console.WriteLine(e);
+	      Console.Error.WriteLine(e);
 	    }
 	    try {
-	      Console.WriteLine("Activated right: {0}", con_table.GetRightStructuredNeighborOf(our_addr));
+	      Console.Error.WriteLine("Activated right: {0}", con_table.GetRightStructuredNeighborOf(our_addr));
 	    } catch(Exception e) {
-	      Console.WriteLine(e);
+	      Console.Error.WriteLine(e);
 	    }
 #endif	
 	    _activated = true;
@@ -708,7 +708,7 @@ namespace Brunet.Dht {
 	  new_left_addr = new_left_con.Address as AHAddress;
 	} catch (Exception e) {
 #if DHT_DEBUG
-	  Console.WriteLine("[DhtLogic] {0} Error getting left neighbor information. ", our_addr);
+	  Console.Error.WriteLine("[DhtLogic] {0} Error getting left neighbor information. ", our_addr);
 #endif	  
 	}	
 	try {
@@ -716,7 +716,7 @@ namespace Brunet.Dht {
 	  new_right_addr = new_right_con.Address as AHAddress;
 	} catch(Exception e) {
 #if DHT_DEBUG
-	  Console.WriteLine("[DhtLogic] {0} Error getting right neighbor information. ", our_addr);
+	  Console.Error.WriteLine("[DhtLogic] {0} Error getting right neighbor information. ", our_addr);
 #endif	  
 	}
 
@@ -732,12 +732,12 @@ namespace Brunet.Dht {
 	
 	if (new_left_addr == null && _left_addr != null) {
 #if DHT_DEBUG
-	  Console.WriteLine("[DhtLogic] {0}: Lost my only left neighbor: {1}", our_addr, _left_addr);
+	  Console.Error.WriteLine("[DhtLogic] {0}: Lost my only left neighbor: {1}", our_addr, _left_addr);
 #endif
 	  //there is nothing that we can do, it just went away.
 	  if (_left_transfer_state != null) {
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Interrupt an existing left transfer to: {1}. ", 
+	    Console.Error.WriteLine("[DhtLogic] {0}: Interrupt an existing left transfer to: {1}. ", 
 			      our_addr, _left_transfer_state.Target);
 #endif
 	    _left_transfer_state.InterruptTransfer();
@@ -746,11 +746,11 @@ namespace Brunet.Dht {
 	} else if (new_left_addr != null && !new_left_addr.Equals(_left_addr)) {
 	  //its a changed left neighbor
 #if DHT_DEBUG
-	  Console.WriteLine("[DhtLogic] {0}: New left  neighbor: {1}", our_addr, new_left_addr);
+	  Console.Error.WriteLine("[DhtLogic] {0}: New left  neighbor: {1}", our_addr, new_left_addr);
 #endif
 	  if (_left_transfer_state != null) {
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Interrupt an existing left transfer to: {1}. ", 
+	    Console.Error.WriteLine("[DhtLogic] {0}: Interrupt an existing left transfer to: {1}. ", 
 			      our_addr, _left_transfer_state.Target);
 #endif
 	    _left_transfer_state.InterruptTransfer();
@@ -762,7 +762,7 @@ namespace Brunet.Dht {
 	    _left_transfer_state.StartTransfer(TransferCompleteHandler);
 	  } else {
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Not activated (don't do any transfers).", our_addr);
+	    Console.Error.WriteLine("[DhtLogic] {0}: Not activated (don't do any transfers).", our_addr);
 #endif
 	  }
 	}
@@ -774,12 +774,12 @@ namespace Brunet.Dht {
 	//2. check if the right neighbpor has changed
 	if (new_right_addr == null && _right_addr != null) {
 #if DHT_DEBUG
-	  Console.WriteLine("[DhtLogic] {0}: Lost my only right neighbor: {1}", our_addr, _right_addr);
+	  Console.Error.WriteLine("[DhtLogic] {0}: Lost my only right neighbor: {1}", our_addr, _right_addr);
 #endif
 	  //nothing that we can do, the guy just went away.
 	  if (_right_transfer_state != null) {
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Interrupt an existing right transfer to: {1}. ", 
+	    Console.Error.WriteLine("[DhtLogic] {0}: Interrupt an existing right transfer to: {1}. ", 
 			      our_addr, _right_transfer_state.Target);
 #endif
 	    _right_transfer_state.InterruptTransfer();
@@ -788,11 +788,11 @@ namespace Brunet.Dht {
 	} else if (new_right_addr != null && !new_right_addr.Equals(_right_addr)) {
 	  //its a changed right neighbor
 #if DHT_DEBUG
-	  Console.WriteLine("[DhtLogic] {0}: New right  neighbor: {1}", our_addr, new_right_addr);
+	  Console.Error.WriteLine("[DhtLogic] {0}: New right  neighbor: {1}", our_addr, new_right_addr);
 #endif
 	  if (_right_transfer_state != null) {
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Interrupt an existing right transfer to: {1}. ", 
+	    Console.Error.WriteLine("[DhtLogic] {0}: Interrupt an existing right transfer to: {1}. ", 
 			      our_addr, _right_transfer_state.Target);
 #endif
 	    _right_transfer_state.InterruptTransfer();
@@ -804,7 +804,7 @@ namespace Brunet.Dht {
 	    _right_transfer_state.StartTransfer(TransferCompleteHandler);
 	  }else {
 #if DHT_DEBUG
-           Console.WriteLine("[DhtLogic] {0}: Not activated (don't do any transfers).", our_addr);
+           Console.Error.WriteLine("[DhtLogic] {0}: Not activated (don't do any transfers).", our_addr);
 #endif
           }
 	  
@@ -822,7 +822,7 @@ namespace Brunet.Dht {
 	//make sure that this transfer is still valid
 	if (state == _left_transfer_state ) { 
 #if DHT_DEBUG
-	  Console.WriteLine("[DhtLogic] {0}: # of keys to delete: {1}", our_addr, key_list.Keys.Count);
+	  Console.Error.WriteLine("[DhtLogic] {0}: # of keys to delete: {1}", our_addr, key_list.Keys.Count);
 #endif	  
 	  if (state.ToDelete) {
 	    _table.AdminDelete(key_list);
@@ -831,7 +831,7 @@ namespace Brunet.Dht {
 	  _left_transfer_state = null;
 	} else if (state == _right_transfer_state) {
 #if DHT_DEBUG
-	  Console.WriteLine("[DhtLogic] {0}: # of keys to delete: {1}", our_addr, key_list.Keys.Count);
+	  Console.Error.WriteLine("[DhtLogic] {0}: # of keys to delete: {1}", our_addr, key_list.Keys.Count);
 #endif	  
 	  if (state.ToDelete) {
 	    _table.AdminDelete(key_list);	  
@@ -839,7 +839,7 @@ namespace Brunet.Dht {
 	  _right_transfer_state = null;
 	} else {//otherwise this transfer is no longer valid
 #if DHT_DEBUG
-	  Console.WriteLine("[DhtLogic] {0}: Illegal transfer state. No actual deletion.");
+	  Console.Error.WriteLine("[DhtLogic] {0}: Illegal transfer state. No actual deletion.");
 #endif	  
 	}
       }
@@ -867,15 +867,15 @@ namespace Brunet.Dht {
 	if (!_activated) {
 	  if (_node.IsConnected ) {
 #if DHT_DEBUG
-	    Console.WriteLine("[DhtLogic] {0}: Activated (on status change) at time: {1}.", our_addr, DateTime.Now);
+	    Console.Error.WriteLine("[DhtLogic] {0}: Activated (on status change) at time: {1}.", our_addr, DateTime.Now);
 	    try {
-	      Console.WriteLine("Activated left: {0}", con_table.GetLeftStructuredNeighborOf(our_addr));
+	      Console.Error.WriteLine("Activated left: {0}", con_table.GetLeftStructuredNeighborOf(our_addr));
 	    } catch(Exception e) {
-	      Console.WriteLine(e);
+	      Console.Error.WriteLine(e);
 	    } try {
-	      Console.WriteLine("Activated right: {0}", con_table.GetRightStructuredNeighborOf(our_addr));
+	      Console.Error.WriteLine("Activated right: {0}", con_table.GetRightStructuredNeighborOf(our_addr));
 	    } catch(Exception e) {
-	      Console.WriteLine(e);
+	      Console.Error.WriteLine(e);
 	    }
 #endif	
 	    _activated = true;
