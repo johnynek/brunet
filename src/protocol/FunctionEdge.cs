@@ -2,6 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
+Copyright (C) 2007 P. Oscar Boykin <boykin@pobox.com> University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -45,13 +46,15 @@ namespace Brunet
       GetCurrentMethod().DeclaringType);*/
 
     protected int _l_id;
+    protected int _r_id;
     protected IEdgeSendHandler _sh;
 
-    public FunctionEdge(IEdgeSendHandler s, int local_id, bool is_in)
+    public FunctionEdge(IEdgeSendHandler s, int local_id, int remote_id, bool is_in)
     {
       _sh = s;
       _create_dt = DateTime.UtcNow;
       _l_id = local_id;
+      _r_id = remote_id;
       inbound = is_in;
       _is_closed = false;
     }
@@ -130,12 +133,15 @@ namespace Brunet
     {
       get
       {
-        return _partner.LocalTA;
+        return TransportAddressFactory.CreateInstance("brunet.function://localhost:"
+                                    + _r_id.ToString());
       }
     }
     public void Push(Packet p) {
+      //Make a copy:
       if( !_is_closed ) {
-        ReceivedPacketEvent(p);
+        Packet new_p = PacketParser.Parse( MemBlock.Copy(p) );
+        ReceivedPacketEvent(new_p);
       }
     }
 
