@@ -45,7 +45,7 @@ namespace Brunet
     protected object _sync;
     protected Thread _loop;
     protected bool _send_edge_events;
-    protected bool _run;
+    volatile protected bool _run;
 
     protected ArrayList _all_sockets;
     protected ArrayList _send_sockets;
@@ -58,6 +58,7 @@ namespace Brunet
       public EdgeCreationCallback ECB;
       public int Port;
       public Queue IPAddressQueue;
+      public Socket Socket;
 
       public CreationState(EdgeCreationCallback ecb,
                            Queue ipq, int port)
@@ -182,25 +183,26 @@ namespace Brunet
     public override void Start()
     {
       lock( _sync ) {
-       if( _is_started ) {
-         //We are calling start again, that is not good.
-         throw new Exception("Cannot start more than once");
-       }
+        if( _is_started ) {
+          //We are calling start again, that is not good.
+          throw new Exception("Cannot start more than once");
+        }
         _is_started = true;
         _listen_sock.Bind(_local_endpoint);
         _listen_sock.Listen(10);
+        _send_edge_events = true;
+        _run = true;
       }
-
-      _send_edge_events = true;
       _loop = new Thread( new ThreadStart( this.SelectLoop ) );
-      _run = true;
       _loop.Start();
     }
 
     public override void Stop()
     {
       //This should stop the thread gracefully
-      _run = false;
+      lock( _sync ) {
+        _run = false;
+      }
     }
 
     /* ***************************************************** */
@@ -214,34 +216,31 @@ namespace Brunet
     {
       CreationState cs = null;
       Socket s = null;
+      TcpEdge e;
+      bool success;
       try {
-        s = (Socket)ar.AsyncState;
-        lock( _sync ) {
-          cs = (CreationState)_sock_to_edge[s];
-          _sock_to_edge.Remove(s);
-        }
-
+        cs = (CreationState)ar.AsyncState;
+        s = cs.Socket;
+        bool start_edge = false;
         s.EndConnect(ar);
-        if (s.Connected) {
-          //This new edge is NOT an incoming edge, thus the "false"
-          TcpEdge e = new TcpEdge(s, false, this);
+        start_edge = s.Connected;
+        if( start_edge ) {
+          e = new TcpEdge(s, false, this);
+          AddEdge(e);
 #if PLAB_LOG
           e.Logger = this.Logger;
 #endif
-          lock( _sync ) {
-            _all_sockets.Add(s);
-            _sock_to_edge[s] = e;
-          }
-          e.CloseEvent += new EventHandler(this.CloseHandler);
           //Start listening for incoming packets:
           e.Start();
-          //We have success:
-          cs.ECB(true, e, null);
+          success = true;
         }
         else {
           //This did not work out, close the socket and release the resources:
           s.Close();
+          e = null;
+          success = false;
         }
+        cs.ECB(success, e, null);
       }
       catch(Exception) {
         //This did not work out, close the socket and release the resources:
@@ -288,21 +287,11 @@ namespace Brunet
           s.SetSocketOption(SocketOptionLevel.Tcp,
                             SocketOptionName.NoDelay,
                             1);
-          lock(_sync) {
-            /* Store the callback in the socket table temporarily: */
-            if( s == null ) {
-              Console.Error.WriteLine("Null socket");
-	    }
-            _sock_to_edge[s] = cs;
-          }
-          s.BeginConnect(end, new AsyncCallback(this.ConnectCallback), s);
+          /* Store the callback in the socket table temporarily: */
+          cs.Socket = s;
+          s.BeginConnect(end, this.ConnectCallback, cs);
         }
         catch(Exception x) {
-          lock( _sync ) {
-            if( s != null ) {
-              _sock_to_edge.Remove(s);
-	    }
-          }
           cs.ECB(false, null, x);
         }
       }
@@ -316,6 +305,9 @@ namespace Brunet
       ArrayList errorsocks = null;
       while(_run)
       {
+        /*
+         * Set up readsocks, errorsocks, and writesocks
+         */
         lock( _sync ) {
           if( _all_sockets.Count > 0 ) {
             readsocks = new ArrayList( _all_sockets );
@@ -331,30 +323,29 @@ namespace Brunet
           else {
             writesocks = null;
           }
-        }
-        if( _send_edge_events ) {
-          //Also listen for incoming connections:
-          if( readsocks == null ) {
-            readsocks = new ArrayList();
+          if( _send_edge_events ) {
+            //Also listen for incoming connections:
+            if( readsocks == null ) {
+              readsocks = new ArrayList();
+            }
+            if( errorsocks == null ) {
+              errorsocks = new ArrayList();
+            }
+            readsocks.Add(_listen_sock);
+            errorsocks.Add(_listen_sock);
           }
-          if( errorsocks == null ) {
-            errorsocks = new ArrayList();
-          }
-          readsocks.Add(_listen_sock);
-          errorsocks.Add(_listen_sock);
         }
-        if( readsocks != null ||
-            errorsocks != null ||
-            writesocks != null ) {
+        /*
+         * Now we are ready to do our select and we only act on local
+         * variables
+         */
+        if( readsocks != null || errorsocks != null || writesocks != null ) {
           //There are some socket operations to do
 #if POB_DEBUG
           Console.Error.WriteLine("Selecting");
 #endif
           try {
-            Socket.Select(readsocks,
-                          writesocks,
-                          errorsocks,
-                          timeout_ms * 1000);
+            Socket.Select(readsocks, writesocks, errorsocks, timeout_ms * 1000);
           }
           catch(Exception) {
             //One of the Sockets gave us problems.  Perhaps
@@ -373,111 +364,31 @@ namespace Brunet
           Thread.Sleep(timeout_ms);
         }
 
-        if( errorsocks != null ) {
-          foreach(Socket s in errorsocks)
-          {
-            if( s == _listen_sock ) {
-
-            }
-            else {
-              TcpEdge e = null;
-              lock( _sync ) {
-                if( s != null && _sock_to_edge.Contains(s) ) {
-                  e = (TcpEdge)_sock_to_edge[s];
-                }
-              }
-              //It is really important not to lock across this function call
-              if( e != null ) { e.Close(); }
-#if POB_DEBUG
-              Console.Error.WriteLine("TcpEdgeListener closing: {0}", this);
-#endif
-            }
-          }
-        }//End of errorsocks
-        if( readsocks != null ) {
-          foreach(Socket s in readsocks)
-          {
-            //See if this is a new socket
-            if( s == _listen_sock ) {
-	      try {
-                Socket new_s = s.Accept();
-                TransportAddress rta = TransportAddressFactory.CreateInstance(this.TAType,
-                                        (IPEndPoint)new_s.RemoteEndPoint);
-                if( _ta_auth.Authorize(rta)
-                    == TAAuthorizer.Decision.Deny ) {
-                  //No thank you Dr. Evil
-                  Console.Error.WriteLine("Denying: {0}", rta);
-                  new_s.Close();
-                }
-                else {
-                  //This edge looks clean
-                  TcpEdge e = new TcpEdge(new_s, true, this);
-#if PLAB_LOG
-                  e.Logger = this.Logger;
-#endif
-                  lock( _sync ) {
-                    _all_sockets.Add(new_s);
-                    _sock_to_edge[new_s] = e;
-                  }
-                  e.CloseEvent += new EventHandler(this.CloseHandler);
-#if POB_DEBUG
-                  Console.Error.WriteLine("New Edge: {0}", e);
-#endif
-                  SendEdgeEvent(e);
-                  e.Start();
-                }
-	      }
-	      catch(SocketException sx) {
-                //Looks like this Accept has failed.  Do nothing
-                Console.Error.WriteLine("New incoming edge failed: {0}", sx);
-	      }
-            }
-            else {
-              TcpEdge e = null;
-              lock( _sync ) {
-                if( s != null && _sock_to_edge.Contains(s) ) {
-                  e = (TcpEdge)_sock_to_edge[s];
-#if POB_DEBUG
-                  Console.Error.WriteLine("DoReceive: {0}", e);
-#endif
-                }
-              }
-              //It is really important not to lock across this function call
-              if( e != null ) { e.DoReceive(); }
-            }
-          }
-        }//End of readsocks
-        if( writesocks != null ) {
-          foreach(Socket s in writesocks)
-          {
-            if( s == _listen_sock ) {
-
-            }
-            else {
-              TcpEdge e = null;
-              lock( _sync ) {
-                if( s != null && _sock_to_edge.Contains(s) ) {
-                  e = (TcpEdge)_sock_to_edge[s];
-#if POB_DEBUG
-                  Console.Error.WriteLine("DoSend: {0}", e);
-#endif
-                }
-              }
-              //It is really important not to lock across this function call
-              if( e != null ) { e.DoSend(); }
-            }
-          }
-        } //End of writesocks check
-      }//End of infinite while loop
-
-      //If we are here, we will never hear or send packets again, so, lets close the sockets:
+        HandleErrors(errorsocks);
+        HandleReads(readsocks);
+        HandleWrites(writesocks);
+      }//End of while loop
+      
+      /*
+       * We are done, so close all the sockets
+       */
+      
       lock( _sync ) {
-        foreach(Socket s in _sock_to_edge.Keys) {
+        foreach(Socket s in _all_sockets) {
           s.Close();
         }
         //Close the main socket:
         _listen_sock.Close();
       }
+    }
+
+    protected void AddEdge(TcpEdge e) {
+      Socket s = e.Socket;
+      lock( _sync ) {
+        _all_sockets.Add(s);
+        _sock_to_edge[s] = e;
+      }
+      e.CloseEvent += this.CloseHandler;
     }
 
     protected void CloseHandler(object edge, EventArgs arg)
@@ -490,6 +401,104 @@ namespace Brunet
         _send_sockets.Remove(s);
       }
       s.Close();
+    }
+
+    protected void HandleErrors(ArrayList errorsocks) {
+      if( errorsocks == null ) { return; }
+      ArrayList to_close = new ArrayList();
+      lock( _sync ) {
+        foreach(Socket s in errorsocks)
+        {
+          if( s != _listen_sock ) {
+            to_close.Add( _sock_to_edge[s] );
+          }
+          else {
+            //This is the listen_sock, we just ignore errors on it
+          }
+        }
+      }
+      foreach(TcpEdge e in to_close) {
+          if( e != null ) { e.Close(); }
+#if POB_DEBUG
+          Console.Error.WriteLine("TcpEdgeListener closing: {0}", this);
+#endif
+        }
+    }
+    protected void HandleReads(ArrayList readsocks) {
+      if( readsocks != null ) {
+        foreach(Socket s in readsocks)
+        {
+          //See if this is a new socket
+          if( s == _listen_sock ) {
+	    try {
+              Socket new_s = s.Accept();
+              TransportAddress rta = TransportAddressFactory.CreateInstance(this.TAType,
+                                      (IPEndPoint)new_s.RemoteEndPoint);
+              if( _ta_auth.Authorize(rta)
+                  == TAAuthorizer.Decision.Deny ) {
+                //No thank you Dr. Evil
+                Console.Error.WriteLine("Denying: {0}", rta);
+                new_s.Close();
+              }
+              else {
+                //This edge looks clean
+                TcpEdge e = new TcpEdge(new_s, true, this);
+#if PLAB_LOG
+                e.Logger = this.Logger;
+#endif
+                AddEdge(e);
+#if POB_DEBUG
+                Console.Error.WriteLine("New Edge: {0}", e);
+#endif
+                SendEdgeEvent(e);
+                e.Start();
+              }
+	    }
+	    catch(SocketException sx) {
+              //Looks like this Accept has failed.  Do nothing
+              Console.Error.WriteLine("New incoming edge failed: {0}", sx);
+	    }
+          }
+          else {
+            TcpEdge e = null;
+            lock( _sync ) {
+              if( s != null ) {
+                e = (TcpEdge)_sock_to_edge[s];
+#if POB_DEBUG
+                Console.Error.WriteLine("DoReceive: {0}", e);
+#endif
+              }
+            }
+            //It is really important not to lock across this function call
+            if( e != null ) { e.DoReceive(); }
+          }
+        }
+      }
+    }
+
+    protected void HandleWrites(ArrayList writesocks) {
+      if( writesocks != null ) {
+        foreach(Socket s in writesocks)
+        {
+          if( s != _listen_sock ) {
+            TcpEdge e = null;
+            lock( _sync ) {
+              if( s != null ) {
+                e = (TcpEdge)_sock_to_edge[s];
+              }
+            }
+#if POB_DEBUG
+            Console.Error.WriteLine("DoSend: {0}", e);
+#endif
+            //It is really important not to lock across this function call
+            if( e != null ) { e.DoSend(); }
+          }
+          else {
+            //It was the listening socket, which should never be in the write
+            //list anyway
+          }
+        }
+      }
     }
     
     /**

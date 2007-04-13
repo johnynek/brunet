@@ -49,7 +49,7 @@ public class BlockingQueue : Queue {
 
   public bool Closed { get { lock ( this ) { return _closed; } } }
   
-  public override int Count { get { return base.Count; } }
+  public override int Count { get { lock ( this) { return base.Count; } } }
  
   /**
    * When an item is enqueued, this event is fire
