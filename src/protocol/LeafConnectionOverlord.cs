@@ -2,7 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
-Copyright (C) 2005  P. Oscar Boykin <boykin@pobox.com>, University of Florida
+Copyright (C) 2005-2007  P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -35,7 +35,7 @@ namespace Brunet
         log4net.LogManager.GetLogger(System.Reflection.MethodBase.
         GetCurrentMethod().DeclaringType);*/
 
-    private static readonly int _desired_cons = 3;
+    private static readonly int DESIRED_CONS = 3;
     //After this many secs of not seeing any new connections or disconnections,
     //we decide we don't need leafs anymore.
     private static readonly double TIME_SCALE = 600.0;
@@ -47,15 +47,15 @@ namespace Brunet
     protected int DesiredConnections {
       get {
         if( _last_non_leaf_connection_event == DateTime.MinValue ) {
-          return _desired_cons;
+          return DESIRED_CONS;
         }
         else {
            /*
             * Linearly decrease the number we want so that after zero seconds,
-            * we want _desired_cons, and after TIME_SCALE, we want zero
+            * we want DESIRED_CONS, and after TIME_SCALE, we want zero
             * y = mx + b
             */
-           double b = (double)_desired_cons;
+           double b = (double)DESIRED_CONS;
            double m = - b / TIME_SCALE;
            double x = (DateTime.UtcNow - _last_non_leaf_connection_event).TotalSeconds;
            double y = m*x + b;
@@ -79,9 +79,9 @@ namespace Brunet
     protected DateTime _last_retry;
     protected DateTime _last_non_leaf_connection_event;
     protected DateTime _last_trim;
-    //Every _trim_interval we check to see if we should trim any leaf
+    //Every TRIM_INTERVAL we check to see if we should trim any leaf
     //connections (currently 2 minutes)
-    private static readonly TimeSpan _trim_interval = new TimeSpan(0,2,0);
+    private static readonly TimeSpan TRIM_INTERVAL = new TimeSpan(0,2,0);
     /**
      * This is our active linker.  We only have one
      * at a time.  Otherwise, we may waste a lot
@@ -141,7 +141,7 @@ namespace Brunet
       CheckAndConnectHandler(null, null);
     }
 
-    protected bool _compensate;
+    volatile protected bool _compensate;
     /**
      * If we start compensating, we check to see if we need to
      * make a connection : 
@@ -166,13 +166,14 @@ namespace Brunet
     {
      ConnectionEventArgs cea = args as ConnectionEventArgs;
      DateTime now = DateTime.UtcNow;
-     if( cea != null ) {
-       //This is a connection event.
-       if( cea.Connection.MainType != ConnectionType.Leaf ) {
-         _last_non_leaf_connection_event = now;
-       }
-     }
+     Linker new_linker = null;
      lock(_sync) {
+       if( cea != null ) {
+         //This is a connection event.
+         if( cea.Connection.MainType != ConnectionType.Leaf ) {
+           _last_non_leaf_connection_event = now;
+         }
+       }
       //Check in order of cheapness, so we can avoid hard work...
       bool time_to_start = (now - _last_retry >= _current_retry_interval );
       if ( (_linker == null) &&
@@ -209,8 +210,8 @@ namespace Brunet
          * Make a Link to a remote node 
          */
         _linker = new Linker(_local, null, tas, "leaf");
-        _linker.FinishEvent += new EventHandler(this.LinkerFinishHandler);
-        _linker.Start();
+        new_linker = _linker;
+        new_linker.FinishEvent += this.LinkerFinishHandler;
       }
       else if (cea != null) {
         //Reset the connection interval to the default value:
@@ -219,8 +220,15 @@ namespace Brunet
         //log.Info("LeafConnectionOverlord :  not seeking connection");
       }
       //Check to see if it is time to trim.
+      }//Drop the lock
       Trim();
-     }
+      
+      /**
+       * If there is a new linker, start it after we drop the lock
+       */
+      if( new_linker != null ) {
+        new_linker.Start();
+      }
     }
 
     /**
@@ -259,9 +267,14 @@ namespace Brunet
      */
     protected void Trim() {
       DateTime now = DateTime.UtcNow;
-      if( now - _last_trim > _trim_interval ) {
-        _last_trim = now;
-        
+      bool do_trim = false;
+      lock (_sync ) {
+        if( now - _last_trim > TRIM_INTERVAL ) {
+          _last_trim = now;
+          do_trim = true;
+        }
+      }
+      if( do_trim ) {
         Edge to_close = null;
         lock ( _local.ConnectionTable.SyncRoot ) {
           int leafs = _local.ConnectionTable.Count(ConnectionType.Leaf);
