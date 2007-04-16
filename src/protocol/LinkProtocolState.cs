@@ -59,7 +59,7 @@ namespace Brunet
      * If this state machine creates a Connection, this is it.
      * Otherwise its null
      */
-    public Connection Connection { get { return _con; } }
+    public Connection Connection { get { lock( _sync) { return _con; } } }
     protected ConnectionMessage _last_s_mes;
     protected Linker _linker;
     /**
@@ -70,9 +70,9 @@ namespace Brunet
     /**
      * The Packet we last sent
      */
-    public Packet LastSPacket { get { return _last_s_packet; } }
+    public Packet LastSPacket { get { lock( _sync ) { return _last_s_packet; } } }
 
-    protected Exception _x;
+    volatile protected Exception _x;
     /**
      * If we catch some exception, we store it here, and call Finish
      */
@@ -136,7 +136,9 @@ namespace Brunet
       ///Received some ErrorMessage from the other node (other than InProgress)
       ProtocolError,
       ///There was some Exception
-      Exception
+      Exception,
+      ///No result yet
+      None
     }
 
     protected LinkProtocolState.Result _result;
@@ -166,9 +168,11 @@ namespace Brunet
 
     //Make sure we are unlocked.
     ~LinkProtocolState() {
-      if( _target_lock != null ) {
-        Console.Error.WriteLine("Lock released by destructor");
-        Unlock();
+      lock( _sync ) {
+        if( _target_lock != null ) {
+          Console.Error.WriteLine("Lock released by destructor");
+          Unlock();
+        }
       }
     }
 
@@ -210,38 +214,45 @@ namespace Brunet
      * When this state machine reaches an end point, it calls this method,
      * which fires the FinishEvent
      */
-    protected void Finish() {
+    protected void Finish(Result res) {
       /*
        * No matter what, we are done here:
        */
+      Edge to_close = null;
+      bool close_gracefully = false;
       lock( _sync ) {
         if( _is_finished ) { throw new Exception("Finished called twice!"); }
         _is_finished = true;
+        _result = res;
         _node.HeartBeatEvent -= new EventHandler(this.PacketResendCallback);
         _e.ClearCallback(Packet.ProtType.Connection);
         _e.CloseEvent -= new EventHandler(this.CloseHandler);
+        if( this.Connection == null ) {
+          to_close = _e;
+          _e = null;
+          close_gracefully = ( LastRPacket != null);
+        }
       }
       /*
        * In some cases, we close the edge:
        */
-      if( this.Connection == null ) {
-        if( LastRPacket != null ) {
+      if( to_close != null ) {
+        if( close_gracefully ) {
         /*
          * We close the edge if we did not get a Connection AND we received
          * some response from this edge
          */
           CloseMessage close = new CloseMessage();
           close.Dir = ConnectionMessage.Direction.Request;
-          _node.GracefullyClose(_e, close);
+          _node.GracefullyClose(to_close, close);
         }
         else {
           /*
            * We never heard from the other side, so we will assume that further
            * packets will only waste bandwidth
            */
-          _e.Close();
+          to_close.Close();
         }
-        _e = null;
       }
       else {
         //We got a connection, don't close it!
@@ -383,47 +394,16 @@ namespace Brunet
       //Return the connection, now we are done!
       yield return con;
     }
-    /**
-     * When we get packets from the Edge, this is how we handle them
-     */
-    public void HandlePacket(Packet p, Edge edge)
-    {
-      Packet p_to_resend = null;
-#if LINK_DEBUG
-      Console.Error.WriteLine("From: {0}\nPacket: {1}\n\n",edge, p);
-#endif
-      lock( _sync ) {
-       if( _is_finished ) { return; }
-       try {
-        _em = SetLastRPacket(p);
-        _timeouts = 0;
-       }
-       catch(Exception) {
-        /*
-         * SetLastRPacket can throw an exception on expected packets
-         * for now, we just ignore them and resend the most recently
-         * sent packet:
-         */
-	  p_to_resend = LastSPacket;
-       }
-      }
-      if( null != p_to_resend) {
-        edge.Send( p_to_resend );
-        return;
-      }
-      //If we get here, the packet must have been what we were expecting,
-      //or an ErrorMessage
-      bool finish = false;
-      if( _em != null ) {
+    protected Result HandleError(ErrorMessage em) {
+      Result result = Result.None;
         //We got an error
-	if( _em.Ec == ErrorMessage.ErrorCode.InProgress ) {
+	if( em.Ec == ErrorMessage.ErrorCode.InProgress ) {
 #if LINK_DEBUG
         Console.Error.WriteLine("Linker ({0}) InProgress: from: {1}", _linker.Lid, edge);
 #endif
-          _result = Result.RetryThisTA;
-          finish = true;
+          result = Result.RetryThisTA;
         }
-        else if ( _em.Ec == ErrorMessage.ErrorCode.AlreadyConnected ) {
+        else if ( em.Ec == ErrorMessage.ErrorCode.AlreadyConnected ) {
           /*
            * The other side thinks we are already connected.  This is
            * odd, let's see if we agree
@@ -433,26 +413,22 @@ namespace Brunet
           if( target == null ) {
             //This can happen with leaf connections.  In this case, we
             //should move on to another TA.
-            _result = Result.MoveToNextTA;
-            finish = true;
+            result = Result.MoveToNextTA;
           }
           else if( tab.Contains( Connection.StringToMainType( _contype ), target) ) {
             //This shouldn't happen
-            _result = Result.ProtocolError;
-            finish = true;
-            Console.Error.WriteLine("LPS: already connected: {0}, {1}",
-                                    _contype, target);
+            result = Result.ProtocolError;
+            Console.Error.WriteLine("LPS: already connected: {0}, {1}", _contype, target);
           }
           else {
             //The other guy thinks we are connected, but we disagree,
             //let's retry.  This can happen if we get disconnected
             //and reconnect, but the other node hasn't realized we
             //are disconnected.
-            _result = Result.RetryThisTA;
-            finish = true;
+            result = Result.RetryThisTA;
           }
         }
-        else if ( _em.Ec == ErrorMessage.ErrorCode.TargetMismatch ) {
+        else if ( em.Ec == ErrorMessage.ErrorCode.TargetMismatch ) {
           /*
            * This could happen in some NAT cases, or perhaps due to
            * some other as of yet undiagnosed bug.
@@ -460,77 +436,114 @@ namespace Brunet
            * Move to the next TA since this TA definitely connects to
            * the wrong guy.
            */
-          Console.Error.WriteLine("LPS: from {0} target mismatch: {1}", edge, _em);
-          _result = Result.MoveToNextTA;
-          finish = true;
+          Console.Error.WriteLine("LPS: from {0} target mismatch: {1}", _e, _em);
+          result = Result.MoveToNextTA;
         }
         else {
           //We failed.
-          _result = Result.ProtocolError;
-          finish = true;
+          result = Result.ProtocolError;
         }
-      }
-      else {
+        return result;
+    }
+    /**
+     * When we get packets from the Edge, this is how we handle them
+     */
+    public void HandlePacket(Packet p, Edge edge)
+    {
+      Packet to_send = null;
+      bool finish = false;
+      Result result = Result.None;
+#if LINK_DEBUG
+      Console.Error.WriteLine("From: {0}\nPacket: {1}\n\n",edge, p);
+#endif
+      ErrorMessage em = null;
+      lock( _sync ) {
+        if( _is_finished ) { return; }
         try {
-          //Advance one step in the protocol
-	  object o = null;
-	  lock( _sync ) {
-            if( _link_enumerator.MoveNext() ) {
-              o = _link_enumerator.Current;
-	    }
-            else {
-              //We should never get here
-            }
-	  }
-          if( o is Packet ) {
-            //We need to send this packet
-            edge.Send( (Packet)o );
-          }
-          else if ( o is Connection ) {
-            //We have created our connection, Success!
-            _con = (Connection)o;
-            _result = Result.Success;
+          em = SetLastRPacket(p);
+          _em = em;
+          _timeouts = 0;
+          //If we get here, the packet must have been what we were expecting,
+          //or an ErrorMessage
+          if( em != null ) {
+            result = HandleError(em);
             finish = true;
           }
         }
-        catch(InvalidOperationException x) {
-          //This is thrown when ConnectionTable cannot lock.  Lets try again:
-#if LINK_DEBUG
-        Console.Error.WriteLine("Linker ({0}): Could not lock in HandlePacket", _linker.Lid);
-#endif
-          _x = x;
-          _result = Result.RetryThisTA;
-          finish = true;
+        catch(Exception) {
+        /*
+         * SetLastRPacket can throw an exception on expected packets
+         * for now, we just ignore them and resend the most recently
+         * sent packet:
+         */
+	  to_send = LastSPacket;
         }
-        catch(LinkException x) {
-          _x = x;
-          if( x.IsCritical ) {
-            _result = Result.MoveToNextTA;
+        if( !finish ) {
+          try {
+            //Advance one step in the protocol
+            if( _link_enumerator.MoveNext() ) {
+              object o = _link_enumerator.Current;
+              if( o is Packet ) {
+                to_send = (Packet)o;
+              }
+              else if (o is Connection) {
+                _con = (Connection)o;
+                //We have created our connection, Success!
+                result = Result.Success;
+                finish = true;
+              }
+            }
+            else {
+               //We should never get here
+            }
           }
-          else {
-            _result = Result.RetryThisTA;
+          catch(InvalidOperationException x) {
+            //This is thrown when ConnectionTable cannot lock.  Lets try again:
+  #if LINK_DEBUG
+          Console.Error.WriteLine("Linker ({0}): Could not lock in HandlePacket", _linker.Lid);
+  #endif
+            _x = x;
+            result = Result.RetryThisTA;
+            finish = true;
           }
-          finish = true;
-        }
-        catch(Exception x) {
-          //The protocol was not followed correctly by the other node, fail
-          _x = x;
-          _result = Result.RetryThisTA;
-          finish = true;
+          catch(LinkException x) {
+            _x = x;
+            if( x.IsCritical ) {
+              result = Result.MoveToNextTA;
+            }
+            else {
+              result = Result.RetryThisTA;
+            }
+            finish = true;
+          }
+          catch(Exception x) {
+            //The protocol was not followed correctly by the other node, fail
+            _x = x;
+            result = Result.RetryThisTA;
+            finish = true;
+          }
         }
       }
+      if( null != to_send) {
+        edge.Send( to_send );
+      }
       if( finish ) {
-        Finish();
+        Finish(result);
       }
     }
 
     public override void Start() {
-      _link_enumerator = GetEnumerator();
-      _link_enumerator.MoveNext(); //Move the protocol forward:
-      Packet p = (Packet)_link_enumerator.Current;
-      _e.Send(p);
+      Edge e = null;
+      Packet p = null;
+      lock( _sync ) {
+        _link_enumerator = GetEnumerator();
+        _link_enumerator.MoveNext(); //Move the protocol forward:
+        p = (Packet)_link_enumerator.Current;
+        e = _e;
+      }
+      e.Send(p);
       //Register the call back:
-      _node.HeartBeatEvent += new EventHandler(this.PacketResendCallback);
+      _node.HeartBeatEvent += this.PacketResendCallback;
     }
   
     /**
@@ -540,15 +553,17 @@ namespace Brunet
      * to signal that this is not a good candidate to retry.
      */
     protected void CloseHandler(object sender, EventArgs args) {
-      _result = Result.MoveToNextTA;
-      Finish();
+      Finish(Result.MoveToNextTA);
     }
 
     protected void PacketResendCallback(object node, EventArgs args)
     {
       bool finish = false;
-      try {
-        lock( _sync ) {
+      Result result = Result.None;
+      Packet to_send = null;
+      Edge e = null;
+      lock( _sync ) {
+        try {
 	  long now = TimeUtils.NoisyNowTicks;
           if( (! _is_finished) &&
               (now - _last_packet_datetime > _timeout ) ) {
@@ -560,33 +575,37 @@ namespace Brunet
 #if LINK_DEBUG
             Console.Error.WriteLine("Linker ({0}) resending packet; attempt # {1}; length: {2}", _linker.Lid, _timeouts,                              LastSPacket.Length);
 #endif
-            _e.Send( LastSPacket );
-            _last_packet_datetime = now;
-	    //Increase the timeout by a factor of 4
-	    _ms_timeout = _TIMEOUT_FACTOR * _ms_timeout;
-            //_timeout is in 100 ns ticks
-            _timeout = TimeUtils.MsToNsTicks( _ms_timeout );
-            _timeouts++;
+              to_send = LastSPacket;
+              e = _e;
+              _last_packet_datetime = now;
+	      //Increase the timeout by a factor of 4
+	      _ms_timeout = _TIMEOUT_FACTOR * _ms_timeout;
+              //_timeout is in 100 ns ticks
+              _timeout = TimeUtils.MsToNsTicks( _ms_timeout );
+              _timeouts++;
             }
             else if( _timeouts >= _MAX_TIMEOUTS ) {
               //This edge is not working, we need to restart on a new edge.
 #if LINK_DEBUG
               Console.Error.WriteLine("Linker ({0}) giving up the TA, moving on to next", _linker.Lid);
 #endif
-              _result = Result.MoveToNextTA;
+              result = Result.MoveToNextTA;
               finish = true;
 
             }
           }
         }
+        catch(Exception ex) {
+          _x = ex;
+          result = Result.MoveToNextTA;
+          finish = true;
+        }
       }
-      catch(Exception ex) {
-        _x = ex;
-        _result = Result.MoveToNextTA;
-        finish = true;
+      if( to_send != null ) { 
+        e.Send( to_send );
       }
       if( finish ) {
-        Finish();
+        Finish(result);
       }
     }
     
@@ -619,7 +638,7 @@ namespace Brunet
         _last_r_packet = cp;
         _last_r_mes = cm;
         _last_packet_datetime = TimeUtils.NoisyNowTicks;
-	  return null;
+	return null;
     }
   }
 }
