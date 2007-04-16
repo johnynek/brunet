@@ -69,9 +69,9 @@ namespace Brunet
       }
     }
 
-    protected Node _local;
+    protected readonly Node _local;
 
-    protected Random _rnd;
+    protected readonly Random _rnd;
 
     //We start at a 10 second interval
     protected TimeSpan _default_retry_interval;
@@ -89,7 +89,7 @@ namespace Brunet
      */
     protected Linker _linker;
 
-    protected object _sync;
+    protected readonly object _sync;
 
     public LeafConnectionOverlord(Node local)
     {
