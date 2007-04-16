@@ -59,7 +59,7 @@ namespace Brunet
      */
     protected int _id;
 
-    protected string _contype;
+    protected readonly string _contype;
     public string ConType { get { return _contype; } }
     protected Connection _con;
     /**
@@ -81,11 +81,11 @@ namespace Brunet
 
     //This is the queue that has only the address we have not tried this attempt
     protected Queue _ta_queue;
-    protected Node _local_n;
+    protected readonly Node _local_n;
     public Node LocalNode { get { return _local_n; } }
 
     protected Address _target_lock;
-    protected Address _target;
+    protected readonly Address _target;
     /** If we know the address of the node we are trying
      * to make an outgoing connection to, we lock it, and
      * remember it here
@@ -145,7 +145,7 @@ namespace Brunet
     public int Lid { get { return _lid; } }
 #endif
     
-    protected object _task;
+    protected readonly object _task;
     override public object Task {
       get { return _task; }
     }
@@ -201,33 +201,38 @@ namespace Brunet
      */
     protected class EdgeWorker : TaskWorker {
       
-      protected TransportAddress _ta;
+      protected readonly TransportAddress _ta;
       public TransportAddress TA { get { return _ta; } }
       public override object Task { get { return _ta; } }
       
       protected bool _is_finished;
       public override bool IsFinished { get { return _is_finished; } }
 
-      protected EdgeFactory _ef;
+      protected readonly EdgeFactory _ef;
     
       protected Exception _x;
       protected Edge _edge;
+      
+      protected object _sync;
       /**
        * If this was successful, it returns the edge, else
        * it throws an exception
        */
       public Edge NewEdge {
         get {
+         lock( _sync ) {
           if( _x != null ) {
             throw _x;
           }
           else {
             return _edge;
           }
+         }
         }
       }
 
       public EdgeWorker(EdgeFactory ef, TransportAddress ta) {
+        _sync = new object();
         _ef = ef;
         _ta = ta;
         _is_finished = false;
@@ -245,9 +250,11 @@ namespace Brunet
 	  Console.Error.WriteLine("(Linker) Handle edge failure{0}: ", x);
 	}
 #endif
-        _is_finished = true;
-        _x = x;
-        _edge = e;
+        lock( _sync ) {
+          _is_finished = true;
+          _x = x;
+          _edge = e;
+        }  
         FireFinished();
       }
 
@@ -259,16 +266,16 @@ namespace Brunet
     protected class RestartState : TaskWorker {
       protected int _restart_attempts;
       public int RemainingAttempts { get { return _restart_attempts; } }
-      protected Linker _linker;
+      protected readonly Linker _linker;
       protected DateTime _last_start;
       protected DateTime _next_start;
-      protected Random _rand;
+      protected readonly Random _rand;
       protected bool _is_waiting;
       public bool IsWaiting { get { return _is_waiting; } }
 
       public override bool IsFinished { get { return ! _is_waiting; } }
 
-      protected TransportAddress _ta;
+      protected readonly TransportAddress _ta;
       public TransportAddress TA { get { return _ta; } }
 
       public override object Task { get { return _ta; } }
@@ -289,16 +296,18 @@ namespace Brunet
        * Schedule the restart using the Heartbeat of the given node
        */
       public override void Start() {
-        Node n = _linker.LocalNode;
         lock( this ) {
-	if( _restart_attempts < 0 ) { throw new Exception("restarted too many times"); }
-        _last_start = DateTime.UtcNow;
-	int restart_sec = (int)(_rand.NextDouble() * _MS_RESTART_TIME);
-	TimeSpan interval = new TimeSpan(0,0,0,0,restart_sec);
-	_next_start = _last_start + interval; 
-        n.HeartBeatEvent += this.RestartLink;
-        _is_waiting = true;
+	  if( _restart_attempts < 0 ) {
+            throw new Exception("restarted too many times");
+          }
+          _last_start = DateTime.UtcNow;
+	  int restart_sec = (int)(_rand.NextDouble() * _MS_RESTART_TIME);
+	  TimeSpan interval = new TimeSpan(0,0,0,0,restart_sec);
+	  _next_start = _last_start + interval; 
+          _is_waiting = true;
         }
+        Node n = _linker.LocalNode;
+        n.HeartBeatEvent += this.RestartLink;
       }
       /**
        * When we fail due to a ErrorMessage.ErrorCode.InProgress error
@@ -344,9 +353,9 @@ namespace Brunet
      * These represent the task of linking used by TaskWorked
      */
     protected class LinkerTask {
-      protected Address _local;
-      protected Address _target;
-      protected ConnectionType _ct;
+      protected readonly Address _local;
+      protected readonly Address _target;
+      protected readonly ConnectionType _ct;
 
       public LinkerTask(Address local, Address target, string ct) {
         _local = local;
@@ -468,20 +477,17 @@ namespace Brunet
         _hold_fire = true;
       }
       //Get the set of addresses to try
-      if (_target != null) {
-	for(int i = 0; i < _MAX_PARALLEL_ATTEMPTS; i++) {
-	  TransportAddress next_ta = MoveToNextTA(null);
-	  if( next_ta != null ) {
-	    StartAttempt(next_ta);
-	  }
-	}
-      } else {
-	for(int i = 0; i < _MAX_PARALLEL_ATTEMPTS*3; i++) {
-	  TransportAddress next_ta = MoveToNextTA(null);
-	  if( next_ta != null ) {
-	    StartAttempt(next_ta);
-	  }
-	}	
+      int parallel_attempts = _MAX_PARALLEL_ATTEMPTS;
+      if( _target == null ) {
+        //Try more attempts in parallel to get leaf connections.
+        //This is a hack to make initial connection faster
+        parallel_attempts = 3 * parallel_attempts;
+      }
+      for(int i = 0; i < parallel_attempts; i++) {
+        TransportAddress next_ta = MoveToNextTA(null);
+        if( next_ta != null ) {
+          StartAttempt(next_ta);
+        }
       }
       /*
        * We have so far prevented ourselves from sending the
@@ -599,7 +605,9 @@ namespace Brunet
       try {
         /* Announce the connection */
 	_local_n.ConnectionTable.Add(c);
-        _con = c;
+        lock( _sync ) {
+          _con = c;
+        }  
 #if LINK_DEBUG
         Console.Error.WriteLine("Linker({0}) added {1} at: {2}", _lid, c, DateTime.Now);
 #endif
@@ -810,12 +818,16 @@ namespace Brunet
         /*
          * The old TA has had it
          */
+          _ta_to_restart_state.Remove(ta);
           rss = null;
           //Time to go on to the next TransportAddress, and give up on this one
           ta = MoveToNextTA(ta);
   	  if( ta != null ) {
             rss = new RestartState(this, ta);
   	  }
+        }
+        if( rss != null ) {
+          _ta_to_restart_state[ta] = rss;
         }
       }
       if( rss == null ) {
@@ -830,7 +842,6 @@ namespace Brunet
                             _lid, rss.RemainingAttempts);
 #endif
         //Actually schedule the restart
-        _ta_to_restart_state[ta] = rss;
         rss.FinishEvent += this.RestartHandler;
         _task_queue.Enqueue( rss );
       }

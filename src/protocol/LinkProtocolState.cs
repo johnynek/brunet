@@ -61,7 +61,7 @@ namespace Brunet
      */
     public Connection Connection { get { lock( _sync) { return _con; } } }
     protected ConnectionMessage _last_s_mes;
-    protected Linker _linker;
+    protected readonly Linker _linker;
     /**
      * The Linker that created this LinkProtocolState
      */
@@ -84,13 +84,13 @@ namespace Brunet
      */
     public ErrorMessage EM { get { return _em; } }
 
-    protected Node _node;
-    protected string _contype;
+    protected readonly Node _node;
+    protected readonly string _contype;
     protected Address _target_lock;
     protected int _id;
     protected object _sync;
     protected Edge _e;
-    protected TransportAddress _ta;
+    protected readonly TransportAddress _ta;
     public TransportAddress TA { get { return _ta; } }
 
     //This is an object that represents the task
