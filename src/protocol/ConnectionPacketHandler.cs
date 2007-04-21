@@ -52,18 +52,18 @@ namespace Brunet
         log4net.LogManager.GetLogger(System.Reflection.MethodBase.
         GetCurrentMethod().DeclaringType);*/
 
-    protected Address _local_add;
-    protected Node _local;
-    protected ConnectionTable _tab;
-    protected ConnectionMessageParser _cmp;
+    protected readonly Address _local_add;
+    protected readonly Node _local;
+    protected readonly ConnectionTable _tab;
+    protected readonly ConnectionMessageParser _cmp;
     /**
      * This is the only stateful object here.  The rest
      * do not need thread synchronization.
      */
-    protected Hashtable _edge_to_lm;
+    protected readonly Hashtable _edge_to_lm;
 
     /** global lock for thread synchronization */
-    protected object _sync;
+    protected readonly object _sync;
     /**
      * @param local the Node we work for
      */
