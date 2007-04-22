@@ -121,6 +121,10 @@ namespace Brunet
       }
     }
 
+    public int ListenerId {
+      get { return _l_id; }
+    }
+
     public override Brunet.TransportAddress LocalTA
     {
       get
