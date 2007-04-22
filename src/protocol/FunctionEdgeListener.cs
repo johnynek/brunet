@@ -164,14 +164,20 @@ namespace Brunet
         //Wait 100 ms for an a packet to be sent:
         FQEntry ent = (FQEntry)_queue.Dequeue(100, out timedout);
         if( !timedout ) {
-          FunctionEdge fe = ent.Edge.Partner;
-          if( fe != null ) { fe.Push( (Packet)ent.P); }
+          FunctionEdge fe = ent.Edge;
+          fe.Push( (Packet)ent.P);
         }
       }
     }
 
     public void HandleEdgeSend(Edge from, ICopyable p) {
-      _queue.Enqueue( new FQEntry((FunctionEdge)from, p) );
+      FunctionEdgeListener el = null;
+      FunctionEdge fe_from = (FunctionEdge)from;
+      FunctionEdge fe_to = fe_from.Partner;
+      if( fe_to != null ) {
+        el = (FunctionEdgeListener)_listener_map[ fe_to.ListenerId ];
+        el._queue.Enqueue( new FQEntry(fe_to, p) );
+      }
     }
 
   }
