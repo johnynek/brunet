@@ -74,6 +74,7 @@ namespace Brunet
         return _is_closed;
       }
     }
+    protected bool _is_connected;
     protected bool _inbound;
     public override bool IsInbound
     {
@@ -109,6 +110,8 @@ namespace Brunet
 	return _send_buffer;
       }
     }
+    public ArrayList _acquire_summary;
+    public ArrayList _lost_summary;
     
     public TunnelEdge(IEdgeSendHandler cb, bool is_in, Node n, 
 		      Address target, ArrayList forwarders, int id, int remoteid, 
@@ -118,6 +121,8 @@ namespace Brunet
       _send_cb = cb;
       _inbound = is_in;
 
+      _is_connected = false;
+
       _sync = new object();
       _node = n;
 
@@ -126,8 +131,11 @@ namespace Brunet
       _remoteta = new TunnelTransportAddress(target, forwarders);
       
       
+      
       //track forwarding addresses
       _forwarders = new ArrayList();
+      _acquire_summary  = new ArrayList();
+      _lost_summary = new ArrayList();
 
       //track forwarding edges
       _packet_senders = new ArrayList();
@@ -146,6 +154,7 @@ namespace Brunet
 	  }
 	}
 	_node.ConnectionTable.DisconnectionEvent += new EventHandler(DisconnectHandler);
+	_node.ConnectionTable.ConnectionEvent += new EventHandler(ConnectHandler);
       }
     }
     /**
@@ -155,6 +164,9 @@ namespace Brunet
     {
       base.Close();
       _is_closed = true;
+      //unsubscribe the disconnecthandler
+      _node.ConnectionTable.ConnectionEvent -= new EventHandler(ConnectHandler);      
+      _node.ConnectionTable.DisconnectionEvent -= new EventHandler(DisconnectHandler);      
     }
 
     public override Brunet.TransportAddress.TAType TAType
@@ -185,6 +197,16 @@ namespace Brunet
       lock(_sync) {
 	 ConnectionEventArgs cargs = args as ConnectionEventArgs;
 	 Connection cons = cargs.Connection;
+	 
+	 //ignore leaf connections
+	 if (cons.MainType != ConnectionType.Structured) {
+	   return;
+	 }
+
+	 //make sure we are not pointing to ourselves
+	 if (cons.Edge == this) {
+	   return;
+	 }
 	 //note we cannot test for connection address being present in the forwarders array, 
 	 //this might be a leaf connection disconnect
 	 if (_packet_senders.Contains(cons.Edge)) {
@@ -200,38 +222,103 @@ namespace Brunet
 	   _localta = new TunnelTransportAddress(_node.Address, _forwarders);
 	   _remoteta = new TunnelTransportAddress(_target, _forwarders);
 #if TUNNEL_DEBUG
-	   Console.Error.WriteLine("Updated localTA: {0}", _localta);
-	   Console.Error.WriteLine("Updated remoteTA: {0}", _remoteta);
+	   Console.Error.WriteLine("Updated (on disconnect) localTA: {0}", _localta);
+	   Console.Error.WriteLine("Updated (on disconnect) remoteTA: {0}", _remoteta);
 #endif
 	 }
 	 //now send a control packet
 	 TunnelEdgeListener tun_listener = _send_cb as TunnelEdgeListener;
-	 tun_listener.HandleControlSend(this, _forwarders);
+	 //in case there is a connection for this tunnel edge
+	 if (!_is_connected) {
+	   _lost_summary.Add(cons.Address);
+	 } else {
+	   ArrayList temp = new ArrayList();
+	   temp.Add(cons.Address);
+	   tun_listener.HandleControlSend(this, new ArrayList(), temp);
+	 }
       }
     }
 
+    protected void ConnectHandler(object o, EventArgs args) {
+      lock(_sync) {
+	 ConnectionEventArgs cargs = args as ConnectionEventArgs;
+	 Connection cons = cargs.Connection;
+
+	 //ignore leaf connections
+	 if (cons.MainType != ConnectionType.Structured) {
+	   return;
+	 }
+	 
+	 
+	 TunnelEdgeListener tun_listener = _send_cb as TunnelEdgeListener;
+
+	 //in case there is a connection for this tunnel edge
+	 if (!_is_connected) {
+	   if (cons.Edge == this) {
+	     _is_connected = true;
+	     //this connection caused us to get connected
+	     tun_listener.HandleControlSend(this, _acquire_summary, _lost_summary);
+	   } else {
+	     //add it to connection acquire summary
+	     _acquire_summary.Add(cons.Address);
+	   }
+	 } else {
+	   ArrayList temp = new ArrayList();
+	   temp.Add(cons.Address);
+	   tun_listener.HandleControlSend(this, temp, new ArrayList());
+	 }
+      }
+    }
     
-    public void HandleControlPacket(ArrayList forwarders) {
+    
+    public void HandleControlPacket(ArrayList acquired, ArrayList lost) {
       lock(_sync) {
 #if TUNNEL_DEBUG
 	Console.Error.WriteLine("Edge {0} modified (receiving control).", this); 
 #endif
-	_forwarders = forwarders;
-	_packet_senders = new ArrayList();
+	//remove lost connections
+	foreach(Address addr in lost) {
+#if TUNNEL_DEBUG
+	  Console.Error.WriteLine("Removed forwarder: {0}.", addr); 
+#endif	  
+	  _forwarders.Remove(addr);
+	}
+	ArrayList to_add = new ArrayList();
 	lock(_node.ConnectionTable.SyncRoot) {
-	  foreach(Address addr in forwarders) {
+	  //update list of forwarders
+	  foreach (Address addr in acquired) {
+	    Connection cons = _node.ConnectionTable.GetConnection(ConnectionType.Structured, addr);
+	    if (cons != null) {
+#if TUNNEL_DEBUG
+	      Console.Error.WriteLine("Added forwarder: {0}.", addr); 
+#endif	  
+	      if (!_forwarders.Contains(addr)) {
+		_forwarders.Add(addr);
+		to_add.Add(addr);
+	      }
+	    }
+	  }
+
+	  //update packet senders
+	  _packet_senders = new ArrayList();
+	  foreach(Address addr in _forwarders) {
 	    Connection cons = _node.ConnectionTable.GetConnection(ConnectionType.Structured, addr);
 	    if (cons != null) {
 	      _packet_senders.Add(cons.Edge);
 	    }
 	  }
-	  _localta = new TunnelTransportAddress(_node.Address, _forwarders);
-	  _remoteta = new TunnelTransportAddress(_target, _forwarders);	  
+
+	}
+	_localta = new TunnelTransportAddress(_node.Address, _forwarders);
+	_remoteta = new TunnelTransportAddress(_target, _forwarders);	  
 
 #if TUNNEL_DEBUG
-	  Console.Error.WriteLine("Updated localTA: {0}", _localta);
-	  Console.Error.WriteLine("Updated remoteTA: {0}", _remoteta);
+	Console.Error.WriteLine("Updated (on control) localTA: {0}", _localta);
+	Console.Error.WriteLine("Updated (on control) remoteTA: {0}", _remoteta);
 #endif	  
+	if (to_add.Count > 0) {
+	  TunnelEdgeListener tun_listener = _send_cb as TunnelEdgeListener;
+	  tun_listener.HandleControlSend(this, to_add, new ArrayList());	  
 	}
       }
     }
