@@ -264,34 +264,45 @@ namespace Brunet
 	return _target;
       }
     }
-    protected MemBlock _forwarder;
-    public TunnelTransportAddress(string s):base(s) {
-      int k = s.IndexOf(":") + 3;
-      //k = k + 12
-	
-      //k is at beginning of something like brunet:node:xxx/brunet:node:yyy
-      //yyy are the base32 encoded first 5 bytes of the address
-      int len = 0;
-      while(s[k + len] != '/') {
-	len++;
-      }
-      byte []addr_t  = Base32.Decode(s.Substring(k, len)); 
-      _target = new AHAddress(addr_t);
-      
+    //in this new implementation, we have more than one packer forwarders
+    protected ArrayList _forwarders;
 
-      k = k + len + 1;
-      
-      //k = k + 12;
-      
-      byte [] addr_prefix = Base32.Decode(s.Substring(k));
-      _forwarder = MemBlock.Copy(addr_prefix);
+    public TunnelTransportAddress(string s):base(s) {
+      /** String representing the tunnel TA is as follows: brunet.tunnel://A/X1+X2+X3
+       *  A: target address
+       *  X1, X2, X3: forwarders, each X1, X2 and X3 is actually a slice of the initial few bytes of the address.
+       */
+      int k = s.IndexOf(":") + 3;
+      int k1 = s.IndexOf("/", k);
+      byte []addr_t  = Base32.Decode(s.Substring(k, k1 - k)); 
+      _target = new AHAddress(addr_t);
+      k = k1 + 1;
+      _forwarders = new ArrayList();
+      while (k < s.Length) {
+	byte [] addr_prefix = Base32.Decode(s.Substring(k, 8));
+	_forwarders.Add(MemBlock.Copy(addr_prefix));
+	//jump over the 8 characters and the + sign
+	k = k + 9;
+      }
     }
 
-    public TunnelTransportAddress(Address target, Address forwarder):
-      base("brunet.tunnel://" +  
-	   target.ToString().Substring(12) + "/" + forwarder.ToString().Substring(12, 8)) {
-      _target = target;
-      _forwarder = forwarder.ToMemBlock().Slice(0, 5);
+    public TunnelTransportAddress(Address target, ArrayList forwarders): 
+      this(GetString(target, forwarders)) 
+    {
+    }
+
+    private static string GetString(Address target, ArrayList forwarders) {
+      string s = "brunet.tunnel://" +  
+	target.ToString().Substring(12) + "/";
+      for (int idx = 0; idx < forwarders.Count; idx++) {
+	Address a = (Address) forwarders[idx];
+	s +=  a.ToString().Substring(12,8);
+	if (idx < forwarders.Count - 1) {
+	  //not the last element
+	  s = s + "+";
+	}      
+      }
+      return s;
     }
     public override TAType TransportAddressType { 
       get {
@@ -306,9 +317,20 @@ namespace Brunet
       TunnelTransportAddress other = o as TunnelTransportAddress;
       if ( other == null ) { return false; }
       return (TransportAddressType == other.TransportAddressType && 
-	      _target.Equals(other._target) && 
-	      _forwarder.Equals(other._forwarder));
+	      _target.Equals(other._target));
+      //&& 
+      //_forwarder.Equals(other._forwarder));
     }
+
+    public bool ContainsForwarder(Address addr) {
+      MemBlock test_mem = MemBlock.Reference(Base32.Decode(addr.ToString().Substring(12, 8)));
+      if (_forwarders.Contains(test_mem)) {
+	return true;
+      } 
+
+      return false;
+    }
+
     public override int GetHashCode() {
       return base.GetHashCode();
     }
@@ -325,17 +347,29 @@ namespace Brunet
       TransportAddress ta2 = TransportAddressFactory.CreateInstance("brunet.udp://10.5.144.69:5000"); 
       Assert.AreEqual(ta1, ta2, "Testing TA Equals");
       
-      string ta_string = "brunet.tunnel://UBU72YLHU5C3SY7JMYMJRTKK4D5BGW22/FE4QWASN";
-      TransportAddress ta = TransportAddressFactory.CreateInstance("brunet.tunnel://UBU72YLHU5C3SY7JMYMJRTKK4D5BGW22/FE4QWASN");
+      string ta_string = "brunet.tunnel://UBU72YLHU5C3SY7JMYMJRTKK4D5BGW22/FE4QWASN+FE4QWASM";
+      TransportAddress ta = TransportAddressFactory.CreateInstance("brunet.tunnel://UBU72YLHU5C3SY7JMYMJRTKK4D5BGW22/FE4QWASN+FE4QWASM");
       Assert.AreEqual(ta.ToString(), ta_string, "testing tunnel TA parsing");
+      //Console.WriteLine(ta);
 
-      TunnelTransportAddress tun_ta = (TunnelTransportAddress) TransportAddressFactory.CreateInstance("brunet.tunnel://OIHZCNNUAXTLLARQIOBNCUWXYNAS62LO/CADSL6GV");
+      TunnelTransportAddress tun_ta = (TunnelTransportAddress) TransportAddressFactory.CreateInstance("brunet.tunnel://OIHZCNNUAXTLLARQIOBNCUWXYNAS62LO/CADSL6GV+CADSL6GU");
 
-      byte [] addr_bytes = Base32.Decode("CADSL6GVVBM6V442CETP4JTEAWACLC5A");
-      AHAddress fwd = new AHAddress(addr_bytes);
+      ArrayList fwd = new ArrayList();
+      fwd.Add(new AHAddress(Base32.Decode("CADSL6GVVBM6V442CETP4JTEAWACLC5A")));
+      fwd.Add(new AHAddress(Base32.Decode("CADSL6GUVBM6V442CETP4JTEAWACLC5A")));
+      
       TunnelTransportAddress test_ta = new TunnelTransportAddress(tun_ta.Target, fwd);
       Assert.AreEqual(tun_ta, test_ta, "testing tunnel TA compression enhancements");
+      //Console.WriteLine(tun_ta.ToString());
+      //Console.WriteLine(test_ta.ToString());
       Assert.AreEqual(tun_ta.ToString(), test_ta.ToString(), "testing tunnel TA compression enhancements (toString)");
+
+      Assert.AreEqual(tun_ta.ContainsForwarder(new AHAddress(Base32.Decode("CADSL6GVVBM6V442CETP4JTEAWACLC5A"))), true, 
+		      "testing tunnel TA contains forwarder (1)");
+
+      Assert.AreEqual(tun_ta.ContainsForwarder(new AHAddress(Base32.Decode("CADSL6GUVBM6V442CETP4JTEAWACLC5A"))), true, 
+		      "testing tunnel TA contains forwarder (2)");
+
       
       
       string StrLocalHost = Dns.GetHostName();
