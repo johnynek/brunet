@@ -583,13 +583,20 @@ namespace Brunet
 	TunnelEdge tun_edge = (TunnelEdge) _id_ht[localid];	
 	if (tun_edge != null) {
 	  if (tun_edge.RemoteID == remoteid) {
-	    ArrayList args = (ArrayList) AdrConverter.Deserialize(payload_ms);
-	    //list of packet forwarders
-	    ArrayList forwarders = new ArrayList();
-	    for (int i = 1; i < args.Count; i++) {
-	      forwarders.Add(new AHAddress(MemBlock.Copy((byte[]) args[i])));
+	    ArrayList arg1 = (ArrayList) AdrConverter.Deserialize(payload_ms);
+	    //list of acquired forwarders
+	    ArrayList acquired = new ArrayList();
+	    for (int i = 0; i < arg1.Count; i++) {
+	      acquired.Add(new AHAddress(MemBlock.Copy((byte[]) arg1[i])));
 	    }
-	    tun_edge.HandleControlPacket(forwarders);
+	    ArrayList arg2 = (ArrayList) AdrConverter.Deserialize(payload_ms);
+	    //list of lost forwarders
+	    ArrayList lost = new ArrayList();
+	    for (int i = 0; i < arg2.Count; i++) {
+	      lost.Add(new AHAddress(MemBlock.Copy((byte[]) arg2[i])));
+	    }	    
+
+	    tun_edge.HandleControlPacket(acquired, lost);
 	  } else {
 #if TUNNEL_DEBUG
 	    Console.Error.WriteLine("No correspondig edge to push packet into (Id mismatch).");
@@ -604,7 +611,7 @@ namespace Brunet
       } //lock ( _sync )
     }
 
-    public void HandleControlSend(Edge e, ArrayList forwarders) {
+    public void HandleControlSend(Edge e, ArrayList acquired, ArrayList lost) {
       if (!_running) {
 	//do nothing
 	return;
@@ -617,22 +624,31 @@ namespace Brunet
       NumberSerializer.WriteInt(tun_edge.ID, ms);
       NumberSerializer.WriteInt(tun_edge.RemoteID, ms);
       
-      //now write the target and list of forwarding addresses
-      ArrayList args = new ArrayList();
+      //write out newly acquired forwarders
+      ArrayList arg1 = new ArrayList();
       byte[] addr_bytes = new byte[Address.MemSize];
-      _node.Address.CopyTo(addr_bytes);
-      args.Add(addr_bytes.Clone());
-      Console.Error.WriteLine("Added target address");
       
-      foreach (Address fwd in  forwarders) {
+      foreach (Address addr in acquired) {
 	//add forwarding addresses
-	fwd.CopyTo(addr_bytes);
-	args.Add(addr_bytes.Clone());
-	Console.Error.WriteLine("Added a forwarding address");
+	addr.CopyTo(addr_bytes);
+	arg1.Add(addr_bytes.Clone());
+	Console.Error.WriteLine("Added a acquired address: {0}", addr);
       }
+
+      //write out lost addresses
+      ArrayList arg2 = new ArrayList();
       
-      Console.Error.WriteLine("Creating a memory stream holding the payload");
-      AdrConverter.Serialize(args, ms);
+      foreach (Address addr in lost) {
+	//add forwarding addresses
+	addr.CopyTo(addr_bytes);
+	arg2.Add(addr_bytes.Clone());
+	Console.Error.WriteLine("Added a lost address: {0}", addr);
+      }      
+
+      AdrConverter.Serialize(arg1, ms);
+      AdrConverter.Serialize(arg2, ms);
+      
+
       Packet p = new AHPacket(0, 1, _node.Address, tun_edge.Target, AHPacket.AHOptions.Exact, 
 			      AHPacket.Protocol.Tunneling, ms.ToArray());
       
