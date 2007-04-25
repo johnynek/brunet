@@ -248,24 +248,25 @@ namespace Brunet
 	 if (cons.MainType != ConnectionType.Structured) {
 	   return;
 	 }
-	 
-	 
-	 TunnelEdgeListener tun_listener = _send_cb as TunnelEdgeListener;
 
-	 //in case there is a connection for this tunnel edge
+	 TunnelEdgeListener tun_listener = _send_cb as TunnelEdgeListener;
 	 if (!_is_connected) {
 	   if (cons.Edge == this) {
 	     _is_connected = true;
 	     //this connection caused us to get connected
 	     tun_listener.HandleControlSend(this, _acquire_summary, _lost_summary);
 	   } else {
-	     //add it to connection acquire summary
-	     _acquire_summary.Add(cons.Address);
+	     //only add non-tunnel connections
+	     if (cons.Edge.TAType != TransportAddress.TAType.Tunnel) {
+	       _acquire_summary.Add(cons.Address);
+	     }
 	   }
-	 } else {
-	   ArrayList temp = new ArrayList();
-	   temp.Add(cons.Address);
-	   tun_listener.HandleControlSend(this, temp, new ArrayList());
+	 } else { //we are activated already
+	   if (cons.Edge.TAType != TransportAddress.TAType.Tunnel) {	   
+	     ArrayList temp = new ArrayList();
+	     temp.Add(cons.Address);
+	     tun_listener.HandleControlSend(this, temp, new ArrayList());	     
+	   }
 	 }
       }
     }
