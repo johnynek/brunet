@@ -27,7 +27,7 @@ namespace Brunet.Dht {
 	//create a directory for the node's data
 	Directory.CreateDirectory(dir_path);
 #if DHT_DEBUG	
-	Console.WriteLine("[EntryFactory]: Created a directory: {0}", dir_path);
+	Console.Error.WriteLine("[EntryFactory]: Created a directory: {0}", dir_path);
 #endif
 
       }

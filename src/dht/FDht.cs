@@ -56,11 +56,11 @@ namespace Brunet.Dht {
 
     public BlockingQueue[] PutF(byte[] key, int ttl, string hashed_password, byte[] data) {
 #if DHT_DEBUG
-      Console.WriteLine("[DhtClient] Invoking a Dht::Put()");
+      Console.Error.WriteLine("[DhtClient] Invoking a Dht::Put()");
 #endif
       if (!_activated) {
 #if DHT_DEBUG
-	Console.WriteLine("[DhtClient] Not yet activated. Throwing exception!");
+	Console.Error.WriteLine("[DhtClient] Not yet activated. Throwing exception!");
 #endif	
 	throw new DhtException("DhtClient: Not yet activated.");
       }
@@ -80,12 +80,12 @@ namespace Brunet.Dht {
 
     public BlockingQueue[] CreateF(byte[] key, int ttl, string hashed_password, byte[] data) {
 #if DHT_DEBUG
-      Console.WriteLine("[DhtClient] Invoking a Dht::Create()");
+      Console.Error.WriteLine("[DhtClient] Invoking a Dht::Create()");
 #endif
 
       if (!_activated) {
 #if DHT_DEBUG
-	Console.WriteLine("[DhtClient] Not yet activated. Throwing exception!");
+	Console.Error.WriteLine("[DhtClient] Not yet activated. Throwing exception!");
 #endif	
 	throw new DhtException("DhtClient: Not yet activated.");
       }
@@ -106,12 +106,12 @@ namespace Brunet.Dht {
 
     public BlockingQueue[] RecreateF(byte[] key, int ttl, string hashed_password, byte[] data) {
 #if DHT_DEBUG
-      Console.WriteLine("[DhtClient] Invoking a Dht::Recreate()");
+      Console.Error.WriteLine("[DhtClient] Invoking a Dht::Recreate()");
 #endif
 
       if (!_activated) {
 #if DHT_DEBUG
-	Console.WriteLine("[DhtClient] Not yet activated. Throwing exception!");
+	Console.Error.WriteLine("[DhtClient] Not yet activated. Throwing exception!");
 #endif	
 	throw new DhtException("DhtClient: Not yet activated.");
       }
@@ -132,11 +132,11 @@ namespace Brunet.Dht {
     
     public BlockingQueue[] GetF(byte[] key, int maxbytes, byte[] token) {
 #if DHT_DEBUG
-      Console.WriteLine("[DhtClient] Invoking a Dht::Get()");
+      Console.Error.WriteLine("[DhtClient] Invoking a Dht::Get()");
 #endif
       if (!_activated) {
 #if DHT_DEBUG
-	Console.WriteLine("[DhtClient] Not yet activated. Throwing exception!");
+	Console.Error.WriteLine("[DhtClient] Not yet activated. Throwing exception!");
 #endif	
 	throw new DhtException("DhtClient: Not yet activated.");
       }
@@ -156,12 +156,12 @@ namespace Brunet.Dht {
     public BlockingQueue[] DeleteF(byte[] key, string password)
     {  
 #if DHT_DEBUG
-      Console.WriteLine("[DhtClient] Invoking a Dht::Delete()");
+      Console.Error.WriteLine("[DhtClient] Invoking a Dht::Delete()");
 #endif
 
       if (!_activated) {
 #if DHT_DEBUG
-	Console.WriteLine("[DhtClient] Not yet activated. Throwing exception!");
+	Console.Error.WriteLine("[DhtClient] Not yet activated. Throwing exception!");
 #endif	
 	throw new DhtException("DhtClient: Not yet activated.");
       }

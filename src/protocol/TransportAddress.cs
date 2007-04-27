@@ -209,7 +209,6 @@ namespace Brunet
       _uri = new Uri(uri);
       _ips = null;
     }
-    
     public IPTransportAddress(TransportAddress.TAType t,
                             string host, int port):
       this("brunet." + t.ToString().ToLower() + "://"
@@ -265,56 +264,73 @@ namespace Brunet
 	return _target;
       }
     }
-    
+    //in this new implementation, we have more than one packer forwarders
+    protected ArrayList _forwarders;
 
-    protected Address _forwarder;
-    public Address Forwarder {
-      get {
-	return _forwarder;
-      }
-    }
     public TunnelTransportAddress(string s):base(s) {
+      /** String representing the tunnel TA is as follows: brunet.tunnel://A/X1+X2+X3
+       *  A: target address
+       *  X1, X2, X3: forwarders, each X1, X2 and X3 is actually a slice of the initial few bytes of the address.
+       */
       int k = s.IndexOf(":") + 3;
-      //k is at beginning of something like brunet:node:xxx/brunet:node:yyy
-      k = k + 12;
-      int len = 0;
-      while(s[k + len] != '/') {
-	len++;
-      }
-      byte []addr_t  = Base32.Decode(s.Substring(k, len)); 
+      int k1 = s.IndexOf("/", k);
+      byte []addr_t  = Base32.Decode(s.Substring(k, k1 - k)); 
       _target = new AHAddress(addr_t);
-      
-
-      k = k + len + 1;
-      k = k + 12;
-
-      byte [] addr_f = Base32.Decode(s.Substring(k));
-      _forwarder = new AHAddress(addr_f);
+      k = k1 + 1;
+      _forwarders = new ArrayList();
+      while (k < s.Length) {
+	byte [] addr_prefix = Base32.Decode(s.Substring(k, 8));
+	_forwarders.Add(MemBlock.Copy(addr_prefix));
+	//jump over the 8 characters and the + sign
+	k = k + 9;
+      }
     }
 
-    public TunnelTransportAddress(Address target, Address forwarder):
-      base("brunet.tunnel://" +  
-	   target.ToString() + "/" + forwarder.ToString()) {
-      _target = target;
-      _forwarder = forwarder;
+    public TunnelTransportAddress(Address target, ArrayList forwarders): 
+      this(GetString(target, forwarders)) 
+    {
     }
 
+    private static string GetString(Address target, ArrayList forwarders) {
+      string s = "brunet.tunnel://" +  
+	target.ToString().Substring(12) + "/";
+      for (int idx = 0; idx < forwarders.Count; idx++) {
+	Address a = (Address) forwarders[idx];
+	s +=  a.ToString().Substring(12,8);
+	if (idx < forwarders.Count - 1) {
+	  //not the last element
+	  s = s + "+";
+	}      
+      }
+      return s;
+    }
     public override TAType TransportAddressType { 
       get {
 	return TransportAddress.TAType.Tunnel;
       }
     }
     public override string ToString() {
-      return "brunet.tunnel://" + _target.ToString() + "/" + _forwarder.ToString();
+      return _scheme;
     }
     public override bool Equals(object o) {
       if ( o == this ) { return true; }
       TunnelTransportAddress other = o as TunnelTransportAddress;
       if ( other == null ) { return false; }
       return (TransportAddressType == other.TransportAddressType && 
-	      Target.Equals(other.Target) && 
-	      Forwarder.Equals(other.Forwarder));
+	      _target.Equals(other._target));
+      //&& 
+      //_forwarder.Equals(other._forwarder));
     }
+
+    public bool ContainsForwarder(Address addr) {
+      MemBlock test_mem = MemBlock.Reference(Base32.Decode(addr.ToString().Substring(12, 8)));
+      if (_forwarders.Contains(test_mem)) {
+	return true;
+      } 
+
+      return false;
+    }
+
     public override int GetHashCode() {
       return base.GetHashCode();
     }
@@ -331,9 +347,49 @@ namespace Brunet
       TransportAddress ta2 = TransportAddressFactory.CreateInstance("brunet.udp://10.5.144.69:5000"); 
       Assert.AreEqual(ta1, ta2, "Testing TA Equals");
       
-      string ta_string = "brunet.tunnel://brunet:node:UBU72YLHU5C3SY7JMYMJRTKK4D5BGW22/brunet:node:FE4QWASNSYAR5RH5JHSHJECC7M3AAADE";
-      TransportAddress ta = TransportAddressFactory.CreateInstance("brunet.tunnel://brunet:node:UBU72YLHU5C3SY7JMYMJRTKK4D5BGW22/brunet:node:FE4QWASNSYAR5RH5JHSHJECC7M3AAADE");
+      string ta_string = "brunet.tunnel://UBU72YLHU5C3SY7JMYMJRTKK4D5BGW22/FE4QWASN+FE4QWASM";
+      TransportAddress ta = TransportAddressFactory.CreateInstance("brunet.tunnel://UBU72YLHU5C3SY7JMYMJRTKK4D5BGW22/FE4QWASN+FE4QWASM");
       Assert.AreEqual(ta.ToString(), ta_string, "testing tunnel TA parsing");
+      //Console.WriteLine(ta);
+
+      TunnelTransportAddress tun_ta = (TunnelTransportAddress) TransportAddressFactory.CreateInstance("brunet.tunnel://OIHZCNNUAXTLLARQIOBNCUWXYNAS62LO/CADSL6GV+CADSL6GU");
+
+      ArrayList fwd = new ArrayList();
+      fwd.Add(new AHAddress(Base32.Decode("CADSL6GVVBM6V442CETP4JTEAWACLC5A")));
+      fwd.Add(new AHAddress(Base32.Decode("CADSL6GUVBM6V442CETP4JTEAWACLC5A")));
+      
+      TunnelTransportAddress test_ta = new TunnelTransportAddress(tun_ta.Target, fwd);
+      Assert.AreEqual(tun_ta, test_ta, "testing tunnel TA compression enhancements");
+      //Console.WriteLine(tun_ta.ToString());
+      //Console.WriteLine(test_ta.ToString());
+      Assert.AreEqual(tun_ta.ToString(), test_ta.ToString(), "testing tunnel TA compression enhancements (toString)");
+
+      Assert.AreEqual(tun_ta.ContainsForwarder(new AHAddress(Base32.Decode("CADSL6GVVBM6V442CETP4JTEAWACLC5A"))), true, 
+		      "testing tunnel TA contains forwarder (1)");
+
+      Assert.AreEqual(tun_ta.ContainsForwarder(new AHAddress(Base32.Decode("CADSL6GUVBM6V442CETP4JTEAWACLC5A"))), true, 
+		      "testing tunnel TA contains forwarder (2)");
+
+      
+      
+      string StrLocalHost = Dns.GetHostName();
+      IPHostEntry IPEntry = Dns.GetHostByName(StrLocalHost);
+      TransportAddress local_ta = TransportAddressFactory.CreateInstance("brunet.udp://" +  IPEntry.AddressList[0].ToString() + 
+									 ":" + 5000);
+      IEnumerable locals = TransportAddressFactory.CreateForLocalHost(TransportAddress.TAType.Udp, 5000);
+
+      bool match = false;
+      foreach (TransportAddress test_ta1 in locals) {
+	//Console.WriteLine("test_ta: {0}", test_ta1);
+	if (test_ta1.Equals(local_ta)) {
+	  match = true;
+	}
+      }
+      Assert.AreEqual(match, true, "testing local TA matches");
+      //testing function TA
+      TransportAddress func_ta = TransportAddressFactory.CreateInstance("brunet.function://localhost:3000");
+      Assert.AreEqual(func_ta.ToString(), "brunet.function://localhost:3000/", "Testing function TA parsing");
+      
     }
   }
 #endif

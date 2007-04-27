@@ -53,7 +53,7 @@ public class Entry {
 	byte[] data = br.ReadBytes(_MAX_DATA);
 
 #if DHT_DEBUG      
-	Console.WriteLine("[DiskEntry] Reading data of len: {0} from file: {1}", data.Length, _file);
+	Console.Error.WriteLine("[DiskEntry] Reading data of len: {0} from file: {1}", data.Length, _file);
 #endif
 	br.Close();
 	fStream.Close();
@@ -74,7 +74,7 @@ public class Entry {
       FileStream fStream = new FileStream(_file, FileMode.Create);
       BinaryWriter bw = new BinaryWriter(fStream);
 #if DHT_DEBUG      
-      Console.WriteLine("[DiskEntry] Creating data of len: {0} inside file: {1}", data.Length, _file);
+      Console.Error.WriteLine("[DiskEntry] Creating data of len: {0} inside file: {1}", data.Length, _file);
 #endif
       bw.Write(data);
       bw.Flush();
