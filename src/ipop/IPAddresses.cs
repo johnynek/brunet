@@ -43,10 +43,10 @@ namespace Ipop {
     protected bool AddIfMatch(Regex re, string line, Hashtable ht, string key) {
       Match m = re.Match(line);
       if( m.Success ) {
-    //System.Console.WriteLine(line);
+    //System.Console.Error.WriteLine(line);
         Group g = m.Groups[1];
         CaptureCollection cc = g.Captures;
-    //System.Console.WriteLine(cc[0]);
+    //System.Console.Error.WriteLine(cc[0]);
         ht[key] = cc[0].ToString();
         return true;
       }
@@ -54,13 +54,13 @@ namespace Ipop {
     }
 
     protected void Print(IList l) {
-      System.Console.WriteLine("Network list:\n");
+      System.Console.Error.WriteLine("Network list:\n");
       foreach(Hashtable ht in l) {
         IDictionaryEnumerator en = ht.GetEnumerator();
         while(en.MoveNext()) {
-          System.Console.WriteLine("\t{0}: {1}", en.Key, en.Value);
+          System.Console.Error.WriteLine("\t{0}: {1}", en.Key, en.Value);
         }
-        System.Console.WriteLine();
+        System.Console.Error.WriteLine();
       }
     }
   }
@@ -99,10 +99,10 @@ namespace Ipop {
             result.Add(entry);
           }
           entry = new Hashtable();
-          //System.Console.WriteLine(line);
+          //System.Console.Error.WriteLine(line);
           Group g = m.Groups[1];
           CaptureCollection cc = g.Captures;
-          //System.Console.WriteLine(cc[0]);
+          //System.Console.Error.WriteLine(cc[0]);
           entry["interface"] = cc[0].ToString();
         }
         IDictionaryEnumerator key_en = keys.GetEnumerator();
@@ -154,10 +154,10 @@ namespace Ipop {
             result.Add(entry);
           }
           entry = new Hashtable();
-          //System.Console.WriteLine(line);
+          //System.Console.Error.WriteLine(line);
           Group g = m.Groups[1];
           CaptureCollection cc = g.Captures;
-          //System.Console.WriteLine(cc[0]);
+          //System.Console.Error.WriteLine(cc[0]);
           entry["interface"] = cc[0].ToString();
         }
         IDictionaryEnumerator key_en = keys.GetEnumerator();

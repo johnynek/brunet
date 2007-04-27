@@ -91,12 +91,12 @@ namespace Ipop {
       lock(_sync) {
 	if (_route_miss_result_table.ContainsKey(ip)) {
 #if ROUTE_MISS_DEBUG
-	  Console.WriteLine("Outstanding Brunet-ARP() for IP: {0}, don't do another Get()", ip);
+	  Console.Error.WriteLine("Outstanding Brunet-ARP() for IP: {0}, don't do another Get()", ip);
 #endif
 	  return;
 	}
 #if ROUTE_MISS_DEBUG
-	Console.WriteLine("Executing Brunet-ARP() for IP: {0}", ip);
+	Console.Error.WriteLine("Executing Brunet-ARP() for IP: {0}", ip);
 #endif
 	_route_miss_result_table[ip] = new RouteMissResult(ip);
 	ThreadPool.QueueUserWorkItem(new WaitCallback(this.BrunetARPHandler), (object) ip);
@@ -114,16 +114,16 @@ namespace Ipop {
 	string str_key = "dhcp:ipop_namespace:" + _ipop_namespace + ":ip:" + ip.ToString();	
 	byte[] dht_key = Encoding.UTF8.GetBytes(str_key);
 #if ROUTE_MISS_DEBUG
-	Console.WriteLine("Invoking get() on: {0}", str_key);
+	Console.Error.WriteLine("Invoking get() on: {0}", str_key);
 #endif
 	BlockingQueue[] q = _dht.GetF(dht_key, 1000, null);
 	for (int i = 0; i < q.Length; i++) {
 	  _queue_to_ip[q[i]] =  ip;
 	}
-	BlockingQueue.ParallelFetchWithTimeout(q, 10000, new BlockingQueue.FetchDelegate(RouteMissFetch));
+	BlockingQueue.ParallelFetchWithTimeout(q, 1000, new BlockingQueue.FetchDelegate(RouteMissFetch));
 
 #if ROUTE_MISS_DEBUG
-	Console.WriteLine("Finishing Brunet-ARP for ip: {0}", ip);
+	Console.Error.WriteLine("Finishing Brunet-ARP for ip: {0}", ip);
 #endif
       
 	//we are now done
@@ -153,7 +153,7 @@ namespace Ipop {
 	  }
 	  ArrayList values = (ArrayList) result[0];
 #if ROUTE_MISS_DEBUG
-	  Console.WriteLine("# of matching entries: " + values.Count);
+	  Console.Error.WriteLine("# of matching entries: " + values.Count);
 #endif
 	
 	  foreach (Hashtable ht in values) {
@@ -168,7 +168,7 @@ namespace Ipop {
 	  Address best_addr = route_miss_result.GetBestResult();
 	  if (best_addr != null) {
 #if ROUTE_MISS_DEBUG
-	    Console.WriteLine("Current best estimate for ip: {0} is brunet id: {1}", ip, best_addr);
+	    Console.Error.WriteLine("Current best estimate for ip: {0} is brunet id: {1}", ip, best_addr);
 #endif
 	    _route_miss_delegate(ip, best_addr);
 	  }

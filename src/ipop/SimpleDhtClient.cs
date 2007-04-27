@@ -16,7 +16,7 @@ namespace Ipop {
     {
       OSDependent.DetectOS();
       if (args.Length < 1) {
-        Console.WriteLine("please specify the SimpleNode configuration " + 
+        Console.Error.WriteLine("please specify the SimpleNode configuration " + 
           "file... ");
         Environment.Exit(0);
       }
@@ -75,7 +75,7 @@ namespace Ipop {
 	dht = new FDht(brunetNode, EntryFactory.Media.Memory, 3);
       }	
 
-      System.Console.WriteLine("Calling Connect");
+      System.Console.Error.WriteLine("Calling Connect");
 
       brunetNode.Connect();
 
@@ -93,7 +93,7 @@ namespace Ipop {
 	  string str_pass = Console.ReadLine();
 	  Console.Write("Enter TTL:");
 	  int ttl = Int32.Parse(Console.ReadLine());	  
-	  Console.WriteLine("Put() on key:{0}",str_key);
+	  Console.Error.WriteLine("Put() on key:{0}",str_key);
 	  
 	  byte[] utf8_key = Encoding.UTF8.GetBytes(str_key);
 	  byte[] utf8_data = Encoding.UTF8.GetBytes(str_data);
@@ -104,16 +104,16 @@ namespace Ipop {
 	  string base64_pass = Convert.ToBase64String(sha1_pass);
 	  string stored_pass = "SHA1:" + base64_pass;
 
-	  Console.WriteLine(utf8_key.Length);
-	  Console.WriteLine(utf8_data.Length);
-	  Console.WriteLine(base64_pass.Length);
+	  Console.Error.WriteLine(utf8_key.Length);
+	  Console.Error.WriteLine(utf8_data.Length);
+	  Console.Error.WriteLine(base64_pass.Length);
 	  
 	  BlockingQueue[] q = dht.PutF(utf8_key, ttl, stored_pass, utf8_data);
 	  RpcResult res = q[0].Dequeue() as RpcResult;
 	  for (int i = 0; i < q.Length; i++) {
 	    q[i].Close();
 	  }
-	  Console.WriteLine("RpcResult for Put(): {0}", res.Result);
+	  Console.Error.WriteLine("RpcResult for Put(): {0}", res.Result);
 
 	} else if (str_oper.Equals("Create")) {
 	  Console.Write("Enter key:");
@@ -124,7 +124,7 @@ namespace Ipop {
 	  string str_pass = Console.ReadLine();
 	  Console.Write("Enter TTL:");
 	  int ttl = Int32.Parse(Console.ReadLine());
-	  Console.WriteLine("Create() on key:{0}",str_key);	  
+	  Console.Error.WriteLine("Create() on key:{0}",str_key);	  
 
 	  byte[] utf8_key = Encoding.UTF8.GetBytes(str_key);
 	  byte[] utf8_data = Encoding.UTF8.GetBytes(str_data);
@@ -141,7 +141,7 @@ namespace Ipop {
 	  for (int i = 0; i < q.Length; i++) {
 	    q[i].Close();
 	  }
-	  Console.WriteLine("RpcResult for Create(): {0}", res.Result);
+	  Console.Error.WriteLine("RpcResult for Create(): {0}", res.Result);
 	} else if (str_oper.Equals("Get")) {
 	  Console.Write("Enter key:");
 	  string str_key = Console.ReadLine();
@@ -155,17 +155,17 @@ namespace Ipop {
 	  ArrayList result = res.Result as ArrayList;
 	  
 	  if (result == null || result.Count < 3) {
-	    Console.WriteLine("Something messed up with Get()...");
+	    Console.Error.WriteLine("Something messed up with Get()...");
 	    continue;
 	  }
-	  Console.WriteLine("Result from Get() looks good: " + result.Count);
+	  Console.Error.WriteLine("Result from Get() looks good: " + result.Count);
 	  ArrayList values = (ArrayList) result[0];
-	  Console.WriteLine("# of matching entries: " + values.Count);
+	  Console.Error.WriteLine("# of matching entries: " + values.Count);
 	  foreach (Hashtable ht in values) {
-	    Console.WriteLine(ht["age"]);
+	    Console.Error.WriteLine(ht["age"]);
 	    byte[] data = (byte[]) ht["data"];
 	    string val = Encoding.UTF8.GetString(data);
-	    Console.WriteLine(val);
+	    Console.Error.WriteLine(val);
 	  }
 	  for (int i = 0; i < q.Length; i++) {
 	    q[i].Close();
@@ -175,7 +175,7 @@ namespace Ipop {
 	  string str_key = Console.ReadLine();
 	  Console.Write("Enter password:");
 	  string str_pass = Console.ReadLine();
-	  Console.WriteLine("Delete on key: {0}", str_key );
+	  Console.Error.WriteLine("Delete on key: {0}", str_key );
 
 	  byte[] utf8_key = Encoding.UTF8.GetBytes(str_key);
 	  byte[] utf8_pass = Encoding.UTF8.GetBytes(str_pass);
@@ -190,19 +190,19 @@ namespace Ipop {
 	    q[i].Close();
 	  }
 	} else if (str_oper.Equals("Done")) {
-	  System.Console.WriteLine("Time to disconnect,,,"); 
+	  System.Console.Error.WriteLine("Time to disconnect,,,"); 
 	  brunetNode.Disconnect();
 
-	  System.Console.WriteLine("Sleep for 10000 ms,,,");
+	  System.Console.Error.WriteLine("Sleep for 10000 ms,,,");
 	  //additional 10 seconds for disconnect to complete
 	  System.Threading.Thread.Sleep(10000);
 	  break;
 	} else if (str_oper.Equals("Sleep")) {
 	  Console.Write("Enter sleep time:");
 	  string str_sleep = Console.ReadLine();	
-	  Console.WriteLine("You want me to sleep for: {0} ms", str_sleep);
+	  Console.Error.WriteLine("You want me to sleep for: {0} ms", str_sleep);
 	  int sleep_time = (int) Double.Parse(str_sleep.Trim());
-	  Console.WriteLine("Going to sleep for some time: {0} ms", sleep_time);
+	  Console.Error.WriteLine("Going to sleep for some time: {0} ms", sleep_time);
 	  System.Threading.Thread.Sleep(sleep_time);	  
 	}
 	} catch (Exception e) {

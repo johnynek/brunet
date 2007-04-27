@@ -151,7 +151,7 @@ namespace Ipop {
       LeaseExpirations = new ArrayList();
       LeaseLock = new object();
       if(!this.ReadLog()) {
-        System.Console.WriteLine("Error can't read log files!\nShutting down...");
+        System.Console.Error.WriteLine("Error can't read log files!\nShutting down...");
       }
     }
     public override DHCPLeaseResponse GetLease(DHCPLeaseParam param) {
@@ -355,11 +355,11 @@ namespace Ipop {
 
     public void WriteCache() {
       for(int i = 0; i < LeaseIPs.Count; i++) {
-        Console.WriteLine(i);
-        Console.WriteLine(DHCPCommon.BytesToString((byte[]) LeaseIPs[i], '.'));
-        Console.WriteLine(DHCPCommon.BytesToString((byte[]) LeaseHWAddrs[i], ':'));
-        Console.WriteLine(((DateTime) LeaseExpirations[i]).Ticks);
-        Console.WriteLine("\n");
+        Console.Error.WriteLine(i);
+        Console.Error.WriteLine(DHCPCommon.BytesToString((byte[]) LeaseIPs[i], '.'));
+        Console.Error.WriteLine(DHCPCommon.BytesToString((byte[]) LeaseHWAddrs[i], ':'));
+        Console.Error.WriteLine(((DateTime) LeaseExpirations[i]).Ticks);
+        Console.Error.WriteLine("\n");
       }
     }
   }

@@ -33,7 +33,7 @@ namespace Ipop {
       //AHAddress us = new AHAddress(IPOP_Common.GetHash(node.ip));
       //Dht DHCP
       AHAddress us = new AHAddress(IPOP_Common.StringToBytes(node.nodeAddress, ':'));
-      Console.WriteLine("Generated address: {0}", us);
+      Console.Error.WriteLine("Generated address: {0}", us);
       brunetNode = new StructuredNode(us, brunet_namespace);
       Refresher = null;
 
@@ -86,7 +86,7 @@ namespace Ipop {
 
       lock(sync) {
         brunetNode.Connect();
-        System.Console.WriteLine("Called Connect at time: {0}", DateTime.Now);
+        System.Console.Error.WriteLine("Called Connect at time: {0}", DateTime.Now);
       }
     }
 
@@ -112,7 +112,7 @@ namespace Ipop {
         }
       }
       catch (Exception) {;}
-      System.Console.WriteLine("Closing Refresher Thread");
+      System.Console.Error.WriteLine("Closing Refresher Thread");
       Refresher = null;
     }
 
@@ -159,11 +159,11 @@ namespace Ipop {
         if((1 << value) == (nm_value & (1 << value)))
           break;
       value = 32 - value;
-      System.Console.WriteLine("Updating TAAuthorizer with " + node.ip.ToString() + "/" + value);
+      System.Console.Error.WriteLine("Updating TAAuthorizer with " + node.ip.ToString() + "/" + value);
       TAAuthorizer taAuth = new NetmaskTAAuthorizer(node.ip, value,
         TAAuthorizer.Decision.Deny, TAAuthorizer.Decision.None);
       foreach (Brunet.EdgeListener el in edgeListeners) {
-        System.Console.WriteLine("ERHERHEH" + el.ToString());
+        System.Console.Error.WriteLine("ERHERHEH" + el.ToString());
         el.TAAuth = taAuth;
       }*/
     }

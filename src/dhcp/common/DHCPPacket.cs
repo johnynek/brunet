@@ -190,37 +190,37 @@ namespace Ipop {
 
     public void PrintDecodedPacket() {
       string temp;
-      Console.WriteLine("op : {0}", decodedPacket.op);
+      Console.Error.WriteLine("op : {0}", decodedPacket.op);
       temp = "";
       for(int i = 0; i < 4; i++)
         temp += this.decodedPacket.xid[i] + " ";
-      Console.WriteLine("xid : {0}", temp);
+      Console.Error.WriteLine("xid : {0}", temp);
       temp = "";
       for(int i = 0; i < 4; i++)
         temp += this.decodedPacket.ciaddr[i] + " ";
-      Console.WriteLine("ciaddr : {0}", temp);
+      Console.Error.WriteLine("ciaddr : {0}", temp);
       temp = "";
       for(int i = 0; i < 4; i++)
         temp += this.decodedPacket.yiaddr[i] + " ";
-      Console.WriteLine("yiaddr : {0}", temp);
+      Console.Error.WriteLine("yiaddr : {0}", temp);
       temp = "";
       for(int i = 0; i < 4; i++)
         temp += this.decodedPacket.siaddr[i] + " ";
-      Console.WriteLine("siaddr : {0}", temp);
+      Console.Error.WriteLine("siaddr : {0}", temp);
       temp = "";
       for(int i = 0; i < 6; i++)
         temp += this.decodedPacket.chaddr[i] + " ";
-      Console.WriteLine("chaddr : {0}", temp);
+      Console.Error.WriteLine("chaddr : {0}", temp);
       for(int i = 0; i < decodedPacket.options.Count; i++) {
         DHCPOption option = (DHCPOption) decodedPacket.options.GetByIndex(i);
         if(option.encoding == "string")
-          Console.WriteLine("{0} : {1}", 
+          Console.Error.WriteLine("{0} : {1}", 
             DHCPOptions.DHCPOptionsList[option.type], option.string_value);
         else {
           temp = "";
           for(int j = 0; j < option.length; j++)
             temp += option.byte_value[j] + " ";
-          Console.WriteLine("{0} : {1}", DHCPOptions.DHCPOptionsList[
+          Console.Error.WriteLine("{0} : {1}", DHCPOptions.DHCPOptionsList[
             option.type], temp);
         }
       }
@@ -229,10 +229,10 @@ namespace Ipop {
     public void PrintPacket() {
       int i = 0;
       for(i = 0; i < this.packet.Length - 3; i+=4)
-        Console.WriteLine("{0} {1} {2} {3}", this.packet[i], this.packet[i+1],
+        Console.Error.WriteLine("{0} {1} {2} {3}", this.packet[i], this.packet[i+1],
           this.packet[i+2], this.packet[i+3]);
           for(; i < this.packet.Length; i++)
-        Console.WriteLine("{0}", this.packet[i]);
+        Console.Error.WriteLine("{0}", this.packet[i]);
     }
   }
 }

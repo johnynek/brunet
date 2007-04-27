@@ -18,14 +18,14 @@ namespace Ipop {
       OSDependent.DetectOS();
       
       if (args.Length < 1) {
-        Console.WriteLine("please specify the SimpleNode configuration " + 
+        Console.Error.WriteLine("please specify the SimpleNode configuration " + 
           "file... ");
         Environment.Exit(0);
       }
       //configuration file 
       IPRouterConfig config = IPRouterConfigHandler.Read(args[0]);
       if (args.Length < 2) {
-        Console.WriteLine("please specify the number of p2p nodes."); 
+        Console.Error.WriteLine("please specify the number of p2p nodes."); 
         Environment.Exit(0);
       }
       int node_count = Int32.Parse(args[1]) + 10;
@@ -41,7 +41,7 @@ namespace Ipop {
 	
       }
       if (args.Length < 3) {
-        Console.WriteLine("please specify the number of missing edges."); 
+        Console.Error.WriteLine("please specify the number of missing edges."); 
         Environment.Exit(0);
       }
       int missing_count = Int32.Parse(args[2]);
@@ -51,7 +51,7 @@ namespace Ipop {
 	int idx = -1;
 	do {
 	  idx = rand.Next(10, node_count);
-	  Console.WriteLine("Will drop a left edge on idx {0}: ", idx);
+	  Console.Error.WriteLine("Will drop a left edge on idx {0}: ", idx);
 	} while (missing_edges.Contains(idx));
 	missing_edges.Add(idx);
       }
@@ -70,7 +70,7 @@ namespace Ipop {
 	    if (missing_edges.Contains(idx)) {
 	      int remote_port = Int32.Parse(item.port) + (idx + 1)%node_count;
 	      PortTAAuthorizer port_auth = new PortTAAuthorizer(remote_port);
-	      Console.WriteLine("Adding a port TA authorizer at: {0} for remote port: {1}", port, remote_port);
+	      Console.Error.WriteLine("Adding a port TA authorizer at: {0} for remote port: {1}", port, remote_port);
 	      ArrayList arr_tas = new ArrayList();
 	      arr_tas.Add(port_auth);
 	      arr_tas.Add(new ConstantAuthorizer(TAAuthorizer.Decision.Allow));
@@ -125,9 +125,9 @@ namespace Ipop {
       Console.Error.WriteLine("Starting nodes");
       foreach (Node node in address_to_node.Values) {
 	try {
-	  System.Console.WriteLine("Calling Connect");
+	  System.Console.Error.WriteLine("Calling Connect");
 	  node.Connect();
-	  Console.WriteLine("Started node: {0}. Waiting for 5 seconds.", node.Address);
+	  Console.Error.WriteLine("Started node: {0}. Waiting for 5 seconds.", node.Address);
 	  Console.Error.WriteLine("Started node: {0}. Waiting for 5 seconds.", node.Address);
 	  System.Threading.Thread.Sleep(5000);
 	} catch(Exception e) {

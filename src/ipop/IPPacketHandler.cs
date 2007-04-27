@@ -28,17 +28,17 @@ namespace Ipop
       if (debug) {
         IPAddress srcAddr = IPPacketParser.SrcAddr(packet);
         IPAddress dstAddr = IPPacketParser.DestAddr(packet); 
-        Console.WriteLine("Incoming packet:: IP src: {0}, IP dst: {1}, p2p " +
+        Console.Error.WriteLine("Incoming packet:: IP src: {0}, IP dst: {1}, p2p " +
           "hops: {2}", srcAddr, dstAddr, p.Hops); 
       }
 
       IPAddress destAddr = IPPacketParser.DestAddr(packet);
       if (!destAddr.Equals(this.node.ip)) {
-        Console.WriteLine("Incoming packet not for me {0}:: IP dst: {1}", this.node.ip, destAddr);
+        Console.Error.WriteLine("Incoming packet not for me {0}:: IP dst: {1}", this.node.ip, destAddr);
       }
       else if(this.node.mac != null && 
         !ether.SendPacket(packet, 0x800, this.node.mac)) {
-	      Console.WriteLine("error writing packet from ethernet");
+	      Console.Error.WriteLine("error writing packet from ethernet");
       }
     }
   }

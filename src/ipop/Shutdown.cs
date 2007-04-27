@@ -7,7 +7,7 @@ namespace Ipop {
         IPRouter.node.brunet.InterruptRefresher();
         IPRouter.node.brunet.Disconnect();
       }
-      System.Console.WriteLine("Exiting....");
+      System.Console.Error.WriteLine("Exiting....");
       System.Threading.Thread.Sleep(5000);
       System.Environment.Exit(1);
     }

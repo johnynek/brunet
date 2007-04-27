@@ -86,7 +86,7 @@ namespace Ipop {
 
     private static void IPUpdate(object ip) {
       if(node.brunet.Update((string) ip.ToString())) {
-        Console.WriteLine("MY IP " + node.ip);
+        Console.Error.WriteLine("MY IP " + node.ip);
         config.AddressData.IPAddress = node.ip.ToString();
         config.AddressData.Netmask = node.netmask;
         config.AddressData.Password = node.password;
@@ -149,7 +149,7 @@ namespace Ipop {
           }
           node.netmask = newNetmask;
           node.ip = IPAddress.Parse(newAddress);
-	  Console.WriteLine("Following DHCP my IP: {0}", node.ip);
+	  Console.Error.WriteLine("Following DHCP my IP: {0}", node.ip);
           config.AddressData.IPAddress = newAddress;
           config.AddressData.Netmask = node.netmask;
           IPRouterConfigHandler.Write(ConfigFile, config);
@@ -160,9 +160,9 @@ namespace Ipop {
           response = returnPacket.decodedPacket.return_message;
         /* Not a success, means we can't continue on, sorry, 
            print the friendly server message */
-        Console.WriteLine("The DHCP Server has a message to share with you...");
-        Console.WriteLine("\n" + response);
-        Console.WriteLine("\nSorry, this program will sleep and try again later.");
+        Console.Error.WriteLine("The DHCP Server has a message to share with you...");
+        Console.Error.WriteLine("\n" + response);
+        Console.Error.WriteLine("\nSorry, this program will sleep and try again later.");
       }
       in_dht = false;
       return;
@@ -175,7 +175,7 @@ namespace Ipop {
     static void Main(string []args) {
       //configuration file 
       if (args.Length < 1) {
-        Console.WriteLine("please specify the configuration file name...");
+        Console.Error.WriteLine("please specify the configuration file name...");
         Environment.Exit(0);
       }
       ConfigFile = args[0];
@@ -203,10 +203,10 @@ namespace Ipop {
       if (args.Length == 2)
         debug = true;
 
-      System.Console.WriteLine("IPRouter starting up at time: {0}", DateTime.Now);
+      System.Console.Error.WriteLine("IPRouter starting up at time: {0}", DateTime.Now);
       ether = new Ethernet(config.device, routerMAC);
       if (ether.Open() < 0) {
-        Console.WriteLine("unable to set up the tap");
+        Console.Error.WriteLine("unable to set up the tap");
         return;
       }
 
@@ -236,7 +236,7 @@ namespace Ipop {
         int packet_size = 0;
         byte [] packet = ether.ReceivePacket(out packet_size);
         if (packet == null) {
-          Console.WriteLine("error reading packet from ethernet");
+          Console.Error.WriteLine("error reading packet from ethernet");
           continue;
         }
   /* We should really be checking each and every packet, but for simplicity sake
@@ -274,14 +274,14 @@ namespace Ipop {
         int protocol = buffer[9];
 
         if (debug) {
-          Console.WriteLine("Outgoing {0} packet::IP src: {1}:{2}," + 
+          Console.Error.WriteLine("Outgoing {0} packet::IP src: {1}:{2}," + 
             "IP dst: {3}:{4}", protocol, srcAddr, srcPort, destAddr,
             destPort);
         }
 
         if(srcPort == 68 && destPort == 67 && protocol == 17) {
           if (debug)
-            Console.WriteLine("DHCP packet at time: {0}, status: {1}", DateTime.Now, in_dht);
+            Console.Error.WriteLine("DHCP packet at time: {0}, status: {1}", DateTime.Now, in_dht);
           if(!in_dht) {
             in_dht = true;
             ThreadPool.QueueUserWorkItem(new WaitCallback(ProcessDHCP), (object) buffer);
@@ -290,7 +290,7 @@ namespace Ipop {
         }
 
 //         if(!srcAddr.Equals(IPAddress.Parse("0.0.0.0")) && !srcAddr.Equals(node.ip) && !in_dht) {
-//           Console.WriteLine("Switching IP Address " + node.ip + " with " + srcAddr);
+//           Console.Error.WriteLine("Switching IP Address " + node.ip + " with " + srcAddr);
 //           in_dht = true;
 //           ThreadPool.QueueUserWorkItem(new WaitCallback(IPUpdate), (object) srcAddr.ToString());
 //           continue;
@@ -298,12 +298,12 @@ namespace Ipop {
 
         AHAddress target = (AHAddress) brunet_arp_cache.Get(destAddr);
         if (target == null) {
-          Console.WriteLine("Incurring a route miss for virtual ip: {0}", destAddr);
+          Console.Error.WriteLine("Incurring a route miss for virtual ip: {0}", destAddr);
           route_miss_handler.HandleRouteMiss(destAddr);
           continue;
         }
         if (debug) {
-          Console.WriteLine("Brunet destination ID: {0}", target);
+          Console.Error.WriteLine("Brunet destination ID: {0}", target);
         }
         node.brunet.SendPacket(target, buffer);
       }

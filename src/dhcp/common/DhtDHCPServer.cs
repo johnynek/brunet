@@ -33,9 +33,7 @@ namespace Ipop {
 	return (DHCPLease) leases[ipop_namespace];
       }
       string ns_key = "dhcp:ipop_namespace:" + ipop_namespace;
-#if DHCP_DEBUG
-      Console.WriteLine("Searching for namespace key: {0} at time: {1}", ns_key, DateTime.Now);
-#endif
+      Console.Error.WriteLine("Searching for namespace key: {0} at time: {1}", ns_key, DateTime.Now);
       byte[] utf8_key = Encoding.UTF8.GetBytes(ns_key);
       //get a maximum of 1000 bytes only
       BlockingQueue[] q = _dht.GetF(utf8_key, 1000, null);
@@ -64,17 +62,17 @@ namespace Ipop {
       }
       ArrayList values = (ArrayList) result[0];
 #if DHCP_DEBUG
-      Console.WriteLine("# of matching entries: " + values.Count);
+      Console.Error.WriteLine("# of matching entries: " + values.Count);
 #endif
       string xml_str = null;
       foreach (Hashtable ht in values) {
 #if DHCP_DEBUG
-        Console.WriteLine(ht["age"]);
+        Console.Error.WriteLine(ht["age"]);
 #endif
         byte[] data = (byte[]) ht["data"];
         xml_str = Encoding.UTF8.GetString(data);
 #if DHCP_DEBUG
-        Console.WriteLine(xml_str);
+        Console.Error.WriteLine(xml_str);
 #endif
         break;
       }
@@ -87,7 +85,7 @@ namespace Ipop {
       DHCPLease dhcp_lease = new DhtDHCPLease(_dht, ipop_ns);
       leases[ipop_namespace] = dhcp_lease;
 #if DHCP_DEBUG
-      Console.WriteLine("Retrieved valid namespace information at time: {0}", DateTime.Now);
+      Console.Error.WriteLine("Retrieved valid namespace information at time: {0}", DateTime.Now);
 #endif
       return dhcp_lease;
     }

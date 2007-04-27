@@ -42,14 +42,14 @@ namespace Ipop {
     }
 
     public static void PrintConfig(DHCPServerConfig config) {
-      Console.WriteLine(config.brunet_namespace);
+      Console.Error.WriteLine(config.brunet_namespace);
       foreach(IPOPNamespace item0 in config.ipop_namespace) {
-        Console.WriteLine("\t{0}", item0.value);
-        Console.WriteLine("\t\t{0}", item0.pool.lower);
-        Console.WriteLine("\t\t{0}", item0.pool.upper);
+        Console.Error.WriteLine("\t{0}", item0.value);
+        Console.Error.WriteLine("\t\t{0}", item0.pool.lower);
+        Console.Error.WriteLine("\t\t{0}", item0.pool.upper);
         foreach(DHCPReservedIP item1 in item0.reserved.value) {
-          Console.WriteLine("\t\t\t{0}", item1.ip);
-          Console.WriteLine("\t\t\t{0}", item1.mask);
+          Console.Error.WriteLine("\t\t\t{0}", item1.ip);
+          Console.Error.WriteLine("\t\t\t{0}", item1.mask);
         }
       }
     }

@@ -29,7 +29,7 @@ namespace Ipop {
       OSDependent.DetectOS();
       
       if (args.Length < 1) {
-        Console.WriteLine("please specify the SimpleNode configuration " + 
+        Console.Error.WriteLine("please specify the SimpleNode configuration " + 
           "file... ");
         Environment.Exit(0);
       }
@@ -37,13 +37,13 @@ namespace Ipop {
       IPRouterConfig config = IPRouterConfigHandler.Read(args[0]);
 
       if (args.Length < 2) {
-        Console.WriteLine("please specify the number of p2p nodes."); 
+        Console.Error.WriteLine("please specify the number of p2p nodes."); 
         Environment.Exit(0);
       }
       int num_nodes = Int32.Parse(args[1]);
 #if IPOP_LOG
       if (args.Length < 3) {
-        Console.WriteLine("please specify the full path to the Logger " + 
+        Console.Error.WriteLine("please specify the full path to the Logger " + 
           "configuration file...");
         Environment.Exit(1);
       }
@@ -100,12 +100,12 @@ namespace Ipop {
 	    dht = new FDht(brunetNode, EntryFactory.Media.Memory, 3);
 	  }	
 
-	  System.Console.WriteLine("Calling Connect");
+	  System.Console.Error.WriteLine("Calling Connect");
 	  brunetNode.Connect();
 	  node_list.Add(brunetNode);
 	  dht_list.Add(dht);
 	  
-	  Console.WriteLine("Started node: {0}. Waiting for 10 seconds.", count);
+	  Console.Error.WriteLine("Started node: {0}. Waiting for 10 seconds.", count);
 	  System.Threading.Thread.Sleep(10000);
 	  
 	} catch(Exception e) {

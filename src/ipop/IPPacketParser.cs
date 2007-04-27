@@ -9,7 +9,7 @@ namespace Ipop {
       /* Commented out the following: no reason why shouldn't work.*/
       //       byte[] address = new byte[4];
       //       for (int i = 0, k = DEST_ADDR_START; i < address.Length; i++, k++) {
-      // 	System.Console.WriteLine(packet[k]);
+      // 	System.Console.Error.WriteLine(packet[k]);
       // 	address[i] = packet[k];
       //       }
       //       return new IPAddress(address);

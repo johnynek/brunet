@@ -23,6 +23,7 @@
              <include name="common/DhtDHCPServer.cs"/>
              <include name="common/DhtDHCPLease.cs"/>
              <include name="common/DhtIP.cs"/>
+            <include name="../ipop/DhtOp.cs"/>
 	  </sources>
           <references>
 	     <include name="System.Runtime.Remoting.dll"/>

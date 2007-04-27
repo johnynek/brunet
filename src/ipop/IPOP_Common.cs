@@ -64,9 +64,5 @@ namespace Ipop {
     public static AHAddress GenerateAHAddress() {
       return new AHAddress(new RNGCryptoServiceProvider());
     }
-
-    public static AHAddress GenerateAHAddress() {
-      return new AHAddress(new RNGCryptoServiceProvider());
-    }
   }
 }

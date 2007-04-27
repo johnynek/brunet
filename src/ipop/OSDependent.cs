@@ -17,7 +17,7 @@ namespace Ipop {
         return new IPAddressesLinux(interfaces);
       else if(OSVers == Windows)
         return new IPAddressesWindows(interfaces);
-      System.Console.WriteLine("Invalid Operating System");
+      System.Console.Error.WriteLine("Invalid Operating System");
       return null;
     }
 
