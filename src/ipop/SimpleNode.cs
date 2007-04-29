@@ -29,9 +29,9 @@ namespace Ipop {
       Node brunetNode = new StructuredNode(IPOP_Common.GenerateAHAddress(),
         config.brunet_namespace);
       //Where do we listen 
+      Brunet.EdgeListener el = null;
       foreach(EdgeListener item in config.EdgeListeners) {
         int port = Int32.Parse(item.port);
-        Brunet.EdgeListener el = null;
         if(config.DevicesToBind == null) {
           if (item.type =="tcp")
             el = new TcpEdgeListener(port);
@@ -39,8 +39,6 @@ namespace Ipop {
             el = new UdpEdgeListener(port);
           else if (item.type == "udp-as")
             el = new ASUdpEdgeListener(port);
-	  else if (item.type == "tunnel")
-            el = new TunnelEdgeListener(brunetNode);
           else
             throw new Exception("Unrecognized transport: " + item.type);
         }
@@ -51,15 +49,14 @@ namespace Ipop {
             el = new UdpEdgeListener(port, OSDependent.GetIPAddresses(config.DevicesToBind));
 /*          else if (item.type == "udp-as")
             el = new ASUdpEdgeListener(port, (IEnumerable) (new IPAddresses(config.DevicesToBind)), null);*/
-	  else if (item.type == "tunnel")
-            el = new TunnelEdgeListener(brunetNode);
-
           else
             throw new Exception("Unrecognized transport: " + item.type);
         }
         brunetNode.AddEdgeListener(el);
       }
-      
+      el = new TunnelEdgeListener(brunetNode);
+      brunetNode.AddEdgeListener(el);
+
       //Here is where we connect to some well-known Brunet endpoints
       ArrayList RemoteTAs = new ArrayList();
       foreach(string ta in config.RemoteTAs)
