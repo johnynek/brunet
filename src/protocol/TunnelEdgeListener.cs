@@ -97,7 +97,7 @@ namespace Brunet
 
     protected object _sync;
     
-    protected bool _running;
+    volatile protected bool _running;
     protected bool _isstarted;
 
     /**
@@ -247,7 +247,7 @@ namespace Brunet
       public int Attempts = 3;
     }
     protected Hashtable _ecs_ht;
-    protected DateTime _last_check;
+    volatile protected DateTime _last_check;
     protected TimeSpan _reqtimeout;
 
     protected void TimeoutChecker(object o, EventArgs args) {
