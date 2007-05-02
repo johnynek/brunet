@@ -247,7 +247,7 @@ namespace Brunet
       public int Attempts = 3;
     }
     protected Hashtable _ecs_ht;
-    volatile protected DateTime _last_check;
+    protected DateTime _last_check;
     protected TimeSpan _reqtimeout;
 
     protected void TimeoutChecker(object o, EventArgs args) {
