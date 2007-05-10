@@ -5,6 +5,7 @@ using System.IO;
 using System.Collections;
 using System.Xml;
 using System.Xml.Serialization;
+using System.Threading;
 
 using Brunet;
 using Brunet.Dht;
@@ -15,6 +16,10 @@ using Brunet.Dht;
  */
 namespace Ipop {
   public class DhtIf {
+    static string []files;
+    static FDht dht;
+    static bool one_run;
+
     public static void Main(string []args) {
       OSDependent.DetectOS();
       if (args.Length < 1) {
@@ -23,7 +28,7 @@ namespace Ipop {
         Environment.Exit(0);
       }
       //configuration file 
-      IPRouterConfig config = IPRouterConfigHandler.Read(args[0]);
+      IPRouterConfig config = IPRouterConfigHandler.Read(args[0], true);
 
       //local node
       Node brunetNode = new StructuredNode(IPOP_Common.GenerateAHAddress(),
@@ -66,7 +71,7 @@ namespace Ipop {
 
 
       //following line of code enables DHT support inside the SimpleNode
-      FDht dht = null;
+      dht = null;
       if (config.dht_media == null || config.dht_media.Equals("disk")) {
         dht = new FDht(brunetNode, EntryFactory.Media.Disk, 3);
       } else if (config.dht_media.Equals("memory")) {
@@ -77,38 +82,70 @@ namespace Ipop {
 
       brunetNode.Connect();
 
-      DhtData data = DhtDataHandler.Read(args[1]);
+      if(args.Length == 3 && args[2] == "one_run") {
+        one_run = true;
+        files = new string[1];
+      }
+      else {
+        one_run = false;
+        files = new string[args.Length - 1];
+      }
+
+
+      Array.Copy(args, 1, files, 0, files.Length);
+      Thread []threads = new Thread [files.Length];
+      for(int i = 0; i < files.Length; i++) {
+        threads[i] = new Thread(DhtProcess);
+        threads[i].Start(i);
+      }
+
+      for(int i = 0; i < files.Length; i++) {
+        threads[i].Join();
+      }
+      brunetNode.Disconnect();
+    }
+
+    public static void  DhtProcess(object number) {
+      string filename = files[(int) number];
+      DhtData data = DhtDataHandler.Read(filename);
+       // Create a thread for each of these...
       if(data.key == null || data.value == null || data.ttl == null) {
-        Environment.Exit(1);
+        return;
       }
       int ttl = Int32.Parse(data.ttl);
       while(true) {
         try {
-          Console.Error.WriteLine("DATA:::Attempting Dht operation!");
+          if(files.Length == 1) {
+            Console.Error.WriteLine("DATA:::Attempting Dht operation!");
+          }
           string password = DhtOp.Create(data.key, data.value, data.password, ttl, dht);
           if(password == null) {
-            if(args.Length == 3) {
+            if(one_run && files.Length == 1) {
               Console.WriteLine("Fail");
             }
-            else {
+            else if(files.Length == 1) {
               Console.Error.WriteLine("DATA:::Dht operatin failed!");
             }
-            Environment.Exit(1);
+            return;
           }
           else if(password != data.password) {
             data.password = password;
-            DhtDataHandler.Write(args[1], data);
+            DhtDataHandler.Write(filename, data);
           }
 /* We exit if this was meant to try to create a data point */
-          if(args.Length == 3) {
+          if(one_run && files.Length == 1) {
             Console.WriteLine("Pass");
-            Environment.Exit(0);
+            return;
           }
-          Console.Error.WriteLine("DATA:::Dht operation succeeded, sleeping for " + (ttl / 2));
+          if(files.Length == 1) {
+            Console.Error.WriteLine("DATA:::Dht operation succeeded, sleeping for " + (ttl / 2));
+          }
           System.Threading.Thread.Sleep((ttl / 2) * 1000);
         }
         catch(Exception) {
-          Console.Error.WriteLine("DATA:::Dht operation failed, sleeping for 15 seconds and trying again.");
+          if(files.Length == 1) {
+            Console.Error.WriteLine("DATA:::Dht operation failed, sleeping for 15 seconds and trying again.");
+          }
           System.Threading.Thread.Sleep(15000);
         }
       }
