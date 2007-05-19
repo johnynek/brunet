@@ -38,13 +38,13 @@ namespace Brunet
    * when a Packet arrives.
    */
 
-  public abstract class Edge:IComparable, IPacketSender
+  public abstract class Edge : IComparable, ISender, ISource
   {
 
     public Edge()
     {
-      _callbacks = new IPacketHandler[ Byte.MaxValue ];
       _have_fired_close = false;
+      _sync = new object();
     }
     /**
      * Adding logger
@@ -53,35 +53,41 @@ namespace Brunet
         log4net.LogManager.GetLogger(System.Reflection.MethodBase.
         GetCurrentMethod().DeclaringType);*/
 
+    protected IDataHandler _data_handler;
+    protected object _dh_state;
     /**
      * Set to true once CloseEvent is fired.  This prevents it from
      * being fired twice
      */
     protected bool _have_fired_close;
+    
+    protected object _sync;
     /**
      * Closes the Edge, further Sends are not allowed
      */
     public virtual void Close()
     {
-      for(int i = 0; i < _callbacks.Length; i++) {
-        _callbacks[i] = null;
-      }
-      if (! _have_fired_close ) {
-        //log.Warn("EdgeClose: edge: " + ToString());
-#if POB_DEBUG
-        Console.Error.WriteLine("EdgeClose: edge: {0}", this);
-#endif
+      bool fire = false;
+      lock( _sync ) {
         /*
          * Set to true *BEFORE* firing the event since some of
          * the EventHandler objects may call close on the Edge.
          * They shouldn't, but who knows if people follow the rules.
          */
-        _have_fired_close = true;
-        if (CloseEvent != null) {
-          CloseEvent(this, null);
+        if( false == _have_fired_close ) {
+          fire = true;
+          _have_fired_close = true;
         }
       }
-      ///@todo it would be nice to clear the events to clear the references.
+      if( fire ) {
+        if (CloseEvent != null) {
+          CloseEvent(this, null);
+          CloseEvent = null;
+        }
+      }
+#if POB_DEBUG
+      Console.Error.WriteLine("EdgeClose: edge: {0}", this);
+#endif
     }
 
     public abstract Brunet.TransportAddress LocalTA
@@ -96,11 +102,7 @@ namespace Brunet
      * to connect to us
      */
     public virtual bool LocalTANotEphemeral { get { return false; } }
-      /**
-       * For each Packet.ProtType, there may be a callback set
-       * for it.  This list holds that mapping.
-       */
-    protected IPacketHandler[] _callbacks;
+    
     /**
      * When an edge is closed (either due to the Close method
      * being called or due to some error during the receive loop)
@@ -126,12 +128,11 @@ namespace Brunet
       get;
     }
 
-        /**
-         * @param p a Packet to send to the host on the other
-         * side of the Edge.
-         * @throw EdgeException if any problem happens
-         */
-    public void Send(Packet p) { Send( (ICopyable)p); }
+    /**
+     * @param p a Packet to send to the host on the other
+     * side of the Edge.
+     * @throw EdgeException if any problem happens
+     */
     public abstract void Send(ICopyable p);
 
     /**
@@ -160,18 +161,13 @@ namespace Brunet
       get;
     }
 
-      /**
-       * @return true if the edge is an in-degree
-       */
-      public abstract bool IsInbound
-      {
-        get;
-        }
-
-        public virtual void ClearCallback(Packet.ProtType t)
-      {
-        _callbacks[(byte)t] = null;
-      }
+   /**
+    * @return true if the edge is an in-degree
+    */
+    public abstract bool IsInbound
+    {
+      get;
+    }
 
     public int CompareTo(object e)
     {
@@ -192,9 +188,9 @@ namespace Brunet
 
     /**
      * This method is used by subclasses.
-     * @param p the packet to send a ReceivedPacket event for
+     * @param b the packet to send a ReceivedPacket event for
      */
-    protected void ReceivedPacketEvent(Brunet.Packet p)
+    protected void ReceivedPacketEvent(MemBlock b)
     {
       if( IsClosed ) {
         //We should not be receiving packets on closed edges:
@@ -209,8 +205,7 @@ namespace Brunet
 #if LOG_PACKET
       string base64String;
       try {
-        base64String =
-          System.Convert.ToBase64String(p.Buffer,p.Offset,p.Length);
+        base64String = b.ToBase64String();
         string GeneratedLog = "InPacket: edge: " + ToString() + ", packet: "
                               + base64String;
         //log.Info(GeneratedLog);
@@ -220,30 +215,46 @@ namespace Brunet
         //log.Error("Error: Packet is Null");
       }
 #endif
-      IPacketHandler cb = _callbacks[(byte)p.type];
-      if ( cb != null ) {
-        _last_in_packet_datetime = DateTime.UtcNow;
-        cb.HandlePacket(p, this);
-      }
-      else {
+      IDataHandler dh = null;
+      object state = null;
+      lock( _sync ) {
+        if ( _data_handler != null ) {
+          _last_in_packet_datetime = DateTime.UtcNow;
+          dh = _data_handler;
+          state = _dh_state;
+        }
+        else {
         //We don't record the time of this packet.  We don't
         //want unhandled packets to keep edges open.
         //
         //This packet is going into the trash:
         //log.Error("Packet LOST: " + p.ToString());
 #if DEBUG
-        Console.Error.WriteLine("{0} lost packet {1}",this,p);
+          Console.Error.WriteLine("{0} lost packet {1}",this,p);
 #endif
-
+        }
+      }
+      //Make sure not to hold the lock while we handle the data
+      if( dh != null ) {
+        dh.HandleData(b, this, state);
       }
     }
 
-    /**
-     * This sets a callback
-     */
-    public virtual void SetCallback(Packet.ProtType t, IPacketHandler cb)
-    {
-      _callbacks[(byte)t] = cb;
+    public virtual void Subscribe(IDataHandler hand, object state) {
+      lock( _sync ) {
+        _data_handler = hand;
+        _dh_state = state;
+      }
+    }
+    public virtual void Unsubscribe(IDataHandler hand) {
+     lock(_sync ) {
+      if( _data_handler == hand ) {
+        _data_handler = null;
+      }
+      else {
+        throw new Exception(String.Format("Handler: {0}, not subscribed", hand));
+      }
+     }
     }
     /**
      * Prints the local address, the direction and the remote address

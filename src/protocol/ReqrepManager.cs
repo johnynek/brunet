@@ -2,6 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
+Copyright (C) 2007 P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -38,7 +39,7 @@ namespace Brunet {
  * @todo implement adaptive timeouts
  */
 	
-public class ReqrepManager : IAHPacketHandler {
+public class ReqrepManager : IDataHandler {
   
   public enum ReqrepType : byte
   {
@@ -93,7 +94,8 @@ public class ReqrepManager : IAHPacketHandler {
     };
 
     //Subscribe on the node:
-    _node.Subscribe(AHPacket.Protocol.ReqRep, this);
+    ISource s = _node.GetTypeSource(PType.Protocol.ReqRep);
+    s.Subscribe(this, null);
     _node.HeartBeatEvent += new EventHandler(this.TimeoutChecker);
 
   }
@@ -132,26 +134,72 @@ public class ReqrepManager : IAHPacketHandler {
    protected class RequestState {
      public RequestState() {
        Timeouts = 6;
+       _send_count = 0;
+     }
+     //Send the request again
+     public void Send() {
+       //Increment atomically:
+       System.Threading.Interlocked.Increment(ref _send_count);
+       _req_date = DateTime.UtcNow;
+       Sender.Send( Request );
      }
 
      public int Timeouts;
      public IReplyHandler ReplyHandler;
-     public DateTime ReqDate;
-     public AHPacket Request;
+     public ArrayList Repliers;
+     protected DateTime _req_date;
+     public DateTime ReqDate { get { return _req_date; } }
+     public ICopyable Request;
+     public ISender Sender;
      public ReqrepType RequestType;
      public int RequestID;
      public object UserState;
      //this is something we need to get rid of 
      //public bool Replied;
+     protected int _send_count;
      //number of times request has been sent out
-     public int SendCount;
+     public int SendCount { get { return _send_count; } }
    }
-   protected class ReplyState {
-     public int RequestID;
-     public AHPacket Reply;
-     public DateTime RepDate;
-     public AHPacket Request;
-     public string PayloadType;
+   //This is also the return_path when we announce
+   protected class ReplyState : ISender {
+     protected int _req_id;
+     public int RequestID { get { return _req_id; } }
+     protected ICopyable Reply;
+     protected DateTime _rep_date;
+     public DateTime RepDate { get { return _rep_date; } }
+     protected ISender _ret_path;
+     public ISender ReturnPath { get { return _ret_path; } }
+
+     protected volatile bool have_sent = false;
+
+     public ReplyState(ISender ret_path, int reqid) {
+       _ret_path = ret_path;
+       _req_id = reqid;
+     }
+
+     public void Send(ICopyable data) {
+       if( !have_sent ) {
+         have_sent = true;
+         //Make the header:
+         byte[] header = new byte[5];
+         header[0] = (byte)ReqrepType.Reply;
+         NumberSerializer.WriteInt(RequestID, header, 1);
+         MemBlock mb_header = MemBlock.Reference(header);
+         Reply = new CopyList(mb_header, data);
+         Resend();
+       }
+       else {
+         /*
+          * Something goofy is going on here.  Multiple
+          * sends for one request.  we are ignoring it for
+          * now
+          */
+       }
+     }
+     public void Resend() {
+       _rep_date = DateTime.UtcNow;
+       ReturnPath.Send( Reply );
+     }
    }
    // Member variables:
 
@@ -172,27 +220,11 @@ public class ReqrepManager : IAHPacketHandler {
    protected DateTime _last_check;
    // Methods /////
 
-
-   public static void DebugPacket(AHAddress local, AHPacket p, Edge from) {
-     System.IO.MemoryStream ms = p.PayloadStream;
-     ReqrepType rt = (ReqrepType)((byte)ms.ReadByte());
-     int idnum = NumberSerializer.ReadInt(ms);
-     if ( rt == ReqrepType.Request || rt == ReqrepType.LossyRequest ) {
-       Console.Error.WriteLine("[ReqrepManager Debug Hook: {0}] Request id: {1} from node: {2}",
-			 local, idnum, p.Source);
-     } else if ( rt == ReqrepType.Reply) {
-       Console.Error.WriteLine("[ReqrepManager Debug Hook: {0}] Reply id: {1} from node: {2}",
-			 local, idnum, p.Source);       
-     } else {
-       Console.Error.WriteLine("[ReqrepManager Debug Hook: {0}] Unknown id: {1} from node: {2}",
-			 local, idnum, p.Source);              
-     }
-   }
    /**
     * This is either a request or response.  Look up the handler
     * for it, and pass the packet to the handler
     */
-   public void HandleAHPacket(object node, AHPacket p, Edge from) {
+   public void HandleData(MemBlock p, ISender from, object state) {
      if (!_is_active) {
 #if REQREP_DEBUG
        Console.Error.WriteLine("[ReqrepManager: {0}] Inactive. Simply return (HandleAHPacket).",
@@ -207,242 +239,140 @@ public class ReqrepManager : IAHPacketHandler {
      //Simulate packet loss
      //if ( _rand.NextDouble() < 0.1 ) { return; }
      //Is it a request or reply?
-     System.IO.MemoryStream ms = p.PayloadStream;
-     ReqrepType rt = (ReqrepType)((byte)ms.ReadByte());
-     int idnum = NumberSerializer.ReadInt(ms);
+     ReqrepType rt = (ReqrepType)((byte)p[0]);
+     int idnum = NumberSerializer.ReadInt(p,1);
+     MemBlock rest = p.Slice(5); //Skip the type and the id
      if( rt == ReqrepType.Request || rt == ReqrepType.LossyRequest ) {
-       int count = 0;
-       string pt = NumberSerializer.ReadString(ms, out count);
-       /**
-	* Lets see if we have been asked this question before
-	*/
-       AHPacket error = null;
-       IRequestHandler irh = null;
-       ReplyState rs = null;
-       bool start_new_rh = false;
-       lock( _sync ) {
-	 foreach(ReplyState repstate in _replies) {
-	   if( repstate.RequestID == idnum &&
-	     repstate.Request.Source.Equals( p.Source ) ) {
-	     //This is old news
-	     rs = repstate;
-	     repstate.RepDate = DateTime.UtcNow;
-	     break;
-	   }
-	 }
-#if REQREP_DEBUG
-	 Console.Error.WriteLine("[ReqrepServer: {0}] Receiving request id: {1} from node: {2}",
-			   _node.Address, idnum, p.Source);
-#endif
-
-
-
-	 if ( rs == null ) {
-#if REQREP_DEBUG
-	   Console.Error.WriteLine("[ReqrepServer: {0}] This is a new request, actually invoke handler",
-			     _node.Address);
-#endif
-
-
-
-	   //Looks like we need to handle this request
-	   //Make a new ReplyState:
-	   rs = new ReplyState();
-	   rs.RequestID = idnum;
-	   rs.Request = p;
-	   rs.PayloadType = pt;
-	   rs.Reply = null;
-	   //Add the new reply state before we drop the lock
-	   _replies.Add(rs);
-	   start_new_rh = true;
-	   irh = (IRequestHandler)_req_handler_table[pt];
-	 }
-       }//Drop the lock
-
-       if( start_new_rh ) {
-	 if( irh == null ) {
-#if REQREP_DEBUG
-	   Console.Error.WriteLine("[ReqrepServer: {0}] No handler found for request.",
-			     _node.Address);
-#endif
-	   //We have no handler
-	   short ttl = _node.DefaultTTLFor( p.Source );
-	   error = MakeError(p.Source, ttl, idnum, ReqrepError.NoHandler);
-	 }
-	 else {
-	   try {
-	     /*
-	      * When this request is finishes, the method SendReply
-	      * is called
-	      *
-	      * Skip over the 1 byte that says what kind of request,
-	      * 4 byte request id, and the length of the protocol type
-	      */
-	     System.IO.MemoryStream offsetpayload = p.GetPayloadStream(5 + count);
-#if REQREP_DEBUG
-	     Console.Error.WriteLine("[ReqrepServer: {0}] Calling appropriate handler.", 
-			       _node.Address);
-#endif
-	     irh.HandleRequest(this,rt,rs,pt,offsetpayload,p);
-	   }
-	   catch(Exception) {
-#if REQREP_DEBUG
-	     Console.Error.WriteLine("[ReqrepServer: {0}] Something went wrong in request handler.", 
-			       _node.Address);
-#endif
-	     //Something has gone wrong
-	     short ttl = _node.DefaultTTLFor( p.Source );
-	     error = MakeError(p.Source, ttl, idnum,
-				  ReqrepError.HandlerFailure);
-	   }
-	 }
-       } 
-       //Now just send this reply
-       if( error == null ) {
-#if REQREP_DEBUG
-	 Console.Error.WriteLine("[ReqrepServer: {0}] No.error.",
-			   _node.Address, idnum, p.Source);
-#endif
-	 if( rs.Reply != null ) {
-#if REQREP_DEBUG
-	   Console.Error.WriteLine("[ReqrepServer: {0}] Sending reply to {1}",
-			     _node.Address, p.Source);
-#endif
-	   _node.Send( rs.Reply );
-	 }
-       }
-       else {
-	 /*
-	  * We only send an error in the case that we were exactly
-	  * the destination.  This prevents multiple errors coming
-	  * back for one particular request.
-	  */
-	 if( p.Destination.Equals( _node.Address ) ) {
-#if REQREP_DEBUG
-	   Console.Error.WriteLine("[ReqrepServer: {0}] Sending error to {1}. ",
-			   _node.Address, p.Source);
-#endif
-	   _node.Send( error );
-	 }
-       }
+       HandleRequest(rt, idnum, rest, from);
      }
      else if( rt == ReqrepType.Reply ) {
-       int count = 0;
-       string pt = NumberSerializer.ReadString(ms, out count);
-       lock( _sync ) {
-	 RequestState reqs = (RequestState)_req_state_table[idnum];
-	 if( reqs != null ) {
-	   System.IO.MemoryStream offsetpayload = p.GetPayloadStream(5 + count);
-	   Statistics statistics = new Statistics();
-	   statistics.SendCount = reqs.SendCount;
-#if REQREP_DEBUG
-	   Console.Error.WriteLine("[ReqrepManager: {0}] Receiving reply on request id: {1}, from: {2}", 
-			     _node.Address, idnum, p.Source);
-#endif
-
-	   bool continue_listening = 
-		   reqs.ReplyHandler.HandleReply(this, rt, idnum, pt,
-						 offsetpayload, p, statistics, reqs.UserState);
-	   //the request has been served
-	   //reqs.Replied = true;
-	   if( !continue_listening ) {
-	     //Now remove the RequestState:
-	     _req_state_table.Remove(idnum);
-	   }
-	 }
-       }
-       //Now we ar done.  We have already handled this Reply
+       HandleReply(rt, idnum, rest, from);
      }
      else if( rt == ReqrepType.Error ) {
-       ReqrepError rrerr = (ReqrepError)( (byte)ms.ReadByte() );
-       lock( _sync ) {
-	 //Get the request:
-	 RequestState reqs = (RequestState)_req_state_table[idnum];
-	 if( reqs != null ) {
-	   if( reqs.Request.Destination.Equals( p.Source ) ) {
-	     //This error really came from the node we sent to
-	     reqs.ReplyHandler.HandleError(this, idnum, rrerr, reqs.UserState);
-	     _req_state_table.Remove(idnum); 
-	   }
+       HandleError(rt, idnum, rest, from);
+     }
+   }
+
+   protected void HandleRequest(ReqrepType rt, int idnum,
+                                MemBlock rest, ISender retpath)
+   {
+     /**
+      * Lets see if we have been asked this question before
+      */
+     ReplyState rs = null;
+     bool resend = false;
+#if REQREP_DEBUG
+	 Console.Error.WriteLine("[ReqrepManager: {0}] Receiving request id: {1}, from: {2}", 
+			     _node.Address, idnum, retpath);
+#endif
+     lock( _sync ) {
+       foreach(ReplyState repstate in _replies) {
+	 if( repstate.RequestID == idnum ) {
+           ///@todo be more careful to check that the return path is
+           ///equivalent
+
+	   //This is old news
+	   rs = repstate;
+           resend = true;
+	   break;
 	 }
-	 else {
-	   //We have already dealt with this Request
+       }
+       if( rs == null ) {
+	 //Looks like we need to handle this request
+	 //Make a new ReplyState:
+	 rs = new ReplyState(retpath, idnum);
+	 //Add the new reply state before we drop the lock
+	 _replies.Add(rs);
+       }
+     }
+     if( resend ) {
+       //This is an old request:
+       rs.Resend();
+     }
+     else {
+       //This is a new request:
+       _node.Announce(rest, rs);
+     }
+   }
+
+   protected void HandleReply(ReqrepType rt, int idnum,
+                              MemBlock rest, ISender ret_path) {
+     RequestState reqs = null;
+     lock( _sync ) {
+       reqs = (RequestState)_req_state_table[idnum];
+       if( (reqs != null) && (false == reqs.Repliers.Contains(ret_path)) ) {
+         MemBlock payload;
+         PType pt = PType.Parse(rest, out payload);
+         Statistics statistics = new Statistics();
+         statistics.SendCount = reqs.SendCount;
+#if REQREP_DEBUG
+	 Console.Error.WriteLine("[ReqrepManager: {0}] Receiving reply on request id: {1}, from: {2}", 
+			     _node.Address, idnum, ret_path);
+#endif
+
+	 bool continue_listening = reqs.ReplyHandler.HandleReply(this, rt, idnum, pt, payload,
+                                                 ret_path, statistics, reqs.UserState);
+	 //the request has been served
+	 //reqs.Replied = true;
+	 if( !continue_listening ) {
+	   //Now remove the RequestState:
+	   _req_state_table.Remove(idnum);
 	 }
+         else {
+           //Make sure we ignore replies from this sender again
+           reqs.Repliers.Add(ret_path);
+         }
+       }
+       else {
+         //We are ignoring this reply, it either makes no sense, or we have
+         //already handled it
        }
      }
    }
 
-   protected AHPacket MakeError(Address destination,
-				 short ttl,
-				 int next_rep,
-				 ReqrepError err)
+   protected void HandleError(ReqrepType rt, int idnum,
+                              MemBlock err_data, ISender ret_path)
    {
-     /*
-      * 1 byte for the request type (error)
-      * 4 byte integer ID
-      * 1 byte for the type of Error
-      */
-     byte[] req_payload = new byte[ 1 + 4 + 1 ];
-     req_payload[0] = (byte)ReqrepType.Error;
-     NumberSerializer.WriteInt( next_rep, req_payload, 1 );
-     req_payload[5] = (byte)err;
-     AHPacket packet = new AHPacket(0, ttl, _node.Address, destination, AHPacket.AHOptions.Exact,
-				      AHPacket.Protocol.ReqRep, req_payload);
-     return packet;
+     lock( _sync ) {
+       //Get the request:
+       RequestState reqs = (RequestState)_req_state_table[idnum];
+#if REQREP_DEBUG
+	 Console.Error.WriteLine("[ReqrepManager: {0}] Receiving error on request id: {1}, from: {2}", 
+			     _node.Address, idnum, ret_path);
+#endif
+       if( reqs != null ) {
+         ///@todo make sure we are checking that this ret_path makes sense for
+         ///our request
+         ReqrepError rrerr = (ReqrepError)err_data[0];
+	 reqs.ReplyHandler.HandleError(this, idnum, rrerr, ret_path, reqs.UserState);
+         ///@todo, we might not want to stop listening after one error
+	 _req_state_table.Remove(idnum); 
+       }
+       else {
+         //We have already dealt with this Request
+       }
+     }
    }
 
-   protected AHPacket MakePacket (Address destination,
-				 short ttl,
-				 ReqrepType rt,
-				 int next_rep,
-				 string prot,
-				 ushort options,
-				 MemBlock payload)
-   {
-       //Here we make the payload while we will send:
-       /**
-	* The format is:
-	* 1 byte to give the type of request/reply
-	* 4 byte integer ID
-	* protocol_len bytes type of payload
-	* payload.Length bytes for the payload
-	*/
-       int protocol_len = NumberSerializer.GetByteCount(prot);
-       byte[] req_payload = new byte[ 1 + 4 + protocol_len + payload.Length ];
-       int offset = 0;
-       req_payload[offset] = (byte)rt;
-       offset += 1;
-       NumberSerializer.WriteInt( next_rep, req_payload, 1 );
-       offset += 4;
-       offset += NumberSerializer.WriteString(prot, req_payload, offset);
-       payload.CopyTo(req_payload, offset);
-       AHPacket packet = new AHPacket(0, ttl, _node.Address, destination, options,
-				      AHPacket.Protocol.ReqRep, req_payload);
-       return packet;
+   protected ICopyable MakeRequest(ReqrepType rt, int next_rep, ICopyable data) {
+     byte[] header = new byte[ 5 ];
+     header[0] = (byte)rt;
+     NumberSerializer.WriteInt( next_rep, header, 1 );
+     MemBlock mb_header = MemBlock.Reference(header);
+     return new CopyList(PType.Protocol.ReqRep, mb_header, data);
    }
+
   /**
-   * @deprecated use the one with a MemBlock instead
-   */
-  public int SendRequest(Address destination, ReqrepType reqt,
-                         string prot,
-		         byte[] payload, IReplyHandler reply, object state)
-  {
-    MemBlock pl = MemBlock.Reference(payload, 0, payload.Length);
-    return SendRequest(destination, reqt, prot, pl, reply, state);
-  }
-  /**
-   * @param destination the Node to recieve the request
-   * @param prot the protocol of the payload
-   * @param payload the Payload to send
+   * @param sender how to send the request
    * @param reqt the type of request to make
+   * @param data the data to encapsulate and send
    * @param reply the handler to handle the reply
    * @param state some state object to attach to this request
    * @return the identifier for this request
    *
    */
-  public int SendRequest(Address destination, ReqrepType reqt,
-                         string prot,
-		         MemBlock payload, IReplyHandler reply, object state)
+  public int SendRequest(ISender sender, ReqrepType reqt, ICopyable data,
+		         IReplyHandler reply, object state)
   {
     if (!_is_active) {
 #if REQREP_DEBUG
@@ -458,7 +388,7 @@ public class ReqrepManager : IAHPacketHandler {
     RequestState rs = new RequestState();
     lock( _sync ) {
       //Get the index 
-      int next_req = _rand.Next();
+      int next_req = 0;
       do {
         next_req = _rand.Next();
       } while( _req_state_table.ContainsKey( next_req ) );
@@ -466,159 +396,21 @@ public class ReqrepManager : IAHPacketHandler {
        * Now we store the request
        */
       rs.RequestID = next_req;
-      short ttl = _node.DefaultTTLFor(destination);
+      rs.Sender = sender;
       rs.ReplyHandler = reply;
-      rs.Request = MakePacket(destination, ttl, reqt, next_req, prot,
-                              AHPacket.AHOptions.AddClassDefault, payload);
-      rs.ReqDate = DateTime.UtcNow;
+      rs.Request = MakeRequest(reqt, next_req, data);
       rs.RequestType = reqt;
       rs.UserState = state;
       //rs.Replied = false;
-      rs.SendCount = 1;
       _req_state_table[ next_req ] = rs;
     }
 #if REQREP_DEBUG
     Console.Error.WriteLine("[ReqrepClient: {0}] Sending a request: {1} to node: {2}",
-		      _node.Address, rs.RequestID, destination);
+		      _node.Address, rs.RequestID, sender);
 #endif
-
-    _node.Send( rs.Request );
+    rs.Send();
     return rs.RequestID;
   }
-  /**
-   * @deprecated use the one that takes a MemBlock
-   */
-  public int SendExactRequest(Address destination, ReqrepType reqt,
-                         string prot,
-		         byte[] payload, IReplyHandler reply, object state)
-  {
-    MemBlock pl = MemBlock.Reference(payload, 0, payload.Length);
-    return SendExactRequest(destination, reqt, prot, pl, reply, state);
-  }
-  /**
-   * @param destination the Node to recieve the request (this operates in Exact routing mode).
-   * @param prot the protocol of the payload
-   * @param payload the Payload to send
-   * @param reqt the type of request to make
-   * @param reply the handler to handle the reply
-   * @param state some state object to attach to this request
-   * @return the identifier for this request
-   *
-   */
-  public int SendExactRequest(Address destination, ReqrepType reqt,
-                         string prot,
-		         MemBlock payload, IReplyHandler reply, object state)
-  {
-    if (!_is_active) {
-#if REQREP_DEBUG
-      Console.Error.WriteLine("[ReqrepManager: {0}] Inactive. Simply return (SendRequest).",
-			_node.Address);
-#endif
-      //we are no longer active
-      return -1;
-    }
-    if ( reqt != ReqrepType.Request && reqt != ReqrepType.LossyRequest ) {
-      throw new Exception("Not a request");
-    }
-    RequestState rs = new RequestState();
-    lock( _sync ) {
-      //Get the index 
-      int next_req = _rand.Next();
-      do {
-        next_req = _rand.Next();
-      } while( _req_state_table.ContainsKey( next_req ) );
-      /*
-       * Now we store the request
-       */
-      rs.RequestID = next_req;
-      short ttl = _node.DefaultTTLFor(destination);
-      rs.ReplyHandler = reply;
-      rs.Request = MakePacket(destination, ttl, reqt, next_req, prot,
-                              AHPacket.AHOptions.Exact, payload);
-      rs.ReqDate = DateTime.UtcNow;
-      rs.RequestType = reqt;
-      rs.UserState = state;
-      //rs.Replied = false;
-      rs.SendCount = 1;
-      _req_state_table[ next_req ] = rs;
-    }
-#if REQREP_DEBUG
-    Console.Error.WriteLine("[ReqrepClient: {0}] Sending a request: {1} to node: {2}",
-		      _node.Address, rs.RequestID, destination);
-#endif
-
-    _node.Send( rs.Request );
-    return rs.RequestID;
-  }
-  /**
-   * @deprecated use the one that takes a MemBlock
-   */
-  public void SendReply(object request, byte[] response)
-  {
-    MemBlock resp = null;
-    if( response != null ) {
-      resp = MemBlock.Reference(response, 0, response.Length);
-    }
-    SendReply(request, resp );
-  }
-  /**
-   * @param request this object allows the manager to know what Request this is a response to
-   * @param response the payload for the response.
-   */
-  public void SendReply(object request, MemBlock response)
-  {
-    if (!_is_active) {
-      //ignore!
-#if REQREP_DEBUG
-      Console.Error.WriteLine("[ReqrepManager: {0}] Inactive. Simply return (SendReply).",
-			_node.Address);
-#endif
-      return;
-    }
-    ReplyState rs = (ReplyState)request;
-    AHPacket p = rs.Request;
-    if( response != null ) {
-      short ttl = _node.DefaultTTLFor( p.Source );
-      rs.Reply = MakePacket(p.Source, ttl, ReqrepType.Reply, rs.RequestID,
-                            rs.PayloadType, AHPacket.AHOptions.Exact, response);
-    }
-    else {
-      /**
-       * A Null reply means don't send any reply.
-       * This is only allowed for LossyRequests
-       */
-      rs.Reply = null;
-    }
-    rs.RepDate = DateTime.UtcNow;
-    lock( _sync ) {
-      _replies.Add( rs );
-    }
-    if( rs.Reply != null ) {
-      _node.Send( rs.Reply );
-    }
-  }
-  
-  /**
-   * For a given protocol (wrapped inside the request/reply) send
-   * the request to the given IRequestHandler
-   * 
-   * Note that we use the term "Bind" to emphasize that only one
-   * IRequestHandler may be Binded to a particular protocol.
-   *
-   * @throws Exception if there is another IRequestHandler already Binded.
-   */
-  public void Bind(string p, IRequestHandler reqh) {
-    lock( _sync ) {
-      if( _req_handler_table.ContainsKey(p) ) {
-        //Someone is already bound
-        throw new Exception("Cannot bind to protocol: " + p.ToString());
-      }
-      else {
-        _req_handler_table[p] = reqh;
-      }
-    }
-  }
-
   /**
    * This method listens for the HeartBeatEvent from the
    * node and checks for timeouts.
@@ -640,13 +432,7 @@ public class ReqrepManager : IAHPacketHandler {
             if( reqs.Timeouts >= 0 ) {
               //Resend:
               if( reqs.RequestType != ReqrepType.LossyRequest) {
-                //We don't resend LossyRequests
-		//if (!reqs.Replied) {
-		//requests are now resent no matter what
-		reqs.ReqDate = now;
-		reqs.SendCount++;
-		to_resend.Add( reqs.Request );
-		//}
+                to_resend.Add( reqs );
               }
             }
             else {
@@ -677,34 +463,16 @@ public class ReqrepManager : IAHPacketHandler {
        *
        * We have released the lock, now we can send the packets:
        */
-      foreach(Packet p in to_resend) {
-        _node.Send(p);
+      foreach(RequestState req in to_resend) {
+        req.Send();
       }
       /*
        * Once we have released the lock, tell the handlers
        * about the timeout that have occured
        */
       foreach(RequestState reqs in timeout_hands) {
-        reqs.ReplyHandler.HandleError(this, reqs.RequestID,
-                                      ReqrepError.Timeout, reqs.UserState);
-      }
-    }
-  }
-  /**
-   * For a given protocol (wrapped inside the request/reply) stop sending
-   * the requests to the given RequestHandler
-   *
-   * Unbind the given IRequestHandler.
-   * @throws Exception if the given IRequestHandler is not bound to the protocol.
-   */
-  public void Unbind(string p, IRequestHandler reqh) {
-    lock( _sync ) {
-      object o = _req_handler_table[p];
-      if( o != reqh ) {
-        throw new Exception("Not bound to protocol");
-      }
-      else {
-        _req_handler_table.Remove(p);
+        reqs.ReplyHandler.HandleError(this, reqs.RequestID, ReqrepError.Timeout,
+                                      null, reqs.UserState);
       }
     }
   }

@@ -186,7 +186,16 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
       return (this.CompareTo(a) == 0);
     }
   }
-
+  /**
+   * This is a risky method.  It moves the initial offset down by
+   * count, and returns a MemBlock with that.  Who knows
+   * what may be in that data, but if you could check before you use 
+   * it (useful for "unslicing" cases where one or two bytes might have
+   * been sliced off
+   */
+  public MemBlock ExtendHead(int count) {
+    return new MemBlock(_buffer, _offset - count, _length + count);
+  }
   //Uses the first few bytes as the hashcode
   public override int GetHashCode() {
     //Use at most 4 bytes:
@@ -255,6 +264,13 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
    */
   public System.IO.MemoryStream ToMemoryStream() {
     return new System.IO.MemoryStream(_buffer, _offset, _length, false);
+  }
+
+  /**
+   * convert the MemBlock to base64
+   */
+  public string ToBase64String() {
+    return System.Convert.ToBase64String(_buffer,_offset,_length);
   }
 
 #if BRUNET_NUNIT

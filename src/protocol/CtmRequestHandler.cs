@@ -2,6 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
+Copyright (C) 2007 P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -40,144 +41,48 @@ namespace Brunet
    * 
    */
 
-  public class CtmRequestHandler:IAHPacketHandler
+  public class CtmRequestHandler
   {
     //private static readonly ILog _log = LogManager.GetLogger( typeof(CtmRequestHandler) );
-#if PLAB_LOG
-    protected BrunetLogger _logger;
-    public BrunetLogger Logger{
-      get{
-        return _logger;
-      }
-      set
-      {
-        _logger = value;
-      }
-    }
-#endif
-    protected ConnectionMessageParser _cmp;
+    protected Node _n;
     /**
      */
-    public CtmRequestHandler()
+    public CtmRequestHandler(Node n)
     {
-      _cmp = null;
+      _n = n;
     }
 
     /**
-     * This is used to connect to a remote node as a result
-     * of a request
-     * 
-     * @param node the Node that received the request
-     * @param p the packet received
-     * @param from the Edge the request came from
+     * This is a method for use with the RpcManager.  Remote
+     * nodes can call the "sys:ctm.ConnectTo" method to 
+     * reach this method
      */
-    public void HandleAHPacket(object node, AHPacket p, Edge from)
-    {
-      try {
-        Node n = (Node) node;
-        if( _cmp == null ) {
-          //Setup a ConnectionMessageParser with per-node cache
-          _cmp = new ConnectionMessageParser(n);
-        }
-        ConnectToMessage ctm = (ConnectToMessage)_cmp.Parse(p);
-        //stop now if we don't have a ConnectToMessage Request
-        if (ctm.Dir == ConnectionMessage.Direction.Response) {
-          return;
-        }
-#if PLAB_LOG
-        BrunetEventDescriptor bed = new BrunetEventDescriptor();      
-        bed.RemoteAHAddress = ctm.Target.Address.ToBigInteger().ToString();
-        bed.EventDescription = "CtmRequestHandler.HAP.target";
-        Logger.LogAttemptEvent( bed );
-#endif
+    public Hashtable ConnectTo(Hashtable ht) {
+      Console.WriteLine("Got ctm request");
+      NodeInfo target = new NodeInfo( (Hashtable)ht["target"] );
+      string contype = (string)ht["type"];
+      Node n = _n;
 
-#if ARI_CTM_DEBUG
-        System.Console.Error.WriteLine("CtmRequestHandler - Got CTM Request,"
-				 + n.Address.ToString() + " connectTo: "
-				 + ctm.Target.Address.ToString() + " ConType: " + ctm.ConnectionType);
-	Console.Error.WriteLine("CtmRequestHandler - CtmRequest at: {0} -  {1}", DateTime.Now, ctm);
-	Console.Error.WriteLine("CtmRequestHandler - Initiating link protocol on CTM request.");
-#endif
-        /*_log.Info("Got CTM Request,"
-        + n.Address.ToString() + " connectTo: "
-        + ctm.TargetAddress.ToString());*/
+      Linker l = new Linker(n, target.Address, target.Transports, contype);
+      //Here we start the job:
+      n.TaskQueue.Enqueue( l );
 
+      /**
+       * Send a response no matter what
+       */
+      Hashtable response = new Hashtable();
+      response["type"] = contype;
+      ArrayList neighbors = new ArrayList();
 
-#if ARI_CTM_DEBUG
-        System.Console.Error.WriteLine("CtmRequestHandler - Trying to start a linking attempt,"
-				 + n.Address.ToString() + " connectTo: "
-				 + ctm.Target.Address.ToString() + " ConType: " + ctm.ConnectionType);
-#endif
-        if( ctm.Target.Address.Equals( n.Address ) ) {
-          //Ignore our own CTM requests.
-          return;
-        }
-
-
-        Linker l = new Linker(n, ctm.Target.Address,
-			      ctm.Target.Transports,
-                              ctm.ConnectionType);
-        //Here we start the job:
-        n.TaskQueue.Enqueue( l );
-
-        /**
-         * Send a response no matter what
-         */
-	//Send the 4 neighbors closest to this node:
-	ArrayList nearest = n.ConnectionTable.GetNearestTo(
-			(AHAddress)ctm.Target.Address, 4);
-	NodeInfo[] near_ni = new NodeInfo[nearest.Count];
-	int i = 0;
-	foreach(Connection cons in nearest) {
-          near_ni[i] = new NodeInfo(cons.Address, cons.Edge.RemoteTA);
-	  i++;
-	}
-        ConnectToMessage local_response_ctm =
-          new ConnectToMessage(ctm.ConnectionType, n.GetNodeInfo(8), near_ni);
-        local_response_ctm.Id = ctm.Id;
-        local_response_ctm.Dir = ConnectionMessage.Direction.Response;
-
-        //Send the response with a TTL 4 times larger than the number of hops
-        //it took to get here (just to give some headroom)
-        short ttl;
-        if (p.Hops < (AHPacket.MaxTtl / 4)) {
-          //This makes sure that the ttl is valid and never overflows :
-          ttl = (short) (4 * p.Hops + 1);
-        }
-        else {
-          ttl = AHPacket.MaxTtl;
-        }
-        AHPacket response = new AHPacket(0, ttl,
-                                         n.Address,
-                                         ctm.Target.Address,
-					 AHPacket.AHOptions.Exact,
-                                         AHPacket.Protocol.Connection,
-                                         local_response_ctm.ToByteArray());
-        if (!p.Source.Equals(ctm.Target.Address) &&
-            !p.Source.Equals(n.Address) ) {
-          //There is no point in forwarding through ourselves
-          //This was a forwarded packet, we must send a forwarded response :
-          //_log.Info("Sending a forwarded CTM Response");
-          response =
-            PacketForwarder.WrapPacket(p.Source, ttl, response);
-        }
-        //_log.Info("Sending CTM Response");
-#if ARI_CTM_DEBUG
-        System.Console.Error.WriteLine("CtmRequestHandler - Sending CTM response,"
-				 + n.Address.ToString() + " connectTo: "
-				 + ctm.Target.Address.ToString() + " ConType: " + ctm.ConnectionType);
-#endif
-        n.Send(response);
+      //Send the 4 neighbors closest to this node:
+      ArrayList nearest = n.ConnectionTable.GetNearestTo( (AHAddress)target.Address, 4);
+      foreach(Connection cons in nearest) {
+        NodeInfo neigh = new NodeInfo(cons.Address, cons.Edge.RemoteTA);
+        neighbors.Add( neigh.ToHashtable() );
       }
-      catch(Exception) {
-        /*_log.Error("CtmRequestionHandler got exception on packet: " +
-          p.ToString(), x); */
-      }
-    }
-
-    public bool HandlesAHProtocol(string type)
-    {
-      return (type == AHPacket.Protocol.Connection);
+      response["neighbors"] = neighbors;
+      response["target"] = n.GetNodeInfo(8).ToHashtable();
+      return response; 
     }
   }
 

@@ -2,6 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
+Copyright (C) 2007 P. Oscar Boykin <boykin@pobox.com> University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -17,18 +18,6 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
-
-/*
- * Dependencies  :  
- * 
- * Brunet.Edge;
- * Brunet.EdgeException;
- * Brunet.NumberSerializer;
- * Brunet.Packet;
- * Brunet.PacketParser;
- * Brunet.ParseException
- * Brunet.TransportAddress;
- */
 
 //#define POB_TCP_DEBUG
 
@@ -160,12 +149,6 @@ namespace Brunet
      */
     protected Queue _packet_queue;
 #endif
-
-    /**
-     * Anytime any of the above are changed, _sync must
-     * be locked
-     */
-    protected object _sync;
 
 #if TCP_POLL
     /**
@@ -901,7 +884,7 @@ namespace Brunet
 #if POB_TCP_DEBUG
         Console.Error.WriteLine("edge: {0} in DoReceive", this);
 #endif
-        Packet p = null;
+        MemBlock p = null;
         lock(_sync) {
           int got = _sock.Receive(_rec_state.Buffer,
                                   _rec_state.LastReadOffset,
@@ -958,26 +941,9 @@ namespace Brunet
 
             if( parse_packet ) {
               //We have the whole packet
-              p = PacketParser.Parse(_rec_state.Buffer,
-                                     _rec_state.Offset,
-                                     _rec_state.Length);
+              p = MemBlock.Copy(_rec_state.Buffer, _rec_state.Offset, _rec_state.Length);
 #if POB_TCP_DEBUG
               //Console.Error.WriteLine("edge: {0}, got packet {1}",this, p);
-#endif
-#if PLAB_RDP_LOG
-	    //Console.Error.WriteLine("*******In TcpEdge.DoReceive() function");
-	    if(p.type == Packet.ProtType.AH){	 
-		//Console.Error.WriteLine("ProtoType is AH in DoReceive()");
-	        AHPacket ahp = (AHPacket)p;
-	        if(ahp.PayloadType == AHPacket.Protocol.Echo && ahp.Destination.Equals(_logger.LocalAHAddress)
-				&& p.PayloadStream.ToArray()[0] == 0 && p.PayloadStream.ToArray()[1] == 0){
-    		    //Console.Error.WriteLine("Type is Echo in DoReceive()");
-		    _logger.LogBrunetPing(p, true); 
-	        }
-	    }
-#endif
-#if PLAB_PACKET_LOG
-              _logger.LogPacketTimeStamp(p, true); //logging packet p, true means the packet is received
 #endif
               //Reinit the rec_state
               _rec_state.Offset = 0;

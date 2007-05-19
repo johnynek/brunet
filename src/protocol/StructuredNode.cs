@@ -80,14 +80,6 @@ namespace Brunet
     public StructuredNode(AHAddress add):base(add)
     {
       /**
-       * Here are the routers this node uses : 
-       */
-      ArrayList routers = new ArrayList();
-      routers.Add(new AHRouter(add));
-      routers.Add(new DirectionalRouter(add));
-      SetRouters(routers);
-
-      /**
        * Here are the ConnectionOverlords
        */ 
       _lco = new LeafConnectionOverlord(this);
@@ -99,13 +91,13 @@ namespace Brunet
        * Turn on some protocol support : 
        */
       /// Turn on Packet Forwarding Support :
-      IAHPacketHandler h = new PacketForwarder(add);
-      Subscribe(AHPacket.Protocol.Forwarding, h);
-      /**
-       * Here is how we handle ConnectToMessages : 
-       */
-      _ctm_handler = new CtmRequestHandler();
-      Subscribe(AHPacket.Protocol.Connection, _ctm_handler);
+      GetTypeSource(PType.Protocol.Forwarding).Subscribe(new PacketForwarder(this), null);
+      //Handles AHRouting:
+      GetTypeSource(PType.Protocol.AH).Subscribe(new AHHandler(this), this);
+      
+      //Add the standard RPC handlers:
+      RpcManager rpc = RpcManager.GetInstance(this);
+      rpc.AddHandler("sys:ctm", new CtmRequestHandler(this));
 
       _connection_table.ConnectionEvent += new EventHandler(this.EstimateSize);
       _connection_table.ConnectionEvent += new EventHandler(this.UpdateNeighborStatus);
@@ -124,46 +116,6 @@ namespace Brunet
       _realm = realm;
     }
 
-#if PLAB_LOG
-    override public BrunetLogger Logger{
-      get{
-        return _logger;
-      }
-      set
-      {
-        _logger = value;
-        //The connection table only has a logger in this case
-        _connection_table.Logger = value;
-        _sco.Logger = value;
-        foreach(EdgeListener el in _edgelistener_list) {
-          el.Logger = value;
-        }
-        foreach(AHPacket.Protocol prot in _subscription_table.Keys) {
-          if(prot == AHPacket.Protocol.Forwarding){
-            ArrayList handlers = (ArrayList)_subscription_table[prot];
-            foreach(IAHPacketHandler handler in handlers){ 
-              try{
-                ((PacketForwarder)handler).Logger = Logger;
-              }
-              catch(InvalidCastException e){}             
-            }
-          }
-          else if(prot == AHPacket.Protocol.Connection){
-            ArrayList handlers = (ArrayList)_subscription_table[prot];
-            foreach(IAHPacketHandler handler in handlers){ 
-              try{
-                ((CtmRequestHandler)handler).Logger = Logger;
-              }
-              catch(InvalidCastException e){}             
-            }
-          }
-
-        }
-      }
-    } 
-#endif
-
-
     protected int _netsize = -1;
     override public int NetworkSize {
       get {
@@ -177,10 +129,6 @@ namespace Brunet
      */
     override public void Connect()
     {
-#if PLAB_LOG
-      //_sco.Logger = this.Logger;
-#endif
-
       base.Connect();
       StartAllEdgeListeners();
 
@@ -206,7 +154,8 @@ namespace Brunet
       _cco.IsActive = false;
       
 
-      Unsubscribe(AHPacket.Protocol.Connection, _ctm_handler);
+      //Stop dealing with linking
+      ClearTypeSource(PType.Protocol.Linking);
 
       //Gracefully close all the edges:
       ArrayList edges_to_close = new ArrayList();

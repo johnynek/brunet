@@ -109,7 +109,7 @@ namespace Brunet {
    *  structured connections between pairs of highly communicating nodes.
    *  Chota - in Hindi means small. 
    */
-  public class ChotaConnectionOverlord : ConnectionOverlord, IAHPacketHandler {
+  public class ChotaConnectionOverlord : ConnectionOverlord, IDataHandler {
     //the node we are attached to
     protected Node _node;
 
@@ -179,9 +179,10 @@ namespace Brunet {
 
 	// we assess trimming/growing situation on every heart beat
         _node.HeartBeatEvent += new EventHandler(this.CheckState);
-        _node.SubscribeToSends(AHPacket.Protocol.IP, this);
+        //_node.SubscribeToSends(AHPacket.Protocol.IP, this);
 	//subscribe the ip_handler to IP packets
-	_node.Subscribe(AHPacket.Protocol.IP, this);
+        ISource source = _node.GetTypeSource(new PType(AHPacket.Protocol.IP));
+        source.Subscribe(this, AHPacket.Protocol.IP);
       }
 #if ARI_EXP_DEBUG
       Console.Error.WriteLine("ChotaConnectionOverlord starting : {0}", DateTime.UtcNow);
@@ -369,7 +370,7 @@ namespace Brunet {
     /**
      * When we get ConnectToMessage responses the connector tells us.
      */
-    override public void HandleCtmResponse(Connector c, AHPacket resp_p,
+    override public void HandleCtmResponse(Connector c, ISender ret_path,
                                            ConnectToMessage ctm_resp)
     {
       /**
@@ -384,16 +385,18 @@ namespace Brunet {
     /**
      * Here is how we handle Send subscriptions
      */
-    public void HandleAHPacket(object node, AHPacket p, Edge from) {
+    public void HandleData(MemBlock p, ISender from, object state) {
       if( from == null ) {
         /*
          * This is a Send, or a packet that came from us
          */
-        UpdateTable(p);
+        ///@todo fix this
+        //UpdateTable(p);
       }
       else {
         //This is an incoming packet
-        ReceivePacketHandler(p);
+        ///@todo fix this
+        //ReceivePacketHandler(p);
       }
     }
     /**
@@ -656,7 +659,6 @@ namespace Brunet {
 #endif
         return;
       }
-      short t_hops = 0;
       //Send the 4 neighbors closest to this node:
       ArrayList nearest = _node.ConnectionTable.GetNearestTo(
 							 (AHAddress)_node.Address, 4);
@@ -672,12 +674,8 @@ namespace Brunet {
       ctm.Id = _rand.Next(1, Int32.MaxValue);
       ctm.Dir = ConnectionMessage.Direction.Request;
 
-      AHPacket ctm_pack =
-        new AHPacket(t_hops, t_ttl, _node.Address, target, AHPacket.AHOptions.Exact,
-                     AHPacket.Protocol.Connection, ctm.ToByteArray());
-      Console.Error.WriteLine("Size of CTM packet: {0}", ctm_pack.Length);
-
-      Connector con = new Connector(_node, ctm_pack, ctm, this);
+      ISender send = new AHSender(_node, target, AHPacket.AHOptions.Exact);
+      Connector con = new Connector(_node, send, ctm, this);
       lock( _sync ) {
 	ChotaConnectionState state = null;
 	if (!_chota_connection_state.ContainsKey(target)) {

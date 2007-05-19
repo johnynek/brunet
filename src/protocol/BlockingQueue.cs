@@ -55,6 +55,10 @@ public class BlockingQueue : Queue {
    * When an item is enqueued, this event is fire
    */
   public event EventHandler EnqueueEvent;
+  /**
+   * When the queue is closed, this event is fired
+   */
+  public event EventHandler CloseEvent;
   
   /* **********************************************
    * Here all the methods
@@ -75,10 +79,19 @@ public class BlockingQueue : Queue {
    * all future Dequeue's will throw exceptions
    */
   public void Close() {
+    bool fire = false;
     lock( this ) {
-      _closed = true;
-      _re.Set();
+      if( _closed == false ) {
+        fire = true;
+        _closed = true;
+        _re.Set();
+      }
     }
+    //Fire the close event
+    if( fire && CloseEvent != null ) {
+      CloseEvent(this, EventArgs.Empty);
+    }
+
     //Wake up any blocking threads:
 #if DEBUG
     System.Console.Error.WriteLine("Close set");

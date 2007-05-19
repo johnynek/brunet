@@ -2,7 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
-Copyright (C) 2005,2006  P. Oscar Boykin <boykin@pobox.com>, University of Florida
+Copyright (C) 2005-2007  P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -18,17 +18,6 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
-
-/*
- * Dependencies : 
- * Brunet.Edge
- * Brunet.EdgeException
- * Brunet.EdgeListener;
- * Brunet.Packet;
- * Brunet.PacketParser;
- * Brunet.TransportAddress;
- * Brunet.UdpEdge;
- */
 
 using Brunet;
 using System;

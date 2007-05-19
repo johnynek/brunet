@@ -78,7 +78,7 @@ namespace Brunet
      * @return the ConnectionMessage inside
      * @throws ParseException if we cannot parse
      */
-    public ConnectionMessage Parse(Packet p)
+    public ConnectionMessage Parse(MemBlock p)
     {
       /*
        * Parsing is expensive.  Packets are immutable.  So,
@@ -91,14 +91,14 @@ namespace Brunet
         lock( _parsed_packets ) {
           result = (ConnectionMessage)_parsed_packets[p];
           if( result == null ) {
-            result = Parse(p.PayloadStream);
+            result = Parse(p.ToMemoryStream());
             _parsed_packets[p] = result;
           }
         }
       }
       else {
         //No cache..
-        result = Parse(p.PayloadStream);
+        result = Parse(p.ToMemoryStream());
       }
       //Console.Error.WriteLine("Parsed: {0}\n{1}\n",p, result);
       return result;
@@ -262,9 +262,9 @@ namespace Brunet
         ConnectionMessage cm2 = cmp.Parse( cm.ToByteArray() );
 	Assert.AreEqual(cm, cm2);
         Packet p = cm.ToPacket();
-        ConnectionMessage cm3 = cmp.Parse(p);
+        ConnectionMessage cm3 = cmp.Parse(p.Payload);
         //Do this twice to test caching:
-        ConnectionMessage cm4 = cmp.Parse(p);
+        ConnectionMessage cm4 = cmp.Parse(p.Payload);
         Assert.AreEqual(cm, cm3);
         Assert.AreEqual(cm, cm4);
       }

@@ -165,7 +165,7 @@ namespace Brunet
         FQEntry ent = (FQEntry)_queue.Dequeue(100, out timedout);
         if( !timedout ) {
           FunctionEdge fe = ent.Edge;
-          fe.Push( (Packet)ent.P);
+          fe.Push( MemBlock.Copy(ent.P) );
         }
       }
     }

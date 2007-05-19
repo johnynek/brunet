@@ -2,6 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
+Copyright (C) 2007 P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -36,28 +37,14 @@ namespace Brunet
    * 
    * @see CtmRequestHandler
    * @see StructuredConnectionOverlord
-   * @see UnstructuredConnectionOverlord
    */
 
-  public class Connector : TaskWorker, IAHPacketHandler
+  public class Connector : TaskWorker
   {
 
     /*private static readonly log4net.ILog _log =
         log4net.LogManager.GetLogger(System.Reflection.MethodBase.
         GetCurrentMethod().DeclaringType);*/
-#if PLAB_LOG
-    protected BrunetLogger _logger;
-    public BrunetLogger Logger{
-      get{
-        return _logger;
-      }
-      set
-      {
-        _logger = value;
-      }
-    }
-#endif
-
 
     protected bool _is_finished;
     override public bool IsFinished {
@@ -72,27 +59,7 @@ namespace Brunet
     /**
      * The node who is making the Connection request
      */
-    public Node Node
-    {
-      get
-      {
-        return _local_node;
-      }
-    }
-
-    protected AHPacket _con_packet;
-    /**
-     * The packet which is being sent out on the network whose
-     * payload contains (a potentially PacketForwarder wrapped)
-     * ConnectToMessage
-     */
-    public AHPacket Packet
-    {
-      get
-      {
-        return _con_packet;
-      }
-    }
+    public Node Node { get { return _local_node; } }
 
     protected ArrayList _got_ctms;
     /**
@@ -100,40 +67,19 @@ namespace Brunet
      * so when the finish event is fired, we can see what
      * the received CTMs were
      */
-    public ArrayList ReceivedCTMs
-    {
-      get { return _got_ctms; }
-    }
+    public ArrayList ReceivedCTMs { get { return _got_ctms; } }
 
     protected ConnectToMessage _ctm;
     /** Holds the ConnectToMessage whose response we are looking for */
-    public ConnectToMessage Ctm
-    {
-      get { return _ctm; }
-    }
+    public ConnectToMessage Ctm { get { return _ctm; } }
 
-    protected int _ctm_send_timeouts;
-
-    protected ConnectionMessageParser _cmp;
     protected ConnectionOverlord _co;
-
-    /**
-     * How many time outs are allowed before assuming failure
-     */
-    protected readonly int MaxTimeOuts = 3;
-    /**
-     * The AH Network is slower than IP, give it a little
-     * while to get to the end node
-     */
-    protected static readonly int AHMsTimeOut = 10000;
-    protected static readonly long _timeout;
-    protected long _last_packet_datetime;
 
     /**
      * Either a Node or an Edge to use to send the
      * ConnectToMessage packet
      */
-    protected IPacketSender _sender;
+    protected ISender _sender;
     /**
      * Is false until we get a response
      */
@@ -142,23 +88,15 @@ namespace Brunet
      * We lock this when we need thread safety
      */
     protected object _sync;
-    public Object SyncRoot {
-      get {
-	return _sync;
-      }
-    }
-    static Connector() {
-      _timeout = TimeUtils.MsToNsTicks(AHMsTimeOut);
-    }
+    public Object SyncRoot { get { return _sync; } }
+    
     /**
      * Represents the Task this connector works on for the TaskWorker
      */
     protected class ConnectorTask {
-      protected IPacketSender _ips;
-      protected Address _target;
-      public ConnectorTask(IPacketSender ps, Address target) {
+      protected ISender _ips;
+      public ConnectorTask(ISender ps) {
         _ips = ps;
-        _target = target;
       }
 
       override public int GetHashCode() {
@@ -168,14 +106,7 @@ namespace Brunet
         ConnectorTask ct = o as ConnectorTask;
         bool eq = false;
         if( ct != null ) {
-          eq = _target.Equals( ct._target );
-          if( _target is DirectionalAddress ) {
-            /*
-             * We are more specific for directional addresses
-             * because they are relative to particular nodes
-             */
-            eq &= ( ct._ips == _ips ) ;
-          }
+          eq = ct._ips.Equals( _ips );
         }
         return eq;
       }
@@ -201,13 +132,11 @@ namespace Brunet
     /**
      * @param local the local Node to connect to the remote node
      * @param eh EventHandler to call when we are finished.
-     * @param IPacketSender Use this specific edge.  This is used when we want to
+     * @param ISender Use this specific edge.  This is used when we want to
      * connecto to a neighbor of a neighbor
-     * @param request_packet the packet to send which already contains a CTM
      * @param ctm the ConnectToMessage which is serialized in the packet
      */
-    public Connector(Node local, IPacketSender ps, AHPacket request_packet,
-                        ConnectToMessage ctm, ConnectionOverlord co)
+    public Connector(Node local, ISender ps, ConnectToMessage ctm, ConnectionOverlord co)
     {
       _sync = new Object();
       _local_node = local;
@@ -215,171 +144,94 @@ namespace Brunet
 
       _got_ctms = new ArrayList();
       _got_ctm = false;
-      _cmp = new ConnectionMessageParser(local);
       _sender = ps;
       _ctm = ctm;
       _co = co;
-      _con_packet = request_packet;
-      _task = new ConnectorTask(ps, request_packet.Destination);
-    }
-    /**
-     * @param local the local Node to connect to the remote node
-     * @param eh EventHandler to call when we are finished.
-     * connecto to a neighbor of a neighbor
-     * @param request_packet the packet to send which already contains a CTM
-     * @param ctm the ConnectToMessage which is serialized in the packet
-     */
-    public Connector(Node local, AHPacket request_packet,
-                        ConnectToMessage ctm, ConnectionOverlord co)
-                        : this(local, local, request_packet, ctm, co)
-    {
-
+      _task = new ConnectorTask(ps);
     }
 
-    /**
-     * Begin the Connector task of sending ConnectToMessage objects
-     * and waiting for the responses
-     */
-    override public void Start()
-    {
-      if( _abort != null ) {
-        if( _abort(this) ) {
-          //We are no longer needed:
-          _is_finished = true;
-          FireFinished();
-          return;
-        }
-      }
-      lock(_sync) {
-        
-        ///Listen for response to what we send :
-        _local_node.Subscribe(AHPacket.Protocol.Connection, this);
-        
-        _ctm_send_timeouts = 0;
-        //_log.Info("Sending CTM Request:");
-        //_log.Info("CTM Packet:\n" + request_packet.ToString());
-#if PLAB_LOG
-        if(request_packet.PayloadType == AHPacket.Protocol.Forwarding){
-            AHPacket tmp_pack = PacketForwarder.UnwrapPacket(request_packet);
-            BrunetEventDescriptor bed1 = new BrunetEventDescriptor();      
-            bed1.RemoteAHAddress = request_packet.Destination.ToBigInteger().ToString();
-            bed1.EventDescription = "Connector.Connect.forwarder";
-            Logger.LogAttemptEvent( bed1 );
-            
-            BrunetEventDescriptor bed2 = new BrunetEventDescriptor();      
-            bed2.RemoteAHAddress = tmp_pack.Destination.ToBigInteger().ToString();
-            bed2.EventDescription = "Connector.Connect.target";
-            Logger.LogAttemptEvent( bed2 );
-        }                              
-#endif
-
-#if ARI_CTM_DEBUG
-	Console.Error.WriteLine("Connector - Send CTM request; src: {0}, target: {1} at: {2}", 
-			  _con_packet.Source, _con_packet.Destination, DateTime.Now);
-#endif
-        _sender.Send(_con_packet);
-        _last_packet_datetime = TimeUtils.NoisyNowTicks;
-        _ctm_send_timeouts = 1;
-        _local_node.HeartBeatEvent += new EventHandler(this.ResendCtmHandler);
-      }
-    }
-
-    /**
-     * When we listen for responses to our ConnectToMessages,
-     * we must implement this method from IAHPacketHandler
-     */
-    public void HandleAHPacket(object node, AHPacket p, Edge from)
-    {
-      lock(_sync) {
-        try {
-          if (p.PayloadType == AHPacket.Protocol.Connection) {
-            /*
-             * This is an unfortunate architecture because every
-             * active connector calls Parse on every packet.  so
-             * if there are 5 active connectors, the packet is parsed
-             * 5 times.  This has been mitigated to some degree by
-             * the implementation of a cache system inside
-             * ConnectionMessageParser.  Ideally, we could check
-             * to see if this is the packet we are looking for
-             * without decoding XML.  Perhaps using the ReqrepManager
-             */
-            ConnectionMessage cm = _cmp.Parse(p);
-            if ((cm != null) &&
-                (cm.Id == _ctm.Id) &&
-                (cm.Dir == ConnectionMessage.Direction.Response) &&
-                (cm is ConnectToMessage)) {
-              /**
-              * This is our response.  Now we know who to connect
-              * to!
-              * @todo see if the type of connection is the same
-               */
-#if ARI_CTM_DEBUG
-	      Console.Error.WriteLine("Got CTM Response from: {0} at: {1} - {2}", p.Source, DateTime.Now, cm);
-              Console.Error.WriteLine("Initiating a linking protocol on CTM response.");
-#endif
-              ConnectToMessage new_ctm = (ConnectToMessage)cm;
-              _got_ctm = true;
-              /**
-               * It is the responsibilty of the ConnectionOverlord
-               * to deal with this ctm
-               */
-              _got_ctms.Add(new_ctm);
-              _co.HandleCtmResponse(this, p, new_ctm);
-              //_log.Info("Got CTM Response: " + cm.ToString());
-	    }
-	  }
-	}
-        catch(Exception) {
-          //_log.Error(x);
-        }
-      }
-    }
-
-    /**
-     * An event handler that gets called periodically by Node.
-     */
-    protected void ResendCtmHandler(object node, EventArgs arg)
-    {
-      try {
-       lock( _sync ) {
-        if( (_abort != null) && _abort(this) ) {
-          //It is okay to stop now
-          _is_finished = true; 
-        }
-        else if( TimeUtils.NoisyNowTicks - _last_packet_datetime > _timeout) {
-          if( _ctm_send_timeouts >= MaxTimeOuts ) {
+    override public void Start() {
+      bool fire_finished = false;
+      lock( _sync ) {
+        if( _abort != null ) {
+          if( _abort(this) ) {
+            //We are no longer needed:
             _is_finished = true;
+            fire_finished = true;
           }
-          else if( _got_ctm == false && _ctm_send_timeouts < MaxTimeOuts ) {
-            //There has been no response, resend the request
-            //Console.Error.WriteLine("Resending:({0})\n{1}", _ctm_send_timeouts,
-            //                                          _con_packet);
-            _sender.Send( _con_packet );
-          }
-          _last_packet_datetime = TimeUtils.NoisyNowTicks;
-          //We have timed out one more time
-          _ctm_send_timeouts++;
         }
-       }
+      }
+      if( fire_finished ) {
+        FireFinished();
+        return;
+      }
+      RpcManager rpc = RpcManager.GetInstance(_local_node);
+
+      BlockingQueue results = rpc.Invoke(_sender, "sys:ctm.ConnectTo", _ctm.ToHashtable() );
+      results.EnqueueEvent += this.EnqueueHandler;
+      results.CloseEvent += this.QueueCloseHandler;
+      if( results.Count > 0 ) {
+        //Make sure we didn't miss an enqueue between creating and registering
+        //the handler:
+        EnqueueHandler(results, EventArgs.Empty);
+      }
+      //This does nothing if the queue is not actually closed yet
+      QueueCloseHandler(results, EventArgs.Empty);
+    }
+
+    /**
+     * Try to get an RpcResult out and handle it
+     */
+    protected void EnqueueHandler(object queue, EventArgs arg) {
+      BlockingQueue q = (BlockingQueue)queue;
+      /*
+       * Try for 10 ms to something out, there should be something
+       * in there if this method is being called
+       */
+      bool timedout = true;
+      RpcResult rpc_res = null;
+      try {
+        rpc_res = (RpcResult)q.Dequeue(10, out timedout);
+        if( !timedout ) {
+          ConnectToMessage new_ctm = new ConnectToMessage( (Hashtable)rpc_res.Result );
+          _got_ctm = true;
+          /**
+           * It is the responsibilty of the ConnectionOverlord
+           * to deal with this ctm
+           */
+          _got_ctms.Add(new_ctm);
+          _co.HandleCtmResponse(this, rpc_res.ResultSender, new_ctm);
+        }
       }
       catch(Exception) {
-        _is_finished = true;
+        //This can happen if the queue is empty and closed.  Don't do
+        //anything.
+        timedout = true;
       }
-      finally {
-        if( _is_finished ) {
-          //We are done now:
-          _local_node.HeartBeatEvent -= new EventHandler(this.ResendCtmHandler);
-          //Now we have the response :  stop listening
-          _local_node.Unsubscribe(AHPacket.Protocol.Connection, this);
-          if( _is_finished ) {
-            FireFinished();
+    }
+    /**
+     * When the RPC is finished, the BlockingQueue is closed, and we handle
+     * it here
+     */
+    protected void QueueCloseHandler(object queue, EventArgs arg) {
+      BlockingQueue bq = (BlockingQueue)queue;
+      if( bq.Closed ) {
+        /*
+         * We're done
+         */
+        bool fire = false;
+        lock( _sync ) {
+          if( !_is_finished ) {
+            _is_finished = true;
+            fire = true;
           }
+        }
+        if(fire) {
+          FireFinished();
         }
       }
     }
-
   }
-
 }
 
 

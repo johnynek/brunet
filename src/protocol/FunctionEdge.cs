@@ -141,11 +141,10 @@ namespace Brunet
                                     + _r_id.ToString());
       }
     }
-    public void Push(Packet p) {
+    public void Push(MemBlock p) {
       //Make a copy:
       if( !_is_closed ) {
-        Packet new_p = PacketParser.Parse( MemBlock.Copy(p) );
-        ReceivedPacketEvent(new_p);
+        ReceivedPacketEvent(p);
       }
     }
 

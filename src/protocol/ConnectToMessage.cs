@@ -46,7 +46,7 @@ namespace Brunet
    * @see CtmRequestHandler
    * @see Connector
    */
-  public class ConnectToMessage:ConnectionMessage
+  public class ConnectToMessage : ConnectionMessage
   {
 
     /**
@@ -70,6 +70,22 @@ namespace Brunet
       _ct = contype;
       _target_ni = target;
       _neighbors = neighbors;
+    }
+
+    public ConnectToMessage(Hashtable ht) {
+      _ct = (string)ht["type"];
+      _target_ni = new NodeInfo((Hashtable)ht["target"]);
+      ArrayList neighs = new ArrayList();
+      IEnumerable neighht = ht["neighbors"] as IEnumerable;
+      if( neighht != null ) {
+        foreach(Hashtable nht in neighht) {
+          neighs.Add( new NodeInfo( nht ) ); 
+        }
+      }
+      _neighbors = new NodeInfo[ neighs.Count ];
+      for(int i = 0; i < neighs.Count; i++) {
+        _neighbors[i] = (NodeInfo)neighs[i];
+      }
     }
     /**
      * Deserializes the whole <request />
@@ -194,6 +210,18 @@ namespace Brunet
       ReadStart(out dir, out id, r);
       return new ConnectToMessage(dir, id, r);
     }
+
+    public Hashtable ToHashtable() {
+      Hashtable ht = new Hashtable();
+      ht["type"] = _ct;
+      ht["target"] = _target_ni.ToHashtable();
+      ArrayList neighs = new ArrayList();
+      foreach(NodeInfo n in Neighbors) {
+        neighs.Add( n.ToHashtable() );
+      }
+      ht["neighbors"] = neighs;
+      return ht;
+    }
     
     public override void WriteTo(XmlWriter w)
     {
@@ -229,7 +257,11 @@ namespace Brunet
   public class ConnectToMessageTester {
 
     public ConnectToMessageTester() { }
-
+    
+    public void HTRoundTrip(ConnectToMessage ctm) {
+      ConnectToMessage ctm2 = new ConnectToMessage( ctm.ToHashtable() );
+      Assert.AreEqual(ctm, ctm2, "CTM HT Roundtrip");
+    }
     [Test]
     public void CTMSerializationTest()
     {
@@ -241,6 +273,8 @@ namespace Brunet
       
       ConnectToMessage ctm1a = (ConnectToMessage)xt.SerializeDeserialize(ctm1);
       Assert.AreEqual(ctm1, ctm1a, "CTM with 1 TA");
+      HTRoundTrip(ctm1);
+      HTRoundTrip(ctm1a);
 
       //Test multiple tas:
       ArrayList tas = new ArrayList();
@@ -253,6 +287,8 @@ namespace Brunet
       
       ConnectToMessage ctm2a = (ConnectToMessage)xt.SerializeDeserialize(ctm2);
       Assert.AreEqual(ctm2, ctm2a, "CTM with 10 TAs");
+      HTRoundTrip(ctm2);
+      HTRoundTrip(ctm2a);
       //Here is a ConnectTo message with a neighbor list:
       NodeInfo[] neighs = new NodeInfo[5];
       for(int i = 0; i < 5; i++) {
@@ -266,6 +302,8 @@ namespace Brunet
       ConnectToMessage ctm3 = new ConnectToMessage("structured", ni, neighs);
       ConnectToMessage ctm3a = (ConnectToMessage)xt.SerializeDeserialize(ctm3);
       Assert.AreEqual(ctm3, ctm3a, "CTM with neighborlist");
+      HTRoundTrip(ctm3);
+      HTRoundTrip(ctm3a);
 #if false
       System.Console.Error.WriteLine( ctm3.ToString() );
       foreach(NodeInfo tni in ctm3a.Neighbors) {
