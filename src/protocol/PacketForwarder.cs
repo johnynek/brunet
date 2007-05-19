@@ -2,6 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
+Copyright (C) 2007 P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -18,19 +19,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-/**
- * Dependencies
- * Brunet.IAHPacketHandler
- * Brunet.IPacketSender
- * Brunet.NumberSerializer
- * Brunet.AddressParser
- * Brunet.Address
- * Brunet.AHPacket
- * Brunet.Edge
- * Brunet.Node
- * Brunet.Packet
- */
-
 namespace Brunet
 {
 
@@ -38,156 +26,98 @@ namespace Brunet
    * Implements the Packet Forwarding protocol which is
    * used to Bootstrap new connections on the network (and
    * potentially for other uses in the future).
+   *
+   * The Basic idea is to send a packet from A->B->C preserving
+   * the information so that C can do: C->B->A (a path that should
+   * exist).
    */
-  public class PacketForwarder:IAHPacketHandler
+  public class PacketForwarder : IDataHandler
   {
 
     /*private static readonly log4net.ILog _log =
         log4net.LogManager.GetLogger(System.Reflection.MethodBase.
         GetCurrentMethod().DeclaringType);*/
-#if PLAB_LOG
-    protected BrunetLogger _logger;
-    public BrunetLogger Logger{
-      get{
-        return _logger;
-      }
-      set
-      {
-        _logger = value;
-      }
-    }
-#endif
     
     protected Address _local;
+    protected Node _n;
 
-    public PacketForwarder(Address local)
+    public PacketForwarder(Node local)
     {
-      _local = local;
+      _n = local;
+      _local = _n.Address;
     }
 
     /**
      * This handles the packet forwarding protocol
      */
-    public void HandleAHPacket(object node, AHPacket p, Edge from)
+    public void HandleData(MemBlock b, ISender ret_path, object state)
     {
-      if (p.Destination.IsUnicast) {
-        Node n = (Node) node;
-        AHPacket f_pack = UnwrapPacket(p);
-        /*_log.Info("Forwarding source: " + f_pack.Source.ToString()
-        		   + " forwarder: " + _local.ToString()
-        		   + " destination: " + f_pack.Destination.ToString()
-        		   + " P: " + p.ToString());*/
-        if( f_pack.Source.Equals( _local ) ) {
-#if PLAB_LOG
-          BrunetEventDescriptor bed = new BrunetEventDescriptor();      
-          bed.RemoteAHAddress = f_pack.Destination.ToBigInteger().ToString();
-          bed.EventDescription = "PacketForwarder.HAP.target";
-          Logger.LogAttemptEvent( bed );
-#endif
-
-          n.Send(f_pack, from);
+      /*
+       * Check it
+       */
+      AHSender ahs = ret_path as AHSender;
+      if( ahs != null ) {
+        //This was an AHSender:
+        /*
+         * This goes A -> B -> C
+         */
+        if( b[0] == 0 ) {
+          //This is the first leg, going from A->B
+          Address add_c = AddressParser.Parse(b.Slice(1, Address.MemSize));
+          //Since ahs a sender to return, we would be the source:
+          Address add_a = ahs.Destination;
+          MemBlock payload = b.Slice( 1 + Address.MemSize );
+          MemBlock f_header = MemBlock.Reference( new byte[]{1} );
+          /*
+           * switch the packet from [A B f0 C] to [B C f 1 A]
+           */
+          ICopyable new_payload = new CopyList(PType.Protocol.Forwarding,
+                                           f_header, add_a, payload);
+          AHSender next = new AHSender(_n, add_c); 
+          next.Send(new_payload);
         }
-        else {
-          //The sender made an incorrect packet:
-          //_log.Error("Forwarder: Wrapped Source != Local");
+        else if ( b[0] == 1 ) {
+          /*
+           * This is the second leg: B->C
+           * Make a Forwarding Sender, and unwrap the inside packet
+           */
+          Address add_a = AddressParser.Parse(b.Slice(1, Address.MemSize));
+          Address add_b = ahs.Destination;
+          MemBlock rest_of_payload = b.Slice(1 + Address.MemSize);
+          //Here's the return path:
+          ISender new_ret_path = new ForwardingSender(_n, add_b, add_a);
+          _n.Announce(rest_of_payload, new_ret_path);
         }
       }
       else {
-        //_log.Error("Forward to NONUNICAST address: " + p.Destination.ToString());
+        //This is not (currently) supported.
+        System.Console.Error.WriteLine("Got a forwarding request from: {0}", ret_path);
       }
-    }
-
-    public bool HandlesAHProtocol(string type)
-    {
-      return (type == AHPacket.Protocol.Forwarding);
-    }
-
-    /**
-     * Make forward packet
-     * @param packet_to_wrap the originally, fully constructed packet
-     * @param forwarder the address to send the forward through
-     * @param ttl_to_forwarder the ttl to use to reach the forwarder.
-     *
-     * The source of the resulting packet will be the source from
-     * the packet_to_wrap.  The "next destination" will be the destination
-     * from the packet_to_wrap, and the "next ttl" will be the the ttl
-     * from the packet_to_wrap
-     * 
-     * This wraps a packet which was going A->B, to A->C->B where
-     * C is the forwarder.
-     */
-    static public AHPacket WrapPacket(Address forwarder,
-                                      short ttl_to_forwarder,
-                                      AHPacket packet_to_wrap)
-    {
-#if false
-      System.Console.Error.WriteLine("Packet to wrap: {0}", packet_to_wrap);
-      System.Console.Error.WriteLine("HeaderSize: {0} PayloadLength: {1} Length: {2}",
-		                packet_to_wrap.HeaderSize,
-		                packet_to_wrap.PayloadLength,
-		                packet_to_wrap.Length);
-#endif
-      
-      byte[] whole_packet = new byte[packet_to_wrap.Length];
-      packet_to_wrap.CopyTo(whole_packet, 0);
-      //Change the source address to forwarder:
-      int offset_to_src_add = 5;
-      forwarder.CopyTo(whole_packet, offset_to_src_add);
-      //Put the whole packet into the payload of a new packet:
-      AHPacket result = new AHPacket(0, ttl_to_forwarder,
-                                     packet_to_wrap.Source,
-                                     forwarder,
-				     AHPacket.AHOptions.Greedy,
-                                     AHPacket.Protocol.Forwarding,
-                                     whole_packet);
-#if false
-      System.Console.Error.WriteLine("Result: {0}", result);
-      System.Console.Error.WriteLine("HeaderSize: {0} PayloadLength: {1} Length: {2}",
-		                result.HeaderSize,
-		                result.PayloadLength,
-		                result.Length);
-#endif
-      return result;
-    }
-
-    /**
-     * @todo make NUnit test for this method
-     * @param p the packet to forward
-     * @return the unwrapped packet
-     */
-    static public AHPacket UnwrapPacket(AHPacket p)
-    {
-      //System.Console.Error.WriteLine("Packet to Unwrap: {0}", p);
-      AHPacket result = new AHPacket( p.Payload );
-      //System.Console.Error.WriteLine("Result: {0}", result);
-      return result;
     }
   }
 
   /**
-   * This is an IPacketSender which first wraps the packet before
-   * sending it
+   * This is an ISender which forwards a packet through another node
    */
-  public class ForwardingSender : IPacketSender {
-    protected IPacketSender _ips;
-    protected Address _forwarder;
-    protected short _ttl;
+  public class ForwardingSender : ISender {
+    protected ISender _sender;
+    protected ICopyable _header;
+    
+    protected Address _dest;
+    public Address Destination { get { return _dest; } }
 
-    public ForwardingSender(IPacketSender ips, Address forwarder, short ttl) {
-      _ips = ips;
-      _forwarder = forwarder;
-      _ttl = ttl;
+    public ForwardingSender(Node n, Address forwarder, Address destination) {
+      _sender = new AHSender(n, forwarder);
+      _header = new CopyList(PType.Protocol.Forwarding,
+                             MemBlock.Reference(new byte[]{0}),
+                             destination);
     }
 
     /* 
      * Send a packet by forwarding it first.
      */
-    public void Send(Packet p) {
-      AHPacket ahp = p as AHPacket;
-      if( ahp != null ) {
-        AHPacket wrapped = PacketForwarder.WrapPacket(_forwarder, _ttl, ahp);
-        _ips.Send( wrapped );
-      }
+    public void Send(ICopyable d) {
+      _sender.Send( new CopyList(_header, d) );
     }
   }
 }

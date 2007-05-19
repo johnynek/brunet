@@ -19,17 +19,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-/*
- * Dependencies : 
- * Brunet.Edge
- * Brunet.EdgeException
- * Brunet.EdgeListener;
- * Brunet.Packet;
- * Brunet.PacketParser;
- * Brunet.TransportAddress;
- * Brunet.UdpEdge;
- */
-
 using Brunet;
 using System;
 using System.IO;
@@ -388,15 +377,8 @@ namespace Brunet
        SendEdgeEvent(edge);
       }
       if( read_packet ) {
-        try {
-          Packet p = PacketParser.Parse(packet);
-          //We have the edge, now tell the edge to announce the packet:
-          edge.Push(p);
-        }
-        catch(ParseException pe) {
-          System.Console.Error.WriteLine(
-             "Edge: {0} sent us an unparsable packet: {1}", edge, pe);
-	}
+        //We have the edge, now tell the edge to announce the packet:
+        edge.Push(packet);
       }
     }
     /**

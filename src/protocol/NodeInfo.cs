@@ -115,6 +115,21 @@ namespace Brunet
       _tas = new ArrayList();
       _tas.Add(ta);
     }
+
+    public NodeInfo(Hashtable ht) {
+      if( !ht["_object"].Equals( "node" ) ) { throw new Exception("Not a NodeInfo"); }
+      object addr_str = ht["address"];
+      if( addr_str != null ) {
+        _address = AddressParser.Parse((string)addr_str);
+      }
+      _tas = new ArrayList();
+      IEnumerable trans = ht["transports"] as IEnumerable;
+      if( trans != null ) {
+        foreach(string ta_s in (IEnumerable)ht["transports"]) {
+          _tas.Add( TransportAddressFactory.CreateInstance(ta_s) );
+        }
+      }
+    }
 	  
     protected Address _address;
     /**
@@ -211,6 +226,23 @@ namespace Brunet
     {
       return new NodeInfo(r);
     }
+
+    public Hashtable ToHashtable()
+    {
+      Hashtable ht = new Hashtable();
+      ht["_object"] = "node";
+      if( _address != null ) {
+        ht["address"] = _address.ToString();
+      }
+      if( _tas != null ) {
+        ArrayList trans = new ArrayList();
+        foreach(TransportAddress ta in _tas) {
+          trans.Add( ta.ToString() );
+        }
+        ht["transports"] = trans;
+      }
+      return ht;
+    }
     
     override public string ToString()
     {
@@ -254,6 +286,10 @@ namespace Brunet
     public NodeInfoTest() {
 
     }
+    public void RoundTripHT(NodeInfo ni) {
+      NodeInfo ni_other = new NodeInfo( ni.ToHashtable() );
+      Assert.AreEqual(ni, ni_other, "Hashtable roundtrip");
+    }
     //Test methods:
     [Test]
     public void TestWriteAndParse()
@@ -261,10 +297,12 @@ namespace Brunet
       Address a = new DirectionalAddress(DirectionalAddress.Direction.Left);
       TransportAddress ta = TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:5000");
       NodeInfo ni = new NodeInfo(a, ta);
+      RoundTripHT(ni);
 
       XmlAbleTester xt = new XmlAbleTester();
 
       NodeInfo ni2 = (NodeInfo)xt.SerializeDeserialize(ni);
+      RoundTripHT(ni2);
       //System.Console.Error.WriteLine("n1: {0}\nn2: {1}", ni, ni2);
       Assert.AreEqual(ni, ni2, "NodeInfo: address and 1 ta");
       
@@ -274,12 +312,14 @@ namespace Brunet
       for(int i = 5001; i < 5010; i++)
         tas.Add(TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:" + i.ToString()));
       NodeInfo ni3 = new NodeInfo(a, tas);
+      RoundTripHT(ni3);
       
       ni2 = (NodeInfo)xt.SerializeDeserialize(ni3);
       Assert.AreEqual(ni3, ni2, "NodeInfo: address and 10 tas");
 
       //Test null address:
       NodeInfo ni4 = new NodeInfo(null, ta);
+      RoundTripHT(ni4);
       
       ni2 = (NodeInfo)xt.SerializeDeserialize(ni4);
       Assert.AreEqual(ni4, ni2, "NodeInfo: null address and 1 ta");

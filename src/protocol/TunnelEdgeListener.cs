@@ -35,7 +35,7 @@ namespace Brunet
    * we create an edge that tunnel packets through some other P2P node. 
    */
 
-  public class TunnelEdgeListener: EdgeListener, IAHPacketHandler, IEdgeSendHandler
+  public class TunnelEdgeListener: EdgeListener, IDataHandler, IEdgeSendHandler
   {
     /**
      * A ReadOnly list of TransportAddress objects for
@@ -349,7 +349,7 @@ namespace Brunet
       lock(_sync) {
 	_running = false;
 	_node.HeartBeatEvent -= new EventHandler(TimeoutChecker);
-	_node.Unsubscribe(AHPacket.Protocol.Tunneling, this);      
+	_node.GetTypeSource(PType.Protocol.Tunneling).Unsubscribe(this);      
       }
     }
     
@@ -360,7 +360,7 @@ namespace Brunet
 #endif
       lock(_sync) {
 	_node = n;
-	_node.Subscribe(AHPacket.Protocol.Tunneling, this);
+	_node.GetTypeSource(PType.Protocol.Tunneling).Subscribe(this, null);
 	
 	//true for now, will change later
 	_ta_auth = new ConstantAuthorizer(TAAuthorizer.Decision.Allow);
@@ -384,13 +384,13 @@ namespace Brunet
 
       }
     }
-    public void HandleAHPacket(object node, AHPacket packet, Edge from)
+    public void HandleData(MemBlock packet, ISender return_path, object state)
     {
       if (!_running) {
 	Console.Error.WriteLine("TunnelEdgeListeber: not running (cannot handle packet)");
 	return;
       }
-      MemoryStream payload_ms = packet.PayloadStream;
+      MemoryStream payload_ms = packet.ToMemoryStream();
       //read the payload?
       MessageType type = (MessageType) payload_ms.ReadByte();
       int remoteid = NumberSerializer.ReadInt(payload_ms);
@@ -481,7 +481,7 @@ namespace Brunet
 	Console.Error.WriteLine("Sending edge response: {0}", p);
 #endif
 	try {
-	  from.Send(p);
+	  return_path.Send(p);
 	} catch (Exception ex) {
 	  Console.Error.WriteLine(ex);
 	}
@@ -556,16 +556,12 @@ namespace Brunet
 	TunnelEdge edge_to_read = (TunnelEdge) _id_ht[localid];
 	if (edge_to_read != null) {
 	  if (edge_to_read.RemoteID == remoteid) {
-	    try {
-	      Packet p = PacketParser.Parse(MemBlock.Reference(payload_ms.ToArray()).Slice((int)payload_ms.Position));
-	      edge_to_read.Push(p);
+            MemBlock b =
+                MemBlock.Reference(payload_ms.ToArray()).Slice((int)payload_ms.Position);
+	    edge_to_read.Push(b);
 #if TUNNEL_DEBUG
-	      Console.Error.WriteLine("Receiving packet of length: {0} on edge: {1}", p.Length, edge_to_read);
+	      Console.Error.WriteLine("Receiving packet of length: {0} on edge: {1}", b.Length, edge_to_read);
 #endif
-	    } catch(Exception pe) {
-	      System.Console.Error.WriteLine("Edge: {0} sent us an unparsable packet: {1}", 
-					     edge_to_read, pe);
-	    }
 	  } else {
 #if TUNNEL_DEBUG
 	    Console.Error.WriteLine("No correspondig edge to push packet into (Id mismatch).");
@@ -696,11 +692,6 @@ namespace Brunet
       }
     }
     
-
-    public bool HandlesAHProtocol(string type)
-    {
-      return (type == AHPacket.Protocol.Tunneling);
-    }
     /*
      * When a UdpEdge closes we need to remove it from
      * our table, so we will know it is new if it comes

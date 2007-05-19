@@ -40,17 +40,13 @@ public interface ICopyable {
 /**
  * Join (without yet copying) a set of ICopyable objects
  */
-public class CopySet : ICopyable {
+public class CopyList : ICopyable {
   
-  protected System.Collections.IEnumerable _cs;
+  protected ICopyable[] _cs;
   /**
    * @param cs is an IEnumerable of ICopyable objects
    */
-  CopySet(System.Collections.IEnumerable cs) {
-    _cs = cs;
-  }
-  
-  CopySet(params ICopyable[] cs) {
+  public CopyList(params ICopyable[] cs) {
     _cs = cs;
   }
   
@@ -59,7 +55,8 @@ public class CopySet : ICopyable {
    */
   public int CopyTo(byte[] dest, int offset) {
     int total = 0;
-    foreach(ICopyable c in _cs) {
+    for(int i = 0; i < _cs.Length; i++) {
+      ICopyable c = _cs[i];
       total += c.CopyTo(dest, offset + total);
     }
     return total;
@@ -67,7 +64,8 @@ public class CopySet : ICopyable {
   public int Length {
     get {
       int total_length = 0;
-      foreach(ICopyable c in _cs) {
+      for(int i = 0; i < _cs.Length; i++) {
+        ICopyable c = _cs[i];
         total_length += c.Length;
       }
       return total_length;

@@ -39,7 +39,7 @@ namespace Brunet
    * connections. 
    * 
    */
-  abstract public class Node:IPacketSender, IPacketHandler
+  abstract public class Node : IDataHandler
   {
     /*private static readonly log4net.ILog log =
         log4net.LogManager.GetLogger(System.Reflection.MethodBase.
@@ -67,11 +67,10 @@ namespace Brunet
      * Create a node with a given local address and
      * a set of Routers.
      */
-    public Node(Address add)
+    public Node(Address addr)
     {
       //Start with the address hashcode:
       _gracefully_close_edges  = new Hashtable();
-      _cmp = new ConnectionMessageParser();
 
       _sync = new Object();
       lock(_sync)
@@ -79,9 +78,8 @@ namespace Brunet
         /*
          * Make all the hashtables : 
          */
-        _local_add = add;
+        _local_add = addr;
         _subscription_table = new Hashtable();
-        _send_subs = new Hashtable();
 
         _task_queue = new TaskQueue();
         //Here is the thread for announcing packets
@@ -90,16 +88,18 @@ namespace Brunet
         _announce_thread = new Thread(this.AnnounceThread);
         
         _connection_table = new ConnectionTable(_local_add);
-        _connection_table.ConnectionEvent +=
-          new EventHandler(this.ConnectionHandler);
+        _connection_table.ConnectionEvent += this.ConnectionHandler;
         /*
          * We must later make sure the EdgeEvent events from
          * any EdgeListeners are connected to _cph.EdgeHandler
          */
-        _cph = new ConnectionPacketHandler(this);
-        /* Here are the transport addresses */
-        /*@throw ArgumentNullException if the list ( new ArrayList()) is null.
+        /**
+         * Here are the protocols that every edge must support
          */
+        //Handles linking:
+        GetTypeSource(PType.Protocol.Linking).Subscribe(new ConnectionPacketHandler(), this);
+
+        /* Here are the transport addresses */
         _remote_ta = new ArrayList();
         /*@throw ArgumentNullException if the list ( new ArrayList()) is null.
          */
@@ -107,8 +107,6 @@ namespace Brunet
         _edgelistener_list = new ArrayList();
         _edge_factory = new EdgeFactory();
 
-        //Put all the Routers in :
-        _routers = new IRouter[ 161 ];
         /* Set up the heartbeat */
         _heart_period = 2000; //2000 ms, or 2 second.
         _timer = new Timer(new TimerCallback(this.HeartBeatCallback),
@@ -118,22 +116,58 @@ namespace Brunet
         _last_edge_check = DateTime.UtcNow;
       }
     }
+    /**
+     * This class represents the demultiplexing of each
+     * type of data to different handlers
+     */
+    protected class NodeSource : ISource {
+      protected object _sync; //The object to lock before changing the subscriptions
+      protected volatile ArrayList _subs;
+      protected volatile ArrayList _states;
 
+      public NodeSource(object sync) {
+        _subs = new ArrayList(); 
+        _states = new ArrayList(); 
+        _sync = sync;
+      }
+
+      public void Subscribe(IDataHandler h, object state) {
+        lock( _sync ) {
+          _subs = Functional.Add(_subs, h);
+          _states = Functional.Add(_states, state);
+        }
+      }
+      public void Unsubscribe(IDataHandler h) {
+        lock( _sync ) {
+          int idx = _subs.IndexOf(h);
+          _subs = Functional.RemoveAt(_subs, idx);
+          _states = Functional.RemoveAt(_subs, idx);
+        }
+      }
+      /**
+       * @return the number of Handlers that saw this data
+       */
+      public int Announce(MemBlock b, ISender return_path) {
+        ArrayList subs = null;
+        ArrayList states = null;
+        lock( _sync ) {
+          subs = _subs;
+          states = _states;
+        }
+        int handlers = 0;
+        for(int i = 0; i < subs.Count; i++) {
+          IDataHandler dh = (IDataHandler)subs[i];
+          dh.HandleData(b, return_path, states[i]);
+          handlers++;
+        }
+        return handlers;
+      }
+    }
     /**
      * Keeps track of the objects which need to be notified 
      * of certain packets.
      */
     protected Hashtable _subscription_table;
-    /**
-     * Same thing as the above, except for sends
-     */
-    protected Hashtable _send_subs;
-
-    /**
-     * This object handles new Edge objects, and
-     * manages the incoming Link protocol
-     */
-    protected ConnectionPacketHandler _cph;
 
     protected Address _local_add;
     /**
@@ -225,10 +259,6 @@ namespace Brunet
     }
 
     /**
-     * Holds the Router for each Address type
-     */
-    protected IRouter[] _routers;
-    /**
      * This is true after Connect is called and false after
      * Disconnect is called.
      */
@@ -244,7 +274,6 @@ namespace Brunet
 
     protected Hashtable _gracefully_close_edges;
 
-    protected ConnectionMessageParser _cmp;
     /**
      * Manages the various mappings associated with connections
      */
@@ -303,9 +332,18 @@ namespace Brunet
        * It is ESSENTIAL that the EdgeEvent of EdgeListener objects
        * be connected to the EdgeHandler method of ConnectionPacketHandler
        */
-      el.EdgeEvent += new EventHandler(_cph.EdgeHandler);
+      el.EdgeEvent += this.EdgeHandler;
     }
-    
+    /**
+     * Unsubscribe all IDataHandlers for a given
+     * type
+     */
+    protected void ClearTypeSource(PType t) {
+      lock( _sync ) {
+        //Reset it to a new source
+        _subscription_table[t] = new NodeSource(_sync);
+      }
+    }
     /**
      * The default TTL for this destination 
      */
@@ -338,6 +376,40 @@ namespace Brunet
         ttl = (short)( ttld );
       }
       return ttl;
+    }
+
+    /**
+     * This Handler should be connected to incoming EdgeEvent
+     * events.  If it is not, it cannot hear the new edges.
+     *
+     * When a new edge is created, we make sure we can hear
+     * the packets from it.  Also, we make sure we can hear
+     * the CloseEvent.
+     *
+     * @param edge the new Edge
+     */
+    protected void EdgeHandler(object edge, EventArgs args)
+    {
+      Edge e = (Edge)edge;
+      e.Subscribe(this, e);
+      _connection_table.AddUnconnected(e);
+    }
+
+    /**
+     * All packets that come to this node are demultiplexed according to
+     * type.  To subscribe, get the ISource for the type you want, and
+     * subscribe to it.  Similarly for the unsubscribe.
+     */
+    public ISource GetTypeSource(PType t) {
+      ISource s;
+      lock( _sync ) {
+        s = (ISource)_subscription_table[t];
+        if( s == null ) {
+          s = new NodeSource(_sync);
+          _subscription_table[t] = s;
+        }
+      }
+      return s;
     }
     /**
      * Starts all edge listeners for the node.
@@ -373,10 +445,10 @@ namespace Brunet
      * what we pass
      */
     private class AnnounceState {
-      public AHPacket Pack;
+      public MemBlock Data;
       public Edge From;
-      public AnnounceState(AHPacket p, Edge from) {
-        Pack = p;
+      public AnnounceState(MemBlock p, Edge from) {
+        Data = p;
         From = from;
       }
     }
@@ -384,7 +456,7 @@ namespace Brunet
       try {
        while( _running ) {
         AnnounceState a_state = (AnnounceState)_packet_queue.Dequeue();
-        Announce(a_state.Pack, a_state.From);
+        Announce(a_state.Data, a_state.From);
        }
       }
       catch(System.InvalidOperationException) {
@@ -404,7 +476,7 @@ namespace Brunet
      * One needs to be careful to prevent an infinite loop of
      * a Handler announcing the packet it is supposed to handle.
      */
-    public virtual void Announce(AHPacket p, Edge from)
+    public virtual void Announce(MemBlock b, ISender from)
     {
 
       //System.Console.Error.WriteLine("Announcing packet: {0}:", p.ToString() );
@@ -419,34 +491,25 @@ namespace Brunet
        * Note that getting from Hashtable is threadsafe, multiple
        * threads writing is a problem
        */
-      ArrayList handlers = _subscription_table[p.PayloadType] as ArrayList;
-      if (handlers != null) {
-        //log.Info("Announcing Packet: " + p.ToString() );
-        /*
-         * Ordinarily I prefer foreach, but for is faster in this
-         * case and this code gets called for every packet we receive
-         */
-        int count = handlers.Count;
-        for(int i = 0; i < count; i++) {
-          IAHPacketHandler hand = null;
-          try {
-            hand = (IAHPacketHandler)handlers[i];
-            //System.Console.Error.WriteLine("Handler: {0}", hand);
-            hand.HandleAHPacket(this, p, from);
-          }
-          catch(Exception x) {
-            System.Console.Error.WriteLine("ERROR: Packet Handling Exception");
-            System.Console.Error.WriteLine("Hander: {0}\tEdge: {1}\tPacket: {2}",hand, from, p);
-            System.Console.Error.WriteLine("Exception: {0}", x);
-          }
-        }
+      MemBlock payload = null;
+      PType t = PType.Parse(b, out payload);
+      NodeSource ns = (NodeSource)GetTypeSource(t);
+      int handlers = 0;
+      try {
+        handlers = ns.Announce(payload, from);
       }
-      else {
-        /**
-         * @todo we should send some kind of ICMP message to the sender
-         * and let them know we don't know about this protocol
-         */
-        //log.Error("No Handler for: " + p.ToString());
+      catch(Exception x) {
+        System.Console.Error.WriteLine("ERROR: Packet Handling Exception");
+        System.Console.Error.WriteLine("Hander: {0}\tEdge: {1}\tPacket: {2}", ns, from, b);
+        System.Console.Error.WriteLine("Exception: {0}", x);
+      }
+      /**
+       * @todo if no one handled the packet, we might want to send some
+       * ICMP-like message.
+       */
+      if( handlers == 0 ) {
+        string p_s = payload.GetString(System.Text.Encoding.ASCII);
+        System.Console.Error.WriteLine("No Handler for packet type: {0}\n{1}", t, p_s);
       }
     }
     /**
@@ -479,12 +542,7 @@ namespace Brunet
     {
       ConnectionEventArgs ce_args = (ConnectionEventArgs) args;
       Edge edge = ce_args.Edge;
-      edge.SetCallback(Packet.ProtType.AH, this);
-      //by Arijit Ganguly
-      //also register a callback for direct packets which we may get
-#if ARI_DIRECT_ENABLE
-      edge.SetCallback(Packet.ProtType.Direct, this);
-#endif      
+      edge.Subscribe(this, edge);
       //Our peer's remote is us
       TransportAddress reported_ta =
             ce_args.Connection.PeerLinkMessage.Remote.FirstTA;
@@ -556,6 +614,109 @@ namespace Brunet
       cm.Dir = ConnectionMessage.Direction.Request;
       GracefullyClose(e, cm);
     }
+
+    /**
+     * This is an enner class to handle Graceful closing
+     * @see GracefullyClose
+     */
+    protected class GracefulCloser : IDataHandler {
+      public CloseMessage CM;
+      public Edge Edge;
+      protected ConnectionTable _connection_table;
+      protected ConnectionMessageParser _cmp;
+
+      public GracefulCloser(Edge e, CloseMessage cm, ConnectionTable ct) {
+        Edge = e;
+        CM = cm;
+        _connection_table = ct;
+        _cmp = new ConnectionMessageParser();
+        e.Subscribe(this, null);
+      }
+
+    /**
+     * When we close gracefully, we wait for a response Close message
+     * before closing.  This method is waiting for such a response
+     */
+      public void HandleData(MemBlock data, ISender return_path, object state) {
+        bool remove = false;
+        CloseMessage close_req = CM;
+        
+        ConnectionMessage cm = null;
+        try {
+          MemBlock payload;
+          PType pt = PType.Parse(data, out payload);
+          //Ignore non-link protocol packets
+          if( !pt.Equals( PType.Protocol.Linking ) ) { return; }
+          cm = _cmp.Parse(payload);
+  #if DEBUG
+          Console.Error.WriteLine("Got cm: {0}\nfrom: {1}", cm, from);
+  #endif
+          if( cm.Dir == ConnectionMessage.Direction.Response ) {
+            //We expect a response to our close request:
+            if( cm is CloseMessage ) {
+              /*
+               * Make sure we do not accept any more packets from
+               * this Edge:
+               */
+              Edge.Unsubscribe(this);
+              remove = true;
+            }
+            else {
+              //This is some kind of other response.  We don't expect this.
+              //Resend the close request:
+              Send();
+            }
+          }
+          else {
+            if( cm is CloseMessage ) {
+              //Somehow this is a Close Request.  We were expecting
+              //a close response.  In this case.  We just respond
+              //to his request:
+              CloseMessage close_res = new CloseMessage();
+              close_res.Id = cm.Id;
+              close_res.Dir = ConnectionMessage.Direction.Response;
+              return_path.Send( close_res.ToPacket() );
+              /**
+               * In order to make sure that we close gracefully, we simply
+               * move this edge to the unconnected list.  The node will
+               * close edges that have been there for some time
+               */
+              lock( _connection_table.SyncRoot ) {
+                if( !_connection_table.IsUnconnected(Edge) ) {
+                  _connection_table.Disconnect(Edge);
+                }
+              }
+            }
+            else {
+              //This is a request, we did not expect this
+              ErrorMessage error_message =
+                new ErrorMessage(ErrorMessage.ErrorCode.UnexpectedRequest,
+                                 "Got Expected Response");
+              error_message.Id = cm.Id;
+              error_message.Dir = ConnectionMessage.Direction.Response;
+              return_path.Send( error_message.ToPacket() );
+              //Re-request that the edge be closed:
+              return_path.Send( close_req.ToPacket() );
+            }
+          }
+        }
+        catch (InvalidCastException x) {
+          Console.Error.WriteLine( "Bad cast in node: " + x.ToString() );
+        }
+        catch( EdgeException ) {
+          //Make sure the edge is closed:
+          Edge.Close();
+        }
+        finally {
+          if( remove ) { Edge.Close(); }
+        }
+      }
+        
+      public void Send() {
+        Edge.Send( CM.ToPacket() );
+      }
+
+    }
     /**
      * @param e Edge to close
      * @param cm CloseMessage to send to other node
@@ -566,17 +727,17 @@ namespace Brunet
     public void GracefullyClose(Edge e, CloseMessage cm)
     {
       try {
-        e.CloseEvent += new EventHandler(this.GracefulCloseHandler);
-        e.SetCallback(Packet.ProtType.Connection, this);
-        e.Send( cm.ToPacket() );
+        e.CloseEvent += this.GracefulCloseHandler;
+        GracefulCloser gc = new GracefulCloser(e, cm, _connection_table);
         lock( _sync ) {
-          _gracefully_close_edges[e] = cm;
+          _gracefully_close_edges[e] = gc;
         }
         /**
          * Close any connection on this edge, and
          * put the edge into the list of unconnected edges
          */
         _connection_table.Disconnect(e);
+        gc.Send();
       }
       catch(EdgeException) {
         //If the edge has some problem, don't do anything
@@ -595,111 +756,12 @@ namespace Brunet
     }
 
     /**
-     * When we close gracefully, we wait for a response Close message
-     * before closing.  This method is waiting for such a response
+     * Implements the IDataHandler interface
      */
-    protected void GracefulClosePacketCallback(Packet p, Edge from)
-    {
-      bool remove = false;
-      CloseMessage close_req;
-      lock( _sync ) {
-        close_req = (CloseMessage)_gracefully_close_edges[from];
-      }
-      ConnectionMessage cm = null;
-      try {
-        cm = _cmp.Parse((ConnectionPacket)p);
-#if DEBUG
-        Console.Error.WriteLine("Got cm: {0}\nfrom: {1}", cm, from);
-#endif
-        if( cm.Dir == ConnectionMessage.Direction.Response ) {
-          //We expect a response to our close request:
-          if( cm is CloseMessage ) {
-            /*
-             * Make sure we do not accept any more packets from
-             * this Edge:
-             */
-            from.ClearCallback(Packet.ProtType.Connection);
-            remove = true;
-          }
-          else {
-            //This is some kind of other response.  We don't expect this.
-            //Resend the close request:
-            if( close_req != null ) from.Send( close_req.ToPacket() );
-          }
-        }
-        else {
-          if( cm is CloseMessage ) {
-            //Somehow this is a Close Request.  We were expecting
-            //a close response.  In this case.  We just respond
-            //to his request:
-            CloseMessage close_res = new CloseMessage();
-            close_res.Id = cm.Id;
-            close_res.Dir = ConnectionMessage.Direction.Response;
-            from.Send( close_res.ToPacket() );
-            /**
-             * In order to make sure that we close gracefully, we simply
-             * move this edge to the unconnected list.  The node will
-             * close edges that have been there for some time
-             */
-            lock( _connection_table.SyncRoot ) {
-              if( !_connection_table.IsUnconnected(from) ) {
-                _connection_table.Disconnect(from);
-              }
-            }
-          }
-          else {
-            //This is a request, we did not expect this
-            ErrorMessage error_message =
-              new ErrorMessage(ErrorMessage.ErrorCode.UnexpectedRequest,
-                               "Got Expected Response");
-            error_message.Id = cm.Id;
-            error_message.Dir = ConnectionMessage.Direction.Response;
-            from.Send( error_message.ToPacket() );
-            //Re-request that the edge be closed:
-            if( close_req != null ) from.Send( close_req.ToPacket() );
-          }
-        }
-      }
-      catch (InvalidCastException x) {
-        Console.Error.WriteLine( "Bad cast in node: " + x.ToString() );
-      }
-      catch( EdgeException ) {
-        //Make sure the edge is closed:
-        from.Close();
-      }
-      finally {
-        if( remove ) {
-            lock( _sync ) {
-              _gracefully_close_edges.Remove(from);
-            }
-#if DEBUG
-            Console.Error.WriteLine("{0} Got a response {2} to our close request, closing: {1}",
-                              Address,
-                              from,
-                              cm);
-#endif
-            from.Close();
-          }
-      }
-    }
-
-    /**
-     * Implements the IPacketHandler interface
-     */
-    public void HandlePacket(Packet p, Edge from)
-    {
-      if( p.type == Packet.ProtType.AH ) {
-        Send(p, from);
-      }
-#if ARI_DIRECT_ENABLE
-      //added by Arijit Ganguly for handling direct packets
-      if (p.type == Packet.ProtType.Direct) {
-	HandleDirectPacket(from, (DirectPacket) p);
-      }
-#endif      
-      else if( p.type == Packet.ProtType.Connection ) {
-        GracefulClosePacketCallback(p, from); 
-      }
+    public void HandleData(MemBlock data, ISender return_path, object state) {
+      AnnounceState astate = new AnnounceState(data, return_path as Edge);
+      _packet_queue.Enqueue(astate);
+      //Announce(data, return_path);
     }
     
     /**
@@ -764,8 +826,8 @@ namespace Brunet
           while( grace_close_enum.MoveNext() ) {
             Edge e = (Edge)grace_close_enum.Key;
             try {
-              CloseMessage cm = (CloseMessage)grace_close_enum.Value;
-              e.Send( cm.ToPacket() );
+              GracefulCloser gc = (GracefulCloser)grace_close_enum.Value;
+              gc.Send();
 #if DEBUG
             Console.Error.WriteLine("Sending close to: {0}", e);
 #endif
@@ -803,361 +865,29 @@ namespace Brunet
     {
       ///Just send the event:
       try {
-        if( HeartBeatEvent != null )
+        if( HeartBeatEvent != null ) {
           HeartBeatEvent(this, EventArgs.Empty);
+        }
       }
       catch(Exception x) {
         Console.Error.WriteLine("Exception in heartbeat: {0}", x.ToString() );
       }
     }
+  }
 
-    /**
-     * Send the packet to the next hop AVOIDING edge f
-     * This is used by HandlePacket, and some AHPacketHandlers
-     * @param p the packet to send on
-     * @param f the edge to AVOID sending to
-     */
-    virtual public void Send(Packet p, Edge from)
-    {
+  /**
+   * This is a sender that just announces data at the local node.
+   */
+  public class LocalSender : ISender {
+    protected Node _n;
 
-      //System.Console.Error.WriteLine("Entering Send for node {0} packet {1}", this.Address, p.ToString() );
-
-      int sent = 0;
-
-      AHPacket packet = (AHPacket) p;
-      Address dest = packet.Destination;
-      IRouter router = (IRouter)_routers[dest.Class];
-      
-      bool deliver_locally = false;
-
-
-      //System.Console.Error.WriteLine("Sending with Router: {0}", router.ToString());
-
-      if (router != null) {
-        sent = router.Route(from, packet, out deliver_locally);
-      }
-      else {
-        /*log.Error(Address.ToString() + " No router for packet: "
-          + p.ToString());*/
-      }
-
-      if( deliver_locally ) {
-        //This one's for us!
-        /*log.Info(Address.ToString() + " Delivering Locally: "
-          + packet.ToString());*/
-
-        //#if DEBUG
-#if false 
-        System.Console.Error.WriteLine("Delivering locally to node {0} packet {1}", this.Address, p.ToString() );
-        //System.Console.ReadLine();
-#endif  
-        /*
-        Announce(packet, from);
-        */
-        AnnounceState astate = new AnnounceState(packet, from);
-        _packet_queue.Enqueue(astate);
-      }
-
-      if (sent <= 0) {
-        //No edges got it
-        /*log.Warn(Address.ToString() + " Could not send to: "
-          + packet.Destination.ToString() );*/
-        if( !deliver_locally ) {
-          /*log.Warn(Address.ToString() + " Packet not delivered: "
-            + packet.ToString() );*/
-        }
-      }
-      else
-      {
-        //We did send it
-        /*log.Info(Address.ToString() + " *_COULD_* send to: "
-          + packet.Destination.ToString() );*/
-      }
-    }
-    /**
-     * This may be used when you have a complete packet to send
-     * 
-     * @param p the packet to send (including destination information)
-     */
-    virtual public void Send(Packet p)
-    {
-      //Send without avoiding any edges
-      bool directly_routable = false;
-#if ARI_DIRECT_ENABLE
-      AHPacket packet = (AHPacket) p;
-      //directly routable packets enabled.
-      DirectlyRoute(packet, out directly_routable);
-#endif      
-      if (!directly_routable) {
-#if ARI_DIRECT_DEBUG
-	Console.Error.WriteLine("Packet not routed directly. Using regular router means.");
-#endif
-	Send(p, null);
-      } else {
-#if ARI_DIRECT_DEBUG
-	Console.Error.WriteLine("Packet routed directlty. Bypassing all routers. ");
-#endif
-      }
-
-
-      //Like Announce:
-      AHPacket ahp = p as AHPacket;
-      if( ahp != null ) {
-        //Note that reading from an Hashtable is threadsafe
-        ArrayList handlers = (ArrayList)_send_subs[ahp.PayloadType];
-        if( handlers != null ) {
-        /*
-         * Ordinarily I prefer foreach, but for is faster in this
-         * case and this code gets called for every packet we send
-         */
-          int count = handlers.Count;
-          for(int i = 0; i < count; i++) {
-            IAHPacketHandler hand = (IAHPacketHandler)handlers[i];
-            //System.Console.Error.WriteLine("Handler: {0}", hand);
-            hand.HandleAHPacket(this, ahp, null);
-          }
-        }
-      }
+    public LocalSender(Node n) {
+      _n = n;
     }
 
-    /**
-     * Sends a packet to the address given.  The node keeps track of
-     * which values to set for the TTL.
-     */
-    virtual public void SendTo(Address destination,
-                               short ttl,
-                               string p,
-                               byte[] payload)
-    {
-      AHPacket packet = new AHPacket(0, ttl, _local_add, destination, p, payload);
-      Send(packet);
+    public void Send(ICopyable data) {
+      MemBlock b = MemBlock.Copy(data);
+      _n.Announce(b, this);
     }
-
-    /**
-     * Sends a packet to the given address.  Estimates
-     * the correct TTL to use, so users of this library
-     * don't need to concern themselves with that.
-     *
-     * This is the recommended way for users of the library
-     * to send packets.
-     *
-     * By default it sets the TTL to be Ln^3 N for StructuredAddress
-     * types, and 2 Log_2 N, for UnstructuredAddress types.
-     */
-    virtual public void SendTo(Address destination,
-		               string p,
-			       byte[] payload)
-    {
-      short ttl = DefaultTTLFor(destination);
-      SendTo(destination, ttl, p, payload);
-    }
-
-    /**
-     * This replaces any existing IRouter objects with
-     * ones given as arguments
-     */
-    virtual protected void SetRouters(IEnumerable routers)
-    {
-      lock(_sync) {
-        foreach(IRouter r in routers) {
-          foreach(int addclass in r.RoutedAddressClasses) {
-            _routers[addclass] = r;
-            r.ConnectionTable = _connection_table;
-          }
-        }
-      }
-    }
-
-    /**
-     * Where should we send these packets?
-     */
-    virtual public void Subscribe(string prot, IAHPacketHandler hand)
-    {
-      lock(_sync) {
-        if (!_subscription_table.Contains(prot)) {
-          _subscription_table[prot] = new ArrayList();
-        }
-        /*
-         * We COPY the list because otherwise, one thread
-         * could be in announce, and then try to modify
-         * the list.  This would invalidate iterators in Announce
-         */
-        ArrayList a = new ArrayList( (ArrayList) _subscription_table[prot] );
-        a.Add(hand);
-        _subscription_table[prot] = a;
-      }
-    }
-    /**
-     * Subscribe to outgoing packets.  Use Subscribe to get incoming
-     * packets
-     */
-    virtual public void SubscribeToSends(string prot, IAHPacketHandler hand)
-    {
-      lock(_sync) {
-        ArrayList a = (ArrayList)_send_subs[prot];
-        /*
-         * We COPY the list because otherwise, one thread
-         * could be in announce, and then try to modify
-         * the list.  This would invalidate iterators in Announce
-         */
-        if (a == null) {
-          a = new ArrayList();
-        }
-        else {
-          a = new ArrayList(a);
-        }
-        a.Add(hand);
-        _send_subs[prot] = a;
-      }
-    }
-
-    /**
-     * This handler is going to stop listening
-     */
-    virtual public void Unsubscribe(string prot, IAHPacketHandler hand)
-    {
-      lock(_sync) {
-        if (_subscription_table.Contains(prot)) {
-          //Make a copy to make sure there are no thread safety issues
-          //with any Announces that might be going on.
-          ArrayList a = new ArrayList( (ArrayList) _subscription_table[prot] );
-          a.Remove(hand);
-          _subscription_table[prot] = a;
-        }
-      }
-    }
-    /**
-     * This handler is going to stop listening to sends of a given
-     * type
-     */
-    virtual public void UnsubscribeToSends(string prot, IAHPacketHandler hand)
-    {
-      lock(_sync) {
-        ArrayList a = (ArrayList)_send_subs[prot];
-        if ( a != null) {
-          //Make a copy for thread safety
-          a = new ArrayList(a);
-          a.Remove(hand);
-          _send_subs[prot] = a;
-        }
-      }
-    }
-
-#if ARI_DIRECT_ENABLE
-    /** Method to convert DirectPacket into an AHPacket
-     *  @param edge edge the packet came from 
-     *  @param direct_packet direct_packet which we just received
-     *  @param ah_packet corresponding AHPacket (out paramater)
-     */
-    void HandleDirectPacket(Edge edge, DirectPacket direct_packet) {
-#if ARI_DIRECT_DEBUG
-      Console.Error.WriteLine("Received a direct packet. Looking to handle it..");
-#endif
-
-      //to find out the source address, we simply have to lookup the connection table
-      lock(_connection_table.SyncRoot) {
-	Connection c = _connection_table.GetConnection(edge);
-	string payload_prot = direct_packet.PayloadType;
-	if (c.Address is AHAddress && _local_add is AHAddress && 
-	    payload_prot == AHPacket.Protocol.IP) {
-#if ARI_DIRECT_DEBUG
-	  Console.Error.WriteLine("Sanity check (address type checks, payload protocol) successfull, deflating packet");
-#endif
-
-	  Address source = c.Address;
-	  Address dest = _local_add;
-	  short ttl = 0;
-	  short hops = 1;
-	  AHPacket packet = new AHPacket(hops, ttl, source, dest, payload_prot, 
-					 direct_packet.Payload);
-	  //deliver the packet locally, wihout going through any routing hastle
-#if ARI_DIRECT_DEBUG
-	  Console.Error.WriteLine("Inflated packet from {0} to {1} bytes", direct_packet.Length, 
-			    packet.Length);
-      Console.Error.WriteLine("Announcing packet reception....");
-#endif
-
-	  Announce(packet, edge);
-	} else {
-	  //protocol is only restricted to structured nodes; why did we get this packet
-	  //from this edge
-	  ; //ignore
-#if ARI_DIRECT_DEBUG
-      Console.Error.WriteLine("Sanity check (address type checks, payload protocol) failed, ignoring packet");
-#endif
-	}
-      }
-    }
-    /** 
-     * Method that checks if the packet is routable as a direct packet.
-     * Please note that we do such tricks only for AHAddress packets
-     */
-    void DirectlyRoute(AHPacket packet, out bool directly_routable) {
-#if ARI_DIRECT_DEBUG
-      Console.Error.WriteLine("Testing if packet is routable directly. ");
-#endif
-      directly_routable = false;
-      Address dest = packet.Destination as AHAddress;
-      string payload_prot = packet.PayloadType;
-
-      //only if destination is a structured node. and payload protocol is IP
-      if (dest != null && payload_prot == AHPacket.Protocol.IP) {
-#if ARI_DIRECT_DEBUG
-	Console.Error.WriteLine("Packet is addressed to a structured address, and has IP-payload ");
-#endif
-	Connection next_con = null;
-	lock(_connection_table.SyncRoot)
-	  {
-	    //check if there is a leaf connection
-	    foreach(Connection c in _connection_table.GetConnections(ConnectionType.Leaf)) {
-	      if( c.Address.Equals(dest) ) {
-		//We can route it to this 
-		next_con = c;
-#if ARI_DIRECT_DEBUG
-		Console.Error.WriteLine("Found a leaf connection to send packet on.. ");
-#endif
-		break;
-	      }
-	    }
-	    //otherwise look for a structured connection
-	    if (next_con == null) {
-	      //check if there is a structured connection
-	      foreach(Connection c in _connection_table.GetConnections(ConnectionType.Structured)) {
-		if( c.Address.Equals(dest) ) {
-		  //We can route it to this 
-		  next_con = c;
-#if ARI_DIRECT_DEBUG
-		  Console.Error.WriteLine("Found a structured connection to send packet on.. ");
-#endif
-		  break;
-		}
-	      }
-	    }
-	  }//end of connection table lock;
-	if (next_con != null) {//directly routable
-	  directly_routable = true;
-#if ARI_DIRECT_DEBUG
-	  Console.Error.WriteLine("Converting to direct packet.... ");
-#endif
-	  DirectPacket direct_packet = null;
-	  packet.ToDirectPacket(out direct_packet);
-#if ARI_DIRECT_DEBUG
-	  Console.Error.WriteLine("Converted AHPacket: {0} to DirectPacket {1} bytes", packet.Length, 
-			    direct_packet.Length);
-	  Console.Error.WriteLine("Using the edge directly to send away the direct packet. ");
-#endif
-	  next_con.Edge.Send(direct_packet);
-	} else {
-#if ARI_DIRECT_DEBUG
-	  Console.Error.WriteLine("Couldn't find an edge to send packet on. ");
-#endif  
-	}
-      } else {
-#if ARI_DIRECT_DEBUG
-	Console.Error.WriteLine("Packet not suitable for direct delivery ");
-#endif  
-      }
-    }
-#endif
   }
 }

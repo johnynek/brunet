@@ -33,7 +33,7 @@ namespace Brunet
    * one particular attempt, on one particular Edge, which
    * was created using one TransportAddress
    */
-  public class LinkProtocolState : TaskWorker, ILinkLocker, IPacketHandler {
+  public class LinkProtocolState : TaskWorker, ILinkLocker, IDataHandler {
    
     /**
      * When this state machine reaches the end, it fires this event
@@ -44,8 +44,8 @@ namespace Brunet
         lock( _sync ) { return _is_finished; }
       }
     }
-    protected Packet _last_r_packet;
-    public Packet LastRPacket {
+    protected MemBlock _last_r_packet;
+    public MemBlock LastRPacket {
       get { return _last_r_packet; }
     }
     protected long _last_packet_datetime;
@@ -162,7 +162,7 @@ namespace Brunet
       _is_finished = false;
       //Setup the edge:
       _e = e;
-      _e.SetCallback(Packet.ProtType.Connection, this);
+      _e.Subscribe(this, _e);
       _e.CloseEvent += new EventHandler(this.CloseHandler);
     }
 
@@ -225,7 +225,7 @@ namespace Brunet
         _is_finished = true;
         _result = res;
         _node.HeartBeatEvent -= new EventHandler(this.PacketResendCallback);
-        _e.ClearCallback(Packet.ProtType.Connection);
+        _e.Unsubscribe(this);
         _e.CloseEvent -= new EventHandler(this.CloseHandler);
         if( this.Connection == null ) {
           to_close = _e;
@@ -448,7 +448,7 @@ namespace Brunet
     /**
      * When we get packets from the Edge, this is how we handle them
      */
-    public void HandlePacket(Packet p, Edge edge)
+    public void HandleData(MemBlock p, ISender edge, object state)
     {
       Packet to_send = null;
       bool finish = false;
@@ -614,9 +614,14 @@ namespace Brunet
      * If the packet contains an ErrorMessage, that ErrorMessage
      * is returned, else null
      */
-    protected ErrorMessage SetLastRPacket(Packet p) {
-        ConnectionPacket cp = (ConnectionPacket)p;
-        ConnectionMessage cm = _cmp.Parse(cp);
+    protected ErrorMessage SetLastRPacket(MemBlock p) {
+        MemBlock payload = null;
+        PType pt = PType.Parse(p, out payload);
+        if( !pt.Equals( PType.Protocol.Linking ) ) {
+          throw new LinkException(
+                    String.Format("Not a ConnectionProtocol Packet: {0}", pt) );
+        }
+        ConnectionMessage cm = _cmp.Parse( payload.ToMemoryStream() );
         //Check to see that the id matches and it is a request:
         if( cm.Id != _last_s_mes.Id ) {
           //There is an ID mismatch
@@ -635,7 +640,7 @@ namespace Brunet
           throw new LinkException("ConnectionMessage type mismatch");
         }
         //They must be sane, or the above would have thrown exceptions
-        _last_r_packet = cp;
+        _last_r_packet = p;
         _last_r_mes = cm;
         _last_packet_datetime = TimeUtils.NoisyNowTicks;
 	return null;

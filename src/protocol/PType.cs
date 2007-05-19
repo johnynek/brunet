@@ -63,6 +63,23 @@ public class PType : ICopyable {
 
   }
 #endif
+  /**
+   * Here is the list of defined protocols
+   */
+  public class Protocol {
+    public static readonly PType Linking = new PType(1);
+    public static readonly PType AH = new PType(2);
+    public static readonly PType Connection = new PType("c");
+    public static readonly PType Forwarding = new PType("f");
+    //for tunnel edges
+    public static readonly PType Tunneling = new PType("t");
+    public static readonly PType Echo = new PType("e");
+    public static readonly PType Tftp = new PType("tftp");
+    public static readonly PType Chat = new PType("chat");
+    public static readonly PType IP = new PType("i");
+    public static readonly PType ReqRep = new PType("r");
+    public static readonly PType Rpc = new PType("rpc");
+  }
 
   ///For ICopyable support
   public int Length { get { return ToMemBlock().Length; } }

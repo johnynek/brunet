@@ -32,8 +32,6 @@ namespace Brunet
 
   public class TunnelEdge: Edge
   {
-    protected object _sync;
-
     protected Node _node;
     protected IEdgeSendHandler _send_cb;
 
@@ -188,7 +186,7 @@ namespace Brunet
       }
     }
     
-    public void Push(Packet p)
+    public void Push(MemBlock p)
     {
       ReceivedPacketEvent(p);
     }

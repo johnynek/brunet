@@ -193,9 +193,9 @@ namespace Brunet
     //UDP ports are always bi-directional, and never ephemeral
     public override bool RemoteTANotEphemeral { get { return true; } }
     
-    public void Push(Packet p)
+    public void Push(MemBlock b)
     {
-      ReceivedPacketEvent(p);
+      ReceivedPacketEvent(b);
     }
   }
 

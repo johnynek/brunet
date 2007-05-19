@@ -45,42 +45,39 @@ namespace Brunet
    * @see Linker
    */
 
-  public class ConnectionPacketHandler : IPacketHandler, ILinkLocker
+  public class ConnectionPacketHandler : IDataHandler, ILinkLocker
   {
 
     /*private static readonly log4net.ILog log =
         log4net.LogManager.GetLogger(System.Reflection.MethodBase.
         GetCurrentMethod().DeclaringType);*/
 
-    protected readonly Address _local_add;
-    protected readonly Node _local;
-    protected readonly ConnectionTable _tab;
     protected readonly ConnectionMessageParser _cmp;
     /**
      * This is the only stateful object here.  The rest
      * do not need thread synchronization.
      */
-    protected readonly Hashtable _edge_to_lm;
+    protected readonly Hashtable _edge_to_cphstate;
+
+    protected class CphState {
+      public Edge Edge;
+      public LinkMessage LM;
+      public Node Local;
+    }
 
     /** global lock for thread synchronization */
     protected readonly object _sync;
     /**
-     * @param local the Node we work for
+     * You should subscribe this to a Node, with the state being the node
+     * it is subscribed to.  It can work for more than one node
+     * simultaneously.
      */
-    public ConnectionPacketHandler(Node local)
+    public ConnectionPacketHandler()
     {
       _sync = new object();
       lock(_sync) {
-	_local = local;
-        _tab = local.ConnectionTable;
-        _local_add = local.Address;
-        _edge_to_lm = new Hashtable();
+        _edge_to_cphstate = new Hashtable();
         _cmp = new ConnectionMessageParser();
-        /*
-         * Once a connection is made, we need to listen to the packets
-         * on that connection for close and ping messages.
-         */
-        _tab.ConnectionEvent += new EventHandler(this.ConnectionHandler);
       }
     }
 
@@ -102,11 +99,15 @@ namespace Brunet
      * that it is connected to the Edge by the
      * ConnectionPacketHandler, and by no other object.
      */
-    public void HandlePacket(Packet p, Edge from)
+    public void HandleData(MemBlock b, ISender ret_path, object state)
     {
       try {
-        ConnectionPacket packet = (ConnectionPacket)p;
-        ConnectionMessage cm = _cmp.Parse(packet);
+        Node local = (Node)state;
+        ConnectionTable tab = local.ConnectionTable;
+        Address local_add = local.Address;
+
+        ConnectionMessage cm = _cmp.Parse( b.ToMemoryStream() );
+        Edge from = (Edge)ret_path;
         if (cm.Dir == ConnectionMessage.Direction.Request) {
           ConnectionMessage response = null;
 	  if (cm is PingMessage) {
@@ -137,11 +138,13 @@ namespace Brunet
 	    //we just got s status request
 	    LinkMessage lm_to_add = null;
             lock( _sync ) {
-              if( _edge_to_lm.ContainsKey( from ) ) {
+              if( _edge_to_cphstate.ContainsKey( from ) ) {
                 //Add the connection:
-                lm_to_add = (LinkMessage)_edge_to_lm[from];
+                CphState cphstate = (CphState)_edge_to_cphstate[from];
+                lm_to_add = cphstate.LM;
                 //We can forget about this LinkMessage now:
-                _edge_to_lm.Remove(from);
+                _edge_to_cphstate.Remove(from);
+                from.CloseEvent -= this.CloseHandler;
               }
             }
             /**
@@ -154,17 +157,17 @@ namespace Brunet
 	    StatusMessage sm = (StatusMessage)cm;
 	    if (lm_to_add != null) {
 	      //This is part of connection process:
-	      response = _local.GetStatus( sm.NeighborType, lm_to_add.Local.Address );
+	      response = local.GetStatus( sm.NeighborType, lm_to_add.Local.Address );
 	    } else {
 	      //This is just a "regular" status request
 	      //update our table:
 	      Address fadd = null;
-	      Connection c = _tab.GetConnection(from);
+	      Connection c = tab.GetConnection(from);
 	      if( c != null ) {
 	        fadd = c.Address;
-		_tab.UpdateStatus(c, sm);
+		tab.UpdateStatus(c, sm);
               }  
-	      response = _local.GetStatus( sm.NeighborType, fadd );
+	      response = local.GetStatus( sm.NeighborType, fadd );
 	    }
             response.Dir = ConnectionMessage.Direction.Response;
             response.Id = cm.Id;
@@ -189,9 +192,9 @@ namespace Brunet
 #if LINK_DEBUG
 	      Console.Error.WriteLine("ConnectionPacketHandler - Creating a new connection: {0}, at: {1}", con, DateTime.Now);
 #endif
-	      _tab.Add(con);
+	      tab.Add(con);
               //Unlock after we add the connection
-              _tab.Unlock(lm_to_add.Local.Address, lm_to_add.ConTypeString, this);
+              tab.Unlock(lm_to_add.Local.Address, lm_to_add.ConTypeString, this);
             }
           }
           else if (cm is CloseMessage) {
@@ -213,13 +216,9 @@ namespace Brunet
              * move this edge to the unconnected list.  The node will
              * close edges that have been there for some time
              */
-            if( !_tab.IsUnconnected(from) ) {
-              _tab.Disconnect(from);
+            if( !tab.IsUnconnected(from) ) {
+              tab.Disconnect(from);
             }
-	    /**
-	     * We stop listening to packets from this edge.
-	     */
-	    from.ClearCallback(Packet.ProtType.Connection);
             /** 
              * Release locks when the close message arrives; do not wait
              * until the edge actually closes.
@@ -243,16 +242,21 @@ namespace Brunet
             LinkMessage lm = (LinkMessage)cm;
             ErrorMessage err = null;
             lock( _sync ) {
-              if( !_edge_to_lm.ContainsKey( from ) ) {
+              if( !_edge_to_cphstate.ContainsKey( from ) ) {
 #if LINK_DEBUG
 		Console.Error.WriteLine("ConnectionPacketHandler - Checking if can connect.");
 #endif
-                if( CanConnect(lm, from, out err) ) {
+                if( CanConnect(local, lm, from, out err) ) {
 #if LINK_DEBUG
 		  Console.Error.WriteLine("ConnectionPacketHandler - Yes we can connect connect.");
 #endif
+                  CphState cphstate = new CphState();
+                  cphstate.LM = lm;
+                  cphstate.Edge = from;
+                  cphstate.Local = local;
                   //We can connect, add this LinkMessage to the table
-                  _edge_to_lm[from] = lm;
+                  _edge_to_cphstate[from] = cphstate;
+                  from.CloseEvent += this.CloseHandler;
                 }
                 //We send a response after we drop the lock on _sync
               }
@@ -266,12 +270,12 @@ namespace Brunet
             //Now we prepare our response
             if( err == null ) {
               //We send a response:
-	      NodeInfo local_info = new NodeInfo( _local_add, from.LocalTA );
+	      NodeInfo local_info = new NodeInfo( local_add, from.LocalTA );
 	      NodeInfo remote_info = new NodeInfo( null, from.RemoteTA );
 	      System.Collections.Specialized.StringDictionary attrs =
 	        new System.Collections.Specialized.StringDictionary();
 	      attrs["type"] = lm.ConTypeString;
-	      attrs["realm"] = _local.Realm;
+	      attrs["realm"] = local.Realm;
               response = new LinkMessage( attrs, local_info, remote_info );
               response.Id = lm.Id;
               response.Dir = ConnectionMessage.Direction.Response;
@@ -294,7 +298,7 @@ namespace Brunet
                  * @todo consider putting this address on a "fast track"
                  * to removal if we don't hear from it soon
                  */
-                Connection c = _tab.GetConnection( lm.ConnectionType,
+                Connection c = tab.GetConnection( lm.ConnectionType,
                                                    lm.Local.Address );
                 if( c != null ) {
                   ConnectionMessage preq = new PingMessage();
@@ -329,8 +333,8 @@ namespace Brunet
              */
             
             StatusMessage sm = (StatusMessage)cm;
-            Connection con = _tab.GetConnection(from);
-            _tab.UpdateStatus(con,sm);
+            Connection con = tab.GetConnection(from);
+            tab.UpdateStatus(con,sm);
           }
         }
       }
@@ -348,36 +352,39 @@ namespace Brunet
      * if we can proceed.
      * If we cannot proceed, it gives an ErrorMessage to send
      * back to the other side.
+     * @param local the Node we are working for
      * @param lm LinkMessage received from the other Node
      * @param from Edge that lm came from
      * @param err ErrorMessage to return.  Is null if there is no error
      * @return true if we can connect, if false, err != null
      */
-    protected bool CanConnect(LinkMessage lm, Edge from, out ErrorMessage err)
+    protected bool CanConnect(Node local, LinkMessage lm, Edge from, out ErrorMessage err)
     {
+      ConnectionTable tab = local.ConnectionTable;
+      Address local_add = local.Address;
       err = null;
-      lock( _tab.SyncRoot ) {
+      lock( tab.SyncRoot ) {
 
-	if( lm.Attributes["realm"] != _local.Realm ) {
+	if( lm.Attributes["realm"] != local.Realm ) {
           err = new ErrorMessage(ErrorMessage.ErrorCode.RealmMismatch,
 			         "We are not in the same realm");
 	}
         else if( (lm.Remote.Address != null )
-                 && !_local_add.Equals( lm.Remote.Address ) ) {
+                 && !local_add.Equals( lm.Remote.Address ) ) {
           /*
            * They are trying to reach a specific node, but it's not
            * us
            */
           err = new ErrorMessage(ErrorMessage.ErrorCode.TargetMismatch,
                                  String.Format("target is {0}, but reached {1}",
-                                               lm.Remote.Address, _local_add));
+                                               lm.Remote.Address, local_add));
         }
-	else if( _tab.Contains( lm.ConnectionType, lm.Local.Address) ) {
+	else if( tab.Contains( lm.ConnectionType, lm.Local.Address) ) {
           //We already have a connection of this type to this address
           err = new ErrorMessage(ErrorMessage.ErrorCode.AlreadyConnected,
-                                 String.Format("We are already connected: {0}", _local_add));
+                                 String.Format("We are already connected: {0}", local_add));
         }
-        else if( lm.Local.Address.Equals( _local_add ) ) {
+        else if( lm.Local.Address.Equals( local_add ) ) {
           //You are me!!!
           err = new ErrorMessage(ErrorMessage.ErrorCode.ConnectToSelf,
                                  "You are me: ");
@@ -388,7 +395,7 @@ namespace Brunet
 #if LINK_DEBUG
 	    Console.Error.WriteLine("ConnectionPacketHandler - Trying to lock connection table: {0}", lm);
 #endif
-            _tab.Lock( lm.Local.Address, lm.ConTypeString, this );
+            tab.Lock( lm.Local.Address, lm.ConTypeString, this );
 #if LINK_DEBUG
 	    Console.Error.WriteLine("ConnectionPacketHandler - Successfully locked connection table: {0}", lm);
 #endif
@@ -421,49 +428,21 @@ namespace Brunet
      * Hashtable.
      * @param edge the Edge that closed
      */
-    protected void CloseHandler(object edge, EventArgs args)
+    public void CloseHandler(object edge, EventArgs args)
     {
       LinkMessage lm = null;
+      ConnectionTable tab = null;
       lock(_sync) {
-        if( _edge_to_lm.ContainsKey(edge) ) {
-          lm = (LinkMessage)_edge_to_lm[edge];
-          _edge_to_lm.Remove(edge);
+        if( _edge_to_cphstate.ContainsKey(edge) ) {
+          CphState cphstate = (CphState)_edge_to_cphstate[edge];
+          lm = cphstate.LM;
+          tab = cphstate.Local.ConnectionTable;
+          _edge_to_cphstate.Remove(edge);
         }
       }
       if( lm != null ) {
-        _tab.Unlock( lm.Local.Address, lm.ConTypeString, this );
+        tab.Unlock( lm.Local.Address, lm.ConTypeString, this );
       }
-    }
-
-    /**
-     * This Handler should be connected to incoming EdgeEvent
-     * events.  If it is not, it cannot hear the new edges.
-     *
-     * When a new edge is created, we make sure we can hear
-     * the packets from it.  Also, we make sure we can hear
-     * the CloseEvent.
-     *
-     * @param edge the new Edge
-     */
-    public void EdgeHandler(object edge, EventArgs args)
-    {
-      Edge e = (Edge)edge;
-      e.SetCallback(Packet.ProtType.Connection, this);
-      e.CloseEvent += new EventHandler(this.CloseHandler);
-      _tab.AddUnconnected(e);
-    }
-
-    /**
-     * When there is a new connection happens, this is
-     * how we find out about it.  We need to handle the
-     * connection packets on this edge.
-     */
-    protected void ConnectionHandler(object connectiontable,
-                                     EventArgs args)
-    {
-      Edge e = ((ConnectionEventArgs)args).Edge;
-      e.SetCallback(Packet.ProtType.Connection, this);
-      e.CloseEvent += new EventHandler(this.CloseHandler);
     }
   }
 }

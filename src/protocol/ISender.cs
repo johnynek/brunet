@@ -51,4 +51,12 @@ public interface IDataHandler {
   void HandleData(MemBlock b, ISender return_path, object state);
 }
 
+/**
+ * This is a source of data
+ */
+public interface ISource {
+  void Subscribe(IDataHandler h, object state);
+  void Unsubscribe(IDataHandler h);
+}
+
 }

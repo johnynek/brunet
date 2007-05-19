@@ -381,7 +381,6 @@ namespace Brunet {
       //know who to use
       Address forwarder = null;
       Address target = null;
-      short ttl = -1;
       string contype = String.Empty;
       int structured_count = 0;
       
@@ -417,19 +416,20 @@ namespace Brunet {
 	      //As long as the forwarder is not the target, forward
               forwarder = leaf.Address;
 	    }
-            ttl = _node.DefaultTTLFor( target );
 	    //This is a near neighbor connection
 	    contype = STRUC_NEAR;
 	  }
 	}
       }//End of ConnectionTable lock
       if( target != null ) {
+        ISender send = null;
         if( forwarder != null ) {
-          ForwardedConnectTo(forwarder, target, ttl, contype);
+          send = new ForwardingSender(_node, forwarder, target);
 	}
 	else {
-          ConnectTo(target, ttl, contype);
+          send = new AHSender(_node, target);
 	}
+        ConnectTo(send, contype);
       }
       if( structured_count > 0 && target == null ) {
           //We have enough structured connections to ignore the leafs
@@ -441,15 +441,16 @@ namespace Brunet {
 	   */
 
 	  bool trying_near = false;
+          short ttl;
           if( NeedLeftNeighbor ) {
 #if POB_DEBUG
       //Console.Error.WriteLine("NeedLeftNeighbor: {0}", _node.Address);
 #endif
             target = new DirectionalAddress(DirectionalAddress.Direction.Left);
 	    ttl = (short)DESIRED_NEIGHBORS;
-	    contype = STRUC_NEAR;
 	    trying_near = true;
-            ConnectTo(target, ttl, contype);
+            ISender sender = new AHSender(_node, target, ttl, AHPacket.AHOptions.Last);
+            ConnectTo(sender, STRUC_NEAR);
           }
 	  if( NeedRightNeighbor ) {
 #if POB_DEBUG
@@ -457,9 +458,9 @@ namespace Brunet {
 #endif
             target = new DirectionalAddress(DirectionalAddress.Direction.Right);
 	    ttl = (short)DESIRED_NEIGHBORS;
-	    contype = STRUC_NEAR;
 	    trying_near = true;
-            ConnectTo(target, ttl, contype);
+            ISender sender = new AHSender(_node, target, ttl, AHPacket.AHOptions.Last);
+            ConnectTo(sender, STRUC_NEAR);
           }
 	  /*
 	   * If we are trying to get near connections it
@@ -472,10 +473,10 @@ namespace Brunet {
       //Console.Error.WriteLine("NeedShortcut: {0}", _node.Address);
 #endif
             target = GetShortcutTarget(); 
-	    ttl = _node.DefaultTTLFor( target );
 	    contype = STRUC_SHORT;
             //Console.Error.WriteLine("Making Connector for shortcut to: {0}", target);
-            ConnectTo(target, ttl, contype);
+            ISender sender = new AHSender(_node, target);
+            ConnectTo(sender, contype);
           }
       }
     }
@@ -551,10 +552,10 @@ namespace Brunet {
 	 * the network is connected:
 	 */
 	Address target = GetSelfTarget();
-	short ttl = _node.DefaultTTLFor( target );
 	//This is a near neighbor connection
 	string contype = STRUC_NEAR;
-        ForwardedConnectTo(new_con.Address, target, ttl, contype);
+        ISender send = new ForwardingSender(_node, new_con.Address, target);
+        ConnectTo(send, contype);
       }
       else if( new_con.MainType == ConnectionType.Structured ) {
        ConnectionTable tab = _node.ConnectionTable;
@@ -623,34 +624,13 @@ namespace Brunet {
        * We want to make sure not to hold the lock on ConnectionTable
        * while we try to make new connections
        */
-      short f_ttl = 3; //2 would be enough, but 1 extra...
       if( nrtarget != null ) {
-        ForwardedConnectTo(new_con.Address, nrtarget, f_ttl, STRUC_NEAR);
-#if PLAB_LOG
-        BrunetEventDescriptor bed1 = new BrunetEventDescriptor();      
-        bed1.RemoteAHAddress = new_con.Address.ToBigInteger().ToString();
-        bed1.EventDescription = "SCO.ConnectHandler.rforwarder";
-        Logger.LogAttemptEvent( bed1 );
-
-        BrunetEventDescriptor bed2 = new BrunetEventDescriptor();      
-        bed2.RemoteAHAddress = nrtarget.ToBigInteger().ToString();
-        bed2.EventDescription = "SCO.ConnectHandler.rtarget";
-        Logger.LogAttemptEvent( bed2 );                    
-#endif
+        ISender send = new ForwardingSender(_node, new_con.Address, nrtarget);
+        ConnectTo(send, STRUC_NEAR);
       }
       if( nltarget != null && !nltarget.Equals(nrtarget) ) {
-        ForwardedConnectTo(new_con.Address, nltarget, f_ttl, STRUC_NEAR);
-#if PLAB_LOG
-        BrunetEventDescriptor bed1 = new BrunetEventDescriptor();      
-        bed1.RemoteAHAddress = new_con.Address.ToBigInteger().ToString();
-        bed1.EventDescription = "SCO.ConnectHandler.lforwarder";
-        Logger.LogAttemptEvent( bed1 );
-
-        BrunetEventDescriptor bed2 = new BrunetEventDescriptor();      
-        bed2.RemoteAHAddress = nltarget.ToBigInteger().ToString();
-        bed2.EventDescription = "SCO.ConnectHandler.ltarget";
-        Logger.LogAttemptEvent( bed2 );                   
-#endif
+        ISender send = new ForwardingSender(_node, new_con.Address, nltarget);
+        ConnectTo(send, STRUC_NEAR);
       }
       //We also send directional messages.  In the future we may find this
       //to be unnecessary
@@ -769,15 +749,15 @@ namespace Brunet {
         NodeInfo target_info = (NodeInfo)add_to_neighbor[nrtarget];
         ConnectToMessage ctm = (ConnectToMessage)neighbors_to_ctm[target_info];
         Address forwarder = ctm.Target.Address;
-        short ttl = _node.DefaultTTLFor( forwarder );
-        ForwardedConnectTo(forwarder, nrtarget, ttl, STRUC_NEAR);
+        ISender send = new ForwardingSender(_node, forwarder, nrtarget);
+        ConnectTo(send, STRUC_NEAR);
       }
       if( nltarget != null && !nltarget.Equals(nrtarget) ) {
         NodeInfo target_info = (NodeInfo)add_to_neighbor[nltarget];
         ConnectToMessage ctm = (ConnectToMessage)neighbors_to_ctm[target_info];
         Address forwarder = ctm.Target.Address;
-        short ttl = _node.DefaultTTLFor( forwarder );
-        ForwardedConnectTo(forwarder, nltarget, ttl, STRUC_NEAR);
+        ISender send = new ForwardingSender(_node, forwarder, nrtarget);
+        ConnectTo(send, STRUC_NEAR);
       }
     }
     /**
@@ -791,19 +771,19 @@ namespace Brunet {
       Address nrtarget = null;
     
       lock( _node.ConnectionTable.SyncRoot ) {
-        CheckForNearerNeighbors(ni, ltarget, out nltarget,
-                                rtarget, out nrtarget);
+        CheckForNearerNeighbors(ni, ltarget, out nltarget, rtarget, out nrtarget);
       }
        /* 
        * We want to make sure not to hold the lock on ConnectionTable
        * while we try to make new connections
        */
-      short f_ttl = 3; //2 would be enough, but 1 extra...
       if( nrtarget != null ) {
-        ForwardedConnectTo(forwarder, nrtarget, f_ttl, STRUC_NEAR);
+        ISender send = new ForwardingSender(_node, forwarder, nrtarget);
+        ConnectTo(send, STRUC_NEAR);
       }
       if( nltarget != null && !nltarget.Equals(nrtarget) ) {
-        ForwardedConnectTo(forwarder, nltarget, f_ttl , STRUC_NEAR);
+        ISender send = new ForwardingSender(_node, forwarder, nltarget);
+        ConnectTo(send, STRUC_NEAR);
       }
     }
 
@@ -813,7 +793,19 @@ namespace Brunet {
      */
     protected void ConnectTo(Address target, short t_ttl, string contype)
     {
-      ConnectToOnEdge(target, _node, t_ttl, contype);
+      ushort options;
+      if( contype == STRUC_SHORT ) {
+	/*
+	 * We only want one node to get this packet, so
+	 * we send it only the last node in the path.
+	 */
+        options = AHPacket.AHOptions.Last;
+      }
+      else {
+        options = AHPacket.AHOptions.Annealing;
+      }
+      ISender send = new AHSender(_node, target, t_ttl, options);
+      ConnectTo(send, contype);
     }
 
     /**
@@ -826,83 +818,56 @@ namespace Brunet {
     protected void ConnectToOnEdge(Address target, IPacketSender edge,
 		                   short t_ttl, string contype)
     {
+      throw new NotImplementedException(); 
+    }
+
+    protected void ConnectTo(ISender sender, string contype)
+    {
       ConnectionType mt = Connection.StringToMainType(contype);
       /*
        * This is an anonymous delegate which is called before
        * the Connector starts.  If it returns true, the Connector
        * will finish immediately without sending an ConnectToMessage
        */
-      Linker l = new Linker(_node, target, null, contype);
-      object linker_task = l.Task;  //This is what we check for
-      Connector.AbortCheck abort = delegate(Connector c) {
-        bool stop = false;
-        lock( _node.ConnectionTable.SyncRoot ) {
-          stop = _node.ConnectionTable.Contains( mt, target );
-          if (!stop ) {
-            /*
-             * Make a linker to get the task.  We won't use
-             * this linker.
-             * No need in sending a ConnectToMessage if we
-             * already have a linker going.
-             */
-            stop = _node.TaskQueue.HasTask( linker_task );
+      Connector.AbortCheck abort = null;
+      ForwardingSender fs = sender as ForwardingSender;
+      if( fs != null ) {
+        //In general, we only know the exact node we are trying
+        //to reach when we are using a ForwardingSender
+        Address target = fs.Destination;
+        Linker l = new Linker(_node, target, null, contype);
+        object linker_task = l.Task;  //This is what we check for
+        abort = delegate(Connector c) {
+          bool stop = false;
+          lock( _node.ConnectionTable.SyncRoot ) {
+            stop = _node.ConnectionTable.Contains( mt, target );
+            if (!stop ) {
+              /*
+               * Make a linker to get the task.  We won't use
+               * this linker.
+               * No need in sending a ConnectToMessage if we
+               * already have a linker going.
+               */
+              stop = _node.TaskQueue.HasTask( linker_task );
+            }
           }
+          return stop;
+        };
+        if ( abort(null) ) {
+          return;
         }
-        return stop;
-      };
-      if ( abort(null) ) {
-        return;
-      }
-      short t_hops = 0;
-      if( edge is Edge ) {
-	/*
-	 * In this case we are bypassing the router and sending
-	 * having the Connector talk directly to the neighbor
-	 * using the edge.  We need to go ahead an increment
-	 * the hops of the packet in order to make it the case
-	 * the the packet has taken 1 hop by the time it arrives
-	 */
-        t_hops = 1;
       }
       //Send the 4 neighbors closest to this node:
-      ArrayList nearest = _node.ConnectionTable.GetNearestTo(
-							 (AHAddress)_node.Address, 4);
+      ArrayList nearest = _node.ConnectionTable.GetNearestTo( (AHAddress)_node.Address, 4);
       NodeInfo[] near_ni = new NodeInfo[nearest.Count];
       int i = 0;
       foreach(Connection cons in nearest) {
 	near_ni[i] = new NodeInfo(cons.Address, cons.Edge.RemoteTA);
 	i++;
       }
+      ConnectToMessage ctm = new ConnectToMessage(contype, _node.GetNodeInfo(8), near_ni);
 
-      ConnectToMessage ctm =
-        new ConnectToMessage(contype, _node.GetNodeInfo(8), near_ni);
-      ctm.Id = _rand.Next(1, Int32.MaxValue);
-      ctm.Dir = ConnectionMessage.Direction.Request;
-
-      ushort options = AHPacket.AHOptions.AddClassDefault;
-      if( contype == STRUC_SHORT ) {
-	/*
-	 * We only want one node to get this packet, so
-	 * we send it only the last node in the path.
-	 */
-        options = AHPacket.AHOptions.Last;
-      }
-      else {
-        options = AHPacket.AHOptions.Annealing;
-      }
-      AHPacket ctm_pack =
-        new AHPacket(t_hops, t_ttl, _node.Address, target, options,
-                     AHPacket.Protocol.Connection, ctm.ToByteArray());
-      Console.Error.WriteLine("Size of CTM packet: {0}", ctm_pack.Length);
-
-      #if DEBUG
-      System.Console.Error.WriteLine("In ConnectToOnEdge:");
-      System.Console.Error.WriteLine("Local:{0}", _node.Address);
-      System.Console.Error.WriteLine("Target:{0}", target);
-      System.Console.Error.WriteLine("Message ID:{0}", ctm.Id);
-      #endif
-
-      Connector con = new Connector(_node, edge, ctm_pack, ctm, this);
+      Connector con = new Connector(_node, sender, ctm, this);
       con.AbortIf = abort;
       //Keep a reference to it does not go out of scope
       lock( _sync ) {
@@ -937,21 +902,23 @@ namespace Brunet {
             Address target = new DirectionalAddress(DirectionalAddress.Direction.Right);
 	    short ttl = (short)DESIRED_NEIGHBORS;
 	    string contype = STRUC_NEAR;
-            ConnectTo(target, ttl, contype);
+            ISender send = new AHSender(_node, target, ttl, AHPacket.AHOptions.Last);
+            ConnectTo(send, contype);
 	  }
 	  if( left_pos < DESIRED_NEIGHBORS ) {
             //We lost a close friend.
             Address target = new DirectionalAddress(DirectionalAddress.Direction.Left);
 	    short ttl = (short)DESIRED_NEIGHBORS;
 	    string contype = STRUC_NEAR;
-            ConnectTo(target, ttl, contype);
+            ISender send = new AHSender(_node, target, ttl, AHPacket.AHOptions.Last);
+            ConnectTo(send, contype);
 	  }
           if( c.ConType == STRUC_SHORT ) {
             if( NeedShortcut ) {
               Address target = GetShortcutTarget(); 
-	      short ttl = _node.DefaultTTLFor( target );
 	      string contype = STRUC_SHORT;
-              ConnectTo(target, ttl, contype);
+              ISender send = new AHSender(_node, target);
+              ConnectTo(send, contype);
 	    }
           }
         }
@@ -965,7 +932,7 @@ namespace Brunet {
     /**
      * When we get ConnectToMessage responses the connector tells us.
      */
-    override public void HandleCtmResponse(Connector c, AHPacket resp_p,
+    override public void HandleCtmResponse(Connector c, ISender ret_path,
                                            ConnectToMessage ctm_resp)
     {
       /**
@@ -991,17 +958,6 @@ namespace Brunet {
       ConnectToNearer(c.Address, c.Status.Neighbors);
     }
     
-    /**
-     * This is a helper function.
-     */
-    protected void ForwardedConnectTo(Address forwarder,
-                                      Address target,
-                                      short t_ttl, string contype)
-    {
-      IPacketSender f_sender = new ForwardingSender(_node, forwarder, 1);
-      ConnectToOnEdge(target, f_sender, t_ttl, contype);
-    }
-
     /**
      * When we want to connect to the address closest
      * to us, we use this address.
@@ -1127,15 +1083,15 @@ namespace Brunet {
             NodeInfo target_info = (NodeInfo)add_to_neighbor[nrtarget];
             Connection con = (Connection)neighbors_to_con[target_info];
             Address forwarder = con.Address;
-            short ttl = _node.DefaultTTLFor( forwarder );
-            ForwardedConnectTo(forwarder, nrtarget, ttl, STRUC_NEAR);
+            ISender sender = new ForwardingSender(_node, forwarder, nrtarget);
+            ConnectTo( sender, STRUC_NEAR );
           }
           if( nltarget != null && !nltarget.Equals(nrtarget) ) {
             NodeInfo target_info = (NodeInfo)add_to_neighbor[nltarget];
             Connection con = (Connection)neighbors_to_con[target_info];
             Address forwarder = con.Address;
-            short ttl = _node.DefaultTTLFor( forwarder );
-            ForwardedConnectTo(forwarder, nltarget, ttl, STRUC_NEAR);
+            ISender sender = new ForwardingSender(_node, forwarder, nltarget);
+            ConnectTo( sender, STRUC_NEAR );
           }
 #endif
     }
