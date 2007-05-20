@@ -370,7 +370,7 @@ namespace Brunet {
     /**
      * When we get ConnectToMessage responses the connector tells us.
      */
-    override public void HandleCtmResponse(Connector c, ISender ret_path,
+    override public bool HandleCtmResponse(Connector c, ISender ret_path,
                                            ConnectToMessage ctm_resp)
     {
       /**
@@ -381,6 +381,8 @@ namespace Brunet {
                             ctm_resp.Target.Transports,
                             ctm_resp.ConnectionType);
       _node.TaskQueue.Enqueue( l );
+      //We only want to connect to one node, so we are done connecting now:
+      return true;
     }
     /**
      * Here is how we handle Send subscriptions

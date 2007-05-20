@@ -47,7 +47,7 @@ namespace Brunet {
       lock( _sync ) {
         _node = n;
         _rand = new Random();
-        _connectors = new ArrayList();
+        _connectors = new Hashtable();
         _last_connection_time = DateTime.UtcNow;
         //Listen for connection events:
         _node.ConnectionTable.DisconnectionEvent +=
@@ -78,7 +78,7 @@ namespace Brunet {
     protected DateTime _last_connection_time;
     protected object _sync;
 
-    protected ArrayList _connectors;
+    protected Hashtable _connectors;
     
     protected TimeSpan _current_retry_interval;
     protected DateTime _last_retry_time;
@@ -808,19 +808,6 @@ namespace Brunet {
       ConnectTo(send, contype);
     }
 
-    /**
-     * A helper function that handles the making Connectors
-     * and setting up the ConnectToMessage
-     *
-     * This returns immediately if we are already connected
-     * to this node.
-     */
-    protected void ConnectToOnEdge(Address target, IPacketSender edge,
-		                   short t_ttl, string contype)
-    {
-      throw new NotImplementedException(); 
-    }
-
     protected void ConnectTo(ISender sender, string contype)
     {
       ConnectionType mt = Connection.StringToMainType(contype);
@@ -871,7 +858,7 @@ namespace Brunet {
       con.AbortIf = abort;
       //Keep a reference to it does not go out of scope
       lock( _sync ) {
-        _connectors.Add(con);
+        _connectors[con] = null;
       }
       con.FinishEvent += new EventHandler(this.ConnectorEndHandler);
       //Start up this Task:
@@ -932,7 +919,7 @@ namespace Brunet {
     /**
      * When we get ConnectToMessage responses the connector tells us.
      */
-    override public void HandleCtmResponse(Connector c, ISender ret_path,
+    override public bool HandleCtmResponse(Connector c, ISender ret_path,
                                            ConnectToMessage ctm_resp)
     {
       /**
@@ -947,6 +934,12 @@ namespace Brunet {
        * Check this guys neighbors:
        */
       ConnectToNearer(ctm_resp.Target.Address, ctm_resp.Neighbors);
+      /*
+       * One response is good enough (for now).  Maybe we want two
+       * on the first attempt (when trying to join the ring via forwarding
+       * through a leaf).
+       */
+      return true;
     }
     /**
      * This method is called when there is a change in a Connection's status

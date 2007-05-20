@@ -89,9 +89,11 @@ namespace Brunet
     /**
      * Connectors just send and receive ConnectToMessages.  They return all responses
      * to the ConnectionOverlord that initiated the ConnectToMessage
+     * @return true if we have enough responses for this connector, and should
+     * stop listening for more
      */
-    virtual public void HandleCtmResponse(Connector c, ISender return_path, ConnectToMessage resp) {
-    
+    virtual public bool HandleCtmResponse(Connector c, ISender return_path, ConnectToMessage resp) {
+      return true; 
     }
   }
 

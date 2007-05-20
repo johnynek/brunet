@@ -431,8 +431,8 @@ public class ReqrepManager : IDataHandler {
           if( now - reqs.ReqDate > _reqtimeout ) {
             reqs.Timeouts--;
             if( reqs.Timeouts >= 0 ) {
-              //Resend:
-              if( reqs.RequestType != ReqrepType.LossyRequest) {
+              if( reqs.RequestType != ReqrepType.LossyRequest ) {
+                ///@todo improve the logic of resending to be less wasteful
                 to_resend.Add( reqs );
               }
             }
