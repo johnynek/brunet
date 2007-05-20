@@ -200,7 +200,10 @@ namespace Brunet
            * to deal with this ctm
            */
           _got_ctms.Add(new_ctm);
-          _co.HandleCtmResponse(this, rpc_res.ResultSender, new_ctm);
+          bool close_queue = _co.HandleCtmResponse(this, rpc_res.ResultSender, new_ctm);
+          if( close_queue ) {
+            q.Close();
+          }
         }
       }
       catch(Exception) {
