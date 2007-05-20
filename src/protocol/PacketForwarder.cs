@@ -107,6 +107,7 @@ namespace Brunet
     public Address Destination { get { return _dest; } }
 
     public ForwardingSender(Node n, Address forwarder, Address destination) {
+      _dest = destination;
       _sender = new AHSender(n, forwarder);
       _header = new CopyList(PType.Protocol.Forwarding,
                              MemBlock.Reference(new byte[]{0}),
@@ -118,6 +119,18 @@ namespace Brunet
      */
     public void Send(ICopyable d) {
       _sender.Send( new CopyList(_header, d) );
+    }
+
+    override public int GetHashCode() {
+      return _dest.GetHashCode();
+    }
+    override public bool Equals(object o) {
+      ForwardingSender fs = o as ForwardingSender;
+      bool eq = false;
+      if( fs != null ) {
+        eq = fs.Destination.Equals( _dest ); 
+      }
+      return eq;
     }
   }
 }
