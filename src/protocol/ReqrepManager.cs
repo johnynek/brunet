@@ -135,6 +135,7 @@ public class ReqrepManager : IDataHandler {
      public RequestState() {
        Timeouts = 6;
        _send_count = 0;
+       _repliers = new ArrayList();
      }
      //Send the request again
      public void Send() {
@@ -146,7 +147,8 @@ public class ReqrepManager : IDataHandler {
 
      public int Timeouts;
      public IReplyHandler ReplyHandler;
-     public ArrayList Repliers;
+     protected ArrayList _repliers;
+     public ArrayList Repliers { get { return _repliers; } }
      protected DateTime _req_date;
      public DateTime ReqDate { get { return _req_date; } }
      public ICopyable Request;
@@ -185,7 +187,7 @@ public class ReqrepManager : IDataHandler {
          header[0] = (byte)ReqrepType.Reply;
          NumberSerializer.WriteInt(RequestID, header, 1);
          MemBlock mb_header = MemBlock.Reference(header);
-         Reply = new CopyList(mb_header, data);
+         Reply = new CopyList(PType.Protocol.ReqRep, mb_header, data);
          Resend();
        }
        else {
@@ -295,8 +297,7 @@ public class ReqrepManager : IDataHandler {
      }
    }
 
-   protected void HandleReply(ReqrepType rt, int idnum,
-                              MemBlock rest, ISender ret_path) {
+   protected void HandleReply(ReqrepType rt, int idnum, MemBlock rest, ISender ret_path) {
      RequestState reqs = null;
      lock( _sync ) {
        reqs = (RequestState)_req_state_table[idnum];

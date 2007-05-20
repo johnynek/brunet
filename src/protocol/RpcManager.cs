@@ -220,8 +220,8 @@ public class RpcManager : IReplyHandler, IDataHandler {
     if (exception != null) {
       //something failed even before invocation began
 #if RPC_DEBUG
-      Console.Error.WriteLine("[RpcServer: {0}] Something failed even before invocation began.",
-                     _rrman.Node.Address);
+      Console.Error.WriteLine("[RpcServer: {0}] Something failed even before invocation began: {1}",
+                     _rrman.Node.Address, exception);
 #endif
       MemoryStream ms = new MemoryStream();
       AdrConverter.Serialize(exception, ms);

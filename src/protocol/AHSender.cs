@@ -75,6 +75,20 @@ public class AHSender : ISender {
     
   }
 
+  override public bool Equals(object o) {
+    AHSender ahs = o as AHSender;
+    bool eq = false;
+    if( ahs != null ) {
+      eq = ahs.Destination.Equals( _dest );
+      eq &= ( ahs._options == _options );
+    }
+    return eq;
+  }
+
+  override public int GetHashCode() {
+    return _dest.GetHashCode();
+  }
+
   //Be Lazy about doing this:
   protected MemBlock MakeHeader() {
     //Make the header part:

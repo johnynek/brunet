@@ -889,5 +889,18 @@ namespace Brunet
       MemBlock b = MemBlock.Copy(data);
       _n.Announce(b, this);
     }
+    
+    override public int GetHashCode() {
+      return _n.GetHashCode();
+    }
+
+    override public bool Equals(object o) {
+      LocalSender other = o as LocalSender;
+      bool eq = false;
+      if( other != null ) {
+        eq = (other._n == _n);
+      }
+      return eq;
+    }
   }
 }
