@@ -259,18 +259,27 @@ public class RpcManager : IReplyHandler, IDataHandler {
   /**
    * This is how you invoke a method on a remote host.
    * Results are put into the BlockingQueue.
+   * 
+   * If you want to have an Event based approach, listen to the EnqueueEvent
+   * on the BlockingQueue you pass for the results.  That will be fired
+   * immediately from the thread that gets the result.
    *
    * When a result comes back, we put and RpcResult into the Queue.
-   * When you have enough responses, Close the queue (please).
+   * When you have enough responses, Close the queue (please).  The code
+   * will stop sending requests after the queue is closed.  If you never close
+   * the queue, this will be wasteful of resources.
+   *
+   * @param target the sender to use when making the RPC call
+   * @param q the BlockingQueue into which the RpcResult objects will be placed.
+   * @param method the Rpc method to call
    * 
    */
-  public BlockingQueue Invoke(ISender target,
-                              string method,
+  public void Invoke(ISender target, BlockingQueue q, string method,
                               params object[] args)
   {
     //build state for the RPC call
     RpcRequestState rs = new RpcRequestState();
-    rs.result_queue = new BlockingQueue();
+    rs.result_queue = q;
 
     ArrayList arglist = new ArrayList();
     arglist.AddRange(args);
@@ -288,7 +297,6 @@ public class RpcManager : IReplyHandler, IDataHandler {
 #endif
     ICopyable rrpayload = new CopyList( PType.Protocol.Rpc, MemBlock.Reference(ms.ToArray()) ); 
     _rrman.SendRequest(target, ReqrepManager.ReqrepType.Request, rrpayload, this, rs);
-    return rs.result_queue;
   }
   
   protected void RpcMethodInvoke(ISender ret_path, MethodInfo mi, Object handler, 

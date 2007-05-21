@@ -167,16 +167,10 @@ namespace Brunet
       }
       RpcManager rpc = RpcManager.GetInstance(_local_node);
 
-      BlockingQueue results = rpc.Invoke(_sender, "sys:ctm.ConnectTo", _ctm.ToHashtable() );
+      BlockingQueue results = new BlockingQueue();
       results.EnqueueEvent += this.EnqueueHandler;
       results.CloseEvent += this.QueueCloseHandler;
-      if( results.Count > 0 ) {
-        //Make sure we didn't miss an enqueue between creating and registering
-        //the handler:
-        EnqueueHandler(results, EventArgs.Empty);
-      }
-      //This does nothing if the queue is not actually closed yet
-      QueueCloseHandler(results, EventArgs.Empty);
+      rpc.Invoke(_sender, results, "sys:ctm.ConnectTo", _ctm.ToHashtable() );
     }
 
     /**
