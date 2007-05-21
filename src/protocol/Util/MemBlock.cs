@@ -33,29 +33,11 @@ namespace Brunet {
 #endif
 public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable {
 
-  protected readonly byte[] _buffer;
-  protected readonly int _offset;
-  protected readonly int _length;
+  protected byte[] _buffer;
+  protected int _offset;
+  protected int _length;
   //The number of bytes in this MemBlock
   public int Length { get { return _length; } }
-
-  /**
-   * As long as this MemBlock is not garbage collected,
-   * it is keeping an underlying buffer from being garbage
-   * collected.  This is how big that buffer is.  We might
-   * want to make a copy of some data we keep if it is keeping
-   * a large buffer from being collected
-   */
-  public int ReferencedBufferLength {
-    get {
-      if( _buffer == null ) {
-        return 0;
-      }
-      else {
-        return _buffer.Length;
-      }
-    }
-  }
 
   protected static readonly MemBlock _null = new MemBlock(null, 0, 0);
   /**
@@ -68,10 +50,6 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
    */
   public byte this[int pos] {
     get {
-      if( pos >= _length ) {
-        throw new System.IndexOutOfRangeException(
-                  System.String.Format("Position ({0}) greater than MemBlock length ({1})", pos, _length));
-      }
       return _buffer[ _offset + pos ];
     }
   }
@@ -86,21 +64,9 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
     _buffer = data;
     _offset = offset;
     _length = length;
-    if( length == 0 ) {
-      //Make sure not to keep a reference, which could keep memory in scope
-      _buffer = null;
-      _offset = 0;
-    }
-    else if ( length < 0 ) {
-      throw new System.ArgumentOutOfRangeException("length", length,
-                                          "MemBlock cannot have negative length");
-    }
-    else if( data.Length < offset + length ) {
-      /*
-       * Clearly length > 0 otherwise one of the above two conditions
-       * would be true
-       */
-      throw new System.ArgumentException("byte array not long enough");
+    if( (length > 0) && (data.Length - offset < length) ) {
+      //This does not make sense:
+      throw new System.Exception("byte array not long enough");
     }
   }
   /**
@@ -110,25 +76,6 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
     _buffer = null;
     _offset = 0;
     _length = 0;
-  }
-
-  /**
-   * Allow conversion to byte[] by making a copy.
-   * This allows us to pass MemBlock as if they were byte[] objects
-   */
-  public static implicit operator byte[](MemBlock b) {
-    byte[] result = new byte[ b.Length ];
-    b.CopyTo(result, 0);
-    return result;
-  }
-
-  /**
-   * Allow implicit conversion from byte[] by making a reference to the
-   * original byte[] , if that byte[] is changed, we're screwed.
-   * This allows us to pass byte[] objects as if they were MemBlock
-   */
-  public static implicit operator MemBlock(byte[] data) {
-    return Reference(data);
   }
 
   /**
@@ -146,35 +93,22 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
    * that differs is compared to get the result of the function
    */
   public int CompareTo(object o) {
-    if( this == o ) { return 0; }
     MemBlock other = o as MemBlock;
     if ( other == null ) {
-      byte[] data = o as byte[];
-      if( data != null ) {
-        other = MemBlock.Reference(data);
-      }
-      else {
-        //Put us ahead of all other types, this might not be smart
-        return -1;
-      }
+      //Put us ahead of all other types, this might not be smart
+      return -1;
     }
     int t_l = this.Length;
     int o_l = other.Length;
     if( t_l == o_l ) {
       for(int i = 0; i < t_l; i++) {
-        byte t_b = this._buffer[ this._offset + i];
-        byte o_b = other._buffer[ other._offset + i];
-        if( t_b != o_b ) {
-          //OKAY! They are different:
-          if( t_b < o_b ) {
-            return -1;
-          }
-          else {
-            return 1;
-          }
+        byte t_b = this[i];
+        byte o_b = other[i];
+        if( t_b < o_b ) {
+          return -1;
         }
-        else {
-          //This position is equal, go to the next
+        else if( t_b > o_b ) {
+          return 1;
         }
       }
       //We must be equal
@@ -215,9 +149,7 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
    * @return the number of bytes copied
    */
   public int CopyTo(byte[] dest, int offset_into_dest) {
-    if( _length != 0 ) {
-      System.Array.Copy(_buffer, _offset, dest, offset_into_dest, _length);
-    }
+    System.Array.Copy(_buffer, _offset, dest, offset_into_dest, _length);
     return _length;
   }
 
@@ -246,39 +178,15 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
    * ICopyable
    */
   public static MemBlock Copy(ICopyable c) {
-    int l = c.Length;
-    if( l != 0 ) {
-      byte[] buffer = new byte[l];
-      c.CopyTo(buffer, 0);
-      return new MemBlock(buffer, 0, buffer.Length);
-    }
-    else {
-      return _null;
-    }
+    byte[] buffer = new byte[c.Length];
+    c.CopyTo(buffer, 0);
+    return new MemBlock(buffer, 0, buffer.Length);
   }
   
   public override bool Equals(object a) {
-    if (a == null) {
-      //If the other is null, clearly it's not equal to a non-null
-      return false;
-    }
     if (this == a) {
       //Clearly we are the Equal to ourselves
       return true;
-    }
-    if( a is byte[] ) {
-      /** 
-       * @todo
-       * This is very questionable to just treat byte[] as MemBlock,
-       * because the hashcodes won't be equal, but we have code
-       * that does this.  We should remove the assumption that MemBlock
-       * can equal a byte[]
-       */
-      a = MemBlock.Reference((byte[])a);
-    }
-    if( this.GetHashCode() != a.GetHashCode() ) {
-      //Hashcodes must be equal for the objects to be equal
-      return false;
     }
     else {
       return (this.CompareTo(a) == 0);
@@ -294,27 +202,14 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
   public MemBlock ExtendHead(int count) {
     return new MemBlock(_buffer, _offset - count, _length + count);
   }
-  /*
-   * We only calculate the hash code once (when we first need it)
-   * We can use this to help us make Equals faster
-   */
-  protected int _hc = -1;
   //Uses the first few bytes as the hashcode
   public override int GetHashCode() {
-    if( _hc != -1 ) {
-      return _hc;
-    }
-
     //Use at most 4 bytes:
     int l = System.Math.Min(this.Length, 4) + _offset;
     int val = 0;
     for(int i = _offset; i < l; i++) {
       val = (val << 8) | _buffer[i];
     }
-    if( val == -1 ) {
-      val = 0;
-    }
-    _hc = val;
     return val;
   }
   /**
@@ -322,68 +217,7 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
    */
   public string GetString(System.Text.Encoding e)
   {
-    return GetString(e, 0, _length);
-  }
-  /**
-   * Use the given Encoding to read a string out of the MemBlock
-   * over a smaller range of the MemBlock
-   */
-  public string GetString(System.Text.Encoding e, int off, int length)
-  {
-    if( (off + length) > _length ) {
-     throw new System.IndexOutOfRangeException("Length greater than MemBlock length");
-    }
-    if( length != 0 ) {
-      return e.GetString(_buffer, off + _offset, length);
-    }
-    else {
-      return System.String.Empty;
-    }
-  }
-  /**
-   * @param off the offset into the MemBlock to start
-   * @param l the number of bytes to check
-   * @return true if all the bytes in the above range have highest bit 0
-   * This is used to see if is safe to use the ASCII encoding instead of UTF8
-   */
-  public bool IsAscii(int off, int l) {
-    uint bitmask = 0x80808080;
-    int i;
-    while( l > 0) {
-      i = 0;
-      if( l >= 4 ) {
-        //Make it easy for the compiler to unroll this one:
-        //since to loop is always 4 long, it should do so
-        for(int k = 0; k < 4; k++) {
-          i <<= 8;
-          i ^= _buffer[ _offset + off + k];
-        }
-        l -= 4;
-        off += 4;
-      }
-      else {
-        for(int j = 0; j < l; j++) {
-          i <<= 8;
-          i ^= _buffer[ _offset + off + j];
-        }
-        l = 0;
-        off += l;
-      }
-      if( (i & bitmask) != 0 ) {
-        return false;
-      }
-    }
-    return true;
-  }
-  /**
-   * Write the MemBlock to a stream.
-   * If your insane Stream modifies the buffer as it is
-   * writing it, be prepared for hard to find bugs.
-   */
-  public void WriteTo(System.IO.Stream s) {
-    if( _length > 0 ) {
-      s.Write(_buffer, _offset, _length);
-    }
+    return e.GetString(_buffer, _offset, _length);
   }
   /**
    * Make a reference to the given byte array, it does not make a copy.
@@ -391,12 +225,7 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
    * caller that this is only making a reference, not a copy
    */
   static public MemBlock Reference(byte[] data, int offset, int length) {
-    if( length != 0 ) { 
-      return new MemBlock(data, offset, length);
-    }
-    else {
-      return _null;
-    }
+    return new MemBlock(data, offset, length);
   }
   /**
    * Same as the above with offset = 0 and length the whole array
@@ -411,18 +240,8 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
    */
   public int IndexOf(byte b)
   {
-    return IndexOf(b, 0);
-  }
-  /**
-   * @param offset the position to start at
-   * @param b the byte to look for
-   * Search through the current buffer for a byte b, and return
-   * the index to it.  If it is not found, return -1
-   */
-  public int IndexOf(byte b, int offset)
-  {
     int max = _offset + _length;
-    for(int idx = offset + _offset; idx < max; idx++) {
+    for(int idx = _offset; idx < max; idx++) {
       if( _buffer[idx] == b ) {
         return (idx - _offset);
       }
@@ -460,33 +279,7 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
     return System.Convert.ToBase64String(_buffer,_offset,_length);
   }
 
-  /**
-   * convert the MemBlock to base32 with padding
-   */
-  public string ToBase32String() {
-    return Base32.Encode(_buffer, _offset, _length, true);
-  }
-
-  public string ToBase16String() {
-    System.Text.StringBuilder sb = new System.Text.StringBuilder(_length * 2);
-    int max = _offset + _length;
-    for(int i = _offset; i < max; i++)
-    {
-      sb.AppendFormat("{0:x2}", _buffer[i]);
-    }
-    return sb.ToString();
-  }
-
 #if BRUNET_NUNIT
-  [Test]
-  public void StringTests() {
-    string test_ascii = "Hello simple test";
-    MemBlock b = MemBlock.Reference( System.Text.Encoding.UTF8.GetBytes(test_ascii) );
-    Assert.IsTrue(b.IsAscii(0, b.Length), "IsAscii");
-    string test_unicode = "la\u00dfen";
-    b = MemBlock.Reference( System.Text.Encoding.UTF8.GetBytes(test_unicode) );
-    Assert.IsFalse(b.IsAscii(0, b.Length), "Unicode not ascii");
-  }
   [Test]
   public void Test() {
     System.Random r = new System.Random();
@@ -499,7 +292,6 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
       MemBlock mb1 = new MemBlock(data, 0, data.Length);
       MemBlock mb1a = MemBlock.Copy(data, 0, data.Length);
       Assert.AreEqual(mb1, mb1a, "MemBlock.Copy");
-      Assert.AreEqual(mb1, data, "MemBlock == byte[]");
       MemBlock mb2 = new MemBlock(data, offset, data.Length - offset);
       MemBlock mb2a = mb1.Slice(offset);
       MemBlock mb3 = new MemBlock(data, 0, offset);
@@ -552,51 +344,6 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
       }
       Assert.IsTrue(all_equals, "Manual equality test mb2b");
     }
-  }
-  [Test]
-  public void SomeInsanityTests() {
-    byte[] data;
-    bool got_x;
-    MemBlock b;
-    System.Random r = new System.Random();
-    for(int i = 0; i < 100; i++) {
-     int size = r.Next(1024);
-     data = new byte[size];
-     r.NextBytes(data);
-     int overshoot = r.Next(1,1024);
-     got_x = false;
-     b = null;
-     try {
-      //Should throw an exception:
-      b = MemBlock.Reference(data, 0, size + overshoot);
-     }
-     catch {
-      got_x = true;
-     }
-     Assert.IsNull(b, "Reference failure test");
-     Assert.IsTrue(got_x, "Exception catch test");
-     
-     overshoot = r.Next(1,1024);
-     got_x = false;
-     b = MemBlock.Reference(data);
-     try {
-      //Should throw an exception:
-      byte tmp = b[size + overshoot];
-     }
-     catch {
-      got_x = true;
-     }
-     Assert.IsTrue(got_x, "index out of range exception");
-     got_x = false;
-     try {
-      //Should throw an exception:
-      byte tmp = b[ b.Length ];
-     }
-     catch {
-      got_x = true;
-     }
-     Assert.IsTrue(got_x, "index out of range exception");
-   }
   }
 
 #endif

@@ -1,7 +1,7 @@
 /*
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
-Copyright (C) 2006-2008 P. Oscar Boykin <boykin@pobox.com>, University of Florida
+Copyright (C) 2006  P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -24,124 +24,42 @@ using System.Collections;
 namespace Brunet {
 
 /**
- * Since interfaces are much faster than Delegates in .Net,
- * we use this for asynchronous code that might be run later.
- */
-public interface IAction {
-  void Start();
-}
-
-/** an IAction that does nothing.
- * This is a Singleton
- */
-public class NullAction : IAction {
-  static readonly NullAction _instance = new NullAction();
-  static NullAction() { }
-  public static NullAction Instance { get { return _instance; } }
-  /** Private constructor to guarantee Singleton
-   */
-  private NullAction() { }
-  public void Start() { }
-}
-
-/**
  * This class represents objects that work to complete a single
  * Task.  When the they are done, they fire a FinishEvent.
  */
-abstract public class TaskWorker : IAction {
-  
-  protected TaskWorker()
-  {
-    _finish_event = new FireOnceEvent();
-  }
+abstract public class TaskWorker {
+
   /**
    * This object MUST correctly implement GetHashCode and Equals
    */
   abstract public object Task { get; }
-  
-  private FireOnceEvent _finish_event;
   /**
    * This is fired when the TaskWorker is finished,
    * it doesn't mean it was successful, it just means
    * it has stopped
    */
-  public event EventHandler FinishEvent {
-    add { _finish_event.Add(value); }
-    remove { _finish_event.Remove(value); }
-  }
+  public event EventHandler FinishEvent;
+
   /**
    * Is true if the TaskWorker is finished
    */
-  virtual public bool IsFinished { get { return _finish_event.HasFired; } }
+  abstract public bool IsFinished { get; }
 
   /**
    * Subclasses call this to fire the finish event
-   * @return true if this is the first time this method is called
    */
-  protected bool FireFinished() {
-    return _finish_event.Fire(this, null);
+  protected void FireFinished() {
+    if( FinishEvent != null ) {
+      FinishEvent(this, EventArgs.Empty);
+      //Make sure we only fire once:
+      FinishEvent = null;
+    }
   }
 
   /**
    * This method tells the TaskWorked to start working
    */
   abstract public void Start();
-}
-
-/**
- * We commonly need to wait at least some period of time and then do
- * something else.
- *
- * This does not include a timer.  It checks to see if it should finish
- * when the method CheckTime is called.
- */
-public class WaitTaskWorker : TaskWorker {
-
-  public readonly object State;
-  
-  protected readonly object _sync;
-  protected bool _finish_is_set;
-  protected DateTime _finish_time;
-  protected TimeSpan _interval;
-
-  //Each wait is a unique task.
-  public override object Task { get { return this; } }
-
-  public WaitTaskWorker(TimeSpan min_wait_interval, object state) {
-    _sync = new object();
-    _finish_is_set = false;
-    State = state;
-  }
-
-  public WaitTaskWorker(DateTime finish_after_utc_time, object state) {
-    _sync = null;
-    _finish_is_set = true;
-    State = state;
-  }
-
-  /**
-   * Checks DateTime.UtcNow to see if it is time to finish
-   */
-  public void CheckTime(object o, System.EventArgs args) {
-    if( _finish_is_set && (DateTime.UtcNow > _finish_time) ) {
-      FireFinished();
-    }
-  }
-
-  /**
-   * If we are waiting for an interval, set the finishing time,
-   * otherwise, do nothing.
-   */
-  public override void Start() {
-    if( _sync != null ) {
-      lock( _sync ) {
-        if( !_finish_is_set ) {
-          _finish_is_set = true;
-          _finish_time = DateTime.UtcNow + _interval; 
-        }
-      }
-    }
-  }
 }
 
 /**
@@ -154,8 +72,8 @@ public class TaskQueue {
   /**
    * Here is the list workers
    */
-  protected readonly Hashtable _task_to_workers;
-  protected readonly object _sync;
+  protected Hashtable _task_to_workers;
+  protected object _sync;
 
   /**
    * When the TaskQueue completely empties,
@@ -163,18 +81,18 @@ public class TaskQueue {
    */
   public event EventHandler EmptyEvent;
 
+  protected int _worker_count;
   //if the queue can start workers (added by Arijit Ganguly)
-  protected int _is_active;
+  protected bool _is_active;
   public bool IsActive {
     set {
-      System.Threading.Interlocked.Exchange(ref _is_active, value ? 1 : 0);
+      _is_active = value;
     }
   }
   
-  protected int _worker_count;
   public int WorkerCount {
     get {
-      lock ( _sync ) {
+      lock( _sync ) {
         return _worker_count;
       }
     }
@@ -185,7 +103,7 @@ public class TaskQueue {
     _sync = new object();
     _worker_count = 0;
     //is active by default
-    IsActive = true;
+    _is_active = true;
   }
 
   public void Enqueue(TaskWorker new_worker)
@@ -208,8 +126,8 @@ public class TaskQueue {
     /*
      * Get to work!
      */
-    if( start  && (1 == _is_active)) {
-      Start(new_worker);
+    if( start  && _is_active) {//added the _is_active check (Arijit Ganguly)
+      new_worker.Start();
     }
   }
   
@@ -222,54 +140,38 @@ public class TaskQueue {
     }
   }
   /**
-   * If you want to control if new TaskWorkers are started in some
-   * other thread, or event loop, you can override this method
-   */
-  protected virtual void Start(TaskWorker tw) {
-    tw.Start();
-  }
-  /**
    * When a TaskWorker completes, we remove it from the queue and
    * start the next in that task queue
    */
   protected void TaskEndHandler(object worker, EventArgs args)
   {
     TaskWorker new_worker = null;
-    EventHandler eh = null;
     lock( _sync ) {
       TaskWorker this_worker = (TaskWorker)worker;   
       object task = this_worker.Task;
       Queue work_queue = (Queue)_task_to_workers[task];
-      if( work_queue != null ) {
-        work_queue.Dequeue();
-        if( work_queue.Count > 0 ) {
-          //Now the new job is at the head of the queue:
-          new_worker = (TaskWorker)work_queue.Peek();
-        }
-        else {
-          /*
-           * There are no more elements in the queue, forget it:
-           * If we leave a 0 length queue, this would be a memory
-           * leak
-           */
-          _task_to_workers.Remove(task);
-        }
-        _worker_count--;
-        if (_worker_count == 0) {
-          eh = EmptyEvent;
-        }
+      work_queue.Dequeue();
+      if( work_queue.Count > 0 ) {
+        //Now the new job is at the head of the queue:
+        new_worker = (TaskWorker)work_queue.Peek();
       }
       else {
-        //This TaskEndHandler has been called more than once clearly.
-        Console.Error.WriteLine("ERROR: {0} called TaskEndHandler but no queue for this task: {1}",
-                                worker, task);
+        /*
+         * There are no more elements in the queue, forget it:
+         * If we leave a 0 length queue, this would be a memory
+         * leak
+         */
+        _task_to_workers.Remove(task);
       }
+      _worker_count--;
     }
-    if( new_worker != null && (1 == _is_active)) {
+    if( new_worker != null && _is_active) {//added the _is_active check (Arijit Ganguly)
       //You start me up!
-      Start(new_worker);
+      new_worker.Start();
     }
-    if( eh != null ) { eh(this, EventArgs.Empty); }
+    if( (_worker_count == 0 ) && (EmptyEvent != null) ) {
+      EmptyEvent(this, EventArgs.Empty);
+    }
   }
 }
 

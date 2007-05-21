@@ -36,105 +36,43 @@ namespace Brunet {
 #endif
 public class Functional {
 
-  static public ArrayList Add(IList l, object o) {
-    ArrayList copy = new ArrayList(l);
+  static public ArrayList Add(ArrayList l, object o) {
+    ArrayList copy = (ArrayList)l.Clone();
     copy.Add(o);
-    return copy;
+    return ArrayList.ReadOnly(copy);
   }
 
-  static public Hashtable Add(IDictionary h, object k, object v) {
-    Hashtable copy = new Hashtable( h.Count + 1);
-    foreach(DictionaryEntry de in h) {
-      copy.Add( de.Key, de.Value );
-    }
+  static public Hashtable Add(Hashtable h, object k, object v) {
+    Hashtable copy = (Hashtable)h.Clone();
     copy.Add(k, v);
     return copy;
   }
 
-  public delegate bool FilterFunction(object o);
-  /**
-   * Use this to filter an enumerable
-   */
-  public class Filter : IEnumerable {
-    protected FilterFunction _f;
-    protected IEnumerable _ie;
-    public Filter(FilterFunction f, IEnumerable ie) {
-      _f = f;
-      _ie = ie;
-    }
-
-    public IEnumerator GetEnumerator() {
-      foreach(object o in _ie) {
-        if( _f(o) ) {
-          yield return o;
-	}
-      }
-    }
-  }
-
-
   static public ArrayList Insert(ArrayList l, int pos, object o) {
     ArrayList copy = (ArrayList)l.Clone();
     copy.Insert(pos, o);
+    return ArrayList.ReadOnly(copy);
+  }
+  static public ArrayList RemoveAt(ArrayList l, int pos) {
+    ArrayList copy = (ArrayList)l.Clone();
+    copy.RemoveAt(pos);
+    return ArrayList.ReadOnly(copy);
+  }
+  static public Hashtable Remove(Hashtable h, object k) {
+    Hashtable copy = (Hashtable)h.Clone();
+    copy.Remove(k);
     return copy;
   }
 
-  public delegate object MapFunction(object o);
-  /**
-   * Use this to do map an enumerable
-   */
-  public class Map : IEnumerable {
-    protected MapFunction _f;
-    protected IEnumerable _ie;
-    public Map(MapFunction f, IEnumerable ie) {
-      _f = f;
-      _ie = ie;
-    }
-
-    public IEnumerator GetEnumerator() {
-      foreach(object o in _ie) {
-        yield return _f(o);
-      }
-    }
-  }
-
-  static public ArrayList RemoveAt(IList l, int pos) {
-    ArrayList copy = new ArrayList( l.Count - 1);
-    int i = 0;
-    foreach(object o in l) {
-      if( i != pos ) {
-        copy.Add(o);
-      }
-      i++;
-    }
-    return copy;
-  }
-  static public Hashtable Remove(IDictionary h, object k) {
-    Hashtable copy = new Hashtable( h.Count - 1);
-    foreach(DictionaryEntry de in h) {
-      if( !de.Key.Equals(k) ) {
-        copy.Add( de.Key, de.Value );
-      }
-    }
-    return copy;
-  }
-
-  static public Hashtable SetElement(IDictionary h, object k, object v) {
-    Hashtable copy = new Hashtable( h.Count );
-    foreach(DictionaryEntry de in h) {
-      if( !de.Key.Equals(k) ) {
-        copy.Add( de.Key, de.Value );
-      }
-      else {
-        copy.Add(k,v);
-      }
-    }
-    return copy;
-  }
-  static public ArrayList SetElement(IList l, int k, object v) {
-    ArrayList copy = new ArrayList( l );
+  static public Hashtable SetElement(Hashtable h, object k, object v) {
+    Hashtable copy = (Hashtable)h.Clone();
     copy[k] = v;
     return copy;
+  }
+  static public ArrayList SetElement(ArrayList l, int k, object v) {
+    ArrayList copy = (ArrayList)l.Clone();
+    copy[k] = v;
+    return ArrayList.ReadOnly(copy);
   }
   #if BRUNET_NUNIT
   [Test]

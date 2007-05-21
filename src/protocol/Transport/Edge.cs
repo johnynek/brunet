@@ -19,9 +19,15 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+/**
+ * Logging packets is expensive because they must be converted to
+ * base64 to be printable in the log.
+ * If we need a complete packet log, define LOG_PACKET
+ */
+//#define LOG_PACKET
+//#define POB_DEBUG
 
 using System;
-using System.Threading;
 using System.Collections;
 
 namespace Brunet
@@ -32,51 +38,57 @@ namespace Brunet
    * when a Packet arrives.
    */
 
-  public abstract class Edge : SimpleSource, IComparable, ISender
+  public abstract class Edge : IComparable, ISender, ISource
   {
-    protected static long _edge_count;
 
-    static Edge() {
-      _edge_count = 0;
-    }
-
-    protected Edge()
+    public Edge()
     {
+      _have_fired_close = false;
       _sync = new object();
-      _close_event = new FireOnceEvent();
-      //Atomically increment and update _edge_no
-      _edge_no = System.Threading.Interlocked.Increment( ref _edge_count );
-      _is_closed = 0;
-      _create_dt = DateTime.UtcNow;
-      _last_out_packet_datetime = _create_dt.Ticks;
-      _last_in_packet_datetime = _last_out_packet_datetime;
     }
+    /**
+     * Adding logger
+     */
+    /*private static readonly log4net.ILog log =
+        log4net.LogManager.GetLogger(System.Reflection.MethodBase.
+        GetCurrentMethod().DeclaringType);*/
 
-    protected Edge(IEdgeSendHandler esh, bool is_in) : this()
-    {
-      _send_cb = esh;
-      IsInbound = is_in;
-    }
-
+    protected IDataHandler _data_handler;
+    protected object _dh_state;
+    /**
+     * Set to true once CloseEvent is fired.  This prevents it from
+     * being fired twice
+     */
+    protected bool _have_fired_close;
+    
+    protected object _sync;
     /**
      * Closes the Edge, further Sends are not allowed
-     * @return true if this is the first time Close is called
      */
-    public virtual bool Close()
+    public virtual void Close()
     {
-      Interlocked.Exchange(ref _is_closed, 1);
+      bool fire = false;
+      lock( _sync ) {
+        /*
+         * Set to true *BEFORE* firing the event since some of
+         * the EventHandler objects may call close on the Edge.
+         * They shouldn't, but who knows if people follow the rules.
+         */
+        if( false == _have_fired_close ) {
+          fire = true;
+          _have_fired_close = true;
+        }
+      }
+      if( fire ) {
+        if (CloseEvent != null) {
+          CloseEvent(this, null);
+          CloseEvent = null;
+        }
+      }
 #if POB_DEBUG
       Console.Error.WriteLine("EdgeClose: edge: {0}", this);
 #endif
-      return _close_event.Fire(this, null);
     }
-
-    protected readonly long _edge_no;
-    /**
-     * Each time an Edge is created on a node, it is
-     * assigned a unique number.  This is that number
-     */
-    public long Number { get { return _edge_no; } }
 
     public abstract Brunet.TransportAddress LocalTA
     {
@@ -91,31 +103,12 @@ namespace Brunet
      */
     public virtual bool LocalTANotEphemeral { get { return false; } }
     
-    private FireOnceEvent _close_event;
     /**
      * When an edge is closed (either due to the Close method
      * being called or due to some error during the receive loop)
      * this event is fired.
-     *
-     * If the CloseEvent has already been fired, adding a handler will
-     * throw an EdgeException.
      */
-    public event EventHandler CloseEvent {
-      add {
-        try {
-          _close_event.Add(value);
-        }
-        catch {
-          // We've already fired the close event!!
-          throw new EdgeException(
-            String.Format("Edge: {0} already fired CloseEvent",this));
-        }
-      }
-
-      remove {
-        _close_event.Remove(value);
-      }
-    }
+    public event EventHandler CloseEvent;
 
     public abstract Brunet.TransportAddress RemoteTA
     {
@@ -129,63 +122,64 @@ namespace Brunet
      */
     public virtual bool RemoteTANotEphemeral { get { return false; } }
 
-    /*
-     * May be null, but many Edge types delegate sending to the
-     * EdgeListener, in those cases the Send method is always the
-     * same.  We have this here for that case.
-     */
-    protected readonly IEdgeSendHandler _send_cb;
 
     public abstract Brunet.TransportAddress.TAType TAType
     {
       get;
     }
 
+    /**
+     * @param p a Packet to send to the host on the other
+     * side of the Edge.
+     * @throw EdgeException if any problem happens
+     */
+    public abstract void Send(ICopyable p);
 
-    protected readonly DateTime _create_dt;
     /**
      * This is the time (in UTC) when the edge
      * was created.
      */
-    public DateTime CreatedDateTime { get { return _create_dt; } }
+    public abstract DateTime CreatedDateTime { get; }
 
-    protected long _last_out_packet_datetime;
     /**
      * The DateTime of the last received packet (in UTC)
      */
-    public DateTime LastOutPacketDateTime {
-      get { return new DateTime(Interlocked.Read(ref _last_out_packet_datetime)); }
+    public abstract DateTime LastOutPacketDateTime {
+      get;
     }
 
-    /*
-     * We use Interlocked and convert the DateTime to a long
-     */
-    protected long _last_in_packet_datetime;
+    protected DateTime _last_in_packet_datetime;
     /**
      * The DateTime (UTC) of the last received packet
      */
-    public DateTime LastInPacketDateTime {
-      get { return new DateTime(Interlocked.Read(ref _last_in_packet_datetime)); }
+    public virtual DateTime LastInPacketDateTime {
+      get { return _last_in_packet_datetime; }
     }
 
-    protected int _is_closed;
-    public bool IsClosed
+    public abstract bool IsClosed
     {
-      get { return 1 == _is_closed; }
+      get;
     }
 
    /**
     * @return true if the edge is an in-degree
     */
-    protected readonly bool IsInbound;
+    public abstract bool IsInbound
+    {
+      get;
+    }
 
     public int CompareTo(object e)
     {
-      if( Equals(e) ) { return 0; }
       if (e is Edge) {
         Edge edge = (Edge) e;
-        if( this.Number < edge.Number ) { return -1; }
-        else { return 1; }
+        int local_cmp = this.LocalTA.CompareTo(edge.LocalTA);
+        if (local_cmp == 0) {
+          return this.RemoteTA.CompareTo(edge.RemoteTA);
+        }
+        else {
+          return local_cmp;
+        }
       }
       else {
         return -1;
@@ -196,58 +190,87 @@ namespace Brunet
      * This method is used by subclasses.
      * @param b the packet to send a ReceivedPacket event for
      */
-    public void ReceivedPacketEvent(MemBlock b)
+    protected void ReceivedPacketEvent(MemBlock b)
     {
-      if( 1 == _is_closed ) {
+      if( IsClosed ) {
         //We should not be receiving packets on closed edges:
-        throw new EdgeClosedException(
-                      String.Format("Trying to Receive on a Closed Edge: {0}",
-                                    this) );
+        // Comment this out for now until we are debugging with
+        // FunctionEdge.
+        //throw new EdgeException("Trying to Receive on a Closed Edge");
       }
+      /**
+       * logging of incoming packets
+       */
+      //string GeneratedLog = " a new packet was recieved on this edge ";
+#if LOG_PACKET
+      string base64String;
       try {
-        _sub.Handle(b, this);
-        Interlocked.Exchange(ref _last_in_packet_datetime, DateTime.UtcNow.Ticks);
+        base64String = b.ToBase64String();
+        string GeneratedLog = "InPacket: edge: " + ToString() + ", packet: "
+                              + base64String;
+        //log.Info(GeneratedLog);
+        // logging finished
       }
-      catch(System.NullReferenceException) {
-        //this can happen if _sub is null
+      catch (System.ArgumentNullException){
+        //log.Error("Error: Packet is Null");
+      }
+#endif
+      IDataHandler dh = null;
+      object state = null;
+      lock( _sync ) {
+        if ( _data_handler != null ) {
+          _last_in_packet_datetime = DateTime.UtcNow;
+          dh = _data_handler;
+          state = _dh_state;
+        }
+        else {
         //We don't record the time of this packet.  We don't
         //want unhandled packets to keep edges open.
         //
         //This packet is going into the trash:
-        Console.Error.WriteLine("{0} lost packet {1}",this,b.ToBase16String());
+        //log.Error("Packet LOST: " + p.ToString());
+#if DEBUG
+          Console.Error.WriteLine("{0} lost packet {1}",this,p);
+#endif
+        }
       }
-    }
-    /**
-     * @param p a Packet to send to the host on the other
-     * side of the Edge.
-     * @throw EdgeException if any problem happens
-     */
-    public virtual void Send(ICopyable p) {
-      if( 1 == _is_closed ) {
-        throw new EdgeClosedException(
-                    String.Format("Tried to send on a closed edge: {0}", this));
+      //Make sure not to hold the lock while we handle the data
+      if( dh != null ) {
+        dh.HandleData(b, this, state);
       }
-      _send_cb.HandleEdgeSend(this, p);
-      Interlocked.Exchange(ref _last_out_packet_datetime, DateTime.UtcNow.Ticks);
     }
 
+    public virtual void Subscribe(IDataHandler hand, object state) {
+      lock( _sync ) {
+        _data_handler = hand;
+        _dh_state = state;
+      }
+    }
+    public virtual void Unsubscribe(IDataHandler hand) {
+     lock(_sync ) {
+      if( _data_handler == hand ) {
+        _data_handler = null;
+      }
+      else {
+        throw new Exception(String.Format("Handler: {0}, not subscribed", hand));
+      }
+     }
+    }
     /**
      * Prints the local address, the direction and the remote address
      */
     public override string ToString()
     {
+      string direction;
       if( IsInbound ) {
-        return String.Format("local: {0} <- remote: {1}, num: {2}", LocalTA, RemoteTA, Number);
+        direction = " <- ";
       }
       else {
-        return String.Format("local: {0} -> remote: {1}, num: {2}", LocalTA, RemoteTA, Number);
+        direction = " -> ";
       }
+      return "local: " + LocalTA.ToString() +
+             direction + "remote: " + RemoteTA.ToString();
     }
-    
-    public string ToUri() {
-      throw new System.NotImplementedException();
-    }
-    
   }
   
   /**

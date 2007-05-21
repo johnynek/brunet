@@ -72,7 +72,7 @@ namespace Brunet
       //inforce type 0
       hashedbytes[Address.MemSize - 1] &= 0xFE;
       AHAddress _local_ahaddress = new AHAddress(hashedbytes);
-      Node this_node = new HybridNode( _local_ahaddress );
+      Node this_node = new StructuredNode( _local_ahaddress );
       ///Node this_node = new HybridNode( new AHAddress( new BigInteger( 2*(local_host_index+1) ) ) );      
 
       String file_string = "brunetadd" + Convert.ToString(desired_port) + ".log";

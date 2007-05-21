@@ -70,6 +70,36 @@ namespace Brunet
         return Brunet.TransportAddress.TAType.Tcp;
       }
     }
+    public override DateTime CreatedDateTime { get { return DateTime.UtcNow; } }
+    public override DateTime LastOutPacketDateTime {
+      get { return DateTime.UtcNow; }
+    }
+    /**
+     * @param p a Packet to send to the host on the other
+     * side of the Edge.
+     */
+    public override void Send(ICopyable p)
+    {
+    }
+
+    public override bool IsClosed
+    {
+      get
+      {
+        return false;
+      }
+    }
+    /**
+     * @return true if the edge is an in-degree
+     */
+    public override bool IsInbound
+    {
+      get
+      {
+        return false;
+      }
+    }
+
   }
 
 }

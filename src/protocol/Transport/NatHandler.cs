@@ -25,10 +25,8 @@ using NUnit.Framework;
 #endif
 
 using System;
-using System.Threading;
 using System.Net;
 using System.Collections;
-using System.Collections.Generic;
 
 namespace Brunet {
 
@@ -56,13 +54,54 @@ public abstract class NatDataPoint {
    */
   public TransportAddress PreviousTA { get { return _old_ta; } }
 
-  protected long _edge_no;
+  protected int _edge_no;
   /**
    * So we don't keep a reference to the Edge, thereby potentially never allowing
    * garbage collection, each Edge is assigned a unique number
    * This is a unique mapping for the life of the Edge
    */
-  public long EdgeNumber { get { return _edge_no; } }
+  public int EdgeNumber { get { return _edge_no; } }
+
+  static protected WeakHashtable _edge_nos;
+  static int _next_edge_no;
+  static NatDataPoint() {
+    _edge_nos = new WeakHashtable();
+    _next_edge_no = 1;
+  }
+
+  /**
+   * Return the edge number for the given Edge.  If we don't
+   * have a number for it, return 0
+   */
+  static public int GetEdgeNumberOf(Edge e) {
+    int no = 0;
+    lock( _edge_nos ) {
+      object v = _edge_nos[e];
+      if( v != null ) {
+        no = (int)v;
+      }
+    }
+    return no;
+  }
+
+  protected void SetEdgeNumber(Edge e) {
+    if( e == null ) {
+      _edge_no = 0;
+    }
+    else {
+     lock( _edge_nos ) {
+      object v = _edge_nos[e];
+      if( v != null ) {
+        _edge_no = (int)v;
+      }
+      else {
+        _edge_no = _next_edge_no;
+        _next_edge_no++;
+        _edge_nos[e] = _edge_no;
+      }
+     }
+    }
+  }
 }
 
 /**
@@ -71,7 +110,7 @@ public abstract class NatDataPoint {
 public class NewEdgePoint : NatDataPoint {
   public NewEdgePoint(DateTime dt, Edge e) {
     _date = dt;
-    _edge_no = e.Number;
+    SetEdgeNumber(e);
     _local = e.LocalTA;
     _remote = e.RemoteTA;
   }
@@ -83,7 +122,7 @@ public class NewEdgePoint : NatDataPoint {
 public class EdgeClosePoint : NatDataPoint {
   public EdgeClosePoint(DateTime dt, Edge e) {
     _date = dt;
-    _edge_no = e.Number;
+    SetEdgeNumber(e);
     _local = e.LocalTA;
     _remote = e.RemoteTA;
   }
@@ -96,7 +135,7 @@ public class LocalMappingChangePoint : NatDataPoint {
   public LocalMappingChangePoint(DateTime dt, Edge e,
                                  TransportAddress new_ta) {
     _date = dt;
-    _edge_no = e.Number;
+    SetEdgeNumber(e);
     _local = e.LocalTA;
     _remote = e.RemoteTA;
     _p_local = new_ta;
@@ -109,7 +148,7 @@ public class LocalMappingChangePoint : NatDataPoint {
 public class RemoteMappingChangePoint : NatDataPoint {
   public RemoteMappingChangePoint(DateTime dt, Edge e) {
     _date = dt;
-    _edge_no = e.Number;
+    SetEdgeNumber(e);
     _local = e.LocalTA;
     _remote = e.RemoteTA;
   }
@@ -119,20 +158,63 @@ public class RemoteMappingChangePoint : NatDataPoint {
  * The ordered list of all the NatDataPoint objects
  * provides several methods to make selecting subsets easier
  */
-public class NatHistory : CacheLinkedList<NatDataPoint> {
-  public NatHistory(NatHistory nh, NatDataPoint ndp) : base(nh, ndp){}
-  public static NatHistory operator + (NatHistory nh, NatDataPoint ndp) {
-    return new NatHistory(nh, ndp);
-  }
-
-  public static new int MAX_COUNT = 2048;
+public class NatHistory : IEnumerable {
 
   /**
-   * Given a data point, return some object which is a function of it.
-   * If this function returns null, the output will be skipped
+   * Given a data point, return some object which is a function
+   * of it.
+   * if this function returns null, the output will be skipped
    */
   public delegate object Filter(NatDataPoint p);
 
+  /*
+   * The NatHistory is a linked list, this is how
+   * we store it:
+   */
+  protected NatDataPoint _head;
+  /**
+   * Return the most recent NatDataPoint
+   */
+  public NatDataPoint Head { get { return _head; } }
+  protected NatHistory _tail;
+  /**
+   * Return the history excluding the most recent point.
+   * If there is only one point, the tail is null
+   */
+  public NatHistory Tail { get { return _tail; } }
+
+  public NatHistory(NatDataPoint p) {
+    _head = p;
+    _tail = null;
+  }
+  /**
+   * Makes a new history by appending this new NatDataPoint.
+   * Does not change the old history.
+   */
+  public NatHistory(NatHistory nh, NatDataPoint p) {
+    _head = p;
+    _tail = nh;
+  }
+
+  /**
+   * This is syntactic sugar so we can do:
+   * hist = hist + p
+   * to append a data point.
+   */
+  public static NatHistory operator + (NatHistory hist, NatDataPoint p) {
+    return new NatHistory(hist, p);
+  }
+  /**
+   * This goes from most recent to least recent data point
+   */
+  public IEnumerator GetEnumerator() {
+    NatHistory hist = this;
+    do {
+      yield return hist.Head;
+      hist = hist.Tail;
+    }
+    while( hist != null );
+  }
 
   /**
    * Return an IEnumerable of NatDataPoints which is all the points
@@ -173,16 +255,10 @@ public class NatHistory : CacheLinkedList<NatDataPoint> {
   public IEnumerable PeerViewIPs() {
     Filter f = delegate(NatDataPoint p) {
       TransportAddress ta = p.PeerViewOfLocalTA;
-      IPAddress a = null;
       if( ta != null ) {
-	try {
-	  a = ((IPTransportAddress) ta).GetIPAddress();
-	} catch (Exception x) {
-          ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
-            "{0}", x));
-	} 
+        return ((IPTransportAddress) ta).GetIPAddresses()[0];
       }
-      return a;
+      return null;
     };
     IEnumerable e = new FilteredNDP( this, f );
     /*
@@ -223,14 +299,9 @@ public class NatHistory : CacheLinkedList<NatDataPoint> {
     Filter f = delegate(NatDataPoint p) {
       TransportAddress ta = p.PeerViewOfLocalTA;
       if( ta != null ) {
-	try {
-	  if( a.Equals( ((IPTransportAddress)ta).GetIPAddress()) ) {
-	    return p;
-	  }
-	} catch (Exception x) {
-          ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
-            "{0}", x));	  
-	}
+        if( a.Equals( ((IPTransportAddress)ta).GetIPAddresses()[0] ) ) {
+          return p;
+        }
       }
       return null;
     };
@@ -639,9 +710,9 @@ public class LinuxNatHandler : SymmetricNatHandler {
  */
 public class NatTAs : IEnumerable {
 
-  protected readonly NatHistory _hist;
+  protected NatHistory _hist;
   protected ArrayList _list_of_remote_ips;
-  protected readonly IEnumerable _local_config;
+  protected IEnumerable _local_config;
   protected IEnumerable _generated_ta_list;
 
   /**
@@ -652,19 +723,13 @@ public class NatTAs : IEnumerable {
     _hist = hist;
     _local_config = local_config_tas;
   }
-  protected ArrayList InitRemoteIPs() {
+  protected void InitRemoteIPs() {
     NatHistory.Filter f = delegate(NatDataPoint p) {
       TransportAddress ta = p.PeerViewOfLocalTA;
-      IPAddress a = null;
       if( ta != null ) {
-	try {
-	  a = ((IPTransportAddress)ta).GetIPAddress();
-	} catch (Exception x) {
-          ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
-            "{0}", x));
-	}
+        return ((IPTransportAddress)ta).GetIPAddresses()[0];
       }
-      return a;
+      return null;
     };
     IEnumerable all_ips = _hist.FilteredEnumerator(f);
     Hashtable ht = new Hashtable();
@@ -689,10 +754,10 @@ public class NatTAs : IEnumerable {
     }
     //Now we have a list of the most used to least used IPs
     rips.Sort();
-    return rips;
+    _list_of_remote_ips = rips;
   }
 
-  protected ArrayList GenerateTAs() {
+  protected void GenerateTAs() {
     ArrayList gtas = new ArrayList();
     Hashtable ht = new Hashtable();
     if( _hist != null ) {
@@ -700,8 +765,7 @@ public class NatTAs : IEnumerable {
        * we go through the list from most likely to least likely:
        */
       if( _list_of_remote_ips == null ) {
-        ArrayList rips = InitRemoteIPs();
-        Interlocked.Exchange<ArrayList>(ref _list_of_remote_ips, rips);
+        InitRemoteIPs();
       }
       foreach(IPAddressRecord r in _list_of_remote_ips) {
         IEnumerable points = _hist.PointsForIP(r.IP);
@@ -710,9 +774,9 @@ public class NatTAs : IEnumerable {
         while( hand_it.MoveNext() && (false == yielded) ) {
           NatHandler hand = (NatHandler)hand_it.Current;
           if( hand.IsMyType( points ) ) {
-            if(ProtocolLog.NatHandler.Enabled)
-              ProtocolLog.Write(ProtocolLog.NatHandler, String.Format(
-                "NatHandler: {0}", hand.GetType()));
+  #if DEBUG
+            System.Console.Error.WriteLine("NatHandler: {0}", hand.GetType() );
+  #endif
             IList tas = hand.TargetTAs( points );
             foreach(TransportAddress ta in tas) {
               if( false == ht.Contains(ta) ) {
@@ -733,16 +797,14 @@ public class NatTAs : IEnumerable {
         gtas.Add(ta);
       }
     }
-
-    if(ProtocolLog.UdpEdge.Enabled) {
-      int i = 0;
-      foreach(TransportAddress ta in gtas) {
-        ProtocolLog.Write(ProtocolLog.UdpEdge, String.Format(
-            "LocalTA({0}): {1}", i, ta));
-        i++;
-      }
+    _generated_ta_list = gtas; 
+#if DEBUG 
+    int i = 0;
+    foreach(TransportAddress ta in _generated_ta_list) {
+      Console.Error.WriteLine("LocalTA({0}): {1}",i,ta);
+      i++;
     }
-    return gtas;
+#endif
   }
 
   /**
@@ -750,16 +812,10 @@ public class NatTAs : IEnumerable {
    * TAs for this history
    */
   public IEnumerator GetEnumerator() {
-    if( _generated_ta_list != null ) {
-      //If it is not null, it will never be null again:
-      return _generated_ta_list.GetEnumerator();
+    if( _generated_ta_list == null ) {
+      GenerateTAs();
     }
-    else {
-      //This happens if _generated_ta_list is not yet generated
-      IEnumerable gtas = GenerateTAs();
-      Interlocked.Exchange<IEnumerable>(ref _generated_ta_list, gtas); 
-      return gtas.GetEnumerator();
-    }
+    return _generated_ta_list.GetEnumerator();
   }
 
   /**

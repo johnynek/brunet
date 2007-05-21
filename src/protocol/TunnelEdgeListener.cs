@@ -649,7 +649,7 @@ namespace Brunet
 			      AHPacket.Protocol.Tunneling, ms.ToArray());
       
       if (tun_edge.PacketSenders.Count > 0) {
-	IPacketSender sender = (IPacketSender) tun_edge.PacketSenders[_rand.Next(0, tun_edge.PacketSenders.Count)];
+	ISender sender = (ISender) tun_edge.PacketSenders[_rand.Next(0, tun_edge.PacketSenders.Count)];
 	try {
 	  Console.Error.WriteLine("Sending control out on base connection: {0}", _node.ConnectionTable.GetConnection((Edge) sender));
 	  sender.Send(p);
@@ -680,7 +680,7 @@ namespace Brunet
 			      AHPacket.Protocol.Tunneling, tun_edge.SendBuffer, 0, 9 + packet.Length);
       
       if (tun_edge.PacketSenders.Count > 0) {
-	IPacketSender sender = (IPacketSender) tun_edge.PacketSenders[_rand.Next(0, tun_edge.PacketSenders.Count)];
+	ISender sender = (ISender) tun_edge.PacketSenders[_rand.Next(0, tun_edge.PacketSenders.Count)];
 	try {
 	  Console.Error.WriteLine("Sending data out on base connection: {0}", _node.ConnectionTable.GetConnection((Edge) sender));
 	  sender.Send(p);

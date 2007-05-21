@@ -18,9 +18,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-using System;
-using System.Collections;
-
 namespace Brunet {
 
 /**
@@ -31,30 +28,8 @@ public interface ISender {
   /**
    * Send some copyable object somewhere.  This is half of our basic communication
    * primative.  This is may be asychronous, it may throw an exception.
-   * @throws SendException if there is some problem
    */
   void Send(ICopyable data);
- /**
-   * Converts the sender into a URI representation.
-   */
-  string ToUri();
-  
-}
-
-public class SendException : Exception {
-
-  public readonly bool IsTransient;
-
-  public SendException(bool istransient) : base() {
-    IsTransient = istransient;
-  }
-  
-  public SendException(bool istransient, string message) : base(message) {
-    IsTransient = istransient;
-  }
-  public SendException(bool istransient, string message, Exception inner) : base(message, inner) {
-    IsTransient = istransient;
-  }
 
 }
 
@@ -75,4 +50,13 @@ public interface IDataHandler {
    */
   void HandleData(MemBlock b, ISender return_path, object state);
 }
+
+/**
+ * This is a source of data
+ */
+public interface ISource {
+  void Subscribe(IDataHandler h, object state);
+  void Unsubscribe(IDataHandler h);
+}
+
 }

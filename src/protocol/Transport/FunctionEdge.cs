@@ -20,7 +20,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using System;
-using System.Threading;
 using System.Collections;
 
 namespace Brunet
@@ -37,13 +36,59 @@ namespace Brunet
   public class FunctionEdge : Edge
   {
 
-    protected readonly int _l_id;
-    protected readonly int _r_id;
+    public static Random _rand = new Random();
 
-    public FunctionEdge(IEdgeSendHandler s, int local_id, int remote_id, bool is_in) : base(s, is_in)
+    /**
+     * Adding logger
+     */
+    /*private static readonly log4net.ILog log =
+      log4net.LogManager.GetLogger(System.Reflection.MethodBase.
+      GetCurrentMethod().DeclaringType);*/
+
+    protected int _l_id;
+    protected int _r_id;
+    protected IEdgeSendHandler _sh;
+
+    public FunctionEdge(IEdgeSendHandler s, int local_id, int remote_id, bool is_in)
     {
+      _sh = s;
+      _create_dt = DateTime.UtcNow;
       _l_id = local_id;
       _r_id = remote_id;
+      inbound = is_in;
+      _is_closed = false;
+    }
+
+    protected DateTime _create_dt;
+    public override DateTime CreatedDateTime {
+      get { return _create_dt; }
+    }
+    protected DateTime _last_out_packet_datetime;
+    public override DateTime LastOutPacketDateTime {
+      get { return _last_out_packet_datetime; }
+    }
+
+    protected bool _is_closed;
+    public override void Close()
+    {
+      base.Close();
+      _is_closed = true;
+    }
+
+    public override bool IsClosed
+    {
+      get
+      {
+        return (_is_closed);
+      }
+    }
+    protected bool inbound;
+    public override bool IsInbound
+    {
+      get
+      {
+        return inbound;
+      }
     }
 
     protected FunctionEdge _partner;
@@ -55,10 +100,18 @@ namespace Brunet
       }
       set
       {
-        Interlocked.Exchange<FunctionEdge>(ref _partner, value);
+        _partner = value;
       }
     }
 
+
+    public override void Send(ICopyable p)
+    {
+      if( !_is_closed ) {
+        _last_out_packet_datetime = DateTime.UtcNow;
+        _sh.HandleEdgeSend(this, p);
+      }
+    }
 
     public override Brunet.TransportAddress.TAType TAType
     {
@@ -72,27 +125,28 @@ namespace Brunet
       get { return _l_id; }
     }
 
-    protected TransportAddress _local_ta;
     public override Brunet.TransportAddress LocalTA
     {
-      get {
-        if ( _local_ta == null ) {
-          _local_ta = TransportAddressFactory.CreateInstance("brunet.function://localhost:"
+      get
+      {
+        return TransportAddressFactory.CreateInstance("brunet.function://localhost:"
                                     + _l_id.ToString());
-        }
-        return _local_ta;
       }
     }
-    protected TransportAddress _remote_ta;
     public override Brunet.TransportAddress RemoteTA
     {
-      get {
-        if ( _remote_ta == null ) {
-          _remote_ta = TransportAddressFactory.CreateInstance("brunet.function://localhost:"
+      get
+      {
+        return TransportAddressFactory.CreateInstance("brunet.function://localhost:"
                                     + _r_id.ToString());
-        }
-        return _remote_ta;
       }
     }
+    public void Push(MemBlock p) {
+      //Make a copy:
+      if( !_is_closed ) {
+        ReceivedPacketEvent(p);
+      }
+    }
+
   }
 }

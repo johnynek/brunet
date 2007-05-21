@@ -28,31 +28,18 @@ namespace Brunet
    * by this exception
    */
 
-  public class EdgeException : SendException
+  public class EdgeException:Exception
   {
-    /**
-     * By default, this is considered a transient exception
-     */
-    public EdgeException():base(true) {
-    }
 
-    public EdgeException(string message):base(true, message) {
+    public EdgeException():base()
+    {
     }
-
-    public EdgeException(bool istransient, string message) : base(istransient, message) {
+    public EdgeException(string message):base(message)
+    {
     }
-
-    public EdgeException(bool istransient, string message, Exception inner) : base(istransient, message, inner) {
+    public EdgeException(string mes, Exception inner):base(mes, inner)
+    {
     }
-  }
-
-  /**
-   * This type is here to make the code easier to read and less error prone
-   * Once an Edge IsClosed, then it will never be unclosed, so this type
-   * of exception is never transient
-   */
-  public class EdgeClosedException : EdgeException {
-    public EdgeClosedException(string message) : base(false, message) { }
   }
 
 }

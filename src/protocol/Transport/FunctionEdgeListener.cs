@@ -18,10 +18,9 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
-//#define FUNCTION_DEBUG
+
 using Brunet;
 using System;
-using System.IO;
 using System.Collections;
 using System.Threading;
 
@@ -33,7 +32,8 @@ namespace Brunet
   * with one another.  No system interfaces are used,
   * the packets are simply passed by method calls.
   *
-  * FunctionEdges are for debugging with several nodes  * within one process
+  * FunctionEdges are for debugging with several nodes
+  * within one process
   *
   */
 
@@ -70,9 +70,8 @@ namespace Brunet
       public FunctionEdge Edge;
       public ICopyable P;
     }
-    protected Brunet.Util.LFBlockingQueue<FQEntry> _queue;
+    protected BlockingQueue _queue;
     protected Thread _queue_thread;
-    protected double _ploss_prob;
 
     public override TransportAddress.TAType TAType
     {
@@ -83,28 +82,20 @@ namespace Brunet
     }
 
 
-    public FunctionEdgeListener(int id):this(id, 0.05, null) {}
-
-    public FunctionEdgeListener(int id, double loss_prob, TAAuthorizer ta_auth)
+    public FunctionEdgeListener(int id)
     {
       _listener_id = id;
-      _ploss_prob = loss_prob;
-      if (ta_auth == null) {
-        _ta_auth = new ConstantAuthorizer(TAAuthorizer.Decision.Allow);
-      } else {
-	_ta_auth = ta_auth;
-      }
       _tas = new ArrayList();
       _tas.Add(TransportAddressFactory.CreateInstance("brunet.function://localhost:" +
                                      _listener_id.ToString()) );
-      _queue = new Brunet.Util.LFBlockingQueue<FQEntry>();
+      _queue = new BlockingQueue();
       _queue_thread = new Thread(new ThreadStart(StartQueueProcessing));
     }
 
-    protected int _is_started = 0;
+    volatile protected bool _is_started = false;
     public override bool IsStarted
     {
-      get { return 1 == _is_started; }
+      get { return _is_started; }
     }
 
     /*
@@ -119,81 +110,43 @@ namespace Brunet
         // it should return null and not throw an exception
         // for graceful disconnect and preventing others to
         // connect to us after we've disconnected.
-        ecb(false, null, new EdgeException("Not started"));
+        ecb(false, null, null);
         return;
       }
 
-#if FUNCTION_DEBUG
-      foreach (TransportAddress local_ta in LocalTAs) {
-	Console.Error.WriteLine("Create edge local: {0} <-> remote {1}.", local_ta, ta);
-      }
-#endif
-
-      if( ta.TransportAddressType != this.TAType ) {
-        //Can't make an edge of this type
-#if FUNCTION_DEBUG
-	Console.Error.WriteLine("Can't make edge of this type.");
-#endif
-        ecb(false, null, new EdgeException("Can't make edge of this type"));
-	return;
-      }
-      
-      if( _ta_auth.Authorize(ta) == TAAuthorizer.Decision.Deny ) {
-        //Not authorized.  Can't make this edge:
-#if FUNCTION_DEBUG
-	Console.Error.WriteLine("Can't make edge. Remote TA {0} is not authorized locally.", ta);
-#endif
-        ecb(false, null,
-            new EdgeException( ta.ToString() + " is not authorized") );
-	return;
-      }
-      
-      int remote_id = ((IPTransportAddress) ta).Port;
-      //Get the edgelistener: 
-
-      //Outbound edge:
-      FunctionEdge fe_l = new FunctionEdge(this, _listener_id,
-					   remote_id, false);
-      lock( _listener_map ) { 
-	FunctionEdgeListener remote
-	  = (FunctionEdgeListener) _listener_map[remote_id];
-	if( remote != null ) {
-	  //
-	  // Make sure that the remote listener does not deny 
-	  // our TAs.
-	  //
-
-	  foreach (TransportAddress ta_local in LocalTAs) {
-	    if (remote.TAAuth.Authorize(ta_local) == TAAuthorizer.Decision.Deny ) {
-	      //Not authorized.  Can't make this edge:
-#if FUNCTION_DEBUG
-	      Console.Error.WriteLine("Can't make edge. local TA {0} is not authorized remotely by {1}.", ta_local, ta);
-#endif
-	      ecb(false, null,
-		  new EdgeException( ta_local.ToString() + " is not authorized by remote node.") );
-	      return;
-	    }
-	  }
-
-	  FunctionEdge fe_r = new FunctionEdge(remote, remote_id,
-					       _listener_id, true);
-	  fe_l.Partner = fe_r;
-	  fe_r.Partner = fe_l;
-	  remote.SendEdgeEvent(fe_r);
-	}
-	else {
-	  //There is no other edge, for now, we use "udp-like"
-	  //behavior of just making an edge that goes nowhere.
-	}
+      if( ta.TransportAddressType == this.TAType ) {
+        int remote_id = ((IPTransportAddress) ta).Port;
+        //Get the edgelistener:
+        
+        //Outbound edge:
+        FunctionEdge fe_l = new FunctionEdge(this, _listener_id,
+                                             remote_id, false);
+        lock( _listener_map ) { 
+          FunctionEdgeListener remote
+                      = (FunctionEdgeListener) _listener_map[remote_id];
+          if( remote != null ) {
+            FunctionEdge fe_r = new FunctionEdge(remote, remote_id,
+                                                 _listener_id, true);
+            fe_l.Partner = fe_r;
+            fe_r.Partner = fe_l;
+            remote.SendEdgeEvent(fe_r);
+          }
+          else {
+            //There is no other edge, for now, we use "udp-like"
+            //behavior of just making an edge that goes nowhere.
+          }
+        }
         ecb(true, fe_l, null);
+      }
+      else {
+        //Can't make an edge of this type
+        ecb(false, null, null);
       }
     }
 
     public override void Start()
     {
-      if( 1 == Interlocked.Exchange(ref _is_started, 1) ) {
-        throw new Exception("Can only call FunctionEdgeListener.Start() once!"); 
-      }
+      _is_started = true;
       lock( _listener_map ) {
         _listener_map[ _listener_id ] = this;
       }
@@ -202,43 +155,18 @@ namespace Brunet
 
     public override void Stop()
     {
-      Interlocked.Exchange(ref _is_started, 0);
-      //Make sure to wake up the queue thread
-      _queue.Enqueue(new FQEntry(null,null));
-      if( Thread.CurrentThread != _queue_thread ) {
-        _queue_thread.Join();
-      }
+      _is_started = false;
     }
 
     protected void StartQueueProcessing() {
-      /*
-       * Simulate packet loss
-       */
-      Random r = new Random();
-      
-      try {
-        bool timedout;
-        while( 1 == _is_started ) {
-          FQEntry ent = (FQEntry)_queue.Dequeue(-1, out timedout);
-          if( r.NextDouble() > _ploss_prob ) {
-            //Stop in this case
-            if( ent.P == null ) { return; }
-            FunctionEdge fe = ent.Edge;
-            MemBlock data_to_send = ent.P as MemBlock;
-            if( data_to_send == null ) {
-              data_to_send = MemBlock.Copy(ent.P);
-            }
-            try {
-              fe.ReceivedPacketEvent( data_to_send );
-            }
-            catch(EdgeClosedException) {
-              //The edge may have closed, just ignore it
-            }
-          }
+      bool timedout;
+      while( _is_started ) {
+        //Wait 100 ms for an a packet to be sent:
+        FQEntry ent = (FQEntry)_queue.Dequeue(100, out timedout);
+        if( !timedout ) {
+          FunctionEdge fe = ent.Edge;
+          fe.Push( MemBlock.Copy(ent.P) );
         }
-      }
-      catch(InvalidOperationException) {
-        // The queue has been closed
       }
     }
 
@@ -248,15 +176,9 @@ namespace Brunet
       FunctionEdge fe_to = fe_from.Partner;
       if( fe_to != null ) {
         el = (FunctionEdgeListener)_listener_map[ fe_to.ListenerId ];
-        try {
-	  el._queue.Enqueue(new FQEntry(fe_to, p));
-        }
-        catch(System.InvalidOperationException) {
-          //The queue other queue is closed:
-          //Just throw the packet away.  This simulates UDP, which is giving less information
-          //to the local node.
-        }
+        el._queue.Enqueue( new FQEntry(fe_to, p) );
       }
     }
+
   }
 }

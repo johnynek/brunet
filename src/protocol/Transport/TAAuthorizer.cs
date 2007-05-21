@@ -129,32 +129,6 @@ public class PortTAAuthorizer : TAAuthorizer {
     }
   }
 }
-
-  /** 
-      Denies a random TA and remembers it for subsequent denials.
-   */
-
-public class RandomTAAuthorizer: TAAuthorizer {
-  protected static Random _rand = new Random();
-  protected ArrayList _deny_list;
-  protected double  _deny_prob;
-  public RandomTAAuthorizer(double deny_prob) {
-    _deny_list = new ArrayList();
-    _deny_prob = deny_prob;
-  }
-  public override TAAuthorizer.Decision Authorize(TransportAddress a) {
-    if (_deny_list.Contains(a)) {
-      return TAAuthorizer.Decision.Deny;
-    }
-    // randomly deny the TA
-    if (_rand.NextDouble() > _deny_prob) {
-      _deny_list.Add(a);
-      return TAAuthorizer.Decision.Deny;      
-    }
-    return TAAuthorizer.Decision.Allow;
-  }  
-}
-
 public class NetmaskTAAuthorizer : TAAuthorizer {
 
   /**
@@ -189,17 +163,7 @@ public class NetmaskTAAuthorizer : TAAuthorizer {
   protected TAAuthorizer.Decision _result_on_mismatch;
 
   public override TAAuthorizer.Decision Authorize(TransportAddress a) {
-    IPAddress ipa = null;
-    try {
-      ipa = (IPAddress)( ((IPTransportAddress) a).GetIPAddress() );
-    } catch (Exception x) {
-      ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
-         "{0}", x));
-    }
-    if (ipa == null) {
-      return _result_on_mismatch;
-    }
-
+    IPAddress ipa = (IPAddress)( ((IPTransportAddress) a).GetIPAddresses()[0] );
     byte[] add_bytes = ipa.GetAddressBytes();
     int bits = _bit_c;
     int block = 0;

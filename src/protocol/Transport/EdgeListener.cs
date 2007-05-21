@@ -98,45 +98,32 @@ namespace Brunet
     public abstract void CreateEdgeTo(TransportAddress ta, EdgeCreationCallback ecb);
 
     /**
-     * When an incoming edge is created, this event is fired with the edge
-     * as the Sender.
+     * Looks up the local IP addresses and returns a list
+     * of transport Address objects which match them.
+     * Loopback addresses will be at the end.
+     *
+     * Both UdpEdgeListener and TcpEdgeListener make use of this
+     *
+     * @deprecated see TransportAddress.Create
      */
+//     static protected IEnumerable GetIPTAs(TransportAddress.TAType tat, int port, 
+// 					IPAddress[] ipList)
+//     {
+//       if( ipList == null ) {
+//         return TransportAddress.CreateForLocalHost(tat,port);
+//       }
+//       else {
+//         return TransportAddress.Create(tat,port,ipList);
+//       }
+//     }
+
     public event System.EventHandler EdgeEvent;
 
-    /**
-     * If you want to close all edges in some other thread,
-     * handle this event.  If there is no handler for this
-     * event, Edges are potentially closed inside EdgeListener threads
-     * which can complicate thread synchronization.
-     */
-    public event System.EventHandler EdgeCloseRequestEvent;
-
-    /**
-     * This function sends the New Edge event
-     */
+    //This function sends the New Edge event
     protected void SendEdgeEvent(Edge e)
     {
-      EventHandler eh = EdgeEvent;
-      if( eh != null ) {
-        eh(e, EventArgs.Empty);
-      }
-    }
-
-    protected void RequestClose(Edge e) {
-      EventHandler eh = EdgeCloseRequestEvent;
-      if( eh == null ) {
-        //We have to close the edge:
-        e.Close();
-      }
-      else {
-        try {
-          eh(this, new EdgeCloseRequestArgs(e));
-        }
-        catch(Exception x) {
-          Console.Error.WriteLine("ERROR: closing: {0} -- {1}", e, x);
-          e.Close();
-        }
-      }
+      if( EdgeEvent != null ) 
+        EdgeEvent(e, EventArgs.Empty);
     }
 
     /**
@@ -151,17 +138,7 @@ namespace Brunet
      * The edgelistener may not be garbage collected
      * until this is called
      */
-    public virtual void Stop() {
-      /*
-       * Hopefully we can get garbage collection moving
-       * sooner.  Some EdgeListeners have threads that
-       * won't stop immediately, so the idea is to make
-       * sure they don't keep references to the node
-       * around
-       */
-      EdgeCloseRequestEvent = null;
-      EdgeEvent = null;
-    }
+    public abstract void Stop();
 
     /**
      * When a new Connection is added, we may need to update the list
@@ -190,35 +167,10 @@ namespace Brunet
           //so frequently, a NATed TA will probably be bad in the future
           if( ta.Equals( e.RemoteTA ) ) {
             //This node is not behind a NAT.
-            int idx = list.IndexOf(ta);
-            if( idx >= 0 ) {
-              list.Remove(ta);
-            }
-            //Now put the i
             list.Insert(0, ta);
           }
         }
       }
-    }
-
-    public virtual int Count {
-      get {
-        throw new NotImplementedException();
-      }
-    }
-  }
-
-  /**
-   * When an EdgeListener wants an edge to be closed, it uses an event
-   * with this event args.
-   */
-  public class EdgeCloseRequestArgs : System.EventArgs {
-    public readonly Edge Edge;
-    public readonly string Reason;
-    public EdgeCloseRequestArgs(Edge e) : this(e, String.Empty) { }
-    public EdgeCloseRequestArgs(Edge e, string reason) {
-      Edge = e;
-      Reason = reason;
     }
   }
 }

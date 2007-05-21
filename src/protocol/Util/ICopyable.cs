@@ -32,12 +32,7 @@ public interface ICopyable {
    */
   int CopyTo(byte[] dest, int offset); 
   /**
-   * @return How many bytes would this take to represent.
-   *
-   * Prefer not to call this method.  It may require as much work
-   * as CopyTo internally, so if you can write first and then
-   * get the length written returned from CopyTo, it will be faster
-   * to do so.
+   * how many bytes would this take to represent
    */
   int Length { get; }
 }
@@ -48,21 +43,6 @@ public interface ICopyable {
 public class CopyList : ICopyable {
   
   protected ICopyable[] _cs;
-  
-  /**
-   * How many Copyable objects are in this list
-   */
-  public int Count {
-    get { return _cs.Length; }
-  }
-  
-  /**
-   * Get out individual elements from the list
-   */
-  public ICopyable this[int idx] {
-    get { return _cs[idx]; }
-  }
-
   /**
    * @param cs is an IEnumerable of ICopyable objects
    */
