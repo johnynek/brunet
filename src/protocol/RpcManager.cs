@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 #define RPC_DEBUG
+//#define USE_ASYNC_INVOKE
 using System;
 using System.IO;
 using System.Collections;
@@ -202,11 +203,20 @@ public class RpcManager : IReplyHandler, IDataHandler {
       MethodInfo mi = handler.GetType().GetMethod(mname);
       //make the following happen asynchronously in a separate thread
       //build an invocation record for the call
+#if USE_ASYNC_INVOKE
       RpcMethodInvokeDelegate inv_dlgt = this.RpcMethodInvoke;
       inv_dlgt.BeginInvoke(ret_path, mi, handler, pa.ToArray(), 
 			   new AsyncCallback(RpcMethodFinish),
 			   inv_dlgt);
       //we have setup an asynchronous invoke here
+#else
+      /*
+       * Invoke the method synchronously, it is not clear which is 
+       * better.  Async uses the threadpool, which can lead to performance
+       * issues.
+       */
+      RpcMethodInvoke(ret_path, mi, handler, pa.ToArray()); 
+#endif
     }
     catch(ArgumentException argx) {
       exception = new AdrException(-32602, argx);

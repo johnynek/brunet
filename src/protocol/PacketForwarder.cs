@@ -73,7 +73,9 @@ namespace Brunet
            */
           ICopyable new_payload = new CopyList(PType.Protocol.Forwarding,
                                            f_header, add_a, payload);
-          AHSender next = new AHSender(_n, add_c); 
+          AHSender next = new AHSender(_n, ahs.ReceivedFrom, add_c,
+                                       _n.DefaultTTLFor(add_c),
+                                       AHPacket.AHOptions.AddClassDefault); 
           next.Send(new_payload);
         }
         else if ( b[0] == 1 ) {
