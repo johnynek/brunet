@@ -39,7 +39,7 @@ namespace Brunet
    * connections. 
    * 
    */
-  abstract public class Node : IDataHandler
+  abstract public class Node : ISender, IDataHandler
   {
     /*private static readonly log4net.ILog log =
         log4net.LogManager.GetLogger(System.Reflection.MethodBase.
@@ -375,6 +375,9 @@ namespace Brunet
       else {
         ttl = (short)( ttld );
       }
+      //When the network is very small this could happen, at least give it one
+      //hop:
+      if( ttl < 1 ) { ttl = 1; }
       return ttl;
     }
 
@@ -873,34 +876,13 @@ namespace Brunet
         Console.Error.WriteLine("Exception in heartbeat: {0}", x.ToString() );
       }
     }
-  }
 
-  /**
-   * This is a sender that just announces data at the local node.
-   */
-  public class LocalSender : ISender {
-    protected Node _n;
-
-    public LocalSender(Node n) {
-      _n = n;
-    }
-
+    /**
+     * This just announces the data with the current node
+     * as the return path
+     */
     public void Send(ICopyable data) {
-      MemBlock b = MemBlock.Copy(data);
-      _n.Announce(b, this);
-    }
-    
-    override public int GetHashCode() {
-      return _n.GetHashCode();
-    }
-
-    override public bool Equals(object o) {
-      LocalSender other = o as LocalSender;
-      bool eq = false;
-      if( other != null ) {
-        eq = (other._n == _n);
-      }
-      return eq;
+      this.Announce(MemBlock.Copy(data), this);
     }
   }
 }

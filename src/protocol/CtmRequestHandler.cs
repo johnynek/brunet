@@ -58,7 +58,6 @@ namespace Brunet
      * reach this method
      */
     public Hashtable ConnectTo(Hashtable ht) {
-      Console.WriteLine("Got ctm request");
       NodeInfo target = new NodeInfo( (Hashtable)ht["target"] );
       string contype = (string)ht["type"];
       Node n = _n;

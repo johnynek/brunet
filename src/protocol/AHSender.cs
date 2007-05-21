@@ -40,19 +40,19 @@ public class AHSender : ISender {
    * or it came from an edge.  This ISender sends "back" from where the
    * packet came from
    *
-   * If this a local packet, it was Received from the LocalSender
+   * If this a local packet, it was Received from the local node
    */
   public ISender ReceivedFrom { get { return _from; } }
   //This is the serialized header:
   protected volatile MemBlock _header;
 
   public AHSender(Node n, Address destination, ushort options)
-  : this( n, new LocalSender(n), destination, n.DefaultTTLFor(destination), options) {
+  : this( n, n, destination, n.DefaultTTLFor(destination), options) {
 
   }
 
   public AHSender(Node n, Address destination, short ttl, ushort options)
-    : this(n, new LocalSender(n), destination, ttl, options) {
+    : this(n, n, destination, ttl, options) {
 
   }
   public AHSender(Node n, ISender from, Address destination, short ttl, ushort options) {
@@ -65,7 +65,6 @@ public class AHSender : ISender {
     _dest = destination;
     _options = options;
   }
-
   /**
    * This is probably the most commonly used AHSender
    */
@@ -156,7 +155,6 @@ public class AHHandler : IDataHandler {
      */
     MemBlock full_packet = data.ExtendHead(1);
     AHPacket p = new AHPacket(full_packet);
-    bool deliver_locally;
     //Route avoiding the edge we got the packet from:
     IRouter router = null;
     if( p.Destination.Class == 0 ) {
@@ -165,9 +163,14 @@ public class AHHandler : IDataHandler {
     else {
       router = _d_router;
     }
-    router.Route(ret_path as Edge, p, out deliver_locally);
+    Edge edge_rec_from = ret_path as Edge;
+    bool deliver_locally;
+    router.Route(edge_rec_from, p, out deliver_locally);
     if( deliver_locally ) {
-      ISender resp_send = new AHSender(_n, p.Source);
+      //Send a response exactly back to the node that sent to us
+      ISender resp_send = new AHSender(_n, ret_path, p.Source,
+                                       _n.DefaultTTLFor(p.Source),
+                                       AHPacket.AHOptions.Exact);
       //There are 2 (hops) + 2 (ttl) + 20 (s) + 20 (d) + 2 (opts) = 46 bytes to the payload encapsulated
       //data:
       _n.Announce( data.Slice(46), resp_send ); 

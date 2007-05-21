@@ -810,6 +810,7 @@ namespace Brunet {
 
     protected void ConnectTo(ISender sender, string contype)
     {
+      Console.Error.WriteLine("Starting ConnectTo: {0} -- {1}", contype, sender);
       ConnectionType mt = Connection.StringToMainType(contype);
       /*
        * This is an anonymous delegate which is called before
