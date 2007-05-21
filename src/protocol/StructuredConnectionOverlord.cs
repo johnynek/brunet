@@ -382,7 +382,9 @@ namespace Brunet {
       Address forwarder = null;
       Address target = null;
       string contype = String.Empty;
+      ISender sender = null;
       int structured_count = 0;
+      int desired_ctms = 1;
       
       lock( tab.SyncRoot ) {
 	structured_count = tab.Count(ConnectionType.Structured);
@@ -412,25 +414,24 @@ namespace Brunet {
 	  //structured neighbor to try to get a new neighbor with:
 	  if( leaf != null ) {
 	    target = GetSelfTarget();
-	    if( ! target.Equals( leaf.Address ) ) {
-	      //As long as the forwarder is not the target, forward
-              forwarder = leaf.Address;
-	    }
+            /*
+             * This is the case of trying to find the nodes nearest
+             * to ourselves, use the Annealing routing to get connected
+             * more quickly
+             */
+            sender = new ForwardingSender(_node, leaf.Address, target);
+            //We are trying to connect to the two nearest nodes in one
+            //one attempt, so wait for two distinct responses:
+            desired_ctms = 2;
 	    //This is a near neighbor connection
 	    contype = STRUC_NEAR;
 	  }
 	}
+        else {
+          //We have two or more structured connections
+        }
       }//End of ConnectionTable lock
-      if( target != null ) {
-        ISender send = null;
-        if( forwarder != null ) {
-          send = new ForwardingSender(_node, forwarder, target);
-	}
-	else {
-          send = new AHSender(_node, target);
-	}
-        ConnectTo(send, contype);
-      }
+      
       if( structured_count > 0 && target == null ) {
           //We have enough structured connections to ignore the leafs
           
@@ -449,8 +450,8 @@ namespace Brunet {
             target = new DirectionalAddress(DirectionalAddress.Direction.Left);
 	    ttl = (short)DESIRED_NEIGHBORS;
 	    trying_near = true;
-            ISender sender = new AHSender(_node, target, ttl, AHPacket.AHOptions.Last);
-            ConnectTo(sender, STRUC_NEAR);
+            sender = new AHSender(_node, target, ttl, AHPacket.AHOptions.Last);
+            contype = STRUC_NEAR;
           }
 	  if( NeedRightNeighbor ) {
 #if POB_DEBUG
@@ -459,8 +460,8 @@ namespace Brunet {
             target = new DirectionalAddress(DirectionalAddress.Direction.Right);
 	    ttl = (short)DESIRED_NEIGHBORS;
 	    trying_near = true;
-            ISender sender = new AHSender(_node, target, ttl, AHPacket.AHOptions.Last);
-            ConnectTo(sender, STRUC_NEAR);
+            sender = new AHSender(_node, target, ttl, AHPacket.AHOptions.Last);
+            contype = STRUC_NEAR;
           }
 	  /*
 	   * If we are trying to get near connections it
@@ -475,9 +476,16 @@ namespace Brunet {
             target = GetShortcutTarget(); 
 	    contype = STRUC_SHORT;
             //Console.Error.WriteLine("Making Connector for shortcut to: {0}", target);
-            ISender sender = new AHSender(_node, target);
-            ConnectTo(sender, contype);
+            /*
+             * Use greedy routing to make shortcuts, because we only want to
+             * find the node closest to the target address.
+             */
+            sender = new AHSender(_node, target, _node.DefaultTTLFor(target),
+                                  AHPacket.AHOptions.Greedy);
           }
+      }
+      if( sender != null ) {
+        ConnectTo(sender, contype, desired_ctms);
       }
     }
 
@@ -555,7 +563,8 @@ namespace Brunet {
 	//This is a near neighbor connection
 	string contype = STRUC_NEAR;
         ISender send = new ForwardingSender(_node, new_con.Address, target);
-        ConnectTo(send, contype);
+        //Try to connect to the two nearest to us:
+        ConnectTo(send, contype, 2);
       }
       else if( new_con.MainType == ConnectionType.Structured ) {
        ConnectionTable tab = _node.ConnectionTable;
@@ -625,10 +634,18 @@ namespace Brunet {
        * while we try to make new connections
        */
       if( nrtarget != null ) {
+        /*
+         * nrtarget should exist in the network and should be a neighbor
+         * of new_con, so the default routing options are good.
+         */
         ISender send = new ForwardingSender(_node, new_con.Address, nrtarget);
         ConnectTo(send, STRUC_NEAR);
       }
       if( nltarget != null && !nltarget.Equals(nrtarget) ) {
+        /*
+         * nltarget should exist in the network and should be a neighbor
+         * of new_con, so the default routing options are good.
+         */
         ISender send = new ForwardingSender(_node, new_con.Address, nltarget);
         ConnectTo(send, STRUC_NEAR);
       }
@@ -787,30 +804,16 @@ namespace Brunet {
       }
     }
 
-    /**
-     * A helper function that handles the making Connectors
-     * and setting up the ConnectToMessage
-     */
-    protected void ConnectTo(Address target, short t_ttl, string contype)
-    {
-      ushort options;
-      if( contype == STRUC_SHORT ) {
-	/*
-	 * We only want one node to get this packet, so
-	 * we send it only the last node in the path.
-	 */
-        options = AHPacket.AHOptions.Last;
-      }
-      else {
-        options = AHPacket.AHOptions.Annealing;
-      }
-      ISender send = new AHSender(_node, target, t_ttl, options);
-      ConnectTo(send, contype);
+    protected void ConnectTo(ISender sender, string contype) {
+      ConnectTo(sender, contype, 1);
     }
-
-    protected void ConnectTo(ISender sender, string contype)
+    /**
+     * @param sender the ISender for the Connector to use
+     * @param contype the type of connection we want to make
+     * @param responses the maximum number of ctm response messages to listen
+     */
+    protected void ConnectTo(ISender sender, string contype, int responses)
     {
-      Console.Error.WriteLine("Starting ConnectTo: {0} -- {1}", contype, sender);
       ConnectionType mt = Connection.StringToMainType(contype);
       /*
        * This is an anonymous delegate which is called before
@@ -859,7 +862,7 @@ namespace Brunet {
       con.AbortIf = abort;
       //Keep a reference to it does not go out of scope
       lock( _sync ) {
-        _connectors[con] = null;
+        _connectors[con] = responses;
       }
       con.FinishEvent += new EventHandler(this.ConnectorEndHandler);
       //Start up this Task:
@@ -904,9 +907,10 @@ namespace Brunet {
           if( c.ConType == STRUC_SHORT ) {
             if( NeedShortcut ) {
               Address target = GetShortcutTarget(); 
-	      string contype = STRUC_SHORT;
-              ISender send = new AHSender(_node, target);
-              ConnectTo(send, contype);
+              ISender send = new AHSender(_node, target,
+                                          _node.DefaultTTLFor(target),
+                                          AHPacket.AHOptions.Greedy);
+              ConnectTo(send, STRUC_SHORT);
 	    }
           }
         }
@@ -935,12 +939,13 @@ namespace Brunet {
        * Check this guys neighbors:
        */
       ConnectToNearer(ctm_resp.Target.Address, ctm_resp.Neighbors);
-      /*
-       * One response is good enough (for now).  Maybe we want two
-       * on the first attempt (when trying to join the ring via forwarding
-       * through a leaf).
-       */
-      return true;
+      //See if we want more:
+      bool got_enough = true;
+      object des_o = _connectors[c];
+      if( des_o != null ) {
+        got_enough = (c.ReceivedCTMs.Count >= (int)des_o);
+      }
+      return got_enough;
     }
     /**
      * This method is called when there is a change in a Connection's status
