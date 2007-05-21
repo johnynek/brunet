@@ -7,12 +7,9 @@ import System
 import System.Security.Cryptography
 
 #Make the RpcManager to deal with our requests
-def make_rpc(port as int, remote as string):
-  addr = AHAddress( RNGCryptoServiceProvider() )
-  print addr
-  node = StructuredNode( addr )
+def make_rpc(node as Node, port as int, remote as string):
   node.AddEdgeListener( UdpEdgeListener(port) )
-  node.RemoteTAs.Add( TransportAddress( remote ) )
+  node.RemoteTAs.Add( TransportAddressFactory.CreateInstance( remote ) )
   rpc = RpcManager( ReqrepManager.GetInstance(node) )
   node.Connect();
   return rpc
@@ -32,7 +29,10 @@ class test_handler:
 print "Welcome to BooRpcTest"
 port = Int32.Parse(prompt("What port to listen on?"))
 ta = prompt("What remote ta?")
-myrpc = make_rpc(port, ta)
+addr = AHAddress( RNGCryptoServiceProvider() )
+print addr
+mynode = StructuredNode( addr )
+myrpc = make_rpc(mynode, port, ta)
 
 #Lets provide a method to run:
 
@@ -47,10 +47,9 @@ while true:
   while quit != "quit":
     quit = prompt("Next value..")
     vals.Add( quit )
-    
-  q = myrpc.Invoke(addr, "test.concat",vals);
+  q = BlockingQueue() 
+  myrpc.Invoke(AHSender(mynode, addr), q, "test.concat",vals);
   res = q.Dequeue() as RpcResult
-  print res.ResultPacket
   try:
     print res.Result;
   except x:

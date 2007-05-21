@@ -333,13 +333,6 @@ namespace Brunet
       return payload_offset.ToMemoryStream();
     }
     
-    /** Method to convert an  AHPacket, into a DirectPacket.
-     *  @param direct_packet ooresponding DirectPacket (out paramater)
-     */
-    public void ToDirectPacket(out DirectPacket direct_packet) {
-      direct_packet = new DirectPacket(this.PayloadType, this.PayloadStream.ToArray());
-    }
-
     /**
      * Inner class to represent the options
      */
@@ -399,12 +392,6 @@ namespace Brunet
         ushort my_opts = AHOptions.Last;
         if( dest is DirectionalAddress ) {
           my_opts = AHOptions.Last;
-        }
-        else if( dest is RwtaAddress ) {
-          my_opts = AHOptions.Last;
-        }
-        else if( dest is UnstructuredAddress ) {
-          my_opts = AHOptions.Path;
         }
         else if( dest is StructuredAddress ) {
           my_opts = AHOptions.Annealing;
@@ -498,7 +485,7 @@ namespace Brunet
     public AHPacket RoundTrip(AHPacket p) {
         byte[] binary_packet = new byte[ p.Length ];
         p.CopyTo( binary_packet, 0);
-        return (AHPacket)PacketParser.Parse(binary_packet);
+        return new AHPacket(MemBlock.Reference(binary_packet));
     }
     [Test]
     public void Test() {

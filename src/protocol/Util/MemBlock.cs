@@ -39,6 +39,12 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
   //The number of bytes in this MemBlock
   public int Length { get { return _length; } }
 
+  protected static readonly MemBlock _null = new MemBlock(null, 0, 0);
+  /**
+   * Here is a length == 0 MemBlock, which can be useful in some
+   * cases
+   */
+  public static MemBlock Null { get { return _null; } }
   /**
    * Allow us to read from the MemBlock
    */
@@ -58,7 +64,7 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
     _buffer = data;
     _offset = offset;
     _length = length;
-    if( data.Length - offset < length ) {
+    if( (length > 0) && (data.Length - offset < length) ) {
       //This does not make sense:
       throw new System.Exception("byte array not long enough");
     }

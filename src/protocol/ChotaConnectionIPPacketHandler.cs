@@ -23,7 +23,7 @@ namespace Brunet {
   /** This class allows us to track from which destinations we 
       have been receiving packets. Only those are considered for ChotaConnections. 
   */
-  public class ChotaConnectionIPPacketHandler: IAHPacketHandler {
+  public class ChotaConnectionIPPacketHandler {
     public event EventHandler ReceivePacketEvent;
     //default constructor
     public ChotaConnectionIPPacketHandler() {

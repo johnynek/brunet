@@ -55,7 +55,7 @@ namespace Brunet
 	 */
 
 
-  public class ETServer : IPacketHandler
+  public class ETServer : IDataHandler
   {
     protected Queue _response_queue;
     
@@ -63,12 +63,9 @@ namespace Brunet
       _response_queue = rq;
     }
     
-    public void HandlePacket(Packet p, Edge edge)
+    public void HandleData(MemBlock p, ISender edge, object state)
     {
-      byte[] int_buffer = new byte[4];
-      Stream s = p.PayloadStream;
-      s.Read(int_buffer, 0, 4);
-      int num = NumberSerializer.ReadInt(int_buffer, 0);
+      int num = NumberSerializer.ReadInt(p, 0);
       Console.WriteLine("Got packet number: {0}", num);
       lock( _response_queue ) {
         _response_queue.Enqueue(p);
@@ -77,7 +74,7 @@ namespace Brunet
 
   }
  
-  public class ETClient : IPacketHandler
+  public class ETClient : IDataHandler
   {
     public int in_counter = 0;
     public Random ran_obj2;
@@ -90,7 +87,7 @@ namespace Brunet
       ran_obj2 = new Random(seed);
     }
     
-    public  void HandlePacket(Packet p, Edge edge)
+    public  void HandleData(MemBlock p, ISender edge, object state)
     {
      try {
       in_counter++;
@@ -100,19 +97,17 @@ namespace Brunet
       lock( buf2 ) {
       int size2 = ran_obj2.Next(1, Packet.MaxLength);
       ran_obj2.NextBytes(buf2);
-      byte[] payload = p.PayloadStream.ToArray();
-      Console.WriteLine("Payload length: {0}", payload.Length);
-      int sent_count = NumberSerializer.ReadInt(payload, 0);
+      Console.WriteLine("Payload length: {0}", p.Length);
+      int sent_count = NumberSerializer.ReadInt(p, 0);
       System.Console.WriteLine("Sent packet: {0}",sent_count);
       bool cont = (size2 == p.Length) && (sent_count == in_counter);
       int i = 4;
       //Create local with some default values
       byte local = 0, remote = 1;
-      while (i < (size2 - 1)
-	     && cont)
+      while (i < (size2) && cont)
       {
 	//The payload has one less byte than the whole packet
-	remote = payload[i];
+	remote = p[i];
 	i++;
 	local = buf2[i];
 	if( local != remote )
@@ -259,8 +254,8 @@ namespace Brunet
         if (e == null) {
           System.Console.WriteLine("edge is null");
         }
-	IPacketHandler printer = new ETClient(response_queue, seed);
-        e.SetCallback(Packet.ProtType.Connection, printer );
+	IDataHandler printer = new ETClient(response_queue, seed);
+        e.Subscribe( printer, null );
 
         e.CloseEvent += new EventHandler(HandleClose);
 	int counter = 0;
@@ -338,8 +333,8 @@ namespace Brunet
       e.CloseEvent += new EventHandler(HandleClose);
       System.Console.WriteLine("Got an Edge");
       Console.WriteLine(e.ToString());
-      IPacketHandler printer = new ETServer(response_queue);
-      e.SetCallback(Packet.ProtType.Connection, printer);
+      IDataHandler printer = new ETServer(response_queue);
+      e.Subscribe(printer, null);
       in_edge = e;
     }
     public static void HandleClose(object edge, EventArgs args)

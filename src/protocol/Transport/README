@@ -1,0 +1,6 @@
+Code in this directory should only depend on other code
+here or in ../Utils.
+
+Hopefully this code could be useful for other projects
+without having to go through the difficulty of separating
+the Brunet protocol work from the transport.

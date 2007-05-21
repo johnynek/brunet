@@ -99,6 +99,8 @@
       define="BRUNET_NUNIT"
       output="${build.dir}/${package.name}/bin/${assembly}.dll">
       <sources failonempty="true">
+        <include name="Util/*.cs"/>
+        <include name="Transport/*.cs"/>
         <include name="*.cs"/>
       </sources>
       <references>
@@ -147,6 +149,8 @@
       output="${build.dir}/${package.name}/bin/${assembly}.dll">
       <sources failonempty="true">
         <include name="*.cs"/>
+        <include name="Util/*.cs"/>
+        <include name="Transport/*.cs"/>
       </sources>
       <references>
         <include name="Mono.Security.dll" />
@@ -192,6 +196,8 @@
       output="${build.dir}/${package.name}/bin/${assembly}.dll">
       <sources failonempty="true">
         <include name="*.cs"/>
+        <include name="Util/*.cs"/>
+        <include name="Transport/*.cs"/>
       </sources>
       <references>
         <include name="Mono.Security.dll" />
@@ -237,6 +243,8 @@
       output="${build.dir}/${package.name}/bin/${assembly}.dll">
       <sources failonempty="true">
         <include name="*.cs"/>
+        <include name="Util/*.cs"/>
+        <include name="Transport/*.cs"/>
       </sources>
       <references>
         <include name="Mono.Security.dll" />
@@ -283,6 +291,8 @@
       output="${build.dir}/${package.name}/bin/${assembly}.dll">
       <sources failonempty="true">
         <include name="*.cs"/>
+        <include name="Util/*.cs"/>
+        <include name="Transport/*.cs"/>
       </sources>
       <references>
         <include name="Mono.Security.dll" />
@@ -328,6 +338,8 @@
       output="${build.dir}/${package.name}/bin/${assembly}.dll">
       <sources failonempty="true">
         <include name="*.cs"/>
+        <include name="Util/*.cs"/>
+        <include name="Transport/*.cs"/>
       </sources>
  <!-- 
       <references>

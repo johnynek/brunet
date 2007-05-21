@@ -18,17 +18,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-/**
- * Dependencies
- * Brunet.Address
- * Brunet.AHAddress
- * Brunet.Base32
- * Brunet.DirectionalAddress
- * Brunet.ParseException
- * Brunet.RwpAddress
- * Brunet.RwtaAddress
- */
-
 using System;
 
 namespace Brunet
@@ -99,12 +88,6 @@ namespace Brunet
           break;
         case 124:
           a = new DirectionalAddress(mb);
-          break;
-        case 126:
-          a = new RwpAddress(mb);
-          break;
-        case 159:
-          a = new RwtaAddress(mb);
           break;
         default:
           throw new ParseException("Unknown Address Class: " +

@@ -32,7 +32,7 @@ using System.Diagnostics;
 
 namespace Brunet
 {
-  public class EchoTester:IAHPacketHandler
+  public class EchoTester : IDataHandler
   {
   /*private static readonly log4net.ILog log =
             log4net.LogManager.GetLogger(System.Reflection.MethodBase.
@@ -66,20 +66,17 @@ namespace Brunet
       }
     }
 
-    public void HandleAHPacket(object node, AHPacket packet, Edge from)
+    public void HandleData(MemBlock packet, ISender from, object node)
     {
       _message_count++;
 
-      Node node_handler = (Node) node;
       long stop_time, rt_ticks = -10000;
 
-      if (!node_handler.Address.Equals(packet.Source)) {
-        byte[] payload = packet.PayloadStream.ToArray();
-
-        if (payload[0] == 0) {
+      if ( !from.Equals(node)) {
+        if (packet[0] == 0) {
         //log.Debug("Echo Response:");
 	  stop_time = System.DateTime.Now.Ticks;
-	  int received_uid = NumberSerializer.ReadInt(payload, 1);
+	  int received_uid = NumberSerializer.ReadInt(packet, 1);
           if(uid_starttime.ContainsKey(received_uid)){
 		rt_ticks = stop_time - (long)EchoTester.uid_starttime[received_uid];
 	  }
@@ -95,22 +92,14 @@ namespace Brunet
 
         //System.Console.WriteLine("{0}", packet.ToString());
 
-        if (payload[0] > 0) {
+        if (packet[0] > 0) {
           //Send a reply back, this is a request  
-          payload[0] = (byte) 0;
-          AHPacket resp = new AHPacket( 0,
-			                packet.Ttl, node_handler.Address,
-			                packet.Source, packet.PayloadType,
-					payload);
-
-          node_handler.Send(resp);
+	  byte[] new_payload = new byte[ packet.Length ];
+	  packet.CopyTo(new_payload, 0);
+          new_payload[0] = (byte) 0;
+          from.Send(new CopyList(PType.Protocol.Echo, MemBlock.Reference(new_payload)));
         }
       }
-    }
-
-    public bool HandlesAHProtocol(string type)
-    {
-      return (type == AHPacket.Protocol.Echo);
     }
 
     static void Main(string[] args)
@@ -147,7 +136,7 @@ namespace Brunet
       //inforce type 0
       hashedbytes[Address.MemSize - 1] &= 0xFE;
       AHAddress _local_ahaddress = new AHAddress(hashedbytes);
-      Node this_node = new HybridNode( _local_ahaddress );
+      Node this_node = new StructuredNode( _local_ahaddress );
       ///Node this_node = new HybridNode( new AHAddress( new BigInteger( 2*(local_host_index+1) ) ) );      
 
       String file_string = "./data/brunetadd" + Convert.ToString(desired_port) + ".log";
@@ -194,7 +183,7 @@ namespace Brunet
       this_node.RemoteTAs.Add( TransportAddressFactory.CreateInstance( remote_ta  ) );*/
  
       EchoTester echo_printer = new EchoTester();
-      this_node.Subscribe(AHPacket.Protocol.Echo, echo_printer);
+      this_node.GetTypeSource(PType.Protocol.Echo).Subscribe(echo_printer, this_node);
 
 #if PLAB_LOG     
        ///Initialize Brunet logger

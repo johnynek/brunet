@@ -20,38 +20,35 @@ using Brunet;
  *
  * You can do basically the same thing with a HybridNode.
  */
-public class ReqrepExample : Brunet.IRequestHandler, Brunet.IReplyHandler {
+public class ReqrepExample : IDataHandler, Brunet.IReplyHandler {
 
-  public void HandleRequest(ReqrepManager man, ReqrepManager.ReqrepType rt,
-		   object req,
-		   string prot,
-		   System.IO.MemoryStream payload, AHPacket packet)
+  public void HandleData(MemBlock data, ISender return_path, object state)
   {
     /*
      * Write the messages:
      */
-    Console.WriteLine("Msg from: {0}", packet.Source);
-    payload.WriteTo( System.Console.OpenStandardOutput() );
+    Console.WriteLine("Msg from: {0}", return_path);
+    data.ToMemoryStream().WriteTo( System.Console.OpenStandardOutput() );
     Console.WriteLine();
-    man.SendReply(req, new byte[0]);
+    return_path.Send( new CopyList(PType.Protocol.Chat, MemBlock.Null) );
   }
 
   public bool HandleReply(ReqrepManager man, ReqrepManager.ReqrepType rt,
 		   int mid,
-		   string prot,
-		   System.IO.MemoryStream payload,
-		   AHPacket packet,
+		   PType prot,
+		   MemBlock payload,
+		   ISender from,
 		   Brunet.ReqrepManager.Statistics s,
 		   object state)
   {
-    Console.WriteLine("{0} got our message", packet.Source);
+    Console.WriteLine("{0} got our message", from);
     return false;
   }
 
   public void HandleError(ReqrepManager man, int message_number,
-		   ReqrepManager.ReqrepError err, object state)
+		   ReqrepManager.ReqrepError err, ISender from, object state)
   {
-    Console.WriteLine("Got Error from: {0}, {1}", message_number, err);
+    Console.WriteLine("Got Error from: {0}, {1}, {2}", from, message_number, err);
   }
   
   public static int Main(string[] args) {
@@ -92,7 +89,7 @@ public class ReqrepExample : Brunet.IRequestHandler, Brunet.IReplyHandler {
     Brunet.Node tmp_node = new Brunet.StructuredNode(tmp_add, "testspace");
     Brunet.ReqrepManager rrman = Brunet.ReqrepManager.GetInstance(tmp_node);
     ReqrepExample irh = new ReqrepExample();
-    rrman.Bind(AHPacket.Protocol.Chat, irh);
+    tmp_node.GetTypeSource(PType.Protocol.Chat).Subscribe(irh, tmp_node);
     /**
      * Add the EdgeListener
      */
@@ -127,8 +124,10 @@ public class ReqrepExample : Brunet.IRequestHandler, Brunet.IReplyHandler {
       int length = coder.GetByteCount(msg);
       byte[] payload = new byte[length];
       coder.GetBytes(msg, 0, msg.Length, payload, 0);
-      rrman.SendRequest(dest, ReqrepManager.ReqrepType.Request, AHPacket.Protocol.Chat,
-		        payload, irh , null);
+      ISender sender = new AHSender(tmp_node, dest);
+      rrman.SendRequest(sender, ReqrepManager.ReqrepType.Request,
+                        new CopyList(PType.Protocol.Chat, MemBlock.Reference(payload)),
+			irh , null);
      }
     }
 	 
