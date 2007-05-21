@@ -4,20 +4,28 @@ Serialization is similar to ASN.1 and the DBUS method signature system
 Objects have variable length headers that give the type and
 possibly the length:
 
-Non-numeric types:
-b : boolean
-s : null terminated UTF-8 string
-0 : null value.
+Constants:
+0 : null
+T : boolean true
+F : boolean false
 
-Numeric Typecodes (uses network endianism):
-y : signed byte
-Y : unsigned byte
-h : signed short
-H : unsigned short
+Non-numeric types:
+_ : null terminated UTF-8 string.  The reason for this character "_"
+    is because using any letter will make the string harder to read
+    when looking at the byte stream as ASCII text by a human, and
+    "_" seemed the least intrusive.
+
+Integral Typecodes (uses network endianism):
+b : signed byte
+B : unsigned byte
+s : signed short
+S : unsigned short
 i : signed int
 I : unsigned int
 l : signed long
 L : unsigned long
+
+non-integral numbers
 f : float (32 bit)
 
 numeric arrays:
@@ -28,8 +36,8 @@ a : array.  Immediately following the 'a' character there is
     their typecode prefix.
 
 delimited structures:
-(,) : list of objects: ex: (yyyy) a list of 4 bytes.
-{,} : mapping of objects: ex: {sisisi} a map of three key-value pairs.
+(,) : list of objects: ex: (bbbb) a list of 4 bytes.
+{,} : mapping of objects: ex: {_i_i_i} a map of three key-value pairs.
       must enclose an even number of objects.
 
 Exceptions:

@@ -162,31 +162,33 @@ public class AdrConverter {
     else {
       char typecode = (char)type;
       switch( typecode ) {
-        case 'b':
-	  //Boolean:
-	  result = NumberSerializer.ReadBool(s);
-	  break;
+        case 'T':
+          result = true;
+          break;
+        case 'F':
+          result = false;
+          break;
 	case '0':
 	  //Null:
 	  result = null;
 	  break;
-	case 'y':
+	case 'b':
 	  //Signed byte
 	  int valy = s.ReadByte();
 	  if( valy < 0 ) { throw new Exception("End of stream"); }
 	  result = (sbyte)valy;
 	  break;
-	case 'Y':
+	case 'B':
 	  //Unsigned byte
 	  int valY = s.ReadByte();
 	  if( valY < 0 ) { throw new Exception("End of stream"); }
 	  result = (byte)valY;
 	  break;
-        case 'h':
+        case 's':
 	  //signed short:
 	  result = NumberSerializer.ReadShort(s);
 	  break;
-        case 'H':
+        case 'S':
 	  //unsigned short:
 	  result = unchecked( (ushort)NumberSerializer.ReadShort(s) );
 	  break;
@@ -210,13 +212,13 @@ public class AdrConverter {
 	  //floating-point number
 	  result = NumberSerializer.ReadFloat(s);
 	  break;
-	case 's':
+	case '_':
 	  //UTF-8 String:
           int bytelength = 0;
 	  result = NumberSerializer.ReadString(s, out bytelength);
           break;
 	case 'X':
-	  //Start of an excepton:
+	  //Start of an exception:
 	  Hashtable xht = new Hashtable();
 	  bool xfinished = false;
 	  do {
@@ -251,14 +253,14 @@ public class AdrConverter {
 	  if ( typec < 0 ) { throw new Exception("Could not read array type"); }
 	  char atype = (char)typec;
 	  switch (atype) {
-              case 'Y':
+              case 'B':
 	        //unsigned byte:
-                byte[] aYresult = new byte[length];
-                int read_b = s.Read(aYresult, 0, (int)length);
+                byte[] aBresult = new byte[length];
+                int read_b = s.Read(aBresult, 0, (int)length);
                 if( read_b != length ) {
                   throw new Exception("Could not read byte for array"); 
                 }
-                result = aYresult;
+                result = aBresult;
                 break;
               case 'i':
 	        //signed int:
@@ -346,37 +348,36 @@ public class AdrConverter {
     System.Type t = o.GetType();
     if( t.Equals( typeof(bool) ) ) {
       //boolean value:
-      s.WriteByte((byte)'b');
       bool b = (bool)o;
-      if( b ) { s.WriteByte(1); }
-      else { s.WriteByte(0); }
-      return 2;
+      if( b ) { s.WriteByte((byte)'T'); }
+      else { s.WriteByte((byte)'F'); }
+      return 1;
     }
     else if ( t.Equals(typeof(string)) ) {
-      s.WriteByte((byte)'s');
+      s.WriteByte((byte)'_');
       string val = (string)o;
       int bytes = NumberSerializer.WriteString(val, s);
       return 1 + bytes; //the typecode + the serialized string
     }
     else if ( t.Equals(typeof(byte)) ) {
       //Unsigned byte
-      s.WriteByte((byte)'Y');
+      s.WriteByte((byte)'B');
       s.WriteByte((byte)o);
       return 2;
     }
     else if ( t.Equals(typeof(sbyte)) ) {
-      s.WriteByte((byte)'y');
+      s.WriteByte((byte)'b');
       long v = UnboxToLong(o);
       s.WriteByte((byte)v);
       return 2;
     }
     else if ( t.Equals(typeof(short)) ) {
-      s.WriteByte((byte)'h');
+      s.WriteByte((byte)'s');
       NumberSerializer.WriteShort((short)o,s);
       return 3; //1 typecode + 2 bytes for short
     }
     else if ( t.Equals(typeof(ushort)) ) {
-      s.WriteByte((byte)'H');
+      s.WriteByte((byte)'S');
       NumberSerializer.WriteUShort((ushort)o,s);
       return 3; //1 typecode + 2 bytes for short
     }
@@ -535,7 +536,7 @@ public class AdrConverter {
       }
       if( elt.Equals(typeof(byte)) ) {
         //This is a byte array:
-        s.WriteByte((byte)'Y');
+        s.WriteByte((byte)'B');
         total_bytes++;
         //Now write each byte:
         foreach(byte b in my_a) {
@@ -721,24 +722,28 @@ public class AdrConverter {
   public void Test() {
 
     //Here are some hand constructed examples:
-    byte[] hand_test = new byte[]{(byte)'s', (byte)'H', (byte)'e', (byte)'y',0};
+    byte[] hand_test = new byte[]{(byte)'_', (byte)'H', (byte)'e', (byte)'y',0};
     AssertE("Hey", hand_test, "string");
     hand_test = new byte[]{(byte)'0'};
     AssertE(null, hand_test, "null");
-    hand_test = new byte[]{ (byte)'Y', (byte)128 };
+    hand_test = new byte[]{(byte)'T'};
+    AssertE(true, hand_test,"true");
+    hand_test = new byte[]{(byte)'F'};
+    AssertE(false, hand_test,"true");
+    hand_test = new byte[]{ (byte)'B', (byte)128 };
     AssertE((byte)128, hand_test, "byte");
     hand_test = new byte[]{ (byte)'i', 0, 128, 0, 128 };
     int t_val = 128;
     t_val <<= 16;
     t_val += 128;
     AssertE(t_val, hand_test, "integer");
-    hand_test = new byte[]{ (byte)'a', (byte)'Y', 2, (byte)'i', 0,0,0,128, 0,0,0,55};
+    hand_test = new byte[]{ (byte)'a', (byte)'B', 2, (byte)'i', 0,0,0,128, 0,0,0,55};
     AssertE(new int[]{128, 55}, hand_test, "int array");
     hand_test = new byte[]{ (byte)'X',
-                            (byte)'s', (byte)'c', (byte)'o', (byte)'d', (byte)'e', 0,
+                            (byte)'_', (byte)'c', (byte)'o', (byte)'d', (byte)'e', 0,
                             (byte)'i',0,0,0,128,
-                            (byte)'s',(byte)'m',(byte)'e',(byte)'s',(byte)'s',(byte)'a',(byte)'g',(byte)'e', 0,
-                            (byte)'s', (byte)'n', (byte)'o', (byte)'!', 0,
+                            (byte)'_',(byte)'m',(byte)'e',(byte)'s',(byte)'s',(byte)'a',(byte)'g',(byte)'e', 0,
+                            (byte)'_', (byte)'n', (byte)'o', (byte)'!', 0,
                             (byte)'x' };
     AssertE(new AdrException(128, "no!"), hand_test, "exception hand test");
     //Lets do some round tripping:
