@@ -10,39 +10,18 @@ using System.Security.Cryptography;
 namespace Ipop {
   public class DhtOp {
 /* Returns a password if it works or NULL if it didn't */
-    public static string Create(string key, byte [] valueb, string password, int ttl, FDht _dht) {
-      byte[] bin_password = null;
-      bool valid = false;
-      if (password != null) {
-      //test validity of current password
-        string[] ss = password.Split(new char[] {':'});
-        if (ss.Length != 2) {
-          Console.Error.WriteLine("Invalid password for GetIP (will generate a new one).");
-        }
-        else {
-          bin_password = Convert.FromBase64String(ss[1]);
-          valid = true;
-        }
-      }
-      if (password == null || !valid) {
-        bin_password = new byte[10];
-        Random _rand = new Random();
-        _rand.NextBytes(bin_password);
-        password = "SHA1:" + Convert.ToBase64String(bin_password);
-      }
-
-      HashAlgorithm algo = new SHA1CryptoServiceProvider();
-      byte[] sha1_pass = algo.ComputeHash(bin_password);
-      string hashed_password = "SHA1:" + Convert.ToBase64String(sha1_pass);
-
+    public static string Create(string key, byte [] valueb, string password, int ttl, FDht dht) {
       byte[] keyb = Encoding.UTF8.GetBytes(key);
 
+      password = GeneratePassword(password);
+      string hashed_password = GetHashedPassword(password);
+
       int min_replies_per_queue = 2;
-      int min_majority = _dht.Degree/2 + 1;
-      //int min_majority = _dht.Degree;
+      int min_majority = dht.Degree/2 + 1;
+      //int min_majority = dht.Degree;
       _quorum = new BooleanQuorum(min_replies_per_queue, min_majority);
 
-      BlockingQueue [] queues = _dht.RecreateF(keyb, ttl, hashed_password, valueb);
+      BlockingQueue [] queues = dht.RecreateF(keyb, ttl, hashed_password, valueb);
 
       for (int i = 0; i < queues.Length; i++) {
         Console.Error.WriteLine("queue: {0} is at position: {1}", queues[i].GetHashCode(), i);
@@ -64,20 +43,128 @@ namespace Ipop {
 
       _re.Reset();
       if (got_set && success) {
-        return password;
+        return "SHA1:" + password;
       }
       return null;
     }
 
-    public static string Create(string key, string value, string password, int ttl, FDht _dht) {
+    public static string Create(string key, string value, string password, int ttl, FDht dht) {
       byte[] valueb = Encoding.UTF8.GetBytes(value);
-      return Create(key, valueb, password, ttl, _dht);
+      return Create(key, valueb, password, ttl, dht);
     }
 
-    public static void Delete(string key, string password, FDht _dht) {
-      BlockingQueue [] queues = _dht.DeleteF(Encoding.UTF8.GetBytes(key), password);
+    public static void Delete(string key, string password, FDht dht) {
+      BlockingQueue [] queues = dht.DeleteF(Encoding.UTF8.GetBytes(key), password);
       //just make the call and proceed
       BlockingQueue.ParallelFetch(queues, 0);
+    }
+
+    public static Hashtable[] Get(string key, FDht dht) {
+      byte[] utf8_key = Encoding.UTF8.GetBytes(key);
+      BlockingQueue[] q = dht.GetF(utf8_key, 1000, null);
+
+      RpcResult res = q[0].Dequeue() as RpcResult;
+      ArrayList result = res.Result as ArrayList;
+      if (result == null || result.Count < 3) {
+        return null;
+      }
+      ArrayList values = (ArrayList) result[0];
+      Hashtable [] return_values = new Hashtable[values.Count];
+      for (int i = 0; i < values.Count; i++) {
+        Hashtable ht = (Hashtable) values[i];
+        return_values[i] = new Hashtable();
+        return_values[i].Add("age", ht["age"]);
+        return_values[i].Add("value", ht["data"]);
+        return_values[i].Add("value_string", Encoding.UTF8.GetString((byte []) ht["data"]));
+      }
+      return return_values;
+    }
+
+/*    public static Hashtable CGet(string key, FDht dht) {
+      byte[] utf8_key = Encoding.UTF8.GetBytes(ns_key);
+      //get a maximum of 1000 bytes only
+      BlockingQueue[] q = dht.GetF(utf8_key, 1000, null);
+      //wait a second; we do expect to get atleast 1 result
+      ArrayList [] results = BlockingQueue.ParallelFetchWithTimeout(q, 1000);
+
+      ArrayList result = null;
+      for (int i = 0; i < results.Length; i++) {
+        ArrayList q_replies = results[i];
+        foreach (RpcResult rpc_replies in q_replies) {
+         //investigating individual results
+         try{
+           ArrayList rpc_result = (ArrayList) rpc_replies.Result;
+           if (rpc_result == null || rpc_result.Count < 3) {
+             continue;
+           }
+           result = rpc_result;
+           break;
+         } catch (Exception) {
+           return null;
+         }
+       }
+      }
+      if (result == null) {
+        return null;
+      }
+      ArrayList values = (ArrayList) result[0];
+#if DHCP_DEBUG
+      Console.Error.WriteLine("# of matching entries: " + values.Count);
+#endif
+      string xml_str = null;
+      foreach (Hashtable ht in values) {
+#if DHCP_DEBUG
+        Console.Error.WriteLine(ht["age"]);
+#endif
+        byte[] data = (byte[]) ht["data"];
+        xml_str = Encoding.UTF8.GetString(data);
+#if DHCP_DEBUG
+        Console.Error.WriteLine(xml_str);
+#endif
+        break;
+      }
+      if (xml_str == null) {
+        return null;
+      }
+    }*/
+
+    public static string Put(string key, string value, string password, int ttl, FDht dht) {
+      byte[] utf8_key = Encoding.UTF8.GetBytes(key);
+      byte[] utf8_data = Encoding.UTF8.GetBytes(value);
+
+      password = GeneratePassword(password);
+      string hashed_password = GetHashedPassword(password);
+
+      BlockingQueue[] q = dht.PutF(utf8_key, ttl, hashed_password, utf8_data);
+      RpcResult res = q[0].Dequeue() as RpcResult;
+      for (int i = 0; i < q.Length; i++) {
+        q[i].Close();
+      }
+      return "SHA1:" + password;
+    }
+
+    public static string GeneratePassword(string password) {
+      if(password == null) {
+        byte[] bin_password = new byte[10];
+        Random _rand = new Random();
+        _rand.NextBytes(bin_password);
+        password = Convert.ToBase64String(bin_password);
+      }
+      else if (password != null) {
+      //test validity of current password
+        string[] ss = password.Split(new char[] {':'});
+        if (ss.Length == 2 && ss[0] == "SHA1") {
+          password = ss[1];
+        }
+      }
+      return password;
+    }
+
+    public static string GetHashedPassword(string password) {
+      byte[] bin_password = Convert.FromBase64String(password);
+      HashAlgorithm algo = new SHA1CryptoServiceProvider();
+      byte[] sha1_pass = algo.ComputeHash(bin_password);
+      return "SHA1:" + Convert.ToBase64String(sha1_pass);
     }
 
     private class BooleanQuorum {

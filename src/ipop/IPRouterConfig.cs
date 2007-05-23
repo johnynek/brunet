@@ -18,6 +18,7 @@ namespace Ipop {
     public AddressInfo AddressData;
     [XmlArrayItem (typeof(string), ElementName = "Device")]
     public string [] DevicesToBind;
+    public bool EnableSoapDht;
   }
 
   public class AddressInfo {
