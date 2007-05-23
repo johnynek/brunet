@@ -1,4 +1,3 @@
-#define DHT_DEBUG
 using System;
 using System.IO;
 using System.Text;
@@ -59,14 +58,8 @@ namespace Ipop {
       }
       TimeSpan t_span = DateTime.Now - _last_assigned_instant;
       if (_last_assigned_lease != null && t_span.TotalSeconds < 0.10*leasetime) {
-#if DHT_DEBUG
-	Console.Error.WriteLine("Attempting to acquire a DHCP lease at time: {0} (too early)", DateTime.Now);
-#endif
         return _last_assigned_lease;
       }
-#if DHT_DEBUG
-      Console.Error.WriteLine("Attempting to acquire a DHCP lease at time: {0} (going to DHT)", DateTime.Now);
-#endif
       byte[] preferred_ip = dht_param.PreferredIP;
       if (preferred_ip[0] == 0 && preferred_ip[1] == 0 && 
           preferred_ip[2] == 0 && preferred_ip[3] == 0) {

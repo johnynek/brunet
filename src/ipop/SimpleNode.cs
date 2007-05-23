@@ -349,9 +349,8 @@ namespace Ipop {
             break;
           }
         }
-        catch (Exception e) {
+        catch (Exception) {
           Console.WriteLine("Dht may not be available, yet, try again now or a little later");
-          Console.WriteLine(e);
         }
       }
     }

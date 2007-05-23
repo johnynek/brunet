@@ -62,13 +62,32 @@ namespace Ipop {
     public static Hashtable[] Get(string key, FDht dht) {
       byte[] utf8_key = Encoding.UTF8.GetBytes(key);
       BlockingQueue[] q = dht.GetF(utf8_key, 1000, null);
+      ArrayList [] results = BlockingQueue.ParallelFetchWithTimeout(q, 1000);
 
-      RpcResult res = q[0].Dequeue() as RpcResult;
-      ArrayList result = res.Result as ArrayList;
-      if (result == null || result.Count < 3) {
+      ArrayList result = null;
+      for (int i = 0; i < results.Length; i++) {
+        ArrayList q_replies = results[i];
+        foreach (RpcResult rpc_replies in q_replies) {
+         //investigating individual results
+          try{
+            ArrayList rpc_result = (ArrayList) rpc_replies.Result;
+            if (rpc_result == null || rpc_result.Count < 3) {
+              continue;
+            }
+            result = rpc_result;
+            break;
+          }
+          catch (Exception) {
+            return null;
+          }
+        }
+      }
+      if (result == null) {
         return null;
       }
+
       ArrayList values = (ArrayList) result[0];
+
       Hashtable [] return_values = new Hashtable[values.Count];
       for (int i = 0; i < values.Count; i++) {
         Hashtable ht = (Hashtable) values[i];
@@ -80,19 +99,23 @@ namespace Ipop {
       return return_values;
     }
 
-    public static string Put(string key, string value, string password, int ttl, FDht dht) {
+    public static string Put(string key, byte[] value, string password, int ttl, FDht dht) {
       byte[] utf8_key = Encoding.UTF8.GetBytes(key);
-      byte[] utf8_data = Encoding.UTF8.GetBytes(value);
 
       password = GeneratePassword(password);
       string hashed_password = GetHashedPassword(password);
 
-      BlockingQueue[] q = dht.PutF(utf8_key, ttl, hashed_password, utf8_data);
+      BlockingQueue[] q = dht.PutF(utf8_key, ttl, hashed_password, value);
       RpcResult res = q[0].Dequeue() as RpcResult;
       for (int i = 0; i < q.Length; i++) {
         q[i].Close();
       }
       return "SHA1:" + password;
+    }
+
+    public static string Put(string key, string value, string password, int ttl, FDht dht) {
+      byte[] valueb = Encoding.UTF8.GetBytes(value);
+      return Put(key, valueb, password, ttl, dht);
     }
 
     public static string GeneratePassword(string password) {
