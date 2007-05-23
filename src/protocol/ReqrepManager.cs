@@ -19,7 +19,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-#define REQREP_DEBUG
+//#define REQREP_DEBUG
 using System;
 using System.Collections;
 
@@ -53,7 +53,8 @@ public class ReqrepManager : IDataHandler {
   {
     NoHandler = 1, //There is no handler for this protocol
     HandlerFailure = 2, //There is a Handler, but it could not reply.
-    Timeout = 3 //This is a "local" error, there was no response before timeout
+    Timeout = 3, //This is a "local" error, there was no response before timeout
+    Send = 4 //Some kind of error resending
   }
 
   /**
@@ -163,7 +164,7 @@ public class ReqrepManager : IDataHandler {
      public int SendCount { get { return _send_count; } }
    }
    //This is also the return_path when we announce
-   protected class ReplyState : ISender {
+   public class ReplyState : ISender {
      protected int _req_id;
      public int RequestID { get { return _req_id; } }
      protected ICopyable Reply;
@@ -200,7 +201,12 @@ public class ReqrepManager : IDataHandler {
      }
      public void Resend() {
        _rep_date = DateTime.UtcNow;
-       ReturnPath.Send( Reply );
+       try {
+         ReturnPath.Send( Reply );
+       }
+       catch {
+         //If this doesn't work, oh well
+       }
      }
    }
    // Member variables:
@@ -403,14 +409,23 @@ public class ReqrepManager : IDataHandler {
       rs.RequestType = reqt;
       rs.UserState = state;
       //rs.Replied = false;
-      _req_state_table[ next_req ] = rs;
+      _req_state_table[ rs.RequestID ] = rs;
     }
 #if REQREP_DEBUG
     Console.Error.WriteLine("[ReqrepClient: {0}] Sending a request: {1} to node: {2}",
 		      _node.Address, rs.RequestID, sender);
 #endif
-    rs.Send();
-    return rs.RequestID;
+    try {
+      rs.Send();
+      return rs.RequestID;
+    }
+    catch {
+      //Clean up:
+      lock( _sync ) {
+        _req_state_table.Remove( rs.RequestID );
+      }
+      throw new Exception("Couldn't start request");
+    }
   }
   /**
    * This method listens for the HeartBeatEvent from the
@@ -465,7 +480,16 @@ public class ReqrepManager : IDataHandler {
        * We have released the lock, now we can send the packets:
        */
       foreach(RequestState req in to_resend) {
-        req.Send();
+        try {
+          req.Send();
+        }
+        catch {
+          //This send didn't work, but maybe it will next time, who knows...
+          ///@todo maybe we should go ahead and signal an error here
+          req.ReplyHandler.HandleError(this, req.RequestID, ReqrepError.Send,
+                                       null, req.UserState);
+
+        }
       }
       /*
        * Once we have released the lock, tell the handlers

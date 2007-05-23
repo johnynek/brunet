@@ -48,9 +48,6 @@ namespace Brunet
     //added the new ChotaConnectionOverlord
     protected ConnectionOverlord _cco;
     
-    //keep track of CtmRequestHandler
-    protected CtmRequestHandler _ctm_handler;
-
     //maximum number of neighbors we report in our status
     protected static readonly int MAX_NEIGHBORS = 4;
 
@@ -98,6 +95,7 @@ namespace Brunet
       //Add the standard RPC handlers:
       RpcManager rpc = RpcManager.GetInstance(this);
       rpc.AddHandler("sys:ctm", new CtmRequestHandler(this));
+      rpc.AddHandlerWithSender("sys:link", new ConnectionPacketHandler(this));
 
       _connection_table.ConnectionEvent += new EventHandler(this.EstimateSize);
       _connection_table.ConnectionEvent += new EventHandler(this.UpdateNeighborStatus);
@@ -312,21 +310,31 @@ namespace Brunet
       
       Connection lc = tab.GetLeftStructuredNeighborOf(new_address);
       Connection rc = tab.GetRightStructuredNeighborOf(new_address);
-      Packet tp = null;
-      int id = 0; 
       if( lc != null ) {
         StatusMessage req = GetStatus(con_type_string, lc.Address);
-        req.Dir = ConnectionMessage.Direction.Request;
-        req.Id = id++;
-        tp = req.ToPacket();
-        lc.Edge.Send(tp);
+        BlockingQueue stat_res = new BlockingQueue();
+        EventHandler handle_result = delegate(object q, EventArgs eargs) {
+          RpcResult r = (RpcResult)stat_res.Dequeue();
+          StatusMessage sm = new StatusMessage( (Hashtable)r.Result );
+          tab.UpdateStatus(lc, sm);
+          stat_res.Close();
+        };
+        stat_res.EnqueueEvent += handle_result;
+        RpcManager rpc = RpcManager.GetInstance(this);
+        rpc.Invoke(lc.Edge, stat_res, "sys:link.GetStatus", req.ToHashtable() );
       }
       if( rc != null && (lc != rc) ) {
         StatusMessage req = GetStatus(con_type_string, rc.Address);
-        req.Dir = ConnectionMessage.Direction.Request;
-        req.Id = id++;
-        tp = req.ToPacket();
-        rc.Edge.Send(tp);
+        BlockingQueue stat_res = new BlockingQueue();
+        EventHandler handle_result = delegate(object q, EventArgs eargs) {
+          RpcResult r = (RpcResult)stat_res.Dequeue();
+          StatusMessage sm = new StatusMessage( (Hashtable)r.Result );
+          tab.UpdateStatus(rc, sm);
+          stat_res.Close();
+        };
+        stat_res.EnqueueEvent += handle_result;
+        RpcManager rpc = RpcManager.GetInstance(this);
+        rpc.Invoke(rc.Edge, stat_res, "sys:link.GetStatus", req.ToHashtable() );
       }      
      } catch(Exception x) {
         Console.Error.WriteLine(x.ToString());

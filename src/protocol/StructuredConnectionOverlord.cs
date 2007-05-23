@@ -379,7 +379,6 @@ namespace Brunet {
       ConnectionTable tab = _node.ConnectionTable;
       //If we are going to connect to someone, this is how we
       //know who to use
-      Address forwarder = null;
       Address target = null;
       string contype = String.Empty;
       ISender sender = null;
@@ -853,7 +852,8 @@ namespace Brunet {
       NodeInfo[] near_ni = new NodeInfo[nearest.Count];
       int i = 0;
       foreach(Connection cons in nearest) {
-	near_ni[i] = new NodeInfo(cons.Address, cons.Edge.RemoteTA);
+        //We don't use the TAs, just the addresses
+	near_ni[i] = new NodeInfo(cons.Address);
 	i++;
       }
       ConnectToMessage ctm = new ConnectToMessage(contype, _node.GetNodeInfo(8), near_ni);

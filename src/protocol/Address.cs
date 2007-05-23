@@ -94,14 +94,14 @@ namespace Brunet
     }
 
 
+    protected static readonly byte[] _mask = { 0x01, 0x02, 0x04, 0x08,
+                      0x10, 0x20, 0x40, 0x80 };
     /**
      * Gives the class of the Address at the given MemBlock
      */
     public static int ClassOf(MemBlock mb)
     {
       int i = MemSize - 1;
-      byte[] mask = { 0x01, 0x02, 0x04, 0x08,
-                      0x10, 0x20, 0x40, 0x80 };
       byte this_byte = mb[i];
       
       //For the do while, we start with one less:
@@ -117,7 +117,7 @@ namespace Brunet
           this_byte = mb[i];
         }
       }
-      while( (this_byte & mask[idx]) != 0 );
+      while( (this_byte & _mask[idx]) != 0 );
       return consecutive_ones;
     }
 
@@ -306,9 +306,7 @@ namespace Brunet
     
     public override string ToString()
     {
-      byte[] buffer = new byte[ MemSize ];
-      _buffer.CopyTo(buffer,0);
-      return ("brunet:" + "node:" + Base32.Encode(buffer));
+      return ("brunet:node:" + _buffer.ToBase32String() );
     }
         #if BRUNET_NUNIT
     [TestFixture]

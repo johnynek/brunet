@@ -70,7 +70,6 @@ namespace Brunet
     public Node(Address addr)
     {
       //Start with the address hashcode:
-      _gracefully_close_edges  = new Hashtable();
 
       _sync = new Object();
       lock(_sync)
@@ -96,9 +95,6 @@ namespace Brunet
         /**
          * Here are the protocols that every edge must support
          */
-        //Handles linking:
-        GetTypeSource(PType.Protocol.Linking).Subscribe(new ConnectionPacketHandler(), this);
-
         /* Here are the transport addresses */
         _remote_ta = new ArrayList();
         /*@throw ArgumentNullException if the list ( new ArrayList()) is null.
@@ -270,9 +266,6 @@ namespace Brunet
     protected Thread _announce_thread;
 
     protected ConnectionTable _connection_table;
-
-
-    protected Hashtable _gracefully_close_edges;
 
     /**
      * Manages the various mappings associated with connections
@@ -613,149 +606,41 @@ namespace Brunet
      */
     public void GracefullyClose(Edge e)
     {
-      CloseMessage cm = new CloseMessage();
-      cm.Dir = ConnectionMessage.Direction.Request;
-      GracefullyClose(e, cm);
-    }
-
-    /**
-     * This is an enner class to handle Graceful closing
-     * @see GracefullyClose
-     */
-    protected class GracefulCloser : IDataHandler {
-      public CloseMessage CM;
-      public Edge Edge;
-      protected ConnectionTable _connection_table;
-      protected ConnectionMessageParser _cmp;
-
-      public GracefulCloser(Edge e, CloseMessage cm, ConnectionTable ct) {
-        Edge = e;
-        CM = cm;
-        _connection_table = ct;
-        _cmp = new ConnectionMessageParser();
-        e.Subscribe(this, null);
-      }
-
-    /**
-     * When we close gracefully, we wait for a response Close message
-     * before closing.  This method is waiting for such a response
-     */
-      public void HandleData(MemBlock data, ISender return_path, object state) {
-        bool remove = false;
-        CloseMessage close_req = CM;
-        
-        ConnectionMessage cm = null;
-        try {
-          MemBlock payload;
-          PType pt = PType.Parse(data, out payload);
-          //Ignore non-link protocol packets
-          if( !pt.Equals( PType.Protocol.Linking ) ) { return; }
-          cm = _cmp.Parse(payload);
-  #if DEBUG
-          Console.Error.WriteLine("Got cm: {0}\nfrom: {1}", cm, from);
-  #endif
-          if( cm.Dir == ConnectionMessage.Direction.Response ) {
-            //We expect a response to our close request:
-            if( cm is CloseMessage ) {
-              /*
-               * Make sure we do not accept any more packets from
-               * this Edge:
-               */
-              Edge.Unsubscribe(this);
-              remove = true;
-            }
-            else {
-              //This is some kind of other response.  We don't expect this.
-              //Resend the close request:
-              Send();
-            }
-          }
-          else {
-            if( cm is CloseMessage ) {
-              //Somehow this is a Close Request.  We were expecting
-              //a close response.  In this case.  We just respond
-              //to his request:
-              CloseMessage close_res = new CloseMessage();
-              close_res.Id = cm.Id;
-              close_res.Dir = ConnectionMessage.Direction.Response;
-              return_path.Send( close_res.ToPacket() );
-              /**
-               * In order to make sure that we close gracefully, we simply
-               * move this edge to the unconnected list.  The node will
-               * close edges that have been there for some time
-               */
-              lock( _connection_table.SyncRoot ) {
-                if( !_connection_table.IsUnconnected(Edge) ) {
-                  _connection_table.Disconnect(Edge);
-                }
-              }
-            }
-            else {
-              //This is a request, we did not expect this
-              ErrorMessage error_message =
-                new ErrorMessage(ErrorMessage.ErrorCode.UnexpectedRequest,
-                                 "Got Expected Response");
-              error_message.Id = cm.Id;
-              error_message.Dir = ConnectionMessage.Direction.Response;
-              return_path.Send( error_message.ToPacket() );
-              //Re-request that the edge be closed:
-              return_path.Send( close_req.ToPacket() );
-            }
-          }
-        }
-        catch (InvalidCastException x) {
-          Console.Error.WriteLine( "Bad cast in node: " + x.ToString() );
-        }
-        catch( EdgeException ) {
-          //Make sure the edge is closed:
-          Edge.Close();
-        }
-        finally {
-          if( remove ) { Edge.Close(); }
-        }
-      }
-        
-      public void Send() {
-        Edge.Send( CM.ToPacket() );
-      }
-
+      GracefullyClose(e, String.Empty);
     }
     /**
      * @param e Edge to close
-     * @param cm CloseMessage to send to other node
+     * @param cm message to send to other node
      * This method is used if we want to use a particular CloseMessage
      * If not, we can use the method with the same name with one fewer
      * parameters
      */
-    public void GracefullyClose(Edge e, CloseMessage cm)
+    public void GracefullyClose(Edge e, string message)
     {
-      try {
-        e.CloseEvent += this.GracefulCloseHandler;
-        GracefulCloser gc = new GracefulCloser(e, cm, _connection_table);
-        lock( _sync ) {
-          _gracefully_close_edges[e] = gc;
-        }
-        /**
-         * Close any connection on this edge, and
-         * put the edge into the list of unconnected edges
-         */
-        _connection_table.Disconnect(e);
-        gc.Send();
+      /**
+       * Close any connection on this edge, and
+       * put the edge into the list of unconnected edges
+       */
+      _connection_table.Disconnect(e);
+      
+      Hashtable close_info = new Hashtable();
+      string reason = message;
+      if( reason != String.Empty ) {
+        close_info["reason"] = reason;
       }
-      catch(EdgeException) {
-        //If the edge has some problem, don't do anything
-        e.Close();
-      }
-    }
-
-    /*
-     * When an edge we are gracefully closing closes, this cleans up
-     */
-    protected void GracefulCloseHandler(object sender, EventArgs args)
-    {
-      lock( _sync ) {
-        _gracefully_close_edges.Remove(sender);
-      }
+      BlockingQueue results = new BlockingQueue();
+      EventHandler en_eh = delegate(object o, EventArgs args) {
+        //When this result comes in, just close the queue
+        //which closes the edge:
+        results.Close();
+      };
+      EventHandler close_eh = delegate(object o, EventArgs args) {
+        if( !e.IsClosed ) { e.Close(); }
+      };
+      results.EnqueueEvent += en_eh;
+      results.CloseEvent += close_eh;
+      RpcManager rpc = RpcManager.GetInstance(this);
+      rpc.Invoke(e, results, "sys:link.Close", close_info);
     }
 
     /**
@@ -796,22 +681,15 @@ namespace Brunet
             if( _last_edge_check - e.LastInPacketDateTime > _EDGE_CLOSE_TIMEOUT ) {
               edges_to_close.Add(e);
 	      Console.Error.WriteLine("Close an unconnected edge: {0}", e);
-	      lock( _sync ) {
-                if( _gracefully_close_edges.Contains(e) ) {
-                  _gracefully_close_edges.Remove(e);
-                }
-              }
             }
           }
         }
         //We release the lock before we start messing with the edges:
-        int id = GetHashCode(); //This can be any number.
         foreach(Edge e in edges_to_ping) {
           try {
-            PingMessage pm = new PingMessage();
-            pm.Dir = ConnectionMessage.Direction.Request;
-            pm.Id = id++;
-            e.Send( pm.ToPacket() );
+            RpcManager rpc = RpcManager.GetInstance(this);
+            //We don't care about the response, just ping it
+            rpc.Invoke(e, null, "sys:link.Ping", String.Empty);
 #if DEBUG
             Console.Error.WriteLine("Sending ping to: {0}", e);
 #endif
@@ -820,34 +698,6 @@ namespace Brunet
             //This should only happen when the edge is closed.
             edges_to_close.Add(e);
           }
-        }
-        //Now we resend our close message to edges we are gracefully closing:
-        lock( _sync ) {
-          ArrayList edges_to_remove = new ArrayList();
-          IDictionaryEnumerator grace_close_enum =
-            _gracefully_close_edges.GetEnumerator();
-          while( grace_close_enum.MoveNext() ) {
-            Edge e = (Edge)grace_close_enum.Key;
-            try {
-              GracefulCloser gc = (GracefulCloser)grace_close_enum.Value;
-              gc.Send();
-#if DEBUG
-            Console.Error.WriteLine("Sending close to: {0}", e);
-#endif
-            }
-            catch(EdgeException) {
-              //This edge is goofy, remove it:
-              edges_to_remove.Add(e);
-              edges_to_close.Add(e);
-            }
-          }
-          //Now remove any bad edges:
-          //We can't do it above because we would invalidate
-          //the iterator.
-          foreach(Edge erm in edges_to_remove) {
-            _gracefully_close_edges.Remove(erm);
-          }
-          //Now it is safe to release lock
         }
         foreach(Edge e in edges_to_close) {
 #if DEBUG

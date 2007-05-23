@@ -50,6 +50,23 @@ namespace Brunet {
       _neigh_ct = Connection.ConnectionTypeToString(ct);
       _neighbors = neighbors;
     }
+
+    /**
+     * Initialize from a Hashtable containing all the information
+     */
+    public StatusMessage(Hashtable ht) {
+      Hashtable neighborinfo = ht["neighbors"] as Hashtable;
+      if( neighborinfo != null ) {
+        _neigh_ct = neighborinfo["type"] as String;
+        IList nodes = neighborinfo["nodes"] as IList;
+        if( nodes != null ) {
+          _neighbors = new ArrayList();
+          foreach(Hashtable nih in nodes) {
+            _neighbors.Add(new NodeInfo(nih));
+          }
+        }
+      }
+    }
 	  
     public StatusMessage(XmlElement r) : base(r)
     {
@@ -165,6 +182,23 @@ namespace Brunet {
       return new StatusMessage(dir, id, r);
     }
 
+    public Hashtable ToHashtable() {
+      Hashtable neighborinfo = new Hashtable();
+      if( _neigh_ct != null ) {
+        neighborinfo["type"] = _neigh_ct;
+      }
+      if( _neighbors != null ) {
+        ArrayList nodes = new ArrayList();
+        foreach(NodeInfo ni in _neighbors) {
+          nodes.Add( ni.ToHashtable() );
+        }
+        neighborinfo["nodes"] = nodes;
+      }
+      Hashtable ht = new Hashtable();
+      ht["neighbors"] = neighborinfo;
+      return ht;
+    }
+
     public override void WriteTo(XmlWriter w)
     {
       base.WriteTo(w);
@@ -192,7 +226,11 @@ namespace Brunet {
   [TestFixture]
   public class StatusMessageTester {
     public StatusMessageTester() { }
-
+    
+    public void RoundTripHT(StatusMessage sm) {
+     StatusMessage sm2 = new StatusMessage( sm.ToHashtable() );
+     Assert.AreEqual(sm, sm2, "Hashtable RT");
+    }
     [Test]
     public void SMTest()
     {
@@ -207,6 +245,8 @@ namespace Brunet {
       XmlAbleTester xt = new XmlAbleTester();
       StatusMessage sm1a = (StatusMessage)xt.SerializeDeserialize(sm1);
       Assert.AreEqual(sm1, sm1a, "Single neighbor test");
+      RoundTripHT(sm1);
+      RoundTripHT(sm1a);
       //System.Console.Error.WriteLine("\n{0}\n", sm1);
       //Test with many neighbors:
         
@@ -218,12 +258,16 @@ namespace Brunet {
       StatusMessage sm2 = new StatusMessage(ConnectionType.Unstructured, neighbors);
       StatusMessage sm2a = (StatusMessage)xt.SerializeDeserialize(sm2);
       Assert.AreEqual(sm2,sm2a, "10 Neighbor test");
+      RoundTripHT(sm2);
+      RoundTripHT(sm2a);
       //System.Console.Error.WriteLine("\n{0}\n", sm2);
      
       //Here is a StatusMessage with no neighbors (that has to be a possibility)
       StatusMessage sm3 = new StatusMessage("structured", new ArrayList());
       StatusMessage sm3a = (StatusMessage)xt.SerializeDeserialize(sm3);
       Assert.AreEqual(sm3,sm3a, "0 Neighbor test");
+      RoundTripHT(sm3);
+      RoundTripHT(sm3a);
       //System.Console.Error.WriteLine("\n{0}\n", sm3);
 
     }

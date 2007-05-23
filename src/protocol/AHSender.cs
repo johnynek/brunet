@@ -123,6 +123,10 @@ public class AHSender : ISender {
     _n.Announce(mb_packet, _from);
   }
 
+  public override string ToString() {
+    return System.String.Format("AHSender(dest={0})",_dest);
+  }
+
 }
 
 /**

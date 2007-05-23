@@ -18,6 +18,8 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+#define EVERY_20
+
 using System.IO;
 using System;
 using System.Threading;
@@ -27,6 +29,7 @@ using System.Collections;
 using System.Security.Cryptography;
 using System.Diagnostics;
 using System.Text;
+
 
 //[assembly: log4net.Config.DOMConfigurator(Watch=true)]
 namespace Brunet 
@@ -132,8 +135,6 @@ namespace Brunet
       
       foreach( Node item in node_list)
       {
-        lock( item.ConnectionTable.SyncRoot ) {
-
           string color = "";
 	  int item_idx = all_adds.IndexOf( item.Address );
           foreach(Connection con in item.ConnectionTable) {
@@ -156,7 +157,6 @@ namespace Brunet
             sw.WriteLine(graph_line);
 	    
 	  }
-        }
       }
       sw.WriteLine("}");
       sw.Close();

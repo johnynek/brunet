@@ -48,11 +48,53 @@ public class Functional {
     return copy;
   }
 
+  public delegate bool FilterFunction(object o);
+  /**
+   * Use this to filter an enumerable
+   */
+  public class Filter : IEnumerable {
+    protected FilterFunction _f;
+    protected IEnumerable _ie;
+    public Filter(FilterFunction f, IEnumerable ie) {
+      _f = f;
+      _ie = ie;
+    }
+
+    public IEnumerator GetEnumerator() {
+      foreach(object o in _ie) {
+        if( _f(o) ) {
+          yield return o;
+	}
+      }
+    }
+  }
+
+
   static public ArrayList Insert(ArrayList l, int pos, object o) {
     ArrayList copy = (ArrayList)l.Clone();
     copy.Insert(pos, o);
     return ArrayList.ReadOnly(copy);
   }
+
+  public delegate object MapFunction(object o);
+  /**
+   * Use this to do map an enumerable
+   */
+  public class Map : IEnumerable {
+    protected MapFunction _f;
+    protected IEnumerable _ie;
+    public Map(MapFunction f, IEnumerable ie) {
+      _f = f;
+      _ie = ie;
+    }
+
+    public IEnumerator GetEnumerator() {
+      foreach(object o in _ie) {
+        yield return _f(o);
+      }
+    }
+  }
+
   static public ArrayList RemoveAt(ArrayList l, int pos) {
     ArrayList copy = (ArrayList)l.Clone();
     copy.RemoveAt(pos);

@@ -44,9 +44,7 @@ namespace Brunet
       string scheme = s.Substring(0, s.IndexOf(":"));
       string t = scheme.Substring(scheme.IndexOf('.') + 1);
       //Console.Error.WriteLine(t);
-      TransportAddress.TAType ta_type =  
-	(TransportAddress.TAType) System.Enum.Parse(typeof(TransportAddress.TAType), t, true);
-      
+      TransportAddress.TAType ta_type = StringToType(t);
       
       if (ta_type ==  TransportAddress.TAType.Tcp) {
 	return new IPTransportAddress(s);
@@ -68,6 +66,20 @@ namespace Brunet
       }
       return null;
     }
+    
+    protected static Hashtable _string_to_type = new Hashtable();
+
+    public static TransportAddress.TAType StringToType(string s) {
+      lock( _string_to_type ) {
+        object t = _string_to_type[s];
+        if( t == null ) {
+          t = System.Enum.Parse(typeof(TransportAddress.TAType), s, true);
+          _string_to_type[s] = t;
+        }
+        return (TransportAddress.TAType)t;
+      }
+    }
+
     public static TransportAddress CreateInstance(TransportAddress.TAType t,
 						  string host, int port) {
       
@@ -186,11 +198,16 @@ namespace Brunet
 	return _uri.Port;
       }
     }
+    protected TAType _type = TAType.Unknown;
+
     public override TAType TransportAddressType
     {
       get {
-        string t = _uri.Scheme.Substring(_uri.Scheme.IndexOf('.') + 1);
-        return (TAType) System.Enum.Parse(typeof(TAType), t, true);
+        if( _type == TAType.Unknown ) {
+          string t = _uri.Scheme.Substring(_uri.Scheme.IndexOf('.') + 1);
+          _type = TransportAddressFactory.StringToType(t);
+        }
+        return _type;
       }
     }
     public override string ToString() {
