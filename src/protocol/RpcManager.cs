@@ -18,7 +18,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-#define RPC_DEBUG
+//#define RPC_DEBUG
 //#define USE_ASYNC_INVOKE
 using System;
 using System.IO;
@@ -83,13 +83,18 @@ public class RpcManager : IReplyHandler, IDataHandler {
     public BlockingQueue result_queue;
   }
  
+  //Here are the methods that don't want the return_path
   protected Hashtable _method_handlers;
+  //Here are the methods that *DO* want the return_path
+  protected Hashtable _method_handlers_sender;
+  
   protected object _sync;
   protected ReqrepManager _rrman;
         
   protected RpcManager(ReqrepManager rrm) {
 
     _method_handlers = new Hashtable();
+    _method_handlers_sender = new Hashtable();
     _sync = new Object();
     
     _rrman = rrm;
@@ -137,6 +142,31 @@ public class RpcManager : IReplyHandler, IDataHandler {
       _method_handlers.Remove(name);
     }
   }
+  /**
+   * When a method is called with "name.meth"
+   * we look up the object with name "name"
+   * and invoke the method "meth".
+   * The method's last parameter MUST be an ISender object
+   *
+   * @param handler the object to handle the RPC calls
+   * @param name the name exposed for this object.  RPC calls to "name."
+   * come to this object.
+   */
+  public void AddHandlerWithSender(string name, object handler)
+  {
+    lock( _sync ) {
+      _method_handlers_sender.Add(name, handler);
+    }
+  }
+  /**
+   * Allows to unregister existing handlers.
+   */
+  public void RemoveHandlerWithSender(string name)
+  {
+    lock( _sync ) {
+      _method_handlers_sender.Remove(name);
+    }
+  }
 
   /**
    * Implements the IReplyHandler (also provides some light-weight statistics)
@@ -148,13 +178,19 @@ public class RpcManager : IReplyHandler, IDataHandler {
     object data = AdrConverter.Deserialize(payload);
     RpcRequestState rs = (RpcRequestState) state;
     BlockingQueue bq = rs.result_queue;
-
-    if (!bq.Closed) {
-      RpcResult res = new RpcResult(ret_path, data, statistics);
-      bq.Enqueue(res);
+    if( bq != null ) {
+      if (!bq.Closed) {
+        RpcResult res = new RpcResult(ret_path, data, statistics);
+        bq.Enqueue(res);
+      }
+      //Keep listening unless the queue is closed
+      return (!bq.Closed);
     }
-    //Keep listening unless the queue is closed
-    return (!bq.Closed);
+    else {
+      //If they didn't even pass us a queue, I guess they didn't want to
+      //listen too long
+      return false;
+    }
   }
 
   /**
@@ -190,12 +226,16 @@ public class RpcManager : IReplyHandler, IDataHandler {
       object handler = null;
       ArrayList pa = (ArrayList)l[1];
       lock( _sync ) {
-        if( _method_handlers.ContainsKey( hname ) ) {
-          handler = _method_handlers[ hname ];
-        }
-        else {
-          //No handler for this.
-          throw new AdrException(-32601, "No Handler for method: " + methname);
+        handler = _method_handlers[ hname ];
+        if( handler == null ) {
+          handler = _method_handlers_sender[ hname ];
+          if( handler != null ) {
+            pa.Add( ret_path );
+          }
+          else {
+            //No handler for this.
+            throw new AdrException(-32601, "No Handler for method: " + methname);
+          }
         }
       }
       //Console.Error.WriteLine("About to call: {0}.{1} with args",handler, mname);
@@ -257,10 +297,13 @@ public class RpcManager : IReplyHandler, IDataHandler {
           break;
         case ReqrepManager.ReqrepError.Timeout:
           //In this case we close the BlockingQueue:
-          bq.Close();
+          if( bq != null ) { bq.Close(); }
+          break;
+        case ReqrepManager.ReqrepError.Send:
+          //We had some problem sending, but ignore it for now
           break;
     }
-    if( x != null ) {
+    if( x != null && (bq != null) ) {
       RpcResult res = new RpcResult(ret_path, x);
       bq.Enqueue(res);
     }
@@ -281,6 +324,7 @@ public class RpcManager : IReplyHandler, IDataHandler {
    *
    * @param target the sender to use when making the RPC call
    * @param q the BlockingQueue into which the RpcResult objects will be placed.
+   *            q may be null if you don't care about the response.
    * @param method the Rpc method to call
    * 
    */
@@ -292,7 +336,9 @@ public class RpcManager : IReplyHandler, IDataHandler {
     rs.result_queue = q;
 
     ArrayList arglist = new ArrayList();
-    arglist.AddRange(args);
+    if( args != null ) {
+      arglist.AddRange(args);
+    }
     //foreach(object o in arglist) { Console.Error.WriteLine("arg: {0}",o); } 
     ArrayList rpc_call = new ArrayList();
     rpc_call.Add(method);
@@ -333,7 +379,12 @@ public class RpcManager : IReplyHandler, IDataHandler {
 #if RPC_DEBUG
       Console.Error.WriteLine("[RpcServer: {0}] Exception thrown by method: {1}, {2}", _rrman.Node.Address, mi, x.InnerException.Message);
 #endif
-      result = new AdrException(-32608, x.InnerException);
+      if( x.InnerException is AdrException ) {
+        result = x.InnerException;
+      }
+      else {
+        result = new AdrException(-32608, x.InnerException);
+      }
     }
     catch(Exception x) {
 #if RPC_DEBUG

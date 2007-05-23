@@ -100,6 +100,9 @@ public class AdrException : Exception {
       }
     }
   }
+  public override string ToString() {
+    return String.Format("{0}\nError Code: {1}", base.ToString(), this.Code);
+  }
 
   public override bool Equals(object o) {
     if( o is AdrException ) {
@@ -162,6 +165,61 @@ public class AdrConverter {
     else {
       char typecode = (char)type;
       switch( typecode ) {
+	case '_':
+	  //UTF-8 String:
+          int bytelength = 0;
+	  result = NumberSerializer.ReadString(s, out bytelength);
+          break;
+	case '(':
+	  //Start of a list:
+ 	  IList listresult = new ArrayList();
+	  bool lfinished = false;
+          do {
+	    //The magic of recursion.
+            object tmp = AdrConverter.Deserialize(s, ')', out lfinished);
+	    if( !lfinished ) {
+	      //If we are finished, tmp holds a meaningless null
+	      listresult.Add(tmp);
+	    }
+	  } while( false == lfinished );
+          result = listresult;
+          break;
+	case ')':
+          //End of the list:
+	  if (terminator == ')') {
+            //We were reading a list and now we are done:
+	    finished = true;
+	  }
+	  else {
+            throw new Exception("Unexpected terminator: ) != " + terminator);
+	  }
+	  result = null;
+	  break;
+	case '{':
+	  //Start of a map:
+	  IDictionary dresult = new Hashtable();
+	  bool mfinished = false;
+	  do {
+	    //Magical recursion strikes again
+            object key = Deserialize(s, '}', out mfinished);
+	    if( !mfinished ) {
+              object valu = Deserialize(s);
+	      dresult.Add(key, valu);
+	    }
+	  } while (false == mfinished);
+          result = dresult;
+	  break;
+	case '}':
+	  //End of a map:
+	  if (terminator == '}') {
+            //We were reading a list and now we are done:
+	    finished = true;
+	  }
+	  else {
+            throw new Exception("Unexpected terminator: } != " + terminator);
+	  }
+	  result = null;
+	  break;
         case 'T':
           result = true;
           break;
@@ -212,11 +270,6 @@ public class AdrConverter {
 	  //floating-point number
 	  result = NumberSerializer.ReadFloat(s);
 	  break;
-	case '_':
-	  //UTF-8 String:
-          int bytelength = 0;
-	  result = NumberSerializer.ReadString(s, out bytelength);
-          break;
 	case 'X':
 	  //Start of an exception:
 	  Hashtable xht = new Hashtable();
@@ -275,56 +328,6 @@ public class AdrConverter {
                 throw new Exception("Unsupported array type code: " + atype);
 	  }
           break;
-	case '(':
-	  //Start of a list:
- 	  IList listresult = new ArrayList();
-	  bool lfinished = false;
-          do {
-	    //The magic of recursion.
-            object tmp = AdrConverter.Deserialize(s, ')', out lfinished);
-	    if( !lfinished ) {
-	      //If we are finished, tmp holds a meaningless null
-	      listresult.Add(tmp);
-	    }
-	  } while( false == lfinished );
-          result = listresult;
-          break;
-	case ')':
-          //End of the list:
-	  if (terminator == ')') {
-            //We were reading a list and now we are done:
-	    finished = true;
-	  }
-	  else {
-            throw new Exception("Unexpected terminator: ) != " + terminator);
-	  }
-	  result = null;
-	  break;
-	case '{':
-	  //Start of a map:
-	  IDictionary dresult = new Hashtable();
-	  bool mfinished = false;
-	  do {
-	    //Magical recursion strikes again
-            object key = Deserialize(s, '}', out mfinished);
-	    if( !mfinished ) {
-              object valu = Deserialize(s);
-	      dresult.Add(key, valu);
-	    }
-	  } while (false == mfinished);
-          result = dresult;
-	  break;
-	case '}':
-	  //End of a map:
-	  if (terminator == '}') {
-            //We were reading a list and now we are done:
-	    finished = true;
-	  }
-	  else {
-            throw new Exception("Unexpected terminator: } != " + terminator);
-	  }
-	  result = null;
-	  break;
         default:
           throw new Exception("Unexcepted typecode: " + typecode);
       }
@@ -344,8 +347,48 @@ public class AdrConverter {
     }
     
     //Else, o is some kind of object:
-    
+    /*
+     * We put the most commonly used types first so we don't have to go
+     * through a huge list everytime we serialize
+     */
     System.Type t = o.GetType();
+    if ( t.Equals(typeof(string)) ) {
+      s.WriteByte((byte)'_');
+      string val = (string)o;
+      int bytes = NumberSerializer.WriteString(val, s);
+      return 1 + bytes; //the typecode + the serialized string
+    }
+    else
+    if ( t.IsArray ) {
+      Type elt = t.GetElementType();
+      ///@todo add more array serialization types here:
+      if( elt.Equals(typeof(byte)) ||
+          elt.Equals(typeof(int)) ) {
+        return SerializeArray((Array)o, t, elt, s);
+      }
+      else {
+        //All arrays are ILists, but this may take more space than the above
+        return SerializeList( (IList)o, s );
+      }
+    }
+    else if ( o is IList ) {
+      return SerializeList( (IList)o, s);
+    }
+    else if ( o is IDictionary ) {
+     IDictionary dict = o as IDictionary;
+     //Here is a map...
+     int total_bytes = 2; //For the '{' and '}' bytes
+     s.WriteByte((byte)'{'); //Start of map:
+     IDictionaryEnumerator my_en = dict.GetEnumerator();
+     while( my_en.MoveNext() ) {
+	//Time for recursion:
+       total_bytes += Serialize(my_en.Key, s);
+       total_bytes += Serialize(my_en.Value, s);
+     }
+     s.WriteByte((byte)'}'); //End of map:
+     return total_bytes;
+    }
+    else
     if( t.Equals( typeof(bool) ) ) {
       //boolean value:
       bool b = (bool)o;
@@ -353,13 +396,8 @@ public class AdrConverter {
       else { s.WriteByte((byte)'F'); }
       return 1;
     }
-    else if ( t.Equals(typeof(string)) ) {
-      s.WriteByte((byte)'_');
-      string val = (string)o;
-      int bytes = NumberSerializer.WriteString(val, s);
-      return 1 + bytes; //the typecode + the serialized string
-    }
-    else if ( t.Equals(typeof(byte)) ) {
+    else
+    if ( t.Equals(typeof(byte)) ) {
       //Unsigned byte
       s.WriteByte((byte)'B');
       s.WriteByte((byte)o);
@@ -424,40 +462,10 @@ public class AdrConverter {
       s.WriteByte((byte)'x'); //End of map:
       return total_bytes;
     }
-    else if ( t.IsArray ) {
-      Type elt = t.GetElementType();
-      ///@todo add more array serialization types here:
-      if( elt.Equals(typeof(byte)) ||
-          elt.Equals(typeof(int)) ) {
-        return SerializeArray((Array)o, t, elt, s);
-      }
-      else {
-        //All arrays are ILists, but this may take more space than the above
-        return SerializeList( (IList)o, s );
-      }
-    }
-    else  {
-     if ( o is IList ) {
-       return SerializeList( (IList)o, s);
-     }
-     else if ( o is IDictionary ) {
-      IDictionary dict = o as IDictionary;
-      //Here is a map...
-      int total_bytes = 2; //For the '{' and '}' bytes
-      s.WriteByte((byte)'{'); //Start of map:
-      IDictionaryEnumerator my_en = dict.GetEnumerator();
-      while( my_en.MoveNext() ) {
-	//Time for recursion:
-        total_bytes += Serialize(my_en.Key, s);
-        total_bytes += Serialize(my_en.Value, s);
-      }
-      s.WriteByte((byte)'}'); //End of map:
-      return total_bytes;
-     }
-     else {
-      //This is not a supported type of object
-      throw new Exception("Unsupported type: " + t.ToString());
-     }
+    else
+    {
+     //This is not a supported type of object
+     throw new Exception("Unsupported type: " + t.ToString());
     }
   }
 

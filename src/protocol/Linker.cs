@@ -572,9 +572,10 @@ namespace Brunet
              * 2) The LinkProtocolState has received a packet
              */
             if( (lps.Linker == this )
-               && ( lps.LastRPacket != null ) ) {
-              _target_lock = null; 
-              allow = true;
+                && ( lps.LinkMessageReply != null ) )
+            {
+                _target_lock = null; 
+                allow = true;
             }
           }
 	}//Lock

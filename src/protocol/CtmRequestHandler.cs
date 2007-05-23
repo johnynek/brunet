@@ -58,30 +58,36 @@ namespace Brunet
      * reach this method
      */
     public Hashtable ConnectTo(Hashtable ht) {
-      NodeInfo target = new NodeInfo( (Hashtable)ht["target"] );
-      string contype = (string)ht["type"];
-      Node n = _n;
-
-      Linker l = new Linker(n, target.Address, target.Transports, contype);
+      ConnectToMessage ctm_req = new ConnectToMessage(ht);
+      //Console.Error.WriteLine("[{0}.ConnectTo({1})]", _n.Address, ctm_req);
+      NodeInfo target = ctm_req.Target;
+      string contype = ctm_req.ConnectionType;
+      Linker l = new Linker(_n, target.Address, target.Transports, contype);
       //Here we start the job:
-      n.TaskQueue.Enqueue( l );
+      _n.TaskQueue.Enqueue( l );
+      ConnectToMessage resp = GetCtmResponseTo(ctm_req);
+      //Console.Error.WriteLine("[{0}.ConnectTo()->{1}]", _n.Address, resp);
+      return resp.ToHashtable();
+    }
 
-      /**
-       * Send a response no matter what
-       */
-      Hashtable response = new Hashtable();
-      response["type"] = contype;
-      ArrayList neighbors = new ArrayList();
-
+    protected ConnectToMessage GetCtmResponseTo(ConnectToMessage ctm_req) {
+      NodeInfo target = ctm_req.Target;
+      
       //Send the 4 neighbors closest to this node:
-      ArrayList nearest = n.ConnectionTable.GetNearestTo( (AHAddress)target.Address, 4);
+      ArrayList nearest = _n.ConnectionTable.GetNearestTo( (AHAddress)target.Address, 4);
+      //Now get these the NodeInfo objects for these:
+      ArrayList neighbors = new ArrayList();
       foreach(Connection cons in nearest) {
-        NodeInfo neigh = new NodeInfo(cons.Address, cons.Edge.RemoteTA);
-        neighbors.Add( neigh.ToHashtable() );
+        //No need to send the TA, since only the address is used
+        NodeInfo neigh = new NodeInfo(cons.Address);
+        neighbors.Add( neigh );
       }
-      response["neighbors"] = neighbors;
-      response["target"] = n.GetNodeInfo(8).ToHashtable();
-      return response; 
+      //Put these into an NodeInfo[]
+      NodeInfo[] neigh_array = new NodeInfo[ neighbors.Count ];
+      for(int i = 0; i < neighbors.Count; i++) {
+        neigh_array[i] = (NodeInfo)neighbors[i];
+      }
+      return new ConnectToMessage(ctm_req.ConnectionType, _n.GetNodeInfo(8), neigh_array);
     }
   }
 

@@ -196,7 +196,7 @@ namespace Brunet
         //We should not be receiving packets on closed edges:
         // Comment this out for now until we are debugging with
         // FunctionEdge.
-        //throw new EdgeException("Trying to Receive on a Closed Edge");
+        throw new EdgeException("Trying to Receive on a Closed Edge");
       }
       /**
        * logging of incoming packets
@@ -229,9 +229,7 @@ namespace Brunet
         //
         //This packet is going into the trash:
         //log.Error("Packet LOST: " + p.ToString());
-#if DEBUG
-          Console.Error.WriteLine("{0} lost packet {1}",this,p);
-#endif
+          Console.Error.WriteLine("{0} lost packet {1}",this,b.ToBase16String());
         }
       }
       //Make sure not to hold the lock while we handle the data
@@ -250,6 +248,7 @@ namespace Brunet
      lock(_sync ) {
       if( _data_handler == hand ) {
         _data_handler = null;
+        _dh_state = null;
       }
       else {
         throw new Exception(String.Format("Handler: {0}, not subscribed", hand));

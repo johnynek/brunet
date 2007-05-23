@@ -134,5 +134,8 @@ namespace Brunet
       }
       return eq;
     }
+    override public string ToString() {
+      return System.String.Format("ForwardingSender({0} -> {1})",_sender, _dest);
+    }
   }
 }

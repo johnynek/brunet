@@ -27,6 +27,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
 
 using System.Xml;
+using System.Collections;
 using System.Collections.Specialized;
 using Brunet;
 
@@ -74,6 +75,23 @@ namespace Brunet
       _attributes = attributes;
       _local_ni = local;
       _remote_ni = remote;
+    }
+    public LinkMessage(Hashtable ht) {
+      IDictionaryEnumerator en = ht.GetEnumerator();
+      _attributes = new StringDictionary();
+      while( en.MoveNext() ) {
+        if( en.Key.Equals( "local" ) ) {
+          Hashtable lht = en.Value as Hashtable;
+          if( lht != null ) { _local_ni = new NodeInfo(lht); }
+        }
+        else if( en.Key.Equals( "remote" ) ) {
+          Hashtable rht = en.Value as Hashtable;
+          if( rht != null ) { _remote_ni = new NodeInfo(rht); }
+        }
+        else {
+          _attributes[ en.Key.ToString() ] = en.Value.ToString();
+        }
+      }
     }
     /**
      * Deserializes an entire request which should contain a link element
@@ -223,6 +241,22 @@ namespace Brunet
       ReadStart(out dir, out id, r);
       return new LinkMessage(dir, id, r);
     }   
+
+    public Hashtable ToHashtable() {
+      Hashtable ht = new Hashtable();
+      if( _local_ni != null ) {
+        ht["local"] = _local_ni.ToHashtable();
+      }
+      if( _remote_ni != null ) {
+        ht["remote"] = _remote_ni.ToHashtable();
+      }
+      if( _attributes != null ) {
+        foreach(DictionaryEntry de in _attributes) {
+          ht[ de.Key ] = de.Value;
+        }
+      }
+      return ht;
+    }
     
     /**
      * Write this object into the XmlWriter w.
@@ -266,18 +300,31 @@ namespace Brunet
   public class LinkMessageTester {
 
     public LinkMessageTester() { }
+    
+    public void RoundTripHT(LinkMessage lm) {
+      LinkMessage lm2 = new LinkMessage( lm.ToHashtable() );
+      Assert.AreEqual( lm, lm2, "LinkMessage HT Roundtrip" );
+    }
 
     [Test]
     public void LMSerializationTest()
     {
-      LinkMessage l1 = new LinkMessage(ConnectionType.Structured,
-		                   new NodeInfo(null,
-				       TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:45")),
-				   new NodeInfo(
-				       new DirectionalAddress(DirectionalAddress.Direction.Left),
+      NodeInfo n1 = new NodeInfo(null, TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:45"));
+      LinkMessage l1 = new LinkMessage(ConnectionType.Structured, n1,
+				       new NodeInfo(new DirectionalAddress(DirectionalAddress.Direction.Left),
 				       TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:837")) );
+      RoundTripHT(l1);
+      StringDictionary attrs = new StringDictionary();
+      attrs["realm"] = "test_realm";
+      attrs["type"] = "structured.near";
+      LinkMessage l3 = new LinkMessage(attrs, n1, n1);
+      RoundTripHT(l3);
       XmlAbleTester xt = new XmlAbleTester();
+      LinkMessage l4 = (LinkMessage)xt.SerializeDeserialize(l3);
+      RoundTripHT(l4);
+      Assert.AreEqual(l3,l4, "LinkMessage with attributes");
       LinkMessage l2 = (LinkMessage)xt.SerializeDeserialize(l1);
+      RoundTripHT(l2);
       //System.Console.Error.WriteLine("\nl1: {0}\n\nl2: {0}\n", l1, l2);
       Assert.AreEqual(l1, l2, "LinkMessage test 1");
     }

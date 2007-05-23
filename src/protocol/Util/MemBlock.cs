@@ -79,6 +79,15 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
   }
 
   /**
+   * Allow conversion to byte[] by making a copy.
+   * This allows us to pass MemBlock as if they were byte[] objects
+   */
+  public static explicit operator byte[](MemBlock b) {
+    byte[] result = new byte[ b.Length ];
+    b.CopyTo(result, 0);
+    return result;
+  }
+  /**
    * Implements ICloneable.  This copies the underlying buffer.
    * Might be useful if you want to keep something around that
    * would otherwise prevent a large amount of memory from being
@@ -277,6 +286,23 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
    */
   public string ToBase64String() {
     return System.Convert.ToBase64String(_buffer,_offset,_length);
+  }
+
+  /**
+   * convert the MemBlock to base32 with padding
+   */
+  public string ToBase32String() {
+    return Base32.Encode(_buffer, _offset, _length, true);
+  }
+
+  public string ToBase16String() {
+    System.Text.StringBuilder sb = new System.Text.StringBuilder(_length * 2);
+    int max = _offset + _length;
+    for(int i = _offset; i < max; i++)
+    {
+      sb.AppendFormat("{0:x2}", _buffer[i]);
+    }
+    return sb.ToString();
   }
 
 #if BRUNET_NUNIT

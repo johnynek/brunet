@@ -125,20 +125,26 @@ namespace Brunet
       get { return _l_id; }
     }
 
+    protected TransportAddress _local_ta;
     public override Brunet.TransportAddress LocalTA
     {
-      get
-      {
-        return TransportAddressFactory.CreateInstance("brunet.function://localhost:"
+      get {
+        if ( _local_ta == null ) {
+          _local_ta = TransportAddressFactory.CreateInstance("brunet.function://localhost:"
                                     + _l_id.ToString());
+        }
+        return _local_ta;
       }
     }
+    protected TransportAddress _remote_ta;
     public override Brunet.TransportAddress RemoteTA
     {
-      get
-      {
-        return TransportAddressFactory.CreateInstance("brunet.function://localhost:"
+      get {
+        if ( _remote_ta == null ) {
+          _remote_ta = TransportAddressFactory.CreateInstance("brunet.function://localhost:"
                                     + _r_id.ToString());
+        }
+        return _remote_ta;
       }
     }
     public void Push(MemBlock p) {

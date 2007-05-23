@@ -115,9 +115,16 @@ namespace Brunet
       _tas = new ArrayList();
       _tas.Add(ta);
     }
+    /**
+     * Here is a NodeInfo with no TransportAddress
+     */
+    public NodeInfo(Address a)
+    {
+      _address = a;
+      _tas = new ArrayList();
+    }
 
     public NodeInfo(Hashtable ht) {
-      if( !ht["_object"].Equals( "node" ) ) { throw new Exception("Not a NodeInfo"); }
       object addr_str = ht["address"];
       if( addr_str != null ) {
         _address = AddressParser.Parse((string)addr_str);
@@ -125,7 +132,7 @@ namespace Brunet
       _tas = new ArrayList();
       IEnumerable trans = ht["transports"] as IEnumerable;
       if( trans != null ) {
-        foreach(string ta_s in (IEnumerable)ht["transports"]) {
+        foreach(string ta_s in trans) {
           _tas.Add( TransportAddressFactory.CreateInstance(ta_s) );
         }
       }
@@ -230,7 +237,6 @@ namespace Brunet
     public Hashtable ToHashtable()
     {
       Hashtable ht = new Hashtable();
-      ht["_object"] = "node";
       if( _address != null ) {
         ht["address"] = _address.ToString();
       }
@@ -239,7 +245,9 @@ namespace Brunet
         foreach(TransportAddress ta in _tas) {
           trans.Add( ta.ToString() );
         }
-        ht["transports"] = trans;
+        if( trans.Count > 0 ) {
+          ht["transports"] = trans;
+        }
       }
       return ht;
     }

@@ -146,6 +146,7 @@ public class TaskQueue {
   protected void TaskEndHandler(object worker, EventArgs args)
   {
     TaskWorker new_worker = null;
+    bool fire_empty;
     lock( _sync ) {
       TaskWorker this_worker = (TaskWorker)worker;   
       object task = this_worker.Task;
@@ -164,12 +165,13 @@ public class TaskQueue {
         _task_to_workers.Remove(task);
       }
       _worker_count--;
+      fire_empty = (_worker_count == 0);
     }
     if( new_worker != null && _is_active) {//added the _is_active check (Arijit Ganguly)
       //You start me up!
       new_worker.Start();
     }
-    if( (_worker_count == 0 ) && (EmptyEvent != null) ) {
+    if( fire_empty && (EmptyEvent != null) ) {
       EmptyEvent(this, EventArgs.Empty);
     }
   }
