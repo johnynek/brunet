@@ -73,6 +73,7 @@ namespace Brunet.Dht {
       
       protected Hashtable _key_list;
       
+      protected ISender _t_sender;
 
       protected BlockingQueue _driver_queue = null;
       protected IEnumerator _entry_enumerator = null;
@@ -88,6 +89,7 @@ namespace Brunet.Dht {
 	_target = target;
 	_key_list = key_list;
 	_to_delete = to_delete;
+	_t_sender = new AHExactSender(rpcman.Node, target);
 	_entry_enumerator = GetEntryEnumerator();
 #if DHT_DEBUG
 	Console.Error.WriteLine("[DhtLogic] {0}: Creating a new transfer state to: {1}, # of keys: {2}, to_delete: {3}. ", 
@@ -126,7 +128,9 @@ namespace Brunet.Dht {
 	    //Console.Error.WriteLine("Endtime: {0}, Current: {1}", e.EndTime, DateTime.Now);
 	    //Console.Error.WriteLine("TTL for transferred value: {0}", (int) t_span.TotalSeconds);
 
-	    _driver_queue = _rpc.InvokeNode(_target, "dht.Put", e.Key, 
+	    _driver_queue = new BlockingQueue();
+	    _driver_queue.EnqueueEvent += new EventHandler(NextTransfer);
+	    _rpc.Invoke(_t_sender, _driver_queue, "dht.Put", e.Key, 
 					(int) t_span.TotalSeconds, 
 					e.Password, 
 					e.Data);
@@ -134,7 +138,6 @@ namespace Brunet.Dht {
 	    Console.Error.WriteLine("[DhtLogic] {0}: Returning non-blocking Put() call to: {1}",
 			      _our_addr, _target);
 #endif
-	    _driver_queue.EnqueueEvent += new EventHandler(NextTransfer);
 	  } else {
 	    //we are done with the transfer
 #if DHT_DEBUG
@@ -193,8 +196,10 @@ namespace Brunet.Dht {
 			      _target);
 #endif
 
-	    _driver_queue = _rpc.InvokeNode(_target, "dht.Put", e.Key, 
-					(int) t_span.TotalSeconds,
+	    _driver_queue = new BlockingQueue();
+	    _driver_queue.EnqueueEvent += new EventHandler(NextTransfer);
+	    _rpc.Invoke(_t_sender, _driver_queue, "dht.Put", e.Key, 
+					(int) t_span.TotalSeconds, 
 					e.Password, 
 					e.Data);
 #if DHT_DEBUG
@@ -202,7 +207,6 @@ namespace Brunet.Dht {
 			      _our_addr, _target);
 #endif
 
-	    _driver_queue.EnqueueEvent += new EventHandler(NextTransfer);
 	  } else {
 	    //we are done with the transfer
 #if DHT_DEBUG
@@ -218,13 +222,16 @@ namespace Brunet.Dht {
 	}
       }
       public void InterruptTransfer() {
+        BlockingQueue to_close = null;
 	lock(_sync) {
 	  //it is possible that the driver queue is still not ready
 	  if (_driver_queue != null) {
 	    _driver_queue.EnqueueEvent -= new EventHandler(NextTransfer);
-	    _driver_queue.Close();
+	    to_close = _driver_queue;
 	  }
 	}
+	//Don't hold the lock here:
+	if( to_close != null ) { to_close.Close(); }
       }
       //all the keys have
     }
@@ -298,12 +305,12 @@ namespace Brunet.Dht {
       }
     }
 
-    public static byte[] MapToRing(byte[] key) {
+    public static MemBlock MapToRing(byte[] key) {
       HashAlgorithm hashAlgo = HashAlgorithm.Create();
       byte[] hash = hashAlgo.ComputeHash(key);
       Address.SetClass(hash, AHAddress._class);
-      return hash;
-    }
+      return MemBlock.Reference(hash);
+  }
     
     public BlockingQueue Put(byte[] key, int ttl, string hashed_password, byte[] data) {
 #if DHT_DEBUG
@@ -316,7 +323,7 @@ namespace Brunet.Dht {
 	throw new DhtException("DhtClient: Not yet activated.");
       }
 
-      byte[] b = MapToRing(key);
+      MemBlock b = MapToRing(key);
       Address target = new AHAddress(b);
 #if DHT_DEBUG
       Console.Error.WriteLine("[DhtClient] Invocation target: {0}", target);
@@ -328,7 +335,9 @@ namespace Brunet.Dht {
 		 + Base32.Encode(b) + "::::" + target);
 #endif
       //we now know the invocation target
-      BlockingQueue q = _rpc.Invoke(target, "dht.Put", b, ttl, hashed_password, data);
+      AHSender s = new AHSender(_rpc.Node, target);
+      BlockingQueue q = new BlockingQueue();
+      _rpc.Invoke(s, q, "dht.Put", b, ttl, hashed_password, data);
 #if DHT_DEBUG
       Console.Error.WriteLine("[DhtClient] Returning a blocking queue..");
 #endif
@@ -347,7 +356,7 @@ namespace Brunet.Dht {
 	throw new DhtException("DhtClient: Not yet activated.");
       }
       
-      byte[] b = MapToRing(key);
+      MemBlock b = MapToRing(key);
       Address target = new AHAddress(b);
 #if DHT_DEBUG
       Console.Error.WriteLine("[DhtClient] Invocation target: {0}", target);
@@ -359,7 +368,9 @@ namespace Brunet.Dht {
 #endif
       
       //we now know the invocation target
-      BlockingQueue q = _rpc.Invoke(target, "dht.Create", b, ttl, hashed_password, data);
+      AHSender s = new AHSender(_rpc.Node, target);
+      BlockingQueue q = new BlockingQueue();
+      _rpc.Invoke(s, q, "dht.Create", b, ttl, hashed_password, data);
       return q;
     }
 
@@ -374,7 +385,7 @@ namespace Brunet.Dht {
 #endif	
 	throw new DhtException("DhtClient: Not yet activated.");
       }
-      byte[] b= MapToRing(key);
+      MemBlock b = MapToRing(key);
       Address target = new AHAddress(b);
 #if DHT_DEBUG
       Console.Error.WriteLine("[DhtClient] Invocation target: {0}", target);
@@ -387,7 +398,9 @@ namespace Brunet.Dht {
 #endif
       
       //we now know the invocation target
-      BlockingQueue q = _rpc.Invoke(target, "dht.Recreate", b, ttl, hashed_password, data);
+      AHSender s = new AHSender(_rpc.Node, target);
+      BlockingQueue q = new BlockingQueue();
+      _rpc.Invoke(s, q, "dht.Recreate", b, ttl, hashed_password, data);
       return q;
     }
     
@@ -402,7 +415,7 @@ namespace Brunet.Dht {
 	throw new DhtException("DhtClient: Not yet activated.");
       }
 
-      byte[] b = MapToRing(key);
+      MemBlock b = MapToRing(key);
       Address target = new AHAddress(b);
 #if DHT_DEBUG
       Console.Error.WriteLine("[DhtClient] Invocation target: {0}", target);
@@ -414,7 +427,9 @@ namespace Brunet.Dht {
 		 + Base32.Encode(b) + "::::" + target);
 #endif      
       //we now know the invocation target
-      BlockingQueue q = _rpc.Invoke(target, "dht.Get", b, maxbytes, token);
+      AHSender s = new AHSender(_rpc.Node, target);
+      BlockingQueue q = new BlockingQueue();
+      _rpc.Invoke(s, q, "dht.Get", b, maxbytes, token);
       return q;
     }
     public BlockingQueue Delete(byte[] key, string password)
@@ -430,7 +445,7 @@ namespace Brunet.Dht {
 	throw new DhtException("DhtClient: Not yet activated.");
       }
 
-      byte[] b = MapToRing(key);
+      MemBlock b = MapToRing(key);
       Address target = new AHAddress(b);
 #if DHT_DEBUG
       Console.Error.WriteLine("[DhtClient] Invocation target: {0}", target);
@@ -443,7 +458,9 @@ namespace Brunet.Dht {
 #endif
       
       //we now know the invocation target
-      BlockingQueue q = _rpc.Invoke(target, "dht.Delete", b, password);
+      AHSender s = new AHSender(_rpc.Node, target);
+      BlockingQueue q = new BlockingQueue();
+      _rpc.Invoke(s, q, "dht.Delete", b, password);
       return q;
     }
     
