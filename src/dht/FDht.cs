@@ -34,7 +34,6 @@ namespace Brunet.Dht {
     public static byte[][] MapToRing(byte[] key, int num_targets) {
       HashAlgorithm hashAlgo = HashAlgorithm.Create();
       byte[] hash = hashAlgo.ComputeHash(key);
-      hash[Address.MemSize -1] &= 0xFE;
 
       //find targets which are as far apart on the ring as possible
       byte[][] target = new byte[num_targets][];
@@ -68,12 +67,14 @@ namespace Brunet.Dht {
 
       BlockingQueue[] q = new BlockingQueue[_degree];
       for (int k = 0; k < _degree; k++) {
-	Address target = new AHAddress(b[k]);
+	Address target = new AHAddress(MemBlock.Reference( b[k] ));
 #if DHT_LOG
 	_log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::InvokePut::::" +
 		   + Base32.Encode(b[k]) + "::::" + target);
 #endif
-	q[k] = _rpc.Invoke(target, "dht.Put", b[k], ttl, hashed_password, data);
+        AHSender s = new AHSender(_rpc.Node, target);
+	q[k] = new BlockingQueue();
+	_rpc.Invoke(s, q[k], "dht.Put", b[k], ttl, hashed_password, data);
       }
       return q;
     }
@@ -94,12 +95,14 @@ namespace Brunet.Dht {
 
       BlockingQueue[] q = new BlockingQueue[_degree];
       for (int k = 0; k < _degree; k++) {
-	Address target = new AHAddress(b[k]);
+	Address target = new AHAddress(MemBlock.Reference( b[k] ));
 #if DHT_LOG
 	_log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::InvokeCreate::::" +
 		   + Base32.Encode(b[k]) + "::::" + target);
 #endif
-	q[k] = _rpc.Invoke(target, "dht.Create", b[k], ttl, hashed_password, data);
+        AHSender s = new AHSender(_rpc.Node, target);
+	q[k] = new BlockingQueue();
+	_rpc.Invoke(s, q[k], "dht.Create", b[k], ttl, hashed_password, data);
       }
       return q;
     }
@@ -120,12 +123,14 @@ namespace Brunet.Dht {
 
       BlockingQueue[] q = new BlockingQueue[_degree];
       for (int k = 0; k < _degree; k++) {
-	Address target = new AHAddress(b[k]);
+	Address target = new AHAddress(MemBlock.Reference(b[k]));
 #if DHT_LOG
 	_log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::InvokeRecreate::::" +
 		   + Base32.Encode(b[k]) + "::::" + target);
 #endif
-	q[k] = _rpc.Invoke(target, "dht.Recreate", b[k], ttl, hashed_password, data);
+        AHSender s = new AHSender(_rpc.Node, target);
+	q[k] = new BlockingQueue();
+	_rpc.Invoke(s, q[k], "dht.Recreate", b[k], ttl, hashed_password, data);
       }
       return q;
     }
@@ -144,12 +149,14 @@ namespace Brunet.Dht {
       byte[][] b = MapToRing(key, _degree);
       BlockingQueue[] q = new BlockingQueue[_degree];
       for (int k = 0; k < _degree; k++) {
-	Address target = new AHAddress(b[k]);
+	Address target = new AHAddress(MemBlock.Reference(b[k]));
 #if DHT_LOG
 	_log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::InvokeGet::::" +
 		   + Base32.Encode(b[k]) + "::::" + target);
 #endif      
-	q[k] = _rpc.Invoke(target, "dht.Get", b[k], maxbytes, token);
+        AHSender s = new AHSender(_rpc.Node, target);
+	q[k] = new BlockingQueue();
+	_rpc.Invoke(s,q[k], "dht.Get", b[k], maxbytes, token);
       }
       return q;
     }
@@ -169,12 +176,14 @@ namespace Brunet.Dht {
       byte[][] b = MapToRing(key, _degree);
       BlockingQueue[] q = new BlockingQueue[_degree];
       for (int k = 0; k < _degree; k++) {
-	Address target = new AHAddress(b[k]);
+	Address target = new AHAddress(MemBlock.Reference(b[k]));
 #if DHT_LOG
 	_log.Debug(_node.Address + "::::" + DateTime.UtcNow.Ticks + "::::InvokeDelete::::" +
 		   + Base32.Encode(b[k]) + "::::" + target);
 #endif
-	q[k] = _rpc.Invoke(target, "dht.Delete", b[k], password);
+        AHSender s = new AHSender(_rpc.Node, target);
+	q[k] = new BlockingQueue();
+        _rpc.Invoke(s, q[k], "dht.Delete", b[k], password);
       }
       return q;
     }
