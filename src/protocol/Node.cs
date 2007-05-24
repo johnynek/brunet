@@ -583,17 +583,15 @@ namespace Brunet
     {
       ArrayList neighbors = new ArrayList();
       //Get the neighbors of this type:
-      lock( _connection_table.SyncRoot ) {
-        /*
-         * Send the list of all neighbors of this type.
-         * @todo make sure we are not sending more than
-         * will fit in a single packet.
-         */
-        ConnectionType ct = Connection.StringToMainType( con_type_string );
-        foreach(Connection c in _connection_table.GetConnections( ct ) ) {
-          neighbors.Add( new NodeInfo( c.Address, c.Edge.RemoteTA ) );
-        }
-      }	  
+      /*
+       * Send the list of all neighbors of this type.
+       * @todo make sure we are not sending more than
+       * will fit in a single packet.
+       */
+      ConnectionType ct = Connection.StringToMainType( con_type_string );
+      foreach(Connection c in _connection_table.GetConnections( ct ) ) {
+        neighbors.Add( new NodeInfo( c.Address, c.Edge.RemoteTA ) );
+      }
       return new StatusMessage( con_type_string, neighbors );
     }
     
@@ -664,27 +662,24 @@ namespace Brunet
         _last_edge_check = DateTime.UtcNow;
         ArrayList edges_to_ping = new ArrayList();
         ArrayList edges_to_close = new ArrayList();
-        lock( _connection_table.SyncRoot ) {
-          foreach(Connection con in _connection_table) {
-	    Edge e = con.Edge;
-            if( _last_edge_check - e.LastInPacketDateTime  > _EDGE_CLOSE_TIMEOUT ) {
-              //After this period of time, we close the edge no matter what.
+        foreach(Connection con in _connection_table) {
+	  Edge e = con.Edge;
+          if( _last_edge_check - e.LastInPacketDateTime  > _EDGE_CLOSE_TIMEOUT ) {
+            //After this period of time, we close the edge no matter what.
 	      Console.Error.WriteLine("On an edge timeout, closing connection: {0}", con);
-              edges_to_close.Add(e);
-            }
-            else if( _last_edge_check - e.LastInPacketDateTime  > _CONNECTION_TIMEOUT ) {
-              //Check to see if this connection is still active by pinging it
-              edges_to_ping.Add(e);
-            }
+            edges_to_close.Add(e);
           }
-          foreach(Edge e in _connection_table.GetUnconnectedEdges() ) {
-            if( _last_edge_check - e.LastInPacketDateTime > _EDGE_CLOSE_TIMEOUT ) {
-              edges_to_close.Add(e);
-	      Console.Error.WriteLine("Close an unconnected edge: {0}", e);
-            }
+          else if( _last_edge_check - e.LastInPacketDateTime  > _CONNECTION_TIMEOUT ) {
+            //Check to see if this connection is still active by pinging it
+            edges_to_ping.Add(e);
           }
         }
-        //We release the lock before we start messing with the edges:
+        foreach(Edge e in _connection_table.GetUnconnectedEdges() ) {
+          if( _last_edge_check - e.LastInPacketDateTime > _EDGE_CLOSE_TIMEOUT ) {
+            edges_to_close.Add(e);
+	      Console.Error.WriteLine("Close an unconnected edge: {0}", e);
+          }
+        }
         foreach(Edge e in edges_to_ping) {
           try {
             RpcManager rpc = RpcManager.GetInstance(this);

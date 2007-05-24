@@ -111,15 +111,12 @@ namespace Brunet
        * replacement
        */
       lock(_sync) {
-       local.ConnectionTable.DisconnectionEvent +=
-        new EventHandler(this.CheckAndConnectHandler);
-       local.ConnectionTable.ConnectionEvent +=
-        new EventHandler(this.CheckAndConnectHandler);
-      /**
-       * Every heartbeat we check to see if we need to act
-       */
-       local.HeartBeatEvent +=
-        new EventHandler(this.CheckAndConnectHandler);
+        local.ConnectionTable.DisconnectionEvent += this.CheckAndConnectHandler;
+        local.ConnectionTable.ConnectionEvent += this.CheckAndConnectHandler;
+        /**
+         * Every heartbeat we check to see if we need to act
+         */
+        local.HeartBeatEvent += this.CheckAndConnectHandler;
       }
     }
 
@@ -211,7 +208,6 @@ namespace Brunet
          */
         _linker = new Linker(_local, null, tas, "leaf");
         new_linker = _linker;
-        new_linker.FinishEvent += this.LinkerFinishHandler;
       }
       else if (cea != null) {
         //Reset the connection interval to the default value:
@@ -227,6 +223,7 @@ namespace Brunet
        * If there is a new linker, start it after we drop the lock
        */
       if( new_linker != null ) {
+        new_linker.FinishEvent += this.LinkerFinishHandler;
         new_linker.Start();
       }
     }
@@ -276,47 +273,47 @@ namespace Brunet
       }
       if( do_trim ) {
         Edge to_close = null;
-        lock ( _local.ConnectionTable.SyncRoot ) {
-          int leafs = _local.ConnectionTable.Count(ConnectionType.Leaf);
-          int surplus = leafs - DesiredConnections;
-          if( surplus > 0 ) {
-            /*
-             * Since only public nodes can accept leaf connections (to a good
-             * approximation), there could be insufficient public nodes to fit
-             * all the connections.  Thus, we make the maximum we accept
-             * "soft" by only deleting with some probability.  This makes the
-             * system tend toward balance but allows nodes to have more than
-             * a fixed number of leafs.
-             */
-            double d_s = (double)(surplus);
-            double prob = 0.0;
-            if( surplus > 1 ) {
-              prob = 1.0 - 1.0/d_s;
-            }
-            else {
-              //surplus == 1
-              //With 25% chance trim the excess connection
-              prob = 0.25;
-            }
-            if( _rnd.NextDouble() < prob ) {
-              //as surplus -> infinity, prob -> 1, and we always close.
-              IEnumerable lenum =
-                        _local.ConnectionTable.GetConnections(ConnectionType.Leaf);
-              ArrayList all_leafs = new ArrayList();
-              foreach(Connection c in lenum) {
-                all_leafs.Add(c.Edge);
-              }
-              //Now sort them, and get the oldest:
-              all_leafs.Sort(new EdgeDateComparer());
-              //Here is the oldest:
-              to_close = (Edge)all_leafs[0];
-            }
-            else {
-              //We just add the new edge without closing
-            }
+        /*
+         * There is no need to lock the table, this IEnumerable
+         * won't have problems because it never changes
+         */
+        IEnumerable lenum = _local.ConnectionTable.GetConnections(ConnectionType.Leaf);
+        ArrayList all_leafs = new ArrayList();
+        foreach(Connection c in lenum) {
+          all_leafs.Add(c.Edge);
+        }
+        int leafs = all_leafs.Count;
+        int surplus = leafs - DesiredConnections;
+        if( surplus > 0 ) {
+          /*
+           * Since only public nodes can accept leaf connections (to a good
+           * approximation), there could be insufficient public nodes to fit
+           * all the connections.  Thus, we make the maximum we accept
+           * "soft" by only deleting with some probability.  This makes the
+           * system tend toward balance but allows nodes to have more than
+           * a fixed number of leafs.
+           */
+          double d_s = (double)(surplus);
+          double prob = 0.0;
+          if( surplus > 1 ) {
+            prob = 1.0 - 1.0/d_s;
+          }
+          else {
+            //surplus == 1
+            //With 25% chance trim the excess connection
+            prob = 0.25;
+          }
+          if( _rnd.NextDouble() < prob ) {
+            //as surplus -> infinity, prob -> 1, and we always close.
+            //Now sort them, and get the oldest:
+            all_leafs.Sort(new EdgeDateComparer());
+            //Here is the oldest:
+            to_close = (Edge)all_leafs[0];
+          }
+          else {
+            //We just add the new edge without closing
           }
         }
-        //Release the lock
         if( to_close != null ) {
           _local.GracefullyClose( to_close );
         }

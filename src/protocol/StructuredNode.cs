@@ -156,14 +156,8 @@ namespace Brunet
       ClearTypeSource(PType.Protocol.Linking);
 
       //Gracefully close all the edges:
-      ArrayList edges_to_close = new ArrayList();
-      lock( _connection_table.SyncRoot ) {
-        foreach(Connection c in _connection_table) {
-          edges_to_close.Add( c.Edge );
-        }
-      }
-      foreach(Edge e in edges_to_close) {
-        GracefullyClose(e);
+      foreach(Connection c in _connection_table) {
+        GracefullyClose(c.Edge);
       }
       // stop all edge listeners to prevent other nodes
       // from connecting to us
@@ -181,6 +175,9 @@ namespace Brunet
       //Estimate the new size:
       ConnectionTable tab = (ConnectionTable)contab;
       int net_size = -1;
+      BigInteger least_dist = 0;
+      BigInteger greatest_dist = 0;
+      int shorts = 0;
       lock( tab.SyncRoot ) {
 	/*
 	 * We know we are in the network, so the network
@@ -200,10 +197,7 @@ namespace Brunet
 	 * and since we know the size of the whole address space,
 	 * we can use the density to estimate the number of nodes.
 	 */
-        BigInteger least_dist = 0;
-	BigInteger greatest_dist = 0;
 	AHAddress local = (AHAddress)_local_add;
-	int shorts = 0;
         foreach(Connection c in tab.GetConnections("structured.near")) {
           BigInteger dist = local.DistanceTo( (AHAddress)c.Address );
           
@@ -222,6 +216,7 @@ namespace Brunet
 	  } 
 	  shorts++;
 	}
+      }
 	/*
 	 * Now we have the distance between the range of our neighbors
 	 */
@@ -238,11 +233,12 @@ namespace Brunet
 	}
 
 	//Now we have our estimate:
-	_netsize = net_size;
+	lock( _sync ) {
+	  _netsize = net_size;
+        }
 	Console.Error.WriteLine("Network size: {0} at {1}:{2}", _netsize, 
 			DateTime.UtcNow.ToString("MM'/'dd'/'yyyy' 'HH':'mm':'ss"),
 		        DateTime.UtcNow.Millisecond);
-      }
       }catch(Exception x) {
         Console.Error.WriteLine(x.ToString());
       }
@@ -260,7 +256,6 @@ namespace Brunet
     {
       ArrayList neighbors = new ArrayList();
       //Get the neighbors of this type:
-      lock( _connection_table.SyncRoot ) {
         /*
          * Send the list of all neighbors of this type.
          * @todo make sure we are not sending more than
@@ -285,7 +280,6 @@ namespace Brunet
 	    }
 	  }
         }
-      }	  
       return new StatusMessage( con_type_string, neighbors );
     }
 

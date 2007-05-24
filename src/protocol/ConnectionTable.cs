@@ -429,6 +429,8 @@ namespace Brunet
 
     /**
      * Return all the connections of type t.
+     * This NEVER CHANGES onces created, so don't
+     * worry about locking.
      * @param t the Type of Connections we want
      * @return an enumerable that we can foreach over
      */
@@ -438,6 +440,8 @@ namespace Brunet
     }
     /**
      * Return all the connections of type t.
+     * This NEVER CHANGES onces created, so don't
+     * worry about locking.
      * @param t the Type of Connections we want
      * @return an enumerable that we can foreach over
      */
@@ -1039,19 +1043,23 @@ namespace Brunet
     }
     /**
      * Handles enumerating connection types, not just all
-     * connections
+     * connections.
+     *
+     * This will never change once it is created.
      */
     private class ConnectionTypeEnumerable : IEnumerable {
 
-      private ConnectionTable _tab;
-      private ConnectionType _ct;
-      private string _contype;
+      private readonly ConnectionTable _tab;
+      private readonly ConnectionType _ct;
+      private readonly string _contype;
+      private readonly IEnumerable _cons;
       
       public ConnectionTypeEnumerable(ConnectionTable tab, ConnectionType ct)
       {
         _tab = tab;
 	_ct = ct;
 	_contype = null;
+        _cons = (ArrayList)_tab._type_to_conlist[ _ct ];
       }
       
       public ConnectionTypeEnumerable(ConnectionTable tab, string contype)
@@ -1059,6 +1067,7 @@ namespace Brunet
         _tab = tab;
 	_contype = contype;
         _ct = Connection.StringToMainType(contype);
+        _cons = (ArrayList)_tab._type_to_conlist[ _ct ];
       }
     
      /**
@@ -1066,14 +1075,13 @@ namespace Brunet
       */
       public IEnumerator GetEnumerator()
       {
-        ArrayList cons = (ArrayList)_tab._type_to_conlist[ _ct ];
         if( _contype == null ) {
-          foreach(Connection c in cons) {
+          foreach(Connection c in _cons) {
             yield return c;
           }
         }
         else {
-          foreach(Connection c in cons) {
+          foreach(Connection c in _cons) {
             if (c.ConType == _contype ) {
               yield return c;
             }

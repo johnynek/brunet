@@ -75,10 +75,8 @@ namespace Brunet
     public ConnectionPacketHandler(Node n)
     {
       _sync = new object();
-      lock(_sync) {
-        _edge_to_cphstate = new Hashtable();
-        _node = n;
-      }
+      _edge_to_cphstate = new Hashtable();
+      _node = n;
     }
 
     /**
@@ -105,11 +103,7 @@ namespace Brunet
        * move this edge to the unconnected list.  The node will
        * close edges that have been there for some time
        */
-      lock( tab.SyncRoot ) {
-        if( !tab.IsUnconnected(from) ) {
-          tab.Disconnect(from);
-        }
-      }
+      tab.Disconnect(from);
       /** 
        * Release locks when the close message arrives; do not wait
        * until the edge actually closes.
@@ -291,6 +285,9 @@ namespace Brunet
       ConnectionTable tab = _node.ConnectionTable;
       Address local_add = _node.Address;
       err = null;
+      /* We lock the connection table so it doesn't change between
+       * the call to Contains and the call to Lock
+       */
       lock( tab.SyncRoot ) {
 
 	if( lm.Attributes["realm"] != _node.Realm ) {
@@ -354,16 +351,15 @@ namespace Brunet
     public void CloseHandler(object edge, EventArgs args)
     {
       LinkMessage lm = null;
-      ConnectionTable tab = null;
       lock(_sync) {
         CphState cphstate = (CphState)_edge_to_cphstate[edge];
         if( cphstate != null ) {
           _edge_to_cphstate.Remove(edge);
           lm = cphstate.LM;
-          tab = _node.ConnectionTable;
         }
       }
       if( lm != null ) {
+        ConnectionTable tab = _node.ConnectionTable;
         tab.Unlock( lm.Local.Address, lm.ConTypeString, this );
       }
     }

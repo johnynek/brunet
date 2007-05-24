@@ -41,15 +41,16 @@ public class BlockingQueue : Queue {
   public BlockingQueue() {
     _re = new AutoResetEvent(false); 
     _closed = false;
+    _sync = new object();
   }
- 
+  protected readonly object _sync; 
   protected AutoResetEvent _re;
  
   protected bool _closed;
 
-  public bool Closed { get { lock ( this ) { return _closed; } } }
+  public bool Closed { get { lock ( _sync ) { return _closed; } } }
   
-  public override int Count { get { lock ( this) { return base.Count; } } }
+  public override int Count { get { lock ( _sync ) { return base.Count; } } }
  
   /**
    * When an item is enqueued, this event is fire
@@ -65,7 +66,7 @@ public class BlockingQueue : Queue {
    */
   
   public override void Clear() {
-    lock( this ) {
+    lock( _sync ) {
       base.Clear();
     }
   }
@@ -80,10 +81,11 @@ public class BlockingQueue : Queue {
    */
   public void Close() {
     bool fire = false;
-    lock( this ) {
+    lock( _sync ) {
       if( _closed == false ) {
         fire = true;
         _closed = true;
+        //Wake up any blocking threads:
         _re.Set();
       }
     }
@@ -92,14 +94,13 @@ public class BlockingQueue : Queue {
       CloseEvent(this, EventArgs.Empty);
     }
 
-    //Wake up any blocking threads:
 #if DEBUG
     System.Console.Error.WriteLine("Close set");
 #endif
   }
   
   public override bool Contains(object o) {
-    lock( this ) {
+    lock( _sync ) {
       return base.Contains(o);
     }
   }
@@ -127,7 +128,7 @@ public class BlockingQueue : Queue {
       return null;
     }
     else {
-      lock( this ) {
+      lock( _sync ) {
 #if DEBUG
 	System.Console.Error.WriteLine("Got set: count {0}", Count);
 #endif
@@ -171,7 +172,7 @@ public class BlockingQueue : Queue {
       return null;
     }
     else {
-      lock( this ) {
+      lock( _sync ) {
         //We didn't take any out, so we should still be ready to go!
         _re.Set();
         timedout = false;
@@ -184,7 +185,7 @@ public class BlockingQueue : Queue {
 
   public override void Enqueue(object a) {
     bool fire = false;
-    lock( this ) {
+    lock( _sync ) {
       if( !_closed ) {
         base.Enqueue(a);
 	fire = true;
