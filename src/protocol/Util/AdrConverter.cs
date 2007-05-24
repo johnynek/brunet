@@ -462,6 +462,20 @@ public class AdrConverter {
       s.WriteByte((byte)'x'); //End of map:
       return total_bytes;
     }
+    else if ( o is MemBlock ) {
+      //Just serialize this as a byte array
+      MemBlock d = (MemBlock)o;
+      s.WriteByte((byte)'a');
+      int total_bytes = 1;
+      total_bytes += SerializePosNum( (ulong)d.Length, s );
+      //This is a byte array:
+      s.WriteByte((byte)'B');
+      total_bytes++;
+      //Now write each byte:
+      d.WriteTo(s);
+      total_bytes += d.Length;
+      return total_bytes;
+    }
     else
     {
      //This is not a supported type of object
@@ -521,27 +535,34 @@ public class AdrConverter {
     }
     return result;
   }
-
+  /**
+   * Serialize as smallest type that will hold the value
+   */
+  protected static int SerializePosNum(ulong v, Stream s) {
+      int total_bytes = 0;
+      if( v <= Byte.MaxValue ) {
+        //Length will fit in byte:
+	byte l = (byte) v;
+	total_bytes += Serialize(l, s);
+      }
+      else if( v <= UInt16.MaxValue ) {
+	ushort l = (ushort)v;
+	total_bytes += Serialize(l, s);
+      }
+      else if( v <= UInt32.MaxValue ) {
+	uint l = (uint)v;
+	total_bytes += Serialize(l, s);
+      }
+      else {
+        throw new Exception("Number too large: " + v.ToString() );
+      }
+      return total_bytes;
+  }
   protected static int SerializeArray(Array my_a, Type t, Type elt, Stream s)
   {
       s.WriteByte((byte)'a');
       int total_bytes = 1;
-      if( my_a.Length <= Byte.MaxValue ) {
-        //Length will fit in byte:
-	byte l = (byte) my_a.Length;
-	total_bytes += Serialize(l, s);
-      }
-      else if( my_a.Length <= UInt16.MaxValue ) {
-	ushort l = (ushort)my_a.Length;
-	total_bytes += Serialize(l, s);
-      }
-      else if( my_a.LongLength <= UInt32.MaxValue ) {
-	uint l = (uint)my_a.Length;
-	total_bytes += Serialize(l, s);
-      }
-      else {
-        throw new Exception("Array too large: " + my_a.Length.ToString() );
-      }
+      total_bytes += SerializePosNum( (ulong)my_a.LongLength, s );
       if( elt.Equals(typeof(byte)) ) {
         //This is a byte array:
         s.WriteByte((byte)'B');
@@ -651,7 +672,13 @@ public class AdrConverter {
     Type t1 = o1.GetType();
     Type t2 = o2.GetType();
     bool equals = t1.Equals( t2 );
-    if( equals ) {
+    if( o1 is MemBlock ) {
+      return o1.Equals(o2);
+    }
+    else if( o2 is MemBlock ) {
+      return o2.Equals(o1);
+    }
+    else if( equals ) {
       if( t1.IsArray ) {
         return ArrayEquals((Array)o1,(Array)o2);
       }
@@ -812,6 +839,8 @@ public class AdrConverter {
       byte[] test = new byte[len];
       r.NextBytes(test);
       AssertSD(test, "byte array");
+      MemBlock b = MemBlock.Reference(test);
+      AssertSD(b, "MemBlock test");
     }
     for( int i = 0; i < 100; i++) {
       int[] test = new int[ r.Next(1000) ];

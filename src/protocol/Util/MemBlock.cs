@@ -104,8 +104,14 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
   public int CompareTo(object o) {
     MemBlock other = o as MemBlock;
     if ( other == null ) {
-      //Put us ahead of all other types, this might not be smart
-      return -1;
+      byte[] data = o as byte[];
+      if( data != null ) {
+        other = MemBlock.Reference(data);
+      }
+      else {
+        //Put us ahead of all other types, this might not be smart
+        return -1;
+      }
     }
     int t_l = this.Length;
     int o_l = other.Length;
@@ -228,6 +234,15 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
   {
     return e.GetString(_buffer, _offset, _length);
   }
+
+  /**
+   * Write the MemBlock to a stream.
+   * If your insane Stream modifies the buffer as it is
+   * writing it, be prepared for hard to find bugs.
+   */
+  public void WriteTo(System.IO.Stream s) {
+    s.Write(_buffer, _offset, _length);
+  }
   /**
    * Make a reference to the given byte array, it does not make a copy.
    * This is used rather than a constructor to make it obvious to the
@@ -318,6 +333,7 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
       MemBlock mb1 = new MemBlock(data, 0, data.Length);
       MemBlock mb1a = MemBlock.Copy(data, 0, data.Length);
       Assert.AreEqual(mb1, mb1a, "MemBlock.Copy");
+      Assert.AreEqual(mb1, data, "MemBlock == byte[]");
       MemBlock mb2 = new MemBlock(data, offset, data.Length - offset);
       MemBlock mb2a = mb1.Slice(offset);
       MemBlock mb3 = new MemBlock(data, 0, offset);
