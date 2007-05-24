@@ -280,7 +280,8 @@ namespace Brunet
      * @param target the value to set the target to.
      * 
      * @throws LinkException if the target is already * set to a different address
-     * @throws System.InvalidOperationException if we cannot get the lock
+     * @throws ConnectionExistsException if we already have a connection
+     * @throws CTLockException if we cannot get the lock
      */
     protected void SetTarget(Address target)
     {
@@ -298,14 +299,9 @@ namespace Brunet
         else if( target.Equals( _node.Address ) )
           throw new LinkException("cannot connect to self");
         else {
-          lock( tab.SyncRoot ) {
-            if( tab.Contains( Connection.StringToMainType( _contype ), target) ) {
-              throw new LinkException("already connected");
-            }
-            //Lock throws an InvalidOperationException if it cannot get the lock
-            tab.Lock( target, _contype, this );
-            _target_lock = target;
-          }
+          //Lock throws an Exception if it cannot get the lock
+          tab.Lock( target, _contype, this );
+          _target_lock = target;
         }
       }
     }
@@ -420,7 +416,12 @@ namespace Brunet
         _x = x;
         Finish( GetResultForErrorCode(x.Code) );
       }
-      catch(InvalidOperationException x) {
+      catch(ConnectionExistsException x) {
+        /* We already have a connection */
+        _x = x;
+        Finish( Result.ProtocolError );
+      }
+      catch(CTLockException x) {
         //This is thrown when ConnectionTable cannot lock.  Lets try again:
         _x = x;
         Finish( Result.RetryThisTA );

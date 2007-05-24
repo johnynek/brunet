@@ -288,58 +288,57 @@ namespace Brunet
       /* We lock the connection table so it doesn't change between
        * the call to Contains and the call to Lock
        */
-      lock( tab.SyncRoot ) {
-
-	if( lm.Attributes["realm"] != _node.Realm ) {
-          err = new ErrorMessage(ErrorMessage.ErrorCode.RealmMismatch,
-			         "We are not in the same realm");
-	}
-        else if( (lm.Remote.Address != null )
-                 && !local_add.Equals( lm.Remote.Address ) ) {
-          /*
-           * They are trying to reach a specific node, but it's not
-           * us
-           */
-          err = new ErrorMessage(ErrorMessage.ErrorCode.TargetMismatch,
-                                 String.Format("target is {0}, but reached {1}",
-                                               lm.Remote.Address, local_add));
-        }
-	else if( tab.Contains( lm.ConnectionType, lm.Local.Address) ) {
-          //We already have a connection of this type to this address
-          err = new ErrorMessage(ErrorMessage.ErrorCode.AlreadyConnected,
-                                 String.Format("We are already connected: {0}", local_add));
-        }
-        else if( lm.Local.Address.Equals( local_add ) ) {
-          //You are me!!!
-          err = new ErrorMessage(ErrorMessage.ErrorCode.ConnectToSelf,
-                                 "You are me: ");
-        }
-        else {
-          //Everything is looking good:
-          try {
+      if( lm.Attributes["realm"] != _node.Realm ) {
+        err = new ErrorMessage(ErrorMessage.ErrorCode.RealmMismatch,
+                               "We are not in the same realm");
+      }
+      else if( (lm.Remote.Address != null ) && !local_add.Equals( lm.Remote.Address ) ) {
+        /*
+         * They are trying to reach a specific node, but it's not
+         * us
+         */
+        err = new ErrorMessage(ErrorMessage.ErrorCode.TargetMismatch,
+                               String.Format("target is {0}, but reached {1}",
+                                             lm.Remote.Address, local_add));
+      }
+      else if( lm.Local.Address.Equals( local_add ) ) {
+        //You are me!!!
+        err = new ErrorMessage(ErrorMessage.ErrorCode.ConnectToSelf,
+                               "You are me: ");
+      }
+      else {
+        /*
+         * Now we go to the ConnectionTable and try to
+         * get a lock on the address so we can go forward
+         * with the linking
+         */
+        try {
 #if LINK_DEBUG
 	    Console.Error.WriteLine("ConnectionPacketHandler - Trying to lock connection table: {0},{1}",
-                                    lm.Local.Address, lm.ConTypeString);
+                                  lm.Local.Address, lm.ConTypeString);
 #endif
-            tab.Lock( lm.Local.Address, lm.ConTypeString, this );
+          tab.Lock( lm.Local.Address, lm.ConTypeString, this );
 #if LINK_DEBUG
 	    Console.Error.WriteLine("ConnectionPacketHandler - Successfully locked connection table: {0},{1}",
-                                    lm.Local.Address, lm.ConTypeString);
+                                  lm.Local.Address, lm.ConTypeString);
 #endif
-          }
-          catch(InvalidOperationException) {
+        }
+        catch(ConnectionExistsException) {
+          //We already have a connection of this type to this address
+          err = new ErrorMessage(ErrorMessage.ErrorCode.AlreadyConnected,
+                               String.Format("We are already connected: {0}", local_add));
+        }
+        catch(CTLockException) {
 #if LINK_DEBUG
 	    Console.Error.WriteLine("ConnectionPacketHandler - Cannot lock connection table: {0},{1}",
-                                    lm.Local.Address, lm.ConTypeString);
+                                  lm.Local.Address, lm.ConTypeString);
 #endif
-            //Lock can throw this type of exception
-            err = new ErrorMessage(ErrorMessage.ErrorCode.InProgress,
-                                   "Address: " + lm.Local.Address.ToString() +
-                                   " is locked");
-          }
+          //Lock can throw this type of exception
+          err = new ErrorMessage(ErrorMessage.ErrorCode.InProgress,
+                                 "Address: " + lm.Local.Address.ToString() +
+                                 " is locked");
         }
-      } //We can release the lock on the ConnectionTable now
-
+      }
       return ( err == null );
     }
 
