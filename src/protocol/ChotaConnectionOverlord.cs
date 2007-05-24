@@ -104,6 +104,81 @@ namespace Brunet {
     }
   }
 
+
+/** The class maintains the state of prospective ChotaConnections. 
+ *  This is used by ChotaConnectionOverlord to decide if we should make
+ *  connection attempt.
+ */
+
+  public class ChotaConnectionState {
+    /** target we are keeping state about. */
+    protected Address _target;
+
+    /** connector associated with the state. */
+    protected Connector _con = null;
+    
+    //boolean flag indicating we got a packet back from the node
+    //we initiate ChotaConnections only if we observe bidirectional connectivity
+    private bool _received;
+
+    public bool Received {
+      get {
+	return _received;
+      }
+      set {
+#if ARI_CHOTA_DEBUG
+	if (!_received && value) {
+	  Console.Error.WriteLine("ChotaConnectionState: Recording bidirectional connectivity");
+	}
+#endif
+	_received = value;
+      }
+    }
+
+    
+    public Address Address {
+      get {
+	return _target;
+      }
+    }
+
+    /** default constructor. */
+    public ChotaConnectionState(Address target) {
+      _target = target;
+    }
+ 
+    /** whether we should make a connection attempt. 
+     *  only when there are no active connectors. 
+     */
+    public bool CanConnect {
+      get {
+#if ARI_CHOTA_DEBUG
+	if (_con != null) {
+	  Console.Error.WriteLine("ChotaConnectionState:  Active connector exists. (Don't reattempt)");
+	}
+	if (!_received) {
+	  Console.Error.WriteLine("ChotaConnectionState:  No bidirectional connectivity (Don't reattempt)");
+	}
+#endif
+	if (_con == null && _received) {
+	  return true;
+	}
+	return false;
+      }
+    }
+    /** ChotaConnectionOverlord just created a new connector. 
+     *  We keep its state here.
+     */
+    public Connector Connector {
+      set {
+	_con = value;
+      } 
+      get {
+	return _con;
+      }
+    }
+  }
+
   /** The following is what we call a ChotaConnectionOverlord.
    *  This provides high-performance routing by setting up direct
    *  structured connections between pairs of highly communicating nodes.
@@ -146,9 +221,6 @@ namespace Brunet {
     //maintains if bidirectional connectivity and also active linkers and connectors
     protected Hashtable _chota_connection_state;
 
-    //ip packet handler to mark bidirectional connectivity
-    protected ChotaConnectionIPPacketHandler _ip_handler;
-    
     //node rank comparer
     protected NodeRankComparer _cmp;
     
@@ -169,7 +241,6 @@ namespace Brunet {
       _sync = new object();
       _rand = new Random();
       _chota_connection_state = new Hashtable();
-      _ip_handler = new ChotaConnectionIPPacketHandler();
       node_rank_list = new ArrayList();
       _dest_to_node_rank = new Hashtable();
 
@@ -180,7 +251,7 @@ namespace Brunet {
         _node.HeartBeatEvent += this.CheckState;
         //_node.SubscribeToSends(AHPacket.Protocol.IP, this);
 	//subscribe the ip_handler to IP packets
-        ISource source = _node.GetTypeSource(new PType(AHPacket.Protocol.IP));
+        ISource source = _node.GetTypeSource(PType.Protocol.IP);
         source.Subscribe(this, AHPacket.Protocol.IP);
       }
 #if ARI_EXP_DEBUG
@@ -395,27 +466,30 @@ namespace Brunet {
       return true;
     }
     /**
-     * Here is how we handle Send subscriptions
+     * We count incoming IP packets here
      */
     public void HandleData(MemBlock p, ISender from, object state) {
-      if( from == null ) {
-        /*
-         * This is a Send, or a packet that came from us
-         */
-        ///@todo fix this
-        //UpdateTable(p);
-      }
-      else {
+      AHSender ahs = from as AHSender;
+      if( ahs != null ) {
+        Address dest = ahs.Destination;
+        UpdateTable(dest, p);
         //This is an incoming packet
         ///@todo fix this
-        //ReceivePacketHandler(p);
+#if ARI_CHOTA_DEBUG
+        Console.Error.WriteLine("Got an IP packet from src: {0} ", dest);
+#endif
+        //Getting from a Hashtable is threadsafe... no need to lock
+        ChotaConnectionState ccs = (ChotaConnectionState) _chota_connection_state[dest];
+        if ( ccs != null ) {
+	  ccs.Received = true;
+        }
       }
     }
     /**
      * Everytime we the node sends a packet out this method is invoked. 
      * Since multiple invocations may exist, take care of synchronization. 
      */
-    public void UpdateTable(AHPacket p) {
+    public void UpdateTable(Address a, MemBlock p) {
     /*
      * We know the following conditions are never true because
      * we are only subscribed to IP packets, and the Node will
@@ -445,12 +519,12 @@ namespace Brunet {
          * operation, otherwise we could leave this table inconsistent
          */
         NodeRankInformation node_rank =
-          (NodeRankInformation)_dest_to_node_rank[p.Destination];
+          (NodeRankInformation)_dest_to_node_rank[a];
         if( node_rank == null ) {
           //This is a new guy:
-	  node_rank = new NodeRankInformation(p.Destination);
+	  node_rank = new NodeRankInformation(a);
           node_rank_list.Add( node_rank );
-          _dest_to_node_rank[p.Destination] = node_rank;
+          _dest_to_node_rank[a] = node_rank;
         }
         //Since we only update once every fourth time, go ahead
         //and bump the count by 4 each time, so the count represents
@@ -577,25 +651,6 @@ namespace Brunet {
 	  Console.Error.WriteLine("Finshed connector not in our records. We may have trimmed this info before.");
 	}
 #endif
-      }
-    }
-
-    /**
-     * Everytime we the node receives a packet this method is invoked. 
-     * All this does is to update the ChotaConnectionState "bidirectional connectivity"
-     * flag.
-     */
-    public void ReceivePacketHandler(AHPacket p) {
-      //update information in chota_connection_state.
-
-#if ARI_CHOTA_DEBUG
-      Console.Error.WriteLine("Got an IP packet from src: {0} ", p.Source);
-#endif
-
-      //Getting from a Hashtable is threadsafe... no need to lock
-      ChotaConnectionState state = (ChotaConnectionState) _chota_connection_state[p.Source];
-      if ( state != null ) {
-	state.Received = true;
       }
     }
 
