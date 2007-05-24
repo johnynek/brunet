@@ -130,6 +130,15 @@ public class AHSender : ISender {
 }
 
 /**
+ * Send a message which should only be received by a node
+ * which exactly matches the target address
+ */
+public class AHExactSender : AHSender {
+  public AHExactSender(Node n, Address target)
+    : base(n, target, n.DefaultTTLFor(target), AHPacket.AHOptions.Exact) { }
+}
+
+/**
  * This handles AHPackets which arrive at the node
  */
 public class AHHandler : IDataHandler {

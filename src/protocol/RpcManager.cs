@@ -90,13 +90,14 @@ public class RpcManager : IReplyHandler, IDataHandler {
   
   protected object _sync;
   protected ReqrepManager _rrman;
+  public readonly Node Node;
         
   protected RpcManager(ReqrepManager rrm) {
 
     _method_handlers = new Hashtable();
     _method_handlers_sender = new Hashtable();
     _sync = new Object();
-    
+    Node = rrm.Node;
     _rrman = rrm;
   }
   /** static hashtable to keep track of RpcManager objects. */
