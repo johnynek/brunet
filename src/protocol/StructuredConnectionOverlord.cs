@@ -146,21 +146,19 @@ namespace Brunet {
     override public bool IsConnected
     {
       get {
-	ConnectionTable tab = _node.ConnectionTable;
 	AHAddress our_addr = _node.Address as AHAddress;
+	Connection lc = null; 
+	Connection rc = null;
 	  
+	ConnectionTable tab = _node.ConnectionTable;
 	lock( tab.SyncRoot ) {
-	  Connection lc = null; 
 	  try {
 	    lc = tab.GetLeftStructuredNeighborOf(our_addr);
-	  } catch(Exception) {
-	  }
-	  
-	  Connection rc = null;
+	  } catch(Exception) { }
 	  try {
 	    rc = tab.GetRightStructuredNeighborOf(our_addr);
-	  } catch (Exception) {
-	  }
+	  } catch (Exception) { }
+        }
 	  if (rc == null || lc == null) {
 	    Console.Error.WriteLine("{0}: No left or right neighbor (false)", our_addr);
 	    return false;
@@ -204,7 +202,6 @@ namespace Brunet {
 	  }
 	  Console.Error.WriteLine("{0}:  Returning (true)", our_addr);	  
 	  return true;
-	}
       }
     }
     
@@ -226,13 +223,12 @@ namespace Brunet {
      */
     protected bool NeedLeftNeighbor {
       get {
+	int left = 0;
 	lock( _sync ) {
           if( _need_left != -1 ) {
             return (_need_left == 1);
 	  }
-	  int left = 0;
 	  ConnectionTable tab = _node.ConnectionTable;
-	  lock( tab.SyncRoot ) {
           //foreach(Connection c in _node.ConnectionTable.GetConnections(STRUC_NEAR)) {
             foreach(Connection c in tab.GetConnections(ConnectionType.Structured)) {
               AHAddress adr = (AHAddress)c.Address;
@@ -249,7 +245,6 @@ namespace Brunet {
 	        left++; 
 	      }
 	    }
-	  }
 //#if POB_DEBUG
 #if false
           Console.Error.WriteLine("{0} left: {1}" , _node.Address, left);
@@ -262,7 +257,7 @@ namespace Brunet {
             _need_left = 0;
 	    return false;
 	  }
-	}
+        }
       }
     }
 
@@ -271,13 +266,12 @@ namespace Brunet {
      */
     protected bool NeedRightNeighbor {
       get {
+	int right = 0;
 	lock( _sync ) {
           if( _need_right != -1 ) {
             return (_need_right == 1);
 	  }
-	  int right = 0;
 	  ConnectionTable tab = _node.ConnectionTable;
-	  lock( tab.SyncRoot ) {
             //foreach(Connection c in _node.ConnectionTable.GetConnections(STRUC_NEAR)) {
             foreach(Connection c in tab.GetConnections(ConnectionType.Structured)) {
               AHAddress adr = (AHAddress)c.Address;
@@ -294,7 +288,6 @@ namespace Brunet {
 	        right++; 
 	      }
 	    }
-	  }
 	  if( right < DESIRED_NEIGHBORS ) {
             _need_right = 1;
 	    return true;
@@ -321,7 +314,6 @@ namespace Brunet {
             return (_need_short == 1);
 	  }
 	  int shortcuts = 0;
-	  lock( _node.ConnectionTable.SyncRoot ) {
             foreach(Connection c in _node.ConnectionTable.GetConnections(STRUC_SHORT)) {
               int left_pos = LeftPosition((AHAddress)c.Address);
               int right_pos = RightPosition((AHAddress)c.Address); 
@@ -334,7 +326,6 @@ namespace Brunet {
                 shortcuts++;
 	      }
 	    }
-	  }
 	  if( shortcuts < DESIRED_SHORTCUTS ) {
             _need_short = 1;
 	    return true;
@@ -828,18 +819,15 @@ namespace Brunet {
         Linker l = new Linker(_node, target, null, contype);
         object linker_task = l.Task;  //This is what we check for
         abort = delegate(Connector c) {
-          bool stop = false;
-          lock( _node.ConnectionTable.SyncRoot ) {
-            stop = _node.ConnectionTable.Contains( mt, target );
-            if (!stop ) {
+          bool stop = _node.ConnectionTable.Contains( mt, target );
+          if (!stop ) {
               /*
                * Make a linker to get the task.  We won't use
                * this linker.
                * No need in sending a ConnectToMessage if we
                * already have a linker going.
                */
-              stop = _node.TaskQueue.HasTask( linker_task );
-            }
+            stop = _node.TaskQueue.HasTask( linker_task );
           }
           return stop;
         };
@@ -1101,8 +1089,6 @@ namespace Brunet {
 	    ArrayList sc_trim_candidates = new ArrayList();
 	    ArrayList near_trim_candidates = new ArrayList();
             ConnectionTable tab = _node.ConnectionTable;
-	    lock( tab.SyncRoot ) {
-	      
 	      foreach(Connection c in tab.GetConnections(STRUC_SHORT)) {
                 int left_pos = LeftPosition((AHAddress)c.Address);
                 int right_pos = RightPosition((AHAddress)c.Address); 
@@ -1111,21 +1097,18 @@ namespace Brunet {
 	         /*
 		  * Verify that this shortcut is not close
 		  */
-                  sc_trim_candidates.Add(c);
+                sc_trim_candidates.Add(c);
 		}
 	      }
 	      foreach(Connection c in tab.GetConnections(STRUC_NEAR)) {
                 int right_pos = RightPosition((AHAddress)c.Address);
                 int left_pos = LeftPosition((AHAddress)c.Address);
-	    
 	        if( right_pos > 2 * DESIRED_NEIGHBORS &&
 		    left_pos > 2 * DESIRED_NEIGHBORS ) {
 	          //These are near neighbors that are not so near
 	          near_trim_candidates.Add(c);
 		}
-                
-	      }
-	    }//End of ConnectionTable lock
+	    }
             /*
              * The maximum number of shortcuts we allow is log N,
              * but we only want 1.  This gives some flexibility to
