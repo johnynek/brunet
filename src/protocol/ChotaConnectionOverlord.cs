@@ -174,11 +174,10 @@ namespace Brunet {
       _dest_to_node_rank = new Hashtable();
 
       lock( _sync ) {
-	_node.ConnectionTable.ConnectionEvent +=
-          new EventHandler(this.ConnectHandler); 
+	_node.ConnectionTable.ConnectionEvent += this.ConnectHandler; 
 
 	// we assess trimming/growing situation on every heart beat
-        _node.HeartBeatEvent += new EventHandler(this.CheckState);
+        _node.HeartBeatEvent += this.CheckState;
         //_node.SubscribeToSends(AHPacket.Protocol.IP, this);
 	//subscribe the ip_handler to IP packets
         ISource source = _node.GetTypeSource(new PType(AHPacket.Protocol.IP));
@@ -201,24 +200,36 @@ namespace Brunet {
 #endif
 	return;
       }
-      //it is now that we do things with connections
-      ConnectionTable tab = _node.ConnectionTable;
 
       NodeRankInformation to_add = null;
       Connection to_trim = null;
-
-      lock(tab.SyncRoot) {//lock the connection table
-	lock(_sync) { //lock the score table
-	  int structured_count = tab.Count(ConnectionType.Structured);
-	  //we assume that we are well-connected before ChotaConnections are needed. 
-	  if( structured_count < 2 ) {
+       
+      IEnumerable chota_cons;
+      IEnumerable struct_cons;
+      IEnumerable leaf_cons;
+      lock(_node.ConnectionTable.SyncRoot) {//lock the connection table
+        //it is now that we do things with connections
+        ConnectionTable tab = _node.ConnectionTable;
+	int structured_count = tab.Count(ConnectionType.Structured);
+	//we assume that we are well-connected before ChotaConnections are needed. 
+	if( structured_count < 2 ) {
 #if ARI_CHOTA_DEBUG
-	    Console.Error.WriteLine("Not sufficient structured connections to bootstrap Chotas.");
+	  Console.Error.WriteLine("Not sufficient structured connections to bootstrap Chotas.");
 #endif
-	    //if we do not have sufficient structured connections
-	    //we do not;
-	    return;
-	  }
+	  //if we do not have sufficient structured connections
+	  //we do not;
+	  return;
+	}
+        /*
+         * Once we get these, they never change, so we can release the lock on
+         * the ConnectionTable
+         */
+        chota_cons = tab.GetConnections(struc_chota);
+        struct_cons = tab.GetConnections(ConnectionType.Structured);
+        leaf_cons = tab.GetConnections(ConnectionType.Leaf);
+      }
+
+	lock(_sync) { //lock the score table
 #if ARI_CHOTA_DEBUG
 	  Console.Error.WriteLine("Finding a connection to trim... ");
 #endif
@@ -228,7 +239,7 @@ namespace Brunet {
 	  {
 	    NodeRankInformation node_rank = (NodeRankInformation) node_rank_list[i];
 	    bool trim = false;
-	    foreach(Connection c in tab.GetConnections(struc_chota)) {
+	    foreach(Connection c in chota_cons) {
 	      if (node_rank.Addr.Equals(c.Address)) {
 		to_trim = c;
 		trim = true;
@@ -290,7 +301,7 @@ namespace Brunet {
 	    Console.Error.WriteLine("{0} looks good chota connection.", node_rank);
 #endif
 	    //make sure that this guy doesn't have any Structured or Leaf Connection already
-	    foreach(Connection c in tab.GetConnections(ConnectionType.Structured)) {
+	    foreach(Connection c in struct_cons) {
 	      if (node_rank.Addr.Equals(c.Address)) {
 #if ARI_CHOTA_DEBUG
 		Console.Error.WriteLine("{0} already has a structured connection - {1}. ", node_rank, c.ConType);
@@ -299,7 +310,7 @@ namespace Brunet {
 		break;
 	      }
 	    }
-	    foreach(Connection c in tab.GetConnections(ConnectionType.Leaf)) {
+	    foreach(Connection c in leaf_cons) {
 	      if (node_rank.Addr.Equals(c.Address)) {
 #if ARI_CHOTA_DEBUG
 		Console.Error.WriteLine("{0} already has a leaf connection. ", node_rank);
@@ -340,7 +351,6 @@ namespace Brunet {
 	  Console.Error.WriteLine("No connection to trim... ");
 #endif
 	}
-      }
     }
     
     override public bool NeedConnection 
@@ -583,8 +593,7 @@ namespace Brunet {
 #endif
 
       //Getting from a Hashtable is threadsafe... no need to lock
-      ChotaConnectionState state =
-        (ChotaConnectionState) _chota_connection_state[p.Source];
+      ChotaConnectionState state = (ChotaConnectionState) _chota_connection_state[p.Source];
       if ( state != null ) {
 	state.Received = true;
       }
