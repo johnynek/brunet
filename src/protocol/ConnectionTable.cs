@@ -185,6 +185,7 @@ namespace Brunet
      * explicitly from the ConnectionTable, rather the
      * Edge method Edge.Close() should be called, and
      * the ConnectionTable will react properly
+     * @throws ConnectionExistsException if there is already such a connection
      */
     public void Add(Connection c)
     {
@@ -201,7 +202,8 @@ namespace Brunet
         }
         else {
           //This is an old address, no good
-          throw new Exception("Address: " + a.ToString() + " already in ConnectionTable");
+          Connection c_present = GetConnection(t, index);
+          throw new ConnectionExistsException(c_present);
         }
         /*
          * Here we actually do the storing:
@@ -696,13 +698,21 @@ namespace Brunet
      * We use this to make sure that two linkers are not
      * working on the same address for the same connection type
      *
-     * @throws System.InvalidOperationException if we cannot get the lock
+     * @throws ConnectionExistsException if there is already a connection to this address
+     * @throws CTLockException if we cannot get the lock
      */
     public void Lock(Address a, string t, ILinkLocker locker)
     {
       if( a == null ) { return; }
       ConnectionType mt = Connection.StringToMainType(t);
       lock( _sync ) {
+        Connection c_present = GetConnection(mt, a);
+        if( c_present != null ) {
+          /**
+           * We already have a connection of this type to this node.
+           */
+          throw new ConnectionExistsException(c_present);
+        }
         Hashtable locks = (Hashtable)_address_locks[mt];
 	if( locks == null ) {
           locks = new Hashtable();
@@ -730,8 +740,7 @@ namespace Brunet
             a,
             locks[a]);
 #endif
-          throw new System.InvalidOperationException("Could not get lock on: " +
-              a.ToString());
+          throw new CTLockException();
         }
       }
     }
@@ -1090,6 +1099,26 @@ namespace Brunet
       }
     }
   }
+
+  /**
+   * Thrown when someone tries to lock an address
+   * but it is already locked
+   */
+  public class CTLockException : System.Exception {
+  
+  }
+  
+  /**
+   * Thrown when we try to Add a connection that is already
+   * present, returns the existing connection
+   */
+  public class ConnectionExistsException : System.Exception {
+    public readonly Connection Con;
+    public ConnectionExistsException(Connection c) {
+      Con = c;
+    }
+  }
+
 
 #if BRUNET_NUNIT
   [TestFixture]

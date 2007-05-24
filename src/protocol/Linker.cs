@@ -645,12 +645,16 @@ namespace Brunet
         lps.FinishEvent +=  this.LinkProtocolStateFinishHandler;
         _task_queue.Enqueue(lps);
       }
+      catch(ConnectionExistsException) {
+        //We already have a connection to the target
+        close_edge = true;
+      }
       catch(LinkException) {
         //This happens if SetTarget sees that we are already connected
         //Our only choice here is to close the edge and give up.
         close_edge = true;
       }
-      catch(InvalidOperationException) {
+      catch(CTLockException) {
         /*
          * SetTarget could not get the lock on the address.
          * Try again later
@@ -864,27 +868,23 @@ namespace Brunet
       if ( target == null )
         return;
  
-     lock( _sync ) {
-      ConnectionTable tab = LocalNode.ConnectionTable;
-      if( _target_lock != null ) {
-        //This is the case where _target_lock has been set once
-        if( ! target.Equals( _target_lock ) ) {
-          throw new LinkException("Target lock already set to a different address");
-        }
-      }
-      else if( target.Equals( LocalNode.Address ) )
-        throw new LinkException("cannot connect to self");
-      else {
-        lock( tab.SyncRoot ) {
-          if( tab.Contains( Connection.StringToMainType( _contype ), target) ) {
-            throw new LinkException("already connected");
+      lock( _sync ) {
+        ConnectionTable tab = LocalNode.ConnectionTable;
+        if( _target_lock != null ) {
+          //This is the case where _target_lock has been set once
+          if( ! target.Equals( _target_lock ) ) {
+            throw new LinkException("Target lock already set to a different address");
           }
+        }
+        else if( target.Equals( LocalNode.Address ) ) {
+          throw new LinkException("cannot connect to self");
+        }
+        else {
           //Lock throws an InvalidOperationException if it cannot get the lock
           tab.Lock( target, _contype, this );
           _target_lock = target;
         }
       }
-     }
     }
     
     /**
@@ -936,7 +936,10 @@ namespace Brunet
          //Start it going
          _task_queue.Enqueue(ew);
       }
-      catch(InvalidOperationException) {
+      catch(ConnectionExistsException) {
+        //We already have a connection to the target
+      }
+      catch(CTLockException) {
 #if LINK_DEBUG
         Console.Error.WriteLine("Linker ({0}) failed to lock {1}", _lid, _target);
 #endif
