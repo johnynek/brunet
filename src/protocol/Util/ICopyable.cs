@@ -43,6 +43,21 @@ public interface ICopyable {
 public class CopyList : ICopyable {
   
   protected ICopyable[] _cs;
+  
+  /**
+   * How many Copyable objects are in this list
+   */
+  public int Count {
+    get { return _cs.Length; }
+  }
+  
+  /**
+   * Get out individual elements from the list
+   */
+  public ICopyable this[int idx] {
+    get { return _cs[idx]; }
+  }
+
   /**
    * @param cs is an IEnumerable of ICopyable objects
    */
