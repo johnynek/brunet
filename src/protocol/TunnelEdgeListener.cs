@@ -45,32 +45,29 @@ namespace Brunet
     {
       get {
 	ArrayList tas = new ArrayList();
-	lock(_node.ConnectionTable.SyncRoot) {
-	  ArrayList nearest = _node.ConnectionTable.GetNearestTo(
-								 (AHAddress) _node.Address, 6);
-	  ArrayList forwarders = new ArrayList();
-	  foreach(Connection cons in nearest) {
+	ArrayList nearest = _node.ConnectionTable.GetNearestTo( (AHAddress) _node.Address, 6);
+	ArrayList forwarders = new ArrayList();
+	foreach(Connection cons in nearest) {
 #if TUNNEL_DEBUG
-	    Console.Error.WriteLine("TunnelEdgeListener: testing if we can tunnel using node: {0}", cons.Address);
+	  Console.Error.WriteLine("TunnelEdgeListener: testing if we can tunnel using node: {0}", cons.Address);
 #endif
-	    if (cons.Edge.TAType != TransportAddress.TAType.Tunnel) {
-	      forwarders.Add(cons.Address);
+	  if (cons.Edge.TAType != TransportAddress.TAType.Tunnel) {
+	    forwarders.Add(cons.Address);
 #if TUNNEL_DEBUG
-	      Console.Error.WriteLine("TunnelEdgeListener: added node: {0} to tunnel TA", cons.Address);
+	    Console.Error.WriteLine("TunnelEdgeListener: added node: {0} to tunnel TA", cons.Address);
 #endif
-	    }
 	  }
-	  if (forwarders.Count < 2) {
-	    //we should have atleast 1 forwarders
-	    return tas;
-	  }
-	  TunnelTransportAddress tun_ta = new TunnelTransportAddress(_node.Address, forwarders);
-#if TUNNEL_DEBUG
-	  Console.Error.WriteLine("TunnelEdgeListener: built tunnel TA: {0}", tun_ta);
-#endif	  
-	  tas.Add(tun_ta);
+	}
+	if (forwarders.Count < 2) {
+	  //we should have atleast 1 forwarders
 	  return tas;
 	}
+	TunnelTransportAddress tun_ta = new TunnelTransportAddress(_node.Address, forwarders);
+#if TUNNEL_DEBUG
+	Console.Error.WriteLine("TunnelEdgeListener: built tunnel TA: {0}", tun_ta);
+#endif	  
+	tas.Add(tun_ta);
+        return tas;
       }
     }
 
@@ -143,29 +140,27 @@ namespace Brunet
 	TunnelTransportAddress tun_ta = ta as TunnelTransportAddress;
 	ArrayList forwarders = new ArrayList();
 	ArrayList forwarding_edges = new ArrayList();
-	lock(_node.ConnectionTable.SyncRoot) {
-	  Console.Error.WriteLine("TunnelEdgeListener: Finding structured connections to tunnel over");
-	  IEnumerable struc_cons = _node.ConnectionTable.GetConnections(ConnectionType.Structured);
-	  if (struc_cons ==  null) {
-	    Console.Error.WriteLine("List of structured connections is null");
+	Console.Error.WriteLine("TunnelEdgeListener: Finding structured connections to tunnel over");
+	IEnumerable struc_cons = _node.ConnectionTable.GetConnections(ConnectionType.Structured);
+	if (struc_cons ==  null) {
+	  Console.Error.WriteLine("List of structured connections is null");
+	}
+	Console.Error.WriteLine("TunnelEdgeListener: Browsing list of structured connections");
+	foreach (Connection con in struc_cons) {
+	  Console.Error.WriteLine("TunnelEdgeListener: Testing : {0}", con.Address);
+	  if (con.Edge.TAType == TransportAddress.TAType.Tunnel) {
+	    Console.Error.WriteLine("Cannot tunnel over tunnel: " + con.Address.ToString());
+	    continue;
 	  }
-	  Console.Error.WriteLine("TunnelEdgeListener: Browsing list of structured connections");
-	  foreach (Connection con in struc_cons) {
-	    Console.Error.WriteLine("TunnelEdgeListener: Testing : {0}", con.Address);
-	    if (con.Edge.TAType == TransportAddress.TAType.Tunnel) {
-	      Console.Error.WriteLine("Cannot tunnel over tunnel: " + con.Address.ToString());
-	      continue;
-	    }
-	    if (!tun_ta.ContainsForwarder(con.Address)) {
-	      Console.Error.WriteLine("Cannot tunnel over connection: " + con.Address.ToString());
-	      continue;
-	    }
+	  if (!tun_ta.ContainsForwarder(con.Address)) {
+	    Console.Error.WriteLine("Cannot tunnel over connection: " + con.Address.ToString());
+	    continue;
+	  }
 #if TUNNEL_DEBUG
-	    Console.Error.WriteLine("Can tunnel over connection: " + con.Address.ToString());
+	  Console.Error.WriteLine("Can tunnel over connection: " + con.Address.ToString());
 #endif
-	    forwarders.Add(con.Address);
-	    forwarding_edges.Add(con.Edge);
-	  }
+	  forwarders.Add(con.Address);
+	  forwarding_edges.Add(con.Edge);
 	}
 
 	if (forwarders.Count < 2) {
