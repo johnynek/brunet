@@ -134,7 +134,6 @@ namespace Brunet
       sw.WriteLine("digraph bootgraph { ");
       //sw.WriteLine("size=\"8,8\";");
       sw.WriteLine("graph [bb=\"0,0,800,800\"];");
-      Process dot_proc;
 
       AHAddress add = new AHAddress(new BigInteger(0));
       ArrayList all_adds = new ArrayList();
@@ -309,7 +308,7 @@ namespace Brunet
             int other_port = port+loop2;
             tmp_node.RemoteTAs.Add(
               //new TransportAddress("brunet.tcp://128.97.89.79:" + other_port )
-              new TransportAddress("brunet.function://localhost:" + other_port )
+              TransportAddressFactory.CreateInstance("brunet.function://localhost:" + other_port )
             );
           }
         }
@@ -329,7 +328,6 @@ namespace Brunet
         System.Console.WriteLine("{0}: CONNECTING NODE: {1}", ++i, item.Address);
         System.Console.WriteLine("--------------------------");
         item.Connect();
-        Brunet.FunctionEdge.simulate();
         /*Console.WriteLine(item.Address.ToString()
           + " RemoteTAs count: " + item.RemoteTAs.Count);*/
 
@@ -344,10 +342,6 @@ namespace Brunet
       Console.ReadLine();
       Node anode = (Node)node_list[5];
       anode.Disconnect();
-      Brunet.FunctionEdge.simulate();
-
-      //Brunet.FunctionEdge.simulate();
-      //Brunet.FunctionEdge.simulate();
 
       //We are connected now, stop the threads:
       //t.Abort();
