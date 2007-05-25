@@ -8,7 +8,7 @@ using System.Net;
 
 namespace Ipop 
 {
-  public class IPPacketHandler: IAHPacketHandler
+  public class IPPacketHandler: IDataHandler
   {
     Ethernet ether;
     bool debug;
@@ -20,16 +20,16 @@ namespace Ipop
       debug = debugging;
       this.node = node;
     }
-    public void HandleAHPacket(object node, AHPacket p, Edge from)
+    public void HandleData(MemBlock p, ISender from, object state)
     {
-      byte[] packet = new byte[p.PayloadStream.Length];
-      p.PayloadStream.Read(packet, 0, packet.Length);
+      ///@todo, this copy is clearly unneeded
+      byte[] packet = (byte[])p; 
 
       if (debug) {
         IPAddress srcAddr = IPPacketParser.SrcAddr(packet);
         IPAddress dstAddr = IPPacketParser.DestAddr(packet); 
         Console.Error.WriteLine("Incoming packet:: IP src: {0}, IP dst: {1}, p2p " +
-          "hops: {2}", srcAddr, dstAddr, p.Hops); 
+          "from: {2}", srcAddr, dstAddr, from); 
       }
 
       IPAddress destAddr = IPPacketParser.DestAddr(packet);

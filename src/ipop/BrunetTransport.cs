@@ -74,7 +74,7 @@ namespace Ipop {
       //now try sending some messages out 
       //subscribe to the IP protocol packet
       ip_handler = new IPPacketHandler(ether, debug, node);
-      brunetNode.Subscribe(AHPacket.Protocol.IP, ip_handler);
+      brunetNode.GetTypeSource(PType.Protocol.IP).Subscribe(ip_handler, null);
 
       if (dht_media == null || dht_media.Equals("disk")) {
         dht = new FDht(brunetNode, EntryFactory.Media.Disk, 3);
@@ -82,19 +82,25 @@ namespace Ipop {
         dht = new FDht(brunetNode, EntryFactory.Media.Memory, 3);
       }
 
-      lock(sync) {
-        brunetNode.Connect();
-        System.Console.Error.WriteLine("Called Connect at time: {0}", DateTime.Now);
-      }
+      brunetNode.Connect();
+      System.Console.Error.WriteLine("Called Connect at time: {0}", DateTime.Now);
     }
 
-    //method to send a packet out on the network
+    /**
+     * method to send a packet out on the network
+     * @deprecated, use the method below
+     */
     public void SendPacket(AHAddress target, byte[] packet) {
-      AHPacket p = new AHPacket(0, 30,   brunetNode.Address,
-        target, AHPacket.AHOptions.Exact,
-        AHPacket.Protocol.IP, packet);
-      brunetNode.Send(p);
+      SendPacket(target, MemBlock.Reference(packet));
     }
+    /**
+     * Send an IP packet out
+     */
+    public void SendPacket(AHAddress target, MemBlock p) {
+      ISender s = new AHExactSender(brunetNode, target);
+      s.Send(new CopyList(PType.Protocol.IP, p));
+    }
+
 
     public void Disconnect() {
       brunetNode.Disconnect();

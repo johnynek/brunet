@@ -39,7 +39,7 @@ namespace Ipop {
         return null;
       }
 
-      string xml_str = results[0]["value_string"];
+      string xml_str = (string)results[0]["value_string"];
       if (xml_str == null) {
         Console.Error.WriteLine("Namespace does not exist");
         return null;
