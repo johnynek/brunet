@@ -160,7 +160,15 @@ namespace Brunet
     // maximum length of the BigInteger in uint (4 bytes)
     // change this to suit the required level of precision.
 
-    private const int maxLength = 70;
+    //private const int maxLength = 70;
+
+    /*
+     * In Brunet we use BigInteger for addresses, which
+     * are currently 20 bytes or 5 uints.
+     * Using 10 uints means we can multiply two addresses
+     * together and still be okay.
+     */
+    private const int maxLength = 10;
 
     // primes smaller than 2000 to test the generated prime number
 
@@ -408,6 +416,44 @@ namespace Brunet
     //***********************************************************************
 
     public BigInteger(byte[] inData)
+    {
+      dataLength = inData.Length >> 2;
+
+      int leftOver = inData.Length & 0x3;
+      if (leftOver != 0)        // length not multiples of 4
+        dataLength++;
+
+
+      if (dataLength > maxLength)
+        throw(new
+              ArithmeticException("Byte overflow in constructor."));
+
+      data = new uint[maxLength];
+
+      for (int i = inData.Length - 1, j = 0; i >= 3; i -= 4, j++) {
+        data[j] =
+          (uint) ((inData[i - 3] << 24) + (inData[i - 2] << 16) +
+                  (inData[i - 1] << 8) + inData[i]);
+      }
+
+      if (leftOver == 1)
+        data[dataLength - 1] = (uint) inData[0];
+      else if (leftOver == 2)
+        data[dataLength - 1] = (uint) ((inData[0] << 8) + inData[1]);
+      else if (leftOver == 3)
+        data[dataLength - 1] =
+          (uint) ((inData[0] << 16) + (inData[1] << 8) + inData[2]);
+
+
+      while (dataLength > 1 && data[dataLength - 1] == 0)
+        dataLength--;
+
+      //Console.Error.WriteLine("Len = " + dataLength);
+    }
+    /**
+     * same as above, except using MemBlock
+     */
+    public BigInteger(MemBlock inData)
     {
       dataLength = inData.Length >> 2;
 
@@ -1010,6 +1056,9 @@ namespace Brunet
 
     public static bool operator ==(BigInteger bi1, BigInteger bi2)
     {
+      //Make sure to handle Null cases correctly:
+      if( System.Object.ReferenceEquals(bi1, bi2) ) { return true; }
+      if( ((object)bi1 == null) || ((object)bi2 == null) ) { return false; }
       return bi1.Equals(bi2);
     }
 

@@ -595,9 +595,10 @@ public class AdrConverter {
     //Here is a list...
     int total_bytes = 2; //For the '(' and ')' bytes
     s.WriteByte((byte)'('); //Start of list, so lispy!:
-    foreach(object it in list) {
+    int count = list.Count;
+    for(int i = 0; i < count; i++) {
       //Time for recursion:
-      total_bytes += Serialize(it, s);
+      total_bytes += Serialize(list[i], s);
     }
     s.WriteByte((byte)')'); //end of list:
     return total_bytes;

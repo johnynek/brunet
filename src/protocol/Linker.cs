@@ -363,9 +363,12 @@ namespace Brunet
         _ct = Connection.StringToMainType(ct);
       }
       override public int GetHashCode() {
-        int code = _local.GetHashCode() ^ _ct.GetHashCode();
+        int code;
         if( _target != null ) {
-          code ^= _target.GetHashCode();
+          code = _target.GetHashCode();
+        }
+        else {
+          code = _ct.GetHashCode();
         }
         return code;
       }

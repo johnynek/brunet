@@ -978,6 +978,7 @@ namespace Brunet
      * This will fail if the con argument is not present.
      * @param con Connection to update.
      * @param sm StatusMessage to replace the old.
+     * @throws Exception if con is not in the table
      */
     public void UpdateStatus(Connection con, StatusMessage sm)
     {

@@ -207,14 +207,11 @@ namespace Brunet
       CopyTo(b, 0);
     }
 
-    private bool _made_big_int = false;
     private BigInteger _big_int;
     public virtual BigInteger ToBigInteger()
     {
-      if( !_made_big_int ) {
-        byte[] buffer = new byte[ MemSize ];
-        _buffer.CopyTo(buffer,0);
-        _big_int = new BigInteger(buffer);
+      if( null == _big_int ) {
+        _big_int = new BigInteger(_buffer);
       }
       return _big_int;
     }
@@ -304,9 +301,13 @@ namespace Brunet
       SetClass(buf, 0, myclass);
     }
     
+    private string _string_rep;
     public override string ToString()
     {
-      return ("brunet:node:" + _buffer.ToBase32String() );
+      if( _string_rep == null ) {
+        _string_rep = "brunet:node:" + _buffer.ToBase32String();
+      }
+      return _string_rep;
     }
         #if BRUNET_NUNIT
     [TestFixture]
