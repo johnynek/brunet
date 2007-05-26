@@ -53,50 +53,49 @@ namespace Ipop {
       return Create(key, valueb, password, ttl, dht);
     }
 
-    public static void Delete(string key, string password, FDht dht) {
-      BlockingQueue [] queues = dht.DeleteF(Encoding.UTF8.GetBytes(key), password);
-      //just make the call and proceed
-      BlockingQueue.ParallelFetch(queues, 0);
-    }
-
     public static Hashtable[] Get(string key, FDht dht) {
       byte[] utf8_key = Encoding.UTF8.GetBytes(key);
-      BlockingQueue[] q = dht.GetF(utf8_key, 1000, null);
-      ArrayList [] results = BlockingQueue.ParallelFetchWithTimeout(q, 1000);
+      ArrayList allValues = new ArrayList();
+      int remaining = -1;
+      byte[] token = null;
 
-      ArrayList result = null;
-      for (int i = 0; i < results.Length; i++) {
-        ArrayList q_replies = results[i];
-        foreach (RpcResult rpc_replies in q_replies) {
-         //investigating individual results
-          try{
-            ArrayList rpc_result = (ArrayList) rpc_replies.Result;
-            if (rpc_result == null || rpc_result.Count < 3) {
-              continue;
+      while(remaining != 0) {
+        BlockingQueue[] q = dht.GetF(utf8_key, 1000, token);
+        ArrayList [] results = BlockingQueue.ParallelFetchWithTimeout(q, 1000);
+
+        ArrayList result = null;
+        for (int i = 0; i < results.Length; i++) {
+          ArrayList q_replies = results[i];
+          foreach (RpcResult rpc_replies in q_replies) {
+          //investigating individual results
+            try{
+              ArrayList rpc_result = (ArrayList) rpc_replies.Result;
+              if (rpc_result == null || rpc_result.Count < 3) {
+                continue;
+              }
+              result = rpc_result;
+              break;
             }
-            result = rpc_result;
-            break;
-          }
-          catch (Exception) {
-            return null;
+            catch (Exception) {
+              return null;
+            }
           }
         }
-      }
-      if (result == null) {
-        return null;
-      }
+        if (result == null) {
+          return null;
+        }
 
-      ArrayList values = (ArrayList) result[0];
+        ArrayList values = (ArrayList) result[0];
+        remaining = (int) result[1];
+        token = (byte[]) result[2];
 
-      Hashtable [] return_values = new Hashtable[values.Count];
-      for (int i = 0; i < values.Count; i++) {
-        Hashtable ht = (Hashtable) values[i];
-        return_values[i] = new Hashtable();
-        return_values[i].Add("age", ht["age"]);
-        return_values[i].Add("value", ht["data"]);
-        return_values[i].Add("value_string", Encoding.UTF8.GetString((byte []) ht["data"]));
+        for (int i = 0; i < values.Count; i++) {
+          Hashtable ht = (Hashtable) values[i];
+          ht.Add("value_string", Encoding.UTF8.GetString((byte []) ht["value"]));
+          allValues.Add(ht);
+        }
       }
-      return return_values;
+      return (Hashtable []) allValues.ToArray(typeof(Hashtable));
     }
 
     public static string Put(string key, byte[] value, string password, int ttl, FDht dht) {

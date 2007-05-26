@@ -60,7 +60,7 @@ namespace Ipop {
               PrintHelp();
             }
             else if((index == args.Length) || !File.Exists(args[index])) {
-              Console.WriteLine("-s must be followed by an existing file name.\n");
+              Console.WriteLine("-c must be followed by an existing file name.\n");
               PrintHelp();
             }
             config_file = args[index];

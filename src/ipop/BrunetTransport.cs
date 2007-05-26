@@ -131,7 +131,6 @@ namespace Ipop {
 
     public bool Update(string ip) {
       if(node.ip != null && !node.ip.Equals(ip) && node.password != null) {
-        DhtIP.ReleaseIP(dht, node.ipop_namespace, node.ip.ToString(), node.password);
         node.password = null;
         node.ip = null;
       }
