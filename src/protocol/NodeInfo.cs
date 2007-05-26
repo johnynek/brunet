@@ -130,10 +130,11 @@ namespace Brunet
         _address = AddressParser.Parse((string)addr_str);
       }
       _tas = new ArrayList();
-      IEnumerable trans = ht["transports"] as IEnumerable;
+      IList trans = ht["transports"] as IList;
       if( trans != null ) {
-        foreach(string ta_s in trans) {
-          _tas.Add( TransportAddressFactory.CreateInstance(ta_s) );
+        int count = trans.Count;
+        for(int i = 0; i < count; i++) {
+          _tas.Add( TransportAddressFactory.CreateInstance((string)trans[i]) );
         }
       }
     }
@@ -242,8 +243,9 @@ namespace Brunet
       }
       if( _tas != null ) {
         ArrayList trans = new ArrayList();
-        foreach(TransportAddress ta in _tas) {
-          trans.Add( ta.ToString() );
+        int count = _tas.Count;
+        for(int i = 0; i < count; i++) {
+          trans.Add( _tas[i].ToString() );
         }
         if( trans.Count > 0 ) {
           ht["transports"] = trans;

@@ -683,8 +683,8 @@ namespace Brunet {
     {
 
       ConnectionTable tab = _node.ConnectionTable;
-      BigInteger ldist = -1;
-      BigInteger rdist = -1;
+      BigInteger ldist = null;
+      BigInteger rdist = null;
       AHAddress local = (AHAddress)_node.Address;
       foreach(NodeInfo ni in neighbors) {
         if( !( _node.Address.Equals(ni.Address) ||
@@ -695,12 +695,12 @@ namespace Brunet {
           if( n_left < DESIRED_NEIGHBORS || n_right < DESIRED_NEIGHBORS ) {
             //We should connect to this node! if we are not already:
             BigInteger adr_dist = local.LeftDistanceTo(adr);
-            if( adr_dist < ldist || ldist == -1 ) {
+            if( ( null == ldist ) || adr_dist < ldist ) {
               ldist = adr_dist;
               ltarget = adr;
             }
             adr_dist = local.RightDistanceTo(adr);
-            if( adr_dist < rdist || rdist == -1 ) {
+            if( ( null == rdist ) || adr_dist < rdist ) {
               rdist = adr_dist;
               rtarget = adr;
             }

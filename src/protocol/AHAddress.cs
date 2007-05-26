@@ -98,20 +98,28 @@ namespace Brunet
      * Compute the distance from this to add such that
      * the magnitude is less than or equal to Address.Half
      */
-    public virtual BigInteger DistanceTo(AHAddress add)
+    public virtual BigInteger DistanceTo(AHAddress a)
     {
       BigInteger n_x = this.ToBigInteger();
-      BigInteger n_y = add.ToBigInteger();
+      BigInteger n_y = a.ToBigInteger();
 
       BigInteger dist = n_y - n_x;
-      if (dist > 0) {
+      if (n_y > n_x) {
+        //(n_y > n_x ) == (dist > 0),
+        //but the former is faster for BigInteger
         if (dist >= Address.Half) {
           dist = dist - AHAddress.Full;
         }
       }
       else {
+        //we know dist <= 0:
+        
         //If dist < -Address.Half
-        if (0 > (Address.Half + dist)) {
+        //if (0 > (Address.Half + dist)) {
+        //same as below, but below doesn't require BigInteger(0),
+        //so it saves memory and CPU:
+        if (n_x > (Address.Half + n_y)) {
+          //
           dist = dist + AHAddress.Full;
         }
       }
