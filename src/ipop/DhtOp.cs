@@ -21,7 +21,7 @@ namespace Ipop {
       //int min_majority = dht.Degree;
       _quorum = new BooleanQuorum(min_replies_per_queue, min_majority);
 
-      BlockingQueue [] queues = dht.RecreateF(keyb, ttl, hashed_password, valueb);
+      BlockingQueue [] queues = dht.CreateF(keyb, ttl, hashed_password, valueb);
 
       for (int i = 0; i < queues.Length; i++) {
         Console.Error.WriteLine("queue: {0} is at position: {1}", queues[i].GetHashCode(), i);
