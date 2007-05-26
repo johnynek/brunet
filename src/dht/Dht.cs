@@ -85,8 +85,6 @@ namespace Brunet.Dht {
             _driver_queue.EnqueueEvent += new EventHandler(NextTransfer);
             _rpc.Invoke(_t_sender, _driver_queue, "dht.Put", e.Key,
                               (int) t_span.TotalSeconds, e.Password, e.Data);
-
-            _driver_queue.EnqueueEvent += new EventHandler(NextTransfer);
           }
           else {
             if (_tcb != null) {
@@ -115,7 +113,6 @@ namespace Brunet.Dht {
             _driver_queue.EnqueueEvent += new EventHandler(NextTransfer);
             _rpc.Invoke(_t_sender, _driver_queue, "dht.Put", e.Key,
                         (int) t_span.TotalSeconds, e.Password, e.Data);
-            _driver_queue.EnqueueEvent += new EventHandler(NextTransfer);
           }
           else {
             if (_tcb != null) {
@@ -332,98 +329,97 @@ namespace Brunet.Dht {
     }
 
 
-    protected void DisconnectHandler(object contab, EventArgs eargs) 
-    {
+    protected void DisconnectHandler(object contab, EventArgs eargs) {
       ConnectionEventArgs cargs = eargs as ConnectionEventArgs;
       Connection old_con = cargs.Connection;
       AHAddress our_addr = _node.Address as AHAddress;
 
       //first make sure that it is a new StructuredConnection
       if (old_con.MainType != ConnectionType.Structured) {
-          return;
-        }
-        ConnectionTable con_table = _node.ConnectionTable;
-
-        AHAddress new_left_addr = null;
-        AHAddress new_right_addr = null;
-
-        lock(_sync) {
-          lock(con_table.SyncRoot) {  //lock the connection table
-            //we need to check if we can Put() our keys away.
-            //we only do that if we have sufficient number of connections
-            if (!_dhtactivated) {
-              if (_node.IsConnected ) {
-                _dhtactivated = true;
-              }
-            }
-            try {
-              Connection new_left_con = con_table.GetLeftStructuredNeighborOf(our_addr);
-              new_left_addr = new_left_con.Address as AHAddress;
-            }
-            catch (Exception) { // Error getting left neighbor information
-            }
-
-            try {
-              Connection new_right_con = con_table.GetRightStructuredNeighborOf(our_addr);
-              new_right_addr = new_right_con.Address as AHAddress;
-            }
-            catch(Exception) { // Error getting right neighbor information
-            }
-
-            /** Here;s the algorithm we plan to use. 
-            *  Its A----B----C and later it becomes: A-----C
-            *  A is missing [B,C]
-            *  C is missing [A,B]
-            *  C transfers  to A:  [B,C]
-            *  A transfers to A: [A,B]
-            *  There is no deletion of keys as well. 
-            */
-
-            if (new_left_addr == null && _left_addr != null) {
-              //there is nothing that we can do, it just went away.
-              if (_left_transfer_state != null) {
-                _left_transfer_state.InterruptTransfer();
-                _left_transfer_state = null;
-              }
-            } else if (new_left_addr != null && !new_left_addr.Equals(_left_addr)) {
-              //its a changed left neighbor
-              if (_left_transfer_state != null) {
-                _left_transfer_state.InterruptTransfer();
-              }
-              if (_dhtactivated) {
-                _left_transfer_state = new TransferState(_rpc, our_addr, new_left_addr,
-                                                        _table.GetKeysToLeft(our_addr, _left_addr), 
-                                                        false);
-                _left_transfer_state.StartTransfer(TransferCompleteHandler);
-              }
-            }
-            _left_addr = new_left_addr;
-
-            //2. check if the right neighbpor has changed
-            if (new_right_addr == null && _right_addr != null) {
-              //nothing that we can do, the guy just went away.
-              if (_right_transfer_state != null) {
-                _right_transfer_state.InterruptTransfer();
-                _right_transfer_state = null;
-              }
-            }
-            else if (new_right_addr != null && !new_right_addr.Equals(_right_addr)) {
-              //its a changed right neighbor
-              if (_right_transfer_state != null) {
-                _right_transfer_state.InterruptTransfer();
-              }
-              if (_dhtactivated) {
-                _right_transfer_state = new TransferState(_rpc, our_addr, new_right_addr,
-                               _table.GetKeysToRight(our_addr, _right_addr), false);
-                _right_transfer_state.StartTransfer(TransferCompleteHandler);
-              }
-              else {
-              }
-            }
-            _right_addr = new_right_addr;
-          } //release the lock on connection table
-        }
+        return;
       }
+      ConnectionTable con_table = _node.ConnectionTable;
+
+      AHAddress new_left_addr = null;
+      AHAddress new_right_addr = null;
+
+      lock(_sync) {
+        lock(con_table.SyncRoot) {  //lock the connection table
+          //we need to check if we can Put() our keys away.
+          //we only do that if we have sufficient number of connections
+          if (!_dhtactivated) {
+            if (_node.IsConnected ) {
+              _dhtactivated = true;
+            }
+          }
+          try {
+            Connection new_left_con = con_table.GetLeftStructuredNeighborOf(our_addr);
+            new_left_addr = new_left_con.Address as AHAddress;
+          }
+          catch (Exception) { // Error getting left neighbor information
+          }
+
+          try {
+            Connection new_right_con = con_table.GetRightStructuredNeighborOf(our_addr);
+            new_right_addr = new_right_con.Address as AHAddress;
+          }
+          catch(Exception) { // Error getting right neighbor information
+          }
+
+          /** Here;s the algorithm we plan to use. 
+          *  Its A----B----C and later it becomes: A-----C
+          *  A is missing [B,C]
+          *  C is missing [A,B]
+          *  C transfers  to A:  [B,C]
+          *  A transfers to A: [A,B]
+          *  There is no deletion of keys as well. 
+          */
+
+          if (new_left_addr == null && _left_addr != null) {
+            //there is nothing that we can do, it just went away.
+            if (_left_transfer_state != null) {
+              _left_transfer_state.InterruptTransfer();
+              _left_transfer_state = null;
+            }
+          } else if (new_left_addr != null && !new_left_addr.Equals(_left_addr)) {
+            //its a changed left neighbor
+            if (_left_transfer_state != null) {
+              _left_transfer_state.InterruptTransfer();
+            }
+            if (_dhtactivated) {
+              _left_transfer_state = new TransferState(_rpc, our_addr, new_left_addr,
+                                                      _table.GetKeysToLeft(our_addr, _left_addr), 
+                                                      false);
+              _left_transfer_state.StartTransfer(TransferCompleteHandler);
+            }
+          }
+          _left_addr = new_left_addr;
+
+          //2. check if the right neighbpor has changed
+          if (new_right_addr == null && _right_addr != null) {
+            //nothing that we can do, the guy just went away.
+            if (_right_transfer_state != null) {
+              _right_transfer_state.InterruptTransfer();
+              _right_transfer_state = null;
+            }
+          }
+          else if (new_right_addr != null && !new_right_addr.Equals(_right_addr)) {
+            //its a changed right neighbor
+            if (_right_transfer_state != null) {
+              _right_transfer_state.InterruptTransfer();
+            }
+            if (_dhtactivated) {
+              _right_transfer_state = new TransferState(_rpc, our_addr, new_right_addr,
+                              _table.GetKeysToRight(our_addr, _right_addr), false);
+              _right_transfer_state.StartTransfer(TransferCompleteHandler);
+            }
+            else {
+            }
+          }
+          _right_addr = new_right_addr;
+        } //release the lock on connection table
+      }
+    }
 
     private void TransferCompleteHandler(TransferState state, Hashtable key_list) {
       //we also have to make sure that this transfer of keys is still valid

@@ -235,7 +235,7 @@ namespace Brunet.Dht {
                 consumed_bytes += e.Data.Length;
                 Hashtable item = new Hashtable();
                 item["age"] = age_i;
-                item["data"] = e.Data;
+                item["value"] = e.Data;
                 values.Add(item);
                 if (e.Index > max_index) {
                   max_index= e.Index;
