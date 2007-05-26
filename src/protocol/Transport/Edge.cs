@@ -53,8 +53,13 @@ namespace Brunet
         log4net.LogManager.GetLogger(System.Reflection.MethodBase.
         GetCurrentMethod().DeclaringType);*/
 
-    protected IDataHandler _data_handler;
-    protected object _dh_state;
+    protected class Sub {
+      public readonly IDataHandler Handler;
+      public readonly object State;
+      public Sub(IDataHandler h, object s) { Handler = h; State =s; }
+      public void Handle(MemBlock b, ISender f) { Handler.HandleData(b, f, State); }
+    }
+    protected volatile Sub _sub;
     /**
      * Set to true once CloseEvent is fired.  This prevents it from
      * being fired twice
@@ -215,45 +220,32 @@ namespace Brunet
         //log.Error("Error: Packet is Null");
       }
 #endif
-      IDataHandler dh = null;
-      object state = null;
-      lock( _sync ) {
-        if ( _data_handler != null ) {
-          _last_in_packet_datetime = DateTime.UtcNow;
-          dh = _data_handler;
-          state = _dh_state;
-        }
-        else {
+      //_sub is volatile, so there is no chance for a race here 
+      Sub s = _sub;
+      if( s != null ) {
+        _last_in_packet_datetime = DateTime.UtcNow;
+        s.Handle(b, this);
+      }
+      else {
         //We don't record the time of this packet.  We don't
         //want unhandled packets to keep edges open.
         //
         //This packet is going into the trash:
         //log.Error("Packet LOST: " + p.ToString());
           Console.Error.WriteLine("{0} lost packet {1}",this,b.ToBase16String());
-        }
-      }
-      //Make sure not to hold the lock while we handle the data
-      if( dh != null ) {
-        dh.HandleData(b, this, state);
       }
     }
 
     public virtual void Subscribe(IDataHandler hand, object state) {
-      lock( _sync ) {
-        _data_handler = hand;
-        _dh_state = state;
-      }
+      _sub = new Sub(hand, state);
     }
     public virtual void Unsubscribe(IDataHandler hand) {
-     lock(_sync ) {
-      if( _data_handler == hand ) {
-        _data_handler = null;
-        _dh_state = null;
+      if( _sub.Handler == hand ) {
+        _sub = null;
       }
       else {
         throw new Exception(String.Format("Handler: {0}, not subscribed", hand));
       }
-     }
     }
     /**
      * Prints the local address, the direction and the remote address
