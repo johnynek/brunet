@@ -175,8 +175,8 @@ namespace Brunet
       //Estimate the new size:
       ConnectionTable tab = (ConnectionTable)contab;
       int net_size = -1;
-      BigInteger least_dist = 0;
-      BigInteger greatest_dist = 0;
+      BigInteger least_dist = null;
+      BigInteger greatest_dist = null;
       int shorts = 0;
       lock( tab.SyncRoot ) {
 	/*
@@ -199,7 +199,7 @@ namespace Brunet
 	 */
 	AHAddress local = (AHAddress)_local_add;
         foreach(Connection c in tab.GetConnections("structured.near")) {
-          BigInteger dist = local.DistanceTo( (AHAddress)c.Address );
+          BigInteger dist = local.LeftDistanceTo( (AHAddress)c.Address );
           
 	  if( shorts == 0 ) {
             //This is the first one
@@ -220,16 +220,18 @@ namespace Brunet
 	/*
 	 * Now we have the distance between the range of our neighbors
 	 */
-	BigInteger width = greatest_dist - least_dist;
-	if( shorts > 0 && width > 0 ) {
-	  //Here is our estimate of the inverse density:
-	  BigInteger inv_density = width/(shorts);
-          //The density times the full address space is the number
-	  BigInteger total = Address.Full / inv_density;
-	  int total_int = total.IntValue();
-	  if( total_int > net_size ) {
-            net_size = total_int;
-	  }
+	if( shorts > 0 ) {
+          if ( greatest_dist > least_dist ) {
+	    BigInteger width = greatest_dist - least_dist;
+	    //Here is our estimate of the inverse density:
+	    BigInteger inv_density = width/(shorts);
+            //The density times the full address space is the number
+	    BigInteger total = Address.Full / inv_density;
+	    int total_int = total.IntValue();
+	    if( total_int > net_size ) {
+              net_size = total_int;
+	    }
+          }
 	}
 
 	//Now we have our estimate:
@@ -308,9 +310,14 @@ namespace Brunet
         StatusMessage req = GetStatus(con_type_string, lc.Address);
         BlockingQueue stat_res = new BlockingQueue();
         EventHandler handle_result = delegate(object q, EventArgs eargs) {
-          RpcResult r = (RpcResult)stat_res.Dequeue();
-          StatusMessage sm = new StatusMessage( (Hashtable)r.Result );
-          tab.UpdateStatus(lc, sm);
+          try {
+            RpcResult r = (RpcResult)stat_res.Dequeue();
+            StatusMessage sm = new StatusMessage( (Hashtable)r.Result );
+            tab.UpdateStatus(lc, sm);
+          }
+          catch(Exception) {
+            //Looks like lc disappeared before we could update it
+          }
           stat_res.Close();
         };
         stat_res.EnqueueEvent += handle_result;
@@ -321,9 +328,14 @@ namespace Brunet
         StatusMessage req = GetStatus(con_type_string, rc.Address);
         BlockingQueue stat_res = new BlockingQueue();
         EventHandler handle_result = delegate(object q, EventArgs eargs) {
-          RpcResult r = (RpcResult)stat_res.Dequeue();
-          StatusMessage sm = new StatusMessage( (Hashtable)r.Result );
-          tab.UpdateStatus(rc, sm);
+          try {
+            RpcResult r = (RpcResult)stat_res.Dequeue();
+            StatusMessage sm = new StatusMessage( (Hashtable)r.Result );
+            tab.UpdateStatus(rc, sm);
+          }
+          catch(Exception) {
+            //Looks like lc disappeared before we could update it
+          }
           stat_res.Close();
         };
         stat_res.EnqueueEvent += handle_result;
