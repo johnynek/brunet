@@ -117,44 +117,57 @@ namespace Brunet
      * type of data to different handlers
      */
     protected class NodeSource : ISource {
-      protected object _sync; //The object to lock before changing the subscriptions
       protected volatile ArrayList _subs;
-      protected volatile ArrayList _states;
+      protected readonly object _sync;
+      protected class Sub {
+        public readonly IDataHandler Handler;
+        public readonly object State;
+        public Sub(IDataHandler dh, object state) { Handler = dh; State = state; }
+        public void Handle(MemBlock b, ISender retpath) {
+          Handler.HandleData(b, retpath, State);
+        }
+        //So we can look up subscriptions based only on Handler equality
+        public override bool Equals(object o) {
+          Sub s = o as Sub;
+          if( s != null ) {
+            return (s.Handler == Handler);
+          }
+          else {
+            return false;
+          }
+        }
+      }
 
-      public NodeSource(object sync) {
-        _subs = new ArrayList(); 
-        _states = new ArrayList(); 
-        _sync = sync;
+      public NodeSource() {
+        _subs = new ArrayList();
+        _sync = new object();
       }
 
       public void Subscribe(IDataHandler h, object state) {
+        Sub s = new Sub(h, state);
+        //We have to lock so there is no race between the read and the write
         lock( _sync ) {
-          _subs = Functional.Add(_subs, h);
-          _states = Functional.Add(_states, state);
+          _subs = Functional.Add(_subs, s);
         }
       }
       public void Unsubscribe(IDataHandler h) {
+        Sub s = new Sub(h, null);
+        int idx = _subs.IndexOf(s);
+        //We have to lock so there is no race between the read and the write
         lock( _sync ) {
-          int idx = _subs.IndexOf(h);
           _subs = Functional.RemoveAt(_subs, idx);
-          _states = Functional.RemoveAt(_subs, idx);
         }
       }
       /**
        * @return the number of Handlers that saw this data
        */
       public int Announce(MemBlock b, ISender return_path) {
-        ArrayList subs = null;
-        ArrayList states = null;
-        lock( _sync ) {
-          subs = _subs;
-          states = _states;
-        }
-        int handlers = 0;
-        for(int i = 0; i < subs.Count; i++) {
-          IDataHandler dh = (IDataHandler)subs[i];
-          dh.HandleData(b, return_path, states[i]);
-          handlers++;
+        ArrayList subs = _subs;
+        int handlers = subs.Count;
+        for(int i = 0; i < handlers; i++) {
+          Sub s = (Sub)subs[i];
+          //No need to lock since subs can never change
+          s.Handle(b, return_path);
         }
         return handlers;
       }
@@ -333,8 +346,7 @@ namespace Brunet
      */
     protected void ClearTypeSource(PType t) {
       lock( _sync ) {
-        //Reset it to a new source
-        _subscription_table[t] = new NodeSource(_sync);
+        _subscription_table[t] = null;
       }
     }
     /**
@@ -401,7 +413,7 @@ namespace Brunet
       lock( _sync ) {
         s = (ISource)_subscription_table[t];
         if( s == null ) {
-          s = new NodeSource(_sync);
+          s = new NodeSource();
           _subscription_table[t] = s;
         }
       }
