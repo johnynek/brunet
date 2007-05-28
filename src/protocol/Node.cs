@@ -136,6 +136,7 @@ namespace Brunet
             return false;
           }
         }
+        public override int GetHashCode() { return Handler.GetHashCode(); }
       }
 
       public NodeSource() {
