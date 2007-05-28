@@ -23,11 +23,10 @@ namespace Ipop {
 
       BlockingQueue [] queues = dht.CreateF(keyb, ttl, hashed_password, valueb);
 
-      for (int i = 0; i < queues.Length; i++) {
-        Console.Error.WriteLine("queue: {0} is at position: {1}", queues[i].GetHashCode(), i);
-        queues[i].EnqueueEvent += new EventHandler(EnqueueHandler);
+      foreach(BlockingQueue queue in queues) {
+        queue.EnqueueEvent += new EventHandler(EnqueueHandler);
         //also dequeue if something is already in there
-        EnqueueHandler(queues[i], null);
+        EnqueueHandler(queue, null);
       }
 
       //wait for upto 60 seconds
@@ -35,9 +34,9 @@ namespace Ipop {
       bool success = (_quorum.Result == BooleanQuorum.State.Success);
       //we should not close all queues, and cancel their events
 
-      for (int i = 0; i < queues.Length; i++) {
-        queues[i].EnqueueEvent -= new EventHandler(EnqueueHandler);
-        queues[i].Close();
+      foreach(BlockingQueue queue in queues) {
+        queue.EnqueueEvent -= new EventHandler(EnqueueHandler);
+        queue.Close();
         _quorum = null;
       }
 
@@ -94,6 +93,9 @@ namespace Ipop {
           ht.Add("value_string", Encoding.UTF8.GetString((byte []) ht["value"]));
           allValues.Add(ht);
         }
+        foreach(BlockingQueue queue in q) {
+          queue.Close();
+        }
       }
       return (Hashtable []) allValues.ToArray(typeof(Hashtable));
     }
@@ -106,8 +108,8 @@ namespace Ipop {
 
       BlockingQueue[] q = dht.PutF(utf8_key, ttl, hashed_password, value);
       RpcResult res = q[0].Dequeue() as RpcResult;
-      for (int i = 0; i < q.Length; i++) {
-        q[i].Close();
+      foreach(BlockingQueue queue in q) {
+        queue.Close();
       }
       return "SHA1:" + password;
     }
@@ -161,11 +163,6 @@ namespace Ipop {
       private int _min_majority;
 
       public BooleanQuorum(int min_replies_per_queue, int min_majority) {
-#if DHCP_DEBUG
-        Console.Error.WriteLine("Creating a dhcp quorum, min_replies_per_queue: {0}, min_majority: {1}", min_replies_per_queue,
-                          min_majority);
-#endif
-
         _min_replies_per_queue = min_replies_per_queue;
         _min_majority = min_majority;
         _ht = new Hashtable();
@@ -184,42 +181,20 @@ namespace Ipop {
       }
 
       public bool CheckFinished() {
-#if DHCP_DEBUG
-        Console.Error.WriteLine("Checking if the quorum is complete.");
-#endif
         lock(this) {
           int true_count = 0, false_count = 0, disagree_count = 0;
           //now check if we have a majority
           foreach (BlockingQueue q in _ht.Keys) {
-#if DHCP_DEBUG
-            Console.Error.WriteLine("Analysing a queue.");
-#endif
             ArrayList x = (ArrayList) _ht[q];
-            if (x.Count < _min_replies_per_queue) {
-#if DHCP_DEBUG
-              Console.Error.WriteLine("Incorrect number of  results: {0} ({1} expected).", 
-                              x.Count, _min_replies_per_queue);
-#endif
-            }
-            //in case we have sufficient results
             int success = 0;
             int failure = 0;
             foreach (RpcResult rpc_result in x) {
               try {
                 bool result = (bool) rpc_result.Result;
-#if DHCP_DEBUG
-                Console.Error.WriteLine("Result for acquire: {0}", result);
-#endif
                 success++;
                 continue;
-#if DHCP_DEBUG
-              } catch(AdrException e) {
-
-                Console.Error.WriteLine(e);
-                Console.Error.WriteLine(e.Message);
-#else
-              } catch(AdrException) {
-#endif
+              }
+              catch(AdrException) {
                 failure++;
                 continue;
               }
@@ -234,31 +209,18 @@ namespace Ipop {
             }
           }
           if (true_count == _min_majority) {
-#if DHCP_DEBUG
-            Console.Error.WriteLine("quorum has succeeded, true: {0}, false: {1}, disagree: {2}.", 
-                              true_count, false_count, disagree_count);
-#endif
             _result = State.Success;
             return true;
-          } else if (false_count == _min_majority) {
-#if DHCP_DEBUG
-            Console.Error.WriteLine("quorum has failed, true: {0}, false: {1}, disagree: {2}.", 
-                              true_count, false_count, disagree_count);
-#endif      
+          }
+          else if (false_count == _min_majority) {
             _result = State.Failure;
             return true;
-          } else if (disagree_count == _min_majority) {
-#if DHCP_DEBUG
-            Console.Error.WriteLine("quorum has disagreed, true: {0}, false: {1}, disagree: {2}.", 
-                              true_count, false_count, disagree_count);
-#endif      
+          }
+          else if (disagree_count == _min_majority) {
             _result = State.NoResult;
             return true;
-          } else {
-#if DHCP_DEBUG
-            Console.Error.WriteLine("quorum not yet complete, true: {0}, false: {1}, disagree: {2}.", 
-                              true_count, false_count, disagree_count);
-#endif
+          }
+          else {
             return false;
           }
         }
