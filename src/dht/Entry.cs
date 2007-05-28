@@ -44,11 +44,11 @@ namespace Brunet.Dht {
 
     public override byte[] Data {
       get {
-        FileStream fStream = new FileStream(_file, FileMode.Open, FileAccess.Read);
-        BinaryReader br = new BinaryReader(fStream);
-        byte[] data = br.ReadBytes(_MAX_DATA);
-        br.Close();
-        fStream.Close();
+        byte[] data = null;
+        using (BinaryReader br = new BinaryReader(File.Open(_file, FileMode.Open))) {
+          data = br.ReadBytes(_MAX_DATA);
+          br.Close();
+        }
         return data;
       }
     }
@@ -58,12 +58,11 @@ namespace Brunet.Dht {
                     base(key, password, create_time, end_time, null, idx) {
       object o = (object) idx;
       _file = Path.Combine(fname, o.ToString());
-      FileStream fStream = new FileStream(_file, FileMode.Create);
-      BinaryWriter bw = new BinaryWriter(fStream);
-      bw.Write(data);
-      bw.Flush();
-      bw.Close();
-      fStream.Close();
+      using (BinaryWriter bw = new BinaryWriter(File.Open(_file, FileMode.Create))) {
+        bw.Write(data);
+        bw.Flush();
+        bw.Close();
+      }
     }
   }
 }
