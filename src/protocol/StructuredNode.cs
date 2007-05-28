@@ -199,7 +199,7 @@ namespace Brunet
 	 */
 	AHAddress local = (AHAddress)_local_add;
         foreach(Connection c in tab.GetConnections("structured.near")) {
-          BigInteger dist = local.LeftDistanceTo( (AHAddress)c.Address );
+          BigInteger dist = local.DistanceTo( (AHAddress)c.Address );
           
 	  if( shorts == 0 ) {
             //This is the first one
