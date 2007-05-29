@@ -64,7 +64,7 @@ namespace Brunet
       }
     }
     
-    protected bool _is_closed;
+    protected volatile bool _is_closed;
     public override bool IsClosed
     {
       get
@@ -161,10 +161,12 @@ namespace Brunet
     public override void Close()
     {
       base.Close();
-      _is_closed = true;
-      //unsubscribe the disconnecthandler
-      _node.ConnectionTable.ConnectionEvent -= new EventHandler(ConnectHandler);      
-      _node.ConnectionTable.DisconnectionEvent -= new EventHandler(DisconnectHandler);      
+      if( !_is_closed ) {
+        _is_closed = true;
+        //unsubscribe the disconnecthandler
+        _node.ConnectionTable.ConnectionEvent -= new EventHandler(ConnectHandler);      
+        _node.ConnectionTable.DisconnectionEvent -= new EventHandler(DisconnectHandler);      
+      }
     }
 
     public override Brunet.TransportAddress.TAType TAType
@@ -180,10 +182,8 @@ namespace Brunet
      * @throw EdgeException if any problem happens
      */
     public override void Send(ICopyable p) {
-      lock(_sync) {
-	_last_out_packet_datetime = DateTime.UtcNow;
-	_send_cb.HandleEdgeSend(this, p);
-      }
+      _last_out_packet_datetime = DateTime.UtcNow;
+      _send_cb.HandleEdgeSend(this, p);
     }
     
     public void Push(MemBlock p)
@@ -192,19 +192,19 @@ namespace Brunet
     }
     
     protected void DisconnectHandler(object o, EventArgs args) {
-      lock(_sync) {
-	 ConnectionEventArgs cargs = args as ConnectionEventArgs;
-	 Connection cons = cargs.Connection;
+      ConnectionEventArgs cargs = args as ConnectionEventArgs;
+      Connection cons = cargs.Connection;
 	 
-	 //ignore leaf connections
-	 if (cons.MainType != ConnectionType.Structured) {
-	   return;
-	 }
+      //ignore leaf connections
+      if (cons.MainType != ConnectionType.Structured) {
+        return;
+      }
 
 	 //make sure we are not pointing to ourselves
-	 if (cons.Edge == this) {
-	   return;
-	 }
+      if (cons.Edge == this) {
+        return;
+      }
+      lock(_sync) {
 	 //note we cannot test for connection address being present in the forwarders array, 
 	 //this might be a leaf connection disconnect
 	 if (_packet_senders.Contains(cons.Edge)) {
@@ -238,15 +238,15 @@ namespace Brunet
     }
 
     protected void ConnectHandler(object o, EventArgs args) {
-      lock(_sync) {
-	 ConnectionEventArgs cargs = args as ConnectionEventArgs;
-	 Connection cons = cargs.Connection;
+      ConnectionEventArgs cargs = args as ConnectionEventArgs;
+      Connection cons = cargs.Connection;
 
 	 //ignore leaf connections
-	 if (cons.MainType != ConnectionType.Structured) {
-	   return;
-	 }
+      if (cons.MainType != ConnectionType.Structured) {
+        return;
+      }
 
+      lock(_sync) {
 	 TunnelEdgeListener tun_listener = _send_cb as TunnelEdgeListener;
 	 if (!_is_connected) {
 	   if (cons.Edge == this) {
