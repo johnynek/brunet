@@ -392,7 +392,7 @@ namespace Brunet
       int localid = NumberSerializer.ReadInt(payload_ms);
       
 #if TUNNEL_DEBUG
-      Console.Error.WriteLine("TunnelEdgeListeber: Receiving on base connection: {0}", _node.ConnectionTable.GetConnection(from));
+      Console.Error.WriteLine("TunnelEdgeListeber: Receiving on base connection: {0}", return_path);
       Console.Error.WriteLine("Receiving edge packet, remoteid: {0}, localid: {1}", remoteid, localid);
 #endif
 
@@ -466,7 +466,7 @@ namespace Brunet
 	NumberSerializer.WriteInt(remoteid, ms);
 	
 	//overwrite the first address in the edge response
-	_node.Address.CopyTo((byte[]) args[0]);
+	args[0] = _node.Address.ToMemBlock();
 
 	AdrConverter.Serialize(args, ms);
 	Packet p = new AHPacket(0, 1, _node.Address, target, AHPacket.AHOptions.Exact, 
@@ -476,7 +476,9 @@ namespace Brunet
 	Console.Error.WriteLine("Sending edge response: {0}", p);
 #endif
 	try {
-	  return_path.Send(p);
+          AHSender ahs = (AHSender)return_path;
+          Edge from = (Edge)ahs.ReceivedFrom;
+	  from.Send(p);
 	} catch (Exception ex) {
 	  Console.Error.WriteLine(ex);
 	}
@@ -607,7 +609,7 @@ namespace Brunet
 	//do nothing
 	return;
       }
-      TunnelEdge tun_edge = e as TunnelEdge;
+      TunnelEdge tun_edge = (TunnelEdge)e;
 
       MemoryStream ms = new MemoryStream();
       ms.WriteByte((byte) MessageType.EdgeControl);
@@ -617,22 +619,17 @@ namespace Brunet
       
       //write out newly acquired forwarders
       ArrayList arg1 = new ArrayList();
-      byte[] addr_bytes = new byte[Address.MemSize];
-      
       foreach (Address addr in acquired) {
 	//add forwarding addresses
-	addr.CopyTo(addr_bytes);
-	arg1.Add(addr_bytes.Clone());
+	arg1.Add( addr.ToMemBlock() );
 	Console.Error.WriteLine("Added a acquired address: {0}", addr);
       }
 
       //write out lost addresses
       ArrayList arg2 = new ArrayList();
-      
       foreach (Address addr in lost) {
 	//add forwarding addresses
-	addr.CopyTo(addr_bytes);
-	arg2.Add(addr_bytes.Clone());
+	arg2.Add( addr.ToMemBlock() );
 	Console.Error.WriteLine("Added a lost address: {0}", addr);
       }      
 
@@ -661,7 +658,7 @@ namespace Brunet
 	//do nothing
 	return;
       }
-      TunnelEdge tun_edge = e as TunnelEdge;
+      TunnelEdge tun_edge = (TunnelEdge)e;
       tun_edge.SendBuffer[0] = (byte) TunnelEdgeListener.MessageType.EdgeData;
       //Write the IDs of the edge:
       //[edge data][local id 4 bytes][remote id 4 bytes][packet]
