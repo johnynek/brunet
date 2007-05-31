@@ -1,9 +1,15 @@
-// _expiring_entries needs to be moved to a SortedList for better performance
+    // _expiring_entries needs to be moved to a SortedList for better performance
 
 using System;
 using System.Text;
 using System.Collections;
 using System.Security.Cryptography;
+
+#if BRUNET_NUNIT
+using NUnit.Framework;
+using System.Threading;
+using System.Collections.Generic;
+#endif
 
 using Brunet;
 
@@ -73,7 +79,19 @@ namespace Brunet.Dht {
     * @return true on success, false on failure
     */
     public int Put(byte[] key, int ttl, string hashed_password, byte[] data) {
-      string hash_name = null;
+        MemBlock ht_key3 = MemBlock.Reference(key, 0, key.Length);
+        ArrayList list3 = _ht[ht_key3] as ArrayList;
+        if (list3 != null)
+        {
+            Console.WriteLine("[Test] data items under the key before put: {0}", list3.Count);
+        }
+        else
+        {
+            Console.WriteLine("[Test] 1st time");
+        }
+        
+        
+        string hash_name = null;
       string base64_val = null;
       if(!ValidatePasswordFormat(hashed_password, out hash_name, out base64_val)) {
         throw new Exception("Invalid password format.");
@@ -104,7 +122,8 @@ namespace Brunet.Dht {
         foreach(Entry ent in entry_list) {
           // Can't have duplicate passwords - no RePuts
           if (ent.Password.Equals(hashed_password)) {
-            return entry_list.Count;
+              Console.WriteLine("Exist because password conflict");
+              return entry_list.Count;            
           }
         }
 
@@ -114,10 +133,21 @@ namespace Brunet.Dht {
 
         //Add the entry to the end of the list.
         entry_list.Add(e);
-        //Further add this to sorted list _expired_entries list
+
+        MemBlock ht_key2 = MemBlock.Reference(key, 0, key.Length);
+        ArrayList list2 = _ht[ht_key2] as ArrayList;
+        Console.WriteLine("[Test] data items under the key before sort: {0}", list2.Count);
+          
+          //Further add this to sorted list _expired_entries list
         InsertToSorted(e);
 
         ///@todo, we might need to tell a neighbor about this object
+        
+          //jx
+        MemBlock ht_key1 = MemBlock.Reference(key, 0, key.Length);
+        ArrayList list1 = _ht[ht_key1] as ArrayList;
+        Console.WriteLine("[Test] data items under the key after sort: {0}", list1.Count);
+          //
       } // end of lock
       return entry_list.Count;
     }
@@ -400,5 +430,357 @@ namespace Brunet.Dht {
       }
     }
   }
+
+
+/*
+This program is part of BruNet, a library for the creation of efficient overlay
+networks.
+Copyright (C) 2007 Jiangyan Xu <dennis84225@gmail.com> University of Florida
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+*/
+#if BRUNET_NUNIT
+    [TestFixture]
+    public class TableServerTest
+    {
+
+        #region PrivateUtilMethods
+
+        /**
+         * Use Disk as default media
+         */
+        private TableServer GetServer()
+        {
+            return this.GetServer(EntryFactory.Media.Disk);
+        }
+
+        private TableServer GetServer(EntryFactory.Media media)
+        {
+            AHAddress addr = new AHAddress(new RNGCryptoServiceProvider());
+            Node brunetNode = new StructuredNode(addr);
+            EntryFactory factory = EntryFactory.GetInstance(brunetNode);
+            factory.SetMedia(media);
+            TableServer ret = new TableServer(factory, brunetNode);
+            return ret;
+        }
+
+        private string GenHashedPasswd()
+        {
+            byte[] bin_passwd = new byte[100];
+
+            RNGCryptoServiceProvider provider = new RNGCryptoServiceProvider();
+            provider.GetBytes(bin_passwd);
+            return "SHA1:" + Convert.ToBase64String(bin_passwd);
+        }
+
+        /**
+         * Multitheading using Threads directly and Disk by default
+         */
+        private void TestPutConcurrently(int keyNum, int minDataNumPerKey, int maxDataNumPerKey)
+        {
+            this.TestPut(keyNum, minDataNumPerKey, maxDataNumPerKey, "Threads");
+        }
+
+        private void TestPut(int keyNum, int minDataNumPerKey, int maxDataNumPerKey, string testType)
+        {
+            this.TestPut(keyNum, minDataNumPerKey, maxDataNumPerKey, testType, EntryFactory.Media.Disk);
+        }
+
+        /// <summary>
+        /// Concurrently Put (1 thread per put), Compare with data prepared in a single Thread
+        /// </summary>
+        /// <param name="keyNum">number of keys</param>
+        /// <param name="minDataNumPerKey">min: should be at least 1</param>
+        /// <param name="maxDataNumPerKey">max: should >= min</param>
+        /// <param name="testType">testType: Threads(default), ThreadPool and SingleThread</param>
+        private void TestPut(int keyNum, int minDataNumPerKey, int maxDataNumPerKey, string testType, EntryFactory.Media media)
+        {
+            Random rnd = new Random();
+            int entryCount = 0;
+            /**
+            * key: key in table server
+            * value: number of data items to be put in ht
+            */
+            Hashtable ht = new Hashtable();
+            ArrayList lpasswd = new ArrayList();
+
+            for (int i = 0; i < keyNum; i++)
+            {
+                byte[] key = new byte[160];
+                rnd.NextBytes(key);
+                MemBlock b_key = MemBlock.Reference(key, 0, key.Length);
+                //Random number at least 1
+                int value = rnd.Next(minDataNumPerKey, maxDataNumPerKey);
+                ht.Add(b_key, value);
+                entryCount += value;
+            }
+
+            Console.WriteLine("{0} enties in total", entryCount);
+
+
+            ArrayList threads = new ArrayList();
+
+            TableServer server = this.GetServer(media);
+            foreach (MemBlock b_key in ht.Keys)
+            {
+                int numData = (int)ht[b_key];
+                Console.WriteLine("numData: {0}", numData);
+                //key
+                byte[] key = new byte[b_key.Length];
+                b_key.CopyTo(key, 0);
+
+                string strKey = Encoding.UTF8.GetString(key);
+                for (int i = 0; i < numData; i++)
+                {
+                    string strData = string.Format("{0}:{1}", strKey, i);
+
+                    //ttl long enough to make sure no key has been expired before all data been Get()
+                    int ttl = rnd.Next(150, 300);
+                    string passwd = this.GenHashedPasswd();
+
+                    if (!lpasswd.Contains(passwd))
+                    {
+                        lpasswd.Add(passwd);
+                    }
+                    else
+                    {
+                        throw new Exception("passwd shouldn't be the same!");
+                    }
+
+                    //state used in PutProc
+                    ArrayList state = new ArrayList();
+                    state.Add(key);
+                    state.Add(strData);
+                    state.Add(ttl);
+                    state.Add(server);
+                    state.Add(passwd);
+
+                    switch (testType)
+                    {
+                        case "ThreadPool":
+                            ThreadPool.QueueUserWorkItem(new WaitCallback(this.PutProc), state);
+                            break;
+                        case "SingleThread":
+                            this.PutProc(state);
+                            break;
+                        case "Threads":
+                        default:
+                            Thread t = new Thread(new ParameterizedThreadStart(PutProc));
+                            threads.Add(t);
+                            t.Start(state);
+                            break;
+                    }
+                }
+            }
+
+            foreach (Thread t in threads)
+            {
+                t.Join();
+            }
+
+
+            /* Verify the result using single threaded Get() */
+            int j = 1;
+            foreach (MemBlock b_key in ht.Keys)
+            {
+                byte[] key = new byte[b_key.Length];
+                b_key.CopyTo(key, 0);
+                IList result = server.Get(key, 10000, null);
+                IList values = result[0] as ArrayList;
+                Assert.IsNotNull(values);
+                Assert.AreEqual((int)ht[b_key], values.Count, string.Format("Data item count failed in the {0}st key checked", j));
+                j++;
+            }
+
+            Assert.AreEqual(entryCount, server.GetCount(), "Quantity of total entries wrong");
+        }
+
+        /*
+         * The Put action called concurrently or by a single thread. 4 Params
+         */
+        private void PutProc(object state)
+        {
+            Random rnd = new Random();
+            ArrayList lstate = (ArrayList)state;
+            Assert.AreEqual(5, lstate.Count);
+            byte[] key = (byte[])lstate[0];
+            string strData = (string)lstate[1];
+            int ttl = (int)lstate[2];
+            TableServer server = (TableServer)lstate[3];
+            string passwd = lstate[4] as string;
+
+            //Console.WriteLine("Put:ThreadID:{0}", Thread.CurrentThread.GetHashCode());
+            Console.WriteLine("Calling Put");
+            server.Put(key, ttl, passwd, Encoding.UTF8.GetBytes(strData));
+        }
+
+        #endregion
+
+        #region PutConurrently
+        /// <summary>
+        /// TestPutConcurrentlyX_Y_Z: When min==max, DataNumPerKey=min
+        /// X: keyNum
+        /// Y: minDataNumPerKey
+        /// Z: maxDataNumPerKey
+        /// </summary>
+        [Test]
+        public void TestPutConcurrently100_1_1()
+        {
+            this.TestPutConcurrently(100, 1, 1);
+        }
+
+        [Test]
+        public void TestPutConcurrently1_3_3()
+        {
+            this.TestPutConcurrently(1, 3, 3);
+        }
+
+        [Test]
+        public void TestPutConcurrently1_2_2()
+        {
+            this.TestPutConcurrently(1, 2, 2);
+        }
+
+        [Test]
+        public void TestPutConcurrently2_2_2()
+        {
+            this.TestPutConcurrently(2, 2, 2);
+        }
+
+        [Test]
+        public void TestPutConcurrently100_2_2()
+        {
+            this.TestPutConcurrently(100, 2, 2);
+        }
+
+        [Test]
+        public void TestPutConcurrently1000_1_20()
+        {
+            this.TestPutConcurrently(1000, 1, 20);
+        }
+
+        [Test]
+        public void TestPutConcurrently100_10_10()
+        {
+            this.TestPutConcurrently(100, 10, 10);
+        }
+
+        [Test]
+        public void TestPutConcurrently1_5_5()
+        {
+            this.TestPutConcurrently(1, 5, 5);
+        }
+        #endregion
+
+        #region PutInSingleThread
+        /*  Single threaded tests  */
+        [Test]
+        public void TestPutInSingleThread100_1_1()
+        {
+            this.TestPut(100, 1, 1, "SingleThread");
+        }
+
+        [Test]
+        public void TestPutInSingleThread1_3_3()
+        {
+            this.TestPut(1, 3, 3, "SingleThread");
+        }
+
+        [Test]
+        public void TestPutInSingleThread1_2_2()
+        {
+            this.TestPut(1, 2, 2, "SingleThread");
+        }
+
+        [Test]
+        public void TestPutInSingleThread2_2_2()
+        {
+            this.TestPut(2, 2, 2, "SingleThread");
+        }
+
+        [Test]
+        public void TestPutInSingleThread100_2_2()
+        {
+            this.TestPut(100, 2, 2, "SingleThread");
+        }
+
+        [Test]
+        public void TestPutInSingleThread100_10_10()
+        {
+            this.TestPut(100, 10, 10, "SingleThread");
+        }
+
+        [Test]
+        public void TestPutInSingleThread1_5_5()
+        {
+            this.TestPut(1, 5, 5, "SingleThread");
+        }
+
+        [Test]
+        public void TestPutInSingleThread1000_1_20()
+        {
+            this.TestPut(1000, 1, 20, "SingleThread");
+        }
+
+        #endregion
+
+        #region PutConcurrentlyUsingMemOption
+        /* multithreaded using memory option  */
+        [Test]
+        public void TestPutConcurrentlyMemory100_1_1()
+        {
+            this.TestPut(100, 1, 1, "SingleThread", EntryFactory.Media.Memory);
+        }
+
+        [Test]
+        public void TestPutConcurrentlyMemory1_3_3()
+        {
+            this.TestPut(1, 3, 3, "SingleThread", EntryFactory.Media.Memory);
+        }
+
+        [Test]
+        public void TestPutConcurrentlyMemory1_2_2()
+        {
+            this.TestPut(1, 2, 2, "SingleThread", EntryFactory.Media.Memory);
+        }
+
+        [Test]
+        public void TestPutConcurrentlyMemory2_2_2()
+        {
+            this.TestPut(2, 2, 2, "SingleThread", EntryFactory.Media.Memory);
+        }
+
+        [Test]
+        public void TestPutConcurrentlyMemory100_2_2()
+        {
+            this.TestPut(100, 2, 2, "SingleThread", EntryFactory.Media.Memory);
+        }
+
+        [Test]
+        public void TestPutConcurrentlyMemory100_10_10()
+        {
+            this.TestPut(100, 10, 10, "SingleThread", EntryFactory.Media.Memory);
+        }
+
+        [Test]
+        public void TestPutConcurrentlyMemory1_5_5()
+        {
+            this.TestPut(1, 5, 5, "SingleThread", EntryFactory.Media.Memory);
+        }
+        #endregion
+    }
+#endif
 }
 
