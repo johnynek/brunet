@@ -106,4 +106,43 @@
       </fileset>
     </copy>
   </target>
+
+  <!--Added by jx-->
+  <target
+      name="test"
+      depends="init"
+      description="Builds the current configuration">
+    <echo message="Making a NUnit2 testable build" />
+    <mkdir
+      dir="${build.dir}/${package.name}/bin"
+      failonerror="false"/>
+
+    <!-- copy libraries -->
+    <copy todir="${build.dir}/${package.name}/bin">
+      <fileset basedir="${lib.dir}">
+        <include name="NUnit.Framework.dll" />
+      </fileset>
+    </copy>
+
+    <csc
+      target="library"
+      debug="${build.debug}"
+      define="BRUNET_NUNIT"
+      output="${build.dir}/${package.name}/bin/${assembly}.dll">
+      <sources failonempty="true">
+        <include name="*.cs"/>
+      </sources>
+      <references>
+        <include name="${lib.dir}/NUnit.Framework.dll" />
+      </references>
+    </csc>
+
+    <!-- finally copy the newly compiled library to the lib directory  -->
+    <copy todir="${lib.dir}">
+      <fileset basedir="${build.dir}/${package.name}/bin">
+        <include name="${build.dir}/${package.name}/bin/${assembly}.dll" />
+      </fileset>
+    </copy>
+  </target>
+  <!--End added-->
 </project>
