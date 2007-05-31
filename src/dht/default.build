@@ -133,6 +133,7 @@
         <include name="*.cs"/>
       </sources>
       <references>
+        <include name="${lib.dir}/Brunet.dll" />
         <include name="${lib.dir}/NUnit.Framework.dll" />
       </references>
     </csc>
