@@ -470,8 +470,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
         {
             AHAddress addr = new AHAddress(new RNGCryptoServiceProvider());
             Node brunetNode = new StructuredNode(addr);
-            EntryFactory factory = EntryFactory.GetInstance(brunetNode);
-            factory.SetMedia(media);
+            EntryFactory factory = EntryFactory.GetInstance(brunetNode, media);
             TableServer ret = new TableServer(factory, brunetNode);
             return ret;
         }

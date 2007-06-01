@@ -15,32 +15,53 @@ namespace Brunet.Dht {
     };
 
     private Media _media;
+    private string _dir_path;
 
-    public void SetMedia(Media media) {
-      _media = media;
+    private void CleanUp() {
       if (_media == Media.Disk) {
-        string dir_path = Path.Combine("data", _node.Address.ToString().Substring(12));
-        if(Directory.Exists(dir_path)) {
-            Directory.Delete(dir_path, true);
+        if(Directory.Exists(_dir_path)) {
+            Directory.Delete(_dir_path, true);
         }
-        Directory.CreateDirectory(dir_path);
       }
     }
 
-    private EntryFactory(Node node) {
-      _node = node;
+    private void SetMedia(Media media) {
+      _media = media;
+      if (_media == Media.Disk) {
+        _dir_path = Path.Combine("data", _node.Address.ToString().Substring(12));
+	CleanUp();
+        Directory.CreateDirectory(_dir_path);
+      }
     }
 
-    public static EntryFactory GetInstance(Node node) {
+    private EntryFactory(Node node, Media m) {
+      _node = node;
+      SetMedia(m);
+    }
+
+    /**
+     * Make sure we don't leave any junk directories around
+     */
+    ~EntryFactory() {
+      CleanUp(); 
+    }
+
+    public static EntryFactory GetInstance(Node node, Media media) {
       // Returns an ef for a node or creates one if non-exists
       if (_ef_table == null) {
         _ef_table = new Hashtable();
       }
-      if (_ef_table.ContainsKey(node)) {
-        return (EntryFactory) _ef_table[node];
+      EntryFactory ef = (EntryFactory) _ef_table[node];
+      if ( ef == null) {
+        ef = new EntryFactory(node, media);
+        _ef_table[node] = ef;
       }
-      EntryFactory ef = new EntryFactory(node);
-      _ef_table[node] = ef;
+      if( ef._media != media ) {
+        //someone called GetInstance again with a different media:
+	throw new Exception(
+	   String.Format("Tried to make another EntryFactory for node {0} with different media {1} != {2}",
+	                 node, ef._media, media) );
+      }
       return ef;
     }
 
@@ -53,8 +74,7 @@ namespace Brunet.Dht {
         return new Entry(key, password, create_time, end_time, data, idx);
       }
       if (_media == Media.Disk) {
-        return new DiskEntry(Path.Combine("data",
-          _node.Address.ToString().Substring(12)), key, password, create_time,
+        return new DiskEntry(_dir_path, key, password, create_time,
           end_time, data, idx);
       }
       return null;

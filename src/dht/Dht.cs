@@ -156,8 +156,7 @@ namespace Brunet.Dht {
       _left_addr = _right_addr = null;
 
       //initialize the EntryFactory
-      EntryFactory ef = EntryFactory.GetInstance(node);
-      ef.SetMedia(media);
+      EntryFactory ef = EntryFactory.GetInstance(node, media);
       _table = new TableServer(ef, node);
 
       //get an instance of RpcManager for the node
@@ -494,8 +493,7 @@ namespace Brunet.Dht {
         }
         _left_addr = _right_addr = null;
 
-        EntryFactory ef = EntryFactory.GetInstance(_node);
-        ef.SetMedia(media);
+        EntryFactory ef = EntryFactory.GetInstance(_node, media);
 
         _table = new TableServer(ef, _node);
 
