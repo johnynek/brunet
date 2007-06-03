@@ -19,7 +19,10 @@ namespace Ipop {
     private static Node node;
     private static FDht dht;
     private static Node [] nodes;
-    private static SoapDht sd;
+    //modified by jx - SoapDht changed to IDht to accommodate XmlRpcDht
+    //private static SoapDht sd;
+    private static IDht sd;
+    //modification ends
     private static Thread sdthread;
     private static bool one_run;
     private static ArrayList dhtfiles = new ArrayList();
@@ -73,6 +76,17 @@ namespace Ipop {
             sd = SoapDhtClient.GetSoapDhtClient();
             soap_client = true;
             break;
+         //added by jx - option for XmlRpc - pure test
+          case "-x":
+            if (config_file != string.Empty || node_count > 1)
+            {
+                Console.WriteLine("-x cannot be used with -m or -c.\n");
+                PrintHelp();
+            }
+            sd = DhtServiceClient.GetXmlDhtClient();
+            soap_client = true;
+            break;
+         //end
           case "-dc":
             if(node_count > 1 || dhtfiles.Count > 0) {
               Console.WriteLine("-dc cannot be used with -m or -df.\n");
@@ -218,7 +232,7 @@ namespace Ipop {
         }
 
         if(config.EnableSoapDht && sdthread == null) {
-          sdthread = SoapDhtServer.StartSoapDhtServerAsThread(dht);
+          sdthread = DhtServer.StartDhtServerAsThread(dht);
         }
       }
     }
@@ -331,7 +345,15 @@ namespace Ipop {
               results = DhtOp.Get(key, dht);
             }
             else {
-              results = sd.Get(key);
+              //modified by jx - Hashtable is already used here. So I just convert the result back to minimize modification
+              //results = sd.Get(key);
+              DhtGetResultItem[] items = sd.Get(key);
+              results = new Hashtable[items.Length];
+              for(int i = 0; i < items.Length; i++)
+              {
+              	results[i] = (Hashtable)items[i];
+              }
+              //modification ends
             }
 
             Console.WriteLine("Number of results:  " + results.Length);
@@ -361,6 +383,9 @@ namespace Ipop {
       Console.WriteLine("\t-m %d  : Multipe Nodes can not be used with -s or -d requires -c");
       Console.WriteLine("\t-c %s  : Use a configuration file and create a Brunet Node for Dht access");
       Console.WriteLine("\t-s     : Use soap to access Dht");
+      //added by jx
+      Console.WriteLine("\t-x     : Use xmlrpc to access Dht");
+      //end
       Console.WriteLine("\t-dc    : Enable the Dht Console");
       Console.WriteLine("\t-df %s : Dht data file");
       Console.WriteLine("\t-help  : Help (this screen)\n");
