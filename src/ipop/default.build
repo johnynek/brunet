@@ -18,7 +18,6 @@
         <include name="DHCPCommon.dll" />
         <!--added by jx-->
         <include name="CookComputing.XmlRpc.dll" />
-        <include name="NUnit.Framework.dll" />
         <!--add end-->
       </fileset>
     </copy>
@@ -46,7 +45,7 @@
         <include name="Mono.Posix.dll"/>
       </references>
     </csc>
-    <csc target="exe" output="${build.dir}/SimpleNode.exe" define="SVC_TEST">
+    <csc target="exe" output="${build.dir}/SimpleNode.exe">
       <sources failonempty="true">
         <include name="OSDependent.cs"/>
         <include name="linux.cs"/>
@@ -73,7 +72,6 @@
         <include name="Mono.Posix.dll"/>
         <!--added by jx-->
         <include name="${build.dir}/CookComputing.XmlRpc.dll" />
-        <include name="${build.dir}/NUnit.Framework.dll" />
         <!--add end-->        
       </references>
     </csc>
