@@ -73,10 +73,11 @@ namespace Ipop {
               Console.WriteLine("-s cannot be used with -m or -c.\n");
               PrintHelp();
             }
-            sd = SoapDhtClient.GetSoapDhtClient();
+            //sd = SoapDhtClient.GetSoapDhtClient();
+            sd = DhtServiceClient.GetSoapDhtClient();
             soap_client = true;
             break;
-         //added by jx - option for XmlRpc - pure test
+         //added by jx - option for XmlRpc - pure testing purpose
           case "-x":
             if (config_file != string.Empty || node_count > 1)
             {
@@ -371,7 +372,13 @@ namespace Ipop {
             break;
           }
         }
-        catch (Exception) {
+        //added by jx - distinguish between service exception and Dht exception
+        catch (System.Net.WebException)
+        {
+            Console.Error.WriteLine("Soap/XmlRpc Dht service not available");
+        }
+        //addition ends
+        catch (Exception) {            
           Console.WriteLine("Dht may not be available, yet, try again now or a little later");
         }
       }

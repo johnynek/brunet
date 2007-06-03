@@ -33,6 +33,9 @@ namespace Ipop
         
         public DhtGetResultItem[] Get(string key)
         {
+#if SVC_TEST
+            return new DhtGetResultItem[] { new DhtGetResultItem("soap",1000) };      
+#endif
             Hashtable[] ht_res = DhtOp.Get(key, this.dht);
             ArrayList list = new ArrayList();
         	foreach(Hashtable re in ht_res)
@@ -45,16 +48,16 @@ namespace Ipop
         public void PGet() { ;}
     }
 
-    public class SoapDhtClient
-    {
-        public static SoapDht GetSoapDhtClient()
-        {
-            HttpChannel ch = new HttpChannel();
-            ChannelServices.RegisterChannel(ch);
-            //modified by jx: tcp doesn't work fine with xmlrpc, so I changed the channel to http
-            RemotingConfiguration.RegisterWellKnownClientType(typeof(SoapDht),
-                "http://127.0.0.1:64221/sd.rem");
-            return new SoapDht();
-        }
-    }
+    //by jx - GetSoapDhtClient has been changed and moved to DhtServiceClient for modularity
+    //public class SoapDhtClient
+    //{
+    //    public static IDht GetSoapDhtClient()
+    //    {
+    //        HttpChannel ch = new HttpChannel();
+    //        ChannelServices.RegisterChannel(ch);
+    //        RemotingConfiguration.RegisterWellKnownClientType(typeof(SoapDht),
+    //            "http://127.0.0.1:64221/sd.rem");
+    //        return new SoapDht();
+    //    }
+    //}
 }

@@ -46,7 +46,7 @@
         <include name="Mono.Posix.dll"/>
       </references>
     </csc>
-    <csc target="exe" output="${build.dir}/SimpleNode.exe">
+    <csc target="exe" output="${build.dir}/SimpleNode.exe" define="SVC_TEST">
       <sources failonempty="true">
         <include name="OSDependent.cs"/>
         <include name="linux.cs"/>
@@ -64,8 +64,6 @@
         <include name="DhtServiceClient.cs" />
         <include name="IDht.cs" />
         <include name="XmlRpcDht.cs" />
-        <include name="XmlRpcDhtTest.cs" />
-        <include name="DhtService.cs" />
         <!--add end-->
       </sources>
       <references>
@@ -107,5 +105,25 @@
         <include name="IPRouterConfig.cs"/>
       </sources>
     </csc>
+    <!--Added by jx. -->
+    <csc target="library"
+         debug="${debug}"
+         output="${build.dir}/DhtServiceClient.dll">
+      <sources failonempty="true">
+        <include name="Commons.cs" />
+        <include name="DhtServiceClient.cs" />
+        <include name="IDht.cs" />
+      </sources>
+      <references>
+        <include name="System.Runtime.Remoting.dll"/>        
+        <include name="${build.dir}/CookComputing.XmlRpc.dll" />        
+      </references>
+    </csc>
+    <copy todir="${lib.dir}">
+      <fileset basedir="${build.dir}">
+        <include name="DhtServiceClient.dll" />
+      </fileset>
+    </copy>
+    <!--Add End-->
   </target>
 </project>
