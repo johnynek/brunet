@@ -21,6 +21,15 @@ namespace Ipop {
       return null;
     }
 
+    public static IEnumerable GetIPAddresses() {
+      if(OSVers == Linux)
+        return new IPAddressesLinux();
+      else if(OSVers == Windows)
+        return new IPAddressesWindows();
+      System.Console.Error.WriteLine("Invalid Operating System");
+      return null;
+    }
+
 // Setup system
     public static void Setup() {
       DetectOS();
