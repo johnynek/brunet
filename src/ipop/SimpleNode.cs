@@ -1,5 +1,3 @@
-#define HACK
-
 using System;
 using System.IO;
 using System.Collections;
@@ -17,8 +15,6 @@ using Brunet.Dht;
  */
 namespace Ipop {
   public class SimpleNode {
-    private static Node node;
-    private static FDht dht;
     private static Node [] nodes;
     private static FDht [] dhts;
     private static SoapDht sd;
@@ -156,26 +152,18 @@ namespace Ipop {
         }
       }
 
-      if(node != null) {
-        node.Disconnect();
-        Thread.Sleep(1000);
+      for(int i = 0; i < nodes.Length; i++) {
+        nodes[i].Disconnect();
       }
-      else if(nodes != null) {
-        for(int i = 0; i < nodes.Length; i++) {
-          nodes[i].Disconnect();
-        }
-        Thread.Sleep(1000);
-      }
+      Thread.Sleep(1000);
 
       Environment.Exit(0);
       return 0;
     }
 
     public static void StartBrunet(string config_file, int n) {
-      if(n > 1) {
-        nodes = new Node[n];
-        dhts = new FDht[n];
-      }
+      nodes = new Node[n];
+      dhts = new FDht[n];
 
       //configuration file 
       IPRouterConfig config = IPRouterConfigHandler.Read(config_file, true);
@@ -230,17 +218,11 @@ namespace Ipop {
 
         brunetNode.Connect();
         Console.Error.WriteLine("Called Connect, I am " + brunetNode.Address.ToString());
-        if(n > 1) {
-          nodes[i] = brunetNode;
-          dhts[i] = ndht;
-        }
-        else {
-          node = brunetNode;
-          dht = ndht;
-        }
+        nodes[i] = brunetNode;
+        dhts[i] = ndht;
 
         if(config.EnableSoapDht && sdthread == null) {
-          sdthread = SoapDhtServer.StartSoapDhtServerAsThread(dht);
+          sdthread = SoapDhtServer.StartSoapDhtServerAsThread(dhts[0]);
         }
       }
     }
@@ -252,27 +234,14 @@ namespace Ipop {
         value += "|" + address.ToString();
       }
 
-      if(node != null) {
+      for (int i = 0; i < nodes.Length; i++) {
         while(true) {
           try {
-            DhtOp.Put("plab_tracker", node.Address.ToString() + value, null, 7200, dht);
+            DhtOp.Put("plab_tracker", nodes[i].Address.ToString() + value, null, 7200, dhts[i]);
             break;
           }
           catch(Exception) {
             Thread.Sleep(10000);
-          }
-        }
-      }
-      else {
-        for (int i = 0; i < nodes.Length; i++) {
-          while(true) {
-            try {
-              DhtOp.Put("plab_tracker", nodes[i].Address.ToString() + value, null, 7200, dhts[i]);
-              break;
-            }
-            catch(Exception) {
-              Thread.Sleep(10000);
-            }
           }
         }
       }
@@ -292,8 +261,8 @@ namespace Ipop {
             Console.Error.WriteLine("DATA:::Attempting Dht operation!");
           }
           string password = null;
-          if(dht != null) {
-            password = DhtOp.Create(data.key, data.value, data.password, ttl, dht);
+          if(dhts != null) {
+            password = DhtOp.Create(data.key, data.value, data.password, ttl, dhts[0]);
           }
           else {
             sd.Create(data.key, data.value, data.password, ttl);
@@ -346,8 +315,8 @@ namespace Ipop {
             Console.Write("Enter TTL:  ");
             int ttl = Int32.Parse(Console.ReadLine());
             Console.WriteLine("Attempting Put() on key : " + key);
-            if(dht != null) {
-              DhtOp.Put(key, value, password, ttl, dht);
+            if(dhts != null) {
+              DhtOp.Put(key, value, password, ttl, dhts[0]);
             }
             else {
               sd.Put(key, value, password, ttl);
@@ -365,8 +334,8 @@ namespace Ipop {
             int ttl = Int32.Parse(Console.ReadLine());
             Console.WriteLine("Attempting Create() on key : " + key);
             string result = null;
-            if(dht != null) {
-              result = DhtOp.Create(key, value, password, ttl, dht);
+            if(dhts != null) {
+              result = DhtOp.Create(key, value, password, ttl, dhts[0]);
             }
             else {
               result = sd.Create(key, value, password, ttl);
@@ -382,8 +351,8 @@ namespace Ipop {
             Console.Write("Enter key:  ");
             string key = Console.ReadLine();
             Hashtable[] results;
-            if(dht != null) {
-              results = DhtOp.Get(key, dht);
+            if(dhts != null) {
+              results = DhtOp.Get(key, dhts[0]);
             }
             else {
               results = sd.Get(key);
