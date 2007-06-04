@@ -30,20 +30,20 @@ namespace Ipop {
 
     protected override DHCPLease GetDHCPLease(string ipop_namespace) {
       if (leases.ContainsKey(ipop_namespace)) {
-	return (DHCPLease) leases[ipop_namespace];
+        return (DHCPLease) leases[ipop_namespace];
       }
       string ns_key = "dhcp:ipop_namespace:" + ipop_namespace;
-      Hashtable [] results = DhtOp.Get(ns_key, _dht);
+      DhtGetResult[] results = DhtOp.Get(ns_key, _dht);
       if(results == null || results.Length == 0)  {
         Console.Error.WriteLine("Namespace does not exist");
         return null;
       }
 
-      if(results[0]["value_string"] == null) {
+      if(results[0].valueString == null) {
         Console.Error.WriteLine("Namespace does not exist");
         return null;
       }
-      string xml_str = results[0]["value_string"].ToString();
+      string xml_str = results[0].valueString.ToString();
       XmlSerializer serializer = new XmlSerializer(typeof(IPOPNamespace));
       TextReader stringReader = new StringReader(xml_str);
       IPOPNamespace ipop_ns = (IPOPNamespace) serializer.Deserialize(stringReader);
@@ -53,7 +53,8 @@ namespace Ipop {
     }
 
     protected override DHCPLeaseResponse GetLease(DHCPLease dhcp_lease, DecodedDHCPPacket packet) {
-      DhtDHCPLeaseParam dht_param = new DhtDHCPLeaseParam(packet.yiaddr, packet.StoredPassword, DHCPCommon.StringToBytes(packet.NodeAddress, ':'));
+      DhtDHCPLeaseParam dht_param = new DhtDHCPLeaseParam(packet.yiaddr, packet.StoredPassword,
+        IPOP_Common.StringToBytes(packet.NodeAddress, ':'));
       DHCPLeaseResponse ret = dhcp_lease.GetLease(dht_param);
       return ret;
     }

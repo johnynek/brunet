@@ -1,6 +1,8 @@
+using System;
 using System.Net;
 using Brunet;
 using System.Collections;
+using System.Threading;
 
 namespace Ipop {
   public class NodeMapping {
@@ -8,6 +10,7 @@ namespace Ipop {
     public string netmask, nodeAddress, password, ipop_namespace;
     public byte [] mac;
     public BrunetTransport brunet;
+    private Thread trackerThread;
 
     public NodeMapping() {
       ip = null;
@@ -17,6 +20,24 @@ namespace Ipop {
       nodeAddress = null;
       password = null;
       ipop_namespace = null;
+      trackerThread = new Thread(UpdateTracker);
+      trackerThread.Start();
+    }
+
+    public void UpdateTracker() {
+      while(true) {
+        while(true) {
+          try {
+            DhtOp.Put("iprouter_tracker", brunet.brunetNode.Address.ToString() +
+                "|" + ip.ToString(), null, 7200, brunet.dht);
+            break;
+          }
+          catch(Exception) {
+            Thread.Sleep(10000);
+          }
+        }
+        Thread.Sleep(1000*60*60);
+      }
     }
   }
 

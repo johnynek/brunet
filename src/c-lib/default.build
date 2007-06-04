@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <project name="ipop-common" default="build" basedir=".">
-  <description> Builds the common files for IPOP-1.0 and IPOP-1.1. </description>
+  <description> Builds the linux tap files for IPOP-1.0 and IPOP-1.1. </description>
   <property name="debug" value="true" overwrite="false" />
   <property name="lib.dir" value="../../lib"/>
   <property name="lib.name" value="libtuntap"/>
@@ -18,9 +18,9 @@
       <exec program="gcc" commandline="-shared -o libtuntap.so linux_tap.o" workingdir="${build.dir}"/>
       <copy todir="${lib.dir}" failonerror="true">
           <fileset basedir="${build.dir}">
-	      <include name="${lib.name}.so" />
-	  </fileset>
+              <include name="${lib.name}.so" />
+          </fileset>
       </copy>
   </target>
 </project>
-      
+

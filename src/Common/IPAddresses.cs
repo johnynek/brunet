@@ -7,9 +7,12 @@ using System.Text.RegularExpressions;
 namespace Ipop {
   public abstract class IPAddresses : IEnumerable {
     protected ArrayList _ints;
+    protected IList _all_interfaces;
 
     public IPAddresses(string[] interfaces) {
       _ints = new ArrayList(interfaces);
+      // Remove this later...
+      _all_interfaces = GetOutput();
     }
 
     /**
@@ -17,6 +20,8 @@ namespace Ipop {
      */
     public IPAddresses() {
       _ints = null;
+      // Remove this later...
+      _all_interfaces = GetOutput();
     }
 
     /**
@@ -24,8 +29,8 @@ namespace Ipop {
      * 
      */
     public IEnumerator GetEnumerator() {
-      IList all_interfaces = GetOutput();
-      foreach(Hashtable ht in all_interfaces) {
+      //IList all_interfaces = GetOutput();
+      foreach(Hashtable ht in _all_interfaces) {
         if( ht.ContainsKey("interface") && ht.ContainsKey("inet addr") ) {
           string iface = (string)ht["interface"];
           if( _ints == null ) {
@@ -114,6 +119,7 @@ namespace Ipop {
       if( entry != null ) {
         result.Add(entry);
       }
+      p.Close();
       return result;
     }
   }
@@ -169,6 +175,7 @@ namespace Ipop {
       if( entry != null ) {
         result.Add(entry);
       }
+      p.Close();
       return result;
     }
   }

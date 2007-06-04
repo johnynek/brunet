@@ -1,0 +1,70 @@
+<?xml version="1.0"?>
+<project name="ipop-common" default="build" basedir=".">
+  <description> Builds the common files for IPOP-1.0 and IPOP-1.1. </description>
+  <property name="debug" value="true" overwrite="false" />
+  <property name="lib.dir" value="../../lib"/>
+  <property name="build.dir" value="build" />
+  <target name="clean" description="Remove build dir">
+    <delete dir="${build.dir}" failonerror="true"/>
+  </target>
+  <target name="build" description="Build SimpleNode.exe, BrokenRingTester, IPRouterConfigUpdate, and MakeIPRouterConfig">
+    <mkdir dir="${build.dir}" failonerror="true"/>
+    <copy todir="${build.dir}" failonerror="true">
+      <fileset basedir="${lib.dir}">
+        <include name="Brunet.dll" />
+        <include name="libtuntap.so" />
+        <include name="Brunet.Dht.dll" />
+        <include name="CookComputing.XmlRpcV2.dll" />
+      </fileset>
+    </copy>
+    <csc target="exe" output="${build.dir}/SimpleNode.exe">
+      <sources failonempty="true">
+        <include name="SimpleNode.cs"/>
+        <include name="../Common/OSDependent.cs"/>
+        <include name="../Common/IPOP_Common.cs"/>
+        <include name="../Common/IPRouterConfig.cs"/>
+        <include name="../Common/IPAddresses.cs"/>
+        <include name="../Dht/IDht.cs"/>
+        <include name="../Dht/SoapDht.cs"/>
+        <include name="../Dht/XmlRpcDht.cs"/>
+        <include name="../Dht/DhtService.cs"/>
+        <include name="../Dht/DhtServiceClient.cs"/>
+        <include name="../Dht/DhtOp.cs"/>
+        <include name="../Dht/DhtData.cs"/>
+      </sources>
+      <references>
+        <include name="${build.dir}/Brunet.dll"/>
+        <include name="${build.dir}/Brunet.Dht.dll"/>
+        <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />
+        <include name="System.Runtime.Remoting.dll"/>
+        <include name="Mono.Posix.dll"/>
+      </references>
+    </csc>
+    <csc target="exe" output="${build.dir}/BrokenRingTester.exe">
+      <sources failonempty="true">
+        <include name="BrokenRingTester.cs"/>
+        <include name="../Common/OSDependent.cs"/>
+        <include name="../Common/IPOP_Common.cs"/>
+        <include name="../Common/IPRouterConfig.cs"/>
+        <include name="../Common/IPAddresses.cs"/>
+      </sources>
+      <references>
+        <include name="${build.dir}/Brunet.dll"/>
+        <include name="${build.dir}/Brunet.Dht.dll"/>
+        <include name="Mono.Posix.dll"/>
+      </references>
+    </csc>
+    <csc target="exe" output="${build.dir}/IPRouterConfigUpdate.exe">
+      <sources failonempty="true">
+        <include name="IPRouterConfigUpdate.cs"/>
+        <include name="../Common/IPRouterConfig.cs"/>
+      </sources>
+    </csc>
+    <csc target="exe" output="${build.dir}/MakeIPRouterConfig.exe">
+      <sources failonempty="true">
+        <include name="MakeIPRouterConfig.cs"/>
+        <include name="../Common/IPRouterConfig.cs"/>
+      </sources>
+    </csc>
+  </target>
+</project>

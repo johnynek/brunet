@@ -1,29 +1,24 @@
-#define HACK
-
 using System;
 using System.IO;
 using System.Collections;
 using System.Xml;
 using System.Xml.Serialization;
 using System.Threading;
+using System.Net;
 
 using Brunet;
 using Brunet.Dht;
 
-/* The SimpleNode just works for a p2p router
- * (Doesn't generate or sink any packets)
- * Could sink; in case no route to destination is available!
- */
 namespace Ipop {
   public class SimpleNode {
-    private static Node node;
-    private static FDht dht;
     private static Node [] nodes;
-    //modified by jx - SoapDht changed to IDht to accommodate XmlRpcDht
+    private static FDht [] dhts;
     private static IDht sd;
     private static Thread sdthread;
     private static bool one_run;
     private static ArrayList dhtfiles = new ArrayList();
+    private static bool tracker;
+    private static IEnumerable addresses;
 
     public static int Main(string []args) {
       int node_count = 1;
@@ -31,6 +26,7 @@ namespace Ipop {
       bool soap_client = false;
       bool dhtconsole = false;
       one_run = false;
+      tracker = false;
 
       OSDependent.DetectOS();
 
@@ -67,34 +63,33 @@ namespace Ipop {
             config_file = args[index];
             break;
           case "-s":
-            if(config_file != string.Empty || node_count > 1) {
-              Console.WriteLine("-s cannot be used with -m or -c.\n");
+            if(config_file != string.Empty || node_count > 1 || tracker) {
+              Console.WriteLine("-s cannot be used with -m, -c, or -t.\n");
               PrintHelp();
             }
             sd = DhtServiceClient.GetSoapDhtClient();
             soap_client = true;
             break;
-         //added by jx - option for XmlRpc - pure testing purpose
           case "-x":
-            if (config_file != string.Empty || node_count > 1)
+            if (config_file != string.Empty || node_count > 1 || tracker)
             {
-                Console.WriteLine("-x cannot be used with -m or -c.\n");
-                PrintHelp();
+              Console.WriteLine("-x cannot be used with -m, -c, or -t.\n");
+              PrintHelp();
             }
             sd = DhtServiceClient.GetXmlDhtClient();
             soap_client = true;
             break;
           case "-dc":
-            if(node_count > 1 || dhtfiles.Count > 0) {
-              Console.WriteLine("-dc cannot be used with -m or -df.\n");
+            if(node_count > 1 || dhtfiles.Count > 0 || tracker) {
+              Console.WriteLine("-dc cannot be used with -m, -df, or -t.\n");
               PrintHelp();
             }
             dhtconsole = true;
             break;
           case "-df":
             index++;
-            if(node_count > 1 || dhtconsole) {
-              Console.WriteLine("-df cannot be used with -m or -dc.\n");
+            if(node_count > 1 || dhtconsole || tracker) {
+              Console.WriteLine("-df cannot be used with -m, -dc, or -t.\n");
               PrintHelp();
             }
             if((index != args.Length) && args[index] == "one_run") {
@@ -112,6 +107,13 @@ namespace Ipop {
               PrintHelp();
             }
             dhtfiles.Add(args[index]);
+            break;
+          case "-t":
+            if(soap_client || dhtconsole || dhtfiles.Count > 0) {
+              Console.WriteLine("-t cannot be used with -s, -dc, or -df.\n");
+              PrintHelp();
+            }
+            tracker = true;
             break;
           case "-help":
           default:
@@ -144,33 +146,36 @@ namespace Ipop {
         DhtConsole();
       }
       else {
-        while(true) Thread.Sleep(1000*60*60*24);
-      }
+        if(tracker) {
+          while(true) {
+            UpdateTracker();
+            Thread.Sleep(1000*60*60);
+          }
+        }
+        else {
+          while(true) Thread.Sleep(1000*60*60*24);
+        }
 
-      if(node != null) {
-        node.Disconnect();
-        Thread.Sleep(1000);
-      }
-      else if(nodes != null) {
         for(int i = 0; i < nodes.Length; i++) {
           nodes[i].Disconnect();
         }
         Thread.Sleep(1000);
+
+        Environment.Exit(0);
       }
 
-      Environment.Exit(0);
       return 0;
     }
 
     public static void StartBrunet(string config_file, int n) {
-      if(n > 1) {
-        nodes = new Node[n];
-      }
+      nodes = new Node[n];
+      dhts = new FDht[n];
+
+      //configuration file 
+      IPRouterConfig config = IPRouterConfigHandler.Read(config_file, true);
+      addresses = OSDependent.GetIPAddresses(config.DevicesToBind);
 
       for(int i = 0; i < n; i++) {
-        //configuration file 
-        IPRouterConfig config = IPRouterConfigHandler.Read(config_file, true);
-
         //local node
         Node brunetNode = new StructuredNode(IPOP_Common.GenerateAHAddress(),
           config.brunet_namespace);
@@ -217,19 +222,33 @@ namespace Ipop {
           ndht = new FDht(brunetNode, EntryFactory.Media.Memory, 3);
         }
 
-        Console.Error.WriteLine("Calling Connect");
-
         brunetNode.Connect();
-        if(n > 1) {
-          nodes[i] = brunetNode;
-        }
-        else {
-          node = brunetNode;
-          dht = ndht;
-        }
+        Console.Error.WriteLine("Called Connect, I am " + brunetNode.Address.ToString());
+        nodes[i] = brunetNode;
+        dhts[i] = ndht;
 
         if(config.EnableSoapDht && sdthread == null) {
-          sdthread = DhtServer.StartDhtServerAsThread(dht);
+          sdthread = DhtServer.StartDhtServerAsThread(dhts[0]);
+        }
+      }
+    }
+
+    // Get our eth0 IP address then post that and our Brunet address to the Dht
+    public static void UpdateTracker() {
+      string value = string.Empty;
+      foreach (IPAddress address in addresses) {
+        value += "|" + address.ToString();
+      }
+
+      for (int i = 0; i < nodes.Length; i++) {
+        while(true) {
+          try {
+            DhtOp.Put("plab_tracker", nodes[i].Address.ToString() + value, null, 7200, dhts[i]);
+            break;
+          }
+          catch(Exception) {
+            Thread.Sleep(10000);
+          }
         }
       }
     }
@@ -248,8 +267,8 @@ namespace Ipop {
             Console.Error.WriteLine("DATA:::Attempting Dht operation!");
           }
           string password = null;
-          if(dht != null) {
-            password = DhtOp.Create(data.key, data.value, data.password, ttl, dht);
+          if(dhts != null) {
+            password = DhtOp.Create(data.key, data.value, data.password, ttl, dhts[0]);
           }
           else {
             sd.Create(data.key, data.value, data.password, ttl);
@@ -302,8 +321,8 @@ namespace Ipop {
             Console.Write("Enter TTL:  ");
             int ttl = Int32.Parse(Console.ReadLine());
             Console.WriteLine("Attempting Put() on key : " + key);
-            if(dht != null) {
-              DhtOp.Put(key, value, password, ttl, dht);
+            if(dhts != null) {
+              DhtOp.Put(key, value, password, ttl, dhts[0]);
             }
             else {
               sd.Put(key, value, password, ttl);
@@ -321,8 +340,8 @@ namespace Ipop {
             int ttl = Int32.Parse(Console.ReadLine());
             Console.WriteLine("Attempting Create() on key : " + key);
             string result = null;
-            if(dht != null) {
-              result = DhtOp.Create(key, value, password, ttl, dht);
+            if(dhts != null) {
+              result = DhtOp.Create(key, value, password, ttl, dhts[0]);
             }
             else {
               result = sd.Create(key, value, password, ttl);
@@ -337,29 +356,21 @@ namespace Ipop {
           else if (str_oper.Equals("Get")) {
             Console.Write("Enter key:  ");
             string key = Console.ReadLine();
-            Hashtable[] results;
-            if(dht != null) {
-              results = DhtOp.Get(key, dht);
+            DhtGetResult[] results;
+            if(dhts != null) {
+              results = DhtOp.Get(key, dhts[0]);
             }
             else {
-              //modified by jx - Hashtable is already used here. So I just convert the result back to minimize modification
-              //results = sd.Get(key);
-              DhtGetResultItem[] items = sd.Get(key);
-              results = new Hashtable[items.Length];
-              for(int i = 0; i < items.Length; i++)
-              {
-              	results[i] = (Hashtable)items[i];
-              }
+              results = sd.Get(key);
             }
 
             Console.WriteLine("Number of results:  " + results.Length);
             Console.WriteLine("");
 
             for(int i = 0; i < results.Length; i++) {
-              Hashtable ht = results[i];
               Console.WriteLine("Result:  " + i);
-              Console.WriteLine("Value: " + ht["value_string"]);
-              Console.WriteLine("Age:  " + ht["age"] + "\n");
+              Console.WriteLine("Value: " + results[i].valueString);
+              Console.WriteLine("Age:  " + results[i].age + "\n");
             }
           }
           else if (str_oper.Equals("Done")) {
@@ -367,12 +378,10 @@ namespace Ipop {
             break;
           }
         }
-        //added by jx - distinguish between service exception and Dht exception
-        catch (System.Net.WebException)
-        {
-            Console.Error.WriteLine("Soap/XmlRpc Dht service not available");
+        catch (System.Net.WebException) {
+          Console.Error.WriteLine("Soap/XmlRpc Dht service not available");
         }
-        catch (Exception) {            
+        catch (Exception) {
           Console.WriteLine("Dht may not be available, yet, try again now or a little later");
         }
       }

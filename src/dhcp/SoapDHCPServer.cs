@@ -39,7 +39,7 @@ namespace Ipop {
     }
 
     protected override DHCPLeaseResponse GetLease(DHCPLease dhcp_lease, DecodedDHCPPacket packet) {
-      return dhcp_lease.GetLease(new SoapDHCPLeaseParam(DHCPCommon.StringToBytes(packet.NodeAddress, ':')));
+      return dhcp_lease.GetLease(new SoapDHCPLeaseParam(IPOP_Common.StringToBytes(packet.NodeAddress, ':')));
     }
 
     public override Object InitializeLifetimeService() {

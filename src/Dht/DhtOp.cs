@@ -52,7 +52,7 @@ namespace Ipop {
       return Create(key, valueb, password, ttl, dht);
     }
 
-    public static Hashtable[] Get(string key, FDht dht) {
+    public static DhtGetResult[] Get(string key, FDht dht) {
       byte[] utf8_key = Encoding.UTF8.GetBytes(key);
       ArrayList allValues = new ArrayList();
       int remaining = -1;
@@ -88,16 +88,16 @@ namespace Ipop {
         remaining = (int) result[1];
         token = (byte[]) result[2];
 
-        for (int i = 0; i < values.Count; i++) {
-          Hashtable ht = (Hashtable) values[i];
-          ht.Add("value_string", Encoding.UTF8.GetString((byte []) ht["value"]));
-          allValues.Add(ht);
+        foreach (Hashtable ht in values) {
+          DhtGetResult dgr = new DhtGetResult(ht);
+          allValues.Add(dgr);
         }
         foreach(BlockingQueue queue in q) {
           queue.Close();
         }
       }
-      return (Hashtable []) allValues.ToArray(typeof(Hashtable));
+
+      return (DhtGetResult []) allValues.ToArray(typeof(DhtGetResult));
     }
 
     public static string Put(string key, byte[] value, string password, int ttl, FDht dht) {

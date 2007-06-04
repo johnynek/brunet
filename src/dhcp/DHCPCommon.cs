@@ -9,8 +9,6 @@ using System.Runtime.Remoting.Lifetime;
 using System.Xml;
 using System.Xml.Serialization;
 
-using Brunet;
-using Brunet.Dht;
 /* For a complete description of the contents of a DHCP packet see
      http://rfc.net/rfc2131.html for the DHCP main portion and ...
      http://rfc.net/rfc2132.html for the options                     */
@@ -145,36 +143,6 @@ namespace Ipop {
     abstract protected bool IsValidBrunetNamespace(string brunet_namespace);
     abstract protected DHCPLease GetDHCPLease(string ipop_namespace);
     abstract protected DHCPLeaseResponse GetLease(DHCPLease dhcp_lease, DecodedDHCPPacket packet);
-  }
-
-  public class DHCPCommon {
-    public static byte [] StringToBytes(string input, char sep) {
-      char [] separator = {sep};
-      string[] ss = input.Split(separator);
-      byte [] ret = new byte[ss.Length];
-      for (int i = 0; i < ss.Length; i++) {
-	ret[i] = Byte.Parse(ss[i].Trim());
-      }
-      return ret;
-    }
-
-    public static byte [] HexStringToBytes(string input, char sep) {
-      char [] separator = {sep};
-      string[] ss = input.Split(separator);
-      byte [] ret = new byte[ss.Length];
-      for (int i = 0; i < ss.Length; i++) {
-	ret[i] = Byte.Parse(ss[i].Trim(), NumberStyles.HexNumber);
-      }
-      return ret;
-    }
-
-    public static string BytesToString(byte [] input, char sep) {
-      string return_msg = "";
-      for(int i = 0; i < input.Length - 1; i++)
-        return_msg += input[i].ToString() + sep.ToString();
-      return_msg += input[input.Length - 1];
-      return return_msg;
-    }
   }
 
   public class LifeTimeSponsor : ISponsor {
