@@ -14,6 +14,7 @@
         <include name="Brunet.dll" />
         <include name="libtuntap.so" />
         <include name="Brunet.Dht.dll" />
+        <include name="CookComputing.XmlRpcV2.dll" />
       </fileset>
     </copy>
     <csc target="exe" output="${build.dir}/IPRouter.exe">
@@ -26,8 +27,12 @@
         <include name="NodeMapping.cs"/>
         <include name="RouteMissHandler.cs"/>
         <include name="Shutdown.cs"/>
+        <include name="../Dht/IDht.cs"/>
         <include name="../Dht/DhtOp.cs"/>
         <include name="../Dht/DhtData.cs"/>
+        <include name="../Dht/DhtService.cs"/>
+        <include name="../Dht/SoapDht.cs"/>
+        <include name="../Dht/XmlRpcDht.cs"/>
         <include name="../Common/OSDependent.cs"/>
         <include name="../Common/IPRouterConfig.cs"/>
         <include name="../Common/IPOP_Common.cs"/>
@@ -49,6 +54,7 @@
         <include name="${build.dir}/DHCPCommon.dll" />
         <include name="System.Runtime.Remoting.dll"/>
         <include name="Mono.Posix.dll"/>
+        <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />
       </references>
     </csc>
   </target>

@@ -24,6 +24,7 @@ namespace Ipop {
     public static NodeMapping node;
     private static byte []routerMAC = new byte[]{0xFE, 0xFD, 0, 0, 0, 0};
     private static bool in_dht;
+    private static Thread sdthread;
 
 /*  DHT added code */
 
@@ -36,6 +37,9 @@ namespace Ipop {
       node.brunet = new BrunetTransport(ether, config.brunet_namespace,
         node, config.EdgeListeners, config.DevicesToBind, RemoteTAs, debug,
         config.dht_media);
+      if(config.EnableSoapDht && sdthread == null) {
+        sdthread = DhtServer.StartDhtServerAsThread(node.brunet.dht);
+      }
       brunet_arp_cache = new Cache(100);
       RouteMissHandler.RouteMissDelegate dlgt =
         new RouteMissHandler.RouteMissDelegate(RouteMissCallback);
