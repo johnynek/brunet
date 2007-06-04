@@ -155,7 +155,9 @@ namespace Ipop {
         else {
           while(true) Thread.Sleep(1000*60*60*24);
         }
+      }
 
+      if(nodes != null) {
         for(int i = 0; i < nodes.Length; i++) {
           nodes[i].Disconnect();
         }

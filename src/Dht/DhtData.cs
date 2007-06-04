@@ -54,24 +54,13 @@ namespace Ipop {
       fs.Close();
     }
   }
-}
 
-namespace Brunet.Dht {
-    /// <summary>
-    /// An entry of the array returned by Get(...) in Dht interfaces.
-    /// </summary>
   [Serializable]
   public class DhtGetResult {
-    private static readonly string HT_KEY_VALUE = "value";
-    private static readonly string HT_KEY_AGE = "age";
-
     public int age;
     public byte[] value;
 
-    /// <summary>
-    /// A String representation of the field byte[] data for convenience
-    /// </summary>
-    public string valueString { 
+    public string valueString {
       get { return Encoding.UTF8.GetString(value); }
       // XmlRpc complains if this doesn't exist
       set { ; }
@@ -79,34 +68,59 @@ namespace Brunet.Dht {
 
     public DhtGetResult() {;}
 
-    public DhtGetResult(string value, int age)
-    {
+    public DhtGetResult(string value, int age) {
       this.value = Encoding.UTF8.GetBytes(value);
       this.age = age;
     }
 
-    public DhtGetResult(Hashtable ht) {
-      this.age = (int) ht[HT_KEY_AGE];
-      this.value = (byte[]) ht[HT_KEY_VALUE];
+    public DhtGetResult(byte[] value, int age) {
+      this.value = value;
+      this.age = age;
     }
 
-    /// <summary>
-    /// All Explicit conversion
-    /// </summary>
-    /// <param name="item"></param>
-    /// <returns></returns>
-    /// <example>Hashtable ht = (Hashtable)item</example>
-    public static explicit operator Hashtable(DhtGetResult item) {
+    public DhtGetResult(Hashtable ht) {
+      this.value = (byte[]) ht["value"];
+      this.age = (int) ht["age"];
+    }
+
+    public static explicit operator Hashtable(DhtGetResult dgr) {
       Hashtable ht = new Hashtable();
-      ht.Add(HT_KEY_VALUE, item.value);
-      ht.Add(HT_KEY_AGE, item.age);
-      ht.Add("value_string",item.valueString);
+      ht.Add("age", dgr.age);
+      ht.Add("value", dgr.value);
       return ht;
     }
 
     public override string ToString() {
-      return string.Format("{0}={1}, {2}={3}", HT_KEY_VALUE, valueString,  HT_KEY_AGE, age);
+      return string.Format("value = {0}, age = {1}", valueString, age);
     }
+
+    public override bool Equals(Object odgr) {
+      DhtGetResult dgr = (DhtGetResult) odgr;
+      if(dgr.value.Length != this.value.Length) {
+        return false;
+      }
+      for(int i = 0; i < this.value.Length; i++) {
+        if(dgr.value[i] != this.value[i]) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    public override int GetHashCode() {
+      return value.GetHashCode();
+    }
+
+/*    public static bool operator ==(DhtGetResult dgr0, DhtGetResult dgr1) {
+      if(dgr0.value == dgr1.value)
+        return true;
+      return false;
+    }
+
+    public static bool operator !=(DhtGetResult dgr0, DhtGetResult dgr1) {
+      if(dgr0.value == dgr1.value)
+        return true;
+      return false;
+    }*/
   }
 }
-

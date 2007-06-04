@@ -52,19 +52,28 @@ namespace Ipop {
       return Create(key, valueb, password, ttl, dht);
     }
 
+    // This method could be heavily parallelized
     public static DhtGetResult[] Get(string key, FDht dht) {
       byte[] utf8_key = Encoding.UTF8.GetBytes(key);
       ArrayList allValues = new ArrayList();
       int remaining = -1;
-      byte[] token = null;
+      ArrayList tokens = new ArrayList();
 
       while(remaining != 0) {
-        BlockingQueue[] q = dht.GetF(utf8_key, 1000, token);
+        remaining = -1;
+        BlockingQueue[] q = null;
+        if(tokens.Count == 0) {
+          q = dht.GetF(utf8_key, 1000, null);
+        }
+        else {
+          q = dht.GetF(utf8_key, 1000, (byte [][]) tokens.ToArray(typeof(byte[])));
+        }
+
         ArrayList [] results = BlockingQueue.ParallelFetchWithTimeout(q, 1000);
 
+        tokens.Clear();
         ArrayList result = null;
-        for (int i = 0; i < results.Length; i++) {
-          ArrayList q_replies = results[i];
+        foreach (ArrayList q_replies in results) {
           foreach (RpcResult rpc_replies in q_replies) {
           //investigating individual results
             try{
@@ -73,28 +82,29 @@ namespace Ipop {
                 continue;
               }
               result = rpc_result;
-              break;
+              ArrayList values = (ArrayList) result[0];
+              int local_remaining = (int) result[1];
+              if(local_remaining > remaining) {
+                remaining = local_remaining;
+              }
+              tokens.Add((byte[]) result[2]);
+
+              foreach (Hashtable ht in values) {
+                DhtGetResult dgr = new DhtGetResult(ht);
+                if(!allValues.Contains(dgr)) {
+                  allValues.Add(dgr);
+                }
+              }
             }
             catch (Exception) {
               return null;
             }
           }
         }
-        if (result == null) {
-          return null;
-        }
+      }
 
-        ArrayList values = (ArrayList) result[0];
-        remaining = (int) result[1];
-        token = (byte[]) result[2];
-
-        foreach (Hashtable ht in values) {
-          DhtGetResult dgr = new DhtGetResult(ht);
-          allValues.Add(dgr);
-        }
-        foreach(BlockingQueue queue in q) {
-          queue.Close();
-        }
+      if(allValues.Count == 0) {
+        return null;
       }
 
       return (DhtGetResult []) allValues.ToArray(typeof(DhtGetResult));
