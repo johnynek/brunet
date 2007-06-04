@@ -8,8 +8,6 @@ using System.Security.Cryptography;
 using Brunet;
 
 namespace Brunet.Dht {
-
-
   public class TableServer {
     protected object _sync;
 
