@@ -16,9 +16,7 @@
         <include name="Brunet.Dht.dll" />
         <include name="log4net.dll" />
         <include name="DHCPCommon.dll" />
-        <!--added by jx-->
-        <include name="CookComputing.XmlRpc.dll" />
-        <!--add end-->
+        <include name="CookComputing.XmlRpcV2.dll" />
       </fileset>
     </copy>
     <csc target="exe" output="${build.dir}/IPRouter.exe">
@@ -57,22 +55,18 @@
         <include name="SoapDht.cs"/>
         <include name="DhtOp.cs"/>
         <include name="DhtData.cs"/>
-        <!--added by jx-->
         <include name="Commons.cs" />
         <include name="DhtService.cs" />
         <include name="DhtServiceClient.cs" />
         <include name="IDht.cs" />
         <include name="XmlRpcDht.cs" />
-        <!--add end-->
       </sources>
       <references>
         <include name="${build.dir}/Brunet.dll"/>
         <include name="${build.dir}/Brunet.Dht.dll"/>
         <include name="System.Runtime.Remoting.dll"/>
         <include name="Mono.Posix.dll"/>
-        <!--added by jx-->
-        <include name="${build.dir}/CookComputing.XmlRpc.dll" />
-        <!--add end-->        
+        <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />  
       </references>
     </csc>
     <csc target="exe" output="${build.dir}/BrokenRingTester.exe">
@@ -103,7 +97,6 @@
         <include name="IPRouterConfig.cs"/>
       </sources>
     </csc>
-    <!--Added by jx. -->
     <csc target="library"
          debug="${debug}"
          output="${build.dir}/DhtServiceClient.dll">
@@ -114,7 +107,7 @@
       </sources>
       <references>
         <include name="System.Runtime.Remoting.dll"/>        
-        <include name="${build.dir}/CookComputing.XmlRpc.dll" />        
+        <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />        
       </references>
     </csc>
     <copy todir="${lib.dir}">
@@ -122,6 +115,5 @@
         <include name="DhtServiceClient.dll" />
       </fileset>
     </copy>
-    <!--Add End-->
   </target>
 </project>

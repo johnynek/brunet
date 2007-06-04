@@ -3,7 +3,6 @@ using System.Runtime.Remoting.Channels;
 using System.Runtime.Remoting;
 using CookComputing.XmlRpc;
 using Brunet.Dht;
-using CookComputing.XmlRpc;
 using System;
 
 namespace Ipop
@@ -12,11 +11,6 @@ namespace Ipop
 	{
 		public static IDht GetSoapDhtClient()
 		{
-            //HttpChannel ch = new HttpChannel();
-            //ChannelServices.RegisterChannel(ch);
-            //RemotingConfiguration.RegisterWellKnownClientType(typeof(SoapDht),
-            //    "http://127.0.0.1:64221/sd.rem");
-            //return new SoapDht();
             IDht dht = (IDht)Activator.GetObject(typeof(IDht), "http://127.0.0.1:64221/sd.rem");
             return dht;
 		}

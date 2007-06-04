@@ -47,17 +47,4 @@ namespace Ipop
 
         public void PGet() { ;}
     }
-
-    //by jx - GetSoapDhtClient has been changed and moved to DhtServiceClient for modularity
-    //public class SoapDhtClient
-    //{
-    //    public static IDht GetSoapDhtClient()
-    //    {
-    //        HttpChannel ch = new HttpChannel();
-    //        ChannelServices.RegisterChannel(ch);
-    //        RemotingConfiguration.RegisterWellKnownClientType(typeof(SoapDht),
-    //            "http://127.0.0.1:64221/sd.rem");
-    //        return new SoapDht();
-    //    }
-    //}
 }
