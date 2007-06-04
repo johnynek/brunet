@@ -53,7 +53,7 @@ namespace Ipop {
     }
 
     protected override DHCPLeaseResponse GetLease(DHCPLease dhcp_lease, DecodedDHCPPacket packet) {
-      DhtDHCPLeaseParam dht_param = new DhtDHCPLeaseParam(packet.yiaddr, packet.StoredPassword, DHCPCommon.StringToBytes(packet.NodeAddress, ':'));
+      DhtDHCPLeaseParam dht_param = new DhtDHCPLeaseParam(packet.yiaddr, packet.StoredPassword, IPOP_Common.StringToBytes(packet.NodeAddress, ':'));
       DHCPLeaseResponse ret = dhcp_lease.GetLease(dht_param);
       return ret;
     }

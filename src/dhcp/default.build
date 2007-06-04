@@ -2,50 +2,28 @@
 <project name="ipop-dhcp" default="build" basedir=".">
   <description> Builds DHCP files for IPOP-1.0 and IPOP-1.1. </description>
   <property name="debug" value="true" overwrite="false" />
-  <property name="lib.dir" value="../../lib"/>
-  <property name="lib.name" value="DHCPCommon.dll"/>
   <property name="build.dir" value="build" />
+  <property name="lib.dir" value="../../lib"/>
   <target name="clean" description="Remove DHCPCommon.dll and DHCPServer.exe">
-      <delete dir="${build.dir}" failonerror="true"/>
-      <delete file="${lib.dir}/${lib.name}.dll" failonerror="true"/>
+    <delete dir="${build.dir}" failonerror="true"/>
   </target>
-  <target name="build" description="Build DHCPCommon.dll and DHCPServer.exe">
+  <target name="build" description="Build DHCPServer.exe">
       <mkdir dir="${build.dir}" failonerror="true"/>
-      <mkdir dir="${lib.dir}" failonerror="true"/>
-      <csc target="library" output="${build.dir}/DHCPCommon.dll">
-          <sources failonempty="true">
-	     <include name="common/DHCPCommon.cs"/>
-             <include name="common/DHCPPacket.cs"/>
-             <include name="common/DHCPOptionsList.cs"/>
-	     <include name="common/DHCPLease.cs"/>
-	     <include name="common/DHCPServerConfig.cs"/>
-             <include name="common/SoapDHCPServer.cs"/>
-             <include name="common/DhtDHCPServer.cs"/>
-             <include name="common/DhtDHCPLease.cs"/>
-             <include name="common/DhtIP.cs"/>
-            <include name="../ipop/DhtOp.cs"/>
-	  </sources>
-          <references>
-	     <include name="System.Runtime.Remoting.dll"/>
-             <include name="${lib.dir}/Brunet.dll" />
-             <include name="${lib.dir}/Brunet.Dht.dll" />
-	  </references>
-      </csc>
-      <copy todir="${lib.dir}" failonerror="true">
-          <fileset basedir="${build.dir}">
-	      <include name="DHCPCommon.dll" />
-	  </fileset>
-      </copy>
       <csc target="exe" output="${build.dir}/DHCPServer.exe">
           <sources failonempty="true">
-	     <include name="DHCPServer.cs"/>
-	  </sources>
-	  <references>
-             <include name="System.Runtime.Remoting.dll" />
-             <include name="${lib.dir}/DHCPCommon.dll" />
-             <include name="${lib.dir}/Brunet.dll" />
-             <include name="${lib.dir}/Brunet.Dht.dll" />
-	  </references>
+            <include name="DHCPServer.cs"/>
+            <include name="DHCPCommon.cs"/>
+            <include name="DHCPPacket.cs"/>
+            <include name="DHCPOptionsList.cs"/>
+            <include name="DHCPLease.cs"/>
+            <include name="DHCPServerConfig.cs"/>
+            <include name="SoapDHCPServer.cs"/>
+            <include name="../Common/IPOP_Common.cs"/>
+          </sources>
+          <references>
+            <include name="System.Runtime.Remoting.dll" />
+            <include name="${lib.dir}/Brunet.dll"/>
+          </references>
       </csc>
   </target>
 </project>

@@ -54,17 +54,17 @@ namespace Ipop {
         ((byte) (leasetime))};
       namespace_value = config.value;
       logsize = config.LogSize * 1024; /* Bytes */
-      lower = DHCPCommon.StringToBytes(config.pool.lower, '.');
-      upper = DHCPCommon.StringToBytes(config.pool.upper, '.');
-      netmask = DHCPCommon.StringToBytes(config.netmask, '.');
+      lower = IPOP_Common.StringToBytes(config.pool.lower, '.');
+      upper = IPOP_Common.StringToBytes(config.pool.upper, '.');
+      netmask = IPOP_Common.StringToBytes(config.netmask, '.');
 
       if(config.reserved != null) {
         reservedIP = new byte[config.reserved.value.Length + 1][];
         reservedMask = new byte[config.reserved.value.Length + 1][];
         for(int i = 1; i < config.reserved.value.Length + 1; i++) {
-          reservedIP[i] = DHCPCommon.StringToBytes(
+          reservedIP[i] = IPOP_Common.StringToBytes(
             config.reserved.value[i-1].ip, '.');
-          reservedMask[i] = DHCPCommon.StringToBytes(
+          reservedMask[i] = IPOP_Common.StringToBytes(
             config.reserved.value[i-1].mask, '.');
         }
       }
@@ -252,8 +252,8 @@ namespace Ipop {
             FileMode.Append, FileAccess.Write);
         StreamWriter sw = new StreamWriter(file);
         sw.WriteLine(index);
-        sw.WriteLine(DHCPCommon.BytesToString((byte[]) LeaseIPs[index], '.'));
-        sw.WriteLine(DHCPCommon.BytesToString((byte[]) LeaseHWAddrs[index], ':'));
+        sw.WriteLine(IPOP_Common.BytesToString((byte[]) LeaseIPs[index], '.'));
+        sw.WriteLine(IPOP_Common.BytesToString((byte[]) LeaseHWAddrs[index], ':'));
         sw.WriteLine(((DateTime) LeaseExpirations[index]).Ticks);
         sw.Close();
         file.Close();
@@ -305,8 +305,8 @@ namespace Ipop {
         StreamWriter sw = new StreamWriter(file);
         for(int i = 0; i < LeaseIPs.Count; i++) {
             sw.WriteLine(i);
-            sw.WriteLine(DHCPCommon.BytesToString((byte[]) LeaseIPs[i], '.'));
-            sw.WriteLine(DHCPCommon.BytesToString((byte[]) LeaseHWAddrs[i], ':'));
+            sw.WriteLine(IPOP_Common.BytesToString((byte[]) LeaseIPs[i], '.'));
+            sw.WriteLine(IPOP_Common.BytesToString((byte[]) LeaseHWAddrs[i], ':'));
             sw.WriteLine(((DateTime) LeaseExpirations[i]).Ticks);
         }
         sw.Close();
@@ -332,14 +332,14 @@ namespace Ipop {
           string ip_str = sr.ReadLine();
           string hw_str = sr.ReadLine();
           if(LeaseIPs.Count <= index) {
-            LeaseIPs.Add(DHCPCommon.StringToBytes(ip_str, '.'));
-            LeaseHWAddrs.Add(DHCPCommon.StringToBytes(hw_str, ':'));
+            LeaseIPs.Add(IPOP_Common.StringToBytes(ip_str, '.'));
+            LeaseHWAddrs.Add(IPOP_Common.StringToBytes(hw_str, ':'));
             LeaseExpirations.Add(new DateTime(long.Parse(sr.ReadLine())));
             this.index++;
           }
           else {
-            LeaseIPs[index] = DHCPCommon.StringToBytes(ip_str, '.');
-            LeaseHWAddrs[index] = DHCPCommon.StringToBytes(hw_str, ':');
+            LeaseIPs[index] = IPOP_Common.StringToBytes(ip_str, '.');
+            LeaseHWAddrs[index] = IPOP_Common.StringToBytes(hw_str, ':');
             LeaseExpirations[index] = new DateTime(long.Parse(sr.ReadLine()));
           }
         }
@@ -356,8 +356,8 @@ namespace Ipop {
     public void WriteCache() {
       for(int i = 0; i < LeaseIPs.Count; i++) {
         Console.Error.WriteLine(i);
-        Console.Error.WriteLine(DHCPCommon.BytesToString((byte[]) LeaseIPs[i], '.'));
-        Console.Error.WriteLine(DHCPCommon.BytesToString((byte[]) LeaseHWAddrs[i], ':'));
+        Console.Error.WriteLine(IPOP_Common.BytesToString((byte[]) LeaseIPs[i], '.'));
+        Console.Error.WriteLine(IPOP_Common.BytesToString((byte[]) LeaseHWAddrs[i], ':'));
         Console.Error.WriteLine(((DateTime) LeaseExpirations[i]).Ticks);
         Console.Error.WriteLine("\n");
       }
