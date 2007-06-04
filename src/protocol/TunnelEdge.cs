@@ -204,6 +204,7 @@ namespace Brunet
       if (cons.Edge == this) {
         return;
       }
+      IEnumerable lost = null;
       lock(_sync) {
 	 //note we cannot test for connection address being present in the forwarders array, 
 	 //this might be a leaf connection disconnect
@@ -224,16 +225,19 @@ namespace Brunet
 	   Console.Error.WriteLine("Updated (on disconnect) remoteTA: {0}", _remoteta);
 #endif
 	 }
-	 //now send a control packet
-	 TunnelEdgeListener tun_listener = _send_cb as TunnelEdgeListener;
 	 //in case there is a connection for this tunnel edge
 	 if (!_is_connected) {
 	   _lost_summary.Add(cons.Address);
 	 } else {
 	   ArrayList temp = new ArrayList();
 	   temp.Add(cons.Address);
-	   tun_listener.HandleControlSend(this, new ArrayList(), temp);
+           lost = temp;
 	 }
+      }
+      if( lost != null ) {
+        //now send a control packet
+	TunnelEdgeListener tun_listener = _send_cb as TunnelEdgeListener;
+        tun_listener.HandleControlSend(this, new ArrayList(), lost);
       }
     }
 
@@ -246,13 +250,17 @@ namespace Brunet
         return;
       }
 
+      bool send_control = false;
+      IEnumerable added = null;
+      IEnumerable lost = null;
       lock(_sync) {
-	 TunnelEdgeListener tun_listener = _send_cb as TunnelEdgeListener;
 	 if (!_is_connected) {
 	   if (cons.Edge == this) {
-	     _is_connected = true;
 	     //this connection caused us to get connected
-	     tun_listener.HandleControlSend(this, _acquire_summary, _lost_summary);
+	     _is_connected = true;
+             send_control = true;
+             added = _acquire_summary;
+             lost = _lost_summary;
 	   } else {
 	     //only add non-tunnel connections
 	     if (cons.Edge.TAType != TransportAddress.TAType.Tunnel) {
@@ -263,9 +271,15 @@ namespace Brunet
 	   if (cons.Edge.TAType != TransportAddress.TAType.Tunnel) {	   
 	     ArrayList temp = new ArrayList();
 	     temp.Add(cons.Address);
-	     tun_listener.HandleControlSend(this, temp, new ArrayList());	     
+             added = temp;
+             lost = new ArrayList();
+             send_control = true;
 	   }
 	 }
+      }
+      if( send_control ) {
+        TunnelEdgeListener tun_listener = _send_cb as TunnelEdgeListener;
+        tun_listener.HandleControlSend(this, added, lost);
       }
     }
     
