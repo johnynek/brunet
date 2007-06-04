@@ -511,6 +511,5 @@ namespace Brunet.Dht {
           new EventHandler(StatusChangedHandler);
       } //end of lock
     }
-
   }
 }
