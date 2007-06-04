@@ -14,8 +14,6 @@ using System.Threading;
 using Brunet;
 
 namespace Brunet.Dht {
-
-
   public class TableServer {
     protected object _sync;
 

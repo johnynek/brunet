@@ -74,7 +74,7 @@ namespace Brunet.Dht {
       return q;
     }
 
-    public BlockingQueue[] GetF(byte[] key, int maxbytes, byte[] token) {
+    public BlockingQueue[] GetF(byte[] key, int maxbytes, byte[][] token) {
       if (!_dhtactivated) {
         throw new DhtException("DhtClient: Not yet activated.");
       }
@@ -85,7 +85,12 @@ namespace Brunet.Dht {
         Address target = new AHAddress(MemBlock.Reference(b[k]));
         AHSender s = new AHSender(_rpc.Node, target);
         q[k] = new BlockingQueue();
-        _rpc.Invoke(s,q[k], "dht.Get", b[k], maxbytes, token);
+        if(token != null) {
+          _rpc.Invoke(s,q[k], "dht.Get", b[k], maxbytes, token[k]);
+        }
+        else {
+          _rpc.Invoke(s,q[k], "dht.Get", b[k], maxbytes, null);
+        }
       }
       return q;
     }
