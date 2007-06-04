@@ -91,11 +91,15 @@ namespace Ipop {
 
     public void HandleRouteMiss(IPAddress ip) {
       lock(_sync) {
-        if (_route_miss_result_table.ContainsKey(ip)) {
-          return;
-        }
-        _route_miss_result_table[ip] = new RouteMissResult(ip);
-        ThreadPool.QueueUserWorkItem(new WaitCallback(this.BrunetARPHandler), (object) ip);
+        if (false == _route_miss_result_table.ContainsKey(ip)) {
+	  /*
+	   * If we were already looking up this IPAddress, there
+	   * would be a table entry, since there is not, start a
+	   * new lookup
+	   */
+          _route_miss_result_table[ip] = new RouteMissResult(ip);
+          ThreadPool.QueueUserWorkItem(new WaitCallback(this.BrunetARPHandler), ip);
+	}
       }
     }
 
@@ -110,33 +114,50 @@ namespace Ipop {
         string str_key = "dhcp:ipop_namespace:" + _ipop_namespace + ":ip:" + ip.ToString();	
         byte[] dht_key = Encoding.UTF8.GetBytes(str_key);
         BlockingQueue[] q = _dht.GetF(dht_key, 1000, null);
-        for (int i = 0; i < q.Length; i++) {
-          _queue_to_ip[q[i]] =  ip;
-        }
+	//Don't let the table change while we're doing this:
+	lock(_sync) {
+          for (int i = 0; i < q.Length; i++) {
+            _queue_to_ip[q[i]] =  ip;
+          }
+	}
         BlockingQueue.ParallelFetchWithTimeout(q, 1000, new BlockingQueue.FetchDelegate(RouteMissFetch));
-        //we are now done
-        _route_miss_result_table.Remove(ip);
       } catch(Exception) {
-        //in case of the exception too, clear thhe Brunet-ARP entry
-        _route_miss_result_table.Remove(ip);
+        /*
+	 * Oh well, something bad happened...
+	 */
+      }
+      finally {
+        //No matter what, clear the table entry:
+        lock( _sync ) {
+          _route_miss_result_table.Remove(ip);
+	}
       }
     }
 
     protected ArrayList RouteMissFetch(BlockingQueue q, int max_replies) {
 
-      ArrayList replies = new ArrayList();
-      IPAddress ip = (IPAddress) _queue_to_ip[q];
-      RouteMissResult route_miss_result = (RouteMissResult) _route_miss_result_table[ip];
+      IPAddress ip;
+      RouteMissResult route_miss_result;
+      lock( _sync ) {
+        //Get the IP address for this queue and remove it from the hashtable:
+        ip = (IPAddress) _queue_to_ip[q];
+        _queue_to_ip.Remove(q);
+        route_miss_result = (RouteMissResult) _route_miss_result_table[ip];
+      }
 
-      while (true) {
+      ArrayList replies = new ArrayList();
+      while (max_replies > 0) {
         try{
-          if (max_replies == 0) {
-            break;
-          }
-          RpcResult res = q.Dequeue() as RpcResult;
+          RpcResult res = (RpcResult)q.Dequeue();
           replies.Add(res);
           ArrayList result = (ArrayList) res.Result;
           if (result == null || result.Count < 3) {
+	    /*
+	     * What the hell is this case??  Someone should
+	     * explain why we are doing this.  It appears
+	     * to be for error checking the result, but it's
+	     * not clear.
+	     */
             continue;
           }
           ArrayList values = (ArrayList) result[0];
@@ -160,7 +181,6 @@ namespace Ipop {
         }
       }
       //this is where we get rid of the queue
-      _queue_to_ip.Remove(q);
       return replies;
     }
   }
