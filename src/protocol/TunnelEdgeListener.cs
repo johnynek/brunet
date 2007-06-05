@@ -193,11 +193,10 @@ namespace Brunet
 	tun_ta = new TunnelTransportAddress(tun_ta.Target, forwarders);
 	
 	//choose a locally unique id
-	int localid;
-	int remoteid = 0;
-	Packet p = null;
 	lock( _sync ) {
 	  //Get a random ID for this edge:
+	  int localid;
+	  int remoteid = 0;
 	  do {
 	    localid = _rand.Next();
 	    //Make sure we don't have negative ids
@@ -245,7 +244,7 @@ namespace Brunet
 	  Console.Error.WriteLine("Creating a memory stream holding the payload");
 #endif
 	  AdrConverter.Serialize(args, ms);
-	  p = new AHPacket(1, 2, _node.Address, tun_ta.Target, AHPacket.AHOptions.Exact, 
+	  Packet p = new AHPacket(1, 2, _node.Address, tun_ta.Target, AHPacket.AHOptions.Exact, 
 			   AHPacket.Protocol.Tunneling, ms.ToArray());
 #if TUNNEL_DEBUG
 	  Console.Error.WriteLine("Created a request packet.");
@@ -272,7 +271,15 @@ namespace Brunet
       public EdgeCreationCallback ECB;
       public Packet RequestPacket;
       public ArrayList Senders;
-      public int Attempts = 3;
+      public int Attempts = 4;
+      public void Resend(Random r) {
+	Edge e = (Edge) Senders[ r.Next(0, ecs.Senders.Count) ];
+	try {
+	  e.Send(RequestPacket);
+	} catch(Exception ex) {
+	  Console.Error.WriteLine(ex);
+	}
+      }
     }
     protected Hashtable _ecs_ht;
     protected DateTime _last_check;
@@ -338,12 +345,7 @@ namespace Brunet
 #if TUNNEL_DEBUG
 	Console.Error.WriteLine("Sending edge (localid: {0}) request: {1}", ecs.Id, ecs.RequestPacket);
 #endif
-	Edge e = (Edge) ecs.Senders[_rand.Next(0, ecs.Senders.Count)];
-	try {
-	  e.Send(ecs.RequestPacket);
-	} catch(Exception ex) {
-	  Console.Error.WriteLine(ex);
-	}
+        ecs.Resend(_rand);
       }
     }
 
@@ -517,73 +519,65 @@ namespace Brunet
 #if TUNNEL_DEBUG
 	Console.Error.WriteLine("Receiving edge response: {0}", packet);
 #endif
-	//unlikely to be a new edge
-	bool is_new_edge = false;
-
         TunnelEdge e;
+	EdgeCreationState ecs = null;
         lock( _sync ) {	
-	  e = (TunnelEdge) _id_ht[localid];
+          //This gets the edge with the matching ids:
+	  e = GetTunnelEdge(localid, 0);
+  	  if (e != null) {
+  #if TUNNEL_DEBUG
+  	  Console.Error.WriteLine("Must verify the remoteTA for the response: {0}", packet);
+  #endif
+  	  //possible response to our create edge request, make sure this 
+  	  //is the case by verifying the remote TA
+  	  ArrayList args = (ArrayList) AdrConverter.Deserialize(rest_of_payload);
+  	  Address target = new AHAddress(MemBlock.Reference((byte[]) args[0]));
+  	  //list of packet forwarders
+  	  ArrayList forwarders = new ArrayList();
+  	  for (int i = 1; i < args.Count; i++) {
+  	    forwarders.Add(new AHAddress(MemBlock.Reference((byte[]) args[i])));
+  	  }
+  	  
+  	  TunnelTransportAddress remote_ta = new TunnelTransportAddress(target, forwarders);
+  #if TUNNEL_DEBUG
+  	  Console.Error.WriteLine("response.RemoteTA: {0}", remote_ta);
+  	  Console.Error.WriteLine("edge.RemoteTA: {0}", e.RemoteTA);
+  #endif
+  	  if (e.RemoteTA.Equals(remote_ta)) {
+              //Make sure they are trying to talk to us by checking
+              //that the TA points to the same node
+  	    e.RemoteID = remoteid;
+  #if TUNNEL_DEBUG
+  	    Console.Error.WriteLine("Edge protocol complete: {0}", e);
+  #endif
+  	    //raise an edge creation event 
+  	    //this was an outgoing edge
+            ecs = (EdgeCreationState) _ecs_ht[localid];
+	    _ecs_ht.Remove(localid);
+  	    
+  	  } else {
+  	    //remote TAs do not match (ignore)
+  	  } 
+  	}
+        else {
+          //We had no matching edge, or already handled this response
         }
-	if (e == null) {
-	  //this is strange
-	} 
-	else if (e.RemoteID == 0) {
-#if TUNNEL_DEBUG
-	  Console.Error.WriteLine("Must verify the remoteTA for the response: {0}", packet);
-#endif
-	  //possible response to our create edge request, make sure this 
-	  //is the case by verifying the remote TA
-	  ArrayList args = (ArrayList) AdrConverter.Deserialize(rest_of_payload);
-	  Address target = new AHAddress(MemBlock.Reference((byte[]) args[0]));
-	  //list of packet forwarders
-	  ArrayList forwarders = new ArrayList();
-	  for (int i = 1; i < args.Count; i++) {
-	    forwarders.Add(new AHAddress(MemBlock.Reference((byte[]) args[i])));
-	  }
-	  
-	  TunnelTransportAddress remote_ta = new TunnelTransportAddress(target, forwarders);
-#if TUNNEL_DEBUG
-	  Console.Error.WriteLine("response.RemoteTA: {0}", remote_ta);
-	  Console.Error.WriteLine("edge.RemotTA: {0}", e.RemoteTA);
-#endif
-	  if (e.RemoteTA.Equals(remote_ta)) {
-            //Make sure they are trying to talk to us by checking
-            //that the TA points to the same node
-	    e.RemoteID = remoteid;
-#if TUNNEL_DEBUG
-	    Console.Error.WriteLine("Edge protocol complete: {0}", e);
-#endif
-	    //raise an edge creation event 
-	    //this was an outgoing edge
-	    is_new_edge = true;
-	    
-	  } else {
-	    //remote TAs do not match (ignore)
-	  } 
-	}
-	else if (e.RemoteID != remoteid) {
-	  //we simply ignore this
-	}
-	if (is_new_edge) {
+          
+        } //End of the lock
+
+        if( ecs != null ) {
 	  //this would be an outgoing edge
 #if TUNNEL_DEBUG
 	  Console.Error.WriteLine("remoteid: {0}, localid: {1}", remoteid, localid);
 #endif      
-	  EdgeCreationState ecs = null;
-          lock( _sync ) {
-            ecs = (EdgeCreationState) _ecs_ht[localid];
-	    _ecs_ht.Remove(localid);
-          }
-          if( ecs != null ) {
-	    e.CloseEvent += this.CloseHandler;
-	    Console.Error.WriteLine("announcing tunnel edge (outgoing): {0}", e);
-	    ecs.ECB(true, e, null);
-          }
-          else {
+	  e.CloseEvent += this.CloseHandler;
+	  Console.Error.WriteLine("announcing tunnel edge (outgoing): {0}", e);
+	  ecs.ECB(true, e, null);
+        }
+        else {
             //This must have already been handled, we don't want to create
             //more than one edge, just ignore it.
-          }
-	}
+        }
     }
     /**
      * When we get an EdgeRequest message, this is where we handle it
@@ -652,7 +646,9 @@ namespace Brunet
 	}
       }//Drop the lock
 
-	//we also have to send a response back now
+      /*
+       * No matter what, we send a response back now
+       */
 	MemoryStream ms = new MemoryStream();
 	ms.WriteByte((byte) MessageType.EdgeResponse);
 	NumberSerializer.WriteInt(localid, ms);
@@ -672,12 +668,14 @@ namespace Brunet
           AHSender ahs = (AHSender)return_path;
           Edge from = (Edge)ahs.ReceivedFrom;
 	  from.Send(p);
-          if( send_edge_event ) {
-	    SendEdgeEvent(e);
-          }
 	} catch (Exception ex) {
 	  Console.Error.WriteLine(ex);
 	}
+        finally {
+          if( send_edge_event ) {
+	    SendEdgeEvent(e);
+          }
+        }
     }
 
     /**
