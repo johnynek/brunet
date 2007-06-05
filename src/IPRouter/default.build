@@ -28,8 +28,6 @@
         <include name="RouteMissHandler.cs"/>
         <include name="Shutdown.cs"/>
         <include name="../Dht/IDht.cs"/>
-        <include name="../Dht/DhtOp.cs"/>
-        <include name="../Dht/DhtData.cs"/>
         <include name="../Dht/DhtService.cs"/>
         <include name="../Dht/SoapDht.cs"/>
         <include name="../Dht/XmlRpcDht.cs"/>

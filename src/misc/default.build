@@ -29,7 +29,6 @@
         <include name="../Dht/XmlRpcDht.cs"/>
         <include name="../Dht/DhtService.cs"/>
         <include name="../Dht/DhtServiceClient.cs"/>
-        <include name="../Dht/DhtOp.cs"/>
         <include name="../Dht/DhtData.cs"/>
       </sources>
       <references>
