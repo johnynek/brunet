@@ -273,8 +273,8 @@ namespace Brunet
       public ArrayList Senders;
       public int Attempts = 4;
       public void Resend(Random r) {
-	Edge e = (Edge) Senders[ r.Next(0, ecs.Senders.Count) ];
 	try {
+	  Edge e = (Edge) Senders[ r.Next(0, Senders.Count) ];
 	  e.Send(RequestPacket);
 	} catch(Exception ex) {
 	  Console.Error.WriteLine(ex);
@@ -449,9 +449,6 @@ namespace Brunet
       Console.Error.WriteLine("TunnelEdgeListeber: Receiving on base connection: {0}", return_path);
       Console.Error.WriteLine("Receiving edge packet, remoteid: {0}, localid: {1}", remoteid, localid);
 #endif
-      
-      bool is_new_edge = false;
-
       // 1 + 4 + 4 = 9
       MemBlock rest_of_payload = packet.Slice(9);
       if (type == MessageType.EdgeRequest) {
