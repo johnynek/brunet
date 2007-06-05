@@ -366,6 +366,11 @@ namespace Ipop {
               results = sd.Get(key);
             }
 
+            if(results == null) {
+              Console.WriteLine("No return values.");
+              continue;
+            }
+
             Console.WriteLine("Number of results:  " + results.Length);
             Console.WriteLine("");
 
@@ -383,8 +388,8 @@ namespace Ipop {
         catch (System.Net.WebException) {
           Console.Error.WriteLine("Soap/XmlRpc Dht service not available");
         }
-        catch (Exception) {
-          Console.WriteLine("Dht may not be available, yet, try again now or a little later");
+        catch (Exception e) {
+          Console.WriteLine("Dht may not be available, yet, try again now or a little later\n" + e);
         }
       }
     }
