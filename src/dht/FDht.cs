@@ -81,33 +81,16 @@ namespace Brunet.Dht {
 
       byte[][] b = MapToRing(key, _degree);
       BlockingQueue[] q = new BlockingQueue[_degree];
-      bool new_get = false;
-      // The below code sorts through the tokens to ensure we send the token to the correct node
-      if(token == null) {
-        token = new byte[_degree][];
-        new_get = true;
-      }
-      else {
-        byte [][]actual_token = new byte[_degree][];
-        for (int i = 0; i < token.Length; i++) {
-          int[] bounds = (int[])AdrConverter.Deserialize(new System.IO.MemoryStream(token[i]));
-          actual_token[bounds[0]] = token[i];
-        }
-        token = actual_token;
-      }
 
       for (int k = 0; k < _degree; k++) {
         Address target = new AHAddress(MemBlock.Reference(b[k]));
         AHSender s = new AHSender(_rpc.Node, target);
         q[k] = new BlockingQueue();
         // The below creates a token for first time creates
-        if(token[k] == null && new_get) {
-          int[] data = new int[]{k, -1, -1};
-          System.IO.MemoryStream ms = new System.IO.MemoryStream();
-          AdrConverter.Serialize(data, ms);
-          token[k] = ms.ToArray();
+        if(token == null) {
+          _rpc.Invoke(s,q[k], "dht.Get", b[k], maxbytes, null);
         }
-        if(token[k] != null) {
+        else if(token[k] != null) {
           _rpc.Invoke(s,q[k], "dht.Get", b[k], maxbytes, token[k]);
         }
       }
