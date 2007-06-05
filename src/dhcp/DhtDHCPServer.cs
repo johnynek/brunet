@@ -33,7 +33,8 @@ namespace Ipop {
         return (DHCPLease) leases[ipop_namespace];
       }
       string ns_key = "dhcp:ipop_namespace:" + ipop_namespace;
-      DhtGetResult[] results = DhtOp.Get(ns_key, _dht);
+      DhtOp dhtOp = new DhtOp(_dht);
+      DhtGetResult[] results = dhtOp.Get(ns_key);
       if(results == null || results.Length == 0)  {
         Console.Error.WriteLine("Namespace does not exist");
         return null;

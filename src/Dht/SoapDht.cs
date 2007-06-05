@@ -10,24 +10,26 @@ using System.Runtime.Remoting;
 namespace Ipop {
   public class SoapDht : MarshalByRefObject, IDht {
     [NonSerialized]
-    private FDht dht;
+    private FDht _dht;
+    private DhtOp _dhtOp;
 
     public SoapDht(FDht dht) {
-      this.dht = dht;
+      this._dht = dht;
+      this._dhtOp = new DhtOp(_dht);
     }
 
     public SoapDht() {;}
 
     public string Create(string key, string value, string password, int ttl) {
-      return DhtOp.Create(key, value, password, ttl, this.dht);
+      return _dhtOp.Create(key, value, password, ttl);
     }
 
     public string Put(string key, string value, string password, int ttl) {
-      return DhtOp.Put(key, value, password, ttl, this.dht);
+      return _dhtOp.Put(key, value, password, ttl);
     }
 
     public DhtGetResult[] Get(string key) {
-      return DhtOp.Get(key, this.dht);
+      return _dhtOp.Get(key);
     }
   }
 }

@@ -15,7 +15,8 @@ namespace Ipop {
     public static bool GetIP(FDht _dht, string ipop_namespace, string ip,
                             int leasetime, byte [] brunet_id, ref string password) {
       string key = "dhcp:ipop_namespace:" + ipop_namespace + ":ip:" + ip;
-      string output = DhtOp.Create(key, brunet_id, password, leasetime, _dht);
+      DhtOp dhtOp = new DhtOp(_dht);
+      string output = dhtOp.Create(key, brunet_id, password, leasetime);
       if(output == null) {
         return false;
       }

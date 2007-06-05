@@ -13,25 +13,27 @@ namespace Ipop
   /// </summary>
   public class XmlRpcDht : MarshalByRefObject,IDht {
     [NonSerialized]
-    private FDht dht;
+    private FDht _dht;
+    private DhtOp _dhtOp;
 
     public XmlRpcDht(FDht dht) {
-      this.dht = dht;
+      this._dht = dht;
+      this._dhtOp = new DhtOp(_dht);
     }
 
-    [XmlRpcMethod] 
+    [XmlRpcMethod]
     public DhtGetResult[] Get(string key) {
-      return DhtOp.Get(key, this.dht);
+      return _dhtOp.Get(key);
     }
 
     [XmlRpcMethod]
     public string Create(string key, string value, string password, int ttl) {
-      return DhtOp.Create(key, value, password, ttl, this.dht);
+      return _dhtOp.Create(key, value, password, ttl);
     }
 
     [XmlRpcMethod]
     public string Put(string key, string value, string password, int ttl) {
-      return DhtOp.Create(key, value, password, ttl, this.dht);
+      return _dhtOp.Create(key, value, password, ttl);
     }
   }
 }

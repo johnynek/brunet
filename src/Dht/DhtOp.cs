@@ -9,17 +9,46 @@ using System.Security.Cryptography;
 
 namespace Ipop {
   public class DhtOp {
-/* Returns a password if it works or NULL if it didn't */
-    public static string Create(byte[] key, byte[] value, string password, int ttl, FDht dht) {
+    public FDht dht;
+
+    public DhtOp(FDht dht) {
+      this.dht = dht;
+    }
+
+    /* Returns a password if it works or NULL if it didn't */
+    public string Create(byte[] key, byte[] value, string password, int ttl) {
       password = GeneratePassword(password);
       string hashed_password = GetHashedPassword(password);
 
       int min_replies_per_queue = 2;
-      int min_majority = dht.Degree/2 + 1;
-      //int min_majority = dht.Degree;
-      _quorum = new BooleanQuorum(min_replies_per_queue, min_majority);
+      int min_majority = this.dht.Degree/2 + 1;
+      //int min_majority = this.dht.Degree;
+      BooleanQuorum _quorum = new BooleanQuorum(min_replies_per_queue, min_majority);
+      System.Threading.AutoResetEvent _re = new System.Threading.AutoResetEvent(false);
 
-      BlockingQueue [] queues = dht.CreateF(key, ttl, hashed_password, value);
+      BlockingQueue [] queues = this.dht.CreateF(key, ttl, hashed_password, value);
+
+      EventHandler EnqueueHandler = delegate(object o, EventArgs args) {
+        BlockingQueue q = (BlockingQueue) o;
+        try {
+          while(true) {
+            bool timedout; 
+            object res = q.Dequeue(0, out timedout);
+            if (timedout) {
+              break;
+            }
+          //add this result to the quorom
+            _quorum.Add(q, res);
+          }
+        }
+        catch(InvalidOperationException) {
+        }
+        bool done = _quorum.CheckFinished();
+        if (done) {
+        //signal the waiting thread
+          _re.Set();
+        }
+      };
 
       foreach(BlockingQueue queue in queues) {
         queue.EnqueueEvent += new EventHandler(EnqueueHandler);
@@ -45,40 +74,41 @@ namespace Ipop {
       return null;
     }
 
-    public static string Create(string key, byte[] value, string password, int ttl, FDht dht) {
+    public string Create(string key, byte[] value, string password, int ttl) {
       byte[] keyb = GetHashedKey(key);
-      return Create(keyb, value, password, ttl, dht);
+      return Create(keyb, value, password, ttl);
     }
 
-    public static string Create(string key, string value, string password, int ttl, FDht dht) {
+    public string Create(string key, string value, string password, int ttl) {
       byte[] keyb = GetHashedKey(key);
       byte[] valueb = Encoding.UTF8.GetBytes(value);
-      return Create(keyb, valueb, password, ttl, dht);
+      return Create(keyb, valueb, password, ttl);
     }
 
     // This method could be heavily parallelized
-    public static DhtGetResult[] Get(byte[] key, FDht dht) {
+    public DhtGetResult[] Get(byte[] key) {
       ArrayList allValues = new ArrayList();
       int remaining = -1;
-      ArrayList tokens = new ArrayList();
+      byte [][]tokens = null;
 
       while(remaining != 0) {
         remaining = -1;
         BlockingQueue[] q = null;
-        if(tokens.Count == 0) {
-          q = dht.GetF(key, 1000, null);
+        if(tokens == null) {
+          q = this.dht.GetF(key, 1000, null);
         }
         else {
-          q = dht.GetF(key, 1000, (byte [][]) tokens.ToArray(typeof(byte[])));
+          q = this.dht.GetF(key, 1000, tokens);
         }
 
         ArrayList [] results = BlockingQueue.ParallelFetchWithTimeout(q, 1000);
 
-        tokens.Clear();
+        tokens = new byte[this.dht.Degree][];
         ArrayList result = null;
-        foreach (ArrayList q_replies in results) {
-          foreach (RpcResult rpc_replies in q_replies) {
+        for (int i = 0; i < results.Length; i++ ) {
+          ArrayList q_replies = results[i];
           //investigating individual results
+          foreach (RpcResult rpc_replies in q_replies) {
             try{
               ArrayList rpc_result = (ArrayList) rpc_replies.Result;
               if (rpc_result == null || rpc_result.Count < 3) {
@@ -90,7 +120,8 @@ namespace Ipop {
               if(local_remaining > remaining) {
                 remaining = local_remaining;
               }
-              tokens.Add((byte[]) result[2]);
+
+              tokens[i] = (byte[]) result[2];
 
               foreach (Hashtable ht in values) {
                 DhtGetResult dgr = new DhtGetResult(ht);
@@ -99,30 +130,27 @@ namespace Ipop {
                 }
               }
             }
-            catch (Exception) {
+            catch (Exception e) {
+              Console.WriteLine(e);
               return null;
             }
           }
         }
       }
 
-      if(allValues.Count == 0) {
-        return null;
-      }
-
       return (DhtGetResult []) allValues.ToArray(typeof(DhtGetResult));
     }
 
-    public static DhtGetResult[] Get(string key, FDht dht) {
+    public DhtGetResult[] Get(string key) {
       byte[] keyb = GetHashedKey(key);
-      return Get(keyb, dht);
+      return Get(keyb);
     }
 
-    public static string Put(byte[] key, byte[] value, string password, int ttl, FDht dht) {
+    public string Put(byte[] key, byte[] value, string password, int ttl) {
       password = GeneratePassword(password);
       string hashed_password = GetHashedPassword(password);
 
-      BlockingQueue[] q = dht.PutF(key, ttl, hashed_password, value);
+      BlockingQueue[] q = this.dht.PutF(key, ttl, hashed_password, value);
       RpcResult res = q[0].Dequeue() as RpcResult;
       foreach(BlockingQueue queue in q) {
         queue.Close();
@@ -130,18 +158,18 @@ namespace Ipop {
       return "SHA1:" + password;
     }
 
-    public static string Put(string key, byte[] value, string password, int ttl, FDht dht) {
+    public string Put(string key, byte[] value, string password, int ttl) {
       byte[] keyb = GetHashedKey(key);
-      return Put(keyb, value, password, ttl, dht);
+      return Put(keyb, value, password, ttl);
     }
 
-    public static string Put(string key, string value, string password, int ttl, FDht dht) {
+    public string Put(string key, string value, string password, int ttl) {
       byte[] keyb = GetHashedKey(key);
       byte[] valueb = Encoding.UTF8.GetBytes(value);
-      return Put(keyb, valueb, password, ttl, dht);
+      return Put(keyb, valueb, password, ttl);
     }
 
-    public static string GeneratePassword(string password) {
+    public string GeneratePassword(string password) {
       if(password == null) {
         byte[] bin_password = new byte[10];
         RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
@@ -165,14 +193,14 @@ namespace Ipop {
       return password;
     }
 
-    public static string GetHashedPassword(string password) {
+    public string GetHashedPassword(string password) {
       byte[] bin_password = Convert.FromBase64String(password);
       HashAlgorithm algo = new SHA1CryptoServiceProvider();
       byte[] sha1_pass = algo.ComputeHash(bin_password);
       return "SHA1:" + Convert.ToBase64String(sha1_pass);
     }
 
-    public static byte[] GetHashedKey(string key) {
+    public byte[] GetHashedKey(string key) {
       byte[] keyb = Encoding.UTF8.GetBytes(key);
       HashAlgorithm algo = new SHA1CryptoServiceProvider();
       return algo.ComputeHash(keyb);
@@ -259,31 +287,6 @@ namespace Ipop {
             return false;
           }
         }
-      }
-    }
-
-    private static BooleanQuorum _quorum;
-    private static System.Threading.AutoResetEvent _re = new System.Threading.AutoResetEvent(false);
-
-    private static void EnqueueHandler(object o, EventArgs args) {
-      BlockingQueue q = (BlockingQueue) o;
-      try {
-        while(true) {
-          bool timedout; 
-          object res = q.Dequeue(0, out timedout);
-          if (timedout) {
-            break;
-          }
-          //add this result to the quorom
-          _quorum.Add(q, res);
-        }
-      }
-      catch(InvalidOperationException) {
-      }
-      bool done = _quorum.CheckFinished();
-      if (done) {
-        //signal the waiting thread
-        _re.Set();
       }
     }
   }

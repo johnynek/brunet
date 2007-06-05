@@ -245,7 +245,8 @@ namespace Ipop {
       for (int i = 0; i < nodes.Length; i++) {
         while(true) {
           try {
-            DhtOp.Put("plab_tracker", nodes[i].Address.ToString() + value, null, 7200, dhts[i]);
+            DhtOp dhtOp = new DhtOp(dhts[i]);
+            dhtOp.Put("plab_tracker", nodes[i].Address.ToString() + value, null, 7200);
             break;
           }
           catch(Exception) {
@@ -270,7 +271,8 @@ namespace Ipop {
           }
           string password = null;
           if(dhts != null) {
-            password = DhtOp.Create(data.key, data.value, data.password, ttl, dhts[0]);
+            DhtOp dhtOp = new DhtOp(dhts[0]);
+            password = dhtOp.Create(data.key, data.value, data.password, ttl);
           }
           else {
             sd.Create(data.key, data.value, data.password, ttl);
@@ -308,6 +310,7 @@ namespace Ipop {
     }
 
     public static void DhtConsole() {
+      DhtOp dhtOp = new DhtOp(dhts[0]);
       int oper_count = 0;
       while(true) {
         Console.Write("{0}: Enter operation (Get/Put/Create/Done):  ", oper_count++);
@@ -324,7 +327,7 @@ namespace Ipop {
             int ttl = Int32.Parse(Console.ReadLine());
             Console.WriteLine("Attempting Put() on key : " + key);
             if(dhts != null) {
-              DhtOp.Put(key, value, password, ttl, dhts[0]);
+              dhtOp.Put(key, value, password, ttl);
             }
             else {
               sd.Put(key, value, password, ttl);
@@ -343,7 +346,7 @@ namespace Ipop {
             Console.WriteLine("Attempting Create() on key : " + key);
             string result = null;
             if(dhts != null) {
-              result = DhtOp.Create(key, value, password, ttl, dhts[0]);
+              result = dhtOp.Create(key, value, password, ttl);
             }
             else {
               result = sd.Create(key, value, password, ttl);
@@ -360,7 +363,7 @@ namespace Ipop {
             string key = Console.ReadLine();
             DhtGetResult[] results;
             if(dhts != null) {
-              results = DhtOp.Get(key, dhts[0]);
+              results = dhtOp.Get(key);
             }
             else {
               results = sd.Get(key);

@@ -28,8 +28,9 @@ namespace Ipop {
       while(true) {
         while(true) {
           try {
-            DhtOp.Put("iprouter_tracker", brunet.brunetNode.Address.ToString() +
-                "|" + ip.ToString(), null, 7200, brunet.dht);
+            DhtOp dhtOp = new DhtOp(brunet.dht);
+            dhtOp.Put("iprouter_tracker", brunet.brunetNode.Address.ToString() +
+                "|" + ip.ToString(), null, 7200);
             break;
           }
           catch(Exception) {
