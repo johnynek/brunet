@@ -10,9 +10,7 @@ using System.Security.Cryptography;
 namespace Ipop {
   public class DhtOp {
 /* Returns a password if it works or NULL if it didn't */
-    public static string Create(string key, byte [] valueb, string password, int ttl, FDht dht) {
-      byte[] keyb = Encoding.UTF8.GetBytes(key);
-
+    public static string Create(byte[] key, byte[] value, string password, int ttl, FDht dht) {
       password = GeneratePassword(password);
       string hashed_password = GetHashedPassword(password);
 
@@ -21,7 +19,7 @@ namespace Ipop {
       //int min_majority = dht.Degree;
       _quorum = new BooleanQuorum(min_replies_per_queue, min_majority);
 
-      BlockingQueue [] queues = dht.CreateF(keyb, ttl, hashed_password, valueb);
+      BlockingQueue [] queues = dht.CreateF(key, ttl, hashed_password, value);
 
       foreach(BlockingQueue queue in queues) {
         queue.EnqueueEvent += new EventHandler(EnqueueHandler);
@@ -47,14 +45,19 @@ namespace Ipop {
       return null;
     }
 
+    public static string Create(string key, byte[] value, string password, int ttl, FDht dht) {
+      byte[] keyb = GetHashedKey(key);
+      return Create(keyb, value, password, ttl, dht);
+    }
+
     public static string Create(string key, string value, string password, int ttl, FDht dht) {
+      byte[] keyb = GetHashedKey(key);
       byte[] valueb = Encoding.UTF8.GetBytes(value);
-      return Create(key, valueb, password, ttl, dht);
+      return Create(keyb, valueb, password, ttl, dht);
     }
 
     // This method could be heavily parallelized
-    public static DhtGetResult[] Get(string key, FDht dht) {
-      byte[] utf8_key = Encoding.UTF8.GetBytes(key);
+    public static DhtGetResult[] Get(byte[] key, FDht dht) {
       ArrayList allValues = new ArrayList();
       int remaining = -1;
       ArrayList tokens = new ArrayList();
@@ -63,10 +66,10 @@ namespace Ipop {
         remaining = -1;
         BlockingQueue[] q = null;
         if(tokens.Count == 0) {
-          q = dht.GetF(utf8_key, 1000, null);
+          q = dht.GetF(key, 1000, null);
         }
         else {
-          q = dht.GetF(utf8_key, 1000, (byte [][]) tokens.ToArray(typeof(byte[])));
+          q = dht.GetF(key, 1000, (byte [][]) tokens.ToArray(typeof(byte[])));
         }
 
         ArrayList [] results = BlockingQueue.ParallelFetchWithTimeout(q, 1000);
@@ -110,13 +113,16 @@ namespace Ipop {
       return (DhtGetResult []) allValues.ToArray(typeof(DhtGetResult));
     }
 
-    public static string Put(string key, byte[] value, string password, int ttl, FDht dht) {
-      byte[] utf8_key = Encoding.UTF8.GetBytes(key);
+    public static DhtGetResult[] Get(string key, FDht dht) {
+      byte[] keyb = GetHashedKey(key);
+      return Get(keyb, dht);
+    }
 
+    public static string Put(byte[] key, byte[] value, string password, int ttl, FDht dht) {
       password = GeneratePassword(password);
       string hashed_password = GetHashedPassword(password);
 
-      BlockingQueue[] q = dht.PutF(utf8_key, ttl, hashed_password, value);
+      BlockingQueue[] q = dht.PutF(key, ttl, hashed_password, value);
       RpcResult res = q[0].Dequeue() as RpcResult;
       foreach(BlockingQueue queue in q) {
         queue.Close();
@@ -124,23 +130,36 @@ namespace Ipop {
       return "SHA1:" + password;
     }
 
+    public static string Put(string key, byte[] value, string password, int ttl, FDht dht) {
+      byte[] keyb = GetHashedKey(key);
+      return Put(keyb, value, password, ttl, dht);
+    }
+
     public static string Put(string key, string value, string password, int ttl, FDht dht) {
+      byte[] keyb = GetHashedKey(key);
       byte[] valueb = Encoding.UTF8.GetBytes(value);
-      return Put(key, valueb, password, ttl, dht);
+      return Put(keyb, valueb, password, ttl, dht);
     }
 
     public static string GeneratePassword(string password) {
       if(password == null) {
         byte[] bin_password = new byte[10];
-        Random _rand = new Random();
-        _rand.NextBytes(bin_password);
+        RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
+        rng.GetBytes(bin_password);
         password = Convert.ToBase64String(bin_password);
       }
       else if (password != null) {
+        Console.WriteLine("b" + password.Length);
       //test validity of current password
         string[] ss = password.Split(new char[] {':'});
         if (ss.Length == 2 && ss[0] == "SHA1") {
+          Console.WriteLine("d" + password.Length);
           password = ss[1];
+        }
+        // must be a user input password
+        else {
+          int diff = (4 - (password.Length % 4)) % 4;
+          password = password.PadRight(diff + password.Length, '0');
         }
       }
       return password;
@@ -151,6 +170,12 @@ namespace Ipop {
       HashAlgorithm algo = new SHA1CryptoServiceProvider();
       byte[] sha1_pass = algo.ComputeHash(bin_password);
       return "SHA1:" + Convert.ToBase64String(sha1_pass);
+    }
+
+    public static byte[] GetHashedKey(string key) {
+      byte[] keyb = Encoding.UTF8.GetBytes(key);
+      HashAlgorithm algo = new SHA1CryptoServiceProvider();
+      return algo.ComputeHash(keyb);
     }
 
     private class BooleanQuorum {
