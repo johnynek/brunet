@@ -82,12 +82,13 @@ namespace Brunet.Dht {
       byte[][] b = MapToRing(key, _degree);
       BlockingQueue[] q = new BlockingQueue[_degree];
       bool new_get = false;
+      // The below code sorts through the tokens to ensure we send the token to the correct node
       if(token == null) {
-        token = new byte[_degree];
+        token = new byte[_degree][];
         new_get = true;
       }
       else {
-        byte actual_token = new byte[_degree];
+        byte [][]actual_token = new byte[_degree][];
         for (int i = 0; i < token.Length; i++) {
           int[] bounds = (int[])AdrConverter.Deserialize(new System.IO.MemoryStream(token[i]));
           actual_token[bounds[0]] = token[i];
@@ -99,12 +100,12 @@ namespace Brunet.Dht {
         Address target = new AHAddress(MemBlock.Reference(b[k]));
         AHSender s = new AHSender(_rpc.Node, target);
         q[k] = new BlockingQueue();
-        // I don't think this is the best logic, but its better than assuming nothing at all, right?
+        // The below creates a token for first time creates
         if(token[k] == null && new_get) {
           int[] data = new int[]{k, -1, -1};
           System.IO.MemoryStream ms = new System.IO.MemoryStream();
-          AdrConverter.Serialize(new_bounds, ms);
-          next_token = ms.ToArray();
+          AdrConverter.Serialize(data, ms);
+          token[k] = ms.ToArray();
         }
         if(token[k] != null) {
           _rpc.Invoke(s,q[k], "dht.Get", b[k], maxbytes, token[k]);
