@@ -77,19 +77,16 @@ namespace Brunet.Dht {
     * @return true on success, false on failure
     */
     public int Put(byte[] key, int ttl, string hashed_password, byte[] data) {
-        MemBlock ht_key3 = MemBlock.Reference(key, 0, key.Length);
-        ArrayList list3 = _ht[ht_key3] as ArrayList;
-        if (list3 != null)
-        {
-            Console.WriteLine("[Test] data items under the key before put: {0}", list3.Count);
-        }
-        else
-        {
-            Console.WriteLine("[Test] 1st time");
-        }
-        
-        
-        string hash_name = null;
+      MemBlock ht_key3 = MemBlock.Reference(key, 0, key.Length);
+      ArrayList list3 = _ht[ht_key3] as ArrayList;
+      if (list3 != null) {
+        Console.Error.WriteLine("[Test] data items under the key before put: {0}", list3.Count);
+      }
+      else {
+        Console.Error.WriteLine("[Test] 1st time");
+      }
+
+      string hash_name = null;
       string base64_val = null;
       if(!ValidatePasswordFormat(hashed_password, out hash_name, out base64_val)) {
         throw new Exception("Invalid password format.");
@@ -120,7 +117,7 @@ namespace Brunet.Dht {
         foreach(Entry ent in entry_list) {
           // Can't have duplicate passwords - no RePuts
           if (ent.Password.Equals(hashed_password)) {
-              Console.WriteLine("Exist because password conflict");
+              Console.Error.WriteLine("Exist because password conflict");
               return entry_list.Count;            
           }
         }
@@ -134,7 +131,7 @@ namespace Brunet.Dht {
 
         MemBlock ht_key2 = MemBlock.Reference(key, 0, key.Length);
         ArrayList list2 = _ht[ht_key2] as ArrayList;
-        Console.WriteLine("[Test] data items under the key before sort: {0}", list2.Count);
+        Console.Error.WriteLine("[Test] data items under the key before sort: {0}", list2.Count);
           
           //Further add this to sorted list _expired_entries list
         InsertToSorted(e);
@@ -144,7 +141,7 @@ namespace Brunet.Dht {
           //jx
         MemBlock ht_key1 = MemBlock.Reference(key, 0, key.Length);
         ArrayList list1 = _ht[ht_key1] as ArrayList;
-        Console.WriteLine("[Test] data items under the key after sort: {0}", list1.Count);
+        Console.Error.WriteLine("[Test] data items under the key after sort: {0}", list1.Count);
           //
       } // end of lock
       return entry_list.Count;
@@ -528,7 +525,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
                 entryCount += value;
             }
 
-            Console.WriteLine("{0} enties in total", entryCount);
+            Console.Error.WriteLine("{0} enties in total", entryCount);
 
 
             ArrayList threads = new ArrayList();
@@ -537,7 +534,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
             foreach (MemBlock b_key in ht.Keys)
             {
                 int numData = (int)ht[b_key];
-                Console.WriteLine("numData: {0}", numData);
+                Console.Error.WriteLine("numData: {0}", numData);
                 //key
                 byte[] key = new byte[b_key.Length];
                 b_key.CopyTo(key, 0);
@@ -627,8 +624,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
             TableServer server = (TableServer)lstate[3];
             string passwd = lstate[4] as string;
 
-            //Console.WriteLine("Put:ThreadID:{0}", Thread.CurrentThread.GetHashCode());
-            Console.WriteLine("Calling Put");
+            //Console.Error.WriteLine("Put:ThreadID:{0}", Thread.CurrentThread.GetHashCode());
+            Console.Error.WriteLine("Calling Put");
             server.Put(key, ttl, passwd, Encoding.UTF8.GetBytes(strData));
         }
 	public void PutProc() {
