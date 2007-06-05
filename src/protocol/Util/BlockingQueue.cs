@@ -206,21 +206,34 @@ public class BlockingQueue : Queue {
     }
   }
 
-//   public static BlockingQueue Select(ArrayList queues, int timeout) {
-//     WaitHandle[] wait_handle = new WaitHandle[queues.Count];
-//     for (int i = 0; i < queues.Count; i++) {
-//       BlockingQueue q = (BlockingQueue) queues[i];
-//       wait_handle[i] = q._re;
-//     }
-//     int idx = WaitHandle.WaitAny(wait_handle, timeout, true);
-//     if (idx == WaitHandle.WaitTimeout) {
-//       Console.Error.WriteLine("wait any returned: {0}", idx);
-//       return null;
-//     }
-//     BlockingQueue t = (BlockingQueue) queues[idx];
-//     t._re.Set();
-//     return t;
-//   }
+  /**
+   * This method is not defined if there are other Dequeues pending
+   * on any of these Queues.  REPEAT: if you are using Select you
+   * cannot be doing Dequeues in another thread on any of these Queues.
+   *
+   * Tests seem to show that mono has a problem if there are more than 64
+   * queues that we are waiting on, so this can't scale to huge numbers.
+   *
+   * @param queues a list of non-null BlockingQueue objects.
+   * @param timeout how long to wait in milliseconds
+   * @return the index into the list of a queue that is ready to Dequeue, -1 there is a timeout
+   */
+  public static int Select(IList queues, int timeout) {
+    WaitHandle[] wait_handles = new WaitHandle[ queues.Count ];
+    int idx = 0; 
+    foreach (BlockingQueue q in queues) {
+       wait_handles[idx] = q._re;
+       idx++;
+    }
+    idx = WaitHandle.WaitAny(wait_handles, timeout, true);
+    if (idx == WaitHandle.WaitTimeout) {
+      return -1;
+    }
+    //Reset the AutoResetEvent
+    BlockingQueue t = (BlockingQueue)queues[idx];
+    t._re.Set();
+    return idx;
+  }
 
   public static ArrayList[] ParallelFetch(BlockingQueue[] queues, int max_results_per_queue) {
     return ParallelFetch(queues, max_results_per_queue, new FetchDelegate(Fetch)); 
@@ -348,88 +361,54 @@ public class BlockingQueue : Queue {
     catch(Exception) { got_exception = true; }
     Assert.IsTrue(got_exception, "got exception");
   }
+
+  /*
+   * Used to test the select method
+   */
+  protected class SelectTester {
+    protected IList _queues;
+    protected const int TRIALS = 50000;
+    public SelectTester(IList queues) {
+      _queues = queues;
+    }
+
+    public void StartEnqueues() {
+      Random q_r = new Random();
+      for(int i = 0; i < TRIALS; i++) {
+        int idx = q_r.Next(0, _queues.Count);
+        BlockingQueue q = (BlockingQueue)_queues[ idx ];
+	q.Enqueue( idx );
+      }
+    }
+
+    public void CheckQueues() {
+      for(int i = 0; i < TRIALS; i++) {
+        int idx = BlockingQueue.Select( _queues, 5000 );
+	Assert.AreNotEqual( idx, -1, "Timeout check");
+	BlockingQueue b = (BlockingQueue)_queues[idx];
+	bool timedout;
+	object val = b.Dequeue(0, out timedout);
+	Assert.IsFalse(timedout, "Dequeue didn't time out");
+        Assert.AreEqual(val, idx, "Dequeue matches index");
+      }
+      //Any future selects *should* timeout
+      int idx2 = BlockingQueue.Select( _queues, 500 );
+      Assert.AreEqual( idx2, -1, "Did timeout");
+    }
+  }
+
+  [Test]
+  public void SelectTest() {
+    ArrayList l = new ArrayList();
+    for(int i = 0; i < 64; i++) {
+      l.Add( new BlockingQueue() );
+    }
+    SelectTester test = new SelectTester(l);
+    Thread t = new Thread( test.StartEnqueues );
+    t.Start();
+    test.CheckQueues();
+  }
 #endif
 }
 
-
-// #if BRUNET_NUNIT
-// [TestFixture]
-//   public class SelectTester {
-//     private ArrayList _queues;
-//     public void TestThreadProducer()
-//     {
-//       Console.Error.WriteLine("producer thread begins");
-//       //See a random number generator with the number 1.
-//       Random[] r = new Random[_queues.Count];
-//       for (int i = 0; i < r.Length; i++) {
-// 	r[i] = new Random(i);
-//       }
-//       Console.Error.WriteLine("created all random number generators");
-//       for(int k = 0; k < 100000; k++) { 
-// 	for (int i = 0; i < _queues.Count; i++) {
-// 	  BlockingQueue q = (BlockingQueue) _queues[i];
-// 	  int val = r[i].Next();
-// 	  Console.Error.WriteLine("enqueing val: {0} into queue: {1}", val, i);
-// 	  q.Enqueue(val) ;
-// 	}
-//       }
-//       Console.Error.WriteLine("finsished all iterations");
-//       for (int i = 0; i < _queues.Count; i++) {
-// 	Console.Error.WriteLine("closing queue: {0}", i);
-// 	BlockingQueue q = (BlockingQueue) _queues[i];
-// 	q.Close();
-//       }
-//       Console.Error.WriteLine("closed all queues");
-//     }
-    
-//     [Test]
-//     public void TestMainThread()
-//     {
-//       Hashtable rr = new Hashtable();
-//       _queues = new ArrayList();
-//       for (int i = 0; i < 8; i++) {
-// 	BlockingQueue q = new BlockingQueue();
-// 	_queues.Add(q);
-// 	rr[q] = new Random(i);
-//       }
-      
-//       Thread t = new Thread(this.TestThreadProducer);
-//       Console.Error.WriteLine("starting producer thread");
-//       t.Start();
-      
-//       ArrayList local_list = (ArrayList) _queues.Clone();
-
-//       while(true) {
-// 	Console.Error.WriteLine("queues.count: {0}", local_list.Count);
-// 	if (local_list.Count == 0) {
-// 	  break;
-// 	}
-// 	//a 10 second timeout
-// 	BlockingQueue q = BlockingQueue.Select(local_list, 10000);
-// 	if (q == null) {
-// 	  Console.Error.WriteLine("select returned a null");
-// 	  continue;
-// 	}
-// 	int idx = _queues.IndexOf(q);
-// 	Console.Error.WriteLine("select returning queue: {0}", idx);
-// 	//get random number generator
-// 	Random r = (Random) rr[q];
-// 	try {
-// 	  Console.Error.WriteLine("attempting a dequeue at: {0}", idx);
-// 	  bool timedout;
-// 	  object o = q.Dequeue(0, out timedout);
-// 	  if (!timedout) {
-// 	    Assert.AreEqual( o, r.Next(), "dequeue equality test" );
-// 	  } else {
-// 	    Console.Error.WriteLine("nothing dequeued");
-// 	  }
-// 	} catch(InvalidOperationException e) {
-// 	  //in case the queue closed down
-// 	  Console.Error.WriteLine("removing queue: {0} from the list", idx);
-// 	  local_list.Remove(q);
-// 	}
-//       }
-//     }
-//   }
-// #endif 
 }
