@@ -1,193 +1,28 @@
 <?xml version="1.0"?>
-
-<project
-  name="Brunet"
-  default="build">
-
-  <!-- determine whether the build environment
-       has been already configured -->
-  <ifnot test="${property::exists('configured')}">
-    <property
-      name="configured"
-      value="false"/>
-  </ifnot>
-
-  <!-- default configuration -->
-  <property
-    name="assembly"
-    value="Brunet.Dht"/>
-  <property
-    name="package.name"
-    value="${nant.project.name}"
-    unless="${configured}"/>
-  <property
-    name="build.dir"
-    value="${nant.project.basedir}/build"
-    unless="${configured}"/>
-  <property
-    name="lib.dir"
-    value="../../lib"
-    unless="${configured}"/>
-  <property
-    name="project.config"
-    value="debug"
-    unless="${configured}"/>
-
-  <!-- named configurations -->
-  <target
-    name="init"
-    description="Initializes build properties">
-    <call target="${project.config}"/>
-    
-    <!-- copy libraries and necassary files -->
-    <copy todir="${build.dir}/${package.name}/bin">
-       <fileset basedir="${lib.dir}">
-          <include name="Brunet.dll" />
-          <include name="Brunet.Dht.dll" />
-          <include name="log4net.dll" />
-          <include name="logconfig.xml.new" />
-       </fileset>
+<project name="dhttest" default="build" basedir=".">
+  <description> Builds dht-test </description>
+  <property name="debug" value="true" overwrite="false" />
+  <property name="lib.dir" value="../../lib"/>
+  <property name="build.dir" value="build" />
+  <target name="clean" description="Remove build directory">
+    <delete dir="${build.dir}" failonerror="true"/>
+  </target>
+  <target name="build" description="Build DhtTest.exe">
+    <mkdir dir="${build.dir}" failonerror="true"/>
+    <copy todir="${build.dir}" failonerror="true">
+      <fileset basedir="${lib.dir}">
+        <include name="Brunet.dll"/>
+        <include name="Brunet.Dht.dll"/>
+      </fileset>
     </copy>
-  </target>
-
-  <target
-    name="debug"
-    description="Configures a debug build">
-    <property
-      name="project.config"
-      value="debug"
-      unless="${configured}"/>
-    <property
-      name="build.debug"
-      value="true"
-      unless="${configured}"/>
-    <property
-      name="package.name"
-      value="${nant.project.name}-${project.config}"
-      unless="${configured}"/>
-  </target>
-
-  <target
-    name="release"
-    description="Configures a release build">
-    <property
-      name="project.config"
-      value="release"
-      unless="${configured}"/>
-    <property
-      name="build.debug"
-      value="false"
-      unless="${configured}"/>
-  </target>
-
-  <target
-    name="test"
-    depends="init"
-    description="Builds the current configuration">
-
-    <csc
-      target="exe"
-      debug="${build.debug}"
-      output="${build.dir}/${package.name}/bin/DhtTest.exe">
-      doc="${build.dir}/${package.name}/bin/${assembly}.xml">
+    <csc target="exe" output="${build.dir}/DhtTest.exe">
       <sources failonempty="true">
         <include name="DhtTest.cs"/>
       </sources>
       <references>
-        <!--include name="${build.dir}/${package.name}/bin/${assembly}.dll" /-->
-        <include name="${build.dir}/${package.name}/bin/log4net.dll" />
-        <include name="${build.dir}/${package.name}/bin/Brunet.dll" />
-        <include name="${build.dir}/${package.name}/bin/Brunet.Dht.dll" />
+        <include name="${build.dir}/Brunet.dll"/>
+        <include name="${build.dir}/Brunet.Dht.dll" />
       </references>
     </csc>
   </target>
-
-  <target
-    name="autotest"
-    depends="init"
-    description="Builds the current configuration">
-
-    <csc
-      target="exe"
-      debug="${build.debug}"
-      output="${build.dir}/${package.name}/bin/DhtAutoTester.exe">
-      doc="${build.dir}/${package.name}/bin/${assembly}.xml">
-      <sources failonempty="true">
-        <include name="DhtAutoTester.cs"/>
-      </sources>
-      <references>
-        <!--include name="${build.dir}/${package.name}/bin/${assembly}.dll" /-->
-        <include name="${build.dir}/${package.name}/bin/log4net.dll" />
-        <include name="${build.dir}/${package.name}/bin/Brunet.dll" />
-        <include name="${build.dir}/${package.name}/bin/Brunet.Dht.dll" />
-      </references>
-    </csc>
-  </target>
-
-  <target
-    name="advanced"
-    depends="init"
-    description="Builds the current configuration">
-
-    <csc
-      target="exe"
-      debug="${build.debug}"
-      output="${build.dir}/${package.name}/bin/DhtAdvancedTester.exe">
-      doc="${build.dir}/${package.name}/bin/${assembly}.xml">
-      <sources failonempty="true">
-        <include name="DhtAdvancedTester.cs"/>
-      </sources>
-      <references>
-        <!--include name="${build.dir}/${package.name}/bin/${assembly}.dll" /-->
-        <include name="${build.dir}/${package.name}/bin/log4net.dll" />
-        <include name="${build.dir}/${package.name}/bin/Brunet.dll" />
-        <include name="${build.dir}/${package.name}/bin/Brunet.Dht.dll" />
-      </references>
-    </csc>
-  </target>
-  <target
-    name="tracer"
-    depends="init"
-    description="Builds the current input file">
-    <exec program="python" commandline="DhtTraceGen.py" output="tracer.in"/>
-    <copy todir="${build.dir}/${package.name}/bin/" failonerror="true">
-        <fileset>
-            <include name="tracer.in" />
-        </fileset>
-    </copy>
-
-    <csc
-      target="exe"
-      debug="${build.debug}"
-      output="${build.dir}/${package.name}/bin/DhtAdvancedTester.exe">
-      doc="${build.dir}/${package.name}/bin/${assembly}.xml">
-      <sources failonempty="true">
-        <include name="DhtAdvancedTester.cs"/>
-      </sources>
-      <references>
-        <!--include name="${build.dir}/${package.name}/bin/${assembly}.dll" /-->
-        <include name="${build.dir}/${package.name}/bin/log4net.dll" />
-        <include name="${build.dir}/${package.name}/bin/Brunet.dll" />
-        <include name="${build.dir}/${package.name}/bin/Brunet.Dht.dll" />
-      </references>
-    </csc>
-  </target>
-
-
-  <target name="clean"
-    depends="init"
-    description="Deletes the current configuration">
-    <delete
-      dir="${build.dir}/${package.name}"
-      failonerror="false"/>
-  </target>
-
-  <target
-    name="clean-all"
-    description="Deletes all the configurations">
-    <delete
-      dir="${build.dir}"
-      failonerror="false"/>
-  </target>
-
 </project>
