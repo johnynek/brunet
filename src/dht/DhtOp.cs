@@ -7,11 +7,6 @@ using System.Collections;
 using System.Net;
 using System.Security.Cryptography;
 
-#if BRUNET_NUNIT
-using NUnit.Framework;
-using System.Threading;
-#endif
-
 namespace Brunet.Dht {
   public class DhtOp {
     public FDht dht;
@@ -106,40 +101,51 @@ namespace Brunet.Dht {
           q = this.dht.GetF(key, 1000, tokens);
         }
 
-        ArrayList [] results = BlockingQueue.ParallelFetchWithTimeout(q, 1000);
-
+        ArrayList allQueues = new ArrayList();
+        ArrayList queueMapping = new ArrayList();
+        for(int i = 0; i < this.dht.Degree; i++) {
+          queueMapping.Add(i);
+        }
+        allQueues.AddRange(q);
         tokens = new byte[this.dht.Degree][];
-        ArrayList result = null;
-        for (int i = 0; i < results.Length; i++ ) {
-          ArrayList q_replies = results[i];
-          //investigating individual results
-          foreach (RpcResult rpc_replies in q_replies) {
-            try{
-              ArrayList rpc_result = (ArrayList) rpc_replies.Result;
-              if (rpc_result == null || rpc_result.Count < 3) {
-                continue;
-              }
-              result = rpc_result;
-              ArrayList values = (ArrayList) result[0];
-              int local_remaining = (int) result[1];
-              if(local_remaining > remaining) {
-                remaining = local_remaining;
-              }
 
-              tokens[i] = (byte[]) result[2];
+        while(true) {
+          int idx = BlockingQueue.Select(allQueues, 1000);
+          if(idx == -1) {
+            break;
+          }
+          allQueues.RemoveAt(idx);
+          int real_idx = (int) queueMapping[idx];
+          queueMapping.RemoveAt(idx);
+          idx = real_idx;
 
-              foreach (Hashtable ht in values) {
-                DhtGetResult dgr = new DhtGetResult(ht);
-                if(!allValues.Contains(dgr)) {
-                  allValues.Add(dgr);
-                }
-              }
+          RpcResult rpc_reply = (RpcResult) q[idx].Dequeue();
+          try{
+            ArrayList result = (ArrayList) rpc_reply.Result;
+            if (result == null || result.Count < 3) {
+              continue;
             }
-            catch (Exception e) {
-              Console.WriteLine(e);
-              return null;
+            ArrayList values = (ArrayList) result[0];
+            int local_remaining = (int) result[1];
+            if(local_remaining > remaining) {
+              remaining = local_remaining;
+            }
+
+            tokens[idx] = (byte[]) result[2];
+
+            foreach (Hashtable ht in values) {
+              DhtGetResult dgr = new DhtGetResult(ht);
+              if(!allValues.Contains(dgr)) {
+                allValues.Add(dgr);
+              }
             }
           }
+          catch (Exception) {
+            return null;
+          }
+        }
+        foreach(BlockingQueue queue in q) {
+          queue.Close();
         }
       }
 
@@ -154,13 +160,28 @@ namespace Brunet.Dht {
     public string Put(byte[] key, byte[] value, string password, int ttl) {
       password = GeneratePassword(password);
       string hashed_password = GetHashedPassword(password);
+      string rv = null;
 
       BlockingQueue[] q = this.dht.PutF(key, ttl, hashed_password, value);
-      RpcResult res = q[0].Dequeue() as RpcResult;
+      int count = 0, majority = this.dht.Degree / 2;
+      ArrayList allQueues = new ArrayList();
+      allQueues.AddRange(q);
+      while(count <= majority) {
+        int idx = BlockingQueue.Select(allQueues, 1000);
+        if(idx == -1) {
+          break;
+        }
+        allQueues.RemoveAt(idx);
+        count++;
+      }
+      if(count >= majority) {
+        rv = "SHA1:" + password;
+      }
+
       foreach(BlockingQueue queue in q) {
         queue.Close();
       }
-      return "SHA1:" + password;
+      return rv;
     }
 
     public string Put(string key, byte[] value, string password, int ttl) {
@@ -182,11 +203,9 @@ namespace Brunet.Dht {
         password = Convert.ToBase64String(bin_password);
       }
       else if (password != null) {
-        Console.WriteLine("b" + password.Length);
       //test validity of current password
         string[] ss = password.Split(new char[] {':'});
         if (ss.Length == 2 && ss[0] == "SHA1") {
-          Console.WriteLine("d" + password.Length);
           password = ss[1];
         }
         // must be a user input password
@@ -296,153 +315,3 @@ namespace Brunet.Dht {
     }
   }
 }
-
-#if BRUNET_NUNIT
-
-namespace Brunet.Dht {
-  [TestFixture]
-  public class DhtOpTester {
-    Node []nodes;
-    FDht []dhts;
-    DhtOp []dhtOps;
-    static readonly int degree = 3;
-    static readonly int network_size = 50;
-    static readonly string brunet_namespace = "testing";
-    static readonly int base_port = 55123;
-
-    public void ParallelCreate() {
-    }
-
-    public void SerialCreate(byte[] key, byte[] value, string password, int ttl,
-                            int index, string expected_result, int op) {
-      Hashtable ht = new Hashtable();
-      ht.Add("key", key);
-      ht.Add("value", value);
-      if(password != null) {
-        ht.Add("password", password);
-      }
-      ht.Add("ttl", ttl);
-      ht.Add("index", index);
-      ht.Add("result", expected_result);
-      ht.Add("op", op);
-      SerialCreate((object) ht);
-    }
-
-    public void SerialCreate(object data) {
-      Hashtable ht = (Hashtable) data;
-      byte[] key = (byte[]) ht["key"];
-      byte[] value = (byte[]) ht["value"];
-      string password = null;
-      if(ht.Contains("password")) {
-        password = (string) ht["password"];
-      }
-      int ttl = (int) ht["ttl"];
-      int index = (int) ht["index"];
-      int op = (int) ht["op"];
-      string expected_result = (string) ht["result"];
-      if(expected_result == "null") {
-        expected_result = null;
-      }
-      string result = dhtOps[index].Create(key, value, password, ttl);
-      Assert.AreEqual(result, expected_result, "Failure at operation: " + op);
-    }
-
-    public void ParallelGet() {
-    }
-
-    public void SerialGet(byte[] key, int index, byte[][] results, int op) {
-      Hashtable ht = new Hashtable();
-      ht.Add("key", key);
-      ht.Add("index", index);
-      ht.Add("expected_results", results);
-      ht.Add("op", op);
-      SerialGet((object) ht);
-    }
-
-    public void SerialGet(object data) {
-      Hashtable ht = (Hashtable) data;
-      byte[] key = (byte[]) ht["key"];
-      int index = (int) ht["index"];
-      byte[][] expected_results = (byte[][]) ht["results"];
-      int op = (int) ht["op"];
-      DhtGetResult[] result = dhtOps[index].Get(key);
-    }
-
-    public void ParallelPut() {
-    }
-
-    public void SerialPut(byte[] key, byte[] value, string password, int ttl,
-                            int index, string expected_result, int op) {
-      Hashtable ht = new Hashtable();
-      ht.Add("key", key);
-      ht.Add("value", value);
-      if(password != null) {
-        ht.Add("password", password);
-      }
-      ht.Add("ttl", ttl);
-      ht.Add("index", index);
-      ht.Add("result", expected_result);
-      ht.Add("op", op);
-      SerialPut((object) ht);
-    }
-
-    public void SerialPut(object data) {
-      Hashtable ht = (Hashtable) data;
-      byte[] key = (byte[]) ht["key"];
-      byte[] value = (byte[]) ht["value"];
-      string password = null;
-      if(ht.Contains("password")) {
-        password = (string) ht["password"];
-      }
-      int ttl = (int) ht["ttl"];
-      int index = (int) ht["index"];
-      string expected_result = (string) ht["result"];
-      if(expected_result == "null") {
-        expected_result = null;
-      }
-      int op = (int) ht["op"];
-      string result = dhtOps[index].Put(key, value, password, ttl);
-      Assert.AreEqual(result, expected_result, "Failure at operation: " + op);
-    }
-
-    [SetUp]
-    public void Init() {
-      Console.WriteLine("HERE");
-      nodes = new Node[network_size];
-      dhts = new FDht[network_size];
-      dhtOps = new DhtOp[network_size];
-      for(int i = 0; i < network_size; i++) {
-        nodes[i] = new StructuredNode(new AHAddress(new RNGCryptoServiceProvider()), brunet_namespace);
-        nodes[i].AddEdgeListener(new TcpEdgeListener(base_port + i));
-        ArrayList RemoteTA = new ArrayList();
-        RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:" + base_port));
-        nodes[i].RemoteTAs = RemoteTA;
-        nodes[i].Connect();
-        dhts[i] = new FDht(nodes[i], EntryFactory.Media.Disk, degree);
-        dhtOps[i] = new DhtOp(dhts[i]);
-      }
-      // need a method to ensure ring is fully formed
-      Thread.Sleep(10000);
-    }
-
-    [Test]
-    public void SystemTest() {
-      int op = 0;
-      RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
-      byte[] key = new byte[10];
-      byte[] value = new byte[10];
-      string password = "SHA1:" + dhtOps[0].GeneratePassword(null);
-      rng.GetBytes(key);
-      rng.GetBytes(value);
-      this.SerialPut(key, value, password, 3000, 0, password, op++);
-      byte[][] results = new byte[1][];
-      results[0] = value;
-      this.SerialGet(key, 0, results, op++);
-    }
-    public static void Main() {
-      DhtOpTester dot = new DhtOpTester();
-      dot.Init();
-    }
-  }
-}
-#endif
