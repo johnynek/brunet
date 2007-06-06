@@ -1,4 +1,22 @@
-    // _expiring_entries needs to be moved to a SortedList for better performance
+/*
+This program is part of BruNet, a library for the creation of efficient overlay
+networks.
+Copyright (C) 2007 University of Florida
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+*/
 
 using System;
 using System.Text;
@@ -8,7 +26,6 @@ using System.Security.Cryptography;
 #if BRUNET_NUNIT
 using NUnit.Framework;
 using System.Threading;
-//using System.Collections.Generic;
 #endif
 
 using Brunet;
@@ -228,13 +245,10 @@ namespace Brunet.Dht {
     public IList Get(byte[] key, int maxbytes, byte[] token) {
       int seen_start_idx = -1;
       int seen_end_idx = -1;
-      int pos = -1;
       if( token != null ) {
-        // pos is used in FDht to help determine which connection to send to
         int[] bounds = (int[])AdrConverter.Deserialize(new System.IO.MemoryStream(token));
-        pos = bounds[0];
-        seen_start_idx = bounds[1];
-        seen_end_idx = bounds[2];
+        seen_start_idx = bounds[0];
+        seen_end_idx = bounds[1];
       }
 
       int consumed_bytes = 0;
@@ -281,10 +295,9 @@ namespace Brunet.Dht {
       }//End of lock
 
       //we have added new item: update the token
-      int[] new_bounds = new int[3];
-      new_bounds[0] = pos;
-      new_bounds[1] = seen_start_idx;
-      new_bounds[2] = seen_end_idx;
+      int[] new_bounds = new int[2];
+      new_bounds[0] = seen_start_idx;
+      new_bounds[1] = seen_end_idx;
       //new_bounds has to be converted to a new token
       System.IO.MemoryStream ms = new System.IO.MemoryStream();
       AdrConverter.Serialize(new_bounds, ms);
@@ -430,27 +443,7 @@ namespace Brunet.Dht {
     }
   }
 
-
-/*
-This program is part of BruNet, a library for the creation of efficient overlay
-networks.
-Copyright (C) 2007 Jiangyan Xu <dennis84225@gmail.com> University of Florida
-
-This program is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation; either version 2
-of the License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-*/
-#if BRUNET_NUNIT
+#if BRUNET_NUNITA
     [TestFixture]
     public class TableServerTest
     {
