@@ -443,7 +443,7 @@ namespace Brunet.Dht {
     }
   }
 
-#if BRUNET_NUNITA
+#if BRUNET_NUNIT
     [TestFixture]
     public class TableServerTest
     {
