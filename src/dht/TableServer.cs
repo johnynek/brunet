@@ -8,7 +8,7 @@ using System.Security.Cryptography;
 #if BRUNET_NUNIT
 using NUnit.Framework;
 using System.Threading;
-//using System.Collections.Generic;
+using System.Collections.Generic;
 #endif
 
 using Brunet;
@@ -77,14 +77,6 @@ namespace Brunet.Dht {
     * @return true on success, false on failure
     */
     public int Put(byte[] key, int ttl, string hashed_password, byte[] data) {
-      MemBlock ht_key3 = MemBlock.Reference(key, 0, key.Length);
-      ArrayList list3 = _ht[ht_key3] as ArrayList;
-      if (list3 != null) {
-        Console.Error.WriteLine("[Test] data items under the key before put: {0}", list3.Count);
-      }
-      else {
-        Console.Error.WriteLine("[Test] 1st time");
-      }
 
       string hash_name = null;
       string base64_val = null;
@@ -127,22 +119,13 @@ namespace Brunet.Dht {
                           data, _max_idx);
 
         //Add the entry to the end of the list.
-        entry_list.Add(e);
-
-        MemBlock ht_key2 = MemBlock.Reference(key, 0, key.Length);
-        ArrayList list2 = _ht[ht_key2] as ArrayList;
-        Console.Error.WriteLine("[Test] data items under the key before sort: {0}", list2.Count);
+        entry_list.Add(e);       
           
           //Further add this to sorted list _expired_entries list
         InsertToSorted(e);
 
         ///@todo, we might need to tell a neighbor about this object
         
-          //jx
-        MemBlock ht_key1 = MemBlock.Reference(key, 0, key.Length);
-        ArrayList list1 = _ht[ht_key1] as ArrayList;
-        Console.Error.WriteLine("[Test] data items under the key after sort: {0}", list1.Count);
-          //
       } // end of lock
       return entry_list.Count;
     }
@@ -451,343 +434,352 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 #if BRUNET_NUNIT
-    [TestFixture]
-    public class TableServerTest
-    {
+  [TestFixture]
+  public class TableServerTest
+  {
 
-        #region PrivateUtilMethods
-
-        /**
-         * Use Disk as default media
-         */
-        private TableServer GetServer()
-        {
-            return this.GetServer(EntryFactory.Media.Disk);
-        }
-
-        private TableServer GetServer(EntryFactory.Media media)
-        {
-            AHAddress addr = new AHAddress(new RNGCryptoServiceProvider());
-            Node brunetNode = new StructuredNode(addr);
-            EntryFactory factory = EntryFactory.GetInstance(brunetNode, media);
-            TableServer ret = new TableServer(factory, brunetNode);
-            return ret;
-        }
-
-        private string GenHashedPasswd()
-        {
-            byte[] bin_passwd = new byte[100];
-
-            RNGCryptoServiceProvider provider = new RNGCryptoServiceProvider();
-            provider.GetBytes(bin_passwd);
-            return "SHA1:" + Convert.ToBase64String(bin_passwd);
-        }
-
-        /**
-         * Multitheading using Threads directly and Disk by default
-         */
-        private void TestPutConcurrently(int keyNum, int minDataNumPerKey, int maxDataNumPerKey)
-        {
-            this.TestPut(keyNum, minDataNumPerKey, maxDataNumPerKey, "Threads");
-        }
-
-        private void TestPut(int keyNum, int minDataNumPerKey, int maxDataNumPerKey, string testType)
-        {
-            this.TestPut(keyNum, minDataNumPerKey, maxDataNumPerKey, testType, EntryFactory.Media.Disk);
-        }
-
-        /// <summary>
-        /// Concurrently Put (1 thread per put), Compare with data prepared in a single Thread
-        /// </summary>
-        /// <param name="keyNum">number of keys</param>
-        /// <param name="minDataNumPerKey">min: should be at least 1</param>
-        /// <param name="maxDataNumPerKey">max: should >= min</param>
-        /// <param name="testType">testType: Threads(default), ThreadPool and SingleThread</param>
-        private void TestPut(int keyNum, int minDataNumPerKey, int maxDataNumPerKey, string testType, EntryFactory.Media media)
-        {
-            Random rnd = new Random();
-            int entryCount = 0;
-            /**
-            * key: key in table server
-            * value: number of data items to be put in ht
-            */
-            Hashtable ht = new Hashtable();
-            ArrayList lpasswd = new ArrayList();
-
-            for (int i = 0; i < keyNum; i++)
-            {
-                byte[] key = new byte[160];
-                rnd.NextBytes(key);
-                MemBlock b_key = MemBlock.Reference(key, 0, key.Length);
-                //Random number at least 1
-                int value = rnd.Next(minDataNumPerKey, maxDataNumPerKey);
-                ht.Add(b_key, value);
-                entryCount += value;
-            }
-
-            Console.Error.WriteLine("{0} enties in total", entryCount);
-
-
-            ArrayList threads = new ArrayList();
-
-            TableServer server = this.GetServer(media);
-            foreach (MemBlock b_key in ht.Keys)
-            {
-                int numData = (int)ht[b_key];
-                Console.Error.WriteLine("numData: {0}", numData);
-                //key
-                byte[] key = new byte[b_key.Length];
-                b_key.CopyTo(key, 0);
-
-                string strKey = Encoding.UTF8.GetString(key);
-                for (int i = 0; i < numData; i++)
-                {
-                    string strData = string.Format("{0}:{1}", strKey, i);
-
-                    //ttl long enough to make sure no key has been expired before all data been Get()
-                    int ttl = rnd.Next(150, 300);
-                    string passwd = this.GenHashedPasswd();
-
-                    if (!lpasswd.Contains(passwd))
-                    {
-                        lpasswd.Add(passwd);
-                    }
-                    else
-                    {
-                        throw new Exception("passwd shouldn't be the same!");
-                    }
-
-                    //state used in PutProc
-                    ArrayList state = new ArrayList();
-                    state.Add(key);
-                    state.Add(strData);
-                    state.Add(ttl);
-                    state.Add(server);
-                    state.Add(passwd);
-		    //.Net 1.0 can't pass state to threads, so we make a little object
-                    PutState ps = new PutState(state);
-                    switch (testType)
-                    {
-                        case "ThreadPool":
-                            ThreadPool.QueueUserWorkItem(new WaitCallback(ps.PutProc), state);
-                            break;
-                        case "SingleThread":
-                            ps.PutProc();
-                            break;
-                        case "Threads":
-                        default:
-                            Thread t = new Thread(new ThreadStart(ps.PutProc));
-                            threads.Add(t);
-                            t.Start();
-                            break;
-                    }
-                }
-            }
-
-            foreach (Thread t in threads)
-            {
-                t.Join();
-            }
-
-
-            /* Verify the result using single threaded Get() */
-            int j = 1;
-            foreach (MemBlock b_key in ht.Keys)
-            {
-                byte[] key = new byte[b_key.Length];
-                b_key.CopyTo(key, 0);
-                IList result = server.Get(key, 10000, null);
-                IList values = result[0] as ArrayList;
-                Assert.IsNotNull(values);
-                Assert.AreEqual((int)ht[b_key], values.Count, string.Format("Data item count failed in the {0}st key checked", j));
-                j++;
-            }
-
-            Assert.AreEqual(entryCount, server.GetCount(), "Quantity of total entries wrong");
-        }
-       protected class PutState {
-         protected ArrayList _lstate;
-	 protected Random rnd;
-	 public PutState(ArrayList state) {
-           _lstate = state;
-	 }
-        /*
-         * The Put action called concurrently or by a single thread. 4 Params
-         */
-        public void PutProc(object state)
-        {
-	    ArrayList lstate = (ArrayList)state;
-            Assert.AreEqual(5, lstate.Count);
-            byte[] key = (byte[])lstate[0];
-            string strData = (string)lstate[1];
-            int ttl = (int)lstate[2];
-            TableServer server = (TableServer)lstate[3];
-            string passwd = lstate[4] as string;
-
-            //Console.Error.WriteLine("Put:ThreadID:{0}", Thread.CurrentThread.GetHashCode());
-            Console.Error.WriteLine("Calling Put");
-            server.Put(key, ttl, passwd, Encoding.UTF8.GetBytes(strData));
-        }
-	public void PutProc() {
-          PutProc(_lstate);
-	}
-	}
-
-        #endregion
-
-        #region PutConurrently
-        /// <summary>
-        /// TestPutConcurrentlyX_Y_Z: When min==max, DataNumPerKey=min
-        /// X: keyNum
-        /// Y: minDataNumPerKey
-        /// Z: maxDataNumPerKey
-        /// </summary>
-        [Test]
-        public void TestPutConcurrently100_1_1()
-        {
-            this.TestPutConcurrently(100, 1, 1);
-        }
-
-        [Test]
-        public void TestPutConcurrently1_3_3()
-        {
-            this.TestPutConcurrently(1, 3, 3);
-        }
-
-        [Test]
-        public void TestPutConcurrently1_2_2()
-        {
-            this.TestPutConcurrently(1, 2, 2);
-        }
-
-        [Test]
-        public void TestPutConcurrently2_2_2()
-        {
-            this.TestPutConcurrently(2, 2, 2);
-        }
-
-        [Test]
-        public void TestPutConcurrently100_2_2()
-        {
-            this.TestPutConcurrently(100, 2, 2);
-        }
-/*  This one causes an exception for me (POB)
-        [Test]
-        public void TestPutConcurrently1000_1_20()
-        {
-            this.TestPutConcurrently(1000, 1, 20);
-        }
-*/
-        [Test]
-        public void TestPutConcurrently100_10_10()
-        {
-            this.TestPutConcurrently(100, 10, 10);
-        }
-
-        [Test]
-        public void TestPutConcurrently1_5_5()
-        {
-            this.TestPutConcurrently(1, 5, 5);
-        }
-        #endregion
-
-        #region PutInSingleThread
-        /*  Single threaded tests  */
-        [Test]
-        public void TestPutInSingleThread100_1_1()
-        {
-            this.TestPut(100, 1, 1, "SingleThread");
-        }
-
-        [Test]
-        public void TestPutInSingleThread1_3_3()
-        {
-            this.TestPut(1, 3, 3, "SingleThread");
-        }
-
-        [Test]
-        public void TestPutInSingleThread1_2_2()
-        {
-            this.TestPut(1, 2, 2, "SingleThread");
-        }
-
-        [Test]
-        public void TestPutInSingleThread2_2_2()
-        {
-            this.TestPut(2, 2, 2, "SingleThread");
-        }
-
-        [Test]
-        public void TestPutInSingleThread100_2_2()
-        {
-            this.TestPut(100, 2, 2, "SingleThread");
-        }
-
-        [Test]
-        public void TestPutInSingleThread100_10_10()
-        {
-            this.TestPut(100, 10, 10, "SingleThread");
-        }
-
-        [Test]
-        public void TestPutInSingleThread1_5_5()
-        {
-            this.TestPut(1, 5, 5, "SingleThread");
-        }
-
-        [Test]
-        public void TestPutInSingleThread1000_1_20()
-        {
-            this.TestPut(1000, 1, 20, "SingleThread");
-        }
-
-        #endregion
-
-        #region PutConcurrentlyUsingMemOption
-        /* multithreaded using memory option  */
-        [Test]
-        public void TestPutConcurrentlyMemory100_1_1()
-        {
-            this.TestPut(100, 1, 1, "SingleThread", EntryFactory.Media.Memory);
-        }
-
-        [Test]
-        public void TestPutConcurrentlyMemory1_3_3()
-        {
-            this.TestPut(1, 3, 3, "SingleThread", EntryFactory.Media.Memory);
-        }
-
-        [Test]
-        public void TestPutConcurrentlyMemory1_2_2()
-        {
-            this.TestPut(1, 2, 2, "SingleThread", EntryFactory.Media.Memory);
-        }
-
-        [Test]
-        public void TestPutConcurrentlyMemory2_2_2()
-        {
-            this.TestPut(2, 2, 2, "SingleThread", EntryFactory.Media.Memory);
-        }
-
-        [Test]
-        public void TestPutConcurrentlyMemory100_2_2()
-        {
-            this.TestPut(100, 2, 2, "SingleThread", EntryFactory.Media.Memory);
-        }
-
-        [Test]
-        public void TestPutConcurrentlyMemory100_10_10()
-        {
-            this.TestPut(100, 10, 10, "SingleThread", EntryFactory.Media.Memory);
-        }
-
-        [Test]
-        public void TestPutConcurrentlyMemory1_5_5()
-        {
-            this.TestPut(1, 5, 5, "SingleThread", EntryFactory.Media.Memory);
-        }
-        #endregion
+    #region PrivateUtilMethods
+    private enum TestMode {
+      Threads,SingleThread,ThreadPool
     }
+
+    /**
+     * Use Disk as default media
+     */
+    public static TableServer GetServer() {
+      return TableServerTest.GetServer(EntryFactory.Media.Disk);
+    }
+
+    public static TableServer GetServer(EntryFactory.Media media) {
+      AHAddress addr = new AHAddress(new RNGCryptoServiceProvider());
+      Node brunetNode = new StructuredNode(addr);
+      EntryFactory factory = EntryFactory.GetInstance(brunetNode, media);
+      TableServer ret = new TableServer(factory, brunetNode);
+      return ret;
+    }
+
+    public static string GenHashedPasswd() {
+      byte[] bin_passwd = new byte[100];
+
+      RNGCryptoServiceProvider provider = new RNGCryptoServiceProvider();
+      provider.GetBytes(bin_passwd);
+      return "SHA1:" + Convert.ToBase64String(bin_passwd);
+    }
+
+    public static byte[] GenRandomKey() {
+      byte[] key = new byte[160];
+      RNGCryptoServiceProvider provider = new RNGCryptoServiceProvider();
+      provider.GetBytes(key);
+      return key;
+    }
+
+    /// <summary>
+    /// A class which added some feature to Entry for testing. Some methods could be added to Entry
+    /// </summary>
+    public class Entry4Test : Entry, IComparable
+    {
+      public int TTL {
+        get {
+          TimeSpan diff = this._end_time - this._create_time;          
+          return (int)diff.TotalSeconds;
+        }
+      }
+
+      /// <summary>
+      /// Ctor with Random password, random index
+      /// </summary>
+      public Entry4Test(byte[] key, byte[] data, int ttl)
+        : base(key, TableServerTest.GenHashedPasswd(), 
+               DateTime.Now, DateTime.Now + new TimeSpan(0,0,ttl), data, new Random().Next()) {
+      }
+
+      /// <summary>
+      /// Ctor with Random password, random index and random data
+      /// </summary>
+      public Entry4Test(byte[] key, int ttl)
+        : this(key,null,ttl) {
+        byte[] d = new byte[100];
+        new Random().NextBytes(d);
+        string data = Encoding.UTF8.GetString(d) + ":" + Encoding.UTF8.GetString(key);
+        this._data = Encoding.UTF8.GetBytes(data);
+      }
+
+      /// <summary>
+      /// Used for Sorting. Since the idx is assigned with a random number, the sort operation for the entry list is actually to randomize it.
+      /// Compare the idx field. This is also true for the idx in Entry because it is unique increasing.
+      /// </summary>
+      /// <param name="obj"></param>
+      /// <returns></returns>
+      public int CompareTo(object obj) {
+        if (obj == null) {
+          throw new ArgumentNullException();
+        }
+        Entry4Test en = obj as Entry4Test;
+        if (en == null) {
+          throw new ArgumentException("Not the same type");
+        }
+        return this._idx.CompareTo(en._idx);
+      }
+
+      /// <summary>
+      /// This method only compares the idx to decide whether equal
+      /// </summary>
+      public override bool Equals(object obj) {
+        if (obj == null) {
+          throw new ArgumentNullException();
+        }
+        Entry4Test en = obj as Entry4Test;
+        if (en == null) {
+          throw new ArgumentException("Not the same type");
+        }
+        return this._idx.Equals(en._idx);
+      }
+    }
+
+    /**
+     * Multitheading using Threads directly and Disk by default
+     */
+    private void TestPutConcurrently(int keyNum, int minDataNumPerKey, int maxDataNumPerKey) {
+      this.TestPut(keyNum, minDataNumPerKey, maxDataNumPerKey, TestMode.Threads);
+    }
+
+    private void TestPut(int keyNum, int minDataNumPerKey, int maxDataNumPerKey, TestMode testType) {
+      this.TestPut(keyNum, minDataNumPerKey, maxDataNumPerKey, testType, EntryFactory.Media.Disk);
+    }
+
+    /// <summary>
+    /// Put and compare with data prepared in a single Thread
+    /// </summary>
+    /// <param name="keyNum">number of keys</param>
+    /// <param name="minDataNumPerKey">min: should be at least 1</param>
+    /// <param name="maxDataNumPerKey">max: should >= min</param>
+    /// <param name="testType">testType: Threads(default), ThreadPool and SingleThread</param>
+    private void TestPut(int keyNum, int minDataNumPerKey, int maxDataNumPerKey,
+                         TestMode testType, EntryFactory.Media media) {
+      Random rnd = new Random();
+      int entryCount = 0;
+      /**
+      * key: key in table server
+      * value: number of data items to be put in ht
+      */
+      Hashtable ht = new Hashtable();
+      ArrayList lpasswd = new ArrayList();
+      //List<Entry4Test> opList = new List<Entry4Test>(); //operation list
+      List<Entry4Test> opList = new List<Entry4Test>();
+      for (int i = 0; i < keyNum; i++) {
+        byte[] key = TableServerTest.GenRandomKey();
+        MemBlock b_key = MemBlock.Reference(key, 0, key.Length);
+        //Random number at least 1
+        int num = rnd.Next(minDataNumPerKey, maxDataNumPerKey);
+        List<Entry4Test> list = new List<Entry4Test>();
+        for (int j = 0; j < num; j++) {
+          //values of a key
+          int ttl = new Random().Next(100, 300);          
+          Entry4Test e = new Entry4Test(key,ttl);
+          list.Add(e);
+          opList.Add(e);
+        }
+        ht.Add(b_key, list);
+        entryCount += num;
+      }
+
+      int putCount = 0;
+      //sort by id, since id is randomly generated, the put sequence is random      
+      opList.Sort();      
+      //Data prepared BEFORE any concurrent operations. Begin test            
+
+      ArrayList threads = new ArrayList();
+
+      TableServer server = TableServerTest.GetServer(media);
+      foreach (Entry4Test entry in opList) {
+        byte[] key = entry.Key;
+        string strData = Encoding.UTF8.GetString(entry.Data);
+        int ttl = entry.TTL;
+        
+        string passwd = entry.Password;
+        //state used in PutProc
+        ArrayList state = new ArrayList();
+        state.Add(key);
+        state.Add(strData);
+        state.Add(ttl);
+        state.Add(server);
+        state.Add(passwd);
+        //.Net 1.0 can't pass state to threads, so we make a little object
+        PutState ps = new PutState(state);
+        switch (testType) {
+          case TestMode.ThreadPool:
+            ThreadPool.QueueUserWorkItem(new WaitCallback(ps.PutProc), state);
+            break;
+          case TestMode.SingleThread:            
+            ps.PutProc();            
+            break;
+          case TestMode.Threads:
+          default:
+            Thread t = new Thread(new ThreadStart(ps.PutProc));
+            threads.Add(t);
+            t.Start();
+            break;
+        }
+      }
+
+      foreach (Thread t in threads) {
+        t.Join();
+      }
+
+      /* Verify the result using single threaded Get() */      
+      int k = 1;
+      foreach (MemBlock b_key in ht.Keys) {
+        byte[] key = new byte[b_key.Length];
+        b_key.CopyTo(key, 0);
+        //maxbytes is set to 10000
+        IList result = server.Get(key, 10000, null);
+        IList actual_values = result[0] as ArrayList;
+
+        List<Entry4Test> expected_items = ht[b_key] as List<Entry4Test>;
+        Assert.AreEqual(expected_items.Count, actual_values.Count, string.Format("Data item count failed in the {0}th key checked", k));
+        //check values
+        List<MemBlock> expected_values = new List<MemBlock>();
+        foreach (Entry4Test it in expected_items) {
+          expected_values.Add(MemBlock.Reference(it.Data));
+        }
+        foreach (Hashtable actual_val in actual_values) {
+          Assert.IsTrue(expected_values.Contains(MemBlock.Reference((byte[])actual_val["value"])),"Incorrect value");
+        }
+        k++;
+      }
+      Assert.AreEqual(entryCount, server.GetCount(), "Quantity of total entries wrong");
+    }
+
+
+    protected class PutState
+    {
+      protected ArrayList _lstate;
+      protected Random rnd;
+      public PutState(ArrayList state) {
+        _lstate = state;
+      }
+      /*
+       * The Put action called concurrently or by a single thread. 5 Params
+       */
+      public void PutProc(object state) {
+        ArrayList lstate = (ArrayList)state;
+        Assert.AreEqual(5, lstate.Count);
+        byte[] key = (byte[])lstate[0];
+        string strData = (string)lstate[1];
+        int ttl = (int)lstate[2];
+        TableServer server = (TableServer)lstate[3];
+        string passwd = lstate[4] as string;
+
+        server.Put(key, ttl, passwd, Encoding.UTF8.GetBytes(strData));
+      }
+
+      public void PutProc() {
+        PutProc(_lstate);
+      }
+    }
+
+    #endregion
+
+    #region PutConurrently
+    /// <summary>
+    /// TestPutConcurrentlyX_Y_Z: When min==max, DataNumPerKey=min
+    /// X: keyNum
+    /// Y: minDataNumPerKey
+    /// Z: maxDataNumPerKey
+    /// </summary>
+    [Test]
+    public void TestPutConcurrently100_1_1() {
+      this.TestPutConcurrently(100, 1, 1);
+    }
+
+    [Test]
+    public void TestPutConcurrently1_3_3() {
+      this.TestPutConcurrently(1, 3, 3);
+    }
+
+    [Test]
+    public void TestPutConcurrently100_2_2() {
+      this.TestPutConcurrently(100, 2, 2);
+    }
+
+    [Test]
+    public void TestPutConcurrently10_1_20() {
+      this.TestPutConcurrently(10, 1, 20);
+    }
+
+    [Test]
+    public void TestPutConcurrently50_1_50() {
+      this.TestPutConcurrently(50, 1, 50);
+    }
+
+    #endregion
+
+    #region PutInSingleThread
+    /*  Single threaded tests  */
+    [Test]
+    public void TestPutInSingleThread100_1_1() {
+      this.TestPut(100, 1, 1, TestMode.SingleThread);
+    }
+
+    [Test]
+    public void TestPutInSingleThread1_3_3() {
+      this.TestPut(1, 3, 3, TestMode.SingleThread);
+    }
+
+    [Test]
+    public void TestPutInSingleThread100_2_2() {
+      this.TestPut(100, 2, 2, TestMode.SingleThread);
+    }
+
+    [Test]
+    public void TestPutInSingleThread100_10_10() {
+      this.TestPut(100, 10, 10, TestMode.SingleThread);
+    }
+
+    [Test]
+    public void TestPutInSingleThread1000_1_20() {
+      this.TestPut(1000, 1, 20, TestMode.SingleThread);
+    }
+
+    [Test]
+    public void TestPutInSingleThread50_10_10() {
+      this.TestPut(50, 10, 10, TestMode.SingleThread);
+    }
+
+    [Test]
+    public void TestPutInSingleThreadMemory50_10_10() {
+      this.TestPut(50, 10, 10, TestMode.SingleThread, EntryFactory.Media.Memory);
+    }
+
+    #endregion
+
+    #region PutConcurrentlyUsingMemOption
+    /* multithreaded using memory option  */
+    [Test]
+    public void TestPutConcurrentlyMemory100_1_1() {
+      this.TestPut(100, 1, 1, TestMode.Threads, EntryFactory.Media.Memory);
+    }
+
+    [Test]
+    public void TestPutConcurrentlyMemory1_3_3() {
+      this.TestPut(1, 3, 3, TestMode.Threads, EntryFactory.Media.Memory);
+    }
+
+    [Test]
+    public void TestPutConcurrentlyMemory2_2_2() {
+      this.TestPut(2, 2, 2, TestMode.Threads, EntryFactory.Media.Memory);
+    }
+
+    [Test]
+    public void TestPutConcurrentlyMemory50_10_10() {
+      this.TestPut(50, 10, 10, TestMode.Threads, EntryFactory.Media.Memory);
+    }
+
+    [Test]
+    public void TestPutConcurrentlyMemory100_10_10() {
+      this.TestPut(100, 10, 10, TestMode.Threads, EntryFactory.Media.Memory);
+    }
+    #endregion
+  }
 #endif
 }
-
