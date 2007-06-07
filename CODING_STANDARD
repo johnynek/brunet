@@ -1,0 +1,34 @@
+ACIS C# Coding Convention
+ 
+1. Introduction
+    This guideline aims to be a note for coding in some specific cases instead of a complete reference. Also, the convention listed here doesn't necessarily comply with the recommendations from other C# convention articles.
+2. Indention 
+    Use 2 Spaces instead of Tabs 
+3. Comments 
+   1. Block (multiple lines starts with /** for /*) and C Style (/* */): general descriptions and classes, methods descriptions 
+   2. Single Line (//): recommended for commenting out code
+   3. Documentation: doxygen comments prefered.  Use "///" to start a one line comment, /** to start a multiple line documentation containing comment.
+4. Declarations 
+   {place holder}
+5. Statements 
+   {place holder}
+6. Naming Conventions:
+   There are four formats used:
+     a. PascalCase: FirstLetterCapitalized
+     b. unix: all_lower_case_with_underscores_seperating_words
+     c. underscore: _unix_naming_with_a_leading_underscore
+     d. capitalized: UNIX_NAMING_WITH_CAPITAL_LETTERS
+     e. CamelCase: firstLetterLowerAllOthersUpper
+
+   1. Class/Namespaces/Methods/Properties: PascalCase (following the C# standard library: http://msdn2.microsoft.com/en-us/library/x2dbyw72(VS.71).aspx ).
+   2. Local variables: unix
+   3. Const and static readonly: capitalized
+   4. Instance and class variables: underscore
+   5. Method Parameters: CamelCase
+   6. Hungarian notations (i.e. strName) is generally considered deprecated but still allowed here for some local variables.
+
+7. New Lines and Braces
+   1. Open brace on new line for types (classes, namespaces, structs, etc)
+   2. Open brace on the same line for methods, anonymous methods, control blocks
+   3. "else", "catch", "finally", etc on the same line of the previous close brace.
+
