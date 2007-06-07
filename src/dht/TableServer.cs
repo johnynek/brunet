@@ -93,16 +93,7 @@ namespace Brunet.Dht {
     * @param data data associated with the key
     * @return true on success, false on failure
     */
-    public int Put(byte[] key, int ttl, string hashed_password, byte[] data) {
-      MemBlock ht_key3 = MemBlock.Reference(key, 0, key.Length);
-      ArrayList list3 = _ht[ht_key3] as ArrayList;
-      if (list3 != null) {
-        Console.Error.WriteLine("[Test] data items under the key before put: {0}", list3.Count);
-      }
-      else {
-        Console.Error.WriteLine("[Test] 1st time");
-      }
-
+    public bool Put(byte[] key, int ttl, string hashed_password, byte[] data) {
       string hash_name = null;
       string base64_val = null;
       if(!ValidatePasswordFormat(hashed_password, out hash_name, out base64_val)) {
@@ -135,7 +126,7 @@ namespace Brunet.Dht {
           // Can't have duplicate passwords - no RePuts
           if (ent.Password.Equals(hashed_password)) {
               Console.Error.WriteLine("Exist because password conflict");
-              return entry_list.Count;            
+              return false;
           }
         }
 
@@ -143,25 +134,13 @@ namespace Brunet.Dht {
         Entry e = _ef.CreateEntry(key, hashed_password,  create_time, end_time,
                           data, _max_idx);
 
-        //Add the entry to the end of the list.
         entry_list.Add(e);
-
-        MemBlock ht_key2 = MemBlock.Reference(key, 0, key.Length);
-        ArrayList list2 = _ht[ht_key2] as ArrayList;
-        Console.Error.WriteLine("[Test] data items under the key before sort: {0}", list2.Count);
-          
-          //Further add this to sorted list _expired_entries list
         InsertToSorted(e);
 
         ///@todo, we might need to tell a neighbor about this object
-        
-          //jx
-        MemBlock ht_key1 = MemBlock.Reference(key, 0, key.Length);
-        ArrayList list1 = _ht[ht_key1] as ArrayList;
-        Console.Error.WriteLine("[Test] data items under the key after sort: {0}", list1.Count);
-          //
+
       } // end of lock
-      return entry_list.Count;
+      return true;
     }
 
     /**
@@ -201,11 +180,8 @@ namespace Brunet.Dht {
             }
             to_renew = e; 
           }
-          if (to_renew == null) {
-            throw new Exception("Unable to find a key-value pair to renew.");
-          }
-          if (end_time < to_renew.EndTime) {
-            throw new Exception("Cannot shorten lifetime of a key-value.");
+          if ((to_renew == null) || (end_time < to_renew.EndTime)) {
+            return false;
           }
           //we should also remove this entry, and put a new one
           entry_list.Remove(to_renew);
@@ -216,7 +192,8 @@ namespace Brunet.Dht {
                                         data, to_renew.Index);
           entry_list.Add(new_e);
           InsertToSorted(new_e);
-        } else {
+        }
+        else {
           //This is a new key, just a regular Create()
           entry_list = new ArrayList();
           _ht[ht_key] = entry_list;
