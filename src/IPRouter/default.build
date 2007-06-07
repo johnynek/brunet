@@ -19,14 +19,7 @@
     </copy>
     <csc target="exe" output="${build.dir}/IPRouter.exe">
       <sources failonempty="true">
-        <include name="IPRouter.cs"/>
-        <include name="Ethernet.cs"/>
-        <include name="IPPacketHandler.cs"/>
-        <include name="IPPacketParser.cs"/>
-        <include name="BrunetTransport.cs"/>
-        <include name="NodeMapping.cs"/>
-        <include name="RouteMissHandler.cs"/>
-        <include name="Shutdown.cs"/>
+        <include name="*.cs"/>
         <include name="../Dht/IDht.cs"/>
         <include name="../Dht/DhtService.cs"/>
         <include name="../Dht/SoapDht.cs"/>

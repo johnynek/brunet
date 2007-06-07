@@ -391,8 +391,8 @@ namespace Ipop {
         catch (System.Net.WebException) {
           Console.Error.WriteLine("Soap/XmlRpc Dht service not available");
         }
-        catch (Exception e) {
-          Console.WriteLine("Dht may not be available, yet, try again now or a little later\n" + e);
+        catch (Exception) {
+          Console.WriteLine("Dht may not be available, yet, try again now or a little later.");
         }
       }
     }

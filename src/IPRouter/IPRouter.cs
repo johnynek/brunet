@@ -29,8 +29,7 @@ namespace Ipop {
 /*  DHT added code */
 
     private static DHCPClient dhcpClient;
-    private static Cache brunet_arp_cache;
-    private static RouteMissHandler route_miss_handler;
+    private static Routes routes;
 
 /*  Generic */
     private static void BrunetStart() {
@@ -40,10 +39,7 @@ namespace Ipop {
       if(config.EnableSoapDht && sdthread == null) {
         sdthread = DhtServer.StartDhtServerAsThread(node.brunet.dht);
       }
-      brunet_arp_cache = new Cache(100);
-      RouteMissHandler.RouteMissDelegate dlgt =
-        new RouteMissHandler.RouteMissDelegate(RouteMissCallback);
-      route_miss_handler = new RouteMissHandler(node.brunet.dht, node.ipop_namespace, dlgt);
+      routes = new Routes(node.brunet.dht, node.ipop_namespace);
     }
 
     private static bool ARPHandler(byte []packet) {
@@ -88,7 +84,8 @@ namespace Ipop {
       return true;
     }
 
-    private static void IPUpdate(object ip) {
+    // Umm... are we still interested in this feature?
+ /*   private static void IPUpdate(object ip) {
       if(node.brunet.Update((string) ip.ToString())) {
         Console.Error.WriteLine("MY IP " + node.ip);
         config.AddressData.IPAddress = node.ip.ToString();
@@ -97,7 +94,7 @@ namespace Ipop {
         IPRouterConfigHandler.Write(ConfigFile, config);
       }
       in_dht = false;
-    }
+    }*/
 
     private static void ProcessDHCP(object buffero) {
       byte [] buffer = (byte []) buffero;
@@ -153,7 +150,7 @@ namespace Ipop {
           }
           node.netmask = newNetmask;
           node.ip = IPAddress.Parse(newAddress);
-	  Console.Error.WriteLine("Following DHCP my IP: {0}", node.ip);
+      	  Console.Error.WriteLine("According to DHCP my IP is {0}", node.ip);
           config.AddressData.IPAddress = newAddress;
           config.AddressData.Netmask = node.netmask;
           IPRouterConfigHandler.Write(ConfigFile, config);
@@ -172,12 +169,8 @@ namespace Ipop {
       return;
     }
 
-    public static void RouteMissCallback(IPAddress ip, Address target) {
-      brunet_arp_cache.Add(ip, target);
-    }
-
     static void Main(string []args) {
-      //configuration file 
+      //configuration file
       if (args.Length < 1) {
         Console.Error.WriteLine("please specify the configuration file name...");
         Environment.Exit(0);
@@ -293,6 +286,7 @@ namespace Ipop {
           continue;
         }
 
+        // This is used to allow us switching of IP address via ifconfig - are we still interested in this?
 //         if(!srcAddr.Equals(IPAddress.Parse("0.0.0.0")) && !srcAddr.Equals(node.ip) && !in_dht) {
 //           Console.Error.WriteLine("Switching IP Address " + node.ip + " with " + srcAddr);
 //           in_dht = true;
@@ -300,10 +294,10 @@ namespace Ipop {
 //           continue;
 //         }
 
-        AHAddress target = (AHAddress) brunet_arp_cache.Get(destAddr);
+        AHAddress target = (AHAddress) routes.GetAddress(destAddr);
         if (target == null) {
           Console.Error.WriteLine("Incurring a route miss for virtual ip: {0}", destAddr);
-          route_miss_handler.HandleRouteMiss(destAddr);
+          routes.RouteMiss(destAddr);
           continue;
         }
         if (debug) {

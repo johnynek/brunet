@@ -1,6 +1,7 @@
 using System;
 using System.Net;
 using Brunet;
+using Brunet.Dht;
 using System.Collections;
 using System.Threading;
 
