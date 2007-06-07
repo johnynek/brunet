@@ -15,7 +15,7 @@ namespace Brunet.Dht {
       this.dht = dht;
     }
 
-    public static readonly int delay = 1000;
+    public static readonly int DELAY = 2000;
 
     /* Returns a password if it works or NULL if it didn't */
     public string Create(byte[] key, byte[] value, string password, int ttl) {
@@ -57,12 +57,12 @@ namespace Brunet.Dht {
         allQueues.AddRange(q);
         tokens = new byte[this.dht.Degree][];
 
-        DateTime start = DateTime.Now;
+        DateTime start = DateTime.UtcNow;
 
         while(true) {
-          TimeSpan ts_timeleft = DateTime.Now - start;
+          TimeSpan ts_timeleft = DateTime.UtcNow - start;
           int time_diff = ts_timeleft.Milliseconds;
-          int time_left = (delay - time_diff > 0) ? delay - time_diff : 0;
+          int time_left = (DELAY - time_diff > 0) ? DELAY - time_diff : 0;
           int idx = BlockingQueue.Select(allQueues, time_left);
           if(idx == -1) {
             break;
@@ -72,9 +72,13 @@ namespace Brunet.Dht {
           queueMapping.RemoveAt(idx);
           idx = real_idx;
 
-          RpcResult rpc_reply = (RpcResult) q[idx].Dequeue();
-          try{
+          if(q[idx].Closed) {
+            continue;
+          }
+          try {
+            RpcResult rpc_reply = (RpcResult) q[idx].Dequeue();
             ArrayList result = (ArrayList) rpc_reply.Result;
+            //Result may be corrupted
             if (result == null || result.Count < 3) {
               continue;
             }
@@ -93,9 +97,7 @@ namespace Brunet.Dht {
               }
             }
           }
-          catch (Exception) {
-            return null;
-          }
+          catch (Exception) {;} // Treat this as receiving nothing
         }
         foreach(BlockingQueue queue in q) {
           queue.Close();
@@ -144,27 +146,36 @@ namespace Brunet.Dht {
       ArrayList allQueues = new ArrayList();
       allQueues.AddRange(q);
 
-      DateTime start = DateTime.Now;
+      DateTime start = DateTime.UtcNow;
 
       while(pcount <= majority || ncount < majority) {
-        TimeSpan ts_timeleft = DateTime.Now - start;
+        TimeSpan ts_timeleft = DateTime.UtcNow - start;
         int time_diff = ts_timeleft.Milliseconds;
-        int time_left = (delay - time_diff > 0) ? delay - time_diff : 0;
+        int time_left = (DELAY - time_diff > 0) ? DELAY - time_diff : 0;
 
         int idx = BlockingQueue.Select(allQueues, time_left);
+        bool result = false;
         if(idx == -1) {
           break;
         }
-        RpcResult rpc_reply = (RpcResult) ((BlockingQueue) allQueues[idx]).Dequeue();
-        allQueues.RemoveAt(idx);
-        bool result = (bool) rpc_reply.Result;
+
+        if(!((BlockingQueue) allQueues[idx]).Closed) {
+          try {
+            RpcResult rpc_reply = (RpcResult) ((BlockingQueue) allQueues[idx]).Dequeue();
+            result = (bool) rpc_reply.Result;
+          }
+          catch(Exception) {;} // Treat this as receiving a negative
+        }
+
         if(result == true) {
           pcount++;
         }
         else {
           ncount++;
         }
+        allQueues.RemoveAt(idx);
       }
+
       if(pcount >= majority) {
         rv = "SHA1:" + password;
       }
