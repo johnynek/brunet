@@ -86,7 +86,7 @@ namespace Brunet.Dht {
     }
 
     /**
-    * This method puts in a key-value pair. (now this is idempotent).
+    * This method puts in a key-value pair.
     * @param key key associated with the date item
     * @param ttl time-to-live in seconds
     * @param hashed_password <hash_name>:<base64(hashed_pass)>
@@ -110,8 +110,6 @@ namespace Brunet.Dht {
         MemBlock ht_key = MemBlock.Reference(key, 0, key.Length);
         entry_list = (ArrayList)_ht[ht_key];
         if( entry_list != null ) {
-          //Make sure we only keep one reference to a key to save memory:
-          //Arijit Ganguly - I had no idea what this was about. Now I know...
           key = ((Entry)entry_list[0]).Key;
           ht_key = MemBlock.Reference(key, 0, key.Length);
         }
@@ -123,14 +121,27 @@ namespace Brunet.Dht {
         _max_idx++; //Increment the maximum index
 
         foreach(Entry ent in entry_list) {
-          // Can't have duplicate passwords - no RePuts
           if (ent.Password.Equals(hashed_password)) {
-              Console.Error.WriteLine("Exist because password conflict");
+            MemBlock arg_data = MemBlock.Reference(data, 0, data.Length);
+            MemBlock e_data = MemBlock.Reference(ent.Data, 0, ent.Data.Length);
+            // This a different Put
+            if (!e_data.Equals(arg_data) || end_time < ent.EndTime || ent == null) {
               return false;
+            }
+            //Removing this entry and putting in a new one
+            entry_list.Remove(ent);
+            DeleteFromSorted(ent);
+
+            Entry new_e = _ef.CreateEntry(ent.Key, hashed_password, 
+                                          ent.CreatedTime, end_time,
+                                          data, ent.Index);
+            entry_list.Add(new_e);
+            InsertToSorted(new_e);
+            return true;
           }
         }
 
-        //Look up 
+        //Look up
         Entry e = _ef.CreateEntry(key, hashed_password,  create_time, end_time,
                           data, _max_idx);
 
