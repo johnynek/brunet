@@ -16,8 +16,30 @@ namespace Brunet.Dht {
     static readonly int network_size = 10;
     static readonly string brunet_namespace = "testing";
     static readonly int base_port = 55123;
+    // Well this is needed because C# doesn't lock the console
+    private object _lock = new object();
 
-    public void ParallelCreate() {
+    public void ParallelCreate(byte[][] key, byte[][] value, string[] password, int[] ttl,
+                            int[] index, string[] expected_result, ref int op) {
+      ArrayList threadlist = new ArrayList();
+      for (int i = 0; i < key.Length; i++) {
+        Hashtable ht = new Hashtable();
+        ht.Add("key", key[i]);
+        ht.Add("value", value[i]);
+        if(password != null) {
+          ht.Add("password", password[i]);
+        }
+        ht.Add("ttl", ttl[i]);
+        ht.Add("index", index[i]);
+        ht.Add("result", expected_result[i]);
+        ht.Add("op", op++);
+        Thread thread = new Thread(SerialCreate);
+        thread.Start((object) ht);
+        threadlist.Add(thread);
+      }
+      foreach(Thread thread in threadlist) {
+        thread.Join();
+      }
     }
 
     public void SerialCreate(byte[] key, byte[] value, string password, int ttl,
@@ -52,7 +74,16 @@ namespace Brunet.Dht {
       }
       string result = dhtOps[index].Create(key, value, password, ttl);
       if(result != expected_result) {
-        Console.WriteLine("Failure at operation: " + op);
+        if(result == null) {
+          lock(_lock) {
+            Console.WriteLine("Possible failure from unsuccessful Create: " + op);
+          }
+        }
+        else {
+          lock(_lock) {
+            Console.WriteLine("Possible failure from successful Create: " + op);
+          }
+        }
       }
     }
 
@@ -91,28 +122,25 @@ namespace Brunet.Dht {
       int op = (int) ht["op"];
       try {
         DhtGetResult[] result = dhtOps[index].Get(key);
-        if(result.Length != expected_results.Length) {
-          Console.WriteLine("Failure at operation: " + op);
-        }
-        else {
-          bool found = false;
-          int found_count = 0;
-          for(int i = 0; i < result.Length; i++) {
-            for(int j = 0; j < expected_results.Length; j++) {
-              if(ArrayComparer(result[i].value, expected_results[j])) {
-                found = true;
-                break;
-              }
-            }
-            if(found) {
-              found_count++;
-              found =  false;
+        bool found = false;
+        int found_count = 0;
+        for(int i = 0; i < result.Length; i++) {
+          for(int j = 0; j < expected_results.Length; j++) {
+            if(ArrayComparer(result[i].value, expected_results[j])) {
+              found = true;
+              break;
             }
           }
-          if(found_count != expected_results.Length) {
-            Console.WriteLine("Failure at operation: " + op);
-            Console.WriteLine("Failed get... atempted to get " + 
-                expected_results.Length + " found " + found_count);
+          if(found) {
+            found_count++;
+            found =  false;
+          }
+        }
+        if(found_count != expected_results.Length) {
+          lock(_lock) {
+            Console.WriteLine("Failed get... attempted to get " + 
+                expected_results.Length + " found " + found_count +
+                " operation: " + op);
           }
         }
       }
@@ -178,12 +206,23 @@ namespace Brunet.Dht {
       try {
         string result = dhtOps[index].Put(key, value, password, ttl);
         if(result != expected_result) {
-          Console.WriteLine("Failure at operation: " + op);
+          if(result == null) {
+            lock(_lock) {
+              Console.WriteLine("Possible failure from unsuccessful Put: " + op);
+            }
+          }
+          else {
+            lock(_lock) {
+              Console.WriteLine("Possible failure from successful Put: " + op);
+            }
+          }
         }
       }
       catch(Exception e) {
-        Console.WriteLine("Failure at operation: " + op);
-        Console.WriteLine(e);
+        lock(_lock) {
+          Console.WriteLine("Failure at operation: " + op);
+          Console.WriteLine(e);
+        }
       }
     }
 
@@ -274,11 +313,16 @@ namespace Brunet.Dht {
         Test0(ref op);
         Test1(ref op);
         Test2(ref op);
-        Test3(ref op);
+        //Test3(ref op);
         Test4(ref op);
         Test5(ref op);
         Test6(ref op);
         Test7(ref op);
+        Test8(ref op);
+        Test9(ref op);
+        Test10(ref op);
+        Test11(ref op);
+        Test12(ref op);
       }
       catch (Exception e) {
         Console.WriteLine("Failure at operation: " + (op - 1));
@@ -294,7 +338,7 @@ namespace Brunet.Dht {
       byte[][] results = new byte[1][];
       string password = string.Empty;
 
-      Console.WriteLine("Testing 1 put and 1 get");
+      Console.WriteLine("Test 0: Testing 1 put and 1 get");
       rng.GetBytes(key);
       rng.GetBytes(value);
       password = "SHA1:" + dhtOps[0].GeneratePassword(null);
@@ -312,7 +356,8 @@ namespace Brunet.Dht {
       byte[][] results = new byte[1][];
       string password = string.Empty;
 
-      Console.WriteLine("Testing 10 puts and 10 gets with different keys serially.");
+      Console.WriteLine("Test 1: Testing 10 puts and 10 gets with different " +
+          "keys serially.");
       for(int i = 0; i < 10; i++) {
         password = "SHA1:" + dhtOps[0].GeneratePassword(null);
         rng.GetBytes(key);
@@ -326,7 +371,7 @@ namespace Brunet.Dht {
     }
 
     public void Test2(ref int op) {
-      Console.WriteLine("Testing 10 puts and 10 gets with the same key.");
+      Console.WriteLine("Test 2: Testing 10 puts and 10 gets with the same key.");
       RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
       byte[] key = new byte[10];
       byte[] value = new byte[10];
@@ -346,7 +391,8 @@ namespace Brunet.Dht {
     }
 
     public void Test3(ref int op) {
-      Console.WriteLine("Testing 1000 puts and 1 get with 1000 results with the same key.");
+      Console.WriteLine("Test 3: Testing 1000 puts and 1 get with 1000 " +
+          "results with the same key.");
       RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
       byte[] key = new byte[10];
       byte[] value = new byte[10];
@@ -366,7 +412,8 @@ namespace Brunet.Dht {
     }
 
     public void Test4(ref int op) {
-      Console.WriteLine("Testing 10 parallel puts and 1 get with the same key.");
+      Console.WriteLine("Test 4: Testing 10 parallel puts and 1 get with the" +
+           " same key.");
       RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
       byte[] key = new byte[10];
       byte[] value = new byte[10];
@@ -394,7 +441,8 @@ namespace Brunet.Dht {
     }
 
     public void Test5(ref int op) {
-      Console.WriteLine("Testing 10 parallel puts and 10 parallel gets with the same key.");
+      Console.WriteLine("Test 5: Testing 10 parallel puts and 10 parallel " +
+          "gets with the same key.");
       RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
       byte[] key = new byte[10];
       byte[] value = new byte[10];
@@ -424,7 +472,8 @@ namespace Brunet.Dht {
     }
 
     public void Test6(ref int op) {
-      Console.WriteLine("Testing 10 parallel puts and 10 parallel gets with the different keys.");
+      Console.WriteLine("Test 6: Testing 10 parallel puts and 10 parallel " +
+          "gets with the different keys.");
       RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
       byte[] key;
       byte[] value;
@@ -456,7 +505,8 @@ namespace Brunet.Dht {
     }
 
     public void Test7(ref int op) {
-      Console.WriteLine("Testing Dht Put for uniqueness ... same key, same password");
+      Console.WriteLine("Test 7: Testing Dht Put for uniqueness ... same " +
+          "key, same password");
       RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
       byte[] value;
       byte[] key = new byte[10];
@@ -473,6 +523,141 @@ namespace Brunet.Dht {
       value = new byte[10];
       rng.GetBytes(value);
       this.SerialPut(key, value, password, 3000, 0, "null", op++);
+
+      this.SerialGet(key, 0, results, op++);
+
+      Console.WriteLine("If no error messages successful up to: " + (op - 1));
+    }
+
+    public void Test8(ref int op) {
+      Console.WriteLine("Test 8: Testing Dht Put for time idempotency ... " +
+          "same key, same value, same password");
+      RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
+      byte[] value;
+      byte[] key = new byte[10];
+      rng.GetBytes(key);
+      byte[][] results = new byte[1][];
+      string password = "SHA1:" + dhtOps[0].GeneratePassword(null);
+
+      value = new byte[10];
+      rng.GetBytes(value);
+      this.SerialPut(key, value, password, 3000, 0, password, op++);
+      results = new byte[1][];
+      results[0] = value;
+
+      this.SerialPut(key, value, password, 3000, 0, password, op++);
+
+      this.SerialGet(key, 0, results, op++);
+
+      Console.WriteLine("If no error messages successful up to: " + (op - 1));
+    }
+
+    public void Test9(ref int op) {
+      Console.WriteLine("Test 9: Testing 10 parallel creates and 1 get " +
+          "with the same key.");
+      RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
+      byte[] key = new byte[10];
+      byte[] value = new byte[10];
+      byte[][] keys = new byte[10][];
+      byte[][] values = new byte[10][];
+      string[] passwords = new string[10];
+      int[] ttls = new int[10];
+      int[] dhtindexes = new int[10];
+
+      key = new byte[10];
+      rng.GetBytes(key);
+
+      for(int i = 0; i < 10; i++) {
+        keys[i] = key;
+        value = new byte[10];
+        rng.GetBytes(value);
+        values[i] = value;
+        passwords[i] = "SHA1:" + dhtOps[0].GeneratePassword(null);
+        ttls[i] = 3000;
+        dhtindexes[i] = 0;
+      }
+      this.ParallelCreate(keys, values, passwords, ttls, dhtindexes, passwords, ref op);
+      this.SerialGet(key, 0, values, op++);
+      Console.WriteLine("This test is kind of bogus, but we'll either get 10" +
+          " or 11 failure messages any less and we have a bug, this is for" +
+          " operations up to " + (op - 1));
+    }
+
+    public void Test10(ref int op) {
+      Console.WriteLine("Test 10: Testing 10 parallel creates and 10 " +
+          "parallel gets with the different keys.");
+      RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
+      byte[] key;
+      byte[] value;
+      byte[][] keys = new byte[10][];
+      byte[][] values = new byte[10][];
+      string[] passwords = new string[10];
+      int[] ttls = new int[10];
+      int[] dhtindexes = new int[10];
+      byte[][][] gresults = new byte[10][][];
+      byte[][] results;
+
+      for(int i = 0; i < 10; i++) {
+        key = new byte[10];
+        rng.GetBytes(key);
+        keys[i] = key;
+        value = new byte[10];
+        rng.GetBytes(value);
+        values[i] = value;
+        results = new byte[1][];
+        results[0] = value;
+        gresults[i] = results;
+        passwords[i] = "SHA1:" + dhtOps[0].GeneratePassword(null);
+        ttls[i] = 3000;
+        dhtindexes[i] = 0;
+      }
+      this.ParallelCreate(keys, values, passwords, ttls, dhtindexes, passwords, ref op);
+      this.ParallelGet(keys, dhtindexes, gresults, ref op);
+      Console.WriteLine("If no error messages successful up to: " + (op - 1));
+    }
+
+    public void Test11(ref int op) {
+      Console.WriteLine("Test 11: Testing Dht Create for uniqueness ... " +
+          "same key and password");
+      RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
+      byte[] value;
+      byte[] key = new byte[10];
+      rng.GetBytes(key);
+      byte[][] results = new byte[1][];
+      string password = "SHA1:" + dhtOps[0].GeneratePassword(null);
+
+      value = new byte[10];
+      rng.GetBytes(value);
+      this.SerialCreate(key, value, password, 3000, 0, password, op++);
+      results = new byte[1][];
+      results[0] = value;
+
+      value = new byte[10];
+      rng.GetBytes(value);
+      this.SerialCreate(key, value, password, 3000, 0, "null", op++);
+
+      this.SerialGet(key, 0, results, op++);
+
+      Console.WriteLine("If no error messages successful up to: " + (op - 1));
+    }
+
+    public void Test12(ref int op) {
+      Console.WriteLine("Test 12: Testing Dht Create for time idempotency " +
+          "... same key, same value, same password");
+      RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
+      byte[] value;
+      byte[] key = new byte[10];
+      rng.GetBytes(key);
+      byte[][] results = new byte[1][];
+      string password = "SHA1:" + dhtOps[0].GeneratePassword(null);
+
+      value = new byte[10];
+      rng.GetBytes(value);
+      this.SerialCreate(key, value, password, 3000, 0, password, op++);
+      results = new byte[1][];
+      results[0] = value;
+
+      this.SerialCreate(key, value, password, 3000, 0, password, op++);
 
       this.SerialGet(key, 0, results, op++);
 
