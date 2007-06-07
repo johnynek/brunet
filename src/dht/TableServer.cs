@@ -100,7 +100,7 @@ namespace Brunet.Dht {
         throw new Exception("Invalid password format.");
       }
 
-      DateTime create_time = DateTime.Now;
+      DateTime create_time = DateTime.UtcNow;
       TimeSpan ts = new TimeSpan(0,0,ttl);
       DateTime end_time = create_time + ts;
       ArrayList entry_list = null;
@@ -170,7 +170,7 @@ namespace Brunet.Dht {
       if (!ValidatePasswordFormat(hashed_password, out hash_name, out base64_val)) {
         throw new Exception("Invalid password format.");
       }
-      DateTime create_time = DateTime.Now;
+      DateTime create_time = DateTime.UtcNow;
       TimeSpan ts = new TimeSpan(0,0,ttl);
       DateTime end_time = create_time + ts;
 
@@ -260,7 +260,7 @@ namespace Brunet.Dht {
             // Have we seen this and do we have enough space for it?
             if(e.Index > seen_end_idx) {
               if (e.Data.Length + consumed_bytes <= maxbytes) {
-                TimeSpan age = DateTime.Now - e.CreatedTime;
+                TimeSpan age = DateTime.UtcNow - e.CreatedTime;
                 int age_i = (int)age.TotalSeconds;
                 consumed_bytes += e.Data.Length;
                 Hashtable item = new Hashtable();
@@ -303,7 +303,7 @@ namespace Brunet.Dht {
     */
     protected void DeleteExpired() {
       int del_count = 0;
-      DateTime now = DateTime.Now;
+      DateTime now = DateTime.UtcNow;
       foreach(Entry e in _expiring_entries) {
         DateTime end_time = e.EndTime; 
         // These should be sorted so we will break once we find an end_time greater than now
