@@ -15,63 +15,11 @@ namespace Brunet.Dht {
       this.dht = dht;
     }
 
+    public static readonly int delay = 1000;
+
     /* Returns a password if it works or NULL if it didn't */
     public string Create(byte[] key, byte[] value, string password, int ttl) {
-      password = GeneratePassword(password);
-      string hashed_password = GetHashedPassword(password);
-
-      int min_replies_per_queue = 2;
-      int min_majority = this.dht.Degree/2 + 1;
-      //int min_majority = this.dht.Degree;
-      BooleanQuorum _quorum = new BooleanQuorum(min_replies_per_queue, min_majority);
-      System.Threading.AutoResetEvent _re = new System.Threading.AutoResetEvent(false);
-
-      BlockingQueue [] queues = this.dht.CreateF(key, ttl, hashed_password, value);
-
-      EventHandler EnqueueHandler = delegate(object o, EventArgs args) {
-        BlockingQueue q = (BlockingQueue) o;
-        try {
-          while(true) {
-            bool timedout; 
-            object res = q.Dequeue(0, out timedout);
-            if (timedout) {
-              break;
-            }
-          //add this result to the quorom
-            _quorum.Add(q, res);
-          }
-        }
-        catch(InvalidOperationException) {
-        }
-        bool done = _quorum.CheckFinished();
-        if (done) {
-        //signal the waiting thread
-          _re.Set();
-        }
-      };
-
-      foreach(BlockingQueue queue in queues) {
-        queue.EnqueueEvent += new EventHandler(EnqueueHandler);
-        //also dequeue if something is already in there
-        EnqueueHandler(queue, null);
-      }
-
-      //wait for upto 60 seconds
-      bool got_set = _re.WaitOne(60000, false);
-      bool success = (_quorum.Result == BooleanQuorum.State.Success);
-      //we should not close all queues, and cancel their events
-
-      foreach(BlockingQueue queue in queues) {
-        queue.EnqueueEvent -= new EventHandler(EnqueueHandler);
-        queue.Close();
-        _quorum = null;
-      }
-
-      _re.Reset();
-      if (got_set && success) {
-        return "SHA1:" + password;
-      }
-      return null;
+      return Put(key, value, password, ttl, true);
     }
 
     public string Create(string key, byte[] value, string password, int ttl) {
@@ -109,8 +57,13 @@ namespace Brunet.Dht {
         allQueues.AddRange(q);
         tokens = new byte[this.dht.Degree][];
 
+        DateTime start = DateTime.Now;
+
         while(true) {
-          int idx = BlockingQueue.Select(allQueues, 1000);
+          TimeSpan ts_timeleft = DateTime.Now - start;
+          int time_diff = ts_timeleft.Milliseconds;
+          int time_left = (delay - time_diff > 0) ? delay - time_diff : 0;
+          int idx = BlockingQueue.Select(allQueues, time_left);
           if(idx == -1) {
             break;
           }
@@ -158,30 +111,7 @@ namespace Brunet.Dht {
     }
 
     public string Put(byte[] key, byte[] value, string password, int ttl) {
-      password = GeneratePassword(password);
-      string hashed_password = GetHashedPassword(password);
-      string rv = null;
-
-      BlockingQueue[] q = this.dht.PutF(key, ttl, hashed_password, value);
-      int count = 0, majority = this.dht.Degree / 2;
-      ArrayList allQueues = new ArrayList();
-      allQueues.AddRange(q);
-      while(count <= majority) {
-        int idx = BlockingQueue.Select(allQueues, 1000);
-        if(idx == -1) {
-          break;
-        }
-        allQueues.RemoveAt(idx);
-        count++;
-      }
-      if(count >= majority) {
-        rv = "SHA1:" + password;
-      }
-
-      foreach(BlockingQueue queue in q) {
-        queue.Close();
-      }
-      return rv;
+      return Put(key, value, password, ttl, false);
     }
 
     public string Put(string key, byte[] value, string password, int ttl) {
@@ -193,6 +123,56 @@ namespace Brunet.Dht {
       byte[] keyb = GetHashedKey(key);
       byte[] valueb = Encoding.UTF8.GetBytes(value);
       return Put(keyb, valueb, password, ttl);
+    }
+
+    /* Since the Puts and Creates are the same from the client side, we merge them into a
+       single put that if unique is true, it is a create, otherwise a put */
+
+    public string Put(byte[] key, byte[] value, string password, int ttl, bool unique) {
+      password = GeneratePassword(password);
+      string hashed_password = GetHashedPassword(password);
+      string rv = null;
+
+      BlockingQueue[] q = null;
+      if(unique) {
+        q = this.dht.CreateF(key, ttl, hashed_password, value);
+      }
+      else {
+        q = this.dht.PutF(key, ttl, hashed_password, value);
+      }
+      int pcount = 0, ncount = 0, majority = this.dht.Degree / 2 + 1;
+      ArrayList allQueues = new ArrayList();
+      allQueues.AddRange(q);
+
+      DateTime start = DateTime.Now;
+
+      while(pcount <= majority || ncount < majority) {
+        TimeSpan ts_timeleft = DateTime.Now - start;
+        int time_diff = ts_timeleft.Milliseconds;
+        int time_left = (delay - time_diff > 0) ? delay - time_diff : 0;
+
+        int idx = BlockingQueue.Select(allQueues, time_left);
+        if(idx == -1) {
+          break;
+        }
+        RpcResult rpc_reply = (RpcResult) ((BlockingQueue) allQueues[idx]).Dequeue();
+        allQueues.RemoveAt(idx);
+        bool result = (bool) rpc_reply.Result;
+        if(result == true) {
+          pcount++;
+        }
+        else {
+          ncount++;
+        }
+      }
+      if(pcount >= majority) {
+        rv = "SHA1:" + password;
+      }
+
+      foreach(BlockingQueue queue in q) {
+        queue.Close();
+      }
+      return rv;
     }
 
     public string GeneratePassword(string password) {
@@ -228,90 +208,6 @@ namespace Brunet.Dht {
       byte[] keyb = Encoding.UTF8.GetBytes(key);
       HashAlgorithm algo = new SHA1CryptoServiceProvider();
       return algo.ComputeHash(keyb);
-    }
-
-    private class BooleanQuorum {
-      public enum State {
-        Success = 0,
-        Failure = 1, 
-        NoResult = 2,
-      }
-      private State _result;
-      public State Result {
-        get {
-          return _result;
-        }
-      }
-      //hold replies for each queue
-      private Hashtable _ht;
-      //minimim replies in each queue
-      private int _min_replies_per_queue;
-      //minimum number of satisfactory queues for majority
-      private int _min_majority;
-
-      public BooleanQuorum(int min_replies_per_queue, int min_majority) {
-        _min_replies_per_queue = min_replies_per_queue;
-        _min_majority = min_majority;
-        _ht = new Hashtable();
-        _result = State.NoResult;
-      }
-      //returns a true when certain constraint is satisfied
-      public void Add(BlockingQueue q, object reply) {
-        lock(this) {
-          //we managed to read something out
-          if(!_ht.ContainsKey(q)) {
-            _ht[q] = new ArrayList();
-          }
-          ArrayList x = (ArrayList) _ht[q];
-          x.Add(reply);
-        }
-      }
-
-      public bool CheckFinished() {
-        lock(this) {
-          int true_count = 0, false_count = 0, disagree_count = 0;
-          //now check if we have a majority
-          foreach (BlockingQueue q in _ht.Keys) {
-            ArrayList x = (ArrayList) _ht[q];
-            int success = 0;
-            int failure = 0;
-            foreach (RpcResult rpc_result in x) {
-              try {
-                bool result = (bool) rpc_result.Result;
-                success++;
-                continue;
-              }
-              catch(AdrException) {
-                failure++;
-                continue;
-              }
-            }
-            //now we see if there has been a consensus
-            if (success >= _min_replies_per_queue  && failure == 0) {
-              true_count++;
-            } else if (failure >= _min_replies_per_queue && success == 0) {
-              false_count++;
-            } else if (failure > 0 && success > 0) {
-              disagree_count++;
-            }
-          }
-          if (true_count == _min_majority) {
-            _result = State.Success;
-            return true;
-          }
-          else if (false_count == _min_majority) {
-            _result = State.Failure;
-            return true;
-          }
-          else if (disagree_count == _min_majority) {
-            _result = State.NoResult;
-            return true;
-          }
-          else {
-            return false;
-          }
-        }
-      }
     }
   }
 }
