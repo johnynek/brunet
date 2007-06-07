@@ -275,7 +275,7 @@ namespace Ipop {
             password = dhtOp.Create(data.key, data.value, data.password, ttl);
           }
           else {
-            sd.Create(data.key, data.value, data.password, ttl);
+            password = sd.Create(data.key, data.value, data.password, ttl);
           }
           if(password == null) {
             if(one_run && dhtfiles.Count == 1) {
