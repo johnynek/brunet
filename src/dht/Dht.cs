@@ -80,7 +80,7 @@ namespace Brunet.Dht {
         lock(_sync) {
           if (_entry_enumerator.MoveNext()) {
             Entry e = (Entry) _entry_enumerator.Current;
-            TimeSpan t_span = e.EndTime - DateTime.Now;
+            TimeSpan t_span = e.EndTime - DateTime.UtcNow;
             _driver_queue = new BlockingQueue();
             _driver_queue.EnqueueEvent += new EventHandler(NextTransfer);
             _rpc.Invoke(_t_sender, _driver_queue, "dht.Put", e.Key,
@@ -108,7 +108,7 @@ namespace Brunet.Dht {
           //initiate next transfer
           if (_entry_enumerator.MoveNext()) {
             Entry e = (Entry) _entry_enumerator.Current;
-            TimeSpan t_span = e.EndTime - DateTime.Now;
+            TimeSpan t_span = e.EndTime - DateTime.UtcNow;
             _driver_queue = new BlockingQueue();
             _driver_queue.EnqueueEvent += new EventHandler(NextTransfer);
             _rpc.Invoke(_t_sender, _driver_queue, "dht.Put", e.Key,
@@ -447,9 +447,9 @@ namespace Brunet.Dht {
      */
     public void CheckpointHandler(object node, EventArgs eargs) {
       lock(_sync) {
-        if (DateTime.Now > _next_checkpoint) {
+        if (DateTime.UtcNow > _next_checkpoint) {
           TimeSpan interval = new TimeSpan(0,0,0,0, _CHECKPOINT_INTERVAL);
-          _next_checkpoint = DateTime.Now + interval;
+          _next_checkpoint = DateTime.UtcNow + interval;
         }
       }
     }
