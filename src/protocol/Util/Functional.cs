@@ -39,7 +39,7 @@ public class Functional {
   static public ArrayList Add(ArrayList l, object o) {
     ArrayList copy = (ArrayList)l.Clone();
     copy.Add(o);
-    return ArrayList.ReadOnly(copy);
+    return copy;
   }
 
   static public Hashtable Add(Hashtable h, object k, object v) {
@@ -73,7 +73,7 @@ public class Functional {
   static public ArrayList Insert(ArrayList l, int pos, object o) {
     ArrayList copy = (ArrayList)l.Clone();
     copy.Insert(pos, o);
-    return ArrayList.ReadOnly(copy);
+    return copy;
   }
 
   public delegate object MapFunction(object o);
@@ -98,7 +98,7 @@ public class Functional {
   static public ArrayList RemoveAt(ArrayList l, int pos) {
     ArrayList copy = (ArrayList)l.Clone();
     copy.RemoveAt(pos);
-    return ArrayList.ReadOnly(copy);
+    return copy;
   }
   static public Hashtable Remove(Hashtable h, object k) {
     Hashtable copy = (Hashtable)h.Clone();
@@ -114,7 +114,7 @@ public class Functional {
   static public ArrayList SetElement(ArrayList l, int k, object v) {
     ArrayList copy = (ArrayList)l.Clone();
     copy[k] = v;
-    return ArrayList.ReadOnly(copy);
+    return copy;
   }
   #if BRUNET_NUNIT
   [Test]
