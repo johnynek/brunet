@@ -33,9 +33,20 @@ namespace Brunet.Dht {
       return Create(keyb, valueb, password, ttl);
     }
 
+
+    public BlockingQueue GetAsBlockingQueue(string key) {
+      //TODO: for future implementation
+      Console.WriteLine("GetAsBlockingQueue in DhtOp called. Key: {0}", key);
+      BlockingQueue q = new BlockingQueue();
+      DhtGetResult dgr = new DhtGetResult("value", 300);
+      q.Enqueue(dgr);
+      return q;
+    }
+    
     // This method could be heavily parallelized
     public DhtGetResult[] Get(byte[] key) {
       ArrayList allValues = new ArrayList();
+      ArrayList allMBValues = new ArrayList();
       int remaining = -1;
       byte [][]tokens = null;
 
@@ -89,11 +100,12 @@ namespace Brunet.Dht {
             }
 
             tokens[idx] = (byte[]) result[2];
-
-            foreach (Hashtable ht in values) {
-              DhtGetResult dgr = new DhtGetResult(ht);
-              if(!allValues.Contains(dgr)) {
-                allValues.Add(dgr);
+            
+            foreach (Hashtable ht in values) {              
+              MemBlock mbVal = MemBlock.Reference((byte[])ht["value"]);
+              if(!allMBValues.Contains(mbVal)) {
+                allMBValues.Add(mbVal);
+                allValues.Add(new DhtGetResult(ht));
               }
             }
           }
