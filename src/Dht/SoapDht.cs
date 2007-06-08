@@ -2,6 +2,7 @@ using System;
 using System.Text;
 using System.Collections;
 using Brunet.Dht;
+using Brunet;
 using System.Runtime.Remoting.Channels.Tcp;
 using System.Runtime.Remoting.Channels.Http;
 using System.Runtime.Remoting.Channels;
@@ -11,6 +12,7 @@ namespace Ipop {
   public class SoapDht : MarshalByRefObject, IDht {
     [NonSerialized]
     private FDht _dht;
+    [NonSerialized]
     private DhtOp _dhtOp;
 
     public SoapDht(FDht dht) {
@@ -30,6 +32,12 @@ namespace Ipop {
 
     public DhtGetResult[] Get(string key) {
       return _dhtOp.Get(key);
+    }    
+
+    public string GetAsBlockingQueue(string key) {
+      BlockingQueue bq = _dhtOp.GetAsBlockingQueue(key);
+      SoapBlockingQueueAdapter adpt = new SoapBlockingQueueAdapter(bq);
+      return adpt.Uri;
     }
   }
 }
