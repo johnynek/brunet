@@ -24,6 +24,8 @@
         <include name="../Dht/DhtService.cs"/>
         <include name="../Dht/SoapDht.cs"/>
         <include name="../Dht/XmlRpcDht.cs"/>
+	<include name="../Dht/BlockingQueueAdapter.cs" />
+	<include name="../Dht/IBlockingQueue.cs" />
         <include name="../Common/OSDependent.cs"/>
         <include name="../Common/IPRouterConfig.cs"/>
         <include name="../Common/IPOP_Common.cs"/>

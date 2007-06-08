@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<project name="ipop-common" default="build" basedir=".">
+  <property name="debug" value="true" />
+  <property name="lib.dir" value="../../lib"/>
+  <property name="build.dir" value="build" />
+
+  <target name="clean" description="Remove build directory">
+    <delete dir="${build.dir}" failonerror="true"/>
+  </target>
+
+  <target name="build" description="Build DhtServiceClient.dll">
+    <mkdir dir="${build.dir}" failonerror="true"/>
+    <copy todir="${build.dir}" failonerror="true">
+      <fileset basedir="${lib.dir}">                
+        <include name="Brunet.Dht.dll" />
+        <include name="CookComputing.XmlRpcV2.dll" />
+      </fileset>
+    </copy>
+    <csc target="library" output="${build.dir}/DhtServiceClient.dll" debug="${debug}">
+      <sources failonempty="true">        
+        <include name="IDht.cs"/>        
+        <include name="IBlockingQueue.cs" />
+        <include name="DhtServiceClient.cs" />
+      </sources>
+      <references>        
+        <include name="${build.dir}/Brunet.Dht.dll" />        
+        <include name="System.Runtime.Remoting.dll"/>        
+        <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />
+      </references>
+    </csc>
+  </target>
+</project>
