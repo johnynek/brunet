@@ -310,7 +310,10 @@ namespace Ipop {
     }
 
     public static void DhtConsole() {
-      DhtOp dhtOp = new DhtOp(dhts[0]);
+      DhtOp dhtOp = null;
+      if(dhts != null) {
+        dhtOp = new DhtOp(dhts[0]);
+      }
       int oper_count = 0;
       while(true) {
         Console.Write("{0}: Enter operation (Get/Put/Create/Done):  ", oper_count++);
@@ -326,13 +329,15 @@ namespace Ipop {
             Console.Write("Enter TTL:  ");
             int ttl = Int32.Parse(Console.ReadLine());
             Console.WriteLine("Attempting Put() on key : " + key);
+            string result = null;
             if(dhts != null) {
-              dhtOp.Put(key, value, password, ttl);
+              result = dhtOp.Put(key, value, password, ttl);
             }
             else {
-              sd.Put(key, value, password, ttl);
+              result = sd.Put(key, value, password, ttl);
             }
-            Console.WriteLine("Operation Complete!");
+            result = (result == null) ? "Failed" : "Success";
+            Console.WriteLine("Operation Complete and " + result);
           }
           else if (str_oper.Equals("Create")) {
             Console.Write("Enter key:  ");
@@ -351,12 +356,8 @@ namespace Ipop {
             else {
               result = sd.Create(key, value, password, ttl);
             }
-            if(result == null) {
-              Console.WriteLine("Operation Failed!");
-            }
-            else {
-              Console.WriteLine("Operation Succeeded");
-            }
+            result = (result == null) ? "Failed" : "Succeeded";
+            Console.WriteLine("Operation Completed and " + result);
           }
           else if (str_oper.Equals("Get")) {
             Console.Write("Enter key:  ");

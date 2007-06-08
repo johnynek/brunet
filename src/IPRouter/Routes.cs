@@ -28,7 +28,7 @@ namespace Ipop {
 
     public Address GetAddress(IPAddress ip) {
       lock(_res_sync) {
-        byte[] buf =  (byte[]) _result[ip];
+        byte[] buf =  (byte[]) _results[ip];
         if(null != buf) {
           return new AHAddress( MemBlock.Reference(buf) );
         }
