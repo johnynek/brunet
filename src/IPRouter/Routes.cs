@@ -28,8 +28,9 @@ namespace Ipop {
 
     public Address GetAddress(IPAddress ip) {
       lock(_res_sync) {
-        if(_results.Contains(ip)) {
-          return new AHAddress((byte[]) _results[ip]);
+        byte[] buf =  (byte[]) _result[ip];
+        if(null != buf) {
+          return new AHAddress( MemBlock.Reference(buf) );
         }
       }
       return null;
@@ -44,12 +45,9 @@ namespace Ipop {
           * new lookup
           */
           _queued[ip] = true;
-        }
-        else {
-          return;
+          ThreadPool.QueueUserWorkItem(new WaitCallback(this.RouteMiss), ip);
         }
       }
-      ThreadPool.QueueUserWorkItem(new WaitCallback(this.RouteMiss), (object) ip);
     }
 
     public void RouteMiss(object oip) {
@@ -59,16 +57,12 @@ namespace Ipop {
       DhtGetResult [] dgr = null;
       try {
         dgr = dhtOp.Get(key);
-      }
-      catch(Exception) {
-        dgr = new DhtGetResult[0];
-      }
-
-      if(dgr.Length > 0) {
-        lock(_res_sync) {
+	lock( _res_sync ) {
           _results[ip] = dgr[0].value;
-        }
+	}
       }
+      catch(Exception x) { System.Console.Error.WriteLine("In RouteMiss({1}): {0}", x, ip); }
+
       lock(_queue_sync) {
         _queued.Remove(ip);
       }
