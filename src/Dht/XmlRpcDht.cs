@@ -14,6 +14,7 @@ namespace Ipop
   public class XmlRpcDht : MarshalByRefObject,IDht {
     [NonSerialized]
     private FDht _dht;
+    [NonSerialized]
     private DhtOp _dhtOp;
 
     public XmlRpcDht(FDht dht) {
@@ -34,6 +35,13 @@ namespace Ipop
     [XmlRpcMethod]
     public string Put(string key, string value, string password, int ttl) {
       return _dhtOp.Create(key, value, password, ttl);
+    }
+
+    [XmlRpcMethod]
+    public string GetAsBlockingQueue(string key) {
+      BlockingQueue bq = _dhtOp.GetAsBlockingQueue(key);
+      XmlRpcBlockingQueueAdapter adpt = new XmlRpcBlockingQueueAdapter(bq);
+      return adpt.Uri;
     }
   }
 }

@@ -19,6 +19,7 @@ namespace Ipop {
     private static ArrayList dhtfiles = new ArrayList();
     private static bool tracker;
     private static IEnumerable addresses;
+    
 
     public static int Main(string []args) {
       int node_count = 1;
@@ -76,7 +77,7 @@ namespace Ipop {
               Console.WriteLine("-x cannot be used with -m, -c, or -t.\n");
               PrintHelp();
             }
-            sd = DhtServiceClient.GetXmlDhtClient();
+            sd = DhtServiceClient.GetXmlRpcDhtClient();
             soap_client = true;
             break;
           case "-dc":
@@ -143,7 +144,7 @@ namespace Ipop {
         }
       }
       else if(dhtconsole) {
-        DhtConsole();
+        DhtConsole(soap_client);
       }
       else {
         if(tracker) {
@@ -309,8 +310,12 @@ namespace Ipop {
       }
     }
 
-    public static void DhtConsole() {
-      DhtOp dhtOp = new DhtOp(dhts[0]);
+    public static void DhtConsole(bool svc_client) {
+      DhtOp dhtOp = null;
+      if (!svc_client) {
+        dhtOp = new DhtOp(dhts[0]);
+      }
+      
       int oper_count = 0;
       while(true) {
         Console.Write("{0}: Enter operation (Get/Put/Create/Done):  ", oper_count++);
@@ -391,7 +396,8 @@ namespace Ipop {
         catch (System.Net.WebException) {
           Console.Error.WriteLine("Soap/XmlRpc Dht service not available");
         }
-        catch (Exception) {
+        catch (Exception e) {
+          System.Diagnostics.Debug.WriteLine(string.Format("Exception caught in dht ops: \n {0}", e.ToString()));
           Console.WriteLine("Dht may not be available, yet, try again now or a little later.");
         }
       }
