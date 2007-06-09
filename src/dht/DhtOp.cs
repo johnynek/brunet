@@ -59,7 +59,7 @@ namespace Brunet.Dht {
 
         DateTime start = DateTime.UtcNow;
 
-        while(true) {
+        while(allQueues.Count > 0) {
           TimeSpan ts_timeleft = DateTime.UtcNow - start;
           int time_diff = ts_timeleft.Milliseconds;
           int time_left = (DELAY - time_diff > 0) ? DELAY - time_diff : 0;
