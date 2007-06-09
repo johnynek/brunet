@@ -33,7 +33,7 @@ namespace Ipop
 
     [XmlRpcMethod]
     public string Put(string key, string value, string password, int ttl) {
-      return _dhtOp.Create(key, value, password, ttl);
+      return _dhtOp.Put(key, value, password, ttl);
     }
   }
 }

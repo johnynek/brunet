@@ -18,11 +18,11 @@ namespace Ipop {
   public class Routes {
     protected object _res_sync = new object(), _queue_sync = new object();
     private Hashtable _results = new Hashtable(), _queued = new Hashtable();
-    private FDht _dht = null;
+    private DhtOp dhtOp = null;
     private string _ipop_namespace;
 
     public Routes(FDht dht, string ipop_namespace) {
-      _dht = dht;
+      dhtOp = new DhtOp(dht);
       _ipop_namespace = ipop_namespace;
     }
 
@@ -53,16 +53,14 @@ namespace Ipop {
     public void RouteMiss(object oip) {
       IPAddress ip = (IPAddress) oip;
       string key = "dhcp:ipop_namespace:" + _ipop_namespace + ":ip:" + ip.ToString();
-      DhtOp dhtOp = new DhtOp(_dht);
-      DhtGetResult [] dgr = null;
+
       try {
-        dgr = dhtOp.Get(key);
+        DhtGetResult [] dgr = dhtOp.Get(key);
 	lock( _res_sync ) {
           _results[ip] = dgr[0].value;
 	}
       }
-      catch(Exception x) { System.Console.Error.WriteLine("In RouteMiss({1}): {0}", x, ip); }
-
+      catch(Exception x) { System.Console.Error.WriteLine("In RouteMiss({1}): {0}", x, key); }
       lock(_queue_sync) {
         _queued.Remove(ip);
       }

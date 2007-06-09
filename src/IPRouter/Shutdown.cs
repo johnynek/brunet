@@ -4,7 +4,7 @@ namespace Ipop {
   public abstract class Shutdown {
     protected void EndGame() {
       if (IPRouter.node.brunet != null) {
-        IPRouter.node.brunet.InterruptRefresher();
+//        IPRouter.node.brunet.InterruptRefresher();
         IPRouter.node.brunet.Disconnect();
       }
       System.Console.Error.WriteLine("Exiting....");

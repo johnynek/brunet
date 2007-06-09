@@ -126,9 +126,9 @@ namespace Ipop {
       if(returnPacket != null &&
         returnPacket.decodedPacket.return_message == "Success") {
         // Close the IP Address refresher thread in Brunet if it is running
-        if(config.AddressData.DhtDHCP) {
+/*        if(config.AddressData.DhtDHCP) {
           node.brunet.InterruptRefresher();
-        }
+        }*/
         /* Convert the packet into byte format, run Arp and Route updater */
         returnPacket.EncodePacket();
         ether.SendPacket(returnPacket.packet, 0x800, node.mac);
@@ -139,15 +139,16 @@ namespace Ipop {
           returnPacket.decodedPacket.options[1]).byte_value, '.');
         if(node.ip == null || node.ip.ToString() != newAddress ||
           node.netmask !=  newNetmask) {
-          if(!config.AddressData.DhtDHCP && !node.brunet.Update(newAddress)) {
-            in_dht = false;
-            return;
-          }
-          else {
+//          if(!config.AddressData.DhtDHCP && !node.brunet.Update(newAddress)) {
+//            in_dht = false;
+//            return;
+//          }
+//          else {
             node.password = returnPacket.decodedPacket.StoredPassword;
             config.AddressData.Password = node.password;
-            node.brunet.UpdateTAAuthorizer();
-          }
+// This is currently broken
+//            node.brunet.UpdateTAAuthorizer();
+//          }
           node.netmask = newNetmask;
           node.ip = IPAddress.Parse(newAddress);
       	  Console.Error.WriteLine("According to DHCP my IP is {0}", node.ip);
@@ -193,14 +194,14 @@ namespace Ipop {
 
       OSDependent.Setup();
       if(OSDependent.OSVers == OSDependent.Linux) {
-        Shutdown shut = new LinuxShutdown();
+        new LinuxShutdown();
       }
 
       debug = false;
       if (args.Length == 2)
         debug = true;
 
-      System.Console.Error.WriteLine("IPRouter starting up at time: {0}", DateTime.Now);
+      Console.Error.WriteLine("IPRouter starting up at time: {0}", DateTime.Now);
       ether = new Ethernet(config.device, routerMAC);
       if (ether.Open() < 0) {
         Console.Error.WriteLine("unable to set up the tap");
@@ -303,7 +304,7 @@ namespace Ipop {
         if (debug) {
           Console.Error.WriteLine("Brunet destination ID: {0}", target);
         }
-        node.brunet.SendPacket(target, buffer);
+        node.brunet.SendPacket(target, MemBlock.Reference(buffer));
       }
     }
   }

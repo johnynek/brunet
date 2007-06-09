@@ -13,8 +13,8 @@ using Brunet.Dht;
 namespace Ipop {
   /// <summary>
   /// A Dht Server thread listens to Soap and XmlRpc requests
-  /// Soap URL: http://loalhost:64221/sd.rem
-  /// XmlRpc URL: http://loalhost:64221/xd.rem
+  /// Soap URL: http://localhost:64221/sd.rem
+  /// XmlRpc URL: http://localhost:64221/xd.rem
   /// </summary>
   public class DhtServer {
     public static Thread StartDhtServerAsThread(FDht dht) {

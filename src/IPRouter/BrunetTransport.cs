@@ -14,28 +14,26 @@ using System.Threading;
 namespace Ipop {
   public class BrunetTransport {
     public Node brunetNode;
-    NodeMapping node;
+//    NodeMapping node;
     IPPacketHandler ip_handler;
     public FDht dht;
-    object sync;
     bool debug;
-    Thread Refresher;
+//    Thread Refresher;
     ArrayList edgeListeners;
 
     public BrunetTransport(Ethernet ether, string brunet_namespace, 
       NodeMapping node, EdgeListener []EdgeListeners, string [] DevicesToBind,
       ArrayList RemoteTAs, bool debug, string dht_media ) {
-      this.node = node;
-      sync = new object();
+//      this.node = node;
       this.debug = debug;
-      //local node
 
+      //Static mapping
       //AHAddress us = new AHAddress(IPOP_Common.GetHash(node.ip));
-      //Dht DHCP
+      //Dht mapping
       AHAddress us = new AHAddress(IPOP_Common.StringToBytes(node.nodeAddress, ':'));
       Console.Error.WriteLine("Generated address: {0}", us);
       brunetNode = new StructuredNode(us, brunet_namespace);
-      Refresher = null;
+//      Refresher = null;
 
       edgeListeners = new ArrayList();
       Brunet.EdgeListener el = null;
@@ -78,7 +76,8 @@ namespace Ipop {
 
       if (dht_media == null || dht_media.Equals("disk")) {
         dht = new FDht(brunetNode, EntryFactory.Media.Disk, 3);
-      } else if (dht_media.Equals("memory")) {
+      }
+      else if (dht_media.Equals("memory")) {
         dht = new FDht(brunetNode, EntryFactory.Media.Memory, 3);
       }
 
@@ -86,16 +85,6 @@ namespace Ipop {
       System.Console.Error.WriteLine("Called Connect at time: {0}", DateTime.Now);
     }
 
-    /**
-     * method to send a packet out on the network
-     * @deprecated, use the method below
-     */
-    public void SendPacket(AHAddress target, byte[] packet) {
-      SendPacket(target, MemBlock.Reference(packet));
-    }
-    /**
-     * Send an IP packet out
-     */
     public void SendPacket(AHAddress target, MemBlock p) {
       ISender s = new AHExactSender(brunetNode, target);
       s.Send(new CopyList(PType.Protocol.IP, p));
@@ -106,6 +95,8 @@ namespace Ipop {
       brunetNode.Disconnect();
     }
 
+// We are not supporting this api at the moment
+/*
     public void RefreshThread() {
       try {
         while(node.ip != null && node.password != null) {
@@ -152,7 +143,7 @@ namespace Ipop {
     }
 
     public void UpdateTAAuthorizer() {
-/*      if(node.netmask == null)
+      if(node.netmask == null)
         return;
       byte [] netmask = DHCPCommon.StringToBytes(node.netmask, '.');
       int nm_value = (netmask[0] << 24) + (netmask[1] << 16) +
@@ -168,7 +159,7 @@ namespace Ipop {
       foreach (Brunet.EdgeListener el in edgeListeners) {
         System.Console.Error.WriteLine("ERHERHEH" + el.ToString());
         el.TAAuth = taAuth;
-      }*/
-    }
+      }
+    }*/
   }
 }
