@@ -150,6 +150,62 @@ namespace Brunet.Dht {
       }
     }
 
+    public void SerialAsGet(byte[] key, int index, byte[][] results, int op) {
+      Hashtable ht = new Hashtable();
+      ht.Add("key", key);
+      ht.Add("index", index);
+      ht.Add("results", results);
+      ht.Add("op", op);
+      SerialAsGet((object) ht);
+    }
+
+    public void SerialAsGet(object data) {
+      Hashtable ht = (Hashtable) data;
+      byte[] key = (byte[]) ht["key"];
+      int index = (int) ht["index"];
+      byte[][] expected_results = (byte[][]) ht["results"];
+      int op = (int) ht["op"];
+      try {
+        BlockingQueue queue = dhtOps[index].AsGet(key);
+        bool found = false;
+        int found_count = 0;
+        while(true) {
+          DhtGetResult dgr = null;
+          try {
+            dgr = (DhtGetResult) queue.Dequeue();
+          }
+          catch(Exception){
+              break;
+          }
+          for(int j = 0; j < expected_results.Length; j++) {
+            if(ArrayComparer(dgr.value, expected_results[j])) {
+              found = true;
+              break;
+            }
+          }
+          if(found) {
+            found_count++;
+            Console.WriteLine("Found result {0} / {1}", found_count, expected_results.Length);
+            found =  false;
+          }
+          else {
+            Console.WriteLine("Not found result {0} / {1}", found_count, expected_results.Length);
+          }
+        }
+        if(found_count != expected_results.Length) {
+          lock(_lock) {
+            Console.WriteLine("Failed get... attempted to get " + 
+                expected_results.Length + " found " + found_count +
+                " operation: " + op);
+          }
+        }
+      }
+      catch(Exception e) {
+        Console.WriteLine("Failure at operation: " + op);
+        Console.WriteLine(e);
+      }
+    }
+
     public void ParallelPut(byte[][] key, byte[][] value, string[] password, int[] ttl,
                             int[] index, string[] expected_result, ref int op) {
       ArrayList threadlist = new ArrayList();
@@ -310,11 +366,11 @@ namespace Brunet.Dht {
       int op = 0;
       try {
         Console.WriteLine("The following are serial tests until mentioned otherwise.");
-        Test0(ref op);
-        Test1(ref op);
-        Test2(ref op);
-        //Test3(ref op);
-        Test4(ref op);
+//        Test0(ref op);
+//        Test1(ref op);
+//        Test2(ref op);
+        Test3(ref op);
+/*        Test4(ref op);
         Test5(ref op);
         Test6(ref op);
         Test7(ref op);
@@ -322,7 +378,7 @@ namespace Brunet.Dht {
         Test9(ref op);
         Test10(ref op);
         Test11(ref op);
-        Test12(ref op);
+        Test12(ref op);*/
       }
       catch (Exception e) {
         Console.WriteLine("Failure at operation: " + (op - 1));
@@ -399,15 +455,25 @@ namespace Brunet.Dht {
       rng.GetBytes(key);
       ArrayList al_results = new ArrayList();
       string password = string.Empty;
+      BlockingQueue[] passwords_queue = new BlockingQueue[100];
 
-      for(int i = 0; i < 1000; i++) {
+      for(int i = 0; i < 100; i++) {
         password = "SHA1:" + dhtOps[0].GeneratePassword(null);
         value = new byte[10];
         rng.GetBytes(value);
-        this.SerialPut(key, value, password, 3000, 0, password, op++);
         al_results.Add(value);
+        passwords_queue[i] = dhtOps[0].AsPut(key, value, password, 3000);
       }
-      this.SerialGet(key, 0, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
+      for (int i = 0; i < 100; i++) {
+        string result = (string) passwords_queue[i].Dequeue();
+        if(result == null) {
+          Console.WriteLine("Failure in put : " + i);
+        }
+        else {
+          Console.WriteLine("success in put : " + i);
+        }
+      }
+      this.SerialAsGet(key, 0, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
     }
 
