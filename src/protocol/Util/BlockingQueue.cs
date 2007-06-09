@@ -146,9 +146,9 @@ public class BlockingQueue : Queue {
         timedout = false;
       }
     }
-    return val;    
+    return val;
   }
-  
+
   /**
    * @throw Exception if the queue is closed
    */

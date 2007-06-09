@@ -6,6 +6,7 @@ using System.Text;
 using System.Collections;
 using System.Net;
 using System.Security.Cryptography;
+using System.Threading;
 
 namespace Brunet.Dht {
   public class DhtOp {
@@ -13,11 +14,30 @@ namespace Brunet.Dht {
 
     public DhtOp(FDht dht) {
       this.dht = dht;
+      this.MAJORITY = this.dht.Degree / 2 + 1;
     }
 
-    public static readonly int DELAY = 2000;
+    public static readonly int DELAY = 5000;
+    private readonly int MAJORITY;
 
-    /* Returns a password if it works or NULL if it didn't */
+    /** Below are all the Create methods, they rely on a unique put *
+      * this returns the password or null if it did not work        */
+
+    public BlockingQueue AsCreate(byte[] key, byte[] value, string password, int ttl) {
+      return AsPut(key, value, password, ttl, true);
+    }
+
+    public BlockingQueue AsCreate(string key, byte[] value, string password, int ttl) {
+      byte[] keyb = GetHashedKey(key);
+      return AsCreate(keyb, value, password, ttl);
+    }
+
+    public BlockingQueue AsCreate(string key, string value, string password, int ttl) {
+      byte[] keyb = GetHashedKey(key);
+      byte[] valueb = Encoding.UTF8.GetBytes(value);
+      return AsCreate(keyb, valueb, password, ttl);
+    }
+
     public string Create(byte[] key, byte[] value, string password, int ttl) {
       return Put(key, value, password, ttl, true);
     }
@@ -33,20 +53,51 @@ namespace Brunet.Dht {
       return Create(keyb, valueb, password, ttl);
     }
 
+    /** Below are all the Get methods */
 
-/*    public BlockingQueue GetAsBlockingQueue(string key) {
-      //TODO: for future implementation
-      Console.WriteLine("GetAsBlockingQueue in DhtOp called. Key: {0}", key);
-      BlockingQueue q = new BlockingQueue();
-      DhtGetResult dgr = new DhtGetResult("value", 300);
-      q.Enqueue(dgr);
-      return q;
+    public BlockingQueue AsGet(string key) {
+      byte[] keyb = GetHashedKey(key);
+      return AsGet(keyb);
     }
-*/    
- 
+
+    public BlockingQueue AsGet(byte[] key) {
+      BlockingQueue queue = new BlockingQueue();
+      object []data = new object[2];
+      data[0] = key;
+      data[1] = queue;
+      ThreadPool.QueueUserWorkItem(new WaitCallback(Get), data);
+      return queue;
+    }
+
+    public DhtGetResult[] Get(string key) {
+      byte[] keyb = GetHashedKey(key);
+      return Get(keyb);
+    }
+
     public DhtGetResult[] Get(byte[] key) {
+      BlockingQueue queue = AsGet(key);
       ArrayList allValues = new ArrayList();
-      ArrayList allMBValues = new ArrayList();
+      while(true) {
+        // Still a chance for Dequeue to execute on an empty closed queue 
+        // so we'll do this instead.
+        try {
+          DhtGetResult dgr = (DhtGetResult) queue.Dequeue();
+          allValues.Add(dgr);
+        }
+        catch (Exception) {
+          break;
+        }
+      }
+      return (DhtGetResult []) allValues.ToArray(typeof(DhtGetResult));
+    }
+
+    /**  This is the get that does all the work, it is meant to be
+     *   run as a thread */
+    public void Get(object data) {
+      object []data_array = (object[]) data;
+      byte[] key = (byte[]) data_array[0];
+      BlockingQueue allValues = (BlockingQueue) data_array[1];
+      Hashtable allValuesCount = new Hashtable();
       int remaining = -1;
       byte [][]tokens = null;
 
@@ -100,12 +151,17 @@ namespace Brunet.Dht {
             }
 
             tokens[idx] = (byte[]) result[2];
-            
-            foreach (Hashtable ht in values) {              
+            foreach (Hashtable ht in values) {
               MemBlock mbVal = MemBlock.Reference((byte[])ht["value"]);
-              if(!allMBValues.Contains(mbVal)) {
-                allMBValues.Add(mbVal);
-                allValues.Add(new DhtGetResult(ht));
+              if(!allValuesCount.Contains(mbVal)) {
+                allValuesCount[mbVal] = 0;
+              }
+              else {
+                int count = ((int) allValuesCount[mbVal]) + 1;
+                allValuesCount[mbVal] = count;
+                if(count == MAJORITY) {
+                  allValues.Enqueue(new DhtGetResult(ht));
+                }
               }
             }
           }
@@ -115,13 +171,24 @@ namespace Brunet.Dht {
           queue.Close();
         }
       }
-
-      return (DhtGetResult []) allValues.ToArray(typeof(DhtGetResult));
+      allValues.Close();
     }
 
-    public DhtGetResult[] Get(string key) {
+    /** Below are all the Put methods, they use a non-unique put */
+
+    public BlockingQueue AsPut(byte[] key, byte[] value, string password, int ttl) {
+      return AsPut(key, value, password, ttl, false);
+    }
+
+    public BlockingQueue AsPut(string key, byte[] value, string password, int ttl) {
       byte[] keyb = GetHashedKey(key);
-      return Get(keyb);
+      return AsPut(keyb, value, password, ttl);
+    }
+
+    public BlockingQueue AsPut(string key, string value, string password, int ttl) {
+      byte[] keyb = GetHashedKey(key);
+      byte[] valueb = Encoding.UTF8.GetBytes(value);
+      return AsPut(keyb, valueb, password, ttl);
     }
 
     public string Put(byte[] key, byte[] value, string password, int ttl) {
@@ -139,10 +206,45 @@ namespace Brunet.Dht {
       return Put(keyb, valueb, password, ttl);
     }
 
-    /* Since the Puts and Creates are the same from the client side, we merge them into a
+    /** Since the Puts and Creates are the same from the client side, we merge them into a
        single put that if unique is true, it is a create, otherwise a put */
 
+    public BlockingQueue AsPut(byte[] key, byte[] value, string password, int ttl, bool unique) {
+      BlockingQueue queue = new BlockingQueue();
+      object []data = new object[6];
+      data[0] = key;
+      data[1] = value;
+      data[2] = password;
+      data[3] = ttl;
+      data[4] = unique;
+      data[5] = queue;
+      ThreadPool.QueueUserWorkItem(new WaitCallback(Put), data);
+      return queue;
+    }
+
     public string Put(byte[] key, byte[] value, string password, int ttl, bool unique) {
+      BlockingQueue queue = new BlockingQueue();
+      object []data = new object[6];
+      data[0] = key;
+      data[1] = value;
+      data[2] = password;
+      data[3] = ttl;
+      data[4] = unique;
+      data[5] = queue;
+      Put(data);
+      return (string) queue.Dequeue();
+    }
+
+
+    public void Put(object data) {
+      object[] data_array = (object[]) data;
+      byte[] key = (byte[]) data_array[0];
+      byte[] value = (byte[]) data_array[1];
+      string password = (string) data_array[2];
+      int ttl = (int) data_array[3];
+      bool unique = (bool) data_array[4];
+      BlockingQueue queue = (BlockingQueue) data_array[5];
+
       password = GeneratePassword(password);
       string hashed_password = GetHashedPassword(password);
       string rv = null;
@@ -154,13 +256,13 @@ namespace Brunet.Dht {
       else {
         q = this.dht.PutF(key, ttl, hashed_password, value);
       }
-      int pcount = 0, ncount = 0, majority = this.dht.Degree / 2 + 1;
+      int pcount = 0, ncount = 0;
       ArrayList allQueues = new ArrayList();
       allQueues.AddRange(q);
 
       DateTime start = DateTime.UtcNow;
 
-      while(pcount <= majority || ncount < majority) {
+      while(pcount <= MAJORITY || ncount < MAJORITY) {
         TimeSpan ts_timeleft = DateTime.UtcNow - start;
         int time_diff = ts_timeleft.Milliseconds;
         int time_left = (DELAY - time_diff > 0) ? DELAY - time_diff : 0;
@@ -188,14 +290,15 @@ namespace Brunet.Dht {
         allQueues.RemoveAt(idx);
       }
 
-      if(pcount >= majority) {
+      if(pcount >= MAJORITY) {
         rv = "SHA1:" + password;
       }
 
-      foreach(BlockingQueue queue in q) {
-        queue.Close();
+      foreach(BlockingQueue qclose in q) {
+        qclose.Close();
       }
-      return rv;
+      queue.Enqueue(rv);
+      queue.Close();
     }
 
     public string GeneratePassword(string password) {
