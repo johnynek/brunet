@@ -362,26 +362,36 @@ namespace Ipop {
           else if (str_oper.Equals("Get")) {
             Console.Write("Enter key:  ");
             string key = Console.ReadLine();
-            DhtGetResult[] results;
             if(dhts != null) {
-              results = dhtOp.Get(key);
+              BlockingQueue queue = dhtOp.AsGet(key);
+
+
+              int count = 0;
+              while(true) {
+                DhtGetResult dgr;
+                try {
+                  dgr = (DhtGetResult) queue.Dequeue();
+                }
+                catch(Exception){
+                  break;
+                }
+
+                Console.WriteLine("Result:  " + count++);
+                Console.WriteLine("Value: " + dgr.valueString);
+                Console.WriteLine("Age:  " + dgr.age + "\n");
+              }
+              Console.WriteLine("Number of results: {0}\n", count);
             }
             else {
-              results = sd.Get(key);
-            }
+              DhtGetResult[] results = sd.Get(key);
+              Console.WriteLine("Number of results: " + results.Length);
+              Console.WriteLine("");
 
-            if(results == null) {
-              Console.WriteLine("No return values.");
-              continue;
-            }
-
-            Console.WriteLine("Number of results:  " + results.Length);
-            Console.WriteLine("");
-
-            for(int i = 0; i < results.Length; i++) {
-              Console.WriteLine("Result:  " + i);
-              Console.WriteLine("Value: " + results[i].valueString);
-              Console.WriteLine("Age:  " + results[i].age + "\n");
+              for(int i = 0; i < results.Length; i++) {
+                Console.WriteLine("Result: " + i);
+                Console.WriteLine("Value: " + results[i].valueString);
+                Console.WriteLine("Age: " + results[i].age + "\n");
+              }
             }
           }
           else if (str_oper.Equals("Done")) {
