@@ -34,7 +34,7 @@ namespace Brunet.Dht {
     }
 
 
-    public BlockingQueue GetAsBlockingQueue(string key) {
+/*    public BlockingQueue GetAsBlockingQueue(string key) {
       //TODO: for future implementation
       Console.WriteLine("GetAsBlockingQueue in DhtOp called. Key: {0}", key);
       BlockingQueue q = new BlockingQueue();
@@ -42,8 +42,8 @@ namespace Brunet.Dht {
       q.Enqueue(dgr);
       return q;
     }
-    
-    // This method could be heavily parallelized
+*/    
+ 
     public DhtGetResult[] Get(byte[] key) {
       ArrayList allValues = new ArrayList();
       ArrayList allMBValues = new ArrayList();
