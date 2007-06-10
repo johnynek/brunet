@@ -20,7 +20,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using System;
 using System.Collections;
-using System.Threading;
+
+#if BRUNET_NUNIT
+using NUnit.Framework;
+#endif
 
 namespace Brunet {
 
@@ -29,20 +32,65 @@ namespace Brunet {
  * a maximum size and it will keep at most that many
  * elements based on usage.
  *
- * @todo improve that caching strategy
+ * Accessing elements should be as fast as accessing from 
+ * a hashtable (O(1) time).
+ *
+ * @todo it would be nice to have a disk based cache that was
+ * a subclass of cache, and the ability to chain memory and disk caches together
  */
 public class Cache {
 
   protected Hashtable _ht;
+  protected Entry _head;
+  protected Entry _tail;
+
   protected int _max_size;
-  protected Random _rand;
+  protected int _current_size;
+  public int Count {
+    get {
+#if BRUNET_NUNIT
+      Assert.AreEqual( _ht.Count, _current_size, "Hashtable and Cache Count equality");
+#endif
+      return _current_size;
+    }
+  }
+
+  /**
+   * When an entry is evicted from the cache,
+   * we use this class to pass the item
+   */
+  public class EvictionArgs : System.EventArgs {
+    public readonly object Key;
+    public readonly object Value;
+    public EvictionArgs(object key, object val) {
+      Key = key;
+      Value = val;
+    }
+  }
+
+  /**
+   * We store an ordered doublely-linked list
+   * to make removing entries fast
+   */
+  protected class Entry {
+    public object Key;
+    public object Value;
+    public Entry Previous;
+    public Entry Next;
+  }
+
+  /**
+   * When an item is evicted from the cache, 
+   * this method is called.
+   */
+  public event EventHandler EvictionEvent;
 
   public Cache(int max_size) {
     //Bias towards being faster at the expense of using more memory
     float load = 0.15f;
+    _current_size = 0;
     _ht = new Hashtable(_max_size, load);
     _max_size = max_size;
-    _rand = new Random();
   }
 
   public object this[object key] {
@@ -55,40 +103,163 @@ public class Cache {
   }
 
   public void Add(object key, object val) {
-    _ht[key] = val;
-    if( _ht.Count > _max_size ) {
-      //Start balancing
-      ThreadPool.QueueUserWorkItem(this.Clean);
+    Entry e = (Entry)_ht[key];
+    if( e != null ) {
+      //This item is already in the cache, remove it from the list:
+      e.Value = val;
+      Remove(e);
     }
+    else {
+      //This is a totally new entry:
+      e = new Entry();
+      e.Key = key;
+      e.Value = val;
+      _ht[key] = e;
+      if( _current_size >= _max_size ) {
+        //Remove the oldest item:
+        Entry to_evict = Pop();
+	_ht.Remove(to_evict.Key);
+	//Let someone know there has been an eviction
+        if( EvictionEvent != null ) {
+          EvictionEvent(this, new EvictionArgs(to_evict.Key, to_evict.Value));
+	}
+      }
+    }
+    //Now put it as the last entry in the list:
+    PushBack(e);
   }
+
   public void Clear() {
     _ht.Clear();
+    _head = null;
+    _tail = null;
+    _current_size = 0;
   }
 
   public object Get(object key) {
-    return _ht[key];
+    Entry e = (Entry)_ht[key];
+    if( e != null ) {
+      Remove(e);
+      PushBack(e);
+      return e.Value;
+    }
+    else {
+      return null;
+    }
+  }
+ 
+  //Remove the first element from the list:
+  protected Entry Pop() {
+    Entry ret_val = _head;
+    if( _head != null ) {
+      Remove(_head);
+    }
+    return ret_val;
   }
 
-  /**
-   * Right now, just remove a random half of the elements
-   */
-  protected void Clean(object state) {
-    try {
-      IDictionaryEnumerator en = _ht.GetEnumerator();
-      float load = 0.15f;
-      Hashtable ht = new Hashtable(_max_size, load);
-      while( en.MoveNext() ) {
-        if( _rand.Next(2) == 0 ) {
-          //Add this item:
-          ht[ en.Key ] = en.Value;
-        }
-      }
-      _ht = ht;
+  //Add this entry as the list element in the list:
+  protected void PushBack(Entry e) {
+    _current_size++;
+    if( _tail != null ) {
+      _tail.Next = e;
     }
-    catch(Exception) {
-      //If the _ht changes while we are cleaning, we get an exception.
-      //Just go on with life, we can finish cleaning later
+    if( _head == null ) {
+      _head = e;
+    }
+    e.Previous = _tail;
+    e.Next = null;
+    _tail = e;
+  }
+
+  protected void Remove(Entry e) {
+    _current_size--;
+    Entry prev = e.Previous;
+    Entry next = e.Next;
+    if( prev != null ) {
+      prev.Next = next;
+    }
+    if( next != null ) {
+      next.Previous = prev;
+    }
+    if( _head == e ) {
+      _head = next;
+    }
+    if( _tail == e ) {
+      _tail = prev;
     }
   }
 }
+
+#if BRUNET_NUNIT
+[TestFixture]
+public class CacheTest {
+
+  [Test]
+  public void TestRecall() {
+    const int MAX_SIZE = 100;
+    Random r = new Random();
+    Cache c = new Cache(MAX_SIZE);
+    Hashtable ht = new Hashtable();
+    for(int i = 0; i < MAX_SIZE; i++) {
+      int k = r.Next();
+      int v = r.Next();
+      ht[k] = v;
+      c[k] = v;
+    }
+    IDictionaryEnumerator ide = ht.GetEnumerator();
+    while(ide.MoveNext()) {
+      int key = (int)ide.Key;
+      int val = (int)ide.Value;
+      object c_val = c[key];
+      Assert.AreEqual(c_val, val, "Test lookup");
+    }
+  }
+  [Test]
+  public void TestEviction() {
+    const int MAX_SIZE = 1000;
+    Random r = new Random();
+    Cache c = new Cache(MAX_SIZE);
+    Hashtable ht = new Hashtable();
+    Hashtable ht_evicted = new Hashtable();
+    EventHandler eh = delegate(object o, EventArgs args) {
+      Cache.EvictionArgs a = (Cache.EvictionArgs)args;
+      ht_evicted[a.Key] = a.Value;
+    };
+    c.EvictionEvent += eh;
+
+    int i = 0;
+    for(i = 0; i < 50 * MAX_SIZE; i++) {
+      int v = r.Next();
+      ht[i] = v;
+      c[i] = v;
+      int exp_size = Math.Min(i+1, MAX_SIZE);
+      Assert.AreEqual(c.Count, exp_size, "Size check");
+      //Keep the zero'th element in the cache:
+      object v_0 = c[0];
+      Assert.IsNotNull(v_0, "0th element still in the cache");
+    }
+    Assert.AreEqual(c.Count, MAX_SIZE, "Full cache"); 
+    //Now check that everything is either in the Cache or was evicted:
+    IDictionaryEnumerator ide = ht.GetEnumerator();
+    while(ide.MoveNext()) {
+      int key = (int)ide.Key;
+      int val = (int)ide.Value;
+      object c_val = c[key];
+      if( c_val == null ) {
+        c_val = ht_evicted[key];
+        Assert.AreEqual(c_val, val, "Evicted lookup");
+      }
+      else {
+        //Not in the cache:
+        Assert.AreEqual(c_val, val, "Cache lookup");
+      }
+    }
+
+
+  }
+
+}
+
+#endif
+
 }
