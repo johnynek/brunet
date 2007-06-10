@@ -1,68 +1,111 @@
 using System;
 using System.IO;
+using System.Collections;
 
 namespace Brunet.Dht {
 
   public class Entry {
-    protected byte[] _key;
-    public byte[] Key { get { return _key; } }
+    Hashtable stored_data = null;
+    public virtual byte[] Key { get { return (byte[]) stored_data["_key"]; } }
+    public virtual byte[] Data { get { return (byte[]) stored_data[" _data"]; } }
+    public virtual DateTime CreatedTime { get { return (DateTime) stored_data["_create_time"]; } }
+    public virtual DateTime EndTime { get { return (DateTime) stored_data["_end_time"]; } }
+    public virtual string Password { get { return (string) stored_data["_password"]; } }
+    public virtual int Index { get { return (int) stored_data["_index"]; } }
 
-    protected byte[] _data;
-    public virtual byte[] Data { get { return _data; } }
-
-    protected DateTime _create_time;
-    public DateTime CreatedTime { get { return _create_time; } }
-
-    protected DateTime _end_time;
-    public DateTime EndTime { get { return _end_time; } }
-
-    protected string _password;
-    public string Password { get { return _password; } }
-
-    protected int _index;
-    public int Index { get { return _index; } }
-
-    /**
-    * This holds a unique (increasing) index for this entry
-    */
-    protected int _idx;
+    public Entry() {;}
 
     public Entry(byte[] key, string password, DateTime create_time,
                   DateTime end_time, byte[] data, int idx) {
-      _key = key;
-      _password = password;
-      _index = idx;
-      _data = data;
-      _create_time = create_time;
-      _end_time = end_time;
+      stored_data = new Hashtable();
+      stored_data["_key"] = key;
+      stored_data["_password"] = password;
+      stored_data["_index"] = idx;
+      stored_data["_data"] = data;
+      stored_data["_create_time"] = create_time;
+      stored_data["_end_time"] = end_time;
     }
   }
-  public class DiskEntry: Entry {
-    protected static readonly int _MAX_DATA = 1000;
 
-    protected string _file;
+  public class DiskEntry: Entry {
+    private string _file;
+
+    public override byte[] Key {
+      get {
+        DhtData dhtdata = DhtDataHandler.Read(_file);
+        return dhtdata.key;
+      }
+    }
 
     public override byte[] Data {
       get {
-        byte[] data = null;
-        using (BinaryReader br = new BinaryReader(File.Open(_file, FileMode.Open))) {
-          data = br.ReadBytes(_MAX_DATA);
-          br.Close();
-        }
-        return data;
+        DhtData dhtdata = DhtDataHandler.Read(_file);
+        return dhtdata.value;
       }
     }
 
-    public DiskEntry(string fname, byte[] key, string password, DateTime create_time, 
-                      DateTime end_time, byte[] data, int idx) :
-                    base(key, password, create_time, end_time, null, idx) {
-      object o = (object) idx;
-      _file = Path.Combine(fname, o.ToString());
-      using (BinaryWriter bw = new BinaryWriter(File.Open(_file, FileMode.Create))) {
-        bw.Write(data);
-        bw.Flush();
-        bw.Close();
+    public override DateTime CreatedTime {
+      get {
+        DhtData dhtdata = DhtDataHandler.Read(_file);
+        return dhtdata.created_time;
       }
+    }
+
+    public override DateTime EndTime {
+      get {
+        DhtData dhtdata = DhtDataHandler.Read(_file);
+        return dhtdata.end_time;
+      }
+    }
+
+    public override string Password {
+      get {
+        DhtData dhtdata = DhtDataHandler.Read(_file);
+        return dhtdata.password;
+      }
+    }
+
+    public override int Index {
+      get {
+        DhtData dhtdata = DhtDataHandler.Read(_file);
+        return dhtdata.index;
+      }
+    }
+
+    public string GenerateDirectory(byte[] key) {
+      string[] l = new string[4];
+      for (int j = 0; j < 4; j++) {
+        l[j] = string.Empty;
+      }
+
+      for (int i = 0; i < 5; i++) {
+        for (int j = 0; j < 4; j++) {
+          l[j] += key[i].ToString();
+        }
+      }
+
+      return String.Join(Path.DirectorySeparatorChar.ToString(), l);
+    }
+
+    public DiskEntry(string base_directory, byte[] key, string password, DateTime create_time, 
+                      DateTime end_time, byte[] data, int idx) {
+      _file = GenerateDirectory(key);
+      Directory.CreateDirectory(_file);
+      _file += Path.DirectorySeparatorChar.ToString() + idx;
+      DhtData dhtdata = new DhtData();
+      dhtdata.key = key;
+      dhtdata.value = data;
+      dhtdata.password = password;
+      dhtdata.created_time = create_time;
+      dhtdata.end_time = end_time;
+      dhtdata.index = idx;
+//      Console.WriteLine("Creating _file = " + _file);
+      DhtDataHandler.Write(_file, dhtdata);
+    }
+
+    ~DiskEntry() {
+      Console.WriteLine("Deleting _file = " + _file);
+      File.Delete(_file);
     }
   }
 }
