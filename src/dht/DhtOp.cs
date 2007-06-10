@@ -98,11 +98,11 @@ namespace Brunet.Dht {
       byte[] key = (byte[]) data_array[0];
       BlockingQueue allValues = (BlockingQueue) data_array[1];
       Hashtable allValuesCount = new Hashtable();
-      int remaining = -1;
+      int remaining = 0;
       byte [][]tokens = null;
 
-      while(remaining != 0) {
-        remaining = -1;
+      do {
+        remaining = 0;
         BlockingQueue[] q = null;
         if(tokens == null) {
           q = this.dht.GetF(key, 1000, null);
@@ -154,7 +154,7 @@ namespace Brunet.Dht {
             foreach (Hashtable ht in values) {
               MemBlock mbVal = MemBlock.Reference((byte[])ht["value"]);
               if(!allValuesCount.Contains(mbVal)) {
-                allValuesCount[mbVal] = 0;
+                allValuesCount[mbVal] = 1;
               }
               else {
                 int count = ((int) allValuesCount[mbVal]) + 1;
@@ -167,10 +167,11 @@ namespace Brunet.Dht {
           }
           catch (Exception) {;} // Treat this as receiving nothing
         }
+
         foreach(BlockingQueue queue in q) {
           queue.Close();
         }
-      }
+      } while(remaining != 0);
       allValues.Close();
     }
 
@@ -268,7 +269,7 @@ namespace Brunet.Dht {
         int time_left = (DELAY - time_diff > 0) ? DELAY - time_diff : 0;
 
         int idx = BlockingQueue.Select(allQueues, time_left);
-        bool result = false;
+        int result = 1000;
         if(idx == -1) {
           break;
         }
@@ -276,12 +277,12 @@ namespace Brunet.Dht {
         if(!((BlockingQueue) allQueues[idx]).Closed) {
           try {
             RpcResult rpc_reply = (RpcResult) ((BlockingQueue) allQueues[idx]).Dequeue();
-            result = (bool) rpc_reply.Result;
+            result = (int) rpc_reply.Result;
           }
           catch(Exception) {;} // Treat this as receiving a negative
         }
 
-        if(result == true) {
+        if(result == 0) {
           pcount++;
         }
         else {

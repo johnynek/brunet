@@ -43,7 +43,7 @@ namespace Brunet.Dht {
      * Make sure we don't leave any junk directories around
      */
     ~EntryFactory() {
-      CleanUp(); 
+      CleanUp();
     }
 
     public static EntryFactory GetInstance(Node node, Media media) {
