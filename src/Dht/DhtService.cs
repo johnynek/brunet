@@ -41,9 +41,11 @@ namespace Ipop {
 
       ISponsor sponsor = new DhtLifeTimeSponsor();
       // get lifetime manager for the remote object
-      ILease lifetime = (ILease)sd.GetLifetimeService();
+      ILease sd_lifetime = (ILease)sd.GetLifetimeService();
+      ILease xd_lifetime = (ILease)xd.GetLifetimeService();
       // registering our sponsor
-      lifetime.Register(sponsor);
+      sd_lifetime.Register(sponsor);
+      xd_lifetime.Register(sponsor);
 
       while (true) System.Threading.Thread.Sleep(99999999);
     }
