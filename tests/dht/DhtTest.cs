@@ -12,8 +12,8 @@ namespace Brunet.Dht {
     Node []nodes;
     FDht []dhts;
     DhtOp []dhtOps;
-    static readonly int degree = 3;
-    static readonly int network_size = 10;
+    static readonly int degree = 1;
+    static readonly int network_size = 20;
     static readonly string brunet_namespace = "testing";
     static readonly int base_port = 55123;
     // Well this is needed because C# doesn't lock the console
@@ -366,10 +366,10 @@ namespace Brunet.Dht {
       int op = 0;
       try {
         Console.WriteLine("The following are serial tests until mentioned otherwise.");
-/*        Test0(ref op);
+        Test0(ref op);
         Test1(ref op);
         Test2(ref op);
-        //Test3(ref op);
+//        Test3(ref op);
         Test4(ref op);
         Test5(ref op);
         Test6(ref op);
@@ -378,7 +378,7 @@ namespace Brunet.Dht {
         Test9(ref op);
         Test10(ref op);
         Test11(ref op);
-        Test12(ref op); */
+        Test12(ref op);
         Test13(ref op);
       }
       catch (Exception e) {
@@ -456,16 +456,16 @@ namespace Brunet.Dht {
       rng.GetBytes(key);
       ArrayList al_results = new ArrayList();
       string password = string.Empty;
-      BlockingQueue[] passwords_queue = new BlockingQueue[100];
+      BlockingQueue[] passwords_queue = new BlockingQueue[40];
 
-      for(int i = 0; i < 100; i++) {
+      for(int i = 0; i < 40; i++) {
         password = "SHA1:" + dhtOps[0].GeneratePassword(null);
         value = new byte[10];
         rng.GetBytes(value);
         al_results.Add(value);
         passwords_queue[i] = dhtOps[0].AsPut(key, value, password, 3000);
       }
-      for (int i = 0; i < 100; i++) {
+      for (int i = 0; i < 40; i++) {
         string result = (string) passwords_queue[i].Dequeue();
         if(result == null) {
           Console.WriteLine("Failure in put : " + i);
@@ -755,14 +755,15 @@ namespace Brunet.Dht {
         passwords[i] = "SHA1:" + dhtOps[0].GeneratePassword(null);
         ttls[i] = 60;
         dhtindexes[i] = 0;
-//        this.SerialPut(keys[i], values[i], passwords[i], ttls[i], 0, passwords[i], op++);
       }
       this.ParallelPut(keys, values, passwords, ttls, dhtindexes, passwords, ref op);
-      this.SerialGet(key, 0, values, op++);
-      Console.WriteLine("Next get should all fail!");
       Thread.Sleep(20000);
       this.SerialGet(key, 0, values, op++);
+      Console.WriteLine("Next get should all fail!");
+      Thread.Sleep(60000);
+      this.SerialGet(key, 0, values, op++);
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
+      Console.WriteLine("Every entry should be deleted by now...");
     }
 
     public static void Main() {

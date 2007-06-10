@@ -33,6 +33,9 @@ using Brunet;
 
 namespace Brunet.Dht {
   public class TableServer {
+    public static readonly int ENTRY_ALREADY_EXISTS = 1;
+    public static readonly int ATTEMPTED_TO_REDUCE_ENTRY_TIME = 2;
+    public static readonly int SOMETHING_BAD = 999;
     protected object _sync;
 
     //maintain a list of keys that are expiring:
@@ -92,9 +95,9 @@ namespace Brunet.Dht {
     * @param ttl time-to-live in seconds
     * @param hashed_password <hash_name>:<base64(hashed_pass)>
     * @param data data associated with the key
-    * @return true on success, false on failure
+    * @return 0 on success, other on failure
     */
-    public bool Put(byte[] key, int ttl, string hashed_password, byte[] data) {
+    public int Put(byte[] key, int ttl, string hashed_password, byte[] data) {
       string hash_name = null;
       string base64_val = null;
       if(!ValidatePasswordFormat(hashed_password, out hash_name, out base64_val)) {
@@ -126,8 +129,14 @@ namespace Brunet.Dht {
             MemBlock arg_data = MemBlock.Reference(data, 0, data.Length);
             MemBlock e_data = MemBlock.Reference(ent.Data, 0, ent.Data.Length);
             // This a different Put
-            if (!e_data.Equals(arg_data) || end_time < ent.EndTime || ent == null) {
-              return false;
+            if(!e_data.Equals(arg_data)) {
+              return ENTRY_ALREADY_EXISTS;
+            }
+            else if(end_time < ent.EndTime) {
+              return ATTEMPTED_TO_REDUCE_ENTRY_TIME;
+            }
+            else if(ent == null) {
+              return SOMETHING_BAD;
             }
             //Removing this entry and putting in a new one
             entry_list.Remove(ent);
@@ -138,7 +147,7 @@ namespace Brunet.Dht {
                                           data, ent.Index);
             entry_list.Add(new_e);
             InsertToSorted(new_e);
-            return true;
+            return 0;
           }
         }
 
@@ -152,7 +161,7 @@ namespace Brunet.Dht {
         ///@todo, we might need to tell a neighbor about this object
 
       } // end of lock
-      return true;
+      return 0;
     }
 
     /**
@@ -165,7 +174,7 @@ namespace Brunet.Dht {
     * @return true on success, false on failure
     */
 
-    public bool Create(byte[] key, int ttl, string hashed_password, byte[] data) {
+    public int Create(byte[] key, int ttl, string hashed_password, byte[] data) {
       string hash_name = null;
       string base64_val = null;
       if (!ValidatePasswordFormat(hashed_password, out hash_name, out base64_val)) {
@@ -181,19 +190,25 @@ namespace Brunet.Dht {
         ArrayList entry_list = (ArrayList)_ht[ht_key];
         if( entry_list != null ) {
           Entry to_renew = null;
+          // We check all in case someone did a put on top of a create
+          // this for recreates and idempotent creates
+          MemBlock arg_data = MemBlock.Reference(data, 0, data.Length);
           foreach(Entry e in entry_list) {
             if (!e.Password.Equals(hashed_password)) {
               continue;
             }
-            MemBlock arg_data = MemBlock.Reference(data, 0, data.Length);
             MemBlock e_data = MemBlock.Reference(e.Data, 0, e.Data.Length);
             if (!e_data.Equals(arg_data)) {
-              continue;
+              return ENTRY_ALREADY_EXISTS;
             }
-            to_renew = e; 
+            to_renew = e;
+            break;
           }
-          if ((to_renew == null) || (end_time < to_renew.EndTime)) {
-            return false;
+          if (end_time < to_renew.EndTime) {
+            return ATTEMPTED_TO_REDUCE_ENTRY_TIME;
+          }
+          else if (to_renew == null) {
+            return SOMETHING_BAD;
           }
           //we should also remove this entry, and put a new one
           entry_list.Remove(to_renew);
@@ -220,7 +235,7 @@ namespace Brunet.Dht {
           InsertToSorted(e);
         }
       }//end of lock
-      return true;
+      return 0;
     }
 
     /**
@@ -319,6 +334,7 @@ namespace Brunet.Dht {
           continue;
         }
         entry_list.Remove(e);
+        e.Delete();
         if (entry_list.Count == 0) {
           _ht.Remove(key);
         }
@@ -594,7 +610,7 @@ namespace Brunet.Dht {
         byte[] key = entry.Key;
         string strData = Encoding.UTF8.GetString(entry.Data);
         int ttl = entry.TTL;
-        
+
         string passwd = entry.Password;
         //state used in PutProc
         ArrayList state = new ArrayList();

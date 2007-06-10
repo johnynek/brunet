@@ -7,7 +7,7 @@ namespace Brunet.Dht {
   public class Entry {
     Hashtable stored_data = null;
     public virtual byte[] Key { get { return (byte[]) stored_data["_key"]; } }
-    public virtual byte[] Data { get { return (byte[]) stored_data[" _data"]; } }
+    public virtual byte[] Data { get { return (byte[]) stored_data["_data"]; } }
     public virtual DateTime CreatedTime { get { return (DateTime) stored_data["_create_time"]; } }
     public virtual DateTime EndTime { get { return (DateTime) stored_data["_end_time"]; } }
     public virtual string Password { get { return (string) stored_data["_password"]; } }
@@ -25,6 +25,8 @@ namespace Brunet.Dht {
       stored_data["_create_time"] = create_time;
       stored_data["_end_time"] = end_time;
     }
+
+    public virtual void Delete() {;}
   }
 
   public class DiskEntry: Entry {
@@ -89,7 +91,7 @@ namespace Brunet.Dht {
 
     public DiskEntry(string base_directory, byte[] key, string password, DateTime create_time, 
                       DateTime end_time, byte[] data, int idx) {
-      _file = GenerateDirectory(key);
+      _file = Path.Combine(base_directory, GenerateDirectory(key));
       Directory.CreateDirectory(_file);
       _file += Path.DirectorySeparatorChar.ToString() + idx;
       DhtData dhtdata = new DhtData();
@@ -99,13 +101,14 @@ namespace Brunet.Dht {
       dhtdata.created_time = create_time;
       dhtdata.end_time = end_time;
       dhtdata.index = idx;
-//      Console.WriteLine("Creating _file = " + _file);
       DhtDataHandler.Write(_file, dhtdata);
     }
 
-    ~DiskEntry() {
-      Console.WriteLine("Deleting _file = " + _file);
-      File.Delete(_file);
+    /* I don't trust the destructor ... */
+    public override void Delete() {
+      if(File.Exists(_file)) {
+        File.Delete(_file);
+      }
     }
   }
 }
