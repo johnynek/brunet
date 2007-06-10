@@ -17,7 +17,9 @@ namespace Brunet.Dht {
       this.MAJORITY = this.dht.Degree / 2 + 1;
     }
 
-    public static readonly int DELAY = 5000;
+    // I guess with Async methods we can be more generous - after all,
+    // if this fails - we're probably screwed anyway
+    public static readonly int DELAY = 60000;
     private readonly int MAJORITY;
 
     /** Below are all the Create methods, they rely on a unique put *
@@ -125,6 +127,7 @@ namespace Brunet.Dht {
           TimeSpan ts_timeleft = DateTime.UtcNow - start;
           int time_diff = ts_timeleft.Milliseconds;
           int time_left = (DELAY - time_diff > 0) ? DELAY - time_diff : 0;
+
           int idx = BlockingQueue.Select(allQueues, time_left);
           if(idx == -1) {
             break;
@@ -263,7 +266,7 @@ namespace Brunet.Dht {
 
       DateTime start = DateTime.UtcNow;
 
-      while(pcount <= MAJORITY || ncount < MAJORITY) {
+      while(pcount < MAJORITY && ncount < MAJORITY - 1) {
         TimeSpan ts_timeleft = DateTime.UtcNow - start;
         int time_diff = ts_timeleft.Milliseconds;
         int time_left = (DELAY - time_diff > 0) ? DELAY - time_diff : 0;

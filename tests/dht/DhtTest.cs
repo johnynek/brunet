@@ -369,7 +369,7 @@ namespace Brunet.Dht {
         Test0(ref op);
         Test1(ref op);
         Test2(ref op);
-//        Test3(ref op);
+        Test3(ref op);
         Test4(ref op);
         Test5(ref op);
         Test6(ref op);
