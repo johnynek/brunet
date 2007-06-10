@@ -366,11 +366,11 @@ namespace Brunet.Dht {
       int op = 0;
       try {
         Console.WriteLine("The following are serial tests until mentioned otherwise.");
-//        Test0(ref op);
-//        Test1(ref op);
-//        Test2(ref op);
-        Test3(ref op);
-/*        Test4(ref op);
+/*        Test0(ref op);
+        Test1(ref op);
+        Test2(ref op);
+        //Test3(ref op);
+        Test4(ref op);
         Test5(ref op);
         Test6(ref op);
         Test7(ref op);
@@ -378,7 +378,8 @@ namespace Brunet.Dht {
         Test9(ref op);
         Test10(ref op);
         Test11(ref op);
-        Test12(ref op);*/
+        Test12(ref op); */
+        Test13(ref op);
       }
       catch (Exception e) {
         Console.WriteLine("Failure at operation: " + (op - 1));
@@ -727,6 +728,40 @@ namespace Brunet.Dht {
 
       this.SerialGet(key, 0, results, op++);
 
+      Console.WriteLine("If no error messages successful up to: " + (op - 1));
+    }
+
+    public void Test13(ref int op) {
+      Console.WriteLine("Test 13: Testing 10 parallel puts and 1 get with the" +
+          " same key, we should get none back as they are meant to expire " +
+          "before the get.");
+      RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
+      byte[] key = new byte[10];
+      byte[] value = new byte[10];
+      byte[][] keys = new byte[10][];
+      byte[][] values = new byte[10][];
+      string[] passwords = new string[10];
+      int[] ttls = new int[10];
+      int[] dhtindexes = new int[10];
+
+      key = new byte[10];
+      rng.GetBytes(key);
+
+      for(int i = 0; i < 10; i++) {
+        keys[i] = key;
+        value = new byte[10];
+        rng.GetBytes(value);
+        values[i] = value;
+        passwords[i] = "SHA1:" + dhtOps[0].GeneratePassword(null);
+        ttls[i] = 60;
+        dhtindexes[i] = 0;
+//        this.SerialPut(keys[i], values[i], passwords[i], ttls[i], 0, passwords[i], op++);
+      }
+      this.ParallelPut(keys, values, passwords, ttls, dhtindexes, passwords, ref op);
+      this.SerialGet(key, 0, values, op++);
+      Console.WriteLine("Next get should all fail!");
+      Thread.Sleep(20000);
+      this.SerialGet(key, 0, values, op++);
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
     }
 
