@@ -17,7 +17,9 @@ namespace Ipop {
 **/
   public class Routes {
     protected object _res_sync = new object(), _queue_sync = new object();
-    private Hashtable _results = new Hashtable(), _queued = new Hashtable();
+    // Create a cache with room for 250 entries - I can't imagine having more nodes than this...
+    private Cache _results = new Cache(250);
+    private Hashtable _queued = new Hashtable();
     private DhtOp dhtOp = null;
     private string _ipop_namespace;
 
@@ -56,9 +58,9 @@ namespace Ipop {
 
       try {
         DhtGetResult [] dgr = dhtOp.Get(key);
-	lock( _res_sync ) {
+        lock( _res_sync ) {
           _results[ip] = dgr[0].value;
-	}
+        }
       }
       catch(Exception x) { System.Console.Error.WriteLine("In RouteMiss({1}): {0}", x, key); }
       lock(_queue_sync) {
