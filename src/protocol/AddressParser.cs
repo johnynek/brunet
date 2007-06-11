@@ -29,7 +29,14 @@ namespace Brunet
    */
   public class AddressParser
   {
-
+    //Here is a cache so we don't have to parse the same
+    //address over and over
+    protected static readonly Cache _address_cache;
+    protected const int CACHE_SIZE = 128;
+    
+    static AddressParser() {
+      _address_cache = new Cache(CACHE_SIZE);
+    }
     /**
      * @param ascii an ascii representation of an Address
      * @return a new address of the appropriate class
@@ -38,7 +45,13 @@ namespace Brunet
      */
     public static Address Parse(string ascii)
     {
-
+      lock( _address_cache ) {
+        Address a = (Address)_address_cache[ascii];
+        if( a != null ) {
+          return a;
+        }
+        //Else we have to actually parse
+      }
       string[] parts = ascii.Split(':');
       //It should be:  urn:brunet:node:[encoded address]
       // or brunet:node:[encoded address]
@@ -63,8 +76,13 @@ namespace Brunet
       }
       try {
         byte[] binadd = Base32.Decode(parts[offset + 2]);
-        MemBlock mb =MemBlock.Reference(binadd, 0, binadd.Length);
-        return Parse(mb);
+        MemBlock mb = MemBlock.Reference(binadd);
+        Address a = Parse(mb);
+        lock( _address_cache ) {
+          //Cache this result:
+          _address_cache[ ascii ] = a;
+        }
+        return a;
       }
       catch(System.ArgumentOutOfRangeException ex) {
         throw new ParseException("Failed to parse Address string",
@@ -79,6 +97,13 @@ namespace Brunet
      */
     static public Address Parse(MemBlock mb)
     {
+      lock( _address_cache ) {
+        Address a = (Address)_address_cache[mb];
+        if( a != null ) {
+          return a;
+        }
+        //Else we need to actually create a new address
+      }
       try {
         int add_class = Address.ClassOf(mb);
         Address a = null;
@@ -93,6 +118,10 @@ namespace Brunet
           throw new ParseException("Unknown Address Class: " +
                                    add_class + ", buffer:" +
                                    mb.ToString());
+        }
+        lock( _address_cache ) {
+          //Cache this result:
+          _address_cache[ mb ] = a;
         }
         return a;
       }
