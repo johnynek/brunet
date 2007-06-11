@@ -41,33 +41,60 @@ namespace Brunet
   public class TransportAddressFactory {
     //adding some kind of factory methods
     public static TransportAddress CreateInstance(string s) {
+      lock( _ta_cache ) {
+        TransportAddress ta = (TransportAddress) _ta_cache[s];
+	if( ta != null ) {
+          return ta;
+	}
+      }
       string scheme = s.Substring(0, s.IndexOf(":"));
       string t = scheme.Substring(scheme.IndexOf('.') + 1);
       //Console.Error.WriteLine(t);
+      
+      TransportAddress result = null;
       TransportAddress.TAType ta_type = StringToType(t);
       
       if (ta_type ==  TransportAddress.TAType.Tcp) {
-	return new IPTransportAddress(s);
+	result = new IPTransportAddress(s);
       }
       if (ta_type ==  TransportAddress.TAType.Udp) {
-	return new IPTransportAddress(s);
+	result = new IPTransportAddress(s);
       }
       if (ta_type ==  TransportAddress.TAType.Function) {
-	return new IPTransportAddress(s);
+	result = new IPTransportAddress(s);
       }
       if (ta_type ==  TransportAddress.TAType.Tls) {
-	return new IPTransportAddress(s);
+	result = new IPTransportAddress(s);
       }
       if (ta_type ==  TransportAddress.TAType.TlsTest) {
-	return new IPTransportAddress(s);
+	result = new IPTransportAddress(s);
       }
       if (ta_type ==  TransportAddress.TAType.Tunnel) {
-	return new TunnelTransportAddress(s);
+	result = new TunnelTransportAddress(s);
       }
-      return null;
+      //Let's save this result:
+      lock( _ta_cache ) {
+        _ta_cache[s] = result;
+      }
+      return result;
     }
     
-    protected static Hashtable _string_to_type = new Hashtable();
+
+    protected static Hashtable _string_to_type;
+    /*
+     * Parsing strings into TransportAddress objects is pretty 
+     * expensive (according to the profiler).  Since both
+     * strings and TransportAddress objects are immutable,
+     * we can keep a cache of them so we don't have to waste
+     * time doing multiple TAs over and over again.
+     */
+    protected static Cache _ta_cache;
+    protected const int CACHE_SIZE = 256;
+    
+    static TransportAddressFactory() {
+      _string_to_type = new Hashtable();
+      _ta_cache = new Cache(CACHE_SIZE);
+    }
 
     public static TransportAddress.TAType StringToType(string s) {
       lock( _string_to_type ) {
