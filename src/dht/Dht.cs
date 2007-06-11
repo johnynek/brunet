@@ -81,44 +81,54 @@ namespace Brunet.Dht {
       DELAY = delay * 1000;
     }
 
-    public BlockingQueue PrimitivePut(byte[] key, int ttl, byte[] data) {
+    public BlockingQueue[] PrimitivePut(byte[] key, int ttl, byte[] data) {
       if (!_dhtactivated) {
         throw new DhtException("DhtClient: Not yet activated.");
       }
 
+      BlockingQueue[] q = new BlockingQueue[DEGREE];
       byte[][] b = MapToRing(key);
-      Address target = new AHAddress(b[0]);
 
-      AHSender s = new AHSender(_rpc.Node, target);
-      BlockingQueue q = new BlockingQueue();
-      _rpc.Invoke(s, q, "dht.Put", b[0], ttl, data);
+      for(int i = 0; i < DEGREE; i++) {
+        Address target = new AHAddress(b[i]);
+        AHSender s = new AHSender(_rpc.Node, target);
+        q[i] = new BlockingQueue();
+        _rpc.Invoke(s, q[i], "dht.Put", b[i], ttl, data);
+      }
       return q;
     }
 
-    public BlockingQueue PrimitiveCreate(byte[] key, int ttl, byte[] data) {
+    public BlockingQueue[] PrimitiveCreate(byte[] key, int ttl, byte[] data) {
       if (!_dhtactivated) {
         throw new DhtException("DhtClient: Not yet activated.");
       }
 
+      BlockingQueue[] q = new BlockingQueue[DEGREE];
       byte[][] b = MapToRing(key);
-      Address target = new AHAddress(b[0]);
-      AHSender s = new AHSender(_rpc.Node, target);
-      BlockingQueue q = new BlockingQueue();
-      _rpc.Invoke(s, q, "dht.Create", b[0], ttl, data);
+
+      for(int i = 0; i < DEGREE; i++) {
+        Address target = new AHAddress(b[i]);
+        AHSender s = new AHSender(_rpc.Node, target);
+        q[i] = new BlockingQueue();
+        _rpc.Invoke(s, q[i], "dht.Create", b[i], ttl, data);
+      }
       return q;
     }
 
-    public BlockingQueue PrimitiveGet(byte[] key, int maxbytes, byte[] token) {
+    public BlockingQueue[] PrimitiveGet(byte[] key, int maxbytes, byte[] token) {
       if (!_dhtactivated) {
         throw new DhtException("DhtClient: Not yet activated.");
       }
 
+      BlockingQueue[] q = new BlockingQueue[DEGREE];
       byte[][] b = MapToRing(key);
-      Address target = new AHAddress(b[0]);
 
-      AHSender s = new AHSender(_rpc.Node, target);
-      BlockingQueue q = new BlockingQueue();
-      _rpc.Invoke(s, q, "dht.Get", b[0], maxbytes, token);
+      for(int i = 0; i < DEGREE; i++) {
+        Address target = new AHAddress(b[i]);
+        AHSender s = new AHSender(_rpc.Node, target);
+        q[i] = new BlockingQueue();
+        _rpc.Invoke(s, q[i], "dht.Get", b[i], maxbytes, token);
+      }
       return q;
     }
 
@@ -206,7 +216,6 @@ namespace Brunet.Dht {
       bool multiget = false;
 
       byte[][] b = MapToRing(key);
-      Address[] target = new Address[DEGREE];
       BlockingQueue[] q = new BlockingQueue[DEGREE];
       Address[] targets = new AHAddress[DEGREE];
 
@@ -238,41 +247,34 @@ namespace Brunet.Dht {
           break;
         }
         int real_idx = (int) queueMapping[idx];
+        tokens[real_idx] = null;
 
-        if(q[real_idx].Closed) {
-          tokens[real_idx] = null;
+        ArrayList result;
+        try {
+            RpcResult rpc_reply = (RpcResult) q[real_idx].Dequeue();
+            result = (ArrayList) rpc_reply.Result;
         }
-        else {
-          ArrayList result;
-          try {
-              RpcResult rpc_reply = (RpcResult) q[real_idx].Dequeue();
-              result = (ArrayList) rpc_reply.Result;
+        catch (Exception) {
+          result = null;
+        }
+        //Result may be corrupted
+        if (result != null && result.Count == 3) {
+          ArrayList values = (ArrayList) result[0];
+          remaining = (int) result[1];
+          if(remaining > 0) {
+            tokens[real_idx] = (byte[]) result[2];
           }
-          catch (Exception) {
-            result = null;
-          }
-          //Result may be corrupted
-          if (result != null && result.Count == 3) {
-            ArrayList values = (ArrayList) result[0];
-            remaining = (int) result[1];
-            if(remaining > 0) {
-              tokens[real_idx] = (byte[]) result[2];
+
+          foreach (Hashtable ht in values) {
+            MemBlock mbVal = MemBlock.Reference((byte[])ht["value"]);
+            if(!allValuesCount.Contains(mbVal)) {
+              allValuesCount[mbVal] = 1;
             }
             else {
-              tokens[real_idx] = null;
-            }
-
-            foreach (Hashtable ht in values) {
-              MemBlock mbVal = MemBlock.Reference((byte[])ht["value"]);
-              if(!allValuesCount.Contains(mbVal)) {
-                allValuesCount[mbVal] = 1;
-              }
-              else {
-                int count = ((int) allValuesCount[mbVal]) + 1;
-                allValuesCount[mbVal] = count;
-                if(count == MAJORITY) {
-                  allValues.Enqueue(new DhtGetResult(ht));
-                }
+              int count = ((int) allValuesCount[mbVal]) + 1;
+              allValuesCount[mbVal] = count;
+              if(count == MAJORITY / 2) {
+                allValues.Enqueue(new DhtGetResult(ht));
               }
             }
           }
@@ -281,9 +283,10 @@ namespace Brunet.Dht {
         q[real_idx].Close();
         if(tokens[real_idx] != null) {
           multiget = true;
-          AHSender s = new AHSender(_rpc.Node, target[real_idx]);
+          AHSender s = new AHSender(_rpc.Node, targets[real_idx]);
           q[real_idx] = new BlockingQueue();
-          _rpc.Invoke(s,q[real_idx], "dht.Get", b[real_idx], MAX_BYTES, tokens[real_idx]);
+          allQueues[idx] = q[real_idx];
+          _rpc.Invoke(s, q[real_idx], "dht.Get", b[real_idx], MAX_BYTES, tokens[real_idx]);
         }
         else {
           allQueues.RemoveAt(idx);
