@@ -131,34 +131,6 @@ namespace Brunet
       }
     }
     
-    /*
-     * To avoid making copies, we make direct references to the _rec_buffer,
-     * but when it fills up, we have to allocate a new buffer.  This code
-     * manages this
-     * @param size, the number of bytes in the _rec_buffer we just wrote
-     * if size < 0, reinitialize the _rec_buffer
-     * @param buffer the buffer to advance
-     * @param offset the current offset
-     * @return the new offset into the buffer
-     */
-    static protected int AdvanceBuffer(int size, ref byte[] buffer, int offset) {
-      bool reset = (size < 0);
-      int new_offset = offset + size;
-      if( false == reset ) {
-	if( buffer.Length - new_offset > (Packet.MaxLength + 8) ) {
-          //We can still fit another packet
-	}
-	else {
-          reset = true;
-	}
-      }
-      if( reset ) {
-        //Initialize
-	buffer = new byte[ 3 * Packet.MaxLength ];
-	new_offset = 0;
-      }
-      return new_offset;
-    }
     /**
      * When a UdpEdge closes we need to remove it from
      * our table, so we will know it is new if it comes
@@ -607,8 +579,11 @@ namespace Brunet
       }
       EndPoint end = new IPEndPoint(IPAddress.Any, 0);
       byte[] send_buffer = new byte[ Packet.MaxLength + 8];
-      byte[] buffer = new byte[0];
-      int offset = AdvanceBuffer(-1, ref buffer, 0); //Initialize buffer
+      
+      BufferAllocator ba = new BufferAllocator(8 + Packet.MaxLength);
+      byte[] buffer = ba.Buffer;
+      int offset = ba.Offset;
+
       while(_running) {
         bool read = false;
 
@@ -632,8 +607,11 @@ namespace Brunet
 	     * Make a reference to this memory, don't copy.
 	     */
 	    MemBlock packet_buffer = MemBlock.Reference(buffer, offset + 8, rec_bytes - 8);
-            offset = AdvanceBuffer(rec_bytes, ref buffer, offset);
-  	    if( localid < 0 ) {
+	    ba.AdvanceBuffer(rec_bytes);
+	    buffer = ba.Buffer;
+	    offset = ba.Offset;
+  	    
+	    if( localid < 0 ) {
   	    /*
   	     * We never give out negative id's, so if we got one
   	     * back the other node must be sending us a control
