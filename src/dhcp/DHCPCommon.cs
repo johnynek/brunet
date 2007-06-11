@@ -36,7 +36,6 @@ namespace Ipop {
     public string ipop_namespace;
     public string return_message;
     public string NodeAddress;
-    public string StoredPassword;
   }
 
   abstract public class DHCPServer : MarshalByRefObject {
@@ -71,8 +70,6 @@ namespace Ipop {
           "attempting to request a lease, please try again later.";
         return returnPacket;
       }
-      //we will have the password set to a new value
-      returnPacket.StoredPassword = leaseReturn.password;
 
       returnPacket.yiaddr = leaseReturn.ip;
       if(returnPacket.yiaddr[0] == 0) {

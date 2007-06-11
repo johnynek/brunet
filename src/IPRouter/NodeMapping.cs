@@ -28,13 +28,16 @@ namespace Ipop {
     public void UpdateTracker() {
       while(true) {
         while(true) {
+          bool result = false;
           try {
-            DhtOp dhtOp = new DhtOp(brunet.dht);
-            dhtOp.Put("iprouter_tracker", brunet.brunetNode.Address.ToString() +
-                "|" + ip.ToString(), null, 7200);
+            result = brunet.dht.Put("iprouter_tracker", brunet.brunetNode.Address.ToString() +
+                "|" + ip.ToString(), 7200);
+          }
+          catch(Exception) {;}
+          if(result) {
             break;
           }
-          catch(Exception) {
+          else {
             Thread.Sleep(10000);
           }
         }

@@ -16,15 +16,6 @@ namespace Ipop {
         return _preferred_ip;
       }
     }
-    string _stored_password;
-    public string StoredPassword {
-      get {
-        return _stored_password;
-      }
-      set {
-        _stored_password = value;
-      }
-    }
     byte[] _brunet_id;
     public byte[] BrunetId {
       get {
@@ -32,20 +23,19 @@ namespace Ipop {
       }
     }
 
-    public DhtDHCPLeaseParam(byte[] preferred_ip, string stored_password, byte [] brunet_id) {
+    public DhtDHCPLeaseParam(byte[] preferred_ip, byte [] brunet_id) {
       _preferred_ip = preferred_ip;
-      _stored_password = stored_password;
       _brunet_id = brunet_id;
     }
   }
 
   public class DhtDHCPLease: DHCPLease {
-    protected FDht _dht;
+    protected Dht _dht;
     protected Random _rand;
     protected DateTime _last_assigned_instant;
     protected DHCPLeaseResponse _last_assigned_lease;
 
-    public DhtDHCPLease(FDht dht, IPOPNamespace config):base(config) {
+    public DhtDHCPLease(Dht dht, IPOPNamespace config):base(config) {
       _dht = dht;
       _rand = new Random();
       _last_assigned_lease = null;
@@ -61,20 +51,13 @@ namespace Ipop {
         return _last_assigned_lease;
       }
       byte[] preferred_ip = dht_param.PreferredIP;
-      if (preferred_ip[0] == 0 && preferred_ip[1] == 0 && 
-          preferred_ip[2] == 0 && preferred_ip[3] == 0) {
-        //we should make a guess
-        preferred_ip = GuessIPAddress();
-      }
-      string password = dht_param.StoredPassword;
-      byte[] new_ip = ReAllocateIPAddress(preferred_ip, dht_param.BrunetId, ref password);
+      byte[] new_ip = ReAllocateIPAddress(preferred_ip, dht_param.BrunetId);
       if (new_ip == null) {
         return null;
       }
       DHCPLeaseResponse leaseReturn = new DHCPLeaseResponse();
       leaseReturn.ip = new_ip;
       leaseReturn.netmask = netmask;
-      leaseReturn.password = password;
       leaseReturn.leasetime = leasetimeb;
 
       _last_assigned_lease = leaseReturn;
@@ -82,18 +65,21 @@ namespace Ipop {
       return leaseReturn;
     }
 
-    private byte[] ReAllocateIPAddress (byte[] preferred_ip, byte[] brunet_id, ref string password) {
+    private byte[] ReAllocateIPAddress (byte[] preferred_ip, byte[] brunet_id) {
       int max_attempts = 1, max_renew_attempts = 2;
-      bool renew_attempt = false;
       byte[] guessed_ip = null;
+      bool renew_attempt = false;
 
-      if (password != null) {
+      if (preferred_ip[0] == 0 && preferred_ip[1] == 0 && 
+          preferred_ip[2] == 0 && preferred_ip[3] == 0) {
+        //we should make a guess
+        guessed_ip = GuessIPAddress();
+      }
+      else {
         renew_attempt = true;
         guessed_ip = preferred_ip;
         max_attempts++;
       }
-      else
-        guessed_ip = GuessIPAddress();
 
       while (true) {
         do {
@@ -103,7 +89,7 @@ namespace Ipop {
           }
           guessed_ip_str += guessed_ip[guessed_ip.Length - 1];
 
-          if(DhtIP.GetIP(_dht, namespace_value, guessed_ip_str, leasetime, brunet_id, ref password))
+          if(DhtIP.GetIP(_dht, namespace_value, guessed_ip_str, leasetime, brunet_id))
             return guessed_ip;
         } while(max_renew_attempts-- > 0 && renew_attempt);
         if (--max_attempts > 0) {

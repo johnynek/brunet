@@ -9,7 +9,7 @@ using System.Xml.Serialization;
 
 namespace Ipop {
   public class DhtData {
-    public string key, value, ttl, password;
+    public string key, value, ttl;
   }
 
   public class DhtDataHandler {
@@ -32,9 +32,6 @@ namespace Ipop {
           case "ttl":
             data.ttl = value;
             break;
-          case "password":
-            data.password = value;
-            break;
         }
       }
       sr.Close();
@@ -49,7 +46,6 @@ namespace Ipop {
       sw.WriteLine("key=" + data.key);
       sw.WriteLine("value=" + data.value);
       sw.WriteLine("ttl=" + data.ttl);
-      sw.WriteLine("password=" + data.password);
       sw.Close();
       fs.Close();
     }

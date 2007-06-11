@@ -106,17 +106,6 @@ namespace Ipop {
           foreach(string ta in config.RemoteTAs)
             RemoteTAs.Add(TransportAddressFactory.CreateInstance(ta));
           brunetNode.RemoteTAs = RemoteTAs;
-
-
-
-          //following line of code enables DHT support inside the SimpleNode
-          FDht dht = null;
-          if (config.dht_media == null || config.dht_media.Equals("disk")) {
-            dht = new FDht(brunetNode, EntryFactory.Media.Disk, 3);
-          }
-          else if (config.dht_media.Equals("memory")) {
-            dht = new FDht(brunetNode, EntryFactory.Media.Memory, 3);
-          }
       }
       Console.WriteLine("Starting nodes");
       foreach (Node node in address_to_node.Values) {

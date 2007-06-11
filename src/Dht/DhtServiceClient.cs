@@ -27,8 +27,8 @@ namespace Ipop {
     [XmlRpcMethod]
     new DhtGetResult[] Get(string key);
     [XmlRpcMethod]
-    new string Create(string key, string value, string password, int ttl);
+    new bool Create(string key, string value, int ttl);
     [XmlRpcMethod]
-    new string Put(string key, string value, string password, int ttl);
+    new bool Put(string key, string value, int ttl);
   }
 }

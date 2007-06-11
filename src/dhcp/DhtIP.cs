@@ -10,16 +10,10 @@ using Brunet.Dht;
 
 namespace Ipop {
   public class DhtIP {
-    public static bool GetIP(FDht _dht, string ipop_namespace, string ip,
-                            int leasetime, byte [] brunet_id, ref string password) {
+    public static bool GetIP(Dht _dht, string ipop_namespace, string ip,
+                            int leasetime, byte [] brunet_id) {
       string key = "dhcp:ipop_namespace:" + ipop_namespace + ":ip:" + ip;
-      DhtOp dhtOp = new DhtOp(_dht);
-      string output = dhtOp.Create(key, brunet_id, password, leasetime);
-      if(output == null) {
-        return false;
-      }
-      password = output;
-      return true;
+      return _dht.Create(key, brunet_id, leasetime);
     }
   }
 }

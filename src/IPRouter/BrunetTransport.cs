@@ -16,7 +16,7 @@ namespace Ipop {
     public Node brunetNode;
 //    NodeMapping node;
     IPPacketHandler ip_handler;
-    public FDht dht;
+    public Dht dht;
     bool debug;
 //    Thread Refresher;
     ArrayList edgeListeners;
@@ -75,10 +75,10 @@ namespace Ipop {
       brunetNode.GetTypeSource(PType.Protocol.IP).Subscribe(ip_handler, null);
 
       if (dht_media == null || dht_media.Equals("disk")) {
-        dht = new FDht(brunetNode, EntryFactory.Media.Disk, 3);
+        dht = new Dht(brunetNode, EntryFactory.Media.Disk, 3);
       }
       else if (dht_media.Equals("memory")) {
-        dht = new FDht(brunetNode, EntryFactory.Media.Memory, 3);
+        dht = new Dht(brunetNode, EntryFactory.Media.Memory, 3);
       }
 
       brunetNode.Connect();

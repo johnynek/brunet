@@ -17,14 +17,14 @@ namespace Ipop {
   /// XmlRpc URL: http://localhost:64221/xd.rem
   /// </summary>
   public class DhtServer {
-    public static Thread StartDhtServerAsThread(FDht dht) {
+    public static Thread StartDhtServerAsThread(Dht dht) {
       Thread DhtThread = new Thread(DhtServer.StartDhtServer);
       DhtThread.Start(dht);
       return DhtThread;
     }
 
     public static void StartDhtServer(object odht) {
-      FDht dht = (FDht)odht;
+      Dht dht = (Dht)odht;
       XmlRpcServerFormatterSinkProvider chain = new XmlRpcServerFormatterSinkProvider();
       chain.Next = new SoapServerFormatterSinkProvider();
 

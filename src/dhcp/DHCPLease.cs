@@ -31,7 +31,6 @@ namespace Ipop {
     public byte [] ip;
     public byte [] netmask;
     public byte [] leasetime;
-    public string password;
   }
 
   abstract public class DHCPLease {

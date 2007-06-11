@@ -12,7 +12,7 @@ using Brunet.Dht;
 namespace Ipop {
   public class SimpleNode {
     private static Node [] nodes;
-    private static FDht [] dhts;
+    private static Dht [] dhts;
     private static IDht sd;
     private static Thread sdthread;
     private static bool one_run;
@@ -171,7 +171,7 @@ namespace Ipop {
 
     public static void StartBrunet(string config_file, int n) {
       nodes = new Node[n];
-      dhts = new FDht[n];
+      dhts = new Dht[n];
 
       //configuration file 
       IPRouterConfig config = IPRouterConfigHandler.Read(config_file, true);
@@ -217,11 +217,11 @@ namespace Ipop {
         brunetNode.RemoteTAs = RemoteTAs;
 
         //following line of code enables DHT support inside the SimpleNode
-        FDht ndht = null;
+        Dht ndht = null;
         if (config.dht_media == null || config.dht_media.Equals("disk")) {
-          ndht = new FDht(brunetNode, EntryFactory.Media.Disk, 3);
+          ndht = new Dht(brunetNode, EntryFactory.Media.Disk, 3, 20);
         } else if (config.dht_media.Equals("memory")) {
-          ndht = new FDht(brunetNode, EntryFactory.Media.Memory, 3);
+          ndht = new Dht(brunetNode, EntryFactory.Media.Memory, 3, 20);
         }
 
         brunetNode.Connect();
@@ -244,12 +244,15 @@ namespace Ipop {
 
       for (int i = 0; i < nodes.Length; i++) {
         while(true) {
+          bool result = false;
           try {
-            DhtOp dhtOp = new DhtOp(dhts[i]);
-            dhtOp.Put("plab_tracker", nodes[i].Address.ToString() + value, null, 7200);
+            result = dhts[i].Put("plab_tracker", nodes[i].Address.ToString() + value, 7200);
+          }
+          catch(Exception) {;}
+          if(result) {
             break;
           }
-          catch(Exception) {
+          else {
             Thread.Sleep(10000);
           }
         }
@@ -269,36 +272,32 @@ namespace Ipop {
           if(dhtfiles.Count == 1) {
             Console.Error.WriteLine("DATA:::Attempting Dht operation!");
           }
-          string password = null;
+          bool result = false;
           if(dhts != null) {
-            DhtOp dhtOp = new DhtOp(dhts[0]);
-            password = dhtOp.Create(data.key, data.value, data.password, ttl);
+            result = dhts[0].Create(data.key, data.value, ttl);
           }
           else {
-            password = sd.Create(data.key, data.value, data.password, ttl);
+            result = sd.Create(data.key, data.value, ttl);
           }
-          if(password == null) {
-            if(one_run && dhtfiles.Count == 1) {
+          if(one_run) {
+            if(result) {
+              Console.WriteLine("Pass");
+            }
+            else {
               Console.WriteLine("Fail");
             }
-            else if(dhtfiles.Count == 1) {
-              Console.Error.WriteLine("DATA:::Dht operatin failed!");
-            }
-            return;
-          }
-          else if(password != data.password) {
-            data.password = password;
-            DhtDataHandler.Write(filename, data);
-          }
-          /* We exit if this was meant to try to create a data point */
-          if(one_run && dhtfiles.Count == 1) {
-            Console.WriteLine("Pass");
             return;
           }
           if(dhtfiles.Count == 1) {
-            Console.Error.WriteLine("DATA:::Dht operation succeeded, sleeping for " + (ttl / 2));
+            if(result)  {
+              Console.Error.WriteLine("DATA:::Dht operation succeeded, sleeping for " + (ttl / 2));
+              System.Threading.Thread.Sleep((ttl / 2) * 1000);
+            }
+            else {
+              Console.Error.WriteLine("DATA:::Dht operation failed, sleeping for 30 seconds and retrying.");
+              System.Threading.Thread.Sleep(30000);
+            }
           }
-          System.Threading.Thread.Sleep((ttl / 2) * 1000);
         }
         catch(Exception) {
           if(dhtfiles.Count == 1) {
@@ -310,10 +309,6 @@ namespace Ipop {
     }
 
     public static void DhtConsole() {
-      DhtOp dhtOp = null;
-      if(dhts != null) {
-        dhtOp = new DhtOp(dhts[0]);
-      }
       int oper_count = 0;
       while(true) {
         Console.Write("{0}: Enter operation (Get/Put/Create/Done):  ", oper_count++);
@@ -324,46 +319,40 @@ namespace Ipop {
             string key = Console.ReadLine();
             Console.Write("Enter data:  ");
             string value = Console.ReadLine();
-            Console.Write("Enter password:  ");
-            string password = Console.ReadLine();
             Console.Write("Enter TTL:  ");
             int ttl = Int32.Parse(Console.ReadLine());
             Console.WriteLine("Attempting Put() on key : " + key);
-            string result = null;
+            bool result = false;
             if(dhts != null) {
-              result = dhtOp.Put(key, value, password, ttl);
+              result = dhts[0].Put(key, value, ttl);
             }
             else {
-              result = sd.Put(key, value, password, ttl);
+              result = sd.Put(key, value, ttl);
             }
-            result = (result == null) ? "Failed" : "Success";
-            Console.WriteLine("Operation Complete and " + result);
+            Console.WriteLine("Operation Complete and " + ((result) ? "Success" : "Failure"));
           }
           else if (str_oper.Equals("Create")) {
             Console.Write("Enter key:  ");
             string key = Console.ReadLine();
             Console.Write("Enter data:  ");
             string value = Console.ReadLine();
-            Console.Write("Enter password:  ");
-            string password = Console.ReadLine();
             Console.Write("Enter TTL:  ");
             int ttl = Int32.Parse(Console.ReadLine());
             Console.WriteLine("Attempting Create() on key : " + key);
-            string result = null;
+            bool result = false;
             if(dhts != null) {
-              result = dhtOp.Create(key, value, password, ttl);
+              result = dhts[0].Create(key, value, ttl);
             }
             else {
-              result = sd.Create(key, value, password, ttl);
+              result = sd.Create(key, value, ttl);
             }
-            result = (result == null) ? "Failed" : "Succeeded";
-            Console.WriteLine("Operation Completed and " + result);
+            Console.WriteLine("Operation Completed and " + ((result) ? "Success" : "Failure"));
           }
           else if (str_oper.Equals("Get")) {
             Console.Write("Enter key:  ");
             string key = Console.ReadLine();
             if(dhts != null) {
-              BlockingQueue queue = dhtOp.AsGet(key);
+              BlockingQueue queue = dhts[0].AsGet(key);
 
 
               int count = 0;

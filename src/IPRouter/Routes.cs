@@ -20,11 +20,11 @@ namespace Ipop {
     // Create a cache with room for 250 entries - I can't imagine having more nodes than this...
     private Cache _results = new Cache(250);
     private Hashtable _queued = new Hashtable();
-    private DhtOp dhtOp = null;
+    private Dht dht;
     private string _ipop_namespace;
 
-    public Routes(FDht dht, string ipop_namespace) {
-      dhtOp = new DhtOp(dht);
+    public Routes(Dht dht, string ipop_namespace) {
+      this.dht = dht;
       _ipop_namespace = ipop_namespace;
     }
 
@@ -57,7 +57,7 @@ namespace Ipop {
       string key = "dhcp:ipop_namespace:" + _ipop_namespace + ":ip:" + ip.ToString();
 
       try {
-        DhtGetResult [] dgr = dhtOp.Get(key);
+        DhtGetResult [] dgr = dht.Get(key);
         lock( _res_sync ) {
           _results[ip] = dgr[0].value;
         }

@@ -14,9 +14,9 @@ using Brunet.Dht;
 
 namespace Ipop {
   public class DhtDHCPServer: DHCPServer {
-    protected FDht _dht;
+    protected Dht _dht;
 
-    public DhtDHCPServer(byte []server_ip, FDht dht) {
+    public DhtDHCPServer(byte []server_ip, Dht dht) {
       _dht = dht;
       this.ServerIP = server_ip;
       this.leases = new SortedList();
@@ -32,8 +32,7 @@ namespace Ipop {
         return (DHCPLease) leases[ipop_namespace];
       }
       string ns_key = "dhcp:ipop_namespace:" + ipop_namespace;
-      DhtOp dhtOp = new DhtOp(_dht);
-      DhtGetResult[] results = dhtOp.Get(ns_key);
+      DhtGetResult[] results = _dht.Get(ns_key);
       if(results == null || results.Length == 0)  {
         Console.Error.WriteLine("Namespace does not exist");
         return null;
@@ -53,8 +52,8 @@ namespace Ipop {
     }
 
     protected override DHCPLeaseResponse GetLease(DHCPLease dhcp_lease, DecodedDHCPPacket packet) {
-      DhtDHCPLeaseParam dht_param = new DhtDHCPLeaseParam(packet.yiaddr, packet.StoredPassword,
-        IPOP_Common.StringToBytes(packet.NodeAddress, ':'));
+      DhtDHCPLeaseParam dht_param = new DhtDHCPLeaseParam(packet.yiaddr,
+          IPOP_Common.StringToBytes(packet.NodeAddress, ':'));
       DHCPLeaseResponse ret = dhcp_lease.GetLease(dht_param);
       return ret;
     }

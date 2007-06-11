@@ -106,10 +106,9 @@ namespace Ipop {
       dhcpPacket.decodedPacket.ipop_namespace = config.ipop_namespace;
       dhcpPacket.decodedPacket.NodeAddress = node.nodeAddress;
 
-      if (config.AddressData.IPAddress != null && config.AddressData.Password != null) {
+      if (config.AddressData.IPAddress != null) {
         dhcpPacket.decodedPacket.yiaddr =
           IPAddress.Parse(config.AddressData.IPAddress).GetAddressBytes();
-        dhcpPacket.decodedPacket.StoredPassword = node.password;
       }
 
       /* DHCP Server returns our incoming packet, which we decode, if it
@@ -144,8 +143,6 @@ namespace Ipop {
 //            return;
 //          }
 //          else {
-            node.password = returnPacket.decodedPacket.StoredPassword;
-            config.AddressData.Password = node.password;
 // This is currently broken
 //            node.brunet.UpdateTAAuthorizer();
 //          }
@@ -212,7 +209,6 @@ namespace Ipop {
       node.nodeAddress = config.NodeAddress;
       node.ipop_namespace = config.ipop_namespace;
       node.netmask = config.AddressData.Netmask;
-      node.password = config.AddressData.Password;
 
       if(config.AddressData.IPAddress != null) {
         node.ip = IPAddress.Parse(config.AddressData.IPAddress);
