@@ -51,9 +51,6 @@ namespace Brunet
     
     protected IAsyncResult _read_asr;
 
-    protected byte[] _rec_buffer;
-    ///The offset we will write into next in the _rec_buffer
-    protected int _rec_buffer_offset;
     protected byte[] _send_buffer;
 
     public ASUdpEdgeListener(int port)
@@ -104,8 +101,7 @@ namespace Brunet
       _read_lock = new object();
       _running = false;
       _isstarted = false;
-      //There are two 4 byte IDs for each edge we need to make room for
-      _rec_buffer_offset = AdvanceBuffer(-1, ref _rec_buffer, 0); //Initialize _rec_buffer
+      
       _send_buffer = new byte[ 8 + Packet.MaxLength ];
       _send_queue = new Queue();
       ///@todo we need to use the cryptographic RNG
@@ -222,14 +218,18 @@ namespace Brunet
         s.Bind(ipep);
         _isstarted = true;
       }
-      lock( _read_lock ) {
-        _running = true;
-        EndPoint end = new IPEndPoint(IPAddress.Any, 0);
-	//Console.Error.WriteLine("About to BeingReceiveFrom");
-	int max = _rec_buffer.Length - _rec_buffer_offset;
-        _read_asr = s.BeginReceiveFrom(_rec_buffer, _rec_buffer_offset, max,
-		         SocketFlags.None, ref end, new AsyncCallback(this.ReceiveHandler), end);
-      }
+      _running = true;
+      //Console.Error.WriteLine("About to BeingReceiveFrom");
+      object[] state = new object[2];
+      
+      EndPoint end = new IPEndPoint(IPAddress.Any, 0);
+      state[0] = end;
+      BufferAllocator ba = new BufferAllocator(8 + Packet.MaxLength);
+      state[1] = ba;
+	
+      int max = ba.Buffer.Length - ba.Offset;
+      _read_asr = s.BeginReceiveFrom(ba.Buffer, ba.Offset, max,
+		         SocketFlags.None, ref end, new AsyncCallback(this.ReceiveHandler), state);
     }
 
     /**
@@ -254,16 +254,17 @@ namespace Brunet
      * When we get a packet this event is called
      */
     protected void ReceiveHandler(IAsyncResult asr) {
+      object[] state = (object[])asr.AsyncState;
+      EndPoint end = (IPEndPoint)state[0];
+      BufferAllocator ba = (BufferAllocator)state[1];
+
       try {
-      	
-        EndPoint end = (EndPoint)asr.AsyncState;
-        
 	int rec_bytes = s.EndReceiveFrom(asr, ref end);
         //Get the id of this edge:
-        int remoteid = NumberSerializer.ReadInt(_rec_buffer, _rec_buffer_offset);
-        int localid = NumberSerializer.ReadInt(_rec_buffer, _rec_buffer_offset + 4);
-	MemBlock packet = MemBlock.Reference(_rec_buffer, _rec_buffer_offset + 8, rec_bytes - 8);
-        _rec_buffer_offset = AdvanceBuffer(rec_bytes, ref _rec_buffer, _rec_buffer_offset);
+        int remoteid = NumberSerializer.ReadInt(ba.Buffer, ba.Offset);
+        int localid = NumberSerializer.ReadInt(ba.Buffer, ba.Offset + 4);
+	MemBlock packet = MemBlock.Reference(ba.Buffer, ba.Offset + 8, rec_bytes - 8);
+	ba.AdvanceBuffer( rec_bytes );
         if( localid < 0 ) {
 	    /*
 	     * We never give out negative id's, so if we got one
@@ -290,15 +291,14 @@ namespace Brunet
         System.Console.Error.WriteLine("Exception: {0}",x);
       }
       finally {
-        lock( _read_lock ) {
-          if( _running ) {
-            //Start the next round:
-            EndPoint end = new IPEndPoint(IPAddress.Any, 0);
-	    int max = _rec_buffer.Length - _rec_buffer_offset;
-            _read_asr = s.BeginReceiveFrom(_rec_buffer, _rec_buffer_offset,
+        if( _running ) {
+          //Start the next round:
+	  end = new IPEndPoint(IPAddress.Any, 0);
+	  state[0] = end;
+	  int max = ba.Buffer.Length - ba.Offset;
+          _read_asr = s.BeginReceiveFrom(ba.Buffer, ba.Offset,
 			 max, SocketFlags.None, ref end,
-			 new AsyncCallback(this.ReceiveHandler), end);
-	  }
+			 new AsyncCallback(this.ReceiveHandler), state);
 	}
       }
     }
