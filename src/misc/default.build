@@ -17,7 +17,7 @@
         <include name="CookComputing.XmlRpcV2.dll" />
       </fileset>
     </copy>
-    <csc target="exe" output="${build.dir}/SimpleNode.exe">
+    <csc target="exe" output="${build.dir}/SimpleNode.exe" debug="${debug}">
       <sources failonempty="true">
         <include name="SimpleNode.cs"/>
         <include name="../Common/OSDependent.cs"/>
@@ -25,8 +25,7 @@
         <include name="../Common/IPRouterConfig.cs"/>
         <include name="../Common/IPAddresses.cs"/>
         <include name="../Dht/IDht.cs"/>
-        <include name="../Dht/SoapDht.cs"/>
-        <include name="../Dht/XmlRpcDht.cs"/>
+        <include name="../Dht/DhtAdapter.cs"/>
         <include name="../Dht/DhtService.cs"/>
         <include name="../Dht/DhtServiceClient.cs"/>
         <include name="../Dht/DhtData.cs"/>
