@@ -186,8 +186,7 @@ namespace Brunet.Dht {
           DhtGetResult dgr = (DhtGetResult) queue.Dequeue();
           allValues.Add(dgr);
         }
-        catch (Exception e) {
-//          Console.WriteLine("AAAA " + e);
+        catch (Exception) {
           break;
         }
       }
@@ -197,11 +196,10 @@ namespace Brunet.Dht {
     /**  This is the get that does all the work, it is meant to be
      *   run as a thread */
     public void Get(object data) {
-//      Console.WriteLine("Get:::START:::" + DateTime.UtcNow);
       object []data_array = (object[]) data;
       byte[] key = (byte[]) data_array[0];
       BlockingQueue allValues = (BlockingQueue) data_array[1];
-      try {
+
       Hashtable allValuesCount = new Hashtable();
       int remaining = 0, last_count = DEGREE;
       byte [][]tokens = new byte[DEGREE][];
@@ -250,8 +248,7 @@ namespace Brunet.Dht {
               RpcResult rpc_reply = (RpcResult) q[real_idx].Dequeue();
               result = (ArrayList) rpc_reply.Result;
           }
-          catch (Exception e) {
-//            Console.WriteLine("GET:::" + e);
+          catch (Exception) {
             result = null;
           }
           //Result may be corrupted
@@ -317,10 +314,7 @@ namespace Brunet.Dht {
           }
         }
       }
-      }
-      catch(Exception e) {Console.WriteLine("Get:::" + e);}
       allValues.Close();
-//      Console.WriteLine("Get:::STOP:::" + DateTime.UtcNow);
     }
 
     /** Below are all the Put methods, they use a non-unique put */
@@ -384,7 +378,6 @@ namespace Brunet.Dht {
 
 
     public void Put(object data) {
-//      Console.WriteLine("Put:::START:::" + DateTime.UtcNow);
       object[] data_array = (object[]) data;
       byte[] key = (byte[]) data_array[0];
       byte[] value = (byte[]) data_array[1];
@@ -399,7 +392,7 @@ namespace Brunet.Dht {
       }
       BlockingQueue queue = (BlockingQueue) data_array[4];
       byte[][] b = MapToRing(key);
-      try {
+
       bool rv = false;
 
       BlockingQueue[] q = new BlockingQueue[DEGREE];
@@ -435,9 +428,7 @@ namespace Brunet.Dht {
             RpcResult rpc_reply = (RpcResult) ((BlockingQueue) allQueues[idx]).Dequeue();
             result = (bool) rpc_reply.Result;
           }
-          catch(Exception e) {
-//            Console.WriteLine("PUT:::" + unique + ":::" + e);
-          } // Treat this as receiving a negative
+          catch(Exception) {;} // Treat this as receiving a negative
         }
 
         if(result == true) {
@@ -457,9 +448,6 @@ namespace Brunet.Dht {
         qclose.Close();
       }
       queue.Enqueue(rv);
-      }
-      catch(Exception e) {Console.WriteLine("Put:::" + unique + ":::" + e);}
-//      Console.WriteLine("Put:::END:::" + DateTime.UtcNow);
       queue.Close();
     }
 
