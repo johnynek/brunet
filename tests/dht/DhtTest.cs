@@ -10,25 +10,22 @@ using Brunet.Dht;
 namespace Brunet.Dht {
   public class DhtOpTester {
     Node []nodes;
-    FDht []dhts;
-    DhtOp []dhtOps;
-    static readonly int degree = 3;
-    static readonly int network_size = 10;
+    Dht []dhts;
+    static readonly int degree = 2;
+    static readonly int network_size = 20;
     static readonly string brunet_namespace = "testing";
     static readonly int base_port = 55123;
     // Well this is needed because C# doesn't lock the console
     private object _lock = new object();
 
-    public void ParallelCreate(byte[][] key, byte[][] value, string[] password, int[] ttl,
-                            int[] index, string[] expected_result, ref int op) {
+    public void ParallelCreate(byte[][] key, byte[][] value, int[] ttl,
+                            int[] index, bool[] expected_result, ref int op) {
       ArrayList threadlist = new ArrayList();
       for (int i = 0; i < key.Length; i++) {
         Hashtable ht = new Hashtable();
         ht.Add("key", key[i]);
         ht.Add("value", value[i]);
-        if(password != null) {
-          ht.Add("password", password[i]);
-        }
+
         ht.Add("ttl", ttl[i]);
         ht.Add("index", index[i]);
         ht.Add("result", expected_result[i]);
@@ -42,14 +39,11 @@ namespace Brunet.Dht {
       }
     }
 
-    public void SerialCreate(byte[] key, byte[] value, string password, int ttl,
-                            int index, string expected_result, int op) {
+    public void SerialCreate(byte[] key, byte[] value, int ttl,
+                            int index, bool expected_result, int op) {
       Hashtable ht = new Hashtable();
       ht.Add("key", key);
       ht.Add("value", value);
-      if(password != null) {
-        ht.Add("password", password);
-      }
       ht.Add("ttl", ttl);
       ht.Add("index", index);
       ht.Add("result", expected_result);
@@ -61,25 +55,18 @@ namespace Brunet.Dht {
       Hashtable ht = (Hashtable) data;
       byte[] key = (byte[]) ht["key"];
       byte[] value = (byte[]) ht["value"];
-      string password = null;
-      if(ht.Contains("password")) {
-        password = (string) ht["password"];
-      }
       int ttl = (int) ht["ttl"];
       int index = (int) ht["index"];
       int op = (int) ht["op"];
-      string expected_result = (string) ht["result"];
-      if(expected_result == "null") {
-        expected_result = null;
-      }
-      string result = dhtOps[index].Create(key, value, password, ttl);
+      bool expected_result = (bool) ht["result"];
+      bool result = dhts[index].Create(key, value, ttl);
       if(result != expected_result) {
-        if(result == null) {
+        if(!result) {
           lock(_lock) {
             Console.WriteLine("Possible failure from unsuccessful Create: " + op);
           }
         }
-        else {
+       else {
           lock(_lock) {
             Console.WriteLine("Possible failure from successful Create: " + op);
           }
@@ -121,7 +108,7 @@ namespace Brunet.Dht {
       byte[][] expected_results = (byte[][]) ht["results"];
       int op = (int) ht["op"];
       try {
-        DhtGetResult[] result = dhtOps[index].Get(key);
+        DhtGetResult[] result = dhts[index].Get(key);
         bool found = false;
         int found_count = 0;
         for(int i = 0; i < result.Length; i++) {
@@ -150,16 +137,69 @@ namespace Brunet.Dht {
       }
     }
 
-    public void ParallelPut(byte[][] key, byte[][] value, string[] password, int[] ttl,
-                            int[] index, string[] expected_result, ref int op) {
+    public void SerialAsGet(byte[] key, int index, byte[][] results, int op) {
+      Hashtable ht = new Hashtable();
+      ht.Add("key", key);
+      ht.Add("index", index);
+      ht.Add("results", results);
+      ht.Add("op", op);
+      SerialAsGet((object) ht);
+    }
+
+    public void SerialAsGet(object data) {
+      Hashtable ht = (Hashtable) data;
+      byte[] key = (byte[]) ht["key"];
+      int index = (int) ht["index"];
+      byte[][] expected_results = (byte[][]) ht["results"];
+      int op = (int) ht["op"];
+      try {
+        BlockingQueue queue = dhts[index].AsGet(key);
+        bool found = false;
+        int found_count = 0;
+        while(true) {
+          DhtGetResult dgr = null;
+          try {
+            dgr = (DhtGetResult) queue.Dequeue();
+          }
+          catch(Exception){
+              break;
+          }
+          for(int j = 0; j < expected_results.Length; j++) {
+            if(ArrayComparer(dgr.value, expected_results[j])) {
+              found = true;
+              break;
+            }
+          }
+          if(found) {
+            found_count++;
+            Console.WriteLine("Found result {0} / {1}", found_count, expected_results.Length);
+            found =  false;
+          }
+          else {
+            Console.WriteLine("Not found result {0} / {1}", found_count, expected_results.Length);
+          }
+        }
+        if(found_count != expected_results.Length) {
+          lock(_lock) {
+            Console.WriteLine("Failed get... attempted to get " + 
+                expected_results.Length + " found " + found_count +
+                " operation: " + op);
+          }
+        }
+      }
+      catch(Exception e) {
+        Console.WriteLine("Failure at operation: " + op);
+        Console.WriteLine(e);
+      }
+    }
+
+    public void ParallelPut(byte[][] key, byte[][] value, int[] ttl,
+                            int[] index, bool[] expected_result, ref int op) {
       ArrayList threadlist = new ArrayList();
       for (int i = 0; i < key.Length; i++) {
         Hashtable ht = new Hashtable();
         ht.Add("key", key[i]);
         ht.Add("value", value[i]);
-        if(password != null) {
-          ht.Add("password", password[i]);
-        }
         ht.Add("ttl", ttl[i]);
         ht.Add("index", index[i]);
         ht.Add("result", expected_result[i]);
@@ -173,14 +213,11 @@ namespace Brunet.Dht {
       }
     }
 
-    public void SerialPut(byte[] key, byte[] value, string password, int ttl,
-                            int index, string expected_result, int op) {
+    public void SerialPut(byte[] key, byte[] value, int ttl,
+                            int index, bool expected_result, int op) {
       Hashtable ht = new Hashtable();
       ht.Add("key", key);
       ht.Add("value", value);
-      if(password != null) {
-        ht.Add("password", password);
-      }
       ht.Add("ttl", ttl);
       ht.Add("index", index);
       ht.Add("result", expected_result);
@@ -192,36 +229,21 @@ namespace Brunet.Dht {
       Hashtable ht = (Hashtable) data;
       byte[] key = (byte[]) ht["key"];
       byte[] value = (byte[]) ht["value"];
-      string password = null;
-      if(ht.Contains("password")) {
-        password = (string) ht["password"];
-      }
       int ttl = (int) ht["ttl"];
       int index = (int) ht["index"];
-      string expected_result = (string) ht["result"];
-      if(expected_result == "null") {
-        expected_result = null;
-      }
+      bool expected_result = (bool) ht["result"];
       int op = (int) ht["op"];
-      try {
-        string result = dhtOps[index].Put(key, value, password, ttl);
-        if(result != expected_result) {
-          if(result == null) {
-            lock(_lock) {
-              Console.WriteLine("Possible failure from unsuccessful Put: " + op);
-            }
-          }
-          else {
-            lock(_lock) {
-              Console.WriteLine("Possible failure from successful Put: " + op);
-            }
+      bool result = dhts[index].Put(key, value, ttl);
+      if(result != expected_result) {
+        if(!result) {
+          lock(_lock) {
+            Console.WriteLine("Possible failure from unsuccessful Put: " + op);
           }
         }
-      }
-      catch(Exception e) {
-        lock(_lock) {
-          Console.WriteLine("Failure at operation: " + op);
-          Console.WriteLine(e);
+        else {
+          lock(_lock) {
+            Console.WriteLine("Possible failure from successful Put: " + op);
+          }
         }
       }
     }
@@ -229,25 +251,23 @@ namespace Brunet.Dht {
     public void Init() {
       Console.WriteLine("Initializing...");
       nodes = new Node[network_size];
-      dhts = new FDht[network_size];
-      dhtOps = new DhtOp[network_size];
+      dhts = new Dht[network_size];
       for(int i = 0; i < network_size; i++) {
         nodes[i] = new StructuredNode(new AHAddress(new RNGCryptoServiceProvider()), brunet_namespace);
-        nodes[i].AddEdgeListener(new TcpEdgeListener(base_port + i));
+        nodes[i].AddEdgeListener(new UdpEdgeListener(base_port + i));
         ArrayList RemoteTA = new ArrayList();
         int port = base_port + ((i + 1) % (network_size - 1));
-        RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:" + port));
+        RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.udp://localhost:" + port));
         nodes[i].RemoteTAs = RemoteTA;
         nodes[i].Connect();
-        dhts[i] = new FDht(nodes[i], EntryFactory.Media.Disk, degree);
-        dhtOps[i] = new DhtOp(dhts[i]);
+        dhts[i] = new Dht(nodes[i], EntryFactory.Media.Disk, degree);
       }
     }
 
     // Checks the ring for completeness
     public bool CheckAllConnections() {
       Console.WriteLine("Checking ring...");
-      FDht curr_dht = dhts[0];
+      Dht curr_dht = dhts[0];
       Address start_addr = curr_dht.Address;
       Address curr_addr = start_addr;
 
@@ -263,7 +283,7 @@ namespace Brunet.Dht {
           return false;
         }
 
-        foreach (FDht dht in dhts) {
+        foreach (Dht dht in dhts) {
           if (dht.Address.Equals(curr_addr)) {
             curr_dht = dht;
             break;
@@ -313,7 +333,7 @@ namespace Brunet.Dht {
         Test0(ref op);
         Test1(ref op);
         Test2(ref op);
-        //Test3(ref op);
+        Test3(ref op);
         Test4(ref op);
         Test5(ref op);
         Test6(ref op);
@@ -323,6 +343,7 @@ namespace Brunet.Dht {
         Test10(ref op);
         Test11(ref op);
         Test12(ref op);
+        Test13(ref op);
       }
       catch (Exception e) {
         Console.WriteLine("Failure at operation: " + (op - 1));
@@ -336,14 +357,12 @@ namespace Brunet.Dht {
       byte[] key = new byte[10];
       byte[] value = new byte[10];
       byte[][] results = new byte[1][];
-      string password = string.Empty;
 
       Console.WriteLine("Test 0: Testing 1 put and 1 get");
       rng.GetBytes(key);
       rng.GetBytes(value);
-      password = "SHA1:" + dhtOps[0].GeneratePassword(null);
       rng.GetBytes(value);
-      this.SerialPut(key, value, password, 3000, 0, password, op++);
+      this.SerialPut(key, value, 3000, 0, true, op++);
       results[0] = value;
       this.SerialGet(key, 0, results, op++);
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
@@ -354,15 +373,13 @@ namespace Brunet.Dht {
       byte[] key = new byte[10];
       byte[] value = new byte[10];
       byte[][] results = new byte[1][];
-      string password = string.Empty;
 
       Console.WriteLine("Test 1: Testing 10 puts and 10 gets with different " +
           "keys serially.");
       for(int i = 0; i < 10; i++) {
-        password = "SHA1:" + dhtOps[0].GeneratePassword(null);
         rng.GetBytes(key);
         rng.GetBytes(value);
-        this.SerialPut(key, value, password, 3000, 0, password, op++);
+        this.SerialPut(key, value, 3000, 0, true, op++);
         results = new byte[1][];
         results[0] = value;
         this.SerialGet(key, 0, results, op++);
@@ -377,13 +394,11 @@ namespace Brunet.Dht {
       byte[] value = new byte[10];
       rng.GetBytes(key);
       ArrayList al_results = new ArrayList();
-      string password = string.Empty;
 
       for(int i = 0; i < 10; i++) {
-        password = "SHA1:" + dhtOps[0].GeneratePassword(null);
         value = new byte[10];
         rng.GetBytes(value);
-        this.SerialPut(key, value, password, 3000, 0, password, op++);
+        this.SerialPut(key, value, 3000, 0, true, op++);
         al_results.Add(value);
         this.SerialGet(key, 0, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
       }
@@ -398,16 +413,24 @@ namespace Brunet.Dht {
       byte[] value = new byte[10];
       rng.GetBytes(key);
       ArrayList al_results = new ArrayList();
-      string password = string.Empty;
+      BlockingQueue[] results_queue = new BlockingQueue[40];
 
-      for(int i = 0; i < 1000; i++) {
-        password = "SHA1:" + dhtOps[0].GeneratePassword(null);
+      for(int i = 0; i < 40; i++) {
         value = new byte[10];
         rng.GetBytes(value);
-        this.SerialPut(key, value, password, 3000, 0, password, op++);
         al_results.Add(value);
+        results_queue[i] = dhts[0].AsPut(key, value, 3000);
       }
-      this.SerialGet(key, 0, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
+      for (int i = 0; i < 40; i++) {
+        bool result = (bool) results_queue[i].Dequeue();
+        if(result == false) {
+          Console.WriteLine("Failure in put : " + i);
+        }
+        else {
+          Console.WriteLine("success in put : " + i);
+        }
+      }
+      this.SerialAsGet(key, 0, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
     }
 
@@ -419,9 +442,9 @@ namespace Brunet.Dht {
       byte[] value = new byte[10];
       byte[][] keys = new byte[10][];
       byte[][] values = new byte[10][];
-      string[] passwords = new string[10];
       int[] ttls = new int[10];
       int[] dhtindexes = new int[10];
+      bool[] put_results = new bool[10];
 
       key = new byte[10];
       rng.GetBytes(key);
@@ -431,11 +454,11 @@ namespace Brunet.Dht {
         value = new byte[10];
         rng.GetBytes(value);
         values[i] = value;
-        passwords[i] = "SHA1:" + dhtOps[0].GeneratePassword(null);
         ttls[i] = 3000;
         dhtindexes[i] = 0;
+        put_results[i] = true;
       }
-      this.ParallelPut(keys, values, passwords, ttls, dhtindexes, passwords, ref op);
+      this.ParallelPut(keys, values, ttls, dhtindexes, put_results, ref op);
       this.SerialGet(key, 0, values, op++);
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
     }
@@ -448,10 +471,10 @@ namespace Brunet.Dht {
       byte[] value = new byte[10];
       byte[][] keys = new byte[10][];
       byte[][] values = new byte[10][];
-      string[] passwords = new string[10];
       int[] ttls = new int[10];
       int[] dhtindexes = new int[10];
-      byte [][][] gresults = new byte[10][][];
+      byte[][][] gresults = new byte[10][][];
+      bool[] put_results = new bool[10];
 
       key = new byte[10];
       rng.GetBytes(key);
@@ -462,11 +485,11 @@ namespace Brunet.Dht {
         rng.GetBytes(value);
         values[i] = value;
         gresults[i] = values;
-        passwords[i] = "SHA1:" + dhtOps[0].GeneratePassword(null);
         ttls[i] = 3000;
         dhtindexes[i] = 0;
+        put_results[i] = true;
       }
-      this.ParallelPut(keys, values, passwords, ttls, dhtindexes, passwords, ref op);
+      this.ParallelPut(keys, values, ttls, dhtindexes, put_results, ref op);
       this.ParallelGet(keys, dhtindexes, gresults, ref op);
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
     }
@@ -479,11 +502,11 @@ namespace Brunet.Dht {
       byte[] value;
       byte[][] keys = new byte[10][];
       byte[][] values = new byte[10][];
-      string[] passwords = new string[10];
       int[] ttls = new int[10];
       int[] dhtindexes = new int[10];
       byte[][][] gresults = new byte[10][][];
       byte[][] results;
+      bool[] put_results = new bool[10];
 
       for(int i = 0; i < 10; i++) {
         key = new byte[10];
@@ -495,34 +518,32 @@ namespace Brunet.Dht {
         results = new byte[1][];
         results[0] = value;
         gresults[i] = results;
-        passwords[i] = "SHA1:" + dhtOps[0].GeneratePassword(null);
         ttls[i] = 3000;
         dhtindexes[i] = 0;
+        put_results[i] = true;
       }
-      this.ParallelPut(keys, values, passwords, ttls, dhtindexes, passwords, ref op);
+      this.ParallelPut(keys, values, ttls, dhtindexes, put_results, ref op);
       this.ParallelGet(keys, dhtindexes, gresults, ref op);
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
     }
 
     public void Test7(ref int op) {
-      Console.WriteLine("Test 7: Testing Dht Put for uniqueness ... same " +
-          "key, same password");
+      Console.WriteLine("Test 7: Testing Dht Put for uniqueness ... same key");
       RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
       byte[] value;
       byte[] key = new byte[10];
       rng.GetBytes(key);
       byte[][] results = new byte[1][];
-      string password = "SHA1:" + dhtOps[0].GeneratePassword(null);
 
       value = new byte[10];
       rng.GetBytes(value);
-      this.SerialPut(key, value, password, 3000, 0, password, op++);
+      this.SerialPut(key, value, 3000, 0, true, op++);
       results = new byte[1][];
       results[0] = value;
 
       value = new byte[10];
       rng.GetBytes(value);
-      this.SerialPut(key, value, password, 3000, 0, "null", op++);
+      this.SerialPut(key, value, 3000, 0, false, op++);
 
       this.SerialGet(key, 0, results, op++);
 
@@ -531,21 +552,20 @@ namespace Brunet.Dht {
 
     public void Test8(ref int op) {
       Console.WriteLine("Test 8: Testing Dht Put for time idempotency ... " +
-          "same key, same value, same password");
+          "same key and same value");
       RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
       byte[] value;
       byte[] key = new byte[10];
       rng.GetBytes(key);
       byte[][] results = new byte[1][];
-      string password = "SHA1:" + dhtOps[0].GeneratePassword(null);
 
       value = new byte[10];
       rng.GetBytes(value);
-      this.SerialPut(key, value, password, 3000, 0, password, op++);
+      this.SerialPut(key, value, 3000, 0, true, op++);
       results = new byte[1][];
       results[0] = value;
 
-      this.SerialPut(key, value, password, 3000, 0, password, op++);
+      this.SerialPut(key, value, 3000, 0, true, op++);
 
       this.SerialGet(key, 0, results, op++);
 
@@ -560,9 +580,9 @@ namespace Brunet.Dht {
       byte[] value = new byte[10];
       byte[][] keys = new byte[10][];
       byte[][] values = new byte[10][];
-      string[] passwords = new string[10];
       int[] ttls = new int[10];
       int[] dhtindexes = new int[10];
+      bool[] create_results = new bool[10];
 
       key = new byte[10];
       rng.GetBytes(key);
@@ -572,11 +592,11 @@ namespace Brunet.Dht {
         value = new byte[10];
         rng.GetBytes(value);
         values[i] = value;
-        passwords[i] = "SHA1:" + dhtOps[0].GeneratePassword(null);
         ttls[i] = 3000;
         dhtindexes[i] = 0;
+        create_results[i] = true;
       }
-      this.ParallelCreate(keys, values, passwords, ttls, dhtindexes, passwords, ref op);
+      this.ParallelCreate(keys, values, ttls, dhtindexes, create_results, ref op);
       this.SerialGet(key, 0, values, op++);
       Console.WriteLine("This test is kind of bogus, but we'll either get 10" +
           " or 11 failure messages any less and we have a bug, this is for" +
@@ -591,11 +611,11 @@ namespace Brunet.Dht {
       byte[] value;
       byte[][] keys = new byte[10][];
       byte[][] values = new byte[10][];
-      string[] passwords = new string[10];
       int[] ttls = new int[10];
       int[] dhtindexes = new int[10];
       byte[][][] gresults = new byte[10][][];
       byte[][] results;
+      bool[] create_results = new bool[10];
 
       for(int i = 0; i < 10; i++) {
         key = new byte[10];
@@ -607,34 +627,32 @@ namespace Brunet.Dht {
         results = new byte[1][];
         results[0] = value;
         gresults[i] = results;
-        passwords[i] = "SHA1:" + dhtOps[0].GeneratePassword(null);
         ttls[i] = 3000;
         dhtindexes[i] = 0;
+        create_results[i] = true;
       }
-      this.ParallelCreate(keys, values, passwords, ttls, dhtindexes, passwords, ref op);
+      this.ParallelCreate(keys, values, ttls, dhtindexes, create_results, ref op);
       this.ParallelGet(keys, dhtindexes, gresults, ref op);
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
     }
 
     public void Test11(ref int op) {
-      Console.WriteLine("Test 11: Testing Dht Create for uniqueness ... " +
-          "same key and password");
+      Console.WriteLine("Test 11: Testing Dht Create for uniqueness ... same key");
       RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
       byte[] value;
       byte[] key = new byte[10];
       rng.GetBytes(key);
       byte[][] results = new byte[1][];
-      string password = "SHA1:" + dhtOps[0].GeneratePassword(null);
 
       value = new byte[10];
       rng.GetBytes(value);
-      this.SerialCreate(key, value, password, 3000, 0, password, op++);
+      this.SerialCreate(key, value, 3000, 0, true, op++);
       results = new byte[1][];
       results[0] = value;
 
       value = new byte[10];
       rng.GetBytes(value);
-      this.SerialCreate(key, value, password, 3000, 0, "null", op++);
+      this.SerialCreate(key, value, 3000, 0, false, op++);
 
       this.SerialGet(key, 0, results, op++);
 
@@ -643,25 +661,59 @@ namespace Brunet.Dht {
 
     public void Test12(ref int op) {
       Console.WriteLine("Test 12: Testing Dht Create for time idempotency " +
-          "... same key, same value, same password");
+          "... same key and same value");
       RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
       byte[] value;
       byte[] key = new byte[10];
       rng.GetBytes(key);
       byte[][] results = new byte[1][];
-      string password = "SHA1:" + dhtOps[0].GeneratePassword(null);
 
       value = new byte[10];
       rng.GetBytes(value);
-      this.SerialCreate(key, value, password, 3000, 0, password, op++);
+      this.SerialCreate(key, value, 3000, 0, true, op++);
       results = new byte[1][];
       results[0] = value;
 
-      this.SerialCreate(key, value, password, 3000, 0, password, op++);
+      this.SerialCreate(key, value, 3000, 0, true, op++);
 
       this.SerialGet(key, 0, results, op++);
 
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
+    }
+
+    public void Test13(ref int op) {
+      Console.WriteLine("Test 13: Testing 10 parallel puts and 1 get with the" +
+          " same key, we should get none back as they are meant to expire " +
+          "before the get.");
+      RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
+      byte[] key = new byte[10];
+      byte[] value = new byte[10];
+      byte[][] keys = new byte[10][];
+      byte[][] values = new byte[10][];
+      int[] ttls = new int[10];
+      int[] dhtindexes = new int[10];
+      bool[] put_results = new bool[10];
+
+      key = new byte[10];
+      rng.GetBytes(key);
+
+      for(int i = 0; i < 10; i++) {
+        keys[i] = key;
+        value = new byte[10];
+        rng.GetBytes(value);
+        values[i] = value;
+        ttls[i] = 60;
+        dhtindexes[i] = 0;
+        put_results[i] = true;
+      }
+      this.ParallelPut(keys, values, ttls, dhtindexes, put_results, ref op);
+      Thread.Sleep(20000);
+      this.SerialGet(key, 0, values, op++);
+      Console.WriteLine("Next get should all fail!");
+      Thread.Sleep(60000);
+      this.SerialGet(key, 0, values, op++);
+      Console.WriteLine("If no error messages successful up to: " + (op - 1));
+      Console.WriteLine("Every entry should be deleted by now...");
     }
 
     public static void Main() {

@@ -2,6 +2,7 @@ using System;
 using System.Text;
 using System.Collections;
 using System.Security.Cryptography;
+using System.Threading;
 
 using Brunet;
 using Brunet.Dht;
@@ -18,14 +19,14 @@ namespace Brunet.Dht {
 
     //lock for the Dht
     protected object _sync;
-    protected RpcManager _rpc;
-    protected Node _node = null;
-    protected bool _dhtactivated = false;
-    public bool Activated {
-      get {
-        return _dhtactivated;
-      }
-    }
+    private RpcManager _rpc;
+    public Node _node = null;
+    private bool _dhtactivated = false;
+    public bool Activated { get { return _dhtactivated; } }
+    public readonly int DEGREE;
+    public readonly int DELAY;
+    public readonly int MAJORITY;
+    public static readonly int MAX_BYTES = 1000;
 
     //table server
     protected TableServer _table;
@@ -33,6 +34,449 @@ namespace Brunet.Dht {
     //keep track of our current neighbors
     protected AHAddress _left_addr = null;
     protected AHAddress _right_addr = null;
+
+    public Dht(Node node, EntryFactory.Media media) {
+      _sync = new object();
+      _node = node;
+      //activated not until we acquire left and right connections
+      _dhtactivated = false;
+
+      //we initially do not have eny structured neighbors to start
+      _left_addr = _right_addr = null;
+
+      //initialize the EntryFactory
+      EntryFactory ef = EntryFactory.GetInstance(node, media);
+      _table = new TableServer(ef, node);
+
+      //get an instance of RpcManager for the node
+      _rpc = RpcManager.GetInstance(node);
+
+      //register the table with the RpcManagers
+      _rpc.AddHandler("dht", _table);
+
+      lock(_sync) {
+        node.ConnectionTable.ConnectionEvent += 
+          new EventHandler(ConnectHandler);
+
+        node.ConnectionTable.DisconnectionEvent +=
+          new EventHandler(DisconnectHandler);
+
+        node.ConnectionTable.StatusChangedEvent +=
+          new EventHandler(StatusChangedHandler);
+      }
+
+      DEGREE = 1;
+      MAJORITY = 1;
+      DELAY = 60000;
+    }
+
+    public Dht(Node node, EntryFactory.Media media, int degree) :
+      this(node, media){
+      this.DEGREE = (int) System.Math.Pow(2, degree);
+      this.MAJORITY = DEGREE / 2 + 1;
+    }
+
+    public Dht(Node node, EntryFactory.Media media, int degree, int delay) :
+      this(node, media, degree){
+      DELAY = delay * 1000;
+    }
+
+    public BlockingQueue PrimitivePut(byte[] key, int ttl, byte[] data) {
+      if (!_dhtactivated) {
+        throw new DhtException("DhtClient: Not yet activated.");
+      }
+
+      byte[][] b = MapToRing(key);
+      Address target = new AHAddress(b[0]);
+
+      AHSender s = new AHSender(_rpc.Node, target);
+      BlockingQueue q = new BlockingQueue();
+      _rpc.Invoke(s, q, "dht.Put", b[0], ttl, data);
+      return q;
+    }
+
+    public BlockingQueue PrimitiveCreate(byte[] key, int ttl, byte[] data) {
+      if (!_dhtactivated) {
+        throw new DhtException("DhtClient: Not yet activated.");
+      }
+
+      byte[][] b = MapToRing(key);
+      Address target = new AHAddress(b[0]);
+      AHSender s = new AHSender(_rpc.Node, target);
+      BlockingQueue q = new BlockingQueue();
+      _rpc.Invoke(s, q, "dht.Create", b[0], ttl, data);
+      return q;
+    }
+
+    public BlockingQueue PrimitiveGet(byte[] key, int maxbytes, byte[] token) {
+      if (!_dhtactivated) {
+        throw new DhtException("DhtClient: Not yet activated.");
+      }
+
+      byte[][] b = MapToRing(key);
+      Address target = new AHAddress(b[0]);
+
+      AHSender s = new AHSender(_rpc.Node, target);
+      BlockingQueue q = new BlockingQueue();
+      _rpc.Invoke(s, q, "dht.Get", b[0], maxbytes, token);
+      return q;
+    }
+
+    /** Below are all the Create methods, they rely on a unique put   *
+     * this returns true if it succeeded or an exception if it didn't */
+
+    public BlockingQueue AsCreate(byte[] key, byte[] value, int ttl) {
+      return AsPut(key, value, ttl, true);
+    }
+
+    public BlockingQueue AsCreate(string key, byte[] value, int ttl) {
+      byte[] keyb = GetHashedKey(key);
+      return AsCreate(keyb, value, ttl);
+    }
+
+    public BlockingQueue AsCreate(string key, string value, int ttl) {
+      byte[] keyb = GetHashedKey(key);
+      byte[] valueb = Encoding.UTF8.GetBytes(value);
+      return AsCreate(keyb, valueb, ttl);
+    }
+
+    public bool Create(byte[] key, byte[] value, int ttl) {
+      return Put(key, value, ttl, true);
+    }
+
+    public bool Create(string key, byte[] value, int ttl) {
+      byte[] keyb = GetHashedKey(key);
+      return Create(keyb, value, ttl);
+    }
+
+    public bool Create(string key, string value, int ttl) {
+      byte[] keyb = GetHashedKey(key);
+      byte[] valueb = Encoding.UTF8.GetBytes(value);
+      return Create(keyb, valueb, ttl);
+    }
+
+    /** Below are all the Get methods */
+
+    public BlockingQueue AsGet(string key) {
+      byte[] keyb = GetHashedKey(key);
+      return AsGet(keyb);
+    }
+
+    public BlockingQueue AsGet(byte[] key) {
+      BlockingQueue queue = new BlockingQueue();
+      object []data = new object[2];
+      data[0] = key;
+      data[1] = queue;
+      ThreadPool.QueueUserWorkItem(new WaitCallback(Get), data);
+      return queue;
+    }
+
+    public DhtGetResult[] Get(string key) {
+      byte[] keyb = GetHashedKey(key);
+      return Get(keyb);
+    }
+
+    public DhtGetResult[] Get(byte[] key) {
+      BlockingQueue queue = AsGet(key);
+      ArrayList allValues = new ArrayList();
+      while(true) {
+        // Still a chance for Dequeue to execute on an empty closed queue 
+        // so we'll do this instead.
+        try {
+          DhtGetResult dgr = (DhtGetResult) queue.Dequeue();
+          allValues.Add(dgr);
+        }
+        catch (Exception) {
+          break;
+        }
+      }
+      return (DhtGetResult []) allValues.ToArray(typeof(DhtGetResult));
+    }
+
+    /**  This is the get that does all the work, it is meant to be
+     *   run as a thread */
+    public void Get(object data) {
+      object []data_array = (object[]) data;
+      byte[] key = (byte[]) data_array[0];
+      BlockingQueue allValues = (BlockingQueue) data_array[1];
+
+      Hashtable allValuesCount = new Hashtable();
+      int remaining = 0, last_count = DEGREE;
+      byte [][]tokens = new byte[DEGREE][];
+      bool multiget = false;
+
+      byte[][] b = MapToRing(key);
+      Address[] target = new Address[DEGREE];
+      BlockingQueue[] q = new BlockingQueue[DEGREE];
+      Address[] targets = new AHAddress[DEGREE];
+
+      for (int k = 0; k < DEGREE; k++) {
+        targets[k] = new AHAddress(MemBlock.Reference(b[k]));
+        AHSender s = new AHSender(_rpc.Node, targets[k]);
+        q[k] = new BlockingQueue();
+        _rpc.Invoke(s, q[k], "dht.Get", b[k], MAX_BYTES, null);
+      }
+
+      ArrayList allQueues = new ArrayList();
+      allQueues.AddRange(q);
+      ArrayList queueMapping = new ArrayList();
+      for(int i = 0; i < DEGREE; i++) {
+        queueMapping.Add(i);
+      }
+
+      DateTime start = DateTime.UtcNow;
+      while(allQueues.Count > 0) {
+        if(last_count == allQueues.Count) {
+          start = DateTime.UtcNow;
+        }
+        last_count = allQueues.Count;
+        TimeSpan ts_timeleft = (DateTime.UtcNow - start);
+        int time_left = DELAY - (int) ts_timeleft.TotalMilliseconds;
+        time_left = (time_left > 0) ? time_left : 0;
+        int idx = BlockingQueue.Select(allQueues, time_left);
+        if(idx == -1) {
+          break;
+        }
+        int real_idx = (int) queueMapping[idx];
+
+        if(q[real_idx].Closed) {
+          tokens[real_idx] = null;
+        }
+        else {
+          ArrayList result;
+          try {
+              RpcResult rpc_reply = (RpcResult) q[real_idx].Dequeue();
+              result = (ArrayList) rpc_reply.Result;
+          }
+          catch (Exception) {
+            result = null;
+          }
+          //Result may be corrupted
+          if (result != null && result.Count == 3) {
+            ArrayList values = (ArrayList) result[0];
+            remaining = (int) result[1];
+            if(remaining > 0) {
+              tokens[real_idx] = (byte[]) result[2];
+            }
+            else {
+              tokens[real_idx] = null;
+            }
+
+            foreach (Hashtable ht in values) {
+              MemBlock mbVal = MemBlock.Reference((byte[])ht["value"]);
+              if(!allValuesCount.Contains(mbVal)) {
+                allValuesCount[mbVal] = 1;
+              }
+              else {
+                int count = ((int) allValuesCount[mbVal]) + 1;
+                allValuesCount[mbVal] = count;
+                if(count == MAJORITY) {
+                  allValues.Enqueue(new DhtGetResult(ht));
+                }
+              }
+            }
+          }
+        }
+
+        q[real_idx].Close();
+        if(tokens[real_idx] != null) {
+          multiget = true;
+          AHSender s = new AHSender(_rpc.Node, target[real_idx]);
+          q[real_idx] = new BlockingQueue();
+          _rpc.Invoke(s,q[real_idx], "dht.Get", b[real_idx], MAX_BYTES, tokens[real_idx]);
+        }
+        else {
+          allQueues.RemoveAt(idx);
+          queueMapping.RemoveAt(idx);
+        }
+        if(!multiget) {
+          int left = allQueues.Count;
+          if(left > MAJORITY - 1) {
+            // Continue as normal
+          }
+          else if(allValuesCount.Count == 0) {
+            // Not going to find anything
+            start = DateTime.MinValue;
+          }
+          else {
+            // Maybe we can leave early
+            bool got_all_values = true;
+            foreach (DictionaryEntry de in allValuesCount) {
+              int val = (int) de.Value;
+              if(val < MAJORITY && ((val + left) >= MAJORITY)) {
+                got_all_values = false;
+                break;
+              }
+            }
+            if(got_all_values) {
+              start = DateTime.MinValue;
+            }
+          }
+        }
+      }
+      allValues.Close();
+    }
+
+    /** Below are all the Put methods, they use a non-unique put */
+
+    public BlockingQueue AsPut(byte[] key, byte[] value, int ttl) {
+      return AsPut(key, value, ttl, false);
+    }
+
+    public BlockingQueue AsPut(string key, byte[] value, int ttl) {
+      byte[] keyb = GetHashedKey(key);
+      return AsPut(keyb, value, ttl);
+    }
+
+    public BlockingQueue AsPut(string key, string value, int ttl) {
+      byte[] keyb = GetHashedKey(key);
+      byte[] valueb = Encoding.UTF8.GetBytes(value);
+      return AsPut(keyb, valueb, ttl);
+    }
+
+    public bool Put(byte[] key, byte[] value, int ttl) {
+      return Put(key, value, ttl, false);
+    }
+
+    public bool Put(string key, byte[] value, int ttl) {
+      byte[] keyb = GetHashedKey(key);
+      return Put(keyb, value, ttl);
+    }
+
+    public bool Put(string key, string value, int ttl) {
+      byte[] keyb = GetHashedKey(key);
+      byte[] valueb = Encoding.UTF8.GetBytes(value);
+      return Put(keyb, valueb, ttl);
+    }
+
+    /** Since the Puts and Creates are the same from the client side, we merge them into a
+    single put that if unique is true, it is a create, otherwise a put */
+
+    public BlockingQueue AsPut(byte[] key, byte[] value, int ttl, bool unique) {
+      BlockingQueue queue = new BlockingQueue();
+      object []data = new object[5];
+      data[0] = key;
+      data[1] = value;
+      data[2] = ttl;
+      data[3] = unique;
+      data[4] = queue;
+      ThreadPool.QueueUserWorkItem(new WaitCallback(Put), data);
+      return queue;
+    }
+
+    public bool Put(byte[] key, byte[] value, int ttl, bool unique) {
+      BlockingQueue queue = new BlockingQueue();
+      object []data = new object[5];
+      data[0] = key;
+      data[1] = value;
+      data[2] = ttl;
+      data[3] = unique;
+      data[4] = queue;
+      Put(data);
+      return (bool) queue.Dequeue();
+    }
+
+
+    public void Put(object data) {
+      object[] data_array = (object[]) data;
+      byte[] key = (byte[]) data_array[0];
+      byte[] value = (byte[]) data_array[1];
+      int ttl = (int) data_array[2];
+      bool unique = (bool) data_array[3];
+      string funct = "dht.";
+      if(unique) {
+        funct += "Create";
+      }
+      else {
+        funct += "Put";
+      }
+      BlockingQueue queue = (BlockingQueue) data_array[4];
+      byte[][] b = MapToRing(key);
+
+      bool rv = false;
+
+      BlockingQueue[] q = new BlockingQueue[DEGREE];
+      for (int k = 0; k < DEGREE; k++) {
+        Address target = new AHAddress(MemBlock.Reference(b[k]));
+        AHSender s = new AHSender(_rpc.Node, target);
+        q[k] = new BlockingQueue();
+        _rpc.Invoke(s, q[k], funct, b[k], ttl, value);
+      }
+      int pcount = 0, ncount = 0;
+      // Special case cause I don't want to have to deal with extra logic
+      if(MAJORITY == 1) {
+        ncount = -1;
+      }
+      ArrayList allQueues = new ArrayList();
+      allQueues.AddRange(q);
+
+      DateTime start = DateTime.UtcNow;
+
+      while(pcount < MAJORITY && ncount < MAJORITY - 1) {
+        TimeSpan ts_timeleft = DateTime.UtcNow - start;
+        int time_left = DELAY - (int) ts_timeleft.TotalMilliseconds;
+        time_left = (time_left > 0) ? time_left: 0;
+
+        int idx = BlockingQueue.Select(allQueues, time_left);
+        bool result = false;
+        if(idx == -1) {
+          break;
+        }
+
+        if(!((BlockingQueue) allQueues[idx]).Closed) {
+          try {
+            RpcResult rpc_reply = (RpcResult) ((BlockingQueue) allQueues[idx]).Dequeue();
+            result = (bool) rpc_reply.Result;
+          }
+          catch(Exception) {;} // Treat this as receiving a negative
+        }
+
+        if(result == true) {
+          pcount++;
+        }
+        else {
+          ncount++;
+        }
+        allQueues.RemoveAt(idx);
+      }
+
+      if(pcount >= MAJORITY) {
+        rv = true;
+      }
+
+      foreach(BlockingQueue qclose in q) {
+        qclose.Close();
+      }
+      queue.Enqueue(rv);
+      queue.Close();
+    }
+
+    public byte[] GetHashedKey(string key) {
+      byte[] keyb = Encoding.UTF8.GetBytes(key);
+      HashAlgorithm algo = new SHA1CryptoServiceProvider();
+      return algo.ComputeHash(keyb);
+    }
+
+    public byte[][] MapToRing(byte[] key) {
+      HashAlgorithm hashAlgo = HashAlgorithm.Create();
+      byte[] hash = hashAlgo.ComputeHash(key);
+
+      //find targets which are as far apart on the ring as possible
+      byte[][] target = new byte[DEGREE][];
+      target[0] = hash;
+      Address.SetClass(target[0], AHAddress._class);
+
+      //add these increments to the base address
+      BigInteger inc_addr = Address.Full/DEGREE;
+
+      BigInteger curr_addr = new BigInteger(target[0]);
+      for (int k = 1; k < target.Length; k++) {
+        curr_addr = curr_addr + inc_addr;
+        target[k] = Address.ConvertToAddressBuffer(curr_addr);
+        Address.SetClass(target[k], AHAddress._class);
+      }
+      return target;
+    }
 
 
     protected class TransferState {
@@ -80,11 +524,11 @@ namespace Brunet.Dht {
         lock(_sync) {
           if (_entry_enumerator.MoveNext()) {
             Entry e = (Entry) _entry_enumerator.Current;
-            TimeSpan t_span = e.EndTime - DateTime.Now;
+            TimeSpan t_span = e.EndTime - DateTime.UtcNow;
             _driver_queue = new BlockingQueue();
             _driver_queue.EnqueueEvent += new EventHandler(NextTransfer);
             _rpc.Invoke(_t_sender, _driver_queue, "dht.Put", e.Key,
-                              (int) t_span.TotalSeconds, e.Password, e.Data);
+                              (int) t_span.TotalSeconds, e.Data);
           }
           else {
             if (_tcb != null) {
@@ -108,11 +552,11 @@ namespace Brunet.Dht {
           //initiate next transfer
           if (_entry_enumerator.MoveNext()) {
             Entry e = (Entry) _entry_enumerator.Current;
-            TimeSpan t_span = e.EndTime - DateTime.Now;
+            TimeSpan t_span = e.EndTime - DateTime.UtcNow;
             _driver_queue = new BlockingQueue();
             _driver_queue.EnqueueEvent += new EventHandler(NextTransfer);
             _rpc.Invoke(_t_sender, _driver_queue, "dht.Put", e.Key,
-                        (int) t_span.TotalSeconds, e.Password, e.Data);
+                        (int) t_span.TotalSeconds, e.Data);
           }
           else {
             if (_tcb != null) {
@@ -145,85 +589,6 @@ namespace Brunet.Dht {
     public Address Address { get { return _node.Address; } }
     public int Count { get { return _table.GetCount(); } }
     public Hashtable All { get { return _table.GetAll(); } }
-
-    public Dht(Node node, EntryFactory.Media media) {
-      _sync = new object();
-      _node = node;
-      //activated not until we acquire a connection
-      _dhtactivated = false;
-
-      //we initially do not have eny structured neighbors to start
-      _left_addr = _right_addr = null;
-
-      //initialize the EntryFactory
-      EntryFactory ef = EntryFactory.GetInstance(node, media);
-      _table = new TableServer(ef, node);
-
-      //get an instance of RpcManager for the node
-      _rpc = RpcManager.GetInstance(node);
-
-      //register the table with the RpcManagers
-      _rpc.AddHandler("dht", _table);
-
-      lock(_sync) {
-        node.ConnectionTable.ConnectionEvent += 
-          new EventHandler(ConnectHandler);
-
-        node.ConnectionTable.DisconnectionEvent +=
-          new EventHandler(DisconnectHandler);
-
-        node.ConnectionTable.StatusChangedEvent +=
-          new EventHandler(StatusChangedHandler);
-      }
-    }
-
-    public static MemBlock MapToRing(byte[] key) {
-      HashAlgorithm hashAlgo = HashAlgorithm.Create();
-      byte[] hash = hashAlgo.ComputeHash(key);
-      Address.SetClass(hash, AHAddress._class);
-      return MemBlock.Reference(hash);
-    }
-
-    public BlockingQueue Put(byte[] key, int ttl, string hashed_password, byte[] data) {
-      if (!_dhtactivated) {
-        throw new DhtException("DhtClient: Not yet activated.");
-      }
-
-      MemBlock b = MapToRing(key);
-      Address target = new AHAddress(b);
-
-      AHSender s = new AHSender(_rpc.Node, target);
-      BlockingQueue q = new BlockingQueue();
-      _rpc.Invoke(s, q, "dht.Put", b, ttl, hashed_password, data);
-      return q;
-    }
-
-    public BlockingQueue Create(byte[] key, int ttl, string hashed_password, byte[] data) {
-      if (!_dhtactivated) {
-        throw new DhtException("DhtClient: Not yet activated.");
-      }
-
-      MemBlock b = MapToRing(key);
-      Address target = new AHAddress(b);
-      AHSender s = new AHSender(_rpc.Node, target);
-      BlockingQueue q = new BlockingQueue();
-      _rpc.Invoke(s, q, "dht.Create", b, ttl, hashed_password, data);
-      return q;
-    }
-
-    public BlockingQueue Get(byte[] key, int maxbytes, byte[] token) {
-      if (!_dhtactivated) {
-        throw new DhtException("DhtClient: Not yet activated.");
-      }
-
-      MemBlock b = MapToRing(key);
-      Address target = new AHAddress(b);
-
-      AHSender s = new AHSender(_rpc.Node, target);
-      BlockingQueue q = new BlockingQueue();
-      _rpc.Invoke(s, q, "dht.Get", b, maxbytes, token);
-      return q;
-    }
 
     protected void ConnectHandler(object contab, EventArgs eargs) 
     {
@@ -447,9 +812,9 @@ namespace Brunet.Dht {
      */
     public void CheckpointHandler(object node, EventArgs eargs) {
       lock(_sync) {
-        if (DateTime.Now > _next_checkpoint) {
+        if (DateTime.UtcNow > _next_checkpoint) {
           TimeSpan interval = new TimeSpan(0,0,0,0, _CHECKPOINT_INTERVAL);
-          _next_checkpoint = DateTime.Now + interval;
+          _next_checkpoint = DateTime.UtcNow + interval;
         }
       }
     }
