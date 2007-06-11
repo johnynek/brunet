@@ -16,21 +16,19 @@ namespace Brunet.Dht {
     protected DateTime _end_time;
     public DateTime EndTime { get { return _end_time; } }
 
-    protected string _password;
-    public string Password { get { return _password; } }
-
     protected int _index;
     public int Index { get { return _index; } }
+
+    public virtual void Delete() {;}
 
     /**
     * This holds a unique (increasing) index for this entry
     */
     protected int _idx;
 
-    public Entry(byte[] key, string password, DateTime create_time,
-                  DateTime end_time, byte[] data, int idx) {
+    public Entry(byte[] key, DateTime create_time, DateTime end_time, 
+                 byte[] data, int idx) {
       _key = key;
-      _password = password;
       _index = idx;
       _data = data;
       _create_time = create_time;
@@ -53,15 +51,42 @@ namespace Brunet.Dht {
       }
     }
 
-    public DiskEntry(string fname, byte[] key, string password, DateTime create_time, 
+    public string GenerateDirectory(string base_path, byte[] key, int index) {
+      string[] l = new string[5];
+      for (int j = 0; j < 4; j++) {
+        l[j] = string.Empty;
+      }
+
+      l[0] = base_path;
+      l[1] = key[0].ToString();
+      l[2] = key[1].ToString();
+      l[3] = key[2].ToString();
+
+      for (int i = 3; i < 20; i++) {
+        l[4] += key[i].ToString();
+      }
+
+      string path = String.Join(Path.DirectorySeparatorChar.ToString(), l);
+      if(!Directory.Exists(path)) {
+        Directory.CreateDirectory(path);
+      }
+      return Path.Combine(path, index.ToString());
+    }
+
+    public DiskEntry(string base_dir, byte[] key, DateTime create_time,
                       DateTime end_time, byte[] data, int idx) :
-                    base(key, password, create_time, end_time, null, idx) {
-      object o = (object) idx;
-      _file = Path.Combine(fname, o.ToString());
+                    base(key, create_time, end_time, null, idx) {
+      _file = GenerateDirectory(base_dir, key, idx);
       using (BinaryWriter bw = new BinaryWriter(File.Open(_file, FileMode.Create))) {
         bw.Write(data);
         bw.Flush();
         bw.Close();
+      }
+    }
+
+    public override void Delete() {
+      if(File.Exists(_file)) {
+        File.Delete(_file);
       }
     }
   }
