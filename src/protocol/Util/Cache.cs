@@ -139,8 +139,11 @@ public class Cache {
   public object Get(object key) {
     Entry e = (Entry)_ht[key];
     if( e != null ) {
-      Remove(e);
-      PushBack(e);
+      if( e != _tail ) {
+        //Make it the tail
+        Remove(e);
+        PushBack(e);
+      }
       return e.Value;
     }
     else {
