@@ -33,9 +33,6 @@ using Brunet;
 
 namespace Brunet.Dht {
   public class TableServer {
-    public static readonly int ENTRY_ALREADY_EXISTS = 1;
-    public static readonly int ATTEMPTED_TO_REDUCE_ENTRY_TIME = 2;
-    public static readonly int SOMETHING_BAD = 999;
     protected object _sync;
 
     //maintain a list of keys that are expiring:
@@ -97,7 +94,7 @@ namespace Brunet.Dht {
     * @param data data associated with the key
     * @return 0 on success, other on failure
     */
-    public int Put(byte[] key, int ttl, string hashed_password, byte[] data) {
+    public bool Put(byte[] key, int ttl, string hashed_password, byte[] data) {
       string hash_name = null;
       string base64_val = null;
       if(!ValidatePasswordFormat(hashed_password, out hash_name, out base64_val)) {
@@ -130,13 +127,13 @@ namespace Brunet.Dht {
             MemBlock e_data = MemBlock.Reference(ent.Data, 0, ent.Data.Length);
             // This a different Put
             if(!e_data.Equals(arg_data)) {
-              return ENTRY_ALREADY_EXISTS;
+              throw new Exception("ENTRY_ALREADY_EXISTS");
             }
             else if(end_time < ent.EndTime) {
-              return ATTEMPTED_TO_REDUCE_ENTRY_TIME;
+              throw new Exception("ATTEMPTED_TO_REDUCE_ENTRY_TIME");
             }
             else if(ent == null) {
-              return SOMETHING_BAD;
+              throw new Exception("SOMETHING_BAD");
             }
             //Removing this entry and putting in a new one
             entry_list.Remove(ent);
@@ -147,7 +144,7 @@ namespace Brunet.Dht {
                                           data, ent.Index);
             entry_list.Add(new_e);
             InsertToSorted(new_e);
-            return 0;
+            return true;
           }
         }
 
@@ -161,7 +158,7 @@ namespace Brunet.Dht {
         ///@todo, we might need to tell a neighbor about this object
 
       } // end of lock
-      return 0;
+      return true;
     }
 
     /**
@@ -174,7 +171,7 @@ namespace Brunet.Dht {
     * @return true on success, false on failure
     */
 
-    public int Create(byte[] key, int ttl, string hashed_password, byte[] data) {
+    public bool Create(byte[] key, int ttl, string hashed_password, byte[] data) {
       string hash_name = null;
       string base64_val = null;
       if (!ValidatePasswordFormat(hashed_password, out hash_name, out base64_val)) {
@@ -199,16 +196,16 @@ namespace Brunet.Dht {
             }
             MemBlock e_data = MemBlock.Reference(e.Data, 0, e.Data.Length);
             if (!e_data.Equals(arg_data)) {
-              return ENTRY_ALREADY_EXISTS;
+              throw new Exception("ENTRY_ALREADY_EXISTS");
             }
             to_renew = e;
             break;
           }
           if (end_time < to_renew.EndTime) {
-            return ATTEMPTED_TO_REDUCE_ENTRY_TIME;
+            throw new Exception("ATTEMPTED_TO_REDUCE_ENTRY_TIME");
           }
           else if (to_renew == null) {
-            return SOMETHING_BAD;
+            throw new Exception("SOMETHING_BAD");
           }
           //we should also remove this entry, and put a new one
           entry_list.Remove(to_renew);
@@ -235,7 +232,7 @@ namespace Brunet.Dht {
           InsertToSorted(e);
         }
       }//end of lock
-      return 0;
+      return true;
     }
 
     /**
