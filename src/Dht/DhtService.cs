@@ -25,7 +25,7 @@ namespace Ipop {
 
     public static void StartDhtServer(object odht) {
       FDht dht = (FDht)odht;
-      XmlRpcServerFormatterSinkProvider chain = new XmlRpcServerFormatterSinkProvider();
+      IServerChannelSinkProvider chain = new XmlRpcServerFormatterSinkProvider();
       chain.Next = new SoapServerFormatterSinkProvider();
 
       IDictionary props = new Hashtable();

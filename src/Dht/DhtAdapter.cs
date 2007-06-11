@@ -99,8 +99,14 @@ namespace Ipop {
   }
 
 
-  public class SoapDht : DhtAdapter {
+  public class SoapDht : DhtAdapter, ISoapDht {
     public SoapDht(FDht dht) : base(dht) { }
+
+    public IBlockingQueue GetAsBlockingQueue(string key) {
+      BlockingQueue bq = this._dhtOp.AsGet(key);
+      BlockingQueueAdapter adpt = new BlockingQueueAdapter(bq);
+      return adpt;
+    }
   }
 
   /// <summary>

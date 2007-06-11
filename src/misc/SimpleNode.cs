@@ -76,7 +76,7 @@ namespace Ipop {
               Console.WriteLine("-x cannot be used with -m, -c, or -t.\n");
               PrintHelp();
             }
-            sd = DhtServiceClient.GetXmlDhtClient();
+            sd = DhtServiceClient.GetXmlRpcDhtClient();
             soap_client = true;
             break;
           case "-dc":

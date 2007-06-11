@@ -7,8 +7,8 @@ using System;
 
 namespace Ipop {
   public class DhtServiceClient {
-    public static IDht GetSoapDhtClient() {
-      IDht dht = (IDht)Activator.GetObject(typeof(IDht), "http://127.0.0.1:64221/sd.rem");
+    public static ISoapDht GetSoapDhtClient() {
+      ISoapDht dht = (ISoapDht)Activator.GetObject(typeof(ISoapDht), "http://127.0.0.1:64221/sd.rem");
       return dht;
     }
 
@@ -51,13 +51,21 @@ namespace Ipop {
     string EndPut(IAsyncResult iasr);
   }
 
-  public class AsyncDhtClient {
+  public interface ISoapDht : IDht {
+    IBlockingQueue GetAsBlockingQueue(string key);
+  }
+
+  
+  /**
+   * Dht client side operations
+   */
+  public class DhtClientOp {
     public delegate string PutOp(string key, string value, string password, int ttl);
     public delegate DhtGetResult[] GetOp(string key);
     
     private IDht _dht;
 
-    public AsyncDhtClient(IDht dht) {
+    public DhtClientOp(IDht dht) {
       this._dht = dht;
     }
 
@@ -78,6 +86,24 @@ namespace Ipop {
       IAsyncResult ar = op.BeginInvoke(key, value, password, ttl, acb, state);
       return ar;
     }
+  }
 
+  /**
+   * Asynchronous BlockingQueue operations
+   */
+  public class BlockingQueueOp {
+    public delegate object DequeueOp(int millisec, out bool timedout);
+
+    private IBlockingQueue _bq;
+
+    public BlockingQueueOp(IBlockingQueue bq) {
+      this._bq = bq;
+    }
+
+    public IAsyncResult BeginDequeueOp(int millisec, out bool timedout, AsyncCallback acb, object state) {
+      DequeueOp op = new DequeueOp(this._bq.Dequeue);
+      IAsyncResult ar = op.BeginInvoke(millisec, out timedout, acb, state);
+      return ar;
+    }
   }
 }
