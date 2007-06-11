@@ -91,6 +91,9 @@ public class RpcManager : IReplyHandler, IDataHandler {
   protected object _sync;
   protected ReqrepManager _rrman;
   public readonly Node Node;
+  ///Holds a cache of method string names to MethodInfo
+  protected readonly Cache _method_cache;
+  protected const int CACHE_SIZE = 128;
         
   protected RpcManager(ReqrepManager rrm) {
 
@@ -99,6 +102,7 @@ public class RpcManager : IReplyHandler, IDataHandler {
     _sync = new Object();
     Node = rrm.Node;
     _rrman = rrm;
+    _method_cache = new Cache(CACHE_SIZE);
   }
   /** static hashtable to keep track of RpcManager objects. */
   protected static Hashtable _rpc_table = new Hashtable();
@@ -132,6 +136,7 @@ public class RpcManager : IReplyHandler, IDataHandler {
   {
     lock( _sync ) {
       _method_handlers.Add(name, handler);
+      _method_cache.Clear();
     }
   }
   /**
@@ -141,6 +146,7 @@ public class RpcManager : IReplyHandler, IDataHandler {
   {
     lock( _sync ) {
       _method_handlers.Remove(name);
+      _method_cache.Clear();
     }
   }
   /**
@@ -157,6 +163,7 @@ public class RpcManager : IReplyHandler, IDataHandler {
   {
     lock( _sync ) {
       _method_handlers_sender.Add(name, handler);
+      _method_cache.Clear();
     }
   }
   /**
@@ -166,6 +173,7 @@ public class RpcManager : IReplyHandler, IDataHandler {
   {
     lock( _sync ) {
       _method_handlers_sender.Remove(name);
+      _method_cache.Clear();
     }
   }
 
@@ -218,30 +226,50 @@ public class RpcManager : IReplyHandler, IDataHandler {
       Console.Error.WriteLine("[RpcServer: {0}] Getting invocation request,  method: {1}",
                      _rrman.Node.Address, methname);
 #endif
-
-      string[] parts = methname.Split('.');
-
-      string hname = parts[0];
-      string mname = parts[1];
       
       object handler = null;
-      ArrayList pa = (ArrayList)l[1];
+      MethodInfo mi = null;
+      bool add_sender = false;
+      /*
+       * Lookup this method name in our table.
+       * This uses a cache, so it should be fast
+       * after the first time
+       */
       lock( _sync ) {
-        handler = _method_handlers[ hname ];
-        if( handler == null ) {
-          handler = _method_handlers_sender[ hname ];
-          if( handler != null ) {
-            pa.Add( ret_path );
+        object[] info = (object[]) _method_cache[methname];
+        if( info == null ) {
+          string[] parts = methname.Split('.');
+          string hname = parts[0];
+          string mname = parts[1];
+          
+          handler = _method_handlers[ hname ];
+          if( handler == null ) {
+            handler = _method_handlers_sender[ hname ];
+            if( handler != null ) {
+              add_sender = true;
+            }
+            else {
+              //No handler for this.
+              throw new AdrException(-32601, "No Handler for method: " + methname);
+            }
           }
-          else {
-            //No handler for this.
-            throw new AdrException(-32601, "No Handler for method: " + methname);
-          }
+          mi = handler.GetType().GetMethod(mname);
+          info = new object[]{ mi, handler, add_sender };
+          _method_cache[ methname ] = info;
+        } else {
+          //We already have looked these up:
+          mi = (MethodInfo)info[0];
+          handler = info[1];
+          add_sender = (bool)info[2];
         }
+      }
+      
+      ArrayList pa = (ArrayList)l[1];
+      if( add_sender ) {
+        pa.Add( ret_path );
       }
       //Console.Error.WriteLine("About to call: {0}.{1} with args",handler, mname);
       //foreach(object arg in pa) { Console.Error.WriteLine("arg: {0}",arg); }
-      MethodInfo mi = handler.GetType().GetMethod(mname);
       //make the following happen asynchronously in a separate thread
       //build an invocation record for the call
 #if USE_ASYNC_INVOKE
