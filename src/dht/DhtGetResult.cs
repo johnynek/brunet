@@ -41,22 +41,5 @@ namespace Brunet.Dht {
     public override string ToString() {
       return string.Format("value = {0}, age = {1}", valueString, age);
     }
-
-    public override bool Equals(Object odgr) {
-      DhtGetResult dgr = (DhtGetResult) odgr;
-      if(dgr.value.Length != this.value.Length) {
-        return false;
-      }
-      for(int i = 0; i < this.value.Length; i++) {
-        if(dgr.value[i] != this.value[i]) {
-          return false;
-        }
-      }
-      return true;
-    }
-
-    public override int GetHashCode() {
-      return value.GetHashCode();
-    }
   }
 }

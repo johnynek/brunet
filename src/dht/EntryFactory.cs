@@ -43,7 +43,7 @@ namespace Brunet.Dht {
      * Make sure we don't leave any junk directories around
      */
     ~EntryFactory() {
-      CleanUp(); 
+      CleanUp();
     }
 
     public static EntryFactory GetInstance(Node node, Media media) {
@@ -65,17 +65,16 @@ namespace Brunet.Dht {
       return ef;
     }
 
-    public Entry CreateEntry(byte[] key, string password, DateTime create_time,
-                                    DateTime end_time, byte[] data, int idx) {
+    public Entry CreateEntry(byte[] key, DateTime create_time, DateTime end_time,
+                             byte[] data, int idx) {
       if (_media == Media.Invalid) {
         return null;
       }
       if(_media == Media.Memory) {
-        return new Entry(key, password, create_time, end_time, data, idx);
+        return new Entry(key, create_time, end_time, data, idx);
       }
       if (_media == Media.Disk) {
-        return new DiskEntry(_dir_path, key, password, create_time,
-          end_time, data, idx);
+        return new DiskEntry(_dir_path, key, create_time, end_time, data, idx);
       }
       return null;
     }

@@ -58,19 +58,6 @@ namespace Brunet.Dht {
       _max_idx = 0;
     }
 
-    protected bool ValidatePasswordFormat(string password,
-      out string hash_name, out string base64_val) {
-      string[] ss = password.Split(new char[] {':'});
-      if (ss.Length != 2) {
-        hash_name = "invalid";
-        base64_val = null;
-        return false;
-      }
-      hash_name = ss[0];
-      base64_val = ss[1];
-      return true;
-    }
-
     public int GetCount() {
       int count = 0;
       lock(_sync) {
@@ -86,22 +73,25 @@ namespace Brunet.Dht {
       return count;
     }
 
+    public void UpdateEntry(ArrayList entry_list, Entry ent, DateTime end_time) {
+      entry_list.Remove(ent);
+      DeleteFromSorted(ent);
+
+      Entry new_e = _ef.CreateEntry(ent.Key, ent.CreatedTime, end_time, 
+                                    ent.Data, ent.Index);
+      entry_list.Add(new_e);
+      InsertToSorted(new_e);
+    }
+
     /**
     * This method puts in a key-value pair.
     * @param key key associated with the date item
     * @param ttl time-to-live in seconds
-    * @param hashed_password <hash_name>:<base64(hashed_pass)>
     * @param data data associated with the key
-    * @return true on success, false on failure
+    * @return 0 on success, other on failure
     */
-    public bool Put(byte[] key, int ttl, string hashed_password, byte[] data) {
-      string hash_name = null;
-      string base64_val = null;
-      if(!ValidatePasswordFormat(hashed_password, out hash_name, out base64_val)) {
-        throw new Exception("Invalid password format.");
-      }
-
-      DateTime create_time = DateTime.Now;
+    public bool Put(byte[] key, int ttl, byte[] data) {
+      DateTime create_time = DateTime.UtcNow;
       TimeSpan ts = new TimeSpan(0,0,ttl);
       DateTime end_time = create_time + ts;
       ArrayList entry_list = null;
@@ -122,35 +112,22 @@ namespace Brunet.Dht {
         _max_idx++; //Increment the maximum index
 
         foreach(Entry ent in entry_list) {
-          if (ent.Password.Equals(hashed_password)) {
-            MemBlock arg_data = MemBlock.Reference(data, 0, data.Length);
-            MemBlock e_data = MemBlock.Reference(ent.Data, 0, ent.Data.Length);
-            // This a different Put
-            if (!e_data.Equals(arg_data) || end_time < ent.EndTime || ent == null) {
-              return false;
+          MemBlock arg_data = MemBlock.Reference(data, 0, data.Length);
+          MemBlock e_data = MemBlock.Reference(ent.Data, 0, ent.Data.Length);
+          // This a different Put
+          if(e_data.Equals(arg_data)) {
+            if(end_time > ent.EndTime) {
+              UpdateEntry(entry_list, ent, end_time);
             }
-            //Removing this entry and putting in a new one
-            entry_list.Remove(ent);
-            DeleteFromSorted(ent);
-
-            Entry new_e = _ef.CreateEntry(ent.Key, hashed_password, 
-                                          ent.CreatedTime, end_time,
-                                          data, ent.Index);
-            entry_list.Add(new_e);
-            InsertToSorted(new_e);
             return true;
           }
         }
 
         //Look up
-        Entry e = _ef.CreateEntry(key, hashed_password,  create_time, end_time,
-                          data, _max_idx);
+        Entry e = _ef.CreateEntry(key, create_time, end_time, data, _max_idx);
 
         entry_list.Add(e);
         InsertToSorted(e);
-
-        ///@todo, we might need to tell a neighbor about this object
-
       } // end of lock
       return true;
     }
@@ -160,18 +137,12 @@ namespace Brunet.Dht {
     * we fail. (now this is idempotent). 
     * @param key key associated with the date item
     * @param ttl time-to-live in seconds
-    * @param hashed_password <hash_name>:<base64(hashed_pass)>
     * @param data data associated with the key
     * @return true on success, false on failure
     */
 
-    public bool Create(byte[] key, int ttl, string hashed_password, byte[] data) {
-      string hash_name = null;
-      string base64_val = null;
-      if (!ValidatePasswordFormat(hashed_password, out hash_name, out base64_val)) {
-        throw new Exception("Invalid password format.");
-      }
-      DateTime create_time = DateTime.Now;
+    public bool Create(byte[] key, int ttl, byte[] data) {
+      DateTime create_time = DateTime.UtcNow;
       TimeSpan ts = new TimeSpan(0,0,ttl);
       DateTime end_time = create_time + ts;
 
@@ -181,29 +152,20 @@ namespace Brunet.Dht {
         ArrayList entry_list = (ArrayList)_ht[ht_key];
         if( entry_list != null ) {
           Entry to_renew = null;
+          // We check all in case someone did a put on top of a create
+          // this for recreates and idempotent creates
+          MemBlock arg_data = MemBlock.Reference(data, 0, data.Length);
           foreach(Entry e in entry_list) {
-            if (!e.Password.Equals(hashed_password)) {
-              continue;
-            }
-            MemBlock arg_data = MemBlock.Reference(data, 0, data.Length);
             MemBlock e_data = MemBlock.Reference(e.Data, 0, e.Data.Length);
             if (!e_data.Equals(arg_data)) {
-              continue;
+              throw new Exception("ENTRY_ALREADY_EXISTS");
             }
-            to_renew = e; 
+            to_renew = e;
+            break;
           }
-          if ((to_renew == null) || (end_time < to_renew.EndTime)) {
-            return false;
+          if (end_time  > to_renew.EndTime) {
+            UpdateEntry(entry_list, to_renew, end_time);
           }
-          //we should also remove this entry, and put a new one
-          entry_list.Remove(to_renew);
-          DeleteFromSorted(to_renew);
-
-          Entry new_e = _ef.CreateEntry(to_renew.Key, hashed_password, 
-                                        to_renew.CreatedTime, end_time,
-                                        data, to_renew.Index);
-          entry_list.Add(new_e);
-          InsertToSorted(new_e);
         }
         else {
           //This is a new key, just a regular Create()
@@ -211,12 +173,8 @@ namespace Brunet.Dht {
           _ht[ht_key] = entry_list;
 
           _max_idx++; //Increment the maximum index
-          //Look up
-          Entry e = _ef.CreateEntry(key, hashed_password,  create_time, end_time,
-                                    data, _max_idx);
-          //Add the entry to the end of the list.
+          Entry e = _ef.CreateEntry(key, create_time, end_time, data, _max_idx);
           entry_list.Add(e);
-          //Further add the entry to the sorted list _expired_entries
           InsertToSorted(e);
         }
       }//end of lock
@@ -261,7 +219,7 @@ namespace Brunet.Dht {
             // Have we seen this and do we have enough space for it?
             if(e.Index > seen_end_idx) {
               if (e.Data.Length + consumed_bytes <= maxbytes) {
-                TimeSpan age = DateTime.Now - e.CreatedTime;
+                TimeSpan age = DateTime.UtcNow - e.CreatedTime;
                 int age_i = (int)age.TotalSeconds;
                 consumed_bytes += e.Data.Length;
                 Hashtable item = new Hashtable();
@@ -304,7 +262,7 @@ namespace Brunet.Dht {
     */
     protected void DeleteExpired() {
       int del_count = 0;
-      DateTime now = DateTime.Now;
+      DateTime now = DateTime.UtcNow;
       foreach(Entry e in _expiring_entries) {
         DateTime end_time = e.EndTime; 
         // These should be sorted so we will break once we find an end_time greater than now
@@ -319,6 +277,7 @@ namespace Brunet.Dht {
           continue;
         }
         entry_list.Remove(e);
+        e.Delete();
         if (entry_list.Count == 0) {
           _ht.Remove(key);
         }
@@ -594,7 +553,7 @@ namespace Brunet.Dht {
         byte[] key = entry.Key;
         string strData = Encoding.UTF8.GetString(entry.Data);
         int ttl = entry.TTL;
-        
+
         string passwd = entry.Password;
         //state used in PutProc
         ArrayList state = new ArrayList();
