@@ -12,18 +12,25 @@ namespace Brunet.Dht {
   public class DhtOp {
     public FDht dht;
 
+    public DhtOp(FDht dht, int delay) {
+      this.DELAY = delay * 1000;
+      this.dht = dht;
+      this.MAJORITY = this.dht.Degree / 2 + 1;
+    }
+
     public DhtOp(FDht dht) {
+      DELAY = 60000;
       this.dht = dht;
       this.MAJORITY = this.dht.Degree / 2 + 1;
     }
 
     // I guess with Async methods we can be more generous - after all,
     // if this fails - we're probably screwed anyway
-    public static readonly int DELAY = 60000;
+    private readonly int DELAY;
     private readonly int MAJORITY;
 
     /** Below are all the Create methods, they rely on a unique put *
-      * this returns the password or null if it did not work        */
+     * this returns the password or null if it did not work        */
 
     public BlockingQueue AsCreate(byte[] key, byte[] value, string password, int ttl) {
       return AsPut(key, value, password, ttl, true);
@@ -102,15 +109,25 @@ namespace Brunet.Dht {
       Hashtable allValuesCount = new Hashtable();
       int remaining = 0;
       byte [][]tokens = null;
+      bool multiget = false;
 
       do {
         remaining = 0;
         BlockingQueue[] q = null;
-        if(tokens == null) {
-          q = this.dht.GetF(key, 1000, null);
+        try {
+          if(tokens == null) {
+            q = this.dht.GetF(key, 1000, null);
+          }
+          else {
+            q = this.dht.GetF(key, 1000, tokens);
+          }
         }
-        else {
-          q = this.dht.GetF(key, 1000, tokens);
+        catch(DhtException e) {
+          allValues.Close();
+          throw e;
+        }
+        catch(Exception) {
+          allValues.Close();
         }
 
         ArrayList allQueues = new ArrayList();
@@ -122,16 +139,17 @@ namespace Brunet.Dht {
         tokens = new byte[this.dht.Degree][];
 
         DateTime start = DateTime.UtcNow;
+        int left = this.dht.Degree;
 
-        while(allQueues.Count > 0) {
-          TimeSpan ts_timeleft = DateTime.UtcNow - start;
-          int time_diff = ts_timeleft.Milliseconds;
-          int time_left = (DELAY - time_diff > 0) ? DELAY - time_diff : 0;
-
+        while(left != 0) {
+          TimeSpan ts_timeleft = (DateTime.UtcNow - start);
+          int time_left = DELAY - (int) ts_timeleft.TotalMilliseconds;
+          time_left = (time_left > 0) ? time_left : 0;
           int idx = BlockingQueue.Select(allQueues, time_left);
           if(idx == -1) {
             break;
           }
+          left--;
           allQueues.RemoveAt(idx);
           int real_idx = (int) queueMapping[idx];
           queueMapping.RemoveAt(idx);
@@ -140,35 +158,58 @@ namespace Brunet.Dht {
           if(q[idx].Closed) {
             continue;
           }
-          try {
-            RpcResult rpc_reply = (RpcResult) q[idx].Dequeue();
-            ArrayList result = (ArrayList) rpc_reply.Result;
-            //Result may be corrupted
-            if (result == null || result.Count < 3) {
-              continue;
-            }
-            ArrayList values = (ArrayList) result[0];
-            int local_remaining = (int) result[1];
-            if(local_remaining > remaining) {
-              remaining = local_remaining;
-            }
-
-            tokens[idx] = (byte[]) result[2];
-            foreach (Hashtable ht in values) {
-              MemBlock mbVal = MemBlock.Reference((byte[])ht["value"]);
-              if(!allValuesCount.Contains(mbVal)) {
-                allValuesCount[mbVal] = 1;
+          else {
+            try {
+              RpcResult rpc_reply = (RpcResult) q[idx].Dequeue();
+              ArrayList result = (ArrayList) rpc_reply.Result;
+              //Result may be corrupted
+              if (result == null || result.Count < 3) {
+                continue;
               }
-              else {
-                int count = ((int) allValuesCount[mbVal]) + 1;
-                allValuesCount[mbVal] = count;
-                if(count == MAJORITY) {
-                  allValues.Enqueue(new DhtGetResult(ht));
+              ArrayList values = (ArrayList) result[0];
+              int local_remaining = (int) result[1];
+              if(local_remaining > remaining) {
+                remaining = local_remaining;
+                multiget = true;
+              }
+
+              tokens[idx] = (byte[]) result[2];
+              foreach (Hashtable ht in values) {
+                MemBlock mbVal = MemBlock.Reference((byte[])ht["value"]);
+                if(!allValuesCount.Contains(mbVal)) {
+                  allValuesCount[mbVal] = 1;
+                }
+                else {
+                  int count = ((int) allValuesCount[mbVal]) + 1;
+                  allValuesCount[mbVal] = count;
+                  if(count == MAJORITY) {
+                    allValues.Enqueue(new DhtGetResult(ht));
+                  }
                 }
               }
             }
+            catch (Exception) {;} // Treat this as receiving nothing
           }
-          catch (Exception) {;} // Treat this as receiving nothing
+
+          if(multiget || left > MAJORITY - 1) {
+            continue;
+          }
+          else if(allValuesCount.Count == 0) {
+            start = DateTime.MinValue;
+          }
+          else {
+            bool got_all_values = true;
+            foreach (DictionaryEntry de in allValuesCount) {
+              int val = (int) de.Value;
+              if(val < MAJORITY && ((val + left) >= MAJORITY)) {
+                got_all_values = false;
+                break;
+              }
+            }
+            if(got_all_values) {
+              start = DateTime.MinValue;
+            }
+          }
         }
 
         foreach(BlockingQueue queue in q) {
@@ -211,7 +252,7 @@ namespace Brunet.Dht {
     }
 
     /** Since the Puts and Creates are the same from the client side, we merge them into a
-       single put that if unique is true, it is a create, otherwise a put */
+    single put that if unique is true, it is a create, otherwise a put */
 
     public BlockingQueue AsPut(byte[] key, byte[] value, string password, int ttl, bool unique) {
       BlockingQueue queue = new BlockingQueue();
@@ -268,11 +309,11 @@ namespace Brunet.Dht {
 
       while(pcount < MAJORITY && ncount < MAJORITY - 1) {
         TimeSpan ts_timeleft = DateTime.UtcNow - start;
-        int time_diff = ts_timeleft.Milliseconds;
-        int time_left = (DELAY - time_diff > 0) ? DELAY - time_diff : 0;
+        int time_left = DELAY - (int) ts_timeleft.TotalMilliseconds;
+        time_left = (time_left > 0) ? time_left: 0;
 
         int idx = BlockingQueue.Select(allQueues, time_left);
-        int result = 1000;
+        bool result = false;
         if(idx == -1) {
           break;
         }
@@ -280,12 +321,12 @@ namespace Brunet.Dht {
         if(!((BlockingQueue) allQueues[idx]).Closed) {
           try {
             RpcResult rpc_reply = (RpcResult) ((BlockingQueue) allQueues[idx]).Dequeue();
-            result = (int) rpc_reply.Result;
+            result = (bool) rpc_reply.Result;
           }
           catch(Exception) {;} // Treat this as receiving a negative
         }
 
-        if(result == 0) {
+        if(result == true) {
           pcount++;
         }
         else {
