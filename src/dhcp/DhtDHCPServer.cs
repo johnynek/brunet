@@ -33,15 +33,11 @@ namespace Ipop {
       }
       string ns_key = "dhcp:ipop_namespace:" + ipop_namespace;
       DhtGetResult[] results = _dht.Get(ns_key);
-      if(results == null || results.Length == 0)  {
-        Console.Error.WriteLine("Namespace does not exist");
+      if(results == null || results.Length == 0 || results[0].valueString == null)  {
+        Console.Error.WriteLine("Namespace ({0}) does not exist", ipop_namespace);
         return null;
       }
 
-      if(results[0].valueString == null) {
-        Console.Error.WriteLine("Namespace does not exist");
-        return null;
-      }
       string xml_str = results[0].valueString.ToString();
       XmlSerializer serializer = new XmlSerializer(typeof(IPOPNamespace));
       TextReader stringReader = new StringReader(xml_str);

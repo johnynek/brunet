@@ -37,7 +37,6 @@
         <include name="../dhcp/SoapDHCPServer.cs"/>
         <include name="../dhcp/DhtDHCPServer.cs"/>
         <include name="../dhcp/DhtDHCPLease.cs"/>
-        <include name="../dhcp/DhtIP.cs"/>
       </sources>
       <references>
         <include name="${build.dir}/Brunet.dll"/>

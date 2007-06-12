@@ -83,14 +83,16 @@ namespace Ipop {
 
       while (true) {
         do {
-          string guessed_ip_str = "";
-          for (int k = 0; k < guessed_ip.Length-1; k++) {
-            guessed_ip_str += (guessed_ip[k] + ".");
+          string guessed_ip_str = guessed_ip[0].ToString();
+          for (int k = 1; k < guessed_ip.Length; k++) {
+            guessed_ip_str += "." + guessed_ip[k].ToString();
           }
-          guessed_ip_str += guessed_ip[guessed_ip.Length - 1];
 
-          if(DhtIP.GetIP(_dht, namespace_value, guessed_ip_str, leasetime, brunet_id))
+          string key = "dhcp:ipop_namespace:" + namespace_value + ":ip:" + guessed_ip_str;
+          if(_dht.Create(key, brunet_id, leasetime)) {
+            Console.Error.WriteLine("Got " + key + " successfully");
             return guessed_ip;
+          }
         } while(max_renew_attempts-- > 0 && renew_attempt);
         if (--max_attempts > 0) {
           //guess a new IP address
