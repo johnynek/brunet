@@ -410,13 +410,13 @@ namespace Brunet.Dht {
           "results with the same key.");
       RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
       byte[] key = new byte[10];
-      byte[] value = new byte[10];
+      byte[] value = new byte[100];
       rng.GetBytes(key);
       ArrayList al_results = new ArrayList();
       BlockingQueue[] results_queue = new BlockingQueue[40];
 
       for(int i = 0; i < 40; i++) {
-        value = new byte[10];
+        value = new byte[100];
         rng.GetBytes(value);
         al_results.Add(value);
         results_queue[i] = dhts[0].AsPut(key, value, 3000);

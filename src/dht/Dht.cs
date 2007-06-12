@@ -273,15 +273,16 @@ namespace Brunet.Dht {
 
           foreach (Hashtable ht in values) {
             MemBlock mbVal = MemBlock.Reference((byte[])ht["value"]);
+            int count = 1;
             if(!allValuesCount.Contains(mbVal)) {
-              allValuesCount[mbVal] = 1;
+              allValuesCount[mbVal] = count;
             }
             else {
-              int count = ((int) allValuesCount[mbVal]) + 1;
+              count = ((int) allValuesCount[mbVal]) + 1;
               allValuesCount[mbVal] = count;
-              if(count == MAJORITY / 2) {
-                allValues.Enqueue(new DhtGetResult(ht));
-              }
+            }
+            if(count == MAJORITY / 2) {
+              allValues.Enqueue(new DhtGetResult(ht));
             }
           }
         }
@@ -406,8 +407,16 @@ namespace Brunet.Dht {
         funct += "Put";
       }
       BlockingQueue queue = (BlockingQueue) data_array[4];
-      byte[][] b = MapToRing(key);
 
+      ArrayList queueMapping = new ArrayList();
+      int[] queueCount = new int[DEGREE];
+
+      for(int i = 0; i < DEGREE; i++) {
+        queueMapping.Add(i);
+        queueCount[i] = 0;
+      }
+
+      byte[][] b = MapToRing(key);
       bool rv = false;
 
       BlockingQueue[] q = new BlockingQueue[DEGREE];
@@ -417,6 +426,7 @@ namespace Brunet.Dht {
         q[k] = new BlockingQueue();
         _rpc.Invoke(s, q[k], funct, b[k], ttl, value);
       }
+
       int pcount = 0, ncount = 0;
       // Special case cause I don't want to have to deal with extra logic
       if(MAJORITY == 1) {
@@ -427,32 +437,34 @@ namespace Brunet.Dht {
 
       DateTime start = DateTime.UtcNow;
 
-      while(pcount < MAJORITY && ncount < MAJORITY - 1) {
+      while(pcount < MAJORITY && ncount < MAJORITY - 1 && allQueues.Count > 0) {
         TimeSpan ts_timeleft = DateTime.UtcNow - start;
         int time_left = DELAY - (int) ts_timeleft.TotalMilliseconds;
         time_left = (time_left > 0) ? time_left: 0;
 
         int idx = BlockingQueue.Select(allQueues, time_left);
+        int real_idx = (int) queueMapping[idx];
         bool result = false;
         if(idx == -1) {
           break;
         }
 
-        if(!((BlockingQueue) allQueues[idx]).Closed) {
-          try {
-            RpcResult rpc_reply = (RpcResult) ((BlockingQueue) allQueues[idx]).Dequeue();
-            result = (bool) rpc_reply.Result;
-          }
-          catch(Exception) {;} // Treat this as receiving a negative
+        try {
+          RpcResult rpc_reply = (RpcResult) ((BlockingQueue) allQueues[idx]).Dequeue();
+          result = (bool) rpc_reply.Result;
         }
+        catch(Exception) {;} // Treat this as receiving a negative
 
-        if(result == true) {
-          pcount++;
-        }
-        else {
+        if(!result) {
+          allQueues.RemoveAt(idx);
+          queueMapping.RemoveAt(idx);
           ncount++;
         }
-        allQueues.RemoveAt(idx);
+        else if(++queueCount[real_idx] == 2) {
+          allQueues.RemoveAt(idx);
+          queueMapping.RemoveAt(idx);
+          pcount++;
+        }
       }
 
       if(pcount >= MAJORITY) {
