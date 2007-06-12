@@ -173,6 +173,9 @@ namespace Brunet.Dht {
     }
 
     public BlockingQueue AsGet(byte[] key) {
+      if (!_dhtactivated) {
+        throw new DhtException("DhtClient: Not yet activated.");
+      }
       BlockingQueue queue = new BlockingQueue();
       object []data = new object[2];
       data[0] = key;
@@ -206,6 +209,9 @@ namespace Brunet.Dht {
     /**  This is the get that does all the work, it is meant to be
      *   run as a thread */
     public void Get(object data) {
+      if (!_dhtactivated) {
+        throw new DhtException("DhtClient: Not yet activated.");
+      }
       object []data_array = (object[]) data;
       byte[] key = (byte[]) data_array[0];
       BlockingQueue allValues = (BlockingQueue) data_array[1];
@@ -356,6 +362,9 @@ namespace Brunet.Dht {
     single put that if unique is true, it is a create, otherwise a put */
 
     public BlockingQueue AsPut(byte[] key, byte[] value, int ttl, bool unique) {
+      if (!_dhtactivated) {
+        throw new DhtException("DhtClient: Not yet activated.");
+      }
       BlockingQueue queue = new BlockingQueue();
       object []data = new object[5];
       data[0] = key;
@@ -381,6 +390,9 @@ namespace Brunet.Dht {
 
 
     public void Put(object data) {
+      if (!_dhtactivated) {
+        throw new DhtException("DhtClient: Not yet activated.");
+      }
       object[] data_array = (object[]) data;
       byte[] key = (byte[]) data_array[0];
       byte[] value = (byte[]) data_array[1];
