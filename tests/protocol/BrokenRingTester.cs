@@ -4,7 +4,6 @@ using System.Collections;
 using System.Xml;
 using System.Xml.Serialization;
 using System.Security.Cryptography;
-using System.Threading; 
 
 namespace Brunet {
   public class BrokenRingTester {
@@ -27,12 +26,11 @@ namespace Brunet {
 
       ArrayList RemoteTA = new ArrayList();
       for(int i = 0; i < network_size; i++) {
-        RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.udp://127.0.0.1:" + (base_port + i)));
+        RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.udp://localhost:" + (base_port + i)));
       }
 
       Random rand = new Random();
       for(int i = 0; i < network_size; i++) {
-        Console.WriteLine("Starting node: {0}", i);
         AHAddress address = new AHAddress(new RNGCryptoServiceProvider());
         Node node = new StructuredNode(address, brunet_namespace);
         ArrayList arr_tas = new ArrayList();
@@ -49,11 +47,8 @@ namespace Brunet {
         node.AddEdgeListener(new UdpEdgeListener(base_port + i, null, ta_auth));
         node.AddEdgeListener(new TunnelEdgeListener(node));
         node.RemoteTAs = RemoteTA;
-        Thread t = new Thread(new ThreadStart(node.Connect));
-        t.Start();
+        node.Connect();
         nodes.Add((Address) address, node);
-        Console.WriteLine("Sleeping for 2 seconds");
-        System.Threading.Thread.Sleep(2000);        
       }
 
       //wait for 60 more seconds
@@ -78,16 +73,14 @@ namespace Brunet {
             break;
           }
 
-          Connection lc = ((Node)nodes[next_addr]).ConnectionTable.GetRightStructuredNeighborOf((AHAddress) next_addr);
-          if( (lc == null) || !curr_addr.Equals(lc.Address)) {
-            Address left_addr = lc.Address;
+          Address left_addr = ((Node)nodes[next_addr]).ConnectionTable.GetRightStructuredNeighborOf((AHAddress) next_addr).Address;
+          if(!curr_addr.Equals(left_addr)) {
             Console.WriteLine(curr_addr + " != " + left_addr);
-            Console.WriteLine("Right had edge, but left has no record of it!\n{0} != {1}", con, lc);
+            Console.WriteLine("Right had edge, but left has no record of it!");
             break;
           }
           else if(next_addr.Equals(start_addr) && i != network_size -1) {
-            Console.WriteLine("Completed circle too early.  Only {0} nodes in the ring.",
-                              (i + 1));
+            Console.WriteLine("Completed circle too early.  Only " + count + " nodes in the ring.");
             break;
           }
           curr_addr = next_addr;
@@ -95,7 +88,7 @@ namespace Brunet {
         count++;
         if(start_addr.Equals(curr_addr)) {
           Console.WriteLine("Ring properly formed!");
-          Console.WriteLine("This only took .... {0} seconds", (count * 5));
+          Console.WriteLine("This only took .... " + (count * 5) + " seconds");
           break;
         }
       }
@@ -119,14 +112,11 @@ namespace Brunet {
           if (next_addr == null) {
             Console.WriteLine("Found disconnection.");
           }
-          Connection left_con = ((Node)nodes[next_addr]).ConnectionTable.GetLeftStructuredNeighborOf((AHAddress) next_addr);
-          if(left_con == null) {
-            Console.WriteLine("Found disconnection.");
-          }
-          else if(!curr_addr.Equals(left_con.Address)) {
-            Address left_addr = left_con.Address;
+
+          Address left_addr = ((Node)nodes[next_addr]).ConnectionTable.GetLeftStructuredNeighborOf((AHAddress) next_addr).Address;
+          if(!curr_addr.Equals(left_addr)) {
             Console.WriteLine(curr_addr + " != " + left_addr);
-            Console.WriteLine("Left had edge, but right has no record of it! {0}", left_con);
+            Console.WriteLine("Left had edge, but right has no record of it!");
             break;
           }
           else if(next_addr.Equals(start_addr) && i != network_size -1) {
@@ -138,13 +128,12 @@ namespace Brunet {
         count++;
         if(start_addr.Equals(curr_addr)) {
           Console.WriteLine("Ring properly formed!");
-          Console.WriteLine("This only took .... {0} seconds", (count * 5));
+          Console.WriteLine("This only took .... " + (count * 5) + " seconds");
           break;
         }
       }
 
-      foreach(DictionaryEntry de in nodes) {
-        Node node = (Node)de.Value;
+      foreach(Node node in nodes) {
         node.Disconnect();
       }
     }
