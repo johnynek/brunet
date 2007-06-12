@@ -710,10 +710,10 @@ public class LinuxNatHandler : SymmetricNatHandler {
  */
 public class NatTAs : IEnumerable {
 
-  protected NatHistory _hist;
-  protected ArrayList _list_of_remote_ips;
-  protected IEnumerable _local_config;
-  protected IEnumerable _generated_ta_list;
+  protected readonly NatHistory _hist;
+  protected volatile ArrayList _list_of_remote_ips;
+  protected readonly IEnumerable _local_config;
+  protected volatile IEnumerable _generated_ta_list;
 
   /**
    * @param local_config_tas the list of TAs to use as last resort
