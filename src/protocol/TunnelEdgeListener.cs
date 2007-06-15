@@ -158,7 +158,9 @@ namespace Brunet
 #endif
 	IEnumerable struc_cons = _node.ConnectionTable.GetConnections(ConnectionType.Structured);
 	if (struc_cons ==  null) {
+#if TUNNEL_DEBUG
 	  Console.Error.WriteLine("List of structured connections is null");
+#endif 
 	}
 #if TUNNEL_DEBUG
 	Console.Error.WriteLine("TunnelEdgeListener: Browsing list of structured connections");
@@ -277,7 +279,9 @@ namespace Brunet
 	  Edge e = (Edge) Senders[ r.Next(0, Senders.Count) ];
 	  e.Send(RequestPacket);
 	} catch(Exception ex) {
+#if TUNNEL_DEBUG
 	  Console.Error.WriteLine(ex);
+#endif 
 	}
       }
     }
@@ -305,7 +309,9 @@ namespace Brunet
 	  int id = (int) ide.Key;
 	  EdgeCreationState ecs = (EdgeCreationState) ide.Value;
 	  if (ecs == null) {
+#if TUNNEL_DEBUG
 	    Console.Error.WriteLine("This is wierd. How can ECS be null?");
+#endif 
 	  }
 	  TunnelEdge e = (TunnelEdge) _id_ht[id];
 	  
@@ -437,7 +443,9 @@ namespace Brunet
     public void HandleData(MemBlock packet, ISender return_path, object state)
     {
       if (!_running) {
+#if TUNNEL_DEBUG
 	Console.Error.WriteLine("TunnelEdgeListener: not running (cannot handle packet)");
+#endif 
 	return;
       }
       //read the payload?
@@ -568,7 +576,9 @@ namespace Brunet
 	  Console.Error.WriteLine("remoteid: {0}, localid: {1}", remoteid, localid);
 #endif      
 	  e.CloseEvent += this.CloseHandler;
+#if TUNNEL_DEBUG 
 	  Console.Error.WriteLine("announcing tunnel edge (outgoing): {0}", e);
+#endif 
 	  ecs.ECB(true, e, null);
         }
         else {
@@ -638,7 +648,9 @@ namespace Brunet
 	  _id_ht[localid] = e;
 	  _remote_id_ht[remoteid] = e;
 	  e.CloseEvent += new EventHandler(this.CloseHandler);
+#if TUNNEL_DEBUG
 	  Console.Error.WriteLine("announcing tunnel edge (incoming): {0}", e);
+#endif 
           send_edge_event = true;
 	}
       }//Drop the lock
@@ -666,7 +678,9 @@ namespace Brunet
           Edge from = (Edge)ahs.ReceivedFrom;
 	  from.Send(p);
 	} catch (Exception ex) {
+#if TUNNEL_DEBUG
 	  Console.Error.WriteLine(ex);
+#endif 
 	}
         finally {
           if( send_edge_event ) {
@@ -697,7 +711,9 @@ namespace Brunet
        foreach (Address addr in acquired) {
 	//add forwarding addresses
 	arg1.Add( addr.ToMemBlock() );
+#if TUNNEL_DEBUG
 	Console.Error.WriteLine("Added a acquired address: {0}", addr);
+#endif 
        }
       }
 
@@ -707,7 +723,9 @@ namespace Brunet
        foreach (Address addr in lost) {
 	//add forwarding addresses
 	arg2.Add( addr.ToMemBlock() );
+#if TUNNEL_DEBUG
 	Console.Error.WriteLine("Added a lost address: {0}", addr);
+#endif 
        }
       }
 
@@ -722,8 +740,10 @@ namespace Brunet
       if (tun_edge.PacketSenders.Count > 0) {
 	ISender sender = (ISender) tun_edge.PacketSenders[_rand.Next(0, tun_edge.PacketSenders.Count)];
 	try {
+#if TUNNEL_DEBUG
 	  Console.Error.WriteLine("Sending control out on base connection: {0}",
                                   _node.ConnectionTable.GetConnection((Edge) sender));
+#endif
 	  sender.Send(p);
 	} catch(Exception ex) {
 #if TUNNEL_DEBUG	  
@@ -754,8 +774,10 @@ namespace Brunet
       if (tun_edge.PacketSenders.Count > 0) {
 	ISender sender = (ISender) tun_edge.PacketSenders[_rand.Next(0, tun_edge.PacketSenders.Count)];
 	try {
+#if TUNNEL_DEBUG
 	  Console.Error.WriteLine("Sending data out on base connection: {0} for edge: {1}",
                                   _node.ConnectionTable.GetConnection((Edge) sender), e);
+#endif
 	  sender.Send(p);
 	} catch(Exception ex) {
 #if TUNNEL_DEBUG	  
@@ -765,7 +787,9 @@ namespace Brunet
       }
       else {
         //This packet is lost:
+#if TUNNEL_DEBUG
         Console.Error.WriteLine("Tunnel packet lost on: {0}", e);
+#endif
       }
     }
     
@@ -776,7 +800,9 @@ namespace Brunet
      */
     public void CloseHandler(object edge, EventArgs args)
     {
+#if TUNNEL_DEBUG
       Console.Error.WriteLine("closing tunnel edge");
+#endif
       TunnelEdge e = (TunnelEdge)edge;
       lock( _sync ) {
         _id_ht.Remove( e.ID );

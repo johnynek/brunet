@@ -82,11 +82,20 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
    * Allow conversion to byte[] by making a copy.
    * This allows us to pass MemBlock as if they were byte[] objects
    */
-  public static explicit operator byte[](MemBlock b) {
+  public static implicit operator byte[](MemBlock b) {
     byte[] result = new byte[ b.Length ];
     b.CopyTo(result, 0);
     return result;
   }
+
+  /**
+   * Allow implicit conversion from byte[] by making a copy.
+   * This allows us to pass MemBlock as if they were byte[] objects
+   */
+  public static implicit operator MemBlock(byte[] data) {
+    return Reference(data);
+  }
+
   /**
    * Implements ICloneable.  This copies the underlying buffer.
    * Might be useful if you want to keep something around that

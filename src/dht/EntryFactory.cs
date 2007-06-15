@@ -29,7 +29,7 @@ namespace Brunet.Dht {
       _media = media;
       if (_media == Media.Disk) {
         _dir_path = Path.Combine("data", _node.Address.ToString().Substring(12));
-	CleanUp();
+        CleanUp();
         Directory.CreateDirectory(_dir_path);
       }
     }
@@ -65,8 +65,8 @@ namespace Brunet.Dht {
       return ef;
     }
 
-    public Entry CreateEntry(byte[] key, DateTime create_time, DateTime end_time,
-                             byte[] data, int idx) {
+    public Entry CreateEntry(MemBlock key, DateTime create_time, DateTime end_time,
+                             MemBlock data, int idx) {
       if (_media == Media.Invalid) {
         return null;
       }

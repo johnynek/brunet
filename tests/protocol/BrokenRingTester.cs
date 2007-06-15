@@ -29,6 +29,8 @@ namespace Brunet {
         RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.udp://localhost:" + (base_port + i)));
       }
 
+      Console.WriteLine(RemoteTA.Count);
+
       Random rand = new Random();
       for(int i = 0; i < network_size; i++) {
         AHAddress address = new AHAddress(new RNGCryptoServiceProvider());
@@ -47,6 +49,7 @@ namespace Brunet {
         node.AddEdgeListener(new UdpEdgeListener(base_port + i, null, ta_auth));
         node.AddEdgeListener(new TunnelEdgeListener(node));
         node.RemoteTAs = RemoteTA;
+        Console.WriteLine(node.RemoteTAs.Count);
         node.Connect();
         nodes.Add((Address) address, node);
       }
