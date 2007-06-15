@@ -160,12 +160,20 @@ namespace Brunet
 
     protected void StartQueueProcessing() {
       bool timedout;
+      /*
+       * Simulate packet loss
+       */
+      double ploss_prob = 0.05;
+      Random r = new Random();
+      
       while( _is_started ) {
         //Wait 100 ms for an a packet to be sent:
         FQEntry ent = (FQEntry)_queue.Dequeue(100, out timedout);
         if( !timedout ) {
-          FunctionEdge fe = ent.Edge;
-          fe.Push( MemBlock.Copy(ent.P) );
+          if( r.NextDouble() > ploss_prob ) {
+            FunctionEdge fe = ent.Edge;
+            fe.Push( MemBlock.Copy(ent.P) );
+          }
         }
       }
     }
