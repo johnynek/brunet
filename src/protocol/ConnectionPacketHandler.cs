@@ -112,7 +112,39 @@ namespace Brunet
 #if LINK_DEBUG
       Console.Error.WriteLine("{0} -end- sys:link.Close({1},{2})", _node.Address, close_message,from);
 #endif
-      return new Hashtable();
+      return new Hashtable(1);
+    }
+
+    /**
+     * Return a hashtable with entries:
+     * self -> my Address
+     * left -> Address of left neighbor
+     * right -> Address of right neighbor
+     *
+     * If the node has any shortcuts:
+     * shortcut -> Random shortcut connection
+     */
+    public Hashtable GetNeighbors(ISender caller) {
+      AHAddress self = (AHAddress)_node.Address;
+      Connection left = _node.ConnectionTable.GetLeftStructuredNeighborOf(self);
+      Connection right = _node.ConnectionTable.GetRightStructuredNeighborOf(self);
+
+      Hashtable result = new Hashtable(4);
+      //Put it in:
+      result["self"] = self.ToString();
+      result["left"] = left.Address.ToString();
+      result["right"] = right.Address.ToString();
+      //Get a random shortcut:
+      ArrayList shortcuts = new ArrayList();
+      foreach(Connection c in _node.ConnectionTable.GetConnections("structured.shortcut") ) {
+        shortcuts.Add(c);
+      }
+      if( shortcuts.Count > 0 ) {
+        Random r = new Random();
+        Connection sc = (Connection)shortcuts[ r.Next( shortcuts.Count ) ];
+        result["shortcut"] = sc.Address.ToString();
+      }
+      return result;
     }
 
     /**

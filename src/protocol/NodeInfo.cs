@@ -237,12 +237,12 @@ namespace Brunet
 
     public Hashtable ToHashtable()
     {
-      Hashtable ht = new Hashtable();
+      Hashtable ht = new Hashtable(2);
       if( _address != null ) {
         ht["address"] = _address.ToString();
       }
       if( _tas != null ) {
-        ArrayList trans = new ArrayList();
+        ArrayList trans = new ArrayList( _tas.Count );
         int count = _tas.Count;
         for(int i = 0; i < count; i++) {
           trans.Add( _tas[i].ToString() );
