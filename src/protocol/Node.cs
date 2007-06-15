@@ -103,8 +103,10 @@ namespace Brunet
         _edgelistener_list = new ArrayList();
         _edge_factory = new EdgeFactory();
 
+        /* Initialize this at 15 seconds */
+        _connection_timeout = new TimeSpan(0,0,0,0,15000);
         /* Set up the heartbeat */
-        _heart_period = 2000; //2000 ms, or 2 second.
+        _heart_period = 500; //500 ms, or 1/2 second.
         _timer = new Timer(new TimerCallback(this.HeartBeatCallback),
                            null, _heart_period, _heart_period);
         //Check the edges from time to time
@@ -309,10 +311,7 @@ namespace Brunet
     public int HeartPeriod { get { return _heart_period; } }
 
     ///If we don't hear anything from a *CONNECTION* in this time, ping it.
-    static protected readonly TimeSpan _CONNECTION_TIMEOUT = new TimeSpan(0,0,0,0,15000);
-    ///If we don't hear anything from any *EDGE* in this time, close it, 45 seconds is now
-    ///the close timeout
-    static protected readonly TimeSpan _EDGE_CLOSE_TIMEOUT = new TimeSpan(0,0,0,0,45000);
+    protected TimeSpan _connection_timeout;
     /**
      * Maximum number of TAs we keep in both for local and remote.
      * This does not control how many we send to our neighbors.
@@ -674,49 +673,89 @@ namespace Brunet
      */
     virtual protected void CheckEdgesCallback(object node, EventArgs args)
     {
-      if( DateTime.UtcNow - _last_edge_check > _CONNECTION_TIMEOUT ) {
+      DateTime now = DateTime.UtcNow;
+      if( now - _last_edge_check > _connection_timeout ) {
         //We are checking the edges now:
-        _last_edge_check = DateTime.UtcNow;
-        ArrayList edges_to_ping = new ArrayList();
-        ArrayList edges_to_close = new ArrayList();
+        _last_edge_check = now;
+        //Compute the mean and stddev of LastInPacketDateTime:
+        double sum = 0.0;
+        double sum2 = 0.0;
+        int count = 0;
         foreach(Connection con in _connection_table) {
-	  Edge e = con.Edge;
-          if( _last_edge_check - e.LastInPacketDateTime  > _EDGE_CLOSE_TIMEOUT ) {
-            //After this period of time, we close the edge no matter what.
-	      Console.Error.WriteLine("On an edge timeout, closing connection: {0}", con);
-            edges_to_close.Add(e);
-          }
-          else if( _last_edge_check - e.LastInPacketDateTime  > _CONNECTION_TIMEOUT ) {
-            //Check to see if this connection is still active by pinging it
-            edges_to_ping.Add(e);
+          Edge e = con.Edge;
+          double this_int = (now - e.LastInPacketDateTime).TotalMilliseconds;
+          sum += this_int;
+          sum2 += this_int * this_int;
+          count++;
+        }
+        /*
+         * Compute the mean and std.dev:
+         */
+        if( count > 1 ) {
+          double mean = sum / count;
+          double s2 = sum2 - count * mean * mean;
+          double stddev = Math.Sqrt( s2 /(count - 1) );
+          double timeout = mean + stddev;
+          //Console.WriteLine("Connection timeout: {0}, mean: {1} stdev: {2}", timeout, mean, stddev);
+          _connection_timeout = TimeSpan.FromMilliseconds( timeout );
+        }
+        else {
+          //Keep the old timeout.  Don't let small number statistics bias us
+        }
+        /*
+         * If we haven't heard from any of these people in this time,
+         * we ping them, and if we don't get a response, we close them
+         */
+        RpcManager rpc = RpcManager.GetInstance(this);
+        foreach(Connection c in _connection_table) {
+          Edge e = c.Edge;
+          if( now - e.LastInPacketDateTime > _connection_timeout ) {
+            
+            EventHandler on_enqueue = delegate(object q, EventArgs eargs) {
+              //We got a response, close the queue, so we stop listening
+              BlockingQueue qu = (BlockingQueue)q;
+              qu.Close();
+            };
+            EventHandler on_close = delegate(object q, EventArgs cargs) {
+              BlockingQueue qu = (BlockingQueue)q;
+              if( qu.Count == 0 ) {
+                /* we never got a response! */
+	        Console.Error.WriteLine("On an edge timeout({1}), closing connection: {0}",
+                                         c, _connection_timeout);
+                e.Close();
+              }
+              else {
+                //We got a response, let's make sure it's not an exception:
+                bool close = false;
+                try {
+                  RpcResult r = (RpcResult)qu.Dequeue();
+                  object o = r.Result; //This will throw an exception if there was a problem
+                  if( !o.Equals( String.Empty ) ) {
+                    //Something is wrong with the other node:
+                    close = true;
+                  }
+                }
+                catch {
+                  close = true;
+                }
+                if( close ) { e.Close(); }
+              }
+            };
+            BlockingQueue tmp_queue = new BlockingQueue();
+            tmp_queue.CloseEvent += on_close;
+            tmp_queue.EnqueueEvent += on_enqueue;
+            //Do the ping
+            rpc.Invoke(e, tmp_queue, "sys:link.Ping", String.Empty);
           }
         }
         foreach(Edge e in _connection_table.GetUnconnectedEdges() ) {
-          if( _last_edge_check - e.LastInPacketDateTime > _EDGE_CLOSE_TIMEOUT ) {
-            edges_to_close.Add(e);
-	      Console.Error.WriteLine("Close an unconnected edge: {0}", e);
+          if( now - e.LastInPacketDateTime > _connection_timeout ) {
+            //We are not so charitable towards unconnected edges,
+            //if we haven't heard from them, just close them:
+	    Console.Error.WriteLine("timeout({1}), Close an unconnected edge: {0}",
+                                    e, _connection_timeout);
+            e.Close();
           }
-        }
-        foreach(Edge e in edges_to_ping) {
-          try {
-            RpcManager rpc = RpcManager.GetInstance(this);
-            //We don't care about the response, just ping it
-            rpc.Invoke(e, null, "sys:link.Ping", String.Empty);
-#if DEBUG
-            Console.Error.WriteLine("Sending ping to: {0}", e);
-#endif
-          }
-          catch(EdgeException) {
-            //This should only happen when the edge is closed.
-            edges_to_close.Add(e);
-          }
-        }
-        foreach(Edge e in edges_to_close) {
-#if DEBUG
-          Console.Error.WriteLine("{1} Timeout Close: {0}", e, Address);
-#endif
-          //This guy is dead, close him down
-          e.Close();
         }
       }
       else {
@@ -735,7 +774,7 @@ namespace Brunet
         }
       }
       catch(Exception x) {
-        Console.Error.WriteLine("Exception in heartbeat: {0}", x.ToString() );
+        Console.Error.WriteLine("Exception in heartbeat: {0}", x);
       }
     }
 
