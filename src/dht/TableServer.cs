@@ -44,18 +44,16 @@ namespace Brunet.Dht {
 
     protected Node _node;
     protected EntryFactory _ef;
-    public TableServer(EntryFactory ef, Node node) {
-      /**
-      * @todo make sure there is a second copy of all data
-      * in the network.  When a neighbor is lost, make sure
-      * the new neighbor is updated with the correct content
-      */
+    private RpcManager _rpc;
+
+    public TableServer(EntryFactory ef, Node node, RpcManager rpc) {
       _sync = new object();
       _node = node;
       _ef = ef;
       _expiring_entries = new ArrayList();
       _ht = new Hashtable();
       _max_idx = 0;
+      _rpc = rpc;
     }
 
     public int GetCount() {
@@ -68,12 +66,10 @@ namespace Brunet.Dht {
           count += entry_list.Count;
         }
       }
-      //Alternatively, we could also have count as number of keys
-      //return _ht.Count; ?????
       return count;
     }
 
-    public void UpdateEntry(ArrayList entry_list, Entry ent, DateTime end_time) {
+    protected void UpdateEntry(ArrayList entry_list, Entry ent, DateTime end_time) {
       entry_list.Remove(ent);
       DeleteFromSorted(ent);
 
@@ -83,14 +79,80 @@ namespace Brunet.Dht {
       InsertToSorted(new_e);
     }
 
+    protected void RemoveEntry(MemBlock key, MemBlock data) {
+      ArrayList entry_list = (ArrayList)_ht[key];
+      foreach(Entry ent in entry_list) {
+        if(ent.Data.Equals(data)) {
+          entry_list.Remove(ent);
+          DeleteFromSorted(ent);
+          ent.Delete();
+          break;
+        }
+      }
+    }
+
     /**
-    * This method puts in a key-value pair.
-    * @param key key associated with the date item
-    * @param ttl time-to-live in seconds
-    * @param data data associated with the key
-    * @return 0 on success, other on failure
+     * This method is called by a Dht client to place data into the Dht
+     * @param key key associated with the date item
+     * @param key key associated with the date item
+     * @param data data associated with the key
+     * @param ttl time-to-live in seconds
+     * @param unique determines whether or not this is a put or a create
+     * @return true on success, thrown exception on failure
     */
-    public bool Put(byte[] key, int ttl, byte[] data) {
+
+    /* First we try locally and then remotely, they should both except if 
+     * failure, so if we get rv == true + exception, we were successful
+     * but remote wasn't, so we remove locally
+     */
+
+    public bool Put(byte[] keyb, byte[] datab, int ttl, bool unique) {
+      MemBlock key = MemBlock.Reference(keyb);
+      MemBlock data = MemBlock.Reference(datab);
+      bool rv = false;
+      try {
+        rv = PutHandler(key, data, ttl, unique);
+        Address key_address = new AHAddress(key);
+        ISender s = null;
+        // We need to forward this to the appropriate node!
+        if(((AHAddress)_node.Address).IsLeftOf((AHAddress) key_address)) {
+          Connection con = _node.ConnectionTable.GetRightStructuredNeighborOf((AHAddress) _node.Address);
+          s = con.Edge;
+        }
+        else {
+          Connection con = _node.ConnectionTable.GetLeftStructuredNeighborOf((AHAddress) _node.Address);
+          s = con.Edge;
+        }
+        BlockingQueue q = new BlockingQueue();
+        _rpc.Invoke(s, q, "dht.PutHandler", key, data, ttl, unique);
+        RpcResult res = (RpcResult) q.Dequeue();
+        rv = (bool) res.Result;
+      }
+      catch (Exception e) {
+        // One of the two failed, if we didn't we need to remove this entry
+        if(rv) {
+          RemoveEntry(key, data);
+        }
+        throw e;
+      }
+      return rv;
+    }
+
+    /**
+     * This method puts in a key-value pair at this node
+     * @param key key associated with the date item
+     * @param data data associated with the key
+     * @param ttl time-to-live in seconds
+     * @return true on success, thrown exception on failure
+     */
+
+    public bool PutHandler(byte[] keyb, byte[] datab, int ttl, bool unique) {
+      MemBlock key = MemBlock.Reference(keyb);
+      MemBlock data = MemBlock.Reference(datab);
+/*      return PutHandler(key, data, ttl, unique);
+    }
+
+    public bool PutHandler(MemBlock key, MemBlock data, int ttl, bool unique) {*/
       DateTime create_time = DateTime.UtcNow;
       TimeSpan ts = new TimeSpan(0,0,ttl);
       DateTime end_time = create_time + ts;
@@ -98,86 +160,36 @@ namespace Brunet.Dht {
 
       lock(_sync) {
         DeleteExpired();
-        MemBlock ht_key = MemBlock.Reference(key, 0, key.Length);
-        entry_list = (ArrayList)_ht[ht_key];
+        entry_list = (ArrayList)_ht[key];
         if( entry_list != null ) {
           key = ((Entry)entry_list[0]).Key;
-          ht_key = MemBlock.Reference(key, 0, key.Length);
-        }
-        else {
-          //This is a new key:
-          entry_list = new ArrayList();
-          _ht[ht_key] = entry_list;
-        }
-        _max_idx++; //Increment the maximum index
-
-        foreach(Entry ent in entry_list) {
-          MemBlock arg_data = MemBlock.Reference(data, 0, data.Length);
-          MemBlock e_data = MemBlock.Reference(ent.Data, 0, ent.Data.Length);
-          // This a different Put
-          if(e_data.Equals(arg_data)) {
-            if(end_time > ent.EndTime) {
-              UpdateEntry(entry_list, ent, end_time);
+          foreach(Entry ent in entry_list) {
+            if(ent.Data.Equals(data)) {
+              if(end_time > ent.EndTime) {
+                UpdateEntry(entry_list, ent, end_time);
+              }
+              return true;
             }
-            return true;
+          }
+          // If this is a create we didn't find an previous entry, so failure, else add it
+          if(unique) {
+            throw new Exception("ENTRY_ALREADY_EXISTS");
           }
         }
+        else {
+          //This is a new key
+          entry_list = new ArrayList();
+          _ht[key] = entry_list;
+        }
 
-        //Look up
+        // This is either a new key or a new value (put only)
+        _max_idx++;
+        // Create a new entry
         Entry e = _ef.CreateEntry(key, create_time, end_time, data, _max_idx);
 
         entry_list.Add(e);
         InsertToSorted(e);
       } // end of lock
-      return true;
-    }
-
-    /**
-    * This method differs from put() in the key is already mapped
-    * we fail. (now this is idempotent). 
-    * @param key key associated with the date item
-    * @param ttl time-to-live in seconds
-    * @param data data associated with the key
-    * @return true on success, false on failure
-    */
-
-    public bool Create(byte[] key, int ttl, byte[] data) {
-      DateTime create_time = DateTime.UtcNow;
-      TimeSpan ts = new TimeSpan(0,0,ttl);
-      DateTime end_time = create_time + ts;
-
-      lock(_sync) {
-        DeleteExpired();
-        MemBlock ht_key = MemBlock.Reference(key, 0, key.Length);
-        ArrayList entry_list = (ArrayList)_ht[ht_key];
-        if( entry_list != null ) {
-          Entry to_renew = null;
-          // We check all in case someone did a put on top of a create
-          // this for recreates and idempotent creates
-          MemBlock arg_data = MemBlock.Reference(data, 0, data.Length);
-          foreach(Entry e in entry_list) {
-            MemBlock e_data = MemBlock.Reference(e.Data, 0, e.Data.Length);
-            if (!e_data.Equals(arg_data)) {
-              throw new Exception("ENTRY_ALREADY_EXISTS");
-            }
-            to_renew = e;
-            break;
-          }
-          if (end_time  > to_renew.EndTime) {
-            UpdateEntry(entry_list, to_renew, end_time);
-          }
-        }
-        else {
-          //This is a new key, just a regular Create()
-          entry_list = new ArrayList();
-          _ht[ht_key] = entry_list;
-
-          _max_idx++; //Increment the maximum index
-          Entry e = _ef.CreateEntry(key, create_time, end_time, data, _max_idx);
-          entry_list.Add(e);
-          InsertToSorted(e);
-        }
-      }//end of lock
       return true;
     }
 
@@ -189,7 +201,8 @@ namespace Brunet.Dht {
     * @return IList of results
     */
 
-    public IList Get(byte[] key, int maxbytes, byte[] token) {
+    public IList Get(byte[] keyb, int maxbytes, byte[] token) {
+      MemBlock key = MemBlock.Reference(keyb);
       int seen_start_idx = -1;
       int seen_end_idx = -1;
       if( token != null ) {
@@ -207,9 +220,7 @@ namespace Brunet.Dht {
 
       lock(_sync ) {
         DeleteExpired();
-
-        MemBlock ht_key = MemBlock.Reference(key, 0, key.Length);
-        ArrayList entry_list = (ArrayList)_ht[ht_key];
+        ArrayList entry_list = (ArrayList)_ht[key];
 
         int seen = 0;
         // Keys exist!
@@ -264,14 +275,14 @@ namespace Brunet.Dht {
       int del_count = 0;
       DateTime now = DateTime.UtcNow;
       foreach(Entry e in _expiring_entries) {
-        DateTime end_time = e.EndTime; 
+        DateTime end_time = e.EndTime;
         // These should be sorted so we will break once we find an end_time greater than now
         if (end_time > now) {
           break;
         }
+        Console.WriteLine("Do we ever get here?");
         // Expired entry, must delete it
-        MemBlock key = MemBlock.Reference(e.Key, 0, e.Key.Length);
-        ArrayList entry_list = (ArrayList) _ht[key];
+        ArrayList entry_list = (ArrayList) _ht[e.Key];
         if (entry_list == null) {
           Console.Error.WriteLine("Fatal error missing key during DeleteExpired()");
           continue;
@@ -279,7 +290,7 @@ namespace Brunet.Dht {
         entry_list.Remove(e);
         e.Delete();
         if (entry_list.Count == 0) {
-          _ht.Remove(key);
+          _ht.Remove(e.Key);
         }
         del_count++;
       }
@@ -309,9 +320,9 @@ namespace Brunet.Dht {
 
     /** Not RPC related methods. */
     /** Invoked by local DHT object. */
-    public ArrayList GetValues(MemBlock ht_key) {
+    public ArrayList GetValues(MemBlock key) {
       lock(_sync) {
-        ArrayList entry_list = (ArrayList)_ht[ht_key];
+        ArrayList entry_list = (ArrayList)_ht[key];
         return entry_list;
       }
     }

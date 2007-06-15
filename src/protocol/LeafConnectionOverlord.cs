@@ -183,11 +183,7 @@ namespace Brunet
         //Get a random address to connect to:
 
 	//Make a copy:
-        TransportAddress[] tas;
-        lock( _local.RemoteTAs.SyncRoot ) {
-          tas = new TransportAddress[ _local.RemoteTAs.Count ];
-	  _local.RemoteTAs.CopyTo( tas );
-	}
+        object[] tas = _local.RemoteTAs.ToArray();
         /*
 	 * Make a randomized list of TransportAddress objects to connect to:
 	 * This is a very nice algorithm.  It is optimal in that it produces
@@ -198,7 +194,7 @@ namespace Brunet
           //Swap the j^th position with this position:
           int i = _rnd.Next(j, tas.Length);
 	  if( i != j ) {
-            TransportAddress temp_ta = tas[i];
+            object temp_ta = tas[i];
 	    tas[i] = tas[j];
 	    tas[j] = temp_ta;
 	  }

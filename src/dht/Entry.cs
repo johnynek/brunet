@@ -4,11 +4,11 @@ using System.IO;
 namespace Brunet.Dht {
 
   public class Entry {
-    protected byte[] _key;
-    public byte[] Key { get { return _key; } }
+    protected MemBlock _key;
+    public MemBlock Key { get { return _key; } }
 
-    protected byte[] _data;
-    public virtual byte[] Data { get { return _data; } }
+    protected MemBlock _data;
+    public virtual MemBlock Data { get { return _data; } }
 
     protected DateTime _create_time;
     public DateTime CreatedTime { get { return _create_time; } }
@@ -26,8 +26,8 @@ namespace Brunet.Dht {
     */
     protected int _idx;
 
-    public Entry(byte[] key, DateTime create_time, DateTime end_time, 
-                 byte[] data, int idx) {
+    public Entry(MemBlock key, DateTime create_time, DateTime end_time, 
+                 MemBlock data, int idx) {
       _key = key;
       _index = idx;
       _data = data;
@@ -40,9 +40,9 @@ namespace Brunet.Dht {
 
     protected string _file;
 
-    public override byte[] Data {
+    public override MemBlock Data {
       get {
-        byte[] data = null;
+        MemBlock data = null;
         using (BinaryReader br = new BinaryReader(File.Open(_file, FileMode.Open))) {
           data = br.ReadBytes(_MAX_DATA);
           br.Close();
@@ -51,7 +51,7 @@ namespace Brunet.Dht {
       }
     }
 
-    public string GenerateDirectory(string base_path, byte[] key, int index) {
+    public string GenerateDirectory(string base_path, MemBlock key, int index) {
       string[] l = new string[5];
       for (int j = 0; j < 4; j++) {
         l[j] = string.Empty;
@@ -73,12 +73,12 @@ namespace Brunet.Dht {
       return Path.Combine(path, index.ToString());
     }
 
-    public DiskEntry(string base_dir, byte[] key, DateTime create_time,
-                      DateTime end_time, byte[] data, int idx) :
+    public DiskEntry(string base_dir, MemBlock key, DateTime create_time,
+                      DateTime end_time, MemBlock data, int idx) :
                     base(key, create_time, end_time, null, idx) {
       _file = GenerateDirectory(base_dir, key, idx);
       using (BinaryWriter bw = new BinaryWriter(File.Open(_file, FileMode.Create))) {
-        bw.Write(data);
+        bw.Write((byte[]) data);
         bw.Flush();
         bw.Close();
       }

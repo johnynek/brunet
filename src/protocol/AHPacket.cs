@@ -345,7 +345,7 @@ namespace Brunet
        * This mode assumes the Greedy routing mode for structured addresses
        */
       public static readonly ushort Last = 1;
-      /*
+      /**
        * This mode assumes the Annealing routing mode for structured addresses
        */
       public static readonly ushort Path = 2;
