@@ -72,8 +72,16 @@ public class ReqrepManager : IDataHandler {
     _req_state_table = new Hashtable();
     _rep_handler_table = new Hashtable();
     _replies = new ArrayList();
+    /*
+     * Here we set the timeout mechanisms.  There is a default
+     * value, but this is now dynamic based on the observed
+     * RTT of the network
+     */
     //resend the request after 5 seconds.
     _reqtimeout = new TimeSpan(0,0,0,0,5000);
+    _exp_moving_rtt = _reqtimeout.TotalMilliseconds;
+    _exp_moving_square_rtt = _exp_moving_rtt * _exp_moving_rtt;
+    _max_rtt = 0.0;
     //Hold on to a reply for 50 seconds.
     ///@todo, we should also make sure to keep a maximum number of replies
     _reptimeout = new TimeSpan(0,0,0,0,50000);
@@ -134,7 +142,7 @@ public class ReqrepManager : IDataHandler {
     */
    protected class RequestState {
      public RequestState() {
-       Timeouts = 6;
+       Timeouts = _MAX_RESENDS;
        _send_count = 0;
        _repliers = new ArrayList();
      }
@@ -163,7 +171,11 @@ public class ReqrepManager : IDataHandler {
      //number of times request has been sent out
      public int SendCount { get { return _send_count; } }
    }
-   //This is also the return_path when we announce
+   /**
+    * When a request comes in, we give this reply state
+    * to any handler of the data.  When they do a Send on
+    * it, we will send the reply
+    */
    public class ReplyState : ISender {
      protected int _req_id;
      public int RequestID { get { return _req_id; } }
@@ -216,8 +228,8 @@ public class ReqrepManager : IDataHandler {
 
    protected volatile bool _is_active;
 
-   protected object _sync;
-   protected Random _rand;
+   protected readonly object _sync;
+   protected readonly Random _rand;
    protected Hashtable _req_state_table;
    protected ArrayList _replies;
    protected Hashtable _rep_handler_table;
@@ -226,8 +238,54 @@ public class ReqrepManager : IDataHandler {
    protected TimeSpan _reqtimeout;
    //This is to keep track of when we looked for timeouts last
    protected DateTime _last_check;
-   // Methods /////
+  
+   //When a message times out, how many times should
+   //we resend before giving up
+   protected const int _MAX_RESENDS = 5;
 
+   /**
+    * If f = _exp_factor we use:
+    * a[t+1] = f a[t] + (1-f) a'
+    * to update moving averages.  We need: 0 < f < 1
+    * When f = 0, we change instantaneously: a[t+1] = a'
+    * When f = 1, we never change: a[t+1] = a[t]
+    */
+   protected const double _exp_factor = 0.9;
+   protected double _exp_moving_rtt;
+   protected double _exp_moving_square_rtt;
+   protected double _max_rtt;
+   //How many standard deviations to wait:
+   protected const int _STD_DEVS = 5;
+
+   // Methods /////
+   /**
+    * When we observe a RTT, we record it here and
+    * update the request timeout.
+    */
+   protected void AddRttStat(TimeSpan rtt) {
+     double ms_rtt = rtt.TotalMilliseconds;
+     if( ms_rtt > _max_rtt ) { _max_rtt = ms_rtt; }
+     double ms_rtt2 = ms_rtt * ms_rtt;
+     _exp_moving_rtt = _exp_factor * (_exp_moving_rtt - ms_rtt) + ms_rtt;
+     _exp_moving_square_rtt = _exp_factor * (_exp_moving_square_rtt - ms_rtt2) + ms_rtt2;
+     /*
+      * Now we can compute the std_dev:
+      */
+     double sd2 =  _exp_moving_square_rtt - _exp_moving_rtt * _exp_moving_rtt;
+     double std_dev;
+     if( sd2 > 0 ) {
+       std_dev = Math.Sqrt( sd2 );
+     }
+     else {
+       std_dev = 0.0;
+     }
+     double timeout = _exp_moving_rtt + _STD_DEVS * std_dev;
+//     Console.WriteLine("mean: {0}, std-dev: {1}, max: {2}, timeout: {3}", _exp_moving_rtt, std_dev, _max_rtt, timeout);
+     /*
+      * Here's the new timeout:
+      */
+     _reqtimeout = TimeSpan.FromMilliseconds( timeout );
+   }
    /**
     * This is either a request or response.  Look up the handler
     * for it, and pass the packet to the handler
@@ -308,6 +366,11 @@ public class ReqrepManager : IDataHandler {
      lock( _sync ) {
        reqs = (RequestState)_req_state_table[idnum];
        if( (reqs != null) && (false == reqs.Repliers.Contains(ret_path)) ) {
+         /*
+          * Let's look at how long it took to get this reply:
+          */
+         TimeSpan rtt = DateTime.UtcNow - reqs.ReqDate;
+         AddRttStat(rtt);
          MemBlock payload;
          PType pt = PType.Parse(rest, out payload);
          Statistics statistics = new Statistics();
@@ -436,8 +499,8 @@ public class ReqrepManager : IDataHandler {
     DateTime now = DateTime.UtcNow;
     if( now - _last_check > _reqtimeout ) {
       //Here is a list of all the handlers for the requests that timed out
-      ArrayList timeout_hands = new ArrayList();
-      ArrayList to_resend = new ArrayList();
+      ArrayList timeout_hands = null;
+      ArrayList to_resend = null;
       lock( _sync ) {
         _last_check = now;
         IDictionaryEnumerator reqe = _req_state_table.GetEnumerator();
@@ -448,28 +511,35 @@ public class ReqrepManager : IDataHandler {
             if( reqs.Timeouts >= 0 ) {
               if( reqs.RequestType != ReqrepType.LossyRequest ) {
                 ///@todo improve the logic of resending to be less wasteful
+                if( to_resend == null ) { to_resend = new ArrayList(); }
                 to_resend.Add( reqs );
               }
             }
             else {
               //We have timed out.
+              if( timeout_hands == null ) { timeout_hands = new ArrayList(); }
               timeout_hands.Add( reqs ); 
             }
           }
         }
         //Clean up the req_state_table:
-        foreach(RequestState reqs in timeout_hands) {
-          _req_state_table.Remove( reqs.RequestID );
+        if( timeout_hands != null ) {
+          foreach(RequestState reqs in timeout_hands) {
+            _req_state_table.Remove( reqs.RequestID );
+          }
         }
         //Look for any Replies it might be time to clean:
-        ArrayList timedout_replies = new ArrayList();
+        ArrayList timedout_replies = null;
         foreach(ReplyState reps in _replies) {
           if( now - reps.RepDate > _reptimeout ) {
+            if( timedout_replies == null ) { timedout_replies = new ArrayList(); }
             timedout_replies.Add( reps );
           }
         }
-        foreach(ReplyState reps in timedout_replies) {
-          _replies.Remove(reps);
+        if( timedout_replies != null ) {
+          foreach(ReplyState reps in timedout_replies) {
+            _replies.Remove(reps);
+          }
         }
       }
       /*
@@ -479,7 +549,8 @@ public class ReqrepManager : IDataHandler {
        *
        * We have released the lock, now we can send the packets:
        */
-      foreach(RequestState req in to_resend) {
+      if ( to_resend != null ) {
+       foreach(RequestState req in to_resend) {
         try {
           req.Send();
         }
@@ -490,14 +561,17 @@ public class ReqrepManager : IDataHandler {
                                        null, req.UserState);
 
         }
+       }
       }
       /*
        * Once we have released the lock, tell the handlers
        * about the timeout that have occured
        */
-      foreach(RequestState reqs in timeout_hands) {
+      if( timeout_hands != null ) {
+       foreach(RequestState reqs in timeout_hands) {
         reqs.ReplyHandler.HandleError(this, reqs.RequestID, ReqrepError.Timeout,
                                       null, reqs.UserState);
+       }
       }
     }
   }
