@@ -107,7 +107,7 @@ public class Cache {
     if( e != null ) {
       //This item is already in the cache, remove it from the list:
       e.Value = val;
-      Remove(e);
+      RemoveFromList(e);
     }
     else {
       /*
@@ -137,6 +137,13 @@ public class Cache {
     PushBack(e);
   }
 
+  /**
+   * @return true if the Cache has an entry for this key
+   */
+  public bool Contains(object key) {
+    return _ht.Contains(key);
+  }
+
   public void Clear() {
     _ht.Clear();
     _head = null;
@@ -149,7 +156,7 @@ public class Cache {
     if( e != null ) {
       if( e != _tail ) {
         //Make it the tail
-        Remove(e);
+        RemoveFromList(e);
         PushBack(e);
       }
       return e.Value;
@@ -163,7 +170,7 @@ public class Cache {
   protected Entry Pop() {
     Entry ret_val = _head;
     if( _head != null ) {
-      Remove(_head);
+      RemoveFromList(_head);
     }
     return ret_val;
   }
@@ -182,7 +189,7 @@ public class Cache {
     _tail = e;
   }
 
-  protected void Remove(Entry e) {
+  protected void RemoveFromList(Entry e) {
     _current_size--;
     Entry prev = e.Previous;
     Entry next = e.Next;
@@ -198,6 +205,23 @@ public class Cache {
     if( _tail == e ) {
       _tail = prev;
     }
+  }
+
+  /**
+   * Removes an item from the Cache.
+   * This *does not* trigger a EvictionEvent,
+   * @param key the key for the entry being remove
+   * @return the value associated with that key.
+   */
+  public object Remove(object key) {
+    Entry e = (Entry)_ht[key];
+    object ret_val = null;
+    if( e != null ) {
+      ret_val = e.Value;
+      _ht.Remove(key);
+      RemoveFromList(e);
+    }
+    return ret_val;
   }
 }
 
@@ -245,6 +269,7 @@ public class CacheTest {
       c[i] = v;
       int exp_size = Math.Min(i+1, MAX_SIZE);
       Assert.AreEqual(c.Count, exp_size, "Size check");
+      Assert.AreEqual(ht[i], c[i], "equivalence check");
       //Keep the zero'th element in the cache:
       object v_0 = c[0];
       Assert.IsNotNull(v_0, "0th element still in the cache");
@@ -256,7 +281,8 @@ public class CacheTest {
       int key = (int)ide.Key;
       int val = (int)ide.Value;
       object c_val = c[key];
-      if( c_val == null ) {
+      if( !c.Contains(key) ) {
+        Assert.IsNull(c_val, "Evicted entry is null");
         c_val = ht_evicted[key];
         Assert.AreEqual(c_val, val, "Evicted lookup");
       }
@@ -265,7 +291,12 @@ public class CacheTest {
         Assert.AreEqual(c_val, val, "Cache lookup");
       }
     }
-
+    //Let's remove from the Cache and see if that worked:
+    int s0 = c.Count;
+    object rv = c.Remove(0);
+    Assert.AreEqual( rv, ht[0], "Removed value matches");
+    Assert.IsNull(c[0], "Remove really removed");
+    Assert.AreEqual( s0 - 1, c.Count, "Removed decreased size");
 
   }
 
