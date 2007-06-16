@@ -110,20 +110,28 @@ public class Cache {
       Remove(e);
     }
     else {
-      //This is a totally new entry:
-      e = new Entry();
+      /*
+       * If we are evicting something from the Cache,
+       * we can reuse the Entry so we don't have to
+       * allocate a new object and garbage collect the
+       * old one.
+       */
+      if( _current_size >= _max_size ) {
+        //Remove the oldest item, and we'll reuse the entry
+        e = Pop();
+	_ht.Remove(e.Key);
+	//Let someone know there has been an eviction
+        if( EvictionEvent != null ) {
+          EvictionEvent(this, new EvictionArgs(e.Key, e.Value));
+	}
+      }
+      else {
+        //There is no eviction, so we need to make a new entry:
+        e = new Entry();
+      }
       e.Key = key;
       e.Value = val;
       _ht[key] = e;
-      if( _current_size >= _max_size ) {
-        //Remove the oldest item:
-        Entry to_evict = Pop();
-	_ht.Remove(to_evict.Key);
-	//Let someone know there has been an eviction
-        if( EvictionEvent != null ) {
-          EvictionEvent(this, new EvictionArgs(to_evict.Key, to_evict.Value));
-	}
-      }
     }
     //Now put it as the last entry in the list:
     PushBack(e);
