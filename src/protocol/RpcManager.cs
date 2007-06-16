@@ -112,6 +112,7 @@ public class RpcManager : IReplyHandler, IDataHandler {
     _method_cache = new Cache(CACHE_SIZE);
 
 #if DAVID_ASYNC_INVOKE
+    Node.DepartureEvent += this.RpcCommandStop;
     _rpc_thread = new Thread(RpcCommandRun);
     _rpc_thread.Start();
 #endif
@@ -471,8 +472,16 @@ public class RpcManager : IReplyHandler, IDataHandler {
         Object[] param_list = (Object[]) data[3];
         this.RpcMethodInvoke(ret_path, mi, handler, param_list);
       }
-      catch (Exception e) {Console.WriteLine(e);}// Toss it away
+      catch (Exception) {
+        if(_rpc_command.Closed) {
+          break;
+        }
+      }// else continue
     }
+  }
+
+  protected void RpcCommandStop(Object o, EventArgs args) {
+    this._rpc_command.Close();
   }
 #endif
 }
