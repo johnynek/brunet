@@ -29,8 +29,6 @@ namespace Brunet {
         RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.udp://localhost:" + (base_port + i)));
       }
 
-      Console.WriteLine(RemoteTA.Count);
-
       Random rand = new Random();
       for(int i = 0; i < network_size; i++) {
         AHAddress address = new AHAddress(new RNGCryptoServiceProvider());
@@ -49,7 +47,6 @@ namespace Brunet {
         node.AddEdgeListener(new UdpEdgeListener(base_port + i, null, ta_auth));
         node.AddEdgeListener(new TunnelEdgeListener(node));
         node.RemoteTAs = RemoteTA;
-        Console.WriteLine(node.RemoteTAs.Count);
         node.Connect();
         nodes.Add((Address) address, node);
       }
@@ -117,7 +114,10 @@ namespace Brunet {
           }
 
           Address left_addr = ((Node)nodes[next_addr]).ConnectionTable.GetLeftStructuredNeighborOf((AHAddress) next_addr).Address;
-          if(!curr_addr.Equals(left_addr)) {
+          if(left_addr == null) {
+            Console.WriteLine("Found disconnection.");
+          }
+          else if(!curr_addr.Equals(left_addr)) {
             Console.WriteLine(curr_addr + " != " + left_addr);
             Console.WriteLine("Left had edge, but right has no record of it!");
             break;

@@ -666,7 +666,12 @@ namespace Brunet
       //[local id 4 bytes][remote id 4 bytes][packet]
       NumberSerializer.WriteInt(sender.ID, buffer, 0);
       NumberSerializer.WriteInt(sender.RemoteID, buffer, 4);
-      p.CopyTo(buffer, 8);
+      try {
+        p.CopyTo(buffer, 8);
+      }
+      catch {Console.WriteLine("p = " + (p == null));
+        Console.WriteLine("buffer = " + (buffer == null));
+      }
 	      
       try {	//catching SocketException
         s.SendTo(buffer, 0, 8 + p.Length, SocketFlags.None, e);

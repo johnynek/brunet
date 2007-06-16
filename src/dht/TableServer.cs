@@ -149,10 +149,7 @@ namespace Brunet.Dht {
     public bool PutHandler(byte[] keyb, byte[] datab, int ttl, bool unique) {
       MemBlock key = MemBlock.Reference(keyb);
       MemBlock data = MemBlock.Reference(datab);
-/*      return PutHandler(key, data, ttl, unique);
-    }
 
-    public bool PutHandler(MemBlock key, MemBlock data, int ttl, bool unique) {*/
       DateTime create_time = DateTime.UtcNow;
       TimeSpan ts = new TimeSpan(0,0,ttl);
       DateTime end_time = create_time + ts;
@@ -202,6 +199,7 @@ namespace Brunet.Dht {
     */
 
     public IList Get(byte[] keyb, int maxbytes, byte[] token) {
+//      Console.WriteLine("here0");
       MemBlock key = MemBlock.Reference(keyb);
       int seen_start_idx = -1;
       int seen_end_idx = -1;
@@ -263,6 +261,7 @@ namespace Brunet.Dht {
       result.Add(values);
       result.Add(remaining_items);
       result.Add(next_token);
+//      Console.WriteLine("here1");
       return result;
     }
 
@@ -280,7 +279,7 @@ namespace Brunet.Dht {
         if (end_time > now) {
           break;
         }
-        Console.WriteLine("Do we ever get here?");
+//        Console.WriteLine("Do we ever get here?");
         // Expired entry, must delete it
         ArrayList entry_list = (ArrayList) _ht[e.Key];
         if (entry_list == null) {
@@ -333,6 +332,10 @@ namespace Brunet.Dht {
     *  
     */
     public Hashtable GetKeysToLeft(AHAddress us, AHAddress within) {
+      if(us == null)
+        Console.WriteLine("us went null");
+      if(within == null)
+        Console.WriteLine("within went null");
       lock(_sync) {
         Hashtable key_list = new Hashtable();
         foreach (MemBlock key in _ht.Keys) {
@@ -354,6 +357,10 @@ namespace Brunet.Dht {
     */
 
     public Hashtable GetKeysToRight(AHAddress us, AHAddress within) {
+      if(us == null)
+        Console.WriteLine("rus went null");
+      if(within == null)
+        Console.WriteLine("rwithin went null");
       lock(_sync) {
         Hashtable key_list = new Hashtable();
         foreach (MemBlock key in _ht.Keys) {

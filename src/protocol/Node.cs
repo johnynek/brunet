@@ -249,7 +249,7 @@ namespace Brunet
      */
     public string Realm { get { return _realm; } }
     
-    protected ArrayList _remote_ta;
+    protected volatile ArrayList _remote_ta;
     /**
      * These are all the remote TransportAddress objects that
      * this Node may use to connect to remote Nodes
@@ -558,19 +558,23 @@ namespace Brunet
       //Our peer's local is them
       TransportAddress remote_ta =
             ce_args.Connection.PeerLinkMessage.Local.FirstTA;
-      lock( _sync ) {
-        foreach(EdgeListener el in _edgelistener_list) {
-          //Update our local list:
-          el.UpdateLocalTAs(edge, reported_ta);
-          el.UpdateRemoteTAs( _remote_ta, edge, remote_ta);
-        }
-        int count = _remote_ta.Count;
-        if( count > _MAX_RECORDED_TAS ) {
-          int rm_count = count - _MAX_RECORDED_TAS;
-          _remote_ta.RemoveRange(_MAX_RECORDED_TAS, rm_count);
-        }
-
+      /*
+       * Make a copy so that _remote_ta never changes while
+       * someone is using it
+       */
+      ArrayList new_remote_ta = new ArrayList();
+      new_remote_ta.AddRange( _remote_ta );
+      foreach(EdgeListener el in _edgelistener_list) {
+        //Update our local list:
+        el.UpdateLocalTAs(edge, reported_ta);
+        el.UpdateRemoteTAs( new_remote_ta, edge, remote_ta);
       }
+      int count = new_remote_ta.Count;
+      if( count > _MAX_RECORDED_TAS ) {
+        int rm_count = count - _MAX_RECORDED_TAS;
+        new_remote_ta.RemoveRange(_MAX_RECORDED_TAS, rm_count);
+      }
+      _remote_ta = ArrayList.ReadOnly( new_remote_ta );
     }
     /**
      * Return a NodeInfo object for this node containing
