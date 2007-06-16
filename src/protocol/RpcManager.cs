@@ -98,8 +98,8 @@ public class RpcManager : IReplyHandler, IDataHandler {
   protected const int CACHE_SIZE = 128;
 
 #if DAVID_ASYNC_INVOKE
-  BlockingQueue _rpc_command = new BlockingQueue();
-  Thread _rpc_thread;
+  protected BlockingQueue _rpc_command;
+  protected Thread _rpc_thread;
 #endif
 
   protected RpcManager(ReqrepManager rrm) {
@@ -112,6 +112,7 @@ public class RpcManager : IReplyHandler, IDataHandler {
     _method_cache = new Cache(CACHE_SIZE);
 
 #if DAVID_ASYNC_INVOKE
+    _rpc_command = new BlockingQueue();
     Node.DepartureEvent += this.RpcCommandStop;
     _rpc_thread = new Thread(RpcCommandRun);
     _rpc_thread.Start();
