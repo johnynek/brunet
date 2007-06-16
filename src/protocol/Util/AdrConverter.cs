@@ -619,34 +619,10 @@ public class AdrConverter {
     return equals;
   }
   public bool IListEquals(IList l1, IList l2) {
-    bool equals = true;
-    bool end_1 = false;
-    bool end_2 = false;
-    //We don't know how long this thing is unfortunately
-    int i = 0;
-    try {
-      for(i=0; i < Int32.MaxValue; i++) {
-        equals &= AdrEquals(l1[i], l2[i]); 
-        if( !equals ) { break; }
-      }
+    bool equals = (l1.Count == l2.Count);
+    for(int i = 0; i < l1.Count; i++) {
+      equals &= AdrEquals(l1[i], l2[i]);
     }
-    catch(ArgumentOutOfRangeException) { }
-    object o1 = null, o2 = null;
-    try { //This should throw an exception:
-      o1 = l1[i];
-    }
-    catch(ArgumentOutOfRangeException) { end_1 = true; }
-    try { //This should throw an exception:
-      o2 = l2[i];
-    }
-    catch(ArgumentOutOfRangeException) { end_2 = true; }
-    if( o2 != null ) {
-      equals &= o2.Equals(o1);
-    }
-    else {
-      equals &= (o1 == null);
-    }
-    equals &= end_1 && end_2;
     return equals;
   }
   public bool DictEquals(IDictionary d1, IDictionary d2) {
@@ -670,20 +646,13 @@ public class AdrConverter {
       //If both were null, we would have already returned true
       return false;
     }
-    Type t1 = o1.GetType();
-    Type t2 = o2.GetType();
-    bool equals = t1.Equals( t2 );
     if( o1 is MemBlock ) {
       return o1.Equals(o2);
     }
     else if( o2 is MemBlock ) {
       return o2.Equals(o1);
     }
-    else if( equals ) {
-      if( t1.IsArray ) {
-        return ArrayEquals((Array)o1,(Array)o2);
-      }
-      else if(o1 is IList) {
+    else if(o1 is IList) {
         return IListEquals((IList)o1,(IList)o2);
       }
       else if(o1 is IDictionary) {
@@ -697,25 +666,9 @@ public class AdrConverter {
         //AdrExceptions are looser on what they consider equality
         return o2.Equals(o1);
       }
-      else {
+    else {
         return o1.Equals(o2) && o2.Equals(o1);
-      }
     }
-    else if( (o1 is Exception) || (o2 is Exception) ) {
-      //The types don't match in this case
-      if( o1 is AdrException ) {
-        //AdrExceptions are looser on what they consider equality
-        return o1.Equals(o2);
-      }
-      else if( o2 is AdrException ) {
-        //AdrExceptions are looser on what they consider equality
-        return o2.Equals(o1);
-      }
-      else {
-        return o1.Equals(o2) && o2.Equals(o1);
-      }
-    }
-    return equals;
   }
   protected void AssertSD(object o, string message)
   {
@@ -797,6 +750,8 @@ public class AdrConverter {
     AssertSD((ulong)(424242424242), "ulong");
     AssertSD(new AdrException(42, "something bad"), "exception");
     AssertSD(new Exception("standard exception"), "std. exception");
+    AssertSD(new object[0], "zero length object array");
+    AssertSD(new object[]{"string", (int)42, null}, "length 3 object array");
     try {
       //Stack traces are set by throw
       throw new AdrException(0,"test with Stack");

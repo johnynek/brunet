@@ -198,14 +198,12 @@ public class RpcManager : IReplyHandler, IDataHandler {
 			  int mid, PType prot, MemBlock payload, ISender ret_path,
 			  ReqrepManager.Statistics statistics, object state)
   {
-    object data = AdrConverter.Deserialize(payload);
     RpcRequestState rs = (RpcRequestState) state;
     BlockingQueue bq = rs.result_queue;
     if( bq != null ) {
-      if (!bq.Closed) {
-        RpcResult res = new RpcResult(ret_path, data, statistics);
-        bq.Enqueue(res);
-      }
+      object data = AdrConverter.Deserialize(payload);
+      RpcResult res = new RpcResult(ret_path, data, statistics);
+      bq.Enqueue(res);
       //Keep listening unless the queue is closed
       return (!bq.Closed);
     }
@@ -385,14 +383,15 @@ public class RpcManager : IReplyHandler, IDataHandler {
     RpcRequestState rs = new RpcRequestState();
     rs.result_queue = q;
 
-    ArrayList arglist = new ArrayList();
+    object[] rpc_call = new object[2];
+    rpc_call[0] = method;
     if( args != null ) {
-      arglist.AddRange(args);
+      rpc_call[1] = args;
     }
-    //foreach(object o in arglist) { Console.Error.WriteLine("arg: {0}",o); } 
-    ArrayList rpc_call = new ArrayList();
-    rpc_call.Add(method);
-    rpc_call.Add(arglist);
+    else {
+      //There are no args, which we represent as a zero length list
+      rpc_call[1] = new object[0];
+    }
     
     MemoryStream ms = new MemoryStream();
     AdrConverter.Serialize(rpc_call, ms);
@@ -402,7 +401,15 @@ public class RpcManager : IReplyHandler, IDataHandler {
                      _rrman.Node.Address, method, target);
 #endif
     ICopyable rrpayload = new CopyList( PType.Protocol.Rpc, MemBlock.Reference(ms.ToArray()) ); 
-    _rrman.SendRequest(target, ReqrepManager.ReqrepType.Request, rrpayload, this, rs);
+    int reqid = _rrman.SendRequest(target, ReqrepManager.ReqrepType.Request,
+                                   rrpayload, this, rs);
+  
+    //Make sure we stop this request when the queue is closed.
+    if( q != null ) {
+      q.CloseEvent += delegate(object qu, EventArgs eargs) {
+        _rrman.StopRequest(reqid, this);
+      };
+    }
   }
   
   protected void RpcMethodInvoke(ISender ret_path, MethodInfo mi, Object handler, 
