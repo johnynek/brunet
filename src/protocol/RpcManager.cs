@@ -374,7 +374,8 @@ public class RpcManager : IReplyHandler, IDataHandler {
    * @param q the BlockingQueue into which the RpcResult objects will be placed.
    *            q may be null if you don't care about the response.
    * @param method the Rpc method to call
-   * 
+   *
+   * @throw Exception if we cannot send the request for some reason.
    */
   public void Invoke(ISender target, BlockingQueue q, string method,
                               params object[] args)
