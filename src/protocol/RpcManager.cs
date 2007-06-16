@@ -19,11 +19,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 //#define RPC_DEBUG
-#define USE_ASYNC_INVOKE
+//#define USE_ASYNC_INVOKE
+#define DAVID_ASYNC_INVOKE
 using System;
 using System.IO;
 using System.Collections;
 using System.Reflection;
+using System.Threading;
 
 namespace Brunet {
 
@@ -94,7 +96,12 @@ public class RpcManager : IReplyHandler, IDataHandler {
   ///Holds a cache of method string names to MethodInfo
   protected readonly Cache _method_cache;
   protected const int CACHE_SIZE = 128;
-        
+
+#if DAVID_ASYNC_INVOKE
+  BlockingQueue _rpc_command = new BlockingQueue();
+  Thread _rpc_thread;
+#endif
+
   protected RpcManager(ReqrepManager rrm) {
 
     _method_handlers = new Hashtable();
@@ -103,6 +110,11 @@ public class RpcManager : IReplyHandler, IDataHandler {
     Node = rrm.Node;
     _rrman = rrm;
     _method_cache = new Cache(CACHE_SIZE);
+
+#if DAVID_ASYNC_INVOKE
+    _rpc_thread = new Thread(RpcCommandRun);
+    _rpc_thread.Start();
+#endif
   }
   /** static hashtable to keep track of RpcManager objects. */
   protected static Hashtable _rpc_table = new Hashtable();
@@ -278,6 +290,13 @@ public class RpcManager : IReplyHandler, IDataHandler {
 			   new AsyncCallback(RpcMethodFinish),
 			   inv_dlgt);
       //we have setup an asynchronous invoke here
+#elif DAVID_ASYNC_INVOKE
+      object[] odata = new object[4];
+      odata[0] = ret_path;
+      odata[1] = mi;
+      odata[2] = handler;
+      odata[3] = pa.ToArray();
+      _rpc_command.Enqueue(odata);
 #else
       /*
        * Invoke the method synchronously, it is not clear which is 
@@ -440,5 +459,21 @@ public class RpcManager : IReplyHandler, IDataHandler {
   protected delegate void RpcMethodInvokeDelegate(ISender return_path, MethodInfo mi, 
 						  Object handler, 
 						  Object[] param_list);
+
+#if DAVID_ASYNC_INVOKE
+  protected void RpcCommandRun() {
+    while(true) {
+      try {
+        object[] data = (object[]) _rpc_command.Dequeue();
+        ISender ret_path = (ISender) data[0];
+        MethodInfo mi = (MethodInfo) data[1];
+        Object handler = (Object) data[2];
+        Object[] param_list = (Object[]) data[3];
+        this.RpcMethodInvoke(ret_path, mi, handler, param_list);
+      }
+      catch (Exception e) {Console.WriteLine(e);}// Toss it away
+    }
+  }
+#endif
 }
 }

@@ -206,7 +206,7 @@ namespace Brunet.Dht {
       lock(adgs) {
         for (int k = 0; k < DEGREE; k++) {
           BlockingQueue queue = q[k];
-          queue.EnqueueEvent += new EventHandler(GetHandler);
+          queue.EnqueueEvent += this.GetHandler;
           adgs.queueMapping[queue] = k;
         }
       }
@@ -227,7 +227,6 @@ namespace Brunet.Dht {
 
     public void GetHandler(Object o, EventArgs args) {
       BlockingQueue queue = (BlockingQueue) o;
-
       // Looking up state
       AsDhtGetState adgs = (AsDhtGetState) _adgs_table[queue];
 
@@ -272,22 +271,19 @@ namespace Brunet.Dht {
           lock(adgs.results) {
             o_count = adgs.results[mbVal];
             if(o_count != null) {
-              count = (int) o_count;
+              count = (int) o_count + 1;
             }
             adgs.results[mbVal] = count;
           }
           if(count == MAJORITY) {
             adgs.returns.Enqueue(new DhtGetResult(ht));
           }
-    //      Console.WriteLine(idx + ":::" + count);
         }
       }
-      catch (Exception e) {
-    //    Console.WriteLine(e);
+      catch (Exception) {
         sendto = null;
         token = null;
       }
-
       // Time to remove this from mappings, could have done this earlier, I guess
       lock(adgs.queueMapping) {
         adgs.queueMapping.Remove(queue);
@@ -295,7 +291,7 @@ namespace Brunet.Dht {
       lock(_adgs_table) {
         _adgs_table.Remove(queue);
       }
-      queue.EnqueueEvent -= new EventHandler(GetHandler);
+      queue.EnqueueEvent -= this.GetHandler;
       queue.Close();
 
       // We were notified that more results were available!  Let's go get them!
@@ -307,7 +303,7 @@ namespace Brunet.Dht {
         lock(_adgs_table) {
           _adgs_table[queue] = adgs;
         }
-        queue.EnqueueEvent += new EventHandler(GetHandler);
+        queue.EnqueueEvent += this.GetHandler;
         _rpc.Invoke(sendto, queue, "dht.Get", 
                     adgs.brunet_address_for_key[idx], MAX_BYTES, token);
       }
@@ -329,18 +325,17 @@ namespace Brunet.Dht {
             }
           }
         }
-
         // If we got to leave early, we must clean up
         if(got_all_values) {
-          lock(adgs.queueMapping) {
-            foreach(DictionaryEntry de in adgs.queueMapping) {
-              BlockingQueue q = (BlockingQueue) de.Key;
-              q.EnqueueEvent -= this.GetHandler;
-              q.Close();
-              adgs.queueMapping.Remove(q);
-              lock(_adgs_table) {
-                _adgs_table.Remove(q);
-              }
+          foreach(DictionaryEntry de in adgs.queueMapping) {
+            BlockingQueue q = (BlockingQueue) de.Key;
+            q.EnqueueEvent -= this.GetHandler;
+            q.Close();
+            lock(adgs.queueMapping) {
+              adgs.queueMapping.Remove(queue);
+            }
+            lock(_adgs_table) {
+              _adgs_table.Remove(queue);
             }
           }
           adgs.returns.Close();
