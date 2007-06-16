@@ -38,7 +38,7 @@ namespace Brunet {
  * @todo it would be nice to have a disk based cache that was
  * a subclass of cache, and the ability to chain memory and disk caches together
  */
-public class Cache {
+public class Cache : IEnumerable {
 
   protected Hashtable _ht;
   protected Entry _head;
@@ -166,6 +166,25 @@ public class Cache {
     }
   }
  
+  /**
+   * Support for enumerating all values in the cache
+   * This returns an Enumerator of DictionaryEntry objects
+   * This goes in order from most recently used to least
+   * recently used.
+   *
+   * It is safe to Remove keys while iterating, it won't
+   * invalidate the IEnumerator.
+   */
+  public IEnumerator GetEnumerator() {
+    Entry next = _tail;
+    while( next != null ) {
+      object key = next.Key;
+      object val = next.Value;
+      next = next.Previous;
+      yield return new DictionaryEntry(key,val);
+    }
+  }
+
   //Remove the first element from the list:
   protected Entry Pop() {
     Entry ret_val = _head;
