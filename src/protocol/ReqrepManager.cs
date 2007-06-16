@@ -71,7 +71,15 @@ public class ReqrepManager : IDataHandler {
     _req_handler_table = new Hashtable();
     _req_state_table = new Hashtable();
     _rep_handler_table = new Hashtable();
-    _replies = new ArrayList();
+    
+    //Hold on to a reply for 50 seconds.
+    _reptimeout = new TimeSpan(0,0,0,0,50000);
+    /**
+     * We keep a list of the most recent 1000 replies until they
+     * get too old.  If the reply gets older than reptimeout, we
+     * remove it
+     */
+    _reply_cache = new Cache(1000);
     /*
      * Here we set the timeout mechanisms.  There is a default
      * value, but this is now dynamic based on the observed
@@ -82,9 +90,6 @@ public class ReqrepManager : IDataHandler {
     _exp_moving_rtt = _reqtimeout.TotalMilliseconds;
     _exp_moving_square_rtt = _exp_moving_rtt * _exp_moving_rtt;
     _max_rtt = 0.0;
-    //Hold on to a reply for 50 seconds.
-    ///@todo, we should also make sure to keep a maximum number of replies
-    _reptimeout = new TimeSpan(0,0,0,0,50000);
     _last_check = DateTime.UtcNow;
 
     _node.ArrivalEvent += delegate(object n, EventArgs args) { 
@@ -177,19 +182,18 @@ public class ReqrepManager : IDataHandler {
     * it, we will send the reply
     */
    public class ReplyState : ISender {
-     protected int _req_id;
-     public int RequestID { get { return _req_id; } }
+     public int RequestID { get { return RequestKey.RequestID; } }
      protected ICopyable Reply;
      protected DateTime _rep_date;
      public DateTime RepDate { get { return _rep_date; } }
-     protected ISender _ret_path;
-     public ISender ReturnPath { get { return _ret_path; } }
-
+     public readonly DateTime RequestDate;
+     public ISender ReturnPath { get { return RequestKey.Sender; } }
+     public readonly RequestKey RequestKey;
      protected volatile bool have_sent = false;
 
-     public ReplyState(ISender ret_path, int reqid) {
-       _ret_path = ret_path;
-       _req_id = reqid;
+     public ReplyState(RequestKey rk) {
+       RequestKey = rk;
+       RequestDate = DateTime.UtcNow;
      }
 
      public void Send(ICopyable data) {
@@ -211,13 +215,40 @@ public class ReqrepManager : IDataHandler {
           */
        }
      }
+     /**
+      * Resend if we already have the reply,
+      * if we don't have the reply yet, do nothing.
+      */
      public void Resend() {
-       _rep_date = DateTime.UtcNow;
-       try {
-         ReturnPath.Send( Reply );
+       if( Reply != null ) {
+         _rep_date = DateTime.UtcNow;
+         try {
+           ReturnPath.Send( Reply );
+         }
+         catch { /* If this doesn't work, oh well */ }
        }
-       catch {
-         //If this doesn't work, oh well
+     }
+   }
+   /**
+    * We use these to lookup requests in the reply
+    * cache
+    */
+   public class RequestKey {
+     public readonly int RequestID;
+     public readonly ISender Sender;
+     public RequestKey(int id, ISender s) {
+       RequestID = id;
+       Sender = s;
+     }
+     public override int GetHashCode() { return RequestID; }
+     public override bool Equals(object o) {
+       if( o == this ) { return true; }
+       RequestKey rk = o as RequestKey;
+       if( rk != null ) {
+         return (( rk.RequestID == this.RequestID) && rk.Sender.Equals( this.Sender ) );
+       }
+       else {
+         return false;
        }
      }
    }
@@ -231,7 +262,7 @@ public class ReqrepManager : IDataHandler {
    protected readonly object _sync;
    protected readonly Random _rand;
    protected Hashtable _req_state_table;
-   protected ArrayList _replies;
+   protected Cache _reply_cache;
    protected Hashtable _rep_handler_table;
    protected Hashtable _req_handler_table;
    protected TimeSpan _reptimeout;
@@ -332,23 +363,17 @@ public class ReqrepManager : IDataHandler {
 			     _node.Address, idnum, retpath);
 #endif
      lock( _sync ) {
-       foreach(ReplyState repstate in _replies) {
-	 if( repstate.RequestID == idnum ) {
-           ///@todo be more careful to check that the return path is
-           ///equivalent
-
-	   //This is old news
-	   rs = repstate;
-           resend = true;
-	   break;
-	 }
-       }
+       RequestKey rk = new RequestKey(idnum, retpath);
+       rs = (ReplyState)_reply_cache[rk];
        if( rs == null ) {
 	 //Looks like we need to handle this request
 	 //Make a new ReplyState:
-	 rs = new ReplyState(retpath, idnum);
+	 rs = new ReplyState(rk);
 	 //Add the new reply state before we drop the lock
-	 _replies.Add(rs);
+         _reply_cache[rk] = rs;
+       }
+       else {
+         resend = true;
        }
      }
      if( resend ) {
@@ -490,6 +515,23 @@ public class ReqrepManager : IDataHandler {
       throw new Exception("Couldn't start request");
     }
   }
+
+  /**
+   * Abandon any attempts to get requests for the given ID.
+   * @throw Exception if handler is not the original handler for this Request
+   */
+  public void StopRequest(int request_id, IReplyHandler handler) {
+    lock( _sync ) {
+      RequestState rs = (RequestState)_req_state_table[request_id];
+      if( rs != null ) {
+        if( rs.ReplyHandler != handler ) {
+          throw new Exception( String.Format("Handler mismatch: {0} != {1}",
+                                             handler, rs.ReplyHandler));
+        }
+        _req_state_table.Remove( request_id );
+      } 
+    }
+  }
   /**
    * This method listens for the HeartBeatEvent from the
    * node and checks for timeouts.
@@ -529,16 +571,10 @@ public class ReqrepManager : IDataHandler {
           }
         }
         //Look for any Replies it might be time to clean:
-        ArrayList timedout_replies = null;
-        foreach(ReplyState reps in _replies) {
-          if( now - reps.RepDate > _reptimeout ) {
-            if( timedout_replies == null ) { timedout_replies = new ArrayList(); }
-            timedout_replies.Add( reps );
-          }
-        }
-        if( timedout_replies != null ) {
-          foreach(ReplyState reps in timedout_replies) {
-            _replies.Remove(reps);
+        foreach(DictionaryEntry de in _reply_cache) {
+          ReplyState reps = (ReplyState)de.Value;
+          if( now - reps.RequestDate > _reptimeout ) {
+            _reply_cache.Remove( de.Key );
           }
         }
       }
