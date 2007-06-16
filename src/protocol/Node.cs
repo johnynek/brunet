@@ -312,6 +312,8 @@ namespace Brunet
 
     ///If we don't hear anything from a *CONNECTION* in this time, ping it.
     protected TimeSpan _connection_timeout;
+    //Give edges 60 seconds to get connected, then drop them
+    protected static readonly TimeSpan _unconnected_timeout = new TimeSpan(0,0,0,60,0);
     /**
      * Maximum number of TAs we keep in both for local and remote.
      * This does not control how many we send to our neighbors.
@@ -637,7 +639,7 @@ namespace Brunet
        */
       _connection_table.Disconnect(e);
       
-      Hashtable close_info = new Hashtable();
+      Hashtable close_info = new Hashtable(1);
       string reason = message;
       if( reason != String.Empty ) {
         close_info["reason"] = reason;
@@ -649,12 +651,15 @@ namespace Brunet
         results.Close();
       };
       EventHandler close_eh = delegate(object o, EventArgs args) {
-        if( !e.IsClosed ) { e.Close(); }
+        e.Close(); 
       };
       results.EnqueueEvent += en_eh;
       results.CloseEvent += close_eh;
       RpcManager rpc = RpcManager.GetInstance(this);
-      rpc.Invoke(e, results, "sys:link.Close", close_info);
+      try {
+        rpc.Invoke(e, results, "sys:link.Close", close_info);
+      }
+      catch { e.Close(); }
     }
 
     /**
@@ -716,6 +721,7 @@ namespace Brunet
               BlockingQueue qu = (BlockingQueue)q;
               qu.Close();
             };
+            object ping_arg = String.Empty;
             EventHandler on_close = delegate(object q, EventArgs cargs) {
               BlockingQueue qu = (BlockingQueue)q;
               if( qu.Count == 0 ) {
@@ -730,7 +736,7 @@ namespace Brunet
                 try {
                   RpcResult r = (RpcResult)qu.Dequeue();
                   object o = r.Result; //This will throw an exception if there was a problem
-                  if( !o.Equals( String.Empty ) ) {
+                  if( !o.Equals( ping_arg ) ) {
                     //Something is wrong with the other node:
                     close = true;
                   }
@@ -745,15 +751,17 @@ namespace Brunet
             tmp_queue.CloseEvent += on_close;
             tmp_queue.EnqueueEvent += on_enqueue;
             //Do the ping
-            rpc.Invoke(e, tmp_queue, "sys:link.Ping", String.Empty);
+            try {
+              rpc.Invoke(e, tmp_queue, "sys:link.Ping", ping_arg);
+            }
+            catch { e.Close(); }
           }
         }
         foreach(Edge e in _connection_table.GetUnconnectedEdges() ) {
-          if( now - e.LastInPacketDateTime > _connection_timeout ) {
+          if( now - e.LastInPacketDateTime > _unconnected_timeout ) {
             //We are not so charitable towards unconnected edges,
             //if we haven't heard from them, just close them:
-	    Console.Error.WriteLine("timeout({1}), Close an unconnected edge: {0}",
-                                    e, _connection_timeout);
+	    Console.Error.WriteLine("Close an unconnected edge: {0}", e);
             e.Close();
           }
         }
