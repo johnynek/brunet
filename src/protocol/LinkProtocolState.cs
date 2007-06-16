@@ -264,6 +264,12 @@ namespace Brunet
         Console.Error.WriteLine("LPS: from {0} target mismatch: {1}", _e, _target_lock);
         result = Result.MoveToNextTA;
       }
+      else if ( c == (int)ErrorMessage.ErrorCode.ConnectToSelf ) {
+        /*
+         * Somehow we connected to ourself, this TA is no good.
+         */
+        result = Result.MoveToNextTA;
+      }
       else {
         Console.Error.WriteLine("Unrecognized error code: {0}", c);
       }

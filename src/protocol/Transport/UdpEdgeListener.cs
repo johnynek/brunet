@@ -188,7 +188,7 @@ namespace Brunet
         //This edge has some control information.
         try {
 	  ControlCode code = (ControlCode)NumberSerializer.ReadInt(buffer, 0);
-          System.Console.Error.WriteLine("Got control from: {0}", e);
+          System.Console.Error.WriteLine("Got control {1} from: {0}", e, code);
 	  if( code == ControlCode.EdgeClosed ) {
             //The edge has been closed on the other side
 	    e.Close();
@@ -523,7 +523,7 @@ namespace Brunet
 
         try {	//catching SocketException
           s.SendTo( ms.ToArray(), end);
-          System.Console.Error.WriteLine("Sending control to: {0}", end);
+          System.Console.Error.WriteLine("Sending control {1} to: {0}", end, c);
         }
         catch (SocketException sc) {
           Console.Error.WriteLine(
