@@ -17,6 +17,10 @@ namespace Brunet.Dht {
     private Media _media;
     private string _dir_path;
 
+    public void CleanUp(Object o, EventArgs args) {
+      this.CleanUp();
+    }
+
     private void CleanUp() {
       if (_media == Media.Disk) {
         if(Directory.Exists(_dir_path)) {
@@ -31,19 +35,13 @@ namespace Brunet.Dht {
         _dir_path = Path.Combine("data", _node.Address.ToString().Substring(12));
         CleanUp();
         Directory.CreateDirectory(_dir_path);
+        _node.DepartureEvent += this.CleanUp;
       }
     }
 
     private EntryFactory(Node node, Media m) {
       _node = node;
       SetMedia(m);
-    }
-
-    /**
-     * Make sure we don't leave any junk directories around
-     */
-    ~EntryFactory() {
-      CleanUp();
     }
 
     public static EntryFactory GetInstance(Node node, Media media) {

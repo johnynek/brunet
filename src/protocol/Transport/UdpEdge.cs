@@ -135,6 +135,7 @@ namespace Brunet
       if( _is_closed ) {
         throw new EdgeException("Tried to send on a closed socket"); 
       }
+
       _send_cb.HandleEdgeSend(this, p);
       _last_out_packet_datetime = DateTime.UtcNow;
 #if UDP_DEBUG

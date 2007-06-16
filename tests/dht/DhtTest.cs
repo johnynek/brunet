@@ -11,7 +11,7 @@ namespace Brunet.Dht {
   public class DhtOpTester {
      SortedList nodes = new SortedList();
     Dht []dhts;
-    static readonly int degree = 3;
+    static readonly int degree = 1;
     static readonly int network_size = 20;
     static readonly string brunet_namespace = "testing";
     static readonly int base_port = 55123;
@@ -264,7 +264,7 @@ namespace Brunet.Dht {
         node.AddEdgeListener(new UdpEdgeListener(base_port + i));
         node.RemoteTAs = RemoteTA;
         node.Connect();
-        dhts[i] = new Dht(node, EntryFactory.Media.Memory, degree);
+        dhts[i] = new Dht(node, EntryFactory.Media.Disk, degree);
       }
     }
 
@@ -326,9 +326,11 @@ namespace Brunet.Dht {
     }
 
     public void Shutdown() {
-      foreach(Node node in nodes) {
+      foreach(DictionaryEntry de in nodes) {
+        Node node = (Node) de.Value;
         node.Disconnect();
       }
+      Thread.Sleep(10);
     }
 
     public void SystemTest() {
