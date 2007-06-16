@@ -73,14 +73,16 @@ namespace Brunet {
             break;
           }
 
-          Address left_addr = ((Node)nodes[next_addr]).ConnectionTable.GetRightStructuredNeighborOf((AHAddress) next_addr).Address;
+          Connection lc = ((Node)nodes[next_addr]).ConnectionTable.GetRightStructuredNeighborOf((AHAddress) next_addr);
+          Address left_addr = lc.Address;
           if(!curr_addr.Equals(left_addr)) {
             Console.WriteLine(curr_addr + " != " + left_addr);
-            Console.WriteLine("Right had edge, but left has no record of it!");
+            Console.WriteLine("Right had edge, but left has no record of it!\n{0} != {1}", con, lc);
             break;
           }
           else if(next_addr.Equals(start_addr) && i != network_size -1) {
-            Console.WriteLine("Completed circle too early.  Only " + count + " nodes in the ring.");
+            Console.WriteLine("Completed circle too early.  Only {0} nodes in the ring.",
+                              (i + 1));
             break;
           }
           curr_addr = next_addr;
