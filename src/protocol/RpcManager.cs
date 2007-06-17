@@ -19,7 +19,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 //#define RPC_DEBUG
-//#define USE_ASYNC_INVOKE
 #define DAVID_ASYNC_INVOKE
 using System;
 using System.IO;
@@ -29,6 +28,24 @@ using System.Threading;
 
 namespace Brunet {
 
+/**
+ * In some cases, you might want to do an asynchronous RPC invocation,
+ * the simple interface (which uses .Net reflection) cannot easily support
+ * this without using the threadpool.
+ */
+public interface IRpcHandler {
+
+  /**
+   * When you're done with the method call use:
+   * RpcManager.SendResult(request_state, result);
+   * @param caller the ISender that sends to the Node that made the RPC call
+   * @param method the part after the first "." in the method call
+   * @param arguments a list of arguments passed
+   * @param request_state used to send the response via RpcManager.SendResult
+   */
+  void HandleRpc(ISender caller, string method, IList arguments, object request_state);
+
+}
 
 /**
  * This class holds Rpc results and the packet that carried them.
@@ -85,31 +102,115 @@ public class RpcManager : IReplyHandler, IDataHandler {
     public BlockingQueue result_queue;
   }
  
-  //Here are the methods that don't want the return_path
-  protected Hashtable _method_handlers;
-  //Here are the methods that *DO* want the return_path
-  protected Hashtable _method_handlers_sender;
-  
   protected object _sync;
   protected ReqrepManager _rrman;
   public readonly Node Node;
   ///Holds a cache of method string names to MethodInfo
   protected readonly Cache _method_cache;
   protected const int CACHE_SIZE = 128;
+  
+  //Here are the methods that don't want the return_path
+  protected Hashtable _method_handlers;
 
 #if DAVID_ASYNC_INVOKE
   protected BlockingQueue _rpc_command;
   protected Thread _rpc_thread;
 #endif
 
+  /**
+   * This is the "standard" RpcHandler for a set of objects.
+   */
+  protected class ReflectionRpcHandler : IRpcHandler {
+    protected readonly RpcManager _rpc;
+    protected readonly object _handler;
+    protected readonly Type _type;
+    protected readonly Cache _method_cache;
+    protected readonly object _sync;
+    protected bool _use_sender;
+
+    public ReflectionRpcHandler(RpcManager rpc, object handler, bool use_sender) {
+      _rpc = rpc;
+      _handler = handler;
+      _type = _handler.GetType();
+      _use_sender = use_sender;
+      _sync = new object();
+      //Cache the 10 most used methods:
+      _method_cache = new Cache(10);
+    }
+
+    public void HandleRpc(ISender caller, string methname, IList arguments, object request_state) {
+      MethodInfo mi = null;
+      /*
+       * Lookup this method name in our table.
+       * This uses a cache, so it should be fast
+       * after the first time
+       */
+      lock( _sync ) {
+        mi = (MethodInfo) _method_cache[methname];
+        if( mi == null ) {
+          mi = _type.GetMethod(methname);
+          _method_cache[ methname ] = mi;
+        }
+      }
+      
+      if( _use_sender ) {
+        arguments = new ArrayList(arguments);
+        arguments.Add( caller );
+      }
+      object[] arg_array = new object[ arguments.Count ];
+      arguments.CopyTo(arg_array, 0);
+      //Console.Error.WriteLine("About to call: {0}.{1} with args",handler, mname);
+      //foreach(object arg in pa) { Console.Error.WriteLine("arg: {0}",arg); }
+      //make the following happen asynchronously in a separate thread
+      //build an invocation record for the call
+      Object result = null;
+      try {
+  #if RPC_DEBUG
+        Console.Error.WriteLine("[RpcServer: {0}] Invoking method: {1}", _rpc.Node.Address, mi);
+  #endif
+        result = mi.Invoke(_handler, arg_array);
+      } catch(ArgumentException argx) {
+  #if RPC_DEBUG
+        Console.Error.WriteLine("[RpcServer: {0}] Argument exception. {1}", _rpc.Node.Address, mi);
+  #endif
+        result = new AdrException(-32602, argx);
+      }
+      catch(TargetParameterCountException argx) {
+  #if RPC_DEBUG
+        Console.Error.WriteLine("[RpcServer: {0}] Parameter count exception. {1}", _rpc.Node.Address, mi);
+  #endif
+        result = new AdrException(-32602, argx);
+      }
+      catch(TargetInvocationException x) {
+  #if RPC_DEBUG
+        Console.Error.WriteLine("[RpcServer: {0}] Exception thrown by method: {1}, {2}", _rpc.Node.Address, mi, x.InnerException.Message);
+  #endif
+        if( x.InnerException is AdrException ) {
+          result = x.InnerException;
+        }
+        else {
+          result = new AdrException(-32608, x.InnerException);
+        }
+      }
+      catch(Exception x) {
+  #if RPC_DEBUG
+        Console.Error.WriteLine("[RpcServer: {0}] General exception. {1}", _rrman.Node.Address, mi);
+  #endif
+        result = x;
+      }
+      finally {
+        _rpc.SendResult(request_state, result);
+      }
+    }
+  }
+
   protected RpcManager(ReqrepManager rrm) {
 
-    _method_handlers = new Hashtable();
-    _method_handlers_sender = new Hashtable();
     _sync = new Object();
     Node = rrm.Node;
     _rrman = rrm;
     _method_cache = new Cache(CACHE_SIZE);
+    _method_handlers = new Hashtable();
 
 #if DAVID_ASYNC_INVOKE
     _rpc_command = new BlockingQueue();
@@ -142,14 +243,23 @@ public class RpcManager : IReplyHandler, IDataHandler {
    * When a method is called with "name.meth"
    * we look up the object with name "name"
    * and invoke the method "meth".
-   * @param handler the object to handle the RPC calls
-   * @param name the name exposed for this object.  RPC calls to "name."
+   * @param handler the object to handle the RPC calls, if
+   *        this is not an IRpcHandler, then method calls are looked up
+   *        using .Net reflection: anything after the first "." will be
+   *        used to look up the method.  If this is an IRpcHandler, the
+   *        Handle method will be called when 
+   * @param name_space the name exposed for this object. 
+   *        RPC calls to "<name_space>.<method>"
    * come to this object.
    */
-  public void AddHandler(string name, object handler)
+  public void AddHandler(string name_space, object handler)
   {
     lock( _sync ) {
-      _method_handlers.Add(name, handler);
+      IRpcHandler h = handler as IRpcHandler;
+      if( h == null ) {
+        h = new ReflectionRpcHandler(this, handler, false);
+      }
+      _method_handlers.Add(name_space, h);
       _method_cache.Clear();
     }
   }
@@ -176,17 +286,8 @@ public class RpcManager : IReplyHandler, IDataHandler {
   public void AddHandlerWithSender(string name, object handler)
   {
     lock( _sync ) {
-      _method_handlers_sender.Add(name, handler);
-      _method_cache.Clear();
-    }
-  }
-  /**
-   * Allows to unregister existing handlers.
-   */
-  public void RemoveHandlerWithSender(string name)
-  {
-    lock( _sync ) {
-      _method_handlers_sender.Remove(name);
+      IRpcHandler h = new ReflectionRpcHandler(this, handler, true);
+      _method_handlers.Add(name, h);
       _method_cache.Clear();
     }
   }
@@ -239,63 +340,43 @@ public class RpcManager : IReplyHandler, IDataHandler {
                      _rrman.Node.Address, methname);
 #endif
       
-      object handler = null;
-      MethodInfo mi = null;
-      bool add_sender = false;
       /*
        * Lookup this method name in our table.
        * This uses a cache, so it should be fast
        * after the first time
        */
+      IRpcHandler handler = null;
+      string mname = null;
       lock( _sync ) {
         object[] info = (object[]) _method_cache[methname];
         if( info == null ) {
           string[] parts = methname.Split('.');
           string hname = parts[0];
-          string mname = parts[1];
+          mname = parts[1];
           
-          handler = _method_handlers[ hname ];
+          handler = (IRpcHandler)_method_handlers[ hname ];
           if( handler == null ) {
-            handler = _method_handlers_sender[ hname ];
-            if( handler != null ) {
-              add_sender = true;
-            }
-            else {
-              //No handler for this.
-              throw new AdrException(-32601, "No Handler for method: " + methname);
-            }
+            //No handler for this.
+            throw new AdrException(-32601, "No Handler for method: " + methname);
           }
-          mi = handler.GetType().GetMethod(mname);
-          info = new object[]{ mi, handler, add_sender };
+          info = new object[2];
+          info[0] = handler;
+          info[1] = mname;
           _method_cache[ methname ] = info;
-        } else {
-          //We already have looked these up:
-          mi = (MethodInfo)info[0];
-          handler = info[1];
-          add_sender = (bool)info[2];
+        }
+        else {
+          handler = (IRpcHandler)info[0];
+          mname = (string)info[1];
         }
       }
       
       ArrayList pa = (ArrayList)l[1];
-      if( add_sender ) {
-        pa.Add( ret_path );
-      }
-      //Console.Error.WriteLine("About to call: {0}.{1} with args",handler, mname);
-      //foreach(object arg in pa) { Console.Error.WriteLine("arg: {0}",arg); }
-      //make the following happen asynchronously in a separate thread
-      //build an invocation record for the call
-#if USE_ASYNC_INVOKE
-      RpcMethodInvokeDelegate inv_dlgt = this.RpcMethodInvoke;
-      inv_dlgt.BeginInvoke(ret_path, mi, handler, pa.ToArray(), 
-			   new AsyncCallback(RpcMethodFinish),
-			   inv_dlgt);
-      //we have setup an asynchronous invoke here
-#elif DAVID_ASYNC_INVOKE
+#if DAVID_ASYNC_INVOKE
       object[] odata = new object[4];
-      odata[0] = ret_path;
-      odata[1] = mi;
-      odata[2] = handler;
-      odata[3] = pa.ToArray();
+      odata[0] = handler;
+      odata[1] = ret_path;
+      odata[2] = mname;
+      odata[3] = pa;
       _rpc_command.Enqueue(odata);
 #else
       /*
@@ -303,7 +384,7 @@ public class RpcManager : IReplyHandler, IDataHandler {
        * better.  Async uses the threadpool, which can lead to performance
        * issues.
        */
-      RpcMethodInvoke(ret_path, mi, handler, pa.ToArray()); 
+      handler.HandleRpc(ret_path, mname, pa, ret_path);
 #endif
     }
     catch(ArgumentException argx) {
@@ -413,79 +494,26 @@ public class RpcManager : IReplyHandler, IDataHandler {
     }
   }
   
-  protected void RpcMethodInvoke(ISender ret_path, MethodInfo mi, Object handler, 
-				 Object[] param_list) {
-    Object result = null;
-    try {
-#if RPC_DEBUG
-      Console.Error.WriteLine("[RpcServer: {0}] Invoking method: {1}", _rrman.Node.Address, mi);
-#endif
-      result = mi.Invoke(handler, param_list);
-    } catch(ArgumentException argx) {
-#if RPC_DEBUG
-      Console.Error.WriteLine("[RpcServer: {0}] Argument exception. {1}", _rrman.Node.Address, mi);
-#endif
-      result = new AdrException(-32602, argx);
-    }
-    catch(TargetParameterCountException argx) {
-#if RPC_DEBUG
-      Console.Error.WriteLine("[RpcServer: {0}] Parameter count exception. {1}", _rrman.Node.Address, mi);
-#endif
-      result = new AdrException(-32602, argx);
-    }
-    catch(TargetInvocationException x) {
-#if RPC_DEBUG
-      Console.Error.WriteLine("[RpcServer: {0}] Exception thrown by method: {1}, {2}", _rrman.Node.Address, mi, x.InnerException.Message);
-#endif
-      if( x.InnerException is AdrException ) {
-        result = x.InnerException;
-      }
-      else {
-        result = new AdrException(-32608, x.InnerException);
-      }
-    }
-    catch(Exception x) {
-#if RPC_DEBUG
-      Console.Error.WriteLine("[RpcServer: {0}] General exception. {1}", _rrman.Node.Address, mi);
-#endif
-      result = x;
-    }
-    finally {
-      MemoryStream ms = new MemoryStream();
-      AdrConverter.Serialize(result, ms);
-      ret_path.Send( new CopyList( PType.Protocol.Rpc, MemBlock.Reference( ms.ToArray() ) ) );
-    }
-  }
-  
-  protected void RpcMethodFinish(IAsyncResult ar) {
-    RpcMethodInvokeDelegate  dlgt = (RpcMethodInvokeDelegate) ar.AsyncState;
-    //call EndInvoke to do cleanup
-    //ideally no exception should be thrown, since the delegate catches everything
-    dlgt.EndInvoke(ar);
-  }
-  
-  /** We need to do the method invocation in a thread from the thrread pool. 
-   */
-  protected delegate void RpcMethodInvokeDelegate(ISender return_path, MethodInfo mi, 
-						  Object handler, 
-						  Object[] param_list);
-
 #if DAVID_ASYNC_INVOKE
   protected void RpcCommandRun() {
-    while(true) {
+    bool run = true;
+    while(run) {
       try {
         object[] data = (object[]) _rpc_command.Dequeue();
-        ISender ret_path = (ISender) data[0];
-        MethodInfo mi = (MethodInfo) data[1];
-        Object handler = (Object) data[2];
-        Object[] param_list = (Object[]) data[3];
-        this.RpcMethodInvoke(ret_path, mi, handler, param_list);
+        IRpcHandler handler = (IRpcHandler) data[0];
+        ISender ret_path = (ISender) data[1];
+        string methname = (string) data[2];
+        IList param_list = (IList) data[3];
+        handler.HandleRpc(ret_path, methname, param_list, ret_path);
       }
-      catch (Exception) {
+      catch (Exception x) {
         if(_rpc_command.Closed) {
-          break;
+          run = false;
         }
-      }// else continue
+        else {
+          Console.Error.WriteLine("Exception in RpcCommandRun: {0}", x);
+        }
+      }
     }
   }
 
@@ -493,5 +521,16 @@ public class RpcManager : IReplyHandler, IDataHandler {
     this._rpc_command.Close();
   }
 #endif
+  /**
+   * This is used to send a result from an IRpcHandler
+   * @param request_state this is passed to the IRpcHandler
+   * @param result the result of the RPC call
+   */
+  public void SendResult(object request_state, object result) {
+    ISender ret_path = (ISender)request_state;
+    MemoryStream ms = new MemoryStream();
+    AdrConverter.Serialize(result, ms);
+    ret_path.Send( new CopyList( PType.Protocol.Rpc, MemBlock.Reference( ms.ToArray() ) ) );
+  }
 }
 }
