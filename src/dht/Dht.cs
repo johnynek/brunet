@@ -327,8 +327,15 @@ namespace Brunet.Dht {
         }
         // If we got to leave early, we must clean up
         if(got_all_values) {
-          foreach(DictionaryEntry de in adgs.queueMapping) {
-            BlockingQueue q = (BlockingQueue) de.Key;
+          BlockingQueue [] queues = new BlockingQueue[adgs.queueMapping.Count];
+          lock(adgs.queueMapping) {
+            int i = 0;
+            foreach(DictionaryEntry de in adgs.queueMapping) {
+              queues[i++] = (BlockingQueue) de.Key;
+            }
+          }
+          for(int i = 0; i < queues.Length; i++) {
+            BlockingQueue q = queues[i];
             q.EnqueueEvent -= this.GetHandler;
             q.Close();
             lock(adgs.queueMapping) {
@@ -424,6 +431,7 @@ namespace Brunet.Dht {
      * timeout after 5 minutes though!
      */
     public void PutHandler(Object o, EventArgs args) {
+//      Console.WriteLine(o.GetHashCode());
       BlockingQueue queue = (BlockingQueue) o;
 
       // Get our mapping
@@ -455,7 +463,7 @@ namespace Brunet.Dht {
         RpcResult rpcResult = (RpcResult) queue.Dequeue(0, out timedout);
         result = (bool) rpcResult.Result;
       }
-      catch (Exception) {}
+      catch (Exception) {;}
       if(result) {
         // Once we get pcount to a majority, we ship off the result
         lock(adps.pcount) {
