@@ -327,8 +327,15 @@ namespace Brunet.Dht {
         }
         // If we got to leave early, we must clean up
         if(got_all_values) {
-          foreach(DictionaryEntry de in adgs.queueMapping) {
-            BlockingQueue q = (BlockingQueue) de.Key;
+          BlockingQueue [] queues = new BlockingQueue[adgs.queueMapping.Count];
+          lock(adgs.queueMapping) {
+            int i = 0;
+            foreach(DictionaryEntry de in adgs.queueMapping) {
+              queues[i++] = (BlockingQueue) de.Key;
+            }
+          }
+          for(int i = 0; i < queues.Length; i++) {
+            BlockingQueue q = queues[i];
             q.EnqueueEvent -= this.GetHandler;
             q.Close();
             lock(adgs.queueMapping) {

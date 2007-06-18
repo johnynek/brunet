@@ -264,7 +264,7 @@ namespace Brunet.Dht {
         node.AddEdgeListener(new UdpEdgeListener(base_port + i));
         node.RemoteTAs = RemoteTA;
         node.Connect();
-        dhts[i] = new Dht(node, EntryFactory.Media.Memory, degree);
+        dhts[i] = new Dht(node, EntryFactory.Media.Disk, degree);
       }
     }
 
