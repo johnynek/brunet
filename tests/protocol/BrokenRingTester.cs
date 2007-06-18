@@ -90,7 +90,7 @@ namespace Brunet {
         count++;
         if(start_addr.Equals(curr_addr)) {
           Console.WriteLine("Ring properly formed!");
-          Console.WriteLine("This only took .... " + (count * 5) + " seconds");
+          Console.WriteLine("This only took .... {0} seconds", (count * 5));
           break;
         }
       }
@@ -133,12 +133,13 @@ namespace Brunet {
         count++;
         if(start_addr.Equals(curr_addr)) {
           Console.WriteLine("Ring properly formed!");
-          Console.WriteLine("This only took .... " + (count * 5) + " seconds");
+          Console.WriteLine("This only took .... {0} seconds", (count * 5));
           break;
         }
       }
 
-      foreach(Node node in nodes) {
+      foreach(DictionaryEntry de in nodes) {
+        Node node = (Node)de.Value;
         node.Disconnect();
       }
     }
