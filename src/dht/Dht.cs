@@ -424,6 +424,7 @@ namespace Brunet.Dht {
      * timeout after 5 minutes though!
      */
     public void PutHandler(Object o, EventArgs args) {
+//      Console.WriteLine(o.GetHashCode());
       BlockingQueue queue = (BlockingQueue) o;
 
       // Get our mapping
@@ -455,7 +456,7 @@ namespace Brunet.Dht {
         RpcResult rpcResult = (RpcResult) queue.Dequeue(0, out timedout);
         result = (bool) rpcResult.Result;
       }
-      catch (Exception) {}
+      catch (Exception) {;}
       if(result) {
         // Once we get pcount to a majority, we ship off the result
         lock(adps.pcount) {

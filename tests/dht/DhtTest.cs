@@ -11,8 +11,8 @@ namespace Brunet.Dht {
   public class DhtOpTester {
      SortedList nodes = new SortedList();
     Dht []dhts;
-    static readonly int degree = 1;
-    static readonly int network_size = 20;
+    static readonly int degree = 4;
+    static readonly int network_size = 40;
     static readonly string brunet_namespace = "testing";
     static readonly int base_port = 55123;
     // Well this is needed because C# doesn't lock the console
@@ -264,7 +264,7 @@ namespace Brunet.Dht {
         node.AddEdgeListener(new UdpEdgeListener(base_port + i));
         node.RemoteTAs = RemoteTA;
         node.Connect();
-        dhts[i] = new Dht(node, EntryFactory.Media.Disk, degree);
+        dhts[i] = new Dht(node, EntryFactory.Media.Memory, degree);
       }
     }
 
@@ -287,6 +287,9 @@ namespace Brunet.Dht {
         }
 
         Address left_addr = ((Node)nodes[next_addr]).ConnectionTable.GetRightStructuredNeighborOf((AHAddress) next_addr).Address;
+        if(left_addr == null) {
+          Console.WriteLine("Found disconnection.");
+        }
         if(!curr_addr.Equals(left_addr)) {
           Console.WriteLine(curr_addr + " != " + left_addr);
           Console.WriteLine("Right had edge, but left has no record of it at {0}!", i);
@@ -340,7 +343,7 @@ namespace Brunet.Dht {
         Test0(ref op);
         Test1(ref op);
         Test2(ref op);
-//        Test3(ref op);
+        Test3(ref op);
         Test4(ref op);
         Test5(ref op);
         Test6(ref op);
@@ -350,7 +353,7 @@ namespace Brunet.Dht {
         Test10(ref op);
         Test11(ref op);
         Test12(ref op);
-//        Test13(ref op);
+        Test13(ref op);
       }
       catch (Exception e) {
         Console.WriteLine("Failure at operation: " + (op - 1));
@@ -423,15 +426,15 @@ namespace Brunet.Dht {
       byte[] value = new byte[100];
       rng.GetBytes(key);
       ArrayList al_results = new ArrayList();
-      BlockingQueue[] results_queue = new BlockingQueue[40];
+      BlockingQueue[] results_queue = new BlockingQueue[60];
 
-      for(int i = 0; i < 40; i++) {
+      for(int i = 0; i < 60; i++) {
         value = new byte[100];
         rng.GetBytes(value);
         al_results.Add(value);
         results_queue[i] = dhts[0].AsPut(key, value, 3000);
       }
-      for (int i = 0; i < 40; i++) {
+      for (int i = 0; i < 60; i++) {
         bool result = (bool) results_queue[i].Dequeue();
         if(result == false) {
           Console.WriteLine("Failure in put : " + i);
