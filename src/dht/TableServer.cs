@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using System;
 using System.Text;
 using System.Collections;
+using System.Reflection;
 using System.Security.Cryptography;
 
 #if BRUNET_NUNIT
@@ -32,7 +33,7 @@ using System.Collections.Generic;
 using Brunet;
 
 namespace Brunet.Dht {
-  public class TableServer {
+  public class TableServer : IRpcHandler {
     protected object _sync;
 
     //maintain a list of keys that are expiring:
@@ -45,6 +46,7 @@ namespace Brunet.Dht {
     protected Node _node;
     protected EntryFactory _ef;
     private RpcManager _rpc;
+    private Hashtable _put_table= new Hashtable();
 
     public TableServer(EntryFactory ef, Node node, RpcManager rpc) {
       _sync = new object();
@@ -54,6 +56,103 @@ namespace Brunet.Dht {
       _ht = new Hashtable();
       _max_idx = 0;
       _rpc = rpc;
+    }
+
+//  We implement IRpcHandler to help with Puts, so we must have this method to process
+//  new Rpc commands on this object
+    public void HandleRpc(ISender caller, string method, IList args, object rs) {
+      // We have special case for the puts since they are done asynchronously
+      if(method == "Put") {
+        BlockingQueue queue = new BlockingQueue();
+        try {
+          MemBlock key = (byte[]) args[0];
+          MemBlock value = (byte[]) args[1];
+          int ttl = (int) args[2];
+          bool unique = (bool) args[3];
+          // Puts are started by Put, but finished by the HandlePutResult
+          queue.EnqueueEvent += this.HandlePutResult;
+          Hashtable new_put = new Hashtable();
+          new_put["key"] = key;
+          new_put["value"] = value;
+          new_put["request_state"] = rs;
+          lock(_put_table) {
+            _put_table[queue] = new_put;
+          }
+          this.Put(key, value, ttl, unique, queue);
+        }
+        catch (Exception e) {
+          queue.EnqueueEvent -= this.HandlePutResult;
+          queue.Close();
+          lock(_put_table) {
+            _put_table.Remove(queue);
+          }
+          AdrException ae = new AdrException(-32602, e);
+          _rpc.SendResult(rs, ae);
+        }
+      }
+      else {
+        // Everybody else just uses the generic synchronous style
+        object result = null;
+        try {
+          Type type = this.GetType();
+          MethodInfo mi = type.GetMethod(method);
+          object[] arg_array = new object[ args.Count ];
+          args.CopyTo(arg_array, 0);
+          result = mi.Invoke(this, arg_array);
+        }
+        catch(Exception e) {
+          result = new AdrException(-32602, e);
+        }
+        _rpc.SendResult(rs, result);
+      }
+    }
+
+    // Here we receive the results of our put follow ups, for simplicity, we
+    // have both the local Put and the remote PutHandler return the results
+    // via the blockingqueue.  If it fails, we remove it locally, if the item
+    // was never created it shouldn't matter.
+    public void HandlePutResult(Object o, EventArgs args) {
+      BlockingQueue queue = (BlockingQueue) o;
+      Hashtable finalize_put = (Hashtable) _put_table[queue];
+      lock(_put_table) {
+        _put_table.Remove(queue);
+      }
+
+      object result = null;
+      bool bresult = false;
+      try {
+        bool timedout;
+        result = queue.Dequeue(0, out timedout);
+        RpcResult rpcResult = (RpcResult) result;
+        result = rpcResult.Result;
+        try {
+          bresult = (bool) result;
+        }
+        catch(Exception e) {
+          bresult = false;
+          result = new AdrException(-32602, e);
+        }
+      }
+      catch (Exception e) {
+        try {
+          result = new AdrException(-32602, (Exception) result);
+        }
+        catch {
+          result = new AdrException(-32602, e);
+        }
+      }
+
+      // Looks like we didn't succeed, thus time to remove
+      Object request_state = finalize_put["request_state"];
+      if(!bresult) {
+        MemBlock key = (MemBlock) finalize_put["key"];
+        MemBlock value = (MemBlock) finalize_put["value"];
+        this.RemoveEntry(key, value);
+      }
+
+      queue.EnqueueEvent -= this.HandlePutResult;
+      queue.Close();
+      _rpc.SendResult(request_state, result);
     }
 
     public int GetCount() {
@@ -106,12 +205,9 @@ namespace Brunet.Dht {
      * but remote wasn't, so we remove locally
      */
 
-    public bool Put(byte[] keyb, byte[] datab, int ttl, bool unique) {
-      MemBlock key = MemBlock.Reference(keyb);
-      MemBlock data = MemBlock.Reference(datab);
-      bool rv = false;
+    public void Put(MemBlock key, MemBlock data, int ttl, bool unique, BlockingQueue remote_put) {
       try {
-        rv = PutHandler(key, data, ttl, unique);
+        PutHandler(key, data, ttl, unique);
         Address key_address = new AHAddress(key);
         ISender s = null;
         // We need to forward this to the appropriate node!
@@ -123,19 +219,13 @@ namespace Brunet.Dht {
           Connection con = _node.ConnectionTable.GetLeftStructuredNeighborOf((AHAddress) _node.Address);
           s = con.Edge;
         }
-        BlockingQueue q = new BlockingQueue();
-        _rpc.Invoke(s, q, "dht.PutHandler", key, data, ttl, unique);
-        RpcResult res = (RpcResult) q.Dequeue();
-        rv = (bool) res.Result;
+        _rpc.Invoke(s, remote_put, "dht.PutHandler", key, data, ttl, unique);
       }
       catch (Exception e) {
-        // One of the two failed, if we didn't we need to remove this entry
-        if(rv) {
-          RemoveEntry(key, data);
-        }
-        throw e;
+        // We failed :(, we don't need to worry about the Invoke's results
+        remote_put.Enqueue(e);
+        remote_put.Close();
       }
-      return rv;
     }
 
     /**
@@ -199,7 +289,6 @@ namespace Brunet.Dht {
     */
 
     public IList Get(byte[] keyb, int maxbytes, byte[] token) {
-//      Console.WriteLine("here0");
       MemBlock key = MemBlock.Reference(keyb);
       int seen_start_idx = -1;
       int seen_end_idx = -1;
@@ -261,7 +350,6 @@ namespace Brunet.Dht {
       result.Add(values);
       result.Add(remaining_items);
       result.Add(next_token);
-//      Console.WriteLine("here1");
       return result;
     }
 
@@ -279,7 +367,6 @@ namespace Brunet.Dht {
         if (end_time > now) {
           break;
         }
-//        Console.WriteLine("Do we ever get here?");
         // Expired entry, must delete it
         ArrayList entry_list = (ArrayList) _ht[e.Key];
         if (entry_list == null) {
@@ -332,10 +419,10 @@ namespace Brunet.Dht {
     *  
     */
     public Hashtable GetKeysToLeft(AHAddress us, AHAddress within) {
-      if(us == null)
-        Console.WriteLine("us went null");
+/*      if(us == null)
+//        Console.WriteLine("us went null");
       if(within == null)
-        Console.WriteLine("within went null");
+//        Console.WriteLine("within went null");*/
       lock(_sync) {
         Hashtable key_list = new Hashtable();
         foreach (MemBlock key in _ht.Keys) {
@@ -357,10 +444,10 @@ namespace Brunet.Dht {
     */
 
     public Hashtable GetKeysToRight(AHAddress us, AHAddress within) {
-      if(us == null)
+/*      if(us == null)
         Console.WriteLine("rus went null");
       if(within == null)
-        Console.WriteLine("rwithin went null");
+        Console.WriteLine("rwithin went null");*/
       lock(_sync) {
         Hashtable key_list = new Hashtable();
         foreach (MemBlock key in _ht.Keys) {
