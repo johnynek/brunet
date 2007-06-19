@@ -440,8 +440,8 @@ namespace Brunet
         }
         _contype = ct;
         _target = target;
-        _ta_to_restart_state = new Hashtable();
-        _completed_tas = new Hashtable();
+        _ta_to_restart_state = new Hashtable( _MAX_REMOTETAS );
+        _completed_tas = new Hashtable( _MAX_REMOTETAS );
         _started = false;
         _hold_fire = true;
         _cph_transfer_requests = 0;

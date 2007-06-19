@@ -183,7 +183,7 @@ namespace Brunet {
     }
 
     public Hashtable ToHashtable() {
-      Hashtable neighborinfo = new Hashtable();
+      Hashtable neighborinfo = new Hashtable(3);
       if( _neigh_ct != null ) {
         neighborinfo["type"] = _neigh_ct;
       }
