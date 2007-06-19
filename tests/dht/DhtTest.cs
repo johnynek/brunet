@@ -11,8 +11,8 @@ namespace Brunet.Dht {
   public class DhtOpTester {
      SortedList nodes = new SortedList();
     Dht []dhts;
-    static readonly int degree = 4;
-    static readonly int network_size = 40;
+    static readonly int degree = 3;
+    static readonly int network_size = 60;
     static readonly string brunet_namespace = "testing";
     static readonly int base_port = 55123;
     // Well this is needed because C# doesn't lock the console
@@ -264,7 +264,7 @@ namespace Brunet.Dht {
         node.AddEdgeListener(new UdpEdgeListener(base_port + i));
         node.RemoteTAs = RemoteTA;
         node.Connect();
-        dhts[i] = new Dht(node, EntryFactory.Media.Disk, degree);
+        dhts[i] = new Dht(node, degree);
       }
     }
 
@@ -353,7 +353,8 @@ namespace Brunet.Dht {
         Test10(ref op);
         Test11(ref op);
         Test12(ref op);
-        Test13(ref op);
+/*        Test13(ref op);
+        Test14(ref op);*/
       }
       catch (Exception e) {
         Console.WriteLine("Failure at operation: " + (op - 1));
@@ -721,19 +722,62 @@ namespace Brunet.Dht {
         value = new byte[10];
         rng.GetBytes(value);
         values[i] = value;
-        ttls[i] = 60;
+        if(i > 7) {
+          ttls[i] = 15;
+        }
+        else {
+          ttls[i] = 500;
+        }
         dhtindexes[i] = 0;
         put_results[i] = true;
       }
       this.ParallelPut(keys, values, ttls, dhtindexes, put_results, ref op);
       Console.WriteLine("Insertion done...");
-      Thread.Sleep(20000);
+      Thread.Sleep(5000);
       this.SerialGet(key, 0, values, op++);
-      Console.WriteLine("Next get should all fail!");
-      Thread.Sleep(60000);
+      Console.WriteLine("Next get 2 should fail!");
+      Thread.Sleep(20000);
       this.SerialGet(key, 0, values, op++);
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
       Console.WriteLine("Every entry should be deleted by now...");
+    }
+
+    public void Test14(ref int op) {
+      Console.WriteLine("Test 14: Testing 1000 puts and 1 get with 1000 " +
+          "results with the same key.  This checks to make sure we are " +
+          "replicating on disconnect, will definitely need more work though.");
+      RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
+      byte[] key = new byte[10];
+      byte[] value = new byte[100];
+      rng.GetBytes(key);
+      ArrayList al_results = new ArrayList();
+      BlockingQueue[] results_queue = new BlockingQueue[60];
+
+      for(int i = 0; i < 60; i++) {
+        value = new byte[100];
+        rng.GetBytes(value);
+        al_results.Add(value);
+        results_queue[i] = dhts[0].AsPut(key, value, 3000);
+      }
+      for (int i = 0; i < 60; i++) {
+        bool result = (bool) results_queue[i].Dequeue();
+        if(result == false) {
+          Console.WriteLine("Failure in put : " + i);
+        }
+        else {
+          Console.WriteLine("success in put : " + i);
+        }
+      }
+      Console.WriteLine("Insertion done...");
+      Console.WriteLine("Disconnecting 25% of the nodes and then sleeping for 30 seconds to let the network reform");
+            for(int i = 0; i < network_size; i += 4) {
+        Node node = (Node) nodes.GetByIndex(i);
+        node.Disconnect();
+      }
+      Thread.Sleep(30000);
+      Console.WriteLine("Timeout done.... now attempting gets");
+      this.SerialAsGet(key, 0, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
+      Console.WriteLine("If no error messages successful up to: " + (op - 1));
     }
 
     public static void Main() {
