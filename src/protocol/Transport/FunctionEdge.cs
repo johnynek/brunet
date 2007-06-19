@@ -107,9 +107,18 @@ namespace Brunet
 
     public override void Send(ICopyable p)
     {
+      if( p == null ) {
+        throw new System.NullReferenceException(
+                         "FunctionEdge.Send: argument can't be null");
+      }
+
       if( !_is_closed ) {
         _last_out_packet_datetime = DateTime.UtcNow;
         _sh.HandleEdgeSend(this, p);
+      }
+      else {
+        throw new EdgeException(
+                    String.Format("Can't send on closed edge: {0}", this) );
       }
     }
 

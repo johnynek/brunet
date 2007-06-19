@@ -651,9 +651,7 @@ namespace Brunet
         }
         //Now it is time to see if we can read...
       }
-      lock( _sync ) {
-        s.Close();
-      }
+      s.Close();
     }
 
     private void Send(SendQueueEntry sqe, Socket s, byte[] buffer)
@@ -662,22 +660,17 @@ namespace Brunet
       ICopyable p = sqe.Packet;
       UdpEdge sender = sqe.Sender;
       EndPoint e = sender.End;
-      //Write the IDs of the edge:
-      //[local id 4 bytes][remote id 4 bytes][packet]
-      NumberSerializer.WriteInt(sender.ID, buffer, 0);
-      NumberSerializer.WriteInt(sender.RemoteID, buffer, 4);
       try {
+        //Write the IDs of the edge:
+        //[local id 4 bytes][remote id 4 bytes][packet]
+        NumberSerializer.WriteInt(sender.ID, buffer, 0);
+        NumberSerializer.WriteInt(sender.RemoteID, buffer, 4);
         p.CopyTo(buffer, 8);
-      }
-      catch {Console.WriteLine("p = " + (p == null));
-        Console.WriteLine("buffer = " + (buffer == null));
-      }
-	      
-      try {	//catching SocketException
         s.SendTo(buffer, 0, 8 + p.Length, SocketFlags.None, e);
       }
-      catch (SocketException sc) {
-        Console.Error.WriteLine("Error in Socket send. Edge: {0}\n{1}", sender, sc);
+      catch (Exception x) {
+        Console.Error.WriteLine("Error in Socket send. Edge: {0}\n{1}",
+                                sender, x);
       }
     }
 
