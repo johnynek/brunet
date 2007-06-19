@@ -69,6 +69,17 @@ public class Cache : IEnumerable {
   }
 
   /**
+   * When a miss occurs in the cache, we use this class
+   * to pass the key
+   */
+  public class MissArgs : System.EventArgs {
+    public readonly object Key;
+    public MissArgs(object key) {
+      Key = key;
+    }
+  }
+
+  /**
    * We store an ordered doublely-linked list
    * to make removing entries fast
    */
@@ -84,6 +95,12 @@ public class Cache : IEnumerable {
    * this method is called.
    */
   public event EventHandler EvictionEvent;
+
+  /**
+   * When an miss occurs in the cache, 
+   * this method is called.
+   */
+  public event EventHandler MissEvent;
 
   public Cache(int max_size) {
     //Bias towards being faster at the expense of using more memory
@@ -153,6 +170,10 @@ public class Cache : IEnumerable {
 
   public object Get(object key) {
     Entry e = (Entry)_ht[key];
+    if(e == null && MissEvent != null) {
+      MissEvent(this, new MissArgs(key));
+      e = (Entry)_ht[key];
+    }
     if( e != null ) {
       if( e != _tail ) {
         //Make it the tail

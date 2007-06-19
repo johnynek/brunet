@@ -37,15 +37,13 @@ namespace Brunet.Dht {
     //keep track of our current neighbors, we start with none
     protected AHAddress _left_addr = null, _right_addr = null;
 
-    public Dht(Node node, EntryFactory.Media media) {
+    public Dht(Node node) {
       _node = node;
       //activated not until we acquire left and right connections
       _dhtactivated = false;
       //get an instance of RpcManager for the node
       _rpc = RpcManager.GetInstance(node);
-      //initialize the EntryFactory
-      EntryFactory ef = EntryFactory.GetInstance(node, media);
-      _table = new TableServer(ef, node, _rpc);
+      _table = new TableServer(node, _rpc);
       //register the table with the RpcManagers
       _rpc.AddHandler("dht", _table);
       //we need to update our collection of data everytime our neighbors change
@@ -67,15 +65,15 @@ namespace Brunet.Dht {
       DELAY = 60000;
     }
 
-    public Dht(Node node, EntryFactory.Media media, int degree) :
-      this(node, media){
+    public Dht(Node node, int degree) :
+      this(node){
       this.DEGREE = (int) System.Math.Pow(2, degree);
       this.MAJORITY = DEGREE / 2 + 1;
     }
 
     // Delay from users point of view is in seconds
-    public Dht(Node node, EntryFactory.Media media, int degree, int delay) :
-      this(node, media, degree){
+    public Dht(Node node, int degree, int delay) :
+      this(node, degree){
       DELAY = delay * 1000;
     }
 
@@ -431,7 +429,6 @@ namespace Brunet.Dht {
      * timeout after 5 minutes though!
      */
     public void PutHandler(Object o, EventArgs args) {
-//      Console.WriteLine(o.GetHashCode());
       BlockingQueue queue = (BlockingQueue) o;
 
       // Get our mapping
@@ -579,7 +576,7 @@ namespace Brunet.Dht {
             TimeSpan t_span = e.EndTime - DateTime.UtcNow;
             _driver_queue = new BlockingQueue();
             _driver_queue.EnqueueEvent += new EventHandler(NextTransfer);
-            _rpc.Invoke(_t_sender, _driver_queue, "dht.Put", e.Key, e.Data,
+            _rpc.Invoke(_t_sender, _driver_queue, "dht.Put", e.Key, e.Value,
                               (int) t_span.TotalSeconds, false);
           }
           else {
@@ -607,7 +604,7 @@ namespace Brunet.Dht {
             TimeSpan t_span = e.EndTime - DateTime.UtcNow;
             _driver_queue = new BlockingQueue();
             _driver_queue.EnqueueEvent += new EventHandler(NextTransfer);
-            _rpc.Invoke(_t_sender, _driver_queue, "dht.Put", e.Key, e.Data, 
+            _rpc.Invoke(_t_sender, _driver_queue, "dht.Put", e.Key, e.Value,
                         (int) t_span.TotalSeconds, false);
           }
           else {
@@ -640,7 +637,6 @@ namespace Brunet.Dht {
     public Address RightAddress { get { return _right_addr; } }
     public Address Address { get { return _node.Address; } }
     public int Count { get { return _table.GetCount(); } }
-    public Hashtable All { get { return _table.GetAll(); } }
 
     protected void ConnectHandler(object contab, EventArgs eargs) 
     {
@@ -890,7 +886,7 @@ namespace Brunet.Dht {
      * Useful for debugging , code save 30 minutes of my time atleast.
      * Warning: This method should not be used at all.
      */
-    public void Reset(EntryFactory.Media media) {
+    public void Reset() {
       lock(_sync) {
         //unsubscribe the disconnection
         _node.ConnectionTable.ConnectionEvent -= 
@@ -910,9 +906,7 @@ namespace Brunet.Dht {
         }
         _left_addr = _right_addr = null;
 
-        EntryFactory ef = EntryFactory.GetInstance(_node, media);
-
-        _table = new TableServer(ef, _node, _rpc);
+        _table = new TableServer(_node, _rpc);
 
         //register a new TableServer with RpcManager
         _rpc.RemoveHandler("dht");
