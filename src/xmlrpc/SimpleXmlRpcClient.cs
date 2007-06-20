@@ -2,10 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Collections;
 using System.Text;
-using CookComputing.XmlRpc;
 using Brunet;
 
-namespace Brunet.Rpc {
+namespace Brunet {
   public class SimpleXmlRpcClient {
     public static void Main(string[] args) {
       bool log = false;
@@ -75,17 +74,7 @@ namespace Brunet.Rpc {
           object[] rets = xm.proxy(node, ah_option, max_to_wait, method, method_args);
           Console.WriteLine("Got Response!");
           for (int i = 0; i < rets.Length; i++) {
-            object o = rets[i];
-            if (o is XmlRpcStruct) {
-              XmlRpcStruct xrs = (XmlRpcStruct)o;
-              IDictionaryEnumerator en = xrs.GetEnumerator();
-              while (en.MoveNext()) {
-                DictionaryEntry de = (DictionaryEntry)en.Current;
-                Console.WriteLine("{0}:\n {1}", de.Key, de.Value);
-              }
-            } else {
-              Console.WriteLine("Result #{0}:\n {1}", i, rets[i]);
-            }
+            Console.WriteLine("Result #{0}:\n {1}", i, rets[i]);
           }
         } catch (Exception e) {
           Console.WriteLine(e);
