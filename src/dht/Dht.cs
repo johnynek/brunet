@@ -576,7 +576,7 @@ namespace Brunet.Dht {
             TimeSpan t_span = e.EndTime - DateTime.UtcNow;
             _driver_queue = new BlockingQueue();
             _driver_queue.EnqueueEvent += new EventHandler(NextTransfer);
-            _rpc.Invoke(_t_sender, _driver_queue, "dht.Put", e.Key, e.Value,
+            _rpc.Invoke(_t_sender, _driver_queue, "dht.PutHandler", e.Key, e.Value,
                               (int) t_span.TotalSeconds, false);
           }
           else {
@@ -604,7 +604,7 @@ namespace Brunet.Dht {
             TimeSpan t_span = e.EndTime - DateTime.UtcNow;
             _driver_queue = new BlockingQueue();
             _driver_queue.EnqueueEvent += new EventHandler(NextTransfer);
-            _rpc.Invoke(_t_sender, _driver_queue, "dht.Put", e.Key, e.Value,
+            _rpc.Invoke(_t_sender, _driver_queue, "dht.PutHandler", e.Key, e.Value,
                         (int) t_span.TotalSeconds, false);
           }
           else {

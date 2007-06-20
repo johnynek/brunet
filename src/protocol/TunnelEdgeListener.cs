@@ -251,12 +251,7 @@ namespace Brunet
 #if TUNNEL_DEBUG
 	  Console.Error.WriteLine("Created a request packet.");
 #endif
-	  EdgeCreationState ecs = new EdgeCreationState();
-	  ecs.Id = localid;
-	  ecs.ECB = ecb;
-	  ecs.RequestPacket = p;
-	  //all these edges can be used to send out packets for this tunnel edge
-	  ecs.Senders = forwarding_edges;
+	  EdgeCreationState ecs = new EdgeCreationState(localid, forwarding_edges, p, ecb);
 	  _ecs_ht[localid] = ecs;
 
 #if TUNNEL_DEBUG
@@ -269,20 +264,85 @@ namespace Brunet
 
 
     protected class EdgeCreationState {
-      public int Id;
-      public EdgeCreationCallback ECB;
-      public Packet RequestPacket;
-      public ArrayList Senders;
-      public int Attempts = 4;
-      public void Resend(Random r) {
-	try {
-	  Edge e = (Edge) Senders[ r.Next(0, Senders.Count) ];
-	  e.Send(RequestPacket);
-	} catch(Exception ex) {
+      public readonly int Id;
+      protected EdgeCreationCallback ECB;
+      protected readonly Packet RequestPacket;
+      protected readonly IList Senders;
+
+      public const int MAX_ATTEMPTS = 4;
+      protected volatile int _attempts;
+      public int Attempts { get { return _attempts; } }
+      protected readonly Random _r;
+      protected readonly object _sync;
+
+      protected Edge _edge;
+      public Edge CreatedEdge { get { lock ( _sync ) { return _edge; } } }
+
+      public EdgeCreationState(int id, IList senders, Packet p, EdgeCreationCallback ecb) {
+        Id = id;
+        Senders = senders;
+        ECB = ecb;
+        RequestPacket = p;
+        _r = new Random();
+        _attempts = MAX_ATTEMPTS;
+        _sync = new object();
+      }
+
+      /**
+       * This announces the Edge for this CreationState, and
+       * sets the CreatedEdge variable.
+       */
+      public void CallECB(bool success, Edge e, Exception x) {
+        //make sure the callback is only called once:
+        EdgeCreationCallback ecb = null;
+        lock( _sync ) { 
+          ecb = ECB;
+          ECB = null;
+          //Set the edge:
+          if( ecb != null ) {
+            _edge = e;
+          }
+        }
+        if( ecb != null ) {
+          ecb(success, e, x);
+        }
+        else {
+          Console.Error.WriteLine("POSSIBLE ERROR: CallECB called twice");
+        }
+      }
+
+      /**
+       * Resends our request to a randomly selected Sender in our
+       * list of neighbors
+       */
+      public void Resend() {
+        /*
+         * one of the senders might have closed
+         * try three times to be sure
+         */
+        bool try_again = true;
+        int count = 0;
+        int edge_idx;
+        lock( _sync ) {
+          try_again = (_attempts > 0);
+          edge_idx = _r.Next(0, Senders.Count);
+          _attempts--;
+        }
+        while( try_again ) {
+	  try {
+	    Edge e = (Edge) Senders[ edge_idx ];
+	    e.Send(RequestPacket);
+            try_again = false;
+	  } catch(Exception ex) {
+            count++;
+            //try the next edge:
+            edge_idx = (edge_idx + 1) % Senders.Count;
+            if( count >= 3 ) { try_again = false; }
 #if TUNNEL_DEBUG
-	  Console.Error.WriteLine(ex);
+	    Console.Error.WriteLine(ex);
 #endif 
-	}
+	  }
+        }
       }
     }
     protected Hashtable _ecs_ht;
@@ -303,11 +363,10 @@ namespace Brunet
       ArrayList to_remove = new ArrayList();
       ArrayList to_send = new ArrayList();
       lock (_sync) {
-	IDictionaryEnumerator ide = _ecs_ht.GetEnumerator();
-	while(ide.MoveNext()) {
+        foreach(DictionaryEntry de in _ecs_ht) {
 	  //check the status of corresponding edge
-	  int id = (int) ide.Key;
-	  EdgeCreationState ecs = (EdgeCreationState) ide.Value;
+	  int id = (int) de.Key;
+	  EdgeCreationState ecs = (EdgeCreationState) de.Value;
 	  if (ecs == null) {
 #if TUNNEL_DEBUG
 	    Console.Error.WriteLine("This is wierd. How can ECS be null?");
@@ -333,25 +392,30 @@ namespace Brunet
 	    Console.Error.WriteLine("TimeoutChecker: removing ECS (timed out local id: {0}) for: {1}", ecs.Id, e);
 #endif
 	    to_remove.Add(ecs);
-	    _ecs_ht.Remove(ecs.Id);
-	    //also remove this edge from the list
-	    _id_ht.Remove(ecs.Id);
 	  }
 	  else if (ecs.Attempts > 0) {
-	    ecs.Attempts--;
 	    to_send.Add(ecs);
 	  }
 	}
+        /* Hold the log for this part */
+        foreach(EdgeCreationState ecs in to_remove) {
+          _ecs_ht.Remove( ecs.Id );
+          if( ecs.CreatedEdge == null ) {
+            //We never announced a created edge, so remove this entry from the
+            //id_ht:
+            _id_ht.Remove( ecs.Id );
+          }
+        }
       }
-      //the following can happen outside the lock
+      //the following should happen outside the lock
       foreach (EdgeCreationState ecs in to_remove) {
-        ecs.ECB(false, null, new Exception("Timed out on edge creation."));
+        ecs.CallECB(false, null, new Exception("Timed out on edge creation."));
       }
       foreach (EdgeCreationState ecs in to_send) {
 #if TUNNEL_DEBUG
 	Console.Error.WriteLine("Sending edge (localid: {0}) request: {1}", ecs.Id, ecs.RequestPacket);
 #endif
-        ecs.Resend(_rand);
+        ecs.Resend();
       }
     }
 
@@ -486,13 +550,13 @@ namespace Brunet
 	  //list of acquired forwarders
 	  ArrayList acquired = new ArrayList();
 	  for (int i = 0; i < arg.Count; i++) {
-	    acquired.Add(new AHAddress(MemBlock.Reference((byte[]) arg[i])));
+	    acquired.Add(AddressParser.Parse(MemBlock.Reference((byte[]) arg[i])));
 	  }
 	  arg = (ArrayList) AdrConverter.Deserialize(payload_ms);
 	  //list of lost forwarders
 	  ArrayList lost = new ArrayList();
 	  for (int i = 0; i < arg.Count; i++) {
-	    lost.Add(new AHAddress(MemBlock.Reference((byte[]) arg[i])));
+	    lost.Add(AddressParser.Parse(MemBlock.Reference((byte[]) arg[i])));
 	  }	    
 	  tun_edge.HandleControlPacket(acquired, lost);
 	}
@@ -536,11 +600,11 @@ namespace Brunet
   	  //possible response to our create edge request, make sure this 
   	  //is the case by verifying the remote TA
   	  ArrayList args = (ArrayList) AdrConverter.Deserialize(rest_of_payload);
-  	  Address target = new AHAddress(MemBlock.Reference((byte[]) args[0]));
+  	  Address target = AddressParser.Parse(MemBlock.Reference((byte[]) args[0]));
   	  //list of packet forwarders
   	  ArrayList forwarders = new ArrayList();
   	  for (int i = 1; i < args.Count; i++) {
-  	    forwarders.Add(new AHAddress(MemBlock.Reference((byte[]) args[i])));
+  	    forwarders.Add(AddressParser.Parse(MemBlock.Reference((byte[]) args[i])));
   	  }
   	  
   	  TunnelTransportAddress remote_ta = new TunnelTransportAddress(target, forwarders);
@@ -571,15 +635,13 @@ namespace Brunet
         } //End of the lock
 
         if( ecs != null ) {
+	  e.CloseEvent += this.CloseHandler;
 	  //this would be an outgoing edge
 #if TUNNEL_DEBUG
 	  Console.Error.WriteLine("remoteid: {0}, localid: {1}", remoteid, localid);
-#endif      
-	  e.CloseEvent += this.CloseHandler;
-#if TUNNEL_DEBUG 
 	  Console.Error.WriteLine("announcing tunnel edge (outgoing): {0}", e);
 #endif 
-	  ecs.ECB(true, e, null);
+	  ecs.CallECB(true, e, null);
         }
         else {
             //This must have already been handled, we don't want to create
@@ -600,11 +662,11 @@ namespace Brunet
         TunnelEdge e = null;
 
         ArrayList args = (ArrayList) AdrConverter.Deserialize(rest_of_payload);
-	Address target = new AHAddress(MemBlock.Reference((byte[]) args[0]));
+	Address target = AddressParser.Parse(MemBlock.Reference((byte[]) args[0]));
 	//list of packet forwarders
 	ArrayList forwarders = new ArrayList();
 	for (int i = 1; i < args.Count; i++) {
-	  forwarders.Add(new AHAddress(MemBlock.Reference((byte[]) args[i])));
+	  forwarders.Add(AddressParser.Parse(MemBlock.Reference((byte[]) args[i])));
 	}
 	//it is however possible that we have already created the edge locally
 

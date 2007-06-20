@@ -6,10 +6,10 @@ namespace Brunet.Dht {
   [Serializable]
   public class DhtGetResult {
     public int age, ttl;
-    public MemBlock value;
+    public byte[] value;
 
     public string valueString {
-      get { return Encoding.UTF8.GetString((byte[]) value); }
+      get { return Encoding.UTF8.GetString(value); }
       // XmlRpc complains if this doesn't exist
       set { ; }
     }
@@ -21,7 +21,7 @@ namespace Brunet.Dht {
       this.age = age;
     }
 
-    public DhtGetResult(MemBlock value, int age, int ttl) {
+    public DhtGetResult(byte[] value, int age, int ttl) {
       this.value = value;
       this.age = age;
       this.ttl = ttl;
