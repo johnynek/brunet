@@ -305,6 +305,11 @@ namespace Brunet
     //Here is the Select version
     public override void Send(ICopyable p)
     {
+      if( p == null ) {
+        throw new System.NullReferenceException(
+           "TcpEdge.Send: argument can't be null");
+      }
+
       lock( _sync ) {
 #if POB_TCP_DEBUG
         Console.Error.WriteLine("edge: {0}, Entering Send",this);

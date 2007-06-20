@@ -133,7 +133,12 @@ namespace Brunet
     public override void Send(ICopyable p)
     {
       if( _is_closed ) {
-        throw new EdgeException("Tried to send on a closed socket"); 
+        throw new EdgeException("Tried to send on a closed UdpEdge"); 
+      }
+      if( p == null ) {
+        Console.Error.WriteLine("{0} tried to send a null packet", this);
+        throw new System.NullReferenceException(
+	                 "UdpEdge.Send: argument can't be null");
       }
 
       _send_cb.HandleEdgeSend(this, p);

@@ -243,7 +243,7 @@ namespace Brunet
     }   
 
     public Hashtable ToHashtable() {
-      Hashtable ht = new Hashtable();
+      Hashtable ht = new Hashtable( 2 + _attributes.Count );
       if( _local_ni != null ) {
         ht["local"] = _local_ni.ToHashtable();
       }

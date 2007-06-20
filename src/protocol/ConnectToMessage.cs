@@ -212,12 +212,12 @@ namespace Brunet
     }
 
     public Hashtable ToHashtable() {
-      Hashtable ht = new Hashtable();
+      Hashtable ht = new Hashtable(3);
       ht["type"] = _ct;
       ht["target"] = _target_ni.ToHashtable();
-      ArrayList neighs = new ArrayList();
-      foreach(NodeInfo n in Neighbors) {
-        neighs.Add( n.ToHashtable() );
+      ArrayList neighs = new ArrayList(Neighbors.Length);
+      foreach(NodeInfo ni in Neighbors) {
+        neighs.Add( ni.ToHashtable() );
       }
       ht["neighbors"] = neighs;
       return ht;
