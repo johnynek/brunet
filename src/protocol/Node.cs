@@ -738,10 +738,12 @@ namespace Brunet
                   object o = r.Result; //This will throw an exception if there was a problem
                   if( !o.Equals( ping_arg ) ) {
                     //Something is wrong with the other node:
+                    Console.Error.WriteLine("Ping({0}) != {1} on {2}", ping_arg, o, c);
                     close = true;
                   }
                 }
-                catch {
+                catch(Exception x) {
+                  Console.Error.WriteLine("Ping on {0}: resulted in: {1}", c, x);
                   close = true;
                 }
                 if( close ) { e.Close(); }
@@ -754,7 +756,10 @@ namespace Brunet
             try {
               rpc.Invoke(e, tmp_queue, "sys:link.Ping", ping_arg);
             }
-            catch { e.Close(); }
+            catch(Exception x) {
+              Console.Error.WriteLine("Could not Invoke ping on: {0}", c);
+              e.Close();
+            }
           }
         }
         foreach(Edge e in _connection_table.GetUnconnectedEdges() ) {
