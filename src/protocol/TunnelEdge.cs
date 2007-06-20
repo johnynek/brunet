@@ -182,6 +182,12 @@ namespace Brunet
      * @throw EdgeException if any problem happens
      */
     public override void Send(ICopyable p) {
+      if( _is_closed ) {
+        throw new EdgeException(String.Format("Edge closed: {0}", this));
+      }
+      if ( p == null ) {
+        throw new System.NullReferenceException(String.Format("Packet null Edge: {0}", this));
+      }
       _last_out_packet_datetime = DateTime.UtcNow;
       _send_cb.HandleEdgeSend(this, p);
     }
