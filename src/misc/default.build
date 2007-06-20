@@ -18,7 +18,7 @@
         <include name="IBlockingQueue.dll" />
       </fileset>
     </copy>
-    <csc target="exe" output="${build.dir}/SimpleNode.exe" debug="${debug}">
+    <csc target="exe" output="${build.dir}/SimpleNode.exe">
       <sources failonempty="true">
         <include name="SimpleNode.cs"/>
         <include name="../Common/OSDependent.cs"/>
@@ -42,9 +42,9 @@
         <include name="Mono.Posix.dll"/>
       </references>
     </csc>
-    <csc target="exe" output="${build.dir}/BrokenRingTester.exe">
+    <csc target="exe" output="${build.dir}/IPOPTest.exe">
       <sources failonempty="true">
-        <include name="BrokenRingTester.cs"/>
+        <include name="IPOPTest.cs"/>
         <include name="../Common/OSDependent.cs"/>
         <include name="../Common/IPOP_Common.cs"/>
         <include name="../Common/IPRouterConfig.cs"/>

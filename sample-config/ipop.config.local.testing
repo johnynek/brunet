@@ -1,0 +1,23 @@
+<IPRouterConfig>
+  <ipop_namespace>undefined</ipop_namespace>
+  <brunet_namespace>Condor_WOW_T0</brunet_namespace>
+  <device>tap0</device>
+  <RemoteTAs>
+    <transport>brunet.udp://127.0.0.1:45391</transport>
+  </RemoteTAs>
+  <EdgeListeners>
+    <EdgeListener type="udp">
+      <port>45391</port>
+    </EdgeListener>
+  </EdgeListeners>
+  <AddressData>
+    <DHCPServerAddress>128.227.56.247:9203</DHCPServerAddress>
+    <DhtDHCP>true</DhtDHCP>
+    <Netmask>255.192.0.0</Netmask>
+  </AddressData>
+  <dht_media>disk</dht_media>
+  <DevicesToBind>
+    <Device>eth0</Device>
+  </DevicesToBind>
+  <EnableSoapDht>true</EnableSoapDht>
+</IPRouterConfig>

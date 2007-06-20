@@ -35,8 +35,7 @@ namespace Ipop {
     new DhtGetResult[] ContinueGet(string token);
     [XmlRpcMethod]
     new void EndGet(string token);
-    
-    
+
     [XmlRpcBegin("Get")]
     IAsyncResult BeginGetWithCallback(string key, AsyncCallback acb, object state);
     [XmlRpcEnd]
@@ -55,14 +54,13 @@ namespace Ipop {
     IBlockingQueue GetAsBlockingQueue(string key);
   }
 
-  
   /**
    * Dht client side operations
    */
   public class DhtClientOp {
     public delegate bool PutOp(string key, string value,int ttl);
     public delegate DhtGetResult[] GetOp(string key);
-    
+
     private IDht _dht;
 
     public DhtClientOp(IDht dht) {

@@ -57,7 +57,7 @@ namespace Ipop {
       BlockingQueue q = (BlockingQueue)this._bqs[token];
       if(q == null) {
         throw new ArgumentException("Invalid token");
-      }            
+      }
       while (true) {
         try {
           bool timedout = false;
@@ -71,7 +71,6 @@ namespace Ipop {
           break;
         }
       }
-      
       //list could be empty here
       return dgrs.ToArray();
     }

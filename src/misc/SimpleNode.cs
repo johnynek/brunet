@@ -218,11 +218,7 @@ namespace Ipop {
 
         //following line of code enables DHT support inside the SimpleNode
         Dht ndht = null;
-        if (config.dht_media == null || config.dht_media.Equals("disk")) {
-          ndht = new Dht(brunetNode, EntryFactory.Media.Disk, 3, 20);
-        } else if (config.dht_media.Equals("memory")) {
-          ndht = new Dht(brunetNode, EntryFactory.Media.Memory, 3, 20);
-        }
+        ndht = new Dht(brunetNode, 3, 20);
 
         brunetNode.Connect();
         Console.Error.WriteLine("Called Connect, I am " + brunetNode.Address.ToString());
@@ -388,11 +384,13 @@ namespace Ipop {
             break;
           }
         }
-        catch (System.Net.WebException) {
+        catch (System.Net.WebException e) {
           Console.Error.WriteLine("Soap/XmlRpc Dht service not available");
+          Console.WriteLine(e);
         }
-        catch (Exception) {
+        catch (Exception e) {
           Console.WriteLine("Dht may not be available, yet, try again now or a little later.");
+          Console.WriteLine(e);
         }
       }
     }
