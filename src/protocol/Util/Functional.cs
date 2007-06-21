@@ -36,14 +36,17 @@ namespace Brunet {
 #endif
 public class Functional {
 
-  static public ArrayList Add(ArrayList l, object o) {
-    ArrayList copy = (ArrayList)l.Clone();
+  static public ArrayList Add(IList l, object o) {
+    ArrayList copy = new ArrayList(l);
     copy.Add(o);
     return copy;
   }
 
-  static public Hashtable Add(Hashtable h, object k, object v) {
-    Hashtable copy = (Hashtable)h.Clone();
+  static public Hashtable Add(IDictionary h, object k, object v) {
+    Hashtable copy = new Hashtable( h.Count + 1);
+    foreach(DictionaryEntry de in h) {
+      copy.Add( de.Key, de.Value );
+    }
     copy.Add(k, v);
     return copy;
   }
@@ -95,24 +98,41 @@ public class Functional {
     }
   }
 
-  static public ArrayList RemoveAt(ArrayList l, int pos) {
-    ArrayList copy = (ArrayList)l.Clone();
-    copy.RemoveAt(pos);
+  static public ArrayList RemoveAt(IList l, int pos) {
+    ArrayList copy = new ArrayList( l.Count - 1);
+    int i = 0;
+    foreach(object o in l) {
+      if( i != pos ) {
+        copy.Add(o);
+      }
+      i++;
+    }
     return copy;
   }
-  static public Hashtable Remove(Hashtable h, object k) {
-    Hashtable copy = (Hashtable)h.Clone();
-    copy.Remove(k);
+  static public Hashtable Remove(IDictionary h, object k) {
+    Hashtable copy = new Hashtable( h.Count - 1);
+    foreach(DictionaryEntry de in h) {
+      if( !de.Key.Equals(k) ) {
+        copy.Add( de.Key, de.Value );
+      }
+    }
     return copy;
   }
 
-  static public Hashtable SetElement(Hashtable h, object k, object v) {
-    Hashtable copy = (Hashtable)h.Clone();
-    copy[k] = v;
+  static public Hashtable SetElement(IDictionary h, object k, object v) {
+    Hashtable copy = new Hashtable( h.Count );
+    foreach(DictionaryEntry de in h) {
+      if( !de.Key.Equals(k) ) {
+        copy.Add( de.Key, de.Value );
+      }
+      else {
+        copy.Add(k,v);
+      }
+    }
     return copy;
   }
-  static public ArrayList SetElement(ArrayList l, int k, object v) {
-    ArrayList copy = (ArrayList)l.Clone();
+  static public ArrayList SetElement(IList l, int k, object v) {
+    ArrayList copy = new ArrayList( l );
     copy[k] = v;
     return copy;
   }
