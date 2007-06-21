@@ -40,18 +40,19 @@ namespace Brunet
 
   public abstract class Edge : IComparable, ISender, ISource
   {
+    protected static long _edge_count;
+
+    static Edge() {
+      _edge_count = 0;
+    }
 
     public Edge()
     {
       _have_fired_close = false;
       _sync = new object();
+      //Atomically increment and update _edge_no
+      _edge_no = System.Threading.Interlocked.Increment( ref _edge_count );
     }
-    /**
-     * Adding logger
-     */
-    /*private static readonly log4net.ILog log =
-        log4net.LogManager.GetLogger(System.Reflection.MethodBase.
-        GetCurrentMethod().DeclaringType);*/
 
     protected class Sub {
       public readonly IDataHandler Handler;
@@ -94,6 +95,13 @@ namespace Brunet
       Console.Error.WriteLine("EdgeClose: edge: {0}", this);
 #endif
     }
+
+    protected readonly long _edge_no;
+    /**
+     * Each time an Edge is created on a node, it is
+     * assigned a unique number.  This is that number
+     */
+    public long Number { get { return _edge_no; } }
 
     public abstract Brunet.TransportAddress LocalTA
     {

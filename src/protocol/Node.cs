@@ -348,7 +348,7 @@ namespace Brunet
      */
     protected void ClearTypeSource(PType t) {
       lock( _sync ) {
-        _subscription_table[t] = null;
+        _subscription_table.Remove(t);
       }
     }
     /**
@@ -411,12 +411,16 @@ namespace Brunet
      * subscribe to it.  Similarly for the unsubscribe.
      */
     public ISource GetTypeSource(PType t) {
-      ISource s;
-      lock( _sync ) {
-        s = (ISource)_subscription_table[t];
-        if( s == null ) {
-          s = new NodeSource();
-          _subscription_table[t] = s;
+      //It's safe to get from a Hashtable without a lock.
+      ISource s = (ISource)_subscription_table[t];
+      if( s == null ) {
+        lock( _sync ) {
+          //Since we last checked, there may be a ISource from another thread:
+          s = (ISource)_subscription_table[t];
+          if( s == null ) {
+            s = new NodeSource();
+            _subscription_table[t] = s;
+          }
         }
       }
       return s;
@@ -738,10 +742,12 @@ namespace Brunet
                   object o = r.Result; //This will throw an exception if there was a problem
                   if( !o.Equals( ping_arg ) ) {
                     //Something is wrong with the other node:
+                    Console.Error.WriteLine("Ping({0}) != {1} on {2}", ping_arg, o, c);
                     close = true;
                   }
                 }
-                catch {
+                catch(Exception x) {
+                  Console.Error.WriteLine("Ping on {0}: resulted in: {1}", c, x);
                   close = true;
                 }
                 if( close ) { e.Close(); }
@@ -754,7 +760,10 @@ namespace Brunet
             try {
               rpc.Invoke(e, tmp_queue, "sys:link.Ping", ping_arg);
             }
-            catch { e.Close(); }
+            catch(Exception x) {
+              Console.Error.WriteLine("Could not Invoke ping on: {0}", c);
+              e.Close();
+            }
           }
         }
         foreach(Edge e in _connection_table.GetUnconnectedEdges() ) {
