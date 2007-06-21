@@ -11,8 +11,6 @@ using System.Security.Cryptography;
 using System.IO;
 using System.Diagnostics;
 using System.Reflection;
-using Brunet.Dht;
-using Brunet;
 #if BRUNET_NUNIT
 using NUnit.Framework;
 #endif

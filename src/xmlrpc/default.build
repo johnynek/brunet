@@ -8,11 +8,12 @@
     <delete dir="${build.dir}" failonerror="true"/>
   </target>
 
-  <target name="build" description="Build DhtServiceClient.dll">
+  <target name="build" description="Build XmlRpcManager.dll and SimpleXmlRpcClient.exe">
     <mkdir dir="${build.dir}" failonerror="true"/>
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${lib.dir}">        
         <include name="Brunet.dll" />
+        <include name="Brunet.Dht.dll" />
         <include name="CookComputing.XmlRpcV2.dll" />
         <include name="NUnit.Framework.dll" />
       </fileset>
@@ -46,11 +47,12 @@
     </csc>
   </target>
 
-  <target name="test" description="Build DhtServiceClient.dll">
+  <target name="test" description="Build Build XmlRpcManager.dll with tests">
     <mkdir dir="${build.dir}" failonerror="true"/>
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${lib.dir}">
         <include name="Brunet.dll" />
+        <include name="Brunet.Dht.dll" />
         <include name="CookComputing.XmlRpcV2.dll" />
         <include name="NUnit.Framework.dll" />
       </fileset>
@@ -65,6 +67,7 @@
       </sources>
       <references>
         <include name="${build.dir}/Brunet.dll" />
+        <include name="${build.dir}/Brunet.Dht.dll" />
         <include name="System.Runtime.Remoting.dll"/>
         <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />
         <include name="${build.dir}/NUnit.Framework.dll" />
