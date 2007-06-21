@@ -672,6 +672,12 @@ namespace Brunet
     public void HandleData(MemBlock data, ISender return_path, object state) {
       AnnounceState astate = new AnnounceState(data, return_path as Edge);
       _packet_queue.Enqueue(astate);
+      //This is for debug:
+      int count = _packet_queue.Count;
+      if( (count > 0) && (count % 1000 == 0) ) {
+        Console.Error.WriteLine("Node({0}) has {1} elements in Announce Queue",
+                                 this.Address, count);
+      }
       //Announce(data, return_path);
     }
     
