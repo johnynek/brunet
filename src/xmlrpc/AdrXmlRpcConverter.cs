@@ -104,12 +104,16 @@ namespace Brunet {
         retval = Convert.ToInt32(o);
         modified = true;
       } else if(o is AdrException) {
-        AdrException ae = (AdrException)o;
-        AdrException new_ae = new AdrException(ae.Code, "AdrException:" + ae.Message);
-        throw new_ae;
+        AdrException e = (AdrException)o;
+        XmlRpcStruct xrs = new XmlRpcStruct();
+        xrs.Add("code", e.Code);
+        xrs.Add("message", e.Message);
+        xrs.Add("stacktrace", e.StackTrace);
+        retval = xrs;
+        modified = true;
       } else if(o is Exception) {
         Exception e = (Exception)o;
-        throw new Exception("XmlRpc Exception:" + e.Message);
+        throw new Exception("XmlRpcConverter rethrowed Exception:" + e.Message);
       }else {
         retval = o;
         modified = false;
@@ -134,9 +138,8 @@ namespace Brunet {
 
       System.Type t = o.GetType();
       if (t == typeof(byte[])) {
-        MemBlock mb = MemBlock.Reference((byte[])o);
-        retval = mb;
-        modified = true;
+        retval = o;
+        modified = false;
       } else {
         retval = o;
         modified = false;

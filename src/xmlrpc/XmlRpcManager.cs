@@ -9,7 +9,10 @@ using System.Runtime.Remoting.Lifetime;
 using System.Threading;
 using System.Security.Cryptography;
 using System.IO;
+using System.Diagnostics;
 using System.Reflection;
+using Brunet.Dht;
+using Brunet;
 #if BRUNET_NUNIT
 using NUnit.Framework;
 #endif
@@ -47,15 +50,16 @@ namespace Brunet {
         do {
           RpcResult rpcRs = (RpcResult)q.Dequeue();
           object val = rpcRs.Result;
-          Console.Error.WriteLine("Here", val);
+          Debug.WriteLine(string.Format("Original Result: {0}", val));
           object xmlrpc_val = AdrXmlRpcConverter.Adr2XmlRpc(val); //conversion in here
           counter++;
           allValues.Add(xmlrpc_val);
         } while (maxResultsToWait < 0 ? true : (counter < maxResultsToWait));
       } catch (Exception e) {
-        Console.WriteLine(e);
+        Debug.WriteLine(e);
         if (e is AdrException) {
-          throw e;
+          object new_e = AdrXmlRpcConverter.Adr2XmlRpc(e);
+          allValues.Add(new_e);
         }
       } finally {
         if (!q.Closed) {
@@ -63,6 +67,17 @@ namespace Brunet {
         }
       }      
       return allValues.ToArray();
+    }
+
+    /**
+     * This object is intended to stay in memory
+     */
+    public override object InitializeLifetimeService() {
+      ILease lease = (ILease)base.InitializeLifetimeService();
+      if (lease.CurrentState == LeaseState.Initial) {
+        lease.InitialLeaseTime = TimeSpan.Zero; //infinite lifetime
+      }
+      return lease;
     }
 
     //[XmlRpcMethod]
@@ -127,17 +142,18 @@ namespace Brunet {
    * For testing purpose. In production, XmlRpcManager could be deployed with existing server
    * port used: 10000
    */
-  class XmlRpcManagerServer {
-    public static void StartXmlRpcManagerServer(object oxm) {      
+  public class XmlRpcManagerServer {    
+
+    public static void StartXmlRpcManagerServer(object oxm) {
+      Debug.Listeners.Add(new ConsoleTraceListener());
       XmlRpcManager xm = (XmlRpcManager)oxm;            
       IServerChannelSinkProvider chain = new XmlRpcServerFormatterSinkProvider();
       IDictionary props = new Hashtable();
       props.Add("port", 10000);
+      props.Add("name", "xmlrpc");  //so that this channel won't collide with dht services
       HttpChannel channel = new HttpChannel(props, null, chain);
       ChannelServices.RegisterChannel(channel);
       RemotingServices.Marshal(xm, "xm.rem");
-      ILease lease = (ILease)xm.GetLifetimeService();
-      lease.Renew(TimeSpan.FromDays(1));
       /*
        * No need to setup Sponsor for testing
        */
@@ -155,6 +171,8 @@ namespace Brunet {
     
     private object[] _retvalues;
 
+    private object[] _params;
+
     /**
      * Singletoin instance is used here to set the status of the object 
      * prior to calling from the client
@@ -167,6 +185,11 @@ namespace Brunet {
     public object[] RetValsOfInvoke {
       get { return this._retvalues; }
       set { this._retvalues = value; }
+    }
+
+    public object[] ParamsOfInvoke {
+      get { return this._params; }
+      set { this._params = value; }
     }
 
     /**
@@ -187,6 +210,9 @@ namespace Brunet {
       if (this._retvalues == null) {
         throw new InvalidOperationException("Should use RetValsOfInvoke to set the return value first");
       }
+
+      this._params = args;
+
       Thread t = new Thread(this.AddStuffToBQ);
       object[] state = new object[] { q, target };
       t.Start(state);
@@ -213,12 +239,17 @@ namespace Brunet {
     Thread _server;
 
     [TestFixtureSetUp]
-    public void Init() {
+    public void InitFixture() {
       _rpc = XmlRpcManagerClient.GetXmlRpcManager(true);
       _mrm = MockRpcManager.GetInstance();
       XmlRpcManager xm = new XmlRpcManager(_mrm);
       _server = new Thread(XmlRpcManagerServer.StartXmlRpcManagerServer);
       _server.Start(xm);
+    }
+
+    [SetUp]
+    public void InitTest() {
+      this._mrm.ParamsOfInvoke = null;
     }
 
     private string GetRandomNodeAddr() {
@@ -271,7 +302,8 @@ namespace Brunet {
       Assert.AreEqual("value1", ht_val["key1"]);
     }
 
-    [Test]    
+    [Test]
+    [Ignore]
     public void TestPrimitiveTypes() {
       ArrayList expected_values = new ArrayList();      
       MemBlock e_mb = MemBlock.Reference(Encoding.UTF8.GetBytes("test memblock"));
@@ -296,30 +328,6 @@ namespace Brunet {
 
     [Test]
     [Ignore]
-    public void Test() {
-      Type t = typeof(XmlRpcManager);
-      MethodInfo mi = t.GetMethod("proxy");
-      ParameterInfo[] infos = mi.GetParameters();
-      Console.WriteLine(Attribute.IsDefined(infos[3],
-          typeof(ParamArrayAttribute)));
-      Console.WriteLine(infos[3].ParameterType.GetElementType());    
-    }
-
-    [Test]
-    [Ignore]
-    public void Test1() {
-      ArrayList list = new ArrayList();
-      list.Add(new Hashtable());
-      list.Add("string");
-      Type t = list.GetType().GetElementType();
-      Console.WriteLine(t);
-      object[] o = list.ToArray();
-      Type t1 = o.GetType().GetElementType();
-      Console.WriteLine(t1);
-    }
-
-    [Test]
-    [Ignore]
     public void TestListRetValue() {
       IList expected = new ArrayList();
       expected.Add("string");
@@ -331,6 +339,20 @@ namespace Brunet {
       object[] ret = this._rpc.proxy(node, 0, -1, "IgnoredMethodName", "string1", "string2");
     }
 
+    [Test]
+    [Ignore]
+    public void TestDhtGet() {
+      object[] expected_ret = new object[0];
+      _mrm.RetValsOfInvoke = expected_ret;
+      string node = this.GetRandomNodeAddr();
+      object[] ret = this._rpc.proxy(node, 0, -1, "dht.Get", Encoding.UTF8.GetBytes("key1"), 1000, Encoding.UTF8.GetBytes(""));
+      object[] args = this._mrm.ParamsOfInvoke;
+      Assert.AreEqual(3, args.Length);
+      object o = args[2];
+      Console.WriteLine(o.GetType());
+      MemBlock mb = (MemBlock)o;
+      Console.WriteLine("MB: {0}", mb.ToBase32String());
+    }
   }
 #endif
 }
