@@ -23,7 +23,7 @@
         <include name="AdrXmlRpcConverter.cs" />
       </sources>
       <references>        
-        <include name="${build.dir}/Brunet.dll" />        
+        <include name="${build.dir}/Brunet.dll" />
         <include name="System.Runtime.Remoting.dll"/>
         <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />
       </references>
