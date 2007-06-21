@@ -227,8 +227,14 @@ namespace Ipop {
 
         if(config.EnableSoapDht && sdthread == null) {
           sdthread = DhtServer.StartDhtServerAsThread(dhts[0]);
-        }
+        }        
       }
+
+      //temporarily be here with no configuration
+      RpcManager rpcm = RpcManager.GetInstance(nodes[0]);
+      XmlRpcManager xrpcm = new XmlRpcManager(rpcm);
+      Thread t = new Thread(XmlRpcManagerServer.StartXmlRpcManagerServer);
+      t.Start(xrpcm);
     }
 
     // Get our eth0 IP address then post that and our Brunet address to the Dht
