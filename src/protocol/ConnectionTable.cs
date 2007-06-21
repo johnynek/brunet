@@ -570,7 +570,11 @@ namespace Brunet
     public int LeftInclusiveCount(AHAddress a1, AHAddress a2) {
       if( a1.Equals(a2) ) { return 0; }
       int dist;
-      lock( _sync ) {
+      //This list never changes:
+      ArrayList structs = _struct_addlist;
+      int count = structs.Count;
+      int a2_idx = structs.BinarySearch(a2);
+      int a1_idx = structs.BinarySearch(a1);
         /*
          * There are four cases, we deal with each separately:
          * 0) neither a1 nor a2 are in the table
@@ -578,50 +582,46 @@ namespace Brunet
          * 2) a1 is, but a2 is not
          * 3) a1 and a2 are.
          */
-        int a2_idx = IndexOf(ConnectionType.Structured, a2);
-        int a1_idx = IndexOf(ConnectionType.Structured, a1);
-        int count = Count(ConnectionType.Structured);
 
-        bool a2_present = true;
-        bool a1_present = true;
-        if( a2_idx < 0 ) {
-          a2_present = false;
-          a2_idx = ~a2_idx;
+      bool a2_present = true;
+      bool a1_present = true;
+      if( a2_idx < 0 ) {
+        a2_present = false;
+        a2_idx = ~a2_idx;
+      }
+      if( a1_idx < 0 ) {
+        a1_present = false;
+        a1_idx = ~a1_idx;
+      }
+      if( a1_idx == a2_idx ) {
+        //This is an easy case:
+        int max_dist = count;
+        if( a2_present ) {
+          max_dist--;
         }
-        if( a1_idx < 0 ) {
-          a1_present = false;
-          a1_idx = ~a1_idx;
+        if( a1_present ) {
+          max_dist--;
         }
-        if( a1_idx == a2_idx ) {
-          //This is an easy case:
-          int max_dist = count;
-          if( a2_present ) {
-            max_dist--;
-          }
-          if( a1_present ) {
-            max_dist--;
-          }
-          if( a2.CompareTo( a1 ) > 0 ) {
-            dist = 0;  
-          }
-          else {
-            dist = max_dist;
-          }
+        if( a2.CompareTo( a1 ) > 0 ) {
+          dist = 0;  
         }
         else {
-          //These two indices are different:
-          dist = a2_idx - a1_idx;
-          if( dist < 0 ) {
-            //Wrap around.
-            dist += count;
-          }
-          if( a1_present ) {
-            /*
-             * In thie case, our calculations are too much by one, in both
-             * cases (dist > 0, dist < 0), so we decrease by one:
-             */
-            dist = dist - 1;
-          }
+          dist = max_dist;
+        }
+      }
+      else {
+        //These two indices are different:
+        dist = a2_idx - a1_idx;
+        if( dist < 0 ) {
+          //Wrap around.
+          dist += count;
+        }
+        if( a1_present ) {
+          /*
+           * In thie case, our calculations are too much by one, in both
+           * cases (dist > 0, dist < 0), so we decrease by one:
+           */
+          dist = dist - 1;
         }
       }
       return dist;
@@ -633,7 +633,12 @@ namespace Brunet
     public int RightInclusiveCount(AHAddress a1, AHAddress a2) {
       if( a1.Equals(a2) ) { return 0; }
       int dist;
-      lock( _sync ) {
+      
+      ArrayList structs = _struct_addlist;
+      int count = structs.Count;
+      int a2_idx = structs.BinarySearch(a2);
+      int a1_idx = structs.BinarySearch(a1);
+      
         /*
          * There are four cases, we deal with each separately:
          * 0) neither a1 nor a2 are in the table
@@ -641,50 +646,46 @@ namespace Brunet
          * 2) a1 is, but a2 is not
          * 3) a1 and a2 are.
          */
-        int a2_idx = IndexOf(ConnectionType.Structured, a2);
-        int a1_idx = IndexOf(ConnectionType.Structured, a1);
-        int count = Count(ConnectionType.Structured);
 
-        bool a2_present = true;
-        bool a1_present = true;
-        if( a2_idx < 0 ) {
-          a2_present = false;
-          a2_idx = ~a2_idx;
+      bool a2_present = true;
+      bool a1_present = true;
+      if( a2_idx < 0 ) {
+        a2_present = false;
+        a2_idx = ~a2_idx;
+      }
+      if( a1_idx < 0 ) {
+        a1_present = false;
+        a1_idx = ~a1_idx;
+      }
+      if( a1_idx == a2_idx ) {
+        //This is an easy case:
+        int max_dist = count;
+        if( a2_present ) {
+          max_dist--;
         }
-        if( a1_idx < 0 ) {
-          a1_present = false;
-          a1_idx = ~a1_idx;
+        if( a1_present ) {
+          max_dist--;
         }
-        if( a1_idx == a2_idx ) {
-          //This is an easy case:
-          int max_dist = count;
-          if( a2_present ) {
-            max_dist--;
-          }
-          if( a1_present ) {
-            max_dist--;
-          }
-          if( a2.CompareTo( a1 ) < 0 ) {
-            dist = 0;  
-          }
-          else {
-            dist = max_dist;
-          }
+        if( a2.CompareTo( a1 ) < 0 ) {
+          dist = 0;  
         }
         else {
-          //These two indices are different:
-          dist = a1_idx - a2_idx;
-          if( dist < 0 ) {
-            //Wrap around.
-            dist += count;
-          }
-          if( a2_present ) {
-            /*
-             * In thie case, our calculations are too much by one, in both
-             * cases (dist > 0, dist < 0), so we decrease by one:
-             */
-            dist = dist - 1;
-          }
+          dist = max_dist;
+        }
+      }
+      else {
+        //These two indices are different:
+        dist = a1_idx - a2_idx;
+        if( dist < 0 ) {
+          //Wrap around.
+          dist += count;
+        }
+        if( a2_present ) {
+          /*
+           * In thie case, our calculations are too much by one, in both
+           * cases (dist > 0, dist < 0), so we decrease by one:
+           */
+          dist = dist - 1;
         }
       }
       return dist;

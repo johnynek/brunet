@@ -409,7 +409,7 @@ namespace Brunet
       }
       //the following should happen outside the lock
       foreach (EdgeCreationState ecs in to_remove) {
-        ecs.CallECB(false, null, new Exception("Timed out on edge creation."));
+        ecs.CallECB(false, null, new EdgeException("Timed out on edge creation."));
       }
       foreach (EdgeCreationState ecs in to_send) {
 #if TUNNEL_DEBUG

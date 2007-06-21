@@ -54,54 +54,13 @@ public abstract class NatDataPoint {
    */
   public TransportAddress PreviousTA { get { return _old_ta; } }
 
-  protected int _edge_no;
+  protected long _edge_no;
   /**
    * So we don't keep a reference to the Edge, thereby potentially never allowing
    * garbage collection, each Edge is assigned a unique number
    * This is a unique mapping for the life of the Edge
    */
-  public int EdgeNumber { get { return _edge_no; } }
-
-  static protected WeakHashtable _edge_nos;
-  static int _next_edge_no;
-  static NatDataPoint() {
-    _edge_nos = new WeakHashtable();
-    _next_edge_no = 1;
-  }
-
-  /**
-   * Return the edge number for the given Edge.  If we don't
-   * have a number for it, return 0
-   */
-  static public int GetEdgeNumberOf(Edge e) {
-    int no = 0;
-    lock( _edge_nos ) {
-      object v = _edge_nos[e];
-      if( v != null ) {
-        no = (int)v;
-      }
-    }
-    return no;
-  }
-
-  protected void SetEdgeNumber(Edge e) {
-    if( e == null ) {
-      _edge_no = 0;
-    }
-    else {
-     lock( _edge_nos ) {
-      object v = _edge_nos[e];
-      if( v != null ) {
-        _edge_no = (int)v;
-      }
-      else {
-        _edge_no = _next_edge_no;
-        _next_edge_no++;
-        _edge_nos[e] = _edge_no;
-      }
-     }
-    }
-  }
+  public long EdgeNumber { get { return _edge_no; } }
 }
 
 /**
@@ -110,7 +69,7 @@ public abstract class NatDataPoint {
 public class NewEdgePoint : NatDataPoint {
   public NewEdgePoint(DateTime dt, Edge e) {
     _date = dt;
-    SetEdgeNumber(e);
+    _edge_no = e.Number;
     _local = e.LocalTA;
     _remote = e.RemoteTA;
   }
@@ -122,7 +81,7 @@ public class NewEdgePoint : NatDataPoint {
 public class EdgeClosePoint : NatDataPoint {
   public EdgeClosePoint(DateTime dt, Edge e) {
     _date = dt;
-    SetEdgeNumber(e);
+    _edge_no = e.Number;
     _local = e.LocalTA;
     _remote = e.RemoteTA;
   }
@@ -135,7 +94,7 @@ public class LocalMappingChangePoint : NatDataPoint {
   public LocalMappingChangePoint(DateTime dt, Edge e,
                                  TransportAddress new_ta) {
     _date = dt;
-    SetEdgeNumber(e);
+    _edge_no = e.Number;
     _local = e.LocalTA;
     _remote = e.RemoteTA;
     _p_local = new_ta;
@@ -148,7 +107,7 @@ public class LocalMappingChangePoint : NatDataPoint {
 public class RemoteMappingChangePoint : NatDataPoint {
   public RemoteMappingChangePoint(DateTime dt, Edge e) {
     _date = dt;
-    SetEdgeNumber(e);
+    _edge_no = e.Number;
     _local = e.LocalTA;
     _remote = e.RemoteTA;
   }
