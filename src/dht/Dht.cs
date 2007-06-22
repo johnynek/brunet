@@ -205,6 +205,7 @@ namespace Brunet.Dht {
         for (int k = 0; k < DEGREE; k++) {
           BlockingQueue queue = q[k];
           queue.EnqueueEvent += this.GetHandler;
+          queue.CloseEvent += this.GetHandler;
           adgs.queueMapping[queue] = k;
         }
       }
@@ -235,11 +236,18 @@ namespace Brunet.Dht {
 
       // Well we are already closed but yet we got a mapping, this shouldn't happen....
       if(queue.Closed) {
+        int count = 0;
         lock(adgs.queueMapping) {
           adgs.queueMapping.Remove(queue);
+          count = adgs.queueMapping.Count;
         }
         lock(_adgs_table) {
           _adgs_table.Remove(queue);
+        }
+        queue.EnqueueEvent -= this.GetHandler;
+        queue.CloseEvent -= this.GetHandler;
+        if(count == 0) {
+          adgs.returns.Close();
         }
         return;
       }
@@ -290,6 +298,7 @@ namespace Brunet.Dht {
         _adgs_table.Remove(queue);
       }
       queue.EnqueueEvent -= this.GetHandler;
+      queue.CloseEvent -= this.GetHandler;
       queue.Close();
 
       // We were notified that more results were available!  Let's go get them!
@@ -302,6 +311,7 @@ namespace Brunet.Dht {
           _adgs_table[queue] = adgs;
         }
         queue.EnqueueEvent += this.GetHandler;
+        queue.CloseEvent += this.GetHandler;
         _rpc.Invoke(sendto, queue, "dht.Get", 
                     adgs.brunet_address_for_key[idx], MAX_BYTES, token);
       }
@@ -334,6 +344,7 @@ namespace Brunet.Dht {
           }
           for(int i = 0; i < queues.Length; i++) {
             BlockingQueue q = queues[i];
+            q.CloseEvent -= this.GetHandler;
             q.EnqueueEvent -= this.GetHandler;
             q.Close();
             lock(adgs.queueMapping) {
@@ -411,6 +422,7 @@ namespace Brunet.Dht {
         for (int k = 0; k < DEGREE; k++) {
           BlockingQueue queue = q[k];
           queue.EnqueueEvent += this.PutHandler;
+          queue.CloseEvent += this.PutHandler;
           adps.queueMapping[queue] = k;
         }
       }
@@ -449,6 +461,8 @@ namespace Brunet.Dht {
             adps.returns.Close();
           }
         }
+        queue.CloseEvent -= this.PutHandler;
+        queue.EnqueueEvent -= this.PutHandler;
         return;
       }
 
