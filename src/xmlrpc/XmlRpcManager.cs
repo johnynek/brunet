@@ -60,8 +60,7 @@ namespace Brunet {
      */
     [XmlRpcMethod]
     public object[] localproxy(string method, params object[] args) {
-      AHSender s = new AHSender(_rpc.Node, _rpc.Node.Address);
-      return this.Proxy(s, -1, method, args);
+      return this.Proxy(_rpc.Node, 1, method, args);
     }
 
     private object[] Proxy(ISender sender,int maxResultsToWait, string method, object[] args) {
