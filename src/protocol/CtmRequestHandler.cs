@@ -57,7 +57,7 @@ namespace Brunet
      * nodes can call the "sys:ctm.ConnectTo" method to 
      * reach this method
      */
-    public Hashtable ConnectTo(Hashtable ht) {
+    public IDictionary ConnectTo(IDictionary ht) {
       ConnectToMessage ctm_req = new ConnectToMessage(ht);
       //Console.Error.WriteLine("[{0}.ConnectTo({1})]", _n.Address, ctm_req);
       NodeInfo target = ctm_req.Target;
@@ -67,7 +67,7 @@ namespace Brunet
       _n.TaskQueue.Enqueue( l );
       ConnectToMessage resp = GetCtmResponseTo(ctm_req);
       //Console.Error.WriteLine("[{0}.ConnectTo()->{1}]", _n.Address, resp);
-      return resp.ToHashtable();
+      return resp.ToDictionary();
     }
 
     protected ConnectToMessage GetCtmResponseTo(ConnectToMessage ctm_req) {

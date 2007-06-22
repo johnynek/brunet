@@ -170,7 +170,7 @@ namespace Brunet
       BlockingQueue results = new BlockingQueue();
       results.EnqueueEvent += this.EnqueueHandler;
       results.CloseEvent += this.QueueCloseHandler;
-      rpc.Invoke(_sender, results, "sys:ctm.ConnectTo", _ctm.ToHashtable() );
+      rpc.Invoke(_sender, results, "sys:ctm.ConnectTo", _ctm.ToDictionary() );
     }
 
     /**

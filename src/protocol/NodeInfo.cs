@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using System;
 using System.Collections;
+using System.Collections.Specialized;
 using System.Xml;
 using System.IO;
 
@@ -124,7 +125,7 @@ namespace Brunet
       _tas = new ArrayList();
     }
 
-    public NodeInfo(Hashtable ht) {
+    public NodeInfo(IDictionary ht) {
       object addr_str = ht["address"];
       if( addr_str != null ) {
         _address = AddressParser.Parse((string)addr_str);
@@ -235,9 +236,9 @@ namespace Brunet
       return new NodeInfo(r);
     }
 
-    public Hashtable ToHashtable()
+    public IDictionary ToDictionary()
     {
-      Hashtable ht = new Hashtable(2);
+      ListDictionary ht = new ListDictionary();
       if( _address != null ) {
         ht["address"] = _address.ToString();
       }
@@ -297,7 +298,7 @@ namespace Brunet
 
     }
     public void RoundTripHT(NodeInfo ni) {
-      NodeInfo ni_other = new NodeInfo( ni.ToHashtable() );
+      NodeInfo ni_other = new NodeInfo( ni.ToDictionary() );
       Assert.AreEqual(ni, ni_other, "Hashtable roundtrip");
     }
     //Test methods:
