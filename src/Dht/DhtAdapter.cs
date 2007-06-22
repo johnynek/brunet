@@ -23,7 +23,7 @@ namespace Ipop {
     protected Hashtable _bqs = new Hashtable();
 
     public DhtAdapter(Dht dht) {
-      this._dht = dht;      
+      this._dht = dht;
     }
 
     public DhtAdapter() { ;}
@@ -92,7 +92,16 @@ namespace Ipop {
       string real_tk = key + ":" + Encoding.UTF8.GetString(token);
       return real_tk;
     }
-  }
+
+    // This object is intended to stay in memory
+    public override object InitializeLifetimeService() {
+      ILease lease = (ILease)base.InitializeLifetimeService();
+      if (lease.CurrentState == LeaseState.Initial) {
+        lease.InitialLeaseTime = TimeSpan.Zero; //infinite lifetime
+      }
+      return lease;
+      }
+    }
 
 
   public class SoapDht : DhtAdapter, ISoapDht {

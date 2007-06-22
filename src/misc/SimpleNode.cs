@@ -37,7 +37,7 @@ namespace Ipop {
             int new_node_count = 0;
             index++;
             if(dhtconsole || dhtfiles.Count > 0 || soap_client) {
-              Console.WriteLine("-m cannot be used with -df, -dc, or -s.\n");
+              Console.Error.WriteLine("-m cannot be used with -df, -dc, or -s.\n");
               PrintHelp();
             }
             else if((index == args.Length) || !Int32.TryParse(args[index], out new_node_count)) {
@@ -246,6 +246,7 @@ namespace Ipop {
           }
           catch(Exception) {;}
           if(result) {
+            Console.WriteLine("Successfully submitted {0} into plab_tracker.", value);
             break;
           }
           else {
