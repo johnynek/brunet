@@ -13,7 +13,6 @@
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${lib.dir}">        
         <include name="Brunet.dll" />
-        <include name="Brunet.Dht.dll" />
         <include name="CookComputing.XmlRpcV2.dll" />
         <include name="NUnit.Framework.dll" />
       </fileset>
@@ -52,7 +51,6 @@
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${lib.dir}">
         <include name="Brunet.dll" />
-        <include name="Brunet.Dht.dll" />
         <include name="CookComputing.XmlRpcV2.dll" />
         <include name="NUnit.Framework.dll" />
       </fileset>
@@ -67,7 +65,6 @@
       </sources>
       <references>
         <include name="${build.dir}/Brunet.dll" />
-        <include name="${build.dir}/Brunet.Dht.dll" />
         <include name="System.Runtime.Remoting.dll"/>
         <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />
         <include name="${build.dir}/NUnit.Framework.dll" />
