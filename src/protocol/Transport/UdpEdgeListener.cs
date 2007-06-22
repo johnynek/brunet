@@ -683,8 +683,12 @@ namespace Brunet
       lock( _send_queue ) {
         SendQueueEntry sqe = new SendQueueEntry(p, (UdpEdge)from);
         _send_queue.Enqueue(sqe);
-        _queue_not_empty = true;
+        int count = _send_queue.Count;
+        if( (count > 0) && (count % 1000 == 0) ) {
+          Console.Error.WriteLine("UdpEdgeListener has {1} elements in Send Queue", count);
+        }
       }
+      _queue_not_empty = true;
     }
 
   }
