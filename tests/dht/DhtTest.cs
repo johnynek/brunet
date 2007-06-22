@@ -12,7 +12,7 @@ namespace Brunet.Dht {
      SortedList nodes = new SortedList();
     Dht []dhts;
     static readonly int degree = 3;
-    static readonly int network_size = 60;
+    static int network_size = 60;
     static readonly string brunet_namespace = "testing";
     static readonly int base_port = 55123;
     // Well this is needed because C# doesn't lock the console
@@ -191,6 +191,7 @@ namespace Brunet.Dht {
       catch(Exception e) {
         Console.WriteLine("Failure at operation: " + op);
         Console.WriteLine(e);
+        throw e;
       }
     }
 
@@ -279,6 +280,11 @@ namespace Brunet.Dht {
         ConnectionTable con_table = node.ConnectionTable;
         Connection con = con_table.GetLeftStructuredNeighborOf((AHAddress) curr_addr);
         Console.WriteLine("Hop {2}\t Address {0}\n\t Connection to left {1}\n", curr_addr, con, i);
+
+        if (con == null) {
+          Console.WriteLine("Found disconnection at position {0}.", i);
+          return false;
+        }
         Address next_addr = con.Address;
 
         if (next_addr == null) {
@@ -286,7 +292,16 @@ namespace Brunet.Dht {
           return false;
         }
 
-        Address left_addr = ((Node)nodes[next_addr]).ConnectionTable.GetRightStructuredNeighborOf((AHAddress) next_addr).Address;
+        con = null;
+        try {
+          con = ((Node)nodes[next_addr]).ConnectionTable.GetRightStructuredNeighborOf((AHAddress) next_addr);
+        }
+        catch {}
+        if (con == null) {
+          Console.WriteLine("Found disconnection at position {0}.", i);
+          return false;
+        }
+        Address left_addr = con.Address;
         if(left_addr == null) {
           Console.WriteLine("Found disconnection.");
         }
@@ -353,8 +368,8 @@ namespace Brunet.Dht {
         Test10(ref op);
         Test11(ref op);
         Test12(ref op);
-/*        Test13(ref op);
-        Test14(ref op);*/
+        Test13(ref op);
+        Test14(ref op);
       }
       catch (Exception e) {
         Console.WriteLine("Failure at operation: " + (op - 1));
@@ -744,22 +759,23 @@ namespace Brunet.Dht {
 
     public void Test14(ref int op) {
       Console.WriteLine("Test 14: Testing 1000 puts and 1 get with 1000 " +
-          "results with the same key.  This checks to make sure we are " +
-          "replicating on disconnect, will definitely need more work though.");
+          "results with the same key.  Then we remove the main owner of the " +
+          "key.");
       RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
       byte[] key = new byte[10];
       byte[] value = new byte[100];
       rng.GetBytes(key);
       ArrayList al_results = new ArrayList();
-      BlockingQueue[] results_queue = new BlockingQueue[60];
+      int count = 5;
+      BlockingQueue[] results_queue = new BlockingQueue[count];
 
-      for(int i = 0; i < 60; i++) {
+      for(int i = 0; i < count; i++) {
         value = new byte[100];
         rng.GetBytes(value);
         al_results.Add(value);
         results_queue[i] = dhts[0].AsPut(key, value, 3000);
       }
-      for (int i = 0; i < 60; i++) {
+      for (int i = 0; i < count; i++) {
         bool result = (bool) results_queue[i].Dequeue();
         if(result == false) {
           Console.WriteLine("Failure in put : " + i);
@@ -769,14 +785,76 @@ namespace Brunet.Dht {
         }
       }
       Console.WriteLine("Insertion done...");
-      Console.WriteLine("Disconnecting 25% of the nodes and then sleeping for 30 seconds to let the network reform");
-            for(int i = 0; i < network_size; i += 4) {
-        Node node = (Node) nodes.GetByIndex(i);
-        node.Disconnect();
+      Console.WriteLine("Disconnecting nodes...");
+      MemBlock[] b = dhts[0].MapToRing(key);
+      BigInteger[] baddrs = new BigInteger[dhts[0].DEGREE];
+      BigInteger[] addrs = new BigInteger[dhts[0].DEGREE];
+      bool first_run = true;
+      foreach(DictionaryEntry de in nodes) {
+        Address addr = (Address) de.Key;
+        for(int j = 0; j < b.Length; j++) {
+          if(first_run) {
+            addrs[j] = addr.ToBigInteger();
+            baddrs[j] = (new AHAddress(b[j])).ToBigInteger();
+          }
+          else {
+            BigInteger caddr = addr.ToBigInteger();
+            BigInteger new_diff = baddrs[j] - caddr;
+            if(new_diff < 0) {
+              new_diff *= -1;
+            }
+            BigInteger c_diff = baddrs[j] - addrs[j];
+            if(c_diff < 0) {
+              c_diff *= -1;
+            }
+            if(c_diff > new_diff) {
+              addrs[j] = caddr;
+            }
+          }
+        }
+        first_run = false;
       }
-      Thread.Sleep(30000);
+
+      int[] not_to_use = new int[8];
+      for(int i = 0; i < addrs.Length; i++) {
+        Console.WriteLine(new AHAddress(baddrs[i]) + " " + new AHAddress(addrs[i]));
+        Address laddr = new AHAddress(addrs[i]);
+        Node node = (Node) nodes[laddr];
+        node.Disconnect();
+        not_to_use[i] = nodes.IndexOfKey(laddr);
+        nodes.Remove(laddr);
+        network_size--;
+      }
+
+      int node_to_use = 0;
+      bool done = false;
+      for(node_to_use = 0; node_to_use < network_size; node_to_use++) {
+        for(int j = 0; j < degree; j++) {
+          if(node_to_use == not_to_use[j]) {
+            break;
+          }
+          else if(j == degree - 1) {
+            done = true;
+            break;
+          }
+        }
+        if(done) {
+          break;
+        }
+      }
+
+      Console.WriteLine("Going to sleep now...");
+      Thread.Sleep(15000);
       Console.WriteLine("Timeout done.... now attempting gets");
-      this.SerialAsGet(key, 0, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
+      do  { Thread.Sleep(5000);}
+     while(!CheckAllConnections());
+      while(true) {
+        try {
+          this.SerialAsGet(key, node_to_use, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
+          break;
+        }
+        catch(Exception) {}
+      }
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
     }
 
