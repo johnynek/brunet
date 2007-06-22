@@ -18,14 +18,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-/*
- * Brunet.AddressParser
- * Brunet.Address;
- * Brunet.ConnectionMessage;
- * Brunet.ConnectionType;
- * Brunet.TransportAddress;
- */
-
 using System.Xml;
 using System.Collections;
 using System.Collections.Specialized;
@@ -76,16 +68,16 @@ namespace Brunet
       _local_ni = local;
       _remote_ni = remote;
     }
-    public LinkMessage(Hashtable ht) {
+    public LinkMessage(IDictionary ht) {
       IDictionaryEnumerator en = ht.GetEnumerator();
       _attributes = new StringDictionary();
       while( en.MoveNext() ) {
         if( en.Key.Equals( "local" ) ) {
-          Hashtable lht = en.Value as Hashtable;
+          IDictionary lht = en.Value as IDictionary;
           if( lht != null ) { _local_ni = new NodeInfo(lht); }
         }
         else if( en.Key.Equals( "remote" ) ) {
-          Hashtable rht = en.Value as Hashtable;
+          IDictionary rht = en.Value as IDictionary;
           if( rht != null ) { _remote_ni = new NodeInfo(rht); }
         }
         else {
@@ -242,13 +234,13 @@ namespace Brunet
       return new LinkMessage(dir, id, r);
     }   
 
-    public Hashtable ToHashtable() {
-      Hashtable ht = new Hashtable( 2 + _attributes.Count );
+    public IDictionary ToDictionary() {
+      IDictionary ht = new ListDictionary();
       if( _local_ni != null ) {
-        ht["local"] = _local_ni.ToHashtable();
+        ht["local"] = _local_ni.ToDictionary();
       }
       if( _remote_ni != null ) {
-        ht["remote"] = _remote_ni.ToHashtable();
+        ht["remote"] = _remote_ni.ToDictionary();
       }
       if( _attributes != null ) {
         foreach(DictionaryEntry de in _attributes) {
@@ -302,7 +294,7 @@ namespace Brunet
     public LinkMessageTester() { }
     
     public void RoundTripHT(LinkMessage lm) {
-      LinkMessage lm2 = new LinkMessage( lm.ToHashtable() );
+      LinkMessage lm2 = new LinkMessage( lm.ToDictionary() );
       Assert.AreEqual( lm, lm2, "LinkMessage HT Roundtrip" );
     }
 

@@ -312,7 +312,7 @@ namespace Brunet
         EventHandler handle_result = delegate(object q, EventArgs eargs) {
           try {
             RpcResult r = (RpcResult)stat_res.Dequeue();
-            StatusMessage sm = new StatusMessage( (Hashtable)r.Result );
+            StatusMessage sm = new StatusMessage( (IDictionary)r.Result );
             tab.UpdateStatus(lc, sm);
           }
           catch(Exception) {
@@ -322,7 +322,7 @@ namespace Brunet
         };
         stat_res.EnqueueEvent += handle_result;
         RpcManager rpc = RpcManager.GetInstance(this);
-        rpc.Invoke(lc.Edge, stat_res, "sys:link.GetStatus", req.ToHashtable() );
+        rpc.Invoke(lc.Edge, stat_res, "sys:link.GetStatus", req.ToDictionary() );
       }
       if( rc != null && (lc != rc) ) {
         StatusMessage req = GetStatus(con_type_string, rc.Address);
@@ -330,7 +330,7 @@ namespace Brunet
         EventHandler handle_result = delegate(object q, EventArgs eargs) {
           try {
             RpcResult r = (RpcResult)stat_res.Dequeue();
-            StatusMessage sm = new StatusMessage( (Hashtable)r.Result );
+            StatusMessage sm = new StatusMessage( (IDictionary)r.Result );
             tab.UpdateStatus(rc, sm);
           }
           catch(Exception) {
@@ -340,7 +340,7 @@ namespace Brunet
         };
         stat_res.EnqueueEvent += handle_result;
         RpcManager rpc = RpcManager.GetInstance(this);
-        rpc.Invoke(rc.Edge, stat_res, "sys:link.GetStatus", req.ToHashtable() );
+        rpc.Invoke(rc.Edge, stat_res, "sys:link.GetStatus", req.ToDictionary() );
       }      
      } catch(Exception x) {
         Console.Error.WriteLine(x.ToString());

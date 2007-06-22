@@ -342,7 +342,7 @@ namespace Brunet
       results.EnqueueEvent += this.LinkResultHandler;
       results.CloseEvent += this.LinkCloseHandler;
       RpcManager rpc = RpcManager.GetInstance(_node);
-      rpc.Invoke(_e, results, "sys:link.Start", MakeLM().ToHashtable() );
+      rpc.Invoke(_e, results, "sys:link.Start", MakeLM().ToDictionary() );
     }
     
     /**
@@ -411,7 +411,7 @@ namespace Brunet
           results.EnqueueEvent += this.StatusResultHandler;
           results.CloseEvent += this.StatusCloseHandler;
           RpcManager rpc = RpcManager.GetInstance(_node);
-          rpc.Invoke(_e, results, "sys:link.GetStatus", sm.ToHashtable() );
+          rpc.Invoke(_e, results, "sys:link.GetStatus", sm.ToDictionary() );
         }
       }
       catch(AdrException x) {

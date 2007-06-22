@@ -25,6 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using System;
 using System.Collections;
+using System.Collections.Specialized;
 
 namespace Brunet
 {
@@ -92,7 +93,7 @@ namespace Brunet
     /**
      * Handle the notification that the other side is going to close the edge
      */
-    public Hashtable Close(Hashtable close_message, ISender edge) {
+    public IDictionary Close(IDictionary close_message, ISender edge) {
 #if LINK_DEBUG
       Console.Error.WriteLine("{0} -start- sys:link.Close({1},{2})", _node.Address, close_message,edge);
 #endif
@@ -112,11 +113,11 @@ namespace Brunet
 #if LINK_DEBUG
       Console.Error.WriteLine("{0} -end- sys:link.Close({1},{2})", _node.Address, close_message,from);
 #endif
-      return new Hashtable(1);
+      return new ListDictionary();
     }
 
     /**
-     * Return a hashtable with entries:
+     * Return an IDictionary with entries:
      * self -> my Address
      * left -> Address of left neighbor
      * right -> Address of right neighbor
@@ -124,12 +125,12 @@ namespace Brunet
      * If the node has any shortcuts:
      * shortcut -> Random shortcut connection
      */
-    public Hashtable GetNeighbors(ISender caller) {
+    public IDictionary GetNeighbors(ISender caller) {
       AHAddress self = (AHAddress)_node.Address;
       Connection left = _node.ConnectionTable.GetLeftStructuredNeighborOf(self);
       Connection right = _node.ConnectionTable.GetRightStructuredNeighborOf(self);
 
-      Hashtable result = new Hashtable(4);
+      IDictionary result = new ListDictionary();
       //Put it in:
       result["self"] = self.ToString();
       result["left"] = left.Address.ToString();
@@ -150,7 +151,7 @@ namespace Brunet
     /**
      * This starts a linking operation on the given edge
      */
-    public Hashtable Start(Hashtable link_message, ISender edge) {
+    public IDictionary Start(IDictionary link_message, ISender edge) {
 #if LINK_DEBUG
       Console.Error.WriteLine("{0} -start- sys:link.Start", _node.Address);
 #endif
@@ -214,7 +215,7 @@ namespace Brunet
 #if LINK_DEBUG
       Console.Error.WriteLine("{0} -end- sys:link.Start()->{1}", _node.Address,lm_resp);
 #endif
-      return lm_resp.ToHashtable();
+      return lm_resp.ToDictionary();
     }
 
     /**
@@ -231,7 +232,7 @@ namespace Brunet
     /**
      * Get a StatusMessage for this node
      */
-    public Hashtable GetStatus(Hashtable status_message, ISender edge) {
+    public IDictionary GetStatus(IDictionary status_message, ISender edge) {
       //we just got s status request
       LinkMessage lm_to_add = null;
       StatusMessage sm = new StatusMessage(status_message);
@@ -285,7 +286,7 @@ namespace Brunet
 #if LINK_DEBUG
       Console.Error.WriteLine("{0} -end- sys:link.GetStatus()->{1}", _node.Address,response);
 #endif
-      return response.ToHashtable();
+      return response.ToDictionary();
     }
 
     /**
