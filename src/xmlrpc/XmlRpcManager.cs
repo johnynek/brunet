@@ -38,6 +38,8 @@ namespace Brunet {
      *                         if there are still more. (unless this argument is specified as a negative number)
      * @param method: brunet rpc method name
      * @param args: args of brunet rpc method
+     * 
+     * @return array of objects returned by the blocking queue
      */
     [XmlRpcMethod]
     public object[] proxy(string node, int ahOptions, int maxResultsToWait, string method, params object[] args) {      
@@ -48,9 +50,24 @@ namespace Brunet {
       byte[] b_addr = Base32.Decode(node);
       AHAddress target = new AHAddress(b_addr);
       AHSender s = new AHSender(_rpc.Node, target, (ushort)ahOptions);
-      BlockingQueue q = new BlockingQueue();      
+      return this.Proxy(s, maxResultsToWait, method, args);
+    }
+
+    /**
+     * Similar to proxy but takes the local node as the target and choose the options:
+     * AHOptions: AddClassDefault
+     * maxResultsToWait: Wait all
+     */
+    [XmlRpcMethod]
+    public object[] localproxy(string method, params object[] args) {
+      AHSender s = new AHSender(_rpc.Node, _rpc.Node.Address);
+      return this.Proxy(s, -1, method, args);
+    }
+
+    private object[] Proxy(ISender sender,int maxResultsToWait, string method, object[] args) {
+      BlockingQueue q = new BlockingQueue();
       args = AdrXmlRpcConverter.XmlRpc2AdrParams(args);
-      _rpc.Invoke(s, q, method, args);
+      _rpc.Invoke(sender, q, method, args);
       ArrayList allValues = new ArrayList();
       int counter = 0;
       ISender rsSender = null;
@@ -68,8 +85,8 @@ namespace Brunet {
         Debug.WriteLine(e);
         if (e is AdrException) {
           if (rsSender != null) {
-            object sender = AdrXmlRpcConverter.Adr2XmlRpc(rsSender);
-            allValues.Add(sender);
+            object s = AdrXmlRpcConverter.Adr2XmlRpc(rsSender);
+            allValues.Add(s);
           }
           object new_e = AdrXmlRpcConverter.Adr2XmlRpc(e);
           allValues.Add(new_e);
@@ -78,7 +95,7 @@ namespace Brunet {
         if (!q.Closed) {
           q.Close();
         }
-      }      
+      }
       return allValues.ToArray();
     }
 
@@ -92,11 +109,6 @@ namespace Brunet {
       }
       return lease;
     }
-
-    //[XmlRpcMethod]
-    //public object[] proxy(string node, string method, params object[] args) {
-    //  return this.proxy(node, -1, method, args);
-    //}
   }
 
   /**
@@ -104,10 +116,10 @@ namespace Brunet {
    */
   public interface IXmlRpcManager : IXmlRpcProxy {
     [XmlRpcMethod]
-    object[] proxy(string node, int ahOptions, int maxResultsToWait, string method, params object[] args);
+    object[] proxy(string node, int ahOptions, int maxResultsToWait, string method, object[] args);
     
-    //[XmlRpcMethod]
-    //object[] proxy(string node, string method, params object[] args);
+    [XmlRpcMethod]
+    object[] localproxy(string method, object[] args);
   }
 
   public class XmlRpcManagerClient {
@@ -277,7 +289,7 @@ namespace Brunet {
     public void TestBoolRetVal_StringParams() {
       _mrm.RetValsOfInvoke = new object[] { true };
       string node = this.GetRandomNodeAddr();
-      object[] ret = this._rpc.proxy(node, 0, -1, "IgnoredMethodName", "string1", "string2");
+      object[] ret = this._rpc.proxy(node, 0, -1, "IgnoredMethodName", new object[] {"string1", "string2"});
       Assert.AreEqual(1, ret.Length);
       Assert.AreEqual(true, ret[0]);
     }
@@ -290,7 +302,7 @@ namespace Brunet {
       ht.Add("key2", "value2");
       _mrm.RetValsOfInvoke = new object[] { ht };
       string node = this.GetRandomNodeAddr();
-      object[] ret = this._rpc.proxy(node,0, -1, "IgnoredMethodName", "string1", "string2");
+      object[] ret = this._rpc.proxy(node,0, -1, "IgnoredMethodName", new object[] {"string1", "string2"});
       Assert.AreEqual(1, ret.Length);
       Hashtable actual = (Hashtable)ret[0];
       Assert.AreEqual(2, actual.Count);
@@ -307,7 +319,7 @@ namespace Brunet {
       expected.Add(e_key1, e_key1);
       _mrm.RetValsOfInvoke = new object[] { expected };
       string node = this.GetRandomNodeAddr();
-      object[] ret = this._rpc.proxy(node, 0, -1, "IgnoredMethodName", "string1", "string2");
+      object[] ret = this._rpc.proxy(node, 0, -1, "IgnoredMethodName", new object[] {"string1", "string2"});
       Assert.AreEqual(1, ret.Length);
       Hashtable actual = (Hashtable)ret[0];      
       Hashtable ht_val = (Hashtable)actual["CookComputing.XmlRpc.XmlRpcStruct"];
@@ -331,7 +343,7 @@ namespace Brunet {
       expected_values.Add(e_ui);
       _mrm.RetValsOfInvoke = expected_values.ToArray();
       string node = this.GetRandomNodeAddr();
-      object[] ret = this._rpc.proxy(node, 0, -1, "IgnoredMethodName", "string1", "string2");
+      object[] ret = this._rpc.proxy(node, 0, -1, "IgnoredMethodName", new object[] {"string1", "string2"});
       byte[] actual = Convert.FromBase64String((string)ret[0]);
       Assert.IsTrue(e_mb.Equals(actual));
       float a_f = Convert.ToSingle((double)ret[1]);
@@ -348,7 +360,7 @@ namespace Brunet {
       expected.Add(ht);
       _mrm.RetValsOfInvoke = new object[] { expected };
       string node = this.GetRandomNodeAddr();
-      object[] ret = this._rpc.proxy(node, 0, -1, "IgnoredMethodName", "string1", "string2");
+      object[] ret = this._rpc.proxy(node, 0, -1, "IgnoredMethodName", new object[] {"string1", "string2"});
     }
 
     [Test]
@@ -357,7 +369,7 @@ namespace Brunet {
       object[] expected_ret = new object[0];
       _mrm.RetValsOfInvoke = expected_ret;
       string node = this.GetRandomNodeAddr();
-      object[] ret = this._rpc.proxy(node, 0, -1, "dht.Get", Encoding.UTF8.GetBytes("key1"), 1000, Encoding.UTF8.GetBytes(""));
+      object[] ret = this._rpc.proxy(node, 0, -1, "dht.Get", new object[] { Encoding.UTF8.GetBytes("key1"), 1000, Encoding.UTF8.GetBytes("") });
       object[] args = this._mrm.ParamsOfInvoke;
       Assert.AreEqual(3, args.Length);
       object o = args[2];

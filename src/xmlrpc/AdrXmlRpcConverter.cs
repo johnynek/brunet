@@ -34,11 +34,13 @@ namespace Brunet {
      * IList -> Array
      */
     public static object Adr2XmlRpc(object o, out bool modified) {
-      if(o == null) {
-        throw new ArgumentNullException();
-      }
-
       object retval;
+      
+      if(o == null) {
+        retval = o;
+        modified = false;
+        return retval;
+      }
 
       System.Type t = o.GetType();
       if(t == typeof(byte[])) {
@@ -135,10 +137,13 @@ namespace Brunet {
      * objects that compatible in AdrConvertor
      */
     public static object XmlRpc2Adr(object o, out bool modified) {
-      if (o == null) {
-        throw new ArgumentNullException();
-      }
       object retval;
+
+      if (o == null) {
+        retval = o;
+        modified = false;
+        return retval;
+      }
 
       System.Type t = o.GetType();
       if (t == typeof(byte[])) {
@@ -168,18 +173,9 @@ namespace Brunet {
       if (oa == null) {
         throw new ArgumentNullException();
       }
-      ArrayList args = new ArrayList((ICollection)oa);
+
       ArrayList ret = new ArrayList();
-      if(oa.Length > 0) {
-        object o = oa[0];
-        if (o is string) {
-          string s = (string)o;
-          if (s.Equals("null")) {
-            args.RemoveAt(0);
-          }
-        }
-      }
-      foreach (object o in args) {
+      foreach (object o in oa) {
         ret.Add(XmlRpc2Adr(o));
       }
       return ret.ToArray();
