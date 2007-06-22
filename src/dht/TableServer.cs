@@ -262,7 +262,6 @@ namespace Brunet.Dht {
           remaining_items = data.Count - (seen_end_idx + 1);
         }
       }//End of lock
-
       //we have added new item: update the token
       int[] new_bounds = new int[2];
       new_bounds[0] = seen_start_idx;
