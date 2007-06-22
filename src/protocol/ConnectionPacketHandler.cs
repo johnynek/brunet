@@ -68,6 +68,7 @@ namespace Brunet
 
     /** global lock for thread synchronization */
     protected readonly object _sync;
+    protected readonly ListDictionary _to_close;
     /**
      * You should subscribe this to a Node, with the state being the node
      * it is subscribed to.  It can work for more than one node
@@ -78,6 +79,8 @@ namespace Brunet
       _sync = new object();
       _edge_to_cphstate = new Hashtable();
       _node = n;
+      _node.HeartBeatEvent += this.DelayedCloseHandler;
+      _to_close = new ListDictionary();
     }
 
     /**
@@ -104,6 +107,8 @@ namespace Brunet
        * move this edge to the unconnected list.  The node will
        * close edges that have been there for some time
        */
+      Connection c = tab.GetConnection(from);
+      Console.Error.WriteLine("sys:link.Close on {0} connection: {1}", from, c);
       tab.Disconnect(from);
       /** 
        * Release locks when the close message arrives; do not wait
@@ -113,7 +118,42 @@ namespace Brunet
 #if LINK_DEBUG
       Console.Error.WriteLine("{0} -end- sys:link.Close({1},{2})", _node.Address, close_message,from);
 #endif
+      /**
+       * Try to close the edge after a small time span:
+       */
+      DateTime to_close = DateTime.UtcNow + new TimeSpan(0,0,0,5,0);
+      lock( _sync ) {
+        _to_close[from] = to_close;
+      }
       return new ListDictionary();
+    }
+
+    /**
+     * This method looks to see if there are any edges we need to
+     * try to close.  We try this after the other side has asked
+     * up to close an edge (since we don't know if they got our
+     * response or not).
+     */
+    protected void DelayedCloseHandler(object n, EventArgs a) {
+      ArrayList l = null;
+      lock( _sync ) {
+        if( _to_close.Count == 0 ) { return; }
+        l = new ArrayList( _to_close.Count );
+        DateTime now = DateTime.UtcNow;
+        foreach(DictionaryEntry de in _to_close) {
+          DateTime to_close_date = (DateTime)de.Value;
+          Edge e = (Edge)de.Key;
+          if( now > to_close_date ) {
+            l.Add(e);
+          }
+        }
+        foreach(object e in l) {
+          _to_close.Remove(e);
+        }
+      }
+      foreach(Edge e in l) {
+        _node.GracefullyClose(e);
+      }
     }
 
     /**
