@@ -114,7 +114,11 @@ namespace Brunet {
       } else if(o is Exception) {
         Exception e = (Exception)o;
         throw new Exception("XmlRpcConverter rethrowed Exception:" + e.Message);
-      }else {
+      } else if(o is ISender) {
+        ISender s = (ISender)o;
+        retval = s.ToString();
+        modified = true;
+      } else {
         retval = o;
         modified = false;
       }      
@@ -138,8 +142,15 @@ namespace Brunet {
 
       System.Type t = o.GetType();
       if (t == typeof(byte[])) {
-        retval = o;
-        modified = false;
+        byte[] b = (byte[])o;
+        if (b.Length == 0) {
+          //empty byte[] array -> null
+          retval = null;
+          modified = true;
+        } else {
+          retval = o;
+          modified = false;
+        }
       } else {
         retval = o;
         modified = false;
@@ -157,8 +168,18 @@ namespace Brunet {
       if (oa == null) {
         throw new ArgumentNullException();
       }
+      ArrayList args = new ArrayList((ICollection)oa);
       ArrayList ret = new ArrayList();
-      foreach (object o in oa) {
+      if(oa.Length > 0) {
+        object o = oa[0];
+        if (o is string) {
+          string s = (string)o;
+          if (s.Equals("null")) {
+            args.RemoveAt(0);
+          }
+        }
+      }
+      foreach (object o in args) {
         ret.Add(XmlRpc2Adr(o));
       }
       return ret.ToArray();

@@ -1,3 +1,7 @@
+/**
+ * This file contains essential classes for xml rpc->brunet rpc bridge.
+ * Console output comes with DEBUG configure and won't happen in release version.
+ */
 using System;
 using System.Collections;
 using System.Text;
@@ -26,9 +30,14 @@ namespace Brunet {
     public XmlRpcManager(RpcManager rpcm) {
       _rpc = rpcm;
     }
-    
+
     /**
-     * If maxResultsToWait is negative, then this argument is ignored
+     * @param node: brunet node address
+     * @param ahOptions: AHOptions, @see AHPacket.AHOptions
+     * @param maxResultToWait: When the synchronous call gets this amount of items, it returns even
+     *                         if there are still more. (unless this argument is specified as a negative number)
+     * @param method: brunet rpc method name
+     * @param args: args of brunet rpc method
      */
     [XmlRpcMethod]
     public object[] proxy(string node, int ahOptions, int maxResultsToWait, string method, params object[] args) {      
@@ -44,9 +53,11 @@ namespace Brunet {
       _rpc.Invoke(s, q, method, args);
       ArrayList allValues = new ArrayList();
       int counter = 0;
+      ISender rsSender = null;
       try {
         do {
           RpcResult rpcRs = (RpcResult)q.Dequeue();
+          rsSender = rpcRs.ResultSender;  //get it before exception thrown
           object val = rpcRs.Result;
           Debug.WriteLine(string.Format("Original Result: {0}", val));
           object xmlrpc_val = AdrXmlRpcConverter.Adr2XmlRpc(val); //conversion in here
@@ -56,6 +67,10 @@ namespace Brunet {
       } catch (Exception e) {
         Debug.WriteLine(e);
         if (e is AdrException) {
+          if (rsSender != null) {
+            object sender = AdrXmlRpcConverter.Adr2XmlRpc(rsSender);
+            allValues.Add(sender);
+          }
           object new_e = AdrXmlRpcConverter.Adr2XmlRpc(e);
           allValues.Add(new_e);
         }
@@ -137,7 +152,6 @@ namespace Brunet {
   }
 
   /**
-   * For testing purpose. In production, XmlRpcManager could be deployed with existing server
    * port used: 10000
    */
   public class XmlRpcManagerServer {    
