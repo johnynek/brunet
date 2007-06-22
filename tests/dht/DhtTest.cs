@@ -766,7 +766,7 @@ namespace Brunet.Dht {
       byte[] value = new byte[100];
       rng.GetBytes(key);
       ArrayList al_results = new ArrayList();
-      int count = 5;
+      int count = 60;
       BlockingQueue[] results_queue = new BlockingQueue[count];
 
       for(int i = 0; i < count; i++) {

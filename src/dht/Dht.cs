@@ -226,141 +226,144 @@ namespace Brunet.Dht {
 
     public void GetHandler(Object o, EventArgs args) {
       BlockingQueue queue = (BlockingQueue) o;
-      // Looking up state
-      AsDhtGetState adgs = (AsDhtGetState) _adgs_table[queue];
+      lock(queue) {
+        // Looking up state
+        AsDhtGetState adgs = (AsDhtGetState) _adgs_table[queue];
 
-      if(adgs == null) {
-        queue.Close();
-        return;
-      }
-
-      // Well we are already closed but yet we got a mapping, this shouldn't happen....
-      if(queue.Closed) {
-        int count = 0;
-        lock(adgs.queueMapping) {
-          adgs.queueMapping.Remove(queue);
-          count = adgs.queueMapping.Count;
-        }
-        lock(_adgs_table) {
-          _adgs_table.Remove(queue);
-        }
-        queue.EnqueueEvent -= this.GetHandler;
-        queue.CloseEvent -= this.GetHandler;
-        if(count == 0) {
-          adgs.returns.Close();
-        }
-        return;
-      }
-
-      int idx = (int) adgs.queueMapping[queue];
-      // Test to see if we got any results and place them into results if necessary
-      ISender sendto = null;
-      MemBlock token = null;
-      try {
-        RpcResult rpc_reply = (RpcResult) queue.Dequeue();
-        ArrayList result = (ArrayList) rpc_reply.Result;
-        //Result may be corrupted
-        ArrayList values = (ArrayList) result[0];
-        int remaining = (int) result[1];
-        if(remaining > 0) {
-          token = (byte[]) result[2];
-          sendto = rpc_reply.ResultSender;
+        if(adgs == null) {
+          queue.Close();
+          return;
         }
 
-        // Going through the return values and adding them to our
-        // results, if a majority of our servers say a data exists
-        // we say it is a valid data and return it to the caller
-        foreach (Hashtable ht in values) {
-          MemBlock mbVal = (byte[]) ht["value"];
-          object o_count = null;
-          int count = 1;
-          lock(adgs.results) {
-            o_count = adgs.results[mbVal];
-            if(o_count != null) {
-              count = (int) o_count + 1;
-            }
-            adgs.results[mbVal] = count;
-          }
-          if(count == MAJORITY) {
-            adgs.returns.Enqueue(new DhtGetResult(ht));
-          }
-        }
-      }
-      catch (Exception) {
-        sendto = null;
-        token = null;
-      }
-      // Time to remove this from mappings, could have done this earlier, I guess
-      lock(adgs.queueMapping) {
-        adgs.queueMapping.Remove(queue);
-      }
-      lock(_adgs_table) {
-        _adgs_table.Remove(queue);
-      }
-      queue.EnqueueEvent -= this.GetHandler;
-      queue.CloseEvent -= this.GetHandler;
-      queue.Close();
-
-      // We were notified that more results were available!  Let's go get them!
-      if(token != null && sendto != null) {
-        queue = new BlockingQueue();
-        lock(adgs.queueMapping) {
-          adgs.queueMapping[queue] = idx;
-        }
-        lock(_adgs_table) {
-          _adgs_table[queue] = adgs;
-        }
-        queue.EnqueueEvent += this.GetHandler;
-        queue.CloseEvent += this.GetHandler;
-        _rpc.Invoke(sendto, queue, "dht.Get", 
-                    adgs.brunet_address_for_key[idx], MAX_BYTES, token);
-      }
-
-      /* This helps us leave the Get early if we either have no results or
-       * our remaining results will not reach a majority due to too many nodes
-       * missing data
-       */
-      int left = adgs.queueMapping.Count;
-      if(left < MAJORITY) {
-        // Maybe we can leave early
-        bool got_all_values = true;
-        lock(adgs.results) {
-          foreach (DictionaryEntry de in adgs.results) {
-            int val = (int) de.Value;
-            if(val < MAJORITY && ((val + left) >= MAJORITY)) {
-              got_all_values = false;
-              break;
-            }
-          }
-        }
-        // If we got to leave early, we must clean up
-        if(got_all_values) {
-          BlockingQueue [] queues = new BlockingQueue[adgs.queueMapping.Count];
+        // If we get here we either were closed by the remote rpc or we finished our get
+        if(queue.Closed) {
+          int count = 0;
           lock(adgs.queueMapping) {
-            int i = 0;
-            foreach(DictionaryEntry de in adgs.queueMapping) {
-              queues[i++] = (BlockingQueue) de.Key;
-            }
+            adgs.queueMapping.Remove(queue);
+            count = adgs.queueMapping.Count;
           }
-          for(int i = 0; i < queues.Length; i++) {
-            BlockingQueue q = queues[i];
-            q.CloseEvent -= this.GetHandler;
-            q.EnqueueEvent -= this.GetHandler;
-            q.Close();
-            lock(adgs.queueMapping) {
-              adgs.queueMapping.Remove(queue);
-            }
-            lock(_adgs_table) {
-              _adgs_table.Remove(queue);
-            }
+          lock(_adgs_table) {
+            _adgs_table.Remove(queue);
           }
-          adgs.returns.Close();
-          lock(adgs.results) {
+          queue.EnqueueEvent -= this.GetHandler;
+          queue.CloseEvent -= this.GetHandler;
+          if(count == 0) {
+            adgs.returns.Close();
             adgs.results.Clear();
           }
+          else {
+              GetLeaveEarly(adgs);
+          }
+          return;
+        }
+
+        int idx = (int) adgs.queueMapping[queue];
+        // Test to see if we got any results and place them into results if necessary
+        ISender sendto = null;
+        MemBlock token = null;
+        try {
+          RpcResult rpc_reply = (RpcResult) queue.Dequeue();
+          ArrayList result = (ArrayList) rpc_reply.Result;
+          //Result may be corrupted
+          ArrayList values = (ArrayList) result[0];
+          int remaining = (int) result[1];
+          if(remaining > 0) {
+            token = (byte[]) result[2];
+            sendto = rpc_reply.ResultSender;
+          }
+
+          // Going through the return values and adding them to our
+          // results, if a majority of our servers say a data exists
+          // we say it is a valid data and return it to the caller
+          foreach (Hashtable ht in values) {
+            MemBlock mbVal = (byte[]) ht["value"];
+            object o_count = null;
+            int count = 1;
+            lock(adgs.results) {
+              o_count = adgs.results[mbVal];
+              if(o_count != null) {
+                count = (int) o_count + 1;
+              }
+              adgs.results[mbVal] = count;
+            }
+            if(count == MAJORITY) {
+              adgs.returns.Enqueue(new DhtGetResult(ht));
+            }
+          }
+        }
+        catch (Exception) {
+          sendto = null;
+          token = null;
+        }
+
+        // We were notified that more results were available!  Let's go get them!
+        if(token != null && sendto != null) {
+          queue = new BlockingQueue();
+          lock(adgs.queueMapping) {
+            adgs.queueMapping[queue] = idx;
+          }
+          lock(_adgs_table) {
+            _adgs_table[queue] = adgs;
+          }
+          queue.EnqueueEvent += this.GetHandler;
+          queue.CloseEvent += this.GetHandler;
+          _rpc.Invoke(sendto, queue, "dht.Get", 
+                      adgs.brunet_address_for_key[idx], MAX_BYTES, token);
         }
       }
+      queue.Close();
     }
+
+    /* This helps us leave the Get early if we either have no results or
+    * our remaining results will not reach a majority due to too many nodes
+    * missing data
+    */
+    private void GetLeaveEarly(AsDhtGetState adgs) {
+      int left = adgs.queueMapping.Count;
+      if (left >= MAJORITY) {
+        return;
+      }
+      // Maybe we can leave early
+      bool got_all_values = true;
+      lock(adgs.results) {
+        foreach (DictionaryEntry de in adgs.results) {
+          int val = (int) de.Value;
+          if(val < MAJORITY && ((val + left) >= MAJORITY)) {
+            got_all_values = false;
+            break;
+          }
+        }
+      }
+
+      // If we got to leave early, we must clean up
+      if(got_all_values) {
+        BlockingQueue [] queues = new BlockingQueue[adgs.queueMapping.Count];
+        lock(adgs.queueMapping) {
+          int i = 0;
+          foreach(DictionaryEntry de in adgs.queueMapping) {
+            queues[i++] = (BlockingQueue) de.Key;
+          }
+        }
+        for(int i = 0; i < queues.Length; i++) {
+          BlockingQueue q = queues[i];
+          q.CloseEvent -= this.GetHandler;
+          q.EnqueueEvent -= this.GetHandler;
+          q.Close();
+        }
+        lock(_adgs_table) {
+          lock(adgs.queueMapping) {
+            for(int i = 0; i < queues.Length; i++) {
+              adgs.queueMapping.Remove(queues[i]);
+              _adgs_table.Remove(queues[i]);
+            }
+          }
+        }
+        adgs.returns.Close();
+        adgs.results.Clear();
+      }
+    }
+
+    /// @todo need to implement a put on failed gets (iff a majority occurs)
 
     /** Below are all the Put methods, they use a non-unique put */
 
@@ -442,75 +445,73 @@ namespace Brunet.Dht {
      */
     public void PutHandler(Object o, EventArgs args) {
       BlockingQueue queue = (BlockingQueue) o;
-
-      // Get our mapping
-      AsDhtPutState adps = (AsDhtPutState) _adps_table[queue];
-      if(adps == null) {
-        queue.Close();
-        return;
-      }
-
-      // Well it was closed, shouldn't have happened, but we'll do garbage collection
-      if(queue.Closed) {
-        lock(_adps_table) {
-          _adps_table.Remove(queue);
+      lock(queue) {
+        // Get our mapping
+        AsDhtPutState adps = (AsDhtPutState) _adps_table[queue];
+        if(adps == null) {
+          queue.Close();
+          return;
         }
-        lock(adps.queueMapping) {
-          adps.queueMapping.Remove(queue);
-          if(adps.queueMapping.Count == 0) {
-            adps.returns.Close();
+
+
+        // Well it was closed, shouldn't have happened, but we'll do garbage collection
+        if(queue.Closed) {
+          lock(_adps_table) {
+            _adps_table.Remove(queue);
+          }
+          int count = 0;
+          lock(adps.queueMapping) {
+            adps.queueMapping.Remove(queue);
+            count = adps.queueMapping.Count;
+          }
+          if(count == 0) {
+            adps.pcount = null;
+            adps.ncount = null;
+            if(!adps.returns.Closed) {
+              adps.returns.Enqueue(false);
+              adps.returns.Close();
+            }
+          }
+          queue.CloseEvent -= this.PutHandler;
+          queue.EnqueueEvent -= this.PutHandler;
+          return;
+        }
+
+        /* Check out results from our request and update the overall results
+        * send a message to our client if we're done!
+        */
+        bool timedout, result = false;
+        try {
+          RpcResult rpcResult = (RpcResult) queue.Dequeue(0, out timedout);
+          result = (bool) rpcResult.Result;
+        }
+        catch (Exception) {;}
+        if(result) {
+          // Once we get pcount to a majority, we ship off the result
+          lock(adps.pcount) {
+            int count = (int) adps.pcount + 1;
+            if(count == MAJORITY) {
+              adps.returns.Enqueue(true);
+              adps.returns.Close();
+            }
+            adps.pcount = count;
           }
         }
-        queue.CloseEvent -= this.PutHandler;
-        queue.EnqueueEvent -= this.PutHandler;
-        return;
-      }
-
-      /* Check out results from our request and update the overall results
-       * send a message to our client if we're done!
-       */
-      bool timedout, result = false;
-      try {
-        RpcResult rpcResult = (RpcResult) queue.Dequeue(0, out timedout);
-        result = (bool) rpcResult.Result;
-      }
-      catch (Exception) {;}
-      if(result) {
-        // Once we get pcount to a majority, we ship off the result
-        lock(adps.pcount) {
-          int count = (int) adps.pcount + 1;
-          if(count == MAJORITY) {
-            adps.returns.Enqueue(true);
-            adps.returns.Close();
+        else {
+          lock(adps.ncount) {
+            /* Once we get to ncount to 1 less than a majority, we ship off the
+            * result, because we can't get pcount equal to majority any more!
+            */
+            int count = (int) adps.ncount + 1;
+            if(count == MAJORITY - 1 || 1 == DEGREE) {
+              adps.returns.Enqueue(false);
+              adps.returns.Close();
+            }
+            adps.ncount = count;
           }
-          adps.pcount = count;
         }
       }
-      else {
-        lock(adps.ncount) {
-          /* Once we get to ncount to 1 less than a majority, we ship off the
-           * result, because we can't get pcount equal to majority any more!
-           */
-          int count = (int) adps.ncount + 1;
-          if(count == MAJORITY - 1 || 1 == DEGREE) {
-            adps.returns.Enqueue(false);
-            adps.returns.Close();
-          }
-          adps.ncount = count;
-        }
-      }
-      int remaining = 0;
-      lock(adps.queueMapping) {
-        adps.queueMapping.Remove(queue);
-        remaining = adps.queueMapping.Count;
-      }
-      queue.EnqueueEvent -= this.PutHandler;
       queue.Close();
-
-      if(remaining == 0) {
-        adps.pcount = null;
-        adps.ncount = null;
-      }
     }
 
     public MemBlock GetHashedKey(string key) {
