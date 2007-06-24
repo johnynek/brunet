@@ -250,7 +250,7 @@ namespace Brunet.Dht {
               consumed_bytes += e.Value.Length;
               Hashtable item = new Hashtable();
               item["age"] = age;
-              item["value"] = e.Value;
+              item["value"] = (byte[])e.Value;
               item["ttl"] = ttl;
               values.Add(item);
             }
