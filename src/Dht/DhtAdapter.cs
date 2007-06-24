@@ -11,19 +11,20 @@ using Brunet;
 using System.Runtime.Remoting.Channels.Tcp;
 using System.Runtime.Remoting.Channels.Http;
 using System.Runtime.Remoting.Channels;
+using System.Runtime.Remoting.Lifetime;
 using System.Runtime.Remoting;
 using System.Security.Cryptography;
 using CookComputing.XmlRpc;
 
 namespace Ipop {
-  public class DhtAdapter : MarshalByRefObject, IDht {
+  public abstract class DhtAdapter : MarshalByRefObject, IDht {
     [NonSerialized]
     protected Dht _dht;
     [NonSerialized]
     protected Hashtable _bqs = new Hashtable();
 
     public DhtAdapter(Dht dht) {
-      this._dht = dht;      
+      this._dht = dht;
     }
 
     public DhtAdapter() { ;}
@@ -85,6 +86,8 @@ namespace Ipop {
       }
     }
 
+    public abstract IDictionary GetDhtInfo();
+
     private string GenToken(string key) {
       RNGCryptoServiceProvider provider = new RNGCryptoServiceProvider();
       byte[] token = new byte[50];
@@ -92,7 +95,16 @@ namespace Ipop {
       string real_tk = key + ":" + Encoding.UTF8.GetString(token);
       return real_tk;
     }
-  }
+
+    // This object is intended to stay in memory
+    public override object InitializeLifetimeService() {
+      ILease lease = (ILease)base.InitializeLifetimeService();
+      if (lease.CurrentState == LeaseState.Initial) {
+        lease.InitialLeaseTime = TimeSpan.Zero; //infinite lifetime
+      }
+      return lease;
+      }
+    }
 
 
   public class SoapDht : DhtAdapter, ISoapDht {
@@ -102,6 +114,12 @@ namespace Ipop {
       BlockingQueue bq = this._dht.AsGet(key);
       BlockingQueueAdapter adpt = new BlockingQueueAdapter(bq);
       return adpt;
+    }
+
+    public override IDictionary GetDhtInfo() {
+      Hashtable ht = new Hashtable();
+      ht.Add("address", _dht.Address.ToString());
+      return ht;
     }
   }
 
@@ -139,6 +157,13 @@ namespace Ipop {
     [XmlRpcMethod]
     public override void EndGet(string token) {
       base.EndGet(token);
+    }
+
+    [XmlRpcMethod]
+    public override IDictionary GetDhtInfo() {
+      XmlRpcStruct xrs = new XmlRpcStruct();
+      xrs.Add("address", _dht.Address.ToString());
+      return xrs;
     }
   }
 }

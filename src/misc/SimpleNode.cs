@@ -15,6 +15,7 @@ namespace Ipop {
     private static Dht [] dhts;
     private static IDht sd;
     private static Thread sdthread;
+    private static Thread xrmthread;
     private static bool one_run;
     private static ArrayList dhtfiles = new ArrayList();
     private static bool tracker;
@@ -37,7 +38,7 @@ namespace Ipop {
             int new_node_count = 0;
             index++;
             if(dhtconsole || dhtfiles.Count > 0 || soap_client) {
-              Console.WriteLine("-m cannot be used with -df, -dc, or -s.\n");
+              Console.Error.WriteLine("-m cannot be used with -df, -dc, or -s.\n");
               PrintHelp();
             }
             else if((index == args.Length) || !Int32.TryParse(args[index], out new_node_count)) {
@@ -227,14 +228,15 @@ namespace Ipop {
 
         if(config.EnableSoapDht && sdthread == null) {
           sdthread = DhtServer.StartDhtServerAsThread(dhts[0]);
-        }        
-      }
+        }
 
-      //temporarily be here with no configuration
-      RpcManager rpcm = RpcManager.GetInstance(nodes[0]);
-      XmlRpcManager xrpcm = new XmlRpcManager(rpcm);
-      Thread t = new Thread(XmlRpcManagerServer.StartXmlRpcManagerServer);
-      t.Start(xrpcm);
+        if (config.EnableXmlRpcManager && xrmthread == null) {
+          RpcManager rpcm = RpcManager.GetInstance(nodes[0]);
+          XmlRpcManager xrpcm = new XmlRpcManager(rpcm);
+          xrmthread = new Thread(XmlRpcManagerServer.StartXmlRpcManagerServer);
+          xrmthread.Start(xrpcm);
+        }
+      }
     }
 
     // Get our eth0 IP address then post that and our Brunet address to the Dht
@@ -252,6 +254,7 @@ namespace Ipop {
           }
           catch(Exception) {;}
           if(result) {
+            Console.WriteLine("Successfully submitted {0} into plab_tracker.", value);
             break;
           }
           else {

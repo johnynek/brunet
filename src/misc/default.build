@@ -44,20 +44,6 @@
         <include name="Mono.Posix.dll"/>
       </references>
     </csc>
-    <csc target="exe" output="${build.dir}/IPOPTest.exe">
-      <sources failonempty="true">
-        <include name="IPOPTest.cs"/>
-        <include name="../Common/OSDependent.cs"/>
-        <include name="../Common/IPOP_Common.cs"/>
-        <include name="../Common/IPRouterConfig.cs"/>
-        <include name="../Common/IPAddresses.cs"/>
-      </sources>
-      <references>
-        <include name="${build.dir}/Brunet.dll"/>
-        <include name="${build.dir}/Brunet.Dht.dll"/>
-        <include name="Mono.Posix.dll"/>
-      </references>
-    </csc>
     <csc target="exe" output="${build.dir}/IPRouterConfigUpdate.exe">
       <sources failonempty="true">
         <include name="IPRouterConfigUpdate.cs"/>

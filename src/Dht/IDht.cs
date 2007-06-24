@@ -1,6 +1,7 @@
 using System;
 using System.Text;
 using Brunet.Dht;
+using System.Collections;
 
 namespace Ipop {
   /// <summary>
@@ -29,5 +30,7 @@ namespace Ipop {
     string BeginGet(string key);
     DhtGetResult[] ContinueGet(string token);
     void EndGet(string token);
+
+    IDictionary GetDhtInfo();
   }
 }

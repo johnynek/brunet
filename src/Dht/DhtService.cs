@@ -30,6 +30,7 @@ namespace Ipop {
 
       IDictionary props = new Hashtable();
       props.Add("port", 64221);
+      props.Add("name", "dhtsvc");
       HttpChannel channel = new HttpChannel(props, null, chain);
       ChannelServices.RegisterChannel(channel);
 
@@ -39,25 +40,7 @@ namespace Ipop {
       XmlRpcDht xd = new XmlRpcDht(dht);
       RemotingServices.Marshal(xd, "xd.rem");
 
-      ISponsor sponsor = new DhtLifeTimeSponsor();
-      // get lifetime manager for the remote object
-      ILease sd_lifetime = (ILease)sd.GetLifetimeService();
-      ILease xd_lifetime = (ILease)xd.GetLifetimeService();
-      // registering our sponsor
-      sd_lifetime.Register(sponsor);
-      xd_lifetime.Register(sponsor);
-
-      while (true) System.Threading.Thread.Sleep(99999999);
-    }
-  }
-
-  public class DhtLifeTimeSponsor : ISponsor
-  {
-    public TimeSpan Renewal(ILease lease)
-    {
-      TimeSpan ts = new TimeSpan();
-      ts = TimeSpan.FromDays(365);
-      return ts;
+      while (true) System.Threading.Thread.Sleep(Timeout.Infinite);
     }
   }
 }

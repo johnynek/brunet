@@ -75,10 +75,10 @@ namespace Ipop {
       brunetNode.GetTypeSource(PType.Protocol.IP).Subscribe(ip_handler, null);
 
       if (dht_media == null || dht_media.Equals("disk")) {
-        dht = new Dht(brunetNode, EntryFactory.Media.Disk, 3);
+        dht = new Dht(brunetNode, 3, 20);
       }
       else if (dht_media.Equals("memory")) {
-        dht = new Dht(brunetNode, EntryFactory.Media.Memory, 3);
+        dht = new Dht(brunetNode, 3, 20);
       }
 
       brunetNode.Connect();

@@ -19,6 +19,7 @@ namespace Ipop {
     [XmlArrayItem (typeof(string), ElementName = "Device")]
     public string [] DevicesToBind;
     public bool EnableSoapDht;
+    public bool EnableXmlRpcManager;
   }
 
   public class AddressInfo {
