@@ -4,6 +4,7 @@ using System.Runtime.Remoting;
 using CookComputing.XmlRpc;
 using Brunet.Dht;
 using System;
+using System.Collections;
 
 namespace Ipop {
   public class DhtServiceClient {
@@ -35,6 +36,9 @@ namespace Ipop {
     new DhtGetResult[] ContinueGet(string token);
     [XmlRpcMethod]
     new void EndGet(string token);
+
+    [XmlRpcMethod]
+    new IDictionary GetDhtInfo();
 
     [XmlRpcBegin("Get")]
     IAsyncResult BeginGetWithCallback(string key, AsyncCallback acb, object state);
