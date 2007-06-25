@@ -32,25 +32,37 @@ namespace Brunet
  * This class offers a means to pass objects in a queue
  * between threads (or in the same thread).  The Dequeue
  * method will block until there is something in the Queue
+ *
+ * This implementation uses two thread synchronization tools:
+ * mutex (locking) and a WaitHandle.  The WaitHandle is in the
+ * Set state when there are 1 or more items in the queue.
+ * When there are 1 or more items, Enqueue can't change the "Set"
+ * state, so there is no need to call Set.  When there are two
+ * or more items, Dequeue can't change the set state.  This
+ * observation makes the BlockingQueue much faster because in the
+ * high throughput case, there is often more than 1 item in the queue,
+ * and so we only use the Mutex and never touch the WaitHandle,
+ * which can be a little slow (according to testing).
  */
 #if BRUNET_NUNIT
 [TestFixture]
 #endif
-public class BlockingQueue : Queue {
+public sealed class BlockingQueue {
   
   public BlockingQueue() {
     _re = new AutoResetEvent(false); 
     _closed = false;
     _sync = new object();
+    _queue = new Queue();
   }
+  protected readonly Queue _queue;
   protected readonly object _sync; 
   protected AutoResetEvent _re;
- 
   protected bool _closed;
 
   public bool Closed { get { lock ( _sync ) { return _closed; } } }
   
-  public override int Count { get { lock ( _sync ) { return base.Count; } } }
+  public int Count { get { lock ( _sync ) { return _queue.Count; } } }
  
   /**
    * When an item is enqueued, this event is fire
@@ -65,16 +77,6 @@ public class BlockingQueue : Queue {
    * Here all the methods
    */
   
-  public override void Clear() {
-    lock( _sync ) {
-      base.Clear();
-    }
-  }
-  
-  public override object Clone() {
-    return null;
-  }
-
   /**
    * Once this method is called, and the queue is emptied,
    * all future Dequeue's will throw exceptions
@@ -85,13 +87,16 @@ public class BlockingQueue : Queue {
       if( _closed == false ) {
         fire = true;
         _closed = true;
-        //Wake up any blocking threads:
-        _re.Set();
       }
     }
     //Fire the close event
-    if( fire && CloseEvent != null ) {
-      CloseEvent(this, EventArgs.Empty);
+    if( fire ) {
+      //Wake up any blocking threads:
+      _re.Set();
+      if( CloseEvent != null ) {
+        CloseEvent(this, EventArgs.Empty);
+      }
+      CloseEvent = null;
     }
 
 #if DEBUG
@@ -99,16 +104,10 @@ public class BlockingQueue : Queue {
 #endif
   }
   
-  public override bool Contains(object o) {
-    lock( _sync ) {
-      return base.Contains(o);
-    }
-  }
-  
   /**
    * @throw Exception if the queue is closed
    */
-  public override object Dequeue() {
+  public object Dequeue() {
     bool timedout = false;
     return Dequeue(-1, out timedout);
   }
@@ -119,40 +118,64 @@ public class BlockingQueue : Queue {
    * @return the object, if we timeout we return null
    * @throw Exception if the BlockingQueue is closed and empty
    */
-  public object Dequeue(int millisec, out bool timedout)
+  public object Dequeue(int millisec, out bool timedout) {
+    return Dequeue(millisec, out timedout, true);
+  }
+  
+  protected object Dequeue(int millisec, out bool timedout, bool advance)
   {
-    object val = null;
-    bool got_set = _re.WaitOne(millisec, false);
-    if( !got_set ) {
-      timedout = true;
-      return null;
-    }
-    else {
-      lock( _sync ) {
-#if DEBUG
-	System.Console.Error.WriteLine("Got set: count {0}", Count);
-#endif
-        if( base.Count > 1 || _closed ) {
-          /*
-           * If the queue is closed, we want Dequeues to suceed immediately
-           * if there are elements in the queue, we want Dequeues to succeed
-           * immediately, otherwise, the AutoResetEvent would have been reset
-           * so no one else will get past WaitOne until the queue is closed
-           * or there is an Enqueue event.
-           */
-          _re.Set();
-        }
-        val = base.Dequeue();
+    lock( _sync ) {
+      if( _queue.Count > 1 ) { 
+        /**
+         * If _queue.Count == 1, the Dequeue may return us to the empty
+         * state, which we always handled below
+         */
         timedout = false;
+        if( advance ) {
+          return _queue.Dequeue();
+        }
+        else {
+          return _queue.Peek();
+        }
       }
     }
-    return val;
+    bool got_set = _re.WaitOne(millisec, false);
+    if( got_set ) {
+      timedout = false;
+      bool set = false;
+      object result = null;
+      try {
+        lock( _sync ) {
+          set = _closed;
+          if( advance ) {
+            result = _queue.Dequeue();
+          }
+          else {
+            result = _queue.Peek();
+          }
+          /*
+           * If there is
+           * still more, set the _re so the
+           * next reader can get it
+           */
+          set = ( (_queue.Count > 0) || _closed );
+        }
+      }
+      finally {
+        if( set ) { _re.Set(); } 
+      }
+      return result;
+    }
+    else {
+      timedout = true;
+      return null;
+    } 
   }
 
   /**
    * @throw Exception if the queue is closed
    */
-  public override object Peek() {
+  public object Peek() {
     bool timedout = false;
     return Peek(-1, out timedout);
   }
@@ -165,43 +188,34 @@ public class BlockingQueue : Queue {
    */
   public object Peek(int millisec, out bool timedout)
   {
-    object val = null;
-    bool got_set = _re.WaitOne(millisec, false);
-    if( !got_set ) {
-      timedout = true;
-      return null;
-    }
-    else {
-      lock( _sync ) {
-        //We didn't take any out, so we should still be ready to go!
-        _re.Set();
-        timedout = false;
-        
-        val = base.Peek();
-      }
-    }
-    return val;    
+    return Dequeue(millisec, out timedout, false);
   }
 
-  public override void Enqueue(object a) {
-    bool fire = false;
+  public void Enqueue(object a) {
+    bool set = false;
     lock( _sync ) {
       if( !_closed ) {
-        base.Enqueue(a);
-	fire = true;
+        _queue.Enqueue(a);
       }
       else {
         //We are closed, ignore all future enqueues.
+        return;
       }
       //Wake up any waiting threads
 #if DEBUG
       System.Console.Error.WriteLine("Enqueue set: count {0}", Count);
 #endif
+      if( _queue.Count == 1 ) {
+        //We just went from 0 -> 1 signal any waiting Dequeue
+        set = true;
+      }
+    }
+    if( set ) { 
       _re.Set();
     }
     //After we have alerted any blocking threads (Set), fire
     //the event:
-    if( fire && (EnqueueEvent != null) ) {
+    if( EnqueueEvent != null ) {
       EnqueueEvent(this, EventArgs.Empty);
     }
   }
@@ -325,6 +339,7 @@ public class BlockingQueue : Queue {
     //Console.Error.WriteLine("fetch finished");
     return replies;
   }
+
 #if BRUNET_NUNIT
   public void TestThread1()
   {
@@ -407,6 +422,101 @@ public class BlockingQueue : Queue {
     Thread t = new Thread( test.StartEnqueues );
     t.Start();
     test.CheckQueues();
+  }
+
+  protected class WriterState {
+    protected readonly BlockingQueue _q;
+    protected readonly ArrayList _list;
+    protected readonly int _runs;
+
+    public WriterState(BlockingQueue q, ArrayList all, int runs) {
+      _q = q;
+      _list = all;
+      _runs = runs;
+    }
+    public void Start() {
+      Random r = new Random();
+      for(int i = 0; i < _runs; i++) {
+        int rn = r.Next();
+        _q.Enqueue(rn);
+        lock( _list ) {
+          _list.Add( rn );
+        }
+      }
+    }
+  }
+  protected class ReaderState {
+    protected readonly BlockingQueue _q;
+    protected readonly ArrayList _list;
+
+    public ReaderState(BlockingQueue q, ArrayList all) {
+      _q = q;
+      _list = all;
+    }
+    public void Start() {
+      try {
+        while(true) {
+          object o = _q.Dequeue();
+          lock( _list ) { _list.Add( o ); }
+        }
+      }
+      catch(InvalidOperationException) {
+        //Queue is closed now.
+      }
+    }
+  }
+
+  [Test]
+  public void MultipleWriterTest() {
+    const int WRITERS = 5;
+    const int READERS = 5;
+    const int writes = 10000;
+    ArrayList written_list = new ArrayList();
+    ArrayList read_list = new ArrayList();
+    ArrayList write_threads = new ArrayList();
+    ArrayList read_threads = new ArrayList();
+    BlockingQueue q = new BlockingQueue();
+
+    /* Start the writers */
+    for( int i = 0; i < WRITERS; i++ ) {
+      WriterState ws = new WriterState(q, written_list, writes);
+      Thread t = new Thread( ws.Start );
+      write_threads.Add( t );
+      t.Start();
+    }
+    /* Start the readers */
+    for( int i = 0; i < READERS; i++) {
+      ReaderState rs = new ReaderState(q, read_list);
+      Thread t = new Thread( rs.Start );
+      read_threads.Add( t );
+      t.Start();
+    }
+    foreach(Thread t in write_threads) {
+      t.Join();
+    }
+    //Writing is done, close the queue, and join the readers:
+    q.Close();
+    foreach(Thread t in read_threads) {
+      t.Join();
+    }
+
+    //Check that the reader list is the same as the written list:
+    ArrayList read_copy = new ArrayList(read_list);
+    ArrayList write_copy = new ArrayList(written_list);
+    //Remove all the reads from the written copy:
+    foreach(object o in read_list) {
+      int i = write_copy.IndexOf(o);
+      Assert.IsTrue( i >= 0, "read something not in written");
+      write_copy.RemoveAt(i);
+    }
+    Assert.IsTrue( write_copy.Count == 0, "More written than read");
+    //Remove all the writes from the read copy:
+    foreach(object o in written_list) {
+      int i = read_copy.IndexOf(o);
+      Assert.IsTrue( i >= 0, "wrote something not in read");
+      read_copy.RemoveAt(i);
+    }
+    Assert.IsTrue( read_copy.Count == 0, "More written than read");
   }
 #endif
 }
