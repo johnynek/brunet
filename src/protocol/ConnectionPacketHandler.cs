@@ -25,6 +25,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using System;
 using System.Collections;
+using System.Collections.Specialized;
 
 namespace Brunet
 {
@@ -67,6 +68,10 @@ namespace Brunet
 
     /** global lock for thread synchronization */
     protected readonly object _sync;
+    protected readonly ListDictionary _to_close;
+
+    //This is true when the node starts to disconnect
+    protected volatile bool _disconnecting;
     /**
      * You should subscribe this to a Node, with the state being the node
      * it is subscribed to.  It can work for more than one node
@@ -77,6 +82,14 @@ namespace Brunet
       _sync = new object();
       _edge_to_cphstate = new Hashtable();
       _node = n;
+      _node.HeartBeatEvent += this.DelayedCloseHandler;
+      _to_close = new ListDictionary();
+      _disconnecting = false;
+      //When Disconnect is called, set disconnecting to true, disallowing new
+      //connections.
+      _node.DepartureEvent += delegate(object o, EventArgs a) {
+        _disconnecting = true;
+      };
     }
 
     /**
@@ -92,7 +105,7 @@ namespace Brunet
     /**
      * Handle the notification that the other side is going to close the edge
      */
-    public Hashtable Close(Hashtable close_message, ISender edge) {
+    public IDictionary Close(IDictionary close_message, ISender edge) {
 #if LINK_DEBUG
       Console.Error.WriteLine("{0} -start- sys:link.Close({1},{2})", _node.Address, close_message,edge);
 #endif
@@ -103,6 +116,8 @@ namespace Brunet
        * move this edge to the unconnected list.  The node will
        * close edges that have been there for some time
        */
+      Connection c = tab.GetConnection(from);
+      Console.Error.WriteLine("sys:link.Close on {0} connection: {1}", from, c);
       tab.Disconnect(from);
       /** 
        * Release locks when the close message arrives; do not wait
@@ -112,11 +127,46 @@ namespace Brunet
 #if LINK_DEBUG
       Console.Error.WriteLine("{0} -end- sys:link.Close({1},{2})", _node.Address, close_message,from);
 #endif
-      return new Hashtable(1);
+      /**
+       * Try to close the edge after a small time span:
+       */
+      DateTime to_close = DateTime.UtcNow + new TimeSpan(0,0,0,5,0);
+      lock( _sync ) {
+        _to_close[from] = to_close;
+      }
+      return new ListDictionary();
     }
 
     /**
-     * Return a hashtable with entries:
+     * This method looks to see if there are any edges we need to
+     * try to close.  We try this after the other side has asked
+     * up to close an edge (since we don't know if they got our
+     * response or not).
+     */
+    protected void DelayedCloseHandler(object n, EventArgs a) {
+      ArrayList l = null;
+      lock( _sync ) {
+        if( _to_close.Count == 0 ) { return; }
+        l = new ArrayList( _to_close.Count );
+        DateTime now = DateTime.UtcNow;
+        foreach(DictionaryEntry de in _to_close) {
+          DateTime to_close_date = (DateTime)de.Value;
+          Edge e = (Edge)de.Key;
+          if( now > to_close_date ) {
+            l.Add(e);
+          }
+        }
+        foreach(object e in l) {
+          _to_close.Remove(e);
+        }
+      }
+      foreach(Edge e in l) {
+        _node.GracefullyClose(e);
+      }
+    }
+
+    /**
+     * Return an IDictionary with entries:
      * self -> my Address
      * left -> Address of left neighbor
      * right -> Address of right neighbor
@@ -124,12 +174,12 @@ namespace Brunet
      * If the node has any shortcuts:
      * shortcut -> Random shortcut connection
      */
-    public Hashtable GetNeighbors(ISender caller) {
+    public IDictionary GetNeighbors(ISender caller) {
       AHAddress self = (AHAddress)_node.Address;
       Connection left = _node.ConnectionTable.GetLeftStructuredNeighborOf(self);
       Connection right = _node.ConnectionTable.GetRightStructuredNeighborOf(self);
 
-      Hashtable result = new Hashtable(4);
+      IDictionary result = new ListDictionary();
       //Put it in:
       result["self"] = self.ToString();
       result["left"] = left.Address.ToString();
@@ -150,7 +200,7 @@ namespace Brunet
     /**
      * This starts a linking operation on the given edge
      */
-    public Hashtable Start(Hashtable link_message, ISender edge) {
+    public IDictionary Start(IDictionary link_message, ISender edge) {
 #if LINK_DEBUG
       Console.Error.WriteLine("{0} -start- sys:link.Start", _node.Address);
 #endif
@@ -214,7 +264,7 @@ namespace Brunet
 #if LINK_DEBUG
       Console.Error.WriteLine("{0} -end- sys:link.Start()->{1}", _node.Address,lm_resp);
 #endif
-      return lm_resp.ToHashtable();
+      return lm_resp.ToDictionary();
     }
 
     /**
@@ -231,7 +281,7 @@ namespace Brunet
     /**
      * Get a StatusMessage for this node
      */
-    public Hashtable GetStatus(Hashtable status_message, ISender edge) {
+    public IDictionary GetStatus(IDictionary status_message, ISender edge) {
       //we just got s status request
       LinkMessage lm_to_add = null;
       StatusMessage sm = new StatusMessage(status_message);
@@ -256,6 +306,9 @@ namespace Brunet
       * Node got our LinkMessage response, and the connection
       * is active
       */
+      if( _disconnecting ) {
+        throw new AdrException((int)ErrorMessage.ErrorCode.Disconnecting, "disconnecting");
+      }
       StatusMessage response = null;
       ConnectionTable tab = _node.ConnectionTable;
       if (lm_to_add != null) {
@@ -285,7 +338,7 @@ namespace Brunet
 #if LINK_DEBUG
       Console.Error.WriteLine("{0} -end- sys:link.GetStatus()->{1}", _node.Address,response);
 #endif
-      return response.ToHashtable();
+      return response.ToDictionary();
     }
 
     /**
@@ -337,6 +390,10 @@ namespace Brunet
         //You are me!!!
         err = new ErrorMessage(ErrorMessage.ErrorCode.ConnectToSelf,
                                "You are me: ");
+      }
+      else if( _disconnecting ) {
+        err = new ErrorMessage(ErrorMessage.ErrorCode.Disconnecting,
+                               String.Format("I am disconnecting. local: {0}", local_add));
       }
       else {
         /*

@@ -181,6 +181,7 @@ namespace Brunet
                        //from the same node.
       AlreadyConnected = 18,
       TargetMismatch = 19,
+      Disconnecting = 20,
       BadXml = 2000,
       SpecViolation = 2001,
       UnknownConnectionMessage = 2002,

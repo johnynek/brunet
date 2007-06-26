@@ -96,10 +96,10 @@ namespace Brunet
      * The key is the address, the value is the object that
      * holds the lock.
      */
-    protected Hashtable _address_locks;
+    protected readonly Hashtable _address_locks;
 
     /** an object to lock for thread sync */
-    private object _sync;
+    private readonly object _sync;
     /** Allows external objects to make sure the ConnectionTable
      * does not change as they are working with it
      */
@@ -120,8 +120,9 @@ namespace Brunet
      */
     public event EventHandler StatusChangedEvent;
 
-    protected Address _local;
-    
+    protected readonly Address _local;
+   
+    protected bool _closed; 
     /**
      * Returns the total number of Connections.
      * This is for the ICollection interface
@@ -161,7 +162,7 @@ namespace Brunet
         _type_to_addlist = new Hashtable();
         _type_to_conlist = new Hashtable();
         _edge_to_con = new Hashtable();
-
+        _closed = false;
         _unconnected = new ArrayList();
 
         _address_locks = new Hashtable();
@@ -195,6 +196,7 @@ namespace Brunet
       Edge e = c.Edge;
 
       lock(_sync) {
+        if( _closed ) { throw new TableClosedException(); }
         index = IndexOf(t, a);
         if (index < 0) {
           //This is a new address:
@@ -280,6 +282,16 @@ namespace Brunet
         }
       }
      // return index;
+    }
+
+    /**
+     * When the ConnectionTable is closed, Add will throw a
+     * TableClosedException.
+     * This is used at the time of Node.Disconnect to make sure
+     * no new connections can be added
+     */
+    public void Close() {
+      lock( _sync ) { _closed = true; }
     }
 
     /**
@@ -1119,6 +1131,13 @@ namespace Brunet
     public ConnectionExistsException(Connection c) {
       Con = c;
     }
+  }
+  /**
+   * If anyone calls Add once Close has been called, this
+   * exception is thrown
+   */
+  public class TableClosedException : System.Exception {
+
   }
 
 

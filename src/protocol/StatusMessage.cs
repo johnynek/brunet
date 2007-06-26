@@ -24,6 +24,7 @@ using NUnit.Framework;
 #endif
 using System;
 using System.Collections;
+using System.Collections.Specialized;
 using System.Xml;
 
 namespace Brunet {
@@ -54,14 +55,14 @@ namespace Brunet {
     /**
      * Initialize from a Hashtable containing all the information
      */
-    public StatusMessage(Hashtable ht) {
-      Hashtable neighborinfo = ht["neighbors"] as Hashtable;
+    public StatusMessage(IDictionary ht) {
+      IDictionary neighborinfo = ht["neighbors"] as IDictionary;
       if( neighborinfo != null ) {
         _neigh_ct = neighborinfo["type"] as String;
         IList nodes = neighborinfo["nodes"] as IList;
         if( nodes != null ) {
           _neighbors = new ArrayList();
-          foreach(Hashtable nih in nodes) {
+          foreach(IDictionary nih in nodes) {
             _neighbors.Add(new NodeInfo(nih));
           }
         }
@@ -182,19 +183,19 @@ namespace Brunet {
       return new StatusMessage(dir, id, r);
     }
 
-    public Hashtable ToHashtable() {
-      Hashtable neighborinfo = new Hashtable(3);
+    public IDictionary ToDictionary() {
+      ListDictionary neighborinfo = new ListDictionary();
       if( _neigh_ct != null ) {
         neighborinfo["type"] = _neigh_ct;
       }
       if( _neighbors != null ) {
         ArrayList nodes = new ArrayList();
         foreach(NodeInfo ni in _neighbors) {
-          nodes.Add( ni.ToHashtable() );
+          nodes.Add( ni.ToDictionary() );
         }
         neighborinfo["nodes"] = nodes;
       }
-      Hashtable ht = new Hashtable();
+      ListDictionary ht = new ListDictionary();
       ht["neighbors"] = neighborinfo;
       return ht;
     }
@@ -228,7 +229,7 @@ namespace Brunet {
     public StatusMessageTester() { }
     
     public void RoundTripHT(StatusMessage sm) {
-     StatusMessage sm2 = new StatusMessage( sm.ToHashtable() );
+     StatusMessage sm2 = new StatusMessage( sm.ToDictionary() );
      Assert.AreEqual(sm, sm2, "Hashtable RT");
     }
     [Test]

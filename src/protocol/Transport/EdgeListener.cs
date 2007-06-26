@@ -97,26 +97,6 @@ namespace Brunet
            */
     public abstract void CreateEdgeTo(TransportAddress ta, EdgeCreationCallback ecb);
 
-    /**
-     * Looks up the local IP addresses and returns a list
-     * of transport Address objects which match them.
-     * Loopback addresses will be at the end.
-     *
-     * Both UdpEdgeListener and TcpEdgeListener make use of this
-     *
-     * @deprecated see TransportAddress.Create
-     */
-//     static protected IEnumerable GetIPTAs(TransportAddress.TAType tat, int port, 
-// 					IPAddress[] ipList)
-//     {
-//       if( ipList == null ) {
-//         return TransportAddress.CreateForLocalHost(tat,port);
-//       }
-//       else {
-//         return TransportAddress.Create(tat,port,ipList);
-//       }
-//     }
-
     public event System.EventHandler EdgeEvent;
 
     //This function sends the New Edge event

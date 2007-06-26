@@ -84,6 +84,7 @@ namespace Brunet
         //Here is the thread for announcing packets
         _packet_queue = new BlockingQueue();
         _running = false;
+        _send_pings = true;
         _announce_thread = new Thread(this.AnnounceThread);
         
         _connection_table = new ConnectionTable(_local_add);
@@ -275,6 +276,7 @@ namespace Brunet
      * Disconnect is called.
      */
     volatile protected bool _running;
+    volatile protected bool _send_pings;
 
     /** Object which we lock for thread safety */
     protected Object _sync;
@@ -312,8 +314,10 @@ namespace Brunet
 
     ///If we don't hear anything from a *CONNECTION* in this time, ping it.
     protected TimeSpan _connection_timeout;
+    ///This is the maximum value we allow _connection_timeout to grow to
+    protected static readonly TimeSpan MAX_CONNECTION_TIMEOUT = new TimeSpan(0,0,0,15,0);
     //Give edges 60 seconds to get connected, then drop them
-    protected static readonly TimeSpan _unconnected_timeout = new TimeSpan(0,0,0,60,0);
+    protected static readonly TimeSpan _unconnected_timeout = new TimeSpan(0,0,0,30,0);
     /**
      * Maximum number of TAs we keep in both for local and remote.
      * This does not control how many we send to our neighbors.
@@ -543,9 +547,12 @@ namespace Brunet
       Console.Error.WriteLine("[Connect: {0}] deactivating task queue", _local_add);
 #endif
       _task_queue.IsActive = false;
+      _send_pings = false;
       if (DepartureEvent != null) {
 	DepartureEvent(this, null);      
+        DepartureEvent = null;
       }
+      _connection_table.Close();
     }
 
     /**
@@ -713,6 +720,9 @@ namespace Brunet
           double timeout = mean + stddev;
           //Console.WriteLine("Connection timeout: {0}, mean: {1} stdev: {2}", timeout, mean, stddev);
           _connection_timeout = TimeSpan.FromMilliseconds( timeout );
+          if( _connection_timeout > MAX_CONNECTION_TIMEOUT ) {
+            _connection_timeout = MAX_CONNECTION_TIMEOUT;
+          }
         }
         else {
           //Keep the old timeout.  Don't let small number statistics bias us
@@ -724,7 +734,12 @@ namespace Brunet
         RpcManager rpc = RpcManager.GetInstance(this);
         foreach(Connection c in _connection_table) {
           Edge e = c.Edge;
-          if( now - e.LastInPacketDateTime > _connection_timeout ) {
+          
+          if( now - e.LastInPacketDateTime > _unconnected_timeout ) {
+            //Just close it.
+            e.Close();
+          }
+          else if( _send_pings && ( now - e.LastInPacketDateTime > _connection_timeout ) ) {
             
             EventHandler on_enqueue = delegate(object q, EventArgs eargs) {
               //We got a response, close the queue, so we stop listening
@@ -767,7 +782,7 @@ namespace Brunet
               rpc.Invoke(e, tmp_queue, "sys:link.Ping", ping_arg);
             }
             catch(Exception x) {
-              Console.Error.WriteLine("Could not Invoke ping on: {0}", c);
+              Console.Error.WriteLine("Could not Invoke ping on: {0}, {1}", c, x);
               e.Close();
             }
           }

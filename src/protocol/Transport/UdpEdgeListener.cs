@@ -47,10 +47,14 @@ namespace Brunet
       public SendQueueEntry(ICopyable p, UdpEdge udpe) {
         Packet = p;
         Sender = udpe;
+        ErrorCount = 0;
       }
-      public ICopyable Packet;
-      public UdpEdge Sender;
+      public readonly ICopyable Packet;
+      public readonly UdpEdge Sender;
+      public int ErrorCount;
     }
+    //After this many SocketException errors stop trying to send a packet
+    protected const int MAX_ERROR_COUNT = 3;
     /*
      * This is the object which we pass to UdpEdges when we create them.
      */
@@ -640,13 +644,56 @@ namespace Brunet
          * is a tight loop.
          */
         if( _queue_not_empty ) {
+          ArrayList to_close = null;
           lock( _send_queue ) {
             while( _send_queue.Count > 0 ) {
               SendQueueEntry sqe = (SendQueueEntry)_send_queue.Dequeue();
-              Send(sqe, s, send_buffer);
+              try {
+                Send(sqe, s, send_buffer);
+              }
+              catch(SocketException x) {
+               /*
+                * some nodes have transient problems with their
+                * networking.  We count the number of errors,
+                * break out, to slow down sending a bit, and
+                * hopefully things will get better.
+                */
+                sqe.ErrorCount++;
+                if( sqe.ErrorCount < MAX_ERROR_COUNT ) {
+                  /*
+                   * Put it in the back of the queue and break out.
+                   * Hopefully by the time we try again matters will
+                   * be better
+                   */
+                  _send_queue.Enqueue(sqe);
+                  break;
+                }
+                else {
+                  /*
+                   * Oh well, it had it's chance.  Close the edge and
+                   * print a message.
+                   */
+                  Console.Error.WriteLine("SocketExceptions ({0}) on packet of length({1}): closing Edge: {2}\n{3}",
+                                sqe.ErrorCount, sqe.Packet.Length, sqe.Sender, x);
+                  if( to_close == null ) { to_close = new ArrayList(); }
+                  to_close.Add( sqe.Sender );
+                }
+              }
+              catch(Exception x) {
+              /*
+               * Some non-socket exception.  This should never happen.
+               * Print it out to hope to debug it later
+               */
+                Console.Error.WriteLine("Error in UdpEdgeListener.Send. Edge: {0}\n{1}",
+                                sqe.Sender, x);
+
+              }
             }
             //Before we unlock the send_queue, reset the flag:
             _queue_not_empty = false;
+          }
+          if( to_close != null ) {
+            foreach(UdpEdge e in to_close) { e.Close(); }
           }
         }
         //Now it is time to see if we can read...
@@ -654,24 +701,18 @@ namespace Brunet
       s.Close();
     }
 
-    private void Send(SendQueueEntry sqe, Socket s, byte[] buffer)
+    private static void Send(SendQueueEntry sqe, Socket s, byte[] buffer)
     {
       //We have a packet to send
       ICopyable p = sqe.Packet;
       UdpEdge sender = sqe.Sender;
       EndPoint e = sender.End;
-      try {
-        //Write the IDs of the edge:
-        //[local id 4 bytes][remote id 4 bytes][packet]
-        NumberSerializer.WriteInt(sender.ID, buffer, 0);
-        NumberSerializer.WriteInt(sender.RemoteID, buffer, 4);
-        p.CopyTo(buffer, 8);
-        s.SendTo(buffer, 0, 8 + p.Length, SocketFlags.None, e);
-      }
-      catch (Exception x) {
-        Console.Error.WriteLine("Error in Socket send. Edge: {0}\n{1}",
-                                sender, x);
-      }
+      //Write the IDs of the edge:
+      //[local id 4 bytes][remote id 4 bytes][packet]
+      NumberSerializer.WriteInt(sender.ID, buffer, 0);
+      NumberSerializer.WriteInt(sender.RemoteID, buffer, 4);
+      p.CopyTo(buffer, 8);
+      s.SendTo(buffer, 0, 8 + p.Length, SocketFlags.None, e);
     }
 
     /**
