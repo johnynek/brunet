@@ -25,6 +25,7 @@ namespace Ipop {
     private static byte []routerMAC = new byte[]{0xFE, 0xFD, 0, 0, 0, 0};
     private static bool in_dht;
     private static Thread sdthread;
+    private static Thread xrmthread;
 
 /*  DHT added code */
 
@@ -216,6 +217,16 @@ namespace Ipop {
 
       BrunetStart();
 
+      //explicit add it to xmlrpc manager here
+      node.AddAsRpcHandler();
+
+      if (config.EnableXmlRpcManager && xrmthread == null) {
+        RpcManager rpcm = RpcManager.GetInstance(node.brunet.brunetNode);
+        XmlRpcManager xrpcm = new XmlRpcManager(rpcm);
+        xrmthread = new Thread(XmlRpcManagerServer.StartXmlRpcManagerServer);
+        xrmthread.Start(xrpcm);
+      }
+      
       if(config.AddressData.DHCPServerAddress != null && !config.AddressData.DhtDHCP)
         dhcpClient = new SoapDHCPClient(config.AddressData.DHCPServerAddress);
       else {

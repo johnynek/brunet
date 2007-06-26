@@ -16,6 +16,7 @@
         <include name="Brunet.Dht.dll" />
         <include name="CookComputing.XmlRpcV2.dll" />
         <include name="IBlockingQueue.dll" />
+        <include name="XmlRpcManager.dll" />
       </fileset>
     </copy>
     <csc target="exe" output="${build.dir}/IPRouter.exe">
@@ -44,6 +45,7 @@
         <include name="${build.dir}/Brunet.dll"/>
         <include name="${build.dir}/Brunet.Dht.dll" />
         <include name="${build.dir}/IBlockingQueue.dll" />
+        <include name="${build.dir}/XmlRpcManager.dll" />
         <include name="${build.dir}/DHCPCommon.dll" />
         <include name="System.Runtime.Remoting.dll"/>
         <include name="Mono.Posix.dll"/>
