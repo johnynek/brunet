@@ -110,7 +110,7 @@ namespace Brunet
         // it should return null and not throw an exception
         // for graceful disconnect and preventing others to
         // connect to us after we've disconnected.
-        ecb(false, null, null);
+        ecb(false, null, new EdgeException("Not started"));
         return;
       }
 
@@ -140,7 +140,7 @@ namespace Brunet
       }
       else {
         //Can't make an edge of this type
-        ecb(false, null, null);
+        ecb(false, null, new EdgeException("Can't make edge of this type"));
       }
     }
 

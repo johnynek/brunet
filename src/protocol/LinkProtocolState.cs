@@ -270,6 +270,14 @@ namespace Brunet
          */
         result = Result.MoveToNextTA;
       }
+      else if ( c == (int)ErrorMessage.ErrorCode.Disconnecting ) {
+        /* The other node is going offline */
+        if( _linker.Target == null ) {
+          result = Result.MoveToNextTA;
+        } else {
+          result = Result.ProtocolError; //Give up now
+        }
+      }
       else {
         Console.Error.WriteLine("Unrecognized error code: {0}", c);
       }
@@ -342,7 +350,7 @@ namespace Brunet
       results.EnqueueEvent += this.LinkResultHandler;
       results.CloseEvent += this.LinkCloseHandler;
       RpcManager rpc = RpcManager.GetInstance(_node);
-      rpc.Invoke(_e, results, "sys:link.Start", MakeLM().ToHashtable() );
+      rpc.Invoke(_e, results, "sys:link.Start", MakeLM().ToDictionary() );
     }
     
     /**
@@ -411,7 +419,7 @@ namespace Brunet
           results.EnqueueEvent += this.StatusResultHandler;
           results.CloseEvent += this.StatusCloseHandler;
           RpcManager rpc = RpcManager.GetInstance(_node);
-          rpc.Invoke(_e, results, "sys:link.GetStatus", sm.ToHashtable() );
+          rpc.Invoke(_e, results, "sys:link.GetStatus", sm.ToDictionary() );
         }
       }
       catch(AdrException x) {

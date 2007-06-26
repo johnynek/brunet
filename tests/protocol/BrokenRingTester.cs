@@ -74,8 +74,8 @@ namespace Brunet {
           }
 
           Connection lc = ((Node)nodes[next_addr]).ConnectionTable.GetRightStructuredNeighborOf((AHAddress) next_addr);
-          Address left_addr = lc.Address;
-          if(!curr_addr.Equals(left_addr)) {
+          if( (lc == null) || !curr_addr.Equals(lc.Address)) {
+            Address left_addr = lc.Address;
             Console.WriteLine(curr_addr + " != " + left_addr);
             Console.WriteLine("Right had edge, but left has no record of it!\n{0} != {1}", con, lc);
             break;
@@ -114,14 +114,14 @@ namespace Brunet {
           if (next_addr == null) {
             Console.WriteLine("Found disconnection.");
           }
-
-          Address left_addr = ((Node)nodes[next_addr]).ConnectionTable.GetLeftStructuredNeighborOf((AHAddress) next_addr).Address;
-          if(left_addr == null) {
+          Connection left_con = ((Node)nodes[next_addr]).ConnectionTable.GetLeftStructuredNeighborOf((AHAddress) next_addr);
+          if(left_con == null) {
             Console.WriteLine("Found disconnection.");
           }
-          else if(!curr_addr.Equals(left_addr)) {
+          else if(!curr_addr.Equals(left_con.Address)) {
+            Address left_addr = left_con.Address;
             Console.WriteLine(curr_addr + " != " + left_addr);
-            Console.WriteLine("Left had edge, but right has no record of it!");
+            Console.WriteLine("Left had edge, but right has no record of it! {0}", left_con);
             break;
           }
           else if(next_addr.Equals(start_addr) && i != network_size -1) {

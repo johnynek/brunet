@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using System.Xml;
 using System.Collections;
+using System.Collections.Specialized;
 #if BRUNET_NUNIT
 using NUnit.Framework;
 #endif
@@ -72,13 +73,13 @@ namespace Brunet
       _neighbors = neighbors;
     }
 
-    public ConnectToMessage(Hashtable ht) {
+    public ConnectToMessage(IDictionary ht) {
       _ct = (string)ht["type"];
-      _target_ni = new NodeInfo((Hashtable)ht["target"]);
+      _target_ni = new NodeInfo((IDictionary)ht["target"]);
       ArrayList neighs = new ArrayList();
       IEnumerable neighht = ht["neighbors"] as IEnumerable;
       if( neighht != null ) {
-        foreach(Hashtable nht in neighht) {
+        foreach(IDictionary nht in neighht) {
           neighs.Add( new NodeInfo( nht ) ); 
         }
       }
@@ -211,13 +212,13 @@ namespace Brunet
       return new ConnectToMessage(dir, id, r);
     }
 
-    public Hashtable ToHashtable() {
-      Hashtable ht = new Hashtable(3);
+    public IDictionary ToDictionary() {
+      ListDictionary ht = new ListDictionary();
       ht["type"] = _ct;
-      ht["target"] = _target_ni.ToHashtable();
+      ht["target"] = _target_ni.ToDictionary();
       ArrayList neighs = new ArrayList(Neighbors.Length);
       foreach(NodeInfo ni in Neighbors) {
-        neighs.Add( ni.ToHashtable() );
+        neighs.Add( ni.ToDictionary() );
       }
       ht["neighbors"] = neighs;
       return ht;
@@ -259,7 +260,7 @@ namespace Brunet
     public ConnectToMessageTester() { }
     
     public void HTRoundTrip(ConnectToMessage ctm) {
-      ConnectToMessage ctm2 = new ConnectToMessage( ctm.ToHashtable() );
+      ConnectToMessage ctm2 = new ConnectToMessage( ctm.ToDictionary() );
       Assert.AreEqual(ctm, ctm2, "CTM HT Roundtrip");
     }
     [Test]
