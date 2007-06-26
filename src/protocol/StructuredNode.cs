@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using System;
 using System.Collections;
+using System.Collections.Specialized;
 //using log4net;
 
 namespace Brunet
@@ -151,17 +152,59 @@ namespace Brunet
       _sco.IsActive = false;
       _cco.IsActive = false;
       
-
-      //Stop dealing with linking
-      ClearTypeSource(PType.Protocol.Linking);
-
       //Gracefully close all the edges:
-      foreach(Connection c in _connection_table) {
-        GracefullyClose(c.Edge);
+      _connection_table.Close(); //This makes sure we can't add any new connections.
+      ArrayList edges_to_close = ArrayList.Synchronized( new ArrayList() );
+      foreach(Edge e in _connection_table.GetUnconnectedEdges() ) {
+        edges_to_close.Add( e );
       }
-      // stop all edge listeners to prevent other nodes
-      // from connecting to us
-      StopAllEdgeListeners();
+      //There is no way unconnected edges could have become Connections,
+      //so we should put the connections in last.
+      foreach(Connection c in _connection_table) {
+        edges_to_close.Add( c.Edge );
+      }
+      //edges_to_close has all the connections and unconnected edges.
+      ArrayList copy = new ArrayList(edges_to_close);
+      //Just close the queue on the first enqueue.
+      EventHandler eh = delegate(object o, EventArgs arg) {
+        BlockingQueue q = (BlockingQueue)o;
+        bool timedout;
+        RpcResult rpc_res = (RpcResult)q.Dequeue(0, out timedout);
+        try {
+          object r = rpc_res.Result;
+        }
+        catch (Exception x) {
+          Console.Error.WriteLine("RPC Close on {0} gave Exception: {1}", rpc_res.ResultSender, x);
+        }
+        q.Close();
+      };
+      EventHandler ch = delegate(object o, EventArgs a) {
+        Edge e = (Edge)o;
+        edges_to_close.Remove(e);
+        if( edges_to_close.Count == 0 ) {
+          Console.Error.WriteLine("Node({0}) Stopping all EdgeListeners", Address);
+          StopAllEdgeListeners();
+        }
+      };
+      RpcManager rpc = RpcManager.GetInstance(this);
+      foreach(Edge e in copy) {
+        e.CloseEvent += ch;
+        if( e.IsClosed ) { ch(e, null); }
+        else {
+          BlockingQueue res_q = new BlockingQueue();
+          res_q.EnqueueEvent += eh;
+          DateTime start_time = DateTime.UtcNow;
+          res_q.CloseEvent += delegate(object o, EventArgs arg) {
+            Console.Error.WriteLine("Close on edge: {0} took: {1}", e, (DateTime.UtcNow - start_time)); 
+            e.Close();
+          };
+          try {
+            IDictionary carg = new ListDictionary();
+            carg["reason"] = "disconnecting";
+            rpc.Invoke(e, res_q, "sys:link.Close", carg);
+          } catch { e.Close(); }
+        }
+      }
     }
 
     /**

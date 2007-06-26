@@ -35,8 +35,6 @@ namespace Brunet {
  *
  * This protocol is useful for simple applications that only need a best
  * effort attempt to deal with lost packets.
- *
- * @todo implement adaptive timeouts
  */
 	
 public class ReqrepManager : IDataHandler {
@@ -104,7 +102,7 @@ public class ReqrepManager : IDataHandler {
       Console.Error.WriteLine("[ReqrepManager: {0}] Deactivated.",
 			_node.Address);
 #endif
-      _is_active = false;
+      //_is_active = false;
     };
 
     //Subscribe on the node:
@@ -281,7 +279,7 @@ public class ReqrepManager : IDataHandler {
     * When f = 0, we change instantaneously: a[t+1] = a'
     * When f = 1, we never change: a[t+1] = a[t]
     */
-   protected const double _exp_factor = 0.9;
+   protected const double _exp_factor = 0.98; //approximately use the last 50
    protected double _exp_moving_rtt;
    protected double _exp_moving_square_rtt;
    protected double _max_rtt;
@@ -311,7 +309,9 @@ public class ReqrepManager : IDataHandler {
        std_dev = 0.0;
      }
      double timeout = _exp_moving_rtt + _STD_DEVS * std_dev;
-//     Console.WriteLine("mean: {0}, std-dev: {1}, max: {2}, timeout: {3}", _exp_moving_rtt, std_dev, _max_rtt, timeout);
+#if REQREP_DEBUG
+     Console.Error.WriteLine("mean: {0}, std-dev: {1}, max: {2}, timeout: {3}", _exp_moving_rtt, std_dev, _max_rtt, timeout);
+#endif
      /*
       * Here's the new timeout:
       */
@@ -475,7 +475,7 @@ public class ReqrepManager : IDataHandler {
 			_node.Address);
 #endif
       //we are no longer active
-      return -1;
+      throw new Exception("ReqrepManager is not active");
     }
     if ( reqt != ReqrepType.Request && reqt != ReqrepType.LossyRequest ) {
       throw new Exception("Not a request");
@@ -592,7 +592,6 @@ public class ReqrepManager : IDataHandler {
         }
         catch {
           //This send didn't work, but maybe it will next time, who knows...
-          ///@todo maybe we should go ahead and signal an error here
           req.ReplyHandler.HandleError(this, req.RequestID, ReqrepError.Send,
                                        null, req.UserState);
 

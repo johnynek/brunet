@@ -69,6 +69,9 @@ namespace Brunet
     /** global lock for thread synchronization */
     protected readonly object _sync;
     protected readonly ListDictionary _to_close;
+
+    //This is true when the node starts to disconnect
+    protected volatile bool _disconnecting;
     /**
      * You should subscribe this to a Node, with the state being the node
      * it is subscribed to.  It can work for more than one node
@@ -81,6 +84,12 @@ namespace Brunet
       _node = n;
       _node.HeartBeatEvent += this.DelayedCloseHandler;
       _to_close = new ListDictionary();
+      _disconnecting = false;
+      //When Disconnect is called, set disconnecting to true, disallowing new
+      //connections.
+      _node.DepartureEvent += delegate(object o, EventArgs a) {
+        _disconnecting = true;
+      };
     }
 
     /**
@@ -297,6 +306,9 @@ namespace Brunet
       * Node got our LinkMessage response, and the connection
       * is active
       */
+      if( _disconnecting ) {
+        throw new AdrException((int)ErrorMessage.ErrorCode.Disconnecting, "disconnecting");
+      }
       StatusMessage response = null;
       ConnectionTable tab = _node.ConnectionTable;
       if (lm_to_add != null) {
@@ -378,6 +390,10 @@ namespace Brunet
         //You are me!!!
         err = new ErrorMessage(ErrorMessage.ErrorCode.ConnectToSelf,
                                "You are me: ");
+      }
+      else if( _disconnecting ) {
+        err = new ErrorMessage(ErrorMessage.ErrorCode.Disconnecting,
+                               String.Format("I am disconnecting. local: {0}", local_add));
       }
       else {
         /*
