@@ -605,27 +605,35 @@ namespace Brunet
 	    int max = buffer.Length - offset;
             rec_bytes = s.ReceiveFrom(buffer, offset, max, SocketFlags.None, ref end);
             //Get the id of this edge:
-            int remoteid = NumberSerializer.ReadInt(buffer, offset);
-            int localid = NumberSerializer.ReadInt(buffer, offset + 4);
-	    /*
-	     * Make a reference to this memory, don't copy.
-	     */
-	    MemBlock packet_buffer = MemBlock.Reference(buffer, offset + 8, rec_bytes - 8);
-	    ba.AdvanceBuffer(rec_bytes);
-	    buffer = ba.Buffer;
-	    offset = ba.Offset;
-  	    
-	    if( localid < 0 ) {
-  	    /*
-  	     * We never give out negative id's, so if we got one
-  	     * back the other node must be sending us a control
-  	     * message.
-  	     */
-              HandleControlPacket(remoteid, localid, packet_buffer, s);
-  	    }
-  	    else {
-  	      HandleDataPacket(remoteid, localid, packet_buffer, end, s);
-  	    }
+            if( rec_bytes >= 8 ) {
+              int remoteid = NumberSerializer.ReadInt(buffer, offset);
+              int localid = NumberSerializer.ReadInt(buffer, offset + 4);
+              /*
+               * Make a reference to this memory, don't copy.
+               */
+              MemBlock packet_buffer = MemBlock.Reference(buffer, offset + 8, rec_bytes - 8);
+              ba.AdvanceBuffer(rec_bytes);
+              buffer = ba.Buffer;
+              offset = ba.Offset;
+            
+              if( localid < 0 ) {
+                /*
+                 * We never give out negative id's, so if we got one
+                 * back the other node must be sending us a control
+                 * message.
+                 */
+                HandleControlPacket(remoteid, localid, packet_buffer, s);
+              } else {
+                HandleDataPacket(remoteid, localid, packet_buffer, end, s);
+              }
+            } else {
+              /*
+               * Some one sent us less than 8 bytes
+               */
+            }
+          } else {
+            // There is nothing to read from the 
+            // Socket.
           }
         }
         catch(Exception x) {
