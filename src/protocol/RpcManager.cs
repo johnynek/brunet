@@ -19,7 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 //#define RPC_DEBUG
-#define DAVID_ASYNC_INVOKE
+//#define DAVID_ASYNC_INVOKE
 using System;
 using System.IO;
 using System.Collections;
@@ -99,7 +99,8 @@ public class RpcResult {
 public class RpcManager : IReplyHandler, IDataHandler {
  
   protected class RpcRequestState {
-    public BlockingQueue result_queue;
+    public BlockingQueue Results;
+    public ISender RpcTarget;
   }
  
   protected object _sync;
@@ -300,7 +301,8 @@ public class RpcManager : IReplyHandler, IDataHandler {
 			  ReqrepManager.Statistics statistics, object state)
   {
     RpcRequestState rs = (RpcRequestState) state;
-    BlockingQueue bq = rs.result_queue;
+    ISender target = rs.RpcTarget;
+    BlockingQueue bq = rs.Results;
     if( bq != null ) {
       object data = AdrConverter.Deserialize(payload);
       RpcResult res = new RpcResult(ret_path, data, statistics);
@@ -416,7 +418,7 @@ public class RpcManager : IReplyHandler, IDataHandler {
   {
     Exception x = null;
     RpcRequestState rs = (RpcRequestState) state;
-    BlockingQueue bq = rs.result_queue;
+    BlockingQueue bq = rs.Results;
     switch(err) {
         case ReqrepManager.ReqrepError.NoHandler:
           x = new AdrException(-32601, "No RPC Handler on remote host");
@@ -429,6 +431,11 @@ public class RpcManager : IReplyHandler, IDataHandler {
           if( bq != null ) { bq.Close(); }
           break;
         case ReqrepManager.ReqrepError.Send:
+          if( rs.RpcTarget is Edge ) { 
+            Edge e = (Edge)rs.RpcTarget;
+            //This definitely won't get any more responses:
+            if( e.IsClosed && bq != null ) { bq.Close(); } 
+          }
           //We had some problem sending, but ignore it for now
           break;
     }
@@ -463,7 +470,8 @@ public class RpcManager : IReplyHandler, IDataHandler {
   {
     //build state for the RPC call
     RpcRequestState rs = new RpcRequestState();
-    rs.result_queue = q;
+    rs.Results = q;
+    rs.RpcTarget = target;
 
     object[] rpc_call = new object[2];
     rpc_call[0] = method;

@@ -270,6 +270,14 @@ namespace Brunet
          */
         result = Result.MoveToNextTA;
       }
+      else if ( c == (int)ErrorMessage.ErrorCode.Disconnecting ) {
+        /* The other node is going offline */
+        if( _linker.Target == null ) {
+          result = Result.MoveToNextTA;
+        } else {
+          result = Result.ProtocolError; //Give up now
+        }
+      }
       else {
         Console.Error.WriteLine("Unrecognized error code: {0}", c);
       }
