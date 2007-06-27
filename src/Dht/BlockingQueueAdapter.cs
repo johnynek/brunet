@@ -40,13 +40,5 @@ namespace Ipop {
     public void Enqueue(object o) {
       this._bq.Enqueue(o);
     }
-
-    public bool Contains(object o) {
-      return this._bq.Contains(o);
-    }
-
-    public void Clear() {
-      this._bq.Clear();
-    }
   }
 }

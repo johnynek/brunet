@@ -13,8 +13,6 @@ namespace Ipop {
     object Peek();
     object Peek(int millisec, out bool timedout);
     void Enqueue(object o);
-    bool Contains(object o);
     void Close();
-    void Clear();
   }
 }
