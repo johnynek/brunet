@@ -37,8 +37,8 @@ namespace Brunet
   {
     ///Here is the queue for outgoing packets:
     protected Queue _send_queue;
-    //This is true if there is something in the queue
-    volatile protected bool _queue_not_empty;
+    //This is 1 if there is something in the queue
+    protected int _total_to_send;
     /**
      * This is a simple little class just to hold the
      * two objects needed to do a send
@@ -449,7 +449,7 @@ namespace Brunet
       _running = false;
       _isstarted = false;
       _send_queue = new Queue();
-      _queue_not_empty = false;
+      _total_to_send = 0;
       ///@todo, we need a system for using the cryographic RNG
       _rand = new Random();
       _send_handler = this;
@@ -576,18 +576,16 @@ namespace Brunet
       //Wait 1 ms before giving up on a read
       int microsecond_timeout = 1000;
       //Make sure only this thread can see the socket from now on!
-      Socket s = null;
-      lock( _sync ) { 
-        s = _s;
-        _s = null;
-      }
+      Socket s = Interlocked.Exchange( ref _s, null);
       EndPoint end = new IPEndPoint(IPAddress.Any, 0);
       byte[] send_buffer = new byte[ Packet.MaxLength + 8];
       
       BufferAllocator ba = new BufferAllocator(8 + Packet.MaxLength);
       byte[] buffer = ba.Buffer;
       int offset = ba.Offset;
-
+      //This is used to make sure the writers always have a queue to write
+      //into, see where we do Exchange with _send_queue
+      Queue tmp_queue = new Queue();
       while(_running) {
         bool read = false;
 
@@ -644,69 +642,116 @@ namespace Brunet
          * We are done with handling the reads.  Now lets
          * deal with all the pending sends:
          *
-         * Note, we don't get a lock before checking the queue.
-         * There is no race condition or deadlock here because
-         * if we don't get the packets this round, we get them
-         * next time.  Getting locks is expensive, so we don't 
-         * want to do it here since we don't have to, and this
-         * is a tight loop.
+         * The below is some advanced thread synchronization.
+         * This makes HandleEdgeSend much faster (about 10 times
+         * faster, or from 500 ms to around 50 ms on one
+         * benchmark).
+         *
+         * This code is a bit subtle and should not be changed without
+         * very clear understanding of what is going on.
+         *
+         * The basic idea is to keep swap two queues between this thread
+         * and threads calling HandleSend so that we usually don't have
+         * to try many times before we find a non-empty queue. 
          */
-        if( _queue_not_empty ) {
-          ArrayList to_close = null;
-          lock( _send_queue ) {
-            while( _send_queue.Count > 0 ) {
-              SendQueueEntry sqe = (SendQueueEntry)_send_queue.Dequeue();
-              try {
-                Send(sqe, s, send_buffer);
-              }
-              catch(SocketException x) {
-               /*
-                * some nodes have transient problems with their
-                * networking.  We count the number of errors,
-                * break out, to slow down sending a bit, and
-                * hopefully things will get better.
-                */
-                sqe.ErrorCount++;
-                if( sqe.ErrorCount < MAX_ERROR_COUNT ) {
-                  /*
-                   * Put it in the back of the queue and break out.
-                   * Hopefully by the time we try again matters will
-                   * be better
-                   */
-                  _send_queue.Enqueue(sqe);
-                  break;
-                }
-                else {
-                  /*
-                   * Oh well, it had it's chance.  Close the edge and
-                   * print a message.
-                   */
-                  Console.Error.WriteLine("SocketExceptions ({0}) on packet of length({1}): closing Edge: {2}\n{3}",
-                                sqe.ErrorCount, sqe.Packet.Length, sqe.Sender, x);
-                  if( to_close == null ) { to_close = new ArrayList(); }
-                  to_close.Add( sqe.Sender );
-                }
-              }
-              catch(Exception x) {
+        if( tmp_queue.Count > 0 ) {
+          int original_count = tmp_queue.Count;
+          SendQueue(tmp_queue, s, send_buffer);
+          int final_count = tmp_queue.Count;
+          for( int i = final_count; i < original_count; i++) {
+            Interlocked.Decrement(ref _total_to_send);
+          }
+        }
+        else if ( Thread.VolatileRead(ref _total_to_send ) > 0 ) {
+          /*
+           * tmp_queue is now empty, but the other one must not be.
+           */
+          Queue orig = tmp_queue;
+          do {
+            tmp_queue = Interlocked.Exchange( ref _send_queue, tmp_queue );
+            if( tmp_queue != null ) {
               /*
-               * Some non-socket exception.  This should never happen.
-               * Print it out to hope to debug it later
+               * Okay we have a queue, it either is _send_queue or the
+               * original tmp_queue allocated in this thread, they are
+               * the only two queues allocated in this object.
                */
-                Console.Error.WriteLine("Error in UdpEdgeListener.Send. Edge: {0}\n{1}",
-                                sqe.Sender, x);
-
+              if( tmp_queue.Count == 0 ) {
+               /* Some queue is not empty, and it's clearly not this
+                * one.
+                *
+                * let the HandleSend finish putting the queue back.
+                */
+                Thread.SpinWait(10);
+              }
+              else {
+                //We have a non-null queue with tmp_queue.Count > 0
+                break;
               }
             }
-            //Before we unlock the send_queue, reset the flag:
-            _queue_not_empty = false;
-          }
-          if( to_close != null ) {
-            foreach(UdpEdge e in to_close) { e.Close(); }
+            else {
+              //We have null, swap it back, HandleSend might want it.
+            }
+          } while( true );
+          //Now, we have a non-empty queue.
+          int original_count = tmp_queue.Count;
+          SendQueue(tmp_queue, s, send_buffer);
+          int final_count = tmp_queue.Count;
+          for( int i = final_count; i < original_count; i++) {
+            Interlocked.Decrement(ref _total_to_send);
           }
         }
         //Now it is time to see if we can read...
       }
       s.Close();
+    }
+
+    /**
+     * Send all the items in this queue if possible.  In some cases, we
+     * can't empty the queue (in the case of some SocketErrors).
+     */
+    private static void SendQueue(Queue tmp_queue, Socket s, byte[] buffer) {
+      while( tmp_queue.Count > 0 ) {
+        SendQueueEntry sqe = (SendQueueEntry)tmp_queue.Dequeue();
+        try {
+          Send(sqe, s, buffer);
+        }
+        catch(SocketException x) {
+         /*
+          * some nodes have transient problems with their
+          * networking.  We count the number of errors,
+          * break out, to slow down sending a bit, and
+          * hopefully things will get better.
+          */
+          sqe.ErrorCount++;
+          if( sqe.ErrorCount < MAX_ERROR_COUNT ) {
+            /*
+             * Put it in the back of the queue and break out.
+             * Hopefully by the time we try again matters will
+             * be better
+             */
+            tmp_queue.Enqueue(sqe);
+            break;
+          }
+          else {
+            /*
+             * Oh well, it had it's chance.  Close the edge and
+             * print a message.
+             */
+            Console.Error.WriteLine("SocketExceptions ({0}) on packet of length({1}): closing Edge: {2}\n{3}",
+                          sqe.ErrorCount, sqe.Packet.Length, sqe.Sender, x);
+            sqe.Sender.Close();
+          }
+        }
+        catch(Exception x) {
+        /*
+         * Some non-socket exception.  This should never happen.
+         * Print it out to hope to debug it later
+         */
+          Console.Error.WriteLine("Error in UdpEdgeListener.Send. Edge: {0}\n{1}",
+                          sqe.Sender, x);
+
+        }
+      }
     }
 
     private static void Send(SendQueueEntry sqe, Socket s, byte[] buffer)
@@ -729,16 +774,27 @@ namespace Brunet
      */
     public void HandleEdgeSend(Edge from, ICopyable p)
     {
-      lock( _send_queue ) {
-        SendQueueEntry sqe = new SendQueueEntry(p, (UdpEdge)from);
-        _send_queue.Enqueue(sqe);
-        int count = _send_queue.Count;
-        if( (count > 0) && (count % 1000 == 0) ) {
-          Console.Error.WriteLine("UdpEdgeListener has {1} elements in Send Queue", count);
-        }
+      /*
+       * This is a lock-free implementation to reduce latency
+       * on sending
+       */
+      SendQueueEntry sqe = new SendQueueEntry(p, (UdpEdge)from);
+      Queue tmp_queue = null;
+      //Get access to the queue:
+      do {
+        tmp_queue = Interlocked.Exchange( ref _send_queue, tmp_queue);
       }
-      _queue_not_empty = true;
+      while( tmp_queue == null );
+      tmp_queue.Enqueue(sqe);
+      int count = Interlocked.Increment(ref _total_to_send);
+      //Put it back:
+      do {
+        tmp_queue = Interlocked.Exchange( ref _send_queue, tmp_queue);
+      }
+      while( tmp_queue != null );
+      if( count % 1000 == 0 ) {
+        Console.Error.WriteLine("UdpEdgeListener has {1} elements in Send Queue", count);
+      }
     }
-
   }
 }
