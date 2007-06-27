@@ -92,11 +92,13 @@ namespace Brunet
       GetTypeSource(PType.Protocol.Forwarding).Subscribe(new PacketForwarder(this), null);
       //Handles AHRouting:
       GetTypeSource(PType.Protocol.AH).Subscribe(new AHHandler(this), this);
+      GetTypeSource(PType.Protocol.Echo).Subscribe(new EchoHandler(), this);
       
       //Add the standard RPC handlers:
       RpcManager rpc = RpcManager.GetInstance(this);
       rpc.AddHandler("sys:ctm", new CtmRequestHandler(this));
       rpc.AddHandlerWithSender("sys:link", new ConnectionPacketHandler(this));
+      rpc.AddHandler("trace", new TraceRpcHandler(this));
 
       _connection_table.ConnectionEvent += new EventHandler(this.EstimateSize);
       _connection_table.ConnectionEvent += new EventHandler(this.UpdateNeighborStatus);

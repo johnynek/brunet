@@ -54,11 +54,13 @@ public sealed class BlockingQueue {
     _closed = false;
     _sync = new object();
     _queue = new Queue();
+    _close_on_enqueue = false;
   }
   protected readonly Queue _queue;
   protected readonly object _sync; 
   protected AutoResetEvent _re;
   protected bool _closed;
+  protected bool _close_on_enqueue;
 
   public bool Closed { get { lock ( _sync ) { return _closed; } } }
   
@@ -102,6 +104,26 @@ public sealed class BlockingQueue {
 #if DEBUG
     System.Console.Error.WriteLine("Close set");
 #endif
+  }
+
+  /**
+   * After the next enqueue, close
+   * If the queue is already closed, this does nothing.
+   * This is totally equivalent to listening to the
+   * EnqueueEvent and calling Close on the queue after
+   * an Enqueue.
+   * @return Closed
+   */
+  public bool CloseAfterEnqueue() {
+    lock( _sync ) {
+      if( !_closed ) {
+        _close_on_enqueue = true;
+        return false;
+      }
+      else {
+        return true;
+      }
+    }
   }
   
   /**
@@ -193,6 +215,7 @@ public sealed class BlockingQueue {
 
   public void Enqueue(object a) {
     bool set = false;
+    bool close = false;
     lock( _sync ) {
       if( !_closed ) {
         _queue.Enqueue(a);
@@ -209,6 +232,7 @@ public sealed class BlockingQueue {
         //We just went from 0 -> 1 signal any waiting Dequeue
         set = true;
       }
+      close = _close_on_enqueue;
     }
     if( set ) { 
       _re.Set();
@@ -217,6 +241,9 @@ public sealed class BlockingQueue {
     //the event:
     if( EnqueueEvent != null ) {
       EnqueueEvent(this, EventArgs.Empty);
+    }
+    if( close ) {
+      Close();  
     }
   }
 

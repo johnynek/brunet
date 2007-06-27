@@ -382,7 +382,19 @@ public class ReqrepManager : IDataHandler {
      }
      else {
        //This is a new request:
-       _node.Announce(rest, rs);
+       try {
+         _node.Announce(rest, rs);
+       }
+       catch {
+         lock( _sync ) {
+           _reply_cache.Remove( rs.RequestKey );
+         }
+         //This didn't work out:
+         MemBlock err_data = MemBlock.Reference(
+                        new byte[]{ (byte) ReqrepError.HandlerFailure } );
+         ICopyable reply = MakeRequest(ReqrepType.Error, idnum, err_data);
+         retpath.Send(reply);
+       }
      }
    }
 
