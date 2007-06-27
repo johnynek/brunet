@@ -53,10 +53,7 @@ public class TraceRpcHandler : IRpcHandler {
       esh.SendEchoRequest();
     } else if ( method == "GetRouteTo" ) {
       DoTraceRouteTo( (AHAddress)AddressParser.Parse((string)args[0]), req_state);
-    } else if ( method == "RecursiveCall" ) {
-      RecursiveCall(args, req_state);
-    }
-    else {
+    } else {
       throw new AdrException(-32601, "No Handler for method: " + method);
     }
   }
@@ -69,26 +66,42 @@ public class TraceRpcHandler : IRpcHandler {
    */
   protected void DoTraceRouteTo(AHAddress a, object req_state) {
     /*
-     * First find the Connection pointing to the node closest to dest, if
+     * First find the Connection pointing to the node closest to a, if
      * there is one closer than us
      */
-
     ConnectionTable tab = _node.ConnectionTable;
-    ConnectionList structs = tab.GetConnections(ConnectionType.Structured);
-    Connection next_closest = structs.GetNearestTo((AHAddress) _node.Address, a);
+    Connection next_closest = null;
+    lock( tab.SyncRoot ) {
+      next_closest = tab.GetConnection(ConnectionType.Structured, a);
+      if( next_closest == null ) {
+        //a is not the table:
+        Connection right = tab.GetRightStructuredNeighborOf(a);
+        Connection left = tab.GetLeftStructuredNeighborOf(a);
+        BigInteger my_dist = ((AHAddress)_node.Address).DistanceTo(a).abs();
+        BigInteger ld = ((AHAddress)left.Address).DistanceTo(a).abs();
+        BigInteger rd = ((AHAddress)right.Address).DistanceTo(a).abs();
+        if( (ld < rd) && (ld < my_dist) ) {
+          next_closest = left;
+        }
+        if( (rd < ld) && (rd < my_dist) ) {
+          next_closest = right;
+        }
+      }
+    }
     //Okay, we have the next closest:
     ListDictionary my_entry = new ListDictionary();
     my_entry["node"] = _node.Address.ToString();
     if( next_closest != null ) {
       my_entry["next_con"] = next_closest.ToString();
-      Channel result = new Channel();
+      BlockingQueue result = new BlockingQueue();
       //We only want one result, so close the queue after we get the first
       result.CloseAfterEnqueue();
       result.CloseEvent += delegate(object o, EventArgs args) {
-        Channel q = (Channel)o;
+        BlockingQueue q = (BlockingQueue)o;
         if( q.Count > 0 ) {
           try {
-            RpcResult rres = (RpcResult)q.Dequeue();
+            bool timedout;
+            RpcResult rres = (RpcResult)q.Dequeue(0, out timedout);
             IList l = (IList) rres.Result;
             ArrayList results = new ArrayList( l.Count + 1);
             results.Add(my_entry);
@@ -117,88 +130,6 @@ public class TraceRpcHandler : IRpcHandler {
       _rpc.SendResult(req_state, l);  
     }
   }
-  /**
-   * This is a recursive function over the network
-   * It helps do a link-reliable procedure call on the
-   * on the overlay network.
-   */
-  protected void RecursiveCall(IList margs, object req_state) {
-    //first argument is the target node.
-    AHAddress a = (AHAddress) AddressParser.Parse( (string) margs[0]);
-    /*
-     * First find the Connection pointing to the node closest to dest, if
-     * there is one closer than us
-     */
-
-    ConnectionTable tab = _node.ConnectionTable;
-    ConnectionList structs = tab.GetConnections(ConnectionType.Structured);
-    Connection next_closest = structs.GetNearestTo((AHAddress) _node.Address, a);
-    //Okay, we have the next closest:
-    if( next_closest != null ) {
-      Channel result = new Channel();
-      //We only want one result, so close the queue after we get the first
-      result.CloseAfterEnqueue();
-      result.CloseEvent += delegate(object o, EventArgs args) {
-        Channel q = (Channel)o;
-        if( q.Count > 0 ) {
-          try {
-            RpcResult rres = (RpcResult)q.Dequeue();
-            _rpc.SendResult(req_state, rres.Result);
-          }
-          catch(Exception x) {
-            string m = String.Format("<node>{0}</node> trying <connection>{1}</connection> got <exception>{2}</exception>", _node.Address, next_closest, x);
-            Exception nx = new Exception(m);
-            _rpc.SendResult(req_state, nx);
-          }
-        }
-        else {
-          //We got no results.
-          _rpc.SendResult(req_state, null);
-        }
-      };
-      object [] new_args = new object[margs.Count];
-      margs.CopyTo(new_args, 0);
-      _rpc.Invoke(next_closest.Edge, result, "trace.RecursiveCall", new_args);
-    }
-    else {
-      //We are the end of the line, send the result:
-      //Console.Error.WriteLine("Doing a local invocation");
-      Channel result = new Channel();
-      result.CloseAfterEnqueue();
-      result.CloseEvent += delegate(object o, EventArgs args) {
-        Channel q = (Channel)o;
-        if( q.Count > 0 ) {
-          try {
-            //Console.Error.WriteLine("Got result.");
-            RpcResult rres = (RpcResult)q.Dequeue();
-            _rpc.SendResult(req_state, rres.Result);
-          }
-          catch(Exception x) {
-            string m = String.Format("<node>{0}</node> local invocation got <exception>{1}</exception>", _node.Address, x);
-            Exception nx = new Exception(m);
-            _rpc.SendResult(req_state, nx);
-          }
-        }
-        else {
-          //We got no results.
-          _rpc.SendResult(req_state, null);
-        }        
-      };
-
-      string method_name = (string) margs[1];
-      object [] new_args = new object[margs.Count - 2];
-      margs.RemoveAt(0);//extract destination address
-      margs.RemoveAt(0); //extract method name
-      margs.CopyTo(new_args, 0);
-      //Console.Error.WriteLine("Calling method: {0}, args_count: {1}", method_name, new_args.Length);
-      //for (int i = 0; i < new_args.Length; i++) {
-      //Console.Error.WriteLine(new_args[i]);
-      //}
-      _rpc.Invoke(_node, result, method_name, new_args);
-    }
-    
-  }
-  
 
   /**
    * Sends an Echo request and times how long it takes to get a response

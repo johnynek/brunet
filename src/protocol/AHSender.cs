@@ -139,6 +139,17 @@ public class AHExactSender : AHSender {
 }
 
 /**
+ * Send a message which should only be received by a node
+ * which is closest to the target address
+ */
+public class AHGreedySender : AHSender {
+  public AHGreedySender(Node n, Address target)
+    : base(n, target, n.DefaultTTLFor(target), AHPacket.AHOptions.Greedy) { }
+}
+
+
+
+/**
  * This handles AHPackets which arrive at the node
  */
 public class AHHandler : IDataHandler {
