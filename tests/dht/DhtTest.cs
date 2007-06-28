@@ -154,7 +154,8 @@ namespace Brunet.Dht {
       byte[][] expected_results = (byte[][]) ht["results"];
       int op = (int) ht["op"];
       try {
-        BlockingQueue queue = dhts[index].AsGet(key);
+        BlockingQueue queue = new BlockingQueue();
+        dhts[index].AsGet(key, queue);
         bool found = false;
         int found_count = 0;
         while(true) {
@@ -448,7 +449,8 @@ namespace Brunet.Dht {
         value = new byte[100];
         rng.GetBytes(value);
         al_results.Add(value);
-        results_queue[i] = dhts[0].AsPut(key, value, 3000);
+        results_queue[i] = new BlockingQueue();
+        dhts[0].AsPut(key, value, 3000, results_queue[i]);
       }
       for (int i = 0; i < 60; i++) {
         bool result = (bool) results_queue[i].Dequeue();
@@ -773,7 +775,8 @@ namespace Brunet.Dht {
         value = new byte[100];
         rng.GetBytes(value);
         al_results.Add(value);
-        results_queue[i] = dhts[0].AsPut(key, value, 3000);
+        results_queue[i] = new BlockingQueue();
+        dhts[0].AsPut(key, value, 3000, results_queue[i]);
       }
       for (int i = 0; i < count; i++) {
         bool result = (bool) results_queue[i].Dequeue();
