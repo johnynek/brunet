@@ -82,14 +82,15 @@ namespace Brunet {
         } while (maxResultsToWait < 0 ? true : (counter < maxResultsToWait));
       } catch (Exception e) {
         Debug.WriteLine(e);
+        string s = string.Empty;
         if (e is AdrException) {
           if (rsSender != null) {
-            object s = AdrXmlRpcConverter.Adr2XmlRpc(rsSender);
-            allValues.Add(s);
+            s = AdrXmlRpcConverter.Adr2XmlRpc(rsSender) as string;
           }
-          object new_e = AdrXmlRpcConverter.Adr2XmlRpc(e);
-          allValues.Add(new_e);
         }
+        Exception new_e = AdrXmlRpcConverter.Adr2XmlRpc(e) as Exception;
+        throw new Exception(new_e.Message + 
+          (s.Equals(string.Empty) ? string.Empty : string.Format("thrown by: {0}", s)));
       } finally {
         if (!q.Closed) {
           q.Close();
@@ -375,6 +376,15 @@ namespace Brunet {
       Console.WriteLine(o.GetType());
       MemBlock mb = (MemBlock)o;
       Console.WriteLine("MB: {0}", mb.ToBase32String());
+    }
+
+    [Test]
+    
+    public void TestWithException() {
+      string node = this.GetRandomNodeAddr();
+      AdrException ex = new AdrException(11111, new Exception());
+      this._mrm.RetValsOfInvoke = new object[] { ex };
+      object[] ret = this._rpc.proxy(node, 0, -1, "dht.Get", new object[0]);
     }
   }
 #endif
