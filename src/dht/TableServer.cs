@@ -250,7 +250,7 @@ namespace Brunet.Dht {
               consumed_bytes += e.Value.Length;
               Hashtable item = new Hashtable();
               item["age"] = age;
-              item["value"] = e.Value;
+              item["value"] = (byte[])e.Value;
               item["ttl"] = ttl;
               values.Add(item);
             }
@@ -262,7 +262,6 @@ namespace Brunet.Dht {
           remaining_items = data.Count - (seen_end_idx + 1);
         }
       }//End of lock
-
       //we have added new item: update the token
       int[] new_bounds = new int[2];
       new_bounds[0] = seen_start_idx;
