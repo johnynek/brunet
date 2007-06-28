@@ -12,7 +12,7 @@ namespace Brunet.Dht {
    */
   public class TableServerData {
     List<DateTime> _end_time_expiring_entries =  new List<DateTime>();
-    Dictionary<int, MemBlock> _memblock_expiring_entries = new Dictionary<int, MemBlock>();
+    List<MemBlock> _memblock_expiring_entries = new List<MemBlock>();
     Dictionary<MemBlock, int> _int_expiring_entries = new Dictionary<MemBlock, int>();
     Cache _data = new Cache(2500);
     protected string _base_dir;
@@ -107,7 +107,7 @@ namespace Brunet.Dht {
         ArrayList data = (ArrayList) _data[key];
         data.Clear();
 
-        _memblock_expiring_entries.Remove(i);
+        _memblock_expiring_entries.RemoveAt(i);
         _int_expiring_entries.Remove(key);
         _end_time_expiring_entries.RemoveAt(i);
       }
@@ -143,7 +143,7 @@ namespace Brunet.Dht {
     public void ExpiredEntriesUpdate(MemBlock key, DateTime end_time) {
       int pos;
       if(_int_expiring_entries.TryGetValue(key, out pos)) {
-        _memblock_expiring_entries.Remove(pos);
+        _memblock_expiring_entries.RemoveAt(pos);
         _end_time_expiring_entries.RemoveAt(pos);
       }
       if(end_time.Equals(DateTime.MinValue)) {
@@ -159,7 +159,7 @@ namespace Brunet.Dht {
         }
         _end_time_expiring_entries.Insert(index, end_time);
         _int_expiring_entries[key] = index;
-        _memblock_expiring_entries[index] = key;
+        _memblock_expiring_entries.Insert(index, key);
       }
     }
 
@@ -201,7 +201,7 @@ namespace Brunet.Dht {
     }
 
     public IEnumerable GetKeys() {
-      return _memblock_expiring_entries.Values;
+      return _memblock_expiring_entries;
     }
 
     /* Sometimes our put succeeds, but our recursive fails, this method gets

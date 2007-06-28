@@ -465,7 +465,7 @@ public class RpcManager : IReplyHandler, IDataHandler {
    *
    * @throw Exception if we cannot send the request for some reason.
    */
-  public void Invoke(ISender target, BlockingQueue q, string method,
+  virtual public void Invoke(ISender target, BlockingQueue q, string method,
                               params object[] args)
   {
     //build state for the RPC call
