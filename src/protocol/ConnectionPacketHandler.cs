@@ -170,20 +170,36 @@ namespace Brunet
      * self -> my Address
      * left -> Address of left neighbor
      * right -> Address of right neighbor
+     * left2 -> Second left neighbor
+     * right2 -> Second right neighbor
      *
      * If the node has any shortcuts:
      * shortcut -> Random shortcut connection
      */
     public IDictionary GetNeighbors(ISender caller) {
       AHAddress self = (AHAddress)_node.Address;
-      Connection left = _node.ConnectionTable.GetLeftStructuredNeighborOf(self);
-      Connection right = _node.ConnectionTable.GetRightStructuredNeighborOf(self);
-
       IDictionary result = new ListDictionary();
       //Put it in:
       result["self"] = self.ToString();
-      result["left"] = left.Address.ToString();
-      result["right"] = right.Address.ToString();
+      
+      Connection left = _node.ConnectionTable.GetLeftStructuredNeighborOf(self);
+      if( left != null ) {
+        AHAddress la = (AHAddress)left.Address;
+        result["left"] = la.ToString();
+        Connection left2 = _node.ConnectionTable.GetLeftStructuredNeighborOf(la);
+        if( left2 != null ) {
+          result["left2"] = left2.Address.ToString();
+        }
+      }
+      Connection right = _node.ConnectionTable.GetRightStructuredNeighborOf(self);
+      if( right != null ) {
+        AHAddress ra = (AHAddress)right.Address;
+        result["right"] = ra.ToString();
+        Connection right2 = _node.ConnectionTable.GetRightStructuredNeighborOf(ra);
+        if( right2 != null ) {
+          result["right2"] = right2.Address.ToString();
+        }
+      }
       //Get a random shortcut:
       ArrayList shortcuts = new ArrayList();
       foreach(Connection c in _node.ConnectionTable.GetConnections("structured.shortcut") ) {
