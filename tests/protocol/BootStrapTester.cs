@@ -86,7 +86,7 @@ namespace Brunet
 #else
           ToDotFile(_sorted_adds, _node_list, _idx);
 #endif
-	  Console.WriteLine("Node({0}).IsConnected == {1}", n.Address, n.IsConnected);
+	  Console.Error.WriteLine("Node({0}).IsConnected == {1}", n.Address, n.IsConnected);
       }
     }
     
@@ -173,6 +173,50 @@ namespace Brunet
       //string ps2ps_cmd = String.Format("/usr/bin/ps2ps");
       //string ps2ps_args = String.Format("t_movie.ps movie.ps");
 #endif
+    }
+    static void Ping(IList nodes) {
+      Random my_r = new Random();
+      int idx0 = my_r.Next(0, nodes.Count);
+      int idx1 = my_r.Next(0, nodes.Count);
+      Node n0 = (Node)nodes[idx0];
+      Node n1 = (Node)nodes[idx1];
+      RpcManager pinger = RpcManager.GetInstance( n0 );
+      BlockingQueue results = new BlockingQueue();
+      Console.WriteLine("Pinging: {0} -> {1}", n0.Address, n1.Address);
+      try {
+        pinger.Invoke(n0, results, "trace.GetRttTo", n1.Address.ToString());
+        object result = results.Dequeue();
+	RpcResult r = (RpcResult)result;
+	IDictionary data = (IDictionary)r.Result;
+	Console.WriteLine("target: {0}, rtt: {1}", data["target"], data["musec"]);
+      }
+      catch(Exception x) {
+        Console.WriteLine("Exception: {0}", x);
+      }
+    }
+    static void TraceRoute(IList nodes) {
+      Random my_r = new Random();
+      int idx0 = my_r.Next(0, nodes.Count);
+      int idx1 = my_r.Next(0, nodes.Count);
+      Node n0 = (Node)nodes[idx0];
+      Node n1 = (Node)nodes[idx1];
+      RpcManager pinger = RpcManager.GetInstance( n0 );
+      BlockingQueue results = new BlockingQueue();
+      Console.WriteLine("Traceroute: {0} -> {1}", n0.Address, n1.Address);
+      try {
+        pinger.Invoke(n0, results, "trace.GetRouteTo", n1.Address.ToString());
+        object result = results.Dequeue();
+	RpcResult r = (RpcResult)result;
+	IList data = (IList)r.Result;
+	int hop = 0;
+	foreach(IDictionary d in data) {
+          Console.WriteLine("Hop: {0} :: {1}\n  :: {2}", hop, d["node"], d["next_con"]);
+	  hop++;
+	}
+      }
+      catch(Exception x) {
+        Console.WriteLine("Exception: {0}", x);
+      }
     }
 
 #if USE_GRAPHVIZ
@@ -333,14 +377,25 @@ namespace Brunet
       this_command = Console.ReadLine();
     }
     while( this_command != "Q" ) {
-      int node = -1;
-      try {
-        node = Int32.Parse(this_command);
-        Node to_disconnect = (Node)node_list[node];
-	to_disconnect.Disconnect();
+      if( this_command == "D" ) { 
+        //Disconnect a node:
+        int node = -1;
+        try {
+          node = Int32.Parse(this_command.Split(' ')[1]);
+          Node to_disconnect = (Node)node_list[node];
+	  to_disconnect.Disconnect();
+        }
+        catch(Exception) {
+ 
+        }
       }
-      catch(Exception) {
-
+      if( this_command == "P" ) {
+        //Pick a random pair of nodes to ping:
+	Ping(node_list);
+      }
+      if( this_command == "T" ) {
+        //Pick a random pair of nodes to ping:
+	TraceRoute(node_list);
       }
       if( wait_after_connect ) {
         this_command = Console.ReadLine();

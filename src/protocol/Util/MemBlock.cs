@@ -50,6 +50,10 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
    */
   public byte this[int pos] {
     get {
+      if( pos >= _length ) {
+        throw new System.ArgumentOutOfRangeException("pos", pos,
+                                          "Position greater than MemBlock length");
+      }
       return _buffer[ _offset + pos ];
     }
   }
@@ -64,9 +68,13 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
     _buffer = data;
     _offset = offset;
     _length = length;
-    if( (length > 0) && (data.Length - offset < length) ) {
+    if ( length < 0 ) {
+      throw new System.ArgumentOutOfRangeException("length", length,
+                                          "MemBlock cannot have negative length");
+    }
+    else if( (length > 0) && ( data.Length < offset + length ) ) {
       //This does not make sense:
-      throw new System.Exception("byte array not long enough");
+      throw new System.ArgumentException("byte array not long enough");
     }
   }
   /**
@@ -396,6 +404,51 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
       }
       Assert.IsTrue(all_equals, "Manual equality test mb2b");
     }
+  }
+  [Test]
+  public void SomeInsanityTests() {
+    byte[] data;
+    bool got_x;
+    MemBlock b;
+    System.Random r = new System.Random();
+    for(int i = 0; i < 100; i++) {
+     int size = r.Next(1024);
+     data = new byte[size];
+     r.NextBytes(data);
+     int overshoot = r.Next(1,1024);
+     got_x = false;
+     b = null;
+     try {
+      //Should throw an exception:
+      b = MemBlock.Reference(data, 0, size + overshoot);
+     }
+     catch {
+      got_x = true;
+     }
+     Assert.IsNull(b, "Reference failure test");
+     Assert.IsTrue(got_x, "Exception catch test");
+     
+     overshoot = r.Next(1,1024);
+     got_x = false;
+     b = MemBlock.Reference(data);
+     try {
+      //Should throw an exception:
+      byte tmp = b[size + overshoot];
+     }
+     catch {
+      got_x = true;
+     }
+     Assert.IsTrue(got_x, "index out of range exception");
+     got_x = false;
+     try {
+      //Should throw an exception:
+      byte tmp = b[ b.Length ];
+     }
+     catch {
+      got_x = true;
+     }
+     Assert.IsTrue(got_x, "index out of range exception");
+   }
   }
 
 #endif

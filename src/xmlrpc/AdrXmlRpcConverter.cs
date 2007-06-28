@@ -37,7 +37,8 @@ namespace Brunet {
       object retval;
       
       if(o == null) {
-        retval = o;
+        //This library doesn't support <nil/> so we just use an empty string
+        retval = string.Empty;
         modified = false;
         return retval;
       }
@@ -107,15 +108,19 @@ namespace Brunet {
         modified = true;
       } else if(o is AdrException) {
         AdrException e = (AdrException)o;
-        XmlRpcStruct xrs = new XmlRpcStruct();
-        xrs.Add("code", e.Code);
-        xrs.Add("message", e.Message);
-        xrs.Add("stacktrace", e.StackTrace);
-        retval = xrs;
+        StringBuilder sb = new StringBuilder();
+        sb.AppendLine(string.Format("code: {0}", e.Code));
+        sb.AppendLine(string.Format("message: {0}", e.Message));
+        sb.AppendLine(string.Format("stacktrace: {0}", e.StackTrace));
+        retval = new Exception(sb.ToString());
         modified = true;
       } else if(o is Exception) {
         Exception e = (Exception)o;
-        throw new Exception("XmlRpcConverter rethrowed Exception:" + e.Message);
+        StringBuilder sb = new StringBuilder();
+        sb.AppendLine(string.Format("message: {0}", e.Message));
+        sb.AppendLine(string.Format("stacktrace: {0}", e.StackTrace));
+        retval = new Exception(sb.ToString());
+        modified = true;
       } else if(o is ISender) {
         ISender s = (ISender)o;
         retval = s.ToString();
