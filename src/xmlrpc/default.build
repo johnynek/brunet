@@ -8,16 +8,16 @@
     <delete dir="${build.dir}" failonerror="true"/>
   </target>
 
-  <target name="build" description="Build XmlRpcManager.dll and SimpleXmlRpcClient.exe">
+  <target name="build" description="Build Brunet.XmlRpc.dll and SimpleXmlRpcClient.exe">
     <mkdir dir="${build.dir}" failonerror="true"/>
     <copy todir="${build.dir}" failonerror="true">
-      <fileset basedir="${lib.dir}">        
+      <fileset basedir="${lib.dir}">
         <include name="Brunet.dll" />
         <include name="CookComputing.XmlRpcV2.dll" />
         <include name="NUnit.Framework.dll" />
       </fileset>
     </copy>
-    <csc target="library" output="${build.dir}/XmlRpcManager.dll">
+    <csc target="library" output="${build.dir}/Brunet.XmlRpc.dll">
       <sources failonempty="true">       
         <include name="XmlRpcManager.cs" />
         <include name="AdrXmlRpcConverter.cs" />
@@ -30,7 +30,7 @@
     </csc>
     <copy todir="${lib.dir}" failonerror="true">
       <fileset basedir="${build.dir}">
-        <include name="XmlRpcManager.dll" />
+        <include name="Brunet.XmlRpc.dll" />
       </fileset>
     </copy>
     <csc target="exe" output="${build.dir}/SimpleXmlRpcClient.exe">
@@ -39,14 +39,14 @@
       </sources>
       <references>
         <include name="${build.dir}/Brunet.dll" />
-        <include name="${build.dir}/XmlRpcManager.dll" />
+        <include name="${build.dir}/Brunet.XmlRpc.dll" />
         <include name="System.Runtime.Remoting.dll"/>
         <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />
       </references>
     </csc>
   </target>
 
-  <target name="test" description="Build Build XmlRpcManager.dll with tests">
+  <target name="test" description="Build Build Brunet.XmlRpc.dll with tests">
     <mkdir dir="${build.dir}" failonerror="true"/>
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${lib.dir}">
@@ -56,7 +56,7 @@
       </fileset>
     </copy>
     <csc target="library" 
-         output="${build.dir}/XmlRpcManager.dll" 
+         output="${build.dir}/Brunet.XmlRpc.dll" 
          debug="${debug}"
          define="BRUNET_NUNIT">
       <sources failonempty="true">

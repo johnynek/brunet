@@ -236,7 +236,7 @@ namespace Brunet.Dht {
         }
 
         // If we get here we either were closed by the remote rpc or we finished our get
-        if(queue.Closed) {
+        if(queue.Closed && queue.Count == 0) {
           int count = 0;
           lock(adgs.queueMapping) {
             adgs.queueMapping.Remove(queue);
@@ -296,21 +296,22 @@ namespace Brunet.Dht {
           token = null;
         }
 
-        // We were notified that more results were available!  Let's go get them!
+      // We were notified that more results were available!  Let's go get them!
         if(token != null && sendto != null) {
-          queue = new BlockingQueue();
+          BlockingQueue new_queue = new BlockingQueue();
           lock(adgs.queueMapping) {
-            adgs.queueMapping[queue] = idx;
+            adgs.queueMapping[new_queue] = idx;
           }
           lock(_adgs_table) {
-            _adgs_table[queue] = adgs;
+            _adgs_table[new_queue] = adgs;
           }
-          queue.EnqueueEvent += this.GetHandler;
-          queue.CloseEvent += this.GetHandler;
-          _rpc.Invoke(sendto, queue, "dht.Get", 
+          new_queue.EnqueueEvent += this.GetHandler;
+          new_queue.CloseEvent += this.GetHandler;
+          _rpc.Invoke(sendto, new_queue, "dht.Get", 
                       adgs.brunet_address_for_key[idx], MAX_BYTES, token);
         }
       }
+
       queue.Close();
     }
 
