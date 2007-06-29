@@ -25,24 +25,20 @@ namespace Brunet.Dht {
     }
 
     public DateTime CreateTime {
-      get { return DateTime.FromBinary((long) _ht["create_time"]); }
-      set { _ht["create_time"] = value.ToBinary(); }
+      get { return DateTime.Parse((string) _ht["create_time"]); }
+      set { _ht["create_time"] = value.ToString(); }
     }
 
     public DateTime EndTime {
-      get {
-        return DateTime.FromBinary((long)_ht["end_time"]);
-      }
-      set {
-        _ht["end_time"] = value.ToBinary();
-      }
+      get { return DateTime.Parse((string) _ht["end_time"]); }
+      set { _ht["end_time"] = value.ToString(); }
     }
 
     public Entry(MemBlock key, MemBlock data, DateTime create_time, DateTime end_time) {
-      _ht["key"] = key;
-      _ht["value"] = data;
-      _ht["create_time"] = create_time.ToBinary();
-      _ht["end_time"] = end_time.ToBinary();
+      this.Key = key;
+      this.Value = data;
+      this.CreateTime = create_time;
+      this.EndTime = end_time;
     }
 
     public Entry(Hashtable ht) {
