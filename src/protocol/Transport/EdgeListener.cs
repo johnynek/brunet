@@ -147,6 +147,11 @@ namespace Brunet
           //so frequently, a NATed TA will probably be bad in the future
           if( ta.Equals( e.RemoteTA ) ) {
             //This node is not behind a NAT.
+            int idx = list.IndexOf(ta);
+            if( idx >= 0 ) {
+              list.Remove(ta);
+            }
+            //Now put the i
             list.Insert(0, ta);
           }
         }
