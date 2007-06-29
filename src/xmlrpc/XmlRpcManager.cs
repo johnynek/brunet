@@ -15,6 +15,7 @@ using System.Security.Cryptography;
 using System.IO;
 using System.Diagnostics;
 using System.Reflection;
+using System.Reflection.Emit;
 #if BRUNET_NUNIT
 using NUnit.Framework;
 #endif
@@ -23,7 +24,7 @@ namespace Brunet {
   /**
    * A XmlRpc Proxy for RpcManager
    */
-  public class XmlRpcManager : MarshalByRefObject {
+  public class XmlRpcManager : MarshalByRefObject, IRpcHandler {
     [NonSerialized]
     private RpcManager _rpc;
 
@@ -82,14 +83,15 @@ namespace Brunet {
         } while (maxResultsToWait < 0 ? true : (counter < maxResultsToWait));
       } catch (Exception e) {
         Debug.WriteLine(e);
+        string s = string.Empty;
         if (e is AdrException) {
           if (rsSender != null) {
-            object s = AdrXmlRpcConverter.Adr2XmlRpc(rsSender);
-            allValues.Add(s);
+            s = AdrXmlRpcConverter.Adr2XmlRpc(rsSender) as string;
           }
-          object new_e = AdrXmlRpcConverter.Adr2XmlRpc(e);
-          allValues.Add(new_e);
         }
+        Exception new_e = AdrXmlRpcConverter.Adr2XmlRpc(e) as Exception;
+        throw new Exception(new_e.Message + 
+          (s.Equals(string.Empty) ? string.Empty : string.Format("thrown by: {0}", s)));
       } finally {
         if (!q.Closed) {
           q.Close();
@@ -108,6 +110,39 @@ namespace Brunet {
       }
       return lease;
     }
+
+    /**
+     * Not a proxy from XmlRpc, it's a proxy to XmlRpc
+     */
+    public object BrunetRpc2XmlRpc(string url, string method, params object[] args) {
+      IXmlRpcManager proxy = (IXmlRpcManager)XmlRpcProxyGen.Create(typeof(IXmlRpcManager));
+      proxy.XmlRpcMethod = method;
+      proxy.Url = url;
+      object o = proxy.BrunetRpc2XmlRpc(args);
+      return o;
+    }
+
+    public void AddAsRpcHandler() {
+      _rpc.AddHandler("xmlrpc",this);
+    }
+
+    #region IRpcHandler Members
+
+    public void HandleRpc(ISender caller, string method, IList args, object rs) {
+      object result = null;
+      try {
+        Type type = this.GetType();
+        MethodInfo mi = type.GetMethod(method);
+        object[] arg_array = new object[args.Count];
+        args.CopyTo(arg_array, 0);
+        result = mi.Invoke(this, arg_array);
+      } catch (Exception e) {
+        result = new AdrException(-32602, e);
+      }
+      _rpc.SendResult(rs, result);
+    }
+
+    #endregion
   }
 
   /**
@@ -119,6 +154,9 @@ namespace Brunet {
     
     [XmlRpcMethod]
     object[] localproxy(string method, object[] args);
+
+    [XmlRpcMethod]
+    object BrunetRpc2XmlRpc(params object[] args);
   }
 
   public class XmlRpcManagerClient {
@@ -375,6 +413,15 @@ namespace Brunet {
       Console.WriteLine(o.GetType());
       MemBlock mb = (MemBlock)o;
       Console.WriteLine("MB: {0}", mb.ToBase32String());
+    }
+
+    [Test]
+    
+    public void TestWithException() {
+      string node = this.GetRandomNodeAddr();
+      AdrException ex = new AdrException(11111, new Exception());
+      this._mrm.RetValsOfInvoke = new object[] { ex };
+      object[] ret = this._rpc.proxy(node, 0, -1, "dht.Get", new object[0]);
     }
   }
 #endif
