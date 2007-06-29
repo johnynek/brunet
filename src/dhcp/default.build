@@ -1,29 +1,49 @@
 <?xml version="1.0"?>
 <project name="ipop-dhcp" default="build" basedir=".">
   <description> Builds DHCP files for IPOP-1.0 and IPOP-1.1. </description>
-  <property name="debug" value="true" overwrite="false" />
+  <property name="debug" value="false" overwrite="false" />
   <property name="build.dir" value="build" />
   <property name="lib.dir" value="../../lib"/>
-  <target name="clean" description="Remove DHCPCommon.dll and DHCPServer.exe">
+  <target name="clean" description="Remove Ipop.Dhcp.dll and DHCPServer.exe">
     <delete dir="${build.dir}" failonerror="true"/>
   </target>
   <target name="build" description="Build DHCPServer.exe">
-      <mkdir dir="${build.dir}" failonerror="true"/>
-      <csc target="exe" output="${build.dir}/DHCPServer.exe">
-          <sources failonempty="true">
-            <include name="DHCPServer.cs"/>
-            <include name="DHCPCommon.cs"/>
-            <include name="DHCPPacket.cs"/>
-            <include name="DHCPOptionsList.cs"/>
-            <include name="DHCPLease.cs"/>
-            <include name="DHCPServerConfig.cs"/>
-            <include name="SoapDHCPServer.cs"/>
-            <include name="../Common/IPOP_Common.cs"/>
-          </sources>
-          <references>
-            <include name="System.Runtime.Remoting.dll" />
-            <include name="${lib.dir}/Brunet.dll"/>
-          </references>
-      </csc>
+    <mkdir dir="${build.dir}" failonerror="true"/>
+    <mkdir dir="${lib.dir}" failonerror="true"/>
+    <copy todir="${build.dir}" failonerror="true">
+      <fileset basedir="${lib.dir}">
+        <include name="Brunet.dll" />
+      </fileset>
+    </copy>
+    <csc target="library" output="${build.dir}/Ipop.Dhcp.dll">
+      <sources failonempty="true">
+        <include name="DHCPCommon.cs"/>
+        <include name="DHCPPacket.cs"/>
+        <include name="DHCPOptionsList.cs"/>
+        <include name="DHCPLease.cs"/>
+        <include name="DHCPServerConfig.cs"/>
+        <include name="SoapDHCPServer.cs"/>
+        <include name="../Common/IPOP_Common.cs"/>
+      </sources>
+      <references>
+        <include name="System.Runtime.Remoting.dll" />
+        <include name="${build.dir}/Brunet.dll" />
+      </references>
+    </csc>
+    <copy todir="${lib.dir}" failonerror="true">
+      <fileset basedir="${build.dir}">
+        <include name="Ipop.Dhcp.dll" />
+      </fileset>
+    </copy>
+    <csc target="exe" output="${build.dir}/DHCPServer.exe">
+      <sources failonempty="true">
+        <include name="DHCPServer.cs"/>
+      </sources>
+      <references>
+        <include name="${build.dir}/Ipop.Dhcp.dll"/>
+        <include name="System.Runtime.Remoting.dll" />
+        <include name="${build.dir}/Brunet.dll"/>
+      </references>
+    </csc>
   </target>
 </project>

@@ -35,8 +35,7 @@ namespace Ipop {
 /*  Generic */
     private static void BrunetStart() {
       node.brunet = new BrunetTransport(ether, config.brunet_namespace,
-        node, config.EdgeListeners, config.DevicesToBind, RemoteTAs, debug,
-        config.dht_media);
+        node, config.EdgeListeners, config.DevicesToBind, RemoteTAs, debug);
       if(config.EnableSoapDht && sdthread == null) {
         sdthread = DhtServer.StartDhtServerAsThread(node.brunet.dht);
       }

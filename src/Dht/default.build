@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <project name="ipop-common" default="build" basedir=".">
-  <property name="debug" value="true" />
+  <property name="debug" value="false" />
   <property name="lib.dir" value="../../lib"/>
   <property name="build.dir" value="build" />
 
@@ -11,44 +11,41 @@
   <target name="build" description="Build DhtServiceClient.dll">
     <mkdir dir="${build.dir}" failonerror="true"/>
     <copy todir="${build.dir}" failonerror="true">
-      <fileset basedir="${lib.dir}">                
+      <fileset basedir="${lib.dir}">
         <include name="Brunet.Dht.dll" />
         <include name="Brunet.dll" />
         <include name="CookComputing.XmlRpcV2.dll" />
         <include name="NUnit.Framework.dll" />
       </fileset>
     </copy>
-    <csc target="library" output="${build.dir}/IBlockingQueue.dll" debug="${debug}">
+    <csc target="library" output="${build.dir}/Ipop.IBlockingQueue.dll" debug="${debug}">
       <sources failonempty="true">
         <include name="IBlockingQueue.cs" />
       </sources>
-      <references>
-        <include name="${build.dir}/Brunet.Dht.dll" />
-      </references>
     </csc>
     <copy todir="${lib.dir}" failonerror="true">
       <fileset basedir="${build.dir}">
-        <include name="IBlockingQueue.dll" />
+        <include name="Ipop.IBlockingQueue.dll" />
       </fileset>
     </copy>
-    <csc target="library" output="${build.dir}/DhtServiceClient.dll" debug="${debug}">
-      <sources failonempty="true">        
-        <include name="IDht.cs"/>        
+    <csc target="library" output="${build.dir}/Ipop.DhtServiceClient.dll" debug="${debug}">
+      <sources failonempty="true">
+        <include name="IDht.cs"/>
         <include name="DhtServiceClient.cs" />
-        <include name="BlockingQueueAdapter.cs" />        
+        <include name="BlockingQueueAdapter.cs" />
       </sources>
-      <references>        
+      <references>
         <include name="${build.dir}/Brunet.Dht.dll" />
         <include name="${build.dir}/Brunet.dll" />
-        <include name="${build.dir}/IBlockingQueue.dll" />
-        <include name="System.Runtime.Remoting.dll"/>        
+        <include name="${build.dir}/Ipop.IBlockingQueue.dll" />
+        <include name="System.Runtime.Remoting.dll"/>
         <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />
         <include name="${build.dir}/NUnit.Framework.dll" />
       </references>
     </csc>
     <copy todir="${lib.dir}" failonerror="true">
       <fileset basedir="${build.dir}">
-        <include name="DhtServiceClient.dll" />
+        <include name="Ipop.DhtServiceClient.dll" />
       </fileset>
     </copy>
   </target>

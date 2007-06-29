@@ -10,7 +10,6 @@ namespace Ipop {
     public string ipop_namespace;
     public string brunet_namespace;
     public string device;
-    public string dht_media;
     [XmlArrayItem (typeof(string), ElementName = "transport")]
     public string [] RemoteTAs;
     public EdgeListener [] EdgeListeners;
