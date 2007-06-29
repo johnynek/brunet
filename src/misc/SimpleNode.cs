@@ -233,6 +233,7 @@ namespace Ipop {
         if (config.EnableXmlRpcManager && xrmthread == null) {
           RpcManager rpcm = RpcManager.GetInstance(nodes[0]);
           XmlRpcManager xrpcm = new XmlRpcManager(rpcm);
+          xrpcm.AddAsRpcHandler();
           xrmthread = new Thread(XmlRpcManagerServer.StartXmlRpcManagerServer);
           xrmthread.Start(xrpcm);
         }
