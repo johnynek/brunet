@@ -42,7 +42,8 @@ namespace Ipop {
     }
 
     public virtual string BeginGet(string key) {
-      BlockingQueue q  = this._dht.AsGet(key);
+      BlockingQueue q  = new BlockingQueue();
+      this._dht.AsGet(key, q);
       string tk = this.GenToken(key);
       this._bqs.Add(tk, q);
       return tk;
@@ -111,7 +112,8 @@ namespace Ipop {
     public SoapDht(Dht dht) : base(dht) { }
 
     public IBlockingQueue GetAsBlockingQueue(string key) {
-      BlockingQueue bq = this._dht.AsGet(key);
+      BlockingQueue bq = new BlockingQueue();
+      this._dht.AsGet(key, bq);
       BlockingQueueAdapter adpt = new BlockingQueueAdapter(bq);
       return adpt;
     }

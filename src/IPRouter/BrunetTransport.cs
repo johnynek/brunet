@@ -23,7 +23,7 @@ namespace Ipop {
 
     public BrunetTransport(Ethernet ether, string brunet_namespace, 
       NodeMapping node, EdgeListener []EdgeListeners, string [] DevicesToBind,
-      ArrayList RemoteTAs, bool debug, string dht_media ) {
+      ArrayList RemoteTAs, bool debug) {
 //      this.node = node;
       this.debug = debug;
 
@@ -73,13 +73,7 @@ namespace Ipop {
       //subscribe to the IP protocol packet
       ip_handler = new IPPacketHandler(ether, debug, node);
       brunetNode.GetTypeSource(PType.Protocol.IP).Subscribe(ip_handler, null);
-
-      if (dht_media == null || dht_media.Equals("disk")) {
-        dht = new Dht(brunetNode, 3, 20);
-      }
-      else if (dht_media.Equals("memory")) {
-        dht = new Dht(brunetNode, 3, 20);
-      }
+      dht = new Dht(brunetNode, 3, 20);
 
       brunetNode.Connect();
       System.Console.Error.WriteLine("Called Connect at time: {0}", DateTime.Now);

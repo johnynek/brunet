@@ -15,8 +15,9 @@
         <include name="libtuntap.so" />
         <include name="Brunet.Dht.dll" />
         <include name="CookComputing.XmlRpcV2.dll" />
-        <include name="IBlockingQueue.dll" />
-        <include name="XmlRpcManager.dll" />
+        <include name="Ipop.IBlockingQueue.dll" />
+        <include name="Brunet.XmlRpc.dll" />
+        <include name="Ipop.Dhcp.dll" />
       </fileset>
     </copy>
     <csc target="exe" output="${build.dir}/IPRouter.exe">
@@ -31,22 +32,16 @@
         <include name="../Common/IPRouterConfig.cs"/>
         <include name="../Common/IPOP_Common.cs"/>
         <include name="../Common/IPAddresses.cs"/>
-        <include name="../dhcp/DHCPClient.cs"/>
-        <include name="../dhcp/DHCPCommon.cs"/>
-        <include name="../dhcp/DHCPPacket.cs"/>
-        <include name="../dhcp/DHCPOptionsList.cs"/>
-        <include name="../dhcp/DHCPLease.cs"/>
-        <include name="../dhcp/DHCPServerConfig.cs"/>
-        <include name="../dhcp/SoapDHCPServer.cs"/>
         <include name="../dhcp/DhtDHCPServer.cs"/>
         <include name="../dhcp/DhtDHCPLease.cs"/>
+        <include name="../dhcp/DHCPClient.cs"/>
       </sources>
       <references>
         <include name="${build.dir}/Brunet.dll"/>
         <include name="${build.dir}/Brunet.Dht.dll" />
-        <include name="${build.dir}/IBlockingQueue.dll" />
-        <include name="${build.dir}/XmlRpcManager.dll" />
-        <include name="${build.dir}/DHCPCommon.dll" />
+        <include name="${build.dir}/Ipop.IBlockingQueue.dll" />
+        <include name="${build.dir}/Brunet.XmlRpc.dll" />
+        <include name="${build.dir}/Ipop.Dhcp.dll" />
         <include name="System.Runtime.Remoting.dll"/>
         <include name="Mono.Posix.dll"/>
         <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />

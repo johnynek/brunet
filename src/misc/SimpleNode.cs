@@ -220,9 +220,9 @@ namespace Ipop {
         //following line of code enables DHT support inside the SimpleNode
         Dht ndht = null;
         ndht = new Dht(brunetNode, 3, 20);
-
+        Console.Error.WriteLine("I am connected to {0} as {1}",
+                 config.brunet_namespace, brunetNode.Address.ToString());
         brunetNode.Connect();
-        Console.Error.WriteLine("Called Connect, I am " + brunetNode.Address.ToString());
         nodes[i] = brunetNode;
         dhts[i] = ndht;
 
@@ -358,7 +358,8 @@ namespace Ipop {
             Console.Write("Enter key:  ");
             string key = Console.ReadLine();
             if(dhts != null) {
-              BlockingQueue queue = dhts[0].AsGet(key);
+              BlockingQueue queue = new BlockingQueue();
+              dhts[0].AsGet(key, queue);
 
 
               int count = 0;
