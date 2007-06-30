@@ -15,7 +15,6 @@ using System.Security.Cryptography;
 using System.IO;
 using System.Diagnostics;
 using System.Reflection;
-using System.Reflection.Emit;
 #if BRUNET_NUNIT
 using NUnit.Framework;
 #endif
@@ -111,31 +110,87 @@ namespace Brunet {
       return lease;
     }
 
-    /**
-     * Not a proxy from XmlRpc, it's a proxy to XmlRpc
-     */
-    public object BrunetRpc2XmlRpc(string url, string method, params object[] args) {
-      IXmlRpcManager proxy = (IXmlRpcManager)XmlRpcProxyGen.Create(typeof(IXmlRpcManager));
-      proxy.XmlRpcMethod = method;
-      proxy.Url = url;
-      object o = proxy.BrunetRpc2XmlRpc(args);
-      return o;
-    }
-
     public void AddAsRpcHandler() {
       _rpc.AddHandler("xmlrpc",this);
+    }
+
+    /**
+     * Accepts BrunetRpc calls but not XmlRpc calls
+     */
+    public void AddXRHandler(string handler_name, string uri) {
+      XmlRpcHandler handler = new XmlRpcHandler(uri, _rpc);
+      handler.AttachLogger();
+      _rpc.AddHandler(handler_name, handler);
     }
 
     #region IRpcHandler Members
 
     public void HandleRpc(ISender caller, string method, IList args, object rs) {
+      if (method.Equals("AddXRHandler")) {
+        if (true) {
+          if (args.Count == 2) {
+            this.AddXRHandler(args[0] as string, args[1] as string);
+            _rpc.SendResult(rs, null);
+            return;
+          } else {
+            throw new ArgumentException("2 arguments expected");
+          }
+        } else {
+          throw new AdrException(-32602, "This operation is only accessible for local calls");
+        }
+      } else {
+        object result = null;
+        try {
+          Type type = this.GetType();
+          MethodInfo mi = type.GetMethod(method);
+          object[] arg_array = new object[args.Count];
+          args.CopyTo(arg_array, 0);
+          result = mi.Invoke(this, arg_array);
+        } catch (Exception e) {
+          result = new AdrException(-32602, e);
+        }
+        _rpc.SendResult(rs, result);
+      }
+    }
+    #endregion
+  }
+  
+  public class XmlRpcHandler : XmlRpcClientProtocol, IRpcHandler {
+    private RpcManager _rpc;
+
+    public XmlRpcHandler(string url, RpcManager rpc) {
+      this.Url = url;
+      _rpc = rpc;
+    }
+
+    public void AttachLogger() {
+      XmlRpcManagerClientLogger logger = new XmlRpcManagerClientLogger();
+      logger.Attach(this);
+    }
+    
+    [XmlRpcMethod]
+    public object BrunetRpc2XmlRpc(params object[] args) {
+      MethodBase mi = MethodBase.GetCurrentMethod();
+      object ret;
+      try {
+        ret = this.Invoke(mi, args);
+        return ret;
+      } catch (Exception e) {
+        Debug.WriteLine(e);
+        throw e;
+      }
+    }
+
+    #region IRpcHandler Members
+
+    public void HandleRpc(ISender caller, string method, IList args, object rs) {
+      this.XmlRpcMethod = method;
       object result = null;
       try {
-        Type type = this.GetType();
-        MethodInfo mi = type.GetMethod(method);
         object[] arg_array = new object[args.Count];
         args.CopyTo(arg_array, 0);
-        result = mi.Invoke(this, arg_array);
+        //no method what method is specified, we just call this only method in this class
+        result = BrunetRpc2XmlRpc(arg_array);
       } catch (Exception e) {
         result = new AdrException(-32602, e);
       }
@@ -144,6 +199,7 @@ namespace Brunet {
 
     #endregion
   }
+
 
   /**
    * Client proxy
@@ -154,9 +210,6 @@ namespace Brunet {
     
     [XmlRpcMethod]
     object[] localproxy(string method, object[] args);
-
-    [XmlRpcMethod]
-    object BrunetRpc2XmlRpc(params object[] args);
   }
 
   public class XmlRpcManagerClient {
@@ -410,13 +463,12 @@ namespace Brunet {
       object[] args = this._mrm.ParamsOfInvoke;
       Assert.AreEqual(3, args.Length);
       object o = args[2];
-      Console.WriteLine(o.GetType());
       MemBlock mb = (MemBlock)o;
       Console.WriteLine("MB: {0}", mb.ToBase32String());
     }
 
     [Test]
-    
+    [Ignore]
     public void TestWithException() {
       string node = this.GetRandomNodeAddr();
       AdrException ex = new AdrException(11111, new Exception());
