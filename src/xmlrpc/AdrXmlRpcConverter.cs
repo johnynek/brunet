@@ -109,10 +109,9 @@ namespace Brunet {
       } else if(o is AdrException) {
         AdrException e = (AdrException)o;
         StringBuilder sb = new StringBuilder();
-        sb.AppendLine(string.Format("code: {0}", e.Code));
         sb.AppendLine(string.Format("message: {0}", e.Message));
         sb.AppendLine(string.Format("stacktrace: {0}", e.StackTrace));
-        retval = new Exception(sb.ToString());
+        retval = new XmlRpcFaultException(e.Code, sb.ToString());
         modified = true;
       } else if(o is Exception) {
         Exception e = (Exception)o;
