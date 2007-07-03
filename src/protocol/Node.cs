@@ -472,15 +472,22 @@ namespace Brunet
     }
     private void AnnounceThread() {
       try {
-       while( _running ) {
-        AnnounceState a_state = (AnnounceState)_packet_queue.Dequeue();
-        Announce(a_state.Data, a_state.From);
-       }
+        while( _running ) {
+          AnnounceState a_state = (AnnounceState)_packet_queue.Dequeue();
+          Announce(a_state.Data, a_state.From);
+        }
       }
-      catch(System.InvalidOperationException) {
+      catch(System.InvalidOperationException x) {
         //This is thrown when Dequeue is called on an empty queue
         //which happens when the BlockingQueue is closed, which
         //happens on Disconnect
+        if( _running ) {
+          Console.Error.WriteLine(
+               "ERROR: still running but AnnounceThread got Exception: {0}",x);
+        }
+      }
+      catch(Exception x) {
+        Console.Error.WriteLine("ERROR: Exception in AnnounceThread: {0}", x);
       }
     }
     /**

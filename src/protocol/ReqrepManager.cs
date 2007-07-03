@@ -362,19 +362,24 @@ public class ReqrepManager : IDataHandler {
 	 Console.Error.WriteLine("[ReqrepManager: {0}] Receiving request id: {1}, from: {2}", 
 			     _node.Address, idnum, retpath);
 #endif
-     lock( _sync ) {
-       RequestKey rk = new RequestKey(idnum, retpath);
-       rs = (ReplyState)_reply_cache[rk];
-       if( rs == null ) {
-	 //Looks like we need to handle this request
-	 //Make a new ReplyState:
-	 rs = new ReplyState(rk);
-	 //Add the new reply state before we drop the lock
-         _reply_cache[rk] = rs;
+     RequestKey rk = new RequestKey(idnum, retpath);
+     rs = (ReplyState)_reply_cache[rk];
+     if( rs == null ) {
+       //Looks like we need to handle this request
+       //Make a new ReplyState:
+       lock( _sync ) {
+         //Try again holding the lock, make sure only one ReplyState is
+         //created
+         rs = (ReplyState)_reply_cache[rk];
+         if( rs == null ) {
+           rs = new ReplyState(rk);
+	   //Add the new reply state before we drop the lock
+           _reply_cache[rk] = rs;
+         }
        }
-       else {
-         resend = true;
-       }
+     }
+     else {
+       resend = true;
      }
      if( resend ) {
        //This is an old request:
@@ -399,65 +404,79 @@ public class ReqrepManager : IDataHandler {
    }
 
    protected void HandleReply(ReqrepType rt, int idnum, MemBlock rest, ISender ret_path) {
-     RequestState reqs = null;
-     lock( _sync ) {
-       reqs = (RequestState)_req_state_table[idnum];
-       if( (reqs != null) && (false == reqs.Repliers.Contains(ret_path)) ) {
-         /*
-          * Let's look at how long it took to get this reply:
-          */
-         TimeSpan rtt = DateTime.UtcNow - reqs.ReqDate;
-         AddRttStat(rtt);
+     RequestState reqs = (RequestState)_req_state_table[idnum];
+     if( reqs != null ) {
+       ArrayList repls = reqs.Repliers;
+       bool handle = false;
+       lock( _sync ) {
+         if (false == repls.Contains(ret_path)) {
+           /*
+            * Let's look at how long it took to get this reply:
+            */
+           TimeSpan rtt = DateTime.UtcNow - reqs.ReqDate;
+           AddRttStat(rtt);
+           //Make sure we ignore replies from this sender again
+           repls.Add(ret_path);
+           handle = true;
+         }
+       }
+       if( handle ) {
          MemBlock payload;
          PType pt = PType.Parse(rest, out payload);
          Statistics statistics = new Statistics();
          statistics.SendCount = reqs.SendCount;
-#if REQREP_DEBUG
-	 Console.Error.WriteLine("[ReqrepManager: {0}] Receiving reply on request id: {1}, from: {2}", 
-			     _node.Address, idnum, ret_path);
-#endif
-
-	 bool continue_listening = reqs.ReplyHandler.HandleReply(this, rt, idnum, pt, payload,
-                                                 ret_path, statistics, reqs.UserState);
-	 //the request has been served
-	 //reqs.Replied = true;
-	 if( !continue_listening ) {
-	   //Now remove the RequestState:
-	   _req_state_table.Remove(idnum);
-	 }
-         else {
-           //Make sure we ignore replies from this sender again
-           reqs.Repliers.Add(ret_path);
+  #if REQREP_DEBUG
+  Console.Error.WriteLine("[ReqrepManager: {0}] Receiving reply on request id: {1}, from: {2}", 
+  			     _node.Address, idnum, ret_path);
+  #endif
+  
+         //Don't hold the lock while calling the ReplyHandler:
+         bool continue_listening = reqs.ReplyHandler.HandleReply(this, rt, idnum, pt, payload,
+                                                   ret_path, statistics, reqs.UserState);
+         //the request has been served
+         if( !continue_listening ) {
+           //Now remove the RequestState:
+           lock ( _sync ) {
+             _req_state_table.Remove(idnum);
+           }
          }
        }
-       else {
-         //We are ignoring this reply, it either makes no sense, or we have
-         //already handled it
-       }
+     }
+     else {
+       //We are ignoring this reply, it either makes no sense, or we have
+       //already handled it
      }
    }
 
    protected void HandleError(ReqrepType rt, int idnum,
                               MemBlock err_data, ISender ret_path)
    {
-     lock( _sync ) {
-       //Get the request:
-       RequestState reqs = (RequestState)_req_state_table[idnum];
+     //Get the request:
+     RequestState reqs = (RequestState)_req_state_table[idnum];
+     if( reqs != null ) {
+       bool handle_error = false;
+       lock( _sync ) {
+         //Check to see if the request is still good, don't handle
+         //the error twice:
+         handle_error = _req_state_table.Contains(idnum);
+         if( handle_error ) {
+           ///@todo, we might not want to stop listening after one error
+	   _req_state_table.Remove(idnum);
+         }
+       }
+       if( handle_error ) {
 #if REQREP_DEBUG
 	 Console.Error.WriteLine("[ReqrepManager: {0}] Receiving error on request id: {1}, from: {2}", 
 			     _node.Address, idnum, ret_path);
 #endif
-       if( reqs != null ) {
          ///@todo make sure we are checking that this ret_path makes sense for
          ///our request
          ReqrepError rrerr = (ReqrepError)err_data[0];
 	 reqs.ReplyHandler.HandleError(this, idnum, rrerr, ret_path, reqs.UserState);
-         ///@todo, we might not want to stop listening after one error
-	 _req_state_table.Remove(idnum); 
        }
-       else {
-         //We have already dealt with this Request
-       }
+     }
+     else {
+       //We have already dealt with this Request
      }
    }
 
@@ -493,6 +512,10 @@ public class ReqrepManager : IDataHandler {
       throw new Exception("Not a request");
     }
     RequestState rs = new RequestState();
+    rs.Sender = sender;
+    rs.ReplyHandler = reply;
+    rs.RequestType = reqt;
+    rs.UserState = state;
     lock( _sync ) {
       //Get the index 
       int next_req = 0;
@@ -503,12 +526,7 @@ public class ReqrepManager : IDataHandler {
        * Now we store the request
        */
       rs.RequestID = next_req;
-      rs.Sender = sender;
-      rs.ReplyHandler = reply;
       rs.Request = MakeRequest(reqt, next_req, data);
-      rs.RequestType = reqt;
-      rs.UserState = state;
-      //rs.Replied = false;
       _req_state_table[ rs.RequestID ] = rs;
     }
 #if REQREP_DEBUG
