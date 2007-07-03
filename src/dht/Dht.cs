@@ -249,10 +249,16 @@ namespace Brunet.Dht {
           queue.CloseEvent -= this.GetHandler;
           if(count == 0) {
             adgs.returns.Close();
-            adgs.results.Clear();
+            GetFollowUp(adgs);
           }
           else {
-              GetLeaveEarly(adgs);
+            if(!(bool) adgs.GotToLeaveEarly) {
+              lock(adgs.GotToLeaveEarly) {
+                if(!(bool) adgs.GotToLeaveEarly) {
+                  GetLeaveEarly(adgs);
+                }
+              }
+            }
           }
           return;
         }
@@ -277,17 +283,20 @@ namespace Brunet.Dht {
           // we say it is a valid data and return it to the caller
           foreach (Hashtable ht in values) {
             MemBlock mbVal = (byte[]) ht["value"];
-            object o_count = null;
             int count = 1;
+            Hashtable res = null;
             lock(adgs.results) {
-              o_count = adgs.results[mbVal];
-              if(o_count != null) {
-                count = (int) o_count + 1;
+              res = (Hashtable) adgs.results[mbVal];
+              if(res == null) {
+                res = new Hashtable();
+                adgs.results[mbVal] = res;
               }
-              adgs.results[mbVal] = count;
+              res[idx] = true;
+              count = ((ICollection) adgs.results[mbVal]).Count;
             }
             if(count == MAJORITY) {
               adgs.returns.Enqueue(new DhtGetResult(ht));
+              adgs.ttls[res] = ht["ttl"];
             }
           }
         }
@@ -311,7 +320,6 @@ namespace Brunet.Dht {
                       adgs.brunet_address_for_key[idx], MAX_BYTES, token);
         }
       }
-
       queue.Close();
     }
 
@@ -328,7 +336,7 @@ namespace Brunet.Dht {
       bool got_all_values = true;
       lock(adgs.results) {
         foreach (DictionaryEntry de in adgs.results) {
-          int val = (int) de.Value;
+          int val = ((Hashtable) de.Value).Count;
           if(val < MAJORITY && ((val + left) >= MAJORITY)) {
             got_all_values = false;
             break;
@@ -338,33 +346,33 @@ namespace Brunet.Dht {
 
       // If we got to leave early, we must clean up
       if(got_all_values) {
-        BlockingQueue [] queues = new BlockingQueue[adgs.queueMapping.Count];
-        lock(adgs.queueMapping) {
-          int i = 0;
-          foreach(DictionaryEntry de in adgs.queueMapping) {
-            queues[i++] = (BlockingQueue) de.Key;
-          }
-        }
-        for(int i = 0; i < queues.Length; i++) {
-          BlockingQueue q = queues[i];
-          q.CloseEvent -= this.GetHandler;
-          q.EnqueueEvent -= this.GetHandler;
-          q.Close();
-        }
-        lock(_adgs_table) {
-          lock(adgs.queueMapping) {
-            for(int i = 0; i < queues.Length; i++) {
-              adgs.queueMapping.Remove(queues[i]);
-              _adgs_table.Remove(queues[i]);
-            }
-          }
-        }
         adgs.returns.Close();
-        adgs.results.Clear();
+        adgs.GotToLeaveEarly = true;
       }
     }
 
-    /// @todo need to implement a put on failed gets (iff a majority occurs)
+    private void GetFollowUp(AsDhtGetState adgs) {
+      foreach (DictionaryEntry de in adgs.results) {
+        Hashtable res = (Hashtable) de.Value ;
+        if(res.Count < MAJORITY || res.Count == DEGREE) {
+          res.Clear();
+          continue;
+        }
+        MemBlock value = (MemBlock) de.Key;
+        int ttl = (int) adgs.ttls[res];
+        for(int i = 0; i < DEGREE; i++) {
+          if(!res.Contains(i)) {
+            MemBlock key = adgs.brunet_address_for_key[i];
+            BlockingQueue queue = new BlockingQueue();
+            Address target = new AHAddress(key);
+            AHSender s = new AHSender(_rpc.Node, target, AHPacket.AHOptions.Greedy);
+            _rpc.Invoke(s, queue, "dht.Put", key, value, ttl, false);
+          }
+        }
+        res.Clear();
+      }
+      adgs.results.Clear();
+    }
 
     /** Below are all the Put methods, they use a non-unique put */
 
@@ -451,6 +459,8 @@ namespace Brunet.Dht {
         // Get our mapping
         AsDhtPutState adps = (AsDhtPutState) _adps_table[queue];
         if(adps == null) {
+          queue.CloseEvent -= this.PutHandler;
+          queue.EnqueueEvent -= this.PutHandler;
           queue.Close();
           return;
         }
@@ -458,6 +468,8 @@ namespace Brunet.Dht {
 
         // Well it was closed, shouldn't have happened, but we'll do garbage collection
         if(queue.Closed) {
+          queue.CloseEvent -= this.PutHandler;
+          queue.EnqueueEvent -= this.PutHandler;
           lock(_adps_table) {
             _adps_table.Remove(queue);
           }
@@ -474,8 +486,6 @@ namespace Brunet.Dht {
               adps.returns.Close();
             }
           }
-          queue.CloseEvent -= this.PutHandler;
-          queue.EnqueueEvent -= this.PutHandler;
           return;
         }
 
@@ -487,7 +497,7 @@ namespace Brunet.Dht {
           RpcResult rpcResult = (RpcResult) queue.Dequeue(0, out timedout);
           result = (bool) rpcResult.Result;
         }
-        catch (Exception) {;}
+        catch (Exception) {}
         if(result) {
           // Once we get pcount to a majority, we ship off the result
           lock(adps.pcount) {
@@ -522,28 +532,21 @@ namespace Brunet.Dht {
       return MemBlock.Reference(algo.ComputeHash(keyb));
     }
 
+   /* find targets which are as far apart on the ring as possible
+    * add these increments to the base address
+    */
     public MemBlock[] MapToRing(byte[] key) {
-      HashAlgorithm hashAlgo = HashAlgorithm.Create();
-      byte[] hash = hashAlgo.ComputeHash(key);
-
-      //find targets which are as far apart on the ring as possible
-      MemBlock[] targets = new MemBlock[DEGREE];
-      Address.SetClass(hash, AHAddress._class);
-      targets[0] = hash;
-
-      //add these increments to the base address
       BigInteger inc_addr = Address.Full/DEGREE;
-
-      BigInteger curr_addr = new BigInteger(targets[0]);
-      for (int k = 1; k < targets.Length; k++) {
-        curr_addr = curr_addr + inc_addr;
+      BigInteger curr_addr = new BigInteger(key);
+      MemBlock[] targets = new MemBlock[DEGREE];
+      for (int k = 0; k < targets.Length; k++) {
         byte[] target = Address.ConvertToAddressBuffer(curr_addr);
         Address.SetClass(target, AHAddress._class);
         targets[k] = target;
+        curr_addr = curr_addr + inc_addr;
       }
       return targets;
     }
-
 
     protected class TransferState {
       protected object _sync;
@@ -949,6 +952,8 @@ namespace Brunet.Dht {
     }
 
     protected class AsDhtGetState {
+      public object GotToLeaveEarly = false;
+      public Hashtable ttls = new Hashtable();
       public Hashtable queueMapping = new Hashtable();
       public Hashtable results = new Hashtable();
       public BlockingQueue returns;
