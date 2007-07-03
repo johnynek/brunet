@@ -127,12 +127,12 @@ namespace Brunet.Dht {
     }
 
     public void AsCreate(string key, MemBlock value, int ttl, BlockingQueue returns) {
-      MemBlock keyb = GetHashedKey(key);
+      MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
       AsCreate(keyb, value, ttl, returns);
     }
 
     public void AsCreate(string key, string value, int ttl, BlockingQueue returns) {
-      MemBlock keyb = GetHashedKey(key);
+      MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
       MemBlock valueb = MemBlock.Reference(Encoding.UTF8.GetBytes(value));
       AsCreate(keyb, valueb, ttl, returns);
     }
@@ -142,12 +142,12 @@ namespace Brunet.Dht {
     }
 
     public bool Create(string key, MemBlock value, int ttl) {
-      MemBlock keyb = GetHashedKey(key);
+      MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
       return Create(keyb, value, ttl);
     }
 
     public bool Create(string key, string value, int ttl) {
-      MemBlock keyb = GetHashedKey(key);
+      MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
       MemBlock valueb = MemBlock.Reference(Encoding.UTF8.GetBytes(value));
       return Create(keyb, valueb, ttl);
     }
@@ -155,12 +155,12 @@ namespace Brunet.Dht {
     /* Below are all the Get methods */
 
     public void AsGet(string key, BlockingQueue returns) {
-      MemBlock keyb = GetHashedKey(key);
+      MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
       AsGet(keyb, returns);
     }
 
     public DhtGetResult[] Get(string key) {
-      MemBlock keyb = GetHashedKey(key);
+      MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
       return Get(keyb);
     }
 
@@ -252,7 +252,7 @@ namespace Brunet.Dht {
             GetFollowUp(adgs);
           }
           else {
-            if(!(bool) adgs.GotToLeaveEarly) {
+            if(count < MAJORITY && !(bool) adgs.GotToLeaveEarly) {
               lock(adgs.GotToLeaveEarly) {
                 if(!(bool) adgs.GotToLeaveEarly) {
                   GetLeaveEarly(adgs);
@@ -329,9 +329,6 @@ namespace Brunet.Dht {
     */
     private void GetLeaveEarly(AsDhtGetState adgs) {
       int left = adgs.queueMapping.Count;
-      if (left >= MAJORITY) {
-        return;
-      }
       // Maybe we can leave early
       bool got_all_values = true;
       lock(adgs.results) {
@@ -353,7 +350,7 @@ namespace Brunet.Dht {
 
     private void GetFollowUp(AsDhtGetState adgs) {
       foreach (DictionaryEntry de in adgs.results) {
-        Hashtable res = (Hashtable) de.Value ;
+        Hashtable res = (Hashtable) de.Value;
         if(res.Count < MAJORITY || res.Count == DEGREE) {
           res.Clear();
           continue;
@@ -371,6 +368,7 @@ namespace Brunet.Dht {
         }
         res.Clear();
       }
+      adgs.ttls.Clear();
       adgs.results.Clear();
     }
 
@@ -381,12 +379,12 @@ namespace Brunet.Dht {
     }
 
     public void AsPut(string key, MemBlock value, int ttl, BlockingQueue returns) {
-      MemBlock keyb = GetHashedKey(key);
+      MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
       AsPut(keyb, value, ttl, returns);
     }
 
     public void AsPut(string key, string value, int ttl, BlockingQueue returns) {
-      MemBlock keyb = GetHashedKey(key);
+      MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
       MemBlock valueb = MemBlock.Reference(Encoding.UTF8.GetBytes(value));
       AsPut(keyb, valueb, ttl, returns);
     }
@@ -396,12 +394,12 @@ namespace Brunet.Dht {
     }
 
     public bool Put(string key, MemBlock value, int ttl) {
-      MemBlock keyb = GetHashedKey(key);
+      MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
       return Put(keyb, value, ttl);
     }
 
     public bool Put(string key, string value, int ttl) {
-      MemBlock keyb = GetHashedKey(key);
+      MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
       MemBlock valueb = MemBlock.Reference(Encoding.UTF8.GetBytes(value));
       return Put(keyb, valueb, ttl);
     }
@@ -526,24 +524,25 @@ namespace Brunet.Dht {
       queue.Close();
     }
 
-    public MemBlock GetHashedKey(string key) {
-      byte[] keyb = Encoding.UTF8.GetBytes(key);
-      HashAlgorithm algo = new SHA1CryptoServiceProvider();
-      return MemBlock.Reference(algo.ComputeHash(keyb));
-    }
-
-   /* find targets which are as far apart on the ring as possible
-    * add these increments to the base address
-    */
+    /* Get the hash of the first key and add 1/DEGREE * Address space
+     * to each successive key
+     */
     public MemBlock[] MapToRing(byte[] key) {
-      BigInteger inc_addr = Address.Full/DEGREE;
-      BigInteger curr_addr = new BigInteger(key);
       MemBlock[] targets = new MemBlock[DEGREE];
-      for (int k = 0; k < targets.Length; k++) {
-        byte[] target = Address.ConvertToAddressBuffer(curr_addr);
+      // Setup the first key
+      HashAlgorithm algo = new SHA1CryptoServiceProvider();
+      byte[] target = algo.ComputeHash(key);
+      Address.SetClass(target, AHAddress._class);
+      targets[0] = MemBlock.Reference(target);
+
+      // Setup the rest of the keys
+      BigInteger inc_addr = Address.Full/DEGREE;
+      BigInteger curr_addr = new BigInteger(targets[0]);
+      for (int k = 1; k < targets.Length; k++) {
+        curr_addr = curr_addr + inc_addr;
+        target = Address.ConvertToAddressBuffer(curr_addr);
         Address.SetClass(target, AHAddress._class);
         targets[k] = target;
-        curr_addr = curr_addr + inc_addr;
       }
       return targets;
     }
