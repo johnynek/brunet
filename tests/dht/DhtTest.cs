@@ -849,18 +849,13 @@ namespace Brunet.Dht {
         }
       }
 
+      // Checking the ring every 5 seconds..
+      do  { Thread.Sleep(5000);}
+      while(!CheckAllConnections());
       Console.WriteLine("Going to sleep now...");
       Thread.Sleep(15000);
       Console.WriteLine("Timeout done.... now attempting gets");
-      do  { Thread.Sleep(5000);}
-     while(!CheckAllConnections());
-      while(true) {
-        try {
-          this.SerialAsGet(key, node_to_use, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
-          break;
-        }
-        catch(Exception) {}
-      }
+      this.SerialAsGet(key, node_to_use, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
       Thread.Sleep(5000);
       Console.WriteLine("This checks to make sure our follow up Puts succeeded");
       this.SerialAsGet(key, node_to_use, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
