@@ -11,9 +11,8 @@ namespace Brunet.Dht {
    * abstracted view
    */
   public class TableServerData {
-    List<DateTime> _end_time_expiring_entries =  new List<DateTime>();
-    List<MemBlock> _memblock_expiring_entries = new List<MemBlock>();
-    Dictionary<MemBlock, int> _int_expiring_entries = new Dictionary<MemBlock, int>();
+    DateTime last_clean = DateTime.UtcNow;
+    Hashtable list_of_keys = new Hashtable();
     Cache _data = new Cache(2500);
     protected string _base_dir;
 
@@ -30,8 +29,10 @@ namespace Brunet.Dht {
     */
 
     public void AddEntry(Entry ent) {
+      CheckEntries();
       ArrayList data = (ArrayList) _data[ent.Key];
       if(data == null) {
+        list_of_keys.Add(ent.Key, true);
         data = new ArrayList();
         _data[ent.Key] = data;
       }
@@ -44,9 +45,6 @@ namespace Brunet.Dht {
         }
       }
       data.Insert(index, ent);
-      if(index == data.Count - 1) {
-        ExpiredEntriesUpdate(ent.Key, ent.EndTime);
-      }
     }
 
     /* When we have a cache eviction, we must write it to disk, we take
@@ -56,7 +54,7 @@ namespace Brunet.Dht {
     public void CacheEviction(Object o, EventArgs args) {
       Cache.EvictionArgs eargs = (Cache.EvictionArgs) args;
       MemBlock key = (MemBlock) eargs.Key;
-      if(eargs.Value != null || ((ArrayList) eargs.Value).Count > 0) {
+      if(eargs.Value != null && ((ArrayList) eargs.Value).Count > 0) {
         Hashtable data = (Hashtable) eargs.Value;
         string path = GeneratePath(key);
         using (FileStream fs = File.Open(path, FileMode.Create)) {
@@ -96,30 +94,31 @@ namespace Brunet.Dht {
     on the table regarding a specific key, or we would be constantly
     churning through an enormous list
     */
-    public void DeleteExpired() {
+    public void CheckEntries() {
       DateTime now = DateTime.UtcNow;
-      for(int i = 0; i < _end_time_expiring_entries.Count; i++) {
-        if(_end_time_expiring_entries[i] > now) {
-          break;
+      if(now - last_clean < TimeSpan.FromHours(24)) {
+        return;
+      }
+      // Otherwise its time to do some cleaning!
+      last_clean = now;
+      Hashtable keys_to_delete = new Hashtable();
+      foreach(MemBlock key in list_of_keys.Keys) {
+        if(DeleteExpired(key) == 0) {
+          keys_to_delete.Add(key, true);
         }
-        MemBlock key = _memblock_expiring_entries[i];
-
-        ArrayList data = (ArrayList) _data[key];
-        data.Clear();
-
-        _memblock_expiring_entries.RemoveAt(i);
-        _int_expiring_entries.Remove(key);
-        _end_time_expiring_entries.RemoveAt(i);
+      }
+      foreach(MemBlock key in keys_to_delete.Keys) {
+        list_of_keys.Remove(key);
       }
     }
 
     /* Deletes any of the expired entries for a specific key, we execute this
     prior to any Dht operations involving the key in question
     */
-    public void DeleteExpired(MemBlock key) {
+    public int DeleteExpired(MemBlock key) {
       ArrayList data = (ArrayList) _data[key];
       if(data == null) {
-        return;
+        return 0;
       }
       int del_count = 0;
       DateTime now = DateTime.UtcNow;
@@ -132,35 +131,7 @@ namespace Brunet.Dht {
       if (del_count > 0) {
         data.RemoveRange(0, del_count);
       }
-    }
-
-    /* This will add, update, or remove an Entry from the ExpiredEntries list.
-     * The idea is that if end_time is null, we don't have a new key to insert,
-     * and instead it is getting removed.  So we check to see if there are
-     * other entries, if there are, we move them into the ExpiredEntries, if
-     * not, we're all done
-     */
-    public void ExpiredEntriesUpdate(MemBlock key, DateTime end_time) {
-      int pos;
-      if(_int_expiring_entries.TryGetValue(key, out pos)) {
-        _memblock_expiring_entries.RemoveAt(pos);
-        _end_time_expiring_entries.RemoveAt(pos);
-      }
-      if(end_time.Equals(DateTime.MinValue)) {
-        ArrayList data = (ArrayList) _data[key];
-        if(data != null && data.Count > 0) {
-          end_time = ((Entry) data[data.Count - 1]).EndTime;
-        }
-      }
-      if(!end_time.Equals(DateTime.MinValue)) {
-        int index = _end_time_expiring_entries.BinarySearch(end_time);
-        if(index < 0) {
-          index = ~index;
-        }
-        _end_time_expiring_entries.Insert(index, end_time);
-        _int_expiring_entries[key] = index;
-        _memblock_expiring_entries.Insert(index, key);
-      }
+      return data.Count;
     }
 
     // Generates the file system path for a specific key
@@ -191,17 +162,18 @@ namespace Brunet.Dht {
     * to work properly
     */
     public int GetCount() {
-      DeleteExpired();
       return -1;
     }
 
     // This gets us an ArrayList of entries based upon the key
     public ArrayList GetEntries(MemBlock key) {
+      CheckEntries();
       return (ArrayList) _data[key];
     }
 
     public IEnumerable GetKeys() {
-      return _memblock_expiring_entries;
+      CheckEntries();
+      return (IEnumerable) list_of_keys.Keys;
     }
 
     /* Sometimes our put succeeds, but our recursive fails, this method gets
@@ -211,7 +183,6 @@ namespace Brunet.Dht {
       ArrayList data = (ArrayList) _data[key];
       if(data != null) {
         data.Clear();
-        ExpiredEntriesUpdate(key, DateTime.MinValue);
       }
     }
 
@@ -225,9 +196,6 @@ namespace Brunet.Dht {
         for(index = 0; index < data.Count; index++) {
           if(value.Equals(key)) {
             data.Remove(value);
-            if(index == data.Count - 1) {
-              ExpiredEntriesUpdate(key, DateTime.MinValue);
-            }
             break;
           }
         }
@@ -235,15 +203,15 @@ namespace Brunet.Dht {
     }
 
     public void UpdateEntry(MemBlock key, MemBlock value, DateTime end_time) {
+      CheckEntries();
       ArrayList data = (ArrayList) _data[key];
       if(data != null) {
-        int index = 0;
-        for(index = 0; index < data.Count; index++) {
+        Entry ent = null;
+        for(int index = 0; index < data.Count; index++) {
           if(value.Equals(key)) {
-            ((Entry) data[index]).EndTime = end_time;
-            if(index == data.Count - 1) {
-              ExpiredEntriesUpdate(key, DateTime.MinValue);
-            }
+            ent = (Entry) data[index];
+            data.RemoveAt(index);
+            AddEntry(ent);
             break;
           }
         }

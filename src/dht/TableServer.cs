@@ -56,7 +56,6 @@ namespace Brunet.Dht {
     */
     public int GetCount() {
       lock(_sync) {
-        _data.DeleteExpired();
         return _data.GetCount();
       }
     }
@@ -179,7 +178,6 @@ namespace Brunet.Dht {
       DateTime end_time = create_time + ts;
 
       lock(_sync) {
-        _data.DeleteExpired();
         _data.DeleteExpired(key);
         ArrayList data = _data.GetEntries(key);
         if(data != null) {
@@ -235,7 +233,6 @@ namespace Brunet.Dht {
       byte[] next_token = null;
 
       lock(_sync ) {
-        _data.DeleteExpired();
         _data.DeleteExpired(key);
         ArrayList data = _data.GetEntries(key);
 
@@ -285,17 +282,16 @@ namespace Brunet.Dht {
     */
     public Hashtable GetKeysToLeft(AHAddress us, AHAddress within) {
       lock(_sync) {
-        _data.DeleteExpired();
         Hashtable key_list = new Hashtable();
         foreach (MemBlock key in _data.GetKeys()) {
-            AHAddress target = new AHAddress(key);
-            if (target.IsBetweenFromLeft(us, within)) {
-              _data.DeleteExpired(key);
-              ArrayList data = _data.GetEntries(key);
-              if(data != null) {
-                key_list[key] = data.Clone();
-              }
+          AHAddress target = new AHAddress(key);
+          if (target.IsBetweenFromLeft(us, within)) {
+            _data.DeleteExpired(key);
+            ArrayList data = _data.GetEntries(key);
+            if(data != null) {
+              key_list[key] = data.Clone();
             }
+          }
         }
         return key_list;
       }
@@ -308,7 +304,6 @@ namespace Brunet.Dht {
 
     public Hashtable GetKeysToRight(AHAddress us, AHAddress within) {
       lock(_sync) {
-        _data.DeleteExpired();
         Hashtable key_list = new Hashtable();
         foreach (MemBlock key in _data.GetKeys()) {
           AHAddress target = new AHAddress(key);
@@ -328,7 +323,6 @@ namespace Brunet.Dht {
     public void AdminDelete(Hashtable key_list) {
       lock(_sync ) {
         //delete keys that have expired
-        _data.DeleteExpired();
         foreach (MemBlock key in key_list.Keys) {
           _data.RemoveEntries(key);
         }

@@ -42,7 +42,7 @@ namespace Brunet {
      * @return array of objects returned by the blocking queue
      */
     [XmlRpcMethod]
-    public object[] proxy(string node, int ahOptions, int maxResultsToWait, string method, params object[] args) {      
+    public object[] proxy(string node, int ahOptions, int maxResultsToWait, string method, params object[] args) {
       if (node.StartsWith("brunet:node:")) {
         node = node.Remove(0, 12); //remove "brunet:node:"
       }

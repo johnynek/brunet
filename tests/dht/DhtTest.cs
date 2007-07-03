@@ -463,6 +463,9 @@ namespace Brunet.Dht {
       }
       Console.WriteLine("Insertion done...");
       this.SerialAsGet(key, 0, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
+      Thread.Sleep(5000);
+      Console.WriteLine("This checks to make sure our follow up Puts succeeded");
+      this.SerialAsGet(key, 0, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
     }
 
@@ -858,6 +861,9 @@ namespace Brunet.Dht {
         }
         catch(Exception) {}
       }
+      Thread.Sleep(5000);
+      Console.WriteLine("This checks to make sure our follow up Puts succeeded");
+      this.SerialAsGet(key, node_to_use, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
     }
 
