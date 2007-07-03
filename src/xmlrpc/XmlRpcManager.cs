@@ -26,6 +26,13 @@ namespace Brunet {
   public class XmlRpcManager : MarshalByRefObject, IRpcHandler {
     [NonSerialized]
     private RpcManager _rpc;
+    /**
+     * Key: handler_name
+     * Value: uri
+     * Different the counterpart from _rpc.method_handlers which is <handler_name, proxy>
+     */
+    [NonSerialized]
+    private Hashtable _registered_xmlrpc = new Hashtable();
 
     public XmlRpcManager(RpcManager rpcm) {
       _rpc = rpcm;
@@ -120,17 +127,34 @@ namespace Brunet {
     public void AddXRHandler(string handler_name, string uri) {
       XmlRpcHandler handler = new XmlRpcHandler(uri, _rpc);
       _rpc.AddHandler(handler_name, handler);
+      _registered_xmlrpc.Add(handler_name, uri);
+    }
+
+    /**
+     * Accepts BrunetRpc calls but not XmlRpc calls
+     */
+    public void RemoveXRHandler(string handler_name, string uri) {
+      string expected_uri = _registered_xmlrpc[handler_name] as string;
+      if (string.IsNullOrEmpty(expected_uri)) {
+        throw new Exception("There is no xmlrpc proxy with the specified handler name already in RpcManager");
+      } else if(!expected_uri.Equals(uri)) {
+        throw new Exception("Uri doesn't match with the proxy already registered");
+      }
+      _rpc.RemoveHandler(handler_name);
     }
 
     #region IRpcHandler Members
 
     public void HandleRpc(ISender caller, string method, IList args, object rs) {
-      if (method.Equals("AddXRHandler")) {
+      if (method.Equals("AddXRHandler") || method.Equals("RemoveXRHandler")) {
         ReqrepManager.ReplyState s = (ReqrepManager.ReplyState)caller;
         ISender sender = s.ReturnPath;
-        if (_rpc.Node.Equals(sender)) {
+        if (Object.ReferenceEquals(_rpc.Node, sender)) {
           if (args.Count == 2) {
-            this.AddXRHandler(args[0] as string, args[1] as string);
+            if (method.Equals("AddXRHandler"))
+              this.AddXRHandler(args[0] as string, args[1] as string);
+            else
+              this.RemoveXRHandler(args[0] as string, args[1] as string);
             _rpc.SendResult(rs, null);
             return;
           } else {
