@@ -850,7 +850,7 @@ namespace Brunet.Dht {
       }
 
       Console.WriteLine("Going to sleep now...");
-      Thread.Sleep(15000);
+      Thread.Sleep(30000);
       Console.WriteLine("Timeout done.... now attempting gets");
       do  { Thread.Sleep(5000);}
      while(!CheckAllConnections());
