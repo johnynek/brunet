@@ -23,25 +23,29 @@ using System.Text;
 using System.Collections;
 using System.Reflection;
 using System.Security.Cryptography;
+using System.Collections.Generic;
 
 #if BRUNET_NUNIT
 using NUnit.Framework;
 using System.Threading;
-using System.Collections.Generic;
 #endif
 
 using Brunet;
 
 namespace Brunet.Dht {
   public class TableServer : IRpcHandler {
-    protected object _sync;
+    protected object _sync, _transfer_sync;
 
     /* Why on earth does the SortedList only allow sorting based upon keys?
      * I should really implement a more general SortedList, but we want this 
      * working asap...
      */
-    protected TableServerData _data;
-    protected Node _node;
+    private TableServerData _data;
+    private Node _node;
+    protected Address _right_addr = null, _left_addr = null;
+    protected TransferState _right_transfer_state = null, _left_transfer_state = null;
+    protected bool _dhtactivated = false;
+    public bool Activated { get { return _dhtactivated; } }
     private RpcManager _rpc;
 
     public TableServer(Node node, RpcManager rpc) {
@@ -49,6 +53,12 @@ namespace Brunet.Dht {
       _node = node;
       _rpc = rpc;
       _data = new TableServerData(_node);
+      _transfer_sync = new object();
+      lock(_transfer_sync) {
+        node.ConnectionTable.ConnectionEvent += this.ConnectionHandler;
+        node.ConnectionTable.DisconnectionEvent += this.ConnectionHandler;
+        node.ConnectionTable.StatusChangedEvent += this.StatusChangedHandler;
+      }
     }
 
     /* This is very broken now, we will need to manually update count for it
@@ -275,57 +285,225 @@ namespace Brunet.Dht {
 
     /** protected methods. */
 
-    /** Get all the keys to left of some address.
-    *  Note that this depends on whether the ring is stored clockwise or
-    *  anti-clockwise, we assume clockwise!
-    *  
-    */
-    public Hashtable GetKeysToLeft(AHAddress us, AHAddress within) {
-      lock(_sync) {
-        Hashtable key_list = new Hashtable();
-        foreach (MemBlock key in _data.GetKeys()) {
-          AHAddress target = new AHAddress(key);
-          if (target.IsBetweenFromLeft(us, within)) {
-            _data.DeleteExpired(key);
-            ArrayList data = _data.GetEntries(key);
-            if(data != null) {
-              key_list[key] = data.Clone();
-            }
-          }
-        }
-        return key_list;
+    /* This method checks to see if the node is connected and activates
+     * the Dht if it is.
+     */
+    protected void StatusChangedHandler(object contab, EventArgs eargs) {
+      if(!_dhtactivated && _node.IsConnected) {
+            _dhtactivated = true;
       }
     }
 
-    /** Get all the keys to right of some address.
-    *  Note that this depends on whether the ring is stored clockwise or
-    *  anti-clockwise, we assume clockwise!
-    */
+    /* First we make sure the node is connected, if it is, we need to find out
+     * if the new connection is on the left, if it is, we then start the thread
+     * to update our new left node.
+     */
 
-    public Hashtable GetKeysToRight(AHAddress us, AHAddress within) {
-      lock(_sync) {
-        Hashtable key_list = new Hashtable();
-        foreach (MemBlock key in _data.GetKeys()) {
-          AHAddress target = new AHAddress(key);
-          if (target.IsBetweenFromRight(us, within)) {
-            _data.DeleteExpired(key);
-            ArrayList data = _data.GetEntries(key);
-            if(data != null) {
-              key_list[key] = data.Clone();
+    private void ConnectionHandler(object o, EventArgs eargs) {
+      ConnectionEventArgs cargs = eargs as ConnectionEventArgs;
+      Connection old_con = cargs.Connection;
+      //first make sure that it is a new StructuredConnection
+      if (old_con.MainType != ConnectionType.Structured) {
+        return;
+      }
+      lock(_transfer_sync) {
+        ConnectionTable tab = _node.ConnectionTable;
+        Connection lc = null, rc = null;
+        try {
+          lc = tab.GetLeftStructuredNeighborOf((AHAddress) _node.Address);
+        }
+        catch(Exception) {}
+        try {
+          rc = tab.GetRightStructuredNeighborOf((AHAddress) _node.Address);
+        }
+        catch(Exception) {}
+
+        /* Cases
+         * new left node with no previous node (from disc or new node)
+         * left disconnect and new left ready
+         * left disconnect and no one ready
+        * new right node with no previous node (from disc or new node)
+         * right disconnect and new right ready
+         * right disconnect and no one ready
+         */
+        if(lc != null) {
+          if(lc.Address != _left_addr) {
+            if(_left_transfer_state != null) {
+              _left_transfer_state.Interrupt();
+              _left_transfer_state = null;
             }
+            _left_addr = lc.Address;
+            _left_transfer_state = new TransferState(true, this);
           }
         }
-        return key_list;
+        else if(_left_addr != null) {
+          if(_left_transfer_state != null) {
+            _left_transfer_state.Interrupt();
+            _left_transfer_state = null;
+          }
+          _left_addr = null;
+        }
+
+        if(rc != null) {
+          if(rc.Address != _right_addr) {
+            if(_right_transfer_state != null) {
+              _right_transfer_state.Interrupt();
+              _right_transfer_state = null;
+            }
+            _right_addr = rc.Address;
+            _right_transfer_state = new TransferState(false, this);
+          }
+        }
+        else if(_right_addr != null) {
+          if(_right_transfer_state != null) {
+            _right_transfer_state.Interrupt();
+            _right_transfer_state = null;
+          }
+          _right_addr = null;
+        }
       }
     }
 
-    //Note: This is critical method, and allows dropping complete range of keys.
-    public void AdminDelete(Hashtable key_list) {
-      lock(_sync ) {
-        //delete keys that have expired
-        foreach (MemBlock key in key_list.Keys) {
-          _data.RemoveEntries(key);
+    protected class TransferState {
+      protected const int MAX_PARALLEL_TRANSFERS = 10;
+      private object remaining = MAX_PARALLEL_TRANSFERS;
+      bool left, interrupted, complete;
+      MemBlock current_key;
+      Connection _con;
+      List<MemBlock> completed_keys = new List<MemBlock>();
+      List<MemBlock> completed_values = new List<MemBlock>();
+      TableServer _ts;
+
+      public TransferState(bool left, TableServer ts) {
+        this._ts = ts;
+        this.interrupted = false;
+        this.complete = false;
+        this.left = left;
+        ConnectionTable tab = _ts._node.ConnectionTable;
+        if(left) {
+          try {
+            _con = tab.GetLeftStructuredNeighborOf((AHAddress) _ts._node.Address);
+          }
+          catch(Exception) {}
         }
+        else {
+          try {
+            _con = tab.GetRightStructuredNeighborOf((AHAddress) _ts._node.Address);
+          }
+          catch(Exception) {}
+        }
+        if(_con == null) {
+          return;
+        }
+        int count = 0;
+        foreach(MemBlock key in _ts._data.GetKeys()) {
+          bool left_of_node = ((AHAddress)_ts._node.Address).IsRightOf(new AHAddress(key));
+          if(left && left_of_node) {
+            current_key = key;
+            break;
+          }
+          else if(!left && !left_of_node) {
+            current_key = key;
+            break;
+          }
+
+          ArrayList data = _ts._data.GetEntries(key);
+          for(int i = 0; i < data.Count; i++) {
+            if(interrupted) {
+              count = MAX_PARALLEL_TRANSFERS;
+              break;
+            }
+            Entry ent = (Entry) data[i];
+            BlockingQueue queue = new BlockingQueue();
+            queue.EnqueueEvent += this.NextTransfer;
+            queue.CloseEvent += this.NextTransfer;
+            int ttl = (int) (ent.EndTime - DateTime.UtcNow).TotalSeconds;
+            _ts._rpc.Invoke(_con.Edge, queue, "dht.PutHandler", key, ent.Value, ttl, false);
+            completed_values.Add(ent.Value);
+            if(i == data.Count - 1) {
+              completed_values.Clear();
+              completed_keys.Add(key);
+              current_key = null;
+            }
+            if(++count == MAX_PARALLEL_TRANSFERS) {
+              break;
+            }
+          }
+          if(count == MAX_PARALLEL_TRANSFERS) {
+            break;
+          }
+        }
+      }
+
+      private void NextTransfer(Object o, EventArgs eargs) {
+        BlockingQueue queue = (BlockingQueue) o;
+        queue.EnqueueEvent -= this.NextTransfer;
+        queue.CloseEvent -= this.NextTransfer;
+        if(interrupted) {
+          return;
+        }
+        if(!complete) {
+          foreach(MemBlock key in _ts._data.GetKeys()) {
+            if(current_key == null) {
+              bool left_of_node = ((AHAddress)_ts._node.Address).IsRightOf(new AHAddress(key));
+              if(left && left_of_node && !completed_keys.Contains(key)) {
+                current_key = key;
+                break;
+              }
+              else if(!left && !left_of_node && !completed_keys.Contains(key)) {
+                current_key = key;
+                break;
+              }
+            }
+          }
+
+          if(current_key == null) {
+            complete = true;
+          }
+          else {
+            ArrayList data = _ts._data.GetEntries(current_key);
+            for(int i = 0; i < data.Count; i++) {
+              Entry ent = (Entry) data[i];
+              if(completed_values.Contains(ent.Value)) {
+                continue;
+              }
+              queue = new BlockingQueue();
+              queue.EnqueueEvent += this.NextTransfer;
+              queue.CloseEvent += this.NextTransfer;
+              int ttl = (int) (ent.EndTime - DateTime.UtcNow).TotalSeconds;
+              _ts._rpc.Invoke(_con.Edge, queue, "dht.PutHandler", current_key, ent.Value, ttl, false);
+              completed_values.Add(ent.Value);
+              if(i == data.Count - 1) {
+                completed_values.Clear();
+                completed_keys.Add(current_key);
+                current_key = null;
+              }
+            }
+          }
+        }
+        if (complete) {
+          lock(remaining) {
+            remaining = (int) remaining - 1;
+            if((int) remaining == 0) {
+              foreach(MemBlock key in completed_keys) {
+                if(left && ((AHAddress)_ts._left_addr).IsLeftOf(new AHAddress(key))) {
+                  _ts._data.RemoveEntries(key);
+                }
+                else if(!left &&((AHAddress)_ts._right_addr).IsRightOf(new AHAddress(key))) {
+                  _ts._data.RemoveEntries(key);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      public void Interrupt() {
+        interrupted = true;
+        complete = true;
+        completed_keys.Clear();
+        completed_values.Clear();
+        current_key = null;
       }
     }
   }
