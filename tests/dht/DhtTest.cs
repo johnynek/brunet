@@ -267,6 +267,9 @@ namespace Brunet.Dht {
         node.RemoteTAs = RemoteTA;
         node.Connect();
         dhts[i] = new Dht(node, degree);
+        if(i < network_size / dhts[i].DEGREE) {
+          dhts[i].debug = true;
+        }
       }
     }
 
@@ -853,7 +856,7 @@ namespace Brunet.Dht {
       do  { Thread.Sleep(5000);}
       while(!CheckAllConnections());
       Console.WriteLine("Going to sleep now...");
-      Thread.Sleep(15000);
+      Thread.Sleep(30000);
       Console.WriteLine("Timeout done.... now attempting gets");
       this.SerialAsGet(key, node_to_use, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
       Thread.Sleep(5000);
