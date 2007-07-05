@@ -363,23 +363,16 @@ public class ReqrepManager : IDataHandler {
 			     _node.Address, idnum, retpath);
 #endif
      RequestKey rk = new RequestKey(idnum, retpath);
-     rs = (ReplyState)_reply_cache[rk];
-     if( rs == null ) {
-       //Looks like we need to handle this request
-       //Make a new ReplyState:
-       lock( _sync ) {
-         //Try again holding the lock, make sure only one ReplyState is
-         //created
-         rs = (ReplyState)_reply_cache[rk];
-         if( rs == null ) {
-           rs = new ReplyState(rk);
-	   //Add the new reply state before we drop the lock
-           _reply_cache[rk] = rs;
-         }
+     lock( _sync ) {
+       rs = (ReplyState)_reply_cache[rk];
+       if( rs == null ) {
+         rs = new ReplyState(rk);
+	 //Add the new reply state before we drop the lock
+         _reply_cache[rk] = rs;
        }
-     }
-     else {
-       resend = true;
+       else {
+         resend = true;
+       }
      }
      if( resend ) {
        //This is an old request:
@@ -406,9 +399,9 @@ public class ReqrepManager : IDataHandler {
    protected void HandleReply(ReqrepType rt, int idnum, MemBlock rest, ISender ret_path) {
      RequestState reqs = (RequestState)_req_state_table[idnum];
      if( reqs != null ) {
-       ArrayList repls = reqs.Repliers;
-       bool handle = false;
+       IReplyHandler handler = null;
        lock( _sync ) {
+         ArrayList repls = reqs.Repliers;
          if (false == repls.Contains(ret_path)) {
            /*
             * Let's look at how long it took to get this reply:
@@ -417,10 +410,10 @@ public class ReqrepManager : IDataHandler {
            AddRttStat(rtt);
            //Make sure we ignore replies from this sender again
            repls.Add(ret_path);
-           handle = true;
+           handler = reqs.ReplyHandler;
          }
        }
-       if( handle ) {
+       if( null != handler ) {
          MemBlock payload;
          PType pt = PType.Parse(rest, out payload);
          Statistics statistics = new Statistics();
@@ -431,14 +424,11 @@ public class ReqrepManager : IDataHandler {
   #endif
   
          //Don't hold the lock while calling the ReplyHandler:
-         bool continue_listening = reqs.ReplyHandler.HandleReply(this, rt, idnum, pt, payload,
+         bool continue_listening = handler.HandleReply(this, rt, idnum, pt, payload,
                                                    ret_path, statistics, reqs.UserState);
          //the request has been served
          if( !continue_listening ) {
-           //Now remove the RequestState:
-           lock ( _sync ) {
-             _req_state_table.Remove(idnum);
-           }
+           StopRequest(idnum, handler);
          }
        }
      }
@@ -539,9 +529,7 @@ public class ReqrepManager : IDataHandler {
     }
     catch {
       //Clean up:
-      lock( _sync ) {
-        _req_state_table.Remove( rs.RequestID );
-      }
+      StopRequest(rs.RequestID, reply);
       throw new Exception("Couldn't start request");
     }
   }
