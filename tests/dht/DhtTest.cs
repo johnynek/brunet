@@ -267,6 +267,9 @@ namespace Brunet.Dht {
         node.RemoteTAs = RemoteTA;
         node.Connect();
         dhts[i] = new Dht(node, degree);
+        if(i < network_size / dhts[i].DEGREE) {
+          dhts[i].debug = true;
+        }
       }
     }
 
