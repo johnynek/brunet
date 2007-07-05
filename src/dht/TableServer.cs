@@ -46,6 +46,7 @@ namespace Brunet.Dht {
     protected TransferState _right_transfer_state = null, _left_transfer_state = null;
     protected bool _dhtactivated = false;
     public bool Activated { get { return _dhtactivated; } }
+    public bool debug = false;
     private RpcManager _rpc;
 
     public TableServer(Node node, RpcManager rpc) {
@@ -294,9 +295,10 @@ namespace Brunet.Dht {
       }
     }
 
-    /* First we make sure the node is connected, if it is, we need to find out
-     * if the new connection is on the left, if it is, we then start the thread
-     * to update our new left node.
+    /* This is called whenever there is a disconnect or a connect, the idea
+     * is to determine if there is a new left or right node, if there is and
+     * there is a pre-existing transfer, we must interuppt it, and start a new
+     * transfer
      */
 
     private void ConnectionHandler(object o, EventArgs eargs) {
@@ -319,10 +321,12 @@ namespace Brunet.Dht {
         catch(Exception) {}
 
         /* Cases
+         * no change on left
          * new left node with no previous node (from disc or new node)
          * left disconnect and new left ready
          * left disconnect and no one ready
-        * new right node with no previous node (from disc or new node)
+         * no change on right
+         * new right node with no previous node (from disc or new node)
          * right disconnect and new right ready
          * right disconnect and no one ready
          */
@@ -365,7 +369,7 @@ namespace Brunet.Dht {
     }
 
     protected class TransferState {
-      protected const int MAX_PARALLEL_TRANSFERS = 10;
+      protected const int MAX_PARALLEL_TRANSFERS = 1;
       private object remaining = MAX_PARALLEL_TRANSFERS;
       bool left, interrupted, complete;
       MemBlock current_key;
@@ -419,6 +423,20 @@ namespace Brunet.Dht {
             queue.CloseEvent += this.NextTransfer;
             int ttl = (int) (ent.EndTime - DateTime.UtcNow).TotalSeconds;
             _ts._rpc.Invoke(_con.Edge, queue, "dht.PutHandler", key, ent.Value, ttl, false);
+            if(_ts.debug) {
+              Console.WriteLine(_ts._node.Address + " transferring " + new BigInteger(key) + ":" + i + " to " + _con.Address + ".");
+            }
+            /* Time to check if we also need to update our neighbor's neighbor,
+             * this probably isn't required except for rare cases where two
+             * nodes come up at the same time in the same region and become
+             * neighbors.  But if we don't do this, we would lose half of a
+             * value.
+             */
+     /*       if(left && ((AHAddress)_left_addr).IsRightOf(new AHAddress(key))) {
+              _ts._rpc.Invoke(_con.Edge, queue, "dht.PutHandler", key, ent.Value, ttl, false);
+            }
+            else if(!left && ((AHAddress)_right_addr).IsLeftOf(new AHAddress(key))) {
+            }*/
             completed_values.Add(ent.Value);
             if(i == data.Count - 1) {
               completed_values.Clear();
@@ -472,6 +490,9 @@ namespace Brunet.Dht {
               queue.CloseEvent += this.NextTransfer;
               int ttl = (int) (ent.EndTime - DateTime.UtcNow).TotalSeconds;
               _ts._rpc.Invoke(_con.Edge, queue, "dht.PutHandler", current_key, ent.Value, ttl, false);
+              if(_ts.debug) {
+                Console.WriteLine(_ts._node.Address + " transferring " + new BigInteger(current_key) + ":" + i + " to " + _con.Address + ".");
+              }
               completed_values.Add(ent.Value);
               if(i == data.Count - 1) {
                 completed_values.Clear();
@@ -485,13 +506,16 @@ namespace Brunet.Dht {
           lock(remaining) {
             remaining = (int) remaining - 1;
             if((int) remaining == 0) {
-              foreach(MemBlock key in completed_keys) {
+/*              foreach(MemBlock key in completed_keys) {
                 if(left && ((AHAddress)_ts._left_addr).IsLeftOf(new AHAddress(key))) {
                   _ts._data.RemoveEntries(key);
                 }
                 else if(!left &&((AHAddress)_ts._right_addr).IsRightOf(new AHAddress(key))) {
                   _ts._data.RemoveEntries(key);
                 }
+              }*/
+              if(_ts.debug) {
+                Console.WriteLine(_ts._node.Address + " completed transfer  to " + _con.Address + ".");
               }
             }
           }
@@ -499,6 +523,9 @@ namespace Brunet.Dht {
       }
 
       public void Interrupt() {
+        if(_ts.debug) {
+          Console.WriteLine(_ts._node.Address + " interrupted during transfer  to " + _con.Address + ".");
+        }
         interrupted = true;
         complete = true;
         completed_keys.Clear();
