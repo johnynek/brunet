@@ -195,6 +195,27 @@ namespace Brunet
     protected TransportAddress(string s) {
       _scheme = s;
     }
+   protected static readonly string _UDP_S = "udp";
+   protected static readonly string _TCP_S = "tcp";
+   protected static readonly string _FUNCTION_S = "function";
+   protected static readonly string _TUNNEL_S = "tunnel";
+    /**
+     * .Net methods are not always so fast here
+     */
+    public static string TATypeToString(TAType t) {
+      switch(t) {
+        case TAType.Udp:
+          return _UDP_S;
+        case TAType.Tunnel:
+          return _TUNNEL_S;
+        case TAType.Tcp:
+          return _TCP_S;
+        case TAType.Function:
+          return _FUNCTION_S;
+        default:
+          return t.ToString().ToLower();
+      }
+    }
 
     public abstract TAType TransportAddressType { get;}
 
@@ -255,14 +276,13 @@ namespace Brunet
     }
     public IPTransportAddress(TransportAddress.TAType t,
                             string host, int port):
-      this("brunet." + t.ToString().ToLower() + "://"
-	   + host + ":" + port.ToString())
+      this("brunet." + TATypeToString(t) + "://" + host + ":" + port.ToString())
     {
       _ips = null;
     }
     public IPTransportAddress(TransportAddress.TAType t,
                             System.Net.IPAddress add, int port):
-          this("brunet." + t.ToString().ToLower() + "://"
+          this("brunet." + TATypeToString(t) + "://"
          + add.ToString() + ":" + port.ToString())
     {
       _ips = new ArrayList();
@@ -383,6 +403,14 @@ namespace Brunet
 
   [TestFixture]
   public class TATester {
+    [Test]
+    public void TestTATypeToString() {
+      foreach(TransportAddress.TAType t in
+              Enum.GetValues(typeof(TransportAddress.TAType))) {
+        string s = t.ToString().ToLower();
+        Assert.AreEqual(s, TransportAddress.TATypeToString(t), "TATypeToString");
+      }
+    }
     [Test]
     public void Test() {
       TransportAddress ta1 = TransportAddressFactory.CreateInstance("brunet.udp://10.5.144.69:5000");
