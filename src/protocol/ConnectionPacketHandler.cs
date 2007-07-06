@@ -38,10 +38,10 @@ namespace Brunet
    *
    * This is an RPC handler for the following methods:
    *
-   * Hashtable sys:link.Close(Hashtable)
-   * Hashtable sys:link.GetStatus(Hashtable)
+   * IDictionary sys:link.Close(IDictionary)
+   * IDictionary sys:link.GetStatus(IDictionary)
    * object sys:link.Ping(object)
-   * Hashtable sys:link.Start(Hashtable)
+   * IDictionary sys:link.Start(IDictionary)
    * 
    * @see Linker
    */
