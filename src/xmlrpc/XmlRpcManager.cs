@@ -95,6 +95,13 @@ namespace Brunet {
             s = AdrXmlRpcConverter.Adr2XmlRpc(rsSender) as string;
           }
         }
+        if (e is InvalidOperationException) {
+          /*
+           * this is what we expect at the end of Dequeuing, so just return what we've gotten so far
+           * it could be an empty array
+           */
+          return allValues.ToArray();
+        }
         Exception new_e = AdrXmlRpcConverter.Adr2XmlRpc(e) as Exception;
         throw new Exception(new_e.Message + 
           (s.Equals(string.Empty) ? string.Empty : string.Format("thrown by: {0}", s)));
