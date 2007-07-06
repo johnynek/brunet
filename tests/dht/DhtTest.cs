@@ -267,6 +267,9 @@ namespace Brunet.Dht {
         node.RemoteTAs = RemoteTA;
         node.Connect();
         dhts[i] = new Dht(node, degree);
+        if(i < network_size / dhts[i].DEGREE) {
+          dhts[i].debug = true;
+        }
       }
     }
 
@@ -462,6 +465,9 @@ namespace Brunet.Dht {
         }
       }
       Console.WriteLine("Insertion done...");
+      this.SerialAsGet(key, 0, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
+      Thread.Sleep(5000);
+      Console.WriteLine("This checks to make sure our follow up Puts succeeded");
       this.SerialAsGet(key, 0, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
     }
@@ -818,7 +824,7 @@ namespace Brunet.Dht {
         first_run = false;
       }
 
-      int[] not_to_use = new int[8];
+      int[] not_to_use = new int[dhts[0].DEGREE];
       for(int i = 0; i < addrs.Length; i++) {
         Console.WriteLine(new AHAddress(baddrs[i]) + " " + new AHAddress(addrs[i]));
         Address laddr = new AHAddress(addrs[i]);
@@ -846,19 +852,25 @@ namespace Brunet.Dht {
         }
       }
 
+      // Checking the ring every 5 seconds..
+      do  { Thread.Sleep(5000);}
+      while(!CheckAllConnections());
       Console.WriteLine("Going to sleep now...");
       Thread.Sleep(15000);
       Console.WriteLine("Timeout done.... now attempting gets");
-      do  { Thread.Sleep(5000);}
-     while(!CheckAllConnections());
-      while(true) {
-        try {
-          this.SerialAsGet(key, node_to_use, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
-          break;
-        }
-        catch(Exception) {}
-      }
+      this.SerialAsGet(key, node_to_use, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
+      Thread.Sleep(5000);
+      Console.WriteLine("This checks to make sure our follow up Puts succeeded");
+      this.SerialAsGet(key, node_to_use, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
+      for(int i = 0; i < network_size + not_to_use.Length; i++) {
+        for(int j = 0; j < not_to_use.Length; j++ ) {
+          if(not_to_use[j] == i) {
+            continue;
+          }
+        }
+        Console.WriteLine("Count ... " + i + ":" + dhts[i].Count);
+      }
     }
 
     public static void Main() {
