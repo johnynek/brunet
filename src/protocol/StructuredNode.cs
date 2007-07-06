@@ -167,19 +167,6 @@ namespace Brunet
       }
       //edges_to_close has all the connections and unconnected edges.
       ArrayList copy = new ArrayList(edges_to_close);
-      //Just close the queue on the first enqueue.
-      EventHandler eh = delegate(object o, EventArgs arg) {
-        BlockingQueue q = (BlockingQueue)o;
-        bool timedout;
-        RpcResult rpc_res = (RpcResult)q.Dequeue(0, out timedout);
-        try {
-          object r = rpc_res.Result;
-        }
-        catch (Exception x) {
-          Console.Error.WriteLine("RPC Close on {0} gave Exception: {1}", rpc_res.ResultSender, x);
-        }
-        q.Close();
-      };
       EventHandler ch = delegate(object o, EventArgs a) {
         Edge e = (Edge)o;
         edges_to_close.Remove(e);
@@ -194,7 +181,7 @@ namespace Brunet
         if( e.IsClosed ) { ch(e, null); }
         else {
           BlockingQueue res_q = new BlockingQueue();
-          res_q.EnqueueEvent += eh;
+          res_q.CloseAfterEnqueue();
           DateTime start_time = DateTime.UtcNow;
           res_q.CloseEvent += delegate(object o, EventArgs arg) {
             Console.Error.WriteLine("Close on edge: {0} took: {1}", e, (DateTime.UtcNow - start_time)); 

@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define DEBUG
 using System;
 using System.Collections;
+using System.Collections.Specialized;
 using System.Threading;
 //using log4net;
 namespace Brunet
@@ -657,21 +658,16 @@ namespace Brunet
        */
       _connection_table.Disconnect(e);
       
-      Hashtable close_info = new Hashtable(1);
+      ListDictionary close_info = new ListDictionary();
       string reason = message;
       if( reason != String.Empty ) {
         close_info["reason"] = reason;
       }
       BlockingQueue results = new BlockingQueue();
-      EventHandler en_eh = delegate(object o, EventArgs args) {
-        //When this result comes in, just close the queue
-        //which closes the edge:
-        results.Close();
-      };
+      results.CloseAfterEnqueue();
       EventHandler close_eh = delegate(object o, EventArgs args) {
         e.Close(); 
       };
-      results.EnqueueEvent += en_eh;
       results.CloseEvent += close_eh;
       RpcManager rpc = RpcManager.GetInstance(this);
       try {
@@ -748,11 +744,6 @@ namespace Brunet
           }
           else if( _send_pings && ( now - e.LastInPacketDateTime > _connection_timeout ) ) {
             
-            EventHandler on_enqueue = delegate(object q, EventArgs eargs) {
-              //We got a response, close the queue, so we stop listening
-              BlockingQueue qu = (BlockingQueue)q;
-              qu.Close();
-            };
             object ping_arg = String.Empty;
             EventHandler on_close = delegate(object q, EventArgs cargs) {
               BlockingQueue qu = (BlockingQueue)q;
@@ -782,8 +773,8 @@ namespace Brunet
               }
             };
             BlockingQueue tmp_queue = new BlockingQueue();
+            tmp_queue.CloseAfterEnqueue();
             tmp_queue.CloseEvent += on_close;
-            tmp_queue.EnqueueEvent += on_enqueue;
             //Do the ping
             try {
               rpc.Invoke(e, tmp_queue, "sys:link.Ping", ping_arg);
