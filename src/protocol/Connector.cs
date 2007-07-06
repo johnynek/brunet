@@ -187,7 +187,8 @@ namespace Brunet
       try {
         rpc_res = (RpcResult)q.Dequeue(10, out timedout);
         if( !timedout ) {
-          ConnectToMessage new_ctm = new ConnectToMessage( (Hashtable)rpc_res.Result );
+          ConnectToMessage new_ctm = new ConnectToMessage(
+                                         (IDictionary)rpc_res.Result );
           _got_ctm = true;
           /**
            * It is the responsibilty of the ConnectionOverlord

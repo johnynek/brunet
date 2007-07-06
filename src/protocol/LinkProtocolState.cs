@@ -408,7 +408,7 @@ namespace Brunet
           resq.Close();
   
           /* Here's the LinkMessage response */
-          LinkMessage lm = new LinkMessage( (Hashtable)res.Result );
+          LinkMessage lm = new LinkMessage( (IDictionary)res.Result );
           SetAndCheckLinkReply(lm);
   	
           /* Make our status message */
@@ -481,7 +481,7 @@ namespace Brunet
           if( _is_finished ) { return; }
           RpcResult res = (RpcResult)resq.Dequeue();
           resq.Close(); //Close the queue
-          StatusMessage sm = new StatusMessage((Hashtable)res.Result);
+          StatusMessage sm = new StatusMessage((IDictionary)res.Result);
           _con = new Connection(_e, _lm_reply.Local.Address, _contype, sm, _lm_reply);
         }
         Finish(Result.Success);
