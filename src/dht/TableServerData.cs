@@ -15,6 +15,8 @@ namespace Brunet.Dht {
     Hashtable list_of_keys = new Hashtable();
     Cache _data = new Cache(2500);
     protected string _base_dir;
+    public int Count { get { return count; } }
+    private int count = 0;
 
     public TableServerData(Node _node) {
       _node.DepartureEvent += this.CleanUp;
@@ -45,6 +47,7 @@ namespace Brunet.Dht {
         }
       }
       data.Insert(index, ent);
+      count++;
     }
 
     /* When we have a cache eviction, we must write it to disk, we take
@@ -131,6 +134,7 @@ namespace Brunet.Dht {
       if (del_count > 0) {
         data.RemoveRange(0, del_count);
       }
+      count -= del_count;
       return data.Count;
     }
 
@@ -171,6 +175,27 @@ namespace Brunet.Dht {
       return (ArrayList) _data[key];
     }
 
+    public LinkedList<MemBlock> GetKeysBetween(AHAddress add1, AHAddress add2) {
+      LinkedList<MemBlock> keys = new LinkedList<MemBlock>();
+      if(add1.IsRightOf(add2)) {
+        foreach(MemBlock key in list_of_keys.Keys) {
+          AHAddress key_addr = new AHAddress(key);
+          if(key_addr.IsBetweenFromLeft(add1, add2)) {
+            keys.AddLast(key);
+          }
+        }
+      }
+      else {
+        foreach(MemBlock key in list_of_keys.Keys) {
+          AHAddress key_addr = new AHAddress(key);
+          if(key_addr.IsBetweenFromRight(add1, add2)) {
+            keys.AddLast(key);
+          }
+        }
+      }
+      return keys;
+    }
+
     public IEnumerable GetKeys() {
       CheckEntries();
       return (IEnumerable) list_of_keys.Keys;
@@ -181,6 +206,7 @@ namespace Brunet.Dht {
     */
     public void RemoveEntries(MemBlock key) {
       ArrayList data = (ArrayList) _data[key];
+      count -= data.Count;
       if(data != null) {
         data.Clear();
       }
@@ -196,6 +222,7 @@ namespace Brunet.Dht {
         for(index = 0; index < data.Count; index++) {
           if(value.Equals(key)) {
             data.Remove(value);
+            count--;
             break;
           }
         }
