@@ -21,7 +21,8 @@
   <nant buildfile="src/c-lib/default.build" />
   <nant buildfile="src/Dht/default.build" />
   <nant buildfile="src/IPRouter/default.build" />
+  <nant buildfile="src/misc/default.build" />
   <copy file="sample-config/ipop.config"
-        tofile="./src/ipop/build/ipop.config"/>
+        tofile="./src/misc/build/ipop.config"/>
   </target>
 </project>
