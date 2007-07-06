@@ -10,7 +10,7 @@ import System.Security.Cryptography
 def make_rpc(node as Node, port as int, remote as string):
   node.AddEdgeListener( UdpEdgeListener(port) )
   node.RemoteTAs.Add( TransportAddressFactory.CreateInstance( remote ) )
-  rpc = RpcManager( ReqrepManager.GetInstance(node) )
+  rpc = RpcManager.GetInstance( node )
   node.Connect();
   return rpc
 
@@ -48,7 +48,7 @@ while true:
     quit = prompt("Next value..")
     vals.Add( quit )
   q = BlockingQueue() 
-  myrpc.Invoke(AHSender(mynode, addr), q, "test.concat",vals);
+  myrpc.Invoke(AHSender(mynode, addr), q, "test.concat", vals);
   res = q.Dequeue() as RpcResult
   try:
     print res.Result;
