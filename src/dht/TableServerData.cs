@@ -12,9 +12,11 @@ namespace Brunet.Dht {
    */
   public class TableServerData {
     DateTime last_clean = DateTime.UtcNow;
-    Hashtable list_of_keys = new Hashtable();
+    LinkedList<MemBlock> list_of_keys = new LinkedList<MemBlock>();
     Cache _data = new Cache(2500);
     protected string _base_dir;
+    public int Count { get { return count; } }
+    private int count = 0;
 
     public TableServerData(Node _node) {
       _node.DepartureEvent += this.CleanUp;
@@ -28,23 +30,26 @@ namespace Brunet.Dht {
     * mechanism will not be changing and this may, it is separate
     */
 
-    public void AddEntry(Entry ent) {
+    public void AddEntry(Entry entry) {
       CheckEntries();
-      ArrayList data = (ArrayList) _data[ent.Key];
+      LinkedList<Entry> data = (LinkedList<Entry>) _data[entry.Key];
       if(data == null) {
-        list_of_keys.Add(ent.Key, true);
-        data = new ArrayList();
-        _data[ent.Key] = data;
+        list_of_keys.AddLast(entry.Key);
+        data = new LinkedList<Entry>();
+        _data[entry.Key] = data;
       }
-
-      int index = 0;
-      for(index = 0; index < data.Count; index++) {
-        Entry entry = (Entry) data[index];
-        if(entry.EndTime > ent.EndTime) {
+      LinkedListNode<Entry> ent = data.Last;
+      while(ent != null) {
+        if(ent.Value.EndTime < entry.EndTime) {
+          data.AddAfter(ent, entry);
           break;
         }
+        ent = ent.Previous;
       }
-      data.Insert(index, ent);
+      if(ent == null) {
+        data.AddFirst(entry);
+      }
+      count++;
     }
 
     /* When we have a cache eviction, we must write it to disk, we take
@@ -54,8 +59,8 @@ namespace Brunet.Dht {
     public void CacheEviction(Object o, EventArgs args) {
       Cache.EvictionArgs eargs = (Cache.EvictionArgs) args;
       MemBlock key = (MemBlock) eargs.Key;
-      if(eargs.Value != null && ((ArrayList) eargs.Value).Count > 0) {
-        Hashtable data = (Hashtable) eargs.Value;
+      if(eargs.Value != null && ((LinkedList<LinkedList<Entry>>) eargs.Value).Count > 0) {
+        LinkedList<LinkedList<Entry>> data = (LinkedList<LinkedList<Entry>>) eargs.Value;
         string path = GeneratePath(key);
         using (FileStream fs = File.Open(path, FileMode.Create)) {
           AdrConverter.Serialize(data, fs);
@@ -72,7 +77,7 @@ namespace Brunet.Dht {
       string path = GeneratePath(key);
       if(File.Exists(path)) {
         using (FileStream fs = File.Open(path, FileMode.Open)) {
-          _data[key] = (Hashtable) AdrConverter.Deserialize(fs);
+          _data[key] = (LinkedList<Entry>) AdrConverter.Deserialize(fs);
         }
         File.Delete(path);
       }
@@ -90,10 +95,10 @@ namespace Brunet.Dht {
     }
 
     /* Deletes any of the expired entries, where all entries in the individual
-    entry are expired, otherwise we they must be deleted during an operation
-    on the table regarding a specific key, or we would be constantly
-    churning through an enormous list
-    */
+     * entry are expired, otherwise we they must be deleted during an operation
+     * on the table regarding a specific key, or we would be constantly
+     * churning through an enormous list
+     */
     public void CheckEntries() {
       DateTime now = DateTime.UtcNow;
       if(now - last_clean < TimeSpan.FromHours(24)) {
@@ -101,35 +106,34 @@ namespace Brunet.Dht {
       }
       // Otherwise its time to do some cleaning!
       last_clean = now;
-      Hashtable keys_to_delete = new Hashtable();
-      foreach(MemBlock key in list_of_keys.Keys) {
-        if(DeleteExpired(key) == 0) {
-          keys_to_delete.Add(key, true);
+      LinkedListNode<MemBlock> current = list_of_keys.First;
+      while(current != null) {
+        LinkedListNode<MemBlock> next = current.Next;
+        if(DeleteExpired(current.Value) == 0) {
+          list_of_keys.Remove(current);
         }
-      }
-      foreach(MemBlock key in keys_to_delete.Keys) {
-        list_of_keys.Remove(key);
+        current = next;
       }
     }
 
     /* Deletes any of the expired entries for a specific key, we execute this
-    prior to any Dht operations involving the key in question
-    */
+     * prior to any Dht operations involving the key in question
+     */
     public int DeleteExpired(MemBlock key) {
-      ArrayList data = (ArrayList) _data[key];
+      LinkedList<Entry> data = (LinkedList<Entry>) _data[key];
       if(data == null) {
         return 0;
       }
-      int del_count = 0;
       DateTime now = DateTime.UtcNow;
-      foreach(Entry ent in data) {
-        if (ent.EndTime > now) {
+      LinkedListNode<Entry> current = data.First;
+      while(current != null) {
+        if (current.Value.EndTime > now) {
           break;
         }
-        del_count++;
-      }
-      if (del_count > 0) {
-        data.RemoveRange(0, del_count);
+        LinkedListNode<Entry> next = current.Next;
+        data.Remove(current);
+        current = next;
+        count--;
       }
       return data.Count;
     }
@@ -157,31 +161,45 @@ namespace Brunet.Dht {
       return Path.Combine(path, key[19].ToString());
     }
 
-
-    /* This is very broken now, we will need to manually update count for it
-    * to work properly
-    */
-    public int GetCount() {
-      return -1;
-    }
-
     // This gets us an ArrayList of entries based upon the key
-    public ArrayList GetEntries(MemBlock key) {
+    public LinkedList<Entry> GetEntries(MemBlock key) {
       CheckEntries();
-      return (ArrayList) _data[key];
+      return (LinkedList<Entry>) _data[key];
     }
 
-    public IEnumerable GetKeys() {
+    public LinkedList<MemBlock> GetKeysBetween(AHAddress add1, AHAddress add2) {
+      LinkedList<MemBlock> keys = new LinkedList<MemBlock>();
+      if(add1.IsRightOf(add2)) {
+        foreach(MemBlock key in list_of_keys) {
+          AHAddress key_addr = new AHAddress(key);
+          if(key_addr.IsBetweenFromLeft(add1, add2)) {
+            keys.AddLast(key);
+          }
+        }
+      }
+      else {
+        foreach(MemBlock key in list_of_keys) {
+          AHAddress key_addr = new AHAddress(key);
+          if(key_addr.IsBetweenFromRight(add1, add2)) {
+            keys.AddLast(key);
+          }
+        }
+      }
+      return keys;
+    }
+
+    public LinkedList<MemBlock> GetKeys() {
       CheckEntries();
-      return (IEnumerable) list_of_keys.Keys;
+      return list_of_keys;
     }
 
     /* Sometimes our put succeeds, but our recursive fails, this method gets
     * called to fix the mess
     */
     public void RemoveEntries(MemBlock key) {
-      ArrayList data = (ArrayList) _data[key];
+      LinkedList<Entry> data = (LinkedList<Entry>) _data[key];
       if(data != null) {
+        count -= data.Count;
         data.Clear();
       }
     }
@@ -190,30 +208,38 @@ namespace Brunet.Dht {
      * called to fix the mess
      */
     public void RemoveEntry(MemBlock key, MemBlock value) {
-      ArrayList data = (ArrayList) _data[key];
+      LinkedList<Entry> data = (LinkedList<Entry>) _data[key];
       if(data != null) {
-        int index = 0;
-        for(index = 0; index < data.Count; index++) {
-          if(value.Equals(key)) {
-            data.Remove(value);
+        LinkedListNode<Entry> current = data.First;
+        while(current != null) {
+          if (current.Value.Value.Equals(value)) {
+            data.Remove(current);
             break;
           }
+          current = current.Next;
         }
+        count--;
       }
     }
 
     public void UpdateEntry(MemBlock key, MemBlock value, DateTime end_time) {
       CheckEntries();
-      ArrayList data = (ArrayList) _data[key];
+      LinkedList<Entry> data = (LinkedList<Entry>) _data[key];
       if(data != null) {
-        Entry ent = null;
-        for(int index = 0; index < data.Count; index++) {
-          if(value.Equals(key)) {
-            ent = (Entry) data[index];
-            data.RemoveAt(index);
-            AddEntry(ent);
+        Entry entry = null;
+        LinkedListNode<Entry> current = data.First;
+        while(current != null) {
+          if (current.Value.Value.Equals(value)) {
+            entry = current.Value;
+            data.Remove(current);
             break;
           }
+          current = current.Next;
+        }
+        if(entry != null) {
+          count--;
+          entry.EndTime = end_time;
+          AddEntry(entry);
         }
       }
     }

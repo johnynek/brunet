@@ -114,13 +114,24 @@ namespace Brunet
       }
     }    
 
-    public TcpEdgeListener(int port):this(port, null)
-    {
-    }
-    public TcpEdgeListener(int port, IPAddress[] ipList)
-           : this(port, ipList, null)
-    {
-    }
+    /**
+     * @param port the port to listen on
+     * This tries to guess the local IP address as best it can
+     * and allows connections from any remote node
+     */
+    public TcpEdgeListener(int port):this(port, null,null) { }
+    /**
+     * @param port the port to listen on
+     * @param ipList an IEnumerable object of IPAddress objects.
+     * This allows connections from any remote peer (TAAuthorizer always
+     * allows)
+     */
+    public TcpEdgeListener(int port, IEnumerable ipList) : this(port, ipList, null) { }
+    /**
+     * @param port the port to listen on
+     * @param ipList an IEnumerable object of IPAddress objects.
+     * @param ta_auth the TAAuthorizer to use for remote nodes
+     */
     public TcpEdgeListener(int port, IEnumerable local_config_ips, TAAuthorizer ta_auth)
     {
       _is_started = false;
@@ -461,13 +472,11 @@ namespace Brunet
           }
           else {
             TcpEdge e = null;
-            lock( _sync ) {
-              if( s != null ) {
-                e = (TcpEdge)_sock_to_edge[s];
+            if( s != null ) {
+              e = (TcpEdge)_sock_to_edge[s];
 #if POB_DEBUG
-                Console.Error.WriteLine("DoReceive: {0}", e);
+              Console.Error.WriteLine("DoReceive: {0}", e);
 #endif
-              }
             }
             //It is really important not to lock across this function call
             if( e != null ) { e.DoReceive(); }
@@ -482,15 +491,12 @@ namespace Brunet
         {
           if( s != _listen_sock ) {
             TcpEdge e = null;
-            lock( _sync ) {
-              if( s != null ) {
-                e = (TcpEdge)_sock_to_edge[s];
-              }
+            if( s != null ) {
+              e = (TcpEdge)_sock_to_edge[s];
             }
 #if POB_DEBUG
             Console.Error.WriteLine("DoSend: {0}", e);
 #endif
-            //It is really important not to lock across this function call
             if( e != null ) { e.DoSend(); }
           }
           else {

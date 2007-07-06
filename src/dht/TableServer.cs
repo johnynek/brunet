@@ -23,25 +23,31 @@ using System.Text;
 using System.Collections;
 using System.Reflection;
 using System.Security.Cryptography;
+using System.Collections.Generic;
 
 #if BRUNET_NUNIT
 using NUnit.Framework;
 using System.Threading;
-using System.Collections.Generic;
 #endif
 
 using Brunet;
 
 namespace Brunet.Dht {
   public class TableServer : IRpcHandler {
-    protected object _sync;
+    protected object _sync, _transfer_sync;
 
     /* Why on earth does the SortedList only allow sorting based upon keys?
      * I should really implement a more general SortedList, but we want this 
      * working asap...
      */
-    protected TableServerData _data;
-    protected Node _node;
+    private TableServerData _data;
+    private Node _node;
+    protected Address _right_addr = null, _left_addr = null;
+    protected TransferState _right_transfer_state = null, _left_transfer_state = null;
+    protected bool _dhtactivated = false, disconnected = false;
+    public bool Activated { get { return _dhtactivated; } }
+    public bool debug = false;
+    public int Count { get { return _data.Count; } }
     private RpcManager _rpc;
 
     public TableServer(Node node, RpcManager rpc) {
@@ -49,17 +55,14 @@ namespace Brunet.Dht {
       _node = node;
       _rpc = rpc;
       _data = new TableServerData(_node);
-    }
-
-    /* This is very broken now, we will need to manually update count for it
-    * to work properly
-    */
-    public int GetCount() {
-      lock(_sync) {
-        return _data.GetCount();
+      _transfer_sync = new object();
+      lock(_transfer_sync) {
+        node.ConnectionTable.ConnectionEvent += this.ConnectionHandler;
+        node.ConnectionTable.DisconnectionEvent += this.ConnectionHandler;
+        node.ConnectionTable.StatusChangedEvent += this.StatusChangedHandler;
+        node.DepartureEvent += this.DepartureHandler;
       }
     }
-
 
 //  We implement IRpcHandler to help with Puts, so we must have this method to process
 //  new Rpc commands on this object
@@ -179,7 +182,7 @@ namespace Brunet.Dht {
 
       lock(_sync) {
         _data.DeleteExpired(key);
-        ArrayList data = _data.GetEntries(key);
+        LinkedList<Entry> data = _data.GetEntries(key);
         if(data != null) {
           foreach(Entry ent in data) {
             if(ent.Value.Equals(value)) {
@@ -193,10 +196,6 @@ namespace Brunet.Dht {
           if(unique) {
             throw new Exception("ENTRY_ALREADY_EXISTS");
           }
-        }
-        else {
-          //This is a new key
-          data = new ArrayList();
         }
 
         // This is either a new key or a new value (put only)
@@ -234,12 +233,14 @@ namespace Brunet.Dht {
 
       lock(_sync ) {
         _data.DeleteExpired(key);
-        ArrayList data = _data.GetEntries(key);
+        LinkedList<Entry> ll_data = _data.GetEntries(key);
+        Entry[] data = new Entry[ll_data.Count];
+        ll_data.CopyTo(data, 0);
 
         // Keys exist!
         if( data != null ) {
-          seen_end_idx = data.Count - 1;
-          for(int i = seen_start_idx; i < data.Count; i++) {
+          seen_end_idx = data.Length - 1;
+          for(int i = seen_start_idx; i < data.Length; i++) {
             Entry e = (Entry) data[i];
             if (e.Value.Length + consumed_bytes <= maxbytes) {
               int age = (int) (DateTime.UtcNow - e.CreateTime).TotalSeconds;
@@ -256,7 +257,7 @@ namespace Brunet.Dht {
               break;
             }
           }
-          remaining_items = data.Count - (seen_end_idx + 1);
+          remaining_items = data.Length - (seen_end_idx + 1);
         }
       }//End of lock
       //we have added new item: update the token
@@ -275,56 +276,232 @@ namespace Brunet.Dht {
 
     /** protected methods. */
 
-    /** Get all the keys to left of some address.
-    *  Note that this depends on whether the ring is stored clockwise or
-    *  anti-clockwise, we assume clockwise!
-    *  
-    */
-    public Hashtable GetKeysToLeft(AHAddress us, AHAddress within) {
-      lock(_sync) {
-        Hashtable key_list = new Hashtable();
-        foreach (MemBlock key in _data.GetKeys()) {
-            AHAddress target = new AHAddress(key);
-            if (target.IsBetweenFromLeft(us, within)) {
-              _data.DeleteExpired(key);
-              ArrayList data = _data.GetEntries(key);
-              if(data != null) {
-                key_list[key] = data.Clone();
-              }
-            }
-        }
-        return key_list;
+    /* This method checks to see if the node is connected and activates
+     * the Dht if it is.
+     */
+    protected void StatusChangedHandler(object contab, EventArgs eargs) {
+      if(!_dhtactivated && _node.IsConnected) {
+            _dhtactivated = true;
       }
     }
 
-    /** Get all the keys to right of some address.
-    *  Note that this depends on whether the ring is stored clockwise or
-    *  anti-clockwise, we assume clockwise!
-    */
+    /* This is called whenever there is a disconnect or a connect, the idea
+     * is to determine if there is a new left or right node, if there is and
+     * there is a pre-existing transfer, we must interuppt it, and start a new
+     * transfer
+     */
 
-    public Hashtable GetKeysToRight(AHAddress us, AHAddress within) {
-      lock(_sync) {
-        Hashtable key_list = new Hashtable();
-        foreach (MemBlock key in _data.GetKeys()) {
-          AHAddress target = new AHAddress(key);
-          if (target.IsBetweenFromRight(us, within)) {
-            _data.DeleteExpired(key);
-            ArrayList data = _data.GetEntries(key);
-            if(data != null) {
-              key_list[key] = data.Clone();
+    private void ConnectionHandler(object o, EventArgs eargs) {
+      if(disconnected) {
+        return;
+      }
+
+      ConnectionEventArgs cargs = eargs as ConnectionEventArgs;
+      Connection old_con = cargs.Connection;
+      //first make sure that it is a new StructuredConnection
+      if (old_con.MainType != ConnectionType.Structured) {
+        return;
+      }
+      lock(_transfer_sync) {
+        if(disconnected) {
+          return;
+        }
+        ConnectionTable tab = _node.ConnectionTable;
+        Connection lc = null, rc = null;
+        try {
+          lc = tab.GetLeftStructuredNeighborOf((AHAddress) _node.Address);
+        }
+        catch(Exception) {}
+        try {
+          rc = tab.GetRightStructuredNeighborOf((AHAddress) _node.Address);
+        }
+        catch(Exception) {}
+
+        /* Cases
+         * no change on left
+         * new left node with no previous node (from disc or new node)
+         * left disconnect and new left ready
+         * left disconnect and no one ready
+         * no change on right
+         * new right node with no previous node (from disc or new node)
+         * right disconnect and new right ready
+         * right disconnect and no one ready
+         */
+        if(lc != null) {
+          if(lc.Address != _left_addr) {
+            if(_left_transfer_state != null) {
+              _left_transfer_state.Interrupt();
+              _left_transfer_state = null;
+            }
+            _left_addr = lc.Address;
+            if(Count > 0) {
+              _left_transfer_state = new TransferState(true, this);
             }
           }
         }
-        return key_list;
+        else if(_left_addr != null) {
+          if(_left_transfer_state != null) {
+            _left_transfer_state.Interrupt();
+            _left_transfer_state = null;
+          }
+          _left_addr = null;
+        }
+
+        if(rc != null) {
+          if(rc.Address != _right_addr) {
+            if(_right_transfer_state != null) {
+              _right_transfer_state.Interrupt();
+              _right_transfer_state = null;
+            }
+            _right_addr = rc.Address;
+            if(Count > 0) {
+              _right_transfer_state = new TransferState(false, this);
+            }
+          }
+        }
+        else if(_right_addr != null) {
+          if(_right_transfer_state != null) {
+            _right_transfer_state.Interrupt();
+            _right_transfer_state = null;
+          }
+          _right_addr = null;
+        }
       }
     }
 
-    //Note: This is critical method, and allows dropping complete range of keys.
-    public void AdminDelete(Hashtable key_list) {
-      lock(_sync ) {
-        //delete keys that have expired
-        foreach (MemBlock key in key_list.Keys) {
-          _data.RemoveEntries(key);
+    private void DepartureHandler(Object o, EventArgs eargs) {
+      lock(_transfer_sync) {
+        if(_right_transfer_state != null) {
+          _right_transfer_state.Interrupt();
+          _right_transfer_state = null;
+        }
+        if(_left_transfer_state != null) {
+          _left_transfer_state.Interrupt();
+          _left_transfer_state = null;
+        }
+        this.disconnected = true;
+      }
+    }
+
+    // This contains all the logic used to do the actual transfers
+    protected class TransferState {
+      protected const int MAX_PARALLEL_TRANSFERS = 10;
+      private object _interrupted = false;
+      LinkedList<Entry[]> key_entries = new LinkedList<Entry[]>();
+      private IEnumerator _entry_enumerator;
+      Connection _con;
+      TableServer _ts;
+
+      /* Since there is support for parallel transfers, the methods for 
+       * inserting the first n versus the follow up puts are different,
+       * consider it an optimization.  The foreach loop goes through all the
+       * keys in the local ht, if it finds one that should be transferred, it
+       * goes through all the values for that key.  Once it reaches max 
+       * parallel transfers, it is done.
+       */
+      public TransferState(bool left, TableServer ts) {
+        this._ts = ts;
+        ConnectionTable tab = _ts._node.ConnectionTable;
+        if(left) {
+          try {
+            _con = tab.GetLeftStructuredNeighborOf((AHAddress) _ts._node.Address);
+          }
+          catch(Exception) {}
+        }
+        else {
+          try {
+            _con = tab.GetRightStructuredNeighborOf((AHAddress) _ts._node.Address);
+          }
+          catch(Exception) {}
+        }
+        if(_con == null) {
+          return;
+        }
+        LinkedList<MemBlock> keys =
+            _ts._data.GetKeysBetween((AHAddress) _ts._node.Address, 
+                                      (AHAddress) _con.Address);
+        if(_ts.debug) {
+          Console.WriteLine("Starting transfer .... " + _ts._node.Address);
+        }
+        foreach(MemBlock key in keys) {
+          Entry[] entries = new Entry[_ts._data.GetEntries(key).Count];
+          _ts._data.GetEntries(key).CopyTo(entries, 0);
+          key_entries.AddLast(entries);
+          if(_ts.debug) {
+            Console.WriteLine("{2} ... key:{0} count:{1}", new AHAddress(key), entries.Length, _ts._node.Address);
+          }
+        }
+        _entry_enumerator = GetEntryEnumerator();
+
+        int count = 0;
+        LinkedList<Entry> local_entries = new LinkedList<Entry>();
+        lock(_entry_enumerator) {
+          while(_entry_enumerator.MoveNext() && count++ < MAX_PARALLEL_TRANSFERS) {
+            local_entries.AddLast((Entry) _entry_enumerator.Current);
+          }
+        }
+        foreach(Entry ent in local_entries) {
+          BlockingQueue queue = new BlockingQueue();
+          queue.EnqueueEvent += this.NextTransfer;
+          queue.CloseEvent += this.NextTransfer;
+          int ttl = (int) (ent.EndTime - DateTime.UtcNow).TotalSeconds;
+          _ts._rpc.Invoke(_con.Edge, queue, "dht.PutHandler", ent.Key, ent.Value, ttl, false);
+          if(_ts.debug) {
+            Console.WriteLine(_ts._node.Address + " transferring " + new AHAddress(ent.Key) + " to " + _con.Address + ".");
+          }
+        }
+      }
+
+      private IEnumerator GetEntryEnumerator() {
+        foreach(Entry[] entries in key_entries) {
+          foreach(Entry entry in entries) {
+            yield return entry;
+          }
+        }
+      }
+
+      /* This determines if there is a new value to be transferred or if the
+       * transfer is complete
+       */
+      private void NextTransfer(Object o, EventArgs eargs) {
+        BlockingQueue queue = (BlockingQueue) o;
+        queue.EnqueueEvent -= this.NextTransfer;
+        queue.CloseEvent -= this.NextTransfer;
+        try {
+          queue.Dequeue();
+        }
+        catch (Exception e){
+          Console.Error.WriteLine("Maybe the timeouts are too low....\n" + e);
+        }
+        if((bool) _interrupted) {
+          return;
+        }
+        Entry ent = null;
+        lock(_entry_enumerator) {
+          if(_entry_enumerator.MoveNext()) {
+            ent = (Entry) _entry_enumerator.Current;
+          }
+        }
+        if(ent != null) {
+          queue = new BlockingQueue();
+          queue.EnqueueEvent += this.NextTransfer;
+          queue.CloseEvent += this.NextTransfer;
+          int ttl = (int) (ent.EndTime - DateTime.UtcNow).TotalSeconds;
+          _ts._rpc.Invoke(_con.Edge, queue, "dht.PutHandler", ent.Key, ent.Value, ttl, false);
+          if(_ts.debug) {
+                Console.WriteLine("Follow up transfer of " + _ts._node.Address + " transferring " + new AHAddress(ent.Key) + " to " + _con.Address + ".");
+          }
+        }
+        else {
+          if(_ts.debug) {
+            Console.WriteLine(_ts._node.Address + " completed transfer  to " + _con.Address + ".");
+          }
+        }
+      }
+
+      public void Interrupt() {
+        lock(_interrupted) {
+          _interrupted = true;
         }
       }
     }
