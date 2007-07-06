@@ -268,7 +268,7 @@ namespace Brunet.Dht {
         node.Connect();
         dhts[i] = new Dht(node, degree);
         if(i < network_size / dhts[i].DEGREE) {
-          dhts[i].debug = true;
+//          dhts[i].debug = true;
         }
       }
     }

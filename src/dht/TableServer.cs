@@ -46,7 +46,6 @@ namespace Brunet.Dht {
     protected TransferState _right_transfer_state = null, _left_transfer_state = null;
     protected bool _dhtactivated = false, disconnected = false;
     public bool Activated { get { return _dhtactivated; } }
-    public bool debug = false;
     public int Count { get { return _data.Count; } }
     private RpcManager _rpc;
 
@@ -182,7 +181,7 @@ namespace Brunet.Dht {
 
       lock(_sync) {
         _data.DeleteExpired(key);
-        ArrayList data = _data.GetEntries(key);
+        LinkedList<Entry> data = _data.GetEntries(key);
         if(data != null) {
           foreach(Entry ent in data) {
             if(ent.Value.Equals(value)) {
@@ -233,12 +232,14 @@ namespace Brunet.Dht {
 
       lock(_sync ) {
         _data.DeleteExpired(key);
-        ArrayList data = _data.GetEntries(key);
+        LinkedList<Entry> ll_data = _data.GetEntries(key);
+        Entry[] data = new Entry[ll_data.Count];
+        ll_data.CopyTo(data, 0);
 
         // Keys exist!
         if( data != null ) {
-          seen_end_idx = data.Count - 1;
-          for(int i = seen_start_idx; i < data.Count; i++) {
+          seen_end_idx = data.Length - 1;
+          for(int i = seen_start_idx; i < data.Length; i++) {
             Entry e = (Entry) data[i];
             if (e.Value.Length + consumed_bytes <= maxbytes) {
               int age = (int) (DateTime.UtcNow - e.CreateTime).TotalSeconds;
@@ -255,7 +256,7 @@ namespace Brunet.Dht {
               break;
             }
           }
-          remaining_items = data.Count - (seen_end_idx + 1);
+          remaining_items = data.Length - (seen_end_idx + 1);
         }
       }//End of lock
       //we have added new item: update the token
@@ -385,7 +386,7 @@ namespace Brunet.Dht {
     protected class TransferState {
       protected const int MAX_PARALLEL_TRANSFERS = 10;
       private object _interrupted = false;
-      LinkedList<ArrayList> key_entries = new LinkedList<ArrayList>();
+      LinkedList<Entry[]> key_entries = new LinkedList<Entry[]>();
       private IEnumerator _entry_enumerator;
       Connection _con;
       TableServer _ts;
@@ -419,14 +420,16 @@ namespace Brunet.Dht {
             _ts._data.GetKeysBetween((AHAddress) _ts._node.Address, 
                                       (AHAddress) _con.Address);
         foreach(MemBlock key in keys) {
-          key_entries.AddLast((ArrayList) _ts._data.GetEntries(key).Clone());
+          Entry[] entries = new Entry[_ts._data.GetEntries(key).Count];
+          _ts._data.GetEntries(key).CopyTo(entries, 0);
+          key_entries.AddLast(entries);
         }
         _entry_enumerator = GetEntryEnumerator();
 
         int count = 0;
         LinkedList<Entry> local_entries = new LinkedList<Entry>();
         lock(_entry_enumerator) {
-          while(_entry_enumerator.MoveNext() || count++ == MAX_PARALLEL_TRANSFERS) {
+          while(_entry_enumerator.MoveNext() && count++ == MAX_PARALLEL_TRANSFERS) {
             local_entries.AddLast((Entry) _entry_enumerator.Current);
           }
         }
@@ -436,14 +439,11 @@ namespace Brunet.Dht {
           queue.CloseEvent += this.NextTransfer;
           int ttl = (int) (ent.EndTime - DateTime.UtcNow).TotalSeconds;
           _ts._rpc.Invoke(_con.Edge, queue, "dht.PutHandler", ent.Key, ent.Value, ttl, false);
-          if(_ts.debug) {
-            Console.WriteLine(_ts._node.Address + " transferring " + new AHAddress(ent.Key) + " to " + _con.Address + ".");
-          }
         }
       }
 
       private IEnumerator GetEntryEnumerator() {
-        foreach(ArrayList entries in key_entries) {
+        foreach(Entry[] entries in key_entries) {
           foreach(Entry entry in entries) {
             yield return entry;
           }
@@ -478,14 +478,6 @@ namespace Brunet.Dht {
           queue.CloseEvent += this.NextTransfer;
           int ttl = (int) (ent.EndTime - DateTime.UtcNow).TotalSeconds;
           _ts._rpc.Invoke(_con.Edge, queue, "dht.PutHandler", ent.Key, ent.Value, ttl, false);
-          if(_ts.debug) {
-                Console.WriteLine("Follow up transfer of " + _ts._node.Address + " transferring " + new AHAddress(ent.Key) + " to " + _con.Address + ".");
-          }
-        }
-        else {
-          if(_ts.debug) {
-            Console.WriteLine(_ts._node.Address + " completed transfer  to " + _con.Address + ".");
-          }
         }
       }
 

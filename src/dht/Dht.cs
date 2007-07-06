@@ -17,10 +17,6 @@ namespace Brunet.Dht {
     private RpcManager _rpc;
     public Node _node = null;
     public bool Activated { get { return _table.Activated; } }
-    public bool debug { 
-      get { return _table.debug ; }
-      set { _table.debug = value; }
-    }
     public readonly int DEGREE;
     public readonly int DELAY;
     public readonly int MAJORITY;

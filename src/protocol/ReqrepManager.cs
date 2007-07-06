@@ -271,7 +271,7 @@ public class ReqrepManager : IDataHandler {
    //When a message times out, how many times should
    //we resend before giving up
    protected const int _MAX_RESENDS = 5;
-   protected const int _MINIMUM_TIMEOUT = 1000;
+   protected const int _MINIMUM_TIMEOUT = 2000;
 
    /**
     * If f = _exp_factor we use:
