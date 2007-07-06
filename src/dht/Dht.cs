@@ -15,7 +15,7 @@ namespace Brunet.Dht {
     //lock for the Dht
     protected object _sync = new object();
     private RpcManager _rpc;
-    public Node _node = null;
+    public Node node = null;
     public bool Activated { get { return _table.Activated; } }
     public bool debug { 
       get { return _table.debug ; }
@@ -37,7 +37,7 @@ namespace Brunet.Dht {
     protected AHAddress _left_addr = null, _right_addr = null;
 
     public Dht(Node node) {
-      _node = node;
+      node = node;
       //get an instance of RpcManager for the node
       _rpc = RpcManager.GetInstance(node);
       _table = new TableServer(node, _rpc);
