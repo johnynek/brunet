@@ -46,6 +46,7 @@ namespace Brunet.Dht {
     protected TransferState _right_transfer_state = null, _left_transfer_state = null;
     protected bool _dhtactivated = false, disconnected = false;
     public bool Activated { get { return _dhtactivated; } }
+    public bool debug = false;
     public int Count { get { return _data.Count; } }
     private RpcManager _rpc;
 
@@ -419,17 +420,23 @@ namespace Brunet.Dht {
         LinkedList<MemBlock> keys =
             _ts._data.GetKeysBetween((AHAddress) _ts._node.Address, 
                                       (AHAddress) _con.Address);
+        if(_ts.debug) {
+          Console.WriteLine("Starting transfer .... " + _ts._node.Address);
+        }
         foreach(MemBlock key in keys) {
           Entry[] entries = new Entry[_ts._data.GetEntries(key).Count];
           _ts._data.GetEntries(key).CopyTo(entries, 0);
           key_entries.AddLast(entries);
+          if(_ts.debug) {
+            Console.WriteLine("{2} ... key:{0} count:{1}", new AHAddress(key), entries.Length, _ts._node.Address);
+          }
         }
         _entry_enumerator = GetEntryEnumerator();
 
         int count = 0;
         LinkedList<Entry> local_entries = new LinkedList<Entry>();
         lock(_entry_enumerator) {
-          while(_entry_enumerator.MoveNext() && count++ == MAX_PARALLEL_TRANSFERS) {
+          while(_entry_enumerator.MoveNext() && count++ < MAX_PARALLEL_TRANSFERS) {
             local_entries.AddLast((Entry) _entry_enumerator.Current);
           }
         }
@@ -439,6 +446,9 @@ namespace Brunet.Dht {
           queue.CloseEvent += this.NextTransfer;
           int ttl = (int) (ent.EndTime - DateTime.UtcNow).TotalSeconds;
           _ts._rpc.Invoke(_con.Edge, queue, "dht.PutHandler", ent.Key, ent.Value, ttl, false);
+          if(_ts.debug) {
+            Console.WriteLine(_ts._node.Address + " transferring " + new AHAddress(ent.Key) + " to " + _con.Address + ".");
+          }
         }
       }
 
@@ -478,6 +488,14 @@ namespace Brunet.Dht {
           queue.CloseEvent += this.NextTransfer;
           int ttl = (int) (ent.EndTime - DateTime.UtcNow).TotalSeconds;
           _ts._rpc.Invoke(_con.Edge, queue, "dht.PutHandler", ent.Key, ent.Value, ttl, false);
+          if(_ts.debug) {
+                Console.WriteLine("Follow up transfer of " + _ts._node.Address + " transferring " + new AHAddress(ent.Key) + " to " + _con.Address + ".");
+          }
+        }
+        else {
+          if(_ts.debug) {
+            Console.WriteLine(_ts._node.Address + " completed transfer  to " + _con.Address + ".");
+          }
         }
       }
 
