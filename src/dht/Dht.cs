@@ -37,7 +37,7 @@ namespace Brunet.Dht {
     protected AHAddress _left_addr = null, _right_addr = null;
 
     public Dht(Node node) {
-      node = node;
+      this.node = node;
       //get an instance of RpcManager for the node
       _rpc = RpcManager.GetInstance(node);
       _table = new TableServer(node, _rpc);
