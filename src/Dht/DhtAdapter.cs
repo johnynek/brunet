@@ -120,7 +120,7 @@ namespace Ipop {
 
     public override IDictionary GetDhtInfo() {
       Hashtable ht = new Hashtable();
-      ht.Add("address", _dht.Address.ToString());
+      ht.Add("address", _dht.node.Address.ToString());
       return ht;
     }
   }
@@ -164,7 +164,7 @@ namespace Ipop {
     [XmlRpcMethod]
     public override IDictionary GetDhtInfo() {
       XmlRpcStruct xrs = new XmlRpcStruct();
-      xrs.Add("address", _dht.Address.ToString());
+      xrs.Add("address", _dht.node.Address.ToString());
       return xrs;
     }
   }
