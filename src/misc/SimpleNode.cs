@@ -187,7 +187,7 @@ namespace Ipop {
         foreach(EdgeListener item in config.EdgeListeners) {
           int port = Int32.Parse(item.port) + i;
           if(config.DevicesToBind == null) {
-            if (item.type =="tcp")
+            if (item.type == "tcp")
               el = new TcpEdgeListener(port);
             else if (item.type == "udp")
               el = new UdpEdgeListener(port);
@@ -197,12 +197,12 @@ namespace Ipop {
               throw new Exception("Unrecognized transport: " + item.type);
           }
           else {
-  /*          if (item.type =="tcp")
-              el = new TcpEdgeListener(port, (IEnumerable) (new IPAddresses(config.DevicesToBind)), null);*/
-            if (item.type == "udp")
+            if (item.type == "tcp")
+              el = new TcpEdgeListener(port, OSDependent.GetIPAddresses(config.DevicesToBind));
+            else if (item.type == "udp")
               el = new UdpEdgeListener(port, OSDependent.GetIPAddresses(config.DevicesToBind));
-  /*          else if (item.type == "udp-as")
-              el = new ASUdpEdgeListener(port, (IEnumerable) (new IPAddresses(config.DevicesToBind)), null);*/
+            else if (item.type == "udp-as")
+              el = new ASUdpEdgeListener(port, OSDependent.GetIPAddresses(config.DevicesToBind), null);
             else
               throw new Exception("Unrecognized transport: " + item.type);
           }

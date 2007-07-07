@@ -51,6 +51,7 @@ namespace Ipop {
           try {
             BlockingQueue queue = new BlockingQueue();
             queue.EnqueueEvent += RouteMissCallback;
+            queue.CloseEvent += RouteMissCallback;
             _dht.AsGet(key, queue);
             _queued[ip] = true;
             _mapping[queue] = ip;
