@@ -328,7 +328,7 @@ namespace Brunet.Dht {
          * right disconnect and no one ready
          */
         if(lc != null) {
-          if(lc.IsConnected && lc.Address != _left_addr) {
+          if(lc.Address != _left_addr) {
             if(_left_transfer_state != null) {
               _left_transfer_state.Interrupt();
               _left_transfer_state = null;
@@ -471,9 +471,17 @@ namespace Brunet.Dht {
         try {
           queue.Dequeue();
         }
-        catch (Exception e){
-          Console.Error.WriteLine("Maybe the timeouts are too low on edge: {0} \n {1}", _con.Edge, e);
+        catch (InvalidOperationException){
+          if(_con.Edge.IsClosed) {
+            lock(_interrupted) {
+              _interrupted = true;
+            }
+          }
+          else {
+            Console.Error.WriteLine("Maybe the timeouts are too low on edge: {0} \n {1}", _con.Edge, e);
+          }
         }
+
         Entry ent = null;
         lock(_entry_enumerator) {
           if(_entry_enumerator.MoveNext()) {
