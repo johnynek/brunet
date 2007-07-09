@@ -316,67 +316,94 @@ namespace Brunet
         }
       return new StatusMessage( con_type_string, neighbors );
     }
-
+    /**
+     * Call the GetStatus method on the given connection
+     */
+    protected void CallGetStatus(string type, Connection c) {
+      ConnectionTable tab = this.ConnectionTable;
+      if( c != null ) {
+        StatusMessage req = GetStatus(type, c.Address);
+        BlockingQueue stat_res = new BlockingQueue();
+        EventHandler handle_result = delegate(object q, EventArgs eargs) {
+          try {
+            RpcResult r = (RpcResult)stat_res.Dequeue();
+            StatusMessage sm = new StatusMessage( (IDictionary)r.Result );
+            tab.UpdateStatus(c, sm);
+          }
+          catch(Exception) {
+            //Looks like lc disappeared before we could update it
+          }
+          stat_res.Close();
+        };
+        stat_res.EnqueueEvent += handle_result;
+        RpcManager rpc = RpcManager.GetInstance(this);
+        rpc.Invoke(c.Edge, stat_res, "sys:link.GetStatus", req.ToDictionary() );
+      }
+    }
     /**
      * Sends a StatusMessage request (local node) to the nearest right and 
      * left neighbors (in the local node's ConnectionTable) of the new Connection.
      */
     protected void UpdateNeighborStatus(object contab, EventArgs args)
     {
-     try {
-      //our request for the new connections' neighbors
-      ConnectionTable tab = this.ConnectionTable;
-      if( tab.Count(ConnectionType.Structured) <= 1 ) {
-        //There is only one neighbor, no communication will help:
-	return;
-      }
-      //Update the relevant neighbors on the status:
-      Connection con = ((ConnectionEventArgs)args).Connection;
-      
-      string con_type_string = con.ConType;
-      AHAddress new_address = (AHAddress)con.Address;
-      
-      Connection lc = tab.GetLeftStructuredNeighborOf(new_address);
-      Connection rc = tab.GetRightStructuredNeighborOf(new_address);
-      if( lc != null ) {
-        StatusMessage req = GetStatus(con_type_string, lc.Address);
-        BlockingQueue stat_res = new BlockingQueue();
-        EventHandler handle_result = delegate(object q, EventArgs eargs) {
+      try {
+        //our request for the new connections' neighbors
+        ConnectionTable tab = this.ConnectionTable;
+        if( tab.Count(ConnectionType.Structured) <= 1 ) {
+          //There is only one neighbor, no communication will help:
+  	  return;
+        }
+        //Update the relevant neighbors on the status:
+        Connection con = ((ConnectionEventArgs)args).Connection;
+        
+        string con_type_string = con.ConType;
+        AHAddress new_address = (AHAddress)con.Address;
+        
+        bool done = false;
+        Connection lc = null;
+        int trials = 0;
+        do {
+          trials++;
+          lc = tab.GetLeftStructuredNeighborOf(new_address);
           try {
-            RpcResult r = (RpcResult)stat_res.Dequeue();
-            StatusMessage sm = new StatusMessage( (IDictionary)r.Result );
-            tab.UpdateStatus(lc, sm);
+            if( lc != null ) {
+              CallGetStatus(con_type_string, lc);
+              done = true;
+            }
+            else {
+              //There are no more neighbors
+              done = true;
+            }
           }
-          catch(Exception) {
-            //Looks like lc disappeared before we could update it
+          catch(Exception x) {
+            Console.Error.WriteLine("CallGetStatus trial {2} on {0} failed: {1}", lc, x, trials); 
           }
-          stat_res.Close();
-        };
-        stat_res.EnqueueEvent += handle_result;
-        RpcManager rpc = RpcManager.GetInstance(this);
-        rpc.Invoke(lc.Edge, stat_res, "sys:link.GetStatus", req.ToDictionary() );
-      }
-      if( rc != null && (lc != rc) ) {
-        StatusMessage req = GetStatus(con_type_string, rc.Address);
-        BlockingQueue stat_res = new BlockingQueue();
-        EventHandler handle_result = delegate(object q, EventArgs eargs) {
+          done = done || (trials > 3); //Don't try forever
+        } while(!done);
+        Connection rc = null;
+        done = false;
+        trials = 0;
+        do {
+          trials++;
+          rc = tab.GetRightStructuredNeighborOf(new_address);
           try {
-            RpcResult r = (RpcResult)stat_res.Dequeue();
-            StatusMessage sm = new StatusMessage( (IDictionary)r.Result );
-            tab.UpdateStatus(rc, sm);
+            if( rc != null && (lc != rc) ) {
+              CallGetStatus(con_type_string, rc);
+              done = true;
+            }
+            else {
+              //There are no more neighbors
+              done = true;
+            }
           }
-          catch(Exception) {
-            //Looks like lc disappeared before we could update it
+          catch(Exception x) {
+            Console.Error.WriteLine("CallGetStatus trial {2} on {0} failed: {1}", rc, x, trials); 
           }
-          stat_res.Close();
-        };
-        stat_res.EnqueueEvent += handle_result;
-        RpcManager rpc = RpcManager.GetInstance(this);
-        rpc.Invoke(rc.Edge, stat_res, "sys:link.GetStatus", req.ToDictionary() );
-      }      
-     } catch(Exception x) {
+          done = done || (trials > 3); //Don't try forever
+        } while(!done);
+      } catch(Exception x) {
         Console.Error.WriteLine(x.ToString());
-     }
+      }
     }
     
   }

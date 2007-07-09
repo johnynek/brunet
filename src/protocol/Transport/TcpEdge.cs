@@ -54,7 +54,7 @@ namespace Brunet
    * The UDP protocol is really better for Brunet.
    */
 
-  public class TcpEdge:Brunet.Edge
+  public class TcpEdge : Brunet.Edge
   {
 
 #if PLAB_LOG
@@ -103,16 +103,16 @@ namespace Brunet
       log4net.LogManager.GetLogger(System.Reflection.MethodBase.
       GetCurrentMethod().DeclaringType);*/
 
-    protected Socket _sock;
+    protected readonly Socket _sock;
     public Socket Socket { get { return _sock; } }
-    protected bool inbound;
+    protected readonly bool inbound;
     protected bool _is_closed;
     protected bool _is_sending;
-    protected byte[] _size_buffer;
+    protected readonly byte[] _size_buffer;
 
 #if TCP_SELECT
     protected bool _need_to_send;
-    protected TcpEdgeListener _tel;
+    protected readonly TcpEdgeListener _tel;
     public bool NeedToSend {
       get {
         lock( _sync ) {
@@ -147,7 +147,7 @@ namespace Brunet
      * the packets over the socket, we place them in
      * queue
      */
-    protected Queue _packet_queue;
+    protected readonly Queue _packet_queue;
 #endif
 
 #if TCP_POLL
@@ -155,7 +155,7 @@ namespace Brunet
      * In the polling implementation, there is
      * a thread that spins waiting for packets to come in
      */
-    protected Thread _poll_thread;
+    protected readonly Thread _poll_thread;
 #endif
 
 #if TCP_SELECT
@@ -227,26 +227,30 @@ namespace Brunet
 #if POB_TCP_DEBUG
       Console.Error.WriteLine("edge: {0}, Closing",this);
 #endif
-      //Don't hold the lock while we close:
-      base.Close();
-
+      bool shutdown = false;
       lock( _sync ) {
-        try {
-          if (!_is_closed) {
-            _is_closed = true;
-            _sock.Shutdown(SocketShutdown.Both);
-            _sock.Close();
-          }
-        }
-        catch(Exception) {
-          //log.Error("Problem Closing", ex);
-        }
-        finally {
-#if TCP_POLL
-          _poll_thread.Abort();
-#endif
+        if (!_is_closed) {
+          _is_closed = true;
+          shutdown = true;
         }
       }
+      if( shutdown ) {
+        try {
+          _sock.Shutdown(SocketShutdown.Both);
+        }
+        catch(Exception ex) {
+          //log.Error("Problem Closing", ex);
+          Console.Error.WriteLine("Error shutting down socket on edge: {0}\n{1}", this, ex);
+        }
+        finally {
+          _sock.Close();
+  #if TCP_POLL
+          _poll_thread.Abort();
+  #endif
+        }
+      }
+      //Don't hold the lock while we close:
+      base.Close();
     }
 
     public override bool IsClosed
@@ -266,7 +270,7 @@ namespace Brunet
       }
     }
 
-    protected DateTime _create_dt;
+    protected readonly DateTime _create_dt;
     public override DateTime CreatedDateTime {
       get { return _create_dt; }
     }
