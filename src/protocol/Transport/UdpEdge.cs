@@ -18,14 +18,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-/*
- * Dependencies : 
- * 
- * Brunet.Edge;
- * Brunet.Packet;
- * Brunet.TransportAddress;
- */
-
 using System;
 using System.Collections;
 using System.Net;
@@ -49,8 +41,8 @@ namespace Brunet
       log4net.LogManager.GetLogger(System.Reflection.MethodBase.
       GetCurrentMethod().DeclaringType);*/
 
-    protected bool inbound;
-    protected bool _is_closed;
+    protected readonly bool inbound;
+    protected volatile bool _is_closed;
     protected IEdgeSendHandler _send_cb;
 
     protected System.Net.EndPoint end;
@@ -61,21 +53,25 @@ namespace Brunet
      */
     public System.Net.EndPoint End {
       get {
-        return end;
+        lock( _sync ) {
+          return end;
+        }
       }
       set {
-        end = value;
-        _remoteta = TransportAddressFactory.CreateInstance(TAType, (IPEndPoint) end);
+        lock( _sync ) {
+          end = value;
+          _remoteta = TransportAddressFactory.CreateInstance(TAType, (IPEndPoint) end);
+        }
       }
     }
 
-    protected int _id;
+    protected readonly int _id;
     public int ID { get { return _id; } }
 
     protected int _remoteid;
     public int RemoteID {
-      get { return _remoteid; }
-      set { _remoteid = value; }
+      get { lock( _sync ) { return _remoteid; } }
+      set { lock( _sync ) { _remoteid = value; } }
     }
     
     /**
@@ -109,25 +105,19 @@ namespace Brunet
 
     public override bool IsClosed
     {
-      get
-      {
-        return (_is_closed);
-      }
+      get { return _is_closed; }
     }
     public override bool IsInbound
     {
-      get
-      {
-        return inbound;
-      }
+      get { return inbound; }
     }
-    protected DateTime _create_dt;
+    protected readonly DateTime _create_dt;
     public override DateTime CreatedDateTime {
       get { return _create_dt; }
     }
     protected DateTime _last_out_packet_datetime;
     public override DateTime LastOutPacketDateTime {
-      get { return _last_out_packet_datetime; }
+      get { lock( _sync ) { return _last_out_packet_datetime; } }
     }
 
     public override void Send(ICopyable p)
@@ -142,22 +132,18 @@ namespace Brunet
       }
 
       _send_cb.HandleEdgeSend(this, p);
-      _last_out_packet_datetime = DateTime.UtcNow;
+      lock( _sync ) {
+        _last_out_packet_datetime = DateTime.UtcNow;
+      }
 #if UDP_DEBUG
       /**
          * logging of outgoing packets
          */
       //string GeneratedLog = " a new packet was recieved on this edge ";
       string base64String;
-      try {
-        byte[] packet_buf = new byte[ p.Length ];
-        p.CopyTo(packet_buf, 0);
-        base64String = Convert.ToBase64String(packet_buf);
-      }
-      catch (System.ArgumentNullException){
-        //log.Error("Error: Packet is Null");
-        return;
-      }
+      byte[] packet_buf = new byte[ p.Length ];
+      p.CopyTo(packet_buf, 0);
+      base64String = Convert.ToBase64String(packet_buf);
       string GeneratedLog = "OutPacket: " + LocalTA.ToString()+", "+RemoteTA.ToString()+ ", " + base64String;
       //log.Info(GeneratedLog);
       // logging finished
@@ -172,7 +158,7 @@ namespace Brunet
       }
     }
 
-    protected TransportAddress _localta;
+    protected readonly TransportAddress _localta;
     public override Brunet.TransportAddress LocalTA
     {
       get { return _localta; }
@@ -184,8 +170,8 @@ namespace Brunet
      * view of our Peer
      */
     public TransportAddress PeerViewOfLocalTA {
-      get { return _pvlocal; }
-      set { _pvlocal = value; }
+      get { lock( _sync ) { return _pvlocal; } }
+      set { lock( _sync ) { _pvlocal = value; } }
     }
     //UDP ports are always bi-directional, and never ephemeral
     public override bool LocalTANotEphemeral { get { return true; } }
@@ -193,7 +179,7 @@ namespace Brunet
     protected TransportAddress _remoteta;
     public override Brunet.TransportAddress RemoteTA
     {
-      get { return _remoteta; }
+      get { lock( _sync ) { return _remoteta; } }
     }
     
     //UDP ports are always bi-directional, and never ephemeral

@@ -40,10 +40,11 @@ namespace Brunet
       }
     }
     
-    protected Cache _route_cache;
+    protected readonly Cache _route_cache;
     public AHRouter(AHAddress local)
     {
       _local = local;
+      _sync = new object();
       /*
        * Store the 1000 most commonly used routes.
        * Since this may cause us to keep an extra 1000
@@ -53,9 +54,10 @@ namespace Brunet
       _route_cache = new Cache(1000);
       _our_left_n = null;
     }
-    protected AHAddress _local;
+    protected readonly AHAddress _local;
     ///This is our left neighbor.  We often need to look at this.
-    protected Connection _our_left_n;
+    protected volatile Connection _our_left_n;
+    protected readonly object _sync;
 
     protected ConnectionTable _tab;
     public ConnectionTable ConnectionTable {
@@ -163,7 +165,8 @@ namespace Brunet
           //We check this below.
 	}
       }
-      CachedRoute cr = (CachedRoute)_route_cache[ dest.ToMemBlock() ];
+      CachedRoute cr = null;
+      lock( _sync ) { cr = (CachedRoute)_route_cache[ dest.ToMemBlock() ]; }
       if( cr != null && (cr.Previous == prev_e) ) {
         //Awesome, we already know the path to this node.
         //This cuts down on latency
@@ -495,7 +498,7 @@ namespace Brunet
         */
        //Make sure not to keep a reference to the whole packet:
        object key = dest.ToMemBlock().Clone();
-       _route_cache[key] = new CachedRoute(prev_e, next_con, deliverlocally);
+       lock(_sync ) { _route_cache[key] = new CachedRoute(prev_e, next_con, deliverlocally); }
       }//End of cache check   
       //Here are the other modes:
       if( p.HasOption( AHPacket.AHOptions.Last ) ) {
@@ -545,11 +548,36 @@ namespace Brunet
 	}
       }
       catch(EdgeException x) {
-	System.Console.Error.WriteLine(x);
-	System.Console.Error.WriteLine("{0}: Edge exception encountered while sending from: {1} delloc: {2}",
-				 _local,prev_e,deliverlocally);
-        next_con.Edge.Close();
-	return -1;
+        if( !next_con.Edge.IsClosed ) {
+	  System.Console.Error.WriteLine(x);
+	  System.Console.Error.WriteLine("{0}: Edge exception encountered while sending from: {1} to: {3}, delloc: {2}",
+				 _local,prev_e,deliverlocally, next_con);
+          next_con.Edge.Close();
+        } else {
+          /*
+           * The edge is closed.
+           * Make sure the connection table doesn't have it as a connection
+           */
+          Connection c = _tab.GetConnection(next_con.Edge);
+          if( c != null ) {
+            System.Console.Error.WriteLine("ERROR: Edge closed but still present in ConnectionTable: {0}", c);
+            return -1;
+          }
+          else {
+            //The edge must have been closed since we computed the route, just
+            //reset the cache and start again.
+          }
+        }
+        lock( _sync ) {
+          //Make sure we clear the cache and left neighbor:
+          _route_cache.Clear();
+          _our_left_n = null;
+        }
+        /*
+         * This edge gave us problems, let's try again now that we've closed
+         * that bad edge.
+         */
+        return this.Route(prev_e, p, out deliverlocally);
       }
     }
 
@@ -557,18 +585,22 @@ namespace Brunet
      * When the ConnectionTable changes, our cached routes are all trash
      */
     protected void ConnectionTableChangeHandler(object o, System.EventArgs args) {
-      _route_cache.Clear();
-      //Our left neighbor may have changed:
-      _our_left_n = null;
+      lock( _sync ) {
+        _route_cache.Clear();
+        //Our left neighbor may have changed:
+        _our_left_n = null;
+      }
     }
     protected void StatusChangedHandler(object ct, System.EventArgs args) {
       ConnectionEventArgs ce = (ConnectionEventArgs)args;
       Connection new_con = ce.Connection;
-      if (_our_left_n != null) {
-	if( new_con.Edge == _our_left_n.Edge ) {
-	  _our_left_n = new_con;
-	}
-      } 
+      lock( _sync ) {
+        if (_our_left_n != null) {
+	  if( new_con.Edge == _our_left_n.Edge ) {
+	    _our_left_n = new_con;
+	  }
+        }
+      }
     }
   }
 }
