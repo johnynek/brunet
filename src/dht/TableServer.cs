@@ -471,7 +471,7 @@ namespace Brunet.Dht {
         try {
           queue.Dequeue();
         }
-        catch (InvalidOperationException){
+        catch (Exception e){
           if(_con.Edge.IsClosed) {
             lock(_interrupted) {
               _interrupted = true;
