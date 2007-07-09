@@ -422,7 +422,7 @@ namespace Brunet {
         }
       }//End of ConnectionTable lock
       
-      if( structured_count > 0 && target == null ) {
+      if( structured_count > 0 && sender == null ) {
           //We have enough structured connections to ignore the leafs
           
 	  /**
@@ -430,36 +430,31 @@ namespace Brunet {
 	   * a ConnectToMessage in the directons we
 	   * need.
 	   */
-
-	  bool trying_near = false;
-          short ttl;
           if( NeedLeftNeighbor ) {
 #if POB_DEBUG
       //Console.Error.WriteLine("NeedLeftNeighbor: {0}", _node.Address);
 #endif
             target = new DirectionalAddress(DirectionalAddress.Direction.Left);
-	    ttl = (short)DESIRED_NEIGHBORS;
-	    trying_near = true;
+	    short ttl = (short)DESIRED_NEIGHBORS;
             sender = new AHSender(_node, target, ttl, AHPacket.AHOptions.Last);
             contype = STRUC_NEAR;
           }
-	  if( NeedRightNeighbor ) {
+	  else if( NeedRightNeighbor ) {
 #if POB_DEBUG
       //Console.Error.WriteLine("NeedRightNeighbor: {0}", _node.Address);
 #endif
             target = new DirectionalAddress(DirectionalAddress.Direction.Right);
-	    ttl = (short)DESIRED_NEIGHBORS;
-	    trying_near = true;
+	    short ttl = (short)DESIRED_NEIGHBORS;
             sender = new AHSender(_node, target, ttl, AHPacket.AHOptions.Last);
             contype = STRUC_NEAR;
           }
+	  else if( NeedShortcut ) {
 	  /*
 	   * If we are trying to get near connections it
 	   * is not smart to try to get a shortcut.  We
 	   * need to make sure we are on the proper place in
 	   * the ring before doing the below:
 	   */
-	  if( !trying_near && NeedShortcut ) {
 #if POB_DEBUG
       //Console.Error.WriteLine("NeedShortcut: {0}", _node.Address);
 #endif
@@ -470,8 +465,7 @@ namespace Brunet {
              * Use greedy routing to make shortcuts, because we only want to
              * find the node closest to the target address.
              */
-            sender = new AHSender(_node, target, _node.DefaultTTLFor(target),
-                                  AHPacket.AHOptions.Greedy);
+            sender = new AHGreedySender(_node, target);
           }
       }
       if( sender != null ) {

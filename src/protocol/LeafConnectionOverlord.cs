@@ -49,6 +49,15 @@ namespace Brunet
         if( _last_non_leaf_connection_event == DateTime.MinValue ) {
           return DESIRED_CONS;
         }
+        else if (_local.ConnectionTable.Count(ConnectionType.Structured) == 0) {
+          /*
+           * We have no structured connections, so we definitely should have
+           * leaf connections.  They are used to create structured
+           * connections, without any leaf connections, we can't get
+           * structured connections
+           */
+          return DESIRED_CONS;
+        }
         else {
            /*
             * Linearly decrease the number we want so that after zero seconds,
@@ -161,57 +170,70 @@ namespace Brunet
      */
     public void CheckAndConnectHandler(object linker, EventArgs args)
     {
-     ConnectionEventArgs cea = args as ConnectionEventArgs;
-     DateTime now = DateTime.UtcNow;
-     Linker new_linker = null;
-     lock(_sync) {
-       if( cea != null ) {
-         //This is a connection event.
-         if( cea.Connection.MainType != ConnectionType.Leaf ) {
-           _last_non_leaf_connection_event = now;
-         }
-       }
-      //Check in order of cheapness, so we can avoid hard work...
-      bool time_to_start = (now - _last_retry >= _current_retry_interval );
-      if ( (_linker == null) &&
-           IsActive && NeedConnection && time_to_start ) {
-        //Now we double the retry interval.  When we get a connection
-	//We reset it back to the default value:
-	_last_retry = now;
-	_current_retry_interval = _current_retry_interval + _current_retry_interval;
-        //log.Info("LeafConnectionOverlord :  seeking connection");
-        //Get a random address to connect to:
+      ConnectionEventArgs cea = args as ConnectionEventArgs;
+      DateTime now = DateTime.UtcNow;
+      Linker new_linker = null;
+      lock(_sync) {
+        if( cea != null ) {
+          //This is a connection event.
+          if( cea.Connection.MainType != ConnectionType.Leaf ) {
+            _last_non_leaf_connection_event = now;
+          }
+        }
+        //Check in order of cheapness, so we can avoid hard work...
+        bool time_to_start = (now - _last_retry >= _current_retry_interval );
+        if ( (_linker == null) && time_to_start && 
+             IsActive && NeedConnection ) {
+          //Now we double the retry interval.  When we get a connection
+  	//We reset it back to the default value:
+  	_last_retry = now;
+  	_current_retry_interval = _current_retry_interval + _current_retry_interval;
+          //log.Info("LeafConnectionOverlord :  seeking connection");
+          //Get a random address to connect to:
+  
+  	//Make a copy:
+          object[] tas = _local.RemoteTAs.ToArray();
+          /*
+  	 * Make a randomized list of TransportAddress objects to connect to:
+  	 * This is a very nice algorithm.  It is optimal in that it produces
+  	 * a permutation of a list using N swaps and log(N!) bits
+  	 * of entropy.
+  	 */
+          for(int j = 0; j < tas.Length; j++) {
+            //Swap the j^th position with this position:
+            int i = _rnd.Next(j, tas.Length);
+  	    if( i != j ) {
+              object temp_ta = tas[i];
+              tas[i] = tas[j];
+  	      tas[j] = temp_ta;
+  	    }
+          }
+          /**
+           * Make a Link to a remote node 
+           */
+          _linker = new Linker(_local, null, tas, "leaf");
+          new_linker = _linker;
+        }
+        else if (cea != null) {
+          /*
+           * This is the case that there was a non-leaf connection
+           * or disconnection, BUT it is not yet time to start OR
+           * there is current linker running OR we are not active OR
+           * we don't need a connection
+           * 
+           * In this case, we set the retry interval back to the default
+           * value.  This is because we only do the exponential back
+           * off when there we can't seem to get connected when we try.
+           * Clearly we are getting edges here, so there is no need
+           * for the back-off.
+           */
 
-	//Make a copy:
-        object[] tas = _local.RemoteTAs.ToArray();
-        /*
-	 * Make a randomized list of TransportAddress objects to connect to:
-	 * This is a very nice algorithm.  It is optimal in that it produces
-	 * a permutation of a list using N swaps and log(N!) bits
-	 * of entropy.
-	 */
-        for(int j = 0; j < tas.Length; j++) {
-          //Swap the j^th position with this position:
-          int i = _rnd.Next(j, tas.Length);
-	  if( i != j ) {
-            object temp_ta = tas[i];
-	    tas[i] = tas[j];
-	    tas[j] = temp_ta;
-	  }
-	}
-        /**
-         * Make a Link to a remote node 
-         */
-        _linker = new Linker(_local, null, tas, "leaf");
-        new_linker = _linker;
-      }
-      else if (cea != null) {
-        //Reset the connection interval to the default value:
-	_current_retry_interval = _default_retry_interval;
-        //We are not seeking another connection
-        //log.Info("LeafConnectionOverlord :  not seeking connection");
-      }
-      //Check to see if it is time to trim.
+          //Reset the connection interval to the default value:
+  	  _current_retry_interval = _default_retry_interval;
+          //We are not seeking another connection
+          //log.Info("LeafConnectionOverlord :  not seeking connection");
+        }
+        //Check to see if it is time to trim.
       }//Drop the lock
       Trim();
       
