@@ -359,7 +359,7 @@ namespace Brunet.Dht {
       int op = 0;
       try {
         Console.WriteLine("The following are serial tests until mentioned otherwise.");
-/*        Test0(ref op);
+        Test0(ref op);
         Test1(ref op);
         Test2(ref op);
         Test3(ref op);
@@ -372,7 +372,7 @@ namespace Brunet.Dht {
         Test10(ref op);
         Test11(ref op);
         Test12(ref op);
-        Test13(ref op);*/
+        Test13(ref op);
         Test14(ref op);
       }
       catch (Exception e) {
