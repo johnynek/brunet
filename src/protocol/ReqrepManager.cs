@@ -285,7 +285,7 @@ public class ReqrepManager : IDataHandler {
    protected double _exp_moving_square_rtt;
    protected double _max_rtt;
    //How many standard deviations to wait:
-   protected const int _STD_DEVS = 5;
+   protected const int _STD_DEVS = 6;
 
    // Methods /////
    /**
