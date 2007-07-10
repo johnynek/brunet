@@ -99,8 +99,8 @@ namespace Brunet
 
     public override void Close()
     {
-      base.Close();
       _is_closed = true;
+      base.Close();
     }
 
     public override bool IsClosed

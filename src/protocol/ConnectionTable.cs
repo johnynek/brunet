@@ -187,6 +187,9 @@ namespace Brunet
      * Edge method Edge.Close() should be called, and
      * the ConnectionTable will react properly
      * @throws ConnectionExistsException if there is already such a connection
+     * @throws TableClosedException if the ConnectionTable is closed to new
+     * connections.
+     * @throws Exception if the Edge in this Connection is already closed.
      */
     public void Add(Connection c)
     {
@@ -197,6 +200,7 @@ namespace Brunet
 
       lock(_sync) {
         if( _closed ) { throw new TableClosedException(); }
+        Connection c_present = GetConnection(e);
         index = IndexOf(t, a);
         if (index < 0) {
           //This is a new address:
@@ -204,17 +208,34 @@ namespace Brunet
         }
         else {
           //This is an old address, no good
-          Connection c_present = GetConnection(t, index);
+          c_present = GetConnection(t, index);
+        }
+        if( c_present != null ) {
           throw new ConnectionExistsException(c_present);
         }
         /*
          * Here we actually do the storing:
          */
         /*
+         * Don't respond to the CloseEvent for now:
+         */
+        e.CloseEvent -= this.RemoveHandler;
+        if( e.IsClosed ) {
+          /*
+           * RemoveHandler is idempotent, so make sure it is called
+           * (since we removed the handler just before)
+           * This is safe to do while holding the lock because
+           * we don't have a connection on this edge, and thus
+           * there can't be a DisconnectionEvent caused by the RemoveHandler
+           */
+          RemoveHandler(e, null);
+          throw new Exception("Edge is already closed");
+        }
+        /*
          * Copy so we don't mess up an old list
          */
         ArrayList list;
-        
+         
         list = (ArrayList)_type_to_addlist[t];
         list = Functional.Insert(list, index, a);
         _type_to_addlist = Functional.SetElement(_type_to_addlist, t, list);
@@ -233,18 +254,10 @@ namespace Brunet
         
         _edge_to_con = Functional.Add(_edge_to_con, e, c);
 
-
-        //Now that we have registered the new CloseEvent handler,
-        //we can remove the old one
         int ucidx = _unconnected.IndexOf(e);
         if( ucidx >= 0 ) {
           //Remove the edge from the _unconnected table
           _unconnected = Functional.RemoveAt(_unconnected, ucidx);
-        }
-        else {
-          //This is a new connection, so we need to add the CloseEvent
-          /* Tell the edge to let you know when it dies: */
-          e.CloseEvent += new EventHandler(this.RemoveHandler);
         }
       } /* we release the lock */
       
@@ -281,7 +294,20 @@ namespace Brunet
           Console.Error.WriteLine("ConnectionEvent triggered exception: {0}\n{1}", c, x);
         }
       }
-     // return index;
+      e.CloseEvent += this.RemoveHandler;
+      if( e.IsClosed ) {
+        /*
+         * If the edge was closed before we got it added, it might be
+         * added but never removed from the table.  Now that we have
+         * completely added the Connection and registered the handler
+         * for the CloseEvent, let's make sure it is still good.
+         * If it closes after this, the CloseEvent will catch it.
+         *
+         * Since RemoveHandler is idempotent, this is safe to call
+         * multiple times.
+         */
+        RemoveHandler(e, null);
+      }
     }
 
     /**

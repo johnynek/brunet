@@ -561,17 +561,26 @@ namespace Brunet
           Connection c = _tab.GetConnection(next_con.Edge);
           if( c != null ) {
             System.Console.Error.WriteLine("ERROR: Edge closed but still present in ConnectionTable: {0}", c);
-            return -1;
+            /*
+             * We may be in the process of calling the CloseEvent in some
+             * other thread, but we should go ahead and disconnect this
+             * Connection in this thread so the next loop through we are sure
+             * that it has been removed from the ConnectionTable
+             *
+             * It is safe to call Disconnect multiple times (it is
+             * idempotent).
+             */
+            _tab.Disconnect(c.Edge);
           }
           else {
             //The edge must have been closed since we computed the route, just
-            //reset the cache and start again.
+            //start again.
           }
-        }
-        lock( _sync ) {
-          //Make sure we clear the cache and left neighbor:
-          _route_cache.Clear();
-          _our_left_n = null;
+          /*
+           * Make sure the cache is flushed and we reset out nearest left
+           * neighbor
+           */
+          ConnectionTableChangeHandler(null, null);
         }
         /*
          * This edge gave us problems, let's try again now that we've closed

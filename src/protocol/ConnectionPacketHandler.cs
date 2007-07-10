@@ -347,9 +347,13 @@ namespace Brunet
   				      lm_to_add.ConTypeString,
   				      sm,
   				      lm_to_add);
-        tab.Add(con);
-        //Unlock after we add the connection
-        tab.Unlock(lm_to_add.Local.Address, lm_to_add.ConTypeString, this);
+        try {
+          tab.Add(con);
+        }
+        finally {
+          //Unlock after we add the connection
+          tab.Unlock(lm_to_add.Local.Address, lm_to_add.ConTypeString, this);
+        }
       }
 #if LINK_DEBUG
       Console.Error.WriteLine("{0} -end- sys:link.GetStatus()->{1}", _node.Address,response);
