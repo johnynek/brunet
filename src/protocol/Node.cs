@@ -317,7 +317,7 @@ namespace Brunet
     protected TimeSpan _connection_timeout;
     ///This is the maximum value we allow _connection_timeout to grow to
     protected static readonly TimeSpan MAX_CONNECTION_TIMEOUT = new TimeSpan(0,0,0,15,0);
-    //Give edges 60 seconds to get connected, then drop them
+    //Give edges this long to get connected, then drop them
     protected static readonly TimeSpan _unconnected_timeout = new TimeSpan(0,0,0,30,0);
     /**
      * Maximum number of TAs we keep in both for local and remote.
@@ -690,7 +690,40 @@ namespace Brunet
       }
       //Announce(data, return_path);
     }
-    
+    protected TimeSpan ComputeDynamicTimeout() {
+      TimeSpan timeout;
+      //Compute the mean and stddev of LastInPacketDateTime:
+      double sum = 0.0;
+      double sum2 = 0.0;
+      int count = 0;
+      DateTime now = DateTime.UtcNow;
+      foreach(Connection con in _connection_table) {
+        Edge e = con.Edge;
+        double this_int = (now - e.LastInPacketDateTime).TotalMilliseconds;
+        sum += this_int;
+        sum2 += this_int * this_int;
+        count++;
+      }
+      /*
+       * Compute the mean and std.dev:
+       */
+      if( count > 1 ) {
+        double mean = sum / count;
+        double s2 = sum2 - count * mean * mean;
+        double stddev = Math.Sqrt( s2 /(count - 1) );
+        double timeout_d = mean + stddev;
+        //Console.WriteLine("Connection timeout: {0}, mean: {1} stdev: {2}", timeout_d, mean, stddev);
+        timeout = TimeSpan.FromMilliseconds( timeout_d );
+        if( timeout > MAX_CONNECTION_TIMEOUT ) {
+          timeout = MAX_CONNECTION_TIMEOUT;
+        }
+      }
+      else {
+        //Keep the old timeout.  Don't let small number statistics bias us
+        timeout = _connection_timeout;
+      }
+      return timeout;
+    }
     /**
      * Check all the edges in the ConnectionTable and see if any of them
      * need to be pinged or closed.
@@ -702,34 +735,9 @@ namespace Brunet
       if( now - _last_edge_check > _connection_timeout ) {
         //We are checking the edges now:
         _last_edge_check = now;
-        //Compute the mean and stddev of LastInPacketDateTime:
-        double sum = 0.0;
-        double sum2 = 0.0;
-        int count = 0;
-        foreach(Connection con in _connection_table) {
-          Edge e = con.Edge;
-          double this_int = (now - e.LastInPacketDateTime).TotalMilliseconds;
-          sum += this_int;
-          sum2 += this_int * this_int;
-          count++;
-        }
-        /*
-         * Compute the mean and std.dev:
-         */
-        if( count > 1 ) {
-          double mean = sum / count;
-          double s2 = sum2 - count * mean * mean;
-          double stddev = Math.Sqrt( s2 /(count - 1) );
-          double timeout = mean + stddev;
-          //Console.WriteLine("Connection timeout: {0}, mean: {1} stdev: {2}", timeout, mean, stddev);
-          _connection_timeout = TimeSpan.FromMilliseconds( timeout );
-          if( _connection_timeout > MAX_CONNECTION_TIMEOUT ) {
-            _connection_timeout = MAX_CONNECTION_TIMEOUT;
-          }
-        }
-        else {
-          //Keep the old timeout.  Don't let small number statistics bias us
-        }
+        
+        //_connection_timeout = ComputeDynamicTimeout();
+        _connection_timeout = MAX_CONNECTION_TIMEOUT;
         /*
          * If we haven't heard from any of these people in this time,
          * we ping them, and if we don't get a response, we close them
