@@ -236,17 +236,25 @@ namespace Brunet
       }
       if( shutdown ) {
         try {
-          _sock.Shutdown(SocketShutdown.Both);
+          //We don't want any more data, but try
+          //to send the stuff we've sent:
+          if( _sock.Connected ) {
+            _sock.Shutdown(SocketShutdown.Send);
+          }
+          else {
+            //There is no need to shutdown a socket that
+            //is not connected.
+          }
         }
         catch(Exception ex) {
           //log.Error("Problem Closing", ex);
           Console.Error.WriteLine("Error shutting down socket on edge: {0}\n{1}", this, ex);
         }
         finally {
-          _sock.Close();
   #if TCP_POLL
           _poll_thread.Abort();
   #endif
+          _sock.Close();
         }
       }
       //Don't hold the lock while we close:
@@ -255,12 +263,7 @@ namespace Brunet
 
     public override bool IsClosed
     {
-      get
-      {
-        lock(_sync) {
-          return _is_closed;
-        }
-      }
+      get { lock(_sync) { return _is_closed; } }
     }
     public override bool IsInbound
     {

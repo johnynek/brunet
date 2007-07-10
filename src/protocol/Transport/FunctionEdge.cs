@@ -45,9 +45,9 @@ namespace Brunet
       log4net.LogManager.GetLogger(System.Reflection.MethodBase.
       GetCurrentMethod().DeclaringType);*/
 
-    protected int _l_id;
-    protected int _r_id;
-    protected IEdgeSendHandler _sh;
+    protected readonly int _l_id;
+    protected readonly int _r_id;
+    protected readonly IEdgeSendHandler _sh;
 
     public FunctionEdge(IEdgeSendHandler s, int local_id, int remote_id, bool is_in)
     {
@@ -68,11 +68,11 @@ namespace Brunet
       get { return _last_out_packet_datetime; }
     }
 
-    protected bool _is_closed;
+    protected volatile bool _is_closed;
     public override void Close()
     {
-      base.Close();
       _is_closed = true;
+      base.Close();
     }
 
     public override bool IsClosed
@@ -82,7 +82,7 @@ namespace Brunet
         return (_is_closed);
       }
     }
-    protected bool inbound;
+    protected readonly bool inbound;
     public override bool IsInbound
     {
       get
@@ -91,7 +91,7 @@ namespace Brunet
       }
     }
 
-    protected FunctionEdge _partner;
+    protected volatile FunctionEdge _partner;
     public FunctionEdge Partner
     {
       get
@@ -113,8 +113,8 @@ namespace Brunet
       }
 
       if( !_is_closed ) {
-        _last_out_packet_datetime = DateTime.UtcNow;
         _sh.HandleEdgeSend(this, p);
+        _last_out_packet_datetime = DateTime.UtcNow;
       }
       else {
         throw new EdgeException(
@@ -157,7 +157,6 @@ namespace Brunet
       }
     }
     public void Push(MemBlock p) {
-      //Make a copy:
       if( !_is_closed ) {
         ReceivedPacketEvent(p);
       }
