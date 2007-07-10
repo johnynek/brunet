@@ -74,7 +74,9 @@ namespace Ipop {
       }
 
       lock(_sync) {
-        _results[ip] = dgr.value;
+        if(dgr != null) {
+          _results[ip] = dgr.value;
+        }
         _queued.Remove(ip);
         _mapping.Remove(queue);
         queue.Close();

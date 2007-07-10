@@ -147,14 +147,12 @@ namespace Ipop {
         DhtConsole();
       }
       else {
-        if(tracker) {
-          while(true) {
+        while(true) {
+          if(tracker) {
             UpdateTracker();
-            Thread.Sleep(1000*60*60);
           }
-        }
-        else {
-          while(true) Thread.Sleep(1000*60*60*24);
+       //   CheckConnections();
+          Thread.Sleep(1000*60*60);
         }
       }
 
@@ -187,7 +185,7 @@ namespace Ipop {
         foreach(EdgeListener item in config.EdgeListeners) {
           int port = Int32.Parse(item.port) + i;
           if(config.DevicesToBind == null) {
-            if (item.type == "tcp")
+            if (item.type =="tcp")
               el = new TcpEdgeListener(port);
             else if (item.type == "udp")
               el = new UdpEdgeListener(port);
@@ -197,7 +195,7 @@ namespace Ipop {
               throw new Exception("Unrecognized transport: " + item.type);
           }
           else {
-            if (item.type == "tcp")
+            if (item.type =="tcp")
               el = new TcpEdgeListener(port, OSDependent.GetIPAddresses(config.DevicesToBind));
             else if (item.type == "udp")
               el = new UdpEdgeListener(port, OSDependent.GetIPAddresses(config.DevicesToBind));
@@ -236,6 +234,16 @@ namespace Ipop {
           xrpcm.AddAsRpcHandler();
           xrmthread = new Thread(XmlRpcManagerServer.StartXmlRpcManagerServer);
           xrmthread.Start(xrpcm);
+        }
+      }
+    }
+
+    public static void CheckConnections() {
+      for(int i = 0; i < nodes.Length; i++) {
+        if(!IPOP_Common.BrunetConnected(nodes[i])) {
+          nodes[i].Disconnect();
+          Thread.Sleep(5000);
+          nodes[i].Connect();
         }
       }
     }
