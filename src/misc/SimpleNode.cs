@@ -152,6 +152,8 @@ namespace Ipop {
             UpdateTracker();
           }
        //   CheckConnections();
+          Console.Error.WriteLine("I am connected to {0} as {1}.  Current time iis {2}.", 
+              nodes[0].Realm, nodes[0].Address.ToString(), DateTime.UtcNow);
           Thread.Sleep(1000*60*60);
         }
       }
