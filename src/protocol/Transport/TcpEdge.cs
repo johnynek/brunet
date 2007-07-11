@@ -38,19 +38,6 @@ namespace Brunet
   public class TcpEdge : Brunet.Edge
   {
 
-#if PLAB_LOG
-    private BrunetLogger _logger;
-    public BrunetLogger Logger{
-	get{
-	  return _logger;
-	}
-	set
-	{
-	  _logger = value;          
-	}
-    }
-#endif
-
     /**
      * Represents the state of the packet sending
      */
@@ -59,10 +46,6 @@ namespace Brunet
       public byte[] Buffer;
       public int Offset;
       public int Length;
-      public bool SendingSize;
-
-      /* This is the packet we are sending */
-      public Packet PacketToSend;
     }
 
     /**
@@ -75,6 +58,14 @@ namespace Brunet
       public int LastReadOffset;
       public int LastReadLength;
       public bool ReadingSize;
+      public void Reset(byte[] buf, int off, int length, bool readingsize) {
+        Buffer = buf;
+        Offset = off;
+        Length = length;
+        LastReadOffset = off;
+        LastReadLength = length;
+        ReadingSize = readingsize;
+      }
     }
 
     /**
@@ -88,8 +79,6 @@ namespace Brunet
     public Socket Socket { get { return _sock; } }
     protected readonly bool inbound;
     protected bool _is_closed;
-    protected bool _is_sending;
-    protected readonly byte[] _size_buffer;
 
     protected bool _need_to_send;
     protected readonly TcpEdgeListener _tel;
@@ -130,44 +119,29 @@ namespace Brunet
     /**
      * These objects
      * keep track of the state
+     * These are only accessed by the DoSend and DoReceive methods,
+     * which are only called in the socket thread of TcpEdgeListener,
+     * there is no need to lock before getting access to them.
      */
-    private SendState _send_state;
-    private ReceiveState _rec_state;
+    private volatile SendState _send_state;
+    private volatile ReceiveState _rec_state;
 
     public TcpEdge(Socket s, bool is_in, TcpEdgeListener tel) {
       _sock = s;
       _is_closed = false;
-      _is_sending = false;
       _create_dt = DateTime.UtcNow;
       _last_out_packet_datetime = _create_dt;
       _last_in_packet_datetime = _last_out_packet_datetime;
-      _size_buffer = new byte[2];
       _packet_queue = new Queue();
       _need_to_send = false;
 	_tel = tel;
       inbound = is_in;
-      _local_ta =
-        TransportAddressFactory.CreateInstance(TAType,
+      _local_ta = TransportAddressFactory.CreateInstance(TAType,
                              (IPEndPoint) _sock.LocalEndPoint);
-      _remote_ta =
-        TransportAddressFactory.CreateInstance(TAType,
+      _remote_ta = TransportAddressFactory.CreateInstance(TAType,
                              (IPEndPoint) _sock.RemoteEndPoint);
       //We use Non-blocking sockets here
       s.Blocking = false;
-      _send_state = new SendState();
-      //This can hold 2 bytes + the largest packet
-      _send_state.Buffer = new byte[ 2 + Packet.MaxLength ];
-      _send_state.Offset = 0;
-      _send_state.Length = 0;
-      _rec_state = new ReceiveState();
-      //This can hold 2 bytes + the largest packet
-      _rec_state.Buffer = new byte[2 + Packet.MaxLength ];
-      _rec_state.Offset = 0;
-      //How many bytes left to read to get the first size
-      _rec_state.Length = 2;
-      _rec_state.LastReadOffset = 0;
-      _rec_state.LastReadLength = 2;
-      _rec_state.ReadingSize = true;
     }
 
     /**
@@ -303,45 +277,54 @@ namespace Brunet
      * In the select implementation, the TcpEdgeListener
      * will tell a socket when to do a send 
      */
-    public void DoSend()
+    public void DoSend(BufferAllocator buf)
     {
       try {
 #if POB_TCP_DEBUG
         Console.Error.WriteLine("edge: {0} in DoSend", this);
 #endif
-        bool need_to_send = false;
+        if( _send_state == null ) {
+          _send_state = new SendState();
+          _send_state.Length = 0;
+        }
+        //Must lock before we access the _packet_queue
+        bool pq_has_more = false;
         lock(_sync) {
           if( _send_state.Length == 0 && _packet_queue.Count > 0 ) {
             //It is time to get a new packet
             ICopyable p = (ICopyable)_packet_queue.Dequeue();
-            NumberSerializer.WriteShort((short)p.Length,_send_state.Buffer, 0);
-            _send_state.Offset = 0;
-            _send_state.Length = p.Length + 2;
-            p.CopyTo( _send_state.Buffer, 2 );
+            short p_length = (short)p.Length;
+            //Set up the _send_state buffer:
+            _send_state.Buffer = buf.Buffer;
+            _send_state.Offset = buf.Offset;
+            //Now write into this buffer:
+            NumberSerializer.WriteShort(p_length, _send_state.Buffer, _send_state.Offset);
+            p.CopyTo( _send_state.Buffer, _send_state.Offset + 2 );
+            _send_state.Length = p_length + 2;
+            //Advance the BufferAllocator so we don't reuse this space
+            buf.AdvanceBuffer( _send_state.Length );
           }
-
-          if( _send_state.Length > 0 ) {
-            int sent = _sock.Send(_send_state.Buffer,
-                                  _send_state.Offset,
-                                  _send_state.Length,
-                                  SocketFlags.None);
-            if( sent > 0 ) {
-              _send_state.Offset += sent;
-              _send_state.Length -= sent;
-            }
-            else {
-              //The edge is now closed.
-#if POB_TCP_DEBUG
-              Console.Error.WriteLine("{0} sent: {1}", this, sent);
-#endif
-              throw new EdgeException("Edge is closed");
-            }
-          }
-          need_to_send = ( _send_state.Length > 0 ||
-                           _packet_queue.Count > 0 );
+          pq_has_more = (_packet_queue.Count > 0);
         }
-        //Be careful not to hold the lock here, because this sends an event
-        NeedToSend = need_to_send;
+
+        if( _send_state.Length > 0 ) {
+          int sent = _sock.Send(_send_state.Buffer,
+                                _send_state.Offset,
+                                _send_state.Length,
+                                SocketFlags.None);
+#if POB_TCP_DEBUG
+          Console.Error.WriteLine("{0} sent: {1}", this, sent);
+#endif
+          if( sent > 0 ) {
+            _send_state.Offset += sent;
+            _send_state.Length -= sent;
+          }
+          else {
+            //The edge is now closed.
+            throw new EdgeException("Edge is closed");
+          }
+        }
+        NeedToSend = ( pq_has_more || _send_state.Length > 0 );
       }
       catch {
         Close();
@@ -353,97 +336,96 @@ namespace Brunet
      * will tell a socket when to do a read.
      * Get at most one packet out.
      */
-    public void DoReceive()
+    public void DoReceive(BufferAllocator buf)
     {
       MemBlock p = null;
       try {
 #if POB_TCP_DEBUG
         Console.Error.WriteLine("edge: {0} in DoReceive", this);
 #endif
-        lock(_sync) {
-          int got = _sock.Receive(_rec_state.Buffer,
-                                  _rec_state.LastReadOffset,
-                                  _rec_state.LastReadLength,
-                                  SocketFlags.None);
+        //Reinitialize the rec_state
+        if( _rec_state == null ) {
+          _rec_state = new ReceiveState();
+          _rec_state.Reset(buf.Buffer, buf.Offset, 2, true);
+          buf.AdvanceBuffer(2);
+        }
+        int got = _sock.Receive(_rec_state.Buffer,
+                                _rec_state.LastReadOffset,
+                                _rec_state.LastReadLength,
+                                SocketFlags.None);
 #if POB_TCP_DEBUG
-          Console.Error.WriteLine("{0} got: {1}", this, got);
+        Console.Error.WriteLine("{0} got: {1}", this, got);
 #endif
-          if( got == 0 ) {
-            throw new EdgeException("Got zero bytes, this edge is closed");  
-          }
-          _rec_state.LastReadOffset += got;
-          _rec_state.LastReadLength -= got;
+        if( got == 0 ) {
+          throw new EdgeException("Got zero bytes, this edge is closed");  
+        }
+        _rec_state.LastReadOffset += got;
+        _rec_state.LastReadLength -= got;
 
 
-          bool parse_packet = false;
+        bool parse_packet = false;
 
-          if( _rec_state.LastReadLength == 0 ) {
-            //Something is ready to parse
-            if( _rec_state.ReadingSize ) {
-              short size = NumberSerializer.ReadShort(_rec_state.Buffer, 0);
-              //Reinitialize the rec_state
-              _rec_state.Offset = 0;
-              _rec_state.Length = size;
-              _rec_state.LastReadOffset = 0;
-              _rec_state.LastReadLength = size;
-              _rec_state.ReadingSize = false;
-
-              if( _sock.Available > 0 ) {
-                got = _sock.Receive( _rec_state.Buffer,
-                                     _rec_state.LastReadOffset,
-                                     _rec_state.LastReadLength,
-                                     SocketFlags.None);
+        if( _rec_state.LastReadLength == 0 ) {
+          //Something is ready to parse
+          if( _rec_state.ReadingSize ) {
+            short size = NumberSerializer.ReadShort(_rec_state.Buffer, _rec_state.Offset);
+            if( size < 0 ) { Console.Error.WriteLine("ERROR: negative packet size: {0}", size); }
+            //Reinitialize the rec_state
+            _rec_state.Reset(buf.Buffer, buf.Offset, size, false);
+            buf.AdvanceBuffer(size);
+            
+            if( _sock.Available > 0 ) {
+              got = _sock.Receive( _rec_state.Buffer,
+                                   _rec_state.LastReadOffset,
+                                   _rec_state.LastReadLength,
+                                   SocketFlags.None);
 #if POB_TCP_DEBUG
-                Console.Error.WriteLine("{0} got: {1}", this, got);
+              Console.Error.WriteLine("{0} got: {1}", this, got);
 #endif
-                if( got == 0 ) {
-                  throw new EdgeException("Got zero bytes, this edge is closed");  
-                }
-                _rec_state.LastReadOffset += got;
-                _rec_state.LastReadLength -= got;
-
-                if( _rec_state.LastReadLength == 0 ) {
-                  parse_packet = true;
-                }
+              if( got == 0 ) {
+                throw new EdgeException("Got zero bytes, this edge is closed");  
               }
-            }
-            else {
-              //We are reading a whole packet:
-              parse_packet = true;
-            }
+              _rec_state.LastReadOffset += got;
+              _rec_state.LastReadLength -= got;
 
-            if( parse_packet ) {
-              //We have the whole packet
-              p = MemBlock.Copy(_rec_state.Buffer, _rec_state.Offset, _rec_state.Length);
-#if POB_TCP_DEBUG
-              //Console.Error.WriteLine("edge: {0}, got packet {1}",this, p);
-#endif
-              //Reinit the rec_state
-              _rec_state.Offset = 0;
-              _rec_state.Length = 2;
-              _rec_state.LastReadOffset = 0;
-              _rec_state.LastReadLength = 2;
-              _rec_state.ReadingSize = true;
-              //Now we just finish and wait till next time to start reading
+              if( _rec_state.LastReadLength == 0 ) {
+                parse_packet = true;
+              }
             }
           }
           else {
-            //There is more to read, we have to wait until it is here!
-#if POB_TCP_DEBUG
-            Console.Error.WriteLine("edge: {0}, can't read",this);
-#endif
+            //We are reading a whole packet:
+            parse_packet = true;
           }
-        }//Release the lock before sending the event:
+
+          if( parse_packet ) {
+            //We have the whole packet
+            p = MemBlock.Reference(_rec_state.Buffer, _rec_state.Offset, _rec_state.Length);
+#if POB_TCP_DEBUG
+            //Console.Error.WriteLine("edge: {0}, got packet {1}",this, p);
+#endif
+            //Reinitialize the rec_state
+            _rec_state.Reset(buf.Buffer, buf.Offset, 2, true);
+            buf.AdvanceBuffer(2);
+            //Now we just finish and wait till next time to start reading
+          }
+        }
+        else {
+          //There is more to read, we have to wait until it is here!
+#if POB_TCP_DEBUG
+          Console.Error.WriteLine("edge: {0}, can't read",this);
+#endif
+        }
 #if POB_TCP_DEBUG
         Console.Error.WriteLine("edge: {0} out of DoReceive", this);
 #endif
+        if( p != null ) {
+          //We don't hold the lock while we announce the packet
+          ReceivedPacketEvent(p);
+        }
       }
       catch {
         Close();
-      }
-      if( p != null ) {
-        //We don't hold the lock while we announce the packet
-        ReceivedPacketEvent(p);
       }
     }
   }
