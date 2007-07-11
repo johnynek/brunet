@@ -41,7 +41,14 @@ public class BufferAllocator {
 
   protected int _offset;
   public int Offset { get { return _offset; } }
-
+  /**
+   * The capacity of the current Buffer
+   */
+  public int Capacity {
+    get {
+      return _buf.Length - _offset;
+    }
+  }
   /**
    * @param max_size the maximum size of a buffer you are going to read
    * @param overhead maximum overhead to use
