@@ -788,7 +788,9 @@ namespace Brunet
               rpc.Invoke(e, tmp_queue, "sys:link.Ping", ping_arg);
             }
             catch(Exception x) {
-              Console.Error.WriteLine("Could not Invoke ping on: {0}, {1}", c, x);
+              if( !e.IsClosed ) {
+                Console.Error.WriteLine("Could not Invoke ping on: {0}, {1}", c, x);
+              }
               e.Close();
             }
           }

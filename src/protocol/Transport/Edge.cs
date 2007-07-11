@@ -166,7 +166,7 @@ namespace Brunet
      * The DateTime (UTC) of the last received packet
      */
     public virtual DateTime LastInPacketDateTime {
-      get { return _last_in_packet_datetime; }
+      get { lock( _sync ) { return _last_in_packet_datetime; } }
     }
 
     public abstract bool IsClosed
@@ -184,15 +184,11 @@ namespace Brunet
 
     public int CompareTo(object e)
     {
+      if( Equals(e) ) { return 0; }
       if (e is Edge) {
         Edge edge = (Edge) e;
-        int local_cmp = this.LocalTA.CompareTo(edge.LocalTA);
-        if (local_cmp == 0) {
-          return this.RemoteTA.CompareTo(edge.RemoteTA);
-        }
-        else {
-          return local_cmp;
-        }
+        if( this.Number < edge.Number ) { return -1; }
+        else { return 1; }
       }
       else {
         return -1;
@@ -231,8 +227,8 @@ namespace Brunet
       //_sub is volatile, so there is no chance for a race here 
       Sub s = _sub;
       if( s != null ) {
-        _last_in_packet_datetime = DateTime.UtcNow;
         s.Handle(b, this);
+        lock( _sync ) { _last_in_packet_datetime = DateTime.UtcNow; }
       }
       else {
         //We don't record the time of this packet.  We don't
@@ -260,15 +256,12 @@ namespace Brunet
      */
     public override string ToString()
     {
-      string direction;
       if( IsInbound ) {
-        direction = " <- ";
+        return String.Format("local: {0} <- remote: {1}", LocalTA, RemoteTA);
       }
       else {
-        direction = " -> ";
+        return String.Format("local: {0} -> remote: {1}", LocalTA, RemoteTA);
       }
-      return "local: " + LocalTA.ToString() +
-             direction + "remote: " + RemoteTA.ToString();
     }
   }
   

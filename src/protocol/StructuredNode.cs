@@ -377,6 +377,11 @@ namespace Brunet
           }
           catch(Exception x) {
             Console.Error.WriteLine("CallGetStatus trial {2} on {0} failed: {1}", lc, x, trials); 
+            if( lc.Edge.IsClosed ) {
+              //Make sure this guy is removed in this thread (it may be
+              //in the process of being removed in another thread)
+              tab.Disconnect(lc.Edge);
+            }
           }
           done = done || (trials > 3); //Don't try forever
         } while(!done);
@@ -398,6 +403,11 @@ namespace Brunet
           }
           catch(Exception x) {
             Console.Error.WriteLine("CallGetStatus trial {2} on {0} failed: {1}", rc, x, trials); 
+            if( rc.Edge.IsClosed ) {
+              //Make sure this guy is removed in this thread (it may be
+              //in the process of being removed in another thread)
+              tab.Disconnect(rc.Edge);
+            }
           }
           done = done || (trials > 3); //Don't try forever
         } while(!done);
