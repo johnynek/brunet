@@ -65,7 +65,7 @@ namespace Brunet
     }
     protected DateTime _last_out_packet_datetime;
     public override DateTime LastOutPacketDateTime {
-      get { return _last_out_packet_datetime; }
+      get { lock( _sync ) { return _last_out_packet_datetime; } }
     }
 
     protected volatile bool _is_closed;
@@ -114,7 +114,7 @@ namespace Brunet
 
       if( !_is_closed ) {
         _sh.HandleEdgeSend(this, p);
-        _last_out_packet_datetime = DateTime.UtcNow;
+        lock( _sync ) { _last_out_packet_datetime = DateTime.UtcNow; }
       }
       else {
         throw new EdgeException(
@@ -134,7 +134,7 @@ namespace Brunet
       get { return _l_id; }
     }
 
-    protected TransportAddress _local_ta;
+    protected volatile TransportAddress _local_ta;
     public override Brunet.TransportAddress LocalTA
     {
       get {
@@ -145,7 +145,7 @@ namespace Brunet
         return _local_ta;
       }
     }
-    protected TransportAddress _remote_ta;
+    protected volatile TransportAddress _remote_ta;
     public override Brunet.TransportAddress RemoteTA
     {
       get {
