@@ -171,9 +171,8 @@ namespace Brunet
             //is not connected.
           }
         }
-        catch(Exception ex) {
-          //log.Error("Problem Closing", ex);
-          Console.Error.WriteLine("Error shutting down socket on edge: {0}\n{1}", this, ex);
+        catch(Exception) {
+          //Console.Error.WriteLine("Error shutting down socket on edge: {0}\n{1}", this, ex);
         }
         finally {
           _sock.Close();
