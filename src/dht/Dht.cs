@@ -275,13 +275,13 @@ namespace Brunet.Dht {
               if(res == null) {
                 res = new Hashtable();
                 adgs.results[mbVal] = res;
+                adgs.ttls[mbVal] = ht["ttl"];
               }
               res[idx] = true;
               count = ((ICollection) adgs.results[mbVal]).Count;
             }
             if(count == MAJORITY) {
               adgs.returns.Enqueue(new DhtGetResult(ht));
-              adgs.ttls[res] = ht["ttl"];
             }
           }
         }
@@ -301,8 +301,20 @@ namespace Brunet.Dht {
           }
           new_queue.EnqueueEvent += this.GetHandler;
           new_queue.CloseEvent += this.GetHandler;
+          try {
           _rpc.Invoke(sendto, new_queue, "dht.Get", 
                       adgs.brunet_address_for_key[idx], MAX_BYTES, token);
+          }
+          catch(Exception) {
+            lock(adgs.queueMapping) {
+              adgs.queueMapping.Remove(new_queue);
+            }
+            lock(_adgs_table) {
+              _adgs_table.Remove(new_queue);
+            }
+            new_queue.EnqueueEvent -= this.GetHandler;
+            new_queue.CloseEvent -= this.GetHandler;
+          }
         }
       }
       queue.Close();
@@ -335,20 +347,31 @@ namespace Brunet.Dht {
 
     private void GetFollowUp(AsDhtGetState adgs) {
       foreach (DictionaryEntry de in adgs.results) {
+        if(de.Value == null || de.Key == null) {
+          Console.WriteLine("interesting result....");
+          continue;
+        }
+
         Hashtable res = (Hashtable) de.Value;
         if(res.Count < MAJORITY || res.Count == DEGREE) {
           res.Clear();
           continue;
         }
         MemBlock value = (MemBlock) de.Key;
-        int ttl = (int) adgs.ttls[res];
+
+        int ttl = (int) adgs.ttls[value];
         for(int i = 0; i < DEGREE; i++) {
           if(!res.Contains(i)) {
             MemBlock key = adgs.brunet_address_for_key[i];
             BlockingQueue queue = new BlockingQueue();
             Address target = new AHAddress(key);
             AHSender s = new AHSender(_rpc.Node, target, AHPacket.AHOptions.Greedy);
-            _rpc.Invoke(s, queue, "dht.Put", key, value, ttl, false);
+            try {
+             _rpc.Invoke(s, queue, "dht.Put", key, value, ttl, false);
+            }
+            catch(Exception e) {
+              Console.WriteLine(e);
+            }
           }
         }
         res.Clear();

@@ -335,7 +335,7 @@ namespace Brunet.Dht {
             }
             _left_addr = lc.Address;
             if(Count > 0) {
-              _left_transfer_state = new TransferState(true, this);
+              _left_transfer_state = new TransferState(lc, this);
             }
           }
         }
@@ -355,7 +355,7 @@ namespace Brunet.Dht {
             }
             _right_addr = rc.Address;
             if(Count > 0) {
-              _right_transfer_state = new TransferState(false, this);
+              _right_transfer_state = new TransferState(rc, this);
             }
           }
         }
@@ -399,26 +399,11 @@ namespace Brunet.Dht {
        * goes through all the values for that key.  Once it reaches max 
        * parallel transfers, it is done.
        */
-      public TransferState(bool left, TableServer ts) {
+      public TransferState(Connection con, TableServer ts) {
         this._ts = ts;
-        ConnectionTable tab = _ts._node.ConnectionTable;
-        if(left) {
-          try {
-            _con = tab.GetLeftStructuredNeighborOf((AHAddress) _ts._node.Address);
-          }
-          catch(Exception) {}
-        }
-        else {
-          try {
-            _con = tab.GetRightStructuredNeighborOf((AHAddress) _ts._node.Address);
-          }
-          catch(Exception) {}
-        }
-        if(_con == null) {
-          return;
-        }
+        this._con = con;
         LinkedList<MemBlock> keys =
-            _ts._data.GetKeysBetween((AHAddress) _ts._node.Address, 
+            _ts._data.GetKeysBetween((AHAddress) _ts._node.Address,
                                       (AHAddress) _con.Address);
         if(_ts.debug) {
           Console.WriteLine("Starting transfer .... " + _ts._node.Address);
@@ -445,7 +430,17 @@ namespace Brunet.Dht {
           queue.EnqueueEvent += this.NextTransfer;
           queue.CloseEvent += this.NextTransfer;
           int ttl = (int) (ent.EndTime - DateTime.UtcNow).TotalSeconds;
-          _ts._rpc.Invoke(_con.Edge, queue, "dht.PutHandler", ent.Key, ent.Value, ttl, false);
+          try {
+            _ts._rpc.Invoke(_con.Edge, queue, "dht.PutHandler", ent.Key, ent.Value, ttl, false);
+          }
+          catch {
+            if(_con.Edge.IsClosed) {
+              lock(_interrupted) {
+                _interrupted = true;
+              }
+            }
+            break;
+          }
           if(_ts.debug) {
             Console.WriteLine(_ts._node.Address + " transferring " + new AHAddress(ent.Key) + " to " + _con.Address + ".");
           }
@@ -467,15 +462,26 @@ namespace Brunet.Dht {
         BlockingQueue queue = (BlockingQueue) o;
         queue.EnqueueEvent -= this.NextTransfer;
         queue.CloseEvent -= this.NextTransfer;
+        /* No point in dequeueing, if we've been interrupted, we most likely
+         * will get an exception!
+         */
+        if((bool) _interrupted) {
+          return;
+        }
         try {
           queue.Dequeue();
         }
         catch (Exception e){
-          Console.Error.WriteLine("Maybe the timeouts are too low....\n" + e);
+          if(_con.Edge.IsClosed) {
+            lock(_interrupted) {
+              _interrupted = true;
+            }
+          }
+          else {
+            Console.Error.WriteLine("Maybe the timeouts are too low on edge: {0} \n {1}", _con.Edge, e);
+          }
         }
-        if((bool) _interrupted) {
-          return;
-        }
+
         Entry ent = null;
         lock(_entry_enumerator) {
           if(_entry_enumerator.MoveNext()) {
@@ -487,7 +493,16 @@ namespace Brunet.Dht {
           queue.EnqueueEvent += this.NextTransfer;
           queue.CloseEvent += this.NextTransfer;
           int ttl = (int) (ent.EndTime - DateTime.UtcNow).TotalSeconds;
-          _ts._rpc.Invoke(_con.Edge, queue, "dht.PutHandler", ent.Key, ent.Value, ttl, false);
+          try {
+            _ts._rpc.Invoke(_con.Edge, queue, "dht.PutHandler", ent.Key, ent.Value, ttl, false);
+          }
+          catch {
+            if(_con.Edge.IsClosed) {
+              lock(_interrupted) {
+                _interrupted = true;
+              }
+            }
+          }
           if(_ts.debug) {
                 Console.WriteLine("Follow up transfer of " + _ts._node.Address + " transferring " + new AHAddress(ent.Key) + " to " + _con.Address + ".");
           }
