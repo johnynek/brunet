@@ -130,6 +130,12 @@ namespace Brunet
       }
       catch(System.Exception) {
         //_log.Error("DirectionalRouter exception:", x);
+        if( next != null && next.IsClosed ) {
+          //The edge is closed but not yet removed from the ConnectionTable
+          //remove it and try again
+          _con_tab.Disconnect(next);
+          return Route(from, p, out deliverlocally);
+        }
       }
       return sent;
     }
