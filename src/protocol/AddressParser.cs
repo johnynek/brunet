@@ -45,48 +45,45 @@ namespace Brunet
      */
     public static Address Parse(string ascii)
     {
+      //It's safe to hold the lock for the whole
+      //method because there are no blocking calls, nor
+      //calls that could leave this class
       lock( _address_cache ) {
         Address a = (Address)_address_cache[ascii];
         if( a != null ) {
           return a;
         }
         //Else we have to actually parse
-      }
-      string[] parts = ascii.Split(':');
-      //It should be:  urn:brunet:node:[encoded address]
-      // or brunet:node:[encoded address]
-      int offset = 0;
-      if (parts[0].ToLower() == "urn") {
-        offset = 1;
-      }
-      string brunet = parts[offset].ToLower();
-      if (brunet != "brunet")
-      {
-        throw new
-        ParseException
-        ("String is not a properly formated Brunet Address:" +
-         ascii);
-      }
-      string node = parts[offset + 1].ToLower();
-      if (node != "node") {
-        throw new
-        ParseException
-        ("String is not a properly formated Brunet Address:" +
-         ascii);
-      }
-      try {
-        byte[] binadd = Base32.Decode(parts[offset + 2]);
-        MemBlock mb = MemBlock.Reference(binadd);
-        Address a = Parse(mb);
-        lock( _address_cache ) {
+        string[] parts = ascii.Split(':');
+        //It should be:  urn:brunet:node:[encoded address]
+        // or brunet:node:[encoded address]
+        int offset = 0;
+        if (parts[0].ToLower() == "urn") {
+          offset = 1;
+        }
+        string brunet = parts[offset].ToLower();
+        if (brunet != "brunet")
+        {
+          throw new ParseException
+          ("String is not a properly formated Brunet Address:" + ascii);
+        }
+        string node = parts[offset + 1].ToLower();
+        if (node != "node") {
+          throw new ParseException
+          ("String is not a properly formated Brunet Address:" + ascii);
+        }
+        try {
+          byte[] binadd = Base32.Decode(parts[offset + 2]);
+          MemBlock mb = MemBlock.Reference(binadd);
+          a = Parse(mb);
           //Cache this result:
           _address_cache[ ascii ] = a;
+          return a;
         }
-        return a;
-      }
-      catch(System.ArgumentOutOfRangeException ex) {
-        throw new ParseException("Failed to parse Address string",
-                                 ex);
+        catch(System.ArgumentOutOfRangeException ex) {
+          throw new ParseException("Failed to parse Address string",
+                                   ex);
+        }
       }
     }
 
@@ -103,35 +100,41 @@ namespace Brunet
           return a;
         }
         //Else we need to actually create a new address
-      }
-      try {
-        int add_class = Address.ClassOf(mb);
-        Address a = null;
-        switch (add_class) {
-        case 0:
-          a = new AHAddress(mb);
-          break;
-        case 124:
-          a = new DirectionalAddress(mb);
-          break;
-        default:
-          throw new ParseException("Unknown Address Class: " +
-                                   add_class + ", buffer:" +
-                                   mb.ToString());
-        }
-        lock( _address_cache ) {
+        try {
+          if( 2 * mb.Length < mb.ReferencedBufferLength ) {
+              /*
+               * This MemBlock is much smaller than the array
+               * we are referencing, don't keep the big one
+               * in scope, instead make a copy
+               */
+            mb = MemBlock.Copy((ICopyable)mb);
+          }
+          int add_class = Address.ClassOf(mb);
+          a = null;
+          switch (add_class) {
+          case 0:
+            a = new AHAddress(mb);
+            break;
+          case 124:
+            a = new DirectionalAddress(mb);
+            break;
+          default:
+            throw new ParseException("Unknown Address Class: " +
+                                     add_class + ", buffer:" +
+                                     mb.ToString());
+          }
           //Cache this result:
           _address_cache[ mb ] = a;
+          return a;
         }
-        return a;
-      }
-      catch(ArgumentOutOfRangeException ex) {
-        throw new ParseException("Address too short: " +
-                                 mb.ToString(), ex);
-      }
-      catch(ArgumentException ex) {
-        throw new ParseException("Could not parse: " +
-                                 mb.ToString(), ex);
+        catch(ArgumentOutOfRangeException ex) {
+          throw new ParseException("Address too short: " +
+                                   mb.ToString(), ex);
+        }
+        catch(ArgumentException ex) {
+          throw new ParseException("Could not parse: " +
+                                   mb.ToString(), ex);
+        }
       }
     }
   }

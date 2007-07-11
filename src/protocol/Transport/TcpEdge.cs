@@ -290,17 +290,38 @@ namespace Brunet
         //Must lock before we access the _packet_queue
         bool pq_has_more = false;
         lock(_sync) {
-          if( _send_state.Length == 0 && _packet_queue.Count > 0 ) {
-            //It is time to get a new packet
-            ICopyable p = (ICopyable)_packet_queue.Dequeue();
-            short p_length = (short)p.Length;
+          if( _send_state.Length == 0 ) {
+            /*
+             * Let's try to get as many packets as will fit into
+             * a buffer written:
+             */
+            int current_offset = buf.Offset;
             //Set up the _send_state buffer:
             _send_state.Buffer = buf.Buffer;
-            _send_state.Offset = buf.Offset;
-            //Now write into this buffer:
-            NumberSerializer.WriteShort(p_length, _send_state.Buffer, _send_state.Offset);
-            p.CopyTo( _send_state.Buffer, _send_state.Offset + 2 );
-            _send_state.Length = p_length + 2;
+            _send_state.Offset = current_offset;
+            bool cont_writing = (_packet_queue.Count > 0);
+            while( cont_writing ) {
+              //It is time to get a new packet
+              ICopyable p = (ICopyable)_packet_queue.Dequeue();
+              short p_length = (short)p.Length;
+              //Now write into this buffer:
+              NumberSerializer.WriteShort(p_length, _send_state.Buffer, current_offset);
+              p.CopyTo( _send_state.Buffer, 2 + current_offset );
+              int written = 2 + p_length;
+              current_offset += written;
+              _send_state.Length += written;
+              
+              cont_writing = (_packet_queue.Count > 0);
+              if( cont_writing ) {
+                ICopyable next = (ICopyable)_packet_queue.Peek();
+                if( next.Length + _send_state.Length > buf.Capacity ) {
+                  /* 
+                   * There is no room for the next packet, just stop now
+                   */
+                  cont_writing = false;
+                }
+              }
+            }
             //Advance the BufferAllocator so we don't reuse this space
             buf.AdvanceBuffer( _send_state.Length );
           }
