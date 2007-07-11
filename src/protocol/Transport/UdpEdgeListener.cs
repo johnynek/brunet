@@ -144,18 +144,20 @@ namespace Brunet
     {
       UdpEdge e = (UdpEdge)edge;
       lock( _id_ht ) {
-        _id_ht.Remove( e.ID );
-	object re = _remote_id_ht[ e.RemoteID ];
-	if( re == e ) {
-          //_remote_id_ht only keeps track of incoming edges,
-	  //so, there could be two edges with the same remoteid
-	  //that are not equivalent.
-	  _remote_id_ht.Remove( e.RemoteID );
-	}
+        if( _id_ht.Contains( e.ID ) ) {
+          _id_ht.Remove( e.ID );
+	  object re = _remote_id_ht[ e.RemoteID ];
+	  if( re == e ) {
+            //_remote_id_ht only keeps track of incoming edges,
+	    //so, there could be two edges with the same remoteid
+	    //that are not equivalent.
+	    _remote_id_ht.Remove( e.RemoteID );
+	  }
+          NatDataPoint dp = new EdgeClosePoint(DateTime.UtcNow, e);
+          _nat_hist = _nat_hist + dp;
+          _nat_tas = new NatTAs( _tas, _nat_hist );
+        }
       }
-      NatDataPoint dp = new EdgeClosePoint(DateTime.UtcNow, e);
-      _nat_hist = _nat_hist + dp;
-      _nat_tas = new NatTAs( _tas, _nat_hist );
     }
    
     protected IPEndPoint GuessLocalEndPoint(IEnumerable tas) {
@@ -294,7 +296,8 @@ namespace Brunet
               _id_ht[localid] = edge;
               _remote_id_ht[remoteid] = edge;
             }
-            edge.CloseEvent += new EventHandler(this.CloseHandler);
+            edge.CloseEvent += this.CloseHandler;
+            if( edge.IsClosed ) { CloseHandler(edge, null); }
           }
         }
       }
@@ -350,7 +353,9 @@ namespace Brunet
        NatDataPoint dp = new NewEdgePoint(DateTime.UtcNow, edge);
        _nat_hist = _nat_hist + dp;
        _nat_tas = new NatTAs( _tas, _nat_hist );
-       SendEdgeEvent(edge);
+       if( !edge.IsClosed ) {
+         SendEdgeEvent(edge);
+       }
       }
       if( read_packet ) {
         //We have the edge, now tell the edge to announce the packet:
@@ -494,12 +499,19 @@ namespace Brunet
           e = new UdpEdge(this, false, end, _local_ep, id, 0);
           _id_ht[id] = e;
         }
-        /* Tell me when you close so I can clean up the table */
-        e.CloseEvent += new EventHandler(this.CloseHandler);
         NatDataPoint dp = new NewEdgePoint(DateTime.UtcNow, e);
         _nat_hist = _nat_hist + dp;
         _nat_tas = new NatTAs( _tas, _nat_hist );
-        ecb(true, e, null);
+
+        /* Tell me when you close so I can clean up the table */
+        e.CloseEvent += this.CloseHandler;
+        if( e.IsClosed ) {
+          CloseHandler(e, null);
+          ecb(false, null, new EdgeException("Edge closed unexpectedly"));
+        }
+        else {
+          ecb(true, e, null);
+        }
       }
     }
    

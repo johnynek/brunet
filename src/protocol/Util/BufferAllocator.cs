@@ -31,8 +31,8 @@ namespace Brunet {
  */
 public class BufferAllocator {
 
-  protected int _max_size;
-  protected int _allocation_size;
+  protected readonly int _max_size;
+  protected readonly int _allocation_size;
 
   protected byte[] _buf;
   public byte[] Buffer { 
@@ -41,7 +41,14 @@ public class BufferAllocator {
 
   protected int _offset;
   public int Offset { get { return _offset; } }
-
+  /**
+   * The capacity of the current Buffer
+   */
+  public int Capacity {
+    get {
+      return _buf.Length - _offset;
+    }
+  }
   /**
    * @param max_size the maximum size of a buffer you are going to read
    * @param overhead maximum overhead to use
@@ -56,6 +63,8 @@ public class BufferAllocator {
   public BufferAllocator(int max_size) : this(max_size, 2.0) { }
 
   public void AdvanceBuffer(int count) {
+    if( count < 0 ) { throw new System.ArgumentOutOfRangeException("count", count,
+                                       "Count must be non-negative"); }
     _offset += count;
     if( _offset + _max_size > _buf.Length ) {
       //We can't fit another read:

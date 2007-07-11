@@ -39,6 +39,17 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
   //The number of bytes in this MemBlock
   public int Length { get { return _length; } }
 
+  /**
+   * As long as this MemBlock is not garbage collected,
+   * it is keeping an underlying buffer from being garbage
+   * collected.  This is how big that buffer is.  We might
+   * want to make a copy of some data we keep if it is keeping
+   * a large buffer from being collected
+   */
+  public int ReferencedBufferLength {
+    get { return _buffer.Length; }
+  }
+
   protected static readonly MemBlock _null = new MemBlock(null, 0, 0);
   /**
    * Here is a length == 0 MemBlock, which can be useful in some
@@ -120,6 +131,7 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
    * that differs is compared to get the result of the function
    */
   public int CompareTo(object o) {
+    if( this == o ) { return 0; }
     MemBlock other = o as MemBlock;
     if ( other == null ) {
       byte[] data = o as byte[];
@@ -137,11 +149,17 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
       for(int i = 0; i < t_l; i++) {
         byte t_b = this[i];
         byte o_b = other[i];
-        if( t_b < o_b ) {
-          return -1;
+        if( t_b != o_b ) {
+          //OKAY! They are different:
+          if( t_b < o_b ) {
+            return -1;
+          }
+          else {
+            return 1;
+          }
         }
-        else if( t_b > o_b ) {
-          return 1;
+        else {
+          //This position is equal, go to the next
         }
       }
       //We must be equal
@@ -211,9 +229,15 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
    * ICopyable
    */
   public static MemBlock Copy(ICopyable c) {
-    byte[] buffer = new byte[c.Length];
-    c.CopyTo(buffer, 0);
-    return new MemBlock(buffer, 0, buffer.Length);
+    int l = c.Length;
+    if( l != 0 ) {
+      byte[] buffer = new byte[l];
+      c.CopyTo(buffer, 0);
+      return new MemBlock(buffer, 0, buffer.Length);
+    }
+    else {
+      return _null;
+    }
   }
   
   public override bool Equals(object a) {
@@ -267,7 +291,12 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
    * caller that this is only making a reference, not a copy
    */
   static public MemBlock Reference(byte[] data, int offset, int length) {
-    return new MemBlock(data, offset, length);
+    if( length != 0 ) { 
+      return new MemBlock(data, offset, length);
+    }
+    else {
+      return _null;
+    }
   }
   /**
    * Same as the above with offset = 0 and length the whole array
