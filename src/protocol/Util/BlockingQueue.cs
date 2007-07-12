@@ -95,10 +95,10 @@ public sealed class BlockingQueue {
     if( fire ) {
       //Wake up any blocking threads:
       _re.Set();
-      if( CloseEvent != null ) {
-        CloseEvent(this, EventArgs.Empty);
+      EventHandler ch = Interlocked.Exchange(ref CloseEvent, null);
+      if( ch != null ) {
+        ch(this, EventArgs.Empty);
       }
-      CloseEvent = null;
     }
 
 #if DEBUG

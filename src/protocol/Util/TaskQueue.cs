@@ -49,10 +49,11 @@ abstract public class TaskWorker {
    * Subclasses call this to fire the finish event
    */
   protected void FireFinished() {
-    if( FinishEvent != null ) {
-      FinishEvent(this, EventArgs.Empty);
-      //Make sure we only fire once:
-      FinishEvent = null;
+    EventHandler eh = null;
+    //Make sure we only fire once:
+    eh = System.Threading.Interlocked.Exchange(ref FinishEvent, eh);
+    if( eh != null ) {
+      eh(this, EventArgs.Empty);
     }
   }
 
@@ -146,34 +147,41 @@ public class TaskQueue {
   protected void TaskEndHandler(object worker, EventArgs args)
   {
     TaskWorker new_worker = null;
-    bool fire_empty;
+    EventHandler eh = null;
     lock( _sync ) {
       TaskWorker this_worker = (TaskWorker)worker;   
       object task = this_worker.Task;
       Queue work_queue = (Queue)_task_to_workers[task];
-      work_queue.Dequeue();
-      if( work_queue.Count > 0 ) {
-        //Now the new job is at the head of the queue:
-        new_worker = (TaskWorker)work_queue.Peek();
+      if( work_queue != null ) {
+        work_queue.Dequeue();
+        if( work_queue.Count > 0 ) {
+          //Now the new job is at the head of the queue:
+          new_worker = (TaskWorker)work_queue.Peek();
+        }
+        else {
+          /*
+           * There are no more elements in the queue, forget it:
+           * If we leave a 0 length queue, this would be a memory
+           * leak
+           */
+          _task_to_workers.Remove(task);
+        }
+        _worker_count--;
+        if (_worker_count == 0) {
+          eh = EmptyEvent;
+        }
       }
       else {
-        /*
-         * There are no more elements in the queue, forget it:
-         * If we leave a 0 length queue, this would be a memory
-         * leak
-         */
-        _task_to_workers.Remove(task);
+        //This TaskEndHandler has been called more than once clearly.
+        Console.Error.WriteLine("ERROR: {0} called TaskEndHandler but no queue for this task: {1}",
+                                worker, task);
       }
-      _worker_count--;
-      fire_empty = (_worker_count == 0);
     }
     if( new_worker != null && _is_active) {//added the _is_active check (Arijit Ganguly)
       //You start me up!
       new_worker.Start();
     }
-    if( fire_empty && (EmptyEvent != null) ) {
-      EmptyEvent(this, EventArgs.Empty);
-    }
+    if( eh != null ) { eh(this, EventArgs.Empty); }
   }
 }
 

@@ -543,8 +543,9 @@ namespace Brunet
      * network
      */
     public virtual void Connect() {
-      if (ArrivalEvent != null) {
-	ArrivalEvent(this, null);
+      EventHandler ae = System.Threading.Interlocked.Exchange(ref ArrivalEvent, null);
+      if (ae != null) {
+	ae(this, null);
       } 
     }
     /**
@@ -556,9 +557,10 @@ namespace Brunet
 #endif
       _task_queue.IsActive = false;
       _send_pings = false;
-      if (DepartureEvent != null) {
-	DepartureEvent(this, null);      
-        DepartureEvent = null;
+      //Make sure not to call DepartureEvent twice:
+      EventHandler de = Interlocked.Exchange(ref DepartureEvent, null);
+      if (de != null) {
+	de(this, null);      
       }
       _connection_table.Close();
     }
