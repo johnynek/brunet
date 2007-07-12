@@ -307,6 +307,7 @@ namespace Brunet
          * multiple times.
          */
         RemoveHandler(e, null);
+        throw new Exception("Edge is already closed");
       }
     }
 
@@ -1017,9 +1018,10 @@ namespace Brunet
      * This will fail if the con argument is not present.
      * @param con Connection to update.
      * @param sm StatusMessage to replace the old.
+     * @return the new Connection
      * @throws Exception if con is not in the table
      */
-    public void UpdateStatus(Connection con, StatusMessage sm)
+    public Connection UpdateStatus(Connection con, StatusMessage sm)
     {
       int index;
       ConnectionType t = con.MainType;
@@ -1044,6 +1046,11 @@ namespace Brunet
         ArrayList l = (ArrayList)_type_to_conlist[t];
         l = Functional.SetElement(l, index, newcon);
         _type_to_conlist = Functional.SetElement(_type_to_conlist, t, l);
+        
+        if( t == ConnectionType.Structured ) {
+          //Optimize the most common case to avoid the hashtable
+          _struct_conlist = l;
+        }
 
       } /* we release the lock */
      
@@ -1056,6 +1063,7 @@ namespace Brunet
           Console.Error.WriteLine("StatusChangedEvent triggered exception: {0}\n{1}", newcon, x);
         }
       }
+      return newcon;
     }
    
     /**
@@ -1257,6 +1265,10 @@ namespace Brunet
           //Must put different edges in each time.
           Connection c = new Connection(e, a, "structured", null, null);
           tab.Add( c );
+          Assert.AreEqual( tab.GetConnection(e),
+                           tab.GetConnection(ConnectionType.Structured, a),
+                           "Edge equals Address lookup");
+                                                
         }
         //Now do some tests:
         for(int k = 0; k < 100; k++) {
@@ -1321,6 +1333,17 @@ namespace Brunet
             last_a = cn.Address;
           }
           Connection c = tab.GetRandom(ConnectionType.Structured);
+          Assert.AreEqual( c, tab.GetConnection(c.Edge), "Edge lookup");
+          Assert.AreEqual( tab.GetConnection(c.Edge),
+                           tab.GetConnection(ConnectionType.Structured, c.Address),
+                           "Edge equals Address lookup");
+          //Check to see that UpdateStatus basically works
+          Connection c2 = tab.UpdateStatus(c, null);
+          Assert.AreEqual( c2, tab.GetConnection(c.Edge), "Edge lookup");
+          Assert.AreEqual( tab.GetConnection(c.Edge),
+                           tab.GetConnection(ConnectionType.Structured, c.Address),
+                           "Edge equals Address lookup");
+
           int before = tab.Count(ConnectionType.Structured);
           int uc_count = tab.UnconnectedCount;
           tab.Disconnect(c.Edge);

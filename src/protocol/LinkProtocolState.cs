@@ -174,7 +174,14 @@ namespace Brunet
       Edge to_close = null;
       bool close_gracefully = false;
       lock( _sync ) {
-        if( _is_finished ) { throw new Exception("Finished called twice!"); }
+        if( _is_finished ) {
+          /*
+           * We could call Finish and then the Edge could be closed.
+           * So, we can't guarantee that Finish is not called twice,
+           * just ignore future calls
+           */
+          return;
+        }
         _is_finished = true;
         _result = res;
         _e.CloseEvent -= this.CloseHandler;
@@ -210,11 +217,16 @@ namespace Brunet
 #if LINK_DEBUG
       Console.Error.WriteLine("LPS: {0} got connection: {1}", _node.Address, _con);
 #endif
-      FireFinished();
-      /**
-       * We have to make sure the lock is eventually released:
-       */
-      this.Unlock();
+      try {
+        //This could throw an exception, but make sure we unlock if it does.
+        FireFinished();
+      }
+      finally {
+        /**
+         * We have to make sure the lock is eventually released:
+         */
+        this.Unlock();
+      }
     }
 
     /**
