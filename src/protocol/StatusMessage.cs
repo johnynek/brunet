@@ -42,7 +42,7 @@ namespace Brunet {
      */
     public StatusMessage(string neighbortype, ArrayList neighbors)
     {
-      _neigh_ct = neighbortype;
+      _neigh_ct = String.Intern(neighbortype);
       _neighbors = neighbors;
     }
 
@@ -58,13 +58,16 @@ namespace Brunet {
     public StatusMessage(IDictionary ht) {
       IDictionary neighborinfo = ht["neighbors"] as IDictionary;
       if( neighborinfo != null ) {
-        _neigh_ct = neighborinfo["type"] as String;
+        _neigh_ct = String.Intern( neighborinfo["type"] as String );
         IList nodes = neighborinfo["nodes"] as IList;
         if( nodes != null ) {
-          _neighbors = new ArrayList();
+          _neighbors = new ArrayList(nodes.Count);
           foreach(IDictionary nih in nodes) {
             _neighbors.Add(new NodeInfo(nih));
           }
+        }
+        else {
+          _neighbors = new ArrayList(1);
         }
       }
     }
@@ -130,7 +133,7 @@ namespace Brunet {
     public ArrayList Neighbors {
       get {
         if( _neighbors == null ) {
-          return new ArrayList();
+          return new ArrayList(1);
         }
         else {
           return _neighbors;

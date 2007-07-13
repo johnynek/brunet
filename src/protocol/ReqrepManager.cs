@@ -71,7 +71,7 @@ public class ReqrepManager : IDataHandler {
     _rep_handler_table = new Hashtable();
     
     //Hold on to a reply for 50 seconds.
-    _reptimeout = new TimeSpan(0,0,0,0,50000);
+    _reptimeout = new TimeSpan(0,0,0,50,0);
     /**
      * We keep a list of the most recent 1000 replies until they
      * get too old.  If the reply gets older than reptimeout, we

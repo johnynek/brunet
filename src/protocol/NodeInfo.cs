@@ -113,7 +113,7 @@ namespace Brunet
     public NodeInfo(Address a, TransportAddress ta)
     {
       _address = a;
-      _tas = new ArrayList();
+      _tas = new ArrayList(1);
       _tas.Add(ta);
     }
     /**
@@ -122,7 +122,7 @@ namespace Brunet
     public NodeInfo(Address a)
     {
       _address = a;
-      _tas = new ArrayList();
+      _tas = new ArrayList(1);
     }
 
     public NodeInfo(IDictionary ht) {
@@ -130,13 +130,16 @@ namespace Brunet
       if( addr_str != null ) {
         _address = AddressParser.Parse((string)addr_str);
       }
-      _tas = new ArrayList();
       IList trans = ht["transports"] as IList;
       if( trans != null ) {
         int count = trans.Count;
+        _tas = new ArrayList(count);
         for(int i = 0; i < count; i++) {
           _tas.Add( TransportAddressFactory.CreateInstance((string)trans[i]) );
         }
+      }
+      else {
+        _tas = new ArrayList(1);
       }
     }
 	  
