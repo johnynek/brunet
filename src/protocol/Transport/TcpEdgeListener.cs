@@ -314,7 +314,7 @@ namespace Brunet
       ArrayList ws;
       
       /* Use a shared BufferAllocator for all Edges */
-      BufferAllocator buf = new BufferAllocator(2 + Packet.MaxLength, 3.0);
+      BufferAllocator buf = new BufferAllocator(2 + Packet.MaxLength);
      
       while(_run)
       {
