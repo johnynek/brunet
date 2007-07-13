@@ -40,9 +40,15 @@ namespace Ipop {
   public class IPRouterConfigHandler {
     public static IPRouterConfig Read(string configFile) {
       XmlSerializer serializer = new XmlSerializer(typeof(IPRouterConfig));
-      FileStream fs = new FileStream(configFile, FileMode.Open);
-      IPRouterConfig config = (IPRouterConfig) serializer.Deserialize(fs);
-      fs.Close();
+      IPRouterConfig config = null;
+      using(FileStream fs = new FileStream(configFile, FileMode.Open)) {
+        try {
+          config = (IPRouterConfig) serializer.Deserialize(fs);
+        }
+        catch(Exception) {
+          Console.WriteLine("Exception:  Something is bogus with the config file.");
+        }
+      }
       return config;
     }
 
@@ -70,11 +76,11 @@ namespace Ipop {
 
     public static void Write(string configFile,
       IPRouterConfig config) {
-      FileStream fs = new FileStream(configFile, FileMode.Create, 
-        FileAccess.Write);
-      XmlSerializer serializer = new XmlSerializer(typeof(IPRouterConfig));
-      serializer.Serialize(fs, config);
-      fs.Close();
+      using(FileStream fs = new FileStream(configFile, FileMode.Create, 
+            FileAccess.Write)) {
+        XmlSerializer serializer = new XmlSerializer(typeof(IPRouterConfig));
+        serializer.Serialize(fs, config);
+      }
     }
   }
 }

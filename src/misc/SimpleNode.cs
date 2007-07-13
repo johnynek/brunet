@@ -152,9 +152,11 @@ namespace Ipop {
             UpdateTracker();
           }
        //   CheckConnections();
-          Console.Error.WriteLine("I am connected to {0} as {1}.  Current time iis {2}.", 
-              nodes[0].Realm, nodes[0].Address.ToString(), DateTime.UtcNow);
-          Thread.Sleep(1000*60*60);
+          for(int i = 0; i < nodes.Length; i++) {
+            Console.Error.WriteLine("I am connected to {0} as {1}.  Current time is {2}.", 
+              nodes[i].Realm, nodes[i].Address.ToString(), DateTime.UtcNow);
+          }
+          Thread.Sleep(1000*15);
         }
       }
 
@@ -265,7 +267,7 @@ namespace Ipop {
           }
           catch(Exception) {;}
           if(result) {
-            Console.WriteLine("Successfully submitted {0} into plab_tracker.", value);
+            Console.Error.WriteLine("Successfully submitted {0} into plab_tracker.", value);
             break;
           }
           else {
