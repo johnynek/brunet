@@ -461,7 +461,7 @@ namespace Brunet
               SendEdgeEvent(e);
             }
 	  }
-	    catch(SocketException sx) {
+	  catch(Exception sx) {
           //Looks like this Accept has failed.  Do nothing
             Console.Error.WriteLine("New incoming edge failed: {0}", sx);
 	  }
