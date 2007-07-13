@@ -48,8 +48,8 @@ namespace Brunet
 
     public Edge()
     {
-      _have_fired_close = false;
       _sync = new object();
+      _have_fired_close = 0;
       //Atomically increment and update _edge_no
       _edge_no = System.Threading.Interlocked.Increment( ref _edge_count );
     }
@@ -65,31 +65,24 @@ namespace Brunet
      * Set to true once CloseEvent is fired.  This prevents it from
      * being fired twice
      */
-    protected bool _have_fired_close;
     
     protected object _sync;
+    protected int _have_fired_close;
     /**
      * Closes the Edge, further Sends are not allowed
      */
     public virtual void Close()
     {
-      bool fire = false;
-      lock( _sync ) {
-        /*
-         * Set to true *BEFORE* firing the event since some of
-         * the EventHandler objects may call close on the Edge.
-         * They shouldn't, but who knows if people follow the rules.
-         */
-        if( false == _have_fired_close ) {
-          fire = true;
-          _have_fired_close = true;
-        }
-      }
-      if( fire ) {
-        if (CloseEvent != null) {
-          CloseEvent(this, null);
-          CloseEvent = null;
-        }
+      /*
+       * This makes sure CloseEvent is null after the first
+       * call, this guarantees that there is only one CloseEvent
+       */
+      int fired = System.Threading.Interlocked.Exchange(ref _have_fired_close, 1);
+      if( 0 == fired ) {
+        //We've never fired
+        EventHandler ch = System.Threading.Interlocked.Exchange
+                        (ref CloseEvent, null);
+        if( ch != null) { ch(this, null); }
       }
 #if POB_DEBUG
       Console.Error.WriteLine("EdgeClose: edge: {0}", this);
