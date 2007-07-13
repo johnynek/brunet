@@ -123,7 +123,6 @@ public class Cache : IEnumerable {
     Entry e = (Entry)_ht[key];
     if( e != null ) {
       //This item is already in the cache, remove it from the list:
-      e.Value = val;
       RemoveFromList(e);
     }
     else {
@@ -233,6 +232,8 @@ public class Cache : IEnumerable {
     _current_size--;
     Entry prev = e.Previous;
     Entry next = e.Next;
+    e.Previous = null;
+    e.Next = null;
     if( prev != null ) {
       prev.Next = next;
     }
@@ -258,6 +259,8 @@ public class Cache : IEnumerable {
     object ret_val = null;
     if( e != null ) {
       ret_val = e.Value;
+      e.Value = null;
+      e.Key = null;
       _ht.Remove(key);
       RemoveFromList(e);
     }
@@ -288,6 +291,48 @@ public class CacheTest {
       object c_val = c[key];
       Assert.AreEqual(c_val, val, "Test lookup");
     }
+  }
+  [Test]
+  public void TestEnumeration() {
+    const int MAX_SIZE = 100;
+    Random r = new Random();
+    Cache c = new Cache(MAX_SIZE);
+    Hashtable ht = new Hashtable();
+    for(int i = 0; i < MAX_SIZE; i++) {
+      int k = r.Next();
+      int v = r.Next();
+      ht[k] = v;
+      c[k] = v;
+    }
+    int enum_count = 0;
+    foreach(DictionaryEntry de in c) {
+      Assert.IsNotNull( c[de.Key], "Enumeration");
+      enum_count++;
+    }
+    Assert.AreEqual(enum_count, c.Count, "Enumeration count");
+    //Remove a bunch at random:
+    ArrayList removed = new ArrayList();
+    for(int i = 0; i < MAX_SIZE / 2; i++) {
+      object k = r.Next(0, MAX_SIZE);
+      removed.Add( k );
+      c.Remove( k );
+    }
+    //Make sure they are really gone:
+    enum_count = 0;
+    foreach(DictionaryEntry de in c) {
+      Assert.IsNotNull( c[de.Key], "Enumeration after remove");
+      enum_count++;
+    }
+    Assert.AreEqual(enum_count, c.Count, "Enumeration count after remove");
+    foreach(object k in removed) {
+      Assert.IsNull(c[k], "removed objects removed");
+    }
+    //Let's enumerate and removed:
+    foreach(DictionaryEntry de in c) {
+      c.Remove(de.Key);
+      Assert.IsNull( c[de.Key], "Removing with enumeration");
+    }
+    Assert.AreEqual(0, c.Count, "Removed everything");
   }
   [Test]
   public void TestEviction() {
