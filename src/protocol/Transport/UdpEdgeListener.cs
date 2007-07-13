@@ -359,7 +359,16 @@ namespace Brunet
       }
       if( read_packet ) {
         //We have the edge, now tell the edge to announce the packet:
-        edge.Push(packet);
+        try {
+          edge.Push(packet);
+        }
+        catch(EdgeException) {
+          if( edge.IsClosed ) {
+            SendControlPacket(end, remoteid, localid, ControlCode.EdgeClosed, state);
+            //Make sure we record that this edge has been closed
+            CloseHandler(edge, null);
+          }
+        }
       }
     }
     /**
@@ -587,6 +596,12 @@ namespace Brunet
     {
       //Wait 1 ms before giving up on a read
       int microsecond_timeout = 1000;
+      /*
+       * The number of milliseconds we sleep after
+       * failing to send an entire queue
+       */
+      const int DEFAULT_ERROR_SLEEP_MS = 100;
+      int non_empty_queue_sleep_time = DEFAULT_ERROR_SLEEP_MS;
       //Make sure only this thread can see the socket from now on!
       Socket s = Interlocked.Exchange( ref _s, null);
       EndPoint end = new IPEndPoint(IPAddress.Any, 0);
@@ -673,6 +688,25 @@ namespace Brunet
           for( int i = final_count; i < original_count; i++) {
             Interlocked.Decrement(ref _total_to_send);
           }
+          /*
+           * We only fail to empty the queue if there is some problem
+           * with the socket, which we have only seen when there is
+           * an operating system problem (specifically, buffers being
+           * filled and the send failing).  So, let's sleep and hope
+           * this problem passes.
+           */
+          if( final_count == 0 ) {
+            //We emptied the send queue, everything looks okay
+            non_empty_queue_sleep_time = DEFAULT_ERROR_SLEEP_MS;
+          }
+          else {
+            //Double the sleep time:
+            non_empty_queue_sleep_time *= 2;
+            if( non_empty_queue_sleep_time < 0 ) {
+              non_empty_queue_sleep_time = Int32.MaxValue;
+            }
+            Thread.Sleep( non_empty_queue_sleep_time );
+          }
         }
         else if ( Thread.VolatileRead(ref _total_to_send ) > 0 ) {
           /*
@@ -710,6 +744,25 @@ namespace Brunet
           int final_count = tmp_queue.Count;
           for( int i = final_count; i < original_count; i++) {
             Interlocked.Decrement(ref _total_to_send);
+          }
+          /*
+           * We only fail to empty the queue if there is some problem
+           * with the socket, which we have only seen when there is
+           * an operating system problem (specifically, buffers being
+           * filled and the send failing).  So, let's sleep and hope
+           * this problem passes.
+           */
+          if( final_count == 0 ) {
+            //We emptied the send queue, everything looks okay
+            non_empty_queue_sleep_time = DEFAULT_ERROR_SLEEP_MS;
+          }
+          else {
+            //Double the sleep time:
+            non_empty_queue_sleep_time *= 2;
+            if( non_empty_queue_sleep_time < 0 ) {
+              non_empty_queue_sleep_time = Int32.MaxValue;
+            }
+            Thread.Sleep( non_empty_queue_sleep_time );
           }
         }
         //Now it is time to see if we can read...

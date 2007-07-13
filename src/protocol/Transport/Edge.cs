@@ -198,7 +198,9 @@ namespace Brunet
         //We should not be receiving packets on closed edges:
         // Comment this out for now until we are debugging with
         // FunctionEdge.
-        throw new EdgeException("Trying to Receive on a Closed Edge");
+        throw new EdgeException(
+                      String.Format("Trying to Receive on a Closed Edge: {0}",
+                                    this) );
       }
       /**
        * logging of incoming packets
