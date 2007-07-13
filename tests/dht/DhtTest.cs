@@ -15,6 +15,7 @@ namespace Brunet.Dht {
     static int network_size = 60;
     static readonly string brunet_namespace = "testing";
     static readonly int base_port = 55123;
+    static readonly int value_size = 500;
     // Well this is needed because C# doesn't lock the console
     private object _lock = new object();
 
@@ -385,7 +386,7 @@ namespace Brunet.Dht {
     public void Test0(ref int op) {
       RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
       byte[] key = new byte[10];
-      byte[] value = new byte[10];
+      byte[] value = new byte[value_size];
       byte[][] results = new byte[1][];
 
       Console.WriteLine("Test 0: Testing 1 put and 1 get");
@@ -402,7 +403,7 @@ namespace Brunet.Dht {
     public void Test1(ref int op) {
       RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
       byte[] key = new byte[10];
-      byte[] value = new byte[10];
+      byte[] value = new byte[value_size];
       byte[][] results = new byte[1][];
 
       Console.WriteLine("Test 1: Testing 10 puts and 10 gets with different " +
@@ -423,12 +424,12 @@ namespace Brunet.Dht {
       Console.WriteLine("Test 2: Testing 10 puts and 10 gets with the same key.");
       RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
       byte[] key = new byte[10];
-      byte[] value = new byte[10];
+      byte[] value = new byte[value_size];
       rng.GetBytes(key);
       ArrayList al_results = new ArrayList();
 
       for(int i = 0; i < 10; i++) {
-        value = new byte[10];
+        value = new byte[value_size];
         rng.GetBytes(value);
         this.SerialPut(key, value, 3000, 0, true, op++);
         al_results.Add(value);
@@ -443,13 +444,13 @@ namespace Brunet.Dht {
           "results with the same key.");
       RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
       byte[] key = new byte[10];
-      byte[] value = new byte[100];
+      byte[] value = new byte[value_size];
       rng.GetBytes(key);
       ArrayList al_results = new ArrayList();
       BlockingQueue[] results_queue = new BlockingQueue[60];
 
       for(int i = 0; i < 60; i++) {
-        value = new byte[100];
+        value = new byte[value_size];
         rng.GetBytes(value);
         al_results.Add(value);
         results_queue[i] = new BlockingQueue();
@@ -477,7 +478,7 @@ namespace Brunet.Dht {
            " same key.");
       RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
       byte[] key = new byte[10];
-      byte[] value = new byte[10];
+      byte[] value = new byte[value_size];
       byte[][] keys = new byte[10][];
       byte[][] values = new byte[10][];
       int[] ttls = new int[10];
@@ -489,7 +490,7 @@ namespace Brunet.Dht {
 
       for(int i = 0; i < 10; i++) {
         keys[i] = key;
-        value = new byte[10];
+        value = new byte[value_size];
         rng.GetBytes(value);
         values[i] = value;
         ttls[i] = 3000;
@@ -507,7 +508,7 @@ namespace Brunet.Dht {
           "gets with the same key.");
       RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
       byte[] key = new byte[10];
-      byte[] value = new byte[10];
+      byte[] value = new byte[value_size];
       byte[][] keys = new byte[10][];
       byte[][] values = new byte[10][];
       int[] ttls = new int[10];
@@ -520,7 +521,7 @@ namespace Brunet.Dht {
 
       for(int i = 0; i < 10; i++) {
         keys[i] = key;
-        value = new byte[10];
+        value = new byte[value_size];
         rng.GetBytes(value);
         values[i] = value;
         gresults[i] = values;
@@ -552,7 +553,7 @@ namespace Brunet.Dht {
         key = new byte[10];
         rng.GetBytes(key);
         keys[i] = key;
-        value = new byte[10];
+        value = new byte[value_size];
         rng.GetBytes(value);
         values[i] = value;
         results = new byte[1][];
@@ -576,13 +577,13 @@ namespace Brunet.Dht {
       rng.GetBytes(key);
       byte[][] results = new byte[1][];
 
-      value = new byte[10];
+      value = new byte[value_size];
       rng.GetBytes(value);
       this.SerialPut(key, value, 3000, 0, true, op++);
       results = new byte[1][];
       results[0] = value;
 
-      value = new byte[10];
+      value = new byte[value_size];
       rng.GetBytes(value);
       this.SerialPut(key, value, 3000, 0, false, op++);
       Console.WriteLine("Insertion done...");
@@ -600,7 +601,7 @@ namespace Brunet.Dht {
       rng.GetBytes(key);
       byte[][] results = new byte[1][];
 
-      value = new byte[10];
+      value = new byte[value_size];
       rng.GetBytes(value);
       this.SerialPut(key, value, 3000, 0, true, op++);
       results = new byte[1][];
@@ -618,7 +619,7 @@ namespace Brunet.Dht {
           "with the same key.");
       RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
       byte[] key = new byte[10];
-      byte[] value = new byte[10];
+      byte[] value = new byte[value_size];
       byte[][] keys = new byte[10][];
       byte[][] values = new byte[10][];
       int[] ttls = new int[10];
@@ -630,7 +631,7 @@ namespace Brunet.Dht {
 
       for(int i = 0; i < 10; i++) {
         keys[i] = key;
-        value = new byte[10];
+        value = new byte[value_size];
         rng.GetBytes(value);
         values[i] = value;
         ttls[i] = 3000;
@@ -663,7 +664,7 @@ namespace Brunet.Dht {
         key = new byte[10];
         rng.GetBytes(key);
         keys[i] = key;
-        value = new byte[10];
+        value = new byte[value_size];
         rng.GetBytes(value);
         values[i] = value;
         results = new byte[1][];
@@ -687,13 +688,13 @@ namespace Brunet.Dht {
       rng.GetBytes(key);
       byte[][] results = new byte[1][];
 
-      value = new byte[10];
+      value = new byte[value_size];
       rng.GetBytes(value);
       this.SerialCreate(key, value, 3000, 0, true, op++);
       results = new byte[1][];
       results[0] = value;
 
-      value = new byte[10];
+      value = new byte[value_size];
       rng.GetBytes(value);
       this.SerialCreate(key, value, 3000, 0, false, op++);
       Console.WriteLine("Insertion done...");
@@ -711,7 +712,7 @@ namespace Brunet.Dht {
       rng.GetBytes(key);
       byte[][] results = new byte[1][];
 
-      value = new byte[10];
+      value = new byte[value_size];
       rng.GetBytes(value);
       this.SerialCreate(key, value, 3000, 0, true, op++);
       results = new byte[1][];
@@ -730,7 +731,7 @@ namespace Brunet.Dht {
           "before the get.");
       RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
       byte[] key = new byte[10];
-      byte[] value = new byte[10];
+      byte[] value = new byte[value_size];
       byte[][] keys = new byte[10][];
       byte[][] values = new byte[10][];
       int[] ttls = new int[10];
@@ -742,7 +743,7 @@ namespace Brunet.Dht {
 
       for(int i = 0; i < 10; i++) {
         keys[i] = key;
-        value = new byte[10];
+        value = new byte[value_size];
         rng.GetBytes(value);
         values[i] = value;
         if(i > 7) {
@@ -771,14 +772,14 @@ namespace Brunet.Dht {
           "key.");
       RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
       byte[] key = new byte[10];
-      byte[] value = new byte[100];
+      byte[] value = new byte[value_size];
       rng.GetBytes(key);
       ArrayList al_results = new ArrayList();
       int count = 60;
       BlockingQueue[] results_queue = new BlockingQueue[count];
 
       for(int i = 0; i < count; i++) {
-        value = new byte[100];
+        value = new byte[value_size];
         rng.GetBytes(value);
         al_results.Add(value);
         results_queue[i] = new BlockingQueue();

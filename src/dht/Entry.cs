@@ -25,13 +25,13 @@ namespace Brunet.Dht {
     }
 
     public DateTime CreateTime {
-      get { return DateTime.Parse((string) _ht["create_time"]); }
-      set { _ht["create_time"] = value.ToString(); }
+      get { return DateTime.MinValue.AddSeconds((ulong) _ht["create_time"]); }
+      set { _ht["create_time"] = Convert.ToUInt64((value - DateTime.MinValue).TotalSeconds);  }
     }
 
     public DateTime EndTime {
-      get { return DateTime.Parse((string) _ht["end_time"]); }
-      set { _ht["end_time"] = value.ToString(); }
+      get { return DateTime.MinValue.AddSeconds((ulong) _ht["end_time"]); }
+      set { _ht["end_time"] = Convert.ToUInt64((value - DateTime.MinValue).TotalSeconds);  }
     }
 
     public Entry(MemBlock key, MemBlock data, DateTime create_time, DateTime end_time) {

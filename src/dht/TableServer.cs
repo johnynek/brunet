@@ -402,12 +402,18 @@ namespace Brunet.Dht {
       public TransferState(Connection con, TableServer ts) {
         this._ts = ts;
         this._con = con;
+        // Get all keys between me and my new neighbor
         LinkedList<MemBlock> keys =
             _ts._data.GetKeysBetween((AHAddress) _ts._node.Address,
                                       (AHAddress) _con.Address);
         if(_ts.debug) {
           Console.WriteLine("Starting transfer .... " + _ts._node.Address);
         }
+        /* Get all values for those keys, we copy so that we don't worry about
+         * changes to the dht during this interaction.  This is only a pointer
+         * copy and since we let the OS deal with removing the contents of an
+         * entry, we don't need to make copies of the actual entry.
+         */
         foreach(MemBlock key in keys) {
           Entry[] entries = new Entry[_ts._data.GetEntries(key).Count];
           _ts._data.GetEntries(key).CopyTo(entries, 0);
@@ -418,6 +424,10 @@ namespace Brunet.Dht {
         }
         _entry_enumerator = GetEntryEnumerator();
 
+        /* Here we generate another list of keys that we would like to 
+         * this is done here, so that we can lock up the _entry_enumerator
+         * only during this stage and not during the RpcManager.Invoke
+         */
         int count = 0;
         LinkedList<Entry> local_entries = new LinkedList<Entry>();
         lock(_entry_enumerator) {
@@ -478,7 +488,9 @@ namespace Brunet.Dht {
             }
           }
           else {
-            Console.Error.WriteLine("Maybe the timeouts are too low on edge: {0} \n {1}", _con.Edge, e);
+            Console.Error.WriteLine("BlockingQueue Exception: Cases include" +
+              "that an edge may be closed but we may not no of it or that the"
+              + " timeouts are too low.  This occurred on {0} \n\t {1}", _con.Edge, e);
           }
         }
 

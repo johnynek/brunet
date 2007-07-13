@@ -358,6 +358,13 @@ namespace Brunet
             Console.Error.WriteLine("Selected for: {0}", DateTime.UtcNow - now);
 #endif
           }
+          catch(System.ObjectDisposedException) {
+            /*
+             * This happens if one of the edges is closed while
+             * a select call is in progress.  This is not weird,
+             * just ignore it
+             */
+          }
           catch(Exception x) {
             //One of the Sockets gave us problems.  Perhaps
             //it was closed after we released the lock.
