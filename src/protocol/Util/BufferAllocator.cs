@@ -60,7 +60,12 @@ public class BufferAllocator {
     _offset = 0;
   }
 
-  public BufferAllocator(int max_size) : this(max_size, 2.0) { }
+  /**
+   * Makes a BufferAllocator with overhead = 1.0.  In the worst case
+   * this wastes 50% of the memory it uses, but it allocates smaller
+   * blocks (which are less likely to stay in scope longer).
+   */
+  public BufferAllocator(int max_size) : this(max_size, 1.0) { }
 
   public void AdvanceBuffer(int count) {
     if( count < 0 ) { throw new System.ArgumentOutOfRangeException("count", count,

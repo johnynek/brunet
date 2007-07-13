@@ -21,6 +21,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //#define POB_TCP_DEBUG
 
+//If you want to copy incoming packets rather than reference the buffer
+//define:
+//#define COPY_PACKETS
 using System;
 using System.Collections;
 using System.Net;
@@ -115,7 +118,13 @@ namespace Brunet
      * queue
      */
     protected readonly Queue _packet_queue;
-
+    /*
+     * This keeps track of the number of queued packets
+     * We use Interlocked methods for thread safety.  We
+     * do this to avoid holding lock on _sync to get the
+     * _packet_queue.Count
+     */
+    protected int _queued_packets;
     /**
      * These objects
      * keep track of the state
@@ -123,8 +132,8 @@ namespace Brunet
      * which are only called in the socket thread of TcpEdgeListener,
      * there is no need to lock before getting access to them.
      */
-    private volatile SendState _send_state;
-    private volatile ReceiveState _rec_state;
+    private readonly SendState _send_state;
+    private readonly ReceiveState _rec_state;
 
     public TcpEdge(Socket s, bool is_in, TcpEdgeListener tel) {
       _sock = s;
@@ -133,6 +142,7 @@ namespace Brunet
       _last_out_packet_datetime = _create_dt;
       _last_in_packet_datetime = _last_out_packet_datetime;
       _packet_queue = new Queue();
+      _queued_packets = 0;
       _need_to_send = false;
 	_tel = tel;
       inbound = is_in;
@@ -142,6 +152,8 @@ namespace Brunet
                              (IPEndPoint) _sock.RemoteEndPoint);
       //We use Non-blocking sockets here
       s.Blocking = false;
+      _rec_state = new ReceiveState();
+      _send_state = new SendState();
     }
 
     /**
@@ -157,6 +169,9 @@ namespace Brunet
         if (!_is_closed) {
           _is_closed = true;
           shutdown = true;
+          //Make sure to drop references to buffers
+          _rec_state.Buffer = null; 
+          _send_state.Buffer = null;
         }
       }
       if( shutdown ) {
@@ -227,13 +242,14 @@ namespace Brunet
 	if( _packet_queue.Count < 30 ) {
           //Don't queue indefinitely...
           _packet_queue.Enqueue(p);
+          Interlocked.Increment( ref _queued_packets );
 	}
 	//Console.Error.WriteLine("Queue length: {0}", _packet_queue.Count);
       }
 #if POB_TCP_DEBUG
       Console.Error.WriteLine("Setting NeedToSend");
 #endif
-      NeedToSend = true;
+      NeedToSend = (Thread.VolatileRead(ref _queued_packets ) > 0);
 #if POB_TCP_DEBUG
       Console.Error.WriteLine("Need to send: {0}", NeedToSend);
       Console.Error.WriteLine("edge: {0}, Leaving Send",this);
@@ -282,12 +298,10 @@ namespace Brunet
 #if POB_TCP_DEBUG
         Console.Error.WriteLine("edge: {0} in DoSend", this);
 #endif
-        if( _send_state == null ) {
-          _send_state = new SendState();
+        if( _send_state.Buffer == null ) {
           _send_state.Length = 0;
         }
         //Must lock before we access the _packet_queue
-        bool pq_has_more = false;
         lock(_sync) {
           if( _send_state.Length == 0 ) {
             /*
@@ -302,6 +316,7 @@ namespace Brunet
             while( cont_writing ) {
               //It is time to get a new packet
               ICopyable p = (ICopyable)_packet_queue.Dequeue();
+              Interlocked.Decrement( ref _queued_packets );
               short p_length = (short)p.Length;
               //Now write into this buffer:
               NumberSerializer.WriteShort(p_length, _send_state.Buffer, current_offset);
@@ -324,7 +339,6 @@ namespace Brunet
             //Advance the BufferAllocator so we don't reuse this space
             buf.AdvanceBuffer( _send_state.Length );
           }
-          pq_has_more = (_packet_queue.Count > 0);
         }
 
         if( _send_state.Length > 0 ) {
@@ -344,7 +358,16 @@ namespace Brunet
             throw new EdgeException("Edge is closed");
           }
         }
-        NeedToSend = ( pq_has_more || _send_state.Length > 0 );
+        if( _send_state.Length == 0 ) {
+          //We have sent all we need to, don't keep a reference around
+          _send_state.Buffer = null;
+          //We only have more to send if the packet queue is not empty
+          NeedToSend = (Thread.VolatileRead(ref _queued_packets ) > 0);
+        }
+        else {
+          //We definitely have more bytes to send
+          NeedToSend = true;
+        }
       }
       catch {
         Close();
@@ -364,8 +387,7 @@ namespace Brunet
         Console.Error.WriteLine("edge: {0} in DoReceive", this);
 #endif
         //Reinitialize the rec_state
-        if( _rec_state == null ) {
-          _rec_state = new ReceiveState();
+        if( _rec_state.Buffer == null ) {
           _rec_state.Reset(buf.Buffer, buf.Offset, 2, true);
           buf.AdvanceBuffer(2);
         }
@@ -420,13 +442,16 @@ namespace Brunet
 
           if( parse_packet ) {
             //We have the whole packet
+#if COPY_PACKETS
+            p = MemBlock.Copy(_rec_state.Buffer, _rec_state.Offset, _rec_state.Length);
+#else
             p = MemBlock.Reference(_rec_state.Buffer, _rec_state.Offset, _rec_state.Length);
+#endif
 #if POB_TCP_DEBUG
             //Console.Error.WriteLine("edge: {0}, got packet {1}",this, p);
 #endif
             //Reinitialize the rec_state
-            _rec_state.Reset(buf.Buffer, buf.Offset, 2, true);
-            buf.AdvanceBuffer(2);
+            _rec_state.Buffer = null;
             //Now we just finish and wait till next time to start reading
           }
         }
