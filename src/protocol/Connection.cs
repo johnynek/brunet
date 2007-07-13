@@ -46,7 +46,7 @@ namespace Brunet {
     {
       _e = e;
       _a = a;
-      _ct = connectiontype;
+      _ct = String.Intern(connectiontype);
       _stat = sm;
       _lm = peerlm;
     }
@@ -57,7 +57,7 @@ namespace Brunet {
     protected Edge _e;
     public Edge Edge { get { return _e; } }
     
-    protected string _ct;
+    protected readonly string _ct;
     public ConnectionType MainType { get { return StringToMainType(_ct); } }
     public string ConType { get { return _ct; } }
    
@@ -77,6 +77,12 @@ namespace Brunet {
      */
     static public string ConnectionTypeToString(ConnectionType t)
     {
+      if( t == ConnectionType.Structured ) {
+        return "structured";
+      }
+      if( t == ConnectionType.Leaf ) {
+        return "leaf";
+      }
       return t.ToString().ToLower();
     }
 
@@ -91,8 +97,9 @@ namespace Brunet {
      */
     static public ConnectionType StringToMainType(string s)
     {
-      if( _string_to_main_type.ContainsKey(s) ) {
-        return (ConnectionType)_string_to_main_type[s];
+      object res = _string_to_main_type[s];
+      if( res != null ) {
+        return (ConnectionType)res;
       }
       else {
         int dot_idx = s.IndexOf('.');
@@ -104,14 +111,18 @@ namespace Brunet {
 	  ConnectionType retval = (ConnectionType)Enum.Parse(typeof(ConnectionType),
                                                maintype,
                                                true);
-          _string_to_main_type[s] = retval;
+          lock( _string_to_main_type ) {
+            _string_to_main_type[String.Intern(s)] = retval;
+          }
 	  return retval;
         }
         catch(System.Exception) {
         
 	}
       }
-      _string_to_main_type[s] = ConnectionType.Unknown;
+      lock( _string_to_main_type ) {
+        _string_to_main_type[s] = ConnectionType.Unknown;
+      }
       return ConnectionType.Unknown;
     }
 
@@ -120,8 +131,8 @@ namespace Brunet {
      */
     public override string ToString()
     {
-      return "Edge: " + _e.ToString() + ", Address: " + _a.ToString() + ", ConnectionType: " + _ct
-	      + ", Maintype: " + StringToMainType(_ct);
+      return String.Format("Edge: {0}, Address: {1}, ConnectionType: {2}",
+                                    _e, _a, _ct);
     }
 #if BRUNET_NUNIT
     [Test]

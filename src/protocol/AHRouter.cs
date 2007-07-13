@@ -46,12 +46,12 @@ namespace Brunet
       _local = local;
       _sync = new object();
       /*
-       * Store the 1000 most commonly used routes.
-       * Since this may cause us to keep an extra 1000
+       * Store the 100 most commonly used routes.
+       * Since this may cause us to keep an extra 100
        * AHAddress objects in memory, each of which requires
        * about 20 bytes, this costs on the order of 10-100 KB
        */
-      _route_cache = new Cache(1000);
+      _route_cache = new Cache(100);
       _our_left_n = null;
     }
     protected readonly AHAddress _local;
@@ -166,7 +166,7 @@ namespace Brunet
 	}
       }
       CachedRoute cr = null;
-      lock( _sync ) { cr = (CachedRoute)_route_cache[ dest.ToMemBlock() ]; }
+      lock( _sync ) { cr = (CachedRoute)_route_cache[ dest ]; }
       if( cr != null && (cr.Previous == prev_e) ) {
         //Awesome, we already know the path to this node.
         //This cuts down on latency
@@ -496,9 +496,7 @@ namespace Brunet
         * We update the route cache with the most recent Edge to send to
         * that destination.
         */
-       //Make sure not to keep a reference to the whole packet:
-       object key = dest.ToMemBlock().Clone();
-       lock(_sync ) { _route_cache[key] = new CachedRoute(prev_e, next_con, deliverlocally); }
+       lock(_sync ) { _route_cache[dest] = new CachedRoute(prev_e, next_con, deliverlocally); }
       }//End of cache check   
       //Here are the other modes:
       if( p.HasOption( AHPacket.AHOptions.Last ) ) {

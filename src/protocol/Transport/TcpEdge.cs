@@ -134,6 +134,7 @@ namespace Brunet
      */
     private readonly SendState _send_state;
     private readonly ReceiveState _rec_state;
+    private const int MAX_QUEUE_SIZE = 30;
 
     public TcpEdge(Socket s, bool is_in, TcpEdgeListener tel) {
       _sock = s;
@@ -141,7 +142,7 @@ namespace Brunet
       _create_dt = DateTime.UtcNow;
       _last_out_packet_datetime = _create_dt;
       _last_in_packet_datetime = _last_out_packet_datetime;
-      _packet_queue = new Queue();
+      _packet_queue = new Queue(MAX_QUEUE_SIZE);
       _queued_packets = 0;
       _need_to_send = false;
 	_tel = tel;
@@ -239,7 +240,7 @@ namespace Brunet
                           this, p.Length);
 #endif
         //Else just queue up the packet
-	if( _packet_queue.Count < 30 ) {
+	if( _packet_queue.Count < MAX_QUEUE_SIZE ) {
           //Don't queue indefinitely...
           _packet_queue.Enqueue(p);
           Interlocked.Increment( ref _queued_packets );
