@@ -147,8 +147,8 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
     int o_l = other.Length;
     if( t_l == o_l ) {
       for(int i = 0; i < t_l; i++) {
-        byte t_b = this[i];
-        byte o_b = other[i];
+        byte t_b = this._buffer[ this._offset + i];
+        byte o_b = other._buffer[ other._offset + i];
         if( t_b != o_b ) {
           //OKAY! They are different:
           if( t_b < o_b ) {
@@ -245,6 +245,20 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
       //Clearly we are the Equal to ourselves
       return true;
     }
+    if( a is byte[] ) {
+      /** 
+       * @todo
+       * This is very questionable to just treat byte[] as MemBlock,
+       * because the hashcodes won't be equal, but we have code
+       * that does this.  We should remove the assumption that MemBlock
+       * can equal a byte[]
+       */
+      a = MemBlock.Reference((byte[])a);
+    }
+    if( this.GetHashCode() != a.GetHashCode() ) {
+      //Hashcodes must be equal for the objects to be equal
+      return false;
+    }
     else {
       return (this.CompareTo(a) == 0);
     }
@@ -259,14 +273,26 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
   public MemBlock ExtendHead(int count) {
     return new MemBlock(_buffer, _offset - count, _length + count);
   }
+  /*
+   * We only calculate the hash code once (when we first need it)
+   * We can use this to help us make Equals faster
+   */
+  protected volatile bool _have_hc = false;
+  protected volatile int _hc;
   //Uses the first few bytes as the hashcode
   public override int GetHashCode() {
+    if( _have_hc ) {
+      return _hc;
+    }
+
     //Use at most 4 bytes:
     int l = System.Math.Min(this.Length, 4) + _offset;
     int val = 0;
     for(int i = _offset; i < l; i++) {
       val = (val << 8) | _buffer[i];
     }
+    _hc = val;
+    _have_hc = true;
     return val;
   }
   /**

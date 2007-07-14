@@ -146,19 +146,11 @@ namespace Brunet
       }
       return false;
     }
-    protected bool _computed_hash = false;
-    protected int _hc;
     //The first int in the buffer should be good enough
     public override int GetHashCode() {
-      if( !_computed_hash ) {
-        //There is no race here because calling the function
-        //more than once has the same result.
-        _hc = _buffer.GetHashCode(); 
-        _computed_hash = true;
-      }
-      return _hc;
+      return _buffer.GetHashCode(); 
     }
-    protected static BigInteger _half;
+    protected readonly static BigInteger _half;
     /**
      * Half is 2^159
      */
@@ -169,7 +161,7 @@ namespace Brunet
         return _half;
       }
     }
-    protected static BigInteger _full;
+    protected readonly static BigInteger _full;
     /**
      * Full is 2 * Half = 2^160
      */
