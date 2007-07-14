@@ -569,14 +569,18 @@ public class ReqrepManager : IDataHandler {
    * @throw Exception if handler is not the original handler for this Request
    */
   public void StopRequest(int request_id, IReplyHandler handler) {
+    RequestState rs = null;
     lock( _sync ) {
-      RequestState rs = (RequestState)_req_state_table[request_id];
+      rs = (RequestState)_req_state_table[request_id];
       if( rs != null ) {
         if( rs.ReplyHandler != handler ) {
           throw new Exception( String.Format("Handler mismatch: {0} != {1}",
                                              handler, rs.ReplyHandler));
         }
         _req_state_table.Remove( request_id );
+      }
+    }
+    if( rs != null ) {
        /*
         * Send an ack for this reply:
         */
@@ -591,7 +595,6 @@ public class ReqrepManager : IDataHandler {
          }
          catch { }
        }
-      } 
     }
   }
   /**
