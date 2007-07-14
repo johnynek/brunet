@@ -44,6 +44,7 @@ public class ReqrepManager : IDataHandler {
     Request = 1, //A standard request that must be replied to at least once.
     LossyRequest = 2, //A request that does not require a response
     Reply = 3, //The response to a request
+    ReplyAck = 4, //Acknowledge a reply
     Error = 6//Some kind of Error
   }
 
@@ -347,6 +348,9 @@ public class ReqrepManager : IDataHandler {
      else if( rt == ReqrepType.Reply ) {
        HandleReply(rt, idnum, rest, from);
      }
+     else if (rt == ReqrepType.ReplyAck ) {
+       HandleReplyAck(rt, idnum, rest, from);
+     }
      else if( rt == ReqrepType.Error ) {
        HandleError(rt, idnum, rest, from);
      }
@@ -415,6 +419,16 @@ public class ReqrepManager : IDataHandler {
            handler = reqs.ReplyHandler;
          }
        }
+       /*
+        * Send an ack for this reply:
+        */
+       byte[] ack_payload = new byte[5];
+       ack_payload[0] = (byte)ReqrepType.ReplyAck;
+       NumberSerializer.WriteInt(idnum, ack_payload, 1);
+       ret_path.Send(new CopyList(PType.Protocol.ReqRep, MemBlock.Reference(ack_payload)));
+       /*
+        * Now handle this reply
+        */
        if( null != handler ) {
          MemBlock payload;
          PType pt = PType.Parse(rest, out payload);
@@ -437,6 +451,18 @@ public class ReqrepManager : IDataHandler {
      else {
        //We are ignoring this reply, it either makes no sense, or we have
        //already handled it
+     }
+   }
+
+   /**
+    * When we get a reply ack, we can remove the item from our cache,
+    * we know the other guy got our reply
+    */
+   protected void HandleReplyAck(ReqrepType rt, int idnum,
+                              MemBlock err_data, ISender ret_path) {
+     RequestKey rk = new RequestKey(idnum, ret_path);
+     lock( _sync ) {
+       _reply_cache.Remove(rk);
      }
    }
 
