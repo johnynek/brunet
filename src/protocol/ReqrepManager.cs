@@ -227,6 +227,13 @@ public class ReqrepManager : IDataHandler {
          catch { /* If this doesn't work, oh well */ }
        }
      }
+     /**
+      * When the reply is acknowledged, clear the reply so it
+      * can be garbage collected
+      */
+     public void ClearReply() {
+       Reply = null;
+     }
    }
    /**
     * We use these to lookup requests in the reply
@@ -420,13 +427,6 @@ public class ReqrepManager : IDataHandler {
          }
        }
        /*
-        * Send an ack for this reply:
-        */
-       byte[] ack_payload = new byte[5];
-       ack_payload[0] = (byte)ReqrepType.ReplyAck;
-       NumberSerializer.WriteInt(idnum, ack_payload, 1);
-       ret_path.Send(new CopyList(PType.Protocol.ReqRep, MemBlock.Reference(ack_payload)));
-       /*
         * Now handle this reply
         */
        if( null != handler ) {
@@ -462,6 +462,8 @@ public class ReqrepManager : IDataHandler {
                               MemBlock err_data, ISender ret_path) {
      RequestKey rk = new RequestKey(idnum, ret_path);
      lock( _sync ) {
+       //The Ack is sent AFTER no more resends will be sent, so it's totally
+       //safe to remove this from the cache!
        _reply_cache.Remove(rk);
      }
    }
@@ -575,6 +577,20 @@ public class ReqrepManager : IDataHandler {
                                              handler, rs.ReplyHandler));
         }
         _req_state_table.Remove( request_id );
+       /*
+        * Send an ack for this reply:
+        */
+       byte[] ack_payload = new byte[5];
+       ack_payload[0] = (byte)ReqrepType.ReplyAck;
+       NumberSerializer.WriteInt(request_id, ack_payload, 1);
+       ICopyable data = new CopyList(PType.Protocol.ReqRep, MemBlock.Reference(ack_payload));
+       foreach(ISender ret_path in rs.Repliers) {
+         try {
+           //Try to send an ack, but if we can't, oh well...
+           ret_path.Send(data);
+         }
+         catch { }
+       }
       } 
     }
   }
