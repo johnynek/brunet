@@ -74,7 +74,8 @@ namespace Brunet
       }
       //Let's save this result:
       lock( _ta_cache ) {
-        _ta_cache[s] = result;
+        //Save only the reference to the string inside the ta
+        _ta_cache[ result.ToString() ] = result;
       }
       return result;
     }
@@ -265,8 +266,19 @@ namespace Brunet
 
   public class IPTransportAddress: TransportAddress {
     protected ArrayList _ips = null;
-    protected readonly System.Uri _uri = null;
+
+    /**
+     * URI objects are pretty expensive, don't keep this around
+     * since we won't often use it
+     */
+    protected System.Uri _uri {
+      get {
+        return new Uri(_string_rep);
+      }
+    }
     
+
+    protected volatile string _host;
     public string Host {
       get {
 	return _uri.Host;
@@ -302,9 +314,10 @@ namespace Brunet
     public override string ToString() {
       return _string_rep;
     }
-    public IPTransportAddress(string uri) { 
-      _uri = new Uri(uri);
-      _string_rep = _uri.ToString();
+    public IPTransportAddress(string uri_s) { 
+      //Make sure we can parse the URI:
+      Uri uri = new Uri(uri_s);
+      _string_rep = uri.ToString();
       _ips = null;
     }
     public IPTransportAddress(TransportAddress.TAType t,

@@ -18,10 +18,10 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+using System;
 using System.Xml;
 using System.Collections;
 using System.Collections.Specialized;
-using Brunet;
 
 #if BRUNET_NUNIT
 using NUnit.Framework;
@@ -58,7 +58,7 @@ namespace Brunet
     public LinkMessage(string connection_type, NodeInfo local, NodeInfo remote)
     {
       _attributes = new StringDictionary();
-      _attributes["type"] = connection_type;
+      _attributes["type"] = String.Intern( connection_type );
       _local_ni = local;
       _remote_ni = remote;
     }
@@ -81,7 +81,7 @@ namespace Brunet
           if( rht != null ) { _remote_ni = new NodeInfo(rht); }
         }
         else {
-          _attributes[ en.Key.ToString() ] = en.Value.ToString();
+          _attributes[ String.Intern( en.Key.ToString() ) ] = String.Intern( en.Value.ToString() );
         }
       }
     }

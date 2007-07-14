@@ -76,8 +76,8 @@ namespace Brunet
           byte[] binadd = Base32.Decode(parts[offset + 2]);
           MemBlock mb = MemBlock.Reference(binadd);
           a = Parse(mb);
-          //Cache this result:
-          _address_cache[ ascii ] = a;
+          //Cache this result using the string reference by the address:
+          _address_cache[ a.ToString() ] = a;
           return a;
         }
         catch(System.ArgumentOutOfRangeException ex) {

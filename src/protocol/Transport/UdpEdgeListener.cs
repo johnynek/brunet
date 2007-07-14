@@ -605,7 +605,6 @@ namespace Brunet
       //Make sure only this thread can see the socket from now on!
       Socket s = Interlocked.Exchange( ref _s, null);
       EndPoint end = new IPEndPoint(IPAddress.Any, 0);
-      byte[] send_buffer = new byte[ Packet.MaxLength + 8];
       
       BufferAllocator ba = new BufferAllocator(8 + Packet.MaxLength);
       byte[] buffer = ba.Buffer;
@@ -683,7 +682,9 @@ namespace Brunet
          */
         if( tmp_queue.Count > 0 ) {
           int original_count = tmp_queue.Count;
-          SendQueue(tmp_queue, s, send_buffer);
+          //We can use the BufferAllocator without advancing
+          //because after this call, we are done with this buffer space
+          SendQueue(tmp_queue, s, ba.Buffer, ba.Offset);
           int final_count = tmp_queue.Count;
           for( int i = final_count; i < original_count; i++) {
             Interlocked.Decrement(ref _total_to_send);
@@ -740,7 +741,9 @@ namespace Brunet
           } while( true );
           //Now, we have a non-empty queue.
           int original_count = tmp_queue.Count;
-          SendQueue(tmp_queue, s, send_buffer);
+          //We can use the BufferAllocator without advancing
+          //because after this call, we are done with this buffer space
+          SendQueue(tmp_queue, s, ba.Buffer, ba.Offset);
           int final_count = tmp_queue.Count;
           for( int i = final_count; i < original_count; i++) {
             Interlocked.Decrement(ref _total_to_send);
@@ -774,11 +777,11 @@ namespace Brunet
      * Send all the items in this queue if possible.  In some cases, we
      * can't empty the queue (in the case of some SocketErrors).
      */
-    private static void SendQueue(Queue tmp_queue, Socket s, byte[] buffer) {
+    private static void SendQueue(Queue tmp_queue, Socket s, byte[] buffer, int offset) {
       while( tmp_queue.Count > 0 ) {
         SendQueueEntry sqe = (SendQueueEntry)tmp_queue.Dequeue();
         try {
-          Send(sqe, s, buffer);
+          Send(sqe, s, buffer, offset);
         }
         catch(SocketException x) {
          /*
@@ -819,7 +822,7 @@ namespace Brunet
       }
     }
 
-    private static void Send(SendQueueEntry sqe, Socket s, byte[] buffer)
+    private static void Send(SendQueueEntry sqe, Socket s, byte[] buffer, int offset)
     {
       //We have a packet to send
       ICopyable p = sqe.Packet;
@@ -827,10 +830,10 @@ namespace Brunet
       EndPoint e = sender.End;
       //Write the IDs of the edge:
       //[local id 4 bytes][remote id 4 bytes][packet]
-      NumberSerializer.WriteInt(sender.ID, buffer, 0);
-      NumberSerializer.WriteInt(sender.RemoteID, buffer, 4);
-      p.CopyTo(buffer, 8);
-      s.SendTo(buffer, 0, 8 + p.Length, SocketFlags.None, e);
+      NumberSerializer.WriteInt(sender.ID, buffer, offset);
+      NumberSerializer.WriteInt(sender.RemoteID, buffer, offset + 4);
+      p.CopyTo(buffer, offset + 8);
+      s.SendTo(buffer, offset, 8 + p.Length, SocketFlags.None, e);
     }
 
     /**
