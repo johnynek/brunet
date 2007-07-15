@@ -149,14 +149,17 @@ namespace Brunet
      */
     override public void Disconnect()
     {
+      Console.Error.WriteLine("In StructuredNode.Disconnect: {0}", this.Address);
       base.Disconnect();
+      Console.Error.WriteLine("Called Node.Disconnect: {0}", this.Address);
+      
       _lco.IsActive = false;
       _sco.IsActive = false;
       _cco.IsActive = false;
       
       //Gracefully close all the edges:
       _connection_table.Close(); //This makes sure we can't add any new connections.
-      ArrayList edges_to_close = ArrayList.Synchronized( new ArrayList() );
+      ArrayList edges_to_close = new ArrayList();
       foreach(Edge e in _connection_table.GetUnconnectedEdges() ) {
         edges_to_close.Add( e );
       }
@@ -166,17 +169,24 @@ namespace Brunet
         edges_to_close.Add( c.Edge );
       }
       //edges_to_close has all the connections and unconnected edges.
-      ArrayList copy = new ArrayList(edges_to_close);
+      IList copy = edges_to_close.ToArray();
+
+      //Make sure multiple readers and writers won't have problems:
+      edges_to_close = ArrayList.Synchronized( edges_to_close );
+      
       EventHandler ch = delegate(object o, EventArgs a) {
-        Edge e = (Edge)o;
-        edges_to_close.Remove(e);
+        Console.Error.WriteLine("{1} Handling Close of: {0}", o, this.Address);
+        edges_to_close.Remove(o);
         if( edges_to_close.Count == 0 ) {
           Console.Error.WriteLine("Node({0}) Stopping all EdgeListeners", Address);
           StopAllEdgeListeners();
         }
       };
       RpcManager rpc = RpcManager.GetInstance(this);
-      foreach(Edge e in copy) {
+      Console.Error.WriteLine("{0} About to gracefully close all edges", this.Address);
+      for(int i = 0; i < copy.Count; i++) {
+        Edge e = (Edge)copy[i];
+        Console.Error.WriteLine("{0} Closing: [{1} of {2}]: {3}", this.Address, i, copy.Count, e);
         e.CloseEvent += ch;
         if( e.IsClosed ) { ch(e, null); }
         else {
@@ -191,7 +201,10 @@ namespace Brunet
             IDictionary carg = new ListDictionary();
             carg["reason"] = "disconnecting";
             rpc.Invoke(e, res_q, "sys:link.Close", carg);
-          } catch { e.Close(); }
+          } catch {
+             Console.Error.WriteLine("Closing: {0}", e);
+             e.Close();
+          }
         }
       }
     }

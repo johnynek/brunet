@@ -20,6 +20,38 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 namespace Brunet {
 
+/**
+ * This represents the fixed length header of AH Packets.
+ * It covers the data after the AH PType and before the payload
+ * PType.
+ */
+public class AHHeader : ICopyable {
+  
+  protected readonly ICopyable _data;
+
+  public AHHeader(short hops, short ttl, Address source, Address dest, ushort options) {
+    //Make the header part:
+    byte[] header = new byte[ 46 ];
+    int offset = 0;
+    //Write hops:
+    NumberSerializer.WriteShort(hops, header, offset);
+    offset += 2;
+    NumberSerializer.WriteShort(ttl, header, offset);
+    offset += 2;
+    offset += source.CopyTo(header, offset);
+    offset += dest.CopyTo(header, offset);
+    NumberSerializer.WriteShort((short)options, header, offset);
+    offset += 2;
+    _data = MemBlock.Reference(header, 0, offset);
+  }
+
+  public int CopyTo(byte[] dest, int off) {
+    return _data.CopyTo(dest, off);
+  }
+
+  public int Length { get { return _data.Length; } }
+}
+
 public class AHSender : ISender {
 
   protected Node _n;
@@ -44,7 +76,7 @@ public class AHSender : ISender {
    */
   public ISender ReceivedFrom { get { return _from; } }
   //This is the serialized header:
-  protected volatile MemBlock _header;
+  protected volatile ICopyable _header;
 
   public AHSender(Node n, Address destination, ushort options)
   : this( n, n, destination, n.DefaultTTLFor(destination), options) {
@@ -88,29 +120,14 @@ public class AHSender : ISender {
     return _dest.GetHashCode();
   }
 
-  //Be Lazy about doing this:
-  protected MemBlock MakeHeader() {
-    //Make the header part:
-    byte[] header = new byte[ 47 ];
-    int offset = 0;
-    offset += PType.Protocol.AH.CopyTo(header, offset);
-    //Write hops:
-    NumberSerializer.WriteShort(_hops, header, offset);
-    offset += 2;
-    NumberSerializer.WriteShort(_ttl, header, offset);
-    offset += 2;
-    offset += _source.CopyTo(header, offset);
-    offset += _dest.CopyTo(header, offset);
-    NumberSerializer.WriteShort((short)_options, header, offset);
-    offset += 2;
-    return MemBlock.Reference(header, 0, offset);
-  }
- 
   public void Send(ICopyable data) {
     /*
      * Assemble an AHPacket:
      */
-    if( _header == null ) { _header = MakeHeader(); }
+    if( _header == null ) {
+      AHHeader ahh = new AHHeader(_hops, _ttl, _source, _dest, _options);
+      _header = new CopyList( PType.Protocol.AH, ahh);
+    }
     int total = _header.Length + data.Length;
     byte[] ah_packet = new byte[ total ];
     int off_to_data = _header.CopyTo(ah_packet, 0);

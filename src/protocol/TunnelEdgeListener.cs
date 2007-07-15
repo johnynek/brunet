@@ -19,7 +19,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-using Brunet;
 using System;
 using System.Net;
 using System.Net.Sockets;
@@ -35,7 +34,7 @@ namespace Brunet
    * we create an edge that tunnel packets through some other P2P node. 
    */
 
-  public class TunnelEdgeListener: EdgeListener, IDataHandler, IEdgeSendHandler
+  public class TunnelEdgeListener: EdgeListener, IDataHandler
   {
     /**
      * An Enumerable object of local TransportAddresses.
@@ -205,8 +204,7 @@ namespace Brunet
 	    if( localid < 0 ) { localid = ~localid; }
 	  } while( _id_ht.Contains(localid) || localid == 0 );      
 	  //looks like the new edge is ready
-	  TunnelEdge e = new TunnelEdge(this, false, _node, tun_ta.Target,
-					forwarders, localid, remoteid, new byte[ 1 + 8 + Packet.MaxLength ]);
+	  TunnelEdge e = new TunnelEdge(this, false, _node, tun_ta.Target, forwarders, localid, remoteid);
 #if TUNNEL_DEBUG
 	  Console.Error.WriteLine("Creating an instance of TunnelEdge: {0}", e);
 	  Console.Error.WriteLine("remoteid: {0}, localid: {1}", remoteid, localid);
@@ -437,6 +435,8 @@ namespace Brunet
         _isstarted = true;
         _running = true;
       }
+      //Start listening to packets
+      _node.GetTypeSource(PType.Protocol.Tunneling).Subscribe(this, null);
     }
     /**
      * Stop listening for edges.
@@ -444,13 +444,11 @@ namespace Brunet
      * until this is called
      */
     public override void Stop() {
-      lock(_sync) {
-	_running = false;
-	_node.HeartBeatEvent -= new EventHandler(TimeoutChecker);
-	_node.GetTypeSource(PType.Protocol.Tunneling).Unsubscribe(this);      
-      }
+      _running = false;
+      _node.HeartBeatEvent -= TimeoutChecker;
+      _node.GetTypeSource(PType.Protocol.Tunneling).Unsubscribe(this);      
     }
-    
+
     public TunnelEdgeListener(Node n) {
       _sync = new object();
 #if TUNNEL_DEBUG
@@ -458,7 +456,6 @@ namespace Brunet
 #endif
       lock(_sync) {
 	_node = n;
-	_node.GetTypeSource(PType.Protocol.Tunneling).Subscribe(this, null);
 	
 	//true for now, will change later
 	_ta_auth = new ConstantAuthorizer(TAAuthorizer.Decision.Allow);
@@ -472,14 +469,11 @@ namespace Brunet
 
 	_running = false;
 	_isstarted = false;
-	
 	_last_check = DateTime.UtcNow;
 	//resend the request after 5 seconds.
 	_reqtimeout = new TimeSpan(0,0,0,0,5000);
 
 	_node.HeartBeatEvent += new EventHandler(this.TimeoutChecker);
-
-
       }
     }
     protected TunnelEdge GetTunnelEdge(int localid, int remoteid) {
@@ -700,8 +694,7 @@ namespace Brunet
 	  } while( _id_ht.Contains(localid) || localid == 0 );
 	  
 	  //create an edge
-	  e = new TunnelEdge(this, true, _node, target, forwarders, localid, 
-					remoteid, new byte[ 1 + 8 + Packet.MaxLength ]);
+	  e = new TunnelEdge(this, true, _node, target, forwarders, localid, remoteid); 
 #if TUNNEL_DEBUG
 	  Console.Error.WriteLine("Creating an instance of TunnelEdge: {0}", e);
 	  Console.Error.WriteLine("remoteid: {0}, localid: {1}", remoteid, localid);
@@ -799,62 +792,24 @@ namespace Brunet
                               AHPacket.AHOptions.Exact, 
 			      AHPacket.Protocol.Tunneling, ms.ToArray());
       
-      if (tun_edge.PacketSenders.Count > 0) {
-	ISender sender = (ISender) tun_edge.PacketSenders[_rand.Next(0, tun_edge.PacketSenders.Count)];
+      while (tun_edge.PacketSenders.Count > 0) {
+	ISender sender = null;
 	try {
+          sender = (ISender) tun_edge.PacketSenders[_rand.Next(0, tun_edge.PacketSenders.Count)];
 #if TUNNEL_DEBUG
 	  Console.Error.WriteLine("Sending control out on base connection: {0}",
                                   _node.ConnectionTable.GetConnection((Edge) sender));
 #endif
 	  sender.Send(p);
+          return;
+        } catch(EdgeException) {
+          _node.ConnectionTable.Disconnect((Edge)sender); 
 	} catch(Exception ex) {
-#if TUNNEL_DEBUG	  
 	  Console.Error.WriteLine("Error sending control using packet_sender: {0}, {1}", sender, ex);
-#endif
 	}       
       }
     }
 
-    public void HandleEdgeSend(Edge e, ICopyable packet) {
-      if (!_running) {
-	//do nothing
-	return;
-      }
-      TunnelEdge tun_edge = (TunnelEdge)e;
-      tun_edge.SendBuffer[0] = (byte) TunnelEdgeListener.MessageType.EdgeData;
-      //Write the IDs of the edge:
-      //[edge data][local id 4 bytes][remote id 4 bytes][packet]
-      NumberSerializer.WriteInt(tun_edge.ID, tun_edge.SendBuffer, 1);
-      NumberSerializer.WriteInt(tun_edge.RemoteID, tun_edge.SendBuffer, 5);
-#if TUNNEL_DEBUG
-      Console.Error.WriteLine("For data, tun_edge remoteID: {0}, localID: {1}", tun_edge.RemoteID, tun_edge.ID);
-#endif
-      int packet_length = packet.CopyTo(tun_edge.SendBuffer, 9);
-      Packet p = new AHPacket(1, 2, _node.Address, tun_edge.Target, AHPacket.AHOptions.Exact,
-			      AHPacket.Protocol.Tunneling, tun_edge.SendBuffer, 0, 9 + packet_length);
-      
-      if (tun_edge.PacketSenders.Count > 0) {
-	ISender sender = (ISender) tun_edge.PacketSenders[_rand.Next(0, tun_edge.PacketSenders.Count)];
-	try {
-#if TUNNEL_DEBUG
-	  Console.Error.WriteLine("Sending data out on base connection: {0} for edge: {1}",
-                                  _node.ConnectionTable.GetConnection((Edge) sender), e);
-#endif
-	  sender.Send(p);
-	} catch(Exception ex) {
-#if TUNNEL_DEBUG	  
-	  Console.Error.WriteLine("Error sending using packet_sender: {0}, {1}", sender, ex);
-#endif
-	} 
-      }
-      else {
-        //This packet is lost:
-#if TUNNEL_DEBUG
-        Console.Error.WriteLine("Tunnel packet lost on: {0}", e);
-#endif
-      }
-    }
-    
     /*
      * When a UdpEdge closes we need to remove it from
      * our table, so we will know it is new if it comes
