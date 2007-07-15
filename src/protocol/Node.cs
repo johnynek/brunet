@@ -183,7 +183,7 @@ namespace Brunet
      */
     protected Hashtable _subscription_table;
 
-    protected Address _local_add;
+    protected readonly Address _local_add;
     /**
      * The Address of this Node
      */

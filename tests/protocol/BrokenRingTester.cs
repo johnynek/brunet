@@ -140,7 +140,9 @@ namespace Brunet {
 
       foreach(DictionaryEntry de in nodes) {
         Node node = (Node)de.Value;
+        Console.WriteLine("Disconnecting: Node: {0}", node.Address);
         node.Disconnect();
+        Console.WriteLine("Disconnected: Node: {0}", node.Address);
       }
     }
   }

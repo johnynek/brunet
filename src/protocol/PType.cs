@@ -37,7 +37,16 @@ public class PType : ICopyable {
   protected int _type_num;
   protected MemBlock _raw_data;
   protected string _string_rep;
-
+  
+  static PType() {
+    //Initialize the _table:
+    _table = new PType[256];
+  }
+  protected static void AddToTable(PType p) {
+    if (0 <= p.TypeNumber && p.TypeNumber < _table.Length) {
+      _table[ p.TypeNumber ] = p;
+    }
+  }
   /**
    * packet numbers 1-31 are allowed
    */
@@ -53,6 +62,7 @@ public class PType : ICopyable {
     _type_num = -2;
   }
 #if BRUNET_NUNIT
+  //1;2A
   //Only used for NUnit testing, don't EVER use this
   public PType() : this(1) { }
 #else
@@ -67,6 +77,23 @@ public class PType : ICopyable {
    * Here is the list of defined protocols
    */
   public class Protocol {
+    static Protocol() {
+      //Here are all the defined protocols
+      PType[] prots = new PType[]{ 
+                                Linking,
+                                AH,
+                                Connection,
+                                Forwarding,
+                                Tunneling,
+                                Echo,
+                                IP,
+                                ReqRep,
+                                Rpc
+                                };
+      foreach(PType p in prots) {
+        PType.AddToTable(p);
+      }
+    }
     public static readonly PType Linking = new PType(1);
     public static readonly PType AH = new PType(2);
     public static readonly PType Connection = new PType("c");
@@ -80,7 +107,8 @@ public class PType : ICopyable {
     public static readonly PType ReqRep = new PType("r");
     public static readonly PType Rpc = new PType("rpc");
   }
-
+  //Holds all single byte ptypes:
+  protected static readonly PType[] _table;
   ///For ICopyable support
   public int Length { get { return ToMemBlock().Length; } }
   public int CopyTo(byte[] buf, int off) { return ToMemBlock().CopyTo(buf, off); }
@@ -100,18 +128,39 @@ public class PType : ICopyable {
    * the PType.
    */
   public static PType Parse(MemBlock mb, out MemBlock rest) {
+    PType result = null;
+    bool is_v_n = IsValidNumeric( (int)mb[0] );
+    bool store_in_tbl = ( is_v_n || (mb[1] == 0) );
+    if( store_in_tbl ) {
+      //This is stored in our table:
+      result = _table[ mb[0] ];
+      if( is_v_n ) {
+        //There is no null
+        rest = mb.Slice(1);
+      }
+      else {
+        //Skip the null
+        rest = mb.Slice(2);
+      }
+      if( result != null ) { return result; }
+    }
+    //Otherwise we have to make it:
     MemBlock raw_data = null;
-    PType result = new PType();
-    if( IsValidNumeric( (int)( mb[0] ) ) ) {
-      raw_data = mb.Slice(0,1);
+    result = new PType();
+    if( is_v_n ) {
+      /*
+       * Don't set the raw_data since it is only one byte and we may not need
+       * it
+       */
       rest = mb.Slice(1);
       result._type_num = (int)mb[0];
     }
     else {
       int null_pos = mb.IndexOf(0);
       if( null_pos > 0 ) {
-        //Include the "null"
-        raw_data = mb.Slice(0, null_pos + 1);
+        //Include the "null", but make a copy so we don't keep some data in
+        //scope for ever
+        raw_data = MemBlock.Copy( (ICopyable)mb.Slice(0, null_pos + 1) );
         rest = mb.Slice(null_pos + 1); 
       }
       else {
@@ -119,8 +168,12 @@ public class PType : ICopyable {
         throw new System.Exception("PType not null terminated");
       }
       result._type_num = -2;
+      result._raw_data = raw_data;
     }
-    result._raw_data = raw_data;
+    if( store_in_tbl ) {
+      //Make sure we don't have to create an object like this again
+      _table[ mb[0] ] = result;
+    }
     return result;
   }
 
