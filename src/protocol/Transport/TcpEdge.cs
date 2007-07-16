@@ -303,6 +303,7 @@ namespace Brunet
           _send_state.Length = 0;
         }
         //Must lock before we access the _packet_queue
+        int written = 0;
         lock(_sync) {
           if( _send_state.Length == 0 ) {
             /*
@@ -317,16 +318,18 @@ namespace Brunet
             while( cont_writing ) {
               //It is time to get a new packet
               ICopyable p = (ICopyable)_packet_queue.Dequeue();
-              Interlocked.Decrement( ref _queued_packets );
-              short p_length = (short)p.Length;
+              cont_writing = (Interlocked.Decrement( ref _queued_packets ) > 0);
+              /*
+               * Write the packet first so we can see how long it is, then
+               * we write that length into the buffer
+               */
+              short p_length = (short)p.CopyTo( _send_state.Buffer, 2 + current_offset );
               //Now write into this buffer:
               NumberSerializer.WriteShort(p_length, _send_state.Buffer, current_offset);
-              p.CopyTo( _send_state.Buffer, 2 + current_offset );
-              int written = 2 + p_length;
-              current_offset += written;
-              _send_state.Length += written;
+              int current_written = 2 + p_length;
+              current_offset += current_written;
+              _send_state.Length += current_written;
               
-              cont_writing = (_packet_queue.Count > 0);
               if( cont_writing ) {
                 ICopyable next = (ICopyable)_packet_queue.Peek();
                 if( next.Length + _send_state.Length > buf.Capacity ) {
@@ -337,8 +340,7 @@ namespace Brunet
                 }
               }
             }
-            //Advance the BufferAllocator so we don't reuse this space
-            buf.AdvanceBuffer( _send_state.Length );
+            written = _send_state.Length;
           }
         }
 
@@ -353,6 +355,16 @@ namespace Brunet
           if( sent > 0 ) {
             _send_state.Offset += sent;
             _send_state.Length -= sent;
+            if( written != sent ) {
+              //Advance the BufferAllocator so we don't reuse this space
+              buf.AdvanceBuffer( written );
+            }
+            else {
+              /*
+               * We sent everything we wrote, so there is no need to advance
+               * the buffer
+               */
+            }
           }
           else {
             //The edge is now closed.
@@ -372,6 +384,7 @@ namespace Brunet
       }
       catch {
         Close();
+        throw new EdgeException("Edge is closed");
       }
     }
 

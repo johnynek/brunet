@@ -32,7 +32,12 @@ public interface ICopyable {
    */
   int CopyTo(byte[] dest, int offset); 
   /**
-   * how many bytes would this take to represent
+   * @return How many bytes would this take to represent.
+   *
+   * Prefer not to call this method.  It may require as much work
+   * as CopyTo internally, so if you can write first and then
+   * get the length written returned from CopyTo, it will be faster
+   * to do so.
    */
   int Length { get; }
 }
