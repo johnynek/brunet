@@ -216,7 +216,6 @@ namespace Brunet.Dht {
     */
 
     public IList Get(MemBlock key, int maxbytes, byte[] token) {
-      MemBlock key = MemBlock.Reference(keyb);
       int seen_start_idx = 0;
       int seen_end_idx = 0;
       if( token != null ) {
