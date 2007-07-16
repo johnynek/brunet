@@ -247,12 +247,12 @@ namespace Brunet
       LinkMessage lm_resp = null;
       if( err == null ) {
         //We send a response:
-	NodeInfo n_info = new NodeInfo( _node.Address, from.LocalTA );
-	NodeInfo remote_info = new NodeInfo( null, from.RemoteTA );
+	NodeInfo n_info = NodeInfo.CreateInstance( _node.Address, from.LocalTA );
+	NodeInfo remote_info = NodeInfo.CreateInstance( null, from.RemoteTA );
 	System.Collections.Specialized.StringDictionary attrs =
 	        new System.Collections.Specialized.StringDictionary();
-	attrs["type"] = lm.ConTypeString;
-	attrs["realm"] = _node.Realm;
+	attrs["type"] = String.Intern( lm.ConTypeString );
+	attrs["realm"] = String.Intern( _node.Realm );
         lm_resp = new LinkMessage( attrs, n_info, remote_info );
       }
       else {

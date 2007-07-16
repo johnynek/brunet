@@ -309,7 +309,9 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
    * writing it, be prepared for hard to find bugs.
    */
   public void WriteTo(System.IO.Stream s) {
-    s.Write(_buffer, _offset, _length);
+    if( _length > 0 ) {
+      s.Write(_buffer, _offset, _length);
+    }
   }
   /**
    * Make a reference to the given byte array, it does not make a copy.

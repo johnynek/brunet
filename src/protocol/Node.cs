@@ -78,7 +78,7 @@ namespace Brunet
         /*
          * Make all the hashtables : 
          */
-        _local_add = addr;
+        _local_add = AddressParser.Parse( addr.ToMemBlock() );
         _subscription_table = new Hashtable();
 
         _task_queue = new TaskQueue();
@@ -608,7 +608,7 @@ namespace Brunet
         int rm_count = l.Count - max_local;
         l.RemoveRange( max_local, rm_count );
       }
-      return new NodeInfo( this.Address, l);
+      return NodeInfo.CreateInstance( this.Address, l);
     }
     /**
      * return a status message for this node.
@@ -629,7 +629,7 @@ namespace Brunet
        */
       ConnectionType ct = Connection.StringToMainType( con_type_string );
       foreach(Connection c in _connection_table.GetConnections( ct ) ) {
-        neighbors.Add( new NodeInfo( c.Address, c.Edge.RemoteTA ) );
+        neighbors.Add( NodeInfo.CreateInstance( c.Address ) );
       }
       return new StatusMessage( con_type_string, neighbors );
     }

@@ -58,7 +58,7 @@ public class PType : ICopyable {
    * Initialize a packet type from a string
    */
   public PType(string s) {
-    _string_rep = s;
+    _string_rep = System.String.Intern(s);
     _type_num = -2;
   }
 #if BRUNET_NUNIT
@@ -233,7 +233,9 @@ public class PType : ICopyable {
     }
     else if ( _type_num == -2 ) {
       //Unitialized string type:
-      _string_rep = _raw_data.Slice(0, _raw_data.Length - 1).GetString(System.Text.Encoding.UTF8);
+      _string_rep = System.String.Intern(
+                    _raw_data.Slice(0, _raw_data.Length - 1).GetString(System.Text.Encoding.UTF8)
+                    );
     }
     else {
       //Unitialized int type:

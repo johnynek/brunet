@@ -232,9 +232,9 @@ namespace Brunet
       messages.Add(new ErrorMessage(ErrorMessage.ErrorCode.AlreadyConnected, "this is an error"));
       //Add a Link Message
       LinkMessage l1 = new LinkMessage(ConnectionType.Structured,
-                                   new NodeInfo(null,
+                                   NodeInfo.CreateInstance(null,
                                        TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:45")),
-                                   new NodeInfo(
+                                   NodeInfo.CreateInstance(
                                        new DirectionalAddress(DirectionalAddress.Direction.Left),
                                        TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:837")) );
       messages.Add(l1);
@@ -242,7 +242,7 @@ namespace Brunet
       //At a ConnectToMessage:
       Address a = new DirectionalAddress(DirectionalAddress.Direction.Left);
       TransportAddress ta = TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:5000");
-      NodeInfo ni = new NodeInfo(a, ta);
+      NodeInfo ni = NodeInfo.CreateInstance(a, ta);
       ConnectToMessage ctm1 = new ConnectToMessage(ConnectionType.Unstructured, ni);
 
       messages.Add(ctm1);
@@ -250,7 +250,7 @@ namespace Brunet
       //Add a StatusMessage:
       System.Collections.ArrayList neighbors = new System.Collections.ArrayList();
       for(int i = 5001; i < 5010; i++) {
-        neighbors.Add(new NodeInfo(new DirectionalAddress(DirectionalAddress.Direction.Left),
+        neighbors.Add(NodeInfo.CreateInstance(new DirectionalAddress(DirectionalAddress.Direction.Left),
 				  TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:"
 					  + i.ToString())));
       }
@@ -284,7 +284,7 @@ namespace Brunet
 			  + "</response>";
       Address ctma = AddressParser.Parse("brunet:node:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAO");
       ConnectToMessage ctm_s = new ConnectToMessage(ConnectionType.Structured,
-		                                    new NodeInfo(ctma,
+		                                    NodeInfo.CreateInstance(ctma,
 					TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:20293/") ) );
       Assert.AreEqual(ctm_s, cmp.Parse(ctm_string), "ConnectToMessage string test");
 
@@ -300,9 +300,9 @@ namespace Brunet
       attrs["type"] = "structured.near";
       attrs["realm"] = "pobland";
       LinkMessage lm_s = new LinkMessage(attrs,
-		                         new NodeInfo(lma,
+		                         NodeInfo.CreateInstance(lma,
 						      TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:2000/") ),
-					 new NodeInfo(lmb,
+					 NodeInfo.CreateInstance(lmb,
 						      TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:2001/") ) );
       
       Assert.AreEqual( lm_s, cmp.Parse(lm_string) );

@@ -75,17 +75,13 @@ namespace Brunet
 
     public ConnectToMessage(IDictionary ht) {
       _ct = (string)ht["type"];
-      _target_ni = new NodeInfo((IDictionary)ht["target"]);
-      ArrayList neighs = new ArrayList();
-      IEnumerable neighht = ht["neighbors"] as IEnumerable;
+      _target_ni = NodeInfo.CreateInstance((IDictionary)ht["target"]);
+      IList neighht = ht["neighbors"] as IList;
       if( neighht != null ) {
-        foreach(IDictionary nht in neighht) {
-          neighs.Add( new NodeInfo( nht ) ); 
+        _neighbors = new NodeInfo[ neighht.Count ];
+        for(int i = 0; i < neighht.Count; i++) {
+          _neighbors[i] = NodeInfo.CreateInstance( (IDictionary)neighht[i] );
         }
-      }
-      _neighbors = new NodeInfo[ neighs.Count ];
-      for(int i = 0; i < neighs.Count; i++) {
-        _neighbors[i] = (NodeInfo)neighs[i];
       }
     }
     /**
@@ -268,7 +264,7 @@ namespace Brunet
     {
       Address a = new DirectionalAddress(DirectionalAddress.Direction.Left);
       TransportAddress ta = TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:5000"); 
-      NodeInfo ni = new NodeInfo(a, ta);
+      NodeInfo ni = NodeInfo.CreateInstance(a, ta);
       ConnectToMessage ctm1 = new ConnectToMessage(ConnectionType.Unstructured, ni);
       XmlAbleTester xt = new XmlAbleTester();
       
@@ -282,7 +278,7 @@ namespace Brunet
       tas.Add(ta);
       for(int i = 5001; i < 5010; i++)
         tas.Add(TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:" + i.ToString()));
-      NodeInfo ni2 = new NodeInfo(a, tas);
+      NodeInfo ni2 = NodeInfo.CreateInstance(a, tas);
 
       ConnectToMessage ctm2 = new ConnectToMessage(ConnectionType.Structured, ni2);
       
@@ -295,7 +291,7 @@ namespace Brunet
       for(int i = 0; i < 5; i++) {
 	string ta_tmp = "brunet.tcp://127.0.0.1:" + (i+80).ToString();
         NodeInfo tmp =
-		new NodeInfo(new DirectionalAddress(DirectionalAddress.Direction.Left),
+		NodeInfo.CreateInstance(new DirectionalAddress(DirectionalAddress.Direction.Left),
 	                     TransportAddressFactory.CreateInstance(ta_tmp)
 			    );
 	neighs[i] = tmp;

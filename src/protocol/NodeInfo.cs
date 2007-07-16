@@ -101,7 +101,7 @@ namespace Brunet
      * @param a The Address of the node we are refering to
      * @param transports a list of TransportAddress objects
      */
-    public NodeInfo(Address a, IList transports)
+    protected NodeInfo(Address a, IList transports)
     {
       _address = a;
       _tas = transports;
@@ -110,39 +110,98 @@ namespace Brunet
      * We will often create NodeInfo objects with only one
      * TransportAddress.  This constructor makes that easy.
      */
-    public NodeInfo(Address a, TransportAddress ta)
+    protected NodeInfo(Address a, TransportAddress ta)
     {
       _address = a;
-      _tas = new ArrayList(1);
-      _tas.Add(ta);
+      _tas = new TransportAddress[]{ ta };
     }
     /**
      * Here is a NodeInfo with no TransportAddress
      */
-    public NodeInfo(Address a)
+    protected NodeInfo(Address a)
     {
       _address = a;
-      _tas = new ArrayList(1);
+      _tas = EmptyTas;
     }
 
-    public NodeInfo(IDictionary ht) {
-      object addr_str = ht["address"];
-      if( addr_str != null ) {
-        _address = AddressParser.Parse((string)addr_str);
-      }
-      IList trans = ht["transports"] as IList;
-      if( trans != null ) {
-        int count = trans.Count;
-        _tas = new ArrayList(count);
-        for(int i = 0; i < count; i++) {
-          _tas.Add( TransportAddressFactory.CreateInstance((string)trans[i]) );
+    //A cache of commonly used NodeInfo objects
+    protected static Cache _cache = new Cache(256);
+    /**
+     * Factory method to reduce memory allocations by caching
+     * commonly used NodeInfo objects
+     */
+    public static NodeInfo CreateInstance(Address a) {
+      NodeInfo ni = null;
+      lock( _cache ) {
+        ni = (NodeInfo)_cache[a];
+        if( ni == null ) {
+          ni = new NodeInfo(a);
+          _cache[a] = ni;
         }
       }
+      return ni;
+    }
+    public static NodeInfo CreateInstance(Address a, TransportAddress ta) {
+      NodeInfo key = new NodeInfo(a, ta);
+      NodeInfo result = null;
+      lock( _cache ) {
+        result = (NodeInfo)_cache[key];
+        if( result == null ) {
+          //This may look weird, but we are using a NodeInfo as a key
+          //to lookup NodeInfos, this will allow us to only keep one
+          //identical NodeInfo in scope at a time.
+          _cache[key] = key;
+          result = key;
+        }
+        else {
+          //Return the original object, allowing this
+          //new key to be garbage collected
+        }
+      }
+      return result;
+    }
+    public static NodeInfo CreateInstance(Address a, IList ta) {
+      NodeInfo key = new NodeInfo(a, ta);
+      NodeInfo result = null;
+      lock( _cache ) {
+        result = (NodeInfo)_cache[key];
+        if( result == null ) {
+          //This may look weird, but we are using a NodeInfo as a key
+          //to lookup NodeInfos, this will allow us to only keep one
+          //identical NodeInfo in scope at a time.
+          _cache[key] = key;
+          result = key;
+        }
+        else {
+          //Return the original object, allowing this
+          //new key to be garbage collected
+        }
+      }
+      return result;
+    }
+    public static NodeInfo CreateInstance(IDictionary d) {
+      Address address = null;
+      IList tas;
+      object addr_str = d["address"];
+      if( addr_str != null ) {
+        address = AddressParser.Parse((string)addr_str);
+      }
+      IList trans = d["transports"] as IList;
+      if( trans != null ) {
+        int count = trans.Count;
+        tas = new TransportAddress[count];
+        for(int i = 0; i < count; i++) {
+          tas[i] = TransportAddressFactory.CreateInstance((string)trans[i]);
+        }
+        NodeInfo ni = CreateInstance(address, tas);
+        return ni;
+      }
       else {
-        _tas = new ArrayList(1);
+        NodeInfo ni = CreateInstance(address);
+        return ni;
       }
     }
-	  
+
     protected Address _address;
     /**
      * The address of the node (may be null)
@@ -161,6 +220,7 @@ namespace Brunet
       get { return (TransportAddress)_tas[0]; }
     }
     protected IList _tas;
+    protected static readonly IList EmptyTas = new TransportAddress[0];
     /**
      * a List of the TransportAddresses associated with this node
      */
@@ -187,6 +247,7 @@ namespace Brunet
      */
     public override bool Equals(object e)
     {
+      if( e == this ) { return true; }
       NodeInfo ne = e as NodeInfo;
       if ( ne != null ) {
         bool same = true;
@@ -216,11 +277,16 @@ namespace Brunet
 
     public override int GetHashCode() {
       if( !_done_hash ) {
-        _code = 0;
-        if( _address != null ) { _code = _address.GetHashCode(); }
-        foreach(TransportAddress ta in _tas) {
-          _code ^= ta.GetHashCode();
+        int code = 0;
+        if( _address != null ) {
+          code = _address.GetHashCode();
         }
+        else {
+          if( _tas.Count > 0 ) {
+            code = _tas[0].GetHashCode();
+          }
+        }
+        _code = code;
 	_done_hash = true;
       }
       return _code;
@@ -238,23 +304,27 @@ namespace Brunet
     {
       return new NodeInfo(r);
     }
+    
+    protected volatile IDictionary _as_dict;
 
     public IDictionary ToDictionary()
     {
+      if( _as_dict != null ) {
+        return _as_dict;
+      }
       ListDictionary ht = new ListDictionary();
       if( _address != null ) {
         ht["address"] = _address.ToString();
       }
-      if( _tas != null ) {
-        ArrayList trans = new ArrayList( _tas.Count );
+      if( _tas != null && (_tas.Count > 0) ) {
+        string[] trans = new string[ _tas.Count ];
         int count = _tas.Count;
         for(int i = 0; i < count; i++) {
-          trans.Add( _tas[i].ToString() );
+          trans[i] = _tas[i].ToString();
         }
-        if( trans.Count > 0 ) {
-          ht["transports"] = trans;
-        }
+        ht["transports"] = trans;
       }
+      _as_dict = ht;
       return ht;
     }
     
@@ -301,7 +371,7 @@ namespace Brunet
 
     }
     public void RoundTripHT(NodeInfo ni) {
-      NodeInfo ni_other = new NodeInfo( ni.ToDictionary() );
+      NodeInfo ni_other = NodeInfo.CreateInstance( ni.ToDictionary() );
       Assert.AreEqual(ni, ni_other, "Hashtable roundtrip");
     }
     //Test methods:
@@ -310,7 +380,7 @@ namespace Brunet
     {
       Address a = new DirectionalAddress(DirectionalAddress.Direction.Left);
       TransportAddress ta = TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:5000");
-      NodeInfo ni = new NodeInfo(a, ta);
+      NodeInfo ni = NodeInfo.CreateInstance(a, ta);
       RoundTripHT(ni);
 
       XmlAbleTester xt = new XmlAbleTester();
@@ -325,14 +395,14 @@ namespace Brunet
       tas.Add(ta);
       for(int i = 5001; i < 5010; i++)
         tas.Add(TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:" + i.ToString()));
-      NodeInfo ni3 = new NodeInfo(a, tas);
+      NodeInfo ni3 = NodeInfo.CreateInstance(a, tas);
       RoundTripHT(ni3);
       
       ni2 = (NodeInfo)xt.SerializeDeserialize(ni3);
       Assert.AreEqual(ni3, ni2, "NodeInfo: address and 10 tas");
 
       //Test null address:
-      NodeInfo ni4 = new NodeInfo(null, ta);
+      NodeInfo ni4 = NodeInfo.CreateInstance(null, ta);
       RoundTripHT(ni4);
       
       ni2 = (NodeInfo)xt.SerializeDeserialize(ni4);

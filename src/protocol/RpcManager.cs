@@ -301,7 +301,7 @@ public class RpcManager : IReplyHandler, IDataHandler {
 			  ReqrepManager.Statistics statistics, object state)
   {
     RpcRequestState rs = (RpcRequestState) state;
-    ISender target = rs.RpcTarget;
+    //ISender target = rs.RpcTarget;
     BlockingQueue bq = rs.Results;
     if( bq != null ) {
       object data = AdrConverter.Deserialize(payload);

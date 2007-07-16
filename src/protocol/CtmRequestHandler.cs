@@ -79,7 +79,7 @@ namespace Brunet
       ArrayList neighbors = new ArrayList();
       foreach(Connection cons in nearest) {
         //No need to send the TA, since only the address is used
-        NodeInfo neigh = new NodeInfo(cons.Address);
+        NodeInfo neigh = NodeInfo.CreateInstance(cons.Address);
         neighbors.Add( neigh );
       }
       //Put these into an NodeInfo[]

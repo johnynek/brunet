@@ -206,7 +206,7 @@ namespace Brunet
       }
       catch(Exception) {
         //Oh, well, that didn't work.
-        ArrayList tas = new ArrayList();
+        ArrayList tas = new ArrayList(1);
         //Just put the loopback address, it might help us talk to some other
         //local node.
         tas.Add( CreateInstance(tat, new IPEndPoint(IPAddress.Loopback, port) ) );
@@ -345,8 +345,9 @@ namespace Brunet
 
       try {
         IPAddress a = IPAddress.Parse(_uri.Host);
-        _ips = new ArrayList(1);
-        _ips.Add(a);
+        ArrayList tmp_ips = new ArrayList(1);
+        tmp_ips.Add(a);
+        _ips = tmp_ips;
         return _ips;
       }
       catch(Exception) {
