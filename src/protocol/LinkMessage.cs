@@ -74,11 +74,11 @@ namespace Brunet
       while( en.MoveNext() ) {
         if( en.Key.Equals( "local" ) ) {
           IDictionary lht = en.Value as IDictionary;
-          if( lht != null ) { _local_ni = new NodeInfo(lht); }
+          if( lht != null ) { _local_ni = NodeInfo.CreateInstance(lht); }
         }
         else if( en.Key.Equals( "remote" ) ) {
           IDictionary rht = en.Value as IDictionary;
-          if( rht != null ) { _remote_ni = new NodeInfo(rht); }
+          if( rht != null ) { _remote_ni = NodeInfo.CreateInstance(rht); }
         }
         else {
           _attributes[ String.Intern( en.Key.ToString() ) ] = String.Intern( en.Value.ToString() );
@@ -301,9 +301,9 @@ namespace Brunet
     [Test]
     public void LMSerializationTest()
     {
-      NodeInfo n1 = new NodeInfo(null, TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:45"));
+      NodeInfo n1 = NodeInfo.CreateInstance(null, TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:45"));
       LinkMessage l1 = new LinkMessage(ConnectionType.Structured, n1,
-				       new NodeInfo(new DirectionalAddress(DirectionalAddress.Direction.Left),
+				       NodeInfo.CreateInstance(new DirectionalAddress(DirectionalAddress.Direction.Left),
 				       TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:837")) );
       RoundTripHT(l1);
       StringDictionary attrs = new StringDictionary();

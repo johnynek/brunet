@@ -114,7 +114,7 @@ namespace Brunet
      */
     public StructuredNode(AHAddress add, string realm) : this(add)
     {
-      _realm = realm;
+      _realm = String.Intern( realm );
     }
 
     protected int _netsize = -1;
@@ -314,13 +314,13 @@ namespace Brunet
 	  //we need to find the MAX_NEIGHBORS closest guys to addr
 	  foreach(Connection c in  _connection_table.GetNearestTo(ah_addr, MAX_NEIGHBORS))
 	  {
-	    neighbors.Add( new NodeInfo( c.Address, c.Edge.RemoteTA ) );
+	    neighbors.Add( NodeInfo.CreateInstance( c.Address ) );
 	  }
 	} else {
 	//if address is null, we send the list of
 	  int count = 0;
 	  foreach(Connection c in _connection_table.GetConnections( ct ) ) {
-	    neighbors.Add( new NodeInfo( c.Address, c.Edge.RemoteTA ) );
+	    neighbors.Add( NodeInfo.CreateInstance( c.Address ) );
 	    count++;
 	    if (count >= MAX_NEIGHBORS) {
 	      break;

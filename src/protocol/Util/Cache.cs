@@ -28,6 +28,40 @@ using NUnit.Framework;
 namespace Brunet {
 
 /**
+ * This is a simple tuple-like object to allow
+ * caching based on a equality of an ordered list.
+ * 
+ * The hashcode is taken from the first object, so
+ * that one should have the "best" hashing function
+ * to improve efficiency.
+ */
+public class CacheKey {
+  protected object[] _objs;
+
+  public CacheKey(params object[] objs) {
+    _objs = objs;
+  }
+
+  public override int GetHashCode() {
+    return _objs[0].GetHashCode();
+  }
+
+  public override bool Equals(object o) {
+    if( this == o ) { return true; }
+    CacheKey other = o as CacheKey;
+    if( other == null ) { return false; }
+    if( _objs.Length != other._objs.Length ) { return false; }
+    int i = 0;
+    bool same = true;
+    while( same && i < _objs.Length ) {
+      same = _objs[i].Equals( other._objs[i] );
+      i++;
+    }
+    return same;
+  }
+}
+
+/**
  * This is a simple Hashtable-like Cache.  You set
  * a maximum size and it will keep at most that many
  * elements based on usage.
@@ -272,6 +306,20 @@ public class Cache : IEnumerable {
 [TestFixture]
 public class CacheTest {
 
+  [Test]
+  public void CacheKeyTest() {
+    CacheKey test1 = new CacheKey("hello", "this", "is", "a", "test");
+    CacheKey test2 = new CacheKey("hello", "this", "is", "a", "test");
+    CacheKey test3 = new CacheKey("hello", "this", "is", "not", "a", "test");
+    CacheKey test4 = new CacheKey("hello", "this", "is", "a different", "test");
+    Assert.AreEqual(test1.GetHashCode(), test2.GetHashCode(), "CacheKey Hashcode equality");
+    Assert.AreEqual(test1, test2, "CacheKey equality");
+    Assert.AreNotEqual(test1, test3, "CacheKey non-equality");
+    Assert.AreNotEqual(test2, test3, "CacheKey non-equality");
+    Assert.AreNotEqual(test1, test4, "CacheKey non-equality");
+    Assert.AreNotEqual(test2, test4, "CacheKey non-equality");
+    Assert.AreNotEqual(test3, test4, "CacheKey non-equality");
+  }
   [Test]
   public void TestRecall() {
     const int MAX_SIZE = 100;

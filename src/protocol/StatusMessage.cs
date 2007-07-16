@@ -63,7 +63,7 @@ namespace Brunet {
         if( nodes != null ) {
           _neighbors = new ArrayList(nodes.Count);
           foreach(IDictionary nih in nodes) {
-            _neighbors.Add(new NodeInfo(nih));
+            _neighbors.Add(NodeInfo.CreateInstance(nih));
           }
         }
         else {
@@ -127,13 +127,14 @@ namespace Brunet {
     }
     
     protected ArrayList _neighbors;
+    protected static ArrayList EmptyList = new ArrayList(0);
     /**
      * Returns an ArrayList of NodeInfo objects for the neighbors
      */
     public ArrayList Neighbors {
       get {
         if( _neighbors == null ) {
-          return new ArrayList(1);
+          return EmptyList;
         }
         else {
           return _neighbors;
@@ -240,7 +241,7 @@ namespace Brunet {
     {
       Address a = new DirectionalAddress(DirectionalAddress.Direction.Left);
       TransportAddress ta = TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:5000");
-      NodeInfo ni = new NodeInfo(a, ta);
+      NodeInfo ni = NodeInfo.CreateInstance(a, ta);
       
       //Test with one neighbor:
       ArrayList neighbors = new ArrayList();
@@ -255,7 +256,7 @@ namespace Brunet {
       //Test with many neighbors:
         
       for(int i = 5001; i < 5010; i++) {
-        neighbors.Add(new NodeInfo(a,
+        neighbors.Add(NodeInfo.CreateInstance(a,
 				  TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:"
 					  + i.ToString())));
       }

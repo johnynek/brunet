@@ -731,7 +731,7 @@ namespace Brunet {
       NodeInfo[] near_ni = new NodeInfo[nearest.Count];
       int i = 0;
       foreach(Connection cons in nearest) {
-	near_ni[i] = new NodeInfo(cons.Address, cons.Edge.RemoteTA);
+	near_ni[i] = NodeInfo.CreateInstance(cons.Address, cons.Edge.RemoteTA);
 	i++;
       }
 

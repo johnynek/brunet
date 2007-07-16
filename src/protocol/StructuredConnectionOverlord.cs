@@ -835,7 +835,7 @@ namespace Brunet {
       int i = 0;
       foreach(Connection cons in nearest) {
         //We don't use the TAs, just the addresses
-	near_ni[i] = new NodeInfo(cons.Address);
+	near_ni[i] = NodeInfo.CreateInstance(cons.Address);
 	i++;
       }
       ConnectToMessage ctm = new ConnectToMessage(contype, _node.GetNodeInfo(8), near_ni);

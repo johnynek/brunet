@@ -344,12 +344,12 @@ namespace Brunet
     }
     
     protected LinkMessage MakeLM() {
-      NodeInfo my_info = new NodeInfo( _node.Address, _e.LocalTA );
-      NodeInfo remote_info = new NodeInfo( _linker.Target, _e.RemoteTA );
+      NodeInfo my_info = NodeInfo.CreateInstance( _node.Address, _e.LocalTA );
+      NodeInfo remote_info = NodeInfo.CreateInstance( _linker.Target, _e.RemoteTA );
       System.Collections.Specialized.StringDictionary attrs
           = new System.Collections.Specialized.StringDictionary();
-      attrs["type"] = _contype;
-      attrs["realm"] = _node.Realm;
+      attrs["type"] = String.Intern( _contype );
+      attrs["realm"] = String.Intern( _node.Realm );
       return new LinkMessage( attrs, my_info, remote_info );
     }
 
