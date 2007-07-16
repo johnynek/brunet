@@ -832,8 +832,8 @@ namespace Brunet
       //[local id 4 bytes][remote id 4 bytes][packet]
       NumberSerializer.WriteInt(sender.ID, buffer, offset);
       NumberSerializer.WriteInt(sender.RemoteID, buffer, offset + 4);
-      p.CopyTo(buffer, offset + 8);
-      s.SendTo(buffer, offset, 8 + p.Length, SocketFlags.None, e);
+      int plength = p.CopyTo(buffer, offset + 8);
+      s.SendTo(buffer, offset, 8 + plength, SocketFlags.None, e);
     }
 
     /**

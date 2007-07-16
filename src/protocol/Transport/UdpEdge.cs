@@ -176,10 +176,10 @@ namespace Brunet
     //UDP ports are always bi-directional, and never ephemeral
     public override bool LocalTANotEphemeral { get { return true; } }
     
-    protected TransportAddress _remoteta;
-    public override Brunet.TransportAddress RemoteTA
+    protected volatile TransportAddress _remoteta;
+    public override TransportAddress RemoteTA
     {
-      get { lock( _sync ) { return _remoteta; } }
+      get { return _remoteta; }
     }
     
     //UDP ports are always bi-directional, and never ephemeral
