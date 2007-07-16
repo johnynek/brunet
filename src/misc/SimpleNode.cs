@@ -156,7 +156,7 @@ namespace Ipop {
             Console.Error.WriteLine("I am connected to {0} as {1}.  Current time is {2}.", 
               nodes[i].Realm, nodes[i].Address.ToString(), DateTime.UtcNow);
           }
-          Thread.Sleep(1000*15);
+          Thread.Sleep(1000*60*60);
         }
       }
 
