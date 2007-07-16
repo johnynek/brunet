@@ -59,10 +59,15 @@ namespace Brunet.Dht {
     public void CacheEviction(Object o, EventArgs args) {
       Cache.EvictionArgs eargs = (Cache.EvictionArgs) args;
       MemBlock key = (MemBlock) eargs.Key;
+      Console.WriteLine("Evicted out of cache {0}, entries in dht {1}, entries in cache {2}", new AHAddress(key), Count, _data.Count);
       if(eargs.Value != null && ((LinkedList<LinkedList<Entry>>) eargs.Value).Count > 0) {
         LinkedList<LinkedList<Entry>> data = (LinkedList<LinkedList<Entry>>) eargs.Value;
-        string path = GeneratePath(key);
-        using (FileStream fs = File.Open(path, FileMode.Create)) {
+        string dir_path, filename;
+        string file_path = GeneratePath(key, out dir_path, out filename);
+        if(!Directory.Exists(dir_path)) {
+          Directory.CreateDirectory(dir_path);
+        }
+        using (FileStream fs = File.Open(file_path, FileMode.Create)) {
           AdrConverter.Serialize(data, fs);
         }
       }
@@ -138,8 +143,17 @@ namespace Brunet.Dht {
       return data.Count;
     }
 
-    // Generates the file system path for a specific key
     public string GeneratePath(MemBlock key) {
+      string dir_path, filename;
+      return GeneratePath(key, out dir_path, out filename);
+    }
+
+    // Generates the file system path for a specific key
+    public string GeneratePath(MemBlock key, out string path, out string filename) {
+      if(Address.MemSize < 5) {
+        throw new Exception("Address.MemSize must be greater than or equal to 5.");
+      }
+
       string[] l = new string[5];
       for (int j = 0; j < 4; j++) {
         l[j] = string.Empty;
@@ -150,15 +164,13 @@ namespace Brunet.Dht {
       l[2] = key[1].ToString();
       l[3] = key[2].ToString();
 
-      for (int i = 3; i < 19; i++) {
+      for (int i = 3; i < Address.MemSize - 2; i++) {
         l[4] += key[i].ToString();
       }
 
-      string path = String.Join(Path.DirectorySeparatorChar.ToString(), l);
-      if(!Directory.Exists(path)) {
-        Directory.CreateDirectory(path);
-      }
-      return Path.Combine(path, key[19].ToString());
+      path = String.Join(Path.DirectorySeparatorChar.ToString(), l);
+      filename = key[Address.MemSize - 1].ToString();
+      return Path.Combine(path, filename);
     }
 
     // This gets us an ArrayList of entries based upon the key

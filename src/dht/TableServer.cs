@@ -67,35 +67,41 @@ namespace Brunet.Dht {
 //  We implement IRpcHandler to help with Puts, so we must have this method to process
 //  new Rpc commands on this object
     public void HandleRpc(ISender caller, string method, IList args, object rs) {
-      // We have special case for the puts since they are done asynchronously
-      if(method == "Put") {
-        try {
+      object result = null;
+      try {
+        if(method.Equals("Put")) {
           MemBlock key = (byte[]) args[0];
           MemBlock value = (byte[]) args[1];
           int ttl = (int) args[2];
           bool unique = (bool) args[3];
-          Put(key, value, ttl, unique, rs);
+          result = Put(key, value, ttl, unique);
         }
-        catch (Exception e) {
-          object result = new AdrException(-32602, e);
-          _rpc.SendResult(rs, result);
+        else if(method.Equals("PutHandler")) {
+          MemBlock key = (byte[]) args[0];
+          MemBlock value = (byte[]) args[1];
+          int ttl = (int) args[2];
+          bool unique = (bool) args[3];
+          result = PutHandler(key, value, ttl, unique);
+        }
+        else if(method.Equals("Get")) {
+          MemBlock key = (byte[]) args[0];
+          int maxbytes = (int) args[1];
+          if(args[2] == null) {
+           result = Get(key, maxbytes, null);
+          }
+          else {
+            MemBlock token = (byte[]) args[2];
+            result = Get(key, maxbytes, token);
+          }
+        }
+        else {
+          throw new Exception("Dht.Exception:  Invalid method");
         }
       }
-      else {
-        // Everybody else just uses the generic synchronous style
-        object result = null;
-        try {
-          Type type = this.GetType();
-          MethodInfo mi = type.GetMethod(method);
-          object[] arg_array = new object[ args.Count ];
-          args.CopyTo(arg_array, 0);
-          result = mi.Invoke(this, arg_array);
-        }
-        catch(Exception e) {
-          result = new AdrException(-32602, e);
-        }
-        _rpc.SendResult(rs, result);
+      catch (Exception e) {
+        result = new AdrException(-32602, e);
       }
+      _rpc.SendResult(rs, result);
     }
 
     /**
@@ -119,29 +125,29 @@ namespace Brunet.Dht {
         // was never created it shouldn't matter.
 
 
-    public void Put(MemBlock key, MemBlock value, int ttl, bool unique, object rs) {
-      object result = null;
+    public bool Put(MemBlock key, MemBlock value, int ttl, bool unique) {
       try {
         PutHandler(key, value, ttl, unique);
         BlockingQueue remote_put = new BlockingQueue();
         remote_put.EnqueueEvent += delegate(Object o, EventArgs eargs) {
-          result = null;
           try {
             bool timedout;
-            result = remote_put.Dequeue(0, out timedout);
+            object result = remote_put.Dequeue(0, out timedout);
             RpcResult rpcResult = (RpcResult) result;
             result = rpcResult.Result;
             if(result.GetType() != typeof(bool)) {
               throw new Exception("Incompatible return value.");
             }
+            else if(!(bool) result) {
+              throw new Exception("Unknown error!");
+            }
           }
           catch (Exception e) {
-            result = new AdrException(-32602, e);
             _data.RemoveEntry(key, value);
+            throw e;
           }
 
           remote_put.Close();
-          _rpc.SendResult(rs, result);
         };
 
 
@@ -159,9 +165,9 @@ namespace Brunet.Dht {
         _rpc.Invoke(s, remote_put, "dht.PutHandler", key, value, ttl, unique);
       }
       catch (Exception e) {
-        result = new AdrException(-32602, e);
-        _rpc.SendResult(rs, result);
+        throw e;
       }
+      return true;
     }
 
     /**
@@ -335,7 +341,7 @@ namespace Brunet.Dht {
             }
             _left_addr = lc.Address;
             if(Count > 0) {
-              _left_transfer_state = new TransferState(true, this);
+              _left_transfer_state = new TransferState(lc, this);
             }
           }
         }
@@ -355,7 +361,7 @@ namespace Brunet.Dht {
             }
             _right_addr = rc.Address;
             if(Count > 0) {
-              _right_transfer_state = new TransferState(false, this);
+              _right_transfer_state = new TransferState(rc, this);
             }
           }
         }
@@ -399,30 +405,21 @@ namespace Brunet.Dht {
        * goes through all the values for that key.  Once it reaches max 
        * parallel transfers, it is done.
        */
-      public TransferState(bool left, TableServer ts) {
+      public TransferState(Connection con, TableServer ts) {
         this._ts = ts;
-        ConnectionTable tab = _ts._node.ConnectionTable;
-        if(left) {
-          try {
-            _con = tab.GetLeftStructuredNeighborOf((AHAddress) _ts._node.Address);
-          }
-          catch(Exception) {}
-        }
-        else {
-          try {
-            _con = tab.GetRightStructuredNeighborOf((AHAddress) _ts._node.Address);
-          }
-          catch(Exception) {}
-        }
-        if(_con == null) {
-          return;
-        }
+        this._con = con;
+        // Get all keys between me and my new neighbor
         LinkedList<MemBlock> keys =
-            _ts._data.GetKeysBetween((AHAddress) _ts._node.Address, 
+            _ts._data.GetKeysBetween((AHAddress) _ts._node.Address,
                                       (AHAddress) _con.Address);
         if(_ts.debug) {
           Console.WriteLine("Starting transfer .... " + _ts._node.Address);
         }
+        /* Get all values for those keys, we copy so that we don't worry about
+         * changes to the dht during this interaction.  This is only a pointer
+         * copy and since we let the OS deal with removing the contents of an
+         * entry, we don't need to make copies of the actual entry.
+         */
         foreach(MemBlock key in keys) {
           Entry[] entries = new Entry[_ts._data.GetEntries(key).Count];
           _ts._data.GetEntries(key).CopyTo(entries, 0);
@@ -433,6 +430,10 @@ namespace Brunet.Dht {
         }
         _entry_enumerator = GetEntryEnumerator();
 
+        /* Here we generate another list of keys that we would like to 
+         * this is done here, so that we can lock up the _entry_enumerator
+         * only during this stage and not during the RpcManager.Invoke
+         */
         int count = 0;
         LinkedList<Entry> local_entries = new LinkedList<Entry>();
         lock(_entry_enumerator) {
@@ -445,7 +446,17 @@ namespace Brunet.Dht {
           queue.EnqueueEvent += this.NextTransfer;
           queue.CloseEvent += this.NextTransfer;
           int ttl = (int) (ent.EndTime - DateTime.UtcNow).TotalSeconds;
-          _ts._rpc.Invoke(_con.Edge, queue, "dht.PutHandler", ent.Key, ent.Value, ttl, false);
+          try {
+            _ts._rpc.Invoke(_con.Edge, queue, "dht.PutHandler", ent.Key, ent.Value, ttl, false);
+          }
+          catch {
+            if(_con.Edge.IsClosed) {
+              lock(_interrupted) {
+                _interrupted = true;
+              }
+            }
+            break;
+          }
           if(_ts.debug) {
             Console.WriteLine(_ts._node.Address + " transferring " + new AHAddress(ent.Key) + " to " + _con.Address + ".");
           }
@@ -467,15 +478,28 @@ namespace Brunet.Dht {
         BlockingQueue queue = (BlockingQueue) o;
         queue.EnqueueEvent -= this.NextTransfer;
         queue.CloseEvent -= this.NextTransfer;
+        /* No point in dequeueing, if we've been interrupted, we most likely
+         * will get an exception!
+         */
+        if((bool) _interrupted) {
+          return;
+        }
         try {
           queue.Dequeue();
         }
         catch (Exception e){
-          Console.Error.WriteLine("Maybe the timeouts are too low....\n" + e);
+          if(_con.Edge.IsClosed) {
+            lock(_interrupted) {
+              _interrupted = true;
+            }
+          }
+          else {
+            Console.Error.WriteLine("BlockingQueue Exception: Cases include" +
+              "that an edge may be closed but we may not no of it or that the"
+              + " timeouts are too low.  This occurred on {0} \n\t {1}", _con.Edge, e);
+          }
         }
-        if((bool) _interrupted) {
-          return;
-        }
+
         Entry ent = null;
         lock(_entry_enumerator) {
           if(_entry_enumerator.MoveNext()) {
@@ -487,7 +511,16 @@ namespace Brunet.Dht {
           queue.EnqueueEvent += this.NextTransfer;
           queue.CloseEvent += this.NextTransfer;
           int ttl = (int) (ent.EndTime - DateTime.UtcNow).TotalSeconds;
-          _ts._rpc.Invoke(_con.Edge, queue, "dht.PutHandler", ent.Key, ent.Value, ttl, false);
+          try {
+            _ts._rpc.Invoke(_con.Edge, queue, "dht.PutHandler", ent.Key, ent.Value, ttl, false);
+          }
+          catch {
+            if(_con.Edge.IsClosed) {
+              lock(_interrupted) {
+                _interrupted = true;
+              }
+            }
+          }
           if(_ts.debug) {
                 Console.WriteLine("Follow up transfer of " + _ts._node.Address + " transferring " + new AHAddress(ent.Key) + " to " + _con.Address + ".");
           }
