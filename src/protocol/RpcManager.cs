@@ -483,14 +483,12 @@ public class RpcManager : IReplyHandler, IDataHandler {
       rpc_call[1] = new object[0];
     }
     
-    MemoryStream ms = new MemoryStream();
-    AdrConverter.Serialize(rpc_call, ms);
-
+    AdrCopyable req_copy = new AdrCopyable(rpc_call);
 #if RPC_DEBUG
     Console.Error.WriteLine("[RpcClient: {0}] Invoking method: {1} on target: {2}",
                      _rrman.Node.Address, method, target);
 #endif
-    ICopyable rrpayload = new CopyList( PType.Protocol.Rpc, MemBlock.Reference(ms.ToArray()) ); 
+    ICopyable rrpayload = new CopyList( PType.Protocol.Rpc, req_copy ); 
     int reqid = _rrman.SendRequest(target, ReqrepManager.ReqrepType.Request,
                                    rrpayload, this, rs);
   
@@ -536,9 +534,8 @@ public class RpcManager : IReplyHandler, IDataHandler {
    */
   public void SendResult(object request_state, object result) {
     ISender ret_path = (ISender)request_state;
-    MemoryStream ms = new MemoryStream();
-    AdrConverter.Serialize(result, ms);
-    ret_path.Send( new CopyList( PType.Protocol.Rpc, MemBlock.Reference( ms.ToArray() ) ) );
+    AdrCopyable r_copy = new AdrCopyable(result);
+    ret_path.Send( new CopyList( PType.Protocol.Rpc, r_copy ) );
   }
 }
 }

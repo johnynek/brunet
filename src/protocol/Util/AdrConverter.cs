@@ -131,6 +131,43 @@ public class AdrException : Exception {
 }
 
 /**
+ * This takes an object and defers serializing it until CopyTo is
+ * called.  This avoid some memory usage by avoiding intermediate
+ * buffers for objects sent over Edges.
+ */
+public class AdrCopyable : ICopyable {
+  /**
+   * The underlying object we will CopyTo a buffer
+   */
+  protected readonly object Obj;
+
+  public AdrCopyable(object o) {
+    Obj = o;
+  }
+  
+  /**
+   * serialize the object and copy it into the buffer
+   */
+  public int CopyTo(byte[] buffer, int off) {
+    MemoryStream ms = new MemoryStream();
+    int written = AdrConverter.Serialize(Obj, ms);
+    byte[] tmp_buf = ms.ToArray();
+    System.Array.Copy(tmp_buf, 0, buffer, off, written);
+    return written;
+  }
+
+  /**
+   * This is expensive, it requires us to serialize the object and see
+   * how long it is.
+   */
+  public int Length {
+    get {
+      return AdrConverter.Serialize( Obj, new MemoryStream() );
+    }
+  }
+}
+
+/**
  * reads objects from binary arrays or streams
  * ADR stands for Another Data Representation.
  * This is similar to XDR or ASN.  Why not use those?  Couldn't find
@@ -674,7 +711,9 @@ public class AdrConverter {
   {
    try {
     MemoryStream ms = new MemoryStream();
-    Serialize(o, ms);
+    int serialized = Serialize(o, ms);
+    byte[] buf = ms.ToArray();
+    Assert.AreEqual(serialized, buf.Length, "Buffer length same as written");
     ms.Seek(0, SeekOrigin.Begin);
     object dso = Deserialize(ms);
     if( !AdrEquals(o, dso ) ) {
