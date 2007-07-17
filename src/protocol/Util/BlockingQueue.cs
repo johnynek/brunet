@@ -56,6 +56,10 @@ public sealed class BlockingQueue {
     _queue = new Queue();
     _close_on_enqueue = false;
   }
+
+  ~BlockingQueue() {
+    _re.Close();
+  }
   protected readonly Queue _queue;
   protected readonly object _sync; 
   protected AutoResetEvent _re;
@@ -274,97 +278,6 @@ public sealed class BlockingQueue {
     BlockingQueue t = (BlockingQueue)queues[idx];
     t._re.Set();
     return idx;
-  }
-
-  public static ArrayList[] ParallelFetch(BlockingQueue[] queues, int max_results_per_queue) {
-    return ParallelFetch(queues, max_results_per_queue, new FetchDelegate(Fetch)); 
-  }
-
-  public static ArrayList[] ParallelFetch(BlockingQueue[] queues, 
-					  int max_results_per_queue,
-					  FetchDelegate fetch_delegate) {
-
-    FetchDelegate [] fetch_dlgt = new FetchDelegate[queues.Length];
-    IAsyncResult [] ar = new IAsyncResult[queues.Length];
-    //we also maintain an array of WaitHandles
-    WaitHandle [] wait_handle = new WaitHandle[queues.Length];
-    
-    for (int k = 0; k < queues.Length; k++) {
-      fetch_dlgt[k] = new FetchDelegate(fetch_delegate);
-      ar[k]  = fetch_dlgt[k].BeginInvoke(queues[k], max_results_per_queue, null, null);
-      wait_handle[k] = ar[k].AsyncWaitHandle;
-    }
-    //we now wait for all invocations to finish
-    Console.Error.WriteLine("Waiting for all invocations to finish...");
-    WaitHandle.WaitAll(wait_handle);
-    //we know that all invocations of Fetch have completed
-    ArrayList []results = new ArrayList[queues.Length];
-    for (int k = 0; k < queues.Length; k++) {
-      //BlockingQueue q = (BlockingQueue) queues[k];
-      results[k] = fetch_dlgt[k].EndInvoke(ar[k]);
-    }
-    return results;
-  }
-
-  public static ArrayList[] ParallelFetchWithTimeout(BlockingQueue[] queues, int millisec) {
-    return ParallelFetchWithTimeout(queues, millisec, new FetchDelegate(Fetch)); 
-  }  
-  public static ArrayList[] ParallelFetchWithTimeout(BlockingQueue[] queues, 
-						     int millisec,
-						     FetchDelegate fetch_delegate) {
-
-    FetchDelegate [] fetch_dlgt = new FetchDelegate[queues.Length];
-    IAsyncResult [] ar = new IAsyncResult[queues.Length];
-    //we also maintain an array of WaitHandles
-    WaitHandle [] wait_handle = new WaitHandle[queues.Length];
-    
-    for (int k = 0; k < queues.Length; k++) {
-      fetch_dlgt[k] = new FetchDelegate(fetch_delegate);
-      ar[k]  = fetch_dlgt[k].BeginInvoke(queues[k], -1, null, null);
-      wait_handle[k] = ar[k].AsyncWaitHandle;
-    }
-    //we now forcefully close all the queues after waiting for the timeout
-    Thread.Sleep(millisec);
-    for (int k = 0; k < queues.Length; k++) {
-      try {
-	Console.Error.WriteLine("Closing queue: {0}", k);	
-	queues[k].Close();
-      } catch(InvalidOperationException) {
-	
-      }
-    }
-    //we now wait for all invocations to finish
-    Console.Error.WriteLine("Waiting for all parallel invocations to finish...");
-    WaitHandle.WaitAll(wait_handle);
-    Console.Error.WriteLine("All parallel invocations are over.");
-    //we know that all invocations of Fetch have completed
-    ArrayList []results = new ArrayList[queues.Length];
-    for (int k = 0; k < queues.Length; k++) {
-      //BlockingQueue q = (BlockingQueue) queues[k];
-      results[k] = fetch_dlgt[k].EndInvoke(ar[k]);
-    }
-    return results;
-  }  
-
-
-
-  public delegate ArrayList FetchDelegate(BlockingQueue q, int max_replies);
-  protected static ArrayList Fetch(BlockingQueue q, int max_replies) {
-    ArrayList replies = new ArrayList();
-    try {
-      while (true) {
-	if (max_replies == 0) {
-	  break;
-	}
-	object res = q.Dequeue();
-	replies.Add(res);
-	max_replies--;
-      }
-    } catch (InvalidOperationException ) {
-
-    }
-    //Console.Error.WriteLine("fetch finished");
-    return replies;
   }
 
 #if BRUNET_NUNIT
