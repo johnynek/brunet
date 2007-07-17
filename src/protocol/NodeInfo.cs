@@ -123,9 +123,19 @@ namespace Brunet
       _address = a;
       _tas = EmptyTas;
     }
+    /*
+     * This constructor is only used for the _cache_key object
+     * so we only have to have one of them
+     */
+    protected NodeInfo() {
 
+    }
     //A cache of commonly used NodeInfo objects
-    protected static Cache _cache = new Cache(256);
+    protected static Cache _cache = new Cache(512);
+
+    protected static NodeInfo _cache_key = new NodeInfo();
+    //For _cache_key when there is only one ta:
+    protected static TransportAddress[] _ta_list = new TransportAddress[1];
     /**
      * Factory method to reduce memory allocations by caching
      * commonly used NodeInfo objects
@@ -133,48 +143,54 @@ namespace Brunet
     public static NodeInfo CreateInstance(Address a) {
       NodeInfo ni = null;
       lock( _cache ) {
-        ni = (NodeInfo)_cache[a];
+        //Set up the key:
+        _cache_key._done_hash = false;
+        _cache_key._address = a;
+        _cache_key._tas = EmptyTas;
+
+        ni = (NodeInfo)_cache[ _cache_key ];
         if( ni == null ) {
           ni = new NodeInfo(a);
-          _cache[a] = ni;
+          _cache[ni] = ni;
         }
       }
       return ni;
     }
     public static NodeInfo CreateInstance(Address a, TransportAddress ta) {
-      NodeInfo key = new NodeInfo(a, ta);
       NodeInfo result = null;
       lock( _cache ) {
-        result = (NodeInfo)_cache[key];
+        //Set up the key:
+        _cache_key._done_hash = false;
+        _cache_key._address = a;
+        _ta_list[0] = ta;
+        _cache_key._tas = _ta_list;
+
+        result = (NodeInfo)_cache[_cache_key];
         if( result == null ) {
           //This may look weird, but we are using a NodeInfo as a key
           //to lookup NodeInfos, this will allow us to only keep one
           //identical NodeInfo in scope at a time.
-          _cache[key] = key;
-          result = key;
-        }
-        else {
-          //Return the original object, allowing this
-          //new key to be garbage collected
+          result = new NodeInfo(a, ta);
+          _cache[result] = result;
         }
       }
       return result;
     }
     public static NodeInfo CreateInstance(Address a, IList ta) {
-      NodeInfo key = new NodeInfo(a, ta);
       NodeInfo result = null;
       lock( _cache ) {
-        result = (NodeInfo)_cache[key];
+        //Set up the key:
+        _cache_key._done_hash = false;
+        _cache_key._address = a;
+        _cache_key._tas = ta;
+        
+        result = (NodeInfo)_cache[_cache_key];
         if( result == null ) {
           //This may look weird, but we are using a NodeInfo as a key
           //to lookup NodeInfos, this will allow us to only keep one
           //identical NodeInfo in scope at a time.
-          _cache[key] = key;
-          result = key;
-        }
-        else {
-          //Return the original object, allowing this
-          //new key to be garbage collected
+          result = new NodeInfo(a, ta);
+          _cache[result] = result;
         }
       }
       return result;
@@ -250,22 +266,20 @@ namespace Brunet
       if( e == this ) { return true; }
       NodeInfo ne = e as NodeInfo;
       if ( ne != null ) {
-        bool same = true;
-	if (_address != null ) {
-	  if ( ne.Address != null ) {
-	    same &= _address.Equals(ne.Address);
-	  }
-	  else {
-	    same = false;
-	  }
-	}
-	else {
-          same &= ne.Address == null;
-	}
-	same &= _tas.Count == ne.Transports.Count;
+        bool same;
+        if( _address != null ) {
+          same = _address.Equals( ne.Address );
+        }
+        else {
+          same = (ne.Address == null);
+        }
+        if( !same ) { return false; }
+        //Now check the TransportAddresses:
+	same = (_tas.Count == ne.Transports.Count);
 	if( same ) {
 	  for(int i = 0; i < _tas.Count; i++) {
             same &= _tas[i].Equals( ne.Transports[i] );
+            if( !same ) { return false; }
 	  }
         }
 	return same;
@@ -281,10 +295,8 @@ namespace Brunet
         if( _address != null ) {
           code = _address.GetHashCode();
         }
-        else {
-          if( _tas.Count > 0 ) {
-            code = _tas[0].GetHashCode();
-          }
+        else if( _tas.Count > 0 ) {
+          code = _tas[0].GetHashCode();
         }
         _code = code;
 	_done_hash = true;
@@ -316,7 +328,7 @@ namespace Brunet
       if( _address != null ) {
         ht["address"] = _address.ToString();
       }
-      if( _tas != null && (_tas.Count > 0) ) {
+      if( _tas.Count > 0 ) {
         string[] trans = new string[ _tas.Count ];
         int count = _tas.Count;
         for(int i = 0; i < count; i++) {
@@ -373,8 +385,25 @@ namespace Brunet
     public void RoundTripHT(NodeInfo ni) {
       NodeInfo ni_other = NodeInfo.CreateInstance( ni.ToDictionary() );
       Assert.AreEqual(ni, ni_other, "Hashtable roundtrip");
+      Assert.AreEqual(ni.GetHashCode(), ni_other.GetHashCode(), "Hashtable GetHashCode roundtrip");
+    }
+    public void RoundTrip(NodeInfo ni) {
+      NodeInfo ni_other = NodeInfo.CreateInstance(ni.Address, ni.Transports);
+      Assert.AreEqual(ni, ni_other, "Hashtable roundtrip");
+      Assert.AreEqual(ni.GetHashCode(), ni_other.GetHashCode(), "Hashtable GetHashCode roundtrip");
     }
     //Test methods:
+    [Test]
+    public void CacheTest()
+    {
+      Address a = new DirectionalAddress(DirectionalAddress.Direction.Left);
+      Address a2 = new DirectionalAddress(DirectionalAddress.Direction.Left);
+      TransportAddress ta = TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:5000");
+      TransportAddress ta2 = TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:5000");
+      NodeInfo ni = NodeInfo.CreateInstance(a, ta);
+      NodeInfo ni2 = NodeInfo.CreateInstance(a2, ta2);
+      Assert.IsTrue( ni == ni2, "Reference equality of NodeInfo objects");
+    }
     [Test]
     public void TestWriteAndParse()
     {
@@ -382,11 +411,13 @@ namespace Brunet
       TransportAddress ta = TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:5000");
       NodeInfo ni = NodeInfo.CreateInstance(a, ta);
       RoundTripHT(ni);
+      RoundTrip(ni);
 
       XmlAbleTester xt = new XmlAbleTester();
 
       NodeInfo ni2 = (NodeInfo)xt.SerializeDeserialize(ni);
       RoundTripHT(ni2);
+      RoundTrip(ni2);
       //System.Console.Error.WriteLine("n1: {0}\nn2: {1}", ni, ni2);
       Assert.AreEqual(ni, ni2, "NodeInfo: address and 1 ta");
       
@@ -397,6 +428,7 @@ namespace Brunet
         tas.Add(TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:" + i.ToString()));
       NodeInfo ni3 = NodeInfo.CreateInstance(a, tas);
       RoundTripHT(ni3);
+      RoundTrip(ni3);
       
       ni2 = (NodeInfo)xt.SerializeDeserialize(ni3);
       Assert.AreEqual(ni3, ni2, "NodeInfo: address and 10 tas");
@@ -404,10 +436,15 @@ namespace Brunet
       //Test null address:
       NodeInfo ni4 = NodeInfo.CreateInstance(null, ta);
       RoundTripHT(ni4);
+      RoundTrip(ni4);
       
       ni2 = (NodeInfo)xt.SerializeDeserialize(ni4);
       Assert.AreEqual(ni4, ni2, "NodeInfo: null address and 1 ta");
-
+      
+      //No TAs:
+      NodeInfo ni5 = NodeInfo.CreateInstance( a );
+      RoundTripHT(ni5);
+      RoundTrip(ni5);
     }
   }
 #endif

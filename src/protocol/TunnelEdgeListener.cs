@@ -606,7 +606,8 @@ namespace Brunet
   	  Console.Error.WriteLine("response.RemoteTA: {0}", remote_ta);
   	  Console.Error.WriteLine("edge.RemoteTA: {0}", e.RemoteTA);
   #endif
-  	  if (e.RemoteTA.Equals(remote_ta)) {
+          TunnelTransportAddress e_rta = e.RemoteTA as TunnelTransportAddress;
+  	  if (e_rta != null && e_rta.Target.Equals( remote_ta.Target ) ) {
               //Make sure they are trying to talk to us by checking
               //that the TA points to the same node
   	    e.RemoteID = remoteid;
@@ -669,7 +670,8 @@ namespace Brunet
 	if (e_dup != null) {
 	  TunnelTransportAddress remote_ta = new TunnelTransportAddress(target, forwarders);	  
 	  //compare TAs
-	  if (e_dup.RemoteTA.Equals(remote_ta)) {
+          TunnelTransportAddress e_rta = e_dup.RemoteTA as TunnelTransportAddress;
+  	  if (e_rta != null && e_rta.Target.Equals( remote_ta.Target ) ) {
 	    //the fellow sent a duplicate edge request
 	    is_new_edge = false;
 #if TUNNEL_DEBUG

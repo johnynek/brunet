@@ -83,7 +83,7 @@ namespace Brunet {
       if( t == ConnectionType.Leaf ) {
         return "leaf";
       }
-      return t.ToString().ToLower();
+      return String.Intern( t.ToString().ToLower() );
     }
 
     /**
@@ -121,7 +121,7 @@ namespace Brunet {
 	}
       }
       lock( _string_to_main_type ) {
-        _string_to_main_type[s] = ConnectionType.Unknown;
+        _string_to_main_type[ String.Intern( s ) ] = ConnectionType.Unknown;
       }
       return ConnectionType.Unknown;
     }
