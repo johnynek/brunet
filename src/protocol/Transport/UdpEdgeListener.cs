@@ -19,6 +19,9 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+//Copying packets may reduce heap fragmentation, lets see
+#define COPY_PACKETS
+
 using Brunet;
 using System;
 using System.IO;
@@ -607,8 +610,6 @@ namespace Brunet
       EndPoint end = new IPEndPoint(IPAddress.Any, 0);
       
       BufferAllocator ba = new BufferAllocator(8 + Packet.MaxLength);
-      byte[] buffer = ba.Buffer;
-      int offset = ba.Offset;
       //This is used to make sure the writers always have a queue to write
       //into, see where we do Exchange with _send_queue
       Queue tmp_queue = new Queue();
@@ -626,20 +627,28 @@ namespace Brunet
         try {
           read = s.Poll( microsecond_timeout, SelectMode.SelectRead );
           if( read ) {
-	    int max = buffer.Length - offset;
-            rec_bytes = s.ReceiveFrom(buffer, offset, max, SocketFlags.None, ref end);
+	    int max = ba.Capacity;
+            rec_bytes = s.ReceiveFrom(ba.Buffer, ba.Offset, max, SocketFlags.None, ref end);
             //Get the id of this edge:
             if( rec_bytes >= 8 ) {
-              int remoteid = NumberSerializer.ReadInt(buffer, offset);
-              int localid = NumberSerializer.ReadInt(buffer, offset + 4);
+              int remoteid = NumberSerializer.ReadInt(ba.Buffer, ba.Offset);
+              int localid = NumberSerializer.ReadInt(ba.Buffer, ba.Offset + 4);
+#if COPY_PACKETS
               /*
-               * Make a reference to this memory, don't copy.
+               * Copy so we don't re-allocate large buffers which may cause
+               * heap fragmentation
                */
-              MemBlock packet_buffer = MemBlock.Reference(buffer, offset + 8, rec_bytes - 8);
+              MemBlock packet_buffer = MemBlock.Copy(ba.Buffer, ba.Offset + 8, rec_bytes - 8);
+
+#else
+              /*
+               * Make a reference to this memory, don't copy.  This may be
+               * faster since we don't copy, but it may have some memory
+               * impacts.
+               */
+              MemBlock packet_buffer = MemBlock.Reference(ba.Buffer, ba.Offset + 8, rec_bytes - 8);
               ba.AdvanceBuffer(rec_bytes);
-              buffer = ba.Buffer;
-              offset = ba.Offset;
-            
+#endif
               if( localid < 0 ) {
                 /*
                  * We never give out negative id's, so if we got one
@@ -713,7 +722,6 @@ namespace Brunet
           /*
            * tmp_queue is now empty, but the other one must not be.
            */
-          Queue orig = tmp_queue;
           do {
             tmp_queue = Interlocked.Exchange( ref _send_queue, tmp_queue );
             if( tmp_queue != null ) {
