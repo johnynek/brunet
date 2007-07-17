@@ -156,8 +156,8 @@ namespace Brunet
     protected override void SendControlPacket(EndPoint end, int remoteid, int localid,
                                      ControlCode c, object state)
     {
-      lock(_sync) {
-        MemoryStream ms = new MemoryStream();
+     lock(_sync) {
+      using( MemoryStream ms = new MemoryStream() ) {
         NumberSerializer.WriteInt(localid, ms);
         //Bit flip to indicate this is a control packet
         NumberSerializer.WriteInt(~remoteid, ms);
@@ -185,6 +185,7 @@ namespace Brunet
             "Error in Socket.SendTo. Endpoint: {0}\n{1}", end, sc);
         }
       }
+     }
     }
 
     protected void SendControlPacketCallback(IAsyncResult asr)

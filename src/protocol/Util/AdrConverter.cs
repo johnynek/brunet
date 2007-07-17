@@ -149,11 +149,12 @@ public class AdrCopyable : ICopyable {
    * serialize the object and copy it into the buffer
    */
   public int CopyTo(byte[] buffer, int off) {
-    MemoryStream ms = new MemoryStream();
-    int written = AdrConverter.Serialize(Obj, ms);
-    byte[] tmp_buf = ms.ToArray();
-    System.Array.Copy(tmp_buf, 0, buffer, off, written);
-    return written;
+    using(MemoryStream ms = new MemoryStream()) {
+      int written = AdrConverter.Serialize(Obj, ms);
+      byte[] tmp_buf = ms.ToArray();
+      System.Array.Copy(tmp_buf, 0, buffer, off, written);
+      return written;
+    }
   }
 
   /**
@@ -162,7 +163,9 @@ public class AdrCopyable : ICopyable {
    */
   public int Length {
     get {
-      return AdrConverter.Serialize( Obj, new MemoryStream() );
+      using(MemoryStream s = new MemoryStream() ) {
+        return AdrConverter.Serialize( Obj, s );
+      }
     }
   }
 }
@@ -185,7 +188,9 @@ public class AdrConverter {
   }
 
   public static object Deserialize(MemBlock mb) {
-    return Deserialize( mb.ToMemoryStream() );
+    using(MemoryStream ms = mb.ToMemoryStream()) {
+      return Deserialize( ms );
+    }
   }
   /*
    * This is how the above is implemented to support recursion
