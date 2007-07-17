@@ -404,9 +404,10 @@ public class RpcManager : IReplyHandler, IDataHandler {
       Console.Error.WriteLine("[RpcServer: {0}] Something failed even before invocation began: {1}",
                      _rrman.Node.Address, exception);
 #endif
-      MemoryStream ms = new MemoryStream();
-      AdrConverter.Serialize(exception, ms);
-      ret_path.Send( new CopyList( PType.Protocol.Rpc, MemBlock.Reference( ms.ToArray() ) ) );
+      using( MemoryStream ms = new MemoryStream() ) { 
+        AdrConverter.Serialize(exception, ms);
+        ret_path.Send( new CopyList( PType.Protocol.Rpc, MemBlock.Reference( ms.ToArray() ) ) );
+      }
     }
   }
   

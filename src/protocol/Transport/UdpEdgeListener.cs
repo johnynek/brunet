@@ -530,8 +530,8 @@ namespace Brunet
     protected override void SendControlPacket(EndPoint end, int remoteid, int localid,
                                      ControlCode c, object state)
     {
+      using(MemoryStream ms = new MemoryStream()) {
         Socket s = (Socket)state;
-        MemoryStream ms = new MemoryStream();
         NumberSerializer.WriteInt(localid, ms);
         //Bit flip to indicate this is a control packet
         NumberSerializer.WriteInt(~remoteid, ms);
@@ -557,6 +557,7 @@ namespace Brunet
           Console.Error.WriteLine(
             "Error in Socket.SendTo. Endpoint: {0}\n{1}", end, sc);
         }
+      }
     }
     /**
      * This method may be called once to start listening.
