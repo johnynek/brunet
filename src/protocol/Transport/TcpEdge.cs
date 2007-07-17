@@ -385,7 +385,6 @@ namespace Brunet
      */
     public void DoReceive(BufferAllocator buf)
     {
-      MemBlock p = null;
       try {
         //Reinitialize the rec_state
         if( _rec_state.Buffer == null ) {
@@ -408,7 +407,10 @@ namespace Brunet
           //Something is ready to parse
           if( _rec_state.ReadingSize ) {
             short size = NumberSerializer.ReadShort(_rec_state.Buffer, _rec_state.Offset);
-            if( size < 0 ) { Console.Error.WriteLine("ERROR: negative packet size: {0}", size); }
+            if( size < 0 ) {
+              Console.Error.WriteLine("ERROR: negative packet size: {0} from {1}", size, this);
+              throw new EdgeException(String.Format("read negative packet size from: {0}", this));
+            }
             _rec_state.Reset(buf.Buffer, buf.Offset, size, false);
 #if !COPY_PACKETS
             buf.AdvanceBuffer(size);
@@ -420,6 +422,7 @@ namespace Brunet
             }
           } else {
             //We are reading a whole packet:
+            MemBlock p = null;
 #if COPY_PACKETS
             p = MemBlock.Copy(_rec_state.Buffer, _rec_state.Offset, _rec_state.Length);
 #else
@@ -427,6 +430,8 @@ namespace Brunet
 #endif
             //Reinitialize the rec_state
             _rec_state.Buffer = null;
+            
+            ReceivedPacketEvent(p);
           }
         }
         else {
@@ -434,10 +439,6 @@ namespace Brunet
 #if COPY_PACKET
           _rec_state.CopyBuffer();
 #endif
-        }
-        if( p != null ) {
-          //We don't hold the lock while we announce the packet
-          ReceivedPacketEvent(p);
         }
       }
       catch {
