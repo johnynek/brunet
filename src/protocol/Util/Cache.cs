@@ -34,27 +34,37 @@ namespace Brunet {
  * The hashcode is taken from the first object, so
  * that one should have the "best" hashing function
  * to improve efficiency.
+ *
+ * You can change the elements of Objects, but you shouldn't
+ * if the CacheKey is already in a cache.  You might do this
+ * if you want to allocate one fixed CacheKey and change it
+ * for each item you want to look up.
  */
 public class CacheKey {
-  protected object[] _objs;
+  public readonly object[] Objects;
 
   public CacheKey(params object[] objs) {
-    _objs = objs;
+    Objects = objs;
   }
 
   public override int GetHashCode() {
-    return _objs[0].GetHashCode();
+    return Objects[0].GetHashCode();
   }
 
   public override bool Equals(object o) {
     if( this == o ) { return true; }
     CacheKey other = o as CacheKey;
     if( other == null ) { return false; }
-    if( _objs.Length != other._objs.Length ) { return false; }
+    if( Objects.Length != other.Objects.Length ) { return false; }
     int i = 0;
     bool same = true;
-    while( same && i < _objs.Length ) {
-      same = _objs[i].Equals( other._objs[i] );
+    while( same && i < Objects.Length ) {
+      if( Objects[i] != null ) {
+        same = Objects[i].Equals( other.Objects[i] );
+      }
+      else {
+        same = (other.Objects[i] == null);
+      }
       i++;
     }
     return same;
