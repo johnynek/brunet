@@ -27,6 +27,7 @@
         <include name="../Dht/DhtService.cs"/>
         <include name="../Dht/DhtAdapter.cs"/>
         <include name="../Dht/DhtServiceClient.cs"/>
+        <include name="../Dht/DhtServiceClient_noXmlRpc.cs"/>
         <include name="../Dht/BlockingQueueAdapter.cs"/>
         <include name="../Common/OSDependent.cs"/>
         <include name="../Common/IPRouterConfig.cs"/>
