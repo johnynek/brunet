@@ -23,7 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //If you want to copy incoming packets rather than reference the buffer
 //define:
-//#define COPY_PACKETS
+#define COPY_PACKETS
 using System;
 using System.Collections;
 using System.Net;
@@ -69,6 +69,18 @@ namespace Brunet
         LastReadLength = length;
         ReadingSize = readingsize;
       }
+#if COPY_PACKET
+      //Make a copy of the internal buffer and drop the reference to the
+      //original
+      public void CopyBuffer() {
+        byte[] tmp_buf = Buffer;
+        Buffer = new byte[ length ];
+        Array.Copy(tmp_buf, Offset, Buffer, 0, length);
+        int tmp_offset = Offset;
+        Offset = 0;
+        LastReadOffset -= tmp_offset;
+      }
+#endif
     }
 
     /**
@@ -290,87 +302,65 @@ namespace Brunet
     }
     
     /**
-     * In the select implementation, the TcpEdgeListener
-     * will tell a socket when to do a send 
+     * This should only be called from one thread inside the TcpEdgeListener.
+     * The only thread synchronization in here is on the packet queue, so if
+     * this method is called from multiple threads bad things could happen.
      */
     public void DoSend(BufferAllocator buf)
     {
       try {
-#if POB_TCP_DEBUG
-        Console.Error.WriteLine("edge: {0} in DoSend", this);
-#endif
-        if( _send_state.Buffer == null ) {
-          _send_state.Length = 0;
-        }
-        //Must lock before we access the _packet_queue
-        int written = 0;
-        lock(_sync) {
-          if( _send_state.Length == 0 ) {
-            /*
-             * Let's try to get as many packets as will fit into
-             * a buffer written:
-             */
-            int current_offset = buf.Offset;
-            //Set up the _send_state buffer:
+        if( _send_state.Length == 0 ) {
+          /**
+           * It's time to write into a new buffer:
+           */
+          int written = WritePacketsInto(buf); 
+          int sent = _sock.Send( buf.Buffer, buf.Offset, written, SocketFlags.None);
+          //Now we have sent, let's see if we have to wait to send more:
+          if( sent <= 0 ) {
+            //This is the case of the Edge closing.
+            throw new EdgeException("Edge is closed");
+          }
+          if( sent < written ) {
+            //We couldn't send the whole buffer, save some for later:
+            _send_state.Length = written - sent;
+#if COPY_PACKETS
+            _send_state.Buffer = new byte[ _send_state.Length ];
+            _send_state.Offset = 0;
+            Array.Copy(buf.Buffer, buf.Offset + sent,
+                       _send_state.Buffer, _send_state.Offset,
+                       _send_state.Length );
+#else
             _send_state.Buffer = buf.Buffer;
-            _send_state.Offset = current_offset;
-            bool cont_writing = (_packet_queue.Count > 0);
-            while( cont_writing ) {
-              //It is time to get a new packet
-              ICopyable p = (ICopyable)_packet_queue.Dequeue();
-              cont_writing = (Interlocked.Decrement( ref _queued_packets ) > 0);
-              /*
-               * Write the packet first so we can see how long it is, then
-               * we write that length into the buffer
-               */
-              short p_length = (short)p.CopyTo( _send_state.Buffer, 2 + current_offset );
-              //Now write into this buffer:
-              NumberSerializer.WriteShort(p_length, _send_state.Buffer, current_offset);
-              int current_written = 2 + p_length;
-              current_offset += current_written;
-              _send_state.Length += current_written;
-              
-              if( cont_writing ) {
-                ICopyable next = (ICopyable)_packet_queue.Peek();
-                if( next.Length + _send_state.Length > buf.Capacity ) {
-                  /* 
-                   * There is no room for the next packet, just stop now
-                   */
-                  cont_writing = false;
-                }
-              }
-            }
-            written = _send_state.Length;
+            _send_state.Offset = buf.Offset + sent;
+            //Don't overwrite the data we have here:
+            buf.AdvanceBuffer( written );
+#endif
+          }
+          else {
+            /*
+             * We never touch _send_state so the Length is still 0.
+             */
           }
         }
-
-        if( _send_state.Length > 0 ) {
+        else {
+          //There is an old write pending:
           int sent = _sock.Send(_send_state.Buffer,
                                 _send_state.Offset,
                                 _send_state.Length,
                                 SocketFlags.None);
-#if POB_TCP_DEBUG
-          Console.Error.WriteLine("{0} sent: {1}", this, sent);
-#endif
           if( sent > 0 ) {
             _send_state.Offset += sent;
             _send_state.Length -= sent;
-            if( written != sent ) {
-              //Advance the BufferAllocator so we don't reuse this space
-              buf.AdvanceBuffer( written );
-            }
-            else {
-              /*
-               * We sent everything we wrote, so there is no need to advance
-               * the buffer
-               */
-            }
           }
           else {
             //The edge is now closed.
             throw new EdgeException("Edge is closed");
           }
         }
+
+        /**
+         * Now set NeedToSend to the correct values
+         */
         if( _send_state.Length == 0 ) {
           //We have sent all we need to, don't keep a reference around
           _send_state.Buffer = null;
@@ -397,87 +387,54 @@ namespace Brunet
     {
       MemBlock p = null;
       try {
-#if POB_TCP_DEBUG
-        Console.Error.WriteLine("edge: {0} in DoReceive", this);
-#endif
         //Reinitialize the rec_state
         if( _rec_state.Buffer == null ) {
           _rec_state.Reset(buf.Buffer, buf.Offset, 2, true);
+#if !COPY_PACKETS
           buf.AdvanceBuffer(2);
+#endif
         }
         int got = _sock.Receive(_rec_state.Buffer,
                                 _rec_state.LastReadOffset,
                                 _rec_state.LastReadLength,
                                 SocketFlags.None);
-#if POB_TCP_DEBUG
-        Console.Error.WriteLine("{0} got: {1}", this, got);
-#endif
         if( got == 0 ) {
           throw new EdgeException("Got zero bytes, this edge is closed");  
         }
         _rec_state.LastReadOffset += got;
         _rec_state.LastReadLength -= got;
 
-
-        bool parse_packet = false;
-
         if( _rec_state.LastReadLength == 0 ) {
           //Something is ready to parse
           if( _rec_state.ReadingSize ) {
             short size = NumberSerializer.ReadShort(_rec_state.Buffer, _rec_state.Offset);
             if( size < 0 ) { Console.Error.WriteLine("ERROR: negative packet size: {0}", size); }
-            //Reinitialize the rec_state
             _rec_state.Reset(buf.Buffer, buf.Offset, size, false);
+#if !COPY_PACKETS
             buf.AdvanceBuffer(size);
-            
-            if( _sock.Available > 0 ) {
-              got = _sock.Receive( _rec_state.Buffer,
-                                   _rec_state.LastReadOffset,
-                                   _rec_state.LastReadLength,
-                                   SocketFlags.None);
-#if POB_TCP_DEBUG
-              Console.Error.WriteLine("{0} got: {1}", this, got);
 #endif
-              if( got == 0 ) {
-                throw new EdgeException("Got zero bytes, this edge is closed");  
-              }
-              _rec_state.LastReadOffset += got;
-              _rec_state.LastReadLength -= got;
 
-              if( _rec_state.LastReadLength == 0 ) {
-                parse_packet = true;
-              }
+            if( _sock.Available > 0 ) {
+              //Now recursively try to get the payload:
+              DoReceive(buf);
             }
-          }
-          else {
+          } else {
             //We are reading a whole packet:
-            parse_packet = true;
-          }
-
-          if( parse_packet ) {
-            //We have the whole packet
 #if COPY_PACKETS
             p = MemBlock.Copy(_rec_state.Buffer, _rec_state.Offset, _rec_state.Length);
 #else
             p = MemBlock.Reference(_rec_state.Buffer, _rec_state.Offset, _rec_state.Length);
 #endif
-#if POB_TCP_DEBUG
-            //Console.Error.WriteLine("edge: {0}, got packet {1}",this, p);
-#endif
             //Reinitialize the rec_state
             _rec_state.Buffer = null;
-            //Now we just finish and wait till next time to start reading
           }
         }
         else {
           //There is more to read, we have to wait until it is here!
-#if POB_TCP_DEBUG
-          Console.Error.WriteLine("edge: {0}, can't read",this);
+#if COPY_PACKET
+          _rec_state.CopyBuffer();
 #endif
         }
-#if POB_TCP_DEBUG
-        Console.Error.WriteLine("edge: {0} out of DoReceive", this);
-#endif
         if( p != null ) {
           //We don't hold the lock while we announce the packet
           ReceivedPacketEvent(p);
@@ -486,6 +443,49 @@ namespace Brunet
       catch {
         Close();
       }
+    }
+
+    /**
+     * Dequeue packets from the packet queue and write them into
+     * this BufferAllocator.
+     * @return the total number of bytes written
+     */
+    protected int WritePacketsInto(BufferAllocator buf) {
+      int written = 0;
+      int current_offset = buf.Offset;
+      lock(_sync) {
+        /*
+         * Let's try to get as many packets as will fit into
+         * a buffer written:
+         */
+        bool cont_writing = (_packet_queue.Count > 0);
+        while( cont_writing ) {
+          //It is time to get a new packet
+          ICopyable p = (ICopyable)_packet_queue.Dequeue();
+          cont_writing = (Interlocked.Decrement( ref _queued_packets ) > 0);
+          /*
+           * Write the packet first so we can see how long it is, then
+           * we write that length into the buffer
+           */
+          short p_length = (short)p.CopyTo( buf.Buffer, 2 + current_offset );
+          //Now write into this buffer:
+          NumberSerializer.WriteShort(p_length, buf.Buffer, current_offset);
+          int current_written = 2 + p_length;
+          current_offset += current_written;
+          written += current_written;
+          
+          if( cont_writing ) {
+            ICopyable next = (ICopyable)_packet_queue.Peek();
+            if( next.Length + written > buf.Capacity ) {
+              /* 
+               * There is no room for the next packet, just stop now
+               */
+              cont_writing = false;
+            }
+          }
+        }
+      }
+      return written;
     }
   }
 }

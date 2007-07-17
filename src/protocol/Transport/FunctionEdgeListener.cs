@@ -172,7 +172,12 @@ namespace Brunet
         if( !timedout ) {
           if( r.NextDouble() > ploss_prob ) {
             FunctionEdge fe = ent.Edge;
-            fe.Push( MemBlock.Copy(ent.P) );
+            if( ent.P is MemBlock ) {
+              fe.Push( (MemBlock) ent.P );
+            }
+            else {
+              fe.Push( MemBlock.Copy(ent.P) );
+            }
           }
         }
       }
