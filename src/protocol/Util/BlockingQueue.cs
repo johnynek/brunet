@@ -55,12 +55,23 @@ public sealed class BlockingQueue {
     _sync = new object();
     _queue = new Queue();
     _close_on_enqueue = false;
+    _waiters = 0;
+  }
+
+  ~BlockingQueue() {
+    //Make sure the close method is eventually called:
+    if( !Closed ) {
+      Console.Error.WriteLine("ERROR: BlockingQueue.Close called in Destructor");
+    }
+    Close();
   }
   protected readonly Queue _queue;
   protected readonly object _sync; 
   protected AutoResetEvent _re;
   protected bool _closed;
   protected bool _close_on_enqueue;
+  
+  protected int _waiters;
 
   public bool Closed { get { lock ( _sync ) { return _closed; } } }
   
@@ -94,7 +105,12 @@ public sealed class BlockingQueue {
     //Fire the close event
     if( fire ) {
       //Wake up any blocking threads:
-      _re.Set();
+      AutoResetEvent re = Interlocked.Exchange( ref _re, null);
+      while( Thread.VolatileRead( ref _waiters ) > 0 ) {
+        re.Set();
+      }
+      //There are at most 
+      re.Close();
       EventHandler ch = Interlocked.Exchange(ref CloseEvent, null);
       if( ch != null ) {
         ch(this, EventArgs.Empty);
@@ -147,7 +163,7 @@ public sealed class BlockingQueue {
   protected object Dequeue(int millisec, out bool timedout, bool advance)
   {
     lock( _sync ) {
-      if( _queue.Count > 1 ) { 
+      if( (_queue.Count > 1) || _closed ) { 
         /**
          * If _queue.Count == 1, the Dequeue may return us to the empty
          * state, which we always handled below
@@ -161,7 +177,15 @@ public sealed class BlockingQueue {
         }
       }
     }
-    bool got_set = _re.WaitOne(millisec, false);
+    bool got_set = true;
+    //Wait for the next one... 
+    Interlocked.Increment(ref _waiters);
+    try{
+      got_set = _re.WaitOne(millisec, false);
+    }
+    catch { }
+    Interlocked.Decrement(ref _waiters);
+    
     if( got_set ) {
       timedout = false;
       bool set = false;
@@ -184,7 +208,9 @@ public sealed class BlockingQueue {
         }
       }
       finally {
-        if( set ) { _re.Set(); } 
+        try {
+          if( set ) { _re.Set(); }
+        } catch { }
       }
       return result;
     }
@@ -235,7 +261,10 @@ public sealed class BlockingQueue {
       close = _close_on_enqueue;
     }
     if( set ) { 
-      _re.Set();
+      try {
+        _re.Set();
+      }
+      catch { }
     }
     //After we have alerted any blocking threads (Set), fire
     //the event:
@@ -449,6 +478,9 @@ public sealed class BlockingQueue {
     Thread t = new Thread( test.StartEnqueues );
     t.Start();
     test.CheckQueues();
+    foreach(BlockingQueue q in l) {
+      q.Close();
+    }
   }
 
   protected class WriterState {
