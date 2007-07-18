@@ -27,52 +27,27 @@ using NUnit.Framework;
 
 namespace Brunet
 {
-
 /**
- * This class offers a means to pass objects in a queue
- * between threads (or in the same thread).  The Dequeue
- * method will block until there is something in the Queue
- *
- * This implementation uses two thread synchronization tools:
- * mutex (locking) and a WaitHandle.  The WaitHandle is in the
- * Set state when there are 1 or more items in the queue.
- * When there are 1 or more items, Enqueue can't change the "Set"
- * state, so there is no need to call Set.  When there are two
- * or more items, Dequeue can't change the set state.  This
- * observation makes the BlockingQueue much faster because in the
- * high throughput case, there is often more than 1 item in the queue,
- * and so we only use the Mutex and never touch the WaitHandle,
- * which can be a little slow (according to testing).
+ * Channel something that allows you to Enqueue objects and Dequeue
+ * objects in a thread-safe way.  It has EnqueueEvent and CloseEvent
+ * which signal when something has been added, or when the Channel
+ * is closed.  All operations are non-blocking.  @see BlockingQueue
+ * for a channel that can block until something is ready to be read
+ * from it
  */
-#if BRUNET_NUNIT
-[TestFixture]
-#endif
-public sealed class BlockingQueue {
-  
-  public BlockingQueue() {
-    _re = new AutoResetEvent(false); 
+public class Channel {
+  public Channel() {
     _closed = false;
     _sync = new object();
     _queue = new Queue();
     _close_on_enqueue = false;
-    _waiters = 0;
   }
 
-  ~BlockingQueue() {
-    //Make sure the close method is eventually called:
-    if( !Closed ) {
-      Console.Error.WriteLine("ERROR: BlockingQueue.Close called in Destructor");
-    }
-    Close();
-  }
   protected readonly Queue _queue;
   protected readonly object _sync; 
-  protected AutoResetEvent _re;
   protected bool _closed;
   protected bool _close_on_enqueue;
   
-  protected int _waiters;
-
   public bool Closed { get { lock ( _sync ) { return _closed; } } }
   
   public int Count { get { lock ( _sync ) { return _queue.Count; } } }
@@ -94,28 +69,20 @@ public sealed class BlockingQueue {
    * Once this method is called, and the queue is emptied,
    * all future Dequeue's will throw exceptions
    */
-  public void Close() {
+  public virtual void Close() {
     bool fire = false;
-    AutoResetEvent re = null;
     EventHandler ch = null;
     lock( _sync ) {
       if( _closed == false ) {
         fire = true;
         _closed = true;
         //Null out some underlying objects:
-        re = _re;
-        _re = null;
         ch = CloseEvent;
         CloseEvent = null;
       }
     }
     //Fire the close event
     if( fire ) {
-      //Set for all the waiting Dequeues:
-      while( Thread.VolatileRead( ref _waiters ) > 0 ) {
-        re.Set();
-      }
-      re.Close();
       if( ch != null ) {
         ch(this, EventArgs.Empty);
       }
@@ -147,9 +114,118 @@ public sealed class BlockingQueue {
   }
   
   /**
+   * @throw InvalidOperationException if Closed or Empty
+   */
+  public virtual object Dequeue() {
+    lock( _sync ) {
+      return _queue.Dequeue();
+    }
+  }
+
+  public virtual void Enqueue(object a) {
+    bool close = false;
+    lock( _sync ) {
+      if( !_closed ) {
+        _queue.Enqueue(a);
+        close = _close_on_enqueue;
+      }
+      else {
+        //We are closed, ignore all future enqueues.
+        return;
+      }
+    }
+    FireEnqueue();
+    if( close ) {
+      Close();  
+    }
+  }
+  protected void FireEnqueue() {
+    //the event:
+    EventHandler eh = EnqueueEvent;
+    if( eh != null ) {
+      eh(this, EventArgs.Empty);
+    }
+  }
+  /**
    * @throw Exception if the queue is closed
    */
-  public object Dequeue() {
+  public virtual object Peek() {
+    lock( _sync ) {
+      return _queue.Peek();
+    }
+  }
+
+}
+
+/**
+ * This class offers a means to pass objects in a queue
+ * between threads (or in the same thread).  The Dequeue
+ * method will block until there is something in the Queue
+ *
+ * This implementation uses two thread synchronization tools:
+ * mutex (locking) and a WaitHandle.  The WaitHandle is in the
+ * Set state when there are 1 or more items in the queue.
+ * When there are 1 or more items, Enqueue can't change the "Set"
+ * state, so there is no need to call Set.  When there are two
+ * or more items, Dequeue can't change the set state.  This
+ * observation makes the BlockingQueue much faster because in the
+ * high throughput case, there is often more than 1 item in the queue,
+ * and so we only use the Mutex and never touch the WaitHandle,
+ * which can be a little slow (according to testing).
+ */
+#if BRUNET_NUNIT
+[TestFixture]
+#endif
+public sealed class BlockingQueue : Channel {
+  
+  public BlockingQueue() {
+    _re = new AutoResetEvent(false); 
+    _waiters = 0;
+  }
+
+  ~BlockingQueue() {
+    //Make sure the close method is eventually called:
+    if( !Closed ) {
+      Console.Error.WriteLine("ERROR: BlockingQueue.Close called in Destructor");
+    }
+    Close();
+  }
+  protected AutoResetEvent _re;
+  protected int _waiters;
+
+  
+  /* **********************************************
+   * Here all the methods
+   */
+  
+  /**
+   * Once this method is called, and the queue is emptied,
+   * all future Dequeue's will throw exceptions
+   */
+  public override void Close() {
+    base.Close();
+    AutoResetEvent re = null;
+    lock( _sync ) {
+      re = _re;
+      _re = null;
+    }
+    if( re != null ) {
+      //Set for all the waiting Dequeues:
+      while( Thread.VolatileRead( ref _waiters ) > 0 ) {
+        re.Set();
+      }
+      re.Close();
+    }
+
+#if DEBUG
+    System.Console.Error.WriteLine("Close set");
+#endif
+  }
+
+  /**
+   * @throw Exception if the queue is closed
+   */
+  public override object Dequeue() {
     bool timedout = false;
     return Dequeue(-1, out timedout);
   }
@@ -215,16 +291,17 @@ public sealed class BlockingQueue {
            * still more, set the _re so the
            * next reader can get it
            */
-          set = ( _queue.Count > 0 ) && ( _re != null );
-          if( set ) {
-            re = _re;
-          }
-            
+          set = _queue.Count > 0;
+          re = _re;
         }
       }
       finally {
         try {
-          if( set ) { re.Set(); }
+          if( set ) {
+            if( re != null ) {
+              re.Set();
+            }
+          }
         } catch { }
       }
       return result;
@@ -238,7 +315,7 @@ public sealed class BlockingQueue {
   /**
    * @throw Exception if the queue is closed
    */
-  public object Peek() {
+  public override object Peek() {
     bool timedout = false;
     return Peek(-1, out timedout);
   }
@@ -254,7 +331,7 @@ public sealed class BlockingQueue {
     return Dequeue(millisec, out timedout, false);
   }
 
-  public void Enqueue(object a) {
+  public override void Enqueue(object a) {
     bool set = false;
     bool close = false;
     AutoResetEvent re = null;
@@ -271,23 +348,21 @@ public sealed class BlockingQueue {
 #if DEBUG
       System.Console.Error.WriteLine("Enqueue set: count {0}", Count);
 #endif
-      if( _queue.Count == 1 ) {
-        //We just went from 0 -> 1 signal any waiting Dequeue
-        set = true;
-        re = _re;
-      }
+      //If we just went from 0 -> 1 signal any waiting Dequeue
+      set = (_queue.Count == 1);
+      re = _re;
     }
     if( set ) { 
       try {
-        re.Set();
+        if( re != null ) {
+          re.Set();
+        }
       }
       catch { }
     }
     //After we have alerted any blocking threads (Set), fire
     //the event:
-    if( EnqueueEvent != null ) {
-      EnqueueEvent(this, EventArgs.Empty);
-    }
+    FireEnqueue();
     if( close ) {
       Close();  
     }
@@ -320,97 +395,6 @@ public sealed class BlockingQueue {
     BlockingQueue t = (BlockingQueue)queues[idx];
     t._re.Set();
     return idx;
-  }
-
-  public static ArrayList[] ParallelFetch(BlockingQueue[] queues, int max_results_per_queue) {
-    return ParallelFetch(queues, max_results_per_queue, new FetchDelegate(Fetch)); 
-  }
-
-  public static ArrayList[] ParallelFetch(BlockingQueue[] queues, 
-					  int max_results_per_queue,
-					  FetchDelegate fetch_delegate) {
-
-    FetchDelegate [] fetch_dlgt = new FetchDelegate[queues.Length];
-    IAsyncResult [] ar = new IAsyncResult[queues.Length];
-    //we also maintain an array of WaitHandles
-    WaitHandle [] wait_handle = new WaitHandle[queues.Length];
-    
-    for (int k = 0; k < queues.Length; k++) {
-      fetch_dlgt[k] = new FetchDelegate(fetch_delegate);
-      ar[k]  = fetch_dlgt[k].BeginInvoke(queues[k], max_results_per_queue, null, null);
-      wait_handle[k] = ar[k].AsyncWaitHandle;
-    }
-    //we now wait for all invocations to finish
-    Console.Error.WriteLine("Waiting for all invocations to finish...");
-    WaitHandle.WaitAll(wait_handle);
-    //we know that all invocations of Fetch have completed
-    ArrayList []results = new ArrayList[queues.Length];
-    for (int k = 0; k < queues.Length; k++) {
-      //BlockingQueue q = (BlockingQueue) queues[k];
-      results[k] = fetch_dlgt[k].EndInvoke(ar[k]);
-    }
-    return results;
-  }
-
-  public static ArrayList[] ParallelFetchWithTimeout(BlockingQueue[] queues, int millisec) {
-    return ParallelFetchWithTimeout(queues, millisec, new FetchDelegate(Fetch)); 
-  }  
-  public static ArrayList[] ParallelFetchWithTimeout(BlockingQueue[] queues, 
-						     int millisec,
-						     FetchDelegate fetch_delegate) {
-
-    FetchDelegate [] fetch_dlgt = new FetchDelegate[queues.Length];
-    IAsyncResult [] ar = new IAsyncResult[queues.Length];
-    //we also maintain an array of WaitHandles
-    WaitHandle [] wait_handle = new WaitHandle[queues.Length];
-    
-    for (int k = 0; k < queues.Length; k++) {
-      fetch_dlgt[k] = new FetchDelegate(fetch_delegate);
-      ar[k]  = fetch_dlgt[k].BeginInvoke(queues[k], -1, null, null);
-      wait_handle[k] = ar[k].AsyncWaitHandle;
-    }
-    //we now forcefully close all the queues after waiting for the timeout
-    Thread.Sleep(millisec);
-    for (int k = 0; k < queues.Length; k++) {
-      try {
-	Console.Error.WriteLine("Closing queue: {0}", k);	
-	queues[k].Close();
-      } catch(InvalidOperationException) {
-	
-      }
-    }
-    //we now wait for all invocations to finish
-    Console.Error.WriteLine("Waiting for all parallel invocations to finish...");
-    WaitHandle.WaitAll(wait_handle);
-    Console.Error.WriteLine("All parallel invocations are over.");
-    //we know that all invocations of Fetch have completed
-    ArrayList []results = new ArrayList[queues.Length];
-    for (int k = 0; k < queues.Length; k++) {
-      //BlockingQueue q = (BlockingQueue) queues[k];
-      results[k] = fetch_dlgt[k].EndInvoke(ar[k]);
-    }
-    return results;
-  }  
-
-
-
-  public delegate ArrayList FetchDelegate(BlockingQueue q, int max_replies);
-  protected static ArrayList Fetch(BlockingQueue q, int max_replies) {
-    ArrayList replies = new ArrayList();
-    try {
-      while (true) {
-	if (max_replies == 0) {
-	  break;
-	}
-	object res = q.Dequeue();
-	replies.Add(res);
-	max_replies--;
-      }
-    } catch (InvalidOperationException ) {
-
-    }
-    //Console.Error.WriteLine("fetch finished");
-    return replies;
   }
 
 #if BRUNET_NUNIT
