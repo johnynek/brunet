@@ -19,9 +19,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using System;
+using System.IO;
 using System.Text;
 using System.Collections;
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Collections.Generic;
 
@@ -219,10 +219,12 @@ namespace Brunet.Dht {
       int seen_start_idx = 0;
       int seen_end_idx = 0;
       if( token != null ) {
-        int[] bounds = (int[])AdrConverter.Deserialize(new System.IO.MemoryStream(token));
-        seen_start_idx = bounds[0];
-        seen_end_idx = bounds[1];
-        seen_start_idx = seen_end_idx + 1;
+        using(MemoryStream ms = new MemoryStream(token)) {
+          int[] bounds = (int[])AdrConverter.Deserialize(ms);
+          seen_start_idx = bounds[0];
+          seen_end_idx = bounds[1];
+          seen_start_idx = seen_end_idx + 1;
+        }
       }
 
       int consumed_bytes = 0;
@@ -266,9 +268,10 @@ namespace Brunet.Dht {
       new_bounds[0] = seen_start_idx;
       new_bounds[1] = seen_end_idx;
       //new_bounds has to be converted to a new token
-      System.IO.MemoryStream ms = new System.IO.MemoryStream();
-      AdrConverter.Serialize(new_bounds, ms);
-      next_token = ms.ToArray();
+      using(MemoryStream ms = new System.IO.MemoryStream()) {
+        AdrConverter.Serialize(new_bounds, ms);
+        next_token = ms.ToArray();
+      }
       result.Add(values);
       result.Add(remaining_items);
       result.Add(next_token);
@@ -449,6 +452,7 @@ namespace Brunet.Dht {
               lock(_interrupted) {
                 _interrupted = true;
               }
+              Done();
             }
             break;
           }
@@ -487,6 +491,8 @@ namespace Brunet.Dht {
             lock(_interrupted) {
               _interrupted = true;
             }
+            Done();
+            return;
           }
           else {
             Console.Error.WriteLine("BlockingQueue Exception: Cases include" +
@@ -496,11 +502,14 @@ namespace Brunet.Dht {
         }
 
         Entry ent = null;
-        lock(_entry_enumerator) {
-          if(_entry_enumerator.MoveNext()) {
-            ent = (Entry) _entry_enumerator.Current;
+        try {
+          lock(_entry_enumerator) {
+            if(_entry_enumerator.MoveNext()) {
+              ent = (Entry) _entry_enumerator.Current;
+            }
           }
         }
+        catch{}
         if(ent != null) {
           queue = new BlockingQueue();
           queue.EnqueueEvent += this.NextTransfer;
@@ -521,6 +530,7 @@ namespace Brunet.Dht {
           }
         }
         else {
+          Done();
           if(_ts.debug) {
             Console.WriteLine(_ts._node.Address + " completed transfer  to " + _con.Address + ".");
           }
@@ -531,6 +541,14 @@ namespace Brunet.Dht {
         lock(_interrupted) {
           _interrupted = true;
         }
+        Done();
+      }
+
+      private void Done() {
+        foreach(Entry[] key in key_entries) {
+          key = null;
+        }
+        key_entries.Clear();
       }
     }
   }
