@@ -207,6 +207,11 @@ namespace Brunet
           }
         }
       }
+      if( copy.Count == 0 ) {
+        //There were no edges, go ahead an Stop
+        Console.Error.WriteLine("Node({0}) Stopping all EdgeListeners", Address);
+        StopAllEdgeListeners();
+      }
     }
 
     /**
