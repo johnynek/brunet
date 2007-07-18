@@ -665,7 +665,7 @@ namespace Brunet
       if( reason != String.Empty ) {
         close_info["reason"] = reason;
       }
-      BlockingQueue results = new BlockingQueue();
+      Channel results = new Channel();
       results.CloseAfterEnqueue();
       EventHandler close_eh = delegate(object o, EventArgs args) {
         e.Close(); 
@@ -756,7 +756,7 @@ namespace Brunet
             
             object ping_arg = String.Empty;
             EventHandler on_close = delegate(object q, EventArgs cargs) {
-              BlockingQueue qu = (BlockingQueue)q;
+              Channel qu = (Channel)q;
               if( qu.Count == 0 ) {
                 /* we never got a response! */
 	        Console.Error.WriteLine("On an edge timeout({1}), closing connection: {0}",
@@ -782,7 +782,7 @@ namespace Brunet
                 if( close ) { e.Close(); }
               }
             };
-            BlockingQueue tmp_queue = new BlockingQueue();
+            Channel tmp_queue = new Channel();
             tmp_queue.CloseAfterEnqueue();
             tmp_queue.CloseEvent += on_close;
             //Do the ping

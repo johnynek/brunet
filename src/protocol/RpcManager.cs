@@ -99,7 +99,7 @@ public class RpcResult {
 public class RpcManager : IReplyHandler, IDataHandler {
  
   protected class RpcRequestState {
-    public BlockingQueue Results;
+    public Channel Results;
     public ISender RpcTarget;
   }
  
@@ -302,7 +302,7 @@ public class RpcManager : IReplyHandler, IDataHandler {
   {
     RpcRequestState rs = (RpcRequestState) state;
     //ISender target = rs.RpcTarget;
-    BlockingQueue bq = rs.Results;
+    Channel bq = rs.Results;
     if( bq != null ) {
       object data = AdrConverter.Deserialize(payload);
       RpcResult res = new RpcResult(ret_path, data, statistics);
@@ -419,7 +419,7 @@ public class RpcManager : IReplyHandler, IDataHandler {
   {
     Exception x = null;
     RpcRequestState rs = (RpcRequestState) state;
-    BlockingQueue bq = rs.Results;
+    Channel bq = rs.Results;
     switch(err) {
         case ReqrepManager.ReqrepError.NoHandler:
           x = new AdrException(-32601, "No RPC Handler on remote host");
@@ -428,7 +428,7 @@ public class RpcManager : IReplyHandler, IDataHandler {
           x = new AdrException(-32603, "The remote RPC System had a problem");
           break;
         case ReqrepManager.ReqrepError.Timeout:
-          //In this case we close the BlockingQueue:
+          //In this case we close the Channel:
           if( bq != null ) { bq.Close(); }
           break;
         case ReqrepManager.ReqrepError.Send:
@@ -448,25 +448,25 @@ public class RpcManager : IReplyHandler, IDataHandler {
 
   /**
    * This is how you invoke a method on a remote host.
-   * Results are put into the BlockingQueue.
+   * Results are put into the Channel.
    * 
    * If you want to have an Event based approach, listen to the EnqueueEvent
-   * on the BlockingQueue you pass for the results.  That will be fired
+   * on the Channel you pass for the results.  That will be fired
    * immediately from the thread that gets the result.
    *
-   * When a result comes back, we put and RpcResult into the Queue.
+   * When a result comes back, we put and RpcResult into the Channel.
    * When you have enough responses, Close the queue (please).  The code
    * will stop sending requests after the queue is closed.  If you never close
    * the queue, this will be wasteful of resources.
    *
    * @param target the sender to use when making the RPC call
-   * @param q the BlockingQueue into which the RpcResult objects will be placed.
+   * @param q the Channel into which the RpcResult objects will be placed.
    *            q may be null if you don't care about the response.
    * @param method the Rpc method to call
    *
    * @throw Exception if we cannot send the request for some reason.
    */
-  virtual public void Invoke(ISender target, BlockingQueue q, string method,
+  virtual public void Invoke(ISender target, Channel q, string method,
                               params object[] args)
   {
     //build state for the RPC call

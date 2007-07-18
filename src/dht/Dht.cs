@@ -177,10 +177,10 @@ namespace Brunet.Dht {
       // create a GetState and map in our table map its queues to it
       // so when we get a GetHandler we know which state to load
       AsDhtGetState adgs = new AsDhtGetState(returns);
-      BlockingQueue[] q = new BlockingQueue[DEGREE];
+      Channel[] q = new Channel[DEGREE];
       lock(_adgs_table) {
         for (int k = 0; k < DEGREE; k++) {
-          BlockingQueue queue = new BlockingQueue();
+          Channel queue = new Channel();
           _adgs_table[queue] = adgs;
           q[k] = queue;
         }
@@ -189,7 +189,7 @@ namespace Brunet.Dht {
       // Setting up our BlockingQueues
       lock(adgs) {
         for (int k = 0; k < DEGREE; k++) {
-          BlockingQueue queue = q[k];
+          Channel queue = q[k];
           queue.CloseAfterEnqueue();
           queue.EnqueueEvent += this.GetEnqueueHandler;
           queue.CloseEvent += this.GetCloseHandler;
@@ -211,7 +211,7 @@ namespace Brunet.Dht {
      */
 
     public void GetEnqueueHandler(Object o, EventArgs args) {
-      BlockingQueue queue = (BlockingQueue) o;
+      Channel queue = (Channel) o;
       // Looking up state
       AsDhtGetState adgs = (AsDhtGetState) _adgs_table[queue];
 
@@ -263,7 +263,7 @@ namespace Brunet.Dht {
 
     // We were notified that more results were available!  Let's go get them!
       if(token != null && sendto != null) {
-        BlockingQueue new_queue = new BlockingQueue();
+        Channel new_queue = new Channel();
         lock(adgs.queueMapping) {
           adgs.queueMapping[new_queue] = idx;
         }
@@ -291,7 +291,7 @@ namespace Brunet.Dht {
     }
 
     private void GetCloseHandler(object o, EventArgs args) {
-      BlockingQueue queue = (BlockingQueue) o;
+      Channel queue = (Channel) o;
       queue.EnqueueEvent -= this.GetEnqueueHandler;
       queue.CloseEvent -= this.GetCloseHandler;
       // Looking up state
@@ -428,10 +428,10 @@ namespace Brunet.Dht {
       AsDhtPutState adps = new AsDhtPutState(returns);
 
       MemBlock[] brunet_address_for_key = MapToRing(key);
-      BlockingQueue[] q = new BlockingQueue[DEGREE];
+      Channel[] q = new Channel[DEGREE];
       lock(_adps_table) {
         for (int k = 0; k < DEGREE; k++) {
-          BlockingQueue queue = new BlockingQueue();
+          Channel queue = new Channel();
           _adps_table[queue] = adps;
           q[k] = queue;
         }
@@ -439,7 +439,7 @@ namespace Brunet.Dht {
 
       lock(adps) {
         for (int k = 0; k < DEGREE; k++) {
-          BlockingQueue queue = q[k];
+          Channel queue = q[k];
           queue.CloseAfterEnqueue();
           queue.EnqueueEvent += this.PutEnqueueHandler;
           queue.CloseEvent += this.PutCloseHandler;
@@ -460,7 +460,7 @@ namespace Brunet.Dht {
      * timeout after 5 minutes though!
      */
     public void PutEnqueueHandler(Object o, EventArgs args) {
-      BlockingQueue queue = (BlockingQueue) o;
+      Channel queue = (Channel) o;
       // Get our mapping
       AsDhtPutState adps = (AsDhtPutState) _adps_table[queue];
       if(adps == null) {
@@ -470,9 +470,9 @@ namespace Brunet.Dht {
       /* Check out results from our request and update the overall results
       * send a message to our client if we're done!
       */
-      bool timedout, result = false;
+      bool result = false;
       try {
-        RpcResult rpcResult = (RpcResult) queue.Dequeue(0, out timedout);
+        RpcResult rpcResult = (RpcResult) queue.Dequeue();
         result = (bool) rpcResult.Result;
       }
       catch (Exception) {}
@@ -502,7 +502,7 @@ namespace Brunet.Dht {
     }
 
     public void PutCloseHandler(Object o, EventArgs args) {
-      BlockingQueue queue = (BlockingQueue) o;
+      Channel queue = (Channel) o;
       queue.CloseEvent -= this.PutCloseHandler;
       queue.EnqueueEvent -= this.PutEnqueueHandler;
       // Get our mapping

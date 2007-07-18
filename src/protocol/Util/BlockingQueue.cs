@@ -27,53 +27,28 @@ using NUnit.Framework;
 
 namespace Brunet
 {
-
 /**
- * This class offers a means to pass objects in a queue
- * between threads (or in the same thread).  The Dequeue
- * method will block until there is something in the Queue
- *
- * This implementation uses two thread synchronization tools:
- * mutex (locking) and a WaitHandle.  The WaitHandle is in the
- * Set state when there are 1 or more items in the queue.
- * When there are 1 or more items, Enqueue can't change the "Set"
- * state, so there is no need to call Set.  When there are two
- * or more items, Dequeue can't change the set state.  This
- * observation makes the BlockingQueue much faster because in the
- * high throughput case, there is often more than 1 item in the queue,
- * and so we only use the Mutex and never touch the WaitHandle,
- * which can be a little slow (according to testing).
+ * Channel something that allows you to Enqueue objects and Dequeue
+ * objects in a thread-safe way.  It has EnqueueEvent and CloseEvent
+ * which signal when something has been added, or when the Channel
+ * is closed.  All operations are non-blocking.  @see BlockingQueue
+ * for a channel that can block until something is ready to be read
+ * from it
  */
-#if BRUNET_NUNIT
-[TestFixture]
-#endif
-public sealed class BlockingQueue {
-  
-  public BlockingQueue() {
-    _re = new AutoResetEvent(false); 
+public class Channel {
+  public Channel() {
     _closed = false;
     _sync = new object();
     _queue = new Queue();
     _close_on_enqueue = false;
-    _waiters = 0;
   }
 
-  ~BlockingQueue() {
-    //Make sure the close method is eventually called:
-    if( !Closed ) {
-      Console.Error.WriteLine("ERROR: BlockingQueue.Close called in Destructor");
-    }
-    Close();
-  }
 
   protected readonly Queue _queue;
   protected readonly object _sync; 
-  protected AutoResetEvent _re;
   protected bool _closed;
   protected bool _close_on_enqueue;
   
-  protected int _waiters;
-
   public bool Closed { get { lock ( _sync ) { return _closed; } } }
   
   public int Count { get { lock ( _sync ) { return _queue.Count; } } }
@@ -95,24 +70,20 @@ public sealed class BlockingQueue {
    * Once this method is called, and the queue is emptied,
    * all future Dequeue's will throw exceptions
    */
-  public void Close() {
+  public virtual void Close() {
     bool fire = false;
+    EventHandler ch = null;
     lock( _sync ) {
       if( _closed == false ) {
         fire = true;
         _closed = true;
+        //Null out some underlying objects:
+        ch = CloseEvent;
+        CloseEvent = null;
       }
     }
     //Fire the close event
     if( fire ) {
-      //Wake up any blocking threads:
-      AutoResetEvent re = Interlocked.Exchange( ref _re, null);
-      while( Thread.VolatileRead( ref _waiters ) > 0 ) {
-        re.Set();
-      }
-      //There are at most 
-      re.Close();
-      EventHandler ch = Interlocked.Exchange(ref CloseEvent, null);
       if( ch != null ) {
         ch(this, EventArgs.Empty);
       }
@@ -144,9 +115,118 @@ public sealed class BlockingQueue {
   }
   
   /**
+   * @throw InvalidOperationException if Closed or Empty
+   */
+  public virtual object Dequeue() {
+    lock( _sync ) {
+      return _queue.Dequeue();
+    }
+  }
+
+  public virtual void Enqueue(object a) {
+    bool close = false;
+    lock( _sync ) {
+      if( !_closed ) {
+        _queue.Enqueue(a);
+        close = _close_on_enqueue;
+      }
+      else {
+        //We are closed, ignore all future enqueues.
+        return;
+      }
+    }
+    FireEnqueue();
+    if( close ) {
+      Close();  
+    }
+  }
+  protected void FireEnqueue() {
+    //the event:
+    EventHandler eh = EnqueueEvent;
+    if( eh != null ) {
+      eh(this, EventArgs.Empty);
+    }
+  }
+  /**
    * @throw Exception if the queue is closed
    */
-  public object Dequeue() {
+  public virtual object Peek() {
+    lock( _sync ) {
+      return _queue.Peek();
+    }
+  }
+
+}
+
+/**
+ * This class offers a means to pass objects in a queue
+ * between threads (or in the same thread).  The Dequeue
+ * method will block until there is something in the Queue
+ *
+ * This implementation uses two thread synchronization tools:
+ * mutex (locking) and a WaitHandle.  The WaitHandle is in the
+ * Set state when there are 1 or more items in the queue.
+ * When there are 1 or more items, Enqueue can't change the "Set"
+ * state, so there is no need to call Set.  When there are two
+ * or more items, Dequeue can't change the set state.  This
+ * observation makes the BlockingQueue much faster because in the
+ * high throughput case, there is often more than 1 item in the queue,
+ * and so we only use the Mutex and never touch the WaitHandle,
+ * which can be a little slow (according to testing).
+ */
+#if BRUNET_NUNIT
+[TestFixture]
+#endif
+public sealed class BlockingQueue : Channel {
+  
+  public BlockingQueue() {
+    _re = new AutoResetEvent(false); 
+    _waiters = 0;
+  }
+
+  ~BlockingQueue() {
+    //Make sure the close method is eventually called:
+    if( !Closed ) {
+      Console.Error.WriteLine("ERROR: BlockingQueue.Close called in Destructor");
+    }
+    Close();
+  }
+  protected AutoResetEvent _re;
+  protected int _waiters;
+
+  
+  /* **********************************************
+   * Here all the methods
+   */
+  
+  /**
+   * Once this method is called, and the queue is emptied,
+   * all future Dequeue's will throw exceptions
+   */
+  public override void Close() {
+    base.Close();
+    AutoResetEvent re = null;
+    lock( _sync ) {
+      re = _re;
+      _re = null;
+    }
+    if( re != null ) {
+      //Set for all the waiting Dequeues:
+      while( Thread.VolatileRead( ref _waiters ) > 0 ) {
+        re.Set();
+      }
+      re.Close();
+    }
+
+#if DEBUG
+    System.Console.Error.WriteLine("Close set");
+#endif
+  }
+
+  /**
+   * @throw Exception if the queue is closed
+   */
+  public override object Dequeue() {
     bool timedout = false;
     return Dequeue(-1, out timedout);
   }
@@ -163,6 +243,7 @@ public sealed class BlockingQueue {
   
   protected object Dequeue(int millisec, out bool timedout, bool advance)
   {
+    AutoResetEvent re = null;
     lock( _sync ) {
       if( (_queue.Count > 1) || _closed ) { 
         /**
@@ -177,12 +258,19 @@ public sealed class BlockingQueue {
           return _queue.Peek();
         }
       }
+      /*
+       * We have to wait, make sure we could this waiter
+       * before the queue is closed.  The lock on _sync
+       * make sure that we can't close while in this block
+       * of code
+       */
+      Interlocked.Increment(ref _waiters);
+      re = _re;
     }
     bool got_set = true;
     //Wait for the next one... 
-    Interlocked.Increment(ref _waiters);
     try{
-      got_set = _re.WaitOne(millisec, false);
+      got_set = re.WaitOne(millisec, false);
     }
     catch { }
     Interlocked.Decrement(ref _waiters);
@@ -193,7 +281,6 @@ public sealed class BlockingQueue {
       object result = null;
       try {
         lock( _sync ) {
-          set = _closed;
           if( advance ) {
             result = _queue.Dequeue();
           }
@@ -205,12 +292,17 @@ public sealed class BlockingQueue {
            * still more, set the _re so the
            * next reader can get it
            */
-          set = ( (_queue.Count > 0) || _closed );
+          set = _queue.Count > 0;
+          re = _re;
         }
       }
       finally {
         try {
-          if( set ) { _re.Set(); }
+          if( set ) {
+            if( re != null ) {
+              re.Set();
+            }
+          }
         } catch { }
       }
       return result;
@@ -224,7 +316,7 @@ public sealed class BlockingQueue {
   /**
    * @throw Exception if the queue is closed
    */
-  public object Peek() {
+  public override object Peek() {
     bool timedout = false;
     return Peek(-1, out timedout);
   }
@@ -240,12 +332,14 @@ public sealed class BlockingQueue {
     return Dequeue(millisec, out timedout, false);
   }
 
-  public void Enqueue(object a) {
+  public override void Enqueue(object a) {
     bool set = false;
     bool close = false;
+    AutoResetEvent re = null;
     lock( _sync ) {
       if( !_closed ) {
         _queue.Enqueue(a);
+        close = _close_on_enqueue;
       }
       else {
         //We are closed, ignore all future enqueues.
@@ -255,23 +349,21 @@ public sealed class BlockingQueue {
 #if DEBUG
       Console.Error.WriteLine("Enqueue set: count {0}", Count);
 #endif
-      if( _queue.Count == 1 ) {
-        //We just went from 0 -> 1 signal any waiting Dequeue
-        set = true;
-      }
-      close = _close_on_enqueue;
+      //If we just went from 0 -> 1 signal any waiting Dequeue
+      set = (_queue.Count == 1);
+      re = _re;
     }
     if( set ) { 
       try {
-        _re.Set();
+        if( re != null ) {
+          re.Set();
+        }
       }
       catch { }
     }
     //After we have alerted any blocking threads (Set), fire
     //the event:
-    if( EnqueueEvent != null ) {
-      EnqueueEvent(this, EventArgs.Empty);
-    }
+    FireEnqueue();
     if( close ) {
       Close();  
     }
