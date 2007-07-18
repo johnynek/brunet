@@ -364,11 +364,17 @@ namespace Brunet
       _e.Subscribe(_node, _e);
       
       /* Make the call */
-      BlockingQueue results = new BlockingQueue();
-      results.EnqueueEvent += this.LinkResultHandler;
+      Channel results = new Channel();
+      results.CloseAfterEnqueue();
       results.CloseEvent += this.LinkCloseHandler;
       RpcManager rpc = RpcManager.GetInstance(_node);
-      rpc.Invoke(_e, results, "sys:link.Start", MakeLM().ToDictionary() );
+      try {
+        rpc.Invoke(_e, results, "sys:link.Start", MakeLM().ToDictionary() );
+      }
+      catch {
+        //The Edge must have closed, move on to the next TA
+        Finish(Result.MoveToNextTA);
+      }
     }
     
     /**
@@ -414,30 +420,32 @@ namespace Brunet
      * When we get a response to the sys:link method, this handled
      * is called
      */
-    protected void LinkResultHandler(object q, EventArgs args) {
+    protected void LinkCloseHandler(object q, EventArgs args) {
       try {
-        BlockingQueue resq = (BlockingQueue)q;
+        Channel resq = (Channel)q;
         lock( _sync ) {
-          resq.EnqueueEvent -= this.LinkResultHandler;
           resq.CloseEvent -= this.LinkCloseHandler;
           if( _is_finished ) { return; }
-          RpcResult res = (RpcResult)resq.Dequeue();
-          //Stop listening for results:
-          resq.Close();
-  
-          /* Here's the LinkMessage response */
-          LinkMessage lm = new LinkMessage( (IDictionary)res.Result );
-          SetAndCheckLinkReply(lm);
+
+          if( resq.Count > 0 ) {
+            RpcResult res = (RpcResult)resq.Dequeue();
+            /* Here's the LinkMessage response */
+            LinkMessage lm = new LinkMessage( (IDictionary)res.Result );
+            SetAndCheckLinkReply(lm);
   	
-          /* Make our status message */
-          StatusMessage sm = _node.GetStatus(_contype, lm.Local.Address);
-         
-          /* Make the call */
-          BlockingQueue results = new BlockingQueue();
-          results.EnqueueEvent += this.StatusResultHandler;
-          results.CloseEvent += this.StatusCloseHandler;
-          RpcManager rpc = RpcManager.GetInstance(_node);
-          rpc.Invoke(_e, results, "sys:link.GetStatus", sm.ToDictionary() );
+            /* Make our status message */
+            StatusMessage sm = _node.GetStatus(_contype, lm.Local.Address);
+            /* Make the call */
+            Channel results = new Channel();
+            results.CloseAfterEnqueue();
+            results.CloseEvent += this.StatusCloseHandler;
+            RpcManager rpc = RpcManager.GetInstance(_node);
+            rpc.Invoke(_e, results, "sys:link.GetStatus", sm.ToDictionary() );
+          }
+          else {
+            //This causes us to move to the next TA
+            throw new InvalidOperationException();
+          }
         }
       }
       catch(AdrException x) {
@@ -463,6 +471,14 @@ namespace Brunet
         if( x.IsCritical ) { Finish( Result.MoveToNextTA ); }
         else { Finish( Result.RetryThisTA ); }
       }
+      catch(InvalidOperationException) {
+        //The queue never got anything
+        Finish(Result.MoveToNextTA);
+      }
+      catch(EdgeException) {
+        //The Edge is goofy, let's move on:
+        Finish(Result.MoveToNextTA);
+      }
       catch(Exception x) {
         //The protocol was not followed correctly by the other node, fail
         _x = x;
@@ -471,36 +487,22 @@ namespace Brunet
     }
     
     /**
-     * If the RPC call never gets a result, eventually the
-     * BlockingQueue is closed, in that case, this handler is
-     * invoked.
-     */
-    protected void LinkCloseHandler(object q, EventArgs args) {
-      BlockingQueue resq = (BlockingQueue)q;
-      lock( _sync ) {
-        resq.CloseEvent -= this.LinkCloseHandler;
-        resq.EnqueueEvent -= this.LinkResultHandler;
-        if( _is_finished ) { return; }
-      }
-      /*
-       * I guess this edge is no good
-       */
-      Finish(Result.MoveToNextTA);
-    }
-    /**
      * When we're here, we have the status message
      */
-    protected void StatusResultHandler(object q, EventArgs args) {
+    protected void StatusCloseHandler(object q, EventArgs args) {
       try {
-        BlockingQueue resq = (BlockingQueue)q;
+        Channel resq = (Channel)q;
+        resq.CloseEvent -= this.StatusCloseHandler;
         lock( _sync ) {
-          resq.CloseEvent -= this.StatusCloseHandler;
-          resq.EnqueueEvent -= this.StatusResultHandler;
           if( _is_finished ) { return; }
-          RpcResult res = (RpcResult)resq.Dequeue();
-          resq.Close(); //Close the queue
-          StatusMessage sm = new StatusMessage((IDictionary)res.Result);
-          _con = new Connection(_e, _lm_reply.Local.Address, _contype, sm, _lm_reply);
+          if( resq.Count > 0 ) {
+            RpcResult res = (RpcResult)resq.Dequeue();
+            StatusMessage sm = new StatusMessage((IDictionary)res.Result);
+            _con = new Connection(_e, _lm_reply.Local.Address, _contype, sm, _lm_reply);
+          }
+          else {
+            throw new Exception("No StatusMessage returned");
+          }
         }
         Finish(Result.Success);
       }
@@ -511,29 +513,6 @@ namespace Brunet
          * can
          */
         Console.Error.WriteLine("LPS.StatusResultHandler Exception: {0}", x);
-        Finish(Result.RetryThisTA);
-      }
-    }
-    /**
-     * If the RPC call never gets a result, eventually the
-     * BlockingQueue is closed, in that case, this handler is
-     * invoked.
-     */
-    protected void StatusCloseHandler(object q, EventArgs args) {
-      BlockingQueue resq = (BlockingQueue)q;
-      bool fire_finish = false;
-      lock( _sync ) {
-        resq.CloseEvent -= this.StatusCloseHandler;
-        resq.EnqueueEvent -= this.StatusResultHandler;
-        if( !_is_finished ) {
-          fire_finish = true; 
-        }
-      }
-      /*
-       * We must have heard something, maybe we should retry and see
-       * if we can hear something else soon.
-       */
-      if( fire_finish ) {
         Finish(Result.RetryThisTA);
       }
     }

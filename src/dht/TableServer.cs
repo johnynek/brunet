@@ -120,19 +120,18 @@ namespace Brunet.Dht {
 
         // Here we receive the results of our put follow ups, for simplicity, we
         // have both the local Put and the remote PutHandler return the results
-        // via the blockingqueue.  If it fails, we remove it locally, if the item
+        // via the Channel.  If it fails, we remove it locally, if the item
         // was never created it shouldn't matter.
 
 
     public bool Put(MemBlock key, MemBlock value, int ttl, bool unique) {
       try {
         PutHandler(key, value, ttl, unique);
-        BlockingQueue remote_put = new BlockingQueue();
+        Channel remote_put = new Channel();
         remote_put.CloseAfterEnqueue();
         remote_put.EnqueueEvent += delegate(Object o, EventArgs eargs) {
           try {
-            bool timedout;
-            object result = remote_put.Dequeue(0, out timedout);
+            object result = remote_put.Dequeue();
             RpcResult rpcResult = (RpcResult) result;
             result = rpcResult.Result;
             if(result.GetType() != typeof(bool)) {
@@ -439,7 +438,7 @@ namespace Brunet.Dht {
           }
         }
         foreach(Entry ent in local_entries) {
-          BlockingQueue queue = new BlockingQueue();
+          Channel queue = new Channel();
           queue.CloseAfterEnqueue();
 //          queue.EnqueueEvent += this.NextTransfer;
           queue.CloseEvent += this.NextTransfer;
@@ -474,7 +473,7 @@ namespace Brunet.Dht {
        * transfer is complete
        */
       private void NextTransfer(Object o, EventArgs eargs) {
-        BlockingQueue queue = (BlockingQueue) o;
+        Channel queue = (Channel) o;
 //        queue.EnqueueEvent -= this.NextTransfer;
         queue.CloseEvent -= this.NextTransfer;
         /* No point in dequeueing, if we've been interrupted, we most likely
@@ -495,7 +494,7 @@ namespace Brunet.Dht {
             return;
           }
           else {
-            Console.Error.WriteLine("BlockingQueue Exception: Cases include" +
+            Console.Error.WriteLine("Channel Exception: Cases include" +
               "that an edge may be closed but we may not no of it or that the"
               + " timeouts are too low.  This occurred on {0} \n\t {1}", _con.Edge, e);
           }
@@ -511,7 +510,7 @@ namespace Brunet.Dht {
         }
         catch{}
         if(ent != null) {
-          queue = new BlockingQueue();
+          queue = new Channel();
           queue.CloseAfterEnqueue();
 //          queue.EnqueueEvent += this.NextTransfer;
           queue.CloseEvent += this.NextTransfer;

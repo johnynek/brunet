@@ -93,15 +93,15 @@ public class TraceRpcHandler : IRpcHandler {
     my_entry["node"] = _node.Address.ToString();
     if( next_closest != null ) {
       my_entry["next_con"] = next_closest.ToString();
-      BlockingQueue result = new BlockingQueue();
+      Channel result = new Channel();
       //We only want one result, so close the queue after we get the first
       result.CloseAfterEnqueue();
       result.CloseEvent += delegate(object o, EventArgs args) {
-        BlockingQueue q = (BlockingQueue)o;
+        Channel q = (Channel)o;
         if( q.Count > 0 ) {
           try {
             bool timedout;
-            RpcResult rres = (RpcResult)q.Dequeue(0, out timedout);
+            RpcResult rres = (RpcResult)q.Dequeue();
             IList l = (IList) rres.Result;
             ArrayList results = new ArrayList( l.Count + 1);
             results.Add(my_entry);

@@ -73,7 +73,7 @@ namespace Brunet
     /** Holds the ConnectToMessage whose response we are looking for */
     public ConnectToMessage Ctm { get { return _ctm; } }
 
-    protected ConnectionOverlord _co;
+    protected readonly ConnectionOverlord _co;
 
     /**
      * Either a Node or an Edge to use to send the
@@ -167,7 +167,7 @@ namespace Brunet
       }
       RpcManager rpc = RpcManager.GetInstance(_local_node);
 
-      BlockingQueue results = new BlockingQueue();
+      Channel results = new Channel();
       results.EnqueueEvent += this.EnqueueHandler;
       results.CloseEvent += this.QueueCloseHandler;
       rpc.Invoke(_sender, results, "sys:ctm.ConnectTo", _ctm.ToDictionary() );
@@ -177,42 +177,35 @@ namespace Brunet
      * Try to get an RpcResult out and handle it
      */
     protected void EnqueueHandler(object queue, EventArgs arg) {
-      BlockingQueue q = (BlockingQueue)queue;
-      /*
-       * Try for 10 ms to something out, there should be something
-       * in there if this method is being called
-       */
-      bool timedout = true;
+      Channel q = (Channel)queue;
       RpcResult rpc_res = null;
       try {
-        rpc_res = (RpcResult)q.Dequeue(10, out timedout);
-        if( !timedout ) {
-          ConnectToMessage new_ctm = new ConnectToMessage(
-                                         (IDictionary)rpc_res.Result );
+        rpc_res = (RpcResult)q.Dequeue();
+        ConnectToMessage new_ctm = new ConnectToMessage( (IDictionary)rpc_res.Result );
+	lock( _sync ) {
           _got_ctm = true;
-          /**
-           * It is the responsibilty of the ConnectionOverlord
-           * to deal with this ctm
-           */
+        /**
+         * It is the responsibilty of the ConnectionOverlord
+         * to deal with this ctm
+         */
           _got_ctms.Add(new_ctm);
-          bool close_queue = _co.HandleCtmResponse(this, rpc_res.ResultSender, new_ctm);
-          if( close_queue ) {
-            q.Close();
-          }
+	}
+        bool close_queue = _co.HandleCtmResponse(this, rpc_res.ResultSender, new_ctm);
+        if( close_queue ) {
+          q.Close();
         }
       }
       catch(Exception) {
         //This can happen if the queue is empty and closed.  Don't do
         //anything.
-        timedout = true;
       }
     }
     /**
-     * When the RPC is finished, the BlockingQueue is closed, and we handle
+     * When the RPC is finished, the Channel is closed, and we handle
      * it here
      */
     protected void QueueCloseHandler(object queue, EventArgs arg) {
-      BlockingQueue bq = (BlockingQueue)queue;
+      Channel bq = (Channel)queue;
       if( bq.Closed ) {
         /*
          * We're done
