@@ -190,7 +190,7 @@ namespace Brunet
         e.CloseEvent += ch;
         if( e.IsClosed ) { ch(e, null); }
         else {
-          BlockingQueue res_q = new BlockingQueue();
+          Channel res_q = new Channel();
           res_q.CloseAfterEnqueue();
           DateTime start_time = DateTime.UtcNow;
           res_q.CloseEvent += delegate(object o, EventArgs arg) {
@@ -336,7 +336,7 @@ namespace Brunet
       ConnectionTable tab = this.ConnectionTable;
       if( c != null ) {
         StatusMessage req = GetStatus(type, c.Address);
-        BlockingQueue stat_res = new BlockingQueue();
+        Channel stat_res = new Channel();
         EventHandler handle_result = delegate(object q, EventArgs eargs) {
           try {
             RpcResult r = (RpcResult)stat_res.Dequeue();

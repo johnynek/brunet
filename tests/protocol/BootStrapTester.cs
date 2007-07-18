@@ -181,14 +181,16 @@ namespace Brunet
       Node n0 = (Node)nodes[idx0];
       Node n1 = (Node)nodes[idx1];
       RpcManager pinger = RpcManager.GetInstance( n0 );
-      BlockingQueue results = new BlockingQueue();
-      Console.WriteLine("Pinging: {0} -> {1}", n0.Address, n1.Address);
-      try {
-        pinger.Invoke(n0, results, "trace.GetRttTo", n1.Address.ToString());
+      Channel results = new Channel();
+      results.EnqueueEvent += delegate(object q, EventArgs a) {
         object result = results.Dequeue();
 	RpcResult r = (RpcResult)result;
 	IDictionary data = (IDictionary)r.Result;
 	Console.WriteLine("target: {0}, rtt: {1}", data["target"], data["musec"]);
+      };
+      Console.WriteLine("Pinging: {0} -> {1}", n0.Address, n1.Address);
+      try {
+        pinger.Invoke(n0, results, "trace.GetRttTo", n1.Address.ToString());
       }
       catch(Exception x) {
         Console.WriteLine("Exception: {0}", x);
@@ -201,10 +203,9 @@ namespace Brunet
       Node n0 = (Node)nodes[idx0];
       Node n1 = (Node)nodes[idx1];
       RpcManager pinger = RpcManager.GetInstance( n0 );
-      BlockingQueue results = new BlockingQueue();
+      Channel results = new Channel();
       Console.WriteLine("Traceroute: {0} -> {1}", n0.Address, n1.Address);
-      try {
-        pinger.Invoke(n0, results, "trace.GetRouteTo", n1.Address.ToString());
+      results.EnqueueEvent += delegate(object q, EventArgs a) {
         object result = results.Dequeue();
 	RpcResult r = (RpcResult)result;
 	IList data = (IList)r.Result;
@@ -213,6 +214,9 @@ namespace Brunet
           Console.WriteLine("Hop: {0} :: {1}\n  :: {2}", hop, d["node"], d["next_con"]);
 	  hop++;
 	}
+      };
+      try {
+        pinger.Invoke(n0, results, "trace.GetRouteTo", n1.Address.ToString());
       }
       catch(Exception x) {
         Console.WriteLine("Exception: {0}", x);
