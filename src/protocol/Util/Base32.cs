@@ -21,7 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #if BRUNET_NUNIT
 using NUnit.Framework;
 #endif
-
+using System;
 namespace Brunet
 {
 
@@ -289,12 +289,12 @@ namespace Brunet
     {
       foreach(string a in args)
       {
-        System.Console.Error.WriteLine("{0}:", a);
+        Console.Error.WriteLine("{0}:", a);
         byte[] data = Decode(a);
         foreach(byte datum in data){
           System.Console.Write("{0}:", datum);
         }
-        System.Console.Error.WriteLine("\n--");
+        Console.Error.WriteLine("\n--");
       }
     }
   }

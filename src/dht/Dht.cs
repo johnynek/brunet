@@ -190,8 +190,9 @@ namespace Brunet.Dht {
       lock(adgs) {
         for (int k = 0; k < DEGREE; k++) {
           BlockingQueue queue = q[k];
-          queue.EnqueueEvent += this.GetHandler;
-          queue.CloseEvent += this.GetHandler;
+          queue.CloseAfterEnqueue();
+          queue.EnqueueEvent += this.GetEnqueueHandler;
+          queue.CloseEvent += this.GetCloseHandler;
           adgs.queueMapping[queue] = k;
         }
       }
@@ -209,115 +210,116 @@ namespace Brunet.Dht {
      * and update our state as necessary
      */
 
-    public void GetHandler(Object o, EventArgs args) {
+    public void GetEnqueueHandler(Object o, EventArgs args) {
       BlockingQueue queue = (BlockingQueue) o;
-      lock(queue) {
-        // Looking up state
-        AsDhtGetState adgs = (AsDhtGetState) _adgs_table[queue];
+      // Looking up state
+      AsDhtGetState adgs = (AsDhtGetState) _adgs_table[queue];
 
-        if(adgs == null) {
-          queue.Close();
-          return;
+      if(adgs == null) {
+        return;
+      }
+
+      int idx = (int) adgs.queueMapping[queue];
+      // Test to see if we got any results and place them into results if necessary
+      ISender sendto = null;
+      MemBlock token = null;
+      try {
+        RpcResult rpc_reply = (RpcResult) queue.Dequeue();
+        ArrayList result = (ArrayList) rpc_reply.Result;
+        //Result may be corrupted
+        ArrayList values = (ArrayList) result[0];
+        int remaining = (int) result[1];
+        if(remaining > 0) {
+          token = (byte[]) result[2];
+          sendto = rpc_reply.ResultSender;
         }
 
-        // If we get here we either were closed by the remote rpc or we finished our get
-        if(queue.Closed && queue.Count == 0) {
-          int count = 0;
-          lock(adgs.queueMapping) {
-            adgs.queueMapping.Remove(queue);
-            count = adgs.queueMapping.Count;
-          }
-          lock(_adgs_table) {
-            _adgs_table.Remove(queue);
-          }
-          queue.EnqueueEvent -= this.GetHandler;
-          queue.CloseEvent -= this.GetHandler;
-          if(count == 0) {
-            adgs.returns.Close();
-            GetFollowUp(adgs);
-          }
-          else {
-            if(count < MAJORITY && !(bool) adgs.GotToLeaveEarly) {
-              lock(adgs.GotToLeaveEarly) {
-                if(!(bool) adgs.GotToLeaveEarly) {
-                  GetLeaveEarly(adgs);
-                }
-              }
+        // Going through the return values and adding them to our
+        // results, if a majority of our servers say a data exists
+        // we say it is a valid data and return it to the caller
+        foreach (Hashtable ht in values) {
+          MemBlock mbVal = (byte[]) ht["value"];
+          int count = 1;
+          Hashtable res = null;
+          lock(adgs.results) {
+            res = (Hashtable) adgs.results[mbVal];
+            if(res == null) {
+              res = new Hashtable();
+              adgs.results[mbVal] = res;
+              adgs.ttls[mbVal] = ht["ttl"];
             }
+            res[idx] = true;
+            count = ((ICollection) adgs.results[mbVal]).Count;
           }
-          return;
-        }
-
-        int idx = (int) adgs.queueMapping[queue];
-        // Test to see if we got any results and place them into results if necessary
-        ISender sendto = null;
-        MemBlock token = null;
-        try {
-          RpcResult rpc_reply = (RpcResult) queue.Dequeue();
-          ArrayList result = (ArrayList) rpc_reply.Result;
-          //Result may be corrupted
-          ArrayList values = (ArrayList) result[0];
-          int remaining = (int) result[1];
-          if(remaining > 0) {
-            token = (byte[]) result[2];
-            sendto = rpc_reply.ResultSender;
-          }
-
-          // Going through the return values and adding them to our
-          // results, if a majority of our servers say a data exists
-          // we say it is a valid data and return it to the caller
-          foreach (Hashtable ht in values) {
-            MemBlock mbVal = (byte[]) ht["value"];
-            int count = 1;
-            Hashtable res = null;
-            lock(adgs.results) {
-              res = (Hashtable) adgs.results[mbVal];
-              if(res == null) {
-                res = new Hashtable();
-                adgs.results[mbVal] = res;
-                adgs.ttls[mbVal] = ht["ttl"];
-              }
-              res[idx] = true;
-              count = ((ICollection) adgs.results[mbVal]).Count;
-            }
-            if(count == MAJORITY) {
-              adgs.returns.Enqueue(new DhtGetResult(ht));
-            }
-          }
-        }
-        catch (Exception) {
-          sendto = null;
-          token = null;
-        }
-
-      // We were notified that more results were available!  Let's go get them!
-        if(token != null && sendto != null) {
-          BlockingQueue new_queue = new BlockingQueue();
-          lock(adgs.queueMapping) {
-            adgs.queueMapping[new_queue] = idx;
-          }
-          lock(_adgs_table) {
-            _adgs_table[new_queue] = adgs;
-          }
-          new_queue.EnqueueEvent += this.GetHandler;
-          new_queue.CloseEvent += this.GetHandler;
-          try {
-          _rpc.Invoke(sendto, new_queue, "dht.Get", 
-                      adgs.brunet_address_for_key[idx], MAX_BYTES, token);
-          }
-          catch(Exception) {
-            lock(adgs.queueMapping) {
-              adgs.queueMapping.Remove(new_queue);
-            }
-            lock(_adgs_table) {
-              _adgs_table.Remove(new_queue);
-            }
-            new_queue.EnqueueEvent -= this.GetHandler;
-            new_queue.CloseEvent -= this.GetHandler;
+          if(count == MAJORITY) {
+            adgs.returns.Enqueue(new DhtGetResult(ht));
           }
         }
       }
-      queue.Close();
+      catch (Exception) {
+        sendto = null;
+        token = null;
+      }
+
+    // We were notified that more results were available!  Let's go get them!
+      if(token != null && sendto != null) {
+        BlockingQueue new_queue = new BlockingQueue();
+        lock(adgs.queueMapping) {
+          adgs.queueMapping[new_queue] = idx;
+        }
+        lock(_adgs_table) {
+          _adgs_table[new_queue] = adgs;
+        }
+        new_queue.CloseAfterEnqueue();
+        new_queue.EnqueueEvent += this.GetEnqueueHandler;
+        new_queue.CloseEvent += this.GetCloseHandler;
+        try {
+        _rpc.Invoke(sendto, new_queue, "dht.Get", 
+                    adgs.brunet_address_for_key[idx], MAX_BYTES, token);
+        }
+        catch(Exception) {
+          lock(adgs.queueMapping) {
+            adgs.queueMapping.Remove(new_queue);
+          }
+          lock(_adgs_table) {
+            _adgs_table.Remove(new_queue);
+          }
+          new_queue.EnqueueEvent -= this.GetEnqueueHandler;
+          new_queue.CloseEvent -= this.GetCloseHandler;
+        }
+      }
+    }
+
+    private void GetCloseHandler(object o, EventArgs args) {
+      BlockingQueue queue = (BlockingQueue) o;
+      queue.EnqueueEvent -= this.GetEnqueueHandler;
+      queue.CloseEvent -= this.GetCloseHandler;
+      // Looking up state
+      AsDhtGetState adgs = (AsDhtGetState) _adgs_table[queue];
+
+      if(adgs == null) {
+        return;
+      }
+
+      int count = 0;
+      lock(adgs.queueMapping) {
+        adgs.queueMapping.Remove(queue);
+        count = adgs.queueMapping.Count;
+      }
+      lock(_adgs_table) {
+        _adgs_table.Remove(queue);
+      }
+      if(count == 0) {
+        adgs.returns.Close();
+        GetFollowUp(adgs);
+      }
+      else if(count < MAJORITY && !(bool) adgs.GotToLeaveEarly) {
+        lock(adgs.GotToLeaveEarly) {
+          if(!(bool) adgs.GotToLeaveEarly) {
+            GetLeaveEarly(adgs);
+          }
+        }
+      }
     }
 
     /* This helps us leave the Get early if we either have no results or
@@ -438,8 +440,9 @@ namespace Brunet.Dht {
       lock(adps) {
         for (int k = 0; k < DEGREE; k++) {
           BlockingQueue queue = q[k];
-          queue.EnqueueEvent += this.PutHandler;
-          queue.CloseEvent += this.PutHandler;
+          queue.CloseAfterEnqueue();
+          queue.EnqueueEvent += this.PutEnqueueHandler;
+          queue.CloseEvent += this.PutCloseHandler;
           adps.queueMapping[queue] = k;
         }
       }
@@ -456,77 +459,75 @@ namespace Brunet.Dht {
      * that we can ensure all places in the ring actually get the data.  Should
      * timeout after 5 minutes though!
      */
-    public void PutHandler(Object o, EventArgs args) {
+    public void PutEnqueueHandler(Object o, EventArgs args) {
       BlockingQueue queue = (BlockingQueue) o;
-      lock(queue) {
-        // Get our mapping
-        AsDhtPutState adps = (AsDhtPutState) _adps_table[queue];
-        if(adps == null) {
-          queue.CloseEvent -= this.PutHandler;
-          queue.EnqueueEvent -= this.PutHandler;
-          queue.Close();
-          return;
-        }
+      // Get our mapping
+      AsDhtPutState adps = (AsDhtPutState) _adps_table[queue];
+      if(adps == null) {
+        return;
+      }
 
-
-        // Well it was closed, shouldn't have happened, but we'll do garbage collection
-        if(queue.Closed) {
-          queue.CloseEvent -= this.PutHandler;
-          queue.EnqueueEvent -= this.PutHandler;
-          lock(_adps_table) {
-            _adps_table.Remove(queue);
+      /* Check out results from our request and update the overall results
+      * send a message to our client if we're done!
+      */
+      bool timedout, result = false;
+      try {
+        RpcResult rpcResult = (RpcResult) queue.Dequeue(0, out timedout);
+        result = (bool) rpcResult.Result;
+      }
+      catch (Exception) {}
+      if(result) {
+        // Once we get pcount to a majority, we ship off the result
+        lock(adps.pcount) {
+          int count = (int) adps.pcount + 1;
+          if(count == MAJORITY) {
+            adps.returns.Enqueue(true);
+            adps.returns.Close();
           }
-          int count = 0;
-          lock(adps.queueMapping) {
-            adps.queueMapping.Remove(queue);
-            count = adps.queueMapping.Count;
-          }
-          if(count == 0) {
-            adps.pcount = null;
-            adps.ncount = null;
-            if(!adps.returns.Closed) {
-              adps.returns.Enqueue(false);
-              adps.returns.Close();
-            }
-          }
-          return;
-        }
-
-        /* Check out results from our request and update the overall results
-        * send a message to our client if we're done!
-        */
-        bool timedout, result = false;
-        try {
-          RpcResult rpcResult = (RpcResult) queue.Dequeue(0, out timedout);
-          result = (bool) rpcResult.Result;
-        }
-        catch (Exception) {}
-        if(result) {
-          // Once we get pcount to a majority, we ship off the result
-          lock(adps.pcount) {
-            int count = (int) adps.pcount + 1;
-            if(count == MAJORITY) {
-              adps.returns.Enqueue(true);
-              adps.returns.Close();
-            }
-            adps.pcount = count;
-          }
-        }
-        else {
-          lock(adps.ncount) {
-            /* Once we get to ncount to 1 less than a majority, we ship off the
-            * result, because we can't get pcount equal to majority any more!
-            */
-            int count = (int) adps.ncount + 1;
-            if(count == MAJORITY - 1 || 1 == DEGREE) {
-              adps.returns.Enqueue(false);
-              adps.returns.Close();
-            }
-            adps.ncount = count;
-          }
+          adps.pcount = count;
         }
       }
-      queue.Close();
+      else {
+        lock(adps.ncount) {
+          /* Once we get to ncount to 1 less than a majority, we ship off the
+          * result, because we can't get pcount equal to majority any more!
+          */
+          int count = (int) adps.ncount + 1;
+          if(count == MAJORITY - 1 || 1 == DEGREE) {
+            adps.returns.Enqueue(false);
+          }
+          adps.ncount = count;
+        }
+      }
+    }
+
+    public void PutCloseHandler(Object o, EventArgs args) {
+      BlockingQueue queue = (BlockingQueue) o;
+      queue.CloseEvent -= this.PutCloseHandler;
+      queue.EnqueueEvent -= this.PutEnqueueHandler;
+      // Get our mapping
+      AsDhtPutState adps = (AsDhtPutState) _adps_table[queue];
+      if(adps == null) {
+        return;
+      }
+
+      lock(_adps_table) {
+        _adps_table.Remove(queue);
+      }
+      int count = 0;
+      lock(adps.queueMapping) {
+        adps.queueMapping.Remove(queue);
+        count = adps.queueMapping.Count;
+      }
+      if(count == 0) {
+        adps.pcount = null;
+        adps.ncount = null;
+        if(!adps.returns.Closed) {
+          adps.returns.Enqueue(false);
+          adps.returns.Close();
+        }
+      }
+      return;
     }
 
     /* Get the hash of the first key and add 1/DEGREE * Address space

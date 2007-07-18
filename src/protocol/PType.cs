@@ -307,7 +307,7 @@ public class PType : ICopyable {
         Assert.AreEqual(t, p1.TypeNumber, System.String.Format("String type number: {0}, s={1}", t, s) );
       }
     }
-    //System.Console.Error.WriteLine("Tested PType");
+    //Console.Error.WriteLine("Tested PType");
   }
 #endif
 }

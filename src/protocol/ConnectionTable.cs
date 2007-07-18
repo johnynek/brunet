@@ -283,7 +283,7 @@ namespace Brunet
 #endif
 
 #if PRINT_CONNECTIONS
-      System.Console.Error.WriteLine("New Connection[{0}]: {1}", index, c);
+      Console.Error.WriteLine("New Connection[{0}]: {1}", index, c);
 #endif
       /* Send the event: */
       if( ConnectionEvent != null ) {
@@ -837,10 +837,10 @@ namespace Brunet
 
 
       #if DEBUG
-        System.Console.Error.WriteLine("Remove: DisconnectionEvent[{0}]: {1}", index, c);
+        Console.Error.WriteLine("Remove: DisconnectionEvent[{0}]: {1}", index, c);
       #endif
 #if PRINT_CONNECTIONS
-        System.Console.Error.WriteLine("New disconnection[{0}]: {1}", index, c);
+        Console.Error.WriteLine("New disconnection[{0}]: {1}", index, c);
 #endif
         //Announce the disconnection:
         if( DisconnectionEvent != null ) {
@@ -1081,7 +1081,7 @@ namespace Brunet
      */
     public void AddUnconnected(Edge e)
     {
-      //System.Console.Error.WriteLine("ADDING EDGE {0} TO UNCONNECTED", e.ToString());
+      //Console.Error.WriteLine("ADDING EDGE {0} TO UNCONNECTED", e.ToString());
       lock( _sync ) {
         int idx = _unconnected.IndexOf(e);
         if( idx < 0 ) {

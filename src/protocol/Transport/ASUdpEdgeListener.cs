@@ -176,7 +176,7 @@ namespace Brunet
         }
         try {	//catching SocketException
           byte[] tmp_buf = ms.ToArray();
-          System.Console.Error.WriteLine("Sending control to: {0}", end);
+          Console.Error.WriteLine("Sending control to: {0}", end);
           s.BeginSendTo(tmp_buf, 0, tmp_buf.Length, SocketFlags.None, end,
 			new AsyncCallback(this.SendControlPacketCallback), null);
         }
@@ -289,7 +289,7 @@ namespace Brunet
         }
       }
       catch(Exception x) {
-        System.Console.Error.WriteLine("Exception: {0}",x);
+        Console.Error.WriteLine("Exception: {0}",x);
       }
       finally {
         if( _running ) {

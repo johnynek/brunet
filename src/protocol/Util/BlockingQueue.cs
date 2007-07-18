@@ -119,7 +119,7 @@ public sealed class BlockingQueue {
     }
 
 #if DEBUG
-    System.Console.Error.WriteLine("Close set");
+    Console.Error.WriteLine("Close set");
 #endif
   }
 
@@ -253,7 +253,7 @@ public sealed class BlockingQueue {
       }
       //Wake up any waiting threads
 #if DEBUG
-      System.Console.Error.WriteLine("Enqueue set: count {0}", Count);
+      Console.Error.WriteLine("Enqueue set: count {0}", Count);
 #endif
       if( _queue.Count == 1 ) {
         //We just went from 0 -> 1 signal any waiting Dequeue
@@ -326,7 +326,7 @@ public sealed class BlockingQueue {
     for(int i = 0; i < 100000; i++) { 
       Assert.AreEqual( Dequeue(), r.Next(), "dequeue equality test" );
     }
-//    System.Console.Error.WriteLine("Trying to get an exception");
+//    Console.Error.WriteLine("Trying to get an exception");
     //The next dequeue should throw an exception
     bool got_exception = false;
     try {
