@@ -455,6 +455,7 @@ namespace Brunet
       foreach(EdgeListener el in _edgelistener_list) {
         el.Stop();
       }
+      _edgelistener_list.Clear();
       _running = false;
       //This makes sure we don't block forever on the last packet
       _packet_queue.Close();
