@@ -302,9 +302,9 @@ namespace Brunet
       HTRoundTrip(ctm3);
       HTRoundTrip(ctm3a);
 #if false
-      System.Console.Error.WriteLine( ctm3.ToString() );
+      Console.Error.WriteLine( ctm3.ToString() );
       foreach(NodeInfo tni in ctm3a.Neighbors) {
-        System.Console.Error.WriteLine(tni.ToString());
+        Console.Error.WriteLine(tni.ToString());
       }
 #endif
     }

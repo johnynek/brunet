@@ -128,6 +128,7 @@ namespace Brunet.Dht {
       try {
         PutHandler(key, value, ttl, unique);
         BlockingQueue remote_put = new BlockingQueue();
+        remote_put.CloseAfterEnqueue();
         remote_put.EnqueueEvent += delegate(Object o, EventArgs eargs) {
           try {
             bool timedout;
@@ -145,8 +146,6 @@ namespace Brunet.Dht {
             _data.RemoveEntry(key, value);
             throw e;
           }
-
-          remote_put.Close();
         };
 
 
@@ -441,7 +440,8 @@ namespace Brunet.Dht {
         }
         foreach(Entry ent in local_entries) {
           BlockingQueue queue = new BlockingQueue();
-          queue.EnqueueEvent += this.NextTransfer;
+          queue.CloseAfterEnqueue();
+//          queue.EnqueueEvent += this.NextTransfer;
           queue.CloseEvent += this.NextTransfer;
           int ttl = (int) (ent.EndTime - DateTime.UtcNow).TotalSeconds;
           try {
@@ -453,8 +453,8 @@ namespace Brunet.Dht {
                 _interrupted = true;
               }
               Done();
+              break;
             }
-            break;
           }
           if(_ts.debug) {
             Console.WriteLine(_ts._node.Address + " transferring " + new AHAddress(ent.Key) + " to " + _con.Address + ".");
@@ -475,7 +475,7 @@ namespace Brunet.Dht {
        */
       private void NextTransfer(Object o, EventArgs eargs) {
         BlockingQueue queue = (BlockingQueue) o;
-        queue.EnqueueEvent -= this.NextTransfer;
+//        queue.EnqueueEvent -= this.NextTransfer;
         queue.CloseEvent -= this.NextTransfer;
         /* No point in dequeueing, if we've been interrupted, we most likely
          * will get an exception!
@@ -512,7 +512,8 @@ namespace Brunet.Dht {
         catch{}
         if(ent != null) {
           queue = new BlockingQueue();
-          queue.EnqueueEvent += this.NextTransfer;
+          queue.CloseAfterEnqueue();
+//          queue.EnqueueEvent += this.NextTransfer;
           queue.CloseEvent += this.NextTransfer;
           int ttl = (int) (ent.EndTime - DateTime.UtcNow).TotalSeconds;
           try {

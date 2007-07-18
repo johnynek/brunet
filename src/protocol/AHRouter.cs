@@ -18,6 +18,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+using System;
 //#define AHROUTER_DEBUG
 
 namespace Brunet
@@ -103,17 +104,17 @@ namespace Brunet
 #if AHROUTER_DEBUG
       bool debug = false;
       if (p.PayloadType == AHPacket.Protocol.ReqRep) {
-	System.Console.Error.WriteLine("{0}: We have a ReqRep packet to route at: {1}", _local, System.DateTime.Now);
+	Console.Error.WriteLine("{0}: We have a ReqRep packet to route at: {1}", _local, System.DateTime.Now);
 	//ReqrepManager.DebugPacket(_local,  p, prev_e);
 	debug = true;
       } else if (p.PayloadType == AHPacket.Protocol.IP) {
-	System.Console.Error.WriteLine("{0}: We have a IP to route at: {1}", _local, System.DateTime.Now);
+	Console.Error.WriteLine("{0}: We have a IP to route at: {1}", _local, System.DateTime.Now);
 	debug = true;
       } else if (p.PayloadType == AHPacket.Protocol.Forwarding) {
-	System.Console.Error.WriteLine("{0}: We have a Forwarding to route at: {1}", _local, System.DateTime.Now);
+	Console.Error.WriteLine("{0}: We have a Forwarding to route at: {1}", _local, System.DateTime.Now);
 	debug = true;
       } else if (p.PayloadType == AHPacket.Protocol.Tunneling) {
-	System.Console.Error.WriteLine("{0}: We have a Tunnel to route at: {1}", _local, System.DateTime.Now);
+	Console.Error.WriteLine("{0}: We have a Tunnel to route at: {1}", _local, System.DateTime.Now);
 	debug = true;
       }
 #endif
@@ -128,7 +129,7 @@ namespace Brunet
       short ttl = p.Ttl;
       if( hops > ttl ) {
         //This should never have gotten here:
-        System.Console.Error.WriteLine(
+        Console.Error.WriteLine(
              "Bad Packet from: {0}, hops({1}) > ttl({2})", prev_e, hops, ttl);
 	return 0;
       }
@@ -139,9 +140,9 @@ namespace Brunet
 	//We can stop routing now, no one is closer than us.
 #if AHROUTER_DEBUG
 	if (debug) {
-	  System.Console.Error.WriteLine("Delloc: {0}\n from: {1}\n delloc: {2}",
+	  Console.Error.WriteLine("Delloc: {0}\n from: {1}\n delloc: {2}",
 				   p,prev_e,deliverlocally);
-	  System.Console.Error.WriteLine("{0}: We are the destination, WOW!", _local);
+	  Console.Error.WriteLine("{0}: We are the destination, WOW!", _local);
 	}
 #endif
 	return 0;
@@ -154,7 +155,7 @@ namespace Brunet
            */
 	  deliverlocally = true;
 #if AHROUTER_DEBUG
-	  if (debug) System.Console.Error.WriteLine("{0}: TTL expired. Still deliverlocally (option Last).", _local);
+	  if (debug) Console.Error.WriteLine("{0}: TTL expired. Still deliverlocally (option Last).", _local);
 #endif
 	  return 0;
 	}
@@ -178,10 +179,10 @@ namespace Brunet
 	if (debug) 
 	{
 	  if (next_con != null) {
-	    System.Console.Error.WriteLine("{0}: We found a cached route. local delivery: {1}, next_con: {2}.",
+	    Console.Error.WriteLine("{0}: We found a cached route. local delivery: {1}, next_con: {2}.",
 				     _local, deliverlocally, next_con.Address);
 	  } else {
-	    System.Console.Error.WriteLine("{0}: We found a cached route. local delivery: {1}, next_con = null.",
+	    Console.Error.WriteLine("{0}: We found a cached route. local delivery: {1}, next_con = null.",
 				     _local, deliverlocally);
 	  }
 	}
@@ -201,13 +202,13 @@ namespace Brunet
 	   * find a Structured connection over which to route the packet
 	   */
 #if AHROUTER_DEBUG
-	  if (debug) System.Console.Error.WriteLine("{0}: We do not have a leaf connection.", _local);
+	  if (debug) Console.Error.WriteLine("{0}: We do not have a leaf connection.", _local);
 #endif
           int dest_idx = _tab.IndexOf(ConnectionType.Structured, dest);
           if( dest_idx >= 0 ) {
             //We actually have a connection to this node:
 #if AHROUTER_DEBUG
-	    if (debug) System.Console.Error.WriteLine("{0}: We have a structured connection to destination.", _local);
+	    if (debug) Console.Error.WriteLine("{0}: We have a structured connection to destination.", _local);
 #endif
             next_con = _tab.GetConnection(ConnectionType.Structured, dest_idx);
           }
@@ -220,7 +221,7 @@ namespace Brunet
             //dest_idx is not in the table:
 
 #if AHROUTER_DEBUG
-	    if (debug) System.Console.Error.WriteLine("{0}: We do not have a structured connection to destination.", 
+	    if (debug) Console.Error.WriteLine("{0}: We do not have a structured connection to destination.", 
 				     _local);
 #endif
             dest_idx = ~dest_idx;
@@ -233,14 +234,14 @@ namespace Brunet
             int left_idx = dest_idx;
             Connection left_n = _tab.GetConnection(ConnectionType.Structured, left_idx);
 #if AHROUTER_DEBUG
-	    if (debug && left_n != null) System.Console.Error.WriteLine("{0}: key left connection: {1}.",
+	    if (debug && left_n != null) Console.Error.WriteLine("{0}: key left connection: {1}.",
 						_local, left_n.Address);
 #endif
 	    
             int right_idx = dest_idx - 1;
             Connection right_n = _tab.GetConnection(ConnectionType.Structured, right_idx);
 #if AHROUTER_DEBUG
-	    if (debug && right_n != null) System.Console.Error.WriteLine("{0}: key right connection: {1}.",
+	    if (debug && right_n != null) Console.Error.WriteLine("{0}: key right connection: {1}.",
 	                                                         _local, right_n.Address);
 #endif
 		     
@@ -257,7 +258,7 @@ namespace Brunet
               closest_dist = l_dist;
               other_dist = r_dist;
 #if AHROUTER_DEBUG
-	      if (debug)  System.Console.Error.WriteLine("{0}: Going the left way (since it is closer).", _local);
+	      if (debug)  Console.Error.WriteLine("{0}: Going the left way (since it is closer).", _local);
 #endif
             }
             else {
@@ -266,7 +267,7 @@ namespace Brunet
               closest_dist = r_dist;
               other_dist = l_dist;
 #if AHROUTER_DEBUG
-	      if (debug) System.Console.Error.WriteLine("{0}: Going the right way (since it is closer).", _local);
+	      if (debug) Console.Error.WriteLine("{0}: Going the right way (since it is closer).", _local);
 #endif
             }
             /**
@@ -274,7 +275,7 @@ namespace Brunet
              */
             if( p.HasOption( AHPacket.AHOptions.Greedy ) ) {
 #if AHROUTER_DEBUG
-	      if (debug) System.Console.Error.WriteLine("{0}: Greedy routing mode.", _local);
+	      if (debug) Console.Error.WriteLine("{0}: Greedy routing mode.", _local);
 #endif
               /*
                * We pass it ONLY IF we can get it closer than we are.
@@ -283,19 +284,19 @@ namespace Brunet
               if( closest_dist < our_dist ) {
                 if( closest_con.Edge != prev_e ) {
 #if AHROUTER_DEBUG
-		  if (debug)  System.Console.Error.WriteLine("{0}: Greedy. Closest distance is lesser than our distance.", 
+		  if (debug)  Console.Error.WriteLine("{0}: Greedy. Closest distance is lesser than our distance.", 
 					   _local);
 #endif
 	          next_con = closest_con;
                 }
                 else {
 #if AHROUTER_DEBUG
-		  if (debug)  System.Console.Error.WriteLine("Got wrong greedy packet from: {0}", prev_e);
+		  if (debug)  Console.Error.WriteLine("Got wrong greedy packet from: {0}", prev_e);
 #endif
 
                   //This should never happen, a buggy client must have given
                   //us a packet they shouldn't have:
-                  System.Console.Error.WriteLine("Got wrong greedy packet from: {0}", prev_e);
+                  Console.Error.WriteLine("Got wrong greedy packet from: {0}", prev_e);
                   next_con = null;
                 }
 	        deliverlocally = false;
@@ -303,7 +304,7 @@ namespace Brunet
 	      else {
                 //We keep it.
 #if AHROUTER_DEBUG
-		if (debug)  System.Console.Error.WriteLine("{0}: Closest distance not lesser than us. Lets keep it.", 
+		if (debug)  Console.Error.WriteLine("{0}: Closest distance not lesser than us. Lets keep it.", 
 					 _local);
 #endif
                 next_con = null;
@@ -312,7 +313,7 @@ namespace Brunet
 	    }
             else {
 #if AHROUTER_DEBUG
-	      if (debug)  System.Console.Error.WriteLine("{0}: Annealing routing mode.", _local);
+	      if (debug)  Console.Error.WriteLine("{0}: Annealing routing mode.", _local);
 #endif
               //All the other routing modes use the Annealing rule
               
@@ -331,7 +332,7 @@ namespace Brunet
                   our_idx = ~our_idx;
                 }
                 else {
-                  System.Console.Error.WriteLine(
+                  Console.Error.WriteLine(
                     "ERROR: we are in the ConnectionTable: {0}", _local);
                 }
                 _our_left_n = _tab.GetConnection(ConnectionType.Structured, our_idx);
@@ -339,28 +340,28 @@ namespace Brunet
 #if AHROUTER_DEBUG
 	      if (debug) {
 		if (_our_left_n != null) {
-		  System.Console.Error.WriteLine("{0}: our left connection: {1}", _local, _our_left_n.Address);
+		  Console.Error.WriteLine("{0}: our left connection: {1}", _local, _our_left_n.Address);
 		} else {
-		  System.Console.Error.WriteLine("{0}: our left connection: null");
+		  Console.Error.WriteLine("{0}: our left connection: null");
 		}
 		try {
-		  System.Console.Error.WriteLine("{0}: Testing == between: {1} and {2}, equality: {3}", 
+		  Console.Error.WriteLine("{0}: Testing == between: {1} and {2}, equality: {3}", 
 					   _local, left_n.Address, _our_left_n.Address, 
 					   (left_n == _our_left_n));
-		  System.Console.Error.WriteLine("{0}: Operand 1, hashcode: {1}, tostring(): {2}",
+		  Console.Error.WriteLine("{0}: Operand 1, hashcode: {1}, tostring(): {2}",
 					   _local, left_n.GetHashCode(), left_n);
-		  System.Console.Error.WriteLine("{0}: Operand 2, hashcode: {1}, tostring(): {2}",
+		  Console.Error.WriteLine("{0}: Operand 2, hashcode: {1}, tostring(): {2}",
 					   _local, _our_left_n.GetHashCode(), _our_left_n);
-		  System.Console.Error.WriteLine("{0}: Hashcode equality: {1}", _local, (left_n.GetHashCode() == _our_left_n.GetHashCode()));
+		  Console.Error.WriteLine("{0}: Hashcode equality: {1}", _local, (left_n.GetHashCode() == _our_left_n.GetHashCode()));
 		} catch(System.Exception e) {
-		  System.Console.Error.WriteLine("{0}: excption in debugging code!", _local); 
+		  Console.Error.WriteLine("{0}: excption in debugging code!", _local); 
 		}
 	      }
 #endif
 	      
               if( left_n == _our_left_n ) {
 #if AHROUTER_DEBUG
-		if (debug)  System.Console.Error.WriteLine("{0}: I am adjacent to the destination (matching neighbors)", _local);
+		if (debug)  Console.Error.WriteLine("{0}: I am adjacent to the destination (matching neighbors)", _local);
 #endif
                 /*
                  * We share a common left neighbor, so we should deliver locally
@@ -370,7 +371,7 @@ namespace Brunet
                  */
                 deliverlocally = true;
 #if AHROUTER_DEBUG
-		if (debug) System.Console.Error.WriteLine("{0}: Local delivery for sure. Who else gets it.", _local);
+		if (debug) Console.Error.WriteLine("{0}: Local delivery for sure. Who else gets it.", _local);
 #endif
                 //The next step should be the node on the "other side"
                 if( _local.IsLeftOf( dest ) ) {
@@ -378,9 +379,9 @@ namespace Brunet
 #if AHROUTER_DEBUG
 		  if (debug) {
 		    if (next_con != null) {
-		      System.Console.Error.WriteLine("{0}: Adjacent, also give to the guy on right: {1}", _local, next_con.Address);
+		      Console.Error.WriteLine("{0}: Adjacent, also give to the guy on right: {1}", _local, next_con.Address);
 		    } else {
-		      System.Console.Error.WriteLine("{0}: Adjacent, also give to the guy on right: null", _local);
+		      Console.Error.WriteLine("{0}: Adjacent, also give to the guy on right: null", _local);
 		    }
 		  }
 #endif
@@ -390,9 +391,9 @@ namespace Brunet
 #if AHROUTER_DEBUG
 		  if (debug) {
 		    if (next_con != null) {
-		      System.Console.Error.WriteLine("{0}: Adjacent, also give to the guy on left: {1}", _local, next_con.Address);	 
+		      Console.Error.WriteLine("{0}: Adjacent, also give to the guy on left: {1}", _local, next_con.Address);	 
 		    } else {
-		      System.Console.Error.WriteLine("{0}: Adjacent, also give to the guy on left: null", _local);	 
+		      Console.Error.WriteLine("{0}: Adjacent, also give to the guy on left: null", _local);	 
 		    }
 		  }
 #endif
@@ -400,7 +401,7 @@ namespace Brunet
                 if( prev_e == next_con.Edge ) {
                   //Don't send it back the way it came
 #if AHROUTER_DEBUG
-		  if (debug) System.Console.Error.WriteLine("{0}: Adjacent, dont send it back", _local);
+		  if (debug) Console.Error.WriteLine("{0}: Adjacent, dont send it back", _local);
 #endif
                   next_con = null;
                 }
@@ -533,7 +534,7 @@ namespace Brunet
           next_con.Edge.Send( p.IncrementHops() );
 #if AHROUTER_DEBUG
 	  if (debug) {
-	    System.Console.Error.WriteLine("Sending {0}\n from: {1} to: {2}\n delloc: {3}",
+	    Console.Error.WriteLine("Sending {0}\n from: {1} to: {2}\n delloc: {3}",
 				     p,prev_e,next_con,deliverlocally);
 	  }
 #endif
@@ -542,7 +543,7 @@ namespace Brunet
 	else {
 #if AHROUTER_DEBUG
 	  if (debug) {
-	    System.Console.Error.WriteLine("Not sending {0}\n from: {1}\n delloc: {2}",
+	    Console.Error.WriteLine("Not sending {0}\n from: {1}\n delloc: {2}",
 				     p,prev_e,deliverlocally);
 	  }
 #endif
@@ -551,8 +552,8 @@ namespace Brunet
       }
       catch(EdgeException x) {
         if( !next_con.Edge.IsClosed ) {
-	  System.Console.Error.WriteLine(x);
-	  System.Console.Error.WriteLine("{0}: Edge exception encountered while sending from: {1} to: {3}, delloc: {2}",
+	  Console.Error.WriteLine(x);
+	  Console.Error.WriteLine("{0}: Edge exception encountered while sending from: {1} to: {3}, delloc: {2}",
 				 _local,prev_e,deliverlocally, next_con);
           next_con.Edge.Close();
         } else {
@@ -562,7 +563,7 @@ namespace Brunet
            */
           Connection c = _tab.GetConnection(next_con.Edge);
           if( c != null ) {
-            System.Console.Error.WriteLine("ERROR: Edge closed but still present in ConnectionTable: {0}", c);
+            Console.Error.WriteLine("ERROR: Edge closed but still present in ConnectionTable: {0}", c);
             /*
              * We may be in the process of calling the CloseEvent in some
              * other thread, but we should go ahead and disconnect this

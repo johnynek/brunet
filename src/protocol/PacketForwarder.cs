@@ -19,6 +19,8 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+using System;
+
 namespace Brunet
 {
 
@@ -93,7 +95,7 @@ namespace Brunet
       }
       else {
         //This is not (currently) supported.
-        System.Console.Error.WriteLine("Got a forwarding request from: {0}", ret_path);
+        Console.Error.WriteLine("Got a forwarding request from: {0}", ret_path);
       }
     }
   }

@@ -252,7 +252,7 @@ namespace Brunet {
       Assert.AreEqual(sm1, sm1a, "Single neighbor test");
       RoundTripHT(sm1);
       RoundTripHT(sm1a);
-      //System.Console.Error.WriteLine("\n{0}\n", sm1);
+      //Console.Error.WriteLine("\n{0}\n", sm1);
       //Test with many neighbors:
         
       for(int i = 5001; i < 5010; i++) {
@@ -265,7 +265,7 @@ namespace Brunet {
       Assert.AreEqual(sm2,sm2a, "10 Neighbor test");
       RoundTripHT(sm2);
       RoundTripHT(sm2a);
-      //System.Console.Error.WriteLine("\n{0}\n", sm2);
+      //Console.Error.WriteLine("\n{0}\n", sm2);
      
       //Here is a StatusMessage with no neighbors (that has to be a possibility)
       StatusMessage sm3 = new StatusMessage("structured", new ArrayList());
@@ -273,7 +273,7 @@ namespace Brunet {
       Assert.AreEqual(sm3,sm3a, "0 Neighbor test");
       RoundTripHT(sm3);
       RoundTripHT(sm3a);
-      //System.Console.Error.WriteLine("\n{0}\n", sm3);
+      //Console.Error.WriteLine("\n{0}\n", sm3);
 
     }
   }
