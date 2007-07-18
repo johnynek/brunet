@@ -96,22 +96,26 @@ public sealed class BlockingQueue {
    */
   public void Close() {
     bool fire = false;
+    AutoResetEvent re = null;
+    EventHandler ch = null;
     lock( _sync ) {
       if( _closed == false ) {
         fire = true;
         _closed = true;
+        //Null out some underlying objects:
+        re = _re;
+        _re = null;
+        ch = CloseEvent;
+        CloseEvent = null;
       }
     }
     //Fire the close event
     if( fire ) {
-      //Wake up any blocking threads:
-      AutoResetEvent re = Interlocked.Exchange( ref _re, null);
+      //Set for all the waiting Dequeues:
       while( Thread.VolatileRead( ref _waiters ) > 0 ) {
         re.Set();
       }
-      //There are at most 
       re.Close();
-      EventHandler ch = Interlocked.Exchange(ref CloseEvent, null);
       if( ch != null ) {
         ch(this, EventArgs.Empty);
       }
@@ -162,6 +166,7 @@ public sealed class BlockingQueue {
   
   protected object Dequeue(int millisec, out bool timedout, bool advance)
   {
+    AutoResetEvent re = null;
     lock( _sync ) {
       if( (_queue.Count > 1) || _closed ) { 
         /**
@@ -176,12 +181,19 @@ public sealed class BlockingQueue {
           return _queue.Peek();
         }
       }
+      /*
+       * We have to wait, make sure we could this waiter
+       * before the queue is closed.  The lock on _sync
+       * make sure that we can't close while in this block
+       * of code
+       */
+      Interlocked.Increment(ref _waiters);
+      re = _re;
     }
     bool got_set = true;
     //Wait for the next one... 
-    Interlocked.Increment(ref _waiters);
     try{
-      got_set = _re.WaitOne(millisec, false);
+      got_set = re.WaitOne(millisec, false);
     }
     catch { }
     Interlocked.Decrement(ref _waiters);
@@ -192,7 +204,6 @@ public sealed class BlockingQueue {
       object result = null;
       try {
         lock( _sync ) {
-          set = _closed;
           if( advance ) {
             result = _queue.Dequeue();
           }
@@ -204,12 +215,16 @@ public sealed class BlockingQueue {
            * still more, set the _re so the
            * next reader can get it
            */
-          set = ( (_queue.Count > 0) || _closed );
+          set = ( _queue.Count > 0 ) && ( _re != null );
+          if( set ) {
+            re = _re;
+          }
+            
         }
       }
       finally {
         try {
-          if( set ) { _re.Set(); }
+          if( set ) { re.Set(); }
         } catch { }
       }
       return result;
@@ -242,9 +257,11 @@ public sealed class BlockingQueue {
   public void Enqueue(object a) {
     bool set = false;
     bool close = false;
+    AutoResetEvent re = null;
     lock( _sync ) {
       if( !_closed ) {
         _queue.Enqueue(a);
+        close = _close_on_enqueue;
       }
       else {
         //We are closed, ignore all future enqueues.
@@ -257,12 +274,12 @@ public sealed class BlockingQueue {
       if( _queue.Count == 1 ) {
         //We just went from 0 -> 1 signal any waiting Dequeue
         set = true;
+        re = _re;
       }
-      close = _close_on_enqueue;
     }
     if( set ) { 
       try {
-        _re.Set();
+        re.Set();
       }
       catch { }
     }
