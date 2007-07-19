@@ -317,7 +317,7 @@ namespace Brunet
       Assert.AreEqual(l3,l4, "LinkMessage with attributes");
       LinkMessage l2 = (LinkMessage)xt.SerializeDeserialize(l1);
       RoundTripHT(l2);
-      //System.Console.Error.WriteLine("\nl1: {0}\n\nl2: {0}\n", l1, l2);
+      //Console.Error.WriteLine("\nl1: {0}\n\nl2: {0}\n", l1, l2);
       Assert.AreEqual(l1, l2, "LinkMessage test 1");
     }
   }

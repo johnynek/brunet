@@ -342,7 +342,7 @@ namespace Brunet
         _ips = new ArrayList(IPHost.AddressList);
       } catch(Exception e) {
         // log this exception!
-	System.Console.Error.WriteLine("In GetIPAddress() Resolving {1}: {0}",
+	Console.Error.WriteLine("In GetIPAddress() Resolving {1}: {0}",
                                         e, _uri.Host);
       }
       return _ips;

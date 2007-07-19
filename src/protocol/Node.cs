@@ -506,8 +506,8 @@ namespace Brunet
     public virtual void Announce(MemBlock b, ISender from)
     {
 
-      //System.Console.Error.WriteLine("Announcing packet: {0}:", p.ToString() );
-      //System.Console.Error.WriteLine("PayloadType: {0}:", p.PayloadType );
+      //Console.Error.WriteLine("Announcing packet: {0}:", p.ToString() );
+      //Console.Error.WriteLine("PayloadType: {0}:", p.PayloadType );
 
       //When Subscribe or unsubscribe are called,
       //they make copies of the ArrayList, thus we
@@ -526,9 +526,9 @@ namespace Brunet
         handlers = ns.Announce(payload, from);
       }
       catch(Exception x) {
-        System.Console.Error.WriteLine("ERROR: Packet Handling Exception");
-        System.Console.Error.WriteLine("Hander: {0}\tEdge: {1}\tPacket: {2}", ns, from, b);
-        System.Console.Error.WriteLine("Exception: {0}", x);
+        Console.Error.WriteLine("ERROR: Packet Handling Exception");
+        Console.Error.WriteLine("Hander: {0}\tEdge: {1}\tPacket: {2}", ns, from, b);
+        Console.Error.WriteLine("Exception: {0}", x);
       }
       /**
        * @todo if no one handled the packet, we might want to send some
@@ -536,7 +536,7 @@ namespace Brunet
        */
       if( handlers == 0 ) {
         string p_s = payload.GetString(System.Text.Encoding.ASCII);
-        System.Console.Error.WriteLine("No Handler for packet type: {0}\n{1}", t, p_s);
+        Console.Error.WriteLine("No Handler for packet type: {0}\n{1}", t, p_s);
       }
     }
     /**

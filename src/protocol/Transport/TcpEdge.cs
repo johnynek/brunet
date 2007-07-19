@@ -342,7 +342,9 @@ namespace Brunet
           }
           else {
             //The edge is now closed.
-            throw new EdgeException("Edge is closed");
+            //This is uncaught!
+            return;
+//            throw new EdgeException("Edge is closed");
           }
         }
 

@@ -34,7 +34,6 @@ namespace Brunet
    * was created using one TransportAddress
    */
   public class LinkProtocolState : TaskWorker, ILinkLocker {
-   
     /**
      * When this state machine reaches the end, it fires this event
      */
@@ -117,9 +116,16 @@ namespace Brunet
 
     //Make sure we are unlocked.
     ~LinkProtocolState() {
-      lock( _sync ) {
-        if( _target_lock != null ) {
-          Console.Error.WriteLine("Lock released by destructor");
+      try {
+        lock( _sync ) {
+          if( _target_lock != null ) {
+            Console.Error.WriteLine("Lock released by destructor");
+            Unlock();
+          }
+        }
+      }
+      catch{
+        if( _target_lock != null) {
           Unlock();
         }
       }

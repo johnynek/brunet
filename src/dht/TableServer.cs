@@ -19,9 +19,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using System;
+using System.IO;
 using System.Text;
 using System.Collections;
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Collections.Generic;
 
@@ -90,8 +90,7 @@ namespace Brunet.Dht {
            result = Get(key, maxbytes, null);
           }
           else {
-            MemBlock token = (byte[]) args[2];
-            result = Get(key, maxbytes, token);
+            result = Get(key, maxbytes, (byte[]) args[2]);
           }
         }
         else {
@@ -121,18 +120,18 @@ namespace Brunet.Dht {
 
         // Here we receive the results of our put follow ups, for simplicity, we
         // have both the local Put and the remote PutHandler return the results
-        // via the blockingqueue.  If it fails, we remove it locally, if the item
+        // via the Channel.  If it fails, we remove it locally, if the item
         // was never created it shouldn't matter.
 
 
     public bool Put(MemBlock key, MemBlock value, int ttl, bool unique) {
       try {
         PutHandler(key, value, ttl, unique);
-        BlockingQueue remote_put = new BlockingQueue();
+        Channel remote_put = new Channel();
+        remote_put.CloseAfterEnqueue();
         remote_put.EnqueueEvent += delegate(Object o, EventArgs eargs) {
           try {
-            bool timedout;
-            object result = remote_put.Dequeue(0, out timedout);
+            object result = remote_put.Dequeue();
             RpcResult rpcResult = (RpcResult) result;
             result = rpcResult.Result;
             if(result.GetType() != typeof(bool)) {
@@ -146,8 +145,6 @@ namespace Brunet.Dht {
             _data.RemoveEntry(key, value);
             throw e;
           }
-
-          remote_put.Close();
         };
 
 
@@ -178,10 +175,7 @@ namespace Brunet.Dht {
      * @return true on success, thrown exception on failure
      */
 
-    public bool PutHandler(byte[] keyb, byte[] valueb, int ttl, bool unique) {
-      MemBlock key = MemBlock.Reference(keyb);
-      MemBlock value = MemBlock.Reference(valueb);
-
+    public bool PutHandler(MemBlock key, MemBlock value, int ttl, bool unique) {
       DateTime create_time = DateTime.UtcNow;
       TimeSpan ts = new TimeSpan(0,0,ttl);
       DateTime end_time = create_time + ts;
@@ -219,15 +213,16 @@ namespace Brunet.Dht {
     * @return IList of results
     */
 
-    public IList Get(byte[] keyb, int maxbytes, byte[] token) {
-      MemBlock key = MemBlock.Reference(keyb);
+    public IList Get(MemBlock key, int maxbytes, byte[] token) {
       int seen_start_idx = 0;
       int seen_end_idx = 0;
       if( token != null ) {
-        int[] bounds = (int[])AdrConverter.Deserialize(new System.IO.MemoryStream(token));
-        seen_start_idx = bounds[0];
-        seen_end_idx = bounds[1];
-        seen_start_idx = seen_end_idx + 1;
+        using(MemoryStream ms = new MemoryStream(token)) {
+          int[] bounds = (int[])AdrConverter.Deserialize(ms);
+          seen_start_idx = bounds[0];
+          seen_end_idx = bounds[1];
+          seen_start_idx = seen_end_idx + 1;
+        }
       }
 
       int consumed_bytes = 0;
@@ -271,9 +266,10 @@ namespace Brunet.Dht {
       new_bounds[0] = seen_start_idx;
       new_bounds[1] = seen_end_idx;
       //new_bounds has to be converted to a new token
-      System.IO.MemoryStream ms = new System.IO.MemoryStream();
-      AdrConverter.Serialize(new_bounds, ms);
-      next_token = ms.ToArray();
+      using(MemoryStream ms = new System.IO.MemoryStream()) {
+        AdrConverter.Serialize(new_bounds, ms);
+        next_token = ms.ToArray();
+      }
       result.Add(values);
       result.Add(remaining_items);
       result.Add(next_token);
@@ -442,8 +438,9 @@ namespace Brunet.Dht {
           }
         }
         foreach(Entry ent in local_entries) {
-          BlockingQueue queue = new BlockingQueue();
-          queue.EnqueueEvent += this.NextTransfer;
+          Channel queue = new Channel();
+          queue.CloseAfterEnqueue();
+//          queue.EnqueueEvent += this.NextTransfer;
           queue.CloseEvent += this.NextTransfer;
           int ttl = (int) (ent.EndTime - DateTime.UtcNow).TotalSeconds;
           try {
@@ -454,8 +451,9 @@ namespace Brunet.Dht {
               lock(_interrupted) {
                 _interrupted = true;
               }
+              Done();
+              break;
             }
-            break;
           }
           if(_ts.debug) {
             Console.WriteLine(_ts._node.Address + " transferring " + new AHAddress(ent.Key) + " to " + _con.Address + ".");
@@ -475,8 +473,8 @@ namespace Brunet.Dht {
        * transfer is complete
        */
       private void NextTransfer(Object o, EventArgs eargs) {
-        BlockingQueue queue = (BlockingQueue) o;
-        queue.EnqueueEvent -= this.NextTransfer;
+        Channel queue = (Channel) o;
+//        queue.EnqueueEvent -= this.NextTransfer;
         queue.CloseEvent -= this.NextTransfer;
         /* No point in dequeueing, if we've been interrupted, we most likely
          * will get an exception!
@@ -492,23 +490,29 @@ namespace Brunet.Dht {
             lock(_interrupted) {
               _interrupted = true;
             }
+            Done();
+            return;
           }
           else {
-            Console.Error.WriteLine("BlockingQueue Exception: Cases include" +
+            Console.Error.WriteLine("Channel Exception: Cases include" +
               "that an edge may be closed but we may not no of it or that the"
               + " timeouts are too low.  This occurred on {0} \n\t {1}", _con.Edge, e);
           }
         }
 
         Entry ent = null;
-        lock(_entry_enumerator) {
-          if(_entry_enumerator.MoveNext()) {
-            ent = (Entry) _entry_enumerator.Current;
+        try {
+          lock(_entry_enumerator) {
+            if(_entry_enumerator.MoveNext()) {
+              ent = (Entry) _entry_enumerator.Current;
+            }
           }
         }
+        catch{}
         if(ent != null) {
-          queue = new BlockingQueue();
-          queue.EnqueueEvent += this.NextTransfer;
+          queue = new Channel();
+          queue.CloseAfterEnqueue();
+//          queue.EnqueueEvent += this.NextTransfer;
           queue.CloseEvent += this.NextTransfer;
           int ttl = (int) (ent.EndTime - DateTime.UtcNow).TotalSeconds;
           try {
@@ -526,6 +530,7 @@ namespace Brunet.Dht {
           }
         }
         else {
+          Done();
           if(_ts.debug) {
             Console.WriteLine(_ts._node.Address + " completed transfer  to " + _con.Address + ".");
           }
@@ -536,6 +541,11 @@ namespace Brunet.Dht {
         lock(_interrupted) {
           _interrupted = true;
         }
+        Done();
+      }
+
+      private void Done() {
+        key_entries.Clear();
       }
     }
   }
