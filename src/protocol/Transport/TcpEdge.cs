@@ -23,7 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //If you want to copy incoming packets rather than reference the buffer
 //define:
-#define COPY_PACKETS
+//#define COPY_PACKETS
 using System;
 using System.Collections;
 using System.Net;
@@ -69,18 +69,6 @@ namespace Brunet
         LastReadLength = length;
         ReadingSize = readingsize;
       }
-#if COPY_PACKET
-      //Make a copy of the internal buffer and drop the reference to the
-      //original
-      public void CopyBuffer() {
-        byte[] tmp_buf = Buffer;
-        Buffer = new byte[ length ];
-        Array.Copy(tmp_buf, Offset, Buffer, 0, length);
-        int tmp_offset = Offset;
-        Offset = 0;
-        LastReadOffset -= tmp_offset;
-      }
-#endif
     }
 
     /**
@@ -374,7 +362,6 @@ namespace Brunet
       }
       catch {
         Close();
-        throw new EdgeException("Edge is closed");
       }
     }
 
@@ -386,10 +373,16 @@ namespace Brunet
     public void DoReceive(BufferAllocator buf)
     {
       try {
-        //Reinitialize the rec_state
         if( _rec_state.Buffer == null ) {
+          /*
+           * We're starting a new packet read now, which
+           * means we need to read the size of the packet
+           */
+#if COPY_PACKETS
+          byte[] size_buf = new byte[2];
+          _rec_state.Reset(size_buf, 0, 2, true);
+#else
           _rec_state.Reset(buf.Buffer, buf.Offset, 2, true);
-#if !COPY_PACKETS
           buf.AdvanceBuffer(2);
 #endif
         }
@@ -411,34 +404,27 @@ namespace Brunet
               Console.Error.WriteLine("ERROR: negative packet size: {0} from {1}", size, this);
               throw new EdgeException(String.Format("read negative packet size from: {0}", this));
             }
+            /*
+             * Set up the read state for packet:
+             */
+#if COPY_PACKETS
+            byte[] tmp_buf = new byte[ size ];
+            _rec_state.Reset(tmp_buf, 0, size, false);
+#else
             _rec_state.Reset(buf.Buffer, buf.Offset, size, false);
-#if !COPY_PACKETS
             buf.AdvanceBuffer(size);
 #endif
-
             if( _sock.Available > 0 ) {
               //Now recursively try to get the payload:
               DoReceive(buf);
             }
           } else {
             //We are reading a whole packet:
-            MemBlock p = null;
-#if COPY_PACKETS
-            p = MemBlock.Copy(_rec_state.Buffer, _rec_state.Offset, _rec_state.Length);
-#else
-            p = MemBlock.Reference(_rec_state.Buffer, _rec_state.Offset, _rec_state.Length);
-#endif
+            MemBlock p = MemBlock.Reference(_rec_state.Buffer, _rec_state.Offset, _rec_state.Length);
             //Reinitialize the rec_state
             _rec_state.Buffer = null;
-            
             ReceivedPacketEvent(p);
           }
-        }
-        else {
-          //There is more to read, we have to wait until it is here!
-#if COPY_PACKET
-          _rec_state.CopyBuffer();
-#endif
         }
       }
       catch {
