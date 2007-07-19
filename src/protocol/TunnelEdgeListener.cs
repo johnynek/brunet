@@ -567,12 +567,17 @@ namespace Brunet
 #if TUNNEL_DEBUG
 	Console.Error.WriteLine("Receiving edge data");
 #endif
-      TunnelEdge edge_to_read = null;
-      lock( _sync ) {
-	edge_to_read = GetTunnelEdge(localid, remoteid);	
-      }
+      TunnelEdge edge_to_read = GetTunnelEdge(localid, remoteid);	
       if (edge_to_read != null) {
-        edge_to_read.Push(rest_of_payload);
+        try {
+          edge_to_read.Push(rest_of_payload);
+        }
+        catch(EdgeException) {
+          /* @todo
+           * Potentially we might send a message back saying this edge
+           * has been closed, just to make sure the other peer knows.
+           */
+        }
 #if TUNNEL_DEBUG
 	Console.Error.WriteLine("Receiving packet of length: {0} on edge: {1}",
                                       rest_of_payload.Length, edge_to_read);
