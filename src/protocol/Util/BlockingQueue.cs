@@ -186,9 +186,6 @@ public sealed class BlockingQueue : Channel {
 
   ~BlockingQueue() {
     //Make sure the close method is eventually called:
-    if( !Closed ) {
-      Console.Error.WriteLine("ERROR: BlockingQueue.Close called in Destructor");
-    }
     Close();
   }
   protected AutoResetEvent _re;
