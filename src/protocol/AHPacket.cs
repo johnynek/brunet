@@ -500,7 +500,7 @@ namespace Brunet
         short ttl = (short)simple_rng.Next(Int16.MaxValue);
         short hops = (short)simple_rng.Next(Int16.MaxValue);
         ushort options = (ushort)simple_rng.Next(UInt16.MaxValue);
-        byte[] bin_prot = new byte[ simple_rng.Next(4) ];
+        byte[] bin_prot = new byte[ simple_rng.Next(1,4) ];
         simple_rng.NextBytes(bin_prot);
         string random_prot = Base32.Encode( bin_prot );
         byte[] payload = new byte[ simple_rng.Next(1024) ];

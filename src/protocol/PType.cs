@@ -38,9 +38,11 @@ public class PType : ICopyable {
   protected MemBlock _raw_data;
   protected string _string_rep;
   
+  protected const int ASCII_UPPER_BOUND = 128;
+
   static PType() {
     //Initialize the _table:
-    _table = new PType[256];
+    _table = new PType[ ASCII_UPPER_BOUND ];
   }
   protected static void AddToTable(PType p) {
     if (0 <= p.TypeNumber && p.TypeNumber < _table.Length) {
@@ -51,7 +53,9 @@ public class PType : ICopyable {
    * packet numbers 1-31 are allowed
    */
   public PType(int number) {
-    if( !IsValidNumeric(number) ) { throw new System.Exception("Type numbers must be > 0 and <= 31"); }
+    if( !IsValidNumeric(number) ) {
+      throw new System.Exception("Type numbers must be > 0 and <= 31");
+    }
     _type_num = number;
   }
   /**
@@ -105,13 +109,15 @@ public class PType : ICopyable {
     public static readonly PType Chat = new PType("chat");
     public static readonly PType IP = new PType("i");
     public static readonly PType ReqRep = new PType("r");
-    public static readonly PType Rpc = new PType("rpc");
+    public static readonly PType Rpc = new PType("p");
   }
   //Holds all single byte ptypes:
   protected static readonly PType[] _table;
   ///For ICopyable support
   public int Length { get { return ToMemBlock().Length; } }
-  public int CopyTo(byte[] buf, int off) { return ToMemBlock().CopyTo(buf, off); }
+  public int CopyTo(byte[] buf, int off) {
+    return ToMemBlock().CopyTo(buf, off);
+  }
 
   public override int GetHashCode() { return ToMemBlock().GetHashCode(); }
   public override bool Equals(object o) {
@@ -129,20 +135,28 @@ public class PType : ICopyable {
    */
   public static PType Parse(MemBlock mb, out MemBlock rest) {
     PType result = null;
-    bool is_v_n = IsValidNumeric( (int)mb[0] );
+    byte fb = mb[0];
+    bool is_v_n = IsValidNumeric( (int)fb );
+    /**
+     * Since ptypes must be valid UTF8 strings,
+     * if the second byte is null, the first byte is an ascii character
+     * and hence has a value less than ASCII_UPPER_BOUND 
+     */
     bool store_in_tbl = ( is_v_n || (mb[1] == 0) );
     if( store_in_tbl ) {
       //This is stored in our table:
-      result = _table[ mb[0] ];
-      if( is_v_n ) {
-        //There is no null
-        rest = mb.Slice(1);
+      result = _table[ fb ];
+      if( result != null ) {
+        if( is_v_n ) {
+          //There is no null
+          rest = mb.Slice(1);
+        }
+        else {
+          //Skip the null
+          rest = mb.Slice(2);
+        }
+        return result;
       }
-      else {
-        //Skip the null
-        rest = mb.Slice(2);
-      }
-      if( result != null ) { return result; }
     }
     //Otherwise we have to make it:
     MemBlock raw_data = null;
@@ -153,7 +167,7 @@ public class PType : ICopyable {
        * it
        */
       rest = mb.Slice(1);
-      result._type_num = (int)mb[0];
+      result._type_num = (int)fb;
     }
     else {
       int null_pos = mb.IndexOf(0);
@@ -172,7 +186,7 @@ public class PType : ICopyable {
     }
     if( store_in_tbl ) {
       //Make sure we don't have to create an object like this again
-      _table[ mb[0] ] = result;
+      _table[ fb ] = result;
     }
     return result;
   }
@@ -290,6 +304,18 @@ public class PType : ICopyable {
       Assert.AreEqual( s, p2.ToString(), "Round trip to string");
       Assert.AreEqual( s, p1.ToString(), "Round trip to string");
       Assert.AreEqual( p1.TypeNumber, p2.TypeNumber, "RT: TypeNumber test");
+    }
+    //Test all one byte ascii strings:
+    for(byte b = 32; b < ASCII_UPPER_BOUND; b++) {
+      MemBlock raw = MemBlock.Reference( new byte[]{ b, 0 } );
+      MemBlock rest;
+      PType p1 = PType.Parse(raw, out rest);
+      Assert.AreEqual(rest, MemBlock.Null, "Rest is null");
+      PType p2 = PType.Parse(raw, out rest);
+      Assert.AreEqual(rest, MemBlock.Null, "Rest is null");
+      Assert.IsTrue(p1 == p2, "reference equality of single byte type");
+      Assert.AreEqual(p1, p2, "equality of single byte type");
+      Assert.AreEqual(p1, new PType(p1.ToString()), "Round trip string");
     }
     //Test TypeNumber of string types:
     for(int i = 0; i < 100; i++) {
