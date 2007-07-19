@@ -471,7 +471,7 @@ namespace Brunet
      */
     override public void Start() {
 #if LINK_DEBUG
-      System.Console.Error.WriteLine("Linker({0}).Start at: {1}", _lid, DateTime.Now);
+      Console.Error.WriteLine("Linker({0}).Start at: {1}", _lid, DateTime.Now);
 #endif
       //Just move to the next (first) TA
       lock( _sync ) {
@@ -677,7 +677,7 @@ namespace Brunet
         /*
          * The edge creation didn't work out so well
          */
-        System.Console.Error.WriteLine(ex);
+        Console.Error.WriteLine(ex);
 	TransportAddress next_ta = MoveToNextTA(ew.TA);
         StartAttempt(next_ta);
       }

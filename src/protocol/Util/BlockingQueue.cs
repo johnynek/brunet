@@ -43,6 +43,7 @@ public class Channel {
     _close_on_enqueue = false;
   }
 
+
   protected readonly Queue _queue;
   protected readonly object _sync; 
   protected bool _closed;
@@ -89,7 +90,7 @@ public class Channel {
     }
 
 #if DEBUG
-    System.Console.Error.WriteLine("Close set");
+    Console.Error.WriteLine("Close set");
 #endif
   }
 
@@ -346,7 +347,7 @@ public sealed class BlockingQueue : Channel {
       }
       //Wake up any waiting threads
 #if DEBUG
-      System.Console.Error.WriteLine("Enqueue set: count {0}", Count);
+      Console.Error.WriteLine("Enqueue set: count {0}", Count);
 #endif
       //If we just went from 0 -> 1 signal any waiting Dequeue
       set = (_queue.Count == 1);
@@ -417,7 +418,7 @@ public sealed class BlockingQueue : Channel {
     for(int i = 0; i < 100000; i++) { 
       Assert.AreEqual( Dequeue(), r.Next(), "dequeue equality test" );
     }
-//    System.Console.Error.WriteLine("Trying to get an exception");
+//    Console.Error.WriteLine("Trying to get an exception");
     //The next dequeue should throw an exception
     bool got_exception = false;
     try {

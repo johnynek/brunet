@@ -418,7 +418,7 @@ namespace Brunet
       NodeInfo ni2 = (NodeInfo)xt.SerializeDeserialize(ni);
       RoundTripHT(ni2);
       RoundTrip(ni2);
-      //System.Console.Error.WriteLine("n1: {0}\nn2: {1}", ni, ni2);
+      //Console.Error.WriteLine("n1: {0}\nn2: {1}", ni, ni2);
       Assert.AreEqual(ni, ni2, "NodeInfo: address and 1 ta");
       
       //Test multiple tas:

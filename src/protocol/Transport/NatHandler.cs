@@ -734,7 +734,7 @@ public class NatTAs : IEnumerable {
           NatHandler hand = (NatHandler)hand_it.Current;
           if( hand.IsMyType( points ) ) {
   #if DEBUG
-            System.Console.Error.WriteLine("NatHandler: {0}", hand.GetType() );
+            Console.Error.WriteLine("NatHandler: {0}", hand.GetType() );
   #endif
             IList tas = hand.TargetTAs( points );
             foreach(TransportAddress ta in tas) {
