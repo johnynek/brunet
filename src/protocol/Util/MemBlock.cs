@@ -33,9 +33,9 @@ namespace Brunet {
 #endif
 public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable {
 
-  protected byte[] _buffer;
-  protected int _offset;
-  protected int _length;
+  protected readonly byte[] _buffer;
+  protected readonly int _offset;
+  protected readonly int _length;
   //The number of bytes in this MemBlock
   public int Length { get { return _length; } }
 
@@ -47,7 +47,14 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
    * a large buffer from being collected
    */
   public int ReferencedBufferLength {
-    get { return _buffer.Length; }
+    get {
+      if( _buffer == null ) {
+        return 0;
+      }
+      else {
+        return _buffer.Length;
+      }
+    }
   }
 
   protected static readonly MemBlock _null = new MemBlock(null, 0, 0);
@@ -79,12 +86,20 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
     _buffer = data;
     _offset = offset;
     _length = length;
-    if ( length < 0 ) {
+    if( length == 0 ) {
+      //Make sure not to keep a reference, which could keep memory in scope
+      _buffer = null;
+      _offset = 0;
+    }
+    else if ( length < 0 ) {
       throw new System.ArgumentOutOfRangeException("length", length,
                                           "MemBlock cannot have negative length");
     }
-    else if( (length > 0) && ( data.Length < offset + length ) ) {
-      //This does not make sense:
+    else if( data.Length < offset + length ) {
+      /*
+       * Clearly length > 0 otherwise one of the above two conditions
+       * would be true
+       */
       throw new System.ArgumentException("byte array not long enough");
     }
   }
@@ -200,7 +215,9 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
    * @return the number of bytes copied
    */
   public int CopyTo(byte[] dest, int offset_into_dest) {
-    System.Array.Copy(_buffer, _offset, dest, offset_into_dest, _length);
+    if( _length != 0 ) {
+      System.Array.Copy(_buffer, _offset, dest, offset_into_dest, _length);
+    }
     return _length;
   }
 
@@ -300,7 +317,12 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
    */
   public string GetString(System.Text.Encoding e)
   {
-    return e.GetString(_buffer, _offset, _length);
+    if( _length != 0 ) {
+      return e.GetString(_buffer, _offset, _length);
+    }
+    else {
+      return System.String.Empty;
+    }
   }
 
   /**
