@@ -360,6 +360,7 @@ namespace Brunet.Dht {
       int op = 0;
       try {
         Console.WriteLine("The following are serial tests until mentioned otherwise.");
+        DateTime start = DateTime.UtcNow;
         Test0(ref op);
         Test1(ref op);
         Test2(ref op);
@@ -375,6 +376,7 @@ namespace Brunet.Dht {
         Test12(ref op);
         Test13(ref op);
         Test14(ref op);
+        Console.WriteLine("Total time: " + (DateTime.UtcNow - start));
       }
       catch (Exception e) {
         Console.WriteLine("Failure at operation: " + (op - 1));
