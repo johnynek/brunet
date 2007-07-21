@@ -181,21 +181,227 @@ public class AdrCopyable : ICopyable {
  */
 public class AdrConverter {
 
+  /*
+   * Here are some constants used in the code:
+   */
+  //Constants:
+  protected const byte NULL = (byte)'0';
+  protected const byte TRUE = (byte)'T';
+  protected const byte FALSE = (byte)'F';
+  //Integral types (fixed size):
+  protected const byte SBYTE = (byte)'b';
+  protected const byte BYTE = (byte)'B';
+  protected const byte SHORT = (byte)'s';
+  protected const byte USHORT = (byte)'S';
+  protected const byte INT = (byte)'i';
+  protected const byte UINT = (byte)'I';
+  protected const byte LONG = (byte)'l';
+  protected const byte ULONG = (byte)'L';
+  //non-integral:
+  protected const byte FLOAT = (byte)'f';
+  //For arrays of numerical (fixed length) types:
+  protected const byte ARRAY = (byte)'a';
+  //delimited types:
+  protected const byte STRING_S = (byte)'_';
+  protected const byte STRING_E = (byte)0;
+  protected const byte LIST_S = (byte)'(';
+  protected const byte LIST_E = (byte)')';
+  protected const byte MAP_S = (byte)'{';
+  protected const byte MAP_E = (byte)'}';
+  protected const byte EXCEPTION_S = (byte)'X';
+  protected const byte EXCEPTION_E = (byte)'x';
+
+
+
   public static object Deserialize(Stream s) {
     bool finished = false;
-    //The '_' character is a meaningless placeholder
-    return Deserialize(s, '_', out finished);
+    return Deserialize(s, NULL, out finished);
   }
 
   public static object Deserialize(MemBlock mb) {
-    using(MemoryStream ms = mb.ToMemoryStream()) {
-      return Deserialize( ms );
+    int size;
+    bool fin;
+    return Deserialize(mb, 0, NULL, out fin, out size);
+  }
+  public static object Deserialize(MemBlock mb, out int size) {
+    bool fin;
+    return Deserialize(mb, 0, NULL, out fin, out size);
+  }
+  public static object Deserialize(MemBlock mb, int offset, out int size) {
+    bool fin;
+    return Deserialize(mb, offset, NULL, out fin, out size);
+  }
+  private static object Deserialize(MemBlock b, int offset, byte term,
+                                    out bool finished, out int size) {
+    byte typecode = b[offset];
+    finished = false;  //By default, we're not finished
+    switch( typecode ) {
+      case STRING_S:
+        int count;
+        string s = NumberSerializer.ReadString(b, offset + 1, out count);
+        size = count + 1; //add one for the STRING_S byte
+        return s;
+      case LIST_S:
+        IList lst = new ArrayList();
+        bool lfin;
+        int lsize;
+        size = 1;
+        offset++; //Skip the LIST_S
+        do {
+          object o = Deserialize(b, offset, LIST_E, out lfin, out lsize);
+	  if( !lfin ) {
+	    //If we are finished, tmp holds a meaningless null
+	    lst.Add(o);
+	  }
+          offset += lsize;
+          size += lsize;
+        } while( ! lfin );
+        return lst;
+      case LIST_E:
+        if( term == LIST_E ) { finished = true; size = 1; }
+        else {
+          throw new Exception(
+               String.Format("terminator mismatch: found: {0} expected: {1}", term, LIST_E));
+        }
+        return null;
+      case MAP_S:
+        //Start of a map:
+        IDictionary dresult = new Hashtable();
+        bool mfinished = false;
+        int msize;
+        size = 1;
+        offset++;
+        do {
+          //Magical recursion strikes again
+          object key = Deserialize(b, offset, MAP_E, out mfinished, out msize);
+          offset += msize;
+          size += msize;
+          if( !mfinished ) {
+            object valu = Deserialize(b, offset, out msize);
+            offset += msize;
+            size += msize;
+            dresult.Add(key, valu);
+          }
+        } while (false == mfinished);
+        return dresult;
+      case MAP_E:
+        //End of a map:
+        if (term == MAP_E) {
+          //We were reading a list and now we are done:
+          finished = true;
+          size = 1;
+        }
+        else {
+          throw new Exception(
+               String.Format("terminator mismatch: found: {0} expected: {1}", term, MAP_E));
+        }
+        return null;
+      case TRUE:
+        size = 1;
+        return true;
+      case FALSE:
+        size = 1;
+        return false;
+      case NULL:
+        size = 1;
+        return null;
+      case SBYTE:
+        size = 2;
+        return (sbyte)b[offset + 1];
+      case BYTE:
+        size = 2;
+        return b[offset + 1];
+      case SHORT:
+        size = 3;
+        return NumberSerializer.ReadShort(b, offset + 1);
+      case USHORT:
+        size = 3;
+        return (ushort)NumberSerializer.ReadShort(b, offset + 1);
+      case INT:
+        size = 5;
+        return NumberSerializer.ReadInt(b, offset + 1);
+      case UINT:
+        size = 5;
+        return (uint)NumberSerializer.ReadInt(b, offset + 1);
+      case LONG:
+        size = 9;
+        return NumberSerializer.ReadLong(b, offset + 1);
+      case ULONG:
+        size = 9;
+        return (ulong)NumberSerializer.ReadLong(b, offset + 1);
+      case FLOAT:
+        size = 5;
+        return NumberSerializer.ReadFloat(b, offset + 1);
+      case EXCEPTION_S:
+        //Start of a map:
+        Hashtable eresult = new Hashtable();
+        bool efinished = false;
+        int esize;
+        size = 1;
+        offset++;
+        do {
+          //Magical recursion strikes again
+          object key = Deserialize(b, offset, EXCEPTION_E, out efinished, out esize);
+          offset += esize;
+          size += esize;
+          if( !efinished ) {
+            object valu = Deserialize(b, offset, out esize);
+            offset += esize;
+            size += esize;
+            eresult.Add(key, valu);
+          }
+        } while (false == efinished);
+        return new AdrException(eresult);
+      case EXCEPTION_E:
+        //End of a map:
+        if (term == EXCEPTION_E) {
+          //We were reading a list and now we are done:
+          finished = true;
+          size = 1;
+        }
+        else {
+          throw new Exception(
+               String.Format("terminator mismatch: found: {0} expected: {1}",
+                             term, EXCEPTION_E));
+        }
+        return null;
+      case ARRAY:
+        //Read length:
+        int asize;
+        object olength = Deserialize(b, offset + 1, out asize);
+        //Due to boxing here, we have to be careful about unboxing,
+        //this will get easier with generics:
+        int length = (int)UnboxToLong(olength); 
+        offset += 1 + asize;
+	byte atype = b[offset];
+        offset++;
+	switch (atype) {
+          case BYTE:
+            byte[] aBresult = new byte[length];
+            MemBlock b_a = b.Slice(offset, length);
+            b_a.CopyTo(aBresult, 0);
+            size = 1 + asize + 1 + length;
+            return aBresult;
+          case INT:
+            int[] airesult = new int[length];
+            for(int i = 0; i < airesult.Length; i++) {
+              airesult[i] = NumberSerializer.ReadInt(b, offset);
+              offset += 4;
+            }
+            size = 1 + asize + 1 + 4 * length;
+            return airesult;
+            ///@todo add more array types
+          default:
+            throw new Exception("Unsupported array type code: " + atype);
+	}
+      default:
+        throw new Exception(String.Format("Unrecognized type code: {0}", typecode));
     }
   }
   /*
    * This is how the above is implemented to support recursion
    */
-  private static object Deserialize(Stream s, char terminator, out bool finished ) {
+  private static object Deserialize(Stream s, byte terminator, out bool finished ) {
   
     int type = s.ReadByte();
     object result = null;
@@ -205,20 +411,20 @@ public class AdrConverter {
       throw new Exception("End of stream");
     }
     else {
-      char typecode = (char)type;
+      byte typecode = (byte)type;
       switch( typecode ) {
-	case '_':
+	case STRING_S:
 	  //UTF-8 String:
           int bytelength = 0;
 	  result = NumberSerializer.ReadString(s, out bytelength);
           break;
-	case '(':
+	case LIST_S:
 	  //Start of a list:
  	  IList listresult = new ArrayList();
 	  bool lfinished = false;
           do {
 	    //The magic of recursion.
-            object tmp = AdrConverter.Deserialize(s, ')', out lfinished);
+            object tmp = AdrConverter.Deserialize(s, LIST_E, out lfinished);
 	    if( !lfinished ) {
 	      //If we are finished, tmp holds a meaningless null
 	      listresult.Add(tmp);
@@ -226,9 +432,9 @@ public class AdrConverter {
 	  } while( false == lfinished );
           result = listresult;
           break;
-	case ')':
+	case LIST_E:
           //End of the list:
-	  if (terminator == ')') {
+	  if (terminator == LIST_E) {
             //We were reading a list and now we are done:
 	    finished = true;
 	  }
@@ -237,13 +443,13 @@ public class AdrConverter {
 	  }
 	  result = null;
 	  break;
-	case '{':
+	case MAP_S:
 	  //Start of a map:
 	  IDictionary dresult = new Hashtable();
 	  bool mfinished = false;
 	  do {
 	    //Magical recursion strikes again
-            object key = Deserialize(s, '}', out mfinished);
+            object key = Deserialize(s, MAP_E, out mfinished);
 	    if( !mfinished ) {
               object valu = Deserialize(s);
 	      dresult.Add(key, valu);
@@ -251,9 +457,9 @@ public class AdrConverter {
 	  } while (false == mfinished);
           result = dresult;
 	  break;
-	case '}':
+	case MAP_E:
 	  //End of a map:
-	  if (terminator == '}') {
+	  if (terminator == MAP_E) {
             //We were reading a list and now we are done:
 	    finished = true;
 	  }
@@ -262,63 +468,63 @@ public class AdrConverter {
 	  }
 	  result = null;
 	  break;
-        case 'T':
+        case TRUE:
           result = true;
           break;
-        case 'F':
+        case FALSE:
           result = false;
           break;
-	case '0':
+	case NULL:
 	  //Null:
 	  result = null;
 	  break;
-	case 'b':
+	case SBYTE:
 	  //Signed byte
 	  int valy = s.ReadByte();
 	  if( valy < 0 ) { throw new Exception("End of stream"); }
 	  result = (sbyte)valy;
 	  break;
-	case 'B':
+	case BYTE:
 	  //Unsigned byte
 	  int valY = s.ReadByte();
 	  if( valY < 0 ) { throw new Exception("End of stream"); }
 	  result = (byte)valY;
 	  break;
-        case 's':
+        case SHORT:
 	  //signed short:
 	  result = NumberSerializer.ReadShort(s);
 	  break;
-        case 'S':
+        case USHORT:
 	  //unsigned short:
 	  result = unchecked( (ushort)NumberSerializer.ReadShort(s) );
 	  break;
-        case 'i':
+        case INT:
 	  //signed int:
 	  result = NumberSerializer.ReadInt(s);
 	  break;
-        case 'I':
+        case UINT:
 	  //unsigned int:
 	  result = unchecked( (uint)NumberSerializer.ReadInt(s) );
 	  break;
-        case 'l':
+        case LONG:
           //signed long:
           result = NumberSerializer.ReadLong(s);
           break;
-        case 'L':
+        case ULONG:
           //signed long:
           result = unchecked((ulong)NumberSerializer.ReadLong(s));
           break;
-        case 'f':
+        case FLOAT:
 	  //floating-point number
 	  result = NumberSerializer.ReadFloat(s);
 	  break;
-	case 'X':
+	case EXCEPTION_S:
 	  //Start of an exception:
 	  Hashtable xht = new Hashtable();
 	  bool xfinished = false;
 	  do {
 	    //Magical recursion strikes again
-            object key = Deserialize(s, 'x', out xfinished);
+            object key = Deserialize(s, EXCEPTION_E, out xfinished);
 	    if( !xfinished ) {
               object valu = Deserialize(s);
 	      xht.Add(key, valu);
@@ -326,18 +532,18 @@ public class AdrConverter {
 	  } while (false == xfinished);
           result = new AdrException(xht);
 	  break;
-	case 'x':
+	case EXCEPTION_E:
 	  //End of an exception:
-	  if (terminator == 'x') {
+	  if (terminator == EXCEPTION_E) {
             //We were reading a list and now we are done:
 	    finished = true;
 	  }
 	  else {
-            throw new Exception("Unexpected terminator: } != " + terminator);
+            throw new Exception("Unexpected terminator: x != " + terminator);
 	  }
 	  result = null;
 	  break;
-	case 'a':
+	case ARRAY:
 	  //Array:
 	  //Read the length:
 	  object olength = Deserialize(s);
@@ -346,9 +552,9 @@ public class AdrConverter {
           long length = UnboxToLong(olength); 
 	  int typec = s.ReadByte();
 	  if ( typec < 0 ) { throw new Exception("Could not read array type"); }
-	  char atype = (char)typec;
+	  byte atype = (byte)typec;
 	  switch (atype) {
-              case 'B':
+              case BYTE:
 	        //unsigned byte:
                 byte[] aBresult = new byte[length];
                 int read_b = s.Read(aBresult, 0, (int)length);
@@ -357,7 +563,7 @@ public class AdrConverter {
                 }
                 result = aBresult;
                 break;
-              case 'i':
+              case INT:
 	        //signed int:
                 int[] airesult = new int[length];
                 for(int i = 0; i < airesult.Length; i++) {
@@ -384,7 +590,7 @@ public class AdrConverter {
   public static int Serialize(object o, Stream s) {
     if( o == null ) {
       //Not much work to do:
-      s.WriteByte((byte)'0');
+      s.WriteByte(NULL);
       return 1; //1 byte for null
     }
     
@@ -395,7 +601,7 @@ public class AdrConverter {
      */
     System.Type t = o.GetType();
     if ( t.Equals(typeof(string)) ) {
-      s.WriteByte((byte)'_');
+      s.WriteByte(STRING_S);
       string val = (string)o;
       int bytes = NumberSerializer.WriteString(val, s);
       return 1 + bytes; //the typecode + the serialized string
@@ -420,69 +626,69 @@ public class AdrConverter {
      IDictionary dict = o as IDictionary;
      //Here is a map...
      int total_bytes = 2; //For the '{' and '}' bytes
-     s.WriteByte((byte)'{'); //Start of map:
+     s.WriteByte(MAP_S); //Start of map:
      IDictionaryEnumerator my_en = dict.GetEnumerator();
      while( my_en.MoveNext() ) {
 	//Time for recursion:
        total_bytes += Serialize(my_en.Key, s);
        total_bytes += Serialize(my_en.Value, s);
      }
-     s.WriteByte((byte)'}'); //End of map:
+     s.WriteByte(MAP_E); //End of map:
      return total_bytes;
     }
     else
     if( t.Equals( typeof(bool) ) ) {
       //boolean value:
       bool b = (bool)o;
-      if( b ) { s.WriteByte((byte)'T'); }
-      else { s.WriteByte((byte)'F'); }
+      if( b ) { s.WriteByte(TRUE); }
+      else { s.WriteByte(FALSE); }
       return 1;
     }
     else
     if ( t.Equals(typeof(byte)) ) {
       //Unsigned byte
-      s.WriteByte((byte)'B');
+      s.WriteByte(BYTE);
       s.WriteByte((byte)o);
       return 2;
     }
     else if ( t.Equals(typeof(sbyte)) ) {
-      s.WriteByte((byte)'b');
+      s.WriteByte(SBYTE);
       long v = UnboxToLong(o);
       s.WriteByte((byte)v);
       return 2;
     }
     else if ( t.Equals(typeof(short)) ) {
-      s.WriteByte((byte)'s');
+      s.WriteByte(SHORT);
       NumberSerializer.WriteShort((short)o,s);
       return 3; //1 typecode + 2 bytes for short
     }
     else if ( t.Equals(typeof(ushort)) ) {
-      s.WriteByte((byte)'S');
+      s.WriteByte(USHORT);
       NumberSerializer.WriteUShort((ushort)o,s);
       return 3; //1 typecode + 2 bytes for short
     }
     else if ( t.Equals(typeof(int)) ) {
-      s.WriteByte((byte)'i');
+      s.WriteByte(INT);
       NumberSerializer.WriteInt((int)o,s);
       return 5; //1 typecode + 4 bytes for int 
     }
     else if ( t.Equals(typeof(uint)) ) {
-      s.WriteByte((byte)'I');
+      s.WriteByte(UINT);
       NumberSerializer.WriteUInt((uint)o,s);
       return 5; //1 typecode + 4 bytes for uint
     }
     else if ( t.Equals(typeof(long)) ) {
-      s.WriteByte((byte)'l');
+      s.WriteByte(LONG);
       NumberSerializer.WriteLong((long)o,s);
       return 9; //1 typecode + 8 bytes for long 
     }
     else if ( t.Equals(typeof(ulong)) ) {
-      s.WriteByte((byte)'L');
+      s.WriteByte(ULONG);
       NumberSerializer.WriteULong((ulong)o,s);
       return 9; //1 typecode + 8 bytes for ulong
     } 
     else if ( t.Equals(typeof(float)) ) {
-      s.WriteByte((byte)'f');
+      s.WriteByte(FLOAT);
       NumberSerializer.WriteFloat((float)o, s);
       return 5; //1 typecode + 4 bytes for float
     }
@@ -494,24 +700,24 @@ public class AdrConverter {
       Hashtable xht = ax.ToHashtable();
       //Here is a map...
       int total_bytes = 2; //For the 'X' and 'x' bytes
-      s.WriteByte((byte)'X'); //Start of map:
+      s.WriteByte(EXCEPTION_S);
       IDictionaryEnumerator my_en = xht.GetEnumerator();
       while( my_en.MoveNext() ) {
 	//Time for recursion:
         total_bytes += Serialize(my_en.Key, s);
         total_bytes += Serialize(my_en.Value, s);
       }
-      s.WriteByte((byte)'x'); //End of map:
+      s.WriteByte(EXCEPTION_E);
       return total_bytes;
     }
     else if ( o is MemBlock ) {
       //Just serialize this as a byte array
       MemBlock d = (MemBlock)o;
-      s.WriteByte((byte)'a');
+      s.WriteByte(ARRAY);
       int total_bytes = 1;
       total_bytes += SerializePosNum( (ulong)d.Length, s );
       //This is a byte array:
-      s.WriteByte((byte)'B');
+      s.WriteByte(BYTE);
       total_bytes++;
       //Now write each byte:
       d.WriteTo(s);
@@ -602,12 +808,12 @@ public class AdrConverter {
   }
   protected static int SerializeArray(Array my_a, Type t, Type elt, Stream s)
   {
-      s.WriteByte((byte)'a');
+      s.WriteByte(ARRAY);
       int total_bytes = 1;
       total_bytes += SerializePosNum( (ulong)my_a.LongLength, s );
       if( elt.Equals(typeof(byte)) ) {
         //This is a byte array:
-        s.WriteByte((byte)'B');
+        s.WriteByte(BYTE);
         total_bytes++;
         //Now write each byte:
         foreach(byte b in my_a) {
@@ -617,7 +823,7 @@ public class AdrConverter {
       }
       else if (elt.Equals(typeof(int))) {
         //This is a byte array:
-        s.WriteByte((byte)'i');
+        s.WriteByte(INT);
         total_bytes++;
         //Now write each byte:
         foreach(int i in my_a) {
@@ -636,13 +842,13 @@ public class AdrConverter {
   {
     //Here is a list...
     int total_bytes = 2; //For the '(' and ')' bytes
-    s.WriteByte((byte)'('); //Start of list, so lispy!:
+    s.WriteByte(LIST_S); //Start of list, so lispy!:
     int count = list.Count;
     for(int i = 0; i < count; i++) {
       //Time for recursion:
       total_bytes += Serialize(list[i], s);
     }
-    s.WriteByte((byte)')'); //end of list:
+    s.WriteByte(LIST_E); //end of list:
     return total_bytes;
   }
   
@@ -721,10 +927,15 @@ public class AdrConverter {
     Assert.AreEqual(serialized, buf.Length, "Buffer length same as written");
     ms.Seek(0, SeekOrigin.Begin);
     object dso = Deserialize(ms);
+    object dso2 = Deserialize(MemBlock.Reference(buf));
     if( !AdrEquals(o, dso ) ) {
       Console.Error.WriteLine("{0} != {1}\n", o, dso);
     }
     Assert.IsTrue( AdrEquals(o, dso), message );
+    if( !AdrEquals(o, dso2 ) ) {
+      Console.Error.WriteLine("{0} != {1}\n", o, dso2);
+    }
+    Assert.IsTrue( AdrEquals(o, dso2), message );
    }
    catch(Exception x) {
      Console.Error.WriteLine("{0}: {1}", message, x);
@@ -743,10 +954,15 @@ public class AdrConverter {
       Assert.IsTrue( AdrEquals(bin, data), "Encoding match: " + message);
     }
     object dso = Deserialize(new MemoryStream(data));
+    object dso2 = Deserialize(MemBlock.Reference(data));
     if( ! AdrEquals(o, dso) ) { 
       Console.Error.WriteLine("{0} != {1}", o, dso);
     }
     Assert.IsTrue( AdrEquals(o, dso), "Decoding match: " + message);
+    if( ! AdrEquals(o, dso2) ) { 
+      Console.Error.WriteLine("{0} != {1}", o, dso2);
+    }
+    Assert.IsTrue( AdrEquals(o, dso2), "Decoding match: " + message);
   }
   /**
    * This is just a method which executes some tests:

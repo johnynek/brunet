@@ -317,14 +317,60 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
    */
   public string GetString(System.Text.Encoding e)
   {
-    if( _length != 0 ) {
-      return e.GetString(_buffer, _offset, _length);
+    return GetString(e, 0, _length);
+  }
+  /**
+   * Use the given Encoding to read a string out of the MemBlock
+   * over a smaller range of the MemBlock
+   */
+  public string GetString(System.Text.Encoding e, int off, int length)
+  {
+    if( (off + length) > _length ) {
+     throw new System.ArgumentOutOfRangeException("length", length,
+                                          "Length greater than MemBlock length");
+    }
+    if( length != 0 ) {
+      return e.GetString(_buffer, off + _offset, length);
     }
     else {
       return System.String.Empty;
     }
   }
-
+  /**
+   * @param off the offset into the MemBlock to start
+   * @param l the number of bytes to check
+   * @return true if all the bytes in the above range have highest bit 0
+   * This is used to see if is safe to use the ASCII encoding instead of UTF8
+   */
+  public bool IsAscii(int off, int l) {
+    uint bitmask = 0x80808080;
+    int i;
+    while( l > 0) {
+      i = 0;
+      if( l >= 4 ) {
+        //Make it easy for the compiler to unroll this one:
+        //since to loop is always 4 long, it should do so
+        for(int k = 0; k < 4; k++) {
+          i <<= 8;
+          i = _buffer[ _offset + off + k];
+        }
+        l -= 4;
+        off += 4;
+      }
+      else {
+        for(int j = 0; j < l; j++) {
+          i <<= 8;
+          i ^= _buffer[ _offset + off + j];
+        }
+        l = 0;
+        off += l;
+      }
+      if( (i & bitmask) != 0 ) {
+        return false;
+      }
+    }
+    return true;
+  }
   /**
    * Write the MemBlock to a stream.
    * If your insane Stream modifies the buffer as it is
@@ -361,8 +407,18 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
    */
   public int IndexOf(byte b)
   {
+    return IndexOf(b, 0);
+  }
+  /**
+   * @param offset the position to start at
+   * @param b the byte to look for
+   * Search through the current buffer for a byte b, and return
+   * the index to it.  If it is not found, return -1
+   */
+  public int IndexOf(byte b, int offset)
+  {
     int max = _offset + _length;
-    for(int idx = _offset; idx < max; idx++) {
+    for(int idx = offset + _offset; idx < max; idx++) {
       if( _buffer[idx] == b ) {
         return (idx - _offset);
       }
@@ -418,6 +474,15 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
   }
 
 #if BRUNET_NUNIT
+  [Test]
+  public void StringTests() {
+    string test_ascii = "Hello simple test";
+    MemBlock b = MemBlock.Reference( System.Text.Encoding.UTF8.GetBytes(test_ascii) );
+    Assert.IsTrue(b.IsAscii(0, b.Length), "IsAscii");
+    string test_unicode = "la\u00dfen";
+    b = MemBlock.Reference( System.Text.Encoding.UTF8.GetBytes(test_unicode) );
+    Assert.IsFalse(b.IsAscii(0, b.Length), "Unicode not ascii");
+  }
   [Test]
   public void Test() {
     System.Random r = new System.Random();
