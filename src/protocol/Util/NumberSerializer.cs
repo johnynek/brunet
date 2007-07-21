@@ -123,6 +123,15 @@ namespace Brunet
       }
       return val;
     }
+    // coded by hand for speed (profiled on mono)
+    public static long ReadLong(MemBlock bin, int offset)
+    {
+      long val = 0;
+      for(int i = 0; i < 8; i++) {
+        val = (val << 8) | bin[i + offset];
+      }
+      return val;
+    }
 
     // coded by hand for speed (profiled on mono)
     public static short ReadShort(byte[] bin, int offset)
@@ -175,6 +184,23 @@ namespace Brunet
       Encoding e = Encoding.UTF8;
       //subtract 1 for the null terminator
       return e.GetString(bin, offset, bytelength - 1); 
+    }
+    public static string ReadString(MemBlock b, int offset, out int bytelength)
+    {
+      int null_idx = b.IndexOf(0, offset);
+      int raw_length = null_idx - offset;
+      bytelength = raw_length + 1; //One for the null
+      Encoding e;
+      /*
+       * Benchmarks of mono show this to be about twice as fast as just
+       * using UTF8.  That really means UTF8 could be optimized in mono
+       */
+      if( b.IsAscii(offset, raw_length) ) {
+        e = Encoding.ASCII;
+      } else {
+        e = Encoding.UTF8;
+      }
+      return b.GetString(e, offset, raw_length);
     }
     /**
      * Read a UTF8 string from the stream
@@ -231,6 +257,14 @@ namespace Brunet
     {
       byte[] bin = new byte[4];
       mb.CopyTo(bin,0);
+      return ReadFloat(bin, 0);
+    }
+    public static float ReadFloat(MemBlock mb, int offset)
+    {
+      byte[] bin = new byte[4];
+      for(int i = 0; i < 4; i++) {
+        bin[i] = mb[offset + i];
+      }
       return ReadFloat(bin, 0);
     }
     public static float ReadFloat(Stream s) {
@@ -437,6 +471,28 @@ namespace Brunet
         float val = (float)r.NextDouble();
         WriteFloat(val, buffer, 0);
         Assert.AreEqual( val, ReadFloat( buffer, 0) );
+      }
+      //Strings:
+      for(int i = 0; i < tests; i++) {
+        byte[] bin = new byte[1000];
+        r.NextBytes(bin);
+        //Here's a random ascii string:
+        string s = Base32.Encode(bin);
+        if( i % 2 == 0 ) {
+          //Half the time make sure there is some unicode bit:
+          s = s + "la\u00dfen";
+        }
+        byte[] enc = Encoding.UTF8.GetBytes(s);
+        byte[] enc_null = new byte[ enc.Length + 1];
+        Array.Copy(enc, 0, enc_null, 0, enc.Length);
+        enc_null[ enc.Length ] = 0;
+        int l;
+        string s2 = ReadString(enc_null, 0, out l);
+        Assert.AreEqual(s, s2, "byte[] readstring");
+        Assert.AreEqual(l, enc_null.Length, "byte[] string length");
+        string s3 = ReadString(MemBlock.Reference(enc_null), 0, out l);
+        Assert.AreEqual(s, s3, "byte[] readstring");
+        Assert.AreEqual(l, enc_null.Length, "byte[] string length");
       }
       /*
        * Round tripping is great, but we still might have some
