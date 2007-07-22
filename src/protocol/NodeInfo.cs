@@ -295,8 +295,9 @@ namespace Brunet
         if( _address != null ) {
           code = _address.GetHashCode();
         }
-        else if( _tas.Count > 0 ) {
-          code = _tas[0].GetHashCode();
+        if( _tas.Count > 0 ) {
+          code ^= _tas.Count;
+          code ^= _tas[0].GetHashCode();
         }
         _code = code;
 	_done_hash = true;
