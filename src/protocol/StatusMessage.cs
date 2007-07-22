@@ -23,9 +23,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using NUnit.Framework;
 #endif
 using System;
+using System.Text;
 using System.Collections;
 using System.Collections.Specialized;
-using System.Xml;
 
 namespace Brunet {
 
@@ -33,7 +33,7 @@ namespace Brunet {
    * Holds status information for nodes.  Exchanged
    * in the linking process.  @see Linker, ConnectionMessageHandler
    */
-  public class StatusMessage : ConnectionMessage {
+  public class StatusMessage {
 
     /**
      * Make a status message containing:
@@ -72,50 +72,6 @@ namespace Brunet {
       }
     }
 	  
-    public StatusMessage(XmlElement r) : base(r)
-    {
-      XmlElement status_el = (XmlElement)r.FirstChild;
-
-      foreach(XmlNode cn in status_el.ChildNodes) {
-        if( cn.Name == "neighbors" ) {
-          foreach(XmlNode attr in cn.Attributes) {
-            if ( attr.Name == "type" )  {
-              _neigh_ct = attr.FirstChild.Value;
-	    }
-	  }
-          //Read the neighbors:
-          _neighbors = new ArrayList();
-	  foreach(XmlNode cnkids in cn.ChildNodes) {
-            if( cnkids.Name == "node" ) {
-	      _neighbors.Add( new NodeInfo((XmlElement)cnkids) );
-	    }
-	  }
-	}
-      }
-    }
-
-    public StatusMessage(ConnectionMessage.Direction dir, int id, XmlReader r)
-    {
-      if( !CanReadTag(r.Name) ) {
-        throw new ParseException("This is not a <status /> message");
-      }
-      this.Id = id;
-      this.Dir = dir;
-
-      while( r.Read() ) {
-        if( r.NodeType == XmlNodeType.Element ) {
-	  if( r.Name == "node" ) {
-            //Here comes a node info!
-	    _neighbors.Add( new NodeInfo(r) );
-	  }
-	  else if( r.Name == "neighbors" ) {
-            _neigh_ct = r["type"];
-	    _neighbors = new ArrayList();
-	  }
-	}
-      }
-    }
- 
     protected string _neigh_ct;
     /**
      * The status message holds at most one neighbor tag,
@@ -142,20 +98,15 @@ namespace Brunet {
       }
     }
 
-    public override bool CanReadTag(string tag)
-    {
-      return (tag == "status");
-    }
-
     /**
      * @return true if osm is equivalent to this object
      */
     public override bool Equals(object osm)
     {
-      bool same = base.Equals(osm);
-      if (!same) { return false; }
+      if( osm == this ) { return true; }
       StatusMessage sm = osm as StatusMessage;
       if( sm != null ) {
+        bool same = true;
 	same &= _neigh_ct == sm.NeighborType;
 	same &= _neighbors.Count == sm.Neighbors.Count;
 	if(same) {
@@ -170,21 +121,7 @@ namespace Brunet {
       }
     }
     public override int GetHashCode() {
-      return base.GetHashCode() ^ _neighbors.Count;
-    }
-
-    public override IXmlAble ReadFrom(XmlElement el)
-    {
-      return new StatusMessage(el);
-    }
-
-    public override IXmlAble ReadFrom(XmlReader r)
-    {
-      Direction dir;
-      int id;
-      ReadStart(out dir, out id, r);
-
-      return new StatusMessage(dir, id, r);
+      return _neighbors.Count;
     }
 
     public IDictionary ToDictionary() {
@@ -204,24 +141,40 @@ namespace Brunet {
       return ht;
     }
 
-    public override void WriteTo(XmlWriter w)
-    {
-      base.WriteTo(w);
-      string ns = String.Empty; //Xml namespace;
-
-      w.WriteStartElement("status", ns); //<status>
-      w.WriteStartElement("neighbors", ns); //<neighbors>
-      //Here is the type=" " attribute:
-      w.WriteStartAttribute("type", ns);
-      w.WriteString( _neigh_ct );
-      w.WriteEndAttribute();
-      //Now for the neighbor list:
-      foreach(NodeInfo ni in _neighbors) {
-        ni.WriteTo(w);
+    protected string ToString(string t, IList l) {
+      StringBuilder sb = new StringBuilder();
+      sb.Append(t + ": ");
+      foreach(object o in l) {
+        if( o is IDictionary ) {
+          sb.Append( ToString("", (IDictionary)o) );
+        }
+        else if (o is IList ) {
+          sb.Append( ToString("", (IList)o) );
+        }
+        else {
+          sb.Append(o.ToString() + ", ");
+        }
       }
-      w.WriteEndElement(); //</neighbors>
-      w.WriteEndElement(); //</status>
-      w.WriteEndElement(); //</(request|response)>
+      return sb.ToString();
+    }
+    protected string ToString(string t, IDictionary d) {
+      StringBuilder sb = new StringBuilder();
+      sb.Append(t + ": ");
+      foreach(DictionaryEntry de in d) {
+        if( de.Value is IDictionary ) {
+          sb.Append( ToString(de.Key.ToString(), (IDictionary)de.Value) );
+        }
+        else if (de.Value is IList ) {
+          sb.Append( ToString(de.Key.ToString(), (IList)de.Value) );
+        }
+        else {
+          sb.Append( de.Key + " => " + de.Value );
+        }
+      }
+      return sb.ToString();
+    }
+    public override string ToString() {
+      return ToString("StatusMessage", ToDictionary());
     }
   }
 #if BRUNET_NUNIT
@@ -247,11 +200,7 @@ namespace Brunet {
       ArrayList neighbors = new ArrayList();
       neighbors.Add(ni);
       StatusMessage sm1 = new StatusMessage(ConnectionType.Structured, neighbors);
-      XmlAbleTester xt = new XmlAbleTester();
-      StatusMessage sm1a = (StatusMessage)xt.SerializeDeserialize(sm1);
-      Assert.AreEqual(sm1, sm1a, "Single neighbor test");
       RoundTripHT(sm1);
-      RoundTripHT(sm1a);
       //Console.Error.WriteLine("\n{0}\n", sm1);
       //Test with many neighbors:
         
@@ -261,18 +210,12 @@ namespace Brunet {
 					  + i.ToString())));
       }
       StatusMessage sm2 = new StatusMessage(ConnectionType.Unstructured, neighbors);
-      StatusMessage sm2a = (StatusMessage)xt.SerializeDeserialize(sm2);
-      Assert.AreEqual(sm2,sm2a, "10 Neighbor test");
       RoundTripHT(sm2);
-      RoundTripHT(sm2a);
       //Console.Error.WriteLine("\n{0}\n", sm2);
      
       //Here is a StatusMessage with no neighbors (that has to be a possibility)
       StatusMessage sm3 = new StatusMessage("structured", new ArrayList());
-      StatusMessage sm3a = (StatusMessage)xt.SerializeDeserialize(sm3);
-      Assert.AreEqual(sm3,sm3a, "0 Neighbor test");
       RoundTripHT(sm3);
-      RoundTripHT(sm3a);
       //Console.Error.WriteLine("\n{0}\n", sm3);
 
     }

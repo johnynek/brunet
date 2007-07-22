@@ -19,13 +19,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-/*
- * Dependencies
- * Brunet.ConnectionMessage
- */
-
 using System;
-using System.Xml;
 using System.Collections;
 
 #if BRUNET_NUNIT
@@ -38,9 +32,6 @@ namespace Brunet
   /**
    * Anytime there is an error in the Connection protocol, this message may
    * be sent.
-   * 
-   * ErrorMessages are represented in xml like this:
-   * <error code="number">error message here</error>
    * 
    * In particular:
    * When a node that is already connected requests a new connection of the same type,
@@ -57,7 +48,7 @@ namespace Brunet
    * @see Connector
    * 
    */
-  public class ErrorMessage:ConnectionMessage
+  public class ErrorMessage
   {
 
     /**
@@ -70,55 +61,8 @@ namespace Brunet
       _message = message;
     }
 
-    /**
-      * Deserializes the ErrorCode element
-      */
-    public ErrorMessage(System.Xml.XmlElement r) : base(r)
-    {
-      XmlElement encoded = (XmlElement)r.FirstChild;
-      //Read the attributes of the ErrorCode
-      foreach(XmlNode attr in((XmlElement) encoded).Attributes)
-      {
-        switch (attr.Name) {
-        case "code":
-          _ec = (ErrorCode) System.Enum.Parse(typeof(ErrorCode),
-                                              attr.FirstChild.Value,
-                                              true);
-          break;
-        }
-      }
-      //Get the message:
-      _message = encoded.FirstChild.Value;
-    }
-
-    public ErrorMessage(Direction dir, int id, XmlReader r)
-    {
-      if (r.Name.ToLower() != "error") {
-        throw new ParseException("This is not a <error /> message");
-      }
-      this.Dir = dir;
-      this.Id = id;
-      _ec = (ErrorCode)Enum.Parse(typeof(ErrorCode), r["code"], true);
-      _message = String.Empty;
-      bool finished = false;
-      while( r.Read() && !finished ) {
-        if( r.NodeType == XmlNodeType.Text) {
-          //This is the error message
-	  _message = r.Value;
-	}
-	if( r.NodeType == XmlNodeType.EndElement && r.Name.ToLower() == "error" ) {
-          finished = true;
-	}
-      }
-    }
-
     public ErrorMessage()
     {
-    }
-
-    public override bool CanReadTag(string tag)
-    {
-      return (tag == "error");
     }
 
     public override bool Equals(object o)
@@ -135,41 +79,9 @@ namespace Brunet
       }
     }
     override public int GetHashCode() {
-      return base.GetHashCode() ^ (int)this.Ec;
+      return (int)this.Ec;
     }
     
-    public override IXmlAble ReadFrom(XmlElement el)
-    {
-      return new ErrorMessage(el);
-    }
-
-    public override IXmlAble ReadFrom(XmlReader r)
-    {
-      Direction dir;
-      int id;
-      ReadStart(out dir, out id, r);
-      return new ErrorMessage(dir, id, r);
-    }
-    
-    public override void WriteTo(XmlWriter w)
-    {
-      //Write the request or response and id
-      base.WriteTo(w);  //<(request|response)>
-
-      //then write this: <error code="12">Already connected</error>
-
-      string ns = String.Empty;
-      //Here we write out the specific stuff :
-      w.WriteStartElement("error", ns);     //<error>
-      //Write the attributes :
-      w.WriteStartAttribute("code", ns);
-      w.WriteString( ((int)Ec).ToString() ); //put in the appropriate code
-      w.WriteEndAttribute();
-      w.WriteString(_message);
-      w.WriteEndElement();      //</error>
-      w.WriteEndElement();      //</(request|response)>
-    }
-
   public enum ErrorCode : int
     {
       ErrorAck = 0, //Used to acknowledge an error request message.
@@ -208,15 +120,10 @@ namespace Brunet
     [Test]
     public void EMTest()
     {
-      XmlAbleTester xt = new XmlAbleTester();
       ErrorMessage em1 = new ErrorMessage(ErrorMessage.ErrorCode.UnexpectedRequest,
 		                          "Who are you???");
-      ErrorMessage em1a = (ErrorMessage)xt.SerializeDeserialize(em1);
-      Assert.AreEqual(em1, em1a);
 
       ErrorMessage em2 = new ErrorMessage(ErrorMessage.ErrorCode.AlreadyConnected, "We are BFF");
-      ErrorMessage em2a = (ErrorMessage)xt.SerializeDeserialize(em2);
-      Assert.AreEqual(em2, em2a);
     }
   }
 #endif

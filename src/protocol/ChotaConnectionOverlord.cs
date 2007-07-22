@@ -737,8 +737,6 @@ namespace Brunet {
 
       ConnectToMessage ctm =
         new ConnectToMessage(contype, _node.GetNodeInfo(8), near_ni);
-      ctm.Id = _rand.Next(1, Int32.MaxValue);
-      ctm.Dir = ConnectionMessage.Direction.Request;
 
       ISender send = new AHSender(_node, target, AHPacket.AHOptions.Exact);
       Connector con = new Connector(_node, send, ctm, this);
