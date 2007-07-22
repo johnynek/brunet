@@ -22,7 +22,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using System;
 using System.Collections;
 using System.Collections.Specialized;
-using System.Xml;
 using System.IO;
 
 #if BRUNET_NUNIT 
@@ -36,67 +35,8 @@ namespace Brunet
    * Represents information about a node.  May be exchanged with
    * neighbors or serialized for later usage.
    */
-  public class NodeInfo : IXmlAble
+  public class NodeInfo 
   {
-
-    public NodeInfo(System.Xml.XmlElement encoded)
-    {
-      //Read the address of the node:
-      foreach(XmlNode attr in encoded.Attributes) {
-        if( attr.Name == "address" ) {
-          _address = AddressParser.Parse(attr.FirstChild.Value);
-	}
-      }
-      //Get all the transports:
-      _tas = new ArrayList();
-      foreach(XmlNode trans in encoded.ChildNodes) {
-        if( trans.Name == "transport" ) {
-          _tas.Add(TransportAddressFactory.CreateInstance( trans.FirstChild.Value ) );
-	}
-      }
-    }
-
-    public NodeInfo(XmlReader r)
-    {
-      while( r.NodeType != XmlNodeType.Element ) {
-	//Get positioned on the next Element
-        if( !r.Read() ) {
-          //No more to get:
-          throw new ParseException("Cannot find <node />");
-	}
-      }
-      if( !CanReadTag(r.Name) ) {
-        throw new ParseException("This is not a <node />");
-      }
-      string text_add = r["address"];
-      if( text_add != null ) {
-        _address = AddressParser.Parse( text_add );
-      }
-      else {
-        _address = null;
-      }
-      _tas = new ArrayList();
-      
-      bool in_transport = false;
-      while( r.Read() ) {
-        if( r.NodeType == XmlNodeType.Element && r.Name == "transport" ) {
-          in_transport = true;
-	}
-	else if( r.NodeType == XmlNodeType.Text && in_transport ) {
-          //This must be the transport address:
-	  _tas.Add(TransportAddressFactory.CreateInstance( r.Value ) );
-	}
-	else if( r.NodeType == XmlNodeType.EndElement) {
-          if( r.Name == "transport" )
-            in_transport = false;
-	  else if( r.Name == "node" ) {
-            //This is the end of this one:
-	    break;
-	  }
-	}
-      }
-    }
-
     /**
      * @param a The Address of the node we are refering to
      * @param transports a list of TransportAddress objects
@@ -251,14 +191,6 @@ namespace Brunet
     protected int _code;
 
     /**
-     * @return true this is a node tag
-     */
-    public bool CanReadTag(string tag)
-    {
-      return (tag == "node");
-    }
-    
-    /**
      * @return true if e is equivalent to this
      */
     public override bool Equals(object e)
@@ -305,19 +237,6 @@ namespace Brunet
       return _code;
     }
 
-    /**
-     * @return a NodeInfo read from this element.
-     */
-    public IXmlAble ReadFrom(XmlElement encoded)
-    {
-      return new NodeInfo(encoded);
-    }
-    
-    public IXmlAble ReadFrom(XmlReader r)
-    {
-      return new NodeInfo(r);
-    }
-    
     protected volatile IDictionary _as_dict;
 
     public IDictionary ToDictionary()
@@ -340,41 +259,6 @@ namespace Brunet
       _as_dict = ht;
       return ht;
     }
-    
-    override public string ToString()
-    {
-      //Here is a buffer to write the connection message into :
-      MemoryStream s = new MemoryStream(2048);
-
-      XmlWriter w =
-        new XmlTextWriter(s, new System.Text.UTF8Encoding());
-      w.WriteStartDocument();
-      this.WriteTo(w);
-      w.WriteEndDocument();
-      w.Flush();
-      w.Close();
-      return System.Text.Encoding.UTF8.GetString(s.ToArray());
-    }
-    /**
-     * Write into an XmlWriter
-     */
-    public void WriteTo(System.Xml.XmlWriter w)
-    {
-      string ns = System.String.Empty;
-      w.WriteStartElement("node", ns);//<node>
-      if ( _address != null ) {
-        w.WriteStartAttribute("address", ns);
-	w.WriteString( _address.ToString());
-	w.WriteEndAttribute();
-      }
-      foreach(TransportAddress ta in Transports) {
-        w.WriteStartElement("transport",ns);
-	w.WriteString(ta.ToString());
-	w.WriteEndElement();
-      }
-      w.WriteEndElement(); //</node>
-    }
-   
   }
 
 #if BRUNET_NUNIT
@@ -403,7 +287,7 @@ namespace Brunet
       TransportAddress ta2 = TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:5000");
       NodeInfo ni = NodeInfo.CreateInstance(a, ta);
       NodeInfo ni2 = NodeInfo.CreateInstance(a2, ta2);
-      Assert.IsTrue( ni == ni2, "Reference equality of NodeInfo objects");
+      Assert.AreSame( ni, ni2, "Reference equality of NodeInfo objects");
     }
     [Test]
     public void TestWriteAndParse()
@@ -414,14 +298,6 @@ namespace Brunet
       RoundTripHT(ni);
       RoundTrip(ni);
 
-      XmlAbleTester xt = new XmlAbleTester();
-
-      NodeInfo ni2 = (NodeInfo)xt.SerializeDeserialize(ni);
-      RoundTripHT(ni2);
-      RoundTrip(ni2);
-      //Console.Error.WriteLine("n1: {0}\nn2: {1}", ni, ni2);
-      Assert.AreEqual(ni, ni2, "NodeInfo: address and 1 ta");
-      
       //Test multiple tas:
       ArrayList tas = new ArrayList();
       tas.Add(ta);
@@ -431,16 +307,10 @@ namespace Brunet
       RoundTripHT(ni3);
       RoundTrip(ni3);
       
-      ni2 = (NodeInfo)xt.SerializeDeserialize(ni3);
-      Assert.AreEqual(ni3, ni2, "NodeInfo: address and 10 tas");
-
       //Test null address:
       NodeInfo ni4 = NodeInfo.CreateInstance(null, ta);
       RoundTripHT(ni4);
       RoundTrip(ni4);
-      
-      ni2 = (NodeInfo)xt.SerializeDeserialize(ni4);
-      Assert.AreEqual(ni4, ni2, "NodeInfo: null address and 1 ta");
       
       //No TAs:
       NodeInfo ni5 = NodeInfo.CreateInstance( a );

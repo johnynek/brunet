@@ -19,7 +19,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using System;
-using System.Xml;
 using System.Collections;
 using System.Collections.Specialized;
 
@@ -42,7 +41,7 @@ namespace Brunet
    * This class is immutable
    */
 
-  public class LinkMessage:ConnectionMessage
+  public class LinkMessage
   {
 
     public LinkMessage(ConnectionType t,
@@ -85,82 +84,6 @@ namespace Brunet
         }
       }
     }
-    /**
-     * Deserializes an entire request which should contain a link element
-     */
-    public LinkMessage(System.Xml.XmlElement r) : base(r)
-    {
-
-      XmlElement link_element = (XmlElement)r.FirstChild;
-      _attributes = new StringDictionary();
-      foreach(XmlNode attr in link_element.Attributes) {
-	_attributes[ attr.Name ] = attr.FirstChild.Value;
-      }
-      //System.Console.Write("Looking in child nodes");
-      //Read the NodeInfo
-      foreach(XmlNode nodes in link_element.ChildNodes) {
-        if( nodes.Name == "local") {
-          foreach(XmlNode sub in nodes.ChildNodes) {
-            if (sub.Name == "node") {
-	      _local_ni = new NodeInfo((XmlElement)sub);
-	      //System.Console.Write("Read local");
-            }
-          }
-	}
-	else if(nodes.Name == "remote") {
-          foreach(XmlNode sub in nodes.ChildNodes) {
-            if (sub.Name == "node") {
-	      _remote_ni = new NodeInfo((XmlElement)sub);
-	      //System.Console.Write("Read Remote");
-            }
-          }
-	}
-      }
-    }
-
-    public LinkMessage(Direction dir, int id, XmlReader r)
-    {
-      if( !CanReadTag(r.Name) ) {
-        throw new ParseException("This is not a <link /> message");
-      }
-      this.Id = id;
-      this.Dir = dir;
-      //Read the attributes:
-      if( !r.MoveToFirstAttribute() ) {
-        throw new ParseException("There is no type for this <link /> message");
-      }
-      _attributes = new StringDictionary();
-      do {
-        _attributes[ r.Name ] = r.Value;
-      }
-      while( r.MoveToNextAttribute() );
-      
-      if( !_attributes.ContainsKey("type") ) {
-        throw new ParseException("There is no type for this <link /> message");
-      }
-      
-      NodeInfo tmp = null;
-      while( r.Read() ) {
-        /*
-	 * We look for the remote and local parts of the
-	 * link message:
-	 */
-	if( r.NodeType == XmlNodeType.Element && r.Name.ToLower() == "node" ) {
-          tmp = new NodeInfo(r);
-	}
-	if( r.NodeType == XmlNodeType.EndElement ) {
-          //By now, we must have read the node info
-          if( r.Name.ToLower() == "local" ) {
-            _local_ni = tmp;
-	    tmp = null;
-	  }
-	  else if( r.Name.ToLower() == "remote" ) {
-            _remote_ni = tmp;
-	    tmp = null;
-	  }
-	}
-      }
-    }
 
     /* These are attributes in the <link/> tag */
     /**
@@ -187,11 +110,6 @@ namespace Brunet
       get { return _remote_ni; } 
     }
 
-    public override bool CanReadTag(string tag)
-    {
-      return (tag == "link");
-    }
-    
     /**
      * @return true if olm is equivalent to this
      */
@@ -218,21 +136,8 @@ namespace Brunet
     }
    
     public override int GetHashCode() {
-      return base.GetHashCode() ^ ConTypeString.GetHashCode();
+      return _remote_ni.GetHashCode();
     }
-
-    public override IXmlAble ReadFrom(XmlElement el)
-    {
-      return new LinkMessage(el);
-    }
-
-    public override IXmlAble ReadFrom(XmlReader r)
-    {
-      Direction dir;
-      int id;
-      ReadStart(out dir, out id, r);
-      return new LinkMessage(dir, id, r);
-    }   
 
     public IDictionary ToDictionary() {
       IDictionary ht = new ListDictionary();
@@ -248,41 +153,6 @@ namespace Brunet
         }
       }
       return ht;
-    }
-    
-    /**
-     * Write this object into the XmlWriter w.
-     * This method may be used for serialization.
-     */
-    public override void WriteTo(XmlWriter w)
-    {
-      base.WriteTo(w);
-
-      string ns = System.String.Empty;           //Xml namespace
-      /*@throw InvalidOperationException for WriteStartElement if the WriteState
-       * is Closed.
-       */
-      w.WriteStartElement("link", ns);
-      //Write the attributes :
-      /*@throw InvalidOperationException for WriteStartAttribute if the
-       * WriteState is Closed.
-       */
-      foreach(string key in _attributes.Keys) {
-        w.WriteAttributeString( key, _attributes[key] );
-      }
-      //@throw InvalidOperationException for all the Write* below
-
-      w.WriteStartElement("local", ns); //<local>
-      _local_ni.WriteTo(w);
-      w.WriteEndElement();      //</local>
-      
-      w.WriteStartElement("remote", ns);        //<remote>
-      _remote_ni.WriteTo(w);
-      w.WriteEndElement();      //</remote>
-
-      //end of the link element :
-      w.WriteEndElement();      //</link>
-      w.WriteEndElement();      //</(request|response)>
     }
   }
 
@@ -311,14 +181,6 @@ namespace Brunet
       attrs["type"] = "structured.near";
       LinkMessage l3 = new LinkMessage(attrs, n1, n1);
       RoundTripHT(l3);
-      XmlAbleTester xt = new XmlAbleTester();
-      LinkMessage l4 = (LinkMessage)xt.SerializeDeserialize(l3);
-      RoundTripHT(l4);
-      Assert.AreEqual(l3,l4, "LinkMessage with attributes");
-      LinkMessage l2 = (LinkMessage)xt.SerializeDeserialize(l1);
-      RoundTripHT(l2);
-      //Console.Error.WriteLine("\nl1: {0}\n\nl2: {0}\n", l1, l2);
-      Assert.AreEqual(l1, l2, "LinkMessage test 1");
     }
   }
 

@@ -19,7 +19,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-using System.Xml;
 using System.Collections;
 using System.Collections.Specialized;
 #if BRUNET_NUNIT
@@ -47,7 +46,7 @@ namespace Brunet
    * @see CtmRequestHandler
    * @see Connector
    */
-  public class ConnectToMessage : ConnectionMessage
+  public class ConnectToMessage
   {
 
     /**
@@ -84,77 +83,6 @@ namespace Brunet
         }
       }
     }
-    /**
-     * Deserializes the whole <request />
-     */
-    public ConnectToMessage(System.Xml.XmlElement r) : base(r)
-    {
-      XmlElement encoded = (XmlElement)r.FirstChild;
-      //Read the attributes of the connectTo
-      foreach(XmlNode attr in((XmlElement) encoded).Attributes)
-      {
-        switch (attr.Name) {
-        case "type":
-          _ct = attr.FirstChild.Value;
-          break;
-        }
-      }
-      //Read the children
-      ArrayList neighs = new ArrayList();
-      foreach(XmlNode nodes in encoded.ChildNodes)
-      {
-        if( nodes.Name == "node" ) {
-          _target_ni = new NodeInfo((XmlElement)nodes);
-	}
-	if( nodes.Name == "neighbors" ) {
-          foreach(XmlNode neigh in nodes.ChildNodes) {
-            if( neigh.Name == "node" ) {
-              neighs.Add( new NodeInfo((XmlElement)neigh) );
-	    }
-	  }
-	}
-      }
-      _neighbors = new NodeInfo[ neighs.Count ];
-      neighs.CopyTo(_neighbors);
-    }
-    
-    public ConnectToMessage(Direction dir, int id, XmlReader r)
-    {
-      if (r.Name.ToLower() != "connectto") {
-        throw new ParseException("This is not a <connectTo /> message");
-      }
-      this.Dir = dir;
-      this.Id = id;
-      _ct = r["type"];
-      _target_ni = null;
-      
-      bool reading_neigh = false;
-      ArrayList neighbors = new ArrayList();
-      while( r.Read() ) {
-        if( r.NodeType == XmlNodeType.Element && r.Name.ToLower() == "node" ) {
-          //This is the target node info:
-	  NodeInfo tempni = new NodeInfo(r);
-	  if( reading_neigh ) {
-            neighbors.Add( tempni );
-	  }
-	  else {
-	    _target_ni = tempni;
-	  }
-	}
-	else if( r.Name.ToLower() == "neighbors" ) {
-          if( r.NodeType == XmlNodeType.Element ) {
-            //This is the start of the neighbors list
-	    reading_neigh = true; 
-	  }
-	  else if( r.NodeType == XmlNodeType.EndElement ) {
-            //This is the end
-	    reading_neigh = false;
-	  }
-	}
-      }
-      _neighbors = new NodeInfo[ neighbors.Count ];
-      neighbors.CopyTo(_neighbors);
-    }
 
     protected string _ct;
     public string ConnectionType { get { return _ct; } }
@@ -165,11 +93,7 @@ namespace Brunet
     }
     protected NodeInfo[] _neighbors;
     public NodeInfo[] Neighbors { get { return _neighbors; } }
-
-    public override bool CanReadTag(string tag)
-    {
-      return tag == "connectTo";
-    }
+    
     public override bool Equals(object o)
     {
       ConnectToMessage co = o as ConnectToMessage;
@@ -193,19 +117,7 @@ namespace Brunet
       }
     }
     override public int GetHashCode() {
-      return base.GetHashCode() ^ this.Neighbors.Length;
-    }
-    public override IXmlAble ReadFrom(XmlElement el)
-    {
-      return new ConnectToMessage(el);
-    }
-
-    public override IXmlAble ReadFrom(XmlReader r)
-    {
-      Direction dir;
-      int id;
-      ReadStart(out dir, out id, r);
-      return new ConnectToMessage(dir, id, r);
+      return Target.GetHashCode();
     }
 
     public IDictionary ToDictionary() {
@@ -220,32 +132,6 @@ namespace Brunet
       return ht;
     }
     
-    public override void WriteTo(XmlWriter w)
-    {
-      //Write the request or response and id
-      base.WriteTo(w);  //<(request|response)>
-
-      string ns = System.String.Empty;
-      //Here we write out the specific stuff :
-      w.WriteStartElement("connectTo", ns);     //<connectTo>
-      //Write the attributes :
-      w.WriteStartAttribute("type", ns);
-      w.WriteString(_ct);
-      w.WriteEndAttribute();
-      //Write the NodeInfo
-      _target_ni.WriteTo(w); 
-      if( Neighbors != null ) {
-        w.WriteStartElement("neighbors"); //<neighbors>
-	foreach(NodeInfo n in Neighbors) {
-          n.WriteTo(w);
-	}
-	w.WriteEndElement(); //</neighbors>
-      }
-      //end the connectTo element
-      w.WriteEndElement();      //</connectTo>
-      w.WriteEndElement();      //</(request|response)>
-    }
-
   }
 //Here are some Unit tests:
 #if BRUNET_NUNIT
@@ -266,12 +152,8 @@ namespace Brunet
       TransportAddress ta = TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:5000"); 
       NodeInfo ni = NodeInfo.CreateInstance(a, ta);
       ConnectToMessage ctm1 = new ConnectToMessage(ConnectionType.Unstructured, ni);
-      XmlAbleTester xt = new XmlAbleTester();
       
-      ConnectToMessage ctm1a = (ConnectToMessage)xt.SerializeDeserialize(ctm1);
-      Assert.AreEqual(ctm1, ctm1a, "CTM with 1 TA");
       HTRoundTrip(ctm1);
-      HTRoundTrip(ctm1a);
 
       //Test multiple tas:
       ArrayList tas = new ArrayList();
@@ -281,11 +163,7 @@ namespace Brunet
       NodeInfo ni2 = NodeInfo.CreateInstance(a, tas);
 
       ConnectToMessage ctm2 = new ConnectToMessage(ConnectionType.Structured, ni2);
-      
-      ConnectToMessage ctm2a = (ConnectToMessage)xt.SerializeDeserialize(ctm2);
-      Assert.AreEqual(ctm2, ctm2a, "CTM with 10 TAs");
       HTRoundTrip(ctm2);
-      HTRoundTrip(ctm2a);
       //Here is a ConnectTo message with a neighbor list:
       NodeInfo[] neighs = new NodeInfo[5];
       for(int i = 0; i < 5; i++) {
@@ -297,10 +175,7 @@ namespace Brunet
 	neighs[i] = tmp;
       }
       ConnectToMessage ctm3 = new ConnectToMessage("structured", ni, neighs);
-      ConnectToMessage ctm3a = (ConnectToMessage)xt.SerializeDeserialize(ctm3);
-      Assert.AreEqual(ctm3, ctm3a, "CTM with neighborlist");
       HTRoundTrip(ctm3);
-      HTRoundTrip(ctm3a);
 #if false
       Console.Error.WriteLine( ctm3.ToString() );
       foreach(NodeInfo tni in ctm3a.Neighbors) {
