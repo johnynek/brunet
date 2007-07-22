@@ -81,33 +81,20 @@ namespace Brunet
     protected readonly Socket _sock;
     public Socket Socket { get { return _sock; } }
     protected readonly bool inbound;
-    protected bool _is_closed;
+    protected volatile bool _is_closed;
 
-    protected bool _need_to_send;
+    protected int _need_to_send;
     protected readonly TcpEdgeListener _tel;
     public bool NeedToSend {
       get {
-        lock( _sync ) {
-          return _need_to_send;
-        }
+        return Thread.VolatileRead( ref _need_to_send ) > 0;
       }
       set {
-#if POB_TCP_DEBUG
-        Console.Error.WriteLine("In NeedToSend");
-#endif
-        bool send_event = false;
-        lock( _sync ) {
-          if( _need_to_send != value ) {
-            _need_to_send = value;
-            send_event = true;
-          }
-        }
-        //Release the lock and fire the event
-        if( send_event ) {
-#if POB_TCP_DEBUG
-          Console.Error.WriteLine("About to send event");
-#endif
-          _tel.SendStateChange(this);
+        int i_value = value ? 1 : 0;
+        int o_state = Interlocked.Exchange(ref _need_to_send, i_value);
+        if( o_state != i_value ) {
+          //The state has changed
+          _tel.SendStateChange(this, value);
         }
       }
     }
@@ -132,8 +119,8 @@ namespace Brunet
      * which are only called in the socket thread of TcpEdgeListener,
      * there is no need to lock before getting access to them.
      */
-    private readonly SendState _send_state;
-    private readonly ReceiveState _rec_state;
+    private SendState _send_state;
+    private ReceiveState _rec_state;
     private const int MAX_QUEUE_SIZE = 30;
 
     public TcpEdge(Socket s, bool is_in, TcpEdgeListener tel) {
@@ -144,8 +131,8 @@ namespace Brunet
       _last_in_packet_datetime = _last_out_packet_datetime;
       _packet_queue = new Queue(MAX_QUEUE_SIZE);
       _queued_packets = 0;
-      _need_to_send = false;
-	_tel = tel;
+      _need_to_send = 0;
+      _tel = tel;
       inbound = is_in;
       _local_ta = TransportAddressFactory.CreateInstance(TAType,
                              (IPEndPoint) _sock.LocalEndPoint);
@@ -173,8 +160,13 @@ namespace Brunet
           //Make sure to drop references to buffers
           _rec_state.Buffer = null; 
           _send_state.Buffer = null;
+          _rec_state = null;
+          _send_state = null;
+          _packet_queue.Clear();
+          _queued_packets = 0;
         }
       }
+      NeedToSend = false;
       if( shutdown ) {
         try {
           //We don't want any more data, but try
@@ -200,7 +192,7 @@ namespace Brunet
 
     public override bool IsClosed
     {
-      get { lock(_sync) { return _is_closed; } }
+      get { return _is_closed; }
     }
     public override bool IsInbound
     {
@@ -226,7 +218,6 @@ namespace Brunet
         throw new System.NullReferenceException(
            "TcpEdge.Send: argument can't be null");
       }
-
       lock( _sync ) {
 #if POB_TCP_DEBUG
         Console.Error.WriteLine("edge: {0}, Entering Send",this);
@@ -250,7 +241,8 @@ namespace Brunet
 #if POB_TCP_DEBUG
       Console.Error.WriteLine("Setting NeedToSend");
 #endif
-      NeedToSend = (Thread.VolatileRead(ref _queued_packets ) > 0);
+      //Try to empty out the packet queue
+      NeedToSend = true;
 #if POB_TCP_DEBUG
       Console.Error.WriteLine("Need to send: {0}", NeedToSend);
       Console.Error.WriteLine("edge: {0}, Leaving Send",this);
@@ -302,6 +294,11 @@ namespace Brunet
            * It's time to write into a new buffer:
            */
           int written = WritePacketsInto(buf); 
+          if( written == 0 ) {
+            NeedToSend = (Thread.VolatileRead(ref _queued_packets ) > 0);
+            //We don't seem to need to actually send now
+            return;
+          }
           int sent = _sock.Send( buf.Buffer, buf.Offset, written, SocketFlags.None);
           //Now we have sent, let's see if we have to wait to send more:
           if( sent <= 0 ) {
@@ -362,7 +359,8 @@ namespace Brunet
           NeedToSend = true;
         }
       }
-      catch {
+      catch(Exception x) {
+        Console.Error.WriteLine("DoSend caught: {0}", x);
         Close();
       }
     }
@@ -429,7 +427,8 @@ namespace Brunet
           }
         }
       }
-      catch {
+      catch(Exception /* x */) {
+        //Console.Error.WriteLine("DoReceive caught: {0}", x);
         Close();
       }
     }

@@ -41,7 +41,7 @@ namespace Brunet
     protected IPEndPoint _local_endpoint;
     protected object _sync;
     protected Thread _loop;
-    protected bool _send_edge_events;
+    protected volatile bool _send_edge_events;
     volatile protected bool _run;
 
     protected ArrayList _all_sockets;
@@ -324,19 +324,32 @@ namespace Brunet
         /*
          * Set up readsocks, errorsocks, and writesocks
          */
-        lock( _sync ) {
-          if( _all_sockets.Count > 0 ) {
-            readsocks.AddRange( _all_sockets );
-            errorsocks.AddRange( _all_sockets );
+        //Try to get the _all_sockets:
+        ArrayList all_s = Interlocked.Exchange(ref _all_sockets, null);
+        if( all_s != null ) {
+          //We got the all sockets list:
+          readsocks.AddRange( all_s );
+          errorsocks.AddRange( all_s );
+          //Put it back:
+          Interlocked.Exchange(ref _all_sockets, all_s);
+        }
+        //Try to get the _send_sockets:
+        ArrayList send_s = Interlocked.Exchange(ref _send_sockets, null);
+        if( send_s != null ) {
+          //We got the send sockets:
+          writesocks.AddRange( send_s );
+          if( all_s == null ) {
+            //We didn't get the list of all sockets, but go ahead and put
+            //the write sockets into the error list:
+            errorsocks.AddRange( send_s );
           }
-          if( _send_sockets.Count > 0 ) {
-            writesocks.AddRange( _send_sockets );
-          }
-          if( _send_edge_events ) {
-            //Also listen for incoming connections:
-            readsocks.Add(_listen_sock);
-            errorsocks.Add(_listen_sock);
-          }
+          //Put the _send_sockets back:
+          Interlocked.Exchange(ref _send_sockets, send_s);
+        }
+        if( _send_edge_events ) {
+          //Also listen for incoming connections:
+          readsocks.Add(_listen_sock);
+          errorsocks.Add(_listen_sock);
         }
         /*
          * Now we are ready to do our select and we only act on local
@@ -364,6 +377,9 @@ namespace Brunet
              * a select call is in progress.  This is not weird,
              * just ignore it
              */
+            rs = null;
+            es = null;
+            ws = null;
           }
           catch(Exception x) {
             //One of the Sockets gave us problems.  Perhaps
@@ -376,11 +392,11 @@ namespace Brunet
           }
         }
         else {
-          //Wait 10ms and try again
+          //Wait 1 ms and try again
 #if POB_DEBUG
           Console.Error.WriteLine("Waiting");
 #endif
-          Thread.Sleep(timeout_ms);
+          Thread.Sleep(1);
         }
         if( es != null ) {
           HandleErrors(es);
@@ -396,22 +412,41 @@ namespace Brunet
       /*
        * We are done, so close all the sockets
        */
+      ArrayList tmp = null;
+      do {
+        tmp = Interlocked.Exchange(ref _all_sockets, tmp);
+      } while( tmp == null );
+      ArrayList copy = new ArrayList(tmp);
+      Interlocked.Exchange(ref _all_sockets, tmp);
       
-      lock( _sync ) {
-        foreach(Socket s in _all_sockets) {
-          s.Close();
+      foreach(Socket s in copy) {
+        Edge e = (Edge)_sock_to_edge[s];
+        if( e != null ) {
+          e.Close();
         }
-        //Close the main socket:
-        _listen_sock.Close();
+        s.Close();
       }
+      //Close the main socket:
+      _listen_sock.Close();
     }
 
     protected void AddEdge(TcpEdge e) {
       Socket s = e.Socket;
+
+      ArrayList all_s = null;
+      //Acquire _all_sockets
+      do {
+        all_s = Interlocked.Exchange(ref _all_sockets, all_s);
+      } while( all_s == null );
+      all_s.Add(s);
+      //Put it back:
+      Interlocked.Exchange(ref _all_sockets, all_s);
+      
       lock( _sync ) {
-        _all_sockets.Add(s);
+        //lock before we change the Hashtable
         _sock_to_edge[s] = e;
       }
+      
       e.CloseEvent += this.CloseHandler;
       if( e.IsClosed ) { CloseHandler(e, null); }
     }
@@ -420,11 +455,31 @@ namespace Brunet
     {
       TcpEdge e = (TcpEdge)edge;
       Socket s = e.Socket;
+      //Go ahead and remove from the map.
       lock( _sync ) {
         _sock_to_edge.Remove(s);
-        _all_sockets.Remove(s);
-        _send_sockets.Remove(s);
       }
+
+      ArrayList all_s = null;
+      //Acquire _all_sockets
+      do {
+        all_s = Interlocked.Exchange(ref _all_sockets, all_s);
+      } while( all_s == null );
+      
+      ArrayList send_s = null;
+      //Acquire _all_sockets
+      do {
+        send_s = Interlocked.Exchange(ref _send_sockets, send_s);
+      } while( send_s == null );
+      //Remove from both:
+      all_s.Remove(s);
+      send_s.Remove(s);
+      /*
+       * Put them both back
+       */
+      Interlocked.Exchange(ref _all_sockets, all_s);
+      Interlocked.Exchange(ref _send_sockets, send_s);
+      //Make sure the socket is closed
       s.Close();
     }
 
@@ -498,16 +553,20 @@ namespace Brunet
      * TcpEdge objects call this method when their
      * send state changes (from true to false or vice-versa).
      */
-    public void SendStateChange(TcpEdge e)
+    public void SendStateChange(TcpEdge e, bool need_to_send)
     {
-      lock( _sync ) {
-        if( e.NeedToSend ) {
-          _send_sockets.Add(e.Socket);
-        }
-        else {
-          _send_sockets.Remove(e.Socket);
-        }
+      ArrayList send_s = null;
+      do {
+        send_s = Interlocked.Exchange(ref _send_sockets, send_s);
+      } while( send_s == null );
+      
+      if( need_to_send && !e.IsClosed ) {
+        send_s.Add(e.Socket);
       }
+      else {
+        send_s.Remove(e.Socket);
+      }
+      Interlocked.Exchange(ref _send_sockets, send_s);
     }
 
   }
