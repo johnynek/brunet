@@ -503,7 +503,8 @@ namespace Brunet
         byte[] bin_prot = new byte[ simple_rng.Next(1,4) ];
         simple_rng.NextBytes(bin_prot);
         string random_prot = Base32.Encode( bin_prot );
-        byte[] payload = new byte[ simple_rng.Next(1024) ];
+        byte[] payload = new byte[ simple_rng.Next(1,1024) ];
+        simple_rng.NextBytes(payload);
         AHPacket p = new AHPacket(hops, ttl, source, dest,
                                   options, random_prot, payload);
         AssertEqualAHPackets(p, RoundTrip(p) );
