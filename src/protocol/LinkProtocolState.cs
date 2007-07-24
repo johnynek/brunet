@@ -362,9 +362,13 @@ namespace Brunet
     public override void Start() {
       //Make sure the Node is listening to this node
       _e.Subscribe(_node, _e);
-      
+       
       /* Make the call */
       Channel results = new Channel();
+      //If the Edge closes, close the Channel
+      _e.CloseEvent += delegate(object o, EventArgs a) {
+        results.Close();
+      };
       results.CloseAfterEnqueue();
       results.CloseEvent += this.LinkCloseHandler;
       RpcManager rpc = RpcManager.GetInstance(_node);
@@ -437,6 +441,11 @@ namespace Brunet
             StatusMessage sm = _node.GetStatus(_contype, lm.Local.Address);
             /* Make the call */
             Channel results = new Channel();
+            
+            //If the Edge closes, close the Channel
+            _e.CloseEvent += delegate(object o, EventArgs a) {
+              results.Close();
+            };
             results.CloseAfterEnqueue();
             results.CloseEvent += this.StatusCloseHandler;
             RpcManager rpc = RpcManager.GetInstance(_node);
@@ -490,6 +499,7 @@ namespace Brunet
      * When we're here, we have the status message
      */
     protected void StatusCloseHandler(object q, EventArgs args) {
+      Result r;
       try {
         Channel resq = (Channel)q;
         resq.CloseEvent -= this.StatusCloseHandler;
@@ -499,12 +509,27 @@ namespace Brunet
             RpcResult res = (RpcResult)resq.Dequeue();
             StatusMessage sm = new StatusMessage((IDictionary)res.Result);
             _con = new Connection(_e, _lm_reply.Local.Address, _contype, sm, _lm_reply);
+            r = Result.Success;
           }
           else {
-            throw new Exception("No StatusMessage returned");
+            string message;
+            if( _e != null ) {
+              /*
+               * This is unexpected.  If the edge is closed, or already nulled
+               * out, nothing strange has happened.
+               */
+
+               message = String.Format(
+                           "No StatusMessage returned from open({1}) Edge: {0}",
+                           _e, !_e.IsClosed);
+            }
+            else {
+              message = "No StatusMessage returned, edge is now null";
+            }
+            throw new Exception(message);
           }
         }
-        Finish(Result.Success);
+        Finish(r);
       }
       catch(Exception x) {
         /*
