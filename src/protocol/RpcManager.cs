@@ -27,12 +27,6 @@ using System.Reflection;
 using System.Threading;
 
 namespace Brunet {
-
-/**
- * In some cases, you might want to do an asynchronous RPC invocation,
- * the simple interface (which uses .Net reflection) cannot easily support
- * this without using the threadpool.
- */
 public interface IRpcHandler {
 
   /**
@@ -215,8 +209,8 @@ public class RpcManager : IReplyHandler, IDataHandler {
 
 #if DAVID_ASYNC_INVOKE
     _rpc_command = new BlockingQueue();
-    Node.DepartureEvent += this.RpcCommandStop;
     _rpc_thread = new Thread(RpcCommandRun);
+    _rpc_thread.IsBackground = true;
     _rpc_thread.Start();
 #endif
   }
@@ -371,7 +365,7 @@ public class RpcManager : IReplyHandler, IDataHandler {
           mname = (string)info[1];
         }
       }
-      
+
       ArrayList pa = (ArrayList)l[1];
 #if DAVID_ASYNC_INVOKE
       object[] odata = new object[4];
@@ -381,11 +375,6 @@ public class RpcManager : IReplyHandler, IDataHandler {
       odata[3] = pa;
       _rpc_command.Enqueue(odata);
 #else
-      /*
-       * Invoke the method synchronously, it is not clear which is 
-       * better.  Async uses the threadpool, which can lead to performance
-       * issues.
-       */
       handler.HandleRpc(ret_path, mname, pa, ret_path);
 #endif
     }
@@ -503,8 +492,7 @@ public class RpcManager : IReplyHandler, IDataHandler {
   
 #if DAVID_ASYNC_INVOKE
   protected void RpcCommandRun() {
-    bool run = true;
-    while(run) {
+    while(true) {
       try {
         object[] data = (object[]) _rpc_command.Dequeue();
         IRpcHandler handler = (IRpcHandler) data[0];
@@ -514,19 +502,11 @@ public class RpcManager : IReplyHandler, IDataHandler {
         handler.HandleRpc(ret_path, methname, param_list, ret_path);
       }
       catch (Exception x) {
-        if(_rpc_command.Closed) {
-          run = false;
-        }
-        else {
-          Console.Error.WriteLine("Exception in RpcCommandRun: {0}", x);
-        }
+        Console.Error.WriteLine("Exception in RpcCommandRun: {0}", x);
       }
     }
   }
 
-  protected void RpcCommandStop(Object o, EventArgs args) {
-    this._rpc_command.Close();
-  }
 #endif
   /**
    * This is used to send a result from an IRpcHandler

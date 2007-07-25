@@ -24,5 +24,23 @@
         <include name="${build.dir}/Brunet.Dht.dll" />
       </references>
     </csc>
+    <csc target="exe" output="${build.dir}/SystemTester.exe">
+      <sources failonempty="true">
+        <include name="SystemTester.cs"/>
+      </sources>
+      <references>
+        <include name="${build.dir}/Brunet.dll"/>
+        <include name="${build.dir}/Brunet.Dht.dll" />
+      </references>
+    </csc>
+    <csc target="exe" output="${build.dir}/ChurnTester.exe">
+      <sources failonempty="true">
+        <include name="ChurnTester.cs"/>
+      </sources>
+      <references>
+        <include name="${build.dir}/Brunet.dll"/>
+        <include name="${build.dir}/Brunet.Dht.dll" />
+      </references>
+    </csc>
   </target>
 </project>

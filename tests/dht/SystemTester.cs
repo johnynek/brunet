@@ -9,13 +9,14 @@ using Brunet.Dht;
 
 namespace Brunet.Dht {
   public class DhtOpTester {
-     SortedList nodes = new SortedList();
+    SortedList nodes = new SortedList();
     Dht []dhts;
     static readonly int degree = 3;
     static int network_size = 60;
     static readonly string brunet_namespace = "testing";
-    static readonly int base_port = 55123;
+    static readonly int base_port = 51123;
     static readonly int value_size = 500;
+    static readonly int missing_edges_count = network_size / 8;
     // Well this is needed because C# doesn't lock the console
     private object _lock = new object();
 
@@ -256,13 +257,26 @@ namespace Brunet.Dht {
         RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.udp://localhost:" + (base_port + i)));
       }
 
+      Random rand = new Random();
       for(int i = 0; i < network_size; i++) {
-        Address addr = (Address) new AHAddress(new RNGCryptoServiceProvider());
-        Node node = new StructuredNode((AHAddress) addr, brunet_namespace);
-        nodes.Add(addr, node);
-        node.AddEdgeListener(new UdpEdgeListener(base_port + i));
+        AHAddress address = new AHAddress(new RNGCryptoServiceProvider());
+        Node node = new StructuredNode(address, brunet_namespace);
+        ArrayList arr_tas = new ArrayList();
+        for(int j = 0; j < missing_edges_count; j++) {
+          int remote_port = 0;
+          do {
+            remote_port = rand.Next(0, network_size - 1) + base_port;
+          } while(remote_port == base_port + i);
+          PortTAAuthorizer port_auth = new PortTAAuthorizer(remote_port);
+          arr_tas.Add(port_auth);
+        }
+        arr_tas.Add(new ConstantAuthorizer(TAAuthorizer.Decision.Allow));
+        TAAuthorizer ta_auth = new SeriesTAAuthorizer(arr_tas);
+        node.AddEdgeListener(new UdpEdgeListener(base_port + i, null, ta_auth));
+        node.AddEdgeListener(new TunnelEdgeListener(node));
         node.RemoteTAs = RemoteTA;
         node.Connect();
+        nodes.Add((Address) address, node);
         dhts[i] = new Dht(node, degree);
         if(i < network_size / dhts[i].DEGREE) {
           dhts[i].debug = true;
@@ -391,6 +405,7 @@ namespace Brunet.Dht {
       Console.WriteLine("Test 0: Testing 1 put and 1 get");
       rng.GetBytes(key);
       rng.GetBytes(value);
+
       this.SerialPut(key, value, 3000, 0, true, op++);
       Console.WriteLine("Insertion done...");
       results[0] = value;
@@ -872,12 +887,19 @@ namespace Brunet.Dht {
       }*/
     }
 
-    public static void Main() {
+    public static void Main(string []args) {
       DhtOpTester dot = new DhtOpTester();
       dot.Init();
       do  { Thread.Sleep(5000);}
       while(!dot.CheckAllConnections());
-      dot.SystemTest();
+      int count = 1, completed = 0;
+      if(args.Length > 0) {
+        count = Int32.Parse(args[0]);
+      }
+
+      Console.WriteLine(completed + " " + count);
+      while(completed++ < count)
+        dot.SystemTest();
       dot.Shutdown();
       return;
     }
