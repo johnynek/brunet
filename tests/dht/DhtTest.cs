@@ -175,11 +175,7 @@ namespace Brunet.Dht {
           }
           if(found) {
             found_count++;
-            Console.WriteLine("Found result {0} / {1}", found_count, expected_results.Length);
             found =  false;
-          }
-          else {
-            Console.WriteLine("Not found result {0} / {1}", found_count, expected_results.Length);
           }
         }
         if(found_count != expected_results.Length) {
@@ -360,6 +356,7 @@ namespace Brunet.Dht {
       int op = 0;
       try {
         Console.WriteLine("The following are serial tests until mentioned otherwise.");
+        DateTime start = DateTime.UtcNow;
         Test0(ref op);
         Test1(ref op);
         Test2(ref op);
@@ -375,6 +372,8 @@ namespace Brunet.Dht {
         Test12(ref op);
         Test13(ref op);
         Test14(ref op);
+        Console.WriteLine("Total memory: " + GC.GetTotalMemory(true));
+        Console.WriteLine("Total time: " + (DateTime.UtcNow - start));
       }
       catch (Exception e) {
         Console.WriteLine("Failure at operation: " + (op - 1));
@@ -391,7 +390,6 @@ namespace Brunet.Dht {
 
       Console.WriteLine("Test 0: Testing 1 put and 1 get");
       rng.GetBytes(key);
-      rng.GetBytes(value);
       rng.GetBytes(value);
       this.SerialPut(key, value, 3000, 0, true, op++);
       Console.WriteLine("Insertion done...");
@@ -864,14 +862,14 @@ namespace Brunet.Dht {
       Console.WriteLine("This checks to make sure our follow up Puts succeeded");
       this.SerialAsGet(key, node_to_use, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
-      for(int i = 0; i < network_size + not_to_use.Length; i++) {
+/*      for(int i = 0; i < network_size + not_to_use.Length; i++) {
         for(int j = 0; j < not_to_use.Length; j++ ) {
           if(not_to_use[j] == i) {
             continue;
           }
         }
         Console.WriteLine("Count ... " + i + ":" + dhts[i].Count);
-      }
+      }*/
     }
 
     public static void Main() {
