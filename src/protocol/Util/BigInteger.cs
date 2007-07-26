@@ -1065,14 +1065,20 @@ namespace Brunet
 
     public static bool operator !=(BigInteger bi1, BigInteger bi2)
     {
+      //Make sure to handle Null cases correctly:
+      if( System.Object.ReferenceEquals(bi1, bi2) ) { return false; }
+      if( ((object)bi1 == null) || ((object)bi2 == null) ) { return true; }
       return !(bi1.Equals(bi2));
     }
 
 
     public override bool Equals(object o)
     {
-      BigInteger bi = (BigInteger) o;
-
+      if( System.Object.ReferenceEquals(this, o) ) {
+        return true;
+      }
+      BigInteger bi = o as BigInteger;
+      if( Object.ReferenceEquals(bi,null) ) { return false; }
       if (this.dataLength != bi.dataLength)
         return false;
 

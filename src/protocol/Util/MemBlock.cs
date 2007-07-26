@@ -258,6 +258,10 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
   }
   
   public override bool Equals(object a) {
+    if (a == null) {
+      //If the other is null, clearly it's not equal to a non-null
+      return false;
+    }
     if (this == a) {
       //Clearly we are the Equal to ourselves
       return true;
