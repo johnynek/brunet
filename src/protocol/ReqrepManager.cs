@@ -227,13 +227,6 @@ public class ReqrepManager : IDataHandler {
          catch { /* If this doesn't work, oh well */ }
        }
      }
-     /**
-      * When the reply is acknowledged, clear the reply so it
-      * can be garbage collected
-      */
-     public void ClearReply() {
-       Reply = null;
-     }
    }
    /**
     * We use these to lookup requests in the reply
@@ -560,7 +553,7 @@ public class ReqrepManager : IDataHandler {
     catch {
       //Clean up:
       StopRequest(rs.RequestID, reply);
-      throw new Exception("Couldn't start request");
+      throw;
     }
   }
 

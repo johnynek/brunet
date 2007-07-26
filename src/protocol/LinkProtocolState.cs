@@ -365,10 +365,6 @@ namespace Brunet
        
       /* Make the call */
       Channel results = new Channel();
-      //If the Edge closes, close the Channel
-      _e.CloseEvent += delegate(object o, EventArgs a) {
-        results.Close();
-      };
       results.CloseAfterEnqueue();
       results.CloseEvent += this.LinkCloseHandler;
       RpcManager rpc = RpcManager.GetInstance(_node);
@@ -441,11 +437,6 @@ namespace Brunet
             StatusMessage sm = _node.GetStatus(_contype, lm.Local.Address);
             /* Make the call */
             Channel results = new Channel();
-            
-            //If the Edge closes, close the Channel
-            _e.CloseEvent += delegate(object o, EventArgs a) {
-              results.Close();
-            };
             results.CloseAfterEnqueue();
             results.CloseEvent += this.StatusCloseHandler;
             RpcManager rpc = RpcManager.GetInstance(_node);
