@@ -88,7 +88,9 @@ namespace Brunet {
     }
 
     override public bool Equals(Object other ) {
-      NodeRankInformation other1 = (NodeRankInformation) other;
+      if( Object.ReferenceEquals(other, this) ) { return true; }
+      NodeRankInformation other1 =  other as NodeRankInformation;
+      if( Object.ReferenceEquals(other1, null) ) { return false; }
       if (_addr.Equals(other1.Addr)) {
 	//Console.Error.WriteLine("equal ranks");
 	return true;

@@ -146,10 +146,10 @@ namespace Brunet {
       sb.Append(t + ": ");
       foreach(object o in l) {
         if( o is IDictionary ) {
-          sb.Append( ToString("", (IDictionary)o) );
+          sb.Append( ToString(String.Empty, (IDictionary)o) );
         }
         else if (o is IList ) {
-          sb.Append( ToString("", (IList)o) );
+          sb.Append( ToString(String.Empty, (IList)o) );
         }
         else {
           sb.Append(o.ToString() + ", ");
