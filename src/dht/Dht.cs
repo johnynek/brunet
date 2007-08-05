@@ -17,7 +17,7 @@ namespace Brunet.Dht {
     private RpcManager _rpc;
     public Node node = null;
     public bool Activated { get { return _table.Activated; } }
-    public bool debug { 
+    public bool debug {
       get { return _table.debug ; }
       set { _table.debug = value; }
     }
@@ -107,16 +107,16 @@ namespace Brunet.Dht {
     /* Below are all the Create methods, they rely on a unique put   *
      * this returns true if it succeeded or an exception if it didn't */
 
-    public void AsCreate(MemBlock key, MemBlock value, int ttl, BlockingQueue returns) {
+    public void AsCreate(MemBlock key, MemBlock value, int ttl, Channel returns) {
       AsPut(key, value, ttl, returns, true);
     }
 
-    public void AsCreate(string key, MemBlock value, int ttl, BlockingQueue returns) {
+    public void AsCreate(string key, MemBlock value, int ttl, Channel returns) {
       MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
       AsCreate(keyb, value, ttl, returns);
     }
 
-    public void AsCreate(string key, string value, int ttl, BlockingQueue returns) {
+    public void AsCreate(string key, string value, int ttl, Channel returns) {
       MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
       MemBlock valueb = MemBlock.Reference(Encoding.UTF8.GetBytes(value));
       AsCreate(keyb, valueb, ttl, returns);
@@ -139,7 +139,7 @@ namespace Brunet.Dht {
 
     /* Below are all the Get methods */
 
-    public void AsGet(string key, BlockingQueue returns) {
+    public void AsGet(string key, Channel returns) {
       MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
       AsGet(keyb, returns);
     }
@@ -169,7 +169,7 @@ namespace Brunet.Dht {
 
     /*  This is the get that does all the work, it is meant to be
      *   run as a thread */
-    public void AsGet(MemBlock key, BlockingQueue returns) {
+    public void AsGet(MemBlock key, Channel returns) {
       if (!Activated) {
         throw new DhtException("DhtClient: Not yet activated.");
       }
@@ -186,7 +186,7 @@ namespace Brunet.Dht {
         }
       }
 
-      // Setting up our BlockingQueues
+      // Setting up our Channels
       lock(adgs) {
         for (int k = 0; k < DEGREE; k++) {
           Channel queue = q[k];
@@ -206,7 +206,7 @@ namespace Brunet.Dht {
       }
     }
 
-    /* Here we receive a BlockingQueue, use it to look up our state, process the results,
+    /* Here we receive a Channel, use it to look up our state, process the results,
      * and update our state as necessary
      */
 
@@ -328,6 +328,9 @@ namespace Brunet.Dht {
     */
     private void GetLeaveEarly(AsDhtGetState adgs) {
       int left = adgs.queueMapping.Count;
+#if DHT_DEBUG
+Console.Error.WriteLine("DHT_DEBUG:::GetLeaveEarly left:total = {0}:{1}", left, DEGREE);
+#endif
       // Maybe we can leave early
       bool got_all_values = true;
       lock(adgs.results) {
@@ -355,16 +358,24 @@ namespace Brunet.Dht {
 
         Hashtable res = (Hashtable) de.Value;
         if(res.Count < MAJORITY || res.Count == DEGREE) {
+          if(res.Count < MAJORITY) {
+#if DHT_DEBUG
+Console.Error.WriteLine("DHT_DEBUG:::Failed get count:total = {0}:{1}", res.Count, DEGREE);
+#endif
+          }
           res.Clear();
           continue;
         }
         MemBlock value = (MemBlock) de.Key;
 
         int ttl = (int) adgs.ttls[value];
+#if DHT_DEBUG
+Console.Error.WriteLine("DHT_DEBUG:::Doing follow up put count:total = {0}:{1}:{2}", res.Count, DEGREE);
+#endif
         for(int i = 0; i < DEGREE; i++) {
           if(!res.Contains(i)) {
             MemBlock key = adgs.brunet_address_for_key[i];
-            BlockingQueue queue = new BlockingQueue();
+            Channel queue = new Channel();
             Address target = new AHAddress(key);
             AHSender s = new AHSender(_rpc.Node, target, AHPacket.AHOptions.Greedy);
             try {
@@ -381,16 +392,16 @@ namespace Brunet.Dht {
 
     /** Below are all the Put methods, they use a non-unique put */
 
-    public void AsPut(MemBlock key, MemBlock value, int ttl, BlockingQueue returns) {
+    public void AsPut(MemBlock key, MemBlock value, int ttl, Channel returns) {
       AsPut(key, value, ttl, returns, false);
     }
 
-    public void AsPut(string key, MemBlock value, int ttl, BlockingQueue returns) {
+    public void AsPut(string key, MemBlock value, int ttl, Channel returns) {
       MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
       AsPut(keyb, value, ttl, returns);
     }
 
-    public void AsPut(string key, string value, int ttl, BlockingQueue returns) {
+    public void AsPut(string key, string value, int ttl, Channel returns) {
       MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
       MemBlock valueb = MemBlock.Reference(Encoding.UTF8.GetBytes(value));
       AsPut(keyb, valueb, ttl, returns);
@@ -420,7 +431,7 @@ namespace Brunet.Dht {
       return (bool) returns.Dequeue();
     }
 
-    public void AsPut(MemBlock key, MemBlock value, int ttl, BlockingQueue returns, bool unique) {
+    public void AsPut(MemBlock key, MemBlock value, int ttl, Channel returns, bool unique) {
       if (!Activated) {
         throw new DhtException("DhtClient: Not yet activated.");
       }
@@ -454,7 +465,7 @@ namespace Brunet.Dht {
       }
     }
 
-    /* We receive an BlockingQueue use it to map to our state and update the 
+    /* We receive an Channel use it to map to our state and update the 
      * necessary, we'll get this even after a user has received his value, so
      * that we can ensure all places in the ring actually get the data.  Should
      * timeout after 5 minutes though!
@@ -520,12 +531,16 @@ namespace Brunet.Dht {
         count = adps.queueMapping.Count;
       }
       if(count == 0) {
-        adps.pcount = null;
-        adps.ncount = null;
         if(!adps.returns.Closed) {
           adps.returns.Enqueue(false);
           adps.returns.Close();
         }
+#if DHT_DEBUG
+if((int) adps.pcount < MAJORITY)
+  Console.Error.WriteLine("DHT_DEBUG:::Failed a put pcount:ncount:total = {0}:{1}:{2}", adps.pcount, adps.ncount, DEGREE);
+#endif
+        adps.pcount = null;
+        adps.ncount = null;
       }
       return;
     }
@@ -556,9 +571,9 @@ namespace Brunet.Dht {
     protected class AsDhtPutState {
       public Hashtable queueMapping = new Hashtable();
       public object pcount = 0, ncount = 0;
-      public BlockingQueue returns;
+      public Channel returns;
 
-      public AsDhtPutState(BlockingQueue returns) {
+      public AsDhtPutState(Channel returns) {
         this.returns = returns;
       }
     }
@@ -568,10 +583,10 @@ namespace Brunet.Dht {
       public Hashtable ttls = new Hashtable();
       public Hashtable queueMapping = new Hashtable();
       public Hashtable results = new Hashtable();
-      public BlockingQueue returns;
+      public Channel returns;
       public MemBlock[] brunet_address_for_key;
 
-      public AsDhtGetState(BlockingQueue returns) {
+      public AsDhtGetState(Channel returns) {
         this.returns = returns;
       }
     }
