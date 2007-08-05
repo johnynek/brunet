@@ -486,6 +486,9 @@ namespace Brunet.Dht {
           queue.Dequeue();
         }
         catch (Exception){
+#if DHT_DEBUG
+Console.Error.WriteLine("DHT_DEBUG:::Transfer failed");
+#endif
           if(_con.Edge.IsClosed) {
             lock(_interrupted) {
               _interrupted = true;
