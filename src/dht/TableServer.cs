@@ -485,18 +485,16 @@ namespace Brunet.Dht {
         try {
           queue.Dequeue();
         }
-        catch (Exception e){
+        catch (Exception){
+#if DHT_DEBUG
+Console.Error.WriteLine("DHT_DEBUG:::Transfer failed");
+#endif
           if(_con.Edge.IsClosed) {
             lock(_interrupted) {
               _interrupted = true;
             }
             Done();
             return;
-          }
-          else {
-            Console.Error.WriteLine("Channel Exception: Cases include" +
-              "that an edge may be closed but we may not no of it or that the"
-              + " timeouts are too low.  This occurred on {0} \n\t {1}", _con.Edge, e);
           }
         }
 

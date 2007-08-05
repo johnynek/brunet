@@ -1,149 +1,49 @@
 <?xml version="1.0"?>
 
-<project
-  name="Brunet"
-  default="build">
+<project name="Brunet" default="build">
+  <description> Builds Brunet.Dht.dll </description>
+  <property name="build.dir" value="build"/>
+  <property name="lib.dir" value="../../lib"/>
 
-  <!-- determine whether the build environment
-       has been already configured -->
-  <ifnot test="${property::exists('configured')}">
-    <property
-      name="configured"
-      value="false"/>
-  </ifnot>
-
-  <!-- default configuration -->
-  <property
-    name="assembly"
-    value="Brunet.Dht"/>
-  <property
-    name="package.name"
-    value="${nant.project.name}"
-    unless="${configured}"/>
-  <property
-    name="build.dir"
-    value="${nant.project.basedir}/build"
-    unless="${configured}"/>
-  <property
-    name="lib.dir"
-    value="../../lib"
-    unless="${configured}"/>
-  <property
-    name="project.config"
-    value="debug"
-    unless="${configured}"/>
-
-  <!-- named configurations -->
-  <target
-    name="init"
-    description="Initializes build properties">
-    <call target="${project.config}"/>
-  </target>
-
-  <target
-    name="debug"
-    description="Configures a debug build">
-    <property
-      name="project.config"
-      value="debug"
-      unless="${configured}"/>
-    <property
-      name="build.debug"
-      value="true"
-      unless="${configured}"/>
-    <property
-      name="package.name"
-      value="${nant.project.name}-${project.config}"
-      unless="${configured}"/>
-  </target>
-
-  <target
-    name="release"
-    description="Configures a release build">
-    <property
-      name="project.config"
-      value="release"
-      unless="${configured}"/>
-    <property
-      name="build.debug"
-      value="false"
-      unless="${configured}"/>
-  </target>
-
-  <target
-    name="build"
-    depends="init"
-    description="Builds the current configuration">
-
-    <!-- copy libraries -->
-    <copy todir="${build.dir}/${package.name}/bin">
+  <target name="debug" description="Configures a debug build">
+    <copy todir="${build.dir}">
        <fileset basedir="${lib.dir}">
-          <!--include name="log4net.dll" /-->
           <include name="Brunet.dll" />
-          <include name="logconfig.xml" />
        </fileset>
     </copy>
-
-    <csc
-      target="library"
-      debug="${build.debug}"
-      define=""
-      output="${build.dir}/${package.name}/bin/Brunet.Dht.dll">
-      doc="${build.dir}/${package.name}/bin/${assembly}.xml">
+    <csc target="library" define="DHT_DEBUG" output="${build.dir}/Brunet.Dht.dll">
       <sources failonempty="true">
         <include name="*.cs"/>
       </sources>
       <references>
-        <!--include name="${build.dir}/${package.name}/bin/${assembly}.dll" /-->
-        <include name="${build.dir}/${package.name}/bin/log4net.dll" />
-        <include name="${build.dir}/${package.name}/bin/Brunet.dll" />
+        <include name="${build.dir}/Brunet.dll" />
       </references>
     </csc>
-    <!-- finally copy the newly compiled library to the lib directory  -->
     <copy todir="${lib.dir}">
-      <fileset basedir="${build.dir}/${package.name}/bin">
-           <include name="${build.dir}/${package.name}/bin/${assembly}.dll" />
+      <fileset basedir="${build.dir}">
+           <include name="Brunet.Dht.dll" />
       </fileset>
     </copy>
   </target>
 
-  <!--Added by jx-->
-  <target
-      name="test"
-      depends="init"
-      description="Builds the current configuration">
-    <echo message="Making a NUnit2 testable build" />
-    <mkdir
-      dir="${build.dir}/${package.name}/bin"
-      failonerror="false"/>
-
-    <!-- copy libraries -->
-    <copy todir="${build.dir}/${package.name}/bin">
-      <fileset basedir="${lib.dir}">
-        <include name="NUnit.Framework.dll" />
-      </fileset>
+  <target name="build" description="Builds Brunet.Dht.dll for release">
+    <copy todir="${build.dir}">
+       <fileset basedir="${lib.dir}">
+          <include name="Brunet.dll" />
+       </fileset>
     </copy>
-
-    <csc
-      target="library"
-      debug="${build.debug}"
-      define="BRUNET_NUNIT"
-      output="${build.dir}/${package.name}/bin/${assembly}.dll">
+    <csc target="library" define="" output="${build.dir}/Brunet.Dht.dll">
       <sources failonempty="true">
         <include name="*.cs"/>
       </sources>
       <references>
-        <include name="${lib.dir}/Brunet.dll" />
-        <include name="${lib.dir}/NUnit.Framework.dll" />
+        <include name="${build.dir}/Brunet.dll" />
       </references>
     </csc>
-
-    <!-- finally copy the newly compiled library to the lib directory  -->
     <copy todir="${lib.dir}">
-      <fileset basedir="${build.dir}/${package.name}/bin">
-        <include name="${build.dir}/${package.name}/bin/${assembly}.dll" />
+      <fileset basedir="${build.dir}">
+           <include name="Brunet.Dht.dll" />
       </fileset>
     </copy>
   </target>
-  <!--End added-->
 </project>

@@ -9,8 +9,9 @@ using Brunet.Dht;
 
 namespace Brunet.Dht {
   public class DhtOpTester {
-     SortedList nodes = new SortedList();
-    Dht []dhts;
+    SortedList nodes = new SortedList();
+    SortedList dhts = new SortedList();
+    Dht default_dht;
     static readonly int degree = 3;
     static int network_size = 60;
     static readonly string brunet_namespace = "testing";
@@ -20,7 +21,7 @@ namespace Brunet.Dht {
     private object _lock = new object();
 
     public void ParallelCreate(byte[][] key, byte[][] value, int[] ttl,
-                            int[] index, bool[] expected_result, ref int op) {
+                            bool[] expected_result, ref int op) {
       ArrayList threadlist = new ArrayList();
       for (int i = 0; i < key.Length; i++) {
         Hashtable ht = new Hashtable();
@@ -28,7 +29,6 @@ namespace Brunet.Dht {
         ht.Add("value", value[i]);
 
         ht.Add("ttl", ttl[i]);
-        ht.Add("index", index[i]);
         ht.Add("result", expected_result[i]);
         ht.Add("op", op++);
         Thread thread = new Thread(SerialCreate);
@@ -41,12 +41,11 @@ namespace Brunet.Dht {
     }
 
     public void SerialCreate(byte[] key, byte[] value, int ttl,
-                            int index, bool expected_result, int op) {
+                            bool expected_result, int op) {
       Hashtable ht = new Hashtable();
       ht.Add("key", key);
       ht.Add("value", value);
       ht.Add("ttl", ttl);
-      ht.Add("index", index);
       ht.Add("result", expected_result);
       ht.Add("op", op);
       SerialCreate((object) ht);
@@ -57,10 +56,9 @@ namespace Brunet.Dht {
       byte[] key = (byte[]) ht["key"];
       byte[] value = (byte[]) ht["value"];
       int ttl = (int) ht["ttl"];
-      int index = (int) ht["index"];
       int op = (int) ht["op"];
       bool expected_result = (bool) ht["result"];
-      bool result = dhts[index].Create(key, value, ttl);
+      bool result = default_dht.Create(key, value, ttl);
       if(result != expected_result) {
         if(!result) {
           lock(_lock) {
@@ -75,13 +73,12 @@ namespace Brunet.Dht {
       }
     }
 
-    public void ParallelGet(byte [][] key, int[] index, byte[][][] result,
+    public void ParallelGet(byte [][] key, byte[][][] result,
                             ref int op) {
       ArrayList threadlist = new ArrayList();
       for (int i = 0; i < key.Length; i++) {
         Hashtable ht = new Hashtable();
         ht.Add("key", key[i]);
-        ht.Add("index", index[i]);
         ht.Add("results", result[i]);
         ht.Add("op", op++);
         Thread thread = new Thread(SerialGet);
@@ -93,10 +90,9 @@ namespace Brunet.Dht {
       }
     }
 
-    public void SerialGet(byte[] key, int index, byte[][] results, int op) {
+    public void SerialGet(byte[] key, byte[][] results, int op) {
       Hashtable ht = new Hashtable();
       ht.Add("key", key);
-      ht.Add("index", index);
       ht.Add("results", results);
       ht.Add("op", op);
       SerialGet((object) ht);
@@ -105,11 +101,10 @@ namespace Brunet.Dht {
     public void SerialGet(object data) {
       Hashtable ht = (Hashtable) data;
       byte[] key = (byte[]) ht["key"];
-      int index = (int) ht["index"];
       byte[][] expected_results = (byte[][]) ht["results"];
       int op = (int) ht["op"];
       try {
-        DhtGetResult[] result = dhts[index].Get(key);
+        DhtGetResult[] result = default_dht.Get(key);
         bool found = false;
         int found_count = 0;
         for(int i = 0; i < result.Length; i++) {
@@ -139,10 +134,9 @@ namespace Brunet.Dht {
       }
     }
 
-    public void SerialAsGet(byte[] key, int index, byte[][] results, int op) {
+    public void SerialAsGet(byte[] key, byte[][] results, int op) {
       Hashtable ht = new Hashtable();
       ht.Add("key", key);
-      ht.Add("index", index);
       ht.Add("results", results);
       ht.Add("op", op);
       SerialAsGet((object) ht);
@@ -151,12 +145,11 @@ namespace Brunet.Dht {
     public void SerialAsGet(object data) {
       Hashtable ht = (Hashtable) data;
       byte[] key = (byte[]) ht["key"];
-      int index = (int) ht["index"];
       byte[][] expected_results = (byte[][]) ht["results"];
       int op = (int) ht["op"];
       try {
         BlockingQueue queue = new BlockingQueue();
-        dhts[index].AsGet(key, queue);
+        default_dht.AsGet(key, queue);
         bool found = false;
         int found_count = 0;
         while(true) {
@@ -175,11 +168,7 @@ namespace Brunet.Dht {
           }
           if(found) {
             found_count++;
-            Console.WriteLine("Found result {0} / {1}", found_count, expected_results.Length);
             found =  false;
-          }
-          else {
-            Console.WriteLine("Not found result {0} / {1}", found_count, expected_results.Length);
           }
         }
         if(found_count != expected_results.Length) {
@@ -198,14 +187,13 @@ namespace Brunet.Dht {
     }
 
     public void ParallelPut(byte[][] key, byte[][] value, int[] ttl,
-                            int[] index, bool[] expected_result, ref int op) {
+                            bool[] expected_result, ref int op) {
       ArrayList threadlist = new ArrayList();
       for (int i = 0; i < key.Length; i++) {
         Hashtable ht = new Hashtable();
         ht.Add("key", key[i]);
         ht.Add("value", value[i]);
         ht.Add("ttl", ttl[i]);
-        ht.Add("index", index[i]);
         ht.Add("result", expected_result[i]);
         ht.Add("op", op++);
         Thread thread = new Thread(SerialPut);
@@ -218,12 +206,11 @@ namespace Brunet.Dht {
     }
 
     public void SerialPut(byte[] key, byte[] value, int ttl,
-                            int index, bool expected_result, int op) {
+                            bool expected_result, int op) {
       Hashtable ht = new Hashtable();
       ht.Add("key", key);
       ht.Add("value", value);
       ht.Add("ttl", ttl);
-      ht.Add("index", index);
       ht.Add("result", expected_result);
       ht.Add("op", op);
       SerialPut((object) ht);
@@ -234,10 +221,9 @@ namespace Brunet.Dht {
       byte[] key = (byte[]) ht["key"];
       byte[] value = (byte[]) ht["value"];
       int ttl = (int) ht["ttl"];
-      int index = (int) ht["index"];
       bool expected_result = (bool) ht["result"];
       int op = (int) ht["op"];
-      bool result = dhts[index].Put(key, value, ttl);
+      bool result = default_dht.Put(key, value, ttl);
       if(result != expected_result) {
         if(!result) {
           lock(_lock) {
@@ -254,7 +240,6 @@ namespace Brunet.Dht {
 
     public void Init() {
       Console.WriteLine("Initializing...");
-      dhts = new Dht[network_size];
       ArrayList RemoteTA = new ArrayList();
       for(int i = 0; i < network_size; i++) {
         RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.udp://localhost:" + (base_port + i)));
@@ -267,11 +252,12 @@ namespace Brunet.Dht {
         node.AddEdgeListener(new UdpEdgeListener(base_port + i));
         node.RemoteTAs = RemoteTA;
         node.Connect();
-        dhts[i] = new Dht(node, degree);
-        if(i < network_size / dhts[i].DEGREE) {
-          dhts[i].debug = true;
+        dhts.Add(addr, new Dht(node, degree));
+        if(i < network_size / ((Dht)dhts.GetByIndex(i)).DEGREE) {
+          ((Dht)dhts.GetByIndex(i)).debug = true;
         }
       }
+      default_dht = (Dht) dhts.GetByIndex(0);
     }
 
     // Checks the ring for completeness
@@ -360,7 +346,8 @@ namespace Brunet.Dht {
       int op = 0;
       try {
         Console.WriteLine("The following are serial tests until mentioned otherwise.");
-        Test0(ref op);
+        DateTime start = DateTime.UtcNow;
+/*        Test0(ref op);
         Test1(ref op);
         Test2(ref op);
         Test3(ref op);
@@ -373,8 +360,10 @@ namespace Brunet.Dht {
         Test10(ref op);
         Test11(ref op);
         Test12(ref op);
-        Test13(ref op);
+        Test13(ref op);*/
         Test14(ref op);
+        Console.WriteLine("Total memory: " + GC.GetTotalMemory(true));
+        Console.WriteLine("Total time: " + (DateTime.UtcNow - start));
       }
       catch (Exception e) {
         Console.WriteLine("Failure at operation: " + (op - 1));
@@ -392,11 +381,10 @@ namespace Brunet.Dht {
       Console.WriteLine("Test 0: Testing 1 put and 1 get");
       rng.GetBytes(key);
       rng.GetBytes(value);
-      rng.GetBytes(value);
-      this.SerialPut(key, value, 3000, 0, true, op++);
+      this.SerialPut(key, value, 3000, true, op++);
       Console.WriteLine("Insertion done...");
       results[0] = value;
-      this.SerialGet(key, 0, results, op++);
+      this.SerialGet(key, results, op++);
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
     }
 
@@ -411,11 +399,11 @@ namespace Brunet.Dht {
       for(int i = 0; i < 10; i++) {
         rng.GetBytes(key);
         rng.GetBytes(value);
-        this.SerialPut(key, value, 3000, 0, true, op++);
+        this.SerialPut(key, value, 3000, true, op++);
         Console.WriteLine("Insertion done...");
         results = new byte[1][];
         results[0] = value;
-        this.SerialGet(key, 0, results, op++);
+        this.SerialGet(key, results, op++);
       }
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
     }
@@ -431,10 +419,10 @@ namespace Brunet.Dht {
       for(int i = 0; i < 10; i++) {
         value = new byte[value_size];
         rng.GetBytes(value);
-        this.SerialPut(key, value, 3000, 0, true, op++);
+        this.SerialPut(key, value, 3000, true, op++);
         al_results.Add(value);
         Console.WriteLine("Insertion done...");
-        this.SerialGet(key, 0, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
+        this.SerialGet(key, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
       }
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
     }
@@ -454,7 +442,7 @@ namespace Brunet.Dht {
         rng.GetBytes(value);
         al_results.Add(value);
         results_queue[i] = new BlockingQueue();
-        dhts[0].AsPut(key, value, 3000, results_queue[i]);
+        default_dht.AsPut(key, value, 3000, results_queue[i]);
       }
       for (int i = 0; i < 60; i++) {
         bool result = (bool) results_queue[i].Dequeue();
@@ -466,10 +454,10 @@ namespace Brunet.Dht {
         }
       }
       Console.WriteLine("Insertion done...");
-      this.SerialAsGet(key, 0, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
+      this.SerialAsGet(key, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
       Thread.Sleep(5000);
       Console.WriteLine("This checks to make sure our follow up Puts succeeded");
-      this.SerialAsGet(key, 0, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
+      this.SerialAsGet(key, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
     }
 
@@ -482,7 +470,6 @@ namespace Brunet.Dht {
       byte[][] keys = new byte[10][];
       byte[][] values = new byte[10][];
       int[] ttls = new int[10];
-      int[] dhtindexes = new int[10];
       bool[] put_results = new bool[10];
 
       key = new byte[10];
@@ -494,12 +481,11 @@ namespace Brunet.Dht {
         rng.GetBytes(value);
         values[i] = value;
         ttls[i] = 3000;
-        dhtindexes[i] = 0;
         put_results[i] = true;
       }
-      this.ParallelPut(keys, values, ttls, dhtindexes, put_results, ref op);
+      this.ParallelPut(keys, values, ttls, put_results, ref op);
       Console.WriteLine("Insertion done...");
-      this.SerialGet(key, 0, values, op++);
+      this.SerialGet(key, values, op++);
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
     }
 
@@ -512,7 +498,6 @@ namespace Brunet.Dht {
       byte[][] keys = new byte[10][];
       byte[][] values = new byte[10][];
       int[] ttls = new int[10];
-      int[] dhtindexes = new int[10];
       byte[][][] gresults = new byte[10][][];
       bool[] put_results = new bool[10];
 
@@ -526,12 +511,11 @@ namespace Brunet.Dht {
         values[i] = value;
         gresults[i] = values;
         ttls[i] = 3000;
-        dhtindexes[i] = 0;
         put_results[i] = true;
       }
-      this.ParallelPut(keys, values, ttls, dhtindexes, put_results, ref op);
+      this.ParallelPut(keys, values, ttls, put_results, ref op);
       Console.WriteLine("Insertion done...");
-      this.ParallelGet(keys, dhtindexes, gresults, ref op);
+      this.ParallelGet(keys, gresults, ref op);
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
     }
 
@@ -544,7 +528,6 @@ namespace Brunet.Dht {
       byte[][] keys = new byte[10][];
       byte[][] values = new byte[10][];
       int[] ttls = new int[10];
-      int[] dhtindexes = new int[10];
       byte[][][] gresults = new byte[10][][];
       byte[][] results;
       bool[] put_results = new bool[10];
@@ -560,12 +543,11 @@ namespace Brunet.Dht {
         results[0] = value;
         gresults[i] = results;
         ttls[i] = 3000;
-        dhtindexes[i] = 0;
         put_results[i] = true;
       }
-      this.ParallelPut(keys, values, ttls, dhtindexes, put_results, ref op);
+      this.ParallelPut(keys, values, ttls, put_results, ref op);
       Console.WriteLine("Insertion done...");
-      this.ParallelGet(keys, dhtindexes, gresults, ref op);
+      this.ParallelGet(keys, gresults, ref op);
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
     }
 
@@ -579,15 +561,15 @@ namespace Brunet.Dht {
 
       value = new byte[value_size];
       rng.GetBytes(value);
-      this.SerialPut(key, value, 3000, 0, true, op++);
+      this.SerialPut(key, value, 3000, true, op++);
       results = new byte[1][];
       results[0] = value;
 
       value = new byte[value_size];
       rng.GetBytes(value);
-      this.SerialPut(key, value, 3000, 0, false, op++);
+      this.SerialPut(key, value, 3000, false, op++);
       Console.WriteLine("Insertion done...");
-      this.SerialGet(key, 0, results, op++);
+      this.SerialGet(key, results, op++);
 
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
     }
@@ -603,13 +585,13 @@ namespace Brunet.Dht {
 
       value = new byte[value_size];
       rng.GetBytes(value);
-      this.SerialPut(key, value, 3000, 0, true, op++);
+      this.SerialPut(key, value, 3000, true, op++);
       results = new byte[1][];
       results[0] = value;
 
-      this.SerialPut(key, value, 3000, 0, true, op++);
+      this.SerialPut(key, value, 3000, true, op++);
       Console.WriteLine("Insertion done...");
-      this.SerialGet(key, 0, results, op++);
+      this.SerialGet(key, results, op++);
 
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
     }
@@ -623,7 +605,6 @@ namespace Brunet.Dht {
       byte[][] keys = new byte[10][];
       byte[][] values = new byte[10][];
       int[] ttls = new int[10];
-      int[] dhtindexes = new int[10];
       bool[] create_results = new bool[10];
 
       key = new byte[10];
@@ -635,12 +616,11 @@ namespace Brunet.Dht {
         rng.GetBytes(value);
         values[i] = value;
         ttls[i] = 3000;
-        dhtindexes[i] = 0;
         create_results[i] = true;
       }
-      this.ParallelCreate(keys, values, ttls, dhtindexes, create_results, ref op);
+      this.ParallelCreate(keys, values, ttls, create_results, ref op);
       Console.WriteLine("Insertion done...");
-      this.SerialGet(key, 0, values, op++);
+      this.SerialGet(key, values, op++);
       Console.WriteLine("This test is kind of bogus, but we'll either get 10" +
           " or 11 failure messages any less and we have a bug, this is for" +
           " operations up to " + (op - 1));
@@ -655,7 +635,6 @@ namespace Brunet.Dht {
       byte[][] keys = new byte[10][];
       byte[][] values = new byte[10][];
       int[] ttls = new int[10];
-      int[] dhtindexes = new int[10];
       byte[][][] gresults = new byte[10][][];
       byte[][] results;
       bool[] create_results = new bool[10];
@@ -671,12 +650,11 @@ namespace Brunet.Dht {
         results[0] = value;
         gresults[i] = results;
         ttls[i] = 3000;
-        dhtindexes[i] = 0;
         create_results[i] = true;
       }
-      this.ParallelCreate(keys, values, ttls, dhtindexes, create_results, ref op);
+      this.ParallelCreate(keys, values, ttls, create_results, ref op);
       Console.WriteLine("Insertion done...");
-      this.ParallelGet(keys, dhtindexes, gresults, ref op);
+      this.ParallelGet(keys, gresults, ref op);
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
     }
 
@@ -690,15 +668,15 @@ namespace Brunet.Dht {
 
       value = new byte[value_size];
       rng.GetBytes(value);
-      this.SerialCreate(key, value, 3000, 0, true, op++);
+      this.SerialCreate(key, value, 3000, true, op++);
       results = new byte[1][];
       results[0] = value;
 
       value = new byte[value_size];
       rng.GetBytes(value);
-      this.SerialCreate(key, value, 3000, 0, false, op++);
+      this.SerialCreate(key, value, 3000, false, op++);
       Console.WriteLine("Insertion done...");
-      this.SerialGet(key, 0, results, op++);
+      this.SerialGet(key, results, op++);
 
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
     }
@@ -714,13 +692,13 @@ namespace Brunet.Dht {
 
       value = new byte[value_size];
       rng.GetBytes(value);
-      this.SerialCreate(key, value, 3000, 0, true, op++);
+      this.SerialCreate(key, value, 3000, true, op++);
       results = new byte[1][];
       results[0] = value;
 
-      this.SerialCreate(key, value, 3000, 0, true, op++);
+      this.SerialCreate(key, value, 3000, true, op++);
       Console.WriteLine("Insertion done...");
-      this.SerialGet(key, 0, results, op++);
+      this.SerialGet(key, results, op++);
 
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
     }
@@ -735,7 +713,6 @@ namespace Brunet.Dht {
       byte[][] keys = new byte[10][];
       byte[][] values = new byte[10][];
       int[] ttls = new int[10];
-      int[] dhtindexes = new int[10];
       bool[] put_results = new bool[10];
 
       key = new byte[10];
@@ -752,16 +729,15 @@ namespace Brunet.Dht {
         else {
           ttls[i] = 500;
         }
-        dhtindexes[i] = 0;
         put_results[i] = true;
       }
-      this.ParallelPut(keys, values, ttls, dhtindexes, put_results, ref op);
+      this.ParallelPut(keys, values, ttls, put_results, ref op);
       Console.WriteLine("Insertion done...");
       Thread.Sleep(5000);
-      this.SerialGet(key, 0, values, op++);
+      this.SerialGet(key, values, op++);
       Console.WriteLine("Next get 2 should fail!");
       Thread.Sleep(20000);
-      this.SerialGet(key, 0, values, op++);
+      this.SerialGet(key, values, op++);
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
       Console.WriteLine("Every entry should be deleted by now...");
     }
@@ -783,7 +759,7 @@ namespace Brunet.Dht {
         rng.GetBytes(value);
         al_results.Add(value);
         results_queue[i] = new BlockingQueue();
-        dhts[0].AsPut(key, value, 3000, results_queue[i]);
+        default_dht.AsPut(key, value, 3000, results_queue[i]);
       }
       for (int i = 0; i < count; i++) {
         bool result = (bool) results_queue[i].Dequeue();
@@ -796,9 +772,9 @@ namespace Brunet.Dht {
       }
       Console.WriteLine("Insertion done...");
       Console.WriteLine("Disconnecting nodes...");
-      MemBlock[] b = dhts[0].MapToRing(key);
-      BigInteger[] baddrs = new BigInteger[dhts[0].DEGREE];
-      BigInteger[] addrs = new BigInteger[dhts[0].DEGREE];
+      MemBlock[] b = default_dht.MapToRing(key);
+      BigInteger[] baddrs = new BigInteger[default_dht.DEGREE];
+      BigInteger[] addrs = new BigInteger[default_dht.DEGREE];
       bool first_run = true;
       foreach(DictionaryEntry de in nodes) {
         Address addr = (Address) de.Key;
@@ -825,33 +801,17 @@ namespace Brunet.Dht {
         first_run = false;
       }
 
-      int[] not_to_use = new int[dhts[0].DEGREE];
       for(int i = 0; i < addrs.Length; i++) {
         Console.WriteLine(new AHAddress(baddrs[i]) + " " + new AHAddress(addrs[i]));
         Address laddr = new AHAddress(addrs[i]);
         Node node = (Node) nodes[laddr];
         node.Disconnect();
-        not_to_use[i] = nodes.IndexOfKey(laddr);
         nodes.Remove(laddr);
+        dhts.Remove(laddr);
         network_size--;
       }
 
-      int node_to_use = 0;
-      bool done = false;
-      for(node_to_use = 0; node_to_use < network_size; node_to_use++) {
-        for(int j = 0; j < degree; j++) {
-          if(node_to_use == not_to_use[j]) {
-            break;
-          }
-          else if(j == degree - 1) {
-            done = true;
-            break;
-          }
-        }
-        if(done) {
-          break;
-        }
-      }
+      default_dht = (Dht) dhts.GetByIndex(0);
 
       // Checking the ring every 5 seconds..
       do  { Thread.Sleep(5000);}
@@ -859,18 +819,14 @@ namespace Brunet.Dht {
       Console.WriteLine("Going to sleep now...");
       Thread.Sleep(15000);
       Console.WriteLine("Timeout done.... now attempting gets");
-      this.SerialAsGet(key, node_to_use, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
+      this.SerialAsGet(key, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
       Thread.Sleep(5000);
       Console.WriteLine("This checks to make sure our follow up Puts succeeded");
-      this.SerialAsGet(key, node_to_use, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
+      this.SerialAsGet(key, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
-      for(int i = 0; i < network_size + not_to_use.Length; i++) {
-        for(int j = 0; j < not_to_use.Length; j++ ) {
-          if(not_to_use[j] == i) {
-            continue;
-          }
-        }
-        Console.WriteLine("Count ... " + i + ":" + dhts[i].Count);
+      foreach(DictionaryEntry de in dhts) {
+        Dht dht = (Dht) de.Value;
+        Console.WriteLine("Count ... " + dht.Count);
       }
     }
 
