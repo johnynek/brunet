@@ -46,8 +46,10 @@ namespace Test {
       }
 
       for(int i = 0; i < starting_network_size; i++) {
+        Console.WriteLine("Setting up node: " + i);
         add_node();
       }
+      Console.WriteLine("Done setting up...\n");
 
       Thread system_thread = new Thread(system);
       system_thread.IsBackground = true;

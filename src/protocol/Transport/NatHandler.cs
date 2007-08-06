@@ -27,6 +27,7 @@ using NUnit.Framework;
 using System;
 using System.Net;
 using System.Collections;
+using System.Collections.Generic;
 
 namespace Brunet {
 
@@ -118,6 +119,7 @@ public class RemoteMappingChangePoint : NatDataPoint {
  * provides several methods to make selecting subsets easier
  */
 public class NatHistory : IEnumerable {
+  public static int NatHistoryMax = 100;
 
   /**
    * Given a data point, return some object which is a function
@@ -130,49 +132,34 @@ public class NatHistory : IEnumerable {
    * The NatHistory is a linked list, this is how
    * we store it:
    */
-  protected NatDataPoint _head;
-  /**
-   * Return the most recent NatDataPoint
-   */
-  public NatDataPoint Head { get { return _head; } }
-  protected NatHistory _tail;
-  /**
-   * Return the history excluding the most recent point.
-   * If there is only one point, the tail is null
-   */
-  public NatHistory Tail { get { return _tail; } }
+  protected LinkedList<NatDataPoint> _history;
+
+  public NatHistory() {
+    _history = new LinkedList<NatDataPoint>();
+  }
 
   public NatHistory(NatDataPoint p) {
-    _head = p;
-    _tail = null;
-  }
-  /**
-   * Makes a new history by appending this new NatDataPoint.
-   * Does not change the old history.
-   */
-  public NatHistory(NatHistory nh, NatDataPoint p) {
-    _head = p;
-    _tail = nh;
+    _history = new LinkedList<NatDataPoint>();
+    _history.AddFirst(p);
   }
 
-  /**
-   * This is syntactic sugar so we can do:
-   * hist = hist + p
-   * to append a data point.
-   */
-  public static NatHistory operator + (NatHistory hist, NatDataPoint p) {
-    return new NatHistory(hist, p);
+  /** Add a new data point to the history */
+  public void Add(NatDataPoint p) {
+    if(_history.Count == NatHistoryMax) {
+      _history.RemoveLast();
+    }
+    _history.AddFirst(p);
   }
+
   /**
    * This goes from most recent to least recent data point
    */
   public IEnumerator GetEnumerator() {
-    NatHistory hist = this;
-    do {
-      yield return hist.Head;
-      hist = hist.Tail;
-    }
-    while( hist != null );
+    LinkedListNode<NatDataPoint> ndp = _history.First;
+    while (ndp != null) {
+      yield return ndp.Value;
+      ndp = ndp.Next;
+    };
   }
 
   /**
@@ -819,17 +806,18 @@ public class NatTest {
   public void TestPortPrediction() {
     Edge e = new FakeEdge( TransportAddressFactory.CreateInstance("brunet.udp://127.0.0.1:80"),
                            TransportAddressFactory.CreateInstance("brunet.udp://127.0.0.1:1080"));
-    NatHistory h = null;
-    h = h + new NewEdgePoint(DateTime.UtcNow, e);
-    h = h + new LocalMappingChangePoint(DateTime.UtcNow, e,
-                         TransportAddressFactory.CreateInstance("brunet.udp://128.128.128.128:80"));
+    NatHistory h = new NatHistory();
+    h.Add(new NewEdgePoint(DateTime.UtcNow, e));
+    h.Add(new LocalMappingChangePoint(DateTime.UtcNow, e,
+                         TransportAddressFactory.CreateInstance("brunet.udp://128.128.128.128:80")));
+
     NatHandler nh = new PublicNatHandler();
     Assert.IsTrue( nh.IsMyType(h), "PublicNatHandler");
     IList tas = nh.TargetTAs(h);
     Assert.IsTrue( tas.Contains(
                      TransportAddressFactory.CreateInstance("brunet.udp://128.128.128.128:80")
                    ), "ConeNatHandler.TargetTAs");
-    
+
     nh = new ConeNatHandler();
     Assert.IsTrue( nh.IsMyType(h), "ConeNatHandler");
     tas = nh.TargetTAs(h);
@@ -837,24 +825,26 @@ public class NatTest {
     Assert.IsTrue( tas.Contains(
                      TransportAddressFactory.CreateInstance("brunet.udp://128.128.128.128:80")
                    ), "ConeNatHandler.TargetTAs");
+
    /* 
     * Now, let's try Port prediction:
     */
     int local_port = 80;
     int port = local_port;
-    h = null;
+    h = new NatHistory();
+
     while( port < 86 ) {
       e = new FakeEdge( TransportAddressFactory.CreateInstance("brunet.udp://127.0.0.1:"
                                               + local_port.ToString() ),
                            TransportAddressFactory.CreateInstance("brunet.udp://127.0.0.1:1081"));
-      h = h + new NewEdgePoint(DateTime.UtcNow, e);
+      h.Add(new NewEdgePoint(DateTime.UtcNow, e));
       
-      h = h + new LocalMappingChangePoint(DateTime.UtcNow, e,
+      h.Add(new LocalMappingChangePoint(DateTime.UtcNow, e,
                          TransportAddressFactory.CreateInstance("brunet.udp://128.128.128.128:"
-                           + port.ToString()
-                         ));
+                           + port.ToString())));
       port = port + 1;
     }
+
     nh = new SymmetricNatHandler();
     Assert.IsTrue( nh.IsMyType(h), "SymmetricNatHandler");
     tas = nh.TargetTAs(h);
@@ -866,6 +856,7 @@ public class NatTest {
     Assert.IsTrue( nh.IsMyType(h), "LinuxNatHandler");
     tas = nh.TargetTAs(h);
     //foreach(object ta in tas) { Console.Error.WriteLine(ta); }
+
     Assert.IsTrue( tas.Contains(
                      TransportAddressFactory.CreateInstance("brunet.udp://128.128.128.128:86")
                    ), "LinuxNatHandler.TargetTAs");
