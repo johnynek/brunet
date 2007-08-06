@@ -177,8 +177,7 @@ namespace Brunet.Dht {
 
     public bool PutHandler(MemBlock key, MemBlock value, int ttl, bool unique) {
       DateTime create_time = DateTime.UtcNow;
-      TimeSpan ts = new TimeSpan(0,0,ttl);
-      DateTime end_time = create_time + ts;
+      DateTime end_time = create_time.AddSeconds(ttl);
 
       lock(_sync) {
         _data.DeleteExpired(key);
@@ -245,7 +244,7 @@ namespace Brunet.Dht {
             Entry e = (Entry) data[i];
             if (e.Value.Length + consumed_bytes <= maxbytes) {
               int age = (int) (DateTime.UtcNow - e.CreateTime).TotalSeconds;
-              int ttl = (int) (e.EndTime - e.CreateTime).TotalSeconds;
+              int ttl = (int) (e.EndTime - DateTime.UtcNow).TotalSeconds;
               consumed_bytes += e.Value.Length;
               Hashtable item = new Hashtable();
               item["age"] = age;
