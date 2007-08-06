@@ -8,7 +8,7 @@ using System.Threading;
 using Brunet;
 using Brunet.Dht;
 
-namespace Brunet {
+namespace Test {
   public class SystemTest {
     static SortedList nodes = new SortedList();
     static Hashtable dhts = new Hashtable();
@@ -73,12 +73,12 @@ namespace Brunet {
           int count = 0;
           try {
             while(true) {
-              DhtGetResult dgr = (DhtGetResult) returns.Dequeue();
+              returns.Dequeue();
               count++;
             }
           }
           catch {}
-          console.WriteLine("Count: " + count);
+          Console.WriteLine("Count: " + count);
         }
         Console.WriteLine();
       }
@@ -131,7 +131,7 @@ namespace Brunet {
         if(!dht.Activated)
           continue;
         Channel returns = new Channel();
-        dht.AsPut("tester", node.Address.ToString(), 300, returns);
+        dht.AsPut("tester", node.Address.ToString(), 2 * base_time * dht_put_interval, returns);
       }
     }
 

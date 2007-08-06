@@ -248,10 +248,15 @@ namespace Brunet.Dht {
               adgs.results[mbVal] = res;
               adgs.ttls[mbVal] = ht["ttl"];
             }
+            else {
+              adgs.ttls[mbVal] = (int) adgs.ttls[mbVal] + (int) ht["ttl"];
+            }
+
             res[idx] = true;
             count = ((ICollection) adgs.results[mbVal]).Count;
           }
           if(count == MAJORITY) {
+            ht["ttl"] = (int) adgs.ttls[mbVal] / MAJORITY;
             adgs.returns.Enqueue(new DhtGetResult(ht));
           }
         }
@@ -368,7 +373,7 @@ Console.Error.WriteLine("DHT_DEBUG:::Failed get count:total = {0}:{1}", res.Coun
         }
         MemBlock value = (MemBlock) de.Key;
 
-        int ttl = (int) adgs.ttls[value];
+        int ttl = (int) adgs.ttls[value] / res.Count;
 #if DHT_DEBUG
 Console.Error.WriteLine("DHT_DEBUG:::Doing follow up put count:total = {0}:{1}:{2}", res.Count, DEGREE);
 #endif

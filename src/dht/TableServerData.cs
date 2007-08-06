@@ -27,7 +27,9 @@ namespace Brunet.Dht {
     }
 
     /* This is a quick little method to add an entry, since the basic Put
-    * mechanism will not be changing and this may, it is separate
+    * mechanism will not be changing and this may, it is separated.
+    * Data is sorted in a non-decreasing EndTime, so that the earliest
+    * to expire will always be on top.
     */
 
     public void AddEntry(Entry entry) {
@@ -40,7 +42,7 @@ namespace Brunet.Dht {
       }
       LinkedListNode<Entry> ent = data.Last;
       while(ent != null) {
-        if(ent.Value.EndTime < entry.EndTime) {
+        if(entry.EndTime > ent.Value.EndTime) {
           data.AddAfter(ent, entry);
           break;
         }
