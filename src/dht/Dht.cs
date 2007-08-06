@@ -375,7 +375,7 @@ Console.Error.WriteLine("DHT_DEBUG:::Failed get count:total = {0}:{1}", res.Coun
 
         int ttl = (int) adgs.ttls[value] / res.Count;
 #if DHT_DEBUG
-Console.Error.WriteLine("DHT_DEBUG:::Doing follow up put count:total = {0}:{1}:{2}", res.Count, DEGREE);
+Console.Error.WriteLine("DHT_DEBUG:::Doing follow up put count:total = {0}:{1}", res.Count, DEGREE);
 #endif
         for(int i = 0; i < DEGREE; i++) {
           if(!res.Contains(i)) {
