@@ -135,6 +135,10 @@ public class ReqrepManager : IDataHandler {
     }
   }
 
+  public void Close() {
+    _rrm_table.Remove(_node);
+  }
+
   public class Statistics {
     public int SendCount;
     public Statistics() {

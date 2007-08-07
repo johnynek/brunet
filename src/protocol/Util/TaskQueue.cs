@@ -127,7 +127,7 @@ public class TaskQueue {
     /*
      * Get to work!
      */
-    if( start  && _is_active) {//added the _is_active check (Arijit Ganguly)
+    if( start  && _is_active) {
       new_worker.Start();
     }
   }
@@ -177,7 +177,7 @@ public class TaskQueue {
                                 worker, task);
       }
     }
-    if( new_worker != null && _is_active) {//added the _is_active check (Arijit Ganguly)
+    if( new_worker != null && _is_active) {
       //You start me up!
       new_worker.Start();
     }

@@ -152,11 +152,11 @@ namespace Brunet
       Console.Error.WriteLine("In StructuredNode.Disconnect: {0}", this.Address);
       base.Disconnect();
       Console.Error.WriteLine("Called Node.Disconnect: {0}", this.Address);
-      
+
       _lco.IsActive = false;
       _sco.IsActive = false;
       _cco.IsActive = false;
-      
+
       //Gracefully close all the edges:
       _connection_table.Close(); //This makes sure we can't add any new connections.
       ArrayList edges_to_close = new ArrayList();
@@ -173,7 +173,7 @@ namespace Brunet
 
       //Make sure multiple readers and writers won't have problems:
       edges_to_close = ArrayList.Synchronized( edges_to_close );
-      
+
       EventHandler ch = delegate(object o, EventArgs a) {
         Console.Error.WriteLine("{1} Handling Close of: {0}", o, this.Address);
         edges_to_close.Remove(o);

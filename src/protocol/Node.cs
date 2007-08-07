@@ -457,8 +457,12 @@ namespace Brunet
       }
       _edgelistener_list.Clear();
       _running = false;
+      _timer.Dispose();
       //This makes sure we don't block forever on the last packet
       _packet_queue.Close();
+
+      RpcManager.GetInstance(this).Close();
+      ReqrepManager.GetInstance(this).Close();
     }
     /**
      * When we do announces using the seperate thread, this is

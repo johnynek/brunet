@@ -84,7 +84,6 @@ public class RpcResult {
       return _result;
     }
   }
-  
 }
 	
 /**
@@ -233,7 +232,12 @@ public class RpcManager : IReplyHandler, IDataHandler {
       return rpc;
     }
   }
-   
+
+  public void Close() {
+    _rpc_table.Remove(Node);
+    _method_handlers.Clear();
+  }
+
   /**
    * When a method is called with "name.meth"
    * we look up the object with name "name"

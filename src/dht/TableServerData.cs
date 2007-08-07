@@ -18,11 +18,11 @@ namespace Brunet.Dht {
     public int Count { get { return count; } }
     private int count = 0;
 
-    public TableServerData(Node _node) {
-      _node.DepartureEvent += this.CleanUp;
+    public TableServerData(Node node) {
+      node.DepartureEvent += this.CleanUp;
       _data.EvictionEvent += this.CacheEviction;
       _data.MissEvent += this.CacheMiss;
-      _base_dir = Path.Combine("data", _node.Address.ToString().Substring(12));
+      _base_dir = Path.Combine("data", node.Address.ToString().Substring(12));
       CleanUp();
     }
 
