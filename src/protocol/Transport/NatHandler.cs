@@ -119,7 +119,7 @@ public class RemoteMappingChangePoint : NatDataPoint {
  * provides several methods to make selecting subsets easier
  */
 public class NatHistory : IEnumerable {
-  public static int NatHistoryMax = 100;
+  public static int NatHistoryMax = 1024;
 
   /**
    * Given a data point, return some object which is a function
