@@ -44,9 +44,9 @@ namespace Brunet
     protected volatile bool _send_edge_events;
     volatile protected bool _run;
 
-    protected ArrayList _all_sockets;
-    protected ArrayList _send_sockets;
-    protected Hashtable _sock_to_edge;
+    volatile protected ArrayList _all_sockets;
+    volatile protected ArrayList _send_sockets;
+    volatile protected Hashtable _sock_to_edge;
     protected IEnumerable _tas;
     /**
      * This inner class holds the connection state information
@@ -441,12 +441,12 @@ namespace Brunet
       all_s.Add(s);
       //Put it back:
       Interlocked.Exchange(ref _all_sockets, all_s);
-      
+
       lock( _sync ) {
         //lock before we change the Hashtable
         _sock_to_edge[s] = e;
       }
-      
+
       e.CloseEvent += this.CloseHandler;
       if( e.IsClosed ) { CloseHandler(e, null); }
     }
@@ -455,9 +455,16 @@ namespace Brunet
     {
       TcpEdge e = (TcpEdge)edge;
       Socket s = e.Socket;
-      //Go ahead and remove from the map.
+      // Go ahead and remove from the map. ... this needs to be done because
+      // Socket's dynamic HashCode
       lock( _sync ) {
-        _sock_to_edge.Remove(s);
+        Hashtable new_s_to_e = new Hashtable( _sock_to_edge.Count );
+        foreach(DictionaryEntry de in _sock_to_edge) {
+          if( e != de.Value ) {
+            new_s_to_e.Add( de.Key, de.Value );
+          }
+        }
+        _sock_to_edge = new_s_to_e;
       }
 
       ArrayList all_s = null;
@@ -465,7 +472,7 @@ namespace Brunet
       do {
         all_s = Interlocked.Exchange(ref _all_sockets, all_s);
       } while( all_s == null );
-      
+
       ArrayList send_s = null;
       //Acquire _all_sockets
       do {
@@ -479,8 +486,6 @@ namespace Brunet
        */
       Interlocked.Exchange(ref _all_sockets, all_s);
       Interlocked.Exchange(ref _send_sockets, send_s);
-      //Make sure the socket is closed
-      s.Close();
     }
 
     protected void HandleErrors(ArrayList errorsocks) {
