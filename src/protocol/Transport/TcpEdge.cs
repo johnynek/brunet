@@ -166,6 +166,7 @@ namespace Brunet
           _queued_packets = 0;
         }
       }
+      base.Close();
       NeedToSend = false;
       if( shutdown ) {
         try {
@@ -186,8 +187,6 @@ namespace Brunet
           _sock.Close();
         }
       }
-      //Don't hold the lock while we close:
-      base.Close();
     }
 
     public override bool IsClosed
