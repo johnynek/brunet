@@ -386,20 +386,22 @@ namespace Ipop {
 
                 Console.WriteLine("Result:  " + count++);
                 Console.WriteLine("Value: " + dgr.valueString);
-                Console.WriteLine("Age:  " + dgr.age + "\n");
+                Console.WriteLine("Age:  " + dgr.age);
+                Console.WriteLine("Ttl:  " + dgr.ttl + "\n");
               }
               Console.WriteLine("Number of results: {0}\n", count);
             }
             else {
-              DhtGetResult[] results = sd.Get(key);
-              Console.WriteLine("Number of results: " + results.Length);
-              Console.WriteLine("");
-
-              for(int i = 0; i < results.Length; i++) {
-                Console.WriteLine("Result: " + i);
-                Console.WriteLine("Value: " + results[i].valueString);
-                Console.WriteLine("Age: " + results[i].age + "\n");
+              string token = sd.BeginGet(key);
+              int count = 0;
+              DhtGetResult dgr;
+              while(!(dgr = sd.ContinueGet(token)).IsEmpty()) {
+                Console.WriteLine("Result:  " + count++);
+                Console.WriteLine("Value: " + dgr.valueString);
+                Console.WriteLine("Age:  " + dgr.age);
+                Console.WriteLine("Ttl:  " + dgr.ttl + "\n");
               }
+              Console.WriteLine("Number of results: {0}\n", count);
             }
           }
           else if (str_oper.Equals("Done")) {

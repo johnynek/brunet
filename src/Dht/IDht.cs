@@ -28,7 +28,7 @@ namespace Ipop {
      * @return: token for ContinueGet
      */
     string BeginGet(string key);
-    DhtGetResult[] ContinueGet(string token);
+    DhtGetResult ContinueGet(string token);
     void EndGet(string token);
 
     IDictionary GetDhtInfo();

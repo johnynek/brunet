@@ -20,8 +20,12 @@ namespace Ipop {
   public abstract class DhtAdapter : MarshalByRefObject, IDht {
     [NonSerialized]
     protected Dht _dht;
+    /* Use cache so that we don't experience a leak, this should be replaced 
+     * with some timeout mechanism to support multiple interactions at the 
+     * same time.
+     */
     [NonSerialized]
-    protected Hashtable _bqs = new Hashtable();
+    protected Cache _bqs = new Cache(100);
 
     public DhtAdapter(Dht dht) {
       this._dht = dht;
@@ -49,39 +53,28 @@ namespace Ipop {
       return tk;
     }
 
-    /**
-     * Wait for at most 1 second to see what can be got.
-     * If nothing in the queue, just return an empty array
-     * If the token if incorrect, throw exception
-     */
-    public virtual DhtGetResult[] ContinueGet(string token) {
-      List<DhtGetResult> dgrs = new List<DhtGetResult>();
+    public virtual DhtGetResult ContinueGet(string token) {
       BlockingQueue q = (BlockingQueue)this._bqs[token];
       if(q == null) {
         throw new ArgumentException("Invalid token");
       }
-      while (true) {
-        try {
-          bool timedout = false;
-          DhtGetResult dgr = (DhtGetResult)q.Dequeue(1000, out timedout);
-          if (!timedout) {
-            dgrs.Add(dgr);
-          } else {
-            break;
-          }
-        } catch (Exception) {
-          break;
-        }
+      DhtGetResult dgr = null;
+      try {
+        dgr = (DhtGetResult)q.Dequeue();
       }
-      //list could be empty here
-      return dgrs.ToArray();
+      catch {
+        dgr = DhtGetResult.Empty();
+        this._bqs.Remove(q);
+      }
+      return dgr;
     }
 
     public virtual void EndGet(string token) {
       BlockingQueue q = (BlockingQueue)this._bqs[token];
       if (q == null) {
         throw new ArgumentException("Invalid token");
-      } else {
+      }
+      else {
         q.Close();
         this._bqs.Remove(q);
       }
@@ -91,9 +84,13 @@ namespace Ipop {
 
     private string GenToken(string key) {
       RNGCryptoServiceProvider provider = new RNGCryptoServiceProvider();
-      byte[] token = new byte[50];
+      byte[] token = new byte[20];
       provider.GetBytes(token);
-      string real_tk = key + ":" + Encoding.UTF8.GetString(token);
+      string res = string.Empty;
+      for(int i = 0; i < token.Length; i++) {
+        res += token[i].ToString();
+      }
+      string real_tk = key + ":" + res;
       return real_tk;
     }
 
@@ -152,7 +149,7 @@ namespace Ipop {
     }
 
     [XmlRpcMethod]
-    public override DhtGetResult[] ContinueGet(string token) {
+    public override DhtGetResult ContinueGet(string token) {
       return base.ContinueGet(token);
     }
 

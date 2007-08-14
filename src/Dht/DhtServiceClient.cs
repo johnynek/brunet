@@ -28,7 +28,7 @@ namespace Ipop {
     [XmlRpcMethod]
     new string BeginGet(string key);
     [XmlRpcMethod]
-    new DhtGetResult[] ContinueGet(string token);
+    new DhtGetResult ContinueGet(string token);
     [XmlRpcMethod]
     new void EndGet(string token);
 
