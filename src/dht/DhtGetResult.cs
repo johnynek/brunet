@@ -8,6 +8,10 @@ namespace Brunet.Dht {
     public int age, ttl;
     public byte[] value;
 
+    public static DhtGetResult Empty() {
+      return new DhtGetResult(new byte[0], 0, 0);
+    }
+
     public string valueString {
       get { return Encoding.UTF8.GetString(value); }
       // XmlRpc complains if this doesn't exist
@@ -43,6 +47,10 @@ namespace Brunet.Dht {
 
     public override string ToString() {
       return string.Format("value = {0}, age = {1}", valueString, age);
+    }
+
+    public bool IsEmpty() {
+      return (value.Length == 0 && age == 0 && ttl == 0);
     }
   }
 }

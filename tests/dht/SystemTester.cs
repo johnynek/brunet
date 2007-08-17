@@ -45,7 +45,7 @@ namespace Test {
       Console.WriteLine("Initializing...");
 
       for(int i = 0; i < max_range; i++) {
-        RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.tcp://localhost:" + (base_port + i)));
+        RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.udp://localhost:" + (base_port + i)));
       }
 
       for(int i = 0; i < starting_network_size; i++) {
@@ -183,7 +183,7 @@ namespace Test {
       }
       arr_tas.Add(new ConstantAuthorizer(TAAuthorizer.Decision.Allow));
       TAAuthorizer ta_auth = new SeriesTAAuthorizer(arr_tas);
-      node.AddEdgeListener(new TcpEdgeListener(local_port, null, ta_auth));
+      node.AddEdgeListener(new UdpEdgeListener(local_port, null, ta_auth));
       node.AddEdgeListener(new TunnelEdgeListener(node));
       node.RemoteTAs = RemoteTA;
       node.Connect();

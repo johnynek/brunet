@@ -119,7 +119,12 @@ public class RemoteMappingChangePoint : NatDataPoint {
  * provides several methods to make selecting subsets easier
  */
 public class NatHistory : IEnumerable {
-  public static int NatHistoryMax = 1024;
+  /**
+   * We use a max, so that this does not grow to big and create problems for us
+   */
+  protected int _count = 0;
+  public int count { get { return _count; } }
+  public static int MAX_COUNT = 2048;
 
   /**
    * Given a data point, return some object which is a function
@@ -132,34 +137,74 @@ public class NatHistory : IEnumerable {
    * The NatHistory is a linked list, this is how
    * we store it:
    */
-  protected LinkedList<NatDataPoint> _history;
-
-  public NatHistory() {
-    _history = new LinkedList<NatDataPoint>();
-  }
+  protected NatDataPoint _head;
+  /**
+   * Return the most recent NatDataPoint
+   */
+  public NatDataPoint Head { get { return _head; } }
+  protected NatHistory _tail;
+  /**
+   * Return the history excluding the most recent point.
+   * If there is only one point, the tail is null
+   */
+  public NatHistory Tail { get { return _tail; } }
 
   public NatHistory(NatDataPoint p) {
-    _history = new LinkedList<NatDataPoint>();
-    _history.AddFirst(p);
+    _count = 1;
+    _head = p;
+    _tail = null;
   }
-
-  /** Add a new data point to the history */
-  public void Add(NatDataPoint p) {
-    if(_history.Count == NatHistoryMax) {
-      _history.RemoveLast();
+  /**
+   * Makes a new history by appending this new NatDataPoint.
+   * Does not change the old history.
+   */
+  public NatHistory(NatHistory nh, NatDataPoint p) {
+    if(nh != null) {
+      if(nh.count == MAX_COUNT) {
+        nh = Reduce(nh);
+      }
+      _count = nh.count + 1;
     }
-    _history.AddFirst(p);
+    else {
+      _count = 1;
+    }
+    _head = p;
+    _tail = nh;
   }
 
+  public static NatHistory Reduce(NatHistory nh) {
+    int count = 0;
+    List<NatDataPoint> ndpl = new List<NatDataPoint>(MAX_COUNT / 2);
+    while(nh != null && count++ < MAX_COUNT / 2) {
+      ndpl.Add(nh.Head);
+      nh = nh.Tail;
+    }
+    nh = null;
+    for(int i = ndpl.Count - 1; i >= 0; i--) {
+      nh += ndpl[i];
+    }
+    return nh;
+  }
+
+
+  /**
+   * This is syntactic sugar so we can do:
+   * hist = hist + p
+   * to append a data point.
+   */
+  public static NatHistory operator + (NatHistory hist, NatDataPoint p) {
+    return new NatHistory(hist, p);
+  }
   /**
    * This goes from most recent to least recent data point
    */
   public IEnumerator GetEnumerator() {
-    LinkedListNode<NatDataPoint> ndp = _history.First;
-    while (ndp != null) {
-      yield return ndp.Value;
-      ndp = ndp.Next;
-    };
+    NatHistory hist = this;
+    do {
+      yield return hist.Head;
+      hist = hist.Tail;
+    }
+    while( hist != null );
   }
 
   /**
@@ -806,18 +851,17 @@ public class NatTest {
   public void TestPortPrediction() {
     Edge e = new FakeEdge( TransportAddressFactory.CreateInstance("brunet.udp://127.0.0.1:80"),
                            TransportAddressFactory.CreateInstance("brunet.udp://127.0.0.1:1080"));
-    NatHistory h = new NatHistory();
-    h.Add(new NewEdgePoint(DateTime.UtcNow, e));
-    h.Add(new LocalMappingChangePoint(DateTime.UtcNow, e,
-                         TransportAddressFactory.CreateInstance("brunet.udp://128.128.128.128:80")));
-
+    NatHistory h = null;
+    h = h + new NewEdgePoint(DateTime.UtcNow, e);
+    h = h + new LocalMappingChangePoint(DateTime.UtcNow, e,
+                         TransportAddressFactory.CreateInstance("brunet.udp://128.128.128.128:80"));
     NatHandler nh = new PublicNatHandler();
     Assert.IsTrue( nh.IsMyType(h), "PublicNatHandler");
     IList tas = nh.TargetTAs(h);
     Assert.IsTrue( tas.Contains(
                      TransportAddressFactory.CreateInstance("brunet.udp://128.128.128.128:80")
                    ), "ConeNatHandler.TargetTAs");
-
+    
     nh = new ConeNatHandler();
     Assert.IsTrue( nh.IsMyType(h), "ConeNatHandler");
     tas = nh.TargetTAs(h);
@@ -825,26 +869,24 @@ public class NatTest {
     Assert.IsTrue( tas.Contains(
                      TransportAddressFactory.CreateInstance("brunet.udp://128.128.128.128:80")
                    ), "ConeNatHandler.TargetTAs");
-
    /* 
     * Now, let's try Port prediction:
     */
     int local_port = 80;
     int port = local_port;
-    h = new NatHistory();
-
+    h = null;
     while( port < 86 ) {
       e = new FakeEdge( TransportAddressFactory.CreateInstance("brunet.udp://127.0.0.1:"
                                               + local_port.ToString() ),
                            TransportAddressFactory.CreateInstance("brunet.udp://127.0.0.1:1081"));
-      h.Add(new NewEdgePoint(DateTime.UtcNow, e));
+      h = h + new NewEdgePoint(DateTime.UtcNow, e);
       
-      h.Add(new LocalMappingChangePoint(DateTime.UtcNow, e,
+      h = h + new LocalMappingChangePoint(DateTime.UtcNow, e,
                          TransportAddressFactory.CreateInstance("brunet.udp://128.128.128.128:"
-                           + port.ToString())));
+                           + port.ToString()
+                         ));
       port = port + 1;
     }
-
     nh = new SymmetricNatHandler();
     Assert.IsTrue( nh.IsMyType(h), "SymmetricNatHandler");
     tas = nh.TargetTAs(h);
@@ -856,7 +898,6 @@ public class NatTest {
     Assert.IsTrue( nh.IsMyType(h), "LinuxNatHandler");
     tas = nh.TargetTAs(h);
     //foreach(object ta in tas) { Console.Error.WriteLine(ta); }
-
     Assert.IsTrue( tas.Contains(
                      TransportAddressFactory.CreateInstance("brunet.udp://128.128.128.128:86")
                    ), "LinuxNatHandler.TargetTAs");

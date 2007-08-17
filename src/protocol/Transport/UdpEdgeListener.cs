@@ -157,7 +157,7 @@ namespace Brunet
 	    _remote_id_ht.Remove( e.RemoteID );
 	  }
           NatDataPoint dp = new EdgeClosePoint(DateTime.UtcNow, e);
-          _nat_hist.Add(dp);
+          _nat_hist = _nat_hist + dp;
           _nat_tas = new NatTAs( _tas, _nat_hist );
         }
       }
@@ -339,7 +339,7 @@ namespace Brunet
         if( _ta_auth.Authorize(rta) != TAAuthorizer.Decision.Deny ) {
           edge.End = end;
           NatDataPoint dp = new RemoteMappingChangePoint(DateTime.UtcNow, edge);
-          _nat_hist.Add(dp);
+          _nat_hist = _nat_hist + dp;
           _nat_tas = new NatTAs( _tas, _nat_hist );
           //Tell the other guy:
           SendControlPacket(end, remoteid, localid, ControlCode.EdgeDataAnnounce, state);
@@ -354,7 +354,7 @@ namespace Brunet
       }
       if( is_new_edge ) {
        NatDataPoint dp = new NewEdgePoint(DateTime.UtcNow, edge);
-       _nat_hist.Add(dp);
+       _nat_hist = _nat_hist + dp;
        _nat_tas = new NatTAs( _tas, _nat_hist );
        if( !edge.IsClosed ) {
          SendEdgeEvent(edge);
@@ -386,7 +386,7 @@ namespace Brunet
         UdpEdge ue = (UdpEdge)e;
         ue.PeerViewOfLocalTA = ta;
         NatDataPoint dp = new LocalMappingChangePoint(DateTime.UtcNow, e, ta);
-        _nat_hist.Add(dp);
+        _nat_hist = _nat_hist + dp;
         _nat_tas = new NatTAs( _tas, _nat_hist );
       }
     }
@@ -446,7 +446,7 @@ namespace Brunet
       else {
         _tas = TransportAddressFactory.Create(TransportAddress.TAType.Udp, port, local_config_ips);
       }
-      _nat_hist = new NatHistory();
+      _nat_hist = null;
       _nat_tas = new NatTAs( _tas, _nat_hist );
       _ta_auth = ta_auth;
       if( _ta_auth == null ) {
@@ -512,7 +512,7 @@ namespace Brunet
           _id_ht[id] = e;
         }
         NatDataPoint dp = new NewEdgePoint(DateTime.UtcNow, e);
-        _nat_hist.Add(dp);
+        _nat_hist = _nat_hist + dp;
         _nat_tas = new NatTAs( _tas, _nat_hist );
 
         /* Tell me when you close so I can clean up the table */
