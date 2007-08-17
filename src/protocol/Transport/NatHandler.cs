@@ -161,7 +161,7 @@ public class NatHistory : IEnumerable {
   public NatHistory(NatHistory nh, NatDataPoint p) {
     if(nh != null) {
       if(nh.count == MAX_COUNT) {
-        nh = Reduce(nh);
+        nh = Take(nh);
       }
       _count = nh.count + 1;
     }
@@ -172,7 +172,10 @@ public class NatHistory : IEnumerable {
     _tail = nh;
   }
 
-  public static NatHistory Reduce(NatHistory nh) {
+  /**
+   * Takes the MAX_COUNT / 2 entries at most and returns a new NatHistory
+   */
+  public static NatHistory Take(NatHistory nh) {
     int count = 0;
     List<NatDataPoint> ndpl = new List<NatDataPoint>(MAX_COUNT / 2);
     while(nh != null && count++ < MAX_COUNT / 2) {
