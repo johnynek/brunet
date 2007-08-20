@@ -870,7 +870,7 @@ namespace Brunet
       }
       while( tmp_queue != null );
       if( count % 1000 == 0 ) {
-        Console.Error.WriteLine("UdpEdgeListener has {1} elements in Send Queue", count);
+        Console.Error.WriteLine("UdpEdgeListener has {0} elements in Send Queue", count);
       }
     }
   }
