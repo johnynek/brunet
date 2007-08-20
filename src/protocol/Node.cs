@@ -523,10 +523,12 @@ namespace Brunet
        * threads writing is a problem
        */
       MemBlock payload = null;
+      int handlers = 0;
+      NodeSource ns = null;
+      PType t = null;
       try {
-        PType t = PType.Parse(b, out payload);
-        NodeSource ns = (NodeSource)GetTypeSource(t);
-        int handlers = 0;
+        t = PType.Parse(b, out payload);
+        ns = (NodeSource)GetTypeSource(t);
         handlers = ns.Announce(payload, from);
       }
       catch(Exception x) {
