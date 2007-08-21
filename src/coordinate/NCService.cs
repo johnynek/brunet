@@ -22,6 +22,7 @@ namespace Brunet.Coordinate {
 
 
     private static Hashtable _nc_service_table = new Hashtable();
+
     //every 20 seconds get a new sample for latency
     private static readonly int SAMPLE_INTERVAL = 20;
 
@@ -33,31 +34,37 @@ namespace Brunet.Coordinate {
 
     
     public class NCServer {
+
       private NCService _local_service;
       public NCServer(NCService local) {
 	_local_service = local;
       }
+      
       public Hashtable EchoVivaldiState() {
+
 #if NC_DEBUG
 	Console.WriteLine("[NCService] {0} EchoVivaldiState() method invoked.", _local_service.Address);
 #endif
+	
 	Address addr = _local_service.Address;
 	VivaldiState v_state = _local_service.State;
 	
-	//this is what we would send back
+	//
+	// hashtable containing the Vivaldi state.
+	//
+	
 	Hashtable ht = new Hashtable();
 	byte[] b = new byte[Address.MemSize];
 	addr.CopyTo(b);
 	ht["neighbor"] = b; 
+	ht["error"] = v_state.WeightedError;
+
 
 	//local coordinates
 	Hashtable ht_position = new Hashtable();
 	ht_position["side"] = new ArrayList(v_state.Position.Side);
 	ht_position["height"] = v_state.Position.Height;
 	ht["position"] = ht_position;
-
-	//local error
-	ht["error"] = v_state.WeightedError;
 #if NC_DEBUG
 	Console.WriteLine("[NCService] {0} EchoVivaldiState() returning.", _local_service.Address);
 #endif	
@@ -94,11 +101,14 @@ namespace Brunet.Coordinate {
     protected Hashtable _samples;
 
     public class TrialState {
-      public BlockingQueue Queue;
+      public Address Target;
+      public Channel Queue;
       public DateTime Start;
+      public int NumSamples;
+      public static readonly int MIN_SAMPLES = 2;
     }
 
-    protected TrialState _trial_state = null;
+    protected TrialState _current_trial_state = null;
 
     public class VivaldiState {
       //current weighted error
@@ -124,117 +134,67 @@ namespace Brunet.Coordinate {
 	}
       }
     }
+
     protected static string _coordinate_cache_dir = "coordinates";
     protected static string _coordinate_cache_file = "coordinates.log";
 
-    public NCService() {
+    private NCService(Node node) {
       _sync = new object();
-      _node = null;
+      _node = node;
+      _last_sample_instant = DateTime.MinValue;
+      _last_update_file_instant = DateTime.MinValue;
+      _samples = new Hashtable();
+      _current_trial_state = new TrialState();
+      _vivaldi_state = new VivaldiState();
+      _vivaldi_state.WeightedError = INITIAL_WEIGHTED_ERROR;
+      _vivaldi_state.Position = new Point();
+      _vivaldi_state.DistanceDelta = 0.0f;
+
       lock(_sync) {
-
-	_last_sample_instant = DateTime.MinValue;
-	_last_update_file_instant = DateTime.MinValue;
-
-	//initial vivaldi-related stuff
-	_samples = new Hashtable();
-	_trial_state = new TrialState();
-
-	_vivaldi_state = new VivaldiState();
-	_vivaldi_state.WeightedError = INITIAL_WEIGHTED_ERROR;
-	_vivaldi_state.Position = new Point();
-	_vivaldi_state.DistanceDelta = 0.0f;
-      }
-    }
-
-    public void InstallOnNode(Node node) {
-      if (_node != null) {
-	throw new Exception("Service is already bound to: " +  _node.ToString());
-      }
-      lock(_nc_service_table) {
-	if (_nc_service_table.ContainsKey(node)) {
-	  throw new Exception("Attempting to install another instant of NCService on: " + node.ToString());
-	}
-	//in case no instance exists, install one
-	_nc_service_table[node] = this;
-      } //end of lock
-      lock(_sync) {
-#if NC_DEBUG
-	Console.WriteLine("[NCService] {0} Installing an instance of NCService", node.Address);
-#endif 
-	_node = node;
 	_rpc = RpcManager.GetInstance(node);      
 	_server = new NCServer(this);
-	//register the table with the RpcManagers
 	_rpc.AddHandler("ncserver", _server);
 	_node.HeartBeatEvent += new EventHandler(GetSample);
       }
     }
-//     protected void TryInitializeFromFile() {
-//       lock(_sync) {
-// 	string dir_name = _coordinate_cache_dir + "/" + _node.Address.ToString();
-// 	if (!Directory.Exists(dir_name)) {
-// 	  Directory.CreateDirectory(dir_name);
-// 	  return;
-// 	}
-// 	string fname = dir_name + "/" + _coordinate_cache_file;
-// 	  try {
-// 	    FileStream fStream = new FileStream(fname, FileMode.Open, FileAccess.Read);
-// 	    StreamReader br = new StreamReader(fStream);
-// 	    //first line are the coordinates; assume 2 dimernsions
-// 	    string s = br.ReadLine();
-// 	    string[] ss = s.Split();
-// 	    if (ss.Length != Point.DIMENSIONS) {
-// 	      throw new Exception("Incorrect number of dimensions in euclidien space" );
-// 	    }
-// 	    float[] side = new float[Point.DIMENSIONS];
-// 	    for (int i = 0; i < Point.DIMENSIONS; i++) {
-// 	      side[i] = (float) Double.Parse(ss[i].Trim());
-// 	    }
-// 	    //next line is the height
-// 	    s = br.ReadLine();
-// 	    float height = (float) Double.Parse(s.Trim());
-// 	    //next value is the error
-// 	    s = br.ReadLine();
-// 	    float error = (float) Double.Parse(s.Trim());
-// 	    _vivaldi_state = new VivaldiState();
-// 	    _vivaldi_state.Position = new Point();
-// 	    _vivaldi_state.Position.Side = side;
-// 	    _vivaldi_state.Position.Height = height;
-// 	    _vivaldi_state.WeightedError = error;
-// 	  } catch(Exception e) {
-// 	    Console.Error.WriteLine(e);
-// 	    _vivaldi_state = null;
-// 	  }
-//       }
-//     }
-//     protected void UpdateToFile() {
-//       lock(_sync) {
-// 	try {
-// 	  string fname = _coordinate_cache_dir + "/" + _node.Address.ToString() + "/" + _coordinate_cache_file;
-	  
-// 	  FileStream fStream = new FileStream(fname, FileMode.Truncate);
-// 	  StreamWriter sw = new StreamWriter(fStream);
-	  
-// 	  for (int i = 0; i < Point.DIMENSIONS; i++) {
-// 	    sw.Write("{0} ", _vivaldi_state.Position.Side[i]);
-// 	  }
-// 	  sw.WriteLine();
-// 	  sw.WriteLine("{0} ", _vivaldi_state.Position.Height);
-// 	  sw.WriteLine("{0} ", _vivaldi_state.WeightedError);	
-	  
-// 	  //this is important; only on close are updates actually made in some cases
-// 	  sw.Close();
-// 	} catch (Exception e) {
-// 	  Console.Error.WriteLine(e);	  
-// 	}
-//       }
-//     }
+
+    public static void InstallNCService(Node node) {
+      lock(_nc_service_table) {
+	if (_nc_service_table.ContainsKey(node)) {
+	  throw new Exception(" NCService already installed on node: " + node.ToString());
+	}
+	_nc_service_table[node] = new NCService(node);
+#if NC_DEBUG
+	Console.WriteLine("[NCService] {0} Installing an instance of NCService", node.Address);
+#endif 
+      }
+    }
+
+    protected void GetSampleFromTarget(Address target) {
+      Channel q = new Channel();
+      q.CloseAfterEnqueue();
+      q.EnqueueEvent += new EventHandler(HandleSample);
+      AHSender s = new AHSender(_node, target, AHPacket.AHOptions.Exact);
+      _rpc.Invoke(s, q, "ncserver.EchoVivaldiState", new object[]{});
+      _current_trial_state.Queue = q;
+      _current_trial_state.NumSamples++;
+    }
+    
     protected void GetSample(object node, EventArgs args) {
       TimeSpan elapsed = DateTime.Now - _last_sample_instant;
+
+      //
+      // Check if too early to get a sample. 
+      //
+      
       if (elapsed.TotalSeconds < SAMPLE_INTERVAL) {
 	return;
       }
-      //pick a random target from the connection table
+
+      //
+      // Pick a random target from the connection table.
+      //
+
       Connection target = _node.ConnectionTable.GetRandom(ConnectionType.Structured);
       if (target == null) {
 #if NC_DEBUG
@@ -242,38 +202,38 @@ namespace Brunet.Coordinate {
 #endif
 	return;
       }
+
       DateTime now = DateTime.Now;
       _last_sample_instant = now;
-      BlockingQueue q = _rpc.Invoke(target.Address, "ncserver.EchoVivaldiState", new object[]{});
-      q.EnqueueEvent += new EventHandler(HandleSample);      
-
-      //this way we automatically loose references to queue objects
-      lock(_sync) {
-	_trial_state.Queue = q;
-	_trial_state.Start = now;
-      }
+      _current_trial_state.NumSamples = 0;
+      _current_trial_state.Target = target.Address;
+      _current_trial_state.Start = now;
+      GetSampleFromTarget(target.Address);
     }
     
     protected void HandleSample(object o, EventArgs args) {
 #if NC_DEBUG
       Console.WriteLine("[NCService] {0} getting a sample.", _node.Address);
 #endif
-      BlockingQueue q =  (BlockingQueue) o;
       DateTime start;
+      Channel q =  (Channel) o;
       lock(_sync) {
-	if (q != _trial_state.Queue) {
+	if (q != _current_trial_state.Queue) {
 	  Console.Error.WriteLine("[NCService] {0} incomplete sample (no start time).", _node.Address);	  	  
 	  return;
 	} 
-	start = _trial_state.Start;
+
+	if (_current_trial_state.NumSamples <  TrialState.MIN_SAMPLES) {
+	  GetSampleFromTarget(_current_trial_state.Target);
+	  return;
+	}
+	start = _current_trial_state.Start;
       }
 
       DateTime end = DateTime.Now;
       
       RpcResult res = q.Dequeue() as RpcResult;
 
-      //simple close the queue
-      q.Close();
       //unregister any future enqueue events
       q.EnqueueEvent -= new EventHandler(HandleSample);
       
@@ -381,9 +341,7 @@ namespace Brunet.Coordinate {
 	}
 	float o_relativeError = Math.Abs((o_distance - o_latency)/o_latency);
 	float o_rawRelativeError = Math.Abs((o_distance - o_rawLatency)/o_rawLatency);
-      
 	float o_weight = _vivaldi_state.WeightedError/(_vivaldi_state.WeightedError + o_weightedError);
-      
 	float o_alphaWeightedError = ERROR_FRACTION * o_weight;
       
 #if NC_DEBUG
@@ -484,5 +442,66 @@ namespace Brunet.Coordinate {
 	//_vivaldi_state.DistanceDelta = (float) (0.05 * Math.Abs(o_force.Length()) + 0.95*_vivaldi_state.DistanceDelta);
       }
     }
+
+//     protected void TryInitializeFromFile() {
+//       lock(_sync) {
+// 	string dir_name = _coordinate_cache_dir + "/" + _node.Address.ToString();
+// 	if (!Directory.Exists(dir_name)) {
+// 	  Directory.CreateDirectory(dir_name);
+// 	  return;
+// 	}
+// 	string fname = dir_name + "/" + _coordinate_cache_file;
+// 	  try {
+// 	    FileStream fStream = new FileStream(fname, FileMode.Open, FileAccess.Read);
+// 	    StreamReader br = new StreamReader(fStream);
+// 	    //first line are the coordinates; assume 2 dimernsions
+// 	    string s = br.ReadLine();
+// 	    string[] ss = s.Split();
+// 	    if (ss.Length != Point.DIMENSIONS) {
+// 	      throw new Exception("Incorrect number of dimensions in euclidien space" );
+// 	    }
+// 	    float[] side = new float[Point.DIMENSIONS];
+// 	    for (int i = 0; i < Point.DIMENSIONS; i++) {
+// 	      side[i] = (float) Double.Parse(ss[i].Trim());
+// 	    }
+// 	    //next line is the height
+// 	    s = br.ReadLine();
+// 	    float height = (float) Double.Parse(s.Trim());
+// 	    //next value is the error
+// 	    s = br.ReadLine();
+// 	    float error = (float) Double.Parse(s.Trim());
+// 	    _vivaldi_state = new VivaldiState();
+// 	    _vivaldi_state.Position = new Point();
+// 	    _vivaldi_state.Position.Side = side;
+// 	    _vivaldi_state.Position.Height = height;
+// 	    _vivaldi_state.WeightedError = error;
+// 	  } catch(Exception e) {
+// 	    Console.Error.WriteLine(e);
+// 	    _vivaldi_state = null;
+// 	  }
+//       }
+//     }
+//     protected void UpdateToFile() {
+//       lock(_sync) {
+// 	try {
+// 	  string fname = _coordinate_cache_dir + "/" + _node.Address.ToString() + "/" + _coordinate_cache_file;
+	  
+// 	  FileStream fStream = new FileStream(fname, FileMode.Truncate);
+// 	  StreamWriter sw = new StreamWriter(fStream);
+	  
+// 	  for (int i = 0; i < Point.DIMENSIONS; i++) {
+// 	    sw.Write("{0} ", _vivaldi_state.Position.Side[i]);
+// 	  }
+// 	  sw.WriteLine();
+// 	  sw.WriteLine("{0} ", _vivaldi_state.Position.Height);
+// 	  sw.WriteLine("{0} ", _vivaldi_state.WeightedError);	
+	  
+// 	  //this is important; only on close are updates actually made in some cases
+// 	  sw.Close();
+// 	} catch (Exception e) {
+// 	  Console.Error.WriteLine(e);	  
+// 	}
+//       }
+//     }
   }
 }
