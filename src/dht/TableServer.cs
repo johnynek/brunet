@@ -74,7 +74,8 @@ namespace Brunet.Dht {
           MemBlock value = (byte[]) args[1];
           int ttl = (int) args[2];
           bool unique = (bool) args[3];
-          result = Put(key, value, ttl, unique);
+          Put(key, value, ttl, unique, rs);
+          return;
         }
         else if(method.Equals("PutHandler")) {
           MemBlock key = (byte[]) args[0];
@@ -124,14 +125,15 @@ namespace Brunet.Dht {
         // was never created it shouldn't matter.
 
 
-    public bool Put(MemBlock key, MemBlock value, int ttl, bool unique) {
+    public bool Put(MemBlock key, MemBlock value, int ttl, bool unique, object rs) {
       try {
         PutHandler(key, value, ttl, unique);
         Channel remote_put = new Channel();
         remote_put.CloseAfterEnqueue();
         remote_put.EnqueueEvent += delegate(Object o, EventArgs eargs) {
+          object result = false;
           try {
-            object result = remote_put.Dequeue();
+            result = remote_put.Dequeue();
             RpcResult rpcResult = (RpcResult) result;
             result = rpcResult.Result;
             if(result.GetType() != typeof(bool)) {
@@ -143,8 +145,9 @@ namespace Brunet.Dht {
           }
           catch (Exception e) {
             _data.RemoveEntry(key, value);
-            throw e;
+            result = new AdrException(-32602, e);
           }
+          _rpc.SendResult(rs, result);
         };
 
 
