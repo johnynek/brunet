@@ -39,16 +39,18 @@ namespace Brunet.Coordinate {
     public Sample() {
       _sample_list = new ArrayList();
     }
+
     public void AddSample(DateTime time_stamp, float sample, Point position, float weightedError) {
       _time_stamp = time_stamp;
       _weightedError = weightedError;
       _position = position;
-
       if (_sample_list.Count > PING_HISTORY_COUNT) {
 	_sample_list.RemoveAt(0);
       }
+
       _sample_list.Add(sample);
     }
+
     public float GetSample() {
       if (_sample_list.Count < PING_HISTORY_COUNT/2) {
 	//we just dont start assuming samples to be correct; unless we have many of those
@@ -61,5 +63,4 @@ namespace Brunet.Coordinate {
       return sample;
     }
   }
-
 }
