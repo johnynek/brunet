@@ -198,5 +198,42 @@
       dir="${build.dir}"
       failonerror="false"/>
   </target>
-
+  
+ <target
+    name="test"
+    depends="init"
+    description="Builds the nunit testable configuration.">
+    <!-- copy libraries -->
+    <copy todir="${build.dir}/${package.name}/bin">
+       <fileset basedir="${lib.dir}">
+          <!--include name="log4net.dll" /-->
+          <include name="Brunet.dll" />
+          <include name="logconfig.xml" />
+          <include name="NUnit.Framework.dll" />
+       </fileset>
+    </copy>
+    
+    <csc
+      target="library"
+      debug="${build.debug}"
+      define="NC_NUNIT,NC_DEBUG"
+      output="${build.dir}/${package.name}/bin/Brunet.Coordinate.dll">
+      doc="${build.dir}/${package.name}/bin/${assembly}.xml">
+      <sources failonempty="true">
+        <include name="*.cs"/>
+      </sources> 
+      <references>
+        <!--include name="${build.dir}/${package.name}/bin/${assembly}.dll" /-->
+        <include name="${build.dir}/${package.name}/bin/log4net.dll" />
+        <include name="${build.dir}/${package.name}/bin/Brunet.dll" />
+        <include name="${build.dir}/${package.name}/bin/NUnit.Framework.dll" />
+      </references>
+    </csc>
+    <!-- finally copy the newly compiled library to the lib directory  -->
+    <copy todir="${lib.dir}">
+      <fileset basedir="${build.dir}/${package.name}/bin">
+           <include name="${build.dir}/${package.name}/bin/${assembly}.dll" />
+      </fileset>
+    </copy>
+  </target>
 </project>
