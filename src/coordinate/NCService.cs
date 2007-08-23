@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Collections;
 using System.Security.Cryptography;
 
@@ -44,7 +45,7 @@ namespace Brunet.Coordinate {
 	Console.WriteLine("[NCService] {0} EchoVivaldiState() method invoked.", _local_service.Address);
 #endif
 	
-	Address addr = _local_service.Address;
+	Address address = _local_service.Address;
 	VivaldiState v_state = _local_service.State;
 	
 	//
@@ -52,12 +53,14 @@ namespace Brunet.Coordinate {
 	//
 	
 	Hashtable ht = new Hashtable();
-	byte[] b = new byte[Address.MemSize];
-	addr.CopyTo(b);
-	ht["neighbor"] = b; 
+	if (address != null) {
+	  byte[] b = new byte[Address.MemSize];
+	  address.CopyTo(b);
+	  ht["neighbor"] = b;
+	} 
+
+	//error
 	ht["error"] = v_state.WeightedError;
-
-
 	//local coordinates
 	Hashtable ht_position = new Hashtable();
 	ht_position["side"] = new ArrayList(v_state.Position.Side);
@@ -99,9 +102,9 @@ namespace Brunet.Coordinate {
     protected DateTime _last_update_file_instant;
 
     /** Vivaldi related stuff. */
-    protected static readonly float DAMPENING_FRACTION = 0.25f;
-    protected static readonly float ERROR_FRACTION = 0.25f;
-    protected static readonly float INITIAL_WEIGHTED_ERROR = 1.0f;
+    protected static readonly double DAMPENING_FRACTION = 0.25f;
+    protected static readonly double ERROR_FRACTION = 0.25f;
+    protected static readonly double INITIAL_WEIGHTED_ERROR = 1.0f;
     
     
     //latency samples from neighbors
@@ -119,11 +122,11 @@ namespace Brunet.Coordinate {
 
     public class VivaldiState {
       //current weighted error
-      public float WeightedError;
+      public double WeightedError;
       //our current position estimate
       public Point Position;
       //EWMA of movements, dont think this is being used currently
-      public float DistanceDelta;
+      public double DistanceDelta;
     }
 
     protected VivaldiState _vivaldi_state;
@@ -146,6 +149,7 @@ namespace Brunet.Coordinate {
     public NCService() {
       _sync = new object();
       _node = null;
+      _server = new NCServer(this);
       _last_sample_instant = DateTime.MinValue;
       _last_update_file_instant = DateTime.MinValue;
       _samples = new Hashtable();
@@ -176,7 +180,6 @@ namespace Brunet.Coordinate {
 
       lock(_sync) {
 	_rpc = RpcManager.GetInstance(node);
-	_server = new NCServer(this);
 	_rpc.AddHandler("ncserver", _server);
 	_node.HeartBeatEvent += new EventHandler(GetSample);
       }
@@ -282,10 +285,10 @@ namespace Brunet.Coordinate {
 
 	  Hashtable ht_position = (Hashtable) ht["position"];
 	  Point o_position = 
-	    new Point((float[]) ((ArrayList) ht_position["side"]).ToArray(typeof(float)), (float) ht_position["height"]);
+	    new Point((double[]) ((ArrayList) ht_position["side"]).ToArray(typeof(double)), (double) ht_position["height"]);
 
-	  float o_weightedError = (float) ht["error"];
-	  float o_rawLatency = (float) ((end - start).TotalMilliseconds);
+	  double o_weightedError = (double) ht["error"];
+	  double o_rawLatency = (double) ((end - start).TotalMilliseconds);
 	  
 #if NC_LOG
 	  string ss = _node.Address + "::::" + DateTime.UtcNow.Ticks + "::::Coordinates::::"; 
@@ -312,7 +315,7 @@ namespace Brunet.Coordinate {
      */
 
     public void ProcessSample(DateTime o_stamp, Address neighbor, Point o_position, 
-			      float o_weightedError, float o_rawLatency) {
+			      double o_weightedError, double o_rawLatency) {
       lock(_sync) {
 #if NC_DEBUG
 	Console.WriteLine("[Sample] at: {0}, from: {1}, position: {2}, error: {3}, latency: {4}", 
@@ -327,7 +330,7 @@ namespace Brunet.Coordinate {
 	  _samples[neighbor] = sample;
 	}
 	sample.AddSample(o_stamp, o_rawLatency, o_position, o_weightedError);
-	float o_latency = sample.GetSample();
+	double o_latency = sample.GetSample();
 	if (o_latency < 0.0) {
 #if NC_DEBUG
 	  Console.WriteLine("Too few samples to consider.");
@@ -335,15 +338,15 @@ namespace Brunet.Coordinate {
 	  return;
 	}
 
-	float o_distance = _vivaldi_state.Position.GetEucledianDistance(o_position);
+	double o_distance = _vivaldi_state.Position.GetEucledianDistance(o_position);
 	while (o_distance == 0) {
 	  _vivaldi_state.Position.Bump();
 	  o_distance = _vivaldi_state.Position.GetEucledianDistance(o_position);
 	}
-	float o_relativeError = Math.Abs((o_distance - o_latency)/o_latency);
-	float o_rawRelativeError = Math.Abs((o_distance - o_rawLatency)/o_rawLatency);
-	float o_weight = _vivaldi_state.WeightedError/(_vivaldi_state.WeightedError + o_weightedError);
-	float o_alphaWeightedError = ERROR_FRACTION * o_weight;
+	double o_relativeError = Math.Abs((o_distance - o_latency)/o_latency);
+	double o_rawRelativeError = Math.Abs((o_distance - o_rawLatency)/o_rawLatency);
+	double o_weight = _vivaldi_state.WeightedError/(_vivaldi_state.WeightedError + o_weightedError);
+	double o_alphaWeightedError = ERROR_FRACTION * o_weight;
       
 #if NC_DEBUG
 	Console.WriteLine("o_distance: {0}", o_distance);
@@ -416,11 +419,11 @@ namespace Brunet.Coordinate {
 	Console.WriteLine("Initiating force computation.");
 #endif   
       
-	float o_sampleWeightSum = 0.0f;
+	double o_sampleWeightSum = 0.0f;
 	for (int k = 0; k < valid_nodes.Count; k++) {
 	  Address node = (Address) valid_nodes[k];
 	  Sample n_sample = (Sample) _samples[node];	
-	  o_sampleWeightSum += (float) (n_sample.TimeStamp - o_oldestSample).TotalSeconds;
+	  o_sampleWeightSum += (double) (n_sample.TimeStamp - o_oldestSample).TotalSeconds;
 	}
 
 #if NC_DEBUG
@@ -435,7 +438,7 @@ namespace Brunet.Coordinate {
 #if NC_DEBUG
 	  Console.WriteLine("current position: {0}", _vivaldi_state.Position);
 #endif
-	  float s_distance = _vivaldi_state.Position.GetEucledianDistance(n_sample.Position);
+	  double s_distance = _vivaldi_state.Position.GetEucledianDistance(n_sample.Position);
 	  while (s_distance == 0) {
 	    _vivaldi_state.Position.Bump();
 	    s_distance = _vivaldi_state.Position.GetEucledianDistance(n_sample.Position);	  
@@ -446,11 +449,11 @@ namespace Brunet.Coordinate {
 	    s_unitVector = Point.GetRandomUnitVector();
 	  }
 
-	  float s_latency = n_sample.GetSample();
-	  float s_dampening = _vivaldi_state.WeightedError / (_vivaldi_state.WeightedError + n_sample.WeightedError);
-	  float s_error = s_distance - s_latency;
-	  float s_sampleWeight = 1.0f;
-	  float s_sampleNewness = (float) (n_sample.TimeStamp - o_oldestSample).TotalSeconds;
+	  double s_latency = n_sample.GetSample();
+	  double s_dampening = _vivaldi_state.WeightedError / (_vivaldi_state.WeightedError + n_sample.WeightedError);
+	  double s_error = s_distance - s_latency;
+	  double s_sampleWeight = 1.0f;
+	  double s_sampleNewness = (double) (n_sample.TimeStamp - o_oldestSample).TotalSeconds;
 	  if (o_sampleWeightSum > 0.0) {
 	    s_sampleWeight = s_sampleNewness/o_sampleWeightSum;
 	  }
@@ -499,20 +502,20 @@ namespace Brunet.Coordinate {
     [Test]
     public void TestSample() {
       Sample sample = new Sample();
-      sample.AddSample(DateTime.Now, (float) 100.0, new Point(), (float) 0.001);
       Assert.IsTrue(sample.GetSample() < 0.0);
-      sample.AddSample(DateTime.Now, (float) 100.0, new Point(), (float) 0.002);
-      sample.AddSample(DateTime.Now, (float) 100.0, new Point(), (float) 0.003);
-      sample.AddSample(DateTime.Now, (float) 100.0, new Point(), (float) 0.004);
+      sample.AddSample(DateTime.Now, (double) 100.0, new Point(), (double) 0.001);
+      sample.AddSample(DateTime.Now, (double) 100.0, new Point(), (double) 0.002);
+      sample.AddSample(DateTime.Now, (double) 100.0, new Point(), (double) 0.003);
+      sample.AddSample(DateTime.Now, (double) 100.0, new Point(), (double) 0.004);
       Assert.IsTrue(sample.GetSample() > 0.0);
 
     }
     [Test]
     public void TestPoint() {
-      Point p1 = new Point(new float[] {(float) 3.0, (float) 4.0}, 0);
+      Point p1 = new Point(new double[] {(double) 3.0, (double) 4.0}, 0);
       Assert.IsTrue(p1.Length() > 4.9 && p1.Length() < 5.1);
-      Point p2 = new Point(new float[] {(float) 6.0, (float) 8.0}, 0);
-      float d = p1.GetEucledianDistance(p2);
+      Point p2 = new Point(new double[] {(double) 6.0, (double) 8.0}, 0);
+      double d = p1.GetEucledianDistance(p2);
       Assert.IsTrue(d > 4.9 && d < 5.1);
       Point uv = p1.GetDirection(p2);
       Assert.IsTrue(uv.Length() > 0.9 && uv.Length() < 1.1);
@@ -520,18 +523,18 @@ namespace Brunet.Coordinate {
       Assert.IsTrue(p1.Side[0] > 8.9 && p1.Side[0] < 9.1);
       Assert.IsTrue(p1.Side[1] > 11.9 && p1.Side[1] < 12.1);
 
-      p2.Scale((float) 0.5);
+      p2.Scale((double) 0.5);
       Assert.IsTrue(p2.Side[0] > 2.9 && p2.Side[0] < 3.1);
       Assert.IsTrue(p2.Side[1] > 3.9 && p2.Side[1] < 4.1);
 
       Point p = new Point(p2.Side, p2.Height);
       Assert.IsTrue(p.Equals(p2));
 
-      p2.Scale((float)2.0);
+      p2.Scale((double)2.0);
       Assert.IsTrue(!p.Equals(p2));
     }
 
-    [Test]
+    //[Test]
     public void TestService() {
       NCService nc_service = new NCService();
       DateTime now = DateTime.Now;
@@ -539,43 +542,70 @@ namespace Brunet.Coordinate {
       Address addr_remote1 = new AHAddress(new RNGCryptoServiceProvider());
 
       nc_service.ProcessSample(now + new TimeSpan(0, 0, 5), addr_remote, 
-			       new Point(new float[] {(float) 3.0, (float) 4.0}, 0),
-			       (float) 0.9, (float)10.0); 
+			       new Point(new double[] {(double) 3.0, (double) 4.0}, 0),
+			       (double) 0.9, (double)10.0); 
 
       nc_service.ProcessSample(now + new TimeSpan(0, 0, 6), addr_remote1, 
-			       new Point(new float[] {(float) 10.0, (float) 2.0}, 0),
-			       (float) 0.9, (float)10.0); 
+			       new Point(new double[] {(double) 10.0, (double) 2.0}, 0),
+			       (double) 0.9, (double)10.0); 
 
 
       nc_service.ProcessSample(now + new TimeSpan(0, 0, 7), addr_remote, 
-			       new Point(new float[] {(float) 3.0, (float) 4.0}, 0),
-			       (float) 0.8, (float)12.0); 
+			       new Point(new double[] {(double) 3.0, (double) 4.0}, 0),
+			       (double) 0.8, (double)12.0); 
 
       nc_service.ProcessSample(now + new TimeSpan(0, 0, 8), addr_remote1, 
-			       new Point(new float[] {(float) 10.0, (float) 2.0}, 0),
-			       (float) 0.8, (float)12.0); 
+			       new Point(new double[] {(double) 10.0, (double) 2.0}, 0),
+			       (double) 0.8, (double)12.0); 
 
 
       nc_service.ProcessSample(now + new TimeSpan(0, 0, 9), addr_remote, 
-			       new Point(new float[] {(float) 3.0, (float) 4.0}, 0),
-			       (float)0.7, (float)13.0); 
+			       new Point(new double[] {(double) 3.0, (double) 4.0}, 0),
+			       (double)0.7, (double)13.0); 
 
       nc_service.ProcessSample(now + new TimeSpan(0, 0, 11), addr_remote1, 
-			       new Point(new float[] {(float) 10.0, (float) 2.0}, 0),
-			       (float)0.7, (float)13.0); 
+			       new Point(new double[] {(double) 10.0, (double) 2.0}, 0),
+			       (double)0.7, (double)13.0); 
 
 
       nc_service.ProcessSample(now + new TimeSpan(0, 0, 12), addr_remote, 
-			       new Point(new float[] {(float) 3.0, (float) 4.0}, 0),
-			       (float)0.6, (float)10.0); 
+			       new Point(new double[] {(double) 3.0, (double) 4.0}, 0),
+			       (double)0.6, (double)10.0); 
 
       nc_service.ProcessSample(now + new TimeSpan(0, 0, 13), addr_remote1, 
-			       new Point(new float[] {(float) 10.0, (float) 2.0}, 0),
-			       (float)0.6, (float)10.0);       
+			       new Point(new double[] {(double) 10.0, (double) 2.0}, 0),
+			       (double)0.6, (double)10.0);       
 
       NCService.VivaldiState state = nc_service.State;
       Console.Error.WriteLine("position: {0}, error: {1}", state.Position, state.WeightedError);
- 
+    }
+
+    [Test]
+    public void TestSerialize() {
+      NCService nc_service = new NCService();
+      Hashtable ht1 = nc_service.Server.EchoVivaldiState();
+      MemoryStream ms = new MemoryStream();
+      int serialized = AdrConverter.Serialize(ht1, ms);
+      byte[] buf = ms.ToArray();
+      Assert.AreEqual(serialized, buf.Length, "Buffer length same as written");
+      ms.Seek(0, SeekOrigin.Begin);
+      object o = AdrConverter.Deserialize(ms);
+      Hashtable ht =  o as Hashtable;
+      Assert.IsTrue(ht != null);
+      byte[] b = (byte[]) ht["neighbor"];
+      Hashtable ht_position = (Hashtable) ht["position"];
+      Point o_position = 
+	new Point((double[]) ((ArrayList) ht_position["side"]).ToArray(typeof(double)), (double) ht_position["height"]);
+	  
+      double o_weightedError = (double) ht["error"];
+      // 
+      // Make sure that the values obtained match the orgininal NC state.
+      //
+
+      NCService.VivaldiState state = nc_service.State;
+
+      Assert.IsTrue(o_position.Equals(state.Position));
+      Assert.IsTrue(o_weightedError.Equals(state.WeightedError));
     }
   }
 #endif
