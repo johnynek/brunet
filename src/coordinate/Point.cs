@@ -143,17 +143,17 @@ namespace Brunet.Coordinate {
       return unitVector;
     }
     public override string ToString() {
-      string ss = "( ";
+      string ss = "";
       for (int i= 0; i < DIMENSIONS; i++) {
 	ss += _side[i];
 	if (i < DIMENSIONS - 1) {
-	  ss += ", ";
+	  ss += " ";
 	}
       }
 #if USE_HEIGHT
-      ss +=  ("h " + _height + ")");
+      ss +=  ("h " + _height + "");
 #else
-      ss += ")";
+      ss += "";
 #endif
       return ss;
     }
