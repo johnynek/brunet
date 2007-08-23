@@ -5,18 +5,18 @@ namespace Brunet.Coordinate {
   public class Point {
     protected static readonly int DIMENSIONS = 2;
     protected static readonly int INITIAL_VECTOR_VALUE  = 0;
-    protected static readonly float MIN_HEIGHT = 0.01f;
+    protected static readonly double MIN_HEIGHT = 0.01f;
     protected static readonly Random _rr = new Random();
 
-    protected float[] _side;
-    public float[] Side {
+    protected double[] _side;
+    public double[] Side {
       get {
 	return _side;
       } 
     }
 
-    protected float _height;
-    public float Height {
+    protected double _height;
+    public double Height {
       get {
 	return _height;
       }
@@ -26,7 +26,7 @@ namespace Brunet.Coordinate {
     }
     
     public Point() {
-      _side = new float[DIMENSIONS];
+      _side = new double[DIMENSIONS];
       for (int i = 0; i < _side.Length; i++) {
 	_side[i] = INITIAL_VECTOR_VALUE;
       }
@@ -35,19 +35,19 @@ namespace Brunet.Coordinate {
 #endif
     }
     
-    public Point(float[] side, float height) {
+    public Point(double[] side, double height) {
       if (side.Length != DIMENSIONS) {
 	throw new Exception("Only 2-D points supported");
       }
       _height = height;
-      _side = new float[DIMENSIONS];
+      _side = new double[DIMENSIONS];
       for (int i = 0; i < DIMENSIONS; i++) {
 	_side[i] = side[i];
       }
     }
     
     public Point GetDirection(Point p) {
-      float dist = GetEucledianDistance(p);
+      double dist = GetEucledianDistance(p);
       if (dist == 0) {
 	return null;
       }
@@ -60,26 +60,26 @@ namespace Brunet.Coordinate {
 #endif
       return unitVector;
     }
-    public float GetEucledianDistance(Point p) {
-      float d =  GetPlanarDistance(p);
+    public double GetEucledianDistance(Point p) {
+      double d =  GetPlanarDistance(p);
 #if USE_HEIGHT      
       d = d + _height + p.Height;
 #endif
       return d;
     }
-    public float GetPlanarDistance(Point p) {
-      float sum = 0;
+    public double GetPlanarDistance(Point p) {
+      double sum = 0;
       for (int i = 0; i < DIMENSIONS; i++) {
-	sum += (float) Math.Pow(_side[i] - p.Side[i], 2);
+	sum += (double) Math.Pow(_side[i] - p.Side[i], 2);
       } 
-      return (float) Math.Sqrt(sum);
+      return (double) Math.Sqrt(sum);
     }
-    public float Length() {
-      float sum = 0.0f;
+    public double Length() {
+      double sum = 0.0f;
       for (int i = 0; i < DIMENSIONS; i++) {
-	sum += (float) Math.Pow(_side[i], 2);
+	sum += (double) Math.Pow(_side[i], 2);
       }
-      float d = (float) Math.Sqrt(sum);
+      double d = (double) Math.Sqrt(sum);
 #if USE_HEIGHT
       d = d + _height;
 #endif
@@ -88,17 +88,17 @@ namespace Brunet.Coordinate {
     
     public void Bump() {
       for (int i = 0; i < DIMENSIONS; i++) {
-	_side[i] = (float) _rr.NextDouble();
+	_side[i] = (double) _rr.NextDouble();
 	Console.WriteLine("after bump side ({0}): {1}", i, _side[i]);
       }
 #if USE_HEIGHT      
       //only then do we bump the height (not otherwise)
-      _height = (float) _rr.NextDouble();
+      _height = (double) _rr.NextDouble();
       Console.WriteLine("after bump height: {0}", _height);
 #endif
     }
     
-    public void Scale(float s) {
+    public void Scale(double s) {
       for (int i = 0; i < DIMENSIONS; i++) {
 	_side[i] = _side[i] * s;
       }
@@ -119,26 +119,26 @@ namespace Brunet.Coordinate {
     public void CheckHeight() {
 #if USE_HEIGHT
       while (_height < MIN_HEIGHT) {
-	_height = (float) _rr.NextDouble();
+	_height = (double) _rr.NextDouble();
       }
 #endif
     }
 
     public static Point GetRandomUnitVector () {
       Point unitVector = new Point();
-      float length = 0.0f;
+      double length = 0.0f;
       for (int i = 0; i < DIMENSIONS; i++) {
-	unitVector.Side[i] = (float) _rr.NextDouble();
+	unitVector.Side[i] = (double) _rr.NextDouble();
 	length += unitVector.Side[i]*unitVector.Side[i];
       }  
-      length = (float) Math.Sqrt(length);
+      length = (double) Math.Sqrt(length);
       
       for (int i = 0; i < DIMENSIONS; i++) {
 	unitVector.Side[i] /= length;
       }	
 #if USE_HEIGHT
       unitVector.Height = 0.0f;
-      unitVector.Height = (float) _rr.NextDouble();
+      unitVector.Height = (double) _rr.NextDouble();
 #endif
       return unitVector;
     }
@@ -164,14 +164,14 @@ namespace Brunet.Coordinate {
       }
 
       for (int i = 0; i < DIMENSIONS; i++) {
-	if (other.Side[i] - Side[i] > 0.1 ||
-	    other.Side[i] - Side[i] < -0.1) {
+	if (other.Side[i] - Side[i] > 0.00001 ||
+	    other.Side[i] - Side[i] < -0.00001) {
 	  return false;
 	}
       }
 #if USE_HEIGHT      
-      if (other.Height - Height > 0.1 ||
-	  other.Height - Height < -0.1) {
+      if (other.Height - Height > 0.00001 ||
+	  other.Height - Height < -0.00001) {
 	return false;
       }
 #endif

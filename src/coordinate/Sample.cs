@@ -9,11 +9,11 @@ namespace Brunet.Coordinate {
   public class Sample {
     protected static readonly int PING_HISTORY_COUNT = 4;
     protected static readonly int MIN_HISTORY_COUNT = 0;
-    protected static readonly float PING_SAMPLE_PERCENTILE = 0.25f;
+    protected static readonly double PING_SAMPLE_PERCENTILE = 0.25f;
 
     /** weighted error last reposrted by a neighbor. */
-    protected float _weightedError;
-    public float WeightedError {
+    protected double _weightedError;
+    public double WeightedError {
       get {
 	return _weightedError;
       }
@@ -41,7 +41,7 @@ namespace Brunet.Coordinate {
       _sample_list = new ArrayList();
     }
 
-    public void AddSample(DateTime time_stamp, float sample, Point position, float weightedError) {
+    public void AddSample(DateTime time_stamp, double sample, Point position, double weightedError) {
       _time_stamp = time_stamp;
       _weightedError = weightedError;
       _position = position;
@@ -52,12 +52,12 @@ namespace Brunet.Coordinate {
       _sample_list.Add(sample);
     }
 
-    public float GetSample() {
+    public double GetSample() {
       if (_sample_list.Count > MIN_HISTORY_COUNT) {
 	ArrayList sorted_samples = new ArrayList(_sample_list);
 	sorted_samples.Sort();
 	int percentile = (int) (PING_SAMPLE_PERCENTILE * _sample_list.Count);
-	float sample = (float) sorted_samples[percentile];
+	double sample = (double) sorted_samples[percentile];
 	return sample;
       } else {
 	return -1.0f;
