@@ -28,8 +28,8 @@ namespace Brunet.Coordinate {
     //every 20 seconds get a new sample for latency
     private static readonly int SAMPLE_INTERVAL = 20;
 
-    //sample not valid beyond 15 minutes
-    protected static readonly long SAMPLE_EXPIRATION = 900;
+    //sample not valid beyond 5 seconds
+    protected static readonly long SAMPLE_EXPIRATION = 5;
 
     
     public class NCServer {
@@ -354,7 +354,9 @@ namespace Brunet.Coordinate {
 	Console.WriteLine("alpha: {0}", o_alphaWeightedError);
 #endif
 
-	_vivaldi_state.WeightedError = (o_relativeError* o_alphaWeightedError) + _vivaldi_state.WeightedError*(1 - o_alphaWeightedError);
+	_vivaldi_state.WeightedError = (o_relativeError* o_alphaWeightedError) + 
+	  _vivaldi_state.WeightedError*(1 - o_alphaWeightedError);
+
 #if NC_DEBUG
 	Console.WriteLine("my_weighted_error (postupdate)): {0}", State.WeightedError);
 #endif
@@ -404,6 +406,9 @@ namespace Brunet.Coordinate {
 	//get rid of invalid nodes
 	for (int k = 0; k < invalid_nodes.Count; k++) {
 	  Address node = (Address) invalid_nodes[k];
+#if NC_DEBUG
+	  Console.WriteLine("Removing samples from node: {0}", node);
+#endif
 	  _samples.Remove(node);
 	}
 
