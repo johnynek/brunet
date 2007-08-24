@@ -189,9 +189,24 @@ namespace Brunet
       FunctionEdge fe_to = fe_from.Partner;
       if( fe_to != null ) {
         el = (FunctionEdgeListener)_listener_map[ fe_to.ListenerId ];
-        el._queue.Enqueue( new FQEntry(fe_to, p) );
+	long now = DateTime.UtcNow.Ticks;
+	BrunetTask task = new ReceiveTask(el._queue, new FQEntry(fe_to, p), now + 10*10000);
+	TaskScheduler scheduler = TaskScheduler.GetInstance();
+	scheduler.Schedule(task);
       }
     }
-
+    class ReceiveTask: BrunetTask {
+      protected BlockingQueue _queue;
+      protected FQEntry _entry;
+      public ReceiveTask(BlockingQueue queue, FQEntry entry, long instance):base(instance) 
+      {
+	_queue = queue;
+      _entry = entry;
+      }
+      
+      public override void Fire() {
+	_queue.Enqueue(_entry);
+      }
+    }
   }
 }

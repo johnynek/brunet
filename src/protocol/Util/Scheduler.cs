@@ -88,7 +88,7 @@ namespace Brunet
 	  _now_ticks = DateTime.UtcNow.Ticks;
 	  LinkedListNode<BrunetTask> next_node = _task_queue.First;
 	  if (next_node.Value.Instant > _now_ticks) {
-	    int milliseconds = (int) ((next_node.Value.Instant - _now_ticks)/10000);
+	    int milliseconds = (int) ((next_node.Value.Instant - _now_ticks)/10000.0);
 	    task = (BrunetTask) _in_queue.Dequeue(milliseconds,
 						  out fire);
 	  } else {
