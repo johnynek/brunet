@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using Brunet;
 using System;
+using System.IO;
 using System.Collections;
 using System.Threading;
 
@@ -46,6 +47,43 @@ namespace Brunet
      * based on the id.
      */
     static protected Hashtable _listener_map = new Hashtable();
+
+    /**
+     * rtt-matrix for function edges.
+     */
+    static protected Hashtable _rtt_matrix;
+    static protected bool _rtt_initialized = false;
+    static public void InitializeRttMatrix(string rtt_file) {
+      if (_rtt_initialized == true) {
+	return;
+      }
+      
+      StreamReader br = new StreamReader(new FileStream(rtt_file, FileMode.Open, FileAccess.Read));
+      while(true) {
+	string s = br.ReadLine();
+	if (s == null) {
+	  break;
+	}
+	string[] ss = s.Split();
+	int local_idx = Int32.Parse(ss[0]);
+	int remote_idx = Int32.Parse(ss[1]);
+	Hashtable ht = null;
+	if (!_rtt_matrix.ContainsKey(local_idx)) {
+	  _rtt_matrix[local_idx] = new Hashtable(); 
+	} 
+	ht = (Hashtable) _rtt_matrix[local_idx];
+	ht[remote_idx] = double.Parse(ss[2]);
+
+	if (!_rtt_matrix.ContainsKey(remote_idx)) {
+	  _rtt_matrix[remote_idx] = new Hashtable(); 
+	} 
+	ht = (Hashtable) _rtt_matrix[remote_idx];
+	ht[local_idx] = double.Parse(ss[2]);
+      }      
+      br.Close();
+      _rtt_initialized = true;
+    }
+    
 
     /**
      * The id of this listener
@@ -189,10 +227,17 @@ namespace Brunet
       FunctionEdge fe_to = fe_from.Partner;
       if( fe_to != null ) {
         el = (FunctionEdgeListener)_listener_map[ fe_to.ListenerId ];
-	long now = DateTime.UtcNow.Ticks;
-	BrunetTask task = new ReceiveTask(el._queue, new FQEntry(fe_to, p), now + 10*10000);
-	TaskScheduler scheduler = TaskScheduler.GetInstance();
-	scheduler.Schedule(task);
+	FQEntry entry = new FQEntry(fe_to, p);
+	if (_rtt_initialized) {
+	  Hashtable ht = (Hashtable) _rtt_matrix[ _listener_id ];
+	  double delay = (double) ht [ fe_to.ListenerId ];
+	  long now = DateTime.UtcNow.Ticks;
+	  BrunetTask task = new ReceiveTask(el._queue, entry, (long) (now + delay*10000));
+	  TaskScheduler scheduler = TaskScheduler.GetInstance();
+	  scheduler.Schedule(task);
+	} else {
+	  el._queue.Enqueue(entry);
+	}
       }
     }
     class ReceiveTask: BrunetTask {
@@ -201,7 +246,7 @@ namespace Brunet
       public ReceiveTask(BlockingQueue queue, FQEntry entry, long instance):base(instance) 
       {
 	_queue = queue;
-      _entry = entry;
+	_entry = entry;
       }
       
       public override void Fire() {
