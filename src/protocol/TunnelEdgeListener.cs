@@ -266,7 +266,7 @@ namespace Brunet
     protected class EdgeCreationState {
       public readonly int Id;
       protected EdgeCreationCallback ECB;
-      protected readonly Packet RequestPacket;
+      public readonly Packet RequestPacket;
       protected readonly IList Senders;
 
       public const int MAX_ATTEMPTS = 4;
@@ -590,7 +590,8 @@ namespace Brunet
     protected void HandleEdgeResponse(int remoteid, int localid, MemBlock rest_of_payload) {
 	//assert (localid > 0) 
 #if TUNNEL_DEBUG
-	Console.Error.WriteLine("Receiving edge response: {0}", packet);
+	Console.Error.WriteLine("Receiving edge response, localid: {0}, remoteid:{1}.", 
+				localid, remoteid);
 #endif
         TunnelEdge e;
 	EdgeCreationState ecs = null;
@@ -599,7 +600,7 @@ namespace Brunet
 	  e = GetTunnelEdge(localid, 0);
   	  if (e != null) {
   #if TUNNEL_DEBUG
-  	  Console.Error.WriteLine("Must verify the remoteTA for the response: {0}", packet);
+  	  Console.Error.WriteLine("Must verify the remoteTA for the response");
   #endif
   	  //possible response to our create edge request, make sure this 
   	  //is the case by verifying the remote TA
@@ -659,7 +660,8 @@ namespace Brunet
     protected void HandleEdgeRequest(int remoteid, int localid, MemBlock rest_of_payload, ISender return_path)
     {
 #if TUNNEL_DEBUG
-	Console.Error.WriteLine("Receiving edge request: {0}", packet);
+	Console.Error.WriteLine("Receiving edge request: localid: {0}, remoteid: {1}", 
+				localid, remoteid);
 #endif
 	//probably a new incoming edge
 	bool is_new_edge = true;

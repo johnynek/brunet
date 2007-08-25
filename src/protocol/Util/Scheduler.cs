@@ -58,11 +58,12 @@ namespace Brunet
 	if (_scheduler == null) {
 	  _scheduler = new TaskScheduler();
 	}
+	_scheduler.Start();
 	return _scheduler;
       }
     } 
 
-    public void Start() {
+    protected void Start() {
       _thread.Start();
     }
     
@@ -89,6 +90,10 @@ namespace Brunet
 	  LinkedListNode<BrunetTask> next_node = _task_queue.First;
 	  if (next_node.Value.Instant > _now_ticks) {
 	    int milliseconds = (int) ((next_node.Value.Instant - _now_ticks)/10000.0);
+	    if (milliseconds < 0) {
+	      Environment.Exit(1);
+	    }
+	    //Console.WriteLine("millis:{0}", milliseconds);
 	    task = (BrunetTask) _in_queue.Dequeue(milliseconds,
 						  out fire);
 	  } else {
@@ -103,6 +108,7 @@ namespace Brunet
 	  
 	  task = _task_queue.First.Value;
 	  _task_queue.RemoveFirst();
+	  //Console.WriteLine("Firing event");
 	  task.Fire();
 	} else {
 	  //
@@ -171,7 +177,6 @@ namespace Brunet
     public void TestScheduler() {
       TaskScheduler scheduler = TaskScheduler.GetInstance();
       Assert.IsTrue(scheduler != null);
-      scheduler.Start();
       TestTask.Counter = 0;
       long now_ticks = DateTime.UtcNow.Ticks;
       for (int i = 0; i < 100; i++) {

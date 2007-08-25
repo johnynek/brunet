@@ -27,7 +27,7 @@ namespace Brunet.Coordinate {
     private static Hashtable _nc_service_table = new Hashtable();
 
     //every 20 seconds get a new sample for latency
-    private static readonly int SAMPLE_INTERVAL = 20;
+    private static readonly long SAMPLE_INTERVAL = 10;
 
     //sample not valid beyond 5 seconds
     protected static readonly long SAMPLE_EXPIRATION = 5;
@@ -195,12 +195,15 @@ namespace Brunet.Coordinate {
     protected void GetSample(object node, EventArgs args) {
       long now = DateTime.UtcNow.Ticks;
       lock(_sync) {
-	int elapsed = (int) ((now - _last_sample_instant)/10000000.0);
 	//
 	// Check if it is too early to get a sample. 
 	//
 	
-	if (elapsed < SAMPLE_INTERVAL) {
+	if ((now - _last_sample_instant)/10000000.0 < (double) SAMPLE_INTERVAL) {
+#if NC_DEBUG
+	  Console.WriteLine("[NCService] {0} Too early to get a sample, now: {1}, last: {2}.", 
+			    _node.Address, now, _last_sample_instant);
+#endif
 	  return;
 	}
 	
@@ -222,10 +225,10 @@ namespace Brunet.Coordinate {
 	_current_trial_state.Queue = new Channel();
 	_current_trial_state.NumSamples = 1;
 	GetSampleFromTarget(_current_trial_state.Queue, _current_trial_state.Target);
+	}
       }
-    }
     
-    protected void HandleSample(object o, EventArgs args) {
+      protected void HandleSample(object o, EventArgs args) {
 #if NC_DEBUG
       Console.WriteLine("[NCService] {0} getting a sample.", _node.Address);
 #endif
@@ -290,11 +293,13 @@ namespace Brunet.Coordinate {
 
 	  double o_weightedError = (double) ht["error"];
 	  double o_rawLatency = (double) ((end - start)/10000000.0);
-	  
+
 #if NC_LOG
+	  VivaldiState state = State;
 	  string ss = _node.Address + "::::" + now + "::::Coordinates::::"; 
-	  ss += (State.Position.Side[0] + "::::" + State.Position.Side[1] + "::::" + State.Position.Height + "::::");
-	  ss += ("Error::::" + State.WeightedError);
+	  ss += (state.Position.Side[0] + "::::" + state.Position.Side[1] + "::::" + 
+		 state.Position.Height + "::::");
+	  ss += ("Error::::" + state.WeightedError);
 	  _log.Debug(ss);
 	  ss = _node.Address + "::::" + now + "::::RawSample::::";
 	  ss += (neighbor + "::::" + c.Edge.RemoteTA.ToString() + "::::" + o_rawLatency);
@@ -354,7 +359,7 @@ namespace Brunet.Coordinate {
 	Console.WriteLine("o_latency: {0}", o_latency);
 	Console.WriteLine("o_relativeError (epsi): {0}", o_relativeError);
 	Console.WriteLine("o_weight (w_s): {0}", o_weight);
-	Console.WriteLine("my_weighted_error (preupdate)): {0}", State.WeightedError);
+	Console.WriteLine("my_weighted_error (preupdate)): {0}", _vivaldi_state.WeightedError);
 	Console.WriteLine("alpha: {0}", o_alphaWeightedError);
 #endif
 
@@ -362,7 +367,7 @@ namespace Brunet.Coordinate {
 	  _vivaldi_state.WeightedError*(1 - o_alphaWeightedError);
 
 #if NC_DEBUG
-	Console.WriteLine("my_weighted_error (postupdate)): {0}", State.WeightedError);
+	Console.WriteLine("my_weighted_error (postupdate)): {0}", _vivaldi_state.WeightedError);
 #endif
 	if (_vivaldi_state.WeightedError > 1.0f) {
 	  _vivaldi_state.WeightedError = 1.0f;
@@ -380,8 +385,7 @@ namespace Brunet.Coordinate {
 	//only consider nodes we have heard from in "near" past
 	foreach(Address node in _samples.Keys) {
 	  Sample n_sample = (Sample) _samples[node];
-	  int elapsed = (int) ((o_stamp - n_sample.TimeStamp)/10000000.0);
-	  if ( elapsed > SAMPLE_EXPIRATION) {
+	  if ((o_stamp - n_sample.TimeStamp)/10000000.0 > (double) SAMPLE_EXPIRATION) {
 	    //
 	    // Invalidate node.
 	    //
