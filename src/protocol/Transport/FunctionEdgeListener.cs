@@ -73,6 +73,7 @@ namespace Brunet
     }
     protected BlockingQueue _queue;
     protected Thread _queue_thread;
+    protected double _ploss_prob;
 
     public override TransportAddress.TAType TAType
     {
@@ -82,10 +83,11 @@ namespace Brunet
       }
     }
 
-
-    public FunctionEdgeListener(int id)
+    public FunctionEdgeListener(int id):this(id, 0.05) { }
+    public FunctionEdgeListener(int id, double loss_prob)
     {
       _listener_id = id;
+      _ploss_prob = loss_prob;
       _tas = new ArrayList();
       _tas.Add(TransportAddressFactory.CreateInstance("brunet.function://localhost:" +
                                      _listener_id.ToString()) );
@@ -164,14 +166,13 @@ namespace Brunet
       /*
        * Simulate packet loss
        */
-      double ploss_prob = 0.05;
       Random r = new Random();
       
       while( _is_started ) {
         //Wait 100 ms for an a packet to be sent:
         FQEntry ent = (FQEntry)_queue.Dequeue(100, out timedout);
         if( !timedout ) {
-          if( r.NextDouble() > ploss_prob ) {
+          if( r.NextDouble() > _ploss_prob ) {
             FunctionEdge fe = ent.Edge;
             if( ent.P is MemBlock ) {
               fe.Push( (MemBlock) ent.P );
