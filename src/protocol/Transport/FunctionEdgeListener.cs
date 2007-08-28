@@ -18,7 +18,7 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
-
+#define FUNCTION_DEBUG
 using Brunet;
 using System;
 using System.IO;
@@ -33,8 +33,7 @@ namespace Brunet
   * with one another.  No system interfaces are used,
   * the packets are simply passed by method calls.
   *
-  * FunctionEdges are for debugging with several nodes
-  * within one process
+  * FunctionEdges are for debugging with several nodes  * within one process
   *
   */
 
@@ -83,11 +82,18 @@ namespace Brunet
       }
     }
 
-    public FunctionEdgeListener(int id):this(id, 0.05) { }
-    public FunctionEdgeListener(int id, double loss_prob)
+
+    public FunctionEdgeListener(int id):this(id, 0.05, null) {}
+
+    public FunctionEdgeListener(int id, double loss_prob, TAAuthorizer ta_auth)
     {
       _listener_id = id;
       _ploss_prob = loss_prob;
+      if (ta_auth == null) {
+        _ta_auth = new ConstantAuthorizer(TAAuthorizer.Decision.Allow);
+      } else {
+	_ta_auth = ta_auth;
+      }
       _tas = new ArrayList();
       _tas.Add(TransportAddressFactory.CreateInstance("brunet.function://localhost:" +
                                      _listener_id.ToString()) );
@@ -117,33 +123,69 @@ namespace Brunet
         return;
       }
 
-      if( ta.TransportAddressType == this.TAType ) {
-        int remote_id = ((IPTransportAddress) ta).Port;
-        //Get the edgelistener:
-        
-        //Outbound edge:
-        FunctionEdge fe_l = new FunctionEdge(this, _listener_id,
-                                             remote_id, false);
-        lock( _listener_map ) { 
-          FunctionEdgeListener remote
-                      = (FunctionEdgeListener) _listener_map[remote_id];
-          if( remote != null ) {
-            FunctionEdge fe_r = new FunctionEdge(remote, remote_id,
-                                                 _listener_id, true);
-            fe_l.Partner = fe_r;
-            fe_r.Partner = fe_l;
-            remote.SendEdgeEvent(fe_r);
-          }
-          else {
-            //There is no other edge, for now, we use "udp-like"
-            //behavior of just making an edge that goes nowhere.
-          }
-        }
-        ecb(true, fe_l, null);
+#if FUNCTION_DEBUG
+      foreach (TransportAddress local_ta in LocalTAs) {
+	Console.WriteLine("Create edge local: {0} <-> remote {1}.", local_ta, ta);
       }
-      else {
+#endif
+
+      if( ta.TransportAddressType != this.TAType ) {
         //Can't make an edge of this type
+#if FUNCTION_DEBUG
+	Console.WriteLine("Can't make edge of this type.");
+#endif
         ecb(false, null, new EdgeException("Can't make edge of this type"));
+	return;
+      }
+      
+      if( _ta_auth.Authorize(ta) == TAAuthorizer.Decision.Deny ) {
+        //Not authorized.  Can't make this edge:
+#if FUNCTION_DEBUG
+	Console.WriteLine("Can't make edge. Remote TA {0} is not authorized locally.", ta);
+#endif
+        ecb(false, null,
+            new EdgeException( ta.ToString() + " is not authorized") );
+	return;
+      }
+      
+      int remote_id = ((IPTransportAddress) ta).Port;
+      //Get the edgelistener: 
+
+      //Outbound edge:
+      FunctionEdge fe_l = new FunctionEdge(this, _listener_id,
+					   remote_id, false);
+      lock( _listener_map ) { 
+	FunctionEdgeListener remote
+	  = (FunctionEdgeListener) _listener_map[remote_id];
+	if( remote != null ) {
+	  //
+	  // Make sure that the remote listener does not deny 
+	  // our TAs.
+	  //
+
+	  foreach (TransportAddress ta_local in LocalTAs) {
+	    if (remote.TAAuth.Authorize(ta_local) == TAAuthorizer.Decision.Deny ) {
+	      //Not authorized.  Can't make this edge:
+#if FUNCTION_DEBUG
+	      Console.WriteLine("Can't make edge. local TA {0} is not authorized remotely by {1}.", ta_local, ta);
+#endif
+	      ecb(false, null,
+		  new EdgeException( ta_local.ToString() + " is not authorized by remote node.") );
+	      return;
+	    }
+	  }
+
+	  FunctionEdge fe_r = new FunctionEdge(remote, remote_id,
+					       _listener_id, true);
+	  fe_l.Partner = fe_r;
+	  fe_r.Partner = fe_l;
+	  remote.SendEdgeEvent(fe_r);
+	}
+	else {
+	  //There is no other edge, for now, we use "udp-like"
+	  //behavior of just making an edge that goes nowhere.
+	}
+        ecb(true, fe_l, null);
       }
     }
 
