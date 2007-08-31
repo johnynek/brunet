@@ -55,6 +55,7 @@ namespace Brunet {
       for (int idx = 0; idx < _sorted_node_list.Count; idx++) {
 	Node n1 = (Node) _sorted_node_list.GetByIndex(idx);
 	Node n2 = (Node) _sorted_node_list.GetByIndex((idx + 1)%_node_list.Count);
+	
 	Connection con = n1.ConnectionTable.GetConnection(ConnectionType.Structured, n2.Address);
 	if (con != null) {
 	  Console.WriteLine("Found connection (forward) at: {0} -> {1}", n1.Address, con);
@@ -69,6 +70,7 @@ namespace Brunet {
 	  complete = false;
 	  Console.WriteLine("Missing connection (reverse) between: {0} and {1}", n2.Address, n1.Address);
 	} 
+	Console.WriteLine("Number of connection: {0}", n1.ConnectionTable.Count(ConnectionType.Structured));
       }
       if (complete) {
 	Console.WriteLine("Ring status: complete");
@@ -80,28 +82,19 @@ namespace Brunet {
     }
     public static void Main(string []args) {
       if (args.Length < 1) {
-	Console.WriteLine("please specify the number edge protocol."); 
-        Environment.Exit(0);
-      }
-      if (args.Length < 2) {
         Console.WriteLine("please specify the number of p2p nodes."); 
         Environment.Exit(0);
       }
-      if (args.Length < 3) {
+      if (args.Length < 2) {
         Console.WriteLine("please specify the number of missing edges."); 
         Environment.Exit(0);
       }
-      string proto = "function";
-      try {
-	proto = args[0].Trim();
-      } catch(Exception) {}
-
       bool tunnel = false;
       int base_port = 54000;
-      int network_size = Int32.Parse(args[1]);
-      int missing_count = Int32.Parse(args[2]);
+      int network_size = Int32.Parse(args[0]);
+      int missing_count = Int32.Parse(args[1]);
       try {
-	tunnel = args[3].Trim().Equals("tunnel");
+	tunnel = args[2].Trim().Equals("tunnel");
       } catch (Exception) {}
 
       Console.WriteLine("use tunnel edges: {0}", tunnel);
@@ -173,11 +166,8 @@ namespace Brunet {
 
       ArrayList RemoteTA = new ArrayList();
       for(int i = 0; i < network_size; i++) {
-	if (proto.Equals("udp")) {
-	  RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.udp://localhost:" + (base_port + i)));
-	} else if (proto.Equals("function")) { 
-	  RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.function://localhost:" + (base_port + i)));
-	}
+        //RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.udp://localhost:" + (base_port + i)));
+        RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.function://localhost:" + (base_port + i)));
       }
 
       for(int i = 0; i < network_size; i++) {
@@ -211,12 +201,9 @@ namespace Brunet {
 	  ta_auth = new SeriesTAAuthorizer(arr_tas);
 	}
 	
-	if (proto.Equals("udp")) { 
-	  node.AddEdgeListener(new UdpEdgeListener(base_port + i, null, ta_auth));
-	} else if(proto.Equals("function")) {
-	  node.AddEdgeListener(new FunctionEdgeListener(base_port + i, -1.00, ta_auth));
-	}
 	
+        //node.AddEdgeListener(new UdpEdgeListener(base_port + i, null, ta_auth));
+	node.AddEdgeListener(new FunctionEdgeListener(base_port + i, -1.00, ta_auth));	
 	if (tunnel) {
 	  Console.WriteLine("Adding a tunnel edge listener");
 	  node.AddEdgeListener(new TunnelEdgeListener(node));
@@ -234,10 +221,62 @@ namespace Brunet {
         System.Threading.Thread.Sleep(2000);
       }
 
-      //wait for 300000 more seconds
-      Console.WriteLine("Going to sleep for 300000 seconds.");
-      System.Threading.Thread.Sleep(300000);
+      //wait for 120000 more seconds
+      Console.WriteLine("Going to sleep for 120000 seconds.");
+      System.Threading.Thread.Sleep(120000);
       bool complete = CheckStatus();
+
+//       //
+//       // now churn the network, kill one node and add a new node
+//       //
+//       while (true) {
+// 	int idx = rand.Next(0, _sorted_node_list.Count);
+// 	//kill the node.
+// 	Node n = (Node) _sorted_node_list.GetByIndex(idx);
+// 	n.Disconnect();
+// 	bool add = false;
+// 	if (missing_edges.Contains(idx)) {
+// 	  add = true;
+// 	  missing_edges.Remove(idx);
+// 	}
+
+// 	//remove the node.
+// 	_node_list.Remove(n);
+// 	_sorted_node_list.Remove(_node.Address);
+// 	_node_to_port.Remove(n);
+
+
+// 	// start a new node.
+// 	AHAddress address = new AHAddress(new RNGCryptoServiceProvider());
+//         Node node = new StructuredNode(address, brunet_namespace);
+//         _sorted_node_list.Add((Address) address, node);
+// 	_node_list.Add(node);
+// 	RouteTestHandler test_handler = new RouteTestHandler();
+// 	node.GetTypeSource(new PType(routing_test)).Subscribe(test_handler, address.ToMemBlock());
+// 	int idx = _sorted_node_list.IndexOfKey(address);
+	
+// 	//Is there a need to add a new missing edge here.
+// 	TAAuthorizer ta_auth = null;
+// 	if (add) {
+// 	  //
+// 	  // make this node miss an edge to its next node.
+// 	  //
+// 	  Node next = (Node) _sorted_node_list.GetByIndex((idx+1)%_sorted_node_list.Count);
+// 	  int remote_port = (int) _node_to_port[next];
+// 	  PortTAAuthorizer port_auth = new PortTAAuthorizer(remote_port);
+// 	  ArrayList arr_tas = new ArrayList();
+// 	  arr_tas.Add(port_auth);
+// 	  arr_tas.Add(new ConstantAuthorizer(TAAuthorizer.Decision.Allow));
+// 	  ta_auth = new SeriesTAAuthorizer(arr_tas);
+// 	}
+// 	//add the edge listener.
+	
+
+	
+	
+//       }
+      
+      
 
       int count = 0;
       //
@@ -338,6 +377,10 @@ namespace Brunet {
 			correct_rpcs, incorrect_rpcs, missing_rpcs);
       
       System.Environment.Exit(1);
+      //foreach(DictionaryEntry de in _sorted_node_list) {
+      //  Node node = (Node)de.Value;
+      //  node.Disconnect();
+      //}      
     }
   }
 }
