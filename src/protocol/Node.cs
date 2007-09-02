@@ -530,6 +530,14 @@ namespace Brunet
         t = PType.Parse(b, out payload);
         ns = (NodeSource)GetTypeSource(t);
         handlers = ns.Announce(payload, from);
+        /**
+         * @todo if no one handled the packet, we might want to send some
+         * ICMP-like message.
+         */
+        if( handlers == 0 ) {
+          string p_s = payload.GetString(System.Text.Encoding.ASCII);
+          Console.Error.WriteLine("No Handler for packet type: {0}\n{1}", t, p_s);
+        }
       }
       catch(Exception x) {
         Console.Error.WriteLine("ERROR: Packet Handling Exception");
