@@ -58,7 +58,13 @@ namespace Brunet.Dht {
       int ttl = (int) ht["ttl"];
       int op = (int) ht["op"];
       bool expected_result = (bool) ht["result"];
-      bool result = default_dht.Create(key, value, ttl);
+      bool result = false;
+      try {
+        result = default_dht.Create(key, value, ttl);
+      }
+      catch {
+        result = false;
+      }
       if(result != expected_result) {
         if(!result) {
           lock(_lock) {
@@ -223,7 +229,13 @@ namespace Brunet.Dht {
       int ttl = (int) ht["ttl"];
       bool expected_result = (bool) ht["result"];
       int op = (int) ht["op"];
-      bool result = default_dht.Put(key, value, ttl);
+      bool result = false;
+      try {
+        result = default_dht.Put(key, value, ttl);
+      }
+      catch {
+        result = false;
+      }
       if(result != expected_result) {
         if(!result) {
           lock(_lock) {
@@ -347,7 +359,7 @@ namespace Brunet.Dht {
       try {
         Console.WriteLine("The following are serial tests until mentioned otherwise.");
         DateTime start = DateTime.UtcNow;
-/*        Test0(ref op);
+        Test0(ref op);
         Test1(ref op);
         Test2(ref op);
         Test3(ref op);
@@ -360,7 +372,7 @@ namespace Brunet.Dht {
         Test10(ref op);
         Test11(ref op);
         Test12(ref op);
-        Test13(ref op);*/
+        Test13(ref op);
         Test14(ref op);
         Console.WriteLine("Total memory: " + GC.GetTotalMemory(true));
         Console.WriteLine("Total time: " + (DateTime.UtcNow - start));

@@ -116,9 +116,6 @@ namespace Brunet.Dht {
       LinkedListNode<MemBlock> current = list_of_keys.First;
       while(current != null) {
         LinkedListNode<MemBlock> next = current.Next;
-        if(DeleteExpired(current.Value) == 0) {
-          list_of_keys.Remove(current);
-        }
         current = next;
       }
     }
@@ -142,7 +139,12 @@ namespace Brunet.Dht {
         current = next;
         count--;
       }
-      return data.Count;
+      int lcount = data.Count;
+      if(data.Count == 0) {
+        list_of_keys.Remove(key);
+        _data.Remove(key);
+      }
+      return lcount;
     }
 
     public string GeneratePath(MemBlock key) {
