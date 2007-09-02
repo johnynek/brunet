@@ -167,8 +167,7 @@ namespace Brunet.Dht {
       return (DhtGetResult []) allValues.ToArray(typeof(DhtGetResult));
     }
 
-    /*  This is the get that does all the work, it is meant to be
-     *   run as a thread */
+    //  This is the get that does all the work 
     public void AsGet(MemBlock key, Channel returns) {
       if (!Activated) {
         throw new DhtException("DhtClient: Not yet activated.");
@@ -333,9 +332,6 @@ namespace Brunet.Dht {
     */
     private void GetLeaveEarly(AsDhtGetState adgs) {
       int left = adgs.queueMapping.Count;
-#if DHT_DEBUG
-Console.Error.WriteLine("DHT_DEBUG:::GetLeaveEarly left:total = {0}:{1}", left, DEGREE);
-#endif
       // Maybe we can leave early
       bool got_all_values = true;
       lock(adgs.results) {
@@ -350,6 +346,9 @@ Console.Error.WriteLine("DHT_DEBUG:::GetLeaveEarly left:total = {0}:{1}", left, 
 
       // If we got to leave early, we must clean up
       if(got_all_values) {
+#if DHT_DEBUG
+Console.Error.WriteLine("DHT_DEBUG:::GetLeaveEarly found:left:total = {0}:{1}:{2}", adgs.results.Count, left, DEGREE);
+#endif
         adgs.returns.Close();
         adgs.GotToLeaveEarly = true;
       }
@@ -433,7 +432,13 @@ Console.Error.WriteLine("DHT_DEBUG:::Doing follow up put count:total = {0}:{1}",
     public bool Put(MemBlock key, MemBlock value, int ttl, bool unique) {
       BlockingQueue returns = new BlockingQueue();
       AsPut(key, value, ttl, returns, unique);
-      return (bool) returns.Dequeue();
+      object result = returns.Dequeue();
+      try {
+        return (bool) result;
+      }
+      catch {
+        throw (DhtException) result;
+      }
     }
 
     public void AsPut(MemBlock key, MemBlock value, int ttl, Channel returns, bool unique) {
@@ -510,7 +515,10 @@ Console.Error.WriteLine("DHT_DEBUG:::Doing follow up put count:total = {0}:{1}",
           */
           int count = (int) adps.ncount + 1;
           if(count == MAJORITY - 1 || 1 == DEGREE) {
-            adps.returns.Enqueue(false);
+            adps.returns.Enqueue(new DhtException("Put failed by negative " +
+              "responses:  P/N/T : " + adps.pcount + "/" + adps.ncount + "/" +
+              DEGREE));
+            adps.returns.Close();
           }
           adps.ncount = count;
         }
@@ -537,13 +545,11 @@ Console.Error.WriteLine("DHT_DEBUG:::Doing follow up put count:total = {0}:{1}",
       }
       if(count == 0) {
         if(!adps.returns.Closed) {
-          adps.returns.Enqueue(false);
+          adps.returns.Enqueue(new DhtException("Put failed by negative " +
+              "responses:  P/N/T : " + adps.pcount + "/" + adps.ncount + "/" +
+              DEGREE));
           adps.returns.Close();
         }
-#if DHT_DEBUG
-if((int) adps.pcount < MAJORITY)
-  Console.Error.WriteLine("DHT_DEBUG:::Failed a put pcount:ncount:total = {0}:{1}:{2}", adps.pcount, adps.ncount, DEGREE);
-#endif
         adps.pcount = null;
         adps.ncount = null;
       }
