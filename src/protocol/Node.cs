@@ -541,16 +541,12 @@ namespace Brunet
       }
       catch(Exception x) {
         Console.Error.WriteLine("ERROR: Packet Handling Exception");
-        Console.Error.WriteLine("Hander: {0}\tEdge: {1}\tPacket: {2}", ns, from, b);
+        string nodeSource = "null";
+        if (ns != null) {
+          nodeSource = ns.ToString();
+        }
+        Console.Error.WriteLine("Hander: {0}\tEdge: {1}}", nodeSource, from);
         Console.Error.WriteLine("Exception: {0}", x);
-      }
-      /**
-       * @todo if no one handled the packet, we might want to send some
-       * ICMP-like message.
-       */
-      if( handlers == 0 ) {
-        string p_s = payload.GetString(System.Text.Encoding.ASCII);
-        Console.Error.WriteLine("No Handler for packet type: {0}\n{1}", t, p_s);
       }
     }
     /**
