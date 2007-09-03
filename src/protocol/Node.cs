@@ -545,7 +545,7 @@ namespace Brunet
         if (ns != null) {
           nodeSource = ns.ToString();
         }
-        Console.Error.WriteLine("Hander: {0}\tEdge: {1}}", nodeSource, from);
+        Console.Error.WriteLine("Hander: {0}\tEdge: {1}", nodeSource, from);
         Console.Error.WriteLine("Exception: {0}", x);
       }
     }
