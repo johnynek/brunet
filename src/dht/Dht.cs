@@ -72,7 +72,7 @@ namespace Brunet.Dht {
 
     public BlockingQueue[] PrimitivePut(MemBlock key, int ttl, MemBlock data, bool unique) {
       if (!Activated) {
-        throw new DhtException("DhtClient: Not yet activated.");
+        throw new Exception("DhtClient: Not yet activated.");
       }
 
       BlockingQueue[] q = new BlockingQueue[DEGREE];
@@ -89,7 +89,7 @@ namespace Brunet.Dht {
 
     public BlockingQueue[] PrimitiveGet(MemBlock key, int maxbytes, MemBlock token) {
       if (!Activated) {
-        throw new DhtException("DhtClient: Not yet activated.");
+        throw new Exception("DhtClient: Not yet activated.");
       }
 
       BlockingQueue[] q = new BlockingQueue[DEGREE];
@@ -170,7 +170,7 @@ namespace Brunet.Dht {
     //  This is the get that does all the work 
     public void AsGet(MemBlock key, Channel returns) {
       if (!Activated) {
-        throw new DhtException("DhtClient: Not yet activated.");
+        throw new Exception("DhtClient: Not yet activated.");
       }
 
       // create a GetState and map in our table map its queues to it
@@ -443,7 +443,7 @@ Console.Error.WriteLine("DHT_DEBUG:::Doing follow up put count:total = {0}:{1}",
 
     public void AsPut(MemBlock key, MemBlock value, int ttl, Channel returns, bool unique) {
       if (!Activated) {
-        throw new DhtException("DhtClient: Not yet activated.");
+        throw new Exception("DhtClient: Not yet activated.");
       }
 
       AsDhtPutState adps = new AsDhtPutState(returns);
@@ -545,7 +545,7 @@ Console.Error.WriteLine("DHT_DEBUG:::Doing follow up put count:total = {0}:{1}",
       }
       if(count == 0) {
         if(!adps.returns.Closed) {
-          adps.returns.Enqueue(new DhtException("Put failed by negative " +
+          adps.returns.Enqueue(new DhtException("Put failed by lack of " +
               "responses:  P/N/T : " + adps.pcount + "/" + adps.ncount + "/" +
               DEGREE));
           adps.returns.Close();
