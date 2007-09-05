@@ -372,6 +372,18 @@ namespace Brunet
     }
 
     /**
+     * This returns an IList of the Local TAs
+     */
+    public IList GetLocalTAs(ISender caller) {
+      ArrayList lta = new ArrayList();
+      // Below is a fix for XmlRpc interfaces that don't have support for using
+      // the '/' characters
+      foreach(TransportAddress ta in _node.LocalTAs)
+        lta.Add(ta.ToString().Replace("//", ""));
+      return lta;
+    }
+
+    /**
      * When we get a new link message from an edge, we must
      * check several conditions to see if we can proceed with
      * the Link protocol.
