@@ -259,7 +259,7 @@ namespace Ipop {
         value = address.ToString();
       }
       if(geo_count == 0 || geo_loc.Equals(", "))
-        geo_loc = IPOP_Common.GeoLoc();
+        geo_loc = IPOP_Common.GetMyGeoLoc();
       else if(geo_count == geo_restart)
         geo_count = 0;
       else

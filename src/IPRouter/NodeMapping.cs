@@ -8,7 +8,7 @@ using System.Threading;
 namespace Ipop {
   public class NodeMapping : IRpcHandler {
     public IPAddress ip;
-    public string netmask, nodeAddress, password, ipop_namespace, geo_loc;
+    public string netmask, nodeAddress, password, ipop_namespace;
     public byte [] mac;
     public BrunetTransport brunet;
     private Thread trackerThread;
@@ -45,9 +45,10 @@ namespace Ipop {
     public void UpdateTracker() {
       int count = 0;
       int restart = (new Random()).Next(168);
+      string geo_loc = ",", gip = "";
       while(true) {
         if(count == 0 || geo_loc.Equals(", "))
-          geo_loc = IPOP_Common.GeoLoc();
+          geo_loc = IPOP_Common.GetMyGeoLoc();
         else if(count == restart)
           count = 0;
         else
