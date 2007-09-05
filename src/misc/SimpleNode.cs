@@ -19,6 +19,8 @@ namespace Ipop {
     private static bool one_run;
     private static ArrayList dhtfiles = new ArrayList();
     private static IEnumerable addresses;
+    private static int geo_count = 0, geo_restart = (new Random()).Next(168);
+    private static string geo_loc = ",";
 
     public static int Main(string []args) {
       int node_count = 1;
@@ -254,18 +256,25 @@ namespace Ipop {
     public static void UpdateTracker() {
       string value = string.Empty;
       foreach (IPAddress address in addresses) {
-        value += "|" + address.ToString();
+        value = address.ToString();
       }
+      if(geo_count == 0 || geo_loc.Equals(", "))
+        geo_loc = IPOP_Common.GeoLoc();
+      else if(geo_count == geo_restart)
+        geo_count = 0;
+      else
+        geo_count++;
 
       for (int i = 0; i < nodes.Length; i++) {
         while(true) {
           bool result = false;
+          string val = nodes[i].Address + "|" + value + "|" + geo_loc;
           try {
-            result = dhts[i].Put("plab_tracker", nodes[i].Address.ToString() + value, 7200);
+            result = dhts[i].Put("plab_tracker", val, 7200);
           }
           catch(Exception) {;}
           if(result) {
-            Console.Error.WriteLine("Successfully submitted {0} into plab_tracker.", value);
+            Console.Error.WriteLine("Successfully submitted {0} into plab_tracker.", val);
             break;
           }
           else {
