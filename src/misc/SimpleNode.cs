@@ -18,7 +18,6 @@ namespace Ipop {
     private static Thread xrmthread;
     private static bool one_run;
     private static ArrayList dhtfiles = new ArrayList();
-    private static bool tracker;
     private static IEnumerable addresses;
 
     public static int Main(string []args) {
@@ -27,8 +26,6 @@ namespace Ipop {
       bool soap_client = false;
       bool dhtconsole = false;
       one_run = false;
-      tracker = false;
-
       OSDependent.DetectOS();
 
       int index = 0;
@@ -64,33 +61,33 @@ namespace Ipop {
             config_file = args[index];
             break;
           case "-s":
-            if(config_file != string.Empty || node_count > 1 || tracker) {
-              Console.WriteLine("-s cannot be used with -m, -c, or -t.\n");
+            if(config_file != string.Empty || node_count > 1) {
+              Console.WriteLine("-s cannot be used with -m, or -c.\n");
               PrintHelp();
             }
             sd = DhtServiceClient.GetSoapDhtClient();
             soap_client = true;
             break;
           case "-x":
-            if (config_file != string.Empty || node_count > 1 || tracker)
+            if (config_file != string.Empty || node_count > 1)
             {
-              Console.WriteLine("-x cannot be used with -m, -c, or -t.\n");
+              Console.WriteLine("-x cannot be used with -m, or -c.\n");
               PrintHelp();
             }
             sd = DhtServiceClient.GetXmlRpcDhtClient();
             soap_client = true;
             break;
           case "-dc":
-            if(node_count > 1 || dhtfiles.Count > 0 || tracker) {
-              Console.WriteLine("-dc cannot be used with -m, -df, or -t.\n");
+            if(node_count > 1 || dhtfiles.Count > 0) {
+              Console.WriteLine("-dc cannot be used with -m, or -df.\n");
               PrintHelp();
             }
             dhtconsole = true;
             break;
           case "-df":
             index++;
-            if(node_count > 1 || dhtconsole || tracker) {
-              Console.WriteLine("-df cannot be used with -m, -dc, or -t.\n");
+            if(node_count > 1 || dhtconsole) {
+              Console.WriteLine("-df cannot be used with -m, or -dc.\n");
               PrintHelp();
             }
             if((index != args.Length) && args[index] == "one_run") {
@@ -109,13 +106,6 @@ namespace Ipop {
             }
             dhtfiles.Add(args[index]);
             break;
-          case "-t":
-            if(soap_client || dhtconsole || dhtfiles.Count > 0) {
-              Console.WriteLine("-t cannot be used with -s, -dc, or -df.\n");
-              PrintHelp();
-            }
-            tracker = true;
-            break;
           case "-help":
           default:
             PrintHelp();
@@ -126,6 +116,8 @@ namespace Ipop {
 
       if(config_file != string.Empty) {
         StartBrunet(config_file, node_count);
+        if(dhtconsole || dhtfiles.Count > 0)
+          StartMonitorThread();
       }
 
       if(config_file == string.Empty && !soap_client) {
@@ -147,17 +139,7 @@ namespace Ipop {
         DhtConsole();
       }
       else {
-        while(true) {
-          if(tracker) {
-            UpdateTracker();
-          }
-       //   CheckConnections();
-          for(int i = 0; i < nodes.Length; i++) {
-            Console.Error.WriteLine("I am connected to {0} as {1}.  Current time is {2}.", 
-              nodes[i].Realm, nodes[i].Address.ToString(), DateTime.UtcNow);
-          }
-          Thread.Sleep(1000*60*60);
-        }
+        MonitorThread();
       }
 
       if(nodes != null) {
@@ -252,6 +234,22 @@ namespace Ipop {
       }
     }
 
+    public static void StartMonitorThread() {
+      Thread thread = new Thread(MonitorThread);
+      thread.Start();
+    }
+
+    public static void MonitorThread() {
+      while(true) {
+        UpdateTracker();
+        //   CheckConnections();
+        for(int i = 0; i < nodes.Length; i++) {
+          Console.Error.WriteLine("I am connected to {0} as {1}.  Current time is {2}.", 
+                                  nodes[i].Realm, nodes[i].Address.ToString(), DateTime.UtcNow);
+        }
+        Thread.Sleep(1000*60*60);
+      }
+    }
     // Get our eth0 IP address then post that and our Brunet address to the Dht
     public static void UpdateTracker() {
       string value = string.Empty;
@@ -290,12 +288,22 @@ namespace Ipop {
           if(dhtfiles.Count == 1) {
             Console.Error.WriteLine("DATA:::Attempting Dht operation!");
           }
+          object oresult = null;
           bool result = false;
-          if(dhts != null) {
-            result = dhts[0].Create(data.key, data.value, ttl);
+          try {
+            if(dhts != null) {
+              oresult = dhts[0].Create(data.key, data.value, ttl);
+            }
+            else {
+              oresult = sd.Create(data.key, data.value, ttl);
+            }
+            result = (bool) oresult;
           }
-          else {
-            result = sd.Create(data.key, data.value, ttl);
+          catch (DhtException) {
+            result = false;
+          }
+          catch (Exception x) {
+            throw x;
           }
           if(one_run) {
             if(result) {
@@ -358,13 +366,23 @@ namespace Ipop {
             int ttl = Int32.Parse(Console.ReadLine());
             Console.WriteLine("Attempting Create() on key : " + key);
             bool result = false;
-            if(dhts != null) {
-              result = dhts[0].Create(key, value, ttl);
+            object oresult = null;
+            try {
+              if(dhts != null) {
+                oresult = dhts[0].Create(key, value, ttl);
+              }
+              else {
+                oresult = sd.Create(key, value, ttl);
+              }
+              result = (bool) oresult;
             }
-            else {
-              result = sd.Create(key, value, ttl);
+            catch (DhtException) {
+              Console.WriteLine("Operation Completed and Failure because: " + oresult);
             }
-            Console.WriteLine("Operation Completed and " + ((result) ? "Success" : "Failure"));
+            catch (Exception x) {
+              throw x;
+            }
+            Console.WriteLine("Operation Completed and Success");
           }
           else if (str_oper.Equals("Get")) {
             Console.Write("Enter key:  ");

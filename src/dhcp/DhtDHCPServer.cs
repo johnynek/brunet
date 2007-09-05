@@ -18,7 +18,7 @@ namespace Ipop {
 
     public DhtDHCPServer(byte []server_ip, Dht dht) {
       _dht = dht;
-      this.ServerIP = server_ip;
+      this.ServerIP = new byte[4] {255, 255, 255, 255};
       this.leases = new SortedList();
       //do not have to even be concerned about brunet namespace so far
     }

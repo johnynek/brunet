@@ -2,9 +2,7 @@ using System;
 using System.IO;
 using System.Text;
 using System.Collections;
-
 using System.Security.Cryptography;
-
 using Brunet;
 using Brunet.Dht;
 
@@ -89,8 +87,16 @@ namespace Ipop {
           }
 
           string key = "dhcp:ipop_namespace:" + namespace_value + ":ip:" + guessed_ip_str;
-          if(_dht.Create(key, brunet_id, leasetime)) {
+          bool res = false;
+          try {
+            res = _dht.Create(key, brunet_id, leasetime);
+          }
+          catch {
+            res = false;
+          }
+          if(res) {
             Console.Error.WriteLine("Got " + key + " successfully");
+            _dht.Put(brunet_id, MemBlock.Reference(Encoding.UTF8.GetBytes(key + "|" + DateTime.Now.Ticks)), leasetime);
             return guessed_ip;
           }
         } while(max_renew_attempts-- > 0 && renew_attempt);
