@@ -71,7 +71,46 @@ namespace Brunet {
 	  Console.WriteLine("Missing connection (reverse) between: {0} and {1}", n2.Address, n1.Address);
 	} 
 	Console.WriteLine("Number of connection: {0}", n1.ConnectionTable.Count(ConnectionType.Structured));
+	Console.WriteLine("Number of connection: {0}", n1.ConnectionTable.Count(ConnectionType.Structured));
+	//
+	// Also get the near connections
+	//
+	int total_distance = 0;
+	int my_sorted_idx = _sorted_node_list.IndexOfKey(n1.Address);
+	int near_count = 0;
+	foreach(Connection c in n1.ConnectionTable.GetConnections(("structured.near"))) {
+	  int your_sorted_idx = _sorted_node_list.IndexOfKey(c.Address);
+	  int distance;
+	  if (my_sorted_idx > your_sorted_idx) {
+	    int temp = my_sorted_idx;
+	    my_sorted_idx = your_sorted_idx;
+	    your_sorted_idx = temp;
+	  }
+	  //your_sorted_idx greater than my_sorted_idx
+	  distance = your_sorted_idx - my_sorted_idx;
+	  if (distance > _sorted_node_list.Count/2) {
+	    distance = _sorted_node_list.Count - distance;
+	  }
+	  total_distance += distance;
+	  near_count += 1;
+	}
+	if (near_count > 0) {
+	  Console.WriteLine("Total near connections: {0}, distance: {1}", near_count, (double) total_distance/near_count);
+	} else {
+	  Console.WriteLine("No near connections");
+	}
+	int shortcut_count = 0;
+	foreach(Connection c in n1.ConnectionTable.GetConnections(("structured.near"))) {
+	  shortcut_count += 1;
+	}
+	if (shortcut_count > 0) {
+	  Console.WriteLine("Total shortcut connections: {0}", shortcut_count);
+	} else {
+	  Console.WriteLine("No shortcut connections");
+	}
+
       }
+      
       if (complete) {
 	Console.WriteLine("Ring status: complete");
 	return true;
@@ -82,19 +121,28 @@ namespace Brunet {
     }
     public static void Main(string []args) {
       if (args.Length < 1) {
-        Console.WriteLine("please specify the number of p2p nodes."); 
+	Console.WriteLine("please specify the number edge protocol."); 
         Environment.Exit(0);
       }
       if (args.Length < 2) {
+        Console.WriteLine("please specify the number of p2p nodes."); 
+        Environment.Exit(0);
+      }
+      if (args.Length < 3) {
         Console.WriteLine("please specify the number of missing edges."); 
         Environment.Exit(0);
       }
+      string proto = "function";
+      try {
+	proto = args[0].Trim();
+      } catch(Exception) {}
+
       bool tunnel = false;
       int base_port = 54000;
-      int network_size = Int32.Parse(args[0]);
-      int missing_count = Int32.Parse(args[1]);
+      int network_size = Int32.Parse(args[1]);
+      int missing_count = Int32.Parse(args[2]);
       try {
-	tunnel = args[2].Trim().Equals("tunnel");
+	tunnel = args[3].Trim().Equals("tunnel");
       } catch (Exception) {}
 
       Console.WriteLine("use tunnel edges: {0}", tunnel);
@@ -166,8 +214,11 @@ namespace Brunet {
 
       ArrayList RemoteTA = new ArrayList();
       for(int i = 0; i < network_size; i++) {
-        //RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.udp://localhost:" + (base_port + i)));
-        RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.function://localhost:" + (base_port + i)));
+	if (proto.Equals("udp")) {
+	  RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.udp://localhost:" + (base_port + i)));
+	} else if (proto.Equals("function")) { 
+	  RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.function://localhost:" + (base_port + i)));
+	}
       }
 
       for(int i = 0; i < network_size; i++) {
@@ -201,9 +252,12 @@ namespace Brunet {
 	  ta_auth = new SeriesTAAuthorizer(arr_tas);
 	}
 	
+	if (proto.Equals("udp")) { 
+	  node.AddEdgeListener(new UdpEdgeListener(base_port + i, null, ta_auth));
+	} else if(proto.Equals("function")) {
+	  node.AddEdgeListener(new FunctionEdgeListener(base_port + i, -1.00, ta_auth));
+	}
 	
-        //node.AddEdgeListener(new UdpEdgeListener(base_port + i, null, ta_auth));
-	node.AddEdgeListener(new FunctionEdgeListener(base_port + i, -1.00, ta_auth));	
 	if (tunnel) {
 	  Console.WriteLine("Adding a tunnel edge listener");
 	  node.AddEdgeListener(new TunnelEdgeListener(node));

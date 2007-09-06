@@ -820,8 +820,9 @@ namespace Brunet
 #endif
 	  sender.Send(p);
           return;
-        } catch(EdgeException) {
+        } catch(EdgeException ex) {
           _node.ConnectionTable.Disconnect((Edge)sender); 
+	  Console.Error.WriteLine("Caught: {0}, calling disconect on: {1}", ex, sender);
 	} catch(Exception ex) {
 	  Console.Error.WriteLine("Error sending control using packet_sender: {0}, {1}", sender, ex);
 	}       
