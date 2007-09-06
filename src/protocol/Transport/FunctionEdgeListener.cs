@@ -125,14 +125,14 @@ namespace Brunet
 
 #if FUNCTION_DEBUG
       foreach (TransportAddress local_ta in LocalTAs) {
-	Console.WriteLine("Create edge local: {0} <-> remote {1}.", local_ta, ta);
+	Console.Error.WriteLine("Create edge local: {0} <-> remote {1}.", local_ta, ta);
       }
 #endif
 
       if( ta.TransportAddressType != this.TAType ) {
         //Can't make an edge of this type
 #if FUNCTION_DEBUG
-	Console.WriteLine("Can't make edge of this type.");
+	Console.Error.WriteLine("Can't make edge of this type.");
 #endif
         ecb(false, null, new EdgeException("Can't make edge of this type"));
 	return;
@@ -141,7 +141,7 @@ namespace Brunet
       if( _ta_auth.Authorize(ta) == TAAuthorizer.Decision.Deny ) {
         //Not authorized.  Can't make this edge:
 #if FUNCTION_DEBUG
-	Console.WriteLine("Can't make edge. Remote TA {0} is not authorized locally.", ta);
+	Console.Error.WriteLine("Can't make edge. Remote TA {0} is not authorized locally.", ta);
 #endif
         ecb(false, null,
             new EdgeException( ta.ToString() + " is not authorized") );
@@ -167,7 +167,7 @@ namespace Brunet
 	    if (remote.TAAuth.Authorize(ta_local) == TAAuthorizer.Decision.Deny ) {
 	      //Not authorized.  Can't make this edge:
 #if FUNCTION_DEBUG
-	      Console.WriteLine("Can't make edge. local TA {0} is not authorized remotely by {1}.", ta_local, ta);
+	      Console.Error.WriteLine("Can't make edge. local TA {0} is not authorized remotely by {1}.", ta_local, ta);
 #endif
 	      ecb(false, null,
 		  new EdgeException( ta_local.ToString() + " is not authorized by remote node.") );
