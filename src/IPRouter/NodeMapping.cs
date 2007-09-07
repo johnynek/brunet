@@ -38,29 +38,29 @@ namespace Ipop {
         result = this.Information();
       _rpc.SendResult(request_state, result);
     }
-  }
 
-  public IDictionary GetState() {
-    Hashtable ht = new Hashtable(3);
-    ht.Add("ipop_namespace", ipop_namespace == null ? string.Empty : ipop_namespace);
-    ht.Add("ip_address", ip == null ? string.Empty : ip.ToString());
-    ht.Add("netmask", netmask == null ? string.Empty : netmask);
-    return ht;
-  }
-
-  public IDictionary Information() {
-    DateTime now = DateTime.UtcNow;
-    if(now - _last_called > TimeSpanFromHours(48) || geo_loc.Equals(", ")) {
-      string local_geo_loc = IPOP_Common.GetMyGeoLoc();
-      if(!local_geo_loc.Equals(","))
-        geo_loc = local_geo_loc;
+    public IDictionary GetState() {
+      Hashtable ht = new Hashtable(3);
+      ht.Add("ipop_namespace", ipop_namespace == null ? string.Empty : ipop_namespace);
+      ht.Add("ip_address", ip == null ? string.Empty : ip.ToString());
+      ht.Add("netmask", netmask == null ? string.Empty : netmask);
+      return ht;
     }
-    Hashtable ht = new Hashtable(3);
-    ht.Add("type", "iprouter");
-    ht.Add("geo_loc", geo_loc);
-    ht.Add("ip", ip.ToString());
+
+    public IDictionary Information() {
+      DateTime now = DateTime.UtcNow;
+      if(now - _last_called > TimeSpan.FromHours(48) || geo_loc.Equals(",")) {
+        string local_geo_loc = IPOP_Common.GetMyGeoLoc();
+        if(!local_geo_loc.Equals(","))
+          geo_loc = local_geo_loc;
+      }
+      Hashtable ht = new Hashtable(3);
+      ht.Add("type", "iprouter");
+      ht.Add("geo_loc", geo_loc);
+      ht.Add("ip", ip.ToString());
+      return ht;
+    }
   }
-}
 
 //  We need a thread to remove a node mapping if our use of it expires -- that is it isn't used for a certain period of time
   public class NodeMappings {

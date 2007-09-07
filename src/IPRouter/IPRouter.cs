@@ -215,10 +215,6 @@ namespace Ipop {
       }
 
       BrunetStart();
-
-      //explicit add it to xmlrpc manager here
-      node.AddAsRpcHandler();
-
       if (config.EnableXmlRpcManager && xrmthread == null) {
         RpcManager rpcm = RpcManager.GetInstance(node.brunet.brunetNode);
         XmlRpcManager xrpcm = new XmlRpcManager(rpcm);
