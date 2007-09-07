@@ -4,7 +4,7 @@
   name="Ipop" default="build">
   
   <!-- Here is some configuration -->
-  <property name="brunet-dir" value="../brunet1-dev" />
+  <property name="brunet-dir" value="../brunet1" />
 
   <!-- Here's the main target -->
   <target name="build"
