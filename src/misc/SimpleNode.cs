@@ -433,6 +433,20 @@ namespace Ipop {
         Hashtable ht = new Hashtable(2);
         ht.Add("type", "simplenode");
         ht.Add("geo_loc", geo_loc);
+        BlockingQueue q = new BlockingQueue();
+        object res = null;
+        try {
+          _rpc.Invoke(node, q, "sys:link.GetLocalIPAddresses");
+          res = q.Dequeue(); 
+          IList il = (IList) ((RpcResult) res).Result;
+          ht.Add("localips", il);
+          q = new BlockingQueue();
+          _rpc.Invoke(node, q, "sys:link.GetNeighbors");
+          res = q.Dequeue();
+          IDictionary id = (IDictionary) ((RpcResult) res).Result;
+          ht.Add("neighbors", id); 
+        }
+        catch {}
         return ht;
       }
     }
