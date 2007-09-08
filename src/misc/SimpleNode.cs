@@ -135,7 +135,12 @@ namespace Ipop {
         DhtConsole();
       }
       else {
-        while(true) Thread.Sleep(1000*60*60*24*7);
+        while(true) {
+          Thread.Sleep(1000*60*60*24*7);
+          for(int i = 0; i < simplenodes.Length; i++)
+            Console.Error.WriteLine("I am connected to {0} as {1}.  Current time is {2}.", 
+              simplenodes[i].node.Realm, simplenodes[i].node.Address.ToString(), DateTime.UtcNow);
+        }
       }
 
       if(simplenodes != null) {
@@ -433,20 +438,29 @@ namespace Ipop {
         Hashtable ht = new Hashtable(2);
         ht.Add("type", "simplenode");
         ht.Add("geo_loc", geo_loc);
-        BlockingQueue q = new BlockingQueue();
         object res = null;
         try {
+          BlockingQueue q = new BlockingQueue();
           _rpc.Invoke(node, q, "sys:link.GetLocalIPAddresses");
           res = q.Dequeue(); 
+          q.Close();
           IList il = (IList) ((RpcResult) res).Result;
           ht.Add("localips", il);
-          q = new BlockingQueue();
+        }
+        catch {
+          ht.Add("localips", "-1");
+        }
+        try {
+          BlockingQueue q = new BlockingQueue();
           _rpc.Invoke(node, q, "sys:link.GetNeighbors");
           res = q.Dequeue();
+          q.Close();
           IDictionary id = (IDictionary) ((RpcResult) res).Result;
           ht.Add("neighbors", id); 
         }
-        catch {}
+        catch {
+          ht.Add("neighbors", "-1");
+        }
         return ht;
       }
     }
