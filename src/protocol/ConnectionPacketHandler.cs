@@ -374,12 +374,16 @@ namespace Brunet
     /**
      * This returns an IList of the Local TAs
      */
-    public IList GetLocalTAs(ISender caller) {
+    public IList GetLocalIPAddresses(ISender caller) {
       ArrayList lta = new ArrayList();
-      // Below is a fix for XmlRpc interfaces that don't have support for using
-      // the '/' characters
-      foreach(TransportAddress ta in _node.LocalTAs)
-        lta.Add(ta.ToString().Replace("//", ""));
+      foreach(TransportAddress ta in _node.LocalTAs) {
+        if(ta.TransportAddressType == TransportAddress.TAType.Udp || 
+          ta.TransportAddressType == TransportAddress.TAType.Tcp) {
+          string ip = ((IPTransportAddress) ta).Host;
+          if(!lta.Contains(ip) && !ip.Equals("127.0.0.1"))
+            lta.Add(ip);
+        }
+      }
       return lta;
     }
 
