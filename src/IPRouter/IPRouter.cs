@@ -216,12 +216,12 @@ namespace Ipop {
 
       BrunetStart();
       if (config.EnableXmlRpcManager && xrmthread == null) {
-        RpcManager rpcm = RpcManager.GetInstance(node.brunet.brunetNode);
+        RpcManager rpcm = RpcManager.GetInstance(node.brunet.node);
         XmlRpcManager xrpcm = new XmlRpcManager(rpcm);
         xrmthread = new Thread(XmlRpcManagerServer.StartXmlRpcManagerServer);
         xrmthread.Start(xrpcm);
       }
-      
+
       if(config.AddressData.DHCPServerAddress != null && !config.AddressData.DhtDHCP)
         dhcpClient = new SoapDHCPClient(config.AddressData.DHCPServerAddress);
       else {

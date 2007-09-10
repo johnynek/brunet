@@ -22,7 +22,7 @@ namespace Ipop {
       brunet = null;
       nodeAddress = null;
       ipop_namespace = null;
-      _rpc = RpcManager.GetInstance(brunet.brunetNode);
+      _rpc = RpcManager.GetInstance(brunet.node);
       _rpc.AddHandler("ipop", this);
     }
 
@@ -54,10 +54,12 @@ namespace Ipop {
         if(!local_geo_loc.Equals(","))
           geo_loc = local_geo_loc;
       }
-      Hashtable ht = new Hashtable(3);
+      Hashtable ht = new Hashtable(5);
       ht.Add("type", "iprouter");
       ht.Add("geo_loc", geo_loc);
       ht.Add("ip", ip.ToString());
+      ht.Add("localips", brunet.node.sys_link.GetLocalIPAddresses(null));
+      ht.Add("neighbors", brunet.node.sys_link.GetNeighbors(null));
       return ht;
     }
   }

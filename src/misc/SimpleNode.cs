@@ -163,7 +163,7 @@ namespace Ipop {
 
       for(int i = 0; i < n; i++) {
         //local node
-        Node brunetNode = new StructuredNode(IPOP_Common.GenerateAHAddress(),
+        StructuredNode node = new StructuredNode(IPOP_Common.GenerateAHAddress(),
           config.brunet_namespace);
         //Where do we listen 
         Brunet.EdgeListener el = null;
@@ -189,31 +189,31 @@ namespace Ipop {
             else
               throw new Exception("Unrecognized transport: " + item.type);
           }
-          brunetNode.AddEdgeListener(el);
+          node.AddEdgeListener(el);
         }
-        el = new TunnelEdgeListener(brunetNode);
-        brunetNode.AddEdgeListener(el);
+        el = new TunnelEdgeListener(node);
+        node.AddEdgeListener(el);
 
         //Here is where we connect to some well-known Brunet endpoints
         ArrayList RemoteTAs = new ArrayList();
         foreach(string ta in config.RemoteTAs)
           RemoteTAs.Add(TransportAddressFactory.CreateInstance(ta));
-        brunetNode.RemoteTAs = RemoteTAs;
+        node.RemoteTAs = RemoteTAs;
 
         //following line of code enables DHT support inside the SimpleNode
         Dht ndht = null;
-        ndht = new Dht(brunetNode, 3, 20);
+        ndht = new Dht(node, 3, 20);
         Console.Error.WriteLine("I am connected to {0} as {1}",
-                 config.brunet_namespace, brunetNode.Address.ToString());
-        brunetNode.Connect();
-        simplenodes[i] = new SimpleNodeData(brunetNode, ndht);
+                 config.brunet_namespace, node.Address.ToString());
+        node.Connect();
+        simplenodes[i] = new SimpleNodeData(node, ndht);
 
         if(config.EnableSoapDht && sdthread == null) {
           sdthread = DhtServer.StartDhtServerAsThread(ndht);
         }
 
         if (config.EnableXmlRpcManager && xrmthread == null) {
-          RpcManager rpcm = RpcManager.GetInstance(brunetNode);
+          RpcManager rpcm = RpcManager.GetInstance(node);
           XmlRpcManager xrpcm = new XmlRpcManager(rpcm);
           xrpcm.AddAsRpcHandler();
           xrmthread = new Thread(XmlRpcManagerServer.StartXmlRpcManagerServer);
@@ -402,15 +402,15 @@ namespace Ipop {
     }
 
     public class SimpleNodeData {
-      private Node _node;
-      public Node node { get { return _node; } }
+      private StructuredNode _node;
+      public StructuredNode node { get { return _node; } }
       private Dht _dht;
       public Dht dht { get { return _dht; } }
       private string geo_loc = ",";
       private DateTime _last_called = DateTime.UtcNow;
       private RpcManager _rpc;
 
-      public SimpleNodeData(Node node, Dht dht) {
+      public SimpleNodeData(StructuredNode node, Dht dht) {
         _node = node;
         _dht = dht;
         _rpc = RpcManager.GetInstance(node);
@@ -435,32 +435,11 @@ namespace Ipop {
           if(!local_geo_loc.Equals(","))
             geo_loc = local_geo_loc;
         }
-        Hashtable ht = new Hashtable(2);
+        Hashtable ht = new Hashtable(4);
         ht.Add("type", "simplenode");
         ht.Add("geo_loc", geo_loc);
-        object res = null;
-        try {
-          BlockingQueue q = new BlockingQueue();
-          _rpc.Invoke(node, q, "sys:link.GetLocalIPAddresses");
-          res = q.Dequeue(); 
-          q.Close();
-          IList il = (IList) ((RpcResult) res).Result;
-          ht.Add("localips", il);
-        }
-        catch {
-          ht.Add("localips", "-1");
-        }
-        try {
-          BlockingQueue q = new BlockingQueue();
-          _rpc.Invoke(node, q, "sys:link.GetNeighbors");
-          res = q.Dequeue();
-          q.Close();
-          IDictionary id = (IDictionary) ((RpcResult) res).Result;
-          ht.Add("neighbors", id); 
-        }
-        catch {
-          ht.Add("neighbors", "-1");
-        }
+        ht.Add("localips", _node.sys_link.GetLocalIPAddresses(null));
+        ht.Add("neighbors", _node.sys_link.GetNeighbors(null));
         return ht;
       }
     }

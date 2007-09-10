@@ -13,7 +13,7 @@ using System.Threading;
 
 namespace Ipop {
   public class BrunetTransport {
-    public Node brunetNode;
+    public StructuredNode node;
 //    NodeMapping node;
     IPPacketHandler ip_handler;
     public Dht dht;
@@ -22,17 +22,17 @@ namespace Ipop {
     ArrayList edgeListeners;
 
     public BrunetTransport(Ethernet ether, string brunet_namespace, 
-      NodeMapping node, EdgeListener []EdgeListeners, string [] DevicesToBind,
+      NodeMapping node_map, EdgeListener []EdgeListeners, string [] DevicesToBind,
       ArrayList RemoteTAs, bool debug) {
-//      this.node = node;
+//      this.node_map = node_map;
       this.debug = debug;
 
       //Static mapping
-      //AHAddress us = new AHAddress(IPOP_Common.GetHash(node.ip));
+      //AHAddress us = new AHAddress(IPOP_Common.GetHash(node_map.ip));
       //Dht mapping
-      AHAddress us = new AHAddress(IPOP_Common.StringToBytes(node.nodeAddress, ':'));
+      AHAddress us = new AHAddress(IPOP_Common.StringToBytes(node_map.nodeAddress, ':'));
       Console.Error.WriteLine("Generated address: {0}", us);
-      brunetNode = new StructuredNode(us, brunet_namespace);
+      node = new StructuredNode(us, brunet_namespace);
 //      Refresher = null;
 
       edgeListeners = new ArrayList();
@@ -61,32 +61,32 @@ namespace Ipop {
             throw new Exception("Unrecognized transport: " + item.type);
         }
         edgeListeners.Add(el);
-        brunetNode.AddEdgeListener(el);
+        node.AddEdgeListener(el);
       }
-      el = new TunnelEdgeListener(brunetNode);
-      brunetNode.AddEdgeListener(el);
+      el = new TunnelEdgeListener(node);
+      node.AddEdgeListener(el);
 
       //Here is where we connect to some well-known Brunet endpoints
-      brunetNode.RemoteTAs = RemoteTAs;
+      node.RemoteTAs = RemoteTAs;
 
       //now try sending some messages out 
       //subscribe to the IP protocol packet
-      ip_handler = new IPPacketHandler(ether, debug, node);
-      brunetNode.GetTypeSource(PType.Protocol.IP).Subscribe(ip_handler, null);
-      dht = new Dht(brunetNode, 3, 20);
+      ip_handler = new IPPacketHandler(ether, debug, node_map);
+      node.GetTypeSource(PType.Protocol.IP).Subscribe(ip_handler, null);
+      dht = new Dht(node, 3, 20);
 
-      brunetNode.Connect();
+      node.Connect();
       System.Console.Error.WriteLine("Called Connect at time: {0}", DateTime.Now);
     }
 
     public void SendPacket(AHAddress target, MemBlock p) {
-      ISender s = new AHExactSender(brunetNode, target);
+      ISender s = new AHExactSender(node, target);
       s.Send(new CopyList(PType.Protocol.IP, p));
     }
 
 
     public void Disconnect() {
-      brunetNode.Disconnect();
+      node.Disconnect();
     }
 
 // We are not supporting this api at the moment
