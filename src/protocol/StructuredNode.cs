@@ -51,6 +51,7 @@ namespace Brunet
     
     //maximum number of neighbors we report in our status
     protected static readonly int MAX_NEIGHBORS = 4;
+    public ConnectionPacketHandler sys_link;
 
 
     /**
@@ -97,7 +98,8 @@ namespace Brunet
       //Add the standard RPC handlers:
       RpcManager rpc = RpcManager.GetInstance(this);
       rpc.AddHandler("sys:ctm", new CtmRequestHandler(this));
-      rpc.AddHandlerWithSender("sys:link", new ConnectionPacketHandler(this));
+      sys_link = new ConnectionPacketHandler(this);
+      rpc.AddHandlerWithSender("sys:link", sys_link);
       rpc.AddHandler("trace", new TraceRpcHandler(this));
 
       _connection_table.ConnectionEvent += new EventHandler(this.EstimateSize);
