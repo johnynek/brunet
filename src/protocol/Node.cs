@@ -812,8 +812,14 @@ namespace Brunet
           if( now - e.LastInPacketDateTime > _unconnected_timeout ) {
             //We are not so charitable towards unconnected edges,
             //if we haven't heard from them, just close them:
-	    Console.Error.WriteLine("Close an unconnected edge: {0}", e);
-            e.Close();
+            if(e.IsClosed) {
+              _connection_table.RemoveUnconnected(e);
+              Console.Error.WriteLine("Removed an unconnected edge: {0}", e);
+            }
+            else {
+              Console.Error.WriteLine("Close an unconnected edge: {0}", e);
+              e.Close();
+            }
           }
         }
       }
