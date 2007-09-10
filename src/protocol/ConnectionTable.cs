@@ -235,15 +235,15 @@ namespace Brunet
          * Copy so we don't mess up an old list
          */
         ArrayList list;
-         
-        list = (ArrayList)_type_to_addlist[t];
+
+        list = (ArrayList) _type_to_addlist[t];
         list = Functional.Insert(list, index, a);
         _type_to_addlist = Functional.SetElement(_type_to_addlist, t, list);
         if( t == ConnectionType.Structured ) {
           //Optimize the most common case to avoid the hashtable
           _struct_addlist = list;
         }
-        
+
         list = (ArrayList)_type_to_conlist[t];
         list = Functional.Insert(list, index, c);
         _type_to_conlist = Functional.SetElement(_type_to_conlist, t, list);
@@ -802,20 +802,17 @@ namespace Brunet
         if( have_con )  {
           index = IndexOf(c.MainType, c.Address);
           Remove(c.MainType, index);
-	  if( add__unconnected ) {
+          if( add__unconnected ) {
             _unconnected = Functional.Add(_unconnected, e);
-	  }
+          }
         }
-        else {
-	  //We didn't have a connection, so, check to see if we have it in
-	  //_unconnected:
-	  if( !add__unconnected ) {
-	    //Don't keep this edge around at all:
-            int idx = _unconnected.IndexOf(e);
-            if( idx >= 0 ) {
-              _unconnected = Functional.RemoveAt(_unconnected, idx);
-            }
-	  }
+        if(!have_con && !add__unconnected || e.IsClosed) {
+//We didn't have a connection, so, check to see if we have it in _unconnected:
+//Don't keep this edge around at all:
+          int idx = _unconnected.IndexOf(e);
+          if( idx >= 0 ) {
+            _unconnected = Functional.RemoveAt(_unconnected, idx);
+          }
         }
       }
       if( have_con ) {
@@ -1081,6 +1078,9 @@ namespace Brunet
      */
     public void AddUnconnected(Edge e)
     {
+      // No point in being here if e is closed...
+      if(e.IsClosed)
+        return;
       //Console.Error.WriteLine("ADDING EDGE {0} TO UNCONNECTED", e.ToString());
       lock( _sync ) {
         int idx = _unconnected.IndexOf(e);
@@ -1089,6 +1089,19 @@ namespace Brunet
         }
       }
       e.CloseEvent += new EventHandler(this.RemoveHandler);
+      if( e.IsClosed ) {
+        /*
+        * If the edge was closed before we got it added, it might be
+        * added but never removed from the table.  Now that we have
+        * completely added the Connection and registered the handler
+        * for the CloseEvent, let's make sure it is still good.
+        * If it closes after this, the CloseEvent will catch it.
+        *
+        * Since RemoveHandler is idempotent, this is safe to call
+        * multiple times.
+        */
+        RemoveHandler(e, null);
+      }
     }
     /**
      * @param edge Edge to check to see if it is an Unconnected Edge
