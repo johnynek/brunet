@@ -83,7 +83,7 @@ namespace Brunet
 
         _task_queue = new TaskQueue();
         //Here is the thread for announcing packets
-        _packet_queue = new BlockingQueue();
+        _packet_queue = new BlockingQueue(30);
         _running = false;
         _send_pings = true;
         _announce_thread = new Thread(this.AnnounceThread);

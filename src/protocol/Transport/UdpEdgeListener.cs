@@ -465,7 +465,7 @@ namespace Brunet
       _sync = new object();
       _running = false;
       _isstarted = false;
-      _send_queue = new Queue();
+      _send_queue = new QueueWithTimeout(60);
       _total_to_send = 0;
       ///@todo, we need a system for using the cryographic RNG
       _rand = new Random();
