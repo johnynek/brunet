@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2005-2007  P. Oscar Boykin <boykin@pobox.com>, University of Florida
+Copyright (C) 2007  David Wolinsky <davidiw@ufl.edu>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
