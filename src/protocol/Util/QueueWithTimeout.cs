@@ -45,7 +45,7 @@ namespace Brunet
         return;
         // This is only works when _timeout is > 0 and clears
       int count = 0;
-      while(_timeout < (DateTime.UtcNow - (DateTime) _timeout_queue.Peek()).TotalSeconds) {
+      while(base.Count >0 && _timeout < (DateTime.UtcNow - (DateTime) _timeout_queue.Peek()).TotalSeconds) {
         base.Dequeue();
         _timeout_queue.Dequeue();
         count++;
