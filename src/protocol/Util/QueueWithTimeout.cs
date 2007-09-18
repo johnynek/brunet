@@ -33,7 +33,6 @@ namespace Brunet
     }
 
     public QueueWithTimeout(int timeout) {
-      Console.WriteLine("Made a QueueWithTimeout");
       _timeout_queue = new Queue();
       _timeout = timeout;
     }
@@ -41,7 +40,7 @@ namespace Brunet
     int _timeout;
     Queue _timeout_queue;
 
-    protected void Check() {
+    protected void Check(string type) {
       if(base.Count == 0)
         return;
         // This is only works when _timeout is > 0 and clears
@@ -51,24 +50,24 @@ namespace Brunet
         _timeout_queue.Dequeue();
         count++;
       }
-      if(count > 0)
-        Console.Error.WriteLine("Using a timeout BlockingQueue:  Removed {0} objects", count);
+//      if(count > 0)
+//        Console.Error.WriteLine("Lost " + count + " entrees during a " + type);
     }
 
     public override object Dequeue() {
-      Check();
+      Check("Dequeue");
       _timeout_queue.Dequeue();
       return base.Dequeue();
     }
 
     public override void Enqueue(object o) {
-      Check();
+      Check("Enqueue");
       _timeout_queue.Enqueue(DateTime.UtcNow);
       base.Enqueue(o);
     }
 
     public override object Peek() {
-      Check();
+      Check("Peek");
       return base.Peek();
     }
   }

@@ -522,6 +522,7 @@ namespace Brunet
        * Note that getting from Hashtable is threadsafe, multiple
        * threads writing is a problem
        */
+      DateTime start = DateTime.UtcNow;
       MemBlock payload = null;
       int handlers = 0;
       NodeSource ns = null;
@@ -545,8 +546,23 @@ namespace Brunet
         if (ns != null) {
           nodeSource = ns.ToString();
         }
-        Console.Error.WriteLine("Hander: {0}\tEdge: {1}", nodeSource, from);
+        Console.Error.WriteLine("Handler: {0}\tEdge: {1}", nodeSource, from);
         Console.Error.WriteLine("Exception: {0}", x);
+      }
+      DateTime end = DateTime.UtcNow;
+      if(end - start > TimeSpan.FromSeconds(5)) {
+        Console.Error.WriteLine("DELAY: In Announce thread");
+        Console.Error.WriteLine("\tA packet took {0} seconds to complete",
+                                (end - start).TotalSeconds);
+        string nodeSource = "null", type = "null";
+        if (ns != null)
+          nodeSource = ns.ToString();
+        if(t != null)
+          type = t.ToString();
+        Console.Error.WriteLine("\tHandler: {0}\tEdge: {1}\tType",
+                                nodeSource, from, type);
+        Console.Error.WriteLine("\tMessage: {0}", 
+                                System.Text.Encoding.UTF8.GetString(b));
       }
     }
     /**
@@ -817,7 +833,7 @@ namespace Brunet
               Console.Error.WriteLine("Removed an unconnected edge: {0}", e);
             }
             else {
-              Console.Error.WriteLine("Close an unconnected edge: {0}", e);
+              Console.Error.WriteLine("Closed an unconnected edge: {0}", e);
               e.Close();
             }
           }
