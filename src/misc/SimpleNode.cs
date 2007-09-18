@@ -407,6 +407,7 @@ namespace Ipop {
     }
 
     public class SimpleNodeData {
+      private Thread geo_loc_thread;
       private StructuredNode _node;
       public StructuredNode node { get { return _node; } }
       private Dht _dht;
@@ -420,6 +421,7 @@ namespace Ipop {
         _dht = dht;
         _rpc = RpcManager.GetInstance(node);
         _rpc.AddHandler("ipop", this);
+        GetGeoLoc();
       }
 
       public void HandleRpc(ISender caller, string method, IList arguments, object request_state) {
@@ -434,18 +436,30 @@ namespace Ipop {
       }
 
       public IDictionary Information() {
-        DateTime now = DateTime.UtcNow;
-        if(now - _last_called > TimeSpan.FromDays(7) || geo_loc.Equals(",")) {
-          string local_geo_loc = IPOP_Common.GetMyGeoLoc();
-          if(!local_geo_loc.Equals(","))
-            geo_loc = local_geo_loc;
-        }
+        GetGeoLoc();
         Hashtable ht = new Hashtable(4);
         ht.Add("type", "simplenode");
         ht.Add("geo_loc", geo_loc);
         ht.Add("localips", _node.sys_link.GetLocalIPAddresses(null));
         ht.Add("neighbors", _node.sys_link.GetNeighbors(null));
         return ht;
+      }
+
+      public void GetGeoLoc() {
+        DateTime now = DateTime.UtcNow;
+        if((now - _last_called > TimeSpan.FromDays(7) || geo_loc.Equals(","))
+             && geo_loc_thread == null) {
+          geo_loc_thread = new Thread(GetGeoLocAsThread);
+          geo_loc_thread.Start();
+        }
+      }
+
+
+      public void GetGeoLocAsThread() {
+        string local_geo_loc = IPOP_Common.GetMyGeoLoc();
+        if(!local_geo_loc.Equals(","))
+          geo_loc = local_geo_loc;
+        geo_loc_thread = null;
       }
     }
   }
