@@ -37,7 +37,11 @@ namespace Ipop {
       node.brunet = new BrunetTransport(ether, config.brunet_namespace,
         node, config.EdgeListeners, config.DevicesToBind, RemoteTAs, debug);
       if(config.EnableSoapDht && sdthread == null) {
-        sdthread = DhtServer.StartDhtServerAsThread(node.brunet.dht);
+        try {
+          int dht_port = Int32.Parse(config.DhtPort);
+          sdthread = DhtServer.StartDhtServerAsThread(node.brunet.dht, dht_port);
+        }
+        catch {}
       }
       routes = new Routes(node.brunet.dht, node.ipop_namespace);
     }
@@ -216,10 +220,12 @@ namespace Ipop {
 
       BrunetStart();
       if (config.EnableXmlRpcManager && xrmthread == null) {
-        RpcManager rpcm = RpcManager.GetInstance(node.brunet.node);
-        XmlRpcManager xrpcm = new XmlRpcManager(rpcm);
-        xrmthread = new Thread(XmlRpcManagerServer.StartXmlRpcManagerServer);
-        xrmthread.Start(xrpcm);
+        try {
+          int xml_port = Int32.Parse(config.XmlRpcPort);
+          RpcManager rpc = RpcManager.GetInstance(node.brunet.node);
+          XmlRpcManagerServer.StartXmlRpcManagerServerAsThread(rpc, xml_port);
+        }
+        catch {}
       }
 
       if(config.AddressData.DHCPServerAddress != null && !config.AddressData.DhtDHCP)

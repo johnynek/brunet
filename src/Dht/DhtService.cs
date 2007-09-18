@@ -17,19 +17,26 @@ namespace Ipop {
   /// XmlRpc URL: http://localhost:64221/xd.rem
   /// </summary>
   public class DhtServer {
-    public static Thread StartDhtServerAsThread(Dht dht) {
+    public static Thread StartDhtServerAsThread(Dht dht, int port) {
       Thread DhtThread = new Thread(DhtServer.StartDhtServer);
-      DhtThread.Start(dht);
+      Hashtable ht = new Hashtable();
+      ht["dht"] = dht;
+      ht["port"] = port;
+      DhtThread.Start(ht);
       return DhtThread;
     }
 
-    public static void StartDhtServer(object odht) {
-      Dht dht = (Dht)odht;
+    public static void StartDhtServer(object data) {
+      Hashtable ht = (Hashtable) data;
+      StartDhtServer((Dht) ht["dht"], (int) ht["port"]);
+    }
+
+    public static void StartDhtServer(Dht dht, int port) {
       IServerChannelSinkProvider chain = new XmlRpcServerFormatterSinkProvider();
       chain.Next = new SoapServerFormatterSinkProvider();
 
       IDictionary props = new Hashtable();
-      props.Add("port", 64221);
+      props.Add("port", port);
       props.Add("name", "dhtsvc");
       HttpChannel channel = new HttpChannel(props, null, chain);
       ChannelServices.RegisterChannel(channel);

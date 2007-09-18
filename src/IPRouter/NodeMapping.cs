@@ -10,20 +10,22 @@ namespace Ipop {
     public IPAddress ip;
     public string netmask, nodeAddress, ipop_namespace;
     public byte [] mac;
-    public BrunetTransport brunet;
+    public BrunetTransport brunet {
+      get { return _brunet; }
+      set {
+        _brunet = value;
+        if(value != null) {
+          _rpc = RpcManager.GetInstance(_brunet.node);
+          _rpc.AddHandler("ipop", this);
+        }
+      }
+    }
+    private BrunetTransport _brunet;
     private RpcManager _rpc;
     private string geo_loc = ",";
     private DateTime _last_called = DateTime.UtcNow - TimeSpan.FromHours(48);
 
     public NodeMapping() {
-      ip = null;
-      netmask = null;
-      mac = null;
-      brunet = null;
-      nodeAddress = null;
-      ipop_namespace = null;
-      _rpc = RpcManager.GetInstance(brunet.node);
-      _rpc.AddHandler("ipop", this);
     }
 
    public void HandleRpc(ISender caller, string method, IList arguments, object request_state) {

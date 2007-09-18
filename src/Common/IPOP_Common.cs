@@ -39,7 +39,7 @@ namespace Ipop {
         Regex num = new Regex("\\-{0,1}\\d+.\\d+");
         Socket s = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         s.Connect(server, port);
-        string request = "GET / HTTP/1.0\r\nHost: www.ip-adress.com\r\nUser-Agent:  None\r\n\r\n";
+        string request = "GET /iptracing/ HTTP/1.0\r\nHost: www.ip-adress.com\r\nUser-Agent:  IE6\r\n\r\n";
         byte[] bs = Encoding.ASCII.GetBytes(request);
         s.Send(bs, bs.Length, 0);
         string page = String.Empty;

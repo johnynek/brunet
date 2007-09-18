@@ -209,15 +209,20 @@ namespace Ipop {
         simplenodes[i] = new SimpleNodeData(node, ndht);
 
         if(config.EnableSoapDht && sdthread == null) {
-          sdthread = DhtServer.StartDhtServerAsThread(ndht);
+          try {
+            int dht_port = Int32.Parse(config.DhtPort);
+            sdthread = DhtServer.StartDhtServerAsThread(ndht, dht_port);
+          }
+          catch {}
         }
 
         if (config.EnableXmlRpcManager && xrmthread == null) {
-          RpcManager rpcm = RpcManager.GetInstance(node);
-          XmlRpcManager xrpcm = new XmlRpcManager(rpcm);
-          xrpcm.AddAsRpcHandler();
-          xrmthread = new Thread(XmlRpcManagerServer.StartXmlRpcManagerServer);
-          xrmthread.Start(xrpcm);
+          try {
+            int xml_port = Int32.Parse(config.XmlRpcPort);
+            RpcManager rpc = RpcManager.GetInstance(node);
+            XmlRpcManagerServer.StartXmlRpcManagerServerAsThread(rpc, xml_port);
+          }
+          catch {}
         }
       }
     }
