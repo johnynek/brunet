@@ -20,7 +20,7 @@
         <include name="Ipop.Dhcp.dll" />
       </fileset>
     </copy>
-    <csc target="exe" output="${build.dir}/IPRouter.exe">
+    <csc target="exe" output="${build.dir}/IPRouter.exe" debug="true">
       <sources failonempty="true">
         <include name="*.cs"/>
         <include name="../Dht/IDht.cs"/>

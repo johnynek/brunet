@@ -48,7 +48,7 @@ namespace Ipop {
           config = (IPRouterConfig) serializer.Deserialize(fs);
         }
         catch(Exception) {
-          Console.WriteLine("Exception:  Something is bogus with the config file.");
+          Console.Error.WriteLine("Exception:  Something is bogus with the config file.");
         }
       }
       return config;

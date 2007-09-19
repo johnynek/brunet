@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 
 namespace Ipop {
   public abstract class Shutdown {
@@ -7,7 +8,7 @@ namespace Ipop {
 //        IPRouter.node.brunet.InterruptRefresher();
         IPRouter.node.brunet.Disconnect();
       }
-      System.Console.Error.WriteLine("Exiting....");
+      Console.Error.WriteLine("Exiting...");
       System.Threading.Thread.Sleep(5000);
       System.Environment.Exit(1);
     }
@@ -20,7 +21,7 @@ namespace Ipop {
     }
 
     public void InterruptHandler(int signal) {
-      Console.Error.WriteLine("Receiving signal: {0}. Exiting", signal);
+      Debug.WriteLine(String.Format("Receiving signal: {0}. Exiting", signal));
       EndGame();
     }
   }

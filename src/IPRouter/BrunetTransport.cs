@@ -10,30 +10,25 @@ using System.Security.Cryptography;
 using System.IO;
 using System.Text;
 using System.Threading;
+using System.Diagnostics;
 
 namespace Ipop {
   public class BrunetTransport {
     public StructuredNode node;
-//    NodeMapping node;
     IPPacketHandler ip_handler;
     public Dht dht;
-    bool debug;
-//    Thread Refresher;
     ArrayList edgeListeners;
 
     public BrunetTransport(Ethernet ether, string brunet_namespace, 
       NodeMapping node_map, EdgeListener []EdgeListeners, string [] DevicesToBind,
-      ArrayList RemoteTAs, bool debug) {
-//      this.node_map = node_map;
-      this.debug = debug;
+      ArrayList RemoteTAs) {
 
       //Static mapping
       //AHAddress us = new AHAddress(IPOP_Common.GetHash(node_map.ip));
       //Dht mapping
-      AHAddress us = new AHAddress(IPOP_Common.StringToBytes(node_map.nodeAddress, ':'));
-      Console.Error.WriteLine("Generated address: {0}", us);
+      AHAddress us = (AHAddress) node_map.address;
+      Debug.WriteLine(String.Format("Generated address: {0}", us));
       node = new StructuredNode(us, brunet_namespace);
-//      Refresher = null;
 
       edgeListeners = new ArrayList();
       Brunet.EdgeListener el = null;
@@ -66,17 +61,17 @@ namespace Ipop {
       el = new TunnelEdgeListener(node);
       node.AddEdgeListener(el);
 
-      //Here is where we connect to some well-known Brunet endpoints
       node.RemoteTAs = RemoteTAs;
 
-      //now try sending some messages out 
       //subscribe to the IP protocol packet
-      ip_handler = new IPPacketHandler(ether, debug, node_map);
+      ip_handler = new IPPacketHandler(ether, node_map);
       node.GetTypeSource(PType.Protocol.IP).Subscribe(ip_handler, null);
+
+      // Sets up the Dht to have 8 parallel nodes and a timeout of 20 seconds
       dht = new Dht(node, 3, 20);
 
       node.Connect();
-      System.Console.Error.WriteLine("Called Connect at time: {0}", DateTime.Now);
+      //Debug.WriteLine("Called Connect at time: {0}", DateTime.Now);
     }
 
     public void SendPacket(AHAddress target, MemBlock p) {
@@ -84,58 +79,11 @@ namespace Ipop {
       s.Send(new CopyList(PType.Protocol.IP, p));
     }
 
-
     public void Disconnect() {
       node.Disconnect();
     }
 
-// We are not supporting this api at the moment
 /*
-    public void RefreshThread() {
-      try {
-        while(node.ip != null && node.password != null) {
-          Thread.Sleep(604800);
-          if(node.ip == null || node.password == null)
-            break;
-          Refresh();
-        }
-      }
-      catch (Exception) {;}
-      System.Console.Error.WriteLine("Closing Refresher Thread");
-      Refresher = null;
-    }
-
-    public bool Refresh() {
-      return Update(node.ip.ToString());
-    }
-
-    public void InterruptRefresher() {
-      if(Refresher != null)
-        Refresher.Interrupt();
-    }
-
-    public bool Update(string ip) {
-      if(node.ip != null && !node.ip.Equals(ip) && node.password != null) {
-        node.password = null;
-        node.ip = null;
-      }
-      string password = node.password;
-      byte [] brunet_id = IPOP_Common.StringToBytes(node.nodeAddress, ':');
-
-      if(DhtIP.GetIP(dht, node.ipop_namespace, ip.ToString(), 6048000, brunet_id, ref password)) {
-        node.password = password;
-        node.ip = IPAddress.Parse(ip);
-        if(Refresher == null)
-          Refresher = new Thread(new ThreadStart(RefreshThread));
-        node.brunet.UpdateTAAuthorizer();
-        return true;
-      }
-
-      node.password = null;
-      node.ip = null;
-      return false;
-    }
-
     public void UpdateTAAuthorizer() {
       if(node.netmask == null)
         return;

@@ -8,7 +8,8 @@ using System.Threading;
 namespace Ipop {
   public class NodeMapping : IRpcHandler {
     public IPAddress ip;
-    public string netmask, nodeAddress, ipop_namespace;
+    public string netmask, ipop_namespace;
+    public Address address;
     public byte [] mac;
     public BrunetTransport brunet {
       get { return _brunet; }

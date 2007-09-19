@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading;
 using System.Collections;
 using System.Security.Cryptography;
+using System.Diagnostics;
 
 using Brunet;
 using Brunet.Dht;
@@ -12,9 +13,7 @@ namespace Ipop {
 /**
 * This class implements a route miss handler in case we cannot find
 * a virtual Ip -> brunet Id mapping inside our translation table. 
-* This lacks a way to expire entries, the old method would only expire entries
-* if the object had been pushed out of the stack
-**/
+*/
   public class Routes {
     // Create a cache with room for 250 entries - I can't imagine having more nodes than this...
     private object _sync = new object();
@@ -29,19 +28,17 @@ namespace Ipop {
     }
 
     public Address GetAddress(IPAddress ip) {
-      byte[] buf =  null;
+      Address addr = null;
       lock (_sync) {
-        buf = (byte[]) _results[ip];
+        addr = (Address) _results[ip];
       }
-      if(null != buf) {
-        return new AHAddress( MemBlock.Reference(buf) );
-      }
-      return null;
+      return addr;
     }
 
     public void RouteMiss(IPAddress ip) {
       lock(_sync) {
         if (!_queued.Contains(ip)) {
+          Debug.WriteLine(String.Format("Routes:  Adding {0} to queue.", ip));
           /*
           * If we were already looking up this IPAddress, there
           * would be a table entry, since there is not, start a
@@ -64,18 +61,20 @@ namespace Ipop {
     public void RouteMissCallback(Object o, EventArgs args) {
       BlockingQueue queue = (BlockingQueue) o;
       IPAddress ip = (IPAddress) _mapping[queue];
-      DhtGetResult dgr = null;
-      // Exception on empty
+      Address addr = null;
       try {
-        dgr = (DhtGetResult) queue.Dequeue();
+        DhtGetResult dgr = (DhtGetResult) queue.Dequeue();
+        addr = AddressParser.Parse(Encoding.UTF8.GetString((byte []) dgr.value));
+        Debug.WriteLine(String.Format("Routes: Got result for {0} ::: {1}.", ip, addr));
       }
       catch {
-        dgr = null;
+        addr = null;
+        Debug.WriteLine(String.Format("Routes: Failed for {0}.", ip));
       }
 
       lock(_sync) {
-        if(dgr != null) {
-          _results[ip] = dgr.value;
+        if(addr != null) {
+          _results[ip] = addr;
         }
         _queued.Remove(ip);
         _mapping.Remove(queue);

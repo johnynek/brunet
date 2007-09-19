@@ -5,6 +5,7 @@ using System.Collections;
 using System.Security.Cryptography;
 using Brunet;
 using Brunet.Dht;
+using System.Diagnostics;
 
 namespace Ipop {
   public class DhtDHCPLeaseParam: DHCPLeaseParam {
@@ -14,14 +15,14 @@ namespace Ipop {
         return _preferred_ip;
       }
     }
-    byte[] _brunet_id;
-    public byte[] BrunetId {
+    string _brunet_id;
+    public string BrunetId {
       get {
         return _brunet_id;
       }
     }
 
-    public DhtDHCPLeaseParam(byte[] preferred_ip, byte [] brunet_id) {
+    public DhtDHCPLeaseParam(byte[] preferred_ip, string brunet_id) {
       _preferred_ip = preferred_ip;
       _brunet_id = brunet_id;
     }
@@ -63,7 +64,7 @@ namespace Ipop {
       return leaseReturn;
     }
 
-    private byte[] ReAllocateIPAddress (byte[] preferred_ip, byte[] brunet_id) {
+    private byte[] ReAllocateIPAddress (byte[] preferred_ip, string brunet_id) {
       int max_attempts = 1, max_renew_attempts = 2;
       byte[] guessed_ip = null;
       bool renew_attempt = false;
@@ -96,7 +97,7 @@ namespace Ipop {
           }
           if(res) {
             Console.Error.WriteLine("Got " + key + " successfully");
-            _dht.Put(brunet_id, MemBlock.Reference(Encoding.UTF8.GetBytes(key + "|" + DateTime.Now.Ticks)), leasetime);
+            _dht.Put(brunet_id, key + "|" + DateTime.Now.Ticks, leasetime);
             return guessed_ip;
           }
         } while(max_renew_attempts-- > 0 && renew_attempt);
@@ -130,7 +131,7 @@ namespace Ipop {
           guessed_ip[k] = (byte) (((int) lower[k] + offset)%255);
         }
         if (!smaller && lower[k] > upper[k]) {
-          Console.Error.WriteLine("Invalid IPOP namespace IP range: lower > upper");
+          Debug.WriteLine("Invalid IPOP namespace IP range: lower > upper");
         }
       }
       if (!ValidIP(guessed_ip)) {

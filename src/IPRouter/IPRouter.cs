@@ -9,25 +9,20 @@ using System.Net;
 using System.IO;
 using System.Xml;
 using System.Xml.Serialization;
+using System.Diagnostics;
 
 namespace Ipop {
   public class IPRouter {
-    //if debugging information is needed
-    private static bool debug;
-    //the class modeling the ethernet;
     private static Ethernet ether;
-    private static bool ethernet;
-    //Configuration Data
     private static IPRouterConfig config;
     private static ArrayList RemoteTAs;
     private static string ConfigFile;
     public static NodeMapping node;
     private static byte []routerMAC = new byte[]{0xFE, 0xFD, 0, 0, 0, 0};
     private static bool in_dht;
+
     private static Thread sdthread;
     private static Thread xrmthread;
-
-/*  DHT added code */
 
     private static DHCPClient dhcpClient;
     private static Routes routes;
@@ -35,7 +30,9 @@ namespace Ipop {
 /*  Generic */
     private static void BrunetStart() {
       node.brunet = new BrunetTransport(ether, config.brunet_namespace,
-        node, config.EdgeListeners, config.DevicesToBind, RemoteTAs, debug);
+        node, config.EdgeListeners, config.DevicesToBind, RemoteTAs);
+      routes = new Routes(node.brunet.dht, node.ipop_namespace);
+
       if(config.EnableSoapDht && sdthread == null) {
         try {
           int dht_port = Int32.Parse(config.DhtPort);
@@ -43,7 +40,15 @@ namespace Ipop {
         }
         catch {}
       }
-      routes = new Routes(node.brunet.dht, node.ipop_namespace);
+
+      if (config.EnableXmlRpcManager && xrmthread == null) {
+        try {
+          int xml_port = Int32.Parse(config.XmlRpcPort);
+          RpcManager rpc = RpcManager.GetInstance(node.brunet.node);
+          XmlRpcManagerServer.StartXmlRpcManagerServerAsThread(rpc, xml_port);
+        }
+        catch {}
+      }
     }
 
     private static bool ARPHandler(byte []packet) {
@@ -88,27 +93,15 @@ namespace Ipop {
       return true;
     }
 
-    // Umm... are we still interested in this feature?
- /*   private static void IPUpdate(object ip) {
-      if(node.brunet.Update((string) ip.ToString())) {
-        Console.Error.WriteLine("MY IP " + node.ip);
-        config.AddressData.IPAddress = node.ip.ToString();
-        config.AddressData.Netmask = node.netmask;
-        config.AddressData.Password = node.password;
-        IPRouterConfigHandler.Write(ConfigFile, config);
-      }
-      in_dht = false;
-    }*/
-
     private static void ProcessDHCP(object buffero) {
-      byte [] buffer = (byte []) buffero;
+      byte [] buffer = (MemBlock) buffero;
       DHCPPacket dhcpPacket = new DHCPPacket(buffer);
       /* Create new DHCPPacket, parse the bytes, add relevant data, 
           and send to DHCP Server */
       dhcpPacket.DecodePacket();
       dhcpPacket.decodedPacket.brunet_namespace = config.brunet_namespace;
       dhcpPacket.decodedPacket.ipop_namespace = config.ipop_namespace;
-      dhcpPacket.decodedPacket.NodeAddress = node.nodeAddress;
+      dhcpPacket.decodedPacket.NodeAddress = node.address.ToString();
 
       if (config.AddressData.IPAddress != null) {
         dhcpPacket.decodedPacket.yiaddr =
@@ -122,50 +115,36 @@ namespace Ipop {
       try {
         returnPacket = new DHCPPacket(
           dhcpClient._dhcp_server.SendMessage(dhcpPacket.decodedPacket));
+        response = returnPacket.decodedPacket.return_message;
       }
       catch (Exception e) {
         response = e.ToString();
       }
-      if(returnPacket != null &&
-        returnPacket.decodedPacket.return_message == "Success") {
-        // Close the IP Address refresher thread in Brunet if it is running
-/*        if(config.AddressData.DhtDHCP) {
-          node.brunet.InterruptRefresher();
-        }*/
+      if(response == "Success") {
         /* Convert the packet into byte format, run Arp and Route updater */
         returnPacket.EncodePacket();
         ether.SendPacket(returnPacket.packet, 0x800, node.mac);
-        /* Do we have a new IP address, if so (re)start Brunet */
+        /* Check our allocation to see if we're getting a new address */
         string newAddress = IPOP_Common.BytesToString(
           returnPacket.decodedPacket.yiaddr, '.');
+
         string newNetmask = IPOP_Common.BytesToString(((DHCPOption)
           returnPacket.decodedPacket.options[1]).byte_value, '.');
-        if(node.ip == null || node.ip.ToString() != newAddress ||
-          node.netmask !=  newNetmask) {
-//          if(!config.AddressData.DhtDHCP && !node.brunet.Update(newAddress)) {
-//            in_dht = false;
-//            return;
-//          }
-//          else {
-// This is currently broken
-//            node.brunet.UpdateTAAuthorizer();
-//          }
+
+        if(newAddress != node.ip.ToString() ||node.netmask !=  newNetmask) {
           node.netmask = newNetmask;
           node.ip = IPAddress.Parse(newAddress);
-      	  Console.Error.WriteLine("According to DHCP my IP is {0}", node.ip);
+          Debug.WriteLine(String.Format("DHCP:  IP Address changed to {0}", node.ip));
           config.AddressData.IPAddress = newAddress;
           config.AddressData.Netmask = node.netmask;
           IPRouterConfigHandler.Write(ConfigFile, config);
+// This is currently broken
+//            node.brunet.UpdateTAAuthorizer();
         }
       }
       else {
-        if (returnPacket != null)
-          response = returnPacket.decodedPacket.return_message;
-        /* Not a success, means we can't continue on, sorry, 
-           print the friendly server message */
-        Console.Error.WriteLine("The DHCP Server has a message to share with you...");
-        Console.Error.WriteLine("\n" + response);
-        Console.Error.WriteLine("\nSorry, this program will sleep and try again later.");
+        Debug.WriteLine("The DHCP Server has a message to share with you...");
+        Debug.WriteLine("\t\n" + response);
       }
       in_dht = false;
       return;
@@ -174,10 +153,13 @@ namespace Ipop {
     static void Main(string []args) {
       //configuration file
       if (args.Length < 1) {
-        Console.Error.WriteLine("please specify the configuration file name...");
+        Debug.WriteLine("please specify the configuration file name...");
         Environment.Exit(0);
       }
       ConfigFile = args[0];
+
+      if (args.Length == 2)
+        Debug.Listeners.Add(new ConsoleTraceListener(true));
 
       config = IPRouterConfigHandler.Read(ConfigFile, true);
 
@@ -187,9 +169,9 @@ namespace Ipop {
         RemoteTAs.Add(ta);
       }
 
+      // Generate a Brunet Address if one doesn't already exist
       if(config.NodeAddress == null) {
-        byte [] temp = IPOP_Common.GenerateAddress();
-        config.NodeAddress = IPOP_Common.BytesToString(temp, ':');
+        config.NodeAddress = IPOP_Common.GenerateAHAddress().ToString();
         IPRouterConfigHandler.Write(ConfigFile, config);
       }
 
@@ -198,19 +180,15 @@ namespace Ipop {
         new LinuxShutdown();
       }
 
-      debug = false;
-      if (args.Length == 2)
-        debug = true;
-
-      Console.Error.WriteLine("IPRouter starting up at time: {0}", DateTime.Now);
+      Debug.WriteLine(String.Format("IPRouter starting up at time: {0}", DateTime.Now));
       ether = new Ethernet(config.device, routerMAC);
       if (ether.Open() < 0) {
-        Console.Error.WriteLine("unable to set up the tap");
+        Debug.WriteLine("Unable to set up the tap");
         return;
       }
 
       node = new NodeMapping();
-      node.nodeAddress = config.NodeAddress;
+      node.address = (AHAddress) AddressParser.Parse(config.NodeAddress);
       node.ipop_namespace = config.ipop_namespace;
       node.netmask = config.AddressData.Netmask;
 
@@ -219,14 +197,6 @@ namespace Ipop {
       }
 
       BrunetStart();
-      if (config.EnableXmlRpcManager && xrmthread == null) {
-        try {
-          int xml_port = Int32.Parse(config.XmlRpcPort);
-          RpcManager rpc = RpcManager.GetInstance(node.brunet.node);
-          XmlRpcManagerServer.StartXmlRpcManagerServerAsThread(rpc, xml_port);
-        }
-        catch {}
-      }
 
       if(config.AddressData.DHCPServerAddress != null && !config.AddressData.DhtDHCP)
         dhcpClient = new SoapDHCPClient(config.AddressData.DHCPServerAddress);
@@ -235,84 +205,56 @@ namespace Ipop {
       }
 
       in_dht = false;
-      ethernet = false;
+      bool ethernet = false;
       //start the asynchronous communication now
       while(true) {
         //now the packet
-        int packet_size = 0;
-        byte [] packet = ether.ReceivePacket(out packet_size);
+        MemBlock packet = ether.ReceivePacket();
         if (packet == null) {
-          Console.Error.WriteLine("error reading packet from ethernet");
+          Debug.WriteLine("error reading packet from ethernet");
           continue;
         }
   /* We should really be checking each and every packet, but for simplicity sake
      we will only check until we are satisfied! */
         else if(!ethernet) {
-          node.mac = new byte[6];
-          Array.Copy(packet, 6, node.mac, 0, 6);
+          node.mac = EthernetPacketParser.GetMAC(packet);
           ethernet = true;
         }
 
-        int type = (packet[12] << 8) + packet[13];
-        /*  ARP Packet Handler */
-        byte [] buffer = null;
+        int type = EthernetPacketParser.GetProtocol(packet);
+        MemBlock payload = EthernetPacketParser.GetPayload(packet);
 
-        if(type == 0x806 || type == 0x800) {
-          buffer =  new byte[packet_size - 14];
-          Array.Copy(packet, 14, buffer, 0, buffer.Length);
-        }
-        else
-          continue;
+        if(type == 0x806)
+          ARPHandler(payload);
+        else if(type == 0x800) {
+          IPAddress srcAddr = IPPacketParser.GetSrcAddr(payload);
+          IPAddress destAddr = IPPacketParser.GetDestAddr(payload);
+          int destPort = IPPacketParser.GetDestPort(payload);
+          int srcPort = IPPacketParser.GetSrcPort(payload);
+          int protocol = IPPacketParser.GetProtocol(payload);
 
-        if(type == 0x806) {
-          ARPHandler(buffer);
-          continue;
-        }
+          Debug.WriteLine(String.Format("Outgoing {0} packet::IP src: {1}:{2}," +
+              "IP dst: {3}:{4}", protocol, srcAddr, srcPort, destAddr,
+              destPort));
 
-        /*  End Arp */
-
-        /* else if(type == 0x800) */
-
-        IPAddress srcAddr = IPPacketParser.SrcAddr(buffer);
-        IPAddress destAddr = IPPacketParser.DestAddr(buffer);
-        int destPort = (buffer[22] << 8) + buffer[23];
-        int srcPort = (buffer[20] << 8) + buffer[21];
-        int protocol = buffer[9];
-
-        if (debug) {
-          Console.Error.WriteLine("Outgoing {0} packet::IP src: {1}:{2}," + 
-            "IP dst: {3}:{4}", protocol, srcAddr, srcPort, destAddr,
-            destPort);
-        }
-
-        if(srcPort == 68 && destPort == 67 && protocol == 17) {
-          if (debug)
-            Console.Error.WriteLine("DHCP packet at time: {0}, status: {1}", DateTime.Now, in_dht);
-          if(!in_dht) {
-            in_dht = true;
-            ThreadPool.QueueUserWorkItem(new WaitCallback(ProcessDHCP), (object) buffer);
+          if(srcPort == 68 && destPort == 67 && protocol == 17) {
+            Debug.WriteLine(String.Format("DHCP packet at time: {0}, status: {1}",
+              DateTime.Now, in_dht));
+            if(!in_dht) {
+              in_dht = true;
+              ThreadPool.QueueUserWorkItem(new WaitCallback(ProcessDHCP), payload);
+            }
+            continue;
           }
-          continue;
-        }
 
-        // This is used to allow us switching of IP address via ifconfig - are we still interested in this?
-//         if(!srcAddr.Equals(IPAddress.Parse("0.0.0.0")) && !srcAddr.Equals(node.ip) && !in_dht) {
-//           Console.Error.WriteLine("Switching IP Address " + node.ip + " with " + srcAddr);
-//           in_dht = true;
-//           ThreadPool.QueueUserWorkItem(new WaitCallback(IPUpdate), (object) srcAddr.ToString());
-//           continue;
-//         }
-
-        AHAddress target = (AHAddress) routes.GetAddress(destAddr);
-        if (target == null) {
-          Console.Error.WriteLine("Incurring a route miss for virtual ip: {0}", destAddr);
-          routes.RouteMiss(destAddr);
-          continue;
+          AHAddress target = (AHAddress) routes.GetAddress(destAddr);
+          if (target == null) {
+            routes.RouteMiss(destAddr);
+            continue;
+          }
+          Debug.WriteLine(String.Format("Brunet destination ID: {0}", target));
+          node.brunet.SendPacket(target, payload);
         }
-        if (debug) {
-          Console.Error.WriteLine("Brunet destination ID: {0}", target);
-        }
-        node.brunet.SendPacket(target, MemBlock.Reference(buffer));
       }
     }
   }

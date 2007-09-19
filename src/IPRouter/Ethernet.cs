@@ -2,6 +2,8 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Net;
+using Brunet;
+
 namespace Ipop {
   public class Ethernet {
 
@@ -31,15 +33,16 @@ namespace Ipop {
     public int Open() {
       return tapFD = open_tap(device);
     }
-    public byte[] ReceivePacket(out int n) {
+
+    public MemBlock ReceivePacket() {
       byte[] packet = new byte[MTU + ETHER_HEADER_SIZE];
-      n = read_tap(tapFD, packet, packet.Length);
+      int n = read_tap(tapFD, packet, packet.Length);
       if (n == 0 || n == -1) 
-      	return null;
-      return packet;
+        return null;
+      return MemBlock.Reference(packet, 0, n);
     }
 
-    public bool SendPacket(byte []l3Packet, int type, byte [] dstMacAddr) {
+    public bool SendPacket(MemBlock l3Packet, int type, byte [] dstMacAddr) {
       byte[] packet = new byte[l3Packet.Length + ETHER_HEADER_SIZE];
       //Build the Ethernet header
       Array.Copy(dstMacAddr, 0, packet, 0, ETHER_ADDR_LEN);
@@ -48,9 +51,9 @@ namespace Ipop {
       packet[2*ETHER_ADDR_LEN + 1] = (byte) (type & 255);
       Array.Copy(l3Packet, 0, packet, ETHER_HEADER_SIZE, l3Packet.Length);
       int n = send_tap(tapFD, packet, packet.Length);
-      if (n != packet.Length) {
-      	return false;
-      }
+      if (n != packet.Length)
+        return false;
+
       return true;
     }
   }
