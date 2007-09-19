@@ -131,7 +131,7 @@ namespace Ipop {
         string newNetmask = IPOP_Common.BytesToString(((DHCPOption)
           returnPacket.decodedPacket.options[1]).byte_value, '.');
 
-        if(newAddress != node.ip.ToString() ||node.netmask !=  newNetmask) {
+        if(node.ip == null || newAddress != node.ip.ToString() ||node.netmask !=  newNetmask) {
           node.netmask = newNetmask;
           node.ip = IPAddress.Parse(newAddress);
           Debug.WriteLine(String.Format("DHCP:  IP Address changed to {0}", node.ip));
@@ -147,7 +147,6 @@ namespace Ipop {
         Debug.WriteLine("\t\n" + response);
       }
       in_dht = false;
-      return;
     }
 
     static void Main(string []args) {
