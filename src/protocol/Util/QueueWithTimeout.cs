@@ -40,34 +40,33 @@ namespace Brunet
     int _timeout;
     Queue _timeout_queue;
 
-    protected void Check(string type) {
+    protected void Check(bool leave_one) {
+      // For Dequeue and Peek if we don't leave one, we'll get an undesired exception
+      int minimum = leave_one ? 1 : 0;
       if(base.Count == 0)
         return;
         // This is only works when _timeout is > 0 and clears
       int count = 0;
-      while(base.Count >0 && _timeout < (DateTime.UtcNow - (DateTime) _timeout_queue.Peek()).TotalSeconds) {
+      while(base.Count > minimum && _timeout < (DateTime.UtcNow - (DateTime) _timeout_queue.Peek()).TotalSeconds) {
         base.Dequeue();
         _timeout_queue.Dequeue();
-        count++;
       }
-//      if(count > 0)
-//        Console.Error.WriteLine("Lost " + count + " entrees during a " + type);
     }
 
     public override object Dequeue() {
-      Check("Dequeue");
+      Check(true);
       _timeout_queue.Dequeue();
       return base.Dequeue();
     }
 
     public override void Enqueue(object o) {
-      Check("Enqueue");
+      Check(false);
       _timeout_queue.Enqueue(DateTime.UtcNow);
       base.Enqueue(o);
     }
 
     public override object Peek() {
-      Check("Peek");
+      Check(true);
       return base.Peek();
     }
   }
