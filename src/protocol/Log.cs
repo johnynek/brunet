@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Threading;
 
 namespace Brunet {
   public class ProtocolLog {
@@ -28,34 +27,14 @@ namespace Brunet {
         new BooleanSwitch("LinkDebug", "Log for Link");
     public static BooleanSwitch TunnelEdge =
         new BooleanSwitch("TunnelEdge", "Log for TunnelEdge");
+    public static BooleanSwitch Unknown =
+        new BooleanSwitch("Unknown", "Log for unknown!");
     public static BooleanSwitch LPS =
         new BooleanSwitch("LPS", "Log for link protocol state");
-    public static BooleanSwitch Monitor =
-        new BooleanSwitch("Monitor", "Log the system monitor");
-    public static BooleanSwitch LocalCO =
-        new BooleanSwitch("LocalCO", "Log the local connection overlord");
-    public static BooleanSwitch EdgeClose =
-        new BooleanSwitch("EdgeClose", "The reason why an edge was closed.");
-    public static BooleanSwitch MapReduce =
-        new BooleanSwitch("MapReduce", "Log map-reduce computations");
-    public static BooleanSwitch ManagedCO =
-        new BooleanSwitch("ManagedCO", "User selected connections.");
-    public static BooleanSwitch Security =
-        new BooleanSwitch("Security", "Security logging.");
-    public static BooleanSwitch SecurityExceptions =
-        new BooleanSwitch("SecurityExceptions", "Security Handling Exception logging.");
-
-    public static bool CTL_enabled = false;
 
     public static void Enable() {
-      if(!ConsoleLogEnable.Enabled) {
-        return;
-      }
-      lock(_sync) {
-        if(!CTL_enabled) {
-          Trace.Listeners.Add(new ConsoleTraceListener(true));
-          CTL_enabled = true;
-        }
+      if(ConsoleLogEnable.Enabled) {
+        Trace.Listeners.Add(new ConsoleTraceListener(true));
       }
     }
 
@@ -67,20 +46,8 @@ namespace Brunet {
     public static void WriteIf(BooleanSwitch bs, string msg) {
 #if TRACE
       if(bs.Enabled) {
-        Trace.WriteLine(bs.DisplayName + ":  " + Thread.CurrentThread.Name + ":  " + msg);
+        Trace.WriteLine(bs.DisplayName + ":  " + msg);
       }
-#elif BRUNET_NUNIT
-      if(bs.Enabled) {
-        System.Console.WriteLine(msg);
-      }
-#endif
-    }
-
-    public static void Write(BooleanSwitch bs, string msg) {
-#if TRACE
-      Trace.WriteLine(bs.DisplayName + ":  " + Thread.CurrentThread.Name + ":  " + msg);
-#elif BRUNET_NUNIT
-      System.Console.WriteLine(msg);
 #endif
     }
   }

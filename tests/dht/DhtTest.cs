@@ -457,12 +457,12 @@ namespace Brunet.Dht {
         default_dht.AsPut(key, value, 3000, results_queue[i]);
       }
       for (int i = 0; i < 60; i++) {
-        bool result = (bool) results_queue[i].Dequeue();
-        if(result == false) {
-          Console.WriteLine("Failure in put : " + i);
-        }
-        else {
+        try {
+          bool res = (bool) results_queue[i].Dequeue();
           Console.WriteLine("success in put : " + i);
+        }
+        catch {
+          Console.WriteLine("Failure in put : " + i);
         }
       }
       Console.WriteLine("Insertion done...");
@@ -774,12 +774,12 @@ namespace Brunet.Dht {
         default_dht.AsPut(key, value, 3000, results_queue[i]);
       }
       for (int i = 0; i < count; i++) {
-        bool result = (bool) results_queue[i].Dequeue();
-        if(result == false) {
-          Console.WriteLine("Failure in put : " + i);
-        }
-        else {
+        try {
+          bool res = (bool) results_queue[i].Dequeue();
           Console.WriteLine("success in put : " + i);
+        }
+        catch {
+          Console.WriteLine("Failure in put : " + i);
         }
       }
       Console.WriteLine("Insertion done...");

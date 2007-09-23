@@ -307,7 +307,8 @@ namespace Brunet
           ecb(success, e, x);
         }
         else {
-          Console.Error.WriteLine("POSSIBLE ERROR: CallECB called twice");
+          ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+            "In TunnelEdgeListener CallECB called twice"));
         }
       }
 
@@ -820,7 +821,8 @@ namespace Brunet
         } catch(EdgeException) {
           _node.ConnectionTable.Disconnect((Edge)sender); 
 	} catch(Exception ex) {
-	  Console.Error.WriteLine("Error sending control using packet_sender: {0}, {1}", sender, ex);
+    ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+	    "Error sending control using packet_sender: {0}, {1}", sender, ex));
 	}       
       }
     }

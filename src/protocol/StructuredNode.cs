@@ -18,13 +18,10 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-#define PRODUCTION
-//to run the connecttester, make sure you change PRODUCTION to DEBUG
-
 using System;
 using System.Collections;
 using System.Collections.Specialized;
-//using log4net;
+using System.Diagnostics;
 
 namespace Brunet
 {
@@ -36,11 +33,6 @@ namespace Brunet
 
   public class StructuredNode:Node
   {
-    /*private static readonly log4net.ILog log =
-        log4net.LogManager.GetLogger(System.Reflection.MethodBase.
-        GetCurrentMethod().DeclaringType);*/
-
-
     /**
      * Here are the ConnectionOverlords for this type of Node
      */
@@ -151,9 +143,11 @@ namespace Brunet
      */
     override public void Disconnect()
     {
-      Console.Error.WriteLine("In StructuredNode.Disconnect: {0}", this.Address);
+      ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
+        "In StructuredNode.Disconnect: {0}", this.Address));
       base.Disconnect();
-      Console.Error.WriteLine("Called Node.Disconnect: {0}", this.Address);
+      ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
+        "Called Node.Disconnect: {0}", this.Address));
 
       _lco.IsActive = false;
       _sco.IsActive = false;
@@ -177,18 +171,22 @@ namespace Brunet
       edges_to_close = ArrayList.Synchronized( edges_to_close );
 
       EventHandler ch = delegate(object o, EventArgs a) {
-        Console.Error.WriteLine("{1} Handling Close of: {0}", o, this.Address);
+        ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
+          "{1} Handling Close of: {0}", o, this.Address));
         edges_to_close.Remove(o);
         if( edges_to_close.Count == 0 ) {
-          Console.Error.WriteLine("Node({0}) Stopping all EdgeListeners", Address);
+          ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
+            "Node({0}) Stopping all EdgeListeners", Address));
           StopAllEdgeListeners();
         }
       };
       RpcManager rpc = RpcManager.GetInstance(this);
-      Console.Error.WriteLine("{0} About to gracefully close all edges", this.Address);
+      ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
+        "{0} About to gracefully close all edges", this.Address));
       for(int i = 0; i < copy.Count; i++) {
         Edge e = (Edge)copy[i];
-        Console.Error.WriteLine("{0} Closing: [{1} of {2}]: {3}", this.Address, i, copy.Count, e);
+        ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
+          "{0} Closing: [{1} of {2}]: {3}", this.Address, i, copy.Count, e));
         e.CloseEvent += ch;
         if( e.IsClosed ) { ch(e, null); }
         else {
@@ -196,22 +194,26 @@ namespace Brunet
           res_q.CloseAfterEnqueue();
           DateTime start_time = DateTime.UtcNow;
           res_q.CloseEvent += delegate(object o, EventArgs arg) {
-            Console.Error.WriteLine("Close on edge: {0} took: {1}", e, (DateTime.UtcNow - start_time)); 
+            ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
+              "Close on edge: {0} took: {1}", e, (DateTime.UtcNow - start_time))); 
             e.Close();
           };
           try {
             IDictionary carg = new ListDictionary();
             carg["reason"] = "disconnecting";
             rpc.Invoke(e, res_q, "sys:link.Close", carg);
-          } catch {
-             Console.Error.WriteLine("Closing: {0}", e);
-             e.Close();
+          }
+          catch {
+            ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+              "Closing: {0}", e));
+            e.Close();
           }
         }
       }
       if( copy.Count == 0 ) {
         //There were no edges, go ahead an Stop
-        Console.Error.WriteLine("Node({0}) Stopping all EdgeListeners", Address);
+        ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
+          "Node({0}) Stopping all EdgeListeners", Address));
         StopAllEdgeListeners();
       }
     }
@@ -222,7 +224,6 @@ namespace Brunet
      */
     protected void EstimateSize(object contab, System.EventArgs args)
     {
-      //Console.Error.WriteLine("Estimate size: ");
       try {
       //Estimate the new size:
       ConnectionTable tab = (ConnectionTable)contab;
@@ -290,11 +291,13 @@ namespace Brunet
 	lock( _sync ) {
 	  _netsize = net_size;
         }
-	Console.Error.WriteLine("Network size: {0} at {1}:{2}", _netsize, 
-			DateTime.UtcNow.ToString("MM'/'dd'/'yyyy' 'HH':'mm':'ss"),
-		        DateTime.UtcNow.Millisecond);
-      }catch(Exception x) {
-        Console.Error.WriteLine(x.ToString());
+        ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
+          "Network size: {0} at {1}:{2}", _netsize,
+          DateTime.UtcNow.ToString("MM'/'dd'/'yyyy' 'HH':'mm':'ss"),
+          DateTime.UtcNow.Millisecond));
+      }
+      catch(Exception x) {
+        ProtocolLog.WriteIf(ProtocolLog.Exceptions, x.ToString());
       }
 
     }
@@ -402,7 +405,8 @@ namespace Brunet
               tab.Disconnect(lc.Edge);
             }
 	    else {
-              Console.Error.WriteLine("CallGetStatus trial {2} on {0} failed: {1}", lc, x, trials); 
+        ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+          "CallGetStatus trial {2} on {0} failed: {1}", lc, x, trials));
 	    }
           }
           done = done || (trials > 3); //Don't try forever
@@ -428,18 +432,18 @@ namespace Brunet
               //Make sure this guy is removed in this thread (it may be
               //in the process of being removed in another thread)
               tab.Disconnect(rc.Edge);
-            } else {
-              Console.Error.WriteLine("CallGetStatus trial {2} on {0} failed: {1}", rc, x, trials); 
+            } 
+            else {
+              ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+                "CallGetStatus trial {2} on {0} failed: {1}", rc, x, trials));
 	    }
           }
           done = done || (trials > 3); //Don't try forever
         } while(!done);
-      } catch(Exception x) {
-        Console.Error.WriteLine(x.ToString());
+      }
+      catch(Exception x) {
+        ProtocolLog.WriteIf(ProtocolLog.Exceptions, x.ToString());
       }
     }
-    
   }
 }
-
-

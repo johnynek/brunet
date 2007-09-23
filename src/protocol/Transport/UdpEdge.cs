@@ -22,8 +22,6 @@ using System;
 using System.Collections;
 using System.Net;
 
-//#define UDP_DEBUG
-
 namespace Brunet
 {
 
@@ -34,13 +32,6 @@ namespace Brunet
 
   public class UdpEdge : Edge
   {
-    /**
-     * Adding logger
-     */
-    /*private static readonly log4net.ILog log =
-      log4net.LogManager.GetLogger(System.Reflection.MethodBase.
-      GetCurrentMethod().DeclaringType);*/
-
     protected readonly bool inbound;
     protected volatile bool _is_closed;
     protected IEdgeSendHandler _send_cb;
@@ -126,7 +117,8 @@ namespace Brunet
         throw new EdgeException("Tried to send on a closed UdpEdge"); 
       }
       if( p == null ) {
-        Console.Error.WriteLine("{0} tried to send a null packet", this);
+        ProtocolLog.WriteIf(ProtocolLog.UdpEdge, String.Format(
+          "{0} tried to send a null packet", this));
         throw new System.NullReferenceException(
 	                 "UdpEdge.Send: argument can't be null");
       }

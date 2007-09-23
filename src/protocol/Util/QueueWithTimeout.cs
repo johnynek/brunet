@@ -27,6 +27,13 @@ namespace Brunet
  * by the time it is processed.  Heuristics should be used to set a timeout
  */
   public class QueueWithTimeout: Queue {
+    public override int Count {
+      get {
+        Check(false);
+        return base.Count;
+      }
+    }
+
     public QueueWithTimeout() {
       _timeout = 60;
       _timeout_queue = new Queue();

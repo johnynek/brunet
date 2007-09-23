@@ -19,7 +19,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-#define POB_DEBUG
+//#define POB_DEBUG
 #define TRIM
 //#define PERIODIC_NEIGHBOR_CHK
 
@@ -160,7 +160,8 @@ namespace Brunet {
 	  } catch (Exception) { }
         }
 	  if (rc == null || lc == null) {
-	    Console.Error.WriteLine("{0}: No left or right neighbor (false)", our_addr);
+      ProtocolLog.WriteIf(ProtocolLog.SCO, String.Format(
+        "{0}: No left or right neighbor (false)", our_addr));
 	    return false;
 	  }
 	  if (rc == lc) {
@@ -186,7 +187,8 @@ namespace Brunet {
 	    AHAddress stat_addr = n_info.Address as AHAddress;
 	    if (stat_addr.IsBetweenFromLeft(our_addr, left_addr)) {
 	      //we are expecting a better candidate for left neighbor!
-	      Console.Error.WriteLine("{0}: Better left: {1} (false)", our_addr, stat_addr);
+        ProtocolLog.WriteIf(ProtocolLog.SCO, String.Format(
+	        "{0}: Better left: {1} (false)", our_addr, stat_addr));
 	      return false;
 	    }
 	  }
@@ -196,11 +198,13 @@ namespace Brunet {
 	    AHAddress stat_addr = n_info.Address as AHAddress;
 	    if (stat_addr.IsBetweenFromRight(our_addr, right_addr)) {
 	      //we are expecting a better candidate for left neighbor!
-	      Console.Error.WriteLine("{0}: Better right: {1} (false)", our_addr, stat_addr);
+        ProtocolLog.WriteIf(ProtocolLog.SCO, String.Format(
+	        "{0}: Better right: {1} (false)", our_addr, stat_addr));
 	      return false;
 	    }
 	  }
-	  Console.Error.WriteLine("{0}:  Returning (true)", our_addr);	  
+    ProtocolLog.WriteIf(ProtocolLog.SCO, String.Format(
+	    "{0}:  Returning (true)", our_addr));
 	  return true;
       }
     }
@@ -232,10 +236,10 @@ namespace Brunet {
           //foreach(Connection c in _node.ConnectionTable.GetConnections(STRUC_NEAR)) {
             foreach(Connection c in tab.GetConnections(ConnectionType.Structured)) {
               AHAddress adr = (AHAddress)c.Address;
-//#if POB_DEBUG
-#if false
+#if POB_DEBUG
 	  AHAddress local = (AHAddress)_node.Address;
-              Console.Error.WriteLine("{0} -> {1}, lidx: {2}, is_left: {3}" ,
+         Console.Error.WriteLine(
+           "{0} -> {1}, lidx: {2}, is_left: {3}",
 			    _node.Address, adr, LeftPosition(adr), adr.IsLeftOf( local ) );
 #endif
 	      if( 
@@ -245,8 +249,7 @@ namespace Brunet {
 	        left++; 
 	      }
 	    }
-//#if POB_DEBUG
-#if false
+#if POB_DEBUG
           Console.Error.WriteLine("{0} left: {1}" , _node.Address, left);
 #endif
 	  if( left < DESIRED_NEIGHBORS ) {
@@ -275,8 +278,7 @@ namespace Brunet {
             //foreach(Connection c in _node.ConnectionTable.GetConnections(STRUC_NEAR)) {
             foreach(Connection c in tab.GetConnections(ConnectionType.Structured)) {
               AHAddress adr = (AHAddress)c.Address;
-//#if POB_DEBUG
-#if false
+#if POB_DEBUG
 	  AHAddress local = (AHAddress)_node.Address;
               Console.Error.WriteLine("{0} -> {1}, ridx: {2}, is_right: {3}",
 			    _node.Address, adr, RightPosition(adr), adr.IsRightOf( local) );
@@ -351,7 +353,7 @@ namespace Brunet {
     public override void Activate()
     {
 #if POB_DEBUG
-      //Console.Error.WriteLine("In Activate: {0}", _node.Address);
+      Console.Error.WriteLine("In Activate: {0}", _node.Address);
 #endif
       if( IsActive == false ) {
         return;
@@ -432,7 +434,7 @@ namespace Brunet {
 	   */
           if( NeedLeftNeighbor ) {
 #if POB_DEBUG
-      //Console.Error.WriteLine("NeedLeftNeighbor: {0}", _node.Address);
+      Console.Error.WriteLine("NeedLeftNeighbor: {0}", _node.Address);
 #endif
             target = new DirectionalAddress(DirectionalAddress.Direction.Left);
 	    short ttl = (short)DESIRED_NEIGHBORS;
@@ -441,7 +443,7 @@ namespace Brunet {
           }
 	  else if( NeedRightNeighbor ) {
 #if POB_DEBUG
-      //Console.Error.WriteLine("NeedRightNeighbor: {0}", _node.Address);
+      Console.Error.WriteLine("NeedRightNeighbor: {0}", _node.Address);
 #endif
             target = new DirectionalAddress(DirectionalAddress.Direction.Right);
 	    short ttl = (short)DESIRED_NEIGHBORS;
@@ -456,7 +458,7 @@ namespace Brunet {
 	   * the ring before doing the below:
 	   */
 #if POB_DEBUG
-      //Console.Error.WriteLine("NeedShortcut: {0}", _node.Address);
+      Console.Error.WriteLine("NeedShortcut: {0}", _node.Address);
 #endif
             target = GetShortcutTarget(); 
 	    contype = STRUC_SHORT;
@@ -1140,7 +1142,7 @@ namespace Brunet {
 	      //int idx = _rand.Next( near_trim_candidates.Count );
 	      //Connection to_trim = (Connection)near_trim_candidates[idx];
 #if POB_DEBUG
-        //Console.Error.WriteLine("Attempt to trim Near: {0}", to_trim);
+        Console.Error.WriteLine("Attempt to trim Near: {0}", to_trim);
 #endif
 	      _node.GracefullyClose( to_trim.Edge );
 	    }
@@ -1153,7 +1155,7 @@ namespace Brunet {
 	      int idx = _rand.Next( sc_trim_candidates.Count );
 	      Connection to_trim = (Connection)sc_trim_candidates[idx];
 #if POB_DEBUG
-              //Console.Error.WriteLine("Attempt to trim Shortcut: {0}", to_trim);
+             Console.Error.WriteLine("Attempt to trim Shortcut: {0}", to_trim);
 #endif
 	      _node.GracefullyClose( to_trim.Edge );
 	    }
