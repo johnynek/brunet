@@ -768,9 +768,8 @@ public class NatTAs : IEnumerable {
         while( hand_it.MoveNext() && (false == yielded) ) {
           NatHandler hand = (NatHandler)hand_it.Current;
           if( hand.IsMyType( points ) ) {
-  #if DEBUG
-            Console.Error.WriteLine("NatHandler: {0}", hand.GetType() );
-  #endif
+            ProtocolLog.WriteIf(ProtocolLog.NatHandler, String.Format(
+              "NatHandler: {0}", hand.GetType()));
             IList tas = hand.TargetTAs( points );
             foreach(TransportAddress ta in tas) {
               if( false == ht.Contains(ta) ) {
@@ -792,13 +791,14 @@ public class NatTAs : IEnumerable {
       }
     }
     _generated_ta_list = gtas; 
-#if DEBUG 
-    int i = 0;
-    foreach(TransportAddress ta in _generated_ta_list) {
-      Console.Error.WriteLine("LocalTA({0}): {1}",i,ta);
-      i++;
+    if(ProtocolLog.UdpEdge.Enabled) {
+      int i = 0;
+      foreach(TransportAddress ta in _generated_ta_list) {
+        ProtocolLog.WriteIf(ProtocolLog.SCO, String.Format(
+        "LocalTA({0}): {1}",i,ta));
+        i++;
+      }
     }
-#endif
   }
 
   /**
