@@ -38,7 +38,8 @@ namespace Ipop {
     public void RouteMiss(IPAddress ip) {
       lock(_sync) {
         if (!_queued.Contains(ip)) {
-          Debug.WriteLine(String.Format("Routes:  Adding {0} to queue.", ip));
+          ProtocolLog.WriteIf(IPOPLog.RoutingLog, String.Format(
+            "Routes:  Adding {0} to queue.", ip));
           /*
           * If we were already looking up this IPAddress, there
           * would be a table entry, since there is not, start a
@@ -65,11 +66,13 @@ namespace Ipop {
       try {
         DhtGetResult dgr = (DhtGetResult) queue.Dequeue();
         addr = AddressParser.Parse(Encoding.UTF8.GetString((byte []) dgr.value));
-        Debug.WriteLine(String.Format("Routes: Got result for {0} ::: {1}.", ip, addr));
+        ProtocolLog.WriteIf(IPOPLog.RoutingLog, String.Format(
+          "Routes: Got result for {0} ::: {1}.", ip, addr));
       }
       catch {
         addr = null;
-        Debug.WriteLine(String.Format("Routes: Failed for {0}.", ip));
+        ProtocolLog.WriteIf(IPOPLog.RoutingLog, String.Format(
+          "Routes: Failed for {0}.", ip));
       }
 
       lock(_sync) {

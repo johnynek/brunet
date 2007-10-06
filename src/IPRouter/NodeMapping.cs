@@ -7,6 +7,7 @@ using System.Threading;
 
 namespace Ipop {
   public class NodeMapping : IRpcHandler {
+    private Thread geo_loc_thread;
     public IPAddress ip;
     public string netmask, ipop_namespace;
     public Address address;
@@ -27,9 +28,10 @@ namespace Ipop {
     private DateTime _last_called = DateTime.UtcNow - TimeSpan.FromHours(48);
 
     public NodeMapping() {
+      GetGeoLoc();
     }
 
-   public void HandleRpc(ISender caller, string method, IList arguments, object request_state) {
+    public void HandleRpc(ISender caller, string method, IList arguments, object request_state) {
       if(_rpc == null) {
         //In case it's called by local objects without initializing _rpc
         throw new InvalidOperationException("This method has to be called from Rpc");
@@ -51,12 +53,7 @@ namespace Ipop {
     }
 
     public IDictionary Information() {
-      DateTime now = DateTime.UtcNow;
-      if(now - _last_called > TimeSpan.FromHours(48) || geo_loc.Equals(",")) {
-        string local_geo_loc = IPOP_Common.GetMyGeoLoc();
-        if(!local_geo_loc.Equals(","))
-          geo_loc = local_geo_loc;
-      }
+      GetGeoLoc();
       Hashtable ht = new Hashtable(5);
       ht.Add("type", "iprouter");
       ht.Add("geo_loc", geo_loc);
@@ -64,6 +61,23 @@ namespace Ipop {
       ht.Add("localips", brunet.node.sys_link.GetLocalIPAddresses(null));
       ht.Add("neighbors", brunet.node.sys_link.GetNeighbors(null));
       return ht;
+    }
+
+    public void GetGeoLoc() {
+      DateTime now = DateTime.UtcNow;
+      if((now - _last_called > TimeSpan.FromDays(7) || geo_loc.Equals(","))
+          && geo_loc_thread == null) {
+        geo_loc_thread = new Thread(GetGeoLocAsThread);
+        geo_loc_thread.Start();
+      }
+    }
+
+
+    public void GetGeoLocAsThread() {
+      string local_geo_loc = IPOP_Common.GetMyGeoLoc();
+      if(!local_geo_loc.Equals(","))
+        geo_loc = local_geo_loc;
+      geo_loc_thread = null;
     }
   }
 

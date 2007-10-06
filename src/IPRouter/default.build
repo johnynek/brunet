@@ -1,7 +1,6 @@
 <?xml version="1.0"?>
 <project name="ipop-common" default="build" basedir=".">
   <description> Builds the common files for IPOP-1.0 and IPOP-1.1. </description>
-  <property name="debug" value="true" overwrite="false" />
   <property name="lib.dir" value="../../lib"/>
   <property name="build.dir" value="build" />
   <target name="clean" description="Remove build directory">
@@ -20,7 +19,7 @@
         <include name="Ipop.Dhcp.dll" />
       </fileset>
     </copy>
-    <csc target="exe" output="${build.dir}/IPRouter.exe" debug="true">
+    <csc target="exe" output="${build.dir}/IPRouter.exe">
       <sources failonempty="true">
         <include name="*.cs"/>
         <include name="../Dht/IDht.cs"/>
@@ -33,6 +32,7 @@
         <include name="../Common/IPRouterConfig.cs"/>
         <include name="../Common/IPOP_Common.cs"/>
         <include name="../Common/IPAddresses.cs"/>
+        <include name="../Common/IPOPLog.cs"/>
         <include name="../dhcp/DhtDHCPServer.cs"/>
         <include name="../dhcp/DhtDHCPLease.cs"/>
         <include name="../dhcp/DHCPClient.cs"/>

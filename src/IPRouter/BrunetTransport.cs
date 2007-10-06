@@ -27,7 +27,8 @@ namespace Ipop {
       //AHAddress us = new AHAddress(IPOP_Common.GetHash(node_map.ip));
       //Dht mapping
       AHAddress us = (AHAddress) node_map.address;
-      Debug.WriteLine(String.Format("Generated address: {0}", us));
+      ProtocolLog.WriteIf(IPOPLog.BaseLog, String.Format(
+        "Generated address: {0}", us));
       node = new StructuredNode(us, brunet_namespace);
 
       edgeListeners = new ArrayList();

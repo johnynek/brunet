@@ -8,8 +8,11 @@ using System.Collections;
 namespace Ipop {
   public partial class DhtServiceClient {
     public static ISoapDht GetSoapDhtClient() {
-      ISoapDht dht = (ISoapDht)Activator.GetObject(typeof(ISoapDht), "http://127.0.0.1:64221/sd.rem");
-      return dht;
+      return GetSoapDhtClient(64221);
+    }
+    public static ISoapDht GetSoapDhtClient(int port) {
+      return (ISoapDht)Activator.GetObject(typeof(ISoapDht),
+              "http://127.0.0.1:" + port + "/sd.rem");
     }
   }
 

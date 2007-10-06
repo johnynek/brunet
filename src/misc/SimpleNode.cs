@@ -452,8 +452,6 @@ namespace Ipop {
           geo_loc_thread = new Thread(GetGeoLocAsThread);
           geo_loc_thread.Start();
         }
-        Thread.Sleep(2000);
-        Console.WriteLine(geo_loc);
       }
 
 
@@ -461,7 +459,6 @@ namespace Ipop {
         string local_geo_loc = IPOP_Common.GetMyGeoLoc();
         if(!local_geo_loc.Equals(","))
           geo_loc = local_geo_loc;
-        Console.WriteLine(geo_loc + " ::: " + local_geo_loc);
         geo_loc_thread = null;
       }
     }

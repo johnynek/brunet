@@ -22,16 +22,17 @@ namespace Ipop
     {
       IPAddress destAddr = IPPacketParser.GetDestAddr(p);
 
-      Debug.WriteLine(String.Format("Incoming packet:: IP src: {0}, IP dst: {1}, p2p " +
+      ProtocolLog.WriteIf(IPOPLog.PacketLog, String.Format(
+          "Incoming packet:: IP src: {0}, IP dst: {1}, p2p " +
           "from: {2}", IPPacketParser.GetSrcAddr(p), destAddr, from));
 
-      if (!destAddr.Equals(this.node.ip)) {
-        Debug.WriteLine(String.Format("Incoming packet not for me {0}:: IP dst: {1}", this.node.ip, destAddr));
-      }
-      else if(this.node.mac != null && 
-        !ether.SendPacket(p, 0x800, this.node.mac)) {
-	      Debug.WriteLine("Error writing packet from ethernet");
-      }
+      if (!destAddr.Equals(this.node.ip))
+        ProtocolLog.WriteIf(IPOPLog.PacketLog, String.Format(
+          "Incoming packet not for me {0}:: IP dst: {1}", this.node.ip, destAddr));
+      else if(this.node.mac != null && !ether.SendPacket(p, 0x800, this.node.mac))
+        ProtocolLog.WriteIf(IPOPLog.PacketLog,
+                            "Error writing packet from ethernet");
+
     }
   }
 }

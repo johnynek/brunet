@@ -134,7 +134,8 @@ namespace Ipop {
         if(node.ip == null || newAddress != node.ip.ToString() ||node.netmask !=  newNetmask) {
           node.netmask = newNetmask;
           node.ip = IPAddress.Parse(newAddress);
-          Debug.WriteLine(String.Format("DHCP:  IP Address changed to {0}", node.ip));
+          ProtocolLog.WriteIf(IPOPLog.DHCPLog, String.Format(
+            "DHCP:  IP Address changed to {0}", node.ip));
           config.AddressData.IPAddress = newAddress;
           config.AddressData.Netmask = node.netmask;
           IPRouterConfigHandler.Write(ConfigFile, config);
@@ -142,17 +143,16 @@ namespace Ipop {
 //            node.brunet.UpdateTAAuthorizer();
         }
       }
-      else {
-        Debug.WriteLine("The DHCP Server has a message to share with you...");
-        Debug.WriteLine("\t\n" + response);
-      }
+      else
+        ProtocolLog.WriteIf(IPOPLog.DHCPLog, String.Format(
+          "The DHCP Server has a message to share with you...\n" + response));
       in_dht = false;
     }
 
     static void Main(string []args) {
       //configuration file
       if (args.Length < 1) {
-        Debug.WriteLine("please specify the configuration file name...");
+        Console.WriteLine("please specify the configuration file name...");
         Environment.Exit(0);
       }
       ConfigFile = args[0];
@@ -179,10 +179,11 @@ namespace Ipop {
         new LinuxShutdown();
       }
 
-      Debug.WriteLine(String.Format("IPRouter starting up at time: {0}", DateTime.Now));
+      ProtocolLog.WriteIf(IPOPLog.BaseLog, String.Format(
+        "IPRouter starting up at time: {0}", DateTime.Now));
       ether = new Ethernet(config.device, routerMAC);
       if (ether.Open() < 0) {
-        Debug.WriteLine("Unable to set up the tap");
+        ProtocolLog.WriteIf(ProtocolLog.Exceptions, "Unable to set up the tap");
         return;
       }
 
@@ -210,7 +211,7 @@ namespace Ipop {
         //now the packet
         MemBlock packet = ether.ReceivePacket();
         if (packet == null) {
-          Debug.WriteLine("error reading packet from ethernet");
+          ProtocolLog.WriteIf(IPOPLog.BaseLog, "error reading packet from ethernet");
           continue;
         }
   /* We should really be checking each and every packet, but for simplicity sake
@@ -232,13 +233,14 @@ namespace Ipop {
           int srcPort = IPPacketParser.GetSrcPort(payload);
           int protocol = IPPacketParser.GetProtocol(payload);
 
-          Debug.WriteLine(String.Format("Outgoing {0} packet::IP src: {1}:{2}," +
+          ProtocolLog.WriteIf(IPOPLog.PacketLog, String.Format(
+            "Outgoing {0} packet::IP src: {1}:{2}," +
               "IP dst: {3}:{4}", protocol, srcAddr, srcPort, destAddr,
               destPort));
 
           if(srcPort == 68 && destPort == 67 && protocol == 17) {
-            Debug.WriteLine(String.Format("DHCP packet at time: {0}, status: {1}",
-              DateTime.Now, in_dht));
+            ProtocolLog.WriteIf(IPOPLog.DHCPLog, String.Format(
+              "DHCP packet at time: {0}, status: {1}", DateTime.Now, in_dht));
             if(!in_dht) {
               in_dht = true;
               ThreadPool.QueueUserWorkItem(new WaitCallback(ProcessDHCP), payload);
@@ -251,7 +253,8 @@ namespace Ipop {
             routes.RouteMiss(destAddr);
             continue;
           }
-          Debug.WriteLine(String.Format("Brunet destination ID: {0}", target));
+          ProtocolLog.WriteIf(IPOPLog.PacketLog, String.Format(
+            "Brunet destination ID: {0}", target));
           node.brunet.SendPacket(target, payload);
         }
       }
