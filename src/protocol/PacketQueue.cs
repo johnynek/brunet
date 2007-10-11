@@ -46,7 +46,7 @@ namespace Brunet {
 
     protected class PacketHistory: CacheLinkedList<PacketData> {
       public PacketHistory(PacketHistory ph, PacketData pd) : base(ph, pd){}
-      public static new int MAX_COUNT = 2048;
+      public static new int MAX_COUNT = 256;
       public static PacketHistory operator + (PacketHistory ph, PacketData pd) {
         return new PacketHistory(ph, pd);
       }
@@ -117,7 +117,8 @@ namespace Brunet {
       ProtocolLog.WriteIf(ProtocolLog.Monitor, String.Format(
         "arrivals/services = " + arrivals + "/" + services));
       if((services > arrivals && services > 15) || services > 30) {
-        ProtocolLog.WriteIf(ProtocolLog.Monitor, "Sleeping");
+        ProtocolLog.WriteIf(ProtocolLog.Monitor, "Sleeping for " 
+          + sleep_time / 1000 + " seconds");
         _node.sleep_mode = true;
         System.Threading.Thread.Sleep(sleep_time);
         lock(_sync) {
