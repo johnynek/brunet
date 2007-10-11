@@ -31,6 +31,8 @@ namespace Brunet {
         new BooleanSwitch("Unknown", "Log for unknown!");
     public static BooleanSwitch LPS =
         new BooleanSwitch("LPS", "Log for link protocol state");
+    public static BooleanSwitch Monitor =
+        new BooleanSwitch("Monitor", "Log the system monitor");
 
     public static void Enable() {
       if(ConsoleLogEnable.Enabled) {

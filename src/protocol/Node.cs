@@ -83,6 +83,7 @@ namespace Brunet
         _task_queue = new TaskQueue();
         //Here is the thread for announcing packets
         _packet_queue = new BlockingQueue(30);
+        _pqm = new PacketQueueMonitor(this);
         _running = false;
         _send_pings = true;
         _announce_thread = new Thread(this.AnnounceThread);
@@ -240,6 +241,7 @@ namespace Brunet
       get { return -1; }
     }
     protected BlockingQueue _packet_queue;
+    protected PacketQueueMonitor _pqm;
 
     protected string _realm = "global";
     /**
@@ -481,26 +483,16 @@ namespace Brunet
           DateTime start = DateTime.UtcNow;
           AnnounceState a_state = (AnnounceState)_packet_queue.Dequeue();
           Announce(a_state.Data, a_state.From);
-
-/*          while(_announce_times.Count >= MAX_ANNOUNCE_TIMES - 1) {
-            int time = (int) _announce_times.Dequeue();
-            _total_announce_time -= time;
-            _announce_time_count--;
-          }*/
-          int runtime = (int) (DateTime.UtcNow - start).TotalSeconds;
-          ProtocolLog.WriteIf(ProtocolLog.Stats, String.Format(
-            "Announce time: " + runtime));
-     /*     _announce_times.Enqueue(runtime);
-          _total_announce_time += runtime;
-          _announce_time_count++;*/
+          _pqm.Remove(a_state.Data);
         }
       }
       catch(System.InvalidOperationException x) {
         //This is thrown when Dequeue is called on an empty queue
         //which happens when the BlockingQueue is closed, which
         //happens on Disconnect
-        ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
-          "Running = {0}, in AnnounceThread got Exception: {1}", _running, x));
+        if(_running)
+          ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+            "Running in AnnounceThread got Exception: {1}", x));
       }
       catch(Exception x) {
         ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
@@ -706,12 +698,7 @@ namespace Brunet
     public void HandleData(MemBlock data, ISender return_path, object state) {
       AnnounceState astate = new AnnounceState(data, return_path as Edge);
       _packet_queue.Enqueue(astate);
-
-      int count = _packet_queue.Count;
-      if( (count > 0) && (count % 1000 == 0) ) {
-        ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
-          "Node({0}) has {1} elements in Announce Queue", this.Address, count));
-      }
+      _pqm.Add(data);
     }
 
     protected TimeSpan ComputeDynamicTimeout() {
@@ -860,6 +847,7 @@ namespace Brunet
           else if(_timeouts > 0)
             _timeouts--;
         }*/
+        _pqm.CheckSystem();
       }
       else {
         //Don't do anything for now.

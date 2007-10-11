@@ -354,12 +354,12 @@ namespace Brunet
         }
       }
       if( is_new_edge ) {
-       NatDataPoint dp = new NewEdgePoint(DateTime.UtcNow, edge);
-       _nat_hist = _nat_hist + dp;
-       _nat_tas = new NatTAs( _tas, _nat_hist );
-       if( !edge.IsClosed ) {
-         SendEdgeEvent(edge);
-       }
+        NatDataPoint dp = new NewEdgePoint(DateTime.UtcNow, edge);
+        _nat_hist = _nat_hist + dp;
+        _nat_tas = new NatTAs( _tas, _nat_hist );
+        if( !edge.IsClosed ) {
+          SendEdgeEvent(edge);
+        }
       }
       if( read_packet ) {
         //We have the edge, now tell the edge to announce the packet:
