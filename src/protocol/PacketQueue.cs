@@ -117,12 +117,16 @@ namespace Brunet {
       if((services > arrivals && services > 30) || services > 60) {
         ProtocolLog.WriteIf(ProtocolLog.Monitor, String.Format(
           "Sleeping (arrivals/services) = " + arrivals + "/" + services));
-        lock(_node.ConnectionTable.SyncRoot) {
-          System.Threading.Thread.Sleep(sleep_time);
-        }
+        _node.sleep_mode = true;
+        System.Threading.Thread.Sleep(sleep_time);
         lock(_sync) {
           packets.Clear();
+          last_arrival = DateTime.UtcNow;
+          ph = null;
         }
+        _node.sleep_mode = false;
+
+        ProtocolLog.WriteIf(ProtocolLog.Monitor, "Sleeping over");
         if(sleep_time < MAXIMUM_SLEEP_TIME)
           sleep_time *= 2;
       }

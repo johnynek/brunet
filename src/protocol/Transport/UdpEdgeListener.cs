@@ -632,7 +632,7 @@ namespace Brunet
         try {
           read = s.Poll( microsecond_timeout, SelectMode.SelectRead );
           if( read ) {
-	    int max = ba.Capacity;
+            int max = ba.Capacity;
             rec_bytes = s.ReceiveFrom(ba.Buffer, ba.Offset, max, SocketFlags.None, ref end);
             //Get the id of this edge:
             if( rec_bytes >= 8 ) {

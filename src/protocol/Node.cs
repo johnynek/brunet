@@ -41,28 +41,6 @@ namespace Brunet
    */
   abstract public class Node : ISender, IDataHandler
   {
-    /*private static readonly log4net.ILog log =
-        log4net.LogManager.GetLogger(System.Reflection.MethodBase.
-        GetCurrentMethod().DeclaringType);*/
-
-
-    public const int MAX_ANNOUNCE_TIMES = 1000;
-    public const int BASE_TIMEOUT = 60000;
-    public const int MAX_TIMEOUT_MODIFIER = 14;
-    private int _timeouts = 0;
-    public int AverageAnnounceTime {
-      get {
-        if(_announce_time_count == 0)
-          return 0;
-        return _total_announce_time / _announce_time_count;
-      }
-    }
-
-    protected Queue _announce_times = new Queue(MAX_ANNOUNCE_TIMES);
-    protected int _total_announce_time = 0;
-    protected int _announce_time_count = 0;
-    protected DateTime _last_sleep_timeout = DateTime.UtcNow;
-
     /**
      * Create a node with a given local address and
      * a set of Routers.
@@ -87,7 +65,7 @@ namespace Brunet
         _running = false;
         _send_pings = true;
         _announce_thread = new Thread(this.AnnounceThread);
-        
+
         _connection_table = new ConnectionTable(_local_add);
         _connection_table.ConnectionEvent += this.ConnectionHandler;
         /*
@@ -242,6 +220,7 @@ namespace Brunet
     }
     protected BlockingQueue _packet_queue;
     protected PacketQueueMonitor _pqm;
+    public bool sleep_mode = false;
 
     protected string _realm = "global";
     /**
@@ -406,6 +385,10 @@ namespace Brunet
      */
     protected void EdgeHandler(object edge, EventArgs args)
     {
+      // Edges will not be created when in sleep_mode, better to put this here
+      // then worry about putting this in all the EdgeListener or Edge code.
+      if(sleep_mode)
+        return;
       Edge e = (Edge)edge;
       e.Subscribe(this, e);
       _connection_table.AddUnconnected(e);
@@ -480,7 +463,6 @@ namespace Brunet
     private void AnnounceThread() {
       try {
         while( _running ) {
-          DateTime start = DateTime.UtcNow;
           AnnounceState a_state = (AnnounceState)_packet_queue.Dequeue();
           Announce(a_state.Data, a_state.From);
           _pqm.Remove(a_state.Data);
@@ -696,6 +678,8 @@ namespace Brunet
      * Implements the IDataHandler interface
      */
     public void HandleData(MemBlock data, ISender return_path, object state) {
+      if(sleep_mode)
+        return;
       AnnounceState astate = new AnnounceState(data, return_path as Edge);
       _packet_queue.Enqueue(astate);
       _pqm.Add(data);
@@ -764,7 +748,7 @@ namespace Brunet
             e.Close();
           }
           else if( _send_pings && ( now - e.LastInPacketDateTime > _connection_timeout ) ) {
-            
+
             object ping_arg = String.Empty;
             EventHandler on_close = delegate(object q, EventArgs cargs) {
               Channel qu = (Channel)q;
@@ -858,6 +842,8 @@ namespace Brunet
      */
     protected void HeartBeatCallback(object state)
     {
+      if(sleep_mode)
+        return;
       ///Just send the event:
       try {
         if( HeartBeatEvent != null ) {
