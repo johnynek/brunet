@@ -114,9 +114,10 @@ namespace Brunet {
       arrivals /= count;
       services /= count;
       float processing_time = services / arrivals;
-      if((services > arrivals && services > 30) || services > 60) {
-        ProtocolLog.WriteIf(ProtocolLog.Monitor, String.Format(
-          "Sleeping (arrivals/services) = " + arrivals + "/" + services));
+      ProtocolLog.WriteIf(ProtocolLog.Monitor, String.Format(
+        "arrivals/services = " + arrivals + "/" + services));
+      if((services > arrivals && services > 15) || services > 30) {
+        ProtocolLog.WriteIf(ProtocolLog.Monitor, "Sleeping");
         _node.sleep_mode = true;
         System.Threading.Thread.Sleep(sleep_time);
         lock(_sync) {
