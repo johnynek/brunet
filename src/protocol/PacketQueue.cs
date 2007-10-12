@@ -71,7 +71,6 @@ namespace Brunet {
         DateTime now = DateTime.UtcNow;
         TemporaryPacketData tpd = new TemporaryPacketData(last_arrival, now, packet);
         last_arrival = now;
-//        Console.WriteLine(packet.GetHashCode());
         packets.Add(tpd);
       }
     }
@@ -113,7 +112,6 @@ namespace Brunet {
       }
       arrivals /= count;
       services /= count;
-      float processing_time = services / arrivals;
       ProtocolLog.WriteIf(ProtocolLog.Monitor, String.Format(
         "arrivals/services = " + arrivals + "/" + services));
       if((services > arrivals && services > 15) || services > 30) {
