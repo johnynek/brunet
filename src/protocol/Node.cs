@@ -61,7 +61,9 @@ namespace Brunet
         _task_queue = new TaskQueue();
         //Here is the thread for announcing packets
         _packet_queue = new BlockingQueue(30);
-        _pqm = new PacketQueueMonitor(this);
+        _monitor = new GlobalMonitor(this);
+        _pqm = new PacketQueueMonitor(this._monitor);
+        _hbm = new HeartBeatMonitor(this._monitor);
         _running = false;
         _send_pings = true;
         _announce_thread = new Thread(this.AnnounceThread);
@@ -220,7 +222,12 @@ namespace Brunet
     }
     protected BlockingQueue _packet_queue;
     protected PacketQueueMonitor _pqm;
+    protected GlobalMonitor _monitor;
+    protected HeartBeatMonitor _hbm;
     public bool sleep_mode = false;
+
+    protected object _heartbeat_sync = new object();
+    protected bool _heartbeat_running = false;
 
     protected string _realm = "global";
     /**
@@ -832,6 +839,7 @@ namespace Brunet
             _timeouts--;
         }*/
         _pqm.CheckSystem();
+        _hbm.CheckSystem();
       }
       else {
         //Don't do anything for now.
@@ -839,11 +847,25 @@ namespace Brunet
     }
     /**
      * A TimerCallback to send the HeartBeatEvent
+     * Since the Timer can call this multiple times to run concurrently, there
+     * is a lock and a running boolean to prevent multiple executions
+     * concurrently.  Excessive callbacks are lost.
      */
     protected void HeartBeatCallback(object state)
     {
       if(sleep_mode)
         return;
+      lock(_heartbeat_sync) {
+        if(_heartbeat_running) {
+          _hbm.Lost();
+          ProtocolLog.WriteIf(ProtocolLog.NodeLog, "System must be running " +
+            "slow, more than one node waiting at heartbeat");
+          return;
+        }
+        _heartbeat_running = true;
+      }
+
+      DateTime start = DateTime.UtcNow;
       ///Just send the event:
       try {
         if( HeartBeatEvent != null ) {
@@ -854,6 +876,8 @@ namespace Brunet
         ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
           "Exception in heartbeat: {0}", x));
       }
+      _hbm.Add(start);
+      _heartbeat_running = false;
     }
 
     /**

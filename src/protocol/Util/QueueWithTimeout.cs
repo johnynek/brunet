@@ -53,7 +53,6 @@ namespace Brunet
       if(base.Count == 0)
         return;
         // This is only works when _timeout is > 0 and clears
-      int count = 0;
       while(base.Count > minimum && _timeout < (DateTime.UtcNow - (DateTime) _timeout_queue.Peek()).TotalSeconds) {
         base.Dequeue();
         _timeout_queue.Dequeue();
