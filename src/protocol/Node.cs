@@ -681,8 +681,8 @@ namespace Brunet
       if(sleep_mode)
         return;
       AnnounceState astate = new AnnounceState(data, return_path as Edge);
-      _packet_queue.Enqueue(astate);
       _pqm.Add(data);
+      _packet_queue.Enqueue(astate);
     }
 
     protected TimeSpan ComputeDynamicTimeout() {
