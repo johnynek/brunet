@@ -55,9 +55,6 @@ namespace Brunet {
       for (int idx = 0; idx < _sorted_node_list.Count; idx++) {
 	Node n1 = (Node) _sorted_node_list.GetByIndex(idx);
 	Node n2 = (Node) _sorted_node_list.GetByIndex((idx + 1)%_node_list.Count);
-	Node n3 = (Node) _sorted_node_list.GetByIndex((idx + 2)%_node_list.Count);
-	Node n4 = (Node) _sorted_node_list.GetByIndex((idx + 3)%_node_list.Count);
-	
 	Connection con = n1.ConnectionTable.GetConnection(ConnectionType.Structured, n2.Address);
 	if (con != null) {
 	  Console.WriteLine("Found connection (forward) at: {0} -> {1}", n1.Address, con);
@@ -72,102 +69,7 @@ namespace Brunet {
 	  complete = false;
 	  Console.WriteLine("Missing connection (reverse) between: {0} and {1}", n2.Address, n1.Address);
 	} 
-
-
-	con = n1.ConnectionTable.GetConnection(ConnectionType.Structured, n3.Address);
-	if (con != null) {
-	  Console.WriteLine("Found connection (forward) at: {0} -> {1}", n1.Address, con);
-	} else {
-	  Console.WriteLine("Missing connection (forward) between: {0} and {1}", n1.Address, n3.Address);
-	}
-	con = n3.ConnectionTable.GetConnection(ConnectionType.Structured, n1.Address);
-	if (con != null) {
-	  Console.WriteLine("Found connection (reverse) at: {0} -> {1}", n3.Address, con);
-	} else {
-	  Console.WriteLine("Missing connection (reverse) between: {0} and {1}", n3.Address, n1.Address);
-	} 
-
-	con = n1.ConnectionTable.GetConnection(ConnectionType.Structured, n4.Address);
-	if (con != null) {
-	  Console.WriteLine("Found connection (forward) at: {0} -> {1}", n1.Address, con);
-	} else {
-	  Console.WriteLine("Missing connection (forward) between: {0} and {1}", n1.Address, n4.Address);
-	}
-	con = n4.ConnectionTable.GetConnection(ConnectionType.Structured, n1.Address);
-	if (con != null) {
-	  Console.WriteLine("Found connection (reverse) at: {0} -> {1}", n4.Address, con);
-	} else {
-	  Console.WriteLine("Missing connection (reverse) between: {0} and {1}", n4.Address, n1.Address);
-	} 
-
-
-	Console.WriteLine("Number of connection: {0}", n1.ConnectionTable.Count(ConnectionType.Structured));
-	Console.WriteLine("Number of connection: {0}", n1.ConnectionTable.Count(ConnectionType.Structured));
-	//
-	// Also get the near connections
-	//
-	int total_distance = 0;
-	int my_sorted_idx = _sorted_node_list.IndexOfKey(n1.Address);
-	int near_count = 0;
-	Console.WriteLine("Begin near connections me: {0}", my_sorted_idx);
-	foreach(Connection c in n1.ConnectionTable.GetConnections(("structured.near"))) {
-	  int your_sorted_idx = _sorted_node_list.IndexOfKey(c.Address);
-	  int other_idx = your_sorted_idx;
-	  int distance;
-	  if (my_sorted_idx > your_sorted_idx) {
-	    int temp = my_sorted_idx;
-	    my_sorted_idx = your_sorted_idx;
-	    your_sorted_idx = temp;
-	  }
-	  //your_sorted_idx greater than my_sorted_idx
-	  distance = your_sorted_idx - my_sorted_idx;
-	  if (distance > _sorted_node_list.Count/2) {
-	    distance = _sorted_node_list.Count - distance;
-	  }
-	  total_distance += distance;
-	  if (distance < 5) {
-	    Console.Write("{0} ({1}) ", other_idx, distance);
-	  }
-	  near_count += 1;
-	}
-	Console.WriteLine("\nEnd near connections");
-	if (near_count > 0) {
-	  Console.WriteLine("Total near connections: {0}, distance: {1}", near_count, (double) total_distance/near_count);
-	} else {
-	  Console.WriteLine("No near connections");
-	}
-	int shortcut_count = 0;
-	Console.WriteLine("Begin shortcut connections me: {0}", my_sorted_idx);
-	foreach(Connection c in n1.ConnectionTable.GetConnections(("structured.shortcut"))) {
-	  int your_sorted_idx = _sorted_node_list.IndexOfKey(c.Address);
-	  int other_idx = your_sorted_idx;
-	  int distance;
-	  if (my_sorted_idx > your_sorted_idx) {
-	    int temp = my_sorted_idx;
-	    my_sorted_idx = your_sorted_idx;
-	    your_sorted_idx = temp;
-	  }
-	  //your_sorted_idx greater than my_sorted_idx
-	  distance = your_sorted_idx - my_sorted_idx;
-	  if (distance > _sorted_node_list.Count/2) {
-	    distance = _sorted_node_list.Count - distance;
-	  }
-	  total_distance += distance;
-	  if (distance < 5) {
-	    Console.Write("{0} ({1}) ", other_idx, distance);
-	  }
-	  shortcut_count += 1;
-	  
-	}
-	Console.WriteLine("\nEnd shortcut connections");
-	if (shortcut_count > 0) {
-	  Console.WriteLine("Total shortcut connections: {0}", shortcut_count);
-	} else {
-	  Console.WriteLine("No shortcut connections");
-	}
-
       }
-      
       if (complete) {
 	Console.WriteLine("Ring status: complete");
 	return true;
@@ -337,58 +239,6 @@ namespace Brunet {
       System.Threading.Thread.Sleep(300000);
       bool complete = CheckStatus();
 
-//       //
-//       // now churn the network, kill one node and add a new node
-//       //
-//       while (true) {
-// 	int idx = rand.Next(0, _sorted_node_list.Count);
-// 	//kill the node.
-// 	Node n = (Node) _sorted_node_list.GetByIndex(idx);
-// 	n.Disconnect();
-// 	bool add = false;
-// 	if (missing_edges.Contains(idx)) {
-// 	  add = true;
-// 	  missing_edges.Remove(idx);
-// 	}
-
-// 	//remove the node.
-// 	_node_list.Remove(n);
-// 	_sorted_node_list.Remove(_node.Address);
-// 	_node_to_port.Remove(n);
-
-
-// 	// start a new node.
-// 	AHAddress address = new AHAddress(new RNGCryptoServiceProvider());
-//         Node node = new StructuredNode(address, brunet_namespace);
-//         _sorted_node_list.Add((Address) address, node);
-// 	_node_list.Add(node);
-// 	RouteTestHandler test_handler = new RouteTestHandler();
-// 	node.GetTypeSource(new PType(routing_test)).Subscribe(test_handler, address.ToMemBlock());
-// 	int idx = _sorted_node_list.IndexOfKey(address);
-	
-// 	//Is there a need to add a new missing edge here.
-// 	TAAuthorizer ta_auth = null;
-// 	if (add) {
-// 	  //
-// 	  // make this node miss an edge to its next node.
-// 	  //
-// 	  Node next = (Node) _sorted_node_list.GetByIndex((idx+1)%_sorted_node_list.Count);
-// 	  int remote_port = (int) _node_to_port[next];
-// 	  PortTAAuthorizer port_auth = new PortTAAuthorizer(remote_port);
-// 	  ArrayList arr_tas = new ArrayList();
-// 	  arr_tas.Add(port_auth);
-// 	  arr_tas.Add(new ConstantAuthorizer(TAAuthorizer.Decision.Allow));
-// 	  ta_auth = new SeriesTAAuthorizer(arr_tas);
-// 	}
-// 	//add the edge listener.
-	
-
-	
-	
-//       }
-      
-      
-
       int count = 0;
       //
       // Send a large number of packets as exact packets to random destinations
@@ -488,10 +338,6 @@ namespace Brunet {
 			correct_rpcs, incorrect_rpcs, missing_rpcs);
       
       System.Environment.Exit(1);
-      //foreach(DictionaryEntry de in _sorted_node_list) {
-      //  Node node = (Node)de.Value;
-      //  node.Disconnect();
-      //}      
     }
   }
 }

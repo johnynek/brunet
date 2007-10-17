@@ -108,7 +108,7 @@ namespace Brunet
     /*
      * Don't try to use TunnelEdge unless we have this many neighbors
      */
-    protected const int MIN_FORWARDERS = 2;
+    protected const int MIN_FORWARDERS = 1;
 
     /**
      * @return true if the Start method has been called
@@ -265,14 +265,15 @@ namespace Brunet
 
 
     protected class EdgeCreationState {
+      public static readonly TimeSpan ReqTimeout = new TimeSpan(0,0,0,0,5000);
       public readonly int Id;
       protected EdgeCreationCallback ECB;
       public readonly Packet RequestPacket;
       protected readonly IList Senders;
-
       public const int MAX_ATTEMPTS = 4;
       protected volatile int _attempts;
       public int Attempts { get { return _attempts; } }
+      protected DateTime _last_send;
       protected readonly Random _r;
       protected readonly object _sync;
 
@@ -286,6 +287,7 @@ namespace Brunet
         RequestPacket = p;
         _r = new Random();
         _attempts = MAX_ATTEMPTS;
+	_last_send = DateTime.UtcNow;
         _sync = new object();
       }
 
@@ -311,12 +313,17 @@ namespace Brunet
           Console.Error.WriteLine("POSSIBLE ERROR: CallECB called twice");
         }
       }
-
+      
       /**
        * Resends our request to a randomly selected Sender in our
        * list of neighbors
        */
       public void Resend() {
+	DateTime now = DateTime.UtcNow;
+	if (now - _last_send < EdgeCreationState.ReqTimeout) {
+	  return;
+	}
+
         /*
          * one of the senders might have closed
          * try three times to be sure
@@ -344,20 +351,12 @@ namespace Brunet
 #endif 
 	  }
         }
+	_last_send = DateTime.UtcNow;
       }
     }
     protected Hashtable _ecs_ht;
-    protected DateTime _last_check;
-    protected TimeSpan _reqtimeout;
 
     protected void TimeoutChecker(object o, EventArgs args) {
-      DateTime now = DateTime.UtcNow;
-      if ( now - _last_check < _reqtimeout ) {
-	return;
-      }
-      _last_check = now;
-
-
 #if TUNNEL_DEBUG
       Console.Error.WriteLine("TimeoutChecker: Checking edge creation states at: {0}.", DateTime.Now);
 #endif
@@ -472,10 +471,6 @@ namespace Brunet
 
 	_running = false;
 	_isstarted = false;
-	_last_check = DateTime.UtcNow;
-	//resend the request after 5 seconds.
-	_reqtimeout = new TimeSpan(0,0,0,0,5000);
-
 	_node.HeartBeatEvent += new EventHandler(this.TimeoutChecker);
       }
     }
