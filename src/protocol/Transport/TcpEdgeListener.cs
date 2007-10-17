@@ -502,7 +502,7 @@ namespace Brunet
         object s = readsocks[i];
         //See if this is a new socket
         if( s == _listen_sock ) {
-	  try {
+          try {
             Socket new_s = _listen_sock.Accept();
             TransportAddress rta = TransportAddressFactory.CreateInstance(this.TAType,
                                     (IPEndPoint)new_s.RemoteEndPoint);
@@ -520,11 +520,11 @@ namespace Brunet
   #endif
               SendEdgeEvent(e);
             }
-	  }
-	  catch(Exception sx) {
+          }
+          catch(Exception sx) {
           //Looks like this Accept has failed.  Do nothing
             Console.Error.WriteLine("New incoming edge failed: {0}", sx);
-	  }
+          }
         }
         else {
           TcpEdge e = (TcpEdge)_sock_to_edge[s];
@@ -553,7 +553,7 @@ namespace Brunet
         }
       }
     }
-    
+
     /**
      * TcpEdge objects call this method when their
      * send state changes (from true to false or vice-versa).
@@ -564,7 +564,7 @@ namespace Brunet
       do {
         send_s = Interlocked.Exchange(ref _send_sockets, send_s);
       } while( send_s == null );
-      
+
       if( need_to_send && !e.IsClosed ) {
         send_s.Add(e.Socket);
       }

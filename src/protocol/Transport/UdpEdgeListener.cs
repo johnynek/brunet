@@ -196,12 +196,13 @@ namespace Brunet
       if( (e != null) && (e.RemoteID == remoteid) ) {
         //This edge has some control information.
         try {
-	  ControlCode code = (ControlCode)NumberSerializer.ReadInt(buffer, 0);
-          Console.Error.WriteLine("Got control {1} from: {0}", e, code);
-	  if( code == ControlCode.EdgeClosed ) {
+          ControlCode code = (ControlCode)NumberSerializer.ReadInt(buffer, 0);
+          ProtocolLog.WriteIf(ProtocolLog.UdpEdge, String.Format(
+            "Got control {1} from: {0}", e, code));
+          if( code == ControlCode.EdgeClosed ) {
             //The edge has been closed on the other side
-	    e.Close();
- 	  }
+            e.Close();
+          }
           else if( code == ControlCode.EdgeDataAnnounce ) {
             //our NAT mapping may have changed:
             IDictionary info =
@@ -212,9 +213,9 @@ namespace Brunet
               TransportAddress new_ta = TransportAddressFactory.CreateInstance(our_local_ta);
               TransportAddress old_ta = e.PeerViewOfLocalTA;
               if( ! new_ta.Equals( old_ta ) ) {
-                Console.Error.WriteLine(
-	        "Local NAT Mapping changed on Edge: {0}\n{1} => {2}",
-                 e, old_ta, new_ta); 
+                ProtocolLog.WriteIf(ProtocolLog.UdpEdge, String.Format(
+                  "Local NAT Mapping changed on Edge: {0}\n{1} => {2}",
+                 e, old_ta, new_ta));
                 //Looks like matters have changed:
                 this.UpdateLocalTAs(e, new_ta);
                 /**
@@ -229,7 +230,7 @@ namespace Brunet
         }
         catch(Exception x) {
         //This could happen if this is some control message we don't understand
-          Console.Error.WriteLine(x);
+          ProtocolLog.WriteIf(ProtocolLog.Exceptions, x.ToString());
         }
       }
     }
@@ -256,7 +257,6 @@ namespace Brunet
           if( e_dup.End.Equals( end ) ) {
             //Same id from the same endpoint, looks like a dup...
             is_new_edge = false;
-            //Console.Error.WriteLine("Stopped a Dup on: {0}", e_dup);
             //Reuse the existing edge:
             edge = e_dup;
           }
@@ -271,7 +271,8 @@ namespace Brunet
             ///@todo perhaps we should send a control message... I don't know
             is_new_edge= false;
             read_packet = false;
-            Console.Error.WriteLine("Denying: {0}", rta);
+            ProtocolLog.WriteIf(ProtocolLog.UdpEdge, String.Format(
+              "Denying: {0}", rta));
           }
           else {
             //We need to assign it a local ID:
@@ -331,9 +332,9 @@ namespace Brunet
       }
       if( (edge != null) && !edge.End.Equals(end) ) {
         //This happens when a NAT mapping changes
-        Console.Error.WriteLine(
-	    "Remote NAT Mapping changed on Edge: {0}\n{1} -> {2}",
-           edge, edge.End, end); 
+        ProtocolLog.WriteIf(ProtocolLog.UdpEdge, String.Format(
+          "Remote NAT Mapping changed on Edge: {0}\n{1} -> {2}",
+           edge, edge.End, end)); 
         //Actually update:
         TransportAddress rta = TransportAddressFactory.CreateInstance(this.TAType,(IPEndPoint)end);
         if( _ta_auth.Authorize(rta) != TAAuthorizer.Decision.Deny ) {
@@ -353,12 +354,12 @@ namespace Brunet
         }
       }
       if( is_new_edge ) {
-       NatDataPoint dp = new NewEdgePoint(DateTime.UtcNow, edge);
-       _nat_hist = _nat_hist + dp;
-       _nat_tas = new NatTAs( _tas, _nat_hist );
-       if( !edge.IsClosed ) {
-         SendEdgeEvent(edge);
-       }
+        NatDataPoint dp = new NewEdgePoint(DateTime.UtcNow, edge);
+        _nat_hist = _nat_hist + dp;
+        _nat_tas = new NatTAs( _tas, _nat_hist );
+        if( !edge.IsClosed ) {
+          SendEdgeEvent(edge);
+        }
       }
       if( read_packet ) {
         //We have the edge, now tell the edge to announce the packet:
@@ -465,7 +466,7 @@ namespace Brunet
       _sync = new object();
       _running = false;
       _isstarted = false;
-      _send_queue = new Queue();
+      _send_queue = new QueueWithTimeout(60);
       _total_to_send = 0;
       ///@todo, we need a system for using the cryographic RNG
       _rand = new Random();
@@ -545,17 +546,20 @@ namespace Brunet
             AdrConverter.Serialize(t, ms);
           }
           else {
-            Console.Error.WriteLine("Problem sending EdgeData: EndPoint: {0}, remoteid: {1}, localid: {2}, Edge: {3}", end, remoteid, localid, e);
+            ProtocolLog.WriteIf(ProtocolLog.UdpEdge, String.Format(
+              "Problem sending EdgeData: EndPoint: {0}, remoteid: {1}, " +
+              "localid: {2}, Edge: {3}", end, remoteid, localid, e));
           }
         }
 
-        try {	//catching SocketException
+        try {
           s.SendTo( ms.ToArray(), end);
-          Console.Error.WriteLine("Sending control {1} to: {0}", end, c);
+          ProtocolLog.WriteIf(ProtocolLog.UdpEdge, String.Format(
+            "Sending control {1} to: {0}", end, c));
         }
         catch (SocketException sc) {
-          Console.Error.WriteLine(
-            "Error in Socket.SendTo. Endpoint: {0}\n{1}", end, sc);
+          ProtocolLog.WriteIf(ProtocolLog.UdpEdge, String.Format(
+            "Error in Socket.SendTo. Endpoint: {0}\n{1}", end, sc));
         }
       }
     }
@@ -628,7 +632,7 @@ namespace Brunet
         try {
           read = s.Poll( microsecond_timeout, SelectMode.SelectRead );
           if( read ) {
-	    int max = ba.Capacity;
+            int max = ba.Capacity;
             rec_bytes = s.ReceiveFrom(ba.Buffer, ba.Offset, max, SocketFlags.None, ref end);
             //Get the id of this edge:
             if( rec_bytes >= 8 ) {
@@ -672,7 +676,7 @@ namespace Brunet
         }
         catch(Exception x) {
           //Possible socket error. Just ignore the packet.
-          Console.Error.WriteLine(x);
+          ProtocolLog.WriteIf(ProtocolLog.Exceptions, x.ToString());
         }
         /*
          * We are done with handling the reads.  Now lets
@@ -814,8 +818,10 @@ namespace Brunet
              * Oh well, it had it's chance.  Close the edge and
              * print a message.
              */
-            Console.Error.WriteLine("SocketExceptions ({0}) on packet of length({1}): closing Edge: {2}\n{3}",
-                          sqe.ErrorCount, sqe.Packet.Length, sqe.Sender, x);
+            ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+              "SocketExceptions ({0}) on packet of length({1}): closing " +
+              "Edge: {2}\n{3}", sqe.ErrorCount, sqe.Packet.Length,
+              sqe.Sender, x));
             sqe.Sender.Close();
           }
         }
@@ -824,8 +830,8 @@ namespace Brunet
          * Some non-socket exception.  This should never happen.
          * Print it out to hope to debug it later
          */
-          Console.Error.WriteLine("Error in UdpEdgeListener.Send. Edge: {0}\n{1}",
-                          sqe.Sender, x);
+          ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+            "Error in UdpEdgeListener.Send. Edge: {0}\n{1}", sqe.Sender, x));
 
         }
       }
@@ -870,7 +876,8 @@ namespace Brunet
       }
       while( tmp_queue != null );
       if( count % 1000 == 0 ) {
-        Console.Error.WriteLine("UdpEdgeListener has {0} elements in Send Queue", count);
+        ProtocolLog.WriteIf(ProtocolLog.UdpEdge, String.Format(
+          "UdpEdgeListener has {0} elements in Send Queue", count));
       }
     }
   }

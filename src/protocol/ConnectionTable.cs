@@ -18,10 +18,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-//#define KML_DEBUG
-//#define LOCK_DEBUG
-#define PRINT_CONNECTIONS
-
 #if BRUNET_NUNIT
 #undef PRINT_CONNECTIONS
 using NUnit.Framework;
@@ -53,6 +49,31 @@ namespace Brunet
 
   public sealed class ConnectionTable : IEnumerable //, ICollection
   {
+    public int AverageEdgeTime {
+      get {
+        DateTime now = DateTime.UtcNow;
+        int total_active_edges_time = 0, count = 0;
+        foreach(DictionaryEntry de in _edge_start_time) {
+          DateTime start = (DateTime) de.Value;
+          total_active_edges_time += (int) (now - start).TotalSeconds;
+          count++;
+        }
+        count += _closed_edges_time.Count;
+        int average = 0;
+        if(count != 0)
+          average = (total_active_edges_time + _total_closed_edges_time) /
+            (count + _closed_edges_time.Count);
+        return average;
+      }
+    }
+
+    protected int _total_closed_edges_time = 0;
+    public const int MAX_CLOSED_EDGE_TIMES = 10;
+
+    /* Only access this in locked methods */
+    protected Queue _closed_edges_time;
+
+    volatile protected Hashtable _edge_start_time;
 
     /*private static readonly log4net.ILog _log =
         log4net.LogManager.GetLogger(System.Reflection.MethodBase.
@@ -60,18 +81,6 @@ namespace Brunet
 
     protected Random _rand;
 
-#if PLAB_CONNECTION_LOG
-    private BrunetLogger _logger;
-    public BrunetLogger Logger{
-      get{
-        return _logger;
-      }
-      set
-      {
-        _logger = value;          
-      }
-    }
-#endif
     /*
      * These objects are often being reset (since we don't ever
      * modify the data structures once set).
@@ -121,7 +130,7 @@ namespace Brunet
     public event EventHandler StatusChangedEvent;
 
     protected readonly Address _local;
-   
+
     protected bool _closed; 
     /**
      * Returns the total number of Connections.
@@ -129,11 +138,11 @@ namespace Brunet
      */
     public int TotalCount {
       get {
-	int count = 0;
-       	foreach(ConnectionType t in Enum.GetValues(typeof(ConnectionType)) ) {
+        int count = 0;
+        foreach(ConnectionType t in Enum.GetValues(typeof(ConnectionType)) ) {
           count += Count(t);
-	} 
-	return count;
+        }
+      return count;
       }
     }
 
@@ -147,7 +156,6 @@ namespace Brunet
       get { return true; }
     }
 
-   
   /**
    * @param local the Address associated with the local node
    */
@@ -164,13 +172,15 @@ namespace Brunet
         _edge_to_con = new Hashtable();
         _closed = false;
         _unconnected = new ArrayList();
+//        _closed_edges_time = new Queue(10);
+//        _edge_start_time = new Hashtable();
 
         _address_locks = new Hashtable();
         // init all--it is safer to do it this way and avoid null pointer exceptions
 
-	foreach(ConnectionType t in Enum.GetValues(typeof(ConnectionType)) ) {
+        foreach(ConnectionType t in Enum.GetValues(typeof(ConnectionType)) ) {
           Init(t);
-	}
+        }
       }
     }
 
@@ -235,15 +245,15 @@ namespace Brunet
          * Copy so we don't mess up an old list
          */
         ArrayList list;
-         
-        list = (ArrayList)_type_to_addlist[t];
+
+        list = (ArrayList) _type_to_addlist[t];
         list = Functional.Insert(list, index, a);
         _type_to_addlist = Functional.SetElement(_type_to_addlist, t, list);
         if( t == ConnectionType.Structured ) {
           //Optimize the most common case to avoid the hashtable
           _struct_addlist = list;
         }
-        
+
         list = (ArrayList)_type_to_conlist[t];
         list = Functional.Insert(list, index, c);
         _type_to_conlist = Functional.SetElement(_type_to_conlist, t, list);
@@ -251,47 +261,29 @@ namespace Brunet
           //Optimize the most common case to avoid the hashtable
           _struct_conlist = list;
         }
-        
+
         _edge_to_con = Functional.Add(_edge_to_con, e, c);
 
         int ucidx = _unconnected.IndexOf(e);
-        if( ucidx >= 0 ) {
+        if( ucidx >= 0 )
           //Remove the edge from the _unconnected table
           _unconnected = Functional.RemoveAt(_unconnected, ucidx);
-        }
+//        else if(!_edge_start_time.Contains(e))
+//          _edge_start_time = Functional.Add(_edge_start_time, e, DateTime.UtcNow);
       } /* we release the lock */
-      
-     /*_log.Info("ConnectionEvent: address: " + a.ToString() + 
-		                ", edge: " + e.ToString() +
-				", type: " + t.ToString() +
-				", index: " + index);*/
-#if PLAB_CONNECTION_LOG
-      BrunetEventDescriptor bed = new BrunetEventDescriptor();
-      bed.EventDescription = "connection";
-      bed.ConnectionType = t;
-      bed.LocalTAddress = e.LocalTA.ToString();     
-      bed.LocalPort = e.LocalTA.Port.ToString();
-      bed.RemoteTAddress = e.RemoteTA.ToString();
-      bed.RemoteAHAddress = a.ToBigInteger().ToString();
-      bed.RemoteAHAddressBase32 = a.ToString();
-      bed.ConnectTime = DateTime.UtcNow.Ticks;
-      bed.SubType = c.ConType;     
-      bed.StructureDegree = Count(ConnectionType.Structured);
 
-      _logger.LogBrunetEvent( bed );
-      //Console.Error.WriteLine("Table size is: {0}", TotalCount);
-#endif
 
-#if PRINT_CONNECTIONS
-      Console.Error.WriteLine("New Connection[{0}]: {1}", index, c);
-#endif
+      ProtocolLog.WriteIf(ProtocolLog.Connections,
+        String.Format("New Connection[{0}]: {1}", index, c));
+
       /* Send the event: */
-      if( ConnectionEvent != null ) {
+      if(ConnectionEvent != null) {
         try {
           ConnectionEvent(this, new ConnectionEventArgs(c, index) );
         }
         catch(Exception x) {
-          Console.Error.WriteLine("ConnectionEvent triggered exception: {0}\n{1}", c, x);
+          ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+            "ConnectionEvent triggered exception: {0}\n{1}", c, x));
         }
       }
       e.CloseEvent += this.RemoveHandler;
@@ -309,6 +301,8 @@ namespace Brunet
         RemoveHandler(e, null);
         throw new Exception("Edge is already closed");
       }
+      ProtocolLog.WriteIf(ProtocolLog.Stats, String.Format(
+        "New Connection {0}|{1}", c, DateTime.UtcNow.Ticks));
     }
 
     /**
@@ -329,8 +323,9 @@ namespace Brunet
      */
     public bool Contains(ConnectionType t, Address a)
     {
-      return (IndexOf(t,a) >= 0);
+       return (IndexOf(t,a) >= 0);
     }
+
     /**
      * @param t the ConnectionType we want to know the count of
      * @return the number of connections of this type
@@ -346,7 +341,6 @@ namespace Brunet
         list = (ArrayList)_type_to_conlist[t];
       }
       if( list == null ) { return 0; }
-      
       return list.Count;
     }
 
@@ -379,7 +373,7 @@ namespace Brunet
         yield return en.Value;
       }
     }
-    
+
     /**
      * Gets the Connection for the left structured neighbor of a given AHAddress
      */
@@ -503,23 +497,24 @@ namespace Brunet
       ArrayList ret_val = new ArrayList();
       lock( _sync ) {
         int max = Count(ConnectionType.Structured);
-	if( max_count > max ) {
+        if( max_count > max ) {
           max_count = max;
-	}
+        }
         int idx = IndexOf(ConnectionType.Structured, dest);
         bool skip_idx = false;
-	if( idx < 0 ) {
+        if( idx < 0 )
           idx = ~idx;
-	}
-        else {
+        else
           //We need to skip the idx, because idx is present:
           skip_idx = true;
-        }
-	int start = idx - max_count/2;
-	int end = start + max_count;
-        if( skip_idx ) { end++; }
-	for( int pos = start; pos < end; pos++) {
-          if( skip_idx && ( pos == idx ) ) { pos++; }
+
+        int start = idx - max_count/2;
+        int end = start + max_count;
+        if( skip_idx ) 
+          end++;
+        for( int pos = start; pos < end; pos++) {
+          if( skip_idx && ( pos == idx ) )
+            pos++;
           Connection c = GetConnection(ConnectionType.Structured, pos);
           ret_val.Add( c );
         }
@@ -533,13 +528,12 @@ namespace Brunet
     {
       lock(_sync) {
         int size = Count(t);
-	if( size == 0 ) {
+        if( size == 0 )
           return null;
-	}
-	else {
+        else {
           int pos = _rand.Next( size );
-	  return GetConnection(t, pos);
-	}
+          return GetConnection(t, pos);
+        }
       }
     }
 
@@ -672,12 +666,12 @@ namespace Brunet
     public int RightInclusiveCount(AHAddress a1, AHAddress a2) {
       if( a1.Equals(a2) ) { return 0; }
       int dist;
-      
+
       ArrayList structs = _struct_addlist;
       int count = structs.Count;
       int a2_idx = structs.BinarySearch(a2);
       int a1_idx = structs.BinarySearch(a1);
-      
+
         /*
          * There are four cases, we deal with each separately:
          * 0) neither a1 nor a2 are in the table
@@ -754,33 +748,43 @@ namespace Brunet
           throw new ConnectionExistsException(c_present);
         }
         Hashtable locks = (Hashtable)_address_locks[mt];
-	if( locks == null ) {
+        if( locks == null ) {
           locks = new Hashtable();
-	  _address_locks[mt] = locks;
-	}
-	ILinkLocker old_locker = (ILinkLocker)locks[a];
+          _address_locks[mt] = locks;
+        }
+        ILinkLocker old_locker = (ILinkLocker)locks[a];
         if( null == old_locker ) {
           locks[a] = locker;
-#if LOCK_DEBUG
-          Console.Error.WriteLine("{0}, locker: {1} Locking: {2}", _local,
-                            locker, a);
-#endif
+          ProtocolLog.WriteIf(ProtocolLog.ConnectionTableLocks,
+            String.Format("{0}, locker: {1} Locking: {2}", _local, locker, a));
           return;
         }
-	else if ( old_locker.AllowLockTransfer(a,t,locker) ) {
-	  //See if we can transfer the lock:
+        else if ( old_locker.AllowLockTransfer(a,t,locker) ) {
+        //See if we can transfer the lock:
           locks[a] = locker;
-	}
+        }
         else {
-#if LOCK_DEBUG
-          Console.Error.WriteLine(
-            "{0}, {1} tried to lock {2}, but {3} holds the lock",
-            _local,
-            locker,
-            a,
-            locks[a]);
-#endif
+          ProtocolLog.WriteIf(ProtocolLog.ConnectionTableLocks,
+            String.Format("{0}, {1} tried to lock {2}, but {3} holds the lock",
+            _local, locker, a, locks[a]));
           throw new CTLockException();
+        }
+      }
+    }
+
+    /**
+     * It seems like some unconnected and closed edges are sticking around.
+     * This will only remove such edges.
+     * @param e Edge whose connection should be removed
+     */
+
+    public void RemoveUnconnected(Edge e)
+    {
+      if(e.IsClosed) {
+        lock(_sync) {
+          int idx = _unconnected.IndexOf(e);
+          if( idx >= 0 )
+            _unconnected = Functional.RemoveAt(_unconnected, idx);
         }
       }
     }
@@ -802,53 +806,46 @@ namespace Brunet
         if( have_con )  {
           index = IndexOf(c.MainType, c.Address);
           Remove(c.MainType, index);
-	  if( add__unconnected ) {
+          if( add__unconnected ) {
             _unconnected = Functional.Add(_unconnected, e);
-	  }
+            ProtocolLog.WriteIf(ProtocolLog.Stats, String.Format(
+              "Intermediate add to unconnected {0}|{1}", e, DateTime.UtcNow.Ticks));
+          }
         }
-        else {
-	  //We didn't have a connection, so, check to see if we have it in
-	  //_unconnected:
-	  if( !add__unconnected ) {
-	    //Don't keep this edge around at all:
-            int idx = _unconnected.IndexOf(e);
-            if( idx >= 0 ) {
-              _unconnected = Functional.RemoveAt(_unconnected, idx);
-            }
-	  }
+        if(!have_con && !add__unconnected || e.IsClosed) {
+//We didn't have a connection, so, check to see if we have it in _unconnected:
+//Don't keep this edge around at all:
+          int idx = _unconnected.IndexOf(e);
+          if( idx >= 0 )
+            _unconnected = Functional.RemoveAt(_unconnected, idx);
+          ProtocolLog.WriteIf(ProtocolLog.Stats, String.Format(
+            "Edge removed from unconnected {0}|{1}", e, DateTime.UtcNow.Ticks));
         }
+/*        if(!add__unconnected) {
+          while(_closed_edges_time.Count >= MAX_CLOSED_EDGE_TIMES - 1) {
+            int time = (int) _closed_edges_time.Dequeue();
+            _total_closed_edges_time -= time;
+          }
+          int runtime = (int) (DateTime.UtcNow - (DateTime) _edge_start_time[e]).TotalSeconds;
+          _closed_edges_time.Enqueue(runtime);
+          _total_closed_edges_time += runtime;
+          _edge_start_time = Functional.Remove(_edge_start_time, e);
+        }*/
       }
       if( have_con ) {
+        ProtocolLog.WriteIf(ProtocolLog.Connections,
+          String.Format("Disconnection[{0}]: {1}", index, c));
+        ProtocolLog.WriteIf(ProtocolLog.Stats, String.Format(
+          "Disconnection {0}|{1}", c, DateTime.UtcNow.Ticks));
 
-#if PLAB_CONNECTION_LOG
-        BrunetEventDescriptor bed = new BrunetEventDescriptor();
-        bed.EventDescription = "disconnection";
-        bed.ConnectionType = t;
-        bed.LocalTAddress = e.LocalTA.ToString();
-        bed.RemoteTAddress = e.RemoteTA.ToString();
-        bed.RemoteAHAddress = c.Address.ToBigInteger().ToString();
-        bed.RemoteAHAddressBase32 = c.Address.ToString();
-        bed.ConnectTime = DateTime.UtcNow.Ticks;
-        bed.SubType = c.ConType;
-        bed.StructureDegree = Count(ConnectionType.Structured);
-
-        _logger.LogBrunetEvent( bed );
-#endif
-
-
-      #if DEBUG
-        Console.Error.WriteLine("Remove: DisconnectionEvent[{0}]: {1}", index, c);
-      #endif
-#if PRINT_CONNECTIONS
-        Console.Error.WriteLine("New disconnection[{0}]: {1}", index, c);
-#endif
         //Announce the disconnection:
         if( DisconnectionEvent != null ) {
           try {
             DisconnectionEvent(this, new ConnectionEventArgs(c, index));
           }
           catch(Exception x) {
-            Console.Error.WriteLine("DisconnectionEvent triggered exception: {0}\n{1}", c, x);
+            ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+              "DisconnectionEvent triggered exception: {0}\n{1}", c, x));
           }
         }
       }
@@ -874,7 +871,7 @@ namespace Brunet
          */
         ArrayList this_list;
         ArrayList copy;
-        
+
         this_list = (ArrayList)_type_to_addlist[t];
         copy = Functional.RemoveAt(this_list, index);
         if( t == ConnectionType.Structured ) {
@@ -882,7 +879,7 @@ namespace Brunet
           _struct_addlist = copy;
         }
         _type_to_addlist = Functional.SetElement(_type_to_addlist, t, copy);
-        
+
         //Now change the conlist:
         this_list = (ArrayList)_type_to_conlist[t];
         copy = Functional.RemoveAt(this_list, index);
@@ -891,7 +888,7 @@ namespace Brunet
           _struct_conlist = copy;
         }
         _type_to_conlist = Functional.SetElement(_type_to_conlist, t, copy);
-        
+
         //Remove the edge from the tables:
         _edge_to_con = Functional.Remove(_edge_to_con,e);
       }
@@ -973,38 +970,24 @@ namespace Brunet
         lock( _sync ) {
           ConnectionType mt = Connection.StringToMainType(t);
           Hashtable locks = (Hashtable)_address_locks[mt];
-#if LOCK_DEBUG
-          Console.Error.WriteLine("{0} Unlocking {1}",
-                            _local,
-                            a);
-#endif
-          if( !locks.ContainsKey(a) ) {
-#if LOCK_DEBUG
-            Console.Error.WriteLine("On node " +
-                              _local.ToString() +
-                              ", " + locker.ToString() + " tried to unlock " +
-                              a.ToString() + " but no such lock" );
+          ProtocolLog.WriteIf(ProtocolLog.ConnectionTableLocks,
+            String.Format("{0} Unlocking {1}", _local, a));
 
-#endif
-            throw new Exception("On node " +
-                                _local.ToString() +
-                                ", " + locker.ToString() + " tried to unlock " +
-                                a.ToString() + " but no such lock" );
+          if(!locks.ContainsKey(a)) {
+            string err = String.Format("On node " + _local + ", " + locker +
+              " tried to unlock " + a + " but no such lock" );
+            ProtocolLog.WriteIf(ProtocolLog.ConnectionTableLocks, err);
+            throw new Exception(err);
           }
+
           object real_locker = locks[a];
-          if( real_locker != locker ) {
-#if LOCK_DEBUG
-            Console.Error.WriteLine("On node " +
-                              _local.ToString() +
-                              ", " + locker.ToString() + " tried to unlock " +
-                              a.ToString() + " but not the owner" );
-#endif
-
-            throw new Exception("On node " +
-                                _local.ToString() +
-                                ", " + locker.ToString() + " tried to unlock " +
-                                a.ToString() + " but not the owner" );
+          if(real_locker != locker) {
+            string err = String.Format("On node " + _local + ", " + locker +
+                " tried to unlock " + a + " but not the owner");
+            ProtocolLog.WriteIf(ProtocolLog.ConnectionTableLocks, err);
+            throw new Exception(err);
           }
+
           locks.Remove(a);
         }
       }
@@ -1037,35 +1020,36 @@ namespace Brunet
         if ( index < 0 )
         {
           //This is a new address:
-          throw new Exception("Address: " + a.ToString()
-                              + " not in ConnectionTable. Cannot UpdateStatus.");
+          throw new Exception(String.Format("Address: " + a + 
+            " not in ConnectionTable. Cannot UpdateStatus."));
         }
-        
+
         _edge_to_con = Functional.SetElement(_edge_to_con, e, newcon);
-        
+
         ArrayList l = (ArrayList)_type_to_conlist[t];
         l = Functional.SetElement(l, index, newcon);
         _type_to_conlist = Functional.SetElement(_type_to_conlist, t, l);
-        
+
         if( t == ConnectionType.Structured ) {
           //Optimize the most common case to avoid the hashtable
           _struct_conlist = l;
         }
 
       } /* we release the lock */
-     
+
       /* Send the event: */
       if( StatusChangedEvent != null ) {
         try {
           StatusChangedEvent(sm, new ConnectionEventArgs(newcon, index) );
         }
         catch(Exception x) {
-          Console.Error.WriteLine("StatusChangedEvent triggered exception: {0}\n{1}", newcon, x);
+          ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+            "StatusChangedEvent triggered exception: {0}\n{1}", newcon, x));
         }
       }
       return newcon;
     }
-   
+
     /**
      * When a new Edge is created by the the Linker or received
      * by the ConnectionPacketHandler, they tell the ConnectionTable
@@ -1081,14 +1065,33 @@ namespace Brunet
      */
     public void AddUnconnected(Edge e)
     {
-      //Console.Error.WriteLine("ADDING EDGE {0} TO UNCONNECTED", e.ToString());
+      // No point in being here if e is closed...
+      if(e.IsClosed)
+        return;
+      ProtocolLog.WriteIf(ProtocolLog.Stats, String.Format(
+        "Initial add to unconnected {0}|{1}", e, DateTime.UtcNow.Ticks));
       lock( _sync ) {
         int idx = _unconnected.IndexOf(e);
         if( idx < 0 ) {
           _unconnected = Functional.Add(_unconnected, e);
         }
+/*        if(!_edge_start_time.Contains(e))
+          _edge_start_time = Functional.Add(_edge_start_time, e, DateTime.UtcNow);*/
       }
       e.CloseEvent += new EventHandler(this.RemoveHandler);
+      if( e.IsClosed ) {
+        /*
+        * If the edge was closed before we got it added, it might be
+        * added but never removed from the table.  Now that we have
+        * completely added the Connection and registered the handler
+        * for the CloseEvent, let's make sure it is still good.
+        * If it closes after this, the CloseEvent will catch it.
+        *
+        * Since RemoveHandler is idempotent, this is safe to call
+        * multiple times.
+        */
+        RemoveHandler(e, null);
+      }
     }
     /**
      * @param edge Edge to check to see if it is an Unconnected Edge
@@ -1110,23 +1113,23 @@ namespace Brunet
       private readonly ConnectionType _ct;
       private readonly string _contype;
       private readonly IEnumerable _cons;
-      
+
       public ConnectionTypeEnumerable(ConnectionTable tab, ConnectionType ct)
       {
         _tab = tab;
-	_ct = ct;
-	_contype = null;
+        _ct = ct;
+        _contype = null;
         _cons = (ArrayList)_tab._type_to_conlist[ _ct ];
       }
-      
+
       public ConnectionTypeEnumerable(ConnectionTable tab, string contype)
       {
         _tab = tab;
-	_contype = contype;
+        _contype = contype;
         _ct = Connection.StringToMainType(contype);
         _cons = (ArrayList)_tab._type_to_conlist[ _ct ];
       }
-    
+
      /**
       * Required for IEnumerable Interface
       */
@@ -1153,9 +1156,9 @@ namespace Brunet
    * but it is already locked
    */
   public class CTLockException : System.Exception {
-  
+
   }
-  
+
   /**
    * Thrown when we try to Add a connection that is already
    * present, returns the existing connection

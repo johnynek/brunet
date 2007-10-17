@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2007  David Wolinsky <davidiw@ufl.edu>, University of Florida
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+*/
+
 using System;
 using System.Text;
 using System.Collections;
@@ -72,7 +90,7 @@ namespace Brunet.Dht {
 
     public BlockingQueue[] PrimitivePut(MemBlock key, int ttl, MemBlock data, bool unique) {
       if (!Activated) {
-        throw new DhtException("DhtClient: Not yet activated.");
+        throw new Exception("DhtClient: Not yet activated.");
       }
 
       BlockingQueue[] q = new BlockingQueue[DEGREE];
@@ -89,7 +107,7 @@ namespace Brunet.Dht {
 
     public BlockingQueue[] PrimitiveGet(MemBlock key, int maxbytes, MemBlock token) {
       if (!Activated) {
-        throw new DhtException("DhtClient: Not yet activated.");
+        throw new Exception("DhtClient: Not yet activated.");
       }
 
       BlockingQueue[] q = new BlockingQueue[DEGREE];
@@ -167,11 +185,10 @@ namespace Brunet.Dht {
       return (DhtGetResult []) allValues.ToArray(typeof(DhtGetResult));
     }
 
-    /*  This is the get that does all the work, it is meant to be
-     *   run as a thread */
+    //  This is the get that does all the work 
     public void AsGet(MemBlock key, Channel returns) {
       if (!Activated) {
-        throw new DhtException("DhtClient: Not yet activated.");
+        throw new Exception("DhtClient: Not yet activated.");
       }
 
       // create a GetState and map in our table map its queues to it
@@ -333,9 +350,6 @@ namespace Brunet.Dht {
     */
     private void GetLeaveEarly(AsDhtGetState adgs) {
       int left = adgs.queueMapping.Count;
-#if DHT_DEBUG
-Console.Error.WriteLine("DHT_DEBUG:::GetLeaveEarly left:total = {0}:{1}", left, DEGREE);
-#endif
       // Maybe we can leave early
       bool got_all_values = true;
       lock(adgs.results) {
@@ -350,6 +364,9 @@ Console.Error.WriteLine("DHT_DEBUG:::GetLeaveEarly left:total = {0}:{1}", left, 
 
       // If we got to leave early, we must clean up
       if(got_all_values) {
+#if DHT_DEBUG
+Console.Error.WriteLine("DHT_DEBUG:::GetLeaveEarly found:left:total = {0}:{1}:{2}", adgs.results.Count, left, DEGREE);
+#endif
         adgs.returns.Close();
         adgs.GotToLeaveEarly = true;
       }
@@ -433,12 +450,18 @@ Console.Error.WriteLine("DHT_DEBUG:::Doing follow up put count:total = {0}:{1}",
     public bool Put(MemBlock key, MemBlock value, int ttl, bool unique) {
       BlockingQueue returns = new BlockingQueue();
       AsPut(key, value, ttl, returns, unique);
-      return (bool) returns.Dequeue();
+      object result = returns.Dequeue();
+      try {
+        return (bool) result;
+      }
+      catch {
+        throw (DhtException) result;
+      }
     }
 
     public void AsPut(MemBlock key, MemBlock value, int ttl, Channel returns, bool unique) {
       if (!Activated) {
-        throw new DhtException("DhtClient: Not yet activated.");
+        throw new Exception("DhtClient: Not yet activated.");
       }
 
       AsDhtPutState adps = new AsDhtPutState(returns);
@@ -510,7 +533,10 @@ Console.Error.WriteLine("DHT_DEBUG:::Doing follow up put count:total = {0}:{1}",
           */
           int count = (int) adps.ncount + 1;
           if(count == MAJORITY - 1 || 1 == DEGREE) {
-            adps.returns.Enqueue(false);
+            adps.returns.Enqueue(new DhtException("Put failed by negative " +
+              "responses:  P/N/T : " + adps.pcount + "/" + adps.ncount + "/" +
+              DEGREE));
+            adps.returns.Close();
           }
           adps.ncount = count;
         }
@@ -537,13 +563,11 @@ Console.Error.WriteLine("DHT_DEBUG:::Doing follow up put count:total = {0}:{1}",
       }
       if(count == 0) {
         if(!adps.returns.Closed) {
-          adps.returns.Enqueue(false);
+          adps.returns.Enqueue(new DhtException("Put failed by lack of " +
+              "responses:  P/N/T : " + adps.pcount + "/" + adps.ncount + "/" +
+              DEGREE));
           adps.returns.Close();
         }
-#if DHT_DEBUG
-if((int) adps.pcount < MAJORITY)
-  Console.Error.WriteLine("DHT_DEBUG:::Failed a put pcount:ncount:total = {0}:{1}:{2}", adps.pcount, adps.ncount, DEGREE);
-#endif
         adps.pcount = null;
         adps.ncount = null;
       }

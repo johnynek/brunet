@@ -1,7 +1,5 @@
 /*
-This program is part of BruNet, a library for the creation of efficient overlay
-networks.
-Copyright (C) 2007 University of Florida
+Copyright (C) 2007  David Wolinsky <davidiw@ufl.edu>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License

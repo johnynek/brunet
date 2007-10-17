@@ -260,7 +260,8 @@ namespace Brunet
             if( c == null && _packet_senders.Contains(s_edge) ) {
               //A connection is gone, but somehow, we still have it in our
               //_packet_senders
-              Console.Error.WriteLine("{0} has {1} but it should be gone", this, s_edge);
+              ProtocolLog.WriteIf(ProtocolLog.TunnelEdge, String.Format(
+                "{0} has {1} but it should be gone", this, s_edge));
               lock(_sync) {
                 _packet_senders.Remove( s_edge );
                 p_s_c = _packet_senders.Count;

@@ -146,7 +146,12 @@
     <csc
       target="library"
       debug="${build.debug}"
+      define="TRACE"
+      optimize="true"
       output="${build.dir}/${package.name}/bin/${assembly}.dll">
+      <nowarn>
+        <warning number="0420" />
+      </nowarn>
       <sources failonempty="true">
         <include name="*.cs"/>
         <include name="Util/*.cs"/>
@@ -192,7 +197,7 @@
     <csc
       target="library"
       debug="${build.debug}"
-      define="LINK_DEBUG,ARI_CTM_DEBUG,TUNNEL_DEBUG" 	
+      define="LINK_DEBUG,ARI_CTM_DEBUG,TUNNEL_DEBUG,TRACE" 	
       output="${build.dir}/${package.name}/bin/${assembly}.dll">
       <sources failonempty="true">
         <include name="*.cs"/>
