@@ -19,10 +19,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-//#define DEBUG
-
-//#define LINK_DEBUG
-
 using System;
 using System.Collections;
 using System.Collections.Specialized;
@@ -106,9 +102,8 @@ namespace Brunet
      * Handle the notification that the other side is going to close the edge
      */
     public IDictionary Close(IDictionary close_message, ISender edge) {
-#if LINK_DEBUG
-      Console.Error.WriteLine("{0} -start- sys:link.Close({1},{2})", _node.Address, close_message,edge);
-#endif
+      ProtocolLog.WriteIf(ProtocolLog.LinkDebug, String.Format(
+        "{0} -start- sys:link.Close({1},{2})", _node.Address, close_message,edge));
       Edge from = GetEdge(edge);
       ConnectionTable tab = _node.ConnectionTable;
       /**
@@ -117,16 +112,17 @@ namespace Brunet
        * close edges that have been there for some time
        */
       Connection c = tab.GetConnection(from);
-      Console.Error.WriteLine("sys:link.Close on {0} connection: {1}", from, c);
+      ProtocolLog.WriteIf(ProtocolLog.LinkDebug, String.Format(
+        "sys:link.Close on {0} connection: {1}", from, c));
       tab.Disconnect(from);
       /** 
        * Release locks when the close message arrives; do not wait
        * until the edge actually closes.
        */
       CloseHandler(from, null);  
-#if LINK_DEBUG
-      Console.Error.WriteLine("{0} -end- sys:link.Close({1},{2})", _node.Address, close_message,from);
-#endif
+      ProtocolLog.WriteIf(ProtocolLog.LinkDebug, String.Format(
+        "{0} -end- sys:link.Close({1},{2})", _node.Address, close_message,from));
+
       /**
        * Try to close the edge after a small time span:
        */
@@ -217,14 +213,14 @@ namespace Brunet
      * This starts a linking operation on the given edge
      */
     public IDictionary Start(IDictionary link_message, ISender edge) {
-#if LINK_DEBUG
-      Console.Error.WriteLine("{0} -start- sys:link.Start", _node.Address);
-#endif
+      ProtocolLog.WriteIf(ProtocolLog.LinkDebug, String.Format(
+        "{0} -start- sys:link.Start", _node.Address));
+
       Edge from = GetEdge(edge);
       LinkMessage lm = new LinkMessage(link_message);
-#if LINK_DEBUG
-      Console.Error.WriteLine("{0} -args- sys:link.Start({1},{2})", _node.Address,lm,from);
-#endif
+      ProtocolLog.WriteIf(ProtocolLog.LinkDebug, String.Format(
+        "{0} -args- sys:link.Start({1},{2})", _node.Address,lm,from));
+
       ErrorMessage err = null;
       ConnectionTable tab = _node.ConnectionTable;
       lock( _sync ) {
@@ -277,9 +273,8 @@ namespace Brunet
       if( err != null ) {
         throw new AdrException((int)err.Ec, err.Message);
       }
-#if LINK_DEBUG
-      Console.Error.WriteLine("{0} -end- sys:link.Start()->{1}", _node.Address,lm_resp);
-#endif
+      ProtocolLog.WriteIf(ProtocolLog.LinkDebug, String.Format(
+        "{0} -end- sys:link.Start()->{1}", _node.Address,lm_resp));
       return lm_resp.ToDictionary();
     }
 
@@ -302,9 +297,9 @@ namespace Brunet
       LinkMessage lm_to_add = null;
       StatusMessage sm = new StatusMessage(status_message);
       Edge from = GetEdge(edge);
-#if LINK_DEBUG
-      Console.Error.WriteLine("{0} -start- sys:link.GetStatus({1},{2})", _node.Address,sm,from);
-#endif
+      ProtocolLog.WriteIf(ProtocolLog.LinkDebug, String.Format(
+        "{0} -start- sys:link.GetStatus({1},{2})", _node.Address,sm,from));
+
       lock( _sync ) {
         if( _edge_to_cphstate.ContainsKey( from ) ) {
           //Add the connection:
@@ -355,9 +350,8 @@ namespace Brunet
           tab.Unlock(lm_to_add.Local.Address, lm_to_add.ConTypeString, this);
         }
       }
-#if LINK_DEBUG
-      Console.Error.WriteLine("{0} -end- sys:link.GetStatus()->{1}", _node.Address,response);
-#endif
+      ProtocolLog.WriteIf(ProtocolLog.LinkDebug, String.Format(
+        "{0} -end- sys:link.GetStatus()->{1}", _node.Address,response));
       return response.ToDictionary();
     }
 
@@ -365,10 +359,25 @@ namespace Brunet
      * This just echos back the object passed to it
      */
     public object Ping(object o, ISender edge) {
-#if LINK_DEBUG
-      Console.Error.WriteLine("{0} sys:link.Ping({1},{2})", _node.Address,o,edge);
-#endif
+      ProtocolLog.WriteIf(ProtocolLog.LinkDebug, String.Format(
+        "{0} sys:link.Ping({1},{2})", _node.Address,o,edge));
       return o;
+    }
+
+    /**
+     * This returns an IList of the Local TAs
+     */
+    public IList GetLocalIPAddresses(ISender caller) {
+      ArrayList lta = new ArrayList();
+      foreach(TransportAddress ta in _node.LocalTAs) {
+        if(ta.TransportAddressType == TransportAddress.TAType.Udp || 
+          ta.TransportAddressType == TransportAddress.TAType.Tcp) {
+          string ip = ((IPTransportAddress) ta).Host;
+          if(!lta.Contains(ip) && !ip.Equals("127.0.0.1"))
+            lta.Add(ip);
+        }
+      }
+      return lta;
     }
 
     /**
@@ -422,15 +431,14 @@ namespace Brunet
          * with the linking
          */
         try {
-#if LINK_DEBUG
-	    Console.Error.WriteLine("ConnectionPacketHandler - Trying to lock connection table: {0},{1}",
-                                  lm.Local.Address, lm.ConTypeString);
-#endif
+        ProtocolLog.WriteIf(ProtocolLog.LinkDebug, String.Format(
+	      "ConnectionPacketHandler - Trying to lock connection table: {0},{1}",
+                                  lm.Local.Address, lm.ConTypeString));
+
           tab.Lock( lm.Local.Address, lm.ConTypeString, this );
-#if LINK_DEBUG
-	    Console.Error.WriteLine("ConnectionPacketHandler - Successfully locked connection table: {0},{1}",
-                                  lm.Local.Address, lm.ConTypeString);
-#endif
+        ProtocolLog.WriteIf(ProtocolLog.LinkDebug, String.Format(
+	        "ConnectionPacketHandler - Successfully locked connection table: {0},{1}",
+                                  lm.Local.Address, lm.ConTypeString));
         }
         catch(ConnectionExistsException) {
           //We already have a connection of this type to this address
@@ -438,10 +446,9 @@ namespace Brunet
                                String.Format("We are already connected: {0}", local_add));
         }
         catch(CTLockException) {
-#if LINK_DEBUG
-	    Console.Error.WriteLine("ConnectionPacketHandler - Cannot lock connection table: {0},{1}",
-                                  lm.Local.Address, lm.ConTypeString);
-#endif
+          ProtocolLog.WriteIf(ProtocolLog.LinkDebug, String.Format(
+	          "ConnectionPacketHandler - Cannot lock connection table: {0},{1}",
+                                  lm.Local.Address, lm.ConTypeString));
           //Lock can throw this type of exception
           err = new ErrorMessage(ErrorMessage.ErrorCode.InProgress,
                                  "Address: " + lm.Local.Address.ToString() +

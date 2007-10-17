@@ -118,97 +118,20 @@ public class RemoteMappingChangePoint : NatDataPoint {
  * The ordered list of all the NatDataPoint objects
  * provides several methods to make selecting subsets easier
  */
-public class NatHistory : IEnumerable {
-  /**
-   * We use a max, so that this does not grow to big and create problems for us
-   */
-  protected int _count = 0;
-  public int count { get { return _count; } }
-  public static int MAX_COUNT = 2048;
+public class NatHistory : CacheLinkedList<NatDataPoint> {
+  public NatHistory(NatHistory nh, NatDataPoint ndp) : base(nh, ndp){}
+  public static NatHistory operator + (NatHistory nh, NatDataPoint ndp) {
+    return new NatHistory(nh, ndp);
+  }
+
+  public static new int MAX_COUNT = 2048;
 
   /**
-   * Given a data point, return some object which is a function
-   * of it.
-   * if this function returns null, the output will be skipped
+   * Given a data point, return some object which is a function of it.
+   * If this function returns null, the output will be skipped
    */
   public delegate object Filter(NatDataPoint p);
 
-  /*
-   * The NatHistory is a linked list, this is how
-   * we store it:
-   */
-  protected NatDataPoint _head;
-  /**
-   * Return the most recent NatDataPoint
-   */
-  public NatDataPoint Head { get { return _head; } }
-  protected NatHistory _tail;
-  /**
-   * Return the history excluding the most recent point.
-   * If there is only one point, the tail is null
-   */
-  public NatHistory Tail { get { return _tail; } }
-
-  public NatHistory(NatDataPoint p) {
-    _count = 1;
-    _head = p;
-    _tail = null;
-  }
-  /**
-   * Makes a new history by appending this new NatDataPoint.
-   * Does not change the old history.
-   */
-  public NatHistory(NatHistory nh, NatDataPoint p) {
-    if(nh != null) {
-      if(nh.count == MAX_COUNT) {
-        nh = Take(nh);
-      }
-      _count = nh.count + 1;
-    }
-    else {
-      _count = 1;
-    }
-    _head = p;
-    _tail = nh;
-  }
-
-  /**
-   * Takes the MAX_COUNT / 2 entries at most and returns a new NatHistory
-   */
-  public static NatHistory Take(NatHistory nh) {
-    int count = 0;
-    List<NatDataPoint> ndpl = new List<NatDataPoint>(MAX_COUNT / 2);
-    while(nh != null && count++ < MAX_COUNT / 2) {
-      ndpl.Add(nh.Head);
-      nh = nh.Tail;
-    }
-    nh = null;
-    for(int i = ndpl.Count - 1; i >= 0; i--) {
-      nh += ndpl[i];
-    }
-    return nh;
-  }
-
-
-  /**
-   * This is syntactic sugar so we can do:
-   * hist = hist + p
-   * to append a data point.
-   */
-  public static NatHistory operator + (NatHistory hist, NatDataPoint p) {
-    return new NatHistory(hist, p);
-  }
-  /**
-   * This goes from most recent to least recent data point
-   */
-  public IEnumerator GetEnumerator() {
-    NatHistory hist = this;
-    do {
-      yield return hist.Head;
-      hist = hist.Tail;
-    }
-    while( hist != null );
-  }
 
   /**
    * Return an IEnumerable of NatDataPoints which is all the points
@@ -768,9 +691,8 @@ public class NatTAs : IEnumerable {
         while( hand_it.MoveNext() && (false == yielded) ) {
           NatHandler hand = (NatHandler)hand_it.Current;
           if( hand.IsMyType( points ) ) {
-  #if DEBUG
-            Console.Error.WriteLine("NatHandler: {0}", hand.GetType() );
-  #endif
+            ProtocolLog.WriteIf(ProtocolLog.NatHandler, String.Format(
+              "NatHandler: {0}", hand.GetType()));
             IList tas = hand.TargetTAs( points );
             foreach(TransportAddress ta in tas) {
               if( false == ht.Contains(ta) ) {
@@ -792,13 +714,14 @@ public class NatTAs : IEnumerable {
       }
     }
     _generated_ta_list = gtas; 
-#if DEBUG 
-    int i = 0;
-    foreach(TransportAddress ta in _generated_ta_list) {
-      Console.Error.WriteLine("LocalTA({0}): {1}",i,ta);
-      i++;
+    if(ProtocolLog.UdpEdge.Enabled) {
+      int i = 0;
+      foreach(TransportAddress ta in _generated_ta_list) {
+        ProtocolLog.WriteIf(ProtocolLog.SCO, String.Format(
+        "LocalTA({0}): {1}",i,ta));
+        i++;
+      }
     }
-#endif
   }
 
   /**

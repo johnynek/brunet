@@ -288,14 +288,28 @@ namespace Brunet {
   /**
    * port used: 10000
    */
-  public class XmlRpcManagerServer {    
+  public class XmlRpcManagerServer {
+    public static Thread StartXmlRpcManagerServerAsThread(RpcManager rpc, int port) {
+      Thread thread = new Thread(XmlRpcManagerServer.StartXmlRpcManagerServer);
+      Hashtable ht = new Hashtable();
+      ht["rpc"] = rpc;
+      ht["port"] = port;
+      thread.Start(ht);
+      return thread;
+    }
 
-    public static void StartXmlRpcManagerServer(object oxm) {
+    public static void StartXmlRpcManagerServer(object data) {
+      Hashtable ht = (Hashtable) data;
+      StartXmlRpcManagerServer((RpcManager) ht["rpc"], (int) ht["port"]);
+    }
+
+    public static void StartXmlRpcManagerServer(RpcManager rpc, int port) {
       Debug.Listeners.Add(new ConsoleTraceListener());
-      XmlRpcManager xm = (XmlRpcManager)oxm;            
+      XmlRpcManager xm = new XmlRpcManager(rpc);
+      xm.AddAsRpcHandler();
       IServerChannelSinkProvider chain = new XmlRpcServerFormatterSinkProvider();
       IDictionary props = new Hashtable();
-      props.Add("port", 10000);
+      props.Add("port", port);
       props.Add("name", "xmlrpc");  //so that this channel won't collide with dht services
       HttpChannel channel = new HttpChannel(props, null, chain);
       ChannelServices.RegisterChannel(channel);

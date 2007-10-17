@@ -18,12 +18,11 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-//#define DEBUG
 using System;
 using System.Collections;
 using System.Collections.Specialized;
 using System.Threading;
-//using log4net;
+
 namespace Brunet
 {
 
@@ -42,28 +41,6 @@ namespace Brunet
    */
   abstract public class Node : ISender, IDataHandler
   {
-    /*private static readonly log4net.ILog log =
-        log4net.LogManager.GetLogger(System.Reflection.MethodBase.
-        GetCurrentMethod().DeclaringType);*/
-
-
-#if PLAB_LOG
-    protected BrunetLogger _logger;
-    virtual public BrunetLogger Logger{
-	get{
-	  return _logger;
-	}
-	set
-	{
-	  _logger = value;
-	  //The connection table only has a logger in this case
-          _connection_table.Logger = value;
-          foreach(EdgeListener el in _edgelistener_list) {
-             el.Logger = value;
-	  }
-	}
-    }
-#endif
     /**
      * Create a node with a given local address and
      * a set of Routers.
@@ -83,11 +60,14 @@ namespace Brunet
 
         _task_queue = new TaskQueue();
         //Here is the thread for announcing packets
-        _packet_queue = new BlockingQueue();
+        _packet_queue = new BlockingQueue(30);
+        _monitor = new GlobalMonitor(this);
+        _pqm = new PacketQueueMonitor(this._monitor);
+        _hbm = new HeartBeatMonitor(this._monitor);
         _running = false;
         _send_pings = true;
         _announce_thread = new Thread(this.AnnounceThread);
-        
+
         _connection_table = new ConnectionTable(_local_add);
         _connection_table.ConnectionEvent += this.ConnectionHandler;
         /*
@@ -241,6 +221,13 @@ namespace Brunet
       get { return -1; }
     }
     protected BlockingQueue _packet_queue;
+    protected PacketQueueMonitor _pqm;
+    protected GlobalMonitor _monitor;
+    protected HeartBeatMonitor _hbm;
+    public bool sleep_mode = false;
+
+    protected object _heartbeat_sync = new object();
+    protected bool _heartbeat_running = false;
 
     protected string _realm = "global";
     /**
@@ -405,6 +392,10 @@ namespace Brunet
      */
     protected void EdgeHandler(object edge, EventArgs args)
     {
+      // Edges will not be created when in sleep_mode, better to put this here
+      // then worry about putting this in all the EdgeListener or Edge code.
+      if(sleep_mode)
+        return;
       Edge e = (Edge)edge;
       e.Subscribe(this, e);
       _connection_table.AddUnconnected(e);
@@ -437,9 +428,9 @@ namespace Brunet
     protected virtual void StartAllEdgeListeners()
     {
       foreach(EdgeListener el in _edgelistener_list) {
-#if DEBUG
-        Console.Error.WriteLine("{0} starting {1}", Address, el);
-#endif
+        ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
+          "{0} starting {1}", Address, el));
+
         el.Start();
       }
       _running = true;
@@ -481,19 +472,20 @@ namespace Brunet
         while( _running ) {
           AnnounceState a_state = (AnnounceState)_packet_queue.Dequeue();
           Announce(a_state.Data, a_state.From);
+          _pqm.Remove(a_state.Data);
         }
       }
       catch(System.InvalidOperationException x) {
         //This is thrown when Dequeue is called on an empty queue
         //which happens when the BlockingQueue is closed, which
         //happens on Disconnect
-        if( _running ) {
-          Console.Error.WriteLine(
-               "ERROR: still running but AnnounceThread got Exception: {0}",x);
-        }
+        if(_running)
+          ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+            "Running in AnnounceThread got Exception: {1}", x));
       }
       catch(Exception x) {
-        Console.Error.WriteLine("ERROR: Exception in AnnounceThread: {0}", x);
+        ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+        "ERROR: Exception in AnnounceThread: {0}", x));
       }
     }
     /**
@@ -509,10 +501,6 @@ namespace Brunet
      */
     public virtual void Announce(MemBlock b, ISender from)
     {
-
-      //Console.Error.WriteLine("Announcing packet: {0}:", p.ToString() );
-      //Console.Error.WriteLine("PayloadType: {0}:", p.PayloadType );
-
       //When Subscribe or unsubscribe are called,
       //they make copies of the ArrayList, thus we
       //only need to hold the sync while we are
@@ -530,19 +518,27 @@ namespace Brunet
         t = PType.Parse(b, out payload);
         ns = (NodeSource)GetTypeSource(t);
         handlers = ns.Announce(payload, from);
+        /**
+         * @todo if no one handled the packet, we might want to send some
+         * ICMP-like message.
+         */
+        if( handlers == 0 ) {
+          string p_s = payload.GetString(System.Text.Encoding.ASCII);
+          ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+            "No Handler for packet type: {0}\n{1}", t, p_s));
+        }
       }
       catch(Exception x) {
-        Console.Error.WriteLine("ERROR: Packet Handling Exception");
-        Console.Error.WriteLine("Hander: {0}\tEdge: {1}\tPacket: {2}", ns, from, b);
-        Console.Error.WriteLine("Exception: {0}", x);
-      }
-      /**
-       * @todo if no one handled the packet, we might want to send some
-       * ICMP-like message.
-       */
-      if( handlers == 0 ) {
-        string p_s = payload.GetString(System.Text.Encoding.ASCII);
-        Console.Error.WriteLine("No Handler for packet type: {0}\n{1}", t, p_s);
+        ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+          "Packet Handling Exception"));
+        string nodeSource = "null";
+        if (ns != null) {
+          nodeSource = ns.ToString();
+        }
+        ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+          "Handler: {0}\tEdge: {1}", nodeSource, from));
+        ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+          "Exception: {0}", x));
       }
     }
     /**
@@ -550,6 +546,7 @@ namespace Brunet
      * network
      */
     public virtual void Connect() {
+      ProtocolLog.Enable();
       EventHandler ae = System.Threading.Interlocked.Exchange(ref ArrivalEvent, null);
       if (ae != null) {
 	ae(this, null);
@@ -559,15 +556,14 @@ namespace Brunet
      * Disconnect to the network.
      */
     public virtual void Disconnect() {
-#if DEBUG
-      Console.Error.WriteLine("[Connect: {0}] deactivating task queue", _local_add);
-#endif
+      ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
+        "[Connect: {0}] deactivating task queue", _local_add));
       _task_queue.IsActive = false;
       _send_pings = false;
       //Make sure not to call DepartureEvent twice:
       EventHandler de = Interlocked.Exchange(ref DepartureEvent, null);
       if (de != null) {
-	de(this, null);      
+        de(this, null);
       }
       _connection_table.Close();
     }
@@ -689,16 +685,13 @@ namespace Brunet
      * Implements the IDataHandler interface
      */
     public void HandleData(MemBlock data, ISender return_path, object state) {
+      if(sleep_mode)
+        return;
       AnnounceState astate = new AnnounceState(data, return_path as Edge);
+      _pqm.Add(data);
       _packet_queue.Enqueue(astate);
-      //This is for debug:
-      int count = _packet_queue.Count;
-      if( (count > 0) && (count % 1000 == 0) ) {
-        Console.Error.WriteLine("Node({0}) has {1} elements in Announce Queue",
-                                 this.Address, count);
-      }
-      //Announce(data, return_path);
     }
+
     protected TimeSpan ComputeDynamicTimeout() {
       TimeSpan timeout;
       //Compute the mean and stddev of LastInPacketDateTime:
@@ -721,7 +714,9 @@ namespace Brunet
         double s2 = sum2 - count * mean * mean;
         double stddev = Math.Sqrt( s2 /(count - 1) );
         double timeout_d = mean + stddev;
-        //Console.WriteLine("Connection timeout: {0}, mean: {1} stdev: {2}", timeout_d, mean, stddev);
+        ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
+          "Connection timeout: {0}, mean: {1} stdev: {2}", timeout_d, 
+          mean, stddev));
         timeout = TimeSpan.FromMilliseconds( timeout_d );
         if( timeout > MAX_CONNECTION_TIMEOUT ) {
           timeout = MAX_CONNECTION_TIMEOUT;
@@ -760,14 +755,15 @@ namespace Brunet
             e.Close();
           }
           else if( _send_pings && ( now - e.LastInPacketDateTime > _connection_timeout ) ) {
-            
+
             object ping_arg = String.Empty;
             EventHandler on_close = delegate(object q, EventArgs cargs) {
               Channel qu = (Channel)q;
               if( qu.Count == 0 ) {
                 /* we never got a response! */
-	        Console.Error.WriteLine("On an edge timeout({1}), closing connection: {0}",
-                                         c, _connection_timeout);
+                ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
+	                "On an edge timeout({1}), closing connection: {0}",
+                  c, _connection_timeout));
                 e.Close();
               }
               else {
@@ -778,12 +774,14 @@ namespace Brunet
                   object o = r.Result; //This will throw an exception if there was a problem
                   if( !o.Equals( ping_arg ) ) {
                     //Something is wrong with the other node:
-                    Console.Error.WriteLine("Ping({0}) != {1} on {2}", ping_arg, o, c);
+                    ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
+                      "Ping({0}) != {1} on {2}", ping_arg, o, c));
                     close = true;
                   }
                 }
                 catch(Exception x) {
-                  Console.Error.WriteLine("Ping on {0}: resulted in: {1}", c, x);
+                  ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+                    "Ping on {0}: resulted in: {1}", c, x));
                   close = true;
                 }
                 if( close ) { e.Close(); }
@@ -797,9 +795,9 @@ namespace Brunet
               rpc.Invoke(e, tmp_queue, "sys:link.Ping", ping_arg);
             }
             catch(Exception x) {
-              if( !e.IsClosed ) {
-                Console.Error.WriteLine("Could not Invoke ping on: {0}, {1}", c, x);
-              }
+              if(!e.IsClosed)
+                ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+                  "Could not Invoke ping on: {0}, {1}", c, x));
               e.Close();
             }
           }
@@ -808,10 +806,40 @@ namespace Brunet
           if( now - e.LastInPacketDateTime > _unconnected_timeout ) {
             //We are not so charitable towards unconnected edges,
             //if we haven't heard from them, just close them:
-	    Console.Error.WriteLine("Close an unconnected edge: {0}", e);
-            e.Close();
+            if(e.IsClosed) {
+              _connection_table.RemoveUnconnected(e);
+              ProtocolLog.WriteIf(ProtocolLog.Connections, String.Format(
+                "Removed an unconnected edge: {0}", e));
+            }
+            else {
+              ProtocolLog.WriteIf(ProtocolLog.Connections, String.Format(
+                "Closed an unconnected edge: {0}", e));
+              e.Close();
+            }
           }
         }
+/*        ProtocolLog.WriteIf(ProtocolLog.Stats, String.Format(
+          "Edges average time: " + _connection_table.AverageEdgeTime));
+        ProtocolLog.WriteIf(ProtocolLog.Stats, String.Format(
+          "Announce average time: " + (AverageAnnounceTime)));
+        if(now - _last_sleep_timeout > TimeSpan.FromSeconds(60)) {
+          bool sleep = false;
+          if(AverageAnnounceTime > 5 || _connection_table.AverageEdgeTime < 5)
+            sleep = true;
+          if(sleep) {
+            ProtocolLog.WriteIf(ProtocolLog.Stats, String.Format(
+              "Node going under .... " + BASE_TIMEOUT * (2 << _timeouts)));
+            lock(_connection_table.SyncRoot) {
+              System.Threading.Thread.Sleep(BASE_TIMEOUT * (2 << _timeouts) );
+            }
+            if(_timeouts < MAX_TIMEOUT_MODIFIER)
+              _timeouts++;
+          }
+          else if(_timeouts > 0)
+            _timeouts--;
+        }*/
+        _pqm.CheckSystem();
+        _hbm.CheckSystem();
       }
       else {
         //Don't do anything for now.
@@ -819,9 +847,25 @@ namespace Brunet
     }
     /**
      * A TimerCallback to send the HeartBeatEvent
+     * Since the Timer can call this multiple times to run concurrently, there
+     * is a lock and a running boolean to prevent multiple executions
+     * concurrently.  Excessive callbacks are lost.
      */
     protected void HeartBeatCallback(object state)
     {
+      if(sleep_mode)
+        return;
+      lock(_heartbeat_sync) {
+        if(_heartbeat_running) {
+          _hbm.Lost();
+          ProtocolLog.WriteIf(ProtocolLog.NodeLog, "System must be running " +
+            "slow, more than one node waiting at heartbeat");
+          return;
+        }
+        _heartbeat_running = true;
+      }
+
+      DateTime start = DateTime.UtcNow;
       ///Just send the event:
       try {
         if( HeartBeatEvent != null ) {
@@ -829,8 +873,11 @@ namespace Brunet
         }
       }
       catch(Exception x) {
-        Console.Error.WriteLine("Exception in heartbeat: {0}", x);
+        ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+          "Exception in heartbeat: {0}", x));
       }
+      _hbm.Add(start);
+      _heartbeat_running = false;
     }
 
     /**
