@@ -34,11 +34,19 @@ namespace Ipop {
     public DhtAdapter() { ;}
 
     public virtual bool Create(string key, string value, int ttl) {
-      return _dht.Create(key, value, ttl);
+      try {
+        _dht.Create(key, value, ttl);
+        return true;
+      }
+      return false;
     }
 
     public virtual bool Put(string key, string value, int ttl) {
-      return _dht.Put(key, value, ttl);
+      try {
+        _dht.Put(key, value, ttl);
+        return true;
+      }
+      return false;
     }
 
     public virtual DhtGetResult[] Get(string key) {
