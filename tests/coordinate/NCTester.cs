@@ -31,9 +31,8 @@ namespace Brunet.Coordinate {
 	//
 	// Start processing samples.
 	//
-	
 	StreamReader br = new StreamReader(new FileStream(sample_file, FileMode.Open, FileAccess.Read));
-	long now = DateTime.Now.Ticks;
+	DateTime now = DateTime.Now;
 	while(true) {
 	  string s = br.ReadLine();
 	  if (s == null) {
@@ -41,7 +40,7 @@ namespace Brunet.Coordinate {
 	  }
 	  string[] ss = s.Split();
 	  int seconds = Int32.Parse(ss[0]);
-	  long o_stamp = now + seconds*10000000;
+	  DateTime o_stamp = now + new TimeSpan(0, 0, seconds);
 	  int local_idx = Int32.Parse(ss[1]);
 	  NCService nc_local = (NCService) nc_list[local_idx];
 	  int remote_idx = Int32.Parse(ss[2]);
@@ -52,7 +51,6 @@ namespace Brunet.Coordinate {
 	  nc_local.ProcessSample(o_stamp, addr_remote, remote_state.Position, 
 				 remote_state.WeightedError, o_rawLatency);
 	}
-
       } 
       else if (mode.Equals("-l")) {
 	Random rr = new Random();
@@ -112,7 +110,7 @@ namespace Brunet.Coordinate {
 	//
 	// Now the rounds of iteration
 	//
-	long now = DateTime.Now.Ticks;
+	DateTime now = DateTime.Now;
 	int x = 0;
 	while (x < max_rounds) {
 	  int local_idx = rr.Next(0, net_size);
@@ -124,7 +122,7 @@ namespace Brunet.Coordinate {
 	  NCService.VivaldiState remote_state = nc_remote.State;
 	  double o_rawLatency = rtt_matrix[local_idx][remote_idx];
 	  //Console.WriteLine("{0} {1} {2}", local_idx, remote_idx, o_rawLatency);
-	  nc_local.ProcessSample(now + x*10000000, addr_remote, remote_state.Position, 
+	  nc_local.ProcessSample(now + new TimeSpan(0, 0, x), addr_remote, remote_state.Position, 
 				 remote_state.WeightedError, o_rawLatency);
 	  x += 1;
 	  

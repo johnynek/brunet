@@ -12,8 +12,8 @@ sites = {}
 points = []
 #generate sites over a plane of 1000 x 1000
 for i in range(0, num_sites):
-    x = random.random()*500
-    y = random.random()*500
+    x = random.random()*1000
+    y = random.random()*1000
     sites[i] = (x,y)
 
 #now generate points centered around the cites with a gaussian distribution
