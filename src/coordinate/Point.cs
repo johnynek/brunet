@@ -4,8 +4,8 @@ using System;
 namespace Brunet.Coordinate {
   public class Point {
     protected static readonly int DIMENSIONS = 2;
-    protected static readonly double INITIAL_VECTOR_VALUE  = 0.0;
-    protected static readonly double MIN_HEIGHT = 0.01;
+    protected static readonly int INITIAL_VECTOR_VALUE  = 0;
+    protected static readonly double MIN_HEIGHT = 0.01f;
     protected static readonly Random _rr = new Random();
 
     protected double[] _side;
@@ -75,7 +75,7 @@ namespace Brunet.Coordinate {
       return (double) Math.Sqrt(sum);
     }
     public double Length() {
-      double sum = 0.0;
+      double sum = 0.0f;
       for (int i = 0; i < DIMENSIONS; i++) {
 	sum += (double) Math.Pow(_side[i], 2);
       }
@@ -126,7 +126,7 @@ namespace Brunet.Coordinate {
 
     public static Point GetRandomUnitVector () {
       Point unitVector = new Point();
-      double length = 0.0;
+      double length = 0.0f;
       for (int i = 0; i < DIMENSIONS; i++) {
 	unitVector.Side[i] = (double) _rr.NextDouble();
 	length += unitVector.Side[i]*unitVector.Side[i];
@@ -137,7 +137,7 @@ namespace Brunet.Coordinate {
 	unitVector.Side[i] /= length;
       }	
 #if USE_HEIGHT
-      unitVector.Height = 0.0;
+      unitVector.Height = 0.0f;
       unitVector.Height = (double) _rr.NextDouble();
 #endif
       return unitVector;

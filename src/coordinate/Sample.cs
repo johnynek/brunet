@@ -31,8 +31,8 @@ namespace Brunet.Coordinate {
     protected ArrayList _sample_list;
     
     /** timestamp.*/
-    protected long _time_stamp;
-    public long TimeStamp {
+    protected DateTime _time_stamp;
+    public DateTime TimeStamp {
       get {
 	return _time_stamp;
       }
@@ -41,7 +41,7 @@ namespace Brunet.Coordinate {
       _sample_list = new ArrayList();
     }
 
-    public void AddSample(long time_stamp, double sample, Point position, double weightedError) {
+    public void AddSample(DateTime time_stamp, double sample, Point position, double weightedError) {
       _time_stamp = time_stamp;
       _weightedError = weightedError;
       _position = position;
