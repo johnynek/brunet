@@ -107,7 +107,7 @@ namespace Brunet
     /*
      * Don't try to use TunnelEdge unless we have this many neighbors
      */
-    protected const int MIN_FORWARDERS = 2;
+    protected const int MIN_FORWARDERS = 1;
 
     /**
      * @return true if the Start method has been called
