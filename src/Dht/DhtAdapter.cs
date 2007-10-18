@@ -38,7 +38,9 @@ namespace Ipop {
         _dht.Create(key, value, ttl);
         return true;
       }
-      return false;
+      catch {
+        return false;
+      }
     }
 
     public virtual bool Put(string key, string value, int ttl) {
@@ -46,7 +48,9 @@ namespace Ipop {
         _dht.Put(key, value, ttl);
         return true;
       }
-      return false;
+      catch {
+        return false;
+      }
     }
 
     public virtual DhtGetResult[] Get(string key) {
