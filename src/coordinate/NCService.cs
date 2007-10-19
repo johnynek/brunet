@@ -44,6 +44,11 @@ namespace Brunet.Coordinate {
 #endif	
 	return ht;
       }
+      
+      //dummy method to help another node determine latency to us.
+      public void Echo() {
+	return;
+      }
     }
     
     protected NCServer _server;
@@ -57,9 +62,10 @@ namespace Brunet.Coordinate {
       public Address TargetAddress;
       public Edge TargetEdge;
       public Channel Queue;
+      public object StateResult;
       public DateTime Start;
       public int NumSamples;
-      public static readonly int MIN_SAMPLES = 2;
+      public static readonly int MIN_SAMPLES = 1;
     }
     protected TrialState _current_trial_state = null;
 
@@ -152,28 +158,31 @@ namespace Brunet.Coordinate {
       lock(_sync) {
 	_rpc = RpcManager.GetInstance(node);
 	_rpc.AddHandler("ncserver", _server);
-	_node.HeartBeatEvent += new EventHandler(GetSample);
+	_node.HeartBeatEvent += new EventHandler(GetNextSample);
       }
     }
 
-    protected void GetSampleFromTarget(Channel queue, Edge target_edge) {
-      queue.CloseAfterEnqueue();
-      queue.EnqueueEvent += new EventHandler(HandleSample);
-      _rpc.Invoke(target_edge, queue, "ncserver.EchoVivaldiState", new object[]{});
+    protected void GetLatencySample(TrialState state) {
+      state.Queue.CloseAfterEnqueue();
+      state.Queue.EnqueueEvent += new EventHandler(HandleLatencySample);
+      _rpc.Invoke(state.TargetEdge, state.Queue, "ncserver.Echo", new object[]{});
     }
-    
-    protected void GetSample(object node, EventArgs args) {
+    protected void GetVivaldiState(TrialState state) {
+      state.Queue.CloseAfterEnqueue();
+      state.Queue.EnqueueEvent += new EventHandler(HandleVivaldiState);
+      _rpc.Invoke(state.TargetEdge, state.Queue, "ncserver.EchoVivaldiState", new object[]{});      
+    }
+
+    protected void GetNextSample(object node, EventArgs args) {
       DateTime now = DateTime.Now;
       lock(_sync) {
 	TimeSpan elapsed = now - _last_sample_instant;
 	//
 	// Check if it is too early to get a sample. 
 	//
-	
 	if (elapsed.TotalSeconds < SAMPLE_INTERVAL) {
 	  return;
 	}
-	
 	//
 	// Pick a random target from the connection table.
 	//
@@ -185,26 +194,55 @@ namespace Brunet.Coordinate {
 #endif
 	  return;
 	}
+	
 	_last_sample_instant = now;
 	_current_trial_state.TargetAddress = target.Address;
 	_current_trial_state.TargetEdge = target.Edge;
 	_current_trial_state.Start = now;
 	_current_trial_state.Queue = new Channel();
-	_current_trial_state.NumSamples = 1;
-	GetSampleFromTarget(_current_trial_state.Queue, _current_trial_state.TargetEdge);
+	_current_trial_state.StateResult = null;
+	GetVivaldiState(_current_trial_state);
       }
     }
     
-    protected void HandleSample(object o, EventArgs args) {
+    protected void HandleVivaldiState(object o, EventArgs args) {
 #if NC_DEBUG
-      Console.Error.WriteLine("[NCService] {0} getting a sample.", _node.Address);
+      Console.Error.WriteLine("[NCService] {0} Got remote vivaldi state.", _node.Address);
 #endif
-      DateTime start;
-      Address neighbor = null;
+      //make sure that the trial is still on, and we havenot moved on to next sample
       Channel q =  (Channel) o;
       lock(_sync) {
 	if (q != _current_trial_state.Queue) {
-	  Console.Error.WriteLine("[NCService] {0} incomplete sample (no start time).", _node.Address);	  	  
+	  Console.Error.WriteLine("[NCService] {0} Too late now.", _node.Address);	  	  
+	  return;
+	} 
+	_current_trial_state.Queue = new Channel();
+	_current_trial_state.NumSamples = 1;
+	_current_trial_state.Start = DateTime.Now;
+	try {
+	  RpcResult result = q.Dequeue() as RpcResult;
+	  _current_trial_state.StateResult = result.Result;
+	} catch(Exception e) {
+	  //invalid sample
+	  Console.Error.WriteLine(e);
+	  return;
+	}
+	GetLatencySample(_current_trial_state);
+      }
+    }
+
+    protected void HandleLatencySample(object o, EventArgs args) {
+#if NC_DEBUG
+      Console.Error.WriteLine("[NCService] {0} Got a latency sample.", _node.Address);
+#endif
+      DateTime start;
+      Address neighbor = null;
+      object state_result = null;
+      Channel q =  (Channel) o;
+      lock(_sync) {
+	//check to see if still valid.
+	if (q != _current_trial_state.Queue) {
+	  Console.Error.WriteLine("[NCService] {0} Too late now.", _node.Address);	  	  
 	  return;
 	} 
 
@@ -212,38 +250,50 @@ namespace Brunet.Coordinate {
 	// Check to see if sufficient samples are now available. 
 	// 
 	if (_current_trial_state.NumSamples <  TrialState.MIN_SAMPLES) {
+#if NC_DEBUG
+	  Console.Error.WriteLine("Insufficient samples. Get some more.");
+#endif
 	  _current_trial_state.Queue = new Channel();
 	  _current_trial_state.NumSamples++;
 	  _current_trial_state.Start = DateTime.Now;
-	  GetSampleFromTarget(_current_trial_state.Queue, _current_trial_state.TargetEdge);
+	  GetLatencySample(_current_trial_state);
 	  return;
 	}
+
 	//
 	// Complete sample is now available.
 	//
+#if NC_DEBUG
+	Console.Error.WriteLine("Complete sample.");
+#endif
 	neighbor = _current_trial_state.TargetAddress;
 	start = _current_trial_state.Start;
+	state_result = _current_trial_state.StateResult;
       }
 
       DateTime end = DateTime.Now;
-      RpcResult res = q.Dequeue() as RpcResult;
-      if (res.Statistics.SendCount == 1) {
-	double o_rawLatency = (double) ((end - start).TotalMilliseconds);
-	if (o_rawLatency > MAX_RTT*1000) {
+      try {
+	RpcResult res = q.Dequeue() as RpcResult;
+	if (res.Statistics.SendCount > 1) {
+	  Console.Error.WriteLine("[NCService] {0} ignore sample (multiple sends).", _node.Address);
 	  return;
 	}
-	
-	//extract sample information
-	Hashtable ht = (Hashtable) res.Result;
-	Hashtable ht_position = (Hashtable) ht["position"];
-	Point o_position = 
-	  new Point((double[]) ((ArrayList) ht_position["side"]).ToArray(typeof(double)), (double) ht_position["height"]);
-
-	double o_weightedError = (double) ht["error"];
-	ProcessSample(end, neighbor, o_position, o_weightedError, o_rawLatency);
-      } else {
-	Console.Error.WriteLine("[NCService] {0} ignore sample (multiple sends).", _node.Address);
+      } catch(Exception e) {
+	//invalid sample
+	Console.Error.WriteLine(e);
+	return;
       }
+      double o_rawLatency = (double) ((end - start).TotalMilliseconds);
+      if (o_rawLatency > MAX_RTT*1000) {
+	return;
+      }
+      //extract vivaldi state for the remote node.
+      Hashtable ht =  (Hashtable) state_result;
+      Hashtable ht_position = (Hashtable) ht["position"];
+      Point o_position = 
+	new Point((double[]) ((ArrayList) ht_position["side"]).ToArray(typeof(double)), (double) ht_position["height"]);
+      double o_weightedError = (double) ht["error"];
+      ProcessSample(end, neighbor, o_position, o_weightedError, o_rawLatency);
     }
     
     /** Processing of a latency sample using Vivaldi network coordinate approach. 
@@ -258,7 +308,7 @@ namespace Brunet.Coordinate {
 			      double o_weightedError, double o_rawLatency) {
       lock(_sync) {
 #if NC_DEBUG
-	Console.WriteLine("[Sample] at: {0}, from: {1}, position: {2}, error: {3}, latency: {4}", 
+	Console.Error.WriteLine("[Sample] at: {0}, from: {1}, position: {2}, error: {3}, latency: {4}", 
 				o_stamp, neighbor, o_position, o_weightedError, o_rawLatency);
 #endif
 
@@ -303,11 +353,11 @@ namespace Brunet.Coordinate {
 #if NC_DEBUG
 	Console.Error.WriteLine("my_weighted_error (postupdate)): {0}", State.WeightedError);
 #endif
-	if (_vivaldi_state.WeightedError > 1.0f) {
-	  _vivaldi_state.WeightedError = 1.0f;
+	if (_vivaldi_state.WeightedError > 1.0) {
+	  _vivaldi_state.WeightedError = 1.0;
 	} 
-	if (_vivaldi_state.WeightedError < 0.0f) {
-	  _vivaldi_state.WeightedError = 0.0f;
+	if (_vivaldi_state.WeightedError < 0.0) {
+	  _vivaldi_state.WeightedError = 0.0;
 	}
       
 	Point o_force = new Point();
