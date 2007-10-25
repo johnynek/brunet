@@ -713,6 +713,7 @@ public class NatTAs : IEnumerable {
         gtas.Add(ta);
       }
     }
+
     _generated_ta_list = gtas; 
     if(ProtocolLog.UdpEdge.Enabled) {
       int i = 0;
