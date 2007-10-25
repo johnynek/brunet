@@ -741,7 +741,7 @@ namespace Brunet
                 *
                 * let the HandleSend finish putting the queue back.
                 */
-                Thread.SpinWait(10);
+//                Thread.SpinWait(10);
               }
               else {
                 //We have a non-null queue with tmp_queue.Count > 0

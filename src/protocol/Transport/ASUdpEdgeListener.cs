@@ -75,12 +75,18 @@ namespace Brunet
      * change as new interfaces are added
      * @param ta_auth the TAAuthorizer for packets incoming
      */
-    public ASUdpEdgeListener(int port, IEnumerable local_config_tas, TAAuthorizer ta_auth)
+    public ASUdpEdgeListener(int port, IEnumerable local_config_ips, TAAuthorizer ta_auth)
     {
       /**
        * We get all the IPAddresses for this computer
        */
-      _tas = local_config_tas;
+      if( local_config_ips == null ) {
+        _tas = TransportAddressFactory.CreateForLocalHost(TransportAddress.TAType.Udp, port);
+      }
+      else {
+        _tas = TransportAddressFactory.Create(TransportAddress.TAType.Udp, port, local_config_ips);
+      }
+
       _nat_hist = null;
       _nat_tas = new NatTAs( _tas, _nat_hist );
       _ta_auth = ta_auth;
