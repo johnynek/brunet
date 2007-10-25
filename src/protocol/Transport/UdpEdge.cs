@@ -79,9 +79,11 @@ namespace Brunet
       inbound = is_in;
       _is_closed = false;
       _create_dt = DateTime.UtcNow;
+
       _last_out_packet_datetime = _create_dt;
       _last_in_packet_datetime = _last_out_packet_datetime;
       //This will update both the end point and the remote TA
+
       this.End = remote_end_point;
       _localta = TransportAddressFactory.CreateInstance(TAType, (IPEndPoint) local_end_point);
       _id = id;

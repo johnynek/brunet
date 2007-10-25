@@ -36,7 +36,7 @@ namespace Brunet
    * There are multiple implementations of Udp transports for
    * Brunet.  This is a base class with the shared code.
    */
-  public abstract class UdpEdgeListenerBase : EdgeListener
+  public abstract class UdpEdgeListenerBase : EdgeListener, IEdgeSendHandler
   {
     ///Here is the queue for outgoing packets:
     protected Queue _send_queue;
@@ -149,20 +149,20 @@ namespace Brunet
       lock( _id_ht ) {
         if( _id_ht.Contains( e.ID ) ) {
           _id_ht.Remove( e.ID );
-	  object re = _remote_id_ht[ e.RemoteID ];
-	  if( re == e ) {
+          object re = _remote_id_ht[ e.RemoteID ];
+          if( re == e ) {
             //_remote_id_ht only keeps track of incoming edges,
-	    //so, there could be two edges with the same remoteid
-	    //that are not equivalent.
-	    _remote_id_ht.Remove( e.RemoteID );
-	  }
+            //so, there could be two edges with the same remoteid
+            //that are not equivalent.
+            _remote_id_ht.Remove( e.RemoteID );
+          }
           NatDataPoint dp = new EdgeClosePoint(DateTime.UtcNow, e);
           _nat_hist = _nat_hist + dp;
           _nat_tas = new NatTAs( _tas, _nat_hist );
         }
       }
     }
-   
+
     protected IPEndPoint GuessLocalEndPoint(IEnumerable tas) {
       IPAddress ipa = IPAddress.Loopback;
       bool stop = false;
@@ -170,15 +170,17 @@ namespace Brunet
       foreach(TransportAddress ta in tas) {
         ArrayList ips = ((IPTransportAddress) ta).GetIPAddresses();
         port = ((IPTransportAddress) ta).Port;
-	foreach(IPAddress ip in ips) {
-          if( !IPAddress.IsLoopback(ip) && (ip.Address != 0) ) {
-		  //0 is the 0.0.0.0, or any address
+        foreach(IPAddress ip in ips) {
+          byte[] addr = ip.GetAddressBytes();
+          bool any_addr = ((addr[0] | addr[1] | addr[2] | addr[3]) == 0);
+          if( !IPAddress.IsLoopback(ip) && !any_addr ) {
+
             ipa = ip;
-	    stop = true;
-	    break;
-	  }
-	}
-	if( stop ) { break; }
+            stop = true;
+            break;
+          }
+        }
+        if( stop ) { break; }
       }
       //ipa, now holds our best guess for an endpoint..
       return new IPEndPoint(ipa, port);
@@ -312,7 +314,7 @@ namespace Brunet
          * that we have closed.  We can ignore this packet
          */
         read_packet = false;
-	 //Send a control packet
+         //Send a control packet
         SendControlPacket(end, remoteid, localid, ControlCode.EdgeClosed, state);
       }
       else if ( edge.RemoteID == 0 ) {
@@ -326,7 +328,7 @@ namespace Brunet
          * does not have both ids matching.
          */
         read_packet = false;
-	 //Tell the other guy to close this ignored edge
+         //Tell the other guy to close this ignored edge
         SendControlPacket(end, remoteid, localid, ControlCode.EdgeClosed, state);
         edge = null;
       }
@@ -392,14 +394,68 @@ namespace Brunet
       }
     }
 
- 
-
    /**
      * Each implementation may have its own way of doing this
      */
     protected abstract void SendControlPacket(EndPoint end, int remoteid, int localid,
                                      ControlCode c, object state);
 
+    /**
+     * Implements the EdgeListener function to 
+     * create edges of this type.
+     */
+    public override void CreateEdgeTo(TransportAddress ta, EdgeCreationCallback ecb)
+    {
+      if( !IsStarted )
+      {
+        ecb(false, null,
+            new EdgeException("UdpEdgeListener is not started") );
+      }
+      else if( ta.TransportAddressType != this.TAType ) {
+        ecb(false, null,
+            new EdgeException(ta.TransportAddressType.ToString()
+                + " is not my type: " + this.TAType.ToString() ) );
+      }
+      else if( _ta_auth.Authorize(ta) == TAAuthorizer.Decision.Deny ) {
+        //Too bad.  Can't make this edge:
+        ecb(false, null,
+            new EdgeException( ta.ToString() + " is not authorized") );
+      }
+      else {
+        Edge e = null;
+        ArrayList ip_addresses = ((IPTransportAddress) ta).GetIPAddresses();
+        IPAddress first_ip = (IPAddress)ip_addresses[0];
+  
+        IPEndPoint end = new IPEndPoint(first_ip, ((IPTransportAddress) ta).Port);
+        /* We have to keep our mapping of end point to edges up to date */
+        lock( _id_ht ) {
+          //Get a random ID for this edge:
+          int id;
+          do {
+            id = _rand.Next();
+      //Make sure we don't have negative ids
+            if( id < 0 ) { id = ~id; }
+          } while( _id_ht.Contains(id) || id == 0 );
+          e = new UdpEdge(this, false, end, _local_ep, id, 0);
+          _id_ht[id] = e;
+        }
+        NatDataPoint dp = new NewEdgePoint(DateTime.UtcNow, e);
+        _nat_hist = _nat_hist + dp;
+        _nat_tas = new NatTAs( _tas, _nat_hist );
+
+        /* Tell me when you close so I can clean up the table */
+        e.CloseEvent += this.CloseHandler;
+        if( e.IsClosed ) {
+          CloseHandler(e, null);
+          ecb(false, null, new EdgeException("Edge closed unexpectedly"));
+        }
+        else {
+          ecb(true, e, null);
+        }
+      }
+    }
+
+    public abstract void HandleEdgeSend(Edge from, ICopyable p);
   }
 
   /**
@@ -413,7 +469,7 @@ namespace Brunet
   *
   */
 
-  public class UdpEdgeListener : UdpEdgeListenerBase, IEdgeSendHandler
+  public class UdpEdgeListener : UdpEdgeListenerBase
   {
 
     protected IPEndPoint ipep;
@@ -473,61 +529,6 @@ namespace Brunet
       _send_handler = this;
     }
 
-    /**
-     * Implements the EdgeListener function to 
-     * create edges of this type.
-     */
-    public override void CreateEdgeTo(TransportAddress ta, EdgeCreationCallback ecb)
-    {
-      if( !IsStarted )
-      {
-        ecb(false, null,
-            new EdgeException("UdpEdgeListener is not started") );
-      }
-      else if( ta.TransportAddressType != this.TAType ) {
-        ecb(false, null,
-            new EdgeException(ta.TransportAddressType.ToString()
-                              + " is not my type: " + this.TAType.ToString() ) );
-      }
-      else if( _ta_auth.Authorize(ta) == TAAuthorizer.Decision.Deny ) {
-        //Too bad.  Can't make this edge:
-        ecb(false, null,
-            new EdgeException( ta.ToString() + " is not authorized") );
-      }
-      else {
-        Edge e = null;
-        ArrayList ip_addresses = ((IPTransportAddress) ta).GetIPAddresses();
-        IPAddress first_ip = (IPAddress)ip_addresses[0];
-  
-        IPEndPoint end = new IPEndPoint(first_ip, ((IPTransportAddress) ta).Port);
-        /* We have to keep our mapping of end point to edges up to date */
-        lock( _id_ht ) {
-          //Get a random ID for this edge:
-          int id;
-          do {
-            id = _rand.Next();
-  	  //Make sure we don't have negative ids
-  	  if( id < 0 ) { id = ~id; }
-          } while( _id_ht.Contains(id) || id == 0 );
-          e = new UdpEdge(this, false, end, _local_ep, id, 0);
-          _id_ht[id] = e;
-        }
-        NatDataPoint dp = new NewEdgePoint(DateTime.UtcNow, e);
-        _nat_hist = _nat_hist + dp;
-        _nat_tas = new NatTAs( _tas, _nat_hist );
-
-        /* Tell me when you close so I can clean up the table */
-        e.CloseEvent += this.CloseHandler;
-        if( e.IsClosed ) {
-          CloseHandler(e, null);
-          ecb(false, null, new EdgeException("Edge closed unexpectedly"));
-        }
-        else {
-          ecb(true, e, null);
-        }
-      }
-    }
-   
     protected override void SendControlPacket(EndPoint end, int remoteid, int localid,
                                      ControlCode c, object state)
     {
@@ -855,7 +856,7 @@ namespace Brunet
      * When UdpEdge objects call Send, it calls this packet
      * callback:
      */
-    public void HandleEdgeSend(Edge from, ICopyable p)
+    public override void HandleEdgeSend(Edge from, ICopyable p)
     {
       /*
        * This is a lock-free implementation to reduce latency

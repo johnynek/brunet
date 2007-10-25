@@ -2,7 +2,6 @@ using System.Diagnostics;
 
 namespace Brunet {
   public class ProtocolLog {
-    private static object _sync = new object();
     public static BooleanSwitch ConsoleLogEnable =
         new BooleanSwitch("ConsoleLogEnable", "Log for unknown!");
     public static BooleanSwitch Connections =

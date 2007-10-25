@@ -96,7 +96,7 @@ namespace Brunet
     protected object _sync;
     public object SyncRoot {
       get {
-	return _sync;
+        return _sync;
       }
     }
     protected bool _is_finished;
@@ -243,13 +243,15 @@ namespace Brunet
       }
 
       protected void HandleEdge(bool success, Edge e, Exception x) {
-#if LINK_DEBUG
-	if (success) {
-	  Console.Error.WriteLine("(Linker) Handle edge success{0}: ", e);
-	} else {
-	  Console.Error.WriteLine("(Linker) Handle edge failure{0}: ", x);
-	}
-#endif
+        if(ProtocolLog.LinkDebug.Enabled) {
+          if (success) {
+            ProtocolLog.WriteIf(ProtocolLog.LinkDebug, String.Format(
+                                "(Linker) Handle edge success{0}: ", e));
+          } else {
+            ProtocolLog.WriteIf(ProtocolLog.LinkDebug, String.Format(
+                                "(Linker) Handle edge failure{0}: ", x));
+          }
+        }
         lock( _sync ) {
           _is_finished = true;
           _x = x;
@@ -297,13 +299,13 @@ namespace Brunet
        */
       public override void Start() {
         lock( this ) {
-	  if( _restart_attempts < 0 ) {
+          if( _restart_attempts < 0 ) {
             throw new Exception("restarted too many times");
           }
           _last_start = DateTime.UtcNow;
-	  int restart_sec = (int)(_rand.NextDouble() * _MS_RESTART_TIME);
-	  TimeSpan interval = new TimeSpan(0,0,0,0,restart_sec);
-	  _next_start = _last_start + interval; 
+          int restart_sec = (int)(_rand.NextDouble() * _MS_RESTART_TIME);
+          TimeSpan interval = new TimeSpan(0,0,0,0,restart_sec);
+          _next_start = _last_start + interval; 
           _is_waiting = true;
         }
         Node n = _linker.LocalNode;
@@ -322,9 +324,9 @@ namespace Brunet
             fire_event = true;
           }
           else if( DateTime.UtcNow > _next_start ) { 
-  	    if ( _rand.NextDouble() < 0.5 ) {
+              if ( _rand.NextDouble() < 0.5 ) {
               fire_event = true;
-  	    }
+              }
           }
           if( fire_event ) {
             /*
@@ -530,8 +532,8 @@ namespace Brunet
      * Allow if we are transfering to a LinkProtocolState or ConnectionPacketHandler
      */
     public bool AllowLockTransfer(Address a, string contype, ILinkLocker l) {
-	bool allow = false;
-	lock( _sync ) {
+        bool allow = false;
+        lock( _sync ) {
           if( l is Linker ) {
             //Never transfer to another linker:
             allow = false;
@@ -557,16 +559,16 @@ namespace Brunet
            * many times we have been asked to transfer the lock.  On
            * the third time we are asked, we assume we are in the firewall
            * case and we allow the transfer, this is just a hueristic.
-	   */
+           */
             if( a.Equals( _target_lock ) ) {
               _cph_transfer_requests++;
               if ( ( _cph_transfer_requests >= 3 ) ||
                  ( a.CompareTo( LocalNode.Address ) > 0) ) {
                 _target_lock = null; 
                 allow = true;
-	      }
+              }
             }
-  	  }
+            }
           else if( l is LinkProtocolState ) {
             LinkProtocolState lps = (LinkProtocolState)l;
             /**
@@ -581,12 +583,12 @@ namespace Brunet
                 allow = true;
             }
           }
-	}//Lock
+        }//Lock
 #if LINK_DEBUG
         Console.Error.WriteLine("Linker({0}) {1}: transfering lock on {2} to {3}",
                           _lid, allow, a, l);
 #endif
-	return allow;       
+        return allow;       
     }
 
 //////////////////
@@ -608,7 +610,7 @@ namespace Brunet
       Connection c = lps.Connection;
       try {
         /* Announce the connection */
-	_local_n.ConnectionTable.Add(c);
+        _local_n.ConnectionTable.Add(c);
         lock( _sync ) {
           _con = c;
         }  
@@ -670,7 +672,7 @@ namespace Brunet
          * If there is some problem creating the edge,
          * we wind up here.  Just move on
          */
-	TransportAddress next_ta = MoveToNextTA(ew.TA);
+        TransportAddress next_ta = MoveToNextTA(ew.TA);
         StartAttempt(next_ta);
       }
       catch(Exception ex) {
@@ -678,7 +680,7 @@ namespace Brunet
          * The edge creation didn't work out so well
          */
         Console.Error.WriteLine(ex);
-	TransportAddress next_ta = MoveToNextTA(ew.TA);
+        TransportAddress next_ta = MoveToNextTA(ew.TA);
         StartAttempt(next_ta);
       }
       if( close_edge ) {
@@ -830,9 +832,9 @@ namespace Brunet
           rss = null;
           //Time to go on to the next TransportAddress, and give up on this one
           ta = MoveToNextTA(ta);
-  	  if( ta != null ) {
+            if( ta != null ) {
             rss = new RestartState(this, ta);
-  	  }
+            }
         }
         if( rss != null ) {
           _ta_to_restart_state[ta] = rss;
@@ -913,7 +915,7 @@ namespace Brunet
          * stop before we even try to make an edge.
          */
 #if LINK_DEBUG
-	  Console.Error.WriteLine("Linker ({0}) attempting to lock {1}", _lid, _target);
+          Console.Error.WriteLine("Linker ({0}) attempting to lock {1}", _lid, _target);
 #endif
          /*
           * Locks flow around in complex ways, but we
@@ -922,7 +924,7 @@ namespace Brunet
           */
           SetTarget(_target);
 #if LINK_DEBUG
-	  Console.Error.WriteLine("Linker ({0}) acquired lock on {1}", _lid, _target);
+          Console.Error.WriteLine("Linker ({0}) acquired lock on {1}", _lid, _target);
 #endif
         /*
          * Asynchronously gets an edge, and then begin the
@@ -932,7 +934,7 @@ namespace Brunet
          * the Link attempt Fails.
          */
 #if LINK_DEBUG
-	  Console.Error.WriteLine("Linker: ({0}) Trying TA: {1}", _lid, next_ta);
+          Console.Error.WriteLine("Linker: ({0}) Trying TA: {1}", _lid, next_ta);
 #endif
          TaskWorker ew = new EdgeWorker(_local_n.EdgeFactory, next_ta);
          ew.FinishEvent += this.EdgeWorkerHandler;

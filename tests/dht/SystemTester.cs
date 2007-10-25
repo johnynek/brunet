@@ -35,7 +35,7 @@ namespace Test {
       }
 
       int starting_network_size = Int32.Parse(args[0]);
-      max_range = starting_network_size * 10;
+      max_range = starting_network_size;
 
       base_time = Int32.Parse(args[1]);
       add_remove_interval = Int32.Parse(args[2]);
@@ -183,7 +183,7 @@ namespace Test {
       }
       arr_tas.Add(new ConstantAuthorizer(TAAuthorizer.Decision.Allow));
       TAAuthorizer ta_auth = new SeriesTAAuthorizer(arr_tas);
-      node.AddEdgeListener(new UdpEdgeListener(local_port, null));//, ta_auth));
+      node.AddEdgeListener(new ASUdpEdgeListener(local_port, null));//, ta_auth));
       node.AddEdgeListener(new TunnelEdgeListener(node));
       node.RemoteTAs = RemoteTA;
       node.Connect();
