@@ -100,7 +100,6 @@ public class TraceRpcHandler : IRpcHandler {
         Channel q = (Channel)o;
         if( q.Count > 0 ) {
           try {
-            bool timedout;
             RpcResult rres = (RpcResult)q.Dequeue();
             IList l = (IList) rres.Result;
             ArrayList results = new ArrayList( l.Count + 1);

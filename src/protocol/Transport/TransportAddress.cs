@@ -185,7 +185,7 @@ namespace Brunet
     public static IEnumerable CreateForLocalHost(TransportAddress.TAType tat, int port) {
       try {
         string StrLocalHost = Dns.GetHostName();
-        IPHostEntry IPEntry = Dns.GetHostByName(StrLocalHost);
+        IPHostEntry IPEntry = Dns.GetHostEntry(StrLocalHost);
         return Create(tat, port, IPEntry.AddressList);
       }
       catch(Exception) {
@@ -338,7 +338,7 @@ namespace Brunet
       }
 
       try {
-        IPHostEntry IPHost = Dns.Resolve(_uri.Host);
+        IPHostEntry IPHost = Dns.GetHostEntry(_uri.Host);
         _ips = new ArrayList(IPHost.AddressList);
       } catch(Exception e) {
         // log this exception!
@@ -481,7 +481,7 @@ namespace Brunet
       
       
       string StrLocalHost = Dns.GetHostName();
-      IPHostEntry IPEntry = Dns.GetHostByName(StrLocalHost);
+      IPHostEntry IPEntry = Dns.GetHostEntry(StrLocalHost);
       TransportAddress local_ta = TransportAddressFactory.CreateInstance("brunet.udp://" +  IPEntry.AddressList[0].ToString() + 
 									 ":" + 5000);
       IEnumerable locals = TransportAddressFactory.CreateForLocalHost(TransportAddress.TAType.Udp, 5000);
