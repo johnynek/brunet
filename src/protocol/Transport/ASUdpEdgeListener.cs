@@ -218,27 +218,16 @@ namespace Brunet
       EndPoint end = (IPEndPoint)state[0];
       BufferAllocator ba = (BufferAllocator)state[1];
 
+      int remoteid = 0, localid = 0;
+      MemBlock packet = null;
+
       try {
         int rec_bytes = s.EndReceiveFrom(asr, ref end);
         //Get the id of this edge:
-        int remoteid = NumberSerializer.ReadInt(ba.Buffer, ba.Offset);
-        int localid = NumberSerializer.ReadInt(ba.Buffer, ba.Offset + 4);
-        MemBlock packet = MemBlock.Reference(ba.Buffer, ba.Offset + 8, rec_bytes - 8);
+        remoteid = NumberSerializer.ReadInt(ba.Buffer, ba.Offset);
+        localid = NumberSerializer.ReadInt(ba.Buffer, ba.Offset + 4);
+        packet = MemBlock.Reference(ba.Buffer, ba.Offset + 8, rec_bytes - 8);
         ba.AdvanceBuffer( rec_bytes );
-        if( localid < 0 ) {
-            /*
-             * We never give out negative id's, so if we got one
-             * back the other node must be sending us a control
-             * message.
-             */
-          HandleControlPacket(remoteid, localid, packet, null);
-        }
-        else {
-          HandleDataPacket(remoteid, localid, packet, end, null);
-        }
-        /*
-         * We have finished reading the packet, now read the next one
-         */
       }
       catch(System.ObjectDisposedException odx) {
         //If we are no longer running, this is to be expected.
@@ -253,13 +242,25 @@ namespace Brunet
       finally {
         if( _running ) {
           //Start the next round:
-          end = new IPEndPoint(IPAddress.Any, 0);
-          state[0] = end;
+          EndPoint ep = new IPEndPoint(IPAddress.Any, 0);
+          state[0] = ep;
           int max = ba.Buffer.Length - ba.Offset;
-          _read_asr = s.BeginReceiveFrom(ba.Buffer, ba.Offset,
-                         max, SocketFlags.None, ref end,
-                         new AsyncCallback(this.ReceiveHandler), state);
+          _read_asr = s.BeginReceiveFrom(ba.Buffer, ba.Offset, max, 
+            SocketFlags.None, ref ep,
+            new AsyncCallback(this.ReceiveHandler), state);
         }
+      }
+
+      if( localid < 0 ) {
+          /*
+            * We never give out negative id's, so if we got one
+            * back the other node must be sending us a control
+            * message.
+            */
+        HandleControlPacket(remoteid, localid, packet, null);
+      }
+      else {
+        HandleDataPacket(remoteid, localid, packet, end, null);
       }
     }
     /**
