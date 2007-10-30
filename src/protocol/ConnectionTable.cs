@@ -273,8 +273,9 @@ namespace Brunet
       } /* we release the lock */
 
 
-      ProtocolLog.WriteIf(ProtocolLog.Connections,
-        String.Format("New Connection[{0}]: {1}", index, c));
+      if(ProtocolLog.Connections.Enabled)
+        ProtocolLog.Write(ProtocolLog.Connections,
+          String.Format("New Connection[{0}]: {1}", index, c));
 
       /* Send the event: */
       if(ConnectionEvent != null) {
@@ -282,8 +283,9 @@ namespace Brunet
           ConnectionEvent(this, new ConnectionEventArgs(c, index) );
         }
         catch(Exception x) {
-          ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
-            "ConnectionEvent triggered exception: {0}\n{1}", c, x));
+          if(ProtocolLog.Exceptions.Enabled)
+            ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
+              "ConnectionEvent triggered exception: {0}\n{1}", c, x));
         }
       }
       e.CloseEvent += this.RemoveHandler;
@@ -301,8 +303,9 @@ namespace Brunet
         RemoveHandler(e, null);
         throw new Exception("Edge is already closed");
       }
-      ProtocolLog.WriteIf(ProtocolLog.Stats, String.Format(
-        "New Connection {0}|{1}", c, DateTime.UtcNow.Ticks));
+      if(ProtocolLog.Stats.Enabled)
+        ProtocolLog.Write(ProtocolLog.Stats, String.Format(
+          "New Connection {0}|{1}", c, DateTime.UtcNow.Ticks));
     }
 
     /**
@@ -755,8 +758,9 @@ namespace Brunet
         ILinkLocker old_locker = (ILinkLocker)locks[a];
         if( null == old_locker ) {
           locks[a] = locker;
-          ProtocolLog.WriteIf(ProtocolLog.ConnectionTableLocks,
-            String.Format("{0}, locker: {1} Locking: {2}", _local, locker, a));
+          if(ProtocolLog.ConnectionTableLocks.Enabled)
+            ProtocolLog.Write(ProtocolLog.ConnectionTableLocks,
+              String.Format("{0}, locker: {1} Locking: {2}", _local, locker, a));
           return;
         }
         else if ( old_locker.AllowLockTransfer(a,t,locker) ) {
@@ -764,9 +768,10 @@ namespace Brunet
           locks[a] = locker;
         }
         else {
-          ProtocolLog.WriteIf(ProtocolLog.ConnectionTableLocks,
-            String.Format("{0}, {1} tried to lock {2}, but {3} holds the lock",
-            _local, locker, a, locks[a]));
+          if(ProtocolLog.ConnectionTableLocks.Enabled)
+            ProtocolLog.Write(ProtocolLog.ConnectionTableLocks,
+              String.Format("{0}, {1} tried to lock {2}, but {3} holds the lock",
+              _local, locker, a, locks[a]));
           throw new CTLockException();
         }
       }
@@ -808,8 +813,9 @@ namespace Brunet
           Remove(c.MainType, index);
           if( add__unconnected ) {
             _unconnected = Functional.Add(_unconnected, e);
-            ProtocolLog.WriteIf(ProtocolLog.Stats, String.Format(
-              "Intermediate add to unconnected {0}|{1}", e, DateTime.UtcNow.Ticks));
+            if(ProtocolLog.Stats.Enabled)
+              ProtocolLog.Write(ProtocolLog.Stats, String.Format(
+                "Intermediate add to unconnected {0}|{1}", e, DateTime.UtcNow.Ticks));
           }
         }
         if(!have_con && !add__unconnected || e.IsClosed) {
@@ -818,8 +824,9 @@ namespace Brunet
           int idx = _unconnected.IndexOf(e);
           if( idx >= 0 )
             _unconnected = Functional.RemoveAt(_unconnected, idx);
-          ProtocolLog.WriteIf(ProtocolLog.Stats, String.Format(
-            "Edge removed from unconnected {0}|{1}", e, DateTime.UtcNow.Ticks));
+          if(ProtocolLog.Stats.Enabled)
+            ProtocolLog.Write(ProtocolLog.Stats, String.Format(
+              "Edge removed from unconnected {0}|{1}", e, DateTime.UtcNow.Ticks));
         }
 /*        if(!add__unconnected) {
           while(_closed_edges_time.Count >= MAX_CLOSED_EDGE_TIMES - 1) {
@@ -833,10 +840,12 @@ namespace Brunet
         }*/
       }
       if( have_con ) {
-        ProtocolLog.WriteIf(ProtocolLog.Connections,
-          String.Format("Disconnection[{0}]: {1}", index, c));
-        ProtocolLog.WriteIf(ProtocolLog.Stats, String.Format(
-          "Disconnection {0}|{1}", c, DateTime.UtcNow.Ticks));
+        if(ProtocolLog.Connections.Enabled)
+          ProtocolLog.Write(ProtocolLog.Connections,
+            String.Format("Disconnection[{0}]: {1}", index, c));
+        if(ProtocolLog.Stats.Enabled)
+          ProtocolLog.Write(ProtocolLog.Stats, String.Format(
+            "Disconnection {0}|{1}", c, DateTime.UtcNow.Ticks));
 
         //Announce the disconnection:
         if( DisconnectionEvent != null ) {
@@ -844,8 +853,9 @@ namespace Brunet
             DisconnectionEvent(this, new ConnectionEventArgs(c, index));
           }
           catch(Exception x) {
-            ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
-              "DisconnectionEvent triggered exception: {0}\n{1}", c, x));
+            if(ProtocolLog.Exceptions.Enabled)
+              ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
+                "DisconnectionEvent triggered exception: {0}\n{1}", c, x));
           }
         }
       }
@@ -970,13 +980,15 @@ namespace Brunet
         lock( _sync ) {
           ConnectionType mt = Connection.StringToMainType(t);
           Hashtable locks = (Hashtable)_address_locks[mt];
-          ProtocolLog.WriteIf(ProtocolLog.ConnectionTableLocks,
-            String.Format("{0} Unlocking {1}", _local, a));
+          if(ProtocolLog.ConnectionTableLocks.Enabled)
+            ProtocolLog.Write(ProtocolLog.ConnectionTableLocks,
+              String.Format("{0} Unlocking {1}", _local, a));
 
           if(!locks.ContainsKey(a)) {
             string err = String.Format("On node " + _local + ", " + locker +
               " tried to unlock " + a + " but no such lock" );
-            ProtocolLog.WriteIf(ProtocolLog.ConnectionTableLocks, err);
+            if(ProtocolLog.ConnectionTableLocks.Enabled)
+              ProtocolLog.Write(ProtocolLog.ConnectionTableLocks, err);
             throw new Exception(err);
           }
 
@@ -984,7 +996,8 @@ namespace Brunet
           if(real_locker != locker) {
             string err = String.Format("On node " + _local + ", " + locker +
                 " tried to unlock " + a + " but not the owner");
-            ProtocolLog.WriteIf(ProtocolLog.ConnectionTableLocks, err);
+            if(ProtocolLog.ConnectionTableLocks.Enabled)
+              ProtocolLog.Write(ProtocolLog.ConnectionTableLocks, err);
             throw new Exception(err);
           }
 
@@ -1043,8 +1056,9 @@ namespace Brunet
           StatusChangedEvent(sm, new ConnectionEventArgs(newcon, index) );
         }
         catch(Exception x) {
-          ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
-            "StatusChangedEvent triggered exception: {0}\n{1}", newcon, x));
+          if(ProtocolLog.Exceptions.Enabled)
+            ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
+              "StatusChangedEvent triggered exception: {0}\n{1}", newcon, x));
         }
       }
       return newcon;
@@ -1068,8 +1082,9 @@ namespace Brunet
       // No point in being here if e is closed...
       if(e.IsClosed)
         return;
-      ProtocolLog.WriteIf(ProtocolLog.Stats, String.Format(
-        "Initial add to unconnected {0}|{1}", e, DateTime.UtcNow.Ticks));
+      if(ProtocolLog.Stats.Enabled)
+        ProtocolLog.Write(ProtocolLog.Stats, String.Format(
+          "Initial add to unconnected {0}|{1}", e, DateTime.UtcNow.Ticks));
       lock( _sync ) {
         int idx = _unconnected.IndexOf(e);
         if( idx < 0 ) {

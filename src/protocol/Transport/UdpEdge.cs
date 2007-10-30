@@ -119,10 +119,11 @@ namespace Brunet
         throw new EdgeException("Tried to send on a closed UdpEdge"); 
       }
       if( p == null ) {
-        ProtocolLog.WriteIf(ProtocolLog.UdpEdge, String.Format(
-          "{0} tried to send a null packet", this));
+        if(ProtocolLog.UdpEdge.Enabled)
+          ProtocolLog.Write(ProtocolLog.UdpEdge, String.Format(
+            "{0} tried to send a null packet", this));
         throw new System.NullReferenceException(
-	                 "UdpEdge.Send: argument can't be null");
+          "UdpEdge.Send: argument can't be null");
       }
 
       _send_cb.HandleEdgeSend(this, p);

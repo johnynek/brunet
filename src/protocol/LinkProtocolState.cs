@@ -117,8 +117,9 @@ namespace Brunet
       try {
         lock( _sync ) {
           if( _target_lock != null ) {
-            ProtocolLog.WriteIf(ProtocolLog.LPS, String.Format(
-              "Lock released by destructor"));
+            if(ProtocolLog.LinkDebug.Enabled)
+              ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
+                "Lock released by destructor"));
             Unlock();
           }
         }
@@ -173,8 +174,9 @@ namespace Brunet
       /*
        * No matter what, we are done here:
        */
-      ProtocolLog.WriteIf(ProtocolLog.LinkDebug, String.Format(
-        "LPS: {0} finished: {2}, with exception: {1}", _node.Address, _x, res));
+      if(ProtocolLog.LinkDebug.Enabled)
+        ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
+          "LPS: {0} finished: {2}, with exception: {1}", _node.Address, _x, res));
 
       Edge to_close = null;
       bool close_gracefully = false;
@@ -219,8 +221,9 @@ namespace Brunet
       else {
         //We got a connection, don't close it!
       }
-      ProtocolLog.WriteIf(ProtocolLog.LinkDebug, String.Format(
-        "LPS: {0} got connection: {1}", _node.Address, _con));
+      if(ProtocolLog.LinkDebug.Enabled)
+        ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
+          "LPS: {0} got connection: {1}", _node.Address, _con));
       try {
         //This could throw an exception, but make sure we unlock if it does.
         FireFinished();
@@ -259,8 +262,9 @@ namespace Brunet
         else if( tab.Contains( Connection.StringToMainType( _contype ), target) ) {
           //This shouldn't happen
           result = Result.ProtocolError;
-          ProtocolLog.WriteIf(ProtocolLog.LPS, String.Format(
-            "Already connected: {0}, {1}", _contype, _target_lock));
+          if(ProtocolLog.LinkDebug.Enabled)
+            ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
+              "Already connected: {0}, {1}", _contype, _target_lock));
         }
         else {
           //The other guy thinks we are connected, but we disagree,
@@ -278,8 +282,9 @@ namespace Brunet
          * Move to the next TA since this TA definitely connects to
          * the wrong guy.
          */
-        ProtocolLog.WriteIf(ProtocolLog.LPS, String.Format(
-          "LPS: from {0} target mismatch: {1}", _e, _target_lock));
+        if(ProtocolLog.LinkDebug.Enabled)
+          ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
+            "LPS: from {0} target mismatch: {1}", _e, _target_lock));
         result = Result.MoveToNextTA;
       }
       else if ( c == (int)ErrorMessage.ErrorCode.ConnectToSelf ) {
@@ -297,8 +302,9 @@ namespace Brunet
         }
       }
       else {
-        ProtocolLog.WriteIf(ProtocolLog.LPS, String.Format(
-          "Unrecognized error code: {0}", c));
+        if(ProtocolLog.LinkDebug.Enabled)
+          ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
+            "Unrecognized error code: {0}", c));
       }
       return result;
     }
@@ -529,8 +535,9 @@ namespace Brunet
          * unexpected happened.  Let's try it this edge again if we
          * can
          */
-        ProtocolLog.WriteIf(ProtocolLog.LPS, String.Format(
-          "LPS.StatusResultHandler Exception: {0}", x));
+        if(ProtocolLog.LinkDebug.Enabled)
+          ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
+            "LPS.StatusResultHandler Exception: {0}", x));
         Finish(Result.RetryThisTA);
       }
     }

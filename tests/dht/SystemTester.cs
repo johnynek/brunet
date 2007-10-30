@@ -183,8 +183,8 @@ namespace Test {
       }
       arr_tas.Add(new ConstantAuthorizer(TAAuthorizer.Decision.Allow));
       TAAuthorizer ta_auth = new SeriesTAAuthorizer(arr_tas);
-      node.AddEdgeListener(new ASUdpEdgeListener(local_port, null));//, ta_auth));
-      node.AddEdgeListener(new TunnelEdgeListener(node));
+      node.AddEdgeListener(new UdpEdgeListener(local_port, null));//, ta_auth));
+//      node.AddEdgeListener(new TunnelEdgeListener(node));
       node.RemoteTAs = RemoteTA;
       node.Connect();
       taken_ports[local_port] = node;

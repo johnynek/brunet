@@ -32,6 +32,8 @@ namespace Brunet {
         new BooleanSwitch("LPS", "Log for link protocol state");
     public static BooleanSwitch Monitor =
         new BooleanSwitch("Monitor", "Log the system monitor");
+    public static BooleanSwitch tmp =
+        new BooleanSwitch("tmp", "Log the system monitor");
 
     public static void Enable() {
       if(ConsoleLogEnable.Enabled) {
@@ -49,6 +51,12 @@ namespace Brunet {
       if(bs.Enabled) {
         Trace.WriteLine(bs.DisplayName + ":  " + msg);
       }
+#endif
+    }
+
+    public static void Write(BooleanSwitch bs, string msg) {
+#if TRACE
+      Trace.WriteLine(bs.DisplayName + ":  " + msg);
 #endif
     }
   }

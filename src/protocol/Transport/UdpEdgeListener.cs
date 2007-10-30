@@ -19,9 +19,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-//Copying packets may reduce heap fragmentation, lets see
-//#define COPY_PACKETS
-
 using Brunet;
 using System;
 using System.IO;
@@ -33,15 +30,16 @@ using System.Collections;
 namespace Brunet
 {
   /**
-   * There are multiple implementations of Udp transports for
-   * Brunet.  This is a base class with the shared code.
+   * A EdgeListener that uses UDP for the underlying
+   * protocol.  This listener creates UDP edges.
+   * 
+   * The UdpEdgeListener creates two threads, one for reading from the socket
+   * and the other writing to the socket.  Tests suggest that having a single
+   * thread for writing improves bandwidth and latency performance over using 
+   * asynchronous sockets or calling a send over a threadpool.
    */
-  public abstract class UdpEdgeListenerBase : EdgeListener, IEdgeSendHandler
+  public class UdpEdgeListener : EdgeListener, IEdgeSendHandler
   {
-    ///Here is the queue for outgoing packets:
-    protected Queue _send_queue;
-    //This is 1 if there is something in the queue
-    protected int _total_to_send;
     /**
      * This is a simple little class just to hold the
      * two objects needed to do a send
@@ -51,9 +49,19 @@ namespace Brunet
         Packet = p;
         Sender = udpe;
         ErrorCount = 0;
+        Control = false;
       }
+      public SendQueueEntry(MemBlock p, EndPoint e) {
+        Data = p;
+        End = e;
+        Control = true;
+      }
+
       public readonly ICopyable Packet;
       public readonly UdpEdge Sender;
+      public readonly EndPoint End;
+      public readonly MemBlock Data;
+      public readonly bool Control;
       public int ErrorCount;
     }
     //After this many SocketException errors stop trying to send a packet
@@ -88,17 +96,17 @@ namespace Brunet
         return TransportAddress.TAType.Udp;
       }
     }
-    
+
     ///used for thread for the socket synchronization
     protected object _sync;
-    
+
     volatile protected bool _running;
     volatile protected bool _isstarted;
     public override bool IsStarted
     {
       get { return _isstarted; }
     }
-    
+
     protected int _port;
     //This is our best guess of the local endpoint
     protected IPEndPoint _local_ep {
@@ -106,13 +114,13 @@ namespace Brunet
         return GuessLocalEndPoint(_tas); 
       }
     }
-    
+
     protected enum ControlCode : int
     {
       EdgeClosed = 1,
       EdgeDataAnnounce = 2 ///Send a dictionary of various data about the edge
     }
-    
+
     override public TAAuthorizer TAAuth {
       /**
        * When we add a new TAAuthorizer, we have to check to see
@@ -133,7 +141,7 @@ namespace Brunet
         }
         //Close the newly bad Edges.
         foreach(Edge e in bad_edges) {
-          e.Close();   
+          e.Close();
         }
       }
     }
@@ -199,8 +207,9 @@ namespace Brunet
         //This edge has some control information.
         try {
           ControlCode code = (ControlCode)NumberSerializer.ReadInt(buffer, 0);
-          ProtocolLog.WriteIf(ProtocolLog.UdpEdge, String.Format(
-            "Got control {1} from: {0}", e, code));
+          if(ProtocolLog.UdpEdge.Enabled)
+            ProtocolLog.Write(ProtocolLog.UdpEdge, String.Format(
+              "Got control {1} from: {0}", e, code));
           if( code == ControlCode.EdgeClosed ) {
             //The edge has been closed on the other side
             e.Close();
@@ -215,8 +224,9 @@ namespace Brunet
               TransportAddress new_ta = TransportAddressFactory.CreateInstance(our_local_ta);
               TransportAddress old_ta = e.PeerViewOfLocalTA;
               if( ! new_ta.Equals( old_ta ) ) {
-                ProtocolLog.WriteIf(ProtocolLog.UdpEdge, String.Format(
-                  "Local NAT Mapping changed on Edge: {0}\n{1} => {2}",
+                if(ProtocolLog.UdpEdge.Enabled)
+                  ProtocolLog.Write(ProtocolLog.UdpEdge, String.Format(
+                    "Local NAT Mapping changed on Edge: {0}\n{1} => {2}",
                  e, old_ta, new_ta));
                 //Looks like matters have changed:
                 this.UpdateLocalTAs(e, new_ta);
@@ -232,7 +242,8 @@ namespace Brunet
         }
         catch(Exception x) {
         //This could happen if this is some control message we don't understand
-          ProtocolLog.WriteIf(ProtocolLog.Exceptions, x.ToString());
+          if(ProtocolLog.Exceptions.Enabled)
+            ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
         }
       }
     }
@@ -273,8 +284,9 @@ namespace Brunet
             ///@todo perhaps we should send a control message... I don't know
             is_new_edge= false;
             read_packet = false;
-            ProtocolLog.WriteIf(ProtocolLog.UdpEdge, String.Format(
-              "Denying: {0}", rta));
+            if(ProtocolLog.UdpEdge.Enabled)
+              ProtocolLog.Write(ProtocolLog.UdpEdge, String.Format(
+                "Denying: {0}", rta));
           }
           else {
             //We need to assign it a local ID:
@@ -334,9 +346,10 @@ namespace Brunet
       }
       if( (edge != null) && !edge.End.Equals(end) ) {
         //This happens when a NAT mapping changes
-        ProtocolLog.WriteIf(ProtocolLog.UdpEdge, String.Format(
-          "Remote NAT Mapping changed on Edge: {0}\n{1} -> {2}",
-           edge, edge.End, end)); 
+        if(ProtocolLog.UdpEdge.Enabled)
+          ProtocolLog.Write(ProtocolLog.UdpEdge, String.Format(
+            "Remote NAT Mapping changed on Edge: {0}\n{1} -> {2}",
+            edge, edge.End, end)); 
         //Actually update:
         TransportAddress rta = TransportAddressFactory.CreateInstance(this.TAType,(IPEndPoint)end);
         if( _ta_auth.Authorize(rta) != TAAuthorizer.Decision.Deny ) {
@@ -377,6 +390,7 @@ namespace Brunet
         }
       }
     }
+
     /**
      * When a new Connection is added, we may need to update the list
      * of TAs to make sure it is not too long, and that the it is sorted
@@ -393,12 +407,6 @@ namespace Brunet
         _nat_tas = new NatTAs( _tas, _nat_hist );
       }
     }
-
-   /**
-     * Each implementation may have its own way of doing this
-     */
-    protected abstract void SendControlPacket(EndPoint end, int remoteid, int localid,
-                                     ControlCode c, object state);
 
     /**
      * Implements the EdgeListener function to 
@@ -455,28 +463,12 @@ namespace Brunet
       }
     }
 
-    public abstract void HandleEdgeSend(Edge from, ICopyable p);
-  }
-
-  /**
-  * A EdgeListener that uses UDP for the underlying
-  * protocol.  This listener creates UDP edges.
-  * 
-  * The UdpEdgeListener creates one thread.  In that
-  * thread it loops processing reads.  The UdpEdgeListener
-  * keeps a Queue of packets to send also.  After each
-  * read attempt, it sends all the packets in the Queue.
-  *
-  */
-
-  public class UdpEdgeListener : UdpEdgeListenerBase
-  {
-
     protected IPEndPoint ipep;
     protected Socket _s;
+    protected new BlockingQueue _send_queue;
 
     ///this is the thread were the socket is read:
-    protected Thread _thread;
+    protected Thread _listen_thread, _send_thread;
 
     public UdpEdgeListener(int port)
     : this(port, null, null)
@@ -522,18 +514,16 @@ namespace Brunet
       _sync = new object();
       _running = false;
       _isstarted = false;
-      _send_queue = new QueueWithTimeout(60);
-      _total_to_send = 0;
       ///@todo, we need a system for using the cryographic RNG
       _rand = new Random();
       _send_handler = this;
+      _send_queue = new BlockingQueue();
     }
 
-    protected override void SendControlPacket(EndPoint end, int remoteid, int localid,
+    protected void SendControlPacket(EndPoint end, int remoteid, int localid,
                                      ControlCode c, object state)
     {
       using(MemoryStream ms = new MemoryStream()) {
-        Socket s = (Socket)state;
         NumberSerializer.WriteInt(localid, ms);
         //Bit flip to indicate this is a control packet
         NumberSerializer.WriteInt(~remoteid, ms);
@@ -547,21 +537,18 @@ namespace Brunet
             AdrConverter.Serialize(t, ms);
           }
           else {
-            ProtocolLog.WriteIf(ProtocolLog.UdpEdge, String.Format(
-              "Problem sending EdgeData: EndPoint: {0}, remoteid: {1}, " +
-              "localid: {2}, Edge: {3}", end, remoteid, localid, e));
+            if(ProtocolLog.UdpEdge.Enabled)
+              ProtocolLog.Write(ProtocolLog.UdpEdge, String.Format(
+                "Problem sending EdgeData: EndPoint: {0}, remoteid: {1}, " +
+                "localid: {2}, Edge: {3}", end, remoteid, localid, e));
           }
         }
 
-        try {
-          s.SendTo( ms.ToArray(), end);
-          ProtocolLog.WriteIf(ProtocolLog.UdpEdge, String.Format(
+        SendQueueEntry sqe = new SendQueueEntry(ms.ToArray(), end);
+        _send_queue.Enqueue(sqe);
+        if(ProtocolLog.UdpEdge.Enabled)
+          ProtocolLog.Write(ProtocolLog.UdpEdge, String.Format(
             "Sending control {1} to: {0}", end, c));
-        }
-        catch (SocketException sc) {
-          ProtocolLog.WriteIf(ProtocolLog.UdpEdge, String.Format(
-            "Error in Socket.SendTo. Endpoint: {0}\n{1}", end, sc));
-        }
       }
     }
     /**
@@ -581,8 +568,10 @@ namespace Brunet
         _isstarted = true;
         _running = true;
       }
-      _thread = new Thread( new ThreadStart(this.SocketThread) );
-      _thread.Start();
+      _listen_thread = new Thread( new ThreadStart(this.ListenThread) );
+      _listen_thread.Start();
+      _send_thread = new Thread( new ThreadStart(this.SendThread) );
+      _send_thread.Start();
     }
 
     /**
@@ -591,6 +580,7 @@ namespace Brunet
     public override void Stop()
     {
       _running = false;
+      _send_queue.Close();
     }
 
     /**
@@ -601,285 +591,129 @@ namespace Brunet
      * This is the only thread that can touch the socket,
      * therefore, we do not need to lock the socket.
      */
-    protected void SocketThread() // error happening here
+    protected void ListenThread()
     {
-      //Wait 1 ms before giving up on a read
-      int microsecond_timeout = 1000;
-      /*
-       * The number of milliseconds we sleep after
-       * failing to send an entire queue
-       */
-      const int DEFAULT_ERROR_SLEEP_MS = 100;
-      int non_empty_queue_sleep_time = DEFAULT_ERROR_SLEEP_MS;
-      //Make sure only this thread can see the socket from now on!
-      Socket s = Interlocked.Exchange( ref _s, null);
-      EndPoint end = new IPEndPoint(IPAddress.Any, 0);
-      
+      // Lock the socket so that the Send thread will wait for all receives to end before closing
       BufferAllocator ba = new BufferAllocator(8 + Packet.MaxLength);
-      //This is used to make sure the writers always have a queue to write
-      //into, see where we do Exchange with _send_queue
-      Queue tmp_queue = new Queue();
+      EndPoint end = new IPEndPoint(IPAddress.Any, 0);
       while(_running) {
-        bool read = false;
-
-        /**
-         * Note that at no time do we hold two locks, or
-         * do we hold a lock across an external function call or event
-         */
-        //Read if we can:
-        int rec_bytes = 0;
-        //this is the only thread that can touch the socket!!!!!
-        //otherwise we must lock!!!
         try {
-          read = s.Poll( microsecond_timeout, SelectMode.SelectRead );
-          if( read ) {
-            int max = ba.Capacity;
-            rec_bytes = s.ReceiveFrom(ba.Buffer, ba.Offset, max, SocketFlags.None, ref end);
-            //Get the id of this edge:
-            if( rec_bytes >= 8 ) {
-              int remoteid = NumberSerializer.ReadInt(ba.Buffer, ba.Offset);
-              int localid = NumberSerializer.ReadInt(ba.Buffer, ba.Offset + 4);
-#if COPY_PACKETS
-              /*
-               * Copy so we don't re-allocate large buffers which may cause
-               * heap fragmentation
-               */
-              MemBlock packet_buffer = MemBlock.Copy(ba.Buffer, ba.Offset + 8, rec_bytes - 8);
+          int max = ba.Capacity;
+          int rec_bytes = _s.ReceiveFrom(ba.Buffer, ba.Offset, max, SocketFlags.None, ref end);
+          //Get the id of this edge:
+          if( rec_bytes >= 8 ) {
+            int remoteid = NumberSerializer.ReadInt(ba.Buffer, ba.Offset);
+            int localid = NumberSerializer.ReadInt(ba.Buffer, ba.Offset + 4);
 
-#else
+            MemBlock packet_buffer = MemBlock.Reference(ba.Buffer, ba.Offset + 8, rec_bytes - 8);
+            ba.AdvanceBuffer(rec_bytes);
+
+            if( localid < 0 )
               /*
-               * Make a reference to this memory, don't copy.  This may be
-               * faster since we don't copy, but it may have some memory
-               * impacts.
-               */
-              MemBlock packet_buffer = MemBlock.Reference(ba.Buffer, ba.Offset + 8, rec_bytes - 8);
-              ba.AdvanceBuffer(rec_bytes);
-#endif
-              if( localid < 0 ) {
-                /*
-                 * We never give out negative id's, so if we got one
-                 * back the other node must be sending us a control
-                 * message.
-                 */
-                HandleControlPacket(remoteid, localid, packet_buffer, s);
-              } else {
-                HandleDataPacket(remoteid, localid, packet_buffer, end, s);
-              }
-            } else {
-              /*
-               * Some one sent us less than 8 bytes
-               */
-            }
-          } else {
-            // There is nothing to read from the 
-            // Socket.
+              * We never give out negative id's, so if we got one
+              * back the other node must be sending us a control
+              * message.
+              */
+              HandleControlPacket(remoteid, localid, packet_buffer, null);
+            else
+              HandleDataPacket(remoteid, localid, packet_buffer, end, null);
           }
+        }
+        catch(SocketException x) {
+          if(_running)
+            if(ProtocolLog.Exceptions.Enabled)
+              ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
+        }
+        catch(ObjectDisposedException x) {
+          if(_running)
+            if(ProtocolLog.Exceptions.Enabled)
+              ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
+          break;
         }
         catch(Exception x) {
           //Possible socket error. Just ignore the packet.
-          ProtocolLog.WriteIf(ProtocolLog.Exceptions, x.ToString());
+          if(ProtocolLog.Exceptions.Enabled)
+            ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
         }
-        /*
-         * We are done with handling the reads.  Now lets
-         * deal with all the pending sends:
-         *
-         * The below is some advanced thread synchronization.
-         * This makes HandleEdgeSend much faster (about 10 times
-         * faster, or from 500 ms to around 50 ms on one
-         * benchmark).
-         *
-         * This code is a bit subtle and should not be changed without
-         * very clear understanding of what is going on.
-         *
-         * The basic idea is to keep swap two queues between this thread
-         * and threads calling HandleSend so that we usually don't have
-         * to try many times before we find a non-empty queue. 
-         */
-        if( tmp_queue.Count > 0 ) {
-          int original_count = tmp_queue.Count;
-          //We can use the BufferAllocator without advancing
-          //because after this call, we are done with this buffer space
-          SendQueue(tmp_queue, s, ba.Buffer, ba.Offset);
-          int final_count = tmp_queue.Count;
-          for( int i = final_count; i < original_count; i++) {
-            Interlocked.Decrement(ref _total_to_send);
-          }
-          /*
-           * We only fail to empty the queue if there is some problem
-           * with the socket, which we have only seen when there is
-           * an operating system problem (specifically, buffers being
-           * filled and the send failing).  So, let's sleep and hope
-           * this problem passes.
-           */
-          if( final_count == 0 ) {
-            //We emptied the send queue, everything looks okay
-            non_empty_queue_sleep_time = DEFAULT_ERROR_SLEEP_MS;
-          }
-          else {
-            //Double the sleep time:
-            non_empty_queue_sleep_time *= 2;
-            if( non_empty_queue_sleep_time < 0 ) {
-              non_empty_queue_sleep_time = Int32.MaxValue;
-            }
-            Thread.Sleep( non_empty_queue_sleep_time );
-          }
-        }
-        else if ( Thread.VolatileRead(ref _total_to_send ) > 0 ) {
-          /*
-           * tmp_queue is now empty, but the other one must not be.
-           */
-          do {
-            tmp_queue = Interlocked.Exchange( ref _send_queue, tmp_queue );
-            if( tmp_queue != null ) {
-              /*
-               * Okay we have a queue, it either is _send_queue or the
-               * original tmp_queue allocated in this thread, they are
-               * the only two queues allocated in this object.
-               */
-              if( tmp_queue.Count == 0 ) {
-               /* Some queue is not empty, and it's clearly not this
-                * one.
-                *
-                * let the HandleSend finish putting the queue back.
-                */
-//                Thread.SpinWait(10);
-              }
-              else {
-                //We have a non-null queue with tmp_queue.Count > 0
-                break;
-              }
-            }
-            else {
-              //We have null, swap it back, HandleSend might want it.
-            }
-          } while( true );
-          //Now, we have a non-empty queue.
-          int original_count = tmp_queue.Count;
-          //We can use the BufferAllocator without advancing
-          //because after this call, we are done with this buffer space
-          SendQueue(tmp_queue, s, ba.Buffer, ba.Offset);
-          int final_count = tmp_queue.Count;
-          for( int i = final_count; i < original_count; i++) {
-            Interlocked.Decrement(ref _total_to_send);
-          }
-          /*
-           * We only fail to empty the queue if there is some problem
-           * with the socket, which we have only seen when there is
-           * an operating system problem (specifically, buffers being
-           * filled and the send failing).  So, let's sleep and hope
-           * this problem passes.
-           */
-          if( final_count == 0 ) {
-            //We emptied the send queue, everything looks okay
-            non_empty_queue_sleep_time = DEFAULT_ERROR_SLEEP_MS;
-          }
-          else {
-            //Double the sleep time:
-            non_empty_queue_sleep_time *= 2;
-            if( non_empty_queue_sleep_time < 0 ) {
-              non_empty_queue_sleep_time = Int32.MaxValue;
-            }
-            Thread.Sleep( non_empty_queue_sleep_time );
-          }
-        }
-        //Now it is time to see if we can read...
       }
-      s.Close();
     }
 
-    /**
-     * Send all the items in this queue if possible.  In some cases, we
-     * can't empty the queue (in the case of some SocketErrors).
-     */
-    private static void SendQueue(Queue tmp_queue, Socket s, byte[] buffer, int offset) {
-      while( tmp_queue.Count > 0 ) {
-        SendQueueEntry sqe = (SendQueueEntry)tmp_queue.Dequeue();
+    private void SendThread()
+    {
+      byte []buffer = new byte[Packet.MaxLength];
+      SendQueueEntry sqe = null;
+      while(_running) {
         try {
-          Send(sqe, s, buffer, offset);
+          sqe = (SendQueueEntry) _send_queue.Dequeue();
+          if(sqe.Control) {
+            _s.SendTo(sqe.Data, sqe.End);
+          }
+          else {
+            //We have a packet to send
+            ICopyable p = sqe.Packet;
+            UdpEdge sender = sqe.Sender;
+            EndPoint e = sender.End;
+            //Write the IDs of the edge:
+            //[local id 4 bytes][remote id 4 bytes][packet]
+            NumberSerializer.WriteInt(sender.ID, buffer, 0);
+            NumberSerializer.WriteInt(sender.RemoteID, buffer, 4);
+            int plength = p.CopyTo(buffer, 8);
+            _s.SendTo(buffer, 8 + plength, SocketFlags.None, e);
+          }
         }
         catch(SocketException x) {
-         /*
+        /*
           * some nodes have transient problems with their
           * networking.  We count the number of errors,
           * break out, to slow down sending a bit, and
           * hopefully things will get better.
-          */
+        */
           sqe.ErrorCount++;
           if( sqe.ErrorCount < MAX_ERROR_COUNT ) {
-            /*
-             * Put it in the back of the queue and break out.
-             * Hopefully by the time we try again matters will
-             * be better
-             */
-            tmp_queue.Enqueue(sqe);
-            break;
+          /*
+            * Put it in the back of the queue and break out.
+            * Hopefully by the time we try again matters will
+            * be better
+          */
+            _send_queue.Enqueue(sqe);
           }
           else {
-            /*
-             * Oh well, it had it's chance.  Close the edge and
-             * print a message.
-             */
-            ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
-              "SocketExceptions ({0}) on packet of length({1}): closing " +
-              "Edge: {2}\n{3}", sqe.ErrorCount, sqe.Packet.Length,
-              sqe.Sender, x));
+          /*
+            * Oh well, it had it's chance.  Close the edge and
+            * print a message.
+          */
+            if(ProtocolLog.Exceptions.Enabled)
+              ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
+                "SocketExceptions ({0}) on packet of length({1}): closing " +
+                "Edge: {2}\n{3}", sqe.ErrorCount, sqe.Packet.Length,
+                sqe.Sender, x));
             sqe.Sender.Close();
           }
         }
+        catch(InvalidOperationException) {
+          break;
+        }
         catch(Exception x) {
-        /*
-         * Some non-socket exception.  This should never happen.
-         * Print it out to hope to debug it later
-         */
-          ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
-            "Error in UdpEdgeListener.Send. Edge: {0}\n{1}", sqe.Sender, x));
-
+      /*
+          * Some non-socket exception.  This should never happen.
+          * Print it out to hope to debug it later
+      */
+          if(ProtocolLog.Exceptions.Enabled)
+            ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
+              "Error in UdpEdgeListener.Send. Edge: {0}\n{1}", sqe.Sender, x));
         }
       }
-    }
-
-    private static void Send(SendQueueEntry sqe, Socket s, byte[] buffer, int offset)
-    {
-      //We have a packet to send
-      ICopyable p = sqe.Packet;
-      UdpEdge sender = sqe.Sender;
-      EndPoint e = sender.End;
-      //Write the IDs of the edge:
-      //[local id 4 bytes][remote id 4 bytes][packet]
-      NumberSerializer.WriteInt(sender.ID, buffer, offset);
-      NumberSerializer.WriteInt(sender.RemoteID, buffer, offset + 4);
-      int plength = p.CopyTo(buffer, offset + 8);
-      s.SendTo(buffer, offset, 8 + plength, SocketFlags.None, e);
+      _s.Close();
     }
 
     /**
      * When UdpEdge objects call Send, it calls this packet
      * callback:
      */
-    public override void HandleEdgeSend(Edge from, ICopyable p)
+    public void HandleEdgeSend(Edge from, ICopyable p)
     {
-      /*
-       * This is a lock-free implementation to reduce latency
-       * on sending
-       */
       SendQueueEntry sqe = new SendQueueEntry(p, (UdpEdge)from);
-      Queue tmp_queue = null;
-      //Get access to the queue:
-      do {
-        tmp_queue = Interlocked.Exchange( ref _send_queue, tmp_queue);
-      }
-      while( tmp_queue == null );
-      tmp_queue.Enqueue(sqe);
-      int count = Interlocked.Increment(ref _total_to_send);
-      //Put it back:
-      do {
-        tmp_queue = Interlocked.Exchange( ref _send_queue, tmp_queue);
-      }
-      while( tmp_queue != null );
-      if( count % 1000 == 0 ) {
-        ProtocolLog.WriteIf(ProtocolLog.UdpEdge, String.Format(
-          "UdpEdgeListener has {0} elements in Send Queue", count));
-      }
+      _send_queue.Enqueue(sqe);
     }
   }
 }
