@@ -245,11 +245,13 @@ namespace Brunet
       protected void HandleEdge(bool success, Edge e, Exception x) {
         if(ProtocolLog.LinkDebug.Enabled) {
           if (success) {
-            ProtocolLog.WriteIf(ProtocolLog.LinkDebug, String.Format(
-                                "(Linker) Handle edge success{0}: ", e));
+            if(ProtocolLog.LinkDebug.Enabled)
+                ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
+                  "(Linker) Handle edge success{0}: ", e));
           } else {
-            ProtocolLog.WriteIf(ProtocolLog.LinkDebug, String.Format(
-                                "(Linker) Handle edge failure{0}: ", x));
+            if(ProtocolLog.LinkDebug.Enabled)
+              ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
+              "(Linker) Handle edge failure{0}: ", x));
           }
         }
         lock( _sync ) {

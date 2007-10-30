@@ -50,7 +50,8 @@ namespace Brunet {
         in_sleep = true;
       }
 
-      ProtocolLog.WriteIf(ProtocolLog.Monitor, "Sleeping for "
+      if(ProtocolLog.Monitor.Enabled)
+        ProtocolLog.Write(ProtocolLog.Monitor, "Sleeping for "
           + sleep_time / 1000 + " seconds");
       _node.sleep_mode = true;
       System.Threading.Thread.Sleep(sleep_time);
@@ -58,7 +59,8 @@ namespace Brunet {
         WakeUpEvent(this, EventArgs.Empty);
       _node.sleep_mode = false;
 
-      ProtocolLog.WriteIf(ProtocolLog.Monitor, "Sleeping over");
+      if(ProtocolLog.Monitor.Enabled)
+        ProtocolLog.Write(ProtocolLog.Monitor, "Sleeping over");
       if(sleep_time < MAXIMUM_SLEEP_TIME)
         sleep_time *= 2;
       in_sleep = false;
@@ -127,9 +129,10 @@ namespace Brunet {
       }
       arrivals /= count;
       services /= count;
-      ProtocolLog.WriteIf(ProtocolLog.Monitor, String.Format(
-        "HeartBeat arrivals/services/lost = {0}/{1}/{2}", arrivals, services,
-        _lost));
+      if(ProtocolLog.Monitor.Enabled)
+        ProtocolLog.Write(ProtocolLog.Monitor, String.Format(
+          "HeartBeat arrivals/services/lost = {0}/{1}/{2}", arrivals, services,
+          _lost));
       if((services > arrivals && services > 5) || services > 15)
         _monitor.Sleep();
       lock(_sync) {
@@ -238,8 +241,9 @@ namespace Brunet {
       }
       arrivals /= count;
       services /= count;
-      ProtocolLog.WriteIf(ProtocolLog.Monitor, String.Format(
-        "PacketQueue arrivals/services = {0}/{1}", arrivals, services));
+      if(ProtocolLog.Monitor.Enabled)
+        ProtocolLog.Write(ProtocolLog.Monitor, String.Format(
+          "PacketQueue arrivals/services = {0}/{1}", arrivals, services));
       if((services > arrivals && services > 15) || services > 30)
         _monitor.Sleep();
     }
