@@ -18,7 +18,7 @@ namespace Ipop {
     private static ArrayList RemoteTAs;
     private static string ConfigFile;
     public static NodeMapping node;
-    private static byte []routerMAC = new byte[]{0xFE, 0xFD, 0, 0, 0, 0};
+    private static byte []routerMAC = new byte[]{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     private static bool in_dht;
 
     private static Thread sdthread;
@@ -210,7 +210,7 @@ namespace Ipop {
       while(true) {
         //now the packet
         MemBlock packet = ether.ReceivePacket();
-        if (packet == null) {
+        if(packet == null) {
           ProtocolLog.WriteIf(IPOPLog.BaseLog, "error reading packet from ethernet");
           continue;
         }
@@ -233,8 +233,9 @@ namespace Ipop {
           int srcPort = IPPacketParser.GetSrcPort(payload);
           int protocol = IPPacketParser.GetProtocol(payload);
 
-          ProtocolLog.WriteIf(IPOPLog.PacketLog, String.Format(
-            "Outgoing {0} packet::IP src: {1}:{2}," +
+          if(IPOPLog.PacketLog.Enabled)
+            ProtocolLog.Write(IPOPLog.PacketLog, String.Format(
+              "Outgoing {0} packet::IP src: {1}:{2}," +
               "IP dst: {3}:{4}", protocol, srcAddr, srcPort, destAddr,
               destPort));
 
@@ -253,8 +254,9 @@ namespace Ipop {
             routes.RouteMiss(destAddr);
             continue;
           }
-          ProtocolLog.WriteIf(IPOPLog.PacketLog, String.Format(
-            "Brunet destination ID: {0}", target));
+          if(IPOPLog.PacketLog.Enabled)
+            ProtocolLog.Write(IPOPLog.PacketLog, String.Format(
+              "Brunet destination ID: {0}", target));
           node.brunet.SendPacket(target, payload);
         }
       }

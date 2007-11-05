@@ -22,9 +22,11 @@ namespace Ipop
     {
       IPAddress destAddr = IPPacketParser.GetDestAddr(p);
 
-      ProtocolLog.WriteIf(IPOPLog.PacketLog, String.Format(
+      if(IPOPLog.PacketLog.Enabled)
+        ProtocolLog.Write(IPOPLog.PacketLog, String.Format(
           "Incoming packet:: IP src: {0}, IP dst: {1}, p2p " +
-          "from: {2}", IPPacketParser.GetSrcAddr(p), destAddr, from));
+          "from: {2}, size: {3}", IPPacketParser.GetSrcAddr(p), destAddr, 
+          from, p.Length));
 
       if (!destAddr.Equals(this.node.ip))
         ProtocolLog.WriteIf(IPOPLog.PacketLog, String.Format(
