@@ -34,12 +34,12 @@ namespace Ipop {
       try {
         string server = "www.ip-adress.com";
         int port = 80;
-        Regex lat = new Regex("IP latitude.+\r\n.+");
-        Regex lon = new Regex("IP longitude.+\r\n.+");
+        Regex lat = new Regex("IP address latitude.+\r\n.+");
+        Regex lon = new Regex("IP address longitude.+\r\n.+");
         Regex num = new Regex("\\-{0,1}\\d+.\\d+");
         Socket s = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         s.Connect(server, port);
-        string request = "GET /iptracing/ HTTP/1.0\r\nHost: www.ip-adress.com\r\nUser-Agent:  IE6\r\n\r\n";
+        string request = "GET /ipaddresstolocation/ HTTP/1.1\r\nHost: www.ip-adress.com\r\n\r\n";
         byte[] bs = Encoding.ASCII.GetBytes(request);
         s.Send(bs, bs.Length, 0);
         string page = String.Empty;
@@ -59,7 +59,7 @@ namespace Ipop {
           }
         }
       }
-      catch {}
+      catch{}
       return ",";
     }
 

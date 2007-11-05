@@ -41,8 +41,6 @@ namespace Ipop {
             el = new TcpEdgeListener(port);
           else if (item.type == "udp")
             el = new UdpEdgeListener(port);
-          else if (item.type == "udp-as")
-            el = new ASUdpEdgeListener(port);
           else
             throw new Exception("Unrecognized transport: " + item.type);
         }
@@ -51,8 +49,6 @@ namespace Ipop {
             el = new TcpEdgeListener(port, OSDependent.GetIPAddresses(DevicesToBind));
           else if (item.type == "udp")
             el = new UdpEdgeListener(port, OSDependent.GetIPAddresses(DevicesToBind));
-          else if (item.type == "udp-as")
-            el = new ASUdpEdgeListener(port, OSDependent.GetIPAddresses(DevicesToBind), null);
           else
             throw new Exception("Unrecognized transport: " + item.type);
         }
