@@ -818,26 +818,8 @@ namespace Brunet
             }
           }
         }
-/*        ProtocolLog.WriteIf(ProtocolLog.Stats, String.Format(
-          "Edges average time: " + _connection_table.AverageEdgeTime));
-        ProtocolLog.WriteIf(ProtocolLog.Stats, String.Format(
-          "Announce average time: " + (AverageAnnounceTime)));
-        if(now - _last_sleep_timeout > TimeSpan.FromSeconds(60)) {
-          bool sleep = false;
-          if(AverageAnnounceTime > 5 || _connection_table.AverageEdgeTime < 5)
-            sleep = true;
-          if(sleep) {
-            ProtocolLog.WriteIf(ProtocolLog.Stats, String.Format(
-              "Node going under .... " + BASE_TIMEOUT * (2 << _timeouts)));
-            lock(_connection_table.SyncRoot) {
-              System.Threading.Thread.Sleep(BASE_TIMEOUT * (2 << _timeouts) );
-            }
-            if(_timeouts < MAX_TIMEOUT_MODIFIER)
-              _timeouts++;
-          }
-          else if(_timeouts > 0)
-            _timeouts--;
-        }*/
+
+        // Check the packet queue and heartbeat event for delays
         _pqm.CheckSystem();
         _hbm.CheckSystem();
       }
@@ -858,8 +840,9 @@ namespace Brunet
       lock(_heartbeat_sync) {
         if(_heartbeat_running) {
           _hbm.Lost();
-          ProtocolLog.WriteIf(ProtocolLog.NodeLog, "System must be running " +
-            "slow, more than one node waiting at heartbeat");
+          if(ProtocolLog.NodeLog.Enabled)
+            ProtocolLog.Write(ProtocolLog.NodeLog, "System must be running " +
+              "slow, more than one node waiting at heartbeat");
           return;
         }
         _heartbeat_running = true;
