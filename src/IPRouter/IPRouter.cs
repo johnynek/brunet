@@ -18,7 +18,8 @@ namespace Ipop {
     private static ArrayList RemoteTAs;
     private static string ConfigFile;
     public static NodeMapping node;
-    private static byte []routerMAC = new byte[]{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    private static byte []routerMAC = new byte[]{0xFE, 0xFD, 0, 0, 0, 0};
+    private static byte []arpMAC = new byte[]{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     private static bool in_dht;
 
     private static Thread sdthread;
@@ -73,7 +74,7 @@ namespace Ipop {
       /* ARP Reply */
       replyPacket[7] = 2;
       /* Source MAC Address */
-      Array.Copy(routerMAC, 0, replyPacket, 8, 6);
+      Array.Copy(arpMAC, 0, replyPacket, 8, 6);
       /* Source IP Address */
       Array.Copy(packet, 24, replyPacket, 14, 4);
       /* Target MAC Address */
