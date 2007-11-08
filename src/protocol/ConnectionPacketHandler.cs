@@ -237,6 +237,11 @@ namespace Brunet
             //We can connect, add this LinkMessage to the table
             _edge_to_cphstate[from] = cphstate;
             from.CloseEvent += this.CloseHandler;
+            if(from.IsClosed) {
+              CloseHandler(from, null);
+              throw new AdrException((int)ErrorMessage.ErrorCode.EdgeClosed,
+                                      "Edge Closed after receiving message");
+            }
           }
         }
         else {

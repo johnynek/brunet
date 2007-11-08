@@ -94,6 +94,7 @@ namespace Brunet
       AlreadyConnected = 18,
       TargetMismatch = 19,
       Disconnecting = 20,
+      EdgeClosed = 21,
       BadXml = 2000,
       SpecViolation = 2001,
       UnknownConnectionMessage = 2002,

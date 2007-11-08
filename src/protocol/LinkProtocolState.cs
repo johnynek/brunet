@@ -110,6 +110,11 @@ namespace Brunet
       //Setup the edge:
       _e = e;
       _e.CloseEvent += this.CloseHandler;
+      if(e.IsClosed) {
+        CloseHandler(e, null);
+        throw new AdrException((int)ErrorMessage.ErrorCode.EdgeClosed,
+                                "Edge already closed!");
+      }
     }
 
     //Make sure we are unlocked.
