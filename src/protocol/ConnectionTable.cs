@@ -778,23 +778,6 @@ namespace Brunet
     }
 
     /**
-     * It seems like some unconnected and closed edges are sticking around.
-     * This will only remove such edges.
-     * @param e Edge whose connection should be removed
-     */
-
-    public void RemoveUnconnected(Edge e)
-    {
-      if(e.IsClosed) {
-        lock(_sync) {
-          int idx = _unconnected.IndexOf(e);
-          if( idx >= 0 )
-            _unconnected = Functional.RemoveAt(_unconnected, idx);
-        }
-      }
-    }
-
-    /**
      * Remove the connection associated with an edge from the table
      * @param e Edge whose connection should be removed
      * @param add__unconnected if true, keep a reference to the edge in the
