@@ -108,7 +108,7 @@ namespace Brunet
     /*
      * Don't try to use TunnelEdge unless we have this many neighbors
      */
-    protected const int MIN_FORWARDERS = 2;
+    protected const int MIN_FORWARDERS = 1;
 
     /**
      * @return true if the Start method has been called
@@ -647,6 +647,11 @@ namespace Brunet
 
         if( ecs != null ) {
           e.CloseEvent += this.CloseHandler;
+          if(e.IsClosed) {
+            CloseHandler(e, null);
+            throw new AdrException((int)ErrorMessage.ErrorCode.EdgeClosed,
+                                    "Edge Closed after receiving message");
+          }
           //this would be an outgoing edge
 #if TUNNEL_DEBUG
           Console.Error.WriteLine("remoteid: {0}, localid: {1}", remoteid, localid);
@@ -721,6 +726,11 @@ namespace Brunet
           _id_ht[localid] = e;
           _remote_id_ht[remoteid] = e;
           e.CloseEvent += new EventHandler(this.CloseHandler);
+          if(e.IsClosed) {
+            CloseHandler(e, null);
+            throw new AdrException((int)ErrorMessage.ErrorCode.EdgeClosed,
+                                    "Edge Closed after receiving message");
+          }
 #if TUNNEL_DEBUG
           Console.Error.WriteLine("announcing tunnel edge (incoming): {0}", e);
 #endif 
