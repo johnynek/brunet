@@ -804,18 +804,10 @@ namespace Brunet
         }
         foreach(Edge e in _connection_table.GetUnconnectedEdges() ) {
           if( now - e.LastInPacketDateTime > _unconnected_timeout ) {
-            //We are not so charitable towards unconnected edges,
-            //if we haven't heard from them, just close them:
-            if(e.IsClosed) {
-              _connection_table.RemoveUnconnected(e);
-              ProtocolLog.WriteIf(ProtocolLog.Connections, String.Format(
-                "Removed an unconnected edge: {0}", e));
-            }
-            else {
-              ProtocolLog.WriteIf(ProtocolLog.Connections, String.Format(
+            if(ProtocolLog.Connections.Enabled)
+              ProtocolLog.Write(ProtocolLog.Connections, String.Format(
                 "Closed an unconnected edge: {0}", e));
-              e.Close();
-            }
+            e.Close();
           }
         }
 
