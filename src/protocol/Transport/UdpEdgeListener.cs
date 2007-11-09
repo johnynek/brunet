@@ -314,8 +314,12 @@ namespace Brunet
               _id_ht[localid] = edge;
               _remote_id_ht[remoteid] = edge;
             }
-            edge.CloseEvent += this.CloseHandler;
-            if( edge.IsClosed ) { CloseHandler(edge, null); }
+            try {
+              edge.CloseEvent += this.CloseHandler;
+            }
+            catch {
+              CloseHandler(edge, null);
+            }
           }
         }
       }
@@ -452,13 +456,12 @@ namespace Brunet
         _nat_tas = new NatTAs( _tas, _nat_hist );
 
         /* Tell me when you close so I can clean up the table */
-        e.CloseEvent += this.CloseHandler;
-        if( e.IsClosed ) {
-          CloseHandler(e, null);
-          ecb(false, null, new EdgeException("Edge closed unexpectedly"));
-        }
-        else {
+        try {
+          e.CloseEvent += this.CloseHandler;
           ecb(true, e, null);
+        }
+        catch {
+          CloseHandler(e, null);
         }
       }
     }

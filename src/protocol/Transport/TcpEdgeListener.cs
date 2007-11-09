@@ -446,9 +446,10 @@ namespace Brunet
         //lock before we change the Hashtable
         _sock_to_edge[s] = e;
       }
-
-      e.CloseEvent += this.CloseHandler;
-      if( e.IsClosed ) { CloseHandler(e, null); }
+      try {
+        e.CloseEvent += this.CloseHandler;
+      }
+      catch { CloseHandler(e, null); }
     }
 
     protected void CloseHandler(object edge, EventArgs arg)
