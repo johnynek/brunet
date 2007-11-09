@@ -285,9 +285,6 @@ namespace Brunet
         case "udp":
 		tmp_node.AddEdgeListener(new UdpEdgeListener(port+loop));
 		break;
-        case "udp-as":
-		tmp_node.AddEdgeListener(new ASUdpEdgeListener(port+loop));
-	        break;
 	case "function":
                 tmp_node.AddEdgeListener(new FunctionEdgeListener(port+loop));
                 break;
