@@ -190,12 +190,12 @@ namespace Brunet
           "{0} About to gracefully close all edges", this.Address));
       for(int i = 0; i < copy.Count; i++) {
         Edge e = (Edge)copy[i];
-        if(ProtocolLog.NodeLog.Enabled)
+        if(ProtocolLog.NodeLog.Enabled) {
           ProtocolLog.Write(ProtocolLog.NodeLog, String.Format(
             "{0} Closing: [{1} of {2}]: {3}", this.Address, i, copy.Count, e));
-        e.CloseEvent += ch;
-        if( e.IsClosed ) { ch(e, null); }
-        else {
+        }
+        try {
+          e.CloseEvent += ch;
           Channel res_q = new Channel();
           res_q.CloseAfterEnqueue();
           DateTime start_time = DateTime.UtcNow;
@@ -216,6 +216,9 @@ namespace Brunet
                 "Closing: {0}", e));
             e.Close();
           }
+        }
+        catch {
+          ch(e,null);
         }
       }
       if( copy.Count == 0 ) {
