@@ -44,8 +44,8 @@ namespace Brunet
     protected volatile bool _send_edge_events;
     volatile protected bool _run;
 
-    volatile protected ArrayList _all_sockets;
-    volatile protected ArrayList _send_sockets;
+    protected ArrayList _all_sockets;
+    protected ArrayList _send_sockets;
     volatile protected Hashtable _sock_to_edge;
     protected IEnumerable _tas;
     /**

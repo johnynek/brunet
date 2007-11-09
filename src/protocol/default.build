@@ -149,9 +149,6 @@
       define="TRACE"
       optimize="true"
       output="${build.dir}/${package.name}/bin/${assembly}.dll">
-      <nowarn>
-        <warning number="0420" />
-      </nowarn>
       <sources failonempty="true">
         <include name="*.cs"/>
         <include name="Util/*.cs"/>
