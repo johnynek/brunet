@@ -9,6 +9,11 @@ If you are interested in building the Brunet.dll library, you can go
 into the src/protocol directory and run NAnt.  The resulting library
 will be placed in the lib/ directory.
 
+On Debian/Ubuntu based systems, you'll need to install the following
+packages:
+
+nant mono mono-gmcs libmono-system-runtime2.0-cil
+
 Tests
 ======
 The tests/protocol directory has some simple interactive tests.  Some tests
