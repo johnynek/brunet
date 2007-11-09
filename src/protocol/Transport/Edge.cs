@@ -49,7 +49,7 @@ namespace Brunet
     public Edge()
     {
       _sync = new object();
-      _have_fired_close = 0;
+      _have_fired_close = false;
       //Atomically increment and update _edge_no
       _edge_no = System.Threading.Interlocked.Increment( ref _edge_count );
     }
@@ -61,13 +61,12 @@ namespace Brunet
       public void Handle(MemBlock b, ISender f) { Handler.HandleData(b, f, State); }
     }
     protected volatile Sub _sub;
+    protected object _sync;
     /**
      * Set to true once CloseEvent is fired.  This prevents it from
      * being fired twice
      */
-    
-    protected object _sync;
-    protected int _have_fired_close;
+    protected bool _have_fired_close;
     /**
      * Closes the Edge, further Sends are not allowed
      */
@@ -77,13 +76,15 @@ namespace Brunet
        * This makes sure CloseEvent is null after the first
        * call, this guarantees that there is only one CloseEvent
        */
-      int fired = System.Threading.Interlocked.Exchange(ref _have_fired_close, 1);
-      if( 0 == fired ) {
-        //We've never fired
-        EventHandler ch = System.Threading.Interlocked.Exchange
-                        (ref CloseEvent, null);
-        if( ch != null) { ch(this, null); }
+      EventHandler ch = null;
+      lock( _sync ) {
+        if( !_have_fired_close ) {
+          _have_fired_close = true;
+          ch = _close_event;
+          _close_event = null;
+        }
       }
+      if( ch != null ) { ch(this, null); }
 #if POB_DEBUG
       Console.Error.WriteLine("EdgeClose: edge: {0}", this);
 #endif
@@ -109,12 +110,34 @@ namespace Brunet
      */
     public virtual bool LocalTANotEphemeral { get { return false; } }
     
+    protected EventHandler _close_event;
     /**
      * When an edge is closed (either due to the Close method
      * being called or due to some error during the receive loop)
      * this event is fired.
+     *
+     * If the CloseEvent has already been fired, adding a handler will
+     * throw an EdgeException.
      */
-    public event EventHandler CloseEvent;
+    public event EventHandler CloseEvent {
+      add {
+        lock(_sync) {
+          if( !_have_fired_close ) {
+            _close_event = (EventHandler)Delegate.Combine(_close_event, value);
+          }
+          else {
+            // We've already fired the close event!!
+            throw new EdgeException(String.Format("Edge: {0} already fired CloseEvent",this));
+          }
+        }
+      }
+
+      remove {
+        lock(_sync) {
+          _close_event = (EventHandler)Delegate.Remove(_close_event, value);
+        }
+      }
+    }
 
     public abstract Brunet.TransportAddress RemoteTA
     {

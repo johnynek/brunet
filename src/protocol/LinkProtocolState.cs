@@ -109,11 +109,12 @@ namespace Brunet
       _is_finished = false;
       //Setup the edge:
       _e = e;
-      _e.CloseEvent += this.CloseHandler;
-      if(e.IsClosed) {
+      try {
+        e.CloseEvent += this.CloseHandler;
+      }
+      catch {
         CloseHandler(e, null);
-        throw new AdrException((int)ErrorMessage.ErrorCode.EdgeClosed,
-                                "Edge already closed!");
+        throw;
       }
     }
 

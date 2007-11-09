@@ -236,8 +236,11 @@ namespace Brunet
             cphstate.Edge = from;
             //We can connect, add this LinkMessage to the table
             _edge_to_cphstate[from] = cphstate;
-            from.CloseEvent += this.CloseHandler;
-            if(from.IsClosed) {
+            try {
+              //If the CloseEvent was already called, this throws an exception
+              from.CloseEvent += this.CloseHandler;
+            }
+            catch {
               CloseHandler(from, null);
               throw new AdrException((int)ErrorMessage.ErrorCode.EdgeClosed,
                                       "Edge Closed after receiving message");

@@ -277,7 +277,13 @@ namespace Brunet
         ProtocolLog.Write(ProtocolLog.Connections,
           String.Format("New Connection[{0}]: {1}", index, c));
 
-      /* Send the event: */
+      /*
+       * If we get here we ALWAYS fire the ConnectionEvent even
+       * if the Edge might have closed in the mean time.  After
+       * the ConnectionEvent has fired, we'll start listening
+       * to the CloseEvent which will trigger our DisconnectionEvent
+       * upon Edge.Close
+       */
       if(ConnectionEvent != null) {
         try {
           ConnectionEvent(this, new ConnectionEventArgs(c, index) );
@@ -288,8 +294,10 @@ namespace Brunet
               "ConnectionEvent triggered exception: {0}\n{1}", c, x));
         }
       }
-      e.CloseEvent += this.RemoveHandler;
-      if( e.IsClosed ) {
+      try {
+        e.CloseEvent += this.RemoveHandler;
+      }
+      catch {
         /*
          * If the edge was closed before we got it added, it might be
          * added but never removed from the table.  Now that we have
@@ -301,7 +309,8 @@ namespace Brunet
          * multiple times.
          */
         RemoveHandler(e, null);
-        throw new Exception("Edge is already closed");
+        // rethrow the exception
+        throw;
       }
       if(ProtocolLog.Stats.Enabled)
         ProtocolLog.Write(ProtocolLog.Stats, String.Format(
@@ -1076,17 +1085,16 @@ namespace Brunet
 /*        if(!_edge_start_time.Contains(e))
           _edge_start_time = Functional.Add(_edge_start_time, e, DateTime.UtcNow);*/
       }
-      e.CloseEvent += new EventHandler(this.RemoveHandler);
-      if( e.IsClosed ) {
-        /*
+      try {
+        e.CloseEvent += this.RemoveHandler;
+      }
+      catch {
+       /*
         * If the edge was closed before we got it added, it might be
         * added but never removed from the table.  Now that we have
         * completely added the Connection and registered the handler
         * for the CloseEvent, let's make sure it is still good.
         * If it closes after this, the CloseEvent will catch it.
-        *
-        * Since RemoveHandler is idempotent, this is safe to call
-        * multiple times.
         */
         RemoveHandler(e, null);
       }

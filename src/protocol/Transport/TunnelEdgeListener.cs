@@ -646,11 +646,12 @@ namespace Brunet
         } //End of the lock
 
         if( ecs != null ) {
-          e.CloseEvent += this.CloseHandler;
-          if(e.IsClosed) {
+          try {
+            e.CloseEvent += this.CloseHandler;
+          }
+          catch {
             CloseHandler(e, null);
-            throw new AdrException((int)ErrorMessage.ErrorCode.EdgeClosed,
-                                    "Edge Closed after receiving message");
+            throw;
           }
           //this would be an outgoing edge
 #if TUNNEL_DEBUG
@@ -725,11 +726,12 @@ namespace Brunet
 
           _id_ht[localid] = e;
           _remote_id_ht[remoteid] = e;
-          e.CloseEvent += new EventHandler(this.CloseHandler);
-          if(e.IsClosed) {
+          try {
+            e.CloseEvent += this.CloseHandler;
+          }
+          catch {
             CloseHandler(e, null);
-            throw new AdrException((int)ErrorMessage.ErrorCode.EdgeClosed,
-                                    "Edge Closed after receiving message");
+            throw;
           }
 #if TUNNEL_DEBUG
           Console.Error.WriteLine("announcing tunnel edge (incoming): {0}", e);
