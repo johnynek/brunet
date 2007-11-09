@@ -68,10 +68,30 @@ public class Channel {
    * When an item is enqueued, this event is fire
    */
   public event EventHandler EnqueueEvent;
+  protected EventHandler _close_event;
   /**
    * When the queue is closed, this event is fired
+   * If the CloseEvent has already been fired, registering
+   * to this event throws an Exception
    */
-  public event EventHandler CloseEvent;
+  public event EventHandler CloseEvent {
+    add {
+      lock( _sync ) {
+        if( !_closed ) {
+          _close_event = (EventHandler)Delegate.Combine(_close_event, value);
+        }
+        else {
+          throw new Exception("Already closed");
+        }
+      }
+    }
+
+    remove {
+      lock( _sync ) {
+        _close_event = (EventHandler)Delegate.Remove(_close_event, value);
+      }
+    }
+  }
   
   /* **********************************************
    * Here all the methods
@@ -82,22 +102,18 @@ public class Channel {
    * all future Dequeue's will throw exceptions
    */
   public virtual void Close() {
-    bool fire = false;
     EventHandler ch = null;
     lock( _sync ) {
       if( _closed == false ) {
-        fire = true;
         _closed = true;
         //Null out some underlying objects:
-        ch = CloseEvent;
-        CloseEvent = null;
+        ch = _close_event;
+        _close_event = null;
       }
     }
     //Fire the close event
-    if( fire ) {
-      if( ch != null ) {
-        ch(this, EventArgs.Empty);
-      }
+    if( ch != null ) {
+      ch(this, EventArgs.Empty);
     }
 
 #if DEBUG
