@@ -278,6 +278,47 @@ namespace Brunet
       }
       return ReadFloat(b, 0);
     }
+
+    /***/
+    public static double ReadDouble(byte[] bin, int offset)
+    {
+      if (BitConverter.IsLittleEndian) {
+        //Console.Error.WriteLine("This machine uses Little Endian processor!");
+        SwapEndianism(bin, offset, 8);
+        double result = BitConverter.ToDouble(bin, offset);
+        //Swap it back:
+        SwapEndianism(bin, offset, 8);
+        return result;
+      }
+      else
+        return BitConverter.ToDouble(bin, offset);
+    }
+    public static double ReadDouble(MemBlock mb)
+    {
+      byte[] bin = new byte[8];
+      mb.CopyTo(bin,0);
+      return ReadDouble(bin, 0);
+    }
+    public static double ReadDouble(MemBlock mb, int offset)
+    {
+      byte[] bin = new byte[8];
+      for(int i = 0; i < 8; i++) {
+        bin[i] = mb[offset + i];
+      }
+      return ReadDouble(bin, 0);
+    }
+    public static double ReadDouble(Stream s) {
+      byte[] b = new byte[8];
+      for (int i = 0; i < b.Length; i++) {
+	int res = s.ReadByte();
+	if (res < 0) {
+	  throw new Exception("Reached EOF");
+	}
+	b[i] = (byte) res;
+      }
+      return ReadDouble(b, 0);
+    }
+
     public static bool ReadFlag(byte[] bin, int offset)
     {
       byte var = (byte) (0x80 & bin[offset]);
@@ -414,6 +455,28 @@ namespace Brunet
       }
     }
 
+
+    /***/
+
+    public static void WriteDouble(double value, byte[] target,
+                                  int offset)
+    {
+      byte[] arr = BitConverter.GetBytes(value);
+      if (BitConverter.IsLittleEndian) {
+        //Make sure we are Network Endianism
+	SwapEndianism(arr, 0, 8);
+      }
+      Array.Copy(arr, 0, target, offset, 8);
+    }
+    
+    public static void WriteDouble(double value, Stream s) {
+      byte[] b = new byte[8];
+      WriteDouble(value, b, 0);
+      for (int i = 0; i < b.Length; i++) {
+	s.WriteByte(b[i]);
+      }
+    }
+
     public static void WriteFlag(bool flag, byte[] target, int offset)
     {
       byte var = target[offset];
@@ -471,6 +534,12 @@ namespace Brunet
         float val = (float)r.NextDouble();
         WriteFloat(val, buffer, 0);
         Assert.AreEqual( val, ReadFloat( buffer, 0) );
+      }
+      //Doubles:
+      for(int i = 0; i < tests; i++) {
+        double val = r.NextDouble();
+        WriteDouble(val, buffer, 0);
+        Assert.AreEqual( val, ReadDouble( buffer, 0) );
       }
       //Strings:
       for(int i = 0; i < tests; i++) {
