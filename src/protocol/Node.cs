@@ -479,9 +479,10 @@ namespace Brunet
         //This is thrown when Dequeue is called on an empty queue
         //which happens when the BlockingQueue is closed, which
         //happens on Disconnect
-        if(_running)
+        if(_running) {
           ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
-            "Running in AnnounceThread got Exception: {1}", x));
+            "Running in AnnounceThread got Exception: {0}", x));
+        }
       }
       catch(Exception x) {
         ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
