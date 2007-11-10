@@ -199,6 +199,7 @@ public class AdrConverter {
   protected const byte ULONG = (byte)'L';
   //non-integral:
   protected const byte FLOAT = (byte)'f';
+  protected const byte DOUBLE = (byte) 'd';
   //For arrays of numerical (fixed length) types:
   protected const byte ARRAY = (byte)'a';
   //delimited types:
@@ -332,6 +333,9 @@ public class AdrConverter {
       case FLOAT:
         size = 5;
         return NumberSerializer.ReadFloat(b, offset + 1);
+      case DOUBLE:
+	size = 9;
+	return NumberSerializer.ReadDouble(b, offset + 1);
       case EXCEPTION_S:
         //Start of a map:
         Hashtable eresult = new Hashtable();
@@ -518,6 +522,10 @@ public class AdrConverter {
 	  //floating-point number
 	  result = NumberSerializer.ReadFloat(s);
 	  break;
+        case DOUBLE:
+	  //double-precision
+	  result = NumberSerializer.ReadDouble(s);
+	  break;
 	case EXCEPTION_S:
 	  //Start of an exception:
 	  Hashtable xht = new Hashtable();
@@ -691,6 +699,11 @@ public class AdrConverter {
       s.WriteByte(FLOAT);
       NumberSerializer.WriteFloat((float)o, s);
       return 5; //1 typecode + 4 bytes for float
+    }
+    else if ( t.Equals(typeof(double)) ) {
+      s.WriteByte(DOUBLE);
+      NumberSerializer.WriteDouble((double)o, s);
+      return 9; // 1 typecode + 8 bytes for double 
     }
     else if ( o is Exception ) {
       AdrException ax = o as AdrException;
