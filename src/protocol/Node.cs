@@ -70,6 +70,8 @@ namespace Brunet
 
         _connection_table = new ConnectionTable(_local_add);
         _connection_table.ConnectionEvent += this.ConnectionHandler;
+
+        _zeroconf = new ZeroConf();
         /*
          * We must later make sure the EdgeEvent events from
          * any EdgeListeners are connected to _cph.EdgeHandler
@@ -277,6 +279,11 @@ namespace Brunet
      * Manages the various mappings associated with connections
      */
     public virtual ConnectionTable ConnectionTable { get { return _connection_table; } }
+    /**
+     * Brunet ZeroConf service!
+     */
+    public ZeroConf ZeroConf { get { return _zeroconf; } }
+    protected ZeroConf _zeroconf;
 
     /**
      * This is true if the Node is properly connected in the network.
@@ -559,6 +566,7 @@ namespace Brunet
     public virtual void Disconnect() {
       ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
         "[Connect: {0}] deactivating task queue", _local_add));
+      _zeroconf.Stop();
       _task_queue.IsActive = false;
       _send_pings = false;
       //Make sure not to call DepartureEvent twice:

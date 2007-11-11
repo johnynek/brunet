@@ -156,6 +156,7 @@ namespace Brunet
       _lco.IsActive = false;
       _sco.IsActive = false;
       _cco.IsActive = false;
+      _localco.IsActive = false;
 
       //Gracefully close all the edges:
       _connection_table.Close(); //This makes sure we can't add any new connections.
