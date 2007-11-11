@@ -158,7 +158,7 @@ namespace Ipop {
     public static void StartBrunet(string config_file, int n) {
       simplenodes = new SimpleNodeData[n];
       //configuration file 
-      IPRouterConfig config = IPRouterConfigHandler.Read(config_file, true);
+      IPRouterConfig config = IPRouterConfigHandler.Read(config_file);
       IEnumerable addresses = OSDependent.GetIPAddresses(config.DevicesToBind);
 
       for(int i = 0; i < n; i++) {
@@ -168,14 +168,12 @@ namespace Ipop {
         //Where do we listen 
         Brunet.EdgeListener el = null;
         foreach(EdgeListener item in config.EdgeListeners) {
-          int port = Int32.Parse(item.port) + i;
+          int port = item.port;
           if(config.DevicesToBind == null) {
             if (item.type =="tcp")
               el = new TcpEdgeListener(port);
             else if (item.type == "udp")
               el = new UdpEdgeListener(port);
-            else if (item.type == "udp-as")
-              el = new ASUdpEdgeListener(port);
             else
               throw new Exception("Unrecognized transport: " + item.type);
           }
@@ -184,8 +182,6 @@ namespace Ipop {
               el = new TcpEdgeListener(port, addresses);
             else if (item.type == "udp")
               el = new UdpEdgeListener(port, addresses);
-            else if (item.type == "udp-as")
-              el = new ASUdpEdgeListener(port, addresses, null);
             else
               throw new Exception("Unrecognized transport: " + item.type);
           }
@@ -194,11 +190,13 @@ namespace Ipop {
         el = new TunnelEdgeListener(node);
         node.AddEdgeListener(el);
 
-        //Here is where we connect to some well-known Brunet endpoints
-        ArrayList RemoteTAs = new ArrayList();
-        foreach(string ta in config.RemoteTAs)
-          RemoteTAs.Add(TransportAddressFactory.CreateInstance(ta));
-        node.RemoteTAs = RemoteTAs;
+        if(config.RemoteTAs != null) {
+          //Here is where we connect to some well-known Brunet endpoints
+          ArrayList RemoteTAs = new ArrayList();
+          foreach(string ta in config.RemoteTAs)
+            RemoteTAs.Add(TransportAddressFactory.CreateInstance(ta));
+          node.RemoteTAs = RemoteTAs;
+        }
 
         //following line of code enables DHT support inside the SimpleNode
         Dht ndht = null;

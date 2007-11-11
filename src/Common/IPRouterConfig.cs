@@ -34,9 +34,7 @@ namespace Ipop {
   public class EdgeListener {
     [XmlAttribute]
     public string type;
-    public string port;
-    public string port_high;
-    public string port_low;
+    public int port;
   }
 
   public class IPRouterConfigHandler {
@@ -53,28 +51,6 @@ namespace Ipop {
       }
       return config;
     }
-
-    public static IPRouterConfig Read(string configFile, bool fixPorts) {
-      IPRouterConfig config = Read(configFile);
-      foreach (EdgeListener edge in config.EdgeListeners) {
-        if(edge.port_high != null && edge.port_low != null) {
-          int port_high = Int32.Parse(edge.port_high);
-          int port_low = Int32.Parse(edge.port_low);
-          Random random = new Random();
-          int port = (random.Next() % (port_high - port_low)) + port_low;
-          edge.port = port.ToString();
-          edge.port_high = null;
-          edge.port_low = null;
-        }
-      }
-      Write(configFile, config);
-      if(config.AddressData == null) {
-        config.AddressData = new AddressInfo();
-        config.AddressData.DhtDHCP = false;
-      }
-      return config;
-    }
-
 
     public static void Write(string configFile,
       IPRouterConfig config) {

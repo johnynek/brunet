@@ -161,12 +161,14 @@ namespace Ipop {
       if (args.Length == 2)
         Debug.Listeners.Add(new ConsoleTraceListener(true));
 
-      config = IPRouterConfigHandler.Read(ConfigFile, true);
+      config = IPRouterConfigHandler.Read(ConfigFile);
 
-      RemoteTAs = new ArrayList();
-      foreach(string TA in config.RemoteTAs) {
-        TransportAddress ta = TransportAddressFactory.CreateInstance(TA);
-        RemoteTAs.Add(ta);
+      if(config.RemoteTAs != null) {
+        RemoteTAs = new ArrayList();
+        foreach(string TA in config.RemoteTAs) {
+          TransportAddress ta = TransportAddressFactory.CreateInstance(TA);
+          RemoteTAs.Add(ta);
+        }
       }
 
       // Generate a Brunet Address if one doesn't already exist

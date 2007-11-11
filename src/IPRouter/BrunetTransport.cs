@@ -35,7 +35,7 @@ namespace Ipop {
       Brunet.EdgeListener el = null;
 
       foreach(EdgeListener item in EdgeListeners) {
-        int port = Int32.Parse(item.port);
+        int port = item.port;
         if(DevicesToBind == null) {
           if (item.type =="tcp")
             el = new TcpEdgeListener(port);
