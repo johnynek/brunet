@@ -1,27 +1,10 @@
 <IPRouterConfig>
   <ipop_namespace>undefined</ipop_namespace>
   <brunet_namespace>Local_Testing</brunet_namespace>
-  <device>tap0</device>
-  <RemoteTAs>
-    <transport>brunet.udp://127.0.0.1:45391</transport>
-    <transport>brunet.tcp://127.0.0.1:42391</transport>
-  </RemoteTAs>
   <EdgeListeners>
-    <EdgeListener type="udp">
-      <port>45391</port>
-    </EdgeListener>
-    <EdgeListener type="tcp">
-      <port>42391</port>
-    </EdgeListener>
+    <EdgeListener type="udp"/>
+    <EdgeListener type="tcp"/>
   </EdgeListeners>
-  <AddressData>
-    <DHCPServerAddress>128.227.56.247:9203</DHCPServerAddress>
-    <DhtDHCP>true</DhtDHCP>
-    <Netmask>255.192.0.0</Netmask>
-  </AddressData>
-  <DevicesToBind>
-    <Device>eth0</Device>
-  </DevicesToBind>
   <EnableSoapDht>true</EnableSoapDht>
   <EnableXmlRpcManager>true</EnableXmlRpcManager>
 </IPRouterConfig>
