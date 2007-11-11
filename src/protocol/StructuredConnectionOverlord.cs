@@ -109,7 +109,8 @@ namespace Brunet {
     ///How many seconds to wait between connections/disconnections to trim
     static protected readonly double TRIM_DELAY = 30.0;
     ///By default, we only wake up every 10 seconds, but we back off exponentially
-    static protected readonly TimeSpan _DEFAULT_RETRY_INTERVAL = new TimeSpan(0,0,0,0,10000); 
+    static protected readonly TimeSpan _DEFAULT_RETRY_INTERVAL = TimeSpan.FromSeconds(1);
+    static protected readonly TimeSpan _MAX_RETRY_INTERVAL = TimeSpan.FromSeconds(60);
     /*
      * We don't want to risk mistyping these strings.
      */
@@ -371,6 +372,8 @@ namespace Brunet {
         _last_retry_time = now;
         //Double the length of time we wait (resets to default on connections)
         _current_retry_interval = _current_retry_interval + _current_retry_interval;
+        _current_retry_interval = (_MAX_RETRY_INTERVAL < _current_retry_interval) ?
+            _MAX_RETRY_INTERVAL : _current_retry_interval;
       }
 
       ConnectionTable tab = _node.ConnectionTable;

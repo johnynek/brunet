@@ -19,7 +19,7 @@ namespace Test {
     static Random rand = new Random();
     static string brunet_namespace = "testing";
     static Hashtable taken_ports = new Hashtable();
-    static ArrayList RemoteTA = new ArrayList();
+//    static ArrayList RemoteTA = new ArrayList();
 
     public static void Main(string []args) {
       if (args.Length < 6) {
@@ -44,9 +44,9 @@ namespace Test {
       dht_get_interval = Int32.Parse(args[5]);
       Console.WriteLine("Initializing...");
 
-      for(int i = 0; i < max_range; i++) {
+/*      for(int i = 0; i < max_range; i++) {
         RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.tcp://localhost:" + (base_port + i)));
-      }
+      }*/
 
       for(int i = 0; i < starting_network_size; i++) {
         Console.WriteLine("Setting up node: " + i);
@@ -183,9 +183,9 @@ namespace Test {
       }
       arr_tas.Add(new ConstantAuthorizer(TAAuthorizer.Decision.Allow));
       TAAuthorizer ta_auth = new SeriesTAAuthorizer(arr_tas);
-      node.AddEdgeListener(new TcpEdgeListener(local_port, null));//, ta_auth));
+      node.AddEdgeListener(new UdpEdgeListener(local_port, null));//, ta_auth));
 //      node.AddEdgeListener(new TunnelEdgeListener(node));
-      node.RemoteTAs = RemoteTA;
+//      node.RemoteTAs = RemoteTA;
       node.Connect();
       taken_ports[local_port] = node;
       nodes.Add((Address) address, node);
