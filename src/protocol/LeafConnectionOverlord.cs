@@ -85,6 +85,7 @@ namespace Brunet
     //We start at a 10 second interval
     protected TimeSpan _default_retry_interval;
     protected TimeSpan _current_retry_interval;
+    static protected readonly TimeSpan _MAX_RETRY_INTERVAL = TimeSpan.FromSeconds(60);
     protected DateTime _last_retry;
     protected DateTime _last_non_leaf_connection_event;
     protected DateTime _last_trim;
@@ -188,7 +189,10 @@ namespace Brunet
           //We reset it back to the default value:
           _last_retry = now;
           _current_retry_interval = _current_retry_interval + _current_retry_interval;
-          //log.Info("LeafConnectionOverlord :  seeking connection");
+          _current_retry_interval = _current_retry_interval + _current_retry_interval;
+          _current_retry_interval = (_MAX_RETRY_INTERVAL < _current_retry_interval) ?
+              _MAX_RETRY_INTERVAL : _current_retry_interval;
+
           //Get a random address to connect to:
   
           //Make a copy:
