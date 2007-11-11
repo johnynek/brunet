@@ -820,16 +820,6 @@ namespace Brunet
             ProtocolLog.Write(ProtocolLog.Stats, String.Format(
               "Edge removed from unconnected {0}|{1}", e, DateTime.UtcNow.Ticks));
         }
-/*        if(!add__unconnected) {
-          while(_closed_edges_time.Count >= MAX_CLOSED_EDGE_TIMES - 1) {
-            int time = (int) _closed_edges_time.Dequeue();
-            _total_closed_edges_time -= time;
-          }
-          int runtime = (int) (DateTime.UtcNow - (DateTime) _edge_start_time[e]).TotalSeconds;
-          _closed_edges_time.Enqueue(runtime);
-          _total_closed_edges_time += runtime;
-          _edge_start_time = Functional.Remove(_edge_start_time, e);
-        }*/
       }
       if( have_con ) {
         if(ProtocolLog.Connections.Enabled)
