@@ -33,5 +33,14 @@
         <include name="${build.dir}/Brunet.Dht.dll" />
       </references>
     </csc>
+    <csc target="exe" output="${build.dir}/SystemTesterWithZeroConf.exe">
+      <sources failonempty="true">
+        <include name="SystemTesterWithZeroConf.cs"/>
+      </sources>
+      <references>
+        <include name="${build.dir}/Brunet.dll"/>
+        <include name="${build.dir}/Brunet.Dht.dll" />
+      </references>
+    </csc>
   </target>
 </project>

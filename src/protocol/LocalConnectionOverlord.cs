@@ -114,6 +114,7 @@ namespace Brunet
     protected void HandleNotify(EndPoint ep, IList tas)
     {
       ArrayList remote_tas = new ArrayList(tas.Count);
+
       // Test to make sure they really are TAs
       foreach(string ta in tas) {
         try {

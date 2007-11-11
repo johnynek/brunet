@@ -151,7 +151,6 @@ namespace Brunet
       else {
         _tas = TransportAddressFactory.Create(TransportAddress.TAType.Tcp, port, local_config_ips);
       }
-      //_tas = GetIPTAs(TransportAddress.TAType.Tcp, port, ipList);
 
       _ta_auth = ta_auth;
       if( _ta_auth == null ) {
