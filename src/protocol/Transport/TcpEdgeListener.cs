@@ -111,6 +111,9 @@ namespace Brunet
       }
     }    
 
+    public TcpEdgeListener(): this(0, null, null)
+    {
+    }
     /**
      * @param port the port to listen on
      * This tries to guess the local IP address as best it can
@@ -132,7 +135,13 @@ namespace Brunet
     public TcpEdgeListener(int port, IEnumerable local_config_ips, TAAuthorizer ta_auth)
     {
       _is_started = false;
-      
+      // In case port = 0
+      _local_endpoint = new IPEndPoint(IPAddress.Any, port);
+      _listen_sock = new Socket(AddressFamily.InterNetwork,
+                                SocketType.Stream, ProtocolType.Tcp);
+      _listen_sock.Bind(_local_endpoint);
+      _local_endpoint = (IPEndPoint) _listen_sock.LocalEndPoint;
+      port = _local_endpoint.Port;
       /**
        * We get all the IPAddresses for this computer
        */
@@ -144,9 +153,6 @@ namespace Brunet
       }
       //_tas = GetIPTAs(TransportAddress.TAType.Tcp, port, ipList);
 
-      _local_endpoint = new IPEndPoint(IPAddress.Any, port);
-      _listen_sock = new Socket(AddressFamily.InterNetwork,
-                                SocketType.Stream, ProtocolType.Tcp);
       _ta_auth = ta_auth;
       if( _ta_auth == null ) {
         //Always authorize in this case:
@@ -195,7 +201,6 @@ namespace Brunet
           //We are calling start again, that is not good.
           throw new Exception("Cannot start more than once");
         }
-        _listen_sock.Bind(_local_endpoint);
         _listen_sock.Listen(10);
         _is_started = true;
         _send_edge_events = true;
