@@ -159,7 +159,10 @@ namespace Ipop {
       simplenodes = new SimpleNodeData[n];
       //configuration file 
       IPRouterConfig config = IPRouterConfigHandler.Read(config_file);
-      IEnumerable addresses = OSDependent.GetIPAddresses(config.DevicesToBind);
+      IEnumerable addresses = null;
+      if(config.DevicesToBind != null) {
+        addresses = OSDependent.GetIPAddresses(config.DevicesToBind);
+      }
 
       for(int i = 0; i < n; i++) {
         //local node
@@ -169,22 +172,12 @@ namespace Ipop {
         Brunet.EdgeListener el = null;
         foreach(EdgeListener item in config.EdgeListeners) {
           int port = item.port;
-          if(config.DevicesToBind == null) {
-            if (item.type =="tcp")
-              el = new TcpEdgeListener(port);
-            else if (item.type == "udp")
-              el = new UdpEdgeListener(port);
-            else
-              throw new Exception("Unrecognized transport: " + item.type);
-          }
-          else {
-            if (item.type =="tcp")
-              el = new TcpEdgeListener(port, addresses);
-            else if (item.type == "udp")
-              el = new UdpEdgeListener(port, addresses);
-            else
-              throw new Exception("Unrecognized transport: " + item.type);
-          }
+          if (item.type =="tcp")
+            el = new TcpEdgeListener(port, addresses);
+          else if (item.type == "udp")
+            el = new UdpEdgeListener(port, addresses);
+          else
+            throw new Exception("Unrecognized transport: " + item.type);
           node.AddEdgeListener(el);
         }
         el = new TunnelEdgeListener(node);
