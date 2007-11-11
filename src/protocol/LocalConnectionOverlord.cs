@@ -17,9 +17,14 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+/**
+ * Dependencies
+ * Brunet.ConnectionType
+ * Brunet.BrunetLogger
+ */
+
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -28,30 +33,26 @@ namespace Brunet
 {
 
   /**
-   * This CO is uses registers RPC methods that are specifically meant to be
-   * called by nodes on the LAN to facilitate connectivity.  This can be used
-   * to replace the necessity of RemoteTAs.  Currently it is only active when 
-   * there are zero connections.  Eventually, it may prove useful to have it 
-   * find local nodes and create StructuredLocalConnections.
+   * This CO is used for Brunet Zeroconf, due to there not being a single
+   * zeroconf service for all OS's, this makes use of multicast, specifically
+   * destination 224.123.123.222:56018.  Use a random UDP port for unicast
+   * communication.
    */
 
-  public class LocalConnectionOverlord: ConnectionOverlord, IRpcHandler
+  public class LocalConnectionOverlord: ConnectionOverlord
   {
-    public static readonly int MAX_LC = 4;
-    protected List<AHAddress> _local_addresses;
 
-    protected DateTime _last_announce_call;
-    protected DateTime _last_activate_call;
-    protected readonly RpcManager _rpc;
-    protected Object _sync;
-    protected bool _active;
-    protected bool _allow_localcons;
-    protected int _local_cons = 0;
+    // Let's get a cap on all messages in the LCO
+    public static readonly int MaxPacketLength = 1200;
+    private Node _node;
+    private Socket _mc, _uc;
+    private EndPoint _mc_endpoint;
+    private static readonly IPAddress _mc_addr = IPAddress.Parse("224.123.123.222");
+    private static readonly int _mc_port = 56123;
+    private enum _ptype {Request, Notification};
+    private DateTime _last_call;
 
-    public static readonly string struc_local = "structured.local";
-
-    protected readonly AHAddressComparer addr_compare = new AHAddressComparer();
-
+    bool _active;
     /**
      * When IsActive is false, the ConnectionOverlord does nothing
      * to replace lost connections, or to get connections it needs.
@@ -64,68 +65,57 @@ namespace Brunet
       set { _active = value; }
     }
 
-    public LocalConnectionOverlord(Node node) {
-      _sync = new Object();
-      _allow_localcons = false;
-      _active = false;
-      _local_addresses = new List<AHAddress>();
-      _node = node;
+    protected class StateObject
+    {
+      public EndPoint ep;
+      public byte[] buffer;
+      public Socket socket;
 
-      lock(_sync) {
-        _rpc = RpcManager.GetInstance(node);
-        _rpc.AddHandler("LocalCO", this);
+      public StateObject(Socket sock) {
+        ep = new IPEndPoint(IPAddress.Any, 0);
+        buffer = new byte[MaxPacketLength];
+        socket = sock;
+      }
 
-        _node.HeartBeatEvent += CheckConnection;
-        _node.StateChangeEvent += StateChangeHandler;
-        _node.ConnectionTable.ConnectionEvent += ConnectHandler;
-        _node.ConnectionTable.DisconnectionEvent += DisconnectHandler;
-        _last_announce_call = DateTime.MinValue;
-        _last_activate_call = DateTime.MinValue;
+      public void Update() {
+        ep = new IPEndPoint(IPAddress.Any, 0);
       }
     }
 
-    protected void StateChangeHandler(Node n, Node.ConnectionState state) {
-      if(state == Node.ConnectionState.Connected) {
-        lock(_sync) {
-          _allow_localcons = true;
-        }
-      }
-      else if(state == Node.ConnectionState.Leaving) {
-        lock(_sync) {
-          _active = false;
-        }
-      }
+    public LocalConnectionOverlord(Node node) {
+      _node = node;
+      _mc = new Socket(AddressFamily.InterNetwork, SocketType.Dgram,
+                       ProtocolType.Udp);
+      // Allows for multiple Multicast clients on the same host!
+      _mc.SetSocketOption(SocketOptionLevel.Socket, 
+                              SocketOptionName.ReuseAddress, true);
+      _mc_endpoint = new IPEndPoint(_mc_addr, _mc_port);
+      _mc.Bind(new IPEndPoint(IPAddress.Any, _mc_port));
+      _mc.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership,
+        new MulticastOption(_mc_addr, IPAddress.Any));
+
+      _uc = new Socket(AddressFamily.InterNetwork, SocketType.Dgram,
+                       ProtocolType.Udp);
+      _uc.Bind(new IPEndPoint(IPAddress.Any, 0));
     }
 
     /**
      * If IsActive, then start trying to get connections.
      */
     public override void Activate() {
-      if(!_allow_localcons || _local_addresses.Count == 0) {
-        return;
-      }
-
-      lock(_sync) {
-        DateTime now = DateTime.UtcNow;
-        if(now - _last_activate_call < TimeSpan.FromSeconds(10)) {
-          return;
-        }
-        _last_announce_call = now;
-
-        Random rand = new Random();
-        for(int i = 0; i < MAX_LC - _local_cons; i++) {
-          Address target = _local_addresses[rand.Next(0, _local_addresses.Count)];
-          ConnectTo(target, struc_local);
-        }
-      }
+      BeginReceive(new StateObject(_mc));
+      BeginReceive(new StateObject(_uc));
+      _last_call = DateTime.UtcNow;
+      Announce();
+      _node.HeartBeatEvent += CheckConnection;
     }
 
     /**
      * @return true if the ConnectionOverlord needs a connection
      */
-    public override bool NeedConnection {
-      get { return false; }
-//      get { return _allow_localcons && _local_cons < MAX_LC; }
+    public override bool NeedConnection
+    {
+      get { return _node.ConnectionTable.TotalCount == 0; }
     }
     /**
      * @return true if the ConnectionOverlord has sufficient connections
@@ -133,169 +123,124 @@ namespace Brunet
      */
     public override bool IsConnected
     {
-      get {
-        throw new Exception("Not implemented!  LocalConnectionOverlord.IsConnected");
-      }
+      get { throw new Exception("Not implemented!  LocalConnectionOverlord.IsConnected"); }
     }
 
-    /**
-     * HeartBeatEvent - Do we need connections?
-     */
     public void CheckConnection(object o, EventArgs ea)
     {
-      if(!_active) {
+      if(!NeedConnection) {
         return;
       }
-
-      // We are trying to get StructuredConnections or LocalConnections
-      if(_local_cons < MAX_LC) {
-        DateTime now = DateTime.UtcNow;
-        bool ann = false;
-        lock(_sync) {
-          if(now - _last_announce_call > TimeSpan.FromSeconds(600)) {
-            _last_announce_call = now;
-            ann = true;
-          }
-        }
-
-        if(ann) {
-          Announce();
-        }
-        // We can establish some local connections!
-        if(NeedConnection) {
-          Activate();
-        }
+      DateTime now = DateTime.UtcNow;
+      if(now - _last_call > TimeSpan.FromSeconds(60)) {
+        _last_call = now;
+        Announce();
       }
     }
 
-    /**
-     * This method is called when there is a Disconnection from
-     * the ConnectionTable
-     */
-    protected void ConnectHandler(object tab, EventArgs eargs) {
-      Connection new_con2 = ((ConnectionEventArgs)eargs).Connection;
-      if (new_con2.ConType.Equals(struc_local)) {
-        if(ProtocolLog.LocalCO.Enabled) {
-          ProtocolLog.Write(ProtocolLog.LocalCO, String.Format(
-                            "Connect a {0}: {1} at: {2}",
-                            struc_local, new_con2, DateTime.UtcNow));
-        }
-        lock(_sync) {
-          _local_cons++;
-        }
-      }
-    }
-
-    /**
-     * This method is called when there is a Disconnection from
-     * the ConnectionTable
-     */
-    protected void DisconnectHandler(object tab, EventArgs eargs) {
-      Connection new_con2 = ((ConnectionEventArgs)eargs).Connection;
-      if (new_con2.ConType.Equals(struc_local)) {
-        if(ProtocolLog.LocalCO.Enabled) {
-          ProtocolLog.Write(ProtocolLog.LocalCO, String.Format(
-                            "Disconnect a {0}: {1} at: {2}",
-                            struc_local, new_con2, DateTime.UtcNow));
-        }
-        lock(_sync) {
-          _local_cons--;
-        }
-      }
-    }
-
-    /**
-     * Used to request other nodes existence
-     */
     protected void Announce()
     {
-      Channel queue = new Channel();
-      queue.EnqueueEvent += HandleGetInformation;
+//      Console.WriteLine("Announce!");
+      SendRequest();
+      SendNotification(_mc_endpoint);
+    }
+
+    protected void BeginReceive(StateObject so) {
+      so.socket.BeginReceiveFrom(so.buffer, 0, MaxPacketLength, 0, ref so.ep,
+                               ReceiveHandler, so);
+    }
+
+    protected void ReceiveHandler(IAsyncResult asr)
+    {
+      StateObject so = (StateObject) asr.AsyncState;
+      int rec_bytes = 0;
       try {
-        ISender mcs = _node.IPHandler.CreateMulticastSender();
-        _rpc.Invoke(mcs, queue, "LocalCO.GetInformation");
+        rec_bytes = _mc.EndReceiveFrom(asr, ref so.ep);
+        MemBlock packet = MemBlock.Reference(so.buffer, 0, rec_bytes);
+        IList adr_data = (IList) AdrConverter.Deserialize(packet);
+        _ptype type = (_ptype) adr_data[0];
+        switch(type) {
+          case _ptype.Request:
+            SendNotification(so.ep);
+            break;
+          case _ptype.Notification:
+            HandleNotification((IList) adr_data[1]);
+            break;
+          default:
+            Console.WriteLine("poop");
+            ProtocolLog.WriteIf(ProtocolLog.LocalCO, "Invalid ptype " + (int) type);
+            break;
+        }
       }
-      catch(SendException) {
-        /*
-         * On planetlab, it is not uncommon to have a node that
-         * does not allow Multicast, and it will throw an exception
-         * here.  We just ignore this information for now.  If we don't
-         * the heartbeatevent in the node will not execute properly.
-         */ 
+      catch(System.ObjectDisposedException odx) {
+        //If we are no longer running, this is to be expected.
+        if(_active) {
+        //If we are running print it out
+          Console.WriteLine(odx);
+          ProtocolLog.WriteIf(ProtocolLog.Exceptions, odx.ToString());
+        }
+      }
+      catch(Exception x) {
+        Console.WriteLine(x);
+        ProtocolLog.WriteIf(ProtocolLog.Exceptions, x.ToString());
+      }
+      finally {
+        if(_active) {
+          //Start the next round:
+          so.Update();
+          BeginReceive(so);
+        }
       }
     }
 
-    protected void HandleGetInformation(Object o, EventArgs ea)
+    protected void HandleNotification(IList tas)
     {
-      Channel queue = (Channel) o;
-      Hashtable ht = null;
-      try {
-        RpcResult rpc_reply = (RpcResult) queue.Dequeue();
-        ht = (Hashtable) rpc_reply.Result;
+      ArrayList remote_tas = new ArrayList(tas.Count);
+      // Test to make sure they really are TAs
+      foreach(string ta in tas) {
+        try {
+          remote_tas.Add(new IPTransportAddress(ta));
+        }
+        catch(Exception e) {
+          ProtocolLog.WriteIf(ProtocolLog.Exceptions, "Invalid IPTA: " + e);
+        }
       }
-      catch {
-        // Remote end point doesn't have LocalCO enabled.
-        return;
-      }
+      _node.UpdateRemoteTAs(remote_tas);
+    }
 
-      try {
-        string remote_realm = (string) ht["namespace"];
-        if(!remote_realm.Equals(_node.Realm)) {
-          return;
-        }
-        ArrayList string_tas = (ArrayList) ht["tas"];
-        ArrayList remote_tas = new ArrayList();
-        foreach(string ta in string_tas) {
-          remote_tas.Add(TransportAddressFactory.CreateInstance(ta));
-        }
-        _node.UpdateRemoteTAs(remote_tas);
-
-        AHAddress new_address = (AHAddress) AddressParser.Parse((string) ht["address"]);
-        lock(_sync) {
-          int pos = _local_addresses.BinarySearch(new_address, addr_compare);
-          if(pos < 0) {
-            pos = ~pos;
-            _local_addresses.Insert(pos, new_address);
-          }
-        }
-      }
-      catch (Exception e) {
-        ProtocolLog.WriteIf(ProtocolLog.Exceptions, "Unexpected exception: " + e);
+    protected void SendRequest()
+    {
+      object[] response = new object[1];
+      response[0] = (int) _ptype.Request;
+      using(MemoryStream ms = new MemoryStream()) {
+        AdrConverter.Serialize(response, ms);
+        byte[] buffer = ms.GetBuffer();
+        _uc.BeginSendTo(buffer, 0, buffer.Length, 0, _mc_endpoint,
+                        EndSendHandler, null);
       }
     }
 
-    /**
-     * Send a list of our TAs in string format to the specified end point.
-     */
-    protected Hashtable GetInformation()
+    protected void SendNotification(EndPoint ep)
     {
-      Hashtable ht = new Hashtable(3);
-      IList tas = (IList) ((ArrayList)_node.LocalTAs).Clone();
+      object[] response = new object[2];
+      response[0] = (int) _ptype.Notification;
+      IList tas = _node.LocalTAs;
       string[] tas_string = new string[tas.Count];
       for(int i = 0; i < tas.Count; i++) {
         tas_string[i] = tas[i].ToString();
       }
-
-      ht["tas"] = tas_string;
-      ht["address"] = _node.Address.ToString();
-      ht["namespace"] = _node.Realm;
-      return ht;
+      response[1] = tas_string;
+      using(MemoryStream ms = new MemoryStream()) {
+        int length = AdrConverter.Serialize(response, ms);
+        byte[] buffer = ms.GetBuffer();
+        _uc.BeginSendTo(buffer, 0, length, 0, ep, 
+                        EndSendHandler, null);
+      }
     }
 
-    public void HandleRpc(ISender caller, string method, IList args, object rs) {
-      object result = null;
-      try {
-        if(method.Equals("GetInformation")) {
-          result = GetInformation();
-        }
-        else {
-          throw new Exception("Invalid method");
-        }
-      }
-      catch (Exception e) {
-        result = new AdrException(-32602, e);
-     }
-      _rpc.SendResult(rs, result);
+    protected void EndSendHandler(IAsyncResult asr)
+    {
+      _uc.EndSendTo(asr);
     }
   }
 }

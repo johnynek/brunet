@@ -38,9 +38,9 @@ namespace Brunet
      */
     protected ConnectionOverlord _lco;
     protected ConnectionOverlord _sco;
-    //added the new ChotaConnectionOverlord
     protected ConnectionOverlord _cco;
-    
+    protected ConnectionOverlord _localco;
+
     //maximum number of neighbors we report in our status
     protected static readonly int MAX_NEIGHBORS = 4;
     public ConnectionPacketHandler sys_link;
@@ -75,8 +75,8 @@ namespace Brunet
        */ 
       _lco = new LeafConnectionOverlord(this);
       _sco = new StructuredConnectionOverlord(this);
-      //ChotaConnectionOverlord
       _cco = new ChotaConnectionOverlord(this);
+      _localco = new LocalConnectionOverlord(this);
 
       /**
        * Turn on some protocol support : 
@@ -130,10 +130,12 @@ namespace Brunet
       _lco.IsActive = true;
       _sco.IsActive = true;
       _cco.IsActive = true;
+      _localco.IsActive = true;
 
       _lco.Activate();
       _sco.Activate();
       _cco.Activate();
+      _localco.Activate();
     }
     /**
      * This informs all the ConnectionOverlord objects
