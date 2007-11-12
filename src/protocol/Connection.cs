@@ -62,8 +62,11 @@ namespace Brunet {
       _ct = String.Intern(connectiontype);
       _stat = sm;
       _lm = peerlm;
+      _creation_time = DateTime.UtcNow;
     }
 
+    protected DateTime _creation_time;
+    public DateTime CreationTime { get { return _creation_time; } }
     protected Address _a;
     public Address Address { get { return _a; } }
     
