@@ -71,7 +71,7 @@ namespace Brunet
         _connection_table = new ConnectionTable(_local_add);
         _connection_table.ConnectionEvent += this.ConnectionHandler;
 
-        _zeroconf = new ZeroConf();
+        _broadcastrpc = new BroadcastRPC();
         /*
          * We must later make sure the EdgeEvent events from
          * any EdgeListeners are connected to _cph.EdgeHandler
@@ -280,10 +280,10 @@ namespace Brunet
      */
     public virtual ConnectionTable ConnectionTable { get { return _connection_table; } }
     /**
-     * Brunet ZeroConf service!
+     * Brunet BroadcastRPC service!
      */
-    public ZeroConf ZeroConf { get { return _zeroconf; } }
-    protected ZeroConf _zeroconf;
+    public BroadcastRPC BroadcastRPC { get { return _broadcastrpc; } }
+    protected BroadcastRPC _broadcastrpc;
 
     /**
      * This is true if the Node is properly connected in the network.
@@ -566,7 +566,7 @@ namespace Brunet
     public virtual void Disconnect() {
       ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
         "[Connect: {0}] deactivating task queue", _local_add));
-      _zeroconf.Stop();
+      _broadcastrpc.Stop();
       _task_queue.IsActive = false;
       _send_pings = false;
       //Make sure not to call DepartureEvent twice:

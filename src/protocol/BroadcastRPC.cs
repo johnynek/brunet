@@ -27,25 +27,31 @@ using System.Net.Sockets;
 namespace Brunet
 {
   /**
-   * ZeroConfHandler's receive are called by the ReceiveHandler.  They are
+   * BroadcastRPCHandler's receive are called by the ReceiveHandler.  They are
    * given the remote calling end point and an IList containing the packet's
    * data.
    */
-  public delegate void ZeroConfHandler(EndPoint remote_ep, IList data);
+  public delegate void BroadcastRPCHandler(EndPoint remote_ep, string method, IList data);
 
   /**
-   * We use Brunet Zeroconf due to there not being a single zeroconf service
-   * for all OS's, this makes use of multicast, specifically destination
-   * 224.123.123.222:56018.  Use a random UDP port for unicast communication.
+   * We use Brunet BroadcastRPC due to there not being a single zeroconf 
+   * service for all OS's, this makes use of multicast, specifically 
+   * destination 224.123.123.222:56018.  Use a random UDP port for unicast 
+   * communication.
+   *
+   * Once  you've registered using "Register" a BroadcastRPCHandler method any 
+   * incoming request will be sent to that handler.  Responses to incoming
+   * requests should be sent via "SendResponse".  When looking for services
+   * use "Announce" and it will send via the multicast socket to all listeners.
    */
 
-  public class ZeroConf
+  public class BroadcastRPC
   {
     protected Socket _mc, _uc;
     protected EndPoint _mc_endpoint;
     protected static readonly IPAddress _mc_addr = IPAddress.Parse("224.123.123.222");
     protected static readonly int _mc_port = 56123;
-    protected Dictionary<string, ZeroConfHandler> _handlers;
+    protected Dictionary<string, BroadcastRPCHandler> _handlers;
     protected bool _running;
 
     protected class StateObject
@@ -65,7 +71,7 @@ namespace Brunet
       }
     }
 
-    public ZeroConf() {
+    public BroadcastRPC() {
       _mc = new Socket(AddressFamily.InterNetwork, SocketType.Dgram,
                        ProtocolType.Udp);
       // Allows for multiple Multicast clients on the same host!
@@ -80,7 +86,7 @@ namespace Brunet
                        ProtocolType.Udp);
       _uc.Bind(new IPEndPoint(IPAddress.Any, 0));
 
-      _handlers = new Dictionary<string, ZeroConfHandler>();
+      _handlers = new Dictionary<string, BroadcastRPCHandler>();
 
       _running = true;
       BeginReceive(new StateObject(_mc));
@@ -94,22 +100,30 @@ namespace Brunet
     }
 
     /**
-     * Registers a ZeroConfHandler to a method name, similar to rpc.
+     * Registers a BroadcastRPCHandler to a method name, similar to rpc.
+     * @param name the string to associate the BroadcastRPCHandler to
+     * @param method the method to call in the Receive loop if name is found
      */
-    public void Register(string name, ZeroConfHandler method)
+    public void Register(string name, BroadcastRPCHandler method)
     {
-      if(_handlers.ContainsKey(name) && _handlers[name] != method) {
-        throw new Exception("Attempted to register a new method with a pre-existing method name");
+      lock(_handlers) {
+        if(_handlers.ContainsKey(name) && _handlers[name] != method) {
+          throw new Exception("Attempted to register a new method with a pre-existing method name");
+        }
+        _handlers[name] = method;
       }
-      _handlers[name] = method;
     }
 
     /**
-     * Removes a ZeroConfHandler
+     * Removes a BroadcastRPCHandler
+     * @param name the string mapping to the method to remove from the 
+     * BroadcastRPCHandlers
      */
     public void UnRegister(string name)
     {
+      lock(_handlers) {
       _handlers.Remove(name);
+      }
     }
 
     protected void BeginReceive(StateObject so) {
@@ -142,14 +156,14 @@ namespace Brunet
         MemBlock packet = MemBlock.Reference(so.buffer, 0, rec_bytes);
         IList adr_data = (IList) AdrConverter.Deserialize(packet);
         string type = (string) adr_data[0];
-        ZeroConfHandler callback = _handlers[type];
+        BroadcastRPCHandler callback = _handlers[type];
         if(callback == null) {
           throw new Exception("Invalid request");
         }
         if(ProtocolLog.LocalCO.Enabled) {
           ProtocolLog.WriteIf(ProtocolLog.LocalCO, "Type = " + type);
         }
-        callback(so.ep, adr_data[1] as IList);
+        callback(so.ep, type, adr_data[1] as IList);
       }
       catch(ObjectDisposedException odx) {
         //If we are no longer running, this is to be expected.
@@ -171,7 +185,10 @@ namespace Brunet
     }
 
     /**
-     * Used to Send multicast packets makes use of SendResponse
+     * Used to Send multicast packets makes use of SendResponse.
+     * @param method the string registered to the method you would like to call
+     * @param data an IList containing the data to ship, this can be an 
+     * ArrayList or an object array.
      */
     public void Announce(string method, IList data)
     {
@@ -179,7 +196,11 @@ namespace Brunet
     }
 
     /**
-     * Creates a packet for the remote end point and ships it off
+     * Creates a packet for the remote end point and ships it off.
+     * @param ep the EndPoint to send the data to, most likely and IPEndPoint
+     * @param method the string registered to the method you would like to call
+     * @param data an IList containing the data to ship, this can be an 
+     * ArrayList or an object array.
      */
     public void SendResponse(EndPoint ep, string method, IList data)
     {
