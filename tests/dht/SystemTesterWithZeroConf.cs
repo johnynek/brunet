@@ -6,7 +6,7 @@ using System.Xml.Serialization;
 using System.Security.Cryptography;
 using System.Threading;
 using Brunet;
-using Brunet.DistributedServices;
+using Brunet.Dht;
 
 namespace Test {
   public class SystemTest {
@@ -44,6 +44,10 @@ namespace Test {
       dht_get_interval = Int32.Parse(args[5]);
       Console.WriteLine("Initializing...");
 
+/*      for(int i = 0; i < max_range; i++) {
+        RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.tcp://localhost:" + (base_port + i)));
+      }*/
+
       for(int i = 0; i < starting_network_size; i++) {
         Console.WriteLine("Setting up node: " + i);
         add_node();
@@ -56,13 +60,10 @@ namespace Test {
 
       string command = String.Empty;
       while (command != "Q") {
-        Console.WriteLine("Enter command (M/C/P/G/Q)");
+        Console.WriteLine("Enter command (M/C/G/Q)");
         command = Console.ReadLine();
         if(command.Equals("C")) {
           check_ring();
-        }
-        else if(command.Equals("P")) {
-          PrintConnections();
         }
         else if(command.Equals("M")) {
           Console.WriteLine("Memory Usage: " + GC.GetTotalMemory(true));
@@ -100,14 +101,8 @@ namespace Test {
     public static void system() {
       try {
         int interval = 1;
-        if(base_time <= 0) {
-          base_time = -1;
-        }
-        else {
-          base_time *= 1000;
-        }
         while(true) {
-          Thread.Sleep(base_time);
+          Thread.Sleep(base_time * 1000);
           if(add_remove_interval != 0 && interval % add_remove_interval == 0) {
             Console.Error.WriteLine("System.Test::add / removing...");
             for(int i = 0; i < add_remove_delta; i++) {
@@ -133,7 +128,6 @@ namespace Test {
           interval++;
         }
       }
-      catch (ThreadAbortException) { return; }
       catch (Exception e){
        Console.WriteLine(e);
       }
@@ -190,10 +184,10 @@ namespace Test {
       }
       arr_tas.Add(new ConstantAuthorizer(TAAuthorizer.Decision.Allow));
       TAAuthorizer ta_auth = new SeriesTAAuthorizer(arr_tas);*/
-      node.AddEdgeListener(new FunctionEdgeListener((new Random()).Next(1024, 65535))); //local_port, null));//, ta_auth));
+      node.AddEdgeListener(new TcpEdgeListener()); //local_port, null));//, ta_auth));
 //      node.AddEdgeListener(new TunnelEdgeListener(node));
 //      node.RemoteTAs = RemoteTA;
-      (new Thread(node.Connect)).Start();
+      node.Connect();
 //      taken_ports[local_port] = node;
       nodes.Add((Address) address, node);
       dhts.Add(node, new Dht(node, DEGREE));
@@ -241,18 +235,6 @@ namespace Test {
         return true;
       }
       return false;
-    }
-
-    private static void PrintConnections() {
-      foreach(DictionaryEntry de in nodes) {
-        Node node = (Node)de.Value;
-        IEnumerable ie = node.ConnectionTable.GetConnections(ConnectionType.Structured);
-        Console.WriteLine("Connections for Node: " + node.Address);
-        foreach(Connection c in ie) {
-          Console.WriteLine(c);
-        }
-        Console.WriteLine("==============================================================");
-      }
     }
   }
 }

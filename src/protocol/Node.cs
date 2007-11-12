@@ -70,6 +70,8 @@ namespace Brunet
 
         _connection_table = new ConnectionTable(_local_add);
         _connection_table.ConnectionEvent += this.ConnectionHandler;
+
+        _broadcastrpc = new BroadcastRPC();
         /*
          * We must later make sure the EdgeEvent events from
          * any EdgeListeners are connected to _cph.EdgeHandler
@@ -240,7 +242,7 @@ namespace Brunet
      */
     public string Realm { get { return _realm; } }
     
-    protected volatile ArrayList _remote_ta;
+    protected ArrayList _remote_ta;
     /**
      * These are all the remote TransportAddress objects that
      * this Node may use to connect to remote Nodes
@@ -277,6 +279,11 @@ namespace Brunet
      * Manages the various mappings associated with connections
      */
     public virtual ConnectionTable ConnectionTable { get { return _connection_table; } }
+    /**
+     * Brunet BroadcastRPC service!
+     */
+    public BroadcastRPC BroadcastRPC { get { return _broadcastrpc; } }
+    protected BroadcastRPC _broadcastrpc;
 
     /**
      * This is true if the Node is properly connected in the network.
@@ -559,6 +566,7 @@ namespace Brunet
     public virtual void Disconnect() {
       ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
         "[Connect: {0}] deactivating task queue", _local_add));
+      _broadcastrpc.Stop();
       _task_queue.IsActive = false;
       _send_pings = false;
       //Make sure not to call DepartureEvent twice:
@@ -589,19 +597,36 @@ namespace Brunet
        * someone is using it
        */
       ArrayList new_remote_ta = new ArrayList();
-      new_remote_ta.AddRange( _remote_ta );
       foreach(EdgeListener el in _edgelistener_list) {
         //Update our local list:
         el.UpdateLocalTAs(edge, reported_ta);
         el.UpdateRemoteTAs( new_remote_ta, edge, remote_ta);
       }
-      int count = new_remote_ta.Count;
-      if( count > _MAX_RECORDED_TAS ) {
-        int rm_count = count - _MAX_RECORDED_TAS;
-        new_remote_ta.RemoveRange(_MAX_RECORDED_TAS, rm_count);
-      }
-      _remote_ta = ArrayList.ReadOnly( new_remote_ta );
+      UpdateRemoteTAs(new_remote_ta);
     }
+
+    /**
+     * Called by ConnectionEvent and the LocalConnectionOverlord to update
+     * the remote ta list.
+     */
+    public void UpdateRemoteTAs(ArrayList new_remote_ta)
+    {
+      lock( _remote_ta ) {
+        foreach(TransportAddress ta in new_remote_ta) {
+          if(_remote_ta.Contains(ta)) {
+            _remote_ta.Remove(ta);
+          }
+        }
+        new_remote_ta.AddRange( _remote_ta );
+        int count = new_remote_ta.Count;
+        if( count > _MAX_RECORDED_TAS ) {
+          int rm_count = count - _MAX_RECORDED_TAS;
+          new_remote_ta.RemoveRange(_MAX_RECORDED_TAS, rm_count);
+        }
+        _remote_ta = new_remote_ta;
+      }
+    }
+
     /**
      * Return a NodeInfo object for this node containing
      * at most max_local local Transport addresses

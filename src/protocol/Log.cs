@@ -34,6 +34,8 @@ namespace Brunet {
         new BooleanSwitch("Monitor", "Log the system monitor");
     public static BooleanSwitch tmp =
         new BooleanSwitch("tmp", "Log the system monitor");
+    public static BooleanSwitch LocalCO =
+        new BooleanSwitch("LocalCO", "Log the local connection overlord");
 
     public static void Enable() {
       if(ConsoleLogEnable.Enabled) {
