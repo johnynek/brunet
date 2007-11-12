@@ -85,6 +85,7 @@ namespace Brunet
     //We start at a 10 second interval
     protected TimeSpan _default_retry_interval;
     protected TimeSpan _current_retry_interval;
+    static protected readonly TimeSpan _MAX_RETRY_INTERVAL = TimeSpan.FromSeconds(60);
     protected DateTime _last_retry;
     protected DateTime _last_non_leaf_connection_event;
     protected DateTime _last_trim;
@@ -185,28 +186,31 @@ namespace Brunet
         if ( (_linker == null) && time_to_start && 
              IsActive && NeedConnection ) {
           //Now we double the retry interval.  When we get a connection
-  	//We reset it back to the default value:
-  	_last_retry = now;
-  	_current_retry_interval = _current_retry_interval + _current_retry_interval;
-          //log.Info("LeafConnectionOverlord :  seeking connection");
+          //We reset it back to the default value:
+          _last_retry = now;
+          _current_retry_interval = _current_retry_interval + _current_retry_interval;
+          _current_retry_interval = _current_retry_interval + _current_retry_interval;
+          _current_retry_interval = (_MAX_RETRY_INTERVAL < _current_retry_interval) ?
+              _MAX_RETRY_INTERVAL : _current_retry_interval;
+
           //Get a random address to connect to:
   
-  	//Make a copy:
+          //Make a copy:
           object[] tas = _local.RemoteTAs.ToArray();
           /*
-  	 * Make a randomized list of TransportAddress objects to connect to:
-  	 * This is a very nice algorithm.  It is optimal in that it produces
-  	 * a permutation of a list using N swaps and log(N!) bits
-  	 * of entropy.
-  	 */
+           * Make a randomized list of TransportAddress objects to connect to:
+           * This is a very nice algorithm.  It is optimal in that it produces
+           * a permutation of a list using N swaps and log(N!) bits
+           * of entropy.
+           */
           for(int j = 0; j < tas.Length; j++) {
             //Swap the j^th position with this position:
             int i = _rnd.Next(j, tas.Length);
-  	    if( i != j ) {
+              if( i != j ) {
               object temp_ta = tas[i];
               tas[i] = tas[j];
-  	      tas[j] = temp_ta;
-  	    }
+                tas[j] = temp_ta;
+              }
           }
           /**
            * Make a Link to a remote node 
@@ -229,7 +233,7 @@ namespace Brunet
            */
 
           //Reset the connection interval to the default value:
-  	  _current_retry_interval = _default_retry_interval;
+            _current_retry_interval = _default_retry_interval;
           //We are not seeking another connection
           //log.Info("LeafConnectionOverlord :  not seeking connection");
         }

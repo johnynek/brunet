@@ -18,7 +18,7 @@ namespace Test {
     static int DEGREE = 3;
     static Random rand = new Random();
     static string brunet_namespace = "testing";
-    static Hashtable taken_ports = new Hashtable();
+//    static Hashtable taken_ports = new Hashtable();
 //    static ArrayList RemoteTA = new ArrayList();
 
     public static void Main(string []args) {
@@ -158,21 +158,22 @@ namespace Test {
 
     private static void remove_node() {
       int local_port = 0;
-      while(!taken_ports.Contains(local_port = rand.Next(0, max_range) + base_port));
-      Node node = (Node) taken_ports[local_port];
+//      while(!taken_ports.Contains(local_port = rand.Next(0, max_range) + base_port));
+//      Node node = (Node) taken_ports[local_port];
+      Node node = (Node) nodes[rand.Next(0, nodes.Count)];
       node.Disconnect();
       nodes.RemoveAt(nodes.IndexOfValue(node));
-      taken_ports.Remove(local_port);
+//      taken_ports.Remove(local_port);
       dhts.Remove(node);
       network_size--;
     }
 
     private static void add_node() {
       int local_port = 0;
-      while(taken_ports.Contains(local_port = rand.Next(0, max_range) + base_port));
+//      while(taken_ports.Contains(local_port = rand.Next(0, max_range) + base_port));
       AHAddress address = new AHAddress(new RNGCryptoServiceProvider());
       Node node = new StructuredNode(address, brunet_namespace);
-      ArrayList arr_tas = new ArrayList();
+/*      ArrayList arr_tas = new ArrayList();
       for(int j = 0; j < max_range / 10; j++) {
         int remote_port = 0;
         do {
@@ -182,12 +183,12 @@ namespace Test {
         arr_tas.Add(port_auth);
       }
       arr_tas.Add(new ConstantAuthorizer(TAAuthorizer.Decision.Allow));
-      TAAuthorizer ta_auth = new SeriesTAAuthorizer(arr_tas);
-      node.AddEdgeListener(new UdpEdgeListener(local_port, null));//, ta_auth));
+      TAAuthorizer ta_auth = new SeriesTAAuthorizer(arr_tas);*/
+      node.AddEdgeListener(new TcpEdgeListener()); //local_port, null));//, ta_auth));
 //      node.AddEdgeListener(new TunnelEdgeListener(node));
 //      node.RemoteTAs = RemoteTA;
       node.Connect();
-      taken_ports[local_port] = node;
+//      taken_ports[local_port] = node;
       nodes.Add((Address) address, node);
       dhts.Add(node, new Dht(node, DEGREE));
       network_size++;

@@ -473,10 +473,13 @@ namespace Brunet
     ///this is the thread were the socket is read:
     protected Thread _listen_thread, _send_thread;
 
+    public UdpEdgeListener() : this(0, null, null)
+    {
+    }
+
     public UdpEdgeListener(int port)
     : this(port, null, null)
     {
-      
     }
     public UdpEdgeListener(int port, IEnumerable ips)
        : this(port, ips, null)  { }
@@ -489,14 +492,21 @@ namespace Brunet
      */
     public UdpEdgeListener(int port, IEnumerable local_config_ips, TAAuthorizer ta_auth)
     {
+      // Setup the socket so we can get port if unspecified
+      ipep = new IPEndPoint(IPAddress.Any, port);
+      _s = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+      _s.Bind(ipep);
+        //If ipep.Port = 0, then this is the only way to get our real port!
+      ipep = ((IPEndPoint) _s.LocalEndPoint);
+      _port = ipep.Port;
       /**
        * We get all the IPAddresses for this computer
        */
       if( local_config_ips == null ) {
-        _tas = TransportAddressFactory.CreateForLocalHost(TransportAddress.TAType.Udp, port);
+        _tas = TransportAddressFactory.CreateForLocalHost(TransportAddress.TAType.Udp, _port);
       }
       else {
-        _tas = TransportAddressFactory.Create(TransportAddress.TAType.Udp, port, local_config_ips);
+        _tas = TransportAddressFactory.Create(TransportAddress.TAType.Udp, _port, local_config_ips);
       }
       _nat_hist = null;
       _nat_tas = new NatTAs( _tas, _nat_hist );
@@ -505,11 +515,6 @@ namespace Brunet
         //Always authorize in this case:
         _ta_auth = new ConstantAuthorizer(TAAuthorizer.Decision.Allow);
       }
-      /*
-       * Use this to listen for data
-       */
-      _port = port;
-      ipep = new IPEndPoint(IPAddress.Any, port);
       //We start out expecting around 30 edges with
       //a load factor of 0.15 (to make edge lookup fast)
       _id_ht = new Hashtable(30, 0.15f);
@@ -566,8 +571,7 @@ namespace Brunet
           //We can't start twice... too bad, so sad:
           throw new Exception("Restart never allowed");
         }
-        _s = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-        _s.Bind(ipep);
+
         _isstarted = true;
         _running = true;
       }

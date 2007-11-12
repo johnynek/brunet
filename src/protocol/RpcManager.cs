@@ -488,9 +488,19 @@ public class RpcManager : IReplyHandler, IDataHandler {
   
     //Make sure we stop this request when the queue is closed.
     if( q != null ) {
-      q.CloseEvent += delegate(object qu, EventArgs eargs) {
-        _rrman.StopRequest(reqid, this);
-      };
+      try {
+        q.CloseEvent += delegate(object qu, EventArgs eargs) {
+          _rrman.StopRequest(reqid, this);
+       };
+      }
+      catch(Exception e) {
+        if(q.Closed) {
+          _rrman.StopRequest(reqid, this);
+        }
+        else {
+          throw e;
+        }
+      }
     }
   }
   
