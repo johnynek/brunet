@@ -356,7 +356,7 @@ namespace Brunet
             if( count >= 3 ) { try_again = false; }
           }
         }
-	_last_send = DateTime.UtcNow;
+	_last_send = now;
       }
     }
     protected Hashtable _ecs_ht;
