@@ -36,7 +36,7 @@ namespace Brunet
     /**
      * Here are the ConnectionOverlords for this type of Node
      */
-    protected ConnectionOverlord _lco;
+    protected ConnectionOverlord _leafco;
     protected ConnectionOverlord _sco;
     protected ConnectionOverlord _cco;
     protected ConnectionOverlord _localco;
@@ -57,7 +57,7 @@ namespace Brunet
     //       get {
     //         lock( _sync ) {
     //           //To be routable, 
-    //           return !(_lco.NeedConnection || _sco.NeedConnection);
+    //           return !(_leafco.NeedConnection || _sco.NeedConnection);
     //         }
     //       }
     //     }
@@ -73,7 +73,7 @@ namespace Brunet
       /**
        * Here are the ConnectionOverlords
        */ 
-      _lco = new LeafConnectionOverlord(this);
+      _leafco = new LeafConnectionOverlord(this);
       _sco = new StructuredConnectionOverlord(this);
       _cco = new ChotaConnectionOverlord(this);
       _localco = new LocalConnectionOverlord(this);
@@ -127,12 +127,12 @@ namespace Brunet
       base.Connect();
       StartAllEdgeListeners();
 
-      _lco.IsActive = true;
+      _leafco.IsActive = true;
       _sco.IsActive = true;
       _cco.IsActive = true;
       _localco.IsActive = true;
 
-      _lco.Activate();
+      _leafco.Activate();
       _sco.Activate();
       _cco.Activate();
       _localco.Activate();
@@ -153,7 +153,7 @@ namespace Brunet
         ProtocolLog.Write(ProtocolLog.NodeLog, String.Format(
           "Called Node.Disconnect: {0}", this.Address));
 
-      _lco.IsActive = false;
+      _leafco.IsActive = false;
       _sco.IsActive = false;
       _cco.IsActive = false;
       _localco.IsActive = false;

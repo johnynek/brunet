@@ -27,18 +27,18 @@ namespace Brunet
 {
 
   /**
-   * This CO is used for Brunet Zeroconf, due to there not being a single
-   * zeroconf service for all OS's, this makes use of multicast, specifically
-   * destination 224.123.123.222:56018.  Use a random UDP port for unicast
-   * communication.
+   * This CO is uses Brunet BroadcastRPC to find other nodes on the local
+   * network.  Currently it is only active when there are zero connections.
+   * Eventually, it may prove useful to have it find local nodes and create
+   * StructuredLocalConnections.
    */
 
   public class LocalConnectionOverlord: ConnectionOverlord
   {
     private Node _node;
     private DateTime _last_call;
-    public static readonly string NOTIFY = "lco_notify";
-    public static readonly string REQUEST = "lco_request";
+    public static readonly string NOTIFY = "localco_notify";
+    public static readonly string REQUEST = "localco_request";
 
     bool _active;
     /**
@@ -55,8 +55,8 @@ namespace Brunet
 
     public LocalConnectionOverlord(Node node) {
       _node = node;
-      _node.ZeroConf.Register(NOTIFY, HandleNotify);
-      _node.ZeroConf.Register(REQUEST, HandleRequest);
+      _node.BroadcastRPC.Register(NOTIFY, HandleNotify);
+      _node.BroadcastRPC.Register(REQUEST, HandleRequest);
     }
 
     /**
@@ -104,21 +104,21 @@ namespace Brunet
      */
     protected void Announce()
     {
-      _node.ZeroConf.Announce(REQUEST, null);
+      _node.BroadcastRPC.Announce(REQUEST, null);
     }
 
     /**
      * When we receive a new Notify message, we check each entry to make
-     * sure that all TransportAddresses are indeed IPTransportAddresses.
+     * sure that all strings are indeed TransportAddresses.
      */
-    protected void HandleNotify(EndPoint ep, IList tas)
+    protected void HandleNotify(EndPoint ep, string method, IList tas)
     {
       ArrayList remote_tas = new ArrayList(tas.Count);
 
-      // Test to make sure they really are TAs
+      // Test to make sure they really are IPTAs
       foreach(string ta in tas) {
         try {
-          remote_tas.Add(new IPTransportAddress(ta));
+          remote_tas.Add(TransportAddressFactory.CreateInstance(ta));
         }
         catch(Exception e) {
           ProtocolLog.WriteIf(ProtocolLog.Exceptions, "Invalid IPTA: " + e);
@@ -130,14 +130,14 @@ namespace Brunet
     /**
      * Send a list of our TAs in string format to the specified end point.
      */
-    protected void HandleRequest(EndPoint ep, IList empty)
+    protected void HandleRequest(EndPoint ep, string method, IList empty)
     {
       IList tas = (IList) ((ArrayList)_node.LocalTAs).Clone();
       string[] tas_string = new string[tas.Count];
       for(int i = 0; i < tas.Count; i++) {
         tas_string[i] = tas[i].ToString();
       }
-      _node.ZeroConf.SendResponse(ep, NOTIFY, tas_string);
+      _node.BroadcastRPC.SendResponse(ep, NOTIFY, tas_string);
     }
   }
 }
