@@ -1,4 +1,4 @@
-//#define USE_HEIGHT
+#define USE_HEIGHT
 using System;
 
 namespace Brunet.Coordinate {
@@ -34,10 +34,11 @@ namespace Brunet.Coordinate {
       _height = INITIAL_VECTOR_VALUE;
 #endif
     }
-    
+
+    public Point(Point p):this(p.Side, p.Height) {}
     public Point(double[] side, double height) {
       if (side.Length != DIMENSIONS) {
-	throw new Exception("Only 2-D points supported");
+	throw new Exception(String.Format("Only {0}-d points supported", DIMENSIONS));
       }
       _height = height;
       _side = new double[DIMENSIONS];
@@ -46,6 +47,15 @@ namespace Brunet.Coordinate {
       }
     }
     
+    public Point(string s) {
+      string[] ss = s.Split(new char[]{' '});
+      _side = new double[DIMENSIONS];
+      for (int i = 0; i < DIMENSIONS; i++) {
+	_side[i] = double.Parse(ss[i].Trim());
+      }
+      _height = double.Parse(ss[DIMENSIONS].Trim());
+    }
+
     public Point GetDirection(Point p) {
       double dist = GetEucledianDistance(p);
       if (dist == 0) {
@@ -151,7 +161,7 @@ namespace Brunet.Coordinate {
 	}
       }
 #if USE_HEIGHT
-      ss +=  ("h " + _height + "");
+      ss +=  (" " + _height);
 #else
       ss += "";
 #endif
