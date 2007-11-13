@@ -1,6 +1,8 @@
 using System;
 using System.IO;
+using System.Net;
 using System.Collections;
+
 
 #if NC_NUNIT
 using System.Security.Cryptography;
@@ -13,6 +15,7 @@ namespace Brunet.Coordinate {
   public class NCService {
     //the object server that accepts sample requests
     public class NCServer {
+      protected static readonly string _hostname = Dns.GetHostName();
       private NCService _local_service;
       public NCServer(NCService local) {
 	_local_service = local;
@@ -37,6 +40,7 @@ namespace Brunet.Coordinate {
 	ht_position["side"] = new ArrayList(v_state.Position.Side);
 	ht_position["height"] = v_state.Position.Height;
 	ht["position"] = ht_position;
+	ht["hostname"] = _hostname;
 #if NC_DEBUG
 	if (_local_service.Node != null) {
 	  Console.Error.WriteLine("[NCService] {0} EchoVivaldiState() returning.", _local_service.Node.Address);
@@ -87,7 +91,7 @@ namespace Brunet.Coordinate {
 	  }
 	  VivaldiState v_state = new VivaldiState();
 	  v_state.Position  = 
-	    new Point(_vivaldi_state.Position.Side, _vivaldi_state.Position.Height);
+	    new Point(_vivaldi_state.Position);
 	  v_state.WeightedError = _vivaldi_state.WeightedError;
 	  v_state.DistanceDelta = _vivaldi_state.DistanceDelta;
 	  return v_state;
@@ -96,11 +100,13 @@ namespace Brunet.Coordinate {
     }
 
     private static Hashtable _nc_service_table = new Hashtable();
-    //every 20 seconds get a new sample for latency
-    private static readonly int SAMPLE_INTERVAL = 20;
+    //every 10 seconds get a new sample for latency
+    private static readonly int SAMPLE_INTERVAL = 10;
 
-    //sample not valid beyond 5 seconds
-    protected static readonly long SAMPLE_EXPIRATION = 5;
+    //sample not valid beyond 1800 seconds
+    protected static readonly long SAMPLE_EXPIRATION = 1800;
+    
+
     
     //maximum latency value to consider a sample 
     protected static readonly double MAX_RTT = 5;
@@ -293,32 +299,33 @@ namespace Brunet.Coordinate {
       Point o_position = 
 	new Point((double[]) ((ArrayList) ht_position["side"]).ToArray(typeof(double)), (double) ht_position["height"]);
       double o_weightedError = (double) ht["error"];
-      ProcessSample(end, neighbor, o_position, o_weightedError, o_rawLatency);
+      string host = null;
+      if (ht.Contains("hostname")) {
+	host = (string) ht["hostname"];
+      }
+      ProcessSample(end, host, neighbor, o_position, o_weightedError, o_rawLatency);
     }
     
     /** Processing of a latency sample using Vivaldi network coordinate approach. 
      *  @param o_stamp timestamp
-     *  @param neighbor neighbor node from where sample is received
+     *  @param o_host name of the host from which we got the sample
+     *  @param o_neighbor neighbor node from where sample is received
      *  @param o_position position vector of neighbor
      *  @param o_weightedError at the neighbor
      *  @param o_rawLatency latency of the sample
      */
 
-    public void ProcessSample(DateTime o_stamp, Address neighbor, Point o_position, 
+    public void ProcessSample(DateTime o_stamp, string o_host, Address o_neighbor, Point o_position, 
 			      double o_weightedError, double o_rawLatency) {
       lock(_sync) {
-#if NC_DEBUG
-	Console.Error.WriteLine("[Sample] at: {0}, from: {1}, position: {2}, error: {3}, latency: {4}", 
-				o_stamp, neighbor, o_position, o_weightedError, o_rawLatency);
-#endif
-
 	Sample sample = null;
-	if (_samples.ContainsKey(neighbor)) {
-	  sample = (Sample) _samples[neighbor];
+	if (_samples.ContainsKey(o_neighbor)) {
+	  sample = (Sample) _samples[o_neighbor];
 	} else {
 	  sample = new Sample();
-	  _samples[neighbor] = sample;
+	  _samples[o_neighbor] = sample;
 	}
+
 	sample.AddSample(o_stamp, o_rawLatency, o_position, o_weightedError);
 	double o_latency = sample.GetSample();
 	if (o_latency < 0.0) {
@@ -327,6 +334,11 @@ namespace Brunet.Coordinate {
 #endif
 	  return;
 	}
+#if NC_DEBUG
+	Console.Error.WriteLine("[Sample] at: {0}, from: {1} {2}, position: {3}, error: {4}, raw latency: {5}, smooth latency: {6}", 
+				o_stamp, o_host, o_neighbor, o_position, o_weightedError, o_rawLatency, o_latency);
+#endif
+
 
 	double o_distance = _vivaldi_state.Position.GetEucledianDistance(o_position);
 	while (o_distance == 0) {
@@ -388,7 +400,7 @@ namespace Brunet.Coordinate {
 	  }
 	  
 	  //
-	  // Valid node.
+	  // valid sample.
 	  //
 	  valid_nodes.Add(node);
 	  if (o_oldestSample > n_sample.TimeStamp) {
@@ -531,38 +543,38 @@ namespace Brunet.Coordinate {
       Address addr_remote = new AHAddress(new RNGCryptoServiceProvider());
       Address addr_remote1 = new AHAddress(new RNGCryptoServiceProvider());
 
-      nc_service.ProcessSample(now + new TimeSpan(0, 0, 5), addr_remote, 
+      nc_service.ProcessSample(now + new TimeSpan(0, 0, 5), "local-test", addr_remote, 
 			       new Point(new double[] {(double) 3.0, (double) 4.0}, 0),
 			       (double) 0.9, (double)10.0); 
 
-      nc_service.ProcessSample(now + new TimeSpan(0, 0, 6), addr_remote1, 
+      nc_service.ProcessSample(now + new TimeSpan(0, 0, 6), "local-test",addr_remote1, 
 			       new Point(new double[] {(double) 10.0, (double) 2.0}, 0),
 			       (double) 0.9, (double)10.0); 
 
 
-      nc_service.ProcessSample(now + new TimeSpan(0, 0, 7), addr_remote, 
+      nc_service.ProcessSample(now + new TimeSpan(0, 0, 7), "local-test",addr_remote, 
 			       new Point(new double[] {(double) 3.0, (double) 4.0}, 0),
 			       (double) 0.8, (double)12.0); 
 
-      nc_service.ProcessSample(now + new TimeSpan(0, 0, 8), addr_remote1, 
+      nc_service.ProcessSample(now + new TimeSpan(0, 0, 8), "local-test",addr_remote1, 
 			       new Point(new double[] {(double) 10.0, (double) 2.0}, 0),
 			       (double) 0.8, (double)12.0); 
 
 
-      nc_service.ProcessSample(now + new TimeSpan(0, 0, 9), addr_remote, 
+      nc_service.ProcessSample(now + new TimeSpan(0, 0, 9), "local-test",addr_remote, 
 			       new Point(new double[] {(double) 3.0, (double) 4.0}, 0),
 			       (double)0.7, (double)13.0); 
 
-      nc_service.ProcessSample(now + new TimeSpan(0, 0, 11), addr_remote1, 
+      nc_service.ProcessSample(now + new TimeSpan(0, 0, 11), "local-test",addr_remote1, 
 			       new Point(new double[] {(double) 10.0, (double) 2.0}, 0),
 			       (double)0.7, (double)13.0); 
 
 
-      nc_service.ProcessSample(now + new TimeSpan(0, 0, 12), addr_remote, 
+      nc_service.ProcessSample(now + new TimeSpan(0, 0, 12), "local-test",addr_remote, 
 			       new Point(new double[] {(double) 3.0, (double) 4.0}, 0),
 			       (double)0.6, (double)10.0); 
 
-      nc_service.ProcessSample(now + new TimeSpan(0, 0, 13), addr_remote1, 
+      nc_service.ProcessSample(now + new TimeSpan(0, 0, 13), "local-test",addr_remote1, 
 			       new Point(new double[] {(double) 10.0, (double) 2.0}, 0),
 			       (double)0.6, (double)10.0);       
 
