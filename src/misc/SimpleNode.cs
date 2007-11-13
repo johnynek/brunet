@@ -448,8 +448,10 @@ namespace Ipop {
 
       public void GetGeoLocAsThread() {
         string local_geo_loc = IPOP_Common.GetMyGeoLoc();
-        if(!local_geo_loc.Equals(","))
+        if(!local_geo_loc.Equals(",")) {
           geo_loc = local_geo_loc;
+        }
+
         geo_loc_thread = null;
       }
     }

@@ -89,7 +89,7 @@ namespace Ipop {
       /* Lease Time */
       returnPacket.options.Add(51, (DHCPOption) CreateOption(51, leaseReturn.leasetime));
       /* MTU Size */
-      returnPacket.options.Add(26, (DHCPOption) CreateOption(26, new byte[]{5, 46}));
+      returnPacket.options.Add(26, (DHCPOption) CreateOption(26, new byte[]{4, 176}));
       /* Server Identifier */
       returnPacket.options.Add(54, (DHCPOption) CreateOption(54, this.ServerIP));
 
