@@ -21,7 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //#define DEBUG
 
-//#define LINK_DEBUG
+#define LINK_DEBUG
 
 #if BRUNET_NUNIT
 using NUnit.Framework;
@@ -247,11 +247,11 @@ namespace Brunet
           if (success) {
             if(ProtocolLog.LinkDebug.Enabled)
                 ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
-                  "(Linker) Handle edge success{0}: ", e));
+                  "(Linker) Handle edge success: {0}", e));
           } else {
             if(ProtocolLog.LinkDebug.Enabled)
               ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
-              "(Linker) Handle edge failure{0}: ", x));
+              "(Linker) Handle edge failure: {0} ", x));
           }
         }
         lock( _sync ) {
@@ -453,12 +453,14 @@ namespace Brunet
 #if LINK_DEBUG
       _last_lid++;
       _lid = _last_lid;
-      Console.Error.WriteLine("Making {0}",this);
-      if( target_list != null ) {
-        Console.Error.WriteLine("TAs:");
-        foreach(TransportAddress ta in target_list) {
-          Console.Error.WriteLine(ta);
-        }
+      if(ProtocolLog.LinkDebug.Enabled) {
+	ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format("Making {0}",this));
+	if( target_list != null ) {
+	  ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format("TAs:"));
+	  foreach(TransportAddress ta in target_list) {
+	    ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format("{0}", ta));
+	  }
+	}
       }
 #endif
     }
@@ -475,7 +477,9 @@ namespace Brunet
      */
     override public void Start() {
 #if LINK_DEBUG
-      Console.Error.WriteLine("Linker({0}).Start at: {1}", _lid, DateTime.Now);
+      if (ProtocolLog.LinkDebug.Enabled) {
+	ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format("Linker({0}).Start at: {1}", _lid, DateTime.Now));
+      }
 #endif
       //Just move to the next (first) TA
       lock( _sync ) {
@@ -587,8 +591,10 @@ namespace Brunet
           }
         }//Lock
 #if LINK_DEBUG
-        Console.Error.WriteLine("Linker({0}) {1}: transfering lock on {2} to {3}",
-                          _lid, allow, a, l);
+        if (ProtocolLog.LinkDebug.Enabled) {
+	  ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format("Linker({0}) {1}: transfering lock on {2} to {3}",
+								 _lid, allow, a, l));
+	}
 #endif
         return allow;       
     }
@@ -617,12 +623,18 @@ namespace Brunet
           _con = c;
         }  
 #if LINK_DEBUG
-        Console.Error.WriteLine("Linker({0}) added {1} at: {2}", _lid, c, DateTime.Now);
+	if (ProtocolLog.LinkDebug.Enabled) {
+	  ProtocolLog.Write(ProtocolLog.LinkDebug, 
+			    String.Format("Linker({0}) added {1} at: {2}", _lid, c, DateTime.Now));
+	}
 #endif
       }
       catch(Exception) {
 #if LINK_DEBUG
-        Console.Error.WriteLine("Linker({0}) exception trying to add: {1}", _lid, c);
+        if (ProtocolLog.LinkDebug.Enabled) {
+	  ProtocolLog.Write(ProtocolLog.LinkDebug, 
+			    String.Format("Linker({0}) exception trying to add: {1}", _lid, c));
+	}
 #endif
         /* Looks like we could not add the connection */
         //log.Error("Could not Add:", x);
@@ -712,7 +724,10 @@ namespace Brunet
       }
       if( fire_finished ) {
 #if LINK_DEBUG
-        Console.Error.WriteLine("Linker({0}) finished at: {1}", _lid, DateTime.Now);
+        if (ProtocolLog.LinkDebug.Enabled) {
+	  ProtocolLog.Write(ProtocolLog.LinkDebug, 
+			    String.Format("Linker({0}) finished at: {1}", _lid, DateTime.Now));
+	}
 #endif
         FireFinished();
       }
@@ -721,8 +736,11 @@ namespace Brunet
    protected void LinkProtocolStateFinishHandler(object olps, EventArgs args) {
      LinkProtocolState lps = (LinkProtocolState)olps;
 #if LINK_DEBUG
-     Console.Error.WriteLine("Linker({0}): {1} finished with result: {2} at: {3}", _lid,
-                       lps, lps.MyResult, DateTime.Now);
+     if (ProtocolLog.LinkDebug.Enabled) {
+	ProtocolLog.Write(ProtocolLog.LinkDebug, 
+			  String.Format("Linker({0}): {1} finished with result: {2} at: {3}", _lid,
+					lps, lps.MyResult, DateTime.Now));
+     }
 #endif
      switch( lps.MyResult ) {
        case LinkProtocolState.Result.Success:
@@ -794,7 +812,10 @@ namespace Brunet
         }
       }
 #if LINK_DEBUG
-      Console.Error.WriteLine("Linker({0}) Move on to the next TA: {1}", _lid, next_ta);
+      if (ProtocolLog.LinkDebug.Enabled) {
+	ProtocolLog.Write(ProtocolLog.LinkDebug, 
+			  String.Format("Linker({0}) Move on to the next TA: {1}", _lid, next_ta));
+      }
 #endif
       return next_ta;
     }
@@ -845,13 +866,19 @@ namespace Brunet
       if( rss == null ) {
 #if LINK_DEBUG
         //Fail(ta, "no more tas to restart with");
-        Console.Error.WriteLine("Linker({0}), no more tas to restart with");
+        if (ProtocolLog.LinkDebug.Enabled) {
+	  ProtocolLog.Write(ProtocolLog.LinkDebug, 
+			    String.Format("Linker({0}), no more tas to restart with", _lid));
+	}
 #endif
       }
       else {
 #if LINK_DEBUG
-        Console.Error.WriteLine("Linker({0}) restarting; remaining attempts: {1}",
-                            _lid, rss.RemainingAttempts);
+        if (ProtocolLog.LinkDebug.Enabled) {
+	ProtocolLog.Write(ProtocolLog.LinkDebug, 
+			  String.Format("Linker({0}) restarting; remaining attempts: {1}",
+					_lid, rss.RemainingAttempts));
+	}
 #endif
         //Actually schedule the restart
         rss.FinishEvent += this.RestartHandler;
@@ -917,7 +944,10 @@ namespace Brunet
          * stop before we even try to make an edge.
          */
 #if LINK_DEBUG
-          Console.Error.WriteLine("Linker ({0}) attempting to lock {1}", _lid, _target);
+          if (ProtocolLog.LinkDebug.Enabled) {
+	    ProtocolLog.Write(ProtocolLog.LinkDebug, 
+			      String.Format("Linker ({0}) attempting to lock {1}", _lid, _target));
+	  }
 #endif
          /*
           * Locks flow around in complex ways, but we
@@ -926,7 +956,10 @@ namespace Brunet
           */
           SetTarget(_target);
 #if LINK_DEBUG
-          Console.Error.WriteLine("Linker ({0}) acquired lock on {1}", _lid, _target);
+          if (ProtocolLog.LinkDebug.Enabled) {
+	    ProtocolLog.Write(ProtocolLog.LinkDebug, 
+			      String.Format("Linker ({0}) acquired lock on {1}", _lid, _target));
+	  }
 #endif
         /*
          * Asynchronously gets an edge, and then begin the
@@ -936,7 +969,10 @@ namespace Brunet
          * the Link attempt Fails.
          */
 #if LINK_DEBUG
-          Console.Error.WriteLine("Linker: ({0}) Trying TA: {1}", _lid, next_ta);
+          if (ProtocolLog.LinkDebug.Enabled) {
+	    ProtocolLog.Write(ProtocolLog.LinkDebug, 
+			      String.Format("Linker: ({0}) Trying TA: {1}", _lid, next_ta));
+	  }
 #endif
          TaskWorker ew = new EdgeWorker(_local_n.EdgeFactory, next_ta);
          ew.FinishEvent += this.EdgeWorkerHandler;
@@ -948,7 +984,10 @@ namespace Brunet
       }
       catch(CTLockException) {
 #if LINK_DEBUG
-        Console.Error.WriteLine("Linker ({0}) failed to lock {1}", _lid, _target);
+        if (ProtocolLog.LinkDebug.Enabled) {
+	  ProtocolLog.Write(ProtocolLog.LinkDebug, 
+			    String.Format("Linker ({0}) failed to lock {1}", _lid, _target));
+	}
 #endif
         //This is thrown when ConnectionTable cannot lock.  Lets try again:
         RetryThis(next_ta);
