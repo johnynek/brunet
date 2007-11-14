@@ -32,6 +32,9 @@ namespace Ipop {
     }
 
     public static void StartDhtServer(Dht dht, int port) {
+      if(port == 0) {
+        throw new Exception("Must be started with a valid specific port number!");
+      }
       IServerChannelSinkProvider chain = new XmlRpcServerFormatterSinkProvider();
       chain.Next = new SoapServerFormatterSinkProvider();
 
@@ -39,7 +42,7 @@ namespace Ipop {
       props.Add("port", port);
       props.Add("name", "dhtsvc");
       HttpChannel channel = new HttpChannel(props, null, chain);
-      ChannelServices.RegisterChannel(channel);
+      ChannelServices.RegisterChannel(channel, false);
 
       SoapDht sd = new SoapDht(dht);
       RemotingServices.Marshal(sd, "sd.rem");

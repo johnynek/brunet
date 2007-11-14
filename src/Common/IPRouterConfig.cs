@@ -17,18 +17,18 @@ namespace Ipop {
     public AddressInfo AddressData;
     [XmlArrayItem (typeof(string), ElementName = "Device")]
     public string [] DevicesToBind;
-    public bool EnableSoapDht;
-    public string DhtPort;
-    public bool EnableXmlRpcManager;
-    public string XmlRpcPort;
+    public PortEnable RpcDht;
+    public PortEnable XmlRpcManager;
+  }
+
+  public class PortEnable {
+    public bool Enabled;
+    public int Port;
   }
 
   public class AddressInfo {
     public string IPAddress;
     public string Netmask;
-    public string DHCPServerAddress;
-    public string Password;
-    public bool DhtDHCP;
   }
 
   public class EdgeListener {

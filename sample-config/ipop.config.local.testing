@@ -5,6 +5,12 @@
     <EdgeListener type="udp"/>
     <EdgeListener type="tcp"/>
   </EdgeListeners>
-  <EnableSoapDht>true</EnableSoapDht>
-  <EnableXmlRpcManager>true</EnableXmlRpcManager>
+  <XmlDht>
+    <Enabled>true</Enabled>
+    <Port>64221</Port>
+  </XmlDht>
+  <XmlRpcManager>
+    <Enabled>true</Enabled>
+    <Port>64221</Port>
+  </XmlRpcManager>
 </IPRouterConfig>

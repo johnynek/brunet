@@ -31,12 +31,16 @@ namespace Ipop {
         switch(args[index]) {
           case "-m":
             int new_node_count = 0;
-            index++;
+            try {
+              new_node_count = Int32.Parse(args[++index]);
+            }
+            catch{}
+
             if(dhtconsole || dhtfiles.Count > 0 || soap_client) {
               Console.Error.WriteLine("-m cannot be used with -df, -dc, or -s.\n");
               PrintHelp();
             }
-            else if((index == args.Length) || !Int32.TryParse(args[index], out new_node_count)) {
+            else if((index == args.Length) || new_node_count == 0) {
               Console.WriteLine("-m must be followed by a number.\n");
               PrintHelp();
             }
@@ -59,20 +63,24 @@ namespace Ipop {
             config_file = args[index];
             break;
           case "-s":
-            if(config_file != string.Empty || node_count > 1) {
-              Console.WriteLine("-s cannot be used with -m, or -c.\n");
-              PrintHelp();
-            }
-            sd = DhtServiceClient.GetSoapDhtClient();
-            soap_client = true;
-            break;
+            goto case "-x";
           case "-x":
-            if (config_file != string.Empty || node_count > 1)
-            {
-              Console.WriteLine("-x cannot be used with -m, or -c.\n");
+            int dht_port = 0;
+            try {
+              dht_port = Int32.Parse(args[++index]);
+            }
+            catch{}
+
+            if(config_file != string.Empty || node_count > 1 || dht_port == 0) {
+              Console.WriteLine("{0} cannot be used with -m or -c and must be followed by the port number to use.\n", args[index-1]);
               PrintHelp();
             }
-            sd = DhtServiceClient.GetXmlRpcDhtClient();
+            if(args[index-1] == "-s") {
+              sd = DhtServiceClient.GetSoapDhtClient(dht_port);
+            }
+            else {
+              sd = DhtServiceClient.GetXmlRpcDhtClient(dht_port);
+            }
             soap_client = true;
             break;
           case "-dc":
@@ -199,19 +207,17 @@ namespace Ipop {
         node.Connect();
         simplenodes[i] = new SimpleNodeData(node, ndht);
 
-        if(config.EnableSoapDht && sdthread == null) {
+        if(config.RpcDht != null && config.RpcDht.Enabled && sdthread == null) {
           try {
-            int dht_port = Int32.Parse(config.DhtPort);
-            sdthread = DhtServer.StartDhtServerAsThread(ndht, dht_port);
+            sdthread = DhtServer.StartDhtServerAsThread(ndht, config.RpcDht.Port);
           }
           catch {}
         }
 
-        if (config.EnableXmlRpcManager && xrmthread == null) {
+        if (config.XmlRpcManager != null && config.XmlRpcManager.Enabled && xrmthread == null) {
           try {
-            int xml_port = Int32.Parse(config.XmlRpcPort);
             RpcManager rpc = RpcManager.GetInstance(node);
-            XmlRpcManagerServer.StartXmlRpcManagerServerAsThread(rpc, xml_port);
+            XmlRpcManagerServer.StartXmlRpcManagerServerAsThread(rpc, config.XmlRpcManager.Port);
           }
           catch {}
         }

@@ -502,6 +502,12 @@
   <DevicesToBind>
     <Device>eth0</Device>
   </DevicesToBind>
-  <EnableSoapDht>false</EnableSoapDht>
-  <EnableXmlRpcManager>false</EnableXmlRpcManager>
+  <XmlDht>
+    <Enabled>true</Enabled>
+    <Port>64221</Port>
+  </XmlDht>
+  <XmlRpcManager>
+    <Enabled>true</Enabled>
+    <Port>64221</Port>
+  </XmlRpcManager>
 </IPRouterConfig>

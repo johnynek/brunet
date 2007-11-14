@@ -10,19 +10,6 @@ namespace Ipop {
     public DHCPServer _dhcp_server;
     abstract public DecodedDHCPPacket SendMessage(DecodedDHCPPacket packet);
   }
-  public class SoapDHCPClient : DHCPClient {
-    public SoapDHCPClient(string ipAddress) {
-      TcpChannel ch = new TcpChannel();
-      ChannelServices.RegisterChannel(ch);
-      RemotingConfiguration.RegisterWellKnownClientType(typeof(SoapDHCPServer),
-        "tcp://" + ipAddress + "/DHCPServer.rem");
-      _dhcp_server = new SoapDHCPServer();
-    }
-
-    public override DecodedDHCPPacket SendMessage(DecodedDHCPPacket packet) {
-      return _dhcp_server.SendMessage(packet);
-    }
-  }
 
   public class DhtDHCPClient: DHCPClient {
     public DhtDHCPClient(Dht dht) {

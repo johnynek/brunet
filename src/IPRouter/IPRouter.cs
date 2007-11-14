@@ -34,19 +34,17 @@ namespace Ipop {
         node, config.EdgeListeners, config.DevicesToBind, RemoteTAs);
       routes = new Routes(node.brunet.dht, node.ipop_namespace);
 
-      if(config.EnableSoapDht && sdthread == null) {
+      if(config.RpcDht != null && config.RpcDht.Enabled && sdthread == null) {
         try {
-          int dht_port = Int32.Parse(config.DhtPort);
-          sdthread = DhtServer.StartDhtServerAsThread(node.brunet.dht, dht_port);
+          sdthread = DhtServer.StartDhtServerAsThread(node.brunet.dht, config.RpcDht.Port);
         }
         catch {}
       }
 
-      if (config.EnableXmlRpcManager && xrmthread == null) {
+      if (config.XmlRpcManager != null && config.XmlRpcManager.Enabled && xrmthread == null) {
         try {
-          int xml_port = Int32.Parse(config.XmlRpcPort);
           RpcManager rpc = RpcManager.GetInstance(node.brunet.node);
-          XmlRpcManagerServer.StartXmlRpcManagerServerAsThread(rpc, xml_port);
+          XmlRpcManagerServer.StartXmlRpcManagerServerAsThread(rpc, config.XmlRpcManager.Port);
         }
         catch {}
       }
@@ -104,10 +102,11 @@ namespace Ipop {
       dhcpPacket.decodedPacket.ipop_namespace = config.ipop_namespace;
       dhcpPacket.decodedPacket.NodeAddress = node.address.ToString();
 
-      if (config.AddressData.IPAddress != null) {
+      try {
         dhcpPacket.decodedPacket.yiaddr =
           IPAddress.Parse(config.AddressData.IPAddress).GetAddressBytes();
       }
+      catch {}
 
       /* DHCP Server returns our incoming packet, which we decode, if it
           is successful, we continue, otherwise we fail and print out a message */
@@ -137,6 +136,7 @@ namespace Ipop {
           node.ip = IPAddress.Parse(newAddress);
           ProtocolLog.WriteIf(IPOPLog.DHCPLog, String.Format(
             "DHCP:  IP Address changed to {0}", node.ip));
+          config.AddressData = new AddressInfo();
           config.AddressData.IPAddress = newAddress;
           config.AddressData.Netmask = node.netmask;
           IPRouterConfigHandler.Write(ConfigFile, config);
@@ -193,19 +193,14 @@ namespace Ipop {
       node = new NodeMapping();
       node.address = (AHAddress) AddressParser.Parse(config.NodeAddress);
       node.ipop_namespace = config.ipop_namespace;
-      node.netmask = config.AddressData.Netmask;
-
-      if(config.AddressData.IPAddress != null) {
+      try {
+        node.netmask = config.AddressData.Netmask;
         node.ip = IPAddress.Parse(config.AddressData.IPAddress);
       }
+      catch{}
 
       BrunetStart();
-
-      if(config.AddressData.DHCPServerAddress != null && !config.AddressData.DhtDHCP)
-        dhcpClient = new SoapDHCPClient(config.AddressData.DHCPServerAddress);
-      else {
-        dhcpClient = new DhtDHCPClient(node.brunet.dht);
-      }
+      dhcpClient = new DhtDHCPClient(node.brunet.dht);
 
       in_dht = false;
       bool ethernet = false;

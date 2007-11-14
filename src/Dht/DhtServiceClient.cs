@@ -8,10 +8,6 @@ using System.Collections;
 
 namespace Ipop {
   public partial class DhtServiceClient {
-    public static IXmlRpcDht GetXmlRpcDhtClient() {
-      return GetXmlRpcDhtClient(64221);
-    }
-
     public static IXmlRpcDht GetXmlRpcDhtClient(int port) {
       IXmlRpcDht proxy = (IXmlRpcDht)XmlRpcProxyGen.Create(typeof(IXmlRpcDht));
       proxy.Url = "http://127.0.0.1:" + port + "/xd.rem";

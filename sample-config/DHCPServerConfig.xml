@@ -1,3 +1,5 @@
+<!-- This can be placed into the Dht for DhtDHCP, dht_dhcp_namespace is a 
+     condensed version -->
 <DHCPServerConfig>
   <brunet_namespace>condor_wow</brunet_namespace>
   <ipop_namespace>
