@@ -135,16 +135,16 @@ namespace Brunet
      */
     public override void CreateEdgeTo(TransportAddress ta, EdgeCreationCallback ecb) 
     {
+      try {
       if (!IsStarted) {
-        ecb(false, null, new EdgeException("TunnelEdgeListener not started"));
+        throw new EdgeException("TunnelEdgeListener not started");
       }
       else if (!_running) {
-        ecb(false, null, new EdgeException("TunnelEdgeListener not running"));        
+        throw new EdgeException("TunnelEdgeListener not running");
       }
       else if (ta.TransportAddressType != this.TAType) {
-        ecb(false, null,
-            new EdgeException(ta.TransportAddressType.ToString()
-                              + " is not my type: " + this.TAType.ToString() ) );
+	throw new EdgeException(ta.TransportAddressType.ToString()
+				+ " is not my type: " + this.TAType.ToString());
       }
       else {
 #if TUNNEL_DEBUG
@@ -261,6 +261,9 @@ namespace Brunet
         }
       }
       //we will defer this sending to next heartbeat; an artificial delay from out own side
+      } catch(Exception e) {
+	ecb(false, null, e);
+      }
     }
 
 
