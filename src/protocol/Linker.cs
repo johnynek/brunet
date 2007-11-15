@@ -249,9 +249,10 @@ namespace Brunet
                 ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
                   "(Linker) Handle edge success: {0}", e));
           } else {
-            if(ProtocolLog.LinkDebug.Enabled)
+            if(ProtocolLog.LinkDebug.Enabled) {
               ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
-              "(Linker) Handle edge failure: {0} ", x));
+              "(Linker) Handle edge failure: {0} done.", x));
+	    }
           }
         }
         lock( _sync ) {
