@@ -36,7 +36,6 @@ namespace Brunet
     public CodeInjection(Node node)
     {
       _node = node;
-      RpcManager.GetInstance(_node).AddHandler("CodeInjection", this);
     }
 
     /**
@@ -46,16 +45,10 @@ namespace Brunet
      */
     public void LoadLocalModules()
     {
-      try {
-        string [] files = Directory.GetFiles(Directory.GetCurrentDirectory(), "Brunet.Inject*");
-        foreach(string file in files) {
-          try {
-            this.Inject(file);
-          }
-          catch (Exception e){Console.WriteLine(e);}
-        }
+      string [] files = Directory.GetFiles(".", "Brunet.Inject.*");
+      foreach(string file in files) {
+        this.Inject(file);
       }
-      catch (Exception e){Console.WriteLine(e);}
     }
 
     /**
@@ -79,14 +72,30 @@ namespace Brunet
      * @param assembly_data pre-compiled data that will be injected into the
      * system.
      */
-    protected void Inject(MemBlock assembly_data)
+    public void Inject(MemBlock assembly_data)
     {
       Assembly ass = Assembly.Load(assembly_data);
       Type[] types = ass.GetTypes();
       foreach(Type type in types) {
-        ass.CreateInstance(type.ToString(), false, BindingFlags.CreateInstance,
-                           null, new object[1] {_node}, null, null);
+        BaseInjected injected = (BaseInjected) ass.CreateInstance(type.ToString());
+        injected.Register(_node);
       }
     }
+  }
+
+  /**
+   * All objects that want to be Injected must implement this class.  Only
+   * the default constructor will be called.
+   */
+  public abstract class BaseInjected
+  {
+    /**
+     * Register is used to complete the injection.  This gives the injected
+     * code the ability to register itself with the system.  This is
+     * independent of the constructor due to the complexities in calling
+     * Assembly.CreateInstance with constructor objects.
+     * @param node a StructuredNode representing the underlying node
+     */
+    public abstract void Register(Node node);
   }
 }
