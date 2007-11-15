@@ -47,7 +47,10 @@ namespace Brunet
     {
       string [] files = Directory.GetFiles(".", "Brunet.Inject.*");
       foreach(string file in files) {
-        this.Inject(file);
+        try {
+          this.Inject(file);
+        }
+        catch{}
       }
     }
 
