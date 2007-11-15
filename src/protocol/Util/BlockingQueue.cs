@@ -43,18 +43,6 @@ public class Channel {
     _close_on_enqueue = false;
   }
 
-  /**
-   * This provides a queue with a timeout so data being dequeued
-   * has not expired.
-   */
-
-  public Channel(int timeout) {
-    _closed = false;
-    _sync = new object();
-    _queue = new QueueWithTimeout(timeout);
-    _close_on_enqueue = false;
-  }
-
   protected readonly Queue _queue;
   protected readonly object _sync; 
   protected bool _closed;
@@ -207,11 +195,6 @@ public class Channel {
 public sealed class BlockingQueue : Channel {
   
   public BlockingQueue() {
-    _re = new AutoResetEvent(false); 
-    _waiters = 0;
-  }
-
-  public BlockingQueue(int timeout) : base(timeout) {
     _re = new AutoResetEvent(false); 
     _waiters = 0;
   }
