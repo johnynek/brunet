@@ -72,6 +72,8 @@ namespace Brunet
         _connection_table.ConnectionEvent += this.ConnectionHandler;
 
         _broadcastrpc = new BroadcastRPC();
+        _codeinjection = new CodeInjection(this);
+        _codeinjection.LoadLocalModules();
         /*
          * We must later make sure the EdgeEvent events from
          * any EdgeListeners are connected to _cph.EdgeHandler
@@ -284,6 +286,7 @@ namespace Brunet
      */
     public BroadcastRPC BroadcastRPC { get { return _broadcastrpc; } }
     protected BroadcastRPC _broadcastrpc;
+    protected CodeInjection _codeinjection;
 
     /**
      * This is true if the Node is properly connected in the network.
