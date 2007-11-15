@@ -19,6 +19,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using System.Collections;
 using System;
 
+#if BRUNET_NUNIT
+using NUnit.Framework;
+using System.Threading;
+#endif
+
 namespace Brunet
 {
 /**
@@ -26,6 +31,9 @@ namespace Brunet
  * the data being processed is never valid and valid data becomes invalid
  * by the time it is processed.  Heuristics should be used to set a timeout
  */
+#if BRUNET_NUNIT
+  [TestFixture]
+#endif
   public class QueueWithTimeout: Queue {
     public override int Count {
       get {
@@ -50,10 +58,11 @@ namespace Brunet
     protected void Check(bool leave_one) {
       // For Dequeue and Peek if we don't leave one, we'll get an undesired exception
       int minimum = leave_one ? 1 : 0;
-      if(base.Count == minimum)
+      if(base.Count <= minimum)
         return;
-        // This is only works when _timeout is > 0 and clears
-      while(base.Count >= minimum && _timeout < (DateTime.UtcNow - (DateTime) _timeout_queue.Peek()).TotalSeconds) {
+
+      // This is only works when _timeout is > 0 and clears
+      while(base.Count > minimum && _timeout < (DateTime.UtcNow - (DateTime) _timeout_queue.Peek()).TotalSeconds) {
         base.Dequeue();
         _timeout_queue.Dequeue();
       }
@@ -75,5 +84,47 @@ namespace Brunet
       Check(true);
       return base.Peek();
     }
+
+#if BRUNET_NUNIT
+    [Test]
+    public void DequeueTest()
+    {
+      Queue qwt = new QueueWithTimeout(1);
+      Object o0 = new Object();
+      Object o1 = new Object();
+      Object o2 = new Object();
+
+      qwt.Enqueue(o0);
+      Thread.Sleep(750);
+      qwt.Enqueue(o1);
+      qwt.Enqueue(o0);
+      Assert.AreEqual(qwt.Count, 3);
+      Thread.Sleep(500);
+      qwt.Enqueue(o2);
+      Object res = qwt.Dequeue();
+      Assert.AreEqual(qwt.Count, 2);
+      Assert.AreSame(res, o1);
+      Assert.IsFalse(res == o0);
+      Thread.Sleep(500);
+      res = qwt.Dequeue();
+      Assert.AreSame(res, o2);
+    }
+
+    [Test]
+    public void EnqueueTest()
+    {
+      Queue qwt = new QueueWithTimeout(1);
+      Object o0 = new Object();
+      Object o1 = new Object();
+
+      qwt.Enqueue(o0);
+      Thread.Sleep(1250);
+      Assert.AreEqual(qwt.Count, 0);
+      qwt.Enqueue(o1);
+      Object res = qwt.Dequeue();
+      Assert.AreSame(res, o1);
+      Assert.AreEqual(qwt.Count, 0);
+    }
+#endif
   }
 }
