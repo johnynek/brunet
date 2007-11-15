@@ -418,24 +418,25 @@ namespace Brunet
      */
     public override void CreateEdgeTo(TransportAddress ta, EdgeCreationCallback ecb)
     {
+      try {
       if( !IsStarted )
       {
-        ecb(false, null,
-            new EdgeException("UdpEdgeListener is not started") );
+	throw new EdgeException("UdpEdgeListener is not started");
       }
       else if( ta.TransportAddressType != this.TAType ) {
-        ecb(false, null,
-            new EdgeException(ta.TransportAddressType.ToString()
-                + " is not my type: " + this.TAType.ToString() ) );
+	throw new EdgeException(ta.TransportAddressType.ToString()
+				+ " is not my type: " + this.TAType.ToString() );
       }
       else if( _ta_auth.Authorize(ta) == TAAuthorizer.Decision.Deny ) {
         //Too bad.  Can't make this edge:
-        ecb(false, null,
-            new EdgeException( ta.ToString() + " is not authorized") );
+	throw new EdgeException( ta.ToString() + " is not authorized");
       }
       else {
         Edge e = null;
         ArrayList ip_addresses = ((IPTransportAddress) ta).GetIPAddresses();
+	if (ip_addresses == null || ip_addresses.Count <= 0) {
+	  throw new Exception(ta.ToString() + " did not lead to any IP addresses.");
+	}
         IPAddress first_ip = (IPAddress)ip_addresses[0];
   
         IPEndPoint end = new IPEndPoint(first_ip, ((IPTransportAddress) ta).Port);
@@ -445,7 +446,7 @@ namespace Brunet
           int id;
           do {
             id = _rand.Next();
-      //Make sure we don't have negative ids
+	    //Make sure we don't have negative ids
             if( id < 0 ) { id = ~id; }
           } while( _id_ht.Contains(id) || id == 0 );
           e = new UdpEdge(this, false, end, _local_ep, id, 0);
@@ -463,6 +464,9 @@ namespace Brunet
         catch {
           CloseHandler(e, null);
         }
+      }
+      } catch(Exception ex) {
+	ecb(false, null, ex);
       }
     }
 
