@@ -72,15 +72,21 @@ namespace Brunet
     }
 
     public BroadcastRPC() {
-      _mc = new Socket(AddressFamily.InterNetwork, SocketType.Dgram,
-                       ProtocolType.Udp);
-      // Allows for multiple Multicast clients on the same host!
-      _mc.SetSocketOption(SocketOptionLevel.Socket, 
-                              SocketOptionName.ReuseAddress, true);
       _mc_endpoint = new IPEndPoint(_mc_addr, _mc_port);
-      _mc.Bind(new IPEndPoint(IPAddress.Any, _mc_port));
-      _mc.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership,
-        new MulticastOption(_mc_addr, IPAddress.Any));
+      try {
+        _mc = new Socket(AddressFamily.InterNetwork, SocketType.Dgram,
+                        ProtocolType.Udp);
+        // Allows for multiple Multicast clients on the same host!
+        _mc.SetSocketOption(SocketOptionLevel.Socket, 
+                                SocketOptionName.ReuseAddress, true);
+        _mc.Bind(new IPEndPoint(IPAddress.Any, _mc_port));
+        _mc.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership,
+          new MulticastOption(_mc_addr, IPAddress.Any));
+      }
+      catch {
+        ProtocolLog.WriteIf(ProtocolLog.Exceptions, "Unable to start listening on the" +
+            "multicast port, but we can still send and request services.");
+      }
 
       _uc = new Socket(AddressFamily.InterNetwork, SocketType.Dgram,
                        ProtocolType.Udp);
@@ -89,14 +95,18 @@ namespace Brunet
       _handlers = new Dictionary<string, BroadcastRPCHandler>();
 
       _running = true;
-      BeginReceive(new StateObject(_mc));
+      if(_mc != null) {
+        BeginReceive(new StateObject(_mc));
+      }
       BeginReceive(new StateObject(_uc));
     }
 
     public void Stop() {
       _running = false;
       _uc.Close();
-      _mc.Close();
+      if(_mc != null) {
+        _mc.Close();
+      }
     }
 
     /**
