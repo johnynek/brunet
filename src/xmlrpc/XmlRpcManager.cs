@@ -289,35 +289,29 @@ namespace Brunet {
    * port used: 10000
    */
   public class XmlRpcManagerServer {
-    public static Thread StartXmlRpcManagerServerAsThread(RpcManager rpc, int port) {
-      Thread thread = new Thread(XmlRpcManagerServer.StartXmlRpcManagerServer);
-      Hashtable ht = new Hashtable();
-      ht["rpc"] = rpc;
-      ht["port"] = port;
-      thread.Start(ht);
-      return thread;
-    }
-
-    public static void StartXmlRpcManagerServer(object data) {
-      Hashtable ht = (Hashtable) data;
-      StartXmlRpcManagerServer((RpcManager) ht["rpc"], (int) ht["port"]);
-    }
-
-    public static void StartXmlRpcManagerServer(RpcManager rpc, int port) {
-      Debug.Listeners.Add(new ConsoleTraceListener());
-      XmlRpcManager xm = new XmlRpcManager(rpc);
-      xm.AddAsRpcHandler();
+    XmlRpcManager _xrm = null;
+    RpcManager _rpc = null;
+    public XmlRpcManagerServer(int port) {
       IServerChannelSinkProvider chain = new XmlRpcServerFormatterSinkProvider();
       IDictionary props = new Hashtable();
       props.Add("port", port);
       props.Add("name", "xmlrpc");  //so that this channel won't collide with dht services
       HttpChannel channel = new HttpChannel(props, null, chain);
       ChannelServices.RegisterChannel(channel);
-      RemotingServices.Marshal(xm, "xm.rem");
-      /*
-       * No need to setup Sponsor for testing
-       */
-      System.Threading.Thread.Sleep(Timeout.Infinite);
+    }
+
+    public void Stop()
+    {
+      RemotingServices.Disconnect(_xrm);
+      _rpc.RemoveHandler("xmlrpc");
+    }
+
+    public void Update(RpcManager rpc)
+    {
+      _rpc = rpc;
+      _xrm = new XmlRpcManager(_rpc);
+      _rpc.AddHandler("xmlrpc",_xrm);
+      RemotingServices.Marshal(_xrm, "xm.rem");
     }
   }
   
