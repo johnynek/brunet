@@ -135,13 +135,27 @@ namespace Brunet
     public TcpEdgeListener(int port, IEnumerable local_config_ips, TAAuthorizer ta_auth)
     {
       _is_started = false;
-      // In case port = 0
-      _local_endpoint = new IPEndPoint(IPAddress.Any, port);
       _listen_sock = new Socket(AddressFamily.InterNetwork,
                                 SocketType.Stream, ProtocolType.Tcp);
-      _listen_sock.Bind(_local_endpoint);
-      _local_endpoint = (IPEndPoint) _listen_sock.LocalEndPoint;
-      port = _local_endpoint.Port;
+      _listen_sock.LingerState = new LingerOption (true, 0);
+
+      Random rand = new Random();
+      if(port == 0) {
+        port = rand.Next(1024, 65535);
+      }
+
+      // Keep trying until we get a valid port
+      while(true) {
+        try {
+          _local_endpoint = new IPEndPoint(IPAddress.Any, port);
+          _listen_sock.Bind(_local_endpoint);
+          break;
+        }
+        catch {
+          port = rand.Next(1024, 65535);
+        }
+      }
+
       /**
        * We get all the IPAddresses for this computer
        */
@@ -509,6 +523,7 @@ namespace Brunet
         if( s == _listen_sock ) {
           try {
             Socket new_s = _listen_sock.Accept();
+            new_s.LingerState = new LingerOption (true, 0);
             TransportAddress rta = TransportAddressFactory.CreateInstance(this.TAType,
                                     (IPEndPoint)new_s.RemoteEndPoint);
             if( _ta_auth.Authorize(rta) == TAAuthorizer.Decision.Deny ) {

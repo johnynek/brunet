@@ -492,13 +492,26 @@ namespace Brunet
      */
     public UdpEdgeListener(int port, IEnumerable local_config_ips, TAAuthorizer ta_auth)
     {
-      // Setup the socket so we can get port if unspecified
-      ipep = new IPEndPoint(IPAddress.Any, port);
       _s = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-      _s.Bind(ipep);
-        //If ipep.Port = 0, then this is the only way to get our real port!
-      ipep = ((IPEndPoint) _s.LocalEndPoint);
-      _port = ipep.Port;
+      Random rand = new Random();
+      if(port == 0) {
+        port = rand.Next(1024, 65535);
+      }
+
+      // Keep trying until we get a valid port
+      while(true) {
+        try {
+          // Setup the socket so we can get port if unspecified
+          ipep = new IPEndPoint(IPAddress.Any, port);
+          _s.Bind(ipep);
+          break;
+        }
+        catch {
+          port = rand.Next(1024, 65535);
+        }
+      }
+
+      _port = port;
       /**
        * We get all the IPAddresses for this computer
        */
