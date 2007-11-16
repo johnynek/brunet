@@ -138,23 +138,10 @@ namespace Brunet
       _listen_sock = new Socket(AddressFamily.InterNetwork,
                                 SocketType.Stream, ProtocolType.Tcp);
       _listen_sock.LingerState = new LingerOption (true, 0);
+      _local_endpoint = new IPEndPoint(IPAddress.Any, port);
+      _listen_sock.Bind(_local_endpoint);
 
-      Random rand = new Random();
-      if(port == 0) {
-        port = rand.Next(1024, 65535);
-      }
-
-      // Keep trying until we get a valid port
-      while(true) {
-        try {
-          _local_endpoint = new IPEndPoint(IPAddress.Any, port);
-          _listen_sock.Bind(_local_endpoint);
-          break;
-        }
-        catch {
-          port = rand.Next(1024, 65535);
-        }
-      }
+      port = _local_endpoint.Port;
 
       /**
        * We get all the IPAddresses for this computer
