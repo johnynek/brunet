@@ -22,10 +22,6 @@ namespace Ipop {
     public BrunetTransport(Ethernet ether, string brunet_namespace, 
       NodeMapping node_map, EdgeListener []EdgeListeners, string [] DevicesToBind,
       ArrayList RemoteTAs) {
-
-      //Static mapping
-      //AHAddress us = new AHAddress(IPOP_Common.GetHash(node_map.ip));
-      //Dht mapping
       AHAddress us = (AHAddress) node_map.address;
       ProtocolLog.WriteIf(IPOPLog.BaseLog, String.Format(
         "Generated address: {0}", us));
