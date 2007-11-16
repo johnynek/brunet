@@ -59,7 +59,6 @@ namespace Brunet
         _subscription_table = new Hashtable();
 
         _task_queue = new TaskQueue();
-        //Here is the thread for announcing packets
         _packet_queue = new BlockingQueue();
 
         _running = false;
@@ -274,8 +273,6 @@ namespace Brunet
     /** Object which we lock for thread safety */
     protected Object _sync;
 
-    protected Thread _announce_thread;
-
     protected ConnectionTable _connection_table;
 
     /**
@@ -473,7 +470,7 @@ namespace Brunet
         From = from;
       }
     }
-    private void AnnounceThread() {
+    protected void AnnounceThread() {
       try {
         while( _running ) {
           AnnounceState a_state = (AnnounceState)_packet_queue.Dequeue();
@@ -556,20 +553,6 @@ namespace Brunet
       EventHandler ae = System.Threading.Interlocked.Exchange(ref ArrivalEvent, null);
       if (ae != null) {
         ae(this, null);
-      }
-    }
-
-    /** Starts the Announce in either a thread or in the current context
-     * @param in_thread false if to run announce in current thread, else 
-     * new thread
-     */
-    public virtual void StartAnnounce(bool in_thread) {
-      if(in_thread) {
-        _announce_thread = new Thread(this.AnnounceThread);
-        _announce_thread.Start();
-      }
-      else {
-        this.AnnounceThread();
       }
     }
 
