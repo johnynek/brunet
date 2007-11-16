@@ -84,6 +84,7 @@ namespace Brunet
           new MulticastOption(_mc_addr, IPAddress.Any));
       }
       catch {
+        _mc = null;
         ProtocolLog.WriteIf(ProtocolLog.Exceptions, "Unable to start listening on the" +
             "multicast port, but we can still send and request services.");
       }
