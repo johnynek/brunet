@@ -64,7 +64,6 @@ namespace Brunet
 
         _running = false;
         _send_pings = true;
-        _announce_thread = new Thread(this.AnnounceThread);
 
         _connection_table = new ConnectionTable(_local_add);
         _connection_table.ConnectionEvent += this.ConnectionHandler;
@@ -223,6 +222,14 @@ namespace Brunet
       get { return -1; }
     }
     protected BlockingQueue _packet_queue;
+    protected float _packet_queue_exp_avg = 0.0f;
+    /**
+     * This number should be more thoroughly tested, but my system and dht
+     * never surpassed 105.
+     */
+    public static readonly int MAX_AVG_QUEUE_LENGTH = 150;
+    public static readonly float PACKET_QUEUE_RETAIN = 0.97f;
+    public bool disconnect_on_overload = false;
 
     protected object _heartbeat_sync = new object();
     protected bool _heartbeat_running = false;
@@ -434,7 +441,6 @@ namespace Brunet
         el.Start();
       }
       _running = true;
-      _announce_thread.Start();
     }
 
     /**
@@ -549,9 +555,24 @@ namespace Brunet
       ProtocolLog.Enable();
       EventHandler ae = System.Threading.Interlocked.Exchange(ref ArrivalEvent, null);
       if (ae != null) {
-	ae(this, null);
-      } 
+        ae(this, null);
+      }
     }
+
+    /** Starts the Announce in either a thread or in the current context
+     * @param in_thread false if to run announce in current thread, else 
+     * new thread
+     */
+    public virtual void StartAnnounce(bool in_thread) {
+      if(in_thread) {
+        _announce_thread = new Thread(this.AnnounceThread);
+        _announce_thread.Start();
+      }
+      else {
+        this.AnnounceThread();
+      }
+    }
+
     /**
      * Disconnect to the network.
      */
@@ -705,6 +726,15 @@ namespace Brunet
     public void HandleData(MemBlock data, ISender return_path, object state) {
       AnnounceState astate = new AnnounceState(data, return_path as Edge);
       _packet_queue.Enqueue(astate);
+      _packet_queue_exp_avg = (PACKET_QUEUE_RETAIN * _packet_queue_exp_avg)
+          + ((1 - PACKET_QUEUE_RETAIN) * _packet_queue.Count);
+      if(_packet_queue_exp_avg > MAX_AVG_QUEUE_LENGTH) {
+        ProtocolLog.WriteIf(ProtocolLog.Exceptions, 
+              "Packet Queue Average too high: " + _packet_queue_exp_avg);
+        if(disconnect_on_overload) {
+          Disconnect();
+        }
+      }
     }
 
     protected TimeSpan ComputeDynamicTimeout() {

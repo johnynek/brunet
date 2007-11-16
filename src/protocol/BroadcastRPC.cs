@@ -107,7 +107,6 @@ namespace Brunet
     public void Register(string name, BroadcastRPCHandler method)
     {
       lock(_handlers) {
-        Console.WriteLine(name);
         if(_handlers.ContainsKey(name) && _handlers[name] != method) {
           throw new Exception("Attempted to register a new method with a pre-existing method name");
         }

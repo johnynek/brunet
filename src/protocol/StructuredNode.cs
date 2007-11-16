@@ -120,7 +120,8 @@ namespace Brunet
 
     /**
      * Connect to the network.  This informs all the ConnectionOverlord objects
-     * to do their thing.
+     * to do their thing.  Announce runs in a new thread returning context back
+     * to the caller.
      */
     override public void Connect()
     {
@@ -136,7 +137,31 @@ namespace Brunet
       _sco.Activate();
       _cco.Activate();
       _localco.Activate();
+      StartAnnounce(true);
     }
+
+    /**
+     * Connect to the network.  This informs all the ConnectionOverlord objects
+     * to do their thing.  Announce runs in current thread and returns only on
+     * a disconnect.
+     */
+    public void ConnectReturnOnDisconnect()
+    {
+      base.Connect();
+      StartAllEdgeListeners();
+
+      _leafco.IsActive = true;
+      _sco.IsActive = true;
+      _cco.IsActive = true;
+      _localco.IsActive = true;
+
+      _leafco.Activate();
+      _sco.Activate();
+      _cco.Activate();
+      _localco.Activate();
+      StartAnnounce(false);
+    }
+
     /**
      * This informs all the ConnectionOverlord objects
      * to not respond to loss of edges, then to issue
