@@ -17,21 +17,8 @@ namespace Ipop {
   /// XmlRpc URL: http://localhost:64221/xd.rem
   /// </summary>
   public class DhtServer {
-    public static Thread StartDhtServerAsThread(Dht dht, int port) {
-      Thread DhtThread = new Thread(DhtServer.StartDhtServer);
-      Hashtable ht = new Hashtable();
-      ht["dht"] = dht;
-      ht["port"] = port;
-      DhtThread.Start(ht);
-      return DhtThread;
-    }
-
-    public static void StartDhtServer(object data) {
-      Hashtable ht = (Hashtable) data;
-      StartDhtServer((Dht) ht["dht"], (int) ht["port"]);
-    }
-
-    public static void StartDhtServer(Dht dht, int port) {
+    private DhtAdapter _sd, _xd;
+    public  DhtServer(int port) {
       if(port == 0) {
         throw new Exception("Must be started with a valid specific port number!");
       }
@@ -43,14 +30,19 @@ namespace Ipop {
       props.Add("name", "dhtsvc");
       HttpChannel channel = new HttpChannel(props, null, chain);
       ChannelServices.RegisterChannel(channel, false);
+    }
 
-      SoapDht sd = new SoapDht(dht);
-      RemotingServices.Marshal(sd, "sd.rem");
+    public void Stop(){
+      RemotingServices.Disconnect(_sd);
+      RemotingServices.Disconnect(_xd);
+    }
 
-      XmlRpcDht xd = new XmlRpcDht(dht);
-      RemotingServices.Marshal(xd, "xd.rem");
+    public void Update(Dht dht) {
+      _sd = new SoapDht(dht);
+      RemotingServices.Marshal(_sd, "sd.rem");
 
-      while (true) System.Threading.Thread.Sleep(Timeout.Infinite);
+      _xd = new XmlRpcDht(dht);
+      RemotingServices.Marshal(_xd, "xd.rem");
     }
   }
 }

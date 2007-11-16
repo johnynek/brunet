@@ -19,7 +19,7 @@ using CookComputing.XmlRpc;
 namespace Ipop {
   public abstract class DhtAdapter : MarshalByRefObject, IDht {
     [NonSerialized]
-    protected Dht _dht;
+    public Dht _dht;
     /* Use cache so that we don't experience a leak, this should be replaced 
      * with some timeout mechanism to support multiple interactions at the 
      * same time.

@@ -502,12 +502,12 @@
   <DevicesToBind>
     <Device>eth0</Device>
   </DevicesToBind>
-  <XmlDht>
+  <RpcDht>
     <Enabled>true</Enabled>
     <Port>64221</Port>
-  </XmlDht>
+  </RpcDht>
   <XmlRpcManager>
     <Enabled>true</Enabled>
-    <Port>64221</Port>
+    <Port>10000</Port>
   </XmlRpcManager>
 </IPRouterConfig>

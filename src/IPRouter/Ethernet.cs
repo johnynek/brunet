@@ -1,10 +1,12 @@
-//this class simulates the ethernet; and ARP free
 using System;
 using System.Runtime.InteropServices;
 using System.Net;
 using Brunet;
 
 namespace Ipop {
+  /**
+   * A class to interact with the underlying TAP device.
+   */
   public class Ethernet {
 
     public static readonly int MTU = 1500;
@@ -16,13 +18,6 @@ namespace Ipop {
     //file descriptor for the device
     int tapFD;
 
-    //initialize with the tap device;
-    //and the local MAC address
-    public Ethernet(string tap, byte []routerMAC) {
-      device = tap;
-      this.routerMAC = routerMAC;
-    }
-
     [DllImport("libtuntap")]
     private static extern int open_tap(string device);
     [DllImport("libtuntap")]
@@ -30,8 +25,15 @@ namespace Ipop {
     [DllImport("libtuntap")]
     private static extern int send_tap(int fd, byte[] packet, int length);
 
-    public int Open() {
-      return tapFD = open_tap(device);
+    //initialize with the tap device;
+    //and the local MAC address
+    public Ethernet(string tap, byte []routerMAC) {
+      device = tap;
+      this.routerMAC = routerMAC;
+      if((tapFD = open_tap(device)) < 0) {
+        ProtocolLog.WriteIf(ProtocolLog.Exceptions, "Unable to set up the tap");
+        Environment.Exit(1);
+      }
     }
 
     public MemBlock ReceivePacket() {

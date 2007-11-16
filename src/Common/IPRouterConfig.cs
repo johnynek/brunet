@@ -42,12 +42,7 @@ namespace Ipop {
       XmlSerializer serializer = new XmlSerializer(typeof(IPRouterConfig));
       IPRouterConfig config = null;
       using(FileStream fs = new FileStream(configFile, FileMode.Open)) {
-        try {
-          config = (IPRouterConfig) serializer.Deserialize(fs);
-        }
-        catch(Exception) {
-          Console.Error.WriteLine("Exception:  Something is bogus with the config file.");
-        }
+        config = (IPRouterConfig) serializer.Deserialize(fs);
       }
       return config;
     }

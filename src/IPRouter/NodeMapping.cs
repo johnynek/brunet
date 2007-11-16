@@ -6,78 +6,72 @@ using System.Collections;
 using System.Threading;
 
 namespace Ipop {
-  public class NodeMapping : IRpcHandler {
-    private Thread geo_loc_thread;
+  public class NodeMapping {
+    private static readonly int sleep_min = 60, sleep_max = 3600;
+    private int sleep = 60;
+    private DateTime runtime;
+
+    public DHCPClient dhcpClient;
+    public Dht dht;
+    public Ethernet ether;
     public IPAddress ip;
-    public string netmask, ipop_namespace;
+    public IPHandler iphandler;
+    public Routes routes;
+    public string netmask;
+    public string ipop_namespace;
     public Address address;
     public byte [] mac;
-    public BrunetTransport brunet {
+    public StructuredNode brunet {
       get { return _brunet; }
       set {
         _brunet = value;
         if(value != null) {
-          _rpc = RpcManager.GetInstance(_brunet.node);
-          _rpc.AddHandler("ipop", this);
+          new IpopInformation(_brunet, "IPRouter");
         }
       }
     }
-    private BrunetTransport _brunet;
-    private RpcManager _rpc;
-    private string geo_loc = ",";
-    private DateTime _last_called = DateTime.UtcNow - TimeSpan.FromHours(48);
+    private StructuredNode _brunet;
 
-    public NodeMapping() {
-      GetGeoLoc();
+    public void BrunetStart()
+    {
+      IPRouterConfig config = IPRouter.config;
+      brunet = Brunet_Common.CreateStructuredNode(config);
+      dht = Brunet_Common.RegisterDht(brunet);
+      Brunet_Common.StartServices(node, dht, config);
+      brunet.DepartureEvent += DisconnectHandler;
+      brunet.disconnect_on_overload = true;
+
+      brunet.Connect();
+      iphandler = new IPHandler(this);
+      routes = new Routes(dht, ipop_namespace);
+
+      dhcpClient = new DhtDHCPClient(dht);
     }
 
-    public void HandleRpc(ISender caller, string method, IList arguments, object request_state) {
-      if(_rpc == null) {
-        //In case it's called by local objects without initializing _rpc
-        throw new InvalidOperationException("This method has to be called from Rpc");
-      }
-      object result = new InvalidOperationException("Invalid method");
-      if(method.Equals("GetState"))
-        result = this.GetState();
-      else if(method.Equals("Information"))
-        result = this.Information();
-      _rpc.SendResult(request_state, result);
+    private void DisconnectHandler(object o, EventArgs ea)
+    {
+      (new Thread(new ThreadStart(SleepAndRestart))).Start();
     }
 
-    public IDictionary GetState() {
-      Hashtable ht = new Hashtable(3);
-      ht.Add("ipop_namespace", ipop_namespace == null ? string.Empty : ipop_namespace);
-      ht.Add("ip_address", ip == null ? string.Empty : ip.ToString());
-      ht.Add("netmask", netmask == null ? string.Empty : netmask);
-      return ht;
-    }
+    private void SleepAndRestart()
+    {
+      Brunet_Common.DisconnectNode(brunet, true);
+      brunet = null;
+      dht = null;
+      iphandler = null;
+      routes = null;
 
-    public IDictionary Information() {
-      GetGeoLoc();
-      Hashtable ht = new Hashtable(5);
-      ht.Add("type", "iprouter");
-      ht.Add("geo_loc", geo_loc);
-      ht.Add("ip", ip.ToString());
-      ht.Add("localips", brunet.node.sys_link.GetLocalIPAddresses(null));
-      ht.Add("neighbors", brunet.node.sys_link.GetNeighbors(null));
-      return ht;
-    }
-
-    public void GetGeoLoc() {
       DateTime now = DateTime.UtcNow;
-      if((now - _last_called > TimeSpan.FromDays(7) || geo_loc.Equals(","))
-          && geo_loc_thread == null) {
-        geo_loc_thread = new Thread(GetGeoLocAsThread);
-        geo_loc_thread.Start();
+      Thread.Sleep(sleep * 1000);
+      if(now - runtime < TimeSpan.FromSeconds(sleep_max)) {
+        sleep *= 2;
+        sleep = (sleep > sleep_max) ? sleep_max : sleep;
       }
-    }
-
-
-    public void GetGeoLocAsThread() {
-      string local_geo_loc = IPOP_Common.GetMyGeoLoc();
-      if(!local_geo_loc.Equals(","))
-        geo_loc = local_geo_loc;
-      geo_loc_thread = null;
+      else {
+        sleep /= 2;
+        sleep = (sleep < sleep_min) ? sleep_min : sleep;
+      }
+      BrunetStart();
     }
   }
 

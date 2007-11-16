@@ -13,10 +13,9 @@ namespace Ipop {
   public class SimpleNode {
     private static SimpleNodeData [] simplenodes;
     private static IDht sd;
-    private static Thread sdthread;
-    private static Thread xrmthread;
     private static bool one_run;
     private static ArrayList dhtfiles = new ArrayList();
+    private static IPRouterConfig config;
 
     public static int Main(string []args) {
       int node_count = 1;
@@ -165,62 +164,17 @@ namespace Ipop {
 
     public static void StartBrunet(string config_file, int n) {
       simplenodes = new SimpleNodeData[n];
-      //configuration file 
-      IPRouterConfig config = IPRouterConfigHandler.Read(config_file);
-      IEnumerable addresses = null;
-      if(config.DevicesToBind != null) {
-        addresses = OSDependent.GetIPAddresses(config.DevicesToBind);
+
+      try {
+        config = IPRouterConfigHandler.Read(config_file);
+      }
+      catch {
+        Console.WriteLine("Invalid or missing configuration file...");
+        Environment.Exit(1);
       }
 
       for(int i = 0; i < n; i++) {
-        //local node
-        StructuredNode node = new StructuredNode(IPOP_Common.GenerateAHAddress(),
-          config.brunet_namespace);
-        //Where do we listen 
-        Brunet.EdgeListener el = null;
-        foreach(EdgeListener item in config.EdgeListeners) {
-          int port = item.port;
-          if (item.type =="tcp")
-            el = new TcpEdgeListener(port, addresses);
-          else if (item.type == "udp")
-            el = new UdpEdgeListener(port, addresses);
-          else
-            throw new Exception("Unrecognized transport: " + item.type);
-          node.AddEdgeListener(el);
-        }
-        el = new TunnelEdgeListener(node);
-        node.AddEdgeListener(el);
-
-        if(config.RemoteTAs != null) {
-          //Here is where we connect to some well-known Brunet endpoints
-          ArrayList RemoteTAs = new ArrayList();
-          foreach(string ta in config.RemoteTAs)
-            RemoteTAs.Add(TransportAddressFactory.CreateInstance(ta));
-          node.RemoteTAs = RemoteTAs;
-        }
-
-        //following line of code enables DHT support inside the SimpleNode
-        Dht ndht = null;
-        ndht = new Dht(node, 3, 20);
-        Console.Error.WriteLine("I am connected to {0} as {1}",
-                 config.brunet_namespace, node.Address.ToString());
-        node.Connect();
-        simplenodes[i] = new SimpleNodeData(node, ndht);
-
-        if(config.RpcDht != null && config.RpcDht.Enabled && sdthread == null) {
-          try {
-            sdthread = DhtServer.StartDhtServerAsThread(ndht, config.RpcDht.Port);
-          }
-          catch {}
-        }
-
-        if (config.XmlRpcManager != null && config.XmlRpcManager.Enabled && xrmthread == null) {
-          try {
-            RpcManager rpc = RpcManager.GetInstance(node);
-            XmlRpcManagerServer.StartXmlRpcManagerServerAsThread(rpc, config.XmlRpcManager.Port);
-          }
-          catch {}
-        }
+        simplenodes[i] = new SimpleNodeData();
       }
     }
 
@@ -373,6 +327,7 @@ namespace Ipop {
           }
           else if (str_oper.Equals("Done")) {
             System.Console.Error.WriteLine("Disconnecting...");
+            simplenodes[0].node.DepartureEvent -= simplenodes[0].DisconnectHandler;
             break;
           }
         }
@@ -403,62 +358,58 @@ namespace Ipop {
       Environment.Exit(1);
     }
 
-    public class SimpleNodeData {
-      private Thread geo_loc_thread;
+    public class SimpleNodeData
+    {
+      private static readonly int sleep_min = 60, sleep_max = 3600;
+      private int sleep = 60;
+      private DateTime runtime;
       private StructuredNode _node;
       public StructuredNode node { get { return _node; } }
       private Dht _dht;
       public Dht dht { get { return _dht; } }
-      private string geo_loc = ",";
-      private DateTime _last_called = DateTime.UtcNow;
-      private RpcManager _rpc;
 
-      public SimpleNodeData(StructuredNode node, Dht dht) {
-        _node = node;
-        _dht = dht;
-        _rpc = RpcManager.GetInstance(node);
-        _rpc.AddHandler("ipop", this);
-        GetGeoLoc();
+      public SimpleNodeData() {
+        StartUp();
       }
 
-      public void HandleRpc(ISender caller, string method, IList arguments, object request_state) {
-        if(_rpc == null) {
-        //In case it's called by local objects without initializing _rpc
-          throw new InvalidOperationException("This method has to be called from Rpc");
+      private void StartUp()
+      {
+        runtime = DateTime.UtcNow;
+        _node = Brunet_Common.CreateStructuredNode(config);
+        _dht = Brunet_Common.RegisterDht(node);
+        Brunet_Common.StartServices(_node, _dht, config);
+        new IpopInformation(node, "SimpleNode");
+        node.DepartureEvent += DisconnectHandler;
+        node.disconnect_on_overload = true;
+        Console.Error.WriteLine("I am connected to {0} as {1}",
+                                config.brunet_namespace, node.Address.ToString());
+        node.Connect();
+      }
+
+      public void DisconnectHandler(object o, EventArgs ea)
+      {
+        (new Thread(new ThreadStart(SleepAndRestart))).Start();
+      }
+
+      private void SleepAndRestart()
+      {
+        if(simplenodes[0].node == _node) {
+          Brunet_Common.DisconnectNode(node, true);
         }
-        object result = new InvalidOperationException("Invalid method");
-        if(method.Equals("Information"))
-          result = this.Information();
-        _rpc.SendResult(request_state, result);
-      }
+        _node = null;
+        _dht = null;
 
-      public IDictionary Information() {
-        GetGeoLoc();
-        Hashtable ht = new Hashtable(4);
-        ht.Add("type", "simplenode");
-        ht.Add("geo_loc", geo_loc);
-        ht.Add("localips", _node.sys_link.GetLocalIPAddresses(null));
-        ht.Add("neighbors", _node.sys_link.GetNeighbors(null));
-        return ht;
-      }
-
-      public void GetGeoLoc() {
         DateTime now = DateTime.UtcNow;
-        if((now - _last_called > TimeSpan.FromDays(7) || geo_loc.Equals(","))
-             && geo_loc_thread == null) {
-          geo_loc_thread = new Thread(GetGeoLocAsThread);
-          geo_loc_thread.Start();
+        Thread.Sleep(sleep * 1000);
+        if(now - runtime < TimeSpan.FromSeconds(sleep_max)) {
+          sleep *= 2;
+          sleep = (sleep > sleep_max) ? sleep_max : sleep;
         }
-      }
-
-
-      public void GetGeoLocAsThread() {
-        string local_geo_loc = IPOP_Common.GetMyGeoLoc();
-        if(!local_geo_loc.Equals(",")) {
-          geo_loc = local_geo_loc;
+        else {
+          sleep /= 2;
+          sleep = (sleep < sleep_min) ? sleep_min : sleep;
         }
-
-        geo_loc_thread = null;
+        StartUp();
       }
     }
   }

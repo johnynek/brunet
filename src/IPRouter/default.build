@@ -28,8 +28,10 @@
         <include name="../Dht/DhtServiceClient.cs"/>
         <include name="../Dht/DhtServiceClient_noXmlRpc.cs"/>
         <include name="../Dht/BlockingQueueAdapter.cs"/>
+        <include name="../Common/Brunet_Common.cs"/>
         <include name="../Common/OSDependent.cs"/>
         <include name="../Common/IPRouterConfig.cs"/>
+        <include name="../Common/IpopInformation.cs"/>
         <include name="../Common/IPOP_Common.cs"/>
         <include name="../Common/IPAddresses.cs"/>
         <include name="../Common/IPOPLog.cs"/>
