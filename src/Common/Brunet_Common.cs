@@ -39,10 +39,20 @@ namespace Ipop
       foreach(EdgeListener item in config.EdgeListeners) {
         int port = item.port;
         if (item.type =="tcp") {
-          el = new TcpEdgeListener(port, addresses);
+          try {
+            el = new TcpEdgeListener(port, addresses);
+          }
+          catch {
+            el = new TcpEdgeListener(0, addresses);
+          }
         }
         else if (item.type == "udp") {
-          el = new UdpEdgeListener(port, addresses);
+          try {
+            el = new UdpEdgeListener(port, addresses);
+          }
+          catch {
+            el = new UdpEdgeListener(0, addresses);
+          }
         }
         else {
           throw new Exception("Unrecognized transport: " + item.type);

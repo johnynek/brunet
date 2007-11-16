@@ -383,7 +383,7 @@ namespace Ipop {
         node.disconnect_on_overload = true;
         Console.Error.WriteLine("I am connected to {0} as {1}",
                                 config.brunet_namespace, node.Address.ToString());
-        node.Connect();
+        (new Thread(_node.Connect)).Start();
       }
 
       public void DisconnectHandler(object o, EventArgs ea)

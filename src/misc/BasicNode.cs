@@ -40,7 +40,7 @@ namespace Ipop {
           Console.Error.WriteLine("I am connected to {0} as {1}",
                                   config.brunet_namespace, node.Address.ToString());
           node.disconnect_on_overload = true;
-          node.ConnectReturnOnDisconnect();
+          node.Connect();
           Brunet_Common.DisconnectNode(node, true);
         }
         catch (Exception e) {

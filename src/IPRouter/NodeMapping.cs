@@ -37,11 +37,11 @@ namespace Ipop {
       IPRouterConfig config = IPRouter.config;
       brunet = Brunet_Common.CreateStructuredNode(config);
       dht = Brunet_Common.RegisterDht(brunet);
-      Brunet_Common.StartServices(node, dht, config);
+      Brunet_Common.StartServices(brunet, dht, config);
       brunet.DepartureEvent += DisconnectHandler;
       brunet.disconnect_on_overload = true;
 
-      brunet.Connect();
+      (new Thread(brunet.Connect)).Start();
       iphandler = new IPHandler(this);
       routes = new Routes(dht, ipop_namespace);
 
