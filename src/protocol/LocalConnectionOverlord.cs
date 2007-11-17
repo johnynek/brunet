@@ -33,14 +33,13 @@ namespace Brunet
    * StructuredLocalConnections.
    */
 
-  public class LocalConnectionOverlord: ConnectionOverlord
+  public class LocalConnectionOverlord: ConnectionOverlord, IRpcHandler
   {
     private Node _node;
     private DateTime _last_call;
-    public static readonly string NOTIFY = "localco_notify";
-    public static readonly string REQUEST = "localco_request";
-
+    private RpcManager _rpc;
     bool _active;
+
     /**
      * When IsActive is false, the ConnectionOverlord does nothing
      * to replace lost connections, or to get connections it needs.
@@ -55,8 +54,8 @@ namespace Brunet
 
     public LocalConnectionOverlord(Node node) {
       _node = node;
-      _node.BroadcastRPC.Register(NOTIFY, HandleNotify);
-      _node.BroadcastRPC.Register(REQUEST, HandleRequest);
+      _rpc = RpcManager.GetInstance(node);
+      _rpc.AddHandler("LocalCO", this);
     }
 
     /**
@@ -104,40 +103,67 @@ namespace Brunet
      */
     protected void Announce()
     {
-      _node.BroadcastRPC.Announce(REQUEST, null);
+      ISender mcs = new MulticastSender(_node);
+      Channel queue = new Channel();
+      queue.EnqueueEvent += HandleGetInformation;
+      _rpc.Invoke(mcs, queue, "LocalCO.GetInformation");
     }
 
-    /**
-     * When we receive a new Notify message, we check each entry to make
-     * sure that all strings are indeed TransportAddresses.
-     */
-    protected void HandleNotify(EndPoint ep, string method, IList tas)
+    protected void HandleGetInformation(Object o, EventArgs ea)
     {
-      ArrayList remote_tas = new ArrayList(tas.Count);
-
-      // Test to make sure they really are IPTAs
-      foreach(string ta in tas) {
-        try {
+      Channel queue = (Channel) o;
+      try {
+        RpcResult rpc_reply = (RpcResult) queue.Dequeue();
+        Hashtable ht = (Hashtable) rpc_reply.Result;
+        string remote_realm = (string) ht["namespace"];
+        if(!remote_realm.Equals(_node.Realm)) {
+          return;
+        }
+        ArrayList string_tas = (ArrayList) ht["tas"];
+        ArrayList remote_tas = new ArrayList();
+        foreach(string ta in string_tas) {
           remote_tas.Add(TransportAddressFactory.CreateInstance(ta));
         }
-        catch(Exception e) {
-          ProtocolLog.WriteIf(ProtocolLog.Exceptions, "Invalid IPTA: " + e);
-        }
+        _node.UpdateRemoteTAs(remote_tas);
       }
-      _node.UpdateRemoteTAs(remote_tas);
+      catch (Exception e) {
+        Console.WriteLine(e);
+        ProtocolLog.WriteIf(ProtocolLog.Exceptions, "Unexpected exception: " + e);
+      }
     }
 
     /**
      * Send a list of our TAs in string format to the specified end point.
      */
-    protected void HandleRequest(EndPoint ep, string method, IList empty)
+    protected Hashtable GetInformation()
     {
+      Hashtable ht = new Hashtable(3);
       IList tas = (IList) ((ArrayList)_node.LocalTAs).Clone();
       string[] tas_string = new string[tas.Count];
       for(int i = 0; i < tas.Count; i++) {
         tas_string[i] = tas[i].ToString();
       }
-      _node.BroadcastRPC.SendResponse(ep, NOTIFY, tas_string);
+
+      ht["tas"] = tas_string;
+      ht["address"] = _node.Address.ToString();
+      ht["namespace"] = _node.Realm;
+      return ht;
+    }
+
+    public void HandleRpc(ISender caller, string method, IList args, object rs) {
+      object result = null;
+      try {
+        if(method.Equals("GetInformation")) {
+          result = GetInformation();
+        }
+        else {
+          throw new Exception("Dht.Exception:  Invalid method");
+        }
+      }
+      catch (Exception e) {
+        result = new AdrException(-32602, e);
+      }
+      _rpc.SendResult(rs, result);
     }
   }
 }

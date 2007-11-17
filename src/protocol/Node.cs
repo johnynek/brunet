@@ -67,7 +67,6 @@ namespace Brunet
         _connection_table = new ConnectionTable(_local_add);
         _connection_table.ConnectionEvent += this.ConnectionHandler;
 
-        _broadcastrpc = new BroadcastRPC();
         _codeinjection = new CodeInjection(this);
         _codeinjection.LoadLocalModules();
         /*

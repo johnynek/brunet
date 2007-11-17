@@ -27,13 +27,6 @@ using System.Net.Sockets;
 namespace Brunet
 {
   /**
-   * BroadcastRPCHandler's receive are called by the ReceiveHandler.  They are
-   * given the remote calling end point and an IList containing the packet's
-   * data.
-   */
-  public delegate void BroadcastRPCHandler(EndPoint remote_ep, string method, IList data);
-
-  /**
    * We use Brunet BroadcastRPC due to there not being a single zeroconf 
    * service for all OS's, this makes use of multicast, specifically 
    * destination 224.123.123.222:56018.  Use a random UDP port for unicast 
@@ -47,12 +40,13 @@ namespace Brunet
 
   public class BroadcastRPC
   {
-    protected Socket _mc, _uc;
-    protected EndPoint _mc_endpoint;
-    protected static readonly IPAddress _mc_addr = IPAddress.Parse("224.123.123.222");
-    protected static readonly int _mc_port = 56123;
-    protected Dictionary<string, BroadcastRPCHandler> _handlers;
+    protected static Socket _mc, _uc;
+    public Socket UnicastSocket { get { return _uc; } }
+    public static readonly IPAddress mc_addr = IPAddress.Parse("224.123.123.222");
+    public static readonly int mc_port = 56123;
+    public static readonly EndPoint mc_endpoint = new IPEndPoint(mc_addr, mc_port);
     protected bool _running;
+    protected Node _node;
 
     protected class StateObject
     {
@@ -71,17 +65,17 @@ namespace Brunet
       }
     }
 
-    public BroadcastRPC() {
-      _mc_endpoint = new IPEndPoint(_mc_addr, _mc_port);
+    public BroadcastRPC(Node node) {
+      _node = node;
       try {
         _mc = new Socket(AddressFamily.InterNetwork, SocketType.Dgram,
                         ProtocolType.Udp);
         // Allows for multiple Multicast clients on the same host!
         _mc.SetSocketOption(SocketOptionLevel.Socket, 
                                 SocketOptionName.ReuseAddress, true);
-        _mc.Bind(new IPEndPoint(IPAddress.Any, _mc_port));
+        _mc.Bind(new IPEndPoint(IPAddress.Any, mc_port));
         _mc.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership,
-          new MulticastOption(_mc_addr, IPAddress.Any));
+          new MulticastOption(mc_addr, IPAddress.Any));
       }
       catch {
         _mc = null;
@@ -92,8 +86,6 @@ namespace Brunet
       _uc = new Socket(AddressFamily.InterNetwork, SocketType.Dgram,
                        ProtocolType.Udp);
       _uc.Bind(new IPEndPoint(IPAddress.Any, 0));
-
-      _handlers = new Dictionary<string, BroadcastRPCHandler>();
 
       _running = true;
       if(_mc != null) {
@@ -107,33 +99,6 @@ namespace Brunet
       _uc.Close();
       if(_mc != null) {
         _mc.Close();
-      }
-    }
-
-    /**
-     * Registers a BroadcastRPCHandler to a method name, similar to rpc.
-     * @param name the string to associate the BroadcastRPCHandler to
-     * @param method the method to call in the Receive loop if name is found
-     */
-    public void Register(string name, BroadcastRPCHandler method)
-    {
-      lock(_handlers) {
-        if(_handlers.ContainsKey(name) && _handlers[name] != method) {
-          throw new Exception("Attempted to register a new method with a pre-existing method name");
-        }
-        _handlers[name] = method;
-      }
-    }
-
-    /**
-     * Removes a BroadcastRPCHandler
-     * @param name the string mapping to the method to remove from the 
-     * BroadcastRPCHandlers
-     */
-    public void UnRegister(string name)
-    {
-      lock(_handlers) {
-      _handlers.Remove(name);
       }
     }
 
@@ -165,16 +130,8 @@ namespace Brunet
       try {
         rec_bytes = _mc.EndReceiveFrom(asr, ref so.ep);
         MemBlock packet = MemBlock.Reference(so.buffer, 0, rec_bytes);
-        IList adr_data = (IList) AdrConverter.Deserialize(packet);
-        string type = (string) adr_data[0];
-        BroadcastRPCHandler callback = _handlers[type];
-        if(callback == null) {
-          throw new Exception("Invalid request");
-        }
-        if(ProtocolLog.LocalCO.Enabled) {
-          ProtocolLog.WriteIf(ProtocolLog.LocalCO, "Type = " + type);
-        }
-        callback(so.ep, type, adr_data[1] as IList);
+        UnicastSender us = new UnicastSender(_node, (IPEndPoint) so.ep);
+        _node.Announce(packet, us);
       }
       catch(ObjectDisposedException odx) {
         //If we are no longer running, this is to be expected.
@@ -195,52 +152,22 @@ namespace Brunet
       }
     }
 
-    /**
-     * Used to Send multicast packets makes use of SendResponse.
-     * @param method the string registered to the method you would like to call
-     * @param data an IList containing the data to ship, this can be an 
-     * ArrayList or an object array.
-     */
-    public void Announce(string method, IList data)
+    public void Send(IPEndPoint ep, ICopyable data)
     {
-      SendResponse(_mc_endpoint, method, data);
-    }
+      // Silly users can trigger a handful of exceptions here...
+      try {
+        byte[] buffer = new byte[data.Length];
+        int length = data.CopyTo(buffer, 0);
 
-    /**
-     * Creates a packet for the remote end point and ships it off.
-     * @param ep the EndPoint to send the data to, most likely and IPEndPoint
-     * @param method the string registered to the method you would like to call
-     * @param data an IList containing the data to ship, this can be an 
-     * ArrayList or an object array.
-     */
-    public void SendResponse(EndPoint ep, string method, IList data)
-    {
-      object[] response = new object[2];
-      response[0] = method;
-      response[1] = data;
-      using(MemoryStream ms = new MemoryStream()) {
-        int length = 0;
-        length = AdrConverter.Serialize(response, ms);
-        byte[] buffer = ms.GetBuffer();
-        // We can possibly get an exception here, oh well, just don't let it 
-        // affect the underlying thread
-        try {
-          _uc.BeginSendTo(buffer, 0, length, 0, ep, 
-                        EndSendHandler, null);
-        }
-        catch(Exception e) {
-          ProtocolLog.WriteIf(ProtocolLog.Exceptions, "ERROR: " + e);
-        }
+        _uc.BeginSendTo(buffer, 0, length, 0, ep,
+                       EndSendHandler, null);
+      }
+      catch (Exception e) {
+        ProtocolLog.WriteIf(ProtocolLog.Exceptions, "ERROR: " + e);
       }
     }
 
-    /**
-     * Just a generic way to end all Aysnchronous Sends, we should only be
-     * making async sends with the unicast socket, so need to make this any
-     * fancier.
-     */
-
-    protected void EndSendHandler(IAsyncResult asr)
+    protected virtual void EndSendHandler(IAsyncResult asr)
     {
       // Shouldn't get any exceptions here, but its better to not leave 
       // them unhandled.
@@ -250,6 +177,35 @@ namespace Brunet
       catch (Exception e) {
         ProtocolLog.WriteIf(ProtocolLog.Exceptions, "ERROR: " + e);
       }
+    }
+  }
+
+  public abstract class IPSender: ISender
+  {
+    protected IPEndPoint _ipep;
+    protected Node _node;
+
+    public virtual void Send(ICopyable data)
+    {
+      _node.BroadcastRPC.Send(_ipep, data);
+    }
+  }
+
+  public class UnicastSender: IPSender
+  {
+    public UnicastSender(Node node, IPEndPoint ipep)
+    {
+      _node = node;
+      _ipep = ipep;
+    }
+  }
+
+  public class MulticastSender: IPSender
+  {
+    public MulticastSender(Node node)
+    {
+      _node = node;
+      _ipep = (IPEndPoint) BroadcastRPC.mc_endpoint;
     }
   }
 }
