@@ -70,12 +70,15 @@ namespace Brunet
     }
     public StructuredNode(AHAddress add):base(add)
     {
+      // Instantiate rpc early!
+      RpcManager rpc = RpcManager.GetInstance(this);
       /**
        * Here are the ConnectionOverlords
        */ 
       _leafco = new LeafConnectionOverlord(this);
       _sco = new StructuredConnectionOverlord(this);
       _cco = new ChotaConnectionOverlord(this);
+      _broadcastrpc = new BroadcastRPC(this);
       _localco = new LocalConnectionOverlord(this);
 
       /**
@@ -88,7 +91,6 @@ namespace Brunet
       GetTypeSource(PType.Protocol.Echo).Subscribe(new EchoHandler(), this);
       
       //Add the standard RPC handlers:
-      RpcManager rpc = RpcManager.GetInstance(this);
       rpc.AddHandler("sys:ctm", new CtmRequestHandler(this));
       sys_link = new ConnectionPacketHandler(this);
       rpc.AddHandlerWithSender("sys:link", sys_link);
