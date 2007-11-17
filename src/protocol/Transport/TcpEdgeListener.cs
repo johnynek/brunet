@@ -141,7 +141,7 @@ namespace Brunet
       _local_endpoint = new IPEndPoint(IPAddress.Any, port);
       _listen_sock.Bind(_local_endpoint);
 
-      port = _local_endpoint.Port;
+      port = ((IPEndPoint) (_listen_sock.LocalEndPoint)).Port;
 
       /**
        * We get all the IPAddresses for this computer

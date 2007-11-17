@@ -495,7 +495,7 @@ namespace Brunet
       _s = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
       ipep = new IPEndPoint(IPAddress.Any, port);
       _s.Bind(ipep);
-      _port = port = ipep.Port;
+      _port = port = ((IPEndPoint) (_s.LocalEndPoint)).Port;
       /**
        * We get all the IPAddresses for this computer
        */
