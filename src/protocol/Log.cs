@@ -37,9 +37,17 @@ namespace Brunet {
     public static BooleanSwitch LocalCO =
         new BooleanSwitch("LocalCO", "Log the local connection overlord");
 
+    public static bool CTL_enabled = false;
+
     public static void Enable() {
-      if(ConsoleLogEnable.Enabled) {
-        Trace.Listeners.Add(new ConsoleTraceListener(true));
+      if(!ConsoleLogEnable.Enabled) {
+        return;
+      }
+      lock(ConsoleLogEnable) {
+        if(!CTL_enabled) {
+          Trace.Listeners.Add(new ConsoleTraceListener(true));
+          CTL_enabled = true;
+        }
       }
     }
 
