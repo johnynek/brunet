@@ -21,7 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //#define DEBUG
 
-#define LINK_DEBUG
+//#define LINK_DEBUG
 
 #if BRUNET_NUNIT
 using NUnit.Framework;
@@ -540,7 +540,13 @@ namespace Brunet
      */
     public bool AllowLockTransfer(Address a, string contype, ILinkLocker l) {
         bool allow = false;
-        lock( _sync ) {
+	bool entered = false;
+        //lock( _sync ) {
+	try {
+	  entered = System.Threading.Monitor.TryEnter(_sync); //like a lock.
+	  if (!entered) { //the other guy is holding the lock.
+	    throw new Exception("Cannot acquire a lock on (Linker) to request transfer");
+	  }
           if( l is Linker ) {
             //Never transfer to another linker:
             allow = false;
@@ -590,14 +596,23 @@ namespace Brunet
                 allow = true;
             }
           }
-        }//Lock
+        } catch {
+	} finally {
+	  if (entered) {
+	    System.Threading.Monitor.Exit(_sync);
+	  } else {
+	    if (ProtocolLog.LinkDebug.Enabled) {
+	      ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format("Cannot acquire Linker lock for transfer (potential deadlock)."));
+	    }
+	  }
+	}
 #if LINK_DEBUG
-        if (ProtocolLog.LinkDebug.Enabled) {
+	if (ProtocolLog.LinkDebug.Enabled) {
 	  ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format("Linker({0}) {1}: transfering lock on {2} to {3}",
 								 _lid, allow, a, l));
 	}
 #endif
-        return allow;       
+        return allow;
     }
 
 //////////////////
