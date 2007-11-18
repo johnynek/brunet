@@ -539,14 +539,17 @@ namespace Brunet
      * Allow if we are transfering to a LinkProtocolState or ConnectionPacketHandler
      */
     public bool AllowLockTransfer(Address a, string contype, ILinkLocker l) {
-        bool allow = false;
-	bool entered = false;
-        //lock( _sync ) {
+      bool entered = System.Threading.Monitor.TryEnter(_sync); //like a lock(_sync) .
+      bool allow = false;
+      if (false == entered ) {
+	if (ProtocolLog.LinkDebug.Enabled) {
+	  ProtocolLog.Write(ProtocolLog.LinkDebug,
+          String.Format("Cannot acquire Linker lock for transfer (potential deadlock)."));
+	}
+        allow = false;
+      }
+      else {
 	try {
-	  entered = System.Threading.Monitor.TryEnter(_sync); //like a lock.
-	  if (!entered) { //the other guy is holding the lock.
-	    throw new Exception("Cannot acquire a lock on (Linker) to request transfer");
-	  }
           if( l is Linker ) {
             //Never transfer to another linker:
             allow = false;
@@ -581,7 +584,7 @@ namespace Brunet
                 allow = true;
               }
             }
-            }
+          }
           else if( l is LinkProtocolState ) {
             LinkProtocolState lps = (LinkProtocolState)l;
             /**
@@ -596,23 +599,20 @@ namespace Brunet
                 allow = true;
             }
           }
-        } catch {
 	} finally {
-	  if (entered) {
-	    System.Threading.Monitor.Exit(_sync);
-	  } else {
-	    if (ProtocolLog.LinkDebug.Enabled) {
-	      ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format("Cannot acquire Linker lock for transfer (potential deadlock)."));
-	    }
-	  }
+          // If we don't have a try ... finally here, an exception in the
+          // above could cause us to never release the lock on _sync.
+	  System.Threading.Monitor.Exit(_sync);
 	}
+      }
 #if LINK_DEBUG
-	if (ProtocolLog.LinkDebug.Enabled) {
-	  ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format("Linker({0}) {1}: transfering lock on {2} to {3}",
-								 _lid, allow, a, l));
-	}
+      if (ProtocolLog.LinkDebug.Enabled) {
+	  ProtocolLog.Write(ProtocolLog.LinkDebug,
+                            String.Format("Linker({0}) {1}: transfering lock on {2} to {3}",
+                                          _lid, allow, a, l));
+      }
 #endif
-        return allow;
+      return allow;
     }
 
 //////////////////
