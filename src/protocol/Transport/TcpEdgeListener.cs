@@ -140,8 +140,8 @@ namespace Brunet
       _listen_sock.LingerState = new LingerOption (true, 0);
       _local_endpoint = new IPEndPoint(IPAddress.Any, port);
       _listen_sock.Bind(_local_endpoint);
-
-      port = ((IPEndPoint) (_listen_sock.LocalEndPoint)).Port;
+      _local_endpoint = (IPEndPoint) _listen_sock.LocalEndPoint;
+      port = _local_endpoint.Port;
 
       /**
        * We get all the IPAddresses for this computer
