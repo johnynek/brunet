@@ -263,7 +263,7 @@ namespace Brunet.Dht {
         nodes.Add(addr, node);
         node.AddEdgeListener(new UdpEdgeListener(base_port + i));
         node.RemoteTAs = RemoteTA;
-        node.Connect();
+        (new Thread(node.Connect)).Start();
         dhts.Add(addr, new Dht(node, degree));
         if(i < network_size / ((Dht)dhts.GetByIndex(i)).DEGREE) {
           ((Dht)dhts.GetByIndex(i)).debug = true;

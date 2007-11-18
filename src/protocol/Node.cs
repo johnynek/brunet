@@ -279,10 +279,10 @@ namespace Brunet
      */
     public virtual ConnectionTable ConnectionTable { get { return _connection_table; } }
     /**
-     * Brunet BroadcastRPC service!
+     * Brunet IPHandler service!
      */
-    public BroadcastRPC BroadcastRPC { get { return _broadcastrpc; } }
-    protected BroadcastRPC _broadcastrpc;
+    public IPHandler IPHandler { get { return _iphandler; } }
+    protected IPHandler _iphandler;
     protected CodeInjection _codeinjection;
 
     /**
@@ -561,7 +561,7 @@ namespace Brunet
     public virtual void Disconnect() {
       ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
         "[Connect: {0}] deactivating task queue", _local_add));
-      _broadcastrpc.Stop();
+      _iphandler.Stop();
       _task_queue.IsActive = false;
       _send_pings = false;
       //Make sure not to call DepartureEvent twice:

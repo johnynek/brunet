@@ -27,10 +27,11 @@ namespace Brunet
 {
 
   /**
-   * This CO is uses Brunet BroadcastRPC to find other nodes on the local
-   * network.  Currently it is only active when there are zero connections.
-   * Eventually, it may prove useful to have it find local nodes and create
-   * StructuredLocalConnections.
+   * This CO is uses registers RPC methods that are specifically meant to be
+   * called by nodes on the LAN to facilitate connectivity.  This can be used
+   * to replace the necessity of RemoteTAs.  Currently it is only active when 
+   * there are zero connections.  Eventually, it may prove useful to have it 
+   * find local nodes and create StructuredLocalConnections.
    */
 
   public class LocalConnectionOverlord: ConnectionOverlord, IRpcHandler
@@ -92,7 +93,7 @@ namespace Brunet
         return;
       }
       DateTime now = DateTime.UtcNow;
-      if(now - _last_call > TimeSpan.FromSeconds(60)) {
+      if(now - _last_call > TimeSpan.FromSeconds(600)) {
         _last_call = now;
         Announce();
       }

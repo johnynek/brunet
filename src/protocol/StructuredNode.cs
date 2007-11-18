@@ -78,7 +78,7 @@ namespace Brunet
       _leafco = new LeafConnectionOverlord(this);
       _sco = new StructuredConnectionOverlord(this);
       _cco = new ChotaConnectionOverlord(this);
-      _broadcastrpc = new BroadcastRPC(this);
+      _iphandler = new IPHandler(this);
       _localco = new LocalConnectionOverlord(this);
 
       /**
