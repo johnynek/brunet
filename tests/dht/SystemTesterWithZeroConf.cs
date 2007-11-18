@@ -184,10 +184,10 @@ namespace Test {
       }
       arr_tas.Add(new ConstantAuthorizer(TAAuthorizer.Decision.Allow));
       TAAuthorizer ta_auth = new SeriesTAAuthorizer(arr_tas);*/
-      node.AddEdgeListener(new TcpEdgeListener()); //local_port, null));//, ta_auth));
+      node.AddEdgeListener(new FunctionEdgeListener((new Random()).Next(1024, 65535))); //local_port, null));//, ta_auth));
 //      node.AddEdgeListener(new TunnelEdgeListener(node));
 //      node.RemoteTAs = RemoteTA;
-      node.Connect();
+      (new Thread(node.Connect)).Start();
 //      taken_ports[local_port] = node;
       nodes.Add((Address) address, node);
       dhts.Add(node, new Dht(node, DEGREE));
