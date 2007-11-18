@@ -140,52 +140,53 @@ namespace Brunet
     ///We should allow it as long as it is not another LinkProtocolState:
     public bool AllowLockTransfer(Address a, string contype, ILinkLocker l)
     {
-      bool allow = false;
-      bool entered = false;
-      //lock( _sync ) {
-      try {
-	entered = System.Threading.Monitor.TryEnter(_sync); //like a lock
-	if (!entered) {
-	  throw new Exception("Cannot acquire a lock on (LPS) to request transfer");
+      bool entered = System.Threading.Monitor.TryEnter(_sync); //like a lock
+      if ( false == entered ) {
+	if (ProtocolLog.LinkDebug.Enabled) {
+	  ProtocolLog.Write(ProtocolLog.LinkDebug,
+          String.Format(
+          "Cannot acquire LPS lock for transfer (potential deadlock)."));
 	}
-        if( l is Linker ) {
-          //We will allow it if we are done:
-          if( _is_finished ) {
-            allow = true;
+        return false;
+      }
+      else {
+        // We have the lock now
+        bool allow = false;
+        try {
+          if( l is Linker ) {
+            //We will allow it if we are done:
+            if( _is_finished ) {
+              allow = true;
+              _target_lock = null;
+            }
+          }
+          else if ( false == (l is LinkProtocolState) ) {
+          /**
+           * We only allow a lock transfer in the following case:
+           * 0) We have not sent the StatusRequest yet.
+           * 1) We are not transfering to another LinkProtocolState
+           * 2) The lock matches the lock we hold
+           * 3) The address we are locking is greater than our own address
+           */
+            if( ( _lm_reply == null )
+                && a.Equals( _target_lock )
+                && contype == _contype 
+                && ( a.CompareTo( _node.Address ) > 0) )
+            {
+                _target_lock = null; 
+                allow = true;
+            }
+          }
+          if( allow ) {
             _target_lock = null;
           }
+        } finally {
+          //We have to do a try .. finally here otherwise an
+          //exception in the above could cause us to never release _sync.
+          System.Threading.Monitor.Exit(_sync);
         }
-        else if ( false == (l is LinkProtocolState) ) {
-        /**
-         * We only allow a lock transfer in the following case:
-         * 0) We have not sent the StatusRequest yet.
-         * 1) We are not transfering to another LinkProtocolState
-         * 2) The lock matches the lock we hold
-         * 3) The address we are locking is greater than our own address
-         */
-          if( ( _lm_reply == null )
-              && a.Equals( _target_lock )
-              && contype == _contype 
-              && ( a.CompareTo( _node.Address ) > 0) )
-          {
-              _target_lock = null; 
-              allow = true;
-          }
-        }
-        if( allow ) {
-          _target_lock = null;
-        }
-      } catch {
-      } finally {
-	if (entered) {
-	  System.Threading.Monitor.Exit(_sync);
-	} else {
-	  if (ProtocolLog.LinkDebug.Enabled) {
-	    ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format("Cannot acquire LPS lock for transfer (potential deadlock)."));
-	  }
-	}
+        return allow;
       }
-      return allow;
     }
     /**
      * When this state machine reaches an end point, it calls this method,
