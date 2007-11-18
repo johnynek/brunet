@@ -141,7 +141,13 @@ namespace Brunet
     public bool AllowLockTransfer(Address a, string contype, ILinkLocker l)
     {
       bool allow = false;
-      lock( _sync ) {
+      bool entered = false;
+      //lock( _sync ) {
+      try {
+	entered = System.Threading.Monitor.TryEnter(_sync); //like a lock
+	if (!entered) {
+	  throw new Exception("Cannot acquire a lock on (LPS) to request transfer");
+	}
         if( l is Linker ) {
           //We will allow it if we are done:
           if( _is_finished ) {
@@ -169,6 +175,15 @@ namespace Brunet
         if( allow ) {
           _target_lock = null;
         }
+      } catch {
+      } finally {
+	if (entered) {
+	  System.Threading.Monitor.Exit(_sync);
+	} else {
+	  if (ProtocolLog.LinkDebug.Enabled) {
+	    ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format("Cannot acquire LPS lock for transfer (potential deadlock)."));
+	  }
+	}
       }
       return allow;
     }
