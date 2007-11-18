@@ -239,7 +239,7 @@ namespace Brunet {
   public interface IXmlRpcManager : IXmlRpcProxy {
     [XmlRpcMethod]
     object[] proxy(string node, int ahOptions, int maxResultsToWait, string method, object[] args);
-    
+
     [XmlRpcMethod]
     object[] localproxy(string method, object[] args);
   }
@@ -248,9 +248,9 @@ namespace Brunet {
     /**
      * Log Request and Response Xml if logReqresp is set to true
      */
-    public static IXmlRpcManager GetXmlRpcManager(bool logReqresp) {
+    public static IXmlRpcManager GetXmlRpcManager(string ip, int port, bool logReqresp) {
       IXmlRpcManager proxy = (IXmlRpcManager)XmlRpcProxyGen.Create(typeof(IXmlRpcManager));
-      proxy.Url = "http://127.0.0.1:10000/xm.rem";
+      proxy.Url = "http://" + ip + ":" + port + "/xm.rem";
       if (logReqresp) {
         XmlRpcManagerClientLogger logger = new XmlRpcManagerClientLogger();
         logger.Attach(proxy);
@@ -258,8 +258,20 @@ namespace Brunet {
       return proxy;
     }
 
+    public static IXmlRpcManager GetXmlRpcManager(string ip, int port) {
+      return GetXmlRpcManager(ip, port, false);
+    }
+
+    public static IXmlRpcManager GetXmlRpcManager(int port) {
+      return GetXmlRpcManager("127.0.0.1", port, false);
+    }
+
+    public static IXmlRpcManager GetXmlRpcManager(bool logReqresp) {
+      return GetXmlRpcManager("127.0.0.1", 10000, logReqresp);
+    }
+
     public static IXmlRpcManager GetXmlRpcManager() {
-      return GetXmlRpcManager(false);
+      return GetXmlRpcManager("127.0.0.1", 10000, false);
     }
   }
 
@@ -360,7 +372,7 @@ namespace Brunet {
     }
     
     public override void Invoke(ISender target, BlockingQueue q, string method,
-                              params object[] args) {      
+                              object[] args) {      
       if (this._retvalues == null) {
         throw new InvalidOperationException("Should use RetValsOfInvoke to set the return value first");
       }
