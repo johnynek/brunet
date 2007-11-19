@@ -1,113 +1,87 @@
 using System;
-using System.Collections;
 using System.IO;
+using System.Net;
+using System.Collections;
+
+
+#if NC_NUNIT
+using System.Security.Cryptography;
+using System.Collections.Specialized;
+using NUnit.Framework;
+#endif
 
 using Brunet;
-
-#if NC_LOG
-using log4net;
-using log4net.Config;
-#endif
-
-
-
 namespace Brunet.Coordinate {
   public class NCService {
-
-#if NC_LOG
-    private static readonly log4net.ILog _log =
-    log4net.LogManager.GetLogger(System.Reflection.MethodBase.
-				 GetCurrentMethod().DeclaringType);
-#endif
-
-
-    private static Hashtable _nc_service_table = new Hashtable();
-    //every 20 seconds get a new sample for latency
-    private static readonly int SAMPLE_INTERVAL = 20;
-
-    //update coordinate on file interval (60 seconds)
-    private static readonly int UPDATE_FILE_INTERVAL = 60;
-    
-    //sample not valid beyond 15 minutes
-    protected static readonly long SAMPLE_EXPIRATION = 900;
-
-    
+    //the object server that accepts sample requests
     public class NCServer {
+      protected static readonly string _hostname = Dns.GetHostName();
       private NCService _local_service;
       public NCServer(NCService local) {
 	_local_service = local;
       }
       public Hashtable EchoVivaldiState() {
 #if NC_DEBUG
-	Console.WriteLine("[NCService] {0} EchoVivaldiState() method invoked.", _local_service.Address);
+	if (_local_service.Node != null) {
+	  Console.Error.WriteLine("[NCService] {0} EchoVivaldiState() method invoked.", _local_service.Node.Address);
+	}
 #endif
-	Address addr = _local_service.Address;
+	//get snapshot of the local vivaldi state
 	VivaldiState v_state = _local_service.State;
 	
-	//this is what we would send back
+	//
+	// Hashtable containing the Vivaldi state.
+	//
 	Hashtable ht = new Hashtable();
-	byte[] b = new byte[Address.MemSize];
-	addr.CopyTo(b);
-	ht["neighbor"] = b; 
-
+	//error
+	ht["error"] = v_state.WeightedError;
 	//local coordinates
 	Hashtable ht_position = new Hashtable();
 	ht_position["side"] = new ArrayList(v_state.Position.Side);
 	ht_position["height"] = v_state.Position.Height;
 	ht["position"] = ht_position;
-
-	//local error
-	ht["error"] = v_state.WeightedError;
+	ht["hostname"] = _hostname;
 #if NC_DEBUG
-	Console.WriteLine("[NCService] {0} EchoVivaldiState() returning.", _local_service.Address);
+	if (_local_service.Node != null) {
+	  Console.Error.WriteLine("[NCService] {0} EchoVivaldiState() returning.", _local_service.Node.Address);
+	}
 #endif	
 	return ht;
+      }
+      
+      //dummy method to help another node determine latency to us.
+      public void Echo() {
+	return;
       }
     }
     
     protected NCServer _server;
-    
-    protected object _sync;
-    public object SyncRoot {
+    public NCServer Server {
       get {
-	return _sync;
+	return _server;
       }
     }
-    
-    protected Node _node;
-    public Address Address {
-      get {
-	return _node.Address;
-      }
-    }
-    protected RpcManager _rpc;
-    protected DateTime _last_sample_instant;
-    protected DateTime _last_update_file_instant;
-
-    /** Vivaldi related stuff. */
-    protected static readonly float DAMPENING_FRACTION = 0.25f;
-    protected static readonly float ERROR_FRACTION = 0.25f;
-    protected static readonly float INITIAL_WEIGHTED_ERROR = 1.0f;
-    
-    
-    //latency samples from neighbors
-    protected Hashtable _samples;
 
     public class TrialState {
-      public BlockingQueue Queue;
+      public Address TargetAddress;
+      public Edge TargetEdge;
+      public Channel Queue;
+      public object StateResult;
       public DateTime Start;
+      public int NumSamples;
+      public static readonly int MIN_SAMPLES = 1;
     }
-
-    protected TrialState _trial_state = null;
+    protected TrialState _current_trial_state = null;
 
     public class VivaldiState {
       //current weighted error
-      public float WeightedError;
+      public double WeightedError;
       //our current position estimate
       public Point Position;
       //EWMA of movements, dont think this is being used currently
-      public float DistanceDelta;
+      public double DistanceDelta;
     }
+
     protected VivaldiState _vivaldi_state;
     public VivaldiState State {
       get {
@@ -116,299 +90,290 @@ namespace Brunet.Coordinate {
 	    return null;
 	  }
 	  VivaldiState v_state = new VivaldiState();
-	  v_state.Position  = new Point();
-	  v_state.Position.Assign(_vivaldi_state.Position);
+	  v_state.Position  = 
+	    new Point(_vivaldi_state.Position);
 	  v_state.WeightedError = _vivaldi_state.WeightedError;
 	  v_state.DistanceDelta = _vivaldi_state.DistanceDelta;
 	  return v_state;
 	}
       }
     }
-    protected static string _coordinate_cache_dir = "coordinates";
-    protected static string _coordinate_cache_file = "coordinates.log";
+
+    private static Hashtable _nc_service_table = new Hashtable();
+    //every 10 seconds get a new sample for latency
+    private static readonly int SAMPLE_INTERVAL = 10;
+
+    //sample not valid beyond 1800 seconds
+    protected static readonly long SAMPLE_EXPIRATION = 1800;
+    
+
+    
+    //maximum latency value to consider a sample 
+    protected static readonly double MAX_RTT = 5;
+    
+    protected object _sync;
+    protected Node _node;
+    public Node Node {
+      get { return _node; }
+    }
+    protected RpcManager _rpc;
+    protected DateTime _last_sample_instant;
+    protected DateTime _last_update_file_instant;
+
+
+    /** Vivaldi related stuff. */
+    protected static readonly double DAMPENING_FRACTION = 0.25f;
+    protected static readonly double ERROR_FRACTION = 0.25f;
+    protected static readonly double INITIAL_WEIGHTED_ERROR = 1.0f;
+    
+    
+    //latency samples from neighbors
+    protected Hashtable _samples;
 
     public NCService() {
       _sync = new object();
       _node = null;
-      lock(_sync) {
-
-	_last_sample_instant = DateTime.MinValue;
-	_last_update_file_instant = DateTime.MinValue;
-
-	//initial vivaldi-related stuff
-	_samples = new Hashtable();
-	_trial_state = new TrialState();
-
-	_vivaldi_state = new VivaldiState();
-	_vivaldi_state.WeightedError = INITIAL_WEIGHTED_ERROR;
-	_vivaldi_state.Position = new Point();
-	_vivaldi_state.DistanceDelta = 0.0f;
-      }
+      _server = new NCServer(this);
+      _last_sample_instant = DateTime.MinValue;
+      _last_update_file_instant = DateTime.MinValue;
+      _samples = new Hashtable();
+      _current_trial_state = new TrialState();
+      _vivaldi_state = new VivaldiState();
+      _vivaldi_state.WeightedError = INITIAL_WEIGHTED_ERROR;
+      _vivaldi_state.Position = new Point();
+      _vivaldi_state.DistanceDelta = 0.0f;
     }
 
-    public void InstallOnNode(Node node) {
-      if (_node != null) {
-	throw new Exception("Service is already bound to: " +  _node.ToString());
-      }
+    public void Install(Node node) {
       lock(_nc_service_table) {
 	if (_nc_service_table.ContainsKey(node)) {
-	  throw new Exception("Attempting to install another instant of NCService on: " + node.ToString());
+	  throw new Exception("An instance of NCService already running on node: " + node.ToString());
 	}
-	//in case no instance exists, install one
+	if (_node != null) {
+	  throw new Exception("NCService already assigned to node: " + _node.ToString() + 
+			      " (cannot re-assign).");
+	}
 	_nc_service_table[node] = this;
-      } //end of lock
-      lock(_sync) {
-#if NC_DEBUG
-	Console.WriteLine("[NCService] {0} Installing an instance of NCService", node.Address);
-#endif 
 	_node = node;
-	_rpc = RpcManager.GetInstance(node);      
-	_server = new NCServer(this);
-	//register the table with the RpcManagers
+      }
+
+#if NC_DEBUG
+      Console.Error.WriteLine("[NCService] {0} Starting an instance of NCService", node.Address);
+#endif 
+
+      lock(_sync) {
+	_rpc = RpcManager.GetInstance(node);
 	_rpc.AddHandler("ncserver", _server);
-	_node.HeartBeatEvent += new EventHandler(GetSample);
+	_node.HeartBeatEvent += new EventHandler(GetNextSample);
       }
     }
-//     protected void TryInitializeFromFile() {
-//       lock(_sync) {
-// 	string dir_name = _coordinate_cache_dir + "/" + _node.Address.ToString();
-// 	if (!Directory.Exists(dir_name)) {
-// 	  Directory.CreateDirectory(dir_name);
-// 	  return;
-// 	}
-// 	string fname = dir_name + "/" + _coordinate_cache_file;
-// 	  try {
-// 	    FileStream fStream = new FileStream(fname, FileMode.Open, FileAccess.Read);
-// 	    StreamReader br = new StreamReader(fStream);
-// 	    //first line are the coordinates; assume 2 dimernsions
-// 	    string s = br.ReadLine();
-// 	    string[] ss = s.Split();
-// 	    if (ss.Length != Point.DIMENSIONS) {
-// 	      throw new Exception("Incorrect number of dimensions in euclidien space" );
-// 	    }
-// 	    float[] side = new float[Point.DIMENSIONS];
-// 	    for (int i = 0; i < Point.DIMENSIONS; i++) {
-// 	      side[i] = (float) Double.Parse(ss[i].Trim());
-// 	    }
-// 	    //next line is the height
-// 	    s = br.ReadLine();
-// 	    float height = (float) Double.Parse(s.Trim());
-// 	    //next value is the error
-// 	    s = br.ReadLine();
-// 	    float error = (float) Double.Parse(s.Trim());
-// 	    _vivaldi_state = new VivaldiState();
-// 	    _vivaldi_state.Position = new Point();
-// 	    _vivaldi_state.Position.Side = side;
-// 	    _vivaldi_state.Position.Height = height;
-// 	    _vivaldi_state.WeightedError = error;
-// 	  } catch(Exception e) {
-// 	    Console.Error.WriteLine(e);
-// 	    _vivaldi_state = null;
-// 	  }
-//       }
-//     }
-//     protected void UpdateToFile() {
-//       lock(_sync) {
-// 	try {
-// 	  string fname = _coordinate_cache_dir + "/" + _node.Address.ToString() + "/" + _coordinate_cache_file;
-	  
-// 	  FileStream fStream = new FileStream(fname, FileMode.Truncate);
-// 	  StreamWriter sw = new StreamWriter(fStream);
-	  
-// 	  for (int i = 0; i < Point.DIMENSIONS; i++) {
-// 	    sw.Write("{0} ", _vivaldi_state.Position.Side[i]);
-// 	  }
-// 	  sw.WriteLine();
-// 	  sw.WriteLine("{0} ", _vivaldi_state.Position.Height);
-// 	  sw.WriteLine("{0} ", _vivaldi_state.WeightedError);	
-	  
-// 	  //this is important; only on close are updates actually made in some cases
-// 	  sw.Close();
-// 	} catch (Exception e) {
-// 	  Console.Error.WriteLine(e);	  
-// 	}
-//       }
-//     }
-    protected void GetSample(object node, EventArgs args) {
-      TimeSpan elapsed = DateTime.Now - _last_sample_instant;
-      if (elapsed.TotalSeconds < SAMPLE_INTERVAL) {
-	return;
-      }
-      //pick a random target from the connection table
-      Connection target = _node.ConnectionTable.GetRandom(ConnectionType.Structured);
-      if (target == null) {
-#if NC_DEBUG
-	Console.WriteLine("[NCService] {0} No structured connections.", _node.Address);
-#endif
-	return;
-      }
-      DateTime now = DateTime.Now;
-      _last_sample_instant = now;
-      BlockingQueue q = _rpc.Invoke(target.Address, "ncserver.EchoVivaldiState", new object[]{});
-      q.EnqueueEvent += new EventHandler(HandleSample);      
 
-      //this way we automatically loose references to queue objects
+    protected void GetLatencySample(TrialState state) {
+      state.Queue.CloseAfterEnqueue();
+      state.Queue.EnqueueEvent += new EventHandler(HandleLatencySample);
+      _rpc.Invoke(state.TargetEdge, state.Queue, "ncserver.Echo", new object[]{});
+    }
+    protected void GetVivaldiState(TrialState state) {
+      state.Queue.CloseAfterEnqueue();
+      state.Queue.EnqueueEvent += new EventHandler(HandleVivaldiState);
+      _rpc.Invoke(state.TargetEdge, state.Queue, "ncserver.EchoVivaldiState", new object[]{});      
+    }
+
+    protected void GetNextSample(object node, EventArgs args) {
+      DateTime now = DateTime.Now;
       lock(_sync) {
-	_trial_state.Queue = q;
-	_trial_state.Start = now;
+	TimeSpan elapsed = now - _last_sample_instant;
+	//
+	// Check if it is too early to get a sample. 
+	//
+	if (elapsed.TotalSeconds < SAMPLE_INTERVAL) {
+	  return;
+	}
+	//
+	// Pick a random target from the connection table.
+	//
+	
+	Connection target = _node.ConnectionTable.GetRandom(ConnectionType.Structured);
+	if (target == null || target.Edge is TunnelEdge) {
+#if NC_DEBUG
+	  Console.Error.WriteLine("[NCService] {0} No structured connections.", _node.Address);
+#endif
+	  return;
+	}
+	
+	_last_sample_instant = now;
+	_current_trial_state.TargetAddress = target.Address;
+	_current_trial_state.TargetEdge = target.Edge;
+	_current_trial_state.Start = now;
+	_current_trial_state.Queue = new Channel();
+	_current_trial_state.StateResult = null;
+	GetVivaldiState(_current_trial_state);
       }
     }
     
-    protected void HandleSample(object o, EventArgs args) {
+    protected void HandleVivaldiState(object o, EventArgs args) {
 #if NC_DEBUG
-      Console.WriteLine("[NCService] {0} getting a sample.", _node.Address);
+      Console.Error.WriteLine("[NCService] {0} Got remote vivaldi state.", _node.Address);
 #endif
-      BlockingQueue q =  (BlockingQueue) o;
-      DateTime start;
+      //make sure that the trial is still on, and we havenot moved on to next sample
+      Channel q =  (Channel) o;
       lock(_sync) {
-	if (q != _trial_state.Queue) {
-	  Console.Error.WriteLine("[NCService] {0} incomplete sample (no start time).", _node.Address);	  	  
+	if (q != _current_trial_state.Queue) {
+	  Console.Error.WriteLine("[NCService] {0} Too late now.", _node.Address);	  	  
 	  return;
 	} 
-	start = _trial_state.Start;
-      }
-
-      DateTime end = DateTime.Now;
-      
-      RpcResult res = q.Dequeue() as RpcResult;
-
-      //simple close the queue
-      q.Close();
-      //unregister any future enqueue events
-      q.EnqueueEvent -= new EventHandler(HandleSample);
-      
-      if (res.Statistics != null) {
-	if (res.Statistics.SendCount == 1) {
-	  //only then we consider the sample
-	  Hashtable ht = (Hashtable) res.Result;
-	  byte[] b = (byte[]) ht["neighbor"];
-	  
-	  Address neighbor = new AHAddress(b);
-
-	  //make sure we still have a connection to this guy
-	  Connection c = _node.ConnectionTable.GetConnection(ConnectionType.Structured, neighbor);
-	  if (c == null) {
-	    Console.Error.WriteLine("[NCService] {0} Got a sample from someone we are not connected.", _node.Address);
-	    return;
-	  }
-#if NC_DEBUG
-	  Console.WriteLine("[NCService] {0} # of structured connections: {1}.", 
-			    _node.Address, _node.ConnectionTable.Count(ConnectionType.Structured));
-	  Console.WriteLine("sample TA: {0}", c.Edge.RemoteTA.ToString());
-#endif
-	  Hashtable ht_position = (Hashtable) ht["position"];
-	  Point o_position = new Point();
-	  o_position.Height = (float) ht_position["height"];
-	  
-	  o_position.Side = (float[]) ((ArrayList) ht_position["side"]).ToArray(typeof(float));
-
-	  float o_weightedError = (float) ht["error"];
-	  float o_rawLatency = (float) ((end - start).TotalMilliseconds);
-	  
-#if NC_LOG
-	  string ss = _node.Address + "::::" + DateTime.UtcNow.Ticks + "::::Coordinates::::"; 
-	  ss += (State.Position.Side[0] + "::::" + State.Position.Side[1] + "::::" + State.Position.Height + "::::");
-	  ss += ("Error::::" + State.WeightedError);
-	  _log.Debug(ss);
-#endif
-	  
-
-	  ProcessSample(end, neighbor, o_position, o_weightedError, o_rawLatency);
-
-// 	  if ((end - _last_update_file_instant).TotalSeconds > UPDATE_FILE_INTERVAL) {
-// 	    UpdateToFile();
-// 	    _last_update_file_instant = end;
-// 	  }
-	} else {
-	  Console.Error.WriteLine("[NCService] {0} ignore sample (multiple sends).", _node.Address);	  
+	_current_trial_state.Queue = new Channel();
+	_current_trial_state.NumSamples = 1;
+	_current_trial_state.Start = DateTime.Now;
+	try {
+	  RpcResult result = q.Dequeue() as RpcResult;
+	  _current_trial_state.StateResult = result.Result;
+	} catch(Exception e) {
+	  //invalid sample
+	  Console.Error.WriteLine(e);
+	  return;
 	}
+	GetLatencySample(_current_trial_state);
       }
     }
 
+    protected void HandleLatencySample(object o, EventArgs args) {
+#if NC_DEBUG
+      Console.Error.WriteLine("[NCService] {0} Got a latency sample.", _node.Address);
+#endif
+      DateTime start;
+      Address neighbor = null;
+      object state_result = null;
+      Channel q =  (Channel) o;
+      lock(_sync) {
+	//check to see if still valid.
+	if (q != _current_trial_state.Queue) {
+	  Console.Error.WriteLine("[NCService] {0} Too late now.", _node.Address);	  	  
+	  return;
+	} 
+
+	//
+	// Check to see if sufficient samples are now available. 
+	// 
+	if (_current_trial_state.NumSamples <  TrialState.MIN_SAMPLES) {
+#if NC_DEBUG
+	  Console.Error.WriteLine("Insufficient samples. Get some more.");
+#endif
+	  _current_trial_state.Queue = new Channel();
+	  _current_trial_state.NumSamples++;
+	  _current_trial_state.Start = DateTime.Now;
+	  GetLatencySample(_current_trial_state);
+	  return;
+	}
+
+	//
+	// Complete sample is now available.
+	//
+#if NC_DEBUG
+	Console.Error.WriteLine("Complete sample.");
+#endif
+	neighbor = _current_trial_state.TargetAddress;
+	start = _current_trial_state.Start;
+	state_result = _current_trial_state.StateResult;
+      }
+
+      DateTime end = DateTime.Now;
+      try {
+	RpcResult res = q.Dequeue() as RpcResult;
+	if (res.Statistics.SendCount > 1) {
+	  Console.Error.WriteLine("[NCService] {0} ignore sample (multiple sends).", _node.Address);
+	  return;
+	}
+      } catch(Exception e) {
+	//invalid sample
+	Console.Error.WriteLine(e);
+	return;
+      }
+      double o_rawLatency = (double) ((end - start).TotalMilliseconds);
+      if (o_rawLatency > MAX_RTT*1000) {
+	return;
+      }
+      //extract vivaldi state for the remote node.
+      Hashtable ht =  (Hashtable) state_result;
+      Hashtable ht_position = (Hashtable) ht["position"];
+      Point o_position = 
+	new Point((double[]) ((ArrayList) ht_position["side"]).ToArray(typeof(double)), (double) ht_position["height"]);
+      double o_weightedError = (double) ht["error"];
+      string host = null;
+      if (ht.Contains("hostname")) {
+	host = (string) ht["hostname"];
+      }
+      ProcessSample(end, host, neighbor, o_position, o_weightedError, o_rawLatency);
+    }
+    
     /** Processing of a latency sample using Vivaldi network coordinate approach. 
      *  @param o_stamp timestamp
-     *  @param neighbor neighbor node from where sample is received
+     *  @param o_host name of the host from which we got the sample
+     *  @param o_neighbor neighbor node from where sample is received
      *  @param o_position position vector of neighbor
      *  @param o_weightedError at the neighbor
      *  @param o_rawLatency latency of the sample
      */
-    public void ProcessSample(DateTime o_stamp, Address neighbor, Point o_position, float o_weightedError, float o_rawLatency) {
+
+    public void ProcessSample(DateTime o_stamp, string o_host, Address o_neighbor, Point o_position, 
+			      double o_weightedError, double o_rawLatency) {
       lock(_sync) {
-#if NC_DEBUG
-	Console.WriteLine("[Sample] stamp: {0}, neighbor: {1}, position: {2}, error: {3}, latency: {4}", 
-			  o_stamp, neighbor, o_position, o_weightedError, o_rawLatency);
-#endif
-
-#if NC_LOG
-	Connection c = null;
-	string ss = null;
-	if (_node != null) {
-	  c = _node.ConnectionTable.GetConnection(ConnectionType.Structured, neighbor);
-	  ss = _node.Address + "::::" + DateTime.UtcNow.Ticks + "::::RawSample::::";
-	  ss += (neighbor + "::::" + c.Edge.RemoteTA.ToString() + "::::" + o_rawLatency);
-	  _log.Debug(ss);
-	}
-#endif
-
-
-
 	Sample sample = null;
-	if (_samples.ContainsKey(neighbor)) {
-	  sample = (Sample) _samples[neighbor];
+	if (_samples.ContainsKey(o_neighbor)) {
+	  sample = (Sample) _samples[o_neighbor];
 	} else {
 	  sample = new Sample();
-	  _samples[neighbor] = sample;
+	  _samples[o_neighbor] = sample;
 	}
+
 	sample.AddSample(o_stamp, o_rawLatency, o_position, o_weightedError);
-	float o_latency = sample.GetSample();
-	if (o_latency < 0) {
+	double o_latency = sample.GetSample();
+	if (o_latency < 0.0) {
+#if NC_DEBUG
+	  Console.Error.WriteLine("Too few samples to consider.");
+#endif
 	  return;
 	}
-
-#if NC_LOG
-	if (_node != null) {
-	  c = _node.ConnectionTable.GetConnection(ConnectionType.Structured, neighbor);
-	  ss = _node.Address + "::::" + DateTime.UtcNow.Ticks + "::::Sample::::";
-	  ss += (neighbor + "::::" + c.Edge.RemoteTA.ToString() + "::::" + o_rawLatency);
-	  _log.Debug(ss);
-	}
+#if NC_DEBUG
+	Console.Error.WriteLine("[Sample] at: {0}, from: {1} {2}, position: {3}, error: {4}, raw latency: {5}, smooth latency: {6}", 
+				o_stamp, o_host, o_neighbor, o_position, o_weightedError, o_rawLatency, o_latency);
 #endif
 
-	float o_distance = _vivaldi_state.Position.GetEucledianDistance(o_position);
+
+	double o_distance = _vivaldi_state.Position.GetEucledianDistance(o_position);
 	while (o_distance == 0) {
 	  _vivaldi_state.Position.Bump();
 	  o_distance = _vivaldi_state.Position.GetEucledianDistance(o_position);
 	}
-	float o_relativeError = Math.Abs((o_distance - o_latency)/o_latency);
-	float o_rawRelativeError = Math.Abs((o_distance - o_rawLatency)/o_rawLatency);
-      
-	float o_weight = _vivaldi_state.WeightedError/(_vivaldi_state.WeightedError + o_weightedError);
-      
-	float o_alphaWeightedError = ERROR_FRACTION * o_weight;
+	double o_relativeError = Math.Abs((o_distance - o_latency)/o_latency);
+	double o_rawRelativeError = Math.Abs((o_distance - o_rawLatency)/o_rawLatency);
+	double o_weight = _vivaldi_state.WeightedError/(_vivaldi_state.WeightedError + o_weightedError);
+	double o_alphaWeightedError = ERROR_FRACTION * o_weight;
       
 #if NC_DEBUG
-	Console.WriteLine("o_distance: {0}", o_distance);
-	Console.WriteLine("o_latency: {0}", o_latency);
-	Console.WriteLine("o_relativeError (epsi): {0}", o_relativeError);
-	Console.WriteLine("o_weight (w_s): {0}", o_weight);
-	Console.WriteLine("my_weight (preupdate)): {0}", State.WeightedError);
-	Console.WriteLine("alpha: {0}", o_alphaWeightedError);
-	
+	Console.Error.WriteLine("o_distance: {0}", o_distance);
+	Console.Error.WriteLine("o_latency: {0}", o_latency);
+	Console.Error.WriteLine("o_relativeError (epsi): {0}", o_relativeError);
+	Console.Error.WriteLine("o_weight (w_s): {0}", o_weight);
+	Console.Error.WriteLine("my_weighted_error (preupdate)): {0}", State.WeightedError);
+	Console.Error.WriteLine("alpha: {0}", o_alphaWeightedError);
 #endif
-	_vivaldi_state.WeightedError = (o_relativeError* o_alphaWeightedError) + _vivaldi_state.WeightedError*(1 - o_alphaWeightedError);
+
+	_vivaldi_state.WeightedError = (o_relativeError* o_alphaWeightedError) + 
+	  _vivaldi_state.WeightedError*(1 - o_alphaWeightedError);
+
 #if NC_DEBUG
-	Console.WriteLine("my_weight (postupdate)): {0}", State.WeightedError);
+	Console.Error.WriteLine("my_weighted_error (postupdate)): {0}", State.WeightedError);
 #endif
-	if (_vivaldi_state.WeightedError > 1.0f) {
-	  _vivaldi_state.WeightedError = 1.0f;
+	if (_vivaldi_state.WeightedError > 1.0) {
+	  _vivaldi_state.WeightedError = 1.0;
 	} 
-	if (_vivaldi_state.WeightedError < 0.0f) {
-	  _vivaldi_state.WeightedError = 0.0f;
+	if (_vivaldi_state.WeightedError < 0.0) {
+	  _vivaldi_state.WeightedError = 0.0;
 	}
       
 	Point o_force = new Point();
 	int measurementsUsed = 0;
-
 	DateTime o_oldestSample = o_stamp;
       
 	ArrayList valid_nodes = new ArrayList();
@@ -417,72 +382,234 @@ namespace Brunet.Coordinate {
 	foreach(Address node in _samples.Keys) {
 	  Sample n_sample = (Sample) _samples[node];
 	  if ((o_stamp - n_sample.TimeStamp).TotalSeconds > SAMPLE_EXPIRATION) {
-	    //sample has expired
+	    //
+	    // Invalidate node.
+	    //
 	    invalid_nodes.Add(node);
-	  } else {
-	    valid_nodes.Add(node);
-	    if (o_oldestSample > n_sample.TimeStamp) {
-	      o_oldestSample = n_sample.TimeStamp;
-	    }
+	    continue;
+	  }
+	  
+	  if (n_sample.GetSample() < 0) {
+	    //
+	    // Neither valid nor invalid.
+	    //
+#if NC_DEBUG
+	    Console.Error.WriteLine("Neither valid nor invalid.");
+#endif
+	    continue;
+	  }
+	  
+	  //
+	  // valid sample.
+	  //
+	  valid_nodes.Add(node);
+	  if (o_oldestSample > n_sample.TimeStamp) {
+	    o_oldestSample = n_sample.TimeStamp;
 	  }
 	}
       
-	//get rid of invalid nodes
+	//get rid of invalid nodes.
 	for (int k = 0; k < invalid_nodes.Count; k++) {
 	  Address node = (Address) invalid_nodes[k];
+#if NC_DEBUG
+	  Console.Error.WriteLine("Removing samples from node: {0}", node);
+#endif
 	  _samples.Remove(node);
 	}
+
+#if NC_DEBUG
+	Console.Error.WriteLine("Initiating force computation.");
+#endif   
       
-	float o_sampleWeightSum = 0.0f;
+	double o_sampleWeightSum = 0.0f;
 	for (int k = 0; k < valid_nodes.Count; k++) {
 	  Address node = (Address) valid_nodes[k];
 	  Sample n_sample = (Sample) _samples[node];	
-	  o_sampleWeightSum += (float) (n_sample.TimeStamp - o_oldestSample).TotalSeconds;
+	  o_sampleWeightSum += (double) (n_sample.TimeStamp - o_oldestSample).TotalSeconds;
 	}
-      
-	for (int k = 0; k < valid_nodes.Count; k++) {
+
+#if NC_DEBUG
+	Console.Error.WriteLine("Oldest sample: {0}", o_oldestSample);
+	Console.Error.WriteLine("Sample weight sum: {0}", o_sampleWeightSum);
+#endif   
+
+   	for (int k = 0; k < valid_nodes.Count; k++) {
 	  Address node = (Address) valid_nodes[k];
 	  Sample n_sample = (Sample) _samples[node];
-
-	  float s_distance = _vivaldi_state.Position.GetEucledianDistance(n_sample.Position);
+	  
+#if NC_DEBUG
+	  Console.Error.WriteLine("current position: {0}", _vivaldi_state.Position);
+#endif
+	  double s_distance = _vivaldi_state.Position.GetEucledianDistance(n_sample.Position);
 	  while (s_distance == 0) {
 	    _vivaldi_state.Position.Bump();
 	    s_distance = _vivaldi_state.Position.GetEucledianDistance(n_sample.Position);	  
 	  }
+
 	  Point s_unitVector = _vivaldi_state.Position.GetDirection(n_sample.Position);
 	  if (s_unitVector == null) {
 	    s_unitVector = Point.GetRandomUnitVector();
 	  }
-	  float s_latency = n_sample.GetSample();
-	
-	  float s_weight = _vivaldi_state.WeightedError / (_vivaldi_state.WeightedError + n_sample.WeightedError);
 
-	  float s_error = s_distance - s_latency;
-	
-	  float s_dampening = s_weight;
-	
-	  float s_sampleWeight = 1.0f;
+	  double s_latency = n_sample.GetSample();
+	  double s_dampening = _vivaldi_state.WeightedError / (_vivaldi_state.WeightedError + n_sample.WeightedError);
+	  double s_error = s_distance - s_latency;
+	  double s_sampleWeight = 1.0f;
+	  double s_sampleNewness = (double) (n_sample.TimeStamp - o_oldestSample).TotalSeconds;
 	  if (o_sampleWeightSum > 0.0) {
-	    s_sampleWeight = (float) (((n_sample.TimeStamp - o_oldestSample).TotalSeconds)/o_sampleWeightSum);
+	    s_sampleWeight = s_sampleNewness/o_sampleWeightSum;
 	  }
+
+#if NC_DEBUG
+	  Console.Error.WriteLine("Force component: {0}", k);
+	  Console.Error.WriteLine("Unit vector: {0}", s_unitVector);	  
+	  Console.Error.WriteLine("s_distance: {0}", s_distance);
+	  Console.Error.WriteLine("s_latency: {0}", s_latency);
+	  Console.Error.WriteLine("s_error: {0}", s_error);
+	  Console.Error.WriteLine("s_weighted_error (ws): {0}", n_sample.WeightedError);
+	  Console.Error.WriteLine("s_dampening (ws): {0}", s_dampening);
+	  Console.Error.WriteLine("s_sampleNewness: {0}", s_sampleNewness);
+	  Console.Error.WriteLine("s_sampleWeight: {0}", s_sampleWeight);
+#endif
+
 	  s_unitVector.Scale(s_error * s_dampening * s_sampleWeight);
+#if NC_DEBUG
+	  Console.Error.WriteLine("s_force: {0}", s_unitVector);
+#endif 
 	  o_force.Add(s_unitVector);
 	  measurementsUsed++;
 	}
+
+#if NC_DEBUG
+	Console.Error.WriteLine("force (pre-scaling): {0}", o_force);
+#endif
 	o_force.Height = -o_force.Height;
 	o_force.Scale(DAMPENING_FRACTION);
       
-	//update position
+
 #if NC_DEBUG
-	Console.WriteLine("force: {0}", o_force);
+	Console.Error.WriteLine("force (post-scaling): {0}", o_force);
 #endif
 	_vivaldi_state.Position.Add(o_force);
 	_vivaldi_state.Position.CheckHeight();
 #if NC_DEBUG
-	Console.WriteLine("position: {0}", _vivaldi_state.Position);
+	Console.Error.WriteLine("position: {0}", _vivaldi_state.Position);
 #endif
-	//_vivaldi_state.DistanceDelta = (float) (0.05 * Math.Abs(o_force.Length()) + 0.95*_vivaldi_state.DistanceDelta);
       }
     }
   }
+#if NC_NUNIT
+  [TestFixture]
+  public class NCTester {  
+    [Test]
+    public void TestSample() {
+      Sample sample = new Sample();
+      Assert.IsTrue(sample.GetSample() < 0.0);
+      sample.AddSample(DateTime.Now, (double) 100.0, new Point(), (double) 0.001);
+      sample.AddSample(DateTime.Now, (double) 100.0, new Point(), (double) 0.002);
+      sample.AddSample(DateTime.Now, (double) 100.0, new Point(), (double) 0.003);
+      sample.AddSample(DateTime.Now, (double) 100.0, new Point(), (double) 0.004);
+      Assert.IsTrue(sample.GetSample() > 0.0);
+
+    }
+    [Test]
+    public void TestPoint() {
+      Point p1 = new Point(new double[] {(double) 3.0, (double) 4.0}, 0);
+      Assert.IsTrue(p1.Length() > 4.9 && p1.Length() < 5.1);
+      Point p2 = new Point(new double[] {(double) 6.0, (double) 8.0}, 0);
+      double d = p1.GetEucledianDistance(p2);
+      Assert.IsTrue(d > 4.9 && d < 5.1);
+      Point uv = p1.GetDirection(p2);
+      Assert.IsTrue(uv.Length() > 0.9 && uv.Length() < 1.1);
+      p1.Add(p2);
+      Assert.IsTrue(p1.Side[0] > 8.9 && p1.Side[0] < 9.1);
+      Assert.IsTrue(p1.Side[1] > 11.9 && p1.Side[1] < 12.1);
+
+      p2.Scale((double) 0.5);
+      Assert.IsTrue(p2.Side[0] > 2.9 && p2.Side[0] < 3.1);
+      Assert.IsTrue(p2.Side[1] > 3.9 && p2.Side[1] < 4.1);
+
+      Point p = new Point(p2.Side, p2.Height);
+      Assert.IsTrue(p.Equals(p2));
+
+      p2.Scale((double)2.0);
+      Assert.IsTrue(!p.Equals(p2));
+    }
+
+    [Test]
+    public void TestService() {
+      NCService nc_service = new NCService();
+      DateTime now = DateTime.Now;
+      Address addr_remote = new AHAddress(new RNGCryptoServiceProvider());
+      Address addr_remote1 = new AHAddress(new RNGCryptoServiceProvider());
+
+      nc_service.ProcessSample(now + new TimeSpan(0, 0, 5), "local-test", addr_remote, 
+			       new Point(new double[] {(double) 3.0, (double) 4.0}, 0),
+			       (double) 0.9, (double)10.0); 
+
+      nc_service.ProcessSample(now + new TimeSpan(0, 0, 6), "local-test",addr_remote1, 
+			       new Point(new double[] {(double) 10.0, (double) 2.0}, 0),
+			       (double) 0.9, (double)10.0); 
+
+
+      nc_service.ProcessSample(now + new TimeSpan(0, 0, 7), "local-test",addr_remote, 
+			       new Point(new double[] {(double) 3.0, (double) 4.0}, 0),
+			       (double) 0.8, (double)12.0); 
+
+      nc_service.ProcessSample(now + new TimeSpan(0, 0, 8), "local-test",addr_remote1, 
+			       new Point(new double[] {(double) 10.0, (double) 2.0}, 0),
+			       (double) 0.8, (double)12.0); 
+
+
+      nc_service.ProcessSample(now + new TimeSpan(0, 0, 9), "local-test",addr_remote, 
+			       new Point(new double[] {(double) 3.0, (double) 4.0}, 0),
+			       (double)0.7, (double)13.0); 
+
+      nc_service.ProcessSample(now + new TimeSpan(0, 0, 11), "local-test",addr_remote1, 
+			       new Point(new double[] {(double) 10.0, (double) 2.0}, 0),
+			       (double)0.7, (double)13.0); 
+
+
+      nc_service.ProcessSample(now + new TimeSpan(0, 0, 12), "local-test",addr_remote, 
+			       new Point(new double[] {(double) 3.0, (double) 4.0}, 0),
+			       (double)0.6, (double)10.0); 
+
+      nc_service.ProcessSample(now + new TimeSpan(0, 0, 13), "local-test",addr_remote1, 
+			       new Point(new double[] {(double) 10.0, (double) 2.0}, 0),
+			       (double)0.6, (double)10.0);       
+
+      NCService.VivaldiState state = nc_service.State;
+      Console.Error.WriteLine("position: {0}, error: {1}", state.Position, state.WeightedError);
+    }
+
+    [Test]
+    public void TestSerialize() {
+      NCService nc_service = new NCService();
+      Hashtable ht1 = nc_service.Server.EchoVivaldiState();
+      MemoryStream ms = new MemoryStream();
+      int serialized = AdrConverter.Serialize(ht1, ms);
+      byte[] buf = ms.ToArray();
+      Assert.AreEqual(serialized, buf.Length, "Buffer length same as written");
+      ms.Seek(0, SeekOrigin.Begin);
+      object o = AdrConverter.Deserialize(ms);
+      Hashtable ht =  o as Hashtable;
+      Assert.IsTrue(ht != null);
+      Hashtable ht_position = (Hashtable) ht["position"];
+      Point o_position = 
+	new Point((double[]) ((ArrayList) ht_position["side"]).ToArray(typeof(double)), (double) ht_position["height"]);
+	  
+      double o_weightedError = (double) ht["error"];
+      // 
+      // Make sure that the values obtained match the orgininal NC state.
+      //
+
+      NCService.VivaldiState state = nc_service.State;
+
+      Assert.IsTrue(o_position.Equals(state.Position));
+      Assert.IsTrue(o_weightedError.Equals(state.WeightedError));
+    }
+  }
+#endif
 }
+
+
