@@ -1073,6 +1073,7 @@ namespace Brunet
         ProtocolLog.Write(ProtocolLog.Stats, String.Format(
           "Initial add to unconnected {0}|{1}", e, DateTime.UtcNow.Ticks));
       lock( _sync ) {
+        if( _closed ) { throw new TableClosedException(); }
         int idx = _unconnected.IndexOf(e);
         if( idx < 0 ) {
           _unconnected = Functional.Add(_unconnected, e);
