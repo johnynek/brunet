@@ -150,6 +150,10 @@ public class Channel {
     }
   }
 
+  /**
+   * add a to the queue.
+   * @throws Exception if the Queue is closed
+   */
   public virtual void Enqueue(object a) {
     bool close = false;
     lock( _sync ) {
@@ -159,7 +163,7 @@ public class Channel {
       }
       else {
         //We are closed, ignore all future enqueues.
-        return;
+        throw new Exception("Channel is closed, Enqueue failed");
       }
     }
     FireEnqueue();
@@ -361,6 +365,10 @@ public sealed class BlockingQueue : Channel {
     return Dequeue(millisec, out timedout, false);
   }
 
+  /**
+   * add a to the queue.
+   * @throws Exception if the Queue is closed
+   */
   public override void Enqueue(object a) {
     bool set = false;
     bool close = false;
@@ -372,7 +380,7 @@ public sealed class BlockingQueue : Channel {
       }
       else {
         //We are closed, ignore all future enqueues.
-        return;
+        throw new Exception("BlockingQueue is closed, Enqueue failed");
       }
       //Wake up any waiting threads
 #if DEBUG
@@ -462,6 +470,22 @@ public sealed class BlockingQueue : Channel {
     }
     catch(Exception) { got_exception = true; }
     Assert.IsTrue(got_exception, "got exception");
+    Close();
+    got_exception = false;
+    try {
+      CloseEvent += delegate(object o, EventArgs args) { };
+    }
+    catch { got_exception = true; }
+    Assert.IsTrue(got_exception, "CloseEvent exception check");
+    
+    got_exception = false;
+    try {
+      //Should throw an exception after the queue is closed
+      Enqueue(null);
+    }
+    catch { got_exception = true; }
+    Assert.IsTrue(got_exception, "Enqueue exception check");
+    
   }
 
   /*
