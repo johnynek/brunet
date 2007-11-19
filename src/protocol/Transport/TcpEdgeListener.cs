@@ -39,8 +39,8 @@ namespace Brunet
   {
     protected readonly Socket _listen_sock;
     protected IPEndPoint _local_endpoint;
-    protected object _sync;
-    protected Thread _loop;
+    protected readonly object _sync;
+    protected readonly Thread _loop;
     protected volatile bool _send_edge_events;
     volatile protected bool _run;
 
@@ -163,6 +163,7 @@ namespace Brunet
       _all_sockets = new ArrayList();
       _send_sockets = new ArrayList();
       _sock_to_edge = new Hashtable();
+      _loop = new Thread( new ThreadStart( this.SelectLoop ) );
     }
 
     /**
@@ -205,7 +206,6 @@ namespace Brunet
         _is_started = true;
         _send_edge_events = true;
         _run = true;
-        _loop = new Thread( new ThreadStart( this.SelectLoop ) );
         _loop.Start();
       }
     }
@@ -214,6 +214,10 @@ namespace Brunet
     {
       //This should stop the thread gracefully
       _run = false;
+      if(Thread.CurrentThread != _loop ) {
+        //Don't join on the current thread, that would block forever
+        _loop.Join();
+      }
     }
 
     /* ***************************************************** */
@@ -413,7 +417,6 @@ namespace Brunet
           HandleWrites(ws, buf);
         }
       }//End of while loop
-      
       /*
        * We are done, so close all the sockets
        */
@@ -480,7 +483,7 @@ namespace Brunet
       } while( all_s == null );
 
       ArrayList send_s = null;
-      //Acquire _all_sockets
+      //Acquire _send_sockets
       do {
         send_s = Interlocked.Exchange(ref _send_sockets, send_s);
       } while( send_s == null );
@@ -508,6 +511,7 @@ namespace Brunet
         object s = readsocks[i];
         //See if this is a new socket
         if( s == _listen_sock ) {
+          TcpEdge e = null;
           try {
             Socket new_s = _listen_sock.Accept();
             TransportAddress rta = TransportAddressFactory.CreateInstance(this.TAType,
@@ -519,7 +523,7 @@ namespace Brunet
             }
             else {
               //This edge looks clean
-              TcpEdge e = new TcpEdge(new_s, true, this);
+              e = new TcpEdge(new_s, true, this);
               AddEdge(e);
   #if POB_DEBUG
               Console.Error.WriteLine("New Edge: {0}", e);
@@ -529,7 +533,9 @@ namespace Brunet
           }
           catch(Exception sx) {
           //Looks like this Accept has failed.  Do nothing
-            Console.Error.WriteLine("New incoming edge failed: {0}", sx);
+            Console.Error.WriteLine("New incoming edge ({1}) failed: {0}", sx, e);
+            //Make sure the edge is closed
+            if( e != null ) { e.Close(); }
           }
         }
         else {
@@ -571,13 +577,17 @@ namespace Brunet
         send_s = Interlocked.Exchange(ref _send_sockets, send_s);
       } while( send_s == null );
 
-      if( need_to_send && !e.IsClosed ) {
-        send_s.Add(e.Socket);
+      try {
+        if( need_to_send && !e.IsClosed ) {
+          send_s.Add(e.Socket);
+        }
+        else {
+          send_s.Remove(e.Socket);
+        }
       }
-      else {
-        send_s.Remove(e.Socket);
+      finally {
+        Interlocked.Exchange(ref _send_sockets, send_s);
       }
-      Interlocked.Exchange(ref _send_sockets, send_s);
     }
 
   }
