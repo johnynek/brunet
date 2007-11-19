@@ -135,16 +135,16 @@ namespace Brunet
      */
     public override void CreateEdgeTo(TransportAddress ta, EdgeCreationCallback ecb) 
     {
+      try {
       if (!IsStarted) {
-        ecb(false, null, new EdgeException("TunnelEdgeListener not started"));
+        throw new EdgeException("TunnelEdgeListener not started");
       }
       else if (!_running) {
-        ecb(false, null, new EdgeException("TunnelEdgeListener not running"));        
+        throw new EdgeException("TunnelEdgeListener not running");
       }
       else if (ta.TransportAddressType != this.TAType) {
-        ecb(false, null,
-            new EdgeException(ta.TransportAddressType.ToString()
-                              + " is not my type: " + this.TAType.ToString() ) );
+	throw new EdgeException(ta.TransportAddressType.ToString()
+				+ " is not my type: " + this.TAType.ToString());
       }
       else {
 #if TUNNEL_DEBUG
@@ -261,15 +261,19 @@ namespace Brunet
         }
       }
       //we will defer this sending to next heartbeat; an artificial delay from out own side
+      } catch(Exception e) {
+	ecb(false, null, e);
+      }
     }
 
 
     protected class EdgeCreationState {
+      public static readonly TimeSpan ReqTimeout = new TimeSpan(0,0,0,0,5000);
       public readonly int Id;
       protected EdgeCreationCallback ECB;
       protected readonly Packet RequestPacket;
       protected readonly IList Senders;
-
+      protected DateTime _last_send;
       public const int MAX_ATTEMPTS = 4;
       protected volatile int _attempts;
       public int Attempts { get { return _attempts; } }
@@ -286,6 +290,7 @@ namespace Brunet
         RequestPacket = p;
         _r = new Random();
         _attempts = MAX_ATTEMPTS;
+        _last_send = DateTime.UtcNow;
         _sync = new object();
       }
 
@@ -319,10 +324,15 @@ namespace Brunet
        * list of neighbors
        */
       public void Resend() {
+	DateTime now = DateTime.UtcNow;
+	if (now - _last_send < EdgeCreationState.ReqTimeout) {
+	  return;
+	}
         /*
          * one of the senders might have closed
          * try three times to be sure
          */
+
         bool try_again = true;
         int count = 0;
         int edge_idx;
@@ -349,20 +359,12 @@ namespace Brunet
             if( count >= 3 ) { try_again = false; }
           }
         }
+	_last_send = now;
       }
     }
     protected Hashtable _ecs_ht;
-    protected DateTime _last_check;
-    protected TimeSpan _reqtimeout;
 
     protected void TimeoutChecker(object o, EventArgs args) {
-      DateTime now = DateTime.UtcNow;
-      if ( now - _last_check < _reqtimeout ) {
-        return;
-      }
-      _last_check = now;
-
-
 #if TUNNEL_DEBUG
       Console.Error.WriteLine("TimeoutChecker: Checking edge creation states at: {0}.", DateTime.Now);
 #endif
@@ -477,10 +479,6 @@ namespace Brunet
 
         _running = false;
         _isstarted = false;
-        _last_check = DateTime.UtcNow;
-        //resend the request after 5 seconds.
-        _reqtimeout = new TimeSpan(0,0,0,0,5000);
-
         _node.HeartBeatEvent += new EventHandler(this.TimeoutChecker);
       }
     }

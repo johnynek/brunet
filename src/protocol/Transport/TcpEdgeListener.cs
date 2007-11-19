@@ -170,20 +170,18 @@ namespace Brunet
      */
     public override void CreateEdgeTo(TransportAddress ta, EdgeCreationCallback ecb)
     {
+      try {
       if( !IsStarted )
       {
-        ecb(false, null,
-            new EdgeException("TcpEdgeListener is not started") );
+	throw new EdgeException("TcpEdgeListener is not started");
       }
       else if( ta.TransportAddressType != this.TAType ) {
-        ecb(false, null,
-            new EdgeException(ta.TransportAddressType.ToString()
-                              + " is not my type: " + this.TAType.ToString() ) );
+	throw new EdgeException(ta.TransportAddressType.ToString()
+				+ " is not my type: " + this.TAType.ToString());
       }
       else if( _ta_auth.Authorize(ta) == TAAuthorizer.Decision.Deny ) {
         //Too bad.  Can't make this edge:
-        ecb(false, null,
-            new EdgeException( ta.ToString() + " is not authorized") );
+	throw new EdgeException( ta.ToString() + " is not authorized");
       }
       else {
         //Everything looks good:
@@ -191,6 +189,9 @@ namespace Brunet
                                            new Queue( ((IPTransportAddress)ta).GetIPAddresses() ),
                                            ((IPTransportAddress) ta).Port);
         TryNextIP( cs );
+      }
+      } catch(Exception e) {
+	ecb(false, null, e);
       }
     }
 

@@ -140,37 +140,53 @@ namespace Brunet
     ///We should allow it as long as it is not another LinkProtocolState:
     public bool AllowLockTransfer(Address a, string contype, ILinkLocker l)
     {
-      bool allow = false;
-      lock( _sync ) {
-        if( l is Linker ) {
-          //We will allow it if we are done:
-          if( _is_finished ) {
-            allow = true;
+      bool entered = System.Threading.Monitor.TryEnter(_sync); //like a lock
+      if ( false == entered ) {
+	if (ProtocolLog.LinkDebug.Enabled) {
+	  ProtocolLog.Write(ProtocolLog.LinkDebug,
+          String.Format(
+          "Cannot acquire LPS lock for transfer (potential deadlock)."));
+	}
+        return false;
+      }
+      else {
+        // We have the lock now
+        bool allow = false;
+        try {
+          if( l is Linker ) {
+            //We will allow it if we are done:
+            if( _is_finished ) {
+              allow = true;
+              _target_lock = null;
+            }
+          }
+          else if ( false == (l is LinkProtocolState) ) {
+          /**
+           * We only allow a lock transfer in the following case:
+           * 0) We have not sent the StatusRequest yet.
+           * 1) We are not transfering to another LinkProtocolState
+           * 2) The lock matches the lock we hold
+           * 3) The address we are locking is greater than our own address
+           */
+            if( ( _lm_reply == null )
+                && a.Equals( _target_lock )
+                && contype == _contype 
+                && ( a.CompareTo( _node.Address ) > 0) )
+            {
+                _target_lock = null; 
+                allow = true;
+            }
+          }
+          if( allow ) {
             _target_lock = null;
           }
+        } finally {
+          //We have to do a try .. finally here otherwise an
+          //exception in the above could cause us to never release _sync.
+          System.Threading.Monitor.Exit(_sync);
         }
-        else if ( false == (l is LinkProtocolState) ) {
-        /**
-         * We only allow a lock transfer in the following case:
-         * 0) We have not sent the StatusRequest yet.
-         * 1) We are not transfering to another LinkProtocolState
-         * 2) The lock matches the lock we hold
-         * 3) The address we are locking is greater than our own address
-         */
-          if( ( _lm_reply == null )
-              && a.Equals( _target_lock )
-              && contype == _contype 
-              && ( a.CompareTo( _node.Address ) > 0) )
-          {
-              _target_lock = null; 
-              allow = true;
-          }
-        }
-        if( allow ) {
-          _target_lock = null;
-        }
+        return allow;
       }
-      return allow;
     }
     /**
      * When this state machine reaches an end point, it calls this method,
@@ -382,10 +398,19 @@ namespace Brunet
       results.CloseEvent += this.LinkCloseHandler;
       RpcManager rpc = RpcManager.GetInstance(_node);
       try {
+	if(ProtocolLog.LinkDebug.Enabled) {
+	  ProtocolLog.Write(ProtocolLog.LinkDebug, 
+			    String.Format("LPS target: {0} Invoking Start() over edge: {1}", _linker.Target, _e));
+	}
         rpc.Invoke(_e, results, "sys:link.Start", MakeLM().ToDictionary() );
       }
-      catch {
+      catch (Exception e) {
         //The Edge must have closed, move on to the next TA
+	if(ProtocolLog.LinkDebug.Enabled) {
+	  ProtocolLog.Write(ProtocolLog.LinkDebug, 
+			    String.Format("LPS target: {0} Start() over edge: {1}, hit exception: {2}", 
+					  _linker.Target, _e, e));
+	}
         Finish(Result.MoveToNextTA);
       }
     }
@@ -453,6 +478,10 @@ namespace Brunet
             results.CloseAfterEnqueue();
             results.CloseEvent += this.StatusCloseHandler;
             RpcManager rpc = RpcManager.GetInstance(_node);
+	    if (ProtocolLog.LinkDebug.Enabled) {
+	      ProtocolLog.Write(ProtocolLog.LinkDebug, 
+				String.Format("LPS target: {0} Invoking GetStatus() over edge: {1}", _linker.Target, _e));
+	    }
             rpc.Invoke(_e, results, "sys:link.GetStatus", sm.ToDictionary() );
           }
           else {
@@ -496,7 +525,7 @@ namespace Brunet
         //The protocol was not followed correctly by the other node, fail
         _x = x;
         Finish( Result.RetryThisTA );
-      }
+      } 
     }
     
     /**
