@@ -80,25 +80,9 @@ namespace Brunet
       Assembly ass = Assembly.Load(assembly_data);
       Type[] types = ass.GetTypes();
       foreach(Type type in types) {
-        BaseInjected injected = (BaseInjected) ass.CreateInstance(type.ToString());
-        injected.Register(_node);
+        ass.CreateInstance(type.ToString(), false, BindingFlags.CreateInstance,
+                           null, new object[1] {_node}, null, null);
       }
     }
-  }
-
-  /**
-   * All objects that want to be Injected must implement this class.  Only
-   * the default constructor will be called.
-   */
-  public abstract class BaseInjected
-  {
-    /**
-     * Register is used to complete the injection.  This gives the injected
-     * code the ability to register itself with the system.  This is
-     * independent of the constructor due to the complexities in calling
-     * Assembly.CreateInstance with constructor objects.
-     * @param node a StructuredNode representing the underlying node
-     */
-    public abstract void Register(Node node);
   }
 }
