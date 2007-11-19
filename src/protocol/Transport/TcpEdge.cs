@@ -119,8 +119,8 @@ namespace Brunet
      * which are only called in the socket thread of TcpEdgeListener,
      * there is no need to lock before getting access to them.
      */
-    private SendState _send_state;
-    private ReceiveState _rec_state;
+    private volatile SendState _send_state;
+    private volatile ReceiveState _rec_state;
     private const int MAX_QUEUE_SIZE = 30;
 
     public TcpEdge(Socket s, bool is_in, TcpEdgeListener tel) {
