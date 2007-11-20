@@ -275,10 +275,10 @@ namespace Brunet
     public override string ToString()
     {
       if( IsInbound ) {
-        return String.Format("local: {0} <- remote: {1}", LocalTA, RemoteTA);
+        return String.Format("local: {0} <- remote: {1}, num: {2}", LocalTA, RemoteTA, Number);
       }
       else {
-        return String.Format("local: {0} -> remote: {1}", LocalTA, RemoteTA);
+        return String.Format("local: {0} -> remote: {1}, num: {2}", LocalTA, RemoteTA, Number);
       }
     }
   }

@@ -400,8 +400,14 @@ namespace Brunet
     protected void EdgeHandler(object edge, EventArgs args)
     {
       Edge e = (Edge)edge;
-      e.Subscribe(this, e);
-      _connection_table.AddUnconnected(e);
+      try {
+        _connection_table.AddUnconnected(e);
+        e.Subscribe(this, e);
+      }
+      catch(TableClosedException) {
+        //Just go ahead and close this edge:
+        e.Close();
+      }
     }
 
     /**

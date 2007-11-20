@@ -275,7 +275,7 @@ namespace Brunet
 
       if(ProtocolLog.Connections.Enabled)
         ProtocolLog.Write(ProtocolLog.Connections,
-          String.Format("New Connection[{0}]: {1}", index, c));
+          String.Format("New Connection[{0}]: {1} instant: {2}", index, c, c.CreationTime));
 
       /*
        * If we get here we ALWAYS fire the ConnectionEvent even
@@ -822,9 +822,14 @@ namespace Brunet
         }
       }
       if( have_con ) {
-        if(ProtocolLog.Connections.Enabled)
+        if(ProtocolLog.Connections.Enabled) {
+	  DateTime now = DateTime.UtcNow;
+	  TimeSpan con_life = now - c.CreationTime;
           ProtocolLog.Write(ProtocolLog.Connections,
-            String.Format("Disconnection[{0}]: {1}", index, c));
+            String.Format("New Disconnection[{0}]: {1}, instant: {2}, con_life: {3} ", 
+			  index, c, now, con_life));
+        }
+
         if(ProtocolLog.Stats.Enabled)
           ProtocolLog.Write(ProtocolLog.Stats, String.Format(
             "Disconnection {0}|{1}", c, DateTime.UtcNow.Ticks));
@@ -1068,6 +1073,7 @@ namespace Brunet
         ProtocolLog.Write(ProtocolLog.Stats, String.Format(
           "Initial add to unconnected {0}|{1}", e, DateTime.UtcNow.Ticks));
       lock( _sync ) {
+        if( _closed ) { throw new TableClosedException(); }
         int idx = _unconnected.IndexOf(e);
         if( idx < 0 ) {
           _unconnected = Functional.Add(_unconnected, e);
