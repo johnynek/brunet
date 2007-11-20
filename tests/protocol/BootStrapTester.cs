@@ -77,16 +77,16 @@ namespace Brunet
     void ConnectionTableChangeHandler(object o, EventArgs arg) {
       lock( this ) {
         _idx++;
-	Node n = (Node)_ctable_to_node[o];
 #if EVERY_20
-       if( _idx % 20 == 0 ) { 
+        if( _idx % 20 == 0 ) { 
 	      //Only print every 20'th change.  This is a hack...
           ToDotFile(_sorted_adds, _node_list, _idx);
-       }
+        }
 #else
-          ToDotFile(_sorted_adds, _node_list, _idx);
+        ToDotFile(_sorted_adds, _node_list, _idx);
 #endif
-	  //Console.Error.WriteLine("Node({0}).IsConnected == {1}", n.Address, n.IsConnected);
+	//Node n = (Node)_ctable_to_node[o];
+	//Console.Error.WriteLine("Node({0}).IsConnected == {1}", n.Address, n.IsConnected);
       }
     }
     
@@ -347,10 +347,12 @@ namespace Brunet
             rnd_list[j] = o;
           }
     }
-    
+    ArrayList c_threads = new ArrayList(); 
     foreach( Node item in rnd_list)
     {
-      item.Connect();
+      Thread t = new Thread( item.Connect );
+      c_threads.Add(t);
+      t.Start();
       Console.WriteLine(item.Address.ToString()
 		      + " RemoteTAs count: " + item.RemoteTAs.Count);
       total_started++;
@@ -358,19 +360,11 @@ namespace Brunet
       //Thread.Sleep(10000);
       Thread.Sleep(ms_sleep);
       //Console.ReadLine();
-
       //foreach (TransportAddress item2 in item.RemoteTAs)
       //  Console.WriteLine(item2);
     
-      }
+    }
 
-    //Node anode = (Node)node_list[0];
-    //anode.Connect();
-
-    //Gnucla.FunctionEdge.simulate();
-
-    //We are connected now, stop the threads:
-    //t.Abort(); 
     System.Console.Out.WriteLine("Finished with BootStrapTester.Main");
     string this_command = "Q";
     if( wait_after_connect) {
@@ -407,6 +401,10 @@ namespace Brunet
     {
       n.Disconnect();
     }
+    //Block until all Connect threads finish.
+    //foreach(Thread t in c_threads) {
+    //  t.Join();
+    //}
 
   }
   }
