@@ -227,7 +227,12 @@ namespace Brunet
      */
     public static readonly int MAX_AVG_QUEUE_LENGTH = 150;
     public static readonly float PACKET_QUEUE_RETAIN = 0.97f;
-    public bool disconnect_on_overload = false;
+    public bool DisconnectOnOverload {
+      get { return _disconnect_on_overload; }
+      set { _disconnect_on_overload = value; }
+    }
+
+    public bool _disconnect_on_overload = false;
 
     protected object _heartbeat_sync = new object();
     protected bool _heartbeat_running = false;
@@ -711,9 +716,10 @@ namespace Brunet
       _packet_queue_exp_avg = (PACKET_QUEUE_RETAIN * _packet_queue_exp_avg)
           + ((1 - PACKET_QUEUE_RETAIN) * _packet_queue.Count);
       if(_packet_queue_exp_avg > MAX_AVG_QUEUE_LENGTH) {
-        ProtocolLog.WriteIf(ProtocolLog.Exceptions, 
-              "Packet Queue Average too high: " + _packet_queue_exp_avg);
-        if(disconnect_on_overload) {
+        ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+          "Packet Queue Average too high: {0} at {1}",
+          _packet_queue_exp_avg, DateTime.UtcNow));
+        if(_disconnect_on_overload) {
           Disconnect();
         }
       }
