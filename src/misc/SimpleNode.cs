@@ -381,8 +381,8 @@ namespace Ipop {
         new IpopInformation(node, "SimpleNode");
         node.DepartureEvent += DisconnectHandler;
         node.DisconnectOnOverload = true;
-        Console.Error.WriteLine("I am connected to {0} as {1}",
-                                config.brunet_namespace, node.Address.ToString());
+          Console.Error.WriteLine("I am connected to {0} as {1}.  Current time is {2}.",
+            _node.Realm, _node.Address.ToString(), DateTime.UtcNow);
         (new Thread(_node.Connect)).Start();
       }
 

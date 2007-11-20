@@ -37,8 +37,8 @@ namespace Ipop {
           Brunet_Common.StartServices(node, dht, config);
           new IpopInformation(node, "BasicNode");
 
-          Console.Error.WriteLine("I am connected to {0} as {1}",
-                                  config.brunet_namespace, node.Address.ToString());
+          Console.Error.WriteLine("I am connected to {0} as {1}.  Current time is {2}.",
+            node.Realm, node.Address.ToString(), DateTime.UtcNow);
           node.DisconnectOnOverload = true;
           node.Connect();
           Brunet_Common.RemoveHandlers(node);
