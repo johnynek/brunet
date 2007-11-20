@@ -41,8 +41,8 @@ namespace Brunet
     public static readonly IPAddress mc_addr = IPAddress.Parse("224.123.123.222");
     public static readonly int mc_port = 56123;
     public static readonly EndPoint mc_endpoint = new IPEndPoint(mc_addr, mc_port);
-    protected bool _running;
-    protected Node _node;
+    protected volatile bool _running;
+    protected readonly Node _node;
 
     public IPHandler(Node node) {
       _node = node;
@@ -90,7 +90,7 @@ namespace Brunet
       while(_running) {
         try {
           ArrayList readers = (ArrayList) sockets.Clone();
-          Socket.Select(readers, null, readers, -1);
+          Socket.Select(readers, null, readers, 10000000); //10 seconds
           foreach(Socket socket in readers) {
             EndPoint ep = new IPEndPoint(IPAddress.Any, 0);
             int rec_bytes = socket.ReceiveFrom(buffer, ref ep);
