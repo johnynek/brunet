@@ -38,7 +38,7 @@ namespace Brunet
   public class TcpEdgeListener : EdgeListener
   {
     protected readonly Socket _listen_sock;
-    protected IPEndPoint _local_endpoint;
+    protected readonly IPEndPoint _local_endpoint;
     protected readonly object _sync;
     protected readonly Thread _loop;
     protected volatile bool _send_edge_events;
@@ -138,8 +138,8 @@ namespace Brunet
       _listen_sock = new Socket(AddressFamily.InterNetwork,
                                 SocketType.Stream, ProtocolType.Tcp);
       _listen_sock.LingerState = new LingerOption (true, 0);
-      _local_endpoint = new IPEndPoint(IPAddress.Any, port);
-      _listen_sock.Bind(_local_endpoint);
+      IPEndPoint tmp_ep = new IPEndPoint(IPAddress.Any, port);
+      _listen_sock.Bind(tmp_ep);
       _local_endpoint = (IPEndPoint) _listen_sock.LocalEndPoint;
       port = _local_endpoint.Port;
 
