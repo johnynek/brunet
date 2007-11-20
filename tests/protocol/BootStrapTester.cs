@@ -86,7 +86,7 @@ namespace Brunet
 #else
           ToDotFile(_sorted_adds, _node_list, _idx);
 #endif
-	  Console.Error.WriteLine("Node({0}).IsConnected == {1}", n.Address, n.IsConnected);
+	  //Console.Error.WriteLine("Node({0}).IsConnected == {1}", n.Address, n.IsConnected);
       }
     }
     
