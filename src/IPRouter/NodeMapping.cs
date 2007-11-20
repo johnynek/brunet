@@ -39,7 +39,7 @@ namespace Ipop {
       dht = Brunet_Common.RegisterDht(brunet);
       Brunet_Common.StartServices(brunet, dht, config);
       brunet.DepartureEvent += DisconnectHandler;
-      brunet.disconnect_on_overload = true;
+      brunet.DisconnectOnOverload = true;
 
       (new Thread(brunet.Connect)).Start();
       iphandler = new IPHandler(this);
@@ -55,7 +55,7 @@ namespace Ipop {
 
     private void SleepAndRestart()
     {
-      Brunet_Common.DisconnectNode(brunet, true);
+      Brunet_Common.RemoveHandlers(brunet);
       brunet = null;
       dht = null;
       iphandler = null;

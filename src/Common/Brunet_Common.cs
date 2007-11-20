@@ -115,11 +115,8 @@ namespace Ipop
       return new Dht(node, 3, 20);
     }
 
-    public static void DisconnectNode(StructuredNode node, bool disconnected)
+    public static void RemoveHandlers(StructuredNode node)
     {
-      if(!disconnected) {
-        node.Disconnect();
-      }
       if(_ds != null) {
         _ds.Stop();
       }

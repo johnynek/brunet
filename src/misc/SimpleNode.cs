@@ -380,7 +380,7 @@ namespace Ipop {
         Brunet_Common.StartServices(_node, _dht, config);
         new IpopInformation(node, "SimpleNode");
         node.DepartureEvent += DisconnectHandler;
-        node.disconnect_on_overload = true;
+        node.DisconnectOnOverload = true;
         Console.Error.WriteLine("I am connected to {0} as {1}",
                                 config.brunet_namespace, node.Address.ToString());
         (new Thread(_node.Connect)).Start();
@@ -394,7 +394,7 @@ namespace Ipop {
       private void SleepAndRestart()
       {
         if(simplenodes[0].node == _node) {
-          Brunet_Common.DisconnectNode(node, true);
+          Brunet_Common.RemoveHandlers(node);
         }
         _node = null;
         _dht = null;
