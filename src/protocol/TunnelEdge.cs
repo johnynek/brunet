@@ -125,7 +125,6 @@ namespace Brunet
 
       _is_connected = false;
       _is_closed = 0;
-      _sync = new object();
       _node = n;
       _target = target;
       
