@@ -104,7 +104,7 @@ namespace Brunet
      */
     protected void Announce()
     {
-      ISender mcs = new MulticastSender(_node);
+      ISender mcs = _node.IPHandler.CreateMulticastSender();
       Channel queue = new Channel();
       queue.EnqueueEvent += HandleGetInformation;
       _rpc.Invoke(mcs, queue, "LocalCO.GetInformation");
@@ -128,7 +128,6 @@ namespace Brunet
         _node.UpdateRemoteTAs(remote_tas);
       }
       catch (Exception e) {
-        Console.WriteLine(e);
         ProtocolLog.WriteIf(ProtocolLog.Exceptions, "Unexpected exception: " + e);
       }
     }
@@ -163,7 +162,7 @@ namespace Brunet
       }
       catch (Exception e) {
         result = new AdrException(-32602, e);
-      }
+     }
       _rpc.SendResult(rs, result);
     }
   }
