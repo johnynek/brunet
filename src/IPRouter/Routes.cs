@@ -37,32 +37,46 @@ namespace Ipop {
 
     public void RouteMiss(IPAddress ip) {
       lock(_sync) {
-        if (!_queued.Contains(ip)) {
-          ProtocolLog.WriteIf(IPOPLog.RoutingLog, String.Format(
-            "Routes:  Adding {0} to queue.", ip));
-          /*
-          * If we were already looking up this IPAddress, there
-          * would be a table entry, since there is not, start a
-          * new lookup
-          */
-          string key = "dhcp:ipop_namespace:" + _ipop_namespace + ":ip:" + ip.ToString();
-          try {
-            BlockingQueue queue = new BlockingQueue();
-            queue.EnqueueEvent += RouteMissCallback;
-            queue.CloseEvent += RouteMissCallback;
-            _dht.AsGet(key, queue);
-            _queued[ip] = true;
-            _mapping[queue] = ip;
+        if (_queued.Contains(ip)) {
+          return;
+        }
+
+        ProtocolLog.WriteIf(IPOPLog.RoutingLog, String.Format(
+          "Routes:  Adding {0} to queue.", ip));
+        /*
+        * If we were already looking up this IPAddress, there
+        * would be a table entry, since there is not, start a
+        * new lookup
+        */
+        string key = "dhcp:ipop_namespace:" + _ipop_namespace + ":ip:" + ip.ToString();
+        Channel queue = null;
+        try {
+          queue = new Channel();
+          queue.EnqueueEvent += RouteMissCallback;
+          queue.CloseEvent += RouteMissCallback;
+          _queued[ip] = true;
+          _mapping[queue] = ip;
+          _dht.AsGet(key, queue);
+        }
+        catch {
+          queue.EnqueueEvent -= RouteMissCallback;
+          queue.CloseEvent -= RouteMissCallback;
+          if(_queued.Contains(ip)) {
+            _queued.Remove(ip);
           }
-          catch { return; }
+          if(_mapping.Contains(queue)) {
+            _mapping.Remove(queue);
+          }
+          queue.Close();
         }
       }
     }
 
     public void RouteMissCallback(Object o, EventArgs args) {
-      BlockingQueue queue = (BlockingQueue) o;
+      Channel queue = (Channel) o;
       IPAddress ip = (IPAddress) _mapping[queue];
       Address addr = null;
+
       try {
         DhtGetResult dgr = (DhtGetResult) queue.Dequeue();
         addr = AddressParser.Parse(Encoding.UTF8.GetString((byte []) dgr.value));
@@ -70,18 +84,23 @@ namespace Ipop {
           "Routes: Got result for {0} ::: {1}.", ip, addr));
       }
       catch {
-        addr = null;
         ProtocolLog.WriteIf(IPOPLog.RoutingLog, String.Format(
           "Routes: Failed for {0}.", ip));
       }
+      try {
+        lock(_sync) {
+          if(addr != null) {
+            _results[ip] = addr;
+          }
 
-      lock(_sync) {
-        if(addr != null) {
-          _results[ip] = addr;
+          _queued.Remove(ip);
+          _mapping.Remove(queue);
         }
-        _queued.Remove(ip);
-        _mapping.Remove(queue);
         queue.Close();
+      }
+      catch(Exception e) {
+        ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+              "ERROR: In Routes unable to remove entry: {0}\n\t{1]", ip, e));
       }
     }
   }
