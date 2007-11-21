@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using System;
+using System.Threading;
 using System.Collections;
 using System.Net;
 
@@ -34,9 +35,9 @@ namespace Brunet
   {
     protected readonly bool inbound;
     protected volatile bool _is_closed;
-    protected IEdgeSendHandler _send_cb;
+    protected readonly IEdgeSendHandler _send_cb;
 
-    protected System.Net.EndPoint end;
+    protected volatile System.Net.EndPoint end;
     /**
      * This is the IPEndPoint for this UdpEdge.
      * No one other than the EdgeListeners that created
@@ -44,14 +45,12 @@ namespace Brunet
      */
     public System.Net.EndPoint End {
       get {
-        lock( _sync ) {
-          return end;
-        }
+        return end;
       }
       set {
         lock( _sync ) {
           end = value;
-          _remoteta = TransportAddressFactory.CreateInstance(TAType, (IPEndPoint) end);
+          _remoteta = TransportAddressFactory.CreateInstance(TAType, (IPEndPoint) value);
         }
       }
     }
@@ -60,9 +59,20 @@ namespace Brunet
     public int ID { get { return _id; } }
 
     protected int _remoteid;
+    /**
+     * This can only be set if it is currently 0.
+     */
     public int RemoteID {
-      get { lock( _sync ) { return _remoteid; } }
-      set { lock( _sync ) { _remoteid = value; } }
+      get { return Thread.VolatileRead(ref _remoteid); }
+      set {
+        int old_v = Interlocked.CompareExchange(ref _remoteid, value, 0);
+        if( old_v != 0 ) {
+          //We didn't really exchange above, and we should throw an exception
+          throw new EdgeException(
+                      String.Format("RemoteID already set: {0} cannot set to: {1}",
+                                    old_v, value));
+        }
+      }
     }
     
     /**
@@ -80,7 +90,7 @@ namespace Brunet
       _is_closed = false;
       _create_dt = DateTime.UtcNow;
 
-      _last_out_packet_datetime = _create_dt;
+      _last_out_packet_datetime = _create_dt.Ticks;
       _last_in_packet_datetime = _last_out_packet_datetime;
       //This will update both the end point and the remote TA
 
@@ -108,9 +118,9 @@ namespace Brunet
     public override DateTime CreatedDateTime {
       get { return _create_dt; }
     }
-    protected DateTime _last_out_packet_datetime;
+    protected long _last_out_packet_datetime;
     public override DateTime LastOutPacketDateTime {
-      get { lock( _sync ) { return _last_out_packet_datetime; } }
+      get { return new DateTime(Thread.VolatileRead(ref _last_out_packet_datetime)); }
     }
 
     public override void Send(ICopyable p)
@@ -127,9 +137,7 @@ namespace Brunet
       }
 
       _send_cb.HandleEdgeSend(this, p);
-      lock( _sync ) {
-        _last_out_packet_datetime = DateTime.UtcNow;
-      }
+      Thread.VolatileWrite(ref _last_out_packet_datetime, DateTime.UtcNow.Ticks);
 #if UDP_DEBUG
       /**
          * logging of outgoing packets

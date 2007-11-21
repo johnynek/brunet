@@ -28,6 +28,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define POB_DEBUG
 
 using System;
+using System.Threading;
 using System.Collections;
 
 namespace Brunet
@@ -177,12 +178,18 @@ namespace Brunet
       get;
     }
 
-    protected DateTime _last_in_packet_datetime;
+    /*
+     * You can't make DateTime structs volatile, so we
+     * make this a long and VolatileRead/Write, and
+     * convert to and from.  This is so we don't have
+     * to get a lock everytime we get a packet
+     */
+    protected long _last_in_packet_datetime;
     /**
      * The DateTime (UTC) of the last received packet
      */
     public virtual DateTime LastInPacketDateTime {
-      get { lock( _sync ) { return _last_in_packet_datetime; } }
+      get { return new DateTime(Thread.VolatileRead(ref _last_in_packet_datetime)); }
     }
 
     public abstract bool IsClosed
@@ -246,7 +253,8 @@ namespace Brunet
       Sub s = _sub;
       if( s != null ) {
         s.Handle(b, this);
-        lock( _sync ) { _last_in_packet_datetime = DateTime.UtcNow; }
+        //This is volatile, so no need to lock:
+        Thread.VolatileWrite(ref _last_in_packet_datetime, DateTime.UtcNow.Ticks);
       }
       else {
         //We don't record the time of this packet.  We don't

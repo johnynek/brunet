@@ -92,9 +92,9 @@ namespace Brunet
     public override DateTime CreatedDateTime {
       get { return _create_dt; }
     }
-    protected DateTime _last_out_packet_datetime;
+    protected long _last_out_packet_datetime;
     public override DateTime LastOutPacketDateTime {
-      get { lock( _sync ) { return _last_out_packet_datetime; } }
+      get { return new DateTime(Thread.VolatileRead(ref _last_out_packet_datetime)); } 
     }
     
     protected volatile TransportAddress _localta;
@@ -235,7 +235,7 @@ namespace Brunet
             s = (ISender)_packet_senders[ _last_sender_idx ];
           }
           s.Send( new CopyList(_tun_header, p) );
-          lock( _sync ) { _last_out_packet_datetime = DateTime.UtcNow; }
+          Thread.VolatileWrite(ref _last_out_packet_datetime, DateTime.UtcNow.Ticks);
 #if TUNNEL_DEBUG
           Console.Error.WriteLine("Sent on: {0} over {1}", this, s);
 #endif

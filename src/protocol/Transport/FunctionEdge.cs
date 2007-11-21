@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using System;
+using System.Threading;
 using System.Collections;
 
 namespace Brunet
@@ -59,13 +60,13 @@ namespace Brunet
       _is_closed = false;
     }
 
-    protected DateTime _create_dt;
+    protected readonly DateTime _create_dt;
     public override DateTime CreatedDateTime {
       get { return _create_dt; }
     }
-    protected DateTime _last_out_packet_datetime;
+    protected long _last_out_packet_datetime;
     public override DateTime LastOutPacketDateTime {
-      get { lock( _sync ) { return _last_out_packet_datetime; } }
+      get { return new DateTime(Thread.VolatileRead(ref _last_out_packet_datetime)); }
     }
 
     protected volatile bool _is_closed;
@@ -114,7 +115,7 @@ namespace Brunet
 
       if( !_is_closed ) {
         _sh.HandleEdgeSend(this, p);
-        lock( _sync ) { _last_out_packet_datetime = DateTime.UtcNow; }
+        Thread.VolatileWrite(ref _last_out_packet_datetime, DateTime.UtcNow.Ticks);
       }
       else {
         throw new EdgeException(
