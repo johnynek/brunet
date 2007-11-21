@@ -49,6 +49,7 @@ namespace Brunet
       public Sub(IDataHandler h, object s) { Handler = h; State =s; }
       public void Handle(MemBlock b, ISender f) { Handler.HandleData(b, f, State); }
     }
+    protected readonly object _sync;
     protected volatile Sub _sub;
 
     public IPHandler() {
@@ -73,29 +74,40 @@ namespace Brunet
       _uc.Bind(new IPEndPoint(IPAddress.Any, 0));
 
       _running = true;
+      _sync = new Object();
       _listen_thread = new Thread(Listen);
       _listen_thread.Start();
     }
 
     public virtual void Subscribe(IDataHandler hand, object state) {
-      _sub = new Sub(hand, state);
+      lock( _sync ) {
+        _sub = new Sub(hand, state);
+      }
     }
     public virtual void Unsubscribe(IDataHandler hand) {
-      if( _sub.Handler == hand ) {
-        _sub = null;
-      }
-      else {
-        throw new Exception(String.Format("Handler: {0}, not subscribed", hand));
+      lock( _sync ) {
+        if( _sub.Handler == hand ) {
+          _sub = null;
+        }
+        else {
+          throw new Exception(String.Format("Handler: {0}, not subscribed", hand));
+        }
       }
     }
 
     public void Stop() {
       _running = false;
+      lock( _sync ) {
+        _sub = null;
+      }
       _uc.Close();
       if(_mc != null) {
         _mc.Close();
       }
-      Unsubscribe(_sub.Handler);
+      if( Thread.CurrentThread != _listen_thread ) {
+        // Join if we are in a different thread
+        _listen_thread.Join();
+      }
     }
 
     protected void Listen() {
@@ -114,12 +126,12 @@ namespace Brunet
           foreach(Socket socket in readers) {
             EndPoint ep = new IPEndPoint(IPAddress.Any, 0);
             int rec_bytes = socket.ReceiveFrom(buffer, ref ep);
-
-            MemBlock packet = MemBlock.Copy(buffer, 0, rec_bytes);
-            ISender sender = CreateUnicastSender(ep);
-
-            if(_sub != null) {
-              _sub.Handle(packet, sender);
+            Sub s = _sub;
+            //s can't change once we've read it.
+            if( s != null) {
+              MemBlock packet = MemBlock.Copy(buffer, 0, rec_bytes);
+              ISender sender = CreateUnicastSender(ep);
+              s.Handle(packet, sender);
             }
           }
         }
@@ -148,8 +160,8 @@ namespace Brunet
 
   public class UnicastSender: ISender
   {
-    protected EndPoint _ep;
-    protected Socket _s;
+    protected readonly EndPoint _ep;
+    protected readonly Socket _s;
 
     public virtual void Send(ICopyable data)
     {
@@ -169,6 +181,26 @@ namespace Brunet
     {
       _s = s;
       _ep = ep;
+    }
+    
+    /**
+     * ISender objects need to have semantically meaningful Equals
+     */
+    public override bool Equals(object o) {
+      UnicastSender other = o as UnicastSender;
+      if( other == null ) {
+        return false;
+      }
+      else if( Object.ReferenceEquals(this, o) ) {
+        return true;
+      }
+      else {
+        return (_s.Equals( other._s ) && _ep.Equals( other._ep ));
+      }
+    }
+    
+    public override int GetHashCode() {
+      return _ep.GetHashCode();
     }
   }
 

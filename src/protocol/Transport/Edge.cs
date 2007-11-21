@@ -61,7 +61,7 @@ namespace Brunet
       public void Handle(MemBlock b, ISender f) { Handler.HandleData(b, f, State); }
     }
     protected volatile Sub _sub;
-    protected object _sync;
+    protected readonly object _sync;
     /**
      * Set to true once CloseEvent is fired.  This prevents it from
      * being fired twice
@@ -259,14 +259,18 @@ namespace Brunet
     }
 
     public virtual void Subscribe(IDataHandler hand, object state) {
-      _sub = new Sub(hand, state);
+      lock( _sync ) {
+        _sub = new Sub(hand, state);
+      }
     }
     public virtual void Unsubscribe(IDataHandler hand) {
-      if( _sub.Handler == hand ) {
-        _sub = null;
-      }
-      else {
-        throw new Exception(String.Format("Handler: {0}, not subscribed", hand));
+      lock( _sync ) {
+        if( _sub.Handler == hand ) {
+          _sub = null;
+        }
+        else {
+          throw new Exception(String.Format("Handler: {0}, not subscribed", hand));
+        }
       }
     }
     /**
