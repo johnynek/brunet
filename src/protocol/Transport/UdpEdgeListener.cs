@@ -589,6 +589,14 @@ namespace Brunet
     {
       _running = false;
       _send_queue.Close();
+      //Make sure the send thread has stopped
+      Thread this_thread = Thread.CurrentThread;
+      if( this_thread != _send_thread ) {
+        _send_thread.Join();
+      }
+      if( this_thread != _listen_thread ) {
+        _listen_thread.Join();
+      }
     }
 
     /**
@@ -604,27 +612,36 @@ namespace Brunet
       // Lock the socket so that the Send thread will wait for all receives to end before closing
       BufferAllocator ba = new BufferAllocator(8 + Packet.MaxLength);
       EndPoint end = new IPEndPoint(IPAddress.Any, 0);
+      /*
+       * If we block forever we can never close gracefully,
+       * instead we poll for 10 seconds and then check if we
+       * should stop
+       */
+      int micro_sec_polltime = 10000000; //10 sec
       while(_running) {
         try {
-          int max = ba.Capacity;
-          int rec_bytes = _s.ReceiveFrom(ba.Buffer, ba.Offset, max, SocketFlags.None, ref end);
-          //Get the id of this edge:
-          if( rec_bytes >= 8 ) {
-            int remoteid = NumberSerializer.ReadInt(ba.Buffer, ba.Offset);
-            int localid = NumberSerializer.ReadInt(ba.Buffer, ba.Offset + 4);
-
-            MemBlock packet_buffer = MemBlock.Reference(ba.Buffer, ba.Offset + 8, rec_bytes - 8);
-            ba.AdvanceBuffer(rec_bytes);
-
-            if( localid < 0 )
-              /*
-              * We never give out negative id's, so if we got one
-              * back the other node must be sending us a control
-              * message.
-              */
-              HandleControlPacket(remoteid, localid, packet_buffer, null);
-            else
-              HandleDataPacket(remoteid, localid, packet_buffer, end, null);
+          if( _s.Poll(micro_sec_polltime, SelectMode.SelectRead) ) {
+            int max = ba.Capacity;
+            int rec_bytes = _s.ReceiveFrom(ba.Buffer, ba.Offset, max,
+                                           SocketFlags.None, ref end);
+            //Get the id of this edge:
+            if( rec_bytes >= 8 ) {
+              int remoteid = NumberSerializer.ReadInt(ba.Buffer, ba.Offset);
+              int localid = NumberSerializer.ReadInt(ba.Buffer, ba.Offset + 4);
+  
+              MemBlock packet_buffer = MemBlock.Reference(ba.Buffer, ba.Offset + 8, rec_bytes - 8);
+              ba.AdvanceBuffer(rec_bytes);
+  
+              if( localid < 0 )
+                /*
+                * We never give out negative id's, so if we got one
+                * back the other node must be sending us a control
+                * message.
+                */
+                HandleControlPacket(remoteid, localid, packet_buffer, null);
+              else
+                HandleDataPacket(remoteid, localid, packet_buffer, end, null);
+            }
           }
         }
         catch(SocketException x) {
@@ -644,6 +661,8 @@ namespace Brunet
             ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
         }
       }
+      _s.Close();
+      _s = null;
     }
 
     private void SendThread()
@@ -711,7 +730,6 @@ namespace Brunet
               "Error in UdpEdgeListener.Send. Edge: {0}\n{1}", sqe.Sender, x));
         }
       }
-      _s.Close();
     }
 
     /**

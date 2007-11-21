@@ -201,19 +201,21 @@ namespace Brunet
     public override void Stop()
     {
       _is_started = false;
+      _queue.Close();
+      if( Thread.CurrentThread != _queue_thread ) {
+        _queue_thread.Join();
+      }
     }
 
     protected void StartQueueProcessing() {
-      bool timedout;
       /*
        * Simulate packet loss
        */
       Random r = new Random();
       
-      while( _is_started ) {
-        //Wait 100 ms for an a packet to be sent:
-        FQEntry ent = (FQEntry)_queue.Dequeue(100, out timedout);
-        if( !timedout ) {
+      try {
+        while( _is_started ) {
+          FQEntry ent = (FQEntry)_queue.Dequeue();
           if( r.NextDouble() > _ploss_prob ) {
             FunctionEdge fe = ent.Edge;
             if( ent.P is MemBlock ) {
@@ -224,6 +226,9 @@ namespace Brunet
             }
           }
         }
+      }
+      catch(InvalidOperationException) {
+        // The queue has been closed
       }
     }
 
