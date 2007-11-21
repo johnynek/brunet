@@ -101,8 +101,14 @@ namespace Test {
     public static void system() {
       try {
         int interval = 1;
+        if(base_time <= 0) {
+          base_time = -1;
+        }
+        else {
+          base_time *= 1000;
+        }
         while(true) {
-          Thread.Sleep(base_time * 1000);
+          Thread.Sleep(base_time);
           if(add_remove_interval != 0 && interval % add_remove_interval == 0) {
             Console.Error.WriteLine("System.Test::add / removing...");
             for(int i = 0; i < add_remove_delta; i++) {
