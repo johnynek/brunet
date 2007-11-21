@@ -405,8 +405,14 @@ namespace Brunet
     protected void EdgeHandler(object edge, EventArgs args)
     {
       Edge e = (Edge)edge;
-      e.Subscribe(this, e);
-      _connection_table.AddUnconnected(e);
+      try {
+        _connection_table.AddUnconnected(e);
+        e.Subscribe(this, e);
+      }
+      catch(TableClosedException) {
+        //Just go ahead and close this edge:
+        e.Close();
+      }
     }
 
     /**
@@ -468,8 +474,8 @@ namespace Brunet
      */
     private class AnnounceState {
       public MemBlock Data;
-      public Edge From;
-      public AnnounceState(MemBlock p, Edge from) {
+      public ISender From;
+      public AnnounceState(MemBlock p, ISender from) {
         Data = p;
         From = from;
       }
@@ -566,7 +572,6 @@ namespace Brunet
     public virtual void Disconnect() {
       ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
         "[Connect: {0}] deactivating task queue", _local_add));
-      _iphandler.Stop();
       _task_queue.IsActive = false;
       _send_pings = false;
       //Make sure not to call DepartureEvent twice:
@@ -711,7 +716,7 @@ namespace Brunet
      * Implements the IDataHandler interface
      */
     public void HandleData(MemBlock data, ISender return_path, object state) {
-      AnnounceState astate = new AnnounceState(data, return_path as Edge);
+      AnnounceState astate = new AnnounceState(data, return_path);
       _packet_queue.Enqueue(astate);
       _packet_queue_exp_avg = (PACKET_QUEUE_RETAIN * _packet_queue_exp_avg)
           + ((1 - PACKET_QUEUE_RETAIN) * _packet_queue.Count);

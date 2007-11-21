@@ -34,18 +34,24 @@ namespace Brunet
    * communication.
    */
 
-  public class IPHandler
+  public class IPHandler: ISource
   {
-    protected static Socket _mc, _uc;
-    public Socket UnicastSocket { get { return _uc; } }
+    protected readonly Socket _mc, _uc;
     public static readonly IPAddress mc_addr = IPAddress.Parse("224.123.123.222");
     public static readonly int mc_port = 56123;
     public static readonly EndPoint mc_endpoint = new IPEndPoint(mc_addr, mc_port);
-    protected bool _running;
-    protected Node _node;
+    protected volatile bool _running;
+    protected readonly Thread _listen_thread;
 
-    public IPHandler(Node node) {
-      _node = node;
+    protected class Sub {
+      public readonly IDataHandler Handler;
+      public readonly object State;
+      public Sub(IDataHandler h, object s) { Handler = h; State =s; }
+      public void Handle(MemBlock b, ISender f) { Handler.HandleData(b, f, State); }
+    }
+    protected volatile Sub _sub;
+
+    public IPHandler() {
       try {
         _mc = new Socket(AddressFamily.InterNetwork, SocketType.Dgram,
                         ProtocolType.Udp);
@@ -67,7 +73,20 @@ namespace Brunet
       _uc.Bind(new IPEndPoint(IPAddress.Any, 0));
 
       _running = true;
-      (new Thread(Listen)).Start();
+      _listen_thread = new Thread(Listen);
+      _listen_thread.Start();
+    }
+
+    public virtual void Subscribe(IDataHandler hand, object state) {
+      _sub = new Sub(hand, state);
+    }
+    public virtual void Unsubscribe(IDataHandler hand) {
+      if( _sub.Handler == hand ) {
+        _sub = null;
+      }
+      else {
+        throw new Exception(String.Format("Handler: {0}, not subscribed", hand));
+      }
     }
 
     public void Stop() {
@@ -76,6 +95,7 @@ namespace Brunet
       if(_mc != null) {
         _mc.Close();
       }
+      Unsubscribe(_sub.Handler);
     }
 
     protected void Listen() {
@@ -90,14 +110,17 @@ namespace Brunet
       while(_running) {
         try {
           ArrayList readers = (ArrayList) sockets.Clone();
-          Socket.Select(readers, null, readers, -1);
+          Socket.Select(readers, null, readers, 10000000); //10 seconds
           foreach(Socket socket in readers) {
             EndPoint ep = new IPEndPoint(IPAddress.Any, 0);
             int rec_bytes = socket.ReceiveFrom(buffer, ref ep);
 
             MemBlock packet = MemBlock.Copy(buffer, 0, rec_bytes);
-            UnicastSender us = new UnicastSender(_node, ep);
-            _node.Announce(packet, us);
+            ISender sender = CreateUnicastSender(ep);
+
+            if(_sub != null) {
+              _sub.Handle(packet, sender);
+            }
           }
         }
         catch(ObjectDisposedException odx) {
@@ -114,53 +137,43 @@ namespace Brunet
       }
     }
 
-    /**
-     * Send an ICopyable to the the specified end point, this should only
-     * be called by IPSender classes.
-     * @param ep the end point to send to
-     * @param data an ICopyable of data to send
-     */
-    public void Send(EndPoint ep, ICopyable data)
+    public ISender CreateUnicastSender(EndPoint ep) {
+      return new UnicastSender(_uc, ep);
+    }
+
+    public ISender CreateMulticastSender() {
+      return new MulticastSender(_uc);
+    }
+  }
+
+  public class UnicastSender: ISender
+  {
+    protected EndPoint _ep;
+    protected Socket _s;
+
+    public virtual void Send(ICopyable data)
     {
       // Silly users can trigger a handful of exceptions here...
       try {
         byte[] buffer = new byte[data.Length];
         int length = data.CopyTo(buffer, 0);
 
-        _uc.SendTo(buffer, 0, length, 0, ep);
+        _s.SendTo(buffer, 0, length, 0, _ep);
       }
       catch (Exception e) {
         ProtocolLog.WriteIf(ProtocolLog.Exceptions, "ERROR: " + e);
       }
     }
-  }
 
-  public abstract class IPSender: ISender
-  {
-    protected EndPoint _ep;
-    protected Node _node;
-
-    public virtual void Send(ICopyable data)
+    public UnicastSender(Socket s, EndPoint ep)
     {
-      _node.IPHandler.Send(_ep, data);
-    }
-  }
-
-  public class UnicastSender: IPSender
-  {
-    public UnicastSender(Node node, EndPoint ep)
-    {
-      _node = node;
+      _s = s;
       _ep = ep;
     }
   }
 
-  public class MulticastSender: IPSender
+  public class MulticastSender: UnicastSender
   {
-    public MulticastSender(Node node)
-    {
-      _node = node;
-      _ep = IPHandler.mc_endpoint;
-    }
+    public MulticastSender(Socket s):base(s, IPHandler.mc_endpoint){}
   }
 }

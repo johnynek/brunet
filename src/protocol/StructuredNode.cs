@@ -78,7 +78,8 @@ namespace Brunet
       _leafco = new LeafConnectionOverlord(this);
       _sco = new StructuredConnectionOverlord(this);
       _cco = new ChotaConnectionOverlord(this);
-      _iphandler = new IPHandler(this);
+      _iphandler = new IPHandler();
+      _iphandler.Subscribe(this, null);
       _localco = new LocalConnectionOverlord(this);
 
       /**
@@ -158,6 +159,7 @@ namespace Brunet
         ProtocolLog.Write(ProtocolLog.NodeLog, String.Format(
           "Called Node.Disconnect: {0}", this.Address));
 
+      _iphandler.Stop();
       _leafco.IsActive = false;
       _sco.IsActive = false;
       _cco.IsActive = false;
