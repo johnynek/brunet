@@ -115,7 +115,7 @@ namespace Ipop
       return new Dht(node, 3, 20);
     }
 
-    public static void RemoveHandlers(StructuredNode node)
+    public static void RemoveHandlers()
     {
       if(_ds != null) {
         _ds.Stop();

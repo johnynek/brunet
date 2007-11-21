@@ -394,7 +394,7 @@ namespace Ipop {
       private void SleepAndRestart()
       {
         if(simplenodes[0].node == _node) {
-          Brunet_Common.RemoveHandlers(node);
+          Brunet_Common.RemoveHandlers();
         }
         _node = null;
         _dht = null;

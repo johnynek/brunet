@@ -41,7 +41,7 @@ namespace Ipop {
             node.Realm, node.Address.ToString(), DateTime.UtcNow);
           node.DisconnectOnOverload = true;
           node.Connect();
-          Brunet_Common.RemoveHandlers(node);
+          Brunet_Common.RemoveHandlers();
         }
         catch (Exception e) {
           Console.Error.WriteLine(e);

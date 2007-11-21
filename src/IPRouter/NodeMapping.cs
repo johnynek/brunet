@@ -55,7 +55,7 @@ namespace Ipop {
 
     private void SleepAndRestart()
     {
-      Brunet_Common.RemoveHandlers(brunet);
+      Brunet_Common.RemoveHandlers();
       brunet = null;
       dht = null;
       iphandler = null;
