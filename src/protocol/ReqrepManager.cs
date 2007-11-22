@@ -136,7 +136,9 @@ public class ReqrepManager : IDataHandler {
   }
 
   public void Close() {
-    _rrm_table.Remove(_node);
+    lock(_rrm_table) {
+      _rrm_table.Remove(_node);
+    }
   }
 
   public class Statistics {

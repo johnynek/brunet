@@ -235,7 +235,7 @@ namespace Brunet
     public bool _disconnect_on_overload = false;
 
     protected object _heartbeat_sync = new object();
-    protected bool _heartbeat_running = false;
+    protected volatile bool _heartbeat_running = false;
 
     protected string _realm = "global";
     /**
