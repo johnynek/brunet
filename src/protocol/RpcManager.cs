@@ -234,8 +234,12 @@ public class RpcManager : IReplyHandler, IDataHandler {
   }
 
   public void Close() {
-    _rpc_table.Remove(Node);
-    _method_handlers.Clear();
+    lock(_rpc_table) {
+      _rpc_table.Remove(Node);
+    }
+    lock(_sync) {
+      _method_handlers.Clear();
+    }
   }
 
   /**
