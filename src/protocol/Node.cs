@@ -67,6 +67,14 @@ namespace Brunet
         _connection_table = new ConnectionTable(_local_add);
         _connection_table.ConnectionEvent += this.ConnectionHandler;
 
+        //We start off offline.
+        _con_state = Node.ConnectionState.Offline;
+        /*
+         * Where there is a change in the Connections, we might have a state
+         * change
+         */
+        _connection_table.ConnectionEvent += this.CheckForStateChange;
+
         _codeinjection = new CodeInjection(this);
         _codeinjection.LoadLocalModules();
         /*
@@ -156,6 +164,34 @@ namespace Brunet
         return handlers;
       }
     }
+
+    /**
+     * This represents the Connection state of the node.
+     * We use different words for each state to reduce the
+     * liklihood of typos causing problems in the code.
+     */
+    public enum ConnectionState {
+      Offline, /// Not yet called Node.Connect
+      Joining, /// Called Node.Connect but IsConnected has never been true
+      Connected, /// IsConnected is true.
+      SeekingConnections, /// We were previously Connected, but lost connections.
+      Leaving, /// Node.Disconnect has been called, but we haven't closed all edges.
+      Disconnected /// We are completely disconnected and have no active Edges.
+    }
+    public delegate void StateChangeHandler(Node n, ConnectionState newstate);
+    /**
+     * This event is called every time Node.ConState changes.  The new state
+     * is passed with the event.
+     */
+    public event StateChangeHandler StateChangeEvent;
+    public ConnectionState ConState {
+      get {
+        lock( _sync ) {
+          return _con_state;
+        }
+      }
+    }
+    protected ConnectionState _con_state;
     /**
      * Keeps track of the objects which need to be notified 
      * of certain packets.
@@ -346,6 +382,33 @@ namespace Brunet
        */
       el.EdgeEvent += this.EdgeHandler;
     }
+    
+    /**
+     * Called when there is a connection or disconnection.  Send a StateChange
+     * event if need be.
+     * We could be transitioning from:
+     *   Joining -> Connected
+     *   Connected -> SeekingConnections
+     */
+    protected void CheckForStateChange(object ct, EventArgs ce_args) {
+      bool con = this.IsConnected; 
+      ConnectionState new_state;
+      if( con ) {
+        new_state = Node.ConnectionState.Connected;
+      }
+      else {
+        /*
+         * The only other state change that is triggered by a Connection
+         * or Disconnection event is SeekingConnections
+         */
+        new_state = Node.ConnectionState.SeekingConnections;
+      }
+      bool success;
+      SetConState(new_state, out success);
+      if( success ) {
+        SendStateChange(new_state);
+      }
+    }
     /**
      * Unsubscribe all IDataHandlers for a given
      * type
@@ -355,6 +418,7 @@ namespace Brunet
         _subscription_table.Remove(t);
       }
     }
+
     /**
      * The default TTL for this destination 
      */
@@ -436,6 +500,65 @@ namespace Brunet
       return s;
     }
     /**
+     * Send the StateChange event
+     */
+    protected void SendStateChange(ConnectionState new_state) {
+      if( new_state == Node.ConnectionState.Joining ) {
+        ArrivalEvent(this, null);
+      }
+      if( new_state == Node.ConnectionState.Leaving ) {
+        DepartureEvent(this, null);
+      }
+      StateChangeEvent(this, new_state);
+    }
+    /**
+     * This sets the ConState to new_cs and returns the old
+     * ConState.
+     *
+     * This method knows about the allowable state transitions.
+     * @param success is set to false if we can't do the state transition.
+     * @return the value of ConState prior to the method being called
+     */
+    protected ConnectionState SetConState(ConnectionState new_cs, out bool success) {
+      ConnectionState old_state;
+      success = false;
+      lock( _sync ) {
+        old_state = _con_state;
+        if( old_state == new_cs ) {
+          //This is not a state change
+          return old_state;
+        }
+        if( new_cs == Node.ConnectionState.Joining ) {
+          success = (old_state == Node.ConnectionState.Offline);
+        }
+        else if( new_cs == Node.ConnectionState.Connected ) {
+          success = (old_state == Node.ConnectionState.Joining) ||
+                    (old_state == Node.ConnectionState.SeekingConnections);
+        }
+        else if( new_cs == Node.ConnectionState.SeekingConnections ) {
+          success = (old_state == Node.ConnectionState.Connected);
+        }
+        else if( new_cs == Node.ConnectionState.Leaving ) {
+          success = (old_state != Node.ConnectionState.Disconnected);
+        }
+        else if( new_cs == Node.ConnectionState.Disconnected ) {
+          success = (old_state == Node.ConnectionState.Leaving );
+        }
+        else if( new_cs == Node.ConnectionState.Offline ) {
+          // We can never move into the Offline state.
+          success = false;
+        }
+        /*
+         * Now let's update _con_state
+         */
+        if( success ) {
+          _con_state = new_cs;
+        }
+      }
+      return old_state;
+    }
+
+    /**
      * Starts all edge listeners for the node.
      * Useful for connect/disconnect operations
      */
@@ -456,17 +579,25 @@ namespace Brunet
      */
     protected virtual void StopAllEdgeListeners()
     {
-      foreach(EdgeListener el in _edgelistener_list) {
-        el.Stop();
+      bool changed = false;
+      try {
+        SetConState(Node.ConnectionState.Disconnected, out changed);
+        foreach(EdgeListener el in _edgelistener_list) {
+          el.Stop();
+        }
+        _edgelistener_list.Clear();
+        _running = false;
+        _timer.Dispose();
+        //This makes sure we don't block forever on the last packet
+        _packet_queue.Close();
+        RpcManager.GetInstance(this).Close();
+        ReqrepManager.GetInstance(this).Close();
       }
-      _edgelistener_list.Clear();
-      _running = false;
-      _timer.Dispose();
-      //This makes sure we don't block forever on the last packet
-      _packet_queue.Close();
-
-      RpcManager.GetInstance(this).Close();
-      ReqrepManager.GetInstance(this).Close();
+      finally {
+        if( changed ) {
+          SendStateChange(Node.ConnectionState.Disconnected);
+        }
+      }
     }
     /**
      * When we do announces using the seperate thread, this is
@@ -559,27 +690,45 @@ namespace Brunet
      * network
      */
     public virtual void Connect() {
-      ProtocolLog.Enable();
-      EventHandler ae = System.Threading.Interlocked.Exchange(ref ArrivalEvent, null);
-      if (ae != null) {
-        ae(this, null);
+      bool changed_state = false;
+      try {
+        SetConState(Node.ConnectionState.Joining, out changed_state);
+        if( !changed_state ) {
+          throw new Exception("Already called Connect");
+        }
+        ProtocolLog.Enable();
+      }
+      finally {
+        if( changed_state ) {
+          SendStateChange(Node.ConnectionState.Joining);
+        }
       }
     }
 
     /**
-     * Disconnect to the network.
+     * Disconnect from the network.
      */
-    public virtual void Disconnect() {
-      ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
-        "[Connect: {0}] deactivating task queue", _local_add));
-      _task_queue.IsActive = false;
-      _send_pings = false;
-      //Make sure not to call DepartureEvent twice:
-      EventHandler de = Interlocked.Exchange(ref DepartureEvent, null);
-      if (de != null) {
-        de(this, null);
+    public void Disconnect() {
+      if(ProtocolLog.NodeLog.Enabled) {
+        ProtocolLog.Write(ProtocolLog.NodeLog, String.Format(
+          "Called Node.Disconnect: {0}", this.Address));
       }
-      _connection_table.Close();
+      bool changed_state = false;
+      try {
+        SetConState(Node.ConnectionState.Leaving, out changed_state);
+        if( changed_state ) {
+          ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
+            "[Connect: {0}] deactivating task queue", _local_add));
+          _task_queue.IsActive = false;
+          _send_pings = false;
+          _connection_table.Close();
+        }
+      }
+      finally {
+        if( changed_state ) {
+          SendStateChange(Node.ConnectionState.Leaving);
+        }
+      }
     }
 
     /**
