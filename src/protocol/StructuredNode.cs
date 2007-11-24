@@ -96,6 +96,16 @@ namespace Brunet
       sys_link = new ConnectionPacketHandler(this);
       rpc.AddHandlerWithSender("sys:link", sys_link);
       rpc.AddHandler("trace", new TraceRpcHandler(this));
+      
+      /*
+       * Handle Node state changes.
+       */
+      StateChangeEvent += delegate(Node n, Node.ConnectionState s) {
+        if( s == Node.ConnectionState.Leaving ) {
+          //Start our StructuredNode specific leaving:
+          Leave();
+        }
+      };
 
       _connection_table.ConnectionEvent += new EventHandler(this.EstimateSize);
       _connection_table.ConnectionEvent += new EventHandler(this.UpdateNeighborStatus);
@@ -149,15 +159,12 @@ namespace Brunet
      * close messages to all the edges
      * 
      */
-    override public void Disconnect()
+    protected void Leave()
     {
-      if(ProtocolLog.NodeLog.Enabled)
+      if(ProtocolLog.NodeLog.Enabled) {
         ProtocolLog.Write(ProtocolLog.NodeLog, String.Format(
-          "In StructuredNode.Disconnect: {0}", this.Address));
-      base.Disconnect();
-      if(ProtocolLog.NodeLog.Enabled)
-        ProtocolLog.Write(ProtocolLog.NodeLog, String.Format(
-          "Called Node.Disconnect: {0}", this.Address));
+          "In StructuredNode.Leave: {0}", this.Address));
+      }
 
       _iphandler.Stop();
       _leafco.IsActive = false;
