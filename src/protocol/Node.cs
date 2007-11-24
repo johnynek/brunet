@@ -74,6 +74,7 @@ namespace Brunet
          * change
          */
         _connection_table.ConnectionEvent += this.CheckForStateChange;
+        _connection_table.DisconnectionEvent += this.CheckForStateChange;
 
         _codeinjection = new CodeInjection(this);
         _codeinjection.LoadLocalModules();
