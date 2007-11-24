@@ -356,7 +356,7 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
         //since to loop is always 4 long, it should do so
         for(int k = 0; k < 4; k++) {
           i <<= 8;
-          i = _buffer[ _offset + off + k];
+          i ^= _buffer[ _offset + off + k];
         }
         l -= 4;
         off += 4;
