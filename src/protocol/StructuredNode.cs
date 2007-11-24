@@ -68,7 +68,7 @@ namespace Brunet
       }
 
     }
-    public StructuredNode(AHAddress add):base(add)
+    public StructuredNode(AHAddress add, string realm):base(add,realm)
     {
       // Instantiate rpc early!
       RpcManager rpc = RpcManager.GetInstance(this);
@@ -119,9 +119,9 @@ namespace Brunet
      * @param add AHAddress of this node
      * @param realm Realm this node is to be a member of
      */
-    public StructuredNode(AHAddress add, string realm) : this(add)
+    public StructuredNode(AHAddress addr) : this(addr, "global")
     {
-      _realm = String.Intern( realm );
+    
     }
 
     protected int _netsize = -1;

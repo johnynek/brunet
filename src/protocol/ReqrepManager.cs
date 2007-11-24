@@ -123,22 +123,29 @@ public class ReqrepManager : IDataHandler {
    * @param node The node we work for
    */
   public static ReqrepManager GetInstance(Node node) {
+    ReqrepManager rrm;
     lock(_rrm_table) {
       //check if there is already an instance object for this node
       if (_rrm_table.ContainsKey(node)) {
 	return (ReqrepManager) _rrm_table[node];
       }
       //in case no instance exists, create one
-      ReqrepManager rrm  = new ReqrepManager(node); 
+      rrm = new ReqrepManager(node); 
       _rrm_table[node] = rrm;
-      return rrm;
     }
-  }
-
-  public void Close() {
-    lock(_rrm_table) {
-      _rrm_table.Remove(_node);
-    }
+    node.StateChangeEvent += delegate(Node n, Node.ConnectionState s) {
+      if( s == Node.ConnectionState.Disconnected ) {
+        lock(_rrm_table) {
+          _rrm_table.Remove(n);
+        }
+        ISource source = n.GetTypeSource(PType.Protocol.ReqRep);
+        try {
+          source.Unsubscribe(rrm);
+        }
+        catch { }
+      }
+    };
+    return rrm;
   }
 
   public class Statistics {

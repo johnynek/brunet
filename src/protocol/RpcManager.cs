@@ -220,26 +220,33 @@ public class RpcManager : IReplyHandler, IDataHandler {
    * @param node The node we work for
    */
   public static RpcManager GetInstance(Node node) {
+    RpcManager rpc;
     lock(_rpc_table) {
       //check if there is already an instance object for this node
       if (_rpc_table.ContainsKey(node)) {
 	return (RpcManager) _rpc_table[node];
       }
       //in case no instance exists, create one
-      RpcManager rpc  = new RpcManager(ReqrepManager.GetInstance(node)); 
+      rpc = new RpcManager(ReqrepManager.GetInstance(node)); 
       _rpc_table[node] = rpc;
-      node.GetTypeSource( PType.Protocol.Rpc ).Subscribe(rpc, node);
-      return rpc;
     }
-  }
-
-  public void Close() {
-    lock(_rpc_table) {
-      _rpc_table.Remove(Node);
-    }
-    lock(_sync) {
-      _method_handlers.Clear();
-    }
+    node.GetTypeSource( PType.Protocol.Rpc ).Subscribe(rpc, node);
+    node.StateChangeEvent += delegate(Node n, Node.ConnectionState s) {
+      if( s == Node.ConnectionState.Disconnected ) {
+        lock( _rpc_table ) {
+          _rpc_table.Remove(n);
+        }
+        ISource source = n.GetTypeSource(PType.Protocol.Rpc);
+        try {
+          source.Unsubscribe(rpc);
+        }
+        catch { }
+        lock(rpc._sync) {
+          rpc._method_handlers.Clear();
+        }
+      }
+    };
+    return rpc;
   }
 
   /**

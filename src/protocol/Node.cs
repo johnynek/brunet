@@ -42,10 +42,16 @@ namespace Brunet
   abstract public class Node : ISender, IDataHandler
   {
     /**
+     * Create a node in the realm "global"
+     */
+    public Node(Address addr) : this(addr, "global") { }
+    /**
      * Create a node with a given local address and
      * a set of Routers.
+     * @param addr Address for the local node
+     * @param realm the Realm or Namespace this node belongs to
      */
-    public Node(Address addr)
+    public Node(Address addr, string realm)
     {
       //Start with the address hashcode:
 
@@ -56,6 +62,7 @@ namespace Brunet
          * Make all the hashtables : 
          */
         _local_add = AddressParser.Parse( addr.ToMemBlock() );
+        _realm = String.Intern(realm);
         _subscription_table = new Hashtable();
 
         _task_queue = new TaskQueue();
@@ -198,7 +205,7 @@ namespace Brunet
      * Keeps track of the objects which need to be notified 
      * of certain packets.
      */
-    protected Hashtable _subscription_table;
+    protected readonly Hashtable _subscription_table;
 
     protected readonly Address _local_add;
     /**
@@ -272,10 +279,10 @@ namespace Brunet
 
     public bool _disconnect_on_overload = false;
 
-    protected object _heartbeat_sync = new object();
+    protected readonly object _heartbeat_sync = new object();
     protected volatile bool _heartbeat_running = false;
 
-    protected string _realm = "global";
+    protected readonly string _realm;
     /**
      * Each Brunet Node is in exactly 1 realm.  This is 
      * a namespacing feature.  This allows you to create
@@ -592,12 +599,14 @@ namespace Brunet
         _timer.Dispose();
         //This makes sure we don't block forever on the last packet
         _packet_queue.Close();
-        RpcManager.GetInstance(this).Close();
-        ReqrepManager.GetInstance(this).Close();
       }
       finally {
         if( changed ) {
           SendStateChange(Node.ConnectionState.Disconnected);
+          lock(_sync) {
+            //Clear out the subscription table
+            _subscription_table.Clear();
+          }
         }
       }
     }
