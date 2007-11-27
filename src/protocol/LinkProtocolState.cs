@@ -48,6 +48,8 @@ namespace Brunet
     /**
      * If this state machine creates a Connection, this is it.
      * Otherwise its null
+     *
+     * This is only set in the Finish method.
      */
     public Connection Connection {
       get { return (Connection)Thread.VolatileRead(ref _con); }
@@ -61,6 +63,13 @@ namespace Brunet
     }
     
     protected object _lm_reply;
+    /**
+     * If we get a sensible reply from a remote node, this is it.
+     * If we get some bad reply, we don't keep it.
+     *
+     * This is the only "set once" variable that is not set in the Finish
+     * method.
+     */
     public LinkMessage LinkMessageReply {
       get { return (LinkMessage)Thread.VolatileRead(ref _lm_reply); }
       set {
@@ -73,27 +82,15 @@ namespace Brunet
       }
     }
     
-    /*
-     * We can't use Interlocked on enums, so we have to get the lock
-     * to change this value.
-     */
     protected volatile LinkProtocolState.Result _result;
     /**
      * When this object is finished, this tells the Linker
      * what to do next
+     *
+     * This is only set in the Finish method.
      */
     public LinkProtocolState.Result MyResult {
       get { return _result; }
-      set {
-        lock( _sync ) {
-          if( _result != Result.None) {
-            throw new LinkException(
-                        String.Format("LinkProtocolState.Result already set to: {0}", _result));
-
-          }
-          _result = value;
-        }
-      }
     }
     volatile protected Exception _x;
     /**
@@ -108,7 +105,6 @@ namespace Brunet
     //====================
     protected readonly Node _node;
     protected readonly string _contype;
-    protected readonly object _sync;
     protected readonly Edge _e;
     protected readonly Linker _linker;
     public Linker Linker { get { return _linker; } }
@@ -140,7 +136,6 @@ namespace Brunet
       _linker = l;
       _node = l.LocalNode;
       _contype = l.ConType;
-      _sync = new object();
       _target_lock = null;
       _lm_reply = null;
       _ta = ta;
@@ -148,86 +143,64 @@ namespace Brunet
       //Setup the edge:
       _e = e;
       _result = Result.None;
-      try {
-        e.CloseEvent += this.CloseHandler;
-      }
-      catch {
-        CloseHandler(e, null);
-        throw;
-      }
     }
 
     //Make sure we are unlocked.
     ~LinkProtocolState() {
-      try {
-        lock( _sync ) {
-          if( _target_lock != null ) {
-            if(ProtocolLog.LinkDebug.Enabled)
+      if( _target_lock != null ) {
+        if(ProtocolLog.LinkDebug.Enabled) {
               ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
                 "Lock released by destructor"));
-            Unlock();
-          }
         }
       }
-      catch{
-        Unlock();
-      }
+      Unlock();
     }
 
-    ///We should allow it as long as it is not another LinkProtocolState:
+    /**
+     * Note that a LinkProtocolState only gets a lock *AFTER* it has
+     * received a LinkMessageReply.  Prior to that, the Linker that
+     * created it holds the lock (if the _linker.Target is not null).
+     *
+     * So, given that we are being asked to transfer a lock, we must
+     * have already gotten our LinkMessageReply set, or we wouldn't
+     * hold the lock in the first place.
+     *
+     * So, we only transfer locks to other Linkers when we are finished
+     * since us holding a lock means we have already head some
+     * communication from the other side.
+     * 
+     * Since the CT.Lock and CT.Unlock methods can't be called when this
+     * is being called, we know that _target_lock won't change during
+     * this method.
+     */
     public bool AllowLockTransfer(Address a, string contype, ILinkLocker l)
     {
-      bool entered = System.Threading.Monitor.TryEnter(_sync); //like a lock
-      if ( false == entered ) {
-	if (ProtocolLog.LinkDebug.Enabled) {
-	  ProtocolLog.Write(ProtocolLog.LinkDebug,
-          String.Format(
-          "Cannot acquire LPS lock for transfer (potential deadlock)."));
-	}
-        return false;
+      bool hold_lock = (a.Equals( _target_lock ) && contype == _contype);
+      if( false == hold_lock ) {
+        //This is a bug.
+        throw new Exception(String.Format("We don't hold the lock: {0}", a));
       }
-      else {
-        // We have the lock now
-        bool allow = false;
-        try {
-          if( l is Linker ) {
-            //We will allow it if we are done:
-            if( IsFinished ) {
-              allow = true;
-            }
-          }
-          else if ( false == (l is LinkProtocolState) ) {
-          /**
-           * We only allow a lock transfer in the following case:
-           * 0) We have not sent the StatusRequest yet.
-           * 1) We are not transfering to another LinkProtocolState
-           * 2) The lock matches the lock we hold
-           * 3) The address we are locking is greater than our own address
-           */
-            if( ( LinkMessageReply == null )
-                && a.Equals( _target_lock )
-                && contype == _contype 
-                && ( a.CompareTo( _node.Address ) > 0) )
-            {
-                allow = true;
-            }
-          }
-          if( allow ) {
-            _target_lock = null;
-          }
-        } finally {
-          //We have to do a try .. finally here otherwise an
-          //exception in the above could cause us to never release _sync.
-          System.Threading.Monitor.Exit(_sync);
-        }
-        return allow;
+      if( (l is Linker) && IsFinished ) {
+        _target_lock = null;
+        return true;
       }
+      return false;
     }
     /**
+     * There are only four ways we can get here:
+     * 
+     * 1) We got some exception in Start and never made the first request
+     * 2) There was some problem in LinkCloseHandler
+     * 3) We either got a response or had a problem in StatusCloseHandler
+     * 4) The Edge closed, and the CloseHandler was called.
+     * 
+     * The only possibility for a race is between the CloseHandler and
+     * the others.
+     *
      * When this state machine reaches an end point, it calls this method,
      * which fires the FinishEvent
      */
-    protected void Finish(Result res) {
+    protected void Finish(Result res, Connection c) {
       /*
        * No matter what, we are done here:
        */
@@ -235,52 +208,54 @@ namespace Brunet
         ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
           "LPS: {0} finished: {2}, with exception: {1}", _node.Address, _x, res));
 
-      Edge to_close = null;
-      bool close_gracefully = false;
-      lock( _sync ) {
-        if( IsFinished ) {
-          /*
-           * We could call Finish and then the Edge could be closed.
-           * So, we can't guarantee that Finish is not called twice,
-           * just ignore future calls
-           */
-          return;
-        }
-        SetIsFinished();
-        MyResult = res;
-        _e.CloseEvent -= this.CloseHandler;
-        if( this.Connection == null ) {
-          to_close = _e;
-          //Close gracefully if we heard something from the other node
-          close_gracefully = (LinkMessageReply != null);
-        }
+      int already_finished = Interlocked.Exchange(ref _is_finished, 1);
+      if(already_finished == 1) {
+        //We already got here.
+        //This is a barrier.  Only one Finish call will make
+        //it past this point.  Only two could happen in a race:
+        //Edge closing or some other failure/success.
+        return;
       }
-      /*
-       * In some cases, we close the edge:
-       */
-      if( to_close != null ) {
-        if( close_gracefully ) {
-        /*
-         * We close the edge if we did not get a Connection AND we received
-         * some response from this edge
-         */
-          _node.GracefullyClose(to_close);
+      //We don't care about close event's anymore
+      _e.CloseEvent -= this.CloseHandler;
+
+      //Set the result:
+      _result = res;
+      
+      try {
+        //Check to see if we need to close the edge
+        if( c == null ) {
+          /*
+           * We didn't get a complete connection,
+           * but we may have heard some response.  If so
+           * close the edge gracefully.
+           */
+          if (LinkMessageReply != null) {
+            //Let's be nice:
+            _node.GracefullyClose(_e);
+          }
+          else {
+            /*
+             * We never heard from the other side, so we will assume that further
+             * packets will only waste bandwidth
+             */
+            _e.Close();
+          }
+          if(ProtocolLog.LinkDebug.Enabled) {
+            ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
+              "LPS: {0} got no connection", _node.Address));
+          }
         }
         else {
           /*
-           * We never heard from the other side, so we will assume that further
-           * packets will only waste bandwidth
+           * Awesome!  We got a connection, let's set it.
            */
-          to_close.Close();
+          this.Connection = c;
+          if(ProtocolLog.LinkDebug.Enabled) {
+            ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
+              "LPS: {0} got connection: {1}", _node.Address, c));
+          }
         }
-      }
-      else {
-        //We got a connection, don't close it!
-      }
-      if(ProtocolLog.LinkDebug.Enabled)
-        ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
-          "LPS: {0} got connection: {1}", _node.Address, _con));
-      try {
         //This could throw an exception, but make sure we unlock if it does.
         FireFinished();
       }
@@ -364,46 +339,6 @@ namespace Brunet
       }
       return result;
     }
-    /**
-     * set the _is_finished variable if it is not yet true.
-     * This method is atomic, and either succeeds or
-     * @throws a LinkException if this method is called more than once.
-     */
-    protected void SetIsFinished() {
-      int old_v = Interlocked.Exchange(ref _is_finished, 1);
-      if(old_v != 0) {
-        throw new LinkException("IsFinished already set to true");
-      }
-    }
-    /**
-     * Set the _target member variable and check for sanity
-     * We only set the target if we can get a lock on the address
-     * We can call this method more than once as long as we always
-     * call it with the same value for target
-     * If target is null we just return
-     * 
-     * @param target the value to set the target to.
-     * 
-     * @throws LinkException if the target is already * set to a different address
-     * @throws ConnectionExistsException if we already have a connection
-     * @throws CTLockException if we cannot get the lock
-     */
-    protected void SetTarget(Address target)
-    {
-      if ( target == null )
-        return;
-      if( target.Equals( _node.Address ) ) {
-        throw new LinkException("cannot connect to self");
-      }
- 
-      ConnectionTable tab = _node.ConnectionTable;
-      /*
-       * This throws an exception if:
-       * 0) we can't get the lock.
-       * 1) we already have set _target_lock to something else
-       */
-      tab.Lock( target, _contype, this, ref _target_lock );
-    }
 
     /**
      * Unlock any lock which is held by this state
@@ -425,14 +360,16 @@ namespace Brunet
 
     public override void Start() {
       //Make sure the Node is listening to this node
-      _e.Subscribe(_node, _e);
-       
-      /* Make the call */
-      Channel results = new Channel();
-      results.CloseAfterEnqueue();
-      results.CloseEvent += this.LinkCloseHandler;
-      RpcManager rpc = RpcManager.GetInstance(_node);
       try {
+        //This will throw an exception if _e is already closed:
+        _e.CloseEvent += this.CloseHandler; 
+        //_e must not be closed, let's start listening to it:
+        _e.Subscribe(_node, _e);
+        /* Make the call */
+        Channel results = new Channel();
+        results.CloseAfterEnqueue();
+        results.CloseEvent += this.LinkCloseHandler;
+        RpcManager rpc = RpcManager.GetInstance(_node);
 	if(ProtocolLog.LinkDebug.Enabled) {
 	  ProtocolLog.Write(ProtocolLog.LinkDebug, 
 			    String.Format("LPS target: {0} Invoking Start() over edge: {1}", _linker.Target, _e));
@@ -446,7 +383,7 @@ namespace Brunet
 			    String.Format("LPS target: {0} Start() over edge: {1}, hit exception: {2}", 
 					  _linker.Target, _e, e));
 	}
-        Finish(Result.MoveToNextTA);
+        Finish(Result.MoveToNextTA, null);
       }
     }
     
@@ -456,19 +393,23 @@ namespace Brunet
      * not okay
      */
     protected void SetAndCheckLinkReply(LinkMessage lm) {
-      //At this point, we cannot be pre-empted.
-      LinkMessageReply = lm;
-      
       /* Check that the everything matches up 
        * Make sure the link message is Kosher.
        * This are critical errors.  This Link fails if these occur
        */
+      if( _node.Address.Equals( lm.Local.Address ) ) {
+        //Somehow, we got a response from someone claiming to be us.
+        throw new LinkException("Got a LinkMessage response from our address");
+      }
       if( lm.ConTypeString != _contype ) {
         throw new LinkException("Link type mismatch: " + _contype + " != " + lm.ConTypeString );
       }
       if( !lm.Attributes["realm"].Equals( _node.Realm ) ) {
         throw new LinkException("Realm mismatch: " +
                                 _node.Realm + " != " + lm.Attributes["realm"] );
+      }
+      if( lm.Local.Address == null ) {
+        throw new LinkException("LinkMessage response has null Address");
       }
       if( (_linker.Target != null) && (!lm.Local.Address.Equals( _linker.Target )) ) {
         /*
@@ -483,10 +424,19 @@ namespace Brunet
         throw new LinkException(String.Format("Target mismatch: {0} != {1}",
                                               _linker.Target, lm.Local.Address), true, null );
       }
+      /*
+       * Okay, this lm looks good, we'll accept it.  This can only be done
+       * once, and once it happens a future attempt will throw an exception
+       */
+      LinkMessageReply = lm;
       
-      //Make sure we have the lock on this address, this could 
-      //throw an exception halting this link attempt.
-      SetTarget( lm.Local.Address );
+      ConnectionTable tab = _node.ConnectionTable;
+      /*
+       * This throws an exception if:
+       * 0) we can't get the lock.
+       * 1) we already have set _target_lock to something else
+       */
+      tab.Lock( lm.Local.Address, _contype, this, ref _target_lock );
     }
 
     /**
@@ -496,34 +446,34 @@ namespace Brunet
     protected void LinkCloseHandler(object q, EventArgs args) {
       try {
         Channel resq = (Channel)q;
-        lock( _sync ) {
-          resq.CloseEvent -= this.LinkCloseHandler;
-          if( IsFinished ) { return; }
-
-          if( resq.Count > 0 ) {
-            RpcResult res = (RpcResult)resq.Dequeue();
-            /* Here's the LinkMessage response */
-            LinkMessage lm = new LinkMessage( (IDictionary)res.Result );
-            SetAndCheckLinkReply(lm);
-  	
-            /* Make our status message */
-            StatusMessage sm = _node.GetStatus(_contype, lm.Local.Address);
-            /* Make the call */
-            Channel results = new Channel();
-            results.CloseAfterEnqueue();
-            results.CloseEvent += this.StatusCloseHandler;
-            RpcManager rpc = RpcManager.GetInstance(_node);
-	    if (ProtocolLog.LinkDebug.Enabled) {
+        //If the Channel is empty this will throw an exception:
+        RpcResult res = (RpcResult)resq.Dequeue();
+        /* Here's the LinkMessage response */
+        LinkMessage lm = new LinkMessage( (IDictionary)res.Result );
+        /**
+         * This will set our LinkMessageReply variable.  It can
+         * only be set once, so all future sets will fail.  It
+         * will also make sure we have the lock on the target.
+         * If we don't, that will throw an exception
+         */
+        SetAndCheckLinkReply(lm);
+        //If we got here, we have our response and the Lock on _target_address
+        StatusMessage sm = _node.GetStatus(_contype, lm.Local.Address);
+        /* Make the call */
+        Channel results = new Channel();
+        results.CloseAfterEnqueue();
+        results.CloseEvent += this.StatusCloseHandler;
+        RpcManager rpc = RpcManager.GetInstance(_node);
+	if (ProtocolLog.LinkDebug.Enabled) {
 	      ProtocolLog.Write(ProtocolLog.LinkDebug, 
-				String.Format("LPS target: {0} Invoking GetStatus() over edge: {1}", _linker.Target, _e));
-	    }
-            rpc.Invoke(_e, results, "sys:link.GetStatus", sm.ToDictionary() );
-          }
-          else {
-            //This causes us to move to the next TA
-            throw new InvalidOperationException();
-          }
-        }
+                String.Format(
+                  "LPS target: {0} Invoking GetStatus() over edge: {1}",
+                  _linker.Target, _e));
+	}
+        /*
+         * This could throw an exception if the Edge is closed
+         */
+        rpc.Invoke(_e, results, "sys:link.GetStatus", sm.ToDictionary() );
       }
       catch(AdrException x) {
         /*
@@ -531,35 +481,35 @@ namespace Brunet
          * first we check for common error conditions:
          */
         _x = x;
-        Finish( GetResultForErrorCode(x.Code) );
+        Finish( GetResultForErrorCode(x.Code), null );
       }
       catch(ConnectionExistsException x) {
         /* We already have a connection */
         _x = x;
-        Finish( Result.ProtocolError );
+        Finish( Result.ProtocolError, null );
       }
       catch(CTLockException x) {
         //This is thrown when ConnectionTable cannot lock.  Lets try again:
         _x = x;
-        Finish( Result.RetryThisTA );
+        Finish( Result.RetryThisTA, null );
       }
       catch(LinkException x) {
         _x = x;
-        if( x.IsCritical ) { Finish( Result.MoveToNextTA ); }
-        else { Finish( Result.RetryThisTA ); }
+        if( x.IsCritical ) { Finish( Result.MoveToNextTA, null ); }
+        else { Finish( Result.RetryThisTA, null ); }
       }
       catch(InvalidOperationException) {
         //The queue never got anything
-        Finish(Result.MoveToNextTA);
+        Finish(Result.MoveToNextTA, null);
       }
       catch(EdgeException) {
         //The Edge is goofy, let's move on:
-        Finish(Result.MoveToNextTA);
+        Finish(Result.MoveToNextTA, null);
       }
       catch(Exception x) {
         //The protocol was not followed correctly by the other node, fail
         _x = x;
-        Finish( Result.RetryThisTA );
+        Finish( Result.RetryThisTA, null );
       } 
     }
     
@@ -567,38 +517,30 @@ namespace Brunet
      * When we're here, we have the status message
      */
     protected void StatusCloseHandler(object q, EventArgs args) {
-      Result r;
       try {
         Channel resq = (Channel)q;
-        resq.CloseEvent -= this.StatusCloseHandler;
-        lock( _sync ) {
-          if( IsFinished ) { return; }
-          if( resq.Count > 0 ) {
-            RpcResult res = (RpcResult)resq.Dequeue();
-            StatusMessage sm = new StatusMessage((IDictionary)res.Result);
-            Connection = new Connection(_e, LinkMessageReply.Local.Address,
+        //If we got no result
+        RpcResult res = (RpcResult)resq.Dequeue();
+        StatusMessage sm = new StatusMessage((IDictionary)res.Result);
+        Connection c = new Connection(_e, LinkMessageReply.Local.Address,
                                         _contype, sm, LinkMessageReply);
-            r = Result.Success;
-          }
-          else {
-            string message;
-            if( _e != null ) {
-              /*
-               * This is unexpected.  If the edge is closed, or already nulled
-               * out, nothing strange has happened.
-               */
-
-               message = String.Format(
+        Finish(Result.Success, c);
+      }
+      catch(InvalidOperationException) {
+         /*
+          * This is unexpected. 
+          */
+        string message = String.Format(
                            "No StatusMessage returned from open({1}) Edge: {0}",
                            _e, !_e.IsClosed);
-            }
-            else {
-              message = "No StatusMessage returned, edge is now null";
-            }
-            throw new Exception(message);
-          }
+        if(ProtocolLog.LinkDebug.Enabled) {
+          ProtocolLog.Write(ProtocolLog.LinkDebug, message);
         }
-        Finish(r);
+        /*
+         * We got a link message from this guy, but not a status response,
+         * so let's try this TA again.
+         */
+        Finish(Result.RetryThisTA, null);
       }
       catch(Exception x) {
         /*
@@ -606,10 +548,11 @@ namespace Brunet
          * unexpected happened.  Let's try it this edge again if we
          * can
          */
-        if(ProtocolLog.LinkDebug.Enabled)
+        if(ProtocolLog.LinkDebug.Enabled) {
           ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
             "LPS.StatusResultHandler Exception: {0}", x));
-        Finish(Result.RetryThisTA);
+        }
+        Finish(Result.RetryThisTA, null);
       }
     }
 
@@ -620,7 +563,7 @@ namespace Brunet
      * to signal that this is not a good candidate to retry.
      */
     protected void CloseHandler(object sender, EventArgs args) {
-      Finish(Result.MoveToNextTA);
+      Finish(Result.MoveToNextTA, null);
     }
   }
 }
