@@ -58,8 +58,13 @@ namespace Brunet
     protected readonly Node _node;
 
     protected class CphState {
-      public Edge Edge;
-      public LinkMessage LM;
+      public readonly Edge Edge;
+      public readonly LinkMessage LM;
+      public Address TargetLock;
+      public CphState(Edge e, LinkMessage lm) {
+        Edge = e;
+        LM = lm;
+      }
     }
 
     /** global lock for thread synchronization */
@@ -228,28 +233,30 @@ namespace Brunet
 
       ErrorMessage err = null;
       ConnectionTable tab = _node.ConnectionTable;
+      CphState cph = new CphState(from,lm);
       lock( _sync ) {
         if( !_edge_to_cphstate.ContainsKey( from ) ) {
-          if( CanConnect(lm, from, out err) ) {
-            CphState cphstate = new CphState();
-            cphstate.LM = lm;
-            cphstate.Edge = from;
-            //We can connect, add this LinkMessage to the table
-            _edge_to_cphstate[from] = cphstate;
-            try {
-              //If the CloseEvent was already called, this throws an exception
-              from.CloseEvent += this.CloseHandler;
-            }
-            catch {
-              CloseHandler(from, null);
-              throw new AdrException((int)ErrorMessage.ErrorCode.EdgeClosed,
-                                      "Edge Closed after receiving message");
-            }
-          }
+          _edge_to_cphstate[from] = cph;
         }
         else {
           throw new AdrException((int)ErrorMessage.ErrorCode.InProgress,
                                  "Already have a link in progress on this edge");
+        }
+      }
+      if( CanConnect(cph, out err) ) {
+        try {
+          //If the CloseEvent was already called, this throws an exception
+          from.CloseEvent += this.CloseHandler;
+        }
+        catch {
+          CloseHandler(from, null);
+          throw new AdrException((int)ErrorMessage.ErrorCode.EdgeClosed,
+                                      "Edge Closed after receiving message");
+        }
+      }
+      else {
+        lock( _sync ) {
+          _edge_to_cphstate.Remove(from);
         }
       }
       //Now we prepare our response
@@ -314,16 +321,19 @@ namespace Brunet
       if(ProtocolLog.LinkDebug.Enabled)
         ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
           "{0} -start- sys:link.GetStatus({1},{2})", _node.Address,sm,from));
-
+      CphState cphstate = null;
       lock( _sync ) {
         if( _edge_to_cphstate.ContainsKey( from ) ) {
           //Add the connection:
-          CphState cphstate = (CphState)_edge_to_cphstate[from];
+          cphstate = (CphState)_edge_to_cphstate[from];
           lm_to_add = cphstate.LM;
           //We can forget about this LinkMessage now:
           _edge_to_cphstate.Remove(from);
           from.CloseEvent -= this.CloseHandler;
         }
+      }
+      if( _disconnecting ) {
+        throw new AdrException((int)ErrorMessage.ErrorCode.Disconnecting, "disconnecting");
       }
      /**
       * StatusMessage objects are used to verify the completion
@@ -332,9 +342,6 @@ namespace Brunet
       * Node got our LinkMessage response, and the connection
       * is active
       */
-      if( _disconnecting ) {
-        throw new AdrException((int)ErrorMessage.ErrorCode.Disconnecting, "disconnecting");
-      }
       StatusMessage response = null;
       ConnectionTable tab = _node.ConnectionTable;
       if (lm_to_add != null) {
@@ -362,7 +369,7 @@ namespace Brunet
         }
         finally {
           //Unlock after we add the connection
-          tab.Unlock(lm_to_add.Local.Address, lm_to_add.ConTypeString, this);
+          tab.Unlock(ref cphstate.TargetLock, lm_to_add.ConTypeString, this);
         }
       }
       if(ProtocolLog.LinkDebug.Enabled)
@@ -405,16 +412,15 @@ namespace Brunet
      * if we can proceed.
      * If we cannot proceed, it gives an ErrorMessage to send
      * back to the other side.
-     * @param local the Node we are working for
-     * @param lm LinkMessage received from the other Node
-     * @param from Edge that lm came from
+     * @param cph The CphState
      * @param err ErrorMessage to return.  Is null if there is no error
      * @return true if we can connect, if false, err != null
      */
-    protected bool CanConnect(LinkMessage lm, Edge from, out ErrorMessage err)
+    protected bool CanConnect(CphState cph, out ErrorMessage err)
     {
       ConnectionTable tab = _node.ConnectionTable;
       Address local_add = _node.Address;
+      LinkMessage lm = cph.LM;
       err = null;
       /* We lock the connection table so it doesn't change between
        * the call to Contains and the call to Lock
@@ -453,7 +459,8 @@ namespace Brunet
               "ConnectionPacketHandler - Trying to lock connection table: {0},{1}",
                                   lm.Local.Address, lm.ConTypeString));
 
-          tab.Lock( lm.Local.Address, lm.ConTypeString, this );
+          tab.Lock( lm.Local.Address, lm.ConTypeString, this,
+                    ref cph.TargetLock );
           if(ProtocolLog.LinkDebug.Enabled)
             ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
               "ConnectionPacketHandler - Successfully locked connection table: {0},{1}",
@@ -485,17 +492,16 @@ namespace Brunet
      */
     public void CloseHandler(object edge, EventArgs args)
     {
-      LinkMessage lm = null;
+      CphState cphstate = null;
       lock(_sync) {
-        CphState cphstate = (CphState)_edge_to_cphstate[edge];
+        cphstate = (CphState)_edge_to_cphstate[edge];
         if( cphstate != null ) {
           _edge_to_cphstate.Remove(edge);
-          lm = cphstate.LM;
         }
       }
-      if( lm != null ) {
+      if( cphstate != null ) {
         ConnectionTable tab = _node.ConnectionTable;
-        tab.Unlock( lm.Local.Address, lm.ConTypeString, this );
+        tab.Unlock( ref cphstate.TargetLock, cphstate.LM.ConTypeString, this );
       }
     }
   }

@@ -170,9 +170,7 @@ namespace Brunet
         }
       }
       catch{
-        if( _target_lock != null) {
-          Unlock();
-        }
+        Unlock();
       }
     }
 
@@ -394,34 +392,25 @@ namespace Brunet
     {
       if ( target == null )
         return;
- 
-      lock(_sync) {
-        ConnectionTable tab = _node.ConnectionTable;
-        if( _target_lock != null ) {
-          //This is the case where _target_lock has been set once
-          if( ! target.Equals( _target_lock ) ) {
-            throw new LinkException("Target lock already set to a different address");
-          }
-        }
-        else if( target.Equals( _node.Address ) )
-          throw new LinkException("cannot connect to self");
-        else {
-          //Lock throws an Exception if it cannot get the lock
-          tab.Lock( target, _contype, this );
-          _target_lock = target;
-        }
+      if( target.Equals( _node.Address ) ) {
+        throw new LinkException("cannot connect to self");
       }
+ 
+      ConnectionTable tab = _node.ConnectionTable;
+      /*
+       * This throws an exception if:
+       * 0) we can't get the lock.
+       * 1) we already have set _target_lock to something else
+       */
+      tab.Lock( target, _contype, this, ref _target_lock );
     }
 
     /**
      * Unlock any lock which is held by this state
      */
     public void Unlock() {
-      lock( _sync ) {
-        ConnectionTable tab = _node.ConnectionTable;
-        tab.Unlock( _target_lock, _contype, this );
-        _target_lock = null;
-      }
+      ConnectionTable tab = _node.ConnectionTable;
+      tab.Unlock( ref _target_lock, _contype, this );
     }
     
     protected LinkMessage MakeLM() {
