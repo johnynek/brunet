@@ -917,24 +917,17 @@ namespace Brunet
     {
       if ( target == null )
         return;
- 
-      lock( _sync ) {
-        ConnectionTable tab = LocalNode.ConnectionTable;
-        if( _target_lock != null ) {
-          //This is the case where _target_lock has been set once
-          if( ! target.Equals( _target_lock ) ) {
-            throw new LinkException("Target lock already set to a different address");
-          }
-        }
-        else if( target.Equals( LocalNode.Address ) ) {
-          throw new LinkException("cannot connect to self");
-        }
-        else {
-          //Lock throws an InvalidOperationException if it cannot get the lock
-          tab.Lock( target, _contype, this );
-          _target_lock = target;
-        }
+      if( target.Equals( LocalNode.Address ) ) {
+        throw new LinkException("cannot connect to self");
       }
+ 
+      ConnectionTable tab = LocalNode.ConnectionTable;
+      /*
+       * This throws an exception if:
+       * 0) we can't get the lock.
+       * 1) we already have set _target_lock to something else
+       */
+      tab.Lock( target, _contype, this, ref _target_lock );
     }
     
     /**
@@ -1021,11 +1014,8 @@ namespace Brunet
      * (in which case nothing happens).
      */
     protected void Unlock() {
-      lock( _sync ) {
-        ConnectionTable tab = LocalNode.ConnectionTable;
-        tab.Unlock( _target_lock, _contype, this );
-        _target_lock = null;
-      }
+      ConnectionTable tab = LocalNode.ConnectionTable;
+      tab.Unlock( ref _target_lock, _contype, this );
     }
   }
 }

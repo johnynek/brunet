@@ -740,18 +740,25 @@ namespace Brunet
      * @param a the Address to lock
      * @param t the type of connection
      * @param locker the object wishing to hold the lock
+     * @param lockedvar set to a if the lock succeeds.
      *
      * We use this to make sure that two linkers are not
      * working on the same address for the same connection type
      *
      * @throws ConnectionExistsException if there is already a connection to this address
      * @throws CTLockException if we cannot get the lock
+     * @throws CTLockException if lockedvar is not null or a, when called. 
      */
-    public void Lock(Address a, string t, ILinkLocker locker)
+    public void Lock(Address a, string t, ILinkLocker locker, ref Address lockedvar)
     {
-      if( a == null ) { return; }
       ConnectionType mt = Connection.StringToMainType(t);
       lock( _sync ) {
+        if( a == null ) { return; }
+        if( lockedvar != null && (false == a.Equals(lockedvar)) ) {
+          //We only overwrite the lockedvar if it is null:
+          throw new CTLockException(
+                  String.Format("lockedvar not null, set to: {0}", lockedvar));
+        }
         Connection c_present = GetConnection(mt, a);
         if( c_present != null ) {
           /**
@@ -767,21 +774,30 @@ namespace Brunet
         ILinkLocker old_locker = (ILinkLocker)locks[a];
         if( null == old_locker ) {
           locks[a] = locker;
+          lockedvar = a;
           if(ProtocolLog.ConnectionTableLocks.Enabled)
             ProtocolLog.Write(ProtocolLog.ConnectionTableLocks,
               String.Format("{0}, locker: {1} Locking: {2}", _local, locker, a));
           return;
         }
+        else if (old_locker == locker) {
+          //This guy already holds the lock
+          lockedvar = a;
+        }
         else if ( old_locker.AllowLockTransfer(a,t,locker) ) {
         //See if we can transfer the lock:
           locks[a] = locker;
+          lockedvar = a;
         }
         else {
           if(ProtocolLog.ConnectionTableLocks.Enabled)
             ProtocolLog.Write(ProtocolLog.ConnectionTableLocks,
               String.Format("{0}, {1} tried to lock {2}, but {3} holds the lock",
               _local, locker, a, locks[a]));
-          throw new CTLockException();
+          throw new CTLockException(
+                      String.Format(
+                        "Lock on {0} cannot be transferred from {1} to {2}",
+                        a, old_locker, locker));
         }
       }
     }
@@ -956,15 +972,15 @@ namespace Brunet
     /**
      * We use this to make sure that two linkers are not
      * working on the same address
-     * @param a Address to unlock
+     * @param a Address to unlock, sets to null if unlock succeeds
      * @param t the type of connection.
      * @param locker the object which holds the lock.
      * @throw Exception if the lock is not held by locker
      */
-    public void Unlock(Address a, string t, ILinkLocker locker)
+    public void Unlock(ref Address a, string t, ILinkLocker locker)
     {
-      if( a != null ) {
-        lock( _sync ) {
+      lock( _sync ) {
+        if( a != null ) {
           ConnectionType mt = Connection.StringToMainType(t);
           Hashtable locks = (Hashtable)_address_locks[mt];
           if(ProtocolLog.ConnectionTableLocks.Enabled)
@@ -989,6 +1005,7 @@ namespace Brunet
           }
 
           locks.Remove(a);
+          a = null;
         }
       }
     }
@@ -1158,7 +1175,7 @@ namespace Brunet
    * but it is already locked
    */
   public class CTLockException : System.Exception {
-
+    public CTLockException(string s) : base(s) { }
   }
 
   /**
