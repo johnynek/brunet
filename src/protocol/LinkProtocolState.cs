@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using System;
+using System.Threading;
 using System.Collections;
 
 
@@ -32,41 +33,85 @@ namespace Brunet
    * was created using one TransportAddress
    */
   public class LinkProtocolState : TaskWorker, ILinkLocker {
-    /**
-     * When this state machine reaches the end, it fires this event
-     */
-    protected bool _is_finished;
+    
+    //====================
+    // Write Once Variables.
+    //====================
+
+    protected int _is_finished;
     public override bool IsFinished {
       get {
-        lock( _sync ) { return _is_finished; }
+        return (Thread.VolatileRead(ref _is_finished) == 1);
       }
     }
-    protected Connection _con;
+    protected object _con;
     /**
      * If this state machine creates a Connection, this is it.
      * Otherwise its null
      */
-    public Connection Connection { get { lock( _sync) { return _con; } } }
-    protected readonly Linker _linker;
-    /**
-     * The Linker that created this LinkProtocolState
-     */
-    public Linker Linker { get { return _linker; } }
+    public Connection Connection {
+      get { return (Connection)Thread.VolatileRead(ref _con); }
+      set {
+        object old_v = Interlocked.CompareExchange(ref _con, value, null);
+        if( old_v != null ) {
+          //We didn't really exchange
+          throw new LinkException(String.Format("Connection already set to: {0}", old_v));
+        }
+      }
+    }
     
-    protected LinkMessage _lm_reply;
-    public LinkMessage LinkMessageReply { get { lock( _sync ) { return _lm_reply; } }  }
+    protected object _lm_reply;
+    public LinkMessage LinkMessageReply {
+      get { return (LinkMessage)Thread.VolatileRead(ref _lm_reply); }
+      set {
+        object old_v = Interlocked.CompareExchange(ref _lm_reply, value, null);
+        if( old_v != null ) {
+          //We didn't really exchange
+          throw new LinkException(
+                        String.Format("LinkMessageReply already set to: {0}", old_v));
+        }
+      }
+    }
+    
+    /*
+     * We can't use Interlocked on enums, so we have to get the lock
+     * to change this value.
+     */
+    protected volatile LinkProtocolState.Result _result;
+    /**
+     * When this object is finished, this tells the Linker
+     * what to do next
+     */
+    public LinkProtocolState.Result MyResult {
+      get { return _result; }
+      set {
+        lock( _sync ) {
+          if( _result != Result.None) {
+            throw new LinkException(
+                        String.Format("LinkProtocolState.Result already set to: {0}", _result));
 
+          }
+          _result = value;
+        }
+      }
+    }
     volatile protected Exception _x;
     /**
      * If we catch some exception, we store it here, and call Finish
      */
     public Exception CaughtException { get { return _x; } }
+    
+    protected Address _target_lock;
 
+    //====================
+    // These variables never change after the constructor
+    //====================
     protected readonly Node _node;
     protected readonly string _contype;
-    protected Address _target_lock;
-    protected object _sync;
-    protected Edge _e;
+    protected readonly object _sync;
+    protected readonly Edge _e;
+    protected readonly Linker _linker;
+    public Linker Linker { get { return _linker; } }
     protected readonly TransportAddress _ta;
     public TransportAddress TA { get { return _ta; } }
 
@@ -91,13 +136,6 @@ namespace Brunet
       None
     }
 
-    protected LinkProtocolState.Result _result;
-    /**
-     * When this object is finished, this tells the Linker
-     * what to do next
-     */
-    public LinkProtocolState.Result MyResult { get { return _result; } }
-
     public LinkProtocolState(Linker l, TransportAddress ta, Edge e) {
       _linker = l;
       _node = l.LocalNode;
@@ -106,9 +144,10 @@ namespace Brunet
       _target_lock = null;
       _lm_reply = null;
       _ta = ta;
-      _is_finished = false;
+      _is_finished = 0;
       //Setup the edge:
       _e = e;
+      _result = Result.None;
       try {
         e.CloseEvent += this.CloseHandler;
       }
@@ -155,9 +194,8 @@ namespace Brunet
         try {
           if( l is Linker ) {
             //We will allow it if we are done:
-            if( _is_finished ) {
+            if( IsFinished ) {
               allow = true;
-              _target_lock = null;
             }
           }
           else if ( false == (l is LinkProtocolState) ) {
@@ -168,12 +206,11 @@ namespace Brunet
            * 2) The lock matches the lock we hold
            * 3) The address we are locking is greater than our own address
            */
-            if( ( _lm_reply == null )
+            if( ( LinkMessageReply == null )
                 && a.Equals( _target_lock )
                 && contype == _contype 
                 && ( a.CompareTo( _node.Address ) > 0) )
             {
-                _target_lock = null; 
                 allow = true;
             }
           }
@@ -203,7 +240,7 @@ namespace Brunet
       Edge to_close = null;
       bool close_gracefully = false;
       lock( _sync ) {
-        if( _is_finished ) {
+        if( IsFinished ) {
           /*
            * We could call Finish and then the Edge could be closed.
            * So, we can't guarantee that Finish is not called twice,
@@ -211,14 +248,13 @@ namespace Brunet
            */
           return;
         }
-        _is_finished = true;
-        _result = res;
+        SetIsFinished();
+        MyResult = res;
         _e.CloseEvent -= this.CloseHandler;
         if( this.Connection == null ) {
           to_close = _e;
-          _e = null;
           //Close gracefully if we heard something from the other node
-          close_gracefully = (_lm_reply != null);
+          close_gracefully = (LinkMessageReply != null);
         }
       }
       /*
@@ -330,7 +366,17 @@ namespace Brunet
       }
       return result;
     }
-
+    /**
+     * set the _is_finished variable if it is not yet true.
+     * This method is atomic, and either succeeds or
+     * @throws a LinkException if this method is called more than once.
+     */
+    protected void SetIsFinished() {
+      int old_v = Interlocked.Exchange(ref _is_finished, 1);
+      if(old_v != 0) {
+        throw new LinkException("IsFinished already set to true");
+      }
+    }
     /**
      * Set the _target member variable and check for sanity
      * We only set the target if we can get a lock on the address
@@ -422,7 +468,7 @@ namespace Brunet
      */
     protected void SetAndCheckLinkReply(LinkMessage lm) {
       //At this point, we cannot be pre-empted.
-      _lm_reply = lm;
+      LinkMessageReply = lm;
       
       /* Check that the everything matches up 
        * Make sure the link message is Kosher.
@@ -463,7 +509,7 @@ namespace Brunet
         Channel resq = (Channel)q;
         lock( _sync ) {
           resq.CloseEvent -= this.LinkCloseHandler;
-          if( _is_finished ) { return; }
+          if( IsFinished ) { return; }
 
           if( resq.Count > 0 ) {
             RpcResult res = (RpcResult)resq.Dequeue();
@@ -537,11 +583,12 @@ namespace Brunet
         Channel resq = (Channel)q;
         resq.CloseEvent -= this.StatusCloseHandler;
         lock( _sync ) {
-          if( _is_finished ) { return; }
+          if( IsFinished ) { return; }
           if( resq.Count > 0 ) {
             RpcResult res = (RpcResult)resq.Dequeue();
             StatusMessage sm = new StatusMessage((IDictionary)res.Result);
-            _con = new Connection(_e, _lm_reply.Local.Address, _contype, sm, _lm_reply);
+            Connection = new Connection(_e, LinkMessageReply.Local.Address,
+                                        _contype, sm, LinkMessageReply);
             r = Result.Success;
           }
           else {
