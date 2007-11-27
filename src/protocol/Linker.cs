@@ -54,11 +54,6 @@ namespace Brunet
 ///
 ///////////////////////
 
-    /**
-     * Holds the next request id to be used
-     */
-    protected int _id;
-
     protected readonly string _contype;
     public string ConType { get { return _contype; } }
     protected Connection _con;
@@ -80,7 +75,7 @@ namespace Brunet
     }
 
     //This is the queue that has only the address we have not tried this attempt
-    protected Queue _ta_queue;
+    protected readonly Queue _ta_queue;
     protected readonly Node _local_n;
     public Node LocalNode { get { return _local_n; } }
 
@@ -93,7 +88,7 @@ namespace Brunet
     public Address Target { get { return _target; } }
     
     /** global lock for thread synchronization */
-    protected object _sync;
+    protected readonly object _sync;
     public object SyncRoot {
       get {
         return _sync;
@@ -108,11 +103,11 @@ namespace Brunet
     /**
      * Keeps track of the restart information for each TransportAddress
      */
-    protected Hashtable _ta_to_restart_state;
+    protected readonly Hashtable _ta_to_restart_state;
     
     //We don't try a TA twice, this makes sure we know
     //which we have tried, and which we haven't
-    protected Hashtable _completed_tas;
+    protected readonly Hashtable _completed_tas;
 
     /**
      * How many times have we been asked to transfer a lock
@@ -120,7 +115,7 @@ namespace Brunet
      */
     protected int _cph_transfer_requests;
 
-    protected Random _rand;
+    protected readonly Random _rand;
     //Link.Start should only be called once, this throws an exception if
     //called more than once
     protected bool _started; 
@@ -128,7 +123,7 @@ namespace Brunet
     /**
      * This is where we put all the tasks we are working on
      */
-    protected TaskQueue _task_queue;
+    protected readonly TaskQueue _task_queue;
 
     /**
      * When there are no active LinkProtocolState TaskWorker objects,
@@ -412,19 +407,10 @@ namespace Brunet
       lock(_sync) {
         _is_finished = false;
         _local_n = local;
-        //Hopefully at least one of these will be somewhat unpredictable
-        ///@todo think seriously about getting truely random ids
-        _id = GetHashCode() ^ local.Address.GetHashCode();
         _rand = new Random();
         _active_lps_count = 0;
         _task_queue = new TaskQueue();
         _task_queue.EmptyEvent += this.FinishCheckHandler;
-        /* We do not use negative ids, the spec says they
-         * are reserved for future use
-         */
-        if( _id < 0 ) {
-          _id = ~_id;
-        }
         _ta_queue = new Queue();
         if( target_list != null ) {
           int count = 0;
@@ -672,12 +658,10 @@ namespace Brunet
       bool close_edge = false;
       try {
         TaskWorker lps = new LinkProtocolState(this, ew.TA, ew.NewEdge);
-        //Keep a proper track of the active LinkProtocolStates:
-        lock( _sync ) {
-          SetTarget(_target);
-          _active_lps_count++;
-        }
         lps.FinishEvent +=  this.LinkProtocolStateFinishHandler;
+        SetTarget(_target);
+        //Keep a proper track of the active LinkProtocolStates:
+        System.Threading.Interlocked.Increment(ref _active_lps_count);
         _task_queue.Enqueue(lps);
       }
       catch(ConnectionExistsException) {
@@ -733,12 +717,12 @@ namespace Brunet
       lock( _sync ) {
         if( (!_is_finished) && (!_hold_fire) ) {
           _is_finished = true;
-          //Unlock:
-          Unlock();
           fire_finished = true;
         }
       }
       if( fire_finished ) {
+        //Unlock:
+        Unlock();
 #if LINK_DEBUG
         if (ProtocolLog.LinkDebug.Enabled) {
 	  ProtocolLog.Write(ProtocolLog.LinkDebug, 
@@ -783,15 +767,13 @@ namespace Brunet
          Console.Error.WriteLine("unrecognized result: " + lps.MyResult.ToString());
          break;
      }
-     lock( _sync ) {
-       _active_lps_count--;
-       if( _active_lps_count == 0 ) {
-         //We have finished handling this lps finishing,
-         //if we have not started another yet, we are not
-         //going to right away.  In the mean time, release
-         //the lock
-         Unlock();
-       }
+     int current_active = System.Threading.Interlocked.Decrement(ref _active_lps_count);
+     if( current_active == 0 ) {
+       //We have finished handling this lps finishing,
+       //if we have not started another yet, we are not
+       //going to right away.  In the mean time, release
+       //the lock
+       Unlock();
      }
    }
     /**
