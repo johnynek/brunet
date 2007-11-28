@@ -137,7 +137,7 @@ public class AHSender : ISender {
      * Now we announce this packet, the AHHandler will
      * handle routing it for us
      */
-    _n.Announce(mb_packet, _from);
+    _n.HandleData(mb_packet, _from, this);
   }
 
   public override string ToString() {
@@ -214,7 +214,7 @@ public class AHHandler : IDataHandler {
                                        AHPacket.AHOptions.Exact);
       //There are 2 (hops) + 2 (ttl) + 20 (s) + 20 (d) + 2 (opts) = 46 bytes to the payload encapsulated
       //data:
-      _n.Announce( data.Slice(46), resp_send ); 
+      _n.HandleData( data.Slice(46), resp_send, this); 
     }
 
   }
