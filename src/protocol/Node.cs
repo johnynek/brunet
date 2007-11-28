@@ -654,7 +654,7 @@ namespace Brunet
      * One needs to be careful to prevent an infinite loop of
      * a Handler announcing the packet it is supposed to handle.
      */
-    public virtual void Announce(MemBlock b, ISender from)
+    protected virtual void Announce(MemBlock b, ISender from)
     {
       //When Subscribe or unsubscribe are called,
       //they make copies of the ArrayList, thus we

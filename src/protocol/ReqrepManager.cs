@@ -400,7 +400,7 @@ public class ReqrepManager : IDataHandler {
      else {
        //This is a new request:
        try {
-         _node.Announce(rest, rs);
+         _node.HandleData(rest, rs, this);
        }
        catch {
          lock( _sync ) {
