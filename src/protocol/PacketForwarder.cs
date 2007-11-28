@@ -90,7 +90,7 @@ namespace Brunet
           MemBlock rest_of_payload = b.Slice(1 + Address.MemSize);
           //Here's the return path:
           ISender new_ret_path = new ForwardingSender(_n, add_b, add_a);
-          _n.Announce(rest_of_payload, new_ret_path);
+          _n.HandleData(rest_of_payload, new_ret_path, this);
         }
       }
       else {
