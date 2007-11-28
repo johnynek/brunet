@@ -271,7 +271,7 @@ namespace Brunet
      * never surpassed 105.
      */
     public static readonly int MAX_AVG_QUEUE_LENGTH = 150;
-    public static readonly float PACKET_QUEUE_RETAIN = 0.97f;
+    public static readonly float PACKET_QUEUE_RETAIN = 0.99f;
     public bool DisconnectOnOverload {
       get { return _disconnect_on_overload; }
       set { _disconnect_on_overload = value; }
@@ -625,8 +625,22 @@ namespace Brunet
     protected void AnnounceThread() {
       try {
         while( _running ) {
-          AnnounceState a_state = (AnnounceState)_packet_queue.Dequeue();
+          AnnounceState a_state = null;
+
+          // Only peek if we're logging the monitoring of _packet_queue
+          if(ProtocolLog.Monitor.Enabled) {
+            a_state = (AnnounceState)_packet_queue.Peek();
+          }
+          else {
+            a_state = (AnnounceState)_packet_queue.Dequeue();
+          }
+
           Announce(a_state.Data, a_state.From);
+
+          // If we peeked, we need to now remove it
+          if(ProtocolLog.Monitor.Enabled) {
+            _packet_queue.Dequeue();
+          }
         }
       }
       catch(System.InvalidOperationException x) {
@@ -880,10 +894,19 @@ namespace Brunet
       _packet_queue.Enqueue(astate);
       _packet_queue_exp_avg = (PACKET_QUEUE_RETAIN * _packet_queue_exp_avg)
           + ((1 - PACKET_QUEUE_RETAIN) * _packet_queue.Count);
+
       if(_packet_queue_exp_avg > MAX_AVG_QUEUE_LENGTH) {
-        ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
-          "Packet Queue Average too high: {0} at {1}",
-          _packet_queue_exp_avg, DateTime.UtcNow));
+        if(ProtocolLog.Monitor.Enabled) {
+          String top_string = String.Empty;
+          try {
+            MemBlock top = ((AnnounceState) _packet_queue.Peek()).Data;
+            top_string = top.GetString(System.Text.Encoding.ASCII);
+          }
+          catch {}
+          ProtocolLog.Write(ProtocolLog.Monitor, String.Format(
+            "Packet Queue Average too high: {0} at {1}.  Actual length:  {2}\n\tTop most packet: {3}",
+            _packet_queue_exp_avg, DateTime.UtcNow, _packet_queue.Count, top_string));
+        }
         if(_disconnect_on_overload) {
           Disconnect();
         }
