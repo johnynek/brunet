@@ -1049,7 +1049,7 @@ namespace Brunet
      * as the return path
      */
     public void Send(ICopyable data) {
-      this.Announce(MemBlock.Copy(data), this);
+      this.HandleData(MemBlock.Copy(data), this, null);
     }
   }
 }
