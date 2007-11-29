@@ -1202,7 +1202,62 @@ namespace Brunet
   public class ConnectionTableTest
   {
     public ConnectionTableTest() { }
+    public class TestLinkLocker : ILinkLocker {
+      protected readonly bool _allow;
+      public Address TargetLock;
+      public TestLinkLocker(bool allow) { _allow = allow; }
+      public bool AllowLockTransfer(Address a, string t, ILinkLocker l) {
+        if( _allow ) { TargetLock = null; }
+        return _allow;
+      }
+    }
 
+    [Test]
+    public void LockTest() {
+      byte[]  abuf = new byte[20];
+      Address a = new AHAddress(abuf);
+
+      ConnectionTable tab = new ConnectionTable();
+      TestLinkLocker lt = new TestLinkLocker(true);
+      TestLinkLocker lf = new TestLinkLocker(false);
+
+      //Get a lock on a.
+      tab.Lock(a, "structured.near", lt, ref lt.TargetLock);
+      Assert.AreEqual(a, lt.TargetLock, "lt has lock");
+      tab.Unlock(ref lt.TargetLock, "structured.near", lt);
+      Assert.IsNull(lt.TargetLock, "Unlock nulling test");
+      //Unlock null should be fine:
+      tab.Unlock(ref lt.TargetLock, "structured.near", lt); 
+      Assert.IsNull(lt.TargetLock, "Unlock nulling test");
+      //We can't unlock if we don't have the lock:
+      lt.TargetLock = a;
+
+      try {
+        tab.Unlock(ref lt.TargetLock, "structured.near", lt);
+        Assert.IsFalse(true, "We were able to unlock an address incorrectly");
+      } catch { }
+      //Get a lock and transfer:
+      tab.Lock(a, "structured.near", lt, ref lt.TargetLock);
+      Assert.AreEqual(a, lt.TargetLock, "lt has lock");
+      tab.Lock(a, "structured.near", lf, ref lf.TargetLock);
+      Assert.IsTrue(lf.TargetLock == a, "Lock was transferred to lf");
+      //lt.TargetLock should be null;
+      Assert.IsNull(lt.TargetLock, "lock was transfered and we are null");
+      
+      //Now, lt should not be able to get the lock:
+      try {
+        tab.Lock(a, "structured.near", lt, ref lt.TargetLock);
+        Assert.IsFalse(true, "We somehow got the lock");
+      }
+      catch { }
+      Assert.IsNull(lt.TargetLock, "lt shouldn't hold the lock");
+      Assert.AreEqual(lf.TargetLock, a, "lf still holds the lock");
+      //Now let's unlock:
+      tab.Unlock(ref lf.TargetLock, "structured.near", lf);
+      //lf.TargetLock should be null;
+      Assert.IsNull(lf.TargetLock, "lock was transfered and we are null");
+
+    }
     [Test]
     public void LoopTest() {
       //Make some fake edges: 
