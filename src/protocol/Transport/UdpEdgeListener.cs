@@ -176,7 +176,14 @@ namespace Brunet
       bool stop = false;
       int port = _port;
       foreach(TransportAddress ta in tas) {
-        ArrayList ips = ((IPTransportAddress) ta).GetIPAddresses();
+        ArrayList ips = new ArrayList();
+	try {
+	  IPAddress a = ((IPTransportAddress) ta).GetIPAddress();
+	  ips.Add(a);
+	} catch (Exception x) {
+          ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+            "{0}", x));
+	}
         port = ((IPTransportAddress) ta).Port;
         foreach(IPAddress ip in ips) {
           byte[] addr = ip.GetAddressBytes();
@@ -433,12 +440,7 @@ namespace Brunet
       }
       else {
         Edge e = null;
-        ArrayList ip_addresses = ((IPTransportAddress) ta).GetIPAddresses();
-	if (ip_addresses == null || ip_addresses.Count <= 0) {
-	  throw new Exception(ta.ToString() + " did not lead to any IP addresses.");
-	}
-        IPAddress first_ip = (IPAddress)ip_addresses[0];
-  
+        IPAddress first_ip = ((IPTransportAddress) ta).GetIPAddress();
         IPEndPoint end = new IPEndPoint(first_ip, ((IPTransportAddress) ta).Port);
         /* We have to keep our mapping of end point to edges up to date */
         lock( _id_ht ) {
