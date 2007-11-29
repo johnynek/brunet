@@ -172,10 +172,16 @@ public class NatHistory : CacheLinkedList<NatDataPoint> {
   public IEnumerable PeerViewIPs() {
     Filter f = delegate(NatDataPoint p) {
       TransportAddress ta = p.PeerViewOfLocalTA;
+      IPAddress a = null;
       if( ta != null ) {
-        return ((IPTransportAddress) ta).GetIPAddresses()[0];
+	try {
+	  a = ((IPTransportAddress) ta).GetIPAddress();
+	} catch (Exception x) {
+          ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+            "{0}", x));
+	} 
       }
-      return null;
+      return a;
     };
     IEnumerable e = new FilteredNDP( this, f );
     /*
@@ -216,9 +222,14 @@ public class NatHistory : CacheLinkedList<NatDataPoint> {
     Filter f = delegate(NatDataPoint p) {
       TransportAddress ta = p.PeerViewOfLocalTA;
       if( ta != null ) {
-        if( a.Equals( ((IPTransportAddress)ta).GetIPAddresses()[0] ) ) {
-          return p;
-        }
+	try {
+	  if( a.Equals( ((IPTransportAddress)ta).GetIPAddress()) ) {
+	    return p;
+	  }
+	} catch (Exception x) {
+          ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+            "{0}", x));	  
+	}
       }
       return null;
     };
@@ -643,10 +654,16 @@ public class NatTAs : IEnumerable {
   protected void InitRemoteIPs() {
     NatHistory.Filter f = delegate(NatDataPoint p) {
       TransportAddress ta = p.PeerViewOfLocalTA;
+      IPAddress a = null;
       if( ta != null ) {
-        return ((IPTransportAddress)ta).GetIPAddresses()[0];
+	try {
+	  a = ((IPTransportAddress)ta).GetIPAddress();
+	} catch (Exception x) {
+          ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+            "{0}", x));
+	}
       }
-      return null;
+      return a;
     };
     IEnumerable all_ips = _hist.FilteredEnumerator(f);
     Hashtable ht = new Hashtable();

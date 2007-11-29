@@ -186,8 +186,10 @@ namespace Brunet
       }
       else {
         //Everything looks good:
+	ArrayList tmp_ips = new ArrayList();
+	tmp_ips.Add(((IPTransportAddress)ta).GetIPAddress());
         CreationState cs = new CreationState(ecb,
-                                           new Queue( ((IPTransportAddress)ta).GetIPAddresses() ),
+                                           new Queue( tmp_ips ),
                                            ((IPTransportAddress) ta).Port);
         TryNextIP( cs );
       }
