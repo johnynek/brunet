@@ -32,6 +32,11 @@ namespace Ipop {
       // Keep creating new nodes no matter what!
       while(true) {
         try {
+          if(config.NodeAddress == null) {
+              String address = (IPOP_Common.GenerateAHAddress()).ToString();
+              //remember addresss for future incarnations.
+              config.NodeAddress = address.ToString();
+          }
           StructuredNode node = Brunet_Common.CreateStructuredNode(config);
           Dht dht = Brunet_Common.RegisterDht(node);
           Brunet_Common.StartServices(node, dht, config);
@@ -49,6 +54,7 @@ namespace Ipop {
         finally {
           // Assist in garbage collection
           DateTime now = DateTime.UtcNow;
+          Console.Error.WriteLine("Going to sleep for {0} seconds. Current time is: {1}", sleep, now);
           Thread.Sleep(sleep * 1000);
           if(now - runtime < TimeSpan.FromSeconds(sleep_max)) {
             sleep *= 2;

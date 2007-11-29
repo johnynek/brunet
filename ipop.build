@@ -17,7 +17,6 @@
       <include name="*.dll" />
     </fileset>
   </copy>
-  <nant buildfile="src/dhcp/default.build" />
   <nant buildfile="src/c-lib/default.build" />
   <nant buildfile="src/Dht/default.build" />
   <nant buildfile="src/IPRouter/default.build" />
