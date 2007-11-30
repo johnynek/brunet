@@ -753,7 +753,7 @@ namespace Brunet
     {
       ConnectionType mt = Connection.StringToMainType(t);
       lock( _sync ) {
-        if( a == null ) { return; }
+        if( null == a ) { return; }
         if( lockedvar != null && (false == a.Equals(lockedvar)) ) {
           //We only overwrite the lockedvar if it is null:
           throw new CTLockException(
@@ -775,10 +775,11 @@ namespace Brunet
         if( null == old_locker ) {
           locks[a] = locker;
           lockedvar = a;
-          if(ProtocolLog.ConnectionTableLocks.Enabled)
+          if(ProtocolLog.ConnectionTableLocks.Enabled) {
             ProtocolLog.Write(ProtocolLog.ConnectionTableLocks,
-              String.Format("{0}, locker: {1} Locking: {2}", _local, locker, a));
-          return;
+              String.Format("{0}, locker: {1} Locking: {2}",
+                            _local, locker, a));
+          }
         }
         else if (old_locker == locker) {
           //This guy already holds the lock
@@ -790,10 +791,11 @@ namespace Brunet
           lockedvar = a;
         }
         else {
-          if(ProtocolLog.ConnectionTableLocks.Enabled)
+          if(ProtocolLog.ConnectionTableLocks.Enabled) {
             ProtocolLog.Write(ProtocolLog.ConnectionTableLocks,
               String.Format("{0}, {1} tried to lock {2}, but {3} holds the lock",
               _local, locker, a, locks[a]));
+          }
           throw new CTLockException(
                       String.Format(
                         "Lock on {0} cannot be transferred from {1} to {2}",
@@ -983,24 +985,26 @@ namespace Brunet
         if( a != null ) {
           ConnectionType mt = Connection.StringToMainType(t);
           Hashtable locks = (Hashtable)_address_locks[mt];
-          if(ProtocolLog.ConnectionTableLocks.Enabled)
+          if(ProtocolLog.ConnectionTableLocks.Enabled) {
             ProtocolLog.Write(ProtocolLog.ConnectionTableLocks,
               String.Format("{0} Unlocking {1}", _local, a));
-
-          if(!locks.ContainsKey(a)) {
-            string err = String.Format("On node " + _local + ", " + locker +
-              " tried to unlock " + a + " but no such lock" );
-            if(ProtocolLog.ConnectionTableLocks.Enabled)
-              ProtocolLog.Write(ProtocolLog.ConnectionTableLocks, err);
-            throw new Exception(err);
           }
 
           object real_locker = locks[a];
-          if(real_locker != locker) {
+          if(null == real_locker) {
+            string err = String.Format("On node " + _local + ", " + locker +
+              " tried to unlock " + a + " but no such lock" );
+            if(ProtocolLog.ConnectionTableLocks.Enabled) {
+              ProtocolLog.Write(ProtocolLog.ConnectionTableLocks, err);
+            }
+            throw new Exception(err);
+          }
+          else if(real_locker != locker) {
             string err = String.Format("On node " + _local + ", " + locker +
                 " tried to unlock " + a + " but not the owner");
-            if(ProtocolLog.ConnectionTableLocks.Enabled)
+            if(ProtocolLog.ConnectionTableLocks.Enabled) {
               ProtocolLog.Write(ProtocolLog.ConnectionTableLocks, err);
+            }
             throw new Exception(err);
           }
 

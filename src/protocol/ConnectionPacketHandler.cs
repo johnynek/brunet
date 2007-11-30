@@ -231,8 +231,6 @@ namespace Brunet
         ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
           "{0} -args- sys:link.Start({1},{2})", _node.Address,lm,from));
 
-      ErrorMessage err = null;
-      ConnectionTable tab = _node.ConnectionTable;
       CphState cph = new CphState(from,lm);
       lock( _sync ) {
         if( !_edge_to_cphstate.ContainsKey( from ) ) {
@@ -243,6 +241,7 @@ namespace Brunet
                                  "Already have a link in progress on this edge");
         }
       }
+      ErrorMessage err = null;
       if( CanConnect(cph, out err) ) {
         try {
           //If the CloseEvent was already called, this throws an exception
@@ -282,6 +281,7 @@ namespace Brunet
            * @todo consider putting this address on a "fast track"
            * to removal if we don't hear from it soon
            */
+          ConnectionTable tab = _node.ConnectionTable;
           Connection c = tab.GetConnection( lm.ConnectionType,
                                              lm.Local.Address );
           if( c != null ) {
@@ -315,26 +315,15 @@ namespace Brunet
      */
     public IDictionary GetStatus(IDictionary status_message, ISender edge) {
       //we just got s status request
-      LinkMessage lm_to_add = null;
+      if( _disconnecting ) {
+        throw new AdrException((int)ErrorMessage.ErrorCode.Disconnecting, "disconnecting");
+      }
       StatusMessage sm = new StatusMessage(status_message);
       Edge from = GetEdge(edge);
       if(ProtocolLog.LinkDebug.Enabled)
         ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
           "{0} -start- sys:link.GetStatus({1},{2})", _node.Address,sm,from));
-      CphState cphstate = null;
-      lock( _sync ) {
-        if( _edge_to_cphstate.ContainsKey( from ) ) {
-          //Add the connection:
-          cphstate = (CphState)_edge_to_cphstate[from];
-          lm_to_add = cphstate.LM;
-          //We can forget about this LinkMessage now:
-          _edge_to_cphstate.Remove(from);
-          from.CloseEvent -= this.CloseHandler;
-        }
-      }
-      if( _disconnecting ) {
-        throw new AdrException((int)ErrorMessage.ErrorCode.Disconnecting, "disconnecting");
-      }
+      CphState cphstate = (CphState)_edge_to_cphstate[from];
      /**
       * StatusMessage objects are used to verify the completion
       * of the Link protocol.  If we receive a StatusMessage request
@@ -344,9 +333,27 @@ namespace Brunet
       */
       StatusMessage response = null;
       ConnectionTable tab = _node.ConnectionTable;
-      if (lm_to_add != null) {
-        //This is part of connection process:
-        response = _node.GetStatus( sm.NeighborType, lm_to_add.Local.Address );
+      if (cphstate != null) {
+        try {
+          LinkMessage lm_to_add = cphstate.LM;
+          //This is part of connection process:
+          response = _node.GetStatus( sm.NeighborType, lm_to_add.Local.Address );
+          Connection con = new Connection(from,
+                                        lm_to_add.Local.Address,
+                                        lm_to_add.ConTypeString,
+                                        sm,
+                                        lm_to_add);
+          tab.Add(con);
+        }
+        finally {
+          //Unlock after we add the connection
+          tab.Unlock(ref cphstate.TargetLock, cphstate.LM.ConTypeString, this);
+          lock( _sync ) {
+            //We can forget about this LinkMessage now:
+            _edge_to_cphstate.Remove(from);
+            from.CloseEvent -= this.CloseHandler;
+          }
+        }
       } else {
         //This is just a "regular" status request
         //update our table:
@@ -358,20 +365,7 @@ namespace Brunet
         }  
         response = _node.GetStatus( sm.NeighborType, fadd );
       }
-      if( lm_to_add != null ) {
-        Connection con = new Connection(from,
-                                        lm_to_add.Local.Address,
-                                        lm_to_add.ConTypeString,
-                                        sm,
-                                        lm_to_add);
-        try {
-          tab.Add(con);
-        }
-        finally {
-          //Unlock after we add the connection
-          tab.Unlock(ref cphstate.TargetLock, lm_to_add.ConTypeString, this);
-        }
-      }
+      
       if(ProtocolLog.LinkDebug.Enabled)
         ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
           "{0} -end- sys:link.GetStatus()->{1}", _node.Address,response));
