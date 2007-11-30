@@ -29,35 +29,20 @@ namespace Brunet
 {
   public class BrunetRpc: IDataHandler 
   {
-    protected readonly ReqrepManager _rrm;
-    public readonly RpcManager Rpc;
-    public readonly IPHandler IPHandler;
-    protected readonly Thread _timer;
-    protected int _running;
+    protected ReqrepManager _rrm;
+    protected RpcManager _rpc;
+    public RpcManager Rpc { get { return _rpc; } }
+    protected IPHandler _iphandler;
+    public IPHandler IPHandler { get { return _iphandler; } }
+    protected Timer _timer;
 
     public BrunetRpc() {
       _rrm = new ReqrepManager("BrunetRpc");
       _rrm.Subscribe(this, null);
-      Rpc = new RpcManager(_rrm);
-      IPHandler = new IPHandler();
-      IPHandler.Subscribe(this, null);
-      _running = 1;
-      _timer = new Thread(TimerThread);
-      _timer.IsBackground = true;
-      _timer.Start();
-    }
-
-    private void TimerThread() {
-      while(1 == _running) {
-        _rrm.TimeoutChecker(null, null);
-        Thread.Sleep(1000);
-      }
-    }
-
-    public void Close() {
-      Interlocked.Exchange(ref _running, 0);
-      _timer.Join();
-      IPHandler.Stop();
+      _rpc = new RpcManager(_rrm);
+      _iphandler = new IPHandler();
+      _iphandler.Subscribe(this, null);
+      _timer = new Timer(_rrm.TimeoutChecker, null, 1000, 1000);
     }
 
     public void HandleData(MemBlock b, ISender from, object state) {
@@ -69,12 +54,12 @@ namespace Brunet
           _rrm.HandleData(payload, from, state);
         }
         else if(t.Equals(PType.Protocol.Rpc)) {
-          Rpc.HandleData(payload, from, state);
+          _rpc.HandleData(payload, from, state);
         }
       }
       catch(Exception x) {
         Console.Error.WriteLine("Packet Handling Exception: {3}\n\tType: {0}\n\t\n\tFrom: {1}\n\tData: {2}",
-          t, from, payload.GetString(System.Text.Encoding.ASCII), x);
+          t, payload.GetString(System.Text.Encoding.ASCII), x);
       }
     }
   }

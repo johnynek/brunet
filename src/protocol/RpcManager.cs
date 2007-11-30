@@ -95,10 +95,9 @@ public class RpcManager : IReplyHandler, IDataHandler {
     public Channel Results;
     public ISender RpcTarget;
   }
- 
+
   protected object _sync;
   protected ReqrepManager _rrman;
-  public readonly Node Node;
   ///Holds a cache of method string names to MethodInfo
   protected readonly Cache _method_cache;
   protected const int CACHE_SIZE = 128;
@@ -160,24 +159,24 @@ public class RpcManager : IReplyHandler, IDataHandler {
       Object result = null;
       try {
   #if RPC_DEBUG
-        Console.Error.WriteLine("[RpcServer: {0}] Invoking method: {1}", _rpc.Node.Address, mi);
+        Console.Error.WriteLine("[RpcServer: {0}] Invoking method: {1}", _rrman.Info, mi);
   #endif
         result = mi.Invoke(_handler, arg_array);
       } catch(ArgumentException argx) {
   #if RPC_DEBUG
-        Console.Error.WriteLine("[RpcServer: {0}] Argument exception. {1}", _rpc.Node.Address, mi);
+        Console.Error.WriteLine("[RpcServer: {0}] Argument exception. {1}", _rrman.Info, mi);
   #endif
         result = new AdrException(-32602, argx);
       }
       catch(TargetParameterCountException argx) {
   #if RPC_DEBUG
-        Console.Error.WriteLine("[RpcServer: {0}] Parameter count exception. {1}", _rpc.Node.Address, mi);
+        Console.Error.WriteLine("[RpcServer: {0}] Parameter count exception. {1}", _rrman.Info, mi);
   #endif
         result = new AdrException(-32602, argx);
       }
       catch(TargetInvocationException x) {
   #if RPC_DEBUG
-        Console.Error.WriteLine("[RpcServer: {0}] Exception thrown by method: {1}, {2}", _rpc.Node.Address, mi, x.InnerException.Message);
+        Console.Error.WriteLine("[RpcServer: {0}] Exception thrown by method: {1}, {2}", _rrman.Info, mi, x.InnerException.Message);
   #endif
         if( x.InnerException is AdrException ) {
           result = x.InnerException;
@@ -188,7 +187,7 @@ public class RpcManager : IReplyHandler, IDataHandler {
       }
       catch(Exception x) {
   #if RPC_DEBUG
-        Console.Error.WriteLine("[RpcServer: {0}] General exception. {1}", _rrman.Node.Address, mi);
+        Console.Error.WriteLine("[RpcServer: {0}] General exception. {1}", _rrman.Info, mi);
   #endif
         result = x;
       }
@@ -198,10 +197,8 @@ public class RpcManager : IReplyHandler, IDataHandler {
     }
   }
 
-  protected RpcManager(ReqrepManager rrm) {
-
+  public RpcManager(ReqrepManager rrm) {
     _sync = new Object();
-    Node = rrm.Node;
     _rrman = rrm;
     _method_cache = new Cache(CACHE_SIZE);
     _method_handlers = new Hashtable();
@@ -213,9 +210,11 @@ public class RpcManager : IReplyHandler, IDataHandler {
     _rpc_thread.Start();
 #endif
   }
+
   /** static hashtable to keep track of RpcManager objects. */
   protected static Hashtable _rpc_table = new Hashtable();
-  /** 
+
+  /**
    * Static method to create RpcManager objects
    * @param node The node we work for
    */
@@ -224,13 +223,14 @@ public class RpcManager : IReplyHandler, IDataHandler {
     lock(_rpc_table) {
       //check if there is already an instance object for this node
       if (_rpc_table.ContainsKey(node)) {
-	return (RpcManager) _rpc_table[node];
+        return (RpcManager) _rpc_table[node];
       }
       //in case no instance exists, create one
-      rpc = new RpcManager(ReqrepManager.GetInstance(node)); 
+      rpc = new RpcManager(ReqrepManager.GetInstance(node));
       _rpc_table[node] = rpc;
     }
-    node.GetTypeSource( PType.Protocol.Rpc ).Subscribe(rpc, node);
+
+    node.GetTypeSource( PType.Protocol.Rpc ).Subscribe(rpc, null);
     node.StateChangeEvent += delegate(Node n, Node.ConnectionState s) {
       if( s == Node.ConnectionState.Disconnected ) {
         lock( _rpc_table ) {
@@ -334,7 +334,7 @@ public class RpcManager : IReplyHandler, IDataHandler {
     Exception exception = null; 
 #if RPC_DEBUG
     Console.Error.WriteLine("[RpcServer: {0}] Getting method invocation request at: {1}.",
-                     _rrman.Node.Address, DateTime.Now);
+                     _rrman.Info, DateTime.Now);
 #endif
     try {
       object data = AdrConverter.Deserialize(payload);
@@ -348,7 +348,7 @@ public class RpcManager : IReplyHandler, IDataHandler {
       string methname = (string)l[0];
 #if RPC_DEBUG
       Console.Error.WriteLine("[RpcServer: {0}] Getting invocation request,  method: {1}",
-                     _rrman.Node.Address, methname);
+                     _rrman.Info, methname);
 #endif
       
       /*
@@ -406,7 +406,7 @@ public class RpcManager : IReplyHandler, IDataHandler {
       //something failed even before invocation began
 #if RPC_DEBUG
       Console.Error.WriteLine("[RpcServer: {0}] Something failed even before invocation began: {1}",
-                     _rrman.Node.Address, exception);
+                     _rrman.Info, exception);
 #endif
       using( MemoryStream ms = new MemoryStream() ) { 
         AdrConverter.Serialize(exception, ms);
@@ -491,7 +491,7 @@ public class RpcManager : IReplyHandler, IDataHandler {
     AdrCopyable req_copy = new AdrCopyable(rpc_call);
 #if RPC_DEBUG
     Console.Error.WriteLine("[RpcClient: {0}] Invoking method: {1} on target: {2}",
-                     _rrman.Node.Address, method, target);
+                     _rrman.Info, method, target);
 #endif
     ICopyable rrpayload = new CopyList( PType.Protocol.Rpc, req_copy ); 
     int reqid = _rrman.SendRequest(target, ReqrepManager.ReqrepType.Request,
@@ -514,7 +514,7 @@ public class RpcManager : IReplyHandler, IDataHandler {
       }
     }
   }
-  
+
 #if DAVID_ASYNC_INVOKE
   protected void RpcCommandRun() {
     while(true) {

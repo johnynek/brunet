@@ -98,7 +98,7 @@ namespace Brunet.Dht {
 
       for(int i = 0; i < DEGREE; i++) {
         Address target = new AHAddress(b[i]);
-        AHSender s = new AHSender(_rpc.Node, target);
+        AHSender s = new AHSender(node , target);
         q[i] = new BlockingQueue();
         _rpc.Invoke(s, q[i], "dht.Put", b[i], data, ttl, unique);
       }
@@ -115,7 +115,7 @@ namespace Brunet.Dht {
 
       for(int i = 0; i < DEGREE; i++) {
         Address target = new AHAddress(b[i]);
-        AHSender s = new AHSender(_rpc.Node, target);
+        AHSender s = new AHSender(node, target);
         q[i] = new BlockingQueue();
         _rpc.Invoke(s, q[i], "dht.Get", b[i], maxbytes, token);
       }
@@ -218,7 +218,7 @@ namespace Brunet.Dht {
       adgs.brunet_address_for_key = MapToRing(key);
       for (int k = 0; k < DEGREE; k++) {
         Address target = new AHAddress(adgs.brunet_address_for_key[k]);
-        AHSender s = new AHSender(_rpc.Node, target, AHPacket.AHOptions.Greedy);
+        AHSender s = new AHSender(node, target, AHPacket.AHOptions.Greedy);
         _rpc.Invoke(s, q[k], "dht.Get", adgs.brunet_address_for_key[k], MAX_BYTES, null);
       }
     }
@@ -399,7 +399,7 @@ Console.Error.WriteLine("DHT_DEBUG:::Doing follow up put count:total = {0}:{1}",
             MemBlock key = adgs.brunet_address_for_key[i];
             Channel queue = new Channel();
             Address target = new AHAddress(key);
-            AHSender s = new AHSender(_rpc.Node, target, AHPacket.AHOptions.Greedy);
+            AHSender s = new AHSender(node, target, AHPacket.AHOptions.Greedy);
             try {
              _rpc.Invoke(s, queue, "dht.Put", key, value, ttl, false);
             }
@@ -488,7 +488,7 @@ Console.Error.WriteLine("DHT_DEBUG:::Doing follow up put count:total = {0}:{1}",
 
       for (int k = 0; k < DEGREE; k++) {
         Address target = new AHAddress(brunet_address_for_key[k]);
-        AHSender s = new AHSender(_rpc.Node, target, AHPacket.AHOptions.Greedy);
+        AHSender s = new AHSender(node, target, AHPacket.AHOptions.Greedy);
         _rpc.Invoke(s, q[k], "dht.Put", brunet_address_for_key[k], value, ttl, unique);
       }
     }
