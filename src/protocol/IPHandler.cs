@@ -156,6 +156,24 @@ namespace Brunet
     public ISender CreateMulticastSender() {
       return new MulticastSender(_uc);
     }
+
+    /**
+     * IPAddress.Address is obsolete, we use our own method to convert to an
+     * int in case the method is removed
+     * @param addr the address to convert to an integer
+     */
+    public static int IPAddressToInt(IPAddress addr) {
+      byte[] addr_bytes = addr.GetAddressBytes();
+      return ((addr_bytes[3] << 24) + (addr_bytes[2] << 16) +
+          (addr_bytes[1] << 8) + (addr_bytes[0]));
+    }
+
+    /**
+     * Returns an array of all the IPAddresses of the local machine
+     */
+    public static IPAddress[] GetLocalIPAddresses() {
+      return Dns.GetHostAddresses(Dns.GetHostName());
+    }
   }
 
   public class UnicastSender: ISender
@@ -182,7 +200,7 @@ namespace Brunet
       _s = s;
       _ep = ep;
     }
-    
+
     /**
      * ISender objects need to have semantically meaningful Equals
      */
@@ -198,7 +216,7 @@ namespace Brunet
         return (_s.Equals( other._s ) && _ep.Equals( other._ep ));
       }
     }
-    
+
     public override int GetHashCode() {
       return _ep.GetHashCode();
     }
@@ -207,5 +225,25 @@ namespace Brunet
   public class MulticastSender: UnicastSender
   {
     public MulticastSender(Socket s):base(s, IPHandler.mc_endpoint){}
+
+    public override void Send(ICopyable data) {
+      IPAddress[] ips = IPHandler.GetLocalIPAddresses();
+      // Silly users can trigger a handful of exceptions here...
+      try {
+        byte[] buffer = new byte[data.Length];
+        int length = data.CopyTo(buffer, 0);
+        // I REALLY HATE THIS but we can't be setting this option in more than one thread!
+        lock(_s) {
+          foreach(IPAddress ip in ips) {
+            _s.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface,
+                              IPHandler.IPAddressToInt(ip));
+              _s.SendTo(buffer, 0, length, 0, _ep);
+          }
+        }
+      }
+      catch (Exception e) {
+        ProtocolLog.WriteIf(ProtocolLog.Exceptions, "ERROR: " + e);
+      }
+    }
   }
 }
