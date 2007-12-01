@@ -346,13 +346,8 @@ namespace Brunet
           tab.Add(con);
         }
         finally {
-          //Unlock after we add the connection
-          tab.Unlock(ref cphstate.TargetLock, cphstate.LM.ConTypeString, this);
-          lock( _sync ) {
-            //We can forget about this LinkMessage now:
-            _edge_to_cphstate.Remove(from);
-            from.CloseEvent -= this.CloseHandler;
-          }
+          from.CloseEvent -= this.CloseHandler;
+          CloseHandler(from, null);
         }
       } else {
         //This is just a "regular" status request
