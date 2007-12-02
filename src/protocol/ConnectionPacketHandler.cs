@@ -42,7 +42,7 @@ namespace Brunet
    * @see Linker
    */
 
-  public class ConnectionPacketHandler : ILinkLocker
+  public class ConnectionPacketHandler
   {
 
     /*private static readonly log4net.ILog log =
@@ -57,13 +57,22 @@ namespace Brunet
 
     protected readonly Node _node;
 
-    protected class CphState {
+    public class CphState : ILinkLocker {
       public readonly Edge Edge;
       public readonly LinkMessage LM;
-      public Address TargetLock;
+      protected Address _target_lock;
+      public Object TargetLock {
+        get { return _target_lock; }
+        set { _target_lock = (Address) value; }
+      }
+
       public CphState(Edge e, LinkMessage lm) {
         Edge = e;
         LM = lm;
+      }
+
+      public bool AllowLockTransfer(Address a, string contype, ILinkLocker new_locker) {
+        return false;
       }
     }
 
@@ -93,16 +102,6 @@ namespace Brunet
       };
     }
 
-    /**
-     * Implement the ILockLinker interface.  These objects never
-     * transfer locks since if they hold them, they must have received
-     * a packet.  This means their locks are held only when connectivity
-     * is guaranteed (unlike Linkers).
-     */
-    public bool AllowLockTransfer(Address a, string contype, ILinkLocker holder)
-    {
-      return false;
-    }
     /**
      * Handle the notification that the other side is going to close the edge
      */
@@ -448,8 +447,7 @@ namespace Brunet
               "ConnectionPacketHandler - Trying to lock connection table: {0},{1}",
                                   lm.Local.Address, lm.ConTypeString));
 
-          tab.Lock( lm.Local.Address, lm.ConTypeString, this,
-                    ref cph.TargetLock );
+          tab.Lock( lm.Local.Address, lm.ConTypeString, cph );
           if(ProtocolLog.LinkDebug.Enabled)
             ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
               "ConnectionPacketHandler - Successfully locked connection table: {0},{1}",
@@ -490,7 +488,7 @@ namespace Brunet
       }
       if( cphstate != null ) {
         ConnectionTable tab = _node.ConnectionTable;
-        tab.Unlock( ref cphstate.TargetLock, cphstate.LM.ConTypeString, this );
+        tab.Unlock( cphstate.LM.ConTypeString, cphstate );
       }
     }
   }

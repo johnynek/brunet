@@ -41,7 +41,7 @@ namespace Brunet
    * 
    */
 
-  public class Linker : TaskWorker, ILinkLocker 
+  public class Linker : TaskWorker, ILinkLocker
   {
 
     /*private static readonly log4net.ILog log =
@@ -79,7 +79,13 @@ namespace Brunet
     protected readonly Node _local_n;
     public Node LocalNode { get { return _local_n; } }
 
+    public Object TargetLock {
+      get { return _target_lock; }
+      set { _target_lock = (Address) value; }
+    }
+
     protected Address _target_lock;
+
     protected readonly Address _target;
     /** If we know the address of the node we are trying
      * to make an outgoing connection to, we lock it, and
@@ -540,7 +546,7 @@ namespace Brunet
             //Never transfer to another linker:
             allow = false;
           }
-          else if ( l is ConnectionPacketHandler ) {
+          else if ( l is ConnectionPacketHandler.CphState ) {
           /**
            * The ConnectionPacketHandler only locks when it
            * has actually received a packet.  This is a "bird in the
@@ -909,7 +915,7 @@ namespace Brunet
        * 0) we can't get the lock.
        * 1) we already have set _target_lock to something else
        */
-      tab.Lock( target, _contype, this, ref _target_lock );
+      tab.Lock( target, _contype, this);
     }
     
     /**
@@ -997,7 +1003,7 @@ namespace Brunet
      */
     protected void Unlock() {
       ConnectionTable tab = LocalNode.ConnectionTable;
-      tab.Unlock( ref _target_lock, _contype, this );
+      tab.Unlock( _contype, this );
     }
   }
 }

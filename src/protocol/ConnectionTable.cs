@@ -749,15 +749,15 @@ namespace Brunet
      * @throws CTLockException if we cannot get the lock
      * @throws CTLockException if lockedvar is not null or a, when called. 
      */
-    public void Lock(Address a, string t, ILinkLocker locker, ref Address lockedvar)
+    public void Lock(Address a, string t, ILinkLocker locker)
     {
       ConnectionType mt = Connection.StringToMainType(t);
       lock( _sync ) {
         if( null == a ) { return; }
-        if( lockedvar != null && (false == a.Equals(lockedvar)) ) {
-          //We only overwrite the lockedvar if it is null:
+        if( locker.TargetLock != null && (false == a.Equals(locker.TargetLock)) ) {
+          //We only overwrite the locker.TargetLock() if it is null:
           throw new CTLockException(
-                  String.Format("lockedvar not null, set to: {0}", lockedvar));
+                  String.Format("locker.TargetLock() not null, set to: {0}", locker.TargetLock));
         }
         Connection c_present = GetConnection(mt, a);
         if( c_present != null ) {
@@ -774,7 +774,7 @@ namespace Brunet
         ILinkLocker old_locker = (ILinkLocker)locks[a];
         if( null == old_locker ) {
           locks[a] = locker;
-          lockedvar = a;
+          locker.TargetLock = a;
           if(ProtocolLog.ConnectionTableLocks.Enabled) {
             ProtocolLog.Write(ProtocolLog.ConnectionTableLocks,
               String.Format("{0}, locker: {1} Locking: {2}",
@@ -783,12 +783,12 @@ namespace Brunet
         }
         else if (old_locker == locker) {
           //This guy already holds the lock
-          lockedvar = a;
+          locker.TargetLock = a;
         }
         else if ( old_locker.AllowLockTransfer(a,t,locker) ) {
         //See if we can transfer the lock:
           locks[a] = locker;
-          lockedvar = a;
+          locker.TargetLock = a;
         }
         else {
           if(ProtocolLog.ConnectionTableLocks.Enabled) {
@@ -979,21 +979,21 @@ namespace Brunet
      * @param locker the object which holds the lock.
      * @throw Exception if the lock is not held by locker
      */
-    public void Unlock(ref Address a, string t, ILinkLocker locker)
+    public void Unlock(string t, ILinkLocker locker)
     {
       lock( _sync ) {
-        if( a != null ) {
+        if( locker.TargetLock != null ) {
           ConnectionType mt = Connection.StringToMainType(t);
           Hashtable locks = (Hashtable)_address_locks[mt];
           if(ProtocolLog.ConnectionTableLocks.Enabled) {
             ProtocolLog.Write(ProtocolLog.ConnectionTableLocks,
-              String.Format("{0} Unlocking {1}", _local, a));
+              String.Format("{0} Unlocking {1}", _local, locker.TargetLock));
           }
 
-          object real_locker = locks[a];
+          object real_locker = locks[locker.TargetLock];
           if(null == real_locker) {
             string err = String.Format("On node " + _local + ", " + locker +
-              " tried to unlock " + a + " but no such lock" );
+              " tried to unlock " + locker.TargetLock + " but no such lock" );
             if(ProtocolLog.ConnectionTableLocks.Enabled) {
               ProtocolLog.Write(ProtocolLog.ConnectionTableLocks, err);
             }
@@ -1001,15 +1001,15 @@ namespace Brunet
           }
           else if(real_locker != locker) {
             string err = String.Format("On node " + _local + ", " + locker +
-                " tried to unlock " + a + " but not the owner");
+                " tried to unlock " + locker.TargetLock + " but not the owner");
             if(ProtocolLog.ConnectionTableLocks.Enabled) {
               ProtocolLog.Write(ProtocolLog.ConnectionTableLocks, err);
             }
             throw new Exception(err);
           }
 
-          locks.Remove(a);
-          a = null;
+          locks.Remove(locker.TargetLock);
+          locker.TargetLock = null;
         }
       }
     }
