@@ -740,7 +740,6 @@ namespace Brunet
      * @param a the Address to lock
      * @param t the type of connection
      * @param locker the object wishing to hold the lock
-     * @param lockedvar set to a if the lock succeeds.
      *
      * We use this to make sure that two linkers are not
      * working on the same address for the same connection type
@@ -777,7 +776,7 @@ namespace Brunet
           locker.TargetLock = a;
           if(ProtocolLog.ConnectionTableLocks.Enabled) {
             ProtocolLog.Write(ProtocolLog.ConnectionTableLocks,
-              String.Format("{0}, locker: {1} Locking: {2}",
+              String.Format("{0}, locker: {1} Unlocking: {2}",
                             _local, locker, a));
           }
         }
@@ -974,7 +973,6 @@ namespace Brunet
     /**
      * We use this to make sure that two linkers are not
      * working on the same address
-     * @param a Address to unlock, sets to null if unlock succeeds
      * @param t the type of connection.
      * @param locker the object which holds the lock.
      * @throw Exception if the lock is not held by locker
