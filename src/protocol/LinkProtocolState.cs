@@ -100,6 +100,11 @@ namespace Brunet
     
     protected Address _target_lock;
 
+    public Object TargetLock {
+      get { return _target_lock; }
+      set { _target_lock = (Address) value; }
+    }
+
     //====================
     // These variables never change after the constructor
     //====================
@@ -345,7 +350,7 @@ namespace Brunet
      */
     public void Unlock() {
       ConnectionTable tab = _node.ConnectionTable;
-      tab.Unlock( ref _target_lock, _contype, this );
+      tab.Unlock( _contype, this );
     }
     
     protected LinkMessage MakeLM() {
@@ -436,7 +441,7 @@ namespace Brunet
        * 0) we can't get the lock.
        * 1) we already have set _target_lock to something else
        */
-      tab.Lock( lm.Local.Address, _contype, this, ref _target_lock );
+      tab.Lock( lm.Local.Address, _contype, this );
     }
 
     /**
