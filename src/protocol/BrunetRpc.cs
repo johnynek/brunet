@@ -29,19 +29,17 @@ namespace Brunet
 {
   public class BrunetRpc: IDataHandler 
   {
-    protected ReqrepManager _rrm;
-    protected RpcManager _rpc;
-    public RpcManager Rpc { get { return _rpc; } }
-    protected IPHandler _iphandler;
-    public IPHandler IPHandler { get { return _iphandler; } }
-    protected Timer _timer;
+    protected readonly ReqrepManager _rrm;
+    public readonly RpcManager Rpc;
+    public readonly IPHandler IPHandler;
+    protected readonly Timer _timer;
 
     public BrunetRpc() {
       _rrm = new ReqrepManager("BrunetRpc");
       _rrm.Subscribe(this, null);
-      _rpc = new RpcManager(_rrm);
-      _iphandler = new IPHandler();
-      _iphandler.Subscribe(this, null);
+      Rpc = new RpcManager(_rrm);
+      IPHandler = new IPHandler();
+      IPHandler.Subscribe(this, null);
       _timer = new Timer(_rrm.TimeoutChecker, null, 1000, 1000);
     }
 
@@ -54,7 +52,7 @@ namespace Brunet
           _rrm.HandleData(payload, from, state);
         }
         else if(t.Equals(PType.Protocol.Rpc)) {
-          _rpc.HandleData(payload, from, state);
+          Rpc.HandleData(payload, from, state);
         }
       }
       catch(Exception x) {
