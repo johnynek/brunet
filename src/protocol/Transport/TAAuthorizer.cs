@@ -189,7 +189,17 @@ public class NetmaskTAAuthorizer : TAAuthorizer {
   protected TAAuthorizer.Decision _result_on_mismatch;
 
   public override TAAuthorizer.Decision Authorize(TransportAddress a) {
-    IPAddress ipa = (IPAddress)( ((IPTransportAddress) a).GetIPAddresses()[0] );
+    IPAddress ipa = null;
+    try {
+      ipa = (IPAddress)( ((IPTransportAddress) a).GetIPAddress() );
+    } catch (Exception x) {
+      ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+         "{0}", x));
+    }
+    if (ipa == null) {
+      return _result_on_mismatch;
+    }
+
     byte[] add_bytes = ipa.GetAddressBytes();
     int bits = _bit_c;
     int block = 0;

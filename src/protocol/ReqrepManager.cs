@@ -37,7 +37,7 @@ namespace Brunet {
  * effort attempt to deal with lost packets.
  */
 	
-public class ReqrepManager : IDataHandler {
+public class ReqrepManager : IDataHandler, ISource {
   
   public enum ReqrepType : byte
   {
@@ -61,16 +61,15 @@ public class ReqrepManager : IDataHandler {
    * running on a node. 
    * @param node The Node we work for
    */
-  protected ReqrepManager(Node node) {
-    _node = node;
-    _is_active = false;
+  public ReqrepManager(string info) {
+    _info = info;
 
     _sync = new Object();
     _rand = new Random();
     _req_handler_table = new Hashtable();
     _req_state_table = new Hashtable();
     _rep_handler_table = new Hashtable();
-    
+
     //Hold on to a reply for 50 seconds.
     _reptimeout = new TimeSpan(0,0,0,50,0);
     /**
@@ -90,34 +89,40 @@ public class ReqrepManager : IDataHandler {
     _exp_moving_square_rtt = _exp_moving_rtt * _exp_moving_rtt;
     _max_rtt = 0.0;
     _last_check = DateTime.UtcNow;
+  }
 
-    _node.ArrivalEvent += delegate(object n, EventArgs args) { 
-#if REQREP_DEBUG
-      Console.Error.WriteLine("[ReqrepManager: {0}] Activated.",
-			_node.Address);
-#endif
-      _is_active = true;
-    };
-    _node.DepartureEvent += delegate(object n, EventArgs args) { 
-#if REQREP_DEBUG
-      Console.Error.WriteLine("[ReqrepManager: {0}] Deactivated.",
-			_node.Address);
-#endif
-      //_is_active = false;
-    };
 
-    //Subscribe on the node:
-    ISource s = _node.GetTypeSource(PType.Protocol.ReqRep);
-    s.Subscribe(this, null);
-    _node.HeartBeatEvent += new EventHandler(this.TimeoutChecker);
+  protected class Sub {
+    public readonly IDataHandler Handler;
+    public readonly object State;
+    public Sub(IDataHandler h, object s) { Handler = h; State =s; }
+    public void Handle(MemBlock b, ISender f) { Handler.HandleData(b, f, State); }
+  }
 
+  protected volatile Sub _sub;
+
+  public virtual void Subscribe(IDataHandler hand, object state) {
+    lock( _sync ) {
+      _sub = new Sub(hand, state);
+    }
+  }
+
+  public virtual void Unsubscribe(IDataHandler hand) {
+    lock( _sync ) {
+      if( _sub.Handler == hand ) {
+        _sub = null;
+      }
+      else {
+        throw new Exception(String.Format("Handler: {0}, not subscribed", hand));
+      }
+    }
   }
 
   /** static hashtable to keep track of ReqrepManager objects. */
   protected static Hashtable _rrm_table  = new Hashtable();
   /** static lock for protecting the Hashtable above. */
   protected static object _class_lock = new object();
-      
+
   /** 
    * Static method to create ReqrepManager objects
    * @param node The node we work for
@@ -127,12 +132,17 @@ public class ReqrepManager : IDataHandler {
     lock(_rrm_table) {
       //check if there is already an instance object for this node
       if (_rrm_table.ContainsKey(node)) {
-	return (ReqrepManager) _rrm_table[node];
+        return (ReqrepManager) _rrm_table[node];
       }
       //in case no instance exists, create one
-      rrm = new ReqrepManager(node); 
+      rrm = new ReqrepManager(node.Address.ToString());
+      rrm.Subscribe(node, null);
+      node.HeartBeatEvent += rrm.TimeoutChecker;
+      //Subscribe on the node:
+      node.GetTypeSource(PType.Protocol.ReqRep).Subscribe(rrm, null);
       _rrm_table[node] = rrm;
     }
+
     node.StateChangeEvent += delegate(Node n, Node.ConnectionState s) {
       if( s == Node.ConnectionState.Disconnected ) {
         lock(_rrm_table) {
@@ -266,11 +276,8 @@ public class ReqrepManager : IDataHandler {
    }
    // Member variables:
 
-   protected Node _node;
-   public Node Node { get { return _node; } }
-
-   protected volatile bool _is_active;
-
+   protected readonly string _info;
+   public string Info { get { return _info; } }
    protected readonly object _sync;
    protected readonly Random _rand;
    protected Hashtable _req_state_table;
@@ -338,17 +345,6 @@ public class ReqrepManager : IDataHandler {
     * for it, and pass the packet to the handler
     */
    public void HandleData(MemBlock p, ISender from, object state) {
-     if (!_is_active) {
-#if REQREP_DEBUG
-       Console.Error.WriteLine("[ReqrepManager: {0}] Inactive. Simply return (HandleAHPacket).",
-			 _node.Address);
-#endif
-       return;
-     }
-#if REQREP_DEBUG
-     Console.Error.WriteLine("[ReqrepManager: {0}] Receiving packet at: {1}.", _node.Address, DateTime.Now);
-#endif
-
      //Simulate packet loss
      //if ( _rand.NextDouble() < 0.1 ) { return; }
      //Is it a request or reply?
@@ -379,7 +375,7 @@ public class ReqrepManager : IDataHandler {
      bool resend = false;
 #if REQREP_DEBUG
 	 Console.Error.WriteLine("[ReqrepManager: {0}] Receiving request id: {1}, from: {2}", 
-			     _node.Address, idnum, retpath);
+			     _info, idnum, retpath);
 #endif
      RequestKey rk = new RequestKey(idnum, retpath);
      lock( _sync ) {
@@ -400,7 +396,7 @@ public class ReqrepManager : IDataHandler {
      else {
        //This is a new request:
        try {
-         _node.HandleData(rest, rs, this);
+         _sub.Handle(rest, rs);
        }
        catch {
          lock( _sync ) {
@@ -442,7 +438,7 @@ public class ReqrepManager : IDataHandler {
          statistics.SendCount = reqs.SendCount;
   #if REQREP_DEBUG
   Console.Error.WriteLine("[ReqrepManager: {0}] Receiving reply on request id: {1}, from: {2}", 
-  			     _node.Address, idnum, ret_path);
+  			     _info, idnum, ret_path);
   #endif
   
          //Don't hold the lock while calling the ReplyHandler:
@@ -493,7 +489,7 @@ public class ReqrepManager : IDataHandler {
        if( handle_error ) {
 #if REQREP_DEBUG
 	 Console.Error.WriteLine("[ReqrepManager: {0}] Receiving error on request id: {1}, from: {2}", 
-			     _node.Address, idnum, ret_path);
+			     _info, idnum, ret_path);
 #endif
          ///@todo make sure we are checking that this ret_path makes sense for
          ///our request
@@ -526,14 +522,6 @@ public class ReqrepManager : IDataHandler {
   public int SendRequest(ISender sender, ReqrepType reqt, ICopyable data,
 		         IReplyHandler reply, object state)
   {
-    if (!_is_active) {
-#if REQREP_DEBUG
-      Console.Error.WriteLine("[ReqrepManager: {0}] Inactive. Simply return (SendRequest).",
-			_node.Address);
-#endif
-      //we are no longer active
-      throw new Exception("ReqrepManager is not active");
-    }
     if ( reqt != ReqrepType.Request && reqt != ReqrepType.LossyRequest ) {
       throw new Exception("Not a request");
     }
@@ -557,7 +545,7 @@ public class ReqrepManager : IDataHandler {
     }
 #if REQREP_DEBUG
     Console.Error.WriteLine("[ReqrepClient: {0}] Sending a request: {1} to node: {2}",
-		      _node.Address, rs.RequestID, sender);
+		      _info, rs.RequestID, sender);
 #endif
     try {
       rs.Send();
@@ -603,11 +591,17 @@ public class ReqrepManager : IDataHandler {
        }
     }
   }
+
+  public void TimeoutChecker(object o)
+  {
+    TimeoutChecker(o, null);
+  }
+
   /**
    * This method listens for the HeartBeatEvent from the
    * node and checks for timeouts.
    */
-  protected void TimeoutChecker(object node, EventArgs args)
+  public void TimeoutChecker(object o, EventArgs args)
   {
     DateTime now = DateTime.UtcNow;
     if( now - _last_check > _reqtimeout ) {
