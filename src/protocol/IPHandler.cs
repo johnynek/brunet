@@ -161,11 +161,14 @@ namespace Brunet
      * IPAddress.Address is obsolete, we use our own method to convert to an
      * int in case the method is removed
      * @param addr the address to convert to an integer
+     * @throws Exception when not an IPv4 address
      */
     public static int IPAddressToInt(IPAddress addr) {
       byte[] addr_bytes = addr.GetAddressBytes();
-      return ((addr_bytes[3] << 24) + (addr_bytes[2] << 16) +
-          (addr_bytes[1] << 8) + (addr_bytes[0]));
+      if(addr_bytes.Length != 4) {
+        throw new Exception("This is only supported by IPv4!");
+      }
+      return NumberSerializer.ReadInt(addr_bytes, 0);
     }
 
     /**
@@ -237,7 +240,7 @@ namespace Brunet
           foreach(IPAddress ip in ips) {
             _s.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface,
                               IPHandler.IPAddressToInt(ip));
-              _s.SendTo(buffer, 0, length, 0, _ep);
+            _s.SendTo(buffer, 0, length, 0, _ep);
           }
         }
       }
