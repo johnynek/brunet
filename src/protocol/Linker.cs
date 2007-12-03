@@ -28,6 +28,7 @@ using NUnit.Framework;
 #endif
 
 using System;
+using System.Threading;
 using System.Collections;
 
 namespace Brunet
@@ -531,20 +532,25 @@ namespace Brunet
      * Allow if we are transfering to a LinkProtocolState or ConnectionPacketHandler
      */
     public bool AllowLockTransfer(Address a, string contype, ILinkLocker l) {
-      bool entered = System.Threading.Monitor.TryEnter(_sync); //like a lock(_sync) .
-      bool allow = false;
+      bool entered = Monitor.TryEnter(_sync); //like a lock(_sync) .
       if (false == entered ) {
 	if (ProtocolLog.LinkDebug.Enabled) {
 	  ProtocolLog.Write(ProtocolLog.LinkDebug,
           String.Format("Cannot acquire Linker lock for transfer (potential deadlock)."));
 	}
-        allow = false;
+        return false;
       }
       else {
+        bool hold_lock = (a.Equals( _target_lock ) && contype == _contype);
+        if( false == hold_lock ) {
+          //We don't even hold this lock!
+          throw new Exception(
+            String.Format("{2} asked to transfer a lock({0}) we don't hold: ({1})",
+                          a, _target_lock, this));
+        }
 	try {
           if( l is Linker ) {
             //Never transfer to another linker:
-            allow = false;
           }
           else if ( l is ConnectionPacketHandler.CphState ) {
           /**
@@ -568,13 +574,9 @@ namespace Brunet
            * the third time we are asked, we assume we are in the firewall
            * case and we allow the transfer, this is just a hueristic.
            */
-            if( a.Equals( _target_lock ) ) {
-              _cph_transfer_requests++;
-              if ( ( _cph_transfer_requests >= 3 ) ||
-                 ( a.CompareTo( LocalNode.Address ) > 0) ) {
-                _target_lock = null; 
-                allow = true;
-              }
+            int reqs = Interlocked.Increment(ref _cph_transfer_requests);
+            if ( (reqs >= 3 ) || ( a.CompareTo( LocalNode.Address ) > 0) ) {
+              _target_lock = null; 
             }
           }
           else if( l is LinkProtocolState ) {
@@ -584,27 +586,24 @@ namespace Brunet
              * 1) We created this LinkProtocolState
              * 2) The LinkProtocolState has received a packet
              */
-            if( (lps.Linker == this )
-                && ( lps.LinkMessageReply != null ) )
-            {
-                _target_lock = null; 
-                allow = true;
+            if( (lps.Linker == this ) && ( lps.LinkMessageReply != null ) ) {
+              _target_lock = null; 
             }
           }
 	} finally {
           // If we don't have a try ... finally here, an exception in the
           // above could cause us to never release the lock on _sync.
-	  System.Threading.Monitor.Exit(_sync);
+	  Monitor.Exit(_sync);
 	}
       }
 #if LINK_DEBUG
       if (ProtocolLog.LinkDebug.Enabled) {
 	  ProtocolLog.Write(ProtocolLog.LinkDebug,
                             String.Format("Linker({0}) {1}: transfering lock on {2} to {3}",
-                                          _lid, allow, a, l));
+                                          _lid, (_target_lock == null), a, l));
       }
 #endif
-      return allow;
+      return (_target_lock == null);
     }
 
 //////////////////
@@ -665,9 +664,9 @@ namespace Brunet
       try {
         TaskWorker lps = new LinkProtocolState(this, ew.TA, ew.NewEdge);
         lps.FinishEvent +=  this.LinkProtocolStateFinishHandler;
-        SetTarget(_target);
+        SetTarget();
         //Keep a proper track of the active LinkProtocolStates:
-        System.Threading.Interlocked.Increment(ref _active_lps_count);
+        Interlocked.Increment(ref _active_lps_count);
         _task_queue.Enqueue(lps);
       }
       catch(ConnectionExistsException) {
@@ -773,7 +772,7 @@ namespace Brunet
          Console.Error.WriteLine("unrecognized result: " + lps.MyResult.ToString());
          break;
      }
-     int current_active = System.Threading.Interlocked.Decrement(ref _active_lps_count);
+     int current_active = Interlocked.Decrement(ref _active_lps_count);
      if( current_active == 0 ) {
        //We have finished handling this lps finishing,
        //if we have not started another yet, we are not
@@ -890,22 +889,20 @@ namespace Brunet
       }
     }
     /**
-     * Set the _target member variable and check for sanity
+     * Set the _target_lock member variable and check for sanity
      * We only set the target if we can get a lock on the address
      * We can call this method more than once as long as we always
      * call it with the same value for target
      * If target is null we just return
      * 
-     * @param target the value to set the target to.
-     * 
      * @throws LinkException if the target is already * set to a different address
      * @throws System.InvalidOperationException if we cannot get the lock
      */
-    protected void SetTarget(Address target)
+    protected void SetTarget()
     {
-      if ( target == null )
+      if ( _target == null )
         return;
-      if( target.Equals( LocalNode.Address ) ) {
+      if( _target.Equals( LocalNode.Address ) ) {
         throw new LinkException("cannot connect to self");
       }
  
@@ -915,7 +912,7 @@ namespace Brunet
        * 0) we can't get the lock.
        * 1) we already have set _target_lock to something else
        */
-      tab.Lock( target, _contype, this);
+      tab.Lock( _target, _contype, this);
     }
     
     /**
@@ -951,7 +948,7 @@ namespace Brunet
           * (or one of our LinkProtocolState)
           * will hold the lock
           */
-          SetTarget(_target);
+          SetTarget();
 #if LINK_DEBUG
           if (ProtocolLog.LinkDebug.Enabled) {
 	    ProtocolLog.Write(ProtocolLog.LinkDebug, 
