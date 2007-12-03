@@ -32,8 +32,7 @@ namespace Brunet
     protected readonly ReqrepManager _rrm;
     public readonly RpcManager Rpc;
     public readonly IPHandler IPHandler;
-    protected readonly Thread _timer;
-    protected int _running;
+    protected readonly Timer _timer;
 
     public BrunetRpc() {
       _rrm = new ReqrepManager("BrunetRpc");
@@ -41,23 +40,7 @@ namespace Brunet
       Rpc = new RpcManager(_rrm);
       IPHandler = new IPHandler();
       IPHandler.Subscribe(this, null);
-      _running = 1;
-      _timer = new Thread(TimerThread);
-      _timer.IsBackground = true;
-      _timer.Start();
-    }
-
-    private void TimerThread() {
-      while(1 == _running) {
-        _rrm.TimeoutChecker(null, null);
-        Thread.Sleep(1000);
-      }
-    }
-
-    public void Close() {
-      Interlocked.Exchange(ref _running, 0);
-      _timer.Join();
-      IPHandler.Stop();
+      _timer = new Timer(_rrm.TimeoutChecker, null, 1000, 1000);
     }
 
     public void HandleData(MemBlock b, ISender from, object state) {
@@ -74,7 +57,7 @@ namespace Brunet
       }
       catch(Exception x) {
         Console.Error.WriteLine("Packet Handling Exception: {3}\n\tType: {0}\n\t\n\tFrom: {1}\n\tData: {2}",
-          t, from, payload.GetString(System.Text.Encoding.ASCII), x);
+          t, payload.GetString(System.Text.Encoding.ASCII), x);
       }
     }
   }

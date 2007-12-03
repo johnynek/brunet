@@ -26,6 +26,7 @@ namespace Brunet {
   public class XmlRpcManager : MarshalByRefObject, IRpcHandler {
     [NonSerialized]
     private RpcManager _rpc;
+    private Node _node;
     /**
      * Key: handler_name
      * Value: uri
@@ -34,8 +35,8 @@ namespace Brunet {
     [NonSerialized]
     private Hashtable _registered_xmlrpc = new Hashtable();
 
-    public XmlRpcManager(RpcManager rpcm) {
-      _rpc = rpcm;
+    public XmlRpcManager(Node node, RpcManager rpc) {
+      _rpc = rpc;
     }
 
     /**
@@ -56,7 +57,7 @@ namespace Brunet {
 
       byte[] b_addr = Base32.Decode(node);
       AHAddress target = new AHAddress(b_addr);
-      AHSender s = new AHSender(_rpc.Node, target, (ushort)ahOptions);
+      AHSender s = new AHSender(_node, target, (ushort)ahOptions);
       return this.Proxy(s, maxResultsToWait, method, args);
     }
 
@@ -67,7 +68,7 @@ namespace Brunet {
      */
     [XmlRpcMethod]
     public object[] localproxy(string method, params object[] args) {
-      return this.Proxy(_rpc.Node, 1, method, args);
+      return this.Proxy(_node, 1, method, args);
     }
 
     private object[] Proxy(ISender sender,int maxResultsToWait, string method, object[] args) {
@@ -156,7 +157,7 @@ namespace Brunet {
       if (method.Equals("AddXRHandler") || method.Equals("RemoveXRHandler")) {
         ReqrepManager.ReplyState s = (ReqrepManager.ReplyState)caller;
         ISender sender = s.ReturnPath;
-        if (Object.ReferenceEquals(_rpc.Node, sender)) {
+        if (Object.ReferenceEquals(_node, sender)) {
           if (args.Count == 2) {
             if (method.Equals("AddXRHandler"))
               this.AddXRHandler(args[0] as string, args[1] as string);
@@ -303,6 +304,7 @@ namespace Brunet {
   public class XmlRpcManagerServer {
     XmlRpcManager _xrm = null;
     RpcManager _rpc = null;
+    Node _node;
     public XmlRpcManagerServer(int port) {
       IServerChannelSinkProvider chain = new XmlRpcServerFormatterSinkProvider();
       IDictionary props = new Hashtable();
@@ -318,15 +320,16 @@ namespace Brunet {
       _rpc.RemoveHandler("xmlrpc");
     }
 
-    public void Update(RpcManager rpc)
+    public void Update(Node node)
     {
-      _rpc = rpc;
-      _xrm = new XmlRpcManager(_rpc);
+      _rpc = RpcManager.GetInstance(node);
+      _node = node;
+      _xrm = new XmlRpcManager(_node, _rpc);
       _rpc.AddHandler("xmlrpc",_xrm);
       RemotingServices.Marshal(_xrm, "xm.rem");
     }
   }
-  
+
   /**
    * This class is used to test the XmlRpcManager features
    * Intended to be used in a single thread
