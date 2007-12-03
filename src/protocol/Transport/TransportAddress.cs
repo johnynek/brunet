@@ -320,35 +320,19 @@ namespace Brunet
       _ips.Add( addr );
     }
 
-    public ArrayList GetIPAddresses()
+    public IPAddress GetIPAddress()
     {
-      if ( _ips != null ) {
-        return _ips;
+      if ( _ips != null && _ips.Count > 0) {
+        return (IPAddress) _ips[0];
       }
 
-      try {
-        IPAddress a = IPAddress.Parse(_uri.Host);
-        ArrayList tmp_ips = new ArrayList(1);
-        tmp_ips.Add(a);
-        _ips = tmp_ips;
-        return _ips;
-      }
-      catch(Exception) {
-
-      }
-
-      try {
-        IPHostEntry IPHost = Dns.GetHostEntry(_uri.Host);
-        _ips = new ArrayList(IPHost.AddressList);
-      } catch(Exception e) {
-        // log this exception!
-	Console.Error.WriteLine("In GetIPAddress() Resolving {1}: {0}",
-                                        e, _uri.Host);
-      }
-      return _ips;
+      IPAddress a = IPAddress.Parse(_uri.Host);
+      _ips = new ArrayList(1);
+      _ips.Add(a);
+      return a;
     }
-
   }
+
   public class TunnelTransportAddress: TransportAddress {
     protected Address _target;
     public Address Target {
