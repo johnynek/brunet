@@ -399,20 +399,22 @@ namespace Brunet
     
     
     public void HandleControlPacket(ArrayList acquired, ArrayList lost) {
+      //This does not require a lock, and stuct_cons can't change after this call
+      IEnumerable struct_cons =
+          _node.ConnectionTable.GetConnections(ConnectionType.Structured);
+      
       ArrayList to_add = new ArrayList();
       lock(_sync) {
 #if TUNNEL_DEBUG
 	Console.Error.WriteLine("Edge {0} modified (receiving control).", this); 
 #endif
-	//remove lost connections
-	foreach(Address addr in lost) {
+        //remove lost connections
+        foreach(Address addr in lost) {
 #if TUNNEL_DEBUG
-	  Console.Error.WriteLine("Removed forwarder: {0}.", addr); 
+          Console.Error.WriteLine("Removed forwarder: {0}.", addr); 
 #endif	  
-	  _forwarders.Remove(addr);
-	}
-        //This does not require a lock, and stuct_cons can't change after this call
-        IEnumerable struct_cons = _node.ConnectionTable.GetConnections(ConnectionType.Structured);
+          _forwarders.Remove(addr);
+        }
         //Add all the forwarders we just acquired:
         foreach(Connection c in struct_cons) {
           if(acquired.Contains(c.Address)) {
@@ -430,9 +432,8 @@ namespace Brunet
             _packet_senders.Add(c.Edge);
           }
         }
-	_localta = new TunnelTransportAddress(_node.Address, _forwarders);
-	_remoteta = new TunnelTransportAddress(_target, _forwarders);	  
-
+        _localta = new TunnelTransportAddress(_node.Address, _forwarders);
+        _remoteta = new TunnelTransportAddress(_target, _forwarders);	  
       }//Drop the lock before sending
 #if TUNNEL_DEBUG
       Console.Error.WriteLine("Updated (on control) localTA: {0}", _localta);
