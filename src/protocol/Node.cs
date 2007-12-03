@@ -512,10 +512,10 @@ namespace Brunet
      * Send the StateChange event
      */
     protected void SendStateChange(ConnectionState new_state) {
-      if( new_state == Node.ConnectionState.Joining ) {
+      if( new_state == Node.ConnectionState.Joining && ArrivalEvent != null) {
         ArrivalEvent(this, null);
       }
-      if( new_state == Node.ConnectionState.Leaving ) {
+      if( new_state == Node.ConnectionState.Leaving && DepartureEvent != null) {
         DepartureEvent(this, null);
       }
       StateChangeEvent(this, new_state);
