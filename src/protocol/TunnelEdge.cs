@@ -144,20 +144,21 @@ namespace Brunet
       _last_sender_idx = 0; 
       MakeTunnelHeader();
 
-      _node.ConnectionTable.DisconnectionEvent += DisconnectHandler;
-      _node.ConnectionTable.ConnectionEvent += ConnectHandler;
-      
-      lock(_node.ConnectionTable.SyncRoot) {
-	  foreach(Address addr in forwarders) {
-	    Connection cons = n.ConnectionTable.GetConnection(ConnectionType.Structured, addr);
-	    if (cons != null && (false == (cons.Edge is TunnelEdge) )) {
-	      _packet_senders.Add(cons.Edge);
-	      _forwarders.Add(addr);
-	    }
-	  }
+      //This doesn't require us to hold the lock on the connection table
+      IEnumerable struct_cons = n.ConnectionTable.GetConnections(ConnectionType.Structured);
+      foreach(Connection c in struct_cons) {
+        if( forwarders.Contains(c.Address) && (false == (c.Edge is TunnelEdge) )) {
+          //This is a connection we can use:
+          _forwarders.Add(c.Address);
+          _packet_senders.Add(c.Edge);
+        }
       }
       _localta = new TunnelTransportAddress(_node.Address, _forwarders);
       _remoteta = new TunnelTransportAddress(target, _forwarders);
+      
+      _node.ConnectionTable.DisconnectionEvent += DisconnectHandler;
+      _node.ConnectionTable.ConnectionEvent += ConnectHandler;
+      
 #if TUNNEL_DEBUG 
       Console.Error.WriteLine("Constructed: {0}", this);
 #endif
@@ -392,8 +393,7 @@ namespace Brunet
 	 }
       }
       if( send_control ) {
-        TunnelEdgeListener tun_listener = _send_cb as TunnelEdgeListener;
-        tun_listener.HandleControlSend(this, added, lost);
+        _send_cb.HandleControlSend(this, added, lost);
       }
     }
     
@@ -411,28 +411,25 @@ namespace Brunet
 #endif	  
 	  _forwarders.Remove(addr);
 	}
-	lock(_node.ConnectionTable.SyncRoot) {
-	  //update list of forwarders
-	  foreach (Address addr in acquired) {
-	    Connection cons = _node.ConnectionTable.GetConnection(ConnectionType.Structured, addr);
-	    if (cons != null && (false == (cons.Edge is TunnelEdge)) ) {
-	      if (!_forwarders.Contains(addr)) {
-		_forwarders.Add(addr);
-		to_add.Add(addr);
-	      }
-	    }
-	  }
-
-	  //update packet senders
-	  _packet_senders.Clear();
-	  foreach(Address addr in _forwarders) {
-	    Connection cons = _node.ConnectionTable.GetConnection(ConnectionType.Structured, addr);
-	    if (cons != null && (false == (cons.Edge is TunnelEdge)) ) {
-	      _packet_senders.Add(cons.Edge);
+        //This does not require a lock, and stuct_cons can't change after this call
+        IEnumerable struct_cons = _node.ConnectionTable.GetConnections(ConnectionType.Structured);
+        //Add all the forwarders we just acquired:
+        foreach(Connection c in struct_cons) {
+          if(acquired.Contains(c.Address)) {
+            if(false == (c.Edge is TunnelEdge)) {
+              if( !_forwarders.Contains(c.Address) ) {  
+                _forwarders.Add(c.Address);
+              }
             }
-	  }
-
-	} //Release the lock on the ConnectionTable
+          }
+        }
+        //Update PacketSenders:
+        _packet_senders.Clear();
+        foreach(Connection c in struct_cons) {
+          if( _forwarders.Contains( c.Address ) ) {
+            _packet_senders.Add(c.Edge);
+          }
+        }
 	_localta = new TunnelTransportAddress(_node.Address, _forwarders);
 	_remoteta = new TunnelTransportAddress(_target, _forwarders);	  
 
@@ -442,8 +439,7 @@ namespace Brunet
       Console.Error.WriteLine("Updated (on control) remoteTA: {0}", _remoteta);
 #endif	  
       if (to_add.Count > 0) {
-        TunnelEdgeListener tun_listener = _send_cb as TunnelEdgeListener;
-        tun_listener.HandleControlSend(this, to_add, new ArrayList());	  
+        _send_cb.HandleControlSend(this, to_add, new ArrayList());	  
       }
     }
   }
