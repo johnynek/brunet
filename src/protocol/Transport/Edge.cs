@@ -50,6 +50,7 @@ namespace Brunet
     public Edge()
     {
       _sync = new object();
+      _ce_sync = new object();
       _have_fired_close = false;
       //Atomically increment and update _edge_no
       _edge_no = System.Threading.Interlocked.Increment( ref _edge_count );
@@ -67,7 +68,13 @@ namespace Brunet
      * Set to true once CloseEvent is fired.  This prevents it from
      * being fired twice
      */
-    protected bool _have_fired_close;
+    private bool _have_fired_close;
+    /**
+     * We lock this to handle synchronization of the CloseEvent
+     * which we want to use a different lock than _sync to avoid
+     * the possibility of a deadlock
+     */
+    private readonly object _ce_sync;
     /**
      * Closes the Edge, further Sends are not allowed
      */
@@ -78,7 +85,7 @@ namespace Brunet
        * call, this guarantees that there is only one CloseEvent
        */
       EventHandler ch = null;
-      lock( _sync ) {
+      lock( _ce_sync ) {
         if( !_have_fired_close ) {
           _have_fired_close = true;
           ch = _close_event;
@@ -111,7 +118,7 @@ namespace Brunet
      */
     public virtual bool LocalTANotEphemeral { get { return false; } }
     
-    protected EventHandler _close_event;
+    private EventHandler _close_event;
     /**
      * When an edge is closed (either due to the Close method
      * being called or due to some error during the receive loop)
@@ -122,7 +129,7 @@ namespace Brunet
      */
     public event EventHandler CloseEvent {
       add {
-        lock(_sync) {
+        lock( _ce_sync ) {
           if( !_have_fired_close ) {
             _close_event = (EventHandler)Delegate.Combine(_close_event, value);
           }
@@ -134,7 +141,7 @@ namespace Brunet
       }
 
       remove {
-        lock(_sync) {
+        lock( _ce_sync ) {
           _close_event = (EventHandler)Delegate.Remove(_close_event, value);
         }
       }
