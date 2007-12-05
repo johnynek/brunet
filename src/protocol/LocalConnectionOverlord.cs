@@ -38,16 +38,16 @@ namespace Brunet
   public class LocalConnectionOverlord: ConnectionOverlord, IRpcHandler
   {
     public static readonly int MAX_LC = 4;
-    protected List<AHAddress> _local_addresses;
+    protected volatile List<AHAddress> _local_addresses;
 
     protected readonly Node _node;
     protected DateTime _last_announce_call;
     protected DateTime _last_activate_call;
     protected readonly RpcManager _rpc;
     protected Object _sync;
-    protected bool _active;
-    protected bool _allow_localcons;
-    protected int _local_cons = 0;
+    protected volatile bool _active;
+    protected volatile bool _allow_localcons;
+    protected volatile int _local_cons = 0;
 
     public static readonly string struc_local = "structured.local";
 
