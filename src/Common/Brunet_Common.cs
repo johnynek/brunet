@@ -100,8 +100,7 @@ namespace Ipop
               _xrm = new XmlRpcManagerServer(config.XmlRpcManager.Port);
             }
             if(_xrm != null) {
-              RpcManager rpc = RpcManager.GetInstance(node);
-              _xrm.Update(rpc);
+               _xrm.Update(node);
             }
           }
           catch (Exception e) {Console.WriteLine(e);}

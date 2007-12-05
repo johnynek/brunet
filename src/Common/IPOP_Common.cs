@@ -102,26 +102,5 @@ namespace Ipop {
     public static AHAddress GenerateAHAddress() {
       return new AHAddress(new RNGCryptoServiceProvider());
     }
-
-    public static bool BrunetConnected(Node node) {
-      RpcManager rpc = RpcManager.GetInstance(node);
-      BlockingQueue queue = new BlockingQueue();
-      byte[] target = Address.ConvertToAddressBuffer(
-          node.Address.ToBigInteger() + Address.Half);
-      Address.SetClass(target, AHAddress._class);
-      AHSender s = new AHSender(rpc.Node, new AHAddress(target),
-                                AHPacket.AHOptions.Greedy);
-      rpc.Invoke(s, queue, "sys:link.Ping", "Test connection...");
-      bool result = false;
-      try {
-        queue.Dequeue();
-        result = true;
-      }
-      catch(Exception) {
-        result = false;
-      }
-      Console.WriteLine("Connection result = " + result);
-      return false;
-    }
   }
 }
