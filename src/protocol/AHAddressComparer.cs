@@ -33,7 +33,7 @@ namespace Brunet
    * framework classes which use the IComparer interface.
    */
 
-  public class AHAddressComparer:System.Collections.IComparer
+  public class AHAddressComparer:System.Collections.IComparer, System.Collections.Generic.IComparer<AHAddress>
   {
     protected AHAddress _zero;
     /**
@@ -55,6 +55,10 @@ namespace Brunet
       //Make sure the last bit is zero, so the address is class 0
       Address.SetClass(binzero, 0);
       _zero = new AHAddress( MemBlock.Reference(binzero, 0, Address.MemSize) );
+    }
+
+    public int Compare(AHAddress x, AHAddress y) {
+      return Compare((object) x, (object) y);
     }
 
     public int Compare(object x, object y)
