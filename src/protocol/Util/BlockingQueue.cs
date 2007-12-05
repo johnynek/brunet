@@ -151,7 +151,7 @@ public class Channel {
       }
       else {
         //We are closed, ignore all future enqueues.
-        throw new Exception("Channel is closed, Enqueue failed");
+        throw new InvalidOperationException("Channel is closed, Enqueue failed");
       }
     }
     FireEnqueue();
@@ -363,7 +363,7 @@ public sealed class BlockingQueue : Channel {
       }
       else {
         //We are closed, ignore all future enqueues.
-        throw new Exception("BlockingQueue is closed, Enqueue failed");
+        throw new InvalidOperationException("BlockingQueue is closed, Enqueue failed");
       }
       //Wake up any waiting threads
 #if DEBUG

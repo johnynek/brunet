@@ -556,7 +556,14 @@ namespace Brunet
         }
 
         SendQueueEntry sqe = new SendQueueEntry(ms.ToArray(), end);
-        _send_queue.Enqueue(sqe);
+        try {
+          _send_queue.Enqueue(sqe);
+        }
+        catch(InvalidOperationException e) {
+          if(_running) {
+            throw e;
+          }
+        }
         if(ProtocolLog.UdpEdge.Enabled)
           ProtocolLog.Write(ProtocolLog.UdpEdge, String.Format(
             "Sending control {1} to: {0}", end, c));
@@ -704,7 +711,14 @@ namespace Brunet
             * Hopefully by the time we try again matters will
             * be better
           */
-            _send_queue.Enqueue(sqe);
+            try {
+              _send_queue.Enqueue(sqe);
+            }
+            catch(InvalidOperationException e) {
+              if(_running) {
+                throw e;
+              }
+            }
           }
           else {
           /*
