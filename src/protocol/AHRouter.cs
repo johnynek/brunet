@@ -164,12 +164,10 @@ namespace Brunet
           //We check this below.
 	}
       }
-      CachedRoute cr = null;
       CacheKey k = new CacheKey(dest, prev_e, p.Options );
-      lock( _sync ) {
-        //We've already checked hops == ttl, so we can ignore them for now
-        cr = (CachedRoute)_route_cache[ k ];
-      }
+      //We've already checked hops == ttl, so we can ignore them for now
+      //We don't have to hold the lock to read:
+      CachedRoute cr = (CachedRoute)_route_cache[ k ];
       if( cr != null ) {
         //Awesome, we already know the path to this node.
         //This cuts down on latency
@@ -193,10 +191,9 @@ namespace Brunet
        * else we know hops < ttl, we can route:
        * We now need to check the ConnectionTable
        */
-      /* Don't let the routing table change */
-      lock( _tab.SyncRoot ) {
 	next_con = _tab.GetConnection(ConnectionType.Leaf, dest);
 	if( next_con == null ) {
+    ConnectionList structs = _tab.GetConnections(ConnectionType.Structured);
           /*
 	   * We do not have a leaf connection to use, now we must
 	   * find a Structured connection over which to route the packet
@@ -204,15 +201,15 @@ namespace Brunet
 #if AHROUTER_DEBUG
 	  if (debug) Console.Error.WriteLine("{0}: We do not have a leaf connection.", _local);
 #endif
-          int dest_idx = _tab.IndexOf(ConnectionType.Structured, dest);
+          int dest_idx = structs.IndexOf(dest);
           if( dest_idx >= 0 ) {
             //We actually have a connection to this node:
 #if AHROUTER_DEBUG
 	    if (debug) Console.Error.WriteLine("{0}: We have a structured connection to destination.", _local);
 #endif
-            next_con = _tab.GetConnection(ConnectionType.Structured, dest_idx);
+            next_con = structs[dest_idx];
           }
-          else if( _tab.Count(ConnectionType.Structured) == 0 ) {
+          else if( structs.Count == 0 ) {
             //We don't have any structured connections.  I guess we are the closest:
             deliverlocally = true;
             next_con = null;
@@ -232,14 +229,14 @@ namespace Brunet
              * about the size of index
              */
             int left_idx = dest_idx;
-            Connection left_n = _tab.GetConnection(ConnectionType.Structured, left_idx);
+            Connection left_n = structs[left_idx];
 #if AHROUTER_DEBUG
 	    if (debug && left_n != null) Console.Error.WriteLine("{0}: key left connection: {1}.",
 						_local, left_n.Address);
 #endif
 	    
             int right_idx = dest_idx - 1;
-            Connection right_n = _tab.GetConnection(ConnectionType.Structured, right_idx);
+            Connection right_n = structs[right_idx];
 #if AHROUTER_DEBUG
 	    if (debug && right_n != null) Console.Error.WriteLine("{0}: key right connection: {1}.",
 	                                                         _local, right_n.Address);
@@ -327,7 +324,7 @@ namespace Brunet
                  * Compute our left neighbor.  We only need to do this when it
                  * has changed.
                  */
-                int our_idx = _tab.IndexOf(ConnectionType.Structured, _local);
+                int our_idx = structs.IndexOf(_local);
                 if( our_idx < 0 ) {
                   our_idx = ~our_idx;
                 }
@@ -335,7 +332,7 @@ namespace Brunet
                   Console.Error.WriteLine(
                     "ERROR: we are in the ConnectionTable: {0}", _local);
                 }
-                _our_left_n = _tab.GetConnection(ConnectionType.Structured, our_idx);
+                _our_left_n = structs[our_idx];
               }
 #if AHROUTER_DEBUG
 	      if (debug) {
@@ -441,8 +438,7 @@ namespace Brunet
                     //Must be the left:
                     sc_idx = left_idx + 1;
                   }
-                  Connection second_closest = _tab.GetConnection(ConnectionType.Structured,
-                                                                 sc_idx);
+                  Connection second_closest = structs[sc_idx];
                   BigInteger second_dist =
                                  dest.DistanceTo( (AHAddress)second_closest.Address).abs();
                   if( second_dist < other_dist ) {
@@ -494,7 +490,6 @@ namespace Brunet
 	else {
           //We can route directly to the destination.
 	}
-       }//End of ConnectionTable lock
        /*
         * We update the route cache with the most recent Edge to send to
         * that destination.
