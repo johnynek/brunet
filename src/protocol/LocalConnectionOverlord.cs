@@ -135,7 +135,7 @@ namespace Brunet
     }
 
     /**
-     * Do we need to use this to get connections?
+     * HeartBeatEvent - Do we need connections?
      */
     public void CheckConnection(object o, EventArgs ea)
     {
@@ -169,6 +169,12 @@ namespace Brunet
       _node.TaskQueue.Enqueue( l );
       return true;
     }
+
+    /**
+     * Suppose we know of a node we'd like to connect to, this takes care
+     * of just that!
+     * @param target The Brunet.Address of the node we want to connect to
+     */
 
     protected void ConnectTo(Address target) {
       ConnectionType mt = Connection.StringToMainType(struc_local);
