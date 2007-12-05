@@ -38,16 +38,19 @@ namespace Brunet
     public Address RemoteAddress { get { return _con.Address; } }
     public ConnectionType ConnectionType { get { return _con.MainType; } }
     public Edge Edge { get { return _con.Edge; } }
-    public int Index;
     
-    protected Connection _con;
+    protected readonly Connection _con;
     public Connection Connection { get { return _con; } }
+    
+    /**
+     * This is the ConnectionList that the Connection was
+     * inserted into.
+     */
+    public readonly ConnectionList CList;
 
-    public ConnectionEventArgs(Connection c,
-                               int index)
-    {
+    public ConnectionEventArgs(Connection c, ConnectionList cl) {
       _con = c;
-      this.Index = index;
+      CList = cl;
     }
   }
 
