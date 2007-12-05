@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -36,10 +37,21 @@ namespace Brunet
 
   public class LocalConnectionOverlord: ConnectionOverlord, IRpcHandler
   {
-    private Node _node;
-    private DateTime _last_call;
-    private RpcManager _rpc;
-    bool _active;
+    public static readonly int MAX_LC = 4;
+    protected List<AHAddress> _local_addresses;
+
+    protected readonly Node _node;
+    protected DateTime _last_announce_call;
+    protected DateTime _last_activate_call;
+    protected readonly RpcManager _rpc;
+    protected Object _sync;
+    protected bool _active;
+    protected bool _allow_localcons;
+    protected int _local_cons = 0;
+
+    public static readonly string struc_local = "structured.local";
+
+    protected readonly AHAddressComparer addr_compare = new AHAddressComparer();
 
     /**
      * When IsActive is false, the ConnectionOverlord does nothing
@@ -54,26 +66,62 @@ namespace Brunet
     }
 
     public LocalConnectionOverlord(Node node) {
+      _sync = new Object();
+      _allow_localcons = false;
+      _active = false;
+      _local_addresses = new List<AHAddress>();
       _node = node;
       _rpc = RpcManager.GetInstance(node);
       _rpc.AddHandler("LocalCO", this);
+
+      _node.HeartBeatEvent += CheckConnection;
+      _node.StateChangeEvent += StateChangeHandler;
+      _node.ConnectionTable.ConnectionEvent += ConnectHandler;
+      _node.ConnectionTable.DisconnectionEvent += DisconnectHandler;
+      _last_announce_call = DateTime.MinValue;
+      _last_activate_call = DateTime.MinValue;
+    }
+
+    protected void StateChangeHandler(Node n, Node.ConnectionState state) {
+      if(state == Node.ConnectionState.Connected) {
+        lock(_sync) {
+          _allow_localcons = true;
+        }
+      }
+      else if(state == Node.ConnectionState.Leaving) {
+        lock(_sync) {
+          _active = false;
+        }
+      }
     }
 
     /**
      * If IsActive, then start trying to get connections.
      */
     public override void Activate() {
-      _last_call = DateTime.UtcNow;
-      Announce();
-      _node.HeartBeatEvent += CheckConnection;
+      if(!_allow_localcons || _local_addresses.Count == 0) {
+        return;
+      }
+
+      DateTime now = DateTime.UtcNow;
+      if(now - _last_activate_call < TimeSpan.FromSeconds(10)) {
+        return;
+      }
+      _last_announce_call = now;
+
+      Random rand = new Random();
+      for(int i = 0; i < MAX_LC - _local_cons; i++) {
+        Address target = null;
+        target = _local_addresses[rand.Next(0, _local_addresses.Count)];
+        ConnectTo(target);
+      }
     }
 
     /**
      * @return true if the ConnectionOverlord needs a connection
      */
-    public override bool NeedConnection
-    {
-      get { return _node.ConnectionTable.TotalCount == 0; }
+    public override bool NeedConnection {
+      get { return _allow_localcons && _local_cons < MAX_LC; }
     }
     /**
      * @return true if the ConnectionOverlord has sufficient connections
@@ -81,7 +129,9 @@ namespace Brunet
      */
     public override bool IsConnected
     {
-      get { throw new Exception("Not implemented!  LocalConnectionOverlord.IsConnected"); }
+      get {
+        throw new Exception("Not implemented!  LocalConnectionOverlord.IsConnected");
+      }
     }
 
     /**
@@ -89,14 +139,111 @@ namespace Brunet
      */
     public void CheckConnection(object o, EventArgs ea)
     {
-      if(!_active || !NeedConnection) {
+      if(!_active) {
         return;
       }
-      DateTime now = DateTime.UtcNow;
-      if(now - _last_call > TimeSpan.FromSeconds(600)) {
-        _last_call = now;
-        Announce();
+
+      // We are trying to get StructuredConnections or LocalConnections
+      if(_local_cons < MAX_LC) {
+        DateTime now = DateTime.UtcNow;
+        if(now - _last_announce_call > TimeSpan.FromSeconds(600)) {
+          _last_announce_call = now;
+          Announce();
+        }
+        // We can establish some local connections!
+        if(NeedConnection) {
+          Activate();
+        }
       }
+    }
+
+    public override bool HandleCtmResponse(Connector c, ISender ret_path,
+                                           ConnectToMessage ctm_resp) {
+      /**
+       * Time to start linking:
+       */
+
+      Linker l = new Linker(_node, ctm_resp.Target.Address,
+                            ctm_resp.Target.Transports,
+                            ctm_resp.ConnectionType);
+      _node.TaskQueue.Enqueue( l );
+      return true;
+    }
+
+    protected void ConnectTo(Address target) {
+      ConnectionType mt = Connection.StringToMainType(struc_local);
+      /*
+       * This is an anonymous delegate which is called before
+       * the Connector starts.  If it returns true, the Connector
+       * will finish immediately without sending an ConnectToMessage
+       */
+      Linker l = new Linker(_node, target, null, struc_local);
+      object link_task = l.Task;
+      Connector.AbortCheck abort = delegate(Connector c) {
+        bool stop = false;
+        stop = _node.ConnectionTable.Contains( mt, target );
+        if (!stop ) {
+          /*
+           * Make a linker to get the task.  We won't use
+           * this linker.
+           * No need in sending a ConnectToMessage if we
+           * already have a linker going.
+           */
+          stop = _node.TaskQueue.HasTask( link_task );
+        }
+        return stop;
+      };
+      if (abort(null)) {
+        return;
+      }
+
+      ConnectToMessage ctm = new ConnectToMessage(struc_local, _node.GetNodeInfo(8));
+      ISender send = new AHSender(_node, target, AHPacket.AHOptions.Exact);
+      Connector con = new Connector(_node, send, ctm, this);
+      con.FinishEvent += this.ConnectorEndHandler;
+      con.AbortIf = abort;
+      _node.TaskQueue.Enqueue(con);
+    }
+
+
+    /**
+     * This method is called when there is a Disconnection from
+     * the ConnectionTable
+     */
+    protected void ConnectHandler(object tab, EventArgs eargs) {
+      Connection new_con2 = ((ConnectionEventArgs)eargs).Connection;
+      if (new_con2.ConType.Equals(struc_local)) {
+        if(ProtocolLog.LocalCO.Enabled) {
+          ProtocolLog.Write(ProtocolLog.LocalCO, String.Format(
+                            "Connect a {0}: {1} at: {2}",
+                            struc_local, new_con2, DateTime.UtcNow));
+        }
+        lock(_sync) {
+          _local_cons++;
+        }
+      }
+    }
+
+    /**
+     * This method is called when there is a Disconnection from
+     * the ConnectionTable
+     */
+    protected void DisconnectHandler(object tab, EventArgs eargs) {
+      Connection new_con2 = ((ConnectionEventArgs)eargs).Connection;
+      if (new_con2.ConType.Equals(struc_local)) {
+        if(ProtocolLog.LocalCO.Enabled) {
+          ProtocolLog.Write(ProtocolLog.LocalCO, String.Format(
+                            "Disconnect a {0}: {1} at: {2}",
+                            struc_local, new_con2, DateTime.UtcNow));
+        }
+        lock(_sync) {
+          _local_cons--;
+        }
+      }
+    }
+
+    protected void ConnectorEndHandler(object o, EventArgs eargs) {
+      // Not entirely certain yet...
     }
 
     /**
@@ -126,6 +273,13 @@ namespace Brunet
           remote_tas.Add(TransportAddressFactory.CreateInstance(ta));
         }
         _node.UpdateRemoteTAs(remote_tas);
+
+        AHAddress new_address = (AHAddress) AddressParser.Parse((string) ht["address"]);
+        int pos = _local_addresses.BinarySearch(new_address, addr_compare);
+        if(pos < 0) {
+          pos = ~pos;
+          _local_addresses.Insert(pos, new_address);
+        }
       }
       catch (Exception e) {
         ProtocolLog.WriteIf(ProtocolLog.Exceptions, "Unexpected exception: " + e);
@@ -157,7 +311,7 @@ namespace Brunet
           result = GetInformation();
         }
         else {
-          throw new Exception("Dht.Exception:  Invalid method");
+          throw new Exception("Invalid method");
         }
       }
       catch (Exception e) {
