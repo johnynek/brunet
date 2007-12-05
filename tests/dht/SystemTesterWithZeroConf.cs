@@ -60,10 +60,13 @@ namespace Test {
 
       string command = String.Empty;
       while (command != "Q") {
-        Console.WriteLine("Enter command (M/C/G/Q)");
+        Console.WriteLine("Enter command (M/C/P/G/Q)");
         command = Console.ReadLine();
         if(command.Equals("C")) {
           check_ring();
+        }
+        else if(command.Equals("P")) {
+          PrintConnections();
         }
         else if(command.Equals("M")) {
           Console.WriteLine("Memory Usage: " + GC.GetTotalMemory(true));
@@ -134,6 +137,7 @@ namespace Test {
           interval++;
         }
       }
+      catch (ThreadAbortException) { return; }
       catch (Exception e){
        Console.WriteLine(e);
       }
@@ -241,6 +245,18 @@ namespace Test {
         return true;
       }
       return false;
+    }
+
+    private static void PrintConnections() {
+      foreach(DictionaryEntry de in nodes) {
+        Node node = (Node)de.Value;
+        IEnumerable ie = node.ConnectionTable.GetConnections(ConnectionType.Structured);
+        Console.WriteLine("Connections for Node: " + node.Address);
+        foreach(Connection c in ie) {
+          Console.WriteLine(c);
+        }
+        Console.WriteLine("==============================================================");
+      }
     }
   }
 }
