@@ -36,6 +36,7 @@ namespace Brunet {
     private Hashtable _registered_xmlrpc = new Hashtable();
 
     public XmlRpcManager(Node node, RpcManager rpc) {
+      _node = node;
       _rpc = rpc;
     }
 
