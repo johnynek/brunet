@@ -168,7 +168,11 @@ namespace Brunet
       if(addr_bytes.Length != 4) {
         throw new Exception("This is only supported by IPv4!");
       }
-      return NumberSerializer.ReadInt(addr_bytes, 0);
+      int val = 0;
+      for(int i = 3; i >= 0; i--) {
+        val = (val << 8) | addr_bytes[i];
+      }
+      return val;
     }
 
     /**
@@ -193,6 +197,8 @@ namespace Brunet
 
         _s.SendTo(buffer, 0, length, 0, _ep);
       }
+      // Can't pass the fact that the IPHandler is not running :-/
+      catch (ObjectDisposedException) {}
       catch (Exception e) {
         ProtocolLog.WriteIf(ProtocolLog.Exceptions, "ERROR: " + e);
       }
@@ -238,12 +244,15 @@ namespace Brunet
         // I REALLY HATE THIS but we can't be setting this option in more than one thread!
         lock(_s) {
           foreach(IPAddress ip in ips) {
-            _s.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface,
-                              IPHandler.IPAddressToInt(ip));
-            _s.SendTo(buffer, 0, length, 0, _ep);
+            // This can throw an exception on an invalid address, we need to skip it and move on!
+              _s.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface,
+                                IPHandler.IPAddressToInt(ip));
+              _s.SendTo(buffer, 0, length, 0, _ep);
           }
         }
       }
+      // Can't pass the fact that the IPHandler is not running :-/
+      catch (ObjectDisposedException) {}
       catch (Exception e) {
         ProtocolLog.WriteIf(ProtocolLog.Exceptions, "ERROR: " + e);
       }
