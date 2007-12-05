@@ -559,9 +559,9 @@ namespace Brunet
         try {
           _send_queue.Enqueue(sqe);
         }
-        catch(InvalidOperationException e) {
+        catch(InvalidOperationException) {
           if(_running) {
-            throw e;
+            throw;
           }
         }
         if(ProtocolLog.UdpEdge.Enabled)
@@ -714,9 +714,9 @@ namespace Brunet
             try {
               _send_queue.Enqueue(sqe);
             }
-            catch(InvalidOperationException e) {
+            catch(InvalidOperationException) {
               if(_running) {
-                throw e;
+                throw;
               }
             }
           }
