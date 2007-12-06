@@ -35,21 +35,27 @@ namespace Brunet
   public class ConnectionEventArgs:System.EventArgs
   {
 
-    public Address RemoteAddress { get { return _con.Address; } }
-    public ConnectionType ConnectionType { get { return _con.MainType; } }
-    public Edge Edge { get { return _con.Edge; } }
-    
-    protected readonly Connection _con;
-    public Connection Connection { get { return _con; } }
+    public Address RemoteAddress { get { return Connection.Address; } }
+    public ConnectionType ConnectionType { get { return Connection.MainType; } }
+    public Edge Edge { get { return Connection.Edge; } }
     
     /**
      * This is the ConnectionList that the Connection was
      * inserted into.
      */
     public readonly ConnectionList CList;
+    /**
+     * The new Connection
+     */ 
+    public readonly Connection Connection;
+    /**
+     * The index into CList that corresponds to CList
+     */
+    public readonly int Index;
 
-    public ConnectionEventArgs(Connection c, ConnectionList cl) {
-      _con = c;
+    public ConnectionEventArgs(Connection c, int idx, ConnectionList cl) {
+      Connection = c;
+      Index = idx;
       CList = cl;
     }
   }
