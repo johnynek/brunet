@@ -204,9 +204,13 @@ namespace Brunet
     /**
      * ConnectionList objects are immutable.  This method creates a new one
      * with the given Connection added
+     * @param cl the old ConnectionList
+     * @param c the Connection to insert
+     * @param idx the index of the Connection in the returned ConnectionList
+     * @return the new ConnectionList containing c
      */
-    public static ConnectionList InsertInto(ConnectionList cl, Connection c) {
-      int idx = cl.IndexOf(c.Address);
+    public static ConnectionList InsertInto(ConnectionList cl, Connection c, out int idx) {
+      idx = cl.IndexOf(c.Address);
       if( idx > 0 ) {
         throw new ConnectionExistsException( cl[idx] );
       }
@@ -284,6 +288,7 @@ namespace Brunet
     /**
      * ConnectionList objects are immutable.  This method creates a new one
      * with the given index removed
+     * @param i the index of the Connection to remove
      */
     public static ConnectionList RemoveAt(ConnectionList cl, int i) {
       ArrayList new_add = Functional.RemoveAt(cl._addresses, i);
@@ -297,14 +302,16 @@ namespace Brunet
      * @param cl the ConnectionList to start with
      * @param old the Connection we are replacing
      * @param new_c the Connection we are replacing with.
+     * @param idx the index of both old and new_c
      */
-    public static ConnectionList Replace(ConnectionList cl, Connection old, Connection new_c) {
+    public static ConnectionList Replace(ConnectionList cl, Connection old, Connection new_c,
+                                         out int idx) {
       Address old_a = old.Address;
       if( !old_a.Equals( new_c.Address ) ) {
         throw new Exception(String.Format("Cannot replace: old Address: {0} != new Address {1}",
                             old.Address, new_c.Address));
       }
-      int idx = cl.IndexOf(old_a);
+      idx = cl.IndexOf(old_a);
       if( idx < 0 ) {
         //This is a new address:
         throw new Exception(String.Format("Address: {0} not in ConnectionList.", old_a));
@@ -547,6 +554,7 @@ namespace Brunet
       ConnectionType t = c.MainType;
       Edge e = c.Edge;
       ConnectionList new_cl;
+      int index;
 
       lock(_sync) {
         if( _closed ) { throw new TableClosedException(); }
@@ -576,7 +584,7 @@ namespace Brunet
          * Copy so we don't mess up an old list
          */
         ConnectionList oldlist = GetConnections(t);
-        new_cl = ConnectionList.InsertInto(oldlist, c);
+        new_cl = ConnectionList.InsertInto(oldlist, c, out index);
         _type_to_conlist = Functional.SetElement(_type_to_conlist, t, new_cl);
         if( t == ConnectionType.Structured ) {
           //Optimize the most common case to avoid the hashtable
@@ -599,7 +607,7 @@ namespace Brunet
        */
       if(ConnectionEvent != null) {
         try {
-          ConnectionEvent(this, new ConnectionEventArgs(c, new_cl) );
+          ConnectionEvent(this, new ConnectionEventArgs(c, index, new_cl) );
         }
         catch(Exception x) {
           if(ProtocolLog.Exceptions.Enabled)
@@ -1008,7 +1016,7 @@ namespace Brunet
         //Announce the disconnection:
         if( DisconnectionEvent != null ) {
           try {
-            DisconnectionEvent(this, new ConnectionEventArgs(c, new_cl));
+            DisconnectionEvent(this, new ConnectionEventArgs(c, index, new_cl));
           }
           catch(Exception x) {
             if(ProtocolLog.Exceptions.Enabled)
@@ -1130,9 +1138,10 @@ namespace Brunet
       ConnectionList cl;
         //Make the new connection and replace it in our data structures:
       Connection newcon = new Connection(e,a,con_type,sm,plm);
+      int index;
       lock(_sync) {
         cl = GetConnections(t);
-        cl = ConnectionList.Replace(cl, con, newcon);
+        cl = ConnectionList.Replace(cl, con, newcon, out index);
         //Update the Edge -> Connection mapping
         _edge_to_con = Functional.SetElement(_edge_to_con, e, newcon);
         //Update the ConnectionType -> ConnectionList mapping
@@ -1147,7 +1156,7 @@ namespace Brunet
       /* Send the event: */
       if( StatusChangedEvent != null ) {
         try {
-          StatusChangedEvent(sm, new ConnectionEventArgs(newcon, cl) );
+          StatusChangedEvent(sm, new ConnectionEventArgs(newcon, index, cl) );
         }
         catch(Exception x) {
           if(ProtocolLog.Exceptions.Enabled)
