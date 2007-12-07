@@ -166,8 +166,12 @@ namespace Brunet
       }
       CacheKey k = new CacheKey(dest, prev_e, p.Options );
       //We've already checked hops == ttl, so we can ignore them for now
-      //We don't have to hold the lock to read:
-      CachedRoute cr = (CachedRoute)_route_cache[ k ];
+      CachedRoute cr = null;
+      lock( _sync ) {
+        //This looks like a Hashtable, but it's a Cache,
+        //and we can't read from it without locking it
+        cr = (CachedRoute)_route_cache[ k ];
+      }
       if( cr != null ) {
         //Awesome, we already know the path to this node.
         //This cuts down on latency
