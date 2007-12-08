@@ -84,11 +84,7 @@ namespace Brunet
      * Is false until we get a response
      */
     protected bool _got_ctm;
-    /**
-     * We lock this when we need thread safety
-     */
     protected object _sync;
-    public Object SyncRoot { get { return _sync; } }
     
     /**
      * Represents the Task this connector works on for the TaskWorker

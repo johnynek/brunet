@@ -179,33 +179,24 @@ namespace Brunet
 
       foreach( Node item in node_list)
       {
-        lock( item.ConnectionTable.SyncRoot ) {
-
-          if (0 < item.ConnectionTable.Count(ConnectionType.Leaf) )
-          {
-            ConnectionTable tab = item.ConnectionTable;
-            foreach(Connection con in tab.GetConnections(ConnectionType.Leaf))
-	    {
+          ConnectionList leafs = item.ConnectionTable.GetConnections(ConnectionType.Leaf);
+          foreach(Connection con in leafs)
+	  {
 	     Address leaf_item = con.Address;
               string graph_line = String.Format("{0} -> {1} [color= blue];",
                                                 item.Address.ToBigInteger().IntValue(),
                                                 leaf_item.ToBigInteger().IntValue() );
               sw.WriteLine(graph_line);
-            }
           }
-          if (0 < item.ConnectionTable.Count(ConnectionType.Structured) )
-          {
-            ConnectionTable tab = item.ConnectionTable;
-            foreach(Connection con in tab.GetConnections(ConnectionType.Structured))
-	    {
+          ConnectionList structs = item.ConnectionTable.GetConnections(ConnectionType.Structured);
+          foreach(Connection con in structs)
+	  {
 	     Address struct_item = con.Address;
               string graph_line = String.Format("{0} -> {1} [color= red];",
                                                 item.Address.ToBigInteger().IntValue(),
                                                 struct_item.ToBigInteger().IntValue() );
               sw.WriteLine(graph_line);
-            }
           }
-        }
       }
       sw.WriteLine("}");
       sw.Close();
