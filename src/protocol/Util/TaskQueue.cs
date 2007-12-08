@@ -28,17 +28,44 @@ namespace Brunet {
  * Task.  When the they are done, they fire a FinishEvent.
  */
 abstract public class TaskWorker {
-
+  
+  protected TaskWorker()
+  {
+    _fe_sync = new object();
+    _have_fired_finish = false;
+  }
   /**
    * This object MUST correctly implement GetHashCode and Equals
    */
   abstract public object Task { get; }
+  
+  //Handle thread synchronization of the FinishEvent
+  private readonly object _fe_sync;
+  private bool _have_fired_finish;
+  private EventHandler _finish_event;
   /**
    * This is fired when the TaskWorker is finished,
    * it doesn't mean it was successful, it just means
    * it has stopped
    */
-  public event EventHandler FinishEvent;
+  public event EventHandler FinishEvent {
+    add {
+      lock( _fe_sync ) {
+        if( !_have_fired_finish ) {
+          _finish_event = (EventHandler)Delegate.Combine(_finish_event, value);
+        }
+        else {
+          // We've already fired the close event!!
+          throw new Exception(String.Format("{0} already fired FinishEvent",this));
+        }
+      }
+    }
+    remove {
+      lock( _fe_sync ) {
+        _finish_event = (EventHandler)Delegate.Remove(_finish_event, value);
+      }
+    }
+  }
 
   /**
    * Is true if the TaskWorker is finished
@@ -47,14 +74,24 @@ abstract public class TaskWorker {
 
   /**
    * Subclasses call this to fire the finish event
+   * @return true if this is the first time this method is called
    */
-  protected void FireFinished() {
+  protected bool FireFinished() {
     EventHandler eh = null;
+    bool first = false;
     //Make sure we only fire once:
-    eh = System.Threading.Interlocked.Exchange(ref FinishEvent, eh);
+    lock( _fe_sync ) {
+      if( !_have_fired_finish ) {
+        eh = _finish_event;
+        _finish_event = null;
+        _have_fired_finish = true;
+        first = true;
+      }
+    }
     if( eh != null ) {
       eh(this, EventArgs.Empty);
     }
+    return first;
   }
 
   /**
@@ -73,8 +110,8 @@ public class TaskQueue {
   /**
    * Here is the list workers
    */
-  protected Hashtable _task_to_workers;
-  protected object _sync;
+  protected readonly Hashtable _task_to_workers;
+  protected readonly object _sync;
 
   /**
    * When the TaskQueue completely empties,
@@ -82,20 +119,18 @@ public class TaskQueue {
    */
   public event EventHandler EmptyEvent;
 
-  protected int _worker_count;
   //if the queue can start workers (added by Arijit Ganguly)
-  protected bool _is_active;
+  protected volatile bool _is_active;
   public bool IsActive {
     set {
       _is_active = value;
     }
   }
   
+  protected volatile int _worker_count;
   public int WorkerCount {
     get {
-      lock( _sync ) {
-        return _worker_count;
-      }
+      return _worker_count;
     }
   }
 
