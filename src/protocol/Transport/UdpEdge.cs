@@ -48,9 +48,10 @@ namespace Brunet
         return end;
       }
       set {
+        TransportAddress new_ta = TransportAddressFactory.CreateInstance(TAType, (IPEndPoint) value);
         lock( _sync ) {
           end = value;
-          _remoteta = TransportAddressFactory.CreateInstance(TAType, (IPEndPoint) value);
+          _remoteta = new_ta;
         }
       }
     }

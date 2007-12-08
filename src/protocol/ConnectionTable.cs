@@ -1076,9 +1076,9 @@ namespace Brunet
      */
     public void Unlock(string t, ILinkLocker locker)
     {
+      ConnectionType mt = Connection.StringToMainType(t);
       lock( _sync ) {
         if( locker.TargetLock != null ) {
-          ConnectionType mt = Connection.StringToMainType(t);
           Hashtable locks = (Hashtable)_address_locks[mt];
           if(ProtocolLog.ConnectionTableLocks.Enabled) {
             ProtocolLog.Write(ProtocolLog.ConnectionTableLocks,

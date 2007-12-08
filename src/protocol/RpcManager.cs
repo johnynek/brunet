@@ -220,13 +220,15 @@ public class RpcManager : IReplyHandler, IDataHandler {
    */
   public static RpcManager GetInstance(Node node) {
     RpcManager rpc;
+    //Do this outside the lock:
+    ReqrepManager rrm = ReqrepManager.GetInstance(node);
     lock(_rpc_table) {
       //check if there is already an instance object for this node
       if (_rpc_table.ContainsKey(node)) {
         return (RpcManager) _rpc_table[node];
       }
       //in case no instance exists, create one
-      rpc = new RpcManager(ReqrepManager.GetInstance(node));
+      rpc = new RpcManager(rrm);
       _rpc_table[node] = rpc;
     }
 
