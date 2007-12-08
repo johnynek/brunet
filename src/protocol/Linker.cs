@@ -96,11 +96,6 @@ namespace Brunet
     
     /** global lock for thread synchronization */
     protected readonly object _sync;
-    public object SyncRoot {
-      get {
-        return _sync;
-      }
-    }
     protected bool _is_finished;
     override public bool IsFinished {
       get {

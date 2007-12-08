@@ -458,12 +458,6 @@ namespace Brunet
 
     /** an object to lock for thread sync */
     private readonly object _sync;
-    /** Allows external objects to make sure the ConnectionTable
-     * does not change as they are working with it
-     */
-    public object SyncRoot {
-      get { return _sync; }
-    }
     /**
      * When there is a new connection, this event
      * is fired.
@@ -497,9 +491,7 @@ namespace Brunet
 
     /**
      * This is for the ICollection interface.
-     * Note, that ConnectionTable objects are synchronized, but if
-     * you don't want the table to change between method calls, you
-     * need to explicitly lock SyncRoot.
+     * It returns true
      */
     public bool IsSynchronized {
       get { return true; }
