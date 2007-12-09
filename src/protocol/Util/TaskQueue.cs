@@ -31,40 +31,22 @@ abstract public class TaskWorker {
   
   protected TaskWorker()
   {
-    _fe_sync = new object();
-    _have_fired_finish = false;
+    _finish_event = new FireOnceEvent();
   }
   /**
    * This object MUST correctly implement GetHashCode and Equals
    */
   abstract public object Task { get; }
   
-  //Handle thread synchronization of the FinishEvent
-  private readonly object _fe_sync;
-  private bool _have_fired_finish;
-  private EventHandler _finish_event;
+  private FireOnceEvent _finish_event;
   /**
    * This is fired when the TaskWorker is finished,
    * it doesn't mean it was successful, it just means
    * it has stopped
    */
   public event EventHandler FinishEvent {
-    add {
-      lock( _fe_sync ) {
-        if( !_have_fired_finish ) {
-          _finish_event = (EventHandler)Delegate.Combine(_finish_event, value);
-        }
-        else {
-          // We've already fired the close event!!
-          throw new Exception(String.Format("{0} already fired FinishEvent",this));
-        }
-      }
-    }
-    remove {
-      lock( _fe_sync ) {
-        _finish_event = (EventHandler)Delegate.Remove(_finish_event, value);
-      }
-    }
+    add { _finish_event.Add(value); }
+    remove { _finish_event.Remove(value); }
   }
 
   /**
@@ -77,21 +59,7 @@ abstract public class TaskWorker {
    * @return true if this is the first time this method is called
    */
   protected bool FireFinished() {
-    EventHandler eh = null;
-    bool first = false;
-    //Make sure we only fire once:
-    lock( _fe_sync ) {
-      if( !_have_fired_finish ) {
-        eh = _finish_event;
-        _finish_event = null;
-        _have_fired_finish = true;
-        first = true;
-      }
-    }
-    if( eh != null ) {
-      eh(this, EventArgs.Empty);
-    }
-    return first;
+    return _finish_event.Fire(this, null);
   }
 
   /**
