@@ -324,6 +324,10 @@ namespace Brunet
 	if (now - _last_send < EdgeCreationState.ReqTimeout) {
 	  return;
 	}
+	int new_val = Interlocked.Decrement(ref _attempts);
+        if (new_val < 0) {
+           return;
+        }
         /*
          * one of the senders might have closed
          * try three times to be sure
@@ -331,18 +335,7 @@ namespace Brunet
 
         bool try_again = true;
         int count = 0;
-        int edge_idx;
-	
-	//we need not hold a lock here, use interlocked.
-	int old_val = Interlocked.CompareExchange(ref _attempts, 0, 0);
-	if (old_val == 0) {
-	  return;
-	}
-        //this does not have to be interlocked, since only a single thread will get
-        // here.
-	Interlocked.Decrement(ref _attempts);
-	try_again = true;
-	edge_idx = _r.Next(0, Senders.Count);
+        int edge_idx = _r.Next(0, Senders.Count);
         while( try_again ) {
           try {
             Edge e = (Edge) Senders[ edge_idx ];
