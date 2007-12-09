@@ -54,22 +54,28 @@ namespace Brunet
 	return _target;
       }
     }
-    protected int _id;
+    protected readonly int _id;
     public int ID {
       get {
 	return _id;
       }
     }
-    protected volatile int _remote_id;
+    protected int _remote_id;
     public int RemoteID {
       get {
-	return _remote_id;
+	return Thread.VolatileRead(ref _remote_id); 
       }
       set {
-        lock( _sync ) {
-	  _remote_id = value;
-          MakeTunnelHeader();
-        }
+        int old_v = Interlocked.CompareExchange(ref _remote_id, value, 0);
+        if( old_v != 0 ) {
+          //We didn't really exchange above, and we should throw an exception
+          throw new EdgeException(
+                      String.Format("RemoteID already set: {0} cannot set to: {1}",
+                                    old_v, value));	
+	}
+	// We need to create a new header.
+	// Only a single thread can get to this point, so we need not lock.
+	_tun_header = GetTunnelHeader(_id, RemoteID);
       }
     }
     
@@ -142,7 +148,8 @@ namespace Brunet
       _id = id;
       _remote_id = remoteid;
       _last_sender_idx = 0; 
-      MakeTunnelHeader();
+      //create a tunnel header.
+      _tun_header = GetTunnelHeader(ID, RemoteID);
 
       //This doesn't require us to hold the lock on the connection table
       IEnumerable struct_cons = n.ConnectionTable.GetConnections(ConnectionType.Structured);
@@ -189,14 +196,14 @@ namespace Brunet
     /**
      * We have to make this everytime _remote_id changes
      */
-    protected void MakeTunnelHeader() {
+    protected ICopyable GetTunnelHeader(int local_id, int remote_id) {
       //The header always stays fixed for this TunnelEdge
       byte[] ids = new byte[9];
       ids[0] = (byte) TunnelEdgeListener.MessageType.EdgeData;
       //Write the IDs of the edge:
       //[edge data][local id 4 bytes][remote id 4 bytes][packet]
-      NumberSerializer.WriteInt(_id, ids, 1);
-      NumberSerializer.WriteInt(_remote_id, ids, 5);
+      NumberSerializer.WriteInt(local_id, ids, 1);
+      NumberSerializer.WriteInt(remote_id, ids, 5);
       MemBlock ids_mb = MemBlock.Reference( ids );
       ICopyable header = new CopyList( PType.Protocol.AH,
                                        new AHHeader(1, 2, _node.Address, _target, AHPacket.AHOptions.Exact),
@@ -205,7 +212,7 @@ namespace Brunet
       //Now we have assembled the full header to prepend to any data, but
       //it is a waste to do all the copying each time, so we copy it into
       //one buffer now:
-      _tun_header = MemBlock.Copy( (ICopyable) header );
+      return MemBlock.Copy( (ICopyable) header );
     }
     /**
      * @param p a Packet to send to the host on the other
