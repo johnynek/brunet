@@ -40,9 +40,11 @@ public class WriteOnce<T> {
       return (T)_value;
     }
     set {
-      if (false == TrySet(value)) {
+      object old = System.Threading.Interlocked.CompareExchange(ref _value,
+                                                                value, null);
+      if( old != null ) {
         throw new System.Exception(
-                    System.String.Format("Value already set: {0}", _value));
+                    System.String.Format("Value already set: {0}", old));
       }
     }
   }
@@ -51,17 +53,6 @@ public class WriteOnce<T> {
     _value = null;
   }
 
-  public override string ToString() {
-    return  (_value != null) ? _value.ToString() : System.String.Empty;
-  }
-
-  /** Try to set the value.
-   * @return true if the value was set
-   */
-  public bool TrySet(T val) {
-    object old = System.Threading.Interlocked.CompareExchange(ref _value, val, null);
-    return ( old == null );
-  }
     
 }
 
