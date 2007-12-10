@@ -274,7 +274,7 @@ namespace Brunet
       protected EdgeCreationCallback _ecb; 
       protected readonly Packet RequestPacket;
       protected readonly IList Senders;
-      protected DateTime _last_send;//reference type, atomically updated
+      protected DateTime _last_send;
       public const int MAX_ATTEMPTS = 4;
       protected int _attempts;
       public int Attempts { 
@@ -320,14 +320,12 @@ namespace Brunet
        * list of neighbors
        */
       public void Resend() {
-	DateTime now = DateTime.UtcNow;
+        DateTime now = DateTime.UtcNow;
 	if (now - _last_send < EdgeCreationState.ReqTimeout) {
 	  return;
 	}
 	int new_val = Interlocked.Decrement(ref _attempts);
-        if (new_val < 0) {
-           return;
-        }
+        if (new_val > 0) {
         /*
          * one of the senders might have closed
          * try three times to be sure
@@ -354,7 +352,8 @@ namespace Brunet
             if( count >= 3 ) { try_again = false; }
           }
         }
-	_last_send = now;
+        _last_send = now;
+      }
       }
     }
     protected Hashtable _ecs_ht;
