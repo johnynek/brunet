@@ -275,6 +275,7 @@ namespace Brunet
       protected readonly Packet RequestPacket;
       protected readonly IList Senders;
       protected DateTime _last_send;
+      protected object _last_send_lock;
       public const int MAX_ATTEMPTS = 4;
       protected int _attempts;
       public int Attempts { 
@@ -285,7 +286,6 @@ namespace Brunet
       protected readonly Random _r;
       protected Edge _edge; //reference type
       public Edge CreatedEdge { get { return _edge; } }
-
       public EdgeCreationState(int id, IList senders, Packet p, EdgeCreationCallback ecb) {
         Id = id;
         Senders = senders;
@@ -294,6 +294,7 @@ namespace Brunet
         _r = new Random();
         _attempts = MAX_ATTEMPTS;
         _last_send = DateTime.UtcNow;
+        _last_send_lock = new object();
       }
 
       /**
@@ -321,39 +322,42 @@ namespace Brunet
        */
       public void Resend() {
         DateTime now = DateTime.UtcNow;
-	if (now - _last_send < EdgeCreationState.ReqTimeout) {
-	  return;
-	}
+        lock(_last_send_lock) {
+          if (now - _last_send < EdgeCreationState.ReqTimeout) {
+            return;
+          }
+          _last_send = now;
+        }
+
 	int new_val = Interlocked.Decrement(ref _attempts);
         if (new_val > 0) {
-        /*
-         * one of the senders might have closed
-         * try three times to be sure
-         */
+          /*
+           * one of the senders might have closed
+           * try three times to be sure
+           */
 
-        bool try_again = true;
-        int count = 0;
-        int edge_idx = _r.Next(0, Senders.Count);
-        while( try_again ) {
-          try {
-            Edge e = (Edge) Senders[ edge_idx ];
-            e.Send(RequestPacket);
-            try_again = false;
-          }
+          bool try_again = true;
+          int count = 0;
+          int edge_idx = _r.Next(0, Senders.Count);
+          while( try_again ) {
+            try {
+              Edge e = (Edge) Senders[ edge_idx ];
+              e.Send(RequestPacket);
+              try_again = false;
+            }
 #if TUNNEL_DEBUG
-          catch(Exception ex) {
-            Console.Error.WriteLine(ex);
+            catch(Exception ex) {
+              Console.Error.WriteLine(ex);
 #else
-          catch(Exception) {
+            catch(Exception) {
 #endif
-            count++;
-            //try the next edge:
-            edge_idx = (edge_idx + 1) % Senders.Count;
-            if( count >= 3 ) { try_again = false; }
+              count++;
+              //try the next edge:
+              edge_idx = (edge_idx + 1) % Senders.Count;
+              if( count >= 3 ) { try_again = false; }
+            }
           }
         }
-        _last_send = now;
-      }
       }
     }
     protected Hashtable _ecs_ht;
