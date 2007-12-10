@@ -388,7 +388,7 @@ namespace Brunet.Dht {
     // This contains all the logic used to do the actual transfers
     protected class TransferState {
       protected const int MAX_PARALLEL_TRANSFERS = 10;
-      private object _interrupted = false;
+      private volatile bool _interrupted = false;
       LinkedList<Entry[]> key_entries = new LinkedList<Entry[]>();
       private IEnumerator _entry_enumerator;
       Connection _con;
@@ -448,9 +448,7 @@ namespace Brunet.Dht {
           }
           catch {
             if(_con.Edge.IsClosed) {
-              lock(_interrupted) {
-                _interrupted = true;
-              }
+              _interrupted = true;
               Done();
               break;
             }
@@ -479,7 +477,7 @@ namespace Brunet.Dht {
         /* No point in dequeueing, if we've been interrupted, we most likely
          * will get an exception!
          */
-        if((bool) _interrupted) {
+        if(_interrupted) {
           return;
         }
         try {
@@ -490,9 +488,7 @@ namespace Brunet.Dht {
 Console.Error.WriteLine("DHT_DEBUG:::Transfer failed");
 #endif
           if(_con.Edge.IsClosed) {
-            lock(_interrupted) {
-              _interrupted = true;
-            }
+            _interrupted = true;
             Done();
             return;
           }
@@ -518,9 +514,7 @@ Console.Error.WriteLine("DHT_DEBUG:::Transfer failed");
           }
           catch {
             if(_con.Edge.IsClosed) {
-              lock(_interrupted) {
-                _interrupted = true;
-              }
+              _interrupted = true;
             }
           }
           if(_ts.debug) {
@@ -536,9 +530,7 @@ Console.Error.WriteLine("DHT_DEBUG:::Transfer failed");
       }
 
       public void Interrupt() {
-        lock(_interrupted) {
-          _interrupted = true;
-        }
+        _interrupted = true;
         Done();
       }
 
