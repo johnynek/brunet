@@ -53,6 +53,10 @@ public class WriteOnce<T> {
     _value = null;
   }
 
+  public override string ToString() {
+    return  (_value != null) ? _value.ToString() : System.String.Empty;
+  }
+
     
 }
 
