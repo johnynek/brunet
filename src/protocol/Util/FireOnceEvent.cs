@@ -27,6 +27,9 @@ namespace Brunet
  * This handles making EventHandler delegates that can
  * only be fired once.
  */
+#if BRUNET_NUNIT
+[TestFixture]
+#endif
 public class FireOnceEvent {
 
   private readonly object _sync;
@@ -81,6 +84,20 @@ public class FireOnceEvent {
     }
     return fire;
   }
+#if BRUNET_NUNIT
+  [Test]
+  public void Test0() {
+    FireOnceEvent feo = new FireOnceEvent();
+    int[] fired = new int[1];
+    fired[0] = 0;
+    feo.Add( delegate(object o, EventArgs args) { fired[0] = fired[0] + 1; });
+    Assert.IsTrue( feo.Fire(null, null), "First fire test" );
+    Assert.IsFalse( feo.Fire(null, null), "Second fire test" );
+    Assert.IsFalse( feo.Fire(null, null), "Second fire test" );
+    Assert.IsFalse( feo.Fire(null, null), "Second fire test" );
+    Assert.AreEqual(fired[0], 1, "Fire event test 2");
+  }
+#endif
 }
 
 }
