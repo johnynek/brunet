@@ -75,7 +75,7 @@ namespace Brunet
 	}
 	// We need to create a new header.
 	// Only a single thread can get to this point, so we need not lock.
-	_tun_header = GetTunnelHeader(_id, RemoteID);
+	_tun_header = GetTunnelHeader(_id, RemoteID, _node.Address, _target);
       }
     }
     
@@ -149,7 +149,7 @@ namespace Brunet
       _remote_id = remoteid;
       _last_sender_idx = 0; 
       //create a tunnel header.
-      _tun_header = GetTunnelHeader(ID, RemoteID);
+      _tun_header = GetTunnelHeader(ID, RemoteID, _node.Address, _target);
 
       //This doesn't require us to hold the lock on the connection table
       IEnumerable struct_cons = n.ConnectionTable.GetConnections(ConnectionType.Structured);
@@ -196,7 +196,7 @@ namespace Brunet
     /**
      * We have to make this everytime _remote_id changes
      */
-    protected ICopyable GetTunnelHeader(int local_id, int remote_id) {
+    protected static ICopyable GetTunnelHeader(int local_id, int remote_id, Address source, Address target) {
       //The header always stays fixed for this TunnelEdge
       byte[] ids = new byte[9];
       ids[0] = (byte) TunnelEdgeListener.MessageType.EdgeData;
@@ -206,7 +206,7 @@ namespace Brunet
       NumberSerializer.WriteInt(remote_id, ids, 5);
       MemBlock ids_mb = MemBlock.Reference( ids );
       ICopyable header = new CopyList( PType.Protocol.AH,
-                                       new AHHeader(1, 2, _node.Address, _target, AHPacket.AHOptions.Exact),
+                                       new AHHeader(1, 2, source, target, AHPacket.AHOptions.Exact),
                                        PType.Protocol.Tunneling,
                                        ids_mb );
       //Now we have assembled the full header to prepend to any data, but
