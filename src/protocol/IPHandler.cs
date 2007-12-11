@@ -157,6 +157,10 @@ namespace Brunet
       return new MulticastSender(_uc);
     }
 
+    public ISender CreateMulticastSender(ArrayList BlockedIPs) {
+      return new MulticastSender(_uc, BlockedIPs);
+    }
+
     /**
      * IPAddress.Address is obsolete, we use our own method to convert to an
      * int in case the method is removed
@@ -185,7 +189,7 @@ namespace Brunet
 
   public class UnicastSender: ISender
   {
-    protected readonly EndPoint _ep;
+    public readonly EndPoint EndPoint;
     protected readonly Socket _s;
 
     public virtual void Send(ICopyable data)
@@ -195,7 +199,7 @@ namespace Brunet
         byte[] buffer = new byte[data.Length];
         int length = data.CopyTo(buffer, 0);
 
-        _s.SendTo(buffer, 0, length, 0, _ep);
+        _s.SendTo(buffer, 0, length, 0, EndPoint);
       }
       // Can't pass the fact that the IPHandler is not running :-/
       catch (ObjectDisposedException) {}
@@ -207,7 +211,7 @@ namespace Brunet
     public UnicastSender(Socket s, EndPoint ep)
     {
       _s = s;
-      _ep = ep;
+      EndPoint = ep;
     }
 
     /**
@@ -222,18 +226,29 @@ namespace Brunet
         return true;
       }
       else {
-        return (_s.Equals( other._s ) && _ep.Equals( other._ep ));
+        return (_s.Equals( other._s ) && EndPoint.Equals( other.EndPoint ));
       }
     }
 
     public override int GetHashCode() {
-      return _ep.GetHashCode();
+      return EndPoint.GetHashCode();
     }
   }
 
   public class MulticastSender: UnicastSender
   {
-    public MulticastSender(Socket s):base(s, IPHandler.mc_endpoint){}
+    public readonly ArrayList BlockedIPs;
+    public MulticastSender(Socket s):base(s, IPHandler.mc_endpoint) {
+      this.BlockedIPs = new ArrayList(0);
+    }
+    public MulticastSender(Socket s, ArrayList BlockedIPs): base(s, IPHandler.mc_endpoint) {
+      if(BlockedIPs == null) {
+        this.BlockedIPs = new ArrayList(0);
+      }
+      else {
+        this.BlockedIPs = BlockedIPs;
+      }
+    }
 
     public override void Send(ICopyable data) {
       IPAddress[] ips = IPHandler.GetLocalIPAddresses();
@@ -244,10 +259,13 @@ namespace Brunet
         // I REALLY HATE THIS but we can't be setting this option in more than one thread!
         lock(_s) {
           foreach(IPAddress ip in ips) {
+            if(BlockedIPs.Contains(ip)) {
+              continue;
+            }
             // This can throw an exception on an invalid address, we need to skip it and move on!
-              _s.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface,
-                                IPHandler.IPAddressToInt(ip));
-              _s.SendTo(buffer, 0, length, 0, _ep);
+            _s.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface,
+                              IPHandler.IPAddressToInt(ip));
+            _s.SendTo(buffer, 0, length, 0, EndPoint);
           }
         }
       }
