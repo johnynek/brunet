@@ -195,7 +195,7 @@ namespace Brunet.Dht {
       // so when we get a GetHandler we know which state to load
       AsDhtGetState adgs = new AsDhtGetState(returns);
       Channel[] q = new Channel[DEGREE];
-      lock(_adgs_table) {
+      lock(_adgs_table.SyncRoot) {
         for (int k = 0; k < DEGREE; k++) {
           Channel queue = new Channel();
           _adgs_table[queue] = adgs;
@@ -204,14 +204,12 @@ namespace Brunet.Dht {
       }
 
       // Setting up our Channels
-      lock(adgs) {
-        for (int k = 0; k < DEGREE; k++) {
-          Channel queue = q[k];
-          queue.CloseAfterEnqueue();
-          queue.EnqueueEvent += this.GetEnqueueHandler;
-          queue.CloseEvent += this.GetCloseHandler;
-          adgs.queueMapping[queue] = k;
-        }
+      for (int k = 0; k < DEGREE; k++) {
+        Channel queue = q[k];
+        queue.CloseAfterEnqueue();
+        queue.EnqueueEvent += this.GetEnqueueHandler;
+        queue.CloseEvent += this.GetCloseHandler;
+        adgs.queueMapping[queue] = k;
       }
 
       // Sending off the request!
@@ -258,7 +256,7 @@ namespace Brunet.Dht {
           MemBlock mbVal = (byte[]) ht["value"];
           int count = 1;
           Hashtable res = null;
-          lock(adgs.results) {
+          lock(adgs.SyncRoot) {
             res = (Hashtable) adgs.results[mbVal];
             if(res == null) {
               res = new Hashtable();
@@ -286,24 +284,24 @@ namespace Brunet.Dht {
     // We were notified that more results were available!  Let's go get them!
       if(token != null && sendto != null) {
         Channel new_queue = new Channel();
-        lock(adgs.queueMapping) {
+        lock(adgs.SyncRoot) {
           adgs.queueMapping[new_queue] = idx;
         }
-        lock(_adgs_table) {
+        lock(_adgs_table.SyncRoot) {
           _adgs_table[new_queue] = adgs;
         }
         new_queue.CloseAfterEnqueue();
         new_queue.EnqueueEvent += this.GetEnqueueHandler;
         new_queue.CloseEvent += this.GetCloseHandler;
         try {
-        _rpc.Invoke(sendto, new_queue, "dht.Get", 
+          _rpc.Invoke(sendto, new_queue, "dht.Get", 
                     adgs.brunet_address_for_key[idx], MAX_BYTES, token);
         }
         catch(Exception) {
-          lock(adgs.queueMapping) {
+          lock(adgs.SyncRoot) {
             adgs.queueMapping.Remove(new_queue);
           }
-          lock(_adgs_table) {
+          lock(_adgs_table.SyncRoot) {
             _adgs_table.Remove(new_queue);
           }
           new_queue.EnqueueEvent -= this.GetEnqueueHandler;
@@ -324,20 +322,20 @@ namespace Brunet.Dht {
       }
 
       int count = 0;
-      lock(adgs.queueMapping) {
+      lock(adgs.SyncRoot) {
         adgs.queueMapping.Remove(queue);
         count = adgs.queueMapping.Count;
       }
-      lock(_adgs_table) {
+      lock(_adgs_table.SyncRoot) {
         _adgs_table.Remove(queue);
       }
       if(count == 0) {
         adgs.returns.Close();
         GetFollowUp(adgs);
       }
-      else if(count < MAJORITY && !(bool) adgs.GotToLeaveEarly) {
-        lock(adgs.GotToLeaveEarly) {
-          if(!(bool) adgs.GotToLeaveEarly) {
+      else if(count < MAJORITY && !adgs.GotToLeaveEarly) {
+        lock(adgs.SyncRoot) {
+          if(!adgs.GotToLeaveEarly) {
             GetLeaveEarly(adgs);
           }
         }
@@ -352,13 +350,11 @@ namespace Brunet.Dht {
       int left = adgs.queueMapping.Count;
       // Maybe we can leave early
       bool got_all_values = true;
-      lock(adgs.results) {
-        foreach (DictionaryEntry de in adgs.results) {
-          int val = ((Hashtable) de.Value).Count;
-          if(val < MAJORITY && ((val + left) >= MAJORITY)) {
-            got_all_values = false;
-            break;
-          }
+      foreach (DictionaryEntry de in adgs.results) {
+        int val = ((Hashtable) de.Value).Count;
+        if(val < MAJORITY && ((val + left) >= MAJORITY)) {
+          got_all_values = false;
+          break;
         }
       }
 
@@ -372,6 +368,12 @@ Console.Error.WriteLine("DHT_DEBUG:::GetLeaveEarly found:left:total = {0}:{1}:{2
       }
     }
 
+    /**
+     * Restores any of the Dht results that don't return all their values.
+     * We only get here at the end of a Dht return operation, no 
+     * locks necessary!
+     * @param adgs the async dht get state we're restoring
+     */
     private void GetFollowUp(AsDhtGetState adgs) {
       foreach (DictionaryEntry de in adgs.results) {
         if(de.Value == null || de.Key == null) {
@@ -468,7 +470,7 @@ Console.Error.WriteLine("DHT_DEBUG:::Doing follow up put count:total = {0}:{1}",
 
       MemBlock[] brunet_address_for_key = MapToRing(key);
       Channel[] q = new Channel[DEGREE];
-      lock(_adps_table) {
+      lock(_adps_table.SyncRoot) {
         for (int k = 0; k < DEGREE; k++) {
           Channel queue = new Channel();
           _adps_table[queue] = adps;
@@ -476,14 +478,12 @@ Console.Error.WriteLine("DHT_DEBUG:::Doing follow up put count:total = {0}:{1}",
         }
       }
 
-      lock(adps) {
-        for (int k = 0; k < DEGREE; k++) {
-          Channel queue = q[k];
-          queue.CloseAfterEnqueue();
-          queue.EnqueueEvent += this.PutEnqueueHandler;
-          queue.CloseEvent += this.PutCloseHandler;
-          adps.queueMapping[queue] = k;
-        }
+      for (int k = 0; k < DEGREE; k++) {
+        Channel queue = q[k];
+        queue.CloseAfterEnqueue();
+        queue.EnqueueEvent += this.PutEnqueueHandler;
+        queue.CloseEvent += this.PutCloseHandler;
+        adps.queueMapping[queue] = k;
       }
 
       for (int k = 0; k < DEGREE; k++) {
@@ -515,30 +515,26 @@ Console.Error.WriteLine("DHT_DEBUG:::Doing follow up put count:total = {0}:{1}",
         result = (bool) rpcResult.Result;
       }
       catch (Exception) {}
-      if(result) {
-        // Once we get pcount to a majority, we ship off the result
-        lock(adps.pcount) {
-          int count = (int) adps.pcount + 1;
-          if(count == MAJORITY) {
+      lock(adps.SyncRoot) {
+        if(result) {
+          // Once we get pcount to a majority, we ship off the result
+          adps.pcount++;
+          if(adps.pcount == MAJORITY) {
             adps.returns.Enqueue(true);
             adps.returns.Close();
           }
-          adps.pcount = count;
         }
-      }
-      else {
-        lock(adps.ncount) {
+        else {
           /* Once we get to ncount to 1 less than a majority, we ship off the
           * result, because we can't get pcount equal to majority any more!
           */
-          int count = (int) adps.ncount + 1;
-          if(count == MAJORITY - 1 || 1 == DEGREE) {
+          adps.ncount++;
+          if(adps.ncount == MAJORITY - 1 || 1 == DEGREE) {
             adps.returns.Enqueue(new DhtException("Put failed by negative " +
               "responses:  P/N/T : " + adps.pcount + "/" + adps.ncount + "/" +
               DEGREE));
             adps.returns.Close();
           }
-          adps.ncount = count;
         }
       }
     }
@@ -553,11 +549,11 @@ Console.Error.WriteLine("DHT_DEBUG:::Doing follow up put count:total = {0}:{1}",
         return;
       }
 
-      lock(_adps_table) {
+      lock(_adps_table.SyncRoot) {
         _adps_table.Remove(queue);
       }
       int count = 0;
-      lock(adps.queueMapping) {
+      lock(adps.SyncRoot) {
         adps.queueMapping.Remove(queue);
         count = adps.queueMapping.Count;
       }
@@ -568,10 +564,7 @@ Console.Error.WriteLine("DHT_DEBUG:::Doing follow up put count:total = {0}:{1}",
               DEGREE));
           adps.returns.Close();
         }
-        adps.pcount = null;
-        adps.ncount = null;
       }
-      return;
     }
 
     /* Get the hash of the first key and add 1/DEGREE * Address space
@@ -598,8 +591,9 @@ Console.Error.WriteLine("DHT_DEBUG:::Doing follow up put count:total = {0}:{1}",
     }
 
     protected class AsDhtPutState {
+      public object SyncRoot = new object();
       public Hashtable queueMapping = new Hashtable();
-      public object pcount = 0, ncount = 0;
+      public int pcount = 0, ncount = 0;
       public Channel returns;
 
       public AsDhtPutState(Channel returns) {
@@ -608,7 +602,8 @@ Console.Error.WriteLine("DHT_DEBUG:::Doing follow up put count:total = {0}:{1}",
     }
 
     protected class AsDhtGetState {
-      public object GotToLeaveEarly = false;
+      public object SyncRoot = new object();
+      public bool GotToLeaveEarly = false;
       public Hashtable ttls = new Hashtable();
       public Hashtable queueMapping = new Hashtable();
       public Hashtable results = new Hashtable();

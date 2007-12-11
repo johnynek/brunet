@@ -45,7 +45,7 @@ namespace Test {
       Console.WriteLine("Initializing...");
 
       for(int i = 0; i < max_range; i++) {
-        RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.udp://localhost:" + (base_port + i)));
+        RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.udp://127.0.0.1:" + (base_port + i)));
       }
 
       for(int i = 0; i < starting_network_size; i++) {

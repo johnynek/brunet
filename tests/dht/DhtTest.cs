@@ -254,7 +254,7 @@ namespace Brunet.Dht {
       Console.WriteLine("Initializing...");
       ArrayList RemoteTA = new ArrayList();
       for(int i = 0; i < network_size; i++) {
-        RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.udp://localhost:" + (base_port + i)));
+        RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.udp://127.0.0.1:" + (base_port + i)));
       }
 
       for(int i = 0; i < network_size; i++) {
