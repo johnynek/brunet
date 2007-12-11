@@ -283,9 +283,12 @@ namespace Brunet
 
       public override object Task { get { return _ta; } }
 
+      protected readonly object _sync;
+
       public RestartState(Linker l, TransportAddress ta,
                           int remaining_attempts) {
         _linker = l;
+        _sync = new object();
         _ta = ta;
         _restart_attempts = remaining_attempts;
         _rand = new Random();
@@ -299,7 +302,7 @@ namespace Brunet
        * Schedule the restart using the Heartbeat of the given node
        */
       public override void Start() {
-        lock( this ) {
+        lock( _sync ) {
           if( _restart_attempts < 0 ) {
             throw new Exception("restarted too many times");
           }
@@ -319,7 +322,7 @@ namespace Brunet
       protected void RestartLink(object node, EventArgs args)
       {
         bool fire_event = false;
-        lock( this ) {
+        lock( _sync ) {
           if( _linker.ConnectionInTable ) {
             //We are already connected, stop waiting...
             fire_event = true;
