@@ -47,7 +47,7 @@ namespace Brunet
       _edge_count = 0;
     }
 
-    public Edge()
+    protected Edge()
     {
       _sync = new object();
       _close_event = new FireOnceEvent();
@@ -173,7 +173,7 @@ namespace Brunet
      * The DateTime (UTC) of the last received packet
      */
     public virtual DateTime LastInPacketDateTime {
-      get { return new DateTime(Thread.VolatileRead(ref _last_in_packet_datetime)); }
+      get { return new DateTime(Interlocked.Read(ref _last_in_packet_datetime)); }
     }
 
     public abstract bool IsClosed
@@ -238,7 +238,7 @@ namespace Brunet
       if( s != null ) {
         s.Handle(b, this);
         //This is volatile, so no need to lock:
-        Thread.VolatileWrite(ref _last_in_packet_datetime, DateTime.UtcNow.Ticks);
+        Interlocked.Exchange(ref _last_in_packet_datetime, DateTime.UtcNow.Ticks);
       }
       else {
         //We don't record the time of this packet.  We don't
