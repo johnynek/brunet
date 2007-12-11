@@ -20,7 +20,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 /*
  * Brunet.Packet;
- * Brunet.ConnectionPacket
  * Brunet.PacketParser;
  * Brunet.Edge;
  * Brunet.EdgeException;
@@ -272,7 +271,7 @@ namespace Brunet
             ran_obj.NextBytes(buf);
 	    buf[0] = (byte)Packet.ProtType.Connection;
             NumberSerializer.WriteInt(counter, buf, 1);
-            ConnectionPacket cp = new ConnectionPacket(buf, 0, size);
+            MemBlock cp = MemBlock.Copy(buf, 0, size);
             e.Send( cp );
             Console.WriteLine("Sending Packet #: " + counter);
 	   }

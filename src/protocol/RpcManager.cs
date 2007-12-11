@@ -506,12 +506,12 @@ public class RpcManager : IReplyHandler, IDataHandler {
           _rrman.StopRequest(reqid, this);
        };
       }
-      catch(Exception e) {
+      catch {
         if(q.Closed) {
           _rrman.StopRequest(reqid, this);
         }
         else {
-          throw e;
+          throw;
         }
       }
     }

@@ -58,7 +58,7 @@ namespace Brunet
       _full = _half * 2;
     }
 
-    public Address()
+    protected Address()
     {
       byte[] buffer = new byte[MemSize];
       SetClass(buffer, this.Class);
@@ -68,7 +68,7 @@ namespace Brunet
     /**
      * Create an address from a MemBlock
      */
-    public Address(MemBlock mb)
+    protected Address(MemBlock mb)
     {
       _buffer = mb;
       if (ClassOf(_buffer) != this.Class) {
@@ -78,7 +78,7 @@ namespace Brunet
       }
     }
 
-    public Address(BigInteger big_int)
+    protected Address(BigInteger big_int)
     {
       byte[] buffer = ConvertToAddressBuffer(big_int);
       _buffer = MemBlock.Reference(buffer, 0, MemSize);
