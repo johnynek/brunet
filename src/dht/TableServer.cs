@@ -387,6 +387,7 @@ namespace Brunet.Dht {
 
     // This contains all the logic used to do the actual transfers
     protected class TransferState {
+      protected object _sync = new object();
       protected const int MAX_PARALLEL_TRANSFERS = 10;
       private object _interrupted = false;
       LinkedList<Entry[]> key_entries = new LinkedList<Entry[]>();
@@ -430,17 +431,14 @@ namespace Brunet.Dht {
          * this is done here, so that we can lock up the _entry_enumerator
          * only during this stage and not during the RpcManager.Invoke
          */
-        int count = 0;
         LinkedList<Entry> local_entries = new LinkedList<Entry>();
-        lock(_entry_enumerator) {
-          while(_entry_enumerator.MoveNext() && count++ < MAX_PARALLEL_TRANSFERS) {
-            local_entries.AddLast((Entry) _entry_enumerator.Current);
-          }
+        for(int i = 0; i < MAX_PARALLEL_TRANSFERS && _entry_enumerator.MoveNext(); i++) {
+          local_entries.AddLast((Entry) _entry_enumerator.Current);
         }
+
         foreach(Entry ent in local_entries) {
           Channel queue = new Channel();
           queue.CloseAfterEnqueue();
-//          queue.EnqueueEvent += this.NextTransfer;
           queue.CloseEvent += this.NextTransfer;
           int ttl = (int) (ent.EndTime - DateTime.UtcNow).TotalSeconds;
           try {
@@ -474,7 +472,6 @@ namespace Brunet.Dht {
        */
       private void NextTransfer(Object o, EventArgs eargs) {
         Channel queue = (Channel) o;
-//        queue.EnqueueEvent -= this.NextTransfer;
         queue.CloseEvent -= this.NextTransfer;
         /* No point in dequeueing, if we've been interrupted, we most likely
          * will get an exception!
@@ -500,7 +497,7 @@ Console.Error.WriteLine("DHT_DEBUG:::Transfer failed");
 
         Entry ent = null;
         try {
-          lock(_entry_enumerator) {
+          lock(_sync) {
             if(_entry_enumerator.MoveNext()) {
               ent = (Entry) _entry_enumerator.Current;
             }
@@ -510,7 +507,6 @@ Console.Error.WriteLine("DHT_DEBUG:::Transfer failed");
         if(ent != null) {
           queue = new Channel();
           queue.CloseAfterEnqueue();
-//          queue.EnqueueEvent += this.NextTransfer;
           queue.CloseEvent += this.NextTransfer;
           int ttl = (int) (ent.EndTime - DateTime.UtcNow).TotalSeconds;
           try {

@@ -44,10 +44,6 @@ namespace Test {
       dht_get_interval = Int32.Parse(args[5]);
       Console.WriteLine("Initializing...");
 
-/*      for(int i = 0; i < max_range; i++) {
-        RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.tcp://localhost:" + (base_port + i)));
-      }*/
-
       for(int i = 0; i < starting_network_size; i++) {
         Console.WriteLine("Setting up node: " + i);
         add_node();
