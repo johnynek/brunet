@@ -64,8 +64,9 @@ namespace Brunet
      * This can only be set if it is currently 0.
      */
     public int RemoteID {
-      get { return Thread.VolatileRead(ref _remoteid); }
+      get { return _remoteid; }
       set {
+        //This does a memory barrier, so we don't need to on read
         int old_v = Interlocked.CompareExchange(ref _remoteid, value, 0);
         if( old_v != 0 ) {
           //We didn't really exchange above, and we should throw an exception
@@ -121,7 +122,7 @@ namespace Brunet
     }
     protected long _last_out_packet_datetime;
     public override DateTime LastOutPacketDateTime {
-      get { return new DateTime(Thread.VolatileRead(ref _last_out_packet_datetime)); }
+      get { return new DateTime(Interlocked.Read(ref _last_out_packet_datetime)); }
     }
 
     public override void Send(ICopyable p)
@@ -138,7 +139,7 @@ namespace Brunet
       }
 
       _send_cb.HandleEdgeSend(this, p);
-      Thread.VolatileWrite(ref _last_out_packet_datetime, DateTime.UtcNow.Ticks);
+      Interlocked.Exchange(ref _last_out_packet_datetime, DateTime.UtcNow.Ticks);
 #if UDP_DEBUG
       /**
          * logging of outgoing packets
