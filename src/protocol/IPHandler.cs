@@ -58,7 +58,7 @@ namespace Brunet
                         ProtocolType.Udp);
         // Allows for multiple Multicast clients on the same host!
         _mc.SetSocketOption(SocketOptionLevel.Socket, 
-                                SocketOptionName.ReuseAddress, true);
+                            SocketOptionName.ReuseAddress, true);
         _mc.Bind(mc_endpoint);
         _mc.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership,
           new MulticastOption(mc_addr, IPAddress.Any));
@@ -71,8 +71,9 @@ namespace Brunet
 
       _uc = new Socket(AddressFamily.InterNetwork, SocketType.Dgram,
                        ProtocolType.Udp);
+      // It won't send to other mono applications on the same host otherwise...
+      _uc.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastLoopback, true);
       _uc.Bind(new IPEndPoint(IPAddress.Any, 0));
-
       _running = true;
       _sync = new Object();
       _listen_thread = new Thread(Listen);
@@ -208,8 +209,7 @@ namespace Brunet
       }
     }
 
-    public UnicastSender(Socket s, EndPoint ep)
-    {
+    public UnicastSender(Socket s, EndPoint ep) {
       _s = s;
       EndPoint = ep;
     }
@@ -235,7 +235,7 @@ namespace Brunet
     }
   }
 
-  public class MulticastSender: UnicastSender
+  public class MulticastSender: UnicastSender 
   {
     public readonly ArrayList BlockedIPs;
     public MulticastSender(Socket s):base(s, IPHandler.mc_endpoint) {

@@ -43,6 +43,10 @@ namespace Brunet
       _timer = new Timer(_rrm.TimeoutChecker, null, 1000, 1000);
     }
 
+    public void Close() {
+      _timer.Dispose();
+    }
+
     public void HandleData(MemBlock b, ISender from, object state) {
       MemBlock payload = null;
       PType t = null;
