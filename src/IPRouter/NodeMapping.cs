@@ -38,8 +38,8 @@ namespace Ipop {
       brunet = Brunet_Common.CreateStructuredNode(config);
       dht = Brunet_Common.RegisterDht(brunet);
       Brunet_Common.StartServices(brunet, dht, config);
-      brunet.DepartureEvent += DisconnectHandler;
-      brunet.DisconnectOnOverload = true;
+//      brunet.DepartureEvent += DisconnectHandler;
+//      brunet.DisconnectOnOverload = true;
 
       (new Thread(brunet.Connect)).Start();
       iphandler = new IPHandler(this);
