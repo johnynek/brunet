@@ -36,6 +36,7 @@ namespace Brunet
     public CodeInjection(Node node)
     {
       _node = node;
+      RpcManager.GetInstance(_node).AddHandler("CodeInjection", this);
     }
 
     /**
@@ -45,13 +46,16 @@ namespace Brunet
      */
     public void LoadLocalModules()
     {
-      string [] files = Directory.GetFiles(".", "Brunet.Inject.*");
-      foreach(string file in files) {
-        try {
-          this.Inject(file);
+      try {
+        string [] files = Directory.GetFiles(Directory.GetCurrentDirectory(), "Brunet.Inject*");
+        foreach(string file in files) {
+          try {
+            this.Inject(file);
+          }
+          catch (Exception e){Console.WriteLine(e);}
         }
-        catch{}
       }
+      catch (Exception e){Console.WriteLine(e);}
     }
 
     /**
@@ -75,7 +79,7 @@ namespace Brunet
      * @param assembly_data pre-compiled data that will be injected into the
      * system.
      */
-    public void Inject(MemBlock assembly_data)
+    protected void Inject(MemBlock assembly_data)
     {
       Assembly ass = Assembly.Load(assembly_data);
       Type[] types = ass.GetTypes();
