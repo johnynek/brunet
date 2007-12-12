@@ -8,11 +8,14 @@ namespace Ipop {
   public abstract class IPAddresses : IEnumerable {
     protected ArrayList _ints;
     protected IList _all_interfaces;
+    public IList AllInterfaces {
+      get { return _all_interfaces; }
+    }
 
     public IPAddresses(string[] interfaces) {
       _ints = new ArrayList(interfaces);
       // Remove this later...
-      _all_interfaces = GetOutput();
+      _all_interfaces = GetAddresses();
     }
 
     /**
@@ -21,7 +24,7 @@ namespace Ipop {
     public IPAddresses() {
       _ints = null;
       // Remove this later...
-      _all_interfaces = GetOutput();
+      _all_interfaces = GetAddresses();
     }
 
     /**
@@ -29,7 +32,7 @@ namespace Ipop {
      * 
      */
     public IEnumerator GetEnumerator() {
-      //IList all_interfaces = GetOutput();
+      //IList all_interfaces = GetAddresses();
       foreach(Hashtable ht in _all_interfaces) {
         if( ht.ContainsKey("interface") && ht.ContainsKey("inet addr") ) {
           string iface = (string)ht["interface"];
@@ -43,24 +46,22 @@ namespace Ipop {
       }
     }
 
-    public abstract IList GetOutput();
+    public abstract IList GetAddresses();
 
     protected bool AddIfMatch(Regex re, string line, Hashtable ht, string key) {
       Match m = re.Match(line);
       if( m.Success ) {
-    //System.Console.Error.WriteLine(line);
         Group g = m.Groups[1];
         CaptureCollection cc = g.Captures;
-    //System.Console.Error.WriteLine(cc[0]);
         ht[key] = cc[0].ToString();
         return true;
       }
       return false;
     }
 
-    protected void Print(IList l) {
+    public void Print() {
       System.Console.Error.WriteLine("Network list:\n");
-      foreach(Hashtable ht in l) {
+      foreach(Hashtable ht in _all_interfaces) {
         IDictionaryEnumerator en = ht.GetEnumerator();
         while(en.MoveNext()) {
           System.Console.Error.WriteLine("\t{0}: {1}", en.Key, en.Value);
@@ -74,7 +75,7 @@ namespace Ipop {
     public IPAddressesLinux (string [] interfaces) : base(interfaces) {}
     public IPAddressesLinux() : base() {}
 
-    public override IList GetOutput() {
+    public override IList GetAddresses() {
       ProcessStartInfo cmd = new ProcessStartInfo("/sbin/ifconfig");
       cmd.RedirectStandardOutput = true;
       cmd.UseShellExecute = false;
@@ -128,7 +129,7 @@ namespace Ipop {
     public IPAddressesWindows (string [] interfaces) : base(interfaces) {}
     public IPAddressesWindows() : base() {}
 
-    public override IList GetOutput() {
+    public override IList GetAddresses() {
       ProcessStartInfo cmd = new
           ProcessStartInfo("c:\\WINDOWS\\system32\\ipconfig");
       cmd.Arguments = "/all";
