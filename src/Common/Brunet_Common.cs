@@ -77,6 +77,10 @@ namespace Ipop
     private static object sync = new object();
     private static DhtServer _ds = null;
     private static XmlRpcManagerServer _xrm = null;
+
+    private static bool dht_reset = false;
+    private static bool xml_reset = false;
+
     public static void StartServices(StructuredNode node, Dht dht, IPRouterConfig config)
     {
       if(config.RpcDht != null && config.RpcDht.Enabled) {
@@ -84,9 +88,11 @@ namespace Ipop
           try {
             if(_ds == null) {
               _ds = new DhtServer(config.RpcDht.Port);
+              dht_reset = true;
             }
-            if(_ds != null) {
+            if(dht_reset) {
               _ds.Update(dht);
+              dht_reset = false;
             }
           }
           catch (Exception e) {Console.WriteLine(e);}
@@ -98,9 +104,11 @@ namespace Ipop
           try {
             if(_xrm == null) {
               _xrm = new XmlRpcManagerServer(config.XmlRpcManager.Port);
+              xml_reset = true;
             }
-            if(_xrm != null) {
-               _xrm.Update(node);
+            if(xml_reset) {
+              _xrm.Update(node);
+              xml_reset = false;
             }
           }
           catch (Exception e) {Console.WriteLine(e);}
@@ -116,11 +124,15 @@ namespace Ipop
 
     public static void RemoveHandlers()
     {
-      if(_ds != null) {
-        _ds.Stop();
-      }
-      if(_xrm != null) {
-        _xrm.Stop();
+      lock(sync) {
+        if(_ds != null) {
+          _ds.Stop();
+          dht_reset = true;
+        }
+        if(_xrm != null) {
+          _xrm.Stop();
+          xml_reset = true;
+        }
       }
     }
   }
