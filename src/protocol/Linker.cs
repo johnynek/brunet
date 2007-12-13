@@ -541,14 +541,14 @@ namespace Brunet
         return false;
       }
       else {
-        bool hold_lock = (a.Equals( _target_lock ) && contype == _contype);
-        if( false == hold_lock ) {
-          //We don't even hold this lock!
-          throw new Exception(
-            String.Format("{2} asked to transfer a lock({0}) we don't hold: ({1})",
-                          a, _target_lock, this));
-        }
 	try {
+          bool hold_lock = (a.Equals( _target_lock ) && contype == _contype);
+          if( false == hold_lock ) {
+            //We don't even hold this lock!
+            throw new Exception(
+                                String.Format("{2} asked to transfer a lock({0}) we don't hold: ({1})",
+                                              a, _target_lock, this));
+          }
           if( l is Linker ) {
             //Never transfer to another linker:
           }
