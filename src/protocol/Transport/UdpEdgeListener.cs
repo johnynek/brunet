@@ -618,6 +618,7 @@ namespace Brunet
      */
     protected void ListenThread()
     {
+      Thread.CurrentThread.Name = "udp_listen_thread";
       // Lock the socket so that the Send thread will wait for all receives to end before closing
       BufferAllocator ba = new BufferAllocator(8 + Packet.MaxLength);
       EndPoint end = new IPEndPoint(IPAddress.Any, 0);
@@ -627,7 +628,17 @@ namespace Brunet
        * should stop
        */
       int micro_sec_polltime = 10000000; //10 sec
+      DateTime last_debug = DateTime.UtcNow;
+      TimeSpan debug_period = new TimeSpan(0,0,0,0,5000); //log every 5 seconds.
       while(_running) {
+        if (ProtocolLog.Monitor.Enabled) {
+          DateTime now = DateTime.UtcNow;
+          if (now - last_debug > debug_period) {
+            last_debug = now;
+            ProtocolLog.Write(ProtocolLog.Monitor, String.Format("I am alive: {0}", now));
+          } 
+        }
+
         try {
           if( _s.Poll(micro_sec_polltime, SelectMode.SelectRead) ) {
             int max = ba.Capacity;
@@ -676,9 +687,19 @@ namespace Brunet
 
     private void SendThread()
     {
+      Thread.CurrentThread.Name = "udp_send_thread";
       byte []buffer = new byte[Packet.MaxLength];
       SendQueueEntry sqe = null;
+      DateTime last_debug = DateTime.UtcNow;
+      TimeSpan debug_period = new TimeSpan(0,0,0,0,5000); //log every 5 seconds.
       while(_running) {
+        if (ProtocolLog.Monitor.Enabled) {
+          DateTime now = DateTime.UtcNow;
+          if (now - last_debug > debug_period) {
+            last_debug = now;
+            ProtocolLog.Write(ProtocolLog.Monitor, String.Format("I am alive: {0}", now));
+          }
+        } 
         try {
           sqe = (SendQueueEntry) _send_queue.Dequeue();
           if(sqe.Control) {

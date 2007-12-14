@@ -316,6 +316,7 @@ namespace Brunet
 
     protected void SelectLoop()
     {
+      Thread.CurrentThread.Name = "tcp_select_thread";
       int timeout_ms = 10; //it was 10 changed to 1 by kl
       ArrayList readsocks = new ArrayList();
       ArrayList writesocks = new ArrayList();
@@ -327,9 +328,18 @@ namespace Brunet
       
       /* Use a shared BufferAllocator for all Edges */
       BufferAllocator buf = new BufferAllocator(2 + Packet.MaxLength);
-     
+
+      DateTime last_debug = DateTime.UtcNow;
+      TimeSpan debug_period = new TimeSpan(0,0,0,0,5000);// log every 5 seconds.
       while(_run)
       {
+        if (ProtocolLog.Monitor.Enabled) {
+          DateTime now = DateTime.UtcNow;
+          if (now - last_debug > debug_period) {
+            last_debug = now;
+            ProtocolLog.Write(ProtocolLog.Monitor, String.Format("I am alive: {0}", now));
+          }
+        }   
         readsocks.Clear();
         writesocks.Clear();
         errorsocks.Clear();
