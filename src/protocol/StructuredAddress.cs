@@ -36,15 +36,15 @@ namespace Brunet
   abstract public class StructuredAddress:Brunet.Address
   {
 
-    public StructuredAddress() : base()
+    protected StructuredAddress() : base()
     {
 
     }
-    public StructuredAddress(MemBlock mb):base(mb)
+    protected StructuredAddress(MemBlock mb):base(mb)
     {
 
     }
-    public StructuredAddress(BigInteger big_int):base(big_int)
+    protected StructuredAddress(BigInteger big_int):base(big_int)
     {
     }
 

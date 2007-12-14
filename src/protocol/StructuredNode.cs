@@ -254,83 +254,82 @@ namespace Brunet
     protected void EstimateSize(object contab, System.EventArgs args)
     {
       try {
-      //Estimate the new size:
-      ConnectionTable tab = (ConnectionTable)contab;
-      int net_size = -1;
-      BigInteger least_dist = null;
-      BigInteger greatest_dist = null;
-      int shorts = 0;
-      lock( tab.SyncRoot ) {
-	/*
-	 * We know we are in the network, so the network
-	 * has size at least 1.  And all our connections
-	 * plus us is certainly a lower bound.
-	 */
-	int leafs = tab.Count(ConnectionType.Leaf);
-        if( leafs + 1 > net_size ) {
-          net_size = leafs + 1;
-	}
-	int structs = tab.Count(ConnectionType.Structured);
-        if( structs + 1 > net_size ) {
-          net_size = structs + 1;
-	}
-        /*
-	 * We estimate the density of nodes in the address space,
-	 * and since we know the size of the whole address space,
-	 * we can use the density to estimate the number of nodes.
-	 */
-	AHAddress local = (AHAddress)_local_add;
-        foreach(Connection c in tab.GetConnections("structured.near")) {
-          BigInteger dist = local.DistanceTo( (AHAddress)c.Address );
-          
-	  if( shorts == 0 ) {
-            //This is the first one
-            least_dist = dist;
-	    greatest_dist = dist;
-	  }
-	  else {
-            if( dist > greatest_dist ) {
-              greatest_dist = dist;
-	    }
-	    if( dist < least_dist ) {
-              least_dist = dist;
-	    }
-	  } 
-	  shorts++;
-	}
-      }
-	/*
-	 * Now we have the distance between the range of our neighbors
-	 */
-	if( shorts > 0 ) {
-          if ( greatest_dist > least_dist ) {
-	    BigInteger width = greatest_dist - least_dist;
-	    //Here is our estimate of the inverse density:
-	    BigInteger inv_density = width/(shorts);
-            //The density times the full address space is the number
-	    BigInteger total = Address.Full / inv_density;
-	    int total_int = total.IntValue();
-	    if( total_int > net_size ) {
-              net_size = total_int;
-	    }
+        //Estimate the new size:
+        int net_size = -1;
+        BigInteger least_dist = null;
+        BigInteger greatest_dist = null;
+        int shorts = 0;
+        ConnectionList structs = ((ConnectionEventArgs)args).CList;
+  
+        if( structs.MainType == ConnectionType.Structured ) {
+      	/*
+      	 * We know we are in the network, so the network
+      	 * has size at least 1.  And all our connections
+      	 * plus us is certainly a lower bound.
+      	 */
+        
+          if( structs.Count + 1 > net_size ) {
+            net_size = structs.Count + 1;
           }
-	}
-
-	//Now we have our estimate:
-	lock( _sync ) {
-	  _netsize = net_size;
+          /*
+      	   * We estimate the density of nodes in the address space,
+      	   * and since we know the size of the whole address space,
+      	   * we can use the density to estimate the number of nodes.
+      	   */
+          AHAddress local = (AHAddress)_local_add;
+          foreach(Connection c in structs) {
+            if( c.ConType == "structured.near") {
+              BigInteger dist = local.DistanceTo( (AHAddress)c.Address );
+              if( shorts == 0 ) {
+                //This is the first one
+                least_dist = dist;
+  	            greatest_dist = dist;
+  	          }
+  	          else {
+                if( dist > greatest_dist ) {
+                  greatest_dist = dist;
+  	            }
+  	            if( dist < least_dist ) {
+                  least_dist = dist;
+  	            }
+  	          } 
+  	          shorts++;
+  	        }
+          }
+        	/*
+        	 * Now we have the distance between the range of our neighbors
+        	 */
+        	if( shorts > 0 ) {
+            if ( greatest_dist > least_dist ) {
+  	          BigInteger width = greatest_dist - least_dist;
+  	          //Here is our estimate of the inverse density:
+              BigInteger inv_density = width/(shorts);
+              //The density times the full address space is the number
+  	          BigInteger total = Address.Full / inv_density;
+  	          int total_int = total.IntValue();
+  	          if( total_int > net_size ) {
+                net_size = total_int;
+  	          }
+            }
+  	      }
+          //Now we have our estimate:
+  	      lock( _sync ) {
+  	        _netsize = net_size;
+          }
         }
-        if(ProtocolLog.NodeLog.Enabled)
-          ProtocolLog.Write(ProtocolLog.NodeLog, String.Format(
-            "Network size: {0} at {1}:{2}", _netsize,
-            DateTime.UtcNow.ToString("MM'/'dd'/'yyyy' 'HH':'mm':'ss"),
-            DateTime.UtcNow.Millisecond));
+  
+        if(ProtocolLog.NodeLog.Enabled) {
+            ProtocolLog.Write(ProtocolLog.NodeLog, String.Format(
+              "Network size: {0} at {1}:{2}", _netsize,
+              DateTime.UtcNow.ToString("MM'/'dd'/'yyyy' 'HH':'mm':'ss"),
+              DateTime.UtcNow.Millisecond));
+        }
       }
       catch(Exception x) {
-        if(ProtocolLog.Exceptions.Enabled)
-        ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
+        if(ProtocolLog.Exceptions.Enabled) {
+          ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
+        }
       }
-
     }
     /**
      * return a status message for this node.

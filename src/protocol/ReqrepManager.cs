@@ -136,12 +136,12 @@ public class ReqrepManager : IDataHandler, ISource {
       }
       //in case no instance exists, create one
       rrm = new ReqrepManager(node.Address.ToString());
-      rrm.Subscribe(node, null);
-      node.HeartBeatEvent += rrm.TimeoutChecker;
-      //Subscribe on the node:
-      node.GetTypeSource(PType.Protocol.ReqRep).Subscribe(rrm, null);
       _rrm_table[node] = rrm;
     }
+    rrm.Subscribe(node, null);
+    node.HeartBeatEvent += rrm.TimeoutChecker;
+    //Subscribe on the node:
+    node.GetTypeSource(PType.Protocol.ReqRep).Subscribe(rrm, null);
 
     node.StateChangeEvent += delegate(Node n, Node.ConnectionState s) {
       if( s == Node.ConnectionState.Disconnected ) {

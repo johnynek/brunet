@@ -277,29 +277,19 @@ namespace Brunet {
       NodeRankInformation to_add = null;
       Connection to_trim = null;
        
-      IEnumerable chota_cons;
-      IEnumerable struct_cons;
-      IEnumerable leaf_cons;
-      lock(_node.ConnectionTable.SyncRoot) {//lock the connection table
-        //it is now that we do things with connections
-        ConnectionTable tab = _node.ConnectionTable;
-	int structured_count = tab.Count(ConnectionType.Structured);
-	//we assume that we are well-connected before ChotaConnections are needed. 
-	if( structured_count < 2 ) {
+      ConnectionTable tab = _node.ConnectionTable;
+      IEnumerable chota_cons = tab.GetConnections(struc_chota);
+      ConnectionList struct_cons = tab.GetConnections(ConnectionType.Structured);
+      ConnectionList leaf_cons = tab.GetConnections(ConnectionType.Leaf);
+      int structured_count = struct_cons.Count;
+      //we assume that we are well-connected before ChotaConnections are needed. 
+      if( structured_count < 2 ) {
 #if ARI_CHOTA_DEBUG
-	  Console.Error.WriteLine("Not sufficient structured connections to bootstrap Chotas.");
+        Console.Error.WriteLine("Not sufficient structured connections to bootstrap Chotas.");
 #endif
-	  //if we do not have sufficient structured connections
-	  //we do not;
-	  return;
-	}
-        /*
-         * Once we get these, they never change, so we can release the lock on
-         * the ConnectionTable
-         */
-        chota_cons = tab.GetConnections(struc_chota);
-        struct_cons = tab.GetConnections(ConnectionType.Structured);
-        leaf_cons = tab.GetConnections(ConnectionType.Leaf);
+        //if we do not have sufficient structured connections
+        //we do not;
+        return;
       }
 
 	lock(_sync) { //lock the score table
@@ -705,18 +695,15 @@ namespace Brunet {
       Linker l = new Linker(_node, target, null, contype);
       object link_task = l.Task;
       Connector.AbortCheck abort = delegate(Connector c) {
-        bool stop = false;
-        lock( _node.ConnectionTable.SyncRoot ) {
-          stop = _node.ConnectionTable.Contains( mt, target );
-          if (!stop ) {
+        bool stop = _node.ConnectionTable.Contains( mt, target );
+        if (!stop ) {
             /*
              * Make a linker to get the task.  We won't use
              * this linker.
              * No need in sending a ConnectToMessage if we
              * already have a linker going.
              */
-            stop = _node.TaskQueue.HasTask( link_task );
-          }
+          stop = _node.TaskQueue.HasTask( link_task );
         }
         return stop;
       };

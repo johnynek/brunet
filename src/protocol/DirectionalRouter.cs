@@ -86,31 +86,28 @@ namespace Brunet
       try {
         DirectionalAddress dir_add = (DirectionalAddress) p.Destination;
         /* We need to do a few atomic operations on the ConnectionTable */
-        lock( _con_tab.SyncRoot ) {
-          Connection next_con = null;
-          if ( dir_add.Bearing == DirectionalAddress.Direction.Left ) {
-            //Get the left structured neighbor of us:
-            next_con = _con_tab.GetLeftStructuredNeighborOf((AHAddress)_local);
-            if( next_con.Edge == from ) {
-              //skip the person it came from
-              AHAddress f_add = (AHAddress)next_con.Address;
-              next_con = _con_tab.GetLeftStructuredNeighborOf(f_add);
-            }
+        ConnectionList structs = _con_tab.GetConnections(ConnectionType.Structured);
+        Connection next_con = null;
+        if ( dir_add.Bearing == DirectionalAddress.Direction.Left ) {
+          //Get the left structured neighbor of us:
+          next_con = structs.GetLeftNeighborOf(_local);
+          if( next_con.Edge == from ) {
+            //skip the person it came from
+            next_con = structs.GetLeftNeighborOf(next_con.Address);
           }
-          else if (dir_add.Bearing == DirectionalAddress.Direction.Right) {
-            //Get the left structured neighbor of us:
-            next_con = _con_tab.GetRightStructuredNeighborOf((AHAddress)_local);
-            if( next_con.Edge == from ) {
-              //skip the person it came from
-              AHAddress f_add = (AHAddress)next_con.Address;
-              next_con = _con_tab.GetRightStructuredNeighborOf(f_add);
-            }
+        }
+        else if (dir_add.Bearing == DirectionalAddress.Direction.Right) {
+          //Get the left structured neighbor of us:
+          next_con = structs.GetRightNeighborOf(_local);
+          if( next_con.Edge == from ) {
+            //skip the person it came from
+            next_con = structs.GetRightNeighborOf(next_con.Address);
           }
-          if (next_con != null ) {
-            //Here is the edge to go to next
-            next = next_con.Edge;
-          }
-        } /* This is the end of the atomic ConnectionTable operation set */
+        }
+        if (next_con != null ) {
+          //Here is the edge to go to next
+          next = next_con.Edge;
+        }
 	if( p.HasOption( AHPacket.AHOptions.Path ) ) {
           deliverlocally = true;
 	}

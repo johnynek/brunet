@@ -57,6 +57,8 @@ namespace Brunet
 
     protected readonly string _contype;
     public string ConType { get { return _contype; } }
+    protected readonly ConnectionType _maintype;
+
     protected Connection _con;
     /**
      * This is the Connection established by this Linker
@@ -68,8 +70,7 @@ namespace Brunet
         bool result = false;
         if(  _target != null ) {
           ConnectionTable tab = _local_n.ConnectionTable;
-          result = tab.Contains( Connection.StringToMainType( _contype ),
-                                _target);
+          result = tab.Contains(_maintype, _target);
         }
         return result;
       }
@@ -96,11 +97,6 @@ namespace Brunet
     
     /** global lock for thread synchronization */
     protected readonly object _sync;
-    public object SyncRoot {
-      get {
-        return _sync;
-      }
-    }
     protected bool _is_finished;
     override public bool IsFinished {
       get {
@@ -287,9 +283,12 @@ namespace Brunet
 
       public override object Task { get { return _ta; } }
 
+      protected readonly object _sync;
+
       public RestartState(Linker l, TransportAddress ta,
                           int remaining_attempts) {
         _linker = l;
+        _sync = new object();
         _ta = ta;
         _restart_attempts = remaining_attempts;
         _rand = new Random();
@@ -303,7 +302,7 @@ namespace Brunet
        * Schedule the restart using the Heartbeat of the given node
        */
       public override void Start() {
-        lock( this ) {
+        lock( _sync ) {
           if( _restart_attempts < 0 ) {
             throw new Exception("restarted too many times");
           }
@@ -323,7 +322,7 @@ namespace Brunet
       protected void RestartLink(object node, EventArgs args)
       {
         bool fire_event = false;
-        lock( this ) {
+        lock( _sync ) {
           if( _linker.ConnectionInTable ) {
             //We are already connected, stop waiting...
             fire_event = true;
@@ -339,13 +338,15 @@ namespace Brunet
              * and we don't need to hear from the heartbeat event any longer
              */
             _is_waiting = false; 
-            Node n = _linker.LocalNode;
-            n.HeartBeatEvent -= this.RestartLink;
           }
         }
         if( fire_event ) {
           //Fire the event without holding a lock
-          FireFinished();
+          if( FireFinished() ) {
+            //Only the first time does this return true:
+            Node n = _linker.LocalNode;
+            n.HeartBeatEvent -= this.RestartLink;
+          }
         }
       }
       public override string ToString() {
@@ -437,6 +438,7 @@ namespace Brunet
           }
         }
         _contype = ct;
+        _maintype = Connection.StringToMainType( _contype );
         _target = target;
         _ta_to_restart_state = new Hashtable( _MAX_REMOTETAS );
         _completed_tas = new Hashtable( _MAX_REMOTETAS );

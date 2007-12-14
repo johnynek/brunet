@@ -44,7 +44,7 @@ namespace Brunet
         return (Thread.VolatileRead(ref _is_finished) == 1);
       }
     }
-    protected object _con;
+    protected readonly WriteOnce<Connection> _con;
     /**
      * If this state machine creates a Connection, this is it.
      * Otherwise its null
@@ -52,17 +52,10 @@ namespace Brunet
      * This is only set in the Finish method.
      */
     public Connection Connection {
-      get { return (Connection)Thread.VolatileRead(ref _con); }
-      set {
-        object old_v = Interlocked.CompareExchange(ref _con, value, null);
-        if( old_v != null ) {
-          //We didn't really exchange
-          throw new LinkException(String.Format("Connection already set to: {0}", old_v));
-        }
-      }
+      get { return _con.Value; }
     }
     
-    protected object _lm_reply;
+    protected readonly WriteOnce<LinkMessage> _lm_reply;
     /**
      * If we get a sensible reply from a remote node, this is it.
      * If we get some bad reply, we don't keep it.
@@ -71,15 +64,7 @@ namespace Brunet
      * method.
      */
     public LinkMessage LinkMessageReply {
-      get { return (LinkMessage)Thread.VolatileRead(ref _lm_reply); }
-      set {
-        object old_v = Interlocked.CompareExchange(ref _lm_reply, value, null);
-        if( old_v != null ) {
-          //We didn't really exchange
-          throw new LinkException(
-                        String.Format("LinkMessageReply already set to: {0}", old_v));
-        }
-      }
+      get { return _lm_reply.Value; }
     }
     
     protected volatile LinkProtocolState.Result _result;
@@ -92,11 +77,11 @@ namespace Brunet
     public LinkProtocolState.Result MyResult {
       get { return _result; }
     }
-    volatile protected Exception _x;
+    protected readonly WriteOnce<Exception> _x;
     /**
      * If we catch some exception, we store it here, and call Finish
      */
-    public Exception CaughtException { get { return _x; } }
+    public Exception CaughtException { get { return _x.Value; } }
     
     protected Address _target_lock;
 
@@ -142,7 +127,9 @@ namespace Brunet
       _node = l.LocalNode;
       _contype = l.ConType;
       _target_lock = null;
-      _lm_reply = null;
+      _lm_reply = new WriteOnce<LinkMessage>();
+      _x = new WriteOnce<Exception>();
+      _con = new WriteOnce<Connection>();
       _ta = ta;
       _is_finished = 0;
       //Setup the edge:
@@ -255,7 +242,7 @@ namespace Brunet
           /*
            * Awesome!  We got a connection, let's set it.
            */
-          this.Connection = c;
+          _con.Value = c;
           if(ProtocolLog.LinkDebug.Enabled) {
             ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
               "LPS: {0} got connection: {1}", _node.Address, c));
@@ -433,7 +420,7 @@ namespace Brunet
        * Okay, this lm looks good, we'll accept it.  This can only be done
        * once, and once it happens a future attempt will throw an exception
        */
-      LinkMessageReply = lm;
+      _lm_reply.Value = lm;
       
       ConnectionTable tab = _node.ConnectionTable;
       /*
@@ -485,21 +472,21 @@ namespace Brunet
          * This happens when the RPC call has some kind of issue,
          * first we check for common error conditions:
          */
-        _x = x;
+        _x.Value = x;
         Finish( GetResultForErrorCode(x.Code), null );
       }
       catch(ConnectionExistsException x) {
         /* We already have a connection */
-        _x = x;
+        _x.Value = x;
         Finish( Result.ProtocolError, null );
       }
       catch(CTLockException x) {
         //This is thrown when ConnectionTable cannot lock.  Lets try again:
-        _x = x;
+        _x.Value = x;
         Finish( Result.RetryThisTA, null );
       }
       catch(LinkException x) {
-        _x = x;
+        _x.Value = x;
         if( x.IsCritical ) { Finish( Result.MoveToNextTA, null ); }
         else { Finish( Result.RetryThisTA, null ); }
       }
@@ -513,7 +500,7 @@ namespace Brunet
       }
       catch(Exception x) {
         //The protocol was not followed correctly by the other node, fail
-        _x = x;
+        _x.Value = x;
         Finish( Result.RetryThisTA, null );
       } 
     }
