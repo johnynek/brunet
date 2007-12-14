@@ -105,8 +105,9 @@ namespace Brunet
         _connection_timeout = new TimeSpan(0,0,0,0,15000);
         /* Set up the heartbeat */
         _heart_period = 500; //500 ms, or 1/2 second.
-        _timer = new Timer(new TimerCallback(this.HeartBeatCallback),
-                           null, _heart_period, _heart_period);
+        _heart_beat_thread = new Thread(this.HeartBeatProducer);
+        _heart_beat_thread.Start();
+        
         //Check the edges from time to time
         this.HeartBeatEvent += new EventHandler(this.CheckEdgesCallback);
         _last_edge_check = DateTime.UtcNow;
@@ -279,8 +280,42 @@ namespace Brunet
 
     public bool _disconnect_on_overload = false;
 
-    protected readonly object _heartbeat_sync = new object();
-    protected volatile bool _heartbeat_running = false;
+    protected class HeartBeatObject {
+      protected int _running;
+      public int TestAndSet() {
+        return Interlocked.CompareExchange(ref _running, 1, 0);
+      }
+      public void Reset() {
+        Interlocked.Exchange(ref _running, 0);   
+      }
+    }
+    protected readonly HeartBeatObject _heart_beat_object = new HeartBeatObject();
+    protected void HeartBeatProducer() {
+      Thread.CurrentThread.Name = "heart_beat_producer";
+      try {
+        do {
+          Thread.Sleep(_heart_period);
+          int old_val = _heart_beat_object.TestAndSet();
+          if (old_val == 0) {
+            if(ProtocolLog.Monitor.Enabled)
+              ProtocolLog.Write(ProtocolLog.Monitor, "heart beat (received).");
+            _packet_queue.Enqueue(_heart_beat_object);
+          } 
+          else {
+            if(ProtocolLog.Monitor.Enabled)
+              ProtocolLog.Write(ProtocolLog.Monitor, "System must be running " +
+                                "slow, more than one node waiting at heartbeat");
+          }
+        } while(!_heart_beat_stopped);
+      } catch (Exception e) {
+        if(ProtocolLog.Exceptions.Enabled)
+          ProtocolLog.Write(ProtocolLog.Exceptions, 
+                            String.Format("{0}",e)); 
+      }
+      if(ProtocolLog.Monitor.Enabled)
+        ProtocolLog.Write(ProtocolLog.Monitor, "heart beat producer (terminating).");
+    }
+
 
     protected readonly string _realm;
     /**
@@ -350,8 +385,10 @@ namespace Brunet
      */
     public TaskQueue TaskQueue { get { return _task_queue; } }
 
-    //The timer that tells us when to HeartBeatEvent
-    protected Timer _timer;
+    protected Thread _heart_beat_thread;
+    protected volatile bool _heart_beat_stopped = false;
+    
+    
 
     protected int _heart_period;
     ///how many milliseconds between heartbeats
@@ -596,7 +633,8 @@ namespace Brunet
         }
         _edgelistener_list.Clear();
         _running = false;
-        _timer.Dispose();
+        _heart_beat_stopped = true;
+        _heart_beat_thread.Interrupt();
         //This makes sure we don't block forever on the last packet
         _packet_queue.Close();
       }
@@ -624,19 +662,33 @@ namespace Brunet
     }
     protected void AnnounceThread() {
       try {
+        DateTime last_debug = DateTime.UtcNow;
+        TimeSpan debug_period = new TimeSpan(0,0,0,0,5000); //log every 5 seconds.
         while( _running ) {
-          AnnounceState a_state = null;
-
+          if (ProtocolLog.Monitor.Enabled) {
+            DateTime now = DateTime.UtcNow;
+            if (now - last_debug > debug_period) {
+              last_debug = now;
+              ProtocolLog.Write(ProtocolLog.Monitor, String.Format("I am alive: {0}", now));
+            }
+          }
+          object queue_item = null;
           // Only peek if we're logging the monitoring of _packet_queue
           if(ProtocolLog.Monitor.Enabled) {
-            a_state = (AnnounceState)_packet_queue.Peek();
+            queue_item = _packet_queue.Peek();
           }
           else {
-            a_state = (AnnounceState)_packet_queue.Dequeue();
+            queue_item = _packet_queue.Dequeue();
           }
 
-          Announce(a_state.Data, a_state.From);
-
+          if (queue_item == _heart_beat_object) {
+            RaiseHeartBeatEvent();
+            _heart_beat_object.Reset();
+          }
+          else {
+            AnnounceState a_state = (AnnounceState) queue_item;
+            Announce(a_state.Data, a_state.From);
+          }
           // If we peeked, we need to now remove it
           if(ProtocolLog.Monitor.Enabled) {
             _packet_queue.Dequeue();
@@ -715,6 +767,9 @@ namespace Brunet
      * network
      */
     public virtual void Connect() {
+      if (Thread.CurrentThread.Name == null) {
+        Thread.CurrentThread.Name = "announce_thread";
+      }
       bool changed_state = false;
       try {
         SetConState(Node.ConnectionState.Joining, out changed_state);
@@ -1036,37 +1091,23 @@ namespace Brunet
         //Don't do anything for now.
       }
     }
-    /**
-     * A TimerCallback to send the HeartBeatEvent
-     * Since the Timer can call this multiple times to run concurrently, there
-     * is a lock and a running boolean to prevent multiple executions
-     * concurrently.  Excessive callbacks are lost.
-     */
-    protected void HeartBeatCallback(object state)
-    {
-      lock(_heartbeat_sync) {
-        if(_heartbeat_running) {
-          if(ProtocolLog.NodeLog.Enabled)
-            ProtocolLog.Write(ProtocolLog.NodeLog, "System must be running " +
-              "slow, more than one node waiting at heartbeat");
-          return;
-        }
-        _heartbeat_running = true;
-      }
 
-      ///Just send the event:
+    protected void RaiseHeartBeatEvent() {
+      DateTime start = DateTime.UtcNow;
       try {
         if( HeartBeatEvent != null ) {
           HeartBeatEvent(this, EventArgs.Empty);
         }
-      }
-      catch(Exception x) {
+      } catch(Exception x) {
         ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
-          "Exception in heartbeat: {0}", x));
-      }
-      _heartbeat_running = false;
+            "Exception in heartbeat event : {0}", x));
+      } 
+      DateTime end = DateTime.UtcNow;
+      TimeSpan ts = end - start;
+      if(ProtocolLog.NodeLog.Enabled)
+        ProtocolLog.Write(ProtocolLog.NodeLog, String.Format("heart beat event, done in: {0}", ts));
     }
-
+    
     /**
      * This just announces the data with the current node
      * as the return path
