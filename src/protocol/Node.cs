@@ -44,14 +44,14 @@ namespace Brunet
     /**
      * Create a node in the realm "global"
      */
-    public Node(Address addr) : this(addr, "global") { }
+    protected Node(Address addr) : this(addr, "global") { }
     /**
      * Create a node with a given local address and
      * a set of Routers.
      * @param addr Address for the local node
      * @param realm the Realm or Namespace this node belongs to
      */
-    public Node(Address addr, string realm)
+    protected Node(Address addr, string realm)
     {
       //Start with the address hashcode:
 

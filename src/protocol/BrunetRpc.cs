@@ -61,7 +61,7 @@ namespace Brunet
       }
       catch(Exception x) {
         Console.Error.WriteLine("Packet Handling Exception: {3}\n\tType: {0}\n\t\n\tFrom: {1}\n\tData: {2}",
-          t, payload.GetString(System.Text.Encoding.ASCII), x);
+          t, from, payload.GetString(System.Text.Encoding.ASCII), x);
       }
     }
   }

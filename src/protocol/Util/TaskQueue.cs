@@ -28,17 +28,26 @@ namespace Brunet {
  * Task.  When the they are done, they fire a FinishEvent.
  */
 abstract public class TaskWorker {
-
+  
+  protected TaskWorker()
+  {
+    _finish_event = new FireOnceEvent();
+  }
   /**
    * This object MUST correctly implement GetHashCode and Equals
    */
   abstract public object Task { get; }
+  
+  private FireOnceEvent _finish_event;
   /**
    * This is fired when the TaskWorker is finished,
    * it doesn't mean it was successful, it just means
    * it has stopped
    */
-  public event EventHandler FinishEvent;
+  public event EventHandler FinishEvent {
+    add { _finish_event.Add(value); }
+    remove { _finish_event.Remove(value); }
+  }
 
   /**
    * Is true if the TaskWorker is finished
@@ -47,14 +56,10 @@ abstract public class TaskWorker {
 
   /**
    * Subclasses call this to fire the finish event
+   * @return true if this is the first time this method is called
    */
-  protected void FireFinished() {
-    EventHandler eh = null;
-    //Make sure we only fire once:
-    eh = System.Threading.Interlocked.Exchange(ref FinishEvent, eh);
-    if( eh != null ) {
-      eh(this, EventArgs.Empty);
-    }
+  protected bool FireFinished() {
+    return _finish_event.Fire(this, null);
   }
 
   /**
@@ -73,8 +78,8 @@ public class TaskQueue {
   /**
    * Here is the list workers
    */
-  protected Hashtable _task_to_workers;
-  protected object _sync;
+  protected readonly Hashtable _task_to_workers;
+  protected readonly object _sync;
 
   /**
    * When the TaskQueue completely empties,
@@ -82,20 +87,18 @@ public class TaskQueue {
    */
   public event EventHandler EmptyEvent;
 
-  protected int _worker_count;
   //if the queue can start workers (added by Arijit Ganguly)
-  protected bool _is_active;
+  protected volatile bool _is_active;
   public bool IsActive {
     set {
       _is_active = value;
     }
   }
   
+  protected volatile int _worker_count;
   public int WorkerCount {
     get {
-      lock( _sync ) {
-        return _worker_count;
-      }
+      return _worker_count;
     }
   }
 

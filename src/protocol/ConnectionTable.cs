@@ -25,6 +25,7 @@ using NUnit.Framework;
 
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Globalization;
 using System.Xml.Serialization;
@@ -34,6 +35,357 @@ using System.Text;
 
 namespace Brunet
 {
+
+  /**
+   * This is an immutable object which stores a sorted (by Address)
+   * list of Connections.  Once created, it never changes
+   */
+  public class ConnectionList : IEnumerable {
+    /*
+     * Public Fields
+     */
+    public readonly ConnectionType MainType;
+    public readonly int Count;
+    
+    /*
+     * protected readonly variables
+     */
+    protected readonly ArrayList _addresses;
+    protected readonly ArrayList _connections;
+
+    /**
+     * Make an Empty ConnectionList
+     */
+    public ConnectionList(ConnectionType ct) {
+      MainType = ct;
+      Count = 0;
+      _addresses = new ArrayList(0);
+      _connections = new ArrayList(0);
+    }
+
+    protected ConnectionList(ConnectionType ct, ArrayList adds, ArrayList cons) {
+      MainType = ct;
+      Count = adds.Count;
+      _addresses = adds;
+      _connections = cons;
+    }
+    /**
+     * Get a particular connection out.
+     * @return Connection at index = idx mod Count
+     */
+    public Connection this[int idx] {
+      get {
+        if( Count == 0 ) {
+          throw new Exception("ConnectionList is empty");
+        }
+        int idx0 = idx % Count;
+        if( idx0 < 0 ) { idx0 += Count; }
+        return (Connection)_connections[idx0];
+      }
+    }
+    /*
+     * Methods
+     */
+    
+    /**
+     * @param a The address to check for the presence of.
+     *
+     * It is a synonym for IndexOf(a) >= 0.
+     * This function is just to eliminate any chance of confusion arising
+     * from using IndexOf to check for existence
+     */
+    public bool Contains(Address a) {
+       return (IndexOf(a) >= 0);
+    }
+
+    /**
+     * Required for IEnumerable Interface
+     */
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+      return _connections.GetEnumerator();
+    }
+    /**
+     * Note, left is direction of INCREASING address
+     * @param the Address to return the left neighbor of
+     * @return Connection to our neighbor which is just left of address
+     */
+    public Connection GetLeftNeighborOf(Address address) {
+      int i = IndexOf(address);
+      if (i<0) {
+        i = ~i;
+      }
+      else {
+        i++;
+      }
+      return this[i];
+    }
+    /**
+     * Note, Right is direction of DECREASING address
+     * @param the Address to return the right neighbor of
+     * @return Connection to our neighbor which is just right of address
+     */
+    public Connection GetRightNeighborOf(Address address)
+    {
+      int i = IndexOf(address);
+      if (i<0) {
+        i = ~i;
+      }
+      i--;
+      return this[i];
+    }
+    /**
+     * Return a new connection list with at most max_count which are
+     * the closest (by index distance) to dest (excluding dest)
+     */
+    public ConnectionList GetNearestTo(Address dest, int max_count) {
+      Hashtable cons = new Hashtable();
+      ArrayList adds = new ArrayList();
+      int max = Count;
+      if( max_count > max ) {
+        max_count = max;
+      }
+      int idx = IndexOf(dest);
+      bool skip_idx = false;
+      if( idx < 0 ) {
+        idx = ~idx;
+      }
+      else {
+        //We need to skip the idx, because idx is present:
+        skip_idx = true;
+      }
+
+      int start = idx - max_count/2;
+      int end = start + max_count;
+      if( skip_idx ) {
+        end++;
+      }
+      for( int pos = start; pos < end; pos++) {
+        if( skip_idx && ( pos == idx ) ) {
+          pos++;
+        }
+        Connection c = this[pos];
+        cons[c.Address] = c;
+        adds.Add(c.Address);
+      }
+      adds.Sort();
+      //Make a list in the same order:
+      ArrayList c_list = new ArrayList();
+      foreach(Address a in adds) {
+        c_list.Add( cons[a] );
+      }
+      return new ConnectionList(this.MainType, adds, c_list);
+    }
+
+    /**
+     * @param a the address you want the index of.
+     * @return the index of a Connection containing this address, if it is
+     * negative, then it is it bitwise compliment of where the Address would
+     * be.
+     *
+     * @throw an ArgumentNullException if a is null.
+     */
+    public int IndexOf(Address a) {
+      int index = 0;
+      if( Count == 0 ) {
+        //This item would be the first in the list
+        index = ~index;
+      }
+      else {
+        //Search for the item
+        /**
+        * the BinarySearch.
+        */
+        index = _addresses.BinarySearch(a);
+      }
+      return index;
+    }
+    
+    /**
+     * ConnectionList objects are immutable.  This method creates a new one
+     * with the given Connection added
+     * @param cl the old ConnectionList
+     * @param c the Connection to insert
+     * @param idx the index of the Connection in the returned ConnectionList
+     * @return the new ConnectionList containing c
+     */
+    public static ConnectionList InsertInto(ConnectionList cl, Connection c, out int idx) {
+      idx = cl.IndexOf(c.Address);
+      if( idx > 0 ) {
+        throw new ConnectionExistsException( cl[idx] );
+      }
+      idx = ~idx;
+      ArrayList new_addresses = Functional.Insert(cl._addresses, idx, c.Address);
+      ArrayList new_connections = Functional.Insert(cl._connections, idx, c);
+      if(ProtocolLog.Connections.Enabled) {
+        ProtocolLog.Write(ProtocolLog.Connections,
+          String.Format("New Connection[{0}]: {1} instant: {2}", idx, c, c.CreationTime));
+      }
+      return new ConnectionList(cl.MainType, new_addresses, new_connections);
+    }
+    /**
+     * @return the number of Structured Connections in the interval
+     * (a1, a2) (not including the end points) when we move to the left.
+     */
+    public int LeftInclusiveCount(Address a1, Address a2) {
+      if( a1.Equals(a2) ) { return 0; }
+      int dist;
+      //This list never changes:
+      int a2_idx = IndexOf(a2);
+      int a1_idx = IndexOf(a1);
+        /*
+         * There are four cases, we deal with each separately:
+         * 0) neither a1 nor a2 are in the table
+         * 1) a1 is not, but a2 is
+         * 2) a1 is, but a2 is not
+         * 3) a1 and a2 are.
+         */
+
+      bool a2_present = true;
+      bool a1_present = true;
+      if( a2_idx < 0 ) {
+        a2_present = false;
+        a2_idx = ~a2_idx;
+      }
+      if( a1_idx < 0 ) {
+        a1_present = false;
+        a1_idx = ~a1_idx;
+      }
+      if( a1_idx == a2_idx ) {
+        //This is an easy case:
+        int max_dist = Count;
+        if( a2_present ) {
+          max_dist--;
+        }
+        if( a1_present ) {
+          max_dist--;
+        }
+        if( a2.CompareTo( a1 ) > 0 ) {
+          dist = 0;  
+        }
+        else {
+          dist = max_dist;
+        }
+      }
+      else {
+        //These two indices are different:
+        dist = a2_idx - a1_idx;
+        if( dist < 0 ) {
+          //Wrap around.
+          dist += Count;
+        }
+        if( a1_present ) {
+          /*
+           * In thie case, our calculations are too much by one, in both
+           * cases (dist > 0, dist < 0), so we decrease by one:
+           */
+          dist = dist - 1;
+        }
+      }
+      return dist;
+    }
+
+    /**
+     * ConnectionList objects are immutable.  This method creates a new one
+     * with the given index removed
+     * @param i the index of the Connection to remove
+     */
+    public static ConnectionList RemoveAt(ConnectionList cl, int i) {
+      ArrayList new_add = Functional.RemoveAt(cl._addresses, i);
+      ArrayList new_cons = Functional.RemoveAt(cl._connections, i);
+      return new ConnectionList(cl.MainType, new_add, new_cons); 
+    }
+    /**
+     * ConnectionList objects are immutable.  This method replaces a
+     * Connection with a given Connection, and returns the new
+     * ConnectionList.  This is used for updating StatusMessage objects.
+     * @param cl the ConnectionList to start with
+     * @param old the Connection we are replacing
+     * @param new_c the Connection we are replacing with.
+     * @param idx the index of both old and new_c
+     */
+    public static ConnectionList Replace(ConnectionList cl, Connection old, Connection new_c,
+                                         out int idx) {
+      Address old_a = old.Address;
+      if( !old_a.Equals( new_c.Address ) ) {
+        throw new Exception(String.Format("Cannot replace: old Address: {0} != new Address {1}",
+                            old.Address, new_c.Address));
+      }
+      idx = cl.IndexOf(old_a);
+      if( idx < 0 ) {
+        //This is a new address:
+        throw new Exception(String.Format("Address: {0} not in ConnectionList.", old_a));
+      }
+      ArrayList adds = cl._addresses;
+      ArrayList cons = Functional.SetElement(cl._connections, idx, new_c);
+      return new ConnectionList(cl.MainType, adds, cons);
+    }
+
+    
+    /**
+     * @return the number of Structured Connections in the interval
+     * (a1, a2) (not including the end points) when we move to the right.
+     */
+    public int RightInclusiveCount(Address a1, Address a2) {
+      if( a1.Equals(a2) ) { return 0; }
+      int dist;
+
+      int a2_idx = IndexOf(a2);
+      int a1_idx = IndexOf(a1);
+
+        /*
+         * There are four cases, we deal with each separately:
+         * 0) neither a1 nor a2 are in the table
+         * 1) a1 is not, but a2 is
+         * 2) a1 is, but a2 is not
+         * 3) a1 and a2 are.
+         */
+
+      bool a2_present = true;
+      bool a1_present = true;
+      if( a2_idx < 0 ) {
+        a2_present = false;
+        a2_idx = ~a2_idx;
+      }
+      if( a1_idx < 0 ) {
+        a1_present = false;
+        a1_idx = ~a1_idx;
+      }
+      if( a1_idx == a2_idx ) {
+        //This is an easy case:
+        int max_dist = Count;
+        if( a2_present ) {
+          max_dist--;
+        }
+        if( a1_present ) {
+          max_dist--;
+        }
+        if( a2.CompareTo( a1 ) < 0 ) {
+          dist = 0;  
+        }
+        else {
+          dist = max_dist;
+        }
+      }
+      else {
+        //These two indices are different:
+        dist = a1_idx - a2_idx;
+        if( dist < 0 ) {
+          //Wrap around.
+          dist += Count;
+        }
+        if( a2_present ) {
+          /*
+           * In thie case, our calculations are too much by one, in both
+           * cases (dist > 0, dist < 0), so we decrease by one:
+           */
+          dist = dist - 1;
+        }
+      }
+      return dist;
+    }
+
+  }
 
   /**
    * Keeps track of all connections and all the
@@ -84,19 +436,16 @@ namespace Brunet
     /*
      * These objects are often being reset (since we don't ever
      * modify the data structures once set).
-     * So, I *think* we need these to be volatile if we are
-     * not going to lock every access of them).  This needs
-     * more study to make sure we are handling this correctly.
+     * We need these to be volatile if we are
+     * not going to lock every access of them).
      */
-    volatile protected Hashtable _type_to_addlist;
     volatile protected Hashtable _type_to_conlist;
     volatile protected Hashtable _edge_to_con;
 
     //We mostly deal with structured connections,
     //so we keep a ref to the address list for sructured
     //this is an optimization.
-    volatile protected ArrayList _struct_addlist;
-    volatile protected ArrayList _struct_conlist;
+    volatile protected ConnectionList _struct_conlist;
 
     volatile protected ArrayList _unconnected;
 
@@ -109,12 +458,6 @@ namespace Brunet
 
     /** an object to lock for thread sync */
     private readonly object _sync;
-    /** Allows external objects to make sure the ConnectionTable
-     * does not change as they are working with it
-     */
-    public object SyncRoot {
-      get { return _sync; }
-    }
     /**
      * When there is a new connection, this event
      * is fired.
@@ -148,9 +491,7 @@ namespace Brunet
 
     /**
      * This is for the ICollection interface.
-     * Note, that ConnectionTable objects are synchronized, but if
-     * you don't want the table to change between method calls, you
-     * need to explicitly lock SyncRoot.
+     * It returns true
      */
     public bool IsSynchronized {
       get { return true; }
@@ -167,7 +508,6 @@ namespace Brunet
       _sync = new Object();
       lock( _sync ) {
         _local = local;
-        _type_to_addlist = new Hashtable();
         _type_to_conlist = new Hashtable();
         _edge_to_con = new Hashtable();
         _closed = false;
@@ -203,23 +543,14 @@ namespace Brunet
      */
     public void Add(Connection c)
     {
-      int index;
       ConnectionType t = c.MainType;
-      Address a = c.Address;
       Edge e = c.Edge;
+      ConnectionList new_cl;
+      int index;
 
       lock(_sync) {
         if( _closed ) { throw new TableClosedException(); }
         Connection c_present = GetConnection(e);
-        index = IndexOf(t, a);
-        if (index < 0) {
-          //This is a new address:
-          index = ~index;
-        }
-        else {
-          //This is an old address, no good
-          c_present = GetConnection(t, index);
-        }
         if( c_present != null ) {
           throw new ConnectionExistsException(c_present);
         }
@@ -244,38 +575,20 @@ namespace Brunet
         /*
          * Copy so we don't mess up an old list
          */
-        ArrayList list;
-
-        list = (ArrayList) _type_to_addlist[t];
-        list = Functional.Insert(list, index, a);
-        _type_to_addlist = Functional.SetElement(_type_to_addlist, t, list);
+        ConnectionList oldlist = GetConnections(t);
+        new_cl = ConnectionList.InsertInto(oldlist, c, out index);
+        _type_to_conlist = Functional.SetElement(_type_to_conlist, t, new_cl);
         if( t == ConnectionType.Structured ) {
           //Optimize the most common case to avoid the hashtable
-          _struct_addlist = list;
+          _struct_conlist = new_cl;
         }
-
-        list = (ArrayList)_type_to_conlist[t];
-        list = Functional.Insert(list, index, c);
-        _type_to_conlist = Functional.SetElement(_type_to_conlist, t, list);
-        if( t == ConnectionType.Structured ) {
-          //Optimize the most common case to avoid the hashtable
-          _struct_conlist = list;
-        }
-
         _edge_to_con = Functional.Add(_edge_to_con, e, c);
 
         int ucidx = _unconnected.IndexOf(e);
-        if( ucidx >= 0 )
-          //Remove the edge from the _unconnected table
+        if( ucidx >= 0 ) {
           _unconnected = Functional.RemoveAt(_unconnected, ucidx);
-//        else if(!_edge_start_time.Contains(e))
-//          _edge_start_time = Functional.Add(_edge_start_time, e, DateTime.UtcNow);
+        }
       } /* we release the lock */
-
-
-      if(ProtocolLog.Connections.Enabled)
-        ProtocolLog.Write(ProtocolLog.Connections,
-          String.Format("New Connection[{0}]: {1} instant: {2}", index, c, c.CreationTime));
 
       /*
        * If we get here we ALWAYS fire the ConnectionEvent even
@@ -286,7 +599,7 @@ namespace Brunet
        */
       if(ConnectionEvent != null) {
         try {
-          ConnectionEvent(this, new ConnectionEventArgs(c, index) );
+          ConnectionEvent(this, new ConnectionEventArgs(c, index, new_cl) );
         }
         catch(Exception x) {
           if(ProtocolLog.Exceptions.Enabled)
@@ -344,13 +657,13 @@ namespace Brunet
      */
     public int Count(ConnectionType t)
     {
-      ArrayList list = null;
+      ConnectionList list = null;
       if( t == ConnectionType.Structured ) {
         //Optimize the most common case to avoid the hashtable
         list = _struct_conlist;
       }
       else {
-        list = (ArrayList)_type_to_conlist[t];
+        list = (ConnectionList)_type_to_conlist[t];
       }
       if( list == null ) { return 0; }
       return list.Count;
@@ -391,16 +704,7 @@ namespace Brunet
      */
     public Connection GetLeftStructuredNeighborOf(AHAddress address)
     {
-      lock( _sync ) {
-        int i = IndexOf(ConnectionType.Structured, address);
-        if (i<0) {
-          i = ~i;
-        }
-        else {
-          i++;
-        }
-        return GetConnection(ConnectionType.Structured, i);
-      }
+      return _struct_conlist.GetLeftNeighborOf(address);
     }
 
     /**
@@ -408,14 +712,7 @@ namespace Brunet
      */
     public Connection GetRightStructuredNeighborOf(AHAddress address)
     {
-      lock( _sync ) {
-        int i = IndexOf(ConnectionType.Structured, address);
-        if (i<0) {
-          i = ~i;
-        }
-        i--;
-        return GetConnection(ConnectionType.Structured, i);
-      }
+      return _struct_conlist.GetRightNeighborOf(address);
     }
 
     /**
@@ -428,23 +725,15 @@ namespace Brunet
      */
     public Connection GetConnection(ConnectionType t, int index)
     {
-      ArrayList list;
+      ConnectionList list;
       if( t == ConnectionType.Structured ) {
         //Optimize the most common case to avoid the hashtable
         list = _struct_conlist;
       }
       else {
-        list = (ArrayList)_type_to_conlist[t];
+        list = (ConnectionList)_type_to_conlist[t];
       }
-      int count = list.Count;
-      if( count == 0 ) {
-        return null;
-      }
-      index %= count;
-      if( index < 0 ) {
-        index += count;
-      }
-      return (Connection)list[index];
+      return list[index];
     }
     /**
      * Convienience function.  Same as IndexOf followed by GetConnection
@@ -455,12 +744,11 @@ namespace Brunet
      */
     public Connection GetConnection(ConnectionType t, Address a)
     {
+      ConnectionList list = GetConnections(t);
       Connection c = null;
-      lock( _sync ) {
-        int idx = IndexOf(t, a);
-        if( idx >= 0 ) {
-          c = GetConnection(t, idx);
-        }
+      int idx = list.IndexOf(a);
+      if( idx >= 0 ) {
+        c = list[idx];
       }
       return c;
     }
@@ -481,9 +769,14 @@ namespace Brunet
      * @param t the Type of Connections we want
      * @return an enumerable that we can foreach over
      */
-    public IEnumerable GetConnections(ConnectionType t)
+    public ConnectionList GetConnections(ConnectionType t)
     {
-      return new ConnectionTypeEnumerable(this, t);
+      if( t == ConnectionType.Structured ) {
+        return _struct_conlist;
+      }
+      else {
+        return (ConnectionList)_type_to_conlist[t];
+      }
     }
     /**
      * Return all the connections of type t.
@@ -503,49 +796,30 @@ namespace Brunet
      * @param max_count the maximum number of connections to return
      * @return a list of structured connections closest to the destination
      * EXCLUDING The destination itself.
+     * @deprecated
      */
     public ArrayList GetNearestTo(AHAddress dest, int max_count)
     {
+      ConnectionList near = _struct_conlist.GetNearestTo(dest, max_count);
       ArrayList ret_val = new ArrayList();
-      lock( _sync ) {
-        int max = Count(ConnectionType.Structured);
-        if( max_count > max ) {
-          max_count = max;
-        }
-        int idx = IndexOf(ConnectionType.Structured, dest);
-        bool skip_idx = false;
-        if( idx < 0 )
-          idx = ~idx;
-        else
-          //We need to skip the idx, because idx is present:
-          skip_idx = true;
-
-        int start = idx - max_count/2;
-        int end = start + max_count;
-        if( skip_idx ) 
-          end++;
-        for( int pos = start; pos < end; pos++) {
-          if( skip_idx && ( pos == idx ) )
-            pos++;
-          Connection c = GetConnection(ConnectionType.Structured, pos);
-          ret_val.Add( c );
-        }
+      foreach(Connection c in near) {
+        ret_val.Add(c);
       }
       return ret_val;
     }
     /**
      * @return a random connection of type t
+     * @deprecated
      */
     public Connection GetRandom(ConnectionType t)
     {
-      lock(_sync) {
-        int size = Count(t);
-        if( size == 0 )
-          return null;
-        else {
-          int pos = _rand.Next( size );
-          return GetConnection(t, pos);
-        }
+      ConnectionList list = GetConnections(t);
+      int size = list.Count;
+      if( size == 0 )
+        return null;
+      else {
+        int pos = _rand.Next( size );
+        return list[pos];
       }
     }
 
@@ -563,16 +837,11 @@ namespace Brunet
      */
     protected void Init(ConnectionType t)
     {
+      ConnectionList new_list = new ConnectionList(t);
       if( t == ConnectionType.Structured ) {
-        _struct_addlist = new ArrayList(); 
-        _struct_conlist = new ArrayList(); 
-        _type_to_addlist[t] = _struct_addlist;
-        _type_to_conlist[t] = _struct_conlist;
+        _struct_conlist = new_list; 
       }
-      else {
-        _type_to_addlist[t] = new ArrayList();
-        _type_to_conlist[t] = new ArrayList();
-      }
+      _type_to_conlist[t] = new_list;
     }
 
     /**
@@ -581,159 +850,28 @@ namespace Brunet
      * @return the index.  If it is negative, the bitwise
      * compliment would indicate where it should be in the
      * list.
+     * @deprecated
      */
     public int IndexOf(ConnectionType t, Address a)
     {
-      int index = 0;
-      ArrayList add_list;
-      if( t == ConnectionType.Structured ) {
-        //Optimize the most common case to avoid the hashtable
-        add_list = _struct_addlist;
-      }
-      else {
-        add_list = (ArrayList)_type_to_addlist[t];
-      }
-      if( add_list.Count == 0 ) {
-        //This item would be the first in the list
-        index = ~index;
-      }
-      else {
-        //Search for the item
-        /**
-        * @throw an ArgumentNullException (ArgumentException)for the
-        * the BinarySearch.
-        */
-        index = add_list.BinarySearch(a);
-      }
-      return index;
+      ConnectionList list = GetConnections(t);
+      return list.IndexOf(a);
     }
 
     /**
      * @return the number of Structured Connections in the interval
      * (a1, a2) (not including the end points) when we move to the left.
+     * @deprecated
      */
     public int LeftInclusiveCount(AHAddress a1, AHAddress a2) {
-      if( a1.Equals(a2) ) { return 0; }
-      int dist;
-      //This list never changes:
-      ArrayList structs = _struct_addlist;
-      int count = structs.Count;
-      int a2_idx = structs.BinarySearch(a2);
-      int a1_idx = structs.BinarySearch(a1);
-        /*
-         * There are four cases, we deal with each separately:
-         * 0) neither a1 nor a2 are in the table
-         * 1) a1 is not, but a2 is
-         * 2) a1 is, but a2 is not
-         * 3) a1 and a2 are.
-         */
-
-      bool a2_present = true;
-      bool a1_present = true;
-      if( a2_idx < 0 ) {
-        a2_present = false;
-        a2_idx = ~a2_idx;
-      }
-      if( a1_idx < 0 ) {
-        a1_present = false;
-        a1_idx = ~a1_idx;
-      }
-      if( a1_idx == a2_idx ) {
-        //This is an easy case:
-        int max_dist = count;
-        if( a2_present ) {
-          max_dist--;
-        }
-        if( a1_present ) {
-          max_dist--;
-        }
-        if( a2.CompareTo( a1 ) > 0 ) {
-          dist = 0;  
-        }
-        else {
-          dist = max_dist;
-        }
-      }
-      else {
-        //These two indices are different:
-        dist = a2_idx - a1_idx;
-        if( dist < 0 ) {
-          //Wrap around.
-          dist += count;
-        }
-        if( a1_present ) {
-          /*
-           * In thie case, our calculations are too much by one, in both
-           * cases (dist > 0, dist < 0), so we decrease by one:
-           */
-          dist = dist - 1;
-        }
-      }
-      return dist;
+      return _struct_conlist.LeftInclusiveCount(a1,a2);
     }
     /**
      * @return the number of Structured Connections in the interval
      * (a1, a2) (not including the end points) when we move to the right.
      */
     public int RightInclusiveCount(AHAddress a1, AHAddress a2) {
-      if( a1.Equals(a2) ) { return 0; }
-      int dist;
-
-      ArrayList structs = _struct_addlist;
-      int count = structs.Count;
-      int a2_idx = structs.BinarySearch(a2);
-      int a1_idx = structs.BinarySearch(a1);
-
-        /*
-         * There are four cases, we deal with each separately:
-         * 0) neither a1 nor a2 are in the table
-         * 1) a1 is not, but a2 is
-         * 2) a1 is, but a2 is not
-         * 3) a1 and a2 are.
-         */
-
-      bool a2_present = true;
-      bool a1_present = true;
-      if( a2_idx < 0 ) {
-        a2_present = false;
-        a2_idx = ~a2_idx;
-      }
-      if( a1_idx < 0 ) {
-        a1_present = false;
-        a1_idx = ~a1_idx;
-      }
-      if( a1_idx == a2_idx ) {
-        //This is an easy case:
-        int max_dist = count;
-        if( a2_present ) {
-          max_dist--;
-        }
-        if( a1_present ) {
-          max_dist--;
-        }
-        if( a2.CompareTo( a1 ) < 0 ) {
-          dist = 0;  
-        }
-        else {
-          dist = max_dist;
-        }
-      }
-      else {
-        //These two indices are different:
-        dist = a1_idx - a2_idx;
-        if( dist < 0 ) {
-          //Wrap around.
-          dist += count;
-        }
-        if( a2_present ) {
-          /*
-           * In thie case, our calculations are too much by one, in both
-           * cases (dist > 0, dist < 0), so we decrease by one:
-           */
-          dist = dist - 1;
-        }
-      }
-      return dist;
+      return _struct_conlist.RightInclusiveCount(a1,a2);
     }
 
     /**
@@ -806,55 +944,71 @@ namespace Brunet
     /**
      * Remove the connection associated with an edge from the table
      * @param e Edge whose connection should be removed
-     * @param add__unconnected if true, keep a reference to the edge in the
+     * @param add_unconnected if true, keep a reference to the edge in the
      * _unconnected list
      */
-    protected void Remove(Edge e, bool add__unconnected)
+    protected void Remove(Edge e, bool add_unconnected)
     {
       int index = -1;
       bool have_con = false;
       Connection c = null;
+      ConnectionList new_cl = null;
       lock(_sync) {
         c = GetConnection(e);	
         have_con = (c != null);
         if( have_con )  {
-          index = IndexOf(c.MainType, c.Address);
-          Remove(c.MainType, index);
-          if( add__unconnected ) {
+          ConnectionType t = c.MainType;
+          ConnectionList old_cl = GetConnections(t);
+          index = old_cl.IndexOf(c.Address);
+          //Here we go:
+          new_cl = ConnectionList.RemoveAt(old_cl, index);
+          _type_to_conlist = Functional.SetElement(_type_to_conlist, t, new_cl);
+          if( t == ConnectionType.Structured ) {
+            //Optimize the most common case to avoid the hashtable
+            _struct_conlist = new_cl;
+          }
+          //Remove the edge from the tables:
+          _edge_to_con = Functional.Remove(_edge_to_con,e);
+          
+          if( add_unconnected ) {
             _unconnected = Functional.Add(_unconnected, e);
-            if(ProtocolLog.Stats.Enabled)
+            if(ProtocolLog.Stats.Enabled) {
               ProtocolLog.Write(ProtocolLog.Stats, String.Format(
                 "Intermediate add to unconnected {0}|{1}", e, DateTime.UtcNow.Ticks));
+            }
           }
         }
-        if(!have_con && !add__unconnected || e.IsClosed) {
+        else if( !add_unconnected ) {
 //We didn't have a connection, so, check to see if we have it in _unconnected:
 //Don't keep this edge around at all:
           int idx = _unconnected.IndexOf(e);
-          if( idx >= 0 )
+          if( idx >= 0 ) {
             _unconnected = Functional.RemoveAt(_unconnected, idx);
-          if(ProtocolLog.Stats.Enabled)
+          }
+          if(ProtocolLog.Stats.Enabled) {
             ProtocolLog.Write(ProtocolLog.Stats, String.Format(
               "Edge removed from unconnected {0}|{1}", e, DateTime.UtcNow.Ticks));
+          }
         }
       }
       if( have_con ) {
         if(ProtocolLog.Connections.Enabled) {
-	  DateTime now = DateTime.UtcNow;
-	  TimeSpan con_life = now - c.CreationTime;
+          DateTime now = DateTime.UtcNow;
+          TimeSpan con_life = now - c.CreationTime;
           ProtocolLog.Write(ProtocolLog.Connections,
             String.Format("New Disconnection[{0}]: {1}, instant: {2}, con_life: {3} ", 
-			  index, c, now, con_life));
+			                    index, c, now, con_life));
         }
 
-        if(ProtocolLog.Stats.Enabled)
+        if(ProtocolLog.Stats.Enabled) {
           ProtocolLog.Write(ProtocolLog.Stats, String.Format(
             "Disconnection {0}|{1}", c, DateTime.UtcNow.Ticks));
+        }
 
         //Announce the disconnection:
         if( DisconnectionEvent != null ) {
           try {
-            DisconnectionEvent(this, new ConnectionEventArgs(c, index));
+            DisconnectionEvent(this, new ConnectionEventArgs(c, index, new_cl));
           }
           catch(Exception x) {
             if(ProtocolLog.Exceptions.Enabled)
@@ -866,56 +1020,13 @@ namespace Brunet
     }
 
     /**
-     * Remove an index from the table.
-     * @param t ConnectionType of the removed edge
-     * @param index index of the removed edge
-     */
-    protected void Remove(ConnectionType t, int index)
-    {
-      lock(_sync) {
-        //Get the edge we are removing:
-        Connection c = (Connection)((ArrayList)_type_to_conlist[t])[index];
-        Edge e = c.Edge;
-        //Remove the edge from the lists:
-        /*
-         * We never modify lists after putting them into the hashtables.
-         * This guarantees that reading operations are sane, and only
-         * "writing" operations need to lock.  Since writing operations
-         * are rare compared to reading, this makes a lot of sense.
-         */
-        ArrayList this_list;
-        ArrayList copy;
-
-        this_list = (ArrayList)_type_to_addlist[t];
-        copy = Functional.RemoveAt(this_list, index);
-        if( t == ConnectionType.Structured ) {
-          //Optimize the most common case to avoid the hashtable
-          _struct_addlist = copy;
-        }
-        _type_to_addlist = Functional.SetElement(_type_to_addlist, t, copy);
-
-        //Now change the conlist:
-        this_list = (ArrayList)_type_to_conlist[t];
-        copy = Functional.RemoveAt(this_list, index);
-        if( t == ConnectionType.Structured ) {
-          //Optimize the most common case to avoid the hashtable
-          _struct_conlist = copy;
-        }
-        _type_to_conlist = Functional.SetElement(_type_to_conlist, t, copy);
-
-        //Remove the edge from the tables:
-        _edge_to_con = Functional.Remove(_edge_to_con,e);
-      }
-    }
-
-    /**
      * When an Edge closes, this handler is called
      * This is just a wrapper for Remove
      */
     protected void RemoveHandler(object edge, EventArgs args)
     {
       Edge e = (Edge)edge;
-      e.CloseEvent -= new EventHandler(this.RemoveHandler);
+      e.CloseEvent -= this.RemoveHandler;
       //Get rid of the edge and don't add it to our _unconnected list
       Remove(e, false);
     }
@@ -932,27 +1043,13 @@ namespace Brunet
       sb.Append("Type : Address Table\n");
 
       lock(_sync) {
-        myEnumerator = _type_to_addlist.GetEnumerator();
-        while (myEnumerator.MoveNext()) {
-          sb.Append("Type: ");
-          sb.Append(myEnumerator.Key.ToString() + "\n");
-          sb.Append("Address Table:\n");
-          ArrayList t = (ArrayList) myEnumerator.Value;
-          for (int i=0; i<t.Count; i++) {
-            System.Object o = (System.Object)t[i];
-            sb.Append("\t" + i + "---" + o.ToString() + "\n");
-          }
-          /*foreach(System.Object o in t) {
-            sb.Append("\t" + o.ToString() + "\n");
-            }*/
-        }
         sb.Append("\nType : Edge Table\n");
         myEnumerator = _type_to_conlist.GetEnumerator();
         while (myEnumerator.MoveNext()) {
           sb.Append("Type: ");
           sb.Append(myEnumerator.Key.ToString() + "\n");
           sb.Append("Edge Table:\n");
-          ArrayList t = (ArrayList) myEnumerator.Value;
+          ConnectionList t = (ConnectionList) myEnumerator.Value;
           foreach(System.Object o in t) {
             sb.Append("\t" + o.ToString() + "\n");
           }
@@ -979,9 +1076,9 @@ namespace Brunet
      */
     public void Unlock(string t, ILinkLocker locker)
     {
+      ConnectionType mt = Connection.StringToMainType(t);
       lock( _sync ) {
         if( locker.TargetLock != null ) {
-          ConnectionType mt = Connection.StringToMainType(t);
           Hashtable locks = (Hashtable)_address_locks[mt];
           if(ProtocolLog.ConnectionTableLocks.Enabled) {
             ProtocolLog.Write(ProtocolLog.ConnectionTableLocks,
@@ -1025,41 +1122,33 @@ namespace Brunet
      */
     public Connection UpdateStatus(Connection con, StatusMessage sm)
     {
-      int index;
       ConnectionType t = con.MainType;
       Address a = con.Address;
       Edge e = con.Edge;
       string con_type = con.ConType;
       LinkMessage plm = con.PeerLinkMessage;
-
+      ConnectionList cl;
         //Make the new connection and replace it in our data structures:
       Connection newcon = new Connection(e,a,con_type,sm,plm);
+      int index;
       lock(_sync) {
-        index = IndexOf(t, a);
-        if ( index < 0 )
-        {
-          //This is a new address:
-          throw new Exception(String.Format("Address: " + a + 
-            " not in ConnectionTable. Cannot UpdateStatus."));
-        }
-
+        cl = GetConnections(t);
+        cl = ConnectionList.Replace(cl, con, newcon, out index);
+        //Update the Edge -> Connection mapping
         _edge_to_con = Functional.SetElement(_edge_to_con, e, newcon);
-
-        ArrayList l = (ArrayList)_type_to_conlist[t];
-        l = Functional.SetElement(l, index, newcon);
-        _type_to_conlist = Functional.SetElement(_type_to_conlist, t, l);
+        //Update the ConnectionType -> ConnectionList mapping
+        _type_to_conlist = Functional.SetElement(_type_to_conlist, t, cl);
 
         if( t == ConnectionType.Structured ) {
           //Optimize the most common case to avoid the hashtable
-          _struct_conlist = l;
+          _struct_conlist = cl;
         }
-
       } /* we release the lock */
 
       /* Send the event: */
       if( StatusChangedEvent != null ) {
         try {
-          StatusChangedEvent(sm, new ConnectionEventArgs(newcon, index) );
+          StatusChangedEvent(sm, new ConnectionEventArgs(newcon, index, cl) );
         }
         catch(Exception x) {
           if(ProtocolLog.Exceptions.Enabled)
@@ -1085,33 +1174,48 @@ namespace Brunet
      */
     public void AddUnconnected(Edge e)
     {
-      // No point in being here if e is closed...
-      if(e.IsClosed)
-        return;
-      if(ProtocolLog.Stats.Enabled)
+      if(ProtocolLog.Stats.Enabled) {
         ProtocolLog.Write(ProtocolLog.Stats, String.Format(
           "Initial add to unconnected {0}|{1}", e, DateTime.UtcNow.Ticks));
+      }
       lock( _sync ) {
         if( _closed ) { throw new TableClosedException(); }
+        Connection c = GetConnection(e);
+        if( c != null ) {
+          throw new Exception("We already have a Connection, can't add to Unconnected: " + c.ToString());
+        }
+        e.CloseEvent -= this.RemoveHandler;
+        if( e.IsClosed ) {
+          /*
+           * RemoveHandler is idempotent, so make sure it is called
+           * (since we removed the handler just before)
+           * This is safe to do while holding the lock because
+           * we don't have a connection on this edge, and thus
+           * there can't be a DisconnectionEvent caused by the RemoveHandler
+           */
+          RemoveHandler(e, null);
+          throw new Exception("Edge is already closed");
+        }
         int idx = _unconnected.IndexOf(e);
         if( idx < 0 ) {
           _unconnected = Functional.Add(_unconnected, e);
         }
 /*        if(!_edge_start_time.Contains(e))
           _edge_start_time = Functional.Add(_edge_start_time, e, DateTime.UtcNow);*/
-      }
-      try {
-        e.CloseEvent += this.RemoveHandler;
-      }
-      catch {
-       /*
-        * If the edge was closed before we got it added, it might be
-        * added but never removed from the table.  Now that we have
-        * completely added the Connection and registered the handler
-        * for the CloseEvent, let's make sure it is still good.
-        * If it closes after this, the CloseEvent will catch it.
-        */
-        RemoveHandler(e, null);
+        try {
+          e.CloseEvent += this.RemoveHandler;
+        }
+        catch {
+         /*
+          * If the edge was closed before we got it added, it might be
+          * added but never removed from the table.  Now that we have
+          * completely added the Connection and registered the handler
+          * for the CloseEvent, let's make sure it is still good.
+          * If it closes after this, the CloseEvent will catch it.
+          */
+          RemoveHandler(e, null);
+          throw;
+        }
       }
     }
     /**
@@ -1128,44 +1232,37 @@ namespace Brunet
      *
      * This will never change once it is created.
      */
-    private class ConnectionTypeEnumerable : IEnumerable {
+    private class ConnectionTypeEnumerable : IEnumerable<Connection> {
 
-      private readonly ConnectionTable _tab;
-      private readonly ConnectionType _ct;
       private readonly string _contype;
       private readonly IEnumerable _cons;
 
-      public ConnectionTypeEnumerable(ConnectionTable tab, ConnectionType ct)
-      {
-        _tab = tab;
-        _ct = ct;
-        _contype = null;
-        _cons = (ArrayList)_tab._type_to_conlist[ _ct ];
-      }
-
       public ConnectionTypeEnumerable(ConnectionTable tab, string contype)
       {
-        _tab = tab;
         _contype = contype;
-        _ct = Connection.StringToMainType(contype);
-        _cons = (ArrayList)_tab._type_to_conlist[ _ct ];
+        ConnectionType ct = Connection.StringToMainType(contype);
+        _cons = tab.GetConnections(ct);
       }
 
      /**
       * Required for IEnumerable Interface
       */
-      public IEnumerator GetEnumerator()
+      IEnumerator<Connection> IEnumerable<Connection>.GetEnumerator()
       {
-        if( _contype == null ) {
-          foreach(Connection c in _cons) {
+        foreach(Connection c in _cons) {
+          if (c.ConType == _contype ) {
             yield return c;
           }
         }
-        else {
-          foreach(Connection c in _cons) {
-            if (c.ConType == _contype ) {
-              yield return c;
-            }
+      }
+     /**
+      * Required for IEnumerable Interface
+      */
+      IEnumerator IEnumerable.GetEnumerator()
+      {
+        foreach(Connection c in _cons) {
+          if (c.ConType == _contype ) {
+            yield return c;
           }
         }
       }

@@ -163,8 +163,10 @@ namespace Brunet
           _to_close.Remove(e);
         }
       }
-      foreach(Edge e in l) {
-        _node.GracefullyClose(e);
+      if( l != null ) {
+        foreach(Edge e in l) {
+          _node.GracefullyClose(e);
+        }
       }
     }
 

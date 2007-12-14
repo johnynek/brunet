@@ -63,6 +63,7 @@ namespace Brunet {
       _stat = sm;
       _lm = peerlm;
       _creation_time = DateTime.UtcNow;
+      MainType = StringToMainType(_ct);
     }
 
     protected DateTime _creation_time;
@@ -74,7 +75,7 @@ namespace Brunet {
     public Edge Edge { get { return _e; } }
     
     protected readonly string _ct;
-    public ConnectionType MainType { get { return StringToMainType(_ct); } }
+    public readonly ConnectionType MainType;
     public string ConType { get { return _ct; } }
    
     protected LinkMessage _lm;
