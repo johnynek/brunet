@@ -123,7 +123,7 @@ namespace Brunet
       while(_running) {
         try {
           ArrayList readers = (ArrayList) sockets.Clone();
-          Socket.Select(readers, null, readers, 10000000); //10 seconds
+          Socket.Select(readers, null, null, 10000000); //10 seconds
           foreach(Socket socket in readers) {
             EndPoint ep = new IPEndPoint(IPAddress.Any, 0);
             int rec_bytes = socket.ReceiveFrom(buffer, ref ep);
