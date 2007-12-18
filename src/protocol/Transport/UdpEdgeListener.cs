@@ -141,7 +141,8 @@ namespace Brunet
         }
         //Close the newly bad Edges.
         foreach(Edge e in bad_edges) {
-          e.Close();
+          RequestClose(e);
+          CloseHandler(e, null);
         }
       }
     }
@@ -219,7 +220,8 @@ namespace Brunet
               "Got control {1} from: {0}", e, code));
           if( code == ControlCode.EdgeClosed ) {
             //The edge has been closed on the other side
-            e.Close();
+            RequestClose(e);
+            CloseHandler(e, null);
           }
           else if( code == ControlCode.EdgeDataAnnounce ) {
             //our NAT mapping may have changed:
@@ -376,7 +378,8 @@ namespace Brunet
            * Looks like the new TA is no longer authorized.
            */
           SendControlPacket(end, remoteid, localid, ControlCode.EdgeClosed, state);
-          edge.Close();
+          RequestClose(edge);
+          CloseHandler(edge, null);
         }
       }
       if( is_new_edge ) {
@@ -751,7 +754,8 @@ namespace Brunet
                 "SocketExceptions ({0}) on packet of length({1}): closing " +
                 "Edge: {2}\n{3}", sqe.ErrorCount, sqe.Packet.Length,
                 sqe.Sender, x));
-            sqe.Sender.Close();
+            RequestClose(sqe.Sender);
+            CloseHandler(sqe.Sender, null);
           }
         }
         catch(InvalidOperationException) {

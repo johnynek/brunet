@@ -427,6 +427,12 @@ namespace Brunet
        * be connected to the EdgeHandler method of ConnectionPacketHandler
        */
       el.EdgeEvent += this.EdgeHandler;
+      el.EdgeCloseRequestEvent += delegate(object elsender, EventArgs args) {
+        EdgeCloseRequestArgs ecra = (EdgeCloseRequestArgs)args;
+        //Announce a null packet, and we will close the edge in the announce
+        //thread.
+        _packet_queue.Enqueue(new AnnounceState(null, ecra.Edge));
+      };
     }
     
     /**
@@ -687,7 +693,15 @@ namespace Brunet
           }
           else {
             AnnounceState a_state = (AnnounceState) queue_item;
-            Announce(a_state.Data, a_state.From);
+            if(a_state.Data != null ) {
+              Announce(a_state.Data, a_state.From);
+            }
+            else {
+              //Null data means close the edge:
+              Edge e = a_state.From as Edge;
+              if( e != null ) { e.Close(); }
+            }
+
           }
           // If we peeked, we need to now remove it
           if(ProtocolLog.Monitor.Enabled) {
