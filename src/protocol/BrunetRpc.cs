@@ -32,7 +32,8 @@ namespace Brunet
     protected readonly ReqrepManager _rrm;
     public readonly RpcManager Rpc;
     public readonly IPHandler IPHandler;
-    protected readonly Timer _timer;
+    protected readonly Thread _timer;
+    protected volatile bool _running;
 
     public BrunetRpc() {
       _rrm = new ReqrepManager("BrunetRpc");
@@ -40,11 +41,23 @@ namespace Brunet
       Rpc = new RpcManager(_rrm);
       IPHandler = new IPHandler();
       IPHandler.Subscribe(this, null);
-      _timer = new Timer(_rrm.TimeoutChecker, null, 1000, 1000);
+      _running = true;
+      Thread _timer = new Thread(TimerThread);
+      _timer.IsBackground = true;
+      _timer.Start();
+    }
+
+    private void TimerThread() {
+      while(_running) {
+        _rrm.TimeoutChecker(null, null);
+        Thread.Sleep(1000);
+      }
     }
 
     public void Close() {
-      _timer.Dispose();
+      _running = false;
+      _timer.Join();
+      IPHandler.Stop();
     }
 
     public void HandleData(MemBlock b, ISender from, object state) {

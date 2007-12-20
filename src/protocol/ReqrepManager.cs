@@ -592,11 +592,6 @@ public class ReqrepManager : IDataHandler, ISource {
     }
   }
 
-  public void TimeoutChecker(object o)
-  {
-    TimeoutChecker(o, null);
-  }
-
   /**
    * This method listens for the HeartBeatEvent from the
    * node and checks for timeouts.
