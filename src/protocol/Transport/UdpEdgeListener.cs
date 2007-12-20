@@ -692,16 +692,23 @@ namespace Brunet
       SendQueueEntry sqe = null;
       DateTime last_debug = DateTime.UtcNow;
       TimeSpan debug_period = new TimeSpan(0,0,0,0,5000); //log every 5 seconds.
+      int millisec_poll_time = 10000; //10 seconds
       while(_running) {
         if (ProtocolLog.Monitor.Enabled) {
           DateTime now = DateTime.UtcNow;
           if (now - last_debug > debug_period) {
             last_debug = now;
-            ProtocolLog.Write(ProtocolLog.Monitor, String.Format("I am alive: {0}", now));
+            int q_len = _send_queue.Count;
+            ProtocolLog.Write(ProtocolLog.Monitor, String.Format("I am alive: {0}, send queue length: {1}", 
+                                                                 now, q_len));
           }
         } 
         try {
-          sqe = (SendQueueEntry) _send_queue.Dequeue();
+          bool timedout = false; 
+          sqe = (SendQueueEntry) _send_queue.Dequeue(millisec_poll_time, out timedout);
+          if (timedout) {
+            continue;
+          }
           if(sqe.Control) {
             _s.SendTo(sqe.Data, sqe.End);
           }
