@@ -27,8 +27,7 @@ namespace Ipop {
       OSDependent.DetectOS();
 
       int sleep = 60, sleep_min = 60, sleep_max = 3600;
-      DateTime runtime = DateTime.UtcNow;
-
+      DateTime start_time = DateTime.UtcNow;
       // Keep creating new nodes no matter what!
       while(true) {
         try {
@@ -46,6 +45,7 @@ namespace Ipop {
           Console.Error.WriteLine("I am connected to {0} as {1}.  Current time is {2}.",
             node.Realm, node.Address.ToString(), DateTime.UtcNow);
           node.DisconnectOnOverload = true;
+          start_time = DateTime.UtcNow;
           node.Connect();
           Brunet_Common.RemoveHandlers();
         }
@@ -57,7 +57,7 @@ namespace Ipop {
           DateTime now = DateTime.UtcNow;
           Console.Error.WriteLine("Going to sleep for {0} seconds. Current time is: {1}", sleep, now);
           Thread.Sleep(sleep * 1000);
-          if(now - runtime < TimeSpan.FromSeconds(sleep_max)) {
+          if(now - start_time < TimeSpan.FromSeconds(sleep_max)) {
             sleep *= 2;
             sleep = (sleep > sleep_max) ? sleep_max : sleep;
           }
