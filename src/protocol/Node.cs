@@ -302,9 +302,10 @@ namespace Brunet
             _packet_queue.Enqueue(_heart_beat_object);
           } 
           else {
+            int q_len = _packet_queue.Count;
             if(ProtocolLog.Monitor.Enabled)
-              ProtocolLog.Write(ProtocolLog.Monitor, "System must be running " +
-                                "slow, more than one node waiting at heartbeat");
+              ProtocolLog.Write(ProtocolLog.Monitor, String.Format("System must be running " +
+                                "slow, more than one node waiting at heartbeat, packet_queue_length: {0}", q_len));
           }
         } while(!_heart_beat_stopped);
       } catch (Exception e) {
@@ -664,23 +665,29 @@ namespace Brunet
       try {
         DateTime last_debug = DateTime.UtcNow;
         TimeSpan debug_period = new TimeSpan(0,0,0,0,5000); //log every 5 seconds.
+        int millsec_timeout = 10000;//10 seconds.
         while( _running ) {
           if (ProtocolLog.Monitor.Enabled) {
             DateTime now = DateTime.UtcNow;
             if (now - last_debug > debug_period) {
               last_debug = now;
-              ProtocolLog.Write(ProtocolLog.Monitor, String.Format("I am alive: {0}", now));
+              int q_len = _packet_queue.Count;
+              ProtocolLog.Write(ProtocolLog.Monitor, String.Format("I am alive: {0}, packet_queue_length: {1}", 
+                                                                   now, q_len));
             }
           }
           object queue_item = null;
+          bool timedout = false;
           // Only peek if we're logging the monitoring of _packet_queue
           if(ProtocolLog.Monitor.Enabled) {
-            queue_item = _packet_queue.Peek();
+            queue_item = _packet_queue.Peek(millsec_timeout, out timedout);
           }
           else {
-            queue_item = _packet_queue.Dequeue();
+            queue_item = _packet_queue.Dequeue(millsec_timeout, out timedout);
           }
-
+          if (timedout) {
+            continue;
+          }
           if (queue_item == _heart_beat_object) {
             RaiseHeartBeatEvent();
             _heart_beat_object.Reset();
