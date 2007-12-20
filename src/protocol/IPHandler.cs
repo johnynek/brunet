@@ -77,6 +77,7 @@ namespace Brunet
       _running = true;
       _sync = new Object();
       _listen_thread = new Thread(Listen);
+      _listen_thread.IsBackground = true;
       _listen_thread.Start();
     }
 
@@ -262,10 +263,18 @@ namespace Brunet
             if(BlockedIPs.Contains(ip)) {
               continue;
             }
-            // This can throw an exception on an invalid address, we need to skip it and move on!
-            _s.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface,
-                              IPHandler.IPAddressToInt(ip));
-            _s.SendTo(buffer, 0, length, 0, EndPoint);
+            /*
+             * This can throw an exception on an invalid address, we need to skip it and move on!
+             * Never showed to be an issue in Linux, but Windows does some weird things.
+             */
+            try {
+              _s.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface,
+                                IPHandler.IPAddressToInt(ip));
+            }
+            catch {
+              continue;
+            }
+              _s.SendTo(buffer, 0, length, 0, EndPoint);
           }
         }
       }
