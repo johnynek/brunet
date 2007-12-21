@@ -1025,8 +1025,7 @@ namespace Brunet
      */
     virtual protected void CheckEdgesCallback(object node, EventArgs args)
     {
-      DateTime now = DateTime.UtcNow;
-      if( now - _last_edge_check > _connection_timeout ) {
+        DateTime now = DateTime.UtcNow;
         //We are checking the edges now:
         _last_edge_check = now;
         
@@ -1039,21 +1038,34 @@ namespace Brunet
         RpcManager rpc = RpcManager.GetInstance(this);
         foreach(Connection c in _connection_table) {
           Edge e = c.Edge;
-          
-          if( now - e.LastInPacketDateTime > _unconnected_timeout ) {
+          TimeSpan since_last_in = now - e.LastInPacketDateTime; 
+          if( since_last_in > _unconnected_timeout ) {
             //Just close it.
+            ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
+	            "On an edge timeout({1}), closing connection: {0}",
+              c, since_last_in));
+
             e.Close();
           }
-          else if( _send_pings && ( now - e.LastInPacketDateTime > _connection_timeout ) ) {
+          else if( _send_pings && ( since_last_in > _connection_timeout ) ) {
 
             object ping_arg = String.Empty;
+            DateTime start = DateTime.UtcNow;
             EventHandler on_close = delegate(object q, EventArgs cargs) {
               Channel qu = (Channel)q;
               if( qu.Count == 0 ) {
                 /* we never got a response! */
-                ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
-	                "On an edge timeout({1}), closing connection: {0}",
-                  c, _connection_timeout));
+                if( !e.IsClosed ) {
+                  //We are going to close it after waiting:
+                  ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
+	                  "On an edge timeout({1}), closing connection: {0}",
+                    c, DateTime.UtcNow - start));
+                }
+                else {
+                  //The edge could have been closed somewhere else, so it
+                  //didn't timeout.
+                }
+                //Make sure it is indeed closed.
                 e.Close();
               }
               else {
@@ -1100,10 +1112,6 @@ namespace Brunet
             e.Close();
           }
         }
-      }
-      else {
-        //Don't do anything for now.
-      }
     }
 
     protected void RaiseHeartBeatEvent() {
