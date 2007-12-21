@@ -70,8 +70,8 @@ public class ReqrepManager : IDataHandler, ISource {
     _req_state_table = new Hashtable();
     _rep_handler_table = new Hashtable();
 
-    //Hold on to a reply for 50 seconds.
-    _reptimeout = new TimeSpan(0,0,0,50,0);
+    //Hold on to a reply for 120 seconds.
+    _reptimeout = new TimeSpan(0,0,0,120,0);
     /**
      * We keep a list of the most recent 1000 replies until they
      * get too old.  If the reply gets older than reptimeout, we
@@ -84,10 +84,11 @@ public class ReqrepManager : IDataHandler, ISource {
      * RTT of the network
      */
     //resend the request after 5 seconds.
-    _reqtimeout = new TimeSpan(0,0,0,0,5000);
-    _exp_moving_rtt = _reqtimeout.TotalMilliseconds;
-    _exp_moving_square_rtt = _exp_moving_rtt * _exp_moving_rtt;
-    _max_rtt = 0.0;
+    _edge_reqtimeout = new TimeSpan(0,0,0,0,5000);
+    _nonedge_reqtimeout = new TimeSpan(0,0,0,0,5000);
+    //Here we track the statistics to improve the timeouts:
+    _nonedge_rtt_stats = new TimeStats(_nonedge_reqtimeout.TotalMilliseconds, 0.98);
+    _edge_rtt_stats = new TimeStats(_edge_reqtimeout.TotalMilliseconds, 0.98);
     _last_check = DateTime.UtcNow;
   }
 
@@ -285,7 +286,8 @@ public class ReqrepManager : IDataHandler, ISource {
    protected Hashtable _rep_handler_table;
    protected Hashtable _req_handler_table;
    protected TimeSpan _reptimeout;
-   protected TimeSpan _reqtimeout;
+   protected TimeSpan _edge_reqtimeout;
+   protected TimeSpan _nonedge_reqtimeout;
    //This is to keep track of when we looked for timeouts last
    protected DateTime _last_check;
   
@@ -293,6 +295,8 @@ public class ReqrepManager : IDataHandler, ISource {
    //we resend before giving up
    protected const int _MAX_RESENDS = 5;
    protected const int _MINIMUM_TIMEOUT = 2000;
+   protected TimeStats _nonedge_rtt_stats;
+   protected TimeStats _edge_rtt_stats;
 
    /**
     * If f = _exp_factor we use:
@@ -301,45 +305,55 @@ public class ReqrepManager : IDataHandler, ISource {
     * When f = 0, we change instantaneously: a[t+1] = a'
     * When f = 1, we never change: a[t+1] = a[t]
     */
-   protected const double _exp_factor = 0.98; //approximately use the last 50
-   protected double _exp_moving_rtt;
-   protected double _exp_moving_square_rtt;
-   protected double _max_rtt;
    //How many standard deviations to wait:
    protected const int _STD_DEVS = 6;
 
-   // Methods /////
+   protected class TimeStats {
+     protected readonly double _exp_factor = 0.98; //approximately use the last 50
+     protected double _exp_moving_rtt;
+     
+     public double Average { get { return _exp_moving_rtt; } }
+     protected double _exp_moving_square_rtt;
+
+     protected double _exp_moving_stdev;
+     public double StdDev { get { return _exp_moving_stdev; } }
+     
+     protected double _max_rtt;
+     public double Max { get { return _max_rtt; } }
+
+     public TimeStats(double init, double exp_fact) {
+       _exp_moving_rtt = init;
+       _exp_moving_square_rtt = init * init;
+       _exp_factor = exp_fact;
+       _max_rtt = init;
+     }
+
    /**
-    * When we observe a RTT, we record it here and
-    * update the request timeout.
+    * When we observe a Value, we record it here.
     */
-   protected void AddRttStat(TimeSpan rtt) {
-     double ms_rtt = rtt.TotalMilliseconds;
-     if( ms_rtt > _max_rtt ) { _max_rtt = ms_rtt; }
-     double ms_rtt2 = ms_rtt * ms_rtt;
-     _exp_moving_rtt = _exp_factor * (_exp_moving_rtt - ms_rtt) + ms_rtt;
-     _exp_moving_square_rtt = _exp_factor * (_exp_moving_square_rtt - ms_rtt2) + ms_rtt2;
-     /*
-      * Now we can compute the std_dev:
-      */
-     double sd2 =  _exp_moving_square_rtt - _exp_moving_rtt * _exp_moving_rtt;
-     double std_dev;
-     if( sd2 > 0 ) {
-       std_dev = Math.Sqrt( sd2 );
+     public void AddSample(double ms_rtt) {
+       if( ms_rtt > _max_rtt ) { _max_rtt = ms_rtt; }
+       double ms_rtt2 = ms_rtt * ms_rtt;
+       _exp_moving_rtt = _exp_factor * (_exp_moving_rtt - ms_rtt) + ms_rtt;
+       _exp_moving_square_rtt = _exp_factor * (_exp_moving_square_rtt - ms_rtt2) + ms_rtt2;
+       /*
+        * Now we can compute the std_dev:
+        */
+       double sd2 =  _exp_moving_square_rtt - _exp_moving_rtt * _exp_moving_rtt;
+       if( sd2 > 0 ) {
+         _exp_moving_stdev = Math.Sqrt( sd2 );
+       }
+       else {
+         _exp_moving_stdev = 0.0;
+       }
+  #if REQREP_DEBUG
+       double timeout = _exp_moving_rtt + _STD_DEVS * std_dev;
+       Console.Error.WriteLine("mean: {0}, std-dev: {1}, max: {2}, timeout: {3}", _exp_moving_rtt, std_dev, _max_rtt, timeout);
+  #endif
      }
-     else {
-       std_dev = 0.0;
-     }
-     double timeout = _exp_moving_rtt + _STD_DEVS * std_dev;
-#if REQREP_DEBUG
-     Console.Error.WriteLine("mean: {0}, std-dev: {1}, max: {2}, timeout: {3}", _exp_moving_rtt, std_dev, _max_rtt, timeout);
-#endif
-     /*
-      * Here's the new timeout:
-      */
-     timeout = (_MINIMUM_TIMEOUT > timeout) ? _MINIMUM_TIMEOUT : timeout;
-     _reqtimeout = TimeSpan.FromMilliseconds( timeout );
+
    }
+   // Methods /////
    /**
     * This is either a request or response.  Look up the handler
     * for it, and pass the packet to the handler
@@ -422,7 +436,30 @@ public class ReqrepManager : IDataHandler, ISource {
             * Let's look at how long it took to get this reply:
             */
            TimeSpan rtt = DateTime.UtcNow - reqs.ReqDate;
-           AddRttStat(rtt);
+           if( ret_path is Edge ) {
+             _edge_rtt_stats.AddSample(rtt.TotalMilliseconds);
+             double timeout = _edge_rtt_stats.Average + _STD_DEVS * _edge_rtt_stats.StdDev;
+             timeout = (_MINIMUM_TIMEOUT > timeout) ? _MINIMUM_TIMEOUT : timeout;
+             _edge_reqtimeout = TimeSpan.FromMilliseconds( timeout );
+             /*
+             Console.Error.WriteLine("Edge: mean: {0}, std-dev: {1}, max: {2}, timeout: {3}",
+                                     _edge_rtt_stats.Average,
+                                     _edge_rtt_stats.StdDev,
+                                     _edge_rtt_stats.Max, timeout);
+             */
+           }
+           else {
+             _nonedge_rtt_stats.AddSample(rtt.TotalMilliseconds);
+             double timeout = _nonedge_rtt_stats.Average + _STD_DEVS * _nonedge_rtt_stats.StdDev;
+             timeout = (_MINIMUM_TIMEOUT > timeout) ? _MINIMUM_TIMEOUT : timeout;
+             _nonedge_reqtimeout = TimeSpan.FromMilliseconds( timeout );
+             /*
+             Console.Error.WriteLine("Nonedge: mean: {0}, std-dev: {1}, max: {2}, timeout: {3}",
+                                     _nonedge_rtt_stats.Average,
+                                     _nonedge_rtt_stats.StdDev,
+                                     _nonedge_rtt_stats.Max, timeout);
+             */
+           }
            //Make sure we ignore replies from this sender again
            repls.Add(ret_path);
            handler = reqs.ReplyHandler;
@@ -604,16 +641,24 @@ public class ReqrepManager : IDataHandler, ISource {
   public void TimeoutChecker(object o, EventArgs args)
   {
     DateTime now = DateTime.UtcNow;
-    if( now - _last_check > _reqtimeout ) {
+    TimeSpan interval = now - _last_check;
+    if( interval > _edge_reqtimeout || interval > _nonedge_reqtimeout ) {
       //Here is a list of all the handlers for the requests that timed out
       ArrayList timeout_hands = null;
       ArrayList to_resend = null;
       lock( _sync ) {
         _last_check = now;
         IDictionaryEnumerator reqe = _req_state_table.GetEnumerator();
+        TimeSpan timeout;
         while( reqe.MoveNext() ) {
           RequestState reqs = (RequestState)reqe.Value;
-          if( now - reqs.ReqDate > _reqtimeout ) {
+          if( reqs.Sender is Edge ) {
+            timeout = _edge_reqtimeout;
+          }
+          else {
+            timeout = _nonedge_reqtimeout;
+          }
+          if( now - reqs.ReqDate > timeout ) {
             reqs.Timeouts--;
             if( reqs.Timeouts >= 0 ) {
               if( reqs.RequestType != ReqrepType.LossyRequest ) {
