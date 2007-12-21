@@ -42,7 +42,7 @@ namespace Brunet
       IPHandler = new IPHandler();
       IPHandler.Subscribe(this, null);
       _running = true;
-      Thread _timer = new Thread(TimerThread);
+      _timer = new Thread(TimerThread);
       _timer.IsBackground = true;
       _timer.Start();
     }
