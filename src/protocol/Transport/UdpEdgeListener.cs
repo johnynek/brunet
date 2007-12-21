@@ -323,12 +323,6 @@ namespace Brunet
               _id_ht[localid] = edge;
               _remote_id_ht[remoteid] = edge;
             }
-            try {
-              edge.CloseEvent += this.CloseHandler;
-            }
-            catch {
-              CloseHandler(edge, null);
-            }
           }
         }
       }
@@ -383,11 +377,23 @@ namespace Brunet
         }
       }
       if( is_new_edge ) {
-        NatDataPoint dp = new NewEdgePoint(DateTime.UtcNow, edge);
-        _nat_hist = _nat_hist + dp;
-        _nat_tas = new NatTAs( _tas, _nat_hist );
-        if( !edge.IsClosed ) {
+        try {
+          NatDataPoint dp = new NewEdgePoint(DateTime.UtcNow, edge);
+          _nat_hist = _nat_hist + dp;
+          _nat_tas = new NatTAs( _tas, _nat_hist );
+          edge.CloseEvent += this.CloseHandler;
+          //If we make it here, the edge wasn't closed,
+          //go ahead and process it.
           SendEdgeEvent(edge);
+        }
+        catch {
+          //Make sure this edge is closed and we are done with it.
+          RequestClose(edge);
+          CloseHandler(edge, null);
+          read_packet = false;
+          //This was a new edge, so the other node has our id as zero, send
+          //with that localid:
+          SendControlPacket(end, remoteid, 0, ControlCode.EdgeClosed, state);
         }
       }
       if( read_packet ) {
