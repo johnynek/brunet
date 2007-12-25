@@ -419,7 +419,7 @@ namespace Brunet
       }
       foreach (EdgeCreationState ecs in to_send) {
 #if TUNNEL_DEBUG
-        Console.Error.WriteLine("Sending edge (localid: {0}) request: {1}", ecs.Id, ecs.RequestPacket);
+        Console.Error.WriteLine("Sending edge (localid: {0}) request", ecs.Id);
 #endif
         ecs.Resend();
       }
@@ -592,7 +592,7 @@ namespace Brunet
     protected void HandleEdgeResponse(int remoteid, int localid, MemBlock rest_of_payload) {
         //assert (localid > 0) 
 #if TUNNEL_DEBUG
-        Console.Error.WriteLine("Receiving edge response: {0}", packet);
+        Console.Error.WriteLine("Receiving edge response");
 #endif
         //possible response to our create edge request, make sure this 
         //is the case by verifying the remote TA
@@ -610,7 +610,7 @@ namespace Brunet
           e = GetTunnelEdge(localid, 0);
           if (e != null) {
   #if TUNNEL_DEBUG
-            Console.Error.WriteLine("Must verify the remoteTA for the response: {0}", packet);
+            Console.Error.WriteLine("Must verify the remoteTA for the response");
   #endif
             TunnelTransportAddress remote_ta = new TunnelTransportAddress(target, forwarders);
   #if TUNNEL_DEBUG
@@ -666,7 +666,7 @@ namespace Brunet
     protected void HandleEdgeRequest(int remoteid, int localid, MemBlock rest_of_payload, ISender return_path)
     {
 #if TUNNEL_DEBUG
-        Console.Error.WriteLine("Receiving edge request: {0}", packet);
+        Console.Error.WriteLine("Receiving edge request");
 #endif
         //probably a new incoming edge
         bool is_new_edge = true;

@@ -131,6 +131,11 @@ namespace Brunet
 
       _is_connected = false;
       _is_closed = 0;
+
+      DateTime now =  DateTime.UtcNow;
+      Interlocked.Exchange(ref _last_in_packet_datetime, now.Ticks);
+      Interlocked.Exchange(ref _last_out_packet_datetime, now.Ticks);
+
       _node = n;
       _target = target;
       
