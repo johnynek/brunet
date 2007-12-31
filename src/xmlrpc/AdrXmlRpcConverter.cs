@@ -44,15 +44,7 @@ namespace Brunet {
       }
 
       System.Type t = o.GetType();
-      if(t == typeof(byte[])) {
-        /*
-         * It's not an ideal conversion, this way we cannot use <base64>. However, XmlRpcSerializer
-         * recognize byte[][] as a multi-dimension array
-         */
-        MemBlock mb = (MemBlock)o;
-        retval = mb.ToBase64String();
-        modified = true;
-      } else if (t.IsArray){
+      if (t.IsArray){
         ArrayList list = new ArrayList((ICollection)o);
         bool m;
         modified = false;
