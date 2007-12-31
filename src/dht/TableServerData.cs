@@ -31,15 +31,26 @@ namespace Brunet.Dht {
   public class TableServerData {
     DateTime last_clean = DateTime.UtcNow;
     LinkedList<MemBlock> list_of_keys = new LinkedList<MemBlock>();
-    Cache _data = new Cache(2500);
+    Hashtable _data = new Hashtable();
+
+    /*
+     * Using the cache here is difficult because Brunet's AdrConverter does
+     * not support the data types stored inside the cache.  More importantly
+     * there is no point in caching files that take up only a kilobyte, if
+     * Brunet streaming becomes available and the Dht can store larger than
+     * one kilobyte values, this may be valuable to revisit.  In the meantime,
+     * don't renable it, unless you want to fix it.  It is broken!
+     * Cache _data = new Cache(2500);
+     */
+
     protected string _base_dir;
     public int Count { get { return count; } }
     private int count = 0;
 
     public TableServerData(Node node) {
       node.DepartureEvent += this.CleanUp;
-      _data.EvictionEvent += this.CacheEviction;
-      _data.MissEvent += this.CacheMiss;
+//      _data.EvictionEvent += this.CacheEviction;
+//      _data.MissEvent += this.CacheMiss;
       _base_dir = Path.Combine("data", node.Address.ToString().Substring(12));
       CleanUp();
     }
@@ -79,16 +90,29 @@ namespace Brunet.Dht {
     public void CacheEviction(Object o, EventArgs args) {
       Cache.EvictionArgs eargs = (Cache.EvictionArgs) args;
       MemBlock key = (MemBlock) eargs.Key;
-      Console.WriteLine("Evicted out of cache {0}, entries in dht {1}, entries in cache {2}", new AHAddress(key), Count, _data.Count);
-      if(eargs.Value != null && ((LinkedList<LinkedList<Entry>>) eargs.Value).Count > 0) {
-        LinkedList<LinkedList<Entry>> data = (LinkedList<LinkedList<Entry>>) eargs.Value;
+      if(Dht.DhtLog.Enabled) {
+        ProtocolLog.Write(Dht.DhtLog, String.Format(
+          "Evicted out of cache {0}, entries in dht {1}, entries in cache {2}",
+           (new BigInteger(key)).ToString(16), Count, _data.Count));
+      }
+      if(eargs.Value != null && ((LinkedList<Entry>) eargs.Value).Count > 0) {
+        LinkedList<Entry> data = (LinkedList<Entry>) eargs.Value;
+        // AdrConverter doesn't support LinkedLists
+        Entry[] entries = new Entry[data.Count];
+        data.CopyTo(entries, 0);
+        Hashtable[] ht_entries = new Hashtable[entries.Length];
+        int index = 0;
+        foreach(Entry entry in entries) {
+          ht_entries[index++] = (Hashtable) entry;
+        }
+
         string dir_path, filename;
         string file_path = GeneratePath(key, out dir_path, out filename);
         if(!Directory.Exists(dir_path)) {
           Directory.CreateDirectory(dir_path);
         }
         using (FileStream fs = File.Open(file_path, FileMode.Create)) {
-          AdrConverter.Serialize(data, fs);
+          AdrConverter.Serialize(ht_entries, fs);
         }
       }
     }
@@ -102,7 +126,13 @@ namespace Brunet.Dht {
       string path = GeneratePath(key);
       if(File.Exists(path)) {
         using (FileStream fs = File.Open(path, FileMode.Open)) {
-          _data[key] = (LinkedList<Entry>) AdrConverter.Deserialize(fs);
+          ArrayList ht_entries = (ArrayList) AdrConverter.Deserialize(fs);
+          Entry[] entries = new Entry[ht_entries.Count];
+          int index = 0;
+          foreach(Hashtable entry in ht_entries) {
+            entries[index++] = (Entry) entry;
+          }
+          _data[key] = new LinkedList<Entry>(entries);
         }
         File.Delete(path);
       }
@@ -276,6 +306,19 @@ namespace Brunet.Dht {
           AddEntry(entry);
         }
       }
+    }
+
+    public ArrayList Dump() {
+      ArrayList entries = new ArrayList(list_of_keys.Count);
+      foreach(MemBlock key in list_of_keys) {
+        LinkedList<Entry> data = (LinkedList<Entry>) _data[key];
+        ArrayList lentries = new ArrayList(data.Count);
+        foreach(Entry entry in data) {
+          lentries.Add((Hashtable) entry);
+        }
+        entries.Add(lentries);
+      }
+      return entries;
     }
   }
 }
