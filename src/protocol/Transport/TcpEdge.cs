@@ -288,7 +288,6 @@ namespace Brunet
      */
     public void DoSend(BufferAllocator buf)
     {
-      try {
         if( _send_state.Length == 0 ) {
           /**
            * It's time to write into a new buffer:
@@ -360,11 +359,6 @@ namespace Brunet
           //We definitely have more bytes to send
           NeedToSend = true;
         }
-      }
-      catch(Exception x) {
-        Console.Error.WriteLine("DoSend caught: {0}", x);
-        Close();
-      }
     }
 
     /**
@@ -374,7 +368,6 @@ namespace Brunet
      */
     public void DoReceive(BufferAllocator buf)
     {
-      try {
         if( _rec_state.Buffer == null ) {
           /*
            * We're starting a new packet read now, which
@@ -428,11 +421,6 @@ namespace Brunet
             ReceivedPacketEvent(p);
           }
         }
-      }
-      catch(Exception /* x */) {
-        //Console.Error.WriteLine("DoReceive caught: {0}", x);
-        Close();
-      }
     }
 
     /**
