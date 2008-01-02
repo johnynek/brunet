@@ -92,6 +92,14 @@ namespace Brunet.Dht {
             result = Get(key, maxbytes, (byte[]) args[2]);
           }
         }
+        else if(method.Equals("Dump")) {
+          lock(_sync) {
+            result = _data.Dump();
+          }
+        }
+        else if(method.Equals("Count")) {
+          result = Count;
+        }
         else {
           throw new Exception("Dht.Exception:  Invalid method");
         }
@@ -124,31 +132,32 @@ namespace Brunet.Dht {
 
 
     public bool Put(MemBlock key, MemBlock value, int ttl, bool unique, object rs) {
-      try {
-        PutHandler(key, value, ttl, unique);
-        Channel remote_put = new Channel();
-        remote_put.CloseAfterEnqueue();
-        remote_put.EnqueueEvent += delegate(Object o, EventArgs eargs) {
-          object result = false;
-          try {
-            result = remote_put.Dequeue();
-            RpcResult rpcResult = (RpcResult) result;
-            result = rpcResult.Result;
-            if(result.GetType() != typeof(bool)) {
-              throw new Exception("Incompatible return value.");
-            }
-            else if(!(bool) result) {
-              throw new Exception("Unknown error!");
-            }
+      PutHandler(key, value, ttl, unique);
+      Channel remote_put = new Channel();
+      remote_put.CloseAfterEnqueue();
+      remote_put.EnqueueEvent += delegate(Object o, EventArgs eargs) {
+        object result = false;
+        try {
+          result = remote_put.Dequeue();
+          RpcResult rpcResult = (RpcResult) result;
+          result = rpcResult.Result;
+          if(result.GetType() != typeof(bool)) {
+            throw new Exception("Incompatible return value.");
           }
-          catch (Exception e) {
+          else if(!(bool) result) {
+            throw new Exception("Unknown error!");
+          }
+        }
+        catch (Exception e) {
+          lock(_sync) {
             _data.RemoveEntry(key, value);
-            result = new AdrException(-32602, e);
           }
-          _rpc.SendResult(rs, result);
-        };
+          result = new AdrException(-32602, e);
+        }
+        _rpc.SendResult(rs, result);
+      };
 
-
+      try {
         Address key_address = new AHAddress(key);
         ISender s = null;
         // We need to forward this to the appropriate node!
@@ -162,8 +171,11 @@ namespace Brunet.Dht {
         }
         _rpc.Invoke(s, remote_put, "dht.PutHandler", key, value, ttl, unique);
       }
-      catch (Exception e) {
-        throw e;
+      catch (Exception) {
+        lock(_sync) {
+          _data.RemoveEntry(key, value);
+        }
+        throw;
       }
       return true;
     }
@@ -226,53 +238,59 @@ namespace Brunet.Dht {
       }
 
       int consumed_bytes = 0;
-
-      ArrayList result = new ArrayList();
-      ArrayList values = new ArrayList();
-      int remaining_items = 0;
-      byte[] next_token = null;
+      Entry[] data = null;
 
       lock(_sync ) {
         _data.DeleteExpired(key);
         LinkedList<Entry> ll_data = _data.GetEntries(key);
-        Entry[] data = new Entry[ll_data.Count];
-        ll_data.CopyTo(data, 0);
 
         // Keys exist!
-        if( data != null ) {
-          seen_end_idx = data.Length - 1;
-          for(int i = seen_start_idx; i < data.Length; i++) {
-            Entry e = (Entry) data[i];
-            if (e.Value.Length + consumed_bytes <= maxbytes) {
-              int age = (int) (DateTime.UtcNow - e.CreateTime).TotalSeconds;
-              int ttl = (int) (e.EndTime - DateTime.UtcNow).TotalSeconds;
-              consumed_bytes += e.Value.Length;
-              Hashtable item = new Hashtable();
-              item["age"] = age;
-              item["value"] = (byte[])e.Value;
-              item["ttl"] = ttl;
-              values.Add(item);
-            }
-            else {
-              seen_end_idx = i - 1;
-              break;
-            }
-          }
-          remaining_items = data.Length - (seen_end_idx + 1);
+        if( ll_data != null ) {
+          data = new Entry[ll_data.Count];
+          ll_data.CopyTo(data, 0);
         }
-      }//End of lock
-      //we have added new item: update the token
-      int[] new_bounds = new int[2];
-      new_bounds[0] = seen_start_idx;
-      new_bounds[1] = seen_end_idx;
-      //new_bounds has to be converted to a new token
-      using(MemoryStream ms = new System.IO.MemoryStream()) {
-        AdrConverter.Serialize(new_bounds, ms);
-        next_token = ms.ToArray();
       }
-      result.Add(values);
-      result.Add(remaining_items);
-      result.Add(next_token);
+
+      ArrayList result = null;
+
+      if(data != null) {
+        result = new ArrayList();
+        ArrayList values = new ArrayList();
+        int remaining_items = 0;
+        byte[] next_token = null;
+
+        seen_end_idx = data.Length - 1;
+        for(int i = seen_start_idx; i < data.Length; i++) {
+          Entry e = (Entry) data[i];
+          if(e.Value.Length + consumed_bytes <= maxbytes) {
+            int age = (int) (DateTime.UtcNow - e.CreateTime).TotalSeconds;
+            int ttl = (int) (e.EndTime - DateTime.UtcNow).TotalSeconds;
+            consumed_bytes += e.Value.Length;
+            Hashtable item = new Hashtable();
+            item["age"] = age;
+            item["value"] = (byte[])e.Value;
+            item["ttl"] = ttl;
+            values.Add(item);
+          }
+          else {
+            seen_end_idx = i - 1;
+            break;
+          }
+        }
+        remaining_items = data.Length - (seen_end_idx + 1);
+
+        //Token creation
+        int[] new_bounds = new int[2];
+        new_bounds[0] = seen_start_idx;
+        new_bounds[1] = seen_end_idx;
+        using(MemoryStream ms = new System.IO.MemoryStream()) {
+          AdrConverter.Serialize(new_bounds, ms);
+          next_token = ms.ToArray();
+        }
+        result.Add(values);
+        result.Add(remaining_items);
+        result.Add(next_token);
+      }
       return result;
     }
 
@@ -406,24 +424,39 @@ namespace Brunet.Dht {
         this._ts = ts;
         this._con = con;
         // Get all keys between me and my new neighbor
-        LinkedList<MemBlock> keys =
-            _ts._data.GetKeysBetween((AHAddress) _ts._node.Address,
+        LinkedList<MemBlock> keys;
+        lock(_ts._sync) {
+          keys = _ts._data.GetKeysBetween((AHAddress) _ts._node.Address,
                                       (AHAddress) _con.Address);
-        if(_ts.debug) {
-          Console.WriteLine("Starting transfer .... " + _ts._node.Address);
         }
+        if(Dht.DhtLog.Enabled) {
+          ProtocolLog.Write(Dht.DhtLog, String.Format(
+                            "Starting transfer from {0} to {1}", 
+                            _ts._node.Address, _con.Address));
+        }
+        int total_entries = 0;
         /* Get all values for those keys, we copy so that we don't worry about
          * changes to the dht during this interaction.  This is only a pointer
          * copy and since we let the OS deal with removing the contents of an
          * entry, we don't need to make copies of the actual entry.
          */
         foreach(MemBlock key in keys) {
-          Entry[] entries = new Entry[_ts._data.GetEntries(key).Count];
-          _ts._data.GetEntries(key).CopyTo(entries, 0);
-          key_entries.AddLast(entries);
-          if(_ts.debug) {
-            Console.WriteLine("{2} ... key:{0} count:{1}", new AHAddress(key), entries.Length, _ts._node.Address);
+          Entry[] entries;
+          lock(_ts._sync) {
+            LinkedList<Entry> llentries = _ts._data.GetEntries(key);
+            if(llentries == null) {
+              continue;
+            }
+            entries = new Entry[llentries.Count];
+            total_entries += llentries.Count;
+            llentries.CopyTo(entries, 0);
           }
+          key_entries.AddLast(entries);
+        }
+        if(Dht.DhtLog.Enabled) {
+          ProtocolLog.Write(Dht.DhtLog, String.Format(
+                            "Total keys: {0}, total entries: {1}.", 
+                            key_entries.Count, total_entries));
         }
         _entry_enumerator = GetEntryEnumerator();
 
@@ -450,9 +483,6 @@ namespace Brunet.Dht {
               Done();
               break;
             }
-          }
-          if(_ts.debug) {
-            Console.WriteLine(_ts._node.Address + " transferring " + new AHAddress(ent.Key) + " to " + _con.Address + ".");
           }
         }
       }
@@ -481,9 +511,6 @@ namespace Brunet.Dht {
           queue.Dequeue();
         }
         catch (Exception){
-#if DHT_DEBUG
-Console.Error.WriteLine("DHT_DEBUG:::Transfer failed");
-#endif
           if(_con.Edge.IsClosed) {
             _interrupted = true;
             Done();
@@ -513,14 +540,13 @@ Console.Error.WriteLine("DHT_DEBUG:::Transfer failed");
               _interrupted = true;
             }
           }
-          if(_ts.debug) {
-                Console.WriteLine("Follow up transfer of " + _ts._node.Address + " transferring " + new AHAddress(ent.Key) + " to " + _con.Address + ".");
-          }
         }
         else {
           Done();
-          if(_ts.debug) {
-            Console.WriteLine(_ts._node.Address + " completed transfer  to " + _con.Address + ".");
+          if(Dht.DhtLog.Enabled) {
+            ProtocolLog.Write(Dht.DhtLog, String.Format(
+                              "Successfully complete transfer from {0} to {1}",
+                              _ts._node.Address, _con.Address));
           }
         }
       }
