@@ -87,9 +87,10 @@ namespace Brunet
     protected readonly TcpEdgeListener _tel;
     public bool NeedToSend {
       get {
-        return Thread.VolatileRead( ref _need_to_send ) > 0;
+        return (_need_to_send > 0);
       }
       set {
+        //This has a memory barrier, so the above doesn't need one
         int i_value = value ? 1 : 0;
         int o_state = Interlocked.Exchange(ref _need_to_send, i_value);
         if( o_state != i_value ) {
@@ -204,7 +205,7 @@ namespace Brunet
     }
     protected long _last_out_packet_datetime;
     public override DateTime LastOutPacketDateTime {
-      get { return new DateTime(Thread.VolatileRead(ref _last_out_packet_datetime)); }
+      get { return new DateTime(Interlocked.Read(ref _last_out_packet_datetime)); }
     }
     /**
      * @param p the Packet to send
@@ -224,7 +225,7 @@ namespace Brunet
         if( _is_closed ) {
           throw new EdgeException("Tried to send on a closed socket");
         }
-        Thread.VolatileWrite(ref _last_out_packet_datetime, DateTime.UtcNow.Ticks);
+        Interlocked.Exchange(ref _last_out_packet_datetime, DateTime.UtcNow.Ticks);
 #if POB_TCP_DEBUG
         Console.Error.WriteLine("edge: {0}, About to enqueue packet of length: {1}",
                           this, p.Length);
@@ -294,7 +295,8 @@ namespace Brunet
            */
           int written = WritePacketsInto(buf); 
           if( written == 0 ) {
-            NeedToSend = (Thread.VolatileRead(ref _queued_packets ) > 0);
+            //_queued_packets is only changed in Interlocked, so this is okay:
+            NeedToSend = (_queued_packets  > 0);
             //We don't seem to need to actually send now
             return;
           }
@@ -351,7 +353,8 @@ namespace Brunet
           //We have sent all we need to, don't keep a reference around
           _send_state.Buffer = null;
           //We only have more to send if the packet queue is not empty
-          NeedToSend = (Thread.VolatileRead(ref _queued_packets ) > 0);
+          //_queued_packets is only changed in Interlocked, so this is okay:
+          NeedToSend = (_queued_packets  > 0);
         }
         else {
           //We definitely have more bytes to send

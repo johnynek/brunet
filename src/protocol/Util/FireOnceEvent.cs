@@ -17,7 +17,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using System;
-using System.Threading;
 #if BRUNET_NUNIT
 using NUnit.Framework;
 #endif
@@ -33,63 +32,57 @@ namespace Brunet
 #endif
 public class FireOnceEvent {
 
-  private class State {
-    public bool HasFired;
-    public EventHandler EH;
-  }
+  private readonly object _sync;
+  private EventHandler _eh;
+  private bool _have_fired;
 
-  private State _state;
-  
-  ///Once this is true, it will always be true
-  public bool HasFired { get { return _state.HasFired; } }
+  public FireOnceEvent() : this(null) { }
 
-  public FireOnceEvent() {
-    _state = new State();
-    _state.HasFired = false;
-    _state.EH = null;
-  }
+  /**
+   * @param sync the object to use to lock
+   */
+  public FireOnceEvent(object sync) {
+    if( sync == null ) {
+      _sync = new object();
+    }
+    else {
+      _sync = sync;
+    }
+    _have_fired = false;
+  } 
 
   public void Add(EventHandler eh) {
-    State old_s;
-    State new_s = new State();
-    new_s.HasFired = false;
-    do {
-      old_s = _state;
-      if( old_s.HasFired ) {
+    lock( _sync ) {
+      if( _have_fired ) {
         throw new Exception("Already fired");
       }
-      new_s.EH = (EventHandler)Delegate.Combine(old_s.EH, eh);
-    } while(old_s != Interlocked.CompareExchange<State>(ref _state, new_s, old_s));
+      _eh = (EventHandler)Delegate.Combine(_eh, eh);
+    } 
   }
   public void Remove(EventHandler eh) {
-    State old_s;
-    State new_s = new State();
-    do {
-      old_s = _state;
-      new_s.HasFired = old_s.HasFired;
-      new_s.EH = (EventHandler)Delegate.Remove(old_s.EH, eh);
-    } while(old_s != Interlocked.CompareExchange<State>(ref _state, new_s, old_s));
+    lock( _sync ) {
+      _eh = (EventHandler)Delegate.Remove(_eh, eh);
+    }
   }
 
   /**
    * @return true if we actually fire.
    */
   public bool Fire(object o, System.EventArgs args) {
-    State new_s = new State();
-    new_s.HasFired = true;
-    new_s.EH = null;
-    State old_s = Interlocked.Exchange(ref _state, new_s);
-    if( false == old_s.HasFired) {
-      //We are firing for the first time
-      if( old_s.EH != null ) {
-        old_s.EH(o, args);
+    EventHandler eh = null;
+    bool fire = false;
+    lock( _sync ) {
+      if( !_have_fired ) {
+        _have_fired = true;
+        fire = true;
+        eh = _eh;
+        _eh = null;
       }
-      return true;
     }
-    else {
-      //We have already fired
-      return false;
+    if( eh != null ) {
+      eh(o, args);
     }
+    return fire;
   }
 #if BRUNET_NUNIT
   [Test]

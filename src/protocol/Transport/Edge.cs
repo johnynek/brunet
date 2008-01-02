@@ -47,11 +47,10 @@ namespace Brunet
       _edge_count = 0;
     }
 
-    public Edge()
+    protected Edge()
     {
       _sync = new object();
-      _ce_sync = new object();
-      _have_fired_close = false;
+      _close_event = new FireOnceEvent();
       //Atomically increment and update _edge_no
       _edge_no = System.Threading.Interlocked.Increment( ref _edge_count );
     }
@@ -65,17 +64,6 @@ namespace Brunet
     protected volatile Sub _sub;
     protected readonly object _sync;
     /**
-     * Set to true once CloseEvent is fired.  This prevents it from
-     * being fired twice
-     */
-    private bool _have_fired_close;
-    /**
-     * We lock this to handle synchronization of the CloseEvent
-     * which we want to use a different lock than _sync to avoid
-     * the possibility of a deadlock
-     */
-    private readonly object _ce_sync;
-    /**
      * Closes the Edge, further Sends are not allowed
      */
     public virtual void Close()
@@ -84,15 +72,7 @@ namespace Brunet
        * This makes sure CloseEvent is null after the first
        * call, this guarantees that there is only one CloseEvent
        */
-      EventHandler ch = null;
-      lock( _ce_sync ) {
-        if( !_have_fired_close ) {
-          _have_fired_close = true;
-          ch = _close_event;
-          _close_event = null;
-        }
-      }
-      if( ch != null ) { ch(this, null); }
+      _close_event.Fire(this, null);
 #if POB_DEBUG
       Console.Error.WriteLine("EdgeClose: edge: {0}", this);
 #endif
@@ -118,7 +98,7 @@ namespace Brunet
      */
     public virtual bool LocalTANotEphemeral { get { return false; } }
     
-    private EventHandler _close_event;
+    private FireOnceEvent _close_event;
     /**
      * When an edge is closed (either due to the Close method
      * being called or due to some error during the receive loop)
@@ -129,21 +109,18 @@ namespace Brunet
      */
     public event EventHandler CloseEvent {
       add {
-        lock( _ce_sync ) {
-          if( !_have_fired_close ) {
-            _close_event = (EventHandler)Delegate.Combine(_close_event, value);
-          }
-          else {
-            // We've already fired the close event!!
-            throw new EdgeException(String.Format("Edge: {0} already fired CloseEvent",this));
-          }
+        try {
+          _close_event.Add(value);
+        }
+        catch {
+          // We've already fired the close event!!
+          throw new EdgeException(
+            String.Format("Edge: {0} already fired CloseEvent",this));
         }
       }
 
       remove {
-        lock( _ce_sync ) {
-          _close_event = (EventHandler)Delegate.Remove(_close_event, value);
-        }
+        _close_event.Remove(value);
       }
     }
 
@@ -196,7 +173,7 @@ namespace Brunet
      * The DateTime (UTC) of the last received packet
      */
     public virtual DateTime LastInPacketDateTime {
-      get { return new DateTime(Thread.VolatileRead(ref _last_in_packet_datetime)); }
+      get { return new DateTime(Interlocked.Read(ref _last_in_packet_datetime)); }
     }
 
     public abstract bool IsClosed
@@ -261,7 +238,7 @@ namespace Brunet
       if( s != null ) {
         s.Handle(b, this);
         //This is volatile, so no need to lock:
-        Thread.VolatileWrite(ref _last_in_packet_datetime, DateTime.UtcNow.Ticks);
+        Interlocked.Exchange(ref _last_in_packet_datetime, DateTime.UtcNow.Ticks);
       }
       else {
         //We don't record the time of this packet.  We don't
