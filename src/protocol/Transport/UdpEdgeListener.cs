@@ -141,7 +141,8 @@ namespace Brunet
         }
         //Close the newly bad Edges.
         foreach(Edge e in bad_edges) {
-          e.Close();
+          RequestClose(e);
+          CloseHandler(e, null);
         }
       }
     }
@@ -219,7 +220,8 @@ namespace Brunet
               "Got control {1} from: {0}", e, code));
           if( code == ControlCode.EdgeClosed ) {
             //The edge has been closed on the other side
-            e.Close();
+            RequestClose(e);
+            CloseHandler(e, null);
           }
           else if( code == ControlCode.EdgeDataAnnounce ) {
             //our NAT mapping may have changed:
@@ -321,12 +323,6 @@ namespace Brunet
               _id_ht[localid] = edge;
               _remote_id_ht[remoteid] = edge;
             }
-            try {
-              edge.CloseEvent += this.CloseHandler;
-            }
-            catch {
-              CloseHandler(edge, null);
-            }
           }
         }
       }
@@ -376,15 +372,28 @@ namespace Brunet
            * Looks like the new TA is no longer authorized.
            */
           SendControlPacket(end, remoteid, localid, ControlCode.EdgeClosed, state);
-          edge.Close();
+          RequestClose(edge);
+          CloseHandler(edge, null);
         }
       }
       if( is_new_edge ) {
-        NatDataPoint dp = new NewEdgePoint(DateTime.UtcNow, edge);
-        _nat_hist = _nat_hist + dp;
-        _nat_tas = new NatTAs( _tas, _nat_hist );
-        if( !edge.IsClosed ) {
+        try {
+          NatDataPoint dp = new NewEdgePoint(DateTime.UtcNow, edge);
+          _nat_hist = _nat_hist + dp;
+          _nat_tas = new NatTAs( _tas, _nat_hist );
+          edge.CloseEvent += this.CloseHandler;
+          //If we make it here, the edge wasn't closed,
+          //go ahead and process it.
           SendEdgeEvent(edge);
+        }
+        catch {
+          //Make sure this edge is closed and we are done with it.
+          RequestClose(edge);
+          CloseHandler(edge, null);
+          read_packet = false;
+          //This was a new edge, so the other node has our id as zero, send
+          //with that localid:
+          SendControlPacket(end, remoteid, 0, ControlCode.EdgeClosed, state);
         }
       }
       if( read_packet ) {
@@ -758,7 +767,8 @@ namespace Brunet
                 "SocketExceptions ({0}) on packet of length({1}): closing " +
                 "Edge: {2}\n{3}", sqe.ErrorCount, sqe.Packet.Length,
                 sqe.Sender, x));
-            sqe.Sender.Close();
+            RequestClose(sqe.Sender);
+            CloseHandler(sqe.Sender, null);
           }
         }
         catch(InvalidOperationException) {

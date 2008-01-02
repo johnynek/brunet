@@ -106,7 +106,8 @@ namespace Brunet
         }
         //Close the newly bad Edges.
         foreach(Edge e in bad_edges) {
-          e.Close();   
+          RequestClose(e);
+          CloseHandler(e, null);
         }
       }
     }    
@@ -443,7 +444,8 @@ namespace Brunet
       foreach(Socket s in copy) {
         Edge e = (Edge)_sock_to_edge[s];
         if( e != null ) {
-          e.Close();
+          RequestClose(e);
+          CloseHandler(e, null);
         }
         s.Close();
       }
@@ -513,7 +515,10 @@ namespace Brunet
     protected void HandleErrors(ArrayList errorsocks) {
       for(int i = 0; i < errorsocks.Count; i++) {
         Edge e = (Edge)_sock_to_edge[ errorsocks[i] ];
-        if( e != null ) { e.Close(); }
+        if( e != null ) {
+          RequestClose(e);
+          CloseHandler(e, null);
+        }
 #if POB_DEBUG
         Console.Error.WriteLine("TcpEdgeListener closing: {0}", e);
 #endif
@@ -549,7 +554,10 @@ namespace Brunet
           //Looks like this Accept has failed.  Do nothing
             Console.Error.WriteLine("New incoming edge ({1}) failed: {0}", sx, e);
             //Make sure the edge is closed
-            if( e != null ) { e.Close(); }
+            if( e != null ) {
+              RequestClose(e);
+              CloseHandler(e, null);
+            }
           }
         }
         else {
@@ -558,7 +566,15 @@ namespace Brunet
           Console.Error.WriteLine("DoReceive: {0}", e);
 #endif
           //It is really important not to lock across this function call
-          if( e != null ) { e.DoReceive(buf); }
+          if( e != null ) {
+            try {
+              e.DoReceive(buf);
+            }
+            catch {
+              RequestClose(e);
+              CloseHandler(e, null);
+            }
+          }
           else {
             //Console.Error.WriteLine("ERROR: Receive Socket: {0} not associated with an edge", s);
           }
@@ -573,7 +589,15 @@ namespace Brunet
 #if POB_DEBUG
           Console.Error.WriteLine("DoSend: {0}", e);
 #endif
-        if( e != null ) { e.DoSend(b); }
+        if( e != null ) {
+          try {
+            e.DoSend(b);
+          }
+          catch {
+            RequestClose(e);
+            CloseHandler(e, null);
+          }
+        }
         else {
           //Console.Error.WriteLine("ERROR: Send Socket: {0} not associated with an edge", s);
         }
