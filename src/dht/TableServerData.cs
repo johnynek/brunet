@@ -26,7 +26,13 @@ using Brunet;
 namespace Brunet.Dht {
   /* This is meant to separate some logic from the TableServer, there are many
    * ways to implement this, so I figured it would be best to offer an 
-   * abstracted view
+   * abstracted view.  The data is stored in a hashtable with each key 
+   * pointing to a LinkedList<Entry> containing all the entries.  These are
+   * sorted by earliest expiration first, so that the operation of removing
+   * them is fast.  There is also a sorted list of keys for having quick 
+   * search through all the keys in the pool.  Entry is a wrapper for a 
+   * hashtable that contains start, end, key, and value.  Key is perhaps
+   * unnecessary and could should possibly be removed.
    */
   public class TableServerData {
     DateTime last_clean = DateTime.UtcNow;
@@ -39,7 +45,9 @@ namespace Brunet.Dht {
      * there is no point in caching files that take up only a kilobyte, if
      * Brunet streaming becomes available and the Dht can store larger than
      * one kilobyte values, this may be valuable to revisit.  In the meantime,
-     * don't renable it, unless you want to fix it.  It is broken!
+     * don't renable it, unless you want to fix it.  It is broken!  The problem
+     * with this implementation is that it doesn't care what size the data in
+     * the cache is, this isn't the right way to implement it.
      * Cache _data = new Cache(2500);
      */
 
