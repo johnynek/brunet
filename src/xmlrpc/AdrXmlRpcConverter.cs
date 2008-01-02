@@ -44,7 +44,11 @@ namespace Brunet {
       }
 
       System.Type t = o.GetType();
-      if (t.IsArray){
+      // byte arrays are converted to base64 strings in XmlRpc
+      if(t == typeof(byte[])) {
+        retval = o;
+        modified = false;
+      } else if (t.IsArray){
         ArrayList list = new ArrayList((ICollection)o);
         bool m;
         modified = false;
@@ -82,10 +86,9 @@ namespace Brunet {
       } else if(o is MemBlock) {
         modified = true;
         MemBlock mb = (MemBlock)o;
-        /*
-         * Cam't convert it to byte[] 
-         */
-        retval = mb.ToBase64String();
+        byte[] b = new byte[mb.Length];
+        mb.CopyTo(b, 0);
+        retval = b;
       } else if(t == typeof(Single)) {
         retval = Convert.ToDouble(o);
         modified = true;
@@ -142,19 +145,15 @@ namespace Brunet {
       }
 
       System.Type t = o.GetType();
+      retval = o;
+      modified = false;
       if (t == typeof(byte[])) {
         byte[] b = (byte[])o;
         if (b.Length == 0) {
           //empty byte[] array -> null
           retval = null;
           modified = true;
-        } else {
-          retval = o;
-          modified = false;
         }
-      } else {
-        retval = o;
-        modified = false;
       }
 
       return retval;
