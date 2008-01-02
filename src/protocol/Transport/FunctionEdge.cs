@@ -66,7 +66,7 @@ namespace Brunet
     }
     protected long _last_out_packet_datetime;
     public override DateTime LastOutPacketDateTime {
-      get { return new DateTime(Thread.VolatileRead(ref _last_out_packet_datetime)); }
+      get { return new DateTime(Interlocked.Read(ref _last_out_packet_datetime)); }
     }
 
     protected volatile bool _is_closed;
@@ -115,7 +115,7 @@ namespace Brunet
 
       if( !_is_closed ) {
         _sh.HandleEdgeSend(this, p);
-        Thread.VolatileWrite(ref _last_out_packet_datetime, DateTime.UtcNow.Ticks);
+        Interlocked.Exchange(ref _last_out_packet_datetime, DateTime.UtcNow.Ticks);
       }
       else {
         throw new EdgeException(

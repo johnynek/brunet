@@ -70,23 +70,26 @@ public class TraceRpcHandler : IRpcHandler {
      * there is one closer than us
      */
     ConnectionTable tab = _node.ConnectionTable;
+    ConnectionList structs = tab.GetConnections(ConnectionType.Structured);
+    
     Connection next_closest = null;
-    lock( tab.SyncRoot ) {
-      next_closest = tab.GetConnection(ConnectionType.Structured, a);
-      if( next_closest == null ) {
-        //a is not the table:
-        Connection right = tab.GetRightStructuredNeighborOf(a);
-        Connection left = tab.GetLeftStructuredNeighborOf(a);
-        BigInteger my_dist = ((AHAddress)_node.Address).DistanceTo(a).abs();
-        BigInteger ld = ((AHAddress)left.Address).DistanceTo(a).abs();
-        BigInteger rd = ((AHAddress)right.Address).DistanceTo(a).abs();
-        if( (ld < rd) && (ld < my_dist) ) {
-          next_closest = left;
-        }
-        if( (rd < ld) && (rd < my_dist) ) {
-          next_closest = right;
-        }
+    int idx = structs.IndexOf(a);
+    if( idx < 0 ) {
+      //a is not the table:
+      Connection right = structs.GetRightNeighborOf(a);
+      Connection left = structs.GetLeftNeighborOf(a);
+      BigInteger my_dist = ((AHAddress)_node.Address).DistanceTo(a).abs();
+      BigInteger ld = ((AHAddress)left.Address).DistanceTo(a).abs();
+      BigInteger rd = ((AHAddress)right.Address).DistanceTo(a).abs();
+      if( (ld < rd) && (ld < my_dist) ) {
+        next_closest = left;
       }
+      if( (rd < ld) && (rd < my_dist) ) {
+        next_closest = right;
+      }
+    }
+    else {
+      next_closest = structs[idx];
     }
     //Okay, we have the next closest:
     ListDictionary my_entry = new ListDictionary();

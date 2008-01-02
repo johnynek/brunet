@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Threading;
 
 namespace Brunet {
   public class ProtocolLog {
@@ -59,14 +60,14 @@ namespace Brunet {
     public static void WriteIf(BooleanSwitch bs, string msg) {
 #if TRACE
       if(bs.Enabled) {
-        Trace.WriteLine(bs.DisplayName + ":  " + msg);
+        Trace.WriteLine(bs.DisplayName + ": " + Thread.CurrentThread.Name + ":  " + msg);
       }
 #endif
     }
 
     public static void Write(BooleanSwitch bs, string msg) {
 #if TRACE
-      Trace.WriteLine(bs.DisplayName + ":  " + msg);
+      Trace.WriteLine(bs.DisplayName + ":  " + Thread.CurrentThread.Name + ":  " + msg);
 #endif
     }
   }
