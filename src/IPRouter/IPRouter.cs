@@ -146,10 +146,9 @@ namespace Ipop {
       ProtocolLog.WriteIf(IPOPLog.BaseLog, String.Format(
         "IPRouter starting up at time: {0}", DateTime.Now));
 
-      node = new NodeMapping();
-      node.ether = new Ethernet(config.device, unicastMAC);
-      node.address = (AHAddress) AddressParser.Parse(config.NodeAddress);
-      node.ipop_namespace = config.ipop_namespace;
+      node = new NodeMapping(config.ipop_namespace, config.brunet_namespace,
+                             (AHAddress) AddressParser.Parse(config.NodeAddress),
+                            new Ethernet(config.device, unicastMAC));
       try {
         node.netmask = config.AddressData.Netmask;
         node.ip = IPAddress.Parse(config.AddressData.IPAddress);

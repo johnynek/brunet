@@ -378,7 +378,8 @@ namespace Ipop {
         _node = Brunet_Common.CreateStructuredNode(config);
         _dht = Brunet_Common.RegisterDht(node);
         Brunet_Common.StartServices(_node, _dht, config);
-        new IpopInformation(node, "SimpleNode");
+        new IpopInformation(node, "SimpleNode", config.ipop_namespace, 
+                            config.brunet_namespace);
         node.DepartureEvent += DisconnectHandler;
         node.DisconnectOnOverload = true;
           Console.Error.WriteLine("I am connected to {0} as {1}.  Current time is {2}.",

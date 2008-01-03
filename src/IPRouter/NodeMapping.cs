@@ -11,26 +11,36 @@ namespace Ipop {
     private int sleep = 60;
     private DateTime runtime;
 
+    public readonly string ipop_namespace, brunet_namespace;
+    public readonly Address address;
+    public readonly Ethernet ether;
+
     public DHCPClient dhcpClient;
     public Dht dht;
-    public Ethernet ether;
     public IPAddress ip;
     public IPHandler iphandler;
     public Routes routes;
     public string netmask;
-    public string ipop_namespace;
-    public Address address;
     public byte [] mac;
     public StructuredNode brunet {
       get { return _brunet; }
       set {
         _brunet = value;
         if(value != null) {
-          new IpopInformation(_brunet, "IPRouter");
+          new IpopInformation(_brunet, "IPRouter",  ipop_namespace, 
+                              brunet_namespace);
         }
       }
     }
     private StructuredNode _brunet;
+
+    public NodeMapping(string ipop_namespace, string brunet_namespace,
+                       Address address, Ethernet ether) {
+      this.ipop_namespace = ipop_namespace;
+      this.brunet_namespace = brunet_namespace;
+      this.address = address;
+      this.ether = ether;
+    }
 
     public void BrunetStart()
     {
@@ -38,6 +48,8 @@ namespace Ipop {
       brunet = Brunet_Common.CreateStructuredNode(config);
       dht = Brunet_Common.RegisterDht(brunet);
       Brunet_Common.StartServices(brunet, dht, config);
+//  We do not support the Disconnect method on overload in Brunet as of now 
+//  as it isn't tweaked for IPRouter.
 //      brunet.DepartureEvent += DisconnectHandler;
 //      brunet.DisconnectOnOverload = true;
 

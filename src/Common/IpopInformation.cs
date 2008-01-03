@@ -10,16 +10,21 @@ namespace Ipop
     private bool in_geoloc = false;
     private DateTime _last_called = DateTime.UtcNow - TimeSpan.FromHours(48);
     private RpcManager _rpc;
-    private string _type, geo_loc = ",";
+    private string geo_loc = ",";
+    private readonly Hashtable info_base;
     public string ip;
     private StructuredNode _node;
 
-    public IpopInformation(StructuredNode node, string type)
+    public IpopInformation(StructuredNode node, string type, 
+                           string ipop_namespace, string brunet_namespace)
     {
       _node = node;
       _rpc = RpcManager.GetInstance(node);
       _rpc.AddHandler("ipop", this);
-      _type = type;
+      info_base = new Hashtable();
+      info_base.Add("type", type);
+      info_base.Add("ipop_namespace", ipop_namespace);
+      info_base.Add("brunet_namespace", brunet_namespace);
     }
 
     public void HandleRpc(ISender caller, string method, IList arguments, object request_state) {
@@ -35,8 +40,7 @@ namespace Ipop
 
     public IDictionary Information() {
       GetGeoLoc();
-      Hashtable ht = new Hashtable(5);
-      ht.Add("type", _type);
+      Hashtable ht = new Hashtable(info_base);
       ht.Add("geo_loc", geo_loc);
       ht.Add("ip", ip);
       ht.Add("localips", _node.sys_link.GetLocalIPAddresses(null));

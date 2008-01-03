@@ -40,7 +40,8 @@ namespace Ipop {
           StructuredNode node = Brunet_Common.CreateStructuredNode(config);
           Dht dht = Brunet_Common.RegisterDht(node);
           Brunet_Common.StartServices(node, dht, config);
-          new IpopInformation(node, "BasicNode");
+          new IpopInformation(node, "BasicNode", config.ipop_namespace, 
+                              config.brunet_namespace);
 
           Console.Error.WriteLine("I am connected to {0} as {1}.  Current time is {2}.",
             node.Realm, node.Address.ToString(), DateTime.UtcNow);
