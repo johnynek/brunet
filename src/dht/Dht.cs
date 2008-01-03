@@ -17,6 +17,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using System;
+using System.Diagnostics;
 using System.Text;
 using System.Collections;
 using System.Security.Cryptography;
@@ -30,15 +31,12 @@ namespace Brunet.Dht {
   }
 
   public class Dht {
-    //lock for the Dht
+    public static BooleanSwitch DhtLog =
+        new BooleanSwitch("Dht", "Log for Dht!");
     protected object _sync = new object();
     private RpcManager _rpc;
     public Node node = null;
     public bool Activated { get { return _table.Activated; } }
-    public bool debug {
-      get { return _table.debug ; }
-      set { _table.debug = value; }
-    }
     public readonly int DEGREE;
     public readonly int DELAY;
     public readonly int MAJORITY;
@@ -360,9 +358,11 @@ namespace Brunet.Dht {
 
       // If we got to leave early, we must clean up
       if(got_all_values) {
-#if DHT_DEBUG
-Console.Error.WriteLine("DHT_DEBUG:::GetLeaveEarly found:left:total = {0}:{1}:{2}", adgs.results.Count, left, DEGREE);
-#endif
+        if(Dht.DhtLog.Enabled) {
+          ProtocolLog.Write(Dht.DhtLog, String.Format(
+            "GetLeaveEarly found:left:total = {0}:{1}:{2}", 
+            adgs.results.Count, left, DEGREE));
+        }
         adgs.returns.Close();
         adgs.GotToLeaveEarly = true;
       }
@@ -383,9 +383,10 @@ Console.Error.WriteLine("DHT_DEBUG:::GetLeaveEarly found:left:total = {0}:{1}:{2
         Hashtable res = (Hashtable) de.Value;
         if(res.Count < MAJORITY || res.Count == DEGREE) {
           if(res.Count < MAJORITY) {
-#if DHT_DEBUG
-Console.Error.WriteLine("DHT_DEBUG:::Failed get count:total = {0}:{1}", res.Count, DEGREE);
-#endif
+            if(Dht.DhtLog.Enabled) {
+              ProtocolLog.Write(Dht.DhtLog, String.Format(
+                "Failed get count:total = {0}:{1}", res.Count, DEGREE));
+            }
           }
           res.Clear();
           continue;
@@ -393,9 +394,10 @@ Console.Error.WriteLine("DHT_DEBUG:::Failed get count:total = {0}:{1}", res.Coun
         MemBlock value = (MemBlock) de.Key;
 
         int ttl = (int) adgs.ttls[value] / res.Count;
-#if DHT_DEBUG
-Console.Error.WriteLine("DHT_DEBUG:::Doing follow up put count:total = {0}:{1}", res.Count, DEGREE);
-#endif
+        if(Dht.DhtLog.Enabled) {
+          ProtocolLog.Write(Dht.DhtLog, String.Format(
+            "Doing follow up put count:total = {0}:{1}", res.Count, DEGREE));
+        }
         for(int i = 0; i < DEGREE; i++) {
           if(!res.Contains(i)) {
             MemBlock key = adgs.brunet_address_for_key[i];

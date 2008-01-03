@@ -121,7 +121,8 @@ namespace Brunet
      * @return true if the ConnectionOverlord needs a connection
      */
     public override bool NeedConnection {
-      get { return _allow_localcons && _local_cons < MAX_LC; }
+      get { return false; }
+//      get { return _allow_localcons && _local_cons < MAX_LC; }
     }
     /**
      * @return true if the ConnectionOverlord has sufficient connections
