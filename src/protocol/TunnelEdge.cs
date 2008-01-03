@@ -38,6 +38,7 @@ namespace Brunet
     protected readonly Node _node;
     protected readonly TunnelEdgeListener _send_cb;
 
+    //TODO: It would be nice to make the following items immutable lists. 
     protected ArrayList _forwarders;
     protected ArrayList _packet_senders;
     public ArrayList PacketSenders {
