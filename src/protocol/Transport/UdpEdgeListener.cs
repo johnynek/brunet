@@ -434,6 +434,7 @@ namespace Brunet
      */
     public override void CreateEdgeTo(TransportAddress ta, EdgeCreationCallback ecb)
     {
+      Edge e = null;
       try {
       if( !IsStarted )
       {
@@ -448,7 +449,6 @@ namespace Brunet
 	throw new EdgeException( ta.ToString() + " is not authorized");
       }
       else {
-        Edge e = null;
         IPAddress first_ip = ((IPTransportAddress) ta).GetIPAddress();
         IPEndPoint end = new IPEndPoint(first_ip, ((IPTransportAddress) ta).Port);
         /* We have to keep our mapping of end point to edges up to date */
@@ -468,15 +468,14 @@ namespace Brunet
         _nat_tas = new NatTAs( _tas, _nat_hist );
 
         /* Tell me when you close so I can clean up the table */
-        try {
-          e.CloseEvent += this.CloseHandler;
-          ecb(true, e, null);
-        }
-        catch {
-          CloseHandler(e, null);
-        }
+        e.CloseEvent += this.CloseHandler;
+        ecb(true, e, null);
       }
       } catch(Exception ex) {
+        if( e != null ) {
+          //Clean up the edge
+          CloseHandler(e, null);
+        }
 	ecb(false, null, ex);
       }
     }
