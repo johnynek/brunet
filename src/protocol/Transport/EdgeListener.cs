@@ -97,13 +97,46 @@ namespace Brunet
            */
     public abstract void CreateEdgeTo(TransportAddress ta, EdgeCreationCallback ecb);
 
+    /**
+     * When an incoming edge is created, this event is fired with the edge
+     * as the Sender.
+     */
     public event System.EventHandler EdgeEvent;
 
-    //This function sends the New Edge event
+    /**
+     * If you want to close all edges in some other thread,
+     * handle this event.  If there is no handler for this
+     * event, Edges are potentially closed inside EdgeListener threads
+     * which can complicate thread synchronization.
+     */
+    public event System.EventHandler EdgeCloseRequestEvent;
+
+    /**
+     * This function sends the New Edge event
+     */
     protected void SendEdgeEvent(Edge e)
     {
-      if( EdgeEvent != null ) 
-        EdgeEvent(e, EventArgs.Empty);
+      EventHandler eh = EdgeEvent;
+      if( eh != null ) {
+        eh(e, EventArgs.Empty);
+      }
+    }
+
+    protected void RequestClose(Edge e) {
+      EventHandler eh = EdgeCloseRequestEvent;
+      if( eh == null ) {
+        //We have to close the edge:
+        e.Close();
+      }
+      else {
+        try {
+          eh(this, new EdgeCloseRequestArgs(e));
+        }
+        catch(Exception x) {
+          Console.Error.WriteLine("ERROR: closing: {0} -- {1}", e, x);
+          e.Close();
+        }
+      }
     }
 
     /**
@@ -156,6 +189,20 @@ namespace Brunet
           }
         }
       }
+    }
+  }
+
+  /**
+   * When an EdgeListener wants an edge to be closed, it uses an event
+   * with this event args.
+   */
+  public class EdgeCloseRequestArgs : System.EventArgs {
+    public readonly Edge Edge;
+    public readonly string Reason;
+    public EdgeCloseRequestArgs(Edge e) : this(e, String.Empty) { }
+    public EdgeCloseRequestArgs(Edge e, string reason) {
+      Edge = e;
+      Reason = reason;
     }
   }
 }

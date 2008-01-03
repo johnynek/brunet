@@ -3,6 +3,7 @@ using System.Threading;
 
 namespace Brunet {
   public class ProtocolLog {
+    private static object _sync = new object();
     public static BooleanSwitch ConsoleLogEnable =
         new BooleanSwitch("ConsoleLogEnable", "Log for unknown!");
     public static BooleanSwitch Connections =
@@ -44,7 +45,7 @@ namespace Brunet {
       if(!ConsoleLogEnable.Enabled) {
         return;
       }
-      lock(ConsoleLogEnable) {
+      lock(_sync) {
         if(!CTL_enabled) {
           Trace.Listeners.Add(new ConsoleTraceListener(true));
           CTL_enabled = true;
