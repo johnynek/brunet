@@ -64,7 +64,10 @@ namespace Brunet
     protected int _remote_id;
     public int RemoteID {
       get {
-	return Thread.VolatileRead(ref _remote_id); 
+        //This should not be volatile since Interlocked already
+        //does a memory barrier.  Since we only change remote_id
+        //in Interlocked, it is okay.
+        return _remote_id;
       }
       set {
         int old_v = Interlocked.CompareExchange(ref _remote_id, value, 0);
@@ -73,17 +76,25 @@ namespace Brunet
           throw new EdgeException(
                       String.Format("RemoteID already set: {0} cannot set to: {1}",
                                     old_v, value));	
-	}
-	// We need to create a new header.
-	// Only a single thread can get to this point, so we need not lock.
-	_tun_header = GetTunnelHeader(_id, RemoteID, _node.Address, _target);
+        }
+        // We need to create a new header.
+        ICopyable new_th = GetTunnelHeader(_id, RemoteID,
+                                           _node.Address, _target);
+        lock(_sync ) {
+          //We need a memory barrier (either explicit, or use a lock)
+          //to make sure all threads will see the most recent data.
+          _tun_header = new_th;
+        }
       }
     }
     
     protected int _is_closed;
     public override bool IsClosed
     {
-      get { return (Thread.VolatileRead( ref _is_closed) == 1); }
+      get {
+        //Doesn't need to be Volatile because we only change in Interlocked
+        return (_is_closed == 1);
+      }
     }
     protected bool _is_connected;
     protected bool _inbound;
@@ -104,7 +115,11 @@ namespace Brunet
     }
     protected long _last_out_packet_datetime;
     public override DateTime LastOutPacketDateTime {
-      get { return new DateTime(Thread.VolatileRead(ref _last_out_packet_datetime)); } 
+      get {
+        //since this is a long, we have to use Interlocked.Read to work
+        //correctly on 32-bit platforms.
+        return new DateTime(Interlocked.Read(ref _last_out_packet_datetime));
+      } 
     }
     
     protected volatile TransportAddress _localta;
@@ -258,7 +273,7 @@ namespace Brunet
             s = (ISender)_packet_senders[ _last_sender_idx ];
           }
           s.Send( new CopyList(_tun_header, p) );
-          Thread.VolatileWrite(ref _last_out_packet_datetime, DateTime.UtcNow.Ticks);
+          Interlocked.Exchange(ref _last_out_packet_datetime, DateTime.UtcNow.Ticks);
 #if TUNNEL_DEBUG
           Console.Error.WriteLine("Sent on: {0} over {1}", this, s);
 #endif
