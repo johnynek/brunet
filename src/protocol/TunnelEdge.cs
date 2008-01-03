@@ -295,7 +295,7 @@ namespace Brunet
               }
             }
             //Try to disconnect and go again.
-            _node.ConnectionTable.Disconnect((Edge)s);
+            _node.ConnectionTable.Disconnect(s_edge);
           }
         }
         catch (Exception
@@ -496,28 +496,36 @@ namespace Brunet
       //This does not require a lock, and stuct_cons can't change after this call
       IEnumerable struct_cons =
           _node.ConnectionTable.GetConnections(ConnectionType.Structured);
-      bool empty = true;
       ArrayList temp_forwarders = new ArrayList();
       ArrayList temp_senders = new ArrayList();
-      lock(_sync) {
-        foreach(Connection c in struct_cons) {
-          if(forwarders.Contains(c.Address)) {
-            if(false == (c.Edge is TunnelEdge)) {
-              empty = false;
-              temp_forwarders.Add(c.Address);
-              temp_senders.Add(c.Edge);
-            }
+      foreach(Connection c in struct_cons) {
+        if(forwarders.Contains(c.Address)) {
+          if(false == (c.Edge is TunnelEdge)) {
+            temp_forwarders.Add(c.Address);
+            temp_senders.Add(c.Edge);
           }
         }
+      }
+      TransportAddress new_local 
+        = new TunnelTransportAddress(_node.Address, temp_forwarders);
+      TransportAddress new_remote
+        = new TunnelTransportAddress(_target, temp_forwarders);
+      /*
+       * We are clearly only holding on lock in the below code
+       * since we are only writing to memory and not calling any
+       * functions
+       */
+      lock(_sync) {
         _forwarders = temp_forwarders;
         _packet_senders = temp_senders;
-        _localta = new TunnelTransportAddress(_node.Address, _forwarders);
-        _remoteta = new TunnelTransportAddress(_target, _forwarders);	  
+        _localta = new_local;
+        _remoteta = new_remote;	  
       }
 #if TUNNEL_DEBUG
       Console.Error.WriteLine("Synchronized edge: {0}.", this);
 #endif 
-      if (empty) {
+      if (temp_forwarders.Count == 0) {
+        //Now we have no forwarders, so close the edge
         Close();
       }
     }
