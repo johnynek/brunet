@@ -849,17 +849,23 @@ namespace Brunet
                                 AHPacket.Protocol.Tunneling, ms.ToArray());
       }
       
-      while (tun_edge.PacketSenders.Count > 0) {
+
+      int r_idx = _rand.Next(0, tun_edge.PacketSenders.Count);
+      int attempts = tun_edge.PacketSenders.Count;
+      while (attempts-- > 0) {
         ISender sender = null;
         try {
-          sender = (ISender) tun_edge.PacketSenders[_rand.Next(0, tun_edge.PacketSenders.Count)];
+          int this_idx = (r_idx + attempts) % tun_edge.PacketSenders.Count;
+          sender = (ISender) tun_edge.PacketSenders[this_idx];
 #if TUNNEL_DEBUG
           Console.Error.WriteLine("Sending control out on base connection: {0}",
                                   _node.ConnectionTable.GetConnection((Edge) sender));
 #endif
           sender.Send(p);
           return;
-        } catch(EdgeException) {
+        } catch(EdgeException x) {
+          ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
+              "Error sending control using packet_sender: {0}, {1}", sender, x));
           _node.ConnectionTable.Disconnect((Edge)sender); 
         } catch(Exception ex) {
           if(ProtocolLog.UdpEdge.Enabled)
@@ -896,24 +902,30 @@ namespace Brunet
                                 AHPacket.Protocol.Tunneling, ms.ToArray());
       }
       
-      while (tun_edge.PacketSenders.Count > 0) {
-        ISender sender = null;
-        try {
-          sender = (ISender) tun_edge.PacketSenders[_rand.Next(0, tun_edge.PacketSenders.Count)];
+     int r_idx = _rand.Next(0, tun_edge.PacketSenders.Count);
+     int attempts = tun_edge.PacketSenders.Count;
+     while (attempts-- > 0) {
+       ISender sender = null;
+       try {
+         int this_idx = (r_idx + attempts) % tun_edge.PacketSenders.Count;
+         sender = (ISender) tun_edge.PacketSenders[this_idx];
+
 #if TUNNEL_DEBUG
-          Console.Error.WriteLine("Sending edge sync on base connection: {0}",
+         Console.Error.WriteLine("Sending edge sync on base connection: {0}",
                                   _node.ConnectionTable.GetConnection((Edge) sender));
 #endif
-          sender.Send(p);
-          return;
-        } catch(EdgeException) {
-          _node.ConnectionTable.Disconnect((Edge)sender); 
-        } catch(Exception ex) {
-          if(ProtocolLog.UdpEdge.Enabled)
-            ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
-              "Error sending edge sync on packet_sender: {0}, {1}", sender, ex));
-        }
-      }      
+         sender.Send(p);
+         return;
+       } catch(EdgeException x) {
+         ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
+              "Error sending edge sync on packet_sender: {0}, {1}", sender, x));
+         _node.ConnectionTable.Disconnect((Edge)sender); 
+       } catch(Exception ex) {
+         if(ProtocolLog.UdpEdge.Enabled)
+           ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
+             "Error sending edge sync on packet_sender: {0}, {1}", sender, ex));
+       }
+     }      
     }
      
     /*
