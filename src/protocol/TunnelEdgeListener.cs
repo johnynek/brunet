@@ -126,6 +126,7 @@ namespace Brunet
       EdgeResponse,
       EdgeData,
       EdgeControl,
+      EdgeSync,
     }
 
     /**
@@ -516,7 +517,7 @@ namespace Brunet
       int localid = NumberSerializer.ReadInt(packet, 5);
       
 #if TUNNEL_DEBUG
-      Console.Error.WriteLine("TunnelEdgeListeber: Receiving on base connection: {0}", return_path);
+      Console.Error.WriteLine("TunnelEdgeListener: Receiving on base connection: {0}", return_path);
       Console.Error.WriteLine("Receiving edge packet, remoteid: {0}, localid: {1}", remoteid, localid);
 #endif
       // 1 + 4 + 4 = 9
@@ -532,6 +533,9 @@ namespace Brunet
       }
       else if (type == MessageType.EdgeControl) {
         HandleEdgeControl(remoteid, localid, rest_of_payload);
+      }
+      else if (type == MessageType.EdgeSync) {
+        HandleEdgeSync(remoteid, localid, rest_of_payload);
       }
     }
     protected void HandleEdgeControl(int remoteid, int localid, MemBlock rest_of_payload) {
@@ -560,6 +564,28 @@ namespace Brunet
             }
           }
           tun_edge.HandleControlPacket(acquired, lost);
+        }
+    }
+
+    protected void HandleEdgeSync(int remoteid, int localid, MemBlock rest_of_payload) {
+#if TUNNEL_DEBUG
+        Console.Error.WriteLine("Receiving edge control");
+#endif
+      TunnelEdge tun_edge = null;
+        lock( _sync ) {
+          tun_edge = GetTunnelEdge(localid, remoteid);        
+        }
+        if (tun_edge != null) {
+          ArrayList arg;
+          ArrayList forwarders = new ArrayList();
+          using(MemoryStream payload_ms = rest_of_payload.ToMemoryStream()) {
+            arg = (ArrayList) AdrConverter.Deserialize(payload_ms);
+            //list of forwarders
+            for (int i = 0; i < arg.Count; i++) {
+              forwarders.Add(AddressParser.Parse(MemBlock.Reference((byte[]) arg[i])));
+            }
+          }
+          tun_edge.HandleSyncPacket(forwarders);
         }
     }
     /**
@@ -843,8 +869,55 @@ namespace Brunet
       }
     }
 
+    public void HandleSyncSend(Edge e, IEnumerable forwarders) {
+      if (!_running) {
+        //do nothing
+        return;
+      }
+      TunnelEdge tun_edge = (TunnelEdge)e;
+      Packet p = null;
+      using( MemoryStream ms = new MemoryStream() ) {
+        ms.WriteByte((byte) MessageType.EdgeSync);
+  
+        NumberSerializer.WriteInt(tun_edge.ID, ms);
+        NumberSerializer.WriteInt(tun_edge.RemoteID, ms);
+        
+
+        ArrayList args = new ArrayList();
+        foreach (Address addr in forwarders) {
+          //add forwarding addresses
+          args.Add( addr.ToMemBlock() );
+        }
+  
+        AdrConverter.Serialize(args, ms);
+  
+        p = new AHPacket(1, 2, _node.Address, tun_edge.Target,
+                                AHPacket.AHOptions.Exact, 
+                                AHPacket.Protocol.Tunneling, ms.ToArray());
+      }
+      
+      while (tun_edge.PacketSenders.Count > 0) {
+        ISender sender = null;
+        try {
+          sender = (ISender) tun_edge.PacketSenders[_rand.Next(0, tun_edge.PacketSenders.Count)];
+#if TUNNEL_DEBUG
+          Console.Error.WriteLine("Sending edge sync on base connection: {0}",
+                                  _node.ConnectionTable.GetConnection((Edge) sender));
+#endif
+          sender.Send(p);
+          return;
+        } catch(EdgeException) {
+          _node.ConnectionTable.Disconnect((Edge)sender); 
+        } catch(Exception ex) {
+          if(ProtocolLog.UdpEdge.Enabled)
+            ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
+              "Error sending edge sync on packet_sender: {0}, {1}", sender, ex));
+        }
+      }      
+    }
+     
     /*
-     * When a UdpEdge closes we need to remove it from
+     * When a edge closes we need to remove it from
      * our table, so we will know it is new if it comes
      * back.
      */

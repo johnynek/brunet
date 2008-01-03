@@ -94,6 +94,9 @@ namespace Brunet
       }
     }
 
+    protected static readonly TimeSpan SyncInterval = new TimeSpan(0, 0, 30);//30 seconds.
+    protected DateTime _last_sync_dt;
+
     protected readonly DateTime _create_dt;
     public override DateTime CreatedDateTime {
       get { return _create_dt; }
@@ -133,6 +136,7 @@ namespace Brunet
       _is_closed = 0;
 
       DateTime now =  DateTime.UtcNow;
+      _create_dt = now;
       Interlocked.Exchange(ref _last_in_packet_datetime, now.Ticks);
       Interlocked.Exchange(ref _last_out_packet_datetime, now.Ticks);
 
@@ -168,8 +172,12 @@ namespace Brunet
       _localta = new TunnelTransportAddress(_node.Address, _forwarders);
       _remoteta = new TunnelTransportAddress(target, _forwarders);
       
-      _node.ConnectionTable.DisconnectionEvent += DisconnectHandler;
-      _node.ConnectionTable.ConnectionEvent += ConnectHandler;
+      lock(_sync) {
+        _last_sync_dt = now;//we just synchronized now.
+        _node.ConnectionTable.DisconnectionEvent += new EventHandler(DisconnectHandler);
+        _node.ConnectionTable.ConnectionEvent += new EventHandler(ConnectHandler);
+        _node.HeartBeatEvent += new EventHandler(SynchronizeEdge);
+      }
       
 #if TUNNEL_DEBUG 
       Console.Error.WriteLine("Constructed: {0}", this);
@@ -184,7 +192,8 @@ namespace Brunet
       if( was_closed == 0 ) {
         //unsubscribe the disconnecthandler
         _node.ConnectionTable.ConnectionEvent -= new EventHandler(ConnectHandler);      
-        _node.ConnectionTable.DisconnectionEvent -= new EventHandler(DisconnectHandler);      
+        _node.ConnectionTable.DisconnectionEvent -= new EventHandler(DisconnectHandler); 
+        _node.HeartBeatEvent -= new EventHandler(SynchronizeEdge);
         base.Close();
       }
 #if TUNNEL_DEBUG 
@@ -409,6 +418,32 @@ namespace Brunet
       }
     }
     
+    protected void SynchronizeEdge(object o, EventArgs args) {
+      
+      // Send a message about my local connections.
+      DateTime now = DateTime.UtcNow;
+      lock(_sync) {
+        if (now - _last_sync_dt < SyncInterval) {
+          return;
+        } 
+        _last_sync_dt = now;
+      }
+
+#if TUNNEL_DEBUG
+      Console.Error.WriteLine("Sending synchronize for edge: {0}.", this);
+#endif
+      ArrayList nearest = _node.ConnectionTable.GetNearestTo( (AHAddress) _node.Address, 6);
+      ArrayList forwarders = new ArrayList();
+      foreach(Connection cons in nearest) {
+        if (cons.Edge.TAType != TransportAddress.TAType.Tunnel) {
+          forwarders.Add(cons.Address);
+        }
+      }
+      _send_cb.HandleSyncSend(this, forwarders);
+#if TUNNEL_DEBUG
+      Console.Error.WriteLine("Sent synchronize for edge: {0}.", this);
+#endif
+    }
     
     public void HandleControlPacket(ArrayList acquired, ArrayList lost) {
       //This does not require a lock, and stuct_cons can't change after this call
@@ -453,6 +488,36 @@ namespace Brunet
 #endif	  
       if (to_add.Count > 0) {
         _send_cb.HandleControlSend(this, to_add, new ArrayList());	  
+      }
+    }
+
+    public void HandleSyncPacket(ArrayList forwarders) {
+      //This does not require a lock, and stuct_cons can't change after this call
+      IEnumerable struct_cons =
+          _node.ConnectionTable.GetConnections(ConnectionType.Structured);
+      bool empty = true;
+      ArrayList temp_forwarders = new ArrayList();
+      ArrayList temp_senders = new ArrayList();
+      lock(_sync) {
+        foreach(Connection c in struct_cons) {
+          if(forwarders.Contains(c.Address)) {
+            if(false == (c.Edge is TunnelEdge)) {
+              empty = false;
+              temp_forwarders.Add(c.Address);
+              temp_senders.Add(c.Edge);
+            }
+          }
+        }
+        _forwarders = temp_forwarders;
+        _packet_senders = temp_senders;
+        _localta = new TunnelTransportAddress(_node.Address, _forwarders);
+        _remoteta = new TunnelTransportAddress(_target, _forwarders);	  
+      }
+#if TUNNEL_DEBUG
+      Console.Error.WriteLine("Synchronized edge: {0}.", this);
+#endif 
+      if (empty) {
+        Close();
       }
     }
   }
