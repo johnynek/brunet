@@ -21,7 +21,9 @@ using NUnit.Framework;
 
 namespace Brunet {
   /**
-   * A XmlRpc Proxy for RpcManager
+   * A proxy that acts between the XML-RPC client and Brunet RpcManager
+   * It is also a IRpcHandler managed by RpcManager and handles calls 
+   * register and unregister XML-RPC services from local node
    */
   public class XmlRpcManager : MarshalByRefObject, IRpcHandler {
     [NonSerialized]
@@ -63,13 +65,15 @@ namespace Brunet {
     }
 
     /**
-     * Similar to proxy but takes the local node as the target and choose the options:
-     * AHOptions: AddClassDefault
-     * maxResultsToWait: Wait all
+     * Similar to proxy but it takes the local node as the target and
+     * only waits for the first incoming value and return
+     * @return the first incoming result
      */
     [XmlRpcMethod]
-    public object[] localproxy(string method, params object[] args) {
-      return this.Proxy(_node, 1, method, args);
+    public object localproxy(string method, params object[] args) {
+      object[] results = this.Proxy(_node, 1, method, args);
+      //it can't be an empty array so we don't check array length here
+      return results[0];
     }
 
     private object[] Proxy(ISender sender,int maxResultsToWait, string method, object[] args) {
