@@ -12,19 +12,36 @@ namespace Ipop {
       get { return _all_interfaces; }
     }
 
+    /**
+     * Get all the IPAddresses
+     */
+    public IPAddresses():this(null) {}
+
     public IPAddresses(string[] interfaces) {
-      _ints = new ArrayList(interfaces);
+      _ints = null;
+      if(interfaces != null) {
+        _ints = new ArrayList(interfaces);
+      }
       // Remove this later...
       _all_interfaces = GetAddresses();
     }
 
-    /**
-     * Get all the IPAddresses
-     */
-    public IPAddresses() {
-      _ints = null;
-      // Remove this later...
-      _all_interfaces = GetAddresses();
+    public static IPAddresses GetIPAddresses() {
+      return GetIPAddresses(null);
+    }
+
+    public static IPAddresses GetIPAddresses(string[] interfaces) {
+      IPAddresses ipaddrs = null;
+      if(OSDependent.OSVersion == OSDependent.Linux) {
+        ipaddrs = new IPAddressesLinux(interfaces);
+      }
+      else if(OSDependent.OSVersion == OSDependent.Windows) {
+        ipaddrs = new IPAddressesWindows(interfaces);
+      }
+      else {
+        throw new Exception("Unknown OS!");
+      }
+      return ipaddrs;
     }
 
     /**
@@ -131,7 +148,7 @@ namespace Ipop {
 
     public override IList GetAddresses() {
       ProcessStartInfo cmd = new
-          ProcessStartInfo("c:\\WINDOWS\\system32\\ipconfig");
+          ProcessStartInfo("c:\\WINDOWS\\system32\\ipconfig.exe");
       cmd.Arguments = "/all";
       cmd.RedirectStandardOutput = true;
       cmd.UseShellExecute = false;

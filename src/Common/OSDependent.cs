@@ -5,46 +5,20 @@ namespace Ipop {
   public class OSDependent {
     public static int Linux {get { return 0; } }
     public static int Windows {get { return 1; } }
-    private static int OSVersion;
-    public static int OSVers {
+    private static int _osver;
+    public static int OSVersion {
       get {
-        return OSVersion;
+        return _osver;
       }
     }
-//    private static OSDependent routines;
-    public static IEnumerable GetIPAddresses(string [] interfaces) {
-      if(OSVers == Linux)
-        return new IPAddressesLinux(interfaces);
-      else if(OSVers == Windows)
-        return new IPAddressesWindows(interfaces);
-      System.Console.Error.WriteLine("Invalid Operating System");
-      return null;
-    }
 
-    public static IEnumerable GetIPAddresses() {
-      if(OSVers == Linux)
-        return new IPAddressesLinux();
-      else if(OSVers == Windows)
-        return new IPAddressesWindows();
-      System.Console.Error.WriteLine("Invalid Operating System");
-      return null;
-    }
-
-// Setup system
-    public static void Setup() {
-      DetectOS();
-    }
-
-// Sets OS
-    public static void DetectOS() {
+    static OSDependent() {
       int p = (int) Environment.OSVersion.Platform;
       if ((p == 4) || (p == 128)) {
-        OSVersion = Linux;
-//        LinuxRoutines.Setup();
+        _osver = Linux;
       }
       else {
-        OSVersion = Windows;
-//        routines = new WindowsOSDependent();
+        _osver = Windows;
       }
     }
   }

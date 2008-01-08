@@ -23,9 +23,6 @@ namespace Ipop {
         return -1;
       }
 
-      // Setup the enumeration of ip addresses if the user specifies it
-      OSDependent.DetectOS();
-
       int sleep = 60, sleep_min = 60, sleep_max = 3600;
       DateTime start_time = DateTime.UtcNow;
       // Keep creating new nodes no matter what!

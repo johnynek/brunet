@@ -138,8 +138,7 @@ namespace Ipop {
         IPRouterConfigHandler.Write(ConfigFile, config);
       }
 
-      OSDependent.Setup();
-      if(OSDependent.OSVers == OSDependent.Linux) {
+      if(OSDependent.OSVersion == OSDependent.Linux) {
         new LinuxShutdown();
       }
 

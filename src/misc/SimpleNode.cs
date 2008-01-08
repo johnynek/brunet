@@ -23,7 +23,6 @@ namespace Ipop {
       bool soap_client = false;
       bool dhtconsole = false;
       one_run = false;
-      OSDependent.DetectOS();
 
       int index = 0;
       while(index < args.Length) {

@@ -32,7 +32,7 @@ namespace Ipop
 
       IEnumerable addresses = null;
       if(config.DevicesToBind != null) {
-        addresses = OSDependent.GetIPAddresses(config.DevicesToBind);
+        addresses = IPAddresses.GetIPAddresses(config.DevicesToBind);
       }
 
       Brunet.EdgeListener el = null;
