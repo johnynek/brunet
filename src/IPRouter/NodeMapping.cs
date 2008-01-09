@@ -11,28 +11,43 @@ namespace Ipop {
     private int sleep = 60;
     private DateTime runtime;
 
+    // These should never change
     public readonly string ipop_namespace, brunet_namespace;
     public readonly Address address;
     public readonly Ethernet ether;
 
-    public DHCPClient dhcpClient;
-    public Dht dht;
-    public IPAddress ip;
-    public IPHandler iphandler;
-    public Routes routes;
     public string netmask;
     public byte [] mac;
+
+    //Services
+    public DHCPClient dhcpClient;
+    public Dht dht;
+    private IpopInformation _ipop_info;
+    public IPHandler iphandler;
+    public Routes routes;
+
+    private IPAddress _ip;
+    // Need a mechanism to update the _ipop_info.ip
+    public IPAddress ip {
+      get { return _ip; }
+      set {
+        _ip = ip;
+        _ipop_info.ip = _ip.ToString();
+      }
+    }
+
+    private StructuredNode _brunet;
+    // If we change Nodes we have to re-initialize
     public StructuredNode brunet {
       get { return _brunet; }
       set {
         _brunet = value;
         if(value != null) {
-          new IpopInformation(_brunet, "IPRouter",  ipop_namespace, 
-                              brunet_namespace);
+          _ipop_info = new IpopInformation(_brunet, "IPRouter",
+                                ipop_namespace, brunet_namespace);
         }
       }
     }
-    private StructuredNode _brunet;
 
     public NodeMapping(string ipop_namespace, string brunet_namespace,
                        Address address, Ethernet ether) {
