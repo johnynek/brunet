@@ -103,9 +103,9 @@ namespace Ipop {
       Regex if_line = new Regex(@"^(\S+)\s+Link encap:");
 
       Hashtable keys = new Hashtable();
-      keys["inet addr"] = new Regex(@"inet addr:(\S+)");
-      keys["Bcast"] = new Regex(@"Bcast:(\S+)");
-      keys["Mask"] = new Regex(@"Mask:(\S+)");
+      keys["inet addr"] = new Regex(@"inet addr:([0-9\.]+)");
+      keys["Bcast"] = new Regex(@"Bcast:([0-9\.]+)");
+      keys["Mask"] = new Regex(@"Mask:([0-9\.]+)");
       keys["HWaddr"] = new Regex(@"HWaddr ([0-9A-F:]+)");
       keys["MTU"] = new Regex(@"MTU:([0-9]+)");
 
@@ -156,14 +156,14 @@ namespace Ipop {
 
       string line = p.StandardOutput.ReadLine();
       //string this_if = null;
-      Regex if_line = new Regex(@"Ethernet adapter ([^:]+)");
+      Regex if_line = new Regex(@"\S+ adapter ([^:]+)");
 
       Hashtable keys = new Hashtable();
-      keys["inet addr"] = new Regex(@"IP Address. . . . . . . . . . . . : (\S+)");
-      keys["Bcast"] = new Regex(@"DOES NOT EXIST(\S+)");
-      keys["Mask"] = new Regex(@"Subnet Mask . . . . . . . . . . . : (\S+)");
+      keys["inet addr"] = new Regex(@"IP Address. . . . . . . . . . . . : ([0-9\.]+)");
+      keys["Bcast"] = new Regex(@"DOES NOT EXIST");
+      keys["Mask"] = new Regex(@"Subnet Mask . . . . . . . . . . . : ([0-9\.]+)");
       keys["HWaddr"] = new Regex(@"Physical Address. . . . . . . . . : ([0-9A-F\-]+)");
-      keys["MTU"] = new Regex(@"DOES NOT EXIST([0-9]+)");
+      keys["MTU"] = new Regex(@"DOES NOT EXIST");
 
       ArrayList result = new ArrayList();
       Hashtable entry = null;
