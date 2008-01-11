@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
-<project name="ipop-common" default="build" basedir=".">
-  <property name="debug" value="true" />
+<project default="build" basedir=".">
+  <property name="debug" value="false" />
   <property name="lib.dir" value="../../lib"/>
   <property name="build.dir" value="build" />
 
@@ -50,9 +50,7 @@
     <mkdir dir="${build.dir}" failonerror="true"/>
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${lib.dir}">
-        <include name="Brunet.dll" />
-        <include name="CookComputing.XmlRpcV2.dll" />
-        <include name="NUnit.Framework.dll" />
+        <include name="*.dll" />
       </fileset>
     </copy>
     <csc target="library" 
