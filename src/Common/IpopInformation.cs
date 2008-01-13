@@ -63,8 +63,9 @@ namespace Ipop
 
     public void GetGeoLocAsThread(object o) {
       string local_geo_loc = IPOP_Common.GetMyGeoLoc();
-      if(!local_geo_loc.Equals(","))
+      if(!local_geo_loc.Equals(",")) {
         geo_loc = local_geo_loc;
+      }
       in_geoloc = false;
     }
   }
