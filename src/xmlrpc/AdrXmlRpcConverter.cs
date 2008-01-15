@@ -38,13 +38,21 @@ namespace Brunet {
      * Exception -> Exception (converted by XmlRpcFaultException by xmlrpc.net)
      * ISender -> string (using ToString())
      * short, ushort, uint, byte, sbyte -> int
-     * null -> null (converted to string.Empty by xmlrpc.net)
+     * null -> string.Empty
      */
     public static object Adr2XmlRpc(object o, out bool modified) {
       object retval;
       if(o == null) {
-        retval = o;
-        modified = false;
+        /*
+         * If null is returned when the method is not recursively called by itself,
+         * it is OK because XmlRpc.Net will convert it to string.Empty.
+         * If not, the null element's outer data structure like Array and IDictionary,
+         * which themselves allow null elements, might not be handled correctly: 
+         * XmlRpc.Net can't serialize IDictionary and Array with null elements.
+         * So we return s.Empty directly from here
+         */
+        retval = string.Empty;
+        modified = true;
         return retval;
       }
 
