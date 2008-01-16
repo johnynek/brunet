@@ -9,107 +9,94 @@ using System.Diagnostics;
 
 namespace Ipop {
   public class DhtDHCPLeaseParam: DHCPLeaseParam {
-    byte[] _preferred_ip;
-    public byte[] PreferredIP {
-      get {
-        return _preferred_ip;
-      }
-    }
-    string _brunet_id;
-    public string BrunetId {
-      get {
-        return _brunet_id;
-      }
-    }
+    public readonly byte[] PreferredIP;
+    public readonly string BrunetId;
 
     public DhtDHCPLeaseParam(byte[] preferred_ip, string brunet_id) {
-      _preferred_ip = preferred_ip;
-      _brunet_id = brunet_id;
+      PreferredIP = preferred_ip;
+      BrunetId = brunet_id;
     }
   }
 
   public class DhtDHCPLease: DHCPLease {
     protected Dht _dht;
     protected Random _rand;
-    protected DateTime _last_assigned_instant;
-    protected DHCPLeaseResponse _last_assigned_lease;
 
     public DhtDHCPLease(Dht dht, IPOPNamespace config):base(config) {
       _dht = dht;
       _rand = new Random();
-      _last_assigned_lease = null;
     }
 
-    public override DHCPLeaseResponse GetLease(DHCPLeaseParam param) {
+    public override DHCPLeaseResponse GetLease(DHCPLeaseParam param, byte messageType) {
       DhtDHCPLeaseParam dht_param = param as DhtDHCPLeaseParam;
-      if (dht_param == null) {
-        return null;
-      }
-      TimeSpan t_span = DateTime.Now - _last_assigned_instant;
-      if (_last_assigned_lease != null && t_span.TotalSeconds < 0.10*leasetime) {
-        return _last_assigned_lease;
-      }
-      byte[] preferred_ip = dht_param.PreferredIP;
-      byte[] new_ip = ReAllocateIPAddress(preferred_ip, dht_param.BrunetId);
-      if (new_ip == null) {
-        return null;
-      }
+
       DHCPLeaseResponse leaseReturn = new DHCPLeaseResponse();
-      leaseReturn.ip = new_ip;
-      leaseReturn.netmask = netmask;
-      leaseReturn.leasetime = leasetimeb;
 
-      _last_assigned_lease = leaseReturn;
-      _last_assigned_instant = DateTime.Now; 
-      return leaseReturn;
-    }
-
-    private byte[] ReAllocateIPAddress (byte[] preferred_ip, string brunet_id) {
       int max_attempts = 1, max_renew_attempts = 2;
-      byte[] guessed_ip = null;
-      bool renew_attempt = false;
+      byte []guessed_ip = null;
 
-      if (preferred_ip[0] == 0 && preferred_ip[1] == 0 && 
-          preferred_ip[2] == 0 && preferred_ip[3] == 0) {
-        //we should make a guess
-        guessed_ip = GuessIPAddress();
+      if(ValidIP(dht_param.PreferredIP)) {
+        guessed_ip = dht_param.PreferredIP;
+      }
+
+      if(messageType == DHCPMessage.DISCOVER) {
+        if (guessed_ip == null) {
+          guessed_ip = GuessIPAddress();
+          max_renew_attempts = 1;
+        }
+        max_attempts = 2;
+      }
+      else if(messageType == DHCPMessage.REQUEST) {
+        if (guessed_ip == null) {
+          throw new Exception("Cannot do a DHCPRequest without a valid IP Address!");
+        }
+        /* We should only attempt once, if it fails, we could send back a NACK 
+           or just wait for the client to try a different address */
+        max_attempts = 1;
       }
       else {
-        renew_attempt = true;
-        guessed_ip = preferred_ip;
-        max_attempts++;
+        throw new Exception("Unsupported DHCP message");
       }
 
-      while (true) {
-        do {
+      bool res = false;
+
+      while (max_attempts-- > 0) {
+        while(max_renew_attempts-- > 0) {
           string guessed_ip_str = guessed_ip[0].ToString();
           for (int k = 1; k < guessed_ip.Length; k++) {
             guessed_ip_str += "." + guessed_ip[k].ToString();
           }
 
           string key = "dhcp:ipop_namespace:" + namespace_value + ":ip:" + guessed_ip_str;
-          bool res = false;
           try {
-            res = _dht.Create(key, brunet_id, leasetime);
+            res = _dht.Create(key, dht_param.BrunetId, leasetime);
           }
           catch {
             res = false;
           }
           if(res) {
-            Console.Error.WriteLine("Got " + key + " successfully");
-            _dht.Put(brunet_id, key + "|" + DateTime.Now.Ticks, leasetime);
-            return guessed_ip;
+            _dht.Put(dht_param.BrunetId, key + "|" + DateTime.Now.Ticks, leasetime);
+            break;
           }
-        } while(max_renew_attempts-- > 0 && renew_attempt);
-        if (--max_attempts > 0) {
-          //guess a new IP address
+        }
+        if(!res) {
+          // Failure!  Guess a new IP address
           guessed_ip = GuessIPAddress();
         }
         else {
           break;
         }
       }
-      return null;
+
+      if(!res) {
+        throw new Exception("Unable to get an IP Address!");
+      }
+
+      leaseReturn.ip = guessed_ip;
+      leaseReturn.netmask = netmask;
+      leaseReturn.leasetime = leasetimeb;
+
+      return leaseReturn;
     }
 
     private byte[] GuessIPAddress() {

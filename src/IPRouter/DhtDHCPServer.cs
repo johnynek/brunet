@@ -49,9 +49,12 @@ namespace Ipop {
       return dhcp_lease;
     }
 
-    protected override DHCPLeaseResponse GetLease(DHCPLease dhcp_lease, DecodedDHCPPacket packet) {
-      DhtDHCPLeaseParam dht_param = new DhtDHCPLeaseParam(packet.yiaddr, packet.NodeAddress);
-      DHCPLeaseResponse ret = dhcp_lease.GetLease(dht_param);
+    protected override DHCPLeaseResponse GetLease(DHCPLease dhcp_lease,
+                                 DecodedDHCPPacket packet, byte messageType) {
+      DhtDHCPLeaseParam dht_param =
+          new DhtDHCPLeaseParam(packet.yiaddr, packet.NodeAddress);
+
+      DHCPLeaseResponse ret = dhcp_lease.GetLease(dht_param, messageType);
       return ret;
     }
   }

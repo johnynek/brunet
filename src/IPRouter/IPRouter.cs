@@ -95,28 +95,29 @@ namespace Ipop {
         returnPacket.EncodePacket();
         node.ether.SendPacket(returnPacket.packet, 0x800, node.mac);
         /* Check our allocation to see if we're getting a new address */
-        string newAddress = IPOP_Common.BytesToString(
-          returnPacket.decodedPacket.yiaddr, '.');
+        IPAddress newAddress = IPAddress.Parse(IPOP_Common.BytesToString(
+          returnPacket.decodedPacket.yiaddr, '.'));
 
         string newNetmask = IPOP_Common.BytesToString(((DHCPOption)
           returnPacket.decodedPacket.options[1]).byte_value, '.');
 
-        if(node.ip == null || newAddress != node.ip.ToString() ||node.netmask !=  newNetmask) {
+        if(newAddress != node.ip || node.netmask !=  newNetmask) {
           node.netmask = newNetmask;
-          node.ip = IPAddress.Parse(newAddress);
+          node.ip = newAddress;
           ProtocolLog.WriteIf(IPOPLog.DHCPLog, String.Format(
             "DHCP:  IP Address changed to {0}", node.ip));
           config.AddressData = new AddressInfo();
-          config.AddressData.IPAddress = newAddress;
+          config.AddressData.IPAddress = newAddress.ToString();
           config.AddressData.Netmask = node.netmask;
           IPRouterConfigHandler.Write(ConfigFile, config);
 // This is currently broken
 //            node.brunet.UpdateTAAuthorizer();
         }
       }
-      else
+      else {
         ProtocolLog.WriteIf(IPOPLog.DHCPLog, String.Format(
           "The DHCP Server has a message to share with you...\n" + response));
+      }
       in_dht = false;
     }
 

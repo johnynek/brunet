@@ -14,7 +14,6 @@ using System.Xml.Serialization;
      http://rfc.net/rfc2132.html for the options                     */
 
 namespace Ipop {
-  [Serializable]
   public struct DHCPOption {
     public int type;
     public int length;
@@ -23,7 +22,6 @@ namespace Ipop {
     public byte [] byte_value;
   }
 
-  [Serializable]
   public struct DecodedDHCPPacket {
     public byte op;
     public byte [] xid;
@@ -38,7 +36,7 @@ namespace Ipop {
     public string NodeAddress;
   }
 
-  abstract public class DHCPServer : MarshalByRefObject {
+  public abstract class DHCPServer {
     protected byte[] ServerIP;
     protected SortedList leases;
 
@@ -60,27 +58,22 @@ namespace Ipop {
         return returnPacket;
       }
 
-      byte messageType = 0;
-      messageType = ((DHCPOption) packet.options[53]).byte_value[0];
+      byte messageType = ((DHCPOption) packet.options[53]).byte_value[0];
 
-      DHCPLeaseResponse leaseReturn = GetLease(dhcp_lease, packet);
-
-      if(leaseReturn == null) {
-        returnPacket.return_message = "There are some faults occurring when " +
-          "attempting to request a lease, please try again later.";
+      DHCPLeaseResponse leaseReturn = null;
+      try {
+        leaseReturn = GetLease(dhcp_lease, packet, messageType);
+      }
+      catch(Exception e) {
+        returnPacket.return_message = e.Message;
         return returnPacket;
       }
 
       returnPacket.yiaddr = leaseReturn.ip;
-      if(returnPacket.yiaddr[0] == 0) {
-        returnPacket.return_message = "No more available leases";
-        return returnPacket;
-      }
-
       returnPacket.op = 2; /* BOOT REPLY */
       returnPacket.siaddr = this.ServerIP;
       returnPacket.options = new SortedList();
-      string string_value = "";
+            string string_value = "";
       byte [] byte_value = null;
 
 
@@ -114,7 +107,6 @@ namespace Ipop {
         byte_value = new byte[1] {6};
       returnPacket.options.Add(53, (DHCPOption) CreateOption(53, byte_value));
       /* End Response Type */
-
       returnPacket.return_message = "Success";
       return returnPacket;
     }
@@ -137,17 +129,9 @@ namespace Ipop {
       return option;
     }
 
-    abstract protected bool IsValidBrunetNamespace(string brunet_namespace);
-    abstract protected DHCPLease GetDHCPLease(string ipop_namespace);
-    abstract protected DHCPLeaseResponse GetLease(DHCPLease dhcp_lease, DecodedDHCPPacket packet);
-  }
-
-  public class LifeTimeSponsor : ISponsor {
-    public TimeSpan Renewal (ILease lease)
-    {
-      TimeSpan ts = new TimeSpan();
-      ts = TimeSpan.FromDays(365);
-      return ts;
-    }
+    protected abstract bool IsValidBrunetNamespace(string brunet_namespace);
+    protected abstract DHCPLease GetDHCPLease(string ipop_namespace);
+    protected abstract DHCPLeaseResponse GetLease(DHCPLease dhcp_lease, 
+                                  DecodedDHCPPacket packet, byte messageType);
   }
 }

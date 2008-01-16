@@ -9,18 +9,6 @@ namespace Ipop {
   abstract public class DHCPLeaseParam {
   }
 
-  public class SoapDHCPLeaseParam: DHCPLeaseParam {
-    byte[] _hwaddr;
-    public byte[] HwAddr {
-      get {
-        return _hwaddr;
-      }
-    }
-    public SoapDHCPLeaseParam(byte[] hwaddr) {
-      _hwaddr = hwaddr;
-    }
-  }
-
   public struct Lease {
     public byte [] ip;
     public byte [] hwaddr;
@@ -134,6 +122,6 @@ namespace Ipop {
       return ip;
     }
 
-    abstract public DHCPLeaseResponse GetLease(DHCPLeaseParam param);
+    public abstract DHCPLeaseResponse GetLease(DHCPLeaseParam param, byte messageType);
   }
 }
