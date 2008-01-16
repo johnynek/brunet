@@ -31,7 +31,7 @@ namespace Ipop {
     public IPAddress ip {
       get { return _ip; }
       set {
-        _ip = ip;
+        _ip = value;
         _ipop_info.ip = _ip.ToString();
       }
     }
