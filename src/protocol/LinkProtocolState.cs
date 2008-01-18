@@ -144,8 +144,8 @@ namespace Brunet
               ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
                 "Lock released by destructor"));
         }
+        Unlock();
       }
-      Unlock();
     }
 
     /**
