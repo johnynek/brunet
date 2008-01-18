@@ -6,9 +6,6 @@ using System.Collections;
 using System.Security.Cryptography;
 
 namespace Ipop {
-  abstract public class DHCPLeaseParam {
-  }
-
   public struct Lease {
     public byte [] ip;
     public byte [] hwaddr;
@@ -122,6 +119,6 @@ namespace Ipop {
       return ip;
     }
 
-    public abstract DHCPLeaseResponse GetLease(DHCPLeaseParam param, byte messageType);
+    public abstract DHCPLeaseResponse GetLease(DecodedDHCPPacket packet);
   }
 }

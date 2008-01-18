@@ -30,6 +30,7 @@ namespace Ipop {
     public byte [] siaddr;
     public byte [] chaddr;
     public SortedList options;
+    public byte [] last_ip;
     public string brunet_namespace;
     public string ipop_namespace;
     public string return_message;
@@ -58,11 +59,9 @@ namespace Ipop {
         return returnPacket;
       }
 
-      byte messageType = ((DHCPOption) packet.options[53]).byte_value[0];
-
       DHCPLeaseResponse leaseReturn = null;
       try {
-        leaseReturn = GetLease(dhcp_lease, packet, messageType);
+        leaseReturn = dhcp_lease.GetLease(packet);
       }
       catch(Exception e) {
         returnPacket.return_message = e.Message;
@@ -73,21 +72,18 @@ namespace Ipop {
       returnPacket.op = 2; /* BOOT REPLY */
       returnPacket.siaddr = this.ServerIP;
       returnPacket.options = new SortedList();
-            string string_value = "";
-      byte [] byte_value = null;
 
-
-      /* Subnet Mask */
-      returnPacket.options.Add(1, (DHCPOption) CreateOption(1, leaseReturn.netmask));
-      /* Lease Time */
-      returnPacket.options.Add(51, (DHCPOption) CreateOption(51, leaseReturn.leasetime));
-      /* MTU Size */
-      returnPacket.options.Add(26, (DHCPOption) CreateOption(26, new byte[]{4, 176}));
-      /* Server Identifier */
-      returnPacket.options.Add(54, (DHCPOption) CreateOption(54, this.ServerIP));
+      returnPacket.options.Add(DHCPOptions.SUBNET_MASK, (DHCPOption) 
+          CreateOption(DHCPOptions.SUBNET_MASK, leaseReturn.netmask));
+      returnPacket.options.Add(DHCPOptions.LEASE_TIME, (DHCPOption) 
+          CreateOption(DHCPOptions.LEASE_TIME, leaseReturn.leasetime));
+      returnPacket.options.Add(DHCPOptions.MTU, (DHCPOption) 
+          CreateOption(DHCPOptions.MTU, new byte[]{4, 176}));
+      returnPacket.options.Add(DHCPOptions.SERVER_ID, (DHCPOption) 
+          CreateOption(DHCPOptions.SERVER_ID, this.ServerIP));
 
       /* Host and Domain name */
-      string_value = "C";
+      string string_value = "C";
       for(int i = 1; i < 4; i++) {
         if(returnPacket.yiaddr[i] < 10)
           string_value += "00";
@@ -95,23 +91,28 @@ namespace Ipop {
           string_value += "0";
         string_value += returnPacket.yiaddr[i].ToString();
       }
-      returnPacket.options.Add(12, (DHCPOption) CreateOption(12, string_value));
+      returnPacket.options.Add(DHCPOptions.HOST_NAME, (DHCPOption) 
+          CreateOption(DHCPOptions.HOST_NAME, string_value));
       /* End Host and Domain Name */
 
-      /* DHCP Response Type */
-      if(messageType == 1)
-        byte_value = new byte[1] {2};
-      else if(messageType == 3)
-        byte_value = new byte[1] {5};
-      else
-        byte_value = new byte[1] {6};
-      returnPacket.options.Add(53, (DHCPOption) CreateOption(53, byte_value));
+      byte messageType = ((DHCPOption) packet.options[DHCPOptions.MESSAGE_TYPE]).byte_value[0];
+      if(messageType == DHCPMessage.DISCOVER) {
+        messageType = DHCPMessage.OFFER;
+      }
+      else if(messageType == DHCPMessage.REQUEST) {
+        messageType = DHCPMessage.ACK;
+      }
+      else {
+        messageType = DHCPMessage.NACK;
+      }
+      returnPacket.options.Add(DHCPOptions.MESSAGE_TYPE, (DHCPOption)
+          CreateOption(DHCPOptions.MESSAGE_TYPE, new byte[]{messageType}));
       /* End Response Type */
       returnPacket.return_message = "Success";
       return returnPacket;
     }
 
-    public DHCPOption CreateOption(byte type, byte [] value) {
+    public DHCPOption CreateOption(int type, byte [] value) {
       DHCPOption option = new DHCPOption();
       option.type = type;
       option.byte_value = value;
@@ -120,7 +121,7 @@ namespace Ipop {
       return option;
     }
 
-    public DHCPOption CreateOption(byte type, string value) {
+    public DHCPOption CreateOption(int type, string value) {
       DHCPOption option = new DHCPOption();
       option.type = type;
       option.string_value = value;
@@ -131,7 +132,5 @@ namespace Ipop {
 
     protected abstract bool IsValidBrunetNamespace(string brunet_namespace);
     protected abstract DHCPLease GetDHCPLease(string ipop_namespace);
-    protected abstract DHCPLeaseResponse GetLease(DHCPLease dhcp_lease, 
-                                  DecodedDHCPPacket packet, byte messageType);
   }
 }

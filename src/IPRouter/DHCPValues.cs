@@ -7,7 +7,7 @@ namespace Ipop {
     public static readonly byte REQUEST = 3;
     public static readonly byte DECLINE = 4;
     public static readonly byte ACK = 5;
-    public static readonly byte NAK = 6;
+    public static readonly byte NACK = 6;
     public static readonly byte RELEASE = 7;
     public static readonly byte INFORM = 8;
   }
@@ -16,6 +16,14 @@ namespace Ipop {
   public class InvalidRequestedAddressException: Exception {}
 
   class DHCPOptions {
+    public static readonly int SUBNET_MASK = 1;
+    public static readonly int HOST_NAME = 12;
+    public static readonly int MTU = 26;
+    public static readonly int REQUESTED_IP = 50;
+    public static readonly int LEASE_TIME = 51;
+    public static readonly int MESSAGE_TYPE = 53;
+    public static readonly int SERVER_ID = 54;
+
     public static readonly string [] DHCPOptionsList = {
       "Pad",
       "Subnet Mask",

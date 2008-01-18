@@ -8,16 +8,6 @@ using Brunet.Dht;
 using System.Diagnostics;
 
 namespace Ipop {
-  public class DhtDHCPLeaseParam: DHCPLeaseParam {
-    public readonly byte[] PreferredIP;
-    public readonly string BrunetId;
-
-    public DhtDHCPLeaseParam(byte[] preferred_ip, string brunet_id) {
-      PreferredIP = preferred_ip;
-      BrunetId = brunet_id;
-    }
-  }
-
   public class DhtDHCPLease: DHCPLease {
     protected Dht _dht;
     protected Random _rand;
@@ -27,27 +17,24 @@ namespace Ipop {
       _rand = new Random();
     }
 
-    public override DHCPLeaseResponse GetLease(DHCPLeaseParam param, byte messageType) {
-      DhtDHCPLeaseParam dht_param = param as DhtDHCPLeaseParam;
-
+    public override DHCPLeaseResponse GetLease(DecodedDHCPPacket packet) {
       DHCPLeaseResponse leaseReturn = new DHCPLeaseResponse();
 
       int max_attempts = 1, max_renew_attempts = 2;
       byte []guessed_ip = null;
-
-      if(ValidIP(dht_param.PreferredIP)) {
-        guessed_ip = dht_param.PreferredIP;
-      }
+      byte messageType = ((DHCPOption) packet.options[DHCPOptions.MESSAGE_TYPE]).byte_value[0];
 
       if(messageType == DHCPMessage.DISCOVER) {
-        if (guessed_ip == null) {
+        guessed_ip = packet.yiaddr;
+        if(!ValidIP(guessed_ip)) {
           guessed_ip = GuessIPAddress();
           max_renew_attempts = 1;
         }
         max_attempts = 2;
       }
       else if(messageType == DHCPMessage.REQUEST) {
-        if (guessed_ip == null) {
+        guessed_ip = ((DHCPOption) packet.options[DHCPOptions.REQUESTED_IP]).byte_value;
+        if(!ValidIP(guessed_ip)) {
           throw new Exception("Cannot do a DHCPRequest without a valid IP Address!");
         }
         /* We should only attempt once, if it fails, we could send back a NACK 
@@ -69,13 +56,13 @@ namespace Ipop {
 
           string key = "dhcp:ipop_namespace:" + namespace_value + ":ip:" + guessed_ip_str;
           try {
-            res = _dht.Create(key, dht_param.BrunetId, leasetime);
+            res = _dht.Create(key, (string) packet.NodeAddress, leasetime);
           }
           catch {
             res = false;
           }
           if(res) {
-            _dht.Put(dht_param.BrunetId, key + "|" + DateTime.Now.Ticks, leasetime);
+            _dht.Put((string) packet.NodeAddress, key + "|" + DateTime.Now.Ticks, leasetime);
             break;
           }
         }

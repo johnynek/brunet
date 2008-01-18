@@ -71,13 +71,14 @@ namespace Ipop {
       dhcpPacket.decodedPacket.brunet_namespace = config.brunet_namespace;
       dhcpPacket.decodedPacket.ipop_namespace = config.ipop_namespace;
       dhcpPacket.decodedPacket.NodeAddress = node.address.ToString();
+      dhcpPacket.PrintDecodedPacket();
 
-      try {
+/*      try {
         dhcpPacket.decodedPacket.yiaddr =
           IPAddress.Parse(config.AddressData.IPAddress).GetAddressBytes();
       }
       catch {}
-
+*/
       /* DHCP Server returns our incoming packet, which we decode, if it
           is successful, we continue, otherwise we fail and print out a message */
       DHCPPacket returnPacket = null;
@@ -99,7 +100,7 @@ namespace Ipop {
           returnPacket.decodedPacket.yiaddr, '.'));
 
         string newNetmask = IPOP_Common.BytesToString(((DHCPOption)
-          returnPacket.decodedPacket.options[1]).byte_value, '.');
+          returnPacket.decodedPacket.options[DHCPOptions.SUBNET_MASK]).byte_value, '.');
 
         if(newAddress != node.ip || node.netmask !=  newNetmask) {
           node.netmask = newNetmask;
