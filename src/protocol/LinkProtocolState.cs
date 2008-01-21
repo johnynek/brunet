@@ -144,6 +144,12 @@ namespace Brunet
               ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
                 "Lock released by destructor"));
         }
+      }
+      /* In .NET, there is an obervable bug, where there exists a LPS that
+       * has no origin and all member properties are null.  This saves the
+       * garbage collector from throwing an exception.
+       */
+      if(_node != null) {
         Unlock();
       }
     }
@@ -339,7 +345,7 @@ namespace Brunet
       ConnectionTable tab = _node.ConnectionTable;
       tab.Unlock( _contype, this );
     }
-    
+
     protected LinkMessage MakeLM() {
       NodeInfo my_info = NodeInfo.CreateInstance( _node.Address, _e.LocalTA );
       NodeInfo remote_info = NodeInfo.CreateInstance( _linker.Target, _e.RemoteTA );
