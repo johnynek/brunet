@@ -29,12 +29,6 @@ namespace Ipop {
   }
 
   class DHCPServerConfigurationReader {
-/*  Unused Example Code
-    public static void Main(string [] args) {
-      WriteConfig(args[0]);
-      ReadConfig(args[0]);
-    }
-*/
     public static DHCPServerConfig ReadConfig(string filename) {
       XmlSerializer serializer = new XmlSerializer(typeof(DHCPServerConfig));
       FileStream fs = new FileStream(filename, FileMode.Open);
@@ -55,6 +49,11 @@ namespace Ipop {
     }
 
 /*  Unused Example Code
+    public static void Main(string [] args) {
+      WriteConfig(args[0]);
+      ReadConfig(args[0]);
+    }
+
     public static void WriteConfig(string filename) {
       XmlSerializer serializer = new XmlSerializer(typeof(DHCPServerConfig));
       TextWriter writer = new StreamWriter(filename);

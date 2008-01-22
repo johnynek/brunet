@@ -2,13 +2,40 @@ using System;
 using System.Collections;
 
 namespace Ipop {
+  public struct DHCPOption {
+    public int type;
+    public int length;
+    public string encoding;
+    public string string_value;
+    public byte [] byte_value;
+  }
+
+  public class DecodedDHCPPacket {
+    public byte op;
+    public byte [] xid;
+    public byte [] ciaddr;
+    public byte [] yiaddr;
+    public byte [] siaddr;
+    public byte [] chaddr;
+    public SortedList options;
+    public byte [] last_ip;
+    public string brunet_namespace;
+    public string ipop_namespace;
+    public string return_message;
+    public string NodeAddress;
+    public byte[] SendTo = new byte[4] {255, 255, 255, 255};
+    public byte[] SendFrom = new byte[4] {0, 0, 0, 0};
+  }
+
   public class DHCPPacket {
     public byte [] packet;
     public DecodedDHCPPacket decodedPacket;
 
     public DHCPPacket(byte [] packet) { this.packet = packet; }
 
-    public DHCPPacket(DecodedDHCPPacket packet) { this.decodedPacket = packet;  }
+    public DHCPPacket(DecodedDHCPPacket packet) {
+      this.decodedPacket = packet;
+    }
 
     public void DecodePacket() {
       this.decodedPacket = new DecodedDHCPPacket();
@@ -69,15 +96,14 @@ namespace Ipop {
             option.byte_value = new byte[0];
             option.string_value = "";
             for(int i = 0; i < option.length; i++) 
-              option.string_value += (char) packet[current + i];
+              option.string_value += (char) packet[current++];
           }
           else {
             option.string_value = "";
             option.byte_value = new byte[option.length];
             for(int i = 0; i < option.length; i++)
-              option.byte_value[i] = packet[current + i];
+              option.byte_value[i] = packet[current++];
           }
-          current += option.length;
           current_option++; /* Next Option*/
           this.decodedPacket.options.Add(option.type, (DHCPOption) option);
         }
@@ -104,7 +130,8 @@ namespace Ipop {
         }
       }
       byte [] encodedPacket = new byte[268 + byte_list.Count + 1];
-      byte [] temp = DHCPPacket.GenerateHeader(encodedPacket.Length);
+      byte [] temp = GenerateHeader(encodedPacket.Length, 
+                       decodedPacket.SendFrom, decodedPacket.SendTo);
       for (int i = 0; i < 28; i++)
         encodedPacket[i] = temp[i];
       int current = 28;
@@ -145,30 +172,26 @@ namespace Ipop {
         encodedPacket[current] = temparray[current - 268];
       encodedPacket[encodedPacket.Length - 1] = 255; /* End of Options */
       packet = encodedPacket;
+      // Genereate the UdpCheckSum!
+      int udp_checksum = DHCPPacket.udpChecksum(packet);
+      DHCPPacket.half_to_bytes(udp_checksum, ref packet[26], ref packet[27]);
     }
 
-    public static byte [] GenerateHeader(int length) {
+    public byte [] GenerateHeader(int length, byte[] SendFrom, byte[] SendTo) {
 /*  00 means that the data needs to be generated, otherwise the data is static
     Length of the datagram (ip header (20) + Length of UDP)
     Header checksum (sum of all 16 bit words inverted)
     Length UDP Header (8 bytes) + encapsulated data */
       byte [] ip_header = new byte[28] {69, 16, 00, 00, 0, 0, 0, 0, 64, 17,
-        00, 00, 0, 0, 0, 0, 255, 255, 255, 255, 00, 00, 00, 00, 00, 00, 00,
-        00};
+        00, 00, SendFrom[0], SendFrom[1], SendFrom[2], SendFrom[3], SendTo[0],
+        SendTo[1], SendTo[2], SendTo[3], 00, 00, 00, 00, 00, 00, 00, 00};
       byte [] udp_header = new byte[8] {0, 67, 0, 68, 00, 00, 0, 0};
       int udp_length = length - 20;
       int ip_length = length;
-      byte lbyte = 0, rbyte = 0;
-      DHCPPacket.half_to_bytes(udp_length, ref lbyte, ref rbyte);
-      udp_header[4] = lbyte;
-      udp_header[5] = rbyte;
-      DHCPPacket.half_to_bytes(ip_length, ref lbyte, ref rbyte);
-      ip_header[2] = lbyte;
-      ip_header[3] = rbyte;
+      DHCPPacket.half_to_bytes(udp_length, ref udp_header[4], ref udp_header[5]);
+      DHCPPacket.half_to_bytes(ip_length, ref ip_header[2], ref ip_header[3]);
       int checksum = DHCPPacket.getChecksum(ip_header);
-      DHCPPacket.half_to_bytes(checksum, ref lbyte, ref rbyte);
-      ip_header[10] = lbyte;
-      ip_header[11] = rbyte;
+      DHCPPacket.half_to_bytes(checksum, ref ip_header[10], ref ip_header[11]);
 /*    Combine the two packets */
       for(int i = 0; i < 8; i++)
         ip_header[20 + i] = udp_header[i];
@@ -181,10 +204,27 @@ namespace Ipop {
       lbyte = (byte) ((half >> 8) & 255);
     }
 
+    public static int udpChecksum(byte[] data) {
+      int value = 0;
+      for(int i = 12; i < data.Length; i+=2) {
+        byte first = data[i];
+        byte second = (i+1 == data.Length) ? (byte) 0 : data[i+1];
+        value += (second + (first << 8));
+      }
+      value += 17 + data.Length - 20;
+      while(value>>16 > 0) {
+        value = (value & 0xFFFF) + (value >> 16);
+      }
+      return (0xFFFF & ~value);
+    }
+
     public static int getChecksum(byte [] data) {
       int value = 0;
-      for(int i = 0; i < data.Length; i+=2)
-        value += data[i+1] + (data[i] << 8);
+      for(int i = 0; i < data.Length; i+=2) {
+        byte first = data[i];
+        byte second = (i+1 == data.Length) ? (byte) 0 : data[i+1];
+        value += second + (first << 8);
+      }
       return (0xFFFF - (value & 0xFFFF) - 2);
     }
 
@@ -213,15 +253,18 @@ namespace Ipop {
       Console.Error.WriteLine("chaddr : {0}", temp);
       for(int i = 0; i < decodedPacket.options.Count; i++) {
         DHCPOption option = (DHCPOption) decodedPacket.options.GetByIndex(i);
+        string name = option.type.ToString();
+        try {
+           name = DHCPOptions.DHCPOptionsList[option.type];
+        }
+        catch {}
         if(option.encoding == "string")
-          Console.Error.WriteLine("{0} : {1}", 
-            DHCPOptions.DHCPOptionsList[option.type], option.string_value);
+          Console.Error.WriteLine("{0} : {1}", name, option.string_value);
         else {
           temp = "";
-          for(int j = 0; j < option.length; j++)
+          for(int j = 0; j < option.byte_value.Length; j++)
             temp += option.byte_value[j] + " ";
-          Console.Error.WriteLine("{0} : {1}", DHCPOptions.DHCPOptionsList[
-            option.type], temp);
+          Console.Error.WriteLine("{0} : {1}", name, temp);
         }
       }
     }

@@ -6,19 +6,20 @@ using System.Collections;
 using System.Security.Cryptography;
 
 namespace Ipop {
-  public struct Lease {
-    public byte [] ip;
-    public byte [] hwaddr;
-    public DateTime expiration;
-  }
-
-  public class DHCPLeaseResponse {
+  public class DHCPReply {
     public byte [] ip;
     public byte [] netmask;
     public byte [] leasetime;
   }
 
-  abstract public class DHCPLease {
+  public abstract class DHCPLeaseController {
+    protected struct Lease {
+      public byte [] ip;
+      public byte [] hwaddr;
+      public DateTime expiration;
+    }
+
+    protected Random _rand = new Random();
     protected int size, index, leasetime;
     protected long logsize;
     protected string namespace_value;
@@ -29,8 +30,7 @@ namespace Ipop {
     protected byte [][] reservedIP;
     protected byte [][] reservedMask;
 
-
-    public DHCPLease(IPOPNamespace config) {
+    public DHCPLeaseController(IPOPNamespace config) {
       leasetime = config.leasetime;
       leasetimeb = new byte[]{((byte) ((leasetime >> 24))),
         ((byte) ((leasetime >> 16))),
@@ -119,6 +119,23 @@ namespace Ipop {
       return ip;
     }
 
-    public abstract DHCPLeaseResponse GetLease(DecodedDHCPPacket packet);
+    protected byte[] RandomIPAddress() {
+      byte[] randomIP = new byte[4];
+      for (int k = 0; k < randomIP.Length; k++) {
+        int max = upper[k];
+        int min = lower[k];
+        if(k == randomIP.Length - 1) {
+          max = (max > 254) ?  254 : max;
+          min = (min < 1) ?  1 : min;
+        }
+        randomIP[k] = (byte) _rand.Next(min, max + 1);
+      }
+      if (!ValidIP(randomIP)) {
+        randomIP = RandomIPAddress();
+      }
+      return randomIP;
+    }
+
+    public abstract DHCPReply GetLease(byte[] address, bool renew, DecodedDHCPPacket packet);
   }
 }

@@ -71,30 +71,23 @@ namespace Ipop {
       dhcpPacket.decodedPacket.brunet_namespace = config.brunet_namespace;
       dhcpPacket.decodedPacket.ipop_namespace = config.ipop_namespace;
       dhcpPacket.decodedPacket.NodeAddress = node.address.ToString();
-      dhcpPacket.PrintDecodedPacket();
 
-/*      try {
+      try {
         dhcpPacket.decodedPacket.yiaddr =
           IPAddress.Parse(config.AddressData.IPAddress).GetAddressBytes();
       }
       catch {}
-*/
+
+
       /* DHCP Server returns our incoming packet, which we decode, if it
           is successful, we continue, otherwise we fail and print out a message */
-      DHCPPacket returnPacket = null;
-      string response = null;
-      try {
-        returnPacket = new DHCPPacket(
-          node.dhcpClient._dhcp_server.SendMessage(dhcpPacket.decodedPacket));
-        response = returnPacket.decodedPacket.return_message;
-      }
-      catch (Exception e) {
-        response = e.ToString();
-      }
+      DHCPPacket returnPacket = new DHCPPacket(
+        node.dhcpClient._dhcp_server.SendMessage(dhcpPacket.decodedPacket));
+      string response = returnPacket.decodedPacket.return_message;
+
       if(response == "Success") {
         /* Convert the packet into byte format, run Arp and Route updater */
         returnPacket.EncodePacket();
-        node.ether.SendPacket(returnPacket.packet, 0x800, node.mac);
         /* Check our allocation to see if we're getting a new address */
         IPAddress newAddress = IPAddress.Parse(IPOP_Common.BytesToString(
           returnPacket.decodedPacket.yiaddr, '.'));
@@ -114,6 +107,7 @@ namespace Ipop {
 // This is currently broken
 //            node.brunet.UpdateTAAuthorizer();
         }
+        node.ether.SendPacket(returnPacket.packet, 0x800, node.mac);
       }
       else {
         ProtocolLog.WriteIf(IPOPLog.DHCPLog, String.Format(

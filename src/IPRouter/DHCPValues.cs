@@ -101,7 +101,12 @@ namespace Ipop {
       "Finger Server",
       "IRC Server",
       "StreetTalk Server",
-      "STDA Server"
+      "STDA Server",
+      "",
+      "",
+      "",
+      "",
+      "FQDN"
     };
   }
 }
