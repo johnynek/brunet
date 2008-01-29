@@ -105,6 +105,7 @@ namespace Brunet
         _connection_timeout = new TimeSpan(0,0,0,0,15000);
         /* Set up the heartbeat */
         _heart_period = 500; //500 ms, or 1/2 second.
+        _heart_beat_object = new HeartBeatObject(this);
         _heart_beat_thread = new Thread(this.HeartBeatProducer);
         _heart_beat_thread.Start();
         
@@ -113,6 +114,75 @@ namespace Brunet
         _last_edge_check = DateTime.UtcNow;
       }
     }
+ //////////////
+ ///  Inner Classes
+ //////////
+
+    /**
+     * When we do announces using the seperate thread, this is
+     * what we pass
+     */
+    private class AnnounceState : IAction {
+      public readonly MemBlock Data;
+      public readonly ISender From;
+      public readonly Node LocalNode;
+      public AnnounceState(Node n, MemBlock p, ISender from) {
+        LocalNode = n;
+        Data = p;
+        From = from;
+      }
+      
+      /**
+       * Perform the action of announing a packet
+       */
+      public void Start() {
+        LocalNode.Announce(Data, From);
+      }
+      public override string ToString() {
+        try {
+          return Data.GetString(System.Text.Encoding.ASCII);
+        }
+        catch {
+          return "AnnounceState: could not get string as ASCII";
+        }
+      }
+    }
+    private class EdgeCloseAction : IAction {
+      protected Edge EdgeToClose;
+      public EdgeCloseAction(Edge e) {
+        EdgeToClose = e;
+      }
+      public void Start() {
+        EdgeToClose.Close();
+      }
+      public override string ToString() {
+        return "EdgeCloseAction: " + EdgeToClose.ToString();
+      }
+    }
+    
+    /**
+     * There is one of these objects per node.
+     * They handle executing the heartbeat events
+     */
+    protected class HeartBeatObject : IAction {
+      protected int _running;
+      protected readonly Node LocalNode;
+      public HeartBeatObject(Node n) {
+        LocalNode = n;
+      }
+      public int TestAndSet() {
+        return Interlocked.CompareExchange(ref _running, 1, 0);
+      }
+      public void Reset() {
+        Interlocked.Exchange(ref _running, 0);   
+      }
+
+      public void Start() {
+        LocalNode.RaiseHeartBeatEvent();
+        Reset();
+      }
+    }
+
     /**
      * This class represents the demultiplexing of each
      * type of data to different handlers
@@ -280,16 +350,8 @@ namespace Brunet
 
     public bool _disconnect_on_overload = false;
 
-    protected class HeartBeatObject {
-      protected int _running;
-      public int TestAndSet() {
-        return Interlocked.CompareExchange(ref _running, 1, 0);
-      }
-      public void Reset() {
-        Interlocked.Exchange(ref _running, 0);   
-      }
-    }
-    protected readonly HeartBeatObject _heart_beat_object = new HeartBeatObject();
+    protected readonly HeartBeatObject _heart_beat_object;
+
     protected void HeartBeatProducer() {
       Thread.CurrentThread.Name = "heart_beat_producer";
       try {
@@ -308,6 +370,15 @@ namespace Brunet
                                 "slow, more than one node waiting at heartbeat, packet_queue_length: {0}", q_len));
           }
         } while(!_heart_beat_stopped);
+      } catch (InvalidOperationException x) {
+        if( !_packet_queue.Closed ) {
+          //This is strange:
+          if(ProtocolLog.Exceptions.Enabled) {
+            ProtocolLog.Write(ProtocolLog.Exceptions, 
+                            String.Format("{0}",x)); 
+          }
+        }
+        //else this is not surprising at all
       } catch (Exception e) {
         if(ProtocolLog.Exceptions.Enabled)
           ProtocolLog.Write(ProtocolLog.Exceptions, 
@@ -430,9 +501,7 @@ namespace Brunet
       el.EdgeEvent += this.EdgeHandler;
       el.EdgeCloseRequestEvent += delegate(object elsender, EventArgs args) {
         EdgeCloseRequestArgs ecra = (EdgeCloseRequestArgs)args;
-        //Announce a null packet, and we will close the edge in the announce
-        //thread.
-        _packet_queue.Enqueue(new AnnounceState(null, ecra.Edge));
+        Close(ecra.Edge);
       };
     }
     
@@ -469,6 +538,16 @@ namespace Brunet
     protected void ClearTypeSource(PType t) {
       lock( _sync ) {
         _subscription_table.Remove(t);
+      }
+    }
+    
+    protected void Close(Edge e) {
+      try {
+        //This can throw an exception if the _packet_queue is closed
+        EnqueueAction(new EdgeCloseAction(e));
+      }
+      catch {
+        e.Close();
       }
     }
 
@@ -527,8 +606,39 @@ namespace Brunet
         e.Subscribe(this, e);
       }
       catch(TableClosedException) {
-        //Just go ahead and close this edge:
+        /*
+         * Close this edge immediately, before any packets
+         * have a chance to be received.  We are shutting down,
+         * and it is best that we stop getting new packets
+         */
         e.Close();
+      }
+    }
+
+    /**
+     * Put this IAction object into the announce thread and call start on it
+     * there.
+     */
+    public void EnqueueAction(IAction a) {
+      _packet_queue.Enqueue(a);
+      _packet_queue_exp_avg = (PACKET_QUEUE_RETAIN * _packet_queue_exp_avg)
+          + ((1 - PACKET_QUEUE_RETAIN) * _packet_queue.Count);
+
+      if(_packet_queue_exp_avg > MAX_AVG_QUEUE_LENGTH) {
+        if(ProtocolLog.Monitor.Enabled) {
+          String top_string = String.Empty;
+          try {
+            IAction top_a = (IAction)_packet_queue.Peek();
+            top_string = top_a.ToString();
+          }
+          catch {}
+          ProtocolLog.Write(ProtocolLog.Monitor, String.Format(
+            "Packet Queue Average too high: {0} at {1}.  Actual length:  {2}\n\tTop most action: {3}",
+            _packet_queue_exp_avg, DateTime.UtcNow, _packet_queue.Count, top_string));
+        }
+        if(_disconnect_on_overload) {
+          Disconnect();
+        }
       }
     }
 
@@ -655,18 +765,6 @@ namespace Brunet
         }
       }
     }
-    /**
-     * When we do announces using the seperate thread, this is
-     * what we pass
-     */
-    private class AnnounceState {
-      public MemBlock Data;
-      public ISender From;
-      public AnnounceState(MemBlock p, ISender from) {
-        Data = p;
-        From = from;
-      }
-    }
     protected void AnnounceThread() {
       try {
         DateTime last_debug = DateTime.UtcNow;
@@ -682,34 +780,19 @@ namespace Brunet
                                                                    now, q_len));
             }
           }
-          object queue_item = null;
+          IAction queue_item = null;
           bool timedout = false;
           // Only peek if we're logging the monitoring of _packet_queue
           if(ProtocolLog.Monitor.Enabled) {
-            queue_item = _packet_queue.Peek(millsec_timeout, out timedout);
+            queue_item = (IAction)_packet_queue.Peek(millsec_timeout, out timedout);
           }
           else {
-            queue_item = _packet_queue.Dequeue(millsec_timeout, out timedout);
+            queue_item = (IAction)_packet_queue.Dequeue(millsec_timeout, out timedout);
           }
           if (timedout) {
             continue;
           }
-          if (queue_item == _heart_beat_object) {
-            RaiseHeartBeatEvent();
-            _heart_beat_object.Reset();
-          }
-          else {
-            AnnounceState a_state = (AnnounceState) queue_item;
-            if(a_state.Data != null ) {
-              Announce(a_state.Data, a_state.From);
-            }
-            else {
-              //Null data means close the edge:
-              Edge e = a_state.From as Edge;
-              if( e != null ) { e.Close(); }
-            }
-
-          }
+          queue_item.Start();
           // If we peeked, we need to now remove it
           if(ProtocolLog.Monitor.Enabled) {
             _packet_queue.Dequeue();
@@ -959,34 +1042,15 @@ namespace Brunet
       try {
         rpc.Invoke(e, results, "sys:link.Close", close_info);
       }
-      catch { e.Close(); }
+      catch { Close(e); }
     }
 
     /**
      * Implements the IDataHandler interface
      */
     public void HandleData(MemBlock data, ISender return_path, object state) {
-      AnnounceState astate = new AnnounceState(data, return_path);
-      _packet_queue.Enqueue(astate);
-      _packet_queue_exp_avg = (PACKET_QUEUE_RETAIN * _packet_queue_exp_avg)
-          + ((1 - PACKET_QUEUE_RETAIN) * _packet_queue.Count);
-
-      if(_packet_queue_exp_avg > MAX_AVG_QUEUE_LENGTH) {
-        if(ProtocolLog.Monitor.Enabled) {
-          String top_string = String.Empty;
-          try {
-            MemBlock top = ((AnnounceState) _packet_queue.Peek()).Data;
-            top_string = top.GetString(System.Text.Encoding.ASCII);
-          }
-          catch {}
-          ProtocolLog.Write(ProtocolLog.Monitor, String.Format(
-            "Packet Queue Average too high: {0} at {1}.  Actual length:  {2}\n\tTop most packet: {3}",
-            _packet_queue_exp_avg, DateTime.UtcNow, _packet_queue.Count, top_string));
-        }
-        if(_disconnect_on_overload) {
-          Disconnect();
-        }
-      }
+      AnnounceState astate = new AnnounceState(this, data, return_path);
+      EnqueueAction(astate);
     }
 
     protected TimeSpan ComputeDynamicTimeout() {
