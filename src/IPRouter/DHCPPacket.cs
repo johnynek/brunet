@@ -173,8 +173,8 @@ namespace Ipop {
       encodedPacket[encodedPacket.Length - 1] = 255; /* End of Options */
       packet = encodedPacket;
       // Genereate the UdpCheckSum!
-      int udp_checksum = DHCPPacket.udpChecksum(packet);
-      DHCPPacket.half_to_bytes(udp_checksum, ref packet[26], ref packet[27]);
+//      int udp_checksum = DHCPPacket.udpChecksum(packet);
+//      DHCPPacket.half_to_bytes(udp_checksum, ref packet[26], ref packet[27]);
     }
 
     public byte [] GenerateHeader(int length, byte[] SendFrom, byte[] SendTo) {

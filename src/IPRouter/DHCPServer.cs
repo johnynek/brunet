@@ -18,19 +18,19 @@ namespace Ipop {
         return packet;
       }
 
-      DHCPLeaseController _dhcp_lease_controller = GetDHCPLeaseController(packet.ipop_namespace);
-      if (_dhcp_lease_controller == null) {
-        packet.return_message = "Invalid IPOP Namespace";
-        return packet;
-      }
-
+      DHCPReply reply = null;
       SortedList options = packet.options;
       byte messageType = ((DHCPOption) options[DHCPOptions.MESSAGE_TYPE]).byte_value[0];
       packet.options = new SortedList();
       packet.return_message = "Success";
 
-      DHCPReply reply = null;
       try {
+        DHCPLeaseController _dhcp_lease_controller = GetDHCPLeaseController(packet.ipop_namespace);
+        if (_dhcp_lease_controller == null) {
+          packet.return_message = "Invalid IPOP Namespace";
+          return packet;
+        }
+
         if(messageType == DHCPMessage.DISCOVER) {
           reply = _dhcp_lease_controller.GetLease(packet.yiaddr, false, packet);
           messageType = DHCPMessage.OFFER;
@@ -67,6 +67,10 @@ namespace Ipop {
       packet.SendFrom = this.ServerIP;
       packet.options = new SortedList();
 
+      packet.options.Add(15, (DHCPOption) CreateOption(15, "ipop"));
+//	The following two are needed for dhcp to "succeed" in Vista, but they break Linux
+//      packet.options.Add(3, (DHCPOption) CreateOption(3, reply.ip));
+//      packet.options.Add(6, (DHCPOption) CreateOption(6, reply.ip));
       packet.options.Add(DHCPOptions.SUBNET_MASK, (DHCPOption) 
           CreateOption(DHCPOptions.SUBNET_MASK, reply.netmask));
       packet.options.Add(DHCPOptions.LEASE_TIME, (DHCPOption) 
