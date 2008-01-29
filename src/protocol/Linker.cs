@@ -263,6 +263,20 @@ namespace Brunet
 
     }
     /**
+     * This is a TaskQueue where new TaskWorkers are started
+     * by EnqueueAction, so they are executed in the announce thread
+     * and without the call stack growing arbitrarily
+     */
+    protected class NodeTaskQueue : TaskQueue {
+      protected readonly Node LocalNode;
+      public NodeTaskQueue(Node n) {
+        LocalNode = n;
+      }
+      protected override void Start(TaskWorker tw) {
+        LocalNode.EnqueueAction(tw);
+      }
+    }
+    /**
      * This inner class keeps state information for restarting
      * on a particular TransportAddress
      */
@@ -417,7 +431,8 @@ namespace Brunet
         _local_n = local;
         _rand = new Random();
         _active_lps_count = 0;
-        _task_queue = new TaskQueue();
+        //this TaskQueue starts new tasks in the announce thread of the node.
+        _task_queue = new NodeTaskQueue(local);
         _task_queue.EmptyEvent += this.FinishCheckHandler;
         _ta_queue = new Queue();
         if( target_list != null ) {

@@ -65,7 +65,7 @@ namespace Brunet
         _realm = String.Intern(realm);
         _subscription_table = new Hashtable();
 
-        _task_queue = new TaskQueue();
+        _task_queue = new NodeTaskQueue(this);
         _packet_queue = new BlockingQueue();
 
         _running = false;
@@ -244,6 +244,25 @@ namespace Brunet
         return handlers;
       }
     }
+
+    /**
+     * This is a TaskQueue where new TaskWorkers are started
+     * by EnqueueAction, so they are executed in the announce thread
+     * and without the call stack growing arbitrarily
+     */
+    protected class NodeTaskQueue : TaskQueue {
+      protected readonly Node LocalNode;
+      public NodeTaskQueue(Node n) {
+        LocalNode = n;
+      }
+      protected override void Start(TaskWorker tw) {
+        LocalNode.EnqueueAction(tw);
+      }
+    }
+
+//////
+// End of inner classes
+/////
 
     /**
      * This represents the Connection state of the node.
@@ -451,7 +470,7 @@ namespace Brunet
      * until it is false if you need the Node to be connected
      */
     public abstract bool IsConnected { get; }
-    protected TaskQueue _task_queue;
+    protected NodeTaskQueue _task_queue;
     /**
      * This is the TaskQueue for this Node
      */
