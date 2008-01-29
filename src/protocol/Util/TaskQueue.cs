@@ -24,10 +24,18 @@ using System.Collections;
 namespace Brunet {
 
 /**
+ * Since interfaces are much faster than Delegates in .Net,
+ * we use this for asynchronous code that might be run later.
+ */
+public interface IAction {
+  void Start();
+}
+
+/**
  * This class represents objects that work to complete a single
  * Task.  When the they are done, they fire a FinishEvent.
  */
-abstract public class TaskWorker {
+abstract public class TaskWorker : IAction {
   
   protected TaskWorker()
   {
