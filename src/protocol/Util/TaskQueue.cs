@@ -139,7 +139,7 @@ public class TaskQueue {
      * Get to work!
      */
     if( start  && _is_active) {
-      new_worker.Start();
+      Start(new_worker);
     }
   }
   
@@ -150,6 +150,13 @@ public class TaskQueue {
     lock( _sync ) {
       return _task_to_workers.ContainsKey(task);
     }
+  }
+  /**
+   * If you want to control if new TaskWorkers are started in some
+   * other thread, or event loop, you can override this method
+   */
+  protected virtual void Start(TaskWorker tw) {
+    tw.Start();
   }
   /**
    * When a TaskWorker completes, we remove it from the queue and
@@ -190,7 +197,7 @@ public class TaskQueue {
     }
     if( new_worker != null && _is_active) {
       //You start me up!
-      new_worker.Start();
+      Start(new_worker);
     }
     if( eh != null ) { eh(this, EventArgs.Empty); }
   }
