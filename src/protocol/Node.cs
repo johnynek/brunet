@@ -1046,15 +1046,7 @@ namespace Brunet
         foreach(Connection c in _connection_table) {
           Edge e = c.Edge;
           TimeSpan since_last_in = now - e.LastInPacketDateTime; 
-          if( since_last_in > _unconnected_timeout ) {
-            //Just close it.
-            ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
-	            "On an edge timeout({1}), closing connection: {0}",
-              c, since_last_in));
-
-            e.Close();
-          }
-          else if( _send_pings && ( since_last_in > _connection_timeout ) ) {
+          if( _send_pings && ( since_last_in > _connection_timeout ) ) {
 
             object ping_arg = String.Empty;
             DateTime start = DateTime.UtcNow;
