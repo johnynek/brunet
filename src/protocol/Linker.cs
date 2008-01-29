@@ -182,9 +182,11 @@ namespace Brunet
     /**
      * As an optimization, we may make more than one attempt to
      * different TAs simulataneously.  This controls the
-     * maximum number of parallel attempts
+     * maximum number of parallel attempts.  If this number is too low
+     * it can take a long time for NATed machines to connect to each
+     * other.
      */
-    protected static readonly int _MAX_PARALLEL_ATTEMPTS = 3;
+    protected static readonly int _MAX_PARALLEL_ATTEMPTS = 6;
     
     
 ////////////////
