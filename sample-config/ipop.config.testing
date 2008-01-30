@@ -1,6 +1,7 @@
+<!-- This config should be used unless you've received confirmation from David Wolinsky to use the other.  Obviously we have limited control, but if you use the other Condor_WOW namespace without receiving confirmation first, you could be impeding productivity. -->
 <?xml version="1.0" encoding="utf-8"?>
 <IPRouterConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
-  <brunet_namespace>DhtFuse01</brunet_namespace>
+  <brunet_namespace>DhtFuse26</brunet_namespace>
   <RemoteTAs>
     <transport>brunet.udp://193.147.162.166:41728</transport>
     <transport>brunet.udp://195.37.16.97:41728</transport>
@@ -492,12 +493,8 @@
     <transport>brunet.tcp://219.243.201.77:41727</transport>
   </RemoteTAs>
   <EdgeListeners>
-    <EdgeListener type="udp">
-      <port>41728</port>
-    </EdgeListener>
-    <EdgeListener type="tcp">
-      <port>41727</port>
-    </EdgeListener>
+    <EdgeListener type="udp" />
+    <EdgeListener type="tcp" />
   </EdgeListeners>
   <DevicesToBind>
     <Device>eth0</Device>

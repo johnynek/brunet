@@ -1,3 +1,4 @@
+<!-- It is strongly suggested that you change the brunet_namespace so that you do not have collision! -->
 <IPRouterConfig>
   <ipop_namespace>undefined</ipop_namespace>
   <brunet_namespace>Local_Testing</brunet_namespace>
