@@ -1,7 +1,3 @@
-/**
- * This file contains essential classes for xml rpc->brunet rpc bridge.
- * Console output comes with DEBUG configure and won't happen in release version.
- */
 using System;
 using System.Collections;
 using System.Text;
@@ -26,16 +22,21 @@ namespace Brunet {
    * register and unregister XML-RPC services from local node
    */
   public class XmlRpcManager : MarshalByRefObject, IRpcHandler {
+    #region Fields
     [NonSerialized]
     private RpcManager _rpc;
+    /**
+     * Local Node
+     */
     private Node _node;
     /**
      * Key: handler_name
      * Value: uri
-     * Different the counterpart from _rpc.method_handlers which is <handler_name, proxy>
+     * Different from _rpc.method_handlers which is <handler_name, proxy>
      */
     [NonSerialized]
-    private Hashtable _registered_xmlrpc = new Hashtable();
+    private Hashtable _registered_xmlrpc = new Hashtable(); 
+    #endregion
 
     public XmlRpcManager(Node node, RpcManager rpc) {
       _node = node;
@@ -43,7 +44,7 @@ namespace Brunet {
     }
 
     /**
-     * @param node: brunet node address
+     * @param node: target brunet node address
      * @param ahOptions: AHOptions, @see AHPacket.AHOptions
      * @param maxResultToWait: When the synchronous call gets this amount of items, it returns even
      *                         if there are still more. (unless this argument is specified as a negative number)
@@ -72,8 +73,10 @@ namespace Brunet {
     [XmlRpcMethod]
     public object localproxy(string method, params object[] args) {
       object[] results = this.Proxy(_node, 1, method, args);
-      //it can't be an empty array so we don't check array length here
-      return results[0];
+      if (results.Length > 0)
+        return results[0];
+      else
+        return null;
     }
 
     private object[] Proxy(ISender sender,int maxResultsToWait, string method, object[] args) {
@@ -207,12 +210,16 @@ namespace Brunet {
     }
     
     [XmlRpcMethod]
+    /**
+     * Calls to this method come from Brunet, go to XML-RPC and return
+     * to Brunet Overlay. So conversion needed from Adr->XmlRpc.Net->Adr
+     */
     public object BrunetRpc2XmlRpc(params object[] args) {
       MethodBase mi = MethodBase.GetCurrentMethod();
       object ret;
       try {
-        ret = this.Invoke(mi, args);
-        return ret;
+        ret = this.Invoke(mi, AdrXmlRpcConverter.Adr2XmlRpc(args));
+        return AdrXmlRpcConverter.XmlRpc2Adr(ret);
       } catch (Exception e) {
         Debug.WriteLine(e);
         throw e;
@@ -227,7 +234,7 @@ namespace Brunet {
       try {
         object[] arg_array = new object[args.Count];
         args.CopyTo(arg_array, 0);
-        //no method what method is specified, we just call this only method in this class
+        //The actual method that the client wants to call is already specified in this.XmRpcMethod
         result = BrunetRpc2XmlRpc(arg_array);
       } catch (Exception e) {
         result = new AdrException(-32602, e);
@@ -244,10 +251,10 @@ namespace Brunet {
    */
   public interface IXmlRpcManager : IXmlRpcProxy {
     [XmlRpcMethod]
-    object[] proxy(string node, int ahOptions, int maxResultsToWait, string method, object[] args);
+    object[] proxy(string node, int ahOptions, int maxResultsToWait, string method, params object[] args);
 
     [XmlRpcMethod]
-    object[] localproxy(string method, object[] args);
+    object localproxy(string method, params object[] args);
   }
 
   public class XmlRpcManagerClient {
@@ -255,7 +262,7 @@ namespace Brunet {
      * Log Request and Response Xml if logReqresp is set to true
      */
     public static IXmlRpcManager GetXmlRpcManager(string ip, int port, bool logReqresp) {
-      IXmlRpcManager proxy = (IXmlRpcManager)XmlRpcProxyGen.Create(typeof(IXmlRpcManager));
+      IXmlRpcManager proxy = XmlRpcProxyGen.Create<IXmlRpcManager>();
       proxy.Url = "http://" + ip + ":" + port + "/xm.rem";
       if (logReqresp) {
         XmlRpcManagerClientLogger logger = new XmlRpcManagerClientLogger();
@@ -297,111 +304,152 @@ namespace Brunet {
       TextReader reader = new StreamReader(stm);
       String s = reader.ReadLine();
       while (s != null) {
-        Console.WriteLine(s);
+        Debug.WriteLine(s);
         s = reader.ReadLine();
       }
     }
   }
 
-  /**
-   * port used: 10000
-   */
   public class XmlRpcManagerServer {
     XmlRpcManager _xrm = null;
     RpcManager _rpc = null;
     Node _node;
+    IChannel _channel;
+ 
     public XmlRpcManagerServer(int port) {
       IServerChannelSinkProvider chain = new XmlRpcServerFormatterSinkProvider();
       IDictionary props = new Hashtable();
       props.Add("port", port);
+#if BRUNET_NUNIT
+      /*
+       * anonymous channel. In tests we don't care about service names and 
+       * moreover, don't want system to complaint about serive name duplication
+       * when it gets restarted frequently
+       */
+      props.Add("name", ""); 
+#else
       props.Add("name", "xmlrpc");  //so that this channel won't collide with dht services
-      HttpChannel channel = new HttpChannel(props, null, chain);
-      ChannelServices.RegisterChannel(channel);
+#endif
+      _channel = new HttpChannel(props, null, chain);
+      ChannelServices.RegisterChannel(_channel, false);
     }
 
     public void Stop()
     {
       RemotingServices.Disconnect(_xrm);
       _rpc.RemoveHandler("xmlrpc");
+      ChannelServices.UnregisterChannel(_channel);
     }
 
     public void Update(Node node)
     {
-      _rpc = RpcManager.GetInstance(node);
+      RpcManager rpc = RpcManager.GetInstance(node);
+      Update(node, rpc);
+    }
+
+    /**
+     * The method for now is used to allow RpcManager to be replaced
+     * by MockRpcManager in unit tests
+     */
+    public void Update(Node node, RpcManager rpc) {
+      _rpc = rpc;
       _node = node;
       _xrm = new XmlRpcManager(_node, _rpc);
-      _rpc.AddHandler("xmlrpc",_xrm);
+      _rpc.AddHandler("xmlrpc", _xrm);
       RemotingServices.Marshal(_xrm, "xm.rem");
     }
   }
 
-  /**
-   * This class is used to test the XmlRpcManager features
-   * Intended to be used in a single thread
-   */
 #if BRUNET_NUNIT
   class MockRpcManager : RpcManager {
-    protected MockRpcManager(ReqrepManager rrm) : base(rrm) { }
-    
-    private object[] _retvalues;
+    public class InvokeState {
+      #region Fields
+      private object[] _retvalues;  //set before invoke
+      private object[] _params; //set by invoke
+      private int _enqueue_interval_in_millisec = 10;
+      private int _interval_between_last_enqueue_and_close = 10; 
+      #endregion
 
-    private object[] _params;
+      #region Properties
+      public object[] RetValues {
+        set {
+          _retvalues = value;
+        }
+        get {
+          return _retvalues;
+        }
+      }
 
-    /**
-     * Singletoin instance is used here to set the status of the object 
-     * prior to calling from the client
-     */
+      public object[] Params {
+        get {
+          return _params;
+        }
+        set {
+          _params = value;
+        }
+      }
+
+      public int EnqueueIntervalInMillisec {
+        set {
+          _enqueue_interval_in_millisec = value;
+        }
+        get {
+          return _enqueue_interval_in_millisec;
+        }
+      }
+
+      public int IntervalBetweenLastEnqueueAndClose {
+        set {
+          _interval_between_last_enqueue_and_close = value;
+        }
+        get {
+          return _interval_between_last_enqueue_and_close;
+        }
+      }
+      #endregion
+    }
+
+    #region Fields
     private static MockRpcManager _instance;
+    //Only one invoke state active at any time
+    public InvokeState CurrentInvokeState;
+    #endregion
 
-    /**
-     * Use this Property to set the return value before fire Invoke
-     */
-    public object[] RetValsOfInvoke {
-      get { return this._retvalues; }
-      set { this._retvalues = value; }
-    }
+    protected MockRpcManager(ReqrepManager rrm) : base(rrm) { }
 
-    public object[] ParamsOfInvoke {
-      get { return this._params; }
-      set { this._params = value; }
-    }
-
-    /**
-     * Use this method instead of RpcManager.GetInstance(Node) to init.
-     * A StructuredNode with random address is used inside. It's useless anyway.
-     */
-    public static MockRpcManager GetInstance() {
+    public new static MockRpcManager GetInstance(Node node) {
       if(_instance == null) {
-        Node n = new StructuredNode(new AHAddress(new RNGCryptoServiceProvider()));
-        ReqrepManager rrm = ReqrepManager.GetInstance(n);
+        ReqrepManager rrm = ReqrepManager.GetInstance(node);
         _instance = new MockRpcManager(rrm);
       }
       return _instance;
     }
     
-    public override void Invoke(ISender target, BlockingQueue q, string method,
-                              object[] args) {      
-      if (this._retvalues == null) {
-        throw new InvalidOperationException("Should use RetValsOfInvoke to set the return value first");
-      }
+    public override void Invoke(ISender target, Channel q, string method,
+                              object[] args) {
+      CurrentInvokeState.Params = args;
 
-      this._params = args;
-
-      Thread t = new Thread(this.AddStuffToBQ);
+      Thread t = new Thread(this.AddStuffToBQAndClose);
       object[] state = new object[] { q, target };
       t.Start(state);
     }
 
-    private void AddStuffToBQ(object ostate) {
+    private void AddStuffToBQAndClose(object ostate) {
       object[] state = (object[])ostate;
       BlockingQueue bq = (BlockingQueue)state[0];
       ISender target = (ISender)state[1];
-      foreach (object o in this._retvalues) {
+
+      foreach (object o in this.CurrentInvokeState.RetValues) {
+        if (CurrentInvokeState.EnqueueIntervalInMillisec >= 0) {
+          Thread.Sleep(CurrentInvokeState.EnqueueIntervalInMillisec);
+        }
         RpcResult rs = new RpcResult(target, o);
         bq.Enqueue(rs);
-      }      
-      //At least wait for a while for the caller to enter the waiting state
-      System.Threading.Thread.Sleep(50);
+      }
+
+      if (CurrentInvokeState.IntervalBetweenLastEnqueueAndClose >= 0) {
+        Thread.Sleep(CurrentInvokeState.IntervalBetweenLastEnqueueAndClose); 
+      }
       bq.Close();
     }
   }
@@ -410,21 +458,29 @@ namespace Brunet {
   public class XmlRpcManagerTest {
     IXmlRpcManager _rpc;
     MockRpcManager _mrm;
-    Thread _server;
+    XmlRpcManagerServer _server;
+    public readonly int Port = (new Random()).Next(10000, 65535);
 
     [TestFixtureSetUp]
-    [Ignore]
     public void InitFixture() {
-      _rpc = XmlRpcManagerClient.GetXmlRpcManager(true);
-      _mrm = MockRpcManager.GetInstance();
-      XmlRpcManager xm = new XmlRpcManager(_mrm);
-      _server = new Thread(XmlRpcManagerServer.StartXmlRpcManagerServer);
-      _server.Start(xm);
+      ConsoleTraceListener myWriter = new ConsoleTraceListener();
+      Debug.Listeners.Add(myWriter);
+      _rpc = XmlRpcManagerClient.GetXmlRpcManager("127.0.0.1", Port, true);
+      Node n = new StructuredNode(new AHAddress(new RNGCryptoServiceProvider()));
+      _mrm = MockRpcManager.GetInstance(n);
+      _server = new XmlRpcManagerServer(Port);
+      _server.Update(n, _mrm);
+      Debug.WriteLine(string.Format("Server started at {0}", Port));
     }
 
+    [TestFixtureTearDown]
+    public void TearDown() {
+      _server.Stop();
+    }
+    
     [SetUp]
     public void InitTest() {
-      this._mrm.ParamsOfInvoke = null;
+      _mrm.CurrentInvokeState = new MockRpcManager.InvokeState();
     }
 
     private string GetRandomNodeAddr() {
@@ -432,109 +488,110 @@ namespace Brunet {
       return addr.ToString();
     }
 
-    /**
-     * Would be the simplest case
-     */
-    [Test]    
-    [Ignore]
-    public void TestBoolRetVal_StringParams() {
-      _mrm.RetValsOfInvoke = new object[] { true };
-      string node = this.GetRandomNodeAddr();
-      object[] ret = this._rpc.proxy(node, 0, -1, "IgnoredMethodName", new object[] {"string1", "string2"});
-      Assert.AreEqual(1, ret.Length);
-      Assert.AreEqual(true, ret[0]);
-    }
-
-    [Test] 
-    [Ignore]
-    public void TestHashtableOfStringsRetVal_StringParams() {
-      Hashtable ht = new Hashtable();
-      ht.Add("key1", "value1");
-      ht.Add("key2", "value2");
-      _mrm.RetValsOfInvoke = new object[] { ht };
-      string node = this.GetRandomNodeAddr();
-      object[] ret = this._rpc.proxy(node,0, -1, "IgnoredMethodName", new object[] {"string1", "string2"});
-      Assert.AreEqual(1, ret.Length);
-      Hashtable actual = (Hashtable)ret[0];
-      Assert.AreEqual(2, actual.Count);
-      Assert.AreEqual("value1", actual["key1"]);
-      Assert.AreEqual("value2", actual["key2"]);
+    [Test]
+    public void TestLocalproxyWithPrimitiveRetValAndMultipleParams() {
+      _mrm.CurrentInvokeState.RetValues = new object[] { true };
+      object ret = this._rpc.localproxy("Foo", "str1", "str2");
+      Assert.AreEqual(true, (bool)ret);
+      ret = this._rpc.localproxy("Foo");
+      Assert.AreEqual(true, (bool)ret);
+      ret = this._rpc.localproxy("Foo", "str1", 132);
+      Assert.AreEqual(true, (bool)ret);
+      ret = this._rpc.localproxy("Foo", new object[] { "str1", 1} );
+      Assert.AreEqual(true, (bool)ret);
     }
 
     [Test]
-    [Ignore]
+    public void LocalProxyPassAndReturnStructs() {
+      Hashtable tb = new Hashtable();
+      tb.Add("key1", "value1");
+      tb.Add("key2", "value2");
+      XmlRpcStruct tb1 = new XmlRpcStruct();
+      tb1.Add("key1", "value1");
+      tb1.Add("key2", "value2");
+      _mrm.CurrentInvokeState.RetValues = new object[] { tb };
+      Hashtable actual = _rpc.localproxy("Foo", tb1) as Hashtable;
+      Assert.AreEqual(tb["key1"], actual["key1"]);
+      Assert.AreEqual(tb["key2"], actual["key2"]);
+      actual = _rpc.localproxy("Foo", "arg1", tb1) as Hashtable;
+      Assert.AreEqual(tb["key1"], actual["key1"]);
+      Assert.AreEqual(tb["key2"], actual["key2"]);
+    }
+
+    [Test]
+    public void LocalProxyReturnSimpleValue() {
+      _mrm.CurrentInvokeState.RetValues = new object[] { null };
+      string actual = _rpc.localproxy("Foo") as string;
+      Assert.AreEqual(string.Empty, actual);
+      _mrm.CurrentInvokeState.RetValues = new object[] { 4294967296 };
+      actual = _rpc.localproxy("Foo") as string;
+      Assert.AreEqual(Convert.ToString(4294967296) , actual);
+    }
+
+    [Test]
+    public void LocalProxyReturnComplexValue() {
+      _mrm.CurrentInvokeState.RetValues = new object[0];
+      string actual = _rpc.localproxy("Foo") as string;
+      Assert.AreEqual(string.Empty, actual);
+      IList l = new ArrayList();
+      l.Add(111);
+      l.Add("string");
+      _mrm.CurrentInvokeState.RetValues = new object[] { l };
+      IList actual_l = _rpc.localproxy("Foo", "arg1") as IList;
+      Assert.AreEqual(l[0], (int)actual_l[0]);
+      Assert.AreEqual(l[1], actual_l[1] as string);
+    }
+
+    [Test]
     public void TestHashtableComplex() {
       Hashtable expected = new Hashtable();
       Hashtable e_key1 = new Hashtable();
       e_key1.Add("key1", "value1");
+      //When use class as key, its ToString() string is put in XmlRpcStruct
       expected.Add(e_key1, e_key1);
-      _mrm.RetValsOfInvoke = new object[] { expected };
-      string node = this.GetRandomNodeAddr();
-      object[] ret = this._rpc.proxy(node, 0, -1, "IgnoredMethodName", new object[] {"string1", "string2"});
-      Assert.AreEqual(1, ret.Length);
-      Hashtable actual = (Hashtable)ret[0];      
+      _mrm.CurrentInvokeState.RetValues = new object[] { expected };
+      object ret = this._rpc.localproxy("Foo");
+      Hashtable actual = (Hashtable)ret;      
       Hashtable ht_val = (Hashtable)actual["CookComputing.XmlRpc.XmlRpcStruct"];
       Assert.AreEqual("value1", ht_val["key1"]);
     }
 
     [Test]
-    [Ignore]
     public void TestPrimitiveTypes() {
       ArrayList expected_values = new ArrayList();      
       MemBlock e_mb = MemBlock.Reference(Encoding.UTF8.GetBytes("test memblock"));
       expected_values.Add(e_mb);
       float e_f = (float)Math.PI;
-      object o = (double)e_f;      
-      expected_values.Add(e_f);
+      expected_values.Add((double)e_f);
       ushort e_sh = 11;
       expected_values.Add(e_sh);
       ulong e_long = 11111111111;
       expected_values.Add(e_long);
       uint e_ui = 34;
       expected_values.Add(e_ui);
-      _mrm.RetValsOfInvoke = expected_values.ToArray();
-      string node = this.GetRandomNodeAddr();
-      object[] ret = this._rpc.proxy(node, 0, -1, "IgnoredMethodName", new object[] {"string1", "string2"});
-      byte[] actual = Convert.FromBase64String((string)ret[0]);
+      _mrm.CurrentInvokeState.RetValues = expected_values.ToArray();
+      string target = this.GetRandomNodeAddr();
+      object[] ret = this._rpc.proxy(target, 3, -1, "Foo");
+      byte[] actual = (byte[])ret[0];
       Assert.IsTrue(e_mb.Equals(actual));
       float a_f = Convert.ToSingle((double)ret[1]);
       Assert.AreEqual(e_f, a_f);
     }
 
     [Test]
-    [Ignore]
-    public void TestListRetValue() {
-      IList expected = new ArrayList();
-      expected.Add("string");
-      Hashtable ht = new Hashtable();
-      ht.Add("key1", "data1");
-      expected.Add(ht);
-      _mrm.RetValsOfInvoke = new object[] { expected };
-      string node = this.GetRandomNodeAddr();
-      object[] ret = this._rpc.proxy(node, 0, -1, "IgnoredMethodName", new object[] {"string1", "string2"});
-    }
-
-    [Test]
-    [Ignore]
-    public void TestDhtGet() {
-      object[] expected_ret = new object[0];
-      _mrm.RetValsOfInvoke = expected_ret;
-      string node = this.GetRandomNodeAddr();
-      object[] ret = this._rpc.proxy(node, 0, -1, "dht.Get", new object[] { Encoding.UTF8.GetBytes("key1"), 1000, Encoding.UTF8.GetBytes("") });
-      object[] args = this._mrm.ParamsOfInvoke;
-      Assert.AreEqual(3, args.Length);
-      object o = args[2];
-      MemBlock mb = (MemBlock)o;
-      Console.WriteLine("MB: {0}", mb.ToBase32String());
-    }
-
-    [Test]
-    [Ignore]
-    public void TestWithException() {
-      string node = this.GetRandomNodeAddr();
+    [ExpectedException(typeof(XmlRpcFaultException))]
+    public void TestWithAdrException() {
       AdrException ex = new AdrException(11111, new Exception());
-      this._mrm.RetValsOfInvoke = new object[] { ex };
-      object[] ret = this._rpc.proxy(node, 0, -1, "dht.Get", new object[0]);
+      this._mrm.CurrentInvokeState.RetValues = new object[] { ex };
+      this._rpc.localproxy("Foo");
+    }
+
+    [Test]
+    [ExpectedException(typeof(XmlRpcFaultException))]
+    public void TestWithOtherException() {
+      Exception e = new ArgumentException("Testing message");
+      this._mrm.CurrentInvokeState.RetValues = new object[] { e };
+      this._rpc.localproxy("Foo");
     }
   }
 #endif
