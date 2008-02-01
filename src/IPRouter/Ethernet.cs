@@ -36,7 +36,7 @@ namespace Ipop {
       }
     }
 
-    public MemBlock ReceivePacket() {
+    public MemBlock Read() {
       byte[] packet = new byte[MTU + ETHER_HEADER_SIZE];
       int n = read_tap(tapFD, packet, packet.Length);
       if (n == 0 || n == -1) 
@@ -44,16 +44,12 @@ namespace Ipop {
       return MemBlock.Reference(packet, 0, n);
     }
 
-    public bool SendPacket(MemBlock l3Packet, int type, byte [] dstMacAddr) {
-      byte[] packet = new byte[l3Packet.Length + ETHER_HEADER_SIZE];
-      //Build the Ethernet header
-      Array.Copy(dstMacAddr, 0, packet, 0, ETHER_ADDR_LEN);
-      Array.Copy(routerMAC, 0, packet, ETHER_ADDR_LEN, ETHER_ADDR_LEN);
-      packet[2*ETHER_ADDR_LEN] = (byte) ((type >> 8) & 255);
-      packet[2*ETHER_ADDR_LEN + 1] = (byte) (type & 255);
-      Array.Copy(l3Packet, 0, packet, ETHER_HEADER_SIZE, l3Packet.Length);
-      int n = send_tap(tapFD, packet, packet.Length);
-      if (n != packet.Length)
+    public bool Write(MemBlock packet, EthernetPacket.Types type,
+                           MemBlock DestinationAddress) {
+      EthernetPacket ep = new EthernetPacket(DestinationAddress, routerMAC, 
+                                             type, packet);
+      int n = send_tap(tapFD, ep.Packet, ep.Packet.Length);
+      if (n != ep.Packet.Length)
         return false;
 
       return true;

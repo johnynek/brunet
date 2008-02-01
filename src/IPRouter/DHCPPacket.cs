@@ -1,3 +1,4 @@
+using Brunet;
 using System;
 using System.Collections;
 
@@ -28,13 +29,17 @@ namespace Ipop {
   }
 
   public class DHCPPacket {
-    public byte [] packet;
+    public IPPacket IPPacket;
     public DecodedDHCPPacket decodedPacket;
 
-    public DHCPPacket(byte [] packet) { this.packet = packet; }
+    public DHCPPacket(IPPacket IPPacket) {
+      this.IPPacket = IPPacket;
+      DecodePacket();
+    }
 
     public DHCPPacket(DecodedDHCPPacket packet) {
       this.decodedPacket = packet;
+      EncodePacket();
     }
 
     public void DecodePacket() {
@@ -44,7 +49,8 @@ namespace Ipop {
       this.decodedPacket.yiaddr = new byte[4];
       this.decodedPacket.siaddr = new byte[4];
       this.decodedPacket.chaddr = new byte[6];
-      int current = 28;
+      MemBlock packet = (new UDPPacket(IPPacket.Payload)).Payload;
+      int current = 0;
       this.decodedPacket.op = packet[current++];
       current++; /* htype should be 1 */
       current++; /* hlen should be 6 */
@@ -129,12 +135,8 @@ namespace Ipop {
             byte_list.Add((byte) option.byte_value[j]);
         }
       }
-      byte [] encodedPacket = new byte[268 + byte_list.Count + 1];
-      byte [] temp = GenerateHeader(encodedPacket.Length, 
-                       decodedPacket.SendFrom, decodedPacket.SendTo);
-      for (int i = 0; i < 28; i++)
-        encodedPacket[i] = temp[i];
-      int current = 28;
+      byte [] encodedPacket = new byte[240 + byte_list.Count + 1];
+      int current = 0;
       encodedPacket[current++] = this.decodedPacket.op;
       encodedPacket[current++] = 1; /* htype = ethernet */
       encodedPacket[current++] = 6; /* hlen = 6 bytes */
@@ -160,7 +162,7 @@ namespace Ipop {
       for(int i = 0; i < 6; i++)
         encodedPacket[current + i] = this.decodedPacket.chaddr[i];
       current += 6;
-      for(; current < 264; current++)
+      for(; current < 236; current++)
         encodedPacket[current] = 0;
       /* Magic Cookie */
       encodedPacket[current++] = 99;
@@ -168,64 +170,15 @@ namespace Ipop {
       encodedPacket[current++] = 83;
       encodedPacket[current++] = 99;
       byte [] temparray = (byte []) byte_list.ToArray(typeof(byte));
-      for(; current < encodedPacket.Length - 1; current++)
-        encodedPacket[current] = temparray[current - 268];
+      temparray.CopyTo(encodedPacket, current);
       encodedPacket[encodedPacket.Length - 1] = 255; /* End of Options */
-      packet = encodedPacket;
-      // Genereate the UdpCheckSum!
-//      int udp_checksum = DHCPPacket.udpChecksum(packet);
-//      DHCPPacket.half_to_bytes(udp_checksum, ref packet[26], ref packet[27]);
-    }
 
-    public byte [] GenerateHeader(int length, byte[] SendFrom, byte[] SendTo) {
-/*  00 means that the data needs to be generated, otherwise the data is static
-    Length of the datagram (ip header (20) + Length of UDP)
-    Header checksum (sum of all 16 bit words inverted)
-    Length UDP Header (8 bytes) + encapsulated data */
-      byte [] ip_header = new byte[28] {69, 16, 00, 00, 0, 0, 0, 0, 64, 17,
-        00, 00, SendFrom[0], SendFrom[1], SendFrom[2], SendFrom[3], SendTo[0],
-        SendTo[1], SendTo[2], SendTo[3], 00, 00, 00, 00, 00, 00, 00, 00};
-      byte [] udp_header = new byte[8] {0, 67, 0, 68, 00, 00, 0, 0};
-      int udp_length = length - 20;
-      int ip_length = length;
-      DHCPPacket.half_to_bytes(udp_length, ref udp_header[4], ref udp_header[5]);
-      DHCPPacket.half_to_bytes(ip_length, ref ip_header[2], ref ip_header[3]);
-      int checksum = DHCPPacket.getChecksum(ip_header);
-      DHCPPacket.half_to_bytes(checksum, ref ip_header[10], ref ip_header[11]);
-/*    Combine the two packets */
-      for(int i = 0; i < 8; i++)
-        ip_header[20 + i] = udp_header[i];
-      return ip_header;
-    }
-
-    public static void half_to_bytes(int half, ref byte lbyte, 
-      ref byte rbyte) {
-      rbyte = (byte) (half & 255);
-      lbyte = (byte) ((half >> 8) & 255);
-    }
-
-    public static int udpChecksum(byte[] data) {
-      int value = 0;
-      for(int i = 12; i < data.Length; i+=2) {
-        byte first = data[i];
-        byte second = (i+1 == data.Length) ? (byte) 0 : data[i+1];
-        value += (second + (first << 8));
-      }
-      value += 17 + data.Length - 20;
-      while(value>>16 > 0) {
-        value = (value & 0xFFFF) + (value >> 16);
-      }
-      return (0xFFFF & ~value);
-    }
-
-    public static int getChecksum(byte [] data) {
-      int value = 0;
-      for(int i = 0; i < data.Length; i+=2) {
-        byte first = data[i];
-        byte second = (i+1 == data.Length) ? (byte) 0 : data[i+1];
-        value += second + (first << 8);
-      }
-      return (0xFFFF - (value & 0xFFFF) - 2);
+      UDPPacket udppacket = new UDPPacket(67, 68,
+                                          MemBlock.Reference(encodedPacket));
+      IPPacket = new IPPacket((byte) IPPacket.Protocols.UDP,
+                                        decodedPacket.SendFrom,
+                                        decodedPacket.SendTo,
+                                        udppacket.Packet);
     }
 
     public void PrintDecodedPacket() {
@@ -271,11 +224,11 @@ namespace Ipop {
 
     public void PrintPacket() {
       int i = 0;
-      for(i = 0; i < this.packet.Length - 3; i+=4)
-        Console.Error.WriteLine("{0} {1} {2} {3}", this.packet[i], this.packet[i+1],
-          this.packet[i+2], this.packet[i+3]);
-          for(; i < this.packet.Length; i++)
-        Console.Error.WriteLine("{0}", this.packet[i]);
+      for(i = 0; i < IPPacket.Packet.Length - 3; i+=4)
+        Console.Error.WriteLine("{0} {1} {2} {3}", IPPacket.Packet[i], IPPacket.Packet[i+1],
+                                IPPacket.Packet[i+2], IPPacket.Packet[i+3]);
+      for(; i < IPPacket.Packet.Length; i++)
+        Console.Error.WriteLine("{0}", IPPacket.Packet[i]);
     }
   }
 }

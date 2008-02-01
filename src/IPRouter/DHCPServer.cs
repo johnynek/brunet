@@ -56,7 +56,6 @@ namespace Ipop {
         }
       }
       catch(Exception e) {
-        Console.WriteLine(e);
         packet.return_message = e.Message;
         return packet;
       }

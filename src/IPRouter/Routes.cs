@@ -27,7 +27,7 @@ namespace Ipop {
       _ipop_namespace = ipop_namespace;
     }
 
-    public Address GetAddress(IPAddress ip) {
+    public Address GetAddress(string ip) {
       Address addr = null;
       lock (_sync) {
         addr = (Address) _results[ip];
@@ -35,7 +35,7 @@ namespace Ipop {
       return addr;
     }
 
-    public void RouteMiss(IPAddress ip) {
+    public void RouteMiss(string ip) {
       lock(_sync) {
         if (_queued.Contains(ip)) {
           return;
@@ -44,7 +44,7 @@ namespace Ipop {
         ProtocolLog.WriteIf(IPOPLog.RoutingLog, String.Format(
           "Routes:  Adding {0} to queue.", ip));
         /*
-        * If we were already looking up this IPAddress, there
+        * If we were already looking up this string, there
         * would be a table entry, since there is not, start a
         * new lookup
         */
@@ -74,7 +74,7 @@ namespace Ipop {
 
     public void RouteMissCallback(Object o, EventArgs args) {
       Channel queue = (Channel) o;
-      IPAddress ip = (IPAddress) _mapping[queue];
+      string ip = (string) _mapping[queue];
       Address addr = null;
 
       try {

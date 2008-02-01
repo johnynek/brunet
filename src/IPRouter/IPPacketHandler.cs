@@ -19,20 +19,22 @@ namespace Ipop
 
     public void HandleData(MemBlock p, ISender from, object state)
     {
-      IPAddress destAddr = IPPacketParser.GetDestAddr(p);
+      IPPacket ipp = new IPPacket(p);
 
       if(IPOPLog.PacketLog.Enabled)
         ProtocolLog.Write(IPOPLog.PacketLog, String.Format(
           "Incoming packet:: IP src: {0}, IP dst: {1}, p2p " +
-          "from: {2}, size: {3}", IPPacketParser.GetSrcAddr(p), destAddr, 
+          "from: {2}, size: {3}", ipp.SSourceIP, ipp.SDestinationIP,
           from, p.Length));
 
-      if (!destAddr.Equals(_node.ip))
+      if (!ipp.SDestinationIP.Equals(_node.ip)) {
         ProtocolLog.WriteIf(IPOPLog.PacketLog, String.Format(
-          "Incoming packet not for me {0}:: IP dst: {1}", _node.ip, destAddr));
-      else if(_node.mac != null && !_node.ether.SendPacket(p, 0x800, _node.mac))
+          "Incoming packet not for me {0}:: IP dst: {1}", _node.ip, ipp.SDestinationIP));
+      }
+      else if(_node.mac != null && !_node.ether.Write(p, EthernetPacket.Types.IP, _node.mac)) {
         ProtocolLog.WriteIf(IPOPLog.PacketLog,
                             "Error writing packet from ethernet");
+      }
     }
 
     public void Send(AHAddress target, MemBlock p) {

@@ -26,9 +26,9 @@ namespace Ipop {
     public IPHandler iphandler;
     public Routes routes;
 
-    private IPAddress _ip;
+    private string _ip;
     // Need a mechanism to update the _ipop_info.ip
-    public IPAddress ip {
+    public string ip {
       get { return _ip; }
       set {
         _ip = value;
@@ -114,7 +114,7 @@ namespace Ipop {
       nodeMappings.Add(node);
     }
 
-    public NodeMapping GetNode(IPAddress ip) {
+    public NodeMapping GetNode(string ip) {
       foreach (NodeMapping node in nodeMappings) {
         if(node.ip.Equals(ip))
           return node;
@@ -122,7 +122,7 @@ namespace Ipop {
       return null;
     }
 
-    public bool RemoveNodeMapping(IPAddress ip) {
+    public bool RemoveNodeMapping(string ip) {
       for (int i = 0; i < nodeMappings.Count; i++) {
         if(((NodeMapping) nodeMappings[i]).ip.Equals(ip)) {
           nodeMappings.Remove(i);
