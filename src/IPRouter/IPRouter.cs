@@ -19,6 +19,7 @@ namespace Ipop {
     private static byte []unicastMAC = new byte[]{0xFE, 0xFD, 0, 0, 0, 0};
     private static byte []broadcastMAC = new byte[]{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     private static bool in_dht;
+    private static DhtDNS DhtDNS;
 
     private static bool ARPHandler(byte []packet) {
       string TargetIPAddress = "", SenderIPAddress = "";
@@ -58,7 +59,8 @@ namespace Ipop {
       else {
         Array.Copy(packet, 14, replyPacket, 24, 4);
       }
-      node.ether.Write(replyPacket, EthernetPacket.Types.ARP, dstMACAddr);
+      node.ether.Write(MemBlock.Reference(replyPacket), 
+                       EthernetPacket.Types.ARP, dstMACAddr);
       return true;
     }
 
@@ -78,6 +80,9 @@ namespace Ipop {
           in_dht = true;
           ThreadPool.QueueUserWorkItem(new WaitCallback(ProcessDHCP), ipp);
         }
+      }
+      else if(ipp.DestinationPort == 53 && ipp.DestinationIP[3] == 255) {
+        ThreadPool.QueueUserWorkItem(new WaitCallback(DhtDNS.LookUp), ipp);
       }
       else {
         AHAddress target = (AHAddress) node.routes.GetAddress(ipp.SDestinationIP);
@@ -179,6 +184,7 @@ namespace Ipop {
       catch{}
 
       node.BrunetStart();
+      DhtDNS = new DhtDNS(node);
       in_dht = false;
 
       bool ethernet = false;

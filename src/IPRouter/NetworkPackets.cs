@@ -160,7 +160,10 @@ namespace Ipop {
         byte second = header[i+1];
         value += second + (first << 8);
       }
-      return (0xFFFF - (value & 0xFFFF) - 2);
+      while(value >> 16 > 0) {
+        value = (value & 0xFFFF) + (value >> 16);
+      }
+      return ~value;
     }
   }
 

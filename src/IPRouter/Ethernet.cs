@@ -44,7 +44,7 @@ namespace Ipop {
       return MemBlock.Reference(packet, 0, n);
     }
 
-    public bool Write(MemBlock packet, EthernetPacket.Types type,
+    public bool Write(ICopyable packet, EthernetPacket.Types type,
                            MemBlock DestinationAddress) {
       EthernetPacket ep = new EthernetPacket(DestinationAddress, routerMAC, 
                                              type, packet);

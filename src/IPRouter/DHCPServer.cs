@@ -69,7 +69,8 @@ namespace Ipop {
       packet.options.Add(15, (DHCPOption) CreateOption(15, "ipop"));
 //	The following two are needed for dhcp to "succeed" in Vista, but they break Linux
 //      packet.options.Add(3, (DHCPOption) CreateOption(3, reply.ip));
-//      packet.options.Add(6, (DHCPOption) CreateOption(6, reply.ip));
+      byte[] tmp = new byte[4] {reply.ip[0], reply.ip[1], reply.ip[2], 255};
+      packet.options.Add(6, (DHCPOption) CreateOption(6, tmp));
       packet.options.Add(DHCPOptions.SUBNET_MASK, (DHCPOption) 
           CreateOption(DHCPOptions.SUBNET_MASK, reply.netmask));
       packet.options.Add(DHCPOptions.LEASE_TIME, (DHCPOption) 

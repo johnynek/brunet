@@ -178,7 +178,7 @@ namespace Ipop {
       IPPacket = new IPPacket((byte) IPPacket.Protocols.UDP,
                                         decodedPacket.SendFrom,
                                         decodedPacket.SendTo,
-                                        udppacket.Packet);
+                                        udppacket.ICPacket);
     }
 
     public void PrintDecodedPacket() {
