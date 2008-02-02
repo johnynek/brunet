@@ -15,11 +15,11 @@ namespace Ipop {
   public class IPRouter {
     private static string ConfigFile;
     public static IPRouterConfig config;
-    public static NodeMapping node;
-    private static byte []unicastMAC = new byte[]{0xFE, 0xFD, 0, 0, 0, 0};
-    private static byte []broadcastMAC = new byte[]{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-    private static bool in_dht;
-    private static DhtDNS DhtDNS;
+    protected static IpopNode _node;
+    protected static byte []unicastMAC = new byte[]{0xFE, 0xFD, 0, 0, 0, 0};
+    protected static byte []broadcastMAC = new byte[]{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    protected static bool in_dhcp;
+    protected static DhtDNS _dhtdns;
 
     private static bool ARPHandler(byte []packet) {
       string TargetIPAddress = "", SenderIPAddress = "";
@@ -31,7 +31,7 @@ namespace Ipop {
       TargetIPAddress += packet[27].ToString();
       /* Must return nothing if the node is checking availability of IPs */
       /* Or he is looking himself up. */
-      if((node.ip != null) && node.ip.Equals(IPAddress.Parse(TargetIPAddress)) ||
+      if((_node.IP != null) && _node.IP.Equals(IPAddress.Parse(TargetIPAddress)) ||
         SenderIPAddress.Equals("255.255.255.255") ||
         SenderIPAddress.Equals("0.0.0.0")) {
         return false;
@@ -59,42 +59,43 @@ namespace Ipop {
       else {
         Array.Copy(packet, 14, replyPacket, 24, 4);
       }
-      node.ether.Write(MemBlock.Reference(replyPacket), 
+      _node.Ether.Write(MemBlock.Reference(replyPacket), 
                        EthernetPacket.Types.ARP, dstMACAddr);
       return true;
     }
 
     private static void IPHandler(IPPacket ipp) {
+      UDPPacket udpp = new UDPPacket(ipp.Payload);
       if(IPOPLog.PacketLog.Enabled) {
         ProtocolLog.Write(IPOPLog.PacketLog, String.Format(
-          "Outgoing {0} packet::IP src: {1}:{2}, IP dst: {3}:{4}", 
-          ipp.Protocol, ipp.SSourceIP, ipp.SourcePort,
-          ipp.SDestinationIP, ipp.DestinationPort));
+                          "Outgoing {0} packet::IP src: {1}:{2}, IP dst: {3}:{4}", 
+                          ipp.Protocol, ipp.SSourceIP, udpp.SourcePort,
+                          ipp.SDestinationIP, udpp.DestinationPort));
       }
 
-      if(ipp.SourcePort == 68 && ipp.DestinationPort == 67 && 
-         ipp.Protocol == (byte) IPPacket.Protocols.UDP) {
+      if(udpp.SourcePort == 68 && udpp.DestinationPort == 67 && 
+        ipp.Protocol == (byte) IPPacket.Protocols.UDP) {
         ProtocolLog.WriteIf(IPOPLog.DHCPLog, String.Format(
-                            "DHCP packet at time: {0}, status: {1}", DateTime.Now, in_dht));
-        if(!in_dht) {
-          in_dht = true;
+                            "DHCP packet at time: {0}, status: {1}", DateTime.Now, in_dhcp));
+        if(!in_dhcp) {
+          in_dhcp = true;
           ThreadPool.QueueUserWorkItem(new WaitCallback(ProcessDHCP), ipp);
         }
       }
-      else if(ipp.DestinationPort == 53 && ipp.DestinationIP[3] == 255) {
-        ThreadPool.QueueUserWorkItem(new WaitCallback(DhtDNS.LookUp), ipp);
+      else if(udpp.DestinationPort == 53 && ipp.DestinationIP[3] == 255) {
+        ThreadPool.QueueUserWorkItem(new WaitCallback(_dhtdns.LookUp), ipp);
       }
       else {
-        AHAddress target = (AHAddress) node.routes.GetAddress(ipp.SDestinationIP);
+        AHAddress target = (AHAddress) _node.Routes.GetAddress(ipp.SDestinationIP);
         if (target == null) {
-          node.routes.RouteMiss(ipp.SDestinationIP);
+          _node.Routes.RouteMiss(ipp.SDestinationIP);
         }
         else {
           if(IPOPLog.PacketLog.Enabled) {
             ProtocolLog.Write(IPOPLog.PacketLog, String.Format(
-                            "Brunet destination ID: {0}", target));
+                                  "Brunet destination ID: {0}", target));
           }
-          node.iphandler.Send(target, ipp.Packet);
+          _node.IPHandler.Send(target, ipp.Packet);
         }
       }
     }
@@ -104,7 +105,7 @@ namespace Ipop {
       DHCPPacket dhcpPacket = new DHCPPacket(ipp);
       dhcpPacket.decodedPacket.brunet_namespace = config.brunet_namespace;
       dhcpPacket.decodedPacket.ipop_namespace = config.ipop_namespace;
-      dhcpPacket.decodedPacket.NodeAddress = node.address.ToString();
+      dhcpPacket.decodedPacket.NodeAddress = _node.Address.ToString();
 
       try {
         dhcpPacket.decodedPacket.yiaddr =
@@ -116,7 +117,7 @@ namespace Ipop {
       /* DHCP Server returns our incoming packet, which we decode, if it
           is successful, we continue, otherwise we fail and print out a message */
       DecodedDHCPPacket drpacket = 
-          node.dhcpClient._dhcp_server.SendMessage(dhcpPacket.decodedPacket);
+          _node.DHCPClient._dhcp_server.SendMessage(dhcpPacket.decodedPacket);
       string response = drpacket.return_message;
 
       if(response == "Success") {
@@ -128,25 +129,25 @@ namespace Ipop {
         string newNetmask = IPOP_Common.BytesToString(((DHCPOption)
           drpacket.options[DHCPOptions.SUBNET_MASK]).byte_value, '.');
 
-        if(newAddress != node.ip || node.netmask !=  newNetmask) {
-          node.netmask = newNetmask;
-          node.ip = newAddress;
+        if(newAddress != _node.IP || _node.Netmask !=  newNetmask) {
+          _node.Netmask = newNetmask;
+          _node.IP = newAddress;
           ProtocolLog.WriteIf(IPOPLog.DHCPLog, String.Format(
-            "DHCP:  IP Address changed to {0}", node.ip));
+                              "DHCP:  IP Address changed to {0}", _node.IP));
           config.AddressData = new AddressInfo();
           config.AddressData.IPAddress = newAddress;
-          config.AddressData.Netmask = node.netmask;
+          config.AddressData.Netmask = _node.Netmask;
           IPRouterConfigHandler.Write(ConfigFile, config);
 // This is currently broken
-//            node.brunet.UpdateTAAuthorizer();
+//            _node.Brunet.UpdateTAAuthorizer();
         }
-        node.ether.Write(returnPacket.IPPacket.Packet, EthernetPacket.Types.IP, node.mac);
+        _node.Ether.Write(returnPacket.IPPacket.Packet, EthernetPacket.Types.IP, _node.MAC);
       }
       else {
         ProtocolLog.WriteIf(IPOPLog.DHCPLog, String.Format(
           "The DHCP Server has a message to share with you...\n" + response));
       }
-      in_dht = false;
+      in_dhcp = false;
     }
 
     public static void Main(string []args) {
@@ -167,32 +168,30 @@ namespace Ipop {
         IPRouterConfigHandler.Write(ConfigFile, config);
       }
 
-      if(OSDependent.OSVersion == OSDependent.Linux) {
-        new LinuxShutdown();
-      }
-
       ProtocolLog.WriteIf(IPOPLog.BaseLog, String.Format(
         "IPRouter starting up at time: {0}", DateTime.Now));
 
-      node = new NodeMapping(config.ipop_namespace, config.brunet_namespace,
+      _node = new IpopNode(config.ipop_namespace, config.brunet_namespace,
                              (AHAddress) AddressParser.Parse(config.NodeAddress),
                             new Ethernet(config.device, unicastMAC));
+
+      if(OSDependent.OSVersion == OSDependent.Linux) {
+        new LinuxShutdown(_node);
+      }
+
       try {
-        node.netmask = config.AddressData.Netmask;
-        node.ip = config.AddressData.IPAddress;
+        _node.Netmask = config.AddressData.Netmask;
+        _node.IP = config.AddressData.IPAddress;
       }
       catch{}
 
-      node.BrunetStart();
-      DhtDNS = new DhtDNS(node);
-      in_dht = false;
-
+      in_dhcp = false;
       bool ethernet = false;
       // Tap reading loop
       while(true) {
         EthernetPacket ep;
         try {
-          ep = new EthernetPacket(node.ether.Read());
+          ep = new EthernetPacket(_node.Ether.Read());
         }
         catch {
           ProtocolLog.WriteIf(IPOPLog.BaseLog, "error reading packet from ethernet");
@@ -202,13 +201,8 @@ namespace Ipop {
   /* We should really be checking each and every packet, but for simplicity sake
      we will only check until we are satisfied! */
         if(!ethernet) {
-          node.mac = ep.SourceAddress;
+          _node.MAC = ep.SourceAddress;
           ethernet = true;
-        }
-
-        // Maybe the node is sleeping now...
-        if(node.brunet == null) {
-          continue;
         }
 
         switch (ep.Type) {

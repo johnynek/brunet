@@ -8,12 +8,12 @@ using System.Net.Sockets;
 
 namespace Ipop {
   public class DhtDNS {
-    NodeMapping _node;
+    protected IpopNode _node;
     object _sync = new object();
     Cache dns_a = new Cache(100);
     Cache dns_ptr = new Cache(100);
 
-    public DhtDNS(NodeMapping node) {
+    public DhtDNS(IpopNode node) {
       _node = node;
     }
 
@@ -45,7 +45,7 @@ namespace Ipop {
           qname_response = (string) dns_a[qname];
           if(qname_response == null) {
             try {
-              qname_response = _node.dht.Get(qname)[0].valueString;
+              qname_response = _node.Dht.Get(qname)[0].valueString;
             }
             catch {
               throw new Exception("Dht does not contain a record for " + qname);
@@ -71,7 +71,7 @@ namespace Ipop {
                                          req_udpp.SourcePort, res_payload);
       IPPacket res_ipp = new IPPacket((byte) IPPacket.Protocols.UDP,
                  req_ipp.DestinationIP, req_ipp.SourceIP, res_udpp.ICPacket);
-      _node.ether.Write(res_ipp.ICPacket, EthernetPacket.Types.IP, _node.mac);
+      _node.Ether.Write(res_ipp.ICPacket, EthernetPacket.Types.IP, _node.MAC);
     }
 
   /*

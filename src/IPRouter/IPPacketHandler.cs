@@ -10,11 +10,11 @@ namespace Ipop
 {
   public class IPHandler: IDataHandler
   {
-    private NodeMapping _node;
+    protected IpopNode _node;
 
-    public IPHandler(NodeMapping node) {
+    public IPHandler(IpopNode node) {
       _node = node;
-      _node.brunet.GetTypeSource(PType.Protocol.IP).Subscribe(this, null);
+      _node.Brunet.GetTypeSource(PType.Protocol.IP).Subscribe(this, null);
     }
 
     public void HandleData(MemBlock p, ISender from, object state)
@@ -27,18 +27,18 @@ namespace Ipop
           "from: {2}, size: {3}", ipp.SSourceIP, ipp.SDestinationIP,
           from, p.Length));
 
-      if (!ipp.SDestinationIP.Equals(_node.ip)) {
+      if (!ipp.SDestinationIP.Equals(_node.IP)) {
         ProtocolLog.WriteIf(IPOPLog.PacketLog, String.Format(
-          "Incoming packet not for me {0}:: IP dst: {1}", _node.ip, ipp.SDestinationIP));
+          "Incoming packet not for me {0}:: IP dst: {1}", _node.IP, ipp.SDestinationIP));
       }
-      else if(_node.mac != null && !_node.ether.Write(p, EthernetPacket.Types.IP, _node.mac)) {
+      else if(_node.MAC != null && !_node.Ether.Write(p, EthernetPacket.Types.IP, _node.MAC)) {
         ProtocolLog.WriteIf(IPOPLog.PacketLog,
                             "Error writing packet from ethernet");
       }
     }
 
     public void Send(AHAddress target, MemBlock p) {
-      ISender s = new AHExactSender(_node.brunet, target);
+      ISender s = new AHExactSender(_node.Brunet, target);
       s.Send(new CopyList(PType.Protocol.IP, p));
     }
   }

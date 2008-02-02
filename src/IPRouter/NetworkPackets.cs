@@ -1,24 +1,62 @@
 using Brunet;
 
 namespace Ipop {
-  public class EthernetPacket {
+  public abstract class NetworkPacket {
+    protected ICopyable _icpacket, _icpayload;
+    public ICopyable ICPacket { get { return _icpacket; } }
+    public ICopyable ICPayload { get { return _icpayload; } }
+
+    protected MemBlock _packet, _payload;
+    public MemBlock Packet {
+      get {
+        if(_packet == null) {
+          if(_icpacket is MemBlock) {
+            _packet = (MemBlock) _icpacket;
+          }
+          else {
+            byte[] tmp = new byte[_icpacket.Length];
+            _icpacket.CopyTo(tmp, 0);
+            _packet = MemBlock.Reference(tmp);
+          }
+        }
+        return _packet;
+      }
+    }
+
+    public MemBlock Payload {
+      get {
+        if(_payload == null) {
+          if(_icpayload is MemBlock) {
+            _payload = (MemBlock) _icpayload;
+          }
+          else {
+            byte[] tmp = new byte[_icpayload.Length];
+            _icpayload.CopyTo(tmp, 0);
+            _payload = MemBlock.Reference(tmp);
+          }
+        }
+        return _payload;
+      }
+    }
+  }
+
+  public class EthernetPacket: NetworkPacket {
     /*
       Destination Address - 6 bytes
       Source Address - 6 bytes
       Type - 2 bytes
     */
 
-    public readonly MemBlock Packet, DestinationAddress, SourceAddress,
-        Payload;
+    public readonly MemBlock DestinationAddress, SourceAddress;
     public enum Types { IP = 0x800, ARP = 0x806 }
     public readonly int Type;
 
     public EthernetPacket(MemBlock Packet) {
-      this.Packet = Packet;
+      _icpacket = _packet = Packet;
       DestinationAddress = Packet.Slice(0, 6);
       SourceAddress = Packet.Slice(6, 6);
       Type = (Packet[12] << 8) | Packet[13];
-      Payload = Packet.Slice(14);
+      _icpayload = _payload = Packet.Slice(14);
     }
 
     public EthernetPacket(MemBlock DestinationAddress, MemBlock SourceAddress,
@@ -33,16 +71,16 @@ namespace Ipop {
       packet[13] = (byte) ((int) Type & 0xFF);
 
       Payload.CopyTo(packet, 14);
-      Packet = MemBlock.Reference(packet);
+      _icpacket = _packet = MemBlock.Reference(packet);
 
       this.DestinationAddress = Packet.Slice(0, 6);
       this.SourceAddress = Packet.Slice(6, 6);
       this.Type = (Packet[12] << 8) | Packet[13];
-      this.Payload = Packet.Slice(14);
+      _icpayload = _payload = Packet.Slice(14);
     }
   }
 
-  public class IPPacket {
+  public class IPPacket: NetworkPacket {
     /*
       Version - 4 bits - Format =  4 - IP Protocol
       IHL - 4 bits - Length of IP Header in 32-bit words = 5
@@ -80,42 +118,15 @@ namespace Ipop {
       }
     }
 
-    public readonly int SourcePort, DestinationPort;
-    public enum Protocols { UDP = 17 };
+    public enum Protocols { IGMP = 2, UDP = 17 };
     public readonly byte Protocol;
-    public readonly ICopyable ICPacket, ICPayload;
-    protected MemBlock _packet, _payload;
-    public MemBlock Packet {
-      get {
-        if(_packet == null) {
-          byte[] tmp = new byte[ICPacket.Length];
-          ICPacket.CopyTo(tmp, 0);
-          _packet = MemBlock.Reference(tmp);
-        }
-        return _packet;
-      }
-    }
-
-    public MemBlock Payload {
-      get {
-        if(_payload == null) {
-          byte[] tmp = new byte[ICPayload.Length];
-          ICPayload.CopyTo(tmp, 0);
-          _payload = MemBlock.Reference(tmp);
-        }
-        return _payload;
-      }
-    }
 
     public IPPacket(MemBlock Packet) {
-      ICPacket = _packet = Packet;
+      _icpacket = _packet = Packet;
       Protocol = Packet[9];
       SourceIP = Packet.Slice(12, 4);
       DestinationIP = Packet.Slice(16, 4);
-      // These are not official but are  common
-      SourcePort = (Packet[20] << 8) | Packet[21];
-      DestinationPort = (Packet[22] << 8) | Packet[23];
-      ICPayload = _payload = Packet.Slice(20);
+      _icpayload = _payload = Packet.Slice(20);
     }
 
     public IPPacket(byte Protocol, MemBlock SourceIP, MemBlock DestinationIP,
@@ -145,12 +156,12 @@ namespace Ipop {
       header[11] = (byte) (checksum & 0xFF);
 
       MemBlock Header = MemBlock.Reference(header);
-      ICPacket = new CopyList(Header, Payload);
+      _icpacket = new CopyList(Header, Payload);
 
       this.Protocol = Protocol;
       this.SourceIP = SourceIP;
       this.DestinationIP = DestinationIP;
-      ICPayload = Payload;
+      _icpayload = Payload;
     }
 
     protected int GenerateIPHeaderChecksum(byte[] header) {
@@ -167,7 +178,7 @@ namespace Ipop {
     }
   }
 
-  public class UDPPacket {
+  public class UDPPacket: NetworkPacket {
     /*
       SourcePort - 16 bits
       DestinationPort - 16 bits
@@ -177,35 +188,11 @@ namespace Ipop {
 
     public readonly int SourcePort, DestinationPort;
 
-    public readonly ICopyable ICPacket, ICPayload;
-    protected MemBlock _packet, _payload;
-    public MemBlock Packet {
-      get {
-        if(_packet == null) {
-          byte[] tmp = new byte[ICPacket.Length];
-          ICPacket.CopyTo(tmp, 0);
-          _packet = MemBlock.Reference(tmp);
-        }
-        return _packet;
-      }
-    }
-
-    public MemBlock Payload {
-      get {
-        if(_payload == null) {
-          byte[] tmp = new byte[ICPayload.Length];
-          ICPayload.CopyTo(tmp, 0);
-          _payload = MemBlock.Reference(tmp);
-        }
-        return _payload;
-      }
-    }
-
     public UDPPacket(MemBlock packet) {
-      ICPacket = _packet = packet;
+      _icpacket = _packet = packet;
       SourcePort = (packet[0] << 8) | packet[1];
       DestinationPort = (packet[2] << 8) | packet[3];
-      ICPayload = _payload = packet.Slice(8);
+      _icpayload = _payload = packet.Slice(8);
     }
 
 
@@ -221,8 +208,8 @@ namespace Ipop {
       // Checksums are disabled!
       header[6] = (byte) 0;
       header[7] = (byte) 0;
-      ICPacket = new CopyList(MemBlock.Reference(header), Payload);
-      ICPayload = Payload;
+      _icpacket = new CopyList(MemBlock.Reference(header), Payload);
+      _icpayload = Payload;
     }
 
     protected int GenerateUDPChecksum() {
@@ -232,11 +219,28 @@ namespace Ipop {
         byte second = (i+1 == Packet.Length) ? (byte) 0 : Packet[i+1];
         value += (second + (first << 8));
       }
-      value += 17 + Packet.Length - 20;
+      value += 17 + Packet.Length;
       while(value>>16 > 0) {
         value = (value & 0xFFFF) + (value >> 16);
       }
       return (0xFFFF & ~value);
+    }
+  }
+
+  public class IGMPPacket: NetworkPacket {
+    public enum Types { Join = 0x16, Leave = 0x17};
+    public readonly byte Type;
+    public readonly MemBlock GroupAddress;
+
+    public IGMPPacket(MemBlock packet) {
+      _icpacket = _packet = packet;
+      Type = packet[0];
+      GroupAddress = packet.Slice(4, 4);
+      _icpayload = _payload = packet.Slice(8);
+    }
+
+    public IGMPPacket(byte Type, MemBlock GroupAddress) {
+//      byte[] header = new byte[8];
     }
   }
 }
