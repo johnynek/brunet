@@ -18,6 +18,7 @@ namespace Ipop {
     public readonly Routes Routes;
     public readonly StructuredNode Brunet;
     public readonly IpopInformation IpopInfo;
+    public readonly DhtDNS DhtDNS;
 
     private string _ip;
     // Need a mechanism to update the _ipop_info.ip
@@ -48,6 +49,7 @@ namespace Ipop {
       IPHandler = new IPHandler(this);
       Routes = new Routes(Dht, ipop_namespace);
       DHCPClient = new DhtDHCPClient(Dht);
+      DhtDNS = new DhtDNS(this);
     }
   }
 }

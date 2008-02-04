@@ -22,6 +22,7 @@ namespace Ipop {
     public byte [] last_ip;
     public string brunet_namespace;
     public string ipop_namespace;
+    public string hostname;
     public string return_message;
     public string NodeAddress;
     public byte[] SendTo = new byte[4] {255, 255, 255, 255};

@@ -27,6 +27,7 @@ namespace Ipop {
   }
 
   public class AddressInfo {
+    public string Hostname;
     public string IPAddress;
     public string Netmask;
   }

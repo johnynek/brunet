@@ -19,7 +19,6 @@ namespace Ipop {
     protected static byte []unicastMAC = new byte[]{0xFE, 0xFD, 0, 0, 0, 0};
     protected static byte []broadcastMAC = new byte[]{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     protected static bool in_dhcp;
-    protected static DhtDNS _dhtdns;
 
     private static bool ARPHandler(byte []packet) {
       string TargetIPAddress = "", SenderIPAddress = "";
@@ -31,7 +30,7 @@ namespace Ipop {
       TargetIPAddress += packet[27].ToString();
       /* Must return nothing if the node is checking availability of IPs */
       /* Or he is looking himself up. */
-      if((_node.IP != null) && _node.IP.Equals(IPAddress.Parse(TargetIPAddress)) ||
+      if((_node.IP != null) && _node.IP.Equals(TargetIPAddress) ||
         SenderIPAddress.Equals("255.255.255.255") ||
         SenderIPAddress.Equals("0.0.0.0")) {
         return false;
@@ -83,7 +82,7 @@ namespace Ipop {
         }
       }
       else if(udpp.DestinationPort == 53 && ipp.DestinationIP[3] == 255) {
-        ThreadPool.QueueUserWorkItem(new WaitCallback(_dhtdns.LookUp), ipp);
+        ThreadPool.QueueUserWorkItem(new WaitCallback(_node.DhtDNS.LookUp), ipp);
       }
       else {
         AHAddress target = (AHAddress) _node.Routes.GetAddress(ipp.SDestinationIP);
@@ -106,12 +105,17 @@ namespace Ipop {
       dhcpPacket.decodedPacket.brunet_namespace = config.brunet_namespace;
       dhcpPacket.decodedPacket.ipop_namespace = config.ipop_namespace;
       dhcpPacket.decodedPacket.NodeAddress = _node.Address.ToString();
-
-      try {
-        dhcpPacket.decodedPacket.yiaddr =
-          IPAddress.Parse(config.AddressData.IPAddress).GetAddressBytes();
+      if(config.AddressData == null) {
+        config.AddressData = new AddressInfo();
       }
-      catch {}
+      else {
+        dhcpPacket.decodedPacket.hostname = config.AddressData.Hostname;
+        try {
+          dhcpPacket.decodedPacket.yiaddr =
+            IPAddress.Parse(config.AddressData.IPAddress).GetAddressBytes();
+        }
+        catch {}
+      }
 
 
       /* DHCP Server returns our incoming packet, which we decode, if it
@@ -134,7 +138,6 @@ namespace Ipop {
           _node.IP = newAddress;
           ProtocolLog.WriteIf(IPOPLog.DHCPLog, String.Format(
                               "DHCP:  IP Address changed to {0}", _node.IP));
-          config.AddressData = new AddressInfo();
           config.AddressData.IPAddress = newAddress;
           config.AddressData.Netmask = _node.Netmask;
           IPRouterConfigHandler.Write(ConfigFile, config);

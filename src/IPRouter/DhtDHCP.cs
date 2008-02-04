@@ -41,6 +41,9 @@ namespace Ipop {
             res = false;
           }
           if(res) {
+            if(packet.hostname != null) {
+              _dht.Put(packet.hostname + DhtDNS.DNS_SUFFIX, str_addr, leasetime);
+            }
             _dht.Put((string) packet.NodeAddress, key + "|" + DateTime.Now.Ticks, leasetime);
             break;
           }

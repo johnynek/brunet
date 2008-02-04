@@ -1,5 +1,5 @@
-<!-- This config should be used unless you've received confirmation from David Wolinsky to use the other.  Obviously we have limited control, but if you use the other Condor_WOW namespace without receiving confirmation first, you could be impeding productivity. -->
 <?xml version="1.0" encoding="utf-8"?>
+<!-- This config should be used unless you've received confirmation from David Wolinsky to use the other.  Obviously we have limited control, but if you use the other Condor_WOW namespace without receiving confirmation first, you could be impeding productivity. -->
 <IPRouterConfig xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
   <brunet_namespace>DhtFuse26</brunet_namespace>
   <RemoteTAs>
