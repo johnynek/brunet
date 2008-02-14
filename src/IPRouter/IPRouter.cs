@@ -72,19 +72,28 @@ namespace Ipop {
                           ipp.SDestinationIP, udpp.DestinationPort));
       }
 
-      if(udpp.SourcePort == 68 && udpp.DestinationPort == 67 && 
-        ipp.Protocol == (byte) IPPacket.Protocols.UDP) {
-        ProtocolLog.WriteIf(IPOPLog.DHCPLog, String.Format(
-                            "DHCP packet at time: {0}, status: {1}", DateTime.Now, in_dhcp));
-        if(!in_dhcp) {
-          in_dhcp = true;
-          ThreadPool.QueueUserWorkItem(new WaitCallback(ProcessDHCP), ipp);
+      if(ipp.DestinationIP[0] >= 224 && ipp.DestinationIP[0] <= 239) {
+        ThreadPool.QueueUserWorkItem(new WaitCallback(HandleMulticast), ipp);
+      }
+
+      switch(ipp.Protocol) {
+        case (byte) IPPacket.Protocols.UDP:
+          if(udpp.SourcePort == 68 && udpp.DestinationPort == 67) {
+            ProtocolLog.WriteIf(IPOPLog.DHCPLog, String.Format(
+              "DHCP packet at time: {0}, status: {1}", DateTime.Now, in_dhcp));
+            if(!in_dhcp) {
+            in_dhcp = true;
+            ThreadPool.QueueUserWorkItem(HandleDHCP, ipp);
+          }
         }
-      }
-      else if(udpp.DestinationPort == 53 && ipp.DestinationIP[3] == 255) {
-        ThreadPool.QueueUserWorkItem(new WaitCallback(_node.DhtDNS.LookUp), ipp);
-      }
-      else {
+        else if(udpp.DestinationPort == 53 && ipp.DestinationIP[3] == 255) {
+          ThreadPool.QueueUserWorkItem(_node.DhtDNS.LookUp, ipp);
+        }
+        else {
+          goto default;
+        }
+        break;
+      default:
         AHAddress target = (AHAddress) _node.Routes.GetAddress(ipp.SDestinationIP);
         if (target == null) {
           _node.Routes.RouteMiss(ipp.SDestinationIP);
@@ -96,10 +105,11 @@ namespace Ipop {
           }
           _node.IPHandler.Send(target, ipp.Packet);
         }
+        break;
       }
     }
 
-    private static void ProcessDHCP(object IPPacketo) {
+    private static void HandleDHCP(object IPPacketo) {
       IPPacket ipp = (IPPacket) IPPacketo;
       DHCPPacket dhcpPacket = new DHCPPacket(ipp);
       dhcpPacket.decodedPacket.brunet_namespace = config.brunet_namespace;
@@ -151,6 +161,29 @@ namespace Ipop {
           "The DHCP Server has a message to share with you...\n" + response));
       }
       in_dhcp = false;
+    }
+
+    public static void HandleMulticast(Object ippo) {
+      try {
+        IPPacket ipp = (IPPacket) ippo;
+        DhtGetResult []dgrs = _node.Dht.Get("multicast.ipop_vpn");
+        foreach(DhtGetResult dgr in dgrs) {
+          try {
+            AHAddress target = (AHAddress) AddressParser.Parse(dgr.valueString);
+            if(IPOPLog.PacketLog.Enabled) {
+              ProtocolLog.Write(IPOPLog.PacketLog, String.Format(
+                              "Brunet destination ID: {0}", target));
+            }
+            _node.IPHandler.Send(target, ipp.Packet);
+          }
+          catch(Exception e) {
+            Console.WriteLine("Inside: " + e);
+          }
+        }
+      }
+      catch(Exception e) {
+        Console.WriteLine(e);
+      }
     }
 
     public static void Main(string []args) {

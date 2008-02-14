@@ -21,17 +21,14 @@ namespace Ipop
     {
       IPPacket ipp = new IPPacket(p);
 
-      if(IPOPLog.PacketLog.Enabled)
+      if(IPOPLog.PacketLog.Enabled) {
         ProtocolLog.Write(IPOPLog.PacketLog, String.Format(
           "Incoming packet:: IP src: {0}, IP dst: {1}, p2p " +
           "from: {2}, size: {3}", ipp.SSourceIP, ipp.SDestinationIP,
           from, p.Length));
-
-      if (!ipp.SDestinationIP.Equals(_node.IP)) {
-        ProtocolLog.WriteIf(IPOPLog.PacketLog, String.Format(
-          "Incoming packet not for me {0}:: IP dst: {1}", _node.IP, ipp.SDestinationIP));
       }
-      else if(_node.MAC != null && !_node.Ether.Write(p, EthernetPacket.Types.IP, _node.MAC)) {
+
+      if(_node.MAC != null && !_node.Ether.Write(p, EthernetPacket.Types.IP, _node.MAC)) {
         ProtocolLog.WriteIf(IPOPLog.PacketLog,
                             "Error writing packet from ethernet");
       }
