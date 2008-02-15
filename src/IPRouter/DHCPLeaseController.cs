@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2007  David Wolinsky <davidiw@ufl.edu>, University of Florida
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+*/
+
 using System;
 using System.IO;
 using System.Text;
@@ -13,6 +31,7 @@ namespace Ipop {
   }
 
   public abstract class DHCPLeaseController {
+    public readonly byte[] ServerIP;
     protected struct Lease {
       public byte [] ip;
       public byte [] hwaddr;
@@ -57,10 +76,14 @@ namespace Ipop {
         reservedMask = new byte[1][];
       }
       reservedIP[0] = new byte[4];
+      ServerIP = new byte[4];
 
-      for(int i = 0; i < 3; i++)
+      for(int i = 0; i < 3; i++) {
         reservedIP[0][i] = (byte) (lower[i] & netmask[i]);
+        ServerIP[i] = reservedIP[0][i];
+      }
       reservedIP[0][3] = 1;
+      ServerIP[3] = 1;
       reservedMask[0] = new byte[4] {255, 255, 255, 255};
     }
 
@@ -136,6 +159,7 @@ namespace Ipop {
       return randomIP;
     }
 
-    public abstract DHCPReply GetLease(byte[] address, bool renew, DecodedDHCPPacket packet);
+    public abstract DHCPReply GetLease(byte[] address, bool renew,
+                                       string node_address, params object[] para);
   }
 }

@@ -16,7 +16,12 @@ namespace Ipop {
       _dht = dht;
     }
 
-    public override DHCPReply GetLease(byte[] RequestedAddr, bool Renew, DecodedDHCPPacket packet) {
+    public override DHCPReply GetLease(byte[] RequestedAddr, bool Renew,
+                                       string node_address, params object[] para) {
+      String hostname = (String) para[0];
+      if(RequestedAddr == null) {
+        RequestedAddr = new byte[4] {0, 0, 0, 0};
+      }
       DHCPReply reply = new DHCPReply();
 
       int max_attempts = 1, max_renew_attempts = 2;
@@ -35,17 +40,17 @@ namespace Ipop {
           string str_addr = IPOP_Common.BytesToString(RequestedAddr, '.');
           string key = "dhcp:ipop_namespace:" + namespace_value + ":ip:" + str_addr;
           try {
-            res = _dht.Create(key, (string) packet.NodeAddress, leasetime);
+            res = _dht.Create(key, (string) node_address, leasetime);
           }
           catch {
             res = false;
           }
           if(res) {
-            if(packet.hostname != null) {
-              _dht.Put(packet.hostname + DhtDNS.DNS_SUFFIX, str_addr, leasetime);
+            if(hostname != null) {
+              _dht.Put(hostname + DhtDNS.DNS_SUFFIX, str_addr, leasetime);
             }
-            _dht.Put("multicast.ipop_vpn", (string) packet.NodeAddress, leasetime);
-            _dht.Put((string) packet.NodeAddress, key + "|" + DateTime.Now.Ticks, leasetime);
+            _dht.Put("multicast.ipop_vpn", (string) node_address, leasetime);
+            _dht.Put((string) node_address, key + "|" + DateTime.Now.Ticks, leasetime);
             break;
           }
         }
@@ -73,15 +78,8 @@ namespace Ipop {
   public class DhtDHCPServer: DHCPServer {
     protected Dht _dht;
 
-    public DhtDHCPServer(byte []server_ip, Dht dht) {
+    public DhtDHCPServer(Dht dht) {
       _dht = dht;
-      this.ServerIP = new byte[4] {10, 250, 0, 1};
-      this._dhcp_lease_controllers = new SortedList();
-      //do not have to even be concerned about brunet namespace so far
-    }
-
-    protected override bool IsValidBrunetNamespace(string brunet_namespace) {
-      return true;
     }
 
     protected override DHCPLeaseController GetDHCPLeaseController(string ipop_namespace) {

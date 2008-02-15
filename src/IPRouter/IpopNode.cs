@@ -12,7 +12,7 @@ namespace Ipop {
     public readonly Ethernet Ether;
 
     //Services
-    public readonly DHCPClient DHCPClient;
+    public readonly DHCPServer DHCPServer;
     public readonly Dht Dht;
     public readonly IPHandler IPHandler;
     public readonly Routes Routes;
@@ -48,7 +48,7 @@ namespace Ipop {
       (new Thread(Brunet.Connect)).Start();
       IPHandler = new IPHandler(this);
       Routes = new Routes(Dht, ipop_namespace);
-      DHCPClient = new DhtDHCPClient(Dht);
+      DHCPServer = new DhtDHCPServer(Dht);
       DhtDNS = new DhtDNS(this);
     }
   }

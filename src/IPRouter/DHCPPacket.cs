@@ -1,235 +1,160 @@
 using Brunet;
-using System;
 using System.Collections;
 
 namespace Ipop {
-  public struct DHCPOption {
-    public int type;
-    public int length;
-    public string encoding;
-    public string string_value;
-    public byte [] byte_value;
-  }
+/**
+  0                   1                   2                   3
+  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+  |     op (1)    |   htype (1)   |   hlen (1)    |   hops (1)    |
+  +---------------+---------------+---------------+---------------+
+  |                            xid (4)                            |
+  +-------------------------------+-------------------------------+
+  |           secs (2)            |           flags (2)           |
+  +-------------------------------+-------------------------------+
+  |                          ciaddr  (4)                          |
+  +---------------------------------------------------------------+
+  |                          yiaddr  (4)                          |
+  +---------------------------------------------------------------+
+  |                          siaddr  (4)                          |
+  +---------------------------------------------------------------+
+  |                          giaddr  (4)                          |
+  +---------------------------------------------------------------+
+  |                                                               |
+  |                          chaddr  (16)                         |
+  |                                                               |
+  |                                                               |
+  +---------------------------------------------------------------+
+  |                                                               |
+  |                          sname   (64)                         |
+  +---------------------------------------------------------------+
+  |                                                               |
+  |                          file    (128)                        |
+  +---------------------------------------------------------------+
+  |                                                               |
+  |                          options (variable)                   |
+  +---------------------------------------------------------------+
 
-  public class DecodedDHCPPacket {
-    public byte op;
-    public byte [] xid;
-    public byte [] ciaddr;
-    public byte [] yiaddr;
-    public byte [] siaddr;
-    public byte [] chaddr;
-    public SortedList options;
-    public byte [] last_ip;
-    public string brunet_namespace;
-    public string ipop_namespace;
-    public string hostname;
-    public string return_message;
-    public string NodeAddress;
-    public byte[] SendTo = new byte[4] {255, 255, 255, 255};
-    public byte[] SendFrom = new byte[4] {0, 0, 0, 0};
-  }
+    OP - 1 for request, 2 for response
+    htype - hardware address type - leave at 1
+    hlen - hardware address length - 6 for ethernet mac address
+    hops - optional - leave at 0, no relay agents
+    xid - transaction id
+    secs - seconds since beginning renewal
+    flags - 
+    ciaddr - clients currrent ip (client in bound, renew, or rebinding state)
+    yiaddr - ip address server is giving to client
+    siaddr - server address
+    giaddr - leave at zero, no relay agents
+    chaddr - client hardware address
+    sname - optional server hostname
+    file - optional
+    magic cookie - yuuuum! - byte[4] = {99, 130, 83, 99}
+    options - starts at 240!
+ */
+  public class DHCPPacket: DataPacket {
+    public enum MessageTypes {
+      DISCOVER = 1,
+      OFFER = 2,
+      REQUEST = 3,
+      DECLINE = 4,
+      ACK = 5,
+      NACK = 6,
+      RELEASE = 7,
+      INFORM = 8
+    };
 
-  public class DHCPPacket {
-    public IPPacket IPPacket;
-    public DecodedDHCPPacket decodedPacket;
+    public enum OptionTypes {
+      SUBNET_MASK = 1,
+      ROUTER = 3,
+      NAME_SERVER = 5,
+      DOMAIN_NAME_SERVER = 6,
+      HOST_NAME = 12,
+      DOMAIN_NAME = 15,
+      MTU = 26,
+      REQUESTED_IP = 50,
+      LEASE_TIME = 51,
+      MESSAGE_TYPE = 53,
+      SERVER_ID = 54,
+      PARAMETER_REQUEST_LIST = 55
+    };
 
-    public DHCPPacket(IPPacket IPPacket) {
-      this.IPPacket = IPPacket;
-      DecodePacket();
-    }
+    public readonly byte op;
+    public readonly MemBlock xid, ciaddr, yiaddr, siaddr, chaddr;
+    public readonly Hashtable Options;
+    public static readonly MemBlock magic_key = 
+        MemBlock.Reference(new byte[4] {99, 130, 83, 99});
 
-    public DHCPPacket(DecodedDHCPPacket packet) {
-      this.decodedPacket = packet;
-      EncodePacket();
-    }
+    public DHCPPacket(MemBlock Packet) {
+      _packet = Packet;
+      op = Packet[0];
+      xid = Packet.Slice(4, 4);
+      ciaddr = Packet.Slice(12, 4);
+      yiaddr = Packet.Slice(16, 4);
+      siaddr = Packet.Slice(20, 4);
+      chaddr = Packet.Slice(28, 6);
+      int idx = 240;
 
-    public void DecodePacket() {
-      this.decodedPacket = new DecodedDHCPPacket();
-      this.decodedPacket.xid = new byte[4];
-      this.decodedPacket.ciaddr = new byte[4];
-      this.decodedPacket.yiaddr = new byte[4];
-      this.decodedPacket.siaddr = new byte[4];
-      this.decodedPacket.chaddr = new byte[6];
-      MemBlock packet = (new UDPPacket(IPPacket.Payload)).Payload;
-      int current = 0;
-      this.decodedPacket.op = packet[current++];
-      current++; /* htype should be 1 */
-      current++; /* hlen should be 6 */
-      current++; /* hops should be 0 */
-      for(int i = 0; i < 4; i++)
-        this.decodedPacket.xid[i] = packet[current + i];
-      current += 4;
-      current += 4; /* secs and flags can be safely ignored */
-      for(int i = 0; i < 4; i++)
-        this.decodedPacket.ciaddr[i] = packet[current + i];
-      current += 4;
-      for(int i = 0; i < 4; i++)
-        this.decodedPacket.yiaddr[i] = packet[current + i];
-      current += 4;
-      for(int i = 0; i < 4; i++)
-        this.decodedPacket.siaddr[i] = packet[current + i];
-      current += 4;
-      current += 4; /* qiaddr can be safely ignored */
-      for(int i = 0; i < 6; i++)
-        this.decodedPacket.chaddr[i] = packet[current + i];
-      current += 16; /* only use first 6 bytes */
-      current += 64; /* sname can be safely ignored */
-      current += 128; /* file can be safely ignored */
-      current += 4; /* Magic cookie */
       /* Parse the options */
-      int current_option = 0;
-      this.decodedPacket.options = new SortedList();
+      Options = new Hashtable();
       /*  255 is end of options */
-      while(packet[current] != 255) {
+      while(Packet[idx] != 255) {
         /* 0 is padding */
-        if(packet[current] != 0)
-        {
-          DHCPOption option = new DHCPOption();
-          option.type = packet[current];
-          /* These options are encoded using ASCII */
-          if(packet[current] == 12 || packet[current] == 17 || 
-            packet[current] == 14 || packet[current] == 40 || 
-            packet[current] == 64 || packet[current] == 56)
-            option.encoding = "string";
-          else
-            option.encoding = "int";
-          current++;
-
-          option.length = packet[current++];
-
-          /* This is done, so that the server doesn't need to implement
-             any ASCII character to Integer, which Python lacks         */
-          if(option.encoding == "string") {
-            option.byte_value = new byte[0];
-            option.string_value = "";
-            for(int i = 0; i < option.length; i++) 
-              option.string_value += (char) packet[current++];
-          }
-          else {
-            option.string_value = "";
-            option.byte_value = new byte[option.length];
-            for(int i = 0; i < option.length; i++)
-              option.byte_value[i] = packet[current++];
-          }
-          current_option++; /* Next Option*/
-          this.decodedPacket.options.Add(option.type, (DHCPOption) option);
-        }
-        else
-          current++;
-      }
-    }
-
-    public void EncodePacket() {
-      /* Create the options array first, then merge the UDP header, 
-         dhcp body, and dhcp options later                          */
-      ArrayList byte_list = new ArrayList();
-      for(int i = 0; i < decodedPacket.options.Count; i++) {
-        DHCPOption option = (DHCPOption) decodedPacket.options.GetByIndex(i);
-        byte_list.Add((byte) option.type);
-        byte_list.Add((byte) option.length);
-        if(option.encoding == "string") {
-          for(int j = 0; j < option.length; j++)
-            byte_list.Add((byte) ((char) option.string_value[j]));
+        if(Packet[idx] != 0) {
+          int type = Packet[idx++];
+          int length = Packet[idx++];
+          Options[type] = Packet.Slice(idx, length);
+          idx += length;
         }
         else {
-          for(int j = 0; j < option.length; j++)
-            byte_list.Add((byte) option.byte_value[j]);
-        }
-      }
-      byte [] encodedPacket = new byte[240 + byte_list.Count + 1];
-      int current = 0;
-      encodedPacket[current++] = this.decodedPacket.op;
-      encodedPacket[current++] = 1; /* htype = ethernet */
-      encodedPacket[current++] = 6; /* hlen = 6 bytes */
-      encodedPacket[current++] = 0; /* hops = 0 */
-      for(int i = 0; i < 4; i++)
-        encodedPacket[current + i] = this.decodedPacket.xid[i];
-      current += 4;
-      for(int i = 0; i < 4; i++)
-        encodedPacket[current + i] = 0; /* secs and flags = 0 */
-      current += 4;
-      for(int i = 0; i < 4; i++)
-        encodedPacket[current + i] = this.decodedPacket.ciaddr[i];
-      current += 4;
-      for(int i = 0; i < 4; i++)
-        encodedPacket[current + i] = this.decodedPacket.yiaddr[i];
-      current += 4;
-      for(int i = 0; i < 4; i++)
-        encodedPacket[current + i] = this.decodedPacket.siaddr[i];
-      current += 4;
-      for(int i = 0; i < 4; i++)
-        encodedPacket[current + i] = 0; /* qiaddr = 0 */
-      current += 4;
-      for(int i = 0; i < 6; i++)
-        encodedPacket[current + i] = this.decodedPacket.chaddr[i];
-      current += 6;
-      for(; current < 236; current++)
-        encodedPacket[current] = 0;
-      /* Magic Cookie */
-      encodedPacket[current++] = 99;
-      encodedPacket[current++] = 130;
-      encodedPacket[current++] = 83;
-      encodedPacket[current++] = 99;
-      byte [] temparray = (byte []) byte_list.ToArray(typeof(byte));
-      temparray.CopyTo(encodedPacket, current);
-      encodedPacket[encodedPacket.Length - 1] = 255; /* End of Options */
-
-      UDPPacket udppacket = new UDPPacket(67, 68,
-                                          MemBlock.Reference(encodedPacket));
-      IPPacket = new IPPacket((byte) IPPacket.Protocols.UDP,
-                                        decodedPacket.SendFrom,
-                                        decodedPacket.SendTo,
-                                        udppacket.ICPacket);
-    }
-
-    public void PrintDecodedPacket() {
-      string temp;
-      Console.Error.WriteLine("op : {0}", decodedPacket.op);
-      temp = "";
-      for(int i = 0; i < 4; i++)
-        temp += this.decodedPacket.xid[i] + " ";
-      Console.Error.WriteLine("xid : {0}", temp);
-      temp = "";
-      for(int i = 0; i < 4; i++)
-        temp += this.decodedPacket.ciaddr[i] + " ";
-      Console.Error.WriteLine("ciaddr : {0}", temp);
-      temp = "";
-      for(int i = 0; i < 4; i++)
-        temp += this.decodedPacket.yiaddr[i] + " ";
-      Console.Error.WriteLine("yiaddr : {0}", temp);
-      temp = "";
-      for(int i = 0; i < 4; i++)
-        temp += this.decodedPacket.siaddr[i] + " ";
-      Console.Error.WriteLine("siaddr : {0}", temp);
-      temp = "";
-      for(int i = 0; i < 6; i++)
-        temp += this.decodedPacket.chaddr[i] + " ";
-      Console.Error.WriteLine("chaddr : {0}", temp);
-      for(int i = 0; i < decodedPacket.options.Count; i++) {
-        DHCPOption option = (DHCPOption) decodedPacket.options.GetByIndex(i);
-        string name = option.type.ToString();
-        try {
-           name = DHCPOptions.DHCPOptionsList[option.type];
-        }
-        catch {}
-        if(option.encoding == "string")
-          Console.Error.WriteLine("{0} : {1}", name, option.string_value);
-        else {
-          temp = "";
-          for(int j = 0; j < option.byte_value.Length; j++)
-            temp += option.byte_value[j] + " ";
-          Console.Error.WriteLine("{0} : {1}", name, temp);
+          idx++;
         }
       }
     }
 
-    public void PrintPacket() {
-      int i = 0;
-      for(i = 0; i < IPPacket.Packet.Length - 3; i+=4)
-        Console.Error.WriteLine("{0} {1} {2} {3}", IPPacket.Packet[i], IPPacket.Packet[i+1],
-                                IPPacket.Packet[i+2], IPPacket.Packet[i+3]);
-      for(; i < IPPacket.Packet.Length; i++)
-        Console.Error.WriteLine("{0}", IPPacket.Packet[i]);
+    public DHCPPacket(byte op, MemBlock xid, MemBlock ciaddr, MemBlock yiaddr,
+                     MemBlock siaddr, MemBlock chaddr, Hashtable Options) {
+      this.op = op;
+      this.xid = xid;
+      this.ciaddr = ciaddr;
+      this.yiaddr = yiaddr;
+      this.siaddr = siaddr;
+      this.chaddr = chaddr;
+      this.Options = Options;
+
+      byte[] header = new byte[240];
+      header[0] = op;
+      header[1] = 1;
+      header[2] = 6;
+      header[3] = 0;
+
+      xid.CopyTo(header, 4);
+      for(int i = 8; i < 12; i++) {
+        header[i] = 0;
+      }
+      ciaddr.CopyTo(header, 12);
+      yiaddr.CopyTo(header, 16);
+      siaddr.CopyTo(header, 20);
+      for(int i = 24; i < 28; i++) {
+        header[i] = 0;
+      }
+      chaddr.CopyTo(header, 28);
+      for(int i = 34; i < 236; i++) {
+        header[i] = 0;
+      }
+      magic_key.CopyTo(header, 236);
+
+      _icpacket = new CopyList(MemBlock.Reference(header));
+      foreach(DictionaryEntry de in Options) {
+        byte[] value = (byte[]) de.Value;
+        byte[] tmp = new byte[value.Length + 2];
+        tmp[0] = (byte) (OptionTypes) de.Key;
+        tmp[1] = (byte) value.Length;
+        value.CopyTo(tmp, 2);
+        _icpacket = new CopyList(_icpacket, MemBlock.Reference(tmp));
+      }
+      byte []end = new byte[1]{255}; /* End of Options */
+      _icpacket = new CopyList(_icpacket, MemBlock.Reference(end));
     }
   }
 }

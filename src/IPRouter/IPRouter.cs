@@ -111,54 +111,57 @@ namespace Ipop {
 
     private static void HandleDHCP(object IPPacketo) {
       IPPacket ipp = (IPPacket) IPPacketo;
-      DHCPPacket dhcpPacket = new DHCPPacket(ipp);
-      dhcpPacket.decodedPacket.brunet_namespace = config.brunet_namespace;
-      dhcpPacket.decodedPacket.ipop_namespace = config.ipop_namespace;
-      dhcpPacket.decodedPacket.NodeAddress = _node.Address.ToString();
+      UDPPacket udpp = new UDPPacket(ipp.Payload);
+      DHCPPacket dhcp_packet = new DHCPPacket(udpp.Payload);
+
+      byte []last_ip = null;
+      string hostname = null;
       if(config.AddressData == null) {
         config.AddressData = new AddressInfo();
       }
       else {
-        dhcpPacket.decodedPacket.hostname = config.AddressData.Hostname;
         try {
-          dhcpPacket.decodedPacket.yiaddr =
-            IPAddress.Parse(config.AddressData.IPAddress).GetAddressBytes();
+          hostname = config.AddressData.Hostname;
+          last_ip = IPAddress.Parse(config.AddressData.IPAddress).GetAddressBytes();
         }
         catch {}
       }
 
+      try {
+        DHCPPacket rpacket = _node.DHCPServer.Process(dhcp_packet, last_ip,
+                                        _node.Address.ToString(), config.ipop_namespace, 
+                                        hostname);
 
-      /* DHCP Server returns our incoming packet, which we decode, if it
-          is successful, we continue, otherwise we fail and print out a message */
-      DecodedDHCPPacket drpacket = 
-          _node.DHCPClient._dhcp_server.SendMessage(dhcpPacket.decodedPacket);
-      string response = drpacket.return_message;
-
-      if(response == "Success") {
-        /* Convert the packet into byte format, run Arp and Route updater */
-        DHCPPacket returnPacket = new DHCPPacket(drpacket);
         /* Check our allocation to see if we're getting a new address */
-        string newAddress = IPOP_Common.BytesToString(drpacket.yiaddr, '.');
+        string new_address = IPOP_Common.BytesToString(rpacket.yiaddr, '.');
+        string new_netmask = IPOP_Common.BytesToString(
+            (byte[]) rpacket.Options[DHCPPacket.OptionTypes.SUBNET_MASK], '.');
 
-        string newNetmask = IPOP_Common.BytesToString(((DHCPOption)
-          drpacket.options[DHCPOptions.SUBNET_MASK]).byte_value, '.');
-
-        if(newAddress != _node.IP || _node.Netmask !=  newNetmask) {
-          _node.Netmask = newNetmask;
-          _node.IP = newAddress;
+        if(new_address != _node.IP || _node.Netmask !=  new_netmask) {
+          _node.Netmask = new_netmask;
+          _node.IP = new_address;
           ProtocolLog.WriteIf(IPOPLog.DHCPLog, String.Format(
                               "DHCP:  IP Address changed to {0}", _node.IP));
-          config.AddressData.IPAddress = newAddress;
-          config.AddressData.Netmask = _node.Netmask;
+          config.AddressData.IPAddress = new_address;
+          config.AddressData.Netmask = new_netmask;
           IPRouterConfigHandler.Write(ConfigFile, config);
-// This is currently broken
-//            _node.Brunet.UpdateTAAuthorizer();
         }
-        _node.Ether.Write(returnPacket.IPPacket.Packet, EthernetPacket.Types.IP, _node.MAC);
+
+        byte[] destination_ip = null;
+        if(ipp.SourceIP[0] == 0) {
+          destination_ip = new byte[4]{255, 255, 255, 255};
+        }
+        else {
+          destination_ip = ipp.SourceIP;
+        }
+
+        UDPPacket res_udpp = new UDPPacket(67, 68, rpacket.Packet);
+        IPPacket res_ipp = new IPPacket((byte) IPPacket.Protocols.UDP,
+          rpacket.ciaddr, destination_ip, res_udpp.ICPacket);
+        _node.Ether.Write(res_ipp.Packet, EthernetPacket.Types.IP, _node.MAC);
       }
-      else {
-        ProtocolLog.WriteIf(IPOPLog.DHCPLog, String.Format(
-          "The DHCP Server has a message to share with you...\n" + response));
+      catch(Exception e) {
+        ProtocolLog.WriteIf(IPOPLog.DHCPLog, e.Message);
       }
       in_dhcp = false;
     }
@@ -177,12 +180,12 @@ namespace Ipop {
             _node.IPHandler.Send(target, ipp.Packet);
           }
           catch(Exception e) {
-            Console.WriteLine("Inside: " + e);
+//            Console.WriteLine("Inside: " + e);
           }
         }
       }
       catch(Exception e) {
-        Console.WriteLine(e);
+//        Console.WriteLine(e);
       }
     }
 

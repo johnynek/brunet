@@ -1,3 +1,4 @@
+using Brunet;
 using System;
 using System.Collections;
 using System.IO;
@@ -5,104 +6,56 @@ using System.Text;
 
 namespace Ipop {
   public abstract class DHCPServer {
-    protected byte[] ServerIP;
-    protected SortedList _dhcp_lease_controllers;
+    protected SortedList _dhcp_lease_controllers = new SortedList();
 
-    public DecodedDHCPPacket SendMessage(DecodedDHCPPacket packet) {
-      if (!IsValidBrunetNamespace(packet.brunet_namespace)) {
-        packet.return_message = "Invalid Brunet Namespace";
-        return packet;
-      }
-      else if (packet.ipop_namespace == null) {
-        packet.return_message = "Invalid IPOP Namespace";
-        return packet;
+    public DHCPPacket Process(DHCPPacket packet, byte[] last_ip, string node_address,
+                              string IpopNamespace, params object[] para) {
+      byte messageType = ((MemBlock) packet.Options[(int) DHCPPacket.OptionTypes.MESSAGE_TYPE])[0];
+      DHCPLeaseController _dhcp_lease_controller = GetDHCPLeaseController(IpopNamespace);
+      if (_dhcp_lease_controller == null) {
+        throw new Exception("Invalid IPOP Namespace");
       }
 
       DHCPReply reply = null;
-      SortedList options = packet.options;
-      byte messageType = ((DHCPOption) options[DHCPOptions.MESSAGE_TYPE]).byte_value[0];
-      packet.options = new SortedList();
-      packet.return_message = "Success";
-
-      try {
-        DHCPLeaseController _dhcp_lease_controller = GetDHCPLeaseController(packet.ipop_namespace);
-        if (_dhcp_lease_controller == null) {
-          packet.return_message = "Invalid IPOP Namespace";
-          return packet;
+      if(messageType == DHCPMessage.DISCOVER) {
+        reply = _dhcp_lease_controller.GetLease(last_ip, false, node_address, para);
+        messageType = DHCPMessage.OFFER;
+      }
+      else if(messageType == DHCPMessage.REQUEST) {
+        byte[] requested_ip = (MemBlock) packet.Options[DHCPOptions.REQUESTED_IP];
+        if(requested_ip != null) {
+          reply = _dhcp_lease_controller.GetLease(requested_ip, true, node_address, para);
         }
-
-        if(messageType == DHCPMessage.DISCOVER) {
-          reply = _dhcp_lease_controller.GetLease(packet.yiaddr, false, packet);
-          messageType = DHCPMessage.OFFER;
-        }
-        else if(messageType == DHCPMessage.REQUEST) {
-          if(options.Contains(DHCPOptions.REQUESTED_IP)) {
-            byte[] requested_ip = ((DHCPOption) options[DHCPOptions.REQUESTED_IP]).byte_value;
-            reply = _dhcp_lease_controller.GetLease(requested_ip, true, packet);
-          }
-          else if(packet.ciaddr[0] != 0) {
-            reply = _dhcp_lease_controller.GetLease(packet.ciaddr, true, packet);
-            packet.SendTo = reply.ip;
-          }
-          else {
-            reply = _dhcp_lease_controller.GetLease(packet.yiaddr, true, packet);
-            packet.SendTo = reply.ip;
-          }
-          messageType = DHCPMessage.ACK;
+        else if(packet.ciaddr[0] != 0) {
+          reply = _dhcp_lease_controller.GetLease(packet.ciaddr, true, node_address, para);
         }
         else {
-          packet.return_message = "Unsupported message type!";
-          return packet;
+          reply = _dhcp_lease_controller.GetLease(last_ip, true, node_address, para);
         }
+        messageType = DHCPMessage.ACK;
       }
-      catch(Exception e) {
-        packet.return_message = e.Message;
-        return packet;
+      else {
+        throw new Exception("Unsupported message type!");
       }
 
-      packet.op = 2; /* BOOT REPLY */
-      packet.yiaddr = reply.ip;
-      packet.siaddr = this.ServerIP;
-      packet.SendFrom = this.ServerIP;
-      packet.options = new SortedList();
+      Hashtable options = new Hashtable();
 
-      packet.options.Add(15, (DHCPOption) CreateOption(15, "ipop"));
-//	The following two are needed for dhcp to "succeed" in Vista, but they break Linux
-//      packet.options.Add(3, (DHCPOption) CreateOption(3, reply.ip));
+      options[DHCPPacket.OptionTypes.DOMAIN_NAME] = Encoding.UTF8.GetBytes("ipop");
+//  The following option is needed for dhcp to "succeed" in Vista, but they break Linux
+//    options[DHCPPacket.OptionTypes.ROUTER] = reply.ip;
       byte[] tmp = new byte[4] {reply.ip[0], reply.ip[1], reply.ip[2], 255};
-      packet.options.Add(6, (DHCPOption) CreateOption(6, tmp));
-      packet.options.Add(DHCPOptions.SUBNET_MASK, (DHCPOption) 
-          CreateOption(DHCPOptions.SUBNET_MASK, reply.netmask));
-      packet.options.Add(DHCPOptions.LEASE_TIME, (DHCPOption) 
-          CreateOption(DHCPOptions.LEASE_TIME, reply.leasetime));
-      packet.options.Add(DHCPOptions.MTU, (DHCPOption) 
-          CreateOption(DHCPOptions.MTU, new byte[]{4, 176}));
-      packet.options.Add(DHCPOptions.SERVER_ID, (DHCPOption) 
-          CreateOption(DHCPOptions.SERVER_ID, this.ServerIP));
-      packet.options.Add(DHCPOptions.MESSAGE_TYPE, (DHCPOption)
-          CreateOption(DHCPOptions.MESSAGE_TYPE, new byte[]{messageType}));
-      return packet;
+      options[DHCPPacket.OptionTypes.DOMAIN_NAME_SERVER] = tmp;
+      options[DHCPPacket.OptionTypes.SUBNET_MASK] = reply.netmask;
+      options[DHCPPacket.OptionTypes.LEASE_TIME] = reply.leasetime;
+      tmp = new byte[2] { (byte) ((1200 >> 8) & 0xFF), (byte) (1200 & 0xFF) };
+      options[DHCPPacket.OptionTypes.MTU] = tmp;
+      options[DHCPPacket.OptionTypes.SERVER_ID] = _dhcp_lease_controller.ServerIP;
+      options[DHCPPacket.OptionTypes.MESSAGE_TYPE] = new byte[]{messageType};
+      DHCPPacket rpacket = new DHCPPacket(2, packet.xid, packet.ciaddr, reply.ip,
+                               _dhcp_lease_controller.ServerIP, packet.chaddr, options);
+      return rpacket;
     }
 
-    public DHCPOption CreateOption(int type, byte [] value) {
-      DHCPOption option = new DHCPOption();
-      option.type = type;
-      option.byte_value = value;
-      option.length = value.Length;
-      option.encoding = "int";
-      return option;
-    }
-
-    public DHCPOption CreateOption(int type, string value) {
-      DHCPOption option = new DHCPOption();
-      option.type = type;
-      option.string_value = value;
-      option.length = value.Length;
-      option.encoding = "string";
-      return option;
-    }
-
-    protected abstract bool IsValidBrunetNamespace(string brunet_namespace);
     protected abstract DHCPLeaseController GetDHCPLeaseController(string ipop_namespace);
   }
 }

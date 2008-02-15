@@ -64,7 +64,7 @@ namespace Ipop {
         res_payload = BuildReplyPacket(req_udpp.Payload, qname_response, qtype);
       }
       catch(Exception e) {
-        ProtocolLog.WriteIf(ProtocolLog.Exceptions, e.ToString());
+        ProtocolLog.WriteIf(ProtocolLog.Exceptions, e.Message);
         res_payload = BuildFailedReplyPacket(req_udpp.Payload);
       }
       UDPPacket res_udpp = new UDPPacket(req_udpp.DestinationPort,
