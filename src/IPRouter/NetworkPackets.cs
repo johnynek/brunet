@@ -1,12 +1,11 @@
 using Brunet;
 
 namespace Ipop {
-  public abstract class NetworkPacket {
-    protected ICopyable _icpacket, _icpayload;
+  public abstract class DataPacket {
+    protected ICopyable _icpacket;
     public ICopyable ICPacket { get { return _icpacket; } }
-    public ICopyable ICPayload { get { return _icpayload; } }
 
-    protected MemBlock _packet, _payload;
+    protected MemBlock _packet;
     public MemBlock Packet {
       get {
         if(_packet == null) {
@@ -22,7 +21,13 @@ namespace Ipop {
         return _packet;
       }
     }
+  }
 
+  public abstract class NetworkPacket: DataPacket {
+    protected ICopyable _icpayload;
+    public ICopyable ICPayload { get { return _icpayload; } }
+
+    protected MemBlock _payload;
     public MemBlock Payload {
       get {
         if(_payload == null) {
@@ -61,22 +66,21 @@ namespace Ipop {
 
     public EthernetPacket(MemBlock DestinationAddress, MemBlock SourceAddress,
                           Types Type, ICopyable Payload) {
-      byte[] packet = new byte[14 + Payload.Length];
+      byte[] header = new byte[14];
       for(int i = 0; i < 6; i++) {
-        packet[i] = DestinationAddress[i];
-        packet[6 + i] = SourceAddress[i];
+        header[i] = DestinationAddress[i];
+        header[6 + i] = SourceAddress[i];
       }
 
-      packet[12] = (byte) (((int) Type >> 8) & 0xFF);
-      packet[13] = (byte) ((int) Type & 0xFF);
+      header[12] = (byte) (((int) Type >> 8) & 0xFF);
+      header[13] = (byte) ((int) Type & 0xFF);
 
-      Payload.CopyTo(packet, 14);
-      _icpacket = _packet = MemBlock.Reference(packet);
+      _icpacket = new CopyList(MemBlock.Reference(header), Payload);
+      _icpayload = Payload;
 
-      this.DestinationAddress = Packet.Slice(0, 6);
-      this.SourceAddress = Packet.Slice(6, 6);
-      this.Type = (Packet[12] << 8) | Packet[13];
-      _icpayload = _payload = Packet.Slice(14);
+      this.DestinationAddress = DestinationAddress;
+      this.SourceAddress = SourceAddress;
+      this.Type = (int) Type;
     }
   }
 
