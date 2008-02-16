@@ -101,8 +101,14 @@ namespace Ipop {
       while(Packet[idx] != 255) {
         /* 0 is padding */
         if(Packet[idx] != 0) {
-          int type = Packet[idx++];
-          int length = Packet[idx++];
+          object type = null;
+          try {
+            type = (OptionTypes) Packet[idx++];
+          }
+          catch {
+            type = (byte) Packet[idx++];
+          }
+          byte length = Packet[idx++];
           Options[type] = Packet.Slice(idx, length);
           idx += length;
         }
@@ -148,7 +154,12 @@ namespace Ipop {
       foreach(DictionaryEntry de in Options) {
         byte[] value = (byte[]) de.Value;
         byte[] tmp = new byte[value.Length + 2];
-        tmp[0] = (byte) (OptionTypes) de.Key;
+        try {
+          tmp[0] = (byte) (OptionTypes) de.Key;
+        }
+        catch {
+          tmp[0] = (byte) de.Key;
+        }
         tmp[1] = (byte) value.Length;
         value.CopyTo(tmp, 2);
         _icpacket = new CopyList(_icpacket, MemBlock.Reference(tmp));

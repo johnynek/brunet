@@ -10,20 +10,20 @@ namespace Ipop {
 
     public DHCPPacket Process(DHCPPacket packet, byte[] last_ip, string node_address,
                               string IpopNamespace, params object[] para) {
-      byte messageType = ((MemBlock) packet.Options[(int) DHCPPacket.OptionTypes.MESSAGE_TYPE])[0];
+      byte messageType = ((MemBlock) packet.Options[DHCPPacket.OptionTypes.MESSAGE_TYPE])[0];
       DHCPLeaseController _dhcp_lease_controller = GetDHCPLeaseController(IpopNamespace);
       if (_dhcp_lease_controller == null) {
         throw new Exception("Invalid IPOP Namespace");
       }
 
       DHCPReply reply = null;
-      if(messageType == DHCPMessage.DISCOVER) {
+      if(messageType == (byte) DHCPPacket.MessageTypes.DISCOVER) {
         reply = _dhcp_lease_controller.GetLease(last_ip, false, node_address, para);
-        messageType = DHCPMessage.OFFER;
+        messageType = (byte) DHCPPacket.MessageTypes.OFFER;
       }
-      else if(messageType == DHCPMessage.REQUEST) {
-        byte[] requested_ip = (MemBlock) packet.Options[DHCPOptions.REQUESTED_IP];
-        if(requested_ip != null) {
+      else if(messageType == (byte) DHCPPacket.MessageTypes.REQUEST) {
+        if(packet.Options.Contains(DHCPPacket.OptionTypes.REQUESTED_IP)) {
+          byte[] requested_ip = (MemBlock) packet.Options[DHCPPacket.OptionTypes.REQUESTED_IP];
           reply = _dhcp_lease_controller.GetLease(requested_ip, true, node_address, para);
         }
         else if(packet.ciaddr[0] != 0) {
@@ -32,7 +32,7 @@ namespace Ipop {
         else {
           reply = _dhcp_lease_controller.GetLease(last_ip, true, node_address, para);
         }
-        messageType = DHCPMessage.ACK;
+        messageType = (byte) DHCPPacket.MessageTypes.ACK;
       }
       else {
         throw new Exception("Unsupported message type!");
