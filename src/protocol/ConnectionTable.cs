@@ -926,6 +926,8 @@ namespace Brunet
         //See if we can transfer the lock:
           locks[a] = locker;
           locker.TargetLock = a;
+          //Make sure the lock is null
+          old_locker.TargetLock = null;
         }
         else {
           if(ProtocolLog.ConnectionTableLocks.Enabled) {
