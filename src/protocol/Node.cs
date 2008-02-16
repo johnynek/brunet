@@ -76,6 +76,16 @@ namespace Brunet
 
         //We start off offline.
         _con_state = Node.ConnectionState.Offline;
+        
+        /* Set up the ReqrepManager as a filter */
+        _rrm = new ReqrepManager(Address.ToString());
+        GetTypeSource(PType.Protocol.ReqRep).Subscribe(_rrm, null);
+        _rrm.Subscribe(this, null);
+        this.HeartBeatEvent += _rrm.TimeoutChecker;
+        /* Set up RPC */
+        _rpc = new RpcManager(_rrm);
+        GetTypeSource( PType.Protocol.Rpc ).Subscribe(_rpc, null);
+
         /*
          * Where there is a change in the Connections, we might have a state
          * change
@@ -100,7 +110,7 @@ namespace Brunet
         /* EdgeListener's */
         _edgelistener_list = new ArrayList();
         _edge_factory = new EdgeFactory();
-
+        
         /* Initialize this at 15 seconds */
         _connection_timeout = new TimeSpan(0,0,0,0,15000);
         /* Set up the heartbeat */
@@ -308,7 +318,7 @@ namespace Brunet
         return _local_add;
       }
     }
-    protected EdgeFactory _edge_factory;
+    protected readonly EdgeFactory _edge_factory;
     /**
      *  my EdgeFactory
      */
@@ -354,7 +364,7 @@ namespace Brunet
     virtual public int NetworkSize {
       get { return -1; }
     }
-    protected BlockingQueue _packet_queue;
+    protected readonly BlockingQueue _packet_queue;
     protected float _packet_queue_exp_avg = 0.0f;
     /**
      * This number should be more thoroughly tested, but my system and dht
@@ -446,9 +456,9 @@ namespace Brunet
     volatile protected bool _send_pings;
 
     /** Object which we lock for thread safety */
-    protected Object _sync;
+    protected readonly object _sync;
 
-    protected ConnectionTable _connection_table;
+    protected readonly ConnectionTable _connection_table;
 
     /**
      * Manages the various mappings associated with connections
@@ -460,7 +470,11 @@ namespace Brunet
     public IPHandler IPHandler { get { return _iphandler; } }
     protected IPHandler _iphandler;
     protected CodeInjection _codeinjection;
-
+    
+    protected readonly ReqrepManager _rrm;
+    public ReqrepManager Rrm { get { return _rrm; } }
+    protected readonly RpcManager _rpc;
+    public RpcManager Rpc { get { return _rpc; } }
     /**
      * This is true if the Node is properly connected in the network.
      * If you want to know when it is safe to assume you are connected,
@@ -470,7 +484,7 @@ namespace Brunet
      * until it is false if you need the Node to be connected
      */
     public abstract bool IsConnected { get; }
-    protected NodeTaskQueue _task_queue;
+    protected readonly NodeTaskQueue _task_queue;
     /**
      * This is the TaskQueue for this Node
      */
