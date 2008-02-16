@@ -10,5 +10,7 @@ namespace Ipop {
         new BooleanSwitch("DHCPLog", "Logs DHCP state data");
     public static BooleanSwitch RoutingLog =
         new BooleanSwitch("RoutingLog", "Logs routing data");
+    public static BooleanSwitch DNS =
+        new BooleanSwitch("DNS", "All about DNS");
   }
 }

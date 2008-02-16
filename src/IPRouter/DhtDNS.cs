@@ -7,41 +7,26 @@ using System.Net;
 using System.Net.Sockets;
 
 namespace Ipop {
-  public class DhtDNS {
+  public class DhtDNS: ISource {
+    public const string SUFFIX = ".ipop_vpn";
     protected IpopNode _node;
-    object _sync = new object();
-    Cache dns_a = new Cache(100);
-    Cache dns_ptr = new Cache(100);
+    protected readonly object _sync = new object();
+    protected Cache dns_a = new Cache(100);
+    protected Cache dns_ptr = new Cache(100);
 
     public DhtDNS(IpopNode node) {
       _node = node;
     }
 
-/*    public static void Main() {
-      Socket _s = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-      EndPoint ipep = new IPEndPoint(IPAddress.Any, 53);
-      _s.Bind(ipep);
-      while(true) {
-        byte[] packet = new byte[1000];
-        EndPoint ep = new IPEndPoint(IPAddress.Any, 0);
-        int recv_count = _s.ReceiveFrom(packet, ref ep);
-        byte[] small_packet = new byte[recv_count];
-        Array.Copy(packet, 0, small_packet, 0, recv_count);
-        packet = LookUp(small_packet);
-        _s.SendTo(packet, ep);
-      }
-    }*/
-
     public void LookUp(object req_ippo) {
       IPPacket req_ipp = (IPPacket) req_ippo;
       UDPPacket req_udpp = new UDPPacket(req_ipp.Payload);
-      MemBlock res_payload = null;
+      DNSPacket dnspacket = new DNSPacket(req_udpp.Payload);
+      ICopyable rdnspacket = null;
       try {
-        int qtype = 0;
-        string qname = ReadRequestPacket(req_udpp.Payload, out qtype);
         string qname_response = String.Empty;
-
-        if(qtype == DNS_QTYPE_A) {
+        string qname = dnspacket.Questions[0].QNAME;
+        if(dnspacket.Questions[0].QTYPE == DNSPacket.TYPES.A) {
           qname_response = (string) dns_a[qname];
           if(qname_response == null) {
             try {
@@ -52,214 +37,77 @@ namespace Ipop {
             }
           }
           lock(_sync) {
-            dns_ptr[qname_response + DNS_SUFFIX] = qname;
+            dns_ptr[qname_response] = qname;
           }
         }
-        else if(qtype == DNS_QTYPE_PTR) {
+        else if(dnspacket.Questions[0].QTYPE == DNSPacket.TYPES.PTR) {
           qname_response = (string) dns_ptr[qname];
           if(qname_response == null) {
             throw new Exception("DNS PTR does not contain a record for " + qname);
           }
         }
-        res_payload = BuildReplyPacket(req_udpp.Payload, qname_response, qtype);
+        DNSPacket.Response response = new DNSPacket.Response(qname, dnspacket.Questions[0].QTYPE,
+                                dnspacket.Questions[0].QCLASS, 1800, qname_response);
+        DNSPacket res_packet = new DNSPacket(dnspacket.ID, false, dnspacket.OPCODE, true,
+                                         dnspacket.Questions, new DNSPacket.Response[] {response});
+        rdnspacket = res_packet.ICPacket;
       }
       catch(Exception e) {
-        ProtocolLog.WriteIf(ProtocolLog.Exceptions, e.Message);
-        res_payload = BuildFailedReplyPacket(req_udpp.Payload);
+        ProtocolLog.WriteIf(IPOPLog.DNS, e.Message);
+        rdnspacket = DNSPacket.BuildFailedReplyPacket(dnspacket);
       }
       UDPPacket res_udpp = new UDPPacket(req_udpp.DestinationPort,
-                                         req_udpp.SourcePort, res_payload);
+                                         req_udpp.SourcePort, rdnspacket);
       IPPacket res_ipp = new IPPacket((byte) IPPacket.Protocols.UDP,
                  req_ipp.DestinationIP, req_ipp.SourceIP, res_udpp.ICPacket);
+//      EthernetPacket res_ep = new EthernetPacket(_node.MAC, EthernetPacket.UnicastAddress,
+//          EthernetPacket.Types.IP, res_ipp.ICPacket);
       _node.Ether.Write(res_ipp.ICPacket, EthernetPacket.Types.IP, _node.MAC);
     }
 
-  /*
-  A DNS packet ...
-  1  1  1  1  1  1
-  0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
-  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-  |                      ID                       |
-  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-  |QR|   Opcode  |AA|TC|RD|RA|   Z    |   RCODE   |
-  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-  |                    QDCOUNT                    |
-  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-  |                    ANCOUNT                    |
-  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-  |                    NSCOUNT                    |
-  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-  |                    ARCOUNT                    |
-  +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+    // Generic ISource stuff
+    protected class Sub {
+      public readonly IDataHandler Handler;
+      public readonly object State;
+      public Sub(IDataHandler h, object s) { Handler = h; State =s; }
+      public void Handle(MemBlock b, ISender f) { Handler.HandleData(b, f, State); }
+    }
+    protected volatile Sub _sub;
 
-  ID - identification - client generated, do not change
-  QR - query / reply, client sends 0, server replies 1
-  Opcode - 0 for query
-  AA - Authoritative answer - if we find a response in the dht
-  TC - Truncation - ignored - 0
-  RD - Recursion desired - unimplemented - 0
-  RA - Recursion availabled - unimplemented - 0
-  Z - Reserved - must be 0
-  RCODE - ignored, stands for error code - 0
-  QDCOUNT - questions - should be 1
-  ANCOUNT - answers - should be 0 until we answer!
-  NSCOUNT - name server records
-  ARCOUNT - additional records - unsupported
-  */
-    public static readonly int DNS_QCLASS_IN = 1;
-    public static readonly int DNS_QTYPE_A = 1;
-    public static readonly int DNS_QTYPE_PTR = 12;
-    public static readonly string DNS_SUFFIX = ".ipop_dns";
-
-    public static string ReadRequestPacket(byte[] packet, out int qtype) {
-      byte qr = (byte) ((packet[2] & 0x80) >> 7);
-      byte opcode = (byte) ((packet[2] & 0x78) >> 3);
-      int qdcount = (packet[4] << 8) + packet[5];
-      int ancount = (packet[6] << 8) + packet[7];
-      int nscount = (packet[8] << 8) + packet[9];
-      int arcount = (packet[10] << 8) + packet[11];
-
-      if((qr != 0) || (opcode != 0) || (qdcount != 1) || (ancount != 0) ||
-          (nscount != 0) || (arcount != 0)) {
-        throw new Exception("Invalid request!");
+    public virtual void Subscribe(IDataHandler hand, object state) {
+      lock( _sync ) {
+        _sub = new Sub(hand, state);
       }
-
-      string qname = String.Empty;
-      int current = 12;
-      // The format is length data length data ... where data is split by '.'
-      while(packet[current] != 0) {
-        byte length = packet[current++];
-        for(int i = 0; i < length; i++) {
-          qname += (char) packet[current++];
+    }
+    public virtual void Unsubscribe(IDataHandler hand) {
+      lock( _sync ) {
+        if( _sub.Handler == hand ) {
+          _sub = null;
         }
-        if(packet[current] != 0) {
-          qname += ".";
+        else {
+          throw new Exception(String.Format("Handler: {0}, not subscribed", hand));
         }
       }
-      current++;
-
-      qtype = (packet[current++] << 8) + packet[current++];
-      if(qtype != DNS_QTYPE_A && qtype != DNS_QTYPE_PTR) {
-        throw new Exception("Invalid DNS_QTYPE " + qtype);
-      }
-      int qclass = (packet[current++] << 8) + packet[current];
-      if(qclass != DNS_QCLASS_IN) {
-        throw new Exception("Invalid DNS_QCLASS " + qclass);
-      }
-
-      if(qtype == DNS_QTYPE_PTR) {
-        string[] res = qname.Split('.');
-        qname = string.Empty;
-        /* The last 2 parts are the pointer IN-ADDR.ARPA, the rest is 
-           reverse notation
-         */
-        for(int i = res.Length - 3; i > 0; i--) {
-          qname += res[i] + ".";
-        }
-        qname += res[0] + DNS_SUFFIX;
-      }
-      else if(qtype == DNS_QTYPE_A) {
-        string[] res = qname.Split('.');
-        qname = res[0] + "." + res[1];
-        if(!qname.EndsWith(DNS_SUFFIX)) {
-          throw new Exception("Invalid DNS name: " + qname);
-        }
-      }
-      return qname;
     }
 
-/*
-    Build a response record!
-
-    1  1  1  1  1  1
-    0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
-    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-    |                      NAME                     |
-    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-    |                      TYPE                     |
-    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-    |                     CLASS                     |
-    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-    |                      TTL                      |
-    |                                               |
-    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-    |                   RDLENGTH                    |
-    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--|
-    /                     RDATA                     /
-    /                                               /
-    +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-    Name - a pointer to the qname in the original packet
-    Type - same as qtype
-    Class - same as qclass
-    TTL - time that the entry is valid for
-    RDLength - Length of RDATA
-    RDATA - Response!
+/* Tester ... remember to make the caches public and a remove ipopnode entries
+    public static void Main() {
+        Socket _s = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        EndPoint ipep = new IPEndPoint(IPAddress.Any, 53);
+        _s.Bind(ipep);
+        DhtDNS dns = new DhtDNS();
+        dns.dns_a["davidiw.pooper"] = "192.168.1.1";
+        dns.dns_ptr["192.168.1.1"] = "davidiw.pooper";
+        while(true) {
+        byte[] packet = new byte[1000];
+        EndPoint ep = new IPEndPoint(IPAddress.Any, 0);
+        int recv_count = _s.ReceiveFrom(packet, ref ep);
+        byte[] small_packet = new byte[recv_count];
+        Array.Copy(packet, 0, small_packet, 0, recv_count);
+        packet = dns.LookUp(small_packet);
+        _s.SendTo(packet, ep);
+      }
+    }
 */
-    public static byte[] BuildReplyPacket(byte[] packet, string response, int type) {
-      // base + response.length + null (eos)
-      ArrayList rpacket = new ArrayList(packet);
-      // Authoritative Answer
-      rpacket[2] = (byte) ((byte) rpacket[2] | 0x84);
-      // Answer!
-      rpacket[7] = (byte) 1;
-      // Authentication
-      rpacket[3] = (byte) ((byte) rpacket[3] | 0x20);
-      // Name - pointer qname
-      rpacket.Add((byte) 0xC0);
-      rpacket.Add((byte) 12);
-      // Type
-      rpacket.Add((byte) ((type >> 8) & 0xFF));
-      rpacket.Add((byte) (type & 0xFF));
-      // Class
-      rpacket.Add((byte) ((DNS_QCLASS_IN >> 8) & 0xFF));
-      rpacket.Add((byte) (DNS_QCLASS_IN & 0xFF));
-      // TTL - 30 Minutes
-      rpacket.Add((byte) 0x00);
-      rpacket.Add((byte) 0x00);
-      rpacket.Add((byte) 0x07);
-      rpacket.Add((byte) 0x08);
-      // RDLength and RDATA
-      byte[] resb = ConvertResponseToByteArray(response, type);
-      rpacket.Add((byte) ((resb.Length >> 8) & 0xFF));
-      rpacket.Add((byte) (resb.Length & 0xFF));
-      for(int i = 0; i < resb.Length; i++) {
-        rpacket.Add(resb[i]);
-      }
-      return (byte[]) rpacket.ToArray(typeof(byte));
-    }
-
-    public static byte[] ConvertResponseToByteArray(string response, int type) {
-      byte[] res = new byte[1]{0};
-      // The format is length data length data ... where data is split by '.'
-      if(type == DNS_QTYPE_PTR) {
-        string[] pieces = response.Split('.');
-        res = new byte[response.Length + 2];
-        int c = 0;
-        for(int i = 0; i < pieces.Length; i++) {
-          char[] res_c = pieces[i].ToCharArray();
-          res[c++] = (byte) res_c.Length;
-          for(int j = 0; j < res_c.Length; j++) {
-            res[c++] = (byte) ((int) res_c[j] & 0xFF);
-          }
-        }
-        res[c] = 0;
-      }
-      else if(type == DNS_QTYPE_A) {
-        string []bytes = response.Split('.');
-        res = new byte[4];
-        for(int i = 0; i < bytes.Length; i++) {
-          res[i] = Byte.Parse(bytes[i]);
-        }
-      }
-      return res;
-    }
-
-    public static byte[] BuildFailedReplyPacket(byte[] packet) {
-      byte[] res = new byte[packet.Length];
-      packet.CopyTo(res, 0);
-      res[3] |= 5;
-      res[2] |= 0x80;
-      return res;
-    }
   }
 }
