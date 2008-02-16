@@ -176,20 +176,23 @@ namespace Brunet
      */
     protected class HeartBeatObject : IAction {
       protected int _running;
+      //Return true if we are in the queue
+      public bool InQueue { get { return (_running == 1); } }
       protected readonly Node LocalNode;
       public HeartBeatObject(Node n) {
         LocalNode = n;
       }
-      public int TestAndSet() {
-        return Interlocked.CompareExchange(ref _running, 1, 0);
-      }
-      public void Reset() {
-        Interlocked.Exchange(ref _running, 0);   
+      /*
+       * @returns the previous value.
+       */
+      public bool SetInQueue(bool v) {
+        int run = v ? 1 : 0;
+        return (Interlocked.Exchange(ref _running, run) == 1);
       }
 
       public void Start() {
         LocalNode.RaiseHeartBeatEvent();
-        Reset();
+        SetInQueue(false);
       }
     }
 
@@ -386,8 +389,8 @@ namespace Brunet
       try {
         do {
           Thread.Sleep(_heart_period);
-          int old_val = _heart_beat_object.TestAndSet();
-          if (old_val == 0) {
+          bool already_in_queue = _heart_beat_object.SetInQueue(true);
+          if ( false == already_in_queue ) {
             if(ProtocolLog.Monitor.Enabled)
               ProtocolLog.Write(ProtocolLog.Monitor, "heart beat (received).");
             _packet_queue.Enqueue(_heart_beat_object);
