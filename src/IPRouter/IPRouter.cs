@@ -16,8 +16,6 @@ namespace Ipop {
     private static string ConfigFile;
     public static IPRouterConfig config;
     protected static IpopNode _node;
-    protected static byte []unicastMAC = new byte[]{0xFE, 0xFD, 0, 0, 0, 0};
-    protected static byte []broadcastMAC = new byte[]{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     protected static bool in_dhcp;
 
     private static bool ARPHandler(byte []packet) {
@@ -42,7 +40,7 @@ namespace Ipop {
       /* ARP Reply */
       replyPacket[7] = 2;
       /* Source MAC Address */
-      Array.Copy(broadcastMAC, 0, replyPacket, 8, 6);
+      EthernetPacket.BroadcastAddress.CopyTo(replyPacket, 8);
       /* Source IP Address */
       Array.Copy(packet, 24, replyPacket, 14, 4);
       /* Target MAC Address */
@@ -58,8 +56,9 @@ namespace Ipop {
       else {
         Array.Copy(packet, 14, replyPacket, 24, 4);
       }
-      _node.Ether.Write(MemBlock.Reference(replyPacket), 
-                       EthernetPacket.Types.ARP, dstMACAddr);
+      EthernetPacket res_ep = new EthernetPacket(_node.MAC, EthernetPacket.UnicastAddress,
+          EthernetPacket.Types.ARP, MemBlock.Reference(replyPacket));
+      _node.Ether.Write(res_ep.ICPacket);
       return true;
     }
 
@@ -158,7 +157,9 @@ namespace Ipop {
         UDPPacket res_udpp = new UDPPacket(67, 68, rpacket.Packet);
         IPPacket res_ipp = new IPPacket((byte) IPPacket.Protocols.UDP,
           rpacket.ciaddr, destination_ip, res_udpp.ICPacket);
-        _node.Ether.Write(res_ipp.Packet, EthernetPacket.Types.IP, _node.MAC);
+        EthernetPacket res_ep = new EthernetPacket(_node.MAC, EthernetPacket.UnicastAddress,
+            EthernetPacket.Types.IP, res_ipp.ICPacket);
+        _node.Ether.Write(res_ep.ICPacket);
       }
       catch(Exception e) {
         ProtocolLog.WriteIf(IPOPLog.DHCPLog, e.Message);
@@ -212,7 +213,7 @@ namespace Ipop {
 
       _node = new IpopNode(config.ipop_namespace, config.brunet_namespace,
                              (AHAddress) AddressParser.Parse(config.NodeAddress),
-                            new Ethernet(config.device, unicastMAC));
+                            new Ethernet(config.device));
 
       if(OSDependent.OSVersion == OSDependent.Linux) {
         new LinuxShutdown(_node);

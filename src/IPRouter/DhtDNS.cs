@@ -60,9 +60,9 @@ namespace Ipop {
                                          req_udpp.SourcePort, rdnspacket);
       IPPacket res_ipp = new IPPacket((byte) IPPacket.Protocols.UDP,
                  req_ipp.DestinationIP, req_ipp.SourceIP, res_udpp.ICPacket);
-//      EthernetPacket res_ep = new EthernetPacket(_node.MAC, EthernetPacket.UnicastAddress,
-//          EthernetPacket.Types.IP, res_ipp.ICPacket);
-      _node.Ether.Write(res_ipp.ICPacket, EthernetPacket.Types.IP, _node.MAC);
+      EthernetPacket res_ep = new EthernetPacket(_node.MAC, EthernetPacket.UnicastAddress,
+          EthernetPacket.Types.IP, res_ipp.ICPacket);
+      _node.Ether.Write(res_ep.ICPacket);
     }
 
     // Generic ISource stuff

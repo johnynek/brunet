@@ -55,6 +55,10 @@ namespace Ipop {
     public readonly MemBlock DestinationAddress, SourceAddress;
     public enum Types { IP = 0x800, ARP = 0x806 }
     public readonly int Type;
+    public static readonly MemBlock UnicastAddress = MemBlock.Reference(
+        new byte[]{0xFE, 0xFD, 0, 0, 0, 0});
+    public static readonly MemBlock BroadcastAddress = MemBlock.Reference(
+        new byte[]{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
 
     public EthernetPacket(MemBlock Packet) {
       _icpacket = _packet = Packet;

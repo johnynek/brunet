@@ -28,9 +28,10 @@ namespace Ipop
           from, p.Length));
       }
 
-      if(_node.MAC != null && !_node.Ether.Write(p, EthernetPacket.Types.IP, _node.MAC)) {
-        ProtocolLog.WriteIf(IPOPLog.PacketLog,
-                            "Error writing packet from ethernet");
+      if(_node.MAC != null) {
+        EthernetPacket res_ep = new EthernetPacket(_node.MAC, EthernetPacket.UnicastAddress,
+            EthernetPacket.Types.IP, p);
+        _node.Ether.Write(res_ep.ICPacket);
       }
     }
 

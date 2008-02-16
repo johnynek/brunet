@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Net;
+using System.Threading;
 using Brunet;
 
 namespace Ipop {
@@ -8,15 +9,12 @@ namespace Ipop {
    * A class to interact with the underlying TAP device.
    */
   public class Ethernet {
-
     public static readonly int MTU = 1500;
-    public static readonly int ETHER_HEADER_SIZE = 14;
-    public static readonly int ETHER_ADDR_LEN = 6;
-
-    private string device;
-    private byte[] routerMAC;
+    protected byte[] _send_buffer = new byte[MTU];
+    protected byte[] _read_buffer = new byte[MTU];
+    protected string device;
     //file descriptor for the device
-    int tapFD;
+    protected int fd;
 
     [DllImport("libtuntap")]
     private static extern int open_tap(string device);
@@ -27,32 +25,30 @@ namespace Ipop {
 
     //initialize with the tap device;
     //and the local MAC address
-    public Ethernet(string tap, byte []routerMAC) {
+    public Ethernet(string tap) {
       device = tap;
-      this.routerMAC = routerMAC;
-      if((tapFD = open_tap(device)) < 0) {
+      if((fd = open_tap(device)) < 0) {
         ProtocolLog.WriteIf(ProtocolLog.Exceptions, "Unable to set up the tap");
         Environment.Exit(1);
       }
     }
 
     public MemBlock Read() {
-      byte[] packet = new byte[MTU + ETHER_HEADER_SIZE];
-      int n = read_tap(tapFD, packet, packet.Length);
-      if (n == 0 || n == -1) 
+      int length = read_tap(fd, _read_buffer, _read_buffer.Length);
+      if (length == 0 || length == -1) {
+        ProtocolLog.WriteIf(ProtocolLog.Exceptions, "Couldn't read TAP");
         return null;
-      return MemBlock.Reference(packet, 0, n);
+      }
+      return MemBlock.Copy(_read_buffer, 0, length);
     }
 
-    public bool Write(ICopyable packet, EthernetPacket.Types type,
-                           MemBlock DestinationAddress) {
-      EthernetPacket ep = new EthernetPacket(DestinationAddress, routerMAC, 
-                                             type, packet);
-      int n = send_tap(tapFD, ep.Packet, ep.Packet.Length);
-      if (n != ep.Packet.Length)
-        return false;
-
-      return true;
+    public void Write(ICopyable data) {
+      int length = data.CopyTo(_send_buffer, 0);
+      int n = send_tap(fd, _send_buffer, length);
+      if(n != length) {
+        ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+          "TAP: Didn't write all data ... only {0} / {1}", n, length));
+      }
     }
   }
 }
