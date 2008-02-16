@@ -119,44 +119,13 @@ public class ReqrepManager : IDataHandler, ISource {
     }
   }
 
-  /** static hashtable to keep track of ReqrepManager objects. */
-  protected static Hashtable _rrm_table  = new Hashtable();
-  /** static lock for protecting the Hashtable above. */
-  protected static object _class_lock = new object();
-
   /** 
    * Static method to create ReqrepManager objects
    * @param node The node we work for
+   * @deprecated use node.Rrm;
    */
   public static ReqrepManager GetInstance(Node node) {
-    ReqrepManager rrm;
-    lock(_rrm_table) {
-      //check if there is already an instance object for this node
-      if (_rrm_table.ContainsKey(node)) {
-        return (ReqrepManager) _rrm_table[node];
-      }
-      //in case no instance exists, create one
-      rrm = new ReqrepManager(node.Address.ToString());
-      _rrm_table[node] = rrm;
-    }
-    rrm.Subscribe(node, null);
-    node.HeartBeatEvent += rrm.TimeoutChecker;
-    //Subscribe on the node:
-    node.GetTypeSource(PType.Protocol.ReqRep).Subscribe(rrm, null);
-
-    node.StateChangeEvent += delegate(Node n, Node.ConnectionState s) {
-      if( s == Node.ConnectionState.Disconnected ) {
-        lock(_rrm_table) {
-          _rrm_table.Remove(n);
-        }
-        ISource source = n.GetTypeSource(PType.Protocol.ReqRep);
-        try {
-          source.Unsubscribe(rrm);
-        }
-        catch { }
-      }
-    };
-    return rrm;
+    return node.Rrm;
   }
 
   public class Statistics {
