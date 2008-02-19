@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2008  David Wolinsky <davidiw@ufl.edu>, University of Florida
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+*/
+
 using System;
 using System.Collections;
 using System.Diagnostics;
@@ -37,7 +55,7 @@ namespace Ipop {
 
       while (max_attempts-- > 0) {
         while(max_renew_attempts-- > 0) {
-          string str_addr = IPOP_Common.BytesToString(RequestedAddr, '.');
+          string str_addr = Utils.BytesToString(RequestedAddr, '.');
           string key = "dhcp:ipop_namespace:" + namespace_value + ":ip:" + str_addr;
           try {
             res = _dht.Create(key, (string) node_address, leasetime);

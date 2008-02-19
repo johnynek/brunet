@@ -1,0 +1,110 @@
+using Brunet;
+using Brunet.Dht;
+using System;
+using System.Net;
+using System.Threading;
+
+namespace Ipop {
+  public class DhtIpopNode: IpopNode {
+    protected bool in_dhcp;
+    protected DhtDNS DhtDNS;
+
+    public DhtIpopNode(StructuredNode Brunet, Dht Dht, string IpopConfigPath):
+      base(Brunet, Dht, IpopConfigPath) {
+      in_dhcp = false;
+      _dhcp_server = new DhtDHCPServer(Dht);
+      DhtDNS = new DhtDNS(this);
+      _routes = new DhtRoutes(Dht, _ipop_config.IpopNamespace);
+    }
+
+    protected override bool HandleDHCP(IPPacket ipp) {
+      if(IpopLog.DHCPLog.Enabled) {
+        ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
+                            "Incoming DHCP Request, DHCP Status: {0}.", in_dhcp));
+      }
+      if(!in_dhcp) {
+        in_dhcp = true;
+        ThreadPool.QueueUserWorkItem(new WaitCallback(HandleDHCP), ipp);
+      }
+      return true;
+    }
+
+    protected override bool HandleDNS(IPPacket ipp) {
+      ThreadPool.QueueUserWorkItem(new WaitCallback(DhtDNS.LookUp), ipp);
+      return true;
+    }
+
+    protected override bool HandleMulticast(IPPacket ipp) {
+      ThreadPool.QueueUserWorkItem(new WaitCallback(HandleMulticast), ipp);
+      return true;
+    }
+
+    protected void HandleDHCP(Object IPPacketo) {
+      IPPacket ipp = (IPPacket) IPPacketo;
+      UDPPacket udpp = new UDPPacket(ipp.Payload);
+      DHCPPacket dhcp_packet = new DHCPPacket(udpp.Payload);
+
+      byte []last_ip = null;
+      string hostname = null;
+      if(_ipop_config.AddressData == null) {
+        _ipop_config.AddressData = new AddressInfo();
+      }
+      else {
+        try {
+          hostname = _ipop_config.AddressData.Hostname;
+          last_ip = IPAddress.Parse(_ipop_config.AddressData.IPAddress).GetAddressBytes();
+        }
+        catch {}
+      }
+
+      try {
+        DHCPPacket rpacket = _dhcp_server.Process(dhcp_packet, last_ip,
+            Brunet.Address.ToString(), _ipop_config.IpopNamespace,
+            hostname);
+
+        /* Check our allocation to see if we're getting a new address */
+        string new_address = Utils.MemBlockToString(rpacket.yiaddr, '.');
+        string new_netmask = Utils.BytesToString(
+            (byte[]) rpacket.Options[DHCPPacket.OptionTypes.SUBNET_MASK], '.');
+        if(new_address != IP || Netmask !=  new_netmask) {
+          UpdateAddressData(new_address, new_netmask);
+          ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
+                              "DHCP:  IP Address changed to {0}", IP));
+        }
+        byte[] destination_ip = null;
+        if(ipp.SourceIP[0] == 0) {
+          destination_ip = new byte[4]{255, 255, 255, 255};
+        }
+        else {
+          destination_ip = ipp.SourceIP;
+        }
+        UDPPacket res_udpp = new UDPPacket(67, 68, rpacket.Packet);
+        IPPacket res_ipp = new IPPacket((byte) IPPacket.Protocols.UDP,
+                                         rpacket.ciaddr, destination_ip, res_udpp.ICPacket);
+        EthernetPacket res_ep = new EthernetPacket(MACAddress, EthernetPacket.UnicastAddress,
+            EthernetPacket.Types.IP, res_ipp.ICPacket);
+        Ethernet.Send(res_ep.ICPacket);
+      }
+      catch(Exception e) {
+        ProtocolLog.WriteIf(IpopLog.DHCPLog, e.ToString());//Message);
+      }
+      in_dhcp = false;
+    }
+
+    public void HandleMulticast(Object ippo) {
+      IPPacket ipp = (IPPacket) ippo;
+      DhtGetResult []dgrs = Dht.Get("multicast.ipop_vpn");
+      foreach(DhtGetResult dgr in dgrs) {
+        try {
+          AHAddress target = (AHAddress) AddressParser.Parse(dgr.valueString);
+          if(IpopLog.PacketLog.Enabled) {
+            ProtocolLog.Write(IpopLog.PacketLog, String.Format(
+                              "Brunet destination ID: {0}", target));
+          }
+          SendIP(target, ipp.Packet);
+        }
+        catch {}
+      }
+    }
+  }
+}

@@ -1,6 +1,31 @@
+/*
+Copyright (C) 2008  David Wolinsky <davidiw@ufl.edu>, University of Florida
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+*/
+
 using Brunet;
 
 namespace Ipop {
+  /**
+   * Provides an abstraction to sue a generic packet idea, that is you can
+   * use the ICPacket portion to make a large packet and just copy the final 
+   * object to a byte array in the end rather then at each stage.  When Packet
+   * is accessed and is undefined, it will perform the copy automatically for 
+   * you from ICPacket to Packet.
+   */
   public abstract class DataPacket {
     protected ICopyable _icpacket;
     public ICopyable ICPacket { get { return _icpacket; } }
@@ -23,6 +48,10 @@ namespace Ipop {
     }
   }
 
+  /**
+   * Similar to DataPacket but also provides a(n) (IC)Payload for packet types
+   * that have a header and a body, as Ethernet and IP Packets do.
+   */
   public abstract class NetworkPacket: DataPacket {
     protected ICopyable _icpayload;
     public ICopyable ICPayload { get { return _icpayload; } }
@@ -45,13 +74,17 @@ namespace Ipop {
     }
   }
 
+  /**
+   * Encapsulates an EthernetPacket and provides the mechanisms to generate
+   * new Ethernet Packets.
+   */
   public class EthernetPacket: NetworkPacket {
-    /*
-      Destination Address - 6 bytes
-      Source Address - 6 bytes
-      Type - 2 bytes
+    /**
+      The Header is of the format
+        Destination Address - 6 bytes
+        Source Address - 6 bytes
+        Type - 2 bytes
     */
-
     public readonly MemBlock DestinationAddress, SourceAddress;
     public enum Types { IP = 0x800, ARP = 0x806 }
     public readonly int Type;
@@ -88,8 +121,11 @@ namespace Ipop {
     }
   }
 
+  /**
+   * Encapsulates an IP Packet and can create new IP Packets.
+   */
   public class IPPacket: NetworkPacket {
-    /*
+    /**
       Version - 4 bits - Format =  4 - IP Protocol
       IHL - 4 bits - Length of IP Header in 32-bit words = 5
       TOS - 8 bits - Type of service = 0 - routine
@@ -186,12 +222,15 @@ namespace Ipop {
     }
   }
 
+  /**
+   * Provides an encapsulation for UDP Packets and can create new UDP Packets.
+   */
   public class UDPPacket: NetworkPacket {
-    /*
-      SourcePort - 16 bits
-      DestinationPort - 16 bits
-      Length - 16 bits - includes udp header and data
-      Checksum - 16 bits- disabled = 00 00 00 00
+    /**
+      SourcePort - 2 bytes
+      DestinationPort - 2 bytes
+      Length - 2 bytes - includes udp header and data
+      Checksum - 2 bytes- disabled = 00 00 00 00
     */
 
     public readonly int SourcePort, DestinationPort;
@@ -235,6 +274,9 @@ namespace Ipop {
     }
   }
 
+  /**
+   * Unsupported, this class is too big to support now!
+   */
   public class IGMPPacket: NetworkPacket {
     public enum Types { Join = 0x16, Leave = 0x17};
     public readonly byte Type;

@@ -57,17 +57,17 @@ namespace Ipop {
         ((byte) (leasetime))};
       namespace_value = config.value;
       logsize = config.LogSize * 1024; /* Bytes */
-      lower = IPOP_Common.StringToBytes(config.pool.lower, '.');
-      upper = IPOP_Common.StringToBytes(config.pool.upper, '.');
-      netmask = IPOP_Common.StringToBytes(config.netmask, '.');
+      lower = Utils.StringToBytes(config.pool.lower, '.');
+      upper = Utils.StringToBytes(config.pool.upper, '.');
+      netmask = Utils.StringToBytes(config.netmask, '.');
 
       if(config.reserved != null) {
         reservedIP = new byte[config.reserved.value.Length + 1][];
         reservedMask = new byte[config.reserved.value.Length + 1][];
         for(int i = 1; i < config.reserved.value.Length + 1; i++) {
-          reservedIP[i] = IPOP_Common.StringToBytes(
+          reservedIP[i] = Utils.StringToBytes(
             config.reserved.value[i-1].ip, '.');
-          reservedMask[i] = IPOP_Common.StringToBytes(
+          reservedMask[i] = Utils.StringToBytes(
             config.reserved.value[i-1].mask, '.');
         }
       }

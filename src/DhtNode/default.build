@@ -1,50 +1,48 @@
 <?xml version="1.0"?>
 <project name="ipop-common" default="build" basedir=".">
-  <description> Builds the common files for IPOP-1.0 and IPOP-1.1. </description>
+  <description> Builds the Ipop dll </description>
   <property name="lib.dir" value="../../lib"/>
   <property name="build.dir" value="build" />
+  <property name="bin.dir" value="../../bin"/>
   <target name="clean" description="Remove build directory">
     <delete dir="${build.dir}" failonerror="true"/>
   </target>
-  <target name="build" description="Build IPRouter.exe">
+  <target name="build" description="Build DhtIpopNode.exe">
     <mkdir dir="${build.dir}" failonerror="true"/>
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${lib.dir}">
+        <include name="BasicNode.dll"/>
         <include name="Brunet.dll" />
         <include name="libtuntap.so" />
         <include name="Brunet.Dht.dll" />
         <include name="CookComputing.XmlRpcV2.dll" />
         <include name="Ipop.IBlockingQueue.dll" />
         <include name="Brunet.XmlRpc.dll" />
-        <include name="Ipop.Dhcp.dll" />
+        <include name="Brunet.DhtService.dll"/>
       </fileset>
     </copy>
-    <csc target="exe" output="${build.dir}/IPRouter.exe">
+    <csc target="exe" output="${build.dir}/DhtIpopNode.exe">
       <sources failonempty="true">
         <include name="*.cs"/>
-        <include name="../Dht/IDht.cs"/>
-        <include name="../Dht/DhtService.cs"/>
-        <include name="../Dht/DhtAdapter.cs"/>
-        <include name="../Dht/DhtServiceClient.cs"/>
-        <include name="../Dht/DhtServiceClient_noXmlRpc.cs"/>
-        <include name="../Dht/BlockingQueueAdapter.cs"/>
-        <include name="../Common/Brunet_Common.cs"/>
-        <include name="../Common/OSDependent.cs"/>
-        <include name="../Common/IPRouterConfig.cs"/>
-        <include name="../Common/IpopInformation.cs"/>
-        <include name="../Common/IPOP_Common.cs"/>
-        <include name="../Common/IPAddresses.cs"/>
-        <include name="../Common/IPOPLog.cs"/>
+        <include name="../IpopNode/*.cs"/>
       </sources>
       <references>
+        <include name="${build.dir}/BasicNode.dll"/>
         <include name="${build.dir}/Brunet.dll"/>
-        <include name="${build.dir}/Brunet.Dht.dll" />
-        <include name="${build.dir}/Ipop.IBlockingQueue.dll" />
+        <include name="${build.dir}/Brunet.Dht.dll"/>
+        <include name="${build.dir}/Ipop.IBlockingQueue.dll"/>
         <include name="${build.dir}/Brunet.XmlRpc.dll" />
+        <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />
+        <include name="${build.dir}/Brunet.DhtService.dll"/>
         <include name="System.Runtime.Remoting.dll"/>
         <include name="Mono.Posix.dll"/>
-        <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />
       </references>
     </csc>
+    <mkdir dir="${bin.dir}" failonerror="true"/>
+    <copy todir="${bin.dir}" failonerror="true">
+      <fileset basedir="${build.dir}">
+        <include name="Ipop.dll" />
+      </fileset>
+    </copy>
   </target>
 </project>

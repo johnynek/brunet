@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<project name="ipop-common" default="build" basedir=".">
+  <description> Builds the Ipop dll </description>
+  <property name="lib.dir" value="../../lib"/>
+  <property name="build.dir" value="build" />
+  <target name="clean" description="Remove build directory">
+    <delete dir="${build.dir}" failonerror="true"/>
+  </target>
+  <target name="build" description="Build IPRouter.exe">
+    <mkdir dir="${build.dir}" failonerror="true"/>
+    <copy todir="${build.dir}" failonerror="true">
+      <fileset basedir="${lib.dir}">
+        <include name="Brunet.dll" />
+        <include name="libtuntap.so" />
+        <include name="Brunet.Dht.dll" />
+        <include name="BasicNode.dll" />
+      </fileset>
+    </copy>
+    <csc target="library" output="${build.dir}/Ipop.dll">
+      <sources failonempty="true">
+        <include name="*.cs"/>
+      </sources>
+      <references>
+        <include name="${build.dir}/Brunet.dll"/>
+        <include name="${build.dir}/Brunet.Dht.dll" />
+        <include name="${build.dir}/BasicNode.dll" />
+      </references>
+    </csc>
+    <copy todir="${lib.dir}" failonerror="true">
+      <fileset basedir="${build.dir}">
+        <include name="Ipop.dll" />
+      </fileset>
+    </copy>
+  </target>
+</project>

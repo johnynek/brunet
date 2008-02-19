@@ -24,6 +24,15 @@ using System.Net;
 using System.Net.Sockets;
 
 namespace Ipop {
+  /** This class supports the parsing of DNS Packets.  It is a very naive
+   * implementation and lacks support for services other than address lookup
+   * (TYPE=A) and pointer look up (TYPE=PTR).  Because I haven't found a 
+   * service that used inverse querying for name look up, only pointer look up
+   * is implemented
+   *
+   * Exceptions will not occur when parsing byte arrays, only when attempting
+   * to create from scratch new packets with unsupported TYPES.
+   */
   public class DNSPacket: DataPacket {
   /*
     A DNS packet ...
