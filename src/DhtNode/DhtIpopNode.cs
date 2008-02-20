@@ -31,7 +31,7 @@ namespace Ipop {
     public DhtIpopNode(StructuredNode Brunet, Dht Dht, string IpopConfigPath):
       base(Brunet, Dht, IpopConfigPath) {
       in_dhcp = false;
-      _dhcp_server = new DhtDHCPServer(Dht);
+      _dhcp_server = new DhtDHCPServer(Dht, _ipop_config.EnableMulticast);
       DhtDNS = new DhtDNS(this);
       _routes = new DhtRoutes(Dht, _ipop_config.IpopNamespace);
     }
@@ -54,7 +54,9 @@ namespace Ipop {
     }
 
     protected override bool HandleMulticast(IPPacket ipp) {
-      ThreadPool.QueueUserWorkItem(new WaitCallback(HandleMulticast), ipp);
+      if(_ipop_config.EnableMulticast) {
+        ThreadPool.QueueUserWorkItem(new WaitCallback(HandleMulticast), ipp);
+      }
       return true;
     }
 

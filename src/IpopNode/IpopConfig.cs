@@ -31,6 +31,7 @@ namespace Ipop {
                                  IP space in a single overlay system */
     public string VirtualNetworkDevice; /**< The device name of the TAP device */
     public AddressInfo AddressData; /**< End Point Mapping @see AddressInfo */
+    public bool EnableMulticast; /**< Enable Multicast */
   }
 
   /** AddressInfo stores end point mappings depending on the system all or 

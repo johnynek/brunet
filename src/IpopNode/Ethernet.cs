@@ -67,7 +67,6 @@ namespace Ipop {
           }
 
           MemBlock packet = MemBlock.Copy(_read_buffer, 0, length);
-          Console.WriteLine("HERE?" + _sub);
           Sub s = _sub;
           if(s != null) {
             s.Handle(packet, this);

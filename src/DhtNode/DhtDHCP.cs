@@ -29,9 +29,12 @@ using Brunet.Dht;
 namespace Ipop {
   public class DhtDHCPLeaseController: DHCPLeaseController {
     protected Dht _dht;
+    protected bool _multicast;
 
-    public DhtDHCPLeaseController(Dht dht, IPOPNamespace config):base(config) {
+    public DhtDHCPLeaseController(Dht dht, IPOPNamespace config,
+                                  bool EnableMulticast): base(config) {
       _dht = dht;
+      _multicast = EnableMulticast;
     }
 
     public override DHCPReply GetLease(byte[] RequestedAddr, bool Renew,
@@ -67,7 +70,9 @@ namespace Ipop {
             if(hostname != null) {
               _dht.Put(hostname + DhtDNS.SUFFIX, str_addr, leasetime);
             }
-            _dht.Put("multicast.ipop_vpn", (string) node_address, leasetime);
+            if(_multicast) {
+              _dht.Put("multicast.ipop_vpn", (string) node_address, leasetime);
+            }
             _dht.Put((string) node_address, key + "|" + DateTime.Now.Ticks, leasetime);
             break;
           }
@@ -95,8 +100,10 @@ namespace Ipop {
 
   public class DhtDHCPServer: DHCPServer {
     protected Dht _dht;
+    protected bool _multicast;
 
-    public DhtDHCPServer(Dht dht) {
+    public DhtDHCPServer(Dht dht, bool EnableMulticast) {
+      _multicast = EnableMulticast;
       _dht = dht;
     }
 
@@ -115,7 +122,7 @@ namespace Ipop {
       XmlSerializer serializer = new XmlSerializer(typeof(IPOPNamespace));
       TextReader stringReader = new StringReader(xml_str);
       IPOPNamespace ipop_ns = (IPOPNamespace) serializer.Deserialize(stringReader);
-      DHCPLeaseController dhcpLeaseController = new DhtDHCPLeaseController(_dht, ipop_ns);
+      DHCPLeaseController dhcpLeaseController = new DhtDHCPLeaseController(_dht, ipop_ns, _multicast);
       _dhcp_lease_controllers[ipop_namespace] = dhcpLeaseController;
       return dhcpLeaseController;
     }

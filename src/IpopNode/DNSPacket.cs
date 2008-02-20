@@ -659,7 +659,6 @@ namespace Ipop {
           byte[] rpacket = new byte[rdnspacket.Data.Length];
           rdnspacket.Data.CopyTo(rpacket, 0);
           RPacket = MemBlock.Reference(rpacket);
-          Console.WriteLine("TYPES.A");
         }
         else if(dnspacket.Questions[0].QNAME == "192.168.1.155") {
           Response response0 = new Response("192.168.1.155", TYPES.PTR, CLASSES.IN, 3600, "hitme.hard");
@@ -670,13 +669,10 @@ namespace Ipop {
           byte[] rpacket = new byte[rdnspacket.Data.Length];
           rdnspacket.Data.CopyTo(rpacket, 0);
           RPacket = MemBlock.Reference(rpacket);
-          Console.WriteLine("TYPES.PTR");
         }
         else {
           RPacket = DNSPacket.BuildFailedReplyPacket(dnspacket);
         }
-        Console.WriteLine(dnspacket.Questions[0].QNAME);
-        Console.WriteLine(ep);
         _s.SendTo(RPacket, ep);
       }
     }

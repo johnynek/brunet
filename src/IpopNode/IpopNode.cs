@@ -75,7 +75,6 @@ namespace Ipop {
      */
 
     public void HandleData(MemBlock b, ISender from, object state) {
-      Console.WriteLine("HERE");
       if(from is Ethernet) {
         EthernetPacket ep = new EthernetPacket(b);
         if(MACAddress == null) {
@@ -92,7 +91,6 @@ namespace Ipop {
         }
       }
       else {
-        Console.WriteLine("HEREa");
         HandleIPIn(b, from);
       }
     }
