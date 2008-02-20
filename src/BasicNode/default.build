@@ -50,6 +50,7 @@
         <include name="IpopInformation.cs"/>
         <include name="OSDependent.cs"/>
         <include name="Utils.cs"/>
+        <include name="Shutdown.cs"/>
       </sources>
       <references>
         <include name="${build.dir}/Brunet.dll"/>

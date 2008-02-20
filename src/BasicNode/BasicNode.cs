@@ -35,6 +35,8 @@ namespace Ipop {
     protected Dht _dht;
     protected DhtServer _ds;
     protected XmlRpcManagerServer _xrm;
+    protected Shutdown _shutdown;
+    protected bool _running;
 
     public BasicNode(String path) {
       try {
@@ -49,13 +51,14 @@ namespace Ipop {
         _node_config.NodeAddress = (Utils.GenerateAHAddress()).ToString();
         NodeConfigHandler.Write(path, _node_config);
       }
+      _running = true;
     }
 
     public virtual void Run() {
       int sleep = 60, sleep_min = 60, sleep_max = 3600;
       DateTime start_time = DateTime.UtcNow;
       // Keep creating new nodes no matter what!
-      while(true) {
+      while(_running) {
         CreateNode();
         new IpopInformation(_node, "BasicNode");
         Console.Error.WriteLine("I am connected to {0} as {1}.  Current time is {2}.",
@@ -64,7 +67,9 @@ namespace Ipop {
         start_time = DateTime.UtcNow;
         _node.Connect();
         StopServices();
-
+        if(!_running) {
+          break;
+        }
         // Assist in garbage collection
         DateTime now = DateTime.UtcNow;
         Console.Error.WriteLine("Going to sleep for {0} seconds. Current time is: {1}", sleep, now);
@@ -130,6 +135,11 @@ namespace Ipop {
     }
 
     public void StartServices() {
+      if(OSDependent.OSVersion == OSDependent.Linux) {
+        _shutdown = new LinuxShutdown(_node);
+        _shutdown.PreDisconnect += PreShutdown;
+      }
+
       if(_node_config.RpcDht != null && _node_config.RpcDht.Enabled) {
         if(_ds == null) {
           _ds = new DhtServer(_node_config.RpcDht.Port);
@@ -158,6 +168,11 @@ namespace Ipop {
       if(_xrm != null) {
         _xrm.Stop();
       }
+    }
+
+    public void PreShutdown() {
+      StopServices();
+      _running = false;
     }
   }
 }
