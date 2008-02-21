@@ -19,11 +19,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using System.Runtime.Remoting.Channels.Http;
 using System.Runtime.Remoting.Channels;
 using System.Runtime.Remoting;
-using Brunet.Dht;
+using Brunet.DistributedServices;
 using System;
 using System.Collections;
 
-namespace Brunet.Dht {
+namespace Brunet.Rpc {
   public partial class DhtServiceClient {
     public static ISoapDht GetSoapDhtClient() {
       return GetSoapDhtClient(64221);

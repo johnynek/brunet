@@ -15,7 +15,7 @@ using System.Reflection;
 using NUnit.Framework;
 #endif
 
-namespace Brunet {
+namespace Brunet.Rpc {
   /**
    * A proxy that acts between the XML-RPC client and Brunet RpcManager
    * It is also a IRpcHandler managed by RpcManager and handles calls 

@@ -26,9 +26,9 @@ using System.Runtime.Remoting.Lifetime;
 using CookComputing.XmlRpc;
 using System.Threading;
 using Brunet;
-using Brunet.Dht;
+using Brunet.DistributedServices;
 
-namespace Brunet.Dht {
+namespace Brunet.Rpc {
   /// <summary>
   /// A Dht Server thread listens to Soap and XmlRpc requests
   /// Soap URL: http://localhost:64221/sd.rem

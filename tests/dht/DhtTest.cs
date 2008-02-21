@@ -5,9 +5,9 @@ using System.Security.Cryptography;
 using System.Threading;
 
 using Brunet;
-using Brunet.Dht;
+using Brunet.DistributedServices;
 
-namespace Brunet.Dht {
+namespace Test {
   public class DhtOpTester {
     SortedList nodes = new SortedList();
     SortedList dhts = new SortedList();

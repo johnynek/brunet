@@ -23,9 +23,8 @@ using System.Security.Cryptography;
 using System.Runtime.Remoting;
 using CookComputing.XmlRpc;
 using Brunet;
-using Brunet.Dht;
 
-namespace Brunet.Dht {  
+namespace Brunet.Rpc {  
   public class BlockingQueueAdapter : MarshalByRefObject, IBlockingQueue {
     /**
      * Adaptee
