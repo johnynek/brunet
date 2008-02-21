@@ -656,9 +656,9 @@ namespace Brunet
      * there.
      */
     public void EnqueueAction(IAction a) {
-      _packet_queue.Enqueue(a);
+      int count = _packet_queue.Enqueue(a);
       _packet_queue_exp_avg = (PACKET_QUEUE_RETAIN * _packet_queue_exp_avg)
-          + ((1 - PACKET_QUEUE_RETAIN) * _packet_queue.Count);
+          + ((1 - PACKET_QUEUE_RETAIN) * count);
 
       if(_packet_queue_exp_avg > MAX_AVG_QUEUE_LENGTH) {
         if(ProtocolLog.Monitor.Enabled) {
