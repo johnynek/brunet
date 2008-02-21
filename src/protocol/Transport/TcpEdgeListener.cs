@@ -2,7 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
-Copyright (C) 2005-2007  P. Oscar Boykin <boykin@pobox.com>, University of Florida
+Copyright (C) 2005-2008  P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -48,6 +48,7 @@ namespace Brunet
     protected ArrayList _send_sockets;
     volatile protected Hashtable _sock_to_edge;
     protected IEnumerable _tas;
+    protected ArrayList _creation_states;
     /**
      * This inner class holds the connection state information
      */
@@ -165,6 +166,7 @@ namespace Brunet
       _all_sockets = new ArrayList();
       _send_sockets = new ArrayList();
       _sock_to_edge = new Hashtable();
+      _creation_states = new ArrayList();
       _loop = new Thread( new ThreadStart( this.SelectLoop ) );
     }
 
@@ -173,7 +175,7 @@ namespace Brunet
     public override void CreateEdgeTo(TransportAddress ta, EdgeCreationCallback ecb)
     {
       try {
-      if( !IsStarted )
+      if( !IsStarted || (_run == false) )
       {
 	throw new EdgeException("TcpEdgeListener is not started");
       }
@@ -192,10 +194,14 @@ namespace Brunet
         CreationState cs = new CreationState(ecb,
                                            new Queue( tmp_ips ),
                                            ((IPTransportAddress) ta).Port);
+        lock( _sync ) { 
+          _creation_states.Add(cs);
+        }
         TryNextIP( cs );
       }
       } catch(Exception e) {
-	ecb(false, null, e);
+        
+	      ecb(false, null, e);
       }
     }
 
@@ -222,6 +228,15 @@ namespace Brunet
         //Don't join on the current thread, that would block forever
         _loop.Join();
       }
+      lock( _sync ) {
+        foreach(CreationState cs in _creation_states) {
+          //stop referring back to the Node
+          cs.ECB = null;
+        }
+        //Make sure we don't put anything else in this list
+        _creation_states = null;
+      }
+      base.Stop();
     }
 
     /* ***************************************************** */
@@ -259,6 +274,9 @@ namespace Brunet
           success = false;
         }
         cs.ECB(success, e, null);
+        lock(_sync) {
+          _creation_states.Remove(cs);
+        }
       }
       catch(Exception) {
         //This did not work out, close the socket and release the resources:
@@ -283,6 +301,9 @@ namespace Brunet
     {
       if( cs.IPAddressQueue.Count <= 0 ) {
         cs.ECB(false, null, new EdgeException("No more IP Addresses") );
+        lock(_sync) {
+          _creation_states.Remove(cs);
+        }
       }
       else {
         Socket s = null;
@@ -311,6 +332,9 @@ namespace Brunet
         }
         catch(Exception x) {
           cs.ECB(false, null, x);
+          lock(_sync) {
+            _creation_states.Remove(cs);
+          }
         }
       }
     }
