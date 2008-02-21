@@ -22,7 +22,7 @@ namespace Ipop {
   public class DhtNodeRun: BasicNode {
     protected String _ipop_config_path;
 
-    public static void Main(String[] args) {
+    public static new void Main(String[] args) {
       DhtNodeRun node = new DhtNodeRun(args[0], args[1]);
       node.Run();
     }

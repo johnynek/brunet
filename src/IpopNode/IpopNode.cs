@@ -28,7 +28,7 @@ namespace Ipop {
     protected readonly IpopConfig _ipop_config;
     protected readonly String _ipop_config_path;
     public readonly Ethernet Ethernet;
-//    public readonly IpopInformation IpopInfo;
+    public readonly Information _info;
 
     //Services
     public readonly StructuredNode Brunet;
@@ -49,14 +49,14 @@ namespace Ipop {
       Ethernet = new Ethernet(_ipop_config.VirtualNetworkDevice);
       Ethernet.Subscribe(this, null);
 
-/*      this.IpopInfo = IpopInfo;
-      IpopInfo.Type = "IPRouter";
-      IpopInfo.IpopNamespace = _ipop_config.IpopNamespace;
-*/
+      _info = new Information(Brunet, "IpopNode");
+      _info.UserData["IpopNamespace"] = _ipop_config.IpopNamespace;
+
       Brunet.GetTypeSource(PType.Protocol.IP).Subscribe(this, null);
     }
 
     public void UpdateAddressData(string IP, string Netmask) {
+      _info.UserData["Virtual IP"] = IP;
       _ip = IP;
       _ipop_config.AddressData.IPAddress = _ip;
       _netmask = Netmask;
