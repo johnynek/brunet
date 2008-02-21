@@ -165,8 +165,9 @@ namespace Ipop {
     public IPAddressesWindows() : base() {}
 
     public override IList GetAddresses() {
+      String root = Environment.GetEnvironmentVariable("SystemRoot");
       ProcessStartInfo cmd = new
-          ProcessStartInfo("c:\\WINDOWS\\system32\\ipconfig.exe");
+          ProcessStartInfo(root + "\\system32\\ipconfig.exe");
       cmd.Arguments = "/all";
       cmd.RedirectStandardOutput = true;
       cmd.UseShellExecute = false;
