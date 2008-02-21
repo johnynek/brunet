@@ -19,30 +19,28 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using System;
 using System.Collections;
 
-namespace Brunet.Applications {
+namespace Brunet.Node {
   /**
-  <summary>Determines the current operating system, between Linux and
-  Windows.  This is a static class unified class rather than have other
-  parts of the code look at Environment.OSVersion.Platform and figure 
-  information from there.</summary>
-  */
+   * Determines the current operating system, I'm sure this could be broader,
+   * but we only have the ability to test Linux and Windows now.
+   */
   public class OSDependent {
-    /// <summary>Operating System enumeration</summary>
-    public enum OS {
-      Linux = 0,
-      Windows = 1
+    public static int Linux {get { return 0; } }
+    public static int Windows {get { return 1; } }
+    private static int _osver;
+    public static int OSVersion {
+      get {
+        return _osver;
+      }
     }
-    /// <summary>Contains the current operating system.</summary>
-    public static readonly OS OSVersion;
 
-    /// <summary>Static constructor to setup OSVersion</summary>
     static OSDependent() {
       int p = (int) Environment.OSVersion.Platform;
       if ((p == 4) || (p == 128)) {
-        OSVersion = OS.Linux;
+        _osver = Linux;
       }
       else {
-        OSVersion = OS.Windows;
+        _osver = Windows;
       }
     }
   }

@@ -79,6 +79,7 @@
     <nant buildfile="src/apps/default.build" />
     <nant buildfile="src/xmlrpc/default.build" />
     <nant buildfile="src/DhtService/default.build" />
+    <nant buildfile="src/BasicNode/default.build" />
     <nant buildfile="tests/util/default.build" />
     <nant buildfile="tests/protocol/default.build" />
 
