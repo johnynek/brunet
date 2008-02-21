@@ -19,7 +19,7 @@
       </fileset>
     </copy>
 
-    <csc target="library" output="${build.dir}/IPAddresses.dll">
+    <csc target="library" output="${build.dir}/Brunet.IPAddresses.dll">
       <sources failonempty="true">
         <include name="IPAddresses.cs"/>
         <include name="OSDependent.cs"/>
@@ -48,7 +48,7 @@
       </references>
     </csc>
 
-    <csc target="library" output="${build.dir}/BasicNode.dll">
+    <csc target="library" output="${build.dir}/Brunet.BasicNode.dll">
       <sources failonempty="true">
         <include name="BasicNode.cs"/>
         <include name="NodeConfig.cs"/>
@@ -70,7 +70,7 @@
       </references>
     </csc>
 
-    <csc target="exe" output="${build.dir}/MultiNode.exe" main="Brunet.Node.MultiNode">
+    <csc target="exe" output="${build.dir}/MultiNode.exe" main="Brunet.Applications.MultiNode">
       <sources failonempty="true">
         <include name="MultiNode.cs"/>
         <include name="BasicNode.cs"/>
@@ -95,7 +95,8 @@
 
     <copy todir="${lib.dir}" failonerror="true">
       <fileset basedir="${build.dir}">
-        <include name="BasicNode.dll" />
+        <include name="Brunet.BasicNode.dll" />
+        <include name="Brunet.IPAddresses.dll" />
       </fileset>
     </copy>
   </target>

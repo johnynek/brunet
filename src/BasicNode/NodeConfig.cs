@@ -23,7 +23,7 @@ using System.IO;
 using System.Xml;
 using System.Xml.Serialization;
 
-namespace Brunet.Node {
+namespace Brunet.Applications {
   public class NodeConfig {
     public String BrunetNamespace;
     [XmlArrayItem (typeof(String), ElementName = "Transport")]

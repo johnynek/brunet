@@ -24,7 +24,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Net.Sockets;
 
-namespace Brunet.Node {
+namespace Brunet.Applications {
   public class Utils {
     /**
      * Retrieves the geographical location of the host running the process
