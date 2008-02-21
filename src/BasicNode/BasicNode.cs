@@ -76,6 +76,7 @@ namespace Brunet.Node {
                                 _node.Realm, _node.Address.ToString(), DateTime.UtcNow);
         _node.DisconnectOnOverload = true;
         start_time = DateTime.UtcNow;
+        StartServices();
         _node.Connect();
         SuspendServices();
         if(!_running) {
@@ -147,7 +148,6 @@ namespace Brunet.Node {
       }
 
       _dht = new Dht(_node, 3, 20);
-      StartServices();
     }
 
     /**
