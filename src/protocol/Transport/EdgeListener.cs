@@ -151,7 +151,17 @@ namespace Brunet
      * The edgelistener may not be garbage collected
      * until this is called
      */
-    public abstract void Stop();
+    public virtual void Stop() {
+      /*
+       * Hopefully we can get garbage collection moving
+       * sooner.  Some EdgeListeners have threads that
+       * won't stop immediately, so the idea is to make
+       * sure they don't keep references to the node
+       * around
+       */
+      EdgeCloseRequestEvent = null;
+      EdgeEvent = null;
+    }
 
     /**
      * When a new Connection is added, we may need to update the list
