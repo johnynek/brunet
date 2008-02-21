@@ -36,6 +36,7 @@ namespace Ipop {
   /// </summary>
   public class DhtServer {
     private DhtAdapter _sd, _xd;
+    protected IChannel _channel;
     public  DhtServer(int port) {
       if(port == 0) {
         throw new Exception("Must be started with a valid specific port number!");
@@ -46,11 +47,18 @@ namespace Ipop {
       IDictionary props = new Hashtable();
       props.Add("port", port);
       props.Add("name", "dhtsvc");
-      HttpChannel channel = new HttpChannel(props, null, chain);
-      ChannelServices.RegisterChannel(channel, false);
+      _channel = new HttpChannel(props, null, chain);
+      ChannelServices.RegisterChannel(_channel, false);
     }
 
     public void Stop(){
+      try { Suspend(); } catch {}
+      try {
+        ChannelServices.UnregisterChannel(_channel);
+      } catch{}
+    }
+
+    public void Suspend() { 
       RemotingServices.Disconnect(_sd);
       RemotingServices.Disconnect(_xd);
     }
