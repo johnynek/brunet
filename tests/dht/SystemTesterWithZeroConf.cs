@@ -6,7 +6,7 @@ using System.Xml.Serialization;
 using System.Security.Cryptography;
 using System.Threading;
 using Brunet;
-using Brunet.Dht;
+using Brunet.DistributedServices;
 
 namespace Test {
   public class SystemTest {

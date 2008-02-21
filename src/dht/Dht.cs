@@ -25,7 +25,7 @@ using System.Threading;
 
 using Brunet;
 
-namespace Brunet.Dht {
+namespace Brunet.DistributedServices {
   public class DhtException: Exception {
     public DhtException(string message): base(message) {}
   }

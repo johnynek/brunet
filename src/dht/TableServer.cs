@@ -30,7 +30,7 @@ using System.Threading;
 
 using Brunet;
 
-namespace Brunet.Dht {
+namespace Brunet.DistributedServices {
   public class TableServer : IRpcHandler {
     protected object _sync, _transfer_sync;
 

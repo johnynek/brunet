@@ -19,7 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using System;
 using System.Collections;
 
-namespace Brunet.Dht {
+namespace Brunet.DistributedServices {
 
   public class Entry {
     private Hashtable _ht = new Hashtable(5);

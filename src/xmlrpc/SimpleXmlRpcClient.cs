@@ -5,7 +5,7 @@ using System.Text;
 using CookComputing.XmlRpc;
 using Brunet;
 
-namespace Brunet {
+namespace Brunet.Rpc {
   public class SimpleXmlRpcClient {
     public static void Main(string[] args) {
       bool log = false;

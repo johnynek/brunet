@@ -20,7 +20,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-namespace Brunet.Dht {
+namespace Brunet.Rpc {
   /**
    * Contains all non-static methods in BlockingQueue
    */
