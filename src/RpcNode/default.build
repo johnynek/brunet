@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<project name="ipop-common" default="build" basedir=".">
+  <description> Builds the Ipop dll </description>
+  <property name="lib.dir" value="../../lib"/>
+  <property name="build.dir" value="build" />
+  <property name="bin.dir" value="../../bin"/>
+  <target name="clean" description="Remove build directory">
+    <delete dir="${build.dir}" failonerror="true"/>
+  </target>
+  <target name="build" description="Build RpcIpopNode.exe">
+    <mkdir dir="${build.dir}" failonerror="true"/>
+    <copy todir="${build.dir}" failonerror="true">
+      <fileset basedir="${lib.dir}">
+        <include name="Brunet.dll" />
+        <include name="libtuntap.so" />
+        <include name="Brunet.Dht.dll" />
+        <include name="CookComputing.XmlRpcV2.dll" />
+        <include name="Brunet.XmlRpc.dll" />
+        <include name="Brunet.DhtService.dll"/>
+      </fileset>
+    </copy>
+    <csc target="exe" output="${build.dir}/RpcIpopNode.exe" main="Ipop.RpcIpopNode">
+      <sources failonempty="true">
+        <include name="*.cs"/>
+        <include name="../IpopNode/*.cs"/>
+        <include name="../../../brunet1/src/BasicNode/*.cs"/>
+      </sources>
+      <references>
+        <include name="${build.dir}/Brunet.dll"/>
+        <include name="${build.dir}/Brunet.Dht.dll"/>
+        <include name="${build.dir}/Brunet.XmlRpc.dll" />
+        <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />
+        <include name="${build.dir}/Brunet.DhtService.dll"/>
+        <include name="System.Runtime.Remoting.dll"/>
+        <include name="Mono.Posix.dll"/>
+      </references>
+    </csc>
+    <mkdir dir="${bin.dir}" failonerror="true"/>
+    <copy todir="${bin.dir}" failonerror="true">
+      <fileset basedir="${build.dir}">
+        <include name="RpcIpopNode.exe" />
+      </fileset>
+    </copy>
+  </target>
+</project>
