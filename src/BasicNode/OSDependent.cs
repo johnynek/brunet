@@ -19,7 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using System;
 using System.Collections;
 
-namespace Brunet.Node {
+namespace Brunet.Applications {
   /**
    * Determines the current operating system, I'm sure this could be broader,
    * but we only have the ability to test Linux and Windows now.

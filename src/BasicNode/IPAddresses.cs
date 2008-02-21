@@ -22,7 +22,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Text.RegularExpressions;
 
-namespace Brunet.Node {
+namespace Brunet.Applications {
   public abstract class IPAddresses : IEnumerable {
     protected ArrayList _ints;
     protected IList _all_interfaces;

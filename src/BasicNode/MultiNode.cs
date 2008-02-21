@@ -28,7 +28,7 @@ using Brunet.DistributedServices;
 using Brunet.Rpc;
 using Brunet;
 
-namespace Brunet.Node {
+namespace Brunet.Applications {
   public class MultiNode: BasicNode {
     ArrayList _nodes;
     ArrayList _threads;

@@ -2,7 +2,7 @@ using System;
 using System.Diagnostics;
 using Brunet;
 
-namespace Brunet.Node {
+namespace Brunet.Applications {
   /**
    * Provides a clean shutdown path via ctrl-c
    */

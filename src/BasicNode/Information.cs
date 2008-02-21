@@ -21,7 +21,7 @@ using System;
 using System.Collections;
 using System.Threading;
 
-namespace Brunet.Node
+namespace Brunet.Applications
 {
   public class Information: IRpcHandler
   {

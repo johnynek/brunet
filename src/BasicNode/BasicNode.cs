@@ -28,7 +28,7 @@ using Brunet.DistributedServices;
 using Brunet.Rpc;
 using Brunet;
 
-namespace Brunet.Node {
+namespace Brunet.Applications {
   public class BasicNode {
     protected String _path;
     protected NodeConfig _node_config;
