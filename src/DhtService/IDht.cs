@@ -18,10 +18,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using System;
 using System.Text;
-using Brunet.DistributedServices;
+using Brunet.Dht;
 using System.Collections;
 
-namespace Brunet.Rpc {
+namespace Brunet.Dht {
   /// <summary>
   /// A Generic Interface for Dht operations
   /// </summary>

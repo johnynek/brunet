@@ -20,11 +20,11 @@ using System.Runtime.Remoting.Channels.Http;
 using System.Runtime.Remoting.Channels;
 using System.Runtime.Remoting;
 using CookComputing.XmlRpc;
-using Brunet.DistributedServices;
+using Brunet.Dht;
 using System;
 using System.Collections;
 
-namespace Brunet.Rpc {
+namespace Brunet.Dht {
   public partial class DhtServiceClient {
     public static IXmlRpcDht GetXmlRpcDhtClient(int port) {
       IXmlRpcDht proxy = (IXmlRpcDht)XmlRpcProxyGen.Create(typeof(IXmlRpcDht));

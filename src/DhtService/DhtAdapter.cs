@@ -24,7 +24,7 @@ using System;
 using System.Text;
 using System.Collections;
 using System.Collections.Generic;
-using Brunet.DistributedServices;
+using Brunet.Dht;
 using Brunet;
 using System.Runtime.Remoting.Channels.Tcp;
 using System.Runtime.Remoting.Channels.Http;
@@ -34,7 +34,7 @@ using System.Runtime.Remoting;
 using System.Security.Cryptography;
 using CookComputing.XmlRpc;
 
-namespace Brunet.Rpc {
+namespace Brunet.Dht {
   public abstract class DhtAdapter : MarshalByRefObject, IDht {
     [NonSerialized]
     public Dht _dht;
