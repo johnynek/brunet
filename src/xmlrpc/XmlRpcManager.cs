@@ -336,9 +336,19 @@ namespace Brunet {
 
     public void Stop()
     {
+      try {
+        Suspend();
+      } catch{}
+     
+      try {
+        ChannelServices.UnregisterChannel(_channel);
+      } catch{}
+    }
+
+    public void Suspend()
+    {
       RemotingServices.Disconnect(_xrm);
       _rpc.RemoveHandler("xmlrpc");
-      ChannelServices.UnregisterChannel(_channel);
     }
 
     public void Update(Node node)
