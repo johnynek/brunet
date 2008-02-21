@@ -34,7 +34,7 @@ namespace Ipop {
     //Services
     public readonly StructuredNode Brunet;
     public readonly Dht Dht;
-    protected IRoutes _routes;
+    protected IAddressResolver _address_resolver;
     protected DHCPServer _dhcp_server;
 
     protected string _ip, _netmask;
@@ -174,7 +174,7 @@ namespace Ipop {
           break;
       }
 
-      AHAddress target = (AHAddress) _routes.GetAddress(ipp.SDestinationIP);
+      AHAddress target = (AHAddress) _address_resolver.GetAddress(ipp.SDestinationIP);
       if (target != null) {
         if(IpopLog.PacketLog.Enabled) {
           ProtocolLog.Write(IpopLog.PacketLog, String.Format(
@@ -274,7 +274,18 @@ namespace Ipop {
     }
   }
 
-  public interface IRoutes {
+  /**
+   * This interface is used for IP Address to Brunet address translations.
+   * It must implement the method GetAddress.  All IpopNode sub classes MUST
+   * have some IAddressResolver.
+   */
+  public interface IAddressResolver {
+    /**
+     * Takes a string representation an IP and returns the mapped Brunet.Address
+     * @param ip the string representation of the IP
+     * @return translated Brunet.Address
+     */
+
     Address GetAddress(String ip);
   }
 }

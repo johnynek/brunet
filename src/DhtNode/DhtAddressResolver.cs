@@ -29,7 +29,7 @@ namespace Ipop {
 * This class implements a route miss handler in case we cannot find
 * a virtual Ip -> brunet Id mapping inside our translation table. 
 */
-  public class DhtRoutes: IRoutes {
+  public class DhtAddressResolver: IAddressResolver {
     // Create a cache with room for 250 entries - I can't imagine having more nodes than this...
     private object _sync = new object();
     private Cache _results = new Cache(250);
@@ -37,7 +37,7 @@ namespace Ipop {
     private Dht _dht;
     private string _ipop_namespace;
 
-    public DhtRoutes(Dht dht, string ipop_namespace) {
+    public DhtAddressResolver(Dht dht, string ipop_namespace) {
       this._dht = dht;
       _ipop_namespace = ipop_namespace;
     }

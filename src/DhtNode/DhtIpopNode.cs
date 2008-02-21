@@ -34,7 +34,7 @@ namespace Ipop {
       in_dhcp = false;
       _dhcp_server = new DhtDHCPServer(Dht, _ipop_config.EnableMulticast);
       DhtDNS = new DhtDNS(this);
-      _routes = new DhtRoutes(Dht, _ipop_config.IpopNamespace);
+      _address_resolver = new DhtAddressResolver(Dht, _ipop_config.IpopNamespace);
     }
 
     protected override bool HandleDHCP(IPPacket ipp) {
