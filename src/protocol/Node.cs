@@ -293,12 +293,20 @@ namespace Brunet
     protected void HeartBeatProducer() {
       Thread.CurrentThread.Name = "heart_beat_producer";
       try {
+        DateTime last_debug = DateTime.UtcNow;
+        TimeSpan debug_period = new TimeSpan(0,0,0,0,5000); //log every 5 seconds.
+
         do {
           Thread.Sleep(_heart_period);
           int old_val = _heart_beat_object.TestAndSet();
           if (old_val == 0) {
-            if(ProtocolLog.Monitor.Enabled)
-              ProtocolLog.Write(ProtocolLog.Monitor, "heart beat (received).");
+            if(ProtocolLog.Monitor.Enabled) {
+              DateTime now = DateTime.UtcNow;
+              if (now - last_debug > debug_period) {
+                last_debug = now;
+                ProtocolLog.Write(ProtocolLog.Monitor, "heart beat (received).");
+              }
+            }
             _packet_queue.Enqueue(_heart_beat_object);
           } 
           else {
@@ -308,7 +316,9 @@ namespace Brunet
                                 "slow, more than one node waiting at heartbeat, packet_queue_length: {0}", q_len));
           }
         } while(!_heart_beat_stopped);
-      } catch (Exception e) {
+      } 
+      catch (ThreadInterruptedException) {}
+      catch (Exception e) {
         if(ProtocolLog.Exceptions.Enabled)
           ProtocolLog.Write(ProtocolLog.Exceptions, 
                             String.Format("{0}",e)); 
