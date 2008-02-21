@@ -4,32 +4,33 @@ using Brunet;
 
 namespace Ipop {
   public abstract class Shutdown {
-    protected StructuredNode _node;
     public delegate void CallBack();
-    public CallBack PreDisconnect;
-    public CallBack PostDisconnect;
+    public CallBack OnExit;
     public int Exit() {
-      if(PreDisconnect != null) {
-        PreDisconnect();
+      if(OnExit != null) {
+        OnExit();
       }
-      try {
-        _node.DisconnectOnOverload = false;
-        _node.Disconnect();
-      }
-      catch {}
-      if(PostDisconnect != null) {
-        PostDisconnect();
-      }
+      Console.WriteLine("Done!");
       return 0;
     }
 
-    public Shutdown(StructuredNode node) {
-      _node = node;
+    public static Shutdown GetShutdown() {
+      Shutdown sd = null;
+      if(OSDependent.OSVersion == OSDependent.Linux) {
+        sd = new LinuxShutdown();
+      }
+      else if(OSDependent.OSVersion == OSDependent.Windows) {
+        sd = null;
+      }
+      else {
+        throw new Exception("Unknown OS!");
+      }
+      return sd;
     }
   }
 
   public class LinuxShutdown : Shutdown {
-    public LinuxShutdown(StructuredNode node): base(node) {
+    public LinuxShutdown() {
       Mono.Unix.Native.Stdlib.signal(Mono.Unix.Native.Signum.SIGINT, new
           Mono.Unix.Native.SignalHandler(InterruptHandler));
     }

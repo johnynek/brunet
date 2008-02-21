@@ -41,13 +41,14 @@ namespace Ipop {
     public override void CreateNode() {
       _node_config.NodeAddress = (Utils.GenerateAHAddress()).ToString();
       base.CreateNode();
+      new Information(_node, "MultiNode");
       _nodes.Add(_node);
     }
 
     public override void Run() {
-      if(OSDependent.OSVersion == OSDependent.Linux) {
-        _shutdown = new LinuxShutdown(null);
-        _shutdown.PreDisconnect += PreShutdown;
+      _shutdown = Shutdown.GetShutdown();
+      if(_shutdown != null) {
+        _shutdown.OnExit += OnExit;
       }
 
       for(int i = 0; i < _count; i++) {
@@ -58,17 +59,20 @@ namespace Ipop {
       }
     }
 
-    public override void PreShutdown() {
+    public override void OnExit() {
       foreach(StructuredNode node in _nodes) {
         node.Disconnect();
       }
     }
 
     public override void StartServices() {
-      //throw new Exception("This is not supported for MultiNode, run a BasicNode to access this.");
     }
 
     public override void StopServices() {
+      throw new Exception("This is not supported for MultiNode, run a BasicNode to access this.");
+    }
+
+    public override void SuspendServices() {
       throw new Exception("This is not supported for MultiNode, run a BasicNode to access this.");
     }
 

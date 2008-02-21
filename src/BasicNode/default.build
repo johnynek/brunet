@@ -31,7 +31,7 @@
         <include name="BasicNode.cs"/>
         <include name="NodeConfig.cs"/>
         <include name="IPAddresses.cs"/>
-        <include name="IpopInformation.cs"/>
+        <include name="Information.cs"/>
         <include name="OSDependent.cs"/>
         <include name="Utils.cs"/>
         <include name="Shutdown.cs"/>
@@ -53,7 +53,7 @@
         <include name="BasicNode.cs"/>
         <include name="NodeConfig.cs"/>
         <include name="IPAddresses.cs"/>
-        <include name="IpopInformation.cs"/>
+        <include name="Information.cs"/>
         <include name="OSDependent.cs"/>
         <include name="Utils.cs"/>
         <include name="Shutdown.cs"/>
@@ -76,7 +76,7 @@
         <include name="BasicNode.cs"/>
         <include name="NodeConfig.cs"/>
         <include name="IPAddresses.cs"/>
-        <include name="IpopInformation.cs"/>
+        <include name="Information.cs"/>
         <include name="OSDependent.cs"/>
         <include name="Utils.cs"/>
         <include name="Shutdown.cs"/>

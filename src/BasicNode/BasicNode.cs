@@ -60,13 +60,13 @@ namespace Ipop {
       // Keep creating new nodes no matter what!
       while(_running) {
         CreateNode();
-        new IpopInformation(_node, "BasicNode");
+        new Information(_node, "BasicNode");
         Console.Error.WriteLine("I am connected to {0} as {1}.  Current time is {2}.",
                                 _node.Realm, _node.Address.ToString(), DateTime.UtcNow);
         _node.DisconnectOnOverload = true;
         start_time = DateTime.UtcNow;
         _node.Connect();
-        StopServices();
+        SuspendServices();
         if(!_running) {
           break;
         }
@@ -135,9 +135,9 @@ namespace Ipop {
     }
 
     public virtual void StartServices() {
-      if(OSDependent.OSVersion == OSDependent.Linux) {
-        _shutdown = new LinuxShutdown(_node);
-        _shutdown.PreDisconnect += PreShutdown;
+      _shutdown = Shutdown.GetShutdown();
+      if(_shutdown != null) {
+        _shutdown.OnExit += OnExit;
       }
 
       if(_node_config.RpcDht != null && _node_config.RpcDht.Enabled) {
@@ -161,6 +161,15 @@ namespace Ipop {
       }
     }
 
+    public virtual void SuspendServices() {
+      if(_ds != null) {
+        _ds.Stop();
+      }
+      if(_xrm != null) {
+        _xrm.Suspend();
+      }
+    }
+
     public virtual void StopServices() {
       if(_ds != null) {
         _ds.Stop();
@@ -170,9 +179,10 @@ namespace Ipop {
       }
     }
 
-    public virtual void PreShutdown() {
+    public virtual void OnExit() {
       StopServices();
       _running = false;
+      _node.Disconnect();
     }
 
     public static int Main(String[] args) {
