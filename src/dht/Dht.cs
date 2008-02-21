@@ -214,7 +214,8 @@ namespace Brunet.Dht {
       for (int k = 0; k < DEGREE; k++) {
         Address target = new AHAddress(adgs.brunet_address_for_key[k]);
         AHSender s = new AHSender(node, target, AHPacket.AHOptions.Greedy);
-        _rpc.Invoke(s, q[k], "dht.Get", adgs.brunet_address_for_key[k], null);
+        // 1024 is in there for backwards compatibility
+        _rpc.Invoke(s, q[k], "dht.Get", adgs.brunet_address_for_key[k], 1024, null);
       }
     }
 

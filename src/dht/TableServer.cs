@@ -85,11 +85,13 @@ namespace Brunet.Dht {
         }
         else if(method.Equals("Get")) {
           MemBlock key = (byte[]) args[0];
-          if(args[1] == null) {
+          // Hack for backwards compatibility, supports forwards too
+          int token_pos = args.Count - 1;
+          if(args[token_pos] == null) {
            result = Get(key, null);
           }
           else {
-            result = Get(key, (byte[]) args[1]);
+            result = Get(key, (byte[]) args[token_pos]);
           }
         }
         else if(method.Equals("Dump")) {
