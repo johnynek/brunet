@@ -20,8 +20,8 @@ using System;
 using System.IO;
 using System.Text;
 using System.Collections;
-
 using System.Security.Cryptography;
+using Brunet.Applications;
 
 namespace Ipop {
   public class DHCPReply {

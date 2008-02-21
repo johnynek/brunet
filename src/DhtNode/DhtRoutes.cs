@@ -22,7 +22,7 @@ using System.Text;
 using System.Collections;
 
 using Brunet;
-using Brunet.Dht;
+using Brunet.DistributedServices;
 
 namespace Ipop {
 /**

@@ -17,7 +17,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using Brunet;
-using Brunet.Dht;
+using Brunet.DistributedServices;
 using System;
 using System.Collections;
 using System.Collections.Generic;

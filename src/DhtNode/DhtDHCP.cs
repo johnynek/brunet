@@ -24,7 +24,8 @@ using System.Text;
 using System.Xml;
 using System.Xml.Serialization;
 using Brunet;
-using Brunet.Dht;
+using Brunet.DistributedServices;
+using Brunet.Applications;
 
 namespace Ipop {
   public class DhtDHCPLeaseController: DHCPLeaseController {

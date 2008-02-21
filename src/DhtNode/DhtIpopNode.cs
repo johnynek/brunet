@@ -18,7 +18,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using Brunet;
-using Brunet.Dht;
+using Brunet.Applications;
+using Brunet.DistributedServices;
 using System;
 using System.Net;
 using System.Threading;
@@ -28,8 +29,8 @@ namespace Ipop {
     protected bool in_dhcp;
     protected DhtDNS DhtDNS;
 
-    public DhtIpopNode(StructuredNode Brunet, Dht Dht, string IpopConfigPath):
-      base(Brunet, Dht, IpopConfigPath) {
+    public DhtIpopNode(string NodeConfigPath, string IpopConfigPath):
+      base(NodeConfigPath, IpopConfigPath) {
       in_dhcp = false;
       _dhcp_server = new DhtDHCPServer(Dht, _ipop_config.EnableMulticast);
       DhtDNS = new DhtDNS(this);
@@ -126,6 +127,11 @@ namespace Ipop {
         }
         catch {}
       }
+    }
+
+    public static new void Main(String[] args) {
+      DhtIpopNode node = new DhtIpopNode(args[0], args[1]);
+      node.Run();
     }
   }
 }

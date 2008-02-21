@@ -19,12 +19,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using System;
 using System.Net;
 using Brunet;
-using Brunet.Dht;
+using Brunet.DistributedServices;
+using Brunet.Applications;
 using System.Collections;
 using System.Threading;
 
 namespace Ipop {
-  public abstract class IpopNode: IDataHandler {
+  public abstract class IpopNode: BasicNode, IDataHandler {
     protected readonly IpopConfig _ipop_config;
     protected readonly String _ipop_config_path;
     public readonly Ethernet Ethernet;
@@ -41,9 +42,11 @@ namespace Ipop {
     public string Netmask { get { return _netmask; } }
     public byte [] MACAddress;
 
-    public IpopNode(StructuredNode Brunet, Dht Dht, string IpopConfigPath) {
-      this.Dht = Dht;
-      this.Brunet = Brunet;
+    public IpopNode(string NodeConfigPath, string IpopConfigPath):
+      base(NodeConfigPath) {
+      CreateNode();
+      this.Dht = _dht;
+      this.Brunet = _node;
       _ipop_config_path = IpopConfigPath;
       _ipop_config = IpopConfigHandler.Read(_ipop_config_path);
       Ethernet = new Ethernet(_ipop_config.VirtualNetworkDevice);
@@ -54,6 +57,22 @@ namespace Ipop {
 
       Brunet.GetTypeSource(PType.Protocol.IP).Subscribe(this, null);
     }
+
+    public override void Run() {
+      StartServices();
+      _node.Connect();
+      StopServices();
+    }
+
+    /**
+     *  Don't forget to implement this two methods in all subclasses!
+     *
+     *  public static new int Main(String[] args) {
+     *    *IpopNode node = new *IpopNode(args[0], args[1]);
+     *    node.Run();
+     *    return 0;
+     *  }
+     */
 
     public void UpdateAddressData(string IP, string Netmask) {
       _info.UserData["Virtual IP"] = IP;

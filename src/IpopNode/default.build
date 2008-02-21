@@ -6,24 +6,31 @@
   <target name="clean" description="Remove build directory">
     <delete dir="${build.dir}" failonerror="true"/>
   </target>
-  <target name="build" description="Build IPRouter.exe">
+  <target name="build" description="Build IpopNode.dll">
     <mkdir dir="${build.dir}" failonerror="true"/>
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${lib.dir}">
         <include name="Brunet.dll" />
         <include name="libtuntap.so" />
         <include name="Brunet.Dht.dll" />
-        <include name="BasicNode.dll" />
+        <include name="CookComputing.XmlRpcV2.dll" />
+        <include name="Brunet.XmlRpc.dll" />
+        <include name="Brunet.DhtService.dll"/>
       </fileset>
     </copy>
     <csc target="library" output="${build.dir}/Ipop.dll">
       <sources failonempty="true">
         <include name="*.cs"/>
+        <include name="../../../brunet1/src/BasicNode/*.cs"/>
       </sources>
       <references>
         <include name="${build.dir}/Brunet.dll"/>
-        <include name="${build.dir}/Brunet.Dht.dll" />
-        <include name="${build.dir}/BasicNode.dll" />
+        <include name="${build.dir}/Brunet.Dht.dll"/>
+        <include name="${build.dir}/Brunet.XmlRpc.dll" />
+        <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />
+        <include name="${build.dir}/Brunet.DhtService.dll"/>
+        <include name="System.Runtime.Remoting.dll"/>
+        <include name="Mono.Posix.dll"/>
       </references>
     </csc>
     <copy todir="${lib.dir}" failonerror="true">
