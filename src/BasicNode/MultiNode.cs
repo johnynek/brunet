@@ -67,6 +67,7 @@ namespace Brunet.Node {
     }
 
     public override void StartServices() {
+      throw new Exception("This is not supported for MultiNode, run a BasicNode to access this.");
     }
 
     public override void StopServices() {
