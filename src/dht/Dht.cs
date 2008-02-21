@@ -25,7 +25,7 @@ using System.Threading;
 
 using Brunet;
 
-namespace Brunet.Dht {	
+namespace Brunet.Dht {
   public class DhtException: Exception {
     public DhtException(string message): base(message) {}
   }
@@ -40,7 +40,6 @@ namespace Brunet.Dht {
     public readonly int DEGREE;
     public readonly int DELAY;
     public readonly int MAJORITY;
-    public static readonly int MAX_BYTES = 1000;
 
     //table server
     protected TableServer _table;
@@ -215,7 +214,7 @@ namespace Brunet.Dht {
       for (int k = 0; k < DEGREE; k++) {
         Address target = new AHAddress(adgs.brunet_address_for_key[k]);
         AHSender s = new AHSender(node, target, AHPacket.AHOptions.Greedy);
-        _rpc.Invoke(s, q[k], "dht.Get", adgs.brunet_address_for_key[k], MAX_BYTES, null);
+        _rpc.Invoke(s, q[k], "dht.Get", adgs.brunet_address_for_key[k], null);
       }
     }
 
@@ -293,7 +292,7 @@ namespace Brunet.Dht {
         new_queue.CloseEvent += this.GetCloseHandler;
         try {
           _rpc.Invoke(sendto, new_queue, "dht.Get", 
-                    adgs.brunet_address_for_key[idx], MAX_BYTES, token);
+                    adgs.brunet_address_for_key[idx], token);
         }
         catch(Exception) {
           lock(adgs.SyncRoot) {

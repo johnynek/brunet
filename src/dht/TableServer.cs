@@ -46,6 +46,7 @@ namespace Brunet.Dht {
     public bool Activated { get { return _dhtactivated; } }
     public bool debug = false;
     public int Count { get { return _data.Count; } }
+    public const int MAX_BYTES = 1024;
     private RpcManager _rpc;
 
     public TableServer(Node node, RpcManager rpc) {
@@ -84,12 +85,11 @@ namespace Brunet.Dht {
         }
         else if(method.Equals("Get")) {
           MemBlock key = (byte[]) args[0];
-          int maxbytes = (int) args[1];
-          if(args[2] == null) {
-           result = Get(key, maxbytes, null);
+          if(args[1] == null) {
+           result = Get(key, null);
           }
           else {
-            result = Get(key, maxbytes, (byte[]) args[2]);
+            result = Get(key, (byte[]) args[1]);
           }
         }
         else if(method.Equals("Dump")) {
@@ -132,6 +132,10 @@ namespace Brunet.Dht {
 
 
     public bool Put(MemBlock key, MemBlock value, int ttl, bool unique, object rs) {
+      if(value.Length > MAX_BYTES) {
+        throw new Exception(String.Format(
+          "Dht only supports storing data smaller than {0} bytes.", MAX_BYTES));
+      }
       PutHandler(key, value, ttl, unique);
       Channel remote_put = new Channel();
       remote_put.CloseAfterEnqueue();
@@ -225,7 +229,7 @@ namespace Brunet.Dht {
     * @return IList of results
     */
 
-    public IList Get(MemBlock key, int maxbytes, byte[] token) {
+    public IList Get(MemBlock key, byte[] token) {
       int seen_start_idx = 0;
       int seen_end_idx = 0;
       if( token != null ) {
@@ -262,7 +266,7 @@ namespace Brunet.Dht {
         seen_end_idx = data.Length - 1;
         for(int i = seen_start_idx; i < data.Length; i++) {
           Entry e = (Entry) data[i];
-          if(e.Value.Length + consumed_bytes <= maxbytes) {
+          if(e.Value.Length + consumed_bytes <= MAX_BYTES) {
             int age = (int) (DateTime.UtcNow - e.CreateTime).TotalSeconds;
             int ttl = (int) (e.EndTime - DateTime.UtcNow).TotalSeconds;
             consumed_bytes += e.Value.Length;
