@@ -85,7 +85,7 @@ namespace Ipop {
       }
     }
 
-    public void CreateNode() {
+    public virtual void CreateNode() {
       AHAddress address = (AHAddress) AddressParser.Parse(_node_config.NodeAddress);
       _node = new StructuredNode(address, _node_config.BrunetNamespace);
 
@@ -134,7 +134,7 @@ namespace Ipop {
       StartServices();
     }
 
-    public void StartServices() {
+    public virtual void StartServices() {
       if(OSDependent.OSVersion == OSDependent.Linux) {
         _shutdown = new LinuxShutdown(_node);
         _shutdown.PreDisconnect += PreShutdown;
@@ -161,7 +161,7 @@ namespace Ipop {
       }
     }
 
-    public void StopServices() {
+    public virtual void StopServices() {
       if(_ds != null) {
         _ds.Stop();
       }
@@ -170,9 +170,15 @@ namespace Ipop {
       }
     }
 
-    public void PreShutdown() {
+    public virtual void PreShutdown() {
       StopServices();
       _running = false;
+    }
+
+    public static int Main(String[] args) {
+      BasicNode node = new BasicNode(args[0]);
+      node.Run();
+      return 0;
     }
   }
 }
