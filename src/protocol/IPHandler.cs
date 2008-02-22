@@ -271,7 +271,7 @@ namespace Brunet
         // I REALLY HATE THIS but we can't be setting this option in more than one thread!
         lock(_s) {
           foreach(IPAddress ip in ips) {
-            if(BlockedIPs.Contains(ip)) {
+            if(BlockedIPs.Contains(ip.ToString())) {
               continue;
             }
             /*

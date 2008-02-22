@@ -23,7 +23,7 @@ using System.IO;
 
 using Brunet;
 
-namespace Brunet.Dht {
+namespace Brunet.DistributedServices {
   /* This is meant to separate some logic from the TableServer, there are many
    * ways to implement this, so I figured it would be best to offer an 
    * abstracted view.  The data is stored in a hashtable with each key 

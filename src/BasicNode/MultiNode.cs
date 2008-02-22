@@ -29,78 +29,55 @@ using Brunet.Rpc;
 using Brunet;
 
 namespace Brunet.Applications {
-  /**
-  <summary>This class provides a layer on top of BasicNode to support creating
-  multiple Brunet.Nodes in a single application.</summary>
-  */
   public class MultiNode: BasicNode {
-    /// <summary>Contains a list of all the Brunet.Nodes.</summary>
-    protected ArrayList _nodes;
-    /// <summary>Contains a list of all the Brunet.Nodes Connect calls.</summary>
-    protected ArrayList _threads;
-    /// <summary>The total amount of Brunet.Nodes.</summary>
-    protected int _count;
+    ArrayList _nodes;
+    ArrayList _threads;
+    int _count;
     public MultiNode(String path, int count): base(path) {
       _count = count;
       _nodes = new ArrayList(_count);
       _threads = new ArrayList(_count);
     }
 
-    /**
-    <summary>This is where the magic happens!  Sets up Shutdown, creates all
-    the nodes, and call Connect on them in separate threads.</summary>
-    */
-    public override void Run() {
-      string tmp_addr = null;
-      if(_node_config.NodeAddress != null) {
-        tmp_addr = _node_config.NodeAddress;
-      } else {
-        tmp_addr = (Utils.GenerateAHAddress()).ToString();
-      }
+    public override void CreateNode() {
+      _node_config.NodeAddress = (Utils.GenerateAHAddress()).ToString();
+      base.CreateNode();
+      new Information(_node, "MultiNode");
+      _nodes.Add(_node);
+    }
 
+    public override void Run() {
       _shutdown = Shutdown.GetShutdown();
       if(_shutdown != null) {
         _shutdown.OnExit += OnExit;
       }
 
-      for(int i = 0; i < _count - 1; i++) {
-        _node_config.NodeAddress = (Utils.GenerateAHAddress()).ToString();
+      for(int i = 0; i < _count; i++) {
         CreateNode();
-        new Information(_node, "MultiNode");
-        _nodes.Add(_node);
         Thread thread = new Thread(_node.Connect);
         thread.Start();
         _threads.Add(thread);
       }
-
-      _node_config.NodeAddress = tmp_addr;
-      base.Run();
     }
 
-    /// <summary>Disconnect all the nodes.  Called by Shutdown.OnExit</summary>
     public override void OnExit() {
       foreach(StructuredNode node in _nodes) {
         node.Disconnect();
       }
-      base.OnExit();
     }
 
-    /**
-    <summary>Runs the MultiNode.</summary>
-    <remarks>
-    <para>To execute this at a command-line using Mono with 10 nodes:</para>
-    <code>
-    mono MultiNode.exe path/to/node_config 10
-    </code>
-    <para>To execute this at a command-line using Windows .NET with 15 nodes:
-    </para>
-    <code>
-    MultiNode.exe path/to/node_config 15
-    </code>
-    </remarks>
-    <param name="args">The command line arguments required are a path to a
-    NodeConfig and the count of Brunet.Nodes to run.</param>
-    */
+    public override void StartServices() {
+      throw new Exception("This is not supported for MultiNode, run a BasicNode to access this.");
+    }
+
+    public override void StopServices() {
+      throw new Exception("This is not supported for MultiNode, run a BasicNode to access this.");
+    }
+
+    public override void SuspendServices() {
+      throw new Exception("This is not supported for MultiNode, run a BasicNode to access this.");
+    }
+
     public static new int Main(String[] args) {
       int count = 0;
       try {
@@ -109,7 +86,6 @@ namespace Brunet.Applications {
       catch {
         Console.WriteLine("Input paramters are %0 %1, where %0 is a config" +
             " file and %1 is the count of nodes.");
-        return 0;
       }
 
       MultiNode node = new MultiNode(args[0], count);
