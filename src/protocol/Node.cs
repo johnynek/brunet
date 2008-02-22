@@ -387,12 +387,20 @@ namespace Brunet
     protected void HeartBeatProducer() {
       Thread.CurrentThread.Name = "heart_beat_producer";
       try {
+        DateTime last_debug = DateTime.UtcNow;
+        TimeSpan debug_period = new TimeSpan(0,0,0,0,5000); //log every 5 seconds.
+
         do {
           Thread.Sleep(_heart_period);
           bool already_in_queue = _heart_beat_object.SetInQueue(true);
           if ( false == already_in_queue ) {
-            if(ProtocolLog.Monitor.Enabled)
-              ProtocolLog.Write(ProtocolLog.Monitor, "heart beat (received).");
+            if(ProtocolLog.Monitor.Enabled) {
+              DateTime now = DateTime.UtcNow;
+              if (now - last_debug > debug_period) {
+                last_debug = now;
+                ProtocolLog.Write(ProtocolLog.Monitor, "heart beat (received).");
+              }
+            }
             _packet_queue.Enqueue(_heart_beat_object);
           } 
           else {

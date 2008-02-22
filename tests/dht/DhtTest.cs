@@ -5,9 +5,9 @@ using System.Security.Cryptography;
 using System.Threading;
 
 using Brunet;
-using Brunet.Dht;
+using Brunet.DistributedServices;
 
-namespace Brunet.Dht {
+namespace Test {
   public class DhtOpTester {
     SortedList nodes = new SortedList();
     SortedList dhts = new SortedList();
@@ -266,7 +266,7 @@ namespace Brunet.Dht {
         (new Thread(node.Connect)).Start();
         dhts.Add(addr, new Dht(node, degree));
         if(i < network_size / ((Dht)dhts.GetByIndex(i)).DEGREE) {
-          ((Dht)dhts.GetByIndex(i)).debug = true;
+//          ((Dht)dhts.GetByIndex(i)).debug = true;
         }
       }
       default_dht = (Dht) dhts.GetByIndex(0);
