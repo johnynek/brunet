@@ -170,7 +170,14 @@ namespace Brunet
       return new MulticastSender(_uc);
     }
 
-    public ISender CreateMulticastSender(ArrayList BlockedIPs) {
+    /**
+     * Creates a Multicast Sender using the unicast socket, so that other nodes
+     * know where they can reach us.
+     * @param BLockedIPs this must be a hashtable of IPs such that 
+     * key:value = ip:value, where the value is irrelevant (use true if you want)
+     * @return The multicast ISender
+     */
+    public ISender CreateMulticastSender(Hashtable BlockedIPs) {
       return new MulticastSender(_uc, BlockedIPs);
     }
 
@@ -249,13 +256,13 @@ namespace Brunet
 
   public class MulticastSender: UnicastSender 
   {
-    public readonly ArrayList BlockedIPs;
+    public readonly Hashtable BlockedIPs;
     public MulticastSender(Socket s):base(s, IPHandler.mc_endpoint) {
-      this.BlockedIPs = new ArrayList(0);
+      this.BlockedIPs = new Hashtable(0);
     }
-    public MulticastSender(Socket s, ArrayList BlockedIPs): base(s, IPHandler.mc_endpoint) {
+    public MulticastSender(Socket s, Hashtable BlockedIPs): base(s, IPHandler.mc_endpoint) {
       if(BlockedIPs == null) {
-        this.BlockedIPs = new ArrayList(0);
+        this.BlockedIPs = new Hashtable(0);
       }
       else {
         this.BlockedIPs = BlockedIPs;
@@ -271,7 +278,7 @@ namespace Brunet
         // I REALLY HATE THIS but we can't be setting this option in more than one thread!
         lock(_s) {
           foreach(IPAddress ip in ips) {
-            if(BlockedIPs.Contains(ip.ToString())) {
+            if(BlockedIPs.Contains(ip)) {
               continue;
             }
             /*
