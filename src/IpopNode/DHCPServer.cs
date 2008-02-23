@@ -23,9 +23,31 @@ using System.IO;
 using System.Text;
 
 namespace Ipop {
+  /**
+   * The dhcp system for Ipop works like this... there is a single entry point
+   * via Process @see process().  For the DHCP to work, the requestor must
+   * ask for an IP Address in an existing DHCPLeaseController, this is 
+   * configured by the IPOPNamespace class in DHCPServerConfig.  This method
+   * allows for a single server to be configured for multiple namespaces.
+   */
   public abstract class DHCPServer {
     protected SortedList _dhcp_lease_controllers = new SortedList();
 
+    /**
+     * This is the input to the DHCP System, it takes in the dhcp packet and
+     * extra information in an attempt to return back a valid positive dhcp
+     * response (such as ACK or OFFER).  There is no support for DHCP Messages
+     * such as NAK or RELEASE.
+     * @param packet the dhcp packet containing the request
+     * @param last_ip optional last ip address as stored by the node, sometimes
+     * the underlying O/S will keep this information, but if you plan on moving
+     * around the software to different systems, this will allow you to easily
+     * retain the IP.
+     * @param node_address the brunet address, this is better to use than a 
+     * Ethernet address for address registration.
+     * @param IpopNamespace the namespace that you want to get your lease from
+     * @param para extra optional parameters passed to the DHCP Lease Controller
+     */
     public DHCPPacket Process(DHCPPacket packet, byte[] last_ip, string node_address,
                               string IpopNamespace, params object[] para) {
       byte messageType = ((MemBlock) packet.Options[DHCPPacket.OptionTypes.MESSAGE_TYPE])[0];

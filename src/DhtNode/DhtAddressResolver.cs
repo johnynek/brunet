@@ -26,8 +26,9 @@ using Brunet.DistributedServices;
 
 namespace Ipop {
 /**
-* This class implements a route miss handler in case we cannot find
-* a virtual Ip -> brunet Id mapping inside our translation table. 
+* Implements a Dht Address Resolver, where entries are listed in the dht
+* by means of the DhtDHCPServer class.  Entries are stored in a cache, so that
+* frequented requests aren't held up by Dht access.
 */
   public class DhtAddressResolver: IAddressResolver {
     // Create a cache with room for 250 entries - I can't imagine having more nodes than this...
@@ -42,25 +43,25 @@ namespace Ipop {
       _ipop_namespace = ipop_namespace;
     }
 
-    public Address GetAddress(string ip) {
+    public Address Resolve(string ip) {
       Address addr = null;
       lock (_sync) {
         addr = (Address) _results[ip];
       }
       if(addr == null) {
-        RouteMiss(ip);
+        Miss(ip);
       }
       return addr;
     }
 
-    protected void RouteMiss(string ip) {
+    protected void Miss(string ip) {
       lock(_sync) {
         if (_queued.Contains(ip)) {
           return;
         }
 
-        ProtocolLog.WriteIf(IpopLog.RoutingLog, String.Format(
-          "Routes:  Adding {0} to queue.", ip));
+        ProtocolLog.WriteIf(IpopLog.ResolverLog, String.Format(
+          "Adding {0} to queue.", ip));
         /*
         * If we were already looking up this string, there
         * would be a table entry, since there is not, start a
@@ -70,15 +71,15 @@ namespace Ipop {
         Channel queue = null;
         try {
           queue = new Channel();
-          queue.EnqueueEvent += RouteMissCallback;
-          queue.CloseEvent += RouteMissCallback;
+          queue.EnqueueEvent += MissCallback;
+          queue.CloseEvent += MissCallback;
           _queued[ip] = true;
           _mapping[queue] = ip;
           _dht.AsGet(key, queue);
         }
         catch {
-          queue.EnqueueEvent -= RouteMissCallback;
-          queue.CloseEvent -= RouteMissCallback;
+          queue.EnqueueEvent -= MissCallback;
+          queue.CloseEvent -= MissCallback;
           if(_queued.Contains(ip)) {
             _queued.Remove(ip);
           }
@@ -90,7 +91,7 @@ namespace Ipop {
       }
     }
 
-    protected void RouteMissCallback(Object o, EventArgs args) {
+    protected void MissCallback(Object o, EventArgs args) {
       Channel queue = (Channel) o;
       string ip = (string) _mapping[queue];
       Address addr = null;
@@ -98,12 +99,12 @@ namespace Ipop {
       try {
         DhtGetResult dgr = (DhtGetResult) queue.Dequeue();
         addr = AddressParser.Parse(Encoding.UTF8.GetString((byte []) dgr.value));
-        ProtocolLog.WriteIf(IpopLog.RoutingLog, String.Format(
-          "Routes: Got result for {0} ::: {1}.", ip, addr));
+        ProtocolLog.WriteIf(IpopLog.ResolverLog, String.Format(
+          "Got result for {0} ::: {1}.", ip, addr));
       }
       catch {
-        ProtocolLog.WriteIf(IpopLog.RoutingLog, String.Format(
-          "Routes: Failed for {0}.", ip));
+        ProtocolLog.WriteIf(IpopLog.ResolverLog, String.Format(
+          "Failed for {0}.", ip));
       }
       try {
         lock(_sync) {
@@ -118,7 +119,7 @@ namespace Ipop {
       }
       catch(Exception e) {
         ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
-              "ERROR: In Routes unable to remove entry: {0}\n\t{1]", ip, e));
+              "ERROR: In Resolves unable to remove entry: {0}\n\t{1]", ip, e));
       }
     }
   }

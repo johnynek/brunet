@@ -174,7 +174,7 @@ namespace Ipop {
           break;
       }
 
-      AHAddress target = (AHAddress) _address_resolver.GetAddress(ipp.SDestinationIP);
+      AHAddress target = (AHAddress) _address_resolver.Resolve(ipp.SDestinationIP);
       if (target != null) {
         if(IpopLog.PacketLog.Enabled) {
           ProtocolLog.Write(IpopLog.PacketLog, String.Format(
@@ -202,6 +202,66 @@ namespace Ipop {
      */
 
     protected virtual bool HandleDHCP(IPPacket ipp) {
+      return false;
+    }
+
+    /**
+     * This can be used to access the dhcp server, since this will probably
+     * common code, I am including it here.
+     * @param ipp The IPPacket that contains the DHCP Request
+     * @param dhcp_params an object containing any extra parameters for the
+     * dhcp server
+     * @return returns true on success and false on failure, if true the
+     * ethernet had the result written to it as well.
+     */
+
+    protected virtual bool ProcessDHCP(IPPacket ipp, params Object[] dhcp_params) {
+      UDPPacket udpp = new UDPPacket(ipp.Payload);
+      DHCPPacket dhcp_packet = new DHCPPacket(udpp.Payload);
+
+      byte []last_ip = null;
+      if(_ipop_config.AddressData == null) {
+        _ipop_config.AddressData = new AddressInfo();
+      }
+      try {
+        last_ip = IPAddress.Parse(_ipop_config.AddressData.IPAddress).GetAddressBytes();
+      }
+      catch {}
+
+      try {
+        DHCPPacket rpacket = _dhcp_server.Process(dhcp_packet, last_ip,
+            Brunet.Address.ToString(), _ipop_config.IpopNamespace,
+            dhcp_params);
+
+        /* Check our allocation to see if we're getting a new address */
+        string new_address = Utils.MemBlockToString(rpacket.yiaddr, '.');
+        string new_netmask = Utils.BytesToString(
+            (byte[]) rpacket.Options[DHCPPacket.OptionTypes.SUBNET_MASK], '.');
+        if(new_address != IP || Netmask !=  new_netmask) {
+          UpdateAddressData(new_address, new_netmask);
+          ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
+                              "IP Address changed to {0}", IP));
+        }
+        byte[] destination_ip = null;
+        if(ipp.SourceIP[0] == 0) {
+          destination_ip = new byte[4]{255, 255, 255, 255};
+        }
+        else {
+          destination_ip = ipp.SourceIP;
+        }
+        UDPPacket res_udpp = new UDPPacket(67, 68, rpacket.Packet);
+        IPPacket res_ipp = new IPPacket((byte) IPPacket.Protocols.UDP,
+                                         rpacket.ciaddr, destination_ip,
+                                         res_udpp.ICPacket);
+        EthernetPacket res_ep = new EthernetPacket(MACAddress,
+            EthernetPacket.UnicastAddress, EthernetPacket.Types.IP,
+            res_ipp.ICPacket);
+        Ethernet.Send(res_ep.ICPacket);
+        return true;
+      }
+      catch(Exception e) {
+        ProtocolLog.WriteIf(IpopLog.DHCPLog, e.ToString());//Message);
+      }
       return false;
     }
 
@@ -286,7 +346,7 @@ namespace Ipop {
      * @return translated Brunet.Address
      */
 
-    Address GetAddress(String ip);
+    Address Resolve(String ip);
   }
 }
 

@@ -69,7 +69,7 @@ namespace Ipop {
           }
           if(res) {
             if(hostname != null) {
-              _dht.Put(hostname + DhtDNS.SUFFIX, str_addr, leasetime);
+              _dht.Put(hostname, str_addr, leasetime);
             }
             if(_multicast) {
               _dht.Put("multicast.ipop_vpn", (string) node_address, leasetime);
