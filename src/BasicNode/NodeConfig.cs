@@ -24,30 +24,55 @@ using System.Xml;
 using System.Xml.Serialization;
 
 namespace Brunet.Applications {
+  /**
+   * The class configuration for BasicNode.  brunet1/config/ has some sample
+   * xml versions.
+   */
   public class NodeConfig {
-    public String BrunetNamespace;
+    public String BrunetNamespace; /**< Also known as Node.Realm different 
+                                   namespaces can not communicate. */
     [XmlArrayItem (typeof(String), ElementName = "Transport")]
-    public String[] RemoteTAs;
-    public EdgeListener[] EdgeListeners;
-    public String NodeAddress;
+    public String[] RemoteTAs; /**< List of well known remote end points in 
+      the form of brunet.(udp,tcp)://ip_address:port */
+    public EdgeListener[] EdgeListeners; /**< Local end points */
+    public String NodeAddress; /**< A stored Node.Address for re-use */
     [XmlArrayItem (typeof(String), ElementName = "Device")]
-    public String[] DevicesToBind;
-    public Service RpcDht;
-    public Service XmlRpcManager;
+    public String[] DevicesToBind; /**< A list of network devices to use as
+      end points on this machine, it reduces the amount of advertised end
+      points */
+    public Service RpcDht; /**< Specifies whether or not to start RpcDht */
+    public Service XmlRpcManager; /**< Specifies whether or not to start the
+                                  XmlRpc Services */
+
+    /**
+    * Used by services to specify if they are enabled and their port
+    */
+    public class Service {
+      public bool Enabled; /**< Is the service enabled? */
+      public int Port; /**< Which port should we run it on? */
+    }
+
+    /**
+    * Used by EdgeListener's to specify their type, udp, tcp, etc and
+    * optionally a port
+    */
+    public class EdgeListener {
+      [XmlAttribute]
+      public String type; /**< type such as tcp and udp */
+      public int port; /**< a port 0 or empty for random */
+    }
   }
 
-  public class Service {
-    public bool Enabled;
-    public int Port;
-  }
-
-  public class EdgeListener {
-    [XmlAttribute]
-    public String type;
-    public int port;
-  }
-
+  /**
+   * Static methods to read and write NodeConfig Xml files
+   */
   public class NodeConfigHandler {
+    /**
+     * Reads the specified config file at path and returns it as a NodeConfig
+     * object.
+     * @param path the path to the config file
+     * @return The object version of the Xml NodeConfig file.
+     */
     public static NodeConfig Read(String path) {
       XmlSerializer serializer = new XmlSerializer(typeof(NodeConfig));
       NodeConfig config = null;
@@ -57,6 +82,11 @@ namespace Brunet.Applications {
       return config;
     }
 
+    /**
+     * Writes the NodeConfig file at the path in Xml format.
+     * @param path the path where the xml NodeConfig should be written
+     * @param config the NodeConfig object to be written
+     */
     public static void Write(String path, NodeConfig config) {
       using(FileStream fs = new FileStream(path, FileMode.Create, FileAccess.Write)) {
         XmlSerializer serializer = new XmlSerializer(typeof(NodeConfig));

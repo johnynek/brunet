@@ -28,7 +28,22 @@ using Brunet.DistributedServices;
 using Brunet.Rpc;
 using Brunet;
 
+/**
+ * \namespace Brunet.Applications provides BasicNode and core features
+ * necessary for running Brunet.Node in a simple complete manner.
+ * Besides providing basic functionality, this namespace and class offer 
+ * some extra features, such as the ability to cleanly shutdown via ctrl-c,
+ * a user configured Rpc method for providing information during a crawl
+ * (@see Information), and the ability to determine the IP addresses on the
+ * local machines and their associated names.
+ */
 namespace Brunet.Applications {
+  /**
+   * This BasicNode provides the core Brunet features in a deployable model
+   * the inputs are a xml config file called NodeConfig, which specifies which
+   * if any services to deploy.  Other projects should inherit this as their
+   * base class rather than implementing their own interfaces to Brunet.
+   */
   public class BasicNode {
     protected String _path;
     protected NodeConfig _node_config;
@@ -112,7 +127,7 @@ namespace Brunet.Applications {
       }
 
       Brunet.EdgeListener el = null;
-      foreach(EdgeListener item in _node_config.EdgeListeners) {
+      foreach(NodeConfig.EdgeListener item in _node_config.EdgeListeners) {
         int port = item.port;
         if (item.type =="tcp") {
           try {

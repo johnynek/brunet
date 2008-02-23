@@ -29,6 +29,10 @@ using Brunet.Rpc;
 using Brunet;
 
 namespace Brunet.Applications {
+  /**
+   * This class provides a layer on top of BasicNode to support creating
+   * multiple Brunet.Nodes in a single application.
+   */
   public class MultiNode: BasicNode {
     ArrayList _nodes;
     ArrayList _threads;
@@ -39,12 +43,23 @@ namespace Brunet.Applications {
       _threads = new ArrayList(_count);
     }
 
+    /**
+     * This is overloaoded so that we can get the base._node and move it into
+     * an ArrayList (_nodes), before we create a new base._node and it is
+     * overwritten.
+     */
+
     public override void CreateNode() {
       _node_config.NodeAddress = (Utils.GenerateAHAddress()).ToString();
       base.CreateNode();
       new Information(_node, "MultiNode");
       _nodes.Add(_node);
     }
+
+    /**
+     * This is where the magic happens!  Setups Shutdown and places the nodes
+     * connect method into a starting thread.
+     */
 
     public override void Run() {
       _shutdown = Shutdown.GetShutdown();
@@ -60,23 +75,43 @@ namespace Brunet.Applications {
       }
     }
 
+    /**
+     * Disconnect all the nodes.  Called by Shutdown.OnExit
+     */
+
     public override void OnExit() {
       foreach(StructuredNode node in _nodes) {
         node.Disconnect();
       }
     }
 
+    /**
+     * Not implemented, don't call the base classes version either!
+     */
+
     public override void StartServices() {
       throw new Exception("This is not supported for MultiNode, run a BasicNode to access this.");
     }
+
+    /**
+     * Not implemented, don't call the base classes version either!
+     */
 
     public override void StopServices() {
       throw new Exception("This is not supported for MultiNode, run a BasicNode to access this.");
     }
 
+    /**
+     * Not implemented, don't call the base classes version either!
+     */
+
     public override void SuspendServices() {
       throw new Exception("This is not supported for MultiNode, run a BasicNode to access this.");
     }
+
+    /**
+     * Input paramters for MultiNode are NodeConfig and count of Brunet Nodes
+     */
 
     public static new int Main(String[] args) {
       int count = 0;
