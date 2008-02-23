@@ -17,17 +17,25 @@ namespace Brunet.Applications {
       return 0;
     }
 
+    /**
+     * Sets up a proper Shutdown for the given system if one exists.  Call
+     * this method rather than attempting to setup your own.
+     * @return The native shutdown class is returned.
+     */
     public static Shutdown GetShutdown() {
       Shutdown sd = null;
-      if(OSDependent.OSVersion == OSDependent.Linux) {
-        sd = new LinuxShutdown();
+      try {
+        if(OSDependent.OSVersion == OSDependent.Linux) {
+          sd = new LinuxShutdown();
+        }
+        else if(OSDependent.OSVersion == OSDependent.Windows) {
+          sd = null;
+        }
+        else {
+          throw new Exception("Unknown OS!");
+        }
       }
-      else if(OSDependent.OSVersion == OSDependent.Windows) {
-        sd = null;
-      }
-      else {
-        throw new Exception("Unknown OS!");
-      }
+      catch {}
       return sd;
     }
   }

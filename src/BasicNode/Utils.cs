@@ -25,6 +25,10 @@ using System.Text.RegularExpressions;
 using System.Net.Sockets;
 
 namespace Brunet.Applications {
+  /**
+   * Provides features commonly necessary in handling configuration of Brunet
+   * and features found in BasicNode.
+   */
   public class Utils {
     /**
      * Retrieves the geographical location of the host running the process

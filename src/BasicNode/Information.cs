@@ -21,10 +21,14 @@ using System;
 using System.Collections;
 using System.Threading;
 
-namespace Brunet.Applications
-{
-  public class Information: IRpcHandler
-  {
+namespace Brunet.Applications {
+  /**
+   * This class provides a Rpc to be used during crawls of the network.  It
+   * provides base informatoin such as geographical coordinates, local end
+   * points, the type of node, and neighbors.  There is also support for
+   * user's to put their own data in the return value.
+   */
+  public class Information: IRpcHandler {
     private bool in_geoloc = false;
     private DateTime _last_called = DateTime.UtcNow - TimeSpan.FromHours(48);
     private RpcManager _rpc;
@@ -52,6 +56,10 @@ namespace Brunet.Applications
       _rpc.SendResult(request_state, result);
     }
 
+    /**
+     * Call this method by Rpc during crawl!
+     * @return Returns the dictionary containing the information for the node.
+     */
     public IDictionary Info() {
       GetGeoLoc();
       Hashtable ht = new Hashtable(UserData);
@@ -62,6 +70,10 @@ namespace Brunet.Applications
       return ht;
     }
 
+    /**
+     * Call this if you want the Geographical lookup to occur in another
+     * thread.
+     */
     protected void GetGeoLoc() {
       DateTime now = DateTime.UtcNow;
       if((now - _last_called > TimeSpan.FromDays(7) || geo_loc.Equals(","))) {
@@ -75,6 +87,9 @@ namespace Brunet.Applications
       }
     }
 
+    /**
+     * Sets the geographical location of the running node.
+     */
     protected void GetGeoLocAsThread(object o) {
       String local_geo_loc = Utils.GetMyGeoLoc();
       if(!local_geo_loc.Equals(",")) {
