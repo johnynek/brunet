@@ -28,7 +28,6 @@ namespace Ipop {
   public class DhtDNS: DNS {
     public override String SUFFIX { get { return ".ipop_vpn"; } }
     protected Dht _dht;
-    protected readonly object _sync = new object();
 
     /*
      * We don't use the underlying hashtables, because caches ensure entries 
@@ -44,7 +43,11 @@ namespace Ipop {
 
     public override String UnresolvedName(String qname) {
       try {
-        return _dht.Get(qname)[0].valueString;
+        String res = _dht.Get(qname)[0].valueString;
+        lock(_sync) {
+          dns_a[qname]= res;
+        }
+        return res;
       }
       catch {
         throw new Exception("Dht does not contain a record for " + qname);

@@ -25,24 +25,17 @@ using System.Net;
 using System.Net.Sockets;
 
 namespace Ipop {
-  public class RpcAddressResolverAndDNS: IAddressResolver, IRpcHandler {
+  public class RpcAddressResolverAndDNS: DNS, IAddressResolver, IRpcHandler {
     protected StructuredNode _node;
     protected RpcManager _rpc;
-    protected readonly object _sync = new object();
-    protected volatile Hashtable dns_a; /**< Maps names to IP Addresses */
-    protected volatile Hashtable dns_ptr; /**< Maps IP Addresses to names */
     protected volatile Hashtable ip_addr; /**< Maps IP Addresses to Brunet Addresses */
     protected volatile Hashtable addr_ip; /**< Maps Brunet Addresses to IP Addresses */
-    protected Object _sync;
 
     public RpcAddressResolverAndDNS(StructuredNode node) {
       _node = node;
       _rpc = RpcManager.GetInstance(node);
-      dns_a = new Hashtable();
-      dns_ptr = new Hashtable();
       ip_addr = new Hashtable();
       addr_ip = new Hashtable();
-      _sync = new Object();
 
       _rpc.AddHandler("RpcIpopNode", this);
     }
@@ -52,11 +45,11 @@ namespace Ipop {
      * @param IP IP Address to look up
      * @return null if no IP exists or the Brunet.Address
      */
-    public Address GetAddress(String IP) {
+    public Address Resolve(String IP) {
       return (Address) ip_addr[IP];
     }
 
-    public IPPacket LookUp(IPPacket req_ipp) {
+    public override IPPacket LookUp(IPPacket req_ipp) {
       UDPPacket req_udpp = new UDPPacket(req_ipp.Payload);
       DNSPacket dnspacket = new DNSPacket(req_udpp.Payload);
       ICopyable rdnspacket = null;
@@ -126,31 +119,50 @@ namespace Ipop {
       _rpc.SendResult(request_state, result);
     }
 
-    protected bool RegisterMapping(String name, Address addr) {
-      if(dns_a.Contains(name)) {
-        throw new Exception("Name ({0}) already exists.", name);
+    /**
+     * Called by external rpc program to register a mapping name and address
+     * mapping and returns an IP.
+     * @param name the name to register
+     * @param addr the address of the remote node which we wanted mapped to name
+     * @return IP Address of node or exception if it there is something invalid
+     * REVIEW and FIX
+     */
+
+    protected String RegisterMapping(String name, Address addr) {
+      String ip = (String) dns_a[name];
+      if(ip != null) {
+        if(addr.Equals(ip_addr[ip])) {
+          return ip;
+        }
+        else {
+          throw new Exception(String.Format("Name ({0}) already exists.", name));
+        }
       }
-      if(addr_ip.Contains(addr)) {
-        throw new Exception("Address ({0}) already exists.", addr);
-      }
-      return false;
+      return null;
     }
+
+    /**
+     * Called by external rpc program to unregister a name, ip, address mapping
+     * @param name the name to unregister
+     * @return true if unregistered and exists, false otherwise
+     * REVIEW and FIX
+     */
 
     protected bool UnregisterMapping(String name) {
       if(dns_a.Contains(name)) {
-        throw new Exception("Name ({0}) doesnot exists", name);
+        throw new Exception(String.Format("Name ({0}) doesnot exists", name));
       }
       lock(_sync) {
-        String ip = dns_a[name];
+        String ip = (String) dns_a[name];
         dns_a.Remove(name);
         try {
           dns_ptr.Remove(ip);
         } catch {}
         try {
-          Address addr = ip_addr[ip];
+          Address addr = (Address) ip_addr[ip];
           ip_addr.Remove(ip);
           addr_ip.Remove(addr);
-        }
+        } catch {}
       }
       return true;
     }

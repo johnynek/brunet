@@ -9,8 +9,10 @@ namespace Ipop {
       suffix (ie domain name). */
     protected volatile Hashtable dns_a; /**< Maps names to IP Addresses */
     protected volatile Hashtable dns_ptr; /**< Maps IP Addresses to names */
+    protected Object _sync;
 
     public DNS() {
+      _sync = new Object();
       dns_a = new Hashtable();
       dns_ptr = new Hashtable();
     }
@@ -35,7 +37,9 @@ namespace Ipop {
           if(qname_response == null) {
             throw new Exception("Unable to resolve name: " + qname);
           }
-          dns_ptr[qname_response] = qname;
+          lock(_sync) {
+            dns_ptr[qname_response] = qname;
+          }
         }
         else if(dnspacket.Questions[0].QTYPE == DNSPacket.TYPES.PTR) {
           qname_response = (string) dns_ptr[qname];
