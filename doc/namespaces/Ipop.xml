@@ -1,0 +1,5 @@
+<Namespace Name="Ipop">
+  <Docs>
+    <summary>Defines IpopNode the base IP over P2P utilities.</summary>
+  </Docs>
+</Namespace>

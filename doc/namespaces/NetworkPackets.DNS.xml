@@ -1,0 +1,5 @@
+<Namespace Name="NetworkPackets.DNS">
+  <Docs>
+    <summary>Defines DNS Packets.</summary>
+  </Docs>
+</Namespace>

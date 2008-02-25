@@ -1,0 +1,5 @@
+<Namespace Name="NetworkPackets.DHCP">
+  <Docs>
+    <summary>Defines DHCP Packets.</summary>
+  </Docs>
+</Namespace>
