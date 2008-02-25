@@ -1,16 +1,26 @@
 using Brunet;
+using NetworkPackets;
+using NetworkPackets.DNS;
 using System;
 using System.Collections;
 
 namespace Ipop {
+  /**
+  <summary>A basic abstract DNS server.  Must implement a way for entries
+  to get into the lookup tables.</summary>
+  */
   public abstract class DNS {
-    public virtual String SUFFIX { get { return String.Empty; } } /**< If for
-      some cases you don't want to bother continuing the lookup, specify a 
-      suffix (ie domain name). */
-    protected volatile Hashtable dns_a; /**< Maps names to IP Addresses */
-    protected volatile Hashtable dns_ptr; /**< Maps IP Addresses to names */
+    /**  <summary>If for some cases you don't want to bother continuing the
+    lookup, specify a suffix (ie domain name).</summary>*/
+    public virtual String SUFFIX { get { return String.Empty; } }
+    /// <summary>Maps names to IP Addresses</summary>
+    protected volatile Hashtable dns_a;
+    /// <summary>Maps IP Addresses to names</summary>
+    protected volatile Hashtable dns_ptr;
+    /// <summary>lock object to make this class thread safe</summary>
     protected Object _sync;
 
+    /// <summary>Base constructor initializing base variables</summary>
     public DNS() {
       _sync = new Object();
       dns_a = new Hashtable();
@@ -18,10 +28,11 @@ namespace Ipop {
     }
 
     /**
-     * Look up a hostname given a DNS request in the form of IPPacket
-     * @param req_ipp an IPPacket containing the DNS request
-     * @return returns an IPPacket containing the results
-     */
+    <summary>Look up a hostname given a DNS request in the form of IPPacket
+    </summary>
+    <param name="req_ipp">An IPPacket containing the DNS request</param>
+    <returns>An IPPacket containing the results</returns>
+    */
     public virtual IPPacket LookUp(IPPacket req_ipp) {
       UDPPacket req_udpp = new UDPPacket(req_ipp.Payload);
       DNSPacket dnspacket = new DNSPacket(req_udpp.Payload);
@@ -47,10 +58,10 @@ namespace Ipop {
             throw new Exception("DNS PTR does not contain a record: " + qname);
           }
         }
-        DNSPacket.Response response = new DNSPacket.Response(qname, dnspacket.Questions[0].QTYPE,
+        Response response = new Response(qname, dnspacket.Questions[0].QTYPE,
             dnspacket.Questions[0].QCLASS, 1800, qname_response);
         DNSPacket res_packet = new DNSPacket(dnspacket.ID, false, dnspacket.OPCODE, true,
-                                             dnspacket.Questions, new DNSPacket.Response[] {response});
+                                             dnspacket.Questions, new Response[] {response});
         rdnspacket = res_packet.ICPacket;
       }
       catch(Exception e) {
@@ -59,16 +70,18 @@ namespace Ipop {
       }
       UDPPacket res_udpp = new UDPPacket(req_udpp.DestinationPort,
                                          req_udpp.SourcePort, rdnspacket);
-      IPPacket res_ipp = new IPPacket((byte) IPPacket.Protocols.UDP,
+      IPPacket res_ipp = new IPPacket(IPPacket.Protocols.UDP,
                                        req_ipp.DestinationIP, req_ipp.SourceIP, res_udpp.ICPacket);
       return res_ipp;
     }
 
     /**
-     * Optionally implement this, if you want 
-     * @param qname the string name to lookup
-     * @return the string result of the lookup, throw an exception on failure!
-     */
+    <summary>Optionally implement this, if you want to have entries looked up 
+    through another method if the local hashtable is missing an entry</summary>
+    <param name="qname"> the string name to lookup</param>
+    <returns> the string result of the lookup, throw an exception on failure!
+    </returns>
+    */
     public virtual String UnresolvedName(String qname) {
       throw new Exception("Unable to resolve name: " + qname);
     }

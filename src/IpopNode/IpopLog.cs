@@ -19,15 +19,22 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using System.Diagnostics;
 
 namespace Ipop {
+  /// <summary>Logging class for Ipop, still use ProtocolLog to write</summary>
   public class IpopLog {
+    /// <summary>Turns on very low amount of debug code.</summary>
     public static BooleanSwitch BaseLog =
         new BooleanSwitch("BaseLog", "Weak level of logging");
+    /**  <summary>Prints the source and destination of all incoming and
+    outgoing packets</summary>*/
     public static BooleanSwitch PacketLog =
         new BooleanSwitch("PacketLog", "Logs incoming and outgoing packets");
+    /// <summary>Prints DHCP information.</summary>
     public static BooleanSwitch DHCPLog = 
         new BooleanSwitch("DHCPLog", "Logs DHCP state data");
+    /// <summary>Prints Resolver information.</summary>
     public static BooleanSwitch ResolverLog =
         new BooleanSwitch("ResolverLog", "Logs routing data");
+    /// <summary>Prints DNS information.</summary>
     public static BooleanSwitch DNS =
         new BooleanSwitch("DNS", "All about DNS");
   }

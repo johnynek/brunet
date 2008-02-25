@@ -25,33 +25,40 @@ using System.Xml;
 using System.Xml.Serialization;
 
 namespace Ipop {
-  /** IpopConfig contains configuration data meant for IPOP */
+  /// <summary>IpopConfig contains configuration data meant for IPOP.</summary>
   public class IpopConfig {
-    public string IpopNamespace; /**< Used to provide parallel dimension of 
-                                 IP space in a single overlay system */
-    public string VirtualNetworkDevice; /**< The device name of the TAP device */
-    public AddressInfo AddressData; /**< End Point Mapping @see AddressInfo */
-    public bool EnableMulticast; /**< Enable Multicast */
-  }
+    /**  <summary>Used to provide parallel dimension of IP space in a single
+    overlay system</summary>*/
+    public string IpopNamespace;
+    /// <summary>The device name of the TAP device</summary>
+    public string VirtualNetworkDevice;
+    /// <summary>End Point Mapping.</summary>
+    public AddressInfo AddressData;
+    /// <summary>Enable Multicast</summary>
+    public bool EnableMulticast;
 
-  /** AddressInfo stores end point mappings depending on the system all or 
-    * none of these need to be defined before run time, this is here to
-    * save configuration for future use.
-  */
-  public class AddressInfo {
-    public string Hostname;
-    public string IPAddress;
-    public string Netmask;
-    public string EthernetAddress;
-  }
-
-  /** A class to handle reading and writing of IpopConfig files */
-  public class IpopConfigHandler {
     /**
-     * Reads the specified config file and returns a IpopConfig
-     * @param configFile the file to open including path
-     * @return IpopConfig from the file or exception on error
-     */
+    <summary>AddressInfo stores end point mappings depending on the system all
+    or none of these need to be defined before run time, this is here to save
+    configuration for future use.</summary>
+    */
+    public class AddressInfo {
+      /// <summary>The hostname to associate to the IP.</summary>
+      public string Hostname;
+      /// <summary>Last IP address for this node.</summary>
+      public string IPAddress;
+      /// <summary>Last netmask for this node.</summary>
+      public string Netmask;
+      /**  <summary>Not implemented, but should contain last ethernet address
+      for the node</summary>*/
+      public string EthernetAddress;
+    }
+
+    /**
+    <summary>Reads the specified config file and returns a IpopConfig</summary>
+    <param name="configFile">the file to open including path</param>
+    <returns> IpopConfig from the file or exception on error</returns>
+    */
     public static IpopConfig Read(string configFile) {
       XmlSerializer serializer = new XmlSerializer(typeof(IpopConfig));
       IpopConfig config = null;
@@ -62,11 +69,11 @@ namespace Ipop {
     }
 
     /**
-     * Writes the IpopConfig to the specified file
-     * @param configFile the file to write to including path
-     * @param config IpopConfig data to be written to configFile
-     * @return true on success, exception on failure
-     */
+    <summary>Writes the IpopConfig to the specified file.</summary>
+    <param name="configFile"> the file to write to including path</param>
+    <param name="config">IpopConfig data to be written to configFile</param>
+    <returns>true on success, exception on failure</returns>
+    */
     public static bool Write(string configFile, IpopConfig config) {
       using(FileStream fs = new FileStream(configFile, FileMode.Create, 
             FileAccess.Write)) {

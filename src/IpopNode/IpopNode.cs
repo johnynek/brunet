@@ -16,6 +16,8 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+using NetworkPackets;
+using NetworkPackets.DHCP;
 using System;
 using System.Net;
 using Brunet;
@@ -25,30 +27,85 @@ using System.Collections;
 using System.Threading;
 
 namespace Ipop {
+  /**
+  <remarks><para>IpopNode provides the IP over P2P library that is to be used
+  in conjunction with Brunet.  Main features of this library include Virtual 
+  Ethernet (tap) handler, DHCP Server, DNS Server, and network packet parsing.
+  This is a filter between Brunet and the host system via the Virtual Ethernet
+  device.  Data is read from the ethernet device, parsed and sent to the
+  proper handler if one exists or a query to resolve the ip to a Brunet
+  address.  If a mapping exists, the packet will be sent to the proper end
+  point.  From Brunet, the data is sent to the Ipop handler and optional
+  translation services can occur before being written to the Ethernet device.
+  Both these enter through the HandleData, data read from the Ethernet goes
+  to HandleIPOut, where as Brunet incoming data goes to HandleIPIn. </para>
+  </remarks>
+  <example>
+  <para>Don't forget to implement this two methods in all subclasses!</para>
+  <code>
+  public static new int Main(String[] args) {
+    *IpopNode node = new *IpopNode(args[0], args[1]);
+      node.Run();
+      return 0;
+    }
+  </code>
+  </example>
+
+  <summary>IP over P2P base class.</summary>
+ */
   public abstract class IpopNode: BasicNode, IDataHandler {
+    /// <summary>The IpopConfig for this IpopNode</summary>
     protected readonly IpopConfig _ipop_config;
+    /**
+    <summary>The path where the IpopConfig comes from, this is used to write
+    back any future changes.</summary>
+    */
     protected readonly String _ipop_config_path;
+    /// <summary>The Virtual Network handler</summary>
     public readonly Ethernet Ethernet;
+    /// <summary>The Rpc handler for Information</summary>
     public readonly Information _info;
 
-    //Services
+    /// <summary>The Brunet.Node for this IpopNode</summary>
     public readonly StructuredNode Brunet;
+    /// <summary>Dht provider for this node</summary>
     public readonly Dht Dht;
+    /// <summary>Resolves IP Addresses to Brunet.Addresses</summary>
     protected IAddressResolver _address_resolver;
+    /**
+    <summary>Optional method to supply IP Addresses automatically to the
+    operating sytem</summary>
+    */
     protected DHCPServer _dhcp_server;
 
-    protected string _ip, _netmask;
+    /// <summary> Protected string representation for the local IP of this node</summary>
+    protected string _ip;
+    /// <summary> Public tring representation for the local IP of this node </summary>
     public string IP { get { return _ip; } }
+    /// <summary> Protected string representation for the Netmask of this node </summary>
+    protected string _netmask;
+    /// <summary> Public string representation for the Netmask of this node </summary>
     public string Netmask { get { return _netmask; } }
+    /**
+    <summary> The Ethernet Address of the device network device we are 
+    communicating through.</summary>
+    */
     public byte [] MACAddress;
 
+    /**
+    <summary>Creates an IpopNode given a path to a NodeConfig and an
+    IpopConfig.  Also sets up the Information, Ethernet device, and subscribes
+    to Brunet for IP Packets</summary>
+    <param name="NodeConfigPath">The path to a NodeConfig xml file</param>
+    <param name="IpopConfigPath">The path to a IpopConfig xml file</param>
+    */
     public IpopNode(string NodeConfigPath, string IpopConfigPath):
       base(NodeConfigPath) {
       CreateNode();
       this.Dht = _dht;
       this.Brunet = _node;
       _ipop_config_path = IpopConfigPath;
-      _ipop_config = IpopConfigHandler.Read(_ipop_config_path);
+      _ipop_config = IpopConfig.Read(_ipop_config_path);
       Ethernet = new Ethernet(_ipop_config.VirtualNetworkDevice);
       Ethernet.Subscribe(this, null);
 
@@ -58,6 +115,11 @@ namespace Ipop {
       Brunet.GetTypeSource(PType.Protocol.IP).Subscribe(this, null);
     }
 
+    /**
+    <summary>Starts the execution of the IpopNode, this passes the caller 
+    to execute the Brunet.Connect to eventually become Brunet.AnnounceThread.
+    </summary>
+    */
     public override void Run() {
       StartServices();
       _node.Connect();
@@ -65,34 +127,29 @@ namespace Ipop {
     }
 
     /**
-     *  Don't forget to implement this two methods in all subclasses!
-     *
-     *  public static new int Main(String[] args) {
-     *    *IpopNode node = new *IpopNode(args[0], args[1]);
-     *    node.Run();
-     *    return 0;
-     *  }
-     */
-
+    <summary>This is called by IP and Netmask handler to update the readonly 
+    properties _ip and _netmask as well as the IpopConfig.</summary>
+    <param name="IP">The new IP Address.</param>
+    <param name="Netmask">The new Netmask.</param>
+    */
     public void UpdateAddressData(string IP, string Netmask) {
       _info.UserData["Virtual IP"] = IP;
       _ip = IP;
       _ipop_config.AddressData.IPAddress = _ip;
       _netmask = Netmask;
       _ipop_config.AddressData.Netmask = _netmask;
-      IpopConfigHandler.Write(_ipop_config_path, _ipop_config);
+      IpopConfig.Write(_ipop_config_path, _ipop_config);
     }
 
     /**
-     * This method handles all incoming packets into the IpopNode, both abroad
-     * and local.  This is done to reduce unnecessary extra classes and
-     * circular dependencies.  This method probably shouldn't be called
-     * directly.
-     * @param b The incoming packet
-     * @param from the ISender of the packet (Ethernet or Brunet)
-     * @param state always will be null
-     */
-
+    <summary> This method handles all incoming packets into the IpopNode, both
+    abroad and local.  This is done to reduce unnecessary extra classes and
+    circular dependencies.  This method probably shouldn't be called
+    directly.</summary>
+    <param name="b"> The incoming packet</param>
+    <param name="from"> the ISender of the packet (Ethernet or Brunet)</param>
+    <param name="state">always will be null</param>
+    */
     public void HandleData(MemBlock b, ISender from, object state) {
       if(from is Ethernet) {
         EthernetPacket ep = new EthernetPacket(b);
@@ -101,10 +158,10 @@ namespace Ipop {
         }
 
         switch (ep.Type) {
-          case (int) EthernetPacket.Types.ARP:
+          case EthernetPacket.Types.ARP:
             HandleARP(ep.Payload);
             break;
-          case (int) EthernetPacket.Types.IP:
+          case EthernetPacket.Types.IP:
             HandleIPOut(ep.Payload, from);
             break;
         }
@@ -115,11 +172,11 @@ namespace Ipop {
     }
 
     /**
-     * This method handles IPPackets that come from Brunet, i.e., abroad.
-     * @param packet The packet from Brunet
-     * @param from The Brunet node that sent the packet
-     */
-
+    <summary>This method handles IPPackets that come from Brunet, i.e., abroad.
+    </summary>
+    <param name="packet"> The packet from Brunet.</param>
+    <param name="from"> The Brunet node that sent the packet.</param>
+    */
     public virtual void HandleIPIn(MemBlock packet, ISender from) {
       IPPacket ipp = new IPPacket(packet);
 
@@ -138,12 +195,11 @@ namespace Ipop {
     }
 
     /**
-     * This method handles IPPackets that come from the TAP Device, i.e., 
-     * local system.
-     * @param packet The packet from the TAP device
-     * @param from This should always be the tap device
-     */
-
+    <summary>This method handles IPPackets that come from the TAP Device, i.e.,
+    local system.</summary>
+    <param name="packet">The packet from the TAP device</param>
+    <param name="from"> This should always be the tap device</param>
+    */
     protected virtual void HandleIPOut(MemBlock packet, ISender from) {
       IPPacket ipp = new IPPacket(packet);
       if(IpopLog.PacketLog.Enabled) {
@@ -159,7 +215,7 @@ namespace Ipop {
       }
 
       switch(ipp.Protocol) {
-        case (byte) IPPacket.Protocols.UDP:
+        case IPPacket.Protocols.UDP:
           UDPPacket udpp = new UDPPacket(ipp.Payload);
           if(udpp.SourcePort == 68 && udpp.DestinationPort == 67) {
             if(HandleDHCP(ipp)) {
@@ -185,43 +241,49 @@ namespace Ipop {
     }
 
     /**
-     * If you want Multicast, implement this method, output will most likely
-     * be sent via the SendIP() method in the IpopNode base class.
-     * directly to the Ethernet interface using Ethernet.Send()
-     * @param ipp The IPPacket the contains the multicast message
-     */
-
+    <summary>This method is called by HandleIPOut if the destination address
+    is within the multicast address range.  If you want Multicast, implement
+    this method, output will most likely be sent via the SendIP() method in the
+    IpopNode base class.</summary>
+    <param name="ipp"> The IPPacket the contains the multicast message</param>
+    <returns>True if implemented, false otherwise.</returns>
+    */
     protected virtual bool HandleMulticast(IPPacket ipp) {
       return false;
     }
 
     /**
-     * If you want DHCP, implement this method, responses should be written
-     * directly to the Ethernet interface using Ethernet.Send()
-     * @param ipp The IPPacket the contains the DHCP message
-     */
-
+    <summary>This method is called by HandleIPOut if the source and 
+    destination ports are the well known DHCP ports.  If you want DHCP,
+    implement this method, responses should be written directly to the
+    Ethernet interface using Ethernet.Send().</summary>
+    <param name="ipp"> The IPPacket the contains the DHCP message</param>
+    <returns>True if implemented, false otherwise.</returns>
+    */
     protected virtual bool HandleDHCP(IPPacket ipp) {
       return false;
     }
 
     /**
-     * This can be used to access the dhcp server, since this will probably
-     * common code, I am including it here.
-     * @param ipp The IPPacket that contains the DHCP Request
-     * @param dhcp_params an object containing any extra parameters for the
-     * dhcp server
-     * @return returns true on success and false on failure, if true the
-     * ethernet had the result written to it as well.
-     */
-
+    <summary>This is used to process a dhcp packet on the node side, that
+    includes placing data such as the local Brunet Address, Ipop Namespace, the
+    nodes last ip, and other optional parameters in our request to the dhcp
+    server.  When receiving the results, if it is successful, the results are
+    written to the Ethernet device.  if there is a change, this triggers
+    updates to the IpopConfig.</summary>
+    <param name="ipp"> The IPPacket that contains the DHCP Request</param>
+    <param name="dhcp_params"> an object containing any extra parameters for 
+    the dhcp server</param>
+    <returns> true on success and false on failure, if true the ethernet had 
+    the result written to it as well.</returns>
+    */
     protected virtual bool ProcessDHCP(IPPacket ipp, params Object[] dhcp_params) {
       UDPPacket udpp = new UDPPacket(ipp.Payload);
       DHCPPacket dhcp_packet = new DHCPPacket(udpp.Payload);
 
       byte []last_ip = null;
       if(_ipop_config.AddressData == null) {
-        _ipop_config.AddressData = new AddressInfo();
+        _ipop_config.AddressData = new IpopConfig.AddressInfo();
       }
       try {
         last_ip = IPAddress.Parse(_ipop_config.AddressData.IPAddress).GetAddressBytes();
@@ -250,7 +312,7 @@ namespace Ipop {
           destination_ip = ipp.SourceIP;
         }
         UDPPacket res_udpp = new UDPPacket(67, 68, rpacket.Packet);
-        IPPacket res_ipp = new IPPacket((byte) IPPacket.Protocols.UDP,
+        IPPacket res_ipp = new IPPacket(IPPacket.Protocols.UDP,
                                          rpacket.ciaddr, destination_ip,
                                          res_udpp.ICPacket);
         EthernetPacket res_ep = new EthernetPacket(MACAddress,
@@ -266,31 +328,41 @@ namespace Ipop {
     }
 
     /**
-     * If you want DNS, implement this method, responses should be written
-     * directly to the tap interface using Ethernet.Send()
-     * @param ipp The IPPacket contain the DNS packet
-     */
-
+    <summary>If a request is sent to address a.b.c.255 with the dns port (53),
+    this method will be called by HandleIPOut.  If you want DNS, implement this
+    method, responses should be written directly to the tap interface using
+    Ethernet.Send()</summary>
+    <param name="ipp"> The IPPacket contain the DNS packet</param>
+    <returns>True if implemented, false otherwise.</returns>
+    */
     protected virtual bool HandleDNS(IPPacket ipp) {
       return false;
     }
 
     /**
-     * For IP, if the packet is to be sent over Brunet, use this method
-     * @param target the Brunet Address of the target
-     * @param packet the data to send to the recepient
-     */
-
+    <summary>Sends the IP Packet to the specified target address.</summary>
+    <param name="target"> the Brunet Address of the target</param>
+    <param name="packet"> the data to send to the recepient</param>
+    */
     protected virtual void SendIP(Address target, MemBlock packet) {
       ISender s = new AHExactSender(Brunet, target);
       s.Send(new CopyList(PType.Protocol.IP, packet));
     }
 
     /**
-     * HandleARP is implemented in IpopNode due to its simplicity.  It takes
-     * in a packet and writes the lookup to the virtual Ethernet device.
-     * @param packet the packet to translate
-     */
+    <summary>Parses ARP Packets and writes to the Ethernet the translation.
+    </summary>
+    <remarks>Since IpopNode uses tap as the underlying virtual network 
+    handler, we must handling incoming ARP requests.  This makes the operating
+    system think that all the nodes are on the same remote gateway
+    FE:00:00:00:00.  Results, if valid are automatically written to the
+    Ethernet address.  Two cases, when respones are not valid, the node does an
+    ARP lookup on the address its attempting to acquire or when it does an ARP
+    and it does not have an address.  If either of these were to be responded
+    to, the node would refuse the address, thinking someone else already has
+    it.</remarks>
+    <param name="packet">The Ethernet packet to translate</param>
+    */
     protected void HandleARP(MemBlock packet) {
       string TargetIPAddress = "", SenderIPAddress = "";
       for(int i = 0; i < 3; i++) { 
@@ -335,17 +407,17 @@ namespace Ipop {
   }
 
   /**
-   * This interface is used for IP Address to Brunet address translations.
-   * It must implement the method GetAddress.  All IpopNode sub classes MUST
-   * have some IAddressResolver.
-   */
+  <summary>This interface is used for IP Address to Brunet address translations.
+  It must implement the method GetAddress.  All IpopNode sub classes MUST
+  have some IAddressResolver.</summary>
+  */
   public interface IAddressResolver {
     /**
-     * Takes a string representation an IP and returns the mapped Brunet.Address
-     * @param ip the string representation of the IP
-     * @return translated Brunet.Address
-     */
-
+    <summary>Takes a string representation an IP and returns the mapped
+    Brunet.Address</summary>
+    <param name="ip"> the string representation of the IP</param>
+    <returns>translated Brunet.Address</returns>
+    */
     Address Resolve(String ip);
   }
 }

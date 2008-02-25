@@ -24,51 +24,76 @@ using System.Security.Cryptography;
 using Brunet.Applications;
 
 namespace Ipop {
+  /// <summary>Contains a lease response.</summary>
   public class DHCPReply {
+    /// <summary>The given IP Address.</summary>
     public byte [] ip;
+    /// <summary>The given netmask.</summary>
     public byte [] netmask;
+    /// <summary>The given lease time.</summary>
     public byte [] leasetime;
   }
 
+  /// <summary>Allocates IP Addresses based upon a DHCPServerConfig</summary>
   public abstract class DHCPLeaseController {
+    /// <summary>The Server's IP Address</summary>
     public readonly byte[] ServerIP;
+
+    /// <summary>Defines an existing lease.</summary>
     protected struct Lease {
+      /// <summary>A given away IP.</summary>
       public byte [] ip;
+      /// <summary>The associated value, hardware address or node address.</summary>
       public byte [] hwaddr;
+      /// <summary>When the lease expires.</summary>
       public DateTime expiration;
     }
 
+    /// <summary>Random number generator to guess IP Addresses</summary>
     protected Random _rand = new Random();
-    protected int size, index, leasetime;
+    /// <summary>The lease time given for all leases.</summary>
+    protected int leasetime;
+    /// <summary>Maximum supported log size.</summary>
     protected long logsize;
+    /// <summary>The namespace name.</summary>
     protected string namespace_value;
+    /// <summary>The netmask for the namespace.</summary>
     protected byte [] netmask;
+    /// <summary>The lowest available IP Address for the namespace.</summary>
     protected byte [] lower;
+    /// <summary>The highest available IP Address for the namespace.</summary>
     protected byte [] upper;
+    /// <summary>Byte array representation of the lease time.</summary>
     protected byte [] leasetimeb;
+    /// <summary>A list of reserved IPs</summary>
     protected byte [][] reservedIP;
+    /// <summary>Netmasks mapped to the list of reserved IPs.</summary>
     protected byte [][] reservedMask;
 
-    public DHCPLeaseController(IPOPNamespace config) {
+    /**
+    <summary>Creates a DHCPLeaseController based upon the given config</summary>
+    <param name="config">A IPOPNamespace object.</param>
+    */
+    public DHCPLeaseController(DHCPServerConfig config) {
       leasetime = config.leasetime;
       leasetimeb = new byte[]{((byte) ((leasetime >> 24))),
         ((byte) ((leasetime >> 16))),
         ((byte) ((leasetime >> 8))),
         ((byte) (leasetime))};
-      namespace_value = config.value;
+      namespace_value = config.Namespace;
       logsize = config.LogSize * 1024; /* Bytes */
       lower = Utils.StringToBytes(config.pool.lower, '.');
       upper = Utils.StringToBytes(config.pool.upper, '.');
       netmask = Utils.StringToBytes(config.netmask, '.');
 
-      if(config.reserved != null) {
-        reservedIP = new byte[config.reserved.value.Length + 1][];
-        reservedMask = new byte[config.reserved.value.Length + 1][];
-        for(int i = 1; i < config.reserved.value.Length + 1; i++) {
+      if(config.ReservedIPs != null) {
+        reservedIP = new byte[config.ReservedIPs.Length + 1][];
+        reservedMask = new byte[config.ReservedIPs.Length + 1][];
+        for(int i = 1; i < config.ReservedIPs.Length + 1; i++) {
           reservedIP[i] = Utils.StringToBytes(
-            config.reserved.value[i-1].ip, '.');
+            config.ReservedIPs[i-1].ip, '.');
           reservedMask[i] = Utils.StringToBytes(
-            config.reserved.value[i-1].mask, '.');
+            config.ReservedIPs[i-1].mask, '.');
         }
       }
       else {
@@ -87,7 +112,11 @@ namespace Ipop {
       reservedMask[0] = new byte[4] {255, 255, 255, 255};
     }
 
-    protected bool ValidIP(byte [] ip) {
+    /**
+    <summary>Makes sure that an IP Address is valid.</summary>
+    <param name="ip">Checks to see if an IP Address is valid.</param>
+    */
+    public bool ValidIP(byte [] ip) {
       /* No 255 or 0 in ip[3]] */
       if(ip[3] == 255 || ip[3] == 0)
         return false;
@@ -108,7 +137,11 @@ namespace Ipop {
       return true;
     }
 
-   protected byte [] IncrementIP(byte [] ip) {
+    /**
+    <summary>Increments the inputted IP Address to the next valid one.</summary>
+    <param name="ip">The IP Address to increment.</param>
+    */
+    public byte [] IncrementIP(byte [] ip) {
       if(ip[3] == 0) {
         ip[3] = 1;
       }
@@ -126,8 +159,6 @@ namespace Ipop {
               ip[0]++;
             else {
               ip[0] = lower[0];
-              this.size = this.index;
-              this.index = 0;
             }
           }
         }
@@ -142,7 +173,10 @@ namespace Ipop {
       return ip;
     }
 
-    protected byte[] RandomIPAddress() {
+    /**
+    <summary>Generates a random IP Address in the valid address range.</summary>
+    */
+    public byte[] RandomIPAddress() {
       byte[] randomIP = new byte[4];
       for (int k = 0; k < randomIP.Length; k++) {
         int max = upper[k];
@@ -159,6 +193,14 @@ namespace Ipop {
       return randomIP;
     }
 
+    /**
+    <summary>Implemented in sub-classes, used to get a lease.</summary>
+    <param name="address">A requested IP Address</param>
+    <param name="renew">Is this an attempt to renew?</param>
+    <param name="node_address">The unique identifier for this node, such as a
+    Node Address.</param>
+    <param name="para">Extra parameters.</param>
+    */
     public abstract DHCPReply GetLease(byte[] address, bool renew,
                                        string node_address, params object[] para);
   }

@@ -18,6 +18,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using Brunet;
 using Brunet.DistributedServices;
+using NetworkPackets;
+using NetworkPackets.DNS;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -47,42 +49,6 @@ namespace Ipop {
      */
     public Address Resolve(String IP) {
       return (Address) ip_addr[IP];
-    }
-
-    public override IPPacket LookUp(IPPacket req_ipp) {
-      UDPPacket req_udpp = new UDPPacket(req_ipp.Payload);
-      DNSPacket dnspacket = new DNSPacket(req_udpp.Payload);
-      ICopyable rdnspacket = null;
-      try {
-        string qname_response = String.Empty;
-        string qname = dnspacket.Questions[0].QNAME;
-        if(dnspacket.Questions[0].QTYPE == DNSPacket.TYPES.A) {
-          qname_response = (string) dns_a[qname];
-          if(qname_response == null) {
-            throw new Exception("Dht does not contain a record for " + qname);
-          }
-        }
-        else if(dnspacket.Questions[0].QTYPE == DNSPacket.TYPES.PTR) {
-          qname_response = (string) dns_ptr[qname];
-          if(qname_response == null) {
-            throw new Exception("DNS PTR does not contain a record for " + qname);
-          }
-        }
-        DNSPacket.Response response = new DNSPacket.Response(qname, dnspacket.Questions[0].QTYPE,
-                                dnspacket.Questions[0].QCLASS, 1800, qname_response);
-        DNSPacket res_packet = new DNSPacket(dnspacket.ID, false, dnspacket.OPCODE, true,
-                                         dnspacket.Questions, new DNSPacket.Response[] {response});
-        rdnspacket = res_packet.ICPacket;
-      }
-      catch(Exception e) {
-        ProtocolLog.WriteIf(IpopLog.DNS, e.Message);
-        rdnspacket = DNSPacket.BuildFailedReplyPacket(dnspacket);
-      }
-      UDPPacket res_udpp = new UDPPacket(req_udpp.DestinationPort,
-                                         req_udpp.SourcePort, rdnspacket);
-      IPPacket res_ipp = new IPPacket((byte) IPPacket.Protocols.UDP,
-                 req_ipp.DestinationIP, req_ipp.SourceIP, res_udpp.ICPacket);
-      return res_ipp;
     }
 
     public void HandleRpc(ISender caller, String method, IList arguments, object request_state) {

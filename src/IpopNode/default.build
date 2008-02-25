@@ -3,6 +3,7 @@
   <description> Builds the Ipop dll </description>
   <property name="lib.dir" value="../../lib"/>
   <property name="build.dir" value="build" />
+  <property name="doc.dir" value="../../doc"/>
   <target name="clean" description="Remove build directory">
     <delete dir="${build.dir}" failonerror="true"/>
   </target>
@@ -16,14 +17,18 @@
         <include name="CookComputing.XmlRpcV2.dll" />
         <include name="Brunet.XmlRpc.dll" />
         <include name="Brunet.DhtService.dll"/>
+        <include name="Brunet.BasicNode.dll"/>
       </fileset>
     </copy>
-    <csc target="library" output="${build.dir}/Ipop.dll">
+
+<!-- The whole purpose of building this dll is to generate docs related to it-->
+    <mkdir dir="${doc.dir}" failonerror="true"/>
+    <csc target="library" output="${build.dir}/Ipop.dll" doc="${doc.dir}/IpopNode.xml">
       <sources failonempty="true">
         <include name="*.cs"/>
-        <include name="../../../brunet1/src/BasicNode/*.cs"/>
       </sources>
       <references>
+        <include name="${build.dir}/Brunet.BasicNode.dll"/>
         <include name="${build.dir}/Brunet.dll"/>
         <include name="${build.dir}/Brunet.Dht.dll"/>
         <include name="${build.dir}/Brunet.XmlRpc.dll" />
@@ -33,6 +38,7 @@
         <include name="Mono.Posix.dll"/>
       </references>
     </csc>
+
     <copy todir="${lib.dir}" failonerror="true">
       <fileset basedir="${build.dir}">
         <include name="Ipop.dll" />

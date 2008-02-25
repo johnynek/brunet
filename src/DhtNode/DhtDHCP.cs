@@ -32,7 +32,7 @@ namespace Ipop {
     protected Dht _dht;
     protected bool _multicast;
 
-    public DhtDHCPLeaseController(Dht dht, IPOPNamespace config,
+    public DhtDHCPLeaseController(Dht dht, DHCPServerConfig config,
                                   bool EnableMulticast): base(config) {
       _dht = dht;
       _multicast = EnableMulticast;
@@ -120,9 +120,9 @@ namespace Ipop {
       }
 
       string xml_str = results[0].valueString.ToString();
-      XmlSerializer serializer = new XmlSerializer(typeof(IPOPNamespace));
+      XmlSerializer serializer = new XmlSerializer(typeof(DHCPServerConfig));
       TextReader stringReader = new StringReader(xml_str);
-      IPOPNamespace ipop_ns = (IPOPNamespace) serializer.Deserialize(stringReader);
+      DHCPServerConfig ipop_ns = (DHCPServerConfig) serializer.Deserialize(stringReader);
       DHCPLeaseController dhcpLeaseController = new DhtDHCPLeaseController(_dht, ipop_ns, _multicast);
       _dhcp_lease_controllers[ipop_namespace] = dhcpLeaseController;
       return dhcpLeaseController;

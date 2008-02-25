@@ -17,6 +17,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using Brunet;
+using NetworkPackets;
+using NetworkPackets.DHCP;
 using System;
 using System.Collections;
 using System.IO;
@@ -24,30 +26,35 @@ using System.Text;
 
 namespace Ipop {
   /**
-   * The dhcp system for Ipop works like this... there is a single entry point
-   * via Process @see process().  For the DHCP to work, the requestor must
-   * ask for an IP Address in an existing DHCPLeaseController, this is 
-   * configured by the IPOPNamespace class in DHCPServerConfig.  This method
-   * allows for a single server to be configured for multiple namespaces.
-   */
+  <summary>A Simple DHCP server for IPOP</summary>
+  <remarks>There is a single entry point via the Process method.  For the DHCP
+  to work, the requestor must ask for an IP Address in an existing
+  DHCPLeaseController or the DHCP Server must allocate one somehow, this is 
+  configured by the IPOPNamespace class in DHCPServerConfig.  This method
+  allows for a single server to be configured for multiple namespaces.
+  </remarks>
+  */
   public abstract class DHCPServer {
+    /// <summary>List of Lease Controllers indexed by their IPOP namspace</summary>
     protected SortedList _dhcp_lease_controllers = new SortedList();
 
     /**
-     * This is the input to the DHCP System, it takes in the dhcp packet and
-     * extra information in an attempt to return back a valid positive dhcp
-     * response (such as ACK or OFFER).  There is no support for DHCP Messages
-     * such as NAK or RELEASE.
-     * @param packet the dhcp packet containing the request
-     * @param last_ip optional last ip address as stored by the node, sometimes
-     * the underlying O/S will keep this information, but if you plan on moving
-     * around the software to different systems, this will allow you to easily
-     * retain the IP.
-     * @param node_address the brunet address, this is better to use than a 
-     * Ethernet address for address registration.
-     * @param IpopNamespace the namespace that you want to get your lease from
-     * @param para extra optional parameters passed to the DHCP Lease Controller
-     */
+    <summary>This is the input to the DHCP System, it takes in the dhcp packet
+    and extra information in an attempt to return back a valid positive dhcp
+    response (such as ACK or OFFER).  There is no support for DHCP Messages
+    such as NAK or RELEASE.</summary>
+    <param name="packet">The dhcp packet containing the request</param>
+    <param name="last_ip">Optional last ip address as stored by the node,
+    sometimes the underlying O/S will keep this information, but if you plan
+    on moving around the software to different systems, this will allow you to
+    easily retain the IP.</param>
+    <param name="node_address">The brunet address, this is better to use than a 
+    Ethernet address for address registration.</param>
+    <param name="IpopNamespace">The namespace that you want to get your lease
+    from.</param>
+    <param name="para">Extra optional parameters passed to the DHCP Lease
+    Controller</param>
+    */
     public DHCPPacket Process(DHCPPacket packet, byte[] last_ip, string node_address,
                               string IpopNamespace, params object[] para) {
       byte messageType = ((MemBlock) packet.Options[DHCPPacket.OptionTypes.MESSAGE_TYPE])[0];
@@ -96,6 +103,8 @@ namespace Ipop {
       return rpacket;
     }
 
+    /**  <summary>All DHCP Servers must have some method for loading DHCP Lease
+    this is implemented here</summary>*/
     protected abstract DHCPLeaseController GetDHCPLeaseController(string ipop_namespace);
   }
 }

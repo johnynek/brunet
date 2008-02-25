@@ -22,49 +22,62 @@ using System.Xml.Serialization;
 using System.IO;
 
 namespace Ipop {
+  /// <summary>A Configuration class for the DHCP Lease Controller</summary>
   public class DHCPServerConfig {
-    public string brunet_namespace;
-    public IPOPNamespace [] ipop_namespace;
-  }
-  public class IPOPNamespace {
+    /// <summary>The length of a lease.</summary>
     public int leasetime;
-    public string value;
+    /// <summary>The name of the IPOP Namespace.</summary>
+    public string Namespace;
+    /// <summary>The netmask for the IPOP Namespace.</summary>
     public string netmask;
-    public DHCPIPPool pool;
-    public DHCPReservedIPs reserved;
+    /// <summary>The available IP range for the IPOP Namespace.</summary>
+    public IPPool pool;
+    /// <summary>An array of reserved IP Addresses.</summary>
+    public ReservedIP[] ReservedIPs;
+    /// <summary>The maximum size for a DHCP Log (optional)</summary>
     public int LogSize;
-  }
-  public class DHCPIPPool {
-    public string lower;
-    public string upper;
-  }
-  public class DHCPReservedIPs {
-    public DHCPReservedIP [] value;
-  }
-  public class DHCPReservedIP {
-    public string ip;
-    public string mask;
-  }
 
-  class DHCPServerConfigurationReader {
+    /// <summary>Defines an available IP range</summary>
+    public class IPPool {
+      /// <summary>The lower bound.</summary>
+      public string lower;
+      /// <summary>The upper bound.</summary>
+      public string upper;
+    }
+
+    /// <summary>Specifies reserved IP cases</summary>
+    public class ReservedIP {
+      /// <summary>The address to reserve.</summary>
+      public string ip;
+      /// <summary>The mask to use.</summary>
+      public string mask;
+    }
+
+    /**
+    <summary>Reads an XML File version of the DHCPServerConfig</summary>
+    <param name="filename">The path and filename of the XML File containing the
+    DHCPServerConfig</param>
+    <returns>A DHCPServerconfig object</returns>
+    */
     public static DHCPServerConfig ReadConfig(string filename) {
       XmlSerializer serializer = new XmlSerializer(typeof(DHCPServerConfig));
       FileStream fs = new FileStream(filename, FileMode.Open);
       return (DHCPServerConfig) serializer.Deserialize(fs);
     }
 
+    /**
+    <summary>Prints a DHCPServer config to the console.</summary>
+    <param name="config">The DHCPServerConfig object to print</param>
+    */
     public static void PrintConfig(DHCPServerConfig config) {
-      Console.Error.WriteLine(config.brunet_namespace);
-      foreach(IPOPNamespace item0 in config.ipop_namespace) {
-        Console.Error.WriteLine("\t{0}", item0.value);
-        Console.Error.WriteLine("\t\t{0}", item0.pool.lower);
-        Console.Error.WriteLine("\t\t{0}", item0.pool.upper);
-        foreach(DHCPReservedIP item1 in item0.reserved.value) {
-          Console.Error.WriteLine("\t\t\t{0}", item1.ip);
-          Console.Error.WriteLine("\t\t\t{0}", item1.mask);
+      Console.Error.WriteLine(config.Namespace);
+      Console.Error.WriteLine("\t\t{0}", config.pool.lower);
+      Console.Error.WriteLine("\t\t{0}", config.pool.upper);
+      foreach(DHCPServerConfig.ReservedIP item0 in config.ReservedIPs) {
+          Console.Error.WriteLine("\t\t\t{0}", item0.ip);
+          Console.Error.WriteLine("\t\t\t{0}", item0.mask);
         }
       }
-    }
 
 /*  Unused Example Code
     public static void Main(string [] args) {
