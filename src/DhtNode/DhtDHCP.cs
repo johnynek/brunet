@@ -79,7 +79,7 @@ namespace Ipop.DhtNode {
       try {
         hostname = (String) para[0];
       } catch {}
-      if(RequestedAddr == null) {
+      if(RequestedAddr == null || !ValidIP(RequestedAddr)) {
         RequestedAddr = new byte[4] {0, 0, 0, 0};
       }
 
