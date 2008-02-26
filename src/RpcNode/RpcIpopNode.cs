@@ -33,10 +33,12 @@ namespace Ipop {
       RpcAddressResolverAndDNS rarad = new RpcAddressResolverAndDNS(Brunet);
       _dns = rarad;
       _address_resolver = rarad;
+      _dhcp_server = new RpcDHCPServer(_ipop_config.VirtualNetworkDevice);  
     }
 
     protected override bool HandleDHCP(IPPacket ipp) {
-      return false;
+        ProcessDHCP(ipp, null);
+        return true;
     }
 
     protected override bool HandleDNS(IPPacket ipp) {
