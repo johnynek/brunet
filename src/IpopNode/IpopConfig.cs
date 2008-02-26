@@ -53,34 +53,5 @@ namespace Ipop {
       for the node</summary>*/
       public string EthernetAddress;
     }
-
-    /**
-    <summary>Reads the specified config file and returns a IpopConfig</summary>
-    <param name="configFile">the file to open including path</param>
-    <returns> IpopConfig from the file or exception on error</returns>
-    */
-    public static IpopConfig Read(string configFile) {
-      XmlSerializer serializer = new XmlSerializer(typeof(IpopConfig));
-      IpopConfig config = null;
-      using(FileStream fs = new FileStream(configFile, FileMode.Open)) {
-        config = (IpopConfig) serializer.Deserialize(fs);
-      }
-      return config;
-    }
-
-    /**
-    <summary>Writes the IpopConfig to the specified file.</summary>
-    <param name="configFile"> the file to write to including path</param>
-    <param name="config">IpopConfig data to be written to configFile</param>
-    <returns>true on success, exception on failure</returns>
-    */
-    public static bool Write(string configFile, IpopConfig config) {
-      using(FileStream fs = new FileStream(configFile, FileMode.Create, 
-            FileAccess.Write)) {
-        XmlSerializer serializer = new XmlSerializer(typeof(IpopConfig));
-        serializer.Serialize(fs, config);
-      }
-      return true;
-    }
   }
 }

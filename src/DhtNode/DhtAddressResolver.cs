@@ -16,33 +16,57 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+using Brunet;
+using Brunet.DistributedServices;
+using Ipop;
 using System;
 using System.Net;
 using System.Text;
 using System.Collections;
 
-using Brunet;
-using Brunet.DistributedServices;
-
-namespace Ipop {
-/**
-* Implements a Dht Address Resolver, where entries are listed in the dht
-* by means of the DhtDHCPServer class.  Entries are stored in a cache, so that
-* frequented requests aren't held up by Dht access.
-*/
+namespace Ipop.DhtNode {
+  /**
+  <summary>This class provides a method to do address resolution over the
+  Brunet Dht, where entries are listed in the dht by means of the 
+  DhtDHCPServer.  Entries are stored in a cache, so that frequented requests
+  aren't held up by Dht access.  The dht holds the information via key = ip 
+  address and value = brunet address.  Where the IP is stored as 
+  dhcp:ipop_namespace:$ipop_namespace:ip:$ip and the Address is the
+  Brunet.Address.ToString().</summary>
+  */
   public class DhtAddressResolver: IAddressResolver {
-    // Create a cache with room for 250 entries - I can't imagine having more nodes than this...
-    private object _sync = new object();
-    private Cache _results = new Cache(250);
-    private Hashtable _queued = new Hashtable(), _mapping = new Hashtable();
-    private Dht _dht;
-    private string _ipop_namespace;
+    /// <summary>A lock synchronizer for the hashtables and cache.</summary>
+    protected readonly Object _sync = new Object();
+    /// <summary>Holds up to 250 IP:Brunet Address translations.</summary>
+    protected readonly Cache _results = new Cache(250);
+    /// <summary>Contains which IP Address Misses are pending.</summary>
+    protected readonly Hashtable _queued = new Hashtable();
+    /// <summary>Maps the Channel in MissCallback to an IP.</summary>
+    protected readonly Hashtable _mapping = new Hashtable();
+    /// <summary>The dht object to use for dht interactions.</summary>
+    protected readonly Dht _dht;
+    /// <summary>The ipop namespace where the dhcp server is storing names</summary>
+    protected readonly string _ipop_namespace;
 
+    /**
+    <summary>Creates a DhtAddressResolver Object.</summary>
+    <param name="dht">The dht object to use for dht interactions.</param>
+    <param name="ipop_namespace">The ipop namespace where the dhcp server
+    is storing names.</param>
+    */
     public DhtAddressResolver(Dht dht, string ipop_namespace) {
       this._dht = dht;
       _ipop_namespace = ipop_namespace;
     }
 
+    /**
+    <summary>Translates an IP Address to a Brunet Address.  If it is in the
+    cache it returns a result, otherwise it returns null and begins a Miss
+    lookup.</summary>
+    <param name="ip">The IP Address to translate.</param>
+    <returns>Null if none exists or there is a miss or the Brunet Address if
+    one exists in the cache</returns>
+    */
     public Address Resolve(string ip) {
       Address addr = null;
       lock (_sync) {
@@ -54,6 +78,13 @@ namespace Ipop {
       return addr;
     }
 
+    /**
+    <summary>This is called if the cache's don't have an Address mapping.  It
+    prepares an asynchronous Dht query if one doesn't already exist, that is
+    only one query at a time per IP regardless of how many misses occur.  The
+    ansychonorous call back is call MissCallback.</summary>
+    <param name="ip">The IP Address to look up in the Dht.</param>
+    */
     protected void Miss(string ip) {
       lock(_sync) {
         if (_queued.Contains(ip)) {
@@ -91,6 +122,14 @@ namespace Ipop {
       }
     }
 
+    /**
+    <summary>This is the asynchronous callback for Miss.  This contains the
+    lookup results from the Dht.  If there is a valid mapping it is added to
+    the cache.  Either way, new queries can now be run for the IP address
+    after the completion of this method.</summary>
+    <param name="o">Contains the Channel where the results are stored.</param>
+    <param name="args">Null.</param>
+    */
     protected void MissCallback(Object o, EventArgs args) {
       Channel queue = (Channel) o;
       string ip = (string) _mapping[queue];

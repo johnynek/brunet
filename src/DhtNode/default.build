@@ -4,6 +4,7 @@
   <property name="lib.dir" value="../../lib"/>
   <property name="build.dir" value="build" />
   <property name="bin.dir" value="../../bin"/>
+  <property name="doc.dir" value="../../doc"/>
   <target name="clean" description="Remove build directory">
     <delete dir="${build.dir}" failonerror="true"/>
   </target>
@@ -19,7 +20,7 @@
         <include name="Brunet.DhtService.dll"/>
       </fileset>
     </copy>
-    <csc target="exe" output="${build.dir}/DhtIpopNode.exe" main="Ipop.DhtIpopNode">
+    <csc target="exe" output="${build.dir}/DhtIpopNode.exe" main="Ipop.DhtNode.DhtIpopNode">
       <sources failonempty="true">
         <include name="*.cs"/>
         <include name="../IpopNode/*.cs"/>
@@ -31,6 +32,22 @@
         <include name="${build.dir}/Brunet.XmlRpc.dll" />
         <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />
         <include name="${build.dir}/Brunet.DhtService.dll"/>
+        <include name="System.Runtime.Remoting.dll"/>
+        <include name="Mono.Posix.dll"/>
+      </references>
+    </csc>
+    <csc target="library" output="${lib.dir}/DhtNode.dll" doc="${doc.dir}/DhtNode.xml">
+      <sources failonempty="true">
+        <include name="*.cs"/>
+      </sources>
+      <references>
+        <include name="${build.dir}/Brunet.dll"/>
+        <include name="${build.dir}/Brunet.Dht.dll"/>
+        <include name="${build.dir}/Brunet.XmlRpc.dll" />
+        <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />
+        <include name="${build.dir}/Brunet.DhtService.dll"/>
+        <include name="${lib.dir}/Ipop.dll"/>
+        <include name="${lib.dir}/Brunet.BasicNode.dll"/>
         <include name="System.Runtime.Remoting.dll"/>
         <include name="Mono.Posix.dll"/>
       </references>

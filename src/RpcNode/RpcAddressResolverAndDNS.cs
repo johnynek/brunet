@@ -30,16 +30,30 @@ namespace Ipop {
   public class RpcAddressResolverAndDNS: DNS, IAddressResolver, IRpcHandler {
     protected StructuredNode _node;
     protected RpcManager _rpc;
+    protected volatile Hashtable dns_a;
+    protected volatile Hashtable dns_ptr;
     protected volatile Hashtable ip_addr; /**< Maps IP Addresses to Brunet Addresses */
     protected volatile Hashtable addr_ip; /**< Maps Brunet Addresses to IP Addresses */
+    protected Object _sync;
 
     public RpcAddressResolverAndDNS(StructuredNode node) {
+      _sync = new Object();
       _node = node;
       _rpc = RpcManager.GetInstance(node);
+      dns_a = new Hashtable();
+      dns_ptr = new Hashtable();
       ip_addr = new Hashtable();
       addr_ip = new Hashtable();
 
       _rpc.AddHandler("RpcIpopNode", this);
+    }
+
+    public override String NameLookUp(String IP) {
+      return (String) dns_ptr[IP];
+    }
+
+    public override String AddressLookUp(String Name) {
+      return (String) dns_a[Name];
     }
 
     /**

@@ -27,12 +27,12 @@ using System.Threading;
 
 namespace Ipop {
   public class RpcIpopNode: IpopNode {
-    protected RpcAddressResolverAndDNS _dns;
 
     public RpcIpopNode(string NodeConfigPath, string IpopConfigPath):
       base(NodeConfigPath, IpopConfigPath) {
-      _dns = new RpcAddressResolverAndDNS(Brunet);
-      _address_resolver = _dns;
+      RpcAddressResolverAndDNS rarad = new RpcAddressResolverAndDNS(Brunet);
+      _dns = rarad;
+      _address_resolver = rarad;
     }
 
     protected override bool HandleDHCP(IPPacket ipp) {

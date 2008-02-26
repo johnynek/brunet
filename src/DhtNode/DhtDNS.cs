@@ -17,6 +17,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using Brunet;
+using Ipop;
 using Brunet.DistributedServices;
 using System;
 using System.Collections;
@@ -24,34 +25,77 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 
-namespace Ipop {
+namespace Ipop.DhtNode {
+  /**
+  <summary>This class provides the ability to lookup names using the Dht.  To
+  add a name into the Dht either add a Hostname node into your AddressData node
+  inside the IpopConfig or use another method to publish to the Dht.  The format
+  of acceptable hostnames is [a-zA-Z0-9-_\.]*.ipop_vpn (i.e. must end in
+  .ipop_vpn)</summary>
+  */
   public class DhtDNS: DNS {
-    public override String SUFFIX { get { return ".ipop_vpn"; } }
+    /// <summary>lock object to make this class thread safe</summary>
+    protected Object _sync;
+    /// <summary>Maps names to IP Addresses</summary>
+    protected Cache dns_a = new Cache(100);
+    /// <summary>Maps IP Addresses to names</summary>
+    protected Cache dns_ptr = new Cache(100);
+    /**  <summary>If names to be looked up don't end in this string, they're 
+    not valid names of DhtIpopNode.</summary>*/
+    public static readonly String SUFFIX = ".ipop_vpn";
+    /// <summary>Use this Dht to resolve names that aren't in cache</summary>
     protected Dht _dht;
+    /// <summary>The namespace where the hostnames are being stored.</summary>
+    protected String _ipop_namespace;
 
-    /*
-     * We don't use the underlying hashtables, because caches ensure entries 
-     * will eventually cycle and no worries of excessive memory consumption!
-     */
-
-    protected new Cache dns_a = new Cache(100);
-    protected new Cache dns_ptr = new Cache(100);
-
-    public DhtDNS(Dht dht) {
+    /**
+    <summary>Create a DhtDNS using the specified Dht object</summary>
+    <param name="dht">A Dht object used to acquire name translations</param>
+    */
+    public DhtDNS(Dht dht, String ipop_namespace) {
+      _sync = new Object();
+      _ipop_namespace = ipop_namespace;
       _dht = dht;
     }
 
-    public override String UnresolvedName(String qname) {
-      try {
-        String res = _dht.Get(qname)[0].valueString;
-        lock(_sync) {
-          dns_a[qname]= res;
+    /**
+    <summary>Called during LookUp to perform translation from hostname to IP.
+    If an entry isn't in cache, we can try to get it from the Dht.  Throws
+    an exception if the name is invalid and returns null if no name is found.
+    </summary>
+    <param name="name">The name to lookup</param>
+    <returns>The IP Address or null if none exists for the name.  If the name
+    is invalid, it will throw an exception.</returns>
+     */
+    public override String AddressLookUp(String name) {
+      if(!name.EndsWith(SUFFIX)) {
+        throw new Exception("Invalid DNS name: " + name);
+      }
+      String ip = (String) dns_a[name];
+      if(ip == null) {
+        try {
+          ip = _dht.Get(_ipop_namespace + "." + name)[0].valueString;
+          if(ip != null) {
+            lock(_sync) {
+              dns_a[name]= ip;
+              dns_ptr[ip] = name;
+            }
+          }
         }
-        return res;
+        catch{}
       }
-      catch {
-        throw new Exception("Dht does not contain a record for " + qname);
-      }
+      return ip;
+    }
+
+    /**
+    <summary>Called during LookUp to perfrom a translation from IP to hostname.
+    Entries get here via the AddressLookUp as the Dht does not retain pointer
+    lookup information.</summary>
+    <param name="IP">The IP to look up.</param>
+    <returns>The name or null if none exists for the IP.</returns>
+    */
+    public override String NameLookUp(String IP) {
+      return (String) dns_ptr[IP];
     }
   }
 }

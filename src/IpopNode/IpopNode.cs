@@ -72,6 +72,8 @@ namespace Ipop {
     public readonly Dht Dht;
     /// <summary>Resolves IP Addresses to Brunet.Addresses</summary>
     protected IAddressResolver _address_resolver;
+    /// <summary>Resolves hostnames and IP Addresses</summary>
+    protected DNS _dns;
     /**
     <summary>Optional method to supply IP Addresses automatically to the
     operating sytem</summary>
@@ -105,7 +107,7 @@ namespace Ipop {
       this.Dht = _dht;
       this.Brunet = _node;
       _ipop_config_path = IpopConfigPath;
-      _ipop_config = IpopConfig.Read(_ipop_config_path);
+      _ipop_config = LoadConfig();
       Ethernet = new Ethernet(_ipop_config.VirtualNetworkDevice);
       Ethernet.Subscribe(this, null);
 
@@ -113,6 +115,15 @@ namespace Ipop {
       _info.UserData["IpopNamespace"] = _ipop_config.IpopNamespace;
 
       Brunet.GetTypeSource(PType.Protocol.IP).Subscribe(this, null);
+    }
+
+    /**
+    <summary>This allows nodes to implement the loading of the IpopConfig
+    so that they can implement a sublcass config</summary>
+    <returns>Returns the IpopConfig stored at _ipop_config_path.</returns>
+    */
+    protected virtual IpopConfig LoadConfig() {
+      return Utils.ReadConfig<IpopConfig>(_ipop_config_path);
     }
 
     /**
@@ -132,13 +143,13 @@ namespace Ipop {
     <param name="IP">The new IP Address.</param>
     <param name="Netmask">The new Netmask.</param>
     */
-    public void UpdateAddressData(string IP, string Netmask) {
+    public virtual void UpdateAddressData(string IP, string Netmask) {
       _info.UserData["Virtual IP"] = IP;
       _ip = IP;
       _ipop_config.AddressData.IPAddress = _ip;
       _netmask = Netmask;
       _ipop_config.AddressData.Netmask = _netmask;
-      IpopConfig.Write(_ipop_config_path, _ipop_config);
+      Utils.WriteConfig(_ipop_config_path, _ipop_config);
     }
 
     /**
