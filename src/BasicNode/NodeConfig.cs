@@ -17,9 +17,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using System;
-using System.Text;
 using System.Collections;
-using System.IO;
 using System.Xml;
 using System.Xml.Serialization;
 
@@ -60,38 +58,6 @@ namespace Brunet.Applications {
       [XmlAttribute]
       public String type; /**< type such as tcp and udp */
       public int port; /**< a port 0 or empty for random */
-    }
-  }
-
-  /**
-   * Static methods to read and write NodeConfig Xml files
-   */
-  public class NodeConfigHandler {
-    /**
-     * Reads the specified config file at path and returns it as a NodeConfig
-     * object.
-     * @param path the path to the config file
-     * @return The object version of the Xml NodeConfig file.
-     */
-    public static NodeConfig Read(String path) {
-      XmlSerializer serializer = new XmlSerializer(typeof(NodeConfig));
-      NodeConfig config = null;
-      using(FileStream fs = new FileStream(path, FileMode.Open)) {
-        config = (NodeConfig) serializer.Deserialize(fs);
-      }
-      return config;
-    }
-
-    /**
-     * Writes the NodeConfig file at the path in Xml format.
-     * @param path the path where the xml NodeConfig should be written
-     * @param config the NodeConfig object to be written
-     */
-    public static void Write(String path, NodeConfig config) {
-      using(FileStream fs = new FileStream(path, FileMode.Create, FileAccess.Write)) {
-        XmlSerializer serializer = new XmlSerializer(typeof(NodeConfig));
-        serializer.Serialize(fs, config);
-      }
     }
   }
 }
