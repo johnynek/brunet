@@ -17,6 +17,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using Brunet;
+using Brunet.Applications;
 using Brunet.DistributedServices;
 using NetworkPackets;
 using NetworkPackets.DNS;
@@ -27,14 +28,18 @@ using System.Net;
 using System.Net.Sockets;
 
 namespace Ipop {
-  public class RpcAddressResolverAndDNS: DNS, IAddressResolver, IRpcHandler {
+  public class RpcAddressResolverAndDNS: DNS, IAddressResolver, IRpcHandler, ITranslator {
     protected StructuredNode _node;
     protected RpcManager _rpc;
     protected volatile Hashtable dns_a;
     protected volatile Hashtable dns_ptr;
-    protected volatile Hashtable ip_addr; /**< Maps IP Addresses to Brunet Addresses */
-    protected volatile Hashtable addr_ip; /**< Maps Brunet Addresses to IP Addresses */
+    /// <summary>Maps MemBlock IP Addresses to Brunet Address as Address
+    protected volatile Hashtable ip_addr;
+    /// <summary>Maps Brunet Address as Address to MemBlock IP Addresses
+    protected volatile Hashtable addr_ip;
     protected Object _sync;
+
+    protected MemBlock _local_ip;
 
     public RpcAddressResolverAndDNS(StructuredNode node) {
       _sync = new Object();
@@ -54,6 +59,30 @@ namespace Ipop {
 
     public override String AddressLookUp(String Name) {
       return (String) dns_a[Name];
+    }
+
+    /**
+    <summary>This is called by the outside node to tell us what our IP Address
+    is.  This is here since, the IP may change dynamically.</summary>
+    <param name="IP">The IP Address of our node</param>
+    */
+    public void UpdateIP(String IP) {
+      _local_ip = MemBlock.Reference(Utils.StringToBytes(IP, '.'));
+    }
+
+    /**
+    <summary>Implements the ITranslator portion for RpcAddress..., takes an
+    IP Packet, based upon who the originating Brunet Sender was, changes who
+    the packet was sent from and then switches the destination address to the
+    local nodes address</summary>
+    <param name="ipp">The IP Packet to translate.</param>
+    <param name="from">The Brunet address the packet was sent from.</param>
+    <returns>The translated IP Packet.</returns>
+    */
+    public IPPacket Translate(IPPacket ipp, Address from) {
+      MemBlock source_ip = (MemBlock) addr_ip[from];
+      IPPacket new_ipp = new IPPacket(ipp.Protocol, source_ip, _local_ip, ipp.ICPayload);
+      return new_ipp;
     }
 
     /**

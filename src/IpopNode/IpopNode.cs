@@ -74,6 +74,8 @@ namespace Ipop {
     protected IAddressResolver _address_resolver;
     /// <summary>Resolves hostnames and IP Addresses</summary>
     protected DNS _dns;
+    /// <summary>If necessary, acts as a DNAT / SNAT</summary>
+    protected ITranslator _translator;
     /**
     <summary>Optional method to supply IP Addresses automatically to the
     operating sytem</summary>
@@ -189,9 +191,29 @@ namespace Ipop {
     <param name="from"> The Brunet node that sent the packet.</param>
     */
     public virtual void HandleIPIn(MemBlock packet, ISender from) {
-      IPPacket ipp = new IPPacket(packet);
+      ICopyable icpacket = packet;
+      if(_translator != null) {
+        Address addr = null;
+        try {
+          AHSender ahs = (AHSender) from;
+          addr = ahs.Source;
+        }
+        catch {
+          ProtocolLog.Write(IpopLog.PacketLog, String.Format(
+            "Incoming packet was not from an AHSender: {0}.", from));
+        }
+        try {
+          IPPacket ipp = _translator.Translate(new IPPacket(packet), addr);
+          icpacket = ipp.ICPacket;
+        }
+        catch {
+          ProtocolLog.Write(IpopLog.PacketLog,
+                 String.Format("No route from: {0}.", addr));
+        }
+      }
 
       if(IpopLog.PacketLog.Enabled) {
+        IPPacket ipp = new IPPacket(packet);
         ProtocolLog.Write(IpopLog.PacketLog, String.Format(
                           "Incoming packet:: IP src: {0}, IP dst: {1}, p2p " +
                               "from: {2}, size: {3}", ipp.SSourceIP, ipp.SDestinationIP,
@@ -200,7 +222,7 @@ namespace Ipop {
 
       if(MACAddress != null) {
         EthernetPacket res_ep = new EthernetPacket(MACAddress, EthernetPacket.UnicastAddress,
-            EthernetPacket.Types.IP, packet);
+            EthernetPacket.Types.IP, icpacket);
         Ethernet.Send(res_ep.ICPacket);
       }
     }
@@ -430,6 +452,22 @@ namespace Ipop {
     <returns>translated Brunet.Address</returns>
     */
     Address Resolve(String ip);
+  }
+
+  /**
+  <summary>This interface is used for Nodes which would like to translate IP
+  header data on arrival to a remote node.  This is similar to the DNAT/SNAT
+  features provided in iptables</summary>
+  */
+  public interface ITranslator {
+    /**
+    <summary>This takes in an IPPacket, translates it and returns the resulting
+    IPPacket</summary>
+    <param name="ipp">The IP Packet to translate.</param>
+    <param name="from">The Brunet address the packet was sent from.</param>
+    <returns>The translated IP Packet.</returns>
+    */
+    IPPacket Translate(IPPacket ipp, Address from);
   }
 }
 

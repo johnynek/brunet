@@ -27,13 +27,20 @@ using System.Threading;
 
 namespace Ipop {
   public class RpcIpopNode: IpopNode {
+    RpcAddressResolverAndDNS _rarad;
 
     public RpcIpopNode(string NodeConfigPath, string IpopConfigPath):
       base(NodeConfigPath, IpopConfigPath) {
-      RpcAddressResolverAndDNS rarad = new RpcAddressResolverAndDNS(Brunet);
-      _dns = rarad;
-      _address_resolver = rarad;
+      _rarad = new RpcAddressResolverAndDNS(Brunet);
+      _dns = _rarad;
+      _address_resolver = _rarad;
       _dhcp_server = new RpcDHCPServer(_ipop_config.VirtualNetworkDevice);  
+      _translator = _rarad;
+    }
+
+    public override void UpdateAddressData(String IP, String Netmask) {
+      base.UpdateAddressData(IP, Netmask);
+      _rarad.UpdateIP(IP);
     }
 
     protected override bool HandleDHCP(IPPacket ipp) {
