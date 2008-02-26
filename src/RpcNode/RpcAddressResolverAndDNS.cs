@@ -37,6 +37,8 @@ namespace Ipop {
     protected volatile Hashtable ip_addr;
     /// <summary>Maps Brunet Address as Address to MemBlock IP Addresses
     protected volatile Hashtable addr_ip;
+    /// <summary>Helps assign remote end points</summary>
+    protected RpcDHCPLeaseController _rdlc;
     protected Object _sync;
 
     protected MemBlock _local_ip;
@@ -66,8 +68,10 @@ namespace Ipop {
     is.  This is here since, the IP may change dynamically.</summary>
     <param name="IP">The IP Address of our node</param>
     */
-    public void UpdateIP(String IP) {
+    public void UpdateAddressData(String IP, String Netmask) {
       _local_ip = MemBlock.Reference(Utils.StringToBytes(IP, '.'));
+      DHCPServerConfig dhcp_config = RpcNodeHelper.GenerateDHCPServerConfig(IP, Netmask);
+      _rdlc = new RpcDHCPLeaseController(dhcp_config);
     }
 
     /**

@@ -1,5 +1,6 @@
 /*
 Copyright (C) 2008  Pierre St Juste <ptony82@ufl.edu>, University of Florida
+                    David Wolinsky <davidiw@ufl.edu>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -32,7 +33,8 @@ namespace Ipop
 
         public RpcDHCPServer(string networkdevice)
         {
-            _dhcp_config = RpcNodeHelper.GetServerConfig(networkdevice);
+          String IP = RpcNodeHelper.GetNetwork(networkdevice, "10.254.0.0");
+          _dhcp_config = RpcNodeHelper.GenerateDHCPServerConfig(IP, "255.255.0.0");
         }
 
         protected override DHCPLeaseController GetDHCPLeaseController(string ipop_namespace)

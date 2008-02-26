@@ -1,5 +1,6 @@
 /*
 Copyright (C) 2008  Pierre St Juste <ptony82@ufl.edu>, University of Florida
+                    David Wolinsky <davidiw@ufl.edu>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -32,7 +33,7 @@ namespace Ipop
         /// </summary>
         public static string GetNetwork(string networkdevice, string startip)
         { 
-            IPAddresses ipaddrs = new IPAddressesWindows();
+            IPAddresses ipaddrs = IPAddresses.GetIPAddresses();
             ArrayList used_networks = new ArrayList();
             byte[] netip = Utils.StringToBytes(startip, '.');
 
@@ -67,8 +68,7 @@ namespace Ipop
                 netip[1] -= 1;
             }
 
-            return netip[0].ToString() + "." + netip[1].ToString() + 
-                "." + netip[2].ToString() + "." + netip[3].ToString();
+            return Utils.BytesToString(netip, '.');
         }
 
         /// <summary> 
@@ -76,21 +76,20 @@ namespace Ipop
         /// <param name="networkdevice">Device to be ignored</param> 
         /// <returns>Return IP to use</returns> 
         /// </summary>
-        public static DHCPServerConfig GetServerConfig(string networkdevice)
+        public static DHCPServerConfig GenerateDHCPServerConfig(String IP, String Netmask)
         {
             DHCPServerConfig config = new DHCPServerConfig();
             config.leasetime = 3200;
-            config.netmask = "255.255.0.0";
+            config.netmask = Netmask;
             config.pool = new DHCPServerConfig.IPPool();
-            config.pool.lower = GetNetwork(networkdevice, "10.254.0.0");
+            config.pool.lower = IP;
 
-            byte[] tmp = Utils.StringToBytes(config.pool.lower, '.');
-            tmp[2] = 254;
-            tmp[3] = 254;
-
-            config.pool.upper = tmp[0].ToString() + "." + tmp[1].ToString() + 
-                "." + tmp[2].ToString() + "." + tmp[3].ToString();
-
+            byte[] ipb = Utils.StringToBytes(IP, '.');
+            byte[] netmask = Utils.StringToBytes(Netmask, '.');
+            for(int i = 0; i < 4; i++) {
+              ipb[i] += (byte) ~netmask[i];
+            }
+            config.pool.upper = Utils.BytesToString(ipb, '.');
             return config;
         }
 

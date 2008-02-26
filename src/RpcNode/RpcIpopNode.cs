@@ -1,4 +1,3 @@
-
 /*
 Copyright (C) 2008  David Wolinsky <davidiw@ufl.edu>, University of Florida
 
@@ -40,7 +39,7 @@ namespace Ipop {
 
     public override void UpdateAddressData(String IP, String Netmask) {
       base.UpdateAddressData(IP, Netmask);
-      _rarad.UpdateIP(IP);
+      _rarad.UpdateAddressData(IP, Netmask);
     }
 
     protected override bool HandleDHCP(IPPacket ipp) {
