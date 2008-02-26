@@ -23,6 +23,9 @@ using System;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Net.Sockets;
+using System.IO;
+using System.Xml;
+using System.Xml.Serialization;
 
 namespace Brunet.Applications {
   /**
@@ -143,6 +146,34 @@ namespace Brunet.Applications {
      */
     public static AHAddress GenerateAHAddress() {
       return new AHAddress(new RNGCryptoServiceProvider());
+    }
+
+    /**
+    <summary>A XML to a generic object of type T, used for configuration
+    objects</summary>
+    <param name="path">The location of the xml config file to read</param>
+    <returns>An object of type T</returns>
+    */
+    public static T ReadConfig<T>(String path) {
+      XmlSerializer serializer = new XmlSerializer(typeof(T));
+      T config = default(T);
+      using(FileStream fs = new FileStream(path, FileMode.Open)) {
+        config = (T) serializer.Deserialize(fs);
+      }
+      return config;
+    }
+
+    /**
+    <summary>A generic object to XML, used for configuration objects</summary>
+    <param name="path">The full path where the file will be stored.</param>
+    <param name="config">An object to be written to the path as an XML file</param>
+    */
+    public static void WriteConfig(String path, Object config) {
+      using(FileStream fs = new FileStream(path, FileMode.Create, FileAccess.Write)) {
+        XmlSerializer serializer = new XmlSerializer(config.GetType());
+        Console.WriteLine(config.GetType());
+        serializer.Serialize(fs, config);
+      }
     }
   }
 }

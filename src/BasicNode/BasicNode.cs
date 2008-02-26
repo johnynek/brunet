@@ -61,7 +61,7 @@ namespace Brunet.Applications {
      */
     public BasicNode(String path) {
       try {
-        _node_config = NodeConfigHandler.Read(path);
+        _node_config = Utils.ReadConfig<NodeConfig>(path);
       }
       catch {
         Console.WriteLine("Invalid or missing configuration file.");
@@ -70,7 +70,22 @@ namespace Brunet.Applications {
 
       if(_node_config.NodeAddress == null) {
         _node_config.NodeAddress = (Utils.GenerateAHAddress()).ToString();
-        NodeConfigHandler.Write(path, _node_config);
+        Utils.WriteConfig(path, _node_config);
+      }
+      _running = true;
+    }
+
+    /**
+     * A constructor to be used only by sub-classes.  The goal here being
+     * that inheritors may want to implement their own subclass of config
+     * but BasicNode still needs to be configured and possibly write to the
+     * config file.  This gets around that problem!
+     */
+    protected BasicNode(String path, NodeConfig config) {
+      _node_config = config;
+      if(_node_config.NodeAddress == null) {
+        _node_config.NodeAddress = (Utils.GenerateAHAddress()).ToString();
+        Utils.WriteConfig(path, _node_config);
       }
       _running = true;
     }
