@@ -29,7 +29,7 @@ using Brunet.Rpc;
 using Brunet;
 
 /**
- * \namespace Brunet.Applications provides BasicNode and core features
+ * \namespace Brunet::Applications provides BasicNode and core features
  * necessary for running Brunet.Node in a simple complete manner.
  * Besides providing basic functionality, this namespace and class offer 
  * some extra features, such as the ability to cleanly shutdown via ctrl-c,

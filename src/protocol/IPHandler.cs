@@ -59,7 +59,7 @@ namespace Brunet
         // Allows for multiple Multicast clients on the same host!
         _mc.SetSocketOption(SocketOptionLevel.Socket, 
                             SocketOptionName.ReuseAddress, true);
-        _mc.Bind(mc_endpoint);
+        _mc.Bind(new IPEndPoint(IPAddress.Any, mc_port));
         _mc.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership,
           new MulticastOption(mc_addr, IPAddress.Any));
       }
