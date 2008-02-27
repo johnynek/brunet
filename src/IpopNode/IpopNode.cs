@@ -263,7 +263,7 @@ namespace Ipop {
           break;
       }
 
-      AHAddress target = (AHAddress) _address_resolver.Resolve(ipp.SDestinationIP);
+      AHAddress target = (AHAddress) _address_resolver.Resolve(ipp.DestinationIP);
       if (target != null) {
         if(IpopLog.PacketLog.Enabled) {
           ProtocolLog.Write(IpopLog.PacketLog, String.Format(
@@ -448,10 +448,10 @@ namespace Ipop {
     /**
     <summary>Takes a string representation an IP and returns the mapped
     Brunet.Address</summary>
-    <param name="ip"> the string representation of the IP</param>
+    <param name="ip"> the MemBlock representation of the IP</param>
     <returns>translated Brunet.Address</returns>
     */
-    Address Resolve(String ip);
+    Address Resolve(MemBlock ip);
   }
 
   /**

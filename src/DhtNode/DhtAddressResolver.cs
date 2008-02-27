@@ -17,6 +17,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using Brunet;
+using Brunet.Applications;
 using Brunet.DistributedServices;
 using Ipop;
 using System;
@@ -67,7 +68,7 @@ namespace Ipop.DhtNode {
     <returns>Null if none exists or there is a miss or the Brunet Address if
     one exists in the cache</returns>
     */
-    public Address Resolve(string ip) {
+    public Address Resolve(MemBlock ip) {
       Address addr = null;
       lock (_sync) {
         addr = (Address) _results[ip];
@@ -85,20 +86,21 @@ namespace Ipop.DhtNode {
     ansychonorous call back is call MissCallback.</summary>
     <param name="ip">The IP Address to look up in the Dht.</param>
     */
-    protected void Miss(string ip) {
+    protected void Miss(MemBlock ip) {
       lock(_sync) {
         if (_queued.Contains(ip)) {
           return;
         }
+        String ips = Utils.MemBlockToString(ip, '.');
 
         ProtocolLog.WriteIf(IpopLog.ResolverLog, String.Format(
-          "Adding {0} to queue.", ip));
+          "Adding {0} to queue.", ips));
         /*
         * If we were already looking up this string, there
         * would be a table entry, since there is not, start a
         * new lookup
         */
-        string key = "dhcp:ipop_namespace:" + _ipop_namespace + ":ip:" + ip.ToString();
+        string key = "dhcp:ipop_namespace:" + _ipop_namespace + ":ip:" + ips;
         Channel queue = null;
         try {
           queue = new Channel();
@@ -132,18 +134,23 @@ namespace Ipop.DhtNode {
     */
     protected void MissCallback(Object o, EventArgs args) {
       Channel queue = (Channel) o;
-      string ip = (string) _mapping[queue];
+      MemBlock ip = (MemBlock) _mapping[queue];
+      String ips = Utils.MemBlockToString(ip, '.');
       Address addr = null;
 
       try {
         DhtGetResult dgr = (DhtGetResult) queue.Dequeue();
         addr = AddressParser.Parse(Encoding.UTF8.GetString((byte []) dgr.value));
-        ProtocolLog.WriteIf(IpopLog.ResolverLog, String.Format(
-          "Got result for {0} ::: {1}.", ip, addr));
+        if(IpopLog.ResolverLog.Enabled) {
+          ProtocolLog.Write(IpopLog.ResolverLog, String.Format(
+            "Got result for {0} ::: {1}.", ips, addr));
+        }
       }
       catch {
-        ProtocolLog.WriteIf(IpopLog.ResolverLog, String.Format(
-          "Failed for {0}.", ip));
+        if(IpopLog.ResolverLog.Enabled) {
+          ProtocolLog.Write(IpopLog.ResolverLog, String.Format(
+            "Failed for {0}.", ip));
+        }
       }
       try {
         lock(_sync) {
@@ -158,7 +165,7 @@ namespace Ipop.DhtNode {
       }
       catch(Exception e) {
         ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
-              "ERROR: In Resolves unable to remove entry: {0}\n\t{1]", ip, e));
+              "ERROR: In Resolves unable to remove entry: {0}\n\t{1]", ips, e));
       }
     }
   }
