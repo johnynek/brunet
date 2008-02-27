@@ -171,7 +171,6 @@ namespace Brunet.Applications {
     public static void WriteConfig(String path, Object config) {
       using(FileStream fs = new FileStream(path, FileMode.Create, FileAccess.Write)) {
         XmlSerializer serializer = new XmlSerializer(config.GetType());
-        Console.WriteLine(config.GetType());
         serializer.Serialize(fs, config);
       }
     }
