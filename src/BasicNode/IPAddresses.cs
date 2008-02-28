@@ -24,57 +24,56 @@ using System.Text.RegularExpressions;
 
 namespace Brunet.Applications {
   /**
-   * This class retrieves all the IP Address information on the local machine.
-   * Most importantly the device name and the IP Address associated with it.
-   */
+  This class retrieves all the IP Address information on the local machine.
+  Most importantly the device name and the IP Address associated with it.
+  */
   public abstract class IPAddresses : IEnumerable {
+    /**  <summary>A list of the interfaces to look up when GetAddresses is
+    called</summary>*/
     protected ArrayList _ints;
-    protected IList _all_interfaces;
-    public IList AllInterfaces {
-      get { return _all_interfaces; }
-    }
+    /// <summary>Contains interfaces information</summary>
+    public readonly IList AllInterfaces;
 
-    /**
-     * Use this if you want all the IP Addresses on the host.
-     * @return an IPAddresses object containing info
-     */
+    /// <summary>Used to look up all interfaces</summary>
     public IPAddresses():this(null) {}
 
     /**
-     * Use this to specify devices you want to look up.
-     * @param interfaces an array of interfaces to look up
-     * @return an IPAddresses object containing info
-     */
+    <summary>Used to look up specific list of interfaces.  This
+    should not be called directly use GetIPAddresses(string[] interfaces)
+    </summary>
+    <param name="interfaces">A list of interfaces to look up</param>
+    */
     public IPAddresses(string[] interfaces) {
       _ints = null;
       if(interfaces != null) {
         _ints = new ArrayList(interfaces);
       }
       // Remove this later...
-      _all_interfaces = GetAddresses();
+      AllInterfaces = GetAddresses();
     }
 
     /**
-     * If you want all IP Addresses call this rather than the system
-     * dependent implementation.
-     * @return all the IPAddresses for the host.
-     */
+    <summary>Automatically chooses which version of IPAddresses to instantiate.
+    This version looks up all the interfaces for the host</summary>
+    <returns>An IPAddresses for the host.</returns>
+    */
     public static IPAddresses GetIPAddresses() {
       return GetIPAddresses(null);
     }
 
     /**
-     * If you want specific IP Addresses call this rather than the system
-     * dependent implementation.
-     * @param interfaces an array of interfaces to look up
-     * @return all the IPAddresses for the host.
-     */
+    <summary>Automatically chooses which version of IPAddresses to instantiate.
+    This version of the constructor allows you to choose which interfaces to
+    look up</summary>
+    <param name="interfaces">An array of interfaces to look up,</param>
+    <returns>An IPAddresses for the host.</returns>
+    */
     public static IPAddresses GetIPAddresses(string[] interfaces) {
       IPAddresses ipaddrs = null;
-      if(OSDependent.OSVersion == OSDependent.Linux) {
+      if(OSDependent.OSVersion == OSDependent.OS.Linux) {
         ipaddrs = new IPAddressesLinux(interfaces);
       }
-      else if(OSDependent.OSVersion == OSDependent.Windows) {
+      else if(OSDependent.OSVersion == OSDependent.OS.Windows) {
         ipaddrs = new IPAddressesWindows(interfaces);
       }
       else {
@@ -84,11 +83,12 @@ namespace Brunet.Applications {
     }
 
     /**
-     * To be of type IEnumerable, here is the Enumerator.
-     */
+    <summary>To be of type IEnumerable, here is the Enumerator.  This
+    enumerates through the IList given by GetIPAddresses</summary>
+    */
     public IEnumerator GetEnumerator() {
       //IList all_interfaces = GetAddresses();
-      foreach(Hashtable ht in _all_interfaces) {
+      foreach(Hashtable ht in AllInterfaces) {
         if( ht.ContainsKey("interface") && ht.ContainsKey("inet addr") ) {
           string iface = (string)ht["interface"];
           if( _ints == null ) {
@@ -102,18 +102,23 @@ namespace Brunet.Applications {
     }
 
     /**
-     * This is the system depedent part of the code.
-     */
+    <summary>This is the system depedent part of the code.  It should call
+    look up address information and place it into an IList.</summary>
+    <returns>An IList containing hashtables containing network device
+    information.</returns>
+    */
     public abstract IList GetAddresses();
 
     /**
-     * Called by GetAddresses to add the value to the correct place in the 
-     * hashtable
-     * @param re the regular expression to match
-     * @param line the line to check
-     * @param ht the hashtable to store the data if their is a match
-     * @param key position in the key in the hashtable to store the result
-     * @return true if a match
+    <summary>Called by GetAddresses to add the value to the correct place in the 
+    hashtable.</summary>
+    <param name="re">The regular expression to match.</param>
+    <param name="line">The line to check.</param>
+    <param name="ht">The hashtable to store the data if their is a match.
+    </param>
+    <param name="key">Position in the key in the hashtable to store the result
+    </param>
+    <returns>True if a match</returns>
      */
     protected bool AddIfMatch(Regex re, string line, Hashtable ht, string key) {
       Match m = re.Match(line);
@@ -126,12 +131,10 @@ namespace Brunet.Applications {
       return false;
     }
 
-    /**
-     * Dumps the IPAddresses to the console.
-     */
+    /// <summary>Prints the IPAddresses IList to the console.</summary>
     public void Print() {
       System.Console.Error.WriteLine("Network list:\n");
-      foreach(Hashtable ht in _all_interfaces) {
+      foreach(Hashtable ht in AllInterfaces) {
         IDictionaryEnumerator en = ht.GetEnumerator();
         while(en.MoveNext()) {
           System.Console.Error.WriteLine("\t{0}: {1}", en.Key, en.Value);
@@ -141,13 +144,23 @@ namespace Brunet.Applications {
     }
   }
 
-  /**
-   * Linux and possibly Unix specific implementation onf IPAddresses.
-   */
+  /// <summary>Linux specific implementations of IPAddresses.</summary>
   public class IPAddressesLinux : IPAddresses {
+    /**
+    <summary>Used to look up specific list of interfaces.  This
+    should not be called directly use GetIPAddresses(string[] interfaces)
+    </summary>
+    <param name="interfaces">A list of interfaces to look up</param>
+     */
     public IPAddressesLinux (string [] interfaces) : base(interfaces) {}
+    /// <summary>Used to look up all interfaces</summary>
     public IPAddressesLinux() : base() {}
 
+    /**
+    <summary>Implements GetAddresses for Linux which calls ifconfig.</summary>
+    <returns>An IList containing hashtables containing network device
+    information.</returns>
+    */
     public override IList GetAddresses() {
       ProcessStartInfo cmd = new ProcessStartInfo("/sbin/ifconfig");
       cmd.RedirectStandardOutput = true;
@@ -198,13 +211,24 @@ namespace Brunet.Applications {
     }
   }
 
-  /**
-   * Windows specific implementations of IPAddresses.
-   */
+  /// <summary>Windows specific implementations of IPAddresses.</summary>
   public class IPAddressesWindows : IPAddresses {
+    /**
+    <summary>Used to look up specific list of interfaces.  This
+    should not be called directly use GetIPAddresses(string[] interfaces)
+    </summary>
+    <param name="interfaces">A list of interfaces to look up</param>
+    */
     public IPAddressesWindows (string [] interfaces) : base(interfaces) {}
+
+    /// <summary>Used to look up all interfaces</summary>
     public IPAddressesWindows() : base() {}
 
+    /**
+    <summary>Implements GetAddresses for Windows which calls ipconfig.</summary>
+    <returns>An IList containing hashtables containing network device
+    information.</returns>
+    */
     public override IList GetAddresses() {
       String root = Environment.GetEnvironmentVariable("SystemRoot");
       ProcessStartInfo cmd = new

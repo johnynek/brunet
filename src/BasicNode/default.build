@@ -26,7 +26,7 @@
       </sources>
     </csc>
 
-    <csc target="exe" output="${build.dir}/BasicNode.exe">
+    <csc target="exe" output="${build.dir}/BasicNode.exe" doc="${build.dir}/BasicNode.xml">
       <sources failonempty="true">
         <include name="BasicNode.cs"/>
         <include name="NodeConfig.cs"/>

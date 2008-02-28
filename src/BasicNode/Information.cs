@@ -23,20 +23,34 @@ using System.Threading;
 
 namespace Brunet.Applications {
   /**
-   * This class provides a Rpc to be used during crawls of the network.  It
-   * provides base informatoin such as geographical coordinates, local end
-   * points, the type of node, and neighbors.  There is also support for
-   * user's to put their own data in the return value.
-   */
+  <summary>This class provides a Rpc to be used during crawls of the network.
+  It provides base informatoin such as geographical coordinates, local end
+  points, the type of node, and neighbors.  There is also support for user's
+  to put their own data in the return value.</summary>
+  */
   public class Information: IRpcHandler {
-    private bool in_geoloc = false;
-    private DateTime _last_called = DateTime.UtcNow - TimeSpan.FromHours(48);
-    private RpcManager _rpc;
-    private String geo_loc = ",";
-    public Hashtable UserData; /**< Put all node unique data inside this hashtable! */
+    /// <summary>Only want one thread of geo lookup at a time</summary>
+    protected bool in_geoloc = false;
+    /// <summary>Last time the geographical update service was called</summary>
+    protected DateTime _last_called = DateTime.UtcNow - TimeSpan.FromHours(48);
+    /// <summary>The rpc service provider.</summary>
+    protected RpcManager _rpc;
+    /// <summary>The geographical coords for the system.</summary>
+    protected String geo_loc = ",";
+    /// <summary>A hashtable providing user information.</summary>
+    public Hashtable UserData;
+    /// <summary>The node where service is being provided.</summary>
     protected readonly StructuredNode _node;
+    /// <summary>The name of the application providing service.</summary>
     protected readonly String _type;
 
+    /**
+    <summary>Creates an Information object for the node and type of service
+    provider.</summary>
+    <param name="node">The node where the service is to be provided</param>
+    <param name="type">The name of the application providing service (example:
+    BasicNode)</param>
+    */
     public Information(StructuredNode node, String type) {
       UserData = new Hashtable();
       _type = type;
@@ -45,21 +59,30 @@ namespace Brunet.Applications {
       _rpc.AddHandler("Information", this);
     }
 
-    public void HandleRpc(ISender caller, String method, IList arguments, object request_state) {
-      if(_rpc == null) {
-        //In case it's called by local objects without initializing _rpc
-        throw new InvalidOperationException("This method has to be called from Rpc");
-      }
+    /**
+    <summary>Implements IRpcHandler that is called by the RpcManager when an
+    Rpc method requests any method with Information.*.</summary>
+    <param name="caller">The remote caller</param>
+    <param name="method">The name of the method called.</param>
+    <param name="arguments">An IList of arguments supplied</param>
+    <param name="request_state">Provides a return path back to the caller.
+    </param>
+    */
+    public void HandleRpc(ISender caller, String method, IList arguments,
+                          object request_state) {
       object result = new InvalidOperationException("Invalid method");
-      if(method.Equals("Info"))
+      if(method.Equals("Info")) {
         result = this.Info();
+      }
       _rpc.SendResult(request_state, result);
     }
 
     /**
-     * Call this method by Rpc during crawl!
-     * @return Returns the dictionary containing the information for the node.
-     */
+    <summary>This returns all the gathered information as a hashtable.
+    Particularly useful for crawling.</summary>
+    <returns>The dictionary (hashtable) containing the information about the
+    node.</returns>
+    */
     public IDictionary Info() {
       GetGeoLoc();
       Hashtable ht = new Hashtable(UserData);
@@ -71,9 +94,9 @@ namespace Brunet.Applications {
     }
 
     /**
-     * Call this if you want the Geographical lookup to occur in another
-     * thread.
-     */
+    <summary>Used to have Geographical coordinates looked up in another thread.
+    </summary>
+    */
     protected void GetGeoLoc() {
       DateTime now = DateTime.UtcNow;
       if((now - _last_called > TimeSpan.FromDays(7) || geo_loc.Equals(","))) {
@@ -87,9 +110,7 @@ namespace Brunet.Applications {
       }
     }
 
-    /**
-     * Sets the geographical location of the running node.
-     */
+    /// <summary>Sets the geographical location of the running node.</summary>
     protected void GetGeoLocAsThread(object o) {
       String local_geo_loc = Utils.GetMyGeoLoc();
       if(!local_geo_loc.Equals(",")) {
