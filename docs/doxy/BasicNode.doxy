@@ -66,7 +66,8 @@ one publicly available node, but if you expand to a large system you may want
 to increase the number of active public nodes.  The format of the string is a
 common uri, the important parts are the "udp" which specifies the transport
 layer logic type and the IP Address and the port of public node where BasicNode
-is running.
+is running.  There are other choices here as well as \ref Discovery, which
+makes this section optional. 
 
 \code
   <RemoteTAs>
@@ -177,4 +178,17 @@ a node agreeing with both the left 2 and right 2 neighbors about their position
 in the ring.
 
 The code is available at http://www.acis.ufl.edu/~ipop/files/scripts/crawl.py
+
+\section Discovery Using Brunet Discovery
+If Brunet Nodes are on the same Layer 2 Network, they will be able to discover
+each other through \ref Brunet::LocalConnectionOverlord
+"LocalConnectionOverlord" which uses \ref Brunet::IPHandler "IPHandler".  The
+advantage to using this is that you will not have to specify any well known
+remote end points.  The only requirement is that they are all in the same
+BrunetNamespace.
+
+Discovery is not quite complete at this time, because if two independent
+networks form and eventually are able to multicast to each other, they will not
+combine into one large pool.  This is a rare situation but does deserve
+attention.
 */
