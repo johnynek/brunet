@@ -43,7 +43,6 @@ namespace Ipop {
   translation services can occur before being written to the Ethernet device.
   Both these enter through the HandleData, data read from the Ethernet goes
   to HandleIPOut, where as Brunet incoming data goes to HandleIPIn. </para>
-  </remarks>
   <example>
   <para>Don't forget to implement this two methods in all subclasses!</para>
   <code>
@@ -54,6 +53,7 @@ namespace Ipop {
     }
   </code>
   </example>
+  </remarks>
 
   <summary>IP over P2P base class.</summary>
  */
@@ -164,10 +164,10 @@ namespace Ipop {
     circular dependencies.  This method probably shouldn't be called
     directly.</summary>
     <param name="b"> The incoming packet</param>
-    <param name="from"> the ISender of the packet (Ethernet or Brunet)</param>
+    <param name="ret">An ISender to return data from the original sender.</param>
     <param name="state">always will be null</param>
     */
-    public void HandleData(MemBlock b, ISender from, object state) {
+    public void HandleData(MemBlock b, ISender ret, object state) {
       if(from is Ethernet) {
         EthernetPacket ep = new EthernetPacket(b);
         if(MACAddress == null) {
@@ -179,12 +179,12 @@ namespace Ipop {
             HandleARP(ep.Payload);
             break;
           case EthernetPacket.Types.IP:
-            HandleIPOut(ep.Payload, from);
+            HandleIPOut(ep.Payload, ret);
             break;
         }
       }
       else {
-        HandleIPIn(b, from);
+        HandleIPIn(b, ret);
       }
     }
 
@@ -192,19 +192,20 @@ namespace Ipop {
     <summary>This method handles IPPackets that come from Brunet, i.e., abroad.
     </summary>
     <param name="packet"> The packet from Brunet.</param>
-    <param name="from"> The Brunet node that sent the packet.</param>
+    <param name="ret">An ISender to send data to the Brunet node that sent the
+    packet.</param>
     */
-    public virtual void HandleIPIn(MemBlock packet, ISender from) {
+    public virtual void HandleIPIn(MemBlock packet, ISender ret) {
       ICopyable icpacket = packet;
       if(_translator != null) {
         Address addr = null;
         try {
-          AHSender ahs = (AHSender) from;
-          addr = ahs.Source;
+          AHSender ahs = (AHSender) ret;
+          addr = ahs.Destination;
         }
         catch {
           ProtocolLog.Write(IpopLog.PacketLog, String.Format(
-            "Incoming packet was not from an AHSender: {0}.", from));
+            "Incoming packet was not from an AHSender: {0}.", ret));
         }
         try {
           IPPacket ipp = _translator.Translate(new IPPacket(packet), addr);
@@ -221,7 +222,7 @@ namespace Ipop {
         ProtocolLog.Write(IpopLog.PacketLog, String.Format(
                           "Incoming packet:: IP src: {0}, IP dst: {1}, p2p " +
                               "from: {2}, size: {3}", ipp.SSourceIP, ipp.SDestinationIP,
-                              from, packet.Length));
+                              ret.Destination, packet.Length));
       }
 
       if(MACAddress != null) {
@@ -237,7 +238,7 @@ namespace Ipop {
     <param name="packet">The packet from the TAP device</param>
     <param name="from"> This should always be the tap device</param>
     */
-    protected virtual void HandleIPOut(MemBlock packet, ISender from) {
+    protected virtual void HandleIPOut(MemBlock packet, ISender ret) {
       IPPacket ipp = new IPPacket(packet);
       if(IpopLog.PacketLog.Enabled) {
         ProtocolLog.Write(IpopLog.PacketLog, String.Format(
