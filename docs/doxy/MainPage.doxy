@@ -1,0 +1,6 @@
+/**
+\mainpage Welcome to ACIS' P2P Applications
+If you want to get started with using the applications please see 
+\ref BasicNodeHowTo "Using BasicNode" and \ref IpopNodeReadme "Using IpopNode".
+Otherwise jump right into the source code!
+*/
