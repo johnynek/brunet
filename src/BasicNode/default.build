@@ -2,6 +2,7 @@
 <project name="ipop-common" default="build" basedir=".">
   <description> Builds independent IPAddresses.dll, which is not necessary for Ipop. </description>
   <property name="lib.dir" value="../../lib"/>
+  <property name="bin.dir" value="../../bin"/>
   <property name="build.dir" value="build" />
   <target name="clean" description="Remove build directory">
     <delete dir="${build.dir}" failonerror="true"/>
@@ -97,6 +98,12 @@
       <fileset basedir="${build.dir}">
         <include name="Brunet.BasicNode.dll" />
         <include name="Brunet.IPAddresses.dll" />
+      </fileset>
+    </copy>
+    <copy todir="${bin.dir}" failonerror="true">
+      <fileset basedir="${build.dir}">
+        <include name="BasicNode.exe" />
+        <include name="MultiNode.exe" />
       </fileset>
     </copy>
   </target>
