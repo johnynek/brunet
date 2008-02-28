@@ -7,7 +7,9 @@
   <target name="clean" description="Remove build directory">
     <delete dir="${build.dir}" failonerror="true"/>
   </target>
-  <target name="build" description="Build IpopNode.dll">
+  <target name="build" description="Nothing to build">
+  </target>
+  <target name="doc" description="Build Ipop.dll">
     <mkdir dir="${build.dir}" failonerror="true"/>
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${lib.dir}">
@@ -21,9 +23,8 @@
       </fileset>
     </copy>
 
-<!-- The whole purpose of building this dll is to generate docs related to it-->
     <mkdir dir="${doc.dir}" failonerror="true"/>
-    <csc target="library" output="${build.dir}/Ipop.dll" doc="${doc.dir}/IpopNode.xml">
+    <csc target="library" output="${build.dir}/Ipop.dll" doc="${doc.dir}/Ipop.xml">
       <sources failonempty="true">
         <include name="*.cs"/>
       </sources>

@@ -1,1 +1,0 @@
-<DHCPServerConfig><Namespace>IPoP_VPN01</Namespace><netmask>255.255.0.0</netmask><pool><lower>10.250.0.0</lower><upper>10.250.255.255</upper></pool><DHCPReservedIPs><DHCPReservedIP><ip>0.0.0.1</ip><mask>0.0.0.255</mask></DHCPReservedIP></DHCPReservedIPs><leasetime>3600</leasetime></DHCPServerConfig>

@@ -18,6 +18,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using Brunet;
+using Ipop;
 using NetworkPackets;
 using NetworkPackets.DHCP;
 using System;
@@ -25,22 +26,18 @@ using System.Collections;
 using System.IO;
 using System.Text;
 
-namespace Ipop
-{
-    public class RpcDHCPServer : DHCPServer
-    {
-        protected readonly DHCPServerConfig _dhcp_config;
+namespace Ipop.RpcNode {
+  public class RpcDHCPServer : DHCPServer {
+    protected readonly DHCPServerConfig _dhcp_config;
 
-        public RpcDHCPServer(string networkdevice)
-        {
-          String IP = RpcNodeHelper.GetNetwork(networkdevice, "10.254.0.0");
-          _dhcp_config = RpcNodeHelper.GenerateDHCPServerConfig(IP, "255.255.0.0");
-        }
-
-        protected override DHCPLeaseController GetDHCPLeaseController(string ipop_namespace)
-        {
-            return new RpcDHCPLeaseController(_dhcp_config);
-        }
+    public RpcDHCPServer(string networkdevice) {
+      String IP = RpcNodeHelper.GetNetwork(networkdevice, "10.254.0.0");
+      _dhcp_config = RpcNodeHelper.GenerateDHCPServerConfig(IP, "255.255.0.0");
     }
 
+    protected override DHCPLeaseController GetDHCPLeaseController(
+      string ipop_namespace) {
+      return new RpcDHCPLeaseController(_dhcp_config);
+    }
+  }
 }

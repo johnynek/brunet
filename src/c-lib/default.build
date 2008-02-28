@@ -9,7 +9,8 @@
       <delete dir="${build.dir}" failonerror="true"/>
       <delete file="${lib.dir}/${lib.name}.so" failonerror="true"/>
   </target>
-  <target name="build" description="Build libtuntap.so">
+  <target name="build" description="Build libtuntap">
+    <if test="${platform::is-unix()}">
       <mkdir dir="${build.dir}" failonerror="true"/>
       <copy todir="${build.dir}">
           <fileset><include name="linux_tap.c"/> </fileset>
@@ -17,10 +18,16 @@
       <exec program="gcc" commandline="-fPIC -c linux_tap.c" workingdir="${build.dir}"/>
       <exec program="gcc" commandline="-shared -o libtuntap.so linux_tap.o" workingdir="${build.dir}"/>
       <copy todir="${lib.dir}" failonerror="true">
-          <fileset basedir="${build.dir}">
-              <include name="${lib.name}.so" />
-          </fileset>
+        <fileset basedir="${build.dir}">
+            <include name="${lib.name}.so" />
+        </fileset>
       </copy>
+    </if>
+    <copy todir="${lib.dir}" failonerror="true">
+      <fileset basedir="${build.dir}">
+          <include name="${lib.name}.dll" />
+      </fileset>
+    </copy>
   </target>
 </project>
 

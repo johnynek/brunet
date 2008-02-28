@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using Brunet;
 using Brunet.Applications;
 using Brunet.DistributedServices;
+using Ipop;
 using NetworkPackets;
 using NetworkPackets.DNS;
 using System;
@@ -27,7 +28,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 
-namespace Ipop {
+namespace Ipop.RpcNode {
   public class RpcAddressResolverAndDNS: DNS, IAddressResolver, IRpcHandler, ITranslator {
     protected StructuredNode _node;
     protected RpcManager _rpc;

@@ -29,11 +29,12 @@ namespace Ipop.DhtNode {
   /**
   <summary>This class provides a method to do address resolution over the
   Brunet Dht, where entries are listed in the dht by means of the 
-  DhtDHCPServer.  Entries are stored in a cache, so that frequented requests
+  DhtDHCPServer.</summary>
+  <remarks>Entries are stored in a cache, so that frequented requests
   aren't held up by Dht access.  The dht holds the information via key = ip 
   address and value = brunet address.  Where the IP is stored as 
-  dhcp:ipop_namespace:$ipop_namespace:ip:$ip and the Address is the
-  Brunet.Address.ToString().</summary>
+  dhcp:ipop_namespace:\$ipop_namespace:ip:\$ip and the Address is the
+  Brunet.Address.ToString().</remarks>
   */
   public class DhtAddressResolver: IAddressResolver {
     /// <summary>A lock synchronizer for the hashtables and cache.</summary>

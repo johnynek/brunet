@@ -25,6 +25,10 @@ using System;
 using System.Net;
 using System.Threading;
 
+/**
+\namespace Ipop::DhtNode Defines DhtIpopNode and the utilities necessary to
+use Ipop over Dht.
+*/
 namespace Ipop.DhtNode {
   /**
   <summary>This class provides an IpopNode that does address and name

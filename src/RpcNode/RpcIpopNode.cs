@@ -19,12 +19,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using Brunet;
 using Brunet.Applications;
 using Brunet.DistributedServices;
+using Ipop;
 using NetworkPackets;
 using System;
 using System.Net;
 using System.Threading;
 
-namespace Ipop {
+
+/**
+\namespace Ipop::RpcNode Defines RpcIpopNode which requires users input address
+translations via an external Rpc client.
+*/
+namespace Ipop.RpcNode {
   public class RpcIpopNode: IpopNode {
     RpcAddressResolverAndDNS _rarad;
 

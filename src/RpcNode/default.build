@@ -4,9 +4,11 @@
   <property name="lib.dir" value="../../lib"/>
   <property name="build.dir" value="build" />
   <property name="bin.dir" value="../../bin"/>
+
   <target name="clean" description="Remove build directory">
     <delete dir="${build.dir}" failonerror="true"/>
   </target>
+
   <target name="build" description="Build RpcIpopNode.exe">
     <mkdir dir="${build.dir}" failonerror="true"/>
     <copy todir="${build.dir}" failonerror="true">
@@ -19,6 +21,7 @@
         <include name="Brunet.DhtService.dll"/>
       </fileset>
     </copy>
+
     <csc target="exe" output="${build.dir}/RpcIpopNode.exe" main="Ipop.RpcIpopNode">
       <sources failonempty="true">
         <include name="*.cs"/>
@@ -35,11 +38,15 @@
         <include name="Mono.Posix.dll"/>
       </references>
     </csc>
+
     <mkdir dir="${bin.dir}" failonerror="true"/>
     <copy todir="${bin.dir}" failonerror="true">
       <fileset basedir="${build.dir}">
         <include name="RpcIpopNode.exe" />
       </fileset>
     </copy>
+  </target>
+
+  <target name="doc" description="Build RpcIpopNode.xml">
   </target>
 </project>

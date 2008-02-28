@@ -20,6 +20,9 @@ using Brunet;
 using NetworkPackets;
 using System.Collections;
 
+/**
+\namespace NetworkPacket::DHCP Defines DHCP Packets.
+*/
 namespace NetworkPackets.DHCP {
   /**
   <summary>Encapsulates a DHCP Packet in an immutable object providing both

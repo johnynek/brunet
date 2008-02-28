@@ -1,5 +1,0 @@
-<Namespace Name="NetworkPackets">
-  <Docs>
-    <summary>Defines Packet, Packet with a Payload, Ethernet, IP, and UDP Packets.</summary>
-  </Docs>
-</Namespace>

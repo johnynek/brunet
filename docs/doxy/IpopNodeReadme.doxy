@@ -1,0 +1,211 @@
+/**
+\page IpopNodeReadme Using IpopNode
+\author David Wolinsky
+\section Where Where To Get IpopNode and Its Dependencies
+All of the ACIS P2P projects are released in a monolithic package available at
+http://www.acis.ufl.edu/~ipop/files/acisp2p/latest.zip and source code releases
+are available at http://www.acis.ufl.edu/~ipop/files/acisp2p/latest.src.zip
+If you want the latest code available in the repositories, I recommend
+gathering the brunet version from my brunet1-test repository and my ipop
+repository as it most matches what is currently running on our public
+infrastructer.  Those are available at
+http://boykin.acis.ufl.edu/hgwebdir.cgi/davidiw/brunet1-test/ and
+http://boykin.acis.ufl.edu/hgwebdir.cgi/davidiw/ipop/ respectively.
+
+To compile the source code run nant in the base directory of ipop.
+
+\section What What Is IpopNode?
+IpopNode is an abstract class that provides virtualization of IP over Peer to
+Peer links provided by the Brunet library.  Ipop requires an inherited class
+to support the mechanisms for IP Address to \ref Brunet::Address
+"Brunet Address" binding, DHCP, DNS, Multicast, and features.  The most
+commonly used version of IpopNode is \ref Ipop::DhtNode::DhtIpopNode
+"DhtIpopNode", other ones include \ref Ipop::CondorNode::CondorIpopNode 
+"CondorIpopNode" and \ref Ipop::RpcNode::RpcIpopNode "RpcIpopNode".  The rest
+of this document details deploying your own virtual network.
+\section Deploying How to Deploy IPOP
+Before IPOP can work, there needs to be an infrastructure, please refer to
+\ref BasicNodeHowTo "Using BasicNode" to take advantage of our public
+infrastructure or deploying your own.  After that continue on in this document.
+
+\section Step1 Choosing Which IpopNode to Use
+In most scenarios, DhtIpopNode will be the recommended format for using Ipop.
+The DhtIpopNode requires limited amount of extra work as opposed to the
+RpcIpopNode and it allows users to specify their own hostname unlike
+CondorIpopNode.  The only difference between DhtIpopNode and CondorIpopNode is
+that the former uses the Dht for hostnames, where as the latter uses staticly
+mapped address.
+
+In this initial document, deploying only Dht and Condor IpopNode will be
+reviewed.
+
+\section Step2Dht Deploying DhtIpopNode and CondorIpopNode
+The steps for deploying a DhtIpopNode and CondorIpopNode are to install a
+DHCPServerConfig into the Dht, configure an IpopConfig xml file, and finally
+run the IpopNode.  All IpopNodes are started in the same fashion.  Only unique
+portions are documented in this section.
+\subsection DHCP Setting Up the Dht DHCP Server
+In order for DHCP to work with DhtIpopNode and CondorIpopNode, a
+DHCPServerConfig needs to be entered into the DHCP first.  An example is
+provided in the config/dht_dhcp_namespace.  It is important to keep the lack
+of white space in that document as the dht is limited to 1024 bytes per entry.
+
+Below is a sample DHCPServerConfig in XML format:
+
+\code
+<DHCPServerConfig>
+  <Namespace>Generic</Namespace>
+  <netmask>255.255.0.0</netmask>
+  <pool>
+    <lower>10.250.0.0</lower>
+    <upper>10.250.255.255</upper>
+  </pool>
+  <DHCPReservedIPs>
+    <DHCPReservedIP>
+      <ip>0.0.0.1</ip>
+      <mask>0.0.0.255</mask>
+    </DHCPReservedIP>
+  </DHCPReservedIPs>
+  <leasetime>3600</leasetime>
+</DHCPServerConfig>
+\endcode
+
+Now line by line...
+
+The first entry is the Namespace, this refers to an Ipop Namespace and is
+distinct from that mentioned as the \ref
+Brunet::Applications::NodeConfig::BrunetNamespace "BrunetNamespace".  Using
+this name style, it allows us to have multiple DhtIpopNode pools in the same
+Brunet infrastructure.
+
+\code
+  <Namespace>Generic</Namespace>
+\endcode
+
+Below specifies an address used in the pool and a netmask.  Sometimes users
+may want the netmask to be larger than the pool, if they want to use static
+IP Addresses (which is not supported in DhtIpopNode).
+
+\code
+  <netmask>255.255.0.0</netmask>
+  <pool>
+    <lower>10.250.0.0</lower>
+    <upper>10.250.255.255</upper>
+  </pool>
+\endcode
+
+In some cases, there are need for Reserved IP Addresses and its easier to do
+this method than specify a netmask that is larger than the pool allocation.
+
+\code
+  <DHCPReservedIPs>
+    <DHCPReservedIP>
+      <ip>0.0.0.1</ip>
+      <mask>0.0.0.255</mask>
+    </DHCPReservedIP>
+  </DHCPReservedIPs>
+\endcode
+
+This specifies in seconds how long a DHCP Lease will last.  Leases are
+reacquired beginning after the lease half life.  Making this too small can
+unnecessarily increase dht activity and making this too big leads to a
+possibility of a value being lost from the Dht.  60 minutes is more than safe.
+
+\code
+  <leasetime>3600</leasetime>
+\endcode
+
+\subsection DhtMulticast Dht/Condor Multicast
+By enabling mutlicast, all nodes subscribing to multicast in your pool will
+receive any out going multicast packets originating from you and you will
+receive all out going multicast packets originating in your pool.  This
+emulates the behavior on a Layer 2 network.  You will still need to use the
+standard socket multicast practice to take advantage of multicast.
+
+\subsection DhtHostnames Dht Hostnames
+By specifying a hostname, your node will be accessible to other users in the
+pool at your_hostname.ipop_vpn.  Hostnames are unique per pool and so there
+will be no name collision between nodes in different pools.
+
+\subsection CondorHostnames Condor Hostnames
+Condor hostnames are well documented in \ref Ipop::CondorNode::DNS 
+
+\section ConfiguringIpop Configuring and Installing Ipop
+\subsection Tap Installing a TAP Device
+Both Windows and Linux require the installation of a TAP device.  This is
+provided in the binary release.
+\subsubsection Windows
+The Windows installers are available in drivers\windows_tap.  To install for
+Windows click install_tap.vbs, this will prompt you to allow the installer to
+install the device.  We have made our own installer due to garbage that can get
+left behind in the registry.  If at any point, Ipop crashes without warning, it
+is most likely due to a corrupted tap install.  Simply execute the
+uninstall_tap.vbs script and then the install_tap.vbs script.
+
+\subsubsection Linux
+The Linux installers are available in drivers\linux_tap.  Linux requires that
+the Tap (virtual network device) driver be enabled in the kernel or as a
+module.  Due to varying version of Linux that is impossible for us to supply, 
+but it is found in all the distributions I have tested.  To create a tap device
+execute the script install_tap.sh and to remove it execute uninstall_tap.sh.
+
+\subsection IpopConfig
+Ipop requires an \ref Ipop::IpopConfig "IpopConfig" xml file in addition to
+the NodeConfig xml file.  Below is a sample config followed by a description
+of the fields.
+\code
+<IpopConfig>
+  <IpopNamespace>Generic</IpopNamespace>
+  <VirtualNetworkDevice>tap0</VirtualNetworkDevice>
+  <AddressData>
+    <Hostname>Example</Hostname>
+  </AddressData>
+  <EnableMulticast>true</EnableMulticast>
+</IpopConfig>
+\endcode
+
+IpopNamespace must match the namespace specified in the DHCPServerConfig.
+\code
+  <IpopNamespace>Generic</IpopNamespace>
+\endcode
+
+This is the name of the Tap device running on your host.
+\code
+  <VirtualNetworkDevice>IpopTap</VirtualNetworkDevice>
+\endcode
+
+This is an empty AddressData node with Hostname filled in.  This gives the
+node the name Example.ipop_vpn.  AddressData will fill-in after the first run
+of Ipop.
+\code
+  <AddressData>
+    <Hostname>Example</Hostname>
+  </AddressData>
+\endcode
+
+By enabling multicast, you will be able to receive and send multicast packets.
+\code
+  <EnableMulticast>true</EnableMulticast>
+\endcode
+
+
+\section RunningIpop Running IpopNode
+After configuring your environment, you are ready to begin using your IpopNode.
+IpopNode needs to be run as root in Linux or be the user of the tap device.  In
+Windows, there is a possibility that a firewall message may pop-up asking
+permission to allow Ipop to work, please accept it.
+
+To use Ipop on Linux run:
+\code
+mono IpopNode.exe node.config ipop.config &> logs &
+dhclient tap0
+\endcode
+
+In Windows run (no dhcp necessary, Windows automatically starts the dhcp
+client):
+\code
+IpopNode.exe node.config ipop.config
+\endcode
+
+Once an IP Address is assigned, you may begin communicating with remote nodes.
+*/

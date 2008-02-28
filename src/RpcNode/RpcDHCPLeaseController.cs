@@ -17,14 +17,15 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+using Brunet.Applications;
+using Ipop;
 using System;
 using System.IO;
 using System.Text;
 using System.Collections;
 using System.Security.Cryptography;
-using Brunet.Applications;
 
-namespace Ipop
+namespace Ipop.RpcNode
 {
     public class RpcDHCPLeaseController : DHCPLeaseController
     {

@@ -26,6 +26,9 @@ using Brunet.Applications;
 using System.Collections;
 using System.Threading;
 
+/**
+\namespace Ipop Defines IpopNode the base IP over P2P utilities.
+*/
 namespace Ipop {
   /**
   <remarks><para>IpopNode provides the IP over P2P library that is to be used

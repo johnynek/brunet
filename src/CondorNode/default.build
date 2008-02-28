@@ -8,7 +8,7 @@
   <target name="clean" description="Remove build directory">
     <delete dir="${build.dir}" failonerror="true"/>
   </target>
-  <target name="build" description="Build DhtIpopNode.exe">
+  <target name="build" description="Build CondorIpopNode.exe">
     <mkdir dir="${build.dir}" failonerror="true"/>
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${lib.dir}">
@@ -20,9 +20,10 @@
         <include name="Brunet.DhtService.dll"/>
       </fileset>
     </copy>
-    <csc target="exe" output="${build.dir}/DhtIpopNode.exe" main="Ipop.DhtNode.DhtIpopNode">
+    <csc target="exe" output="${build.dir}/CondorIpopNode.exe" main="Ipop.CondorNode.CondorIpopNode">
       <sources failonempty="true">
         <include name="*.cs"/>
+        <include name="../DhtNode/*.cs"/>
         <include name="../IpopNode/*.cs"/>
         <include name="../../../brunet1/src/BasicNode/*.cs"/>
       </sources>
@@ -39,13 +40,13 @@
     <mkdir dir="${bin.dir}" failonerror="true"/>
     <copy todir="${bin.dir}" failonerror="true">
       <fileset basedir="${build.dir}">
-        <include name="DhtIpopNode.exe" />
+        <include name="CondorIpopNode.exe" />
       </fileset>
     </copy>
   </target>
 
-  <target name="doc" description="Build DhtIpopNode.xml">
-    <csc target="library" output="${lib.dir}/DhtNode.dll" doc="${doc.dir}/DhtNode.xml">
+  <target name="doc" description="Build CondorIpopNode.xml">
+    <csc target="library" output="${lib.dir}/CondorNode.dll" doc="${doc.dir}/CondorNode.xml">
       <sources failonempty="true">
         <include name="*.cs"/>
       </sources>
@@ -56,6 +57,7 @@
         <include name="${lib.dir}/CookComputing.XmlRpcV2.dll" />
         <include name="${lib.dir}/Brunet.DhtService.dll"/>
         <include name="${lib.dir}/Ipop.dll"/>
+        <include name="${lib.dir}/DhtNode.dll"/>
         <include name="${lib.dir}/Brunet.BasicNode.dll"/>
         <include name="System.Runtime.Remoting.dll"/>
         <include name="Mono.Posix.dll"/>

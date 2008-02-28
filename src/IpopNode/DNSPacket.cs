@@ -23,7 +23,10 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 
-namespace NetworkPackets { namespace DNS {
+/**
+\namespace NetworkPackets::DNS Defines DNS Packets.
+*/
+namespace NetworkPackets.DNS {
   /**
   <summary>Supports the parsing of DNS Packets.</summary>
   <remarks><para>This is a very naive implementation and lacks support for
@@ -808,4 +811,4 @@ namespace NetworkPackets { namespace DNS {
     public ZoneAuthority() : this("grid-appliance.org",
       "grid-appliance.org", 12345678, 1800, 900, 604800, 60480) {}
   }
-} }
+}
