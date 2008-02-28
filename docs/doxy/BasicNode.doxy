@@ -1,20 +1,6 @@
 /**
-\page BasicNodeHowTo Using BasicNode
-\author David Wolinsky
-\section Where Where To Get Brunet and BasicNode
-All of the ACIS P2P projects are released in a monolithic package available at
-http://www.acis.ufl.edu/~ipop/files/acisp2p/latest.zip and source code releases
-are available at 
-http://www.acis.ufl.edu/~ipop/files/acisp2p/acisp2p.latest.src.zip  If you
-want the latest code available in the repositories, We recommend gathering the
-brunet version from http://boykin.acis.ufl.edu/hgwebdir.cgi/boykin/brunet1-exp
-more stable code can be found from
-http://boykin.acis.ufl.edu/hgwebdir.cgi/boykin/brunet1-dev but this is
-typically what is provided with the source releases.
-
-To compile the source code run nant in the base directory.
-
-\section Basics The Basics
+\page BasicNode Deploying a BasicNode Pool
+\section The Basics
 BasicNode provides a Brunet P2P based infrastructure for currently used by
 Brunet's Dht and IPOP.  In order for peer to peer systems to work, they require
 a minimum set of nodes, therefore it is <b>strongly recommended that a minimum
@@ -23,11 +9,6 @@ machine or on machines in different parts of the world.  In order to ease
 running multiple on a single machine, \ref Brunet::Applications::MultiNode
 "MultiNode" is available. MultiNode allows multiple instances of the Brunet
 P2P node to run in one executing application.
-
-\note Users can feel free to share in the \ref fusedht 
-"ACIS Lab Experimental Public Infrastructure".  This provides a backend and the
-user is free to skip to the section on \ref Services "services".
-
 
 Case A:  If for example a user wanted to provide a service for users behind to
 different NATs to communicate, he could instantiate on BasicNode on a public IP
@@ -85,8 +66,7 @@ one publicly available node, but if you expand to a large system you may want
 to increase the number of active public nodes.  The format of the string is a
 common uri, the important parts are the "udp" which specifies the transport
 layer logic type and the IP Address and the port of public node where BasicNode
-is running.  There are other choices here as well as \ref Discovery, which
-makes this section optional. 
+is running.
 
 \code
   <RemoteTAs>
@@ -99,7 +79,7 @@ optional, but for simplicity reasons we will pick a specific port to run on.
 By doing this, we can have one generic configuration file for all nodes to
 share.  Also note, that if a port is already taken, BasicNode will attempt to
 use a random port to connect through.  The type of transport logic is listed
-per EdgeListener and in this case it is UDP.  We <b>strongly encourage the use
+per EdgeListener and in this case it is UDP.  I <b>strongly encourage the use
 of UDP and only UDP</b> as the TCP implementation can quickly get out of hand
 due to lack of sockets available.
 \code
@@ -132,11 +112,14 @@ XmlRpc calls over Brunet, the Node will not handle requests directly.
 \section Configuring MultiNode
 MultiNode uses the same configuration file as BasicNode.  The purpose of 
 MultiNode is to provide multiple Brunet P2P nodes in a single application
-instance.
+instance.  The other main difference between BasicNode and MultiNode is that
+BasicNode can run Services such as XmlRpc and RpcDht.  So in order to gain
+access to those services, a BasicNode would need to run in the same
+BrunetNamespace.
 
 In order to share the same configuration file as BasicNode, MultiNode only
 has one well known end point that uses the ports put in EdgeListeners.  The
-other Brunet P2P Nodes use random port numbers.  Because of this, We suggest
+other Brunet P2P Nodes use random port numbers.  Because of this, I suggest
 using only MultiNode as a standalone project and not inheriting it in other
 projects.
 \section Services
@@ -179,8 +162,9 @@ bput.py usage:
 bput.py [--ttl=<time in sec>] [--input=<filename, - for stdin>] <key> [<value>]
 \endcode
 
-bget.py and bput.py are available scripts directory in the source code and
-binary release.
+bget.py is available at http://www.acis.ufl.edu/~ipop/files/bget.py
+
+bput.py is available at http://www.acis.ufl.edu/~ipop/files/bput.py
 
 \section Health
 BasicNode does not inherently provide a method to determine the health of the
@@ -192,42 +176,5 @@ consistencies greater than .95 (and perhaps lower).  Consistency is measured as
 a node agreeing with both the left 2 and right 2 neighbors about their position
 in the ring.
 
-crawl.py is available in the script directory in the source code and binary
-release.
-
-\section Discovery Using Brunet Discovery
-If Brunet Nodes are on the same Layer 2 Network, they will be able to discover
-each other through \ref Brunet::LocalConnectionOverlord
-"LocalConnectionOverlord" which uses \ref Brunet::IPHandler "IPHandler".  The
-advantage to using this is that you will not have to specify any well known
-remote end points.  The only requirement is that they are all in the same
-BrunetNamespace.
-
-Discovery is not quite complete at this time, because if two independent
-networks form and eventually are able to multicast to each other, they will not
-combine into one large pool.  This is a rare situation but does deserve
-attention.
-
-\section BasicNodeSimpleSetup Setting Up Your Own Pool in Minutes
-By using \ref Discovery "discovery", one can have a full pool in minutes.  In
-config directory, there is a file called local.config.  By using this as the
-configuration file, you can create a quick pool.  So to get a working system
-in .NET, one would have to run these two commands:
-
-\code
-MultiNode.exe 20 local.config
-\endcode
-
-After 30 seconds or so, connections should start forming and this can be
-confirmed by using the crawler.
-
-\section fusedht ACIS Lab Public Experimental Infrastructure
-To enable users to quickly get involved with the system and not have to deploy
-their own pool, which can be quite laborous, the ACIS Lab hosts a deployment of
-over 400 nodes on PlanetLab.  The config file is available in the config
-directory of the source code as well as the binary releases as
-config\fusedht.config.  There is no guarantee of service and this should be
-used for nothing more than testing.  ACIS Lab uses this node for the latest
-tests in experimental code, but is usually backwards compatible with older
-code.
+The code is available at http://www.acis.ufl.edu/~ipop/files/scripts/crawl.py
 */
