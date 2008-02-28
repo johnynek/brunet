@@ -1,0 +1,180 @@
+/**
+\page BasicNode Deploying a BasicNode Pool
+\section The Basics
+BasicNode provides a Brunet P2P based infrastructure for currently used by
+Brunet's Dht and IPOP.  In order for peer to peer systems to work, they require
+a minimum set of nodes, therefore it is <b>strongly recommended that a minimum
+of 8 nodes be used for an infrastructure.</b>  Nodes can be run on the same
+machine or on machines in different parts of the world.  In order to ease
+running multiple on a single machine, \ref Brunet::Applications::MultiNode
+"MultiNode" is available. MultiNode allows multiple instances of the Brunet
+P2P node to run in one executing application.
+
+Case A:  If for example a user wanted to provide a service for users behind to
+different NATs to communicate, he could instantiate on BasicNode on a public IP
+Address and one MultiNode with 7 Brunet P2P nodes executing behind one of the
+two NATs.
+
+Case B:  If a user wanted to deploy the system in a pre-existing LAN
+environment.  The user could deploy one MultiNode with 8 Brunet P2P nodes
+executing on any machine.
+
+The important thing to remember is that all nodes must have some way to
+discover each other.  The simplest case is to have at least one "publicly"
+available node and include him in the configuration.
+\section Configuration
+The configuration information for BasicNode is provided by the \ref
+Brunet::Applications::NodeConfig "NodeConfig" class.  Let's begin reviewing the
+information there with respect to setting up Case A mentioned above.  Below is
+what a sample NodeConfig xml file might look like.  This is a configuration
+file that you could have all the machines in the realm sharing.
+
+\code
+<NodeConfig>
+  <BrunetNamespace>GenericRealm</BrunetNamespace>
+  <RemoteTAs>
+    <Transport>brunet.udp://71.122.33.252:12342</Transport>
+  </RemoteTAs>
+  <EdgeListeners>
+    <EdgeListener type="udp">
+      <port>12342</port>
+    </EdgeListener>
+  </EdgeListeners>
+  <XmlRpcManager>
+    <Enabled>true</Enabled>
+    <Port>10000</Port>
+  </XmlRpcManager>
+  <RpcDht>
+    <Enabled>true</Enabled>
+    <Port>64221</Port>
+  </RpcDht>
+</NodeConfig>
+\endcode
+
+Let's look at this line by line...
+
+The first thing is selecting a BrunetNamespace.  Only Nodes that share a
+BrunetNamespace are able to form P2P systems.  This should be unique to each
+pool you deploy.
+\code
+  <BrunetNamespace>GenericRealm</BrunetNamespace>
+\endcode
+
+The RemoteTAs is a list of well known end points, where you know an instance of
+a BasicNode or MultiNode is running.  In the simplest case, you may only have
+one publicly available node, but if you expand to a large system you may want
+to increase the number of active public nodes.  The format of the string is a
+common uri, the important parts are the "udp" which specifies the transport
+layer logic type and the IP Address and the port of public node where BasicNode
+is running.
+
+\code
+  <RemoteTAs>
+    <Transport>brunet.udp://71.122.33.252:12342</Transport>
+  </RemoteTAs>
+\endcode
+
+The EdgeListeners lists our local end points, in this case the port is
+optional, but for simplicity reasons we will pick a specific port to run on. 
+By doing this, we can have one generic configuration file for all nodes to
+share.  Also note, that if a port is already taken, BasicNode will attempt to
+use a random port to connect through.  The type of transport logic is listed
+per EdgeListener and in this case it is UDP.  I <b>strongly encourage the use
+of UDP and only UDP</b> as the TCP implementation can quickly get out of hand
+due to lack of sockets available.
+\code
+  <EdgeListeners>
+    <EdgeListener type="udp">
+      <port>12342</port>
+    </EdgeListener>
+  </EdgeListeners>
+\endcode
+
+The final chunk of the NodeConfig describes the two services provided by
+BasicNode the first is the XmlRpcManager and the second is the RpcDht.  By
+enabling them and setting a port a user can now access those services. 
+BasicNode and Brunet do not monitor where requests come from, so if you enable
+these services, please take care to protect you and your P2P system by a
+firewall, if necessary.  Please note that even if you do not enable XmlRpc or
+RpcDht, that node will still function as a Dht provider and be able to handle
+XmlRpc calls over Brunet, the Node will not handle requests directly.
+
+\code
+  <XmlRpcManager>
+    <Enabled>true</Enabled>
+    <Port>10000</Port>
+  </XmlRpcManager>
+  <RpcDht>
+    <Enabled>true</Enabled>
+    <Port>64221</Port>
+  </RpcDht>
+\endcode
+\section Configuring MultiNode
+MultiNode uses the same configuration file as BasicNode.  The purpose of 
+MultiNode is to provide multiple Brunet P2P nodes in a single application
+instance.  The other main difference between BasicNode and MultiNode is that
+BasicNode can run Services such as XmlRpc and RpcDht.  So in order to gain
+access to those services, a BasicNode would need to run in the same
+BrunetNamespace.
+
+In order to share the same configuration file as BasicNode, MultiNode only
+has one well known end point that uses the ports put in EdgeListeners.  The
+other Brunet P2P Nodes use random port numbers.  Because of this, I suggest
+using only MultiNode as a standalone project and not inheriting it in other
+projects.
+\section Services
+By enabling the services mentioned above, XmlRpc and RpcDht, users will be able
+to access the Brunet Dht and Rpc systems via userland tools.  A particular
+favorite method of accessing them has been through the use of Python.
+
+This sample code calls asks the local Brunet Node for its \ref
+Brunet::Applications::Information "information".
+\code
+#!/usr/bin/python
+import xmlrpclib, sys
+
+server = xmlrpclib.Server("http://127.0.0.1:10000/xm.rem")
+print server.localproxy("Information.Info")
+\endcode
+
+This sample code asks the local Brunet Node for its \ref
+Brunet::Applications::Information "information".  The 3 represents that we want
+only to talk to that exact address and the 1 states we only expect one result. 
+For more information, please see the \ref http://www.ipop-project.org "wiki".
+\code
+#!/usr/bin/python
+import xmlrpclib, sys
+
+server = xmlrpclib.Server("http://127.0.0.1:10000/xm.rem")
+print server.proxy("brunet:node:XGPPYRFCACGGF3PZWSCDUCK6LGXJGK4M", 3, 1, "Information.Info")[0]
+\endcode
+
+To access the Dht, to helper scripts have been written bput.py for putting
+information into the dht and bget.py for getting information from the dht.
+The internals for those will have to be tweaked to make sure that the port maps
+to the DhtRpc port.  The default port is 64221.  Helpful information will be
+printed on the screen if you run them with no input.
+\code
+bget.py usage:
+bget.py [--output=<filename to write value to>] [--quiet] <key>
+
+bput.py usage:
+bput.py [--ttl=<time in sec>] [--input=<filename, - for stdin>] <key> [<value>]
+\endcode
+
+bget.py is available at http://www.acis.ufl.edu/~ipop/files/bget.py
+
+bput.py is available at http://www.acis.ufl.edu/~ipop/files/bput.py
+
+\section Health
+BasicNode does not inherently provide a method to determine the health of the
+pool.  www.grid-appliance.org uses something called a crawler to determine the
+state of the publicly available pools.  The crawler is provided below.  The
+crawler uses consistency to determine the health of a pool.  A consistency of
+1.0 is considered perfect and dht operations are known to work with
+consistencies greater than .95 (and perhaps lower).  Consistency is measured as
+a node agreeing with both the left 2 and right 2 neighbors about their position
+in the ring.
+
+The code is available at http://www.acis.ufl.edu/~ipop/files/scripts/crawl.py
+*/
