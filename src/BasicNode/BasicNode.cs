@@ -29,14 +29,15 @@ using Brunet.Rpc;
 using Brunet;
 
 /**
- * \namespace Brunet::Applications provides BasicNode and core features
- * necessary for running Brunet.Node in a simple complete manner.
- * Besides providing basic functionality, this namespace and class offer 
- * some extra features, such as the ability to cleanly shutdown via ctrl-c,
- * a user configured Rpc method for providing information during a crawl
- * (see Information), and the ability to determine the IP addresses on the
- * local machines and their associated names.
- */
+\namespace Brunet::Applications Provides BasicNode and core features
+necessary for running Brunet.Node in a simple complete manner.
+Besides providing basic functionality, this namespace and class offer 
+some extra features, such as the ability to cleanly shutdown via ctrl-c,
+a user configured Rpc method for providing information during a crawl
+(see Information), and the ability to determine the IP addresses on the
+local machines and their associated names.
+\brief Provides BasicNode which implements a simple Brunet P2P Node.
+*/
 namespace Brunet.Applications {
   /**
   <summary>BasicNode provides the core Brunet features in a deployable model
