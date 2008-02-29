@@ -3,8 +3,8 @@ using Ipop.DhtNode;
 using System;
 
 /**
-\namespace Ipop::CondorNode Defines CondorIpopNode which uses DhtNode with a
-static DNS server.
+\namespace Ipop::CondorNode
+\brief Defines CondorIpopNode which uses DhtNode with a static DNS server.
 */
 namespace Ipop.CondorNode {
   /**

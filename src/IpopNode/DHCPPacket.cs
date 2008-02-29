@@ -21,7 +21,8 @@ using NetworkPackets;
 using System.Collections;
 
 /**
-\namespace NetworkPacket::DHCP Defines DHCP Packets.
+\namespace NetworkPacket::DHCP
+\brief Defines DHCP Packets.
 */
 namespace NetworkPackets.DHCP {
   /**

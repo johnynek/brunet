@@ -27,7 +27,8 @@ using System.Collections;
 using System.Threading;
 
 /**
-\namespace Ipop Defines IpopNode the base IP over P2P utilities.
+\namespace Ipop
+\brief Defines IpopNode the base IP over P2P utilities.
 */
 namespace Ipop {
   /**

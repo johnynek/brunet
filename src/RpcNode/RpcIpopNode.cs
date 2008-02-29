@@ -27,7 +27,8 @@ using System.Threading;
 
 
 /**
-\namespace Ipop::RpcNode Defines RpcIpopNode which requires users input address
+\namespace Ipop::RpcNode
+\brief Defines RpcIpopNode which requires users input address
 translations via an external Rpc client.
 */
 namespace Ipop.RpcNode {

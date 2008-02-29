@@ -26,8 +26,8 @@ using System.Net;
 using System.Threading;
 
 /**
-\namespace Ipop::DhtNode Defines DhtIpopNode and the utilities necessary to
-use Ipop over Dht.
+\namespace Ipop::DhtNode
+\brief Defines DhtIpopNode and the utilities necessary to use Ipop over Dht.
 */
 namespace Ipop.DhtNode {
   /**

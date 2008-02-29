@@ -24,7 +24,8 @@ using System.Net;
 using System.Net.Sockets;
 
 /**
-\namespace NetworkPackets::DNS Defines DNS Packets.
+\namespace NetworkPackets::DNS
+\brief Defines DNS Packets.
 */
 namespace NetworkPackets.DNS {
   /**

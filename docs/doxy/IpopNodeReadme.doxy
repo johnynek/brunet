@@ -115,6 +115,17 @@ possibility of a value being lost from the Dht.  60 minutes is more than safe.
   <leasetime>3600</leasetime>
 \endcode
 
+At this point you are ready to deploy your DhtDHCPServer, which is as easy as
+entering the data in to the dht.  To do that, we will make use of the bput.py
+script (provided in the scripts directory).  Remember to re-insert the item
+into the dhcp at the half-life of your ttl, the input should be the dhcp server
+config file without whitespace, and the last "Generic" should be replaced by
+your namespace.
+
+\code
+python bput.py --ttl=3600 --input=dhcpconfig.xml dhcp:ipop_namespace:Generic
+\endcode
+
 \subsection DhtMulticast Dht/Condor Multicast
 By enabling mutlicast, all nodes subscribing to multicast in your pool will
 receive any out going multicast packets originating from you and you will
