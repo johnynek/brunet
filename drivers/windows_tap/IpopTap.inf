@@ -98,7 +98,7 @@
 [IpopTap.params.reg]
    HKR, Ndi\params\MTU,                  ParamDesc, 0, "MTU"
    HKR, Ndi\params\MTU,                  Type,      0, "int"
-   HKR, Ndi\params\MTU,                  Default,   0, "1500"
+   HKR, Ndi\params\MTU,                  Default,   0, "1200"
    HKR, Ndi\params\MTU,                  Optional,  0, "0"
    HKR, Ndi\params\MTU,                  Min,       0, "100"
    HKR, Ndi\params\MTU,                  Max,       0, "1500"
