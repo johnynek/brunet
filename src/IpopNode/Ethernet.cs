@@ -31,8 +31,9 @@ namespace Ipop {
   must subscribe via the Subscribe method to the output.</summary>
   */
   public class Ethernet: ISender, ISource {
-    /// <summary>This is the maximum size for any packet</summary>
-    public const int MTU = 1500;
+    /**  <summary>This is the maximum size for any packet according to 
+    wikipedia</summary>*/
+    public const int MTU = 1522;
     /**  <summary>This is a constant buffer used for writing to the tap 
     device </summary>*/
     protected byte[] _send_buffer = new byte[MTU];
