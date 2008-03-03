@@ -186,30 +186,41 @@ namespace Brunet
       IDictionary result = new ListDictionary();
       //Put it in:
       result["self"] = self.ToString();
-      
-      Connection left = _node.ConnectionTable.GetLeftStructuredNeighborOf(self);
-      if( left != null ) {
-        AHAddress la = (AHAddress)left.Address;
-        result["left"] = la.ToString();
-        Connection left2 = _node.ConnectionTable.GetLeftStructuredNeighborOf(la);
-        if( left2 != null ) {
-          result["left2"] = left2.Address.ToString();
+
+      // if we have no connections, this throws an exception
+      try {
+        Connection left = _node.ConnectionTable.GetLeftStructuredNeighborOf(self);
+        if( left != null ) {
+          AHAddress la = (AHAddress)left.Address;
+          result["left"] = la.ToString();
+          Connection left2 = _node.ConnectionTable.GetLeftStructuredNeighborOf(la);
+          if( left2 != null ) {
+            result["left2"] = left2.Address.ToString();
+          }
+        }
+      } catch {}
+      // If there are no connections, this throws an exception
+      try {
+        Connection right = _node.ConnectionTable.GetRightStructuredNeighborOf(self);
+        if( right != null ) {
+          AHAddress ra = (AHAddress)right.Address;
+          result["right"] = ra.ToString();
+          Connection right2 = _node.ConnectionTable.GetRightStructuredNeighborOf(ra);
+          if( right2 != null ) {
+            result["right2"] = right2.Address.ToString();
+          }
         }
       }
-      Connection right = _node.ConnectionTable.GetRightStructuredNeighborOf(self);
-      if( right != null ) {
-        AHAddress ra = (AHAddress)right.Address;
-        result["right"] = ra.ToString();
-        Connection right2 = _node.ConnectionTable.GetRightStructuredNeighborOf(ra);
-        if( right2 != null ) {
-          result["right2"] = right2.Address.ToString();
-        }
-      }
+      catch {}
       //Get a random shortcut:
       ArrayList shortcuts = new ArrayList();
-      foreach(Connection c in _node.ConnectionTable.GetConnections("structured.shortcut") ) {
-        shortcuts.Add(c);
+      // If there are no connections, this throws an exception
+      try {
+        foreach(Connection c in _node.ConnectionTable.GetConnections("structured.shortcut") ) {
+          shortcuts.Add(c);
+        }
       }
+      catch {}
       if( shortcuts.Count > 0 ) {
         Random r = new Random();
         Connection sc = (Connection)shortcuts[ r.Next( shortcuts.Count ) ];
