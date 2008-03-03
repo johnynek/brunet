@@ -168,7 +168,7 @@ namespace Ipop {
     <param name="state">always will be null</param>
     */
     public void HandleData(MemBlock b, ISender ret, object state) {
-      if(from is Ethernet) {
+      if(ret is Ethernet) {
         EthernetPacket ep = new EthernetPacket(b);
         if(MACAddress == null) {
           MACAddress = ep.SourceAddress;
@@ -222,7 +222,7 @@ namespace Ipop {
         ProtocolLog.Write(IpopLog.PacketLog, String.Format(
                           "Incoming packet:: IP src: {0}, IP dst: {1}, p2p " +
                               "from: {2}, size: {3}", ipp.SSourceIP, ipp.SDestinationIP,
-                              ret.Destination, packet.Length));
+                              ret, packet.Length));
       }
 
       if(MACAddress != null) {
@@ -235,6 +235,9 @@ namespace Ipop {
     /**
     <summary>This method handles IPPackets that come from the TAP Device, i.e.,
     local system.</summary>
+    <remarks>Currently this supports HandleMulticast (ip[0] >= 244 &&
+    ip[0]<=239), HandleDNS (dport = 53 and ip[3] == 255), dhcp (sport 68 and
+    dport 67.</remarks>
     <param name="packet">The packet from the TAP device</param>
     <param name="from"> This should always be the tap device</param>
     */
