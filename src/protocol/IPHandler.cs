@@ -69,7 +69,7 @@ namespace Brunet
         _mc.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership,
           new MulticastOption(mc_addr, IPAddress.Loopback));
 
-        _mc.MulticastLoopback = false;
+        _mc.MulticastLoopback = true;
       }
       catch {
         _mc = null;
