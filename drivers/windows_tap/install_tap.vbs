@@ -1,6 +1,7 @@
 'Remove any previous instances and install a fresh version
-Run("uninstall.vbs")
+Run("cscript uninstall_tap.vbs")
 Run("driverhelper.exe Install IpopTap.inf IpopTap")
+res = Run("driverhelper.exe status IpopTap")
 
 'Make sure the device is installed and that it has the correct name!
 If ChangeNetworkName(res, "IpopTap") = 0 Then

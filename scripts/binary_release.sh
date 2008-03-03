@@ -14,7 +14,7 @@ nant
 cd -
 
 mkdir -p $version/ipop/bin
-brunet_lib_files="Brunet.dll Brunet.Dht.dll Brunet.DhtServices.dll Brunet.XmlRpc.dll"
+brunet_lib_files="Brunet.dll Brunet.Dht.dll Brunet.DhtService.dll Brunet.XmlRpc.dll"
 brunet_bin_files="BasicNode.exe MultiNode.exe"
 ipop_bin_files="DhtIpopNode.exe CondorIpopNode.exe"
 ipop_lib_files="libtuntap.dll libtuntap.so CookComputing.XmlRpcV2.dll"
@@ -30,6 +30,10 @@ for file in $ipop_bin_files; do
   cp ../bin/$file $version/ipop/bin/.
 done
 
+for file in $ipop_lib_files; do
+  cp ../lib/$file $version/ipop/bin/.
+done
+
 cp -axf ../drivers $version/ipop/.
 
 cp -axf ../../brunet1/scripts $version/ipop/.
@@ -40,6 +44,7 @@ doxygen ipop.doxy
 cd -
 mkdir $version/ipop/docs
 cp -axf ../docs/doxy_out/* $version/ipop/docs
+cp ../docs/release_notes.txt $version/ipop/.
 
 cd $version
 zip -r9 ipop.src.$version.zip ipop.src
