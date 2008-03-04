@@ -25,53 +25,94 @@ using System.Threading;
 
 using Brunet;
 
+/**
+\namespace Brunet::DistributedServices 
+\brief Provides Distributed data storage services using the Brunet P2P
+infrastructure.
+*/
 namespace Brunet.DistributedServices {
+  /**
+  <summary>Exception generated from the Dht should use this exception</summary>
+  */
   public class DhtException: Exception {
     public DhtException(string message): base(message) {}
   }
 
+  /**
+  <summary>This class provides a client interface to the dht, the servers only
+  work together on a neighboring basis but not on a whole system basis.  It is
+  up to the client to provide fault tolerance.  This class does it by naive
+  replication.  This also starts the dht server (TableServer).</summary>
+  <remarks>This class implements the fault tolerant portion of the Dht by using
+  naive replication as well as fixing holes in the dht.  A hole occurs when
+  enough data results are received during a get to confirm existence, but not
+  all the results returned a value.  In the case of a hole, a put will be used
+  to place the data back to seal the hole.</remarks>
+  */
   public class Dht {
-    public static BooleanSwitch DhtLog =
-        new BooleanSwitch("Dht", "Log for Dht!");
-    protected object _sync = new object();
-    private RpcManager _rpc;
+    /// <summary>The log enabler for the dht.</summary>
+    public static BooleanSwitch DhtLog = new BooleanSwitch("Dht", "Log for Dht!");
+    /// <summary>Lock for the dht put/get state tables.</summary>
+    protected readonly Object _sync = new Object();
+    /// <summary>The RpcManager to perform transactions through.</summary>
+    protected RpcManager _rpc;
+    /// <summary>The node to provide services for.</summary>
     public Node node = null;
+    /// <summary>Enabled once StructuredConnectionOverlord is connected.</summary>
     public bool Activated { get { return _table.Activated; } }
+    /// <summary>How many replications are made.</summary>
     public readonly int DEGREE;
+    /// <summary>How long to wait for synchronous results.</summary>
     public readonly int DELAY;
+    /**  <summary>floor(DEGREE/2) + 1, the amount of positive results for a
+    successful operation</summary>*/
     public readonly int MAJORITY;
 
-    //table server
+    /// <summary>Provides the Dht data serve.</summary>
     protected TableServer _table;
+    /// <summary>The total amount of data stored in the data serve.</summary>
     public int Count { get { return _table.Count; } }
-    //Dht Get / Put States
-    private volatile Hashtable _adps_table = new Hashtable();
-    private volatile Hashtable _adgs_table = new Hashtable();
+    /// <summary>The state table for asynchronous puts.</summary>
+    protected volatile Hashtable _adps_table = new Hashtable();
+    /// <summary>The state table for asynchronos gets.</summary>
+    protected volatile Hashtable _adgs_table = new Hashtable();
 
-    //keep track of our current neighbors, we start with none
-    protected AHAddress _left_addr = null, _right_addr = null;
-
+    /**
+    <summary>A default Dht client provides a DEGREE of 1 and a sychronous wait
+    time of up to 60 seconds.</summary>
+    <param name ="node">The node to provide service for.</param>
+    */
     public Dht(Node node) {
       this.node = node;
-      //get an instance of RpcManager for the node
       _rpc = RpcManager.GetInstance(node);
-      _table = new TableServer(node, _rpc);
-      //register the table with the RpcManagers
-      _rpc.AddHandler("dht", _table);
-      // We default into a single pair of nodes for each data point
+      _table = new TableServer(node);
       DEGREE = 1;
       MAJORITY = 1;
-      // 60 second delay for blocking calls
       DELAY = 60000;
     }
 
+    /**
+    <summary>Allows the user to specify the power of two of degrees to use.
+    That is if degree=n, DEGREE for the dht is 2^n.</summary>
+    <param name="node">The node to provide service for.</param>
+    <param name="degree">n where DEGREE=2^n amount of replications to perform.
+    </param>
+    */
     public Dht(Node node, int degree) :
       this(node){
       this.DEGREE = (int) System.Math.Pow(2, degree);
-      this.MAJORITY = DEGREE / 2 + 1;
+      this.MAJORITY = (DEGREE / 2) + 1;
     }
 
-    // Delay from users point of view is in seconds
+    /**
+    <summary>Allows the user to specify the power of two of degrees to use.
+    That is if degree=n, DEGREE for the dht is 2^n.</summary>
+    <param name="node">The node to provide service for.</param>
+    <param name="degree">n where DEGREE=2^n amount of replications to perform.
+    </param>
+    <param name="delay">User specified delay for synchronous calls in seconds.
+    </param>
+    */
     public Dht(Node node, int degree, int delay) :
       this(node, degree){
       DELAY = delay * 1000;
@@ -119,51 +160,89 @@ namespace Brunet.DistributedServices {
       return q;
     }
 
-    /* Below are all the Create methods, they rely on a unique put   *
-     * this returns true if it succeeded or an exception if it didn't */
-
+    /**
+    <summary>Asynchronous create storing the results in the Channel returns.
+    Creates return true if successful or exception if another value already
+    exists or there are network errors in adding the entry.</summary>
+    <param name="key">The index to store the value at.</param>
+    <param name="value">The value to store.</param>
+    <param name="ttl">The dht lease time for the key:value pair.</param>
+    <param name="returns">The Channel where the result will be placed.</param>
+    */
     public void AsCreate(MemBlock key, MemBlock value, int ttl, Channel returns) {
       AsPut(key, value, ttl, returns, true);
     }
 
-    public void AsCreate(string key, MemBlock value, int ttl, Channel returns) {
-      MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
-      AsCreate(keyb, value, ttl, returns);
-    }
-
+    /**
+    <summary>Asynchronous create storing the results in the Channel returns.
+    Creates return true if successful or exception if another value already
+    exists or there are network errors in adding the entry.</summary>
+    <param name="key">The index to store the value at.</param>
+    <param name="value">The value to store.</param>
+    <param name="ttl">The dht lease time for the key:value pair.</param>
+    <param name="returns">The Channel where the result will be placed.</param>
+    */
     public void AsCreate(string key, string value, int ttl, Channel returns) {
       MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
       MemBlock valueb = MemBlock.Reference(Encoding.UTF8.GetBytes(value));
       AsCreate(keyb, valueb, ttl, returns);
     }
 
+    /**
+    <summary>Synchronous create.</summary>
+    <param name="key">The index to store the value at.</param>
+    <param name="value">The value to store.</param>
+    <param name="ttl">The dht lease time for the key:value pair.</param>
+    <returns>Creates return true if successful or exception if another value
+    already exists or there are network errors in adding the entry.</returns>
+    */
     public bool Create(MemBlock key, MemBlock value, int ttl) {
       return Put(key, value, ttl, true);
     }
 
-    public bool Create(string key, MemBlock value, int ttl) {
-      MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
-      return Create(keyb, value, ttl);
-    }
-
+    /**
+    <summary>Synchronous create.</summary>
+    <param name="key">The index to store the value at.</param>
+    <param name="value">The value to store.</param>
+    <param name="ttl">The dht lease time for the key:value pair.</param>
+    <returns>Creates return true if successful or exception if another value
+    already exists or there are network errors in adding the entry.</returns>
+    */
     public bool Create(string key, string value, int ttl) {
       MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
       MemBlock valueb = MemBlock.Reference(Encoding.UTF8.GetBytes(value));
       return Create(keyb, valueb, ttl);
     }
 
-    /* Below are all the Get methods */
-
+    /**
+    <summary>Asynchronous get.  Results are stored in the Channel returns.
+    </summary>
+    <param name="key">The index to look up.</param>
+    <param name="returns">The channel for where the results will be stored
+    as they come in.  Results are returned as type DhtGetResult.</param>
+    */
     public void AsGet(string key, Channel returns) {
       MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
       AsGet(keyb, returns);
     }
 
+    /**
+    <summary>Synchronous get.</summary>
+    <param name="key">The index to look up.</param>
+    <returns>An array of DhtGetResult type containing all the results returned.
+    </returns>
+    */
     public DhtGetResult[] Get(string key) {
       MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
       return Get(keyb);
     }
 
+    /**
+    <summary>Synchronous get.</summary>
+    <param name="key">The index to look up.</param>
+    <returns>An array of DhtGetResult type containing all the results returned.
+    </returns>
+    */
     public DhtGetResult[] Get(MemBlock key) {
       BlockingQueue returns = new BlockingQueue();
       AsGet(key, returns);
@@ -182,7 +261,18 @@ namespace Brunet.DistributedServices {
       return (DhtGetResult []) allValues.ToArray(typeof(DhtGetResult));
     }
 
-    //  This is the get that does all the work 
+    /**
+    <summary>Asynchronous get.  Results are stored in the Channel returns.
+    </summary>
+    <remarks>This starts the get process by sending dht.Get to all the remote
+    end points that contain the key we're looking up.  The next step is
+    is when the results are placed in the channel and GetEnqueueHandler is
+    called or GetCloseHandler is called.  This means the get needs to be
+    stateful, that information is stored in the _adgs_table.</remarks>
+    <param name="key">The index to look up.</param>
+    <param name="returns">The channel for where the results will be stored
+    as they come in.</param>
+    */
     public void AsGet(MemBlock key, Channel returns) {
       if (!Activated) {
         throw new Exception("DhtClient: Not yet activated.");
@@ -219,9 +309,19 @@ namespace Brunet.DistributedServices {
       }
     }
 
-    /* Here we receive a Channel, use it to look up our state, process the results,
-     * and update our state as necessary
-     */
+    /**
+    <summary>This is called as a result of a successful retrieval of data from
+    a remote end point and performs follow up gets for remaining values
+    </summary>
+    <remarks>This adds the results to the entry in the _adgs_table.  Once a
+    value has been received by a majority of nodes, it is enqueued into the
+    requestors returns channel.  If not all results were retrieved follow up
+    gets are performed, this is determined by looking at the state of the
+    token, a non-null token implies there are remaining results.</remarks>
+    </summary>
+    <param name="o">The channel used to store the results.</param>
+    <param name="args">Unused.</param>
+    */
 
     public void GetEnqueueHandler(Object o, EventArgs args) {
       Channel queue = (Channel) o;
@@ -308,7 +408,15 @@ namespace Brunet.DistributedServices {
       }
     }
 
-    private void GetCloseHandler(object o, EventArgs args) {
+    /**
+    <summary>This is called by the Get callbacks when all the results for a
+    get have come in.  This looks at the results, finds holes, and does a
+    follow up put to place the data back into the dht via GetFollowUp.
+    </summary>
+    <param name="o">The channel representing a specific get.</param>
+    <param name="args">Unused.</param>
+    */
+    protected void GetCloseHandler(object o, EventArgs args) {
       Channel queue = (Channel) o;
       queue.EnqueueEvent -= this.GetEnqueueHandler;
       queue.CloseEvent -= this.GetCloseHandler;
@@ -340,11 +448,13 @@ namespace Brunet.DistributedServices {
       }
     }
 
-    /* This helps us leave the Get early if we either have no results or
-    * our remaining results will not reach a majority due to too many nodes
-    * missing data
+    /**
+    <summary>This helps us leave the Get early if we either have no results or
+    our remaining results will not reach a majority due to too many nodes
+    missing data.  This closes the clients returns queue.</summary>
+    <param name="adgs">The AsDhtGetState to qualify for leaving early</param>
     */
-    private void GetLeaveEarly(AsDhtGetState adgs) {
+    protected void GetLeaveEarly(AsDhtGetState adgs) {
       int left = adgs.queueMapping.Count;
       // Maybe we can leave early
       bool got_all_values = true;
@@ -369,12 +479,15 @@ namespace Brunet.DistributedServices {
     }
 
     /**
-     * Restores any of the Dht results that don't return all their values.
-     * We only get here at the end of a Dht return operation, no 
-     * locks necessary!
-     * @param adgs the async dht get state we're restoring
-     */
-    private void GetFollowUp(AsDhtGetState adgs) {
+    <summary>Restores any of the Dht results that don't return all their
+    values.  We only get here at the end of a Dht return operation.</summary>
+    <remarks>This analyzes the holes and fills them in individually.  This only
+    fills holes where there was a positive result (MAJORITY of results
+    received).</remarks>
+    <param name="adgs">The AsDhtGetState to analyze for follow up.</param>
+    */
+
+    protected void GetFollowUp(AsDhtGetState adgs) {
       foreach (DictionaryEntry de in adgs.results) {
         if(de.Value == null || de.Key == null) {
           continue;
@@ -416,41 +529,72 @@ namespace Brunet.DistributedServices {
       adgs.results.Clear();
     }
 
-    /** Below are all the Put methods, they use a non-unique put */
-
+    /**
+    <summary>Asynchronous put storing the results in the Channel returns.
+    Puts return true if successful or exception if there are network errors
+    in adding the entry.</summary>
+    <param name="key">The index to store the value at.</param>
+    <param name="value">The value to store.</param>
+    <param name="ttl">The dht lease time for the key:value pair.</param>
+    <param name="returns">The Channel where the result will be placed.</param>
+    */
     public void AsPut(MemBlock key, MemBlock value, int ttl, Channel returns) {
       AsPut(key, value, ttl, returns, false);
     }
 
-    public void AsPut(string key, MemBlock value, int ttl, Channel returns) {
-      MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
-      AsPut(keyb, value, ttl, returns);
-    }
-
+    /**
+    <summary>Asynchronous put storing the results in the Channel returns.
+    Puts return true if successful or exception if there are network errors
+    in adding the entry.</summary>
+    <param name="key">The index to store the value at.</param>
+    <param name="value">The value to store.</param>
+    <param name="ttl">The dht lease time for the key:value pair.</param>
+    <param name="returns">The Channel where the result will be placed.</param>
+    */
     public void AsPut(string key, string value, int ttl, Channel returns) {
       MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
       MemBlock valueb = MemBlock.Reference(Encoding.UTF8.GetBytes(value));
       AsPut(keyb, valueb, ttl, returns);
     }
 
+    /**
+    <summary>Synchronous put.</summary>
+    <param name="key">The index to store the value at.</param>
+    <param name="value">The value to store.</param>
+    <param name="ttl">The dht lease time for the key:value pair.</param>
+    <returns>Puts return true if successful or exception if there are network
+    errors in adding the entry.</returns>
+    */
     public bool Put(MemBlock key, MemBlock value, int ttl) {
       return Put(key, value, ttl, false);
     }
 
-    public bool Put(string key, MemBlock value, int ttl) {
-      MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
-      return Put(keyb, value, ttl);
-    }
-
+    /**
+    <summary>Synchronous put.</summary>
+    <param name="key">The index to store the value at.</param>
+    <param name="value">The value to store.</param>
+    <param name="ttl">The dht lease time for the key:value pair.</param>
+    <returns>Puts return true if successful or exception if there are network
+    errors in adding the entry.</returns>
+    */
     public bool Put(string key, string value, int ttl) {
       MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
       MemBlock valueb = MemBlock.Reference(Encoding.UTF8.GetBytes(value));
       return Put(keyb, valueb, ttl);
     }
 
-    /** Since the Puts and Creates are the same from the client side, we merge them into a
-    single put that if unique is true, it is a create, otherwise a put */
-
+    /**
+    <summary>This is the sychronous version of the generic Put used by both the
+    Put and Create methods.  The use of the unique variable differentiates the
+    two.  Returns true if successful or an exception if there are network
+    errors in adding the entry, creates also fail if a previous entry exists.
+    </summary>
+    <param name="key">The index to store the value at.</param>
+    <param name="value">The value to store.</param>
+    <param name="ttl">The dht lease time for the key:value pair.</param>
+    <param name="unique">True to do a create, false otherwise.</param>
+    <returns>True if success, exception on fail</returns>
+    */
     public bool Put(MemBlock key, MemBlock value, int ttl, bool unique) {
       BlockingQueue returns = new BlockingQueue();
       AsPut(key, value, ttl, returns, unique);
@@ -463,6 +607,20 @@ namespace Brunet.DistributedServices {
       }
     }
 
+    /**
+    <summary>This is the generic Put that is used by both the regular Put and
+    Create methods.  The use of the unique variable differentiates the two.
+    This is asynchronous.  Results are stored in the Channel returns.
+    Creates and Puts return true if successful or exception if there are
+    network errors in adding the entry, creates also fail if a previous
+    entry exists.  The work of determining success is handled in
+    PutEnqueueHandler and PutCloseHandler.</summary>
+    <param name="key">The index to store the value at.</param>
+    <param name="value">The value to store.</param>
+    <param name="ttl">The dht lease time for the key:value pair.</param>
+    <param name="returns">The Channel where the result will be placed.</param>
+    <param name="unique">True to do a create, false otherwise.</param>
+    */
     public void AsPut(MemBlock key, MemBlock value, int ttl, Channel returns, bool unique) {
       if (!Activated) {
         throw new Exception("DhtClient: Not yet activated.");
@@ -495,11 +653,14 @@ namespace Brunet.DistributedServices {
       }
     }
 
-    /* We receive an Channel use it to map to our state and update the 
-     * necessary, we'll get this even after a user has received his value, so
-     * that we can ensure all places in the ring actually get the data.  Should
-     * timeout after 5 minutes though!
-     */
+    /**
+    <summary>Uses the channel to determine which Put this is processing.
+    Returns true if we've received a MAJORITY of votes or an exception if a
+    enough negative results come in.  The returns are enqueued to the users
+    returns Channel.<summary>
+    <param name="o">The channel used by put.</param>
+    <param name="args">Unused.</param>
+    */
     public void PutEnqueueHandler(Object o, EventArgs args) {
       Channel queue = (Channel) o;
       // Get our mapping
@@ -541,6 +702,15 @@ namespace Brunet.DistributedServices {
       }
     }
 
+    /**
+    <summary>Uses the channel to determine which Put this is processing.
+    This is called when the ReqrepManager has timed out our Rpc and this is
+    viewed as a negative resultReturns true if we've received a MAJORITY of votes or an exception if a
+    enough negative results come in.  The returns are enqueued to the users
+    returns Channel.<summary>
+    <param name="o">The channel used by put.</param>
+    <param name="args">Unused.</param>
+    */
     public void PutCloseHandler(Object o, EventArgs args) {
       Channel queue = (Channel) o;
       queue.CloseEvent -= this.PutCloseHandler;
@@ -569,9 +739,12 @@ namespace Brunet.DistributedServices {
       }
     }
 
-    /* Get the hash of the first key and add 1/DEGREE * Address space
-     * to each successive key
-     */
+    /**
+    <summary>Get the hash of the first key and add 1/DEGREE * Address space
+    to each successive key.  The results are the positions in the ring where
+    the data should be stored.</summary>
+    <param name="key">The key to index.</param>
+    */
     public MemBlock[] MapToRing(byte[] key) {
       MemBlock[] targets = new MemBlock[DEGREE];
       // Setup the first key
@@ -592,6 +765,9 @@ namespace Brunet.DistributedServices {
       return targets;
     }
 
+    /**
+    <summary>Stores the state used for asynchronous puts.</summary>
+    */
     protected class AsDhtPutState {
       public object SyncRoot = new object();
       public Hashtable queueMapping = new Hashtable();
@@ -603,6 +779,9 @@ namespace Brunet.DistributedServices {
       }
     }
 
+    /**
+    <summary>Stores the state used for asynchronous gets.</summary>
+    */
     protected class AsDhtGetState {
       public object SyncRoot = new object();
       public bool GotToLeaveEarly = false;

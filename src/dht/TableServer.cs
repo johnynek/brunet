@@ -31,40 +31,79 @@ using System.Threading;
 using Brunet;
 
 namespace Brunet.DistributedServices {
+  /**
+  <summary>The TableServer provides the Dht server end point.</summary>
+  <remarks>Besides providing entry points for dht operations such as Get, Put,
+  and Create; it also contains the logic necessary to transfer keys when there
+  is churn in the system, this is implemented in ConnectionHandler,
+  DepartureHandler, and TransferState.</remarks>
+  */
   public class TableServer : IRpcHandler {
-    protected object _sync, _transfer_sync;
-
-    /* Why on earth does the SortedList only allow sorting based upon keys?
-     * I should really implement a more general SortedList, but we want this 
-     * working asap...
-     */
-    private TableServerData _data;
-    private Node _node;
-    protected Address _right_addr = null, _left_addr = null;
-    protected TransferState _right_transfer_state = null, _left_transfer_state = null;
-    protected bool _dhtactivated = false, disconnected = false;
+    /// <summary>Used to lock the TableServerData.</summary>
+    protected readonly Object _sync;
+    /// <summary>Used to lock connection and transfer state.</summary>
+    protected readonly Object _transfer_sync;
+    /// <summary>The data store for this dht server</summary>
+    protected readonly TableServerData _data;
+    /// <summary>The node the dht is serving from.</summary>
+    protected readonly Node _node;
+    /// <summary>Our right neighbors address.</summary>
+    protected Address _right_addr = null;
+    /// <summary>Our left neighbors address.</summary>
+    protected Address _left_addr = null;
+    /// <summary>The current transfer state to our right.</summary>
+    protected TransferState _right_transfer_state = null;
+    /// <summary>The current transfer state to our left.</summary>
+    protected TransferState _left_transfer_state = null;
+    /**  <summary>Do not allow dht operations until
+    StructuredConnectionOverlord is connected.</summary>*/
+    protected bool _dhtactivated = false;
+    /// <summary>This is set once Disconnect is called on _node.</summary>
+    protected bool disconnected = false;
+    /// <summary>True if the dht is usable.</summary>
     public bool Activated { get { return _dhtactivated; } }
-    public bool debug = false;
+    /// <summary>Total count of key:value pairs stored locally.</summary>
     public int Count { get { return _data.Count; } }
+    /// <summary>Maximum size for all values stored here.</summary>
     public const int MAX_BYTES = 1024;
-    private RpcManager _rpc;
+    /// <summary>The RpcManager the dht is serving from.</summary>
+    protected readonly RpcManager _rpc;
 
-    public TableServer(Node node, RpcManager rpc) {
-      _sync = new object();
+    /**
+    <summary>Creates a new TableServer object and registers it to the "dht"
+    handler in the node's RpcManager.</summary>
+    <param name="node">The node the dht is to serve from.</param>
+    */
+    public TableServer(Node node) {
+      _sync = new Object();
+      _transfer_sync = new Object();
+
       _node = node;
-      _rpc = rpc;
+      _rpc = RpcManager.GetInstance(node);
+
       _data = new TableServerData(_node);
-      _transfer_sync = new object();
       lock(_transfer_sync) {
         node.ConnectionTable.ConnectionEvent += this.ConnectionHandler;
         node.ConnectionTable.DisconnectionEvent += this.ConnectionHandler;
         node.ConnectionTable.StatusChangedEvent += this.StatusChangedHandler;
         node.DepartureEvent += this.DepartureHandler;
       }
+
+      _rpc.AddHandler("dht", this);
     }
 
-//  We implement IRpcHandler to help with Puts, so we must have this method to process
-//  new Rpc commands on this object
+    /**
+    <summary>This provides faster translation for Rpc methods as well as allows
+    for Asynchronous Rpc calls which are required for Puts and Creates.
+    </summary>
+    <param name="caller">The ISender who made the request.</param>
+    <param name="method">The method requested.</param>
+    <param name="args">A list of arguments to pass to the method.</param>
+    <param name="rs">The return state sent back to the RpcManager so that it
+    knows who to return the result to.</param>
+    <exception cref="Brunet::DistributedServices::Dht::Exception">Thrown when
+    there the method is not Put, PutHandler, Get, Dump, or Count</exception>
+    */
     public void HandleRpc(ISender caller, string method, IList args, object rs) {
       object result = null;
       try {
@@ -113,25 +152,26 @@ namespace Brunet.DistributedServices {
     }
 
     /**
-     * This method is called by a Dht client to place data into the Dht
-     * @param key key associated with the date item
-     * @param key key associated with the date item
-     * @param data data associated with the key
-     * @param ttl time-to-live in seconds
-     * @param unique determines whether or not this is a put or a create
-     * @return true on success, thrown exception on failure
+    <summary>Called by a Dht client to store data here, this supports both Puts
+    and Creates by using the unique parameter.</summary>
+    <remarks>Puts will store the value no matter what, Creates will only store
+    the value if they are the first ones to store data on that key.  This is
+    the first part of a Put operation.  This calls PutHandler on itself and
+    the neighbor nearest to the key, which actually places the data into the
+    store.  The result is returned to the client upon completion of the call
+    to the neighbor, if that fails the data is removed locally and an exception
+    is sent to the client indicating failure.</remarks>
+    <param name="key">The index to store the data at.</param>
+    <param name="value">Data to store at the key.</param>
+    <param name="ttl">Dht lease time in seconds</param>
+    <param name="unique">True if this should perform a create, false otherwise.
+    </param>
+    <param name="rs">The return state sent back to the RpcManager so that it
+    knows who to return the result to.</param>
+    <returns>True on success, thrown exception on failure</returns>
+    <exception cref="Exception">Data is too large, unresolved remote issues,
+    or the create is no successful</exception>
     */
-
-    /* First we try locally and then remotely, they should both except if 
-     * failure, so if we get rv == true + exception, we were successful
-     * but remote wasn't, so we remove locally
-     */
-
-        // Here we receive the results of our put follow ups, for simplicity, we
-        // have both the local Put and the remote PutHandler return the results
-        // via the Channel.  If it fails, we remove it locally, if the item
-        // was never created it shouldn't matter.
-
 
     public bool Put(MemBlock key, MemBlock value, int ttl, bool unique, object rs) {
       if(value.Length > MAX_BYTES) {
@@ -187,12 +227,22 @@ namespace Brunet.DistributedServices {
     }
 
     /**
-     * This method puts in a key-value pair at this node
-     * @param key key associated with the date item
-     * @param data data associated with the key
-     * @param ttl time-to-live in seconds
-     * @return true on success, thrown exception on failure
-     */
+    <summary>Attempts to store the key:value pair into this server.</summary>
+    <remarks>First the dht deletes any expired entries stored at the key,
+    second it retrieves the entries from the data store.  If it is empty it
+    creates a new entry and returns.  Otherwise, it looks for the value in
+    the list and updates the lease time.  If there is no entry for that
+    key:value pair it either adds it in the case of a put or throws an
+    exception if it is a create.</remarks>
+    <param name="key">The index to store the data at.</param>
+    <param name="value">Data to store at the key.</param>
+    <param name="ttl">Dht lease time in seconds</param>
+    <param name="unique">True if this should perform a create, false otherwise.
+    </param>
+    <returns>True on success, thrown exception on failure</returns>
+    <exception cref="Exception">Data is too large, unresolved remote issues,
+    or the create is no successful</exception>
+    */
 
     public bool PutHandler(MemBlock key, MemBlock value, int ttl, bool unique) {
       DateTime create_time = DateTime.UtcNow;
@@ -224,11 +274,15 @@ namespace Brunet.DistributedServices {
     }
 
     /**
-    * Retrieves data from the Dht
-    * @param key key associated with the date item
-    * @param maxbytes amount of data to retrieve
-    * @param token an array of ints used for continuing gets
-    * @return IList of results
+    <summary>Retrieves data from the Dht.</summary>
+    <remarks>First old entries for the key are deleted from the dht, second a
+    look up is performed, and finally using the token a range of data is
+    selectively returned.</remarks>
+    <param name="key">The index used to look up.</summary>
+    <param name="token">Contains the data necessary to do follow up look ups
+    if all the data stored in a key is to big for MAX_BYTES.</param>
+    <returns>IList of hashtables containing the results.  Compatible with
+    DhtGetResult.</returns>
     */
 
     public IList Get(MemBlock key, byte[] token) {
@@ -300,24 +354,41 @@ namespace Brunet.DistributedServices {
       return result;
     }
 
-    /** protected methods. */
-
-    /* This method checks to see if the node is connected and activates
-     * the Dht if it is.
-     */
+    /**
+    <summary>This method checks to see if the node is connected and activates
+    the Dht if it is.</summary>
+    <param name="contab">Unimportant to us!</param>
+    <param name="eargs">Unimportant to us!</param>
+    */
     protected void StatusChangedHandler(object contab, EventArgs eargs) {
       if(!_dhtactivated && _node.IsConnected) {
             _dhtactivated = true;
       }
     }
 
-    /* This is called whenever there is a disconnect or a connect, the idea
-     * is to determine if there is a new left or right node, if there is and
-     * there is a pre-existing transfer, we must interuppt it, and start a new
-     * transfer
-     */
+    /**
+    <summary>This is called whenever there is a disconnect or a connect, the
+    idea is to determine if there is a new left or right node, if there is and
+    here is a pre-existing transfer, we must interupt it, and start a new
+    transfer.</summary>
+    <remarks>The possible scenarios where this would be active:
+     - no change on left
+     - new left node with no previous node (from disc or new node)
+     - left disconnect and new left ready
+     - left disconnect and no one ready
+     - no change on right
+     - new right node with no previous node (from disc or new node)
+     - right disconnect and new right ready
+     - right disconnect and no one ready
+    </remarks>
+    <param name="o">Unimportant</param>
+    <param name="eargs">Contains the ConnectionEventArgs, which lets us know
+    if this was a Structured Connection change and if it is, we should check
+    the state of the system to see if we have a new left or right neighbor.
+    </param>
+    */
 
-    private void ConnectionHandler(object o, EventArgs eargs) {
+    protected void ConnectionHandler(object o, EventArgs eargs) {
       if(disconnected) {
         return;
       }
@@ -343,16 +414,6 @@ namespace Brunet.DistributedServices {
         }
         catch(Exception) {}
 
-        /* Cases
-         * no change on left
-         * new left node with no previous node (from disc or new node)
-         * left disconnect and new left ready
-         * left disconnect and no one ready
-         * no change on right
-         * new right node with no previous node (from disc or new node)
-         * right disconnect and new right ready
-         * right disconnect and no one ready
-         */
         if(lc != null) {
           if(lc.Address != _left_addr) {
             if(_left_transfer_state != null) {
@@ -395,7 +456,14 @@ namespace Brunet.DistributedServices {
       }
     }
 
-    private void DepartureHandler(Object o, EventArgs eargs) {
+    /**
+    <summary>Called by Node.Disconnect to trigger shutting down of the dht.
+    This shuts down transfer states and prevent any more transfers.
+    </summary>
+    <param name="o">Unimportant.</param>
+    <param name="eargs">Unimportant.</param>
+    */
+    protected void DepartureHandler(Object o, EventArgs eargs) {
       lock(_transfer_sync) {
         if(_right_transfer_state != null) {
           _right_transfer_state.Interrupt();
@@ -408,24 +476,68 @@ namespace Brunet.DistributedServices {
         this.disconnected = true;
       }
     }
-
-    // This contains all the logic used to do the actual transfers
+      /* Since there is support for parallel transfers, the methods for 
+    * inserting the first n versus the follow up puts are different,
+    * consider it an optimization.  The foreach loop goes through all the
+    * keys in the local ht, if it finds one that should be transferred, it
+    * goes through all the values for that key.  Once it reaches max 
+    * parallel transfers, it is done.
+      */
+    /**
+    <summary>This contains all the logic used to do the actual transfers.  This
+    does MAX_PARALLEL_TRANSFERS parallel transfer to speed up the transferring
+    of data to the new neighbor.  When a transfer is done, the next data to
+    transfer is transferred until they all are done.  The method Interrupt() is
+    an asynchronous call to stop transferring, it prevents new transfers from
+    starting but allows previously started ones to continue on.
+    </remarks>
+    */
     protected class TransferState {
-      protected object _sync = new object();
+      /// <summary>Lock for the enumeration of data to transfer</summary>
+      protected Object _sync = new Object();
+      /// <summary>The maximum amount of transfers to make in parallel.</summary>
       protected const int MAX_PARALLEL_TRANSFERS = 10;
-      private volatile bool _interrupted = false;
+      /// <summary>Set when no more transfers should be made.</summary>
+      protected volatile bool _interrupted = false;
+      /// <summary>A linkedlist of Entry arrays containing data to transfer.</summary>
       LinkedList<Entry[]> key_entries = new LinkedList<Entry[]>();
-      private IEnumerator _entry_enumerator;
+      /// <summary>An enumerator for key_entries.</summary>
+      protected IEnumerator _entry_enumerator;
+      /// <summary>The connection to the neighbor we're sending the data to.</summary>
       Connection _con;
+      /// <summary>The tableserver we're providing the transfer for.</summary>
       TableServer _ts;
 
-      /* Since there is support for parallel transfers, the methods for 
-       * inserting the first n versus the follow up puts are different,
-       * consider it an optimization.  The foreach loop goes through all the
-       * keys in the local ht, if it finds one that should be transferred, it
-       * goes through all the values for that key.  Once it reaches max 
-       * parallel transfers, it is done.
-       */
+      /**
+      <summary>Begins a new transfer state to the neighbor connected via con.
+      </summary>
+      <param name="con">The connection to the neigbhor we will be transferring
+      data to.</param>
+      <param name="ts">The table server we're providing the transfer for.  C#
+      does not allow sub-class objects to have access to their parent objects
+      member variables, so we pass it in like this.</param>
+      <remarks>
+      Step 1:
+
+      Get all the keys between me and my new neighbor.
+
+      Step 2:
+
+      Get all values for those keys, we copy so that we don't worry about
+      changes to the dht during this interaction.  This is only a pointer
+      copy and since we let the OS deal with removing the contents of an
+      entry, we don't need to make copies of the actual entry.
+
+      Step 3:
+
+      Generate another list of keys of up to max parallel transfers and begin
+      transferring, that way we do not need to lock access to the entry
+      enumerator until non-constructor puts.
+
+      Step 4:
+
+      End constructor, results from puts, cause the next entry to be sent.
+      */
       public TransferState(Connection con, TableServer ts) {
         this._ts = ts;
         this._con = con;
@@ -493,7 +605,11 @@ namespace Brunet.DistributedServices {
         }
       }
 
-      private IEnumerator GetEntryEnumerator() {
+      /**
+      <summary>Returns an enumerator for key_entries.</summary>
+      <returns>The enumerator for key_entries.</returns>
+      */
+      protected IEnumerator GetEntryEnumerator() {
         foreach(Entry[] entries in key_entries) {
           foreach(Entry entry in entries) {
             yield return entry;
@@ -501,10 +617,15 @@ namespace Brunet.DistributedServices {
         }
       }
 
-      /* This determines if there is a new value to be transferred or if the
-       * transfer is complete
-       */
-      private void NextTransfer(Object o, EventArgs eargs) {
+      /**
+      <summary>This is called by all completed transfers.  It checks to see if
+      there is another value to transfer, transfers it if there is.  Otherwise
+      it calls Done.</summary>
+      <param name="o">The Channel where the result of the previous transfer is
+      stored.</param>
+      <param name="eargs">Null</param>
+      */
+      protected void NextTransfer(Object o, EventArgs eargs) {
         Channel queue = (Channel) o;
         queue.CloseEvent -= this.NextTransfer;
         /* No point in dequeueing, if we've been interrupted, we most likely
@@ -524,6 +645,8 @@ namespace Brunet.DistributedServices {
           }
         }
 
+        /* An exception could be thrown if Done is called in another thread or
+        there are no more entries available. */
         Entry ent = null;
         try {
           lock(_sync) {
@@ -557,12 +680,20 @@ namespace Brunet.DistributedServices {
         }
       }
 
+      /**
+      <summary>An asyncronous interrupt that prevents future transfers, but
+      does not stop current transfers.  Calls done.</summary>
+      */
       public void Interrupt() {
         _interrupted = true;
         Done();
       }
 
-      private void Done() {
+      /**
+      <summary>Used to clear out the key_entries when done to assist in
+      garbage collection.</summary>
+      */
+      protected void Done() {
         key_entries.Clear();
       }
     }
