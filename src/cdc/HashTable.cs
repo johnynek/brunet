@@ -61,11 +61,6 @@ namespace Brunet.Cdc
      */
     abstract public IAsyncResult BeginSwap(MemBlock key, MemBlock new_value, AsyncCallback cb,
                                            object state);
-    /** create a new random key
-     * Some protocols need to be able to create random keys.  These should
-     * be very (VERY) unlikely to collide globally.
-     */
-    abstract public MemBlock CreateRandomKey();
     /** End of a Compare-and-Swap
      * @return the value before the the BeginCompareSwap was called.
      * Note the swap succeeds if and only if the return value == old_value
@@ -144,14 +139,12 @@ namespace Brunet.Cdc
     }
     protected readonly System.Collections.Hashtable _ht;
     protected readonly object _sync;
-    protected readonly Random _rand;
 
     /** Creates a Concurrent Local HashTable
      */
     public LocalHashTable() {
       _ht = new System.Collections.Hashtable();
       _sync = new object();
-      _rand = new Random();
     }
     
     /** Begin a Compare-and-Swap operation
@@ -213,22 +206,6 @@ namespace Brunet.Cdc
       IAsyncResult r = new LhtAsResult(state, old_v);
       cb(r);
       return r;
-    }
-    /** return a new random key
-     * @todo depending on how this class is used, we need to improve the
-     * quality of rng.
-     */
-    override public MemBlock CreateRandomKey() {
-      /*
-       * As long as we use System.Random, there is
-       * no use in putting more than 4 bytes, since
-       * there are only 4 bytes of randomness in System.Random,
-       * so, given 4 bytes, you can compute all the future
-       * values.
-       */
-      byte[] key_buf = new byte[4];
-      _rand.NextBytes(key_buf);
-      return MemBlock.Reference(key_buf);
     }
     /** End of a Compare-and-Swap
      * @return the value before the the BeginCompareSwap was called.
