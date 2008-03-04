@@ -23,13 +23,22 @@ using System;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Net.Sockets;
+using System.IO;
+using System.Xml;
+using System.Xml.Serialization;
 
 namespace Brunet.Applications {
+  /**
+  Provides features commonly necessary in handling configuration of Brunet and
+  features found in BasicNode.
+  */
   public class Utils {
     /**
-     * Retrieves the geographical location of the host running the process
-     * @return the geo location in the form of "latitude, longitude)
-     */
+    <summary>Retrieves the geographical location of the host running the
+    process by communicating with a service provided by www.grid-appliance.org.
+    </summary>
+    <returns>The geo location in the form of "latitude, longitude".</returns>
+    */
     public static string GetMyGeoLoc() {
       try {
         string server = "www.grid-appliance.org";
@@ -65,11 +74,11 @@ namespace Brunet.Applications {
     }
 
     /**
-     * Converts a string of data represented as decimal bytes separated by a 
-     * single character (like ip addresses)
-     * @param input the string to separate
-     * @param sep the separation character (commonly '.' or ',')
-     * @return The resulting byte array
+    <summary>Converts a string of data represented as decimal bytes separated
+    by a single character (like ip addresses)</summary>
+    <param name="input">The string to parse.</param>
+    <param name="sep">The separation character (commonly '.' or ',').</param>
+    <returns>The converted byte array.</returns>
      */
     public static byte [] StringToBytes(string input, char sep) {
       char [] separator = {sep};
@@ -82,12 +91,12 @@ namespace Brunet.Applications {
     }
 
     /**
-     * Converts a string of data represented as hex bytes separated by a 
-     * single character (like ethernet addresses)
-     * @param input the string to separate
-     * @param sep the separation character (commonly '.' or ',')
-     * @return The resulting byte array
-     */
+    <summary>Converts a string of data represented as hex bytes separated by a 
+    single character (like ethernet addresses: FE:F0:00:00:01:02)</summary>
+    <param name="input">The string to parse.</param>
+    <param name="sep">The separation character (commonly '.' or ',')</param>
+    <returns>The converted byte array</returns>
+    */
     public static byte [] HexStringToBytes(string input, char sep) {
       char [] separator = {sep};
       string[] ss = input.Split(separator);
@@ -99,11 +108,12 @@ namespace Brunet.Applications {
     }
 
     /**
-     * Converts a MemBlock to a string using char sep inbetween each byte
-     * @param input MemBlock to convert to string
-     * @param sep the separation character (commonly '.' or ',')
-     * @return returns the converted string
-     */
+    <summary>Converts a MemBlock to a string using char sep inbetween each
+    byte.</summary>
+    <param name="input">MemBlock to convert to string</param>
+    <param name="sep"> the separation character (commonly '.' or ',')</param>
+    <returns>The converted string.</returns>
+    */
     public static string MemBlockToString(MemBlock input, char sep) {
       string return_msg = "";
       for(int i = 0; i < input.Length - 1; i++)
@@ -113,19 +123,20 @@ namespace Brunet.Applications {
     }
 
     /**
-     * Converts a set of bytes to a string using char sep inbetween each byte
-     * @param input byte array to convert to string
-     * @param sep the separation character (commonly '.' or ',')
-     * @return returns the converted string
-     */
+    <summary>Converts a set of bytes to a string using char sep inbetween each
+    byte.</summary>
+    <param name="input">Byte array to convert to string</param>
+    <param name="sep"> the separation character (commonly '.' or ',')</param>
+    <returns>The converted string</returns>
+    */
     public static string BytesToString(byte [] input, char sep) {
       return MemBlockToString(MemBlock.Reference(input), sep);
     }
 
     /**
-     * Generates a new AHAddress
-     * @return returns as type byte[]
-     */
+    <summary>Generates a new AHAddress as a byte array.</summary>
+    <returns>An unique AHAddress as type byte[].</returns>
+    */
     public static byte [] GenerateAddress() {
       AHAddress temp = GenerateAHAddress();
       byte [] tempb = new byte[20];
@@ -134,11 +145,38 @@ namespace Brunet.Applications {
     }
 
     /**
-     * Generates a new AHAddress
-     * @return returns as type AHAddress
-     */
+    <summary>Generates an unique AHAddress.</summary>
+    <returns>An unique AHAddress</returns>
+    */
     public static AHAddress GenerateAHAddress() {
       return new AHAddress(new RNGCryptoServiceProvider());
+    }
+
+    /**
+    <summary>A XML to a generic object of type T, used for configuration
+    objects</summary>
+    <param name="path">The location of the xml config file to read</param>
+    <returns>An object of type T</returns>
+    */
+    public static T ReadConfig<T>(String path) {
+      XmlSerializer serializer = new XmlSerializer(typeof(T));
+      T config = default(T);
+      using(FileStream fs = new FileStream(path, FileMode.Open)) {
+        config = (T) serializer.Deserialize(fs);
+      }
+      return config;
+    }
+
+    /**
+    <summary>A generic object to XML, used for configuration objects</summary>
+    <param name="path">The full path where the file will be stored.</param>
+    <param name="config">An object to be written to the path as an XML file</param>
+    */
+    public static void WriteConfig(String path, Object config) {
+      using(FileStream fs = new FileStream(path, FileMode.Create, FileAccess.Write)) {
+        XmlSerializer serializer = new XmlSerializer(config.GetType());
+        serializer.Serialize(fs, config);
+      }
     }
   }
 }

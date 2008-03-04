@@ -59,9 +59,17 @@ namespace Brunet
         // Allows for multiple Multicast clients on the same host!
         _mc.SetSocketOption(SocketOptionLevel.Socket, 
                             SocketOptionName.ReuseAddress, true);
-        _mc.Bind(mc_endpoint);
+        _mc.Bind(new IPEndPoint(IPAddress.Any, mc_port));
+
+        // We need to add a group membership for all IPAddresses on the local machine
+        foreach(IPAddress ip in GetLocalIPAddresses()) {
+          _mc.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership,
+            new MulticastOption(mc_addr, ip));
+        }
         _mc.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership,
-          new MulticastOption(mc_addr, IPAddress.Any));
+          new MulticastOption(mc_addr, IPAddress.Loopback));
+
+        _mc.MulticastLoopback = true;
       }
       catch {
         _mc = null;
@@ -177,8 +185,8 @@ namespace Brunet
      * key:value = ip:value, where the value is irrelevant (use true if you want)
      * @return The multicast ISender
      */
-    public ISender CreateMulticastSender(Hashtable BlockedIPs) {
-      return new MulticastSender(_uc, BlockedIPs);
+    public ISender CreateMulticastSender(IPAddress[] LocalIPAddresses) {
+      return new MulticastSender(_uc, LocalIPAddresses);
     }
 
     /**
@@ -256,21 +264,19 @@ namespace Brunet
 
   public class MulticastSender: UnicastSender 
   {
-    public readonly Hashtable BlockedIPs;
+    public readonly IPAddress[] LocalIPAddresses;
     public MulticastSender(Socket s):base(s, IPHandler.mc_endpoint) {
-      this.BlockedIPs = new Hashtable(0);
+      this.LocalIPAddresses = null;
     }
-    public MulticastSender(Socket s, Hashtable BlockedIPs): base(s, IPHandler.mc_endpoint) {
-      if(BlockedIPs == null) {
-        this.BlockedIPs = new Hashtable(0);
-      }
-      else {
-        this.BlockedIPs = BlockedIPs;
-      }
+    public MulticastSender(Socket s, IPAddress[] LocalIPAddresses): base(s, IPHandler.mc_endpoint) {
+      this.LocalIPAddresses = LocalIPAddresses;
     }
 
     public override void Send(ICopyable data) {
-      IPAddress[] ips = IPHandler.GetLocalIPAddresses();
+      IPAddress[] ips = LocalIPAddresses;
+      if(ips == null) {
+        ips = IPHandler.GetLocalIPAddresses();
+      }
       // Silly users can trigger a handful of exceptions here...
       try {
         byte[] buffer = new byte[data.Length];
@@ -278,9 +284,6 @@ namespace Brunet
         // I REALLY HATE THIS but we can't be setting this option in more than one thread!
         lock(_s) {
           foreach(IPAddress ip in ips) {
-            if(BlockedIPs.Contains(ip)) {
-              continue;
-            }
             /*
              * This can throw an exception on an invalid address, we need to skip it and move on!
              * Never showed to be an issue in Linux, but Windows does some weird things.
