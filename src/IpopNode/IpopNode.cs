@@ -196,7 +196,6 @@ namespace Ipop {
     packet.</param>
     */
     public virtual void HandleIPIn(MemBlock packet, ISender ret) {
-      ICopyable icpacket = packet;
       if(_translator != null) {
         Address addr = null;
         try {
@@ -206,14 +205,15 @@ namespace Ipop {
         catch {
           ProtocolLog.Write(IpopLog.PacketLog, String.Format(
             "Incoming packet was not from an AHSender: {0}.", ret));
+          return;
         }
         try {
-          IPPacket ipp = _translator.Translate(new IPPacket(packet), addr);
-          icpacket = ipp.ICPacket;
+          packet = _translator.Translate(packet, addr);
         }
         catch {
           ProtocolLog.Write(IpopLog.PacketLog,
                  String.Format("No route from: {0}.", addr));
+          return;
         }
       }
 
@@ -227,7 +227,7 @@ namespace Ipop {
 
       if(MACAddress != null) {
         EthernetPacket res_ep = new EthernetPacket(MACAddress, EthernetPacket.UnicastAddress,
-            EthernetPacket.Types.IP, icpacket);
+            EthernetPacket.Types.IP, packet);
         Ethernet.Send(res_ep.ICPacket);
       }
     }
@@ -471,11 +471,11 @@ namespace Ipop {
     /**
     <summary>This takes in an IPPacket, translates it and returns the resulting
     IPPacket</summary>
-    <param name="ipp">The IP Packet to translate.</param>
+    <param name="packet">The IP Packet to translate.</param>
     <param name="from">The Brunet address the packet was sent from.</param>
     <returns>The translated IP Packet.</returns>
     */
-    IPPacket Translate(IPPacket ipp, Address from);
+    MemBlock Translate(MemBlock packet, Address from);
   }
 }
 

@@ -17,6 +17,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using Brunet;
+using System;
 
 /**
 \namespace NetworkPackets
@@ -266,11 +267,13 @@ namespace NetworkPackets {
       }
     }
 
-    /// <summary> Enumeration of Protocols used by Ipop </summary>
+    /// <summary> Enumeration of Protocols used by Ipop.</summary>
     public enum Protocols {
-      /// <summary>Internet Group Management Protocol</summary>
+      /// <summary>Internet Group Management Protocol.</summary>
       IGMP = 2,
-      /// <summary>User Datagram Protocol</summary>
+      /// <summary>Transmission Control Protocol.</summary.
+      TCP = 6,
+      /// <summary>User Datagram Protocol.</summary>
       UDP = 17
     };
     /// <summary>The protocol for this packet.</summary>
@@ -319,7 +322,7 @@ namespace NetworkPackets {
         header[12 + i] = SourceIP[i];
         header[16 + i] = DestinationIP[i];
       }
-      int checksum = GenerateIPHeaderChecksum(MemBlock.Reference(header));
+      int checksum = GenerateChecksum(MemBlock.Reference(header));
       header[10] = (byte) ((checksum >> 8) & 0xFF);
       header[11] = (byte) (checksum & 0xFF);
 
@@ -333,24 +336,96 @@ namespace NetworkPackets {
     }
 
     /**
-    <summary>Generates an 32-bit IP Header checksum based upon the header as
-    specified in IP specifications.</summary>
-    <param name="header">The IP Header to base the checksum on.</param>
-    <returns>a 32-bit IP header checksum</returns>
+    <summary>If we're not creating a packet from scratch, this will keep its
+    integrity and transform UDP and TCP headers as well (due to their checksums
+    being dependent on source and destination ip addresses.</summary>
+    <param name="Packet">The packet to translate.</param>
+    <param name="SourceIP">The new source ip.</param>
+    <param name="DestinationIP">The new destination ip.</param>
     */
-    protected int GenerateIPHeaderChecksum(MemBlock header) {
+    public static MemBlock Translate(MemBlock Packet, MemBlock SourceIP,
+                                     MemBlock DestinationIP) {
+      byte[] new_packet = new byte[Packet.Length];
+      Packet.CopyTo(new_packet, 0);
+      int length = (Packet[0] & 0xF) * 4;
+      SourceIP.CopyTo(new_packet, 12);
+      DestinationIP.CopyTo(new_packet, 16);
+      // Zero out the checksum so we don't use it in our future calculations
+      new_packet[10] = 0;
+      new_packet[11] = 0;
+      MemBlock header = MemBlock.Reference(new_packet, 0, length);
+      int checksum = GenerateChecksum(header);
+      new_packet[10] = (byte) ((checksum >> 8) & 0xFF);
+      new_packet[11] = (byte) (checksum & 0xFF);
+      Protocols p = (Protocols) Packet[9];
+
+      if(p == Protocols.UDP) {
+        // Zero out the checksum to disable it
+        new_packet[length + 6] = 0;
+        new_packet[length + 7] = 0;
+      }
+      else if(p == Protocols.TCP) {
+        // Zero out the checksum so we don't use it in our future calculations
+        new_packet[length + 16] = 0;
+        new_packet[length + 17] = 0;
+        MemBlock payload = MemBlock.Reference(new_packet).Slice(length);
+        MemBlock pseudoheader = IPPacket.MakePseudoHeader(SourceIP,
+            DestinationIP, (byte) Protocols.TCP, Packet.Length - 20);
+        checksum = IPPacket.GenerateChecksum(payload, pseudoheader);
+        new_packet[length + 16] = (byte) ((checksum >> 8) & 0xFF);
+        new_packet[length + 17] = (byte) (checksum & 0xFF);
+      }
+      return MemBlock.Reference(new_packet);
+    }
+
+    /**
+    <summary>Generates an 16-bit IP (UDP, TCP) checksum based upon header and
+    optional extra memory blocks placed into args.</summary>
+    <param name="header">The Header to base the checksum on.</param>
+    <param name="args">Any extra memory blocks to include in checksum
+    calculations.</param>
+    <returns>a 16-bit IP header checksum.</returns>
+    */
+    public static int GenerateChecksum(MemBlock header, params Object[] args) {
       int value = 0;
-      for(int i = 0; i < 20; i+=2) {
+      int length = header.Length;
+
+      for(int i = 0; i < length; i+=2) {
         byte first = header[i];
-        byte second = header[i+1];
+        byte second =  (length == i + 1) ? (byte) 0 : header[i+1];
         value += second + (first << 8);
       }
+
+      for(int j = 0; j < args.Length; j++) {
+        MemBlock tmp = (MemBlock) args[j];
+        length = tmp.Length;
+        for(int i = 0; i < length; i+=2) {
+          byte first = tmp[i];
+          byte second =  (length == i + 1) ? (byte) 0 : tmp[i+1];
+          value += second + (first << 8);
+        }
+      }
+
       while(value >> 16 > 0) {
         value = (value & 0xFFFF) + (value >> 16);
       }
+
       return ~value;
     }
-  }
+
+    public static MemBlock MakePseudoHeader(MemBlock SourceIP,
+                                            MemBlock DestinationIP,
+                                            byte Protocol,
+                                            int Length) {
+        byte[] pseudoheader = new byte[12];
+        SourceIP.CopyTo(pseudoheader, 0);
+        DestinationIP.CopyTo(pseudoheader, 4);
+        pseudoheader[9] = Protocol;
+        pseudoheader[10] = (byte) ((Length >> 8) & 0xFF);
+        pseudoheader[11] = (byte) (Length & 0xFF);
+        return MemBlock.Reference(pseudoheader);
+      }
+    }
 
   /**
   <summary>Provides an encapsulation for UDP Packets and can create new UDP
@@ -410,25 +485,6 @@ namespace NetworkPackets {
       header[7] = (byte) 0;
       _icpacket = new CopyList(MemBlock.Reference(header), Payload);
       _icpayload = Payload;
-    }
-
-    /**
-    <summary>Generates the udp checksum for the entire packet, this is
-    currently broken and unused as it is unnecessary.</summary>
-    <returns>Returns back the 16-bit checksum </returns>
-    */
-    protected int GenerateUDPChecksum() {
-      int value = 0;
-      for(int i = 12; i < Packet.Length; i+=2) {
-        byte first = Packet[i];
-        byte second = (i+1 == Packet.Length) ? (byte) 0 : Packet[i+1];
-        value += (second + (first << 8));
-      }
-      value += 17 + Packet.Length;
-      while(value>>16 > 0) {
-        value = (value & 0xFFFF) + (value >> 16);
-      }
-      return (0xFFFF & ~value);
     }
   }
 
