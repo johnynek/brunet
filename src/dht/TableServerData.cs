@@ -21,7 +21,10 @@ using System.Collections.Generic;
 using System.Collections;
 using System.IO;
 
-using Brunet;
+#if BRUNET_NUNIT
+using NUnit.Framework;
+using System.Security.Cryptography;
+#endif
 
 namespace Brunet.DistributedServices {
   /**
@@ -46,7 +49,10 @@ namespace Brunet.DistributedServices {
   Cache _data = new Cache(2500);
   </code>
   </para></remarks>
-   */
+  */
+  #if BRUNET_NUNIT
+  [TestFixture]
+  #endif
   public class TableServerData {
     /**  <summary>Every 24 hours all entries in the table are checked to see if
     their lease had expired, this contains the last time that occurred.
@@ -57,13 +63,14 @@ namespace Brunet.DistributedServices {
     /**  <summary>LinkedList of values stored in  a hashtable, indexed by key.
     </summary> */
     Hashtable _data = new Hashtable();
-
     /// <summary>The base directory for uncached entries.</summary>
     protected string _base_dir;
     /// <summary>The total amount of key:value pairs stored.</summary>
     public int Count { get { return count; } }
     /// <summary>The total amount of key:value pairs stored.</summary>
-    private int count = 0;
+    protected int count = 0;
+    /// <summary>The time in seconds between cleanups.</summary>
+    public readonly int TimeBetweenCleanup;
 
     /**
     <summary>Creates a new data store for the dht.</summary>
@@ -77,6 +84,7 @@ namespace Brunet.DistributedServices {
 //      _data.MissEvent += this.CacheMiss;
       _base_dir = Path.Combine("data", node.Address.ToString().Substring(12));
       CleanUp(null, null);
+      TimeBetweenCleanup = 60*60*24;
     }
 
     /**
@@ -192,7 +200,7 @@ namespace Brunet.DistributedServices {
     */
     public void CheckEntries() {
       DateTime now = DateTime.UtcNow;
-      if(now - last_clean < TimeSpan.FromHours(24)) {
+      if(now - last_clean < TimeSpan.FromSeconds(TimeBetweenCleanup)) {
         return;
       }
       // Otherwise its time to do some cleaning!
@@ -283,6 +291,7 @@ namespace Brunet.DistributedServices {
     <returns>The entries for the specified key.</returns>
     */
     public LinkedList<Entry> GetEntries(MemBlock key) {
+      DeleteExpired(key);
       CheckEntries();
       return (LinkedList<Entry>) _data[key];
     }
@@ -325,17 +334,6 @@ namespace Brunet.DistributedServices {
       return list_of_keys;
     }
 
-    /* Sometimes our put succeeds, but our recursive fails, this method gets
-    * called to fix the mess
-    */
-    public void RemoveEntries(MemBlock key) {
-      LinkedList<Entry> data = (LinkedList<Entry>) _data[key];
-      if(data != null) {
-        count -= data.Count;
-        data.Clear();
-      }
-    }
-
     /**
     <summary>This removes an entry from the TableServerData, the current dht
     does not support deletes, but if the second stage of a put (the remote 
@@ -350,18 +348,23 @@ namespace Brunet.DistributedServices {
         while(current != null) {
           if (current.Value.Value.Equals(value)) {
             data.Remove(current);
+            count--;
             break;
           }
+        }
+        if(data.Count == 0) {
+          _data.Remove(key);
+        }
+        else {
           current = current.Next;
         }
-        count--;
       }
     }
 
     /**
     <summary>This should be called if an entry already exists as it will find
-    the entry and update its lease time.  If an entry does not exist and this
-    is called, it wil lcall AddEntry.</summary>
+    the entry and update its lease time.  If an entry does not exist nothing
+    happens.</summary>
     <param name="key">The index to store the value.</param>
     <param name="value">The data to store.</param>
     <param name="end_time">The lease time for the data.</param>
@@ -404,5 +407,174 @@ namespace Brunet.DistributedServices {
       }
       return entries;
     }
+
+#if BRUNET_NUNIT
+    //Needed for nunit testing
+    public TableServerData(String dir) {
+      _base_dir = Path.Combine("Data", dir);
+      TimeBetweenCleanup = 5;
+    }
+
+    // Needed for nunit to work
+    public TableServerData() {}
+
+    // Basic tests for Add, Update, and Remove
+    [Test]
+    public void Test0() {
+      RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
+      TableServerData tsd = new TableServerData("0");
+      byte[] key = new byte[20];
+      rng.GetBytes(key);
+      DateTime now = DateTime.UtcNow;
+      Entry ent = new Entry(key, key, now, now.AddSeconds(100));
+      tsd.AddEntry(ent);
+      LinkedList<Entry> entries = tsd.GetEntries(key);
+      Assert.AreEqual(1, entries.Count, "Count after add");
+      Assert.AreEqual(ent, entries.First.Value, "Entries are equal");
+      tsd.UpdateEntry(ent.Key, ent.Value, now.AddSeconds(200));
+      entries = tsd.GetEntries(key);
+      Assert.AreEqual(1, entries.Count, "Count after update");
+      Assert.AreEqual(ent, entries.First.Value, "Entries are equal");
+      tsd.RemoveEntry(ent.Key, ent.Value);
+      entries = tsd.GetEntries(key);
+      Assert.AreEqual(tsd.Count, 0, "Count after remove");
+      Assert.AreEqual(null, entries, "Entry after remove");
+    }
+
+    /*
+    This tests multiple puts on the same keys, updates on all 6 of the
+    not_expire2 and 1 of the to_expire.  So in short, this tests everything,
+    but GetEntriesBetween.and GetKeys.
+    */
+    [Test]
+    public void Test1() {
+      RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
+      TableServerData tsd = new TableServerData("0");
+      Entry[] not_expired = new Entry[12];
+      Entry[] to_expire = new Entry[12];
+      DateTime now = DateTime.UtcNow;
+      DateTime live = now.AddSeconds(120);
+      DateTime expire = now.AddSeconds(5);
+
+      for(int i = 0; i < 4; i++) {
+        byte[] key = new byte[20];
+        rng.GetBytes(key);
+        for(int j = 0; j < 3; j++) {
+          byte[] value = new byte[20];
+          rng.GetBytes(value);
+          Entry ent = new Entry(key, value, now, expire);
+          to_expire[i * 3 + j] = ent;
+          tsd.AddEntry(ent);
+          value = new byte[20];
+          rng.GetBytes(value);
+          ent = new Entry(key, value, now, live);
+          not_expired[i * 3 + j] = ent;
+          tsd.AddEntry(ent);
+          Assert.IsFalse(not_expired[i * 3 + j].Equals(to_expire[i * 3 + j]), 
+                         String.Format("{0}: not_expired == to_expire.", i * 3 + j));
+        }
+      }
+
+      for(int i = 0; i < 4; i++) {
+        LinkedList<Entry> entries = tsd.GetEntries(not_expired[i * 3].Key);
+        for(int j = 0; j < 3; j++) {
+          Assert.IsTrue(entries.Contains(not_expired[i * 3 + j]), "step 0: not_expired " + (i * 3 + j));
+          Assert.IsTrue(entries.Contains(to_expire[i * 3 + j]), "step 0: to_expire " + (i * 3 + j));
+        }
+      }
+
+      for(int i = 0; i < 4; i++) {
+        for(int j = 0; j < 3; j++) {
+          int pos = i * 3 + j;
+          if(pos % 2 == 0) {
+            Entry ent = not_expired[pos];
+            tsd.UpdateEntry(ent.Key, ent.Value, now.AddSeconds(160));
+          }
+        }
+      }
+
+      Entry entry = to_expire[11];
+      tsd.UpdateEntry(entry.Key, entry.Value, now.AddSeconds(160));
+
+      for(int i = 0; i < 4; i++) {
+        LinkedList<Entry> entries = tsd.GetEntries(not_expired[i * 3].Key);
+        for(int j = 0; j < 3; j++) {
+          Assert.IsTrue(entries.Contains(not_expired[i * 3 + j]), "step 1: not_expired " + (i * 3 + j));
+          Assert.IsTrue(entries.Contains(to_expire[i * 3 + j]), "step 1: to_expire " + (i * 3 + j));
+        }
+      }
+
+      while(DateTime.UtcNow < expire.AddSeconds(1)) {
+        for(int i = 0; i < 50000000; i++) {
+          int k = i % 5;
+         k += 6;
+        }
+      }
+      for(int i = 0; i < 3; i++) {
+        LinkedList<Entry> entries = tsd.GetEntries(not_expired[i * 3].Key);
+        for(int j = 0; j < 3; j++) {
+          Assert.IsTrue(entries.Contains(not_expired[i * 3 + j]), "step 2: not_expired " + (i * 3 + j));
+          Assert.IsFalse(entries.Contains(to_expire[i * 3 + j]), "step 2: to_expire " + (i * 3 + j));
+        }
+      }
+      Assert.AreEqual(13, tsd.Count, "Entries we didn't check are removed by CheckEntries.");
+    }
+
+    /*
+    This tests GetKeysBetween both with add1 < add2 and add2 < add1 and then
+    checks for the existence of all keys via GetKeys.
+    */
+    [Test]
+    public void Test2() {
+      TableServerData tsd = new TableServerData("0");
+      RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
+      MemBlock[] addresses = new MemBlock[100];
+      byte[] value = new byte[20];
+      rng.GetBytes(value);
+      DateTime now = DateTime.UtcNow;
+      DateTime lease_end = now.AddMinutes(1);
+      for(int i = 0; i < addresses.Length; i++) {
+        addresses[i] = (new AHAddress(rng)).ToMemBlock();
+        tsd.AddEntry(new Entry(addresses[i], value, now, lease_end));
+      }
+
+      AHAddress start = new AHAddress(rng);
+      AHAddress end = new AHAddress(rng);
+      LinkedList<MemBlock> keys_se = tsd.GetKeysBetween(start, end);
+      LinkedList<MemBlock> keys_es = tsd.GetKeysBetween(end, start);
+      String output = " - " +start + ":" + end;
+      if(start.IsLeftOf(end)) {
+        foreach(MemBlock address in addresses) {
+          AHAddress addr = new AHAddress(address);
+          if(addr.IsLeftOf(end) && addr.IsRightOf(start)) {
+            Assert.IsTrue(keys_se.Contains(address), addr + " in lse" + output);
+            Assert.IsTrue(keys_es.Contains(address), addr + " in les" + output);
+          }
+          else {
+            Assert.IsFalse(keys_se.Contains(address), addr + " out lse" + output);
+            Assert.IsFalse(keys_es.Contains(address), addr + " out les" + output);
+          }
+        }
+      }
+      else {
+        foreach(MemBlock address in addresses) {
+          AHAddress addr = new AHAddress(address);
+          if(addr.IsLeftOf(start) && addr.IsRightOf(end)) {
+            Assert.IsTrue(keys_se.Contains(address), addr + " in rse" + output);
+            Assert.IsTrue(keys_es.Contains(address), addr + " in res" + output);
+          }
+          else {
+            Assert.IsFalse(keys_se.Contains(address), addr + " out rse" + output);
+            Assert.IsFalse(keys_es.Contains(address), addr + " out res" + output);
+          }
+        }
+      }
+
+      LinkedList<MemBlock> keys = tsd.GetKeys();
+      foreach(MemBlock addr in addresses) {
+        Assert.IsTrue(keys.Contains(addr), "keys does not contain: " + (new AHAddress(addr)));
+      }
+    }
+#endif
   }
 }
