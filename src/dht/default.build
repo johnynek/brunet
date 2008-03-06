@@ -5,25 +5,25 @@
   <property name="build.dir" value="build"/>
   <property name="lib.dir" value="../../lib"/>
 
-  <target name="debug" description="Configures a debug build">
+  <target name="test" description="Configures a debug build">
     <copy todir="${build.dir}">
        <fileset basedir="${lib.dir}">
           <include name="Brunet.dll" />
        </fileset>
     </copy>
-    <csc target="library" define="DHT_DEBUG" output="${build.dir}/Brunet.Dht.dll">
+    <csc target="library" define="BRUNET_NUNIT" output="${build.dir}/Brunet.Dht.Test.dll">
       <sources failonempty="true">
         <include name="*.cs"/>
       </sources>
       <references>
         <include name="${build.dir}/Brunet.dll" />
+        <include name="nunit.framework.dll" />
       </references>
     </csc>
-    <copy todir="${lib.dir}">
-      <fileset basedir="${build.dir}">
-           <include name="Brunet.Dht.dll" />
-      </fileset>
-    </copy>
+    <nunit2>
+      <formatter type="Plain" />
+      <test assemblyname="${build.dir}/Brunet.Dht.Test.dll"/>
+    </nunit2>
   </target>
 
   <target name="build" description="Builds Brunet.Dht.dll for release">
@@ -36,8 +36,8 @@
       <sources failonempty="true">
         <include name="*.cs"/>
       </sources>
-      <references>
-        <include name="${build.dir}/Brunet.dll" />
+      <references basedir="${build.dir}">
+        <include name="Brunet.dll" />
       </references>
     </csc>
     <copy todir="${lib.dir}">
