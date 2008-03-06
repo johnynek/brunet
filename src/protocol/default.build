@@ -124,6 +124,25 @@
 
   </target>
 
+  <target name="nunit_test" description="Builds nunit testable Brunet.dll">
+    <mkdir dir="${build.dir}" failonerror="true"/>
+    <csc target="library" define="BRUNET_NUNIT" optimize="true"
+        output="${build.dir}/${assembly}.Test.dll">
+      <sources>
+        <include name="*.cs"/>
+        <include name="Util/*.cs"/>
+        <include name="Transport/*.cs"/>
+      </sources>
+      <references>
+        <include name="nunit.framework.dll" />
+      </references>
+    </csc>
+    <nunit2>
+      <formatter type="Plain" />
+      <test assemblyname="${build.dir}/Brunet.Test.dll"/>
+    </nunit2>
+  </target>
+
   <target
     name="build"
     depends="init"
