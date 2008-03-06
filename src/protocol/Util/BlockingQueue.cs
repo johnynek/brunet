@@ -36,18 +36,35 @@ namespace Brunet
  * from it
  */
 public class Channel {
-  public Channel() {
+  /**
+   * Create a new channel with an unlimited number of allowed enqueues
+   */
+  public Channel() : this(-1) { }
+  /**
+   * @param max_enqueues the maximum number of times Enqueue is allowed, after
+   * that it will throw InvalidOperationException and the queue will be closed
+   */
+  public Channel(int max_enqueues) {
+    if( max_enqueues == 0 ) {
+      //This doesn't make sense
+      throw new ArgumentOutOfRangeException("max_enqueues", max_enqueues, "cannot be zero");
+    }
     _closed = false;
     _sync = new object();
     _queue = new Queue();
-    _close_on_enqueue = false;
+    _close_on_enqueue = max_enqueues;
     _close_event = new FireOnceEvent(_sync);
   }
 
   protected readonly Queue _queue;
   protected readonly object _sync; 
   protected bool _closed;
-  protected bool _close_on_enqueue;
+  /*
+   * If this is less than zero, allow an infinite number of enqueues.
+   * If this is greater than or equal to zero, allow that many enqueues
+   * before calling Close.
+   */
+  protected int _close_on_enqueue;
   
   public bool Closed { get { lock ( _sync ) { return _closed; } } }
   
@@ -91,11 +108,16 @@ public class Channel {
    * EnqueueEvent and calling Close on the queue after
    * an Enqueue.
    * @return Closed
+   * @deprecated use the constructor to specify 1 as the max number of
+   * enqueues
    */
   public bool CloseAfterEnqueue() {
     lock( _sync ) {
-      if( !_closed ) {
-        _close_on_enqueue = true;
+      /*
+       * If we are not closed or about to call close
+       */
+      if( !_closed && (_close_on_enqueue != 0) ) {
+        _close_on_enqueue = 1;
         return false;
       }
       else {
@@ -116,13 +138,20 @@ public class Channel {
   /**
    * add a to the queue.
    * @throws Exception if the Queue is closed
+   * @return Count after this Enqueue (before any Dequeue has a chance to act)
    */
-  public virtual void Enqueue(object a) {
+  public virtual int Enqueue(object a) {
     bool close = false;
+    int count = -1;
     lock( _sync ) {
-      if( !_closed ) {
+      if( !_closed && (_close_on_enqueue != 0) ) {
         _queue.Enqueue(a);
-        close = _close_on_enqueue;
+        count = _queue.Count;
+        if( _close_on_enqueue > 0 ) {
+          //Decrement the number of allowed enqueues:
+          --_close_on_enqueue;
+          close = (_close_on_enqueue == 0);
+        }
       }
       else {
         //We are closed, ignore all future enqueues.
@@ -133,6 +162,7 @@ public class Channel {
     if( close ) {
       Close();  
     }
+    return count;
   }
   protected void FireEnqueue() {
     //the event:
@@ -173,7 +203,17 @@ public class Channel {
 #endif
 public sealed class BlockingQueue : Channel {
   
-  public BlockingQueue() {
+  /**
+   * Create a BlockingQueue with an unlimited number of allowed Enqueues
+   */
+  public BlockingQueue() : this(-1) { }
+
+  /**
+   * Create a BlockingQueue with a limited number of allowed Enqueues
+   * @param max_enqueues, the maximum number of allowed Enqueues before we
+   * Close the queue and start throwing exceptions.
+   */
+  public BlockingQueue(int max_enqueues) : base(max_enqueues) {
     _re = new AutoResetEvent(false); 
     _waiters = 0;
   }
@@ -326,15 +366,21 @@ public sealed class BlockingQueue : Channel {
   /**
    * add a to the queue.
    * @throws Exception if the Queue is closed
+   * @return Count after this Enqueue (before any Dequeue has a chance to act)
    */
-  public override void Enqueue(object a) {
-    bool set = false;
+  public override int Enqueue(object a) {
     bool close = false;
+    int count = -1;
     AutoResetEvent re = null;
     lock( _sync ) {
-      if( !_closed ) {
+      if( !_closed && (_close_on_enqueue != 0) ) {
         _queue.Enqueue(a);
-        close = _close_on_enqueue;
+        count = _queue.Count;
+        if( _close_on_enqueue > 0 ) {
+          //Decrement the number of allowed enqueues:
+          --_close_on_enqueue;
+          close = (_close_on_enqueue == 0);
+        }
       }
       else {
         //We are closed, ignore all future enqueues.
@@ -344,11 +390,10 @@ public sealed class BlockingQueue : Channel {
 #if DEBUG
       Console.Error.WriteLine("Enqueue set: count {0}", Count);
 #endif
-      //If we just went from 0 -> 1 signal any waiting Dequeue
-      set = (_queue.Count == 1);
       re = _re;
     }
-    if( set ) { 
+    //If we just went from 0 -> 1 signal any waiting Dequeue
+    if( count == 1 ) { 
       try {
         if( re != null ) {
           re.Set();
@@ -362,6 +407,7 @@ public sealed class BlockingQueue : Channel {
     if( close ) {
       Close();  
     }
+    return count;
   }
 
   /**
@@ -589,6 +635,33 @@ public sealed class BlockingQueue : Channel {
       read_copy.RemoveAt(i);
     }
     Assert.IsTrue( read_copy.Count == 0, "More written than read");
+  }
+
+  [Test]
+  public void MaxEnqueueTest() {
+    Exception cx = null;
+    BlockingQueue q = null;
+    try {
+      q = new BlockingQueue(0);
+      Assert.IsFalse(true, "didn't throw exception on create 0");
+    }
+    catch(ArgumentOutOfRangeException x) {
+      cx = x;
+    }
+    Assert.IsNotNull(cx, "max_enqueue 0 caused exception");
+    q = new BlockingQueue(3);
+    Assert.AreEqual(1, q.Enqueue("hey"), "enqueue 1");
+    Assert.AreEqual(2, q.Enqueue("hey"), "enqueue 1");
+    Assert.AreEqual(3, q.Enqueue("hey"), "enqueue 1");
+    cx = null;
+    try {
+      q.Enqueue("oh no!");
+      Assert.IsFalse(true, "didn't throw exception on enqueue 4");
+    }
+    catch(InvalidOperationException iox) {
+      cx = iox;
+    }
+    Assert.IsNotNull(cx, "4th enqueue caused a problem");
   }
 #endif
 }

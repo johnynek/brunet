@@ -15,7 +15,7 @@ using System.Reflection;
 using NUnit.Framework;
 #endif
 
-namespace Brunet {
+namespace Brunet.Rpc {
   /**
    * A proxy that acts between the XML-RPC client and Brunet RpcManager
    * It is also a IRpcHandler managed by RpcManager and handles calls 
@@ -336,9 +336,19 @@ namespace Brunet {
 
     public void Stop()
     {
+      try {
+        Suspend();
+      } catch{}
+     
+      try {
+        ChannelServices.UnregisterChannel(_channel);
+      } catch{}
+    }
+
+    public void Suspend()
+    {
       RemotingServices.Disconnect(_xrm);
       _rpc.RemoveHandler("xmlrpc");
-      ChannelServices.UnregisterChannel(_channel);
     }
 
     public void Update(Node node)

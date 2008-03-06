@@ -20,7 +20,7 @@ using System;
 using System.Text;
 using System.Collections;
 
-namespace Brunet.Dht {
+namespace Brunet.DistributedServices {
   [Serializable]
   public class DhtGetResult {
     public int age, ttl;

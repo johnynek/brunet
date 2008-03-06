@@ -35,6 +35,8 @@ public class FireOnceEvent {
   private readonly object _sync;
   private EventHandler _eh;
   private bool _have_fired;
+  ///Once this is true, it will always be true
+  public bool HasFired { get { return _have_fired; } }
 
   public FireOnceEvent() : this(null) { }
 

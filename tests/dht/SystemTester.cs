@@ -6,7 +6,7 @@ using System.Xml.Serialization;
 using System.Security.Cryptography;
 using System.Threading;
 using Brunet;
-using Brunet.Dht;
+using Brunet.DistributedServices;
 
 namespace Test {
   public class SystemTest {
@@ -45,7 +45,7 @@ namespace Test {
       Console.WriteLine("Initializing...");
 
       for(int i = 0; i < max_range; i++) {
-        RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.udp://127.0.0.1:" + (base_port + i)));
+        RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:" + (base_port + i)));
       }
 
       for(int i = 0; i < starting_network_size; i++) {
@@ -187,7 +187,7 @@ namespace Test {
       }
       arr_tas.Add(new ConstantAuthorizer(TAAuthorizer.Decision.Allow));
       TAAuthorizer ta_auth = new SeriesTAAuthorizer(arr_tas);
-      node.AddEdgeListener(new UdpEdgeListener(local_port, null));//, ta_auth));
+      node.AddEdgeListener(new TcpEdgeListener(local_port, null));//, ta_auth));
 //      node.AddEdgeListener(new TunnelEdgeListener(node));
       node.RemoteTAs = RemoteTA;
       (new Thread(node.Connect)).Start();

@@ -211,44 +211,13 @@ public class RpcManager : IReplyHandler, IDataHandler {
 #endif
   }
 
-  /** static hashtable to keep track of RpcManager objects. */
-  protected static Hashtable _rpc_table = new Hashtable();
-
   /**
    * Static method to create RpcManager objects
    * @param node The node we work for
+   * @deprecated use node.Rpc
    */
   public static RpcManager GetInstance(Node node) {
-    RpcManager rpc;
-    //Do this outside the lock:
-    ReqrepManager rrm = ReqrepManager.GetInstance(node);
-    lock(_rpc_table) {
-      //check if there is already an instance object for this node
-      if (_rpc_table.ContainsKey(node)) {
-        return (RpcManager) _rpc_table[node];
-      }
-      //in case no instance exists, create one
-      rpc = new RpcManager(rrm);
-      _rpc_table[node] = rpc;
-    }
-
-    node.GetTypeSource( PType.Protocol.Rpc ).Subscribe(rpc, null);
-    node.StateChangeEvent += delegate(Node n, Node.ConnectionState s) {
-      if( s == Node.ConnectionState.Disconnected ) {
-        lock( _rpc_table ) {
-          _rpc_table.Remove(n);
-        }
-        ISource source = n.GetTypeSource(PType.Protocol.Rpc);
-        try {
-          source.Unsubscribe(rpc);
-        }
-        catch { }
-        lock(rpc._sync) {
-          rpc._method_handlers.Clear();
-        }
-      }
-    };
-    return rpc;
+    return node.Rpc;
   }
 
   /**

@@ -1,7 +1,7 @@
 /*
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
-Copyright (C) 2006  P. Oscar Boykin <boykin@pobox.com>, University of Florida
+Copyright (C) 2006-2008 P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -24,10 +24,18 @@ using System.Collections;
 namespace Brunet {
 
 /**
+ * Since interfaces are much faster than Delegates in .Net,
+ * we use this for asynchronous code that might be run later.
+ */
+public interface IAction {
+  void Start();
+}
+
+/**
  * This class represents objects that work to complete a single
  * Task.  When the they are done, they fire a FinishEvent.
  */
-abstract public class TaskWorker {
+abstract public class TaskWorker : IAction {
   
   protected TaskWorker()
   {
@@ -48,11 +56,10 @@ abstract public class TaskWorker {
     add { _finish_event.Add(value); }
     remove { _finish_event.Remove(value); }
   }
-
   /**
    * Is true if the TaskWorker is finished
    */
-  abstract public bool IsFinished { get; }
+  virtual public bool IsFinished { get { return _finish_event.HasFired; } }
 
   /**
    * Subclasses call this to fire the finish event
@@ -66,6 +73,62 @@ abstract public class TaskWorker {
    * This method tells the TaskWorked to start working
    */
   abstract public void Start();
+}
+
+/**
+ * We commonly need to wait at least some period of time and then do
+ * something else.
+ *
+ * This does not include a timer.  It checks to see if it should finish
+ * when the method CheckTime is called.
+ */
+public class WaitTaskWorker : TaskWorker {
+
+  public readonly object State;
+  
+  protected readonly object _sync;
+  protected bool _finish_is_set;
+  protected DateTime _finish_time;
+  protected TimeSpan _interval;
+
+  //Each wait is a unique task.
+  public override object Task { get { return this; } }
+
+  public WaitTaskWorker(TimeSpan min_wait_interval, object state) {
+    _sync = new object();
+    _finish_is_set = false;
+    State = state;
+  }
+
+  public WaitTaskWorker(DateTime finish_after_utc_time, object state) {
+    _sync = null;
+    _finish_is_set = true;
+    State = state;
+  }
+
+  /**
+   * Checks DateTime.UtcNow to see if it is time to finish
+   */
+  public void CheckTime(object o, System.EventArgs args) {
+    if( _finish_is_set && (DateTime.UtcNow > _finish_time) ) {
+      FireFinished();
+    }
+  }
+
+  /**
+   * If we are waiting for an interval, set the finishing time,
+   * otherwise, do nothing.
+   */
+  public override void Start() {
+    if( _sync != null ) {
+      lock( _sync ) {
+        if( !_finish_is_set ) {
+          _finish_is_set = true;
+          _finish_time = DateTime.UtcNow + _interval; 
+        }
+      }
+    }
+  }
 }
 
 /**
@@ -95,10 +158,12 @@ public class TaskQueue {
     }
   }
   
-  protected volatile int _worker_count;
+  protected int _worker_count;
   public int WorkerCount {
     get {
-      return _worker_count;
+      lock ( _sync ) {
+        return _worker_count;
+      }
     }
   }
 
@@ -131,7 +196,7 @@ public class TaskQueue {
      * Get to work!
      */
     if( start  && _is_active) {
-      new_worker.Start();
+      Start(new_worker);
     }
   }
   
@@ -142,6 +207,13 @@ public class TaskQueue {
     lock( _sync ) {
       return _task_to_workers.ContainsKey(task);
     }
+  }
+  /**
+   * If you want to control if new TaskWorkers are started in some
+   * other thread, or event loop, you can override this method
+   */
+  protected virtual void Start(TaskWorker tw) {
+    tw.Start();
   }
   /**
    * When a TaskWorker completes, we remove it from the queue and
@@ -182,7 +254,7 @@ public class TaskQueue {
     }
     if( new_worker != null && _is_active) {
       //You start me up!
-      new_worker.Start();
+      Start(new_worker);
     }
     if( eh != null ) { eh(this, EventArgs.Empty); }
   }
