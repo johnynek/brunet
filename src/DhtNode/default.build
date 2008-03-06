@@ -4,7 +4,6 @@
   <property name="lib.dir" value="../../lib"/>
   <property name="build.dir" value="build" />
   <property name="bin.dir" value="../../bin"/>
-  <property name="doc.dir" value="../../doc"/>
   <target name="clean" description="Remove build directory">
     <delete dir="${build.dir}" failonerror="true"/>
   </target>
@@ -24,14 +23,15 @@
       <sources failonempty="true">
         <include name="*.cs"/>
         <include name="../IpopNode/*.cs"/>
+        <include name="../NetworkPackets/*.cs"/>
         <include name="../../../brunet1/src/BasicNode/*.cs"/>
       </sources>
-      <references>
-        <include name="${build.dir}/Brunet.dll"/>
-        <include name="${build.dir}/Brunet.Dht.dll"/>
-        <include name="${build.dir}/Brunet.XmlRpc.dll" />
-        <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />
-        <include name="${build.dir}/Brunet.DhtService.dll"/>
+      <references basedir="${build.dir}">
+        <include name="Brunet.dll"/>
+        <include name="Brunet.Dht.dll"/>
+        <include name="Brunet.XmlRpc.dll" />
+        <include name="CookComputing.XmlRpcV2.dll" />
+        <include name="Brunet.DhtService.dll"/>
         <include name="System.Runtime.Remoting.dll"/>
         <include name="Mono.Posix.dll"/>
       </references>
@@ -42,24 +42,5 @@
         <include name="DhtIpopNode.exe" />
       </fileset>
     </copy>
-  </target>
-
-  <target name="doc" description="Build DhtIpopNode.xml">
-    <csc target="library" output="${lib.dir}/DhtNode.dll" doc="${doc.dir}/DhtNode.xml">
-      <sources failonempty="true">
-        <include name="*.cs"/>
-      </sources>
-      <references>
-        <include name="${lib.dir}/Brunet.dll"/>
-        <include name="${lib.dir}/Brunet.Dht.dll"/>
-        <include name="${lib.dir}/Brunet.XmlRpc.dll" />
-        <include name="${lib.dir}/CookComputing.XmlRpcV2.dll" />
-        <include name="${lib.dir}/Brunet.DhtService.dll"/>
-        <include name="${lib.dir}/Ipop.dll"/>
-        <include name="${lib.dir}/Brunet.BasicNode.dll"/>
-        <include name="System.Runtime.Remoting.dll"/>
-        <include name="Mono.Posix.dll"/>
-      </references>
-    </csc>
   </target>
 </project>

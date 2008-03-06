@@ -4,7 +4,6 @@
   <property name="lib.dir" value="../../lib"/>
   <property name="build.dir" value="build" />
   <property name="bin.dir" value="../../bin"/>
-  <property name="doc.dir" value="../../doc"/>
   <target name="clean" description="Remove build directory">
     <delete dir="${build.dir}" failonerror="true"/>
   </target>
@@ -25,6 +24,7 @@
         <include name="*.cs"/>
         <include name="../DhtNode/*.cs"/>
         <include name="../IpopNode/*.cs"/>
+        <include name="../NetworkPackets/*.cs"/>
         <include name="../../../brunet1/src/BasicNode/*.cs"/>
       </sources>
       <references>
@@ -43,25 +43,5 @@
         <include name="CondorIpopNode.exe" />
       </fileset>
     </copy>
-  </target>
-
-  <target name="doc" description="Build CondorIpopNode.xml">
-    <csc target="library" output="${lib.dir}/CondorNode.dll" doc="${doc.dir}/CondorNode.xml">
-      <sources failonempty="true">
-        <include name="*.cs"/>
-      </sources>
-      <references>
-        <include name="${lib.dir}/Brunet.dll"/>
-        <include name="${lib.dir}/Brunet.Dht.dll"/>
-        <include name="${lib.dir}/Brunet.XmlRpc.dll" />
-        <include name="${lib.dir}/CookComputing.XmlRpcV2.dll" />
-        <include name="${lib.dir}/Brunet.DhtService.dll"/>
-        <include name="${lib.dir}/Ipop.dll"/>
-        <include name="${lib.dir}/DhtNode.dll"/>
-        <include name="${lib.dir}/Brunet.BasicNode.dll"/>
-        <include name="System.Runtime.Remoting.dll"/>
-        <include name="Mono.Posix.dll"/>
-      </references>
-    </csc>
   </target>
 </project>

@@ -20,23 +20,25 @@
         <include name="Brunet.XmlRpc.dll" />
         <include name="Brunet.DhtService.dll"/>
         <include name="Brunet.BasicNode.dll"/>
+        <include name="NetworkPackets.dll"/>
       </fileset>
     </copy>
 
     <mkdir dir="${doc.dir}" failonerror="true"/>
-    <csc target="library" output="${build.dir}/Ipop.dll" doc="${doc.dir}/Ipop.xml">
+    <csc target="library" output="${build.dir}/Ipop.dll" doc="${doc.dir}/IpopNode.xml">
       <sources failonempty="true">
         <include name="*.cs"/>
       </sources>
-      <references>
-        <include name="${build.dir}/Brunet.BasicNode.dll"/>
-        <include name="${build.dir}/Brunet.dll"/>
-        <include name="${build.dir}/Brunet.Dht.dll"/>
-        <include name="${build.dir}/Brunet.XmlRpc.dll" />
-        <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />
-        <include name="${build.dir}/Brunet.DhtService.dll"/>
+      <references basedir="${build.dir}">
+        <include name="Brunet.BasicNode.dll"/>
+        <include name="Brunet.dll"/>
+        <include name="Brunet.Dht.dll"/>
+        <include name="Brunet.XmlRpc.dll" />
+        <include name="CookComputing.XmlRpcV2.dll" />
+        <include name="Brunet.DhtService.dll"/>
         <include name="System.Runtime.Remoting.dll"/>
         <include name="Mono.Posix.dll"/>
+        <include name="NetworkPackets.dll"/>
       </references>
     </csc>
 

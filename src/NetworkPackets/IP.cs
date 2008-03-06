@@ -19,155 +19,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using Brunet;
 using System;
 
-/**
-\namespace NetworkPackets
-\brief Defines Packet, Packet with a Payload, Ethernet, IP, and UDP Packets.
-*/
+#if NUNIT
+using NUnit.Framework;
+#endif
+
 namespace NetworkPackets {
-  /**
-  <summary>Provides an abstraction to sue a generic packet idea, that is you
-  can use the ICPacket portion to make a large packet and just copy the final 
-  object to a byte array in the end rather then at each stage.  When Packet
-  is accessed and is undefined, it will perform the copy automatically for 
-  you from ICPacket to Packet.</summary>
-  */
-  public abstract class DataPacket {
-    /// <summary>The packet in ICopyable format.</summary>
-    protected ICopyable _icpacket;
-    /// <summary>The packet in ICopyable format.</summary>
-    public ICopyable ICPacket { get { return _icpacket; } }
-
-    /// <summary>The packet in MemBlock format</summary>
-    protected MemBlock _packet;
-    /// <summary>The packet in ICopyable format.  Creates the _packet if it
-    /// does not already exist.</summary>
-    public MemBlock Packet {
-      get {
-        if(_packet == null) {
-          if(_icpacket is MemBlock) {
-            _packet = (MemBlock) _icpacket;
-          }
-          else {
-            byte[] tmp = new byte[_icpacket.Length];
-            _icpacket.CopyTo(tmp, 0);
-            _packet = MemBlock.Reference(tmp);
-          }
-        }
-        return _packet;
-      }
-    }
-  }
-
-  /**
-  <summary>Similar to DataPacket but also provides a(n) (IC)Payload for packet
-  types that have a header and a body, as Ethernet and IP Packets do.</summary>
-  */
-  public abstract class NetworkPacket: DataPacket {
-    /// <summary>The payload in ICopyable format.</summary>
-    protected ICopyable _icpayload;
-    /// <summary>The payload in ICopyable format.</summary>
-    public ICopyable ICPayload { get { return _icpayload; } }
-    /// <summary>The packet in MemBlock format</summary>
-    protected MemBlock _payload;
-    /// <summary>The packet in ICopyable format.  Creates the _packet if it
-    /// does not already exist.</summary>
-    public MemBlock Payload {
-      get {
-        if(_payload == null) {
-          if(_icpayload is MemBlock) {
-            _payload = (MemBlock) _icpayload;
-          }
-          else {
-            byte[] tmp = new byte[_icpayload.Length];
-            _icpayload.CopyTo(tmp, 0);
-            _payload = MemBlock.Reference(tmp);
-          }
-        }
-        return _payload;
-      }
-    }
-  }
-
-  /**
-  <summary>Encapsulates an EthernetPacket and provides the mechanisms to
-  generate new Ethernet Packets.  This is immutable.</summary>
-  <remarks>
-    The Header is of the format:
-    <list type="table">
-      <listheader>
-        <term>Field</term>
-        <description>Position</description>
-      </listheader>
-      <item><term>Destination Address</term><description>6 bytes</description></item>
-      <item><term>Source Address</term><description>6 bytes</description></item>
-      <item><term>Type</term><description>2 bytes</description></item>
-      <item><term>Data</term><description>The rest</description></item>
-    </list>
-  </remarks>
-  */
-  public class EthernetPacket: NetworkPacket {
-    /// <summary>The address where the Ethernet packet is going</summary>
-    public readonly MemBlock DestinationAddress;
-    /// <summary>The address where the Ethernet packet originated</summary>
-    public readonly MemBlock SourceAddress;
-    /**  <summary>This enumeration holds the types of Ethernet packets, listed
-    are only the types, Ipop is interested in.</summary>
-    */
-    public enum Types {
-      /// <summary>Payload is an IP Packet</summary>
-      IP = 0x800,
-      /// <summary>Payload is an ARP Packet</summary>
-      ARP = 0x806
-    }
-    /// <summary>The type for the Ethernet payload</summary>
-    public readonly Types Type;
-    /// <summary>The default unicast address</summary>
-    public static readonly MemBlock UnicastAddress = MemBlock.Reference(
-        new byte[]{0xFE, 0xFD, 0, 0, 0, 0});
-    /// <summary>The default broadcast (multicast) address</summary>
-    public static readonly MemBlock BroadcastAddress = MemBlock.Reference(
-        new byte[]{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
-
-    /**
-    <summary>This parses a MemBlock into the Ethernet fields</summary>
-    <param name="Packet">The Ethernet packet</param>
-    */
-    public EthernetPacket(MemBlock Packet) {
-      _icpacket = _packet = Packet;
-      DestinationAddress = Packet.Slice(0, 6);
-      SourceAddress = Packet.Slice(6, 6);
-      Type = (Types) ((Packet[12] << 8) | Packet[13]);
-      _icpayload = _payload = Packet.Slice(14);
-    }
-
-    /**
-    <summary>Creates an Ethernet Packet from Ethernet fields and the 
-    payload</summary>
-    <param name="DestinationAddress">Where the Ethernet packet is going.</param>
-    <param name="SourceAddress">Where the Ethernet packet originated.</param>
-    <param name="Type">Type of Ethernet payload.</param>
-    <param name="Payload">Payload as an ICopyable</param>
-    */
-    public EthernetPacket(MemBlock DestinationAddress, MemBlock SourceAddress,
-                          Types Type, ICopyable Payload) {
-      byte[] header = new byte[14];
-      for(int i = 0; i < 6; i++) {
-        header[i] = DestinationAddress[i];
-        header[6 + i] = SourceAddress[i];
-      }
-
-      header[12] = (byte) (((int) Type >> 8) & 0xFF);
-      header[13] = (byte) ((int) Type & 0xFF);
-
-      _icpacket = new CopyList(MemBlock.Reference(header), Payload);
-      _icpayload = Payload;
-
-      this.DestinationAddress = DestinationAddress;
-      this.SourceAddress = SourceAddress;
-      this.Type = Type;
-    }
-  }
-
   /**
   <summary>Encapsulates an IP Packet and can create new IP Packets.</summary>
   <remarks>
@@ -233,6 +89,9 @@ namespace NetworkPackets {
   </list>
   </remarks>
   */
+#if NUNIT
+  [TestFixture]
+#endif
   public class IPPacket: NetworkPacket {
     /// <summary>The IP Address where the packet originated</summary>
     public readonly MemBlock SourceIP;
@@ -410,104 +269,43 @@ namespace NetworkPackets {
         value = (value & 0xFFFF) + (value >> 16);
       }
 
-      return ~value;
+      return ~value & 0xFFFF;
     }
 
     public static MemBlock MakePseudoHeader(MemBlock SourceIP,
                                             MemBlock DestinationIP,
                                             byte Protocol,
                                             int Length) {
-        byte[] pseudoheader = new byte[12];
-        SourceIP.CopyTo(pseudoheader, 0);
-        DestinationIP.CopyTo(pseudoheader, 4);
-        pseudoheader[9] = Protocol;
-        pseudoheader[10] = (byte) ((Length >> 8) & 0xFF);
-        pseudoheader[11] = (byte) (Length & 0xFF);
-        return MemBlock.Reference(pseudoheader);
-      }
+      byte[] pseudoheader = new byte[12];
+      SourceIP.CopyTo(pseudoheader, 0);
+      DestinationIP.CopyTo(pseudoheader, 4);
+      pseudoheader[9] = Protocol;
+      pseudoheader[10] = (byte) ((Length >> 8) & 0xFF);
+      pseudoheader[11] = (byte) (Length & 0xFF);
+      return MemBlock.Reference(pseudoheader);
     }
 
-  /**
-  <summary>Provides an encapsulation for UDP Packets and can create new UDP
-  Packets.</summary>
-  <remarks>
-  The contents of a UDP Packet:
-  <list type="table">
-    <listheader>
-      <term>Field</term>
-      <description>Position</description>
-    </listheader>
-    <item><term>Source Port</term><description>2 bytes</description></item>
-    <item><term>Destination Port</term><description>2 bytes</description></item>
-    <item><term>Length</term><description>2 bytes - includes udp header and
-      data</description></item>
-    <item><term>Checksum</term><description>2 bytes- disabled = 00 00 00 00
-      </description></item>
-    <item><term>Data</term><description>The rest</description></item>
-  </list>
-  </remarks>
-  */
-  public class UDPPacket: NetworkPacket {
-    /// <summary>The packets originating port</summary>
-    public readonly int SourcePort;
-    /// <summary>The packets destination port</summary>
-    public readonly int DestinationPort;
+#if NUNIT
+    public IPPacket() {}
 
-    /**
-    <summary>Takes in a MemBlock and parses it as a UDP Packet.</summary>
-    <param name="packet">The MemBlock containing the UDP Packet</param>
-     */
-    public UDPPacket(MemBlock packet) {
-      _icpacket = _packet = packet;
-      SourcePort = (packet[0] << 8) | packet[1];
-      DestinationPort = (packet[2] << 8) | packet[3];
-      _icpayload = _payload = packet.Slice(8);
+    [Test]
+    public void ChecksumTest() {
+      byte[] header = new byte[] {0x45, 0x00, 0x00, 0x34, 0xad, 0xdd, 0x00,
+        0x00, 0x38, 0x06, 0x00, 0x00, 0x40, 0xe9, 0xa1, 0xa6, 0xc0, 0xa8, 0x01,
+        0x64};
+      int checksum = GenerateChecksum(MemBlock.Reference(header));
+      Assert.AreEqual(checksum, 0x304b, "IP Header Checksum");
+
+      header = new byte[] {0x40, 0xe9, 0xa1, 0xa6, 0xc0, 0xa8, 0x01, 0x64,
+        0x00, 0x06, 0x00, 0x20};
+      byte[] packet = new byte[] {0x00, 0x50, 0xe9, 0x39, 0x16, 0xec, 0x28,
+        0x09, 0xd0, 0x29, 0xda, 0x38, 0x80, 0x10, 0x00, 0x8b, 0x00, 0x00, 0x00,
+        0x00, 0x01, 0x01, 0x08, 0x0a, 0x17, 0x02, 0x34, 0x3c, 0x00, 0x19,
+        0x7f, 0x64};
+      checksum = GenerateChecksum(MemBlock.Reference(header),
+                                  MemBlock.Reference(packet));
+      Assert.AreEqual(checksum, 0x33f9, "IP Header Checksum");
     }
-
-    /**
-    <summary>Creates a UDP Packet given the source port, destination port
-    and the payload.</summary>
-    <param name="SourcePort">The packets originating port</param>
-    <param name="DestinationPort">The packets destination port</param>
-    <param name="Payload">The data for the packet.</param>
-    */
-    public UDPPacket(int SourcePort, int DestinationPort, ICopyable Payload) {
-      byte[] header = new byte[8];
-      header[0] = (byte) ((SourcePort >> 8) & 0xFF);
-      header[1] = (byte) (SourcePort & 0xFF);
-      header[2] = (byte) ((DestinationPort >> 8) & 0xFF);
-      header[3] = (byte) (DestinationPort & 0xFF);
-      int length = Payload.Length + 8;
-      header[4] = (byte) ((length >> 8) & 0xFF);
-      header[5] = (byte) (length & 0xFF);
-      // Checksums are disabled!
-      header[6] = (byte) 0;
-      header[7] = (byte) 0;
-      _icpacket = new CopyList(MemBlock.Reference(header), Payload);
-      _icpayload = Payload;
-    }
-  }
-
-  /**
-  <summary>Unsupported, this class is too big to support now!</summary>
-  */
-  public class IGMPPacket: NetworkPacket {
-  /**
-  <summary>Unsupported, this class is too big to support now!</summary>
-  */
-    public enum Types { Join = 0x16, Leave = 0x17};
-    public readonly byte Type;
-    public readonly MemBlock GroupAddress;
-
-    public IGMPPacket(MemBlock packet) {
-      _icpacket = _packet = packet;
-      Type = packet[0];
-      GroupAddress = packet.Slice(4, 4);
-      _icpayload = _payload = packet.Slice(8);
-    }
-
-    public IGMPPacket(byte Type, MemBlock GroupAddress) {
-//      byte[] header = new byte[8];
-    }
+#endif
   }
 }
