@@ -238,7 +238,14 @@ namespace Brunet
       FunctionEdge fe_to = fe_from.Partner;
       if( fe_to != null ) {
         el = (FunctionEdgeListener)_listener_map[ fe_to.ListenerId ];
-	el._queue.Enqueue(new FQEntry(fe_to, p));
+        try {
+	  el._queue.Enqueue(new FQEntry(fe_to, p));
+        }
+        catch(System.InvalidOperationException) {
+          //The queue other queue is closed:
+          //Just throw the packet away.  This simulates UDP, which is giving less information
+          //to the local node.
+        }
       }
     }
   }

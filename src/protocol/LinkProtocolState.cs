@@ -2,7 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
-Copyright (C) 2005,2006  P. Oscar Boykin <boykin@pobox.com>, University of Florida
+Copyright (C) 2005 - 2008  P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -179,7 +179,6 @@ namespace Brunet
         throw new Exception(String.Format("We don't hold the lock: {0}", a));
       }
       if( (l is Linker) && IsFinished ) {
-        _target_lock = null;
         return true;
       }
       return false;
@@ -198,13 +197,23 @@ namespace Brunet
      * When this state machine reaches an end point, it calls this method,
      * which fires the FinishEvent
      */
-    protected void Finish(Result res, Connection c) {
+    protected void Finish(Result res) {
       /*
        * No matter what, we are done here:
        */
-      if(ProtocolLog.LinkDebug.Enabled)
-        ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
-          "LPS: {0} finished: {2}, with exception: {1}", _node.Address, _x, res));
+      if(ProtocolLog.LinkDebug.Enabled) {
+        string message;
+        if (_x.Value != null ) {
+          message = String.Format(
+                      "LPS: {0} finished: {2}, with exception: {1}",
+                      _node.Address, _x, res);
+        }
+        else {
+          message = String.Format("LPS: {0} finished: {1}",
+                                  _node.Address, res);
+        }
+        ProtocolLog.Write(ProtocolLog.LinkDebug, message);
+      }
 
       int already_finished = Interlocked.Exchange(ref _is_finished, 1);
       if(already_finished == 1) {
@@ -222,7 +231,7 @@ namespace Brunet
       
       try {
         //Check to see if we need to close the edge
-        if( c == null ) {
+        if( _con.Value == null ) {
           /*
            * We didn't get a complete connection,
            * but we may have heard some response.  If so
@@ -245,13 +254,9 @@ namespace Brunet
           }
         }
         else {
-          /*
-           * Awesome!  We got a connection, let's set it.
-           */
-          _con.Value = c;
           if(ProtocolLog.LinkDebug.Enabled) {
             ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
-              "LPS: {0} got connection: {1}", _node.Address, c));
+              "LPS: {0} got connection: {1}", _node.Address, _con.Value));
           }
         }
         //This could throw an exception, but make sure we unlock if it does.
@@ -381,7 +386,7 @@ namespace Brunet
 			    String.Format("LPS target: {0} Start() over edge: {1}, hit exception: {2}", 
 					  _linker.Target, _e, e));
 	}
-        Finish(Result.MoveToNextTA, null);
+        Finish(Result.MoveToNextTA);
       }
     }
     
@@ -479,35 +484,35 @@ namespace Brunet
          * first we check for common error conditions:
          */
         _x.Value = x;
-        Finish( GetResultForErrorCode(x.Code), null );
+        Finish( GetResultForErrorCode(x.Code) );
       }
       catch(ConnectionExistsException x) {
         /* We already have a connection */
         _x.Value = x;
-        Finish( Result.ProtocolError, null );
+        Finish( Result.ProtocolError );
       }
       catch(CTLockException x) {
         //This is thrown when ConnectionTable cannot lock.  Lets try again:
         _x.Value = x;
-        Finish( Result.RetryThisTA, null );
+        Finish( Result.RetryThisTA );
       }
       catch(LinkException x) {
         _x.Value = x;
-        if( x.IsCritical ) { Finish( Result.MoveToNextTA, null ); }
-        else { Finish( Result.RetryThisTA, null ); }
+        if( x.IsCritical ) { Finish( Result.MoveToNextTA ); }
+        else { Finish( Result.RetryThisTA ); }
       }
       catch(InvalidOperationException) {
         //The queue never got anything
-        Finish(Result.MoveToNextTA, null);
+        Finish(Result.MoveToNextTA);
       }
       catch(EdgeException) {
         //The Edge is goofy, let's move on:
-        Finish(Result.MoveToNextTA, null);
+        Finish(Result.MoveToNextTA);
       }
       catch(Exception x) {
         //The protocol was not followed correctly by the other node, fail
         _x.Value = x;
-        Finish( Result.RetryThisTA, null );
+        Finish( Result.RetryThisTA );
       } 
     }
     
@@ -522,7 +527,9 @@ namespace Brunet
         StatusMessage sm = new StatusMessage((IDictionary)res.Result);
         Connection c = new Connection(_e, LinkMessageReply.Local.Address,
                                         _contype, sm, LinkMessageReply);
-        Finish(Result.Success, c);
+        _node.ConnectionTable.Add(c);
+        _con.Value = c;
+        Finish(Result.Success);
       }
       catch(InvalidOperationException) {
          /*
@@ -538,7 +545,7 @@ namespace Brunet
          * We got a link message from this guy, but not a status response,
          * so let's try this TA again.
          */
-        Finish(Result.RetryThisTA, null);
+        Finish(Result.RetryThisTA);
       }
       catch(Exception x) {
         /*
@@ -550,7 +557,7 @@ namespace Brunet
           ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
             "LPS.StatusResultHandler Exception: {0}", x));
         }
-        Finish(Result.RetryThisTA, null);
+        Finish(Result.RetryThisTA);
       }
     }
 
@@ -561,7 +568,7 @@ namespace Brunet
      * to signal that this is not a good candidate to retry.
      */
     protected void CloseHandler(object sender, EventArgs args) {
-      Finish(Result.MoveToNextTA, null);
+      Finish(Result.MoveToNextTA);
     }
   }
 }

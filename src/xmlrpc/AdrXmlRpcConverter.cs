@@ -3,7 +3,7 @@ using System.Collections;
 using System.Text;
 using CookComputing.XmlRpc;
 
-namespace Brunet {
+namespace Brunet.Rpc {
   /**
    * ArdConverter compatible types
    * string, Array, IList, IDictionary, bool, byte, sbyte, short, ushort, int, uint, long,

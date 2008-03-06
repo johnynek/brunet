@@ -2,7 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
-Copyright (C) 2005,2006  P. Oscar Boykin <boykin@pobox.com>, University of Florida
+Copyright (C) 2005 - 2008  P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -39,15 +39,22 @@ namespace Brunet
    * Given a list of remote TransportAddress
    * objects, Linker creates the link between the remote node and
    * the local node
+   *
+   * There are several steps to linking:
+   * 1) create an Edge for a TA (EdgeWorker)
+   * 2) Start a LinkProtocolState (LPS) working on the Edge to get connected.
+   * 3) At the completion of the LPS, we either, retry the TA, move to the
+   * next, or give up.
+   * 4) If we retry, we wait a time uniformly distributed over a fixed
+   * interval.  After that period, we start again at the beginning.
+   *
+   * The code is designed to be able to handle several attempts in parallel so
+   * nodes with many TAs can be connected to more quickly. 
    * 
    */
 
   public class Linker : TaskWorker, ILinkLocker
   {
-
-    /*private static readonly log4net.ILog log =
-        log4net.LogManager.GetLogger(System.Reflection.MethodBase.
-        GetCurrentMethod().DeclaringType);*/
 
 //////////////////////////////////////////
 ////
@@ -55,16 +62,10 @@ namespace Brunet
 ///
 ///////////////////////
 
+    protected int _added_cons; //The number of successfully added connections
     protected readonly string _contype;
     public string ConType { get { return _contype; } }
     protected readonly ConnectionType _maintype;
-
-    protected Connection _con;
-    /**
-     * This is the Connection established by this Linker
-     */
-    public Connection Connection { get { return _con; } }
-    
     public bool ConnectionInTable {
       get {
         bool result = false;
@@ -75,7 +76,7 @@ namespace Brunet
         return result;
       }
     }
-
+    
     //This is the queue that has only the address we have not tried this attempt
     protected readonly Queue _ta_queue;
     protected readonly Node _local_n;
@@ -95,39 +96,25 @@ namespace Brunet
      */
     public Address Target { get { return _target; } }
     
-    /** global lock for thread synchronization */
-    protected readonly object _sync;
-    protected bool _is_finished;
-    override public bool IsFinished {
-      get {
-        lock( _sync ) { return _is_finished; }
-      }
-    }
     /**
      * Keeps track of the restart information for each TransportAddress
      */
     protected readonly Hashtable _ta_to_restart_state;
     
-    //We don't try a TA twice, this makes sure we know
-    //which we have tried, and which we haven't
-    protected readonly Hashtable _completed_tas;
-
     /**
      * How many times have we been asked to transfer a lock
      * to a ConnectionPacketHandler object.
      */
     protected int _cph_transfer_requests;
 
-    protected readonly Random _rand;
     //Link.Start should only be called once, this throws an exception if
     //called more than once
-    protected bool _started; 
+    protected int _started; 
 
     /**
      * This is where we put all the tasks we are working on
      */
     protected readonly TaskQueue _task_queue;
-
     /**
      * When there are no active LinkProtocolState TaskWorker objects,
      * we should not be holding the lock.
@@ -136,7 +123,7 @@ namespace Brunet
     
     //Don't allow the FinishEvent to be fired until we have 
     //started all the initial TaskWorkers
-    protected bool _hold_fire;
+    protected int _hold_fire;
 
 #if LINK_DEBUG
     private int _lid;
@@ -148,10 +135,7 @@ namespace Brunet
       get { return _task; }
     }
 
-    protected static int _last_lid;
-    static Linker() {
-      _last_lid = 0;
-    }
+    protected static int _last_lid = 0;
     
 //////////////
 ///
@@ -205,37 +189,42 @@ namespace Brunet
       public TransportAddress TA { get { return _ta; } }
       public override object Task { get { return _ta; } }
       
-      protected bool _is_finished;
-      public override bool IsFinished { get { return _is_finished; } }
+      public override bool IsFinished { get { return (_result.Value != null); } }
 
       protected readonly EdgeFactory _ef;
-    
-      protected Exception _x;
-      protected Edge _edge;
+      public class EWResult {
+        public readonly Edge Edge;
+        public readonly Exception Exception;
+        public EWResult(Edge e, Exception x) {
+          Edge = e;
+          Exception = x; 
+        }
+      }
+      protected readonly WriteOnce<EWResult> _result;
       
-      protected object _sync;
       /**
        * If this was successful, it returns the edge, else
        * it throws an exception
        */
       public Edge NewEdge {
         get {
-         lock( _sync ) {
-          if( _x != null ) {
-            throw _x;
+          EWResult r = _result.Value;
+          if( r == null ) {
+            return null;
+          }
+          if( r.Exception != null ) {
+            throw r.Exception;
           }
           else {
-            return _edge;
+            return r.Edge;
           }
-         }
         }
       }
 
       public EdgeWorker(EdgeFactory ef, TransportAddress ta) {
-        _sync = new object();
         _ef = ef;
         _ta = ta;
-        _is_finished = false;
+        _result = new WriteOnce<EWResult>();
       }
       
       public override void Start() {
@@ -252,49 +241,54 @@ namespace Brunet
             if(ProtocolLog.LinkDebug.Enabled) {
               ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
               "(Linker) Handle edge failure: {0} done.", x));
-	    }
+	          }
           }
         }
-        lock( _sync ) {
-          _is_finished = true;
-          _x = x;
-          _edge = e;
-        }  
+        _result.Value = new EWResult(e, x);
         FireFinished();
       }
 
+    }
+    /**
+     * This is a TaskQueue where new TaskWorkers are started
+     * by EnqueueAction, so they are executed in the announce thread
+     * and without the call stack growing arbitrarily
+     */
+    protected class NodeTaskQueue : TaskQueue {
+      protected readonly Node LocalNode;
+      public NodeTaskQueue(Node n) {
+        LocalNode = n;
+      }
+      protected override void Start(TaskWorker tw) {
+        LocalNode.EnqueueAction(tw);
+      }
     }
     /**
      * This inner class keeps state information for restarting
      * on a particular TransportAddress
      */
     protected class RestartState : TaskWorker {
-      protected int _restart_attempts;
+      protected readonly int _restart_attempts;
       public int RemainingAttempts { get { return _restart_attempts; } }
       protected readonly Linker _linker;
-      protected DateTime _last_start;
-      protected DateTime _next_start;
-      protected readonly Random _rand;
-      protected bool _is_waiting;
-      public bool IsWaiting { get { return _is_waiting; } }
-
-      public override bool IsFinished { get { return ! _is_waiting; } }
+      protected long _next_start;
+      protected readonly TimeSpan _interval;
 
       protected readonly TransportAddress _ta;
       public TransportAddress TA { get { return _ta; } }
 
       public override object Task { get { return _ta; } }
 
-      protected readonly object _sync;
-
       public RestartState(Linker l, TransportAddress ta,
                           int remaining_attempts) {
         _linker = l;
-        _sync = new object();
         _ta = ta;
         _restart_attempts = remaining_attempts;
-        _rand = new Random();
-        _is_waiting = false;
+        
+        //Compute the interval:
+        Random rand = new Random();
+        int restart_sec = rand.Next(_MS_RESTART_TIME);
+        _interval = new TimeSpan(0,0,0,0,restart_sec);
       }
       public RestartState(Linker l, TransportAddress ta)
              : this(l, ta, _MAX_RESTARTS) {
@@ -304,16 +298,12 @@ namespace Brunet
        * Schedule the restart using the Heartbeat of the given node
        */
       public override void Start() {
-        lock( _sync ) {
-          if( _restart_attempts < 0 ) {
-            throw new Exception("restarted too many times");
-          }
-          _last_start = DateTime.UtcNow;
-          int restart_sec = (int)(_rand.NextDouble() * _MS_RESTART_TIME);
-          TimeSpan interval = new TimeSpan(0,0,0,0,restart_sec);
-          _next_start = _last_start + interval; 
-          _is_waiting = true;
+        if( _restart_attempts < 0 ) {
+          throw new Exception("restarted too many times");
         }
+        //Set next_start
+        long start_ticks = (DateTime.UtcNow + _interval).Ticks;
+        Interlocked.Exchange(ref _next_start, start_ticks); 
         Node n = _linker.LocalNode;
         n.HeartBeatEvent += this.RestartLink;
       }
@@ -323,27 +313,8 @@ namespace Brunet
        */
       protected void RestartLink(object node, EventArgs args)
       {
-        bool fire_event = false;
-        lock( _sync ) {
-          if( _linker.ConnectionInTable ) {
-            //We are already connected, stop waiting...
-            fire_event = true;
-          }
-          else if( DateTime.UtcNow > _next_start ) { 
-              if ( _rand.NextDouble() < 0.5 ) {
-              fire_event = true;
-              }
-          }
-          if( fire_event ) {
-            /*
-             * No matter why we are firing the event, we are no longer waiting,
-             * and we don't need to hear from the heartbeat event any longer
-             */
-            _is_waiting = false; 
-          }
-        }
-        if( fire_event ) {
-          //Fire the event without holding a lock
+        if( _linker.ConnectionInTable || 
+            ( DateTime.UtcNow.Ticks > Interlocked.Read(ref _next_start) ) ) { 
           if( FireFinished() ) {
             //Only the first time does this return true:
             Node n = _linker.LocalNode;
@@ -412,20 +383,23 @@ namespace Brunet
      */
     public Linker(Node local, Address target, ICollection target_list, string ct)
     {
-      _sync = new object();
       _task = new LinkerTask(local.Address, target, ct);
-      lock(_sync) {
-        _is_finished = false;
-        _local_n = local;
-        _rand = new Random();
-        _active_lps_count = 0;
-        _task_queue = new TaskQueue();
-        _task_queue.EmptyEvent += this.FinishCheckHandler;
-        _ta_queue = new Queue();
-        if( target_list != null ) {
-          int count = 0;
-          foreach(TransportAddress ta in target_list ) {
+      _local_n = local;
+      _active_lps_count = 0;
+      //this TaskQueue starts new tasks in the announce thread of the node.
+      _task_queue = new NodeTaskQueue(local);
+      _task_queue.EmptyEvent += this.FinishCheckHandler;
+      _ta_queue = new Queue();
+      if( target_list != null ) {
+        int count = 0;
+        Hashtable tas_in_queue = new Hashtable( _MAX_REMOTETAS );
+        foreach(TransportAddress ta in target_list ) {
+          if(tas_in_queue.ContainsKey(ta) ) {
+            Console.Error.WriteLine("TA: {0} appeared in list twice", ta);
+          }
+          else {
             _ta_queue.Enqueue(ta);
+            tas_in_queue[ta] = null; //Remember that we've seen this one
             if( target != null ) {
               /*
                * Make sure we don't go insane with TAs
@@ -439,18 +413,17 @@ namespace Brunet
             }
           }
         }
-        _contype = ct;
-        _maintype = Connection.StringToMainType( _contype );
-        _target = target;
-        _ta_to_restart_state = new Hashtable( _MAX_REMOTETAS );
-        _completed_tas = new Hashtable( _MAX_REMOTETAS );
-        _started = false;
-        _hold_fire = true;
-        _cph_transfer_requests = 0;
       }
+      _added_cons = 0; //We have not added a connection yet
+      _contype = ct;
+      _maintype = Connection.StringToMainType( _contype );
+      _target = target;
+      _ta_to_restart_state = new Hashtable( _MAX_REMOTETAS );
+      _started = 0;
+      _hold_fire = 1;
+      _cph_transfer_requests = 0;
 #if LINK_DEBUG
-      _last_lid++;
-      _lid = _last_lid;
+      _lid = Interlocked.Increment(ref _last_lid);
       if(ProtocolLog.LinkDebug.Enabled) {
 	ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format("Making {0}",this));
 	if( target_list != null ) {
@@ -479,24 +452,28 @@ namespace Brunet
 	ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format("Linker({0}).Start at: {1}", _lid, DateTime.Now));
       }
 #endif
-      //Just move to the next (first) TA
-      lock( _sync ) {
-        if( _started ) { throw new Exception("Linker already Started"); }
-        _started = true;
-        _hold_fire = true;
+      //Try to set _started to 1, if already set to one, throw an exception
+      if( Interlocked.Exchange(ref _started, 1) == 1) {
+        throw new Exception("Linker already Started");
       }
+      //Just move to the next (first) TA
       //Get the set of addresses to try
       int parallel_attempts = _MAX_PARALLEL_ATTEMPTS;
       if( _target == null ) {
         //Try more attempts in parallel to get leaf connections.
         //This is a hack to make initial connection faster
-        parallel_attempts = 3 * parallel_attempts;
+        parallel_attempts = 2 * parallel_attempts;
       }
+      //This would be an ideal place for a list comprehension
+      ArrayList tasks_to_start = new ArrayList(parallel_attempts);
       for(int i = 0; i < parallel_attempts; i++) {
-        TransportAddress next_ta = MoveToNextTA(null);
-        if( next_ta != null ) {
-          StartAttempt(next_ta);
+        TaskWorker t = StartAttempt( NextTA() );
+        if( t != null ) {
+          tasks_to_start.Add( t );
         }
+      }
+      foreach(TaskWorker t in tasks_to_start) {
+        _task_queue.Enqueue(t);
       }
       /*
        * We have so far prevented ourselves from sending the
@@ -505,16 +482,8 @@ namespace Brunet
        * so lets check to see if we need to fire the finish
        * event
        */
-      bool fire = false;
-      lock( _sync ) {
-        //We have started all our initial tasks:
-        _hold_fire = false;
-        if( _task_queue.WorkerCount == 0 ) {
-          //We are not putting any more workers in, so go ahead and finish:
-          fire = true;
-        }
-      }
-      if( fire ) {
+      Interlocked.Exchange(ref _hold_fire, 0);
+      if( _task_queue.WorkerCount == 0 ) {
         FinishCheckHandler(_task_queue, EventArgs.Empty);
       }
     } 
@@ -534,71 +503,58 @@ namespace Brunet
 
     /**
      * Allow if we are transfering to a LinkProtocolState or ConnectionPacketHandler
+     * Note this method does not change anything, if the transfer is done, it
+     * is done by the ConnectionTable while it holds its lock.
      */
     public bool AllowLockTransfer(Address a, string contype, ILinkLocker l) {
-      bool entered = Monitor.TryEnter(_sync); //like a lock(_sync) .
-      if (false == entered ) {
-	if (ProtocolLog.LinkDebug.Enabled) {
-	  ProtocolLog.Write(ProtocolLog.LinkDebug,
-          String.Format("Cannot acquire Linker lock for transfer (potential deadlock)."));
-	}
-        return false;
+      bool allow = false;
+      bool hold_lock = (a.Equals( _target_lock ) && contype == _contype);
+      if( false == hold_lock ) {
+        //We don't even hold this lock!
+        throw new Exception(
+                            String.Format("{2} asked to transfer a lock({0}) we don't hold: ({1})",
+                                          a, _target_lock, this));
       }
-      else {
-	try {
-          bool hold_lock = (a.Equals( _target_lock ) && contype == _contype);
-          if( false == hold_lock ) {
-            //We don't even hold this lock!
-            throw new Exception(
-                                String.Format("{2} asked to transfer a lock({0}) we don't hold: ({1})",
-                                              a, _target_lock, this));
-          }
-          if( l is Linker ) {
-            //Never transfer to another linker:
-          }
-          else if ( l is ConnectionPacketHandler.CphState ) {
-          /**
-           * The ConnectionPacketHandler only locks when it
-           * has actually received a packet.  This is a "bird in the
-           * hand" situation, however, if both sides in the double
-           * link case transfer the lock, then we have accomplished
-           * nothing.
-           *
-           * There is a specific case to worry about: the case of
-           * a firewall, where only one node can contact the other.
-           * In this case, it may be very difficult to connect if
-           * we don't eventually transfer the lock to the
-           * ConnectionPacketHandler.  In the case of bi-directional
-           * connectivity, we only transfer the lock if the
-           * address we are locking is greater than our own (which
-           * clearly cannot be true for both sides).
-           * 
-           * To handle the firewall case, we keep count of how
-           * many times we have been asked to transfer the lock.  On
-           * the third time we are asked, we assume we are in the firewall
-           * case and we allow the transfer, this is just a hueristic.
-           */
-            int reqs = Interlocked.Increment(ref _cph_transfer_requests);
-            if ( (reqs >= 3 ) || ( a.CompareTo( LocalNode.Address ) > 0) ) {
-              _target_lock = null; 
-            }
-          }
-          else if( l is LinkProtocolState ) {
-            LinkProtocolState lps = (LinkProtocolState)l;
-            /**
-             * Or Transfer the lock to a LinkProtocolState if:
-             * 1) We created this LinkProtocolState
-             * 2) The LinkProtocolState has received a packet
-             */
-            if( (lps.Linker == this ) && ( lps.LinkMessageReply != null ) ) {
-              _target_lock = null; 
-            }
-          }
-	} finally {
-          // If we don't have a try ... finally here, an exception in the
-          // above could cause us to never release the lock on _sync.
-	  Monitor.Exit(_sync);
-	}
+      if( l is Linker ) {
+        //Never transfer to another linker:
+      }
+      else if ( l is ConnectionPacketHandler.CphState ) {
+      /**
+       * The ConnectionPacketHandler only locks when it
+       * has actually received a packet.  This is a "bird in the
+       * hand" situation, however, if both sides in the double
+       * link case transfer the lock, then we have accomplished
+       * nothing.
+       *
+       * There is a specific case to worry about: the case of
+       * a firewall, where only one node can contact the other.
+       * In this case, it may be very difficult to connect if
+       * we don't eventually transfer the lock to the
+       * ConnectionPacketHandler.  In the case of bi-directional
+       * connectivity, we only transfer the lock if the
+       * address we are locking is greater than our own (which
+       * clearly cannot be true for both sides).
+       * 
+       * To handle the firewall case, we keep count of how
+       * many times we have been asked to transfer the lock.  On
+       * the third time we are asked, we assume we are in the firewall
+       * case and we allow the transfer, this is just a hueristic.
+       */
+        int reqs = Interlocked.Increment(ref _cph_transfer_requests);
+        if ( (reqs >= 3 ) || ( a.CompareTo( LocalNode.Address ) > 0) ) {
+          allow = true;
+        }
+      }
+      else if( l is LinkProtocolState ) {
+        LinkProtocolState lps = (LinkProtocolState)l;
+        /**
+         * Or Transfer the lock to a LinkProtocolState if:
+         * 1) We created this LinkProtocolState
+         * 2) The LinkProtocolState has received a packet
+         */
+        if( (lps.Linker == this ) && ( lps.LinkMessageReply != null ) ) {
+          allow = true;
+        }
       }
 #if LINK_DEBUG
       if (ProtocolLog.LinkDebug.Enabled) {
@@ -607,7 +563,7 @@ namespace Brunet
                                           _lid, (_target_lock == null), a, l));
       }
 #endif
-      return (_target_lock == null);
+      return allow;
     }
 
 //////////////////
@@ -615,45 +571,6 @@ namespace Brunet
 /// Protected/Private methods
 ///
 /////////////////
-    
-    /**
-     * Called when there is a successful completion
-     */
-    protected void AnnounceConnection(LinkProtocolState lps)
-    {
-      /**
-       * We can potentially create more than one connection since
-       * more than one parallel attempt might succeed.  We just
-       * take what we can get.
-       */
-      Connection c = lps.Connection;
-      try {
-        /* Announce the connection */
-        _local_n.ConnectionTable.Add(c);
-        lock( _sync ) {
-          _con = c;
-        }  
-#if LINK_DEBUG
-	if (ProtocolLog.LinkDebug.Enabled) {
-	  ProtocolLog.Write(ProtocolLog.LinkDebug, 
-			    String.Format("Linker({0}) added {1} at: {2}", _lid, c, DateTime.Now));
-	}
-#endif
-      }
-      catch(Exception) {
-#if LINK_DEBUG
-        if (ProtocolLog.LinkDebug.Enabled) {
-	  ProtocolLog.Write(ProtocolLog.LinkDebug, 
-			    String.Format("Linker({0}) exception trying to add: {1}", _lid, c));
-	}
-#endif
-        /* Looks like we could not add the connection */
-        //log.Error("Could not Add:", x);
-        _local_n.GracefullyClose( c.Edge );
-        //Oh well, things didn't go so hot.
-        StartAttempt( MoveToNextTA(lps.TA) );
-      }
-    }
     
     /**
      * @param success if this is true, we have a new edge to try else, make a new edge
@@ -665,13 +582,17 @@ namespace Brunet
     {
       EdgeWorker ew = (EdgeWorker)edgeworker;
       bool close_edge = false;
+      TaskWorker next_task = null;
       try {
-        TaskWorker lps = new LinkProtocolState(this, ew.TA, ew.NewEdge);
-        lps.FinishEvent +=  this.LinkProtocolStateFinishHandler;
-        SetTarget();
+        Edge e = ew.NewEdge; //This can throw an exception
+        SetTarget(); //This can also throw an exception
+
+        //If we make it here, we did not have any problem.
+        
+        next_task = new LinkProtocolState(this, ew.TA, e);
+        next_task.FinishEvent +=  this.LinkProtocolStateFinishHandler;
         //Keep a proper track of the active LinkProtocolStates:
         Interlocked.Increment(ref _active_lps_count);
-        _task_queue.Enqueue(lps);
       }
       catch(ConnectionExistsException) {
         //We already have a connection to the target
@@ -688,23 +609,25 @@ namespace Brunet
          * Try again later
          */
         close_edge = true;
-        RetryThis( ew.TA );
+        next_task = GetRestartState( ew.TA );
+        if( next_task == null ) {
+          //We've restarted too many times:
+          next_task = StartAttempt( NextTA() );
+        }
       }
       catch(EdgeException) {
         /*
          * If there is some problem creating the edge,
          * we wind up here.  Just move on
          */
-        TransportAddress next_ta = MoveToNextTA(ew.TA);
-        StartAttempt(next_ta);
+        next_task = StartAttempt( NextTA() );
       }
       catch(Exception ex) {
         /*
          * The edge creation didn't work out so well
          */
         Console.Error.WriteLine(ex);
-        TransportAddress next_ta = MoveToNextTA(ew.TA);
-        StartAttempt(next_ta);
+        next_task = StartAttempt( NextTA() );
       }
       if( close_edge ) {
         try {
@@ -714,6 +637,12 @@ namespace Brunet
           //Ignore any exception
         }
       }
+      if( next_task != null ) {
+        /*
+         * We should start a new task now
+         */
+        _task_queue.Enqueue(next_task);
+      }
     }
     
     /**
@@ -722,15 +651,7 @@ namespace Brunet
      */
     protected void FinishCheckHandler(object taskqueue, EventArgs args)
     {
-      bool fire_finished = false;
-      lock( _sync ) {
-        if( (!_is_finished) && (!_hold_fire) ) {
-          _is_finished = true;
-          fire_finished = true;
-        }
-      }
-      if( fire_finished ) {
-        //Unlock:
+      if( _hold_fire == 0 ) {
         Unlock();
 #if LINK_DEBUG
         if (ProtocolLog.LinkDebug.Enabled) {
@@ -741,6 +662,44 @@ namespace Brunet
         FireFinished();
       }
     }
+  
+  /**
+   * Given a TransportAddress, return the associated RestartState.
+   * If there are no more restarts, this returns null.
+   */
+  protected RestartState GetRestartState(TransportAddress ta) {
+    RestartState rss = null;
+    lock( _ta_to_restart_state ) {
+      rss = (RestartState)_ta_to_restart_state[ta];
+      if( rss == null ) {
+        //This is the first time we are restarting
+        rss = new RestartState(this, ta);
+      }
+      else if (rss.RemainingAttempts > 0) {
+        //We have to decrement the remainingAttempts:
+        int ra = rss.RemainingAttempts - 1;
+        rss = new RestartState(this, ta, ra);
+      }
+      else {
+      /*
+       * The old TA has had it
+       */
+        rss = null;
+      }
+    }
+    if( rss != null ) {
+      _ta_to_restart_state[rss.TA] = rss;
+      rss.FinishEvent += this.RestartHandler;
+#if LINK_DEBUG
+      if (ProtocolLog.LinkDebug.Enabled) {
+        ProtocolLog.Write(ProtocolLog.LinkDebug, 
+          String.Format("Linker({0}) restarting; remaining attempts: {1}",
+                        _lid, rss.RemainingAttempts));
+        }
+#endif
+    }
+    return rss;
+  }
 
    protected void LinkProtocolStateFinishHandler(object olps, EventArgs args) {
      LinkProtocolState lps = (LinkProtocolState)olps;
@@ -751,30 +710,46 @@ namespace Brunet
 					lps, lps.MyResult, DateTime.Now));
      }
 #endif
+     TaskWorker next_task = null;
      switch( lps.MyResult ) {
        case LinkProtocolState.Result.Success:
-         //Add this connection to our ConnectionTable
-         AnnounceConnection(lps);
+         /*
+          * Great, the Connection is up and in our table now
+          * Just do nothing now and wait for the other tasks
+          * to finish, at which point, the Linker will fire
+          * its FinishEvent.
+          */
+         Interlocked.Increment(ref _added_cons);
+#if LINK_DEBUG
+         if (ProtocolLog.LinkDebug.Enabled) {
+           ProtocolLog.Write(ProtocolLog.LinkDebug, 
+             String.Format("Linker({0}) added {1} at: {2}", _lid, lps.Connection, DateTime.Now));
+         }
+#endif
+         break;
+       case LinkProtocolState.Result.RetryThisTA:
+         next_task = GetRestartState(lps.TA);
+         if( next_task == null ) {
+           goto case LinkProtocolState.Result.MoveToNextTA;
+         }
          break;
        case LinkProtocolState.Result.MoveToNextTA:
          //Hold the lock, it will be transferred:
          // old LPS -> Linker -> new LPS
-         TransportAddress next = MoveToNextTA(lps.TA);
-         StartAttempt(next);
-         break;
-       case LinkProtocolState.Result.RetryThisTA:
-         RetryThis(lps.TA);
+         next_task = StartAttempt( NextTA() );
          break;
        case LinkProtocolState.Result.ProtocolError:
-         //Fail(lps.TA, lps.EM.ToString() );
          break;
        case LinkProtocolState.Result.Exception:
-         //Fail(lps.TA, lps.EM.ToString() );
          break;
        default:
          //This should not happen.
          Console.Error.WriteLine("unrecognized result: " + lps.MyResult.ToString());
          break;
+     }
+     if( next_task != null ) {
+       //We have some new task to start
+       _task_queue.Enqueue(next_task);
      }
      int current_active = Interlocked.Decrement(ref _active_lps_count);
      if( current_active == 0 ) {
@@ -785,113 +760,40 @@ namespace Brunet
        Unlock();
      }
    }
-    /**
-     * Clean up any state information for the given TransportAddress
-     * and setup for the next run and return the next TransportAddress
-     * to try, or null if there is no other address to try.
-     * @param old_ta the previous TransportAddress that we tried
-     * @return the next TransportAddress to try, or null if there are no more
-     */
-    protected TransportAddress MoveToNextTA(TransportAddress old_ta) {
-      /*
-       * Here we drop the lock, and close the edge properly
-       */
-      TransportAddress next_ta = null;
-      lock( _sync ) {
-        //Time to go on to the next TransportAddress, and give up on this one
-        bool keep_looking = (_con == null) && (!_is_finished)
-                             && (_ta_queue.Count > 0);
-        while( keep_looking ) {
-          //Don't start another if we have already succeeded
-          next_ta = (TransportAddress)_ta_queue.Dequeue();
-          if( _completed_tas.ContainsKey(next_ta) ) {
-            Console.Error.WriteLine("TA: {0} appeared in list twice", next_ta);
-            next_ta = null;
-            //Keep looking only if there are more to look at:
-            keep_looking = (_ta_queue.Count > 0);
-          }
-          else {
-            //Make sure we don't try this again
-            _completed_tas[next_ta] = null;
-            //We have our next TA
-            keep_looking = false;
-          }
-        }
-      }
-#if LINK_DEBUG
-      if (ProtocolLog.LinkDebug.Enabled) {
-	ProtocolLog.Write(ProtocolLog.LinkDebug, 
-			  String.Format("Linker({0}) Move on to the next TA: {1}", _lid, next_ta));
-      }
-#endif
-      return next_ta;
-    }
-   
+
+   /**
+    * If there is another TA in the _ta_queue, dequeue and return it,
+    * otherwise, return null
+    */
+   protected TransportAddress NextTA() {
+     TransportAddress next_ta = null;
+     lock( _ta_queue ) {
+       if( _ta_queue.Count > 0 ) {
+         next_ta = (TransportAddress)_ta_queue.Dequeue();
+       }
+     }
+     return next_ta;
+   }
     /**
      * When a RestartState finishes its task, this is the
      * EventHandler that is called.
+     *
+     * At the end of a RestartState, we call StartAttempt for
+     * the TA we are waiting on.  If we have restarted too many
+     * times, we move to the next TA, and StartAttempt with that one.
      */
     protected void RestartHandler(object orss, EventArgs args) {
       RestartState rss = (RestartState)orss;
-      //Call StartAttempt:
-      StartAttempt( rss.TA );
+      TaskWorker next_task = StartAttempt( rss.TA );
+      if( next_task == null ) {
+        //Looks like it's time to move on:
+        next_task = StartAttempt( NextTA() ); 
+      }
+      if( next_task != null ) {
+        _task_queue.Enqueue(next_task);
+      }
     }
 
-    /**
-     * We sleep some random period, and retry to connect without moving
-     * to the next TA.  This happens when we have the "double-lock" error.
-     */
-    protected void RetryThis(TransportAddress ta) {
-      RestartState rss = null;
-      lock( _sync ) {
-        rss = (RestartState)_ta_to_restart_state[ta];
-        if( rss == null ) {
-          //This is the first time we are restarting
-          rss = new RestartState(this, ta);
-        }
-        else if (rss.RemainingAttempts > 0) {
-          //We have to decrement the remainingAttempts:
-          int ra = rss.RemainingAttempts - 1;
-          rss = new RestartState(this, ta, ra);
-        }
-        else {
-        /*
-         * The old TA has had it
-         */
-          _ta_to_restart_state.Remove(ta);
-          rss = null;
-          //Time to go on to the next TransportAddress, and give up on this one
-          ta = MoveToNextTA(ta);
-            if( ta != null ) {
-            rss = new RestartState(this, ta);
-            }
-        }
-        if( rss != null ) {
-          _ta_to_restart_state[ta] = rss;
-        }
-      }
-      if( rss == null ) {
-#if LINK_DEBUG
-        //Fail(ta, "no more tas to restart with");
-        if (ProtocolLog.LinkDebug.Enabled) {
-	  ProtocolLog.Write(ProtocolLog.LinkDebug, 
-			    String.Format("Linker({0}), no more tas to restart with", _lid));
-	}
-#endif
-      }
-      else {
-#if LINK_DEBUG
-        if (ProtocolLog.LinkDebug.Enabled) {
-	ProtocolLog.Write(ProtocolLog.LinkDebug, 
-			  String.Format("Linker({0}) restarting; remaining attempts: {1}",
-					_lid, rss.RemainingAttempts));
-	}
-#endif
-        //Actually schedule the restart
-        rss.FinishEvent += this.RestartHandler;
-        _task_queue.Enqueue( rss );
-      }
-    }
     /**
      * Set the _target_lock member variable and check for sanity
      * We only set the target if we can get a lock on the address
@@ -920,79 +822,75 @@ namespace Brunet
     }
     
     /**
-     * This manages a new attempt to connect on a given TransportAddress
+     * This creates a TaskWorker that represents the next step that should
+     * be taken for the ta.  It can only be two tasks: create the edge
+     * (EdgeWorker) or wait and try again (RestartState).
+     *
+     * We return null if:
+     *  - the TA is null
+     *  - Linker is finished
+     *  - a Connection was already created
+     *  - this TA has been restarted too many times
+     *
+     * If we cannot get a ConnectionTable.Lock with SetTarget, we return a
+     * RestartState to wait a little while to try to get the lock again.
+     *
+     * @returns the next TaskWorker that should be enqueued, does not start or
+     * Enqueue it.
      */
-    protected void StartAttempt(TransportAddress next_ta) {
-      if( next_ta == null ) {
-        //We only get a null TA if we are totally out.  Time to fail:
-        //Fail(next_ta, "no more tas to restart with");
-        return;
-      }
-      if( ConnectionInTable ) {
+    protected TaskWorker StartAttempt(TransportAddress next_ta) {
+      TaskWorker next_task = null;
+      if ( (next_ta == null) || (_added_cons != 0) || IsFinished || ConnectionInTable ) {
         //Looks like we are already connected...
-        //Fail(next_ta, "Connected before we could StartAttempt");
-        return;
-      }
-      else {
-        //Looks like it is time to really move:
+        return null;
       }
       try {
+#if LINK_DEBUG
+        if (ProtocolLog.LinkDebug.Enabled) {
+          ProtocolLog.Write(ProtocolLog.LinkDebug, 
+            String.Format("Linker ({0}) attempting to lock {1}", _lid, _target));
+        }
+#endif
         /*
          * If we cannot set this address as our target, we
          * stop before we even try to make an edge.
-         */
-#if LINK_DEBUG
-          if (ProtocolLog.LinkDebug.Enabled) {
-	    ProtocolLog.Write(ProtocolLog.LinkDebug, 
-			      String.Format("Linker ({0}) attempting to lock {1}", _lid, _target));
-	  }
-#endif
-         /*
+          * 
           * Locks flow around in complex ways, but we
           * (or one of our LinkProtocolState)
           * will hold the lock
           */
-          SetTarget();
+        SetTarget();
 #if LINK_DEBUG
-          if (ProtocolLog.LinkDebug.Enabled) {
-	    ProtocolLog.Write(ProtocolLog.LinkDebug, 
-			      String.Format("Linker ({0}) acquired lock on {1}", _lid, _target));
-	  }
+        if (ProtocolLog.LinkDebug.Enabled) {
+            ProtocolLog.Write(ProtocolLog.LinkDebug, 
+			        String.Format("Linker ({0}) acquired lock on {1}", _lid, _target));
+            ProtocolLog.Write(ProtocolLog.LinkDebug, 
+              String.Format("Linker: ({0}) Trying TA: {1}", _lid, next_ta));
+        }
 #endif
+        next_task = new EdgeWorker(_local_n.EdgeFactory, next_ta);
+        next_task.FinishEvent += this.EdgeWorkerHandler;
+      }
+      catch(CTLockException) {
         /*
-         * Asynchronously gets an edge, and then begin the
-         * link attempt with it.  If it fails, and there
-         * are more TransportAddress objects, this method
-         * will call itself again.  If there are no more TAs
-         * the Link attempt Fails.
+         * If we cannot get a lock on the address in SetTarget()
+         * we wait and and try again
          */
 #if LINK_DEBUG
-          if (ProtocolLog.LinkDebug.Enabled) {
-	    ProtocolLog.Write(ProtocolLog.LinkDebug, 
-			      String.Format("Linker: ({0}) Trying TA: {1}", _lid, next_ta));
-	  }
+        if (ProtocolLog.LinkDebug.Enabled) {
+          ProtocolLog.Write(ProtocolLog.LinkDebug, 
+            String.Format("Linker ({0}) failed to lock {1}", _lid, _target));
+        }
 #endif
-         TaskWorker ew = new EdgeWorker(_local_n.EdgeFactory, next_ta);
-         ew.FinishEvent += this.EdgeWorkerHandler;
-         //Start it going
-         _task_queue.Enqueue(ew);
+        next_task = GetRestartState(next_ta);
       }
       catch(ConnectionExistsException) {
         //We already have a connection to the target
       }
-      catch(CTLockException) {
-#if LINK_DEBUG
-        if (ProtocolLog.LinkDebug.Enabled) {
-	  ProtocolLog.Write(ProtocolLog.LinkDebug, 
-			    String.Format("Linker ({0}) failed to lock {1}", _lid, _target));
-	}
-#endif
-        //This is thrown when ConnectionTable cannot lock.  Lets try again:
-        RetryThis(next_ta);
-      }
       catch(Exception) {
-        //Fail(next_ta, x.Message);
+
       }
+      return next_task;
     }
 
     /**
