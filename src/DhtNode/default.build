@@ -19,7 +19,7 @@
         <include name="Brunet.DhtService.dll"/>
       </fileset>
     </copy>
-    <csc target="exe" output="${build.dir}/DhtIpopNode.exe" main="Ipop.DhtNode.DhtIpopNode">
+    <csc target="exe" output="${build.dir}/DhtIpopNode.exe" main="Ipop.DhtNode.DhtIpopNode" optimize="true">
       <sources failonempty="true">
         <include name="*.cs"/>
         <include name="../IpopNode/*.cs"/>
