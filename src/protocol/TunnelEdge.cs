@@ -28,9 +28,10 @@ using System.Threading;
 namespace Brunet
 {
   /**
-   * Abstract base class used for all Edges.  Manages
-   * the sending of Packet objects and sends and event
-   * when a Packet arrives.
+   * This class represents a tunnel edge. A tunnel edge represents an overlay
+   * edge that is tunnelled over connections to common neighbors, and is useful to 
+   * correct the overlay structure when adjacent nodes cannot form TCP ot UDP
+   * (or any other transport) connections.  
    */
 
   public class TunnelEdge: Edge
@@ -39,7 +40,13 @@ namespace Brunet
     protected readonly TunnelEdgeListener _send_cb;
 
     //TODO: It would be nice to make the following items immutable lists. 
+    /**
+     * Keep track of list of forewarders associated with the tunnel edge. 
+     */
     protected ArrayList _forwarders;
+    /**
+     * Packet senders associated with the forwarders. 
+     */
     protected ArrayList _packet_senders;
     public ArrayList PacketSenders {
       get {
@@ -49,18 +56,29 @@ namespace Brunet
 
     protected int _last_sender_idx;
     
+    /**
+     * Target address for the tunnel edge. 
+     */
     protected readonly Address _target;
     public Address Target {
       get {
 	return _target;
       }
     }
+    
+    /**
+     * Local id for the tunnel edge. 
+     */
     protected readonly int _id;
     public int ID {
       get {
 	return _id;
       }
     }
+
+    /**
+     * Remote id for the tunnel edge. 
+     */
     protected int _remote_id;
     public int RemoteID {
       get {
@@ -87,7 +105,9 @@ namespace Brunet
         }
       }
     }
-    
+    /**
+     * Is the edge already closed. 
+     */    
     protected int _is_closed;
     public override bool IsClosed
     {
@@ -96,7 +116,13 @@ namespace Brunet
         return (_is_closed == 1);
       }
     }
+    /**
+     * Has a connection been formed over the tunnel edge. 
+     */
     protected bool _is_connected;
+    /**
+     * Is the tunnel edge inbound. 
+     */
     protected bool _inbound;
     public override bool IsInbound
     {
@@ -107,12 +133,22 @@ namespace Brunet
     }
 
     protected static readonly TimeSpan SyncInterval = new TimeSpan(0, 0, 30);//30 seconds.
+    /**
+     * Last time when we synchronized with the tunnel edge target,
+     * on the list of forwarders. 
+     */
     protected DateTime _last_sync_dt;
 
+    /**
+     * Creation time for the tunnel edge. 
+     */
     protected readonly DateTime _create_dt;
     public override DateTime CreatedDateTime {
       get { return _create_dt; }
     }
+    /**
+     * Last time a packet was sent on this edge. 
+     */
     protected long _last_out_packet_datetime;
     public override DateTime LastOutPacketDateTime {
       get {
@@ -122,26 +158,50 @@ namespace Brunet
       } 
     }
     
+    /**
+     * Local URI representation for the edge. 
+     */
     protected volatile TransportAddress _localta;
     public override TransportAddress LocalTA
     {
       get { return _localta; }
     }    
+    /**
+     * Remote URI representation for the edge. 
+     */
     protected volatile TransportAddress _remoteta;
     public override TransportAddress RemoteTA
     {
       get { return _remoteta; }
     }    
 
+    /**
+     * List of connection (addresses) acquired between edge creation
+     * and connnection setup on this edge. 
+     */
     public ArrayList _acquire_summary;
+    /**
+     * List of connection (addresses) lost between edge creation
+     * and connnection setup on this edge. 
+     */
     public ArrayList _lost_summary;
     
     /**
      * This is the header we prepend to any Packet
-     * we send
+     * we send.
      */
     protected ICopyable _tun_header;
 
+    /**
+     * Constructor for the tunnel edge.
+     * @param cb reference to the tunnel edge listener.
+     * @param is_in is the edge inbound.
+     * @param n local node.
+     * @param target address of the tunnel edge target node.
+     * @param forwarders current list of forwarders (addresses) for the tunnel edge. 
+     * @param id local id.
+     * @param remoteid remote id.     
+     */
     public TunnelEdge(TunnelEdgeListener cb, bool is_in, Node n, 
 		      Address target, ArrayList forwarders, int id, int remoteid)
     {
@@ -200,7 +260,7 @@ namespace Brunet
 #endif
     }
     /**
-     * Closes the Edge, further Sends are not allowed
+     * Closes the Edge, further Sends are not allowed.
      */
     public override void Close()
     {
@@ -216,7 +276,9 @@ namespace Brunet
       Console.Error.WriteLine("Closing: {0}", this);
 #endif
     }
-
+    /**
+     * Type of the edge (tunnel in this case).
+     */ 
     public override TransportAddress.TAType TAType
     {
       get {
@@ -224,7 +286,12 @@ namespace Brunet
       }
     }
     /**
-     * We have to make this everytime _remote_id changes
+     * Creates the tunnel header attached in front of packet sent on the tunnnel edge. 
+     * We have to make this everytime _remote_id changes.
+     * @param local_id local id of the edge. 
+     * @param remote_id remote id of the edge. 
+     * @param source local node address.
+     * @param target target node address.
      */
     protected static ICopyable GetTunnelHeader(int local_id, int remote_id, Address source, Address target) {
       //The header always stays fixed for this TunnelEdge
@@ -245,6 +312,7 @@ namespace Brunet
       return MemBlock.Copy( (ICopyable) header );
     }
     /**
+     * Send a packet on this edge. 
      * @param p a Packet to send to the host on the other
      * side of the Edge.
      * @throw EdgeException if any problem happens
@@ -328,7 +396,10 @@ namespace Brunet
         }
       }
     }
-    
+
+    /**
+     * Receive a packet on this edge. 
+     */
     public void Push(MemBlock p)
     {
 #if TUNNEL_DEBUG
@@ -337,6 +408,12 @@ namespace Brunet
       ReceivedPacketEvent(p);
     }
     
+    /**
+     * Handle event associated with a disconnection.
+     * @param o some object 
+     * @param args arguments representing the disconnection event.
+     * (encapsulates the connection object).
+     */
     protected void DisconnectHandler(object o, EventArgs args) {
       ConnectionEventArgs cargs = args as ConnectionEventArgs;
       Connection cons = cargs.Connection;
@@ -393,6 +470,12 @@ namespace Brunet
       }
     }
 
+    /**
+     * Handle event associated with a new connection.
+     * @param o some object 
+     * @param args arguments representing the connection event
+     * (encapsulates the connection object).
+     */
     protected void ConnectHandler(object o, EventArgs args) {
       ConnectionEventArgs cargs = args as ConnectionEventArgs;
       Connection cons = cargs.Connection;
@@ -434,6 +517,13 @@ namespace Brunet
       }
     }
     
+    /**
+     * Handle periodic synchronization about forwarders with the
+     * edge target.
+     * @param o some object.
+     * @param args event arguments.
+
+     */
     protected void SynchronizeEdge(object o, EventArgs args) {
       
       // Send a message about my local connections.
@@ -461,6 +551,12 @@ namespace Brunet
 #endif
     }
     
+    /**
+     * Handle an edge control packet from the tunnel edge target
+     * (change in his connections).
+     * @param acquired list of connections (addresses) acquired. 
+     * @param lost list of connections (addresses) lost. 
+     */
     public void HandleControlPacket(ArrayList acquired, ArrayList lost) {
       //This does not require a lock, and stuct_cons can't change after this call
       IEnumerable struct_cons =
@@ -507,6 +603,11 @@ namespace Brunet
       }
     }
 
+    /**
+     * Handle a synchornization packet from tunnel edge target.  
+     * @param forwarders list of forwarding addresses the target is
+     * using.
+     */
     public void HandleSyncPacket(ArrayList forwarders) {
       //This does not require a lock, and stuct_cons can't change after this call
       IEnumerable struct_cons =
