@@ -39,7 +39,7 @@ namespace Brunet
   many ways to interface with the different implementations.  Discovery runs at
   group address 224.123.123.222:56123.</summary>
   */
-  public class IPHandler: ISource
+  public class IPHandler: SimpleSource
   {
     /// <summary>Runs on 224.123.123.222:56123</summary>
     protected readonly Socket _mc;
@@ -56,15 +56,6 @@ namespace Brunet
     /**  <summary>Thread dedicated to reading from the unicast and multicast
     sockets</summary>*/
     protected readonly Thread _listen_thread;
-
-    protected class Sub {
-      public readonly IDataHandler Handler;
-      public readonly object State;
-      public Sub(IDataHandler h, object s) { Handler = h; State =s; }
-      public void Handle(MemBlock b, ISender f) { Handler.HandleData(b, f, State); }
-    }
-    protected readonly object _sync;
-    protected volatile Sub _sub;
 
     /**
     <summary>Creates a new IPHandler object by initializing the multicast and
@@ -105,26 +96,9 @@ namespace Brunet
       _uc.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastLoopback, true);
       _uc.Bind(new IPEndPoint(IPAddress.Any, 0));
       _running = true;
-      _sync = new Object();
       _listen_thread = new Thread(Listen);
       _listen_thread.IsBackground = true;
       _listen_thread.Start();
-    }
-
-    public virtual void Subscribe(IDataHandler hand, object state) {
-      lock( _sync ) {
-        _sub = new Sub(hand, state);
-      }
-    }
-    public virtual void Unsubscribe(IDataHandler hand) {
-      lock( _sync ) {
-        if( _sub.Handler == hand ) {
-          _sub = null;
-        }
-        else {
-          throw new Exception(String.Format("Handler: {0}, not subscribed", hand));
-        }
-      }
     }
 
     /// <summary>Called to interrupt the _listen_thread.</summary>
@@ -174,7 +148,7 @@ namespace Brunet
           foreach(Socket socket in readers) {
             EndPoint ep = new IPEndPoint(IPAddress.Any, 0);
             int rec_bytes = socket.ReceiveFrom(buffer, ref ep);
-            Sub s = _sub;
+            Subscriber s = _sub;
             //s can't change once we've read it.
             if( s != null) {
               MemBlock packet = MemBlock.Copy(buffer, 0, rec_bytes);
