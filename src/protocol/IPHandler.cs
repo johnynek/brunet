@@ -255,7 +255,14 @@ namespace Brunet
     <returns>An array of IPAddresses of the local machine.</returns>
      */
     public static IPAddress[] GetLocalIPAddresses() {
-      IPAddress[] base_addresses = Dns.GetHostAddresses(Dns.GetHostName());
+      IPAddress[] base_addresses = null;
+      try {
+        base_addresses = Dns.GetHostAddresses(Dns.GetHostName());
+      }
+      catch {
+        base_addresses = new IPAddress[0];
+      }
+
       IPAddress[] addresses = new IPAddress[base_addresses.Length + 1];
       base_addresses.CopyTo(addresses, 0);
       addresses[addresses.Length - 1] = IPAddress.Loopback;
@@ -401,11 +408,13 @@ namespace Brunet
     [Test]
     public void Test() {
       IPAddress[] base_addresses = Dns.GetHostAddresses(Dns.GetHostName());
+      ArrayList local_ips = new ArrayList(base_addresses);
+      local_ips.Add(IPAddress.Loopback);
       ArrayList ips = new ArrayList(IPHandler.GetLocalIPAddresses());
-      foreach(IPAddress addr in base_addresses) {
+      foreach(IPAddress addr in local_ips) {
         Assert.IsTrue(ips.Contains(addr), addr + " is not in ips");
       }
-      Assert.AreEqual(ips.Count, base_addresses.Length + 1, "Count");
+      Assert.AreEqual(ips.Count, local_ips.Count, "Count");
     }
   }
 #endif
