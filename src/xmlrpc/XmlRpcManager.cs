@@ -55,15 +55,47 @@ namespace Brunet {
      */
     [XmlRpcMethod]
     public object[] proxy(string node, int ahOptions, int maxResultsToWait, string method, params object[] args) {
-      if (node.StartsWith("brunet:node:")) {
-        node = node.Remove(0, 12); //remove "brunet:node:"
-      }
-
-      byte[] b_addr = Base32.Decode(node);
-      AHAddress target = new AHAddress(b_addr);
+      Address target = AddressParser.Parse(node);
       AHSender s = new AHSender(_node, target, (ushort)ahOptions);
       return this.Proxy(s, maxResultsToWait, method, args);
     }
+
+    /**
+     * @param sender: URI specifying the sender.
+     * @param maxResultToWait: When the synchronous call gets this amount of items, it returns even
+     *                         if there are still more. (unless this argument is specified as a negative number)
+     * @param method: brunet rpc method name
+     * @param args: args of brunet rpc method
+     * 
+     * @return array of objects returned by the blocking queue
+     */
+    [XmlRpcMethod]
+    public object[] uriproxy(string uri, int maxResultsToWait, string method, params object[] args) {
+      ISender s = ISenderFactory.CreateInstance(_node, uri);
+      Console.WriteLine(s.GetType());
+      return this.Proxy(s, maxResultsToWait, method, args);
+    }
+
+    /**
+     * @param relay: forwarding node brunet address.
+     * @param dest: destination node brunet address.
+     * @ttl: maximum number of hops for between relay and destination.
+     * @ahOptions: AH options to use between relay and destination. 
+     * @param maxResultToWait: When the synchronous call gets this amount of items, it returns even
+     *                         if there are still more. (unless this argument is specified as a negative number)
+     * @param method: brunet rpc method name.
+     * @param args: args of brunet rpc method.
+     * 
+     * @return array of objects returned by the blocking queue
+     */
+    [XmlRpcMethod]
+    public object[] forwardingproxy(string relay, string dest, int ttl, int ahOptions, int maxResultsToWait, string method, params object[] args) {
+      Address forwarder = AddressParser.Parse(relay);
+      Address target = AddressParser.Parse(dest);
+      ForwardingSender s = new ForwardingSender(_node, forwarder, target, (short) ttl, (ushort)ahOptions);
+      return this.Proxy(s, maxResultsToWait, method, args);
+    }
+
 
     /**
      * Similar to proxy but it takes the local node as the target and
