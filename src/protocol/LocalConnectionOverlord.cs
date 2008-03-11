@@ -267,9 +267,17 @@ namespace Brunet
     protected void HandleGetInformation(Object o, EventArgs ea)
     {
       Channel queue = (Channel) o;
+      Hashtable ht = null;
       try {
         RpcResult rpc_reply = (RpcResult) queue.Dequeue();
-        Hashtable ht = (Hashtable) rpc_reply.Result;
+        ht = (Hashtable) rpc_reply.Result;
+      }
+      catch {
+        // Remote end point doesn't have LocalCO enabled.
+        return;
+      }
+
+      try {
         string remote_realm = (string) ht["namespace"];
         if(!remote_realm.Equals(_node.Realm)) {
           return;
