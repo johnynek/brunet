@@ -21,52 +21,81 @@ using System.Collections.Generic;
 using System.Collections;
 using System.IO;
 
-using Brunet;
+#if BRUNET_NUNIT
+using NUnit.Framework;
+using System.Security.Cryptography;
+#endif
 
 namespace Brunet.DistributedServices {
-  /* This is meant to separate some logic from the TableServer, there are many
-   * ways to implement this, so I figured it would be best to offer an 
-   * abstracted view.  The data is stored in a hashtable with each key 
-   * pointing to a LinkedList<Entry> containing all the entries.  These are
-   * sorted by earliest expiration first, so that the operation of removing
-   * them is fast.  There is also a sorted list of keys for having quick 
-   * search through all the keys in the pool.  Entry is a wrapper for a 
-   * hashtable that contains start, end, key, and value.  Key is perhaps
-   * unnecessary and could should possibly be removed.
-   */
+  /**
+  <summary>This class separate the dht data store server (this) from the data
+  store client (TableServer).<summary>
+  <remarks><para>The data is stored in a hashtable with each key pointing to a
+  LinkedList<Entry> containing all the values and other data associated with
+  that key.  These are sorted by earliest expiration first, so that the
+  operation of removing them is fast.  There is also a sorted list of keys for
+  having quick search through all the keys on this node (used primarily for 
+  disconnection transfer).</para>
+  <para>
+  Using the cache here is difficult because Brunet's AdrConverter does
+  not support the data types stored inside the cache.  More importantly
+  there is no point in caching files that take up only a kilobyte, if
+  Brunet streaming becomes available and the Dht can store larger than
+  one kilobyte values, this may be valuable to revisit.  In the meantime,
+  don't renable it, unless you want to fix it.  It is broken!  The problem
+  with this implementation is that it doesn't care what size the data in
+  the cache is, this isn't the right way to implement it.
+  <code>
+  Cache _data = new Cache(2500);
+  </code>
+  </para></remarks>
+  */
+  #if BRUNET_NUNIT
+  [TestFixture]
+  #endif
   public class TableServerData {
+    /**  <summary>Every 24 hours all entries in the table are checked to see if
+    their lease had expired, this contains the last time that occurred.
+    </summary> */
     DateTime last_clean = DateTime.UtcNow;
+    /// <summary>A list of keys stored in the this dht.</summary>
     LinkedList<MemBlock> list_of_keys = new LinkedList<MemBlock>();
+    /**  <summary>LinkedList of values stored in  a hashtable, indexed by key.
+    </summary> */
     Hashtable _data = new Hashtable();
-
-    /*
-     * Using the cache here is difficult because Brunet's AdrConverter does
-     * not support the data types stored inside the cache.  More importantly
-     * there is no point in caching files that take up only a kilobyte, if
-     * Brunet streaming becomes available and the Dht can store larger than
-     * one kilobyte values, this may be valuable to revisit.  In the meantime,
-     * don't renable it, unless you want to fix it.  It is broken!  The problem
-     * with this implementation is that it doesn't care what size the data in
-     * the cache is, this isn't the right way to implement it.
-     * Cache _data = new Cache(2500);
-     */
-
+    /// <summary>The base directory for uncached entries.</summary>
     protected string _base_dir;
+    /// <summary>The total amount of key:value pairs stored.</summary>
     public int Count { get { return count; } }
-    private int count = 0;
+    /// <summary>The total amount of key:value pairs stored.</summary>
+    protected int count = 0;
+    /// <summary>The time in seconds between cleanups.</summary>
+    public readonly int TimeBetweenCleanup;
 
+    /**
+    <summary>Creates a new data store for the dht.</summary>
+    <param name="node">For uncache data, we use the node to alert us to delete
+    the entries as well the address to define a path to store them.</param>
+    */
     public TableServerData(Node node) {
       node.DepartureEvent += this.CleanUp;
+      // Caching is not supported at this time.
 //      _data.EvictionEvent += this.CacheEviction;
 //      _data.MissEvent += this.CacheMiss;
       _base_dir = Path.Combine("data", node.Address.ToString().Substring(12));
-      CleanUp();
+      CleanUp(null, null);
+      TimeBetweenCleanup = 60*60*24;
     }
 
-    /* This is a quick little method to add an entry, since the basic Put
-    * mechanism will not be changing and this may, it is separated.
-    * Data is sorted in a non-decreasing EndTime, so that the earliest
-    * to expire will always be on top.
+    /**
+    <summary>This adds an entry and should only be called if no such entry
+    exists, as it does not look to see if a duplicate entry already exists.
+    This creates a new LinkedList if this is the first entry for the specific
+    key and stores it in the _data hashtable.  This increments count.</summary>
+    <remarks>Because data is stored by non-decreasing end time, we must place
+    this at the correct position, which by starting at the last entry is
+    right after the first entry that has a shorter end time.</remarks>
+    <param name="entry">The data to store.</param>
     */
 
     public void AddEntry(Entry entry) {
@@ -91,6 +120,9 @@ namespace Brunet.DistributedServices {
       count++;
     }
 
+    /**
+    <summary>Disk caching is unsupported at this time.</summary>
+    */
     /* When we have a cache eviction, we must write it to disk, we take
     * each entry, convert it explicitly into a hashtable, and then use adr
     * to create a stream and write it to disk
@@ -125,6 +157,9 @@ namespace Brunet.DistributedServices {
       }
     }
 
+    /**
+    <summary>Disk caching is unsupported at this time.</summary>
+    */
     /* When we have a cache miss, we should try to load the data from disk,
     * if we are successful, we should also delete that file from the disk
     */
@@ -146,25 +181,26 @@ namespace Brunet.DistributedServices {
       }
     }
 
-    //  Called to clean up the disk data left behind by the dht
-    private void CleanUp() {
+    /**
+    <summary>Called to clean up the disk data left behind by the dht</summary>
+    <param name="o">Unused.</param>
+    <param name="args">Unused.</param>
+    <returns></returns>
+    */
+    public void CleanUp(Object o, EventArgs args) {
       if(Directory.Exists(_base_dir)) {
         Directory.Delete(_base_dir, true);
       }
     }
 
-    public void CleanUp(Object o, EventArgs args) {
-      this.CleanUp();
-    }
-
-    /* Deletes any of the expired entries, where all entries in the individual
-     * entry are expired, otherwise we they must be deleted during an operation
-     * on the table regarding a specific key, or we would be constantly
-     * churning through an enormous list
-     */
+    /**
+    <summary>Deletes any of the expired entries by traversing the entire data
+    store.  This is done only once every 24 hours to reduce heavy memory access
+    due to short lived unused entries.</summary>
+    */
     public void CheckEntries() {
       DateTime now = DateTime.UtcNow;
-      if(now - last_clean < TimeSpan.FromHours(24)) {
+      if(now - last_clean < TimeSpan.FromSeconds(TimeBetweenCleanup)) {
         return;
       }
       // Otherwise its time to do some cleaning!
@@ -172,13 +208,19 @@ namespace Brunet.DistributedServices {
       LinkedListNode<MemBlock> current = list_of_keys.First;
       while(current != null) {
         LinkedListNode<MemBlock> next = current.Next;
+        DeleteExpired(current.Value);
         current = next;
       }
     }
 
-    /* Deletes any of the expired entries for a specific key, we execute this
-     * prior to any Dht operations involving the key in question
-     */
+    /**
+    <summary>Deletes all expired entries for the specified key.  For each entry
+    deleted, count is decremented.  This should be called before accessing the
+    data stored in this table.</summary>
+    <param name="key">The index to check for expired entries.</param>
+    <returns>The amount of entries deleted.</returns>
+    */
+
     public int DeleteExpired(MemBlock key) {
       LinkedList<Entry> data = (LinkedList<Entry>) _data[key];
       if(data == null) {
@@ -203,12 +245,23 @@ namespace Brunet.DistributedServices {
       return lcount;
     }
 
+    /**
+    <summary>Generates a path given a key.</summary>
+    <param name="key">The key to generate a path for.</param>
+    <returns>The path for the key.</returns>
+    */
     public string GeneratePath(MemBlock key) {
       string dir_path, filename;
       return GeneratePath(key, out dir_path, out filename);
     }
 
-    // Generates the file system path for a specific key
+    /**
+    <summary>Generates a path given a key.</summary>
+    <param name="key">The key to generate a path for.</param>
+    <param name="path">Returns the directory portion of the path.</param>
+    <param name="filename">Returns the filename portion of the path.</param>
+    <returns>The path for the key.</returns>
+    */
     public string GeneratePath(MemBlock key, out string path, out string filename) {
       if(Address.MemSize < 5) {
         throw new Exception("Address.MemSize must be greater than or equal to 5.");
@@ -233,12 +286,24 @@ namespace Brunet.DistributedServices {
       return Path.Combine(path, filename);
     }
 
-    // This gets us an ArrayList of entries based upon the key
+    /**
+    <summary>Retrieves the entries for the specified key.</summary>
+    <returns>The entries for the specified key.</returns>
+    */
     public LinkedList<Entry> GetEntries(MemBlock key) {
+      DeleteExpired(key);
       CheckEntries();
       return (LinkedList<Entry>) _data[key];
     }
 
+    /**
+    <summary>Returns a list of keys stored at this node that exist between the
+    two addresses.  Such keys returned are the storest path between the two
+    addresses.</summary>
+    <param name="add1">One of the address end points.</param>
+    <param name="add2">Another of the address end points.</param>
+    <returns>A LinkedList of key entries between add1 and add2</returns>
+    */
     public LinkedList<MemBlock> GetKeysBetween(AHAddress add1, AHAddress add2) {
       LinkedList<MemBlock> keys = new LinkedList<MemBlock>();
       if(add1.IsRightOf(add2)) {
@@ -260,25 +325,22 @@ namespace Brunet.DistributedServices {
       return keys;
     }
 
+    /**
+    <summary>Returns the list of keys.</summary>
+    <returns>A list of keys stored at this node.</summary>
+    */
     public LinkedList<MemBlock> GetKeys() {
       CheckEntries();
       return list_of_keys;
     }
 
-    /* Sometimes our put succeeds, but our recursive fails, this method gets
-    * called to fix the mess
+    /**
+    <summary>This removes an entry from the TableServerData, the current dht
+    does not support deletes, but if the second stage of a put (the remote 
+    PutHandler) fails, the entry needs to be deleted from this node.</summary>
+    <param name="key">The index the data is stored at.</param>
+    <param name="value">The data to remove.</param>
     */
-    public void RemoveEntries(MemBlock key) {
-      LinkedList<Entry> data = (LinkedList<Entry>) _data[key];
-      if(data != null) {
-        count -= data.Count;
-        data.Clear();
-      }
-    }
-
-    /* Sometimes our put succeeds, but our recursive fails, this method gets
-     * called to fix the mess
-     */
     public void RemoveEntry(MemBlock key, MemBlock value) {
       LinkedList<Entry> data = (LinkedList<Entry>) _data[key];
       if(data != null) {
@@ -286,14 +348,27 @@ namespace Brunet.DistributedServices {
         while(current != null) {
           if (current.Value.Value.Equals(value)) {
             data.Remove(current);
+            count--;
             break;
           }
+        }
+        if(data.Count == 0) {
+          _data.Remove(key);
+        }
+        else {
           current = current.Next;
         }
-        count--;
       }
     }
 
+    /**
+    <summary>This should be called if an entry already exists as it will find
+    the entry and update its lease time.  If an entry does not exist nothing
+    happens.</summary>
+    <param name="key">The index to store the value.</param>
+    <param name="value">The data to store.</param>
+    <param name="end_time">The lease time for the data.</param>
+    */
     public void UpdateEntry(MemBlock key, MemBlock value, DateTime end_time) {
       CheckEntries();
       LinkedList<Entry> data = (LinkedList<Entry>) _data[key];
@@ -316,6 +391,10 @@ namespace Brunet.DistributedServices {
       }
     }
 
+    /**
+    <summary>Converts all the entries into Adr compatible types so that they
+    can be sent over BrunetRpc and XmlRpc</summary>
+    */
     public ArrayList Dump() {
       ArrayList entries = new ArrayList(list_of_keys.Count);
       foreach(MemBlock key in list_of_keys) {
@@ -328,5 +407,174 @@ namespace Brunet.DistributedServices {
       }
       return entries;
     }
+
+#if BRUNET_NUNIT
+    //Needed for nunit testing
+    public TableServerData(String dir) {
+      _base_dir = Path.Combine("Data", dir);
+      TimeBetweenCleanup = 5;
+    }
+
+    // Needed for nunit to work
+    public TableServerData() {}
+
+    // Basic tests for Add, Update, and Remove
+    [Test]
+    public void Test0() {
+      RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
+      TableServerData tsd = new TableServerData("0");
+      byte[] key = new byte[20];
+      rng.GetBytes(key);
+      DateTime now = DateTime.UtcNow;
+      Entry ent = new Entry(key, key, now, now.AddSeconds(100));
+      tsd.AddEntry(ent);
+      LinkedList<Entry> entries = tsd.GetEntries(key);
+      Assert.AreEqual(1, entries.Count, "Count after add");
+      Assert.AreEqual(ent, entries.First.Value, "Entries are equal");
+      tsd.UpdateEntry(ent.Key, ent.Value, now.AddSeconds(200));
+      entries = tsd.GetEntries(key);
+      Assert.AreEqual(1, entries.Count, "Count after update");
+      Assert.AreEqual(ent, entries.First.Value, "Entries are equal");
+      tsd.RemoveEntry(ent.Key, ent.Value);
+      entries = tsd.GetEntries(key);
+      Assert.AreEqual(tsd.Count, 0, "Count after remove");
+      Assert.AreEqual(null, entries, "Entry after remove");
+    }
+
+    /*
+    This tests multiple puts on the same keys, updates on all 6 of the
+    not_expire2 and 1 of the to_expire.  So in short, this tests everything,
+    but GetEntriesBetween.and GetKeys.
+    */
+    [Test]
+    public void Test1() {
+      RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
+      TableServerData tsd = new TableServerData("0");
+      Entry[] not_expired = new Entry[12];
+      Entry[] to_expire = new Entry[12];
+      DateTime now = DateTime.UtcNow;
+      DateTime live = now.AddSeconds(120);
+      DateTime expire = now.AddSeconds(5);
+
+      for(int i = 0; i < 4; i++) {
+        byte[] key = new byte[20];
+        rng.GetBytes(key);
+        for(int j = 0; j < 3; j++) {
+          byte[] value = new byte[20];
+          rng.GetBytes(value);
+          Entry ent = new Entry(key, value, now, expire);
+          to_expire[i * 3 + j] = ent;
+          tsd.AddEntry(ent);
+          value = new byte[20];
+          rng.GetBytes(value);
+          ent = new Entry(key, value, now, live);
+          not_expired[i * 3 + j] = ent;
+          tsd.AddEntry(ent);
+          Assert.IsFalse(not_expired[i * 3 + j].Equals(to_expire[i * 3 + j]), 
+                         String.Format("{0}: not_expired == to_expire.", i * 3 + j));
+        }
+      }
+
+      for(int i = 0; i < 4; i++) {
+        LinkedList<Entry> entries = tsd.GetEntries(not_expired[i * 3].Key);
+        for(int j = 0; j < 3; j++) {
+          Assert.IsTrue(entries.Contains(not_expired[i * 3 + j]), "step 0: not_expired " + (i * 3 + j));
+          Assert.IsTrue(entries.Contains(to_expire[i * 3 + j]), "step 0: to_expire " + (i * 3 + j));
+        }
+      }
+
+      for(int i = 0; i < 4; i++) {
+        for(int j = 0; j < 3; j++) {
+          int pos = i * 3 + j;
+          if(pos % 2 == 0) {
+            Entry ent = not_expired[pos];
+            tsd.UpdateEntry(ent.Key, ent.Value, now.AddSeconds(160));
+          }
+        }
+      }
+
+      Entry entry = to_expire[11];
+      tsd.UpdateEntry(entry.Key, entry.Value, now.AddSeconds(160));
+
+      for(int i = 0; i < 4; i++) {
+        LinkedList<Entry> entries = tsd.GetEntries(not_expired[i * 3].Key);
+        for(int j = 0; j < 3; j++) {
+          Assert.IsTrue(entries.Contains(not_expired[i * 3 + j]), "step 1: not_expired " + (i * 3 + j));
+          Assert.IsTrue(entries.Contains(to_expire[i * 3 + j]), "step 1: to_expire " + (i * 3 + j));
+        }
+      }
+
+      while(DateTime.UtcNow < expire.AddSeconds(1)) {
+        for(int i = 0; i < 50000000; i++) {
+          int k = i % 5;
+         k += 6;
+        }
+      }
+      for(int i = 0; i < 3; i++) {
+        LinkedList<Entry> entries = tsd.GetEntries(not_expired[i * 3].Key);
+        for(int j = 0; j < 3; j++) {
+          Assert.IsTrue(entries.Contains(not_expired[i * 3 + j]), "step 2: not_expired " + (i * 3 + j));
+          Assert.IsFalse(entries.Contains(to_expire[i * 3 + j]), "step 2: to_expire " + (i * 3 + j));
+        }
+      }
+      Assert.AreEqual(13, tsd.Count, "Entries we didn't check are removed by CheckEntries.");
+    }
+
+    /*
+    This tests GetKeysBetween both with add1 < add2 and add2 < add1 and then
+    checks for the existence of all keys via GetKeys.
+    */
+    [Test]
+    public void Test2() {
+      TableServerData tsd = new TableServerData("0");
+      RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
+      MemBlock[] addresses = new MemBlock[100];
+      byte[] value = new byte[20];
+      rng.GetBytes(value);
+      DateTime now = DateTime.UtcNow;
+      DateTime lease_end = now.AddMinutes(1);
+      for(int i = 0; i < addresses.Length; i++) {
+        addresses[i] = (new AHAddress(rng)).ToMemBlock();
+        tsd.AddEntry(new Entry(addresses[i], value, now, lease_end));
+      }
+
+      AHAddress start = new AHAddress(rng);
+      AHAddress end = new AHAddress(rng);
+      LinkedList<MemBlock> keys_se = tsd.GetKeysBetween(start, end);
+      LinkedList<MemBlock> keys_es = tsd.GetKeysBetween(end, start);
+      String output = " - " +start + ":" + end;
+      if(start.IsLeftOf(end)) {
+        foreach(MemBlock address in addresses) {
+          AHAddress addr = new AHAddress(address);
+          if(addr.IsLeftOf(end) && addr.IsRightOf(start)) {
+            Assert.IsTrue(keys_se.Contains(address), addr + " in lse" + output);
+            Assert.IsTrue(keys_es.Contains(address), addr + " in les" + output);
+          }
+          else {
+            Assert.IsFalse(keys_se.Contains(address), addr + " out lse" + output);
+            Assert.IsFalse(keys_es.Contains(address), addr + " out les" + output);
+          }
+        }
+      }
+      else {
+        foreach(MemBlock address in addresses) {
+          AHAddress addr = new AHAddress(address);
+          if(addr.IsLeftOf(start) && addr.IsRightOf(end)) {
+            Assert.IsTrue(keys_se.Contains(address), addr + " in rse" + output);
+            Assert.IsTrue(keys_es.Contains(address), addr + " in res" + output);
+          }
+          else {
+            Assert.IsFalse(keys_se.Contains(address), addr + " out rse" + output);
+            Assert.IsFalse(keys_es.Contains(address), addr + " out res" + output);
+          }
+        }
+      }
+
+      LinkedList<MemBlock> keys = tsd.GetKeys();
+      foreach(MemBlock addr in addresses) {
+        Assert.IsTrue(keys.Contains(addr), "keys does not contain: " + (new AHAddress(addr)));
+      }
+    }
+#endif
   }
 }
