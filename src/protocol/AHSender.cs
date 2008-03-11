@@ -53,6 +53,19 @@ public class AHHeader : ICopyable {
 }
 
 public class AHSender : ISender {
+  static AHSender() {
+    SenderFactory.Register("ah", CreateInstance);
+  }
+
+  protected static AHSender CreateInstance(Node n, string uri) {
+    string s = uri.Substring(7);
+    string []ss = s.Split(SenderFactory.SplitChars);
+    string []dest = ss[1].Split(SenderFactory.Delims);
+    Address target = AddressParser.Parse(dest[1]);
+    string mode = (ss[2].Split(SenderFactory.Delims))[1];
+    ushort option = SenderFactory.StringToUShort(mode);
+    return new AHSender(n, target, option);
+  }
 
   protected Node _n;
   protected readonly Address _dest;
@@ -142,6 +155,14 @@ public class AHSender : ISender {
 
   public override string ToString() {
     return System.String.Format("AHSender(dest={0})",_dest);
+  }
+
+  /**
+   * Converts the sender into a URI representation.
+   * @returns URI for the sender.
+   */
+  public string ToUri() {
+    return System.String.Format("sender:ah?dest={0}&mode={1}", _dest, SenderFactory.UShortToString(_options));
   }
 
 }

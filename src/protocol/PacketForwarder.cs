@@ -113,12 +113,35 @@ namespace Brunet
    * This is an ISender which forwards a packet through another node
    */
   public class ForwardingSender : ISender {
+    static ForwardingSender() {
+      SenderFactory.Register("fw", CreateInstance);
+    }
+    
+    public static ForwardingSender CreateInstance(Node n, string uri) {
+      string s = uri.Substring(7);
+      string []ss = s.Split(SenderFactory.SplitChars);     
+      string[] relay = ss[1].Split(SenderFactory.Delims);
+      string[] dest = ss[2].Split(SenderFactory.Delims);
+      Address forwarder = AddressParser.Parse(relay[1]);
+      Address target = AddressParser.Parse(dest[1]);
+      short ttl = (short) Int16.Parse((ss[3].Split(SenderFactory.Delims))[1]);
+      string mode = (ss[4].Split(SenderFactory.Delims))[1];
+      ushort option = SenderFactory.StringToUShort(mode);
+      //Console.WriteLine("{0}, {1}, {2}, {3}", forwarder, target, ttl, option);
+      return new ForwardingSender(n, forwarder, target, ttl, option);      
+    }
+
+
     protected ISender _sender;
     protected ICopyable _header;
     protected Node _n;
     
     protected Address _dest;
     public Address Destination { get { return _dest; } }
+    
+    protected short _f_ttl;
+    protected ushort _f_option;
+
 
     public ForwardingSender(Node n, Address forwarder, Address destination)
       :this(n, forwarder, destination, n.DefaultTTLFor(destination), AHPacket.AHOptions.AddClassDefault){}
@@ -127,6 +150,8 @@ namespace Brunet
       _n = n;
       _dest = destination;
       _sender = new AHSender(n, forwarder);
+      _f_ttl =  ttl;
+      _f_option = option;
       byte[] f_buffer = new byte[4];
       NumberSerializer.WriteShort(ttl, f_buffer, 0);
       NumberSerializer.WriteUShort(option, f_buffer, 2);      
@@ -143,6 +168,15 @@ namespace Brunet
     public void Send(ICopyable d) {
       _sender.Send( new CopyList(_header, d) );
     }
+    
+  /**
+   * Converts the sender into a URI representation.
+   * @returns URI for the sender.
+   */
+    public string ToUri() {
+      return System.String.Format("sender:fw?relay={0}&dest={1}&ttl={2}&mode={3}", 
+                                  ((AHSender) _sender).Destination, _dest, _f_ttl, SenderFactory.UShortToString(_f_option));
+    }      
 
     override public int GetHashCode() {
       return _dest.GetHashCode();
