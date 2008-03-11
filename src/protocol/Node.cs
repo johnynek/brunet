@@ -1136,5 +1136,9 @@ namespace Brunet
     public void Send(ICopyable data) {
       this.HandleData(MemBlock.Copy(data), this, null);
     }
+    
+    public string ToUri() {
+      return _local_add.ToString();
+    }
   }
 }

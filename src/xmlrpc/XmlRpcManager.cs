@@ -71,8 +71,7 @@ namespace Brunet {
      */
     [XmlRpcMethod]
     public object[] uriproxy(string uri, int maxResultsToWait, string method, params object[] args) {
-      ISender s = ISenderFactory.CreateInstance(_node, uri);
-      Console.WriteLine(s.GetType());
+      ISender s = SenderFactory.CreateInstance(_node, uri);
       return this.Proxy(s, maxResultsToWait, method, args);
     }
 

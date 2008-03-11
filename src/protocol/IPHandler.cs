@@ -220,7 +220,11 @@ namespace Brunet
         ProtocolLog.WriteIf(ProtocolLog.Exceptions, "ERROR: " + e);
       }
     }
-
+    
+    public string ToUri() {
+      throw new System.NotImplementedException();
+    }
+    
     public UnicastSender(Socket s, EndPoint ep) {
       _s = s;
       EndPoint = ep;
