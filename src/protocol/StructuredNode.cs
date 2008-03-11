@@ -78,9 +78,9 @@ namespace Brunet
       _leafco = new LeafConnectionOverlord(this);
       _sco = new StructuredConnectionOverlord(this);
       _cco = new ChotaConnectionOverlord(this);
+      _localco = new LocalConnectionOverlord(this);
       _iphandler = new IPHandler();
       _iphandler.Subscribe(this, null);
-      _localco = new LocalConnectionOverlord(this);
 
       /**
        * Turn on some protocol support : 

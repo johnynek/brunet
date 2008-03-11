@@ -25,22 +25,36 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 
+#if BRUNET_NUNIT
+using System.Security.Cryptography;
+using NUnit.Framework;
+#endif
+
 namespace Brunet
 {
   /**
-   * We use Brunet IPHandler due to there not being a single zeroconf 
-   * service for all OS's, this makes use of multicast, specifically 
-   * destination 224.123.123.222:56018.  Use a random UDP port for unicast 
-   * communication.
-   */
-
+  <summary>IPHandler is provided to do BrunetRpc natively (as opposed to
+  XmlRpc).  This service provides for discovery similar to zeroconf.  This was
+  done due to zeroconf not being widespread enough to rely on it as well as too
+  many ways to interface with the different implementations.  Discovery runs at
+  group address 224.123.123.222:56123.</summary>
+  */
   public class IPHandler: ISource
   {
-    protected readonly Socket _mc, _uc;
+    /// <summary>Runs on 224.123.123.222:56123</summary>
+    protected readonly Socket _mc;
+    /// <summary>The unicast socket, the port is randomly selected.</summary>
+    protected readonly Socket _uc;
+    /// <summary>Multicast address.</summary>
     public static readonly IPAddress mc_addr = IPAddress.Parse("224.123.123.222");
+    /// <summary>Multicast port.</summary>
     public static readonly int mc_port = 56123;
+    /// <summary>Multicast end point.</summary>
     public static readonly EndPoint mc_endpoint = new IPEndPoint(mc_addr, mc_port);
+    /// <summary>The system is running and so should _listen_thread.</summary>
     protected volatile bool _running;
+    /**  <summary>Thread dedicated to reading from the unicast and multicast
+    sockets</summary>*/
     protected readonly Thread _listen_thread;
 
     protected class Sub {
@@ -52,6 +66,16 @@ namespace Brunet
     protected readonly object _sync;
     protected volatile Sub _sub;
 
+    /**
+    <summary>Creates a new IPHandler object by initializing the multicast and
+    unicast socket.</summary>
+    <remarks>The multicast socket is optional as nodes can discover other
+    working nodes using only the unicast socket.  The steps for setup for a
+    multicast socket are bind to 0.0.0.0:port, add membership to all
+    IP Addresses on the node, allow MulticastLoopback.  The steps for the
+    unicast socket are to create socket andbind to 0.0.0.0 and random port.
+    Afterwhich the _listen_thread is started in the background.</remarks>
+    */
     public IPHandler() {
       try {
         _mc = new Socket(AddressFamily.InterNetwork, SocketType.Dgram,
@@ -59,9 +83,15 @@ namespace Brunet
         // Allows for multiple Multicast clients on the same host!
         _mc.SetSocketOption(SocketOptionLevel.Socket, 
                             SocketOptionName.ReuseAddress, true);
-        _mc.Bind(mc_endpoint);
-        _mc.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership,
-          new MulticastOption(mc_addr, IPAddress.Any));
+        _mc.Bind(new IPEndPoint(IPAddress.Any, mc_port));
+
+        // We need to add a group membership for all IPAddresses on the local machine
+        foreach(IPAddress ip in GetLocalIPAddresses()) {
+          _mc.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership,
+            new MulticastOption(mc_addr, ip));
+        }
+
+        _mc.MulticastLoopback = true;
       }
       catch {
         _mc = null;
@@ -97,6 +127,7 @@ namespace Brunet
       }
     }
 
+    /// <summary>Called to interrupt the _listen_thread.</summary>
     public void Stop() {
       _running = false;
       lock( _sync ) {
@@ -112,6 +143,10 @@ namespace Brunet
       }
     }
 
+    /**
+    <summary>The _listen_threads method, reads from sockets and let's the node
+    handle the incoming data.</summary>
+    */
     protected void Listen() {
       if (Thread.CurrentThread.Name == null) {
         Thread.CurrentThread.Name = "iphandler_thread";
@@ -124,7 +159,7 @@ namespace Brunet
 
       byte[] buffer =  new byte[Packet.MaxLength];
       DateTime last_debug = DateTime.UtcNow;
-      TimeSpan debug_period = new TimeSpan(0,0,0,0,5000); //log every 5 seconds.
+      TimeSpan debug_period = TimeSpan.FromSeconds(5);
       while(_running) {
         if (ProtocolLog.Monitor.Enabled) {
           DateTime now = DateTime.UtcNow;
@@ -157,36 +192,50 @@ namespace Brunet
           break;
         }
         catch(Exception x) {
-          ProtocolLog.WriteIf(ProtocolLog.Exceptions, x.ToString());
+          if(!_running) {
+            ProtocolLog.WriteIf(ProtocolLog.Exceptions, x.ToString());
+          }
         }
       }
     }
 
+    /**
+    <summary>Creates a new UnicastSender using the IPHandlers unicast socket.
+    </summary>
+    <param name="ep">The remote network end point where the UnicastSender
+    should send the data.</param>
+    <returns>UnicastSender</returns>
+    */
     public ISender CreateUnicastSender(EndPoint ep) {
       return new UnicastSender(_uc, ep);
     }
 
+    /**
+    <summary>Creates a new MulticastSender using the IPHandlers multicastcast
+    socket.  This sends to all network devices on the computer.</summary>
+    <returns>MulticastSender</returns>
+    */
     public ISender CreateMulticastSender() {
       return new MulticastSender(_uc);
     }
 
     /**
-     * Creates a Multicast Sender using the unicast socket, so that other nodes
-     * know where they can reach us.
-     * @param BLockedIPs this must be a hashtable of IPs such that 
-     * key:value = ip:value, where the value is irrelevant (use true if you want)
-     * @return The multicast ISender
-     */
-    public ISender CreateMulticastSender(Hashtable BlockedIPs) {
-      return new MulticastSender(_uc, BlockedIPs);
+    <summary>Creates a Multicast Sender using the unicast socket, so that
+    other nodes know where they can reach us.  Only sends to the addresses
+    in the array.</summary>
+    <param name="LocalIPAddresses">The local ip addresses we should send on.</param>
+    <returns>MulticastSender</returns>
+    */
+    public ISender CreateMulticastSender(IPAddress[] LocalIPAddresses) {
+      return new MulticastSender(_uc, LocalIPAddresses);
     }
 
     /**
-     * IPAddress.Address is obsolete, we use our own method to convert to an
-     * int in case the method is removed
-     * @param addr the address to convert to an integer
-     * @throws Exception when not an IPv4 address
-     */
+    <summary>IPAddress.Address is obsolete, we use our own method to convert
+    to an int in case the method is removed.</summary>
+    <param name="addr">The address to convert to an integer.</param>
+    <exception cref="System.Exception">When not an IPv4 address.</exception>
+    */
     public static int IPAddressToInt(IPAddress addr) {
       byte[] addr_bytes = addr.GetAddressBytes();
       if(addr_bytes.Length != 4) {
@@ -200,20 +249,41 @@ namespace Brunet
     }
 
     /**
-     * Returns an array of all the IPAddresses of the local machine
+    <summary>Returns an array of all the IPAddresses of the local machine.
+    Manually add loopback sense Windows does not have a loopback interface.
+    </summary>
+    <returns>An array of IPAddresses of the local machine.</returns>
      */
     public static IPAddress[] GetLocalIPAddresses() {
-      return Dns.GetHostAddresses(Dns.GetHostName());
+      IPAddress[] base_addresses = null;
+      try {
+        base_addresses = Dns.GetHostAddresses(Dns.GetHostName());
+      }
+      catch {
+        base_addresses = new IPAddress[0];
+      }
+
+      IPAddress[] addresses = new IPAddress[base_addresses.Length + 1];
+      base_addresses.CopyTo(addresses, 0);
+      addresses[addresses.Length - 1] = IPAddress.Loopback;
+      return addresses;
     }
   }
 
+  /**  <summary>Provides a method of sending data over IPHandler's unicast
+  socket.</summary>*/
   public class UnicastSender: ISender
   {
+    /// <summary>The remote end point to send to.</summary>
     public readonly EndPoint EndPoint;
+    /// <summary>The socket to send the data on.</summary>
     protected readonly Socket _s;
 
-    public virtual void Send(ICopyable data)
-    {
+    /**
+    <summary>Sends the data over the unicast socket.</summary>
+    <param name="data">The data to send.</summary>
+    */
+    public virtual void Send(ICopyable data) {
       // Silly users can trigger a handful of exceptions here...
       try {
         byte[] buffer = new byte[data.Length];
@@ -228,14 +298,24 @@ namespace Brunet
       }
     }
 
+    /**
+    <summary>Creates a new unicast sender that will send over the provided
+    socket to the specified endpoint.</summary>
+    <param name="s">The socket to use in sending.</param>
+    <param name="ep">The remote end point to send to.</param>
+    </summary>
+    */
     public UnicastSender(Socket s, EndPoint ep) {
       _s = s;
       EndPoint = ep;
     }
 
     /**
-     * ISender objects need to have semantically meaningful Equals
-     */
+    <summary>ISender objects need to have semantically meaningful Equals.
+    </summary>
+    <param name="o">The object to compare to.</param>
+    <returns>True if they share a common end point.</returns>
+    */
     public override bool Equals(object o) {
       UnicastSender other = o as UnicastSender;
       if( other == null ) {
@@ -249,6 +329,10 @@ namespace Brunet
       }
     }
 
+    /**
+    <summary>Uses the EndPoints HashCode.</summary>
+    <returns>The HashCode of the EndPoint.</returns>
+    */
     public override int GetHashCode() {
       return EndPoint.GetHashCode();
     }
@@ -256,21 +340,39 @@ namespace Brunet
 
   public class MulticastSender: UnicastSender 
   {
-    public readonly Hashtable BlockedIPs;
+    /// <summary>If defined, the addresses to send on.</summary>
+    public readonly IPAddress[] LocalIPAddresses;
+    /**
+    <summary>Creates a new multicast sender that will send over the provided
+    socket.</summary>
+    <param name="s">The socket to use in sending.</param>
+    </summary>
+    */
     public MulticastSender(Socket s):base(s, IPHandler.mc_endpoint) {
-      this.BlockedIPs = new Hashtable(0);
-    }
-    public MulticastSender(Socket s, Hashtable BlockedIPs): base(s, IPHandler.mc_endpoint) {
-      if(BlockedIPs == null) {
-        this.BlockedIPs = new Hashtable(0);
-      }
-      else {
-        this.BlockedIPs = BlockedIPs;
-      }
+      this.LocalIPAddresses = null;
     }
 
+    /**
+    <summary>Creates a new multicast sender that will send over the provided
+    socket using the specified addresses.</summary>
+    <param name="s">The socket to use in sending.</param>
+    <param name="LocalIPAddresses">The IP Address of the interfaces to send
+    over.</param>
+    </summary>
+    */
+    public MulticastSender(Socket s, IPAddress[] LocalIPAddresses): base(s, IPHandler.mc_endpoint) {
+      this.LocalIPAddresses = LocalIPAddresses;
+    }
+
+    /**
+    <summary>Sends the data over the multicast socket.</summary>
+    <param name="data">The data to send.</summary>
+    */
     public override void Send(ICopyable data) {
-      IPAddress[] ips = IPHandler.GetLocalIPAddresses();
+      IPAddress[] ips = LocalIPAddresses;
+      if(ips == null) {
+        ips = IPHandler.GetLocalIPAddresses();
+      }
       // Silly users can trigger a handful of exceptions here...
       try {
         byte[] buffer = new byte[data.Length];
@@ -278,9 +380,6 @@ namespace Brunet
         // I REALLY HATE THIS but we can't be setting this option in more than one thread!
         lock(_s) {
           foreach(IPAddress ip in ips) {
-            if(BlockedIPs.Contains(ip)) {
-              continue;
-            }
             /*
              * This can throw an exception on an invalid address, we need to skip it and move on!
              * Never showed to be an issue in Linux, but Windows does some weird things.
@@ -303,4 +402,20 @@ namespace Brunet
       }
     }
   }
+#if BRUNET_NUNIT
+  [TestFixture]
+  public class IPHandlerTest{
+    [Test]
+    public void Test() {
+      IPAddress[] base_addresses = Dns.GetHostAddresses(Dns.GetHostName());
+      ArrayList local_ips = new ArrayList(base_addresses);
+      local_ips.Add(IPAddress.Loopback);
+      ArrayList ips = new ArrayList(IPHandler.GetLocalIPAddresses());
+      foreach(IPAddress addr in local_ips) {
+        Assert.IsTrue(ips.Contains(addr), addr + " is not in ips");
+      }
+      Assert.AreEqual(ips.Count, local_ips.Count, "Count");
+    }
+  }
+#endif
 }
