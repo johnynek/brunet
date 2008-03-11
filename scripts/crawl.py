@@ -2,7 +2,7 @@
 """ This crawls the brunet namespace using Information.Info.  During crawling it
 also determines if the ring is consistent, does a node agree with its two
 neighbors on a given side about their positioning. """
-import xmlrpclib
+import xmlrpclib, pybru
 
 def main():
   #gain access to the xmlrpc server
@@ -11,8 +11,8 @@ def main():
   nodes = {}
 
   #getting start node
-  start = rpc.localproxy("sys:link.GetNeighbors")['self']
-  node = start
+  node = rpc.localproxy("sys:link.GetNeighbors")['self']
+  start = pybru.Address(node)
   last = node
   #maximum amount of retries per node before going back one
   no_response_max = 3
@@ -27,12 +27,13 @@ def main():
   while True:
     try:
       # get information, it throws an exception we try again
-      info = rpc.proxy(node, 3, 1, "Information.Info")[0]
-      result = info['neighbors']
-      info['right'] = result['right']
-      info['right2'] = result['right2']
-      info['left'] = result['left']
-      info['left2'] = result['left2']
+      res = rpc.proxy(node, 3, 1, "Information.Info")[0]
+      neighbors = res['neighbors']
+      info = {}
+      info['right'] = neighbors['right']
+      info['right2'] = neighbors['right2']
+      info['left'] = neighbors['left']
+      info['left2'] = neighbors['left2']
     except:
       no_response_count += 1
       if no_response_count == no_response_max:
@@ -48,9 +49,10 @@ def main():
 
     #Once we've visited all nodes less than us, we shouldn't see another until
     #we're done crawling
-    if node > start:
+    
+    if pybru.Address(node) > start:
       half_way = True
-    elif half_way and node < start:
+    elif half_way and pybru.Address(node) < start:
       break
 
     #maintain a list of everyones neighbors
