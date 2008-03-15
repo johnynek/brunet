@@ -39,7 +39,7 @@ namespace Brunet
    * connections. 
    * 
    */
-  abstract public class Node : DemuxHandler, IDataHandler, ISender
+  abstract public class Node : IDataHandler, ISender
   {
     /**
      * Create a node in the realm "global"
@@ -58,6 +58,7 @@ namespace Brunet
       _sync = new Object();
       lock(_sync)
       {
+        DemuxHandler = new DemuxHandler();
         /*
          * Make all the hashtables : 
          */
@@ -78,12 +79,12 @@ namespace Brunet
         
         /* Set up the ReqrepManager as a filter */
         _rrm = new ReqrepManager(Address.ToString());
-        GetTypeSource(PType.Protocol.ReqRep).Subscribe(_rrm, null);
+        DemuxHandler.GetTypeSource(PType.Protocol.ReqRep).Subscribe(_rrm, null);
         _rrm.Subscribe(this, null);
         this.HeartBeatEvent += _rrm.TimeoutChecker;
         /* Set up RPC */
         _rpc = new RpcManager(_rrm);
-        GetTypeSource( PType.Protocol.Rpc ).Subscribe(_rpc, null);
+        DemuxHandler.GetTypeSource( PType.Protocol.Rpc ).Subscribe(_rpc, null);
 
         /*
          * Where there is a change in the Connections, we might have a state
@@ -401,6 +402,40 @@ namespace Brunet
     /** Object which we lock for thread safety */
     protected readonly object _sync;
 
+    /**  <summary>Handles subscriptions for the different types of packets
+    that come to this node.</summary>*/
+    public readonly DemuxHandler DemuxHandler;
+
+    /**
+    <summary>All packets that come to this are demultiplexed according to t.
+    To subscribe or unsubscribe, get the ISource for the type you want and
+    subscribe to it,</summary>
+    <param name="t">The key for the MultiSource.</param>
+    @deprecated Use Node.DemuxHandler.GetTypeSource
+    */
+    public ISource GetTypeSource(Object t) {
+      return DemuxHandler.GetTypeSource(t);
+    }
+
+    /**
+    <summary>Deletes (and thus unsubscribes) all IDataHandlers for a given key.
+    </summary>
+    <param name="t">The key for the MultiSource.</param>
+    @deprecated Use Node.DemuxHandler.ClearTypeSource
+    */
+    public void ClearTypeSource(Object t) {
+      DemuxHandler.ClearTypeSource(t);
+    }
+
+    /**
+    <summary>Deletes (and thus unsubscribes) all IDataHandlers for the table.
+    </summary>
+    @deprecated Use Node.DemuxHandler.Clear
+    */
+    public void Clear() {
+      DemuxHandler.Clear();
+    }
+
     protected readonly ConnectionTable _connection_table;
 
     /**
@@ -707,7 +742,7 @@ namespace Brunet
           SendStateChange(Node.ConnectionState.Disconnected);
           lock(_sync) {
             //Clear out the subscription table
-            Clear();
+            DemuxHandler.Clear();
           }
         }
       }
@@ -788,7 +823,7 @@ namespace Brunet
       PType t = null;
       try {
         t = PType.Parse(b, out payload);
-        ns = (MultiSource)GetTypeSource(t);
+        ns = (MultiSource)DemuxHandler.GetTypeSource(t);
         handlers = ns.Announce(payload, from);
         /**
          * @todo if no one handled the packet, we might want to send some
