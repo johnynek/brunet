@@ -169,6 +169,7 @@ namespace Brunet.Rpc {
         throw new Exception("Uri doesn't match with the proxy already registered");
       }
       _rpc.RemoveHandler(handler_name);
+      _registered_xmlrpc.Remove(handler_name);
     }
 
     #region IRpcHandler Members
