@@ -17,9 +17,9 @@ using NUnit.Framework;
 
 namespace Brunet.Rpc {
   /**
-   * A proxy that acts between the XML-RPC client and Brunet RpcManager
-   * It is also a IRpcHandler managed by RpcManager and handles calls 
-   * register and unregister XML-RPC services from local node
+   * A proxy that acts between the XML-RPC client and Brunet RpcManager.
+   * It is also a IRpcHandler managed by RpcManager that handles calls that
+   * register and unregister XML-RPC services for local node
    */
   public class XmlRpcManager : MarshalByRefObject, IRpcHandler {
     #region Fields
@@ -44,17 +44,19 @@ namespace Brunet.Rpc {
     }
 
     /**
-     * @param node: target brunet node address
-     * @param ahOptions: AHOptions, @see AHPacket.AHOptions
-     * @param maxResultToWait: When the synchronous call gets this amount of items, it returns even
-     *                         if there are still more. (unless this argument is specified as a negative number)
-     * @param method: brunet rpc method name
-     * @param args: args of brunet rpc method
+     * @param node target brunet node address
+     * @param ahOptions AHOptions, @see AHPacket.AHOptions
+     * @param maxResultToWait When the synchronous call gets this amount of 
+     * items, it returns even if there are still more. (unless this argument is specified
+     * as a negative number)
+     * @param method brunet rpc method name
+     * @param args args of brunet rpc method
      * 
      * @return array of objects returned by the blocking queue
      */
     [XmlRpcMethod]
-    public object[] proxy(string node, int ahOptions, int maxResultsToWait, string method, params object[] args) {
+    public object[] proxy(string node, int ahOptions, int maxResultsToWait, 
+        string method, params object[] args) {
       if (node.StartsWith("brunet:node:")) {
         node = node.Remove(0, 12); //remove "brunet:node:"
       }
@@ -123,7 +125,8 @@ namespace Brunet.Rpc {
     }
 
     /**
-     * This object is intended to stay in memory
+     * Sets the object to have infinite lifetime because we want it to stay in the 
+     * memory.
      */
     public override object InitializeLifetimeService() {
       ILease lease = (ILease)base.InitializeLifetimeService();
@@ -133,12 +136,18 @@ namespace Brunet.Rpc {
       return lease;
     }
 
+    /**
+     * Adds the instance as a RpcHandler under the name space "xmlrpc".
+     */
     public void AddAsRpcHandler() {
       _rpc.AddHandler("xmlrpc",this);
     }
 
     /**
-     * Accepts BrunetRpc calls but not XmlRpc calls
+     * Registers an XML-RPC service as a Brunet Rpc handler.
+     * @param handler_name the namespace used to register the handler with 
+     * RpcManager.
+     * @param uri the URI at which the XML-RPC service could be accessed.
      */
     public void AddXRHandler(string handler_name, string uri) {
       XmlRpcHandler handler = new XmlRpcHandler(uri, _rpc);
@@ -147,7 +156,10 @@ namespace Brunet.Rpc {
     }
 
     /**
-     * Accepts BrunetRpc calls but not XmlRpc calls
+     * Removes the XML-RPC service as a Brunet Rpc handler.
+     * @param handler_name the namespace used to register the handler with 
+     * RpcManager.
+     * @param uri the URI at which the XML-RPC service could be accessed.
      */
     public void RemoveXRHandler(string handler_name, string uri) {
       string expected_uri = _registered_xmlrpc[handler_name] as string;
@@ -160,7 +172,11 @@ namespace Brunet.Rpc {
     }
 
     #region IRpcHandler Members
-
+    /**
+     * Handles RPC calls.
+     * Note that AddXRHandler and RemoveXRHandler calls are only accepted when
+     * they are made by local Brunet node.
+     */
     public void HandleRpc(ISender caller, string method, IList args, object rs) {
       if (method.Equals("AddXRHandler") || method.Equals("RemoveXRHandler")) {
         ReqrepManager.ReplyState s = (ReqrepManager.ReplyState)caller;
@@ -196,14 +212,25 @@ namespace Brunet.Rpc {
     #endregion
   }
   
+  /**
+   * Handles calls from Brunet Rpc, invokes the XML-RPC service that this
+   * handler represents and returns the results to Brunet Rpc.
+   */
   public class XmlRpcHandler : XmlRpcClientProtocol, IRpcHandler {
     private RpcManager _rpc;
 
+    /**
+     * @param url the URL of the XML-RPC service.
+     * @param rpc The XmlRpcManager instance that the handler uses.
+     */
     public XmlRpcHandler(string url, RpcManager rpc) {
       this.Url = url;
       _rpc = rpc;
     }
 
+    /**
+     * Enables the logging output.
+     */
     public void AttachLogger() {
       XmlRpcManagerClientLogger logger = new XmlRpcManagerClientLogger();
       logger.Attach(this);
@@ -227,7 +254,9 @@ namespace Brunet.Rpc {
     }
 
     #region IRpcHandler Members
-
+    /**
+     * Invokes the method on the XML-RPC service.
+     */
     public void HandleRpc(ISender caller, string method, IList args, object rs) {
       this.XmlRpcMethod = method;
       object result = null;
@@ -247,7 +276,7 @@ namespace Brunet.Rpc {
 
 
   /**
-   * Client proxy
+   * Client proxy interface.
    */
   public interface IXmlRpcManager : IXmlRpcProxy {
     [XmlRpcMethod]
@@ -259,7 +288,8 @@ namespace Brunet.Rpc {
 
   public class XmlRpcManagerClient {
     /**
-     * Log Request and Response Xml if logReqresp is set to true
+     * Creates an XmlRpcManager instance with the specified ip, port.
+     * Logs Request and Response messages in XML if logReqresp is set to true
      */
     public static IXmlRpcManager GetXmlRpcManager(string ip, int port, bool logReqresp) {
       IXmlRpcManager proxy = XmlRpcProxyGen.Create<IXmlRpcManager>();
@@ -279,15 +309,26 @@ namespace Brunet.Rpc {
       return GetXmlRpcManager("127.0.0.1", port, false);
     }
 
+    public static IXmlRpcManager GetXmlRpcManager(int port, bool logReqresp) {
+      return GetXmlRpcManager("127.0.0.1", port, logReqresp);
+    }
+
     public static IXmlRpcManager GetXmlRpcManager(bool logReqresp) {
       return GetXmlRpcManager("127.0.0.1", 10000, logReqresp);
     }
 
+    /**
+     * Creates XmlRpcManager instance using localhost address and port 10000
+     * and with logging disabled.
+     */
     public static IXmlRpcManager GetXmlRpcManager() {
       return GetXmlRpcManager("127.0.0.1", 10000, false);
     }
   }
 
+  /**
+   * Logs the request and response messages.
+   */
   public class XmlRpcManagerClientLogger : XmlRpcLogger {
     protected override void OnRequest(object sender, XmlRpcRequestEventArgs e) {
       base.OnRequest(sender, e);
@@ -310,12 +351,18 @@ namespace Brunet.Rpc {
     }
   }
 
+  /**
+   * .NET Remoting service that hosts the XmlRpcManager instance.
+   */
   public class XmlRpcManagerServer {
     XmlRpcManager _xrm = null;
     RpcManager _rpc = null;
     Node _node;
     IChannel _channel;
  
+    /**
+     * Registers the server at the specified port on local machine.
+     */
     public XmlRpcManagerServer(int port) {
       IServerChannelSinkProvider chain = new XmlRpcServerFormatterSinkProvider();
       IDictionary props = new Hashtable();
@@ -358,8 +405,8 @@ namespace Brunet.Rpc {
     }
 
     /**
-     * The method for now is used to allow RpcManager to be replaced
-     * by MockRpcManager in unit tests
+     * The overloaded method for now is used to allow RpcManager to be replaced
+     * by MockRpcManager in unit tests.
      */
     public void Update(Node node, RpcManager rpc) {
       _rpc = rpc;
@@ -371,6 +418,10 @@ namespace Brunet.Rpc {
   }
 
 #if BRUNET_NUNIT
+  /**
+   * A mock class that is derived from RpcManager but instead of doing RPC calls, it
+   * returns the values that are assigned by the testing classes.
+   */
   class MockRpcManager : RpcManager {
     public class InvokeState {
       #region Fields
