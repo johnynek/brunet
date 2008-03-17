@@ -269,7 +269,7 @@ namespace Brunet
                 new System.Collections.Specialized.StringDictionary();
         attrs["type"] = String.Intern( lm.ConTypeString );
         attrs["realm"] = String.Intern( _node.Realm );
-        lm_resp = new LinkMessage( attrs, n_info, remote_info );
+        lm_resp = new LinkMessage( attrs, n_info, remote_info , lm.InitiatorAddress);
       }
       else {
         if( err.Ec == ErrorMessage.ErrorCode.AlreadyConnected ) {
