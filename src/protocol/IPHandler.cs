@@ -297,6 +297,10 @@ namespace Brunet
         ProtocolLog.WriteIf(ProtocolLog.Exceptions, "ERROR: " + e);
       }
     }
+    
+    public string ToUri() {
+      throw new System.NotImplementedException();
+    }
 
     /**
     <summary>Creates a new unicast sender that will send over the provided

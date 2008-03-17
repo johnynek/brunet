@@ -149,6 +149,11 @@ namespace Brunet
      */
     public abstract void Send(ICopyable p);
 
+    public string ToUri() {
+      throw new System.NotImplementedException();
+    }
+    
+
     /**
      * This is the time (in UTC) when the edge
      * was created.
