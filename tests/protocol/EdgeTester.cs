@@ -64,7 +64,7 @@ namespace Brunet
     protected Hashtable _sent_blocks; 
     protected object _sync;
     protected Edge _e;
-    protected const int count = 100;
+    protected const int count = 32000;
 
     public ETClient(Edge e)
     {
@@ -100,11 +100,11 @@ namespace Brunet
           int size = ran_obj.Next(4, 2048);
           ran_obj.NextBytes(buf);
           NumberSerializer.WriteInt(counter, buf, 0);
-          MemBlock cp = MemBlock.Copy(buf, 0, size);
+          MemBlock cp = MemBlock.Copy(buf, 0, Math.Max(4, counter));
           lock(_sync) { _sent_blocks[cp] = counter; }
           _e.Send( cp );
           Thread.Sleep(10);
-          //Console.WriteLine("Sending Packet #: " + counter);
+          Console.WriteLine("Sending Packet #: " + counter);
         }
         catch(Exception x) {
           Console.WriteLine("send: {0} caused exception: {1}", counter, x);
