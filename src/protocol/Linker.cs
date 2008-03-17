@@ -94,7 +94,11 @@ namespace Brunet
      * remember it here
      */
     public Address Target { get { return _target; } }
-    
+
+    /** initiating node for the connection setup */
+    protected readonly Address _initiator_address;
+    public Address InitiatorAddress { get { return _initiator_address; } }
+
     /** global lock for thread synchronization */
     protected readonly object _sync;
     protected bool _is_finished;
@@ -409,8 +413,9 @@ namespace Brunet
      * @param target_list an enumerable list of TransportAddress of the
      *                    Host we want to connect to
      * @param t ConnectionType string of the new connection
+     * @initiator address of the node that initiated connection setup
      */
-    public Linker(Node local, Address target, ICollection target_list, string ct)
+    public Linker(Node local, Address target, ICollection target_list, string ct, Address initiator)
     {
       _sync = new object();
       _task = new LinkerTask(local.Address, target, ct);
@@ -442,6 +447,7 @@ namespace Brunet
         _contype = ct;
         _maintype = Connection.StringToMainType( _contype );
         _target = target;
+        _initiator_address = initiator;
         _ta_to_restart_state = new Hashtable( _MAX_REMOTETAS );
         _completed_tas = new Hashtable( _MAX_REMOTETAS );
         _started = false;

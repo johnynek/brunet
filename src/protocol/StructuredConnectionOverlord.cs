@@ -783,7 +783,7 @@ namespace Brunet {
         //In general, we only know the exact node we are trying
         //to reach when we are using a ForwardingSender
         Address target = fs.Destination;
-        Linker l = new Linker(_node, target, null, contype);
+        Linker l = new Linker(_node, target, null, contype, _node.Address);
         object linker_task = l.Task;  //This is what we check for
         abort = delegate(Connector c) {
           bool stop = _node.ConnectionTable.Contains( mt, target );
@@ -811,7 +811,7 @@ namespace Brunet {
         near_ni[i] = NodeInfo.CreateInstance(cons.Address);
         i++;
       }
-      ConnectToMessage ctm = new ConnectToMessage(contype, _node.GetNodeInfo(8), near_ni);
+      ConnectToMessage ctm = new ConnectToMessage(contype, _node.GetNodeInfo(8), near_ni, _node.Address);
 
       Connector con = new Connector(_node, sender, ctm, this);
       con.AbortIf = abort;
@@ -888,7 +888,8 @@ namespace Brunet {
       
       Linker l = new Linker(_node, ctm_resp.Target.Address,
                             ctm_resp.Target.Transports,
-                            ctm_resp.ConnectionType);
+                            ctm_resp.ConnectionType,
+                            ctm_resp.InitiatorAddress);
       _node.TaskQueue.Enqueue( l );
       /**
        * Check this guys neighbors:

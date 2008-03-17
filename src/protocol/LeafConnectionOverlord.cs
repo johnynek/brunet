@@ -215,7 +215,7 @@ namespace Brunet
           /**
            * Make a Link to a remote node 
            */
-          _linker = new Linker(_local, null, tas, "leaf");
+          _linker = new Linker(_local, null, tas, "leaf", _local.Address);
           new_linker = _linker;
         }
         else if (cea != null) {

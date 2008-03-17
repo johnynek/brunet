@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using System.Collections;
 using System.Collections.Specialized;
 #if BRUNET_NUNIT
+using System.Security.Cryptography;
 using NUnit.Framework;
 #endif
 
@@ -52,29 +53,34 @@ namespace Brunet
     /**
      * @param t connection type
      * @param target the Address of the target node
+     * @param initiator address of the node that initiates the connection setup
      */
-    public ConnectToMessage(ConnectionType t, NodeInfo target)
+    public ConnectToMessage(ConnectionType t, NodeInfo target, Address initiator)
     {
       _ct = Connection.ConnectionTypeToString(t);
       _target_ni = target;
       _neighbors = new NodeInfo[0]; //Make sure this isn't null
+      _initiator_address = initiator;
     }
-    public ConnectToMessage(string contype, NodeInfo target)
+    public ConnectToMessage(string contype, NodeInfo target, Address initiator)
     {
       _ct = contype;
       _target_ni = target;
       _neighbors = new NodeInfo[0]; //Make sure this isn't null
+      _initiator_address = initiator;
     }
-    public ConnectToMessage(string contype, NodeInfo target, NodeInfo[] neighbors)
+    public ConnectToMessage(string contype, NodeInfo target, NodeInfo[] neighbors, Address initiator)
     {
       _ct = contype;
       _target_ni = target;
       _neighbors = neighbors;
+      _initiator_address = initiator;
     }
 
     public ConnectToMessage(IDictionary ht) {
       _ct = (string)ht["type"];
       _target_ni = NodeInfo.CreateInstance((IDictionary)ht["target"]);
+      _initiator_address = AddressParser.Parse((string) ht["initiator"]);
       IList neighht = ht["neighbors"] as IList;
       if( neighht != null ) {
         _neighbors = new NodeInfo[ neighht.Count ];
@@ -94,6 +100,10 @@ namespace Brunet
     protected NodeInfo[] _neighbors;
     public NodeInfo[] Neighbors { get { return _neighbors; } }
     
+    protected Address _initiator_address;
+    public Address InitiatorAddress { get { return _initiator_address; } }
+    
+    
     public override bool Equals(object o)
     {
       ConnectToMessage co = o as ConnectToMessage;
@@ -101,6 +111,7 @@ namespace Brunet
         bool same = true;
 	same &= co.ConnectionType == _ct;
 	same &= co.Target.Equals( _target_ni );
+        same &= co.InitiatorAddress.Equals( _initiator_address );
 	if( _neighbors == null ) {
           same &= co.Neighbors == null;
 	}
@@ -124,6 +135,7 @@ namespace Brunet
       ListDictionary ht = new ListDictionary();
       ht["type"] = _ct;
       ht["target"] = _target_ni.ToDictionary();
+      ht["initiator"] = _initiator_address.ToString();
       ArrayList neighs = new ArrayList(Neighbors.Length);
       foreach(NodeInfo ni in Neighbors) {
         neighs.Add( ni.ToDictionary() );
@@ -151,7 +163,10 @@ namespace Brunet
       Address a = new DirectionalAddress(DirectionalAddress.Direction.Left);
       TransportAddress ta = TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:5000"); 
       NodeInfo ni = NodeInfo.CreateInstance(a, ta);
-      ConnectToMessage ctm1 = new ConnectToMessage(ConnectionType.Unstructured, ni);
+
+      RandomNumberGenerator rng = new RNGCryptoServiceProvider();      
+      AHAddress tmp_add = new AHAddress(rng);
+      ConnectToMessage ctm1 = new ConnectToMessage(ConnectionType.Unstructured, ni, tmp_add);
       
       HTRoundTrip(ctm1);
 
@@ -162,7 +177,7 @@ namespace Brunet
         tas.Add(TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:" + i.ToString()));
       NodeInfo ni2 = NodeInfo.CreateInstance(a, tas);
 
-      ConnectToMessage ctm2 = new ConnectToMessage(ConnectionType.Structured, ni2);
+      ConnectToMessage ctm2 = new ConnectToMessage(ConnectionType.Structured, ni2, tmp_add);
       HTRoundTrip(ctm2);
       //Here is a ConnectTo message with a neighbor list:
       NodeInfo[] neighs = new NodeInfo[5];
@@ -174,7 +189,7 @@ namespace Brunet
 			    );
 	neighs[i] = tmp;
       }
-      ConnectToMessage ctm3 = new ConnectToMessage("structured", ni, neighs);
+      ConnectToMessage ctm3 = new ConnectToMessage("structured", ni, neighs, tmp_add);
       HTRoundTrip(ctm3);
 #if false
       Console.Error.WriteLine( ctm3.ToString() );
