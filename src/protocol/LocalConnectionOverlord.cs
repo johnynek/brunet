@@ -167,7 +167,7 @@ namespace Brunet
       Linker l = new Linker(_node, ctm_resp.Target.Address,
                             ctm_resp.Target.Transports,
                             ctm_resp.ConnectionType,
-                            ctm_resp.InitiatorAddress);
+                            ctm_resp.Token);
       _node.TaskQueue.Enqueue( l );
       return true;
     }
@@ -185,7 +185,7 @@ namespace Brunet
        * the Connector starts.  If it returns true, the Connector
        * will finish immediately without sending an ConnectToMessage
        */
-      Linker l = new Linker(_node, target, null, struc_local, _node.Address);
+      Linker l = new Linker(_node, target, null, struc_local, _node.Address.ToString());
       object link_task = l.Task;
       Connector.AbortCheck abort = delegate(Connector c) {
         bool stop = false;
@@ -205,7 +205,7 @@ namespace Brunet
         return;
       }
 
-      ConnectToMessage ctm = new ConnectToMessage(struc_local, _node.GetNodeInfo(8), _node.Address);
+      ConnectToMessage ctm = new ConnectToMessage(struc_local, _node.GetNodeInfo(8), _node.Address.ToString());
       ISender send = new AHSender(_node, target, AHPacket.AHOptions.Exact);
       Connector con = new Connector(_node, send, ctm, this);
       con.FinishEvent += this.ConnectorEndHandler;
