@@ -95,7 +95,11 @@ namespace Brunet
      * remember it here
      */
     public Address Target { get { return _target; } }
-    
+
+    /** unique token for connection setup messages */
+    protected readonly string _token;
+    public string Token { get { return _token; } }
+
     /**
      * Keeps track of the restart information for each TransportAddress
      */
@@ -380,8 +384,9 @@ namespace Brunet
      * @param target_list an enumerable list of TransportAddress of the
      *                    Host we want to connect to
      * @param t ConnectionType string of the new connection
+     * @token unique token to associate the different connection setup messages
      */
-    public Linker(Node local, Address target, ICollection target_list, string ct)
+    public Linker(Node local, Address target, ICollection target_list, string ct, string token)
     {
       _task = new LinkerTask(local.Address, target, ct);
       _local_n = local;
@@ -418,6 +423,7 @@ namespace Brunet
       _contype = ct;
       _maintype = Connection.StringToMainType( _contype );
       _target = target;
+      _token = token;
       _ta_to_restart_state = new Hashtable( _MAX_REMOTETAS );
       _started = 0;
       _hold_fire = 1;

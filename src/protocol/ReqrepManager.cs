@@ -207,6 +207,11 @@ public class ReqrepManager : IDataHandler, ISource {
           */
        }
      }
+
+     public string ToUri() {
+       throw new System.NotImplementedException();
+     }
+     
      /**
       * Resend if we already have the reply,
       * if we don't have the reply yet, do nothing.

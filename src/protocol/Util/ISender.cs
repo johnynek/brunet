@@ -30,7 +30,11 @@ public interface ISender {
    * primative.  This is may be asychronous, it may throw an exception.
    */
   void Send(ICopyable data);
-
+ /**
+   * Converts the sender into a URI representation.
+   */
+  string ToUri();
+  
 }
 
 /**
