@@ -353,7 +353,7 @@ namespace Brunet
           = new System.Collections.Specialized.StringDictionary();
       attrs["type"] = String.Intern( _contype );
       attrs["realm"] = String.Intern( _node.Realm );
-      return new LinkMessage( attrs, my_info, remote_info , _linker.InitiatorAddress);
+      return new LinkMessage( attrs, my_info, remote_info , _linker.Token);
     }
 
     public override void Start() {

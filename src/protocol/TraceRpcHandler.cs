@@ -53,8 +53,8 @@ public class TraceRpcHandler : IRpcHandler {
       esh.SendEchoRequest();
     } else if ( method == "GetRouteTo" ) {
       DoTraceRouteTo( (AHAddress)AddressParser.Parse((string)args[0]), req_state);
-    } else if ( method == "DoReliableRpc" ) {
-      DoReliableRpc(args, req_state);
+    } else if ( method == "RecursiveCall" ) {
+      RecursiveCall(args, req_state);
     }
     else {
       throw new AdrException(-32601, "No Handler for method: " + method);
@@ -115,7 +115,7 @@ public class TraceRpcHandler : IRpcHandler {
    * It helps do a link-reliable procedure call on the
    * on the overlay network.
    */
-  protected void DoReliableRpc(IList margs, object req_state) {
+  protected void RecursiveCall(IList margs, object req_state) {
     //first argument is the target node.
     AHAddress a = (AHAddress) AddressParser.Parse( (string) margs[0]);
     Connection next_closest = NextGreedyClosest(a);
@@ -144,7 +144,7 @@ public class TraceRpcHandler : IRpcHandler {
       };
       object [] new_args = new object[margs.Count];
       margs.CopyTo(new_args, 0);
-      _rpc.Invoke(next_closest.Edge, result, "trace.DoReliableRpc", new_args);
+      _rpc.Invoke(next_closest.Edge, result, "trace.RecursiveCall", new_args);
     }
     else {
       //We are the end of the line, send the result:

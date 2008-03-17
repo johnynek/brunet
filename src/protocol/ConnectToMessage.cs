@@ -53,34 +53,35 @@ namespace Brunet
     /**
      * @param t connection type
      * @param target the Address of the target node
-     * @param initiator address of the node that initiates the connection setup
+     * @param token unique token used to associate all connection setup messages
+     *              with each other
      */
-    public ConnectToMessage(ConnectionType t, NodeInfo target, Address initiator)
+    public ConnectToMessage(ConnectionType t, NodeInfo target, string token)
     {
       _ct = Connection.ConnectionTypeToString(t);
       _target_ni = target;
       _neighbors = new NodeInfo[0]; //Make sure this isn't null
-      _initiator_address = initiator;
+      _token = token;
     }
-    public ConnectToMessage(string contype, NodeInfo target, Address initiator)
+    public ConnectToMessage(string contype, NodeInfo target, string token)
     {
       _ct = contype;
       _target_ni = target;
       _neighbors = new NodeInfo[0]; //Make sure this isn't null
-      _initiator_address = initiator;
+      _token = token;
     }
-    public ConnectToMessage(string contype, NodeInfo target, NodeInfo[] neighbors, Address initiator)
+    public ConnectToMessage(string contype, NodeInfo target, NodeInfo[] neighbors, string token)
     {
       _ct = contype;
       _target_ni = target;
       _neighbors = neighbors;
-      _initiator_address = initiator;
+      _token = token;
     }
 
     public ConnectToMessage(IDictionary ht) {
       _ct = (string)ht["type"];
       _target_ni = NodeInfo.CreateInstance((IDictionary)ht["target"]);
-      _initiator_address = AddressParser.Parse((string) ht["initiator"]);
+      _token = (string) ht["token"];
       IList neighht = ht["neighbors"] as IList;
       if( neighht != null ) {
         _neighbors = new NodeInfo[ neighht.Count ];
@@ -100,8 +101,8 @@ namespace Brunet
     protected NodeInfo[] _neighbors;
     public NodeInfo[] Neighbors { get { return _neighbors; } }
     
-    protected Address _initiator_address;
-    public Address InitiatorAddress { get { return _initiator_address; } }
+    protected string _token;
+    public string Token { get { return _token; } }
     
     
     public override bool Equals(object o)
@@ -111,7 +112,7 @@ namespace Brunet
         bool same = true;
 	same &= co.ConnectionType == _ct;
 	same &= co.Target.Equals( _target_ni );
-        same &= co.InitiatorAddress.Equals( _initiator_address );
+        same &= co.Token.Equals( _token );
 	if( _neighbors == null ) {
           same &= co.Neighbors == null;
 	}
@@ -135,7 +136,7 @@ namespace Brunet
       ListDictionary ht = new ListDictionary();
       ht["type"] = _ct;
       ht["target"] = _target_ni.ToDictionary();
-      ht["initiator"] = _initiator_address.ToString();
+      ht["token"] = _token;
       ArrayList neighs = new ArrayList(Neighbors.Length);
       foreach(NodeInfo ni in Neighbors) {
         neighs.Add( ni.ToDictionary() );
@@ -166,7 +167,7 @@ namespace Brunet
 
       RandomNumberGenerator rng = new RNGCryptoServiceProvider();      
       AHAddress tmp_add = new AHAddress(rng);
-      ConnectToMessage ctm1 = new ConnectToMessage(ConnectionType.Unstructured, ni, tmp_add);
+      ConnectToMessage ctm1 = new ConnectToMessage(ConnectionType.Unstructured, ni, tmp_add.ToString());
       
       HTRoundTrip(ctm1);
 
@@ -177,7 +178,7 @@ namespace Brunet
         tas.Add(TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:" + i.ToString()));
       NodeInfo ni2 = NodeInfo.CreateInstance(a, tas);
 
-      ConnectToMessage ctm2 = new ConnectToMessage(ConnectionType.Structured, ni2, tmp_add);
+      ConnectToMessage ctm2 = new ConnectToMessage(ConnectionType.Structured, ni2, tmp_add.ToString());
       HTRoundTrip(ctm2);
       //Here is a ConnectTo message with a neighbor list:
       NodeInfo[] neighs = new NodeInfo[5];
@@ -189,7 +190,7 @@ namespace Brunet
 			    );
 	neighs[i] = tmp;
       }
-      ConnectToMessage ctm3 = new ConnectToMessage("structured", ni, neighs, tmp_add);
+      ConnectToMessage ctm3 = new ConnectToMessage("structured", ni, neighs, tmp_add.ToString());
       HTRoundTrip(ctm3);
 #if false
       Console.Error.WriteLine( ctm3.ToString() );
