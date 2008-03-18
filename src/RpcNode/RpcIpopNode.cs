@@ -29,7 +29,7 @@ using System.Threading;
 \namespace Ipop::RpcNode
 \brief Defines Ipop.RpcNode provide the ability to set up translation tables via Rpc
 */
-namespace Ipop {
+namespace Ipop.RpcNode {
 
   /// <summary>
   /// This class is a subclass of IpopNode

@@ -22,9 +22,10 @@
       </fileset>
     </copy>
 
-    <csc target="exe" output="${build.dir}/RpcIpopNode.exe" main="Ipop.RpcIpopNode">
+    <csc target="exe" output="${build.dir}/RpcIpopNode.exe" main="Ipop.RpcNode.RpcIpopNode">
       <sources failonempty="true">
         <include name="*.cs"/>
+        <include name="../NetworkPackets/*.cs"/>
         <include name="../IpopNode/*.cs"/>
         <include name="../../../brunet1/src/BasicNode/*.cs"/>
       </sources>

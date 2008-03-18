@@ -28,8 +28,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 
-namespace Ipop {
-
+namespace Ipop.RpcNode {
   /// <summary>
   /// This class implements DNS, IAddressResolver, IRpcHandler, and
   /// ITranslator. It provides most functionality needed by RpcIpopNode.
