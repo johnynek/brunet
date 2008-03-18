@@ -21,13 +21,11 @@ using System;
 using System.Collections;
 using Brunet.Applications;
 
-namespace Ipop {
-
+namespace Ipop.RpcNode {
   /// <summary>
   /// This class implements various methods needed for the RpcIpopNode
   /// </summary>
-  public class RpcNodeHelper
-  {
+  public class RpcNodeHelper {
     /// <summary> 
     /// Finds an available IP range on the system 
     /// </summary>

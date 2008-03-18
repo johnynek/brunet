@@ -31,21 +31,25 @@ using System.Net.Sockets;
 namespace Ipop {
 
   /// <summary>
-  /// This class implements DNS, IAddressResolver, IRpcHandler, and ITranslator. It
-  /// provides most functionality needed by RpcIpopNode
+  /// This class implements DNS, IAddressResolver, IRpcHandler, and
+  /// ITranslator. It provides most functionality needed by RpcIpopNode.
   /// </summary>
-  public class RpcAddressResolverAndDNS : DNS, IAddressResolver, IRpcHandler, ITranslator {
-
+  public class RpcAddressResolverAndDNS : DNS, IAddressResolver, IRpcHandler,
+    ITranslator {
+    /// <summary>The node to do ping checks on.</summary>
     protected StructuredNode _node;
+    /// <summary>The rpc manager to make rpc requests over.</summary>
     protected RpcManager _rpc;
+    /// <summary>Contains ip:hostname mapping.</summary>
     protected volatile Hashtable dns_a;
+    /// <summary>Contains hostname:ip mapping.</summary>
     protected volatile Hashtable dns_ptr;
     /// <summary>Maps MemBlock IP Addresses to Brunet Address as Address</summary>
     protected volatile Hashtable ip_addr;
     /// <summary>Maps Brunet Address as Address to MemBlock IP Addresses</summary>
     protected volatile Hashtable addr_ip;
     /// <summary>Helps assign remote end points</summary>
-    protected RpcDHCPLeaseController _rdlc;
+    protected RpcDHCPLeaseController _rdlc;       
     protected Object _sync;
 
     protected MemBlock _local_ip;
@@ -168,7 +172,6 @@ namespace Ipop {
         result = e;
         _rpc.SendResult(request_state, result);
       }
-      
     }
 
     /// <summary>

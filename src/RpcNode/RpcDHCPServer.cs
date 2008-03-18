@@ -30,16 +30,15 @@ namespace Ipop {
   /// <summary>
   /// Subclass of DHCPServer implements GetDHCPLeaseController method
   /// </summary>
-  public class RpcDHCPServer : DHCPServer
-  {
+  public class RpcDHCPServer : DHCPServer {
     protected readonly DHCPServerConfig _dhcp_config;
 
     /// <summary>
     /// Constructor
     /// </summary>
-    /// <param name="networkdevice">A string indicating starting point for network probe</param>
-    public RpcDHCPServer(string networkdevice)
-    {
+    /// <param name="networkdevice">A string indicating starting point for
+    /// network probe</param>
+    public RpcDHCPServer(string networkdevice) {
       String IP = RpcNodeHelper.GetNetwork(networkdevice, "10.254.0.0");
       _dhcp_config = RpcNodeHelper.GenerateDHCPServerConfig(IP, "255.255.0.0");
     }
@@ -49,8 +48,8 @@ namespace Ipop {
     /// </summary>
     /// <param name="ipop_namespace">A string specifying ipop_namespace</param>
     /// <returns>A result RpcDHCPLeaseController</returns>
-    protected override DHCPLeaseController GetDHCPLeaseController(string ipop_namespace)
-    {
+    protected override DHCPLeaseController GetDHCPLeaseController(
+        string ipop_namespace) {
       return new RpcDHCPLeaseController(_dhcp_config);
     }
   }

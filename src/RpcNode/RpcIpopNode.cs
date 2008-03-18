@@ -35,7 +35,7 @@ namespace Ipop {
   /// This class is a subclass of IpopNode
   /// </summary>
   public class RpcIpopNode: IpopNode {
-
+    /// <summary>Provides Address resolution, dns, and translation.</summary>
     RpcAddressResolverAndDNS _rarad;
 
     /// <summary>

@@ -31,11 +31,11 @@ namespace Ipop {
   public class RpcDHCPLeaseController : DHCPLeaseController {
 
     /// <summary>
-    /// Constructor takes DHCPServerConfig object and passes it to base constructor
+    /// Constructor takes DHCPServerConfig object and passes it to base 
+    /// constructor.
     /// </summary>
     /// <param name="config">A DHCPServerConfig passed to base</param>
-    public RpcDHCPLeaseController(DHCPServerConfig config)
-      : base(config) { }
+    public RpcDHCPLeaseController(DHCPServerConfig config) : base(config) {}
 
     /// <summary>
     /// This method creates the DHCPReply that will be return to DHCP server
@@ -47,13 +47,11 @@ namespace Ipop {
     /// <returns>A DHCP reply with IP, netmask, leasetime</returns>
     public override DHCPReply GetLease(byte[] address, bool renew,
                                    string node_address, params object[] para) {
-
       DHCPReply reply = new DHCPReply();
       reply.ip = lower;
       reply.ip[3] = 1;
       reply.netmask = netmask;
       reply.leasetime = leasetimeb;
-
       return reply;
     }
   }

@@ -5,14 +5,17 @@ using System.Collections.Generic;
 using System.Net;
 
 public class RpcDNSClient {
+  /// <summary>The BrunetRpc used in communicating with the RpcNode.</summary>
+  protected BrunetRpc _brpc;
+  /// <summary>The remote end point of our RpcIpopNode.</summary>
+  protected EndPoint _remEP;
+  /// <summary>Array of IP Addresses containing the loopback address.</summary>
+  protected IPAddress[] loopback;
 
-  private BrunetRpc _brpc;
-  private EndPoint _remEP;
-  private IPAddress[] _ips;
-
+  /// <summary>Creates a new RpcDNSClient.</summary>
   public RpcDNSClient() {
     _brpc = new BrunetRpc();
-    _ips = new IPAddress[1] { IPAddress.Parse("127.0.0.1") };
+    loopback = new IPAddress[1] { IPAddress.Loopback };
     _remEP = null;
   }
 
@@ -22,7 +25,7 @@ public class RpcDNSClient {
   /// </summary>
   public void Init() {
     BlockingQueue q = new BlockingQueue();
-    _brpc.Rpc.Invoke(_brpc.IPHandler.CreateMulticastSender(_ips), q, "RpcIpopNode.CheckInstance");
+    _brpc.Rpc.Invoke(_brpc.IPHandler.CreateMulticastSender(loopback), q, "RpcIpopNode.CheckInstance");
     while (true) {
       try {
         RpcResult res = (RpcResult)q.Dequeue();
@@ -41,11 +44,6 @@ public class RpcDNSClient {
       }
     }
   }
-
-  public void BrunetClose() { 
-    
-  }
-
 
   /// <summary>
   /// This method uses the sys:link.GetNeighbors rpc call to get the 
@@ -139,8 +137,8 @@ public class RpcDNSClient {
     }
     return false;
   }
-  
-    /// <summary>
+
+  /// <summary>
   /// Asynchronous check buddy method, use when making asynchronous calls
   /// </summary>
   /// <param name="address">A brunet address representation</param>
@@ -158,7 +156,7 @@ public class RpcDNSClient {
 
     _brpc.Rpc.Invoke(_brpc.IPHandler.CreateUnicastSender(_remEP), q, "RpcIpopNode.CheckBuddy", address);
   }
-  
+
   public virtual void UpdateAddress(string address) {
     Console.WriteLine("Returning Address {0}", address);
   }
@@ -168,7 +166,6 @@ public class RpcDNSClient {
   /// </summary>
   /// <param name="args"></param>
   public static void Main(string[] args) {
-
     RpcDNSClient client = new RpcDNSClient();
     client.Init();
     client.AsGetAddress();
@@ -177,7 +174,7 @@ public class RpcDNSClient {
       Console.WriteLine("Enter address to check:");
       string address = Console.ReadLine();
       client.CheckBuddy(address);
-      Console.WriteLine("Enter name and address to add");
+      Console.WriteLine("Enter name and address to add separated by a space");
       string input = Console.ReadLine();
       string[] tmp = input.Split(' ');
       client.AddBuddy(tmp[0], tmp[1]);
