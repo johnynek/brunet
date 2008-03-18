@@ -208,7 +208,10 @@ namespace NetworkPackets {
       Packet.CopyTo(new_packet, 0);
       int length = (Packet[0] & 0xF) * 4;
       SourceIP.CopyTo(new_packet, 12);
-      DestinationIP.CopyTo(new_packet, 16);
+      // Do not copy over multicast addresses!
+      if(new_packet[16] < 224 || new_packet[16] > 239) {
+        DestinationIP.CopyTo(new_packet, 16);
+      }
       // Zero out the checksum so we don't use it in our future calculations
       new_packet[10] = 0;
       new_packet[11] = 0;
