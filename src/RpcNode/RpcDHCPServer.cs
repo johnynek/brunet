@@ -18,7 +18,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using Brunet;
-using Ipop;
 using NetworkPackets;
 using NetworkPackets.DHCP;
 using System;
@@ -26,17 +25,32 @@ using System.Collections;
 using System.IO;
 using System.Text;
 
-namespace Ipop.RpcNode {
-  public class RpcDHCPServer : DHCPServer {
+namespace Ipop {
+
+  /// <summary>
+  /// Subclass of DHCPServer implements GetDHCPLeaseController method
+  /// </summary>
+  public class RpcDHCPServer : DHCPServer
+  {
     protected readonly DHCPServerConfig _dhcp_config;
 
-    public RpcDHCPServer(string networkdevice) {
+    /// <summary>
+    /// Constructor
+    /// </summary>
+    /// <param name="networkdevice">A string indicating starting point for network probe</param>
+    public RpcDHCPServer(string networkdevice)
+    {
       String IP = RpcNodeHelper.GetNetwork(networkdevice, "10.254.0.0");
       _dhcp_config = RpcNodeHelper.GenerateDHCPServerConfig(IP, "255.255.0.0");
     }
 
-    protected override DHCPLeaseController GetDHCPLeaseController(
-      string ipop_namespace) {
+    /// <summary>
+    /// This method overrides GetDHCPLeaseController
+    /// </summary>
+    /// <param name="ipop_namespace">A string specifying ipop_namespace</param>
+    /// <returns>A result RpcDHCPLeaseController</returns>
+    protected override DHCPLeaseController GetDHCPLeaseController(string ipop_namespace)
+    {
       return new RpcDHCPLeaseController(_dhcp_config);
     }
   }

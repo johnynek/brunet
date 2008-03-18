@@ -17,34 +17,44 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-using Brunet.Applications;
-using Ipop;
 using System;
 using System.IO;
 using System.Text;
 using System.Collections;
 using System.Security.Cryptography;
+using Brunet.Applications;
 
-namespace Ipop.RpcNode
-{
-    public class RpcDHCPLeaseController : DHCPLeaseController
-    {
+namespace Ipop {
+  /// <summary>
+  /// This is a subclass of DHCPLeaseController, it implements GetLease method
+  /// </summary>
+  public class RpcDHCPLeaseController : DHCPLeaseController {
 
-        public RpcDHCPLeaseController(DHCPServerConfig config):
-            base(config)
-        { 
-        }
+    /// <summary>
+    /// Constructor takes DHCPServerConfig object and passes it to base constructor
+    /// </summary>
+    /// <param name="config">A DHCPServerConfig passed to base</param>
+    public RpcDHCPLeaseController(DHCPServerConfig config)
+      : base(config) { }
 
-        public override DHCPReply GetLease(byte[] address, bool renew,
-                                       string node_address, params object[] para)
-        {
-            DHCPReply reply = new DHCPReply();
-            reply.ip = lower;
-            reply.ip[3] = 1;
-            reply.netmask = netmask;
-            reply.leasetime = leasetimeb;
+    /// <summary>
+    /// This method creates the DHCPReply that will be return to DHCP server
+    /// </summary>
+    /// <param name="address">A byte array representing the last ip</param>
+    /// <param name="renew">A boolean that determines if it's renewal request</param>
+    /// <param name="node_address"> A string representing brunet node address</param>
+    /// <param name="para"> An object array for additional params</param>
+    /// <returns>A DHCP reply with IP, netmask, leasetime</returns>
+    public override DHCPReply GetLease(byte[] address, bool renew,
+                                   string node_address, params object[] para) {
 
-            return reply;
-        }
+      DHCPReply reply = new DHCPReply();
+      reply.ip = lower;
+      reply.ip[3] = 1;
+      reply.netmask = netmask;
+      reply.leasetime = leasetimeb;
+
+      return reply;
     }
+  }
 }

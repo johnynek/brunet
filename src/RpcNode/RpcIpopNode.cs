@@ -1,5 +1,6 @@
 /*
 Copyright (C) 2008  David Wolinsky <davidiw@ufl.edu>, University of Florida
+                    Pierre St Juste <ptony82@ufl.edu>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -19,22 +20,29 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using Brunet;
 using Brunet.Applications;
 using Brunet.DistributedServices;
-using Ipop;
 using NetworkPackets;
 using System;
 using System.Net;
 using System.Threading;
 
-
 /**
 \namespace Ipop::RpcNode
-\brief Defines RpcIpopNode which requires users input address
-translations via an external Rpc client.
+\brief Defines Ipop.RpcNode provide the ability to set up translation tables via Rpc
 */
-namespace Ipop.RpcNode {
+namespace Ipop {
+
+  /// <summary>
+  /// This class is a subclass of IpopNode
+  /// </summary>
   public class RpcIpopNode: IpopNode {
+
     RpcAddressResolverAndDNS _rarad;
 
+    /// <summary>
+    /// The constructor takes two config files
+    /// </summary>
+    /// <param name="NodeConfigPath">Path to the node config file</param>
+    /// <param name="IpopConfigPath">Path to the ipop config file</param>
     public RpcIpopNode(string NodeConfigPath, string IpopConfigPath):
       base(NodeConfigPath, IpopConfigPath) {
       _rarad = new RpcAddressResolverAndDNS(Brunet);
@@ -44,16 +52,31 @@ namespace Ipop.RpcNode {
       _translator = _rarad;
     }
 
+    /// <summary>
+    /// Update the address information
+    /// </summary>
+    /// <param name="IP">A string with the new IP</param>
+    /// <param name="Netmask">A netmask of the address</param>
     public override void UpdateAddressData(String IP, String Netmask) {
       base.UpdateAddressData(IP, Netmask);
       _rarad.UpdateAddressData(IP, Netmask);
     }
 
+    /// <summary>
+    /// This method handles incoming DHCP packets
+    /// </summary>
+    /// <param name="ipp">A DHCP IPPacket to be processed</param>
+    /// <returns></returns>
     protected override bool HandleDHCP(IPPacket ipp) {
         ProcessDHCP(ipp, null);
         return true;
     }
 
+    /// <summary>
+    /// This method handles incoming DNS Packets
+    /// </summary>
+    /// <param name="ipp">A DNS IPPacket to be processed</param>
+    /// <returns>A boolean result</returns>
     protected override bool HandleDNS(IPPacket ipp) {
       IPPacket res = _dns.LookUp(ipp);
       EthernetPacket res_ep = new EthernetPacket(MACAddress, EthernetPacket.UnicastAddress,
@@ -62,10 +85,19 @@ namespace Ipop.RpcNode {
       return true;
     }
 
+    /// <summary>
+    /// This method handles multicast packets (not yet implemented)
+    /// </summary>
+    /// <param name="ipp">A multicast packet to be processed</param>
+    /// <returns></returns>
     protected override bool HandleMulticast(IPPacket ipp) {
       return false;
     }
 
+    /// <summary>
+    /// Main method
+    /// </summary>
+    /// <param name="args">Argument passed by the user</param>
     public static new void Main(String[] args) {
       RpcIpopNode node = new RpcIpopNode(args[0], args[1]);
       node.Run();
