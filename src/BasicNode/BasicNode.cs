@@ -213,13 +213,13 @@ namespace Brunet.Applications {
           _ds = new DhtServer(_node_config.RpcDht.Port);
         }
         _ds.Update(_dht);
+      }
 
-        if(_node_config.XmlRpcManager != null && _node_config.XmlRpcManager.Enabled) {
-          if(_xrm == null) {
-            _xrm = new XmlRpcManagerServer(_node_config.XmlRpcManager.Port);
-          }
-          _xrm.Update(_node);
+      if(_node_config.XmlRpcManager != null && _node_config.XmlRpcManager.Enabled) {
+        if(_xrm == null) {
+          _xrm = new XmlRpcManagerServer(_node_config.XmlRpcManager.Port);
         }
+        _xrm.Update(_node);
       }
     }
 
