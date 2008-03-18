@@ -95,11 +95,11 @@ namespace NetworkPackets.DNS {
     </item>
     <item>
       <term>RD</term>
-      <description>Recursion desired - unimplemented - 0</description>
+      <description>Recursion desired</description>
     </item>
     <item>
       <term>RA</term>
-      <description>Recursion availabled - unimplemented - 0</description>
+      <description>Recursion availabled</description>
     </item>
     <item>
       <term>Z</term><description>Reserved - must be 0</description>
@@ -154,10 +154,14 @@ namespace NetworkPackets.DNS {
     public readonly byte OPCODE;
     /// <summary>Authoritative answer (if you have a resolution, set)</summary>
     public readonly bool AA;
+    public readonly bool RD;
+    public readonly bool RA;
     /// <summary>list of Questions</summary>
     public readonly Question[] Questions;
-    /// <summary>list of Responses</summary>
-    public readonly Response[] Responses;
+    /// <summary>list of Answers</summary>
+    public readonly Response[] Answers;
+    public readonly Response[] Authority;
+    public readonly Response[] Additional;
 
     /**
     <summary>Creates a DNS packet from the parameters provided.</summary>
@@ -169,36 +173,95 @@ namespace NetworkPackets.DNS {
     <param name="AA">Authoritative Answer, true if there is a resolution for
     the lookup.</param>
     <param name="Questions">A list of Questions.</param>
-    <param name="Responses">A list of Responses.</param>
+    <param name="Answers">A list of Answers.</param>
     */
-    public DNSPacket(short ID, bool QUERY, byte OPCODE, bool AA,
-                     Question[] Questions, Response[] Responses) {
+    public DNSPacket(short ID, bool QUERY, byte OPCODE, bool AA, bool RA,
+                     bool RD, Question[] Questions, Response[] Answers,
+                     Response[] Authority, Response[] Additional) {
       byte[] header = new byte[12];
+
+      this.ID = ID;
       header[0] = (byte) ((ID >> 8) & 0xFF);
       header[1] = (byte) (ID & 0xFF);
+
+      this.QUERY = QUERY;
       if(!QUERY) {
         header[2] |= 0x80;
       }
+
+      this.OPCODE = OPCODE;
       header[2] |= (byte) (OPCODE << 3);
+
+      this.AA = AA;
       if(AA) {
-      // Authoritative Answer
         header[2] |= 0x4;
-      // Authentication
-        header[3] |= 0x20;
+      }
+      this.RD = RD;
+      if(RD) {
+        header[2] |= 0x1;
+      }
+      this.RA = RA;
+      if(RA) {
         header[3] |= 0x80;
       }
-      header[4] = (byte) ((Questions.Length >> 8) & 0xFF);
-      header[5] = (byte) (Questions.Length  & 0xFF);
-      header[6] = (byte) ((Responses.Length >> 8) & 0xFF);
-      header[7] = (byte) (Responses.Length  & 0xFF);
-      MemBlock Header = MemBlock.Reference(header);
 
-      _icpacket = new CopyList(Header);
-      for(int i = 0; i < Questions.Length; i++) {
+      if(Questions != null) {
+        this.Questions = Questions;
+        header[4] = (byte) ((Questions.Length >> 8) & 0xFF);
+        header[5] = (byte) (Questions.Length  & 0xFF);
+      }
+      else {
+        this.Questions = new Question[0];
+        header[4] = 0;
+        header[5] = 0;
+      }
+
+      if(Answers != null) {
+        this.Answers = Answers;
+        header[6] = (byte) ((Answers.Length >> 8) & 0xFF);
+        header[7] = (byte) (Answers.Length  & 0xFF);
+      }
+      else {
+        this.Answers = new Response[0];
+        header[6] = 0;
+        header[7] = 0;
+      }
+
+      if(Authority != null) {
+        this.Authority = Authority;
+        header[8] = (byte) ((Authority.Length >> 8) & 0xFF);
+        header[9] = (byte) (Authority.Length  & 0xFF);
+      }
+      else {
+        this.Authority = new Response[0];
+        header[8] = 0;
+        header[9] = 0;
+      }
+
+      if(Additional != null) {
+        this.Additional = Additional;
+        header[10] = (byte) ((Additional.Length >> 8) & 0xFF);
+        header[11] = (byte) (Additional.Length  & 0xFF);
+      }
+      else {
+        this.Additional = new Response[0];
+        header[10] = 0;
+        header[11] = 0;
+      }
+
+      _icpacket = MemBlock.Reference(header);
+
+      for(int i = 0; i < this.Questions.Length; i++) {
         _icpacket = new CopyList(_icpacket, Questions[i].ICPacket);
       }
-      for(int i = 0; i < Responses.Length; i++) {
-        _icpacket = new CopyList(_icpacket, Responses[i].ICPacket);
+      for(int i = 0; i < this.Answers.Length; i++) {
+        _icpacket = new CopyList(_icpacket, Answers[i].ICPacket);
+      }
+      for(int i = 0; i < this.Authority.Length; i++) {
+        _icpacket = new CopyList(_icpacket, Authority[i].ICPacket);
+      }
+      for(int i = 0; i < this.Additional.Length; i++) {
+        _icpacket = new CopyList(_icpacket, Additional[i].ICPacket);
       }
     }
 
@@ -211,23 +274,58 @@ namespace NetworkPackets.DNS {
       ID = (short) ((Packet[0] << 8) + Packet[1]);
       QUERY = (bool) (((Packet[2] & 0x80) >> 7) == 0);
       OPCODE = (byte) ((Packet[2] & 0x78) >> 3);
+
+      if((Packet[2] & 0x4) == 0x4) {
+        AA = true;
+      }
+      else {
+        AA = false;
+      }
+
+      if((Packet[2] & 0x1) == 0x1) {
+        RD = true;
+      }
+      else {
+        RD = false;
+      }
+
+      if((Packet[3] & 0x80) == 0x80) {
+        RA = true;
+      }
+      else {
+        RA = false;
+      }
+
       int qdcount = (Packet[4] << 8) + Packet[5];
       int ancount = (Packet[6] << 8) + Packet[7];
-//      int nscount = (Packet[8] << 8) + Packet[9];
-//      int arcount = (Packet[10] << 8) + Packet[11];
+      int nscount = (Packet[8] << 8) + Packet[9];
+      int arcount = (Packet[10] << 8) + Packet[11];
       int idx = 12;
 
       Questions = new Question[qdcount];
       for(int i = 0; i < qdcount; i++) {
-        Questions[i] = new Question(Packet.Slice(idx));
+        Questions[i] = new Question(Packet, idx);
         idx += Questions[i].Packet.Length;
       }
 
-      Responses = new Response[ancount];
+      Answers = new Response[ancount];
       for(int i = 0; i < ancount; i++) {
-        Responses[i] = new Response(Packet, idx);
-        idx += Responses[i].Packet.Length;
+        Answers[i] = new Response(Packet, idx);
+        idx += Answers[i].Packet.Length;
       }
+
+      Authority = new Response[nscount];
+      for(int i = 0; i < nscount; i++) {
+        Authority[i] = new Response(Packet, idx);
+        idx += Authority[i].Packet.Length;
+      }
+
+      Additional = new Response[arcount];
+      for(int i = 0; i < arcount; i++) {
+        Additional[i] = new Response(Packet, idx);
+        idx += Additional[i].Packet.Length;
+      }
+
       _icpacket = _packet = Packet;
     }
 
@@ -246,58 +344,12 @@ namespace NetworkPackets.DNS {
       return MemBlock.Reference(res);
     }
 
-    /** 
-    <summary>Converts names from String representation to byte representation
-    for DNS</summary>
-    <param name="name">the name to convert</param>
-    <param name="type">the type we're converting to</param>
-    <returns>The byte version of the name stored in a MemBlock</returns>
-     */
-    public static MemBlock NameStringToBytes(String name, TYPES type) {
-      byte[] res = null;
-        /* With pointers we reduce overhead on the user and only return the
-      * IP Address in String format rather than the pointer format
-        */
-      if(type == TYPES.PTR) {
-        String[] pieces = name.Split('.');
-          // First Length + Data + .in-addr.arpa + 0 (1 + name.Length + 1)
-        res = new byte[name.Length + INADDR_ARPA.Length + 2];
-
-        int pos = 0;
-        for(int idx = pieces.Length - 1; idx >= 0; idx--) {
-          res[pos++] = (byte) pieces[idx].Length;
-          for(int jdx = 0; jdx < pieces[idx].Length; jdx++) {
-            res[pos++] = (byte) pieces[idx][jdx];
-          }
-        }
-
-        pieces = INADDR_ARPA.Split('.');
-        for(int idx = 1; idx < pieces.Length; idx++) {
-          res[pos++] = (byte) pieces[idx].Length;
-          for(int jdx = 0; jdx < pieces[idx].Length; jdx++) {
-            res[pos++] = (byte) pieces[idx][jdx];
-          }
-        }
-        res[pos] = 0;
-      }
-      else if(type == TYPES.A || type == TYPES.SOA) {
-        String[] pieces = name.Split('.');
-          // First Length + Data + 0 (1 + name.Length + 1)
-        res = new byte[name.Length + 2];
-        int pos = 0;
-        for(int idx = 0; idx < pieces.Length; idx++) {
-          res[pos++] = (byte) pieces[idx].Length;
-          for(int jdx = 0; jdx < pieces[idx].Length; jdx++) {
-            res[pos++] = (byte) pieces[idx][jdx];
-          }
-        }
-        res[pos] = 0;
-      }
-
-      MemBlock mres = MemBlock.Reference(res);
-      return mres;
-    }
-
+    /**
+    <summary>Takes in a memblock containing dns ptr data ...
+    d.c.b.a.in-addr.arpa ... and returns the IP Address as a string.</summary>
+    <param name="ptr">The block containing the dns ptr data.</param>
+    <returns>The IP Address as a string - a.b.c.d.</returns>
+    */
     public static String PtrMemBlockToString(MemBlock ptr) {
       String name = HostnameMemBlockToString(ptr);
       String[] res = name.Split('.');
@@ -312,6 +364,12 @@ namespace NetworkPackets.DNS {
       return name;
     }
 
+    /**
+    <summary>Takes in an IP Address in dns format and returns a string.  The
+    format is abcd (byte[] {a, b, c, d}.</summary>
+    <param name="ip">a memblock containing abcd.</param>
+    <returns>String IP a.b.c.d</returns>
+    */
     public static String IPMemBlockToString(MemBlock ip) {
       String res = ip[0].ToString();
       for(int i = 1; i < ip.Length; i++) {
@@ -320,6 +378,13 @@ namespace NetworkPackets.DNS {
       return res;
     }
 
+    /**
+    <summary>Takes in a memblock containing a dns formatted hostname string and
+    converts it into a String.</summary>
+    <param name="name">The memblock containing the dns formated hostname.
+    </param>
+    <returns>The hostname in a properly formatted string.</returns>
+    */
     public static String HostnameMemBlockToString(MemBlock name) {
       String names = String.Empty;
       int idx = 0;
@@ -335,6 +400,12 @@ namespace NetworkPackets.DNS {
       return names;
     }
 
+    /**
+    <summary>Takes in an IP Address string and returns the dns ptr formatted
+    memblock containing d.c.b.a.in-addr.arpa.</summary>
+    <param name="ptr">An IP Address in the format a.b.c.d.</param>
+    <returns>MemBlock containing d.c.b.a.in-addr.arpa.</returns>
+    */
     public static MemBlock PtrStringToMemBlock(String ptr) {
       String[] res = ptr.Split('.');
       String name = String.Empty;
@@ -350,7 +421,7 @@ namespace NetworkPackets.DNS {
     containing the IP [a, b, c, d].</summary>
     <param name="ip">The IP in a string to convert.</param>
     <returns>The MemBlock version of the IP Address.</returns>
-     */
+    */
     public static MemBlock IPStringToMemBlock(String ip) {
       byte[] ipb = new byte[4];
       string []bytes = ip.Split('.');
@@ -365,7 +436,7 @@ namespace NetworkPackets.DNS {
     of query.</summary>
     <param name="name">The name to convert (and resolve).</param>
     <param name="TYPE">The type of response packet.</param>
-     */
+    */
     public static MemBlock HostnameStringToMemBlock(String name) {
       String[] pieces = name.Split('.');
       // First Length + Data + 0 (1 + name.Length + 1)
@@ -379,6 +450,44 @@ namespace NetworkPackets.DNS {
       }
       nameb[pos] = 0;
       return MemBlock.Reference(nameb);
+    }
+
+    /**
+    <summary>A blob is a fully resolved name.  DNS uses pointers to reduce
+    memory consumption in packets, this can traverse all pointers and return a
+    complete name.  The blob starts a Start and Ends at End.  This is used so
+    that the parsing program knows where to continue reading data from.
+    </summary>
+    <param name="Data">The entire packet to grab the blob from.</param>
+    <param name="Start">The beginning of the blob.</param>
+    <param name="End">Returned to the user and notes where the blob ends.
+    </param>
+    <returns>The fully resolved blob as a memblock.</returns>
+    */
+    public static MemBlock RetrieveBlob(MemBlock Data, int Start,
+                                        out int End) {
+      int pos = Start, idx = 0;
+      End = Start;
+      byte [] blob = new byte[256];
+      bool first = true;
+      while(Data[pos] != 0) {
+        if((Data[pos] & 0xC0) == 0xC0) {
+          int offset = (Data[pos++] & 0x3F << 8);
+          offset |= Data[pos];
+          if(first) {
+            End = pos;
+            first = false;
+          }
+          pos = offset;
+        }
+        else {
+          blob[idx++] = Data[pos++];
+        }
+      }
+      if(first) {
+        End = pos;
+      }
+      return MemBlock.Reference(blob, 0, idx + 1);
     }
   }
 
@@ -440,7 +549,66 @@ namespace NetworkPackets.DNS {
     }
 
     [Test]
-    public void TestPtrRPacket() {
+    public void TestPtrRPacketWithCompression() {
+      int id = 55885;
+      short ID = (short) id;
+      bool QUERY = false;
+      byte OPCODE = 0;
+      bool AA = false;
+
+      String QNAME = "64.233.169.104";
+      DNSPacket.TYPES QTYPE = DNSPacket.TYPES.PTR;
+      DNSPacket.CLASSES QCLASS = DNSPacket.CLASSES.IN;
+    //  Question qp = new Question(QNAME, QTYPE, QCLASS);
+
+      String NAME = "64.233.169.104";
+      DNSPacket.TYPES TYPE = DNSPacket.TYPES.PTR;
+      DNSPacket.CLASSES CLASS = DNSPacket.CLASSES.IN;
+      int TTL = 30;
+      String RDATA = "yo-in-f104.google.com";
+  //    Response rp = new Response(NAME, TYPE, CLASS, TTL, RDATA);
+
+      MemBlock ptrm = MemBlock.Reference(new byte[] {0xda, 0x4d, 0x81, 0x80,
+        0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x03, 0x31, 0x30, 0x34,
+        0x03, 0x31, 0x36, 0x39, 0x03, 0x32, 0x33, 0x33, 0x02, 0x36, 0x34, 0x07,
+        0x69, 0x6e, 0x2d, 0x61, 0x64, 0x64, 0x72, 0x04, 0x61, 0x72, 0x70, 0x61,
+        0x00, 0x00, 0x0c, 0x00, 0x01, 0xc0, 0x0c, 0x00, 0x0c, 0x00, 0x01, 0x00,
+        0x00, 0x00, 0x1e, 0x00, 0x17, 0x0a, 0x79, 0x6f, 0x2d, 0x69, 0x6e, 0x2d,
+        0x66, 0x31, 0x30, 0x34, 0x06, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x03,
+        0x63, 0x6f, 0x6d, 0x00});
+
+      DNSPacket dm = new DNSPacket(ptrm);
+      DNSPacket dp = new DNSPacket(ID, QUERY, OPCODE, AA, dm.RD, dm.RA,
+                                   dm.Questions, dm.Answers, null, null);
+
+      Assert.AreEqual(dm.ID, ID, "ID");
+      Assert.AreEqual(dm.QUERY, QUERY, "QUERY");
+      Assert.AreEqual(dm.OPCODE, OPCODE, "OPCODE");
+      Assert.AreEqual(dm.AA, AA, "AA");
+      Assert.AreEqual(dm.Questions.Length, 1, "Questions");
+      Assert.AreEqual(dm.Answers.Length, 1, "Answers");
+      Assert.AreEqual(dm.Packet, ptrm, "MemBlock");
+
+      Response rm = dm.Answers[0];
+      Assert.AreEqual(rm.NAME, NAME, "NAME");
+      Assert.AreEqual(rm.TYPE, TYPE, "TYPE");
+      Assert.AreEqual(rm.CLASS, CLASS, "CLASS");
+      Assert.AreEqual(rm.TTL, TTL, "TTL");
+      Assert.AreEqual(rm.RDATA, RDATA, "RDATA");
+
+      Question qm = dm.Questions[0];
+      Assert.AreEqual(qm.QNAME, QNAME, "QNAME");
+      Assert.AreEqual(qm.QTYPE, QTYPE, "QTYPE");
+      Assert.AreEqual(qm.QCLASS, QCLASS, "QCLASS");
+
+      /// @todo add compression when creating dns packets... then we can
+      /// build dp.Packet without using blobs and compare it to ptrm and it
+      /// should pass!
+      Assert.AreEqual(dp.Packet, ptrm, "Packet");
+    }
+
+    [Test]
+    public void TestPtrRPacketWithoutCompression() {
       int id = 55885;
       short ID = (short) id;
       bool QUERY = false;
@@ -459,30 +627,87 @@ namespace NetworkPackets.DNS {
       String RDATA = "yo-in-f104.google.com";
       Response rp = new Response(NAME, TYPE, CLASS, TTL, RDATA);
 
-      DNSPacket dp = new DNSPacket(ID, QUERY, OPCODE, AA, new Question[] {qp},
-                                   new Response[] {rp});
+      DNSPacket dp = new DNSPacket(ID, QUERY, OPCODE, AA, false, false, 
+                                   new Question[] {qp}, new Response[] {rp},
+                                   null, null);
 
-      MemBlock ptrm = MemBlock.Reference(new byte[] {0xda, 0x4d, 0x81, 0x80, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x03, 0x31, 0x30, 0x34, 0x03, 0x31, 0x36, 0x39, 0x03, 0x32, 0x33, 0x33, 0x02, 0x36, 0x34, 0x07, 0x69, 0x6e, 0x2d, 0x61, 0x64, 0x64, 0x72, 0x04, 0x61, 0x72, 0x70, 0x61, 0x00, 0x00, 0x0c, 0x00, 0x01, 0xc0, 0x0c, 0x00, 0x0c, 0x00, 0x01, 0x00, 0x00, 0x00, 0x1e, 0x00, 0x17, 0x0a, 0x79, 0x6f, 0x2d, 0x69, 0x6e, 0x2d, 0x66, 0x31, 0x30, 0x34, 0x06, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x03, 0x63, 0x6f, 0x6d, 0x00});
-      DNSPacket dm = new DNSPacket(ptrm);
-      Assert.AreEqual(dm.ID, ID, "ID");
-      Assert.AreEqual(dm.QUERY, QUERY, "QUERY");
-      Assert.AreEqual(dm.OPCODE, OPCODE, "OPCODE");
-      Assert.AreEqual(dm.AA, AA, "AA");
-      Assert.AreEqual(dm.Questions.Length, 1, "Questions");
-      Assert.AreEqual(dm.Responses.Length, 1, "Responses");
-      Assert.AreEqual(dm.Packet, ptrm, "MemBlock");
+      MemBlock ptrm = MemBlock.Reference(new byte[] {0xda, 0x4d, 0x80, 0x00,
+        0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x03, 0x31, 0x30, 0x34,
+        0x03, 0x31, 0x36, 0x39, 0x03, 0x32, 0x33, 0x33, 0x02, 0x36, 0x34, 0x07,
+        0x69, 0x6e, 0x2d, 0x61, 0x64, 0x64, 0x72, 0x04, 0x61, 0x72, 0x70, 0x61,
+        0x00, 0x00, 0x0c, 0x00, 0x01, 0x03, 0x31, 0x30, 0x34, 0x03, 0x31, 0x36,
+        0x39, 0x03, 0x32, 0x33, 0x33, 0x02, 0x36, 0x34, 0x07, 0x69, 0x6e, 0x2d,
+        0x61, 0x64, 0x64, 0x72, 0x04, 0x61, 0x72, 0x70, 0x61, 0x00, 0x00, 0x0c,
+        0x00, 0x01, 0x00, 0x00, 0x00, 0x1e, 0x00, 0x17, 0x0a, 0x79, 0x6f, 0x2d,
+        0x69, 0x6e, 0x2d, 0x66, 0x31, 0x30, 0x34, 0x06, 0x67, 0x6f, 0x6f, 0x67,
+        0x6c, 0x65, 0x03, 0x63, 0x6f, 0x6d, 0x00});
 
-      Response rm = dm.Responses[0];
-      Assert.AreEqual(rm.NAME, NAME, "NAME");
-      Assert.AreEqual(rm.TYPE, TYPE, "TYPE");
-      Assert.AreEqual(rm.CLASS, CLASS, "CLASS");
-      Assert.AreEqual(rm.TTL, TTL, "TTL");
-      Assert.AreEqual(rm.RDATA, RDATA, "RDATA");
+        DNSPacket dm = new DNSPacket(ptrm);
+        Assert.AreEqual(dm.ID, ID, "ID");
+        Assert.AreEqual(dm.QUERY, QUERY, "QUERY");
+        Assert.AreEqual(dm.OPCODE, OPCODE, "OPCODE");
+        Assert.AreEqual(dm.AA, AA, "AA");
+        Assert.AreEqual(dm.Questions.Length, 1, "Questions");
+        Assert.AreEqual(dm.Answers.Length, 1, "Answers");
+        Assert.AreEqual(dm.Packet, ptrm, "MemBlock");
 
-      Question qm = dm.Questions[0];
-      Assert.AreEqual(qm.QNAME, NAME, "QNAME");
-      Assert.AreEqual(qm.QTYPE, TYPE, "QTYPE");
-      Assert.AreEqual(qm.QCLASS, CLASS, "QCLASS");
+        Response rm = dm.Answers[0];
+        Assert.AreEqual(rm.NAME, NAME, "NAME");
+        Assert.AreEqual(rm.TYPE, TYPE, "TYPE");
+        Assert.AreEqual(rm.CLASS, CLASS, "CLASS");
+        Assert.AreEqual(rm.TTL, TTL, "TTL");
+        Assert.AreEqual(rm.RDATA, RDATA, "RDATA");
+
+        Question qm = dm.Questions[0];
+        Assert.AreEqual(qm.QNAME, NAME, "QNAME");
+        Assert.AreEqual(qm.QTYPE, TYPE, "QTYPE");
+        Assert.AreEqual(qm.QCLASS, CLASS, "QCLASS");
+
+        Assert.AreEqual(dp.Packet, ptrm, "DNS Packet");
+    }
+
+    [Test]
+    public void TestMDNS() {
+      MemBlock mdnsm = MemBlock.Reference(new byte[] {0x00, 0x00, 0x84, 0x00,
+        0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x01, 0x12, 0x4c, 0x61, 0x70,
+        0x70, 0x79, 0x40, 0x64, 0x61, 0x76, 0x69, 0x64, 0x2d, 0x6c, 0x61, 0x70,
+        0x74, 0x6f, 0x70, 0x09, 0x5f, 0x70, 0x72, 0x65, 0x73, 0x65, 0x6e, 0x63,
+        0x65, 0x04, 0x5f, 0x74, 0x63, 0x70, 0x05, 0x6c, 0x6f, 0x63, 0x61, 0x6c,
+        0x00, 0x00, 0x21, 0x80, 0x01, 0x00, 0x00, 0x00, 0x78, 0x00, 0x15, 0x00,
+        0x00, 0x00, 0x00, 0x14, 0xb2, 0x0c, 0x64, 0x61, 0x76, 0x69, 0x64, 0x2d,
+        0x6c, 0x61, 0x70, 0x74, 0x6f, 0x70, 0xc0, 0x2e, 0xc0, 0x0c, 0x00, 0x10,
+        0x80, 0x01, 0x00, 0x00, 0x11, 0x94, 0x00, 0x5c, 0x04, 0x76, 0x63, 0x3d,
+        0x21, 0x09, 0x76, 0x65, 0x72, 0x3d, 0x32, 0x2e, 0x33, 0x2e, 0x31, 0x0e,
+        0x6e, 0x6f, 0x64, 0x65, 0x3d, 0x6c, 0x69, 0x62, 0x70, 0x75, 0x72, 0x70,
+        0x6c, 0x65, 0x0c, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x3d, 0x61, 0x76,
+        0x61, 0x69, 0x6c, 0x0e, 0x70, 0x6f, 0x72, 0x74, 0x2e, 0x70, 0x32, 0x70,
+        0x6a, 0x3d, 0x35, 0x32, 0x39, 0x38, 0x0d, 0x6c, 0x61, 0x73, 0x74, 0x3d,
+        0x57, 0x6f, 0x6c, 0x69, 0x6e, 0x73, 0x6b, 0x79, 0x09, 0x31, 0x73, 0x74,
+        0x3d, 0x44, 0x61, 0x76, 0x69, 0x64, 0x09, 0x74, 0x78, 0x74, 0x76, 0x65,
+        0x72, 0x73, 0x3d, 0x31, 0x09, 0x5f, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63,
+        0x65, 0x73, 0x07, 0x5f, 0x64, 0x6e, 0x73, 0x2d, 0x73, 0x64, 0x04, 0x5f,
+        0x75, 0x64, 0x70, 0xc0, 0x2e, 0x00, 0x0c, 0x00, 0x01, 0x00, 0x00, 0x11,
+        0x94, 0x00, 0x02, 0xc0, 0x1f, 0xc0, 0x1f, 0x00, 0x0c, 0x00, 0x01, 0x00,
+        0x00, 0x11, 0x94, 0x00, 0x02, 0xc0, 0x0c, 0xc0, 0x45, 0x00, 0x01, 0x80,
+        0x01, 0x00, 0x00, 0x00, 0x78, 0x00, 0x04, 0x0a, 0xe3, 0x38, 0x88});
+
+      DNSPacket mdns = new DNSPacket(mdnsm);
+
+      Assert.AreEqual(mdns.Questions.Length, 0, "Questions");
+      Assert.AreEqual(mdns.Answers.Length, 4, "Answers");
+      Assert.AreEqual(mdns.Authority.Length, 0, "Authority");
+      Assert.AreEqual(mdns.Additional.Length, 1, "Additional");
+      DNSPacket dnsp = new DNSPacket(mdns.ID, mdns.QUERY, mdns.OPCODE, mdns.AA,
+                                     mdns.RD, mdns.RA, null, mdns.Answers,
+                                     null, mdns.Additional);
+
+      Assert.AreEqual(mdnsm, dnsp.Packet, "Packet");
+      Assert.AreEqual(dnsp.Additional[0].NAME, "david-laptop.local", "NAME");
+      Assert.AreEqual(dnsp.Additional[0].TYPE, DNSPacket.TYPES.A, "TYPE");
+      Assert.AreEqual(dnsp.Additional[0].CLASS, DNSPacket.CLASSES.IN, "CLASS");
+      Assert.AreEqual(dnsp.Additional[0].CACHE_FLUSH, true, "CACHE_FLUSH");
+      Assert.AreEqual(dnsp.Additional[0].TTL, 120, "TTL");
+      Assert.AreEqual(dnsp.Additional[0].RDATA, "10.227.56.136", "RDATA");
     }
   }
 #endif

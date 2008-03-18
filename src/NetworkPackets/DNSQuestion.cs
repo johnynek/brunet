@@ -97,46 +97,15 @@ namespace NetworkPackets.DNS {
     }
 
     /**
-    <summary>Constructor when creating a DNS Query with a qname blob.</summary>
-    <param name="QNAME_BLOB">The QNAME in a byte array blob</param>
-    <param name="QTYPE"> the type of look up to perform</param>
-    <param name="QCLASS">should always be IN</param>
-    */
-    public Question(MemBlock QNAME_BLOB, DNSPacket.TYPES QTYPE, DNSPacket.CLASSES QCLASS) {
-      this.QNAME_BLOB = QNAME_BLOB;
-      this.QTYPE = QTYPE;
-      this.QCLASS = QCLASS;
-
-      if(QTYPE == DNSPacket.TYPES.A) {
-        QNAME = DNSPacket.HostnameMemBlockToString(QNAME_BLOB);
-      }
-      else if(QTYPE == DNSPacket.TYPES.PTR) {
-        QNAME = DNSPacket.PtrMemBlockToString(QNAME_BLOB);
-      }
-
-        // 2 for QTYPE + 2 for QCLASS
-      byte[] data = new byte[4];
-      int idx = 0;
-      data[idx++] = (byte) ((((int) QTYPE) >> 8) & 0xFF);
-      data[idx++] = (byte) (((int) QTYPE) & 0xFF);
-      data[idx++] = (byte) ((((int) QCLASS) >> 8) & 0xFF);
-      data[idx++] = (byte) (((int) QCLASS) & 0xFF);
-      _icpacket = new CopyList(QNAME_BLOB, MemBlock.Reference(data));
-    }
-
-    /**
     <summary>Constructor when parsing a DNS Query</summary>
     <param name="Data"> must pass in the entire packet from where the question
     begins, after parsing, can check Data.Length to find where next
     container begins.</param>
     */
-    public Question(MemBlock Data) {
+    public Question(MemBlock Data, int Start) {
       int idx = 0;
-      while(Data[idx] != 0) {
-        idx++;
-      }
-
-      QNAME_BLOB = Data.Slice(0, ++idx);
+      QNAME_BLOB = DNSPacket.RetrieveBlob(Data, Start, out idx);
+      idx++;
 
       int qtype = (Data[idx++] << 8) + Data[idx++];
       QTYPE = (DNSPacket.TYPES) qtype;
@@ -151,7 +120,7 @@ namespace NetworkPackets.DNS {
         QNAME = DNSPacket.PtrMemBlockToString(QNAME_BLOB);
       }
 
-      _icpacket = _packet = Data.Slice(0, idx + 1);
+      _icpacket = _packet = Data.Slice(Start, idx + 1 - Start);
     }
   }
 
@@ -169,7 +138,7 @@ namespace NetworkPackets.DNS {
         0x03, 0x31, 0x36, 0x39, 0x03, 0x32, 0x33, 0x33, 0x02, 0x36, 0x34, 0x07,
         0x69, 0x6e, 0x2d, 0x61, 0x64, 0x64, 0x72, 0x04, 0x61, 0x72, 0x70, 0x61,
         0x00, 0x00, 0x0c, 0x00, 0x01});
-      Question qm = new Question(ptrm);
+      Question qm = new Question(ptrm, 0);
 
       Assert.AreEqual(qp.Packet, ptrm, "Packet");
       Assert.AreEqual(qm.QNAME, NAME, "NAME");
@@ -177,27 +146,6 @@ namespace NetworkPackets.DNS {
       Assert.AreEqual(qm.QCLASS, CLASS, "CLASS");
     }
 
-    [Test]
-    public void DNSBlobTest() {
-      MemBlock NAME_BLOB = MemBlock.Reference(new byte[] {0x03, 0x31, 0x30, 0x34,
-        0x03, 0x31, 0x36, 0x39, 0x03, 0x32, 0x33, 0x33, 0x02, 0x36, 0x34, 0x07,
-        0x69, 0x6e, 0x2d, 0x61, 0x64, 0x64, 0x72, 0x04, 0x61, 0x72, 0x70, 0x61,
-        0x00});
-      DNSPacket.TYPES TYPE = DNSPacket.TYPES.PTR;
-      DNSPacket.CLASSES CLASS = DNSPacket.CLASSES.IN;
-      Question qp = new Question(NAME_BLOB, TYPE, CLASS);
-
-      MemBlock ptrm = MemBlock.Reference(new byte[] {0x03, 0x31, 0x30, 0x34,
-        0x03, 0x31, 0x36, 0x39, 0x03, 0x32, 0x33, 0x33, 0x02, 0x36, 0x34, 0x07,
-        0x69, 0x6e, 0x2d, 0x61, 0x64, 0x64, 0x72, 0x04, 0x61, 0x72, 0x70, 0x61,
-        0x00, 0x00, 0x0c, 0x00, 0x01});
-      Question qm = new Question(ptrm);
-
-      Assert.AreEqual(qp.Packet, ptrm, "Packet");
-      Assert.AreEqual(qm.QNAME_BLOB, NAME_BLOB, "NAME_BLOB");
-      Assert.AreEqual(qm.QTYPE, TYPE, "TYPE");
-      Assert.AreEqual(qm.QCLASS, CLASS, "CLASS");
-    }
 
     [Test]
     public void DNSATest() {
@@ -209,7 +157,7 @@ namespace NetworkPackets.DNS {
       MemBlock namem = MemBlock.Reference(new byte[] {0x03, 0x77, 0x77, 0x77,
         0x03, 0x63, 0x6e, 0x6e, 0x03, 0x63, 0x6f, 0x6d, 0x00, 0x00, 0x01, 0x00,
         0x01});
-      Question qm = new Question(namem);
+      Question qm = new Question(namem, 0);
 
       Assert.AreEqual(qp.Packet, namem, "Packet");
       Assert.AreEqual(qm.QNAME, NAME, "NAME");

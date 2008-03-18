@@ -33,9 +33,14 @@ namespace Ipop {
           throw new Exception("Unable to resolve name: " + qname);
         }
         Response response = new Response(qname, dnspacket.Questions[0].QTYPE,
-            dnspacket.Questions[0].QCLASS, 1800, qname_response);
-        DNSPacket res_packet = new DNSPacket(dnspacket.ID, false, dnspacket.OPCODE, true,
-                                             dnspacket.Questions, new Response[] {response});
+          dnspacket.Questions[0].QCLASS, 1800, qname_response);
+
+        // For some reason, if RD is set and we don't have RA it Linux `host`
+        // doesn't work!
+        DNSPacket res_packet = new DNSPacket(dnspacket.ID, false,
+          dnspacket.OPCODE, true, dnspacket.RD, dnspacket.RD,
+          dnspacket.Questions, new Response[] {response}, null, null);
+
         rdnspacket = res_packet.ICPacket;
       }
       catch(Exception e) {
@@ -46,7 +51,9 @@ namespace Ipop {
       UDPPacket res_udpp = new UDPPacket(req_udpp.DestinationPort,
                                          req_udpp.SourcePort, rdnspacket);
       IPPacket res_ipp = new IPPacket(IPPacket.Protocols.UDP,
-                                       req_ipp.DestinationIP, req_ipp.SourceIP, res_udpp.ICPacket);
+                                       req_ipp.DestinationIP,
+                                       req_ipp.SourceIP,
+                                       res_udpp.ICPacket);
       return res_ipp;
     }
 

@@ -67,6 +67,8 @@ namespace NetworkPackets.DNS {
     public readonly DNSPacket.TYPES TYPE;
     /// <summary>type of network</summary>
     public readonly DNSPacket.CLASSES CLASS;
+    /// <summary>Cache flush, not used for DNS only MDNS</summary>
+    public readonly bool CACHE_FLUSH;
     /// <summary>cache time to live for the response</summary>
     public readonly int TTL;
     /// <summary>the length of the rdata</summary>
@@ -78,21 +80,23 @@ namespace NetworkPackets.DNS {
 
     /**
     <summary>Creates a response from the parameter fields with RDATA being
-    a memory chunk.</summary>
+    a memory chunk.  This is for MDNS which supports caching</summary>
     <param name="NAME">The name resolved.</param>
     <param name="TYPE">The query type.</param>
     <param name="CLASS">The network type.</param>
+    <param name="CACHE_FLUSH">Flush the dns cache in the client.</param>
     <param name="TTL">How long to hold the result in the local dns cache.</param>
     <param name="RDATA">RDATA in String format.</param>
     */
-    public Response(String NAME, DNSPacket.TYPES TYPE,
-                       DNSPacket.CLASSES CLASS, int TTL, String RDATA) {
+    public Response(String NAME, DNSPacket.TYPES TYPE, DNSPacket.CLASSES CLASS,
+                    bool CACHE_FLUSH, int TTL, String RDATA) {
       this.NAME = NAME;
       this.CLASS = CLASS;
       this.TTL = TTL;
 
       this.TYPE = TYPE;
       this.CLASS = CLASS;
+      this.CACHE_FLUSH = CACHE_FLUSH;
       this.RDATA = RDATA;
 
       if(TYPE == DNSPacket.TYPES.A) {
@@ -108,13 +112,18 @@ namespace NetworkPackets.DNS {
       }
 
       RDLENGTH = (short) RDATA_BLOB.Length;
-
       // 2 for TYPE + 2 for CLASS + 4 for TTL + 2 for RDLENGTH
       byte[] data = new byte[10];
       int idx = 0;
       data[idx++] = (byte) ((((int) TYPE) >> 8) & 0xFF);
       data[idx++] = (byte) (((int) TYPE) & 0xFF);
-      data[idx++] = (byte) ((((int) CLASS) >> 8) & 0xFF);
+
+      byte cache_flush = 0x80;
+      if(!CACHE_FLUSH) {
+        cache_flush = 0x00;
+      }
+
+      data[idx++] = (byte) (((((int) CLASS) >> 8) & 0x7F) | cache_flush);
       data[idx++] = (byte) (((int) CLASS) & 0xFF);
       data[idx++] = (byte) ((TTL >> 24) & 0xFF);
       data[idx++] = (byte) ((TTL >> 16) & 0xFF);
@@ -128,89 +137,17 @@ namespace NetworkPackets.DNS {
 
     /**
     <summary>Creates a response from the parameter fields with RDATA being
-    a memory chunk.</summary>
-    <param name="NAME_BLOB">The name to resolve.</param>
+    a memory chunk.  This is for regular dns which has no notion of caching.
+    </summary>
+    <param name="NAME">The name resolved.</param>
     <param name="TYPE">The query type.</param>
     <param name="CLASS">The network type.</param>
+    <param name="CACHE_FLUSH">Flush the dns cache in the client.</param>
     <param name="TTL">How long to hold the result in the local dns cache.</param>
-    <param name="RDATA_BLOB">RDATA in byte format.</param>
-     */
-    public Response(MemBlock NAME_BLOB, DNSPacket.TYPES TYPE,
-                       DNSPacket.CLASSES CLASS, int TTL, MemBlock RDATA_BLOB) {
-      this.NAME_BLOB = NAME_BLOB;
-      this.CLASS = CLASS;
-      this.TTL = TTL;
-
-      this.TYPE = TYPE;
-      this.CLASS = CLASS;
-      this.RDATA_BLOB = RDATA_BLOB;
-
-      RDLENGTH = (short) RDATA_BLOB.Length;
-
-      // 2 for TYPE + 2 for CLASS + 4 for TTL + 2 for RDLENGTH
-      byte[] data = new byte[10];
-      int idx = 0;
-      data[idx++] = (byte) ((((int) TYPE) >> 8) & 0xFF);
-      data[idx++] = (byte) (((int) TYPE) & 0xFF);
-      data[idx++] = (byte) ((((int) CLASS) >> 8) & 0xFF);
-      data[idx++] = (byte) (((int) CLASS) & 0xFF);
-      data[idx++] = (byte) ((TTL >> 24) & 0xFF);
-      data[idx++] = (byte) ((TTL >> 16) & 0xFF);
-      data[idx++] = (byte) ((TTL >> 8) & 0xFF);
-      data[idx++] = (byte) (TTL & 0xFF);
-      data[idx++] = (byte) ((RDLENGTH >> 8) & 0xFF);
-      data[idx] = (byte) (RDLENGTH & 0xFF);
-
-      _icpacket = new CopyList(NAME_BLOB, MemBlock.Reference(data), RDATA_BLOB);
-    }
-
-    /**
-    <summary>Creates a response from the parameter fields with RDATA being
-    a memory chunk.</summary>
-    <param name="NAME">The name to resolve.</param>
-    <param name="TYPE">The query type.</param>
-    <param name="CLASS">The network type.</param>
-    <param name="TTL">How long to hold the result in the local dns cache.</param>
-    <param name="RDATA_BLOB">RDATA in byte format.</param>
-     */
-    public Response(String NAME, DNSPacket.TYPES TYPE,
-                       DNSPacket.CLASSES CLASS, int TTL, MemBlock RDATA_BLOB) {
-      this.NAME = NAME;
-      this.CLASS = CLASS;
-      this.TTL = TTL;
-
-      this.TYPE = TYPE;
-      this.CLASS = CLASS;
-      this.RDATA_BLOB = RDATA_BLOB;
-
-      if(TYPE == DNSPacket.TYPES.A) {
-        NAME_BLOB = DNSPacket.HostnameStringToMemBlock(NAME);
-      }
-      else if(TYPE == DNSPacket.TYPES.PTR) {
-        NAME_BLOB = DNSPacket.PtrStringToMemBlock(NAME);
-      }
-      else {
-        throw new Exception("Invalid QTYPE: " + TYPE + "!");
-      }
-
-      RDLENGTH = (short) RDATA_BLOB.Length;
-
-      // 2 for TYPE + 2 for CLASS + 4 for TTL + 2 for RDLENGTH
-      byte[] data = new byte[10];
-      int idx = 0;
-      data[idx++] = (byte) ((((int) TYPE) >> 8) & 0xFF);
-      data[idx++] = (byte) (((int) TYPE) & 0xFF);
-      data[idx++] = (byte) ((((int) CLASS) >> 8) & 0xFF);
-      data[idx++] = (byte) (((int) CLASS) & 0xFF);
-      data[idx++] = (byte) ((TTL >> 24) & 0xFF);
-      data[idx++] = (byte) ((TTL >> 16) & 0xFF);
-      data[idx++] = (byte) ((TTL >> 8) & 0xFF);
-      data[idx++] = (byte) (TTL & 0xFF);
-      data[idx++] = (byte) ((RDLENGTH >> 8) & 0xFF);
-      data[idx] = (byte) (RDLENGTH & 0xFF);
-
-      _icpacket = new CopyList(NAME_BLOB, MemBlock.Reference(data), RDATA_BLOB);
-    }
+    <param name="RDATA">RDATA in String format.</param>
+    */
+    public Response(String NAME, DNSPacket.TYPES TYPE, DNSPacket.CLASSES CLASS,
+      int TTL, String RDATA): this(NAME, TYPE, CLASS, false, TTL, RDATA) {}
 
     /**
     <summary>Creates a response given the entire packet.</summary>
@@ -220,28 +157,15 @@ namespace NetworkPackets.DNS {
     <param name="Start">The starting position of the Response.</param>
     */
     public Response(MemBlock Data, int Start) {
-      // Is this a Pointer?
-      int idx = Start;
-      int offset = Start;
-      if(0xC0 == (Data[Start] | 0xC0)) {
-        offset = (Data[idx++] & 0x3F << 8);
-        offset |= Data[idx++];
-      }
-
-      int pos = offset;
-      while(Data[pos] != 0) {
-        pos++;
-      }
-
-      NAME_BLOB = Data.Slice(offset, ++pos - offset);
-      if(offset == Start) {
-        idx += pos;
-      }
+      int idx = 0;
+      NAME_BLOB = DNSPacket.RetrieveBlob(Data, Start, out idx);
+      idx++;
 
       int type = (Data[idx++] << 8) + Data[idx++];
       TYPE = (DNSPacket.TYPES) type;
 
-      int rclass = (Data[idx++] << 8) + Data[idx++];
+      CACHE_FLUSH = ((Data[idx] & 0x80) == 0x80) ? true : false;
+      int rclass = ((Data[idx++] << 8) & 0x7F) + Data[idx++];
       CLASS = (DNSPacket.CLASSES) rclass;
 
       TTL = (Data[idx++] << 24);
@@ -254,12 +178,15 @@ namespace NetworkPackets.DNS {
 
       if(TYPE == DNSPacket.TYPES.PTR) {
         NAME = DNSPacket.PtrMemBlockToString(NAME_BLOB);
+        int End = 0;
+        RDATA_BLOB = DNSPacket.RetrieveBlob(Data, idx, out End);
         RDATA = DNSPacket.HostnameMemBlockToString(RDATA_BLOB);
       }
       else if(TYPE == DNSPacket.TYPES.A) {
         NAME = DNSPacket.HostnameMemBlockToString(NAME_BLOB);
         RDATA = DNSPacket.IPMemBlockToString(RDATA_BLOB);
       }
+
       _icpacket = _packet = Data.Slice(Start, idx + RDLENGTH - Start);
     }
   }
@@ -315,55 +242,29 @@ namespace NetworkPackets.DNS {
     }
 
     [Test]
-    public void DNSBlobTest0() {
-      String NAME = "www.cnn.com";
+    public void MDNSATest() {
+      String NAME = "david-laptop.local";
       DNSPacket.TYPES TYPE = DNSPacket.TYPES.A;
+      bool CACHE_FLUSH = true;
       DNSPacket.CLASSES CLASS = DNSPacket.CLASSES.IN;
-      int TTL = 2;
-      MemBlock RDATA_BLOB = MemBlock.Reference(new byte[] {0x40, 0xec, 0x5b, 0x18});
-      Response rp = new Response(NAME, TYPE, CLASS, TTL, RDATA_BLOB);
+      int TTL = 120;
+      String RDATA = "10.227.56.136";
+      Response rp = new Response(NAME, TYPE, CLASS, CACHE_FLUSH, TTL, RDATA);
 
-      MemBlock am = MemBlock.Reference(new byte[] {0x03, 0x77, 0x77, 0x77,
-        0x03, 0x63, 0x6e, 0x6e, 0x03, 0x63, 0x6f, 0x6d, 0x00, 0x00, 0x01, 0x00,
-        0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x04, 0x40, 0xec, 0x5b, 0x18});
+      MemBlock am = MemBlock.Reference(new byte[] {0x0c, 0x64, 0x61, 0x76,
+        0x69, 0x64, 0x2d, 0x6c, 0x61, 0x70, 0x74, 0x6f, 0x70, 0x05, 0x6c, 0x6f,
+        0x63, 0x61, 0x6c, 0x00, 0x00, 0x01, 0x80, 0x01, 0x00, 0x00, 0x00, 0x78,
+        0x00, 0x04, 0x0a, 0xe3, 0x38, 0x88});
+
       Response rm = new Response(am, 0);
 
       Assert.AreEqual(rp.Packet, am, "Packet");
       Assert.AreEqual(rm.NAME, NAME, "NAME");
       Assert.AreEqual(rm.TYPE, TYPE, "TYPE");
       Assert.AreEqual(rm.CLASS, CLASS, "CLASS");
+      Assert.AreEqual(rm.CACHE_FLUSH, CACHE_FLUSH, "CACHE_FLUSH");
       Assert.AreEqual(rm.TTL, TTL, "TTL");
-      Assert.AreEqual(rm.RDATA_BLOB, RDATA_BLOB, "RDATA");
-    }
-
-    [Test]
-    public void DNSBlobTest1() {
-      MemBlock NAME_BLOB = MemBlock.Reference(new byte[] {0x03, 0x31, 0x30,
-        0x34, 0x03, 0x31, 0x36, 0x39, 0x03, 0x32, 0x33, 0x33, 0x02, 0x36, 0x34,
-        0x07, 0x69, 0x6e, 0x2d, 0x61, 0x64, 0x64, 0x72, 0x04, 0x61, 0x72, 0x70,
-        0x61, 0x00});
-      DNSPacket.TYPES TYPE = DNSPacket.TYPES.PTR;
-      DNSPacket.CLASSES CLASS = DNSPacket.CLASSES.IN;
-      int TTL = 30;
-      MemBlock RDATA_BLOB = MemBlock.Reference(new byte[] {0x0a, 0x79, 0x6f,
-        0x2d, 0x69, 0x6e, 0x2d, 0x66, 0x31, 0x30, 0x34, 0x06, 0x67, 0x6f, 0x6f,
-        0x67, 0x6c, 0x65, 0x03, 0x63, 0x6f, 0x6d, 0x00});
-      Response rp = new Response(NAME_BLOB, TYPE, CLASS, TTL, RDATA_BLOB);
-
-      MemBlock ptrm = MemBlock.Reference(new byte[] {0x03, 0x31, 0x30, 0x34,
-        0x03, 0x31, 0x36, 0x39, 0x03, 0x32, 0x33, 0x33, 0x02, 0x36, 0x34, 0x07,
-        0x69, 0x6e, 0x2d, 0x61, 0x64, 0x64, 0x72, 0x04, 0x61, 0x72, 0x70, 0x61,
-        0x00, 0x00, 0x0c, 0x00, 0x01, 0x00, 0x00, 0x00, 0x1e, 0x00, 0x17, 0x0a,
-        0x79, 0x6f, 0x2d, 0x69, 0x6e, 0x2d, 0x66, 0x31, 0x30, 0x34, 0x06, 0x67,
-        0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x03, 0x63, 0x6f, 0x6d, 0x00});
-      Response rm = new Response(ptrm, 0);
-
-      Assert.AreEqual(rp.Packet, ptrm, "Packet");
-      Assert.AreEqual(rm.NAME_BLOB, NAME_BLOB, "NAME");
-      Assert.AreEqual(rm.TYPE, TYPE, "TYPE");
-      Assert.AreEqual(rm.CLASS, CLASS, "CLASS");
-      Assert.AreEqual(rm.TTL, TTL, "TTL");
-      Assert.AreEqual(rm.RDATA_BLOB, RDATA_BLOB, "RDATA");
+      Assert.AreEqual(rm.RDATA, RDATA, "RDATA");
     }
   }
 #endif

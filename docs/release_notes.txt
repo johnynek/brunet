@@ -1,0 +1,18 @@
+===============================================================================
+Revision 2
+-------------------------------------------------------------------------------
+- Updated to Brunet 1.01
+- Moved NetworkPackets into its own directory
+- IPHandler Multicast has been tweaked for better reliability on a multitude
+of systems
+===============================================================================
+Revision 1
+-------------------------------------------------------------------------------
+- Changed the default Windows MTU as it doesn't seem to be set by dhcp
+- Added more documentation for the Dht and inserting DhtDHCPServer
+configurations into the dht
+===============================================================================
+Revision 0
+-------------------------------------------------------------------------------
+Initial release.
+===============================================================================

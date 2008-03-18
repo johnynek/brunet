@@ -128,8 +128,8 @@ namespace NetworkPackets.DNS {
       this.EXPIRE = EXPIRE;
       this.MINIMUM = MINIMUM;
 
-      MemBlock mname = DNSPacket.NameStringToBytes(MNAME, DNSPacket.TYPES.A);
-      MemBlock rname = DNSPacket.NameStringToBytes(RNAME, DNSPacket.TYPES.A);
+ //     MemBlock mname = DNSPacket.NameStringToBytes(MNAME, DNSPacket.TYPES.A);
+//      MemBlock rname = DNSPacket.NameStringToBytes(RNAME, DNSPacket.TYPES.A);
       byte[] rest = new byte[20];
       int idx = 0;
       rest[idx++] = (byte) ((SERIAL >> 24) & 0xFF);
@@ -152,7 +152,7 @@ namespace NetworkPackets.DNS {
       rest[idx++] = (byte) ((MINIMUM >> 16) & 0xFF);
       rest[idx++] = (byte) ((MINIMUM >> 8) & 0xFF);
       rest[idx++] = (byte) (MINIMUM  & 0xFF);
-      _icpacket = new CopyList(mname, rname, MemBlock.Reference(rest));
+  //    _icpacket = new CopyList(mname, rname, MemBlock.Reference(rest));
     }
 
     public ZoneAuthority() : this("grid-appliance.org",
