@@ -7,6 +7,44 @@
   <target name="clean" description="Remove build directory">
     <delete dir="${build.dir}" failonerror="true"/>
   </target>
+
+  <target name="test" description="Build CondorIpopNode.Test.dll">
+    <mkdir dir="${build.dir}" failonerror="true"/>
+    <copy todir="${build.dir}" failonerror="true">
+      <fileset basedir="${lib.dir}">
+        <include name="Brunet.dll" />
+        <include name="libtuntap.so" />
+        <include name="Brunet.Dht.dll" />
+        <include name="CookComputing.XmlRpcV2.dll" />
+        <include name="Brunet.XmlRpc.dll" />
+        <include name="Brunet.DhtService.dll"/>
+      </fileset>
+    </copy>
+    <csc target="library" output="${build.dir}/CondorIpopNode.Test.dll" define="NUNIT">
+      <sources failonempty="true">
+        <include name="*.cs"/>
+        <include name="../DhtNode/*.cs"/>
+        <include name="../IpopNode/*.cs"/>
+        <include name="../NetworkPackets/*.cs"/>
+        <include name="../../../brunet1/src/BasicNode/*.cs"/>
+      </sources>
+      <references basedir="${build.dir}">
+        <include name="Brunet.dll"/>
+        <include name="Brunet.Dht.dll"/>
+        <include name="Brunet.XmlRpc.dll" />
+        <include name="CookComputing.XmlRpcV2.dll" />
+        <include name="Brunet.DhtService.dll"/>
+        <include name="System.Runtime.Remoting.dll"/>
+        <include name="Mono.Posix.dll"/>
+        <include name="nunit.framework.dll" />
+      </references>
+    </csc>
+    <nunit2>
+      <formatter type="Plain" />
+      <test assemblyname="${build.dir}/CondorIpopNode.Test.dll"/>
+    </nunit2>
+  </target>
+
   <target name="build" description="Build CondorIpopNode.exe" optimize="true">
     <mkdir dir="${build.dir}" failonerror="true"/>
     <copy todir="${build.dir}" failonerror="true">
@@ -27,12 +65,12 @@
         <include name="../NetworkPackets/*.cs"/>
         <include name="../../../brunet1/src/BasicNode/*.cs"/>
       </sources>
-      <references>
-        <include name="${build.dir}/Brunet.dll"/>
-        <include name="${build.dir}/Brunet.Dht.dll"/>
-        <include name="${build.dir}/Brunet.XmlRpc.dll" />
-        <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />
-        <include name="${build.dir}/Brunet.DhtService.dll"/>
+      <references basedir="${build.dir}">
+        <include name="Brunet.dll"/>
+        <include name="Brunet.Dht.dll"/>
+        <include name="Brunet.XmlRpc.dll" />
+        <include name="CookComputing.XmlRpcV2.dll" />
+        <include name="Brunet.DhtService.dll"/>
         <include name="System.Runtime.Remoting.dll"/>
         <include name="Mono.Posix.dll"/>
       </references>

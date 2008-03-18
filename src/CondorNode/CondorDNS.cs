@@ -4,6 +4,10 @@ using Ipop;
 using System;
 using System.Net;
 
+#if NUNIT
+using NUnit.Framework;
+#endif
+
 namespace Ipop.CondorNode {
   /**
   <summary>Provides a static mapping for all nodes, just so that they can
@@ -15,18 +19,20 @@ namespace Ipop.CondorNode {
   (including the domain name .ipop).
   */
   public class CondorDNS: DNS {
-    /// <summary></summary>
+    /// <summary>All hostnames must end in this domain name</summary>
     public static readonly String SUFFIX = ".ipop";
-    /// <summary></summary>
+    /// <summary>The base ip address to perfom lookups on</summary>
     protected volatile MemBlock _base_address;
-    /// <summary></summary>
+    /// <summary>The mask for the ip address to perform lookups on.</summary>
     protected volatile MemBlock _netmask;
-    /// <summary></summary>
+    /// <summary>Needed for multithreading.</summary>
     protected Object _sync;
+    /// <summary>Becomes true after the first UpdatePoolRange.</summary>
+    protected volatile bool _active;
 
     /**
-    <summary></summary>
-     */
+    <summary>Initializes a new CondorDNS object.</summary>
+    */
     public CondorDNS() {
       _sync = new Object();
     }
@@ -47,6 +53,7 @@ namespace Ipop.CondorNode {
         _base_address = MemBlock.Reference(ba);
         _netmask = MemBlock.Reference(nm);
       }
+      _active = true;
     }
 
 
@@ -60,6 +67,9 @@ namespace Ipop.CondorNode {
     is invalid, it will throw an exception.</returns>
     */
     public override String AddressLookUp(String name) {
+      if(!_active) {
+        return null;
+      }
       String res = null;
       if(name.Length == 15 && name[0] == 'C' && name.EndsWith(SUFFIX)) {
         res = String.Empty;
@@ -71,7 +81,7 @@ namespace Ipop.CondorNode {
             return null;
           }
         }
-        res = res.Substring(0, res.Length - 1);
+        res = _base_address[0] + "." + res.Substring(0, res.Length - 1);
       }
       return res;
     }
@@ -82,6 +92,10 @@ namespace Ipop.CondorNode {
     <returns>The name or null if none exists for the IP.</returns>
     */
     public override String NameLookUp(String IP) {
+      if(!_active) {
+        return null;
+      }
+
       String res = null;
       if(InRange(IP)) {
         try {
@@ -125,4 +139,25 @@ namespace Ipop.CondorNode {
       return true;
     }
   }
+
+#if NUNIT
+  [TestFixture]
+  public class CondorDNSTest {
+    [Test]
+    public void Test() {
+      CondorDNS dns = new CondorDNS();
+      Assert.AreEqual(dns.NameLookUp("10.250.1.1"), null, "NameLookUp Dns not set.");
+      Assert.AreEqual(dns.AddressLookUp("C250001001.ipop"), null, "AddressLookUp Dns not set.");
+      dns.UpdatePoolRange("10.250.0.0", "255.255.0.0");
+      Assert.AreEqual(dns.NameLookUp("10.250.1.1"), "C250001001.ipop", "NameLookUp Dns set in range.");
+      Assert.AreEqual(dns.NameLookUp("10.251.1.1"), null, "NameLookUp Dns set out of range.");
+      Assert.AreEqual(dns.AddressLookUp("C250001001.ipop"), "10.250.1.1", "AddressLookUp Dns set.");
+      Assert.AreEqual(dns.AddressLookUp("C250001001.blaha"), null, "AddressLookUp Dns set bad dns name: blaha.");
+      Assert.AreEqual(dns.AddressLookUp("C250001001.blah"), null, "AddressLookUp Dns set bad dns name: blah.");
+      dns.UpdatePoolRange("10.251.0.0", "255.255.0.0");
+      Assert.AreEqual(dns.NameLookUp("10.250.1.1"), null, "NameLookUp Dns changed out of range.");
+      Assert.AreEqual(dns.NameLookUp("10.251.1.1"), "C251001001.ipop", "NameLookUp Dns changed in range.");
+    }
+  }
+#endif
 }
