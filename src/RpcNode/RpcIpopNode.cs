@@ -22,6 +22,7 @@ using Brunet.Applications;
 using Brunet.DistributedServices;
 using NetworkPackets;
 using System;
+using System.Collections;
 using System.Net;
 using System.Threading;
 
@@ -91,7 +92,11 @@ namespace Ipop.RpcNode {
     /// <param name="ipp">A multicast packet to be processed</param>
     /// <returns></returns>
     protected override bool HandleMulticast(IPPacket ipp) {
-      return false;
+      ArrayList connected_addresses = _rarad.ConnectedAddresses;
+      foreach(Address addr in connected_addresses) {
+        SendIP(addr, ipp.Packet);
+      }
+      return true;
     }
 
     /// <summary>

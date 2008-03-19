@@ -47,8 +47,20 @@ namespace Ipop.RpcNode {
     protected volatile Hashtable ip_addr;
     /// <summary>Maps Brunet Address as Address to MemBlock IP Addresses</summary>
     protected volatile Hashtable addr_ip;
+    /// <summary>Returns the Connected Addresses.</summary>
+    public ArrayList ConnectedAddresses {
+      get {
+        ArrayList _cas = new ArrayList();
+        lock(_sync) {
+          foreach(DictionaryEntry de in addr_ip) {
+            _cas.Add(de.Key);
+          }
+        }
+        return _cas;
+      }
+    }
     /// <summary>Helps assign remote end points</summary>
-    protected RpcDHCPLeaseController _rdlc;       
+    protected RpcDHCPLeaseController _rdlc;
     protected Object _sync;
 
     protected MemBlock _local_ip;
@@ -110,6 +122,47 @@ namespace Ipop.RpcNode {
    */
    public MemBlock Translate(MemBlock packet, Address from) {
      MemBlock source_ip = (MemBlock) addr_ip[from];
+
+     // Attempt to translate a MDNS packet
+     IPPacket ipp = new IPPacket(packet);
+     if(ipp.Protocol == IPPacket.Protocols.UDP) {
+       UDPPacket udpp = new UDPPacket(ipp.Payload);
+       // MDNS runs on 5353
+       if(udpp.DestinationPort == 5353) {
+         bool change = false;
+         DNSPacket dnsp = new DNSPacket(udpp.Payload);
+         for(int i = 0; i < dnsp.Answers.Length; i++) {
+           if(dnsp.Answers[i].TYPE == DNSPacket.TYPES.A) {
+             change = true;
+             Response old = dnsp.Answers[i];
+             dnsp.Answers[i] = new Response(old.NAME, old.TYPE, old.CLASS,
+                                            old.CACHE_FLUSH, old.TTL,
+                                      DNSPacket.IPMemBlockToString(source_ip));
+           }
+         }
+         for(int i = 0; i < dnsp.Additional.Length; i++) {
+           if(dnsp.Answers[i].TYPE == DNSPacket.TYPES.A) {
+             change = true;
+             Response old = dnsp.Answers[i];
+             dnsp.Answers[i] = new Response(old.NAME, old.TYPE, old.CLASS,
+                                            old.CACHE_FLUSH, old.TTL,
+                                      DNSPacket.IPMemBlockToString(source_ip));
+           }
+         }
+         // If we make a change let's make a new packet!
+         if(change) {
+           dnsp = new DNSPacket(dnsp.ID, dnsp.QUERY, dnsp.OPCODE, dnsp.AA,
+                                dnsp.RA, dnsp.RD, dnsp.Questions, dnsp.Answers,
+                                dnsp.Authority, dnsp.Additional);
+           udpp = new UDPPacket(udpp.SourcePort, udpp.DestinationPort,
+                                dnsp.ICPacket);
+           ipp = new IPPacket(ipp.Protocol, source_ip, ipp.DestinationIP,
+                              udpp.ICPacket);
+           return ipp.Packet;
+         }
+       }
+     }
+
      return IPPacket.Translate(packet, source_ip, _local_ip);
    }
 
