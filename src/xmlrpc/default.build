@@ -8,7 +8,16 @@
     <delete dir="${build.dir}" failonerror="true"/>
   </target>
 
-  <target name="build" description="Build Brunet.XmlRpc.dll and SimpleXmlRpcClient.exe">
+  <target name="build">
+    <call target="buildProject" />
+  </target>
+
+  <target name="debug">
+    <property name="debug" value="true" />
+    <call target="buildProject" />
+  </target>
+  
+  <target name="buildProject" description="Build Brunet.XmlRpc.dll and SimpleXmlRpcClient.exe">
     <mkdir dir="${build.dir}" failonerror="true"/>
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${lib.dir}">
@@ -17,7 +26,7 @@
         <include name="NUnit.Framework.dll" />
       </fileset>
     </copy>
-    <csc target="library" output="${build.dir}/Brunet.XmlRpc.dll">
+    <csc debug="${debug}" target="library" output="${build.dir}/Brunet.XmlRpc.dll">
       <sources failonempty="true">       
         <include name="XmlRpcManager.cs" />
         <include name="AdrXmlRpcConverter.cs" />

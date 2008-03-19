@@ -150,7 +150,7 @@ namespace Brunet.Rpc {
      * @param uri the URI at which the XML-RPC service could be accessed.
      */
     public void AddXRHandler(string handler_name, string uri) {
-      XmlRpcHandler handler = new XmlRpcHandler(uri, _rpc);
+      XmlRpcHandler handler = new XmlRpcHandler(uri, _node);
       _rpc.AddHandler(handler_name, handler);
       _registered_xmlrpc.Add(handler_name, uri);
     }
@@ -219,15 +219,26 @@ namespace Brunet.Rpc {
    */
   public class XmlRpcHandler : XmlRpcClientProtocol, IRpcHandler {
     private RpcManager _rpc;
+    private Node _node;
 
     /**
      * @param url the URL of the XML-RPC service.
      * @param rpc The XmlRpcManager instance that the handler uses.
      */
-    public XmlRpcHandler(string url, RpcManager rpc) {
+    public XmlRpcHandler(string url, Node node) {
       this.Url = url;
-      _rpc = rpc;
+      _node = node;
+      _rpc = _node.Rpc;
     }
+
+#if BRUNET_NUNIT
+    /**
+     * Where we don't need RpcManager...
+     */
+    public XmlRpcHandler(string url) {
+      this.Url = url;
+    }
+#endif
 
     /**
      * Enables the logging output.
@@ -237,42 +248,78 @@ namespace Brunet.Rpc {
       logger.Attach(this);
     }
     
-    [XmlRpcMethod]
     /**
+     * Fires XML-RPC call and gets the job done, then returns Brunet Rpc result.
+     * 
      * Calls to this method come from Brunet, go to XML-RPC and return
      * to Brunet Overlay. So conversion needed from Adr->XmlRpc.Net->Adr
      */
-    public object BrunetRpc2XmlRpc(params object[] args) {
-      MethodBase mi = MethodBase.GetCurrentMethod();
-      object ret;
+    public void BrunetRpc2XmlRpc(object xmlrpcCallState) {
+      XmlRpcCallState state = (XmlRpcCallState)xmlrpcCallState;
+      object ret = null;
+      this.XmlRpcMethod = state.MethodName;
       try {
-        ret = this.Invoke(mi, AdrXmlRpcConverter.Adr2XmlRpc(args));
-        return AdrXmlRpcConverter.XmlRpc2Adr(ret);
+        object[] args = (object[])AdrXmlRpcConverter.Adr2XmlRpc(state.MethodArgs);
+        ret = this.XmlRpcCall(args);
+        ret = AdrXmlRpcConverter.XmlRpc2Adr(ret);
       } catch (Exception e) {
         Debug.WriteLine(e);
-        throw e;
+        ret = new AdrException(-32602, e);
+      } finally {
+        _node.EnqueueAction(new RpcSendResultAction(_rpc, state.RequestState, ret));
       }
+    }
+
+    /**
+     * Represents the remote method.
+     * @exception Whatever caught from XML-RPC is thrown.
+     */
+    [XmlRpcMethod]
+    public object XmlRpcCall(params object[] args) {
+      MethodBase mi = MethodBase.GetCurrentMethod();
+      object ret = null;
+      //Without the cast, XML-RPC.NET throws exception.
+      ret = this.Invoke(mi, (object)args);
+      return ret;
     }
 
     #region IRpcHandler Members
     /**
-     * Invokes the method on the XML-RPC service.
+     * Asynchronously Invokes the method on the XML-RPC service.
      */
     public void HandleRpc(ISender caller, string method, IList args, object rs) {
-      this.XmlRpcMethod = method;
-      object result = null;
-      try {
-        object[] arg_array = new object[args.Count];
-        args.CopyTo(arg_array, 0);
-        //The actual method that the client wants to call is already specified in this.XmRpcMethod
-        result = BrunetRpc2XmlRpc(arg_array);
-      } catch (Exception e) {
-        result = new AdrException(-32602, e);
-      }
-      _rpc.SendResult(rs, result);
+      object[] arg_array = new object[args.Count];
+      args.CopyTo(arg_array, 0);
+      XmlRpcCallState state = new XmlRpcCallState();
+      state.MethodName = method;
+      state.MethodArgs = arg_array;
+      state.RequestState = rs;
+      ThreadPool.QueueUserWorkItem(new WaitCallback(BrunetRpc2XmlRpc), state);
+    }
+    #endregion
+
+    class XmlRpcCallState {
+      public string MethodName;
+      public object[] MethodArgs;
+      public object RequestState;
     }
 
-    #endregion
+    class RpcSendResultAction : IAction {
+      private readonly RpcManager _rpc;
+      private readonly object _rs;
+      private readonly object _result;
+      
+      public RpcSendResultAction(RpcManager rpc, object rs, object result) {
+        _rpc = rpc; 
+        _rs = rs;
+        _result = result;
+      }
+
+      public void Start() {
+        _rpc.SendResult(_rs, _result);
+      }
+    }
+
   }
 
 
