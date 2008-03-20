@@ -111,60 +111,73 @@ namespace Ipop.RpcNode {
       _rdlc = new RpcDHCPLeaseController(dhcp_config);
     }
 
-   /**
-   <summary>Implements the ITranslator portion for RpcAddress..., takes an
-   IP Packet, based upon who the originating Brunet Sender was, changes who
-   the packet was sent from and then switches the destination address to the
-   local nodes address</summary>
-   <param name="packet">The IP Packet to translate.</param>
-   <param name="from">The Brunet address the packet was sent from.</param>
-   <returns>The translated IP Packet.</returns>
-   */
-   public MemBlock Translate(MemBlock packet, Address from) {
-     MemBlock source_ip = (MemBlock) addr_ip[from];
+    /**
+    <summary>Implements the ITranslator portion for RpcAddress..., takes an
+    IP Packet, based upon who the originating Brunet Sender was, changes who
+    the packet was sent from and then switches the destination address to the
+    local nodes address</summary>
+    <param name="packet">The IP Packet to translate.</param>
+    <param name="from">The Brunet address the packet was sent from.</param>
+    <returns>The translated IP Packet.</returns>
+    */
+    public MemBlock Translate(MemBlock packet, Address from) {
+      MemBlock source_ip = (MemBlock) addr_ip[from];
 
-     // Attempt to translate a MDNS packet
-     IPPacket ipp = new IPPacket(packet);
-     if(ipp.Protocol == IPPacket.Protocols.UDP) {
-       UDPPacket udpp = new UDPPacket(ipp.Payload);
-       // MDNS runs on 5353
-       if(udpp.DestinationPort == 5353) {
-         bool change = false;
-         DNSPacket dnsp = new DNSPacket(udpp.Payload);
-         for(int i = 0; i < dnsp.Answers.Length; i++) {
-           if(dnsp.Answers[i].TYPE == DNSPacket.TYPES.A) {
-             change = true;
-             Response old = dnsp.Answers[i];
-             dnsp.Answers[i] = new Response(old.NAME, old.TYPE, old.CLASS,
-                                            old.CACHE_FLUSH, old.TTL,
-                                      DNSPacket.IPMemBlockToString(source_ip));
-           }
-         }
-         for(int i = 0; i < dnsp.Additional.Length; i++) {
-           if(dnsp.Answers[i].TYPE == DNSPacket.TYPES.A) {
-             change = true;
-             Response old = dnsp.Answers[i];
-             dnsp.Answers[i] = new Response(old.NAME, old.TYPE, old.CLASS,
-                                            old.CACHE_FLUSH, old.TTL,
-                                      DNSPacket.IPMemBlockToString(source_ip));
-           }
-         }
-         // If we make a change let's make a new packet!
-         if(change) {
-           dnsp = new DNSPacket(dnsp.ID, dnsp.QUERY, dnsp.OPCODE, dnsp.AA,
-                                dnsp.RA, dnsp.RD, dnsp.Questions, dnsp.Answers,
-                                dnsp.Authority, dnsp.Additional);
-           udpp = new UDPPacket(udpp.SourcePort, udpp.DestinationPort,
-                                dnsp.ICPacket);
-           ipp = new IPPacket(ipp.Protocol, source_ip, ipp.DestinationIP,
-                              udpp.ICPacket);
-           return ipp.Packet;
-         }
-       }
-     }
+      // Attempt to translate a MDNS packet
+      IPPacket ipp = new IPPacket(packet);
+      if(ipp.Protocol == IPPacket.Protocols.UDP) {
+        UDPPacket udpp = new UDPPacket(ipp.Payload);
+        // MDNS runs on 5353
+        if(udpp.DestinationPort == 5353) {
+          DNSPacket dnsp = new DNSPacket(udpp.Payload);
+          String ss_ip = DNSPacket.IPMemBlockToString(source_ip);
+          bool change = mDnsTranslate(dnsp.Answers, ss_ip);
+          change |= mDnsTranslate(dnsp.Additional, ss_ip);
+          // If we make a change let's make a new packet!
+          if(change) {
+            dnsp = new DNSPacket(dnsp.ID, dnsp.QUERY, dnsp.OPCODE, dnsp.AA,
+                                 dnsp.RA, dnsp.RD, dnsp.Questions, dnsp.Answers,
+                                 dnsp.Authority, dnsp.Additional);
+            udpp = new UDPPacket(udpp.SourcePort, udpp.DestinationPort,
+                                 dnsp.ICPacket);
+            ipp = new IPPacket(ipp.Protocol, source_ip, ipp.DestinationIP,
+                               udpp.ICPacket);
+            return ipp.Packet;
+          }
+        }
+      }
+      return IPPacket.Translate(packet, source_ip, _local_ip);
+    }
 
-     return IPPacket.Translate(packet, source_ip, _local_ip);
-   }
+    /**
+    <summary>Translates mDns RRs, used on Answer and Additional RRs.</summary>
+    <param name="responses">An array containing RRs to translate.</param>
+    <param name="ss_ip">The defined source ip from the remote end point.</param>
+    <returns>True if there was a translation, false otherwise.</returns>
+    */
+    protected bool mDnsTranslate(Response[] responses, String ss_ip) {
+      bool change = false;
+      for(int i = 0; i < responses.Length; i++) {
+        if(responses[i].TYPE == DNSPacket.TYPES.A) {
+          change = true;
+          Response old = responses[i];
+          responses[i] = new Response(old.NAME, old.TYPE, old.CLASS,
+                                         old.CACHE_FLUSH, old.TTL, ss_ip);
+        }
+        else if(responses[i].TYPE == DNSPacket.TYPES.PTR) {
+          Response old = responses[i];
+          try {
+            DNSPacket.IPStringToMemBlock(old.NAME);
+            responses[i] = new Response(ss_ip, old.TYPE,  old.CLASS, old.CACHE_FLUSH,
+                                        old.TTL, old.RDATA);
+            change = true; 
+            Console.WriteLine("HERE");
+          }
+          catch {}
+        }
+      }
+      return change;
+    }
 
     /// <summary>
     /// Returns the Brunet address given an IP
