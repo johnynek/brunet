@@ -171,7 +171,6 @@ namespace Ipop.RpcNode {
             responses[i] = new Response(ss_ip, old.TYPE,  old.CLASS, old.CACHE_FLUSH,
                                         old.TTL, old.RDATA);
             change = true; 
-            Console.WriteLine("HERE");
           }
           catch {}
         }
