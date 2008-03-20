@@ -5,22 +5,35 @@ neighbors on a given side about their positioning.  This can be used by other
 python programs if they call crawl and use the nodes that are returned. """
 import xmlrpclib, pybru, sys, getopt
 
+usage = """usage:
+python crawl.py [--debug] [--debug2] [--port=<xmlrpc port of a brunet node>]
+debug = print the current node crawling
+debug2 = debug + print the neighbors of current node
+port = the xmlrpc port for a brunet node to be used for crawling
+help = this message"""
+
 # Default starting point
 def main():
-  optlist, args = getopt.getopt(sys.argv[1:], "", ["debug", "port=", "debug2"])
+  try:
+    optlist, args = getopt.getopt(sys.argv[1:], "", ["debug", "port=", "debug2"])
+    if len(args) > 0:
+      raise Exception
 
-  logger = null_logger
-  port = 10000
-  debug = False
+    logger = null_logger
+    port = 10000
+    debug = False
 
-  for k,v in optlist:
-    if k == "--port":
-      port = int(v)
-    elif k == "--debug":
-      logger = print_logger
-    elif k == "--debug2":
-      logger = print_logger
-      debug = True
+    for k,v in optlist:
+      if k == "--port":
+        port = int(v)
+      elif k == "--debug":
+        logger = print_logger
+      elif k == "--debug2":
+        logger = print_logger
+        debug = True
+  except:
+    print usage
+    return
 
   nodes = crawl(port, logger, debug)
   count = 0
