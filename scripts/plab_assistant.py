@@ -1,6 +1,6 @@
 #!/usr/bin/python
 usage = """usage:
-plab_assistant [--path_to_files=<filename>] [--username=<username>]
+python plab_assistant.py [--path_to_files=<filename>] [--username=<username>]
   [--port=<number>] --path_to_nodes=<filename> action
 action = check, install, uninstall, gather_stats (check attempts to add the
   boot strap software to nodes that do not have it yet... a common problem on
