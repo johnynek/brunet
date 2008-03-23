@@ -132,6 +132,7 @@ namespace Ipop.RpcNode {
           DNSPacket dnsp = new DNSPacket(udpp.Payload);
           String ss_ip = DNSPacket.IPMemBlockToString(source_ip);
           bool change = mDnsTranslate(dnsp.Answers, ss_ip);
+          change |= mDnsTranslate(dnsp.Authority, ss_ip);
           change |= mDnsTranslate(dnsp.Additional, ss_ip);
           // If we make a change let's make a new packet!
           if(change) {
