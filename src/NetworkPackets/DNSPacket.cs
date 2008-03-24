@@ -371,6 +371,9 @@ namespace NetworkPackets.DNS {
     <returns>String IP a.b.c.d</returns>
     */
     public static String IPMemBlockToString(MemBlock ip) {
+      if(ip.Length != 4 && ip.Length != 6) {
+        throw new Exception("Invalid IP");
+      }
       String res = ip[0].ToString();
       for(int i = 1; i < ip.Length; i++) {
         res += "." + ip[i].ToString();
@@ -423,8 +426,11 @@ namespace NetworkPackets.DNS {
     <returns>The MemBlock version of the IP Address.</returns>
     */
     public static MemBlock IPStringToMemBlock(String ip) {
-      byte[] ipb = new byte[4];
       string []bytes = ip.Split('.');
+      if(bytes.Length != 4 && bytes.Length != 6) {
+        throw new Exception("Invalid IP");
+      }
+      byte[] ipb = new byte[bytes.Length];
       for(int i = 0; i < ipb.Length; i++) {
         ipb[i] = Byte.Parse(bytes[i]);
       }
@@ -527,6 +533,13 @@ namespace NetworkPackets.DNS {
       Assert.AreEqual(ipm, DNSPacket.IPStringToMemBlock(
                       DNSPacket.IPMemBlockToString(ipm)),
                       "IP MemBlock dual");
+
+      String bad_ip = "Test.Test.Test.123";
+      MemBlock bad_ipm = null;
+      try {
+        bad_ipm = DNSPacket.IPStringToMemBlock(bad_ip);
+      } catch {}
+      Assert.AreEqual(null, bad_ipm, "Bad IP");
     }
 
     [Test]
@@ -708,6 +721,42 @@ namespace NetworkPackets.DNS {
       Assert.AreEqual(dnsp.Additional[0].CACHE_FLUSH, true, "CACHE_FLUSH");
       Assert.AreEqual(dnsp.Additional[0].TTL, 120, "TTL");
       Assert.AreEqual(dnsp.Additional[0].RDATA, "10.227.56.136", "RDATA");
+    }
+
+    [Test]
+    public void TestMDNS0() {
+      MemBlock mdnsm = MemBlock.Reference(new byte[] {0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x0E, 0x64, 0x61, 0x76, 0x69, 0x64, 0x69, 0x77, 0x2D, 0x6C, 0x61, 0x70, 0x74, 0x6F, 0x70, 0x05, 0x6C, 0x6F, 0x63, 0x61, 0x6C, 0x00, 0x00, 0xFF, 0x00, 0x01, 0xC0, 0x0C, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x78, 0x00, 0x04, 0x0A, 0xFE, 0x00, 0x01});
+      DNSPacket mdns = new DNSPacket(mdnsm);
+
+      Assert.AreEqual(mdns.Questions.Length, 1, "Questions");
+      Assert.AreEqual(mdns.Answers.Length, 0, "Answers");
+      Assert.AreEqual(mdns.Authority.Length, 1, "Authority");
+      Assert.AreEqual(mdns.Additional.Length, 0, "Additional");
+      DNSPacket dnsp = new DNSPacket(mdns.ID, mdns.QUERY, mdns.OPCODE, mdns.AA,
+                                     mdns.RD, mdns.RA, mdns.Questions, mdns.Answers,
+                                     mdns.Authority, mdns.Additional);
+
+      Assert.AreEqual(dnsp.Authority[0].NAME, "davidiw-laptop.local", "NAME");
+      Assert.AreEqual(dnsp.Authority[0].TYPE, DNSPacket.TYPES.A, "TYPE");
+      Assert.AreEqual(dnsp.Authority[0].CLASS, DNSPacket.CLASSES.IN, "CLASS");
+      Assert.AreEqual(dnsp.Authority[0].CACHE_FLUSH, false, "CACHE_FLUSH");
+      Assert.AreEqual(dnsp.Authority[0].TTL, 120, "TTL");
+      Assert.AreEqual(dnsp.Authority[0].RDATA, "10.254.0.1", "RDATA");
+
+      Response old = mdns.Authority[0];
+      mdns.Authority[0] = new Response(old.NAME, old.TYPE, old.CLASS,
+                                         old.CACHE_FLUSH, old.TTL, "10.254.111.252");
+
+      dnsp = new DNSPacket(mdns.ID, mdns.QUERY, mdns.OPCODE, mdns.AA,
+                                     mdns.RD, mdns.RA, mdns.Questions, mdns.Answers,
+                                     mdns.Authority, mdns.Additional);
+
+      Assert.AreEqual(dnsp.Authority[0].NAME, "davidiw-laptop.local", "NAME");
+      Assert.AreEqual(dnsp.Authority[0].TYPE, DNSPacket.TYPES.A, "TYPE");
+      Assert.AreEqual(dnsp.Authority[0].CLASS, DNSPacket.CLASSES.IN, "CLASS");
+      Assert.AreEqual(dnsp.Authority[0].CACHE_FLUSH, false, "CACHE_FLUSH");
+      Assert.AreEqual(dnsp.Authority[0].TTL, 120, "TTL");
+      Assert.AreEqual(dnsp.Authority[0].RDATA, "10.254.111.252", "RDATA");
     }
   }
 #endif
