@@ -68,7 +68,14 @@ public class TraceRpcHandler : IRpcHandler {
    * there is one, otherwise no next.
    */
   protected void DoTraceRouteTo(AHAddress a, object req_state) {
-    Connection next_closest = NextGreedyClosest(a);
+    /*
+     * First find the Connection pointing to the node closest to dest, if
+     * there is one closer than us
+     */
+
+    ConnectionTable tab = _node.ConnectionTable;
+    ConnectionList structs = tab.GetConnections(ConnectionType.Structured);
+    Connection next_closest = structs.GetNearestTo((AHAddress) _node.Address, a);
     //Okay, we have the next closest:
     ListDictionary my_entry = new ListDictionary();
     my_entry["node"] = _node.Address.ToString();
@@ -118,7 +125,14 @@ public class TraceRpcHandler : IRpcHandler {
   protected void RecursiveCall(IList margs, object req_state) {
     //first argument is the target node.
     AHAddress a = (AHAddress) AddressParser.Parse( (string) margs[0]);
-    Connection next_closest = NextGreedyClosest(a);
+    /*
+     * First find the Connection pointing to the node closest to dest, if
+     * there is one closer than us
+     */
+
+    ConnectionTable tab = _node.ConnectionTable;
+    ConnectionList structs = tab.GetConnections(ConnectionType.Structured);
+    Connection next_closest = structs.GetNearestTo((AHAddress) _node.Address, a);
     //Okay, we have the next closest:
     if( next_closest != null ) {
       Channel result = new Channel();
@@ -185,36 +199,6 @@ public class TraceRpcHandler : IRpcHandler {
     
   }
   
-  protected Connection NextGreedyClosest(AHAddress a) {
-    /*
-     * First find the Connection pointing to the node closest to a, if
-     * there is one closer than us
-     */
-    ConnectionTable tab = _node.ConnectionTable;
-    ConnectionList structs = tab.GetConnections(ConnectionType.Structured);
-    
-    Connection next_closest = null;
-    int idx = structs.IndexOf(a);
-    if( idx < 0 ) {
-      //a is not the table:
-      Connection right = structs.GetRightNeighborOf(a);
-      Connection left = structs.GetLeftNeighborOf(a);
-      BigInteger my_dist = ((AHAddress)_node.Address).DistanceTo(a).abs();
-      BigInteger ld = ((AHAddress)left.Address).DistanceTo(a).abs();
-      BigInteger rd = ((AHAddress)right.Address).DistanceTo(a).abs();
-      if( (ld < rd) && (ld < my_dist) ) {
-        next_closest = left;
-      }
-      if( (rd < ld) && (rd < my_dist) ) {
-        next_closest = right;
-      }
-    }
-    else {
-      next_closest = structs[idx];
-    }    
-    return next_closest;
-  }
-
 
   /**
    * Sends an Echo request and times how long it takes to get a response

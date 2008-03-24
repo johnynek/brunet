@@ -384,7 +384,36 @@ namespace Brunet
       }
       return dist;
     }
-
+    
+    /**
+     * Returns the next closest connection using the greedy routing algorithm.
+     * @param local address of the local node
+     * @param dest address of the destination
+     * @returns connection to the next hop node
+     */ 
+    public Connection GetNearestTo(AHAddress local, AHAddress dest) {
+      Connection next_closest = null;
+      int idx = IndexOf(dest);
+      if( idx < 0 ) {
+        //a is not the table:
+        Connection right = GetRightNeighborOf(dest);
+        Connection left = GetLeftNeighborOf(dest);
+        BigInteger my_dist = local.DistanceTo(dest).abs();
+        BigInteger ld = ((AHAddress)left.Address).DistanceTo(dest).abs();
+        BigInteger rd = ((AHAddress)right.Address).DistanceTo(dest).abs();
+        if( (ld < rd) && (ld < my_dist) ) {
+          next_closest = left;
+        }
+        if( (rd < ld) && (rd < my_dist) ) {
+          next_closest = right;
+        }
+      }
+      else {
+        next_closest = this[idx];
+      }    
+      return next_closest;
+    }
+    
   }
 
   /**
