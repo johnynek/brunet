@@ -389,9 +389,14 @@ namespace Brunet
      * Returns the next closest connection using the greedy routing algorithm.
      * @param local address of the local node
      * @param dest address of the destination
-     * @returns connection to the next hop node
+     * @returns connection to the next hop node, null if current node is the best node
+     *          or list is empty
      */ 
     public Connection GetNearestTo(AHAddress local, AHAddress dest) {
+      if (Count == 0) {
+        return null;
+      }
+      
       Connection next_closest = null;
       int idx = IndexOf(dest);
       if( idx < 0 ) {
