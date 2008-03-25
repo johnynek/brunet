@@ -97,10 +97,10 @@ namespace Brunet
       Random ran_obj = new Random();
       for(int counter = 0; counter < count; counter++) {
         try {
-          int size = ran_obj.Next(4, 2048);
+          int size = ran_obj.Next(4, Packet.MaxLength);
           ran_obj.NextBytes(buf);
           NumberSerializer.WriteInt(counter, buf, 0);
-          MemBlock cp = MemBlock.Copy(buf, 0, Math.Max(4, counter));
+          MemBlock cp = MemBlock.Copy(buf, 0, Math.Max(4,counter));
           lock(_sync) { _sent_blocks[cp] = counter; }
           _e.Send( cp );
           Thread.Sleep(10);
