@@ -139,13 +139,19 @@ namespace Ipop {
     */
     public override void Run() {
       StartServices();
+      if(_shutdown != null) {
+        _shutdown.OnExit += Ethernet.Stop;
+      }
       _node.Connect();
       StopServices();
     }
 
     /**
     <summary>This is called by IP and Netmask handler to update the readonly 
-    properties _ip and _netmask as well as the IpopConfig.</summary>
+    properties _ip and _netmask as well as the IpopConfig.  This is called by
+    DHCP Process even if in the config file matches the new ip address and so
+    applications should only rely on IpopNode.IP or implement this method to
+    receive the IP address of this sytem from boot up or changes.</summary>
     <param name="IP">The new IP Address.</param>
     <param name="Netmask">The new Netmask.</param>
     */
@@ -210,9 +216,10 @@ namespace Ipop {
         try {
           packet = _translator.Translate(packet, addr);
         }
-        catch {
-          ProtocolLog.Write(IpopLog.PacketLog,
-                 String.Format("No route from: {0}.", addr));
+        catch (Exception e) {
+          if(ProtocolLog.Exceptions.Enabled) {
+            ProtocolLog.Write(ProtocolLog.Exceptions, e.ToString());
+          }
           return;
         }
       }
@@ -236,7 +243,7 @@ namespace Ipop {
     <summary>This method handles IPPackets that come from the TAP Device, i.e.,
     local system.</summary>
     <remarks>Currently this supports HandleMulticast (ip[0] >= 244 &&
-    ip[0]<=239), HandleDNS (dport = 53 and ip[3] == 255), dhcp (sport 68 and
+    ip[0]<=239), HandleDNS (dport = 53 and ip[3] == 1), dhcp (sport 68 and
     dport 67.</remarks>
     <param name="packet">The packet from the TAP device</param>
     <param name="from"> This should always be the tap device</param>
@@ -263,12 +270,16 @@ namespace Ipop {
               return;
             }
           }
-          else if(udpp.DestinationPort == 53 && ipp.DestinationIP[3] == 255) {
+          else if(udpp.DestinationPort == 53 && ipp.DestinationIP[3] == 1) {
             if(HandleDNS(ipp)) {
               return;
             }
           }
           break;
+      }
+
+      if(HandleOther(ipp)) {
+        return;
       }
 
       AHAddress target = (AHAddress) _address_resolver.Resolve(ipp.DestinationIP);
@@ -279,6 +290,16 @@ namespace Ipop {
         }
         SendIP(target, packet);
       }
+    }
+
+    /**
+    <summary>This method is called by HandleIPOut if the packet does match any
+    of the common mappings.</summary>
+    <param name="ipp"> The miscellaneous IPPacket.</param>
+    <returns>True if implemented, false otherwise.</returns>
+     */
+    protected virtual bool HandleOther(IPPacket ipp) {
+      return false;
     }
 
     /**
