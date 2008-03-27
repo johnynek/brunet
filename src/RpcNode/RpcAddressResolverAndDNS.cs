@@ -28,6 +28,10 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 
+#if RpcIpopNodeNUNIT
+using NUnit.Framework;
+#endif
+
 namespace Ipop.RpcNode {
   /// <summary>
   /// This class implements DNS, IAddressResolver, IRpcHandler, and
@@ -122,6 +126,9 @@ namespace Ipop.RpcNode {
     */
     public MemBlock Translate(MemBlock packet, Address from) {
       MemBlock source_ip = (MemBlock) addr_ip[from];
+      if(source_ip == null) {
+        throw new Exception("Invalid mapping " + from + ".");
+      }
 
       // Attempt to translate a MDNS packet
       IPPacket ipp = new IPPacket(packet);
@@ -156,7 +163,7 @@ namespace Ipop.RpcNode {
     <param name="ss_ip">The defined source ip from the remote end point.</param>
     <returns>True if there was a translation, false otherwise.</returns>
     */
-    protected bool mDnsTranslate(Response[] responses, String ss_ip) {
+    public static bool mDnsTranslate(Response[] responses, String ss_ip) {
       bool change = false;
       for(int i = 0; i < responses.Length; i++) {
         if(responses[i].TYPE == DNSPacket.TYPES.A) {
@@ -167,13 +174,16 @@ namespace Ipop.RpcNode {
         }
         else if(responses[i].TYPE == DNSPacket.TYPES.PTR) {
           Response old = responses[i];
+          MemBlock test = null;
           try {
-            DNSPacket.IPStringToMemBlock(old.NAME);
-            responses[i] = new Response(ss_ip, old.TYPE,  old.CLASS, old.CACHE_FLUSH,
-                                        old.TTL, old.RDATA);
-            change = true; 
+            test = DNSPacket.IPStringToMemBlock(old.NAME);
           }
           catch {}
+          if(test != null) {
+            responses[i] = new Response(ss_ip, old.TYPE,  old.CLASS,
+                                        old.CACHE_FLUSH, old.TTL, old.RDATA);
+            change = true;
+          }
         }
       }
       return change;
@@ -338,4 +348,35 @@ namespace Ipop.RpcNode {
       _rpc.Invoke(s, q, "sys:link.Ping", true);
     }
   }
+#if RpcIpopNodeNUNIT
+  [TestFixture]
+  public class RpcTester {
+    [Test]
+    public void Test() { 
+      MemBlock mdnsm = MemBlock.Reference(new byte[] {0x00, 0x00, 0x00, 0x00,
+        0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x0E, 0x64, 0x61, 0x76,
+        0x69, 0x64, 0x69, 0x77, 0x2D, 0x6C, 0x61, 0x70, 0x74, 0x6F, 0x70, 0x05,
+        0x6C, 0x6F, 0x63, 0x61, 0x6C, 0x00, 0x00, 0xFF, 0x00, 0x01, 0xC0, 0x0C,
+        0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x78, 0x00, 0x04, 0x0A, 0xFE,
+        0x00, 0x01});
+      DNSPacket mdns = new DNSPacket(mdnsm);
+      String ss_ip = "10.254.112.232";
+      bool change = RpcAddressResolverAndDNS.mDnsTranslate(mdns.Answers, ss_ip);
+      change |= RpcAddressResolverAndDNS.mDnsTranslate(mdns.Authority, ss_ip);
+      change |= RpcAddressResolverAndDNS.mDnsTranslate(mdns.Additional, ss_ip);
+      // If we make a change let's make a new packet!
+      if(change) {
+          mdns = new DNSPacket(mdns.ID, mdns.QUERY, mdns.OPCODE, mdns.AA,
+                               mdns.RA, mdns.RD, mdns.Questions, mdns.Answers,
+                               mdns.Authority, mdns.Additional);
+      }
+      Assert.AreEqual(mdns.Authority[0].NAME, "davidiw-laptop.local", "NAME");
+      Assert.AreEqual(mdns.Authority[0].TYPE, DNSPacket.TYPES.A, "TYPE");
+      Assert.AreEqual(mdns.Authority[0].CLASS, DNSPacket.CLASSES.IN, "CLASS");
+      Assert.AreEqual(mdns.Authority[0].CACHE_FLUSH, false, "CACHE_FLUSH");
+      Assert.AreEqual(mdns.Authority[0].TTL, 120, "TTL");
+      Assert.AreEqual(mdns.Authority[0].RDATA, "10.254.112.232", "RDATA");
+    }
+  } 
+#endif
 }

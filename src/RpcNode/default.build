@@ -50,4 +50,29 @@
 
   <target name="doc" description="Build RpcIpopNode.xml">
   </target>
+
+  <target name="test" description="Test RpcIpopNode">
+    <csc target="library" define="RpcIpopNodeNUNIT" output="${build.dir}/RpcIpopNode.test.dll">
+      <sources failonempty="true">
+        <include name="*.cs"/>
+        <include name="../NetworkPackets/*.cs"/>
+        <include name="../IpopNode/*.cs"/>
+        <include name="../../../brunet1/src/BasicNode/*.cs"/>
+      </sources>
+      <references>
+        <include name="nunit.framework.dll" />
+        <include name="${build.dir}/Brunet.dll"/>
+        <include name="${build.dir}/Brunet.Dht.dll"/>
+        <include name="${build.dir}/Brunet.XmlRpc.dll" />
+        <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />
+        <include name="${build.dir}/Brunet.DhtService.dll"/>
+        <include name="System.Runtime.Remoting.dll"/>
+        <include name="Mono.Posix.dll"/>
+      </references>
+    </csc>
+    <nunit2>
+      <formatter type="Plain" />
+      <test assemblyname="${build.dir}/RpcIpopNode.test.dll"/>
+    </nunit2>
+  </target>
 </project>
