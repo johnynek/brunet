@@ -158,6 +158,13 @@ namespace Ipop.CondorNode {
       Assert.AreEqual(dns.NameLookUp("10.250.1.1"), null, "NameLookUp Dns changed out of range.");
       Assert.AreEqual(dns.NameLookUp("10.251.1.1"), "C251001001.ipop", "NameLookUp Dns changed in range.");
     }
+    [Test]
+    public void SmallMaskTest() {
+      CondorDNS dns = new CondorDNS();
+      dns.UpdatePoolRange("10.1.2.0", "255.255.255.0");
+      Assert.AreEqual(dns.NameLookUp("10.1.2.94"), "C001002094.ipop");
+      Assert.AreEqual(dns.AddressLookUp("C001002094.ipop"), "10.1.2.94");
+    }
   }
 #endif
 }
