@@ -37,9 +37,6 @@ namespace Ipop {
     /**  <summary>This is a constant buffer used for writing to the tap 
     device </summary>*/
     protected byte[] _send_buffer = new byte[MTU];
-    /**  <summary>This is a constant buffer used for reading from to the tap 
-    device </summary>*/
-    protected byte[] _read_buffer = new byte[MTU];
     /// <summary>Name of the TAP device as listed on the host.</summary>
     protected string device;
     /// <summary>File descriptor for the TAP device</summary>
@@ -102,19 +99,28 @@ namespace Ipop {
     */
     protected void ReadLoop() {
       try {
+        byte[] read_buffer = new byte[MTU];
+        BufferAllocator ba = new BufferAllocator(MTU, 1.1);
         while(_running) {
-          int length = read_tap(fd, _read_buffer, _read_buffer.Length);
-
+          int length  = read_tap(fd, read_buffer, read_buffer.Length);
           if (length == 0 || length == -1) {
             ProtocolLog.WriteIf(ProtocolLog.Exceptions, "Couldn't read TAP");
             continue;
           }
 
-          MemBlock packet = MemBlock.Copy(_read_buffer, 0, length);
+          Array.Copy(read_buffer, 0, ba.Buffer, ba.Offset, length);
+          MemBlock packet = MemBlock.Reference(ba.Buffer, ba.Offset, length);
+          ba.AdvanceBuffer(length);
+
           Sub s = _sub;
           if(s != null) {
             s.Handle(packet, this);
           }
+        }
+      }
+      catch(ThreadInterruptedException x) {
+        if(_running && ProtocolLog.Exceptions.Enabled) {
+          ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
         }
       }
       catch(Exception e) {
@@ -144,6 +150,11 @@ namespace Ipop {
     */
     public void Stop() {
       _running = false;
+      _read_thread.Interrupt();
+      if(Thread.CurrentThread != _read_thread) {
+        _read_thread.Interrupt();
+        _read_thread.Join();
+      }
     }
 
     // Usual code for a one way ISource
