@@ -75,21 +75,19 @@ namespace Ipop.DhtNode {
     */
     public override DHCPReply GetLease(byte[] RequestedAddr, bool Renew,
                                        string node_address, params object[] para) {
+      int max_attempts = 2, max_renew_attempts = 1;
+      int attempts = max_attempts, renew_attempts = max_renew_attempts;
+
       String hostname = null;
       try {
         hostname = (String) para[0];
       } catch {}
-      if(RequestedAddr == null || !ValidIP(RequestedAddr)) {
-        RequestedAddr = new byte[4] {0, 0, 0, 0};
-      }
 
-      int max_attempts = 2, max_renew_attempts = 1;
-      int attempts = max_attempts, renew_attempts = max_renew_attempts;
-      if(Renew) {
-        renew_attempts = 2;
-      }
-      else if(RequestedAddr[0] == 0) {
+      if(RequestedAddr == null || !ValidIP(RequestedAddr)) {
         RequestedAddr = RandomIPAddress();
+      }
+      else if(Renew) {
+        renew_attempts = 2;
       }
 
       bool res = false;
