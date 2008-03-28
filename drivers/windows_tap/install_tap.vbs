@@ -4,7 +4,7 @@ Run("driverhelper.exe Install IpopTap.inf IpopTap")
 res = Run("driverhelper.exe status IpopTap")
 
 'Make sure the device is installed and that it has the correct name!
-If ChangeNetworkName(res, "IpopTap") = 0 Then
+If ChangeNetworkName(res, "tapipop") = 0 Then
   Wscript.Echo "Installation Successful!"
 Else
   Wscript.Echo "Installation Failed!  Please uninstall and then reinstall again."

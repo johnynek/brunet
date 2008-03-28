@@ -9,7 +9,7 @@ res = Run("driverhelper.exe status IpopTap")
 If res <> "No matching devices found." Then
   Wscript.Echo "Error uninstalling devices"
 Else
-  RemoveInstances("IpopTap")
+  RemoveInstances("tapipop")
   Wscript.Echo "Uninstallation Complete!"
 End If
 

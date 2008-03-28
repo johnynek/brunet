@@ -154,11 +154,13 @@ is most likely due to a corrupted tap install.  Simply execute the
 uninstall_tap.vbs script and then the install_tap.vbs script.
 
 \subsubsection Linux
-The Linux installers are available in drivers\linux_tap.  Linux requires that
-the Tap (virtual network device) driver be enabled in the kernel or as a
-module.  Due to varying version of Linux that is impossible for us to supply, 
-but it is found in all the distributions I have tested.  To create a tap device
-execute the script install_tap.sh and to remove it execute uninstall_tap.sh.
+Linux requires no installation as the Tap device is dynamically created;
+however, Linux requires that the Tap (virtual network device) driver be enabled
+in the kernel or as a module.  Due to vast amount of versions of Linux and the
+kernel, we are unable to supply this as well as the libtuntap.so.  We will
+eventually add support to compile this within the binary, for now, if the
+binary does not work, you will need to download the source and compile the
+src/c-lib with nant or by hand.
 
 \subsection IpopConfig
 Ipop requires an \ref Ipop::IpopConfig "IpopConfig" xml file in addition to
@@ -182,7 +184,7 @@ IpopNamespace must match the namespace specified in the DHCPServerConfig.
 
 This is the name of the Tap device running on your host.
 \code
-  <VirtualNetworkDevice>IpopTap</VirtualNetworkDevice>
+  <VirtualNetworkDevice>tapipop</VirtualNetworkDevice>
 \endcode
 
 This is an empty AddressData node with Hostname filled in.  This gives the
