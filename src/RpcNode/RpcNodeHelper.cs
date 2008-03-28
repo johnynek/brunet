@@ -83,7 +83,15 @@ namespace Ipop.RpcNode {
         ipb[i] += (byte)~netmask[i];
       }
       config.pool.upper = Utils.BytesToString(ipb, '.');
-      Console.WriteLine(config.pool.lower + ":" + config.pool.upper);
+      config.ReservedIPs = new DHCPServerConfig.ReservedIP[2];
+      config.ReservedIPs[0] = new DHCPServerConfig.ReservedIP();
+      String[] parts = IP.Split('.');
+      String upper = parts[0] + "." + parts[1] + "." + parts[2] + ".";
+      config.ReservedIPs[0].ip = upper + "1";
+      config.ReservedIPs[0].mask = "0.0.0.255";
+      config.ReservedIPs[1] = new DHCPServerConfig.ReservedIP();
+      config.ReservedIPs[1].ip = upper + "2";
+      config.ReservedIPs[0].mask = "255.255.255.255";
       return config;
     }
   }

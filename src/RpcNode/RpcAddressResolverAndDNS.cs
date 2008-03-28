@@ -174,12 +174,7 @@ namespace Ipop.RpcNode {
         }
         else if(responses[i].TYPE == DNSPacket.TYPES.PTR) {
           Response old = responses[i];
-          MemBlock test = null;
-          try {
-            test = DNSPacket.IPStringToMemBlock(old.NAME);
-          }
-          catch {}
-          if(test != null) {
+          if(DNSPacket.StringIsIP(old.NAME)) {
             responses[i] = new Response(ss_ip, old.TYPE,  old.CLASS,
                                         old.CACHE_FLUSH, old.TTL, old.RDATA);
             change = true;

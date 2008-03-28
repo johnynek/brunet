@@ -49,7 +49,7 @@ namespace Ipop {
                                    string node_address, params object[] para) {
       DHCPReply reply = new DHCPReply();
       reply.ip = lower;
-      reply.ip[3] = 1;
+      reply.ip[3] = 2;
       reply.netmask = netmask;
       reply.leasetime = leasetimeb;
       return reply;
