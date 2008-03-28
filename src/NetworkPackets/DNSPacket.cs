@@ -475,11 +475,12 @@ namespace NetworkPackets.DNS {
       int pos = Start, idx = 0;
       End = Start;
       byte [] blob = new byte[256];
+      int length = 0;
       bool first = true;
       while(Data[pos] != 0) {
         if((Data[pos] & 0xC0) == 0xC0) {
           int offset = (Data[pos++] & 0x3F << 8);
-          offset |= Data[pos];
+          offset |= Data[pos++];
           if(first) {
             End = pos;
             first = false;
@@ -488,12 +489,15 @@ namespace NetworkPackets.DNS {
         }
         else {
           blob[idx++] = Data[pos++];
+          length++;
         }
       }
       if(first) {
+        // Get the last 0
+        blob[idx] = Data[pos++];
         End = pos;
       }
-      return MemBlock.Reference(blob, 0, idx + 1);
+      return MemBlock.Reference(blob, 0, length + 1);
     }
   }
 
@@ -757,6 +761,21 @@ namespace NetworkPackets.DNS {
       Assert.AreEqual(dnsp.Authority[0].CACHE_FLUSH, false, "CACHE_FLUSH");
       Assert.AreEqual(dnsp.Authority[0].TTL, 120, "TTL");
       Assert.AreEqual(dnsp.Authority[0].RDATA, "10.254.111.252", "RDATA");
+    }
+
+    [Test]
+    public void Testdaap() {
+      MemBlock mdnsm = MemBlock.Reference(new byte[] {0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x10, 0x50, 0x69, 0x65, 0x72, 0x72, 0x65, 0x27, 0x73, 0x20, 0x4C, 0x69, 0x62, 0x72, 0x61, 0x72, 0x79, 0x05, 0x5F, 0x64, 0x61, 0x61, 0x70, 0x04, 0x5F, 0x74, 0x63, 0x70, 0x05, 0x6C, 0x6F, 0x63, 0x61, 0x6C, 0x00, 0x00, 0xFF, 0x00, 0x01, 0xC0, 0x0C, 0x00, 0x21, 0x00, 0x01, 0x00, 0x00, 0x00, 0x78, 0x00, 0x0D, 0x00, 0x00, 0x00, 0x00, 0x0E, 0x69, 0x04, 0x50, 0x49, 0x42, 0x4D, 0xC0, 0x2});
+      DNSPacket mdns = new DNSPacket(mdnsm);
+      Assert.AreEqual(mdns.Questions.Length, 1, "Questions");
+      Assert.AreEqual(mdns.Answers.Length, 0, "Answers");
+      Assert.AreEqual(mdns.Authority.Length, 1, "Authority");
+      Assert.AreEqual(mdns.Additional.Length, 0, "Additional");
+
+      Assert.AreEqual(mdns.Questions[0].QNAME_BLOB,
+                      MemBlock.Reference(new byte[]{0x10, 0x50, 0x69, 0x65, 0x72, 0x72, 0x65, 0x27, 0x73, 0x20, 0x4C, 0x69, 0x62, 0x72, 0x61, 0x72, 0x79, 0x05, 0x5F, 0x64, 0x61, 0x61, 0x70, 0x04, 0x5F, 0x74, 0x63, 0x70, 0x05, 0x6C, 0x6F, 0x63, 0x61, 0x6C, 0x00}), "QNAME");
+      Assert.AreEqual(mdns.Questions[0].QTYPE, (DNSPacket.TYPES) 0xFF, "QTYPE");
+      Assert.AreEqual(mdns.Questions[0].QCLASS, DNSPacket.CLASSES.IN, "QCLASS");
     }
   }
 #endif

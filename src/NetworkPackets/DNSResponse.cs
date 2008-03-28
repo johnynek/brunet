@@ -159,7 +159,6 @@ namespace NetworkPackets.DNS {
     public Response(MemBlock Data, int Start) {
       int idx = 0;
       NAME_BLOB = DNSPacket.RetrieveBlob(Data, Start, out idx);
-      idx++;
 
       int type = (Data[idx++] << 8) + Data[idx++];
       TYPE = (DNSPacket.TYPES) type;
@@ -186,7 +185,6 @@ namespace NetworkPackets.DNS {
         NAME = DNSPacket.HostnameMemBlockToString(NAME_BLOB);
         RDATA = DNSPacket.IPMemBlockToString(RDATA_BLOB);
       }
-
       _icpacket = _packet = Data.Slice(Start, idx + RDLENGTH - Start);
     }
   }

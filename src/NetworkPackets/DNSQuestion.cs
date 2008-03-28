@@ -105,8 +105,6 @@ namespace NetworkPackets.DNS {
     public Question(MemBlock Data, int Start) {
       int idx = 0;
       QNAME_BLOB = DNSPacket.RetrieveBlob(Data, Start, out idx);
-      idx++;
-
       int qtype = (Data[idx++] << 8) + Data[idx++];
       QTYPE = (DNSPacket.TYPES) qtype;
 
