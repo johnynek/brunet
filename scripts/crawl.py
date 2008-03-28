@@ -3,7 +3,7 @@
 also determines if the ring is consistent, does a node agree with its two
 neighbors on a given side about their positioning.  This can be used by other
 python programs if they call crawl and use the nodes that are returned. """
-import xmlrpclib, pybru, sys, getopt
+import xmlrpclib, pybru, sys, getopt, time
 
 usage = """usage:
 python crawl.py [--debug] [--debug2] [--port=<xmlrpc port of a brunet node>]
@@ -124,9 +124,12 @@ def crawl(port = 10000, logger = null_logger, debug = False):
 
     if pybru.Address(node) > start:
       half_way = True
-    elif half_way and pybru.Address(node) < start:
+      print "HERE"
+    elif half_way and pybru.Address(node) <= start:
+      print "THERE"
       break
 
+    time.sleep(1)
     #maintain a list of everyones neighbors
     nodes[node] = info
     last = node
