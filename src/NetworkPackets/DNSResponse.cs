@@ -104,7 +104,12 @@ namespace NetworkPackets.DNS {
         RDATA_BLOB = DNSPacket.IPStringToMemBlock(RDATA);
       }
       else if(TYPE == DNSPacket.TYPES.PTR) {
-        NAME_BLOB = DNSPacket.PtrStringToMemBlock(NAME);
+        if(DNSPacket.StringIsIP(NAME)) {
+          NAME_BLOB = DNSPacket.PtrStringToMemBlock(NAME);
+        }
+        else {
+          NAME_BLOB = DNSPacket.HostnameStringToMemBlock(NAME);
+        }
         RDATA_BLOB = DNSPacket.HostnameStringToMemBlock(RDATA);
       }
       else {
@@ -176,7 +181,12 @@ namespace NetworkPackets.DNS {
       RDATA_BLOB = Data.Slice(idx, RDLENGTH);
 
       if(TYPE == DNSPacket.TYPES.PTR) {
-        NAME = DNSPacket.PtrMemBlockToString(NAME_BLOB);
+        try {
+          NAME = DNSPacket.PtrMemBlockToString(NAME_BLOB);
+        }
+        catch {
+          NAME = DNSPacket.HostnameMemBlockToString(NAME_BLOB);
+        }
         int End = 0;
         RDATA_BLOB = DNSPacket.RetrieveBlob(Data, idx, out End);
         RDATA = DNSPacket.HostnameMemBlockToString(RDATA_BLOB);
