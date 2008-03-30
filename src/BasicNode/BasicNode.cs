@@ -27,6 +27,7 @@ using System.Net;
 using Brunet.DistributedServices;
 using Brunet.Rpc;
 using Brunet;
+using Brunet.Coordinate;
 
 /**
 \namespace Brunet::Applications Provides BasicNode and core features
@@ -193,7 +194,10 @@ namespace Brunet.Applications {
         }
         _node.RemoteTAs = RemoteTAs;
       }
-
+      if (_node_config.EnableVivaldi) {
+        NCService nc = new NCService();
+        nc.Install(_node);
+      }
       _dht = new Dht(_node, 3, 20);
     }
 
