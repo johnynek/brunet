@@ -132,6 +132,7 @@ namespace Ipop.RpcNode {
 
       // Attempt to translate a MDNS packet
       IPPacket ipp = new IPPacket(packet);
+      MemBlock ID = packet.Slice(4,2);
       if(ipp.Protocol == IPPacket.Protocols.UDP) {
         UDPPacket udpp = new UDPPacket(ipp.Payload);
         // MDNS runs on 5353
@@ -149,7 +150,7 @@ namespace Ipop.RpcNode {
             udpp = new UDPPacket(udpp.SourcePort, udpp.DestinationPort,
                                  dnsp.ICPacket);
             ipp = new IPPacket(ipp.Protocol, source_ip, ipp.DestinationIP,
-                               udpp.ICPacket);
+                               ID, udpp.ICPacket);
             return ipp.Packet;
           }
         }
