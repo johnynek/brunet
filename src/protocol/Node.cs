@@ -410,7 +410,13 @@ namespace Brunet
                                 "slow, more than one node waiting at heartbeat, packet_queue_length: {0}", q_len));
           }
         } while(!_heart_beat_stopped);
-      } catch (InvalidOperationException x) {
+      }
+      catch(ThreadInterruptedException x) {
+        if(!_heart_beat_stopped && ProtocolLog.Exceptions.Enabled) {
+          ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
+        }
+      }
+      catch (InvalidOperationException x) {
         if( !_packet_queue.Closed ) {
           //This is strange:
           if(ProtocolLog.Exceptions.Enabled) {
