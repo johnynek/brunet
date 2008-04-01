@@ -51,18 +51,18 @@ namespace Ipop.RpcNode {
     protected volatile Hashtable ip_addr;
     /// <summary>Maps Brunet Address as Address to MemBlock IP Addresses</summary>
     protected volatile Hashtable addr_ip;
+
+    /// <summary> List of connected addresses</summary>
+    protected volatile ArrayList conn_addr;
+
+    /// <summary> Indicated if client needs sync</summary>
+    protected bool need_sync;
+
     /// <summary>Returns the Connected Addresses.</summary>
     public ArrayList ConnectedAddresses {
-      get {
-        ArrayList _cas = new ArrayList();
-        lock(_sync) {
-          foreach(DictionaryEntry de in addr_ip) {
-            _cas.Add(de.Key);
-          }
-        }
-        return _cas;
-      }
+      get { return conn_addr; }
     }
+
     /// <summary>Helps assign remote end points</summary>
     protected RpcDHCPLeaseController _rdlc;
     protected Object _sync;
@@ -81,6 +81,8 @@ namespace Ipop.RpcNode {
       dns_ptr = new Hashtable();
       ip_addr = new Hashtable();
       addr_ip = new Hashtable();
+      conn_addr = new ArrayList();
+      need_sync = false;
 
       _rpc.AddHandler("RpcIpopNode", this);
     }
@@ -203,13 +205,14 @@ namespace Ipop.RpcNode {
     /// <param name="request_state">An object state</param>
     public void HandleRpc(ISender caller, String method, IList arguments, object request_state) {
       Object result = null;
-
       try {
-        ReqrepManager.ReplyState _rs = (ReqrepManager.ReplyState)caller;
-        UnicastSender _us = (UnicastSender)_rs.ReturnPath;
-        IPEndPoint _ep = (IPEndPoint)_us.EndPoint;
-        if (!_ep.Address.ToString().Equals("127.0.0.1")) {
-          throw new Exception("Not calling from local BrunetRpc locally!");
+        if (!method.Equals("FriendOnline")) {
+          ReqrepManager.ReplyState _rs = (ReqrepManager.ReplyState)caller;
+          UnicastSender _us = (UnicastSender)_rs.ReturnPath;
+          IPEndPoint _ep = (IPEndPoint)_us.EndPoint;
+          if (!_ep.Address.ToString().Equals("127.0.0.1")) { 
+            throw new Exception("Not calling from local BrunetRpc locally!");
+          }
         }
       }
       catch (Exception e){
@@ -222,21 +225,32 @@ namespace Ipop.RpcNode {
         if (method.Equals("RegisterMapping")) {
           String name = (String)arguments[0];
           Address addr = AddressParser.Parse((String)arguments[1]);
-          RegisterMapping(name, addr, request_state);
+          RegisterMapping(name, addr, request_state, true);
         }
         else if (method.Equals("UnregisterMapping")) {
           String name = (String)arguments[0];
           UnregisterMapping(name, request_state);
         }
+        else if (method.Equals("GetConnected")) {
+          String res = String.Empty;
+          foreach(Address addr in conn_addr) {
+            res += addr.ToString()+" ";
+          }
+          _rpc.SendResult(request_state, res);
+        }
         else if (method.Equals("CheckInstance")) {
           _rpc.SendResult(request_state, true);
         }
-        else if (method.Equals("CheckBuddy")) {
+        else if (method.Equals("FriendOnline")) {
           Address address = AddressParser.Parse((String)arguments[0]);
-          CheckBuddy(address, request_state);
+          FriendOnline(address, request_state, true);
+        }
+        else if (method.Equals("Sync")) {
+          _rpc.SendResult(request_state, need_sync);
+          need_sync = false;
         }
         else { 
-          throw new InvalidOperationException("Invalid Method ");
+          throw new InvalidOperationException("Invalid Method");
         }
       }
       catch (Exception e) {
@@ -255,7 +269,10 @@ namespace Ipop.RpcNode {
     /// </remarks>
     /// <param name="name">A string name to be added to DNS</param>
     /// <param name="addr">A brunet address that is to be mapped</param>
-    protected void RegisterMapping(String name, Address addr, object request_state) {
+    /// <param name="request_state">Request state object for rpc</param>
+    /// <param name="send_rpc">Indicates if rpc result should be sent</param>
+    protected void RegisterMapping(String name, Address addr, 
+                     object request_state, bool send_rpc) {
       MemBlock ip = null;
       String ips = null;
       lock (_sync) {
@@ -283,6 +300,9 @@ namespace Ipop.RpcNode {
           throw new Exception(String.Format
             ("Name ({0}) already exists with different address.", name));
         }
+      }
+      CheckBuddy(addr);
+      if(send_rpc) {
         _rpc.SendResult(request_state, ips);
       }
     }
@@ -312,7 +332,6 @@ namespace Ipop.RpcNode {
           ip_addr.Remove(ip);
           addr_ip.Remove(addr);
       }
-
       _rpc.SendResult(request_state, true);
     }
 
@@ -323,7 +342,9 @@ namespace Ipop.RpcNode {
     /// This method directly sends the result to rpc caller 
     /// </remarks>
     /// <param name="address">A brunet adddress of the node to check</param>
-    protected void CheckBuddy(Address address, object request_state) { 
+    /// <param name="request_state">Request state of object</param>
+    /// <param name="send_rpc">Flag indicting if send is necessary</param>
+    protected void CheckBuddy(Address address) { 
       Channel q = new Channel();
       q.CloseAfterEnqueue();
 
@@ -332,17 +353,48 @@ namespace Ipop.RpcNode {
         Object result = null;
         try {
           RpcResult res = (RpcResult)q.Dequeue();
-          result = res.Result;
+          result = AddressParser.Parse((String)res.Result);
+          if(addr_ip.Contains(result)) {
+            lock (_sync) {
+              if(!conn_addr.Contains(result)) {
+                conn_addr.Add(result);
+              }
+            }
+          }
         }
         catch (Exception e) {
           result = e;
+          if(conn_addr.Contains(address)) {
+            conn_addr.Remove(address);
+          }
         }
-        _rpc.SendResult(request_state, result);
       };
-
       ISender s = new AHExactSender(_node, address);
-      _rpc.Invoke(s, q, "sys:link.Ping", true);
+      _rpc.Invoke(s, q, "RpcIpopNode.FriendOnline", _node.Address.ToString());
     }
+
+    /// <summary>
+    /// Rpc Method that is called when a friend is announced
+    /// </summary>
+    /// <param name="address">Brunet address</param>
+    /// <param name="request_state">Request state </param>
+    /// <param name="send_rpc"> Indicates if result should be sent</param>
+    protected void FriendOnline(Address address, object request_state, bool send_rpc) {
+      if(!addr_ip.Contains(address)) {
+        need_sync = true;
+      }
+      else {
+        lock (_sync) { 
+          if(!conn_addr.Contains(address)) {
+            conn_addr.Add(address);
+          }
+        }
+      }
+      if(send_rpc) {
+        _rpc.SendResult(request_state, _node.Address.ToString());
+      } 
+    }
+    
   }
 #if RpcIpopNodeNUNIT
   [TestFixture]
