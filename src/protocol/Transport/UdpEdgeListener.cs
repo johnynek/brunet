@@ -643,15 +643,30 @@ namespace Brunet
       _s = null;
     }
 
+    /**
+     * @todo The previous interface did not throw an exception to a user
+     * since the send was called in another thread.  All code that calls this
+     * could be updated to handle exceptions that the socket might throw.
+     */
     protected void SendControl(byte[] Data, EndPoint End) {
       lock(_send_sync) {
-        _s.SendTo(Data, End);
+        try {
+          _s.SendTo(Data, End);
+        }
+        catch(Exception x) {
+          if(_running && ProtocolLog.Exceptions.Enabled) {
+            ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
+          }
+        }
       }
     }
 
     /**
      * When UdpEdge objects call Send, it calls this packet
      * callback:
+     * @todo The previous interface did not throw an exception to a user
+     * since the send was called in another thread.  All code that calls this
+     * could be updated to handle exceptions that the socket might throw.
      */
     public void HandleEdgeSend(Edge from, ICopyable p) {
       UdpEdge sender = (UdpEdge) from;
@@ -661,7 +676,14 @@ namespace Brunet
         NumberSerializer.WriteInt(sender.ID, _send_buffer, 0);
         NumberSerializer.WriteInt(sender.RemoteID, _send_buffer, 4);
         int plength = p.CopyTo(_send_buffer, 8);
-        _s.SendTo(_send_buffer, 8 + plength, SocketFlags.None, sender.End);
+        try {
+          _s.SendTo(_send_buffer, 8 + plength, SocketFlags.None, sender.End);
+        }
+        catch(Exception x) {
+          if(_running && ProtocolLog.Exceptions.Enabled) {
+            ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
+          }
+        }
       }
     }
   }
