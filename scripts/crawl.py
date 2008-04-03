@@ -124,9 +124,7 @@ def crawl(port = 10000, logger = null_logger, debug = False):
 
     if pybru.Address(node) > start:
       half_way = True
-      print "HERE"
     elif half_way and pybru.Address(node) <= start:
-      print "THERE"
       break
 
     time.sleep(1)
