@@ -39,7 +39,7 @@ namespace Brunet
   many ways to interface with the different implementations.  Discovery runs at
   group address 224.123.123.222:56123.</summary>
   */
-  public class IPHandler: ISource
+  public class IPHandler: SimpleSource
   {
     /// <summary>Runs on 224.123.123.222:56123</summary>
     protected readonly Socket _mc;
@@ -56,15 +56,9 @@ namespace Brunet
     /**  <summary>Thread dedicated to reading from the unicast and multicast
     sockets</summary>*/
     protected readonly Thread _listen_thread;
-
-    protected class Sub {
-      public readonly IDataHandler Handler;
-      public readonly object State;
-      public Sub(IDataHandler h, object s) { Handler = h; State =s; }
-      public void Handle(MemBlock b, ISender f) { Handler.HandleData(b, f, State); }
-    }
-    protected readonly object _sync;
-    protected volatile Sub _sub;
+    /// <summary>All messages must be preended with the magic COOKIE!
+    public static readonly MemBlock MagicCookie =
+        MemBlock.Reference(new byte[] {0x50, 0x87, 0xbd, 0x29});
 
     /**
     <summary>Creates a new IPHandler object by initializing the multicast and
@@ -87,10 +81,15 @@ namespace Brunet
 
         // We need to add a group membership for all IPAddresses on the local machine
         foreach(IPAddress ip in GetLocalIPAddresses()) {
-          _mc.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership,
-            new MulticastOption(mc_addr, ip));
+          /* the LAN address tends to throw exceptions in Vista 64, while
+          loopback doesn't... doing this, we make sure to at least get loopback
+          discovery. */
+          try{
+            _mc.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership,
+              new MulticastOption(mc_addr, ip));
+          }
+          catch {}
         }
-
         _mc.MulticastLoopback = true;
       }
       catch {
@@ -105,26 +104,9 @@ namespace Brunet
       _uc.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastLoopback, true);
       _uc.Bind(new IPEndPoint(IPAddress.Any, 0));
       _running = true;
-      _sync = new Object();
       _listen_thread = new Thread(Listen);
       _listen_thread.IsBackground = true;
       _listen_thread.Start();
-    }
-
-    public virtual void Subscribe(IDataHandler hand, object state) {
-      lock( _sync ) {
-        _sub = new Sub(hand, state);
-      }
-    }
-    public virtual void Unsubscribe(IDataHandler hand) {
-      lock( _sync ) {
-        if( _sub.Handler == hand ) {
-          _sub = null;
-        }
-        else {
-          throw new Exception(String.Format("Handler: {0}, not subscribed", hand));
-        }
-      }
     }
 
     /// <summary>Called to interrupt the _listen_thread.</summary>
@@ -167,19 +149,23 @@ namespace Brunet
             last_debug = now;
             ProtocolLog.Write(ProtocolLog.Monitor, String.Format("I am alive: {0}", now));
           }
-        } 
+        }
         try {
           ArrayList readers = (ArrayList) sockets.Clone();
           Socket.Select(readers, null, null, 10000000); //10 seconds
           foreach(Socket socket in readers) {
             EndPoint ep = new IPEndPoint(IPAddress.Any, 0);
             int rec_bytes = socket.ReceiveFrom(buffer, ref ep);
-            Sub s = _sub;
+            Subscriber s = _sub;
             //s can't change once we've read it.
             if( s != null) {
               MemBlock packet = MemBlock.Copy(buffer, 0, rec_bytes);
+//              MemBlock cookie = packet.Slice(0, 4);
+//              if(cookie.Equals(MagicCookie)) {
+//                packet = packet.Slice(4);
               ISender sender = CreateUnicastSender(ep);
               s.Handle(packet, sender);
+//              }
             }
           }
         }
@@ -286,6 +272,7 @@ namespace Brunet
     public virtual void Send(ICopyable data) {
       // Silly users can trigger a handful of exceptions here...
       try {
+//        data = new CopyList(IPHandler.MagicCookie, data);
         byte[] buffer = new byte[data.Length];
         int length = data.CopyTo(buffer, 0);
 
@@ -379,6 +366,7 @@ namespace Brunet
       }
       // Silly users can trigger a handful of exceptions here...
       try {
+//        data = new CopyList(IPHandler.MagicCookie, data);
         byte[] buffer = new byte[data.Length];
         int length = data.CopyTo(buffer, 0);
         // I REALLY HATE THIS but we can't be setting this option in more than one thread!

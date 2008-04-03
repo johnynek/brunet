@@ -47,9 +47,11 @@ namespace Brunet.Applications {
     }
 
     /**
-    <summary>This is overloaoded so that we can get the base._node and move it
+    <summary>This is overloaded so that we can get the base._node and move it
     into an ArrayList (_nodes), before we create a new base._node and it is
-    overwritten.  This uses BasicNode.CreateNode to create new nodes.</summary>
+    overwritten.  This uses BasicNode.CreateNode to create new nodes.  Every
+    time this is called a new NodeAddress (BrunetAddress) is generated, these
+    are one time use and are not stored for future use.</summary>
     */
     public override void CreateNode() {
       _node_config.NodeAddress = (Utils.GenerateAHAddress()).ToString();
