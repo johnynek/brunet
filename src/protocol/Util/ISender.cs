@@ -18,6 +18,9 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+using System;
+using System.Collections;
+
 namespace Brunet {
 
 /**
@@ -54,13 +57,4 @@ public interface IDataHandler {
    */
   void HandleData(MemBlock b, ISender return_path, object state);
 }
-
-/**
- * This is a source of data
- */
-public interface ISource {
-  void Subscribe(IDataHandler h, object state);
-  void Unsubscribe(IDataHandler h);
-}
-
 }

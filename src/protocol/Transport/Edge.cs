@@ -39,7 +39,7 @@ namespace Brunet
    * when a Packet arrives.
    */
 
-  public abstract class Edge : IComparable, ISender, ISource
+  public abstract class Edge : SimpleSource, IComparable, ISender
   {
     protected static long _edge_count;
 
@@ -55,14 +55,6 @@ namespace Brunet
       _edge_no = System.Threading.Interlocked.Increment( ref _edge_count );
     }
 
-    protected class Sub {
-      public readonly IDataHandler Handler;
-      public readonly object State;
-      public Sub(IDataHandler h, object s) { Handler = h; State =s; }
-      public void Handle(MemBlock b, ISender f) { Handler.HandleData(b, f, State); }
-    }
-    protected volatile Sub _sub;
-    protected readonly object _sync;
     /**
      * Closes the Edge, further Sends are not allowed
      */
@@ -239,7 +231,7 @@ namespace Brunet
       }
 #endif
       //_sub is volatile, so there is no chance for a race here 
-      Sub s = _sub;
+      Subscriber s = _sub;
       if( s != null ) {
         s.Handle(b, this);
         //This is volatile, so no need to lock:
@@ -255,21 +247,6 @@ namespace Brunet
       }
     }
 
-    public virtual void Subscribe(IDataHandler hand, object state) {
-      lock( _sync ) {
-        _sub = new Sub(hand, state);
-      }
-    }
-    public virtual void Unsubscribe(IDataHandler hand) {
-      lock( _sync ) {
-        if( _sub.Handler == hand ) {
-          _sub = null;
-        }
-        else {
-          throw new Exception(String.Format("Handler: {0}, not subscribed", hand));
-        }
-      }
-    }
     /**
      * Prints the local address, the direction and the remote address
      */

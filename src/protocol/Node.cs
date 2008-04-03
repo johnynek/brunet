@@ -39,7 +39,7 @@ namespace Brunet
    * connections. 
    * 
    */
-  abstract public class Node : ISender, IDataHandler
+  abstract public class Node : IDataHandler, ISender
   {
     /**
      * Create a node in the realm "global"
@@ -58,12 +58,12 @@ namespace Brunet
       _sync = new Object();
       lock(_sync)
       {
+        DemuxHandler = new DemuxHandler();
         /*
          * Make all the hashtables : 
          */
         _local_add = AddressParser.Parse( addr.ToMemBlock() );
         _realm = String.Intern(realm);
-        _subscription_table = new Hashtable();
 
         _task_queue = new NodeTaskQueue(this);
         _packet_queue = new BlockingQueue();
@@ -79,12 +79,12 @@ namespace Brunet
         
         /* Set up the ReqrepManager as a filter */
         _rrm = new ReqrepManager(Address.ToString());
-        GetTypeSource(PType.Protocol.ReqRep).Subscribe(_rrm, null);
+        DemuxHandler.GetTypeSource(PType.Protocol.ReqRep).Subscribe(_rrm, null);
         _rrm.Subscribe(this, null);
         this.HeartBeatEvent += _rrm.TimeoutChecker;
         /* Set up RPC */
         _rpc = new RpcManager(_rrm);
-        GetTypeSource( PType.Protocol.Rpc ).Subscribe(_rpc, null);
+        DemuxHandler.GetTypeSource( PType.Protocol.Rpc ).Subscribe(_rpc, null);
 
         /*
          * Where there is a change in the Connections, we might have a state
@@ -197,68 +197,6 @@ namespace Brunet
     }
 
     /**
-     * This class represents the demultiplexing of each
-     * type of data to different handlers
-     */
-    protected class NodeSource : ISource {
-      protected volatile ArrayList _subs;
-      protected readonly object _sync;
-      protected class Sub {
-        public readonly IDataHandler Handler;
-        public readonly object State;
-        public Sub(IDataHandler dh, object state) { Handler = dh; State = state; }
-        public void Handle(MemBlock b, ISender retpath) {
-          Handler.HandleData(b, retpath, State);
-        }
-        //So we can look up subscriptions based only on Handler equality
-        public override bool Equals(object o) {
-          Sub s = o as Sub;
-          if( s != null ) {
-            return (s.Handler == Handler);
-          }
-          else {
-            return false;
-          }
-        }
-        public override int GetHashCode() { return Handler.GetHashCode(); }
-      }
-
-      public NodeSource() {
-        _subs = new ArrayList();
-        _sync = new object();
-      }
-
-      public void Subscribe(IDataHandler h, object state) {
-        Sub s = new Sub(h, state);
-        //We have to lock so there is no race between the read and the write
-        lock( _sync ) {
-          _subs = Functional.Add(_subs, s);
-        }
-      }
-      public void Unsubscribe(IDataHandler h) {
-        Sub s = new Sub(h, null);
-        int idx = _subs.IndexOf(s);
-        //We have to lock so there is no race between the read and the write
-        lock( _sync ) {
-          _subs = Functional.RemoveAt(_subs, idx);
-        }
-      }
-      /**
-       * @return the number of Handlers that saw this data
-       */
-      public int Announce(MemBlock b, ISender return_path) {
-        ArrayList subs = _subs;
-        int handlers = subs.Count;
-        for(int i = 0; i < handlers; i++) {
-          Sub s = (Sub)subs[i];
-          //No need to lock since subs can never change
-          s.Handle(b, return_path);
-        }
-        return handlers;
-      }
-    }
-
-    /**
      * This is a TaskQueue where new TaskWorkers are started
      * by EnqueueAction, so they are executed in the announce thread
      * and without the call stack growing arbitrarily
@@ -304,11 +242,6 @@ namespace Brunet
       }
     }
     protected ConnectionState _con_state;
-    /**
-     * Keeps track of the objects which need to be notified 
-     * of certain packets.
-     */
-    protected readonly Hashtable _subscription_table;
 
     protected readonly Address _local_add;
     /**
@@ -410,7 +343,13 @@ namespace Brunet
                                 "slow, more than one node waiting at heartbeat, packet_queue_length: {0}", q_len));
           }
         } while(!_heart_beat_stopped);
-      } catch (InvalidOperationException x) {
+      }
+      catch(ThreadInterruptedException x) {
+        if(!_heart_beat_stopped && ProtocolLog.Exceptions.Enabled) {
+          ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
+        }
+      }
+      catch (InvalidOperationException x) {
         if( !_packet_queue.Closed ) {
           //This is strange:
           if(ProtocolLog.Exceptions.Enabled) {
@@ -468,6 +407,40 @@ namespace Brunet
 
     /** Object which we lock for thread safety */
     protected readonly object _sync;
+
+    /**  <summary>Handles subscriptions for the different types of packets
+    that come to this node.</summary>*/
+    public readonly DemuxHandler DemuxHandler;
+
+    /**
+    <summary>All packets that come to this are demultiplexed according to t.
+    To subscribe or unsubscribe, get the ISource for the type you want and
+    subscribe to it,</summary>
+    <param name="t">The key for the MultiSource.</param>
+    @deprecated Use Node.DemuxHandler.GetTypeSource
+    */
+    public ISource GetTypeSource(Object t) {
+      return DemuxHandler.GetTypeSource(t);
+    }
+
+    /**
+    <summary>Deletes (and thus unsubscribes) all IDataHandlers for a given key.
+    </summary>
+    <param name="t">The key for the MultiSource.</param>
+    @deprecated Use Node.DemuxHandler.ClearTypeSource
+    */
+    public void ClearTypeSource(Object t) {
+      DemuxHandler.ClearTypeSource(t);
+    }
+
+    /**
+    <summary>Deletes (and thus unsubscribes) all IDataHandlers for the table.
+    </summary>
+    @deprecated Use Node.DemuxHandler.Clear
+    */
+    public void Clear() {
+      DemuxHandler.Clear();
+    }
 
     protected readonly ConnectionTable _connection_table;
 
@@ -575,16 +548,7 @@ namespace Brunet
         SendStateChange(new_state);
       }
     }
-    /**
-     * Unsubscribe all IDataHandlers for a given
-     * type
-     */
-    protected void ClearTypeSource(PType t) {
-      lock( _sync ) {
-        _subscription_table.Remove(t);
-      }
-    }
-    
+
     protected void Close(Edge e) {
       try {
         //This can throw an exception if the _packet_queue is closed
@@ -687,26 +651,6 @@ namespace Brunet
     }
 
     /**
-     * All packets that come to this node are demultiplexed according to
-     * type.  To subscribe, get the ISource for the type you want, and
-     * subscribe to it.  Similarly for the unsubscribe.
-     */
-    public ISource GetTypeSource(PType t) {
-      //It's safe to get from a Hashtable without a lock.
-      ISource s = (ISource)_subscription_table[t];
-      if( s == null ) {
-        lock( _sync ) {
-          //Since we last checked, there may be a ISource from another thread:
-          s = (ISource)_subscription_table[t];
-          if( s == null ) {
-            s = new NodeSource();
-            _subscription_table[t] = s;
-          }
-        }
-      }
-      return s;
-    }
-    /**
      * Send the StateChange event
      */
     protected void SendStateChange(ConnectionState new_state) {
@@ -804,7 +748,7 @@ namespace Brunet
           SendStateChange(Node.ConnectionState.Disconnected);
           lock(_sync) {
             //Clear out the subscription table
-            _subscription_table.Clear();
+            DemuxHandler.Clear();
           }
         }
       }
@@ -881,11 +825,11 @@ namespace Brunet
        */
       MemBlock payload = null;
       int handlers = 0;
-      NodeSource ns = null;
+      MultiSource ns = null;
       PType t = null;
       try {
         t = PType.Parse(b, out payload);
-        ns = (NodeSource)GetTypeSource(t);
+        ns = (MultiSource)DemuxHandler.GetTypeSource(t);
         handlers = ns.Announce(payload, from);
         /**
          * @todo if no one handled the packet, we might want to send some
