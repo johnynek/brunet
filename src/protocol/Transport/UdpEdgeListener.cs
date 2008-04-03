@@ -40,32 +40,8 @@ namespace Brunet
    */
   public class UdpEdgeListener : EdgeListener, IEdgeSendHandler
   {
-    /**
-     * This is a simple little class just to hold the
-     * two objects needed to do a send
-     */
-    protected class SendQueueEntry {
-      public SendQueueEntry(ICopyable p, UdpEdge udpe) {
-        Packet = p;
-        Sender = udpe;
-        ErrorCount = 0;
-        Control = false;
-      }
-      public SendQueueEntry(MemBlock p, EndPoint e) {
-        Data = p;
-        End = e;
-        Control = true;
-      }
-
-      public readonly ICopyable Packet;
-      public readonly UdpEdge Sender;
-      public readonly EndPoint End;
-      public readonly MemBlock Data;
-      public readonly bool Control;
-      public int ErrorCount;
-    }
-    //After this many SocketException errors stop trying to send a packet
-    protected const int MAX_ERROR_COUNT = 3;
+    protected Object _send_sync = new Object();
+    protected byte[] _send_buffer = new byte[Packet.MaxLength];
     /*
      * This is the object which we pass to UdpEdges when we create them.
      */
@@ -482,10 +458,9 @@ namespace Brunet
 
     protected IPEndPoint ipep;
     protected Socket _s;
-    protected new BlockingQueue _send_queue;
 
     ///this is the thread were the socket is read:
-    protected Thread _listen_thread, _send_thread;
+    protected Thread _listen_thread;
 
     public UdpEdgeListener() : this(0, null, null)
     {
@@ -536,11 +511,10 @@ namespace Brunet
       ///@todo, we need a system for using the cryographic RNG
       _rand = new Random();
       _send_handler = this;
-      _send_queue = new BlockingQueue();
     }
 
     protected void SendControlPacket(EndPoint end, int remoteid, int localid,
-                                     ControlCode c, object state)
+                                     ControlCode c, object state) 
     {
       using(MemoryStream ms = new MemoryStream()) {
         NumberSerializer.WriteInt(localid, ms);
@@ -563,18 +537,11 @@ namespace Brunet
           }
         }
 
-        SendQueueEntry sqe = new SendQueueEntry(ms.ToArray(), end);
-        try {
-          _send_queue.Enqueue(sqe);
-        }
-        catch(InvalidOperationException) {
-          if(_running) {
-            throw;
-          }
-        }
-        if(ProtocolLog.UdpEdge.Enabled)
+        SendControl(ms.ToArray(), end);
+        if(ProtocolLog.UdpEdge.Enabled) {
           ProtocolLog.Write(ProtocolLog.UdpEdge, String.Format(
             "Sending control {1} to: {0}", end, c));
+        }
       }
     }
     /**
@@ -595,8 +562,6 @@ namespace Brunet
       }
       _listen_thread = new Thread( new ThreadStart(this.ListenThread) );
       _listen_thread.Start();
-      _send_thread = new Thread( new ThreadStart(this.SendThread) );
-      _send_thread.Start();
     }
 
     /**
@@ -605,12 +570,9 @@ namespace Brunet
     public override void Stop()
     {
       _running = false;
-      _send_queue.Close();
       //Make sure the send thread has stopped
       Thread this_thread = Thread.CurrentThread;
-      if( this_thread != _send_thread ) {
-        _send_thread.Join();
-      }
+      _s.Close();
       if( this_thread != _listen_thread ) {
         _listen_thread.Interrupt();
         _listen_thread.Join();
@@ -668,120 +630,22 @@ namespace Brunet
           }
         }
         catch(ThreadInterruptedException x) {
-          if(_running)
-            if(ProtocolLog.Exceptions.Enabled)
-              ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
+          if(_running && ProtocolLog.Exceptions.Enabled) {
+            ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
+          }
         }
         catch(SocketException x) {
-          if(_running)
-            if(ProtocolLog.Exceptions.Enabled)
-              ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
-        }
-        catch(ObjectDisposedException x) {
-          if(_running)
-            if(ProtocolLog.Exceptions.Enabled)
-              ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
-          break;
-        }
-        catch(Exception x) {
-          //Possible socket error. Just ignore the packet.
-          if(ProtocolLog.Exceptions.Enabled)
+          if(_running && ProtocolLog.Exceptions.Enabled) {
             ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
+          }
         }
       }
-      _s.Close();
       _s = null;
     }
 
-    private void SendThread()
-    {
-      Thread.CurrentThread.Name = "udp_send_thread";
-      byte []buffer = new byte[Packet.MaxLength];
-      SendQueueEntry sqe = null;
-      DateTime last_debug = DateTime.UtcNow;
-      TimeSpan debug_period = new TimeSpan(0,0,0,0,5000); //log every 5 seconds.
-      int millisec_poll_time = 10000; //10 seconds
-      while(_running) {
-        if (ProtocolLog.Monitor.Enabled) {
-          DateTime now = DateTime.UtcNow;
-          if (now - last_debug > debug_period) {
-            last_debug = now;
-            int q_len = _send_queue.Count;
-            ProtocolLog.Write(ProtocolLog.Monitor, String.Format("I am alive: {0}, send queue length: {1}", 
-                                                                 now, q_len));
-          }
-        } 
-        try {
-          bool timedout = false; 
-          sqe = (SendQueueEntry) _send_queue.Dequeue(millisec_poll_time, out timedout);
-          if (timedout) {
-            continue;
-          }
-          if(sqe.Control) {
-            _s.SendTo(sqe.Data, sqe.End);
-          }
-          else {
-            //We have a packet to send
-            ICopyable p = sqe.Packet;
-            UdpEdge sender = sqe.Sender;
-            EndPoint e = sender.End;
-            //Write the IDs of the edge:
-            //[local id 4 bytes][remote id 4 bytes][packet]
-            NumberSerializer.WriteInt(sender.ID, buffer, 0);
-            NumberSerializer.WriteInt(sender.RemoteID, buffer, 4);
-            int plength = p.CopyTo(buffer, 8);
-            _s.SendTo(buffer, 8 + plength, SocketFlags.None, e);
-          }
-        }
-        catch(SocketException x) {
-        /*
-          * some nodes have transient problems with their
-          * networking.  We count the number of errors,
-          * break out, to slow down sending a bit, and
-          * hopefully things will get better.
-        */
-          sqe.ErrorCount++;
-          if( sqe.ErrorCount < MAX_ERROR_COUNT ) {
-          /*
-            * Put it in the back of the queue and break out.
-            * Hopefully by the time we try again matters will
-            * be better
-          */
-            try {
-              _send_queue.Enqueue(sqe);
-            }
-            catch(InvalidOperationException) {
-              if(_running) {
-                throw;
-              }
-            }
-          }
-          else {
-          /*
-            * Oh well, it had it's chance.  Close the edge and
-            * print a message.
-          */
-            if(ProtocolLog.Exceptions.Enabled)
-              ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
-                "SocketExceptions ({0}) on packet of length({1}): closing " +
-                "Edge: {2}\n{3}", sqe.ErrorCount, sqe.Packet.Length,
-                sqe.Sender, x));
-            RequestClose(sqe.Sender);
-            CloseHandler(sqe.Sender, null);
-          }
-        }
-        catch(InvalidOperationException) {
-          break;
-        }
-        catch(Exception x) {
-      /*
-          * Some non-socket exception.  This should never happen.
-          * Print it out to hope to debug it later
-      */
-          if(ProtocolLog.Exceptions.Enabled)
-            ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
-              "Error in UdpEdgeListener.Send. Edge: {0}\n{1}", sqe.Sender, x));
-        }
+    protected void SendControl(byte[] Data, EndPoint End) {
+      lock(_send_sync) {
+        _s.SendTo(Data, End);
       }
     }
 
@@ -789,10 +653,16 @@ namespace Brunet
      * When UdpEdge objects call Send, it calls this packet
      * callback:
      */
-    public void HandleEdgeSend(Edge from, ICopyable p)
-    {
-      SendQueueEntry sqe = new SendQueueEntry(p, (UdpEdge)from);
-      _send_queue.Enqueue(sqe);
+    public void HandleEdgeSend(Edge from, ICopyable p) {
+      UdpEdge sender = (UdpEdge) from;
+      lock(_send_sync) {
+        //Write the IDs of the edge:
+        //[local id 4 bytes][remote id 4 bytes][packet]
+        NumberSerializer.WriteInt(sender.ID, _send_buffer, 0);
+        NumberSerializer.WriteInt(sender.RemoteID, _send_buffer, 4);
+        int plength = p.CopyTo(_send_buffer, 8);
+        _s.SendTo(_send_buffer, 8 + plength, SocketFlags.None, sender.End);
+      }
     }
   }
 }
