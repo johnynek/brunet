@@ -127,7 +127,6 @@ def crawl(port = 10000, logger = null_logger, debug = False):
     elif half_way and pybru.Address(node) <= start:
       break
 
-    time.sleep(1)
     #maintain a list of everyones neighbors
     nodes[node] = info
     last = node
