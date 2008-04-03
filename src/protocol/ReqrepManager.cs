@@ -37,7 +37,7 @@ namespace Brunet {
  * effort attempt to deal with lost packets.
  */
 	
-public class ReqrepManager : IDataHandler, ISource {
+public class ReqrepManager : SimpleSource, IDataHandler {
   
   public enum ReqrepType : byte
   {
@@ -64,7 +64,6 @@ public class ReqrepManager : IDataHandler, ISource {
   public ReqrepManager(string info) {
     _info = info;
 
-    _sync = new Object();
     _rand = new Random();
     _req_handler_table = new Hashtable();
     _req_state_table = new Hashtable();
@@ -90,33 +89,6 @@ public class ReqrepManager : IDataHandler, ISource {
     _nonedge_rtt_stats = new TimeStats(_nonedge_reqtimeout.TotalMilliseconds, 0.98);
     _edge_rtt_stats = new TimeStats(_edge_reqtimeout.TotalMilliseconds, 0.98);
     _last_check = DateTime.UtcNow;
-  }
-
-
-  protected class Sub {
-    public readonly IDataHandler Handler;
-    public readonly object State;
-    public Sub(IDataHandler h, object s) { Handler = h; State =s; }
-    public void Handle(MemBlock b, ISender f) { Handler.HandleData(b, f, State); }
-  }
-
-  protected volatile Sub _sub;
-
-  public virtual void Subscribe(IDataHandler hand, object state) {
-    lock( _sync ) {
-      _sub = new Sub(hand, state);
-    }
-  }
-
-  public virtual void Unsubscribe(IDataHandler hand) {
-    lock( _sync ) {
-      if( _sub.Handler == hand ) {
-        _sub = null;
-      }
-      else {
-        throw new Exception(String.Format("Handler: {0}, not subscribed", hand));
-      }
-    }
   }
 
   /** 
@@ -248,7 +220,6 @@ public class ReqrepManager : IDataHandler, ISource {
 
    protected readonly string _info;
    public string Info { get { return _info; } }
-   protected readonly object _sync;
    protected readonly Random _rand;
    protected Hashtable _req_state_table;
    protected Cache _reply_cache;
