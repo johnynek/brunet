@@ -19,7 +19,7 @@ namespace Brunet.Coordinate {
       }
     }
 
-    /** last resported coordinates. */
+    /** last reported coordinates. */
     protected Point _position;
     public Point Position {
       get {
@@ -27,7 +27,7 @@ namespace Brunet.Coordinate {
       }
     }
     
-    /**list of sameples. */
+    /**list of latency samples. */
     protected ArrayList _sample_list;
     
     /** timestamp.*/
