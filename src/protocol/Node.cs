@@ -115,9 +115,7 @@ namespace Brunet
         _connection_timeout = new TimeSpan(0,0,0,0,15000);
         /* Set up the heartbeat */
         _heart_period = 500; //500 ms, or 1/2 second.
-        _heart_beat_object = new HeartBeatObject(this);
-        _heart_beat_thread = new Thread(this.HeartBeatProducer);
-        _heart_beat_thread.Start();
+        _heart_beat_object = new HeartBeatObject(this, new TimeSpan(0,0,0,0,_heart_period));
         
         //Check the edges from time to time
         this.HeartBeatEvent += new EventHandler(this.CheckEdgesCallback);
@@ -175,24 +173,53 @@ namespace Brunet
      * They handle executing the heartbeat events
      */
     protected class HeartBeatObject : IAction {
-      protected int _running;
+      protected int _inqueue;
       //Return true if we are in the queue
-      public bool InQueue { get { return (_running == 1); } }
+      public bool InQueue { get { return (_inqueue == 1); } }
       protected readonly Node LocalNode;
-      public HeartBeatObject(Node n) {
+      protected long _last_hb_dt;
+      protected readonly TimeSpan _heart_beat_interval;
+
+      public TimeSpan TimeSinceLastFire {
+        get {
+          return new TimeSpan(DateTime.UtcNow.Ticks - Interlocked.Read(ref _last_hb_dt));
+        }
+      }
+
+      public HeartBeatObject(Node n, TimeSpan interval) {
         LocalNode = n;
+        _heart_beat_interval = interval;
+        SetTime();
       }
       /*
        * @returns the previous value.
        */
       public bool SetInQueue(bool v) {
-        int run = v ? 1 : 0;
-        return (Interlocked.Exchange(ref _running, run) == 1);
+        int q = v ? 1 : 0;
+        return (Interlocked.Exchange(ref _inqueue, q) == 1);
       }
 
+      protected void SetTime() {
+        Interlocked.Exchange(ref _last_hb_dt, DateTime.UtcNow.Ticks);
+      }
       public void Start() {
         LocalNode.RaiseHeartBeatEvent();
+        SetTime();
         SetInQueue(false);
+      }
+      /*
+       * Check to see if we need to get back in the queue
+       */
+      public void CheckForTime() {
+        if( 0 == _inqueue ) {
+          //Maybe it is time to get back in:
+          if( TimeSinceLastFire >= _heart_beat_interval ) {
+            if( false == SetInQueue(true) ) {
+              //We should get into the queue
+              LocalNode.EnqueueAction(this);
+            }
+          }
+        }
       }
     }
 
@@ -317,57 +344,6 @@ namespace Brunet
 
     protected readonly HeartBeatObject _heart_beat_object;
 
-    protected void HeartBeatProducer() {
-      Thread.CurrentThread.Name = "heart_beat_producer";
-      try {
-        DateTime last_debug = DateTime.UtcNow;
-        TimeSpan debug_period = new TimeSpan(0,0,0,0,5000); //log every 5 seconds.
-
-        do {
-          Thread.Sleep(_heart_period);
-          bool already_in_queue = _heart_beat_object.SetInQueue(true);
-          if ( false == already_in_queue ) {
-            if(ProtocolLog.Monitor.Enabled) {
-              DateTime now = DateTime.UtcNow;
-              if (now - last_debug > debug_period) {
-                last_debug = now;
-                ProtocolLog.Write(ProtocolLog.Monitor, "heart beat (received).");
-              }
-            }
-            _packet_queue.Enqueue(_heart_beat_object);
-          } 
-          else {
-            int q_len = _packet_queue.Count;
-            if(ProtocolLog.Monitor.Enabled)
-              ProtocolLog.Write(ProtocolLog.Monitor, String.Format("System must be running " +
-                                "slow, more than one node waiting at heartbeat, packet_queue_length: {0}", q_len));
-          }
-        } while(!_heart_beat_stopped);
-      }
-      catch(ThreadInterruptedException x) {
-        if(!_heart_beat_stopped && ProtocolLog.Exceptions.Enabled) {
-          ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
-        }
-      }
-      catch (InvalidOperationException x) {
-        if( !_packet_queue.Closed ) {
-          //This is strange:
-          if(ProtocolLog.Exceptions.Enabled) {
-            ProtocolLog.Write(ProtocolLog.Exceptions, 
-                            String.Format("{0}",x)); 
-          }
-        }
-        //else this is not surprising at all
-      } catch (Exception e) {
-        if(ProtocolLog.Exceptions.Enabled)
-          ProtocolLog.Write(ProtocolLog.Exceptions, 
-                            String.Format("{0}",e)); 
-      }
-      if(ProtocolLog.Monitor.Enabled)
-        ProtocolLog.Write(ProtocolLog.Monitor, "heart beat producer (terminating).");
-    }
-
-
     protected readonly string _realm;
     /**
      * Each Brunet Node is in exactly 1 realm.  This is 
@@ -473,11 +449,6 @@ namespace Brunet
      * This is the TaskQueue for this Node
      */
     public TaskQueue TaskQueue { get { return _task_queue; } }
-
-    protected Thread _heart_beat_thread;
-    protected volatile bool _heart_beat_stopped = false;
-    
-    
 
     protected int _heart_period;
     ///how many milliseconds between heartbeats
@@ -738,8 +709,6 @@ namespace Brunet
         }
         _edgelistener_list.Clear();
         _running = false;
-        _heart_beat_stopped = true;
-        _heart_beat_thread.Interrupt();
         //This makes sure we don't block forever on the last packet
         _packet_queue.Close();
       }
@@ -754,12 +723,16 @@ namespace Brunet
       }
     }
     protected void AnnounceThread() {
+      bool log = ProtocolLog.Monitor.Enabled;
       try {
         DateTime last_debug = DateTime.UtcNow;
         TimeSpan debug_period = new TimeSpan(0,0,0,0,5000); //log every 5 seconds.
-        int millsec_timeout = 10000;//10 seconds.
+        int millsec_timeout = _heart_period;
+        int consecutive_packets = 0;
+        IAction queue_item = null;
+        bool timedout = false;
         while( _running ) {
-          if (ProtocolLog.Monitor.Enabled) {
+          if (log) {
             DateTime now = DateTime.UtcNow;
             if (now - last_debug > debug_period) {
               last_debug = now;
@@ -768,21 +741,32 @@ namespace Brunet
                                                                    now, q_len));
             }
           }
-          IAction queue_item = null;
-          bool timedout = false;
           // Only peek if we're logging the monitoring of _packet_queue
-          if(ProtocolLog.Monitor.Enabled) {
+          if(log) {
             queue_item = (IAction)_packet_queue.Peek(millsec_timeout, out timedout);
           }
           else {
             queue_item = (IAction)_packet_queue.Dequeue(millsec_timeout, out timedout);
           }
           if (timedout) {
+            //Check to see if it is time for another heartbeat event
+            _heart_beat_object.CheckForTime();
             continue;
+          }
+          else {
+            /*
+             * Don't check every packet if we need to 
+             * schedule a heartbeat because that will be costly
+             */
+            ++consecutive_packets;
+            if( consecutive_packets > 100 ) {
+              consecutive_packets = 0;
+              _heart_beat_object.CheckForTime();
+            }
           }
           queue_item.Start();
           // If we peeked, we need to now remove it
-          if(ProtocolLog.Monitor.Enabled) {
+          if(log) {
             _packet_queue.Dequeue();
           }
         }
@@ -800,6 +784,10 @@ namespace Brunet
         ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
         "ERROR: Exception in AnnounceThread: {0}", x));
       }
+      ProtocolLog.Write(ProtocolLog.Monitor,
+                        String.Format("Node: {0} leaving AnnounceThread",
+                                      this.Address));
+
     }
     /**
      * When a packet is to be delivered to this node,
