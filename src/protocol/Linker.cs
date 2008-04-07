@@ -264,7 +264,15 @@ namespace Brunet
         LocalNode = n;
       }
       protected override void Start(TaskWorker tw) {
-        LocalNode.EnqueueAction(tw);
+        try {
+          LocalNode.EnqueueAction(tw);
+        }
+        catch {
+          /*
+           * We could get an exception if queue in LocalNode is closed
+           */
+          tw.Start();
+        }
       }
     }
     /**
