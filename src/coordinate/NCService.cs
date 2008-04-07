@@ -676,7 +676,7 @@ namespace Brunet.Coordinate {
 	Console.Error.WriteLine("Updated position: {0}, distance: {1}", 
 				_vivaldi_state.Position,  
 				_vivaldi_state.Position.GetEucledianDistance(o_position));
-      }
+      }//end of lock
     }
     
     /**
@@ -788,6 +788,8 @@ namespace Brunet.Coordinate {
       nc_service.ProcessSample(now + new TimeSpan(0, 0, 5), "local-test", addr_remote, 
 			       new Point(new double[] {(double) 3.0, (double) 4.0}, 0),
 			       (double) 0.9, (double)10.0); 
+      NCService.VivaldiState state = nc_service.State;
+      
 
       nc_service.ProcessSample(now + new TimeSpan(0, 0, 6), "local-test",addr_remote1, 
 			       new Point(new double[] {(double) 10.0, (double) 2.0}, 0),

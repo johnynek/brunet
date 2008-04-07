@@ -77,6 +77,7 @@ namespace Brunet.Rpc {
 
     /**
      * @param relay: forwarding node brunet address.
+     * @param init_option: options for the initial forwarding hop.
      * @param dest: destination node brunet address.
      * @ttl: maximum number of hops for between relay and destination.
      * @ahOptions: AH options to use between relay and destination. 
@@ -88,10 +89,10 @@ namespace Brunet.Rpc {
      * @return array of objects returned by the blocking queue
      */
     [XmlRpcMethod]
-    public object[] forwardingproxy(string relay, string dest, int ttl, int ahOptions, int maxResultsToWait, string method, params object[] args) {
+    public object[] forwardingproxy(string relay, int init_option, string dest, int ttl, int ahOptions, int maxResultsToWait, string method, params object[] args) {
       Address forwarder = AddressParser.Parse(relay);
       Address target = AddressParser.Parse(dest);
-      ForwardingSender s = new ForwardingSender(_node, forwarder, target, (short) ttl, (ushort)ahOptions);
+      ForwardingSender s = new ForwardingSender(_node, forwarder, (ushort) init_option, target, (short) ttl, (ushort)ahOptions);
       return this.Proxy(s, maxResultsToWait, method, args);
     }
 

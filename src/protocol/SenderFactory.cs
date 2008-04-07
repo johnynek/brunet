@@ -141,7 +141,7 @@ namespace Brunet {
       s = SenderFactory.CreateInstance(n, uri);
       Assert.IsTrue(s is AHSender);
       Assert.AreEqual(uri, s.ToUri());      
-      uri = "sender:fw?relay=brunet:node:JOJZG7VO6RFOEZJ6CJJ2WOIJWTXRVRP4&dest=brunet:node:5FMQW3KKJWOOGVDO6QAQP65AWVZQ4VUQ&ttl=3&mode=path";
+      uri = "sender:fw?relay=brunet:node:JOJZG7VO6RFOEZJ6CJJ2WOIJWTXRVRP4&init_mode=greedy&dest=brunet:node:5FMQW3KKJWOOGVDO6QAQP65AWVZQ4VUQ&ttl=3&mode=path";
       s = SenderFactory.CreateInstance(n, uri);
       Assert.IsTrue(s is ForwardingSender);
       Assert.AreEqual(uri, s.ToUri());

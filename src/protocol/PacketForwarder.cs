@@ -120,15 +120,23 @@ namespace Brunet
     public static ForwardingSender CreateInstance(Node n, string uri) {
       string s = uri.Substring(7);
       string []ss = s.Split(SenderFactory.SplitChars);     
+
       string[] relay = ss[1].Split(SenderFactory.Delims);
-      string[] dest = ss[2].Split(SenderFactory.Delims);
       Address forwarder = AddressParser.Parse(relay[1]);
+      
+      string init_mode = (ss[2].Split(SenderFactory.Delims))[1];
+      ushort init_option = SenderFactory.StringToUShort(init_mode);
+
+      string[] dest = ss[3].Split(SenderFactory.Delims);
       Address target = AddressParser.Parse(dest[1]);
-      short ttl = (short) Int16.Parse((ss[3].Split(SenderFactory.Delims))[1]);
-      string mode = (ss[4].Split(SenderFactory.Delims))[1];
+
+      short ttl = (short) Int16.Parse((ss[4].Split(SenderFactory.Delims))[1]);
+
+      string mode = (ss[5].Split(SenderFactory.Delims))[1];
       ushort option = SenderFactory.StringToUShort(mode);
-      //Console.WriteLine("{0}, {1}, {2}, {3}", forwarder, target, ttl, option);
-      return new ForwardingSender(n, forwarder, target, ttl, option);      
+
+      //Console.WriteLine("{0}, {1}, {2}, {3}, {4}", forwarder, init_option, target, ttl, option);
+      return new ForwardingSender(n, forwarder, init_option, target, ttl, option);      
     }
 
 
@@ -142,14 +150,13 @@ namespace Brunet
     protected short _f_ttl;
     protected ushort _f_option;
 
-
     public ForwardingSender(Node n, Address forwarder, Address destination)
-      :this(n, forwarder, destination, n.DefaultTTLFor(destination), AHPacket.AHOptions.AddClassDefault){}
+      :this(n, forwarder, AHPacket.AHOptions.AddClassDefault, destination, n.DefaultTTLFor(destination), AHPacket.AHOptions.AddClassDefault){}
     
-    public ForwardingSender(Node n, Address forwarder, Address destination, short ttl, ushort option) {
+    public ForwardingSender(Node n, Address forwarder, ushort init_option, Address destination, short ttl, ushort option) {
       _n = n;
       _dest = destination;
-      _sender = new AHSender(n, forwarder);
+      _sender = new AHSender(n, forwarder, init_option);
       _f_ttl =  ttl;
       _f_option = option;
       byte[] f_buffer = new byte[4];
@@ -174,8 +181,10 @@ namespace Brunet
    * @returns URI for the sender.
    */
     public string ToUri() {
-      return System.String.Format("sender:fw?relay={0}&dest={1}&ttl={2}&mode={3}", 
-                                  ((AHSender) _sender).Destination, _dest, _f_ttl, SenderFactory.UShortToString(_f_option));
+      return System.String.Format("sender:fw?relay={0}&init_mode={1}&dest={2}&ttl={3}&mode={4}", 
+                                  ((AHSender) _sender).Destination, 
+                                  SenderFactory.UShortToString(((AHSender) _sender).Options), 
+                                  _dest, _f_ttl, SenderFactory.UShortToString(_f_option));
     }      
 
     override public int GetHashCode() {
