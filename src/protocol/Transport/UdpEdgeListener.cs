@@ -74,8 +74,8 @@ namespace Brunet
     }
 
     ///used for thread for the socket synchronization
-    protected object _sync;
-
+    protected readonly object _sync;
+    protected readonly ManualResetEvent _listen_finished_event;
     volatile protected bool _running;
     volatile protected bool _isstarted;
     public override bool IsStarted
@@ -94,7 +94,8 @@ namespace Brunet
     protected enum ControlCode : int
     {
       EdgeClosed = 1,
-      EdgeDataAnnounce = 2 ///Send a dictionary of various data about the edge
+      EdgeDataAnnounce = 2, ///Send a dictionary of various data about the edge
+      Null = 3 ///This is a null message, it means just ignore the packet
     }
 
     override public TAAuthorizer TAAuth {
@@ -223,6 +224,9 @@ namespace Brunet
                  */
               }
             }
+          }
+          else if( code == ControlCode.Null ) {
+            //Do nothing in this case
           }
         }
         catch(Exception x) {
@@ -511,6 +515,7 @@ namespace Brunet
       ///@todo, we need a system for using the cryographic RNG
       _rand = new Random();
       _send_handler = this;
+      _listen_finished_event = new ManualResetEvent(false);
     }
 
     protected void SendControlPacket(EndPoint end, int remoteid, int localid,
@@ -570,11 +575,18 @@ namespace Brunet
     public override void Stop()
     {
       _running = false;
-      //Make sure the send thread has stopped
+      /*
+       * We send a packet to the other thread to get it out of blocking
+       * on ReceieveFrom
+       */
       Thread this_thread = Thread.CurrentThread;
-      _s.Close();
       if( this_thread != _listen_thread ) {
-        _listen_thread.Interrupt();
+        EndPoint ep = new IPEndPoint(IPAddress.Loopback, _port);
+        //Keep sending packets until the listen thread stops listening
+        do {
+          SendControlPacket(ep, 0, 0, ControlCode.Null, null);
+          //Wait 500 ms for the thread to get the packet
+        } while( false == _listen_finished_event.WaitOne(500, false) );
         _listen_thread.Join();
       }
     }
@@ -640,6 +652,10 @@ namespace Brunet
           }
         }
       }
+      //Let everyone know we are out of the loop
+      _listen_finished_event.Set();
+      _s.Close();
+      //Allow garbage collection
       _s = null;
     }
 
