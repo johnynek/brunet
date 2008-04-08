@@ -110,8 +110,8 @@ namespace Brunet
 
     protected object _sync;
     
-    volatile protected bool _running;
-    protected bool _isstarted;
+    protected int _running;
+    protected int _isstarted;
     
     /*
      * Don't try to use TunnelEdge unless we have this many common neighbors.
@@ -124,7 +124,7 @@ namespace Brunet
     public override bool IsStarted
     {
       get {
-        return _isstarted;
+        return _isstarted == 1;
       }
     }
     /**
@@ -154,7 +154,7 @@ namespace Brunet
       if (!IsStarted) {
         throw new EdgeException("TunnelEdgeListener not started");
       }
-      else if (!_running) {
+      else if (0 == _running) {
         throw new EdgeException("TunnelEdgeListener not running");
       }
       else if (ta.TransportAddressType != this.TAType) {
@@ -452,17 +452,14 @@ namespace Brunet
      * This must be called before CreateEdgeTo.
      */
     public override void Start() {
-      lock( _sync ) {
-        if( _isstarted ) {
-          //We can't start twice... too bad, so sad:
-          throw new Exception("Restart never allowed");
-        }
+      if( 1 == Interlocked.Exchange(ref _isstarted, 1) ) {
+        //We can't start twice... too bad, so sad:
+        throw new Exception("Restart never allowed");
+      }
 #if TUNNEL_DEBUG
         Console.Error.WriteLine("Starting TunnelEdgeListener");
 #endif
-        _isstarted = true;
-        _running = true;
-      }
+      Interlocked.Exchange(ref _running, 1);
       //Start listening to packets
       _node.GetTypeSource(PType.Protocol.Tunneling).Subscribe(this, null);
     }
@@ -472,7 +469,7 @@ namespace Brunet
      * until this is called
      */
     public override void Stop() {
-      _running = false;
+      Interlocked.Exchange(ref _running, 0);
       _node.HeartBeatEvent -= TimeoutChecker;
       _node.GetTypeSource(PType.Protocol.Tunneling).Unsubscribe(this);      
     }
@@ -495,8 +492,8 @@ namespace Brunet
         _ecs_ht = new Hashtable();
         
 
-        _running = false;
-        _isstarted = false;
+        _running = 0;
+        _isstarted = 0;
         _node.HeartBeatEvent += new EventHandler(this.TimeoutChecker);
       }
     }
@@ -540,7 +537,7 @@ namespace Brunet
      */
     public void HandleData(MemBlock packet, ISender return_path, object state)
     {
-      if (!_running) {
+      if (0 == _running) {
 #if TUNNEL_DEBUG
         Console.Error.WriteLine("TunnelEdgeListener: not running (cannot handle packet)");
 #endif 
@@ -868,7 +865,7 @@ namespace Brunet
      * @param lost list of connection (addresses) we lost. 
      */
     public void HandleControlSend(Edge e, IEnumerable acquired, IEnumerable lost) {
-      if (!_running) {
+      if (0 == _running) {
         //do nothing
         return;
       }
@@ -945,7 +942,7 @@ namespace Brunet
      * @param forwarders list of forwarders for the tunnel edge. 
      */
     public void HandleSyncSend(Edge e, IEnumerable forwarders) {
-      if (!_running) {
+      if (0 == _running) {
         //do nothing
         return;
       }

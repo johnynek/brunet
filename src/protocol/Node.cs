@@ -68,8 +68,8 @@ namespace Brunet
         _task_queue = new NodeTaskQueue(this);
         _packet_queue = new BlockingQueue();
 
-        _running = false;
-        _send_pings = true;
+        _running = 0;
+        _send_pings = 0;
 
         _connection_table = new ConnectionTable(_local_add);
         _connection_table.ConnectionEvent += this.ConnectionHandler;
@@ -378,8 +378,8 @@ namespace Brunet
      * This is true after Connect is called and false after
      * Disconnect is called.
      */
-    volatile protected bool _running;
-    volatile protected bool _send_pings;
+    protected int _running;
+    protected int _send_pings;
 
     /** Object which we lock for thread safety */
     protected readonly object _sync;
@@ -692,7 +692,7 @@ namespace Brunet
 
         el.Start();
       }
-      _running = true;
+      Interlocked.Exchange(ref _running, 1);
     }
 
     /**
@@ -708,7 +708,7 @@ namespace Brunet
           el.Stop();
         }
         _edgelistener_list.Clear();
-        _running = false;
+        Interlocked.Exchange(ref _running, 0);
         //This makes sure we don't block forever on the last packet
         _packet_queue.Close();
       }
@@ -731,7 +731,7 @@ namespace Brunet
         int consecutive_packets = 0;
         IAction queue_item = null;
         bool timedout = false;
-        while( _running ) {
+        while( 1 == _running ) {
           if (log) {
             DateTime now = DateTime.UtcNow;
             if (now - last_debug > debug_period) {
@@ -775,7 +775,7 @@ namespace Brunet
         //This is thrown when Dequeue is called on an empty queue
         //which happens when the BlockingQueue is closed, which
         //happens on Disconnect
-        if(_running) {
+        if(1 == _running) {
           ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
             "Running in AnnounceThread got Exception: {0}", x));
         }
@@ -880,7 +880,7 @@ namespace Brunet
           ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
             "[Connect: {0}] deactivating task queue", _local_add));
           _task_queue.IsActive = false;
-          _send_pings = false;
+          Interlocked.Exchange( ref _send_pings, 0);
           _connection_table.Close();
         }
       }
@@ -1086,7 +1086,7 @@ namespace Brunet
         foreach(Connection c in _connection_table) {
           Edge e = c.Edge;
           TimeSpan since_last_in = now - e.LastInPacketDateTime; 
-          if( _send_pings && ( since_last_in > _connection_timeout ) ) {
+          if( (1 == _send_pings) && ( since_last_in > _connection_timeout ) ) {
 
             object ping_arg = String.Empty;
             DateTime start = DateTime.UtcNow;

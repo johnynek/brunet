@@ -103,7 +103,7 @@ namespace Brunet
 
     public LeafConnectionOverlord(Node local)
     {
-      _compensate = false;
+      _compensate = 0;
       _local = local;
       _linker = null;
       _sync = new object();
@@ -148,7 +148,7 @@ namespace Brunet
       CheckAndConnectHandler(null, null);
     }
 
-    volatile protected bool _compensate;
+    protected int _compensate;
     /**
      * If we start compensating, we check to see if we need to
      * make a connection : 
@@ -157,11 +157,11 @@ namespace Brunet
     {
       get
       {
-        return _compensate;
+        return 1 == _compensate;
       }
       set
       {
-        _compensate = value;
+        System.Threading.Interlocked.Exchange(ref _compensate, value ? 1 : 0);
       }
     }
 

@@ -52,7 +52,7 @@ namespace Brunet
     /// <summary>Multicast end point.</summary>
     public static readonly EndPoint mc_endpoint = new IPEndPoint(mc_addr, mc_port);
     /// <summary>The system is running and so should _listen_thread.</summary>
-    protected volatile bool _running;
+    protected int _running;
     /**  <summary>Thread dedicated to reading from the unicast and multicast
     sockets</summary>*/
     protected readonly Thread _listen_thread;
@@ -103,7 +103,7 @@ namespace Brunet
       // It won't send to other mono applications on the same host otherwise...
       _uc.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastLoopback, true);
       _uc.Bind(new IPEndPoint(IPAddress.Any, 0));
-      _running = true;
+      Interlocked.Exchange(ref _running, 1);
       _listen_thread = new Thread(Listen);
       _listen_thread.IsBackground = true;
       _listen_thread.Start();
@@ -111,7 +111,7 @@ namespace Brunet
 
     /// <summary>Called to interrupt the _listen_thread.</summary>
     public void Stop() {
-      _running = false;
+      Interlocked.Exchange(ref _running, 0);
       lock( _sync ) {
         _sub = null;
       }
@@ -142,7 +142,7 @@ namespace Brunet
       byte[] buffer =  new byte[Packet.MaxLength];
       DateTime last_debug = DateTime.UtcNow;
       TimeSpan debug_period = TimeSpan.FromSeconds(5);
-      while(_running) {
+      while(1 == _running) {
         if (ProtocolLog.Monitor.Enabled) {
           DateTime now = DateTime.UtcNow;
           if (now - last_debug > debug_period) {
@@ -171,14 +171,14 @@ namespace Brunet
         }
         catch(ObjectDisposedException odx) {
           //If we are no longer running, this is to be expected.
-          if(_running) {
+          if(1 == _running) {
           //If we are running print it out
             ProtocolLog.WriteIf(ProtocolLog.Exceptions, odx.ToString());
           }
           break;
         }
         catch(Exception x) {
-          if(!_running) {
+          if(0 == _running) {
             ProtocolLog.WriteIf(ProtocolLog.Exceptions, x.ToString());
           }
         }

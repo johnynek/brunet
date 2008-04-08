@@ -57,7 +57,7 @@ namespace Brunet
       _l_id = local_id;
       _r_id = remote_id;
       inbound = is_in;
-      _is_closed = false;
+      _is_closed = 0;
     }
 
     protected readonly DateTime _create_dt;
@@ -69,18 +69,19 @@ namespace Brunet
       get { return new DateTime(Interlocked.Read(ref _last_out_packet_datetime)); }
     }
 
-    protected volatile bool _is_closed;
+    protected int _is_closed;
     public override void Close()
     {
-      _is_closed = true;
-      base.Close();
+      if(0 == Interlocked.Exchange(ref _is_closed, 1)) {
+        base.Close();
+      }
     }
 
     public override bool IsClosed
     {
       get
       {
-        return (_is_closed);
+        return (1 == _is_closed);
       }
     }
     protected readonly bool inbound;
@@ -92,7 +93,7 @@ namespace Brunet
       }
     }
 
-    protected volatile FunctionEdge _partner;
+    protected FunctionEdge _partner;
     public FunctionEdge Partner
     {
       get
@@ -101,7 +102,7 @@ namespace Brunet
       }
       set
       {
-        _partner = value;
+        Interlocked.Exchange<FunctionEdge>(ref _partner, value);
       }
     }
 
@@ -113,7 +114,7 @@ namespace Brunet
                          "FunctionEdge.Send: argument can't be null");
       }
 
-      if( !_is_closed ) {
+      if( 0 == _is_closed ) {
         _sh.HandleEdgeSend(this, p);
         Interlocked.Exchange(ref _last_out_packet_datetime, DateTime.UtcNow.Ticks);
       }
@@ -135,7 +136,7 @@ namespace Brunet
       get { return _l_id; }
     }
 
-    protected volatile TransportAddress _local_ta;
+    protected TransportAddress _local_ta;
     public override Brunet.TransportAddress LocalTA
     {
       get {
@@ -146,7 +147,7 @@ namespace Brunet
         return _local_ta;
       }
     }
-    protected volatile TransportAddress _remote_ta;
+    protected TransportAddress _remote_ta;
     public override Brunet.TransportAddress RemoteTA
     {
       get {
@@ -158,7 +159,7 @@ namespace Brunet
       }
     }
     public void Push(MemBlock p) {
-      if( !_is_closed ) {
+      if( 0 == _is_closed ) {
         ReceivedPacketEvent(p);
       }
     }

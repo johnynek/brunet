@@ -89,7 +89,7 @@ public class AHSender : ISender {
    */
   public ISender ReceivedFrom { get { return _from; } }
   //This is the serialized header:
-  protected volatile ICopyable _header;
+  protected ICopyable _header;
 
   public AHSender(Node n, Address destination, ushort options)
   : this( n, n, destination, n.DefaultTTLFor(destination), options) {
