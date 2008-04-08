@@ -459,29 +459,23 @@ namespace Brunet
     /* Only access this in locked methods */
     protected Queue _closed_edges_time;
 
-    volatile protected Hashtable _edge_start_time;
+    protected Hashtable _edge_start_time;
 
-    /*private static readonly log4net.ILog _log =
-        log4net.LogManager.GetLogger(System.Reflection.MethodBase.
-        GetCurrentMethod().DeclaringType);*/
-
-    protected Random _rand;
+    protected readonly Random _rand;
 
     /*
      * These objects are often being reset (since we don't ever
      * modify the data structures once set).
-     * We need these to be volatile if we are
-     * not going to lock every access of them).
      */
-    volatile protected Hashtable _type_to_conlist;
-    volatile protected Hashtable _edge_to_con;
+    protected Hashtable _type_to_conlist;
+    protected Hashtable _edge_to_con;
 
     //We mostly deal with structured connections,
     //so we keep a ref to the address list for sructured
     //this is an optimization.
-    volatile protected ConnectionList _struct_conlist;
+    protected ConnectionList _struct_conlist;
 
-    volatile protected ArrayList _unconnected;
+    protected ArrayList _unconnected;
 
     /**
      * These are the addresses we are trying to connect to.
@@ -872,10 +866,12 @@ namespace Brunet
     protected void Init(ConnectionType t)
     {
       ConnectionList new_list = new ConnectionList(t);
-      if( t == ConnectionType.Structured ) {
-        _struct_conlist = new_list; 
+      lock( _sync ) {
+        if( t == ConnectionType.Structured ) {
+          _struct_conlist = new_list; 
+        }
+        _type_to_conlist[t] = new_list;
       }
-      _type_to_conlist[t] = new_list;
     }
 
     /**

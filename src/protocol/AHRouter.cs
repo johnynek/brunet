@@ -51,29 +51,40 @@ namespace Brunet
        * about 20 bytes, this costs on the order of 10-100 KB
        */
       _route_cache = new Cache(100);
-      _our_left_n = null;
     }
     protected readonly AHAddress _local;
     ///This is our left neighbor.  We often need to look at this.
-    protected volatile Connection _our_left_n;
+    protected Connection _our_left_n;
     protected readonly object _sync;
 
     protected ConnectionTable _tab;
     public ConnectionTable ConnectionTable {
       set {
-        if( _tab != null ) {
+        ConnectionList cl = value.GetConnections(ConnectionType.Structured);
+        Connection leftcon = null;
+        if( cl.Count > 0 ) {
+          int our_idx = cl.IndexOf(_local);
+          if( our_idx < 0 ) {
+            our_idx = ~our_idx;
+          }
+          leftcon = cl[our_idx];
+        }
+        lock( _sync ) {
+         _our_left_n = leftcon;
+         if( _tab != null ) {
           //Clear the old events:
           _tab.ConnectionEvent -= this.ConnectionTableChangeHandler;
           _tab.DisconnectionEvent -= this.ConnectionTableChangeHandler;
-	  _tab.StatusChangedEvent -= this.StatusChangedHandler;
-        }
-        _tab = value;
-        _tab.ConnectionEvent += this.ConnectionTableChangeHandler;
-        _tab.DisconnectionEvent += this.ConnectionTableChangeHandler;
+	        _tab.StatusChangedEvent -= this.StatusChangedHandler;
+         }
+         _tab = value;
+         _tab.ConnectionEvent += this.ConnectionTableChangeHandler;
+         _tab.DisconnectionEvent += this.ConnectionTableChangeHandler;
 	
 	//new stuff added to ensure we dont get into problem of
 	//unequal references for objects that are otherwise equal
-	_tab.StatusChangedEvent += this.StatusChangedHandler;
+	       _tab.StatusChangedEvent += this.StatusChangedHandler;
+        }
       }
     }
     protected static readonly int _MAX_UPHILL_HOPS = 1; 
@@ -318,26 +329,6 @@ namespace Brunet
 #endif
               //All the other routing modes use the Annealing rule
               
-              /*
-               * If we are to the left or right of the destination, and
-               * we are not in the table, as we should not be, then we share a common
-               * left neighbor with the destination
-               */
-              if( _our_left_n == null ) {
-                /*
-                 * Compute our left neighbor.  We only need to do this when it
-                 * has changed.
-                 */
-                int our_idx = structs.IndexOf(_local);
-                if( our_idx < 0 ) {
-                  our_idx = ~our_idx;
-                }
-                else {
-                  Console.Error.WriteLine(
-                    "ERROR: we are in the ConnectionTable: {0}", _local);
-                }
-                _our_left_n = structs[our_idx];
-              }
 #if AHROUTER_DEBUG
 	      if (debug) {
 		if (_our_left_n != null) {
@@ -596,20 +587,40 @@ namespace Brunet
      * When the ConnectionTable changes, our cached routes are all trash
      */
     protected void ConnectionTableChangeHandler(object o, System.EventArgs args) {
+      ConnectionEventArgs ce = (ConnectionEventArgs)args;
+      ConnectionList cl = ce.CList;
+      Connection new_left = null;
+      if( cl.MainType == ConnectionType.Structured && (cl.Count > 0) ) {
+        /*
+         * Compute our left neighbor.  We only need to do this when it
+         * has changed.
+         */
+        int our_idx = cl.IndexOf(_local);
+        if( our_idx < 0 ) {
+          our_idx = ~our_idx;
+        }
+        else {
+          Console.Error.WriteLine(
+            "ERROR: we are in the ConnectionTable: {0}", _local);
+        }
+        new_left = cl[our_idx];
+      }
       lock( _sync ) {
         _route_cache.Clear();
-        //Our left neighbor may have changed:
-        _our_left_n = null;
+        if( new_left != null ) {
+          _our_left_n = new_left;
+        }
       }
     }
+    
     protected void StatusChangedHandler(object ct, System.EventArgs args) {
       ConnectionEventArgs ce = (ConnectionEventArgs)args;
       Connection new_con = ce.Connection;
       lock( _sync ) {
         if (_our_left_n != null) {
-	  if( new_con.Edge == _our_left_n.Edge ) {
-	    _our_left_n = new_con;
-	  }
+	        if( new_con.Edge == _our_left_n.Edge ) {
+	          _our_left_n = new_con;
+	        }
         }
       }
     }

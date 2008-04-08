@@ -25,6 +25,7 @@ using NUnit.Framework;
 #endif
 
 using System;
+using System.Threading;
 using System.Net;
 using System.Collections;
 using System.Collections.Generic;
@@ -639,9 +640,9 @@ public class LinuxNatHandler : SymmetricNatHandler {
 public class NatTAs : IEnumerable {
 
   protected readonly NatHistory _hist;
-  protected volatile ArrayList _list_of_remote_ips;
+  protected ArrayList _list_of_remote_ips;
   protected readonly IEnumerable _local_config;
-  protected volatile IEnumerable _generated_ta_list;
+  protected IEnumerable _generated_ta_list;
 
   /**
    * @param local_config_tas the list of TAs to use as last resort
@@ -651,7 +652,7 @@ public class NatTAs : IEnumerable {
     _hist = hist;
     _local_config = local_config_tas;
   }
-  protected void InitRemoteIPs() {
+  protected ArrayList InitRemoteIPs() {
     NatHistory.Filter f = delegate(NatDataPoint p) {
       TransportAddress ta = p.PeerViewOfLocalTA;
       IPAddress a = null;
@@ -688,10 +689,10 @@ public class NatTAs : IEnumerable {
     }
     //Now we have a list of the most used to least used IPs
     rips.Sort();
-    _list_of_remote_ips = rips;
+    return rips;
   }
 
-  protected void GenerateTAs() {
+  protected ArrayList GenerateTAs() {
     ArrayList gtas = new ArrayList();
     Hashtable ht = new Hashtable();
     if( _hist != null ) {
@@ -699,7 +700,8 @@ public class NatTAs : IEnumerable {
        * we go through the list from most likely to least likely:
        */
       if( _list_of_remote_ips == null ) {
-        InitRemoteIPs();
+        ArrayList rips = InitRemoteIPs();
+        Interlocked.Exchange<ArrayList>(ref _list_of_remote_ips, rips);
       }
       foreach(IPAddressRecord r in _list_of_remote_ips) {
         IEnumerable points = _hist.PointsForIP(r.IP);
@@ -732,7 +734,6 @@ public class NatTAs : IEnumerable {
       }
     }
 
-    _generated_ta_list = gtas; 
     if(ProtocolLog.UdpEdge.Enabled) {
       int i = 0;
       foreach(TransportAddress ta in _generated_ta_list) {
@@ -742,6 +743,7 @@ public class NatTAs : IEnumerable {
         i++;
       }
     }
+    return gtas;
   }
 
   /**
@@ -749,10 +751,16 @@ public class NatTAs : IEnumerable {
    * TAs for this history
    */
   public IEnumerator GetEnumerator() {
-    if( _generated_ta_list == null ) {
-      GenerateTAs();
+    if( _generated_ta_list != null ) {
+      //If it is not null, it will never be null again:
+      return _generated_ta_list.GetEnumerator();
     }
-    return _generated_ta_list.GetEnumerator();
+    else {
+      //This happens if _generated_ta_list is not yet generated
+      IEnumerable gtas = GenerateTAs();
+      Interlocked.Exchange<IEnumerable>(ref _generated_ta_list, gtas); 
+      return gtas.GetEnumerator();
+    }
   }
 
   /**

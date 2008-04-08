@@ -101,10 +101,10 @@ namespace Brunet
       _queue_thread = new Thread(new ThreadStart(StartQueueProcessing));
     }
 
-    volatile protected bool _is_started = false;
+    protected int _is_started = 0;
     public override bool IsStarted
     {
-      get { return _is_started; }
+      get { return 1 == _is_started; }
     }
 
     /*
@@ -191,7 +191,9 @@ namespace Brunet
 
     public override void Start()
     {
-      _is_started = true;
+      if( 1 == Interlocked.Exchange(ref _is_started, 1) ) {
+        throw new Exception("Can only call FunctionEdgeListener.Start() once!"); 
+      }
       lock( _listener_map ) {
         _listener_map[ _listener_id ] = this;
       }
@@ -200,7 +202,7 @@ namespace Brunet
 
     public override void Stop()
     {
-      _is_started = false;
+      Interlocked.Exchange(ref _is_started, 0);
       _queue.Close();
       if( Thread.CurrentThread != _queue_thread ) {
         _queue_thread.Join();
@@ -214,7 +216,7 @@ namespace Brunet
       Random r = new Random();
       
       try {
-        while( _is_started ) {
+        while( 1 == _is_started ) {
           FQEntry ent = (FQEntry)_queue.Dequeue();
           if( r.NextDouble() > _ploss_prob ) {
             FunctionEdge fe = ent.Edge;

@@ -160,10 +160,7 @@ namespace Brunet
     }
 
     /*
-     * You can't make DateTime structs volatile, so we
-     * make this a long and VolatileRead/Write, and
-     * convert to and from.  This is so we don't have
-     * to get a lock everytime we get a packet
+     * We use Interlocked and convert the DateTime to a long
      */
     protected long _last_in_packet_datetime;
     /**
@@ -230,14 +227,12 @@ namespace Brunet
         //log.Error("Error: Packet is Null");
       }
 #endif
-      //_sub is volatile, so there is no chance for a race here 
-      Subscriber s = _sub;
-      if( s != null ) {
-        s.Handle(b, this);
-        //This is volatile, so no need to lock:
+      try {
+        _sub.Handle(b, this);
         Interlocked.Exchange(ref _last_in_packet_datetime, DateTime.UtcNow.Ticks);
       }
-      else {
+      catch(System.NullReferenceException) {
+        //this can happen if _sub is null
         //We don't record the time of this packet.  We don't
         //want unhandled packets to keep edges open.
         //

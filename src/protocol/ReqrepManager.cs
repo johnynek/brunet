@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //#define REQREP_DEBUG
 using System;
+using System.Threading;
 using System.Collections;
 
 namespace Brunet {
@@ -153,7 +154,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
      public readonly DateTime RequestDate;
      public ISender ReturnPath { get { return RequestKey.Sender; } }
      public readonly RequestKey RequestKey;
-     protected volatile bool have_sent = false;
+     protected int have_sent = 0;
 
      public ReplyState(RequestKey rk) {
        RequestKey = rk;
@@ -161,8 +162,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
      }
 
      public void Send(ICopyable data) {
-       if( !have_sent ) {
-         have_sent = true;
+       if( 0 == Interlocked.Exchange(ref have_sent, 1) ) {
          //Make the header:
          byte[] header = new byte[5];
          header[0] = (byte)ReqrepType.Reply;
