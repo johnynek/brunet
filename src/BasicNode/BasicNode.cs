@@ -152,11 +152,7 @@ namespace Brunet.Applications {
     public virtual void CreateNode() {
       AHAddress address = (AHAddress) AddressParser.Parse(_node_config.NodeAddress);
       _node = new StructuredNode(address, _node_config.BrunetNamespace);
-
-      IEnumerable addresses = null;
-      if(_node_config.DevicesToBind != null) {
-        addresses = IPAddresses.GetIPAddresses(_node_config.DevicesToBind);
-      }
+      IEnumerable addresses = IPAddresses.GetIPAddresses(_node_config.DevicesToBind);
 
       Brunet.EdgeListener el = null;
       foreach(NodeConfig.EdgeListener item in _node_config.EdgeListeners) {
