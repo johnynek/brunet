@@ -101,6 +101,19 @@ namespace Brunet {
     protected TimeSpan _current_retry_interval;
     protected DateTime _last_retry_time;
 
+    /** Checks logging is enabled. */
+    protected int _log_enabled = -1;
+    protected bool LogEnabled {
+      get {
+        lock(_sync) {
+          if (_log_enabled == -1) {
+            _log_enabled = ProtocolLog.SCO.Enabled ? 1 : 0;
+          }
+          return (_log_enabled == 1);
+        }
+      }
+    }
+    
     //When we last tried to optimize shortcut.
     protected DateTime _last_optimize_time;
     public static readonly int OPTIMIZE_DELAY = 300;//300 seconds
@@ -133,7 +146,9 @@ namespace Brunet {
     protected TargetSelector _target_selector;
     public TargetSelector TargetSelector {
       set {
-        _target_selector = value;
+        lock(_sync) {
+          _target_selector = value;
+        }
       }
     }
 
@@ -188,11 +203,13 @@ namespace Brunet {
     public int DesiredShortcuts {
       get {
         int desired_sc = 1;
-        if( _node.NetworkSize > 2 ) {
+        /** 
+         * for networks smaller than 10 nodes, more than 1 shortcuts might be superfluous.
+         */
+        if( _node.NetworkSize > 10 ) {
           //0.5*logN
           desired_sc = (int) Math.Ceiling(0.5*Math.Log(_node.NetworkSize)/Math.Log(2.0));
         }
-        //Console.Error.WriteLine("desired_sc: {0}", desired_sc);
         return desired_sc;
       }
     }
@@ -230,7 +247,7 @@ namespace Brunet {
         catch(Exception) { }
         
         if (rc == null || lc == null) {
-          if(ProtocolLog.SCO.Enabled) {
+          if(LogEnabled) {
             ProtocolLog.Write(ProtocolLog.SCO, String.Format(
               "{0}: No left or right neighbor (false)", our_addr));
           }
@@ -260,7 +277,7 @@ namespace Brunet {
             AHAddress stat_addr = n_info.Address as AHAddress;
             if (stat_addr.IsBetweenFromLeft(our_addr, left_addr)) {
               //we are expecting a better candidate for left neighbor!
-              if(ProtocolLog.SCO.Enabled)
+              if(LogEnabled)
                 ProtocolLog.Write(ProtocolLog.SCO, String.Format(
                   "{0}: Better left: {1} (false)", our_addr, stat_addr));
               return false;
@@ -272,13 +289,13 @@ namespace Brunet {
             AHAddress stat_addr = n_info.Address as AHAddress;
             if (stat_addr.IsBetweenFromRight(our_addr, right_addr)) {
               //we are expecting a better candidate for left neighbor!
-              if(ProtocolLog.SCO.Enabled)
+              if(LogEnabled)
                 ProtocolLog.Write(ProtocolLog.SCO, String.Format(
                   "{0}: Better right: {1} (false)", our_addr, stat_addr));
               return false;
             }
           }
-          if(ProtocolLog.SCO.Enabled)
+          if(LogEnabled)
             ProtocolLog.Write(ProtocolLog.SCO, String.Format(
               "{0}:  Returning (true)", our_addr));
           return true;
@@ -422,13 +439,13 @@ namespace Brunet {
 
     public bool NeedBypass {
       get {
-        if (ProtocolLog.SCO.Enabled) {
+        if (LogEnabled) {
           ProtocolLog.Write(ProtocolLog.SCO, 
                             String.Format("Checking if need bypass"));
         }
         lock(_sync) {
           if (_need_bypass != -1) {
-            if (ProtocolLog.SCO.Enabled) {
+            if (LogEnabled) {
               ProtocolLog.Write(ProtocolLog.SCO, 
                                 String.Format("Returning: {0}.", (_need_bypass == 1)));
             }
@@ -449,14 +466,14 @@ namespace Brunet {
           }
 
           if (!found) {
-            if (ProtocolLog.SCO.Enabled) {
+            if (LogEnabled) {
               ProtocolLog.Write(ProtocolLog.SCO, String.Format("Returning: true."));
             }
             _need_bypass = 1;
             return true;
           } 
           else {
-            if (ProtocolLog.SCO.Enabled) {
+            if (LogEnabled) {
               ProtocolLog.Write(ProtocolLog.SCO, String.Format("Returning: false."));
             }
             _need_bypass = 0;
@@ -870,18 +887,31 @@ namespace Brunet {
       }
     }
 
+
+    /**
+     * Initiates connection setup.
+     * @param sender the ISender for the Connector to use
+     * @param contype the type of connection we want to make
+     */    
     protected void ConnectTo(ISender sender, string contype) {
       ConnectTo(sender, contype, 1);
     }
 
+    /**
+     * Initiates connection setup. The default token is the current node address. 
+     * @param sender the ISender for the Connector to use
+     * @param contype the type of connection we want to make
+     * @param responses the maximum number of ctm response messages to listen
+     */    
     protected void ConnectTo(ISender sender, string contype, int responses) {
       ConnectTo(sender, contype, _node.Address.ToString(), responses);
     }
 
     /**
+     * Initiates connection setup. 
      * @param sender the ISender for the Connector to use
      * @param contype the type of connection we want to make
-     * @param contype the token used for connection messages
+     * @param token the token used for connection messages
      * @param responses the maximum number of ctm response messages to listen
      */
     protected void ConnectTo(ISender sender, string contype, string token, int responses)
@@ -1133,8 +1163,11 @@ namespace Brunet {
 
       BigInteger target_int = new BigInteger(t_add % Address.Full);
       AHAddress start = new AHAddress(target_int);
-      Console.Error.WriteLine("SCO local: {0}, Selecting shortcut to create close to start: {1}.", 
-                              _node.Address, start);
+      if (LogEnabled) {
+        ProtocolLog.Write(ProtocolLog.SCO, 
+                          String.Format("SCO local: {0}, Selecting shortcut to create close to start: {1}.", 
+                                        _node.Address, start));
+      }
       //make a call to the target selector to find the optimal
       _target_selector.ComputeCandidates(start, (int) Math.Ceiling(logk), CreateShortcutCallback, null);
     }
@@ -1142,20 +1175,29 @@ namespace Brunet {
     /**
      * Callback function that is invoked when TargetSelector fetches candidate scores in a range.
      * Initiates connection setup. 
+     * Node: All connection messages can be tagged with a token string. This token string is currenly being
+     * used to keep the following information about a shortcut:
+     * 1. The node who initiated the shortcut setup.
+     * 2. The random target near which shortcut was chosen.
      * @param start address pointing to the start of range to query.
      * @param score_table list of candidate addresses sorted by score.
      * @param current currently selected optimal (nullable) 
      */
     protected void CreateShortcutCallback(Address start, SortedList score_table, Address current) {
       if (score_table.Count > 0) {
-        //we remember our address and the start of range inside the token.
+        /**
+         * we remember our address and the start of range inside the token.
+         * token is the concatenation of 
+         * (a) local node address
+         * (b) random target for the range queried by target selector
+         */
         string token = _node.Address + start.ToString();
         //connect to the min_target
         Address min_target = (Address) score_table.GetByIndex(0);
         ISender send = null;
         if (start.Equals(min_target)) {
           //looks like the target selector simply returned our random address
-          if (ProtocolLog.SCO.Enabled) {
+          if (LogEnabled) {
             ProtocolLog.Write(ProtocolLog.SCO, 
                               String.Format("SCO local: {0}, Connecting (shortcut) to min_target: {1} (greedy), random_target: {2}.", 
                                             _node.Address, min_target, start));
@@ -1164,7 +1206,7 @@ namespace Brunet {
           send = new AHGreedySender(_node, min_target);
         } 
         else {
-          if (ProtocolLog.SCO.Enabled) {
+          if (LogEnabled) {
             ProtocolLog.Write(ProtocolLog.SCO, 
                               String.Format("SCO local: {0}, Connecting (shortcut) to min_target: {1} (exact), random_target: {2}.", 
                                   _node.Address, min_target, start));
@@ -1181,7 +1223,7 @@ namespace Brunet {
      * 
      */
     protected void CreateBypass() {
-      if (ProtocolLog.SCO.Enabled) {
+      if (LogEnabled) {
         ProtocolLog.Write(ProtocolLog.SCO, 
                           String.Format("SCO local: {0}, Selecting bypass to create.", 
                                         _node.Address));
@@ -1193,7 +1235,7 @@ namespace Brunet {
     protected void CreateBypassCallback(Address start, SortedList score_table, Address current) {
       if (score_table.Count > 0) {
         Address min_target = (Address) score_table.GetByIndex(0);
-        if (ProtocolLog.SCO.Enabled) {
+        if (LogEnabled) {
           ProtocolLog.Write(ProtocolLog.SCO, 
                             String.Format("SCO local: {0}, Connecting (bypass) to min_target: {1}", 
                                           _node.Address, min_target));
@@ -1216,7 +1258,7 @@ namespace Brunet {
         _last_optimize_time = now;
       }
 
-      if (ProtocolLog.SCO.Enabled) {
+      if (LogEnabled) {
         ProtocolLog.Write(ProtocolLog.SCO, 
                           String.Format("SCO local: {0}, Selcting a random shortcut to optimize.", 
                                         _node.Address));
@@ -1226,21 +1268,28 @@ namespace Brunet {
       //Get a random shortcut:
       ArrayList shortcuts = new ArrayList();
       foreach(Connection sc in _node.ConnectionTable.GetConnections(STRUC_SHORT) ) {
-        //only if we initiated it, we check if the connection is optimal
+        /** 
+         * Only if we initiated it, we check if the connection is optimal.
+         * First half of the token is initiator address, while the other half 
+         * is the start of the range.
+         */
         string token = sc.PeerLinkMessage.Token;
-        string initiator_addr = token.Substring(0, token.Length/2);
-        if (initiator_addr == _node.Address.ToString()) {
-          shortcuts.Add(sc);
+        if (token != null && token != String.Empty) {
+          string initiator_addr = token.Substring(0, token.Length/2);
+          if (initiator_addr == _node.Address.ToString()) {
+            shortcuts.Add(sc);
+          }
         }
       }
         
-      if( shortcuts.Count > 0 ) {
-        //pick a random shortcut to check for optimality
-        Connection sc = (Connection)shortcuts[ _rand.Next( shortcuts.Count ) ];
+
+      if (shortcuts.Count > 0) {
+        // Pick a random shortcut and check for optimality.
+        Connection sc = (Connection)shortcuts[ _rand.Next(shortcuts.Count) ];
         string token = sc.PeerLinkMessage.Token;
-        //second half of the token is the random target for the shortcut
+        // Second half of the token is the random target for the shortcut.
         Address random_target = AddressParser.Parse(token.Substring(token.Length/2));
-        if (ProtocolLog.SCO.Enabled) {
+        if (LogEnabled) {
           ProtocolLog.Write(ProtocolLog.SCO, 
                             String.Format("SCO local: {0}, Optimizing shortcut connection: {1}, random_target: {2}.",
                                           _node.Address, sc.Address, random_target));
@@ -1249,7 +1298,7 @@ namespace Brunet {
         _target_selector.ComputeCandidates(random_target, (int) Math.Ceiling(logk), 
                                            CheckShortcutCallback, sc.Address);
       } else {
-        if (ProtocolLog.SCO.Enabled) {
+        if (LogEnabled) {
           ProtocolLog.Write(ProtocolLog.SCO,
                             String.Format("SCO local: {0}, Cannot find a shortcut to optimize.", 
                                           _node.Address));
@@ -1257,8 +1306,7 @@ namespace Brunet {
       }
 
       //also optimize the bypass connections.
-
-      if (ProtocolLog.SCO.Enabled) {
+      if (LogEnabled) {
         ProtocolLog.Write(ProtocolLog.SCO, 
                           String.Format("SCO local: {0}, Selecting a bypass to optimize.", 
                                         _node.Address));
@@ -1267,13 +1315,13 @@ namespace Brunet {
     }
     
     /**
-     * Checks if the shortcut connection is still optimal, and trims it is necessary.
+     * Checks if the shortcut connection is still optimal, and trims it if not optimal.
      * @param random_target random target pointing to the start of the range for connection candidates.
      * @param score_table candidate addresses sorted by scores.
      * @param sc_address address of the current connection.
      */
     protected void CheckShortcutCallback(Address random_target, SortedList score_table, Address sc_address) {
-      if (ProtocolLog.SCO.Enabled) {
+      if (LogEnabled) {
         ProtocolLog.Write(ProtocolLog.SCO, 
                           String.Format("SCO local: {0}, Checking shortcut optimality: {1}.", 
                                 _node.Address, sc_address));
@@ -1287,15 +1335,18 @@ namespace Brunet {
         Connection to_trim = null;
         foreach(Connection c in _node.ConnectionTable.GetConnections(STRUC_SHORT) ) {
           string token = c.PeerLinkMessage.Token;
-          string initiator_address = token.Substring(0, token.Length/2);
-          if (initiator_address == _node.Address.ToString() && c.Address.Equals(sc_address)) {
-            to_trim = c;
-            break;
+          if (token != null && token != String.Empty) {
+            // First half of the token should be the connection initiator
+            string initiator_address = token.Substring(0, token.Length/2);
+            if (initiator_address == _node.Address.ToString() && c.Address.Equals(sc_address)) {
+              to_trim = c;
+              break;
+            }
           }
         }
         
         if (to_trim != null) {
-          if (ProtocolLog.SCO.Enabled) {
+          if (LogEnabled) {
             ProtocolLog.Write(ProtocolLog.SCO, 
                               String.Format("SCO local: {0}, Trimming shortcut : {1}, min_target: {2}.",
                                             _node.Address, to_trim.Address, min_target));
@@ -1308,7 +1359,7 @@ namespace Brunet {
           _node.GracefullyClose(to_trim.Edge);
         }
       } else {
-        if (ProtocolLog.SCO.Enabled) {
+        if (LogEnabled) {
           ProtocolLog.Write(ProtocolLog.SCO,
                             String.Format("SCO local: {0}, Shortcut is optimal: {1}.", 
                                           _node.Address, sc_address));
@@ -1323,17 +1374,19 @@ namespace Brunet {
      * @param bp_address address of the current connection (nullable).
      */
     protected void CheckBypassCallback(Address start, SortedList score_table, Address bp_address) {
-      if (ProtocolLog.SCO.Enabled) {
+      if (LogEnabled) {
         ProtocolLog.Write(ProtocolLog.SCO, 
-                          String.Format("SCO local: {0}, Checking bypass optimality: {1}.", 
-                                        _node.Address, bp_address));
+                          String.Format("SCO local: {0}, Checking bypass optimality.", 
+                                        _node.Address));
       }
       
       ArrayList bypass_cons = new ArrayList();
       foreach(Connection c in _node.ConnectionTable.GetConnections(STRUC_BYPASS) ) {
-        string initiator_address = c.PeerLinkMessage.Token;
-        if (initiator_address == _node.Address.ToString()) {
-          bypass_cons.Add(c);
+        string token = c.PeerLinkMessage.Token;
+        if (token != null) {
+          if (token == _node.Address.ToString()) {
+            bypass_cons.Add(c);
+          }
         }
       }
       
@@ -1342,7 +1395,7 @@ namespace Brunet {
         bool optimal = IsConnectionOptimal(bp.Address, score_table, max_rank);
         if (!optimal) {
           Address min_target = (Address) score_table.GetByIndex(0);
-          if (ProtocolLog.SCO.Enabled) {
+          if (LogEnabled) {
             ProtocolLog.Write(ProtocolLog.SCO, 
                               String.Format("SCO local: {0}, Trimming bypass : {1}, min_target: {2}.", 
                                             _node.Address, bp.Address, min_target));
@@ -1355,7 +1408,7 @@ namespace Brunet {
           _node.GracefullyClose(bp.Edge);
         }
         else {
-          if (ProtocolLog.SCO.Enabled) {
+          if (LogEnabled) {
             ProtocolLog.Write(ProtocolLog.SCO, 
                               String.Format("SCO local: {0}, Bypass is optimal: {1}.", 
                                             _node.Address, bp));
@@ -1366,6 +1419,11 @@ namespace Brunet {
 
     /**
      * Checks if connection to the current address is optimal. 
+     * Scores can vary over time, and there might be "tight" race for the optimal.
+     * We may end up in a situation that we are trimming a connection that is not optimal, even 
+     * though the penalty for not using the optimal is marginal. The following algorithm
+     * checks that the current selection is in the top-percentile and also the penalty for not
+     * using the current optimal is marginal. 
      * @param curr_address address of the current connection target. 
      * @param score_table candidate addresses sorted by scores.
      * @param max_rank maximum rank within the score table, beyond which connection 
@@ -1373,7 +1431,7 @@ namespace Brunet {
      */
     protected bool IsConnectionOptimal(Address curr_address, SortedList score_table, int max_rank) {
       if (score_table.Count == 0) {
-        if (ProtocolLog.SCO.Enabled) {
+        if (LogEnabled) {
           ProtocolLog.Write(ProtocolLog.SCO, 
                             String.Format("SCO local: {0}, Not sufficient scores available to determine optimality: {1}.", 
                                           _node.Address, curr_address));
@@ -1385,7 +1443,7 @@ namespace Brunet {
       bool doubtful = false; //if there is doubt on optimality of this connection.
       int curr_rank = score_table.IndexOfValue(curr_address);
       if (curr_rank == -1) {
-        if (ProtocolLog.SCO.Enabled) {
+        if (LogEnabled) {
           ProtocolLog.Write(ProtocolLog.SCO, 
                             String.Format("SCO local: {0}, No score available for current: {1}.", 
                                           _node.Address, curr_address));
@@ -1399,7 +1457,7 @@ namespace Brunet {
       } else if (curr_rank <= max_rank) {
         //not the minimum, but still in top %ile.
         double penalty = (double) score_table.GetKey(curr_rank)/(double) score_table.GetKey(0);
-        if (ProtocolLog.SCO.Enabled) {
+        if (LogEnabled) {
           ProtocolLog.Write(ProtocolLog.SCO, 
                             String.Format("SCO local: {0}, Penalty for using current: {1} penalty: {2}).", 
                                           _node.Address, curr_address, penalty));
@@ -1410,7 +1468,7 @@ namespace Brunet {
           optimal = true;
         } 
       } else {
-        if (ProtocolLog.SCO.Enabled) {        
+        if (LogEnabled) {        
           ProtocolLog.Write(ProtocolLog.SCO, 
                             String.Format("SCO local: {0}, Current: {1} too poorly ranked: {2}.", 
                                   _node.Address, curr_address, curr_rank));
@@ -1418,9 +1476,10 @@ namespace Brunet {
       }
 
       /** 
-       * if we are doubtful about the current selection, we will continue to treat it
+       * If we are doubtful about the current selection, we will continue to treat it
        * optimal for sometime.
        */
+      string log = null;
       lock(_sync) {
         if (optimal) {
           //clear the entry
@@ -1434,18 +1493,12 @@ namespace Brunet {
           int idx = (int) _doubts_table[curr_address];
           if (idx < MAX_DOUBT_BENEFITS) {
             _doubts_table[curr_address] = idx + 1;
-            if (ProtocolLog.SCO.Enabled) {        
-              ProtocolLog.Write(ProtocolLog.SCO,             
-                                String.Format("SCO local: {0}, Giving benfit: {1} of doubt for current: {2}.", 
-                                              _node.Address, idx, curr_address));
-            }
+            log = String.Format("SCO local: {0}, Giving benfit: {1} of doubt for current: {2}.", 
+                                       _node.Address, idx, curr_address);
             optimal = true;
           } else {
-            if (ProtocolLog.SCO.Enabled) {        
-              ProtocolLog.Write(ProtocolLog.SCO,
-                                String.Format("SCO local: {0}, Reached quota: {1} on doubts for current: {2}.", 
-                                              _node.Address, idx, curr_address));
-            }
+            log = String.Format("SCO local: {0}, Reached quota: {1} on doubts for current: {2}.", 
+                                _node.Address, idx, curr_address);
           }
         }
         
@@ -1455,6 +1508,9 @@ namespace Brunet {
           _doubts_table.Remove(curr_address);          
         }
       } //end of lock
+      if (LogEnabled) {
+        ProtocolLog.Write(ProtocolLog.SCO, log);
+      }
       return optimal;
     }
 

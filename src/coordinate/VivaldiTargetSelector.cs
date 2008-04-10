@@ -31,6 +31,12 @@ namespace Brunet.Coordinate {
    * This class implements an optimizer for the selection of shortcut connections
    * by the structured connection overlord. The goal is to minimize the total latency
    * incurred by routing of keys, by incorporating latencies to pick shortcuts. 
+   * The algorithm works as follows:
+   * 1. The SCO picks a random target x from Kleinberg's distribution and invokes the
+   *    Vivaldi Target Selector (VTS) to query possible candidate nodes. 
+   * 2. The VTS queries coordinates of log(n) nodes, starting at (to the left of) x.
+   * 3. These candidate node addresses are returned back to the SCO, sorted 
+   *    on distances to the current node in network coordinate space.
    */
   public class VivaldiTargetSelector: TargetSelector {
 #if VTS_DEBUG
@@ -40,7 +46,6 @@ namespace Brunet.Coordinate {
     //new outcomes are added to this list
     protected static ArrayList _query_list = new ArrayList();
     //outcomes in this list are written to file
-    protected static ArrayList _action_list = new ArrayList();
     protected static Thread _checkpoint_thread = null;
 #endif
 
@@ -104,15 +109,20 @@ namespace Brunet.Coordinate {
      * @param current current selection of the optimal in the provided range.
      */
     public override void ComputeCandidates(Address start, int range, TargetSelectorDelegate cb, Address current) {
+      Channel q = null;
+      RequestState rs = null;
       lock(_sync) {
         Console.Error.WriteLine("VTS local: {0}, start: {1}, range: {2}, count: {3}", _node.Address, start, range, _num_requests);
         if (_num_requests == MAX_REQUESTS) {
           return; //do nothing and return;
         }
         _num_requests++;
+        q = new Channel();
+        rs = new RequestState(start, range, cb, current);
+        _channel_to_state[q] = rs;        
       }
+      
       //create a new request state
-      RequestState rs = new RequestState(start, range, cb, current);
       ISender s = new ForwardingSender(_node, 
                                        start, 
                                        AHPacket.AHOptions.Greedy, 
@@ -120,13 +130,7 @@ namespace Brunet.Coordinate {
                                        (short) range,
                                        AHPacket.AHOptions.Path
                                        );
-      Channel q = new Channel();
 
-      lock(_sync) {
-        //record the request state.
-        _channel_to_state[q] = rs;
-      }
-      
       q.EnqueueEvent += new EventHandler(EnqueueHandler);
       q.CloseEvent += new EventHandler(CloseHandler);
       RpcManager rpc = RpcManager.GetInstance(_node);
@@ -138,6 +142,7 @@ namespace Brunet.Coordinate {
      */
     protected void EnqueueHandler(object o, EventArgs args) {
       Channel q = (Channel) o;
+      bool close_channel = false;
       lock(_sync) {
         try {
           RpcResult result = q.Dequeue() as RpcResult;
@@ -147,7 +152,6 @@ namespace Brunet.Coordinate {
           vs.Position = new Point((double[]) ((ArrayList) ht_position["side"]).ToArray(typeof(double)), (double) ht_position["height"]);
           vs.WeightedError = (double) ht["error"];
           ForwardingSender fs = result.ResultSender as ForwardingSender;
-          
           //record this information in the request state.
           RequestState request = (RequestState) _channel_to_state[q];
           if (request != null) {
@@ -156,11 +160,14 @@ namespace Brunet.Coordinate {
               Console.Error.WriteLine("VTS local: {0}, start: {1}, dest: {2}", _node.Address, request.Start, fs.Destination);
               request.ResultTable[fs.Destination] = new object[] {vs, (string) ht["hostname"]};
             }
-          }
-          if (request.ResultTable.Keys.Count >= (int) request.Range*0.75) {
-            q.Close();
+            if (request.ResultTable.Keys.Count >= (int) request.Range*0.75) {
+              close_channel = true;
+            }
           }
         } catch(Exception x) {}
+      }
+      if (close_channel) {
+        q.Close();
       }
     }
 
@@ -182,6 +189,11 @@ namespace Brunet.Coordinate {
         _num_requests--;
       }
 
+      /** 
+       * The request object has been removed the shared data structure.
+       *  Since no one alse has access to it, it can be accessed outside the lock.
+       */
+
       SortedList sorted_result = new SortedList();
 #if VTS_DEBUG
       SortedList sorted_stat = new SortedList();
@@ -200,7 +212,11 @@ namespace Brunet.Coordinate {
 #endif
       }
 
-      _query_list.Add(sorted_stat);
+#if VTS_DEBUG
+      lock(_sync) {
+        _query_list.Add(sorted_stat);
+      }
+#endif
       request.Callback(request.Start, sorted_result, request.Current);
     }
 
@@ -212,9 +228,10 @@ namespace Brunet.Coordinate {
      */
     protected static void CheckpointThread() {
       bool start = true;
+      ArrayList action_list = new ArrayList();
       do {
         System.Threading.Thread.Sleep(CHECKPOINT_INTERVAL*1000);
-        _action_list = Interlocked.Exchange(ref _query_list, _action_list);
+        action_list = Interlocked.Exchange(ref _query_list, action_list);
         try {
           TextWriter tw = null; 
           if (start) {
@@ -227,25 +244,24 @@ namespace Brunet.Coordinate {
             tw = new StreamWriter(_checkpoint_file, true);
           }
           
-          while (_action_list.Count > 0) {
-            SortedList sorted_stat = (SortedList) _action_list[0];
+          while (action_list.Count > 0) {
+            SortedList sorted_stat = (SortedList) action_list[0];
             foreach(object[] curr_result in sorted_stat.Values) {
               //also write the checkpoint time
               double d = (double) curr_result[0];
               string host = (string) curr_result[1];
               tw.Write("{0} {1} ", host, d);
             }
-            _action_list.RemoveAt(0);
+            action_list.RemoveAt(0);
             tw.WriteLine();
           }
           tw.Close();
         } catch (Exception x) {
           Console.Error.WriteLine(x);
-          _action_list.Clear();
+          action_list.Clear();
         }
       } while (true);
-#endif
     }
+#endif
   }
 }
-  

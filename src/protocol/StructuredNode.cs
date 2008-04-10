@@ -38,6 +38,12 @@ namespace Brunet
      */
     protected ConnectionOverlord _leafco;
     protected ConnectionOverlord _sco;
+    //give access to the Structured connection overlord
+    public StructuredConnectionOverlord Sco {
+      get {
+        return _sco as StructuredConnectionOverlord;
+      }
+    }
     protected ConnectionOverlord _cco;
     protected ConnectionOverlord _localco;
 
