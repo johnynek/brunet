@@ -181,7 +181,7 @@ namespace Brunet.DistributedServices {
       PutHandler(key, value, ttl, unique);
       Channel remote_put = new Channel();
       remote_put.CloseAfterEnqueue();
-      remote_put.EnqueueEvent += delegate(Object o, EventArgs eargs) {
+      remote_put.CloseEvent += delegate(Object o, EventArgs eargs) {
         object result = false;
         try {
           result = remote_put.Dequeue();

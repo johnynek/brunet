@@ -28,30 +28,7 @@
       </sources>
     </csc>
 
-    <csc target="exe" output="${build.dir}/BasicNode.exe" doc="${build.dir}/BasicNode.xml">
-      <sources failonempty="true">
-        <include name="BasicNode.cs"/>
-        <include name="NodeConfig.cs"/>
-        <include name="IPAddresses.cs"/>
-        <include name="Information.cs"/>
-        <include name="OSDependent.cs"/>
-        <include name="Utils.cs"/>
-        <include name="Shutdown.cs"/>
-      </sources>
-      <references>
-        <include name="${build.dir}/Brunet.dll"/>
-        <include name="${build.dir}/Brunet.Dht.dll"/>
-        <include name="${build.dir}/Brunet.Coordinate.dll"/>
-        <include name="${build.dir}/Ipop.IBlockingQueue.dll"/>
-        <include name="${build.dir}/Brunet.XmlRpc.dll" />
-        <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />
-        <include name="${build.dir}/Brunet.DhtService.dll"/>
-        <include name="System.Runtime.Remoting.dll"/>
-        <include name="Mono.Posix.dll"/>
-      </references>
-    </csc>
-
-    <csc target="library" output="${build.dir}/Brunet.BasicNode.dll">
+    <csc target="exe" output="${build.dir}/BasicNode.exe">
       <sources failonempty="true">
         <include name="BasicNode.cs"/>
         <include name="NodeConfig.cs"/>
@@ -100,7 +77,6 @@
 
     <copy todir="${lib.dir}" failonerror="true">
       <fileset basedir="${build.dir}">
-        <include name="Brunet.BasicNode.dll" />
         <include name="Brunet.IPAddresses.dll" />
       </fileset>
     </copy>

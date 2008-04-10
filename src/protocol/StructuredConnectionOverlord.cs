@@ -30,6 +30,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define SEND_DIRECTIONAL_TO_NEAR
 
 using System;
+using System.Threading;
 using System.Collections;
 
 namespace Brunet {
@@ -90,7 +91,7 @@ namespace Brunet {
     protected readonly Node _node;
     protected readonly Random _rand;
 
-    volatile protected bool _compensate;
+    protected int _compensate;
     //We use this to make sure we don't trim connections
     //too fast.  We want to only trim in the "steady state"
     protected DateTime _last_connection_time;
@@ -196,8 +197,8 @@ namespace Brunet {
      */
     override public bool IsActive
     {
-      get { return _compensate; }
-      set { _compensate = value; }
+      get { return 1 ==_compensate; }
+      set { Interlocked.Exchange(ref _compensate, value ? 1 : 0); }
     }    
 
     public int DesiredShortcuts {

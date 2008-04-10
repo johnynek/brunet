@@ -253,8 +253,7 @@ namespace Brunet {
         _node.HeartBeatEvent += this.CheckState;
         //_node.SubscribeToSends(AHPacket.Protocol.IP, this);
 	//subscribe the ip_handler to IP packets
-        ISource source = _node.GetTypeSource(PType.Protocol.IP);
-        source.Subscribe(this, AHPacket.Protocol.IP);
+        _node.GetTypeSource(PType.Protocol.IP).Subscribe(this, null);
       }
 #if ARI_EXP_DEBUG
       Console.Error.WriteLine("ChotaConnectionOverlord starting : {0}", DateTime.UtcNow);
