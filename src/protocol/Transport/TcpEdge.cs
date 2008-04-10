@@ -141,6 +141,7 @@ namespace Brunet
                              (IPEndPoint) _sock.RemoteEndPoint);
       //We use Non-blocking sockets here
       s.Blocking = false;
+      s.SendBufferSize = Packet.MaxLength;
       _rec_state = new ReceiveState();
       _send_state = new SendState();
     }
@@ -299,11 +300,30 @@ namespace Brunet
             //We don't seem to need to actually send now
             return;
           }
-          int sent = _sock.Send( buf.Buffer, buf.Offset, written, SocketFlags.None);
-          //Now we have sent, let's see if we have to wait to send more:
-          if( sent <= 0 ) {
-            //This is the case of the Edge closing.
-            throw new EdgeException("Edge is closed");
+          int sent = 0;
+          try {
+            sent = _sock.Send( buf.Buffer, buf.Offset, written, SocketFlags.None);
+            //Now we have sent, let's see if we have to wait to send more:
+            if( sent <= 0 ) {
+              //This is the case of the Edge closing.
+              throw new EdgeException("Edge is closed");
+            }
+          }
+          catch(SocketException sx) {
+            if (sx.ErrorCode == 10035) {
+            /*
+             * This is the WSAEWOULDBLOCK error code from the Winsock 2
+             * documentation
+             *
+             * We sometimes can't send because there is no buffer space,
+             * in this case, just ignore this attempt, and try again later
+             */
+            
+            }
+            else {
+              //Some other kind of error, rethrow:
+              throw;
+            }
           }
           if( sent < written ) {
             //We couldn't send the whole buffer, save some for later:

@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //#define REQREP_DEBUG
 using System;
+using System.Threading;
 using System.Collections;
 
 namespace Brunet {
@@ -37,7 +38,7 @@ namespace Brunet {
  * effort attempt to deal with lost packets.
  */
 	
-public class ReqrepManager : IDataHandler, ISource {
+public class ReqrepManager : SimpleSource, IDataHandler {
   
   public enum ReqrepType : byte
   {
@@ -64,7 +65,6 @@ public class ReqrepManager : IDataHandler, ISource {
   public ReqrepManager(string info) {
     _info = info;
 
-    _sync = new Object();
     _rand = new Random();
     _req_handler_table = new Hashtable();
     _req_state_table = new Hashtable();
@@ -90,33 +90,6 @@ public class ReqrepManager : IDataHandler, ISource {
     _nonedge_rtt_stats = new TimeStats(_nonedge_reqtimeout.TotalMilliseconds, 0.98);
     _edge_rtt_stats = new TimeStats(_edge_reqtimeout.TotalMilliseconds, 0.98);
     _last_check = DateTime.UtcNow;
-  }
-
-
-  protected class Sub {
-    public readonly IDataHandler Handler;
-    public readonly object State;
-    public Sub(IDataHandler h, object s) { Handler = h; State =s; }
-    public void Handle(MemBlock b, ISender f) { Handler.HandleData(b, f, State); }
-  }
-
-  protected volatile Sub _sub;
-
-  public virtual void Subscribe(IDataHandler hand, object state) {
-    lock( _sync ) {
-      _sub = new Sub(hand, state);
-    }
-  }
-
-  public virtual void Unsubscribe(IDataHandler hand) {
-    lock( _sync ) {
-      if( _sub.Handler == hand ) {
-        _sub = null;
-      }
-      else {
-        throw new Exception(String.Format("Handler: {0}, not subscribed", hand));
-      }
-    }
   }
 
   /** 
@@ -181,7 +154,7 @@ public class ReqrepManager : IDataHandler, ISource {
      public readonly DateTime RequestDate;
      public ISender ReturnPath { get { return RequestKey.Sender; } }
      public readonly RequestKey RequestKey;
-     protected volatile bool have_sent = false;
+     protected int have_sent = 0;
 
      public ReplyState(RequestKey rk) {
        RequestKey = rk;
@@ -189,8 +162,7 @@ public class ReqrepManager : IDataHandler, ISource {
      }
 
      public void Send(ICopyable data) {
-       if( !have_sent ) {
-         have_sent = true;
+       if( 0 == Interlocked.Exchange(ref have_sent, 1) ) {
          //Make the header:
          byte[] header = new byte[5];
          header[0] = (byte)ReqrepType.Reply;
@@ -253,7 +225,6 @@ public class ReqrepManager : IDataHandler, ISource {
 
    protected readonly string _info;
    public string Info { get { return _info; } }
-   protected readonly object _sync;
    protected readonly Random _rand;
    protected Hashtable _req_state_table;
    protected Cache _reply_cache;

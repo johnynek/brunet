@@ -5,7 +5,9 @@ using CookComputing.XmlRpc;
 
 namespace Brunet.Rpc {
   /**
-   * ArdConverter compatible types
+   * Converts between ADR and XML-RPC compatible types.
+   * 
+   * ArdConverter compatible types:
    * string, Array, IList, IDictionary, bool, byte, sbyte, short, ushort, int, uint, long,
    * ulong, float, Exception, MemBlock, *null*
    * 

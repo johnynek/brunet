@@ -34,10 +34,10 @@ namespace Brunet
   public class UdpEdge : Edge
   {
     protected readonly bool inbound;
-    protected volatile bool _is_closed;
+    protected int _is_closed;
     protected readonly IEdgeSendHandler _send_cb;
 
-    protected volatile System.Net.EndPoint end;
+    protected System.Net.EndPoint end;
     /**
      * This is the IPEndPoint for this UdpEdge.
      * No one other than the EdgeListeners that created
@@ -89,7 +89,7 @@ namespace Brunet
     {
       _send_cb = send_cb;
       inbound = is_in;
-      _is_closed = false;
+      _is_closed = 0;
       _create_dt = DateTime.UtcNow;
 
       _last_out_packet_datetime = _create_dt.Ticks;
@@ -104,13 +104,14 @@ namespace Brunet
 
     public override void Close()
     {
-      _is_closed = true;
-      base.Close();
+      if(0 == Interlocked.Exchange(ref _is_closed, 1) ) {
+        base.Close();
+      }
     }
 
     public override bool IsClosed
     {
-      get { return _is_closed; }
+      get { return 1 == _is_closed; }
     }
     public override bool IsInbound
     {
@@ -127,7 +128,7 @@ namespace Brunet
 
     public override void Send(ICopyable p)
     {
-      if( _is_closed ) {
+      if( 1 == _is_closed ) {
         throw new EdgeException("Tried to send on a closed UdpEdge"); 
       }
       if( p == null ) {
@@ -181,7 +182,7 @@ namespace Brunet
     //UDP ports are always bi-directional, and never ephemeral
     public override bool LocalTANotEphemeral { get { return true; } }
     
-    protected volatile TransportAddress _remoteta;
+    protected TransportAddress _remoteta;
     public override TransportAddress RemoteTA
     {
       get { return _remoteta; }

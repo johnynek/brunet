@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using System;
+using System.Threading;
 using System.Collections;
 using System.Collections.Specialized;
 
@@ -81,7 +82,7 @@ namespace Brunet
     protected readonly ListDictionary _to_close;
 
     //This is true when the node starts to disconnect
-    protected volatile bool _disconnecting;
+    protected int _disconnecting;
     /**
      * You should subscribe this to a Node, with the state being the node
      * it is subscribed to.  It can work for more than one node
@@ -94,11 +95,11 @@ namespace Brunet
       _node = n;
       _node.HeartBeatEvent += this.DelayedCloseHandler;
       _to_close = new ListDictionary();
-      _disconnecting = false;
+      _disconnecting = 0;
       //When Disconnect is called, set disconnecting to true, disallowing new
       //connections.
       _node.DepartureEvent += delegate(object o, EventArgs a) {
-        _disconnecting = true;
+        Interlocked.Exchange(ref _disconnecting, 1);
       };
     }
 
@@ -327,7 +328,7 @@ namespace Brunet
      */
     public IDictionary GetStatus(IDictionary status_message, ISender edge) {
       //we just got s status request
-      if( _disconnecting ) {
+      if( 1 == _disconnecting ) {
         throw new AdrException((int)ErrorMessage.ErrorCode.Disconnecting, "disconnecting");
       }
       StatusMessage sm = new StatusMessage(status_message);
@@ -444,7 +445,7 @@ namespace Brunet
         err = new ErrorMessage(ErrorMessage.ErrorCode.ConnectToSelf,
                                "You are me: ");
       }
-      else if( _disconnecting ) {
+      else if( 1 == _disconnecting ) {
         err = new ErrorMessage(ErrorMessage.ErrorCode.Disconnecting,
                                String.Format("I am disconnecting. local: {0}", local_add));
       }

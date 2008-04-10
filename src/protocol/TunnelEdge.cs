@@ -82,8 +82,8 @@ namespace Brunet
     protected int _remote_id;
     public int RemoteID {
       get {
-        //This should not be volatile since Interlocked already
-        //does a memory barrier.  Since we only change remote_id
+        //Interlocked does a memory barrier.
+        //Since we only change remote_id
         //in Interlocked, it is okay.
         return _remote_id;
       }
@@ -161,7 +161,7 @@ namespace Brunet
     /**
      * Local URI representation for the edge. 
      */
-    protected volatile TransportAddress _localta;
+    protected TransportAddress _localta;
     public override TransportAddress LocalTA
     {
       get { return _localta; }
@@ -169,7 +169,7 @@ namespace Brunet
     /**
      * Remote URI representation for the edge. 
      */
-    protected volatile TransportAddress _remoteta;
+    protected TransportAddress _remoteta;
     public override TransportAddress RemoteTA
     {
       get { return _remoteta; }

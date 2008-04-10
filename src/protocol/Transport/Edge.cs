@@ -39,7 +39,7 @@ namespace Brunet
    * when a Packet arrives.
    */
 
-  public abstract class Edge : IComparable, ISender, ISource
+  public abstract class Edge : SimpleSource, IComparable, ISender
   {
     protected static long _edge_count;
 
@@ -55,14 +55,6 @@ namespace Brunet
       _edge_no = System.Threading.Interlocked.Increment( ref _edge_count );
     }
 
-    protected class Sub {
-      public readonly IDataHandler Handler;
-      public readonly object State;
-      public Sub(IDataHandler h, object s) { Handler = h; State =s; }
-      public void Handle(MemBlock b, ISender f) { Handler.HandleData(b, f, State); }
-    }
-    protected volatile Sub _sub;
-    protected readonly object _sync;
     /**
      * Closes the Edge, further Sends are not allowed
      */
@@ -168,10 +160,7 @@ namespace Brunet
     }
 
     /*
-     * You can't make DateTime structs volatile, so we
-     * make this a long and VolatileRead/Write, and
-     * convert to and from.  This is so we don't have
-     * to get a lock everytime we get a packet
+     * We use Interlocked and convert the DateTime to a long
      */
     protected long _last_in_packet_datetime;
     /**
@@ -238,14 +227,12 @@ namespace Brunet
         //log.Error("Error: Packet is Null");
       }
 #endif
-      //_sub is volatile, so there is no chance for a race here 
-      Sub s = _sub;
-      if( s != null ) {
-        s.Handle(b, this);
-        //This is volatile, so no need to lock:
+      try {
+        _sub.Handle(b, this);
         Interlocked.Exchange(ref _last_in_packet_datetime, DateTime.UtcNow.Ticks);
       }
-      else {
+      catch(System.NullReferenceException) {
+        //this can happen if _sub is null
         //We don't record the time of this packet.  We don't
         //want unhandled packets to keep edges open.
         //
@@ -255,21 +242,6 @@ namespace Brunet
       }
     }
 
-    public virtual void Subscribe(IDataHandler hand, object state) {
-      lock( _sync ) {
-        _sub = new Sub(hand, state);
-      }
-    }
-    public virtual void Unsubscribe(IDataHandler hand) {
-      lock( _sync ) {
-        if( _sub.Handler == hand ) {
-          _sub = null;
-        }
-        else {
-          throw new Exception(String.Format("Handler: {0}, not subscribed", hand));
-        }
-      }
-    }
     /**
      * Prints the local address, the direction and the remote address
      */

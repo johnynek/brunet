@@ -39,7 +39,7 @@ namespace Brunet
    * connections. 
    * 
    */
-  abstract public class Node : ISender, IDataHandler
+  abstract public class Node : IDataHandler, ISender
   {
     /**
      * Create a node in the realm "global"
@@ -58,18 +58,18 @@ namespace Brunet
       _sync = new Object();
       lock(_sync)
       {
+        DemuxHandler = new DemuxHandler();
         /*
          * Make all the hashtables : 
          */
         _local_add = AddressParser.Parse( addr.ToMemBlock() );
         _realm = String.Intern(realm);
-        _subscription_table = new Hashtable();
 
         _task_queue = new NodeTaskQueue(this);
         _packet_queue = new BlockingQueue();
 
-        _running = false;
-        _send_pings = true;
+        _running = 0;
+        _send_pings = 0;
 
         _connection_table = new ConnectionTable(_local_add);
         _connection_table.ConnectionEvent += this.ConnectionHandler;
@@ -79,12 +79,12 @@ namespace Brunet
         
         /* Set up the ReqrepManager as a filter */
         _rrm = new ReqrepManager(Address.ToString());
-        GetTypeSource(PType.Protocol.ReqRep).Subscribe(_rrm, null);
+        DemuxHandler.GetTypeSource(PType.Protocol.ReqRep).Subscribe(_rrm, null);
         _rrm.Subscribe(this, null);
         this.HeartBeatEvent += _rrm.TimeoutChecker;
         /* Set up RPC */
         _rpc = new RpcManager(_rrm);
-        GetTypeSource( PType.Protocol.Rpc ).Subscribe(_rpc, null);
+        DemuxHandler.GetTypeSource( PType.Protocol.Rpc ).Subscribe(_rpc, null);
 
         /*
          * Where there is a change in the Connections, we might have a state
@@ -115,9 +115,7 @@ namespace Brunet
         _connection_timeout = new TimeSpan(0,0,0,0,15000);
         /* Set up the heartbeat */
         _heart_period = 500; //500 ms, or 1/2 second.
-        _heart_beat_object = new HeartBeatObject(this);
-        _heart_beat_thread = new Thread(this.HeartBeatProducer);
-        _heart_beat_thread.Start();
+        _heart_beat_object = new HeartBeatObject(this, new TimeSpan(0,0,0,0,_heart_period));
         
         //Check the edges from time to time
         this.HeartBeatEvent += new EventHandler(this.CheckEdgesCallback);
@@ -175,86 +173,53 @@ namespace Brunet
      * They handle executing the heartbeat events
      */
     protected class HeartBeatObject : IAction {
-      protected int _running;
+      protected int _inqueue;
       //Return true if we are in the queue
-      public bool InQueue { get { return (_running == 1); } }
+      public bool InQueue { get { return (_inqueue == 1); } }
       protected readonly Node LocalNode;
-      public HeartBeatObject(Node n) {
+      protected long _last_hb_dt;
+      protected readonly TimeSpan _heart_beat_interval;
+
+      public TimeSpan TimeSinceLastFire {
+        get {
+          return new TimeSpan(DateTime.UtcNow.Ticks - Interlocked.Read(ref _last_hb_dt));
+        }
+      }
+
+      public HeartBeatObject(Node n, TimeSpan interval) {
         LocalNode = n;
+        _heart_beat_interval = interval;
+        SetTime();
       }
       /*
        * @returns the previous value.
        */
       public bool SetInQueue(bool v) {
-        int run = v ? 1 : 0;
-        return (Interlocked.Exchange(ref _running, run) == 1);
+        int q = v ? 1 : 0;
+        return (Interlocked.Exchange(ref _inqueue, q) == 1);
       }
 
+      protected void SetTime() {
+        Interlocked.Exchange(ref _last_hb_dt, DateTime.UtcNow.Ticks);
+      }
       public void Start() {
         LocalNode.RaiseHeartBeatEvent();
+        SetTime();
         SetInQueue(false);
       }
-    }
-
-    /**
-     * This class represents the demultiplexing of each
-     * type of data to different handlers
-     */
-    protected class NodeSource : ISource {
-      protected volatile ArrayList _subs;
-      protected readonly object _sync;
-      protected class Sub {
-        public readonly IDataHandler Handler;
-        public readonly object State;
-        public Sub(IDataHandler dh, object state) { Handler = dh; State = state; }
-        public void Handle(MemBlock b, ISender retpath) {
-          Handler.HandleData(b, retpath, State);
-        }
-        //So we can look up subscriptions based only on Handler equality
-        public override bool Equals(object o) {
-          Sub s = o as Sub;
-          if( s != null ) {
-            return (s.Handler == Handler);
-          }
-          else {
-            return false;
-          }
-        }
-        public override int GetHashCode() { return Handler.GetHashCode(); }
-      }
-
-      public NodeSource() {
-        _subs = new ArrayList();
-        _sync = new object();
-      }
-
-      public void Subscribe(IDataHandler h, object state) {
-        Sub s = new Sub(h, state);
-        //We have to lock so there is no race between the read and the write
-        lock( _sync ) {
-          _subs = Functional.Add(_subs, s);
-        }
-      }
-      public void Unsubscribe(IDataHandler h) {
-        Sub s = new Sub(h, null);
-        int idx = _subs.IndexOf(s);
-        //We have to lock so there is no race between the read and the write
-        lock( _sync ) {
-          _subs = Functional.RemoveAt(_subs, idx);
-        }
-      }
-      /**
-       * @return the number of Handlers that saw this data
+      /*
+       * Check to see if we need to get back in the queue
        */
-      public int Announce(MemBlock b, ISender return_path) {
-        ArrayList subs = _subs;
-        int handlers = subs.Count;
-        for(int i = 0; i < handlers; i++) {
-          Sub s = (Sub)subs[i];
-          //No need to lock since subs can never change
-          s.Handle(b, return_path);
+      public void CheckForTime() {
+        if( 0 == _inqueue ) {
+          //Maybe it is time to get back in:
+          if( TimeSinceLastFire >= _heart_beat_interval ) {
+            if( false == SetInQueue(true) ) {
+              //We should get into the queue
+              LocalNode.EnqueueAction(this);
+            }
+          }
         }
-        return handlers;
       }
     }
 
@@ -304,11 +269,6 @@ namespace Brunet
       }
     }
     protected ConnectionState _con_state;
-    /**
-     * Keeps track of the objects which need to be notified 
-     * of certain packets.
-     */
-    protected readonly Hashtable _subscription_table;
 
     protected readonly Address _local_add;
     /**
@@ -384,51 +344,6 @@ namespace Brunet
 
     protected readonly HeartBeatObject _heart_beat_object;
 
-    protected void HeartBeatProducer() {
-      Thread.CurrentThread.Name = "heart_beat_producer";
-      try {
-        DateTime last_debug = DateTime.UtcNow;
-        TimeSpan debug_period = new TimeSpan(0,0,0,0,5000); //log every 5 seconds.
-
-        do {
-          Thread.Sleep(_heart_period);
-          bool already_in_queue = _heart_beat_object.SetInQueue(true);
-          if ( false == already_in_queue ) {
-            if(ProtocolLog.Monitor.Enabled) {
-              DateTime now = DateTime.UtcNow;
-              if (now - last_debug > debug_period) {
-                last_debug = now;
-                ProtocolLog.Write(ProtocolLog.Monitor, "heart beat (received).");
-              }
-            }
-            _packet_queue.Enqueue(_heart_beat_object);
-          } 
-          else {
-            int q_len = _packet_queue.Count;
-            if(ProtocolLog.Monitor.Enabled)
-              ProtocolLog.Write(ProtocolLog.Monitor, String.Format("System must be running " +
-                                "slow, more than one node waiting at heartbeat, packet_queue_length: {0}", q_len));
-          }
-        } while(!_heart_beat_stopped);
-      } catch (InvalidOperationException x) {
-        if( !_packet_queue.Closed ) {
-          //This is strange:
-          if(ProtocolLog.Exceptions.Enabled) {
-            ProtocolLog.Write(ProtocolLog.Exceptions, 
-                            String.Format("{0}",x)); 
-          }
-        }
-        //else this is not surprising at all
-      } catch (Exception e) {
-        if(ProtocolLog.Exceptions.Enabled)
-          ProtocolLog.Write(ProtocolLog.Exceptions, 
-                            String.Format("{0}",e)); 
-      }
-      if(ProtocolLog.Monitor.Enabled)
-        ProtocolLog.Write(ProtocolLog.Monitor, "heart beat producer (terminating).");
-    }
-
-
     protected readonly string _realm;
     /**
      * Each Brunet Node is in exactly 1 realm.  This is 
@@ -463,11 +378,45 @@ namespace Brunet
      * This is true after Connect is called and false after
      * Disconnect is called.
      */
-    volatile protected bool _running;
-    volatile protected bool _send_pings;
+    protected int _running;
+    protected int _send_pings;
 
     /** Object which we lock for thread safety */
     protected readonly object _sync;
+
+    /**  <summary>Handles subscriptions for the different types of packets
+    that come to this node.</summary>*/
+    public readonly DemuxHandler DemuxHandler;
+
+    /**
+    <summary>All packets that come to this are demultiplexed according to t.
+    To subscribe or unsubscribe, get the ISource for the type you want and
+    subscribe to it,</summary>
+    <param name="t">The key for the MultiSource.</param>
+    @deprecated Use Node.DemuxHandler.GetTypeSource
+    */
+    public ISource GetTypeSource(Object t) {
+      return DemuxHandler.GetTypeSource(t);
+    }
+
+    /**
+    <summary>Deletes (and thus unsubscribes) all IDataHandlers for a given key.
+    </summary>
+    <param name="t">The key for the MultiSource.</param>
+    @deprecated Use Node.DemuxHandler.ClearTypeSource
+    */
+    public void ClearTypeSource(Object t) {
+      DemuxHandler.ClearTypeSource(t);
+    }
+
+    /**
+    <summary>Deletes (and thus unsubscribes) all IDataHandlers for the table.
+    </summary>
+    @deprecated Use Node.DemuxHandler.Clear
+    */
+    public void Clear() {
+      DemuxHandler.Clear();
+    }
 
     protected readonly ConnectionTable _connection_table;
 
@@ -500,11 +449,6 @@ namespace Brunet
      * This is the TaskQueue for this Node
      */
     public TaskQueue TaskQueue { get { return _task_queue; } }
-
-    protected Thread _heart_beat_thread;
-    protected volatile bool _heart_beat_stopped = false;
-    
-    
 
     protected int _heart_period;
     ///how many milliseconds between heartbeats
@@ -575,16 +519,7 @@ namespace Brunet
         SendStateChange(new_state);
       }
     }
-    /**
-     * Unsubscribe all IDataHandlers for a given
-     * type
-     */
-    protected void ClearTypeSource(PType t) {
-      lock( _sync ) {
-        _subscription_table.Remove(t);
-      }
-    }
-    
+
     protected void Close(Edge e) {
       try {
         //This can throw an exception if the _packet_queue is closed
@@ -687,26 +622,6 @@ namespace Brunet
     }
 
     /**
-     * All packets that come to this node are demultiplexed according to
-     * type.  To subscribe, get the ISource for the type you want, and
-     * subscribe to it.  Similarly for the unsubscribe.
-     */
-    public ISource GetTypeSource(PType t) {
-      //It's safe to get from a Hashtable without a lock.
-      ISource s = (ISource)_subscription_table[t];
-      if( s == null ) {
-        lock( _sync ) {
-          //Since we last checked, there may be a ISource from another thread:
-          s = (ISource)_subscription_table[t];
-          if( s == null ) {
-            s = new NodeSource();
-            _subscription_table[t] = s;
-          }
-        }
-      }
-      return s;
-    }
-    /**
      * Send the StateChange event
      */
     protected void SendStateChange(ConnectionState new_state) {
@@ -777,7 +692,7 @@ namespace Brunet
 
         el.Start();
       }
-      _running = true;
+      Interlocked.Exchange(ref _running, 1);
     }
 
     /**
@@ -793,9 +708,7 @@ namespace Brunet
           el.Stop();
         }
         _edgelistener_list.Clear();
-        _running = false;
-        _heart_beat_stopped = true;
-        _heart_beat_thread.Interrupt();
+        Interlocked.Exchange(ref _running, 0);
         //This makes sure we don't block forever on the last packet
         _packet_queue.Close();
       }
@@ -804,18 +717,22 @@ namespace Brunet
           SendStateChange(Node.ConnectionState.Disconnected);
           lock(_sync) {
             //Clear out the subscription table
-            _subscription_table.Clear();
+            DemuxHandler.Clear();
           }
         }
       }
     }
     protected void AnnounceThread() {
+      bool log = ProtocolLog.Monitor.Enabled;
       try {
         DateTime last_debug = DateTime.UtcNow;
         TimeSpan debug_period = new TimeSpan(0,0,0,0,5000); //log every 5 seconds.
-        int millsec_timeout = 10000;//10 seconds.
-        while( _running ) {
-          if (ProtocolLog.Monitor.Enabled) {
+        int millsec_timeout = _heart_period;
+        int consecutive_packets = 0;
+        IAction queue_item = null;
+        bool timedout = false;
+        while( 1 == _running ) {
+          if (log) {
             DateTime now = DateTime.UtcNow;
             if (now - last_debug > debug_period) {
               last_debug = now;
@@ -824,21 +741,32 @@ namespace Brunet
                                                                    now, q_len));
             }
           }
-          IAction queue_item = null;
-          bool timedout = false;
           // Only peek if we're logging the monitoring of _packet_queue
-          if(ProtocolLog.Monitor.Enabled) {
+          if(log) {
             queue_item = (IAction)_packet_queue.Peek(millsec_timeout, out timedout);
           }
           else {
             queue_item = (IAction)_packet_queue.Dequeue(millsec_timeout, out timedout);
           }
           if (timedout) {
+            //Check to see if it is time for another heartbeat event
+            _heart_beat_object.CheckForTime();
             continue;
+          }
+          else {
+            /*
+             * Don't check every packet if we need to 
+             * schedule a heartbeat because that will be costly
+             */
+            ++consecutive_packets;
+            if( consecutive_packets > 100 ) {
+              consecutive_packets = 0;
+              _heart_beat_object.CheckForTime();
+            }
           }
           queue_item.Start();
           // If we peeked, we need to now remove it
-          if(ProtocolLog.Monitor.Enabled) {
+          if(log) {
             _packet_queue.Dequeue();
           }
         }
@@ -847,7 +775,7 @@ namespace Brunet
         //This is thrown when Dequeue is called on an empty queue
         //which happens when the BlockingQueue is closed, which
         //happens on Disconnect
-        if(_running) {
+        if(1 == _running) {
           ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
             "Running in AnnounceThread got Exception: {0}", x));
         }
@@ -856,6 +784,10 @@ namespace Brunet
         ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
         "ERROR: Exception in AnnounceThread: {0}", x));
       }
+      ProtocolLog.Write(ProtocolLog.Monitor,
+                        String.Format("Node: {0} leaving AnnounceThread",
+                                      this.Address));
+
     }
     /**
      * When a packet is to be delivered to this node,
@@ -881,11 +813,11 @@ namespace Brunet
        */
       MemBlock payload = null;
       int handlers = 0;
-      NodeSource ns = null;
+      MultiSource ns = null;
       PType t = null;
       try {
         t = PType.Parse(b, out payload);
-        ns = (NodeSource)GetTypeSource(t);
+        ns = (MultiSource)DemuxHandler.GetTypeSource(t);
         handlers = ns.Announce(payload, from);
         /**
          * @todo if no one handled the packet, we might want to send some
@@ -948,7 +880,7 @@ namespace Brunet
           ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
             "[Connect: {0}] deactivating task queue", _local_add));
           _task_queue.IsActive = false;
-          _send_pings = false;
+          Interlocked.Exchange( ref _send_pings, 0);
           _connection_table.Close();
         }
       }
@@ -1154,7 +1086,7 @@ namespace Brunet
         foreach(Connection c in _connection_table) {
           Edge e = c.Edge;
           TimeSpan since_last_in = now - e.LastInPacketDateTime; 
-          if( _send_pings && ( since_last_in > _connection_timeout ) ) {
+          if( (1 == _send_pings) && ( since_last_in > _connection_timeout ) ) {
 
             object ping_arg = String.Empty;
             DateTime start = DateTime.UtcNow;
