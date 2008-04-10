@@ -42,8 +42,8 @@ namespace Brunet {
    * AHGreedySender - sender:ah?dest=node:[base32 brunet address]&mode=greedy
    * example - sender:ah?dest=brunet:node:JOJZG7VO6RFOEZJ6CJJ2WOIJWTXRVRP4&mode=exact
    *
-   * ForwardingSender: sender:fw?relay=node:[base32 brunet address]&dest=[base32 encoded brunet address]&ttl=ttl&mode=path
-   * example - sender:fw?relay=brunet:node:JOJZG7VO6RFOEZJ6CJJ2WOIJWTXRVRP4&dest=brunet:node:5FMQW3KKJWOOGVDO6QAQP65AWVZQ4VUQ&ttl=3&mode=path
+   * ForwardingSender: sender:fw?relay=node:[base32 brunet address]&init_mode=[initial routing mode]&dest=[base32 encoded brunet address]&ttl=ttl&mode=path
+   * example - sender:fw?relay=brunet:node:JOJZG7VO6RFOEZJ6CJJ2WOIJWTXRVRP4&init_mode=greedy&dest=brunet:node:5FMQW3KKJWOOGVDO6QAQP65AWVZQ4VUQ&ttl=3&mode=path
    */
   public class SenderFactory {
     public static readonly char [] SplitChars = new char[] {'?', '&'};
