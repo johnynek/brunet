@@ -312,7 +312,9 @@ namespace Brunet.Coordinate {
 	_node.StateChangeEvent += delegate(Node n, Node.ConnectionState s) {
 	  if( s == Node.ConnectionState.Disconnected ) {
 	    lock(_nc_service_table) {
+#if NC_DEBUG
 	      Console.Error.WriteLine("Removing {0} from nc_service table", n.Address);
+#endif
 	      _nc_service_table.Remove(n);
 	    }
 	  }
@@ -519,15 +521,19 @@ namespace Brunet.Coordinate {
 	  return;
 	}
 
+#if NC_DEBUG
 	Console.Error.WriteLine("Sample at: {0}, from: {1} {2}, position: {3}, error: {4}, raw latency: {5}, smooth latency: {6}", 
 				o_stamp, o_host, o_neighbor, o_position, o_weightedError, o_rawLatency, o_latency);
+#endif
 	double o_distance = _vivaldi_state.Position.GetEucledianDistance(o_position);
 	while (o_distance == 0) {
 	  _vivaldi_state.Position.Bump();
 	  o_distance = _vivaldi_state.Position.GetEucledianDistance(o_position);
 	}
 
+#if NC_DEBUG
 	Console.Error.WriteLine("Current position: {0}, distance: {1}", _vivaldi_state.Position, o_distance);
+#endif
 	double o_relativeError = Math.Abs((o_distance - o_latency)/o_latency);
 	double o_rawRelativeError = Math.Abs((o_distance - o_rawLatency)/o_rawLatency);
 	double o_weight = _vivaldi_state.WeightedError/(_vivaldi_state.WeightedError + o_weightedError);
@@ -673,9 +679,11 @@ namespace Brunet.Coordinate {
 	_vivaldi_state.Position.Add(o_force);
 	_vivaldi_state.Position.CheckHeight();
 
+#if NC_DEBUG
 	Console.Error.WriteLine("Updated position: {0}, distance: {1}", 
 				_vivaldi_state.Position,  
 				_vivaldi_state.Position.GetEucledianDistance(o_position));
+#endif
       }//end of lock
     }
     
