@@ -123,7 +123,7 @@ namespace Brunet.Applications {
     protected bool AddIfMatch(Regex re, string line, Hashtable ht, string key) {
       Match m = re.Match(line);
       if( m.Success ) {
-        Group g = m.Groups[1];
+        Group g = m.Groups[m.Groups.Count - 1];
         CaptureCollection cc = g.Captures;
         ht[key] = cc[0].ToString();
         return true;
@@ -175,7 +175,7 @@ namespace Brunet.Applications {
       keys["inet addr"] = new Regex(@"inet addr:([0-9\.]+)");
       keys["Bcast"] = new Regex(@"Bcast:([0-9\.]+)");
       keys["Mask"] = new Regex(@"Mask:([0-9\.]+)");
-      keys["HWaddr"] = new Regex(@"HWaddr ([0-9A-F:]+)");
+      keys["HWaddr"] = new Regex(@"HWaddr ([0-9A-Fa-f:]+)");
       keys["MTU"] = new Regex(@"MTU:([0-9]+)");
 
       ArrayList result = new ArrayList();
@@ -243,7 +243,7 @@ namespace Brunet.Applications {
       Regex if_line = new Regex(@"\S+ adapter ([^:]+)");
 
       Hashtable keys = new Hashtable();
-      keys["inet addr"] = new Regex(@"IP Address. . . . . . . . . . . . : ([0-9\.]+)");
+      keys["inet addr"] = new Regex(@"IP(|v4) Address[\. ]+: ([0-9\.]+)");
       keys["Bcast"] = new Regex(@"DOES NOT EXIST");
       keys["Mask"] = new Regex(@"Subnet Mask . . . . . . . . . . . : ([0-9\.]+)");
       keys["HWaddr"] = new Regex(@"Physical Address. . . . . . . . . : ([0-9A-F\-]+)");
