@@ -19,7 +19,7 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
-#define VTS_DEBUG
+//#define VTS_DEBUG
 using Brunet;
 using System;
 using System.Collections;
@@ -112,7 +112,9 @@ namespace Brunet.Coordinate {
       Channel q = null;
       RequestState rs = null;
       lock(_sync) {
+#if VTS_DEBUG
         Console.Error.WriteLine("VTS local: {0}, start: {1}, range: {2}, count: {3}", _node.Address, start, range, _num_requests);
+#endif
         if (_num_requests == MAX_REQUESTS) {
           return; //do nothing and return;
         }
@@ -157,7 +159,9 @@ namespace Brunet.Coordinate {
           if (request != null) {
             //make sure this is not our own reply
             if (!fs.Destination.Equals(_node.Address)) {
+#if VTS_DEBUG
               Console.Error.WriteLine("VTS local: {0}, start: {1}, dest: {2}", _node.Address, request.Start, fs.Destination);
+#endif
               request.ResultTable[fs.Destination] = new object[] {vs, (string) ht["hostname"]};
             }
             if (request.ResultTable.Keys.Count >= (int) request.Range*0.75) {
@@ -184,7 +188,9 @@ namespace Brunet.Coordinate {
           Console.Error.WriteLine("VTS unable to retrieve request for a closed channel");
           return;
         }
+#if VTS_DEBUG
         Console.Error.WriteLine("VTS local: {0}, start: {1} channel closed.", _node.Address, request.Start);
+#endif
         _channel_to_state.Remove(o);
         _num_requests--;
       }
@@ -204,10 +210,10 @@ namespace Brunet.Coordinate {
         NCService.VivaldiState vs = (NCService.VivaldiState) curr_result[0];
         string host = (string) curr_result[1];
         double d = local_vs.Position.GetEucledianDistance(vs.Position);
-        Console.Error.WriteLine("VTS local: {0}, start: {1}, dest: {2}, distance: {3}", 
-                                _node.Address, request.Start, target, d);
         sorted_result[d] = target;
 #if VTS_DEBUG
+        Console.Error.WriteLine("VTS local: {0}, start: {1}, dest: {2}, distance: {3}", 
+                                _node.Address, request.Start, target, d);
         sorted_stat[d] = new object[] {d, host};
 #endif
       }

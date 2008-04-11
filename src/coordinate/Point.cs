@@ -99,12 +99,16 @@ namespace Brunet.Coordinate {
     public void Bump() {
       for (int i = 0; i < DIMENSIONS; i++) {
 	_side[i] = (double) _rr.NextDouble();
+#if NC_DEBUG
 	Console.Error.WriteLine("after bump side ({0}): {1}", i, _side[i]);
+#endif
       }
 #if USE_HEIGHT      
       //only then do we bump the height (not otherwise)
       _height = (double) _rr.NextDouble();
+#if NC_DEBUG
       Console.Error.WriteLine("after bump height: {0}", _height);
+#endif
 #endif
     }
     
