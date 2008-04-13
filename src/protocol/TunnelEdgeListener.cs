@@ -914,13 +914,14 @@ namespace Brunet
       }
       
 
-      int r_idx = _rand.Next(0, tun_edge.PacketSenders.Count);
-      int attempts = tun_edge.PacketSenders.Count;
+      ArrayList packet_senders = tun_edge.PacketSenders;
+      int r_idx = _rand.Next(0, packet_senders.Count);
+      int attempts = packet_senders.Count;
       while (attempts-- > 0) {
         ISender sender = null;
         try {
-          int this_idx = (r_idx + attempts) % tun_edge.PacketSenders.Count;
-          sender = (ISender) tun_edge.PacketSenders[this_idx];
+          int this_idx = (r_idx + attempts) % packet_senders.Count;
+          sender = (ISender) packet_senders[this_idx];
 #if TUNNEL_DEBUG
           Console.Error.WriteLine("Sending control out on base connection: {0}",
                                   _node.ConnectionTable.GetConnection((Edge) sender));
@@ -971,13 +972,14 @@ namespace Brunet
                                 AHPacket.Protocol.Tunneling, ms.ToArray());
       }
       
-     int r_idx = _rand.Next(0, tun_edge.PacketSenders.Count);
-     int attempts = tun_edge.PacketSenders.Count;
+     ArrayList packet_senders = tun_edge.PacketSenders;
+     int r_idx = _rand.Next(0, packet_senders.Count);
+     int attempts = packet_senders.Count;
      while (attempts-- > 0) {
        ISender sender = null;
        try {
-         int this_idx = (r_idx + attempts) % tun_edge.PacketSenders.Count;
-         sender = (ISender) tun_edge.PacketSenders[this_idx];
+         int this_idx = (r_idx + attempts) % packet_senders.Count;
+         sender = (ISender) packet_senders[this_idx];
 
 #if TUNNEL_DEBUG
          Console.Error.WriteLine("Sending edge sync on base connection: {0}",
