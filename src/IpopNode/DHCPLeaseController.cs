@@ -176,7 +176,7 @@ namespace Ipop {
     /**
     <summary>Generates a random IP Address in the valid address range.</summary>
     */
-    public byte[] RandomIPAddress() {
+    protected byte[] GenerateRandomIPAddress() {
       byte[] randomIP = new byte[4];
       for (int k = 0; k < randomIP.Length; k++) {
         int max = upper[k];
@@ -187,10 +187,23 @@ namespace Ipop {
         }
         randomIP[k] = (byte) _rand.Next(min, max + 1);
       }
-      if (!ValidIP(randomIP)) {
-        randomIP = RandomIPAddress();
-      }
       return randomIP;
+    }
+
+    /**
+    <summary>This attempts to generate a valid Random IPAddress and throws an
+    exception, if after 100 tries, it still has not generated a valid IP
+    Address.</summary>
+    */
+    public byte[] RandomIPAddress() {
+      int i = 100;
+      while(i-- > 0) {
+        byte[] ip = GenerateRandomIPAddress();
+        if(ValidIP(ip)) {
+          return ip;
+        }
+      }
+      throw new Exception("Unable to generate a random IP Address");
     }
 
     /**
