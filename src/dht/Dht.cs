@@ -626,6 +626,7 @@ namespace Brunet.DistributedServices {
         throw new Exception("DhtClient: Not yet activated.");
       }
 
+      returns.CloseAfterEnqueue();
       AsDhtPutState adps = new AsDhtPutState(returns);
 
       MemBlock[] brunet_address_for_key = MapToRing(key);
@@ -633,17 +634,11 @@ namespace Brunet.DistributedServices {
       lock(_adps_table.SyncRoot) {
         for (int k = 0; k < DEGREE; k++) {
           Channel queue = new Channel();
+          queue.CloseAfterEnqueue();
+          queue.CloseEvent += this.PutCloseHandler;
           _adps_table[queue] = adps;
           q[k] = queue;
         }
-      }
-
-      for (int k = 0; k < DEGREE; k++) {
-        Channel queue = q[k];
-        queue.CloseAfterEnqueue();
-        queue.EnqueueEvent += this.PutEnqueueHandler;
-        queue.CloseEvent += this.PutCloseHandler;
-        adps.queueMapping[queue] = k;
       }
 
       for (int k = 0; k < DEGREE; k++) {
@@ -661,12 +656,16 @@ namespace Brunet.DistributedServices {
     <param name="o">The channel used by put.</param>
     <param name="args">Unused.</param>
     */
-    public void PutEnqueueHandler(Object o, EventArgs args) {
+    public void PutCloseHandler(Object o, EventArgs args) {
       Channel queue = (Channel) o;
       // Get our mapping
       AsDhtPutState adps = (AsDhtPutState) _adps_table[queue];
       if(adps == null) {
         return;
+      }
+
+      lock(_adps_table.SyncRoot) {
+        _adps_table.Remove(queue);
       }
 
       /* Check out results from our request and update the overall results
@@ -678,63 +677,21 @@ namespace Brunet.DistributedServices {
         result = (bool) rpcResult.Result;
       }
       catch (Exception) {}
-      lock(adps.SyncRoot) {
-        if(result) {
-          // Once we get pcount to a majority, we ship off the result
-          adps.pcount++;
-          if(adps.pcount == MAJORITY) {
-            adps.returns.Enqueue(true);
-            adps.returns.Close();
-          }
-        }
-        else {
-          /* Once we get to ncount to 1 less than a majority, we ship off the
-          * result, because we can't get pcount equal to majority any more!
-          */
-          adps.ncount++;
-          if(adps.ncount == MAJORITY - 1 || 1 == DEGREE) {
-            adps.returns.Enqueue(new DhtException("Put failed by negative " +
-              "responses:  P/N/T : " + adps.pcount + "/" + adps.ncount + "/" +
-              DEGREE));
-            adps.returns.Close();
-          }
+
+      if(result) {
+        // Once we get pcount to a majority, we ship off the result
+        if(Interlocked.Increment(ref adps.pcount) == MAJORITY) {
+          adps.returns.Enqueue(true);
         }
       }
-    }
-
-    /**
-    <summary>Uses the channel to determine which Put this is processing.
-    This is called when the ReqrepManager has timed out our Rpc and this is
-    viewed as a negative resultReturns true if we've received a MAJORITY of votes or an exception if a
-    enough negative results come in.  The returns are enqueued to the users
-    returns Channel.<summary>
-    <param name="o">The channel used by put.</param>
-    <param name="args">Unused.</param>
-    */
-    public void PutCloseHandler(Object o, EventArgs args) {
-      Channel queue = (Channel) o;
-      queue.CloseEvent -= this.PutCloseHandler;
-      queue.EnqueueEvent -= this.PutEnqueueHandler;
-      // Get our mapping
-      AsDhtPutState adps = (AsDhtPutState) _adps_table[queue];
-      if(adps == null) {
-        return;
-      }
-
-      lock(_adps_table.SyncRoot) {
-        _adps_table.Remove(queue);
-      }
-      int count = 0;
-      lock(adps.SyncRoot) {
-        adps.queueMapping.Remove(queue);
-        count = adps.queueMapping.Count;
-      }
-      if(count == 0) {
-        if(!adps.returns.Closed) {
-          adps.returns.Enqueue(new DhtException("Put failed by lack of " +
+      else {
+        /* Once we get to ncount to 1 less than a majority, we ship off the
+        * result, because we can't get pcount equal to majority any more!
+        */
+        if(Interlocked.Increment(ref adps.ncount) == MAJORITY - 1 || 1 == DEGREE) {
+          adps.returns.Enqueue(new DhtException("Put failed by negative " +
               "responses:  P/N/T : " + adps.pcount + "/" + adps.ncount + "/" +
               DEGREE));
-          adps.returns.Close();
         }
       }
     }
@@ -770,7 +727,6 @@ namespace Brunet.DistributedServices {
     */
     protected class AsDhtPutState {
       public object SyncRoot = new object();
-      public Hashtable queueMapping = new Hashtable();
       public int pcount = 0, ncount = 0;
       public Channel returns;
 
