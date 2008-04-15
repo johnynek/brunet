@@ -215,17 +215,15 @@ public sealed class BlockingQueue : Channel {
    */
   public BlockingQueue(int max_enqueues) : base(max_enqueues) {
     _re = new AutoResetEvent(false); 
-    _waiters = 0;
   }
 
   ~BlockingQueue() {
     //Make sure the close method is eventually called:
     Close();
+    _re.Close();
   }
   protected AutoResetEvent _re;
-  protected int _waiters;
 
-  
   /* **********************************************
    * Here all the methods
    */
@@ -236,17 +234,8 @@ public sealed class BlockingQueue : Channel {
    */
   public override void Close() {
     base.Close();
-    AutoResetEvent re = null;
-    lock( _sync ) {
-      re = _re;
-      _re = null;
-    }
-    if( re != null ) {
-      //Set for all the waiting Dequeues:
-      while( Thread.VolatileRead( ref _waiters ) > 0 ) {
-        re.Set();
-      }
-      re.Close();
+    if( _re != null ) {
+      _re.Set();
     }
 
 #if DEBUG
@@ -295,7 +284,6 @@ public sealed class BlockingQueue : Channel {
        * make sure that we can't close while in this block
        * of code
        */
-      Interlocked.Increment(ref _waiters);
       re = _re;
     }
     bool got_set = true;
@@ -304,14 +292,14 @@ public sealed class BlockingQueue : Channel {
       got_set = re.WaitOne(millisec, false);
     }
     catch { }
-    Interlocked.Decrement(ref _waiters);
-    
+
     if( got_set ) {
       timedout = false;
       bool set = false;
       object result = null;
       try {
         lock( _sync ) {
+          set = _closed;
           if( advance ) {
             result = _queue.Dequeue();
           }
@@ -323,7 +311,7 @@ public sealed class BlockingQueue : Channel {
            * still more, set the _re so the
            * next reader can get it
            */
-          set = _queue.Count > 0;
+          set |= _queue.Count > 0;
           re = _re;
         }
       }
