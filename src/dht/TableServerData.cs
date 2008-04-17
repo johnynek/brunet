@@ -351,12 +351,10 @@ namespace Brunet.DistributedServices {
             count--;
             break;
           }
+          current = current.Next;
         }
         if(data.Count == 0) {
           _data.Remove(key);
-        }
-        else {
-          current = current.Next;
         }
       }
     }
