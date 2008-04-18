@@ -594,7 +594,8 @@ namespace Brunet
             try {
               e.DoReceive(buf);
             }
-            catch {
+            catch(Exception x) {
+              Console.WriteLine("Exception: {0}", x);
               RequestClose(e);
               CloseHandler(e, null);
             }
@@ -617,7 +618,8 @@ namespace Brunet
           try {
             e.DoSend(b);
           }
-          catch {
+          catch(Exception x) {
+            Console.WriteLine("Exception: {0}", x);
             RequestClose(e);
             CloseHandler(e, null);
           }

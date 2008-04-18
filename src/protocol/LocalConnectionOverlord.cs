@@ -18,6 +18,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using System;
+using System.Threading;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -38,16 +39,16 @@ namespace Brunet
   public class LocalConnectionOverlord: ConnectionOverlord, IRpcHandler
   {
     public static readonly int MAX_LC = 4;
-    protected volatile List<AHAddress> _local_addresses;
+    protected List<AHAddress> _local_addresses;
 
     protected readonly Node _node;
     protected DateTime _last_announce_call;
     protected DateTime _last_activate_call;
     protected readonly RpcManager _rpc;
     protected Object _sync;
-    protected volatile bool _active;
-    protected volatile bool _allow_localcons;
-    protected volatile int _local_cons = 0;
+    protected int _active;
+    protected bool _allow_localcons;
+    protected int _local_cons = 0;
 
     public static readonly string struc_local = "structured.local";
 
@@ -61,14 +62,14 @@ namespace Brunet
      */
     public override bool IsActive
     {
-      get { return _active; }
-      set { _active = value; }
+      get { return 1 == _active; }
+      set { Interlocked.Exchange(ref _active, value ? 1 : 0); }
     }
 
     public LocalConnectionOverlord(Node node) {
       _sync = new Object();
       _allow_localcons = false;
-      _active = false;
+      _active = 0;
       _local_addresses = new List<AHAddress>();
       _node = node;
       _rpc = RpcManager.GetInstance(node);
@@ -89,9 +90,7 @@ namespace Brunet
         }
       }
       else if(state == Node.ConnectionState.Leaving) {
-        lock(_sync) {
-          _active = false;
-        }
+        IsActive = false;
       }
     }
 
@@ -99,20 +98,26 @@ namespace Brunet
      * If IsActive, then start trying to get connections.
      */
     public override void Activate() {
-      if(!_allow_localcons || _local_addresses.Count == 0) {
-        return;
-      }
+      List<AHAddress> current_locals;
+      int max = 0;
+      lock( _sync ) { 
+        if(!_allow_localcons || _local_addresses.Count == 0) {
+          return;
+        }
 
-      DateTime now = DateTime.UtcNow;
-      if(now - _last_activate_call < TimeSpan.FromSeconds(10)) {
-        return;
+        DateTime now = DateTime.UtcNow;
+        if(now - _last_activate_call < TimeSpan.FromSeconds(10)) {
+          return;
+        }
+        _last_announce_call = now;
+        current_locals = _local_addresses;
+        max = MAX_LC - _local_cons;
       }
-      _last_announce_call = now;
 
       Random rand = new Random();
-      for(int i = 0; i < MAX_LC - _local_cons; i++) {
+      for(int i = 0; i < max; i++) {
         Address target = null;
-        target = _local_addresses[rand.Next(0, _local_addresses.Count)];
+        target = current_locals[rand.Next(0, current_locals.Count)];
         ConnectTo(target);
       }
     }
@@ -140,15 +145,21 @@ namespace Brunet
      */
     public void CheckConnection(object o, EventArgs ea)
     {
-      if(!_active) {
+      if(0 == _active) {
         return;
       }
 
       // We are trying to get StructuredConnections or LocalConnections
       if(_local_cons < MAX_LC) {
         DateTime now = DateTime.UtcNow;
-        if(now - _last_announce_call > TimeSpan.FromSeconds(600)) {
-          _last_announce_call = now;
+        bool ann = false;
+        lock( _sync ) {
+          if(now - _last_announce_call > TimeSpan.FromSeconds(600)) {
+            _last_announce_call = now;
+            ann = true;
+          }
+        }
+        if(ann) {
           Announce();
         }
         // We can establish some local connections!
@@ -166,7 +177,8 @@ namespace Brunet
 
       Linker l = new Linker(_node, ctm_resp.Target.Address,
                             ctm_resp.Target.Transports,
-                            ctm_resp.ConnectionType);
+                            ctm_resp.ConnectionType,
+                            ctm_resp.Token);
       _node.TaskQueue.Enqueue( l );
       return true;
     }
@@ -184,7 +196,7 @@ namespace Brunet
        * the Connector starts.  If it returns true, the Connector
        * will finish immediately without sending an ConnectToMessage
        */
-      Linker l = new Linker(_node, target, null, struc_local);
+      Linker l = new Linker(_node, target, null, struc_local, _node.Address.ToString());
       object link_task = l.Task;
       Connector.AbortCheck abort = delegate(Connector c) {
         bool stop = false;
@@ -204,7 +216,7 @@ namespace Brunet
         return;
       }
 
-      ConnectToMessage ctm = new ConnectToMessage(struc_local, _node.GetNodeInfo(8));
+      ConnectToMessage ctm = new ConnectToMessage(struc_local, _node.GetNodeInfo(8), _node.Address.ToString());
       ISender send = new AHSender(_node, target, AHPacket.AHOptions.Exact);
       Connector con = new Connector(_node, send, ctm, this);
       con.FinishEvent += this.ConnectorEndHandler;
@@ -290,10 +302,12 @@ namespace Brunet
         _node.UpdateRemoteTAs(remote_tas);
 
         AHAddress new_address = (AHAddress) AddressParser.Parse((string) ht["address"]);
-        int pos = _local_addresses.BinarySearch(new_address, addr_compare);
-        if(pos < 0) {
-          pos = ~pos;
-          _local_addresses.Insert(pos, new_address);
+        lock( _sync ) {
+          int pos = _local_addresses.BinarySearch(new_address, addr_compare);
+          if(pos < 0) {
+            pos = ~pos;
+            _local_addresses.Insert(pos, new_address);
+          }
         }
       }
       catch (Exception e) {

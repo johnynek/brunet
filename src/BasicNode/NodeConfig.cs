@@ -80,6 +80,8 @@ namespace Brunet.Applications {
     /**  <summary>Specifies XmlRpc configuration.  This is optional and only
     required if XmlRpc is desired.</summary>*/
     public Service XmlRpcManager;
+    /**  <summary>Specifies if Vivaldi network coordinates are enabled. </summary>*/    
+    public bool EnableVivaldi;
 
     /**
     <summary>Used by services to specify if they are enabled and their port.

@@ -62,7 +62,7 @@ namespace Brunet
       //Console.Error.WriteLine("[{0}.ConnectTo({1})]", _n.Address, ctm_req);
       NodeInfo target = ctm_req.Target;
       string contype = ctm_req.ConnectionType;
-      Linker l = new Linker(_n, target.Address, target.Transports, contype);
+      Linker l = new Linker(_n, target.Address, target.Transports, contype, ctm_req.Token);
       //Here we start the job:
       _n.TaskQueue.Enqueue( l );
       ConnectToMessage resp = GetCtmResponseTo(ctm_req);
@@ -87,7 +87,7 @@ namespace Brunet
       for(int i = 0; i < neighbors.Count; i++) {
         neigh_array[i] = (NodeInfo)neighbors[i];
       }
-      return new ConnectToMessage(ctm_req.ConnectionType, _n.GetNodeInfo(8), neigh_array);
+      return new ConnectToMessage(ctm_req.ConnectionType, _n.GetNodeInfo(8), neigh_array, ctm_req.Token);
     }
   }
 

@@ -30,6 +30,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define SEND_DIRECTIONAL_TO_NEAR
 
 using System;
+using System.Threading;
 using System.Collections;
 
 namespace Brunet {
@@ -56,6 +57,18 @@ namespace Brunet {
        */
         _last_retry_time = DateTime.UtcNow;
         _current_retry_interval = _DEFAULT_RETRY_INTERVAL;
+
+        /**
+         * Information related to the target selector feature.
+         * Includes statistics such as trim rate and connection lifetimes.
+         */
+        
+        _target_selector = new DefaultTargetSelector();
+        _last_optimize_time = DateTime.UtcNow;
+        _sum_con_lifetime = 0.0;
+        _start_time = DateTime.UtcNow;
+        _trim_count = 0;
+
         
         /*
          * Register event handlers after everything else is set
@@ -69,6 +82,7 @@ namespace Brunet {
           new EventHandler(this.StatusChangedHandler);
         
         _node.HeartBeatEvent += new EventHandler(this.CheckState);
+        _node.HeartBeatEvent += new EventHandler(this.CheckConnectionOptimality);
       }
     }
 
@@ -77,7 +91,7 @@ namespace Brunet {
     protected readonly Node _node;
     protected readonly Random _rand;
 
-    volatile protected bool _compensate;
+    protected int _compensate;
     //We use this to make sure we don't trim connections
     //too fast.  We want to only trim in the "steady state"
     protected DateTime _last_connection_time;
@@ -87,6 +101,58 @@ namespace Brunet {
     
     protected TimeSpan _current_retry_interval;
     protected DateTime _last_retry_time;
+
+    /** Checks logging is enabled. */
+    protected int _log_enabled = -1;
+    protected bool LogEnabled {
+      get {
+        lock(_sync) {
+          if (_log_enabled == -1) {
+            _log_enabled = ProtocolLog.SCO.Enabled ? 1 : 0;
+          }
+          return (_log_enabled == 1);
+        }
+      }
+    }
+    
+    //When we last tried to optimize shortcut.
+    protected DateTime _last_optimize_time;
+    public static readonly int OPTIMIZE_DELAY = 300;//300 seconds
+
+    //keep some statistics, this will help understand the rate at which coordinates change
+    protected double _sum_con_lifetime;
+    public double MeanConLifetime {
+      get {
+        lock(_sync) {
+          return _trim_count > 0 ? _sum_con_lifetime/_trim_count : 0.0;
+        }
+      }
+    }
+
+    protected readonly DateTime _start_time;
+    protected int _trim_count;
+    public double TrimRate {
+      get {
+        lock(_sync) {
+          return ((double) _trim_count)/(DateTime.UtcNow - _start_time).TotalSeconds;
+        }
+      }      
+    }
+
+    //Keeps track of connections that have got a benefit of doubt
+    protected Hashtable _doubts_table = new Hashtable();
+    protected static readonly int MAX_DOUBT_BENEFITS = 2; 
+
+    //optimizer class for shortcuts.
+    protected TargetSelector _target_selector;
+    public TargetSelector TargetSelector {
+      set {
+        lock(_sync) {
+          _target_selector = value;
+        }
+      }
+    }
+
     /*
      * In between connections or disconnections there is no
      * need to recompute whether we need connections.
@@ -102,6 +168,7 @@ namespace Brunet {
     protected int _need_left;
     protected int _need_right;
     protected int _need_short;
+    protected int _need_bypass = -1;
 
     /*
      * These are parameters of the Overlord.  These govern
@@ -110,7 +177,6 @@ namespace Brunet {
     
     ///How many neighbors do we want (same value for left and right)
     static protected readonly int DESIRED_NEIGHBORS = 2;
-    static protected readonly int DESIRED_SHORTCUTS = 1;
     ///How many seconds to wait between connections/disconnections to trim
     static protected readonly double TRIM_DELAY = 30.0;
     ///By default, we only wake up every 10 seconds, but we back off exponentially
@@ -121,6 +187,9 @@ namespace Brunet {
      */
     static protected readonly string STRUC_NEAR = "structured.near";
     static protected readonly string STRUC_SHORT = "structured.shortcut";
+
+    /** this is a connection we keep to the physically closest of our logN ring neighbors. */
+    static protected readonly string STRUC_BYPASS = "structured.bypass";
     
     /**
      * If we start compensating, we check to see if we need to
@@ -128,15 +197,29 @@ namespace Brunet {
      */
     override public bool IsActive
     {
-      get { return _compensate; }
-      set { _compensate = value; }
+      get { return 1 ==_compensate; }
+      set { Interlocked.Exchange(ref _compensate, value ? 1 : 0); }
     }    
 
+    public int DesiredShortcuts {
+      get {
+        int desired_sc = 1;
+        /** 
+         * for networks smaller than 10 nodes, more than 1 shortcuts might be superfluous.
+         */
+        if( _node.NetworkSize > 10 ) {
+          //0.5*logN
+          desired_sc = (int) Math.Ceiling(0.5*Math.Log(_node.NetworkSize)/Math.Log(2.0));
+        }
+        return desired_sc;
+      }
+    }
+    
     override public bool NeedConnection 
     {
       get {
         int structs = _node.ConnectionTable.Count(ConnectionType.Structured);
-        if( structs < (2 * DESIRED_NEIGHBORS + DESIRED_SHORTCUTS) ) {
+        if( structs < (2 * DESIRED_NEIGHBORS + DesiredShortcuts) ) {
           //We don't have enough connections for what we need:
           return true;
         }
@@ -165,7 +248,7 @@ namespace Brunet {
         catch(Exception) { }
         
         if (rc == null || lc == null) {
-          if(ProtocolLog.SCO.Enabled) {
+          if(LogEnabled) {
             ProtocolLog.Write(ProtocolLog.SCO, String.Format(
               "{0}: No left or right neighbor (false)", our_addr));
           }
@@ -195,7 +278,7 @@ namespace Brunet {
             AHAddress stat_addr = n_info.Address as AHAddress;
             if (stat_addr.IsBetweenFromLeft(our_addr, left_addr)) {
               //we are expecting a better candidate for left neighbor!
-              if(ProtocolLog.SCO.Enabled)
+              if(LogEnabled)
                 ProtocolLog.Write(ProtocolLog.SCO, String.Format(
                   "{0}: Better left: {1} (false)", our_addr, stat_addr));
               return false;
@@ -207,13 +290,13 @@ namespace Brunet {
             AHAddress stat_addr = n_info.Address as AHAddress;
             if (stat_addr.IsBetweenFromRight(our_addr, right_addr)) {
               //we are expecting a better candidate for left neighbor!
-              if(ProtocolLog.SCO.Enabled)
+              if(LogEnabled)
                 ProtocolLog.Write(ProtocolLog.SCO, String.Format(
                   "{0}: Better right: {1} (false)", our_addr, stat_addr));
               return false;
             }
           }
-          if(ProtocolLog.SCO.Enabled)
+          if(LogEnabled)
             ProtocolLog.Write(ProtocolLog.SCO, String.Format(
               "{0}:  Returning (true)", our_addr));
           return true;
@@ -343,12 +426,58 @@ namespace Brunet {
               }
             }
           }
-          if( shortcuts < DESIRED_SHORTCUTS ) {
+          if( shortcuts < DesiredShortcuts ) {
             _need_short = 1;
             return true;
           } 
           else {
             _need_short = 0;
+            return false;
+          }
+        }
+      }
+    }
+
+    public bool NeedBypass {
+      get {
+        if (LogEnabled) {
+          ProtocolLog.Write(ProtocolLog.SCO, 
+                            String.Format("Checking if need bypass"));
+        }
+        lock(_sync) {
+          if (_need_bypass != -1) {
+            if (LogEnabled) {
+              ProtocolLog.Write(ProtocolLog.SCO, 
+                                String.Format("Returning: {0}.", (_need_bypass == 1)));
+            }
+            return (_need_bypass == 1);
+          }
+          ConnectionList cl =
+            _node.ConnectionTable.GetConnections(ConnectionType.Structured);
+          bool found = false;
+          foreach(Connection c in cl) {
+            if (c.ConType == STRUC_BYPASS) {
+              //make sure that we also initiated its creation
+              //string initiator_address = c.PeerLinkMessage.Token; 
+              //if (initiator_address.Equals(_node.Address)) {
+              found = true;
+              break;
+              //}
+            }
+          }
+
+          if (!found) {
+            if (LogEnabled) {
+              ProtocolLog.Write(ProtocolLog.SCO, String.Format("Returning: true."));
+            }
+            _need_bypass = 1;
+            return true;
+          } 
+          else {
+            if (LogEnabled) {
+              ProtocolLog.Write(ProtocolLog.SCO, String.Format("Returning: false."));
+            }
+            _need_bypass = 0;
             return false;
           }
         }
@@ -472,16 +601,13 @@ namespace Brunet {
 #if POB_DEBUG
       Console.Error.WriteLine("NeedShortcut: {0}", _node.Address);
 #endif
-            target = GetShortcutTarget(); 
-            contype = STRUC_SHORT;
-            //Console.Error.WriteLine("Making Connector for shortcut to: {0}", target);
-            /*
-             * Use greedy routing to make shortcuts, because we only want to
-             * find the node closest to the target address.
-             */
-            sender = new AHGreedySender(_node, target);
+            CreateShortcut();
+          }
+          else if (NeedBypass) {
+            CreateBypass();
           }
       }
+
       if( sender != null ) {
         ConnectTo(sender, contype, desired_ctms);
       }
@@ -533,6 +659,7 @@ namespace Brunet {
         _need_left = -1;
         _need_right = -1;
         _need_short = -1;
+        _need_bypass = -1;
       }
       if( IsActive == false ) {
         return;
@@ -761,15 +888,34 @@ namespace Brunet {
       }
     }
 
+
+    /**
+     * Initiates connection setup.
+     * @param sender the ISender for the Connector to use
+     * @param contype the type of connection we want to make
+     */    
     protected void ConnectTo(ISender sender, string contype) {
       ConnectTo(sender, contype, 1);
     }
+
     /**
+     * Initiates connection setup. The default token is the current node address. 
      * @param sender the ISender for the Connector to use
      * @param contype the type of connection we want to make
      * @param responses the maximum number of ctm response messages to listen
+     */    
+    protected void ConnectTo(ISender sender, string contype, int responses) {
+      ConnectTo(sender, contype, _node.Address.ToString(), responses);
+    }
+
+    /**
+     * Initiates connection setup. 
+     * @param sender the ISender for the Connector to use
+     * @param contype the type of connection we want to make
+     * @param token the token used for connection messages
+     * @param responses the maximum number of ctm response messages to listen
      */
-    protected void ConnectTo(ISender sender, string contype, int responses)
+    protected void ConnectTo(ISender sender, string contype, string token, int responses)
     {
       ConnectionType mt = Connection.StringToMainType(contype);
       /*
@@ -783,7 +929,7 @@ namespace Brunet {
         //In general, we only know the exact node we are trying
         //to reach when we are using a ForwardingSender
         Address target = fs.Destination;
-        Linker l = new Linker(_node, target, null, contype);
+        Linker l = new Linker(_node, target, null, contype, token);
         object linker_task = l.Task;  //This is what we check for
         abort = delegate(Connector c) {
           bool stop = _node.ConnectionTable.Contains( mt, target );
@@ -811,7 +957,7 @@ namespace Brunet {
         near_ni[i] = NodeInfo.CreateInstance(cons.Address);
         i++;
       }
-      ConnectToMessage ctm = new ConnectToMessage(contype, _node.GetNodeInfo(8), near_ni);
+      ConnectToMessage ctm = new ConnectToMessage(contype, _node.GetNodeInfo(8), near_ni, token);
 
       Connector con = new Connector(_node, sender, ctm, this);
       con.AbortIf = abort;
@@ -830,15 +976,19 @@ namespace Brunet {
      */
     protected void DisconnectHandler(object connectiontable, EventArgs args)
     { 
+      ConnectionEventArgs ceargs = (ConnectionEventArgs)args;
+      Connection c = ceargs.Connection;
+
+
       lock( _sync ) {
         _last_connection_time = DateTime.UtcNow;
         _need_left = -1;
         _need_right = -1;
         _need_short = -1;
+        _need_bypass = -1;
         _current_retry_interval = _DEFAULT_RETRY_INTERVAL;
+        _doubts_table.Remove(c.Address);
       }
-      ConnectionEventArgs ceargs = (ConnectionEventArgs)args;
-      Connection c = ceargs.Connection;
 
       if( IsActive ) {
         if( c.MainType == ConnectionType.Structured ) {
@@ -863,9 +1013,12 @@ namespace Brunet {
           }
           if( c.ConType == STRUC_SHORT ) {
             if( NeedShortcut ) {
-              Address target = GetShortcutTarget(); 
-              ISender send = new AHGreedySender(_node, target);
-              ConnectTo(send, STRUC_SHORT);
+              CreateShortcut();
+            }
+          }
+          if (c.ConType == STRUC_BYPASS) {
+            if (NeedBypass) {
+              CreateBypass();
             }
           }
         }
@@ -888,7 +1041,8 @@ namespace Brunet {
       
       Linker l = new Linker(_node, ctm_resp.Target.Address,
                             ctm_resp.Target.Transports,
-                            ctm_resp.ConnectionType);
+                            ctm_resp.ConnectionType,
+                            ctm_resp.Token);
       _node.TaskQueue.Enqueue( l );
       /**
        * Check this guys neighbors:
@@ -950,10 +1104,10 @@ namespace Brunet {
     }
 
     /**
-     * Return a random shortcut target with the
-     * correct distance distribution
+     * Initiates shortcut connection creation to a random shortcut target with the
+     * correct distance distribution.
      */
-    protected Address GetShortcutTarget()
+    protected void CreateShortcut()
     {
 #if false
       //The old code:
@@ -1009,9 +1163,358 @@ namespace Brunet {
       }
 
       BigInteger target_int = new BigInteger(t_add % Address.Full);
-      return new AHAddress(target_int); 
+      AHAddress start = new AHAddress(target_int);
+      if (LogEnabled) {
+        ProtocolLog.Write(ProtocolLog.SCO, 
+                          String.Format("SCO local: {0}, Selecting shortcut to create close to start: {1}.", 
+                                        _node.Address, start));
+      }
+      //make a call to the target selector to find the optimal
+      _target_selector.ComputeCandidates(start, (int) Math.Ceiling(logk), CreateShortcutCallback, null);
     }
     
+    /**
+     * Callback function that is invoked when TargetSelector fetches candidate scores in a range.
+     * Initiates connection setup. 
+     * Node: All connection messages can be tagged with a token string. This token string is currenly being
+     * used to keep the following information about a shortcut:
+     * 1. The node who initiated the shortcut setup.
+     * 2. The random target near which shortcut was chosen.
+     * @param start address pointing to the start of range to query.
+     * @param score_table list of candidate addresses sorted by score.
+     * @param current currently selected optimal (nullable) 
+     */
+    protected void CreateShortcutCallback(Address start, SortedList score_table, Address current) {
+      if (score_table.Count > 0) {
+        /**
+         * we remember our address and the start of range inside the token.
+         * token is the concatenation of 
+         * (a) local node address
+         * (b) random target for the range queried by target selector
+         */
+        string token = _node.Address + start.ToString();
+        //connect to the min_target
+        Address min_target = (Address) score_table.GetByIndex(0);
+        ISender send = null;
+        if (start.Equals(min_target)) {
+          //looks like the target selector simply returned our random address
+          if (LogEnabled) {
+            ProtocolLog.Write(ProtocolLog.SCO, 
+                              String.Format("SCO local: {0}, Connecting (shortcut) to min_target: {1} (greedy), random_target: {2}.", 
+                                            _node.Address, min_target, start));
+          }
+          //use a greedy sender
+          send = new AHGreedySender(_node, min_target);
+        } 
+        else {
+          if (LogEnabled) {
+            ProtocolLog.Write(ProtocolLog.SCO, 
+                              String.Format("SCO local: {0}, Connecting (shortcut) to min_target: {1} (exact), random_target: {2}.", 
+                                  _node.Address, min_target, start));
+          }
+          //use exact sender
+          send = new AHExactSender(_node, min_target);
+        }
+        ConnectTo(send, STRUC_SHORT, token, 1);
+      }
+    }
+
+    /**
+     * Initiates creation of a bypass connection.
+     * 
+     */
+    protected void CreateBypass() {
+      if (LogEnabled) {
+        ProtocolLog.Write(ProtocolLog.SCO, 
+                          String.Format("SCO local: {0}, Selecting bypass to create.", 
+                                        _node.Address));
+      }
+      double logk = Math.Log( (double)_node.NetworkSize, 2.0 );
+      _target_selector.ComputeCandidates(_node.Address, (int) Math.Ceiling(logk), CreateBypassCallback, null);
+    }
+    
+    protected void CreateBypassCallback(Address start, SortedList score_table, Address current) {
+      if (score_table.Count > 0) {
+        Address min_target = (Address) score_table.GetByIndex(0);
+        if (LogEnabled) {
+          ProtocolLog.Write(ProtocolLog.SCO, 
+                            String.Format("SCO local: {0}, Connecting (bypass) to min_target: {1}", 
+                                          _node.Address, min_target));
+        }
+        ISender send = new AHExactSender(_node, min_target);
+        ConnectTo(send, STRUC_BYPASS);
+      }
+    }
+
+
+    /** 
+     * Periodically check if our connections are still optimal. 
+     */
+    protected void CheckConnectionOptimality(object node, EventArgs eargs) {
+      DateTime now = DateTime.UtcNow;
+      lock(_sync) {
+        if ((now - _last_optimize_time).TotalSeconds < OPTIMIZE_DELAY) {
+          return;
+        }
+        _last_optimize_time = now;
+      }
+
+      if (LogEnabled) {
+        ProtocolLog.Write(ProtocolLog.SCO, 
+                          String.Format("SCO local: {0}, Selcting a random shortcut to optimize.", 
+                                        _node.Address));
+      }
+      double logk = Math.Log( (double)_node.NetworkSize, 2.0 );  
+      
+      //Get a random shortcut:
+      ArrayList shortcuts = new ArrayList();
+      foreach(Connection sc in _node.ConnectionTable.GetConnections(STRUC_SHORT) ) {
+        /** 
+         * Only if we initiated it, we check if the connection is optimal.
+         * First half of the token is initiator address, while the other half 
+         * is the start of the range.
+         */
+        string token = sc.PeerLinkMessage.Token;
+        if (token != null && token != String.Empty) {
+          string initiator_addr = token.Substring(0, token.Length/2);
+          if (initiator_addr == _node.Address.ToString()) {
+            shortcuts.Add(sc);
+          }
+        }
+      }
+        
+
+      if (shortcuts.Count > 0) {
+        // Pick a random shortcut and check for optimality.
+        Connection sc = (Connection)shortcuts[ _rand.Next(shortcuts.Count) ];
+        string token = sc.PeerLinkMessage.Token;
+        // Second half of the token is the random target for the shortcut.
+        Address random_target = AddressParser.Parse(token.Substring(token.Length/2));
+        if (LogEnabled) {
+          ProtocolLog.Write(ProtocolLog.SCO, 
+                            String.Format("SCO local: {0}, Optimizing shortcut connection: {1}, random_target: {2}.",
+                                          _node.Address, sc.Address, random_target));
+        }
+
+        _target_selector.ComputeCandidates(random_target, (int) Math.Ceiling(logk), 
+                                           CheckShortcutCallback, sc.Address);
+      } else {
+        if (LogEnabled) {
+          ProtocolLog.Write(ProtocolLog.SCO,
+                            String.Format("SCO local: {0}, Cannot find a shortcut to optimize.", 
+                                          _node.Address));
+        }
+      }
+
+      //also optimize the bypass connections.
+      if (LogEnabled) {
+        ProtocolLog.Write(ProtocolLog.SCO, 
+                          String.Format("SCO local: {0}, Selecting a bypass to optimize.", 
+                                        _node.Address));
+      }
+      _target_selector.ComputeCandidates(_node.Address, (int) Math.Ceiling(logk), CheckBypassCallback, null);
+    }
+    
+    /**
+     * Checks if the shortcut connection is still optimal, and trims it if not optimal.
+     * @param random_target random target pointing to the start of the range for connection candidates.
+     * @param score_table candidate addresses sorted by scores.
+     * @param sc_address address of the current connection.
+     */
+    protected void CheckShortcutCallback(Address random_target, SortedList score_table, Address sc_address) {
+      if (LogEnabled) {
+        ProtocolLog.Write(ProtocolLog.SCO, 
+                          String.Format("SCO local: {0}, Checking shortcut optimality: {1}.", 
+                                _node.Address, sc_address));
+      }
+      
+      int max_rank = (int) Math.Ceiling(0.2*score_table.Count);
+      bool optimal = IsConnectionOptimal(sc_address, score_table, max_rank);
+      if (!optimal) {
+        Address min_target = (Address) score_table.GetByIndex(0);
+        //find the connection and trim it.
+        Connection to_trim = null;
+        foreach(Connection c in _node.ConnectionTable.GetConnections(STRUC_SHORT) ) {
+          string token = c.PeerLinkMessage.Token;
+          if (token != null && token != String.Empty) {
+            // First half of the token should be the connection initiator
+            string initiator_address = token.Substring(0, token.Length/2);
+            if (initiator_address == _node.Address.ToString() && c.Address.Equals(sc_address)) {
+              to_trim = c;
+              break;
+            }
+          }
+        }
+        
+        if (to_trim != null) {
+          if (LogEnabled) {
+            ProtocolLog.Write(ProtocolLog.SCO, 
+                              String.Format("SCO local: {0}, Trimming shortcut : {1}, min_target: {2}.",
+                                            _node.Address, to_trim.Address, min_target));
+          }
+          lock(_sync) {
+            double total_secs = (DateTime.UtcNow - to_trim.CreationTime).TotalSeconds;
+            _sum_con_lifetime += total_secs;
+            _trim_count++;
+          }
+          _node.GracefullyClose(to_trim.Edge);
+        }
+      } else {
+        if (LogEnabled) {
+          ProtocolLog.Write(ProtocolLog.SCO,
+                            String.Format("SCO local: {0}, Shortcut is optimal: {1}.", 
+                                          _node.Address, sc_address));
+        }
+      }
+    }
+    
+    /**
+     * Checks if we have the optimal bypass connection, and trims the ones that are unnecessary.
+     * @param start random target pointing to the start of the range for connection candidates.
+     * @param score_table candidate addresses sorted by scores.
+     * @param bp_address address of the current connection (nullable).
+     */
+    protected void CheckBypassCallback(Address start, SortedList score_table, Address bp_address) {
+      if (LogEnabled) {
+        ProtocolLog.Write(ProtocolLog.SCO, 
+                          String.Format("SCO local: {0}, Checking bypass optimality.", 
+                                        _node.Address));
+      }
+      
+      ArrayList bypass_cons = new ArrayList();
+      foreach(Connection c in _node.ConnectionTable.GetConnections(STRUC_BYPASS) ) {
+        string token = c.PeerLinkMessage.Token;
+        if (token != null) {
+          if (token == _node.Address.ToString()) {
+            bypass_cons.Add(c);
+          }
+        }
+      }
+      
+      int max_rank = bypass_cons.Count > 1 ? 0: (int) Math.Ceiling(0.2*score_table.Count);
+      foreach (Connection bp in bypass_cons) {
+        bool optimal = IsConnectionOptimal(bp.Address, score_table, max_rank);
+        if (!optimal) {
+          Address min_target = (Address) score_table.GetByIndex(0);
+          if (LogEnabled) {
+            ProtocolLog.Write(ProtocolLog.SCO, 
+                              String.Format("SCO local: {0}, Trimming bypass : {1}, min_target: {2}.", 
+                                            _node.Address, bp.Address, min_target));
+          }
+          lock(_sync) {
+            double total_secs = (DateTime.UtcNow - bp.CreationTime).TotalSeconds;
+            _sum_con_lifetime += total_secs;
+            _trim_count++;
+          }
+          _node.GracefullyClose(bp.Edge);
+        }
+        else {
+          if (LogEnabled) {
+            ProtocolLog.Write(ProtocolLog.SCO, 
+                              String.Format("SCO local: {0}, Bypass is optimal: {1}.", 
+                                            _node.Address, bp));
+          }
+        }
+      }
+    }
+
+    /**
+     * Checks if connection to the current address is optimal. 
+     * Scores can vary over time, and there might be "tight" race for the optimal.
+     * We may end up in a situation that we are trimming a connection that is not optimal, even 
+     * though the penalty for not using the optimal is marginal. The following algorithm
+     * checks that the current selection is in the top-percentile and also the penalty for not
+     * using the current optimal is marginal. 
+     * @param curr_address address of the current connection target. 
+     * @param score_table candidate addresses sorted by scores.
+     * @param max_rank maximum rank within the score table, beyond which connection 
+     *                 is treated suboptimal.
+     */
+    protected bool IsConnectionOptimal(Address curr_address, SortedList score_table, int max_rank) {
+      if (score_table.Count == 0) {
+        if (LogEnabled) {
+          ProtocolLog.Write(ProtocolLog.SCO, 
+                            String.Format("SCO local: {0}, Not sufficient scores available to determine optimality: {1}.", 
+                                          _node.Address, curr_address));
+        }
+        return true;
+      }
+            
+      bool optimal = false; //if shortcut is optimal.
+      bool doubtful = false; //if there is doubt on optimality of this connection.
+      int curr_rank = score_table.IndexOfValue(curr_address);
+      if (curr_rank == -1) {
+        if (LogEnabled) {
+          ProtocolLog.Write(ProtocolLog.SCO, 
+                            String.Format("SCO local: {0}, No score available for current: {1}.", 
+                                          _node.Address, curr_address));
+        }
+        
+        //doubtful case
+        doubtful = true;
+      } else if (curr_rank == 0) {
+        //definitely optimal
+        optimal = true;
+      } else if (curr_rank <= max_rank) {
+        //not the minimum, but still in top %ile.
+        double penalty = (double) score_table.GetKey(curr_rank)/(double) score_table.GetKey(0);
+        if (LogEnabled) {
+          ProtocolLog.Write(ProtocolLog.SCO, 
+                            String.Format("SCO local: {0}, Penalty for using current: {1} penalty: {2}).", 
+                                          _node.Address, curr_address, penalty));
+        }
+
+        //we allow for 10 percent penalty for not using the optimal
+        if (penalty < 1.1 ) {
+          optimal = true;
+        } 
+      } else {
+        if (LogEnabled) {        
+          ProtocolLog.Write(ProtocolLog.SCO, 
+                            String.Format("SCO local: {0}, Current: {1} too poorly ranked: {2}.", 
+                                  _node.Address, curr_address, curr_rank));
+        }
+      }
+
+      /** 
+       * If we are doubtful about the current selection, we will continue to treat it
+       * optimal for sometime.
+       */
+      string log = null;
+      lock(_sync) {
+        if (optimal) {
+          //clear the entry
+          _doubts_table.Remove(curr_address);
+        } 
+        else if (doubtful) { //if we have doubt about the selection
+          //make sure that we are not being to generous
+          if (!_doubts_table.ContainsKey(curr_address)) {
+            _doubts_table[curr_address] = 1;
+          } 
+          int idx = (int) _doubts_table[curr_address];
+          if (idx < MAX_DOUBT_BENEFITS) {
+            _doubts_table[curr_address] = idx + 1;
+            log = String.Format("SCO local: {0}, Giving benfit: {1} of doubt for current: {2}.", 
+                                       _node.Address, idx, curr_address);
+            optimal = true;
+          } else {
+            log = String.Format("SCO local: {0}, Reached quota: {1} on doubts for current: {2}.", 
+                                _node.Address, idx, curr_address);
+          }
+        }
+        
+        //all efforts to make the connection look optimal have failed
+        if (!optimal) {
+          //clear the entry
+          _doubts_table.Remove(curr_address);          
+        }
+      } //end of lock
+      if (LogEnabled) {
+        ProtocolLog.Write(ProtocolLog.SCO, log);
+      }
+      return optimal;
+    }
+
     protected void PeriodicNeighborCheck() {
 #if PERIODIC_NEIGHBOR_CHK
     /*
@@ -1067,10 +1570,7 @@ namespace Brunet {
              * but we only want 1.  This gives some flexibility to
              * prevent too much edge churning
              */
-            int max_sc = 2 * DESIRED_SHORTCUTS;
-            if( _node.NetworkSize > 2 ) {
-              max_sc = (int)(Math.Log(_node.NetworkSize)/Math.Log(2.0)) + 1;
-            }
+            int max_sc = 2 * DesiredShortcuts;
             bool sc_needs_trim = (sc_trim_candidates.Count > max_sc);
             bool near_needs_trim = (near_trim_candidates.Count > 0);
             /*

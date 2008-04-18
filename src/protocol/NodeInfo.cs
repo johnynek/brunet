@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using System;
+using System.Threading;
 using System.Collections;
 using System.Collections.Specialized;
 using System.IO;
@@ -237,7 +238,7 @@ namespace Brunet
       return _code;
     }
 
-    protected volatile IDictionary _as_dict;
+    protected IDictionary _as_dict;
 
     public IDictionary ToDictionary()
     {
@@ -256,7 +257,7 @@ namespace Brunet
         }
         ht["transports"] = trans;
       }
-      _as_dict = ht;
+      Interlocked.Exchange<IDictionary>(ref _as_dict, ht);
       return ht;
     }
   }

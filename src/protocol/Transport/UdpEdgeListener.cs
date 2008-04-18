@@ -55,8 +55,8 @@ namespace Brunet
     protected Random _rand;
 
     protected IEnumerable _tas;
-    volatile protected NatHistory _nat_hist;
-    volatile protected IEnumerable _nat_tas;
+    protected NatHistory _nat_hist;
+    protected IEnumerable _nat_tas;
     public override IEnumerable LocalTAs
     {
       get
@@ -74,13 +74,13 @@ namespace Brunet
     }
 
     ///used for thread for the socket synchronization
-    protected object _sync;
-
-    volatile protected bool _running;
-    volatile protected bool _isstarted;
+    protected readonly object _sync;
+    protected readonly ManualResetEvent _listen_finished_event;
+    protected int _running;
+    protected int _isstarted;
     public override bool IsStarted
     {
-      get { return _isstarted; }
+      get { return 1 == _isstarted; }
     }
 
     protected int _port;
@@ -94,7 +94,8 @@ namespace Brunet
     protected enum ControlCode : int
     {
       EdgeClosed = 1,
-      EdgeDataAnnounce = 2 ///Send a dictionary of various data about the edge
+      EdgeDataAnnounce = 2, ///Send a dictionary of various data about the edge
+      Null = 3 ///This is a null message, it means just ignore the packet
     }
 
     override public TAAuthorizer TAAuth {
@@ -142,8 +143,8 @@ namespace Brunet
             _remote_id_ht.Remove( e.RemoteID );
           }
           NatDataPoint dp = new EdgeClosePoint(DateTime.UtcNow, e);
-          _nat_hist = _nat_hist + dp;
-          _nat_tas = new NatTAs( _tas, _nat_hist );
+          Interlocked.Exchange<NatHistory>(ref _nat_hist, _nat_hist + dp);
+          Interlocked.Exchange<IEnumerable>(ref _nat_tas, new NatTAs( _tas, _nat_hist ));
         }
       }
     }
@@ -223,6 +224,9 @@ namespace Brunet
                  */
               }
             }
+          }
+          else if( code == ControlCode.Null ) {
+            //Do nothing in this case
           }
         }
         catch(Exception x) {
@@ -338,8 +342,8 @@ namespace Brunet
         if( _ta_auth.Authorize(rta) != TAAuthorizer.Decision.Deny ) {
           edge.End = end;
           NatDataPoint dp = new RemoteMappingChangePoint(DateTime.UtcNow, edge);
-          _nat_hist = _nat_hist + dp;
-          _nat_tas = new NatTAs( _tas, _nat_hist );
+          Interlocked.Exchange<NatHistory>(ref _nat_hist, _nat_hist + dp);
+          Interlocked.Exchange<IEnumerable>(ref _nat_tas, new NatTAs( _tas, _nat_hist ));
           //Tell the other guy:
           SendControlPacket(end, remoteid, localid, ControlCode.EdgeDataAnnounce, state);
         }
@@ -355,8 +359,8 @@ namespace Brunet
       if( is_new_edge ) {
         try {
           NatDataPoint dp = new NewEdgePoint(DateTime.UtcNow, edge);
-          _nat_hist = _nat_hist + dp;
-          _nat_tas = new NatTAs( _tas, _nat_hist );
+          Interlocked.Exchange<NatHistory>(ref _nat_hist, _nat_hist + dp);
+          Interlocked.Exchange<IEnumerable>(ref _nat_tas, new NatTAs( _tas, _nat_hist ));
           edge.CloseEvent += this.CloseHandler;
           //If we make it here, the edge wasn't closed,
           //go ahead and process it.
@@ -399,8 +403,8 @@ namespace Brunet
         UdpEdge ue = (UdpEdge)e;
         ue.PeerViewOfLocalTA = ta;
         NatDataPoint dp = new LocalMappingChangePoint(DateTime.UtcNow, e, ta);
-        _nat_hist = _nat_hist + dp;
-        _nat_tas = new NatTAs( _tas, _nat_hist );
+        Interlocked.Exchange<NatHistory>(ref _nat_hist, _nat_hist + dp);
+        Interlocked.Exchange<IEnumerable>(ref _nat_tas, new NatTAs( _tas, _nat_hist ));
       }
     }
 
@@ -440,8 +444,8 @@ namespace Brunet
           _id_ht[id] = e;
         }
         NatDataPoint dp = new NewEdgePoint(DateTime.UtcNow, e);
-        _nat_hist = _nat_hist + dp;
-        _nat_tas = new NatTAs( _tas, _nat_hist );
+        Interlocked.Exchange<NatHistory>(ref _nat_hist, _nat_hist + dp);
+        Interlocked.Exchange<IEnumerable>(ref _nat_tas, new NatTAs( _tas, _nat_hist ));
 
         /* Tell me when you close so I can clean up the table */
         e.CloseEvent += this.CloseHandler;
@@ -460,7 +464,7 @@ namespace Brunet
     protected Socket _s;
 
     ///this is the thread were the socket is read:
-    protected Thread _listen_thread;
+    protected readonly Thread _listen_thread;
 
     public UdpEdgeListener() : this(0, null, null)
     {
@@ -506,11 +510,13 @@ namespace Brunet
       _id_ht = new Hashtable(30, 0.15f);
       _remote_id_ht = new Hashtable();
       _sync = new object();
-      _running = false;
-      _isstarted = false;
+      _running = 0;
+      _isstarted = 0;
       ///@todo, we need a system for using the cryographic RNG
       _rand = new Random();
       _send_handler = this;
+      _listen_finished_event = new ManualResetEvent(false);
+      _listen_thread = new Thread( new ThreadStart(this.ListenThread) );
     }
 
     protected void SendControlPacket(EndPoint end, int remoteid, int localid,
@@ -551,16 +557,11 @@ namespace Brunet
      */
     public override void Start()
     {
-      lock( _sync ) {
-        if( _isstarted ) {
-          //We can't start twice... too bad, so sad:
-          throw new Exception("Restart never allowed");
-        }
-
-        _isstarted = true;
-        _running = true;
+      if( 1 == Interlocked.Exchange(ref _isstarted, 1) ) {
+        //We can't start twice... too bad, so sad:
+        throw new Exception("Restart never allowed");
       }
-      _listen_thread = new Thread( new ThreadStart(this.ListenThread) );
+      Interlocked.Exchange(ref _running, 1);
       _listen_thread.Start();
     }
 
@@ -569,12 +570,19 @@ namespace Brunet
      */
     public override void Stop()
     {
-      _running = false;
-      //Make sure the send thread has stopped
+      Interlocked.Exchange(ref _running, 0);
+      /*
+       * We send a packet to the other thread to get it out of blocking
+       * on ReceieveFrom
+       */
       Thread this_thread = Thread.CurrentThread;
-      _s.Close();
       if( this_thread != _listen_thread ) {
-        _listen_thread.Interrupt();
+        EndPoint ep = new IPEndPoint(IPAddress.Loopback, _port);
+        //Keep sending packets until the listen thread stops listening
+        do {
+          SendControlPacket(ep, 0, 0, ControlCode.Null, null);
+          //Wait 500 ms for the thread to get the packet
+        } while( false == _listen_finished_event.WaitOne(500, false) );
         _listen_thread.Join();
       }
     }
@@ -595,7 +603,7 @@ namespace Brunet
 
       DateTime last_debug = DateTime.UtcNow;
       TimeSpan debug_period = new TimeSpan(0,0,0,0,5000); //log every 5 seconds.
-      while(_running) {
+      while(1 == _running) {
         if (ProtocolLog.Monitor.Enabled) {
           DateTime now = DateTime.UtcNow;
           if (now - last_debug > debug_period) {
@@ -630,16 +638,20 @@ namespace Brunet
           }
         }
         catch(ThreadInterruptedException x) {
-          if(_running && ProtocolLog.Exceptions.Enabled) {
+          if((1 == _running) && ProtocolLog.Exceptions.Enabled) {
             ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
           }
         }
         catch(SocketException x) {
-          if(_running && ProtocolLog.Exceptions.Enabled) {
+          if((1 == _running) && ProtocolLog.Exceptions.Enabled) {
             ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
           }
         }
       }
+      //Let everyone know we are out of the loop
+      _listen_finished_event.Set();
+      _s.Close();
+      //Allow garbage collection
       _s = null;
     }
 
@@ -654,7 +666,7 @@ namespace Brunet
           _s.SendTo(Data, End);
         }
         catch(Exception x) {
-          if(_running && ProtocolLog.Exceptions.Enabled) {
+          if((1 == _running) && ProtocolLog.Exceptions.Enabled) {
             ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
           }
         }
@@ -680,7 +692,7 @@ namespace Brunet
           _s.SendTo(_send_buffer, 8 + plength, SocketFlags.None, sender.End);
         }
         catch(Exception x) {
-          if(_running && ProtocolLog.Exceptions.Enabled) {
+          if((1 == _running) && ProtocolLog.Exceptions.Enabled) {
             ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
           }
         }

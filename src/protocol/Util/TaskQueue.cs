@@ -151,10 +151,10 @@ public class TaskQueue {
   public event EventHandler EmptyEvent;
 
   //if the queue can start workers (added by Arijit Ganguly)
-  protected volatile bool _is_active;
+  protected int _is_active;
   public bool IsActive {
     set {
-      _is_active = value;
+      System.Threading.Interlocked.Exchange(ref _is_active, value ? 1 : 0);
     }
   }
   
@@ -172,7 +172,7 @@ public class TaskQueue {
     _sync = new object();
     _worker_count = 0;
     //is active by default
-    _is_active = true;
+    IsActive = true;
   }
 
   public void Enqueue(TaskWorker new_worker)
@@ -195,7 +195,7 @@ public class TaskQueue {
     /*
      * Get to work!
      */
-    if( start  && _is_active) {
+    if( start  && (1 == _is_active)) {
       Start(new_worker);
     }
   }
@@ -252,7 +252,7 @@ public class TaskQueue {
                                 worker, task);
       }
     }
-    if( new_worker != null && _is_active) {
+    if( new_worker != null && (1 == _is_active)) {
       //You start me up!
       Start(new_worker);
     }
