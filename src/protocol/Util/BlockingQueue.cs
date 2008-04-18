@@ -214,15 +214,16 @@ public sealed class BlockingQueue : Channel {
    * Close the queue and start throwing exceptions.
    */
   public BlockingQueue(int max_enqueues) : base(max_enqueues) {
+    _waiters = 0;
     _re = new AutoResetEvent(false); 
   }
 
   ~BlockingQueue() {
     //Make sure the close method is eventually called:
     Close();
-    _re.Close();
   }
   protected AutoResetEvent _re;
+  protected int _waiters;
 
   /* **********************************************
    * Here all the methods
@@ -234,7 +235,10 @@ public sealed class BlockingQueue : Channel {
    */
   public override void Close() {
     base.Close();
-    if( _re != null ) {
+    if(_waiters == 0) {
+      _re.Close();
+    }
+    else {
       _re.Set();
     }
 
@@ -263,9 +267,8 @@ public sealed class BlockingQueue : Channel {
   
   protected object Dequeue(int millisec, out bool timedout, bool advance)
   {
-    AutoResetEvent re = null;
     lock( _sync ) {
-      if( (_queue.Count > 1) || _closed ) { 
+      if( (_queue.Count > 1) || _closed ) {
         /**
          * If _queue.Count == 1, the Dequeue may return us to the empty
          * state, which we always handled below
@@ -278,28 +281,18 @@ public sealed class BlockingQueue : Channel {
           return _queue.Peek();
         }
       }
-      /*
-       * We have to wait, make sure we could this waiter
-       * before the queue is closed.  The lock on _sync
-       * make sure that we can't close while in this block
-       * of code
-       */
-      re = _re;
+      _waiters++;
     }
-    bool got_set = true;
     //Wait for the next one... 
-    try{
-      got_set = re.WaitOne(millisec, false);
-    }
-    catch { }
+    timedout = !_re.WaitOne(millisec, false);
 
-    if( got_set ) {
-      timedout = false;
-      bool set = false;
-      object result = null;
-      try {
-        lock( _sync ) {
-          set = _closed;
+    bool set = _closed;
+    bool are_close = false;
+    object result = null;
+    try {
+      lock( _sync ) {
+        _waiters--;
+        if( !timedout ) {
           if( advance ) {
             result = _queue.Dequeue();
           }
@@ -311,25 +304,20 @@ public sealed class BlockingQueue : Channel {
            * still more, set the _re so the
            * next reader can get it
            */
-          set |= _queue.Count > 0;
-          re = _re;
+          set |= (_queue.Count > 0);
+          are_close = _closed && (_waiters == 0);
         }
       }
-      finally {
-        try {
-          if( set ) {
-            if( re != null ) {
-              re.Set();
-            }
-          }
-        } catch { }
-      }
-      return result;
     }
-    else {
-      timedout = true;
-      return null;
-    } 
+    finally {
+      if(set) {
+        _re.Set();
+      }
+      else if(are_close) {
+        _re.Close();
+      } 
+    }
+    return result;
   }
 
   /**
