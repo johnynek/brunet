@@ -222,7 +222,7 @@ public sealed class BlockingQueue : Channel {
     //Make sure the close method is eventually called:
     Close();
   }
-  protected AutoResetEvent _re;
+  protected readonly AutoResetEvent _re;
   protected int _waiters;
 
   /* **********************************************
@@ -234,8 +234,23 @@ public sealed class BlockingQueue : Channel {
    * all future Dequeue's will throw exceptions
    */
   public override void Close() {
+    bool close_are = false;
+    lock( _sync ) {
+      _closed = true;
+      /*
+       * If there is no one waiting, go ahead and
+       * close the re.
+       *
+       * If there are waiters, then
+       * we Set the re, so everyone can see that
+       * the queue is closed.
+       */
+      close_are = (_waiters == 0);
+    }
+    //Fire the close event
     base.Close();
-    if(_waiters == 0) {
+    //Go ahead and interact with _re
+    if(close_are) {
       _re.Close();
     }
     else {
@@ -286,12 +301,20 @@ public sealed class BlockingQueue : Channel {
     //Wait for the next one... 
     timedout = !_re.WaitOne(millisec, false);
 
-    bool set = _closed;
+    bool set = false;
     bool are_close = false;
     object result = null;
     try {
       lock( _sync ) {
+        //If we are closed, we should stay set
+        set = _closed;
         _waiters--;
+        /* 
+         * No matter what, if the queue is closed
+         * and we are the last _waiter, then go
+         * ahead and close the _re.
+         */
+        are_close = _closed && (_waiters == 0);
         if( !timedout ) {
           if( advance ) {
             result = _queue.Dequeue();
@@ -305,17 +328,26 @@ public sealed class BlockingQueue : Channel {
            * next reader can get it
            */
           set |= (_queue.Count > 0);
-          are_close = _closed && (_waiters == 0);
         }
       }
     }
     finally {
-      if(set) {
-        _re.Set();
-      }
-      else if(are_close) {
+      /*
+       * We are about to leave, let's see if we need to
+       * set or close the _re.  If we have to close,
+       * we never need to set.
+       *
+       * The case where we are closed, the queue should be set,
+       * but we may also be able to go ahead and close.
+       * We have to do it in this order, or we may either needlessly
+       * Set then Close, or Close before we called Set.
+       */
+      if(are_close) {
         _re.Close();
       } 
+      else if(set) {
+        _re.Set();
+      }
     }
     return result;
   }
@@ -347,7 +379,6 @@ public sealed class BlockingQueue : Channel {
   public override int Enqueue(object a) {
     bool close = false;
     int count = -1;
-    AutoResetEvent re = null;
     lock( _sync ) {
       if( !_closed && (_close_on_enqueue != 0) ) {
         _queue.Enqueue(a);
@@ -366,16 +397,10 @@ public sealed class BlockingQueue : Channel {
 #if DEBUG
       Console.Error.WriteLine("Enqueue set: count {0}", Count);
 #endif
-      re = _re;
     }
     //If we just went from 0 -> 1 signal any waiting Dequeue
     if( count == 1 ) { 
-      try {
-        if( re != null ) {
-          re.Set();
-        }
-      }
-      catch { }
+      _re.Set();
     }
     //After we have alerted any blocking threads (Set), fire
     //the event:
