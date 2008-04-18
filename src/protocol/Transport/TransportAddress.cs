@@ -262,7 +262,6 @@ namespace Brunet
     }
     
 
-    protected volatile string _host;
     public string Host {
       get {
 	return _uri.Host;

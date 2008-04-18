@@ -48,14 +48,21 @@ namespace Brunet
       }
     }
 
-    //Each time we do a GetEnumerator, we generate a fresh
-    //TransportAddress with the latest information
+    /**
+     * This class returns an enumarable list of tunnel URIs for a node. 
+     * However, it turns out that there is just one element in the list. 
+     * Each time we do a GetEnumerator, we generate a fresh
+     * TransportAddress with the latest information.
+     */
     protected class TunnelTAEnumerable : IEnumerable {
       protected Node _node;
       public TunnelTAEnumerable(Node n) {
         _node = n;
       }
 
+      /**
+       * @returns an enumerator for the local tunnel TAs. 
+       */
       public IEnumerator GetEnumerator() {
         ArrayList nearest = _node.ConnectionTable.GetNearestTo( (AHAddress) _node.Address, 6);
         ArrayList forwarders = new ArrayList();
@@ -81,7 +88,7 @@ namespace Brunet
     }
 
       /**
-       * What type of TransportAddress does this EdgeListener use
+       * Type of TransportAddress does this EdgeListener uses.
        */
     public override TransportAddress.TAType TAType
     {
@@ -103,23 +110,27 @@ namespace Brunet
 
     protected object _sync;
     
-    volatile protected bool _running;
-    protected bool _isstarted;
+    protected int _running;
+    protected int _isstarted;
     
     /*
-     * Don't try to use TunnelEdge unless we have this many neighbors
+     * Don't try to use TunnelEdge unless we have this many common neighbors.
      */
     protected const int MIN_FORWARDERS = 1;
 
     /**
-     * @return true if the Start method has been called
+     * @return true if the Start method has been called.
      */
     public override bool IsStarted
     {
       get {
-        return _isstarted;
+        return _isstarted == 1;
       }
     }
+    /**
+     * Message types that are exchaged while creating, maintaining and using tunnel edges
+     * for exchange of data. 
+     */
     public enum MessageType:byte 
     {
       EdgeRequest,
@@ -130,6 +141,8 @@ namespace Brunet
     }
 
     /**
+     * This method creates an instance of a tunnel edge to a remote node, given its 
+     * tunnel transport URI.
      * @param ta TransportAddress to create an edge to
      * @param ecb the EdgeCreationCallback to call when done
      * @throw EdgeException if we try to call this before calling
@@ -141,7 +154,7 @@ namespace Brunet
       if (!IsStarted) {
         throw new EdgeException("TunnelEdgeListener not started");
       }
-      else if (!_running) {
+      else if (0 == _running) {
         throw new EdgeException("TunnelEdgeListener not running");
       }
       else if (ta.TransportAddressType != this.TAType) {
@@ -268,7 +281,11 @@ namespace Brunet
       }
     }
 
-
+    /**
+     * This class keeps track of all tunnel edges that have been requested. 
+     * Since creation of tunnel edges is not intantaneous, we record their creation state, 
+     * and remove it once the edge is successfully created, or creation process times out. 
+     */
     protected class EdgeCreationState {
       public static readonly TimeSpan ReqTimeout = new TimeSpan(0,0,0,0,5000);
       public readonly int Id;
@@ -301,6 +318,9 @@ namespace Brunet
       /**
        * This announces the Edge for this CreationState, and
        * sets the CreatedEdge variable.
+       * @param success true if the creation succeeded.
+       * @param e reference to the edge that got created (if success).
+       * @param x exception that caused the edge creation to fail. 
        */
       public void CallECB(bool success, Edge e, Exception x) {
         //make sure the callback is only called once:
@@ -319,7 +339,7 @@ namespace Brunet
 
       /**
        * Resends our request to a randomly selected Sender in our
-       * list of neighbors
+       * list of neighbors.
        */
       public void Resend() {
         DateTime now = DateTime.UtcNow;
@@ -429,21 +449,17 @@ namespace Brunet
     /**
      * Start listening for edges.  Edges
      * received will be announced with the EdgeEvent
-     * 
      * This must be called before CreateEdgeTo.
      */
     public override void Start() {
-      lock( _sync ) {
-        if( _isstarted ) {
-          //We can't start twice... too bad, so sad:
-          throw new Exception("Restart never allowed");
-        }
+      if( 1 == Interlocked.Exchange(ref _isstarted, 1) ) {
+        //We can't start twice... too bad, so sad:
+        throw new Exception("Restart never allowed");
+      }
 #if TUNNEL_DEBUG
         Console.Error.WriteLine("Starting TunnelEdgeListener");
 #endif
-        _isstarted = true;
-        _running = true;
-      }
+      Interlocked.Exchange(ref _running, 1);
       //Start listening to packets
       _node.GetTypeSource(PType.Protocol.Tunneling).Subscribe(this, null);
     }
@@ -453,7 +469,7 @@ namespace Brunet
      * until this is called
      */
     public override void Stop() {
-      _running = false;
+      Interlocked.Exchange(ref _running, 0);
       _node.HeartBeatEvent -= TimeoutChecker;
       _node.GetTypeSource(PType.Protocol.Tunneling).Unsubscribe(this);      
     }
@@ -476,11 +492,19 @@ namespace Brunet
         _ecs_ht = new Hashtable();
         
 
-        _running = false;
-        _isstarted = false;
+        _running = 0;
+        _isstarted = 0;
         _node.HeartBeatEvent += new EventHandler(this.TimeoutChecker);
       }
     }
+   
+    /**
+     * Each tunnel edge is represented using a pair of local and remote ids. 
+     * Returns an edge, given its pairs of ids. 
+     * @param localid local id for the edge
+     * @param remoteid remote id for the edge
+     * @returns reference to the edge, or null of th edge cannot be located. 
+     */
     protected TunnelEdge GetTunnelEdge(int localid, int remoteid) {
       TunnelEdge edge_to_read = (TunnelEdge) _id_ht[localid];        
       if (edge_to_read != null) {
@@ -503,9 +527,17 @@ namespace Brunet
       }
       return edge_to_read;
     }
+    
+    /**
+     * Handles packet received for the EdgeListener. It can be data received on 
+     * a tunnel edge or packet for edge maintenance. 
+     * @param packet that has been received.
+     * @param return_path return path for the packet (to send it back).
+     * @param state state supplied when subscribing to receive packets of some type. 
+     */
     public void HandleData(MemBlock packet, ISender return_path, object state)
     {
-      if (!_running) {
+      if (0 == _running) {
 #if TUNNEL_DEBUG
         Console.Error.WriteLine("TunnelEdgeListener: not running (cannot handle packet)");
 #endif 
@@ -538,6 +570,14 @@ namespace Brunet
         HandleEdgeSync(remoteid, localid, rest_of_payload);
       }
     }
+
+    /**
+     * Handle control messsages for edge maintenance. These messages relfect changes in 
+     * connection tables at the edge endpoints. 
+     * @param remoteid remote id for the edge. 
+     * @param localid local id for the edge. 
+     * @param rest_of_payload control message.
+     */
     protected void HandleEdgeControl(int remoteid, int localid, MemBlock rest_of_payload) {
 #if TUNNEL_DEBUG
         Console.Error.WriteLine("Receiving edge control");
@@ -567,6 +607,12 @@ namespace Brunet
         }
     }
 
+    /**
+     * Handle periodic synchronization messages for edge maintenance. 
+     * @param remoteid remote id for the edge. 
+     * @param localid local id for the edge. 
+     * @param rest_of_payload control message.
+     */
     protected void HandleEdgeSync(int remoteid, int localid, MemBlock rest_of_payload) {
 #if TUNNEL_DEBUG
         Console.Error.WriteLine("Receiving edge control");
@@ -589,7 +635,10 @@ namespace Brunet
         }
     }
     /**
-     * This is just data, look up the edge and announce the data
+     * Handle data received on an edge, look up the edge and announce the data. 
+     * @param remoteid remote id for the edge. 
+     * @param localid local id for the edge. 
+     * @param rest_of_payload control message.
      */
     protected void HandleEdgeData(int remoteid, int localid, MemBlock rest_of_payload) {
 #if TUNNEL_DEBUG
@@ -613,7 +662,10 @@ namespace Brunet
       }
     }
     /**
-     * When we get an a response to an EdgeRequest, we handle it here
+     * When we get an a response to an EdgeRequest, we handle it here.
+     * @param remoteid remote id for the edge. 
+     * @param localid local id for the edge. 
+     * @param rest_of_payload control message.
      */
     protected void HandleEdgeResponse(int remoteid, int localid, MemBlock rest_of_payload) {
         //assert (localid > 0) 
@@ -686,8 +738,13 @@ namespace Brunet
             //more than one edge, just ignore it.
         }
     }
+
     /**
-     * When we get an EdgeRequest message, this is where we handle it
+     * When we get an EdgeRequest message, this is where we handle it.
+     * @param remoteid remote id for the edge. 
+     * @param localid local id for the edge. 
+     * @param rest_of_payload control message.
+     * @param return_path return path for the packet
      */
     protected void HandleEdgeRequest(int remoteid, int localid, MemBlock rest_of_payload, ISender return_path)
     {
@@ -801,10 +858,14 @@ namespace Brunet
     }
 
     /**
-     * acquired and lost may be null
+     * Handle sending of an edge control message, listing the connections acquired
+     * and lost. 
+     * @param e affected by the changes in connection table.
+     * @param acquired list of connection (addresses) we acquired. 
+     * @param lost list of connection (addresses) we lost. 
      */
     public void HandleControlSend(Edge e, IEnumerable acquired, IEnumerable lost) {
-      if (!_running) {
+      if (0 == _running) {
         //do nothing
         return;
       }
@@ -875,8 +936,13 @@ namespace Brunet
       }
     }
 
+    /**
+     * Handle sending of an edge synchronization. 
+     * @param e tunnel edge.
+     * @param forwarders list of forwarders for the tunnel edge. 
+     */
     public void HandleSyncSend(Edge e, IEnumerable forwarders) {
-      if (!_running) {
+      if (0 == _running) {
         //do nothing
         return;
       }
@@ -932,6 +998,8 @@ namespace Brunet
      * When a edge closes we need to remove it from
      * our table, so we will know it is new if it comes
      * back.
+     * @param edge edge that closed.
+     * @param args arguments associated with the edge close event.
      */
     public void CloseHandler(object edge, EventArgs args)
     {

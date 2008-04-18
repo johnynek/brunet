@@ -298,11 +298,10 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
    * We only calculate the hash code once (when we first need it)
    * We can use this to help us make Equals faster
    */
-  protected volatile bool _have_hc = false;
-  protected volatile int _hc;
+  protected int _hc = -1;
   //Uses the first few bytes as the hashcode
   public override int GetHashCode() {
-    if( _have_hc ) {
+    if( _hc != -1 ) {
       return _hc;
     }
 
@@ -312,8 +311,10 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
     for(int i = _offset; i < l; i++) {
       val = (val << 8) | _buffer[i];
     }
+    if( val == -1 ) {
+      val = 0;
+    }
     _hc = val;
-    _have_hc = true;
     return val;
   }
   /**

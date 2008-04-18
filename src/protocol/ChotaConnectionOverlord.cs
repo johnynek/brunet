@@ -451,7 +451,8 @@ namespace Brunet {
 
       Linker l = new Linker(_node, ctm_resp.Target.Address,
                             ctm_resp.Target.Transports,
-                            ctm_resp.ConnectionType);
+                            ctm_resp.ConnectionType,
+                            ctm_resp.Token);
       _node.TaskQueue.Enqueue( l );
       //We only want to connect to one node, so we are done connecting now:
       return true;
@@ -691,7 +692,7 @@ namespace Brunet {
        * the Connector starts.  If it returns true, the Connector
        * will finish immediately without sending an ConnectToMessage
        */
-      Linker l = new Linker(_node, target, null, contype);
+      Linker l = new Linker(_node, target, null, contype, _node.Address.ToString());
       object link_task = l.Task;
       Connector.AbortCheck abort = delegate(Connector c) {
         bool stop = _node.ConnectionTable.Contains( mt, target );
@@ -724,7 +725,7 @@ namespace Brunet {
       }
 
       ConnectToMessage ctm =
-        new ConnectToMessage(contype, _node.GetNodeInfo(8), near_ni);
+        new ConnectToMessage(contype, _node.GetNodeInfo(8), near_ni, _node.Address.ToString());
 
       ISender send = new AHSender(_node, target, AHPacket.AHOptions.Exact);
       Connector con = new Connector(_node, send, ctm, this);

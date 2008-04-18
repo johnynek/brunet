@@ -64,20 +64,29 @@ namespace Brunet
          * This goes A -> B -> C
          */
         if( b[0] == 0 ) {
+          int offset = 1;
           //This is the first leg, going from A->B
-          Address add_c = AddressParser.Parse(b.Slice(1, Address.MemSize));
+          Address add_c = AddressParser.Parse(b.Slice(offset, Address.MemSize));
+          offset += Address.MemSize;
           //Since ahs a sender to return, we would be the source:
           Address add_a = ahs.Destination;
-          MemBlock payload = b.Slice( 1 + Address.MemSize );
+          short ttl = NumberSerializer.ReadShort(b, offset);//2 bytes
+          offset += 2;
+          ushort options = (ushort) NumberSerializer.ReadShort(b, offset);//2 bytes
+          offset += 2;
+          MemBlock payload = b.Slice(offset);
           MemBlock f_header = MemBlock.Reference( new byte[]{1} );
           /*
            * switch the packet from [A B f0 C] to [B C f 1 A]
            */
           ICopyable new_payload = new CopyList(PType.Protocol.Forwarding,
                                            f_header, add_a, payload);
+          /*
+           * ttl and options are present in the forwarding header.
+           */
           AHSender next = new AHSender(_n, ahs.ReceivedFrom, add_c,
-                                       _n.DefaultTTLFor(add_c),
-                                       AHPacket.AHOptions.AddClassDefault); 
+                                       ttl,
+                                       options); 
           next.Send(new_payload);
         }
         else if ( b[0] == 1 ) {
@@ -104,26 +113,79 @@ namespace Brunet
    * This is an ISender which forwards a packet through another node
    */
   public class ForwardingSender : ISender {
+    static ForwardingSender() {
+      SenderFactory.Register("fw", CreateInstance);
+    }
+    
+    public static ForwardingSender CreateInstance(Node n, string uri) {
+      string s = uri.Substring(7);
+      string []ss = s.Split(SenderFactory.SplitChars);     
+
+      string[] relay = ss[1].Split(SenderFactory.Delims);
+      Address forwarder = AddressParser.Parse(relay[1]);
+      
+      string init_mode = (ss[2].Split(SenderFactory.Delims))[1];
+      ushort init_option = SenderFactory.StringToUShort(init_mode);
+
+      string[] dest = ss[3].Split(SenderFactory.Delims);
+      Address target = AddressParser.Parse(dest[1]);
+
+      short ttl = (short) Int16.Parse((ss[4].Split(SenderFactory.Delims))[1]);
+
+      string mode = (ss[5].Split(SenderFactory.Delims))[1];
+      ushort option = SenderFactory.StringToUShort(mode);
+
+      //Console.WriteLine("{0}, {1}, {2}, {3}, {4}", forwarder, init_option, target, ttl, option);
+      return new ForwardingSender(n, forwarder, init_option, target, ttl, option);      
+    }
+
+
     protected ISender _sender;
     protected ICopyable _header;
+    protected Node _n;
     
     protected Address _dest;
     public Address Destination { get { return _dest; } }
+    
+    protected short _f_ttl;
+    protected ushort _f_option;
 
-    public ForwardingSender(Node n, Address forwarder, Address destination) {
+    public ForwardingSender(Node n, Address forwarder, Address destination)
+      :this(n, forwarder, AHPacket.AHOptions.AddClassDefault, destination, n.DefaultTTLFor(destination), AHPacket.AHOptions.AddClassDefault){}
+    
+    public ForwardingSender(Node n, Address forwarder, ushort init_option, Address destination, short ttl, ushort option) {
+      _n = n;
       _dest = destination;
-      _sender = new AHSender(n, forwarder);
+      _sender = new AHSender(n, forwarder, init_option);
+      _f_ttl =  ttl;
+      _f_option = option;
+      byte[] f_buffer = new byte[4];
+      NumberSerializer.WriteShort(ttl, f_buffer, 0);
+      NumberSerializer.WriteUShort(option, f_buffer, 2);      
       _header = new CopyList(PType.Protocol.Forwarding,
                              MemBlock.Reference(new byte[]{0}),
-                             destination);
+                             destination,
+                             MemBlock.Reference(f_buffer) 
+                             );
     }
-
+    
     /* 
      * Send a packet by forwarding it first.
      */
     public void Send(ICopyable d) {
       _sender.Send( new CopyList(_header, d) );
     }
+    
+  /**
+   * Converts the sender into a URI representation.
+   * @returns URI for the sender.
+   */
+    public string ToUri() {
+      return System.String.Format("sender:fw?relay={0}&init_mode={1}&dest={2}&ttl={3}&mode={4}", 
+                                  ((AHSender) _sender).Destination, 
+                                  SenderFactory.UShortToString(((AHSender) _sender).Options), 
+                                  _dest, _f_ttl, SenderFactory.UShortToString(_f_option));
+    }      
 
     override public int GetHashCode() {
       return _dest.GetHashCode();

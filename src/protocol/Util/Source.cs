@@ -106,7 +106,7 @@ namespace Brunet {
   /// <summary>Holds a single subscriber per a source.</summary>
   public class SimpleSource: ISource {
     /// <summary>Maps a source to a IDataHandler;
-    protected volatile Subscriber _sub;
+    protected Subscriber _sub;
     /// <summary>Lock to support multithreaded operations.</summary>
     protected Object _sync;
 
@@ -150,6 +150,9 @@ namespace Brunet {
   /// <summary>Provides multiple subscribers of an ISource.</summary>
   public class MultiSource : ISource {
     /// <summary>A list of all the subscribers.</summary>
+    /*
+     * This needs to be volatile to avoid the lock in Announce.
+     */
     protected volatile ArrayList _subs;
     /// <summary>A lock to allow for multithreaded operations.</summary>
     protected readonly Object _sync;
@@ -184,9 +187,9 @@ namespace Brunet {
     */
     public void Unsubscribe(IDataHandler h) {
       Subscriber s = new Subscriber(h, null);
-      int idx = _subs.IndexOf(s);
     //We have to lock so there is no race between the read and the write
       lock( _sync ) {
+        int idx = _subs.IndexOf(s);
         _subs = Functional.RemoveAt(_subs, idx);
       }
     }

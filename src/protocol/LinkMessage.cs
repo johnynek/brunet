@@ -23,6 +23,7 @@ using System.Collections;
 using System.Collections.Specialized;
 
 #if BRUNET_NUNIT
+using System.Security.Cryptography;
 using NUnit.Framework;
 #endif
 
@@ -46,26 +47,30 @@ namespace Brunet
 
     public LinkMessage(ConnectionType t,
                        NodeInfo local,
-                       NodeInfo remote)
+                       NodeInfo remote,
+                       string token)
     {
       _attributes = new StringDictionary();
       _attributes["type"] = Connection.ConnectionTypeToString(t);
       _local_ni = local;
       _remote_ni = remote;
+      _token = token;
     }
 
-    public LinkMessage(string connection_type, NodeInfo local, NodeInfo remote)
+    public LinkMessage(string connection_type, NodeInfo local, NodeInfo remote, string token)
     {
       _attributes = new StringDictionary();
       _attributes["type"] = String.Intern( connection_type );
       _local_ni = local;
       _remote_ni = remote;
+      _token = token;
     }
-    public LinkMessage(StringDictionary attributes, NodeInfo local, NodeInfo remote)
+    public LinkMessage(StringDictionary attributes, NodeInfo local, NodeInfo remote, string token)
     {
       _attributes = attributes;
       _local_ni = local;
       _remote_ni = remote;
+      _token = token;
     }
     public LinkMessage(IDictionary ht) {
       IDictionaryEnumerator en = ht.GetEnumerator();
@@ -78,6 +83,9 @@ namespace Brunet
         else if( en.Key.Equals( "remote" ) ) {
           IDictionary rht = en.Value as IDictionary;
           if( rht != null ) { _remote_ni = NodeInfo.CreateInstance(rht); }
+        }
+        else if (en.Key.Equals( "token" ) ) {
+          _token = (string) ht["token"];
         }
         else {
           _attributes[ String.Intern( en.Key.ToString() ) ] = String.Intern( en.Value.ToString() );
@@ -110,6 +118,12 @@ namespace Brunet
       get { return _remote_ni; } 
     }
 
+    protected string _token;
+    public string Token {
+      get {
+        return _token;
+      }
+    }
     /**
      * @return true if olm is equivalent to this
      */
@@ -120,6 +134,7 @@ namespace Brunet
         bool same = true;
 	same &= (lm.Attributes.Count == Attributes.Count );
 	same &= lm.ConTypeString == ConTypeString;
+        same &= lm.Token.Equals(Token);
 	if( same ) {
           //Make sure all the attributes match:
 	  foreach(string key in lm.Attributes.Keys) {
@@ -147,6 +162,9 @@ namespace Brunet
       if( _remote_ni != null ) {
         ht["remote"] = _remote_ni.ToDictionary();
       }
+      if (_token != null) {
+        ht["token"] = _token.ToString();
+      }
       if( _attributes != null ) {
         foreach(DictionaryEntry de in _attributes) {
           ht[ de.Key ] = de.Value;
@@ -172,14 +190,16 @@ namespace Brunet
     public void LMSerializationTest()
     {
       NodeInfo n1 = NodeInfo.CreateInstance(null, TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:45"));
+      RandomNumberGenerator rng = new RNGCryptoServiceProvider();      
+      AHAddress tmp_add = new AHAddress(rng);
       LinkMessage l1 = new LinkMessage(ConnectionType.Structured, n1,
 				       NodeInfo.CreateInstance(new DirectionalAddress(DirectionalAddress.Direction.Left),
-				       TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:837")) );
+				       TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:837")), tmp_add.ToString() );
       RoundTripHT(l1);
       StringDictionary attrs = new StringDictionary();
       attrs["realm"] = "test_realm";
       attrs["type"] = "structured.near";
-      LinkMessage l3 = new LinkMessage(attrs, n1, n1);
+      LinkMessage l3 = new LinkMessage(attrs, n1, n1, tmp_add.ToString());
       RoundTripHT(l3);
     }
   }
