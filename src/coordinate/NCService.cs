@@ -312,7 +312,7 @@ namespace Brunet.Coordinate {
 	_node.StateChangeEvent += delegate(Node n, Node.ConnectionState s) {
 	  if( s == Node.ConnectionState.Disconnected ) {
 	    lock(_nc_service_table) {
-	      Console.Error.WriteLine("Removing {0} from nc_service table", n.Address);
+//	      Console.Error.WriteLine("Removing {0} from nc_service table", n.Address);
 	      _nc_service_table.Remove(n);
 	    }
 	  }
@@ -395,7 +395,7 @@ namespace Brunet.Coordinate {
       Channel q =  (Channel) o;
       lock(_sync) {
 	if (q != _current_trial_state.Queue) {
-	  Console.Error.WriteLine("[NCService] {0} Too late now.", _node.Address);	  	  
+//	  Console.Error.WriteLine("[NCService] {0} Too late now.", _node.Address);	  	  
 	  return;
 	} 
 	_current_trial_state.Queue = new Channel();
@@ -428,7 +428,7 @@ namespace Brunet.Coordinate {
       lock(_sync) {
 	//check to see if still valid.
 	if (q != _current_trial_state.Queue) {
-	  Console.Error.WriteLine("[NCService] {0} Too late now.", _node.Address);	  	  
+//	  Console.Error.WriteLine("[NCService] {0} Too late now.", _node.Address);	  	  
 	  return;
 	} 
 
@@ -465,7 +465,7 @@ namespace Brunet.Coordinate {
       try {
 	RpcResult res = q.Dequeue() as RpcResult;
 	if (res.Statistics.SendCount > 1) {
-	  Console.Error.WriteLine("[NCService] {0} ignore sample (multiple sends).", _node.Address);
+	  //Console.Error.WriteLine("[NCService] {0} ignore sample (multiple sends).", _node.Address);
 	  return;
 	}
 	double o_rawLatency = (double) ((end - start).TotalMilliseconds);
@@ -519,15 +519,15 @@ namespace Brunet.Coordinate {
 	  return;
 	}
 
-	Console.Error.WriteLine("Sample at: {0}, from: {1} {2}, position: {3}, error: {4}, raw latency: {5}, smooth latency: {6}", 
-				o_stamp, o_host, o_neighbor, o_position, o_weightedError, o_rawLatency, o_latency);
+	//Console.Error.WriteLine("Sample at: {0}, from: {1} {2}, position: {3}, error: {4}, raw latency: {5}, smooth latency: {6}", 
+				//o_stamp, o_host, o_neighbor, o_position, o_weightedError, o_rawLatency, o_latency);
 	double o_distance = _vivaldi_state.Position.GetEucledianDistance(o_position);
 	while (o_distance == 0) {
 	  _vivaldi_state.Position.Bump();
 	  o_distance = _vivaldi_state.Position.GetEucledianDistance(o_position);
 	}
 
-	Console.Error.WriteLine("Current position: {0}, distance: {1}", _vivaldi_state.Position, o_distance);
+	//Console.Error.WriteLine("Current position: {0}, distance: {1}", _vivaldi_state.Position, o_distance);
 	double o_relativeError = Math.Abs((o_distance - o_latency)/o_latency);
 	double o_rawRelativeError = Math.Abs((o_distance - o_rawLatency)/o_rawLatency);
 	double o_weight = _vivaldi_state.WeightedError/(_vivaldi_state.WeightedError + o_weightedError);
@@ -673,9 +673,9 @@ namespace Brunet.Coordinate {
 	_vivaldi_state.Position.Add(o_force);
 	_vivaldi_state.Position.CheckHeight();
 
-	Console.Error.WriteLine("Updated position: {0}, distance: {1}", 
-				_vivaldi_state.Position,  
-				_vivaldi_state.Position.GetEucledianDistance(o_position));
+//	Console.Error.WriteLine("Updated position: {0}, distance: {1}", 
+//				_vivaldi_state.Position,  
+//				_vivaldi_state.Position.GetEucledianDistance(o_position));
       }//end of lock
     }
     
@@ -718,8 +718,8 @@ namespace Brunet.Coordinate {
 	}
 
 	if (min_error_state == null) {
-	  Console.Error.WriteLine("No network coordinates to checkpoint, node instances: {0}, min_error: {1}", 
-				  ht.Count, min_error);
+	//  Console.Error.WriteLine("No network coordinates to checkpoint, node instances: {0}, min_error: {1}", 
+//				  ht.Count, min_error);
 	  continue;
 	}
 	
@@ -728,7 +728,7 @@ namespace Brunet.Coordinate {
 	}
 	
 	try {
-	  Console.Error.WriteLine("Checkpointing: {0}", min_error_state.Position);
+	 // Console.Error.WriteLine("Checkpointing: {0}", min_error_state.Position);
 	  TextWriter tw = new StreamWriter(_checkpoint_file);
           //also write the checkpoint time
           tw.WriteLine(DateTime.UtcNow.Ticks);
