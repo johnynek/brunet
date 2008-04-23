@@ -90,7 +90,12 @@ namespace Ipop {
       options[DHCPPacket.OptionTypes.DOMAIN_NAME] = Encoding.UTF8.GetBytes("ipop");
 //  The following option is needed for dhcp to "succeed" in Vista, but they break Linux
 //    options[DHCPPacket.OptionTypes.ROUTER] = reply.ip;
-      byte[] tmp = new byte[4] {reply.ip[0], reply.ip[1], reply.ip[2], 1};
+      byte[] tmp = new byte[4];
+      for(int i = 0; i < reply.ip.Length - 1; i++) {
+        tmp[i] = (byte) (reply.ip[i] & reply.netmask[i]);
+      }
+      tmp[3] = 1;
+
       options[DHCPPacket.OptionTypes.DOMAIN_NAME_SERVER] = tmp;
       options[DHCPPacket.OptionTypes.SUBNET_MASK] = reply.netmask;
       options[DHCPPacket.OptionTypes.LEASE_TIME] = reply.leasetime;

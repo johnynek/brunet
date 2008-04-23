@@ -9,16 +9,11 @@
 #define MTU 1500
 
 int send_tap(int fd, u_char *packet, int len) {
-  //fprintf(stdout, "Sending a packet of length: %d\n", len);
-  int n;
-  n = write(fd, packet, len);
-  return n;
+  return write(fd, packet, len);
 }
 
 int read_tap(int fd, void *packet, int len) {
-  int n;
-  n = read(fd, packet, len);
-  return n;
+  return read(fd, packet, len);
 }
 
 int open_tap(char *dev)

@@ -37,7 +37,7 @@ namespace Ipop.DhtNode {
   public class DhtIpopNode: IpopNode {
     /**  <summary>This makes sure only one dhcp request is being handle at a 
     time</summary>*/
-    protected bool in_dhcp;
+    protected int in_dhcp;
 
     /**
     <summary>Creates a DhtIpopNode.</summary>
@@ -46,7 +46,7 @@ namespace Ipop.DhtNode {
     */
     public DhtIpopNode(string NodeConfigPath, string IpopConfigPath):
       base(NodeConfigPath, IpopConfigPath) {
-      in_dhcp = false;
+      in_dhcp = 0;
       _dhcp_server = new DhtDHCPServer(Dht, _ipop_config.EnableMulticast);
       _dns = new DhtDNS(Dht, _ipop_config.IpopNamespace);
       _address_resolver = new DhtAddressResolver(Dht, _ipop_config.IpopNamespace);
@@ -63,8 +63,7 @@ namespace Ipop.DhtNode {
         ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
                             "Incoming DHCP Request, DHCP Status: {0}.", in_dhcp));
       }
-      if(!in_dhcp) {
-        in_dhcp = true;
+      if(Interlocked.Exchange(ref in_dhcp, 1) == 0) {
         ThreadPool.QueueUserWorkItem(new WaitCallback(HandleDHCP), ipp);
       }
       return true;
@@ -85,7 +84,7 @@ namespace Ipop.DhtNode {
       }
       catch {}
       ProcessDHCP(ipp, hostname);
-      in_dhcp = false;
+      Interlocked.Exchange(ref in_dhcp, 0);
     }
 
     /**

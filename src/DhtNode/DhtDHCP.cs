@@ -40,6 +40,12 @@ namespace Ipop.DhtNode {
     protected Dht _dht;
     /// <summary>Multicast enabled.</summary>
     protected bool _multicast;
+    /// <summary>Speed optimization for slow dht, current ip</summary>
+    protected String _current_ip;
+    /// <summary>Speed optimization for slow dht, lease quarter time.</summary>
+    protected DateTime _current_quarter_lifetime;
+    /// <summary>Speed optimization for slow dht, DHCPReply.</summary>
+    protected DHCPReply _current_dhcpreply;
 
     /**
     <summary>Creates a DhtDHCPLeaseController for a specific namespace</summary>
@@ -90,19 +96,19 @@ namespace Ipop.DhtNode {
         renew_attempts = 2;
       }
 
+      if(_current_ip != null && Utils.BytesToString(RequestedAddr, '.') == _current_ip &&
+            DateTime.UtcNow < _current_quarter_lifetime) {
+        return _current_dhcpreply;
+      }
+
       bool res = false;
 
       while (attempts-- > 0) {
+        string str_addr = Utils.BytesToString(RequestedAddr, '.');
+        string key = "dhcp:ipop_namespace:" + namespace_value + ":ip:" + str_addr;
         while(renew_attempts-- > 0) {
-          string str_addr = Utils.BytesToString(RequestedAddr, '.');
-          string key = "dhcp:ipop_namespace:" + namespace_value + ":ip:" + str_addr;
           try {
             res = _dht.Create(key, node_address, leasetime);
-          }
-          catch {
-            res = false;
-          }
-          if(res) {
             if(hostname != null) {
               _dht.Put(namespace_value + "." + hostname, str_addr, leasetime);
             }
@@ -111,16 +117,20 @@ namespace Ipop.DhtNode {
                        leasetime);
             }
             _dht.Put(node_address, key + "|" + DateTime.Now.Ticks, leasetime);
-            break;
+          }
+          catch {
+            res = false;
           }
         }
-        if(!res) {
+        if(res) {
+          _current_ip = str_addr;
+          _current_quarter_lifetime = DateTime.UtcNow.AddSeconds(leasetime / 4); 
+          break;
+        }
+        else {
           // Failure!  Guess a new IP address
           RequestedAddr = RandomIPAddress();
           renew_attempts = max_renew_attempts;
-        }
-        else {
-          break;
         }
       }
 
@@ -132,7 +142,7 @@ namespace Ipop.DhtNode {
       reply.ip = RequestedAddr;
       reply.netmask = netmask;
       reply.leasetime = leasetimeb;
-
+      _current_dhcpreply = reply;
       return reply;
     }
   }

@@ -30,7 +30,7 @@ namespace Ipop {
   call the Send method.  It is also an ISource, meaning to receive packets one
   must subscribe via the Subscribe method to the output.</summary>
   */
-  public class Ethernet: ISender, ISource {
+  public class Ethernet: SimpleSource, ISender {
     /**  <summary>This is the maximum size for any packet according to 
     wikipedia</summary>*/
     public const int MTU = 1522;
@@ -112,7 +112,7 @@ namespace Ipop {
           MemBlock packet = MemBlock.Reference(ba.Buffer, ba.Offset, length);
           ba.AdvanceBuffer(length);
 
-          Sub s = _sub;
+          Subscriber s = _sub;
           if(s != null) {
             s.Handle(packet, this);
           }
@@ -157,31 +157,8 @@ namespace Ipop {
       }
     }
 
-    // Usual code for a one way ISource
-    protected class Sub {
-      public readonly IDataHandler Handler;
-      public readonly object State;
-      public Sub(IDataHandler h, object s) { Handler = h; State =s; }
-      public void Handle(MemBlock b, ISender f) { Handler.HandleData(b, f, State); }
+    public String ToUri() {
+      throw new NotImplementedException();
     }
-    protected readonly object _sync = new object();
-    protected volatile Sub _sub;
-
-    public virtual void Subscribe(IDataHandler hand, object state) {
-      lock( _sync ) {
-        _sub = new Sub(hand, state);
-      }
-    }
-    public virtual void Unsubscribe(IDataHandler hand) {
-      lock( _sync ) {
-        if( _sub.Handler == hand ) {
-          _sub = null;
-        }
-        else {
-          throw new Exception(String.Format("Handler: {0}, not subscribed", hand));
-        }
-      }
-    }
-    // End ISource code
   }
 }
