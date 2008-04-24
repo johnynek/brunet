@@ -54,13 +54,24 @@ namespace Ipop.RpcNode {
 
     /// <summary> List of connected addresses</summary>
     protected volatile ArrayList conn_addr;
-
+   
+    /// <summary>List of blocked_addresses</summary>
+    protected volatile ArrayList blocked_addr;
+ 
     /// <summary> Indicated if client needs sync</summary>
     protected bool need_sync;
 
     /// <summary>Returns the Connected Addresses.</summary>
     public ArrayList ConnectedAddresses {
-      get { return conn_addr; }
+      get {
+        ArrayList conn = new ArrayList();
+        foreach(Address addr in conn_addr) {
+          if(!blocked_addr.Contains(addr)) {
+            conn.Add(addr);
+          } 
+        }
+        return conn;
+      }
     }
 
     /// <summary>Helps assign remote end points</summary>
@@ -82,6 +93,7 @@ namespace Ipop.RpcNode {
       ip_addr = new Hashtable();
       addr_ip = new Hashtable();
       conn_addr = new ArrayList();
+      blocked_addr = new ArrayList();
       need_sync = false;
 
       _rpc.AddHandler("RpcIpopNode", this);
@@ -231,6 +243,11 @@ namespace Ipop.RpcNode {
           String name = (String)arguments[0];
           UnregisterMapping(name, request_state);
         }
+        else if (method.Equals("CheckBuddy")) {
+          Address addr = AddressParser.Parse((String)arguments[0]);
+          CheckBuddy(addr);
+          _rpc.SendResult(request_state, null);
+        }
         else if (method.Equals("GetConnected")) {
           String res = String.Empty;
           foreach(Address addr in conn_addr) {
@@ -290,7 +307,10 @@ namespace Ipop.RpcNode {
           addr_ip.Add(addr, ip);
           ip_addr.Add(ip, addr);
           dns_a.Add(name, ips);
-          dns_ptr.Add(ips, name); 
+          dns_ptr.Add(ips, name);
+          if (blocked_addr.Contains(addr)) {
+            blocked_addr.Remove(addr);
+          }  
         }
 
         else if (addr.Equals(ip_addr[ip])) {
@@ -301,7 +321,6 @@ namespace Ipop.RpcNode {
             ("Name ({0}) already exists with different address.", name));
         }
       }
-      CheckBuddy(addr);
       if(send_rpc) {
         _rpc.SendResult(request_state, ips);
       }
@@ -331,6 +350,7 @@ namespace Ipop.RpcNode {
           Address addr = (Address)ip_addr[ip];
           ip_addr.Remove(ip);
           addr_ip.Remove(addr);
+          blocked_addr.Add(addr);
       }
       _rpc.SendResult(request_state, true);
     }
@@ -354,11 +374,9 @@ namespace Ipop.RpcNode {
         try {
           RpcResult res = (RpcResult)q.Dequeue();
           result = AddressParser.Parse((String)res.Result);
-          if(addr_ip.Contains(result)) {
-            lock (_sync) {
-              if(!conn_addr.Contains(result)) {
-                conn_addr.Add(result);
-              }
+          lock (_sync) {
+            if(!conn_addr.Contains(result)) {
+              conn_addr.Add(result);
             }
           }
         }
@@ -380,7 +398,7 @@ namespace Ipop.RpcNode {
     /// <param name="request_state">Request state </param>
     /// <param name="send_rpc"> Indicates if result should be sent</param>
     protected void FriendOnline(Address address, object request_state, bool send_rpc) {
-      if(!addr_ip.Contains(address)) {
+      if(!addr_ip.Contains(address) && !blocked_addr.Contains(address)) {
         need_sync = true;
       }
       else {
@@ -390,7 +408,8 @@ namespace Ipop.RpcNode {
           }
         }
       }
-      if(send_rpc) {
+      // Checks to see if friend is not being blocked by user
+      if(send_rpc && !blocked_addr.Contains(address)) {
         _rpc.SendResult(request_state, _node.Address.ToString());
       } 
     }
