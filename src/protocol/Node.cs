@@ -486,6 +486,10 @@ namespace Brunet
     public ReqrepManager Rrm { get { return _rrm; } }
     protected readonly RpcManager _rpc;
     public RpcManager Rpc { get { return _rpc; } }
+    protected MapReduceHandler _mr_handler;
+    public MapReduceHandler MapReduce { get { return _mr_handler; } }
+
+
     /**
      * This is true if the Node is properly connected in the network.
      * If you want to know when it is safe to assume you are connected,
