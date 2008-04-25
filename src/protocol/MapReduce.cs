@@ -28,20 +28,54 @@ namespace Brunet {
    * This class is the base class for a map-reduce task.
    */
   public abstract class MapReduceTask {
-    /** unique name of the task. */
-    public abstract string Name {
-      get;
+    protected static readonly object _class_lock = new object();
+    protected static int _log_enabled = -1;
+    public static bool LogEnabled {
+      get {
+        lock(_class_lock) {
+          if (_log_enabled == -1) {
+            _log_enabled = ProtocolLog.MapReduce.Enabled ? 1: 0;
+          }
+          return (_log_enabled == 1);
+        }
+      }
     }
+
+    protected object _sync;
+    protected Node _node;
+    private string _task_name = string.Empty;
+
+    /** unique type of the task. */
+    public string TaskName {
+      get {
+        lock(_sync) {
+          if (_task_name == string.Empty) {
+            _task_name = this.GetType().ToString();
+          }
+          return _task_name;
+        }
+      }
+    }
+
+    protected MapReduceTask(Node n) {
+      _node = n;
+      _sync = new object();
+    }
+    
+    
     /** map function. */
     public abstract object Map(object map_arg);
     /** 
      * reduce function. 
-     * @param map_result local map result
+     * @param accumulated result of reductions
+     * @param child_sender sender describing the child 
+     * @param child_result result form the child sender
+     * @param done out parameter (is the stopping criteria met)
      * @param child_results hashtable containing results from each child
      */
-    public abstract object Reduce(object map_result, Hashtable child_results);
+    public abstract object Reduce(object current_result, ISender child_sender, object child_result, ref bool done);
     /** tree generator function. */
-    public abstract IList GenerateTree(object map_result, object gen_arg);
+    public abstract IList GenerateTree(object gen_arg);
   }
   
   /** 
@@ -65,19 +99,6 @@ namespace Brunet {
       _sync = new object();
     }
     
-    /**
-     * Allows subscribing new map-reduce tasks to the handler.
-     * @param task an object representing the map-reduce task.
-     */
-    public void SubscribeTask(MapReduceTask task) {
-      lock(_sync) {
-        if (_name_to_task.ContainsKey(task.Name)) {
-          throw new Exception(String.Format("Map reduce task name: {0} already registered.", task.Name));
-        }
-        _name_to_task[task.Name] = task;
-      }
-    }
-
     /**
      * This dispatches the particular methods this class provides
      */
@@ -103,14 +124,26 @@ namespace Brunet {
     }
     
     /**
+     * Allows subscribing new map-reduce tasks to the handler.
+     * @param task an object representing the map-reduce task.
+     */
+    public void SubscribeTask(MapReduceTask task) {
+      lock(_sync) {
+        if (_name_to_task.ContainsKey(task.TaskName)) {
+          throw new Exception(String.Format("Map reduce task name: {0} already registered.", task.TaskName));
+        }
+        _name_to_task[task.TaskName] = task;
+      }
+    }
+
+    /**
      * Starts a map-reduce computation. 
      * @param task map reduce task to start.
      * @param args arguments for the map-reduce task. 
      * @param req_state RPC related state for the invocation.
      */
     protected void StartComputation(MapReduceTask task, MapReduceArgs args, object req_state) {
-      MapReduceComputation mr = new MapReduceComputation(this, _node, req_state, 
-                                                         task, args); 
+      MapReduceComputation mr = new MapReduceComputation(_node, req_state, task, args);
       mr.Start();
     }
   }
@@ -119,7 +152,7 @@ namespace Brunet {
    * This class represents the arguments for a map-reduce computation.
    */
   public class MapReduceArgs {
-    /** name of the map-reduce task. */
+    /** name of the task. */
     public readonly string TaskName;
     /** argument to the map function. */
     public readonly object MapArg;
@@ -129,7 +162,7 @@ namespace Brunet {
     /**
      * Constructor
      */
-    public MapReduceArgs(string task_name,
+    public MapReduceArgs(string task_name, 
                          object map_arg,
                          object gen_arg)
     {
@@ -142,7 +175,7 @@ namespace Brunet {
      * Constructor
      */
     public MapReduceArgs(Hashtable ht) {
-      TaskName = (string) ht["task_name"];
+      TaskName =  (string) ht["task_name"];
       MapArg =  ht["map_arg"];
       GenArg = ht["gen_arg"];
     }
@@ -173,56 +206,68 @@ namespace Brunet {
     }
   }
 
-
   /**
    * This class represents an instance of a map-reduce computation. 
    */
   public class MapReduceComputation {
+    protected static readonly object _class_lock = new object();
+    protected static int _log_enabled = -1;
+    public static bool LogEnabled {
+      get {
+        lock(_class_lock) {
+          if (_log_enabled == -1) {
+            _log_enabled = ProtocolLog.MapReduce.Enabled ? 1: 0;
+          }
+          return (_log_enabled == 1);
+        }
+      }
+    }
+    
     protected readonly Node _node;
     protected readonly RpcManager _rpc;
     protected readonly object _sync;
     
-    // local map-reduce handler
-    protected readonly MapReduceHandler _mr_handler;
     // task executed in this computation instance
     protected readonly MapReduceTask _mr_task;
+
     // arguments to the task
     protected readonly MapReduceArgs _mr_args;
+
     // Rpc related state
     protected readonly object _mr_request_state;
 
     // result of the map function
     protected object _map_result;
-    // hashtable containing <child_sender, result> pairs.
-    protected Hashtable _child_results;
+
+    // accumulated result of reductions
+    protected object _reduce_result;
+
+    // indicating of the computation is over
+    protected volatile bool _finished;
+    
     // hashtable mapping a channel to a child sender
     protected Hashtable _queue_to_sender;
-    // active child computations
-    protected int _active;
-    // result of reduce.
-    protected object _reduce_result;
+
     
     /** 
      * Constructor
-     * @param handler local handler for map-reduce computations
      * @param node local node
      * @param state RPC related state.
      * @param task map-reduce task.
      * @param args arguments to the map reduce task.
      */
-    public MapReduceComputation(MapReduceHandler handler, Node node, object state, 
+    public MapReduceComputation(Node node, object state, 
                                 MapReduceTask task,
                                 MapReduceArgs args)
     {
-      _mr_handler = handler;
       _node = node;
       _rpc = RpcManager.GetInstance(node);
       _mr_request_state = state;
       _mr_task = task;
       _mr_args = args;
-      _child_results = new Hashtable();
       _queue_to_sender = new Hashtable();
       _sync = new object();
+      _finished = false;
     }
     
     /** Starts the computation. */
@@ -232,25 +277,56 @@ namespace Brunet {
         _map_result = _mr_task.Map(_mr_args.MapArg);
       } 
       catch(Exception x) {
-        _map_result = x;
+        if (ProtocolLog.Exceptions.Enabled) {
+          ProtocolLog.Write(ProtocolLog.Exceptions, 
+                            String.Format("MapReduce: {0}, map exception: {1}.", _node.Address, x));        
+        }
+        _finished = true;
+        SendResult(x);
       }
 
-      Console.Error.WriteLine("MapReduce: {0}, map result: {1}.", _node.Address, _map_result);
-      //compute the list of targets
+      if (LogEnabled) {
+        ProtocolLog.Write(ProtocolLog.MapReduce,
+                          String.Format("MapReduce: {0}, map result: {1}.", _node.Address, _map_result));
+      }
+
+      //do an initial reduction and see if we can terminate
+      try {
+        bool done = false;
+        _reduce_result = _mr_task.Reduce(null, null, _map_result, ref done);
+        if (done) {
+          _finished = true;
+          SendResult(_reduce_result);          
+        }
+      } catch(Exception x) {
+        if (ProtocolLog.Exceptions.Enabled) {
+          ProtocolLog.Write(ProtocolLog.Exceptions, 
+                            String.Format("MapReduce: {0}, initial reduce exception: {1}.", _node.Address, x));
+        }
+        _finished = true;
+        SendResult(x);
+        return;
+      }
+      
+      //compute the list of child targets
       ArrayList child_gen_info = new ArrayList();
       try {
-        IList next_mr_info = _mr_task.GenerateTree(_map_result, _mr_args.GenArg);
+        IList next_mr_info = _mr_task.GenerateTree(_mr_args.GenArg);
         foreach (MapReduceInfo mr_info in next_mr_info) {
           child_gen_info.Add(mr_info);
         }
       } catch (Exception x) {
-        Console.Error.WriteLine("MapReduce: {0}, generate tree exception: {1}.", _node.Address, x);        
+        if (ProtocolLog.Exceptions.Enabled) {
+          ProtocolLog.Write(ProtocolLog.Exceptions,         
+                            String.Format("MapReduce: {0}, generate tree exception: {1}.", _node.Address, x));
+        }
       }
       
-      lock(_sync) {
-        _active = child_gen_info.Count;
+      if (LogEnabled) {
+        ProtocolLog.Write(ProtocolLog.MapReduce,
+                          String.Format("MapReduce: {0}, child senders count: {1}.", _node.Address, child_gen_info.Count));
       }
-      Console.Error.WriteLine("MapReduce: {0}, child senders count: {1}.", _node.Address, child_gen_info.Count);
+
       if (child_gen_info.Count > 0) {
         foreach ( MapReduceInfo mr_info in child_gen_info) {
           Channel child_q = new Channel();
@@ -261,15 +337,15 @@ namespace Brunet {
           child_q.CloseAfterEnqueue();
           child_q.EnqueueEvent += new EventHandler(ChildCallback);
           try {
-            _rpc.Invoke(mr_info.Sender, child_q, "mapreduce.StartComputation", mr_info.Args.ToHashtable());
+            _rpc.Invoke(mr_info.Sender, child_q,  "mapreduce.StartComputation", mr_info.Args.ToHashtable());
           } catch(Exception) {
             ChildCallback(child_q, null);
           }
         }
       } else {
-        Channel empty_q = new Channel();
-        empty_q.Close();
-        ChildCallback(empty_q, null);
+        // did not start any child computations, return rightaway
+        _finished = true;
+        SendResult(_reduce_result);
       }
     }
     
@@ -279,40 +355,61 @@ namespace Brunet {
     protected void ChildCallback(object child_o, EventArgs child_event_args) {
       Channel child_q = (Channel) child_o;
       object child_result = null;
-      bool reduce = false;
+      bool do_reduce = false;
       if (child_q.Count > 0) {
         try {
           RpcResult child_rres = (RpcResult) child_q.Dequeue();
           child_result = child_rres.Result;
-        } catch (Exception x) {
-          child_result = x;
+          //got to reduce only if we get valid result from the child computation.
+          do_reduce = true;
+        } catch (Exception) {
+          //even if we do not get a result from child, we can still proceed.
+        } 
+
+        if (LogEnabled) {
+          ProtocolLog.Write(ProtocolLog.MapReduce,
+                            String.Format("MapReduce: {0}, got child result: {1}.", _node.Address, child_result));
         }
-        Console.Error.WriteLine("MapReduce: {0}, got child result: {1}.", _node.Address, child_result);
       }
       
+      bool send_result = false;
       lock(_sync) {
-        ISender sender = null;
-        if (_queue_to_sender.Contains(child_q)) {
-          sender = (ISender) _queue_to_sender[child_q];
-          _queue_to_sender.Remove(child_q);
-          _active--;
+        //only if computation has not finished
+        if (!_finished) {
+          bool done = false;
+          ISender sender = (ISender) _queue_to_sender[child_q];
+          if (sender != null) {
+            _queue_to_sender.Remove(child_q);
+            //do a reduce only of we really got something valid out of the queue
+            if (do_reduce) {
+              try {
+                _reduce_result = _mr_task.Reduce(_reduce_result, sender, child_result, ref done);
+              } catch(Exception x) {
+                _reduce_result = x;
+              }
+            } 
+          }
+          
+          _finished = (_queue_to_sender.Keys.Count == 0) || done;
+          send_result = _finished;
         }
-        if (sender != null ) {
-          _child_results[sender] = child_result;
-        }
-        reduce = (_active == 0);
-      }
+      }  //end of lock.
       
-      if (reduce) {
-        //at most one thread gets here
-        try {
-          _reduce_result = _mr_task.Reduce(_map_result, _child_results);
-        } catch (Exception x) {
-          _reduce_result = x;
-        }
-        Console.Error.WriteLine("MapReduce: {0}, reduce result: {1}.", _node.Address, _reduce_result);
-        _rpc.SendResult(_mr_request_state, _reduce_result);
+      if (send_result) {
+        //only one thread will get here
+        SendResult(_reduce_result);
       }
+    }
+    
+    /**
+     * Sends the result of the computation back.
+     */ 
+    protected void SendResult(object result) {
+      if (LogEnabled) {
+        ProtocolLog.Write(ProtocolLog.MapReduce,        
+                          String.Format("MapReduce: {0}, sending back result: {1}.", _node.Address, result));
+      }
+      _rpc.SendResult(_mr_request_state, result);
     }
   }
 }

@@ -102,6 +102,16 @@ namespace Brunet
       sys_link = new ConnectionPacketHandler(this);
       rpc.AddHandlerWithSender("sys:link", sys_link);
       rpc.AddHandler("trace", new TraceRpcHandler(this));
+
+      //Add a map-reduce handlers:
+      _mr_handler = new MapReduceHandler(this);
+      //Subscribe it with the RPC handler:
+      rpc.AddHandler("mapreduce", _mr_handler);
+
+      //Subscribe map-reduce tasks
+      _mr_handler.SubscribeTask(new MapReduceTrace(this));
+      _mr_handler.SubscribeTask(new MapReduceBoundedBroadcast(this));
+
       
       /*
        * Handle Node state changes.
