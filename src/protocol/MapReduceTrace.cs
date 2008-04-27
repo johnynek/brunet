@@ -1,7 +1,7 @@
 /*
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
-Copyright (C) 2007 Arijit Ganguly <aganguly@acis.ufl.edu> University of Florida  
+Copyright (C) 2008 Arijit Ganguly <aganguly@acis.ufl.edu> University of Florida  
                    P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
@@ -24,7 +24,11 @@ using System.Collections;
 using System.Collections.Specialized;
 
 namespace Brunet {
-  public class MapReduceTrace: MapReduceTask {
+  /**
+   * The following class implements a map-reduce task that allows counting number of 
+   * collection of important statistics along a greedy path to a destination. 
+   */   
+  public class MapReduceTrace: MapReduceGreedy {
     public MapReduceTrace(Node n):base(n) {}
     public override object Map(object map_arg) {
       IList retval = new ArrayList();
@@ -34,32 +38,7 @@ namespace Brunet {
       return retval;
     }
     
-    public override IList GenerateTree(object gen_arg) {
-      if (LogEnabled) {
-        ProtocolLog.Write(ProtocolLog.MapReduce,
-                          String.Format("{0}: {1}, greedy generator called, arg: {2}.", 
-                                        this.TaskName, _node.Address, gen_arg));
-      }
-      string address = gen_arg as string;
-      AHAddress a =  (AHAddress) AddressParser.Parse(address);
-      ArrayList retval = new ArrayList();
-      ConnectionTable tab = _node.ConnectionTable;
-      ConnectionList structs = tab.GetConnections(ConnectionType.Structured);
-      Connection next_closest = structs.GetNearestTo((AHAddress) _node.Address, a);
-      if (next_closest != null) {
-        MapReduceInfo mr_info = new MapReduceInfo( (ISender) next_closest.Edge,
-                                                   new MapReduceArgs(TaskName, null, address));
-        retval.Add(mr_info);
-      }
-      
-      if (LogEnabled) {
-        ProtocolLog.Write(ProtocolLog.MapReduce,
-                          String.Format("{0}: {1}, greedy generator returning: {2} senders.", 
-                                        this.TaskName, _node.Address, retval.Count));
-      }
-      return retval;
-    }
-    
+
     public override object Reduce(object current_result, ISender child_sender, object child_result, ref bool done) {
       if (current_result == null) {
         return child_result;

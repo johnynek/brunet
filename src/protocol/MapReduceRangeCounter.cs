@@ -37,16 +37,7 @@ namespace Brunet {
       return my_entry;
     }
     
-    public override object Reduce(object reduce_arg, 
-                                  object current_result, RpcResult child_rpc,
-                                  out bool done) {
-
-      done = false;
-      //ISender child_sender = child_rpc.ResultSender;
-      //the following can throw an exception, will be handled by the framework
-      object child_result = child_rpc.Result;
-      
-      //child result is a valid result
+    public override object Reduce(object current_result, ISender child_sender, object child_result, ref bool done) {
       if (current_result == null) {
         return child_result;
       }

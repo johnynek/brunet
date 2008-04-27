@@ -110,7 +110,7 @@ namespace Brunet
 
       //Subscribe map-reduce tasks
       _mr_handler.SubscribeTask(new MapReduceTrace(this));
-      _mr_handler.SubscribeTask(new MapReduceBoundedBroadcast(this));
+      _mr_handler.SubscribeTask(new MapReduceRangeCounter(this));
 
       
       /*
