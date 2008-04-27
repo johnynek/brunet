@@ -1,8 +1,8 @@
 /*
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
-Copyright (C) 2007 Arijit Ganguly <aganguly@acis.ufl.edu> University of Florida  
-                   P. Oscar Boykin <boykin@pobox.com>, University of Florida
+Copyright (C) 2008  Arijit Ganguly <aganguly@gmail.com>, University of Florida
+                    P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -21,37 +21,49 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using System;
 using System.Collections;
-using System.Collections.Specialized;
+//using System.Collections.Specialized;
 
+/** Base map-reduce tasks. */
 namespace Brunet {
-  public class MapReduceBoundedBroadcast: MapReduceTask {
-    public MapReduceBoundedBroadcast(Node n): base(n) {}
-    public override object Map(object map_arg) {
-      IDictionary my_entry = new ListDictionary();
-      my_entry["count"] = 1;
-      my_entry["height"] = 1;
-      return my_entry;
-    }
-    
-    public override object Reduce(object current_result, ISender child_sender, object child_result, ref bool done) {
-      if (current_result == null) {
-        return child_result;
+  /** 
+   * The following class provides a base class for tasks utilizing a greedy tree
+   *  for computation. 
+   */
+  public abstract class MapReduceGreedy: MapReduceTask {
+    public MapReduceGreedy(Node n):base(n) {}
+    public override MapReduceInfo[] GenerateTree(object gen_arg) {
+      if (LogEnabled) {
+        ProtocolLog.Write(ProtocolLog.MapReduce,
+                          String.Format("{0}: {1}, greedy generator called, arg: {2}.", 
+                                        this.TaskName, _node.Address, gen_arg));
+      }
+      string address = gen_arg as string;
+      AHAddress a =  (AHAddress) AddressParser.Parse(address);
+      ArrayList retval = new ArrayList();
+      ConnectionTable tab = _node.ConnectionTable;
+      ConnectionList structs = tab.GetConnections(ConnectionType.Structured);
+      Connection next_closest = structs.GetNearestTo((AHAddress) _node.Address, a);
+      if (next_closest != null) {
+        MapReduceInfo mr_info = new MapReduceInfo( (ISender) next_closest.Edge,
+                                                   new MapReduceArgs(TaskName, null, address));
+        retval.Add(mr_info);
       }
       
-      IDictionary my_entry = current_result as IDictionary;
-      IDictionary value = child_result as IDictionary;
-      int max_height = (int) my_entry["height"];
-      int count = (int) my_entry["count"];
-
-      int y = (int) value["count"];
-      my_entry["count"] = count + y;
-      int z = (int) value["height"] + 1;
-      if (z > max_height) {
-        my_entry["height"] = z; 
+      if (LogEnabled) {
+        ProtocolLog.Write(ProtocolLog.MapReduce,
+                          String.Format("{0}: {1}, greedy generator returning: {2} senders.", 
+                                        this.TaskName, _node.Address, retval.Count));
       }
-      return my_entry;
+      return (MapReduceInfo[]) retval.ToArray(typeof(MapReduceInfo));
     }
-
+  }
+  
+  /** The following class provides the base class for tasks utilizing the
+   *  BoundedBroadcastTree generation.
+   */
+  public abstract class MapReduceBoundedBroadcast: MapReduceTask 
+  {
+    public MapReduceBoundedBroadcast(Node n):base(n) {}
     /**
      * Generates tree for bounded broadcast. Algorithm works as follows:
      * The goal is to broadcast to all nodes in range [local_address, end).
@@ -60,7 +72,7 @@ namespace Brunet {
      * To connection bi assign the range [b_i, b_{i+1}).
      * To the connection bn assign range [b_n, end).]
      */
-    public override IList GenerateTree(object gen_arg) 
+    public override MapReduceInfo[] GenerateTree(object gen_arg) 
     {
       string end_range = gen_arg as string;
       AHAddress end_addr = (AHAddress) AddressParser.Parse(end_range);
@@ -96,7 +108,8 @@ namespace Brunet {
                           String.Format("{0}: {1}, number of child connections: {2}", 
                                         this.TaskName, _node.Address, con_list.Count));
       }
-      IList retval = new ArrayList();
+
+      ArrayList retval = new ArrayList();
       for (int i = 0; i < con_list.Count; i++) {
         MapReduceInfo mr_info = null;
         ISender sender = null;
@@ -129,7 +142,7 @@ namespace Brunet {
         }
       }
       
-      return retval;
+      return (MapReduceInfo[]) retval.ToArray(typeof(MapReduceInfo));
     }
-  }
+  }   
 }

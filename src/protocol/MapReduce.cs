@@ -1,7 +1,7 @@
 /*
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
-Copyright (C) 2007  Arijit Ganguly <aganguly@gmail.com>, University of Florida
+Copyright (C) 2008  Arijit Ganguly <aganguly@gmail.com>, University of Florida
                     P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
@@ -26,6 +26,9 @@ using System.Collections.Specialized;
 namespace Brunet {
   /** 
    * This class is the base class for a map-reduce task.
+   * These tasks are completely stateless. All the state related 
+   * to the progress of the computation is stored inside
+   * a MapReduceComputation object.
    */
   public abstract class MapReduceTask {
     protected static readonly object _class_lock = new object();
@@ -41,10 +44,9 @@ namespace Brunet {
       }
     }
 
-    protected object _sync;
-    protected Node _node;
+    protected readonly object _sync;
+    protected readonly Node _node;
     private string _task_name = string.Empty;
-
     /** unique type of the task. */
     public string TaskName {
       get {
@@ -57,6 +59,10 @@ namespace Brunet {
       }
     }
 
+    /**
+     * Constructor.
+     * @param n local node
+     */
     protected MapReduceTask(Node n) {
       _node = n;
       _sync = new object();
@@ -75,12 +81,18 @@ namespace Brunet {
      */
     public abstract object Reduce(object current_result, ISender child_sender, object child_result, ref bool done);
     /** tree generator function. */
-    public abstract IList GenerateTree(object gen_arg);
+    public abstract MapReduceInfo[] GenerateTree(object gen_arg);
   }
   
   /** 
    * This class provides an RPC interface into the map reduce functionality. 
+   * To invoke a map-reduce task, we make an RPC call to 
+   * "mapreduce.StartComputation". The argument to this call is a
+   * Hashtable describing the arguments to the call.
+   * Later, it might be possible to add new methods that would allow 
+   * inquiring state of a map-reduce task while it is running. 
    */  
+  
   public class MapReduceHandler: IRpcHandler {
     protected readonly object _sync;
     protected readonly Node _node;
@@ -100,7 +112,9 @@ namespace Brunet {
     }
     
     /**
-     * This dispatches the particular methods this class provides
+     * This dispatches the particular methods this class provides.
+     * Currently, the only invokable method is:
+     * "StartComputation". 
      */
     public void HandleRpc(ISender caller, string method, IList args, object req_state) {
       if (method == "StartComputation") {
@@ -309,14 +323,12 @@ namespace Brunet {
       }
       
       //compute the list of child targets
-      ArrayList child_gen_info = new ArrayList();
+      MapReduceInfo[] child_mr_info = null;
       try {
-        IList next_mr_info = _mr_task.GenerateTree(_mr_args.GenArg);
-        foreach (MapReduceInfo mr_info in next_mr_info) {
-          child_gen_info.Add(mr_info);
-        }
+        child_mr_info = _mr_task.GenerateTree(_mr_args.GenArg);
       } catch (Exception x) {
         if (ProtocolLog.Exceptions.Enabled) {
+          child_mr_info = new MapReduceInfo[0];
           ProtocolLog.Write(ProtocolLog.Exceptions,         
                             String.Format("MapReduce: {0}, generate tree exception: {1}.", _node.Address, x));
         }
@@ -324,17 +336,17 @@ namespace Brunet {
       
       if (LogEnabled) {
         ProtocolLog.Write(ProtocolLog.MapReduce,
-                          String.Format("MapReduce: {0}, child senders count: {1}.", _node.Address, child_gen_info.Count));
+                          String.Format("MapReduce: {0}, child senders count: {1}.", _node.Address, child_mr_info.Length));
       }
 
-      if (child_gen_info.Count > 0) {
-        foreach ( MapReduceInfo mr_info in child_gen_info) {
-          Channel child_q = new Channel();
+      if (child_mr_info.Length > 0) {
+        foreach ( MapReduceInfo mr_info in child_mr_info) {
+          Channel child_q = new Channel(1);
           //keep track of the sender
           lock(_sync) {
             _queue_to_sender[child_q] = mr_info.Sender;
           }
-          child_q.CloseAfterEnqueue();
+          //the following will prevent the current object from going out of scope. 
           child_q.EnqueueEvent += new EventHandler(ChildCallback);
           try {
             _rpc.Invoke(mr_info.Sender, child_q,  "mapreduce.StartComputation", mr_info.Args.ToHashtable());
@@ -343,7 +355,7 @@ namespace Brunet {
           }
         }
       } else {
-        // did not start any child computations, return rightaway
+        // did not generate any child computations, return rightaway
         _finished = true;
         SendResult(_reduce_result);
       }

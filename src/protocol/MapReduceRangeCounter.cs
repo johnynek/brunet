@@ -25,35 +25,35 @@ using System.Collections.Specialized;
 
 namespace Brunet {
   /**
-   * The following class implements a map-reduce task that allows counting number of 
-   * collection of important statistics along a greedy path to a destination. 
-   */   
-  public class MapReduceTrace: MapReduceGreedy {
-    public MapReduceTrace(Node n):base(n) {}
+   * This class implements a map-reduce task that allows counting number of 
+   * nodes in a range and also depth of the resulting trees. 
+   */ 
+  public class MapReduceRangeCounter: MapReduceBoundedBroadcast {
+    public MapReduceRangeCounter(Node n): base(n) {}
     public override object Map(object map_arg) {
-      IList retval = new ArrayList();
       IDictionary my_entry = new ListDictionary();
-      my_entry["node"] = _node.Address.ToString();
-      retval.Add(my_entry);
-      return retval;
+      my_entry["count"] = 1;
+      my_entry["height"] = 1;
+      return my_entry;
     }
     
-
     public override object Reduce(object current_result, ISender child_sender, object child_result, ref bool done) {
       if (current_result == null) {
         return child_result;
       }
-      ArrayList retval = current_result as ArrayList;
-      IDictionary my_entry = (IDictionary) retval[0];
-      Edge e = child_sender as Edge;
-      my_entry["next_con"] = e.ToString();
-      retval.AddRange((IList) child_result);
       
-      if (LogEnabled) {
-        ProtocolLog.Write(ProtocolLog.MapReduce, 
-                          String.Format("{0}: {1}, reduce list count: {2}.", this.TaskName, _node.Address, retval.Count));
+      IDictionary my_entry = current_result as IDictionary;
+      IDictionary value = child_result as IDictionary;
+      int max_height = (int) my_entry["height"];
+      int count = (int) my_entry["count"];
+
+      int y = (int) value["count"];
+      my_entry["count"] = count + y;
+      int z = (int) value["height"] + 1;
+      if (z > max_height) {
+        my_entry["height"] = z; 
       }
-      return retval;
+      return my_entry;
     }
   }
 }
