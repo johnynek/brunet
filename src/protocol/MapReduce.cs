@@ -87,7 +87,7 @@ namespace Brunet {
   /** 
    * This class provides an RPC interface into the map reduce functionality. 
    * To invoke a map-reduce task, we make an RPC call to 
-   * "mapreduce.StartComputation". The argument to this call is a
+   * "mapreduce.Start". The argument to this call is a
    * Hashtable describing the arguments to the call.
    * Later, it might be possible to add new methods that would allow 
    * inquiring state of a map-reduce task while it is running. 
@@ -114,10 +114,10 @@ namespace Brunet {
     /**
      * This dispatches the particular methods this class provides.
      * Currently, the only invokable method is:
-     * "StartComputation". 
+     * "Start". 
      */
     public void HandleRpc(ISender caller, string method, IList args, object req_state) {
-      if (method == "StartComputation") {
+      if (method == "Start") {
         Hashtable ht = (Hashtable) args[0];
         MapReduceArgs mr_args = new MapReduceArgs(ht);
         string task_name = mr_args.TaskName;
@@ -126,7 +126,7 @@ namespace Brunet {
           task = (MapReduceTask) _name_to_task[task_name];
         }
         if (task != null) {
-          StartComputation(task, mr_args, req_state);
+          Start(task, mr_args, req_state);
         } 
         else {
           throw new AdrException(-32608, "No mapreduce task with name: " + task_name);          
@@ -156,7 +156,7 @@ namespace Brunet {
      * @param args arguments for the map-reduce task. 
      * @param req_state RPC related state for the invocation.
      */
-    protected void StartComputation(MapReduceTask task, MapReduceArgs args, object req_state) {
+    protected void Start(MapReduceTask task, MapReduceArgs args, object req_state) {
       MapReduceComputation mr = new MapReduceComputation(_node, req_state, task, args);
       mr.Start();
     }
@@ -349,7 +349,7 @@ namespace Brunet {
           //the following will prevent the current object from going out of scope. 
           child_q.EnqueueEvent += new EventHandler(ChildCallback);
           try {
-            _rpc.Invoke(mr_info.Sender, child_q,  "mapreduce.StartComputation", mr_info.Args.ToHashtable());
+            _rpc.Invoke(mr_info.Sender, child_q,  "mapreduce.Start", mr_info.Args.ToHashtable());
           } catch(Exception) {
             ChildCallback(child_q, null);
           }
