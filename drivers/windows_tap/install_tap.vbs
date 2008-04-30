@@ -29,7 +29,7 @@ End Function
 Function ChangeNetworkName(pnpInstanceID, name)
   Const HKEY_LOCAL_MACHINE = &H80000002
   Const NETWORK_CONNECTIONS = "SYSTEM\CurrentControlSet\Control\Network\{4D36E972-E325-11CE-BFC1-08002BE10318}"
-  Dim oReg, path
+  Dim oReg, path, pos, tmp_name
   Set oReg = GetObject("winmgmts:{impersonationLevel=impersonate}!\\.\root\default:StdRegProv")
   oReg.EnumKey HKEY_LOCAL_MACHINE, NETWORK_CONNECTIONS, arrSubKeys
 
@@ -38,7 +38,10 @@ Function ChangeNetworkName(pnpInstanceID, name)
   For Each subkey In arrSubKeys
     If subkey <> "Descriptions" Then
       path = "HKLM\" & NETWORK_CONNECTIONS & "\" & subkey & "\Connection\"
-      if wshShell.RegRead(path & "PnpInstanceID") = pnpInstanceID Then
+      tmp_name = wshShell.RegRead(path & "Name")
+      pos = InStr(tmp_name,"*")
+      if (pos > 0) Then
+      elseif(wshShell.RegRead(path & "PnpInstanceID") = pnpInstanceID) Then
         wshShell.RegWrite path & "Name", name
         ChangeNetworkName = 0
       End If
