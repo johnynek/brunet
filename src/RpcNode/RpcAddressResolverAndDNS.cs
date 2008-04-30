@@ -56,7 +56,7 @@ namespace Ipop.RpcNode {
     protected volatile ArrayList conn_addr;
    
     /// <summary>List of blocked_addresses</summary>
-    protected volatile ArrayList blocked_addr;
+    protected volatile Hashtable blocked_addr;
  
     /// <summary> Indicated if client needs sync</summary>
     protected bool need_sync;
@@ -93,7 +93,7 @@ namespace Ipop.RpcNode {
       ip_addr = new Hashtable();
       addr_ip = new Hashtable();
       conn_addr = new ArrayList();
-      blocked_addr = new ArrayList();
+      blocked_addr = new Hashtable();
       need_sync = false;
 
       _rpc.AddHandler("RpcIpopNode", this);
@@ -300,9 +300,12 @@ namespace Ipop.RpcNode {
         }
 
         if (ips == null) {
-          do {
-            ip = MemBlock.Reference(_rdlc.RandomIPAddress());
-          } while (ip_addr.ContainsValue(ip));
+          ip = (MemBlock) blocked_addr[addr];
+          if(ip == null) {
+            do {
+              ip = MemBlock.Reference(_rdlc.RandomIPAddress());
+            } while (ip_addr.ContainsValue(ip));
+          }
           ips = Utils.MemBlockToString(ip, '.');
           addr_ip.Add(addr, ip);
           ip_addr.Add(ip, addr);
@@ -350,7 +353,7 @@ namespace Ipop.RpcNode {
           Address addr = (Address)ip_addr[ip];
           ip_addr.Remove(ip);
           addr_ip.Remove(addr);
-          blocked_addr.Add(addr);
+          blocked_addr.Add(addr,ip);
       }
       _rpc.SendResult(request_state, true);
     }
