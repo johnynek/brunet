@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using System;
 using System.Collections;
+using Brunet;
 using Brunet.Applications;
 
 namespace Ipop.RpcNode {
@@ -93,6 +94,28 @@ namespace Ipop.RpcNode {
       config.ReservedIPs[1].ip = upper + "2";
       config.ReservedIPs[1].mask = "0.0.0.255";
       return config;
+    }
+
+    /// <summary>
+    /// This method replaces IP addresses based on some identifier
+    /// </summary>
+    /// <param name="payload">Payload to be translated</param>
+    /// <param name="old_ss_ip">Old source IP address</param>
+    /// <param name="old_sd_ip">Old destination IP</param>
+    /// <param name="new_ss_ip">New source IP address</param>
+    /// <param name="new_sd_ip">New destination IP address</param>
+    /// <param name="packet_id">A packet identifier</param>
+    /// <returns>A MemBlock of the translated payload</returns
+    public static MemBlock TextTranslate(MemBlock payload, string old_ss_ip,
+                                         string old_sd_ip, string new_ss_ip,
+                                         string new_sd_ip, string packet_id) {
+      string sdata = payload.GetString(System.Text.Encoding.UTF8);
+      if(sdata.Contains(packet_id)) {
+        sdata = sdata.Replace(old_ss_ip, new_ss_ip);
+        sdata = sdata.Replace(old_sd_ip, new_sd_ip);
+        payload = MemBlock.Reference(System.Text.Encoding.UTF8.GetBytes(sdata));
+      }
+      return payload;
     }
   }
 }

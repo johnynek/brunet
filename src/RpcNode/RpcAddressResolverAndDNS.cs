@@ -168,6 +168,13 @@ namespace Ipop.RpcNode {
             return ipp.Packet;
           }
         }
+        else if(udpp.DestinationPort > 5000 && udpp.DestinationPort < 5100) {
+          udpp = SIPTranslate(udpp, source_ip, ipp.SSourceIP,
+                              ipp.SDestinationIP);
+          ipp = new IPPacket(ipp.Protocol, source_ip, _local_ip, ID,
+                             udpp.ICPacket);
+          return ipp.Packet;
+        }
       }
       return IPPacket.Translate(packet, source_ip, _local_ip);
     }
@@ -197,6 +204,25 @@ namespace Ipop.RpcNode {
         }
       }
       return change;
+    }
+
+    /// <summary>
+    /// Check to see if it's a SIP packet and translates
+    /// </summary>
+    /// <param name="payload">UDP payload</param>
+    /// <param name="source_ip">New source IP</param>
+    /// <param name="old_ss_ip">Old source IP</param>
+    /// <param name="old_sd_ip">Old destination IP</param>
+    /// <returns>Returns a UDP packet</returns>
+    public UDPPacket SIPTranslate(UDPPacket udpp, MemBlock source_ip, 
+                                    string old_ss_ip, string old_sd_ip) {
+      string new_ss_ip = Utils.MemBlockToString(source_ip, '.');
+      string new_sd_ip = Utils.MemBlockToString(_local_ip, '.'); 
+      string packet_id = "SIP/";
+      MemBlock payload = RpcNodeHelper.TextTranslate(udpp.Payload, old_ss_ip,
+                                             old_sd_ip, new_ss_ip, new_sd_ip,
+                                             packet_id); 
+      return new UDPPacket(udpp.SourcePort, udpp.DestinationPort, payload);
     }
 
     /// <summary>
