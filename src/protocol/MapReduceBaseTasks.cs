@@ -31,7 +31,8 @@ namespace Brunet {
    */
   public abstract class MapReduceGreedy: MapReduceTask {
     public MapReduceGreedy(Node n):base(n) {}
-    public override MapReduceInfo[] GenerateTree(object gen_arg) {
+    public override MapReduceInfo[] GenerateTree(MapReduceArgs mr_args) {
+      object gen_arg = mr_args.GenArg;
       if (LogEnabled) {
         ProtocolLog.Write(ProtocolLog.MapReduce,
                           String.Format("{0}: {1}, greedy generator called, arg: {2}.", 
@@ -45,7 +46,7 @@ namespace Brunet {
       Connection next_closest = structs.GetNearestTo((AHAddress) _node.Address, a);
       if (next_closest != null) {
         MapReduceInfo mr_info = new MapReduceInfo( (ISender) next_closest.Edge,
-                                                   new MapReduceArgs(TaskName, null, address));
+                                                   mr_args); //arguments do not change at all
         retval.Add(mr_info);
       }
       
@@ -72,8 +73,9 @@ namespace Brunet {
      * To connection bi assign the range [b_i, b_{i+1}).
      * To the connection bn assign range [b_n, end).]
      */
-    public override MapReduceInfo[] GenerateTree(object gen_arg) 
+    public override MapReduceInfo[] GenerateTree(MapReduceArgs mr_args) 
     {
+      object gen_arg = mr_args.GenArg;
       string end_range = gen_arg as string;
       AHAddress end_addr = (AHAddress) AddressParser.Parse(end_range);
       AHAddress start_addr = _node.Address as AHAddress;
@@ -118,7 +120,11 @@ namespace Brunet {
         //check if last connection
         if (i == con_list.Count - 1) {
           mr_info = new MapReduceInfo( (ISender) sender, 
-                                       new MapReduceArgs(this.TaskName, null, end_range));
+                                       new MapReduceArgs(this.TaskName, 
+                                                         mr_args.MapArg, //map argument
+                                                         end_range, //generate argument
+                                                         mr_args.ReduceArg //reduce argument
+                                                         ));
 
           if (LogEnabled) {
             ProtocolLog.Write(ProtocolLog.MapReduce, 
@@ -131,7 +137,10 @@ namespace Brunet {
         else {
           string child_end = ((Connection) con_list[i+1]).Address.ToString();
           mr_info = new MapReduceInfo( sender,
-                                       new MapReduceArgs(this.TaskName, null, child_end));
+                                       new MapReduceArgs(this.TaskName,
+                                                         mr_args.MapArg, 
+                                                         child_end,
+                                                         mr_args.ReduceArg));
           if (LogEnabled) {
             ProtocolLog.Write(ProtocolLog.MapReduce, 
                               String.Format("{0}: {1}, adding address: {2} to sender list, range end: {3}", 
