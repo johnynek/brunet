@@ -44,6 +44,14 @@ namespace Brunet {
       }
     }
 
+    protected void Log(string format_string, params object[] format_args) {
+      if (LogEnabled) {
+        string s = String.Format(format_string, format_args);
+        ProtocolLog.Write(ProtocolLog.MapReduce, 
+                          String.Format("{0}: {1}, {2}", _node.Address, this.GetType(), s));
+      }
+    }
+
     protected readonly object _sync;
     protected readonly Node _node;
     private string _task_name = string.Empty;
@@ -79,9 +87,9 @@ namespace Brunet {
      * @param done out parameter (is the stopping criteria met)
      * @param child_results hashtable containing results from each child
      */
-    public abstract object Reduce(object current_result, ISender child_sender, object child_result, ref bool done);
+    public abstract object Reduce(object reduce_arg, object current_result, ISender child_sender, object child_result, ref bool done);
     /** tree generator function. */
-    public abstract MapReduceInfo[] GenerateTree(object gen_arg);
+    public abstract MapReduceInfo[] GenerateTree(MapReduceArgs args);
   }
   
   /** 
@@ -172,17 +180,21 @@ namespace Brunet {
     public readonly object MapArg;
     /** argument to the tree generating function. */
     public readonly object GenArg;
+    /** argument to the reduce function. */
+    public readonly object ReduceArg;
 
     /**
      * Constructor
      */
     public MapReduceArgs(string task_name, 
                          object map_arg,
-                         object gen_arg)
+                         object gen_arg,
+                         object reduce_arg)
     {
       TaskName = task_name;
       MapArg = map_arg;
       GenArg = gen_arg;
+      ReduceArg = reduce_arg;
     }
     
     /**
@@ -192,6 +204,7 @@ namespace Brunet {
       TaskName =  (string) ht["task_name"];
       MapArg =  ht["map_arg"];
       GenArg = ht["gen_arg"];
+      ReduceArg = ht["reduce_arg"];
     }
     
     /**
@@ -202,6 +215,7 @@ namespace Brunet {
       ht["task_name"] = TaskName;
       ht["map_arg"] = MapArg;
       ht["gen_arg"] = GenArg;
+      ht["reduce_arg"] = ReduceArg;
       return ht;
     }
   }
@@ -297,6 +311,7 @@ namespace Brunet {
         }
         _finished = true;
         SendResult(x);
+        return;
       }
 
       if (LogEnabled) {
@@ -307,10 +322,17 @@ namespace Brunet {
       //do an initial reduction and see if we can terminate
       try {
         bool done = false;
-        _reduce_result = _mr_task.Reduce(null, null, _map_result, ref done);
+        _reduce_result = _mr_task.Reduce(_mr_args.ReduceArg, null, null, _map_result, ref done);
+
+        if (LogEnabled) {
+          ProtocolLog.Write(ProtocolLog.MapReduce,
+                            String.Format("MapReduce: {0}, initial reduce result: {1}.", _node.Address, _reduce_result));
+        }
+
         if (done) {
           _finished = true;
-          SendResult(_reduce_result);          
+          SendResult(_reduce_result);
+          return;
         }
       } catch(Exception x) {
         if (ProtocolLog.Exceptions.Enabled) {
@@ -321,11 +343,11 @@ namespace Brunet {
         SendResult(x);
         return;
       }
-      
+
       //compute the list of child targets
       MapReduceInfo[] child_mr_info = null;
       try {
-        child_mr_info = _mr_task.GenerateTree(_mr_args.GenArg);
+        child_mr_info = _mr_task.GenerateTree(_mr_args);
       } catch (Exception x) {
         if (ProtocolLog.Exceptions.Enabled) {
           child_mr_info = new MapReduceInfo[0];
@@ -358,6 +380,7 @@ namespace Brunet {
         // did not generate any child computations, return rightaway
         _finished = true;
         SendResult(_reduce_result);
+        return;
       }
     }
     
@@ -367,15 +390,17 @@ namespace Brunet {
     protected void ChildCallback(object child_o, EventArgs child_event_args) {
       Channel child_q = (Channel) child_o;
       object child_result = null;
-      bool do_reduce = false;
+      Exception child_exception = null;
+      bool do_reduce = false;//set only if child returned something, and that something was not an exception.
       if (child_q.Count > 0) {
         try {
           RpcResult child_rres = (RpcResult) child_q.Dequeue();
           child_result = child_rres.Result;
           //got to reduce only if we get valid result from the child computation.
           do_reduce = true;
-        } catch (Exception) {
+        } catch (Exception x) {
           //even if we do not get a result from child, we can still proceed.
+          child_exception = x;
         } 
 
         if (LogEnabled) {
@@ -395,11 +420,16 @@ namespace Brunet {
             //do a reduce only of we really got something valid out of the queue
             if (do_reduce) {
               try {
-                _reduce_result = _mr_task.Reduce(_reduce_result, sender, child_result, ref done);
+                _reduce_result = _mr_task.Reduce(_mr_args.ReduceArg, _reduce_result, sender, child_result, ref done);
               } catch(Exception x) {
+                done = true;
                 _reduce_result = x;
               }
             } 
+            else if (child_exception != null) {
+              done = true;
+              _reduce_result = child_exception;
+            }
           }
           
           _finished = (_queue_to_sender.Keys.Count == 0) || done;
@@ -410,6 +440,7 @@ namespace Brunet {
       if (send_result) {
         //only one thread will get here
         SendResult(_reduce_result);
+        return;
       }
     }
     
