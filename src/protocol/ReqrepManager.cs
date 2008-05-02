@@ -46,6 +46,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
     LossyRequest = 2, //A request that does not require a response
     Reply = 3, //The response to a request
     ReplyAck = 4, //Acknowledge a reply
+    RequestAck = 5, //Acknowledge a request, used when a request takes a long time to complete
     Error = 6//Some kind of Error
   }
 
@@ -86,9 +87,12 @@ public class ReqrepManager : SimpleSource, IDataHandler {
     //resend the request after 5 seconds.
     _edge_reqtimeout = new TimeSpan(0,0,0,0,5000);
     _nonedge_reqtimeout = new TimeSpan(0,0,0,0,5000);
+    //Start with 50 sec timeout
+    _acked_reqtimeout = new TimeSpan(0,0,0,0,50000);
     //Here we track the statistics to improve the timeouts:
     _nonedge_rtt_stats = new TimeStats(_nonedge_reqtimeout.TotalMilliseconds, 0.98);
     _edge_rtt_stats = new TimeStats(_edge_reqtimeout.TotalMilliseconds, 0.98);
+    _acked_rtt_stats = new TimeStats(_acked_reqtimeout.TotalMilliseconds, 0.98);
     _last_check = DateTime.UtcNow;
   }
 
@@ -119,15 +123,17 @@ public class ReqrepManager : SimpleSource, IDataHandler {
      //Send the request again
      public void Send() {
        //Increment atomically:
-       System.Threading.Interlocked.Increment(ref _send_count);
+       Interlocked.Increment(ref _send_count);
        _req_date = DateTime.UtcNow;
        Sender.Send( Request );
      }
 
      public int Timeouts;
      public IReplyHandler ReplyHandler;
-     protected ArrayList _repliers;
+     protected readonly ArrayList _repliers;
      public ArrayList Repliers { get { return _repliers; } }
+     protected ArrayList _ackers;
+     
      protected DateTime _req_date;
      public DateTime ReqDate { get { return _req_date; } }
      public ICopyable Request;
@@ -135,11 +141,57 @@ public class ReqrepManager : SimpleSource, IDataHandler {
      public ReqrepType RequestType;
      public int RequestID;
      public object UserState;
-     //this is something we need to get rid of 
-     //public bool Replied;
      protected int _send_count;
      //number of times request has been sent out
      public int SendCount { get { return _send_count; } }
+     
+     ///True if we should resend
+     public bool NeedToResend {
+       get {
+         if (RequestType != ReqrepType.LossyRequest) {
+           if (_repliers.Count == 0) {
+             return (_ackers == null); 
+           }
+           else {
+             return false; 
+           }
+         }
+         else {
+           return false;
+         }
+       }
+     }
+     public bool GotAck { get { return _ackers != null; } }
+
+     /** Record an ACK to this request
+      * @return true if this is a new Ack
+      */
+     public bool AddAck(ISender acksender) {
+       if( _ackers == null ) {
+         _ackers = new ArrayList();
+         _ackers.Add(acksender);
+         return true;
+       }
+       else if( false == _ackers.Contains(acksender) ) {
+         _ackers.Add(acksender);
+         return true;
+       }
+       else {
+         return false;
+       }
+     }
+     /** Add to the set of repliers
+      * @return true if this is a new replier
+      */
+     public bool AddReplier(ISender rep) {
+       if( false == _repliers.Contains(rep) ) {
+         _repliers.Add(rep);
+         return true;
+       }
+       else {
+         return false;
+       }
+     }
    }
    /**
     * When a request comes in, we give this reply state
@@ -155,6 +207,9 @@ public class ReqrepManager : SimpleSource, IDataHandler {
      public ISender ReturnPath { get { return RequestKey.Sender; } }
      public readonly RequestKey RequestKey;
      protected int have_sent = 0;
+     public bool HaveSent { get { return (have_sent == 1); } }
+     protected int _have_sent_ack = 0;
+     public bool HaveSentAck { get { return (_have_sent_ack == 1); } }
 
      public ReplyState(RequestKey rk) {
        RequestKey = rk;
@@ -180,13 +235,22 @@ public class ReqrepManager : SimpleSource, IDataHandler {
        }
      }
 
+     public void SendAck() {
+       _have_sent_ack = 1;
+       byte[] header = new byte[5];
+       header[0] = (byte)ReqrepType.RequestAck;
+       NumberSerializer.WriteInt(RequestID, header, 1);
+       MemBlock mb_header = MemBlock.Reference(header);
+       ReturnPath.Send( new CopyList(PType.Protocol.ReqRep, mb_header) );
+     }
+
      public string ToUri() {
        throw new System.NotImplementedException();
      }
      
      /**
       * Resend if we already have the reply,
-      * if we don't have the reply yet, do nothing.
+      * if we don't have the reply yet, send an Ack
       */
      public void Resend() {
        if( Reply != null ) {
@@ -195,6 +259,9 @@ public class ReqrepManager : SimpleSource, IDataHandler {
            ReturnPath.Send( Reply );
          }
          catch { /* If this doesn't work, oh well */ }
+       }
+       else {
+         SendAck();
        }
      }
    }
@@ -233,6 +300,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
    protected TimeSpan _reptimeout;
    protected TimeSpan _edge_reqtimeout;
    protected TimeSpan _nonedge_reqtimeout;
+   protected TimeSpan _acked_reqtimeout;
    //This is to keep track of when we looked for timeouts last
    protected DateTime _last_check;
   
@@ -242,6 +310,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
    protected const int _MINIMUM_TIMEOUT = 2000;
    protected TimeStats _nonedge_rtt_stats;
    protected TimeStats _edge_rtt_stats;
+   protected TimeStats _acked_rtt_stats;
 
    /**
     * If f = _exp_factor we use:
@@ -319,6 +388,9 @@ public class ReqrepManager : SimpleSource, IDataHandler {
      else if (rt == ReqrepType.ReplyAck ) {
        HandleReplyAck(rt, idnum, rest, from);
      }
+     else if (rt == ReqrepType.RequestAck ) {
+       HandleRequestAck(rt, idnum, rest, from);
+     }
      else if( rt == ReqrepType.Error ) {
        HandleError(rt, idnum, rest, from);
      }
@@ -362,10 +434,42 @@ public class ReqrepManager : SimpleSource, IDataHandler {
            _reply_cache.Remove( rs.RequestKey );
          }
          //This didn't work out:
-         MemBlock err_data = MemBlock.Reference(
+         try {
+           MemBlock err_data = MemBlock.Reference(
                         new byte[]{ (byte) ReqrepError.HandlerFailure } );
-         ICopyable reply = MakeRequest(ReqrepType.Error, idnum, err_data);
-         retpath.Send(reply);
+           ICopyable reply = MakeRequest(ReqrepType.Error, idnum, err_data);
+           retpath.Send(reply);
+         }
+         catch {
+           //If this fails, we may think about logging.
+           //The return path could fail, that's the only obvious exception
+           ///@todo log exception
+         }
+       }
+     }
+   }
+
+   protected void HandleRequestAck(ReqrepType rt, int idnum, MemBlock rest, ISender ret_path) {
+     RequestState reqs = (RequestState)_req_state_table[idnum];
+     if( reqs != null ) {
+       IReplyHandler handler = null;
+       lock( _sync ) {
+         if (reqs.AddAck(ret_path)) {
+           /*
+            * Let's look at how long it took to get this reply:
+            */
+           TimeSpan rtt = DateTime.UtcNow - reqs.ReqDate;
+           if( ret_path is Edge ) {
+             _edge_reqtimeout = ComputeNewTimeOut(rtt.TotalMilliseconds,
+                                                  _edge_rtt_stats,
+                                                  _MINIMUM_TIMEOUT, _STD_DEVS);
+           }
+           else {
+             _nonedge_reqtimeout = ComputeNewTimeOut(rtt.TotalMilliseconds,
+                                                  _nonedge_rtt_stats,
+                                                  _MINIMUM_TIMEOUT, _STD_DEVS);
+           }
+         }
        }
      }
    }
@@ -375,38 +479,28 @@ public class ReqrepManager : SimpleSource, IDataHandler {
      if( reqs != null ) {
        IReplyHandler handler = null;
        lock( _sync ) {
-         ArrayList repls = reqs.Repliers;
-         if (false == repls.Contains(ret_path)) {
+         if (reqs.AddReplier(ret_path)) {
+           TimeSpan rtt = DateTime.UtcNow - reqs.ReqDate;
            /*
             * Let's look at how long it took to get this reply:
             */
-           TimeSpan rtt = DateTime.UtcNow - reqs.ReqDate;
-           if( ret_path is Edge ) {
-             _edge_rtt_stats.AddSample(rtt.TotalMilliseconds);
-             double timeout = _edge_rtt_stats.Average + _STD_DEVS * _edge_rtt_stats.StdDev;
-             timeout = (_MINIMUM_TIMEOUT > timeout) ? _MINIMUM_TIMEOUT : timeout;
-             _edge_reqtimeout = TimeSpan.FromMilliseconds( timeout );
-             /*
-             Console.Error.WriteLine("Edge: mean: {0}, std-dev: {1}, max: {2}, timeout: {3}",
-                                     _edge_rtt_stats.Average,
-                                     _edge_rtt_stats.StdDev,
-                                     _edge_rtt_stats.Max, timeout);
-             */
+           if( reqs.GotAck ) {
+             //Use more standard deviations for acked messages.  We
+             //just don't want to let it run forever.
+             _acked_reqtimeout = ComputeNewTimeOut(rtt.TotalMilliseconds,
+                                                _acked_rtt_stats,
+                                                _MINIMUM_TIMEOUT, 3 *_STD_DEVS);
+
+           }
+           else if( ret_path is Edge ) {
+             _edge_reqtimeout = ComputeNewTimeOut(rtt.TotalMilliseconds,
+                                                  _edge_rtt_stats,
+                                                  _MINIMUM_TIMEOUT, _STD_DEVS);
            }
            else {
-             _nonedge_rtt_stats.AddSample(rtt.TotalMilliseconds);
-             double timeout = _nonedge_rtt_stats.Average + _STD_DEVS * _nonedge_rtt_stats.StdDev;
-             timeout = (_MINIMUM_TIMEOUT > timeout) ? _MINIMUM_TIMEOUT : timeout;
-             _nonedge_reqtimeout = TimeSpan.FromMilliseconds( timeout );
-             /*
-             Console.Error.WriteLine("Nonedge: mean: {0}, std-dev: {1}, max: {2}, timeout: {3}",
-                                     _nonedge_rtt_stats.Average,
-                                     _nonedge_rtt_stats.StdDev,
-                                     _nonedge_rtt_stats.Max, timeout);
-             */
+             _nonedge_reqtimeout = ComputeNewTimeOut(rtt.TotalMilliseconds,
+                                                  _nonedge_rtt_stats, _MINIMUM_TIMEOUT, _STD_DEVS);
            }
-           //Make sure we ignore replies from this sender again
-           repls.Add(ret_path);
            handler = reqs.ReplyHandler;
          }
        }
@@ -582,17 +676,21 @@ public class ReqrepManager : SimpleSource, IDataHandler {
   {
     DateTime now = DateTime.UtcNow;
     TimeSpan interval = now - _last_check;
+    ArrayList timeout_hands = null;
+    ArrayList to_resend = null;
+    ArrayList to_ack = null;
     if( interval > _edge_reqtimeout || interval > _nonedge_reqtimeout ) {
       //Here is a list of all the handlers for the requests that timed out
-      ArrayList timeout_hands = null;
-      ArrayList to_resend = null;
       lock( _sync ) {
         _last_check = now;
         IDictionaryEnumerator reqe = _req_state_table.GetEnumerator();
         TimeSpan timeout;
         while( reqe.MoveNext() ) {
           RequestState reqs = (RequestState)reqe.Value;
-          if( reqs.Sender is Edge ) {
+          if( reqs.GotAck ) {
+            timeout = _acked_reqtimeout;
+          }
+          else if( reqs.Sender is Edge ) {
             timeout = _edge_reqtimeout;
           }
           else {
@@ -601,7 +699,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
           if( now - reqs.ReqDate > timeout ) {
             reqs.Timeouts--;
             if( reqs.Timeouts >= 0 ) {
-              if( reqs.RequestType != ReqrepType.LossyRequest ) {
+              if( reqs.NeedToResend ) {
                 ///@todo improve the logic of resending to be less wasteful
                 if( to_resend == null ) { to_resend = new ArrayList(); }
                 to_resend.Add( reqs );
@@ -623,42 +721,79 @@ public class ReqrepManager : SimpleSource, IDataHandler {
         //Look for any Replies it might be time to clean:
         foreach(DictionaryEntry de in _reply_cache) {
           ReplyState reps = (ReplyState)de.Value;
-          if( now - reps.RequestDate > _reptimeout ) {
+          if((false == reps.HaveSent) && (false == reps.HaveSentAck))  {
+            //This one is taking a long time to answer, just ack it:
+            if( to_ack == null ) { to_ack = new ArrayList(); }
+            to_ack.Add( reps ); 
+          }
+          else if( now - reps.RepDate > _reptimeout ) {
+            //We have already sent and we've kept it for a while...
             _reply_cache.Remove( de.Key );
           }
         }
       }
-      /*
-       * It is important not to hold the lock while we call
-       * functions that could result in this object being
-       * accessed.
-       *
-       * We have released the lock, now we can send the packets:
-       */
-      if ( to_resend != null ) {
-       foreach(RequestState req in to_resend) {
-        try {
-          req.Send();
+    }
+    else {
+      //At each heartbeat check to see if we need send request acks:
+      lock(_sync) {
+        foreach(DictionaryEntry de in _reply_cache) {
+          ReplyState reps = (ReplyState)de.Value;
+          if((false == reps.HaveSentAck) && (false == reps.HaveSent))  {
+            //This one is taking a long time to answer, just ack it:
+            if( to_ack == null ) { to_ack = new ArrayList(); }
+            to_ack.Add( reps ); 
+          }
         }
-        catch {
-          //This send didn't work, but maybe it will next time, who knows...
-          req.ReplyHandler.HandleError(this, req.RequestID, ReqrepError.Send,
-                                       null, req.UserState);
-
-        }
-       }
-      }
-      /*
-       * Once we have released the lock, tell the handlers
-       * about the timeout that have occured
-       */
-      if( timeout_hands != null ) {
-       foreach(RequestState reqs in timeout_hands) {
-        reqs.ReplyHandler.HandleError(this, reqs.RequestID, ReqrepError.Timeout,
-                                      null, reqs.UserState);
-       }
       }
     }
+    /*
+     * It is important not to hold the lock while we call
+     * functions that could result in this object being
+     * accessed.
+     *
+     * We have released the lock, now we can send the packets:
+     */
+    if ( to_resend != null ) {
+     foreach(RequestState req in to_resend) {
+      try {
+        req.Send();
+      }
+      catch {
+        //This send didn't work, but maybe it will next time, who knows...
+        req.ReplyHandler.HandleError(this, req.RequestID, ReqrepError.Send,
+                                     null, req.UserState);
+      }
+     }
+    }
+    /*
+     * Once we have released the lock, tell the handlers
+     * about the timeout that have occured
+     */
+    if( timeout_hands != null ) {
+     foreach(RequestState reqs in timeout_hands) {
+      reqs.ReplyHandler.HandleError(this, reqs.RequestID, ReqrepError.Timeout,
+                                    null, reqs.UserState);
+     }
+    }
+    /*
+     * Send acks for those that have been waiting for a long time
+     */
+    if(to_ack != null) {
+      foreach(ReplyState reps in to_ack) {
+        try {
+          reps.SendAck();
+        }
+        catch(Exception x) {
+          ///@todo, log this exception.
+        } 
+      }
+    }
+  }
+  protected TimeSpan ComputeNewTimeOut(double ms, TimeStats stats, double min, double stdevs) {
+    stats.AddSample(ms);
+    double timeout = stats.Average + stdevs * stats.StdDev;
+    timeout = Math.Max(min, timeout);
+    return TimeSpan.FromMilliseconds( timeout );
   }
 }
   
