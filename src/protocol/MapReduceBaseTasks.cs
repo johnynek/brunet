@@ -33,11 +33,8 @@ namespace Brunet {
     public MapReduceGreedy(Node n):base(n) {}
     public override MapReduceInfo[] GenerateTree(MapReduceArgs mr_args) {
       object gen_arg = mr_args.GenArg;
-      if (LogEnabled) {
-        ProtocolLog.Write(ProtocolLog.MapReduce,
-                          String.Format("{0}: {1}, greedy generator called, arg: {2}.", 
-                                        this.TaskName, _node.Address, gen_arg));
-      }
+      Log("{0}: {1}, greedy generator called, arg: {2}.", 
+          this.TaskName, _node.Address, gen_arg);
       string address = gen_arg as string;
       AHAddress a =  (AHAddress) AddressParser.Parse(address);
       ArrayList retval = new ArrayList();
@@ -50,11 +47,8 @@ namespace Brunet {
         retval.Add(mr_info);
       }
       
-      if (LogEnabled) {
-        ProtocolLog.Write(ProtocolLog.MapReduce,
-                          String.Format("{0}: {1}, greedy generator returning: {2} senders.", 
-                                        this.TaskName, _node.Address, retval.Count));
-      }
+      Log("{0}: {1}, greedy generator returning: {2} senders.", 
+          this.TaskName, _node.Address, retval.Count);
       return (MapReduceInfo[]) retval.ToArray(typeof(MapReduceInfo));
     }
   }
@@ -75,82 +69,64 @@ namespace Brunet {
      */
     public override MapReduceInfo[] GenerateTree(MapReduceArgs mr_args) 
     {
+      Log("generating child tree.");      
       object gen_arg = mr_args.GenArg;
       string end_range = gen_arg as string;
       AHAddress end_addr = (AHAddress) AddressParser.Parse(end_range);
       AHAddress start_addr = _node.Address as AHAddress;
       //we are at the start node, here we go:
       ConnectionTable tab = _node.ConnectionTable;
-      ConnectionList structs = tab.GetConnections(ConnectionType.Structured);      
-      ArrayList con_list = new ArrayList();
-      foreach (Connection con in structs) {
-        BigInteger start_int = start_addr.ToBigInteger();
-        BigInteger end_int = end_addr.ToBigInteger();
-        BigInteger con_int = con.Address.ToBigInteger();
-        if (con_int < start_int) {
-          //still not in reached the range
-//           Console.Error.WriteLine("{0}: {1}, address: {2}, smaller than range start: {3}", 
-//                                   this.TaskName, _node.Address, 
-//                                   con.Address, start_addr);
-          continue;
-        }
-
-        if (con_int >= end_int)  {
-          //crossed the range
-//           Console.Error.WriteLine("{0}: {1}, address: {2}, greater than or equal to range end: {3}", 
-//                                   this.TaskName, _node.Address, 
-//                                   con.Address, end_addr);
-          break;
-        }
-        con_list.Add(con);
-      }
-
-      if (LogEnabled) {
-        ProtocolLog.Write(ProtocolLog.MapReduce, 
-                          String.Format("{0}: {1}, number of child connections: {2}", 
-                                        this.TaskName, _node.Address, con_list.Count));
-      }
-
+      ConnectionList structs = tab.GetConnections(ConnectionType.Structured);
       ArrayList retval = new ArrayList();
-      for (int i = 0; i < con_list.Count; i++) {
-        MapReduceInfo mr_info = null;
-        ISender sender = null;
-        Connection con = (Connection) con_list[i];
-        sender = (ISender) con.Edge;
-        //check if last connection
-        if (i == con_list.Count - 1) {
-          mr_info = new MapReduceInfo( (ISender) sender, 
-                                       new MapReduceArgs(this.TaskName, 
-                                                         mr_args.MapArg, //map argument
-                                                         end_range, //generate argument
-                                                         mr_args.ReduceArg //reduce argument
-                                                         ));
 
-          if (LogEnabled) {
-            ProtocolLog.Write(ProtocolLog.MapReduce, 
-                              String.Format("{0}: {1}, adding address: {2} to sender list, range end: {3}", 
-                                            this.TaskName, _node.Address, 
-                                            con.Address, end_range));
-          }
-          retval.Add(mr_info);
+      if (structs.Count > 0) {
+        Connection curr_con = structs.GetLeftNeighborOf(_node.Address);
+        int curr_idx = structs.IndexOf(curr_con.Address);
+        //keep going until we leave the range
+        int count = 0;
+        ArrayList con_list = new ArrayList();
+        while (count++ < structs.Count && ((AHAddress) curr_con.Address).IsBetweenFromLeft(start_addr, end_addr)) {
+          con_list.Add(curr_con);
+          //Log("adding connection: {0} to list.", curr_con.Address);
+          curr_idx  = (curr_idx + 1)%structs.Count;
+          curr_con = structs[curr_idx];
         }
-        else {
-          string child_end = ((Connection) con_list[i+1]).Address.ToString();
-          mr_info = new MapReduceInfo( sender,
-                                       new MapReduceArgs(this.TaskName,
-                                                         mr_args.MapArg, 
-                                                         child_end,
-                                                         mr_args.ReduceArg));
-          if (LogEnabled) {
-            ProtocolLog.Write(ProtocolLog.MapReduce, 
-                              String.Format("{0}: {1}, adding address: {2} to sender list, range end: {3}", 
-                                  this.TaskName, _node.Address, 
-                                  con.Address, child_end));
+        
+        Log("{0}: {1}, number of child connections: {2}", 
+            this.TaskName, _node.Address, con_list.Count);
+        for (int i = 0; i < con_list.Count; i++) {
+          MapReduceInfo mr_info = null;
+          ISender sender = null;
+          Connection con = (Connection) con_list[i];
+          sender = (ISender) con.Edge;
+          //check if last connection
+          if (i == con_list.Count - 1) {
+            mr_info = new MapReduceInfo( (ISender) sender, 
+                                         new MapReduceArgs(this.TaskName, 
+                                                           mr_args.MapArg, //map argument
+                                                           end_range, //generate argument
+                                                           mr_args.ReduceArg //reduce argument
+                                                           ));
+            
+            Log("{0}: {1}, adding address: {2} to sender list, range end: {3}", 
+                this.TaskName, _node.Address, 
+                con.Address, end_range);
+            retval.Add(mr_info);
           }
-          retval.Add(mr_info);
+          else {
+            string child_end = ((Connection) con_list[i+1]).Address.ToString();
+            mr_info = new MapReduceInfo( sender,
+                                         new MapReduceArgs(this.TaskName,
+                                                           mr_args.MapArg, 
+                                                           child_end,
+                                                           mr_args.ReduceArg));
+            Log("{0}: {1}, adding address: {2} to sender list, range end: {3}", 
+                this.TaskName, _node.Address, 
+                con.Address, child_end);
+            retval.Add(mr_info);
+          }
         }
       }
-      
       return (MapReduceInfo[]) retval.ToArray(typeof(MapReduceInfo));
     }
   }   
