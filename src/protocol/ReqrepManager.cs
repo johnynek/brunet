@@ -71,8 +71,6 @@ public class ReqrepManager : SimpleSource, IDataHandler {
     _req_state_table = new Hashtable();
     _rep_handler_table = new Hashtable();
 
-    //Hold on to a reply for 120 seconds.
-    _reptimeout = new TimeSpan(0,0,0,120,0);
     /**
      * We keep a list of the most recent 1000 replies until they
      * get too old.  If the reply gets older than reptimeout, we
@@ -211,9 +209,18 @@ public class ReqrepManager : SimpleSource, IDataHandler {
      protected int _have_sent_ack = 0;
      public bool HaveSentAck { get { return (_have_sent_ack == 1); } }
 
+     protected int _reply_timeouts;
+     public int ReplyTimeouts { get { return _reply_timeouts; } }
+
      public ReplyState(RequestKey rk) {
        RequestKey = rk;
        RequestDate = DateTime.UtcNow;
+       _reply_timeouts = 0;
+     }
+
+     public int IncrementRepTimeouts() {
+       _reply_timeouts++;
+       return _reply_timeouts;
      }
 
      public void Send(ICopyable data) {
@@ -297,7 +304,6 @@ public class ReqrepManager : SimpleSource, IDataHandler {
    protected Cache _reply_cache;
    protected Hashtable _rep_handler_table;
    protected Hashtable _req_handler_table;
-   protected TimeSpan _reptimeout;
    protected TimeSpan _edge_reqtimeout;
    protected TimeSpan _nonedge_reqtimeout;
    protected TimeSpan _acked_reqtimeout;
@@ -540,8 +546,21 @@ public class ReqrepManager : SimpleSource, IDataHandler {
                               MemBlock err_data, ISender ret_path) {
      RequestKey rk = new RequestKey(idnum, ret_path);
      lock( _sync ) {
-       //The Ack is sent AFTER no more resends will be sent, so it's totally
-       //safe to remove this from the cache!
+       /**
+        * This is not completely safe, but probably fine.  Consider the
+        * case where:
+        * A -(req)-> B 
+        * A timeout but B does get the req
+        * A <-(rep)- B
+        * A -(req)-> B (these cross in flight)
+        * A -(repack)-> B
+        *
+        * but then the repack passes the req retransmission (out of order
+        * delivery)
+        *
+        * This is unlikely, but we could improve it.
+        * @todo improve the reply caching algorithm
+        */
        _reply_cache.Remove(rk);
      }
    }
@@ -679,6 +698,8 @@ public class ReqrepManager : SimpleSource, IDataHandler {
     ArrayList timeout_hands = null;
     ArrayList to_resend = null;
     ArrayList to_ack = null;
+    ArrayList reps_to_resend = null;
+
     if( interval > _edge_reqtimeout || interval > _nonedge_reqtimeout ) {
       //Here is a list of all the handlers for the requests that timed out
       lock( _sync ) {
@@ -721,14 +742,41 @@ public class ReqrepManager : SimpleSource, IDataHandler {
         //Look for any Replies it might be time to clean:
         foreach(DictionaryEntry de in _reply_cache) {
           ReplyState reps = (ReplyState)de.Value;
-          if((false == reps.HaveSent) && (false == reps.HaveSentAck))  {
+          TimeSpan reptimeout;
+          if(reps.ReturnPath is Edge) {
+            reptimeout = _edge_reqtimeout;
+          }
+          else {
+            reptimeout = _nonedge_reqtimeout;
+          }
+          if( reps.HaveSent ) {
+            /*
+             * See if we need to resend our reply
+             */
+            if( now - reps.RepDate > reptimeout ) {
+              //We have already sent and we've kept it for a while...
+              if( reps.IncrementRepTimeouts() <= _MAX_RESENDS ) {
+                if( reps.HaveSentAck ) {
+                /*
+                 * If we sent an ack, we must keep sending the reply, until
+                 * we get a reply ack
+                 */
+                  if( reps_to_resend == null ) { reps_to_resend = new ArrayList(); }
+                  reps_to_resend.Add( reps ); 
+                }
+              }
+              else {
+                /*
+                 * This reply has timed out:
+                 */
+                _reply_cache.Remove( de.Key );
+              }
+            }
+          }
+          else if(false == reps.HaveSentAck)  {
             //This one is taking a long time to answer, just ack it:
             if( to_ack == null ) { to_ack = new ArrayList(); }
             to_ack.Add( reps ); 
-          }
-          else if( now - reps.RepDate > _reptimeout ) {
-            //We have already sent and we've kept it for a while...
-            _reply_cache.Remove( de.Key );
           }
         }
       }
@@ -786,6 +834,14 @@ public class ReqrepManager : SimpleSource, IDataHandler {
         catch(Exception x) {
           ///@todo, log this exception.
         } 
+      }
+    }
+    /*
+     * Resend replies for unacked replies
+     */
+    if( reps_to_resend != null ) {
+      foreach(ReplyState reps in reps_to_resend) {
+        reps.Resend();
       }
     }
   }
