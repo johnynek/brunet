@@ -305,8 +305,8 @@ namespace Brunet {
         _map_result = _mr_task.Map(_mr_args.MapArg);
       } 
       catch(Exception x) {
-        if (ProtocolLog.Exceptions.Enabled) {
-          ProtocolLog.Write(ProtocolLog.Exceptions, 
+        if (ProtocolLog.MapReduce.Enabled) {
+          ProtocolLog.Write(ProtocolLog.MapReduce, 
                             String.Format("MapReduce: {0}, map exception: {1}.", _node.Address, x));        
         }
         _finished = true;
@@ -335,8 +335,8 @@ namespace Brunet {
           return;
         }
       } catch(Exception x) {
-        if (ProtocolLog.Exceptions.Enabled) {
-          ProtocolLog.Write(ProtocolLog.Exceptions, 
+        if (ProtocolLog.MapReduce.Enabled) {
+          ProtocolLog.Write(ProtocolLog.MapReduce, 
                             String.Format("MapReduce: {0}, initial reduce exception: {1}.", _node.Address, x));
         }
         _finished = true;
@@ -349,9 +349,9 @@ namespace Brunet {
       try {
         child_mr_info = _mr_task.GenerateTree(_mr_args);
       } catch (Exception x) {
-        if (ProtocolLog.Exceptions.Enabled) {
+        if (ProtocolLog.MapReduce.Enabled) {
           child_mr_info = new MapReduceInfo[0];
-          ProtocolLog.Write(ProtocolLog.Exceptions,         
+          ProtocolLog.Write(ProtocolLog.MapReduce,         
                             String.Format("MapReduce: {0}, generate tree exception: {1}.", _node.Address, x));
         }
       }
