@@ -81,9 +81,15 @@ namespace Brunet.Coordinate {
         ResultTable = new Hashtable();
       }
     }
-    
 
+    //local network coordinate service
     protected NCService _nc_service;
+
+    /** 
+     * Constructor. 
+     * @param n local node
+     * @param service local network coordinate service
+     */
     public VivaldiTargetSelector(Node n, NCService service) {
       _sync = new object();
       _channel_to_state = new Hashtable();
