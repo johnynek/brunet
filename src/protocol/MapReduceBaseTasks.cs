@@ -69,9 +69,9 @@ namespace Brunet {
      */
     public override MapReduceInfo[] GenerateTree(MapReduceArgs mr_args) 
     {
-      Log("generating child tree.");      
       object gen_arg = mr_args.GenArg;
       string end_range = gen_arg as string;
+      Log("generating child tree, range end: {0}.", end_range);
       AHAddress end_addr = (AHAddress) AddressParser.Parse(end_range);
       AHAddress start_addr = _node.Address as AHAddress;
       //we are at the start node, here we go:
