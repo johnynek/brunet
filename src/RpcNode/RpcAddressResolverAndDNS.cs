@@ -168,7 +168,7 @@ namespace Ipop.RpcNode {
             return ipp.Packet;
           }
         }
-        else if(udpp.DestinationPort > 5000 && udpp.DestinationPort < 5100) {
+        else if(udpp.DestinationPort >= 5060 && udpp.DestinationPort < 5100) {
           udpp = SIPTranslate(udpp, source_ip, ipp.SSourceIP,
                               ipp.SDestinationIP);
           ipp = new IPPacket(ipp.Protocol, source_ip, _local_ip, ID,
