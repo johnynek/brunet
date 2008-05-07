@@ -179,6 +179,8 @@ namespace Brunet
       protected readonly Node LocalNode;
       protected long _last_hb_dt;
       protected readonly TimeSpan _heart_beat_interval;
+      protected Thread _hb_thread;
+      protected int _run_hb_thread;
 
       public TimeSpan TimeSinceLastFire {
         get {
@@ -190,6 +192,8 @@ namespace Brunet
         LocalNode = n;
         _heart_beat_interval = interval;
         SetTime();
+        _run_hb_thread = 0;
+        n.StateChangeEvent += this.NodeStateChangeHandler;
       }
       /*
        * @returns the previous value.
@@ -206,6 +210,50 @@ namespace Brunet
         LocalNode.RaiseHeartBeatEvent();
         SetTime();
         SetInQueue(false);
+      }
+      /*
+       * This is where the thread is started and stopped
+       */
+      protected void NodeStateChangeHandler(Node n, ConnectionState cs) {
+        if( cs == ConnectionState.Joining ) {
+          StartThread();
+        }
+        else if( cs == ConnectionState.Disconnected ) {
+          StopThread();
+        }
+      }
+
+      /** ThreadStart delegate to run in our internal thread.
+       */
+      protected void SendHeartBeats() {
+        while( _run_hb_thread == 1 ) {
+          Thread.Sleep(_heart_beat_interval);
+          CheckForTime();
+        }
+      }
+
+      /** Start a seperate thread to send HeartBeatEvents.
+       * @return true if this call actually started a thread
+       */
+      public bool StartThread() {
+        if( Interlocked.Exchange(ref _run_hb_thread, 1) == 0 ) {
+          _hb_thread = new Thread(this.SendHeartBeats);
+          _hb_thread.Start(); 
+          return true;
+        }
+        return false;
+      }
+
+      /** Stop the 
+       * @return true if this call actually started a thread
+       */
+      public bool StopThread() {
+        if( Interlocked.Exchange(ref _run_hb_thread, 0) == 1 ) {
+          _hb_thread.Join(); 
+          _hb_thread = null;
+          return true;
+        }
+        return false;
       }
       /*
        * Check to see if we need to get back in the queue
@@ -752,17 +800,6 @@ namespace Brunet
             //Check to see if it is time for another heartbeat event
             _heart_beat_object.CheckForTime();
             continue;
-          }
-          else {
-            /*
-             * Don't check every packet if we need to 
-             * schedule a heartbeat because that will be costly
-             */
-            ++consecutive_packets;
-            if( consecutive_packets > 100 ) {
-              consecutive_packets = 0;
-              _heart_beat_object.CheckForTime();
-            }
           }
           queue_item.Start();
           // If we peeked, we need to now remove it
