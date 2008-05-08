@@ -266,12 +266,14 @@ namespace NetworkPackets {
       new_packet[11] = (byte) (checksum & 0xFF);
       Protocols p = (Protocols) Packet[9];
 
-      if(p == Protocols.UDP) {
+      bool fragment = ((Packet[6] & 0x1F) | Packet[7]) != 0;
+
+      if(p == Protocols.UDP && !fragment) {
         // Zero out the checksum to disable it
         new_packet[length + 6] = 0;
         new_packet[length + 7] = 0;
       }
-      else if(p == Protocols.TCP) {
+      else if(p == Protocols.TCP && !fragment) {
         // Zero out the checksum so we don't use it in our future calculations
         new_packet[length + 16] = 0;
         new_packet[length + 17] = 0;
