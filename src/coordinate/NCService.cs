@@ -31,7 +31,6 @@ using Brunet;
 
 #if NC_NUNIT
 using System.Security.Cryptography;
-using System.Collections.Specialized;
 using NUnit.Framework;
 #endif
 
@@ -232,11 +231,12 @@ namespace Brunet.Coordinate {
     protected static Hashtable _nc_service_table = new Hashtable();
     protected static Point _checkpointed_position = null;
     protected static Thread _checkpoint_thread = null;
+    protected static volatile bool _checkpoint_thread_finished = false;
 
     //every 10 seconds get a new sample for latency.
     protected static readonly int SAMPLE_INTERVAL = 10;
 
-    //sample not valid beyond 1800 seconds
+    //samples not valid beyond 1800 seconds
     protected static readonly long SAMPLE_EXPIRATION = 1800;
     
     //maximum latency value to consider a sample 
@@ -244,9 +244,9 @@ namespace Brunet.Coordinate {
     
     protected object _sync;
     protected Node _node;
-    public Node Node {
-      get { return _node; }
-    }
+//     public Node Node {
+//       get { return _node; }
+//     }
     protected RpcManager _rpc;
     protected DateTime _last_sample_instant;
     protected DateTime _last_update_file_instant;
@@ -292,13 +292,17 @@ namespace Brunet.Coordinate {
 	}
 	_nc_service_table[node] = this;
 	_node = node;
-	if (_checkpoint_thread == null) {
-	  //we are just starting up.
-	  InitializeVivaldiPosition();
+        if (_nc_service_table.Keys.Count == 1) {//installing on the first node
+          _checkpointed_position = ReadVivaldiPosition();
+
+#if NC_DEBUG
+          Console.Error.WriteLine("Starting the checkpoint thread.");
+#endif
 	  _checkpoint_thread = new Thread(CheckpointThread);
+          _checkpoint_thread_finished = false;
 	  _checkpoint_thread.Start();
-	}
-	init_position = new Point(_checkpointed_position);
+        }
+        init_position = new Point(_checkpointed_position);
       }
 
 #if NC_DEBUG
@@ -306,7 +310,7 @@ namespace Brunet.Coordinate {
 #endif 
       lock(_sync) {
 	_vivaldi_state.Position = new Point(init_position);
-	_rpc = RpcManager.GetInstance(node);
+	_rpc = node.Rpc;
 	_rpc.AddHandler("ncserver", this);
 	_node.HeartBeatEvent += new EventHandler(GetNextSample);
 	_node.StateChangeEvent += delegate(Node n, Node.ConnectionState s) {
@@ -316,8 +320,19 @@ namespace Brunet.Coordinate {
 	      Console.Error.WriteLine("Removing {0} from nc_service table", n.Address);
 #endif
 	      _nc_service_table.Remove(n);
-	    }
-	  }
+              if (_nc_service_table.Keys.Count == 0) {
+                _checkpoint_thread_finished = true;
+#if NC_DEBUG
+                Console.Error.WriteLine("Interrupting the checkpoint thread.");
+#endif
+                _checkpoint_thread.Interrupt();
+                _checkpoint_thread.Join();
+#if NC_DEBUG
+                Console.Error.WriteLine("Join with the checkpoint thread (finished).");
+#endif
+              }
+ 	    }
+          }
 	};
       }
     }
@@ -544,7 +559,7 @@ namespace Brunet.Coordinate {
 	Console.Error.WriteLine("o_latency: {0}", o_latency);
 	Console.Error.WriteLine("o_relativeError (epsi): {0}", o_relativeError);
 	Console.Error.WriteLine("o_weight (w_s): {0}", o_weight);
-	Console.Error.WriteLine("my_weighted_error (preupdate)): {0}", State.WeightedError);
+	Console.Error.WriteLine("my_weighted_error (preupdate)): {0}", _vivaldi_state.WeightedError);
 	Console.Error.WriteLine("alpha: {0}", o_alphaWeightedError);
 #endif
 
@@ -552,7 +567,7 @@ namespace Brunet.Coordinate {
 	  _vivaldi_state.WeightedError*(1 - o_alphaWeightedError);
 
 #if NC_DEBUG
-	Console.Error.WriteLine("my_weighted_error (postupdate)): {0}", State.WeightedError);
+	Console.Error.WriteLine("my_weighted_error (postupdate)): {0}", _vivaldi_state.WeightedError);
 #endif
 	if (_vivaldi_state.WeightedError > 1.0) {
 	  _vivaldi_state.WeightedError = 1.0;
@@ -690,7 +705,7 @@ namespace Brunet.Coordinate {
     /**
      * Initialize vivaldi coordinates from a file. 
      */
-    protected static void InitializeVivaldiPosition() {
+    protected static Point ReadVivaldiPosition() {
       Point p = null;
       try {
 	TextReader tr = new StreamReader(_checkpoint_file);
@@ -702,9 +717,7 @@ namespace Brunet.Coordinate {
       } catch {
 	p = new Point();
       }
-      lock(_nc_service_table) {
-	_checkpointed_position = p;
-      }
+      return p;
     }
 
     /**
@@ -712,42 +725,56 @@ namespace Brunet.Coordinate {
      */
     protected static void CheckpointThread() {
       do {
-	System.Threading.Thread.Sleep(CHECKPOINT_INTERVAL*1000);
+        try {
+          System.Threading.Thread.Sleep(CHECKPOINT_INTERVAL*1000);
+        } catch(System.Threading.ThreadInterruptedException) {
+          break;
+        }
+        
 	//update the checkpointed position
 	double min_error = 1.0;
 	VivaldiState min_error_state = null;
-	Hashtable ht = (Hashtable) _nc_service_table.Clone();
-	foreach(NCService nc in ht.Values) {
-	  VivaldiState vs = nc.State;
-	  if (vs.WeightedError < min_error) {
-	    min_error = vs.WeightedError;
-	    min_error_state = vs;
-	  }
-	}
-
-	if (min_error_state == null) {
-	  Console.Error.WriteLine("No network coordinates to checkpoint, node instances: {0}, min_error: {1}", 
-				  ht.Count, min_error);
-	  continue;
-	}
-	
-	lock(_nc_service_table) {
-	  _checkpointed_position = min_error_state.Position;
-	}
-	
-	try {
-	  Console.Error.WriteLine("Checkpointing: {0}", min_error_state.Position);
-	  TextWriter tw = new StreamWriter(_checkpoint_file);
-          //also write the checkpoint time
-          tw.WriteLine(DateTime.UtcNow.Ticks);
-	  tw.WriteLine(min_error_state.Position);
-	  tw.Close();
-	} catch (Exception e) {
-	  Console.Error.WriteLine(e);
-	}
-      } while (true);
+        Hashtable ht = null;
+        lock(_nc_service_table) {
+          ht = (Hashtable) _nc_service_table.Clone();
+        }
+        int node_count = 0;
+        foreach(NCService nc in ht.Values) {
+          node_count++;
+          //operating on copies
+          VivaldiState vs = nc.State;
+          if (vs.WeightedError < min_error) {
+            min_error = vs.WeightedError;
+            min_error_state = vs;
+          }
+        }
+        
+        if (min_error_state != null) {
+          _checkpointed_position = min_error_state.Position;
+          //write this out to file
+          try {
+#if NC_DEBUG
+            Console.Error.WriteLine("Checkpointing: {0}", min_error_state.Position);
+#endif
+            TextWriter tw = new StreamWriter(_checkpoint_file);
+            //also write the checkpoint time
+            tw.WriteLine(DateTime.UtcNow.Ticks);
+            tw.WriteLine(min_error_state.Position);
+            tw.Close();
+          } catch (Exception e) {
+            Console.Error.WriteLine(e);
+          }
+        }
+        else {
+#if NC_DEBUG
+          Console.Error.WriteLine("No network coordinates to checkpoint, node instances: {0}, min_error: {1}", 
+                                  node_count, min_error);
+#endif
+        }
+      } while (!_checkpoint_thread_finished);
     }
   }
+
 #if NC_NUNIT
   [TestFixture]
   public class NCTester {  
@@ -765,19 +792,19 @@ namespace Brunet.Coordinate {
     [Test]
     public void TestPoint() {
       Point p1 = new Point(new double[] {(double) 3.0, (double) 4.0}, 0);
-      Assert.IsTrue(p1.Length() > 4.9 && p1.Length() < 5.1);
+      Assert.IsTrue(p1.Length() == 5.0);
       Point p2 = new Point(new double[] {(double) 6.0, (double) 8.0}, 0);
       double d = p1.GetEucledianDistance(p2);
-      Assert.IsTrue(d > 4.9 && d < 5.1);
+      Assert.IsTrue(d == 5.0);
       Point uv = p1.GetDirection(p2);
-      Assert.IsTrue(uv.Length() > 0.9 && uv.Length() < 1.1);
+      Assert.IsTrue(uv.Length() == 1.0);
       p1.Add(p2);
-      Assert.IsTrue(p1.Side[0] > 8.9 && p1.Side[0] < 9.1);
-      Assert.IsTrue(p1.Side[1] > 11.9 && p1.Side[1] < 12.1);
+      Assert.IsTrue(p1.Side[0] == 9.0);
+      Assert.IsTrue(p1.Side[1] == 12.0);
 
       p2.Scale((double) 0.5);
-      Assert.IsTrue(p2.Side[0] > 2.9 && p2.Side[0] < 3.1);
-      Assert.IsTrue(p2.Side[1] > 3.9 && p2.Side[1] < 4.1);
+      Assert.IsTrue(p2.Side[0] == 3.0);
+      Assert.IsTrue(p2.Side[1] == 4.0);
 
       Point p = new Point(p2.Side, p2.Height);
       Assert.IsTrue(p.Equals(p2));
@@ -786,12 +813,13 @@ namespace Brunet.Coordinate {
       Assert.IsTrue(!p.Equals(p2));
     }
 
-    [Test]
+    //[Test]
     public void TestService() {
       NCService nc_service = new NCService();
       DateTime now = DateTime.Now;
       Address addr_remote = new AHAddress(new RNGCryptoServiceProvider());
       Address addr_remote1 = new AHAddress(new RNGCryptoServiceProvider());
+      Address addr_remote2 = new AHAddress(new RNGCryptoServiceProvider());
 
       nc_service.ProcessSample(now + new TimeSpan(0, 0, 5), "local-test", addr_remote, 
 			       new Point(new double[] {(double) 3.0, (double) 4.0}, 0),
@@ -801,6 +829,10 @@ namespace Brunet.Coordinate {
 
       nc_service.ProcessSample(now + new TimeSpan(0, 0, 6), "local-test",addr_remote1, 
 			       new Point(new double[] {(double) 10.0, (double) 2.0}, 0),
+			       (double) 0.9, (double)10.0); 
+
+      nc_service.ProcessSample(now + new TimeSpan(0, 0, 6), "local-test",addr_remote2, 
+			       new Point(new double[] {(double) 5.0, (double) 6.0}, 0),
 			       (double) 0.9, (double)10.0); 
 
 
@@ -830,7 +862,7 @@ namespace Brunet.Coordinate {
 			       new Point(new double[] {(double) 10.0, (double) 2.0}, 0),
 			       (double)0.6, (double)10.0);       
 
-      NCService.VivaldiState state = nc_service.State;
+      state = nc_service.State;
       Console.Error.WriteLine("position: {0}, error: {1}", state.Position, state.WeightedError);
     }
 

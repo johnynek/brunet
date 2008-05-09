@@ -1,9 +1,15 @@
 #define USE_HEIGHT
 using System;
+using System.Collections;
+using System.Collections.Specialized;
+
+#if NC_NUNIT
+using NUnit.Framework;
+#endif
 
 namespace Brunet.Coordinate {
   public class Point {
-    protected static readonly int DIMENSIONS = 2;
+    public static readonly int DIMENSIONS = 2;
     protected static readonly int INITIAL_VECTOR_VALUE  = 0;
     protected static readonly double MIN_HEIGHT = 0.01f;
     protected static readonly Random _rr = new Random();
@@ -47,6 +53,10 @@ namespace Brunet.Coordinate {
       }
     }
     
+    public Point(IDictionary ht): 
+      this( (double[]) ((ArrayList) ht["side"]).ToArray(typeof(double)), (double) ht["height"] ) {
+    }
+
     public Point(string s) {
       string[] ss = s.Split(new char[]{' '});
       _side = new double[DIMENSIONS];
@@ -172,24 +182,61 @@ namespace Brunet.Coordinate {
       return ss;
     }
 
+    public IDictionary ToDictionary() {
+      IDictionary ht= new ListDictionary();
+      ht["side"] = new ArrayList(_side);
+      ht["height"] = _height;
+      return ht;
+    }
+
     public bool Equals(Point other) {
       if (other.Side.Length != Side.Length) {
 	return false;
       }
 
       for (int i = 0; i < DIMENSIONS; i++) {
-	if (other.Side[i] - Side[i] > 0.00001 ||
-	    other.Side[i] - Side[i] < -0.00001) {
-	  return false;
+	if (other.Side[i] != Side[i]) {
+          return false;
 	}
       }
 #if USE_HEIGHT      
-      if (other.Height - Height > 0.00001 ||
-	  other.Height - Height < -0.00001) {
+      if (other.Height != Height) {
 	return false;
       }
 #endif
       return true;
     }
   }
+#if NC_NUNIT
+  [TestFixture]
+  public class PointTester {  
+    [Test]
+    public void Test() {
+      string s = "";
+      for (int i = 0; i < Point.DIMENSIONS; i++) {
+        s += (i + " ");
+      }
+      s += 10;
+      Point p1 = new Point(s);
+      Assert.AreEqual(p1.ToString(), s, "Testing toString");
+      IDictionary ht1 = new ListDictionary();
+      double []side = new double[Point.DIMENSIONS];
+      for (int i = 0; i < side.Length; i++) {
+        side[i] = 1.0*i;
+      }
+      ht1["side"] = new ArrayList(side);
+      ht1["height"] = 10.0;
+      Point p2 = new Point(ht1);
+      
+      IDictionary ht2 = p2.ToDictionary();
+      Assert.AreEqual(ht1["height"], ht2["height"], "Testing equality of heights");
+      double []side1 = (double[]) ((ArrayList) ht1["side"]).ToArray(typeof(double));
+      double []side2 = (double[]) ((ArrayList) ht2["side"]).ToArray(typeof(double));
+      Assert.AreEqual(side1.Length, side2.Length, "Testing equality of dimensionality");      
+      for (int i= 0; i < side1.Length; i++) {
+        Assert.AreEqual(side1[i], side2[i], String.Format("Testing equality of side: {0}", i));
+      }
+    }
+  }
+#endif  
 }
