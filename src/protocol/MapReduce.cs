@@ -81,13 +81,13 @@ namespace Brunet {
     public abstract object Map(object map_arg);
     /** 
      * reduce function. 
-     * @param accumulated result of reductions
-     * @param child_sender sender describing the child 
-     * @param child_result result form the child sender
+     * @param reduce_arg arguments for the reduce
+     * @param current_result accumulated result of reductions
+     * @param child_rpc result from child computation
      * @param done out parameter (is the stopping criteria met)
      * @param child_results hashtable containing results from each child
      */
-    public abstract object Reduce(object reduce_arg, object current_result, ISender child_sender, object child_result, ref bool done);
+    public abstract object Reduce(object reduce_arg, object current_result, RpcResult child_rpc, ref bool done);
     /** tree generator function. */
     public abstract MapReduceInfo[] GenerateTree(MapReduceArgs args);
   }
@@ -273,8 +273,8 @@ namespace Brunet {
     // indicating of the computation is over
     protected volatile bool _finished;
     
-    // hashtable mapping a channel to a child sender
-    protected Hashtable _queue_to_sender;
+    //keep track of child computations.
+    protected Hashtable _queue_to_child;
 
     
     /** 
@@ -293,7 +293,7 @@ namespace Brunet {
       _mr_request_state = state;
       _mr_task = task;
       _mr_args = args;
-      _queue_to_sender = new Hashtable();
+      _queue_to_child = new Hashtable();
       _sync = new object();
       _finished = false;
     }
@@ -322,7 +322,7 @@ namespace Brunet {
       //do an initial reduction and see if we can terminate
       try {
         bool done = false;
-        _reduce_result = _mr_task.Reduce(_mr_args.ReduceArg, null, null, _map_result, ref done);
+        _reduce_result = _mr_task.Reduce(_mr_args.ReduceArg, null, new RpcResult(null, _map_result), ref done);
 
         if (LogEnabled) {
           ProtocolLog.Write(ProtocolLog.MapReduce,
@@ -364,10 +364,14 @@ namespace Brunet {
       if (child_mr_info.Length > 0) {
         foreach ( MapReduceInfo mr_info in child_mr_info) {
           Channel child_q = new Channel(1);
-          //keep track of the sender
-          lock(_sync) {
-            _queue_to_sender[child_q] = mr_info.Sender;
-          }
+          //so far this is thread-safe
+          _queue_to_child[child_q] = mr_info;
+        }
+        
+        foreach (DictionaryEntry de in _queue_to_child) {
+          Channel child_q = (Channel) de.Key;
+          MapReduceInfo mr_info = (MapReduceInfo) de.Value;
+
           //the following will prevent the current object from going out of scope. 
           child_q.EnqueueEvent += new EventHandler(ChildCallback);
           try {
@@ -389,50 +393,39 @@ namespace Brunet {
      */
     protected void ChildCallback(object child_o, EventArgs child_event_args) {
       Channel child_q = (Channel) child_o;
-      object child_result = null;
-      Exception child_exception = null;
-      bool do_reduce = false;//set only if child returned something, and that something was not an exception.
+      RpcResult child_result = null;
       if (child_q.Count > 0) {
-        try {
-          RpcResult child_rres = (RpcResult) child_q.Dequeue();
-          child_result = child_rres.Result;
-          //got to reduce only if we get valid result from the child computation.
-          do_reduce = true;
-        } catch (Exception x) {
-          //even if we do not get a result from child, we can still proceed.
-          child_exception = x;
-        } 
-
+        child_result = (RpcResult) child_q.Dequeue();
         if (LogEnabled) {
           ProtocolLog.Write(ProtocolLog.MapReduce,
                             String.Format("MapReduce: {0}, got child result: {1}.", _node.Address, child_result));
         }
-      }
+      } 
       
       bool send_result = false;
       lock(_sync) {
         //only if computation has not finished
         if (!_finished) {
           bool done = false;
-          ISender sender = (ISender) _queue_to_sender[child_q];
-          if (sender != null) {
-            _queue_to_sender.Remove(child_q);
-            //do a reduce only of we really got something valid out of the queue
-            if (do_reduce) {
+          if (_queue_to_child.ContainsKey(child_q)) {
+            _queue_to_child.Remove(child_q);
+            if (child_result != null) {
               try {
-                _reduce_result = _mr_task.Reduce(_mr_args.ReduceArg, _reduce_result, sender, child_result, ref done);
+                _reduce_result = _mr_task.Reduce(_mr_args.ReduceArg, _reduce_result, child_result, ref done);
               } catch(Exception x) {
-                done = true;
+                done = true; //if an exception is thrown, we will return right away.
                 _reduce_result = x;
               }
-            } 
-            else if (child_exception != null) {
-              done = true;
-              _reduce_result = child_exception;
+            }
+          }
+          else {
+            if (LogEnabled) {
+              ProtocolLog.Write(ProtocolLog.MapReduce,
+                                String.Format("MapReduce: {0}, child callback in an orphan queue.", _node.Address));
             }
           }
           
-          _finished = (_queue_to_sender.Keys.Count == 0) || done;
+          _finished = (_queue_to_child.Keys.Count == 0) || done;
           send_result = _finished;
         }
       }  //end of lock.

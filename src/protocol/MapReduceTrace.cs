@@ -40,11 +40,20 @@ namespace Brunet {
     
 
     public override object Reduce(object reduce_arg, 
-                                  object current_result, ISender child_sender, object child_result, 
+                                  object current_result, RpcResult child_rpc,
                                   ref bool done) {
+
+      ISender child_sender = child_rpc.ResultSender;
+      //the following can throw an exception, will be handled by the framework
+      object child_result = child_rpc.Result;
+      
+
+      //child result is a valid result
       if (current_result == null) {
         return child_result;
       }
+      
+
       ArrayList retval = current_result as ArrayList;
       IDictionary my_entry = (IDictionary) retval[0];
       Edge e = child_sender as Edge;
