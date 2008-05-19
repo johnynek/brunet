@@ -81,10 +81,21 @@ namespace Ipop {
     */
     public Ethernet(string tap) {
       device = tap;
-      if((fd = open_tap(device)) < 0) {
-        ProtocolLog.WriteIf(ProtocolLog.Exceptions, "Unable to set up the tap");
+      int count = 0;
+      while((fd = open_tap(device)) == -2) {
+        ProtocolLog.WriteIf(ProtocolLog.Exceptions,
+                            "Unable to set up the tap, trying again...");
+        Thread.Sleep(2);
+        if(count++ >= 15) {
+          break;
+        }
+      }
+      if(fd < 0) {
+        ProtocolLog.WriteIf(ProtocolLog.Exceptions,
+                            "Unable to set up the tap");
         Environment.Exit(1);
       }
+
       _running = true;
       _read_thread = new Thread(ReadLoop);
       _read_thread.Start();
