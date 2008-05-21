@@ -146,7 +146,7 @@ namespace Ipop.RpcNode {
 
       // Attempt to translate a MDNS packet
       IPPacket ipp = new IPPacket(packet);
-      MemBlock ID = packet.Slice(4,2);
+      MemBlock hdr = packet.Slice(0,12);
       bool fragment = ((packet[6] & 0x1F) | packet[7]) != 0;
 
       if(ipp.Protocol == IPPacket.Protocols.UDP && !fragment) {
@@ -166,14 +166,14 @@ namespace Ipop.RpcNode {
             udpp = new UDPPacket(udpp.SourcePort, udpp.DestinationPort,
                                  dnsp.ICPacket);
             ipp = new IPPacket(ipp.Protocol, source_ip, ipp.DestinationIP,
-                               ID, udpp.ICPacket);
+                               hdr, udpp.ICPacket);
             return ipp.Packet;
           }
         }
         else if(udpp.DestinationPort >= 5060 && udpp.DestinationPort < 5100) {
           udpp = SIPTranslate(udpp, source_ip, ipp.SSourceIP,
                               ipp.SDestinationIP);
-          ipp = new IPPacket(ipp.Protocol, source_ip, _local_ip, ID,
+          ipp = new IPPacket(ipp.Protocol, source_ip, _local_ip, hdr,
                              udpp.ICPacket);
           return ipp.Packet;
         }

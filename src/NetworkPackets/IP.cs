@@ -202,26 +202,27 @@ namespace NetworkPackets {
     <param name="Protocol">The type of payload</param>
     <param name="SourceIP">The packets originating ip address</param>
     <param name="DestinationIP">The destination for the packet</param>
+    <param name="hdr">The original header of the IPPacket</param>
     <param name="Payload">The data stored in the IP Packet</param>
     */
     public IPPacket(Protocols Protocol, MemBlock SourceIP,
-                    MemBlock DestinationIP, MemBlock ID, ICopyable Payload) {
+                    MemBlock DestinationIP, MemBlock hdr, ICopyable Payload) {
       byte[] header = new byte[20];
       // Version | IHL
-      header[0] = (4 << 4) | 5;
+      header[0] = hdr[0];
       // Just a routine header!
-      header[1] = 0;
+      header[1] = hdr[1];
       int length = header.Length + Payload.Length;
       header[2] = (byte) ((length >> 8) & 0xFF);
       header[3] = (byte) (length & 0xFF);
       // Fragment crap
-      header[4] = ID[0];
-      header[5] = ID[1];
-      header[6] = 0;
-      header[7] = 0;
+      header[4] = hdr[4];
+      header[5] = hdr[5];
+      header[6] = hdr[6];
+      header[7] = hdr[7];
       // TTL
-      header[8] = 64;
-      header[9] = (byte) Protocol;
+      header[8] = hdr[8];
+      header[9] = hdr[9]; 
       for(int i = 0; i < 4; i++) {
         header[12 + i] = SourceIP[i];
         header[16 + i] = DestinationIP[i];
