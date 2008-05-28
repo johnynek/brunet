@@ -127,6 +127,83 @@ public class LockFreeQueue<T> {
   }
 
 }
+
+/** A BlockingQueue like object that does not use locks
+ * Only safe for one reader.
+ */
+public class LFBlockingQueue {
+
+  protected LockFreeQueue<object> _lfq;
+  protected int _count;
+  public int Count { get { return _count; } }
+  protected object _stop;
+  protected readonly AutoResetEvent _are;
+
+  public LFBlockingQueue() {
+    _lfq = new LockFreeQueue<object>();
+    _count = 0;
+    _are = new AutoResetEvent(false);
+  }
+
+  protected void CheckRes(object o) {
+  }
+
+  public bool Close() {
+    object stop = new object();
+    if( null == Interlocked.CompareExchange(ref _stop, stop, null) ) {
+      //This is hacky, we put more than one copy to reduce the chances
+      //we could dequeue them all at the same time
+      _lfq.Enqueue(stop);
+      _lfq.Enqueue(stop);
+      _lfq.Enqueue(stop);
+      _are.Set();
+      return true;
+    }
+    return false;
+  }
+
+  public int Enqueue(object a) {
+    _lfq.Enqueue(a); 
+    int count = Interlocked.Increment(ref _count);
+    if( count == 1) {
+      //We just transitioned from 0->1
+      _are.Set();
+    }
+    return count;
+  }
+
+  /** Only one thread should call this at a time
+   */
+  public object Dequeue(int millisec, out bool timedout) {
+    bool success;
+    object result = _lfq.TryDequeue(out success); 
+    bool had_to_wait = !success;
+    if( had_to_wait ) {
+      if( _are.WaitOne(millisec, false) ) {
+        result = _lfq.TryDequeue(out success); 
+      }
+    }
+    //Throw an exception if closed
+    if ( (result != null) && (result == _stop) ) {
+      //We are closed
+      _lfq.Enqueue(result);
+      _are.Set();
+      throw new InvalidOperationException("Queue is closed");
+    }
+    timedout = success == false;
+    if( !timedout ) {
+      int c = Interlocked.Decrement(ref _count);
+      if( had_to_wait && (c > 0) ) {
+        //There should be no other Dequeues pending, according to the
+        //assumptions, so make sure we are still set:
+        _are.Set();
+      }
+    }
+    return result;
+  }
+
+}
+
 #if BRUNET_NUNIT
 [TestFixture]
 public class LockFreeTest {
