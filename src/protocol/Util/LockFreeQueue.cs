@@ -129,14 +129,18 @@ public class LockFreeQueue<T> {
 }
 
 /** A BlockingQueue like object that does not use locks
- * Only safe for one reader.
+ * This is a lock-free version of BlockingQueue.  It is useful
+ * for pushing objects into a thread.  In that case, there will
+ * be only a single reader of the queue but multiple writers.
+ *
+ * It is not yet settled if this is in general faster that BlockingQueue.
+ * 
  */
 public class LFBlockingQueue {
 
   protected LockFreeQueue<object> _lfq;
   protected int _count;
   public int Count { get { return _count; } }
-  protected object _stop;
   protected readonly AutoResetEvent _are;
 
   public LFBlockingQueue() {
@@ -145,23 +149,8 @@ public class LFBlockingQueue {
     _are = new AutoResetEvent(false);
   }
 
-  protected void CheckRes(object o) {
-  }
-
-  public bool Close() {
-    object stop = new object();
-    if( null == Interlocked.CompareExchange(ref _stop, stop, null) ) {
-      //This is hacky, we put more than one copy to reduce the chances
-      //we could dequeue them all at the same time
-      _lfq.Enqueue(stop);
-      _lfq.Enqueue(stop);
-      _lfq.Enqueue(stop);
-      _are.Set();
-      return true;
-    }
-    return false;
-  }
-
+  /** Safe for multiple threads to call simulataneously
+   */
   public int Enqueue(object a) {
     _lfq.Enqueue(a); 
     int count = Interlocked.Increment(ref _count);
@@ -179,25 +168,25 @@ public class LFBlockingQueue {
     object result = _lfq.TryDequeue(out success); 
     bool had_to_wait = !success;
     if( had_to_wait ) {
-      if( _are.WaitOne(millisec, false) ) {
-        result = _lfq.TryDequeue(out success); 
+      bool cont = true;
+      while(cont) {
+        bool got_set = _are.WaitOne(millisec, false);
+        if( got_set ) {
+          result = _lfq.TryDequeue(out success); 
+        }
+        /*
+         * If the _are is set, there should be something to
+         * get.  If there is not, it is because there was 
+         * a race going on with an overlapping Dequeue and Enqueue.
+         * Just try it again in that case.
+         */
+        bool false_set = got_set && (success == false);
+        cont = false_set;
       }
-    }
-    //Throw an exception if closed
-    if ( (result != null) && (result == _stop) ) {
-      //We are closed
-      _lfq.Enqueue(result);
-      _are.Set();
-      throw new InvalidOperationException("Queue is closed");
     }
     timedout = success == false;
-    if( !timedout ) {
-      int c = Interlocked.Decrement(ref _count);
-      if( had_to_wait && (c > 0) ) {
-        //There should be no other Dequeues pending, according to the
-        //assumptions, so make sure we are still set:
-        _are.Set();
-      }
+    if( success ) {
+      Interlocked.Decrement(ref _count);
     }
     return result;
   }
