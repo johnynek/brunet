@@ -100,23 +100,14 @@ public class LockFreeQueue<T> {
      */
     Element<T> old_head;
     Element<T> old_head_next;
-    Element<T> old_tail;
     bool done = false;
     success = true;
     do {
-      old_tail = _tail;
       old_head = _head;
       old_head_next = old_head.Next;
-      if( old_head == old_tail ) {
-        //It looks like the queue may be empty
-        if( old_head_next == null ) {
-          success = false;
-          return default(T);
-        }
-        else {
-          //Tail was out of date, try to update it:
-          Interlocked.CompareExchange<Element<T>>(ref _tail, old_head_next, old_tail);
-        }
+      if( old_head_next == null ) {
+        success = false;
+        return default(T);
       }
       else {
         //Just move the head 
@@ -124,6 +115,77 @@ public class LockFreeQueue<T> {
       }
     } while(false == done);
     return old_head_next.Data;
+  }
+
+}
+
+/** Reads from only one thread are safe, but multiple threads can write
+ */
+public class SingleReaderLockFreeQueue<T> {
+  
+  protected class Element<R> {
+    public R Data;
+    public Element<R> Next;
+  }
+
+  protected Element<T> _head;
+  protected Element<T> _tail;
+
+  public SingleReaderLockFreeQueue() {
+    _head = new Element<T>();
+    _tail = _head;
+  }
+  
+  /** "traditional" dequeue, throws an exception if empty
+   * @return the next item in the queue
+   * @throws InvalidOperationException if the queue is empty
+   */
+  public T Dequeue() {
+    bool success;
+    T res = TryDequeue(out success);
+    if(success) {
+      return res;
+    }
+    else {
+      throw new InvalidOperationException("Queue is empty");
+    }
+  }
+  
+  /** Enqueue an item.
+   */
+  public void Enqueue(T item) {
+    Element<T> old_next;
+    Element<T> old_tail;
+    bool done = false;
+
+    Element<T> el = new Element<T>();
+    el.Data = item;
+    do {
+      old_tail = _tail;
+      old_next = old_tail.Next;
+      if( old_next == null ) {
+        //We can try to update
+        done = null == Interlocked.CompareExchange<Element<T>>(ref _tail.Next, el, null);
+      }
+      else {
+        //Looks like the tail is out of date
+        Interlocked.CompareExchange<Element<T>>(ref _tail, old_next, old_tail);
+      }
+    } while(false == done);
+    //Try to update the tail, if it doesn't work, the next Enqueue will get it
+    Interlocked.CompareExchange<Element<T>>(ref _tail, el, old_tail);
+  }
+
+  public T TryDequeue(out bool success) {
+    Element<T> old_head_next = _head.Next;
+    success = old_head_next != null;
+    if( success ) {
+      _head = old_head_next;
+      return old_head_next.Data;
+    }
+    else {
+      return default(T);
+    }
   }
 
 }
@@ -138,13 +200,13 @@ public class LockFreeQueue<T> {
  */
 public class LFBlockingQueue {
 
-  protected LockFreeQueue<object> _lfq;
+  protected SingleReaderLockFreeQueue<object> _lfq;
   protected int _count;
   public int Count { get { return _count; } }
   protected readonly AutoResetEvent _are;
 
   public LFBlockingQueue() {
-    _lfq = new LockFreeQueue<object>();
+    _lfq = new SingleReaderLockFreeQueue<object>();
     _count = 0;
     _are = new AutoResetEvent(false);
   }
@@ -308,7 +370,7 @@ public class LockFreeTest {
   }
 
   public void MultiTester(int WRITERS, int READERS) {
-    int MAX_WRITES = 500000;
+    int MAX_WRITES = 50000;
     object stop = new object();
     LockFreeQueue<object> q = new LockFreeQueue<object>();
 
