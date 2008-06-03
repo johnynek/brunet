@@ -27,6 +27,10 @@ using System.Collections.Generic;
 namespace Brunet.Util
 {
 
+/** A thread-safe lock-free Queue.
+ *
+ * This queue supports arbitrary readers (dequeue) and writers (enqueue).
+ */
 public class LockFreeQueue<T> {
 
   /*
@@ -190,10 +194,12 @@ public class SingleReaderLockFreeQueue<T> {
 
 }
 
-/** A BlockingQueue like object that does not use locks
- * This is a lock-free version of BlockingQueue.  It is useful
- * for pushing objects into a thread.  In that case, there will
- * be only a single reader of the queue but multiple writers.
+/** A BlockingQueue-like object that does not use locks
+ * This is a lock-free version of BlockingQueue.  Only safe
+ * for a single thread to call Dequeue.
+ *
+ * It is useful for pushing objects into a thread.  In that case,
+ * there will be only a single reader of the queue but multiple writers.
  *
  * It is not yet settled if this is in general faster that BlockingQueue.
  * 
