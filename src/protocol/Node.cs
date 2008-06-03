@@ -758,7 +758,7 @@ namespace Brunet
         _edgelistener_list.Clear();
         Interlocked.Exchange(ref _running, 0);
         //This makes sure we don't block forever on the last packet
-        _packet_queue.Close();
+        _packet_queue.Enqueue(NullAction.Instance);
       }
       finally {
         if( changed ) {

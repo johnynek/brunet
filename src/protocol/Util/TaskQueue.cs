@@ -31,6 +31,19 @@ public interface IAction {
   void Start();
 }
 
+/** an IAction that does nothing.
+ * This is a Singleton
+ */
+public class NullAction : IAction {
+  static readonly NullAction _instance = new NullAction();
+  static NullAction() { }
+  public static NullAction Instance { get { return _instance; } }
+  /** Private constructor to guarantee Singleton
+   */
+  private NullAction() { }
+  public void Start() { }
+}
+
 /**
  * This class represents objects that work to complete a single
  * Task.  When the they are done, they fire a FinishEvent.
