@@ -66,7 +66,7 @@ namespace Brunet
         _realm = String.Intern(realm);
 
         _task_queue = new NodeTaskQueue(this);
-        _packet_queue = new BlockingQueue();
+        _packet_queue = new Brunet.Util.LFBlockingQueue();
 
         _running = 0;
         _send_pings = 0;
@@ -375,7 +375,9 @@ namespace Brunet
     virtual public int NetworkSize {
       get { return -1; }
     }
-    protected readonly BlockingQueue _packet_queue;
+    protected readonly Brunet.Util.LFBlockingQueue _packet_queue;
+    /** The IAction that was most recently started */
+    protected IAction _current_action;
     protected float _packet_queue_exp_avg = 0.0f;
     /**
      * This number should be more thoroughly tested, but my system and dht
@@ -655,8 +657,7 @@ namespace Brunet
         if(ProtocolLog.Monitor.Enabled) {
           String top_string = String.Empty;
           try {
-            IAction top_a = (IAction)_packet_queue.Peek();
-            top_string = top_a.ToString();
+            top_string = _current_action.ToString();
           }
           catch {}
           ProtocolLog.Write(ProtocolLog.Monitor, String.Format(
@@ -770,6 +771,9 @@ namespace Brunet
         }
       }
     }
+    /**
+     * There can only safely be one of these threads running
+     */
     protected void AnnounceThread() {
       bool log = ProtocolLog.Monitor.Enabled;
       try {
@@ -790,22 +794,14 @@ namespace Brunet
             }
           }
           // Only peek if we're logging the monitoring of _packet_queue
-          if(log) {
-            queue_item = (IAction)_packet_queue.Peek(millsec_timeout, out timedout);
-          }
-          else {
-            queue_item = (IAction)_packet_queue.Dequeue(millsec_timeout, out timedout);
-          }
+          queue_item = (IAction)_packet_queue.Dequeue(millsec_timeout, out timedout);
           if (timedout) {
             //Check to see if it is time for another heartbeat event
             _heart_beat_object.CheckForTime();
             continue;
           }
+          _current_action = queue_item;
           queue_item.Start();
-          // If we peeked, we need to now remove it
-          if(log) {
-            _packet_queue.Dequeue();
-          }
         }
       }
       catch(System.InvalidOperationException x) {
