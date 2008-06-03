@@ -53,7 +53,7 @@ public class Channel {
     _sync = new object();
     _queue = new Queue();
     _close_on_enqueue = max_enqueues;
-    _close_event = new FireOnceEvent(_sync);
+    _close_event = new FireOnceEvent();
   }
 
   protected readonly Queue _queue;
