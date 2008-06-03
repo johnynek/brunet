@@ -70,7 +70,7 @@ namespace Brunet
       public FunctionEdge Edge;
       public ICopyable P;
     }
-    protected BlockingQueue _queue;
+    protected Brunet.Util.LFBlockingQueue _queue;
     protected Thread _queue_thread;
     protected double _ploss_prob;
 
@@ -97,7 +97,7 @@ namespace Brunet
       _tas = new ArrayList();
       _tas.Add(TransportAddressFactory.CreateInstance("brunet.function://localhost:" +
                                      _listener_id.ToString()) );
-      _queue = new BlockingQueue();
+      _queue = new Brunet.Util.LFBlockingQueue();
       _queue_thread = new Thread(new ThreadStart(StartQueueProcessing));
     }
 
@@ -203,7 +203,8 @@ namespace Brunet
     public override void Stop()
     {
       Interlocked.Exchange(ref _is_started, 0);
-      _queue.Close();
+      //Make sure to wake up the queue thread
+      _queue.Enqueue(null);
       if( Thread.CurrentThread != _queue_thread ) {
         _queue_thread.Join();
       }
@@ -216,8 +217,10 @@ namespace Brunet
       Random r = new Random();
       
       try {
+        bool timedout;
         while( 1 == _is_started ) {
-          FQEntry ent = (FQEntry)_queue.Dequeue();
+          FQEntry ent = (FQEntry)_queue.Dequeue(-1, out timedout);
+          if( ent == null ) { return; }
           if( r.NextDouble() > _ploss_prob ) {
             FunctionEdge fe = ent.Edge;
             if( ent.P is MemBlock ) {
