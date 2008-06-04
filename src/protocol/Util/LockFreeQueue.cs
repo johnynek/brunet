@@ -32,7 +32,6 @@ namespace Brunet.Util
  * This queue supports arbitrary readers (dequeue) and writers (enqueue).
  */
 public class LockFreeQueue<T> {
-
   /*
    * A standard linked-list data structure
    */
@@ -74,22 +73,27 @@ public class LockFreeQueue<T> {
   public void Enqueue(T item) {
     Element<T> old_next;
     Element<T> old_tail;
-    bool done = false;
+    bool notdone = true;
 
     Element<T> el = new Element<T>();
     el.Data = item;
     do {
       old_tail = _tail;
-      old_next = old_tail.Next;
-      if( old_next == null ) {
-        //We can try to update
-        done = null == Interlocked.CompareExchange<Element<T>>(ref _tail.Next, el, null);
-      }
-      else {
-        //Looks like the tail is out of date
+      /*
+       * We optimistically try to do the enqueue rather than checking to see
+       * that tail might be out of date.  If it is out of date, we'll find out
+       * below
+       */
+      old_next = Interlocked.CompareExchange<Element<T>>(ref old_tail.Next, el, null);
+      notdone = old_next != null;
+      if(notdone) {
+        /*
+         * Looks like the tail is out of date, try to update it with the next
+         * item after the out of date tail
+         */
         Interlocked.CompareExchange<Element<T>>(ref _tail, old_next, old_tail);
       }
-    } while(false == done);
+    } while(notdone);
     //Try to update the tail, if it doesn't work, the next Enqueue will get it
     Interlocked.CompareExchange<Element<T>>(ref _tail, el, old_tail);
   }
@@ -160,22 +164,24 @@ public class SingleReaderLockFreeQueue<T> {
   public void Enqueue(T item) {
     Element<T> old_next;
     Element<T> old_tail;
-    bool done = false;
+    bool notdone = true;
 
     Element<T> el = new Element<T>();
     el.Data = item;
     do {
       old_tail = _tail;
-      old_next = old_tail.Next;
-      if( old_next == null ) {
-        //We can try to update
-        done = null == Interlocked.CompareExchange<Element<T>>(ref _tail.Next, el, null);
-      }
-      else {
+      /*
+       * We optimistically try to do the enqueue rather than checking to see
+       * that tail might be out of date.  If it is out of date, we'll find out
+       * below
+       */
+      old_next = Interlocked.CompareExchange<Element<T>>(ref old_tail.Next, el, null);
+      notdone = old_next != null;
+      if(notdone) {
         //Looks like the tail is out of date
         Interlocked.CompareExchange<Element<T>>(ref _tail, old_next, old_tail);
       }
-    } while(false == done);
+    } while(notdone);
     //Try to update the tail, if it doesn't work, the next Enqueue will get it
     Interlocked.CompareExchange<Element<T>>(ref _tail, el, old_tail);
   }
@@ -305,19 +311,57 @@ public class LockFreeTest {
     }
     catch(InvalidOperationException) { Assert.IsTrue(true, "LockFreeQueue<int> exception"); }
   }
+  [Test]
+  public void SimpleSRQueueTest() {
+    SingleReaderLockFreeQueue<object> lfqo = new SingleReaderLockFreeQueue<object>();
+    SingleReaderLockFreeQueue<int> lfqi = new SingleReaderLockFreeQueue<int>();
+    Queue q = new Queue();
+    Random r = new Random();
+    //Put in a bunch of random numbers:
+    int max = r.Next(2048, 4096);
+    for(int i = 0; i < max; i++) {
+      int k = r.Next();
+      lfqo.Enqueue(k);
+      lfqi.Enqueue(k);
+      q.Enqueue(k);
+    }
+    //Now verify that everything is okay:
+    bool success;
+    int kq;
+    int klfo;
+    int klfi;
+    for(int i = 0; i < max; i++) {
+      klfo = (int)lfqo.TryDequeue(out success);
+      Assert.IsTrue(success, "Dequeue<o> success");
+      
+      klfi = lfqi.TryDequeue(out success);
+      Assert.IsTrue(success, "Dequeue<i> success");
+      
+      kq = (int)q.Dequeue();
+      Assert.AreEqual(kq, klfo, "LockFreeQueue<object> == Queue");
+      Assert.AreEqual(kq, klfi, "LockFreeQueue<int> == Queue");
+    }
+    try {
+      lfqi.Dequeue();
+      Assert.IsTrue(false, "LockFreeQueue<int> post-Dequeue exception");
+    }
+    catch(InvalidOperationException) { Assert.IsTrue(true, "LockFreeQueue<int> exception"); }
+    try {
+      lfqo.Dequeue();
+      Assert.IsTrue(false, "LockFreeQueue<object> post-Dequeue exception");
+    }
+    catch(InvalidOperationException) { Assert.IsTrue(true, "LockFreeQueue<int> exception"); }
+  }
 
   protected class Writer {
     public readonly Dictionary<object, object> Items;
     protected readonly int _count;
     protected readonly LockFreeQueue<object> _q;
-    protected int _starts;
-    public int Starts { get { return _starts; } }
 
     public Writer(int max, LockFreeQueue<object> q) {
       _q = q;
       _count = max;
       Items = new Dictionary<object,object>();
-      _starts = 0;
     }
 
     public void Run() {
@@ -332,17 +376,13 @@ public class LockFreeTest {
     public readonly List<object[]> Items;
     protected readonly object _stop;
     protected readonly LockFreeQueue<object> _q;
-    protected int _empties;
-    public int Empties { get { return _empties; } }
 
     public Reader(object stop, LockFreeQueue<object> q) {
       _q = q;
       Items = new List<object[]>();
       _stop = stop;
-      _empties = 0;
     }
     public void Run() {
-      bool empty;
       bool success;
       object next;
       do {
@@ -360,19 +400,29 @@ public class LockFreeTest {
 
   [Test]
   public void MultipleWriterTest() {
-    int WRITERS = 15;
-    MultiTester(WRITERS,1);
+    MultiTester(1, 1);
+    MultiTester(2, 1);
+    MultiTester(4, 1);
+    MultiTester(8, 1);
+    MultiTester(16, 1);
+    MultiTester(32, 1);
   }
   [Test]
   public void MultipleReaderTest() {
-    int READERS = 15;
-    MultiTester(1, READERS);
+    MultiTester(1, 1);
+    MultiTester(1, 2);
+    MultiTester(1, 4);
+    MultiTester(1, 8);
+    MultiTester(1, 16);
+    MultiTester(1, 32);
   }
   [Test]
   public void MultipleReaderWriterTest() {
-    int WRITERS = 15;
-    int READERS = 15;
-    MultiTester(WRITERS,READERS);
+    MultiTester(1,1);
+    MultiTester(2,2);
+    MultiTester(4,4);
+    MultiTester(8,8);
+    MultiTester(16,16);
   }
 
   public void MultiTester(int WRITERS, int READERS) {
@@ -413,9 +463,7 @@ public class LockFreeTest {
       t.Join();
     }
     int read_items = 0;
-    int total_empties = 0;
     foreach(Reader r in readers) {
-      total_empties += r.Empties;
       foreach(object[] o in r.Items) {
         read_items++;
         Writer w = (Writer)o[0];
@@ -425,14 +473,205 @@ public class LockFreeTest {
       }
     }
     Assert.AreEqual(read_items, MAX_WRITES * WRITERS, "All writes read");
-    int total_starts = 0;
     foreach(Writer w in writers) {
-      total_starts += w.Starts;
       Assert.AreEqual(0, w.Items.Count, "Dequeued all items");
     }
-    //Each start must eventually result in an emptying of the queue:
-    Assert.AreEqual(total_starts, total_empties, "Starts == Empties");
   }
+  
+  protected class SRWriter {
+    public readonly Dictionary<object, object> Items;
+    protected readonly int _count;
+    protected readonly SingleReaderLockFreeQueue<object> _q;
+
+    public SRWriter(int max, SingleReaderLockFreeQueue<object> q) {
+      _q = q;
+      _count = max;
+      Items = new Dictionary<object,object>();
+    }
+
+    public void Run() {
+      for(int i = 0; i < _count; i++) {
+        object o = new object();
+        Items[o] = o;
+        _q.Enqueue(new object[]{this, o});
+      }
+    }
+  }
+  protected class SRReader {
+    public readonly List<object[]> Items;
+    protected readonly object _stop;
+    protected readonly SingleReaderLockFreeQueue<object> _q;
+
+    public SRReader(object stop, SingleReaderLockFreeQueue<object> q) {
+      _q = q;
+      Items = new List<object[]>();
+      _stop = stop;
+    }
+    public void Run() {
+      bool success;
+      object next;
+      do {
+        next = _q.TryDequeue(out success);
+        if( success ) {
+          if( next != _stop ) {
+            Items.Add((object[])next);
+          }
+        }
+      } while( next != _stop );
+      //Put stop back in:
+      _q.Enqueue(_stop);
+    }
+  }
+  [Test]
+  public void MultipleSRWriterTest() {
+    MultiSRTester(1);
+    MultiSRTester(2);
+    MultiSRTester(4);
+    MultiSRTester(8);
+    MultiSRTester(16);
+  }
+  
+  public void MultiSRTester(int WRITERS) {
+    int MAX_WRITES = 50000;
+    object stop = new object();
+    SingleReaderLockFreeQueue<object> q = new SingleReaderLockFreeQueue<object>();
+
+    List<Thread> wthreads = new List<Thread>();
+    List<SRWriter> writers = new List<SRWriter>();
+    for(int i = 0; i < WRITERS; i++) {
+      SRWriter w = new SRWriter(MAX_WRITES, q);
+      writers.Add(w);
+      Thread t = new Thread(w.Run);
+      wthreads.Add( t );
+    }
+    foreach(Thread t in wthreads) {
+      t.Start();
+    }
+    SRReader r = new SRReader(stop, q);
+    Thread read_thread = new Thread(r.Run);
+    read_thread.Start();
+    //Now, let's make sure all the writers are done:
+    foreach(Thread t in wthreads) {
+      t.Join();
+    }
+    //Now put the stop object in:
+    q.Enqueue(stop);
+    //That should stop all the reader threads:
+    read_thread.Join();
+    int read_items = 0;
+    foreach(object[] o in r.Items) {
+      read_items++;
+      SRWriter w = (SRWriter)o[0];
+      object data = o[1];
+      Assert.AreEqual(w.Items[data], data, "matching data");
+      w.Items.Remove(data);
+    }
+    Assert.AreEqual(read_items, MAX_WRITES * WRITERS, "All writes read");
+    foreach(SRWriter w in writers) {
+      Assert.AreEqual(0, w.Items.Count, "Dequeued all items");
+    }
+  }
+
+  protected class BQWriter {
+    public readonly Dictionary<object, object> Items;
+    protected readonly int _count;
+    protected readonly LFBlockingQueue _q;
+
+    public BQWriter(int max, LFBlockingQueue q) {
+      _q = q;
+      _count = max;
+      Items = new Dictionary<object,object>();
+    }
+
+    public void Run() {
+      for(int i = 0; i < _count; i++) {
+        object o = new object();
+        Items[o] = o;
+        _q.Enqueue(new object[]{this, o});
+      }
+    }
+  }
+  protected class BQReader {
+    public readonly List<object[]> Items;
+    protected readonly object _stop;
+    protected readonly LFBlockingQueue _q;
+
+    public BQReader(object stop, LFBlockingQueue q) {
+      _q = q;
+      Items = new List<object[]>();
+      _stop = stop;
+    }
+    public void Run() {
+      bool timedout;
+      object next;
+      do {
+        next = _q.Dequeue(500, out timedout);
+        if( false == timedout ) {
+          if( next != _stop ) {
+            Items.Add((object[])next);
+          }
+        }
+      } while( next != _stop );
+      //Put stop back in:
+      _q.Enqueue(_stop);
+    }
+  }
+  [Test]
+  public void LFBlockingQueueTest() {
+    MultiBQTester(1);
+    MultiBQTester(2);
+    MultiBQTester(4);
+    MultiBQTester(8);
+    MultiBQTester(16);
+  }
+  public void MultiBQTester(int WRITERS) {
+    int MAX_WRITES = 50000;
+    object stop = new object();
+    LFBlockingQueue q = new LFBlockingQueue();
+
+    List<Thread> wthreads = new List<Thread>();
+    List<BQWriter> writers = new List<BQWriter>();
+    for(int i = 0; i < WRITERS; i++) {
+      BQWriter w = new BQWriter(MAX_WRITES, q);
+      writers.Add(w);
+      Thread t = new Thread(w.Run);
+      wthreads.Add( t );
+    }
+    foreach(Thread t in wthreads) {
+      t.Start();
+    }
+    BQReader r = new BQReader(stop, q);
+    Thread read_thread = new Thread(r.Run);
+    read_thread.Start();
+    //Now, let's make sure all the writers are done:
+    foreach(Thread t in wthreads) {
+      t.Join();
+    }
+    //Now put the stop object in:
+    q.Enqueue(stop);
+    //That should stop all the reader threads:
+    read_thread.Join();
+    int read_items = 0;
+    foreach(object[] o in r.Items) {
+      read_items++;
+      BQWriter w = (BQWriter)o[0];
+      object data = o[1];
+      Assert.AreEqual(w.Items[data], data, "matching data");
+      w.Items.Remove(data);
+    }
+    Assert.AreEqual(read_items, MAX_WRITES * WRITERS, "All writes read");
+    foreach(BQWriter w in writers) {
+      Assert.AreEqual(0, w.Items.Count, "Dequeued all items");
+    }
+    bool timedout;
+    //Take out the stop object:
+    object s = q.Dequeue(500,out timedout);
+    Assert.IsFalse(timedout, "stop containing queue timed out");
+    Assert.AreEqual(s, stop, "Stop removed");
+    q.Dequeue(500,out timedout);
+    Assert.IsTrue(timedout, "Empty queue timed out");
+  }
+
 }
 #endif
 
