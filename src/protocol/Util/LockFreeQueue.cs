@@ -122,7 +122,19 @@ public class LockFreeQueue<T> {
         done = Interlocked.CompareExchange<Element<T>>(ref _head, old_head_next, old_head)==old_head;
       }
     } while(false == done);
-    return old_head_next.Data;
+    T result = old_head_next.Data;
+    /*
+     * Now, no one will ever touch this field again, so
+     * let's go ahead and null it out to possibly help
+     * in garbage collection
+     *
+     * Note, we unfortunately can't do this to .Next because
+     * this would potentially break Enqueue (simultaneous Enqueue's
+     * could fail because Enqueue assumes that if Next is non-null,
+     * it will never again be null)
+     */
+    old_head_next.Data = default(T);
+    return result;
   }
 
 }
@@ -187,11 +199,20 @@ public class SingleReaderLockFreeQueue<T> {
   }
 
   public T TryDequeue(out bool success) {
-    Element<T> old_head_next = _head.Next;
-    success = old_head_next != null;
+    success = _head != _tail;
     if( success ) {
+      Element<T> old_head_next = _head.Next;
+      T result = old_head_next.Data;
+      /*
+       * _tail can never get behind _head since we don't advance _head
+       * if they are equal, so now we know that no one is pointing
+       * at _head.  We can null it out to potentially help the GC.
+       */
+      _head.Next = null;
+      old_head_next.Data = default(T);
+      
       _head = old_head_next;
-      return old_head_next.Data;
+      return result;
     }
     else {
       return default(T);
