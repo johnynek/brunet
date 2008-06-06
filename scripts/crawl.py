@@ -43,7 +43,10 @@ def main():
     consistency += nodes[addr]['consistency']
   print "Total Nodes: " + str(count)
   print "Consistent Nodes: " + str(consistency)
-  print "Consistency: " + str(consistency / (count * 1.0))
+  cons = 0
+  if consistency != 0:
+    cons = consistency / (count * 1.0)
+  print "Consistency: " + str(cons)
 
 def print_logger(msg):
   print msg
@@ -70,10 +73,9 @@ def crawl(port = 10000, logger = null_logger, debug = False):
   node = rpc.localproxy("sys:link.GetNeighbors")['self']
   start = pybru.Address(node)
   last = node
-  #maximum amount of retries per node before going back one
-  no_response_max = 3
   #maximum times of going back one before failing
   retry_max = 3
+  no_response_max = 3
 
   no_response_count = 0
   retry_count = 0
@@ -89,9 +91,17 @@ def crawl(port = 10000, logger = null_logger, debug = False):
       neighbors = res['neighbors']
       info = {}
       info['right'] = neighbors['right']
-      info['right2'] = neighbors['right2']
       info['left'] = neighbors['left']
-      info['left2'] = neighbors['left2']
+
+      try:
+        info['right2'] = neighbors['right2']
+      except:
+        info['right2'] = ""
+
+      try:
+        info['left2'] = neighbors['left2']
+      except:
+        info['left2'] = ""
 
       ip_list = res['localips']
       ips = ""
@@ -103,7 +113,10 @@ def crawl(port = 10000, logger = null_logger, debug = False):
       info['geo_loc'] = res['geo_loc']
       info['type'] = res['type']
       if info['type'] == "IpopNode":
-        info['virtual_ip'] = res['Virtual IP']
+        try:
+          info['virtual_ip'] = res['Virtual IP']
+        except:
+          info['virtual_ip'] = ""
         info['namespace'] = res['IpopNamespace']
       info['retries'] = no_response_count * (retry_count + 1)
       retry_count = 0
@@ -118,7 +131,8 @@ def crawl(port = 10000, logger = null_logger, debug = False):
           print "Unable to crawl the system."
           break
       continue
-
+    #it is possible that the node we're trying to talk to is the one we end up with!
+    node = neighbors['self']
     #Once we've visited all nodes less than us, we shouldn't see another until
     #we're done crawling
 
