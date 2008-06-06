@@ -150,6 +150,8 @@ public class SingleReaderLockFreeQueue<T> {
 
   protected Element<T> _head;
   protected Element<T> _tail;
+  //This is used to denote an Element that has been removed from the list
+  protected static readonly Element<T> REMOVED = new Element<T>();
 
   public SingleReaderLockFreeQueue() {
     _head = new Element<T>();
@@ -206,9 +208,10 @@ public class SingleReaderLockFreeQueue<T> {
       /*
        * _tail can never get behind _head since we don't advance _head
        * if they are equal, so now we know that no one is pointing
-       * at _head.  We can null it out to potentially help the GC.
+       * at _head.  We point to a non-null but fixed object.
+       * This lets the rest of the list be unreachable and potentially helps the GC.
        */
-      _head.Next = null;
+      _head.Next = REMOVED;
       old_head_next.Data = default(T);
       
       _head = old_head_next;
@@ -553,7 +556,7 @@ public class LockFreeTest {
   }
   
   public void MultiSRTester(int WRITERS) {
-    int MAX_WRITES = 50000;
+    int MAX_WRITES = 500000;
     object stop = new object();
     SingleReaderLockFreeQueue<object> q = new SingleReaderLockFreeQueue<object>();
 
