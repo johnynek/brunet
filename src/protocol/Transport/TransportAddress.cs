@@ -255,9 +255,13 @@ namespace Brunet
      * URI objects are pretty expensive, don't keep this around
      * since we won't often use it
      */
+    protected System.Uri _parsed_uri;
     protected System.Uri _uri {
       get {
-        return new Uri(_string_rep);
+        if( _parsed_uri == null ) {
+          _parsed_uri = new Uri(_string_rep);
+        }
+        return _parsed_uri;
       }
     }
     
