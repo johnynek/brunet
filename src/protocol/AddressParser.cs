@@ -29,13 +29,20 @@ namespace Brunet
    */
   public class AddressParser
   {
-    //Here is a cache so we don't have to parse the same
-    //address over and over
+    /*
+     * Here is a cache so we don't have to parse the same
+     * address over and over.  It is used for the string
+     * representation of addresses
+     */
     protected static readonly Cache _address_cache;
     protected const int CACHE_SIZE = 128;
+
+    //This is a specialized cache for parsing MemBlocks to Address
+    protected static readonly Address[] _mb_cache;
     
     static AddressParser() {
       _address_cache = new Cache(CACHE_SIZE);
+      _mb_cache = new Address[ UInt16.MaxValue + 1 ];
     }
     /**
      * @param ascii an ascii representation of an Address
@@ -94,47 +101,51 @@ namespace Brunet
      */
     static public Address Parse(MemBlock mb)
     {
-      lock( _address_cache ) {
-        Address a = (Address)_address_cache[mb];
-        if( a != null ) {
+      //Read some of the least significant bytes out,
+      //AHAddress all have last bit 0, so we skip the last byte which
+      //will have less entropy
+      ushort idx = (ushort)NumberSerializer.ReadShort(mb, Address.MemSize - 3);
+      Address a = _mb_cache[idx];
+      if( a != null ) {
+        if( a.ToMemBlock().Equals(mb) ) {
           return a;
         }
-        //Else we need to actually create a new address
-        try {
-          if( 2 * mb.Length < mb.ReferencedBufferLength ) {
-              /*
-               * This MemBlock is much smaller than the array
-               * we are referencing, don't keep the big one
-               * in scope, instead make a copy
-               */
-            mb = MemBlock.Copy((ICopyable)mb);
-          }
-          int add_class = Address.ClassOf(mb);
+      }
+      //Else we need to read the address and put it in the cache
+      try {
+        if( 2 * mb.Length < mb.ReferencedBufferLength ) {
+            /*
+             * This MemBlock is much smaller than the array
+             * we are referencing, don't keep the big one
+             * in scope, instead make a copy
+             */
+          mb = MemBlock.Copy((ICopyable)mb);
+        }
+        int add_class = Address.ClassOf(mb);
+        switch (add_class) {
+        case 0:
+          a = new AHAddress(mb);
+          break;
+        case 124:
+          a = new DirectionalAddress(mb);
+          break;
+        default:
           a = null;
-          switch (add_class) {
-          case 0:
-            a = new AHAddress(mb);
-            break;
-          case 124:
-            a = new DirectionalAddress(mb);
-            break;
-          default:
-            throw new ParseException("Unknown Address Class: " +
-                                     add_class + ", buffer:" +
-                                     mb.ToString());
-          }
-          //Cache this result:
-          _address_cache[ mb ] = a;
-          return a;
+          throw new ParseException("Unknown Address Class: " +
+                                   add_class + ", buffer:" +
+                                   mb.ToString());
         }
-        catch(ArgumentOutOfRangeException ex) {
-          throw new ParseException("Address too short: " +
-                                   mb.ToString(), ex);
-        }
-        catch(ArgumentException ex) {
-          throw new ParseException("Could not parse: " +
-                                   mb.ToString(), ex);
-        }
+        //Cache this result:
+        _mb_cache[ idx ] = a;
+        return a;
+      }
+      catch(ArgumentOutOfRangeException ex) {
+        throw new ParseException("Address too short: " +
+                                 mb.ToString(), ex);
+      }
+      catch(ArgumentException ex) {
+        throw new ParseException("Could not parse: " +
+                                 mb.ToString(), ex);
       }
     }
   }
