@@ -70,6 +70,7 @@ namespace Brunet
 
         _running = 0;
         _send_pings = 0;
+        _LOG = ProtocolLog.Monitor.Enabled;
 
         _connection_table = new ConnectionTable(_local_add);
         _connection_table.ConnectionEvent += this.ConnectionHandler;
@@ -379,6 +380,9 @@ namespace Brunet
     /** The IAction that was most recently started */
     protected IAction _current_action;
     protected float _packet_queue_exp_avg = 0.0f;
+
+    //Getting from a BooleanSwitch is strangely very expensive, do it once
+    protected bool _LOG;
     /**
      * This number should be more thoroughly tested, but my system and dht
      * never surpassed 105.
@@ -405,7 +409,7 @@ namespace Brunet
      */
     public string Realm { get { return _realm; } }
     
-    protected ArrayList _remote_ta;
+    protected readonly ArrayList _remote_ta;
     /**
      * These are all the remote TransportAddress objects that
      * this Node may use to connect to remote Nodes
@@ -420,7 +424,7 @@ namespace Brunet
         return _remote_ta;
       }
       set {
-        _remote_ta = value;
+        UpdateRemoteTAs(value);
       }
     }
 
@@ -654,7 +658,7 @@ namespace Brunet
           + ((1 - PACKET_QUEUE_RETAIN) * count);
 
       if(_packet_queue_exp_avg > MAX_AVG_QUEUE_LENGTH) {
-        if(ProtocolLog.Monitor.Enabled) {
+        if(_LOG) {
           String top_string = String.Empty;
           try {
             top_string = _current_action.ToString();
@@ -956,21 +960,32 @@ namespace Brunet
      * Called by ConnectionEvent and the LocalConnectionOverlord to update
      * the remote ta list.
      */
-    public void UpdateRemoteTAs(ArrayList new_remote_ta)
+    public void UpdateRemoteTAs(ArrayList tas_to_add)
     {
+      //Make a copy so as not to mess up tas_to_add:
+      ArrayList new_remote_ta = new ArrayList(tas_to_add);
+      //Build a set that can be quickly checked for membership
+      Hashtable new_addr = new Hashtable(new_remote_ta.Count);
+      foreach(TransportAddress ta in new_remote_ta) {
+        new_addr[ta] = ta;
+      }
       lock( _remote_ta ) {
-        foreach(TransportAddress ta in new_remote_ta) {
-          if(_remote_ta.Contains(ta)) {
-            _remote_ta.Remove(ta);
+        //Now append all the items in _remote_ta *NOT* already present:
+        foreach(TransportAddress ta in _remote_ta) {
+          if( false == new_addr.ContainsKey(ta)) {
+            //We should add it to the end:
+            new_remote_ta.Add(ta);
           }
         }
-        new_remote_ta.AddRange( _remote_ta );
+        //Now make sure we don'tkeep too many:
         int count = new_remote_ta.Count;
         if( count > _MAX_RECORDED_TAS ) {
           int rm_count = count - _MAX_RECORDED_TAS;
           new_remote_ta.RemoveRange(_MAX_RECORDED_TAS, rm_count);
         }
-        _remote_ta = new_remote_ta;
+        //Now fill up _remote_ta with new_remote_ta:
+        _remote_ta.Clear();
+        _remote_ta.AddRange(new_remote_ta);
       }
     }
 
