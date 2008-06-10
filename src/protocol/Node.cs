@@ -66,7 +66,7 @@ namespace Brunet
         _realm = String.Intern(realm);
 
         _task_queue = new NodeTaskQueue(this);
-        _packet_queue = new Brunet.Util.LFBlockingQueue();
+        _packet_queue = new Brunet.Util.LFBlockingQueue<IAction>();
 
         _running = 0;
         _send_pings = 0;
@@ -375,7 +375,7 @@ namespace Brunet
     virtual public int NetworkSize {
       get { return -1; }
     }
-    protected readonly Brunet.Util.LFBlockingQueue _packet_queue;
+    protected readonly Brunet.Util.LFBlockingQueue<IAction> _packet_queue;
     /** The IAction that was most recently started */
     protected IAction _current_action;
     protected float _packet_queue_exp_avg = 0.0f;
@@ -794,7 +794,7 @@ namespace Brunet
             }
           }
           // Only peek if we're logging the monitoring of _packet_queue
-          queue_item = (IAction)_packet_queue.Dequeue(millsec_timeout, out timedout);
+          queue_item = _packet_queue.Dequeue(millsec_timeout, out timedout);
           if (timedout) {
             //Check to see if it is time for another heartbeat event
             _heart_beat_object.CheckForTime();
