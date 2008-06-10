@@ -43,7 +43,7 @@ namespace Brunet
    * @see Linker
    */
 
-  public class ConnectionPacketHandler
+  public class ConnectionPacketHandler : IRpcHandler
   {
 
     /*private static readonly log4net.ILog log =
@@ -228,6 +228,30 @@ namespace Brunet
         result["shortcut"] = sc.Address.ToString();
       }
       return result;
+    }
+
+    /** Dispatch RPC requests
+     */
+    public void HandleRpc(ISender caller,
+                          string method, IList arguments, object request_state) {
+      object result;
+      switch(method) {
+        case "Ping": //Most common method
+          result = Ping(arguments[0],caller);
+          break;
+        case "Close":
+          result = Close((IDictionary)arguments[0],caller);
+          break;
+        case "GetStatus":
+          result = GetStatus((IDictionary)arguments[0],caller);
+          break;
+        case "Start":
+          result = Start((IDictionary)arguments[0],caller);
+          break;
+        default:
+          throw new Exception("Unknown method: " + method);
+      }
+      _node.Rpc.SendResult(request_state, result);
     }
 
     /**

@@ -100,7 +100,7 @@ namespace Brunet
       //Add the standard RPC handlers:
       rpc.AddHandler("sys:ctm", new CtmRequestHandler(this));
       sys_link = new ConnectionPacketHandler(this);
-      rpc.AddHandlerWithSender("sys:link", sys_link);
+      rpc.AddHandler("sys:link", sys_link);
       rpc.AddHandler("trace", new TraceRpcHandler(this));
       
       /*
