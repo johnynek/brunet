@@ -234,22 +234,22 @@ public class SingleReaderLockFreeQueue<T> {
  * It is not yet settled if this is in general faster that BlockingQueue.
  * 
  */
-public class LFBlockingQueue {
+public class LFBlockingQueue<T> {
 
-  protected SingleReaderLockFreeQueue<object> _lfq;
+  protected SingleReaderLockFreeQueue<T> _lfq;
   protected int _count;
   public int Count { get { return _count; } }
   protected readonly AutoResetEvent _are;
 
   public LFBlockingQueue() {
-    _lfq = new SingleReaderLockFreeQueue<object>();
+    _lfq = new SingleReaderLockFreeQueue<T>();
     _count = 0;
     _are = new AutoResetEvent(false);
   }
 
   /** Safe for multiple threads to call simulataneously
    */
-  public int Enqueue(object a) {
+  public int Enqueue(T a) {
     _lfq.Enqueue(a); 
     int count = Interlocked.Increment(ref _count);
     if( count == 1) {
@@ -261,9 +261,9 @@ public class LFBlockingQueue {
 
   /** Only one thread should call this at a time
    */
-  public object Dequeue(int millisec, out bool timedout) {
+  public T Dequeue(int millisec, out bool timedout) {
     bool success;
-    object result = _lfq.TryDequeue(out success); 
+    T result = _lfq.TryDequeue(out success); 
     bool had_to_wait = !success;
     if( had_to_wait ) {
       bool cont = true;
@@ -556,7 +556,7 @@ public class LockFreeTest {
   }
   
   public void MultiSRTester(int WRITERS) {
-    int MAX_WRITES = 500000;
+    int MAX_WRITES = 50000;
     object stop = new object();
     SingleReaderLockFreeQueue<object> q = new SingleReaderLockFreeQueue<object>();
 
@@ -599,9 +599,9 @@ public class LockFreeTest {
   protected class BQWriter {
     public readonly Dictionary<object, object> Items;
     protected readonly int _count;
-    protected readonly LFBlockingQueue _q;
+    protected readonly LFBlockingQueue<object> _q;
 
-    public BQWriter(int max, LFBlockingQueue q) {
+    public BQWriter(int max, LFBlockingQueue<object> q) {
       _q = q;
       _count = max;
       Items = new Dictionary<object,object>();
@@ -618,9 +618,9 @@ public class LockFreeTest {
   protected class BQReader {
     public readonly List<object[]> Items;
     protected readonly object _stop;
-    protected readonly LFBlockingQueue _q;
+    protected readonly LFBlockingQueue<object> _q;
 
-    public BQReader(object stop, LFBlockingQueue q) {
+    public BQReader(object stop, LFBlockingQueue<object> q) {
       _q = q;
       Items = new List<object[]>();
       _stop = stop;
@@ -651,7 +651,7 @@ public class LockFreeTest {
   public void MultiBQTester(int WRITERS) {
     int MAX_WRITES = 50000;
     object stop = new object();
-    LFBlockingQueue q = new LFBlockingQueue();
+    LFBlockingQueue<object> q = new LFBlockingQueue<object>();
 
     List<Thread> wthreads = new List<Thread>();
     List<BQWriter> writers = new List<BQWriter>();
