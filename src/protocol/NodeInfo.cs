@@ -73,28 +73,30 @@ namespace Brunet
     }
     //A cache of commonly used NodeInfo objects
     protected static Cache _cache = new Cache(512);
-
     protected static NodeInfo _cache_key = new NodeInfo();
     //For _cache_key when there is only one ta:
     protected static TransportAddress[] _ta_list = new TransportAddress[1];
+
+    //Here's the cache for the Address -> NodeInfo case
+    protected static readonly NodeInfo[] _mb_cache = new NodeInfo[UInt16.MaxValue + 1];
     /**
      * Factory method to reduce memory allocations by caching
      * commonly used NodeInfo objects
      */
     public static NodeInfo CreateInstance(Address a) {
-      NodeInfo ni = null;
-      lock( _cache ) {
-        //Set up the key:
-        _cache_key._done_hash = false;
-        _cache_key._address = a;
-        _cache_key._tas = EmptyTas;
-
-        ni = (NodeInfo)_cache[ _cache_key ];
-        if( ni == null ) {
-          ni = new NodeInfo(a);
-          _cache[ni] = ni;
+      //Read some of the least significant bytes out,
+      //AHAddress all have last bit 0, so we skip the last byte which
+      //will have less entropy
+      MemBlock mb = a.ToMemBlock();
+      ushort idx = (ushort)NumberSerializer.ReadShort(mb, Address.MemSize - 3);
+      NodeInfo ni = _mb_cache[idx];
+      if( ni != null ) {
+        if (a.Equals(ni._address)) {
+          return ni;
         }
       }
+      ni = new NodeInfo(a);
+      _mb_cache[idx] = ni;
       return ni;
     }
     public static NodeInfo CreateInstance(Address a, TransportAddress ta) {
