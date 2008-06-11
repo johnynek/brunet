@@ -21,6 +21,7 @@
         <include name="Brunet.DhtService.dll"/>
         <include name="Brunet.BasicNode.dll"/>
         <include name="NetworkPackets.dll"/>
+        <include name="Mono.Security.dll"/>
       </fileset>
     </copy>
 
@@ -39,6 +40,7 @@
         <include name="System.Runtime.Remoting.dll"/>
         <include name="Mono.Posix.dll"/>
         <include name="NetworkPackets.dll"/>
+        <include name="Mono.Security.dll"/>
       </references>
     </csc>
 

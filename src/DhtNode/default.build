@@ -17,6 +17,8 @@
         <include name="CookComputing.XmlRpcV2.dll" />
         <include name="Brunet.XmlRpc.dll" />
         <include name="Brunet.DhtService.dll"/>
+        <include name="Brunet.Security.dll"/>
+        <include name="Mono.Security.dll"/>
       </fileset>
     </copy>
     <csc target="exe" output="${build.dir}/DhtIpopNode.exe" main="Ipop.DhtNode.DhtIpopNode" optimize="true">
@@ -34,6 +36,8 @@
         <include name="Brunet.DhtService.dll"/>
         <include name="System.Runtime.Remoting.dll"/>
         <include name="Mono.Posix.dll"/>
+        <include name="Brunet.Security.dll"/>
+        <include name="Mono.Security.dll"/>
       </references>
     </csc>
     <mkdir dir="${bin.dir}" failonerror="true"/>

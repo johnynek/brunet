@@ -22,6 +22,7 @@ using System;
 using System.Net;
 using Brunet;
 using Brunet.DistributedServices;
+using Brunet.Security;
 using Brunet.Applications;
 using System.Collections;
 using System.Threading;
@@ -85,6 +86,8 @@ namespace Ipop {
     operating sytem</summary>
     */
     protected DHCPServer _dhcp_server;
+    /// <summary> The end to end security provider</summary>
+    protected readonly EndToEndSecurity _end_to_end;
 
     /// <summary> Protected string representation for the local IP of this node</summary>
     protected string _ip;
@@ -108,7 +111,8 @@ namespace Ipop {
     <param name="IpopConfigPath">The path to a IpopConfig xml file</param>
     */
     public IpopNode(string NodeConfigPath, string IpopConfigPath):
-      base(NodeConfigPath) {
+      base(NodeConfigPath)
+    {
       CreateNode();
       this.Dht = _dht;
       this.Brunet = _node;
@@ -120,6 +124,10 @@ namespace Ipop {
       _info = new Information(Brunet, "IpopNode");
       _info.UserData["IpopNamespace"] = _ipop_config.IpopNamespace;
 
+      if(_ipop_config.EndToEndSecurity) {
+        KeyDatabase kdb = new KeyDatabase(_node.Address);
+        _end_to_end = new EndToEndSecurity(_node, kdb);
+      }
       Brunet.GetTypeSource(PType.Protocol.IP).Subscribe(this, null);
     }
 
@@ -407,7 +415,19 @@ namespace Ipop {
     <param name="packet"> the data to send to the recepient</param>
     */
     protected virtual void SendIP(Address target, MemBlock packet) {
-      ISender s = new AHExactSender(Brunet, target);
+      ISender s = null;
+      if(_end_to_end != null) {
+        try {
+          s = _end_to_end.GetSecureSender(target);
+        }
+        catch(Exception e) {
+          Console.WriteLine(e);
+          return;
+        }
+      }
+      else {
+        s = new AHExactSender(Brunet, target);
+      }
       s.Send(new CopyList(PType.Protocol.IP, packet));
     }
 

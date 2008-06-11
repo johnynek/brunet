@@ -36,6 +36,8 @@ namespace Ipop {
     public AddressInfo AddressData;
     /// <summary>Enable Multicast</summary>
     public bool EnableMulticast;
+    /// <summary>Enables End-To-End Security</summary>
+    public bool EndToEndSecurity;
 
     /**
     <summary>AddressInfo stores end point mappings depending on the system all
