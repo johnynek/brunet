@@ -137,8 +137,13 @@ namespace Ipop.DhtNode {
     */
     public void HandleMulticast(Object ippo) {
       IPPacket ipp = (IPPacket) ippo;
-      DhtGetResult []dgrs = Dht.Get(_ipop_config.IpopNamespace +
+      DhtGetResult []dgrs = null;
+      try {
+        dgrs = Dht.Get(_ipop_config.IpopNamespace +
           ".multicast.ipop_vpn");
+      } catch {
+        return;
+      }
       foreach(DhtGetResult dgr in dgrs) {
         try {
           AHAddress target = (AHAddress) AddressParser.Parse(dgr.valueString);
