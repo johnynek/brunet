@@ -89,7 +89,8 @@ public class AHSender : ISender {
    */
   public ISender ReceivedFrom { get { return _from; } }
   //This is the serialized header:
-  protected ICopyable _header;
+  protected MemBlock _header;
+  protected int _header_length;
 
   public AHSender(Node n, Address destination, ushort options)
   : this( n, n, destination, n.DefaultTTLFor(destination), options) {
@@ -139,9 +140,10 @@ public class AHSender : ISender {
      */
     if( _header == null ) {
       AHHeader ahh = new AHHeader(_hops, _ttl, _source, _dest, _options);
-      _header = new CopyList( PType.Protocol.AH, ahh);
+      _header = MemBlock.Copy(new CopyList( PType.Protocol.AH, ahh));
+      _header_length = _header.Length;
     }
-    int total = _header.Length + data.Length;
+    int total = _header_length + data.Length;
     byte[] ah_packet = new byte[ total ];
     int off_to_data = _header.CopyTo(ah_packet, 0);
     data.CopyTo(ah_packet, off_to_data);
