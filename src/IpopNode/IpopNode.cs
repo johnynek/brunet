@@ -212,11 +212,11 @@ namespace Ipop {
     public virtual void HandleIPIn(MemBlock packet, ISender ret) {
       if(_translator != null) {
         Address addr = null;
-        try {
-          AHSender ahs = (AHSender) ret;
-          addr = ahs.Destination;
-        }
-        catch {
+        if(ret is AHSender) {
+          addr = ((AHSender) ret).Destination;
+        } else if(ret is SecurityAssociation) {
+          addr = ((SecurityAssociation) ret).RemoteAddress;
+        } else {
           ProtocolLog.Write(IpopLog.PacketLog, String.Format(
             "Incoming packet was not from an AHSender: {0}.", ret));
           return;
