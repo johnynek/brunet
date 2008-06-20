@@ -784,7 +784,6 @@ namespace Brunet
         DateTime last_debug = DateTime.UtcNow;
         TimeSpan debug_period = new TimeSpan(0,0,0,0,5000); //log every 5 seconds.
         int millsec_timeout = _heart_period;
-        int consecutive_packets = 0;
         IAction queue_item = null;
         bool timedout = false;
         while( 1 == _running ) {

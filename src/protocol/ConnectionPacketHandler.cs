@@ -182,7 +182,7 @@ namespace Brunet
      * If the node has any shortcuts:
      * shortcut -> Random shortcut connection
      */
-    public IDictionary GetNeighbors(ISender caller) {
+    public IDictionary GetNeighbors() {
       AHAddress self = (AHAddress)_node.Address;
       IDictionary result = new ListDictionary();
       //Put it in:
@@ -241,6 +241,12 @@ namespace Brunet
           break;
         case "Close":
           result = Close((IDictionary)arguments[0],caller);
+          break;
+        case "GetLocalIPAddresses":
+          result = GetLocalIPAddresses();
+          break;
+        case "GetNeighbors":
+          result = GetNeighbors();
           break;
         case "GetStatus":
           result = GetStatus((IDictionary)arguments[0],caller);
@@ -417,7 +423,7 @@ namespace Brunet
     /**
      * This returns an IList of the Local TAs
      */
-    public IList GetLocalIPAddresses(ISender caller) {
+    public IList GetLocalIPAddresses() {
       ArrayList lta = new ArrayList();
       foreach(TransportAddress ta in _node.LocalTAs) {
         if(ta.TransportAddressType == TransportAddress.TAType.Udp || 
