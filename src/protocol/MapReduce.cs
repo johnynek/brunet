@@ -87,7 +87,7 @@ namespace Brunet {
      * @param done out parameter (is the stopping criteria met)
      * @param child_results hashtable containing results from each child
      */
-    public abstract object Reduce(object reduce_arg, object current_result, RpcResult child_rpc, ref bool done);
+    public abstract object Reduce(object reduce_arg, object current_result, RpcResult child_rpc, out bool done);
     /** tree generator function. */
     public abstract MapReduceInfo[] GenerateTree(MapReduceArgs args);
   }
@@ -321,8 +321,8 @@ namespace Brunet {
 
       //do an initial reduction and see if we can terminate
       try {
-        bool done = false;
-        _reduce_result = _mr_task.Reduce(_mr_args.ReduceArg, null, new RpcResult(null, _map_result), ref done);
+        bool done; //out parameter
+        _reduce_result = _mr_task.Reduce(_mr_args.ReduceArg, null, new RpcResult(null, _map_result), out done);
 
         if (LogEnabled) {
           ProtocolLog.Write(ProtocolLog.MapReduce,
@@ -406,14 +406,16 @@ namespace Brunet {
       lock(_sync) {
         //only if computation has not finished
         if (!_finished) {
-          bool done = false;
+          bool stop = false;
           if (_queue_to_child.ContainsKey(child_q)) {
             _queue_to_child.Remove(child_q);
             if (child_result != null) {
               try {
-                _reduce_result = _mr_task.Reduce(_mr_args.ReduceArg, _reduce_result, child_result, ref done);
+                bool done; //out parameter
+                _reduce_result = _mr_task.Reduce(_mr_args.ReduceArg, _reduce_result, child_result, out done);
+                stop |= done;
               } catch(Exception x) {
-                done = true; //if an exception is thrown, we will return right away.
+                stop = true; //if an exception is thrown, we will stop.
                 _reduce_result = x;
               }
             }
@@ -425,7 +427,7 @@ namespace Brunet {
             }
           }
           
-          _finished = (_queue_to_child.Keys.Count == 0) || done;
+          _finished = (_queue_to_child.Keys.Count == 0) || stop;
           send_result = _finished;
         }
       }  //end of lock.
