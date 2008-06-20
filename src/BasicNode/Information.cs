@@ -88,8 +88,8 @@ namespace Brunet.Applications {
       Hashtable ht = new Hashtable(UserData);
       ht.Add("type", _type);
       ht.Add("geo_loc", geo_loc);
-      ht.Add("localips", _node.sys_link.GetLocalIPAddresses(null));
-      ht.Add("neighbors", _node.sys_link.GetNeighbors(null));
+      ht.Add("localips", _node.sys_link.GetLocalIPAddresses());
+      ht.Add("neighbors", _node.sys_link.GetNeighbors());
       return ht;
     }
 
