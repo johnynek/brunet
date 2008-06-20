@@ -88,7 +88,6 @@ namespace Brunet {
 
     ///////  Attributes /////////////////
 
-    protected readonly Node _node;
     protected readonly Random _rand;
 
     protected int _compensate;
@@ -817,7 +816,7 @@ namespace Brunet {
      * When a Connector finishes his job, this method is called to
      * clean up
      */
-    protected void ConnectorEndHandler(object connector, EventArgs args)
+    override protected void ConnectorEndHandler(object connector, EventArgs args)
     {
       lock( _sync ) {
         _connectors.Remove(connector);
