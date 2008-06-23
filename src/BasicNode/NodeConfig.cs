@@ -82,6 +82,8 @@ namespace Brunet.Applications {
     public Service XmlRpcManager;
     /**  <summary>Specifies if Vivaldi network coordinates are enabled. </summary>*/    
     public bool EnableVivaldi;
+    /**  <summary>Specifies if shortcut optimization is enabled. This option can be switched on only when EnableVivaldi is also enabled. </summary>*/    
+    public bool OptimizeShortcuts;
 
     /**
     <summary>Used by services to specify if they are enabled and their port.
