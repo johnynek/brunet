@@ -283,7 +283,9 @@ namespace Brunet.Coordinate {
                 do_consider = true;
               }
               else {
+#if NC_DEBUG
                 Console.Error.WriteLine("[NCService] {0} multiple sends for: {1}.", _node.Address, _target_address);
+#endif
               }
             } catch(Exception) {}
           }
@@ -517,8 +519,8 @@ namespace Brunet.Coordinate {
       if (_current_trial != trial) {
 #if NC_DEBUG
         Console.Error.WriteLine("[NCService] {0} Too late now: {1}.", _node.Address, target_address);
-        return;
 #endif
+        return;
       }
       
       Hashtable ht_position = (Hashtable) state_result["position"];

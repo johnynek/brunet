@@ -108,7 +108,7 @@ namespace Brunet.Coordinate {
               if (_vts_nodes.Keys.Count == 1) { //first node
                 Console.Error.WriteLine("Starting the VTS checkpoint thread. ");
                 _checkpoint_thread = new Thread(CheckpointThread);
-                Interlocked.Exchange(ref _checkpoint_thread_finished, 0);
+                _checkpoint_thread_finished = 0;
                 _checkpoint_thread.Start();
               }
             }
