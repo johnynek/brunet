@@ -239,7 +239,7 @@ namespace Brunet
            */
           if (LinkMessageReply != null) {
             //Let's be nice:
-            _node.GracefullyClose(_e);
+            _node.GracefullyClose(_e, "From LPS, did not complete a connection.");
           }
           else {
             /*
