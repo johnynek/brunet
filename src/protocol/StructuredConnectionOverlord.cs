@@ -1600,7 +1600,7 @@ namespace Brunet {
 #if POB_DEBUG
         Console.Error.WriteLine("Attempt to trim Near: {0}", to_trim);
 #endif
-              _node.GracefullyClose( to_trim.Edge );
+              _node.GracefullyClose( to_trim.Edge, "SCO, near connection trim" );
             }
             else if( sc_needs_trim ) {
               /**
@@ -1613,7 +1613,7 @@ namespace Brunet {
 #if POB_DEBUG
              Console.Error.WriteLine("Attempt to trim Shortcut: {0}", to_trim);
 #endif
-              _node.GracefullyClose( to_trim.Edge );
+              _node.GracefullyClose( to_trim.Edge, "SCO, shortcut connection trim" );
             }
 #endif
     }

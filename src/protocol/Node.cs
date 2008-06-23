@@ -1055,6 +1055,9 @@ namespace Brunet
       if( reason != String.Empty ) {
         close_info["reason"] = reason;
       }
+      ProtocolLog.WriteIf(ProtocolLog.EdgeClose, String.Format(
+                          "GracefulCLose - " + e + ": " + reason));
+
       Channel results = new Channel();
       results.CloseAfterEnqueue();
       EventHandler close_eh = delegate(object o, EventArgs args) {
@@ -1151,6 +1154,7 @@ namespace Brunet
                   //The edge could have been closed somewhere else, so it
                   //didn't timeout.
                 }
+                Console.WriteLine(e + ": Closed due to timeout.");
                 //Make sure it is indeed closed.
                 e.Close();
               }

@@ -107,9 +107,6 @@ namespace Brunet
      * Handle the notification that the other side is going to close the edge
      */
     public IDictionary Close(IDictionary close_message, ISender edge) {
-      if(ProtocolLog.LinkDebug.Enabled)
-        ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
-          "{0} -start- sys:link.Close({1},{2})", _node.Address, close_message,edge));
       Edge from = GetEdge(edge);
       ConnectionTable tab = _node.ConnectionTable;
       /**
@@ -126,11 +123,16 @@ namespace Brunet
        * Release locks when the close message arrives; do not wait
        * until the edge actually closes.
        */
-      CloseHandler(from, null);  
-      if(ProtocolLog.LinkDebug.Enabled)
-        ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
-          "{0} -end- sys:link.Close({1},{2})", _node.Address, close_message,from));
+      CloseHandler(from, null);
 
+      if(ProtocolLog.EdgeClose.Enabled) {
+        String reason = String.Empty;
+        if(close_message.Contains(reason)) {
+          reason = (String) close_message["reason"];
+        }
+        ProtocolLog.Write(ProtocolLog.EdgeClose, String.Format(
+                          "sys:link.Close - " + from + ": " + reason));
+      }
       /**
        * Try to close the edge after a small time span:
        */
@@ -166,7 +168,7 @@ namespace Brunet
       }
       if( l != null ) {
         foreach(Edge e in l) {
-          _node.GracefullyClose(e);
+          _node.GracefullyClose(e, "CPH, delayed close handler.");
         }
       }
     }
