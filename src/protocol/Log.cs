@@ -40,6 +40,8 @@ namespace Brunet {
         new BooleanSwitch("LocalCO", "Log the local connection overlord");
     public static BooleanSwitch EdgeClose =
         new BooleanSwitch("EdgeClose", "The reason why an edge was closed.");
+    public static BooleanSwitch MapReduce =
+        new BooleanSwitch("MapReduce", "Log map-reduce computations");
 
     public static bool CTL_enabled = false;
 
