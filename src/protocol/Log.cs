@@ -38,6 +38,8 @@ namespace Brunet {
         new BooleanSwitch("tmp", "Log the system monitor");
     public static BooleanSwitch LocalCO =
         new BooleanSwitch("LocalCO", "Log the local connection overlord");
+    public static BooleanSwitch MapReduce =
+        new BooleanSwitch("MapReduce", "Log map-reduce computations");
 
     public static bool CTL_enabled = false;
 

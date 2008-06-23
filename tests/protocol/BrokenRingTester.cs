@@ -4,6 +4,7 @@ using System.Collections;
 using System.Xml;
 using System.Xml.Serialization;
 using System.Security.Cryptography;
+using System.Threading; 
 
 namespace Brunet {
   public class BrokenRingTester {
@@ -26,11 +27,12 @@ namespace Brunet {
 
       ArrayList RemoteTA = new ArrayList();
       for(int i = 0; i < network_size; i++) {
-        RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.udp://localhost:" + (base_port + i)));
+        RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.udp://127.0.0.1:" + (base_port + i)));
       }
 
       Random rand = new Random();
       for(int i = 0; i < network_size; i++) {
+        Console.WriteLine("Starting node: {0}", i);
         AHAddress address = new AHAddress(new RNGCryptoServiceProvider());
         Node node = new StructuredNode(address, brunet_namespace);
         ArrayList arr_tas = new ArrayList();
@@ -47,8 +49,11 @@ namespace Brunet {
         node.AddEdgeListener(new UdpEdgeListener(base_port + i, null, ta_auth));
         node.AddEdgeListener(new TunnelEdgeListener(node));
         node.RemoteTAs = RemoteTA;
-        node.Connect();
+        Thread t = new Thread(new ThreadStart(node.Connect));
+        t.Start();
         nodes.Add((Address) address, node);
+        Console.WriteLine("Sleeping for 2 seconds");
+        System.Threading.Thread.Sleep(2000);        
       }
 
       //wait for 60 more seconds
