@@ -16,8 +16,6 @@ help = this message"""
 def main():
   try:
     optlist, args = getopt.getopt(sys.argv[1:], "", ["debug", "port=", "debug2"])
-    if len(args) > 0:
-      raise Exception
 
     logger = null_logger
     port = 10000
@@ -151,7 +149,6 @@ def crawl(port = 10000, logger = null_logger, debug = False):
       half_way = True
       break
 
-    time.sleep(1)
     #maintain a list of everyones neighbors
     nodes[node] = info
     last = node
