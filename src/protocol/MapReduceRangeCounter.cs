@@ -42,7 +42,7 @@ namespace Brunet {
                                   out bool done) {
 
       done = false;
-      ISender child_sender = child_rpc.ResultSender;
+      //ISender child_sender = child_rpc.ResultSender;
       //the following can throw an exception, will be handled by the framework
       object child_result = child_rpc.Result;
       
