@@ -104,7 +104,7 @@ namespace Brunet {
     protected bool _active;
     
     //minimum score before we start forming chota connections
-    private static readonly int MIN_SCORE_THRESHOLD = 5;
+    private static readonly int MIN_SCORE_THRESHOLD = SAMPLE_SIZE + 1;
 
     //the maximum number of Chota connections we plan to support
     private static readonly int max_chota = 200;
@@ -124,7 +124,7 @@ namespace Brunet {
     //node rank comparer
     protected NodeRankComparer _cmp;
 
-    protected const int _sample_size = 4;
+    protected static readonly int SAMPLE_SIZE = 4;
     
     /*
      * We don't want to risk mistyping these strings.
@@ -165,6 +165,12 @@ namespace Brunet {
       List<Address> to_add = new List<Address>();
 
     	lock(_sync) { //lock the score table
+        foreach(NodeRankInformation node_rank in node_rank_list) {
+          if (node_rank.Count > 0) {
+            node_rank.Count -= SAMPLE_SIZE;
+          }
+        }
+
         SortTable();
         // Find the guys to trim....
         for (int i = node_rank_list.Count - 1; i >= max_chota && i > 0; i--) {
@@ -210,24 +216,27 @@ namespace Brunet {
      */
     public void HandleData(MemBlock p, ISender from, object state) {
       AHSender ahs = from as AHSender;
-      if( ahs != null ) {
-        Address dest = ahs.Destination;
-        // Sample every 1 / _sample_size
-        if( _rand.Next(_sample_size) != 0 ) {
-          return;
-        }
+      if( ahs == null ) {
+        return;
+      }
 
-        lock(_sync) {
-          NodeRankInformation node_rank =
-            (NodeRankInformation) _dest_to_node_rank[dest];
-          if( node_rank == null ) {
-            node_rank = new NodeRankInformation(dest);
-            node_rank_list.Add( node_rank );
-            _dest_to_node_rank[dest] = node_rank;
-          }
-          // Increment by _sample_size
-          node_rank.Count += _sample_size;
+      // Sample every 1 / SAMPLE_SIZE
+      if( _rand.Next(SAMPLE_SIZE) != 0 ) {
+        return;
+      }
+
+      Address dest = ahs.Destination;
+
+      lock(_sync) {
+        NodeRankInformation node_rank =
+          (NodeRankInformation) _dest_to_node_rank[dest];
+        if( node_rank == null ) {
+          node_rank = new NodeRankInformation(dest);
+          node_rank_list.Add( node_rank );
+          _dest_to_node_rank[dest] = node_rank;
         }
+        // Increment by SAMPLE_SIZE
+        node_rank.Count += SAMPLE_SIZE;
       }
     }
 
@@ -236,17 +245,15 @@ namespace Brunet {
      * table, in the mean time, it can get disordered
      */
     protected void SortTable() {
-      lock( _sync ) {
-        //Keep the table sorted according to _cmp
-        node_rank_list.Sort( _cmp );
-	      if (node_rank_list.Count > node_rank_capacity) {
-          //we are exceeding capacity
-          //trim the list
-          int rmv_idx = node_rank_list.Count - 1;
-          NodeRankInformation nr = (NodeRankInformation)node_rank_list[ rmv_idx ];
-	        node_rank_list.RemoveAt(rmv_idx);    
-          _dest_to_node_rank.Remove( nr.Addr );
-	      }
+      //Keep the table sorted according to _cmp
+      node_rank_list.Sort( _cmp );
+      if (node_rank_list.Count > node_rank_capacity) {
+        //we are exceeding capacity
+        //trim the list
+        int rmv_idx = node_rank_list.Count - 1;
+        NodeRankInformation nr = (NodeRankInformation)node_rank_list[ rmv_idx ];
+        node_rank_list.RemoveAt(rmv_idx);    
+        _dest_to_node_rank.Remove( nr.Addr );
       }
     }
 
@@ -255,17 +262,8 @@ namespace Brunet {
      * Sort the table, decrement node rank and run Activate.
      */ 
     public void CheckState(object node, EventArgs eargs) {
-      if( _rand.Next(_sample_size) != 0 ) {
+      if( _rand.Next(SAMPLE_SIZE) != 0 ) {
         return;
-      }
-
-      lock(_sync) {
-        SortTable();
-        foreach(NodeRankInformation node_rank in node_rank_list) {
-          if (node_rank.Count > 0) {
-            node_rank.Count -= _sample_size;
-          }
-        }
       }
 
       Activate();
