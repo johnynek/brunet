@@ -36,17 +36,24 @@ def main():
     return
 
   nodes = crawl(port, logger, debug)
-  count = 0
-  consistency = 0.0
-  for addr in nodes:
-    count += 1
-    consistency += nodes[addr]['consistency']
-  print "Total Nodes: " + str(count)
+  count, consistency = check_results(nodes)
+
   print "Consistent Nodes: " + str(consistency)
+
   cons = 0
   if consistency != 0:
     cons = consistency / (count * 1.0)
   print "Consistency: " + str(cons)
+
+def check_results(nodes):
+  count = 0
+  consistency = 0.0
+
+  for addr in nodes:
+    count += 1
+    consistency += nodes[addr]['consistency']
+
+  return consistency, count
 
 def print_logger(msg):
   print msg
@@ -140,7 +147,11 @@ def crawl(port = 10000, logger = null_logger, debug = False):
       half_way = True
     elif half_way and pybru.Address(node) <= start:
       break
+    elif pybru.Address(node) == start and len(nodes) > 1:
+      half_way = True
+      break
 
+    time.sleep(1)
     #maintain a list of everyones neighbors
     nodes[node] = info
     last = node
