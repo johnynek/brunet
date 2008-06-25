@@ -151,11 +151,10 @@ namespace Brunet {
     /**
      * On every activation, the ChotaConnectionOverlord trims any connections
      * that are unused, and also creates any new connections of needed
-     * 
      */
     override public void Activate() {
-      if (!IsActive) {
-	      return;
+      if(!_active) {
+        return;
       }
 
       IEnumerable chota_cons = _node.ConnectionTable.GetConnections(struc_chota);
@@ -164,13 +163,7 @@ namespace Brunet {
       List<Edge> to_trim = new List<Edge>();
       List<Address> to_add = new List<Address>();
 
-    	lock(_sync) { //lock the score table
-        foreach(NodeRankInformation node_rank in node_rank_list) {
-          if (node_rank.Count > 0) {
-            node_rank.Count -= SAMPLE_SIZE;
-          }
-        }
-
+      lock(_sync) {
         SortTable();
         // Find the guys to trim....
         for (int i = node_rank_list.Count - 1; i >= max_chota && i > 0; i--) {
@@ -259,11 +252,23 @@ namespace Brunet {
 
     /**
      * On every heartbeat this method is invoked.
-     * Sort the table, decrement node rank and run Activate.
-     */ 
+     * Sort the table, decrement node rank, and run Activate.
+     */
     public void CheckState(object node, EventArgs eargs) {
+      if(!_active) {
+        return;
+      }
+
       if( _rand.Next(SAMPLE_SIZE) != 0 ) {
         return;
+      }
+
+    	lock(_sync) { //lock the score table
+        foreach(NodeRankInformation node_rank in node_rank_list) {
+          if (node_rank.Count > 0) {
+            node_rank.Count -= SAMPLE_SIZE;
+          }
+        }
       }
 
       Activate();
