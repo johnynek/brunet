@@ -1,6 +1,6 @@
 #!/usr/bin/python
 usage = """usage:
-python plab_assistant.py [--path_to_files=<filename>] [--username=<username>]
+plab_assistant [--path_to_files=<filename>] [--username=<username>]
   [--port=<number>] --path_to_nodes=<filename> action
 action = check, install, uninstall, gather_stats (check attempts to add the
   boot strap software to nodes that do not have it yet... a common problem on
@@ -153,13 +153,15 @@ class plab_assistant:
       cmd = base_ssh + " /home/" + username + "/ipop/start_ipop.sh &> /dev/null"
       pid = os.spawnvp(os.P_NOWAIT, 'ssh', cmd.split(' '))
       time.sleep(20)
-      if os.waitpid(pid, os.P_NOWAIT) != (pid, 0):
-        os.kill(pid, signal.SIGINT)
+      try:
+        if os.waitpid(pid, os.P_NOWAIT) != (pid, 0):
+          os.kill(pid, signal.SIGINT)
+      except:
+        pass
       print node + " done!"
       if self.update_callback:
         self.update_callback(node, 1)
-    except e:
-      print e
+    except:
       print node + " failed!"
       if self.update_callback:
        self.update_callback(node, 0)
