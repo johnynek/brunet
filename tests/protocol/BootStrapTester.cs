@@ -44,17 +44,25 @@ namespace Brunet
          private static readonly ILog log =
 		 LogManager.GetLogger(typeof(BootStrapTester));
 		 */
-    BootStrapTester(ArrayList adds, ArrayList nodes)
+    BootStrapTester(ArrayList nodes)
     {
+      //Now sort the address list and make a list of nodes in that order:
+      ArrayList adds = new ArrayList();
+      foreach(Node n in nodes) {
+        adds.Add(n.Address);
+      }
+      adds.Sort(new AHAddressComparer());
+
       _node_list = nodes;
       _sorted_adds = adds;
       _ctable_to_node = new Hashtable();
-      lock(this) {
+      _sync = new object();
+      lock(_sync) {
         foreach(Node n in _node_list) {
           //When the tables change, we want to know about it.
           n.ConnectionTable.ConnectionEvent += new EventHandler(this.ConnectionTableChangeHandler);
           n.ConnectionTable.DisconnectionEvent += new EventHandler(this.ConnectionTableChangeHandler);
-	  _ctable_to_node[ n.ConnectionTable ] = n; 
+          _ctable_to_node[ n.ConnectionTable ] = n; 
         }
       }
     }
@@ -62,12 +70,30 @@ namespace Brunet
     public int _idx = 0;
     
     protected Hashtable _ctable_to_node;
+    protected object _sync;
 
     private ArrayList _sorted_adds;
     /* holds all the nodes */
     private ArrayList _node_list;
-    public ArrayList NodeList {
-	    get { return _node_list; }
+
+    public void Add(Node n) {
+      lock( _sync ) {
+        _node_list.Add(n);  
+        _sorted_adds.Add(n.Address);
+        _sorted_adds.Sort(new AHAddressComparer());
+        //monitor the connection table:
+        ConnectionTable ct = n.ConnectionTable;
+        _ctable_to_node[ ct ] = n; 
+        ct.ConnectionEvent += new EventHandler(this.ConnectionTableChangeHandler);
+        ct.DisconnectionEvent += new EventHandler(this.ConnectionTableChangeHandler);
+      }
+    }
+
+    public void Remove(Node n) {
+      lock(_sync) {
+        _node_list.Remove(n);
+        _sorted_adds.Remove(n.Address);
+      }
     }
     
     /**
@@ -75,23 +101,44 @@ namespace Brunet
      * is called, and the global graph is written out
      */
     void ConnectionTableChangeHandler(object o, EventArgs arg) {
-      lock( this ) {
+      lock( _sync ) {
         _idx++;
 #if EVERY_20
         if( _idx % 20 == 0 ) { 
 	      //Only print every 20'th change.  This is a hack...
-          ToDotFile(_sorted_adds, _node_list, _idx);
+          ToDotFile();
         }
 #else
-        ToDotFile(_sorted_adds, _node_list, _idx);
+        ToDotFile();
 #endif
 	//Node n = (Node)_ctable_to_node[o];
 	//Console.Error.WriteLine("Node({0}).IsConnected == {1}", n.Address, n.IsConnected);
       }
     }
     
-    static void ToDotFile(ArrayList all_adds, ArrayList node_list, int index)
+    public void ToDotFile()
     {
+      ArrayList node_list = _node_list;
+      int index = _idx;
+      //Make the list of all addresses:
+      ArrayList all_adds = new ArrayList();
+      Hashtable addresses = new Hashtable();
+      foreach(Node item in node_list) {
+        Address a = item.Address;
+        if( addresses.Contains(a) == false ) {
+          all_adds.Add(a);
+          addresses[a] = a;
+        }
+        foreach(Connection con in item.ConnectionTable) {
+          a = con.Address;
+          if( addresses.Contains(a) == false ) {
+            all_adds.Add(a);
+            addresses[a] = a;
+          }
+        }
+      }
+      all_adds.Sort(new AHAddressComparer());
+
       string file_name = string.Format("BootGraph_{0:000000}",index); 
       StreamWriter sw = File.CreateText(file_name);
       sw.WriteLine("digraph bootgraph { ");
@@ -148,12 +195,8 @@ namespace Brunet
 	    else if (con.MainType == ConnectionType.Unstructured ) {
               color = " [color= green]";
 	    }
-            string graph_line = String.Format("{0} -> {1}" + color + ";",
-                //item.Address.ToBigInteger().IntValue(),
-                //con.Address.ToBigInteger().IntValue()
-		item_idx,
-		con_idx
-		);
+           string graph_line = String.Format("{0} -> {1}{2};",
+		                                          item_idx, con_idx, color);
             sw.WriteLine(graph_line);
 	    
 	  }
@@ -262,7 +305,7 @@ namespace Brunet
       ///@todo we really need better option parsing here
       wait_after_connect = false;
     }
-    ArrayList adds = new ArrayList();
+    ArrayList node_list = new ArrayList();
     Hashtable add_to_node = new Hashtable();
     
     for (int loop=0;loop<net_size;loop++)
@@ -273,7 +316,7 @@ namespace Brunet
       Node tmp_node = new StructuredNode(tmp_add, "bstland");
       //Node tmp_node = new HybridNode(tmp_add, "bstland");
       
-      adds.Add(tmp_add);
+      node_list.Add(tmp_node);
       add_to_node[tmp_add] = tmp_node;
       
       //long small_add = 2*(loop+1);
@@ -321,15 +364,9 @@ namespace Brunet
           }
       }
     }
-    //Now sort the address list and make a list of nodes in that order:
-    adds.Sort(new AHAddressComparer());
-    ArrayList node_list = new ArrayList();
-    foreach(AHAddress addr in adds) {
-      node_list.Add( add_to_node[addr] );
-    }
     
     //This logs the changes in connection table
-    BootStrapTester bst = new BootStrapTester(adds, node_list);
+    BootStrapTester bst = new BootStrapTester(node_list);
     if( bst != null ) {
     //This is just here to prevent a warning for
     //not using bst, which is just an observer
@@ -366,34 +403,50 @@ namespace Brunet
     }
 
     System.Console.Out.WriteLine("Finished with BootStrapTester.Main");
-    string this_command = "Q";
+    string[] this_command = new string[] { "Q" };
     if( wait_after_connect) {
       Console.WriteLine("Enter Q to stop");
-      this_command = Console.ReadLine();
+      this_command = Console.ReadLine().Split(' ');
     }
-    while( this_command != "Q" ) {
-      if( this_command == "D" ) { 
+    while( this_command[0] != "Q" ) {
+      if( this_command[0] == "D" ) { 
         //Disconnect a node:
         int node = -1;
         try {
-          node = Int32.Parse(this_command.Split(' ')[1]);
+          node = Int32.Parse(this_command[1]);
           Node to_disconnect = (Node)node_list[node];
-	  to_disconnect.Disconnect();
+          Console.WriteLine("About to Disconnect: {0}", to_disconnect.Address);
+	        to_disconnect.Disconnect();
+          bst.Remove(to_disconnect);
         }
         catch(Exception) {
  
         }
       }
-      if( this_command == "P" ) {
+      if( this_command[0] == "abort" ) { 
+        //Disconnect a node:
+        int node = -1;
+        try {
+          node = Int32.Parse(this_command[1]);
+          Node to_abort = (Node)node_list[node];
+          Console.WriteLine("About to Abort: {0}", to_abort.Address);
+	        to_abort.Abort();
+          bst.Remove(to_abort);
+        }
+        catch(Exception) {
+ 
+        }
+      }
+      if( this_command[0] == "P" ) {
         //Pick a random pair of nodes to ping:
 	Ping(node_list);
       }
-      if( this_command == "T" ) {
+      if( this_command[0] == "T" ) {
         //Pick a random pair of nodes to ping:
 	TraceRoute(node_list);
       }
       if( wait_after_connect ) {
-        this_command = Console.ReadLine();
+        this_command = Console.ReadLine().Split(' ');
       }
     }
     
