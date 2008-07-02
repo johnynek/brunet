@@ -69,7 +69,7 @@ namespace Brunet
         _packet_queue = new Brunet.Util.LFBlockingQueue<IAction>();
 
         _running = 0;
-        _send_pings = 0;
+        _send_pings = 1;
         _LOG = ProtocolLog.Monitor.Enabled;
 
         _connection_table = new ConnectionTable(_local_add);
