@@ -50,7 +50,9 @@ namespace Brunet
     protected ArrayList _packet_senders;
     public ArrayList PacketSenders {
       get {
-	return _packet_senders;
+        lock(_sync) {
+          return (ArrayList) _packet_senders.Clone();
+        }
       }
     }
 

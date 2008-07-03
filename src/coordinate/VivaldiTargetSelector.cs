@@ -19,7 +19,7 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
-#define VTS_DEBUG
+//#define VTS_DEBUG
 using Brunet;
 using System;
 using System.Collections;
@@ -45,8 +45,11 @@ namespace Brunet.Coordinate {
     protected static readonly string _checkpoint_file =   Path.Combine("/tmp", "vts_stats");
     //new outcomes are added to this list
     protected static ArrayList _query_list = new ArrayList();
+    //keep track of all the nodes.
+    protected static Hashtable _vts_nodes = new Hashtable();
     //outcomes in this list are written to file
     protected static Thread _checkpoint_thread = null;
+    protected static int _checkpoint_thread_finished = 0;
 #endif
 
     //lock variable
@@ -81,9 +84,15 @@ namespace Brunet.Coordinate {
         ResultTable = new Hashtable();
       }
     }
-    
 
+    //local network coordinate service
     protected NCService _nc_service;
+
+    /** 
+     * Constructor. 
+     * @param n local node
+     * @param service local network coordinate service
+     */
     public VivaldiTargetSelector(Node n, NCService service) {
       _sync = new object();
       _channel_to_state = new Hashtable();
@@ -91,12 +100,34 @@ namespace Brunet.Coordinate {
       _nc_service = service;
       _num_requests = 0;
 #if VTS_DEBUG
-      lock(_class_lock) {
-        if (_checkpoint_thread == null) {
-          _checkpoint_thread = new Thread(CheckpointThread);
-          Console.Error.WriteLine("Starting the VTS checkpoint thread. ");
-          _checkpoint_thread.Start();
-        }
+      lock(_sync) {
+        _node.StateChangeEvent += delegate(Node node, Node.ConnectionState s) {
+          if( s == Node.ConnectionState.Joining ) {
+            lock(_class_lock) {
+              _vts_nodes[node] = null;
+              if (_vts_nodes.Keys.Count == 1) { //first node
+                Console.Error.WriteLine("Starting the VTS checkpoint thread. ");
+                _checkpoint_thread = new Thread(CheckpointThread);
+                _checkpoint_thread_finished = 0;
+                _checkpoint_thread.Start();
+              }
+            }
+          }
+        };
+        _node.StateChangeEvent += delegate(Node node, Node.ConnectionState s) {
+          if( s == Node.ConnectionState.Disconnected ) {
+            lock(_class_lock) {
+              _vts_nodes.Remove(node);
+              if (_vts_nodes.Keys.Count == 0) { //last node to leave
+                Console.Error.WriteLine("Interrupting the VTS checkpoint thread. ");
+                Interlocked.Exchange(ref _checkpoint_thread_finished, 1);
+                _checkpoint_thread.Interrupt();
+                _checkpoint_thread.Join();
+                Console.Error.WriteLine("Join with the VTS checkpoint thread (finished).");
+              }
+            }
+          }
+        };
       }
 #endif
     }
@@ -112,7 +143,9 @@ namespace Brunet.Coordinate {
       Channel q = null;
       RequestState rs = null;
       lock(_sync) {
+#if VTS_DEBUG
         Console.Error.WriteLine("VTS local: {0}, start: {1}, range: {2}, count: {3}", _node.Address, start, range, _num_requests);
+#endif
         if (_num_requests == MAX_REQUESTS) {
           return; //do nothing and return;
         }
@@ -157,7 +190,9 @@ namespace Brunet.Coordinate {
           if (request != null) {
             //make sure this is not our own reply
             if (!fs.Destination.Equals(_node.Address)) {
+#if VTS_DEBUG
               Console.Error.WriteLine("VTS local: {0}, start: {1}, dest: {2}", _node.Address, request.Start, fs.Destination);
+#endif
               request.ResultTable[fs.Destination] = new object[] {vs, (string) ht["hostname"]};
             }
             if (request.ResultTable.Keys.Count >= (int) request.Range*0.75) {
@@ -184,7 +219,9 @@ namespace Brunet.Coordinate {
           Console.Error.WriteLine("VTS unable to retrieve request for a closed channel");
           return;
         }
+#if VTS_DEBUG
         Console.Error.WriteLine("VTS local: {0}, start: {1} channel closed.", _node.Address, request.Start);
+#endif
         _channel_to_state.Remove(o);
         _num_requests--;
       }
@@ -204,10 +241,10 @@ namespace Brunet.Coordinate {
         NCService.VivaldiState vs = (NCService.VivaldiState) curr_result[0];
         string host = (string) curr_result[1];
         double d = local_vs.Position.GetEucledianDistance(vs.Position);
-        Console.Error.WriteLine("VTS local: {0}, start: {1}, dest: {2}, distance: {3}", 
-                                _node.Address, request.Start, target, d);
         sorted_result[d] = target;
 #if VTS_DEBUG
+        Console.Error.WriteLine("VTS local: {0}, start: {1}, dest: {2}, distance: {3}", 
+                                _node.Address, request.Start, target, d);
         sorted_stat[d] = new object[] {d, host};
 #endif
       }
@@ -230,7 +267,11 @@ namespace Brunet.Coordinate {
       bool start = true;
       ArrayList action_list = new ArrayList();
       do {
-        System.Threading.Thread.Sleep(CHECKPOINT_INTERVAL*1000);
+        try {
+          System.Threading.Thread.Sleep(CHECKPOINT_INTERVAL*1000);
+        } catch(System.Threading.ThreadInterruptedException) {
+          break;
+        }
         action_list = Interlocked.Exchange(ref _query_list, action_list);
         try {
           TextWriter tw = null; 
@@ -244,23 +285,22 @@ namespace Brunet.Coordinate {
             tw = new StreamWriter(_checkpoint_file, true);
           }
           
-          while (action_list.Count > 0) {
-            SortedList sorted_stat = (SortedList) action_list[0];
+          foreach(SortedList sorted_stat in action_list) {
             foreach(object[] curr_result in sorted_stat.Values) {
               //also write the checkpoint time
               double d = (double) curr_result[0];
               string host = (string) curr_result[1];
               tw.Write("{0} {1} ", host, d);
             }
-            action_list.RemoveAt(0);
             tw.WriteLine();
           }
           tw.Close();
         } catch (Exception x) {
           Console.Error.WriteLine(x);
+        } finally {
           action_list.Clear();
         }
-      } while (true);
+      } while (_checkpoint_thread_finished == 0);
     }
 #endif
   }

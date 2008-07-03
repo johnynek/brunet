@@ -337,7 +337,7 @@ namespace Brunet
           }
         }
         if( to_close != null ) {
-          _local.GracefullyClose( to_close );
+          _local.GracefullyClose( to_close, "From LeafCO, too many leaf connections." );
         }
       }
     }
