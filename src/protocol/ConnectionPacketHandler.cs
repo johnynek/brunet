@@ -107,9 +107,6 @@ namespace Brunet
      * Handle the notification that the other side is going to close the edge
      */
     public IDictionary Close(IDictionary close_message, ISender edge) {
-      if(ProtocolLog.LinkDebug.Enabled)
-        ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
-          "{0} -start- sys:link.Close({1},{2})", _node.Address, close_message,edge));
       Edge from = GetEdge(edge);
       ConnectionTable tab = _node.ConnectionTable;
       /**
@@ -126,11 +123,16 @@ namespace Brunet
        * Release locks when the close message arrives; do not wait
        * until the edge actually closes.
        */
-      CloseHandler(from, null);  
-      if(ProtocolLog.LinkDebug.Enabled)
-        ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
-          "{0} -end- sys:link.Close({1},{2})", _node.Address, close_message,from));
+      CloseHandler(from, null);
 
+      if(ProtocolLog.EdgeClose.Enabled) {
+        String reason = String.Empty;
+        if(close_message.Contains(reason)) {
+          reason = (String) close_message["reason"];
+        }
+        ProtocolLog.Write(ProtocolLog.EdgeClose, String.Format(
+                          "sys:link.Close - " + from + ": " + reason));
+      }
       /**
        * Try to close the edge after a small time span:
        */
@@ -166,7 +168,7 @@ namespace Brunet
       }
       if( l != null ) {
         foreach(Edge e in l) {
-          _node.GracefullyClose(e);
+          _node.GracefullyClose(e, "CPH, delayed close handler.");
         }
       }
     }
@@ -182,7 +184,7 @@ namespace Brunet
      * If the node has any shortcuts:
      * shortcut -> Random shortcut connection
      */
-    public IDictionary GetNeighbors(ISender caller) {
+    public IDictionary GetNeighbors() {
       AHAddress self = (AHAddress)_node.Address;
       IDictionary result = new ListDictionary();
       //Put it in:
@@ -241,6 +243,12 @@ namespace Brunet
           break;
         case "Close":
           result = Close((IDictionary)arguments[0],caller);
+          break;
+        case "GetLocalIPAddresses":
+          result = GetLocalIPAddresses();
+          break;
+        case "GetNeighbors":
+          result = GetNeighbors();
           break;
         case "GetStatus":
           result = GetStatus((IDictionary)arguments[0],caller);
@@ -417,7 +425,7 @@ namespace Brunet
     /**
      * This returns an IList of the Local TAs
      */
-    public IList GetLocalIPAddresses(ISender caller) {
+    public IList GetLocalIPAddresses() {
       ArrayList lta = new ArrayList();
       foreach(TransportAddress ta in _node.LocalTAs) {
         if(ta.TransportAddressType == TransportAddress.TAType.Udp || 

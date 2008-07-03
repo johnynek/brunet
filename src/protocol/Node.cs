@@ -489,6 +489,10 @@ namespace Brunet
     public ReqrepManager Rrm { get { return _rrm; } }
     protected readonly RpcManager _rpc;
     public RpcManager Rpc { get { return _rpc; } }
+    protected MapReduceHandler _mr_handler;
+    public MapReduceHandler MapReduce { get { return _mr_handler; } }
+
+
     /**
      * This is true if the Node is properly connected in the network.
      * If you want to know when it is safe to assume you are connected,
@@ -794,7 +798,6 @@ namespace Brunet
         DateTime last_debug = DateTime.UtcNow;
         TimeSpan debug_period = new TimeSpan(0,0,0,0,5000); //log every 5 seconds.
         int millsec_timeout = _heart_period;
-        int consecutive_packets = 0;
         IAction queue_item = null;
         bool timedout = false;
         while( 1 == _running ) {
@@ -1066,6 +1069,9 @@ namespace Brunet
       if( reason != String.Empty ) {
         close_info["reason"] = reason;
       }
+      ProtocolLog.WriteIf(ProtocolLog.EdgeClose, String.Format(
+                          "GracefulCLose - " + e + ": " + reason));
+
       Channel results = new Channel();
       results.CloseAfterEnqueue();
       EventHandler close_eh = delegate(object o, EventArgs args) {
@@ -1162,6 +1168,7 @@ namespace Brunet
                   //The edge could have been closed somewhere else, so it
                   //didn't timeout.
                 }
+                Console.WriteLine(e + ": Closed due to timeout.");
                 //Make sure it is indeed closed.
                 e.Close();
               }

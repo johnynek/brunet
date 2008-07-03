@@ -21,15 +21,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 /**
  * Dependencies
  * Brunet.ConnectionType
- * Brunet.BrunetLogger
  */
 
+using System;
 using System.Collections;
-//using log4net;
 
-namespace Brunet
-{
-
+namespace Brunet {
   /**
    * Connections are added and removed, and these classes handle
    * this.  It can tell you if a particular connection would
@@ -37,23 +34,9 @@ namespace Brunet
    * to replace this node
    */
 
-  public abstract class ConnectionOverlord
-  {
-    /*private static readonly log4net.ILog log =
-      log4net.LogManager.GetLogger(System.Reflection.MethodBase.
-      GetCurrentMethod().DeclaringType);*/
-#if PLAB_LOG
-    private BrunetLogger _logger;
-    public BrunetLogger Logger{
-      get{
-        return _logger;
-      }
-      set
-      {
-        _logger = value;          
-      }
-    }
-#endif
+  public abstract class ConnectionOverlord {
+    protected Node _node;
+
     /**
      * If IsActive, then start trying to get connections.
      */
@@ -82,10 +65,8 @@ namespace Brunet
      * @return true if the ConnectionOverlord has sufficient connections
      *  for connectivity (no routing performance yet!)
      */
-    abstract public bool IsConnected
-    {
-      get;
-    }    
+    virtual public bool IsConnected { get { throw new Exception("Not implemented!"); } }
+
     /**
      * Connectors just send and receive ConnectToMessages.  They return all responses
      * to the ConnectionOverlord that initiated the ConnectToMessage
@@ -93,8 +74,56 @@ namespace Brunet
      * stop listening for more
      */
     virtual public bool HandleCtmResponse(Connector c, ISender return_path, ConnectToMessage resp) {
-      return true; 
+      /**
+       * Time to start linking:
+       */
+
+      Linker l = new Linker(_node, resp.Target.Address,
+                            resp.Target.Transports,
+                            resp.ConnectionType,
+                            _node.Address.ToString());
+      _node.TaskQueue.Enqueue( l );
+      return true;
+    }
+
+    virtual protected void ConnectTo(Address target, string ConnectionType) {
+      ConnectionType mt = Connection.StringToMainType(ConnectionType);
+      /*
+       * This is an anonymous delegate which is called before
+       * the Connector starts.  If it returns true, the Connector
+       * will finish immediately without sending an ConnectToMessage
+       */
+      Linker l = new Linker(_node, target, null, ConnectionType,
+          _node.Address.ToString());
+      object link_task = l.Task;
+      Connector.AbortCheck abort = delegate(Connector c) {
+        bool stop = false;
+        stop = _node.ConnectionTable.Contains( mt, target );
+        if (!stop ) {
+          /*
+           * Make a linker to get the task.  We won't use
+           * this linker.
+           * No need in sending a ConnectToMessage if we
+           * already have a linker going.
+           */
+          stop = _node.TaskQueue.HasTask( link_task );
+        }
+        return stop;
+      };
+      if (abort(null)) {
+        return;
+      }
+
+      ConnectToMessage  ctm = new ConnectToMessage(ConnectionType, _node.GetNodeInfo(8),
+          _node.Address.ToString());
+      ISender send = new AHSender(_node, target, AHPacket.AHOptions.Exact);
+      Connector con = new Connector(_node, send, ctm, this);
+      con.FinishEvent += ConnectorEndHandler;
+      con.AbortIf = abort;
+      _node.TaskQueue.Enqueue(con);
+    }
+
+    virtual protected void ConnectorEndHandler(object o, EventArgs eargs) {
     }
   }
-
 }

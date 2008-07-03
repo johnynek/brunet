@@ -458,7 +458,6 @@ public class ReqrepManager : SimpleSource, IDataHandler {
    protected void HandleRequestAck(ReqrepType rt, int idnum, MemBlock rest, ISender ret_path) {
      RequestState reqs = (RequestState)_req_state_table[idnum];
      if( reqs != null ) {
-       IReplyHandler handler = null;
        lock( _sync ) {
          if (reqs.AddAck(ret_path)) {
            /*
@@ -831,7 +830,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
         try {
           reps.SendAck();
         }
-        catch(Exception x) {
+        catch(Exception) {
           ///@todo, log this exception.
         } 
       }
