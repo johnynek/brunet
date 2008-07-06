@@ -186,6 +186,9 @@ namespace Brunet {
           if (node_rank.Count < MIN_SCORE_THRESHOLD ) {
             //too low score to create a connection
             continue;
+          } else if(cons.IndexOf(node_rank.Addr) >= 0) {
+            // already have a connection to that node!
+            continue;
           }
           to_add.Add(node_rank.Addr);
         }
