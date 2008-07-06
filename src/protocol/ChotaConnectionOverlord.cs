@@ -107,15 +107,12 @@ namespace Brunet {
     private static readonly int MIN_SCORE_THRESHOLD = SAMPLE_SIZE + 1;
 
     //the maximum number of Chota connections we plan to support
-    private static readonly int max_chota = 200;
+    private static readonly int MAX_CHOTA = 200;
     
-    //maximum number of entries in the node_rank table
-    private static readonly int node_rank_capacity = max_chota;
-
     //hashtable of destinations. for each destination we maintain 
     //how frequently we communicate with it. Just like the LRU in virtual
     // memory context - Arijit Ganguly. 
-    protected ArrayList node_rank_list;
+    protected ArrayList _node_rank_list;
     /*
      * Allows us to quickly look up the node rank for a destination
      */
@@ -137,7 +134,7 @@ namespace Brunet {
       _cmp = new NodeRankComparer();
       _sync = new object();
       _rand = new Random();
-      node_rank_list = new ArrayList();
+      _node_rank_list = new ArrayList();
       _dest_to_node_rank = new Hashtable();
 
       lock( _sync ) {
@@ -164,25 +161,28 @@ namespace Brunet {
       List<Address> to_add = new List<Address>();
 
       lock(_sync) {
-        SortTable();
+        _node_rank_list.Sort( _cmp );
         // Find the guys to trim....
-        for (int i = node_rank_list.Count - 1; i >= max_chota && i > 0; i--) {
-          NodeRankInformation node_rank = (NodeRankInformation) node_rank_list[i];
+        for (int i = _node_rank_list.Count - 1; i >= MAX_CHOTA && i > 0; i--) {
+          NodeRankInformation node_rank = (NodeRankInformation) _node_rank_list[i];
+          // Must remove from _dest_to_node_rank to prevent memory leak
+          _dest_to_node_rank.Remove(node_rank.Addr);
+          // Now check to see if ChotaCO owns this connections and add to_trim if it does
           int idx = cons.IndexOf(node_rank.Addr);
           if(idx >= 0 && cons[idx].ConType.Equals(struc_chota)) {
             to_trim.Add(cons[idx].Edge);
           }
         }
 
-        // Don't keep around stale state;
-        if(to_trim.Count > 0) {
-          node_rank_list.RemoveRange(node_rank_list.Count - to_trim.Count, to_trim.Count);
+        // Don't keep around stale state
+        if(_node_rank_list.Count > MAX_CHOTA) {
+          _node_rank_list.RemoveRange(MAX_CHOTA, _node_rank_list.Count - MAX_CHOTA);
         }
 
         // Find guys to connect to!
-        for (int i = 0; i < node_rank_list.Count && i < max_chota; i++) {
+        for (int i = 0; i < _node_rank_list.Count && i < MAX_CHOTA; i++) {
           //we are traversing the list in descending order of 
-          NodeRankInformation node_rank = (NodeRankInformation) node_rank_list[i];
+          NodeRankInformation node_rank = (NodeRankInformation) _node_rank_list[i];
           if (node_rank.Count < MIN_SCORE_THRESHOLD ) {
             //too low score to create a connection
             continue;
@@ -232,28 +232,11 @@ namespace Brunet {
           (NodeRankInformation) _dest_to_node_rank[dest];
         if( node_rank == null ) {
           node_rank = new NodeRankInformation(dest);
-          node_rank_list.Add( node_rank );
+          _node_rank_list.Add( node_rank );
           _dest_to_node_rank[dest] = node_rank;
         }
         // Increment by SAMPLE_SIZE
         node_rank.Count += SAMPLE_SIZE;
-      }
-    }
-
-    /**
-     * We only need to do this before we take action based on the
-     * table, in the mean time, it can get disordered
-     */
-    protected void SortTable() {
-      //Keep the table sorted according to _cmp
-      node_rank_list.Sort( _cmp );
-      if (node_rank_list.Count > node_rank_capacity) {
-        //we are exceeding capacity
-        //trim the list
-        int rmv_idx = node_rank_list.Count - 1;
-        NodeRankInformation nr = (NodeRankInformation)node_rank_list[ rmv_idx ];
-        node_rank_list.RemoveAt(rmv_idx);    
-        _dest_to_node_rank.Remove( nr.Addr );
       }
     }
 
@@ -271,7 +254,7 @@ namespace Brunet {
       }
 
     	lock(_sync) { //lock the score table
-        foreach(NodeRankInformation node_rank in node_rank_list) {
+        foreach(NodeRankInformation node_rank in _node_rank_list) {
           node_rank.Count = (node_rank.Count > SAMPLE_SIZE) ? node_rank.Count - SAMPLE_SIZE : 0;
         }
       }
