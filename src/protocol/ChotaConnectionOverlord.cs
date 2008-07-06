@@ -157,7 +157,7 @@ namespace Brunet {
         return;
       }
 
-      IEnumerable chota_cons = _node.ConnectionTable.GetConnections(struc_chota);
+      ConnectionList cons = _node.ConnectionTable.GetConnections(Connection.StringToMainType(struc_chota));
 
       // Trim and add OUTSIDE of the lock!
       List<Edge> to_trim = new List<Edge>();
@@ -168,11 +168,15 @@ namespace Brunet {
         // Find the guys to trim....
         for (int i = node_rank_list.Count - 1; i >= max_chota && i > 0; i--) {
           NodeRankInformation node_rank = (NodeRankInformation) node_rank_list[i];
-          foreach(Connection c in chota_cons) {
-            if(node_rank.Addr.Equals(c.Address)) {
-              to_trim.Add(c.Edge);
-            }
+          int idx = cons.IndexOf(node_rank.Addr);
+          if(idx >= 0 && cons[idx].ConType.Equals(struc_chota)) {
+            to_trim.Add(cons[idx].Edge);
           }
+        }
+
+        // Don't keep around stale state;
+        if(to_trim.Count > 0) {
+          node_rank_list.RemoveRange(node_rank_list.Count - to_trim.Count, to_trim.Count);
         }
 
         // Find guys to connect to!
@@ -265,9 +269,7 @@ namespace Brunet {
 
     	lock(_sync) { //lock the score table
         foreach(NodeRankInformation node_rank in node_rank_list) {
-          if (node_rank.Count > 0) {
-            node_rank.Count -= SAMPLE_SIZE;
-          }
+          node_rank.Count = (node_rank.Count > SAMPLE_SIZE) ? node_rank.Count - SAMPLE_SIZE : 0;
         }
       }
 
