@@ -11,18 +11,9 @@
     </EdgeListener>
     -->
   </EdgeListeners>
-  <XmlRpcManager>
-    <Enabled>false</Enabled>
-    <Port>10001</Port>
-  </XmlRpcManager>
   <DevicesToBind>
     <Device>eth0</Device>
   </DevicesToBind>
-  <NCService>
-    <Enabled>true</Enabled>
-    <OptimizeShortcuts>true</OptimizeShortcuts>
-    <Checkpointing>true</Checkpointing>
-  </NCService>
   <RemoteTAs>
     <Transport>brunet.udp://193.147.162.166:41728</Transport>
     <Transport>brunet.udp://195.37.16.97:41728</Transport>
@@ -515,4 +506,6 @@
     <Transport>brunet.tcp://219.243.201.77:41727</Transport>
     -->
   </RemoteTAs>
+  <EnableVivaldi>true</EnableVivaldi>
+  <OptimizeShortcuts>true</OptimizeShortcuts>
 </NodeConfig>

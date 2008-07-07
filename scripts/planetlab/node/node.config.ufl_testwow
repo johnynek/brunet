@@ -1,18 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <NodeConfig>
-  <DevicesToBind>
-    <Device>eth0</Device>
-  </DevicesToBind>
-  <XmlRpcManager>
-    <Enabled>false</Enabled>
-    <Port>10000</Port>
-  </XmlRpcManager>
   <BrunetNamespace>BRUNETNAMESPACE</BrunetNamespace>
-  <NCService>
-    <Enabled>true</Enabled>
-    <OptimizeShortcuts>true</OptimizeShortcuts>
-    <Checkpointing>true</Checkpointing>
-  </NCService>
   <RemoteTAs>
     <Transport>brunet.udp://193.147.162.166:44392</Transport>
     <Transport>brunet.udp://195.37.16.97:44392</Transport>
@@ -515,4 +503,6 @@
     </EdgeListener>
     -->
   </EdgeListeners>
+  <EnableVivaldi>true</EnableVivaldi>
+  <OptimizeShortcuts>true</OptimizeShortcuts>
 </NodeConfig>
