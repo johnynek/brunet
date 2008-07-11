@@ -103,6 +103,8 @@ namespace Ipop {
     */
     public byte [] MACAddress;
 
+    protected readonly bool _multicast;
+
     /**
     <summary>Creates an IpopNode given a path to a NodeConfig and an
     IpopConfig.  Also sets up the Information, Ethernet device, and subscribes
@@ -126,7 +128,8 @@ namespace Ipop {
 
       if(_ipop_config.EndToEndSecurity) {
         KeyDatabase kdb = new KeyDatabase(_node.Address);
-        _end_to_end = new EndToEndSecurity(_node, kdb);
+        CertificateHandler ch = new CertificateHandler();
+        _end_to_end = new EndToEndSecurity(_node, kdb, ch);
       }
       Brunet.GetTypeSource(PType.Protocol.IP).Subscribe(this, null);
     }
