@@ -45,7 +45,7 @@ namespace Ipop {
       }
       catch(Exception e) {
         ProtocolLog.WriteIf(IpopLog.DNS, e.Message);
-        Console.WriteLine(e);
+        //Console.WriteLine(e);
         rdnspacket = DNSPacket.BuildFailedReplyPacket(dnspacket);
       }
       UDPPacket res_udpp = new UDPPacket(req_udpp.DestinationPort,
