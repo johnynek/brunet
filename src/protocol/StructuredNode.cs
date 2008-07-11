@@ -147,6 +147,20 @@ namespace Brunet
       }
     }
 
+    override public void Abort() {
+      if(ProtocolLog.NodeLog.Enabled) {
+        ProtocolLog.Write(ProtocolLog.NodeLog, String.Format(
+          "In StructuredNode.Abort: {0}", this.Address));
+      }
+
+      _iphandler.Stop();
+      _leafco.IsActive = false;
+      _sco.IsActive = false;
+      _cco.IsActive = false;
+      _localco.IsActive = false;
+      StopAllEdgeListeners();
+    }
+
     /**
      * Connect to the network.  This informs all the ConnectionOverlord objects
      * to do their thing.  Announce runs in a new thread returning context back

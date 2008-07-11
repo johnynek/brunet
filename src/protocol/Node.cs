@@ -69,7 +69,7 @@ namespace Brunet
         _packet_queue = new Brunet.Util.LFBlockingQueue<IAction>();
 
         _running = 0;
-        _send_pings = 0;
+        _send_pings = 1;
         _LOG = ProtocolLog.Monitor.Enabled;
 
         _connection_table = new ConnectionTable(_local_add);
@@ -550,6 +550,16 @@ namespace Brunet
         Close(ecra.Edge);
       };
     }
+
+    /** Immediately stop the node. ONLY USE FOR TESTING!!!!!!!
+     * This simulates a node being disconnected immediately from the network,
+     * as in a crash, or a network outage.  It should NEVER be used by a
+     * well-behaved node.  It is only for test programs.
+     *
+     * To gracefully disconnect, you the Node.Disconnect() method, which
+     * closes edges gracefully and informs its neighbors before going offline.
+     */
+    public abstract void Abort();
     
     /**
      * Called when there is a connection or disconnection.  Send a StateChange
