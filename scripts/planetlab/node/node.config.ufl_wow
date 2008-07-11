@@ -1,5 +1,9 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <NodeConfig>
+  <XmlRpcManager>
+    <Enabled>false</Enabled>
+    <Port>10002</Port>
+  </XmlRpcManager>
   <BrunetNamespace>BRUNETNAMESPACE</BrunetNamespace>
   <RemoteTAs>
     <Transport>brunet.udp://193.147.162.166:62194</Transport>

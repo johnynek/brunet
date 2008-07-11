@@ -11,6 +11,10 @@
     </EdgeListener>
     -->
   </EdgeListeners>
+  <XmlRpcManager>
+    <Enabled>false</Enabled>
+    <Port>10001</Port>
+  </XmlRpcManager>
   <DevicesToBind>
     <Device>eth0</Device>
   </DevicesToBind>
