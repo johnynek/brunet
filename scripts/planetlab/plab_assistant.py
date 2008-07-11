@@ -102,7 +102,6 @@ class plab_assistant:
       if pid == 0:
         self.task(node)
       pids.append(pid)
-      break
       while len(pids) >= 32:
         time.sleep(5)
         to_remove = []
