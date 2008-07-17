@@ -164,6 +164,12 @@ namespace Test {
           }
           SenderSpeedTest(count);
         }
+        else if(command.Equals("CM")) {
+          StructuredNode n = (StructuredNode) ((NodeMapping) nodes.GetByIndex(nodes.Count - 1)).Node;
+          foreach(Address addr in nodes.Keys) {
+            n.ManagedCO.AddAddress(addr);
+          }
+        }
         else if(command.Equals("HELP")) {
           Console.WriteLine("Commands: \n");
           Console.WriteLine("A - add a node");
@@ -174,6 +180,7 @@ namespace Test {
           Console.WriteLine("G - Retrieve total dht entries");
           Console.WriteLine("CR - Perform a crawl of the network using RPC");
           Console.WriteLine("ST - Speed test, parameter - integer - times to end data");
+          Console.WriteLine("CM - ManagedCO test");
           Console.WriteLine("Q - Quit");
         }
         Console.WriteLine();

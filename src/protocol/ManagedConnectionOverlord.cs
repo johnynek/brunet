@@ -27,30 +27,25 @@ using System.Net.Sockets;
 namespace Brunet
 {
 
-  /// <summary>This CO is administered by "user-level" applications to specify
-  /// end-points that the user would like to be connected with.</summary>
-  /// <remarks>When AddAddress is called, the address is added to
-  /// _connection_state and ConnectTo is called on the address.  If the node
-  /// connects, all is fine, if not, this will attempt twice more to connect.
-  /// If that fails, every hour thereafter, this CO will try 3 more times to
-  /// get connected until it does or it is removed.  If a Managed connection
-  /// disconnects, this will automatically attempt to repair the connection
-  /// by acting as if the address had just been added.  All this is handled
-  /// by using _connection_state as the state holder per address.</remarks>
+  /**
+   * This CO is uses registers RPC methods that are specifically meant to be
+   * called by nodes on the LAN to facilitate connectivity.  This can be used
+   * to replace the necessity of RemoteTAs.  Currently it is only active when 
+   * there are zero connections.  Eventually, it may prove useful to have it 
+   * find local nodes and create StructuredLocalConnections.  To protect the
+   * node from abuse, an connection is attempted no more than 3 times every
+   * 60 seconds!
+   */
+
   public class ManagedConnectionOverlord: ConnectionOverlord
   {
     public enum MCState {
-      ///<summary>Attempted 3 times and failed, wait...</summary>
       Off,
-      ///<summary>Attempted 1 time, 2 more to go!</summary>
       Attempt1,
-      ///<summary>Attempted 2 times, 1 more to go!</summary>
       Attempt2,
-      ///<summary>Connection!</summary>
       On
     }
 
-    /// <summary> Keeps the state for all registered addresses</summary>
     protected Dictionary<Address, MCState> _connection_state;
     protected DateTime _last_call;
     protected readonly RpcManager _rpc;
@@ -59,6 +54,12 @@ namespace Brunet
 
     public static readonly string struc_managed = "structured.managed";
 
+    /**
+     * When IsActive is false, the ConnectionOverlord does nothing
+     * to replace lost connections, or to get connections it needs.
+     * When IsActive is true, then any missing connections are
+     * made up for
+     */
     public override bool IsActive
     {
       get { return _active; }
@@ -73,7 +74,6 @@ namespace Brunet
       _last_call = DateTime.MinValue;
     }
 
-    ///<summary>Enables HeartBeat and ConnectionTable hooks</summary>
     protected void Enable() {
       lock(_sync) {
         _node.HeartBeatEvent += CheckState;
@@ -82,7 +82,6 @@ namespace Brunet
       }
     }
 
-    ///<summary>Disables HeartBeat and ConnectionTable hooks</summary>
     protected void Disable() {
       lock(_sync) {
         _node.HeartBeatEvent -= CheckState;
@@ -91,8 +90,6 @@ namespace Brunet
       }
     }
 
-    ///<summary>Once every hour, the CO will attempt to connect to remote end
-    ///points in _connection_state that aren't connected</summary>
     public void CheckState(object o, EventArgs ea) {
       DateTime now = DateTime.UtcNow;
       lock(_sync) {
@@ -104,13 +101,14 @@ namespace Brunet
       Activate();
     }
 
-    ///<summary>Once every hour, the CO will attempt to connect to remote end
-    ///points in _connection_state that aren't connected</summary>
+    /**
+     * If IsActive, then start trying to get connections.
+     */
     public override void Activate() {
       if(!_active) {
         return;
       }
-      List<Address> connect_to = new List<Address>();
+      List<Address> connect_to = new List<Address>(_connection_state.Count);
       lock(_sync) {
         foreach(KeyValuePair<Address, MCState> kvp in _connection_state) {
           if(kvp.Value == MCState.Off) {
@@ -123,12 +121,17 @@ namespace Brunet
       }
     }
 
-    ///<summary>This isn't used for this CO</summary>
+    /**
+     * @return true if the ConnectionOverlord needs a connection
+     */
     public override bool NeedConnection {
       get { return false; }
     }
 
-    ///<summary>This isn't used for this CO</summary>
+    /**
+     * @return true if the ConnectionOverlord has sufficient connections
+     *  for connectivity (no routing performance yet!)
+     */
     public override bool IsConnected
     {
       get {
@@ -141,17 +144,15 @@ namespace Brunet
     /// attempt reconnecting to it, unless there is a disconnection</summary>
     protected void ConnectHandler(object tab, EventArgs eargs) {
       Connection new_con = ((ConnectionEventArgs)eargs).Connection;
-      lock(_sync) {
-        if(!_connection_state.ContainsKey(new_con.Address)) {
-          return;
+      if(_connection_state.ContainsKey(new_con.Address)) {
+        lock(_sync) {
+          _connection_state[new_con.Address] = MCState.On;
         }
-        _connection_state[new_con.Address] = MCState.On;
-      }
-
-      if(ProtocolLog.ManagedCO.Enabled) {
-        ProtocolLog.Write(ProtocolLog.ManagedCO, String.Format(
-                          "Connect a {0}: {1} at: {2}",
-                          struc_managed, new_con, DateTime.UtcNow));
+        if(ProtocolLog.ManagedCO.Enabled) {
+          ProtocolLog.Write(ProtocolLog.ManagedCO, String.Format(
+                            "Connect a {0}: {1} at: {2}",
+                            struc_managed, new_con, DateTime.UtcNow));
+        }
       }
     }
 
@@ -160,21 +161,18 @@ namespace Brunet
     /// managed by the ManagedCO, reconnect.</summary>
     protected void DisconnectHandler(object tab, EventArgs eargs) {
       Connection new_con = ((ConnectionEventArgs)eargs).Connection;
-      lock(_sync) {
-        if(!_connection_state.ContainsKey(new_con.Address)) {
-         return;
+      if(_connection_state.ContainsKey(new_con.Address)) {
+        lock(_sync) {
+          _connection_state[new_con.Address] = MCState.Off;
         }
-        
-        _connection_state[new_con.Address] = MCState.Off;
-      }
-
-      if(ProtocolLog.ManagedCO.Enabled) {
-        ProtocolLog.Write(ProtocolLog.ManagedCO, String.Format(
-                          "Disconnect a {0}: {1} at: {2}",
-                          struc_managed, new_con, DateTime.UtcNow));
-      }
-      if(_active) {
-        ConnectTo(new_con.Address, struc_managed);
+        if(ProtocolLog.ManagedCO.Enabled) {
+          ProtocolLog.Write(ProtocolLog.ManagedCO, String.Format(
+                            "Disconnect a {0}: {1} at: {2}",
+                            struc_managed, new_con, DateTime.UtcNow));
+        }
+        if(_active) {
+          ConnectTo(new_con.Address, struc_managed);
+        }
       }
     }
 
@@ -222,14 +220,14 @@ namespace Brunet
     public bool AddAddress(Address RemoteAddress)
     {
       lock(_sync) {
+        if(_connection_state.Count == 0) {
+          Enable();
+        }
+
         if(_connection_state.ContainsKey(RemoteAddress)) {
           return true;
         }
         _connection_state[RemoteAddress] = MCState.Off;
-
-        if(_connection_state.Count == 1) {
-          Enable();
-        }
       }
       if(_active) {
         ConnectTo(RemoteAddress, struc_managed);
@@ -246,14 +244,14 @@ namespace Brunet
     public bool RemoveAddress(Address RemoteAddress)
     {
       lock(_sync) {
+        if(_connection_state.Count == 0) {
+          Disable();
+        }
+
         if(!_connection_state.ContainsKey(RemoteAddress)) {
           return true;
         }
         _connection_state.Remove(RemoteAddress);
-
-        if(_connection_state.Count == 0) {
-          Disable();
-        }
       }
 
       ConnectionType ct = Connection.StringToMainType(struc_managed);
