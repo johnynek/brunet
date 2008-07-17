@@ -42,6 +42,8 @@ namespace Brunet {
         new BooleanSwitch("EdgeClose", "The reason why an edge was closed.");
     public static BooleanSwitch MapReduce =
         new BooleanSwitch("MapReduce", "Log map-reduce computations");
+    public static BooleanSwitch ManagedCO =
+        new BooleanSwitch("ManagedCO", "User selected connections.");
 
     public static bool CTL_enabled = false;
 

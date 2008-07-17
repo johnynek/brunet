@@ -46,6 +46,8 @@ namespace Brunet
     }
     protected ConnectionOverlord _cco;
     protected ConnectionOverlord _localco;
+    protected ManagedConnectionOverlord _mco;
+    public ManagedConnectionOverlord ManagedCO { get { return _mco; } }
 
     //maximum number of neighbors we report in our status
     protected static readonly int MAX_NEIGHBORS = 4;
@@ -85,6 +87,7 @@ namespace Brunet
       _sco = new StructuredConnectionOverlord(this);
       _cco = new ChotaConnectionOverlord(this);
       _localco = new LocalConnectionOverlord(this);
+      _mco = new ManagedConnectionOverlord(this);
       _iphandler = new IPHandler();
       _iphandler.Subscribe(this, null);
 
@@ -158,6 +161,7 @@ namespace Brunet
       _sco.IsActive = false;
       _cco.IsActive = false;
       _localco.IsActive = false;
+      _mco.IsActive = false;
       StopAllEdgeListeners();
     }
 
@@ -175,11 +179,13 @@ namespace Brunet
       _sco.IsActive = true;
       _cco.IsActive = true;
       _localco.IsActive = true;
+      _mco.IsActive = true;
 
       _leafco.Activate();
       _sco.Activate();
       _cco.Activate();
       _localco.Activate();
+      _mco.Activate();
       AnnounceThread();
     }
 
@@ -201,6 +207,7 @@ namespace Brunet
       _sco.IsActive = false;
       _cco.IsActive = false;
       _localco.IsActive = false;
+      _mco.IsActive = false;
 
       //Gracefully close all the edges:
       _connection_table.Close(); //This makes sure we can't add any new connections.

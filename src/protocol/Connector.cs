@@ -77,6 +77,7 @@ namespace Brunet
      */
     protected readonly ISender _sender;
     protected readonly object _sync;
+    public readonly object State;
     
     /**
      * Represents the Task this connector works on for the TaskWorker
@@ -124,7 +125,12 @@ namespace Brunet
      * connecto to a neighbor of a neighbor
      * @param ctm the ConnectToMessage which is serialized in the packet
      */
-    public Connector(Node local, ISender ps, ConnectToMessage ctm, ConnectionOverlord co)
+    public Connector(Node local, ISender ps, ConnectToMessage ctm, ConnectionOverlord co):
+      this(local, ps, ctm, co, null)
+    {
+    }
+
+    public Connector(Node local, ISender ps, ConnectToMessage ctm, ConnectionOverlord co, object state)
     {
       _sync = new Object();
       _local_node = local;
@@ -135,6 +141,7 @@ namespace Brunet
       _co = co;
       _task = new ConnectorTask(ps);
       _abort = new WriteOnce<AbortCheck>();
+      State = state;
     }
 
     override public void Start() {
