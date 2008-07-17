@@ -1168,7 +1168,7 @@ namespace Brunet
                   //The edge could have been closed somewhere else, so it
                   //didn't timeout.
                 }
-                Console.WriteLine(e + ": Closed due to timeout.");
+
                 //Make sure it is indeed closed.
                 e.Close();
               }
