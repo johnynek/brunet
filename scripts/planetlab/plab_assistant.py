@@ -25,8 +25,9 @@ def main():
     o_d[k] = v
 
   try:
-    nodes = []
+    nodes = None
     if "--path_to_nodes" in o_d:
+      nodes = []
       nodes_file = o_d["--path_to_nodes"]
       f = open(nodes_file)
       line = f.readline()
@@ -34,10 +35,6 @@ def main():
       for line in f:
         nodes.append(line.rstrip('\n\r '))
       f.close()
-    else:
-      plab_rpc = xmlrpclib.ServerProxy('https://www.planet-lab.org/PLCAPI/', allow_none=True)
-      for node in plab_rpc.GetNodes({'AuthMethod': "anonymous"}, {}, ['hostname']):
-        nodes.append(node['hostname'])
 
     action = args[0]
     if action == "gather_stats":
@@ -62,7 +59,7 @@ def print_usage():
   sys.exit()
 
 class plab_assistant:
-  def __init__(self, action, nodes, username = "", path_to_files = "", \
+  def __init__(self, action, nodes = None, username = "", path_to_files = "", \
     port = str(0), update_callback = False, ssh_key=None):
     if action == "install":
       self.task = self.install_node
@@ -81,6 +78,11 @@ class plab_assistant:
       print_usage()
 
     self.port = str(port)
+    if nodes == None:
+      nodes = []
+      plab_rpc = xmlrpclib.ServerProxy('https://www.planet-lab.org/PLCAPI/', allow_none=True)
+      for node in plab_rpc.GetNodes({'AuthMethod': "anonymous"}, {}, ['hostname']):
+        nodes.append(node['hostname'])
     self.nodes = nodes
     self.username = username
     self.path_to_files = path_to_files
@@ -102,7 +104,7 @@ class plab_assistant:
       if pid == 0:
         self.task(node)
       pids.append(pid)
-      while len(pids) >= 32:
+      while len(pids) >= 64:
         time.sleep(5)
         to_remove = []
         for pid in pids:
@@ -128,10 +130,14 @@ class plab_assistant:
           to_remove.append(pid)
       for pid in to_remove:
         pids.remove(pid)
+        try:
+          os.kill(pid, signal.SIGKILL)
+        except:
+          pass
       if count == 6:
         for pid in pids:
           try:
-            os.kill(pid, signal.SIGINT)
+            os.kill(pid, signal.SIGKILL)
           except:
             pass
         break
@@ -175,13 +181,13 @@ class plab_assistant:
       time.sleep(20)
       try:
         if os.waitpid(pid, os.P_NOWAIT) != (pid, 0):
-          os.kill(pid, signal.SIGINT)
+          os.kill(pid, signal.SIGKILL)
       except:
         pass
       print node + " done!"
       if self.update_callback:
         self.update_callback(node, 1)
-    except "":
+    except:
       print node + " failed!"
       if self.update_callback:
        self.update_callback(node, 0)
@@ -249,9 +255,9 @@ def ssh_cmd(cmd):
   out = p.stdout.read()
   good_err = re.compile("Warning: Permanently added")
   if (good_err.search(err) == None and err != '') or out != '':
-    print cmd
-    print "Err: " + err
-    print "Out: " + out
+    #print cmd
+    #print "Err: " + err
+    #print "Out: " + out
     raise KeyboardInterrupt
 
 if __name__ == "__main__":
