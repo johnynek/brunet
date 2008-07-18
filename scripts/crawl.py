@@ -124,8 +124,10 @@ def crawl(port = 10000, logger = null_logger, debug = False):
           info['virtual_ip'] = ""
         info['namespace'] = res['IpopNamespace']
       info['retries'] = no_response_count * (retry_count + 1)
-      retry_count = 0
+
       no_resonse_count = 0
+      if node != last:
+        retry_count = 0
     except:
       no_response_count += 1
       if no_response_count == no_response_max:
