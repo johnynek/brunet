@@ -369,12 +369,13 @@ namespace Brunet.Coordinate {
     }
 
     //every 60 seconds write out current position to a file.
-    protected static readonly int CHECKPOINT_INTERVAL = 60;
+    protected static readonly TimeSpan CHECKPOINT_INTERVAL = TimeSpan.FromSeconds(60); //interval of 60 seconds
     protected static readonly string _checkpoint_file = Path.Combine("/tmp", "vivaldi");
     protected static Hashtable _nc_service_table = new Hashtable();
-    protected static Point _checkpointed_position = null;
-    protected static Thread _checkpoint_thread = null;
-    protected static volatile bool _checkpoint_thread_finished = false;
+    protected static Point _checkpointed_position = null; 
+    protected static Node _heartbeat_node = null;//node providing the checkpoint heartbeats
+    protected static bool _checkpointing_on = false;//checkpoint thread is on
+    protected static DateTime _last_checkpoint = DateTime.UtcNow;//last checkpoint interval
 
     //every 10 seconds get a new sample for latency.
     protected static readonly int SAMPLE_INTERVAL = 10;
@@ -431,15 +432,16 @@ namespace Brunet.Coordinate {
 	}
 	_nc_service_table[node] = this;
 	_node = node;
-        if (_nc_service_table.Keys.Count == 1) {//installing on the first node
+        if (_heartbeat_node == null) {//installing on the first node
           _checkpointed_position = ReadVivaldiPosition();
-
-#if NC_DEBUG
-          Console.Error.WriteLine("Starting the checkpoint thread.");
+#if NC_DEBUG          
+          Console.Error.WriteLine("Initializing from point: {0}.", _checkpointed_position);
 #endif
-	  _checkpoint_thread = new Thread(CheckpointThread);
-          _checkpoint_thread_finished = false;
-	  _checkpoint_thread.Start();
+          _heartbeat_node = node;
+          _heartbeat_node.HeartBeatEvent += new EventHandler(CheckpointHandler);
+#if NC_DEBUG
+          Console.Error.WriteLine("Subcribed to heartbeat for checkpointing from node: {0}.", _heartbeat_node.Address);
+#endif
         }
         init_position = new Point(_checkpointed_position);
       }
@@ -459,16 +461,25 @@ namespace Brunet.Coordinate {
 	      Console.Error.WriteLine("Removing {0} from nc_service table", n.Address);
 #endif
 	      _nc_service_table.Remove(n);
-              if (_nc_service_table.Keys.Count == 0) {
-                _checkpoint_thread_finished = true;
+              if (n == _heartbeat_node) {
 #if NC_DEBUG
-                Console.Error.WriteLine("Interrupting the checkpoint thread.");
+                Console.Error.WriteLine("Lost checkpoint heartbeats from node: {0}.", _heartbeat_node.Address);
 #endif
-                _checkpoint_thread.Interrupt();
-                _checkpoint_thread.Join();
+                _heartbeat_node = null;
+                foreach(Node new_node in _nc_service_table.Keys) {
+                  _heartbeat_node = new_node;
+                  break;
+                }
+                if (_heartbeat_node == null) {
 #if NC_DEBUG
-                Console.Error.WriteLine("Join with the checkpoint thread (finished).");
+                  Console.Error.WriteLine("No node instance to get heartbeats for checkpointing.");
+#endif                  
+                } else {
+                  _heartbeat_node.HeartBeatEvent += new EventHandler(CheckpointHandler); 
+#if NC_DEBUG
+                  Console.Error.WriteLine("Subcribed to heartbeat for checkpointing from node: {0}.", _heartbeat_node.Address);
 #endif
+                }
               }
  	    }
           }
@@ -504,7 +515,7 @@ namespace Brunet.Coordinate {
        /** The trial object will not get garbage collected while it is active. It will be registered
         *  with the queues during the course of its activity. 
         */
-      } catch(Exception) {
+      } catch(Exception x) {
 #if NC_DEBUG
         Console.Error.WriteLine("[NCService] {0}, {1}", _node.Address, x.Message);
 #endif        
@@ -750,55 +761,66 @@ namespace Brunet.Coordinate {
     /**
      * Checkpoint vivaldi coordinates from a file. 
      */
-    protected static void CheckpointThread() {
-      do {
-        try {
-          System.Threading.Thread.Sleep(CHECKPOINT_INTERVAL*1000);
-        } catch(System.Threading.ThreadInterruptedException) {
-          break;
+    protected static void CheckpointHandler(object o, EventArgs eargs) {
+      DateTime now = DateTime.UtcNow;
+      lock(_nc_service_table) {
+        if (now - _last_checkpoint < CHECKPOINT_INTERVAL) {
+          return;
         }
-        
-	//update the checkpointed position
-	double min_error = 1.0;
-	VivaldiState min_error_state = null;
+        _last_checkpoint = now;
+      }
+      
+      ThreadPool.QueueUserWorkItem(new WaitCallback(delegate(object state) {
         Hashtable ht = null;
         lock(_nc_service_table) {
+          if (_checkpointing_on) {
+            return;//do nothing
+          }
+
+          _checkpointing_on = true; //set the flag
           ht = (Hashtable) _nc_service_table.Clone();
         }
-        int node_count = 0;
-        foreach(NCService nc in ht.Values) {
-          node_count++;
-          //operating on copies
-          VivaldiState vs = nc.State;
-          if (vs.WeightedError < min_error) {
-            min_error = vs.WeightedError;
-            min_error_state = vs;
-          }
-        }
         
-        if (min_error_state != null) {
-          _checkpointed_position = min_error_state.Position;
-          //write this out to file
-          try {
+        try {
+          //update the checkpointed position
+          double min_error = 1.0;
+          VivaldiState min_error_state = null;
+          
+          int node_count = 0;
+          foreach(NCService nc in ht.Values) {
+            node_count++;
+            //operating on copies
+            VivaldiState vs = nc.State;
+            if (vs.WeightedError < min_error) {
+              min_error = vs.WeightedError;
+              min_error_state = vs;
+            }
+          }
+
+          if (min_error_state != null) {
+            _checkpointed_position = min_error_state.Position;
 #if NC_DEBUG
             Console.Error.WriteLine("Checkpointing: {0}", min_error_state.Position);
 #endif
             TextWriter tw = new StreamWriter(_checkpoint_file);
             //also write the checkpoint time
-            tw.WriteLine(DateTime.UtcNow.Ticks);
+            tw.WriteLine(now.Ticks);
             tw.WriteLine(min_error_state.Position);
             tw.Close();
-          } catch (Exception e) {
-            Console.Error.WriteLine(e);
           }
-        }
-        else {
+          else {
 #if NC_DEBUG
-          Console.Error.WriteLine("No network coordinates to checkpoint, node instances: {0}, min_error: {1}", 
-                                  node_count, min_error);
+            Console.Error.WriteLine("No network coordinates to checkpoint, node instances: {0}, min_error: {1}", 
+                                    node_count, min_error);
+#endif
+          }
+        } catch(Exception e) {
+#if NC_DEBUG
+          Console.WriteLine(e);
 #endif
         }
-      } while (!_checkpoint_thread_finished);
+        _checkpointing_on = false;//reset the flag
+      }));
     }
   }
 
