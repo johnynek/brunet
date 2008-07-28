@@ -93,7 +93,7 @@ namespace Brunet.Coordinate {
       if (_node != null) {
         //Console.Error.WriteLine("[NCService] {0} EchoVivaldiState() returning.", _node.Address);
       }
-#endif	
+#endif  
       return ht;
     }
 
@@ -338,17 +338,17 @@ namespace Brunet.Coordinate {
     protected VivaldiState _vivaldi_state;
     public VivaldiState State {
       get {
-	lock(_sync) {
-	  if (_vivaldi_state == null) {
-	    return null;
-	  }
-	  VivaldiState v_state = new VivaldiState();
-	  v_state.Position  = 
-	    new Point(_vivaldi_state.Position);
-	  v_state.WeightedError = _vivaldi_state.WeightedError;
-	  v_state.DistanceDelta = _vivaldi_state.DistanceDelta;
-	  return v_state;
-	}
+  lock(_sync) {
+    if (_vivaldi_state == null) {
+      return null;
+    }
+    VivaldiState v_state = new VivaldiState();
+    v_state.Position  = 
+      new Point(_vivaldi_state.Position);
+    v_state.WeightedError = _vivaldi_state.WeightedError;
+    v_state.DistanceDelta = _vivaldi_state.DistanceDelta;
+    return v_state;
+  }
       }
     }
 
@@ -359,21 +359,19 @@ namespace Brunet.Coordinate {
      */
     public double GetMeasuredLatency(Address o_neighbor) {
       lock(_sync) {
-	if (_samples.ContainsKey(o_neighbor)) {
-	  Sample s = (Sample) _samples[o_neighbor];
+  if (_samples.ContainsKey(o_neighbor)) {
+    Sample s = (Sample) _samples[o_neighbor];
           return s.GetSample();
-	} else {
+  } else {
           return -1.0;
-	}
+  }
       }
     }
 
     //every 60 seconds write out current position to a file.
-    protected static readonly TimeSpan CHECKPOINT_INTERVAL = TimeSpan.FromSeconds(60); //interval of 60 seconds
-    protected static readonly string _checkpoint_file = Path.Combine("/tmp", "vivaldi");
+    protected static readonly TimeSpan CHECKPOINT_INTERVAL = TimeSpan.FromMinutes(10); //interval of 10 Minutes
     protected static Hashtable _nc_service_table = new Hashtable();
     protected static Point _checkpointed_position = null; 
-    protected static Node _heartbeat_node = null;//node providing the checkpoint heartbeats
     protected static bool _checkpointing_on = false;//checkpoint thread is on
     protected static DateTime _last_checkpoint = DateTime.UtcNow;//last checkpoint interval
 
@@ -391,18 +389,17 @@ namespace Brunet.Coordinate {
     protected RpcManager _rpc;
     protected DateTime _last_sample_instant;
     protected DateTime _last_update_file_instant;
-
+    public static event EventHandler CheckpointEvent;
 
     /** Vivaldi related stuff. */
     protected static readonly double DAMPENING_FRACTION = 0.25f;
     protected static readonly double ERROR_FRACTION = 0.25f;
     protected static readonly double INITIAL_WEIGHTED_ERROR = 1.0f;
     
-    
     //latency samples from neighbors
     protected Hashtable _samples;
 
-    public NCService() {
+    public NCService(Point InitialPoint) {
       _sync = new object();
       _node = null;
       _last_sample_instant = DateTime.MinValue;
@@ -412,6 +409,21 @@ namespace Brunet.Coordinate {
       _vivaldi_state.WeightedError = INITIAL_WEIGHTED_ERROR;
       _vivaldi_state.Position = new Point();
       _vivaldi_state.DistanceDelta = 0.0f;
+
+      if(InitialPoint == null) {
+        InitialPoint = new Point();
+      }
+      _vivaldi_state.Position = InitialPoint;
+    }
+
+    public NCService(string InitialPoint):
+      this(new Point(InitialPoint))
+    {
+    }
+
+    public NCService():
+      this((Point) null)
+    {
     }
 
     /** 
@@ -421,69 +433,28 @@ namespace Brunet.Coordinate {
      * @param node node for installing the service instance. 
      */
     public void Install(Node node) {
-      Point init_position = null;
       lock(_nc_service_table) {
-	if (_nc_service_table.ContainsKey(node)) {
-	  throw new Exception("An instance of NCService already running on node: " + node.ToString());
-	}
-	if (_node != null) {
-	  throw new Exception("NCService already assigned to node: " + _node.ToString() + 
-			      " (cannot re-assign).");
-	}
-	_nc_service_table[node] = this;
-	_node = node;
-        if (_heartbeat_node == null) {//installing on the first node
-          _checkpointed_position = ReadVivaldiPosition();
-#if NC_DEBUG          
-          Console.Error.WriteLine("Initializing from point: {0}.", _checkpointed_position);
-#endif
-          _heartbeat_node = node;
-          _heartbeat_node.HeartBeatEvent += new EventHandler(CheckpointHandler);
-#if NC_DEBUG
-          Console.Error.WriteLine("Subcribed to heartbeat for checkpointing from node: {0}.", _heartbeat_node.Address);
-#endif
+        if (_nc_service_table.ContainsKey(node)) {
+          throw new Exception("An instance of NCService already running on node: " + node.ToString());
         }
-        init_position = new Point(_checkpointed_position);
+
+        if (_node != null) {
+          throw new Exception("NCService already assigned to node: " + _node.ToString() + 
+            " (cannot re-assign).");
+        }
+
+        _nc_service_table[node] = this;
+        _node = node;
       }
 
 #if NC_DEBUG
       Console.Error.WriteLine("[NCService] {0} Starting an instance of NCService.", node.Address);
 #endif 
+
       lock(_sync) {
-	_vivaldi_state.Position = new Point(init_position);
-	_rpc = _node.Rpc;
-	_rpc.AddHandler("ncserver", this);
-	_node.HeartBeatEvent += new EventHandler(GetNextSample);
-	_node.StateChangeEvent += delegate(Node n, Node.ConnectionState s) {
-	  if( s == Node.ConnectionState.Disconnected ) {
-	    lock(_nc_service_table) {
-#if NC_DEBUG
-	      Console.Error.WriteLine("Removing {0} from nc_service table", n.Address);
-#endif
-	      _nc_service_table.Remove(n);
-              if (n == _heartbeat_node) {
-#if NC_DEBUG
-                Console.Error.WriteLine("Lost checkpoint heartbeats from node: {0}.", _heartbeat_node.Address);
-#endif
-                _heartbeat_node = null;
-                foreach(Node new_node in _nc_service_table.Keys) {
-                  _heartbeat_node = new_node;
-                  break;
-                }
-                if (_heartbeat_node == null) {
-#if NC_DEBUG
-                  Console.Error.WriteLine("No node instance to get heartbeats for checkpointing.");
-#endif                  
-                } else {
-                  _heartbeat_node.HeartBeatEvent += new EventHandler(CheckpointHandler); 
-#if NC_DEBUG
-                  Console.Error.WriteLine("Subcribed to heartbeat for checkpointing from node: {0}.", _heartbeat_node.Address);
-#endif
-                }
-              }
- 	    }
-          }
-	};
+        _rpc = _node.Rpc;
+        _rpc.AddHandler("ncserver", this);
+        _node.HeartBeatEvent += GetNextSample;
       }
     }
 
@@ -555,232 +526,208 @@ namespace Brunet.Coordinate {
      *  @param o_rawLatency latency of the sample
      */
     public void ProcessSample(DateTime o_stamp, string o_host, Address o_neighbor, Point o_position, 
-			      double o_weightedError, double o_rawLatency) {
+            double o_weightedError, double o_rawLatency) {
       lock(_sync) {
-	Sample sample = null;
-	if (_samples.ContainsKey(o_neighbor)) {
-	  sample = (Sample) _samples[o_neighbor];
-	} else {
-	  sample = new Sample();
-	  _samples[o_neighbor] = sample;
-	}
+  Sample sample = null;
+  if (_samples.ContainsKey(o_neighbor)) {
+    sample = (Sample) _samples[o_neighbor];
+  } else {
+    sample = new Sample();
+    _samples[o_neighbor] = sample;
+  }
 
-	sample.AddSample(o_stamp, o_rawLatency, o_position, o_weightedError);
-	double o_latency = sample.GetSample();
-	if (o_latency < 0.0) {
+  sample.AddSample(o_stamp, o_rawLatency, o_position, o_weightedError);
+  double o_latency = sample.GetSample();
+  if (o_latency < 0.0) {
 #if NC_DEBUG
-	  Console.Error.WriteLine("Too few samples to consider.");
+    Console.Error.WriteLine("Too few samples to consider.");
 #endif
-	  return;
-	}
-
-#if NC_DEBUG
-	Console.Error.WriteLine("Sample at: {0}, from: {1} {2}, position: {3}, error: {4}, raw latency: {5}, smooth latency: {6}", 
-				o_stamp, o_host, o_neighbor, o_position, o_weightedError, o_rawLatency, o_latency);
-#endif
-	double o_distance = _vivaldi_state.Position.GetEucledianDistance(o_position);
-	while (o_distance == 0) {
-	  _vivaldi_state.Position.Bump();
-	  o_distance = _vivaldi_state.Position.GetEucledianDistance(o_position);
-	}
+    return;
+  }
 
 #if NC_DEBUG
-	Console.Error.WriteLine("Current position: {0}, distance: {1}", _vivaldi_state.Position, o_distance);
+  Console.Error.WriteLine("Sample at: {0}, from: {1} {2}, position: {3}, error: {4}, raw latency: {5}, smooth latency: {6}", 
+        o_stamp, o_host, o_neighbor, o_position, o_weightedError, o_rawLatency, o_latency);
 #endif
-	double o_relativeError = Math.Abs((o_distance - o_latency)/o_latency);
-	double o_rawRelativeError = Math.Abs((o_distance - o_rawLatency)/o_rawLatency);
-	double o_weight = _vivaldi_state.WeightedError/(_vivaldi_state.WeightedError + o_weightedError);
-	double o_alphaWeightedError = ERROR_FRACTION * o_weight;
+  double o_distance = _vivaldi_state.Position.GetEucledianDistance(o_position);
+  while (o_distance == 0) {
+    _vivaldi_state.Position.Bump();
+    o_distance = _vivaldi_state.Position.GetEucledianDistance(o_position);
+  }
+
+#if NC_DEBUG
+  Console.Error.WriteLine("Current position: {0}, distance: {1}", _vivaldi_state.Position, o_distance);
+#endif
+  double o_relativeError = Math.Abs((o_distance - o_latency)/o_latency);
+  double o_rawRelativeError = Math.Abs((o_distance - o_rawLatency)/o_rawLatency);
+  double o_weight = _vivaldi_state.WeightedError/(_vivaldi_state.WeightedError + o_weightedError);
+  double o_alphaWeightedError = ERROR_FRACTION * o_weight;
       
 #if NC_DEBUG
-	Console.Error.WriteLine("o_distance: {0}", o_distance);
-	Console.Error.WriteLine("o_latency: {0}", o_latency);
-	Console.Error.WriteLine("o_relativeError (epsi): {0}", o_relativeError);
-	Console.Error.WriteLine("o_weight (w_s): {0}", o_weight);
-	Console.Error.WriteLine("my_weighted_error (preupdate)): {0}", _vivaldi_state.WeightedError);
-	Console.Error.WriteLine("alpha: {0}", o_alphaWeightedError);
+  Console.Error.WriteLine("o_distance: {0}", o_distance);
+  Console.Error.WriteLine("o_latency: {0}", o_latency);
+  Console.Error.WriteLine("o_relativeError (epsi): {0}", o_relativeError);
+  Console.Error.WriteLine("o_weight (w_s): {0}", o_weight);
+  Console.Error.WriteLine("my_weighted_error (preupdate)): {0}", _vivaldi_state.WeightedError);
+  Console.Error.WriteLine("alpha: {0}", o_alphaWeightedError);
 #endif
 
-	_vivaldi_state.WeightedError = (o_relativeError* o_alphaWeightedError) + 
-	  _vivaldi_state.WeightedError*(1 - o_alphaWeightedError);
+  _vivaldi_state.WeightedError = (o_relativeError* o_alphaWeightedError) + 
+    _vivaldi_state.WeightedError*(1 - o_alphaWeightedError);
 
 #if NC_DEBUG
-	Console.Error.WriteLine("my_weighted_error (postupdate)): {0}", _vivaldi_state.WeightedError);
+  Console.Error.WriteLine("my_weighted_error (postupdate)): {0}", _vivaldi_state.WeightedError);
 #endif
-	if (_vivaldi_state.WeightedError > 1.0) {
-	  _vivaldi_state.WeightedError = 1.0;
-	} 
-	if (_vivaldi_state.WeightedError < 0.0) {
-	  _vivaldi_state.WeightedError = 0.0;
-	}
+  if (_vivaldi_state.WeightedError > 1.0) {
+    _vivaldi_state.WeightedError = 1.0;
+  } 
+  if (_vivaldi_state.WeightedError < 0.0) {
+    _vivaldi_state.WeightedError = 0.0;
+  }
       
-	Point o_force = new Point();
-	int measurementsUsed = 0;
-	DateTime o_oldestSample = o_stamp;
+  Point o_force = new Point();
+  int measurementsUsed = 0;
+  DateTime o_oldestSample = o_stamp;
       
-	ArrayList valid_nodes = new ArrayList();
-	ArrayList invalid_nodes = new ArrayList();
-	//only consider nodes we have heard from in "near" past
-	foreach(Address node in _samples.Keys) {
-	  Sample n_sample = (Sample) _samples[node];
-	  if ((o_stamp - n_sample.TimeStamp).TotalSeconds > SAMPLE_EXPIRATION) {
-	    //
-	    // Invalidate node.
-	    //
-	    invalid_nodes.Add(node);
-	    continue;
-	  }
-	  
-	  if (n_sample.GetSample() < 0) {
-	    //
-	    // Neither valid nor invalid.
-	    //
+  ArrayList valid_nodes = new ArrayList();
+  ArrayList invalid_nodes = new ArrayList();
+  //only consider nodes we have heard from in "near" past
+  foreach(Address node in _samples.Keys) {
+    Sample n_sample = (Sample) _samples[node];
+    if ((o_stamp - n_sample.TimeStamp).TotalSeconds > SAMPLE_EXPIRATION) {
+      //
+      // Invalidate node.
+      //
+      invalid_nodes.Add(node);
+      continue;
+    }
+    
+    if (n_sample.GetSample() < 0) {
+      //
+      // Neither valid nor invalid.
+      //
 #if NC_DEBUG
-	    Console.Error.WriteLine("Neither valid nor invalid.");
+      Console.Error.WriteLine("Neither valid nor invalid.");
 #endif
-	    continue;
-	  }
-	  
-	  //
-	  // valid sample.
-	  //
-	  valid_nodes.Add(node);
-	  if (o_oldestSample > n_sample.TimeStamp) {
-	    o_oldestSample = n_sample.TimeStamp;
-	  }
-	}
+      continue;
+    }
+    
+    //
+    // valid sample.
+    //
+    valid_nodes.Add(node);
+    if (o_oldestSample > n_sample.TimeStamp) {
+      o_oldestSample = n_sample.TimeStamp;
+    }
+  }
       
-	//get rid of invalid nodes.
-	for (int k = 0; k < invalid_nodes.Count; k++) {
-	  Address node = (Address) invalid_nodes[k];
+  //get rid of invalid nodes.
+  for (int k = 0; k < invalid_nodes.Count; k++) {
+    Address node = (Address) invalid_nodes[k];
 #if NC_DEBUG
-	  Console.Error.WriteLine("Removing samples from node: {0}", node);
+    Console.Error.WriteLine("Removing samples from node: {0}", node);
 #endif
-	  _samples.Remove(node);
-	}
+    _samples.Remove(node);
+  }
 
 #if NC_DEBUG
-	Console.Error.WriteLine("Initiating force computation.");
+  Console.Error.WriteLine("Initiating force computation.");
 #endif   
       
-	double o_sampleWeightSum = 0.0f;
-	for (int k = 0; k < valid_nodes.Count; k++) {
-	  Address node = (Address) valid_nodes[k];
-	  Sample n_sample = (Sample) _samples[node];	
-	  o_sampleWeightSum += (double) (n_sample.TimeStamp - o_oldestSample).TotalSeconds;
-	}
+  double o_sampleWeightSum = 0.0f;
+  for (int k = 0; k < valid_nodes.Count; k++) {
+    Address node = (Address) valid_nodes[k];
+    Sample n_sample = (Sample) _samples[node];  
+    o_sampleWeightSum += (double) (n_sample.TimeStamp - o_oldestSample).TotalSeconds;
+  }
 
 #if NC_DEBUG
-	Console.Error.WriteLine("Oldest sample: {0}", o_oldestSample);
-	Console.Error.WriteLine("Sample weight sum: {0}", o_sampleWeightSum);
+  Console.Error.WriteLine("Oldest sample: {0}", o_oldestSample);
+  Console.Error.WriteLine("Sample weight sum: {0}", o_sampleWeightSum);
 #endif   
 
-   	for (int k = 0; k < valid_nodes.Count; k++) {
-	  Address node = (Address) valid_nodes[k];
-	  Sample n_sample = (Sample) _samples[node];
-	  
+     for (int k = 0; k < valid_nodes.Count; k++) {
+    Address node = (Address) valid_nodes[k];
+    Sample n_sample = (Sample) _samples[node];
+    
 
-	  double s_distance = _vivaldi_state.Position.GetEucledianDistance(n_sample.Position);
-	  while (s_distance == 0) {
-	    _vivaldi_state.Position.Bump();
-	    s_distance = _vivaldi_state.Position.GetEucledianDistance(n_sample.Position);	  
-	  }
+    double s_distance = _vivaldi_state.Position.GetEucledianDistance(n_sample.Position);
+    while (s_distance == 0) {
+      _vivaldi_state.Position.Bump();
+      s_distance = _vivaldi_state.Position.GetEucledianDistance(n_sample.Position);    
+    }
 
-	  Point s_unitVector = _vivaldi_state.Position.GetDirection(n_sample.Position);
-	  if (s_unitVector == null) {
-	    s_unitVector = Point.GetRandomUnitVector();
-	  }
+    Point s_unitVector = _vivaldi_state.Position.GetDirection(n_sample.Position);
+    if (s_unitVector == null) {
+      s_unitVector = Point.GetRandomUnitVector();
+    }
 
-	  double s_latency = n_sample.GetSample();
-	  double s_dampening = _vivaldi_state.WeightedError / (_vivaldi_state.WeightedError + n_sample.WeightedError);
-	  double s_error = s_distance - s_latency;
-	  double s_sampleWeight = 1.0f;
-	  double s_sampleNewness = (double) (n_sample.TimeStamp - o_oldestSample).TotalSeconds;
-	  if (o_sampleWeightSum > 0.0) {
-	    s_sampleWeight = s_sampleNewness/o_sampleWeightSum;
-	  }
+    double s_latency = n_sample.GetSample();
+    double s_dampening = _vivaldi_state.WeightedError / (_vivaldi_state.WeightedError + n_sample.WeightedError);
+    double s_error = s_distance - s_latency;
+    double s_sampleWeight = 1.0f;
+    double s_sampleNewness = (double) (n_sample.TimeStamp - o_oldestSample).TotalSeconds;
+    if (o_sampleWeightSum > 0.0) {
+      s_sampleWeight = s_sampleNewness/o_sampleWeightSum;
+    }
 
 #if NC_DEBUG
-	  Console.Error.WriteLine("Force component: {0}", k);
-	  Console.Error.WriteLine("Unit vector: {0}", s_unitVector);	  
-	  Console.Error.WriteLine("s_distance: {0}", s_distance);
-	  Console.Error.WriteLine("s_latency: {0}", s_latency);
-	  Console.Error.WriteLine("s_error: {0}", s_error);
-	  Console.Error.WriteLine("s_weighted_error (ws): {0}", n_sample.WeightedError);
-	  Console.Error.WriteLine("s_dampening (ws): {0}", s_dampening);
-	  Console.Error.WriteLine("s_sampleNewness: {0}", s_sampleNewness);
-	  Console.Error.WriteLine("s_sampleWeight: {0}", s_sampleWeight);
+    Console.Error.WriteLine("Force component: {0}", k);
+    Console.Error.WriteLine("Unit vector: {0}", s_unitVector);    
+    Console.Error.WriteLine("s_distance: {0}", s_distance);
+    Console.Error.WriteLine("s_latency: {0}", s_latency);
+    Console.Error.WriteLine("s_error: {0}", s_error);
+    Console.Error.WriteLine("s_weighted_error (ws): {0}", n_sample.WeightedError);
+    Console.Error.WriteLine("s_dampening (ws): {0}", s_dampening);
+    Console.Error.WriteLine("s_sampleNewness: {0}", s_sampleNewness);
+    Console.Error.WriteLine("s_sampleWeight: {0}", s_sampleWeight);
 #endif
 
-	  s_unitVector.Scale(s_error * s_dampening * s_sampleWeight);
+    s_unitVector.Scale(s_error * s_dampening * s_sampleWeight);
 #if NC_DEBUG
-	  Console.Error.WriteLine("s_force: {0}", s_unitVector);
+    Console.Error.WriteLine("s_force: {0}", s_unitVector);
 #endif 
-	  o_force.Add(s_unitVector);
-	  measurementsUsed++;
-	}
+    o_force.Add(s_unitVector);
+    measurementsUsed++;
+  }
 
 #if NC_DEBUG
-	Console.Error.WriteLine("force (pre-scaling): {0}", o_force);
+  Console.Error.WriteLine("force (pre-scaling): {0}", o_force);
 #endif
-	o_force.Height = -o_force.Height;
-	o_force.Scale(DAMPENING_FRACTION);
+  o_force.Height = -o_force.Height;
+  o_force.Scale(DAMPENING_FRACTION);
 
 #if NC_DEBUG
-	Console.Error.WriteLine("force (post-scaling): {0}", o_force);
+  Console.Error.WriteLine("force (post-scaling): {0}", o_force);
 #endif
-	_vivaldi_state.Position.Add(o_force);
-	_vivaldi_state.Position.CheckHeight();
+  _vivaldi_state.Position.Add(o_force);
+  _vivaldi_state.Position.CheckHeight();
 
 #if NC_DEBUG
-	Console.Error.WriteLine("Updated position: {0}, distance: {1}", 
-				_vivaldi_state.Position,  
-				_vivaldi_state.Position.GetEucledianDistance(o_position));
+  Console.Error.WriteLine("Updated position: {0}, distance: {1}", 
+        _vivaldi_state.Position,  
+        _vivaldi_state.Position.GetEucledianDistance(o_position));
 #endif
       }//end of lock
     }
     
     /**
-     * Initialize vivaldi coordinates from a file. 
-     */
-    protected static Point ReadVivaldiPosition() {
-      Point p = null;
-      try {
-	TextReader tr = new StreamReader(_checkpoint_file);
-        //ignore first line; it has the timestamp
-        tr.ReadLine();
-	string s = tr.ReadLine().Trim();
-	p = new Point(s);
-	tr.Close();
-      } catch {
-	p = new Point();
-      }
-      return p;
-    }
-
-    /**
      * Checkpoint vivaldi coordinates from a file. 
      */
-    protected static void CheckpointHandler(object o, EventArgs eargs) {
+    public static void CheckpointHandler(object o, EventArgs eargs) {
       DateTime now = DateTime.UtcNow;
+      Hashtable ht = null;
       lock(_nc_service_table) {
-        if (now - _last_checkpoint < CHECKPOINT_INTERVAL) {
+        if (now - _last_checkpoint < CHECKPOINT_INTERVAL || _checkpointing_on) {
           return;
         }
         _last_checkpoint = now;
+        _checkpointing_on = true;
+        ht = (Hashtable) _nc_service_table.Clone();
       }
       
-      ThreadPool.QueueUserWorkItem(new WaitCallback(delegate(object state) {
-        Hashtable ht = null;
-        lock(_nc_service_table) {
-          if (_checkpointing_on) {
-            return;//do nothing
-          }
 
-          _checkpointing_on = true; //set the flag
-          ht = (Hashtable) _nc_service_table.Clone();
-        }
-        
+      ThreadPool.QueueUserWorkItem(delegate(object obj) {
         try {
           //update the checkpointed position
           double min_error = 1.0;
@@ -802,11 +749,9 @@ namespace Brunet.Coordinate {
 #if NC_DEBUG
             Console.Error.WriteLine("Checkpointing: {0}", min_error_state.Position);
 #endif
-            TextWriter tw = new StreamWriter(_checkpoint_file);
-            //also write the checkpoint time
-            tw.WriteLine(now.Ticks);
-            tw.WriteLine(min_error_state.Position);
-            tw.Close();
+            if(CheckpointEvent != null) {
+              CheckpointEvent(min_error_state.Position, null);
+            }
           }
           else {
 #if NC_DEBUG
@@ -820,7 +765,7 @@ namespace Brunet.Coordinate {
 #endif
         }
         _checkpointing_on = false;//reset the flag
-      }));
+      });
     }
   }
 
@@ -871,45 +816,45 @@ namespace Brunet.Coordinate {
       Address addr_remote2 = new AHAddress(new RNGCryptoServiceProvider());
 
       nc_service.ProcessSample(now + new TimeSpan(0, 0, 5), "local-test", addr_remote, 
-			       new Point(new double[] {(double) 3.0, (double) 4.0}, 0),
-			       (double) 0.9, (double)10.0); 
+             new Point(new double[] {(double) 3.0, (double) 4.0}, 0),
+             (double) 0.9, (double)10.0); 
       NCService.VivaldiState state = nc_service.State;
       
 
       nc_service.ProcessSample(now + new TimeSpan(0, 0, 6), "local-test",addr_remote1, 
-			       new Point(new double[] {(double) 10.0, (double) 2.0}, 0),
-			       (double) 0.9, (double)10.0); 
+             new Point(new double[] {(double) 10.0, (double) 2.0}, 0),
+             (double) 0.9, (double)10.0); 
 
       nc_service.ProcessSample(now + new TimeSpan(0, 0, 6), "local-test",addr_remote2, 
-			       new Point(new double[] {(double) 5.0, (double) 6.0}, 0),
-			       (double) 0.9, (double)10.0); 
+             new Point(new double[] {(double) 5.0, (double) 6.0}, 0),
+             (double) 0.9, (double)10.0); 
 
 
       nc_service.ProcessSample(now + new TimeSpan(0, 0, 7), "local-test",addr_remote, 
-			       new Point(new double[] {(double) 3.0, (double) 4.0}, 0),
-			       (double) 0.8, (double)12.0); 
+             new Point(new double[] {(double) 3.0, (double) 4.0}, 0),
+             (double) 0.8, (double)12.0); 
 
       nc_service.ProcessSample(now + new TimeSpan(0, 0, 8), "local-test",addr_remote1, 
-			       new Point(new double[] {(double) 10.0, (double) 2.0}, 0),
-			       (double) 0.8, (double)12.0); 
+             new Point(new double[] {(double) 10.0, (double) 2.0}, 0),
+             (double) 0.8, (double)12.0); 
 
 
       nc_service.ProcessSample(now + new TimeSpan(0, 0, 9), "local-test",addr_remote, 
-			       new Point(new double[] {(double) 3.0, (double) 4.0}, 0),
-			       (double)0.7, (double)13.0); 
+             new Point(new double[] {(double) 3.0, (double) 4.0}, 0),
+             (double)0.7, (double)13.0); 
 
       nc_service.ProcessSample(now + new TimeSpan(0, 0, 11), "local-test",addr_remote1, 
-			       new Point(new double[] {(double) 10.0, (double) 2.0}, 0),
-			       (double)0.7, (double)13.0); 
+             new Point(new double[] {(double) 10.0, (double) 2.0}, 0),
+             (double)0.7, (double)13.0); 
 
 
       nc_service.ProcessSample(now + new TimeSpan(0, 0, 12), "local-test",addr_remote, 
-			       new Point(new double[] {(double) 3.0, (double) 4.0}, 0),
-			       (double)0.6, (double)10.0); 
+             new Point(new double[] {(double) 3.0, (double) 4.0}, 0),
+             (double)0.6, (double)10.0); 
 
       nc_service.ProcessSample(now + new TimeSpan(0, 0, 13), "local-test",addr_remote1, 
-			       new Point(new double[] {(double) 10.0, (double) 2.0}, 0),
-			       (double)0.6, (double)10.0);       
+             new Point(new double[] {(double) 10.0, (double) 2.0}, 0),
+             (double)0.6, (double)10.0);       
 
       state = nc_service.State;
       Console.Error.WriteLine("position: {0}, error: {1}", state.Position, state.WeightedError);
@@ -929,8 +874,8 @@ namespace Brunet.Coordinate {
       Assert.IsTrue(ht != null);
       Hashtable ht_position = (Hashtable) ht["position"];
       Point o_position = 
-	new Point((double[]) ((ArrayList) ht_position["side"]).ToArray(typeof(double)), (double) ht_position["height"]);
-	  
+  new Point((double[]) ((ArrayList) ht_position["side"]).ToArray(typeof(double)), (double) ht_position["height"]);
+    
       double o_weightedError = (double) ht["error"];
       // 
       // Make sure that the values obtained match the orgininal NC state.
