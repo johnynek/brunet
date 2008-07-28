@@ -47,35 +47,34 @@ namespace Brunet.Applications {
     }
 
     /**
-    <summary>This is overloaded so that we can get the base._node and move it
-    into an ArrayList (_nodes), before we create a new base._node and it is
-    overwritten.  This uses BasicNode.CreateNode to create new nodes.  Every
-    time this is called a new NodeAddress (BrunetAddress) is generated, these
-    are one time use and are not stored for future use.</summary>
-    */
-    public override void CreateNode() {
-      _node_config.NodeAddress = (Utils.GenerateAHAddress()).ToString();
-      base.CreateNode();
-      new Information(_node, "MultiNode");
-      _nodes.Add(_node);
-    }
-
-    /**
     <summary>This is where the magic happens!  Sets up Shutdown, creates all
     the nodes, and call Connect on them in separate threads.</summary>
     */
     public override void Run() {
+      string tmp_addr = null;
+      if(_node_config.NodeAddress != null) {
+        tmp_addr = _node_config.NodeAddress;
+      } else {
+        tmp_addr = (Utils.GenerateAHAddress()).ToString();
+      }
+
       _shutdown = Shutdown.GetShutdown();
       if(_shutdown != null) {
         _shutdown.OnExit += OnExit;
       }
 
-      for(int i = 0; i < _count; i++) {
+      for(int i = 0; i < _count - 1; i++) {
+        _node_config.NodeAddress = (Utils.GenerateAHAddress()).ToString();
         CreateNode();
+        new Information(_node, "MultiNode");
+        _nodes.Add(_node);
         Thread thread = new Thread(_node.Connect);
         thread.Start();
         _threads.Add(thread);
       }
+
+      _node_config.NodeAddress = tmp_addr;
+      base.Run();
     }
 
     /// <summary>Disconnect all the nodes.  Called by Shutdown.OnExit</summary>
@@ -83,30 +82,7 @@ namespace Brunet.Applications {
       foreach(StructuredNode node in _nodes) {
         node.Disconnect();
       }
-    }
-
-    /**
-    <summary>Not implemented, don't call the base classes version either!</summary>
-    <exception cref="Exception">This method should not be called.</exception>
-    */
-    public override void StartServices() {
-      throw new Exception("This is not supported for MultiNode, run a BasicNode to access this.");
-    }
-
-    /**
-    <summary>Not implemented, don't call the base classes version either!</summary>
-    <exception cref="Exception">This method should not be called.</exception>
-    */
-    public override void StopServices() {
-      throw new Exception("This is not supported for MultiNode, run a BasicNode to access this.");
-    }
-
-    /**
-    <summary>Not implemented, don't call the base classes version either!</summary>
-    <exception cref="Exception">This method should not be called.</exception>
-    */
-    public override void SuspendServices() {
-      throw new Exception("This is not supported for MultiNode, run a BasicNode to access this.");
+      base.OnExit();
     }
 
     /**
