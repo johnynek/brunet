@@ -132,10 +132,7 @@ XmlRpc calls over Brunet, the Node will not handle requests directly.
 \section Configuring MultiNode
 MultiNode uses the same configuration file as BasicNode.  The purpose of 
 MultiNode is to provide multiple Brunet P2P nodes in a single application
-instance.  The other main difference between BasicNode and MultiNode is that
-BasicNode can run Services such as XmlRpc and RpcDht.  So in order to gain
-access to those services, a BasicNode would need to run in the same
-BrunetNamespace.
+instance.
 
 In order to share the same configuration file as BasicNode, MultiNode only
 has one well known end point that uses the ports put in EdgeListeners.  The
@@ -214,14 +211,11 @@ attention.
 \section BasicNodeSimpleSetup Setting Up Your Own Pool in Minutes
 By using \ref Discovery "discovery", one can have a full pool in minutes.  In
 config directory, there is a file called local.config.  By using this as the
-configuration file, you can create a quick pool.  MultiNode and BasicNode can
-share the same configuration file, because MultiNode does not write to the
-config file and will use different ports, if the recommended ports fail.  So to
-get a working system in .NET, one would have to run these two commands:
+configuration file, you can create a quick pool.  So to get a working system
+in .NET, one would have to run these two commands:
 
 \code
-BasicNode.exe local.config
-MultiNode.exe local.config
+MultiNode.exe 20 local.config
 \endcode
 
 After 30 seconds or so, connections should start forming and this can be
