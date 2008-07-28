@@ -399,7 +399,14 @@ namespace Brunet.Coordinate {
     //latency samples from neighbors
     protected Hashtable _samples;
 
-    public NCService(Point InitialPoint) {
+    /** 
+     * Installs the network coordinate service on a given node. 
+     * NCService instance can be installed on atmost one node. 
+     * Each node is allowed to have only one NCService instance. 
+     * @param node node for installing the service instance. 
+     * @param InitialPoint a starting place for the NCService to use
+     */
+    public NCService(Node node, Point InitialPoint) {
       _sync = new object();
       _node = null;
       _last_sample_instant = DateTime.MinValue;
@@ -414,48 +421,48 @@ namespace Brunet.Coordinate {
         InitialPoint = new Point();
       }
       _vivaldi_state.Position = InitialPoint;
-    }
 
-    public NCService(string InitialPoint):
-      this(new Point(InitialPoint))
-    {
-    }
+      if(node != null) {
+        lock(_nc_service_table.SyncRoot) {
+          if (_nc_service_table.ContainsKey(node)) {
+            throw new Exception("An instance of NCService already running on node: " + node.ToString());
+          }
 
-    public NCService():
-      this((Point) null)
-    {
-    }
+          if (_node != null) {
+            throw new Exception("NCService already assigned to node: " + _node.ToString() + 
+              " (cannot re-assign).");
+          }
 
-    /** 
-     * Installs the network coordinate service on a given node. 
-     * NCService instance can be installed on atmost one node. 
-     * Each node is allowed to have only one NCService instance. 
-     * @param node node for installing the service instance. 
-     */
-    public void Install(Node node) {
-      lock(_nc_service_table) {
-        if (_nc_service_table.ContainsKey(node)) {
-          throw new Exception("An instance of NCService already running on node: " + node.ToString());
+          _nc_service_table[node] = this;
         }
-
-        if (_node != null) {
-          throw new Exception("NCService already assigned to node: " + _node.ToString() + 
-            " (cannot re-assign).");
-        }
-
-        _nc_service_table[node] = this;
         _node = node;
-      }
 
 #if NC_DEBUG
-      Console.Error.WriteLine("[NCService] {0} Starting an instance of NCService.", node.Address);
+        Console.Error.WriteLine("[NCService] {0} Starting an instance of NCService.", node.Address);
 #endif 
 
-      lock(_sync) {
-        _rpc = _node.Rpc;
-        _rpc.AddHandler("ncserver", this);
-        _node.HeartBeatEvent += GetNextSample;
+        lock(_sync) {
+          _rpc = _node.Rpc;
+          _rpc.AddHandler("ncserver", this);
+          _node.HeartBeatEvent += GetNextSample;
+        }
       }
+    }
+
+    public NCService(Node node, string InitialPoint):
+      this(node, new Point(InitialPoint))
+    {
+    }
+
+    public NCService(Node node):
+      this(node, (Point) null)
+    {
+    }
+
+    /// <summary>For testing purposes only</summary>
+    public NCService():
+      this(null, (Point) null)
+    {
     }
 
     /** 
@@ -717,7 +724,7 @@ namespace Brunet.Coordinate {
     public static void CheckpointHandler(object o, EventArgs eargs) {
       DateTime now = DateTime.UtcNow;
       Hashtable ht = null;
-      lock(_nc_service_table) {
+      lock(_nc_service_table.SyncRoot) {
         if (now - _last_checkpoint < CHECKPOINT_INTERVAL || _checkpointing_on) {
           return;
         }
@@ -884,7 +891,7 @@ namespace Brunet.Coordinate {
       NCService.VivaldiState state = nc_service.State;
 
       Assert.IsTrue(o_position.Equals(state.Position));
-      Assert.IsTrue(o_weightedError.Equals(state.WeightedError));
+      Assert.AreEqual(o_weightedError, state.WeightedError);
     }
   }
 #endif
