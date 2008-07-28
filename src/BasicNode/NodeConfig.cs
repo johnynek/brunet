@@ -84,6 +84,8 @@ namespace Brunet.Applications {
     public bool EnableVivaldi;
     /**  <summary>Specifies if shortcut optimization is enabled. This option can be switched on only when EnableVivaldi is also enabled. </summary>*/    
     public bool OptimizeShortcuts;
+    /// <summary>Checkpointing for NCService</summary>
+    public string NCServiceCheckpoint;
 
     /**
     <summary>Used by services to specify if they are enabled and their port.

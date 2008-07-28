@@ -55,12 +55,16 @@ namespace Brunet.Applications {
     protected StructuredNode _node;
     /// <summary>The Dht object used to participate in the dht.</summary>
     protected Dht _dht;
+    /// <summary>The NCService object used for this node.</summary>
+    protected NCService _ncservice;
     /// <summary>The DhtRpc service provider.</summary>
     protected DhtServer _ds;
     /// <summary>The XmlRpc service provider.</summary>
     protected XmlRpcManagerServer _xrm;
     /// <summary>The shutdown service provider.</summary>
     protected Shutdown _shutdown;
+    /// <summary>Path to the node config (for updating it).</summary>
+    protected string _node_config_path;
     /**  <summary>True if the node should reincarnate itself if Node.Connect
     exits or throws an exception</summary>*/
     protected bool _running;
@@ -80,6 +84,7 @@ namespace Brunet.Applications {
         Environment.Exit(1);
       }
 
+      _node_config_path = path;
       if(_node_config.NodeAddress == null) {
         _node_config.NodeAddress = (Utils.GenerateAHAddress()).ToString();
         Utils.WriteConfig(path, _node_config);
@@ -191,13 +196,17 @@ namespace Brunet.Applications {
         _node.RemoteTAs = RemoteTAs;
       }
       if (_node_config.EnableVivaldi) {
-        NCService nc = new NCService();
-        nc.Install(_node);
-        if (_node_config.OptimizeShortcuts) {
-          TargetSelector vs = new VivaldiTargetSelector(_node, nc);
-          _node.Sco.TargetSelector = vs;
+        if(_node_config.NCServiceCheckpoint != null) {
+          _ncservice = new NCService(_node_config.NCServiceCheckpoint);
+        } else {
+          _ncservice = new NCService();
         }
 
+        _ncservice.Install(_node);
+        if (_node_config.OptimizeShortcuts) {
+          TargetSelector vs = new VivaldiTargetSelector(_node, _ncservice);
+          _node.Sco.TargetSelector = vs;
+        }
       }
       _dht = new Dht(_node, 3, 20);
     }
@@ -226,6 +235,16 @@ namespace Brunet.Applications {
         }
         _xrm.Update(_node);
       }
+
+      if(_node_config.EnableVivaldi) {
+        _node.HeartBeatEvent += _ncservice.CheckpointHandler;
+        NCService.CheckpointEvent += NCServiceCheckpoint;
+      }
+    }
+
+    protected void NCServiceCheckpoint(object Point, EventArgs ea) {
+      _node_config.NCServiceCheckpoint = Point.ToString();
+      Utils.WriteConfig(_node_config_path, _node_config);
     }
 
     /**
