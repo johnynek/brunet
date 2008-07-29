@@ -80,12 +80,7 @@ namespace Brunet.Applications {
     /**  <summary>Specifies XmlRpc configuration.  This is optional and only
     required if XmlRpc is desired.</summary>*/
     public Service XmlRpcManager;
-    /**  <summary>Specifies if Vivaldi network coordinates are enabled. </summary>*/    
-    public bool EnableVivaldi;
-    /**  <summary>Specifies if shortcut optimization is enabled. This option can be switched on only when EnableVivaldi is also enabled. </summary>*/    
-    public bool OptimizeShortcuts;
-    /// <summary>Checkpointing for NCService</summary>
-    public string NCServiceCheckpoint;
+    public NCServiceConfig NCService;
 
     /**
     <summary>Used by services to specify if they are enabled and their port.
@@ -96,6 +91,18 @@ namespace Brunet.Applications {
       public bool Enabled;
       /// <summary>Specifies the port where the service is running</summary>
       public int Port;
+    }
+
+    /// <summary>Enables for NCService</summary>
+    public class NCServiceConfig {
+      /// <summary>Enable NCService</summary>
+      public bool Enabled;
+      /// <summary>Allow NCService to optimize shortcuts</summary>
+      public bool OptimizeShortcuts;
+      /// <summary>Use checkpointing for NCService</summary>
+      public bool Checkpointing;
+      /// <summary>The checkpoint for ncservice</summary>
+      public string Checkpoint;
     }
 
     /**

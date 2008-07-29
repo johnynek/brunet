@@ -195,16 +195,16 @@ namespace Brunet.Applications {
         }
         _node.RemoteTAs = RemoteTAs;
       }
-      if (_node_config.EnableVivaldi) {
-        if(_node_config.NCServiceCheckpoint != null) {
-          _ncservice = new NCService(_node, _node_config.NCServiceCheckpoint);
+
+      if (_node_config.NCService.Enabled) {
+        if(_node_config.NCService.Checkpoint != null) {
+          _ncservice = new NCService(_node, _node_config.NCService.Checkpoint);
         } else {
           _ncservice = new NCService(_node);
         }
 
-        if (_node_config.OptimizeShortcuts) {
-          TargetSelector vs = new VivaldiTargetSelector(_node, _ncservice);
-          _node.Sco.TargetSelector = vs;
+        if (_node_config.NCService.OptimizeShortcuts) {
+          _node.Sco.TargetSelector = new VivaldiTargetSelector(_node, _ncservice);
         }
       }
       _dht = new Dht(_node, 3, 20);
@@ -234,16 +234,6 @@ namespace Brunet.Applications {
         }
         _xrm.Update(_node);
       }
-
-      if(_node_config.EnableVivaldi) {
-        _node.HeartBeatEvent += _ncservice.CheckpointHandler;
-        NCService.CheckpointEvent += NCServiceCheckpoint;
-      }
-    }
-
-    protected void NCServiceCheckpoint(object Point, EventArgs ea) {
-      _node_config.NCServiceCheckpoint = Point.ToString();
-      Utils.WriteConfig(_node_config_path, _node_config);
     }
 
     /**
@@ -284,6 +274,16 @@ namespace Brunet.Applications {
     </summary>
     */
     public virtual void OnExit() {
+      if(_ncservice != null && _node_config.NCService.Checkpointing) {
+        string checkpoint = _ncservice.GetCheckpoint();
+        string prev_cp = _node_config.NCService.Checkpoint;
+        string empty_cp = (new Point()).ToString();
+        if(!checkpoint.Equals(prev_cp) && !checkpoint.Equals(empty_cp)) {
+          _node_config.NCService.Checkpoint = checkpoint;
+          Utils.WriteConfig(_node_config_path, _node_config);
+        }
+      }
+
       StopServices();
       _running = false;
       _node.Disconnect();

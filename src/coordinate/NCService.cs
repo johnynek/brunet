@@ -368,13 +368,6 @@ namespace Brunet.Coordinate {
       }
     }
 
-    //every 60 seconds write out current position to a file.
-    protected static readonly TimeSpan CHECKPOINT_INTERVAL = TimeSpan.FromMinutes(10); //interval of 10 Minutes
-    protected static Hashtable _nc_service_table = new Hashtable();
-    protected static Point _checkpointed_position = null; 
-    protected static bool _checkpointing_on = false;//checkpoint thread is on
-    protected static DateTime _last_checkpoint = DateTime.UtcNow;//last checkpoint interval
-
     //every 10 seconds get a new sample for latency.
     protected static readonly int SAMPLE_INTERVAL = 10;
 
@@ -388,8 +381,6 @@ namespace Brunet.Coordinate {
     protected Node _node;
     protected RpcManager _rpc;
     protected DateTime _last_sample_instant;
-    protected DateTime _last_update_file_instant;
-    public static event EventHandler CheckpointEvent;
 
     /** Vivaldi related stuff. */
     protected static readonly double DAMPENING_FRACTION = 0.25f;
@@ -410,7 +401,6 @@ namespace Brunet.Coordinate {
       _sync = new object();
       _node = null;
       _last_sample_instant = DateTime.MinValue;
-      _last_update_file_instant = DateTime.MinValue;
       _samples = new Hashtable();
       _vivaldi_state = new VivaldiState();
       _vivaldi_state.WeightedError = INITIAL_WEIGHTED_ERROR;
@@ -423,18 +413,6 @@ namespace Brunet.Coordinate {
       _vivaldi_state.Position = InitialPoint;
 
       if(node != null) {
-        lock(_nc_service_table.SyncRoot) {
-          if (_nc_service_table.ContainsKey(node)) {
-            throw new Exception("An instance of NCService already running on node: " + node.ToString());
-          }
-
-          if (_node != null) {
-            throw new Exception("NCService already assigned to node: " + _node.ToString() + 
-              " (cannot re-assign).");
-          }
-
-          _nc_service_table[node] = this;
-        }
         _node = node;
 
 #if NC_DEBUG
@@ -721,58 +699,8 @@ namespace Brunet.Coordinate {
     /**
      * Checkpoint vivaldi coordinates from a file. 
      */
-    public static void CheckpointHandler(object o, EventArgs eargs) {
-      DateTime now = DateTime.UtcNow;
-      Hashtable ht = null;
-      lock(_nc_service_table.SyncRoot) {
-        if (now - _last_checkpoint < CHECKPOINT_INTERVAL || _checkpointing_on) {
-          return;
-        }
-        _last_checkpoint = now;
-        _checkpointing_on = true;
-        ht = (Hashtable) _nc_service_table.Clone();
-      }
-      
-
-      ThreadPool.QueueUserWorkItem(delegate(object obj) {
-        try {
-          //update the checkpointed position
-          double min_error = 1.0;
-          VivaldiState min_error_state = null;
-          
-          int node_count = 0;
-          foreach(NCService nc in ht.Values) {
-            node_count++;
-            //operating on copies
-            VivaldiState vs = nc.State;
-            if (vs.WeightedError < min_error) {
-              min_error = vs.WeightedError;
-              min_error_state = vs;
-            }
-          }
-
-          if (min_error_state != null) {
-            _checkpointed_position = min_error_state.Position;
-#if NC_DEBUG
-            Console.Error.WriteLine("Checkpointing: {0}", min_error_state.Position);
-#endif
-            if(CheckpointEvent != null) {
-              CheckpointEvent(min_error_state.Position, null);
-            }
-          }
-          else {
-#if NC_DEBUG
-            Console.Error.WriteLine("No network coordinates to checkpoint, node instances: {0}, min_error: {1}", 
-                                    node_count, min_error);
-#endif
-          }
-        } catch(Exception e) {
-#if NC_DEBUG
-          Console.WriteLine(e);
-#endif
-        }
-        _checkpointing_on = false;//reset the flag
-      });
+    public string GetCheckpoint() {
+      return State.Position.ToString();
     }
   }
 
