@@ -23,7 +23,7 @@ class plab_deployer:
     os.chdir(self.base_path)
     os.system("unzip -o -d binary input.zip")
     os.chdir("binary")
-    dlls = ""
+    dlls = "Mono.Posix.dll "
     for i in os.walk('.'):
       files = i[2]
       for file in files:
