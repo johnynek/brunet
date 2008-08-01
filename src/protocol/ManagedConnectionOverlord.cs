@@ -160,18 +160,21 @@ namespace Brunet
     /// managed by the ManagedCO, reconnect.</summary>
     protected void DisconnectHandler(object tab, EventArgs eargs) {
       Connection new_con = ((ConnectionEventArgs)eargs).Connection;
-      if(_connection_state.ContainsKey(new_con.Address)) {
-        lock(_sync) {
-          _connection_state[new_con.Address] = MCState.Off;
+      lock(_sync) {
+        if(!_connection_state.ContainsKey(new_con.Address)) {
+         return;
         }
-        if(ProtocolLog.ManagedCO.Enabled) {
-          ProtocolLog.Write(ProtocolLog.ManagedCO, String.Format(
-                            "Disconnect a {0}: {1} at: {2}",
-                            struc_managed, new_con, DateTime.UtcNow));
-        }
-        if(_active) {
-          ConnectTo(new_con.Address, struc_managed);
-        }
+        
+        _connection_state[new_con.Address] = MCState.Off;
+      }
+
+      if(ProtocolLog.ManagedCO.Enabled) {
+        ProtocolLog.Write(ProtocolLog.ManagedCO, String.Format(
+                          "Disconnect a {0}: {1} at: {2}",
+                          struc_managed, new_con, DateTime.UtcNow));
+      }
+      if(_active) {
+        ConnectTo(new_con.Address, struc_managed);
       }
     }
 
