@@ -110,7 +110,7 @@ namespace Brunet
       if(!_active) {
         return;
       }
-      List<Address> connect_to = new List<Address>(_connection_state.Count);
+      List<Address> connect_to = new List<Address>();
       lock(_sync) {
         foreach(KeyValuePair<Address, MCState> kvp in _connection_state) {
           if(kvp.Value == MCState.Off) {
@@ -141,15 +141,17 @@ namespace Brunet
     /// attempt reconnecting to it, unless there is a disconnection</summary>
     protected void ConnectHandler(object tab, EventArgs eargs) {
       Connection new_con = ((ConnectionEventArgs)eargs).Connection;
-      if(_connection_state.ContainsKey(new_con.Address)) {
-        lock(_sync) {
-          _connection_state[new_con.Address] = MCState.On;
+      lock(_sync) {
+        if(!_connection_state.ContainsKey(new_con.Address)) {
+          return;
         }
-        if(ProtocolLog.ManagedCO.Enabled) {
-          ProtocolLog.Write(ProtocolLog.ManagedCO, String.Format(
-                            "Connect a {0}: {1} at: {2}",
-                            struc_managed, new_con, DateTime.UtcNow));
-        }
+        _connection_state[new_con.Address] = MCState.On;
+      }
+
+      if(ProtocolLog.ManagedCO.Enabled) {
+        ProtocolLog.Write(ProtocolLog.ManagedCO, String.Format(
+                          "Connect a {0}: {1} at: {2}",
+                          struc_managed, new_con, DateTime.UtcNow));
       }
     }
 
