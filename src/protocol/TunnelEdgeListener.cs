@@ -721,17 +721,21 @@ namespace Brunet
         if( ecs != null ) {
           try {
             e.CloseEvent += this.CloseHandler;
-          }
-          catch {
-            CloseHandler(e, null);
-            throw;
-          }
-          //this would be an outgoing edge
+            //this would be an outgoing edge
 #if TUNNEL_DEBUG
-          Console.Error.WriteLine("remoteid: {0}, localid: {1}", remoteid, localid);
-          Console.Error.WriteLine("announcing tunnel edge (outgoing): {0}", e);
+            Console.Error.WriteLine("remoteid: {0}, localid: {1}", remoteid, localid);
+            Console.Error.WriteLine("announcing tunnel edge (outgoing): {0}", e);
 #endif 
-          ecs.CallECB(true, e, null);
+            ecs.CallECB(true, e, null);
+          }
+          catch(EdgeException) {
+            /*
+             * This edge has already closed so we need to handle it.
+             * Note that we don't need to do CallECB which is handled
+             * by the TimeoutChecker function.
+             */
+            CloseHandler(e, null);
+          }
         }
         else {
             //This must have already been handled, we don't want to create
