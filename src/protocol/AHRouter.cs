@@ -587,23 +587,30 @@ namespace Brunet
      * When the ConnectionTable changes, our cached routes are all trash
      */
     protected void ConnectionTableChangeHandler(object o, System.EventArgs args) {
-      ConnectionEventArgs ce = (ConnectionEventArgs)args;
-      ConnectionList cl = ce.CList;
       Connection new_left = null;
-      if( cl.MainType == ConnectionType.Structured && (cl.Count > 0) ) {
+      if( args != null ) {
         /*
-         * Compute our left neighbor.  We only need to do this when it
-         * has changed.
+         * This is sometimes called (in Route) with args set to null
+         * when we need to clear the _route_cache.
+         * So don't look at args if they are null.
          */
-        int our_idx = cl.IndexOf(_local);
-        if( our_idx < 0 ) {
-          our_idx = ~our_idx;
+        ConnectionEventArgs ce = (ConnectionEventArgs)args;
+        ConnectionList cl = ce.CList;
+        if( cl.MainType == ConnectionType.Structured && (cl.Count > 0) ) {
+          /*
+           * Compute our left neighbor.  We only need to do this when it
+           * has changed.
+           */
+          int our_idx = cl.IndexOf(_local);
+          if( our_idx < 0 ) {
+            our_idx = ~our_idx;
+          }
+          else {
+            Console.Error.WriteLine(
+              "ERROR: we are in the ConnectionTable: {0}", _local);
+          }
+          new_left = cl[our_idx];
         }
-        else {
-          Console.Error.WriteLine(
-            "ERROR: we are in the ConnectionTable: {0}", _local);
-        }
-        new_left = cl[our_idx];
       }
       lock( _sync ) {
         _route_cache.Clear();
