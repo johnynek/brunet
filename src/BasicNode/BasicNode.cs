@@ -198,11 +198,7 @@ namespace Brunet.Applications {
 
       try {
         if (_node_config.NCService.Enabled) {
-          if(_node_config.NCService.Checkpoint != null) {
-            _ncservice = new NCService(_node, _node_config.NCService.Checkpoint);
-          } else {
-            _ncservice = new NCService(_node);
-          }
+          _ncservice = new NCService(_node, _node_config.NCService.Checkpoint);
 
           if (_node_config.NCService.OptimizeShortcuts) {
             _node.Sco.TargetSelector = new VivaldiTargetSelector(_node, _ncservice);
