@@ -428,7 +428,7 @@ namespace Brunet.Coordinate {
     }
 
     public NCService(Node node, string InitialPoint):
-      this(node, new Point(InitialPoint))
+      this(node, (InitialPoint == null ? null : new Point(InitialPoint)))
     {
     }
 
