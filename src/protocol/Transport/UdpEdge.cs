@@ -129,7 +129,7 @@ namespace Brunet
     public override void Send(ICopyable p)
     {
       if( 1 == _is_closed ) {
-        throw new EdgeException("Tried to send on a closed UdpEdge"); 
+        throw new EdgeClosedException("Tried to send on a closed UdpEdge"); 
       }
       if( p == null ) {
         if(ProtocolLog.UdpEdge.Enabled)

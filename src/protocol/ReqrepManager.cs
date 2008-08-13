@@ -260,16 +260,16 @@ public class ReqrepManager : SimpleSource, IDataHandler {
       * if we don't have the reply yet, send an Ack
       */
      public void Resend() {
-       if( Reply != null ) {
-         _rep_date = DateTime.UtcNow;
-         try {
+       try {
+         if( Reply != null ) {
+           _rep_date = DateTime.UtcNow;
            ReturnPath.Send( Reply );
          }
-         catch { /* If this doesn't work, oh well */ }
+         else {
+           SendAck();
+         }
        }
-       else {
-         SendAck();
-       }
+       catch { /* If this doesn't work, oh well */ }
      }
    }
    /**
@@ -801,26 +801,46 @@ public class ReqrepManager : SimpleSource, IDataHandler {
      * We have released the lock, now we can send the packets:
      */
     if ( to_resend != null ) {
-     foreach(RequestState req in to_resend) {
-      try {
-        req.Send();
-      }
-      catch {
-        //This send didn't work, but maybe it will next time, who knows...
-        req.ReplyHandler.HandleError(this, req.RequestID, ReqrepError.Send,
+      foreach(RequestState req in to_resend) {
+        try {
+          req.Send();
+        }
+        catch(SendException sx) {
+          if( sx.IsTransient ) {
+            /*
+             * Just ignore it and wait until later
+             */
+            //This send didn't work, but maybe it will next time, who knows...
+            req.ReplyHandler.HandleError(this, req.RequestID, ReqrepError.Send,
                                      null, req.UserState);
+          }
+          else {
+            /*
+             * This is a permanent failure, we don't have a way to denote
+             * permanent failures currently, so let's just pass it on as a
+             * Timeout (which is a kind of permanent failure).
+             */
+            StopRequest(req.RequestID, req.ReplyHandler);
+            req.ReplyHandler.HandleError(this, req.RequestID, ReqrepError.Timeout,
+                                     null, req.UserState);
+          }
+        }
+        catch {
+          //This send didn't work, but maybe it will next time, who knows...
+          req.ReplyHandler.HandleError(this, req.RequestID, ReqrepError.Send,
+                                     null, req.UserState);
+        }
       }
-     }
     }
     /*
      * Once we have released the lock, tell the handlers
      * about the timeout that have occured
      */
     if( timeout_hands != null ) {
-     foreach(RequestState reqs in timeout_hands) {
-      reqs.ReplyHandler.HandleError(this, reqs.RequestID, ReqrepError.Timeout,
+      foreach(RequestState reqs in timeout_hands) {
+        reqs.ReplyHandler.HandleError(this, reqs.RequestID, ReqrepError.Timeout,
                                     null, reqs.UserState);
-     }
+      }
     }
     /*
      * Send acks for those that have been waiting for a long time

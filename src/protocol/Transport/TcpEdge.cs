@@ -224,7 +224,7 @@ namespace Brunet
         Console.Error.WriteLine("edge: {0}, Entering Send",this);
 #endif
         if( _is_closed ) {
-          throw new EdgeException("Tried to send on a closed socket");
+          throw new EdgeClosedException("Tried to send on a closed socket");
         }
         Interlocked.Exchange(ref _last_out_packet_datetime, DateTime.UtcNow.Ticks);
 #if POB_TCP_DEBUG
@@ -306,7 +306,7 @@ namespace Brunet
             //Now we have sent, let's see if we have to wait to send more:
             if( sent <= 0 ) {
               //This is the case of the Edge closing.
-              throw new EdgeException("Edge is closed");
+              throw new EdgeClosedException("Edge is closed");
             }
           }
           catch(SocketException sx) {
@@ -406,7 +406,7 @@ namespace Brunet
                                 _rec_state.LastReadLength,
                                 SocketFlags.None);
         if( got == 0 ) {
-          throw new EdgeException("Got zero bytes, this edge is closed");  
+          throw new EdgeClosedException("Got zero bytes, this edge is closed");  
         }
         _rec_state.LastReadOffset += got;
         _rec_state.LastReadLength -= got;
