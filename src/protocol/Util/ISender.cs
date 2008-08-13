@@ -52,6 +52,9 @@ public class SendException : Exception {
   public SendException(bool istransient, string message) : base(message) {
     IsTransient = istransient;
   }
+  public SendException(bool istransient, string message, Exception inner) : base(message, inner) {
+    IsTransient = istransient;
+  }
 
 }
 
