@@ -692,9 +692,8 @@ namespace Brunet
           _s.SendTo(_send_buffer, 8 + plength, SocketFlags.None, sender.End);
         }
         catch(Exception x) {
-          if((1 == _running) && ProtocolLog.Exceptions.Enabled) {
-            ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
-          }
+          bool transient = (1 == _running);
+          throw new SendException(transient, String.Format("Problem sending on: {0}",sender), x);
         }
       }
     }
