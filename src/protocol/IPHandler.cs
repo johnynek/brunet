@@ -158,7 +158,7 @@ namespace Brunet
             int rec_bytes = socket.ReceiveFrom(buffer, ref ep);
             Subscriber s = _sub;
             //s can't change once we've read it.
-            if( s != null) {
+            if( s != null && rec_bytes > 0) {
               MemBlock packet = MemBlock.Copy(buffer, 0, rec_bytes);
 //              MemBlock cookie = packet.Slice(0, 4);
 //              if(cookie.Equals(MagicCookie)) {
