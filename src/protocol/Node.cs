@@ -1163,14 +1163,13 @@ namespace Brunet
                   ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
 	                  "On an edge timeout({1}), closing connection: {0}",
                     c, DateTime.UtcNow - start));
+                  //Make sure it is indeed closed.
+                  e.Close();
                 }
                 else {
-                  //The edge could have been closed somewhere else, so it
+                  //The edge was closed somewhere else, so it
                   //didn't timeout.
                 }
-                Console.WriteLine(e + ": Closed due to timeout.");
-                //Make sure it is indeed closed.
-                e.Close();
               }
               else {
                 //We got a response, let's make sure it's not an exception:
