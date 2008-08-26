@@ -436,83 +436,70 @@ namespace Brunet
      */
     protected void UpdateNeighborStatus(object contab, EventArgs args)
     {
+      ConnectionEventArgs cea = (ConnectionEventArgs)args;
+      if( cea.ConnectionType != ConnectionType.Structured ) {
+        //We don't do anything,
+        return;
+      }
+
+      //This is the list we had when things changed
+      ConnectionList structs = cea.CList;
+      //structs is constant
+      if( structs.Count == 0 ) {
+        //There is no one to talk to
+        return;
+      }
+      /*
+       * Get the data we need about this connection:
+       */
+      ConnectionTable tab = this.ConnectionTable;
+      Connection con = cea.Connection;
+      string con_type_string = con.ConType;
+      AHAddress new_address = (AHAddress)con.Address;
+
+      /*
+       * Update the left neighbor:
+       */
+      Connection lc = structs.GetLeftNeighborOf(new_address);
       try {
-        //our request for the new connections' neighbors
-        ConnectionTable tab = this.ConnectionTable;
-        if( tab.Count(ConnectionType.Structured) <= 1 ) {
-          //There is only one neighbor, no communication will help:
-  	  return;
-        }
-        //Update the relevant neighbors on the status:
-        Connection con = ((ConnectionEventArgs)args).Connection;
-        
-        string con_type_string = con.ConType;
-        AHAddress new_address = (AHAddress)con.Address;
-        
-        bool done = false;
-        Connection lc = null;
-        int trials = 0;
-        do {
-          trials++;
-          lc = tab.GetLeftStructuredNeighborOf(new_address);
-          try {
-            if( lc != null ) {
-              CallGetStatus(con_type_string, lc);
-              done = true;
-            }
-            else {
-              //There are no more neighbors
-              done = true;
-            }
-          }
-          catch(Exception x) {
-            if( lc.Edge.IsClosed ) {
-              //Make sure this guy is removed in this thread (it may be
-              //in the process of being removed in another thread)
-              tab.Disconnect(lc.Edge);
-            }
-            else {
-              if(ProtocolLog.Exceptions.Enabled)
-                ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
-                  "CallGetStatus trial {2} on {0} failed: {1}", lc, x, trials));
-            }
-          }
-          done = done || (trials > 3); //Don't try forever
-        } while(!done);
-        Connection rc = null;
-        done = false;
-        trials = 0;
-        do {
-          trials++;
-          rc = tab.GetRightStructuredNeighborOf(new_address);
-          try {
-            if( rc != null && (lc != rc) ) {
-              CallGetStatus(con_type_string, rc);
-              done = true;
-            }
-            else {
-              //There are no more neighbors
-              done = true;
-            }
-          }
-          catch(Exception x) {
-            if( rc.Edge.IsClosed ) {
-              //Make sure this guy is removed in this thread (it may be
-              //in the process of being removed in another thread)
-              tab.Disconnect(rc.Edge);
-            } 
-            else {
-              if(ProtocolLog.Exceptions.Enabled)
-                ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
-                  "CallGetStatus trial {2} on {0} failed: {1}", rc, x, trials));
-	    }
-          }
-          done = done || (trials > 3); //Don't try forever
-        } while(!done);
+        //This edge could ahve been closed, which will
+        //cause the Rpc to throw an exception
+        CallGetStatus(con_type_string, lc);
       }
       catch(Exception x) {
-        if(ProtocolLog.Exceptions.Enabled)
-          ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
+        if( lc.Edge.IsClosed ) {
+          //Make sure this guy is removed in this thread (it may be
+          //in the process of being removed in another thread)
+          tab.Disconnect(lc.Edge);
+        }
+        else {
+          if(ProtocolLog.Exceptions.Enabled)
+            ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
+              "CallGetStatus on {0} failed: {1}", lc, x));
+        }
+      }
+      /*
+       * Update the right neighbor:
+       */
+      Connection rc = structs.GetRightNeighborOf(new_address);
+      try {
+        if( (lc != rc) ) {
+          //This edge could ahve been closed, which will
+          //cause the Rpc to throw an exception
+          CallGetStatus(con_type_string, rc);
+        }
+      }
+      catch(Exception x) {
+        if( rc.Edge.IsClosed ) {
+          //Make sure this guy is removed in this thread (it may be
+          //in the process of being removed in another thread)
+          tab.Disconnect(rc.Edge);
+        } 
+        else {
+          if(ProtocolLog.Exceptions.Enabled)
+            ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
+              "CallGetStatus on {0} failed: {1}", rc, x));
+	      }
       }
     }
   }

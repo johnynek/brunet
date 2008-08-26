@@ -31,6 +31,7 @@ public interface ISender {
   /**
    * Send some copyable object somewhere.  This is half of our basic communication
    * primative.  This is may be asychronous, it may throw an exception.
+   * @throws SendException if there is some problem
    */
   void Send(ICopyable data);
  /**
@@ -38,6 +39,23 @@ public interface ISender {
    */
   string ToUri();
   
+}
+
+public class SendException : Exception {
+
+  public readonly bool IsTransient;
+
+  public SendException(bool istransient) : base() {
+    IsTransient = istransient;
+  }
+  
+  public SendException(bool istransient, string message) : base(message) {
+    IsTransient = istransient;
+  }
+  public SendException(bool istransient, string message, Exception inner) : base(message, inner) {
+    IsTransient = istransient;
+  }
+
 }
 
 /**

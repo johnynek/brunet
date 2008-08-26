@@ -119,7 +119,7 @@ namespace Brunet
         Interlocked.Exchange(ref _last_out_packet_datetime, DateTime.UtcNow.Ticks);
       }
       else {
-        throw new EdgeException(
+        throw new EdgeClosedException(
                     String.Format("Can't send on closed edge: {0}", this) );
       }
     }

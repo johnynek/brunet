@@ -331,7 +331,7 @@ namespace Brunet
       //Loop until success or failure:
       while(true) {
         if( IsClosed ) {
-          throw new EdgeException(String.Format("Edge closed: {0}", this));
+          throw new EdgeClosedException(String.Format("Edge closed: {0}", this));
         }
         try {
           lock( _sync ) {
@@ -376,7 +376,7 @@ namespace Brunet
               }
               if( p_s_c == 0 ) {
                 Close();
-                throw new EdgeException(String.Format("Edge closed: {0}", this));
+                throw new EdgeClosedException(String.Format("Edge closed: {0}", this));
               }
             }
             //Try to disconnect and go again.
@@ -393,7 +393,7 @@ namespace Brunet
 #endif
           if( p_s_c == 0 ) {
             Close();
-            throw new EdgeException(String.Format("Edge closed: {0}", this));
+            throw new EdgeClosedException(String.Format("Edge closed: {0}", this));
           }
         }
       }
