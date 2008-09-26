@@ -216,13 +216,15 @@ public sealed class BlockingQueue : Channel {
   public BlockingQueue(int max_enqueues) : base(max_enqueues) {
     _waiters = 0;
     _re = new AutoResetEvent(false); 
+    _re_sync = new object();
   }
 
   ~BlockingQueue() {
     //Make sure the close method is eventually called:
     Close();
   }
-  protected readonly AutoResetEvent _re;
+  protected AutoResetEvent _re;
+  protected readonly object _re_sync; 
   protected int _waiters;
 
   /* **********************************************
@@ -249,19 +251,38 @@ public sealed class BlockingQueue : Channel {
     }
     //Fire the close event
     base.Close();
-    //Go ahead and interact with _re
-    if(close_are) {
-      _re.Close();
-    }
-    else {
-      _re.Set();
-    }
-
+    
+    //We either set it, or close it:
+    SetOrCloseRE(!close_are, close_are);
 #if DEBUG
     System.Console.Error.WriteLine("Close set");
 #endif
   }
 
+  /** Atomically interact with the RE, return true if it was closed BEFORE
+   * @param set if true, try to Set the RE
+   * @param close if true, try to Close the RE
+   * @return true if the RE was already closed.
+   * both arguments should not be true
+   */
+  protected bool SetOrCloseRE(bool set, bool close) {
+    lock( _re_sync ) {
+      if( _re == null ) {
+        return true;
+      }
+      //Looks like we can actually try to work now:
+      if( set ) {
+        //This is the more common case, so put it first
+        _re.Set();
+      }
+      else if( close ) {
+        _re.Close();
+        _re = null;
+      }
+    }
+    //If we got here, it wasn't already closed
+    return false;
+  }
   /**
    * @throw Exception if the queue is closed
    */
@@ -299,8 +320,13 @@ public sealed class BlockingQueue : Channel {
       _waiters++;
     }
     //Wait for the next one... 
-    timedout = !_re.WaitOne(millisec, false);
-
+    try {
+      timedout = !_re.WaitOne(millisec, false);
+    } catch (NullReferenceException) {
+      timedout = false;
+      //We could get a nullReferenceException if _re is null,
+      //which happens in the case that it has already been closed.
+    } 
     bool set = false;
     bool are_close = false;
     object result = null;
@@ -342,12 +368,7 @@ public sealed class BlockingQueue : Channel {
        * We have to do it in this order, or we may either needlessly
        * Set then Close, or Close before we called Set.
        */
-      if(are_close) {
-        _re.Close();
-      } 
-      else if(set) {
-        _re.Set();
-      }
+      SetOrCloseRE(set, are_close);
     }
     return result;
   }
@@ -400,7 +421,7 @@ public sealed class BlockingQueue : Channel {
     }
     //If we just went from 0 -> 1 signal any waiting Dequeue
     if( count == 1 ) { 
-      _re.Set();
+      SetOrCloseRE(true, false);
     }
     //After we have alerted any blocking threads (Set), fire
     //the event:
