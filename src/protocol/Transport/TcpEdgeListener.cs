@@ -594,8 +594,12 @@ namespace Brunet
             try {
               e.DoReceive(buf);
             }
+            catch(EdgeClosedException) {
+              RequestClose(e);
+              CloseHandler(e, null);
+            }
             catch(Exception x) {
-              Console.WriteLine("Exception: {0}", x);
+              Console.WriteLine("Edge {1}, Exception: {0}", x, e);
               RequestClose(e);
               CloseHandler(e, null);
             }

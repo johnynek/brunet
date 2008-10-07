@@ -37,60 +37,13 @@ namespace Brunet
   public class FunctionEdge : Edge
   {
 
-    public static Random _rand = new Random();
-
-    /**
-     * Adding logger
-     */
-    /*private static readonly log4net.ILog log =
-      log4net.LogManager.GetLogger(System.Reflection.MethodBase.
-      GetCurrentMethod().DeclaringType);*/
-
     protected readonly int _l_id;
     protected readonly int _r_id;
-    protected readonly IEdgeSendHandler _sh;
 
-    public FunctionEdge(IEdgeSendHandler s, int local_id, int remote_id, bool is_in)
+    public FunctionEdge(IEdgeSendHandler s, int local_id, int remote_id, bool is_in) : base(s, is_in)
     {
-      _sh = s;
-      _create_dt = DateTime.UtcNow;
       _l_id = local_id;
       _r_id = remote_id;
-      inbound = is_in;
-      _is_closed = 0;
-    }
-
-    protected readonly DateTime _create_dt;
-    public override DateTime CreatedDateTime {
-      get { return _create_dt; }
-    }
-    protected long _last_out_packet_datetime;
-    public override DateTime LastOutPacketDateTime {
-      get { return new DateTime(Interlocked.Read(ref _last_out_packet_datetime)); }
-    }
-
-    protected int _is_closed;
-    public override void Close()
-    {
-      if(0 == Interlocked.Exchange(ref _is_closed, 1)) {
-        base.Close();
-      }
-    }
-
-    public override bool IsClosed
-    {
-      get
-      {
-        return (1 == _is_closed);
-      }
-    }
-    protected readonly bool inbound;
-    public override bool IsInbound
-    {
-      get
-      {
-        return inbound;
-      }
     }
 
     protected FunctionEdge _partner;
@@ -106,23 +59,6 @@ namespace Brunet
       }
     }
 
-
-    public override void Send(ICopyable p)
-    {
-      if( p == null ) {
-        throw new System.NullReferenceException(
-                         "FunctionEdge.Send: argument can't be null");
-      }
-
-      if( 0 == _is_closed ) {
-        _sh.HandleEdgeSend(this, p);
-        Interlocked.Exchange(ref _last_out_packet_datetime, DateTime.UtcNow.Ticks);
-      }
-      else {
-        throw new EdgeClosedException(
-                    String.Format("Can't send on closed edge: {0}", this) );
-      }
-    }
 
     public override Brunet.TransportAddress.TAType TAType
     {
@@ -158,11 +94,5 @@ namespace Brunet
         return _remote_ta;
       }
     }
-    public void Push(MemBlock p) {
-      if( 0 == _is_closed ) {
-        ReceivedPacketEvent(p);
-      }
-    }
-
   }
 }

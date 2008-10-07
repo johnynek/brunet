@@ -80,8 +80,6 @@ namespace Brunet
 
     protected readonly Socket _sock;
     public Socket Socket { get { return _sock; } }
-    protected readonly bool inbound;
-    protected volatile bool _is_closed;
 
     protected int _need_to_send;
     protected readonly TcpEdgeListener _tel;
@@ -124,17 +122,12 @@ namespace Brunet
     private volatile ReceiveState _rec_state;
     private const int MAX_QUEUE_SIZE = 30;
 
-    public TcpEdge(Socket s, bool is_in, TcpEdgeListener tel) {
+    public TcpEdge(Socket s, bool is_in, TcpEdgeListener tel) : base(null, is_in) {
       _sock = s;
-      _is_closed = false;
-      _create_dt = DateTime.UtcNow;
-      _last_out_packet_datetime = _create_dt.Ticks;
-      _last_in_packet_datetime = _last_out_packet_datetime;
       _packet_queue = new Queue(MAX_QUEUE_SIZE);
       _queued_packets = 0;
       _need_to_send = 0;
       _tel = tel;
-      inbound = is_in;
       _local_ta = TransportAddressFactory.CreateInstance(TAType,
                              (IPEndPoint) _sock.LocalEndPoint);
       _remote_ta = TransportAddressFactory.CreateInstance(TAType,
@@ -149,16 +142,14 @@ namespace Brunet
     /**
      * Closes the edges IF it is not already closed, otherwise do nothing
      */
-    public override void Close()
+    public override bool Close()
     {
 #if POB_TCP_DEBUG
       Console.Error.WriteLine("edge: {0}, Closing",this);
 #endif
-      bool shutdown = false;
+      bool act = base.Close();
       lock( _sync ) {
-        if (!_is_closed) {
-          _is_closed = true;
-          shutdown = true;
+        if (act) {
           //Make sure to drop references to buffers
           _rec_state.Buffer = null; 
           _send_state.Buffer = null;
@@ -168,9 +159,8 @@ namespace Brunet
           _queued_packets = 0;
         }
       }
-      base.Close();
-      NeedToSend = false;
-      if( shutdown ) {
+      if( act ) {
+        NeedToSend = false;
         try {
           //We don't want any more data, but try
           //to send the stuff we've sent:
@@ -189,25 +179,9 @@ namespace Brunet
           _sock.Close();
         }
       }
+      return act;
     }
 
-    public override bool IsClosed
-    {
-      get { return _is_closed; }
-    }
-    public override bool IsInbound
-    {
-      get { return inbound; }
-    }
-
-    protected readonly DateTime _create_dt;
-    public override DateTime CreatedDateTime {
-      get { return _create_dt; }
-    }
-    protected long _last_out_packet_datetime;
-    public override DateTime LastOutPacketDateTime {
-      get { return new DateTime(Interlocked.Read(ref _last_out_packet_datetime)); }
-    }
     /**
      * @param p the Packet to send
      * @throw EdgeException if we cannot send
@@ -223,7 +197,7 @@ namespace Brunet
 #if POB_TCP_DEBUG
         Console.Error.WriteLine("edge: {0}, Entering Send",this);
 #endif
-        if( _is_closed ) {
+        if( IsClosed ) {
           throw new EdgeClosedException("Tried to send on a closed socket");
         }
         Interlocked.Exchange(ref _last_out_packet_datetime, DateTime.UtcNow.Ticks);
