@@ -736,10 +736,9 @@ public class NatTAs : IEnumerable {
 
     if(ProtocolLog.UdpEdge.Enabled) {
       int i = 0;
-      foreach(TransportAddress ta in _generated_ta_list) {
-        if(ProtocolLog.SCO.Enabled)
-          ProtocolLog.Write(ProtocolLog.SCO, String.Format(
-            "LocalTA({0}): {1}",i,ta));
+      foreach(TransportAddress ta in gtas) {
+        ProtocolLog.Write(ProtocolLog.UdpEdge, String.Format(
+            "LocalTA({0}): {1}", i, ta));
         i++;
       }
     }
