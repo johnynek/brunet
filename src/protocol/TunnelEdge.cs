@@ -37,7 +37,6 @@ namespace Brunet
   public class TunnelEdge: Edge
   {
     protected readonly Node _node;
-    protected readonly TunnelEdgeListener _send_cb;
 
     //TODO: It would be nice to make the following items immutable lists. 
     /**
@@ -108,31 +107,9 @@ namespace Brunet
       }
     }
     /**
-     * Is the edge already closed. 
-     */    
-    protected int _is_closed;
-    public override bool IsClosed
-    {
-      get {
-        //Doesn't need to be Volatile because we only change in Interlocked
-        return (_is_closed == 1);
-      }
-    }
-    /**
      * Has a connection been formed over the tunnel edge. 
      */
     protected bool _is_connected;
-    /**
-     * Is the tunnel edge inbound. 
-     */
-    protected bool _inbound;
-    public override bool IsInbound
-    {
-      get
-      {
-        return _inbound;
-      }
-    }
 
     protected static readonly TimeSpan SyncInterval = new TimeSpan(0, 0, 30);//30 seconds.
     /**
@@ -140,26 +117,8 @@ namespace Brunet
      * on the list of forwarders. 
      */
     protected DateTime _last_sync_dt;
+    protected readonly TunnelEdgeListener _tel;
 
-    /**
-     * Creation time for the tunnel edge. 
-     */
-    protected readonly DateTime _create_dt;
-    public override DateTime CreatedDateTime {
-      get { return _create_dt; }
-    }
-    /**
-     * Last time a packet was sent on this edge. 
-     */
-    protected long _last_out_packet_datetime;
-    public override DateTime LastOutPacketDateTime {
-      get {
-        //since this is a long, we have to use Interlocked.Read to work
-        //correctly on 32-bit platforms.
-        return new DateTime(Interlocked.Read(ref _last_out_packet_datetime));
-      } 
-    }
-    
     /**
      * Local URI representation for the edge. 
      */
@@ -206,17 +165,10 @@ namespace Brunet
      */
     public TunnelEdge(TunnelEdgeListener cb, bool is_in, Node n, 
 		      Address target, ArrayList forwarders, int id, int remoteid)
+               : base(null, is_in)
     {
-      _send_cb = cb;
-      _inbound = is_in;
-
+      _tel = cb;
       _is_connected = false;
-      _is_closed = 0;
-
-      DateTime now =  DateTime.UtcNow;
-      _create_dt = now;
-      Interlocked.Exchange(ref _last_in_packet_datetime, now.Ticks);
-      Interlocked.Exchange(ref _last_out_packet_datetime, now.Ticks);
 
       _node = n;
       _target = target;
@@ -251,7 +203,7 @@ namespace Brunet
       _remoteta = new TunnelTransportAddress(target, _forwarders);
       
       lock(_sync) {
-        _last_sync_dt = now;//we just synchronized now.
+        _last_sync_dt = DateTime.UtcNow; //we just synchronized now.
         _node.ConnectionTable.DisconnectionEvent += new EventHandler(DisconnectHandler);
         _node.ConnectionTable.ConnectionEvent += new EventHandler(ConnectHandler);
         _node.HeartBeatEvent += new EventHandler(SynchronizeEdge);
@@ -264,19 +216,19 @@ namespace Brunet
     /**
      * Closes the Edge, further Sends are not allowed.
      */
-    public override void Close()
+    public override bool Close()
     {
-      int was_closed = Interlocked.Exchange(ref _is_closed, 1);
-      if( was_closed == 0 ) {
+      bool act = base.Close();
+      if( act ) {
         //unsubscribe the disconnecthandler
         _node.ConnectionTable.ConnectionEvent -= new EventHandler(ConnectHandler);      
         _node.ConnectionTable.DisconnectionEvent -= new EventHandler(DisconnectHandler); 
         _node.HeartBeatEvent -= new EventHandler(SynchronizeEdge);
-        base.Close();
       }
 #if TUNNEL_DEBUG 
       Console.Error.WriteLine("Closing: {0}", this);
 #endif
+      return act;
     }
     /**
      * Type of the edge (tunnel in this case).
@@ -400,17 +352,6 @@ namespace Brunet
     }
 
     /**
-     * Receive a packet on this edge. 
-     */
-    public void Push(MemBlock p)
-    {
-#if TUNNEL_DEBUG
-      Console.Error.WriteLine("Received on: {0}", this);
-#endif
-      ReceivedPacketEvent(p);
-    }
-    
-    /**
      * Handle event associated with a disconnection.
      * @param o some object 
      * @param args arguments representing the disconnection event.
@@ -468,7 +409,7 @@ namespace Brunet
       }
       else if( lost != null ) {
         //now send a control packet
-        _send_cb.HandleControlSend(this, new ArrayList(), lost);
+        _tel.HandleControlSend(this, new ArrayList(), lost);
       }
     }
 
@@ -515,7 +456,7 @@ namespace Brunet
 	 }
       }
       if( send_control ) {
-        _send_cb.HandleControlSend(this, added, lost);
+        _tel.HandleControlSend(this, added, lost);
       }
     }
     
@@ -547,7 +488,7 @@ namespace Brunet
           forwarders.Add(cons.Address);
         }
       }
-      _send_cb.HandleSyncSend(this, forwarders);
+      _tel.HandleSyncSend(this, forwarders);
 #if TUNNEL_DEBUG
       Console.Error.WriteLine("Sent synchronize for edge: {0}.", this);
 #endif
@@ -601,7 +542,7 @@ namespace Brunet
       Console.Error.WriteLine("Updated (on control) remoteTA: {0}", _remoteta);
 #endif	  
       if (to_add.Count > 0) {
-        _send_cb.HandleControlSend(this, to_add, new ArrayList());	  
+        _tel.HandleControlSend(this, to_add, new ArrayList());	  
       }
     }
 

@@ -647,7 +647,7 @@ namespace Brunet
       TunnelEdge edge_to_read = GetTunnelEdge(localid, remoteid);        
       if (edge_to_read != null) {
         try {
-          edge_to_read.Push(rest_of_payload);
+          edge_to_read.ReceivedPacketEvent(rest_of_payload);
         }
         catch(EdgeException) {
           /* @todo
