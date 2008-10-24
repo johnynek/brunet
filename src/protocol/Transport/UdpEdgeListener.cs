@@ -602,11 +602,12 @@ namespace Brunet
       EndPoint end = new IPEndPoint(IPAddress.Any, 0);
 
       DateTime last_debug = DateTime.UtcNow;
-      TimeSpan debug_period = new TimeSpan(0,0,0,0,5000); //log every 5 seconds.
+      int debug_period = 5000;
+      bool logging = ProtocolLog.Monitor.Enabled;
       while(1 == _running) {
-        if (ProtocolLog.Monitor.Enabled) {
+        if(logging) {
           DateTime now = DateTime.UtcNow;
-          if (now - last_debug > debug_period) {
+          if(last_debug.AddMilliseconds(debug_period) < now) {
             last_debug = now;
             ProtocolLog.Write(ProtocolLog.Monitor, String.Format("I am alive: {0}", now));
           }
@@ -635,11 +636,6 @@ namespace Brunet
             else {
               HandleDataPacket(remoteid, localid, packet_buffer, end, null);
             }
-          }
-        }
-        catch(ThreadInterruptedException x) {
-          if((1 == _running) && ProtocolLog.Exceptions.Enabled) {
-            ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
           }
         }
         catch(SocketException x) {
