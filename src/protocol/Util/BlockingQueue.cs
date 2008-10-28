@@ -515,7 +515,7 @@ public sealed class BlockingQueue : Channel {
     public void CheckQueues() {
       for(int i = 0; i < TRIALS; i++) {
         int idx = BlockingQueue.Select( _queues, 5000 );
-	Assert.AreNotEqual( idx, -1, "Timeout check");
+	Assert.IsFalse( idx == -1, "Timeout check");
 	BlockingQueue b = (BlockingQueue)_queues[idx];
 	bool timedout;
 	object val = b.Dequeue(0, out timedout);

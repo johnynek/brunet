@@ -336,7 +336,7 @@ namespace Brunet
           Assert.IsFalse( a6.RightDistanceTo(a5) < a6.RightDistanceTo(a7),
                           "BetweenRight false");
         }
-        Assert.AreNotEqual( a5.IsBetweenFromLeft(a6, a7),
+        Assert.IsFalse(a5.IsBetweenFromLeft(a6, a7) ==
                             a5.IsBetweenFromRight(a6, a7),
                             "can't be between left and between right");
       }
