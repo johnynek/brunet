@@ -324,11 +324,11 @@ public class CacheTest {
     CacheKey test4 = new CacheKey("hello", "this", "is", "a different", "test");
     Assert.AreEqual(test1.GetHashCode(), test2.GetHashCode(), "CacheKey Hashcode equality");
     Assert.AreEqual(test1, test2, "CacheKey equality");
-    Assert.AreNotEqual(test1, test3, "CacheKey non-equality");
-    Assert.AreNotEqual(test2, test3, "CacheKey non-equality");
-    Assert.AreNotEqual(test1, test4, "CacheKey non-equality");
-    Assert.AreNotEqual(test2, test4, "CacheKey non-equality");
-    Assert.AreNotEqual(test3, test4, "CacheKey non-equality");
+    Assert.IsFalse(test1.Equals(test3), "CacheKey non-equality");
+    Assert.IsFalse(test2.Equals(test3), "CacheKey non-equality");
+    Assert.IsFalse(test1.Equals(test4), "CacheKey non-equality");
+    Assert.IsFalse(test2.Equals(test4), "CacheKey non-equality");
+    Assert.IsFalse(test3.Equals(test4), "CacheKey non-equality");
   }
   [Test]
   public void TestRecall() {
