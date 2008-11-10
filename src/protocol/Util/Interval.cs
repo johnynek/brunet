@@ -124,8 +124,9 @@ public class Interval<T> : IComparable, IComparable<Interval<T>> {
   
   /** @return true if the intersection with the other is not empty
    * Use the Comparer from this instance
+   * equivalent to Intersection() != null
    */
-  public bool Overlaps(Interval<T> other) {
+  public bool Intersects(Interval<T> other) {
     T bigger_start = _comp.Compare(Start, other.Start) > 0 ? Start : other.Start;
     T smaller_end = _comp.Compare(End, other.End) < 0 ? End : other.End;
     //For this to make sense, the start has to be less than the end:
@@ -151,8 +152,8 @@ public class IntervalTest {
     Assert.IsTrue(iint1.Contains(iint1), "Contains self");
     Assert.IsFalse(iint1.Contains(iint0), "small doesn't contain large");
 
-    Assert.IsTrue(iint0.Overlaps(iint1), "overlap 1");
-    Assert.IsTrue(iint1.Overlaps(iint0), "overlap 2");
+    Assert.IsTrue(iint0.Intersects(iint1), "overlap 1");
+    Assert.IsTrue(iint1.Intersects(iint0), "overlap 2");
     
     Interval<int> inter = iint0.Intersection(iint1);
     Assert.AreEqual(inter, iint1, "intersection test");
@@ -167,9 +168,9 @@ public class IntervalTest {
       Interval<int> i1 = MakeInterval(r.Next(), r.Next());
       Interval<int> i2 = MakeInterval(r.Next(), r.Next());
       //Do some sanity checks:
-      if( i1.Overlaps(i2) ) {
+      if( i1.Intersects(i2) ) {
         //Overlap is reflexive:
-        Assert.IsTrue(i2.Overlaps(i1), "overlap reflexivity");
+        Assert.IsTrue(i2.Intersects(i1), "overlap reflexivity");
         Interval<int> i3 = i1.Intersection(i2);
         //The intersection is in both:
         Assert.IsTrue(i1.Contains(i3), "intersection overlaps 1");
@@ -187,7 +188,7 @@ public class IntervalTest {
       }
       else {
         //Overlap is reflexive:
-        Assert.IsFalse(i2.Overlaps(i1), "overlap reflexivity");
+        Assert.IsFalse(i2.Intersects(i1), "overlap reflexivity");
         Assert.IsNull(i1.Intersection(i2), "Overlap is null 1");
         Assert.IsNull(i2.Intersection(i1), "Overlap is null 2");
         //CompareTo should agree with comparing the starts:
@@ -210,9 +211,9 @@ public class IntervalTest {
       Interval<double> i1 = MakeInterval(r.NextDouble(), r.NextDouble());
       Interval<double> i2 = MakeInterval(r.NextDouble(), r.NextDouble());
       //Do some sanity checks:
-      if( i1.Overlaps(i2) ) {
+      if( i1.Intersects(i2) ) {
         //Overlap is reflexive:
-        Assert.IsTrue(i2.Overlaps(i1), "overlap reflexivity");
+        Assert.IsTrue(i2.Intersects(i1), "overlap reflexivity");
         Interval<double> i3 = i1.Intersection(i2);
         //The intersection is in both:
         Assert.IsTrue(i1.Contains(i3), "intersection overlaps 1");
@@ -230,7 +231,7 @@ public class IntervalTest {
       }
       else {
         //Overlap is reflexive:
-        Assert.IsFalse(i2.Overlaps(i1), "overlap reflexivity");
+        Assert.IsFalse(i2.Intersects(i1), "overlap reflexivity");
         Assert.IsNull(i1.Intersection(i2), "Overlap is null 1");
         Assert.IsNull(i2.Intersection(i1), "Overlap is null 2");
         //CompareTo should agree with comparing the starts:
