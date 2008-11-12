@@ -30,21 +30,30 @@ namespace Brunet.Util
  * This class represents intervals.  We need to supply
  * a comparer, or Comparer<T>.Default must exist.
  */
-public class Interval<T> : IComparable, IComparable<Interval<T>> {
+public class Interval<T> : IComparable, IComparable<Interval<T>>, IComparable<T> {
 
   readonly IComparer<T> _comp;
 
   /** This is the start of the interval
    */
   readonly public T Start;
+  ///True if the interval DOES NOT include Start
+  readonly public bool StartIsOpen;
   /** This is the end of the interval
    */
   readonly public T End;
+  ///True if the interval DOES NOT include End 
+  readonly public bool EndIsOpen;
 
-  /**
+  /** Create a new open or closed interval
+   * @param start the starting point
+   * @param s_open if true, the interval does not include the starting point
+   * @param end the ending point
+   * @param e_open if true, the interval does not include the ending point
+   * @param comp the Comparer to use for Interval computations
    * @throw ArgumentException if there is no overlap
    */
-  public Interval(T start, T end, IComparer<T> comp) {
+  public Interval(T start, bool start_open, T end, bool end_open, IComparer<T> comp) {
     if( comp.Compare(start, end) > 0 ) {
       string err = String.Format(
                     "Start({0}) must be less than or equal to End({1})",
@@ -52,14 +61,41 @@ public class Interval<T> : IComparable, IComparable<Interval<T>> {
       throw new System.ArgumentException(err);
     }
     Start = start;
+    StartIsOpen = start_open;
     End = end;
+    EndIsOpen = end_open;
     _comp = comp; 
   }
 
-  /**
+  /** Create a new open or closed interval
+   * @param start the starting point
+   * @param s_open if true, the interval does not include the starting point
+   * @param end the ending point
+   * @param e_open if true, the interval does not include the ending point
    * @throw ArgumentException if there is no overlap
    */
-  public Interval(T start, T end) : this(start, end, Comparer<T>.Default) { }
+  public Interval(T start, bool s_open, T end, bool e_open) : this(start, s_open, end, e_open, Comparer<T>.Default) { }
+
+  /** Factory method to create an open interval
+   */
+  public static Interval<T> CreateOpen(T start, T end) {
+    return CreateOpen(start, end, Comparer<T>.Default);
+  }
+  /** Factory method to create an open interval
+   */
+  public static Interval<T> CreateOpen(T start, T end, IComparer<T> comp) {
+    return new Interval<T>(start, true, end, true, comp);
+  }
+  /** Factory method to create a closed interval
+   */
+  public static Interval<T> CreateClosed(T start, T end) {
+    return CreateClosed(start, end, Comparer<T>.Default);
+  }
+  /** Factory method to create a closed interval
+   */
+  public static Interval<T> CreateClosed(T start, T end, IComparer<T> comp) {
+    return new Interval<T>(start, false, end, false, comp);
+  }
 
   /**
    * Sort an interval based first on start, then on end, if they have
@@ -75,29 +111,110 @@ public class Interval<T> : IComparable, IComparable<Interval<T>> {
       return start_cmp;
     }
     else {
-      return _comp.Compare(End, other.End);
+      if (StartIsOpen == other.StartIsOpen) {
+        int end_cmp = _comp.Compare(End, other.End);
+        if( end_cmp == 0 ) {
+          if( EndIsOpen == other.EndIsOpen ) {
+            return 0;
+          }
+          else {
+            //Put the open end interval first:
+            return EndIsOpen ? -1 : 1;
+          }
+        }
+        else {
+          return end_cmp;
+        }
+      }
+      else {
+        /*
+         * these intervals start at the same point, but only one is open.
+         * put the closed interval first
+         */
+        return StartIsOpen ? 1 : -1;
+      }
     }
   }
 
   int IComparable.CompareTo(object o) {
-    return CompareTo((Interval<T>)o);
+    Interval<T> o_int = o as Interval<T>;
+    if( o_int != null ) {
+      return CompareTo(o_int);
+    }
+    else {
+      return CompareTo((T)o);
+    }
+  }
+  /** Is the point below, in, or above the interval
+   * @return 1 if everything in the interval is greater than 1, -1 if
+   * everything is below, 0 if the point is in the interval
+   */
+  public int CompareTo(T point) {
+    int scmp = _comp.Compare(Start, point);
+    if( scmp > 0 ) {
+      //point is strictly below
+      return 1;
+    }
+    int ecmp = _comp.Compare(point, End);
+    if( ecmp > 0 ) {
+      //point is strictly above
+      return -1;
+    }
+    if( (scmp < 0) && (ecmp < 0) ) {
+      //Strictly inside
+      return 0;
+    }
+    //Not strictly inside or out, it must be on the boundary:
+    if( scmp == 0 ) {
+      //Point is same as Start
+      return StartIsOpen ? 1 : 0;
+    }
+    else {
+      //Must be on the end:
+      return EndIsOpen ? -1 : 0;
+    }
   }
 
+
+  public bool Contains(T point) {
+    return CompareTo(point) == 0;
+  }
   /** @return true if this interval completely contains the argument
    * Use the Comparer from this instance
    */
   public bool Contains(Interval<T> other) {
-    bool start_le = (_comp.Compare(Start, other.Start) <= 0);
-    bool end_ge = (_comp.Compare(End, other.End) >= 0);
-    return start_le && end_ge;
+    int start_cmp = _comp.Compare(Start, other.Start);
+    int end_cmp = _comp.Compare(End, other.End);
+    bool strictly_not_bigger = (start_cmp > 0) || (end_cmp < 0);
+    if( strictly_not_bigger ) {
+      return false;
+    }
+    else {
+      bool start_is_good = (start_cmp < 0);
+      bool end_is_good = (end_cmp > 0);
+      if(  false == start_is_good ) {
+        if( start_cmp == 0 ) {
+          start_is_good = (StartIsOpen == false) || other.StartIsOpen;
+        }
+      }
+      if( false == end_is_good ) {
+        if( end_cmp == 0 ) {
+          end_is_good = (EndIsOpen == false) || other.EndIsOpen;
+        }
+      }
+      return start_is_good && end_is_good;
+    }
   }
 
   public override bool Equals(object other) {
+    if( System.Object.ReferenceEquals(other, this) ) { return true; }
     Interval<T> other_int = other as Interval<T>;
     if( other_int != null ) {
-      return (Start.Equals(other_int.Start)) &&
-             (End.Equals(other_int.End)) &&
-             (_comp.Equals(other_int._comp));
+      return _comp.Equals(other_int._comp) &&
+             (_comp.Compare(Start, other_int.Start) == 0) &&
+             (_comp.Compare(End, other_int.End) == 0) &&
+             (StartIsOpen == other_int.StartIsOpen) &&
+             (EndIsOpen == other_int.EndIsOpen);
     }
     else {
       return false;
@@ -109,13 +226,57 @@ public class Interval<T> : IComparable, IComparable<Interval<T>> {
   }
   
   /** @return the intersection of this interval with the other.
-   * @return null if there is no overlap
+   * @return null if there is no overlap (the overlap is the empty set)
    */
   public Interval<T> Intersection(Interval<T> other) {
-    T bigger_start = _comp.Compare(Start, other.Start) > 0 ? Start : other.Start;
-    T smaller_end = _comp.Compare(End, other.End) < 0 ? End : other.End;
-    if( _comp.Compare(bigger_start, smaller_end) <= 0 ) {
-      return new Interval<T>(bigger_start, smaller_end, _comp); 
+    T new_start;
+    bool new_s_open;
+    T new_end;
+    bool new_e_open;
+
+    int s_cmp = _comp.Compare(Start, other.Start);
+    int e_cmp = _comp.Compare(End, other.End);
+
+    if( s_cmp > 0 ) {
+      new_start = Start;
+      new_s_open = StartIsOpen;
+    }
+    else if( s_cmp < 0 ) {
+      new_start = other.Start;
+      new_s_open = other.StartIsOpen;
+    }
+    else {
+      new_start = Start;
+      new_s_open = StartIsOpen || other.StartIsOpen;
+    }
+    if( e_cmp < 0 ) {
+      new_end = End;
+      new_e_open = EndIsOpen;
+    }
+    else if( e_cmp > 0 ) {
+      new_end = other.End;
+      new_e_open = other.EndIsOpen;
+    }
+    else {
+      new_end = End;
+      new_e_open = EndIsOpen || other.EndIsOpen;
+    }
+   
+    int new_cmp = _comp.Compare(new_start, new_end); 
+    if( new_cmp < 0 ) {
+      return new Interval<T>(new_start, new_s_open, new_end, new_e_open,  _comp); 
+    }
+    else if( new_cmp == 0 ) {
+      //This is only a valid interval if it is closed, i.e. it is a single
+      //point:
+      if( new_s_open || new_e_open ) {
+        //only one point, but that point is not in the interval, so empty set:
+        return null;
+      }
+      else {
+        //Both ends are closed:
+        return new Interval<T>(new_start, false, new_end, false, _comp);
+      }
     }
     else {
       return null; 
@@ -124,18 +285,14 @@ public class Interval<T> : IComparable, IComparable<Interval<T>> {
   
   /** @return true if the intersection with the other is not empty
    * Use the Comparer from this instance
-   * equivalent to Intersection() != null
    */
   public bool Intersects(Interval<T> other) {
-    T bigger_start = _comp.Compare(Start, other.Start) > 0 ? Start : other.Start;
-    T smaller_end = _comp.Compare(End, other.End) < 0 ? End : other.End;
-    //For this to make sense, the start has to be less than the end:
-    return (_comp.Compare(bigger_start, smaller_end) <= 0);
+    return Intersection(other) != null;
   }
  
   public override string ToString() {
-    return String.Format("Interval({0}, {1}, {2})", 
-                         Start, End, _comp); 
+    return String.Format("Interval<{1}{0}, {2}{3}:{4}>", 
+                         Start, StartIsOpen ? '(' : '[', End, EndIsOpen ? ')' : ']', _comp); 
   }
   
 }
@@ -145,8 +302,8 @@ public class Interval<T> : IComparable, IComparable<Interval<T>> {
 public class IntervalTest {
   [Test]
   public void Test0() {
-    Interval<int> iint0 = new Interval<int>(0,4);
-    Interval<int> iint1 = new Interval<int>(1,3);
+    Interval<int> iint0 = Interval<int>.CreateClosed(0,4);
+    Interval<int> iint1 = Interval<int>.CreateClosed(1,3);
     Assert.IsTrue(iint0.Contains(iint1), "Interval contains");
     Assert.IsTrue(iint0.Contains(iint0), "Contains self");
     Assert.IsTrue(iint1.Contains(iint1), "Contains self");
@@ -161,6 +318,109 @@ public class IntervalTest {
     Assert.IsTrue(iint0.CompareTo(iint1) < 0, "Comparison");
   }
   [Test]
+  public void OpenIntTest() {
+    System.Random r = new Random();
+    int TEST_COUNT = 100;
+    for(int i = 0; i < TEST_COUNT; i++) {
+      bool so = (r.Next(0,2) == 0);
+      bool eo = (r.Next(0,2) == 0);
+      double st = r.NextDouble();
+      double en = r.NextDouble();
+      Interval<double> i1 = new Interval<double>(Math.Min(st, en), so, Math.Max(st, en), eo, Comparer<double>.Default);
+
+      Assert.IsTrue(i1.Contains(i1.Start) == (false == i1.StartIsOpen), "contains test1");
+      Assert.IsTrue(i1.Contains(i1.End) == (false == i1.EndIsOpen), "contains test1");
+      //Check self-intersection:
+      Assert.AreEqual(i1.Intersection(i1), i1, "Self-intersection");
+      // ********************************************
+      //Test checking for point membership:
+      // ********************************************
+      double point1 = r.NextDouble();
+      double point2 = r.NextDouble();
+      int c1 = i1.CompareTo(point1); //If 1, then everything in i1 is bigger than point1
+      int c2 = i1.CompareTo(point2); //If 1, then everything in i1 is bigger than point2
+      if( c1 > 0 ) {
+        if( i1.StartIsOpen ) {
+          Assert.IsTrue(point1 <= i1.Start, "point compareto 1");
+        }
+        else {
+          Assert.IsTrue(point1 < i1.Start, "point compareto 1");
+        }
+      }
+      else if( c1 == 0 ) {
+        if( i1.StartIsOpen ) {
+          Assert.IsTrue(point1 > i1.Start, "point compareto start 2");
+        }
+        else {
+          Assert.IsTrue(point1 >= i1.Start, "point compareto start 2");
+        }
+        if( i1.EndIsOpen ) {
+          Assert.IsTrue(point1 < i1.End, "point compareto end 2");
+        }
+        else {
+          Assert.IsTrue(point1 <= i1.End, "point compareto end 2");
+        }
+      }
+      else {
+        if( i1.EndIsOpen ) {
+          Assert.IsTrue(point1 >= i1.End, "point compareto end 3");
+        }
+        else {
+          Assert.IsTrue(point1 > i1.End, "point compareto end 3");
+        }
+      }
+      if( c2 < c1 ) {
+        //Then point2 must be greater than point1:
+        Assert.IsTrue( point2 > point1, "interval ordering implies point ordering1");
+      }
+      if( c1 < c2 ) {
+        //Then point1 must be greater than point2:
+        Assert.IsTrue( point1 > point2, "interval ordering implies point ordering2");
+      }
+      // ********************************************
+      // ********************************************
+
+      so = (r.Next(0,2) == 0);
+      eo = (r.Next(0,2) == 0);
+      st = r.NextDouble();
+      en = r.NextDouble();
+      Interval<double> i2 = new Interval<double>(Math.Min(st, en), so, Math.Max(st, en), eo, Comparer<double>.Default);
+      if( i1.Intersects( i2 ) ) {
+        //Let's see if the intersection code is working correctly:
+        Interval<double> intersect = i1.Intersection(i2);
+        if( i1.Start > i2.Start ) {
+          Assert.IsTrue(intersect.Start == i1.Start, "intersect start");
+          Assert.IsTrue(intersect.StartIsOpen == i1.StartIsOpen, "start open test");
+        }
+        else if( i1.Start < i2.Start ) {
+          Assert.IsTrue(intersect.Start == i2.Start, "intersect start");
+          Assert.IsTrue(intersect.StartIsOpen == i2.StartIsOpen, "start open test");
+        }
+        else {
+          Assert.IsTrue(intersect.Start == i2.Start, "intersect start");
+          Assert.IsTrue(intersect.StartIsOpen == (i1.StartIsOpen || i2.StartIsOpen), "start open test");
+        }
+        if( i1.End > i2.End ) {
+          Assert.IsTrue(intersect.End == i2.End, "intersect end");
+          Assert.IsTrue(intersect.EndIsOpen == i2.EndIsOpen, "end open test");
+        }
+        else if( i1.End < i2.End ) {
+          Assert.IsTrue(intersect.End == i1.End, "intersect end");
+          Assert.IsTrue(intersect.EndIsOpen == i1.EndIsOpen, "end open test");
+        }
+        else {
+          Assert.IsTrue(intersect.End == i2.End, "intersect end");
+          Assert.IsTrue(intersect.EndIsOpen == (i1.EndIsOpen || i2.EndIsOpen), "end open test");
+        }
+      }
+      else {
+        Assert.IsTrue( i1.Intersection(i2) == null, "Overlap is false implies intersection is null");
+      }
+
+    }
+  }
+
+  [Test]
   public void RandomIntTest() {
     System.Random r = new Random();
     int TEST_COUNT = 100;
@@ -168,6 +428,8 @@ public class IntervalTest {
       Interval<int> i1 = MakeInterval(r.Next(), r.Next());
       Interval<int> i2 = MakeInterval(r.Next(), r.Next());
       //Do some sanity checks:
+      Assert.IsTrue(i1.Contains(i1.Start), "Closed interval start");
+      Assert.IsTrue(i1.Contains(i1.End), "Closed interval end");
       if( i1.Intersects(i2) ) {
         //Overlap is reflexive:
         Assert.IsTrue(i2.Intersects(i1), "overlap reflexivity");
@@ -211,6 +473,8 @@ public class IntervalTest {
       Interval<double> i1 = MakeInterval(r.NextDouble(), r.NextDouble());
       Interval<double> i2 = MakeInterval(r.NextDouble(), r.NextDouble());
       //Do some sanity checks:
+      Assert.IsTrue(i1.Contains(i1.Start), "Closed interval start");
+      Assert.IsTrue(i1.Contains(i1.End), "Closed interval end");
       if( i1.Intersects(i2) ) {
         //Overlap is reflexive:
         Assert.IsTrue(i2.Intersects(i1), "overlap reflexivity");
@@ -270,7 +534,7 @@ public class IntervalTest {
       start = end;
       end = svar;
     }
-    return new Interval<T>(start, end, comp);
+    return Interval<T>.CreateClosed(start, end, comp);
   }
 }
 
