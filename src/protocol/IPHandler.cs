@@ -160,12 +160,12 @@ namespace Brunet
             //s can't change once we've read it.
             if( s != null && rec_bytes > 0) {
               MemBlock packet = MemBlock.Copy(buffer, 0, rec_bytes);
-//              MemBlock cookie = packet.Slice(0, 4);
-//              if(cookie.Equals(MagicCookie)) {
-//                packet = packet.Slice(4);
-              ISender sender = CreateUnicastSender(ep);
-              s.Handle(packet, sender);
-//              }
+              MemBlock cookie = packet.Slice(0, 4);
+              if(cookie.Equals(MagicCookie)) {
+                packet = packet.Slice(4);
+                ISender sender = CreateUnicastSender(ep);
+                s.Handle(packet, sender);
+              }
             }
           }
         }
@@ -272,7 +272,7 @@ namespace Brunet
     public virtual void Send(ICopyable data) {
       // Silly users can trigger a handful of exceptions here...
       try {
-//        data = new CopyList(IPHandler.MagicCookie, data);
+        data = new CopyList(IPHandler.MagicCookie, data);
         byte[] buffer = new byte[data.Length];
         int length = data.CopyTo(buffer, 0);
 
@@ -366,7 +366,7 @@ namespace Brunet
       }
       // Silly users can trigger a handful of exceptions here...
       try {
-//        data = new CopyList(IPHandler.MagicCookie, data);
+        data = new CopyList(IPHandler.MagicCookie, data);
         byte[] buffer = new byte[data.Length];
         int length = data.CopyTo(buffer, 0);
         // I REALLY HATE THIS but we can't be setting this option in more than one thread!
