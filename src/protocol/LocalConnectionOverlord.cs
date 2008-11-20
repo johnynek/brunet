@@ -209,10 +209,20 @@ namespace Brunet
      */
     protected void Announce()
     {
-      ISender mcs = _node.IPHandler.CreateMulticastSender();
       Channel queue = new Channel();
       queue.EnqueueEvent += HandleGetInformation;
-      _rpc.Invoke(mcs, queue, "LocalCO.GetInformation");
+      try {
+        ISender mcs = _node.IPHandler.CreateMulticastSender();
+        _rpc.Invoke(mcs, queue, "LocalCO.GetInformation");
+      }
+      catch(SendException) {
+        /*
+         * On planetlab, it is not uncommon to have a node that
+         * does not allow Multicast, and it will throw an exception
+         * here.  We just ignore this information for now.  If we don't
+         * the heartbeatevent in the node will not execute properly.
+         */ 
+      }
     }
 
     protected void HandleGetInformation(Object o, EventArgs ea)
