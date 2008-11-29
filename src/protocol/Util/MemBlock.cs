@@ -69,8 +69,8 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
   public byte this[int pos] {
     get {
       if( pos >= _length ) {
-        throw new System.ArgumentOutOfRangeException("pos", pos,
-                                          "Position greater than MemBlock length");
+        throw new System.IndexOutOfRangeException(
+                  System.String.Format("Position ({0}) greater than MemBlock length ({1})", pos, _length));
       }
       return _buffer[ _offset + pos ];
     }
@@ -331,8 +331,7 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
   public string GetString(System.Text.Encoding e, int off, int length)
   {
     if( (off + length) > _length ) {
-     throw new System.ArgumentOutOfRangeException("length", length,
-                                          "Length greater than MemBlock length");
+     throw new System.IndexOutOfRangeException("Length greater than MemBlock length");
     }
     if( length != 0 ) {
       return e.GetString(_buffer, off + _offset, length);
