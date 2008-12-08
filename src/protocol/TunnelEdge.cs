@@ -280,8 +280,10 @@ namespace Brunet
 #endif
       ISender s = null;
       int p_s_c = -1;
+      //Don't try forever:
+      int attempts = 3 * _packet_senders.Count;
       //Loop until success or failure:
-      while(true) {
+      while(attempts-- > 0) {
         if( IsClosed ) {
           throw new EdgeClosedException(String.Format("Edge closed: {0}", this));
         }
@@ -349,6 +351,8 @@ namespace Brunet
           }
         }
       }
+      throw new EdgeException(true,
+        String.Format("Could not send successfully on underlying edges.  Edge: {0}", this));
     }
 
     /**
