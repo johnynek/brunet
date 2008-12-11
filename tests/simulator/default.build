@@ -12,6 +12,7 @@
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${lib.dir}">
         <include name="Brunet.dll"/>
+        <include name="Brunet.Security.dll"/>
       </fileset>
     </copy>
     <csc target="exe" output="${build.dir}/Simulator.exe">
@@ -20,6 +21,7 @@
       </sources>
       <references basedir="${build.dir}">
         <include name="Brunet.dll"/>
+        <include name="Brunet.Security.dll"/>
       </references>
     </csc>
   </target>

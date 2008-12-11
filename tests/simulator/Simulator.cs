@@ -1,6 +1,5 @@
 /*
-Cooyright (C) 2008  David Wolinsky <davidiw@ufl.edu>, University of Florida
-      (net Thread(node.Connect)).Start();
+Copyright (C) 2008  David Wolinsky <davidiw@ufl.edu>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -25,6 +24,7 @@ using System.Xml;
 using System.Xml.Serialization;
 using System.Security.Cryptography;
 using System.Threading;
+using Brunet.Security;
 
 namespace Brunet {
   public class SystemTest {
@@ -36,6 +36,11 @@ namespace Brunet {
     static string brunet_namespace = "testing";
     static double broken = 0;
     static bool complete = false;
+
+    static bool secure_edges = false;
+    static bool secure_senders = false;
+    static RSACryptoServiceProvider SEKey;
+    static Certificate CACert;
 
     public static void Main(string []args) {
       int starting_network_size = 10;
@@ -55,6 +60,15 @@ namespace Brunet {
               break;
             case "--complete":
               complete = true;
+              break;
+            case "--se":
+              secure_edges = true;
+              SecureStartup();
+              LinkProtocolState.EdgeVerifyMethod = EdgeVerify.AddressInSubjectAltName;
+              break;
+            case "--ss":
+              secure_senders = true;
+              SecureStartup();
               break;
             case "--dataset":
               dataset_filename = parts[1];
@@ -102,7 +116,7 @@ namespace Brunet {
 
       if(complete) {
         DateTime start = DateTime.UtcNow;
-        while(!Crawl(false)) {
+        while(!Crawl(secure_senders, false)) {
           RunStep();
         }
         Console.WriteLine("It took {0} to complete the ring", DateTime.UtcNow - start);
@@ -112,6 +126,7 @@ namespace Brunet {
       string command = String.Empty;
       Console.WriteLine("Type HELP for a list of commands.\n");
       while (command != "Q") {
+        bool secure = false;
         Console.Write("#: ");
         // Commands can have parameters separated by spaces
         string[] parts = Console.ReadLine().Split(' ');
@@ -129,11 +144,17 @@ namespace Brunet {
               Console.WriteLine("Memory Usage: " + GC.GetTotalMemory(true));
               break;
             case "CR":
-              Crawl(true);
+              Crawl(true, secure);
               break;
+            case "SCR":
+              secure = true;
+              goto case "CR";
             case "A2A":
-              AllToAll();
+              AllToAll(secure);
               break;
+            case "SA2A":
+              secure = true;
+              goto case "A2A";
             case "A":
               add_node(true);
               break;
@@ -160,6 +181,7 @@ namespace Brunet {
               Console.WriteLine("C - check the ring using ConnectionTables");
               Console.WriteLine("P - Print connections for each node to the screen");
               Console.WriteLine("M - Current memory usage according to the garbage collector");
+              Console.WriteLine("G - Retrieve total dht entries");
               Console.WriteLine("CR - Perform a crawl of the network using RPC");
               Console.WriteLine("ST - Speed test, parameter - integer - times to end data");
               Console.WriteLine("CM - ManagedCO test");
@@ -181,18 +203,22 @@ namespace Brunet {
       }
     }
 
-    protected static void AllToAll() {
-      AllToAllHelper a2ah = new AllToAllHelper(nodes);
+    protected static void AllToAll(bool secure) {
+      AllToAllHelper a2ah = new AllToAllHelper(nodes, secure);
       a2ah.Start();
-      while(!a2ah.Done) {
+      while(a2ah.Done == 0) {
         RunStep();
       }
     }
 
-    protected static bool Crawl(bool log) {
+    protected static bool Crawl(bool log, bool secure) {
       NodeMapping nm = (NodeMapping) nodes.GetByIndex(0);
+      BrunetSecurityOverlord bso = null;
+      if(secure) {
+        bso = nm.BSO;
+      }
 
-      CrawlHelper ch = new CrawlHelper(nm.Node, nodes.Count, log);
+      CrawlHelper ch = new CrawlHelper(nm.Node, nodes.Count, bso, log);
       ch.Start();
       while(ch.Done == 0) {
         RunStep();
@@ -228,20 +254,22 @@ namespace Brunet {
       protected long _total_latency;
       protected long _count;
       protected SortedList _nodes;
-      protected bool _done;
+      protected int _done;
       protected long _waiting_on;
-      public bool Done { get { return _done; } }
+      public int Done { get { return _done; } }
       protected long _start_time;
       protected object _sync;
+      protected bool _secure;
 
-      public AllToAllHelper(SortedList nodes) {
+      public AllToAllHelper(SortedList nodes, bool secure) {
         _nodes = nodes;
         _count = 0;
         _total_latency = 0;
         _waiting_on = 0;
         _start_time = DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond;
-        _done = false;
+        _done = 0;
         _sync = new object();
+        _secure = secure;
       }
 
       public void Callback(object o, EventArgs ea) {
@@ -253,21 +281,12 @@ namespace Brunet {
             throw new Exception(res.Result.ToString());
           }
 
-          lock(_sync) {
-            _total_latency = (DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond) - _start_time;
-          }
+          _total_latency += (DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond) - _start_time;
         } catch(Exception e) {
           Console.WriteLine(e);
         }
-        bool print = false;
-        lock(_sync) {
-          if(--_waiting_on == 0) {
-            _done = true;
-            print = true;
-          }
-        }
-
-        if(print) {
+        if(Interlocked.Decrement(ref _waiting_on) == 0) {
+          Interlocked.Exchange(ref _done, 1);
           Console.WriteLine("Performed {0} tests on {1} nodes", _count, _nodes.Count);
           Console.WriteLine("Latency avg: {0}", _total_latency / _count);
           DateTime start = new DateTime(_start_time * TimeSpan.TicksPerMillisecond);
@@ -282,13 +301,21 @@ namespace Brunet {
               continue;
             }
 
-            ISender sender = new AHGreedySender(nm_from.Node, nm_to.Node.Address);
+            ISender sender = null;
+            if(_secure) {
+              sender = nm_from.BSO.GetSecureSender(nm_to.Node.Address);
+            } else {
+              sender = new AHGreedySender(nm_from.Node, nm_to.Node.Address);
+            }
+
             Channel q = new Channel(1);
             q.CloseEvent += Callback;
             try {
               nm_from.Node.Rpc.Invoke(sender, q, "sys:link.Ping", 0);
-              _count++;
-              _waiting_on++;
+              lock(_sync) {
+                _count++;
+                _waiting_on++;
+              }
             } catch(Exception e) {
               Console.WriteLine(e);
             }
@@ -309,13 +336,15 @@ namespace Brunet {
       protected Address _first_left;
       protected Address _previous;
       public bool Success { get { return _crawled.Count == _count; } }
+      protected BrunetSecurityOverlord _bso;
 
-      public CrawlHelper(Node node, int count, bool log) {
+      public CrawlHelper(Node node, int count, BrunetSecurityOverlord bso, bool log) {
         _count = count;
         _node = node;
         Interlocked.Exchange(ref _done, 0);
         _crawled = new Hashtable(count);
         _log = log;
+        _bso = bso;
       }
 
       protected void CrawlNext(Address addr) {
@@ -328,7 +357,13 @@ namespace Brunet {
         } else {
           _crawled.Add(addr, true);
           try {
-            ISender sender = new AHGreedySender(_node, addr);
+            ISender sender = null;
+            if(_bso != null) {
+              sender = _bso.GetSecureSender(addr);
+            } else {
+              sender = new AHGreedySender(_node, addr);
+            }
+
             Channel q = new Channel(1);
             q.CloseEvent += CrawlHandler;
             _node.Rpc.Invoke(sender, q, "sys:link.GetNeighbors");
@@ -404,6 +439,21 @@ namespace Brunet {
       network_size--;
     }
 
+    public static void SecureStartup() {
+      if(SEKey != null) {
+        return;
+      }
+      SEKey = new RSACryptoServiceProvider();
+      byte[] blob = SEKey.ExportCspBlob(false);
+      RSACryptoServiceProvider rsa_pub = new RSACryptoServiceProvider();
+      rsa_pub.ImportCspBlob(blob);
+      CertificateMaker cm = new CertificateMaker("United States", "UFL", 
+          "ACIS", "David Wolinsky", "davidiw@ufl.edu", rsa_pub,
+          "brunet:node:abcdefghijklmnopqrs");
+      Certificate cert = cm.Sign(cm, SEKey);
+      CACert = cert;
+    }
+
     // adds a node to the pool
     protected static void add_node(bool output) {
       AHAddress address = new AHAddress(new RNGCryptoServiceProvider());
@@ -423,6 +473,31 @@ namespace Brunet {
       }
 
       EdgeListener el = new FunctionEdgeListener(nm.Port, 0, auth, true);
+
+      if(secure_edges || secure_senders) {
+        byte[] blob = SEKey.ExportCspBlob(true);
+        RSACryptoServiceProvider rsa_copy = new RSACryptoServiceProvider();
+        rsa_copy.ImportCspBlob(blob);
+
+        CertificateMaker cm = new CertificateMaker("United States", "UFL", 
+          "ACIS", "David Wolinsky", "davidiw@ufl.edu", rsa_copy,
+          address.ToString());
+        Certificate cert = cm.Sign(CACert, SEKey);
+
+        CertificateHandler ch = new CertificateHandler();
+        ch.AddCACertificate(CACert.X509);
+        ch.AddSignedCertificate(cert.X509);
+
+        BrunetSecurityOverlord so = new BrunetSecurityOverlord(node, rsa_copy, node.Rrm, ch);
+        so.Subscribe(node, null);
+        node.GetTypeSource(SecurityOverlord.Security).Subscribe(so, null);
+        nm.BSO = so;
+        node.HeartBeatEvent += so.Heartbeat;
+      }
+      if(secure_edges) {
+        el = new SecureEdgeListener(el, nm.BSO);
+      }
+
       node.AddEdgeListener(el);
 
       if(broken != 0) {
@@ -557,6 +632,7 @@ namespace Brunet {
     public class NodeMapping {
       public int Port;
       public Node Node;
+      public BrunetSecurityOverlord BSO;
     }
   }
 }
