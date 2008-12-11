@@ -86,10 +86,12 @@ namespace Brunet
       _leafco = new LeafConnectionOverlord(this);
       _sco = new StructuredConnectionOverlord(this);
       _cco = new ChotaConnectionOverlord(this);
-      _localco = new LocalConnectionOverlord(this);
       _mco = new ManagedConnectionOverlord(this);
+#if !BRUNET_SIMULATOR
+      _localco = new LocalConnectionOverlord(this);
       _iphandler = new IPHandler();
       _iphandler.Subscribe(this, null);
+#endif
 
       /**
        * Turn on some protocol support : 
@@ -156,11 +158,14 @@ namespace Brunet
           "In StructuredNode.Abort: {0}", this.Address));
       }
 
+#if !BRUNET_SIMULATOR
+      _localco.IsActive = false;
       _iphandler.Stop();
+#endif
+
       _leafco.IsActive = false;
       _sco.IsActive = false;
       _cco.IsActive = false;
-      _localco.IsActive = false;
       _mco.IsActive = false;
       StopAllEdgeListeners();
     }
@@ -178,15 +183,17 @@ namespace Brunet
       _leafco.IsActive = true;
       _sco.IsActive = true;
       _cco.IsActive = true;
-      _localco.IsActive = true;
       _mco.IsActive = true;
 
+#if !BRUNET_SIMULATOR
+      _localco.IsActive = true;
       _leafco.Activate();
       _sco.Activate();
       _cco.Activate();
       _localco.Activate();
       _mco.Activate();
       AnnounceThread();
+#endif
     }
 
     /**
@@ -202,11 +209,13 @@ namespace Brunet
           "In StructuredNode.Leave: {0}", this.Address));
       }
 
+#if !BRUNET_SIMULATOR
       _iphandler.Stop();
+      _localco.IsActive = false;
+#endif
       _leafco.IsActive = false;
       _sco.IsActive = false;
       _cco.IsActive = false;
-      _localco.IsActive = false;
       _mco.IsActive = false;
 
       //Gracefully close all the edges:
@@ -254,9 +263,10 @@ namespace Brunet
           res_q.CloseAfterEnqueue();
           DateTime start_time = DateTime.UtcNow;
           res_q.CloseEvent += delegate(object o, EventArgs arg) {
-            if(ProtocolLog.NodeLog.Enabled)
-              ProtocolLog.Write(ProtocolLog.NodeLog, String.Format(
+            if(ProtocolLog.EdgeClose.Enabled) {
+              ProtocolLog.Write(ProtocolLog.EdgeClose, String.Format(
                 "Close on edge: {0} took: {1}", e, (DateTime.UtcNow - start_time))); 
+            }
             e.Close();
           };
           try {
@@ -265,9 +275,10 @@ namespace Brunet
             rpc.Invoke(e, res_q, "sys:link.Close", carg);
           }
           catch {
-            if(ProtocolLog.NodeLog.Enabled)
+            if(ProtocolLog.Exceptions.Enabled) {
               ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
                 "Closing: {0}", e));
+            }
             e.Close();
           }
         }
@@ -357,9 +368,8 @@ namespace Brunet
   
         if(ProtocolLog.NodeLog.Enabled) {
             ProtocolLog.Write(ProtocolLog.NodeLog, String.Format(
-              "Network size: {0} at {1}:{2}", _netsize,
-              DateTime.UtcNow.ToString("MM'/'dd'/'yyyy' 'HH':'mm':'ss"),
-              DateTime.UtcNow.Millisecond));
+              "Network size: {0} at {1}", _netsize,
+              DateTime.UtcNow.ToString()));
         }
       }
       catch(Exception x) {
