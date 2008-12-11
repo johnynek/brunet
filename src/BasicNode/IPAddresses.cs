@@ -91,7 +91,7 @@ namespace Brunet.Applications {
       foreach(Hashtable ht in AllInterfaces) {
         if( ht.ContainsKey("interface") && ht.ContainsKey("inet addr") ) {
           string iface = (string)ht["interface"];
-          if( _ints == null ) {
+          if( _ints == null || _ints.Count == 0 ) {
             yield return IPAddress.Parse( (string)ht["inet addr"] );
           }
           else if( _ints.Contains(iface) ) {
