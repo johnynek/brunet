@@ -509,7 +509,7 @@ public class RpcManager : IReplyHandler, IDataHandler {
    * @param request_state this is passed to the IRpcHandler
    * @param result the result of the RPC call
    */
-  public void SendResult(object request_state, object result) {
+  public virtual void SendResult(object request_state, object result) {
     ISender ret_path = (ISender)request_state;
     AdrCopyable r_copy = new AdrCopyable(result);
     ret_path.Send( new CopyList( PType.Protocol.Rpc, r_copy ) );
