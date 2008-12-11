@@ -116,7 +116,7 @@ namespace Brunet
         _connection_timeout = new TimeSpan(0,0,0,0,15000);
         /* Set up the heartbeat */
         _heart_period = 500; //500 ms, or 1/2 second.
-        _heart_beat_object = new HeartBeatObject(this, new TimeSpan(0,0,0,0,_heart_period));
+        _heart_beat_object = new HeartBeatObject(this, _heart_period);
         
         //Check the edges from time to time
         this.HeartBeatEvent += new EventHandler(this.CheckEdgesCallback);
@@ -179,19 +179,23 @@ namespace Brunet
       public bool InQueue { get { return (_inqueue == 1); } }
       protected readonly Node LocalNode;
       protected long _last_hb_dt;
-      protected readonly TimeSpan _heart_beat_interval;
+      protected readonly int _heart_beat_interval;
       protected Thread _hb_thread;
       protected int _run_hb_thread;
+#if BRUNET_SIMULATOR
+      protected BrunetTimer _timer;
+#endif
 
-      public TimeSpan TimeSinceLastFire {
+      public long TimeSinceLastFire {
         get {
-          return new TimeSpan(DateTime.UtcNow.Ticks - Interlocked.Read(ref _last_hb_dt));
+          long ticks = DateTime.UtcNow.Ticks - Interlocked.Read(ref _last_hb_dt);
+          return (ticks / TimeSpan.TicksPerMillisecond);
         }
       }
 
-      public HeartBeatObject(Node n, TimeSpan interval) {
+      public HeartBeatObject(Node n, int ms_interval) {
         LocalNode = n;
-        _heart_beat_interval = interval;
+        _heart_beat_interval = ms_interval;
         SetTime();
         _run_hb_thread = 0;
         n.StateChangeEvent += this.NodeStateChangeHandler;
@@ -217,10 +221,18 @@ namespace Brunet
        */
       protected void NodeStateChangeHandler(Node n, ConnectionState cs) {
         if( cs == ConnectionState.Joining ) {
+#if BRUNET_SIMULATOR
+          _timer = new BrunetTimer(CheckForTime, null, _heart_beat_interval, _heart_beat_interval);
+#else
           StartThread();
+#endif
         }
         else if( cs == ConnectionState.Disconnected ) {
+#if BRUNET_SIMULATOR
+          _timer.Dispose();
+#else
           StopThread();
+#endif
         }
       }
 
@@ -269,6 +281,10 @@ namespace Brunet
             }
           }
         }
+      }
+
+      protected void CheckForTime(object o) {
+        CheckForTime();
       }
     }
 
@@ -667,6 +683,10 @@ namespace Brunet
      * there.
      */
     public void EnqueueAction(IAction a) {
+#if BRUNET_SIMULATOR
+      a.Start();
+      return;
+#else
       int count = _packet_queue.Enqueue(a);
       _packet_queue_exp_avg = (PACKET_QUEUE_RETAIN * _packet_queue_exp_avg)
           + ((1 - PACKET_QUEUE_RETAIN) * count);
@@ -686,6 +706,7 @@ namespace Brunet
           Disconnect();
         }
       }
+#endif
     }
 
     /**
@@ -1136,9 +1157,19 @@ namespace Brunet
      */
     virtual protected void CheckEdgesCallback(object node, EventArgs args)
     {
-        DateTime now = DateTime.UtcNow;
-        //We are checking the edges now:
+      DateTime now = DateTime.UtcNow;
+#if BRUNET_SIMULATOR
+      lock(_sync) {
+        // this is expensive to call in the simulator
+        if(_last_edge_check.AddMilliseconds(7500) < now) {
+          return;
+        }
+
         _last_edge_check = now;
+      }
+#else
+      _last_edge_check = now;
+#endif
         
         //_connection_timeout = ComputeDynamicTimeout();
         _connection_timeout = MAX_CONNECTION_TIMEOUT;
@@ -1238,7 +1269,11 @@ namespace Brunet
      * as the return path
      */
     public void Send(ICopyable data) {
-      this.HandleData(MemBlock.Copy(data), this, null);
+      MemBlock mb = data as MemBlock;
+      if(mb == null) {
+        mb = MemBlock.Copy(data);
+      }
+      this.HandleData(mb, this, null);
     }
     
     public string ToUri() {

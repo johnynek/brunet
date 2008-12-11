@@ -408,7 +408,7 @@ namespace Brunet
         Hashtable tas_in_queue = new Hashtable( _MAX_REMOTETAS );
         foreach(TransportAddress ta in target_list ) {
           if(tas_in_queue.ContainsKey(ta) ) {
-            Console.Error.WriteLine("TA: {0} appeared in list twice", ta);
+//            Console.Error.WriteLine("TA: {0} appeared in list twice", ta);
           }
           else {
             _ta_queue.Enqueue(ta);
