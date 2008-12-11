@@ -24,6 +24,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Net.Sockets;
 using System.IO;
+using System.Reflection;
 using System.Xml;
 using System.Xml.Serialization;
 
@@ -152,19 +153,42 @@ namespace Brunet.Applications {
       return new AHAddress(new RNGCryptoServiceProvider());
     }
 
-    /**
-    <summary>A XML to a generic object of type T, used for configuration
-    objects</summary>
-    <param name="path">The location of the xml config file to read</param>
-    <returns>An object of type T</returns>
-    */
+    /// <summary>A XML to a generic object of type T, used for configuration
+    /// objects</summary>
+    /// <param name="path">The location of the xml config file to read</param>
+    /// <returns>An object of type T</returns>
     public static T ReadConfig<T>(String path) {
       XmlSerializer serializer = new XmlSerializer(typeof(T));
       T config = default(T);
       using(FileStream fs = new FileStream(path, FileMode.Open)) {
         config = (T) serializer.Deserialize(fs);
       }
-      return config;
+
+      object o = (object) config;
+      SetAllObjects(ref o);
+      return (T) o;
+    }
+
+    ///<summary>Sets all fields to their non-null default value.  This
+    ///is unnecessary if a constructor already does this.</summary>
+    ///<param name="o_to_set">The object whose fields we want to be default
+    ///non-null.</param>
+    protected static void SetAllObjects(ref object o_to_set) {
+      Type t = o_to_set.GetType();
+      foreach(FieldInfo fi in t.GetFields()) {
+        if(!fi.IsPublic) {
+          continue;
+        }
+        if(fi.GetValue(o_to_set) == null) {
+          ConstructorInfo ci = fi.FieldType.GetConstructor(new Type[0]);
+          if(ci == null) {
+            continue;
+          }
+          object r_set = ci.Invoke(null);
+          SetAllObjects(ref r_set);
+          fi.SetValue(o_to_set, r_set);
+        }
+      }
     }
 
     /**
