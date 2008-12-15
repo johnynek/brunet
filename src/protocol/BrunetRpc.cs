@@ -55,7 +55,7 @@ namespace Brunet
     }
 
     public void Close() {
-      Interlocked.Exchange(ref _running, 1);
+      Interlocked.Exchange(ref _running, 0);
       _timer.Join();
       IPHandler.Stop();
     }
