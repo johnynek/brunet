@@ -142,6 +142,8 @@ namespace Brunet {
         _node.HeartBeatEvent += this.CheckState;
 	      //subscribe the ip_handler to IP packets
         _node.GetTypeSource(PType.Protocol.IP).Subscribe(this, null);
+        // this is for security
+        _node.GetTypeSource(new PType(29)).Subscribe(this, null);
       }
     }
 
