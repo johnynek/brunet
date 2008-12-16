@@ -62,9 +62,12 @@ public class Heap<T> : IEnumerable<T> {
     }
   }
 
+  public bool Empty { get { return _root == null; } }
+
   /** Insert a new value into the min heap
+   * returns true if this is the minimal value
    */
-  public void Add(T newval) {
+  public bool Add(T newval) {
     HeapNode<T> newnode = new HeapNode<T>();
     newnode.Value = newval;
     if( _root == null ) {
@@ -73,6 +76,7 @@ public class Heap<T> : IEnumerable<T> {
     else {
       InsertAt(_root, newnode);
     }
+    return _root.Value.Equals(newval);
   }
 
   /** Remove all items from the heap
@@ -311,6 +315,24 @@ public class HeapTester {
     for(int i = 0; i < test_count; i++) {
       Assert.AreEqual(int_heap.Pop(), heap_2.Pop(), "Pop equivalence");
     }
+  }
+
+  [Test]
+  public void FirstHeapTest() {
+    Heap<int> int_heap = new Heap<int>();
+    bool first = int_heap.Add(5);
+    Assert.IsTrue(first, "5: first should be true.");
+    first = int_heap.Add(4);
+    Assert.IsTrue(first, "4: first should be true.");
+    first = int_heap.Add(6);
+    Assert.IsTrue(!first, "6: first should be false.");
+    int_heap.Pop();
+    int_heap.Pop();
+    int_heap.Pop();
+    first = int_heap.Add(7);
+    Assert.IsTrue(first, "7: first should be true on an empty heap!");
+    first = int_heap.Add(8);
+    Assert.IsTrue(!first, "8: first should be false.");
   }
 }
 #endif
