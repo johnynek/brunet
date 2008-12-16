@@ -541,45 +541,31 @@ namespace Brunet
 	}
       }
       catch(EdgeException x) {
-        if( !next_con.Edge.IsClosed ) {
-	  Console.Error.WriteLine(x);
-	  Console.Error.WriteLine("{0}: Edge exception encountered while sending from: {1} to: {3}, delloc: {2}",
+        if( !x.IsTransient ) {
+          /*
+          Console.Error.WriteLine(x);
+          Console.Error.WriteLine("{0}: Edge exception encountered while sending from: {1} to: {3}, delloc: {2}",
 				 _local,prev_e,deliverlocally, next_con);
-          next_con.Edge.Close();
-        } else {
+          */
           /*
-           * The edge is closed.
-           * Make sure the connection table doesn't have it as a connection
-           */
-          Connection c = _tab.GetConnection(next_con.Edge);
-          if( c != null ) {
-            Console.Error.WriteLine("ERROR: Edge closed but still present in ConnectionTable: {0}", c);
-            /*
-             * We may be in the process of calling the CloseEvent in some
-             * other thread, but we should go ahead and disconnect this
-             * Connection in this thread so the next loop through we are sure
-             * that it has been removed from the ConnectionTable
-             *
-             * It is safe to call Disconnect multiple times (it is
-             * idempotent).
-             */
-            _tab.Disconnect(c.Edge);
-          }
-          else {
-            //The edge must have been closed since we computed the route, just
-            //start again.
-          }
-          /*
+           * This is a permanent error
+           * This edge gave us problems, let's try again after we've closed
+           * that bad edge.
+           *
            * Make sure the cache is flushed and we reset out nearest left
            * neighbor
            */
+          next_con.Edge.Close();
           ConnectionTableChangeHandler(null, null);
+          return this.Route(prev_e, p, out deliverlocally);
+        } else {
+          /**
+           * In the case of a transient problem, we just drop the
+           * packet.
+           * @todo should we send some error message, or retry later?
+           */
+          return 0;
         }
-        /*
-         * This edge gave us problems, let's try again now that we've closed
-         * that bad edge.
-         */
-        return this.Route(prev_e, p, out deliverlocally);
       }
     }
 
