@@ -1,402 +1,73 @@
 <?xml version="1.0"?>
 
-<project
-  name="Brunet"
-  default="build">
+<project name="Brunet" default="build">
+  <property name="assembly" value="Brunet"/>
+  <property name="build.dir" value="build"/>
+  <property name="lib.dir" value="../../lib"/>
+  <property name="build.define" value="TRACE"/>
+  <property name="build.debug" value="false"/>
 
-  <!-- determine whether the build environment
-       has been already configured -->
-  <ifnot test="${property::exists('configured')}">
-    <property
-      name="configured"
-      value="false"/>
-  </ifnot>
+  <target name="test" description="Makes a NUnit2 testable build">
+    <delete file="${build.dir}/${assembly}.Test.dll" failonerror="false" />
+    <mkdir dir="${build.dir}" failonerror="true"/>
 
-  <!-- default configuration -->
-  <property
-    name="assembly"
-    value="Brunet"/>
-  <property
-    name="package.name"
-    value="${nant.project.name}"
-    unless="${configured}"/>
-  <property
-    name="build.dir"
-    value="${nant.project.basedir}/build"
-    unless="${configured}"/>
-  <property
-    name="lib.dir"
-    value="../../lib"
-    unless="${configured}"/>
-  <property
-    name="project.config"
-    value="debug"
-    unless="${configured}"/>
-
-  <!-- named configurations -->
-  <target
-    name="init"
-    description="Initializes build properties">
-    <call target="${project.config}"/>
-  </target>
-
-  <target
-    name="debug"
-    description="Configures a debug build">
-    <property
-      name="project.config"
-      value="debug"
-      unless="${configured}"/>
-    <property
-      name="build.debug"
-      value="false"
-      unless="${configured}"/>
-    <property
-      name="package.name"
-      value="${nant.project.name}-${project.config}"
-      unless="${configured}"/>
-  </target>
-
-  <target
-    name="release"
-    description="Configures a release build">
-    <property
-      name="project.config"
-      value="release"
-      unless="${configured}"/>
-    <property
-      name="build.debug"
-      value="false"
-      unless="${configured}"/>
-    <property
-      name="package.name"
-      value="${nant.project.name}-${project.config}"
-      unless="${configured}"/>
-  </target>
-
-  <target
-    name="test"
-    depends="init"
-    description="Builds the current configuration">
-    <echo message="Making a NUnit2 testable build" />
-    <mkdir
-      dir="${build.dir}/${package.name}/bin"
-      failonerror="false"/>
-
-    <!-- copy libraries -->
-    <copy todir="${build.dir}/${package.name}/bin">
-       <fileset basedir="${lib.dir}">
-          <!-- <include name="NUnit.Framework.dll" /> -->
-          <!-- <include name="nunit.framework.dll" /> -->
-          <include name="log4net.dll" />
-          <include name="logconfig.xml" />
-       </fileset>
-    </copy>
-
-    <csc
-      target="library"
-      debug="${build.debug}"
-      define="BRUNET_NUNIT"
-      output="${build.dir}/${package.name}/bin/${assembly}.dll">
+    <csc target="library" define="BRUNET_NUNIT" output="${build.dir}/${assembly}.Test.dll">
       <sources failonempty="true">
         <include name="Util/*.cs"/>
         <include name="Transport/*.cs"/>
         <include name="*.cs"/>
       </sources>
       <references>
-        <include name="Mono.Security.dll" />
-        
- <!-- 
-        <include name="${build.dir}/${package.name}/bin/log4net.dll" />
-        <include name="nunit.framework.dll" />
-        <include name="/usr/lib/nunit/nunit.framework.dll"/>
- -->
         <include name="${lib.dir}/NUnit.Framework.dll" />
       </references>
     </csc>
 
-    <!-- finally copy the newly compiled library to the lib directory  -->    
     <copy todir="${lib.dir}">
-       <fileset basedir="${build.dir}/${package.name}/bin">
-          <include name="${build.dir}/${package.name}/bin/${assembly}.dll" />
+      <fileset basedir="${build.dir}">
+          <include name="${assembly}.Test.dll" />
        </fileset>
     </copy>
-
   </target>
 
   <target name="nunit_test" description="Builds nunit testable Brunet.dll">
+    <delete file="${build.dir}/${assembly}.Test.dll" failonerror="false" />
     <mkdir dir="${build.dir}" failonerror="true"/>
-    <csc target="library" define="BRUNET_NUNIT" optimize="true"
-        output="${build.dir}/${assembly}.Test.dll">
+
+    <csc target="library" define="BRUNET_NUNIT" optimize="true" output="${build.dir}/${assembly}.Test.dll">
       <sources>
         <include name="*.cs"/>
         <include name="Util/*.cs"/>
         <include name="Transport/*.cs"/>
       </sources>
-      <references>
+      <references basedir="${build.dir}">
         <include name="nunit.framework.dll" />
       </references>
     </csc>
     <nunit2>
       <formatter type="Plain" />
-      <test assemblyname="${build.dir}/Brunet.Test.dll"/>
+      <test assemblyname="${build.dir}/${assembly}.Test.dll"/>
     </nunit2>
   </target>
 
-  <target
-    name="build"
-    depends="init"
-    description="Builds the current configuration">
-    <echo message="Build Directory is ${build.dir}/${package.name}"/>
-    <mkdir
-      dir="${build.dir}/${package.name}/bin"
-      failonerror="false"/>
+  <target name="build" description="Builds the current configuration">
+    <mkdir dir="${build.dir}" failonerror="true"/>
 
-    <!-- copy libraries -->
-    <copy todir="${build.dir}/${package.name}/bin">
-       <fileset basedir="${lib.dir}">
-          <!-- <include name="NUnit.Framework.dll" /> -->
-          <!-- <include name="nunit.framework.dll" /> -->
-          <include name="log4net.dll" />
-          <include name="logconfig.xml" />
-       </fileset>
-    </copy>
-
-    <csc
-      target="library"
-      debug="${build.debug}"
-      define="TRACE"
-      optimize="true"
-      output="${build.dir}/${package.name}/bin/${assembly}.dll">
+    <csc target="library" debug="${build.debug}" define="${build.define}" optimize="true" output="${build.dir}/${assembly}.dll">
       <sources failonempty="true">
         <include name="*.cs"/>
         <include name="Util/*.cs"/>
         <include name="Transport/*.cs"/>
       </sources>
-      <references>
-        <include name="Mono.Security.dll" />
- <!-- 
-        <include name="${build.dir}/${package.name}/bin/log4net.dll" />
-        <include name="${lib.dir}/NUnit.Framework.dll" />
- -->
-      </references>
     </csc>
 
-    <!-- finally copy the newly compiled library to the lib directory  -->    
     <copy todir="${lib.dir}">
-       <fileset basedir="${build.dir}/${package.name}/bin">
-          <include name="${build.dir}/${package.name}/bin/${assembly}.dll" />
+       <fileset basedir="${build.dir}">
+          <include name="${assembly}.dll" />
        </fileset>
     </copy>
   </target>
 
-<!-- Arijit Ganguly - enables LINK_DEBUG, TUNNEL_DEBUG, ARI_CTM_DEBUG, ARI_CHOTA_DEBUG -->
-  <target
-    name="test-build"
-    depends="init"
-    description="Builds the current configuration">
-    <echo message="Build Directory is ${build.dir}/${package.name}"/>
-    <mkdir
-      dir="${build.dir}/${package.name}/bin"
-      failonerror="false"/>
-
-    <!-- copy libraries -->
-    <copy todir="${build.dir}/${package.name}/bin">
-       <fileset basedir="${lib.dir}">
-          <!-- <include name="NUnit.Framework.dll" /> -->
-          <!-- <include name="nunit.framework.dll" /> -->
-          <include name="log4net.dll" />
-          <include name="logconfig.xml" />
-       </fileset>
-    </copy>
-
-    <csc
-      target="library"
-      debug="${build.debug}"
-      define="LINK_DEBUG,ARI_CTM_DEBUG,TUNNEL_DEBUG,TRACE" 	
-      output="${build.dir}/${package.name}/bin/${assembly}.dll">
-      <sources failonempty="true">
-        <include name="*.cs"/>
-        <include name="Util/*.cs"/>
-        <include name="Transport/*.cs"/>
-      </sources>
-      <references>
-        <include name="Mono.Security.dll" />
- <!-- 
-        <include name="${build.dir}/${package.name}/bin/log4net.dll" />
-        <include name="${lib.dir}/NUnit.Framework.dll" />
- -->
-      </references>
-    </csc>
-
-    <!-- finally copy the newly compiled library to the lib directory  -->    
-    <copy todir="${lib.dir}">
-       <fileset basedir="${build.dir}/${package.name}/bin">
-          <include name="${build.dir}/${package.name}/bin/${assembly}.dll" />
-       </fileset>
-    </copy>
+  <target name="clean" description="Deletes all the configurations">
+    <delete dir="${build.dir}" failonerror="false"/>
   </target>
-
-<!-- Arijit Ganguly - enables direct packets for single-hop packets ARI_DIRECT_ENABLE -->
-  <target
-    name="ari-build-direct"
-    depends="init"
-    description="Builds the current configuration">
-    <echo message="Build Directory is ${build.dir}/${package.name}"/>
-    <mkdir
-      dir="${build.dir}/${package.name}/bin"
-      failonerror="false"/>
-
-    <!-- copy libraries -->
-    <copy todir="${build.dir}/${package.name}/bin">
-       <fileset basedir="${lib.dir}">
-          <!-- <include name="NUnit.Framework.dll" /> -->
-          <!-- <include name="nunit.framework.dll" /> -->
-          <include name="log4net.dll" />
-          <include name="logconfig.xml" />
-       </fileset>
-    </copy>
-
-    <csc
-      target="library"
-      debug="${build.debug}"
-      define="ARI_DIRECT_ENABLE" 	
-      output="${build.dir}/${package.name}/bin/${assembly}.dll">
-      <sources failonempty="true">
-        <include name="*.cs"/>
-        <include name="Util/*.cs"/>
-        <include name="Transport/*.cs"/>
-      </sources>
-      <references>
-        <include name="Mono.Security.dll" />
- <!-- 
-        <include name="${build.dir}/${package.name}/bin/log4net.dll" />
-        <include name="${lib.dir}/NUnit.Framework.dll" />
- -->
-      </references>
-    </csc>
-
-    <!-- finally copy the newly compiled library to the lib directory  -->    
-    <copy todir="${lib.dir}">
-       <fileset basedir="${build.dir}/${package.name}/bin">
-          <include name="${build.dir}/${package.name}/bin/${assembly}.dll" />
-       </fileset>
-    </copy>
-  </target>
-
-
-<!-- Arijit Ganguly - enables ARI_EXP_DEBUG-->
-  <target
-    name="ari-build-exp"
-    depends="init"
-    description="Builds the current configuration">
-    <echo message="Build Directory is ${build.dir}/${package.name}"/>
-    <mkdir
-      dir="${build.dir}/${package.name}/bin"
-      failonerror="false"/>
-
-    <!-- copy libraries -->
-    <copy todir="${build.dir}/${package.name}/bin">
-       <fileset basedir="${lib.dir}">
-          <!-- <include name="NUnit.Framework.dll" /> -->
-          <!-- <include name="nunit.framework.dll" /> -->
-          <include name="log4net.dll" />
-          <include name="logconfig.xml" />
-       </fileset>
-    </copy>
-
-    <csc
-      target="library"
-      debug="${build.debug}"
-      define="ARI_EXP_DEBUG" 	
-      output="${build.dir}/${package.name}/bin/${assembly}.dll">
-      <sources failonempty="true">
-        <include name="*.cs"/>
-        <include name="Util/*.cs"/>
-        <include name="Transport/*.cs"/>
-      </sources>
-      <references>
-        <include name="Mono.Security.dll" />
-
- <!-- 
-        <include name="${build.dir}/${package.name}/bin/log4net.dll" />
-        <include name="${lib.dir}/NUnit.Framework.dll" />
- -->
-      </references>
-    </csc>
-
-    <!-- finally copy the newly compiled library to the lib directory  -->    
-    <copy todir="${lib.dir}">
-       <fileset basedir="${build.dir}/${package.name}/bin">
-          <include name="${build.dir}/${package.name}/bin/${assembly}.dll" />
-       </fileset>
-    </copy>
-  </target>
-
-<!-- all options are: PLAB_LOG,PLAB_CONNECTION_LOG,PLAB_PACKET_LOG,PLAB_RDP_LOG -->
-  <target
-    name="plab-log"
-    depends="init"
-    description="Builds the current configuration">
-    <echo message="Build Directory is ${build.dir}/${package.name}"/>
-    <mkdir
-      dir="${build.dir}/${package.name}/bin"
-      failonerror="false"/>
-
-    <!-- copy libraries -->
-    <copy todir="${build.dir}/${package.name}/bin">
-       <fileset basedir="${lib.dir}">
-          <include name="NUnit.Framework.dll" />
-          <include name="log4net.dll" />
-          <include name="logconfig.xml" />
-       </fileset>
-    </copy>
-
-    <csc
-      target="library"
-      debug="${build.debug}"
-      define="PLAB_LOG,PLAB_CONNECTION_LOG"   
-      output="${build.dir}/${package.name}/bin/${assembly}.dll">
-      <sources failonempty="true">
-        <include name="*.cs"/>
-        <include name="Util/*.cs"/>
-        <include name="Transport/*.cs"/>
-      </sources>
- <!-- 
-      <references>
-        <include name="${build.dir}/${package.name}/bin/log4net.dll" />
-      </references>
- -->
-    </csc>
-
-    <!-- finally copy the newly compiled library to the lib directory  -->    
-    <copy todir="${lib.dir}">
-       <fileset basedir="${build.dir}/${package.name}/bin">
-          <include name="${build.dir}/${package.name}/bin/${assembly}.dll" />
-       </fileset>
-    </copy>
-
-  </target>
-
-  <target name="clean"
-    depends="init"
-    description="Deletes the current configuration">
-    <delete
-      dir="${build.dir}/${package.name}"
-      failonerror="false"/>
-
-    <delete
-      file="${lib.dir}/${assembly}.dll"
-      failonerror="false"/>
-
-  </target>
-
-  <target
-    name="clean-all"
-    description="Deletes all the configurations">
-    <delete
-      dir="${build.dir}"
-      failonerror="false"/>
-  </target>
-
 </project>
