@@ -278,15 +278,24 @@ namespace Brunet
 
         _s.SendTo(buffer, 0, length, 0, EndPoint);
       }
-      // Can't pass the fact that the IPHandler is not running :-/
-      catch (ObjectDisposedException) {}
+      catch(System.Net.Sockets.SocketException sx) {
+        throw new SendException(true, "SocketException", sx);
+      }
+      catch (ObjectDisposedException odx) {
+        throw new SendException(false, "Socket appears to be disposed", odx);
+      }
       catch (Exception e) {
         ProtocolLog.WriteIf(ProtocolLog.Exceptions, "ERROR: " + e);
+        throw new SendException(true, "Socket appears to be disposed", e);
       }
     }
     
     public string ToUri() {
       throw new System.NotImplementedException();
+    }
+
+    public override string ToString() {
+      return String.Format("UnicastSender({0}, {1})", _s, EndPoint);
     }
 
     /**
@@ -383,15 +392,25 @@ namespace Brunet
             catch {
               continue;
             }
-              _s.SendTo(buffer, 0, length, 0, EndPoint);
+            _s.SendTo(buffer, 0, length, 0, EndPoint);
           }
         }
       }
+      catch(System.Net.Sockets.SocketException sx) {
+        throw new SendException(true, "SocketException", sx);
+      }
       // Can't pass the fact that the IPHandler is not running :-/
-      catch (ObjectDisposedException) {}
+      catch (ObjectDisposedException odx) {
+        throw new SendException(false, "Socket appears to be disposed", odx);
+      }
       catch (Exception e) {
         ProtocolLog.WriteIf(ProtocolLog.Exceptions, "ERROR: " + e);
+        throw new SendException(true, "Socket appears to be disposed", e);
       }
+    }
+    
+    public override string ToString() {
+      return String.Format("UnicastSender({0}, {1})", _s, EndPoint);
     }
   }
 #if BRUNET_NUNIT
