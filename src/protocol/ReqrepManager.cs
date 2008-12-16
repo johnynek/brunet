@@ -686,6 +686,17 @@ public class ReqrepManager : SimpleSource, IDataHandler {
     }
   }
 
+
+  /**
+   * The guy below may want to ignore errors until the request has concluded.
+   * Since someone could potentially send a Timeout error to this node, we
+   * verify that this is indeed the case.  It may be better to add to the 
+   * HandleError a boolean that specifies the state of the request as well.
+   **/
+  public bool RequestActive(int request_id) {
+    return _req_state_table.Contains(request_id);
+  }
+
   /**
    * This method listens for the HeartBeatEvent from the
    * node and checks for timeouts.
