@@ -241,7 +241,7 @@ namespace Brunet
       //This doesn't require us to hold the lock on the connection table
       IEnumerable struct_cons = n.ConnectionTable.GetConnections(ConnectionType.Structured);
       foreach(Connection c in struct_cons) {
-        if( forwarders.Contains(c.Address) && (false == (c.Edge is TunnelEdge) )) {
+        if( forwarders.Contains(c.Address) && (c.Edge.TAType != TAType)) {
           //This is a connection we can use:
           _forwarders.Add(c.Address);
           _packet_senders.Add(c.Edge);
@@ -579,7 +579,7 @@ namespace Brunet
         //Add all the forwarders we just acquired:
         foreach(Connection c in struct_cons) {
           if(acquired.Contains(c.Address)) {
-            if(false == (c.Edge is TunnelEdge)) {
+            if(c.Edge.TAType != TAType) {
               if( !_forwarders.Contains(c.Address) ) {  
                 _forwarders.Add(c.Address);
               }
@@ -618,7 +618,7 @@ namespace Brunet
       ArrayList temp_senders = new ArrayList();
       foreach(Connection c in struct_cons) {
         if(forwarders.Contains(c.Address)) {
-          if(false == (c.Edge is TunnelEdge)) {
+          if(c.Edge.TAType != TAType) {
             temp_forwarders.Add(c.Address);
             temp_senders.Add(c.Edge);
           }
