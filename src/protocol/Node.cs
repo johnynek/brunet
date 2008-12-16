@@ -356,6 +356,12 @@ namespace Brunet
      * Here are all the EdgeListener objects for this Node
      */
     protected ArrayList _edgelistener_list;
+    public ArrayList EdgeListenerList {
+      get {
+        return (ArrayList) _edgelistener_list.Clone();
+      }
+    }
+
     /**
      * These are all the local TransportAddress objects that
      * refer to EdgeListener objects attached to this node.
