@@ -40,6 +40,10 @@ namespace Brunet {
         new BooleanSwitch("MapReduce", "Log map-reduce computations");
     public static BooleanSwitch ManagedCO =
         new BooleanSwitch("ManagedCO", "User selected connections.");
+    public static BooleanSwitch Security =
+        new BooleanSwitch("Security", "Security logging.");
+    public static BooleanSwitch SecurityExceptions =
+        new BooleanSwitch("SecurityExceptions", "Security Handling Exception logging.");
 
     public static bool CTL_enabled = false;
 
@@ -63,7 +67,11 @@ namespace Brunet {
     public static void WriteIf(BooleanSwitch bs, string msg) {
 #if TRACE
       if(bs.Enabled) {
-        Trace.WriteLine(bs.DisplayName + ": " + Thread.CurrentThread.Name + ":  " + msg);
+        Trace.WriteLine(bs.DisplayName + ":  " + Thread.CurrentThread.Name + ":  " + msg);
+      }
+#elif BRUNET_NUNIT
+      if(bs.Enabled) {
+        System.Console.WriteLine(msg);
       }
 #endif
     }
@@ -71,6 +79,8 @@ namespace Brunet {
     public static void Write(BooleanSwitch bs, string msg) {
 #if TRACE
       Trace.WriteLine(bs.DisplayName + ":  " + Thread.CurrentThread.Name + ":  " + msg);
+#elif BRUNET_NUNIT
+      System.Console.WriteLine(msg);
 #endif
     }
   }
