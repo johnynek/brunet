@@ -876,7 +876,7 @@ namespace Brunet
         if( handlers == 0 ) {
           string p_s = payload.GetString(System.Text.Encoding.ASCII);
           ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
-            "No Handler for packet type: {0}\n{1}", t, p_s));
+            "No Handler for packet type: {0} from: {2}\n{1} :: {3}", t, p_s, from, b.ToBase16String()));
         }
       }
       catch(Exception x) {
@@ -1192,18 +1192,20 @@ namespace Brunet
                 if( close ) { e.Close(); }
               }
             };
-            Channel tmp_queue = new Channel();
-            tmp_queue.CloseAfterEnqueue();
+            Channel tmp_queue = new Channel(1);
             tmp_queue.CloseEvent += on_close;
             //Do the ping
             try {
               rpc.Invoke(e, tmp_queue, "sys:link.Ping", ping_arg);
             }
-            catch(Exception x) {
-              if(!e.IsClosed)
-                ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
-                  "Could not Invoke ping on: {0}, {1}", c, x));
-              e.Close();
+            catch(EdgeClosedException) {
+              //Just ignore closed edges, clearly we can't ping them
+            }
+            catch(EdgeException x) {
+              if(!x.IsTransient) {
+                //Go ahead and close the Edge
+                e.Close();
+              }
             }
           }
         }
