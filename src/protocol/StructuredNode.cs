@@ -209,6 +209,9 @@ namespace Brunet
       _localco.IsActive = false;
       _mco.IsActive = false;
 
+      //Stop notifying neighbors of disconnection, we are the one leaving
+      _connection_table.DisconnectionEvent -= this.UpdateNeighborStatus;
+
       //Gracefully close all the edges:
       _connection_table.Close(); //This makes sure we can't add any new connections.
       ArrayList edges_to_close = new ArrayList();
@@ -242,6 +245,9 @@ namespace Brunet
       if(ProtocolLog.NodeLog.Enabled)
         ProtocolLog.Write(ProtocolLog.NodeLog, String.Format(
           "{0} About to gracefully close all edges", this.Address));
+      //Use just one of these for all the calls:
+      IDictionary carg = new ListDictionary();
+      carg["reason"] = "disconnecting";
       for(int i = 0; i < copy.Count; i++) {
         Edge e = (Edge)copy[i];
         if(ProtocolLog.NodeLog.Enabled) {
@@ -250,8 +256,7 @@ namespace Brunet
         }
         try {
           e.CloseEvent += ch;
-          Channel res_q = new Channel();
-          res_q.CloseAfterEnqueue();
+          Channel res_q = new Channel(1);
           DateTime start_time = DateTime.UtcNow;
           res_q.CloseEvent += delegate(object o, EventArgs arg) {
             if(ProtocolLog.NodeLog.Enabled)
@@ -260,14 +265,21 @@ namespace Brunet
             e.Close();
           };
           try {
-            IDictionary carg = new ListDictionary();
-            carg["reason"] = "disconnecting";
             rpc.Invoke(e, res_q, "sys:link.Close", carg);
           }
-          catch {
+          catch(EdgeException) {
+            /*
+             * It is not strange for the other side to have potentially
+             * closed, or some other error be in progress which is why
+             * we might have been shutting down in the first place
+             * No need to print a message
+             */
+            e.Close();
+          }
+          catch(Exception x) {
             if(ProtocolLog.NodeLog.Enabled)
               ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
-                "Closing: {0}", e));
+                "sys:link.Close({0}) threw: {1}", e, x));
             e.Close();
           }
         }
@@ -413,7 +425,7 @@ namespace Brunet
       ConnectionTable tab = this.ConnectionTable;
       if( c != null ) {
         StatusMessage req = GetStatus(type, c.Address);
-        Channel stat_res = new Channel();
+        Channel stat_res = new Channel(1);
         EventHandler handle_result = delegate(object q, EventArgs eargs) {
           try {
             RpcResult r = (RpcResult)stat_res.Dequeue();
@@ -423,9 +435,8 @@ namespace Brunet
           catch(Exception) {
             //Looks like lc disappeared before we could update it
           }
-          stat_res.Close();
         };
-        stat_res.EnqueueEvent += handle_result;
+        stat_res.CloseEvent += handle_result;
         RpcManager rpc = RpcManager.GetInstance(this);
         rpc.Invoke(c.Edge, stat_res, "sys:link.GetStatus", req.ToDictionary() );
       }
@@ -452,7 +463,6 @@ namespace Brunet
       /*
        * Get the data we need about this connection:
        */
-      ConnectionTable tab = this.ConnectionTable;
       Connection con = cea.Connection;
       string con_type_string = con.ConType;
       AHAddress new_address = (AHAddress)con.Address;
@@ -466,16 +476,19 @@ namespace Brunet
         //cause the Rpc to throw an exception
         CallGetStatus(con_type_string, lc);
       }
-      catch(Exception x) {
-        if( lc.Edge.IsClosed ) {
-          //Make sure this guy is removed in this thread (it may be
-          //in the process of being removed in another thread)
-          tab.Disconnect(lc.Edge);
+      catch(EdgeClosedException) {
+        //Just ignore this connection if it is closed
+      }
+      catch(EdgeException ex) {
+        if( !ex.IsTransient ) {
+          //Make sure this Edge is closed before going forward
+          lc.Edge.Close();
         }
-        else {
-          if(ProtocolLog.Exceptions.Enabled)
+      }
+      catch(Exception x) {
+        if(ProtocolLog.Exceptions.Enabled) {
             ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
-              "CallGetStatus on {0} failed: {1}", lc, x));
+              "CallGetStatus(left) on {0} failed: {1}", lc, x));
         }
       }
       /*
@@ -489,17 +502,20 @@ namespace Brunet
           CallGetStatus(con_type_string, rc);
         }
       }
+      catch(EdgeClosedException) {
+        //Just ignore this connection if it is closed
+      }
+      catch(EdgeException ex) {
+        if( !ex.IsTransient ) {
+          //Make sure this Edge is closed before going forward
+          rc.Edge.Close();
+        }
+      }
       catch(Exception x) {
-        if( rc.Edge.IsClosed ) {
-          //Make sure this guy is removed in this thread (it may be
-          //in the process of being removed in another thread)
-          tab.Disconnect(rc.Edge);
-        } 
-        else {
-          if(ProtocolLog.Exceptions.Enabled)
+        if(ProtocolLog.Exceptions.Enabled) {
             ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
-              "CallGetStatus on {0} failed: {1}", rc, x));
-	      }
+              "CallGetStatus(right) on {0} failed: {1}", rc, x));
+        }
       }
     }
   }
