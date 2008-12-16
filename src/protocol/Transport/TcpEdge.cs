@@ -1,8 +1,8 @@
 /*
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
-Copyright (C) 2005  University of California
-Copyright (C) 2007 P. Oscar Boykin <boykin@pobox.com> University of Florida
+Copyright (C) 2005 University of California
+Copyright (C) 2008 P. Oscar Boykin <boykin@pobox.com>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -19,445 +19,129 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-//#define POB_TCP_DEBUG
-
-//If you want to copy incoming packets rather than reference the buffer
-//define:
-//#define COPY_PACKETS
 using System;
+using System.Threading;
 using System.Collections;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading;
 
 namespace Brunet
 {
 
   /**
-   * A Edge which does its transport over the Tcp protocol.
-   * The UDP protocol is really better for Brunet.
-   */
+  * A Edge which does its transport over the TCP protocol.
+  */
 
-  public class TcpEdge : Brunet.Edge
+  public class TcpEdge : Edge
   {
-
+    public readonly Socket Socket;
+    protected readonly byte[] _buffer;
+    public static readonly int MAX_PACKET = 16384;
+    protected int _written;
+    protected int _flush_ptr;
     /**
-     * Represents the state of the packet sending
+     * The send_cb is the method which actually does the
+     * sending (which is in UdpEdgeListener).
      */
-    private class SendState {
-      /* Represents the part of the buffer we just tried to send */
-      public byte[] Buffer;
-      public int Offset;
-      public int Length;
-    }
-
-    /**
-     * Represents the state of the packet receiving 
-     */
-    private class ReceiveState {
-      public byte[] Buffer;
-      public int Offset;
-      public int Length;
-      public int LastReadOffset;
-      public int LastReadLength;
-      public bool ReadingSize;
-      public void Reset(byte[] buf, int off, int length, bool readingsize) {
-        Buffer = buf;
-        Offset = off;
-        Length = length;
-        LastReadOffset = off;
-        LastReadLength = length;
-        ReadingSize = readingsize;
-      }
-    }
-
-    /**
-     * Adding logger
-     */
-    /*private static readonly log4net.ILog log =
-      log4net.LogManager.GetLogger(System.Reflection.MethodBase.
-      GetCurrentMethod().DeclaringType);*/
-
-    protected readonly Socket _sock;
-    public Socket Socket { get { return _sock; } }
-
-    protected int _need_to_send;
-    protected readonly TcpEdgeListener _tel;
-    public bool NeedToSend {
-      get {
-        return (_need_to_send > 0);
-      }
-      set {
-        //This has a memory barrier, so the above doesn't need one
-        int i_value = value ? 1 : 0;
-        int o_state = Interlocked.Exchange(ref _need_to_send, i_value);
-        if( o_state != i_value ) {
-          //The state has changed
-          _tel.SendStateChange(this, value);
-        }
-      }
-    }
-
-    /** 
-     * Send(Packet) is called faster than we can send
-     * the packets over the socket, we place them in
-     * queue
-     */
-    protected readonly Queue _packet_queue;
-    /*
-     * This keeps track of the number of queued packets
-     * We use Interlocked methods for thread safety.  We
-     * do this to avoid holding lock on _sync to get the
-     * _packet_queue.Count
-     */
-    protected int _queued_packets;
-    /**
-     * These objects
-     * keep track of the state
-     * These are only accessed by the DoSend and DoReceive methods,
-     * which are only called in the socket thread of TcpEdgeListener,
-     * there is no need to lock before getting access to them.
-     */
-    private volatile SendState _send_state;
-    private volatile ReceiveState _rec_state;
-    private const int MAX_QUEUE_SIZE = 30;
-
-    public TcpEdge(Socket s, bool is_in, TcpEdgeListener tel) : base(null, is_in) {
-      _sock = s;
-      _packet_queue = new Queue(MAX_QUEUE_SIZE);
-      _queued_packets = 0;
-      _need_to_send = 0;
-      _tel = tel;
-      _local_ta = TransportAddressFactory.CreateInstance(TAType,
-                             (IPEndPoint) _sock.LocalEndPoint);
-      _remote_ta = TransportAddressFactory.CreateInstance(TAType,
-                             (IPEndPoint) _sock.RemoteEndPoint);
-      //We use Non-blocking sockets here
-      s.Blocking = false;
-      s.SendBufferSize = Packet.MaxLength;
-      _rec_state = new ReceiveState();
-      _send_state = new SendState();
-    }
-
-    /**
-     * Closes the edges IF it is not already closed, otherwise do nothing
-     */
-    public override bool Close()
+    public TcpEdge(IEdgeSendHandler send_cb,
+                   bool is_in, Socket s) : base(send_cb, is_in)
     {
-#if POB_TCP_DEBUG
-      Console.Error.WriteLine("edge: {0}, Closing",this);
-#endif
-      bool act = base.Close();
-      lock( _sync ) {
-        if (act) {
-          //Make sure to drop references to buffers
-          _rec_state.Buffer = null; 
-          _send_state.Buffer = null;
-          _rec_state = null;
-          _send_state = null;
-          _packet_queue.Clear();
-          _queued_packets = 0;
-        }
-      }
-      if( act ) {
-        NeedToSend = false;
+      //This will update both the end point and the remote TA
+      Socket = s;
+      _localta = TransportAddressFactory.CreateInstance(TAType, (IPEndPoint) s.LocalEndPoint);
+      _remoteta = TransportAddressFactory.CreateInstance(TAType, (IPEndPoint) s.RemoteEndPoint);
+      _buffer = new byte[ MAX_PACKET ];
+      _written = 0;
+      _flush_ptr = 0;
+    }
+
+    public override Brunet.TransportAddress.TAType TAType { get { return Brunet.TransportAddress.TAType.Tcp; } }
+
+    protected readonly TransportAddress _localta;
+    public override Brunet.TransportAddress LocalTA { get { return _localta; } }
+    /**
+     * If we are InBound, we are not Ephemeral 
+     */
+    public override bool LocalTANotEphemeral { get { return IsInbound; } }
+    
+    protected readonly TransportAddress _remoteta;
+    public override TransportAddress RemoteTA { get { return _remoteta; } }
+    
+    /**
+     * If we are InBound, the other is outbound, and thus, ephemeral
+     */
+    public override bool RemoteTANotEphemeral { get { return (false == IsInbound); } }
+    // /////////
+    // Methods
+    // ///////
+
+    /**
+     * Try to write as much of the buffer as possible into the socket
+     * @return true if we successfully flushed, otherwise there is more to
+     * write
+     */
+    public bool Flush() {
+      int to_send = _written - _flush_ptr;
+      if( to_send != 0 ) {
+            /*
+             * According to the documentation:
+             * http://msdn.microsoft.com/en-us/library/ms145162.aspx
+             * "In nonblocking mode, Send may complete successfully even if it
+             * sends less than the number of bytes you request. It is your
+             * application's responsibility to keep track of the number of
+             * bytes sent and to retry the operation until the application
+             * sends the requested number of bytes."
+             */
+        int sent = 0;
         try {
-          //We don't want any more data, but try
-          //to send the stuff we've sent:
-          if( _sock.Connected ) {
-            _sock.Shutdown(SocketShutdown.Send);
+          sent = Socket.Send(_buffer, _flush_ptr, to_send, SocketFlags.None);
+        }
+        catch(SocketException sx) {
+          SocketError serr = sx.SocketErrorCode;
+          if( serr == SocketError.WouldBlock ) {
+            //We couldn't flush now, so return false:
+            return false;
           }
           else {
-            //There is no need to shutdown a socket that
-            //is not connected.
+            //all other cases don't seem to be transient
+            throw new EdgeException(false, String.Format("TCP SocketError: {0} on: {1}", serr, this), sx);
           }
         }
-        catch(Exception) {
-          //Console.Error.WriteLine("Error shutting down socket on edge: {0}\n{1}", this, ex);
+        catch(ObjectDisposedException odx) {
+          throw new EdgeException(false, String.Format("Socket disposed while sending on: {0}", this), odx);
         }
-        finally {
-          _sock.Close();
-        }
-      }
-      return act;
-    }
-
-    /**
-     * @param p the Packet to send
-     * @throw EdgeException if we cannot send
-     */
-    //Here is the Select version
-    public override void Send(ICopyable p)
-    {
-      if( p == null ) {
-        throw new System.NullReferenceException(
-           "TcpEdge.Send: argument can't be null");
-      }
-      lock( _sync ) {
-#if POB_TCP_DEBUG
-        Console.Error.WriteLine("edge: {0}, Entering Send",this);
-#endif
-        if( IsClosed ) {
-          throw new EdgeClosedException("Tried to send on a closed socket");
-        }
-        Interlocked.Exchange(ref _last_out_packet_datetime, DateTime.UtcNow.Ticks);
-#if POB_TCP_DEBUG
-        Console.Error.WriteLine("edge: {0}, About to enqueue packet of length: {1}",
-                          this, p.Length);
-#endif
-        //Else just queue up the packet
-	if( _packet_queue.Count < MAX_QUEUE_SIZE ) {
-          //Don't queue indefinitely...
-          _packet_queue.Enqueue(p);
-          Interlocked.Increment( ref _queued_packets );
-	}
-	//Console.Error.WriteLine("Queue length: {0}", _packet_queue.Count);
-      }
-#if POB_TCP_DEBUG
-      Console.Error.WriteLine("Setting NeedToSend");
-#endif
-      //Try to empty out the packet queue
-      NeedToSend = true;
-#if POB_TCP_DEBUG
-      Console.Error.WriteLine("Need to send: {0}", NeedToSend);
-      Console.Error.WriteLine("edge: {0}, Leaving Send",this);
-#endif
-    }
-
-    public override Brunet.TransportAddress.TAType TAType
-    {
-      get { return Brunet.TransportAddress.TAType.Tcp; }
-    }
-
-    protected readonly TransportAddress _local_ta;
-    public override Brunet.TransportAddress LocalTA
-    {
-      get { return _local_ta; }
-    }
-    /*
-     * If this is an inbound link
-     * then the LocalTA is not ephemeral
-     */
-    public override bool LocalTANotEphemeral {
-      get { return IsInbound; }
-    }
-    
-    protected readonly TransportAddress _remote_ta;
-    public override Brunet.TransportAddress RemoteTA
-    {
-      get { return _remote_ta; }
-    }
-
-    /*
-     * If this is an outbound link, which is to say
-     * not inbound, then the RemoteTA is not ephemeral
-     */
-    public override bool RemoteTANotEphemeral {
-      get { return !IsInbound; }
-    }
-    
-    /**
-     * This should only be called from one thread inside the TcpEdgeListener.
-     * The only thread synchronization in here is on the packet queue, so if
-     * this method is called from multiple threads bad things could happen.
-     */
-    public void DoSend(BufferAllocator buf)
-    {
-        if( _send_state.Length == 0 ) {
-          /**
-           * It's time to write into a new buffer:
-           */
-          int written = WritePacketsInto(buf); 
-          if( written == 0 ) {
-            //_queued_packets is only changed in Interlocked, so this is okay:
-            NeedToSend = (_queued_packets  > 0);
-            //We don't seem to need to actually send now
-            return;
-          }
-          int sent = 0;
-          try {
-            sent = _sock.Send( buf.Buffer, buf.Offset, written, SocketFlags.None);
-            //Now we have sent, let's see if we have to wait to send more:
-            if( sent <= 0 ) {
-              //This is the case of the Edge closing.
-              throw new EdgeClosedException("Edge is closed");
-            }
-          }
-          catch(SocketException sx) {
-            if (sx.ErrorCode == 10035) {
-            /*
-             * This is the WSAEWOULDBLOCK error code from the Winsock 2
-             * documentation
-             *
-             * We sometimes can't send because there is no buffer space,
-             * in this case, just ignore this attempt, and try again later
-             */
-            
-            }
-            else {
-              //Some other kind of error, rethrow:
-              throw;
-            }
-          }
-          if( sent < written ) {
-            //We couldn't send the whole buffer, save some for later:
-            _send_state.Length = written - sent;
-#if COPY_PACKETS
-            _send_state.Buffer = new byte[ _send_state.Length ];
-            _send_state.Offset = 0;
-            Array.Copy(buf.Buffer, buf.Offset + sent,
-                       _send_state.Buffer, _send_state.Offset,
-                       _send_state.Length );
-#else
-            _send_state.Buffer = buf.Buffer;
-            _send_state.Offset = buf.Offset + sent;
-            //Don't overwrite the data we have here:
-            buf.AdvanceBuffer( written );
-#endif
-          }
-          else {
-            /*
-             * We never touch _send_state so the Length is still 0.
-             */
-          }
+        if( to_send == sent ) {
+          //Reset:
+          _written = 0;
+          _flush_ptr = 0;
+          return true;
         }
         else {
-          //There is an old write pending:
-          int sent = _sock.Send(_send_state.Buffer,
-                                _send_state.Offset,
-                                _send_state.Length,
-                                SocketFlags.None);
-          if( sent > 0 ) {
-            _send_state.Offset += sent;
-            _send_state.Length -= sent;
-          }
-          else {
-            //The edge is now closed.
-            //This is uncaught!
-            return;
-//            throw new EdgeException("Edge is closed");
-          }
-        }
-
-        /**
-         * Now set NeedToSend to the correct values
-         */
-        if( _send_state.Length == 0 ) {
-          //We have sent all we need to, don't keep a reference around
-          _send_state.Buffer = null;
-          //We only have more to send if the packet queue is not empty
-          //_queued_packets is only changed in Interlocked, so this is okay:
-          NeedToSend = (_queued_packets  > 0);
-        }
-        else {
-          //We definitely have more bytes to send
-          NeedToSend = true;
-        }
-    }
-
-    /**
-     * In the select implementation, the TcpEdgeListener
-     * will tell a socket when to do a read.
-     * Get at most one packet out.
-     */
-    public void DoReceive(BufferAllocator buf)
-    {
-        if( _rec_state.Buffer == null ) {
-          /*
-           * We're starting a new packet read now, which
-           * means we need to read the size of the packet
-           */
-#if COPY_PACKETS
-          byte[] size_buf = new byte[2];
-          _rec_state.Reset(size_buf, 0, 2, true);
-#else
-          _rec_state.Reset(buf.Buffer, buf.Offset, 2, true);
-          buf.AdvanceBuffer(2);
-#endif
-        }
-        int got = _sock.Receive(_rec_state.Buffer,
-                                _rec_state.LastReadOffset,
-                                _rec_state.LastReadLength,
-                                SocketFlags.None);
-        if( got == 0 ) {
-          throw new EdgeClosedException("Got zero bytes, this edge is closed");  
-        }
-        _rec_state.LastReadOffset += got;
-        _rec_state.LastReadLength -= got;
-
-        if( _rec_state.LastReadLength == 0 ) {
-          //Something is ready to parse
-          if( _rec_state.ReadingSize ) {
-            short size = NumberSerializer.ReadShort(_rec_state.Buffer, _rec_state.Offset);
-            if( size < 0 ) {
-              Console.Error.WriteLine("ERROR: negative packet size: {0} from {1}", size, this);
-              throw new EdgeException(String.Format("read negative packet size from: {0}", this));
-            }
-            /*
-             * Set up the read state for packet:
-             */
-#if COPY_PACKETS
-            byte[] tmp_buf = new byte[ size ];
-            _rec_state.Reset(tmp_buf, 0, size, false);
-#else
-            _rec_state.Reset(buf.Buffer, buf.Offset, size, false);
-            buf.AdvanceBuffer(size);
-#endif
-            if( _sock.Available > 0 ) {
-              //Now recursively try to get the payload:
-              DoReceive(buf);
-            }
-          } else {
-            //We are reading a whole packet:
-            MemBlock p = MemBlock.Reference(_rec_state.Buffer, _rec_state.Offset, _rec_state.Length);
-            //Reinitialize the rec_state
-            _rec_state.Buffer = null;
-            ReceivedPacketEvent(p);
-          }
-        }
-    }
-
-    /**
-     * Dequeue packets from the packet queue and write them into
-     * this BufferAllocator.
-     * @return the total number of bytes written
-     */
-    protected int WritePacketsInto(BufferAllocator buf) {
-      int written = 0;
-      int current_offset = buf.Offset;
-      lock(_sync) {
-        /*
-         * Let's try to get as many packets as will fit into
-         * a buffer written:
-         */
-        bool cont_writing = (_packet_queue.Count > 0);
-        while( cont_writing ) {
-          //It is time to get a new packet
-          ICopyable p = (ICopyable)_packet_queue.Dequeue();
-          cont_writing = (Interlocked.Decrement( ref _queued_packets ) > 0);
-          /*
-           * Write the packet first so we can see how long it is, then
-           * we write that length into the buffer
-           */
-          short p_length = (short)p.CopyTo( buf.Buffer, 2 + current_offset );
-          //Now write into this buffer:
-          NumberSerializer.WriteShort(p_length, buf.Buffer, current_offset);
-          int current_written = 2 + p_length;
-          current_offset += current_written;
-          written += current_written;
-          
-          if( cont_writing ) {
-            ICopyable next = (ICopyable)_packet_queue.Peek();
-            if( next.Length + written > buf.Capacity ) {
-              /* 
-               * There is no room for the next packet, just stop now
-               */
-              cont_writing = false;
-            }
-          }
+          _flush_ptr += sent;
+          return false;
         }
       }
-      return written;
+      else {
+        return true;
+      }
     }
+    /**
+     * The caller must make sure that this is synchronized, it is not
+     * a thread-safe method
+     * This method either writes the whole packet into the buffer space,
+     * or it throws an exception.  There is no other case.
+     */
+    public void WriteToBuffer(ICopyable p) {
+      int plength = p.CopyTo(_buffer, _written + 2);
+      if( plength > Int16.MaxValue ) {
+        throw new EdgeException(true,
+                    String.Format("Packet too long: {0}",plength));
+      }
+      //Now we're safe, nothing can go wrong:
+      NumberSerializer.WriteShort((short)plength, _buffer, _written);
+      _written += (plength + 2);
+    }
+
   }
+
 }
