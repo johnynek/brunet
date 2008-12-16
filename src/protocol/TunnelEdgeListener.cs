@@ -929,10 +929,10 @@ namespace Brunet
 #endif
           sender.Send(p);
           return;
-        } catch(EdgeException x) {
-          ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
-              "Error sending control using packet_sender: {0}, {1}", sender, x));
-          _node.ConnectionTable.Disconnect((Edge)sender); 
+        } catch(EdgeClosedException) {
+          //Just ignore it an move on to the next sender
+        } catch(SendException) {
+          //Just ignore it an move on to the next sender
         } catch(Exception ex) {
           if(ProtocolLog.UdpEdge.Enabled)
             ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
@@ -981,17 +981,19 @@ namespace Brunet
        try {
          int this_idx = (r_idx + attempts) % packet_senders.Count;
          sender = (ISender) packet_senders[this_idx];
-
+         
 #if TUNNEL_DEBUG
          Console.Error.WriteLine("Sending edge sync on base connection: {0}",
                                   _node.ConnectionTable.GetConnection((Edge) sender));
 #endif
          sender.Send(p);
          return;
-       } catch(EdgeException x) {
-         ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
-              "Error sending edge sync on packet_sender: {0}, {1}", sender, x));
-         _node.ConnectionTable.Disconnect((Edge)sender); 
+       } catch(EdgeClosedException) {
+         /*
+          * Just ignore it an move on to the next sender
+          */
+       } catch(SendException x) {
+         //Just ignore it an move on to the next sender
        } catch(Exception ex) {
          if(ProtocolLog.UdpEdge.Enabled)
            ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
