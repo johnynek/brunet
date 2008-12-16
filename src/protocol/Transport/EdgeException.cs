@@ -41,6 +41,9 @@ namespace Brunet
 
     public EdgeException(bool istransient, string message) : base(istransient, message) {
     }
+
+    public EdgeException(bool istransient, string message, Exception inner) : base(istransient, message, inner) {
+    }
   }
 
   /**
