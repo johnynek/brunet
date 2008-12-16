@@ -87,6 +87,9 @@ namespace Brunet
       }
     }
 
+    // _id_ht is a mapping of ids to edges
+    public override int Count { get { return _id_ht.Count; } }
+
       /**
        * Type of TransportAddress does this EdgeListener uses.
        */

@@ -73,6 +73,9 @@ namespace Brunet
       }
     }
 
+    // _id_ht is a mapping of ids to edges
+    public override int Count { get { return _id_ht.Count; } }
+
     ///used for thread for the socket synchronization
     protected readonly object _sync;
     protected readonly ManualResetEvent _listen_finished_event;

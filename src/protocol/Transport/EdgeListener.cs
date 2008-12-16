@@ -200,6 +200,12 @@ namespace Brunet
         }
       }
     }
+
+    public virtual int Count {
+      get {
+        throw new NotImplementedException();
+      }
+    }
   }
 
   /**
