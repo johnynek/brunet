@@ -49,12 +49,48 @@ namespace Brunet
       : this(s, local_id, remote_id, is_in, 0) {
     }
 
-    public SimulationEdge(IEdgeSendHandler s, int local_id, int remote_id, bool is_in, int delay) : base(s, is_in)
+    public SimulationEdge(IEdgeSendHandler s, int local_id, int remote_id, bool is_in, int delay)
     {
       _sh = s;
+      _create_dt = DateTime.UtcNow;
       _l_id = local_id;
       _r_id = remote_id;
+      inbound = is_in;
+      _is_closed = 0;
       Delay = delay;
+    }
+
+    protected readonly DateTime _create_dt;
+    public override DateTime CreatedDateTime {
+      get { return _create_dt; }
+    }
+    protected long _last_out_packet_datetime;
+    public override DateTime LastOutPacketDateTime {
+      get { return new DateTime(Interlocked.Read(ref _last_out_packet_datetime)); }
+    }
+
+    protected int _is_closed;
+    public override void Close()
+    {
+      if(0 == Interlocked.Exchange(ref _is_closed, 1)) {
+        base.Close();
+      }
+    }
+
+    public override bool IsClosed
+    {
+      get
+      {
+        return (1 == _is_closed);
+      }
+    }
+    protected readonly bool inbound;
+    public override bool IsInbound
+    {
+      get
+      {
+        return inbound;
+      }
     }
 
     protected SimulationEdge _partner;
@@ -70,6 +106,23 @@ namespace Brunet
       }
     }
 
+
+    public override void Send(ICopyable p)
+    {
+      if( p == null ) {
+        throw new System.NullReferenceException(
+                         "SimulationEdge.Send: argument can't be null");
+      }
+
+      if( 0 == _is_closed ) {
+        _sh.HandleEdgeSend(this, p);
+        Interlocked.Exchange(ref _last_out_packet_datetime, DateTime.UtcNow.Ticks);
+      }
+      else {
+        throw new EdgeClosedException(
+                    String.Format("Can't send on closed edge: {0}", this) );
+      }
+    }
 
     public override Brunet.TransportAddress.TAType TAType
     {
