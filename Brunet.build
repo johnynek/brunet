@@ -188,4 +188,16 @@
 
   </target>
 
+  <target name="plabtest-build"
+          description="make a zip file to be tested with grid-appliance.org system"
+          depends="build">
+    <zip zipfile="basicnode.zip"
+         encoding="utf-8">
+      <fileset basedir="src/BasicNode/build/" prefix="">
+          <include name="*" />
+      </fileset>
+    </zip>
+
+  </target>
+
 </project>
