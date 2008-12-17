@@ -4,15 +4,8 @@
 
 import Brunet
 import System
+import System.Threading
 import System.Security.Cryptography
-
-#Make the RpcManager to deal with our requests
-def make_rpc(node as Node, port as int, remote as string):
-  node.AddEdgeListener( UdpEdgeListener(port) )
-  node.RemoteTAs.Add( TransportAddressFactory.CreateInstance( remote ) )
-  rpc = RpcManager.GetInstance( node )
-  node.Connect();
-  return rpc
 
 #Here is the test class which provides some methods
 class test_handler:
@@ -32,7 +25,12 @@ ta = prompt("What remote ta?")
 addr = AHAddress( RNGCryptoServiceProvider() )
 print addr
 mynode = StructuredNode( addr )
-myrpc = make_rpc(mynode, port, ta)
+mynode.AddEdgeListener( UdpEdgeListener(port) )
+mynode.RemoteTAs.Add( TransportAddressFactory.CreateInstance( ta ) )
+myrpc = mynode.Rpc
+
+#start the connection process
+Thread(mynode.Connect).Start()
 
 #Lets provide a method to run:
 
@@ -41,7 +39,7 @@ helloer = test_handler()
 myrpc.AddHandler("test", helloer);
 
 while true:
-  addr = AddressParser.Parse( prompt("What node?") );
+  addr = AddressParser.Parse( prompt("What node? ('quit' ends)") );
   quit = ""
   vals = []
   while quit != "quit":

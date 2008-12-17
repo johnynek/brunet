@@ -224,11 +224,15 @@ namespace Brunet
             //Stop in this case
             if( ent.P == null ) { return; }
             FunctionEdge fe = ent.Edge;
-            if( ent.P is MemBlock ) {
-              fe.Push( (MemBlock) ent.P );
+            MemBlock data_to_send = ent.P as MemBlock;
+            if( data_to_send == null ) {
+              data_to_send = MemBlock.Copy(ent.P);
             }
-            else {
-              fe.Push( MemBlock.Copy(ent.P) );
+            try {
+              fe.ReceivedPacketEvent( data_to_send );
+            }
+            catch(EdgeClosedException) {
+              //The edge may have closed, just ignore it
             }
           }
         }

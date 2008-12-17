@@ -195,11 +195,13 @@ namespace Brunet
       
       public override bool IsFinished { get { return (_result.Value != null); } }
 
-      protected readonly EdgeFactory _ef;
+      protected readonly Node _n;
       public class EWResult {
+        public readonly bool Success;
         public readonly Edge Edge;
         public readonly Exception Exception;
-        public EWResult(Edge e, Exception x) {
+        public EWResult(bool suc, Edge e, Exception x) {
+          Success = suc;
           Edge = e;
           Exception = x; 
         }
@@ -225,31 +227,45 @@ namespace Brunet
         }
       }
 
-      public EdgeWorker(EdgeFactory ef, TransportAddress ta) {
-        _ef = ef;
+      public EdgeWorker(Node n, TransportAddress ta) {
+        _n = n;
         _ta = ta;
         _result = new WriteOnce<EWResult>();
       }
       
       public override void Start() {
-         _ef.CreateEdgeTo(_ta, this.HandleEdge);
+        if( _result.Value == null ) {
+          //This is the first time we've been called.
+          _n.EdgeFactory.CreateEdgeTo(_ta, this.HandleEdge);
+        }
+        else {
+          //This is the second time we've been called:
+          if(ProtocolLog.LinkDebug.Enabled) {
+            if (_result.Value.Success) {
+              if(ProtocolLog.LinkDebug.Enabled)
+                  ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
+                    "(Linker) Handle edge success: {0}", _result.Value.Edge));
+            } else {
+              if(ProtocolLog.LinkDebug.Enabled) {
+                ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
+                "(Linker) Handle edge failure: {0} done.", _result.Value.Exception));
+  	          }
+            }
+          }
+          FireFinished();
+        }
       }
 
       protected void HandleEdge(bool success, Edge e, Exception x) {
-        if(ProtocolLog.LinkDebug.Enabled) {
-          if (success) {
-            if(ProtocolLog.LinkDebug.Enabled)
-                ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
-                  "(Linker) Handle edge success: {0}", e));
-          } else {
-            if(ProtocolLog.LinkDebug.Enabled) {
-              ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
-              "(Linker) Handle edge failure: {0} done.", x));
-	          }
-          }
+        _result.Value = new EWResult(success, e, x);
+        //Finish this job in the AnnounceThread:
+        try {
+          _n.EnqueueAction(this);
         }
-        _result.Value = new EWResult(e, x);
-        FireFinished();
+        catch(Exception eax) {
+          Console.Error.WriteLine("ERROR Could not Enqueue: {0}", eax);
+          this.Start();
+        }
       }
 
     }
@@ -882,7 +898,7 @@ namespace Brunet
               String.Format("Linker: ({0}) Trying TA: {1}", _lid, next_ta));
         }
 #endif
-        next_task = new EdgeWorker(_local_n.EdgeFactory, next_ta);
+        next_task = new EdgeWorker(_local_n, next_ta);
         next_task.FinishEvent += this.EdgeWorkerHandler;
       }
       catch(CTLockException) {

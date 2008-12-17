@@ -54,7 +54,8 @@ public class PType : ICopyable {
    */
   public PType(int number) {
     if( !IsValidNumeric(number) ) {
-      throw new System.Exception("Type numbers must be > 0 and <= 31");
+      throw new ParseException(
+          System.String.Format("Type numbers must be > 0 and <= 31. got: {0}", number));
     }
     _type_num = number;
   }
@@ -179,7 +180,8 @@ public class PType : ICopyable {
       }
       else {
         //There is no terminating Null, panic!!
-        throw new System.Exception("PType not null terminated");
+        throw new ParseException(
+          System.String.Format("PType not null terminated: {0}", mb.ToBase16String()));
       }
       result._type_num = -2;
       result._raw_data = raw_data;

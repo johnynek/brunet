@@ -382,14 +382,12 @@ namespace Brunet
       if( read_packet ) {
         //We have the edge, now tell the edge to announce the packet:
         try {
-          edge.Push(packet);
+          edge.ReceivedPacketEvent(packet);
         }
-        catch(EdgeException) {
-          if( edge.IsClosed ) {
-            SendControlPacket(end, remoteid, localid, ControlCode.EdgeClosed, state);
-            //Make sure we record that this edge has been closed
-            CloseHandler(edge, null);
-          }
+        catch(EdgeClosedException) {
+          SendControlPacket(end, remoteid, localid, ControlCode.EdgeClosed, state);
+          //Make sure we record that this edge has been closed
+          CloseHandler(edge, null);
         }
       }
     }

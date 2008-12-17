@@ -19,13 +19,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-/**
- * Logging packets is expensive because they must be converted to
- * base64 to be printable in the log.
- * If we need a complete packet log, define LOG_PACKET
- */
-//#define LOG_PACKET
-//#define POB_DEBUG
 
 using System;
 using System.Threading;
@@ -53,21 +46,29 @@ namespace Brunet
       _close_event = new FireOnceEvent();
       //Atomically increment and update _edge_no
       _edge_no = System.Threading.Interlocked.Increment( ref _edge_count );
+      _is_closed = 0;
+      _create_dt = DateTime.UtcNow;
+      _last_out_packet_datetime = _create_dt.Ticks;
+      _last_in_packet_datetime = _last_out_packet_datetime;
+    }
+
+    protected Edge(IEdgeSendHandler esh, bool is_in) : this()
+    {
+      _send_cb = esh;
+      IsInbound = is_in;
     }
 
     /**
      * Closes the Edge, further Sends are not allowed
+     * @return true if this is the first time Close is called
      */
-    public virtual void Close()
+    public virtual bool Close()
     {
-      /*
-       * This makes sure CloseEvent is null after the first
-       * call, this guarantees that there is only one CloseEvent
-       */
-      _close_event.Fire(this, null);
+      Interlocked.Exchange(ref _is_closed, 1);
 #if POB_DEBUG
       Console.Error.WriteLine("EdgeClose: edge: {0}", this);
 #endif
+      return _close_event.Fire(this, null);
     }
 
     protected readonly long _edge_no;
@@ -128,35 +129,32 @@ namespace Brunet
      */
     public virtual bool RemoteTANotEphemeral { get { return false; } }
 
+    /*
+     * May be null, but many Edge types delegate sending to the
+     * EdgeListener, in those cases the Send method is always the
+     * same.  We have this here for that case.
+     */
+    protected readonly IEdgeSendHandler _send_cb;
 
     public abstract Brunet.TransportAddress.TAType TAType
     {
       get;
     }
 
-    /**
-     * @param p a Packet to send to the host on the other
-     * side of the Edge.
-     * @throw EdgeException if any problem happens
-     */
-    public abstract void Send(ICopyable p);
 
-    public string ToUri() {
-      throw new System.NotImplementedException();
-    }
-    
-
+    protected readonly DateTime _create_dt;
     /**
      * This is the time (in UTC) when the edge
      * was created.
      */
-    public abstract DateTime CreatedDateTime { get; }
+    public DateTime CreatedDateTime { get { return _create_dt; } }
 
+    protected long _last_out_packet_datetime;
     /**
      * The DateTime of the last received packet (in UTC)
      */
-    public abstract DateTime LastOutPacketDateTime {
-      get;
+    public DateTime LastOutPacketDateTime {
+      get { return new DateTime(Interlocked.Read(ref _last_out_packet_datetime)); }
     }
 
     /*
@@ -166,22 +164,20 @@ namespace Brunet
     /**
      * The DateTime (UTC) of the last received packet
      */
-    public virtual DateTime LastInPacketDateTime {
+    public DateTime LastInPacketDateTime {
       get { return new DateTime(Interlocked.Read(ref _last_in_packet_datetime)); }
     }
 
-    public abstract bool IsClosed
+    protected int _is_closed;
+    public bool IsClosed
     {
-      get;
+      get { return 1 == _is_closed; }
     }
 
    /**
     * @return true if the edge is an in-degree
     */
-    public abstract bool IsInbound
-    {
-      get;
-    }
+    protected readonly bool IsInbound;
 
     public int CompareTo(object e)
     {
@@ -200,33 +196,14 @@ namespace Brunet
      * This method is used by subclasses.
      * @param b the packet to send a ReceivedPacket event for
      */
-    protected void ReceivedPacketEvent(MemBlock b)
+    public void ReceivedPacketEvent(MemBlock b)
     {
-      if( IsClosed ) {
+      if( 1 == _is_closed ) {
         //We should not be receiving packets on closed edges:
-        // Comment this out for now until we are debugging with
-        // FunctionEdge.
-        throw new EdgeException(
+        throw new EdgeClosedException(
                       String.Format("Trying to Receive on a Closed Edge: {0}",
                                     this) );
       }
-      /**
-       * logging of incoming packets
-       */
-      //string GeneratedLog = " a new packet was recieved on this edge ";
-#if LOG_PACKET
-      string base64String;
-      try {
-        base64String = b.ToBase64String();
-        string GeneratedLog = "InPacket: edge: " + ToString() + ", packet: "
-                              + base64String;
-        //log.Info(GeneratedLog);
-        // logging finished
-      }
-      catch (System.ArgumentNullException){
-        //log.Error("Error: Packet is Null");
-      }
-#endif
       try {
         _sub.Handle(b, this);
         Interlocked.Exchange(ref _last_in_packet_datetime, DateTime.UtcNow.Ticks);
@@ -237,9 +214,21 @@ namespace Brunet
         //want unhandled packets to keep edges open.
         //
         //This packet is going into the trash:
-        //log.Error("Packet LOST: " + p.ToString());
-          Console.Error.WriteLine("{0} lost packet {1}",this,b.ToBase16String());
+        Console.Error.WriteLine("{0} lost packet {1}",this,b.ToBase16String());
       }
+    }
+    /**
+     * @param p a Packet to send to the host on the other
+     * side of the Edge.
+     * @throw EdgeException if any problem happens
+     */
+    public virtual void Send(ICopyable p) {
+      if( 1 == _is_closed ) {
+        throw new EdgeClosedException(
+                    String.Format("Tried to send on a closed edge: {0}", this));
+      }
+      _send_cb.HandleEdgeSend(this, p);
+      Interlocked.Exchange(ref _last_out_packet_datetime, DateTime.UtcNow.Ticks);
     }
 
     /**
@@ -254,6 +243,11 @@ namespace Brunet
         return String.Format("local: {0} -> remote: {1}, num: {2}", LocalTA, RemoteTA, Number);
       }
     }
+    
+    public string ToUri() {
+      throw new System.NotImplementedException();
+    }
+    
   }
   
   /**

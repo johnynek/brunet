@@ -25,7 +25,10 @@ using System;
 using System.Net.Sockets;
 using System.Net;
 using System.Collections;
+using System.Collections.Specialized;
 using System.Threading;
+
+using Brunet.Util;
 
 namespace Brunet
 {
@@ -35,38 +38,214 @@ namespace Brunet
    * protocol.  This listener creates TCP edges.
    */
 
-  public class TcpEdgeListener : EdgeListener
+  public class TcpEdgeListener : EdgeListener, IEdgeSendHandler
   {
     protected readonly Socket _listen_sock;
     protected readonly IPEndPoint _local_endpoint;
-    protected readonly object _sync;
+    protected readonly object _send_sync;
     protected readonly Thread _loop;
-    protected volatile bool _send_edge_events;
-    volatile protected bool _run;
 
-    protected ArrayList _all_sockets;
-    protected ArrayList _send_sockets;
-    volatile protected Hashtable _sock_to_edge;
-    protected IEnumerable _tas;
-    protected ArrayList _creation_states;
+    protected readonly IEnumerable _tas;
+
+    protected readonly SingleReaderLockFreeQueue<SocketStateAction> ActionQueue;
+   
     /**
-     * This inner class holds the connection state information
+     * This class holds all the mutable state about the sockets we are working
+     * with.  It has no synchronization because it should only be modified
+     * in select thread, and so there is no chance for thread-sync bugs.
      */
-    protected class CreationState {
-      public EdgeCreationCallback ECB;
-      public int Port;
-      public Queue IPAddressQueue;
-      public Socket Socket;
+    protected class SocketState {
+      /*
+       * These variables can change BUT ONLY IN THE SELECT THREAD
+       */
+      public bool Run;
+      public TAAuthorizer TAA;
+      protected Hashtable _sock_to_rs;
+      
+      /*
+       * These are all the fixed objects that never change
+       */
+      protected readonly ListDictionary _sock_to_constate;
+      protected readonly ArrayList _con_socks;
+      protected readonly object _send_sync;
+      protected readonly ArrayList _socks_to_send;
+      /*
+       * This can be pretty big because it will only 
+       * slow down processing the ActionQueue, sends are not
+       * blocked by this.  No high performance items are
+       * placed in the ActionQueue
+       */
+      protected readonly static int TIMEOUT_MS = 250;
+      /*
+       * This is the Public API of the state
+       */
+      public readonly ArrayList AllSockets;
+      public readonly ArrayList ReadSocks;
+      public readonly ArrayList ErrorSocks;
+      public readonly ArrayList WriteSocks;
+      public readonly Socket ListenSock;
+      public readonly BufferAllocator BA;
 
-      public CreationState(EdgeCreationCallback ecb,
-                           Queue ipq, int port)
-      {
-        ECB = ecb;
-        IPAddressQueue = ipq;
-        Port = port;
+      public SocketState(Socket listensock, object ss) {
+        _sock_to_rs = new Hashtable();
+        _sock_to_constate = new ListDictionary();
+        _con_socks = new ArrayList();
+        ListenSock = listensock;
+        _send_sync = ss;
+        _socks_to_send = new ArrayList();
+        AllSockets = new ArrayList();
+        ReadSocks = new ArrayList();
+        ErrorSocks = new ArrayList();
+        WriteSocks = new ArrayList();
+        Run = true;
+        /* Use a shared BufferAllocator for all Edges */
+        BA = new BufferAllocator(2 + Packet.MaxLength);
+        ListenSock.Listen(10);
+      }
+      public void AddEdge(TcpEdge e) {
+        Socket s = e.Socket;
+        AllSockets.Add(s); 
+        ReceiveState rs = new ReceiveState(e, BA);
+        _sock_to_rs[s] = rs;
+      }
+      public void AddSendWaiter(Socket s) {
+        if( _socks_to_send.Contains(s) == false ) {
+          _socks_to_send.Add(s);
+        }
       }
 
+      public void AddCreationState(Socket s, CreationState cs) {
+        _sock_to_constate[ s ] = cs;
+        _con_socks.Add(s);
+      }
+
+      public void CloseSocket(Socket s) {
+        //We shouldn't be sending at the same time:
+        lock( _send_sync ) {
+          //We need to shutdown the socket:
+          try {
+            //Don't let more reading or writing:
+            s.Shutdown(SocketShutdown.Both);
+          }
+          catch { }
+          finally {
+            //This can't throw an exception
+            s.Close();
+          }
+        }
+      }
+
+      public void FlushSocket(Socket s) {
+        //Let's try to flush the buffer:
+        ReceiveState rs = (ReceiveState)_sock_to_rs[s];
+        bool flushed = true;
+        if( rs != null ) {
+          lock( _send_sync ) {
+            flushed = rs.Edge.Flush();
+          }
+        }
+        if( flushed ) {
+          //This socket is flushed, forget it:
+          _socks_to_send.Remove(s);
+        }
+        else {
+          //Make sure we continue to check this for writability
+          //This is a "set-like" operation, Add... is idempotent
+          AddSendWaiter(s);
+        }
+      }
+
+      //Remove and return the CreationState
+      public CreationState TakeCreationState(Socket s) {
+        CreationState cs = (CreationState)_sock_to_constate[s];
+        _sock_to_constate.Remove(s);
+        _con_socks.Remove(s);
+        return cs;
+      }
+
+      public TcpEdge GetEdge(Socket s) {
+        ReceiveState rs = (ReceiveState)_sock_to_rs[s];
+        if( rs != null ) {
+          return rs.Edge;
+        }
+        return null;
+      }
+
+      public ReceiveState GetReceiveState(Socket s) {
+        return (ReceiveState)_sock_to_rs[s];
+      }
+
+      public void RemoveEdge(TcpEdge e)
+      {
+        Socket s = e.Socket;
+        // Go ahead and remove from the map. ... this needs to be done because
+        // Socket's dynamic HashCode, a bug in an older version of Mono
+        Hashtable new_s_to_rs = new Hashtable( _sock_to_rs.Count );
+        foreach(DictionaryEntry de in _sock_to_rs) {
+          ReceiveState trs = (ReceiveState)de.Value;
+          if( e != trs.Edge ) {
+            new_s_to_rs.Add( de.Key, trs );
+          }
+        }
+        _sock_to_rs = new_s_to_rs;
+        AllSockets.Remove(s); 
+        _socks_to_send.Remove(s);
+      }
+
+      /**
+       * Update the ReadSocks and ErrorSocks to see which sockets might be
+       * ready for reading or need closing.
+       */
+      public void Select() {
+        ReadSocks.Clear();
+        ErrorSocks.Clear();
+        WriteSocks.Clear();
+        ReadSocks.AddRange(AllSockets);
+        //Also listen for incoming connections:
+        ReadSocks.Add(ListenSock);
+        /*
+         * POB: I cannot find any documentation on what, other than
+         * out-of-band data, might be signaled with these.  As such
+         * I am commenting them out.  If we don't see a reason to put
+         * it back soon, please delete ErrorSocks from the code.
+         * 11/19/2008
+        ErrorSocks.AddRange(AllSockets);
+        */
+        //Here we do non-blocking connecting:
+        WriteSocks.AddRange(_con_socks);
+        //Here we add the sockets that are waiting to write:
+        WriteSocks.AddRange(_socks_to_send);
+        //An error signals that the connection failed
+        ErrorSocks.AddRange(_con_socks);
+
+        /*
+         * Now we are ready to do our select and we only act on local
+         * variables
+         */
+        try {
+          //Socket.Select(ReadSocks, null, ErrorSocks, TIMEOUT_MS * 1000);
+          Socket.Select(ReadSocks, WriteSocks, ErrorSocks, TIMEOUT_MS * 1000);
+          //Socket.Select(ReadSocks, null, null, TIMEOUT_MS * 1000);
+        }
+        catch(System.ObjectDisposedException) {
+            /*
+             * This happens if one of the edges is closed while
+             * a select call is in progress.  This is not weird,
+             * just ignore it
+             */
+          ReadSocks.Clear();
+          ErrorSocks.Clear();
+          WriteSocks.Clear();
+        }
+        catch(Exception x) {
+          //One of the Sockets gave us problems.  Perhaps
+          //it was closed after we released the lock.
+          Console.Error.WriteLine( x.ToString() );
+          Thread.Sleep(TIMEOUT_MS);
+        }
+      }
     }
+
 
     public override IEnumerable LocalTAs
     {
@@ -81,10 +260,10 @@ namespace Brunet
       }
     }
 
-    protected bool _is_started;
+    protected int _is_started;
     public override bool IsStarted
     {
-      get { lock( _sync ) { return _is_started; } }
+      get { return (1 == _is_started); }
     }
 
     override public TAAuthorizer TAAuth {
@@ -94,22 +273,8 @@ namespace Brunet
        * close them
        */
       set {
-        ArrayList bad_edges = new ArrayList();
-        lock( _sync ) {
-          _ta_auth = value;
-          IDictionaryEnumerator en = _sock_to_edge.GetEnumerator();
-          while( en.MoveNext() ) {
-            Edge e = (Edge)en.Value;
-            if( _ta_auth.Authorize( e.RemoteTA ) == TAAuthorizer.Decision.Deny ) {
-              bad_edges.Add(e);
-            }
-          }
-        }
-        //Close the newly bad Edges.
-        foreach(Edge e in bad_edges) {
-          RequestClose(e);
-          CloseHandler(e, null);
-        }
+        _ta_auth = value;
+        ActionQueue.Enqueue( new CloseDeniedAction(this, value) );
       }
     }    
 
@@ -136,7 +301,7 @@ namespace Brunet
      */
     public TcpEdgeListener(int port, IEnumerable local_config_ips, TAAuthorizer ta_auth)
     {
-      _is_started = false;
+      _is_started = 0;
       _listen_sock = new Socket(AddressFamily.InterNetwork,
                                 SocketType.Stream, ProtocolType.Tcp);
       _listen_sock.LingerState = new LingerOption (true, 0);
@@ -160,500 +325,608 @@ namespace Brunet
         //Always authorize in this case:
         _ta_auth = new ConstantAuthorizer(TAAuthorizer.Decision.Allow);
       }
-      _sync = new Object();
-      _send_edge_events = false;
-      _run = true;
-      _all_sockets = new ArrayList();
-      _send_sockets = new ArrayList();
-      _sock_to_edge = new Hashtable();
-      _creation_states = new ArrayList();
-      _loop = new Thread( new ThreadStart( this.SelectLoop ) );
+      _send_sync = new object();
+      _loop = new Thread( this.SelectLoop );
+      //This is how we push jobs into the SelectThread
+      ActionQueue = new SingleReaderLockFreeQueue<SocketStateAction>();
     }
 
-    /**
+    /* //////////////////////////
+     * Here are all the Actions we take in the Select thread
+     * This is what allows us to avoid locking, but also make sure things are
+     * thread-safe.
+     * /////////////////////////
      */
+
+    /** Object subclass this is how we look at SocketState in the SelectThread;
+     * do *NOT* keep a reference to SocketState after the Start() call.  You
+     * should only access it in the Start() method, after that, let it go!
+     */
+    protected abstract class SocketStateAction {
+      abstract public void Start(SocketState ss);
+    }
+
+    /** Class to handle closing in the select thread
+     */
+    protected class CloseAction : SocketStateAction {
+      protected readonly TcpEdge _e;
+      protected readonly SingleReaderLockFreeQueue<SocketStateAction> _queue;
+
+      public CloseAction(TcpEdge e, SingleReaderLockFreeQueue<SocketStateAction> q) {
+        _e = e;
+        _queue = q;
+      }
+
+      public void CloseHandler(object edge, EventArgs ea) {
+        _queue.Enqueue(this);
+      }
+
+      /** This will be called in select thread
+       */
+      public override void Start(SocketState ss) {
+        ss.RemoveEdge(_e);
+        ss.CloseSocket(_e.Socket);
+      }
+    }
+    
+    /** In the select thread, go through the sockets and close any now denied TAs
+     */
+    protected class CloseDeniedAction : SocketStateAction {
+      public readonly TAAuthorizer TAA;
+      public readonly TcpEdgeListener EL;
+      public CloseDeniedAction(TcpEdgeListener el, TAAuthorizer taa) {
+        TAA = taa;
+        EL = el;
+      }
+      /*
+       * Update the SocketState.TAA and check to see if any Edges need
+       * to be closed.
+       */
+      public override void Start(SocketState ss) {
+        ss.TAA = TAA;
+        ArrayList bad_edges = new ArrayList();
+        foreach(Socket s in ss.AllSockets) {
+          TcpEdge e = ss.GetEdge(s);
+          if( e != null ) {
+            if( TAA.Authorize( e.RemoteTA ) == TAAuthorizer.Decision.Deny ) {
+              //We can't close now, that would invalidate the AllSockets
+              //iterator
+              bad_edges.Add(e);
+            }
+          }
+        }
+        foreach(TcpEdge e in bad_edges) {
+          EL.RequestClose(e);
+          CloseAction ca = new CloseAction(e, null);
+          ca.Start(ss);
+        }
+      }
+    }
+    
+    /**
+     * This object manages creating new outbound edges.
+     */
+    protected class CreationState : SocketStateAction {
+      public readonly EdgeCreationCallback ECB;
+      public readonly int Port;
+      public readonly Queue IPAddressQueue;
+      public readonly TcpEdgeListener TEL;
+      public readonly WriteOnce<object> Result;
+
+
+      public CreationState(EdgeCreationCallback ecb,
+                           Queue ipq, int port,
+                           TcpEdgeListener tel)
+      {
+        ECB = ecb;
+        IPAddressQueue = ipq;
+        Port = port;
+        TEL = tel;
+        Result = new WriteOnce<object>();
+      }
+      /**
+       * Called when the socket is writable
+       */
+      public void HandleWritability(Socket s) {
+        try {
+          if( s.Connected ) {
+            TcpEdgeListener.SetSocketOpts(s);
+            TcpEdge e = new TcpEdge(TEL, false, s);
+            Result.Value = e;
+            //Handle closes in the select thread:
+            CloseAction ca = new CloseAction(e, TEL.ActionQueue);
+            e.CloseEvent += ca.CloseHandler;
+            //Set the edge
+            TEL.ActionQueue.Enqueue(this);
+          }
+          else {
+            //This did not work out, close the socket and release the resources:
+            HandleError(s);
+          }
+        }
+        catch(Exception) {
+          //This did not work out, close the socket and release the resources:
+          //Console.WriteLine("Exception: {0}", x);
+          HandleError(s);
+        }
+      }
+       
+      public void HandleError(Socket s) {
+        s.Close();
+        TEL.ActionQueue.Enqueue(this);
+      }
+
+      /**
+       * Implements the SocketStateAction interface.  This is called to trigger the ECB
+       * in the SelectThread so we don't have to worry about multiple threads
+       * accessing variables.
+       */
+      public override void Start(SocketState ss) {
+        object result = Result.Value;
+        if( result != null ) {
+          TcpEdge new_edge = result as TcpEdge;
+          if( new_edge != null ) {
+            //Tell the world about the new Edge:
+            ss.AddEdge(new_edge);
+            ECB(true, new_edge, null); 
+          }
+          else {
+            ECB(false, null, (Exception)result); 
+          }
+        }
+        else {
+          //Try to make a new start:
+          if( IPAddressQueue.Count <= 0 ) {
+            ECB(false, null, new EdgeException("No more IP Addresses"));
+          }
+          else {
+            Socket s = null;
+            try {
+              s = new Socket(AddressFamily.InterNetwork,
+                                   SocketType.Stream,
+                                   ProtocolType.Tcp);
+              s.Blocking = false;
+              ss.AddCreationState(s, this);
+              IPAddress ipaddr = (IPAddress)IPAddressQueue.Dequeue();
+              IPEndPoint end = new IPEndPoint(ipaddr, Port);
+              IPAddress any = s.AddressFamily == AddressFamily.InterNetworkV6 
+                              ? IPAddress.IPv6Any : IPAddress.Any;
+              //This is a hack because of a bug in MS.Net and Mono:
+              //https://bugzilla.novell.com/show_bug.cgi?id=349449
+              //http://connect.microsoft.com/VisualStudio/feedback/ViewFeedback.aspx?FeedbackID=332142
+              s.Bind(new IPEndPoint(any, 0));
+              s.Connect(end);
+            }
+            catch(SocketException sx) {
+              if( sx.SocketErrorCode != SocketError.WouldBlock ) {
+                if( s != null ) {
+                  ss.TakeCreationState(s);
+                }
+                ECB(false, null, new EdgeException(false, "Could not Connect", sx)); 
+              }
+              /* else Ignore the non-blocking socket error */
+            }
+          }
+        }
+      }
+    }
+
+    /*
+     * Handle writing the to the log every interval
+     */
+    protected class LogAction : SocketStateAction {
+      protected DateTime _last_debug;
+      protected readonly TimeSpan _debug_period;
+      protected readonly SingleReaderLockFreeQueue<SocketStateAction> _q;
+
+      public LogAction(TimeSpan interval, SingleReaderLockFreeQueue<SocketStateAction> q) {
+        _last_debug = DateTime.UtcNow;
+        _debug_period = interval;
+        _q = q;
+      }
+
+      public override void Start(SocketState ss) {
+        DateTime now = DateTime.UtcNow;
+        if (now - _last_debug > _debug_period) {
+          _last_debug = now;
+          ProtocolLog.Write(ProtocolLog.Monitor, String.Format("I am alive: {0}", now));
+        }
+        //Run ourselves again later.
+        _q.Enqueue(this);
+      }
+    }
+
+    /** Runs select on the sockets and reschedules itself.
+     */
+    protected class SelectAction : SocketStateAction {
+      protected readonly TcpEdgeListener TEL;
+
+      public SelectAction(TcpEdgeListener tel) {
+        TEL = tel;
+      }
+
+      public override void Start(SocketState ss) {
+        ss.Select();
+        HandleWrites(ss);
+        HandleErrors(ss);
+        HandleReads(ss);
+        //Enqueue ourselves to run again:
+        TEL.ActionQueue.Enqueue(this);
+      }
+      protected void HandleErrors(SocketState ss) {
+        ArrayList socks = ss.ErrorSocks;
+        for(int i = 0; i < socks.Count; i++) {
+          Socket s = (Socket)socks[i];
+          CreationState cs = ss.TakeCreationState( s );
+          if( cs != null ) {
+            cs.HandleError(s);
+          }
+        }
+      }
+      protected void HandleWrites(SocketState ss) {
+        ArrayList socks = ss.WriteSocks;
+        for(int i = 0; i < socks.Count; i++) {
+          Socket s = (Socket)socks[i];
+          CreationState cs = ss.TakeCreationState( s );
+          if( cs != null ) {
+            cs.HandleWritability(s);
+          }
+          else {
+            //Let's try to flush the buffer:
+            try {
+              ss.FlushSocket(s);
+            }
+            catch {
+              /*
+               * We should close this edge
+               */
+              TcpEdge tcpe = ss.GetEdge(s);
+              TEL.RequestClose(tcpe);
+              //Go ahead and forget about this socket.
+              CloseAction ca = new CloseAction(tcpe, null);
+              ca.Start(ss);
+            }
+          }
+        }
+      }
+      protected void HandleReads(SocketState ss) {
+        ArrayList readsocks = ss.ReadSocks;
+        Socket listen_sock = ss.ListenSock;
+        for(int i = 0; i < readsocks.Count; i++) {
+          Socket s = (Socket)readsocks[i];
+          //See if this is a new socket
+          if( s == listen_sock ) {
+            TcpEdge e = null;
+            Socket new_s = null;
+            try {
+              new_s = listen_sock.Accept();
+              IPEndPoint rep = (IPEndPoint)new_s.RemoteEndPoint;
+              new_s.LingerState = new LingerOption (true, 0);
+              TransportAddress rta =
+                       TransportAddressFactory.CreateInstance(TransportAddress.TAType.Tcp, rep);
+              if( ss.TAA.Authorize(rta) == TAAuthorizer.Decision.Deny ) {
+                //No thank you Dr. Evil
+                Console.Error.WriteLine("Denying: {0}", rta);
+                new_s.Close();
+              }
+              else {
+                //This edge looks clean
+                TcpEdgeListener.SetSocketOpts(s);
+                e = new TcpEdge(TEL, true, new_s);
+                ss.AddEdge(e);
+                //Handle closes in the select thread:
+                CloseAction ca = new CloseAction(e, TEL.ActionQueue);
+                e.CloseEvent += ca.CloseHandler;
+                TEL.SendEdgeEvent(e);
+              }
+            }
+            catch(Exception) {
+              //Looks like this Accept has failed.  Do nothing
+              //Console.Error.WriteLine("New incoming edge ({0}) failed: {1}", new_s, sx);
+              //Make sure the edge is closed
+              if( e != null ) {
+                TEL.RequestClose(e);
+                //Go ahead and forget about this socket.
+                CloseAction ca = new CloseAction(e, null);
+                ca.Start(ss);
+              }
+              else if( new_s != null) {
+                //This should not be able to throw an exception:
+                new_s.Close();
+              }
+            }
+          }
+          else {
+            ReceiveState rs = ss.GetReceiveState(s);
+            if( rs != null && !rs.Receive() ) {
+              TEL.RequestClose(rs.Edge);
+              //Go ahead and forget about this socket.
+              CloseAction ca = new CloseAction(rs.Edge, null);
+              ca.Start(ss);
+            }
+          }
+        }
+      }
+    
+    }
+    
+    /** Set the SocketState.Run to false, this stops the Select thread
+     */
+    protected class StopAction : SocketStateAction {
+      public override void Start(SocketState ss) { ss.Run = false; }
+    }
+
+    /** Used to signal that there is a socket waiting to write
+     */
+    protected class SendWaitAction : SocketStateAction {
+      public readonly Socket Socket;
+      public SendWaitAction(Socket s) { Socket = s; }
+      public override void Start(SocketState ss) { ss.AddSendWaiter(Socket); }
+    }
+
+    /** This Action is excuted AFTER the StopAction, kind of a "Destructor" 
+     */
+    protected class ShutdownAction : SocketStateAction {
+      protected readonly TcpEdgeListener TEL;
+      public ShutdownAction(TcpEdgeListener tel) {
+        TEL = tel;
+      }
+      public override void Start(SocketState ss) {
+        /*
+         * Note, we are the only thread running actions from the queue,
+         * so, no change to ss can happen concurrently with this logic
+         */
+        ArrayList close_actions = new ArrayList();
+        foreach(Socket s in ss.AllSockets) {
+          TcpEdge e = ss.GetEdge(s);
+          TEL.RequestClose(e);
+          /*
+           * We can't just call ca.Start(ss) because that
+           * would change ss.AllSockets
+           */
+          close_actions.Add(new CloseAction(e, null));
+        }
+        foreach(CloseAction ca in close_actions) {
+          ca.Start(ss);
+        }
+        //Close the main socket:
+        ss.ListenSock.Close();
+      }
+    }
+
+
+    /* //////////////////////////////
+     *
+     * Here are all the normal methods of TcpEdgeListener
+     *
+     * //////////////////////////////
+     */
+
+
     public override void CreateEdgeTo(TransportAddress ta, EdgeCreationCallback ecb)
     {
       try {
-      if( !IsStarted || (_run == false) )
-      {
-	throw new EdgeException("TcpEdgeListener is not started");
-      }
-      else if( ta.TransportAddressType != this.TAType ) {
-	throw new EdgeException(ta.TransportAddressType.ToString()
-				+ " is not my type: " + this.TAType.ToString());
-      }
-      else if( _ta_auth.Authorize(ta) == TAAuthorizer.Decision.Deny ) {
-        //Too bad.  Can't make this edge:
-	throw new EdgeException( ta.ToString() + " is not authorized");
-      }
-      else {
-        //Everything looks good:
-	ArrayList tmp_ips = new ArrayList();
-	tmp_ips.Add(((IPTransportAddress)ta).GetIPAddress());
-        CreationState cs = new CreationState(ecb,
-                                           new Queue( tmp_ips ),
-                                           ((IPTransportAddress) ta).Port);
-        lock( _sync ) { 
-          _creation_states.Add(cs);
+        if( !IsStarted ) {
+          throw new EdgeException("TcpEdgeListener is not started");
         }
-        TryNextIP( cs );
-      }
+        else if( ta.TransportAddressType != TransportAddress.TAType.Tcp ) {
+	        throw new EdgeException(ta.TransportAddressType.ToString()
+				    + " is not my type: Tcp");
+        }
+        else if( _ta_auth.Authorize(ta) == TAAuthorizer.Decision.Deny ) {
+            //Too bad.  Can't make this edge:
+	        throw new EdgeException( ta.ToString() + " is not authorized");
+        }
+        else {
+          //Everything looks good:
+	        ArrayList tmp_ips = new ArrayList();
+	        tmp_ips.Add(((IPTransportAddress)ta).GetIPAddress());
+          CreationState cs = new CreationState(ecb,
+                                           new Queue( tmp_ips ),
+                                           ((IPTransportAddress) ta).Port,
+                                           this);
+          ActionQueue.Enqueue(cs);
+        }
       } catch(Exception e) {
-        
 	      ecb(false, null, e);
       }
     }
 
+    ///Set the standard options for this socket
+    public static void SetSocketOpts(Socket s) {
+      s.Blocking = false; //Make sure the socket is not blocking
+      //s.NoDelay = true; //Disable Nagle
+      /*
+       * I'm not sure this is helping at all, but we are doubling
+       * the usual buffer size in the hopes that it will reduce
+       * problems of lost packets.
+       */
+      s.SendBufferSize = 16384;
+      s.ReceiveBufferSize = 16384;
+    }
+
     public override void Start()
     {
-      lock( _sync ) {
-        if( _is_started ) {
-          //We are calling start again, that is not good.
-          throw new Exception("Cannot start more than once");
-        }
-        _listen_sock.Listen(10);
-        _is_started = true;
-        _send_edge_events = true;
-        _run = true;
-        _loop.Start();
+      if( 1 == Interlocked.Exchange(ref _is_started, 1) ) {
+        //We are calling start again, that is not good.
+        throw new Exception("Cannot start more than once");
       }
+      _loop.Start();
     }
 
     public override void Stop()
     {
-      //This should stop the thread gracefully
-      _run = false;
+      ActionQueue.Enqueue(new StopAction());
+
+      //Don't join on the current thread, that would block forever
       if(Thread.CurrentThread != _loop ) {
-        //Don't join on the current thread, that would block forever
         _loop.Join();
-      }
-      lock( _sync ) {
-        foreach(CreationState cs in _creation_states) {
-          //stop referring back to the Node
-          cs.ECB = null;
-        }
-        //Make sure we don't put anything else in this list
-        _creation_states = null;
       }
       base.Stop();
     }
+    
 
     /* ***************************************************** */
     /* Protected Methods */
     /* ***************************************************** */
 
-    /**
-     * Called when BeginConnect returns
-     */
-    protected void ConnectCallback(IAsyncResult ar)
-    {
-      CreationState cs = null;
-      Socket s = null;
-      TcpEdge e;
-      bool success;
-      try {
-        cs = (CreationState)ar.AsyncState;
-        s = cs.Socket;
-        bool start_edge = false;
-        s.EndConnect(ar);
-        start_edge = s.Connected;
-        if( start_edge ) {
-          e = new TcpEdge(s, false, this);
-          AddEdge(e);
-#if PLAB_LOG
-          e.Logger = this.Logger;
-#endif
-          //Start listening for incoming packets:
-          success = true;
-        }
-        else {
-          //This did not work out, close the socket and release the resources:
-          s.Close();
-          e = null;
-          success = false;
-        }
-        cs.ECB(success, e, null);
-        lock(_sync) {
-          _creation_states.Remove(cs);
-        }
-      }
-      catch(Exception) {
-        //This did not work out, close the socket and release the resources:
-	//Console.Error.WriteLine( x );
-        if( s != null) { s.Close(); }
-        if( cs != null ) {
-          /*
-	   * If the connection fails and we can't look up the connection state,
-	   * we must stop.  So, only TryNextIP if we can look up the connection
-	   * state.
-	   *
-	   * On shutdown, we may get a:
-	   * System.ObjectDisposedException: The object was used after being disposed.
-           * in <0x000ba> System.Net.Sockets.Socket:EndConnect (IAsyncResult result)
-	   */
-	  TryNextIP( cs );
-	}
-      }
-    }
-
-    protected void TryNextIP(CreationState cs)
-    {
-      if( cs.IPAddressQueue.Count <= 0 ) {
-        cs.ECB(false, null, new EdgeException("No more IP Addresses") );
-        lock(_sync) {
-          _creation_states.Remove(cs);
-        }
-      }
-      else {
-        Socket s = null;
-        try {
-          IPAddress ipaddr = (IPAddress)cs.IPAddressQueue.Dequeue();
-          IPEndPoint end = new IPEndPoint(ipaddr, cs.Port);
-          s = new Socket(end.AddressFamily,
-                         SocketType.Stream, ProtocolType.Tcp);
-          /**
-           * @throw ArgumentNullException for connect if end is null.
-           * @throw InvalidOperationException for connect 
-           * if an asynchronous call is pending and a blocking method 
-           * has been called.
-           * @throw ObjectDisposedException for the Connectif the current
-           * instance has been disposed 
-           * @throw System.Security.SecurityException if a caller in the call 
-           * stack does not have the required permission.
-           * @throw System.Net.Sockets.SocketException.
-           */
-          s.SetSocketOption(SocketOptionLevel.Tcp,
-                            SocketOptionName.NoDelay,
-                            1);
-          /* Store the callback in the socket table temporarily: */
-          cs.Socket = s;
-          s.BeginConnect(end, this.ConnectCallback, cs);
-        }
-        catch(Exception x) {
-          cs.ECB(false, null, x);
-          lock(_sync) {
-            _creation_states.Remove(cs);
-          }
-        }
-      }
-    }
 
     protected void SelectLoop()
     {
       Thread.CurrentThread.Name = "tcp_select_thread";
-      int timeout_ms = 10; //it was 10 changed to 1 by kl
-      ArrayList readsocks = new ArrayList();
-      ArrayList writesocks = new ArrayList();
-      ArrayList errorsocks = new ArrayList();
-      //These hold refences to the above OR null when they are empty
-      ArrayList rs;
-      ArrayList es;
-      ArrayList ws;
-      
-      /* Use a shared BufferAllocator for all Edges */
-      BufferAllocator buf = new BufferAllocator(2 + Packet.MaxLength);
 
-      DateTime last_debug = DateTime.UtcNow;
-      TimeSpan debug_period = new TimeSpan(0,0,0,0,5000);// log every 5 seconds.
-      while(_run)
-      {
-        if (ProtocolLog.Monitor.Enabled) {
-          DateTime now = DateTime.UtcNow;
-          if (now - last_debug > debug_period) {
-            last_debug = now;
-            ProtocolLog.Write(ProtocolLog.Monitor, String.Format("I am alive: {0}", now));
-          }
-        }   
-        readsocks.Clear();
-        writesocks.Clear();
-        errorsocks.Clear();
-        /*
-         * Set up readsocks, errorsocks, and writesocks
-         */
-        //Try to get the _all_sockets:
-        ArrayList all_s = Interlocked.Exchange(ref _all_sockets, null);
-        if( all_s != null ) {
-          //We got the all sockets list:
-          readsocks.AddRange( all_s );
-          errorsocks.AddRange( all_s );
-          //Put it back:
-          Interlocked.Exchange(ref _all_sockets, all_s);
-        }
-        //Try to get the _send_sockets:
-        ArrayList send_s = Interlocked.Exchange(ref _send_sockets, null);
-        if( send_s != null ) {
-          //We got the send sockets:
-          writesocks.AddRange( send_s );
-          if( all_s == null ) {
-            //We didn't get the list of all sockets, but go ahead and put
-            //the write sockets into the error list:
-            errorsocks.AddRange( send_s );
-          }
-          //Put the _send_sockets back:
-          Interlocked.Exchange(ref _send_sockets, send_s);
-        }
-        if( _send_edge_events ) {
-          //Also listen for incoming connections:
-          readsocks.Add(_listen_sock);
-          errorsocks.Add(_listen_sock);
-        }
-        /*
-         * Now we are ready to do our select and we only act on local
-         * variables
-         */
-        //This is an optimization to reduce memory allocations in Select
-        rs = (readsocks.Count > 0) ? readsocks : null;
-        es = (errorsocks.Count > 0) ? errorsocks : null;
-        ws = (writesocks.Count == 0) ? null : writesocks;
-        if( rs != null || es != null || ws != null ) {
-          //There are some socket operations to do
-#if POB_DEBUG
-          Console.Error.WriteLine("Selecting");
-          DateTime now = DateTime.UtcNow;
-#endif
-          try {
-            Socket.Select(rs, ws, es, timeout_ms * 1000);
-#if POB_DEBUG
-            Console.Error.WriteLine("Selected for: {0}", DateTime.UtcNow - now);
-#endif
-          }
-          catch(System.ObjectDisposedException) {
-            /*
-             * This happens if one of the edges is closed while
-             * a select call is in progress.  This is not weird,
-             * just ignore it
-             */
-            rs = null;
-            es = null;
-            ws = null;
-          }
-          catch(Exception x) {
-            //One of the Sockets gave us problems.  Perhaps
-            //it was closed after we released the lock.
-#if POB_DEBUG
-            Console.Error.WriteLine( x.ToString() );
-#endif
-            Console.Error.WriteLine( x.ToString() );
-            Thread.Sleep(timeout_ms);
-          }
-        }
-        else {
-          //Wait 1 ms and try again
-#if POB_DEBUG
-          Console.Error.WriteLine("Waiting");
-#endif
-          Thread.Sleep(1);
-        }
-        if( es != null ) {
-          HandleErrors(es);
-        }
-        if( rs != null ) {
-          HandleReads(rs, buf);
-        }
-        if( ws != null ) {
-          HandleWrites(ws, buf);
-        }
-      }//End of while loop
-      /*
-       * We are done, so close all the sockets
-       */
-      ArrayList tmp = null;
+      //No one can see this except this thread, so there is no
+      //need for thread synchronization
+      SocketState ss = new SocketState(_listen_sock, _send_sync);
+      ss.TAA = _ta_auth;
+
+      if( ProtocolLog.Monitor.Enabled ) {
+        // log every 5 seconds.
+        ActionQueue.Enqueue(new LogAction(new TimeSpan(0,0,0,0,5000), ActionQueue));
+      }
+      //Start the select action:
+      ActionQueue.Enqueue(new SelectAction(this)); 
+      bool got_action = false;
+      while(ss.Run) {
+        SocketStateAction a = ActionQueue.TryDequeue(out got_action);
+        if( got_action ) { a.Start(ss); }
+      }
+      ShutdownAction sda = new ShutdownAction(this);
+      sda.Start(ss);
+      //Empty the queue to remove references to old objects
       do {
-        tmp = Interlocked.Exchange(ref _all_sockets, tmp);
-      } while( tmp == null );
-      ArrayList copy = new ArrayList(tmp);
-      Interlocked.Exchange(ref _all_sockets, tmp);
-      
-      foreach(Socket s in copy) {
-        Edge e = (Edge)_sock_to_edge[s];
-        if( e != null ) {
-          RequestClose(e);
-          CloseHandler(e, null);
-        }
-        s.Close();
-      }
-      //Close the main socket:
-      _listen_sock.Close();
-    }
-
-    protected void AddEdge(TcpEdge e) {
-      Socket s = e.Socket;
-
-      ArrayList all_s = null;
-      //Acquire _all_sockets
-      do {
-        all_s = Interlocked.Exchange(ref _all_sockets, all_s);
-      } while( all_s == null );
-      all_s.Add(s);
-      //Put it back:
-      Interlocked.Exchange(ref _all_sockets, all_s);
-
-      lock( _sync ) {
-        //lock before we change the Hashtable
-        _sock_to_edge[s] = e;
-      }
-      try {
-        e.CloseEvent += this.CloseHandler;
-      }
-      catch { CloseHandler(e, null); }
-    }
-
-    protected void CloseHandler(object edge, EventArgs arg)
-    {
-      TcpEdge e = (TcpEdge)edge;
-      Socket s = e.Socket;
-      // Go ahead and remove from the map. ... this needs to be done because
-      // Socket's dynamic HashCode
-      lock( _sync ) {
-        Hashtable new_s_to_e = new Hashtable( _sock_to_edge.Count );
-        foreach(DictionaryEntry de in _sock_to_edge) {
-          if( e != de.Value ) {
-            new_s_to_e.Add( de.Key, de.Value );
-          }
-        }
-        _sock_to_edge = new_s_to_e;
-      }
-
-      ArrayList all_s = null;
-      //Acquire _all_sockets
-      do {
-        all_s = Interlocked.Exchange(ref _all_sockets, all_s);
-      } while( all_s == null );
-
-      ArrayList send_s = null;
-      //Acquire _send_sockets
-      do {
-        send_s = Interlocked.Exchange(ref _send_sockets, send_s);
-      } while( send_s == null );
-      //Remove from both:
-      all_s.Remove(s);
-      send_s.Remove(s);
-      /*
-       * Put them both back
-       */
-      Interlocked.Exchange(ref _all_sockets, all_s);
-      Interlocked.Exchange(ref _send_sockets, send_s);
-    }
-
-    protected void HandleErrors(ArrayList errorsocks) {
-      for(int i = 0; i < errorsocks.Count; i++) {
-        Edge e = (Edge)_sock_to_edge[ errorsocks[i] ];
-        if( e != null ) {
-          RequestClose(e);
-          CloseHandler(e, null);
-        }
-#if POB_DEBUG
-        Console.Error.WriteLine("TcpEdgeListener closing: {0}", e);
-#endif
-      }
-    }
-    protected void HandleReads(ArrayList readsocks, BufferAllocator buf) {
-      for(int i = 0; i < readsocks.Count; i++) {
-        object s = readsocks[i];
-        //See if this is a new socket
-        if( s == _listen_sock ) {
-          TcpEdge e = null;
-          try {
-            Socket new_s = _listen_sock.Accept();
-            new_s.LingerState = new LingerOption (true, 0);
-            TransportAddress rta = TransportAddressFactory.CreateInstance(this.TAType,
-                                    (IPEndPoint)new_s.RemoteEndPoint);
-            if( _ta_auth.Authorize(rta) == TAAuthorizer.Decision.Deny ) {
-              //No thank you Dr. Evil
-              Console.Error.WriteLine("Denying: {0}", rta);
-              new_s.Close();
-            }
-            else {
-              //This edge looks clean
-              e = new TcpEdge(new_s, true, this);
-              AddEdge(e);
-  #if POB_DEBUG
-              Console.Error.WriteLine("New Edge: {0}", e);
-  #endif
-              SendEdgeEvent(e);
-            }
-          }
-          catch(Exception sx) {
-          //Looks like this Accept has failed.  Do nothing
-            Console.Error.WriteLine("New incoming edge ({1}) failed: {0}", sx, e);
-            //Make sure the edge is closed
-            if( e != null ) {
-              RequestClose(e);
-              CloseHandler(e, null);
-            }
-          }
-        }
-        else {
-          TcpEdge e = (TcpEdge)_sock_to_edge[s];
-#if POB_DEBUG
-          Console.Error.WriteLine("DoReceive: {0}", e);
-#endif
-          //It is really important not to lock across this function call
-          if( e != null ) {
-            try {
-              e.DoReceive(buf);
-            }
-            catch(Exception x) {
-              Console.WriteLine("Exception: {0}", x);
-              RequestClose(e);
-              CloseHandler(e, null);
-            }
-          }
-          else {
-            //Console.Error.WriteLine("ERROR: Receive Socket: {0} not associated with an edge", s);
-          }
-        }
-      }
-    }
-
-    protected void HandleWrites(ArrayList writesocks, BufferAllocator b) {
-      for(int i = 0; i < writesocks.Count; i++) {
-        object s = writesocks[i];
-        TcpEdge e = (TcpEdge)_sock_to_edge[s];
-#if POB_DEBUG
-          Console.Error.WriteLine("DoSend: {0}", e);
-#endif
-        if( e != null ) {
-          try {
-            e.DoSend(b);
-          }
-          catch(Exception x) {
-            Console.WriteLine("Exception: {0}", x);
-            RequestClose(e);
-            CloseHandler(e, null);
-          }
-        }
-        else {
-          //Console.Error.WriteLine("ERROR: Send Socket: {0} not associated with an edge", s);
-        }
-      }
+        ActionQueue.TryDequeue(out got_action);
+      } while(got_action);
     }
 
     /**
-     * TcpEdge objects call this method when their
-     * send state changes (from true to false or vice-versa).
+     * Represents the state of the packet receiving 
      */
-    public void SendStateChange(TcpEdge e, bool need_to_send)
-    {
-      ArrayList send_s = null;
-      do {
-        send_s = Interlocked.Exchange(ref _send_sockets, send_s);
-      } while( send_s == null );
+    protected class ReceiveState {
+      public byte[] Buffer;
+      public int Offset;
+      public int Length;
 
-      try {
-        if( need_to_send && !e.IsClosed ) {
-          send_s.Add(e.Socket);
-        }
-        else {
-          send_s.Remove(e.Socket);
-        }
+      public int CurrentOffset;
+      public int RemainingLength;
+
+      public bool ReadingSize;
+
+      public readonly TcpEdge Edge;
+      protected readonly Socket _s;      
+      protected readonly BufferAllocator _ba;
+
+      public ReceiveState(TcpEdge e, BufferAllocator ba) {
+        Edge = e;
+        _s = e.Socket;
+        _ba = ba;
       }
-      finally {
-        Interlocked.Exchange(ref _send_sockets, send_s);
+
+      protected void Reset(byte[] buf, int off, int length, bool readingsize) {
+        Buffer = buf;
+        Offset = off;
+        Length = length;
+        CurrentOffset = off;
+        RemainingLength = length;
+        ReadingSize = readingsize;
+      }
+
+      /**
+       * Do as much of a read as we can
+       * @return true if the socket is still ready, false if we should close
+       * the edge.
+       */
+      public bool Receive() {
+        int got = 0;
+        int avail = 0;
+        do {
+          if( Buffer == null ) {
+            //Time to read the size:
+            Reset(_ba.Buffer, _ba.Offset, 2, true);
+            _ba.AdvanceBuffer(2);
+          }
+          try {
+            got = _s.Receive(Buffer, CurrentOffset, RemainingLength, SocketFlags.None);
+            avail = _s.Available;
+          }
+          catch(SocketException) {
+            //Some OS error, just close the edge:
+            Buffer = null;
+            return false;
+          }
+          if( got == 0 ) {
+            //this means the edge is closed:
+            return false;
+          }
+          CurrentOffset += got;
+          RemainingLength -= got;
+          if(RemainingLength == 0) {
+            //Time to do some action:
+            if( ReadingSize ) {
+              short size = NumberSerializer.ReadShort(Buffer, Offset);
+              if( size <= 0 ) {
+                //This doesn't make sense, later we might use this to code
+                //something else
+                return false;
+              }
+              //Start to read the packet:
+              Reset(_ba.Buffer, _ba.Offset, size, false);
+              _ba.AdvanceBuffer(size);
+            }
+            else {
+              try {
+                Edge.ReceivedPacketEvent(MemBlock.Reference(Buffer, Offset, Length));
+              }
+              catch(EdgeClosedException) {
+                return false;
+              }
+              finally {
+                //Drop the reference and signal we are ready to read the next
+                //size
+                Buffer = null;
+              }
+            }
+          }
+        } while( avail > 0 );
+        return true;
       }
     }
 
+
+
+    public void HandleEdgeSend(Edge from, ICopyable p) {
+      TcpEdge sender = (TcpEdge) from;
+      try {
+        bool flushed = true;
+        lock(_send_sync) {
+          //Try to fill up the buffer:
+          sender.WriteToBuffer(p);
+          //Okay, we loaded the whole packet into the TcpEdge's buffer
+          //now it is time to try to flush the buffer:
+          flushed = sender.Flush();  
+        }
+        if( !flushed ) {
+          /*
+           * We should remember to try again when the socket is
+           * writable
+           */
+          ActionQueue.Enqueue(new SendWaitAction(sender.Socket));
+        }
+      }
+      catch(EdgeException ex) {
+        if( false == ex.IsTransient ) {
+          //Go ahead and forget about this socket.
+          RequestClose(from); 
+          ActionQueue.Enqueue(new CloseAction(sender, null));
+        }
+        //Rethrow the exception
+        throw;
+      }
+      catch(Exception x) {
+        //Assume any other error is transient:
+        throw new EdgeException(true, String.Format("Could not send on: {0}", from), x);
+      }
+    }
   }
 
 }
