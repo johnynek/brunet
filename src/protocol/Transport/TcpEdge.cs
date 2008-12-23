@@ -36,7 +36,7 @@ namespace Brunet
   {
     public readonly Socket Socket;
     protected readonly byte[] _buffer;
-    public static readonly int MAX_PACKET = 16384;
+    public static readonly int MAX_PACKET = Int16.MaxValue;
     protected int _written;
     protected int _flush_ptr;
     /**
@@ -50,7 +50,7 @@ namespace Brunet
       Socket = s;
       _localta = TransportAddressFactory.CreateInstance(TAType, (IPEndPoint) s.LocalEndPoint);
       _remoteta = TransportAddressFactory.CreateInstance(TAType, (IPEndPoint) s.RemoteEndPoint);
-      _buffer = new byte[ MAX_PACKET ];
+      _buffer = new byte[ MAX_PACKET + 2 ]; //+2 to include the size of the packet.
       _written = 0;
       _flush_ptr = 0;
     }
