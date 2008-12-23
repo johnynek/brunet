@@ -238,9 +238,13 @@ namespace Brunet
           WriteSocks.Clear();
         }
         catch(Exception x) {
-          //One of the Sockets gave us problems.  Perhaps
-          //it was closed after we released the lock.
-          Console.Error.WriteLine( x.ToString() );
+          /*
+           * There could be an OS error, in principle.  If this 
+           * happens, log it, and just sleep for the period of time
+           * we would have waited (to prevent us from spinning in
+           * this thread).
+           */
+          ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
           Thread.Sleep(TIMEOUT_MS);
         }
       }
@@ -489,12 +493,10 @@ namespace Brunet
               ss.AddCreationState(s, this);
               IPAddress ipaddr = (IPAddress)IPAddressQueue.Dequeue();
               IPEndPoint end = new IPEndPoint(ipaddr, Port);
-              IPAddress any = s.AddressFamily == AddressFamily.InterNetworkV6 
-                              ? IPAddress.IPv6Any : IPAddress.Any;
               //This is a hack because of a bug in MS.Net and Mono:
               //https://bugzilla.novell.com/show_bug.cgi?id=349449
               //http://connect.microsoft.com/VisualStudio/feedback/ViewFeedback.aspx?FeedbackID=332142
-              s.Bind(new IPEndPoint(any, 0));
+              s.Bind(new IPEndPoint(IPAddress.Any, 0));
               s.Connect(end);
             }
             catch(SocketException sx) {
@@ -740,9 +742,13 @@ namespace Brunet
        * I'm not sure this is helping at all, but we are doubling
        * the usual buffer size in the hopes that it will reduce
        * problems of lost packets.
+       * 
+       * The below makes sure the socket buffer can hold at least
+       * one of the largest packets plus the 2 bytes needed to 
+       * describe the size of the packet.
        */
-      s.SendBufferSize = 16384;
-      s.ReceiveBufferSize = 16384;
+      s.SendBufferSize = TcpEdge.MAX_PACKET + 2;
+      s.ReceiveBufferSize = TcpEdge.MAX_PACKET + 2;
     }
 
     public override void Start()
