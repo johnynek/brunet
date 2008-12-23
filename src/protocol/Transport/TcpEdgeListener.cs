@@ -42,7 +42,6 @@ namespace Brunet
   {
     protected readonly Socket _listen_sock;
     protected readonly IPEndPoint _local_endpoint;
-    protected readonly object _send_sync;
     protected readonly Thread _loop;
 
     protected readonly IEnumerable _tas;
@@ -67,7 +66,6 @@ namespace Brunet
        */
       protected readonly ListDictionary _sock_to_constate;
       protected readonly ArrayList _con_socks;
-      protected readonly object _send_sync;
       protected readonly ArrayList _socks_to_send;
       /*
        * This can be pretty big because it will only 
@@ -86,12 +84,11 @@ namespace Brunet
       public readonly Socket ListenSock;
       public readonly BufferAllocator BA;
 
-      public SocketState(Socket listensock, object ss) {
+      public SocketState(Socket listensock) {
         _sock_to_rs = new Hashtable();
         _sock_to_constate = new ListDictionary();
         _con_socks = new ArrayList();
         ListenSock = listensock;
-        _send_sync = ss;
         _socks_to_send = new ArrayList();
         AllSockets = new ArrayList();
         ReadSocks = new ArrayList();
@@ -119,28 +116,12 @@ namespace Brunet
         _con_socks.Add(s);
       }
 
-      public void CloseSocket(Socket s) {
-        //We shouldn't be sending at the same time:
-        lock( _send_sync ) {
-          //We need to shutdown the socket:
-          try {
-            //Don't let more reading or writing:
-            s.Shutdown(SocketShutdown.Both);
-          }
-          catch { }
-          finally {
-            //This can't throw an exception
-            s.Close();
-          }
-        }
-      }
-
       public void FlushSocket(Socket s) {
         //Let's try to flush the buffer:
         ReceiveState rs = (ReceiveState)_sock_to_rs[s];
         bool flushed = true;
         if( rs != null ) {
-          lock( _send_sync ) {
+          lock( rs.Edge ) {
             flushed = rs.Edge.Flush();
           }
         }
@@ -190,6 +171,19 @@ namespace Brunet
         _sock_to_rs = new_s_to_rs;
         AllSockets.Remove(s); 
         _socks_to_send.Remove(s);
+        //We shouldn't be sending at the same time:
+        lock( e ) {
+          //We need to shutdown the socket:
+          try {
+            //Don't let more reading or writing:
+            s.Shutdown(SocketShutdown.Both);
+          }
+          catch { }
+          finally {
+            //This can't throw an exception
+            s.Close();
+          }
+        }
       }
 
       /**
@@ -329,7 +323,6 @@ namespace Brunet
         //Always authorize in this case:
         _ta_auth = new ConstantAuthorizer(TAAuthorizer.Decision.Allow);
       }
-      _send_sync = new object();
       _loop = new Thread( this.SelectLoop );
       //This is how we push jobs into the SelectThread
       ActionQueue = new SingleReaderLockFreeQueue<SocketStateAction>();
@@ -369,7 +362,6 @@ namespace Brunet
        */
       public override void Start(SocketState ss) {
         ss.RemoveEdge(_e);
-        ss.CloseSocket(_e.Socket);
       }
     }
     
@@ -783,7 +775,7 @@ namespace Brunet
 
       //No one can see this except this thread, so there is no
       //need for thread synchronization
-      SocketState ss = new SocketState(_listen_sock, _send_sync);
+      SocketState ss = new SocketState(_listen_sock);
       ss.TAA = _ta_auth;
 
       if( ProtocolLog.Monitor.Enabled ) {
@@ -904,7 +896,7 @@ namespace Brunet
       TcpEdge sender = (TcpEdge) from;
       try {
         bool flushed = true;
-        lock(_send_sync) {
+        lock( sender ) {
           //Try to fill up the buffer:
           sender.WriteToBuffer(p);
           //Okay, we loaded the whole packet into the TcpEdge's buffer
