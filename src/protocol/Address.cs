@@ -36,8 +36,12 @@ namespace Brunet
   public abstract class Address : System.IComparable, Brunet.ICopyable
   {
 
+#if BRUNET_SIMULATOR
+    public static readonly int MemSize = 6;
+#else
     ///The number of bytes to represent the address
     public static readonly int MemSize = 20;
+#endif
 
     protected MemBlock  _buffer;
 
