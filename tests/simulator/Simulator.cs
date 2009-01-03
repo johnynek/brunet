@@ -104,7 +104,7 @@ namespace Brunet {
           }
         }
         starting_network_size = latency.Count;
-        FunctionEdgeListener.LatencyMap = latency;
+        SimulationEdgeListener.LatencyMap = latency;
       }
 
       for(int i = 0; i < starting_network_size; i++) {
@@ -472,7 +472,7 @@ namespace Brunet {
         auth = new BrokenTAAuth(broken);
       }
 
-      EdgeListener el = new FunctionEdgeListener(nm.Port, 0, auth, true);
+      EdgeListener el = new SimulationEdgeListener(nm.Port, 0, auth, true);
 
       if(secure_edges || secure_senders) {
         byte[] blob = SEKey.ExportCspBlob(true);
