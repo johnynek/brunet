@@ -169,7 +169,7 @@ namespace Brunet
      * together and still be okay.
      */
 #if BRUNET_SIMULATOR
-    private const int maxLength = 3;
+    private const int maxLength = 4;
 #else
     private const int maxLength = 10;
 #endif
