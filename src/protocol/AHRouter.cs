@@ -574,6 +574,7 @@ namespace Brunet
      */
     protected void ConnectionTableChangeHandler(object o, System.EventArgs args) {
       Connection new_left = null;
+      bool structs_changed = false;
       if( args != null ) {
         /*
          * This is sometimes called (in Route) with args set to null
@@ -582,25 +583,32 @@ namespace Brunet
          */
         ConnectionEventArgs ce = (ConnectionEventArgs)args;
         ConnectionList cl = ce.CList;
-        if( cl.MainType == ConnectionType.Structured && (cl.Count > 0) ) {
-          /*
-           * Compute our left neighbor.  We only need to do this when it
-           * has changed.
-           */
-          int our_idx = cl.IndexOf(_local);
-          if( our_idx < 0 ) {
-            our_idx = ~our_idx;
+        structs_changed = (cl.MainType == ConnectionType.Structured);
+        if( structs_changed ) {
+          if (cl.Count > 0) {
+            /*
+             * Compute our left neighbor.  We only need to do this when it
+             * has changed.
+             */
+            int our_idx = cl.IndexOf(_local);
+            if( our_idx < 0 ) {
+              our_idx = ~our_idx;
+            }
+            else {
+              Console.Error.WriteLine(
+                "ERROR: we are in the ConnectionTable: {0}", _local);
+            }
+            new_left = cl[our_idx];
           }
           else {
-            Console.Error.WriteLine(
-              "ERROR: we are in the ConnectionTable: {0}", _local);
+            //We have no neighbors:
+            new_left = null;
           }
-          new_left = cl[our_idx];
         }
       }
       lock( _sync ) {
         _route_cache.Clear();
-        if( new_left != null ) {
+        if( structs_changed ) {
           _our_left_n = new_left;
         }
       }
