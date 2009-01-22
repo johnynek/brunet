@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using System;
 using System.Collections;
 using System.Net;
+using System.Threading;
 
 #if BRUNET_NUNIT
 using System.Collections.Specialized;
@@ -41,12 +42,31 @@ namespace Brunet
   public class TransportAddressFactory {
     //adding some kind of factory methods
     public static TransportAddress CreateInstance(string s) {
-      lock( _ta_cache ) {
-        TransportAddress ta = (TransportAddress) _ta_cache[s];
-	if( ta != null ) {
-          return ta;
-	}
+      Cache ta_cache = Interlocked.Exchange<Cache>(ref _ta_cache, null);
+      TransportAddress result = null;
+      if( ta_cache != null ) {
+        try {
+          result = (TransportAddress)ta_cache[s];
+          if( result == null ) {
+            result = NoCacheCreateInstance(s);
+            string r_ts = result.ToString();
+            if( r_ts.Equals(s) ) {
+              //Keep the internal reference which is being saved already
+              s = r_ts;
+            }
+            ta_cache[ s ] = result;
+          }
+        }
+        finally {
+          Interlocked.Exchange<Cache>(ref _ta_cache, ta_cache);
+        }
       }
+      else {
+        result = NoCacheCreateInstance(s);
+      }
+      return result;
+    }
+    protected static TransportAddress NoCacheCreateInstance(string s) {
       string scheme = s.Substring(0, s.IndexOf(":"));
       string t = scheme.Substring(scheme.IndexOf('.') + 1);
       //Console.Error.WriteLine(t);
@@ -71,18 +91,6 @@ namespace Brunet
       }
       if (ta_type ==  TransportAddress.TAType.Tunnel) {
 	result = new TunnelTransportAddress(s);
-        //Never cache Tunnel addresses, because they change very often
-        //and will just wind up ruining the cache:
-        return result;
-      }
-      //Let's save this result:
-      lock( _ta_cache ) {
-        string r_ts = result.ToString();
-        if( r_ts.Equals(s) ) {
-          //Keep the internal reference which is being saved already
-          s = r_ts;
-        }
-        _ta_cache[ s ] = result;
       }
       return result;
     }
@@ -116,26 +124,46 @@ namespace Brunet
     }
     public static TransportAddress CreateInstance(TransportAddress.TAType t,
 						  string host, int port) {  
-      CacheKey key = new CacheKey(host, port, t);
-      lock( _ta_cache ) {
-        TransportAddress ta = (TransportAddress) _ta_cache[key];
-	if( ta == null ) {
-          ta = new IPTransportAddress(t, host, port);
-          _ta_cache[key] = ta; 
+      Cache ta_cache = Interlocked.Exchange<Cache>(ref _ta_cache, null);
+      if( ta_cache != null ) {
+        TransportAddress ta = null;
+        try {
+          CacheKey key = new CacheKey(host, port, t);
+          ta = (TransportAddress) ta_cache[key];
+	        if( ta == null ) {
+            ta = new IPTransportAddress(t, host, port);
+            ta_cache[key] = ta; 
+           }
+        }
+        finally {
+          Interlocked.Exchange<Cache>(ref _ta_cache, ta_cache);
         }
         return ta;
+      }
+      else {
+        return new IPTransportAddress(t, host, port);
       }
     }
     public static TransportAddress CreateInstance(TransportAddress.TAType t,
                             System.Net.IPAddress host, int port) {
-      CacheKey key = new CacheKey(host, port, t);
-      lock( _ta_cache ) {
-        TransportAddress ta = (TransportAddress) _ta_cache[key];
-	if( ta == null ) {
-          ta = new IPTransportAddress(t, host, port);
-          _ta_cache[key] = ta; 
+      Cache ta_cache = Interlocked.Exchange<Cache>(ref _ta_cache, null);
+      if( ta_cache != null ) {
+        TransportAddress ta = null;
+        try {
+          CacheKey key = new CacheKey(host, port, t);
+          ta = (TransportAddress) ta_cache[key];
+	        if( ta == null ) {
+            ta = new IPTransportAddress(t, host, port);
+            ta_cache[key] = ta; 
+           }
+        }
+        finally {
+          Interlocked.Exchange<Cache>(ref _ta_cache, ta_cache);
         }
         return ta;
+      }
+      else {
+        return new IPTransportAddress(t, host, port);
       }
     }
 

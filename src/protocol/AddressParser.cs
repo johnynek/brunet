@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using System;
+using System.Threading;
 
 namespace Brunet
 {
@@ -34,7 +35,7 @@ namespace Brunet
      * address over and over.  It is used for the string
      * representation of addresses
      */
-    protected static readonly Cache _address_cache;
+    protected static Cache _address_cache;
     protected const int CACHE_SIZE = 128;
 
     //This is a specialized cache for parsing MemBlocks to Address
@@ -44,6 +45,37 @@ namespace Brunet
       _address_cache = new Cache(CACHE_SIZE);
       _mb_cache = new Address[ UInt16.MaxValue + 1 ];
     }
+    /** Parse without looking at the cache
+     */
+    protected static Address NoCacheParse(string ascii) {
+      string[] parts = ascii.Split(':');
+      //It should be:  urn:brunet:node:[encoded address]
+      // or brunet:node:[encoded address]
+      int offset = 0;
+      if (parts[0].ToLower() == "urn") {
+        offset = 1;
+      }
+      string brunet = parts[offset].ToLower();
+      if (brunet != "brunet")
+      {
+        throw new ParseException
+        ("String is not a properly formated Brunet Address:" + ascii);
+      }
+      string node = parts[offset + 1].ToLower();
+      if (node != "node") {
+        throw new ParseException
+        ("String is not a properly formated Brunet Address:" + ascii);
+      }
+      try {
+        byte[] binadd = Base32.Decode(parts[offset + 2]);
+        MemBlock mb = MemBlock.Reference(binadd);
+        return Parse(mb);
+      }
+      catch(System.ArgumentOutOfRangeException ex) {
+        throw new ParseException("Failed to parse Address string",
+                                 ex);
+      }
+    }
     /**
      * @param ascii an ascii representation of an Address
      * @return a new address of the appropriate class
@@ -52,46 +84,29 @@ namespace Brunet
      */
     public static Address Parse(string ascii)
     {
-      //It's safe to hold the lock for the whole
-      //method because there are no blocking calls, nor
-      //calls that could leave this class
-      lock( _address_cache ) {
-        Address a = (Address)_address_cache[ascii];
-        if( a != null ) {
-          return a;
-        }
-        //Else we have to actually parse
-        string[] parts = ascii.Split(':');
-        //It should be:  urn:brunet:node:[encoded address]
-        // or brunet:node:[encoded address]
-        int offset = 0;
-        if (parts[0].ToLower() == "urn") {
-          offset = 1;
-        }
-        string brunet = parts[offset].ToLower();
-        if (brunet != "brunet")
-        {
-          throw new ParseException
-          ("String is not a properly formated Brunet Address:" + ascii);
-        }
-        string node = parts[offset + 1].ToLower();
-        if (node != "node") {
-          throw new ParseException
-          ("String is not a properly formated Brunet Address:" + ascii);
-        }
+      Cache add_cache = Interlocked.Exchange<Cache>(ref _address_cache, null);
+      //If add_cache is non-null, we have a cache to use, woohoo!
+      Address a = null;
+      if( add_cache != null ) {
         try {
-          byte[] binadd = Base32.Decode(parts[offset + 2]);
-          MemBlock mb = MemBlock.Reference(binadd);
-          a = Parse(mb);
-          //Cache this result using the string reference by the address:
-          _address_cache[ a.ToString() ] = a;
-          return a;
+          a = (Address)add_cache[ascii];
+          if( a == null ) {
+            //We need to actually do the parse:
+            a = NoCacheParse(ascii);
+            //Cache this result using the string reference by the address:
+            add_cache[ a.ToString() ] = a;
+          }
         }
-        catch(System.ArgumentOutOfRangeException ex) {
-          throw new ParseException("Failed to parse Address string",
-                                   ex);
+        finally {
+          //Make sure to always do this!!
+          Interlocked.Exchange<Cache>(ref _address_cache, add_cache);
         }
       }
+      else {
+        //We couldn't get the cache, just go ahead, no need to wait:
+        a = NoCacheParse(ascii);
+      }
+      return a;
     }
 
     /**

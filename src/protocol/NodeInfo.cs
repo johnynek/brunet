@@ -101,40 +101,59 @@ namespace Brunet
     }
     public static NodeInfo CreateInstance(Address a, TransportAddress ta) {
       NodeInfo result = null;
-      lock( _cache ) {
-        //Set up the key:
-        _cache_key._done_hash = false;
-        _cache_key._address = a;
-        _ta_list[0] = ta;
-        _cache_key._tas = _ta_list;
+      Cache ni_cache = Interlocked.Exchange<Cache>(ref _cache, null);
+      if( ni_cache != null ) {
+        //Only one thread at the time can be in here:
+        try {
+          //Set up the key:
+          _cache_key._done_hash = false;
+          _cache_key._address = a;
+          _ta_list[0] = ta;
+          _cache_key._tas = _ta_list;
 
-        result = (NodeInfo)_cache[_cache_key];
-        if( result == null ) {
-          //This may look weird, but we are using a NodeInfo as a key
-          //to lookup NodeInfos, this will allow us to only keep one
-          //identical NodeInfo in scope at a time.
-          result = new NodeInfo(a, ta);
-          _cache[result] = result;
+          result = (NodeInfo)ni_cache[_cache_key];
+          if( result == null ) {
+            //This may look weird, but we are using a NodeInfo as a key
+            //to lookup NodeInfos, this will allow us to only keep one
+            //identical NodeInfo in scope at a time.
+            result = new NodeInfo(a, ta);
+            ni_cache[result] = result;
+          }
         }
+        finally {
+          Interlocked.Exchange<Cache>(ref _cache, ni_cache);
+        }
+      }
+      else {
+        result = new NodeInfo(a, ta);
       }
       return result;
     }
     public static NodeInfo CreateInstance(Address a, IList ta) {
       NodeInfo result = null;
-      lock( _cache ) {
-        //Set up the key:
-        _cache_key._done_hash = false;
-        _cache_key._address = a;
-        _cache_key._tas = ta;
-        
-        result = (NodeInfo)_cache[_cache_key];
-        if( result == null ) {
-          //This may look weird, but we are using a NodeInfo as a key
-          //to lookup NodeInfos, this will allow us to only keep one
-          //identical NodeInfo in scope at a time.
-          result = new NodeInfo(a, ta);
-          _cache[result] = result;
+      Cache ni_cache = Interlocked.Exchange<Cache>(ref _cache, null);
+      if( ni_cache != null ) {
+        try {
+          //Set up the key:
+          _cache_key._done_hash = false;
+          _cache_key._address = a;
+          _cache_key._tas = ta;
+          
+          result = (NodeInfo)ni_cache[_cache_key];
+          if( result == null ) {
+            //This may look weird, but we are using a NodeInfo as a key
+            //to lookup NodeInfos, this will allow us to only keep one
+            //identical NodeInfo in scope at a time.
+            result = new NodeInfo(a, ta);
+            ni_cache[result] = result;
+          }
         }
+        finally {
+          Interlocked.Exchange<Cache>(ref _cache, ni_cache);
+        }
+      }
+      else {
+        result = new NodeInfo(a, ta);
       }
       return result;
     }
