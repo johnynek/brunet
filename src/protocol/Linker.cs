@@ -78,7 +78,7 @@ namespace Brunet
     }
     
     //This is the queue that has only the address we have not tried this attempt
-    protected readonly Queue _ta_queue;
+    protected readonly Brunet.Util.LockFreeQueue<TransportAddress> _ta_queue;
     protected readonly Node _local_n;
     public Node LocalNode { get { return _local_n; } }
 
@@ -418,7 +418,7 @@ namespace Brunet
       //this TaskQueue starts new tasks in the announce thread of the node.
       _task_queue = new NodeTaskQueue(local);
       _task_queue.EmptyEvent += this.FinishCheckHandler;
-      _ta_queue = new Queue();
+      _ta_queue = new Brunet.Util.LockFreeQueue<TransportAddress>();
       if( target_list != null ) {
         int count = 0;
         Hashtable tas_in_queue = new Hashtable( _MAX_REMOTETAS );
@@ -796,13 +796,14 @@ namespace Brunet
     * otherwise, return null
     */
    protected TransportAddress NextTA() {
-     TransportAddress next_ta = null;
-     lock( _ta_queue ) {
-       if( _ta_queue.Count > 0 ) {
-         next_ta = (TransportAddress)_ta_queue.Dequeue();
-       }
+     bool succ;
+     TransportAddress next_ta = _ta_queue.TryDequeue(out succ);
+     if( succ ) {
+       return next_ta;
      }
-     return next_ta;
+     else {
+       return null;
+     }
    }
     /**
      * When a RestartState finishes its task, this is the
