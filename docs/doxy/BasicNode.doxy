@@ -3,14 +3,14 @@
 \author David Wolinsky
 \section Where Where To Get Brunet and BasicNode
 All of the ACIS P2P projects are released in a monolithic package available at
-http://www.acis.ufl.edu/~ipop/files/acisp2p/latest.zip and source code releases
-are available at 
-http://www.acis.ufl.edu/~ipop/files/acisp2p/acisp2p.latest.src.zip  If you
-want the latest code available in the repositories, We recommend gathering the
+http://www.grid-appliance.org/ipop/ipop.zip and source code releases are
+available at http://www.grid-appliance.org/ipop/ipop.src.zip  If you want the
+latest code available in the repositories, We recommend gathering the
 brunet version from http://boykin.acis.ufl.edu/hgwebdir.cgi/boykin/brunet1-exp
 more stable code can be found from
 http://boykin.acis.ufl.edu/hgwebdir.cgi/boykin/brunet1-dev but this is
-typically what is provided with the source releases.
+typically what is provided with the source releases.  If you are interested in
+working with ipop, please use http://www.grid-appliance.org/hg/brunet1
 
 To compile the source code run nant in the base directory.
 
@@ -24,13 +24,14 @@ running multiple on a single machine, \ref Brunet::Applications::MultiNode
 "MultiNode" is available. MultiNode allows multiple instances of the Brunet
 P2P node to run in one executing application.
 
-\note Users can feel free to share in the \ref fusedht 
+\note Users can feel free to share in the \ref testwow 
 "ACIS Lab Experimental Public Infrastructure".  This provides a backend and the
 user is free to skip to the section on \ref Services "services".
 
+Sample deployments:
 
-Case A:  If for example a user wanted to provide a service for users behind to
-different NATs to communicate, he could instantiate on BasicNode on a public IP
+Case A:  If for example a user wanted to provide a service for users behind two
+different NATs to communicate, he could instantiate a BasicNode on a public IP
 Address and one MultiNode with 7 Brunet P2P nodes executing behind one of the
 two NATs.
 
@@ -40,7 +41,7 @@ executing on any machine.
 
 The important thing to remember is that all nodes must have some way to
 discover each other.  The simplest case is to have at least one "publicly"
-available node and include him in the configuration.
+available node and include his IP / Port in the configuration file.
 \section Configuration
 The configuration information for BasicNode is provided by the \ref
 Brunet::Applications::NodeConfig "NodeConfig" class.  Let's begin reviewing the
@@ -83,8 +84,8 @@ The RemoteTAs is a list of well known end points, where you know an instance of
 a BasicNode or MultiNode is running.  In the simplest case, you may only have
 one publicly available node, but if you expand to a large system you may want
 to increase the number of active public nodes.  The format of the string is a
-common uri, the important parts are the "udp" which specifies the transport
-layer logic type and the IP Address and the port of public node where BasicNode
+uri, the important parts are the "udp" which specifies the transport layer
+logic type and the IP Address and the port of public node where BasicNode
 is running.  There are other choices here as well as \ref Discovery, which
 makes this section optional. 
 
@@ -100,7 +101,7 @@ By doing this, we can have one generic configuration file for all nodes to
 share.  Also note, that if a port is already taken, BasicNode will attempt to
 use a random port to connect through.  The type of transport logic is listed
 per EdgeListener and in this case it is UDP.  We <b>strongly encourage the use
-of UDP and only UDP</b> as the TCP implementation can quickly get out of hand
+of UDP</b> in addition to TCP implementation, as TCP can quickly get out of hand
 due to lack of sockets available.
 \code
   <EdgeListeners>
@@ -132,13 +133,10 @@ XmlRpc calls over Brunet, the Node will not handle requests directly.
 \section Configuring MultiNode
 MultiNode uses the same configuration file as BasicNode.  The purpose of 
 MultiNode is to provide multiple Brunet P2P nodes in a single application
-instance.
-
-In order to share the same configuration file as BasicNode, MultiNode only
-has one well known end point that uses the ports put in EdgeListeners.  The
-other Brunet P2P Nodes use random port numbers.  Because of this, We suggest
-using only MultiNode as a standalone project and not inheriting it in other
-projects.
+instance.  Effectively MultiNode is a single BasicNode and (n - 1) Brunet Nodes
+that only provide features specific to the state of the ring.  Having a
+MultiNode does not replace the need for multiple public end points and is
+dedicated more for ring and Dht stability.
 \section Services
 By enabling the services mentioned above, XmlRpc and RpcDht, users will be able
 to access the Brunet Dht and Rpc systems via userland tools.  A particular
@@ -166,7 +164,7 @@ server = xmlrpclib.Server("http://127.0.0.1:10000/xm.rem")
 print server.proxy("brunet:node:XGPPYRFCACGGF3PZWSCDUCK6LGXJGK4M", 3, 1, "Information.Info")[0]
 \endcode
 
-To access the Dht, to helper scripts have been written bput.py for putting
+To access the Dht, two helper scripts have been written bput.py for putting
 information into the dht and bget.py for getting information from the dht.
 The internals for those will have to be tweaked to make sure that the port maps
 to the DhtRpc port.  The default port is 64221.  Helpful information will be
@@ -221,12 +219,12 @@ MultiNode.exe 20 local.config
 After 30 seconds or so, connections should start forming and this can be
 confirmed by using the crawler.
 
-\section fusedht ACIS Lab Public Experimental Infrastructure
+\section testwow ACIS Lab Public Experimental Infrastructure
 To enable users to quickly get involved with the system and not have to deploy
 their own pool, which can be quite laborous, the ACIS Lab hosts a deployment of
 over 400 nodes on PlanetLab.  The config file is available in the config
 directory of the source code as well as the binary releases as
-config\fusedht.config.  There is no guarantee of service and this should be
+config\testwow.config.  There is no guarantee of service and this should be
 used for nothing more than testing.  ACIS Lab uses this node for the latest
 tests in experimental code, but is usually backwards compatible with older
 code.
