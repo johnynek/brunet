@@ -1161,8 +1161,10 @@ namespace Brunet {
         t_add -= rand_dist;
       }
 
-      BigInteger target_int = new BigInteger(t_add % Address.Full);
-      AHAddress start = new AHAddress(target_int);
+      byte[] target_int = (new BigInteger(t_add % Address.Full)).getBytes();
+      Address.SetClass(target_int, _node.Address.Class);
+      Address start = new AHAddress(target_int);
+
       if (LogEnabled) {
         ProtocolLog.Write(ProtocolLog.SCO, 
                           String.Format("SCO local: {0}, Selecting shortcut to create close to start: {1}.", 
