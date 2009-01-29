@@ -45,6 +45,7 @@ namespace Brunet {
     protected readonly Random _rand;
     protected readonly ReqrepManager _rrman;
     protected readonly CertificateHandler _ch;
+    public CertificateHandler CertificateHandler { get { return _ch; } } 
 
     ///<summary>Called when an SA has switched between active and not.</summary>
     public event EventHandler AnnounceSA;

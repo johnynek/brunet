@@ -30,6 +30,10 @@ namespace Brunet.Security {
       object result = null;
       try {
         if(method.Equals("AddCertificate")) {
+          ReqrepManager.ReplyState rqrs = caller as ReqrepManager.ReplyState;
+          if(rqrs == null || !(rqrs.ReturnPath is Node)) {
+            throw new Exception("Call must be made locally for security reasons!");
+          }
           string path = (string) args[0];
           result = _ch.AddCertificate(path);
         } else {
