@@ -46,7 +46,7 @@ namespace Brunet
 
     protected readonly IEnumerable _tas;
 
-    protected readonly SingleReaderLockFreeQueue<SocketStateAction> ActionQueue;
+    protected readonly LockFreeQueue<SocketStateAction> ActionQueue;
    
     /**
      * This class holds all the mutable state about the sockets we are working
@@ -325,7 +325,7 @@ namespace Brunet
       }
       _loop = new Thread( this.SelectLoop );
       //This is how we push jobs into the SelectThread
-      ActionQueue = new SingleReaderLockFreeQueue<SocketStateAction>();
+      ActionQueue = new LockFreeQueue<SocketStateAction>();
     }
 
     /* //////////////////////////
@@ -347,9 +347,9 @@ namespace Brunet
      */
     protected class CloseAction : SocketStateAction {
       protected readonly TcpEdge _e;
-      protected readonly SingleReaderLockFreeQueue<SocketStateAction> _queue;
+      protected readonly LockFreeQueue<SocketStateAction> _queue;
 
-      public CloseAction(TcpEdge e, SingleReaderLockFreeQueue<SocketStateAction> q) {
+      public CloseAction(TcpEdge e, LockFreeQueue<SocketStateAction> q) {
         _e = e;
         _queue = q;
       }
@@ -511,9 +511,9 @@ namespace Brunet
     protected class LogAction : SocketStateAction {
       protected DateTime _last_debug;
       protected readonly TimeSpan _debug_period;
-      protected readonly SingleReaderLockFreeQueue<SocketStateAction> _q;
+      protected readonly LockFreeQueue<SocketStateAction> _q;
 
-      public LogAction(TimeSpan interval, SingleReaderLockFreeQueue<SocketStateAction> q) {
+      public LogAction(TimeSpan interval, LockFreeQueue<SocketStateAction> q) {
         _last_debug = DateTime.UtcNow;
         _debug_period = interval;
         _q = q;
