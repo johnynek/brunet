@@ -1,15 +1,15 @@
 <?xml version="1.0"?>
 <project name="Ipop" default="build">
   <!-- Here is some configuration -->
-  <property name="brunet-dir" value="../brunet1" />
+  <property name="brunet.dir" value="../brunet1" />
 
   <!-- Here's the main target -->
   <target name="build" description="Build Brunet and all the IPOP code">
 
-    <nant buildfile="${brunet-dir}/Brunet.build" />
+    <nant buildfile="${brunet.dir}/Brunet.build" />
     <!-- copy the dlls -->
     <copy todir="./lib">
-      <fileset basedir="${brunet-dir}/lib/">
+      <fileset basedir="${brunet.dir}/lib/">
         <include name="*.dll" />
       </fileset>
     </copy>

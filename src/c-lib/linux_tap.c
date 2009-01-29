@@ -5,9 +5,6 @@
 #include <linux/if_tun.h>
 #include <fcntl.h>
 
-#define ETHER_HEADER_LEN 14
-#define MTU 1500
-
 int send_tap(int fd, u_char *packet, int len) {
   return write(fd, packet, len);
 }
@@ -16,8 +13,7 @@ int read_tap(int fd, void *packet, int len) {
   return read(fd, packet, len);
 }
 
-int open_tap(char *dev)
-{
+int open_tap(char *dev) {
   struct ifreq ifr;
   int fd, err;
   if((fd = open("/dev/net/tun", O_RDWR)) < 0){
@@ -33,4 +29,8 @@ int open_tap(char *dev)
     return(-1);
   }
   return(fd);
+}
+
+int close_tap(int fd) {
+  return close(fd);
 }

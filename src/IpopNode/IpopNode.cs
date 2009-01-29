@@ -73,8 +73,6 @@ namespace Ipop {
 
     /// <summary>The Brunet.Node for this IpopNode</summary>
     public readonly StructuredNode Brunet;
-    /// <summary>Dht provider for this node</summary>
-    public readonly Dht Dht;
     /// <summary>Resolves IP Addresses to Brunet.Addresses</summary>
     protected IAddressResolver _address_resolver;
     /// <summary>Resolves hostnames and IP Addresses</summary>
@@ -86,8 +84,6 @@ namespace Ipop {
     operating sytem</summary>
     */
     protected DHCPServer _dhcp_server;
-    /// <summary> The end to end security provider</summary>
-    protected readonly EndToEndSecurity _end_to_end;
 
     /// <summary> Protected string representation for the local IP of this node</summary>
     protected string _ip;
@@ -104,6 +100,7 @@ namespace Ipop {
     public byte [] MACAddress;
 
     protected readonly bool _multicast;
+    protected bool _secure_senders;
 
     /**
     <summary>Creates an IpopNode given a path to a NodeConfig and an
@@ -116,7 +113,6 @@ namespace Ipop {
       base(NodeConfigPath)
     {
       CreateNode();
-      this.Dht = _dht;
       this.Brunet = _node;
       _ipop_config_path = IpopConfigPath;
       _ipop_config = LoadConfig();
@@ -126,10 +122,10 @@ namespace Ipop {
       _info = new Information(Brunet, "IpopNode");
       _info.UserData["IpopNamespace"] = _ipop_config.IpopNamespace;
 
-      if(_ipop_config.EndToEndSecurity) {
-        KeyDatabase kdb = new KeyDatabase(_node.Address);
-        CertificateHandler ch = new CertificateHandler();
-        _end_to_end = new EndToEndSecurity(_node, kdb, ch);
+      if(_ipop_config.EndToEndSecurity && _bso != null) {
+        _secure_senders = true;
+      } else {
+        _secure_senders = false;
       }
       Brunet.GetTypeSource(PType.Protocol.IP).Subscribe(this, null);
     }
@@ -215,10 +211,12 @@ namespace Ipop {
     public virtual void HandleIPIn(MemBlock packet, ISender ret) {
       if(_translator != null) {
         Address addr = null;
+        if(ret is SecurityAssociation) {
+          ret = ((SecurityAssociation) ret).Sender;
+        }
+
         if(ret is AHSender) {
           addr = ((AHSender) ret).Destination;
-        } else if(ret is SecurityAssociation) {
-          addr = ((SecurityAssociation) ret).RemoteAddress;
         } else {
           ProtocolLog.Write(IpopLog.PacketLog, String.Format(
             "Incoming packet was not from an AHSender: {0}.", ret));
@@ -419,9 +417,9 @@ namespace Ipop {
     */
     protected virtual void SendIP(Address target, MemBlock packet) {
       ISender s = null;
-      if(_end_to_end != null) {
+      if(_secure_senders) {
         try {
-          s = _end_to_end.GetSecureSender(target);
+          s = _bso.GetSecureSender(target);
         }
         catch(Exception e) {
           Console.WriteLine(e);

@@ -55,6 +55,13 @@ namespace Ipop {
     private static extern int open_tap(string device);
 
     /**
+    <summary>Closes the open TAP device on the host</summary>
+    <param name="device">Name of the TAP device on the host</param>
+    */
+    [DllImport("libtuntap")]
+    private static extern void close_tap(int fd);
+
+    /**
     <summary>Reads from the TAP devices</summary>
     <param name="fd">File descriptor gotten from open_tap</param>
     <param name="packet">a buffer to read into</param>
@@ -98,6 +105,7 @@ namespace Ipop {
 
       _running = true;
       _read_thread = new Thread(ReadLoop);
+      _read_thread.IsBackground = true;
       _read_thread.Start();
     }
 
@@ -160,12 +168,9 @@ namespace Ipop {
     <summary>Call this method when exiting to stop the _read_thread.</summary>
     */
     public void Stop() {
+      close_tap(fd);
       _running = false;
       _read_thread.Interrupt();
-      if(Thread.CurrentThread != _read_thread) {
-        _read_thread.Interrupt();
-        _read_thread.Join();
-      }
     }
 
     public String ToUri() {

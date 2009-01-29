@@ -1,6 +1,7 @@
 <?xml version="1.0"?>
 <project name="ipop-common" default="build" basedir=".">
   <description> Builds the Ipop dll </description>
+  <property name="brunet.dir" value="../brunet1" unless="${property::exists('brunet.dir')}" />
   <property name="lib.dir" value="../../lib"/>
   <property name="build.dir" value="build" />
   <property name="bin.dir" value="../../bin"/>
@@ -17,6 +18,7 @@
         <include name="libtuntap.so" />
         <include name="Brunet.Dht.dll" />
         <include name="CookComputing.XmlRpcV2.dll" />
+        <include name="Brunet.Coordinate.dll"/>
         <include name="Brunet.XmlRpc.dll" />
         <include name="Brunet.DhtService.dll"/>
         <include name="Brunet.Security.dll"/>
@@ -29,17 +31,12 @@
         <include name="*.cs"/>
         <include name="../NetworkPackets/*.cs"/>
         <include name="../IpopNode/*.cs"/>
-        <include name="../../../brunet1/src/BasicNode/*.cs"/>
+        <include name="../../${brunet.dir}/src/BasicNode/*.cs"/>
       </sources>
       <references basedir="${build.dir}">
-        <include name="Brunet.dll"/>
-        <include name="Brunet.Dht.dll"/>
-        <include name="Brunet.XmlRpc.dll" />
-        <include name="CookComputing.XmlRpcV2.dll" />
-        <include name="Brunet.DhtService.dll"/>
+        <include name="*.dll" />
         <include name="System.Runtime.Remoting.dll"/>
         <include name="Mono.Posix.dll"/>
-        <include name="Brunet.Security.dll"/>
         <include name="Mono.Security.dll"/>
       </references>
     </csc>
@@ -61,18 +58,13 @@
         <include name="*.cs"/>
         <include name="../NetworkPackets/*.cs"/>
         <include name="../IpopNode/*.cs"/>
-        <include name="../../../brunet1/src/BasicNode/*.cs"/>
+        <include name="../../${brunet.dir}/src/BasicNode/*.cs"/>
       </sources>
       <references  basedir="${build.dir}">
         <include name="nunit.framework.dll" />
-        <include name="Brunet.dll"/>
-        <include name="Brunet.Dht.dll"/>
-        <include name="Brunet.XmlRpc.dll" />
-        <include name="CookComputing.XmlRpcV2.dll" />
-        <include name="Brunet.DhtService.dll"/>
+        <include name="*.dll" />
         <include name="System.Runtime.Remoting.dll"/>
         <include name="Mono.Posix.dll"/>
-        <include name="Brunet.Security.dll"/>
         <include name="Mono.Security.dll"/>
       </references>
     </csc>

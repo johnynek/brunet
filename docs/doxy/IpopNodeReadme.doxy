@@ -2,15 +2,14 @@
 \page IpopNodeReadme Using IpopNode
 \author David Wolinsky
 \section Where Where To Get IpopNode and Its Dependencies
-All of the ACIS P2P projects are released in a monolithic package available at
-http://www.acis.ufl.edu/~ipop/files/acisp2p/latest.zip and source code releases
-are available at http://www.acis.ufl.edu/~ipop/files/acisp2p/latest.src.zip
-If you want the latest code available in the repositories, I recommend
-gathering the brunet version from my brunet1-test repository and my ipop
-repository as it most matches what is currently running on our public
-infrastructer.  Those are available at
-http://boykin.acis.ufl.edu/hgwebdir.cgi/davidiw/brunet1-test/ and
-http://boykin.acis.ufl.edu/hgwebdir.cgi/davidiw/ipop/ respectively.
+All of the ACIS P2P projects are released in a monolithic binary and source
+package available at
+http://www.grid-appliance.org/files/ipop/ipop.zip and 
+http://www.grid-appliance.org/files/ipop/ipop.src.zip  If you want the latest
+code available in the repositories, I recommend gathering the brunet version
+from the repositories that match what is currently deploy.  Those are at
+http://www.grid-appliance.org/hg/ipop and http://www.grid-appliance.org/hg/brunet
+respectively.
 
 To compile the source code run nant in the base directory of ipop.
 

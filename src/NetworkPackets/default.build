@@ -1,6 +1,7 @@
 <?xml version="1.0"?>
 <project name="ipop-common" default="build" basedir=".">
   <description> Builds the Ipop dll </description>
+  <property name="brunet.dir" value="../brunet1" unless="${property::exists('brunet.dir')}" />
   <property name="lib.dir" value="../../lib"/>
   <property name="build.dir" value="build" />
   <property name="doc.dir" value="../../docs"/>

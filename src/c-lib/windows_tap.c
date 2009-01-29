@@ -128,3 +128,8 @@ windows_tap * open_tap(char *device_name) {
   
   return fd;
 }
+
+int close_tap(windows_tap* device) {
+  return CloseHandle(device->hand);
+}
+
