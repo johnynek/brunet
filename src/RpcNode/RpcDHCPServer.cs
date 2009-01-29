@@ -52,5 +52,9 @@ namespace Ipop.RpcNode {
         string ipop_namespace) {
       return new RpcDHCPLeaseController(_dhcp_config);
     }
+
+    public RpcDHCPLeaseController GetController() {
+      return new RpcDHCPLeaseController(_dhcp_config);
+    }
   }
 }

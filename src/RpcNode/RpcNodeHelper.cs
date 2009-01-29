@@ -105,7 +105,7 @@ namespace Ipop.RpcNode {
     /// <param name="new_ss_ip">New source IP address</param>
     /// <param name="new_sd_ip">New destination IP address</param>
     /// <param name="packet_id">A packet identifier</param>
-    /// <returns>A MemBlock of the translated payload</returns
+    /// <returns>A MemBlock of the translated payload</returns>
     public static MemBlock TextTranslate(MemBlock payload, string old_ss_ip,
                                          string old_sd_ip, string new_ss_ip,
                                          string new_sd_ip, string packet_id) {

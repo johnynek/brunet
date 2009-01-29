@@ -38,63 +38,47 @@ namespace Ipop.RpcNode {
   /// ITranslator. It provides most functionality needed by RpcIpopNode.
   /// </summary>
   public class RpcAddressResolverAndDNS : DNS, IAddressResolver, IRpcHandler,
-    ITranslator {
+    ITranslator
+  {
     /// <summary>The node to do ping checks on.</summary>
     protected StructuredNode _node;
     /// <summary>The rpc manager to make rpc requests over.</summary>
     protected RpcManager _rpc;
     /// <summary>Contains ip:hostname mapping.</summary>
-    protected volatile Hashtable dns_a;
+    protected Hashtable _dns_a;
     /// <summary>Contains hostname:ip mapping.</summary>
-    protected volatile Hashtable dns_ptr;
+    protected Hashtable _dns_ptr;
     /// <summary>Maps MemBlock IP Addresses to Brunet Address as Address</summary>
-    protected volatile Hashtable ip_addr;
+    protected Hashtable _ip_addr;
     /// <summary>Maps Brunet Address as Address to MemBlock IP Addresses</summary>
-    protected volatile Hashtable addr_ip;
-
-    /// <summary> List of connected addresses</summary>
-    protected volatile ArrayList conn_addr;
-   
-    /// <summary>List of blocked_addresses</summary>
-    protected volatile Hashtable blocked_addr;
- 
-    /// <summary> Indicated if client needs sync</summary>
-    protected bool need_sync;
-
-    /// <summary>Returns the Connected Addresses.</summary>
-    public ArrayList ConnectedAddresses {
-      get {
-        ArrayList conn = new ArrayList();
-        foreach(Address addr in conn_addr) {
-          if(!blocked_addr.Contains(addr)) {
-            conn.Add(addr);
-          } 
-        }
-        return conn;
-      }
-    }
-
+    protected Hashtable _addr_ip;
+    protected Hashtable _blocked_addrs;
+    /// <summary>MemBlock of the IP mapped to local node</summary>
+    protected MemBlock _local_ip;
     /// <summary>Helps assign remote end points</summary>
     protected RpcDHCPLeaseController _rdlc;
+    /// <summary>Object used for synchronization</summary>
     protected Object _sync;
 
-    protected MemBlock _local_ip;
+    /// <summary>Array list of multicast addresses</summary>
+    public ArrayList mcast_addr;
 
     /// <summary>
     /// Constructor for the class, it initializes various objects
     /// </summary>
     /// <param name="node">Takes in a structured node</param>
-    public RpcAddressResolverAndDNS(StructuredNode node) {
+    public RpcAddressResolverAndDNS(StructuredNode node, RpcDHCPServer dhcp) {
       _sync = new Object();
       _node = node;
       _rpc = RpcManager.GetInstance(node);
-      dns_a = new Hashtable();
-      dns_ptr = new Hashtable();
-      ip_addr = new Hashtable();
-      addr_ip = new Hashtable();
-      conn_addr = new ArrayList();
-      blocked_addr = new Hashtable();
-      need_sync = false;
+      _dns_a = new Hashtable();
+      _dns_ptr = new Hashtable();
+      _ip_addr = new Hashtable();
+      _addr_ip = new Hashtable();
+      _blocked_addrs = new Hashtable();
+      mcast_addr = new ArrayList();
+
+      _rdlc = dhcp.GetController();
 
       _rpc.AddHandler("RpcIpopNode", this);
     }
@@ -105,7 +89,7 @@ namespace Ipop.RpcNode {
     /// <param name="IP">IP address of the name that's being looked up</param>
     /// <returns>Returns the name as string of the IP specified</returns>
     public override String NameLookUp(String IP) {
-      return (String)dns_ptr[IP];
+      return (String)_dns_ptr[IP];
     }
 
     /// <summary>
@@ -114,7 +98,7 @@ namespace Ipop.RpcNode {
     /// <param name="Name">Takes in name as string to lookup</param>
     /// <returns>The result as a String Ip address</returns>
     public override String AddressLookUp(String Name) {
-      return (String)dns_a[Name];
+      return (String)_dns_a[Name];
     }
 
     /// <summary>
@@ -139,7 +123,7 @@ namespace Ipop.RpcNode {
     <returns>The translated IP Packet.</returns>
     */
     public MemBlock Translate(MemBlock packet, Address from) {
-      MemBlock source_ip = (MemBlock) addr_ip[from];
+      MemBlock source_ip = (MemBlock) _addr_ip[from];
       if(source_ip == null) {
         throw new Exception("Invalid mapping " + from + ".");
       }
@@ -220,7 +204,7 @@ namespace Ipop.RpcNode {
                                     string old_ss_ip, string old_sd_ip) {
       string new_ss_ip = Utils.MemBlockToString(source_ip, '.');
       string new_sd_ip = Utils.MemBlockToString(_local_ip, '.'); 
-      string packet_id = "SIP/";
+      string packet_id = "SIP/2.0";
       MemBlock payload = RpcNodeHelper.TextTranslate(udpp.Payload, old_ss_ip,
                                              old_sd_ip, new_ss_ip, new_sd_ip,
                                              packet_id); 
@@ -233,7 +217,7 @@ namespace Ipop.RpcNode {
     /// <param name="IP">A MemBlock of the IP</param>
     /// <returns>A brunet Address for the IP</returns>
     public Address Resolve(MemBlock IP) {
-      return (Address)ip_addr[IP];
+      return (Address)_ip_addr[IP];
     }
 
     /// <summary>
@@ -246,13 +230,11 @@ namespace Ipop.RpcNode {
     public void HandleRpc(ISender caller, String method, IList arguments, object request_state) {
       Object result = null;
       try {
-        if (!method.Equals("FriendOnline")) {
-          ReqrepManager.ReplyState _rs = (ReqrepManager.ReplyState)caller;
-          UnicastSender _us = (UnicastSender)_rs.ReturnPath;
-          IPEndPoint _ep = (IPEndPoint)_us.EndPoint;
-          if (!_ep.Address.ToString().Equals("127.0.0.1")) { 
-            throw new Exception("Not calling from local BrunetRpc locally!");
-          }
+        ReqrepManager.ReplyState _rs = (ReqrepManager.ReplyState)caller;
+        UnicastSender _us = (UnicastSender)_rs.ReturnPath;
+        IPEndPoint _ep = (IPEndPoint)_us.EndPoint;
+        if (!_ep.Address.ToString().Equals("127.0.0.1")) { 
+          throw new Exception("Not calling from local BrunetRpc locally!");
         }
       }
       catch (Exception e){
@@ -262,190 +244,104 @@ namespace Ipop.RpcNode {
       }
 
       try {
-        if (method.Equals("RegisterMapping")) {
-          String name = (String)arguments[0];
-          Address addr = AddressParser.Parse((String)arguments[1]);
-          RegisterMapping(name, addr, request_state, true);
+        switch (method) {
+          case "RegisterMapping":
+            Address addr_rm = AddressParser.Parse((String)arguments[1]);
+            result = RegisterMapping((String)arguments[0], addr_rm);
+            break;
+          case "UnregisterMapping":
+            result = UnregisterMapping((String)arguments[0]);
+            break;
+          case "CheckInstance":
+            result = true;
+            break;
+          default: 
+            result = new InvalidOperationException("Invalid Method");
+            break;
         }
-        else if (method.Equals("UnregisterMapping")) {
-          String name = (String)arguments[0];
-          UnregisterMapping(name, request_state);
-        }
-        else if (method.Equals("CheckBuddy")) {
-          Address addr = AddressParser.Parse((String)arguments[0]);
-          CheckBuddy(addr);
-          _rpc.SendResult(request_state, null);
-        }
-        else if (method.Equals("GetConnected")) {
-          String res = String.Empty;
-          foreach(Address addr in conn_addr) {
-            res += addr.ToString()+" ";
-          }
-          _rpc.SendResult(request_state, res);
-        }
-        else if (method.Equals("CheckInstance")) {
-          _rpc.SendResult(request_state, true);
-        }
-        else if (method.Equals("FriendOnline")) {
-          Address address = AddressParser.Parse((String)arguments[0]);
-          FriendOnline(address, request_state, true);
-        }
-        else if (method.Equals("Sync")) {
-          _rpc.SendResult(request_state, need_sync);
-          need_sync = false;
-        }
-        else { 
-          throw new InvalidOperationException("Invalid Method");
-        }
-      }
-      catch (Exception e) {
+      } catch (Exception e) {
         result = e;
-        _rpc.SendResult(request_state, result);
       }
+      _rpc.SendResult(request_state, result);
+
     }
 
     /// <summary>
-    /// Called by external rpc program to register a mapping name and address
-    /// mapping and returns an IP string to rpc caller.
+    /// Registers a name and addr combination and returns an IP.  Idempotent
+    /// and changes the hostname if one already exists.
     /// </summary>
-    /// <remarks>
-    /// This method directly sends the result to rpc caller except in the
-    /// case of an exception in which HandleRpc method would request exception
-    /// </remarks>
     /// <param name="name">A string name to be added to DNS</param>
     /// <param name="addr">A brunet address that is to be mapped</param>
-    /// <param name="request_state">Request state object for rpc</param>
-    /// <param name="send_rpc">Indicates if rpc result should be sent</param>
-    protected void RegisterMapping(String name, Address addr, 
-                     object request_state, bool send_rpc) {
-      MemBlock ip = null;
+    public string RegisterMapping(String name, Address addr) {
       String ips = null;
-      lock (_sync) {
-        ips = (String)dns_a[name];
+      lock(_sync) {
+        MemBlock ip = (MemBlock) _addr_ip[addr];
+        string ip_dns = (String)_dns_a[name];
 
-        if (ips != null) {
-          ip = MemBlock.Reference(Utils.StringToBytes(ips, '.'));
+        if(ip == null && _blocked_addrs.Contains(addr)) {
+          ip = (MemBlock) _blocked_addrs[addr];
+          _blocked_addrs.Remove(addr);
+          mcast_addr.Add(addr);
         }
 
-        if (ips == null) {
-          ip = (MemBlock) blocked_addr[addr];
-          if(ip == null) {
-            do {
-              ip = MemBlock.Reference(_rdlc.RandomIPAddress());
-            } while (ip_addr.ContainsValue(ip));
-          }
-          ips = Utils.MemBlockToString(ip, '.');
-          addr_ip.Add(addr, ip);
-          ip_addr.Add(ip, addr);
-          dns_a.Add(name, ips);
-          dns_ptr.Add(ips, name);
-          if (blocked_addr.Contains(addr)) {
-            blocked_addr.Remove(addr);
-          }  
-        }
-
-        else if (addr.Equals(ip_addr[ip])) {
+        if(ip != null) {
           ips = Utils.MemBlockToString(ip, '.');
         }
-        else {
+
+        // either both null or the same value
+        if(ips != ip_dns) {
           throw new Exception(String.Format
             ("Name ({0}) already exists with different address.", name));
+        } else if(ips == null) {
+          do {
+            ip = MemBlock.Reference(_rdlc.RandomIPAddress());
+          } while (_ip_addr.ContainsValue(ip));
+          ips = Utils.MemBlockToString(ip, '.');
+          _addr_ip.Add(addr, ip);
+          _ip_addr.Add(ip, addr);
+          mcast_addr.Add(addr);
+        }
+
+        // set the dns name only once!
+        if(ip_dns == null) {
+          // We don't support multiple hostnames per ID
+          if(_dns_ptr.Contains(ips)) {
+            _dns_a.Remove(_dns_ptr[ips]);
+            _dns_ptr.Remove(ips);
+          }
+          _dns_a.Add(name, ips);
+          _dns_ptr.Add(ips, name);
         }
       }
-      if(send_rpc) {
-        _rpc.SendResult(request_state, ips);
-      }
+      return ips;
     }
 
     /// <summary>
-    /// Called by external rpc program to unregister a name, ip, address mapping
+    /// Unregisters a name and potentially ip and address mapping
     /// </summary>
-    /// <remarks>
-    /// This method directly sends the result to rpc caller except in the
-    /// case of an exception in which HandleRpc method would request exception
-    /// </remarks>
     /// <param name="name">A string name that needs to be removed</param>
-    protected void UnregisterMapping(String name, object request_state) {
-      if (!dns_a.Contains(name)) {
-        throw new Exception(String.Format("Name ({0}) does not exists", name));
-      }
-      MemBlock ip = null;
-      String ips = (String)dns_a[name];
-
-      if (ips != null) {
-        ip = MemBlock.Reference(Utils.StringToBytes(ips, '.'));
-      } 
-      lock (_sync) {
-          dns_a.Remove(name);
-          dns_ptr.Remove(ips);
-          Address addr = (Address)ip_addr[ip];
-          ip_addr.Remove(ip);
-          addr_ip.Remove(addr);
-          blocked_addr.Add(addr,ip);
-      }
-      _rpc.SendResult(request_state, true);
-    }
-
-    /// <summary>
-    /// Called by external rpc program to see if node is accessible
-    /// </summary>
-    /// <remarks>
-    /// This method directly sends the result to rpc caller 
-    /// </remarks>
-    /// <param name="address">A brunet adddress of the node to check</param>
-    /// <param name="request_state">Request state of object</param>
-    /// <param name="send_rpc">Flag indicting if send is necessary</param>
-    protected void CheckBuddy(Address address) { 
-      Channel q = new Channel();
-      q.CloseAfterEnqueue();
-
-      // Delegate code called by CloseEvent from the channel object
-      q.CloseEvent += delegate(Object o, EventArgs eargs) {
-        Object result = null;
-        try {
-          RpcResult res = (RpcResult)q.Dequeue();
-          result = AddressParser.Parse((String)res.Result);
-          lock (_sync) {
-            if(!conn_addr.Contains(result)) {
-              conn_addr.Add(result);
-            }
-          }
+    /// <returns>true if successful</returns>
+    public bool UnregisterMapping(String name) {
+      lock(_sync) {
+        if (!_dns_a.Contains(name)) {
+          throw new Exception(String.Format("Name ({0}) does not exists", name));
         }
-        catch (Exception e) {
-          result = e;
-          if(conn_addr.Contains(address)) {
-            conn_addr.Remove(address);
-          }
-        }
-      };
-      ISender s = new AHExactSender(_node, address);
-      _rpc.Invoke(s, q, "RpcIpopNode.FriendOnline", _node.Address.ToString());
-    }
 
-    /// <summary>
-    /// Rpc Method that is called when a friend is announced
-    /// </summary>
-    /// <param name="address">Brunet address</param>
-    /// <param name="request_state">Request state </param>
-    /// <param name="send_rpc"> Indicates if result should be sent</param>
-    protected void FriendOnline(Address address, object request_state, bool send_rpc) {
-      if(!addr_ip.Contains(address) && !blocked_addr.Contains(address)) {
-        need_sync = true;
+        String ips = (String)_dns_a[name];
+        MemBlock  ip = MemBlock.Reference(Utils.StringToBytes(ips, '.'));
+
+        _dns_a.Remove(name);
+        _dns_ptr.Remove(ips);
+        Address addr = (Address)_ip_addr[ip];
+        _ip_addr.Remove(ip);
+        _addr_ip.Remove(addr);
+        _blocked_addrs.Add(addr,ip);
+        mcast_addr.Remove(addr);
       }
-      else {
-        lock (_sync) { 
-          if(!conn_addr.Contains(address)) {
-            conn_addr.Add(address);
-          }
-        }
-      }
-      // Checks to see if friend is not being blocked by user
-      if(send_rpc && !blocked_addr.Contains(address)) {
-        _rpc.SendResult(request_state, _node.Address.ToString());
-      } 
+      return true;
     }
-    
   }
+
 #if RpcIpopNodeNUNIT
   [TestFixture]
   public class RpcTester {

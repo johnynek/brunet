@@ -116,64 +116,15 @@ public class RpcDNSClient {
   }
 
   /// <summary>
-  /// This method checks to see if a buddy is accessible on the network
-  /// </summary>
-  /// <param name="address">A brunet address representation</param>
-  /// <returns>A boolean to determine if network is accessible</returns>
-  public bool CheckBuddy(string address) {
-    BlockingQueue q = new BlockingQueue();
-    _brpc.Rpc.Invoke(_brpc.IPHandler.CreateUnicastSender(_remEP), q, "RpcIpopNode.CheckBuddy", address);
-    try {
-      RpcResult res = (RpcResult)q.Dequeue();
-      Console.WriteLine(_remEP + ":" + ((UnicastSender)res.ResultSender).EndPoint);
-      Console.WriteLine(res.Result);
-      return (bool)res.Result;
-    }
-    catch (InvalidOperationException e) {
-      Console.WriteLine(e.Message);
-    }
-    catch (Exception e) {
-      Console.WriteLine(e.Message);
-    }
-    return false;
-  }
-
-  /// <summary>
-  /// Asynchronous check buddy method, use when making asynchronous calls
-  /// </summary>
-  /// <param name="address">A brunet address representation</param>
-  public void AsCheckBuddy(string address) {
-    Channel q = new Channel();
-    q.CloseAfterEnqueue();
-
-    // Delegate function gets called when close event occurs
-    q.CloseEvent += delegate(Object o, EventArgs eargs) {
-      RpcResult res = (RpcResult)q.Dequeue();
-      Console.WriteLine(_remEP + ":" + ((UnicastSender)res.ResultSender).EndPoint);
-      Console.WriteLine(res.Result);
-      UpdateAddress(address);
-    };
-
-    _brpc.Rpc.Invoke(_brpc.IPHandler.CreateUnicastSender(_remEP), q, "RpcIpopNode.CheckBuddy", address);
-  }
-
-  public virtual void UpdateAddress(string address) {
-    Console.WriteLine("Returning Address {0}", address);
-  }
-
-  /// <summary>
   /// Main method, entry point for RpcDNSClient
   /// </summary>
   /// <param name="args"></param>
   public static void Main(string[] args) {
     RpcDNSClient client = new RpcDNSClient();
     client.Init();
-    client.AsGetAddress();
+    client.GetAddress();
 
     while (true) {
-      Console.WriteLine("Enter address to check:");
-      string address = Console.ReadLine();
-      client.CheckBuddy(address);
       Console.WriteLine("Enter name and address to add separated by a space");
       string input = Console.ReadLine();
       string[] tmp = input.Split(' ');

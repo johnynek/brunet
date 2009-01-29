@@ -37,7 +37,7 @@ namespace Ipop.RpcNode {
   /// </summary>
   public class RpcIpopNode: IpopNode {
     /// <summary>Provides Address resolution, dns, and translation.</summary>
-    RpcAddressResolverAndDNS _rarad;
+    protected RpcAddressResolverAndDNS _rarad;
 
     /// <summary>
     /// The constructor takes two config files
@@ -46,10 +46,11 @@ namespace Ipop.RpcNode {
     /// <param name="IpopConfigPath">Path to the ipop config file</param>
     public RpcIpopNode(string NodeConfigPath, string IpopConfigPath):
       base(NodeConfigPath, IpopConfigPath) {
-      _rarad = new RpcAddressResolverAndDNS(Brunet);
+      RpcDHCPServer dhcp_server = new RpcDHCPServer(_ipop_config.VirtualNetworkDevice);  
+      _dhcp_server = dhcp_server;
+      _rarad = new RpcAddressResolverAndDNS(Brunet, dhcp_server);
       _dns = _rarad;
       _address_resolver = _rarad;
-      _dhcp_server = new RpcDHCPServer(_ipop_config.VirtualNetworkDevice);  
       _translator = _rarad;
     }
 
@@ -92,8 +93,7 @@ namespace Ipop.RpcNode {
     /// <param name="ipp">A multicast packet to be processed</param>
     /// <returns></returns>
     protected override bool HandleMulticast(IPPacket ipp) {
-      ArrayList connected_addresses = _rarad.ConnectedAddresses;
-      foreach(Address addr in connected_addresses) {
+      foreach(Address addr in _rarad.mcast_addr) {
         SendIP(addr, ipp.Packet);
       }
       return true;
