@@ -229,18 +229,20 @@ namespace Ipop.RpcNode {
     /// <param name="request_state">An object state</param>
     public void HandleRpc(ISender caller, String method, IList arguments, object request_state) {
       Object result = null;
-      try {
-        ReqrepManager.ReplyState _rs = (ReqrepManager.ReplyState)caller;
-        UnicastSender _us = (UnicastSender)_rs.ReturnPath;
-        IPEndPoint _ep = (IPEndPoint)_us.EndPoint;
-        if (!_ep.Address.ToString().Equals("127.0.0.1")) { 
-          throw new Exception("Not calling from local BrunetRpc locally!");
+      if(method != "CheckInstance") {
+        try {
+          ReqrepManager.ReplyState _rs = (ReqrepManager.ReplyState)caller;
+          UnicastSender _us = (UnicastSender)_rs.ReturnPath;
+          IPEndPoint _ep = (IPEndPoint)_us.EndPoint;
+          if (!_ep.Address.ToString().Equals("127.0.0.1")) { 
+            throw new Exception("Not calling from local BrunetRpc locally!");
+          }
         }
-      }
-      catch (Exception e){
-        result = new InvalidOperationException(e.Message);
-        _rpc.SendResult(request_state, result);
-        return;
+        catch (Exception e){
+          result = new InvalidOperationException(e.Message);
+          _rpc.SendResult(request_state, result);
+          return;
+        }
       }
 
       try {
@@ -288,8 +290,8 @@ namespace Ipop.RpcNode {
           ips = Utils.MemBlockToString(ip, '.');
         }
 
-        // either both null or the same value
-        if(ips != ip_dns) {
+        // either both null, the same value, or ip_dns isn't set
+        if(ips != ip_dns && ip_dns != null) {
           throw new Exception(String.Format
             ("Name ({0}) already exists with different address.", name));
         } else if(ips == null) {
