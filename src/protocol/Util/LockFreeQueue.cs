@@ -45,6 +45,18 @@ public class LockFreeQueue<T> {
   //This is used to denote an Element that has been removed from the list
   protected static readonly Element<T> REMOVED = new Element<T>();
 
+  /** Is the queue currently empty 
+   * This method is of limited usefulness since this object
+   * is designed to be used from multiple threads.  It is probably
+   * better to just TryPeek or TryDequeue and see if it works.
+   * Remember: just because it is not empty when the call was made
+   * doesn't mean a subsequent Dequeue would succeed (unless you
+   * can guarantee there is only one thread dequeueing at a time).
+   */
+  public bool IsEmpty {
+    get { return (_head.Next == null); }
+  }
+
   public LockFreeQueue() {
     /*
      * Head and tail are never null.  Empty is when they
@@ -104,6 +116,21 @@ public class LockFreeQueue<T> {
           old_tail = old_next;
         }
       }
+    }
+  }
+  
+  /** "traditional" Peek, throws an exception if empty
+   * @return the next item in the queue
+   * @throws InvalidOperationException if the queue is empty
+   */
+  public T Peek() {
+    bool success;
+    T res = TryPeek(out success);
+    if(success) {
+      return res;
+    }
+    else {
+      throw new InvalidOperationException("Queue is empty");
     }
   }
   
@@ -168,6 +195,19 @@ public class LockFreeQueue<T> {
     old_head_next.Data = default(T);
     head.Next = REMOVED;
     return result;
+  }
+
+  /** Try to see what a TryDequeue would have returned
+   */
+  public T TryPeek(out bool success) {
+    Element<T> head_next = _head.Next;
+    success = head_next != null;
+    if( success ) {
+      return head_next.Data;
+    }
+    else {
+      return default(T);
+    }
   }
 
 }
