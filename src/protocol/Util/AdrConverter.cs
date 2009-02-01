@@ -140,6 +140,8 @@ public class AdrCopyable : ICopyable {
    * The underlying object we will CopyTo a buffer
    */
   protected readonly object Obj;
+  //We use this to write into to check size
+  protected static readonly byte[] JUNK_BUFFER = new byte[1 << 17];
 
   public AdrCopyable(object o) {
     Obj = o;
@@ -149,12 +151,7 @@ public class AdrCopyable : ICopyable {
    * serialize the object and copy it into the buffer
    */
   public int CopyTo(byte[] buffer, int off) {
-    using(MemoryStream ms = new MemoryStream()) {
-      int written = AdrConverter.Serialize(Obj, ms);
-      byte[] tmp_buf = ms.ToArray();
-      System.Array.Copy(tmp_buf, 0, buffer, off, written);
-      return written;
-    }
+    return AdrConverter.Serialize(Obj, buffer, off);
   }
 
   /**
@@ -163,8 +160,14 @@ public class AdrCopyable : ICopyable {
    */
   public int Length {
     get {
-      using(MemoryStream s = new MemoryStream() ) {
-        return AdrConverter.Serialize( Obj, s );
+      try {
+        return AdrConverter.Serialize(Obj, JUNK_BUFFER, 0);
+      }
+      catch {
+        //I guess the buffer was too short
+        using(MemoryStream s = new MemoryStream() ) {
+          return AdrConverter.Serialize( Obj, s );
+        }
       }
     }
   }
@@ -592,6 +595,170 @@ public class AdrConverter {
 
   }
   
+  /** Serialize directly into the given byte array
+   * @param o the object to serialize
+   * @param dest the array to write into
+   * @param offset the position to start at
+   * Note, if this fails (throws an exception), it will still
+   * modify the destination array
+   */
+  public static int Serialize(object o, byte[] dest, int offset) {
+    if( o == null ) {
+      //Not much work to do:
+      dest[offset] = NULL;
+      return 1; //1 byte for null
+    }
+    
+    //Else, o is some kind of object:
+    /*
+     * We put the most commonly used types first so we don't have to go
+     * through a huge list everytime we serialize
+     */
+    System.Type t = o.GetType();
+    if ( t.Equals(typeof(string)) ) {
+      dest[offset] = STRING_S;
+      string val = (string)o;
+      int bytes = NumberSerializer.WriteString(val, dest, offset + 1);
+      return 1 + bytes; //the typecode + the serialized string
+    }
+    else
+    if ( t.IsArray ) {
+      Type elt = t.GetElementType();
+      ///@todo add more array serialization types here:
+      if( elt.Equals(typeof(byte)) ||
+          elt.Equals(typeof(int)) ) {
+        return SerializeArray((Array)o, t, elt, dest, offset);
+      }
+      else {
+        //All arrays are ILists, but this may take more space than the above
+        return SerializeList( (IList)o, dest, offset );
+      }
+    }
+    else if ( o is IList ) {
+      return SerializeList( (IList)o, dest, offset );
+    }
+    else if ( o is IDictionary ) {
+     int orig_off = offset;
+     IDictionary dict = o as IDictionary;
+     //Here is a map...
+     dest[offset] = MAP_S;
+     offset += 1;
+     IDictionaryEnumerator my_en = dict.GetEnumerator();
+     while( my_en.MoveNext() ) {
+	//Time for recursion:
+       offset += Serialize(my_en.Key, dest, offset);
+       offset += Serialize(my_en.Value, dest, offset);
+     }
+     dest[offset] = MAP_E;
+     offset += 1;
+     return offset - orig_off;
+    }
+    else
+    if( t.Equals( typeof(bool) ) ) {
+      //boolean value:
+      bool b = (bool)o;
+      if( b ) { dest[offset] = TRUE; }
+      else { dest[offset] = FALSE; }
+      return 1;
+    }
+    else
+    if ( t.Equals(typeof(byte)) ) {
+      //Unsigned byte
+      dest[offset] = BYTE;
+      dest[offset + 1] = (byte)o;
+      return 2;
+    }
+    else if ( t.Equals(typeof(sbyte)) ) {
+      dest[offset] = SBYTE;
+      //Unbox:
+      sbyte v = (sbyte)o;
+      //Convert:
+      dest[offset + 1] = (byte)v;
+      return 2;
+    }
+    else if ( t.Equals(typeof(short)) ) {
+      dest[offset] = SHORT;
+      NumberSerializer.WriteShort((short)o,dest, offset + 1);
+      return 3; //1 typecode + 2 bytes for short
+    }
+    else if ( t.Equals(typeof(ushort)) ) {
+      dest[offset] = USHORT;
+      NumberSerializer.WriteUShort((ushort)o, dest, offset + 1);
+      return 3; //1 typecode + 2 bytes for short
+    }
+    else if ( t.Equals(typeof(int)) ) {
+      dest[offset]=INT;
+      NumberSerializer.WriteInt((int)o,dest,offset+1);
+      return 5; //1 typecode + 4 bytes for int 
+    }
+    else if ( t.Equals(typeof(uint)) ) {
+      dest[offset]=UINT;
+      NumberSerializer.WriteUInt((uint)o,dest, offset + 1);
+      return 5; //1 typecode + 4 bytes for uint
+    }
+    else if ( t.Equals(typeof(long)) ) {
+      dest[offset]=LONG;
+      NumberSerializer.WriteLong((long)o,dest, offset + 1);
+      return 9; //1 typecode + 8 bytes for long 
+    }
+    else if ( t.Equals(typeof(ulong)) ) {
+      dest[offset]=ULONG;
+      //Unbox
+      ulong ulv = (ulong)o;
+      //Convert:
+      long lv = (long)ulv;
+      NumberSerializer.WriteLong(lv, dest, offset + 1);
+      return 9; //1 typecode + 8 bytes for ulong
+    } 
+    else if ( t.Equals(typeof(float)) ) {
+      dest[offset]=FLOAT;
+      NumberSerializer.WriteFloat((float)o, dest, offset + 1);
+      return 5; //1 typecode + 4 bytes for float
+    }
+    else if ( t.Equals(typeof(double)) ) {
+      dest[offset]=DOUBLE;
+      NumberSerializer.WriteDouble((double)o, dest, offset + 1);
+      return 9; // 1 typecode + 8 bytes for double 
+    }
+    else if ( o is Exception ) {
+      int orig = offset;
+      AdrException ax = o as AdrException;
+      if( ax == null ) {
+        ax = new AdrException((Exception)o);
+      }
+      Hashtable xht = ax.ToHashtable();
+      //Here is a map...
+      dest[offset]=EXCEPTION_S;
+      offset += 1;
+      IDictionaryEnumerator my_en = xht.GetEnumerator();
+      while( my_en.MoveNext() ) {
+	//Time for recursion:
+        offset += Serialize(my_en.Key, dest, offset);
+        offset += Serialize(my_en.Value, dest, offset);
+      }
+      dest[offset]=EXCEPTION_E;
+      offset += 1;
+      return offset - orig;
+    }
+    else if ( o is MemBlock ) {
+      //Just serialize this as a byte array
+      int orig = offset;
+      MemBlock d = (MemBlock)o;
+      dest[offset] = ARRAY;
+      offset += 1;
+      int length = d.Length;
+      offset += SerializePosNum((ulong)length, dest, offset);
+      dest[offset] = BYTE;
+      offset += 1;
+      offset += d.CopyTo(dest, offset);
+      return offset - orig;
+    }
+    else
+    {
+     //This is not a supported type of object
+     throw new Exception("Unsupported type: " + t.ToString());
+    }
+  }
   /**
    * @return the number of bytes written into the stream
    */
@@ -819,6 +986,57 @@ public class AdrConverter {
       }
       return total_bytes;
   }
+  protected static int SerializePosNum(ulong v, byte[] dest, int off) {
+      if( v <= Byte.MaxValue ) {
+        dest[off] = BYTE;
+        dest[off + 1] = (byte)v;
+        return 2;
+      }
+      else if( v <= UInt16.MaxValue ) {
+        dest[off] = USHORT;
+        NumberSerializer.WriteUShort((ushort)v, dest, off + 1);
+        return 3;
+      }
+      else if( v <= UInt32.MaxValue ) {
+        dest[off] = UINT;
+        NumberSerializer.WriteUInt((uint)v, dest, off + 1);
+        return 5;
+      }
+      else {
+        throw new Exception("Number too large: " + v.ToString() );
+      }
+  }
+  protected static int SerializeArray(Array my_a, Type t, Type elt, byte[] dest, int off)
+  {
+      int orig_offset = off;
+      dest[off] = ARRAY;
+      off += 1;
+      //Write the length
+      int length = my_a.Length;
+      off += SerializePosNum((ulong)length, dest, off);
+      if( elt.Equals(typeof(byte)) ) {
+        //This is a byte array:
+        dest[off] = BYTE;
+        off += 1;
+        Array.Copy(my_a, 0, dest, off, length);
+        off += length;
+      }
+      else if (elt.Equals(typeof(int))) {
+        //This is a byte array:
+        dest[off] = INT;
+        off += 1;
+        //Now write each byte:
+        foreach(int i in my_a) {
+          NumberSerializer.WriteInt(i, dest, off);
+          off += 4;
+        }
+      }
+      else {
+        throw new Exception("Unsupported array type: " + elt.ToString() );
+      }
+      return off - orig_offset;
+
+  }
   protected static int SerializeArray(Array my_a, Type t, Type elt, Stream s)
   {
       s.WriteByte(ARRAY);
@@ -863,6 +1081,21 @@ public class AdrConverter {
     }
     s.WriteByte(LIST_E); //end of list:
     return total_bytes;
+  }
+  
+  static protected int SerializeList(IList list, byte[] dest, int off)
+  {
+    int orig_off = off;
+    //Here is a list...
+    dest[off] = LIST_S; //Start of list, so lispy!:
+    off += 1;
+    int count = list.Count;
+    for(int i = 0; i < count; i++) {
+      //Time for recursion:
+      off += Serialize(list[i], dest, off);
+    }
+    dest[off] = LIST_E; //end of list:
+    return off + 1 - orig_off;
   }
   
 #if BRUNET_NUNIT
@@ -936,11 +1169,18 @@ public class AdrConverter {
    try {
     MemoryStream ms = new MemoryStream();
     int serialized = Serialize(o, ms);
+    byte[] sbuf = new byte[serialized];
+    int s2count = Serialize(o, sbuf, 0);
+    Assert.AreEqual(serialized, s2count, String.Format("byte and stream length same: {0}", o));
     byte[] buf = ms.ToArray();
+    for(int i = 0; i < Math.Max(s2count, serialized); i++) {
+      Assert.AreEqual(buf[i], sbuf[i], String.Format("byte for byte comparison (stream vs. byte): {0}", o));
+    }
     Assert.AreEqual(serialized, buf.Length, "Buffer length same as written");
     ms.Seek(0, SeekOrigin.Begin);
     object dso = Deserialize(ms);
     object dso2 = Deserialize(MemBlock.Reference(buf));
+    object dso3 = Deserialize(MemBlock.Copy(new AdrCopyable(o)));
     if( !AdrEquals(o, dso ) ) {
       Console.Error.WriteLine("{0} != {1}\n", o, dso);
     }
@@ -948,7 +1188,11 @@ public class AdrConverter {
     if( !AdrEquals(o, dso2 ) ) {
       Console.Error.WriteLine("{0} != {1}\n", o, dso2);
     }
+    if( !AdrEquals(o, dso3 ) ) {
+      Console.Error.WriteLine("{0} != {1}\n", o, dso2);
+    }
     Assert.IsTrue( AdrEquals(o, dso2), message );
+    Assert.IsTrue( AdrEquals(o, dso3), message );
    }
    catch(Exception x) {
      Console.Error.WriteLine("{0}: {1}", message, x);
