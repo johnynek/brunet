@@ -17,14 +17,17 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
+//#define PROFILE_ADR
 
 using System;
 using System.IO;
 using System.Collections;
+using System.Collections.Generic;
 
 #if BRUNET_NUNIT
 using NUnit.Framework;
 #endif
+
 
 namespace Brunet {
         
@@ -215,7 +218,22 @@ public class AdrConverter {
   protected const byte EXCEPTION_S = (byte)'X';
   protected const byte EXCEPTION_E = (byte)'x';
 
-
+#if PROFILE_ADR
+  public static Dictionary<string,int> ADR_COUNT = new Dictionary<string,int>();
+#endif
+  protected readonly static Dictionary<System.Type, byte> _type_map;
+  static AdrConverter() {
+    _type_map = new Dictionary<System.Type, byte>();
+    //String:
+    _type_map[ typeof(string) ] = STRING_S;
+    //Lists:
+    _type_map[ typeof(ArrayList) ] = LIST_S;
+    _type_map[ typeof(string[]) ] = LIST_S;
+    _type_map[ typeof(object[]) ] = LIST_S;
+    //Maps:
+    _type_map[ typeof( System.Collections.Specialized.ListDictionary ) ] = MAP_S;
+    _type_map[ typeof( Hashtable ) ] = MAP_S;
+  }
 
   public static object Deserialize(Stream s) {
     bool finished = false;
@@ -603,10 +621,33 @@ public class AdrConverter {
    * modify the destination array
    */
   public static int Serialize(object o, byte[] dest, int offset) {
+#if PROFILE_ADR
+      string key;
+      if( o == null ) {
+        key = "<NULL>";
+      }
+      else {
+        key = o.GetType().ToString();
+      }
+    lock(ADR_COUNT) {
+      if( ADR_COUNT.ContainsKey(key) ) {
+        ADR_COUNT[key] = ADR_COUNT[key] + 1;
+      }
+      else {
+        ADR_COUNT[key] = 1;
+      }
+    }
+#endif
     if( o == null ) {
       //Not much work to do:
       dest[offset] = NULL;
       return 1; //1 byte for null
+    }
+    if(o is string) {
+      dest[offset] = STRING_S;
+      string val = (string)o;
+      int bytes = NumberSerializer.WriteString(val, dest, offset + 1);
+      return 1 + bytes; //the typecode + the serialized string
     }
     
     //Else, o is some kind of object:
@@ -615,13 +656,20 @@ public class AdrConverter {
      * through a huge list everytime we serialize
      */
     System.Type t = o.GetType();
-    if ( t.Equals(typeof(string)) ) {
-      dest[offset] = STRING_S;
-      string val = (string)o;
-      int bytes = NumberSerializer.WriteString(val, dest, offset + 1);
-      return 1 + bytes; //the typecode + the serialized string
+    byte this_type;
+    //The hashtable allows us to be faster on the several types
+    //of lists and dictionaries that will be handled by the same code:
+    if( _type_map.TryGetValue(t, out this_type) ) {
+      if( this_type == LIST_S ) {
+        return SerializeList( (IList)o, dest, offset );
+      }
+      else
+      if( this_type == MAP_S ) {
+        return SerializeDict( (IDictionary)o, dest, offset);
+      }
     }
-    else
+    //Else, we are dealing with a less common type:
+
     if ( t.IsArray ) {
       Type elt = t.GetElementType();
       ///@todo add more array serialization types here:
@@ -638,20 +686,7 @@ public class AdrConverter {
       return SerializeList( (IList)o, dest, offset );
     }
     else if ( o is IDictionary ) {
-     int orig_off = offset;
-     IDictionary dict = o as IDictionary;
-     //Here is a map...
-     dest[offset] = MAP_S;
-     offset += 1;
-     IDictionaryEnumerator my_en = dict.GetEnumerator();
-     while( my_en.MoveNext() ) {
-	//Time for recursion:
-       offset += Serialize(my_en.Key, dest, offset);
-       offset += Serialize(my_en.Value, dest, offset);
-     }
-     dest[offset] = MAP_E;
-     offset += 1;
-     return offset - orig_off;
+      return SerializeDict( (IDictionary)o, dest, offset);
     }
     else
     if( t.Equals( typeof(bool) ) ) {
@@ -909,6 +944,22 @@ public class AdrConverter {
      //This is not a supported type of object
      throw new Exception("Unsupported type: " + t.ToString());
     }
+  }
+
+  protected static int SerializeDict(IDictionary dict, byte[] dest, int offset) {
+     int orig_off = offset;
+     //Here is a map...
+     dest[offset] = MAP_S;
+     offset += 1;
+     IDictionaryEnumerator my_en = dict.GetEnumerator();
+     while( my_en.MoveNext() ) {
+	//Time for recursion:
+       offset += Serialize(my_en.Key, dest, offset);
+       offset += Serialize(my_en.Value, dest, offset);
+     }
+     dest[offset] = MAP_E;
+     offset += 1;
+     return offset - orig_off;
   }
 
   /**
