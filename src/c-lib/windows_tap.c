@@ -133,3 +133,11 @@ int close_tap(windows_tap* device) {
   return CloseHandle(device->hand);
 }
 
+int get_hw_addr(windows_tap* fd, void *dev) {
+  int len;
+  if(!DeviceIoControl(fd->hand, TAP_IOCTL_GET_MAC, NULL, 0, dev, 6, &len, NULL)) {
+    return -1;
+  }
+  return 0;
+}
+

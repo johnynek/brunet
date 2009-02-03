@@ -107,7 +107,7 @@ namespace Ipop.DhtNode {
     protected void HandleDNS(Object ippo) {
       IPPacket ipp = (IPPacket) ippo;
       IPPacket res_ipp = _dns.LookUp(ipp);
-      EthernetPacket res_ep = new EthernetPacket(MACAddress, EthernetPacket.UnicastAddress,
+      EthernetPacket res_ep = new EthernetPacket(Ethernet.Address, EthernetPacket.UnicastAddress,
           EthernetPacket.Types.IP, res_ipp.ICPacket);
       Ethernet.Send(res_ep.ICPacket);
     }

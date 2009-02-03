@@ -81,7 +81,7 @@ namespace Ipop.RpcNode {
     /// <returns>A boolean result</returns>
     protected override bool HandleDNS(IPPacket ipp) {
       IPPacket res = _dns.LookUp(ipp);
-      EthernetPacket res_ep = new EthernetPacket(MACAddress, EthernetPacket.UnicastAddress,
+      EthernetPacket res_ep = new EthernetPacket(Ethernet.Address, EthernetPacket.UnicastAddress,
           EthernetPacket.Types.IP, res.ICPacket);
       Ethernet.Send(res_ep.ICPacket);
       return true;

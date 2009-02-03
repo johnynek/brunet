@@ -93,12 +93,6 @@ namespace Ipop {
     protected string _netmask;
     /// <summary> Public string representation for the Netmask of this node </summary>
     public string Netmask { get { return _netmask; } }
-    /**
-    <summary> The Ethernet Address of the device network device we are 
-    communicating through.</summary>
-    */
-    public byte [] MACAddress;
-
     protected readonly bool _multicast;
     protected bool _secure_senders;
 
@@ -180,12 +174,9 @@ namespace Ipop {
     <param name="ret">An ISender to return data from the original sender.</param>
     <param name="state">always will be null</param>
     */
-    public void HandleData(MemBlock b, ISender ret, object state) {
+    public virtual void HandleData(MemBlock b, ISender ret, object state) {
       if(ret is Ethernet) {
         EthernetPacket ep = new EthernetPacket(b);
-        if(MACAddress == null) {
-          MACAddress = ep.SourceAddress;
-        }
 
         switch (ep.Type) {
           case EthernetPacket.Types.ARP:
@@ -241,11 +232,9 @@ namespace Ipop {
                               ret, packet.Length));
       }
 
-      if(MACAddress != null) {
-        EthernetPacket res_ep = new EthernetPacket(MACAddress, EthernetPacket.UnicastAddress,
-            EthernetPacket.Types.IP, packet);
-        Ethernet.Send(res_ep.ICPacket);
-      }
+      EthernetPacket res_ep = new EthernetPacket(Ethernet.Address, EthernetPacket.UnicastAddress,
+          EthernetPacket.Types.IP, packet);
+      Ethernet.Send(res_ep.ICPacket);
     }
 
     /**
@@ -386,7 +375,7 @@ namespace Ipop {
         IPPacket res_ipp = new IPPacket(IPPacket.Protocols.UDP,
                                          rpacket.ciaddr, destination_ip,
                                          res_udpp.ICPacket);
-        EthernetPacket res_ep = new EthernetPacket(MACAddress,
+        EthernetPacket res_ep = new EthernetPacket(Ethernet.Address,
             EthernetPacket.UnicastAddress, EthernetPacket.Types.IP,
             res_ipp.ICPacket);
         Ethernet.Send(res_ep.ICPacket);
@@ -482,7 +471,7 @@ namespace Ipop {
       else {
         packet.Slice(14, 4).CopyTo(replyPacket, 24);
       }
-      EthernetPacket res_ep = new EthernetPacket(MACAddress,
+      EthernetPacket res_ep = new EthernetPacket(Ethernet.Address,
         EthernetPacket.UnicastAddress, EthernetPacket.Types.ARP,
         MemBlock.Reference(replyPacket));
       Ethernet.Send(res_ep.ICPacket);

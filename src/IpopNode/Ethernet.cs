@@ -45,6 +45,8 @@ namespace Ipop {
     protected bool _running;
     /// <summary>The thread that provides the ISource for Ethernet</summary>
     protected Thread _read_thread;
+    /// <summary>The address of our TapDevice</summary>
+    public readonly MemBlock Address;
 
     /**
     <summary>Opens a TAP device on the host</summary>
@@ -81,6 +83,12 @@ namespace Ipop {
     [DllImport("libtuntap")]
     private static extern int send_tap(int fd, byte[] packet, int length);
 
+    /// <summary>Retrieves the mac address of the Tap Device</summary>
+    /// <param name="fd">The pointer for the device</param>
+    /// <param name="addr">The array that will contain the address</param>
+    [DllImport("libtuntap")]
+    private static extern int get_hw_addr(int fd, byte[] addr);
+
     /**
     <summary>Initializes the Ethernet device by opening the TAP device and 
     starting the ISource thread.</summary>
@@ -102,6 +110,10 @@ namespace Ipop {
                             "Unable to set up the tap");
         Environment.Exit(1);
       }
+
+      byte[] addr = new byte[6];
+      get_hw_addr(fd, addr);
+      Address = MemBlock.Reference(addr);
 
       _running = true;
       _read_thread = new Thread(ReadLoop);
