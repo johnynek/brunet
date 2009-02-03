@@ -91,6 +91,7 @@ namespace Brunet.Applications {
         Utils.WriteConfig(path, _node_config);
       }
       _running = true;
+      _shutdown = Shutdown.GetShutdown();
     }
 
     /**
@@ -215,7 +216,6 @@ namespace Brunet.Applications {
     called multiple times without negative effect.</summary>
     */
     public virtual void StartServices() {
-      _shutdown = Shutdown.GetShutdown();
       _shutdown.OnExit += OnExit;
 
       if(_node_config.RpcDht != null && _node_config.RpcDht.Enabled) {
