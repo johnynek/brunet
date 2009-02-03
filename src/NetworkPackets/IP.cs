@@ -93,6 +93,12 @@ namespace NetworkPackets {
   [TestFixture]
 #endif
   public class IPPacket: NetworkPacket {
+    /// <summary>The zero address</summary>
+    public static readonly MemBlock ZeroAddress = MemBlock.Reference(
+      new byte[]{0, 0, 0, 0});
+    /// <summary>The default broadcast (multicast) address</summary>
+    public static readonly MemBlock BroadcastAddress = MemBlock.Reference(
+      new byte[]{0xFF, 0xFF, 0xFF, 0xFF});
     /// <summary>The IP Address where the packet originated</summary>
     public readonly MemBlock SourceIP;
     /// <summary>The IP Address where the packet is going</summary>

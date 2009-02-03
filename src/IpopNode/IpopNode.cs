@@ -174,7 +174,7 @@ namespace Ipop {
     <param name="ret">An ISender to return data from the original sender.</param>
     <param name="state">always will be null</param>
     */
-    public virtual void HandleData(MemBlock b, ISender ret, object state) {
+    public void HandleData(MemBlock b, ISender ret, object state) {
       if(ret is Ethernet) {
         EthernetPacket ep = new EthernetPacket(b);
 
@@ -435,45 +435,22 @@ namespace Ipop {
     it.</remarks>
     <param name="packet">The Ethernet packet to translate</param>
     */
-    protected void HandleARP(MemBlock packet) {
-      string TargetIPAddress = "", SenderIPAddress = "";
-      for(int i = 0; i < 3; i++) { 
-        TargetIPAddress += packet[24+i].ToString() + ".";
-        SenderIPAddress += packet[14+i].ToString() + ".";
-      }
-      SenderIPAddress += packet[17].ToString();
-      TargetIPAddress += packet[27].ToString();
+    protected virtual void HandleARP(MemBlock packet) {
+      ARPPacket ap = new ARPPacket(packet);
       /* Must return nothing if the node is checking availability of IPs */
       /* Or he is looking himself up. */
-      if((IP != null) && IP.Equals(TargetIPAddress) ||
-          SenderIPAddress.Equals("255.255.255.255") ||
-          SenderIPAddress.Equals("0.0.0.0")) {
+      if(ap.TargetProtoAddress.Equals(IP) ||
+          ap.SenderProtoAddress.Equals(IPPacket.BroadcastAddress) ||
+          ap.SenderProtoAddress.Equals(IPPacket.ZeroAddress) ||
+          ap.Operation != ARPPacket.Operations.Request) {
         return;
       }
 
-      byte [] replyPacket = new byte[packet.Length];
-      /* Same base */
-      packet.Slice(0, 7).CopyTo(replyPacket, 0);
-      /* ARP Reply */
-      replyPacket[7] = 2;
-      /* Source MAC Address */
-      EthernetPacket.BroadcastAddress.CopyTo(replyPacket, 8);
-      /* Source IP Address */
-      packet.Slice(24, 4).CopyTo(replyPacket, 14);
-      /* Target MAC Address */
-      packet.Slice(8, 6).CopyTo(replyPacket, 18);
-      /* Target IP Address */
-      if(packet[14] == 0) {
-        for (int i = 0; i < 4; i++) {
-          replyPacket[24+i] = 0xFF;
-        }
-      }
-      else {
-        packet.Slice(14, 4).CopyTo(replyPacket, 24);
-      }
+      ARPPacket response = ap.Respond(EthernetPacket.UnicastAddress);
+
       EthernetPacket res_ep = new EthernetPacket(Ethernet.Address,
         EthernetPacket.UnicastAddress, EthernetPacket.Types.ARP,
-        MemBlock.Reference(replyPacket));
+        response.ICPacket);
       Ethernet.Send(res_ep.ICPacket);
     }
   }
