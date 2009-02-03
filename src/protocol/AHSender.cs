@@ -18,6 +18,9 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+using Brunet.Util;
+using System.Threading;
+
 namespace Brunet {
 
 /**
@@ -55,6 +58,7 @@ public class AHHeader : ICopyable {
 public class AHSender : ISender {
   static AHSender() {
     SenderFactory.Register("ah", CreateInstance);
+    _buf_alloc = new BufferAllocator(System.UInt16.MaxValue);
   }
 
   protected static AHSender CreateInstance(Node n, string uri) {
@@ -78,6 +82,8 @@ public class AHSender : ISender {
   public short Ttl { get { return _ttl; } }
   protected ushort _options;
   public ushort Options { get { return _options; } }
+
+  private static BufferAllocator _buf_alloc;
 
   protected ISender _from;
   /*
@@ -143,11 +149,42 @@ public class AHSender : ISender {
       _header = MemBlock.Copy(new CopyList( PType.Protocol.AH, ahh));
       _header_length = _header.Length;
     }
-    int total = _header_length + data.Length;
-    byte[] ah_packet = new byte[ total ];
-    int off_to_data = _header.CopyTo(ah_packet, 0);
-    data.CopyTo(ah_packet, off_to_data);
-    MemBlock mb_packet = MemBlock.Reference(ah_packet);
+    byte[] ah_packet;
+    int packet_length;
+    int packet_offset;
+
+    //Try to get the shared BufferAllocator, useful when
+    //we don't know how big the data is, which in general
+    //is just as expensive as doing a CopyTo...
+    BufferAllocator ba = Interlocked.Exchange<BufferAllocator>(ref _buf_alloc, null);
+    if( ba != null ) {
+      try {
+        ah_packet = ba.Buffer;
+        packet_offset = ba.Offset;
+        int tmp_off = packet_offset;
+        tmp_off += _header.CopyTo(ah_packet, packet_offset);
+        tmp_off += data.CopyTo(ah_packet, tmp_off);
+        packet_length = tmp_off - packet_offset;
+        ba.AdvanceBuffer(packet_length);
+      }
+      catch(System.Exception x) {
+        throw new SendException(false, "could not write the packet, is it too big?", x);
+      }
+      finally {
+        //Put the BA back
+        Interlocked.Exchange<BufferAllocator>(ref _buf_alloc, ba);
+      }
+    }
+    else {
+      //Oh well, someone else is using the buffer, just go ahead
+      //and allocate new memory:
+      packet_offset = 0;
+      packet_length = _header_length + data.Length;
+      ah_packet = new byte[ packet_length ];
+      int off_to_data = _header.CopyTo(ah_packet, 0);
+      data.CopyTo(ah_packet, off_to_data);
+    }
+    MemBlock mb_packet = MemBlock.Reference(ah_packet, packet_offset, packet_length);
     /*
      * Now we announce this packet, the AHHandler will
      * handle routing it for us
