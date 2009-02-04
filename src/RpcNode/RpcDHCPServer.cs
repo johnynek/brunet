@@ -39,8 +39,8 @@ namespace Ipop.RpcNode {
     /// <param name="networkdevice">A string indicating starting point for
     /// network probe</param>
     public RpcDHCPServer(string networkdevice) {
-      String IP = RpcNodeHelper.GetNetwork(networkdevice, "10.254.0.0");
-      _dhcp_config = RpcNodeHelper.GenerateDHCPServerConfig(IP, "255.255.0.0");
+      MemBlock IP = RpcNodeHelper.GetNetwork(networkdevice, MemBlock.Reference(new byte[]{10, 254, 0, 0}));
+      _dhcp_config = RpcNodeHelper.GenerateDHCPServerConfig(IP, MemBlock.Reference(new byte[]{255, 255, 0, 0}));
     }
 
     /// <summary>
@@ -48,8 +48,7 @@ namespace Ipop.RpcNode {
     /// </summary>
     /// <param name="ipop_namespace">A string specifying ipop_namespace</param>
     /// <returns>A result RpcDHCPLeaseController</returns>
-    protected override DHCPLeaseController GetDHCPLeaseController(
-        string ipop_namespace) {
+    protected override DHCPLeaseController GetDHCPLeaseController(string ipop_namespace) {
       return new RpcDHCPLeaseController(_dhcp_config);
     }
 

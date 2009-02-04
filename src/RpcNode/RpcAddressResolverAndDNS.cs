@@ -107,8 +107,8 @@ namespace Ipop.RpcNode {
     /// </summary>
     /// <param name="IP">A string ip that is to be updated</param>
     /// <param name="Netmask">A string netmask that is also given</param>
-    public void UpdateAddressData(String IP, String Netmask) {
-      _local_ip = MemBlock.Reference(Utils.StringToBytes(IP, '.'));
+    public void UpdateAddressData(MemBlock IP, MemBlock Netmask) {
+      _local_ip = IP;
       DHCPServerConfig dhcp_config = RpcNodeHelper.GenerateDHCPServerConfig(IP, Netmask);
       _rdlc = new RpcDHCPLeaseController(dhcp_config);
     }

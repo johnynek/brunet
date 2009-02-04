@@ -33,34 +33,35 @@ namespace Ipop.RpcNode {
     /// <param name="networkdevice">Device to be ignored</param> 
     /// <param name="startip">Device to be ignored</param> 
     /// <returns>Return IP to use</returns> 
-    public static string GetNetwork(string networkdevice, string startip) {
+    public static MemBlock GetNetwork(string networkdevice, MemBlock startip) {
       IPAddresses ipaddrs = IPAddresses.GetIPAddresses();
       ArrayList used_networks = new ArrayList();
-      byte[] netip = Utils.StringToBytes(startip, '.');
+      MemBlock netip = startip;
 
       foreach (Hashtable ht in ipaddrs.AllInterfaces) {
         if (ht["inet addr"] != null && ht["Mask"] != null
             && (string)ht["interface"] != networkdevice) {
-          byte[] addr = Utils.StringToBytes((string)ht["inet addr"], '.');
-          byte[] mask = Utils.StringToBytes((string)ht["Mask"], '.');
+          MemBlock addr = MemBlock.Reference(Utils.StringToBytes((string) ht["inet addr"], '.'));
+          MemBlock mask = MemBlock.Reference(Utils.StringToBytes((string) ht["Mask"], '.'));
 
-          for (int i = 0; i < addr.Length; i++) {
-            addr[i] = (byte)(addr[i] & mask[i]);
+          byte[] tmp = new byte[addr.Length];
+          for(int i = 0; i < addr.Length; i++) {
+            tmp[i] = (byte)(addr[i] & mask[i]);
           }
-          used_networks.Add(Utils.BytesToString(addr, '.'));
+          used_networks.Add(MemBlock.Reference(tmp));
         }
       }
 
-      while (true) {
-          if (!used_networks.Contains(Utils.BytesToString(netip, '.'))) {
-            break;
-          }
-          if (netip[1] == 0) {
-            throw new Exception();
-          }
-          netip[1] -= 1;
+      while(used_networks.Contains(netip)) {
+        byte[] tmp = new byte[netip.Length];
+        netip.CopyTo(tmp, 0);
+        if (tmp[1] == 0) {
+          throw new Exception("Out of Addresses!");
+        }
+        tmp[1] -= 1;
+        netip = MemBlock.Reference(tmp);
       }
-      return Utils.BytesToString(netip, '.');
+      return netip;
     }
 
     /// <summary> 
@@ -68,26 +69,26 @@ namespace Ipop.RpcNode {
     /// </summary>
     /// <param name="networkdevice">Device to be ignored</param> 
     /// <returns>Return IP to use</returns> 
-    public static DHCPServerConfig GenerateDHCPServerConfig(String IP, String Netmask) {
+    public static DHCPServerConfig GenerateDHCPServerConfig(MemBlock IP, MemBlock Netmask) {
       DHCPServerConfig config = new DHCPServerConfig();
       config.leasetime = 3200;
-      config.netmask = Netmask;
+      config.netmask = Utils.MemBlockToString(Netmask, '.');
       config.pool = new DHCPServerConfig.IPPool();
 
-      byte[] ipb = Utils.StringToBytes(IP, '.');
-      byte[] netmask = Utils.StringToBytes(Netmask, '.');
-      for (int i = 0; i < 4; i++) {
-        ipb[i] = (byte)(ipb[i] & netmask[i]);
+      byte[] tmp = new byte[IP.Length];
+      for (int i = 0; i < tmp.Length; i++) {
+        tmp[i] = (byte)(IP[i] & Netmask[i]);
       }
-      config.pool.lower = Utils.BytesToString(ipb, '.');
-      for (int i = 0; i < 4; i++) {
-        ipb[i] += (byte)~netmask[i];
+      config.pool.lower = Utils.BytesToString(tmp, '.');
+
+      for (int i = 0; i < tmp.Length; i++) {
+        tmp[i] += (byte)~Netmask[i];
       }
-      config.pool.upper = Utils.BytesToString(ipb, '.');
+      config.pool.upper = Utils.BytesToString(tmp, '.');
+
       config.ReservedIPs = new DHCPServerConfig.ReservedIP[2];
       config.ReservedIPs[0] = new DHCPServerConfig.ReservedIP();
-      String[] parts = IP.Split('.');
-      String upper = parts[0] + "." + parts[1] + "." + parts[2] + ".";
+      string upper = IP[0] + "." + IP[1] + "." + IP[2] + ".";
       config.ReservedIPs[0].ip = upper + "1";
       config.ReservedIPs[0].mask = "0.0.0.255";
       config.ReservedIPs[1] = new DHCPServerConfig.ReservedIP();

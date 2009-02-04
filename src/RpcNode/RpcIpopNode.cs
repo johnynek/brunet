@@ -59,7 +59,7 @@ namespace Ipop.RpcNode {
     /// </summary>
     /// <param name="IP">A string with the new IP</param>
     /// <param name="Netmask">A netmask of the address</param>
-    public override void UpdateAddressData(String IP, String Netmask) {
+    public override void UpdateAddressData(MemBlock IP, MemBlock Netmask) {
       base.UpdateAddressData(IP, Netmask);
       _rarad.UpdateAddressData(IP, Netmask);
     }

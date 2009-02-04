@@ -43,15 +43,14 @@ namespace Ipop.CondorNode {
     <param name="ip_address">An IP Address in the range.</param>
     <param name="netmask">The netmask for the range.</param>
     */
-    public void UpdatePoolRange(String ip_address, String netmask) {
-      byte[] ba = Utils.StringToBytes(ip_address, '.');
-      byte[] nm = Utils.StringToBytes(netmask, '.');
-      for(int i = 0; i < 4; i++) {
-        ba[i] &= nm[i];
+    public void UpdatePoolRange(MemBlock ip_address, MemBlock netmask) {
+      byte[] ba = new byte[ip_address.Length];
+      for(int i = 0; i < ip_address.Length; i++) {
+        ba = ip_address[i] & netmask[i];
       }
       lock(_sync) {
         _base_address = MemBlock.Reference(ba);
-        _netmask = MemBlock.Reference(nm);
+        _netmask = netmask;
       }
       _active = true;
     }

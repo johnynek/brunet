@@ -27,7 +27,7 @@ namespace Ipop.CondorNode {
     <param name=""></param>
     <param name=""></param>
     */
-    public override void UpdateAddressData(string IP, string Netmask) {
+    public override void UpdateAddressData(MemBlock IP, MemBlock Netmask) {
       base.UpdateAddressData(IP, Netmask);
       ((CondorDNS) _dns).UpdatePoolRange(IP, Netmask);
     }

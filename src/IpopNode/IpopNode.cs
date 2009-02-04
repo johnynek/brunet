@@ -85,14 +85,12 @@ namespace Ipop {
     */
     protected DHCPServer _dhcp_server;
 
-    /// <summary> Protected string representation for the local IP of this node</summary>
-    protected string _ip;
-    /// <summary> Public tring representation for the local IP of this node </summary>
-    public string IP { get { return _ip; } }
-    /// <summary> Protected string representation for the Netmask of this node </summary>
-    protected string _netmask;
-    /// <summary> Public string representation for the Netmask of this node </summary>
-    public string Netmask { get { return _netmask; } }
+    protected MemBlock _local_ip;
+    protected MemBlock _netmask;
+    /// <summary> Byte array representation for the local IP of this node</summary>
+    public MemBlock LocalIP { get { return _local_ip; } }
+    /// <summary> Byte array representation for the local IP of this node</summary>
+    public MemBlock Netmask { get { return _netmask; } }
     protected readonly bool _multicast;
     protected bool _secure_senders;
 
@@ -156,13 +154,16 @@ namespace Ipop {
     <param name="IP">The new IP Address.</param>
     <param name="Netmask">The new Netmask.</param>
     */
-    public virtual void UpdateAddressData(string IP, string Netmask) {
-      _info.UserData["Virtual IP"] = IP;
-      _ip = IP;
-      _ipop_config.AddressData.IPAddress = _ip;
-      _netmask = Netmask;
-      _ipop_config.AddressData.Netmask = _netmask;
+    public virtual void UpdateAddressData(MemBlock IP, MemBlock Netmask) {
+      string ip = Utils.MemBlockToString(IP, '.');
+      string netmask = Utils.MemBlockToString(Netmask, '.');
+      _info.UserData["Virtual IP"] = ip;
+      _ipop_config.AddressData.IPAddress = ip;
+      _ipop_config.AddressData.Netmask = netmask;
       Utils.WriteConfig(_ipop_config_path, _ipop_config);
+
+      _local_ip = IP;
+      _netmask = Netmask;
     }
 
     /**
@@ -200,6 +201,10 @@ namespace Ipop {
     packet.</param>
     */
     public virtual void HandleIPIn(MemBlock packet, ISender ret) {
+      if(_secure_senders && !(ret is SecurityAssociation)) {
+        return;
+      }
+
       if(_translator != null) {
         Address addr = null;
         if(ret is SecurityAssociation) {
@@ -232,6 +237,13 @@ namespace Ipop {
                               ret, packet.Length));
       }
 
+
+      WriteIP(packet);
+    }
+
+    /// <summary>Writes an IPPacket as is to the TAP device.</summary>
+    /// <param name="packet">The IPPacket!</param>
+    protected virtual void WriteIP(MemBlock packet) {
       EthernetPacket res_ep = new EthernetPacket(Ethernet.Address, EthernetPacket.UnicastAddress,
           EthernetPacket.Types.IP, packet);
       Ethernet.Send(res_ep.ICPacket);
@@ -356,21 +368,25 @@ namespace Ipop {
             dhcp_params);
 
         /* Check our allocation to see if we're getting a new address */
-        string new_address = Utils.MemBlockToString(rpacket.yiaddr, '.');
-        string new_netmask = Utils.BytesToString(
-            (byte[]) rpacket.Options[DHCPPacket.OptionTypes.SUBNET_MASK], '.');
-        if(new_address != IP || Netmask !=  new_netmask) {
-          UpdateAddressData(new_address, new_netmask);
+        MemBlock new_addr = rpacket.yiaddr;
+        MemBlock new_netmask = rpacket.Options[DHCPPacket.OptionTypes.SUBNET_MASK] as MemBlock;
+        if(new_netmask == null) {
+          new_netmask = MemBlock.Reference((byte[]) rpacket.Options[DHCPPacket.OptionTypes.SUBNET_MASK]);
+        }
+
+        if(!new_addr.Equals(LocalIP) || !new_netmask.Equals(Netmask)) {
+          UpdateAddressData(new_addr, new_netmask);
           ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
-                              "IP Address changed to {0}", IP));
+            "IP Address changed to {0}", Utils.MemBlockToString(new_addr, '.')));
         }
+
         byte[] destination_ip = null;
-        if(ipp.SourceIP[0] == 0) {
-          destination_ip = new byte[4]{255, 255, 255, 255};
-        }
-        else {
+        if(ipp.SourceIP.Equals(IPPacket.ZeroAddress)) {
+          destination_ip = IPPacket.BroadcastAddress;
+        } else {
           destination_ip = ipp.SourceIP;
         }
+
         UDPPacket res_udpp = new UDPPacket(67, 68, rpacket.Packet);
         IPPacket res_ipp = new IPPacket(IPPacket.Protocols.UDP,
                                          rpacket.ciaddr, destination_ip,
@@ -439,7 +455,7 @@ namespace Ipop {
       ARPPacket ap = new ARPPacket(packet);
       /* Must return nothing if the node is checking availability of IPs */
       /* Or he is looking himself up. */
-      if(ap.TargetProtoAddress.Equals(IP) ||
+      if(ap.TargetProtoAddress.Equals(LocalIP) ||
           ap.SenderProtoAddress.Equals(IPPacket.BroadcastAddress) ||
           ap.SenderProtoAddress.Equals(IPPacket.ZeroAddress) ||
           ap.Operation != ARPPacket.Operations.Request) {

@@ -171,8 +171,10 @@ namespace Ipop {
       int length = data.CopyTo(_send_buffer, 0);
       int n = send_tap(fd, _send_buffer, length);
       if(n != length) {
-        ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
-          "TAP: Didn't write all data ... only {0} / {1}", n, length));
+        if(_running) {
+          ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+            "TAP: Didn't write all data ... only {0} / {1}", n, length));
+        }
       }
     }
 
@@ -180,8 +182,8 @@ namespace Ipop {
     <summary>Call this method when exiting to stop the _read_thread.</summary>
     */
     public void Stop() {
-      close_tap(fd);
       _running = false;
+      close_tap(fd);
       _read_thread.Interrupt();
     }
 

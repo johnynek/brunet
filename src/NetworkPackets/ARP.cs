@@ -67,20 +67,15 @@ namespace NetworkPackets {
       ProtocolType = NumberSerializer.ReadShort(Packet, 2);
       int hw_len = Packet[4];
       int proto_len = Packet[5];
-      Console.WriteLine(hw_len + " : " + proto_len);
       Operation = (Operations) NumberSerializer.ReadShort(Packet, 6);
       int pos = 8;
       SenderHWAddress = MemBlock.Reference(Packet, pos, hw_len);
-      Console.WriteLine(hw_len + " : " + proto_len);
       pos += hw_len;
       SenderProtoAddress = MemBlock.Reference(Packet, pos, proto_len);
-      Console.WriteLine(hw_len + " : " + proto_len);
       pos += proto_len;
       TargetHWAddress = MemBlock.Reference(Packet, pos, hw_len);
-      Console.WriteLine(hw_len + " : " + proto_len);
       pos += hw_len;
       TargetProtoAddress = MemBlock.Reference(Packet, pos, proto_len);
-      Console.WriteLine(hw_len + " : " + proto_len);
     }
 
     public ARPPacket(int HardwareType, int ProtocolType, Operations Operation,
