@@ -1,5 +1,7 @@
+using Brunet;
 using Brunet.Applications;
 using Ipop.DhtNode;
+using NetworkPackets;
 using System;
 
 /**
@@ -27,9 +29,14 @@ namespace Ipop.CondorNode {
     <param name=""></param>
     <param name=""></param>
     */
-    public override void UpdateAddressData(MemBlock IP, MemBlock Netmask) {
+    protected override void UpdateAddressData(MemBlock IP, MemBlock Netmask) {
       base.UpdateAddressData(IP, Netmask);
       ((CondorDNS) _dns).UpdatePoolRange(IP, Netmask);
+    }
+
+    protected override bool HandleDNS(IPPacket ipp) {
+      WriteIP(_dns.LookUp(ipp).ICPacket);
+      return true;
     }
 
     /**

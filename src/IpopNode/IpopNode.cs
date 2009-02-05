@@ -154,7 +154,7 @@ namespace Ipop {
     <param name="IP">The new IP Address.</param>
     <param name="Netmask">The new Netmask.</param>
     */
-    public virtual void UpdateAddressData(MemBlock IP, MemBlock Netmask) {
+    protected virtual void UpdateAddressData(MemBlock IP, MemBlock Netmask) {
       string ip = Utils.MemBlockToString(IP, '.');
       string netmask = Utils.MemBlockToString(Netmask, '.');
       _info.UserData["Virtual IP"] = ip;
@@ -243,7 +243,7 @@ namespace Ipop {
 
     /// <summary>Writes an IPPacket as is to the TAP device.</summary>
     /// <param name="packet">The IPPacket!</param>
-    protected virtual void WriteIP(MemBlock packet) {
+    protected virtual void WriteIP(ICopyable packet) {
       EthernetPacket res_ep = new EthernetPacket(Ethernet.Address, EthernetPacket.UnicastAddress,
           EthernetPacket.Types.IP, packet);
       Ethernet.Send(res_ep.ICPacket);
@@ -369,10 +369,7 @@ namespace Ipop {
 
         /* Check our allocation to see if we're getting a new address */
         MemBlock new_addr = rpacket.yiaddr;
-        MemBlock new_netmask = rpacket.Options[DHCPPacket.OptionTypes.SUBNET_MASK] as MemBlock;
-        if(new_netmask == null) {
-          new_netmask = MemBlock.Reference((byte[]) rpacket.Options[DHCPPacket.OptionTypes.SUBNET_MASK]);
-        }
+        MemBlock new_netmask = MemBlock.Reference((byte[]) rpacket.Options[DHCPPacket.OptionTypes.SUBNET_MASK]);
 
         if(!new_addr.Equals(LocalIP) || !new_netmask.Equals(Netmask)) {
           UpdateAddressData(new_addr, new_netmask);

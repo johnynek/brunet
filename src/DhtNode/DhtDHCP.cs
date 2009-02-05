@@ -98,12 +98,15 @@ namespace Ipop.DhtNode {
 
       if(_current_ip != null && Utils.BytesToString(RequestedAddr, '.') == _current_ip &&
             DateTime.UtcNow < _current_quarter_lifetime) {
-        return _current_dhcpreply;
+//        return _current_dhcpreply;
       }
 
       bool res = false;
 
       while (attempts-- > 0) {
+        ProtocolLog.WriteIf(IpopLog.DHCPLog, "Attempting to allocate IP Address:" +
+            Utils.BytesToString(RequestedAddr, '.'));
+
         string str_addr = Utils.BytesToString(RequestedAddr, '.');
         string key = "dhcp:ipop_namespace:" + namespace_value + ":ip:" + str_addr;
         while(renew_attempts-- > 0) {

@@ -46,7 +46,7 @@ namespace Ipop.CondorNode {
     public void UpdatePoolRange(MemBlock ip_address, MemBlock netmask) {
       byte[] ba = new byte[ip_address.Length];
       for(int i = 0; i < ip_address.Length; i++) {
-        ba = ip_address[i] & netmask[i];
+        ba[i] = (byte) (ip_address[i] & netmask[i]);
       }
       lock(_sync) {
         _base_address = MemBlock.Reference(ba);

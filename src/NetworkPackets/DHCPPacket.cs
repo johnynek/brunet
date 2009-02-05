@@ -208,11 +208,12 @@ namespace NetworkPackets.DHCP {
     public DHCPPacket(MemBlock Packet) {
       _packet = Packet;
       op = Packet[0];
+      int hlen = Packet[2];
       xid = Packet.Slice(4, 4);
       ciaddr = Packet.Slice(12, 4);
       yiaddr = Packet.Slice(16, 4);
       siaddr = Packet.Slice(20, 4);
-      chaddr = Packet.Slice(28, 6);
+      chaddr = Packet.Slice(28, hlen);
       int idx = 240;
 
       /* Parse the options */
@@ -251,7 +252,7 @@ namespace NetworkPackets.DHCP {
       byte[] header = new byte[240];
       header[0] = op;
       header[1] = 1;
-      header[2] = 6;
+      header[2] = (byte) chaddr.Length;
       header[3] = 0;
 
       xid.CopyTo(header, 4);

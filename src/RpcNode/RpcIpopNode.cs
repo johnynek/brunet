@@ -59,7 +59,7 @@ namespace Ipop.RpcNode {
     /// </summary>
     /// <param name="IP">A string with the new IP</param>
     /// <param name="Netmask">A netmask of the address</param>
-    public override void UpdateAddressData(MemBlock IP, MemBlock Netmask) {
+    protected override void UpdateAddressData(MemBlock IP, MemBlock Netmask) {
       base.UpdateAddressData(IP, Netmask);
       _rarad.UpdateAddressData(IP, Netmask);
     }
@@ -80,10 +80,7 @@ namespace Ipop.RpcNode {
     /// <param name="ipp">A DNS IPPacket to be processed</param>
     /// <returns>A boolean result</returns>
     protected override bool HandleDNS(IPPacket ipp) {
-      IPPacket res = _dns.LookUp(ipp);
-      EthernetPacket res_ep = new EthernetPacket(Ethernet.Address, EthernetPacket.UnicastAddress,
-          EthernetPacket.Types.IP, res.ICPacket);
-      Ethernet.Send(res_ep.ICPacket);
+      WriteIP(_dns.LookUp(ipp).ICPacket);
       return true;
     }
 
