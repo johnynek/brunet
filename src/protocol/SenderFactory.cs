@@ -19,6 +19,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 using System; 
 using System.Collections;
+using System.Collections.Generic;
+using System.IO;
 using System.Security.Cryptography;
 #if BRUNET_NUNIT
 using System.Collections.Specialized;
@@ -51,40 +53,6 @@ namespace Brunet {
 
     protected static Hashtable _handlers = new Hashtable();
 
-    protected static Hashtable _string_to_ushort = new Hashtable();
-    protected static Hashtable _ushort_to_string = new Hashtable();      
-
-    static SenderFactory() {
-      _string_to_ushort["greedy"] = AHPacket.AHOptions.Greedy;
-      _string_to_ushort["exact"] = AHPacket.AHOptions.Exact;
-      _string_to_ushort["path"] = AHPacket.AHOptions.Path;
-      _string_to_ushort["last"] = AHPacket.AHOptions.Last;
-      _string_to_ushort["default"] = AHPacket.AHOptions.AddClassDefault;
-      _string_to_ushort["annealing"] = AHPacket.AHOptions.Annealing;
-
-      _ushort_to_string[AHPacket.AHOptions.Greedy] = "greedy";
-      _ushort_to_string[AHPacket.AHOptions.Exact] = "exact";
-      _ushort_to_string[AHPacket.AHOptions.Path] = "path";
-      _ushort_to_string[AHPacket.AHOptions.Last] = "last";
-      _ushort_to_string[AHPacket.AHOptions.AddClassDefault] = "default";
-      _ushort_to_string[AHPacket.AHOptions.Annealing] = "annealing";
-      }
-    
-    public static ushort StringToUShort(string mode) {
-      if (_string_to_ushort.ContainsKey(mode)) {
-        return (ushort) _string_to_ushort[mode];
-      }
-      throw new SenderFactoryException("Unknown sender mode: " + mode);
-    }
-    
-    public static string UShortToString(ushort mode) {
-      if (_ushort_to_string.ContainsKey(mode)) {
-        return (string) _ushort_to_string[mode];
-      }
-      throw new SenderFactoryException("Unknown sender mode: " + mode);
-    }
-
-
     /** 
      * Register a factory method for parsing sender URIs.
      * @param type type of the sender.
@@ -102,12 +70,8 @@ namespace Brunet {
      * @throws SenderFactoryException when URI is invalid or unsupported. 
      */
     public static ISender CreateInstance(Node n, string uri) {
-      if (!uri.StartsWith("sender:")) {
-        throw new SenderFactoryException("Invalid string representation");
-      }
-      string s = uri.Substring(7);
-      string []ss = s.Split(SplitChars);
-      string type = ss[0];
+      int varidx;
+      string type = GetScheme(uri, out varidx);
       if (_handlers.ContainsKey(type)) {
         try {
           SenderFactoryDelegate f = (SenderFactoryDelegate) _handlers[type];
@@ -117,6 +81,64 @@ namespace Brunet {
         }
       }
       throw new SenderFactoryException("Unsupported sender.");
+    }
+
+    /** create a URI string sender:scheme?k1=v1&k2=v2
+     * @param scheme the name for this sender
+     * @param opts the key-value pairs to encode
+     * @return uri
+     */
+    public static string EncodeUri(string scheme, IDictionary<string, string> opts) {
+      List<string> keys = new List<string>(opts.Keys);
+      keys.Sort();
+      StringWriter sw = new StringWriter();
+      sw.Write("sender:{0}", scheme);
+      string pattern = "?{0}={1}";
+      foreach(string key in keys) {
+        sw.Write(pattern, System.Web.HttpUtility.UrlEncode(key), System.Web.HttpUtility.UrlEncode(opts[key])); 
+        //For the next time, use a different pattern:
+        pattern = "&{0}={1}";
+      }
+      return sw.ToString();
+    }
+    /** Decode a URI into a scheme and key-value pairs
+     * @param uri the URI to decode
+     * @param scheme the for this URI
+     * @return key-value pairs encoded
+     */
+    public static IDictionary<string, string> DecodeUri(string uri, out string scheme) {
+      int varidx;
+      scheme = GetScheme(uri, out varidx);
+      if( varidx > 0 ) {
+        string vars = uri.Substring(varidx);
+        string[] kvpairs = vars.Split(SplitChars);
+        Dictionary<string, string> result = new Dictionary<string, string>(kvpairs.Length);
+        foreach(string kvpair in kvpairs) {
+          int eq_idx = kvpair.IndexOf('=');
+          string key = kvpair.Substring(0, eq_idx);
+          string val = kvpair.Substring(eq_idx + 1);
+          result.Add(System.Web.HttpUtility.UrlDecode(key), System.Web.HttpUtility.UrlDecode(val));
+        }
+        return result;
+      }
+      else {
+        return new Dictionary<string,string>();
+      }
+    }
+
+    public static string GetScheme(string uri, out int varidx) {
+      if (!uri.StartsWith("sender:")) {
+        throw new SenderFactoryException("Invalid string representation");
+      }
+      int idx = uri.IndexOf('?');
+      if( idx > 0 ) {
+        varidx = idx + 1;
+        return uri.Substring(7, idx - 7);
+      }
+      else {
+        varidx = -1;
+        return uri.Substring(7);
+      }
     }
   }
 
@@ -133,18 +155,33 @@ namespace Brunet {
                                                  AddressParser.Parse("brunet:node:JOJZG7VO6RFOEZJ6CJJ2WOIJWTXRVRP4"),
                                                  AddressParser.Parse("brunet:node:5FMQW3KKJWOOGVDO6QAQP65AWVZQ4VUQ"));
       
-      string uri = "sender:ah?dest=brunet:node:JOJZG7VO6RFOEZJ6CJJ2WOIJWTXRVRP4&mode=exact";
+      string uri = "sender:ah?dest=JOJZG7VO6RFOEZJ6CJJ2WOIJWTXRVRP4&mode=exact";
       ISender s = SenderFactory.CreateInstance(n, uri);
       Assert.IsTrue(s is AHSender);
       Assert.AreEqual(uri, s.ToUri());
-      uri = "sender:ah?dest=brunet:node:JOJZG7VO6RFOEZJ6CJJ2WOIJWTXRVRP4&mode=greedy";
+      uri = "sender:ah?dest=JOJZG7VO6RFOEZJ6CJJ2WOIJWTXRVRP4&mode=greedy";
+      
+      //Create the above programatically
+      IDictionary<string, string> param_args = new Dictionary<string,string>();
+      param_args["dest"] = "JOJZG7VO6RFOEZJ6CJJ2WOIJWTXRVRP4";
+      param_args["mode"] = "greedy";
+      string uri0 = SenderFactory.EncodeUri("ah", param_args); 
+      Assert.AreEqual(uri, uri0, "EncodeUri works");
+      //Check decode:
+      string scheme;
+      param_args = SenderFactory.DecodeUri(uri, out scheme);
+      Assert.AreEqual(scheme, "ah", "Scheme decoded");
+      Assert.AreEqual(param_args.Count, 2, "2 parameters in uri");
+      Assert.AreEqual(param_args["dest"], "JOJZG7VO6RFOEZJ6CJJ2WOIJWTXRVRP4", "Extracted address");
+      Assert.AreEqual(param_args["mode"], "greedy", "got mode");
+
       s = SenderFactory.CreateInstance(n, uri);
       Assert.IsTrue(s is AHSender);
       Assert.AreEqual(uri, s.ToUri());      
-      uri = "sender:fw?relay=brunet:node:JOJZG7VO6RFOEZJ6CJJ2WOIJWTXRVRP4&init_mode=greedy&dest=brunet:node:5FMQW3KKJWOOGVDO6QAQP65AWVZQ4VUQ&ttl=3&mode=path";
-      s = SenderFactory.CreateInstance(n, uri);
+      string furi = "sender:fw?relay=JOJZG7VO6RFOEZJ6CJJ2WOIJWTXRVRP4&init_mode=greedy&dest=5FMQW3KKJWOOGVDO6QAQP65AWVZQ4VUQ&ttl=3&mode=path";
+      s = SenderFactory.CreateInstance(n, furi);
       Assert.IsTrue(s is ForwardingSender);
-      Assert.AreEqual(uri, s.ToUri());
+      Assert.AreEqual(furi, s.ToUri());
     }
   }
 #endif
