@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using System;
+using System.Collections.Generic;
 
 namespace Brunet
 {
@@ -118,22 +119,13 @@ namespace Brunet
     }
     
     public static ForwardingSender CreateInstance(Node n, string uri) {
-      string s = uri.Substring(7);
-      string []ss = s.Split(SenderFactory.SplitChars);     
-
-      string[] relay = ss[1].Split(SenderFactory.Delims);
-      Address forwarder = AddressParser.Parse(relay[1]);
-      
-      string init_mode = (ss[2].Split(SenderFactory.Delims))[1];
-      ushort init_option = SenderFactory.StringToUShort(init_mode);
-
-      string[] dest = ss[3].Split(SenderFactory.Delims);
-      Address target = AddressParser.Parse(dest[1]);
-
-      short ttl = (short) Int16.Parse((ss[4].Split(SenderFactory.Delims))[1]);
-
-      string mode = (ss[5].Split(SenderFactory.Delims))[1];
-      ushort option = SenderFactory.StringToUShort(mode);
+      string fw_scheme; //Should be "fw"
+      IDictionary<string, string> kvpairs = SenderFactory.DecodeUri(uri, out fw_scheme);
+      Address forwarder = AddressParser.Parse(kvpairs["relay"]);
+      ushort init_option = AHHeader.Options.StringToUShort(kvpairs["init_mode"]);
+      Address target = AddressParser.Parse(kvpairs["dest"]);
+      short ttl = (short) Int16.Parse(kvpairs["ttl"]);
+      ushort option = AHHeader.Options.StringToUShort(kvpairs["mode"]);
 
       //Console.WriteLine("{0}, {1}, {2}, {3}, {4}", forwarder, init_option, target, ttl, option);
       return new ForwardingSender(n, forwarder, init_option, target, ttl, option);      
@@ -181,10 +173,11 @@ namespace Brunet
    * @returns URI for the sender.
    */
     public string ToUri() {
+      string relay = ((AHSender) _sender).Destination.ToMemBlock().ToBase32String();
+      string dest = _dest.ToMemBlock().ToBase32String();
       return System.String.Format("sender:fw?relay={0}&init_mode={1}&dest={2}&ttl={3}&mode={4}", 
-                                  ((AHSender) _sender).Destination, 
-                                  SenderFactory.UShortToString(((AHSender) _sender).Options), 
-                                  _dest, _f_ttl, SenderFactory.UShortToString(_f_option));
+                                  relay, AHHeader.Options.UShortToString(((AHSender) _sender).Options), 
+                                  dest, _f_ttl, AHHeader.Options.UShortToString(_f_option));
     }      
 
     override public int GetHashCode() {

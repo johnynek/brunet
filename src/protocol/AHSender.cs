@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using Brunet.Util;
+using System.Collections.Generic;
 using System.Threading;
 
 namespace Brunet {
@@ -53,6 +54,73 @@ public class AHHeader : ICopyable {
   }
 
   public int Length { get { return _data.Length; } }
+
+  /** Deals with the options field in AHHeader objects
+   */
+  public class Options {
+    protected static Dictionary<string, ushort> _string_to_ushort = new Dictionary<string, ushort>();
+    protected static Dictionary<ushort, string> _ushort_to_string = new Dictionary<ushort, string>();      
+  
+    static Options() {
+      _string_to_ushort["greedy"] = Greedy;
+      _string_to_ushort["exact"] = Exact;
+      _string_to_ushort["path"] = Path;
+      _string_to_ushort["last"] = Last;
+      _string_to_ushort["default"] = AddClassDefault;
+      _string_to_ushort["annealing"] = Annealing;
+  
+      _ushort_to_string[Greedy] = "greedy";
+      _ushort_to_string[Exact] = "exact";
+      _ushort_to_string[Path] = "path";
+      _ushort_to_string[Last] = "last";
+      _ushort_to_string[AddClassDefault] = "default";
+      _ushort_to_string[Annealing] = "annealing";
+    }
+    //These are delivery options controlling when the packet is delivered locally
+    public static readonly ushort AddClassDefault = 0;
+    /**
+     * Only the very last node to see the packet gets it delivered in this
+     * case.  It may be when TTL==HOPs, or it my be the last in some route.
+     * This mode assumes the Greedy routing mode for structured addresses
+     */
+    public static readonly ushort Last = 1;
+    /**
+     * This mode assumes the Annealing routing mode for structured addresses
+     */
+    public static readonly ushort Path = 2;
+    /**
+     * This uses the greedy routing algorithm.  The packet always
+     * gets closer to the destination until it can get no closer,
+     * as is delivered to that node.
+     */
+    public static readonly ushort Greedy = 3;
+    /**
+     * This mode allows the packet to "go uphill" for one step.
+     * However, every local minimum will get the packet.  So,
+     * more than one node may receive the packet.
+     * This mode is slightly fault tolerant.
+     */
+    public static readonly ushort Annealing = 4;
+    /**
+     * Only a node with an address that exactly matches the destination should
+     * get the packet
+     */
+    public static readonly ushort Exact = 5;
+    
+    public static ushort StringToUShort(string mode) {
+      if (_string_to_ushort.ContainsKey(mode)) {
+        return _string_to_ushort[mode];
+      }
+      throw new SenderFactoryException("Unknown sender mode: " + mode);
+    }
+    
+    public static string UShortToString(ushort mode) {
+      if (_ushort_to_string.ContainsKey(mode)) {
+        return _ushort_to_string[mode];
+      }
+      throw new SenderFactoryException("Unknown sender mode: " + mode);
+    }
+  }
 }
 
 public class AHSender : ISender {
@@ -62,12 +130,10 @@ public class AHSender : ISender {
   }
 
   protected static AHSender CreateInstance(Node n, string uri) {
-    string s = uri.Substring(7);
-    string []ss = s.Split(SenderFactory.SplitChars);
-    string []dest = ss[1].Split(SenderFactory.Delims);
-    Address target = AddressParser.Parse(dest[1]);
-    string mode = (ss[2].Split(SenderFactory.Delims))[1];
-    ushort option = SenderFactory.StringToUShort(mode);
+    string ahscheme; //Should be "ah"
+    IDictionary<string, string> kvpairs = SenderFactory.DecodeUri(uri, out ahscheme);
+    Address target = AddressParser.Parse(kvpairs["dest"]);
+    ushort option = AHHeader.Options.StringToUShort(kvpairs["mode"]);
     return new AHSender(n, target, option);
   }
 
@@ -201,7 +267,9 @@ public class AHSender : ISender {
    * @returns URI for the sender.
    */
   public string ToUri() {
-    return System.String.Format("sender:ah?dest={0}&mode={1}", _dest, SenderFactory.UShortToString(_options));
+    return System.String.Format("sender:ah?dest={0}&mode={1}",
+                                _dest.ToMemBlock().ToBase32String(),
+                                AHHeader.Options.UShortToString(_options));
   }
 
 }
