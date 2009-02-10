@@ -291,7 +291,15 @@ namespace Brunet
     }
     
     public string ToUri() {
-      throw new System.NotImplementedException();
+      /*
+       * This is a major security issue.  If we allow creation of
+       * these arbitrarily, some remote node might recruit us
+       * for a DOS attack.
+       */
+      IPEndPoint dep = (IPEndPoint)EndPoint;
+      IPEndPoint sep = (IPEndPoint)_s.LocalEndPoint;
+      return String.Format("sender:udp?dest={0}&dp={1}&sp={2}&src={3}",
+                           dep.Address, dep.Port, sep.Port, sep.Address);
     }
 
     public override string ToString() {

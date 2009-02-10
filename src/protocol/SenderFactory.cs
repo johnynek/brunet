@@ -51,7 +51,7 @@ namespace Brunet {
     public static readonly char [] SplitChars = new char[] {'?', '&'};
     public static readonly char [] Delims = new char[] {'='};
 
-    protected static Hashtable _handlers = new Hashtable();
+    protected readonly static Dictionary<string, SenderFactoryDelegate> _handlers = new Dictionary<string, SenderFactoryDelegate>();
 
     /** 
      * Register a factory method for parsing sender URIs.
@@ -59,7 +59,9 @@ namespace Brunet {
      * @handler factory method for the given type.
      */
     public static void Register(string type, SenderFactoryDelegate handler) {
-      _handlers[type] = handler;
+      lock( _handlers ) {
+        _handlers[type] = handler;
+      }
     }
 
     /**
@@ -71,16 +73,12 @@ namespace Brunet {
      */
     public static ISender CreateInstance(Node n, string uri) {
       int varidx;
-      string type = GetScheme(uri, out varidx);
-      if (_handlers.ContainsKey(type)) {
-        try {
-          SenderFactoryDelegate f = (SenderFactoryDelegate) _handlers[type];
-          return f(n, uri);
-        } catch {
-          new SenderFactoryException("Cannot parse URI for type:" + type);         
-        }
+      try {
+        string type = GetScheme(uri, out varidx);
+        return _handlers[type](n, uri);
+      } catch {
+        throw new SenderFactoryException("Cannot parse URI: " + uri);         
       }
-      throw new SenderFactoryException("Unsupported sender.");
     }
 
     /** create a URI string sender:scheme?k1=v1&k2=v2

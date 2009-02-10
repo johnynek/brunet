@@ -23,6 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using System;
 using System.Threading;
 using System.Collections;
+using System.Collections.Generic;
 
 namespace Brunet
 {
@@ -34,18 +35,53 @@ namespace Brunet
 
   public abstract class Edge : SimpleSource, IComparable, ISender
   {
-    protected static long _edge_count;
+    /*
+     * Static code stuffs
+     */
+    private static long _edge_count;
+    private readonly static Dictionary<long, Edge> _num_to_edge;
 
     static Edge() {
       _edge_count = 0;
+      _num_to_edge = new Dictionary<long, Edge>();
+      SenderFactory.Register("edge", CreateInstance);
     }
+    protected static long AllocEdgeNum(Edge e) {
+      long result;
+      lock( _num_to_edge ) {
+        result = ++_edge_count;
+        _num_to_edge[result] = e;
+      }
+      return result;
+    }
+    /** Get the edge with the given edge number.
+     * @throws KeyException if there is no (non-closed) edge with this number
+     */
+    public static Edge GetEdgeNum(long num) {
+      return _num_to_edge[num];
+    }
+    /** Return the edge specified in the given URI
+     * this matches the SenderFactory
+     */
+    public static Edge CreateInstance(Node n, string uri) {
+      string scheme;
+      IDictionary<string, string> args = SenderFactory.DecodeUri(uri, out scheme);
+      return GetEdgeNum( Int64.Parse( args["num"] ) );
+    }
+
+    protected static void ReleaseEdgeNum(long num) {
+      lock( _num_to_edge ) {
+        _num_to_edge.Remove(num);
+      }
+    }
+
+    //Non-statics...
 
     protected Edge()
     {
       _sync = new object();
       _close_event = new FireOnceEvent();
-      //Atomically increment and update _edge_no
-      _edge_no = System.Threading.Interlocked.Increment( ref _edge_count );
+      _edge_no = AllocEdgeNum(this);
       _is_closed = 0;
       _create_dt = DateTime.UtcNow;
       _last_out_packet_datetime = _create_dt.Ticks;
@@ -64,7 +100,10 @@ namespace Brunet
      */
     public virtual bool Close()
     {
-      Interlocked.Exchange(ref _is_closed, 1);
+      if( Interlocked.Exchange(ref _is_closed, 1) == 0 ) {
+        //Make sure we don't keep a reference around to this edge
+        ReleaseEdgeNum(_edge_no);
+      }
 #if POB_DEBUG
       Console.Error.WriteLine("EdgeClose: edge: {0}", this);
 #endif
@@ -245,7 +284,7 @@ namespace Brunet
     }
     
     public string ToUri() {
-      throw new System.NotImplementedException();
+      return String.Format("sender:edge?num={0}", _edge_no);
     }
     
   }
