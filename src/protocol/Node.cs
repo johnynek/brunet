@@ -41,6 +41,13 @@ namespace Brunet
    */
   abstract public class Node : IDataHandler, ISender
   {
+    static Node() {
+      SenderFactory.Register("localnode", CreateLocalSender); 
+    }
+
+    public static Node CreateLocalSender(Node n, string uri) {
+      return n;
+    }
     /**
      * Create a node in the realm "global"
      */
@@ -1286,7 +1293,7 @@ namespace Brunet
     }
     
     public string ToUri() {
-      return _local_add.ToString();
+      return "sender:localnode";
     }
   }
 }
