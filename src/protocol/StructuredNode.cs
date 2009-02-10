@@ -107,7 +107,8 @@ namespace Brunet
       sys_link = new ConnectionPacketHandler(this);
       rpc.AddHandler("sys:link", sys_link);
       rpc.AddHandler("trace", new TraceRpcHandler(this));
-
+      //Serve some public information about our ConnectionTable
+      rpc.AddHandler("ConnectionTable", new ConnectionTableRpc(ConnectionTable, rpc));
       //Add a map-reduce handlers:
       _mr_handler = new MapReduceHandler(this);
       //Subscribe it with the RPC handler:

@@ -57,6 +57,12 @@ public class RpcResult {
     _statistics = stats;
   }
 
+  /** If the Result in an Exception, throw it, otherwise do nothing
+   */
+  public void AssertNotException() {
+    //If result is an exception, we throw here:
+    if( _result is Exception ) { throw (Exception)_result; }
+  }
   //statistical information from the ReqreplyManager
   protected ReqrepManager.Statistics _statistics;
   public ReqrepManager.Statistics Statistics {
@@ -79,8 +85,7 @@ public class RpcResult {
    */
   public object Result {
     get {
-      //If result is an exception, we throw here:
-      if( _result is Exception ) { throw (Exception)_result; }
+      AssertNotException();
       return _result;
     }
   }

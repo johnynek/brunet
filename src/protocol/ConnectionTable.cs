@@ -31,7 +31,8 @@ using System.Globalization;
 using System.Xml.Serialization;
 using System.Xml;
 using System.Text;
-
+using System.Threading;
+using Brunet.Util;
 
 namespace Brunet
 {
@@ -53,6 +54,8 @@ namespace Brunet
     protected readonly ArrayList _addresses;
     protected readonly ArrayList _connections;
 
+    protected readonly WriteOnce<List<object>> _as_list;
+
     /**
      * Make an Empty ConnectionList
      */
@@ -61,6 +64,7 @@ namespace Brunet
       Count = 0;
       _addresses = new ArrayList(0);
       _connections = new ArrayList(0);
+      _as_list = new WriteOnce<List<object>>();
     }
 
     protected ConnectionList(ConnectionType ct, ArrayList adds, ArrayList cons) {
@@ -68,6 +72,7 @@ namespace Brunet
       Count = adds.Count;
       _addresses = adds;
       _connections = cons;
+      _as_list = new WriteOnce<List<object>>();
     }
     /**
      * Get a particular connection out.
@@ -418,6 +423,40 @@ namespace Brunet
       }    
       return next_closest;
     }
+
+    /** Convert to an ADR-compatible list
+     * returns an IList of ILists
+     * which comes from Connection.ToDictionary()
+     * the first element is the list of keys in Connection.ToDictionary,
+     * then all subsequent items are the values in the order of the keys.
+     * This is because this list could easily exceed the size of UDP packets
+     * if we are not careful about how we write it, so saving space is worth
+     * it
+     */
+    public IList ToList() {
+      
+      List<object> result = _as_list.Value;
+      if( result == null ) {
+        result = new List<object>(Count);
+        result.Add(Connection.ConnectionTypeToString(MainType));
+        result.Add(new string[]{"address", "sender", "subtype"});
+        if( Count > 0 ) {
+          foreach(Connection c in _connections) {
+            ArrayList c_vals = new ArrayList();
+            c_vals.Add(c.Address.ToString());
+            c_vals.Add(c.Edge.ToUri());
+            c_vals.Add(c.SubType);
+            result.Add(c_vals);
+          }
+        }
+        else {
+          //Add an empty list
+          result.Add(new object[0]);
+        }
+        _as_list.TrySet(result);
+      }
+      return result;
+    }
     
   }
 
@@ -433,7 +472,7 @@ namespace Brunet
    * 
    */
 
-  public sealed class ConnectionTable : IEnumerable //, ICollection
+  public sealed class ConnectionTable : IEnumerable
   {
     public int AverageEdgeTime {
       get {
@@ -469,6 +508,15 @@ namespace Brunet
      */
     protected Hashtable _type_to_conlist;
     protected Hashtable _edge_to_con;
+
+    /** Sequence number to track changes to the table.
+     * Local events should be processed in order, but 
+     * remote nodes can also track our connection table, and
+     * in those cases, the order of events may be lost.  This
+     * is so they can be ordered properly.  This number
+     * increases every time we make a change to the ConnectionTable
+     */
+    protected int _view;
 
     //We mostly deal with structured connections,
     //so we keep a ref to the address list for sructured
@@ -549,6 +597,7 @@ namespace Brunet
         foreach(ConnectionType t in Enum.GetValues(typeof(ConnectionType)) ) {
           Init(t);
         }
+        _view = 0;
       }
     }
 
@@ -575,7 +624,7 @@ namespace Brunet
       Edge e = c.Edge;
       ConnectionList new_cl;
       int index;
-
+      int view;
       lock(_sync) {
         if( _closed ) { throw new TableClosedException(); }
         Connection c_present = GetConnection(e);
@@ -616,6 +665,7 @@ namespace Brunet
         if( ucidx >= 0 ) {
           _unconnected = Functional.RemoveAt(_unconnected, ucidx);
         }
+        view =_view++;
       } /* we release the lock */
 
       /*
@@ -627,7 +677,7 @@ namespace Brunet
        */
       if(ConnectionEvent != null) {
         try {
-          ConnectionEvent(this, new ConnectionEventArgs(c, index, new_cl) );
+          ConnectionEvent(this, new ConnectionEventArgs(c, index, new_cl, view) );
         }
         catch(Exception x) {
           if(ProtocolLog.Exceptions.Enabled)
@@ -985,6 +1035,7 @@ namespace Brunet
       bool have_con = false;
       Connection c = null;
       ConnectionList new_cl = null;
+      int view;
       lock(_sync) {
         c = GetConnection(e);	
         have_con = (c != null);
@@ -1022,6 +1073,7 @@ namespace Brunet
               "Edge removed from unconnected {0}|{1}", e, DateTime.UtcNow.Ticks));
           }
         }
+        view = _view++;
       }
       if( have_con ) {
         if(ProtocolLog.Connections.Enabled) {
@@ -1040,7 +1092,7 @@ namespace Brunet
         //Announce the disconnection:
         if( DisconnectionEvent != null ) {
           try {
-            DisconnectionEvent(this, new ConnectionEventArgs(c, index, new_cl));
+            DisconnectionEvent(this, new ConnectionEventArgs(c, index, new_cl, view));
           }
           catch(Exception x) {
             if(ProtocolLog.Exceptions.Enabled)
@@ -1163,6 +1215,7 @@ namespace Brunet
         //Make the new connection and replace it in our data structures:
       Connection newcon = new Connection(e,a,con_type,sm,plm);
       int index;
+      int view;
       lock(_sync) {
         cl = GetConnections(t);
         cl = ConnectionList.Replace(cl, con, newcon, out index);
@@ -1175,12 +1228,13 @@ namespace Brunet
           //Optimize the most common case to avoid the hashtable
           _struct_conlist = cl;
         }
+        view = _view++;
       } /* we release the lock */
 
       /* Send the event: */
       if( StatusChangedEvent != null ) {
         try {
-          StatusChangedEvent(sm, new ConnectionEventArgs(newcon, index, cl) );
+          StatusChangedEvent(sm, new ConnectionEventArgs(newcon, index, cl, view) );
         }
         catch(Exception x) {
           if(ProtocolLog.Exceptions.Enabled)
@@ -1297,6 +1351,175 @@ namespace Brunet
             yield return c;
           }
         }
+      }
+    }
+  }
+
+  /** A class to do some reading of the ConnectionTable
+   */
+  public class ConnectionTableRpc : IRpcHandler {
+    protected readonly ConnectionTable _tab;
+    protected readonly RpcManager _rpc;
+    protected readonly Dictionary<Triple<ISender, string, object>, CallBackHandler> _hands;
+
+    public ConnectionTableRpc(ConnectionTable tab, RpcManager rpc) {
+      _tab = tab;
+      _rpc = rpc;
+      _hands = new Dictionary<Triple<ISender, string, object>, CallBackHandler>();
+    }
+
+    protected class CallBackHandler {
+      protected readonly ISender _dest;
+      protected readonly string _method;
+      protected readonly object _state;
+      protected readonly ConnectionTable _tab;
+      protected readonly RpcManager _rpc;
+      protected int _fails;
+      protected int _send;
+
+      /** After this many failures we stop trying
+       */
+      protected const int MAX_FAILS = 3;
+      protected readonly Action<CallBackHandler> _on_fail;
+
+      public Triple<ISender, string, object> Key {
+        get {
+          return new Triple<ISender, string, object>(_dest, _method, _state);
+        }
+      }
+
+      public CallBackHandler(ConnectionTable tab, RpcManager rpc,
+                             ISender d, string m, object s, Action<CallBackHandler> on_fail) {
+        _tab = tab;
+        _rpc = rpc;
+        _dest = d;
+        _method = m;
+        _state = s;
+        _fails = 0; 
+        _send = 0;
+        _on_fail = on_fail;
+      }
+
+      public void AddHandler(object o, EventArgs arg) {
+        Channel c = new Channel(1);
+        c.CloseEvent += this.FinishRpc;
+        ConnectionEventArgs cargs = (ConnectionEventArgs)arg;
+        try {
+          if( 1 == _send ) {
+            _rpc.Invoke(_dest, c, _method, "add", cargs.ToDictionary(), _state);
+          }
+        }
+        catch(Exception) {
+          Fail(); 
+        }
+      }
+      
+      protected void Fail() {
+        int failcount = Interlocked.Increment(ref _fails);
+        if( failcount >= MAX_FAILS ) {
+          Stop();
+        }
+        _on_fail(this);
+      }
+
+      public void FinishRpc(object q, EventArgs arg) {
+        try {
+          Channel c = (Channel)q;
+          RpcResult r = (RpcResult)c.Dequeue();
+          r.AssertNotException();
+        }
+        catch(Exception) {
+          Fail(); 
+        }
+      }
+
+      public void RemHandler(object o, EventArgs arg) {
+        Channel c = new Channel(1);
+        c.CloseEvent += this.FinishRpc;
+        ConnectionEventArgs cargs = (ConnectionEventArgs)arg;
+        try {
+          if( 1 == _send ) {
+            _rpc.Invoke(_dest, c, _method, "rem", cargs.ToDictionary(), _state);
+          }
+        }
+        catch(Exception) {
+          Fail(); 
+        }
+      }
+
+      public bool Start() {
+        if( 0 == Interlocked.Exchange(ref _send, 1) ) {
+          _tab.ConnectionEvent += this.AddHandler;
+          _tab.DisconnectionEvent += this.RemHandler;
+          return true;
+        }
+        return false;
+      }
+      public bool Stop() {
+        if( 1 == Interlocked.Exchange(ref _send, 0) ) {
+          _tab.ConnectionEvent -= this.AddHandler; 
+          _tab.DisconnectionEvent -= this.RemHandler;
+          return true;
+        }
+        return false;
+      }
+    }
+
+    /** This is the public API we share with nodes:
+     */
+    public void HandleRpc(ISender caller, string method, IList arguments, object request_state) {
+      if( method == "GetConnections" ) {
+        ConnectionType ct = Connection.StringToMainType((string)arguments[0]);
+        ConnectionList cl = _tab.GetConnections(ct);
+        if( cl != null ) {
+          _rpc.SendResult(request_state, cl.ToList());   
+        }
+        else {
+          _rpc.SendResult(request_state, new object[0]);
+        }
+      }
+      else if( method == "addConnectionHandler" ) {
+        ISender cb_dest = ((ReqrepManager.ReplyState)caller).ReturnPath;
+        string cb_method = (string)arguments[0];
+        object cb_state = arguments[1];
+        
+        Triple<ISender, string, object> cb_key
+          = new Triple<ISender, string, object>(cb_dest, cb_method, cb_state);
+        CallBackHandler cbh =
+             new CallBackHandler(_tab, _rpc, cb_dest, cb_method, cb_state, HandleFail);
+        lock( _hands ) {
+          if( _hands.ContainsKey( cb_key ) ) {
+            throw new Exception("already have a matching callback method and state");
+          }
+          _hands.Add(cb_key, cbh);
+        }
+        cbh.Start();
+        _rpc.SendResult(request_state, true);
+      }
+      else if( method == "removeConnectionHandler" ) {
+        ISender cb_dest = ((ReqrepManager.ReplyState)caller).ReturnPath;
+        string cb_method = (string)arguments[0];
+        object cb_state = arguments[1];
+        
+        Triple<ISender, string, object> cb_key
+          = new Triple<ISender, string, object>(cb_dest, cb_method, cb_state);
+        CallBackHandler cbh;
+        lock( _hands ) {
+          //This throws an exception if there is no key
+          cbh = _hands[cb_key];
+          _hands.Remove(cb_key);
+        }
+        cbh.Stop();
+        _rpc.SendResult(request_state, true);
+      }
+      else {
+        throw new Exception("Unrecognized method: " + method);
+      }
+    }
+
+    protected void HandleFail(CallBackHandler cbh) {
+      lock( _hands ) {
+        _hands.Remove(cbh.Key);
       }
     }
   }

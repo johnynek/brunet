@@ -22,6 +22,9 @@ using NUnit.Framework;
 #endif
 
 using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Collections.Specialized;
 
 namespace Brunet {
 
@@ -64,6 +67,8 @@ namespace Brunet {
       _lm = peerlm;
       _creation_time = DateTime.UtcNow;
       MainType = StringToMainType(_ct);
+      _as_dict = new WriteOnce<ListDictionary>();
+      _sub_type = new WriteOnce<string>();
     }
 
     protected DateTime _creation_time;
@@ -88,7 +93,26 @@ namespace Brunet {
     
     protected StatusMessage _stat;
     public StatusMessage Status { get { return _stat; } }
-    
+  
+    public string SubType {
+      get {
+        string res = _sub_type.Value;
+        if( res == null ) {
+          int dot_idx = _ct.IndexOf('.');
+          if( dot_idx >= 0 ) {
+            res = _ct.Substring(dot_idx);
+          }
+          else {
+            res = String.Empty;
+          }
+          _sub_type.TrySet(res);
+        }
+        return res;
+      }
+    }
+   
+    protected readonly WriteOnce<ListDictionary> _as_dict;
+    protected readonly WriteOnce<string> _sub_type; 
     /**
      * Return the string for a connection type
      */
@@ -107,41 +131,54 @@ namespace Brunet {
      * Doing string operations is not cheap, and we do this a lot
      * so it is worth improving the performance
      */
-    static protected System.Collections.Hashtable _string_to_main_type
-	    = new System.Collections.Hashtable();
+    static protected Dictionary<string, ConnectionType> _string_to_main_type 
+        = new Dictionary<string, ConnectionType>();
     /**
      * Return the string representation of a ConnectionType
      */
     static public ConnectionType StringToMainType(string s)
     {
-      object res = _string_to_main_type[s];
-      if( res != null ) {
-        return (ConnectionType)res;
-      }
-      else {
+      ConnectionType result;
+      if( false ==_string_to_main_type.TryGetValue(s, out result)) {
         int dot_idx = s.IndexOf('.');
         string maintype = s;
         if( dot_idx > 0 ) {
           maintype = s.Substring(0, dot_idx);
         }
         try {
-	  ConnectionType retval = (ConnectionType)Enum.Parse(typeof(ConnectionType),
+          result = (ConnectionType)Enum.Parse(typeof(ConnectionType),
                                                maintype,
                                                true);
-          lock( _string_to_main_type ) {
-            _string_to_main_type[String.Intern(s)] = retval;
-          }
-	  return retval;
         }
-        catch(System.Exception) {
-        
-	}
+        catch { result = ConnectionType.Unknown; }
+        lock( _string_to_main_type ) {
+          _string_to_main_type[String.Intern(s)] = result;
+        }
       }
-      lock( _string_to_main_type ) {
-        _string_to_main_type[ String.Intern( s ) ] = ConnectionType.Unknown;
-      }
-      return ConnectionType.Unknown;
+      return result;
     }
+ 
+    /** Return a version of the Dictionary suitable for ADR use
+     * maps:
+     * "address" => Address.ToString()
+     * "sender" => Edge.ToUri()
+     * "type" => ConType
+     */
+
+    public IDictionary ToDictionary() {
+      IDictionary d = _as_dict.Value;
+      if( d != null ) {
+        return d;
+      }
+      ListDictionary ld = new ListDictionary();
+      ld.Add("address", Address.ToString());
+      ld.Add("sender", Edge.ToUri());
+      ld.Add("type", ConType);
+      _as_dict.TrySet(ld);
+      return ld;
+    }
+    //Keys used in the ToDictionary method
+    public static readonly string[] DictKeys = new string[]{"address", "sender", "type"};
 
     /**
      * @return a string representation of the Connection
