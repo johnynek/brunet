@@ -23,7 +23,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  * Brunet.Edge
  * Brunet.ConnectionType;
  */
-
+using System.Collections;
+using System.Collections.Specialized;
 namespace Brunet
 {
 
@@ -52,11 +53,24 @@ namespace Brunet
      * The index into CList that corresponds to CList
      */
     public readonly int Index;
+    /** Sequence number to compare order of changes
+     */
+    public readonly int View;
 
-    public ConnectionEventArgs(Connection c, int idx, ConnectionList cl) {
+    public ConnectionEventArgs(Connection c, int idx, ConnectionList cl, int view) {
       Connection = c;
       Index = idx;
       CList = cl;
+      View = view;
+    }
+
+    public IDictionary ToDictionary() {
+      ListDictionary ld = new ListDictionary();
+      ld.Add("delta", Connection.ToDictionary());
+      ld.Add("index", Index);
+      ld.Add("cons", CList.ToList());  
+      ld.Add("view", View);
+      return ld;
     }
   }
 
