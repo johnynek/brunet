@@ -43,6 +43,7 @@ namespace Ipop.IpopRouter {
     /// <summary>A hashtable used to lock operations rather than multiple
     /// locks.</summary>
     protected Hashtable _checked_out;
+    protected object _sync;
     /// <summary>Set to true once we have "joined" the network</summary>
     protected bool _connected;
     /// <summary>We use this to set our L3 network</summary>
@@ -57,6 +58,7 @@ namespace Ipop.IpopRouter {
       _checked_out = new Hashtable();
       _dhcp_server = null;
       _connected = false;
+      _sync = new object();
       Brunet.StateChangeEvent += NodeStateChange;
     }
 
@@ -100,8 +102,10 @@ namespace Ipop.IpopRouter {
       if(mp == null) {
         mp = MemBlock.Copy(packet);
       }
+
       IPPacket ipp = new IPPacket(mp);
-      if(!_ip_to_ether.ContainsKey(ipp.DestinationIP)) {
+      MemBlock dest = null;
+      if(!_ip_to_ether.TryGetValue(ipp.DestinationIP, out dest)) {
         return;
       }
 
@@ -131,9 +135,11 @@ namespace Ipop.IpopRouter {
       MemBlock ether_addr = dhcp_packet.chaddr;
 
       DHCPServer dhcp_server = null;
-      if(!_ether_to_dhcp_server.TryGetValue(ether_addr, out dhcp_server)) {
-        dhcp_server = new DhtNode.DhtDHCPServer(Dht, _ipop_config.EnableMulticast);
-        _ether_to_dhcp_server.Add(ether_addr, dhcp_server);
+      lock(_sync) {
+        if(!_ether_to_dhcp_server.TryGetValue(ether_addr, out dhcp_server)) {
+          dhcp_server = new DhtNode.DhtDHCPServer(Dht, _ipop_config.EnableMulticast);
+          _ether_to_dhcp_server.Add(ether_addr, dhcp_server);
+        }
       }
 
       lock(_checked_out.SyncRoot) {
@@ -143,14 +149,13 @@ namespace Ipop.IpopRouter {
         _checked_out.Add(dhcp_server, true);
       }
 
-      byte []last_ip = null;
-      if(_ether_to_ip.ContainsKey(ether_addr)) {
-        last_ip = (byte[]) _ether_to_ip[ether_addr];
-      }
+      MemBlock last_ip = null;
+      _ether_to_ip.TryGetValue(ether_addr, out last_ip);
+      byte[] last_ipb = (last_ip == null) ? null : (byte[]) last_ip;
 
       WaitCallback wcb = delegate(object o) {
         try {
-          DHCPPacket rpacket = dhcp_server.Process(dhcp_packet, last_ip,
+          DHCPPacket rpacket = dhcp_server.Process(dhcp_packet, last_ipb,
               Brunet.Address.ToString(), _ipop_config.IpopNamespace,
               new object[0]);
 
@@ -158,14 +163,16 @@ namespace Ipop.IpopRouter {
           MemBlock new_addr = rpacket.yiaddr;
           MemBlock new_netmask = MemBlock.Reference((byte[]) rpacket.Options[DHCPPacket.OptionTypes.SUBNET_MASK]);
 
-          if(!_ether_to_ip.ContainsKey(ether_addr) ||
-              !_ether_to_ip[ether_addr].Equals(new_addr)) {
-            UpdateAddressData(ether_addr, new_addr, new_netmask);
+          lock(_sync) {
+            if(!_ether_to_ip.ContainsKey(ether_addr) ||
+                !_ether_to_ip[ether_addr].Equals(new_addr)) {
+              UpdateAddressData(ether_addr, new_addr, new_netmask);
 
-            ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
-              "IP Address for {0} changed to {1}.",
-              BitConverter.ToString((byte[]) ether_addr).Replace("-", ":"),
-              Utils.MemBlockToString(new_addr, '.')));
+              ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
+                "IP Address for {0} changed to {1}.",
+                BitConverter.ToString((byte[]) ether_addr).Replace("-", ":"),
+                Utils.MemBlockToString(new_addr, '.')));
+            }
           }
 
           MemBlock destination_ip = ipp.SourceIP;
