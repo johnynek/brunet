@@ -1161,7 +1161,8 @@ namespace Brunet {
         t_add -= rand_dist;
       }
 
-      byte[] target_int = (new BigInteger(t_add % Address.Full)).getBytes();
+
+      byte[] target_int = Address.ConvertToAddressBuffer(new BigInteger(t_add % Address.Full));
       Address.SetClass(target_int, _node.Address.Class);
       Address start = new AHAddress(target_int);
 
