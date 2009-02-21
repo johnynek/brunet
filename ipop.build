@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <project name="Ipop" default="build">
   <!-- Here is some configuration -->
-  <property name="brunet.dir" value="../brunet1" />
+  <property name="brunet.dir" value="../brunet1-router" />
 
   <!-- Here's the main target -->
   <target name="build" description="Build Brunet and all the IPOP code">
@@ -17,5 +17,6 @@
     <nant buildfile="src/c-lib/default.build" />
     <nant buildfile="src/DhtNode/default.build" />
     <nant buildfile="src/CondorNode/default.build" />
+    <nant buildfile="src/IpopRouter/default.build" />
   </target>
 </project>

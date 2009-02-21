@@ -14,7 +14,7 @@ nant
 cd -
 
 mkdir -p $version/ipop/bin
-brunet_lib_files="Brunet.dll Brunet.Dht.dll Brunet.DhtService.dll Brunet.XmlRpc.dll Mono.Security.dll"
+brunet_lib_files="Brunet.dll Brunet.Dht.dll Brunet.DhtService.dll Brunet.XmlRpc.dll Mono.Security.dll Brunet.Coordinate.dll Brunet.Security.dll"
 brunet_bin_files="BasicNode.exe MultiNode.exe"
 ipop_bin_files="DhtIpopNode.exe CondorIpopNode.exe"
 ipop_lib_files="libtuntap.dll libtuntap.so CookComputing.XmlRpcV2.dll"
