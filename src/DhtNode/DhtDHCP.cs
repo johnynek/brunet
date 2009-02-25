@@ -116,7 +116,7 @@ namespace Ipop.DhtNode {
               _dht.Put(namespace_value + "." + hostname, str_addr, leasetime);
             }
             if(_multicast) {
-              _dht.Put(namespace_value + ".multicast.ipop_vpn", node_address,
+              _dht.Put(namespace_value + ".multicast.ipop", node_address,
                        leasetime);
             }
             _dht.Put(node_address, key + "|" + DateTime.Now.Ticks, leasetime);

@@ -30,8 +30,8 @@ namespace Ipop.DhtNode {
   <summary>This class provides the ability to lookup names using the Dht.  To
   add a name into the Dht either add a Hostname node into your AddressData node
   inside the IpopConfig or use another method to publish to the Dht.  The format
-  of acceptable hostnames is [a-zA-Z0-9-_\.]*.ipop_vpn (i.e. must end in
-  .ipop_vpn)</summary>
+  of acceptable hostnames is [a-zA-Z0-9-_\.]*.ipop (i.e. must end in
+  .ipop)</summary>
   */
   public class DhtDNS: DNS {
     /// <summary>lock object to make this class thread safe</summary>
@@ -42,7 +42,7 @@ namespace Ipop.DhtNode {
     protected Cache dns_ptr = new Cache(100);
     /**  <summary>If names to be looked up don't end in this string, they're 
     not valid names of DhtIpopNode.</summary>*/
-    public static readonly String SUFFIX = ".ipop_vpn";
+    public static readonly String SUFFIX = ".ipop";
     /// <summary>Use this Dht to resolve names that aren't in cache</summary>
     protected Dht _dht;
     /// <summary>The namespace where the hostnames are being stored.</summary>

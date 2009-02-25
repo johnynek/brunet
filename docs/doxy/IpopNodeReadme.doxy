@@ -134,7 +134,7 @@ standard socket multicast practice to take advantage of multicast.
 
 \subsection DhtHostnames Dht Hostnames
 By specifying a hostname, your node will be accessible to other users in the
-pool at your_hostname.ipop_vpn.  Hostnames are unique per pool and so there
+pool at your_hostname.ipop.  Hostnames are unique per pool and so there
 will be no name collision between nodes in different pools.
 
 \subsection CondorHostnames Condor Hostnames
@@ -187,7 +187,7 @@ This is the name of the Tap device running on your host.
 \endcode
 
 This is an empty AddressData node with Hostname filled in.  This gives the
-node the name Example.ipop_vpn.  AddressData will fill-in after the first run
+node the name Example.ipop.  AddressData will fill-in after the first run
 of Ipop.
 \code
   <AddressData>

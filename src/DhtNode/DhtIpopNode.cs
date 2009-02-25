@@ -127,7 +127,7 @@ namespace Ipop.DhtNode {
     <summary>This handles multicast in a separate thread and is called by
     HandleMulticast(IPPacket).  DhtIpopNode does multicast naively, where all
     nodes are assumed to be in a LAN and will all receive a multicast packet
-    if they are part of the multicast.ipop_vpn group.  The host operating
+    if they are part of the multicast.ipop group.  The host operating
     system will have to decide what to do with the packet.</summary>
     <param name="ippo">An Object encapsulating the IP Packet containing the
     multicast packet.</param>
@@ -137,7 +137,7 @@ namespace Ipop.DhtNode {
       DhtGetResult []dgrs = null;
       try {
         dgrs = Dht.Get(_ipop_config.IpopNamespace +
-          ".multicast.ipop_vpn");
+          ".multicast.ipop");
       } catch {
         return;
       }
