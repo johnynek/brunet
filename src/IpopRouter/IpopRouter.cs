@@ -48,6 +48,7 @@ namespace Ipop.IpopRouter {
     protected bool _connected;
     /// <summary>We use this to set our L3 network</summary>
     protected MemBlock _first_ip;
+    protected MemBlock _first_nm;
 
     public IpopRouter(string NodeConfigPath, string IpopConfigPath) :
       base(NodeConfigPath, IpopConfigPath)
@@ -84,8 +85,16 @@ namespace Ipop.IpopRouter {
       if(_ip_to_ether.ContainsKey(ap.TargetProtoAddress) ||
           ap.SenderProtoAddress.Equals(IPPacket.BroadcastAddress) ||
           ap.SenderProtoAddress.Equals(IPPacket.ZeroAddress) ||
-          ap.Operation != ARPPacket.Operations.Request) {
+          ap.Operation != ARPPacket.Operations.Request ||
+          _first_ip == null ||
+          _first_nm == null) {
         return;
+      }
+
+      for(int i = 0; i < _first_ip.Length; i++) {
+        if((_first_ip[i] & _first_nm[i]) != (ap.TargetProtoAddress[i] & _first_nm[i])) {
+          return;
+        }
       }
 
       ARPPacket response = ap.Respond(EthernetPacket.UnicastAddress);
@@ -208,6 +217,7 @@ namespace Ipop.IpopRouter {
       // First IP or did our network change?
       if(_first_ip == null) {
         _first_ip = ip_addr;
+        _first_nm = netmask;
         UpdateAddressData(ip_addr, netmask);
       } else {
         bool match = true;
@@ -219,6 +229,7 @@ namespace Ipop.IpopRouter {
         }
         if(!match) {
           _first_ip = ip_addr;
+          _first_nm = netmask;
           UpdateAddressData(ip_addr, netmask);
         }
       }
