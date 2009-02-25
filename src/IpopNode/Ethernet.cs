@@ -61,7 +61,7 @@ namespace Ipop {
     <param name="device">Name of the TAP device on the host</param>
     */
     [DllImport("libtuntap")]
-    private static extern void close_tap(int fd);
+    private static extern int close_tap(int fd);
 
     /**
     <summary>Reads from the TAP devices</summary>
