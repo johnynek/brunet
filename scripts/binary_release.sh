@@ -35,6 +35,7 @@ for file in $ipop_lib_files; do
 done
 
 cp -axf ../drivers $version/ipop/.
+cp -axf ../src/c-lib $version/ipop/drivers/.
 
 cp -axf ../../brunet1/scripts $version/ipop/.
 cp -axf ../config $version/ipop/.
