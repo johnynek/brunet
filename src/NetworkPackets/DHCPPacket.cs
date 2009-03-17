@@ -18,6 +18,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using Brunet;
 using NetworkPackets;
+using System;
 using System.Collections;
 
 /**
@@ -206,6 +207,10 @@ namespace NetworkPackets.DHCP {
     <param name="Packet">The dhcp packet to parse</param>
     */
     public DHCPPacket(MemBlock Packet) {
+      if(Packet.Length < 240) {
+        throw new Exception("Invalid DHCP Packet:  Length < 240.");
+      }
+
       _packet = Packet;
       op = Packet[0];
       int hlen = Packet[2];
@@ -214,6 +219,10 @@ namespace NetworkPackets.DHCP {
       yiaddr = Packet.Slice(16, 4);
       siaddr = Packet.Slice(20, 4);
       chaddr = Packet.Slice(28, hlen);
+      MemBlock key = Packet.Slice(236, 4);
+      if(!key.Equals(magic_key)) {
+        throw new Exception("Invalid DHCP Packet: Invalid magic key.");
+      }
       int idx = 240;
 
       /* Parse the options */
