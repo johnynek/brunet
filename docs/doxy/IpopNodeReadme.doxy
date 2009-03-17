@@ -168,7 +168,7 @@ of the fields.
 \code
 <IpopConfig>
   <IpopNamespace>Generic</IpopNamespace>
-  <VirtualNetworkDevice>tap0</VirtualNetworkDevice>
+  <VirtualNetworkDevice>tapipop</VirtualNetworkDevice>
   <AddressData>
     <Hostname>Example</Hostname>
   </AddressData>
@@ -210,7 +210,7 @@ permission to allow Ipop to work, please accept it.
 To use Ipop on Linux run:
 \code
 mono IpopNode.exe node.config ipop.config &> logs &
-dhclient tap0
+dhclient tapipop
 \endcode
 
 In Windows run (no dhcp necessary, Windows automatically starts the dhcp
