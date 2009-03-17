@@ -90,8 +90,9 @@ int send_tap(windows_tap * fd, char * data, int len) {
   return written;
 }
 
-windows_tap * open_tap(char *device_name) {
-  int len, result = 0, status = 1, count;
+windows_tap * open_tap(char *device_name, void *addr) {
+  int result = 0, status = 1, count;
+  DWORD len;
   windows_tap * fd = (windows_tap *) malloc(sizeof(windows_tap));
   char device_path[255], *device_guid;
   /* Get our device guid */
@@ -107,7 +108,8 @@ windows_tap * open_tap(char *device_name) {
   if(fd->hand != INVALID_HANDLE_VALUE) {
     /* This turns "connects" the tap device */
     if(!DeviceIoControl(fd->hand, TAP_IOCTL_SET_MEDIA_STATUS, &status, 
-      sizeof (status), &status, sizeof (status), (LPDWORD) &len, NULL)) {
+      sizeof (status), &status, sizeof (status), (LPDWORD) &len, NULL) ||
+        !DeviceIoControl(fd->hand, TAP_IOCTL_GET_MAC, NULL, 0, addr, 6, &len, NULL)) {
       free(fd);
       fd = (windows_tap *) -1;
     }
@@ -132,12 +134,3 @@ windows_tap * open_tap(char *device_name) {
 int close_tap(windows_tap* device) {
   return CloseHandle(device->hand);
 }
-
-int get_hw_addr(windows_tap* fd, void *dev) {
-  DWORD len;
-  if(!DeviceIoControl(fd->hand, TAP_IOCTL_GET_MAC, NULL, 0, dev, 6, &len, NULL)) {
-    return -1;
-  }
-  return 0;
-}
-

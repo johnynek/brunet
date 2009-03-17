@@ -54,7 +54,7 @@ namespace Ipop {
     <returns>File descriptor of the TAP device</returns>
     */
     [DllImport("libtuntap")]
-    private static extern int open_tap(string device);
+    private static extern int open_tap(string device, byte[] addr);
 
     /**
     <summary>Closes the open TAP device on the host</summary>
@@ -83,12 +83,6 @@ namespace Ipop {
     [DllImport("libtuntap")]
     private static extern int send_tap(int fd, byte[] packet, int length);
 
-    /// <summary>Retrieves the mac address of the Tap Device</summary>
-    /// <param name="fd">The pointer for the device</param>
-    /// <param name="addr">The array that will contain the address</param>
-    [DllImport("libtuntap")]
-    private static extern int get_hw_addr(int fd, byte[] addr);
-
     /**
     <summary>Initializes the Ethernet device by opening the TAP device and 
     starting the ISource thread.</summary>
@@ -97,7 +91,8 @@ namespace Ipop {
     public Ethernet(string tap) {
       device = tap;
       int count = 0;
-      while((fd = open_tap(device)) == -2) {
+      byte[] addr = new byte[6];
+      while((fd = open_tap(device, addr)) == -2) {
         ProtocolLog.WriteIf(ProtocolLog.Exceptions,
                             "Unable to set up the tap, trying again...");
         Thread.Sleep(2);
@@ -110,9 +105,6 @@ namespace Ipop {
                             "Unable to set up the tap");
         Environment.Exit(1);
       }
-
-      byte[] addr = new byte[6];
-      get_hw_addr(fd, addr);
       Address = MemBlock.Reference(addr);
 
       _running = true;

@@ -13,7 +13,7 @@ int read_tap(int fd, void *packet, int len) {
   return read(fd, packet, len);
 }
 
-int open_tap(char *dev) {
+int open_tap(char *dev, void *addr) {
   struct ifreq ifr;
   int fd, err;
   if((fd = open("/dev/net/tun", O_RDWR)) < 0){
@@ -28,6 +28,20 @@ int open_tap(char *dev) {
     close(fd);
     return -1;
   }
+
+  int ctrl_fd = socket(AF_INET, SOCK_DGRAM, 0);
+  if(ctrl_fd == -1) {
+    perror("Unable to open ctrl_fd");
+  }
+  memset(&ifr, 0, sizeof(ifr));
+  strncpy(ifr.ifr_name, dev, sizeof(ifr.ifr_name) - 1);
+  if(ioctl(ctrl_fd, SIOCGIFHWADDR, &ifr) < 0) {
+    perror("Failled to get hw addr.");
+    return -1;
+  }
+  close(ctrl_fd);
+  memcpy(addr, &(ifr.ifr_hwaddr.sa_data), 6);
+
   return(fd);
 }
 
