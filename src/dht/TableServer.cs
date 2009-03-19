@@ -57,11 +57,7 @@ namespace Brunet.DistributedServices {
     protected TransferState _left_transfer_state = null;
     /**  <summary>Do not allow dht operations until
     StructuredConnectionOverlord is connected.</summary>*/
-    protected bool _dhtactivated = false;
-    /// <summary>This is set once Disconnect is called on _node.</summary>
-    protected bool disconnected = false;
-    /// <summary>True if the dht is usable.</summary>
-    public bool Activated { get { return _dhtactivated; } }
+    protected bool _online = false;
     /// <summary>Total count of key:value pairs stored locally.</summary>
     public int Count { get { return _data.Count; } }
     /// <summary>Maximum size for all values stored here.</summary>
@@ -85,8 +81,7 @@ namespace Brunet.DistributedServices {
       lock(_transfer_sync) {
         node.ConnectionTable.ConnectionEvent += this.ConnectionHandler;
         node.ConnectionTable.DisconnectionEvent += this.ConnectionHandler;
-        node.ConnectionTable.StatusChangedEvent += this.StatusChangedHandler;
-        node.DepartureEvent += this.DepartureHandler;
+        _node.StateChangeEvent += StateChangeHandler;
       }
 
       _rpc.AddHandler("dht", this);
@@ -354,15 +349,21 @@ namespace Brunet.DistributedServices {
       return result;
     }
 
-    /**
-    <summary>This method checks to see if the node is connected and activates
-    the Dht if it is.</summary>
-    <param name="contab">Unimportant to us!</param>
-    <param name="eargs">Unimportant to us!</param>
-    */
-    protected void StatusChangedHandler(object contab, EventArgs eargs) {
-      if(!_dhtactivated && _node.IsConnected) {
-            _dhtactivated = true;
+    /// <summary>If we are or were connected in the right place, we accept DHT
+    /// messages otherwise we ignore them.</summary>
+    /// <param name="n">The node for this event.</param>
+    /// <param name="state">The new state.</param>
+    protected void StateChangeHandler(Node n, Node.ConnectionState state) {
+      lock(_sync) {
+        if(state == Node.ConnectionState.Leaving) {
+          _online = false;
+          DepartureHandler();
+        } else if(state == Node.ConnectionState.Disconnected ||
+            state == Node.ConnectionState.Offline) {
+          _online = false;
+        } else if(state == Node.ConnectionState.Connected) {
+          _online = true;
+        }
       }
     }
 
@@ -389,7 +390,7 @@ namespace Brunet.DistributedServices {
     */
 
     protected void ConnectionHandler(object o, EventArgs eargs) {
-      if(disconnected) {
+      if(!_online) {
         return;
       }
 
@@ -400,7 +401,7 @@ namespace Brunet.DistributedServices {
         return;
       }
       lock(_transfer_sync) {
-        if(disconnected) {
+        if(!_online) {
           return;
         }
         ConnectionTable tab = _node.ConnectionTable;
@@ -456,14 +457,11 @@ namespace Brunet.DistributedServices {
       }
     }
 
-    /**
-    <summary>Called by Node.Disconnect to trigger shutting down of the dht.
-    This shuts down transfer states and prevent any more transfers.
-    </summary>
-    <param name="o">Unimportant.</param>
-    <param name="eargs">Unimportant.</param>
-    */
-    protected void DepartureHandler(Object o, EventArgs eargs) {
+    /// <summary>Called when Node.Disconnect is triggered stopping
+    /// transfer states and preventing any more transfers. </summary>
+    /// <param name="o">Unimportant.</param>
+    /// <param name="eargs">Unimportant.</param>
+    protected void DepartureHandler() {
       lock(_transfer_sync) {
         if(_right_transfer_state != null) {
           _right_transfer_state.Interrupt();
@@ -473,9 +471,9 @@ namespace Brunet.DistributedServices {
           _left_transfer_state.Interrupt();
           _left_transfer_state = null;
         }
-        this.disconnected = true;
       }
     }
+
       /* Since there is support for parallel transfers, the methods for 
     * inserting the first n versus the follow up puts are different,
     * consider it an optimization.  The foreach loop goes through all the

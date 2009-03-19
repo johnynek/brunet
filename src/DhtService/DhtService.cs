@@ -31,8 +31,8 @@ using Brunet.DistributedServices;
 namespace Brunet.Rpc {
   /// <summary>
   /// A Dht Server thread listens to Soap and XmlRpc requests
-  /// Soap URL: http://localhost:64221/sd.rem
-  /// XmlRpc URL: http://localhost:64221/xd.rem
+  /// Soap URL: http://localhost:port/sd.rem
+  /// XmlRpc URL: http://localhost:port/xd.rem
   /// </summary>
   public class DhtServer {
     private DhtAdapter _sd, _xd;

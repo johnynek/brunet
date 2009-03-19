@@ -1,6 +1,7 @@
 using System;
 using System.Text;
 using System.Collections;
+using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Threading;
 
@@ -10,7 +11,7 @@ using Brunet.DistributedServices;
 namespace Test {
   public class DhtOpTester {
     SortedList nodes = new SortedList();
-    SortedList dhts = new SortedList();
+    Dictionary<Address, TableServer> tables = new Dictionary<Address, TableServer>();
     Dht default_dht;
     static readonly int degree = 3;
     static int network_size = 60;
@@ -263,13 +264,13 @@ namespace Test {
         nodes.Add(addr, node);
         node.AddEdgeListener(new UdpEdgeListener(base_port + i));
         node.RemoteTAs = RemoteTA;
+        tables[addr] = new TableServer(node);
         (new Thread(node.Connect)).Start();
-        dhts.Add(addr, new Dht(node, degree));
-        if(i < network_size / ((Dht)dhts.GetByIndex(i)).DEGREE) {
+//        if(i < network_size / ((Dht)dhts.GetByIndex(i)).DEGREE) {
 //          ((Dht)dhts.GetByIndex(i)).debug = true;
-        }
+//        }
       }
-      default_dht = (Dht) dhts.GetByIndex(0);
+      default_dht = new Dht((Node) nodes.GetByIndex(0), degree);
     }
 
     // Checks the ring for completeness
@@ -819,11 +820,11 @@ namespace Test {
         Node node = (Node) nodes[laddr];
         node.Disconnect();
         nodes.Remove(laddr);
-        dhts.Remove(laddr);
+        tables.Remove(laddr);
         network_size--;
       }
 
-      default_dht = (Dht) dhts.GetByIndex(0);
+      default_dht = new Dht((Node) nodes.GetByIndex(0), degree);
 
       // Checking the ring every 5 seconds..
       do  { Thread.Sleep(5000);}
@@ -836,9 +837,8 @@ namespace Test {
       Console.WriteLine("This checks to make sure our follow up Puts succeeded");
       this.SerialAsGet(key, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
-      foreach(DictionaryEntry de in dhts) {
-        Dht dht = (Dht) de.Value;
-        Console.WriteLine("Count ... " + dht.Count);
+      foreach(TableServer ts in tables.Values) {
+        Console.WriteLine("Count ... " + ts.Count);
       }
     }
 

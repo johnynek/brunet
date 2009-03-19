@@ -198,15 +198,15 @@ namespace Brunet.Applications {
         _node.RemoteTAs = RemoteTAs;
       }
 
-      try {
-        if (_node_config.NCService.Enabled) {
-          _ncservice = new NCService(_node, _node_config.NCService.Checkpoint);
+      if (_node_config.NCService.Enabled) {
+        _ncservice = new NCService(_node, _node_config.NCService.Checkpoint);
 
-          if (_node_config.NCService.OptimizeShortcuts) {
-            _node.Sco.TargetSelector = new VivaldiTargetSelector(_node, _ncservice);
-          }
+        if (_node_config.NCService.OptimizeShortcuts) {
+          _node.Sco.TargetSelector = new VivaldiTargetSelector(_node, _ncservice);
         }
-      } catch {}
+      }
+
+      new TableServer(_node);
       _dht = new Dht(_node, 3, 20);
     }
 

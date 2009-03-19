@@ -70,8 +70,6 @@ namespace Test {
         else if(command.Equals("G")) {
           Node node = (Node) nodes.GetByIndex(rand.Next(0, network_size));
           Dht dht = (Dht) dhts[node];
-          if(!dht.Activated)
-            continue;
           BlockingQueue returns = new BlockingQueue();
           dht.AsGet("tester", returns);
           int count = 0;
@@ -143,8 +141,6 @@ namespace Test {
       foreach(DictionaryEntry de in nodes) {
         Node node = (Node)de.Value;
         Dht dht = (Dht) dhts[node];
-        if(!dht.Activated)
-          continue;
         Channel returns = new Channel();
         dht.AsPut("tester", node.Address.ToString(), 2 * base_time * dht_put_interval, returns);
       }
@@ -155,8 +151,6 @@ namespace Test {
         int index = rand.Next(0, network_size);
         Node node = (Node) nodes.GetByIndex(index);
         Dht dht = (Dht) dhts[node];
-        if(!dht.Activated)
-          continue;
         Channel returns = new Channel();
         dht.AsGet("tester", returns);
       }
@@ -196,6 +190,7 @@ namespace Test {
       (new Thread(node.Connect)).Start();
 //      taken_ports[local_port] = node;
       nodes.Add((Address) address, node);
+      new TableServer(node);
       dhts.Add(node, new Dht(node, DEGREE));
       network_size++;
     }
