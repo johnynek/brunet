@@ -28,7 +28,7 @@ using System.Threading;
 using Brunet;
 using Brunet.DistributedServices;
 
-namespace Brunet.Rpc {
+namespace Brunet.DhtService {
   /// <summary>
   /// A Dht Server thread listens to Soap and XmlRpc requests
   /// Soap URL: http://localhost:port/sd.rem
@@ -63,7 +63,7 @@ namespace Brunet.Rpc {
       RemotingServices.Disconnect(_xd);
     }
 
-    public void Update(Dht dht) {
+    public void Update(IDht dht) {
       _sd = new SoapDht(dht);
       RemotingServices.Marshal(_sd, "sd.rem");
 

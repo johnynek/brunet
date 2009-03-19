@@ -34,10 +34,10 @@ using System.Runtime.Remoting;
 using System.Security.Cryptography;
 using CookComputing.XmlRpc;
 
-namespace Brunet.Rpc {
-  public abstract class DhtAdapter : MarshalByRefObject, IDht {
+namespace Brunet.DhtService {
+  public abstract class DhtAdapter : MarshalByRefObject, IRpcDht {
     [NonSerialized]
-    public Dht _dht;
+    public IDht _dht;
     /* Use cache so that we don't experience a leak, this should be replaced 
      * with some timeout mechanism to support multiple interactions at the 
      * same time.
@@ -45,7 +45,7 @@ namespace Brunet.Rpc {
     [NonSerialized]
     protected Cache _bqs = new Cache(100);
 
-    public DhtAdapter(Dht dht) {
+    public DhtAdapter(IDht dht) {
       this._dht = dht;
     }
 
@@ -136,7 +136,7 @@ namespace Brunet.Rpc {
 
 
   public class SoapDht : DhtAdapter, ISoapDht {
-    public SoapDht(Dht dht) : base(dht) { }
+    public SoapDht(IDht dht) : base(dht) { }
 
     public IBlockingQueue GetAsBlockingQueue(byte[] key) {
       BlockingQueue bq = new BlockingQueue();
@@ -147,7 +147,7 @@ namespace Brunet.Rpc {
 
     public override IDictionary GetDhtInfo() {
       Hashtable ht = new Hashtable();
-      ht.Add("address", _dht.Node.Address.ToString());
+      ht.Add("address", _dht.Name);
       return ht;
     }
   }
@@ -156,7 +156,7 @@ namespace Brunet.Rpc {
   /// Dht stub using XmlRpc protocol
   /// </summary>
   public class XmlRpcDht : DhtAdapter {
-    public XmlRpcDht(Dht dht) : base(dht) { }
+    public XmlRpcDht(IDht dht) : base(dht) { }
 
     protected XmlRpcStruct IDictionaryToXmlRpcStruct(IDictionary dict) {
       XmlRpcStruct str = new XmlRpcStruct();
@@ -204,7 +204,7 @@ namespace Brunet.Rpc {
     [XmlRpcMethod]
     public override IDictionary GetDhtInfo() {
       XmlRpcStruct xrs = new XmlRpcStruct();
-      xrs.Add("address", _dht.Node.Address.ToString());
+      xrs.Add("address", _dht.Name);
       return xrs;
     }
   }

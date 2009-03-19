@@ -21,11 +21,11 @@ using System.Text;
 using Brunet.DistributedServices;
 using System.Collections;
 
-namespace Brunet.Rpc {
+namespace Brunet.DhtService {
   /// <summary>
   /// A Generic Interface for Dht operations
   /// </summary>
-  public interface IDht {
+  public interface IRpcDht {
     /// <summary>
     /// Get Dht values
     /// </summary>    

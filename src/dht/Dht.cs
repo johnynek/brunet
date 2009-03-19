@@ -48,7 +48,7 @@ namespace Brunet.DistributedServices {
   /// enough data results are received during a get to confirm existence, but not
   /// all the results returned a value.  In the case of a hole, a put will be used
   /// to place the data back to seal the hole.</remarks>
-  public class Dht {
+  public class Dht : IDht {
     /// <summary>The log enabler for the dht.</summary>
     public static BooleanSwitch DhtLog = new BooleanSwitch("Dht", "Log for Dht!");
     /// <summary>Lock for the dht put/get state tables.</summary>
@@ -74,6 +74,7 @@ namespace Brunet.DistributedServices {
     protected volatile Hashtable _adgs_table = new Hashtable();
     /// <summary>True unless node is in offline, leaving, or disconnected</summary>
     protected bool _online;
+    public string Name { get { return Node.Address.ToString(); } }
 
     /// <summary>A default Dht client provides a DEGREE of 1 and a sychronous wait
     /// time of up to 60 seconds.</summary>
@@ -125,30 +126,14 @@ namespace Brunet.DistributedServices {
     }
 
 
-    /// <summary>Asynchronous create storing the results in the Channel returns.
-    /// Creates return true if successful or exception if another value already
-    /// exists or there are network errors in adding the entry.</summary>
-    /// <param name="key">The index to store the value at.</param>
-    /// <param name="value">The value to store.</param>
-    /// <param name="ttl">The dht lease time for the key:value pair.</param>
-    /// <param name="returns">The Channel where the result will be placed.</param>
     public void AsCreate(MemBlock key, MemBlock value, int ttl, Channel returns) {
       AsPut(key, value, ttl, returns, true);
     }
 
-    /// <summary>Synchronous create.</summary>
-    /// <param name="key">The index to store the value at.</param>
-    /// <param name="value">The value to store.</param>
-    /// <param name="ttl">The dht lease time for the key:value pair.</param>
-    /// <returns>Creates return true if successful or exception if another value
-    /// already exists or there are network errors in adding the entry.</returns>
     public bool Create(MemBlock key, MemBlock value, int ttl) {
       return Put(key, value, ttl, true);
     }
 
-    /// <summary>Synchronous get.</summary>
-    /// <param name="key">The index to look up.</param>
-    /// <returns>An array of Hashtables containing the returnedresults.</returns>
     public Hashtable[] Get(MemBlock key) {
       BlockingQueue returns = new BlockingQueue();
       AsGet(key, returns);
@@ -167,16 +152,11 @@ namespace Brunet.DistributedServices {
       return (Hashtable[]) values.ToArray(typeof(Hashtable));
     }
 
-    /// <summary>Asynchronous get.  Results are stored in the Channel returns.
-    /// </summary>
     /// <remarks>This starts the get process by sending dht.Get to all the remote
     /// end points that contain the key we're looking up.  The next step is
     /// is when the results are placed in the channel and GetEnqueueHandler is
     /// called or GetCloseHandler is called.  This means the get needs to be
     /// stateful, that information is stored in the _adgs_table.</remarks>
-    /// <param name="key">The index to look up.</param>
-    /// <param name="returns">The channel for where the results will be stored
-    /// as they come in.</param>
     public void AsGet(MemBlock key, Channel returns) {
       if(!_online) {
         throw new DhtException("The Node is (going) offline, DHT is offline.");
@@ -419,23 +399,10 @@ namespace Brunet.DistributedServices {
       adgs.results.Clear();
     }
 
-    /// <summary>Asynchronous put storing the results in the Channel returns.
-    /// Puts return true if successful or exception if there are network errors
-    /// in adding the entry.</summary>
-    /// <param name="key">The index to store the value at.</param>
-    /// <param name="value">The value to store.</param>
-    /// <param name="ttl">The dht lease time for the key:value pair.</param>
-    /// <param name="returns">The Channel where the result will be placed.</param>
     public void AsPut(MemBlock key, MemBlock value, int ttl, Channel returns) {
       AsPut(key, value, ttl, returns, false);
     }
 
-    /// <summary>Synchronous put.</summary>
-    /// <param name="key">The index to store the value at.</param>
-    /// <param name="value">The value to store.</param>
-    /// <param name="ttl">The dht lease time for the key:value pair.</param>
-    /// <returns>Puts return true if successful or exception if there are
-    /// network errors in adding the entry.</returns>
     public bool Put(MemBlock key, MemBlock value, int ttl) {
       return Put(key, value, ttl, false);
     }
