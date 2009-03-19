@@ -1,4 +1,4 @@
-#!//usr/bin/python
+#!/usr/bin/env python
 import xmlrpclib, getopt, sys
 pydht = xmlrpclib.Server('http://localhost:64221/xd.rem')
 #pydht = xmlrpclib.Server('http://128.227.56.152:64221/xd.rem')
@@ -39,4 +39,4 @@ else:
   #default TTL= 1 day
   ttl = 86400 
 # put (mykey,myvalue) pair into the DHT, with time-to-live of 100000 seconds
-print pydht.Put(args[0], value, ttl)
+print pydht.Put(xmlrpclib.Binary(args[0]), xmlrpclib.Binary(value), ttl)

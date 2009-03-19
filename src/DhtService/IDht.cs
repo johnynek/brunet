@@ -29,25 +29,25 @@ namespace Brunet.Rpc {
     /// <summary>
     /// Get Dht values
     /// </summary>    
-    DhtGetResult[] Get(string key);
+    IDictionary[] Get(byte[] key);
 
     /// <summary>
     /// Places value in Dht if it is a unique key
     /// </summary>    
     /// <returns>true if successful</returns>
-    bool Create(string key, string value, int ttl);
+    bool Create(byte[] key, byte[] value, int ttl);
 
     /// <summary>
     /// Places a value in Dht indexed by its key    
     /// <returns>true if successful</returns>
-    bool Put(string key, string value, int ttl);
+    bool Put(byte[] key, byte[] value, int ttl);
 
     /**
      * @return: token for ContinueGet
      */
-    string BeginGet(string key);
-    DhtGetResult ContinueGet(string token);
-    void EndGet(string token);
+    byte[] BeginGet(byte[] key);
+    IDictionary ContinueGet(byte[] token);
+    void EndGet(byte[] token);
 
     IDictionary GetDhtInfo();
   }

@@ -148,24 +148,23 @@ namespace Brunet.DistributedServices {
 
     /// <summary>Synchronous get.</summary>
     /// <param name="key">The index to look up.</param>
-    /// <returns>An array of DhtGetResult type containing all the results
-    /// returned.  </returns>
-    public DhtGetResult[] Get(MemBlock key) {
+    /// <returns>An array of Hashtables containing the returnedresults.</returns>
+    public Hashtable[] Get(MemBlock key) {
       BlockingQueue returns = new BlockingQueue();
       AsGet(key, returns);
-      ArrayList allValues = new ArrayList();
+      ArrayList values = new ArrayList();
       while(true) {
         // Still a chance for Dequeue to execute on an empty closed queue 
         // so we'll do this instead.
         try {
-          DhtGetResult dgr = (DhtGetResult) returns.Dequeue();
-          allValues.Add(dgr);
+          Hashtable hash = (Hashtable) returns.Dequeue();
+          values.Add(hash);
         }
         catch (Exception) {
           break;
         }
       }
-      return (DhtGetResult []) allValues.ToArray(typeof(DhtGetResult));
+      return (Hashtable[]) values.ToArray(typeof(Hashtable));
     }
 
     /// <summary>Asynchronous get.  Results are stored in the Channel returns.
@@ -269,7 +268,7 @@ namespace Brunet.DistributedServices {
           }
           if(count == MAJORITY) {
             ht["ttl"] = (int) adgs.ttls[mbVal] / MAJORITY;
-            adgs.returns.Enqueue(new DhtGetResult(ht));
+            adgs.returns.Enqueue(ht);
           }
         }
       }
@@ -595,41 +594,6 @@ namespace Brunet.DistributedServices {
       public AsDhtGetState(Channel returns) {
         this.returns = returns;
       }
-    }
-
-// Below this line is deprecated features ...
-    public void AsCreate(string key, string value, int ttl, Channel returns) {
-      MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
-      MemBlock valueb = MemBlock.Reference(Encoding.UTF8.GetBytes(value));
-      AsCreate(keyb, valueb, ttl, returns);
-    }
-
-    public bool Create(string key, string value, int ttl) {
-      MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
-      MemBlock valueb = MemBlock.Reference(Encoding.UTF8.GetBytes(value));
-      return Create(keyb, valueb, ttl);
-    }
-
-    public void AsGet(string key, Channel returns) {
-      MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
-      AsGet(keyb, returns);
-    }
-
-    public DhtGetResult[] Get(string key) {
-      MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
-      return Get(keyb);
-    }
-
-    public void AsPut(string key, string value, int ttl, Channel returns) {
-      MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
-      MemBlock valueb = MemBlock.Reference(Encoding.UTF8.GetBytes(value));
-      AsPut(keyb, valueb, ttl, returns);
-    }
-
-    public bool Put(string key, string value, int ttl) {
-      MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
-      MemBlock valueb = MemBlock.Reference(Encoding.UTF8.GetBytes(value));
-      return Put(keyb, valueb, ttl);
     }
   }
 }
