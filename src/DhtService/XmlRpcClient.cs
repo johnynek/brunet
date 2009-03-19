@@ -24,7 +24,7 @@ using Brunet.DistributedServices;
 using System;
 using System.Collections;
 
-namespace Brunet.Rpc {
+namespace Brunet.DhtService {
   public partial class DhtServiceClient {
     public static IXmlRpcDht GetXmlRpcDhtClient(int port) {
       IXmlRpcDht proxy = (IXmlRpcDht)XmlRpcProxyGen.Create(typeof(IXmlRpcDht));
@@ -36,33 +36,33 @@ namespace Brunet.Rpc {
   /// <summary>
   /// The XmlRpc interface for the Dht which is used on the client side
   /// </summary>
-  public interface IXmlRpcDht : IDht, CookComputing.XmlRpc.IXmlRpcProxy {
+  public interface IXmlRpcDht : IRpcDht, CookComputing.XmlRpc.IXmlRpcProxy {
     [XmlRpcMethod]
-    new DhtGetResult[] Get(string key);
+    new XmlRpcStruct[] Get(byte[] key);
     [XmlRpcMethod]
-    new bool Create(string key, string value, int ttl);
+    new bool Create(byte[] key, byte[] value, int ttl);
     [XmlRpcMethod]
-    new bool Put(string key, string value, int ttl);
+    new bool Put(byte[] key, byte[] value, int ttl);
     [XmlRpcMethod]
-    new string BeginGet(string key);
+    new byte[] BeginGet(byte[] key);
     [XmlRpcMethod]
-    new DhtGetResult ContinueGet(string token);
+    new XmlRpcStruct ContinueGet(byte[] token);
     [XmlRpcMethod]
-    new void EndGet(string token);
+    new void EndGet(byte[] token);
 
     [XmlRpcMethod]
-    new IDictionary GetDhtInfo();
+    new XmlRpcStruct GetDhtInfo();
 
     [XmlRpcBegin("Get")]
-    IAsyncResult BeginGetWithCallback(string key, AsyncCallback acb, object state);
+    IAsyncResult BeginGetWithCallback(byte[] key, AsyncCallback acb, object state);
     [XmlRpcEnd]
-    DhtGetResult[] EndGet(IAsyncResult iasr);
+    XmlRpcStruct[] EndGet(IAsyncResult iasr);
     [XmlRpcBegin("Create")]
-    IAsyncResult BeginCreateWithCallback(string key, string value, int ttl, AsyncCallback acb, object state);
+    IAsyncResult BeginCreateWithCallback(byte[] key, byte[] value, int ttl, AsyncCallback acb, object state);
     [XmlRpcEnd]
     string EndCreate(IAsyncResult iasr);
     [XmlRpcBegin("Put")]
-    IAsyncResult BeginPutWithCallback(string key, string value, int ttl, AsyncCallback acb, object state);
+    IAsyncResult BeginPutWithCallback(byte[] key, byte[] value, int ttl, AsyncCallback acb, object state);
     [XmlRpcEnd]
     string EndPut(IAsyncResult iasr);
   }
