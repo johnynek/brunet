@@ -28,7 +28,7 @@ namespace Brunet.DistributedServices {
     /// <param name="value">The value to store.</param>
     /// <param name="ttl">The dht lease time for the key:value pair.</param>
     /// <param name="returns">The Channel where the result will be placed.</param>
-    void AsCreate(MemBlock key, MemBlock value, int ttl, Channel returns);
+    void AsyncCreate(MemBlock key, MemBlock value, int ttl, Channel returns);
 
 
     /// <summary>Synchronous create.</summary>
@@ -47,7 +47,7 @@ namespace Brunet.DistributedServices {
     /// <param name="value">The value to store.</param>
     /// <param name="ttl">The dht lease time for the key:value pair.</param>
     /// <param name="returns">The Channel where the result will be placed.</param>
-    void AsPut(MemBlock key, MemBlock value, int ttl, Channel returns);
+    void AsyncPut(MemBlock key, MemBlock value, int ttl, Channel returns);
 
     /// <summary>Synchronous put.</summary>
     /// <param name="key">The index to store the value at.</param>
@@ -62,7 +62,7 @@ namespace Brunet.DistributedServices {
     /// <param name="key">The index to look up.</param>
     /// <param name="returns">The channel for where the results will be stored
     /// as they come in.</param>
-    void AsGet(MemBlock key, Channel returns);
+    void AsyncGet(MemBlock key, Channel returns);
 
     /// <summary>Synchronous get.</summary>
     /// <param name="key">The index to look up.</param>

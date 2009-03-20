@@ -64,10 +64,6 @@ namespace Brunet.DistributedServices {
     /// <summary>floor(DEGREE/2) + 1, the amount of positive results for a
     /// successful operation</summary>
     public readonly int MAJORITY;
-    /// <summary>Provides the Dht data serve.</summary>
-    protected TableServer _table;
-    /// <summary>The total amount of data stored in the data serve.</summary>
-    public int Count { get { return _table.Count; } }
     /// <summary>The state table for asynchronous puts.</summary>
     protected volatile Hashtable _adps_table = new Hashtable();
     /// <summary>The state table for asynchronos gets.</summary>
@@ -126,8 +122,8 @@ namespace Brunet.DistributedServices {
     }
 
 
-    public void AsCreate(MemBlock key, MemBlock value, int ttl, Channel returns) {
-      AsPut(key, value, ttl, returns, true);
+    public void AsyncCreate(MemBlock key, MemBlock value, int ttl, Channel returns) {
+      AsyncPut(key, value, ttl, returns, true);
     }
 
     public bool Create(MemBlock key, MemBlock value, int ttl) {
@@ -136,7 +132,7 @@ namespace Brunet.DistributedServices {
 
     public Hashtable[] Get(MemBlock key) {
       BlockingQueue returns = new BlockingQueue();
-      AsGet(key, returns);
+      AsyncGet(key, returns);
       ArrayList values = new ArrayList();
       while(true) {
         // Still a chance for Dequeue to execute on an empty closed queue 
@@ -157,7 +153,7 @@ namespace Brunet.DistributedServices {
     /// is when the results are placed in the channel and GetEnqueueHandler is
     /// called or GetCloseHandler is called.  This means the get needs to be
     /// stateful, that information is stored in the _adgs_table.</remarks>
-    public void AsGet(MemBlock key, Channel returns) {
+    public void AsyncGet(MemBlock key, Channel returns) {
       if(!_online) {
         throw new DhtException("The Node is (going) offline, DHT is offline.");
       }
@@ -399,8 +395,8 @@ namespace Brunet.DistributedServices {
       adgs.results.Clear();
     }
 
-    public void AsPut(MemBlock key, MemBlock value, int ttl, Channel returns) {
-      AsPut(key, value, ttl, returns, false);
+    public void AsyncPut(MemBlock key, MemBlock value, int ttl, Channel returns) {
+      AsyncPut(key, value, ttl, returns, false);
     }
 
     public bool Put(MemBlock key, MemBlock value, int ttl) {
@@ -419,7 +415,7 @@ namespace Brunet.DistributedServices {
     /// <returns>True if success, exception on fail</returns>
     public bool Put(MemBlock key, MemBlock value, int ttl, bool unique) {
       BlockingQueue returns = new BlockingQueue();
-      AsPut(key, value, ttl, returns, unique);
+      AsyncPut(key, value, ttl, returns, unique);
       object result = returns.Dequeue();
       try {
         return (bool) result;
@@ -442,7 +438,7 @@ namespace Brunet.DistributedServices {
     /// <param name="ttl">The dht lease time for the key:value pair.</param>
     /// <param name="returns">The Channel where the result will be placed.</param>
     /// <param name="unique">True to do a create, false otherwise.</param>
-    public void AsPut(MemBlock key, MemBlock value, int ttl, Channel returns, bool unique) {
+    public void AsyncPut(MemBlock key, MemBlock value, int ttl, Channel returns, bool unique) {
       if(!_online) {
         throw new DhtException("The Node is (going) offline, DHT is offline.");
       }

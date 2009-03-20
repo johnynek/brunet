@@ -77,7 +77,7 @@ namespace Brunet.DhtService {
 
     public virtual byte[] BeginGet(byte[] key) {
       BlockingQueue q  = new BlockingQueue();
-      this._dht.AsGet(MemBlock.Reference(key), q);
+      this._dht.AsyncGet(MemBlock.Reference(key), q);
       byte[] tk = GenToken(key);
       _bqs.Add(MemBlock.Reference(tk), q);
       return tk;
@@ -140,7 +140,7 @@ namespace Brunet.DhtService {
 
     public IBlockingQueue GetAsBlockingQueue(byte[] key) {
       BlockingQueue bq = new BlockingQueue();
-      this._dht.AsGet(MemBlock.Reference(key), bq);
+      this._dht.AsyncGet(MemBlock.Reference(key), bq);
       BlockingQueueAdapter adpt = new BlockingQueueAdapter(bq);
       return adpt;
     }

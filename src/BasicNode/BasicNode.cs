@@ -24,10 +24,13 @@ using System.Xml.Serialization;
 using System.Threading;
 using System.Net;
 
-using Brunet.DistributedServices;
-using Brunet.Rpc;
 using Brunet;
 using Brunet.Coordinate;
+using Brunet.DistributedServices;
+using Brunet.DhtService;
+using Brunet.Rpc;
+
+
 
 /**
 \namespace Brunet::Applications Provides BasicNode and core features
