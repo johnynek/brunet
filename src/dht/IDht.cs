@@ -70,5 +70,6 @@ namespace Brunet.DistributedServices {
     Hashtable[] Get(MemBlock key);
 
     string Name { get; }
+    bool Online { get; }
   }
 }

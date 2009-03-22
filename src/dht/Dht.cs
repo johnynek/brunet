@@ -39,6 +39,20 @@ namespace Brunet.DistributedServices {
     public DhtException(string message): base(message) {}
   }
 
+  public class DhtPutException: DhtException {
+    public readonly int Total;
+    public readonly int Positive;
+    public readonly int Negative;
+
+    public DhtPutException(int total, int positive, int negative) :
+      base(string.Format("Operation failed Total/Positive/Negative: {1}/{2}/{3}", total, positive, negative))
+    {
+      Total = total;
+      Negative = negative;
+      Positive = positive;
+    }
+  }
+
   /// <summary>This class provides a client interface to the dht, the servers only
   /// work together on a neighboring basis but not on a whole system basis.  It is
   /// up to the client to provide fault tolerance.  This class does it by naive
@@ -70,6 +84,7 @@ namespace Brunet.DistributedServices {
     protected volatile Hashtable _adgs_table = new Hashtable();
     /// <summary>True unless node is in offline, leaving, or disconnected</summary>
     protected bool _online;
+    public bool Online { get { return _online; } }
     public string Name { get { return Node.Address.ToString(); } }
 
     /// <summary>A default Dht client provides a DEGREE of 1 and a sychronous wait
@@ -421,7 +436,7 @@ namespace Brunet.DistributedServices {
         return (bool) result;
       }
       catch {
-        throw (DhtException) result;
+        throw (DhtPutException) result;
       }
     }
 
@@ -501,9 +516,7 @@ namespace Brunet.DistributedServices {
         // Once we get to ncount to 1 less than a majority, we ship off the
         // result, because we can't get pcount equal to majority any more!
         if(Interlocked.Increment(ref adps.ncount) == MAJORITY - 1 || 1 == DEGREE) {
-          adps.returns.Enqueue(new DhtException("Put failed by negative " +
-              "responses:  P/N/T : " + adps.pcount + "/" + adps.ncount + "/" +
-              DEGREE));
+          adps.returns.Enqueue(new DhtPutException(DEGREE, adps.pcount, adps.ncount));
           adps.returns.Close();
         }
       }
