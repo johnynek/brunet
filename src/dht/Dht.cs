@@ -45,7 +45,7 @@ namespace Brunet.DistributedServices {
     public readonly int Negative;
 
     public DhtPutException(int total, int positive, int negative) :
-      base(string.Format("Operation failed Total/Positive/Negative: {1}/{2}/{3}", total, positive, negative))
+      base(string.Format("Operation failed Total/Positive/Negative: {0}/{1}/{2}", total, positive, negative))
     {
       Total = total;
       Negative = negative;
@@ -232,7 +232,7 @@ namespace Brunet.DistributedServices {
         ArrayList values = (ArrayList) result[0];
         int remaining = (int) result[1];
         if(remaining > 0) {
-          token = (byte[]) result[2];
+          token = MemBlock.Reference((byte[]) result[2]);
           sendto = rpc_reply.ResultSender;
         }
 
@@ -240,7 +240,7 @@ namespace Brunet.DistributedServices {
         // results, if a majority of our servers say a data exists
         // we say it is a valid data and return it to the caller
         foreach (Hashtable ht in values) {
-          MemBlock mbVal = (byte[]) ht["value"];
+          MemBlock mbVal = MemBlock.Reference((byte[]) ht["value"]);
           int count = 1;
           Hashtable res = null;
           lock(adgs.SyncRoot) {
@@ -436,7 +436,7 @@ namespace Brunet.DistributedServices {
         return (bool) result;
       }
       catch {
-        throw (DhtPutException) result;
+        throw (Exception) result;
       }
     }
 
