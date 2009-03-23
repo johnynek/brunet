@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Threading;
 
@@ -71,6 +72,10 @@ namespace Brunet
          */
         _local_add = AddressParser.Parse( addr.ToMemBlock() );
         _realm = String.Intern(realm);
+        
+        /* Set up the heartbeat */
+        _heart_period = 500; //500 ms, or 1/2 second.
+        _heartbeat_handlers = new Dictionary<EventHandler, Brunet.Util.FuzzyEvent>();
 
         _task_queue = new NodeTaskQueue(this);
         _packet_queue = new Brunet.Util.LFBlockingQueue<IAction>();
@@ -121,10 +126,6 @@ namespace Brunet
         
         /* Initialize this at 15 seconds */
         _connection_timeout = new TimeSpan(0,0,0,0,15000);
-        /* Set up the heartbeat */
-        _heart_period = 500; //500 ms, or 1/2 second.
-        _heart_beat_object = new HeartBeatObject(this, _heart_period);
-        
         //Check the edges from time to time
         this.HeartBeatEvent += new EventHandler(this.CheckEdgesCallback);
         _last_edge_check = DateTime.UtcNow;
@@ -133,6 +134,26 @@ namespace Brunet
  //////////////
  ///  Inner Classes
  //////////
+ 
+    protected class HeartBeatAction : IAction {
+    
+      readonly Node _n;
+      readonly EventHandler _eh;
+    
+      public HeartBeatAction(Node n, EventHandler eh) {
+        _n = n;
+        _eh = eh;
+      }
+      public void Start() {
+        try {
+          _eh(_n, EventArgs.Empty);
+        }
+        catch(Exception x) {
+          ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+            "Exception in heartbeat event : {0}", x));
+        }
+      }
+   }
 
     /**
      * When we do announces using the seperate thread, this is
@@ -173,126 +194,6 @@ namespace Brunet
       }
       public override string ToString() {
         return "EdgeCloseAction: " + EdgeToClose.ToString();
-      }
-    }
-    
-    /**
-     * There is one of these objects per node.
-     * They handle executing the heartbeat events
-     */
-    protected class HeartBeatObject : IAction {
-      protected int _inqueue;
-      //Return true if we are in the queue
-      public bool InQueue { get { return (_inqueue == 1); } }
-      protected readonly Node LocalNode;
-      protected long _last_hb_dt;
-      protected readonly int _heart_beat_interval;
-      protected Thread _hb_thread;
-      protected int _run_hb_thread;
-#if BRUNET_SIMULATOR
-      protected Brunet.Util.SimpleTimer _timer;
-#endif
-
-      public long TimeSinceLastFire {
-        get {
-          long ticks = DateTime.UtcNow.Ticks - Interlocked.Read(ref _last_hb_dt);
-          return (ticks / TimeSpan.TicksPerMillisecond);
-        }
-      }
-
-      public HeartBeatObject(Node n, int ms_interval) {
-        LocalNode = n;
-        _heart_beat_interval = ms_interval;
-        SetTime();
-        _run_hb_thread = 0;
-        n.StateChangeEvent += this.NodeStateChangeHandler;
-      }
-      /*
-       * @returns the previous value.
-       */
-      public bool SetInQueue(bool v) {
-        int q = v ? 1 : 0;
-        return (Interlocked.Exchange(ref _inqueue, q) == 1);
-      }
-
-      protected void SetTime() {
-        Interlocked.Exchange(ref _last_hb_dt, DateTime.UtcNow.Ticks);
-      }
-      public void Start() {
-        LocalNode.RaiseHeartBeatEvent();
-        SetTime();
-        SetInQueue(false);
-      }
-      /*
-       * This is where the thread is started and stopped
-       */
-      protected void NodeStateChangeHandler(Node n, ConnectionState cs) {
-        if( cs == ConnectionState.Joining ) {
-#if BRUNET_SIMULATOR
-          _timer = new Brunet.Util.SimpleTimer(CheckForTime, null, _heart_beat_interval, _heart_beat_interval);
-          _timer.Start();
-#else
-          StartThread();
-#endif
-        }
-        else if( cs == ConnectionState.Disconnected ) {
-#if BRUNET_SIMULATOR
-          _timer.Stop();
-#else
-          StopThread();
-#endif
-        }
-      }
-
-      /** ThreadStart delegate to run in our internal thread.
-       */
-      protected void SendHeartBeats() {
-        while( _run_hb_thread == 1 ) {
-          Thread.Sleep(_heart_beat_interval);
-          CheckForTime();
-        }
-      }
-
-      /** Start a seperate thread to send HeartBeatEvents.
-       * @return true if this call actually started a thread
-       */
-      public bool StartThread() {
-        if( Interlocked.Exchange(ref _run_hb_thread, 1) == 0 ) {
-          _hb_thread = new Thread(this.SendHeartBeats);
-          _hb_thread.Start(); 
-          return true;
-        }
-        return false;
-      }
-
-      /** Stop the 
-       * @return true if this call actually started a thread
-       */
-      public bool StopThread() {
-        if( Interlocked.Exchange(ref _run_hb_thread, 0) == 1 ) {
-          _hb_thread.Join(); 
-          _hb_thread = null;
-          return true;
-        }
-        return false;
-      }
-      /*
-       * Check to see if we need to get back in the queue
-       */
-      public void CheckForTime() {
-        if( 0 == _inqueue ) {
-          //Maybe it is time to get back in:
-          if( TimeSinceLastFire >= _heart_beat_interval ) {
-            if( false == SetInQueue(true) ) {
-              //We should get into the queue
-              LocalNode.EnqueueAction(this);
-            }
-          }
-        }
-      }
-
-      protected void CheckForTime(object o) {
-        CheckForTime();
       }
     }
 
@@ -426,8 +327,6 @@ namespace Brunet
 
     public bool _disconnect_on_overload = false;
 
-    protected readonly HeartBeatObject _heart_beat_object;
-
     protected readonly string _realm;
     /**
      * Each Brunet Node is in exactly 1 realm.  This is 
@@ -557,7 +456,32 @@ namespace Brunet
     protected DateTime _last_edge_check;
 
     ///after each HeartPeriod, the HeartBeat event is fired
-    public event EventHandler HeartBeatEvent;
+    public event EventHandler HeartBeatEvent {
+      add {
+        Action<DateTime> torun = delegate(DateTime now) {
+          //Execute the code in the node's thread
+          this.EnqueueAction(new HeartBeatAction(this, value));
+        };
+        var fe = Brunet.Util.FuzzyTimer.Instance.DoEvery(torun, _heart_period, 2 * _heart_period);
+        lock( _sync ) {
+          _heartbeat_handlers[ value ] = fe;
+        }
+      }
+
+      remove {
+        Brunet.Util.FuzzyEvent fe = null;
+        lock( _sync ) {
+          if(_heartbeat_handlers.TryGetValue(value, out fe) ) {
+            _heartbeat_handlers.Remove(value);
+          }
+        }
+        if( fe != null ) {
+          fe.TryCancel();
+        }
+      }
+    }
+
+    protected Dictionary<EventHandler, Brunet.Util.FuzzyEvent> _heartbeat_handlers;
     
     //add an event handler which conveys the fact that Disconnect has been called on the node
     public event EventHandler DepartureEvent;
@@ -817,9 +741,16 @@ namespace Brunet
       finally {
         if( changed ) {
           SendStateChange(Node.ConnectionState.Disconnected);
+          Dictionary<EventHandler, Brunet.Util.FuzzyEvent> hbhands = null;
           lock(_sync) {
+            hbhands = _heartbeat_handlers;
+            _heartbeat_handlers = null;
             //Clear out the subscription table
             DemuxHandler.Clear();
+          }
+          foreach(KeyValuePair<EventHandler, Brunet.Util.FuzzyEvent> de in hbhands) {
+            //Stop running the event
+            de.Value.TryCancel();
           }
         }
       }
@@ -831,8 +762,8 @@ namespace Brunet
       bool log = ProtocolLog.Monitor.Enabled;
       try {
         DateTime last_debug = DateTime.UtcNow;
-        TimeSpan debug_period = new TimeSpan(0,0,0,0,5000); //log every 5 seconds.
-        int millsec_timeout = _heart_period;
+        int millisec_timeout = 5000; //log every 5 seconds.
+        TimeSpan debug_period = new TimeSpan(0,0,0,0,millisec_timeout);
         IAction queue_item = null;
         bool timedout = false;
         while( 1 == _running ) {
@@ -846,14 +777,11 @@ namespace Brunet
             }
           }
           // Only peek if we're logging the monitoring of _packet_queue
-          queue_item = _packet_queue.Dequeue(millsec_timeout, out timedout);
-          if (timedout) {
-            //Check to see if it is time for another heartbeat event
-            _heart_beat_object.CheckForTime();
-            continue;
+          queue_item = _packet_queue.Dequeue(millisec_timeout, out timedout);
+          if (!timedout) {
+            _current_action = queue_item;
+            queue_item.Start();
           }
-          _current_action = queue_item;
-          queue_item.Start();
         }
       }
       catch(System.InvalidOperationException x) {
@@ -1264,22 +1192,6 @@ namespace Brunet
         }
     }
 
-    protected void RaiseHeartBeatEvent() {
-      DateTime start = DateTime.UtcNow;
-      try {
-        if( HeartBeatEvent != null ) {
-          HeartBeatEvent(this, EventArgs.Empty);
-        }
-      } catch(Exception x) {
-        ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
-            "Exception in heartbeat event : {0}", x));
-      } 
-      DateTime end = DateTime.UtcNow;
-      TimeSpan ts = end - start;
-      if(ProtocolLog.NodeLog.Enabled)
-        ProtocolLog.Write(ProtocolLog.NodeLog, String.Format("heart beat event, done in: {0}", ts));
-    }
-    
     /**
      * This just announces the data with the current node
      * as the return path
