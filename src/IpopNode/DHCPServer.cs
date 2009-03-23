@@ -21,6 +21,7 @@ using NetworkPackets;
 using NetworkPackets.DHCP;
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 
@@ -69,7 +70,7 @@ namespace Ipop {
         messageType = (byte) DHCPPacket.MessageTypes.OFFER;
       }
       else if(messageType == (byte) DHCPPacket.MessageTypes.REQUEST) {
-        if(packet.Options.Contains(DHCPPacket.OptionTypes.REQUESTED_IP)) {
+        if(packet.Options.ContainsKey(DHCPPacket.OptionTypes.REQUESTED_IP)) {
           byte[] requested_ip = (MemBlock) packet.Options[DHCPPacket.OptionTypes.REQUESTED_IP];
           reply = _dhcp_lease_controller.GetLease(requested_ip, true, node_address, para);
         } else if(!packet.ciaddr.Equals(IPPacket.ZeroAddress)) {
@@ -82,7 +83,8 @@ namespace Ipop {
         throw new Exception("Unsupported message type!");
       }
 
-      Hashtable options = new Hashtable();
+      Dictionary<DHCPPacket.OptionTypes, MemBlock> options =
+        new Dictionary<DHCPPacket.OptionTypes, MemBlock>();
 
       options[DHCPPacket.OptionTypes.DOMAIN_NAME] = Encoding.UTF8.GetBytes("ipop");
 //  The following option is needed for dhcp to "succeed" in Vista, but they break Linux
@@ -93,14 +95,14 @@ namespace Ipop {
       }
       tmp[3] = 1;
 
-      options[DHCPPacket.OptionTypes.DOMAIN_NAME_SERVER] = tmp;
-      options[DHCPPacket.OptionTypes.SUBNET_MASK] = reply.netmask;
-      options[DHCPPacket.OptionTypes.LEASE_TIME] = reply.leasetime;
+      options[DHCPPacket.OptionTypes.DOMAIN_NAME_SERVER] = MemBlock.Reference(tmp);
+      options[DHCPPacket.OptionTypes.SUBNET_MASK] = MemBlock.Reference(reply.netmask);
+      options[DHCPPacket.OptionTypes.LEASE_TIME] = MemBlock.Reference(reply.leasetime);
       int mtu = 1200;
       tmp = new byte[2] { (byte) ((mtu >> 8) & 0xFF), (byte) (mtu & 0xFF) };
-      options[DHCPPacket.OptionTypes.MTU] = tmp;
-      options[DHCPPacket.OptionTypes.SERVER_ID] = _dhcp_lease_controller.ServerIP;
-      options[DHCPPacket.OptionTypes.MESSAGE_TYPE] = new byte[]{messageType};
+      options[DHCPPacket.OptionTypes.MTU] = MemBlock.Reference(tmp);
+      options[DHCPPacket.OptionTypes.SERVER_ID] = MemBlock.Reference(_dhcp_lease_controller.ServerIP);
+      options[DHCPPacket.OptionTypes.MESSAGE_TYPE] = MemBlock.Reference(new byte[]{messageType});
       DHCPPacket rpacket = new DHCPPacket(2, packet.xid, packet.ciaddr, reply.ip,
                                _dhcp_lease_controller.ServerIP, packet.chaddr, options);
       return rpacket;

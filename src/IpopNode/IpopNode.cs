@@ -369,7 +369,7 @@ namespace Ipop {
 
         /* Check our allocation to see if we're getting a new address */
         MemBlock new_addr = rpacket.yiaddr;
-        MemBlock new_netmask = MemBlock.Reference((byte[]) rpacket.Options[DHCPPacket.OptionTypes.SUBNET_MASK]);
+        MemBlock new_netmask = rpacket.Options[DHCPPacket.OptionTypes.SUBNET_MASK];
 
         if(!new_addr.Equals(LocalIP) || !new_netmask.Equals(Netmask)) {
           UpdateAddressData(new_addr, new_netmask);

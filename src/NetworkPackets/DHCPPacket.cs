@@ -20,6 +20,7 @@ using Brunet;
 using NetworkPackets;
 using System;
 using System.Collections;
+using System.Collections.Generic;
 
 /**
 \namespace NetworkPacket::DHCP
@@ -197,7 +198,7 @@ namespace NetworkPackets.DHCP {
     /// <summary>clients hardware address</summary>
     public readonly MemBlock chaddr;
     /// <summary>A hashtable indexed by OptionTypes and numbers of options</summary>
-    public readonly Hashtable Options;
+    public readonly Dictionary<OptionTypes, MemBlock> Options;
     /// <summary>Embedded right before the options.</summary>
     public static readonly MemBlock magic_key = 
         MemBlock.Reference(new byte[4] {99, 130, 83, 99});
@@ -226,18 +227,12 @@ namespace NetworkPackets.DHCP {
       int idx = 240;
 
       /* Parse the options */
-      Options = new Hashtable();
+      Options = new Dictionary<OptionTypes, MemBlock>();
       /*  255 is end of options */
       while(Packet[idx] != 255) {
         /* 0 is padding */
         if(Packet[idx] != 0) {
-          object type = null;
-          try {
-            type = (OptionTypes) Packet[idx++];
-          }
-          catch {
-            type = (byte) Packet[idx++];
-          }
+          OptionTypes type = (OptionTypes) Packet[idx++];
           byte length = Packet[idx++];
           Options[type] = Packet.Slice(idx, length);
           idx += length;
@@ -249,7 +244,7 @@ namespace NetworkPackets.DHCP {
     }
 
     public DHCPPacket(byte op, MemBlock xid, MemBlock ciaddr, MemBlock yiaddr,
-                     MemBlock siaddr, MemBlock chaddr, Hashtable Options) {
+                     MemBlock siaddr, MemBlock chaddr, Dictionary<OptionTypes, MemBlock> Options) {
       this.op = op;
       this.xid = xid;
       this.ciaddr = ciaddr;
@@ -281,18 +276,14 @@ namespace NetworkPackets.DHCP {
       magic_key.CopyTo(header, 236);
 
       _icpacket = new CopyList(MemBlock.Reference(header));
-      foreach(DictionaryEntry de in Options) {
-        byte[] value = (byte[]) de.Value;
-        byte[] tmp = new byte[value.Length + 2];
-        try {
-          tmp[0] = (byte) (OptionTypes) de.Key;
-        }
-        catch {
-          tmp[0] = (byte) de.Key;
-        }
+      foreach(KeyValuePair<OptionTypes, MemBlock> kvp in Options) {
+        MemBlock value = kvp.Value;
+
+        byte[] tmp = new byte[2];
+        tmp[0] = (byte) kvp.Key;
         tmp[1] = (byte) value.Length;
-        value.CopyTo(tmp, 2);
-        _icpacket = new CopyList(_icpacket, MemBlock.Reference(tmp));
+
+        _icpacket = new CopyList(_icpacket, MemBlock.Reference(tmp), value);
       }
       byte []end = new byte[1]{255}; /* End of Options */
       _icpacket = new CopyList(_icpacket, MemBlock.Reference(end));
