@@ -94,14 +94,13 @@ namespace Ipop.DhtNode {
         }
         String ips = Utils.MemBlockToString(ip, '.');
 
-        ProtocolLog.WriteIf(IpopLog.ResolverLog, String.Format(
-          "Adding {0} to queue.", ips));
+        ProtocolLog.WriteIf(IpopLog.ResolverLog, String.Format( "Adding {0} to queue.", ips));
         /*
         * If we were already looking up this string, there
         * would be a table entry, since there is not, start a
         * new lookup
         */
-        string key = "dhcp:ipop_namespace:" + _ipop_namespace + ":ip:" + ips;
+        byte[] key = Encoding.UTF8.GetBytes("dhcp:" + _ipop_namespace + ":" + ips);
         Channel queue = null;
         try {
           queue = new Channel();
@@ -109,7 +108,7 @@ namespace Ipop.DhtNode {
           queue.CloseEvent += MissCallback;
           _queued[ip] = true;
           _mapping[queue] = ip;
-          _dht.AsGet(key, queue);
+          _dht.AsyncGet(key, queue);
         }
         catch {
           queue.EnqueueEvent -= MissCallback;
@@ -140,8 +139,8 @@ namespace Ipop.DhtNode {
       Address addr = null;
 
       try {
-        DhtGetResult dgr = (DhtGetResult) queue.Dequeue();
-        addr = AddressParser.Parse(Encoding.UTF8.GetString((byte []) dgr.value));
+        Hashtable dgr = (Hashtable) queue.Dequeue();
+        addr = AddressParser.Parse(Encoding.UTF8.GetString((byte[]) dgr["value"]));
         if(IpopLog.ResolverLog.Enabled) {
           ProtocolLog.Write(IpopLog.ResolverLog, String.Format(
             "Got result for {0} ::: {1}.", ips, addr));

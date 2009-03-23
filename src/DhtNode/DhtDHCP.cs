@@ -41,7 +41,7 @@ namespace Ipop.DhtNode {
     /// <summary>Multicast enabled.</summary>
     protected bool _multicast;
     /// <summary>Speed optimization for slow dht, current ip</summary>
-    protected String _current_ip;
+    protected MemBlock _current_ip;
     /// <summary>Speed optimization for slow dht, lease quarter time.</summary>
     protected DateTime _current_quarter_lifetime;
     /// <summary>Speed optimization for slow dht, DHCPReply.</summary>
@@ -84,49 +84,56 @@ namespace Ipop.DhtNode {
       int max_attempts = 2, max_renew_attempts = 1;
       int attempts = max_attempts, renew_attempts = max_renew_attempts;
 
-      String hostname = null;
-      try {
-        hostname = (String) para[0];
-      } catch {}
-
       if(RequestedAddr == null || !ValidIP(RequestedAddr)) {
-        RequestedAddr = RandomIPAddress();
-      }
-      else if(Renew) {
+        RequestedAddr = MemBlock.Reference(RandomIPAddress());
+      } else if(Renew) {
+        MemBlock request_addr = MemBlock.Reference(RequestedAddr);
         renew_attempts = 2;
+        if(!request_addr.Equals(_current_ip) && DateTime.UtcNow < _current_quarter_lifetime) {
+          return _current_dhcpreply;
+        }
       }
 
-      if(_current_ip != null && Utils.BytesToString(RequestedAddr, '.') == _current_ip &&
-            DateTime.UtcNow < _current_quarter_lifetime) {
-//        return _current_dhcpreply;
+      byte[] hostname = null;
+      if(para[0] is string) {
+        hostname = Encoding.UTF8.GetBytes(namespace_value + "." + (para[0] as string));
       }
 
+      byte[] multicast_key = null;
+      if(_multicast) {
+        multicast_key = Encoding.UTF8.GetBytes(namespace_value + ".multicast.ipop");
+      }
+
+      byte[] node_addr = Encoding.UTF8.GetBytes(node_address);
       bool res = false;
 
       while (attempts-- > 0) {
-        ProtocolLog.WriteIf(IpopLog.DHCPLog, "Attempting to allocate IP Address:" +
-            Utils.BytesToString(RequestedAddr, '.'));
-
         string str_addr = Utils.BytesToString(RequestedAddr, '.');
-        string key = "dhcp:ipop_namespace:" + namespace_value + ":ip:" + str_addr;
+        ProtocolLog.WriteIf(IpopLog.DHCPLog, "Attempting to allocate IP Address:" + str_addr);
+
+        byte[] dhcp_key = Encoding.UTF8.GetBytes("dhcp:" + namespace_value + ":" + str_addr);
+        byte[] ip_addr = Encoding.UTF8.GetBytes(str_addr);
+
         while(renew_attempts-- > 0) {
           try {
-            res = _dht.Create(key, node_address, leasetime);
+            res = _dht.Create(dhcp_key, node_addr, leasetime);
+
             if(hostname != null) {
-              _dht.Put(namespace_value + "." + hostname, str_addr, leasetime);
+              _dht.Put(hostname, ip_addr, leasetime);
             }
+
             if(_multicast) {
-              _dht.Put(namespace_value + ".multicast.ipop", node_address,
-                       leasetime);
+              _dht.Put(multicast_key, node_addr, leasetime);
             }
-            _dht.Put(node_address, key + "|" + DateTime.Now.Ticks, leasetime);
+
+            _dht.Put(node_addr, dhcp_key, leasetime);
           }
           catch {
             res = false;
           }
         }
         if(res) {
-          _current_ip = str_addr;
+          _current_ip = MemBlock.Reference(RequestedAddr);
           _current_quarter_lifetime = DateTime.UtcNow.AddSeconds(leasetime / 4); 
           break;
         }
@@ -183,16 +190,18 @@ namespace Ipop.DhtNode {
       if (_dhcp_lease_controllers.ContainsKey(ipop_namespace)) {
         return (DHCPLeaseController) _dhcp_lease_controllers[ipop_namespace];
       }
-      string ns_key = "dhcp:ipop_namespace:" + ipop_namespace;
-      DhtGetResult[] results = _dht.Get(ns_key);
-      if(results == null || results.Length == 0 || results[0].valueString == null)  {
-        Debug.WriteLine("Namespace ({0}) does not exist", ipop_namespace);
+      byte[] ns_key = Encoding.UTF8.GetBytes("dhcp:" + ipop_namespace);
+      Hashtable[] results = _dht.Get(ns_key);
+
+      if(results.Length == 0) {
+        ProtocolLog.WriteIf(IpopLog.DHCPLog, "Namespace does not exist: " + ipop_namespace);
         return null;
       }
 
-      string xml_str = results[0].valueString.ToString();
+      string result = Encoding.UTF8.GetString((byte[]) results[0]["value"]);
+
       XmlSerializer serializer = new XmlSerializer(typeof(DHCPServerConfig));
-      TextReader stringReader = new StringReader(xml_str);
+      TextReader stringReader = new StringReader(result);
       DHCPServerConfig ipop_ns = (DHCPServerConfig) serializer.Deserialize(stringReader);
       DHCPLeaseController dhcpLeaseController = new DhtDHCPLeaseController(_dht, ipop_ns, _multicast);
       _dhcp_lease_controllers[ipop_namespace] = dhcpLeaseController;

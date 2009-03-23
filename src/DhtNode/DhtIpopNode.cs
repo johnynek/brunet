@@ -22,7 +22,9 @@ using Brunet.DistributedServices;
 using Ipop;
 using NetworkPackets;
 using System;
+using System.Collections;
 using System.Net;
+using System.Text;
 using System.Threading;
 
 /**
@@ -134,16 +136,15 @@ namespace Ipop.DhtNode {
     */
     public void HandleMulticast(Object ippo) {
       IPPacket ipp = (IPPacket) ippo;
-      DhtGetResult []dgrs = null;
+      Hashtable[] results = null;
       try {
-        dgrs = Dht.Get(_ipop_config.IpopNamespace +
-          ".multicast.ipop");
+        results = Dht.Get(Encoding.UTF8.GetBytes(_ipop_config.IpopNamespace + ".multicast.ipop"));
       } catch {
         return;
       }
-      foreach(DhtGetResult dgr in dgrs) {
+      foreach(Hashtable result in results) {
         try {
-          AHAddress target = (AHAddress) AddressParser.Parse(dgr.valueString);
+          AHAddress target = (AHAddress) AddressParser.Parse(Encoding.UTF8.GetString((byte[]) result["value"]));
           if(IpopLog.PacketLog.Enabled) {
             ProtocolLog.Write(IpopLog.PacketLog, String.Format(
                               "Brunet destination ID: {0}", target));

@@ -24,6 +24,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 
 namespace Ipop.DhtNode {
   /**
@@ -74,7 +75,7 @@ namespace Ipop.DhtNode {
       String ip = (String) dns_a[name];
       if(ip == null) {
         try {
-          ip = _dht.Get(_ipop_namespace + "." + name)[0].valueString;
+          ip = Encoding.UTF8.GetString((byte[]) _dht.Get(Encoding.UTF8.GetBytes(_ipop_namespace + "." + name))[0]["value"]);
           if(ip != null) {
             lock(_sync) {
               dns_a[name]= ip;
