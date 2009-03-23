@@ -498,15 +498,15 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
       int offset = r.Next(data.Length);
       MemBlock mb1 = new MemBlock(data, 0, data.Length);
       MemBlock mb1a = MemBlock.Copy(data, 0, data.Length);
-      Assert.AreEqual(mb1, mb1a, "MemBlock.Copy");
-      Assert.AreEqual(mb1, data, "MemBlock == byte[]");
+      Assert.IsTrue(mb1.Equals(mb1a), "MemBlock.Copy");
+      Assert.IsTrue(mb1.Equals(data), "MemBlock == byte[]");
       MemBlock mb2 = new MemBlock(data, offset, data.Length - offset);
       MemBlock mb2a = mb1.Slice(offset);
       MemBlock mb3 = new MemBlock(data, 0, offset);
       MemBlock mb3a = mb1.Slice(0, offset);
       Assert.IsTrue(mb3.Equals( mb3a ), "mb3.Equals(mb3a)");
       Assert.IsTrue(mb3a.Equals( mb3 ), "mb3a.Equals(mb3)");
-      Assert.AreEqual(mb3.CompareTo(mb2) + mb2.CompareTo(mb3), 0, "CompareTo");
+      Assert.IsTrue(mb3.CompareTo(mb2) + mb2.CompareTo(mb3) == 0, "CompareTo");
       Assert.IsTrue(mb2.Equals( mb2a ), "mb2.Equals(mb2a)");
       Assert.IsTrue(mb2a.Equals( mb2 ), "mb2a.Equals(mb2)");
 
@@ -527,7 +527,7 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
       Assert.IsTrue(mb2b.Equals(mb2a), "mb2b.Equals(mb2a)");
 
       //Check the Hash:
-      Assert.AreEqual(mb2b.GetHashCode(), mb2a.GetHashCode(), "GetHashCode");
+      Assert.IsTrue(mb2b.GetHashCode() == mb2a.GetHashCode(), "GetHashCode");
 
       //Here are some manual equality testing using the indexer
       bool all_equals = true;
