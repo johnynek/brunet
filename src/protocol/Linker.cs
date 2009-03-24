@@ -299,24 +299,19 @@ namespace Brunet
       protected readonly int _restart_attempts;
       public int RemainingAttempts { get { return _restart_attempts; } }
       protected readonly Linker _linker;
-      protected long _next_start;
-      protected readonly TimeSpan _interval;
 
       protected readonly TransportAddress _ta;
       public TransportAddress TA { get { return _ta; } }
 
       public override object Task { get { return _ta; } }
+      protected int _first_start;
 
       public RestartState(Linker l, TransportAddress ta,
                           int remaining_attempts) {
         _linker = l;
         _ta = ta;
         _restart_attempts = remaining_attempts;
-        
-        //Compute the interval:
-        Random rand = new Random();
-        int restart_sec = rand.Next(_MS_RESTART_TIME);
-        _interval = new TimeSpan(0,0,0,0,restart_sec);
+        _first_start = 1; 
       }
       public RestartState(Linker l, TransportAddress ta)
              : this(l, ta, _MAX_RESTARTS) {
@@ -329,27 +324,23 @@ namespace Brunet
         if( _restart_attempts < 0 ) {
           throw new Exception("restarted too many times");
         }
-        //Set next_start
-        long start_ticks = (DateTime.UtcNow + _interval).Ticks;
-        Interlocked.Exchange(ref _next_start, start_ticks); 
-        Node n = _linker.LocalNode;
-        n.HeartBeatEvent += this.RestartLink;
-      }
-      /**
-       * When we fail due to a ErrorMessage.ErrorCode.InProgress error
-       * we wait restart to verify that we eventually got connected
-       */
-      protected void RestartLink(object node, EventArgs args)
-      {
-        if( _linker.ConnectionInTable || 
-            ( DateTime.UtcNow.Ticks > Interlocked.Read(ref _next_start) ) ) { 
-          if( FireFinished() ) {
-            //Only the first time does this return true:
-            Node n = _linker.LocalNode;
-            n.HeartBeatEvent -= this.RestartLink;
-          }
+        if( Interlocked.Exchange(ref _first_start, 0) == 1) {
+          //Compute the interval:
+          Random rand = new Random();
+          int restart_msec = rand.Next(_MS_RESTART_TIME);
+          Action<DateTime> torun = delegate(DateTime now) {
+            //Tell the node to call Start on us:
+            _linker.LocalNode.EnqueueAction(this);
+          };
+          //Schedule a waiting period:
+          Brunet.Util.FuzzyTimer.Instance.DoAfter(torun, restart_msec, 1000);
+        }
+        else {
+          //Time to finish
+          FireFinished();
         }
       }
+
       public override string ToString() {
         System.Text.StringBuilder sb = new System.Text.StringBuilder();
         sb.AppendFormat("RestartState: TA: {0}, RemainingAttempts: {1}\n{2}"
