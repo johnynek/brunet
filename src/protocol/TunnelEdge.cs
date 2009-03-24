@@ -112,11 +112,7 @@ namespace Brunet
     protected bool _is_connected;
 
     protected static readonly TimeSpan SyncInterval = new TimeSpan(0, 0, 30);//30 seconds.
-    /**
-     * Last time when we synchronized with the tunnel edge target,
-     * on the list of forwarders. 
-     */
-    protected DateTime _last_sync_dt;
+    protected readonly Brunet.Util.FuzzyEvent _timer_event;
     protected readonly TunnelEdgeListener _tel;
 
     /**
@@ -203,10 +199,11 @@ namespace Brunet
       _remoteta = new TunnelTransportAddress(target, _forwarders);
       
       lock(_sync) {
-        _last_sync_dt = DateTime.UtcNow; //we just synchronized now.
         _node.ConnectionTable.DisconnectionEvent += new EventHandler(DisconnectHandler);
         _node.ConnectionTable.ConnectionEvent += new EventHandler(ConnectHandler);
-        _node.HeartBeatEvent += new EventHandler(SynchronizeEdge);
+        int sync_int_ms = (int)SyncInterval.TotalMilliseconds;
+        //Every interval +/- 1 second, call EnqueueSyncAction
+        _timer_event = Brunet.Util.FuzzyTimer.Instance.DoEvery(this.EnqueueSyncAction, sync_int_ms, 1000);
       }
       
 #if TUNNEL_DEBUG 
@@ -223,7 +220,8 @@ namespace Brunet
         //unsubscribe the disconnecthandler
         _node.ConnectionTable.ConnectionEvent -= new EventHandler(ConnectHandler);      
         _node.ConnectionTable.DisconnectionEvent -= new EventHandler(DisconnectHandler); 
-        _node.HeartBeatEvent -= new EventHandler(SynchronizeEdge);
+        //Go ahead and try to stop the timer:
+        _timer_event.TryCancel();
       }
 #if TUNNEL_DEBUG 
       Console.Error.WriteLine("Closing: {0}", this);
@@ -463,7 +461,20 @@ namespace Brunet
         _tel.HandleControlSend(this, added, lost);
       }
     }
-    
+
+    //Call SynchronizeEdge in the Node's main thread:
+    protected class SyncAction : IAction {
+      protected readonly TunnelEdge _te;
+      public SyncAction(TunnelEdge te) {
+        _te = te;
+      }
+      public void Start() {
+        _te.SynchronizeEdge();
+      }
+    }
+    protected void EnqueueSyncAction(DateTime dt) {
+      _node.EnqueueAction(new SyncAction(this)); 
+    }
     /**
      * Handle periodic synchronization about forwarders with the
      * edge target.
@@ -471,17 +482,8 @@ namespace Brunet
      * @param args event arguments.
 
      */
-    protected void SynchronizeEdge(object o, EventArgs args) {
-      
+    protected void SynchronizeEdge() {
       // Send a message about my local connections.
-      DateTime now = DateTime.UtcNow;
-      lock(_sync) {
-        if (now - _last_sync_dt < SyncInterval) {
-          return;
-        } 
-        _last_sync_dt = now;
-      }
-
 #if TUNNEL_DEBUG
       Console.Error.WriteLine("Sending synchronize for edge: {0}.", this);
 #endif

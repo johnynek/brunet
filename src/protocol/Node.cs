@@ -197,6 +197,13 @@ namespace Brunet
       }
     }
 
+    public class GracefulCloseAction : Brunet.Util.Triple<Node, Edge, string>, IAction {
+      public GracefulCloseAction(Node n, Edge e, string r) : base(n, e, r) { }
+      public void Start() {
+        First.GracefullyClose(Second, Third);
+      }
+    }
+
     /**
      * This is a TaskQueue where new TaskWorkers are started
      * by EnqueueAction, so they are executed in the announce thread
@@ -462,7 +469,8 @@ namespace Brunet
           //Execute the code in the node's thread
           this.EnqueueAction(new HeartBeatAction(this, value));
         };
-        var fe = Brunet.Util.FuzzyTimer.Instance.DoEvery(torun, _heart_period, 2 * _heart_period);
+        //every period +/- half a period, run this event
+        var fe = Brunet.Util.FuzzyTimer.Instance.DoEvery(torun, _heart_period, _heart_period / 2 + 1);
         lock( _sync ) {
           _heartbeat_handlers[ value ] = fe;
         }
