@@ -10,6 +10,7 @@ namespace Ipop {
   using NameLookUp and AddressLookUp.</summary>
   */
   public abstract class DNS {
+    public static string DomainName = "ipop";
     /**
     <summary>Look up a hostname given a DNS request in the form of IPPacket
     </summary>

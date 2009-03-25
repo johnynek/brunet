@@ -97,7 +97,10 @@ namespace Ipop.DhtNode {
 
       byte[] hostname = null;
       if(para[0] is string) {
-        hostname = Encoding.UTF8.GetBytes(Config.Namespace + "." + (para[0] as string));
+        string shostname = para[0] as string;
+        if(!shostname.Equals(string.Empty)) {
+          hostname = Encoding.UTF8.GetBytes(Config.Namespace + "." + shostname + "." + DNS.DomainName);
+        }
       }
 
       byte[] multicast_key = null;

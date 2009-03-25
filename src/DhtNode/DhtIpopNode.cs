@@ -32,20 +32,16 @@ using System.Threading;
 \brief Defines DhtIpopNode and the utilities necessary to use Ipop over Dht.
 */
 namespace Ipop.DhtNode {
-  /**
-  <summary>This class provides an IpopNode that does address and name
-  resolution using Brunet's Dht.  Multicast is supported.</summary>
-  */
+  /// <summary>This class provides an IpopNode that does address and name
+  /// resolution using Brunet's Dht.  Multicast is supported.</summary>
   public class DhtIpopNode: IpopNode {
-    /**  <summary>This makes sure only one dhcp request is being handle at a 
-    time</summary>*/
+    /// <summary>This makes sure only one dhcp request is being handle at a 
+    /// time</summary>
     protected int in_dhcp;
 
-    /**
-    <summary>Creates a DhtIpopNode.</summary>
-    <param name="NodeConfigPath">The path to a NodeConfig xml file</param>
-    <param name="IpopConfigPath">The path to a IpopConfig xml file</param>
-    */
+    ///<summary>Creates a DhtIpopNode.</summary>
+    /// <param name="NodeConfigPath">The path to a NodeConfig xml file</param>
+    /// <param name="IpopConfigPath">The path to a IpopConfig xml file</param>
     public DhtIpopNode(string NodeConfigPath, string IpopConfigPath):
       base(NodeConfigPath, IpopConfigPath) {
       in_dhcp = 0;
@@ -61,45 +57,37 @@ namespace Ipop.DhtNode {
     */
     protected override bool HandleDHCP(IPPacket ipp) {
       if(IpopLog.DHCPLog.Enabled) {
-        ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
+        ProtocolLog.Write(IpopLog.DHCPLog, String.Format(
                             "Incoming DHCP Request, DHCP Status: {0}.", in_dhcp));
       }
-      if(Interlocked.Exchange(ref in_dhcp, 1) == 0) {
-        ThreadPool.QueueUserWorkItem(new WaitCallback(HandleDHCP), ipp);
+      if(Interlocked.Exchange(ref in_dhcp, 1) == 1) {
+        return true;
       }
-      return true;
-    }
 
-    /**
-    <summary>This is called in a ThreadPool thread by HandleDHCP(IPPacket).
-    It calls the ProcessDHCP implemented in IpopNode and adds the param
-    for hostname.</summary>
-    <param name="ippo">An object encapsulating an IP Packet.</param>
-    */
-    protected void HandleDHCP(Object ippo) {
-      IPPacket ipp = (IPPacket) ippo;
-      if(_dhcp_server == null) {
-        try {
-          _dhcp_server = DhtDHCPServer.GetDhtDHCPServer(Dht,
-              _ipop_config.IpopNamespace,
-              _ipop_config.EnableMulticast);
-        } catch(Exception e) {
-          ProtocolLog.WriteIf(IpopLog.DHCPLog, e.ToString());
+      WaitCallback wcb = delegate(object o) {
+        if(_dhcp_server == null && !StartDHCP()) {
           Interlocked.Exchange(ref in_dhcp, 0);
           return;
         }
-      }
 
-      string hostname = null;
-      if(_ipop_config.AddressData.Hostname != null ||
-          _ipop_config.AddressData.Hostname != string.Empty)
-      {
-        hostname = _ipop_config.AddressData.Hostname;
-        hostname += DhtDNS.SUFFIX;
-      }
+        ProcessDHCP(ipp, _ipop_config.AddressData.Hostname);
+        Interlocked.Exchange(ref in_dhcp, 0);
+      };
 
-      ProcessDHCP(ipp, hostname);
-      Interlocked.Exchange(ref in_dhcp, 0);
+      ThreadPool.QueueUserWorkItem(wcb);
+      return true;
+    }
+
+    protected bool StartDHCP() {
+      try {
+        _dhcp_server = DhtDHCPServer.GetDhtDHCPServer(Dht,
+            _ipop_config.IpopNamespace,
+            _ipop_config.EnableMulticast);
+      } catch(Exception e) {
+        ProtocolLog.WriteIf(IpopLog.DHCPLog, e.ToString());
+        return false;
+      }
+      return true;
     }
 
     /**

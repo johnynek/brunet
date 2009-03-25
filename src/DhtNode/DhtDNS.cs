@@ -41,9 +41,6 @@ namespace Ipop.DhtNode {
     protected Cache dns_a = new Cache(100);
     /// <summary>Maps IP Addresses to names</summary>
     protected Cache dns_ptr = new Cache(100);
-    /**  <summary>If names to be looked up don't end in this string, they're 
-    not valid names of DhtIpopNode.</summary>*/
-    public static readonly String SUFFIX = ".ipop";
     /// <summary>Use this Dht to resolve names that aren't in cache</summary>
     protected Dht _dht;
     /// <summary>The namespace where the hostnames are being stored.</summary>
@@ -69,7 +66,7 @@ namespace Ipop.DhtNode {
     is invalid, it will throw an exception.</returns>
      */
     public override String AddressLookUp(String name) {
-      if(!name.EndsWith(SUFFIX)) {
+      if(!name.EndsWith(DNS.DomainName)) {
         throw new Exception("Invalid DNS name: " + name);
       }
       String ip = (String) dns_a[name];

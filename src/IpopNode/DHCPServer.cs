@@ -137,7 +137,7 @@ namespace Ipop {
       Dictionary<DHCPPacket.OptionTypes, MemBlock> options =
         new Dictionary<DHCPPacket.OptionTypes, MemBlock>();
 
-      options[DHCPPacket.OptionTypes.DOMAIN_NAME] = Encoding.UTF8.GetBytes("ipop");
+      options[DHCPPacket.OptionTypes.DOMAIN_NAME] = Encoding.UTF8.GetBytes(DNS.DomainName);
 //  The following option is needed for dhcp to "succeed" in Vista, but they break Linux
 //    options[DHCPPacket.OptionTypes.ROUTER] = reply.ip;
       options[DHCPPacket.OptionTypes.DOMAIN_NAME_SERVER] = MemBlock.Reference(ServerIP);
