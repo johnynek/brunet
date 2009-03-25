@@ -275,7 +275,7 @@ namespace Ipop {
             if(HandleDHCP(ipp)) {
               return;
             }
-          } else if(udpp.DestinationPort == 53 && ipp.DestinationIP[3] == 0) {
+          } else if(udpp.DestinationPort == 53 &&ipp.DestinationIP.Equals(_dhcp_server.ServerIP)) {
             if(HandleDNS(ipp)) {
               return;
             }

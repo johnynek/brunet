@@ -88,9 +88,11 @@ namespace Ipop {
       }
 
       Broadcast = _reserved_ips[slast];
-      ServerIP = BaseIP;
+      ServerIP = new byte[4];
+      BaseIP.CopyTo(ServerIP, 0);
+      ServerIP[3] = 1;
       _reserved_ips[last] = BaseIP;
-      _reserved_masks[last] = new byte[4] {255, 255, 255, 255};
+      _reserved_masks[last] = new byte[4] {255, 255, 255, 254};
       _reserved_masks[slast] = new byte[4] {255, 255, 255, 255};
 
       _mtu = MemBlock.Reference(new byte[2] {
@@ -264,12 +266,13 @@ namespace Ipop {
       config.ReservedIPs[0].Mask = "255.0.0.0";
 
       TestDHCPServer ds = new TestDHCPServer(config);
-      byte[] ip = new byte[4] { 128, 0, 0, 0};
+      byte[] ip = new byte[4] { 128, 0, 0, 1};
 
       Assert.IsFalse(ds.ValidIP(ip), "Server IP");
       ip[0] = 129;
       Assert.IsTrue(ds.ValidIP(ip), "Non-Server IP");
 
+      ip = new byte[4] { 130, 0, 0, 0};
       ip[0] = 130;
       byte[] inc = ds.IncrementIP(ip);
       ip[0] = 131;
@@ -283,7 +286,7 @@ namespace Ipop {
       ip[0] = 128;
       ip[1] = 0;
       ip[2] = 0;
-      ip[3] = 1;
+      ip[3] = 2;
       Assert.AreEqual(MemBlock.Reference(ip), MemBlock.Reference(inc), "Skip broadcast and server");
 
       ip[0] = 127;
@@ -305,10 +308,10 @@ namespace Ipop {
       config.ReservedIPs[0].Mask = "255.255.255.255";
 
       TestDHCPServer ds = new TestDHCPServer(config);
-      byte[] ip = new byte[4] { 128, 250, 3, 0};
+      byte[] ip = new byte[4] { 128, 250, 3, 1};
 
       Assert.IsFalse(ds.ValidIP(ip), "Server IP");
-      ip[3] = 1;
+      ip[3] = 2;
       Assert.IsTrue(ds.ValidIP(ip), "Non-Server IP");
 
       ip[3] = 21;
@@ -324,7 +327,7 @@ namespace Ipop {
       ip[0] = 128;
       ip[1] = 250;
       ip[2] = 3;
-      ip[3] = 1;
+      ip[3] = 2;
       Assert.AreEqual(MemBlock.Reference(ip), MemBlock.Reference(inc), "Skip broadcast and server");
 
       ip[2] = 127;
