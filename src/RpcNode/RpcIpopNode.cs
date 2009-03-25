@@ -46,22 +46,11 @@ namespace Ipop.RpcNode {
     /// <param name="IpopConfigPath">Path to the ipop config file</param>
     public RpcIpopNode(string NodeConfigPath, string IpopConfigPath):
       base(NodeConfigPath, IpopConfigPath) {
-      RpcDHCPServer dhcp_server = new RpcDHCPServer(_ipop_config.VirtualNetworkDevice);  
-      _dhcp_server = dhcp_server;
-      _rarad = new RpcAddressResolverAndDNS(Brunet, dhcp_server);
+      _dhcp_server = RpcDHCPServer.GetRpcDHCPServer(_ipop_config.VirtualNetworkDevice);  
+      _rarad = new RpcAddressResolverAndDNS(Brunet, _dhcp_server, ((RpcDHCPServer) _dhcp_server).LocalIP);
       _dns = _rarad;
       _address_resolver = _rarad;
       _translator = _rarad;
-    }
-
-    /// <summary>
-    /// Update the address information
-    /// </summary>
-    /// <param name="IP">A string with the new IP</param>
-    /// <param name="Netmask">A netmask of the address</param>
-    protected override void UpdateAddressData(MemBlock IP, MemBlock Netmask) {
-      base.UpdateAddressData(IP, Netmask);
-      _rarad.UpdateAddressData(IP, Netmask);
     }
 
     /// <summary>

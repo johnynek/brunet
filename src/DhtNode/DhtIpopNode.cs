@@ -49,7 +49,6 @@ namespace Ipop.DhtNode {
     public DhtIpopNode(string NodeConfigPath, string IpopConfigPath):
       base(NodeConfigPath, IpopConfigPath) {
       in_dhcp = 0;
-      _dhcp_server = new DhtDHCPServer(Dht, _ipop_config.EnableMulticast);
       _dns = new DhtDNS(Dht, _ipop_config.IpopNamespace);
       _address_resolver = new DhtAddressResolver(Dht, _ipop_config.IpopNamespace);
     }
@@ -79,12 +78,26 @@ namespace Ipop.DhtNode {
     */
     protected void HandleDHCP(Object ippo) {
       IPPacket ipp = (IPPacket) ippo;
+      if(_dhcp_server == null) {
+        try {
+          _dhcp_server = DhtDHCPServer.GetDhtDHCPServer(Dht,
+              _ipop_config.IpopNamespace,
+              _ipop_config.EnableMulticast);
+        } catch(Exception e) {
+          ProtocolLog.WriteIf(IpopLog.DHCPLog, e.ToString());
+          Interlocked.Exchange(ref in_dhcp, 0);
+          return;
+        }
+      }
+
       string hostname = null;
-      try {
+      if(_ipop_config.AddressData.Hostname != null ||
+          _ipop_config.AddressData.Hostname != string.Empty)
+      {
         hostname = _ipop_config.AddressData.Hostname;
         hostname += DhtDNS.SUFFIX;
       }
-      catch {}
+
       ProcessDHCP(ipp, hostname);
       Interlocked.Exchange(ref in_dhcp, 0);
     }

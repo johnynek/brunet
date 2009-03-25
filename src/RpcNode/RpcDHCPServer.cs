@@ -18,6 +18,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using Brunet;
+using Brunet.Applications;
 using NetworkPackets;
 using NetworkPackets.DHCP;
 using System;
@@ -31,29 +32,49 @@ namespace Ipop.RpcNode {
   /// Subclass of DHCPServer implements GetDHCPLeaseController method
   /// </summary>
   public class RpcDHCPServer : DHCPServer {
-    protected readonly DHCPServerConfig _dhcp_config;
+    public readonly byte[] LocalIP;
 
     /// <summary>
     /// Constructor
     /// </summary>
     /// <param name="networkdevice">A string indicating starting point for
     /// network probe</param>
-    public RpcDHCPServer(string networkdevice) {
+    protected RpcDHCPServer(DHCPConfig config) : base(config) {
+      LocalIP = new byte[4];
+      BaseIP.CopyTo(LocalIP, 0);
+      LocalIP[3] = 2;
+    }
+
+    public static RpcDHCPServer GetRpcDHCPServer(string networkdevice) {
       MemBlock IP = RpcNodeHelper.GetNetwork(networkdevice, MemBlock.Reference(new byte[]{10, 254, 0, 0}));
-      _dhcp_config = RpcNodeHelper.GenerateDHCPServerConfig(IP, MemBlock.Reference(new byte[]{255, 255, 0, 0}));
+      byte[] nm = new byte[4] { 255, 255, 0, 0 };
+      return GetRpcDHCPServer(IP, MemBlock.Reference(nm));
     }
 
-    /// <summary>
-    /// This method overrides GetDHCPLeaseController
-    /// </summary>
-    /// <param name="ipop_namespace">A string specifying ipop_namespace</param>
-    /// <returns>A result RpcDHCPLeaseController</returns>
-    protected override DHCPLeaseController GetDHCPLeaseController(string ipop_namespace) {
-      return new RpcDHCPLeaseController(_dhcp_config);
+    public static RpcDHCPServer GetRpcDHCPServer(MemBlock ip, MemBlock netmask) {
+
+      DHCPConfig config = new DHCPConfig();
+      config.LeaseTime = 3200;
+      config.Netmask = Utils.MemBlockToString(netmask, '.');
+      config.IPBase = Utils.MemBlockToString(ip, '.');
+
+      config.ReservedIPs = new DHCPConfig.ReservedIP[1];
+      config.ReservedIPs[0] = new DHCPConfig.ReservedIP();
+
+      byte[] local_ip = new byte[4];
+      ip.CopyTo(local_ip, 0);
+      local_ip[3] = 2;
+
+      config.ReservedIPs[0].IPBase = Utils.BytesToString(local_ip, '.');
+      config.ReservedIPs[0].Mask = "255.255.255.255";
+
+      return new RpcDHCPServer(config);
     }
 
-    public RpcDHCPLeaseController GetController() {
-      return new RpcDHCPLeaseController(_dhcp_config);
+
+    public override byte[] RequestLease(byte[] RequestedAddr, bool Renew,
+                                               string node_address, params object[] para) {
+      return LocalIP;
     }
   }
 }

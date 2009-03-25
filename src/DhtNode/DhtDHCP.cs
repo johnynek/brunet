@@ -35,28 +35,27 @@ namespace Ipop.DhtNode {
   hostname reservation, and multicast subscribing, which is done in GetLease.
   </summary>
   */
-  public class DhtDHCPLeaseController: DHCPLeaseController {
+  public class DhtDHCPServer: DHCPServer {
     /// <summary>The dht object used to stored lease information.</summary>
-    protected Dht _dht;
+    protected IDht _dht;
     /// <summary>Multicast enabled.</summary>
     protected bool _multicast;
     /// <summary>Speed optimization for slow dht, current ip</summary>
     protected MemBlock _current_ip;
     /// <summary>Speed optimization for slow dht, lease quarter time.</summary>
     protected DateTime _current_quarter_lifetime;
-    /// <summary>Speed optimization for slow dht, DHCPReply.</summary>
-    protected DHCPReply _current_dhcpreply;
 
     /**
     <summary>Creates a DhtDHCPLeaseController for a specific namespace</summary>
     <param name="dht">The dht object use to store lease information.</param>
-    <param name="config">The DHCPServerConfig used to define the Lease
+    <param name="config">The DHCPConfig used to define the Lease
     parameters.</param>
     <param name="EnableMulticast">Defines if Multicast is to be enabled during
     the lease.</param>
     */
-    public DhtDHCPLeaseController(Dht dht, DHCPServerConfig config,
-                                  bool EnableMulticast): base(config) {
+    public DhtDHCPServer(IDht dht, DHCPConfig config, bool EnableMulticast) :
+      base(config)
+    {
       _dht = dht;
       _multicast = EnableMulticast;
     }
@@ -79,29 +78,31 @@ namespace Ipop.DhtNode {
     </param>
     <param name="para">Optional, position 0 should hold the hostname.</param>
     */
-    public override DHCPReply GetLease(byte[] RequestedAddr, bool Renew,
+    public override byte[] RequestLease(byte[] RequestedAddr, bool Renew,
                                        string node_address, params object[] para) {
-      int max_attempts = 2, max_renew_attempts = 1;
-      int attempts = max_attempts, renew_attempts = max_renew_attempts;
+      int max_renew_attempts = 1;
+      int renew_attempts = max_renew_attempts;
+      int attempts = 2;
 
-      if(RequestedAddr == null || !ValidIP(RequestedAddr)) {
-        RequestedAddr = MemBlock.Reference(RandomIPAddress());
-      } else if(Renew) {
+      if(Renew) {
         MemBlock request_addr = MemBlock.Reference(RequestedAddr);
         renew_attempts = 2;
-        if(!request_addr.Equals(_current_ip) && DateTime.UtcNow < _current_quarter_lifetime) {
-          return _current_dhcpreply;
+        attempts = 1;
+        if(request_addr.Equals(_current_ip) && DateTime.UtcNow < _current_quarter_lifetime) {
+          return _current_ip;
         }
+      } else if(RequestedAddr == null || !ValidIP(RequestedAddr)) {
+        RequestedAddr = MemBlock.Reference(RandomIPAddress());
       }
 
       byte[] hostname = null;
       if(para[0] is string) {
-        hostname = Encoding.UTF8.GetBytes(namespace_value + "." + (para[0] as string));
+        hostname = Encoding.UTF8.GetBytes(Config.Namespace + "." + (para[0] as string));
       }
 
       byte[] multicast_key = null;
       if(_multicast) {
-        multicast_key = Encoding.UTF8.GetBytes(namespace_value + ".multicast.ipop");
+        multicast_key = Encoding.UTF8.GetBytes(Config.Namespace + ".multicast.ipop");
       }
 
       byte[] node_addr = Encoding.UTF8.GetBytes(node_address);
@@ -111,22 +112,22 @@ namespace Ipop.DhtNode {
         string str_addr = Utils.BytesToString(RequestedAddr, '.');
         ProtocolLog.WriteIf(IpopLog.DHCPLog, "Attempting to allocate IP Address:" + str_addr);
 
-        byte[] dhcp_key = Encoding.UTF8.GetBytes("dhcp:" + namespace_value + ":" + str_addr);
+        byte[] dhcp_key = Encoding.UTF8.GetBytes("dhcp:" + Config.Namespace + ":" + str_addr);
         byte[] ip_addr = Encoding.UTF8.GetBytes(str_addr);
 
         while(renew_attempts-- > 0) {
           try {
-            res = _dht.Create(dhcp_key, node_addr, leasetime);
+            res = _dht.Create(dhcp_key, node_addr, Config.LeaseTime);
 
             if(hostname != null) {
-              _dht.Put(hostname, ip_addr, leasetime);
+              _dht.Put(hostname, ip_addr, Config.LeaseTime);
             }
 
             if(_multicast) {
-              _dht.Put(multicast_key, node_addr, leasetime);
+              _dht.Put(multicast_key, node_addr, Config.LeaseTime);
             }
 
-            _dht.Put(node_addr, dhcp_key, leasetime);
+            _dht.Put(node_addr, dhcp_key, Config.LeaseTime);
           }
           catch {
             res = false;
@@ -134,7 +135,7 @@ namespace Ipop.DhtNode {
         }
         if(res) {
           _current_ip = MemBlock.Reference(RequestedAddr);
-          _current_quarter_lifetime = DateTime.UtcNow.AddSeconds(leasetime / 4); 
+          _current_quarter_lifetime = DateTime.UtcNow.AddSeconds(Config.LeaseTime / 4.0); 
           break;
         }
         else {
@@ -148,64 +149,27 @@ namespace Ipop.DhtNode {
         throw new Exception("Unable to get an IP Address!");
       }
 
-      DHCPReply reply = new DHCPReply();
-      reply.ip = RequestedAddr;
-      reply.netmask = netmask;
-      reply.leasetime = leasetimeb;
-      _current_dhcpreply = reply;
-      return reply;
-    }
-  }
-
-  /**
-  <summary>DhtDHCPServer provides a DHCP Server where Brunet Dht can be used
-  to store DHCP Leases, reserve hostnames, and subscribe to multicast.</summary>
-  */
-  public class DhtDHCPServer: DHCPServer {
-    /// <summary>The dht object where DHCP information will be stored.</summary>
-    protected Dht _dht;
-    /// <summary>If multicast is supported.</summary>
-    protected bool _multicast;
-
-    /**
-    <summary>Creates a DhtDHCPServer to get DHCPServerConfigs from the Dht and
-    to store DHCP leases in the Dht.</summary>
-    <param name="dht">The dht object where DHCP information will be stored</param>
-    <param name="EnableMulticast">Enabled if the client wants to subscribe to
-    Multicast.</param>
-    */
-    public DhtDHCPServer(Dht dht, bool EnableMulticast) {
-      _multicast = EnableMulticast;
-      _dht = dht;
+      return RequestedAddr;
     }
 
-    /**
-    <summary>Checks the _dhcp_lease_controllers to see if an existing
-    controllers exists.  Otherwise, it attempts to get a DHCPServerConfig from
-    the Dht.  If it succeeds, it creates a new DHCPLeaseController.</summary>
-    <param name="ipop_namespace">Specifies which DHCPLeaseController to use.
-    As DHCPLeaseControllers are allocated per-namespace.</param>
-    */
-    protected override DHCPLeaseController GetDHCPLeaseController(string ipop_namespace) {
-      if (_dhcp_lease_controllers.ContainsKey(ipop_namespace)) {
-        return (DHCPLeaseController) _dhcp_lease_controllers[ipop_namespace];
-      }
+    public static DhtDHCPServer GetDhtDHCPServer(IDht dht, string ipop_namespace, bool enable_multicast) {
+      DHCPConfig config = GetDHCPConfig(dht, ipop_namespace);
+      return new DhtDHCPServer(dht, config, enable_multicast);
+    }
+
+    public static DHCPConfig GetDHCPConfig(IDht dht, string ipop_namespace) {
       byte[] ns_key = Encoding.UTF8.GetBytes("dhcp:" + ipop_namespace);
-      Hashtable[] results = _dht.Get(ns_key);
+      Hashtable[] results = dht.Get(ns_key);
 
       if(results.Length == 0) {
-        ProtocolLog.WriteIf(IpopLog.DHCPLog, "Namespace does not exist: " + ipop_namespace);
-        return null;
+        throw new Exception("Namespace does not exist: " + ipop_namespace);
       }
 
       string result = Encoding.UTF8.GetString((byte[]) results[0]["value"]);
 
-      XmlSerializer serializer = new XmlSerializer(typeof(DHCPServerConfig));
+      XmlSerializer serializer = new XmlSerializer(typeof(DHCPConfig));
       TextReader stringReader = new StringReader(result);
-      DHCPServerConfig ipop_ns = (DHCPServerConfig) serializer.Deserialize(stringReader);
-      DHCPLeaseController dhcpLeaseController = new DhtDHCPLeaseController(_dht, ipop_ns, _multicast);
-      _dhcp_lease_controllers[ipop_namespace] = dhcpLeaseController;
-      return dhcpLeaseController;
+      return (DHCPConfig) serializer.Deserialize(stringReader);
     }
   }
 }

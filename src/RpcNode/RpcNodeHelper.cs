@@ -64,39 +64,6 @@ namespace Ipop.RpcNode {
       return netip;
     }
 
-    /// <summary> 
-    /// A config object that is used by DHCP server to allocate leases
-    /// </summary>
-    /// <param name="networkdevice">Device to be ignored</param> 
-    /// <returns>Return IP to use</returns> 
-    public static DHCPServerConfig GenerateDHCPServerConfig(MemBlock IP, MemBlock Netmask) {
-      DHCPServerConfig config = new DHCPServerConfig();
-      config.leasetime = 3200;
-      config.netmask = Utils.MemBlockToString(Netmask, '.');
-      config.pool = new DHCPServerConfig.IPPool();
-
-      byte[] tmp = new byte[IP.Length];
-      for (int i = 0; i < tmp.Length; i++) {
-        tmp[i] = (byte)(IP[i] & Netmask[i]);
-      }
-      config.pool.lower = Utils.BytesToString(tmp, '.');
-
-      for (int i = 0; i < tmp.Length; i++) {
-        tmp[i] += (byte)~Netmask[i];
-      }
-      config.pool.upper = Utils.BytesToString(tmp, '.');
-
-      config.ReservedIPs = new DHCPServerConfig.ReservedIP[2];
-      config.ReservedIPs[0] = new DHCPServerConfig.ReservedIP();
-      string upper = IP[0] + "." + IP[1] + "." + IP[2] + ".";
-      config.ReservedIPs[0].ip = upper + "1";
-      config.ReservedIPs[0].mask = "0.0.0.255";
-      config.ReservedIPs[1] = new DHCPServerConfig.ReservedIP();
-      config.ReservedIPs[1].ip = upper + "2";
-      config.ReservedIPs[1].mask = "255.255.255.255";
-      return config;
-    }
-
     /// <summary>
     /// This method replaces IP addresses based on some identifier
     /// </summary>

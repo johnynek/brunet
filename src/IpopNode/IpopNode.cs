@@ -279,8 +279,7 @@ namespace Ipop {
             if(HandleDHCP(ipp)) {
               return;
             }
-          }
-          else if(udpp.DestinationPort == 53 && ipp.DestinationIP[3] == 1) {
+          } else if(udpp.DestinationPort == 53 && ipp.DestinationIP[3] == 0) {
             if(HandleDNS(ipp)) {
               return;
             }
@@ -350,22 +349,17 @@ namespace Ipop {
     the result written to it as well.</returns>
     */
     protected virtual bool ProcessDHCP(IPPacket ipp, params Object[] dhcp_params) {
-      UDPPacket udpp = new UDPPacket(ipp.Payload);
-      DHCPPacket dhcp_packet = new DHCPPacket(udpp.Payload);
-
-      byte []last_ip = null;
-      if(_ipop_config.AddressData == null) {
-        _ipop_config.AddressData = new IpopConfig.AddressInfo();
-      }
       try {
-        last_ip = IPAddress.Parse(_ipop_config.AddressData.IPAddress).GetAddressBytes();
-      }
-      catch {}
+        UDPPacket udpp = new UDPPacket(ipp.Payload);
+        DHCPPacket dhcp_packet = new DHCPPacket(udpp.Payload);
 
-      try {
-        DHCPPacket rpacket = _dhcp_server.Process(dhcp_packet, last_ip,
-            Brunet.Address.ToString(), _ipop_config.IpopNamespace,
-            dhcp_params);
+        byte []last_ip = null;
+        if(_ipop_config.AddressData.IPAddress != null) {
+          last_ip = IPAddress.Parse(_ipop_config.AddressData.IPAddress).GetAddressBytes();
+        }
+
+        DHCPPacket rpacket = _dhcp_server.ProcessPacket(dhcp_packet,
+            Brunet.Address.ToString(), last_ip, dhcp_params);
 
         /* Check our allocation to see if we're getting a new address */
         MemBlock new_addr = rpacket.yiaddr;
@@ -395,7 +389,7 @@ namespace Ipop {
         return true;
       }
       catch(Exception e) {
-        ProtocolLog.WriteIf(IpopLog.DHCPLog, e.ToString());//Message);
+        ProtocolLog.WriteIf(IpopLog.DHCPLog, e.ToString());
       }
       return false;
     }

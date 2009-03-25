@@ -49,6 +49,7 @@ namespace Ipop.IpopRouter {
     /// <summary>We use this to set our L3 network</summary>
     protected MemBlock _first_ip;
     protected MemBlock _first_nm;
+    protected DHCPConfig _dhcp_config;
 
     public IpopRouter(string NodeConfigPath, string IpopConfigPath) :
       base(NodeConfigPath, IpopConfigPath)
@@ -143,10 +144,23 @@ namespace Ipop.IpopRouter {
       DHCPPacket dhcp_packet = new DHCPPacket(udpp.Payload);
       MemBlock ether_addr = dhcp_packet.chaddr;
 
+      if(_dhcp_config == null) {
+        if(Monitor.TryEnter(_sync)) {
+          try {
+            _dhcp_config = DhtNode.DhtDHCPServer.GetDHCPConfig(Dht, _ipop_config.IpopNamespace);
+          } catch(Exception e) {
+            ProtocolLog.WriteIf(IpopLog.DHCPLog, e.ToString());
+            Monitor.Exit(_sync);
+            return false;
+          }
+          Monitor.Exit(_sync);
+        }
+      }
+
       DHCPServer dhcp_server = null;
       lock(_sync) {
         if(!_ether_to_dhcp_server.TryGetValue(ether_addr, out dhcp_server)) {
-          dhcp_server = new DhtNode.DhtDHCPServer(Dht, _ipop_config.EnableMulticast);
+          dhcp_server = new DhtNode.DhtDHCPServer(Dht, _dhcp_config, _ipop_config.EnableMulticast);
           _ether_to_dhcp_server.Add(ether_addr, dhcp_server);
         }
       }
@@ -164,9 +178,8 @@ namespace Ipop.IpopRouter {
 
       WaitCallback wcb = delegate(object o) {
         try {
-          DHCPPacket rpacket = dhcp_server.Process(dhcp_packet, last_ipb,
-              Brunet.Address.ToString(), _ipop_config.IpopNamespace,
-              new object[0]);
+          DHCPPacket rpacket = dhcp_server.ProcessPacket(dhcp_packet,
+              Brunet.Address.ToString(), last_ipb);
 
           /* Check our allocation to see if we're getting a new address */
           MemBlock new_addr = rpacket.yiaddr;

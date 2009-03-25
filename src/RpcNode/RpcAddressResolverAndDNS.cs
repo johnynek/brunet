@@ -56,7 +56,7 @@ namespace Ipop.RpcNode {
     /// <summary>MemBlock of the IP mapped to local node</summary>
     protected MemBlock _local_ip;
     /// <summary>Helps assign remote end points</summary>
-    protected RpcDHCPLeaseController _rdlc;
+    protected DHCPServer _dhcp;
     /// <summary>Object used for synchronization</summary>
     protected Object _sync;
 
@@ -67,7 +67,7 @@ namespace Ipop.RpcNode {
     /// Constructor for the class, it initializes various objects
     /// </summary>
     /// <param name="node">Takes in a structured node</param>
-    public RpcAddressResolverAndDNS(StructuredNode node, RpcDHCPServer dhcp) {
+    public RpcAddressResolverAndDNS(StructuredNode node, DHCPServer dhcp, MemBlock local_ip) {
       _sync = new Object();
       _node = node;
       _rpc = RpcManager.GetInstance(node);
@@ -78,7 +78,8 @@ namespace Ipop.RpcNode {
       _blocked_addrs = new Hashtable();
       mcast_addr = new ArrayList();
 
-      _rdlc = dhcp.GetController();
+      _dhcp = dhcp;
+      _local_ip = local_ip;
 
       _rpc.AddHandler("RpcIpopNode", this);
     }
@@ -99,18 +100,6 @@ namespace Ipop.RpcNode {
     /// <returns>The result as a String Ip address</returns>
     public override String AddressLookUp(String Name) {
       return (String)_dns_a[Name];
-    }
-
-    /// <summary>
-    /// This is called by the outside node to tell us what our IP Address
-    /// is.  This is here since, the IP may change dynamically.
-    /// </summary>
-    /// <param name="IP">A string ip that is to be updated</param>
-    /// <param name="Netmask">A string netmask that is also given</param>
-    public void UpdateAddressData(MemBlock IP, MemBlock Netmask) {
-      _local_ip = IP;
-      DHCPServerConfig dhcp_config = RpcNodeHelper.GenerateDHCPServerConfig(IP, Netmask);
-      _rdlc = new RpcDHCPLeaseController(dhcp_config);
     }
 
     /**
@@ -296,7 +285,7 @@ namespace Ipop.RpcNode {
             ("Name ({0}) already exists with different address.", name));
         } else if(ips == null) {
           do {
-            ip = MemBlock.Reference(_rdlc.RandomIPAddress());
+            ip = MemBlock.Reference(_dhcp.RandomIPAddress());
           } while (_ip_addr.ContainsValue(ip));
           ips = Utils.MemBlockToString(ip, '.');
           _addr_ip.Add(addr, ip);
