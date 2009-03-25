@@ -193,13 +193,11 @@ namespace Ipop {
       }
     }
 
-    /**
-    <summary>This method handles IPPackets that come from Brunet, i.e., abroad.
-    </summary>
-    <param name="packet"> The packet from Brunet.</param>
-    <param name="ret">An ISender to send data to the Brunet node that sent the
-    packet.</param>
-    */
+    /// <summary>This method handles IPPackets that come from Brunet, i.e.,
+    /// abroad.  </summary>
+    /// <param name="packet"> The packet from Brunet.</param>
+    /// <param name="ret">An ISender to send data to the Brunet node that sent
+    /// the packet.</param>
     public virtual void HandleIPIn(MemBlock packet, ISender ret) {
       if(_secure_senders && !(ret is SecurityAssociation)) {
         return;
@@ -249,15 +247,13 @@ namespace Ipop {
       Ethernet.Send(res_ep.ICPacket);
     }
 
-    /**
-    <summary>This method handles IPPackets that come from the TAP Device, i.e.,
-    local system.</summary>
-    <remarks>Currently this supports HandleMulticast (ip[0] >= 244 &&
-    ip[0]<=239), HandleDNS (dport = 53 and ip[3] == 1), dhcp (sport 68 and
-    dport 67.</remarks>
-    <param name="packet">The packet from the TAP device</param>
-    <param name="from"> This should always be the tap device</param>
-    */
+    /// <summary>This method handles IPPackets that come from the TAP Device, i.e.,
+    /// local system.</summary>
+    /// <remarks>Currently this supports HandleMulticast (ip[0] >= 244 &&
+    /// ip[0]<=239), HandleDNS (dport = 53 and ip[3] == 1), dhcp (sport 68 and
+    /// dport 67.</remarks>
+    /// <param name="packet">The packet from the TAP device</param>
+    /// <param name="from"> This should always be the tap device</param>
     protected virtual void HandleIPOut(MemBlock packet, ISender ret) {
       IPPacket ipp = new IPPacket(packet);
       if(IpopLog.PacketLog.Enabled) {
@@ -453,6 +449,8 @@ namespace Ipop {
         return;
       }
 
+      _address_resolver.StartResolve(ap.TargetProtoAddress);
+
       ARPPacket response = ap.Respond(EthernetPacket.UnicastAddress);
 
       EthernetPacket res_ep = new EthernetPacket(Ethernet.Address,
@@ -468,13 +466,13 @@ namespace Ipop {
   have some IAddressResolver.</summary>
   */
   public interface IAddressResolver {
-    /**
-    <summary>Takes a string representation an IP and returns the mapped
-    Brunet.Address</summary>
-    <param name="ip"> the MemBlock representation of the IP</param>
-    <returns>translated Brunet.Address</returns>
-    */
+    /// <summary>Takes an IP and returns the mapped Brunet.Address</summary>
+    /// <param name="ip"> the MemBlock representation of the IP</param>
+    /// <returns>translated Brunet.Address</returns>
     Address Resolve(MemBlock ip);
+    /// <summary>Takes an IP and initiates resolution, i.e. async.</summary>
+    /// <param name="ip"> the MemBlock representation of the IP</param>
+    void StartResolve(MemBlock ip);
   }
 
   /**

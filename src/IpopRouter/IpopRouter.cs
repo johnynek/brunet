@@ -91,6 +91,8 @@ namespace Ipop.IpopRouter {
           _first_nm == null) {
         return;
       }
+      
+      _address_resolver.StartResolve(ap.TargetProtoAddress);
 
       for(int i = 0; i < _first_ip.Length; i++) {
         if((_first_ip[i] & _first_nm[i]) != (ap.TargetProtoAddress[i] & _first_nm[i])) {

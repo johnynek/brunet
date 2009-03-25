@@ -209,6 +209,9 @@ namespace Ipop.RpcNode {
       return (Address)_ip_addr[IP];
     }
 
+    public void StartResolve(MemBlock ip) {
+    }
+
     /// <summary>
     /// This method handles Rpc calls for this object
     /// </summary>

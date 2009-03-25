@@ -61,14 +61,12 @@ namespace Ipop.DhtNode {
       _ipop_namespace = ipop_namespace;
     }
 
-    /**
-    <summary>Translates an IP Address to a Brunet Address.  If it is in the
-    cache it returns a result, otherwise it returns null and begins a Miss
-    lookup.</summary>
-    <param name="ip">The IP Address to translate.</param>
-    <returns>Null if none exists or there is a miss or the Brunet Address if
-    one exists in the cache</returns>
-    */
+    /// <summary>Translates an IP Address to a Brunet Address.  If it is in the
+    /// cache it returns a result, otherwise it returns null and begins a Miss
+    /// lookup.</summary>
+    /// <param name="ip">The IP Address to translate.</param>
+    /// <returns>Null if none exists or there is a miss or the Brunet Address if
+    /// one exists in the cache</returns>
     public Address Resolve(MemBlock ip) {
       Address addr = null;
       lock (_sync) {
@@ -78,6 +76,12 @@ namespace Ipop.DhtNode {
         Miss(ip);
       }
       return addr;
+    }
+
+    /// <summary>Takes an IP and initiates resolution, i.e. async.</summary>
+    /// <param name="ip"> the MemBlock representation of the IP</param>
+    public void StartResolve(MemBlock ip) {
+      Resolve(ip);
     }
 
     /**
