@@ -40,6 +40,7 @@ namespace Ipop.IpopRouter {
     protected Dictionary<MemBlock, MemBlock> _ether_to_ip;
     protected Dictionary<MemBlock, MemBlock> _ip_to_ether;
     protected Dictionary<MemBlock, DHCPServer> _ether_to_dhcp_server;
+    protected DHCPServer _static_dhcp_server;
     /// <summary>A hashtable used to lock operations rather than multiple
     /// locks.</summary>
     protected Hashtable _checked_out;
@@ -126,6 +127,86 @@ namespace Ipop.IpopRouter {
       Ethernet.Send(res_ep.ICPacket);
     }
 
+    /// <summary>Is this our IP?  Are we routing for it?</summary>
+    /// <param name="ip">The IP in question.</param>
+    protected override bool IsLocalIP(MemBlock ip) {
+      return _ip_to_ether.ContainsKey(ip);
+    }
+
+    /// <summary>Let's see if we can route for an IP.  Default is do
+    /// nothing!</summary>
+    /// <param name="ip">The IP in question.</param>
+    protected override void HandleNewStaticIP(MemBlock ether_addr, MemBlock ip) {
+      if(_dhcp_config == null && !GetDHCPConfig()) {
+        return;
+      }
+
+      DHCPServer dhcp_server = CheckOutDHCPServer(ether_addr);
+      if(dhcp_server == null) {
+        return;
+      }
+
+      WaitCallback wcb = delegate(object o) {
+        byte[] res_ip = dhcp_server.RequestLease(ip, true,
+            Brunet.Address.ToString(),
+            _ipop_config.AddressData.Hostname);
+        if(res_ip == null) {
+          ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
+                "Request for {0} failed!", Utils.MemBlockToString(ip, '.')));
+        } else {
+          MemBlock new_ip = MemBlock.Reference(res_ip);
+          if(!_ether_to_ip.ContainsKey(ether_addr) ||
+              !_ether_to_ip[ether_addr].Equals(new_ip)) {
+            UpdateAddressData(ip, MemBlock.Reference(_dhcp_server.Netmask));
+          }
+        }
+
+        CheckInDHCPServer(dhcp_server);
+      };
+
+      ThreadPool.QueueUserWorkItem(wcb);
+    }
+
+    protected bool GetDHCPConfig() {
+      bool success = false;
+      if(Monitor.TryEnter(_sync)) {
+        try {
+          _dhcp_config = DhtNode.DhtDHCPServer.GetDHCPConfig(Dht, _ipop_config.IpopNamespace);
+          success = true;
+        } catch(Exception e) {
+          ProtocolLog.WriteIf(IpopLog.DHCPLog, e.ToString());
+        }
+        Monitor.Exit(_sync);
+      }
+      return success;
+    }
+
+    protected DHCPServer CheckOutDHCPServer(MemBlock ether_addr) {
+      DHCPServer dhcp_server = null;
+
+      lock(_sync) {
+        if(!_ether_to_dhcp_server.TryGetValue(ether_addr, out dhcp_server)) {
+          dhcp_server = new DhtNode.DhtDHCPServer(Dht, _dhcp_config, _ipop_config.EnableMulticast);
+          _ether_to_dhcp_server.Add(ether_addr, dhcp_server);
+        }
+      }
+
+      lock(_checked_out.SyncRoot) {
+        if(!_checked_out.Contains(dhcp_server)) {
+          return null;
+        }
+        _checked_out.Add(dhcp_server, true);
+      }
+
+      return dhcp_server;
+    }
+
+    protected void CheckInDHCPServer(DHCPServer dhcp_server) {
+      lock(_checked_out.SyncRoot) {
+        _checked_out.Remove(dhcp_server);
+      }
+    }
+
     /// <summary>This is used to process a dhcp packet on the node side, that
     /// includes placing data such as the local Brunet Address, Ipop Namespace,
     /// and other optional parameters in our request to the dhcp server.  When
@@ -134,8 +215,7 @@ namespace Ipop.IpopRouter {
     /// <param name="ipp"> The IPPacket that contains the DHCP Request</param>
     /// <param name="dhcp_params"> an object containing any extra parameters for 
     /// the dhcp server</param>
-    /// <returns> true on success and false on failure, if true the ethernet had 
-    /// the result written to it as well.</returns>
+    /// <returns> true on if dhcp is supported.</returns>
     protected override bool HandleDHCP(IPPacket ipp)
     {
       if(!_connected) {
@@ -146,32 +226,13 @@ namespace Ipop.IpopRouter {
       DHCPPacket dhcp_packet = new DHCPPacket(udpp.Payload);
       MemBlock ether_addr = dhcp_packet.chaddr;
 
-      if(_dhcp_config == null) {
-        if(Monitor.TryEnter(_sync)) {
-          try {
-            _dhcp_config = DhtNode.DhtDHCPServer.GetDHCPConfig(Dht, _ipop_config.IpopNamespace);
-          } catch(Exception e) {
-            ProtocolLog.WriteIf(IpopLog.DHCPLog, e.ToString());
-            Monitor.Exit(_sync);
-            return false;
-          }
-          Monitor.Exit(_sync);
-        }
+      if(_dhcp_config == null && !GetDHCPConfig()) {
+        return true;
       }
 
-      DHCPServer dhcp_server = null;
-      lock(_sync) {
-        if(!_ether_to_dhcp_server.TryGetValue(ether_addr, out dhcp_server)) {
-          dhcp_server = new DhtNode.DhtDHCPServer(Dht, _dhcp_config, _ipop_config.EnableMulticast);
-          _ether_to_dhcp_server.Add(ether_addr, dhcp_server);
-        }
-      }
-
-      lock(_checked_out.SyncRoot) {
-        if(_checked_out.Contains(dhcp_server)) {
-          return true;
-        }
-        _checked_out.Add(dhcp_server, true);
+      DHCPServer dhcp_server = CheckOutDHCPServer(ether_addr);
+      if(dhcp_server == null) {
+        return true;
       }
 
       MemBlock last_ip = null;
@@ -212,12 +273,10 @@ namespace Ipop.IpopRouter {
           Ethernet.Send(res_ep.ICPacket);
         }
         catch(Exception e) {
-          ProtocolLog.WriteIf(IpopLog.DHCPLog, e.ToString());//Message);
+          ProtocolLog.WriteIf(IpopLog.DHCPLog, e.ToString());
         }
         
-        lock(_checked_out.SyncRoot) {
-          _checked_out.Remove(dhcp_server);
-        }
+        CheckInDHCPServer(dhcp_server);
       };
 
       ThreadPool.QueueUserWorkItem(wcb);

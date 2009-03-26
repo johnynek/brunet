@@ -49,6 +49,41 @@ namespace Ipop.DhtNode {
       _address_resolver = new DhtAddressResolver(Dht, _ipop_config.IpopNamespace);
     }
 
+    /// <summary>Let's see if we can route for an IP.  Default is do
+    /// nothing!</summary>
+    /// <param name="ip">The IP in question.</param>
+    protected override void HandleNewStaticIP(MemBlock ether_addr, MemBlock ip) {
+      if(IpopLog.DHCPLog.Enabled) {
+        ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
+                            "Incoming new IP: {0}, DHCP Status: {1}.",
+                            Utils.MemBlockToString(ip, '.'), in_dhcp));
+      }
+      if(Interlocked.Exchange(ref in_dhcp, 1) == 1) {
+        return;
+      }
+
+      WaitCallback wcb = delegate(object o) {
+        if(_dhcp_server == null && !StartDHCP()) {
+          Interlocked.Exchange(ref in_dhcp, 0);
+          return;
+        }
+
+        byte[] res_ip = _dhcp_server.RequestLease(ip, true,
+            Brunet.Address.ToString(), 
+            _ipop_config.AddressData.Hostname);
+        if(res_ip != null && MemBlock.Reference(res_ip).Equals(ip)) {
+          UpdateAddressData(ip, MemBlock.Reference(_dhcp_server.Netmask));
+        } else {
+          ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
+                "Request for {0} failed!", Utils.MemBlockToString(ip, '.')));
+        }
+
+        Interlocked.Exchange(ref in_dhcp, 0);
+      };
+
+      ThreadPool.QueueUserWorkItem(wcb);
+    }
+
     /**
     <summary>Handles DHCP calls coming from HandleIPOut.  Requests are sent to
     HandleDHCP(Object) if in_dhcp is false.</summary>

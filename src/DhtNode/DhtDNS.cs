@@ -42,7 +42,7 @@ namespace Ipop.DhtNode {
     /// <summary>Maps IP Addresses to names</summary>
     protected Cache dns_ptr = new Cache(100);
     /// <summary>Use this Dht to resolve names that aren't in cache</summary>
-    protected Dht _dht;
+    protected IDht _dht;
     /// <summary>The namespace where the hostnames are being stored.</summary>
     protected String _ipop_namespace;
 
@@ -50,7 +50,7 @@ namespace Ipop.DhtNode {
     <summary>Create a DhtDNS using the specified Dht object</summary>
     <param name="dht">A Dht object used to acquire name translations</param>
     */
-    public DhtDNS(Dht dht, String ipop_namespace) {
+    public DhtDNS(IDht dht, String ipop_namespace) {
       _sync = new Object();
       _ipop_namespace = ipop_namespace;
       _dht = dht;

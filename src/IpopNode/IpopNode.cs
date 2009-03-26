@@ -184,7 +184,7 @@ namespace Ipop {
             HandleARP(ep.Payload);
             break;
           case EthernetPacket.Types.IP:
-            HandleIPOut(ep.Payload, ret);
+            HandleIPOut(ep, ret);
             break;
         }
       }
@@ -235,7 +235,6 @@ namespace Ipop {
                               ret, packet.Length));
       }
 
-
       WriteIP(packet);
     }
 
@@ -254,12 +253,17 @@ namespace Ipop {
     /// dport 67.</remarks>
     /// <param name="packet">The packet from the TAP device</param>
     /// <param name="from"> This should always be the tap device</param>
-    protected virtual void HandleIPOut(MemBlock packet, ISender ret) {
-      IPPacket ipp = new IPPacket(packet);
+    protected virtual void HandleIPOut(EthernetPacket packet, ISender ret) {
+      IPPacket ipp = new IPPacket(packet.Payload);
       if(IpopLog.PacketLog.Enabled) {
         ProtocolLog.Write(IpopLog.PacketLog, String.Format(
                           "Outgoing {0} packet::IP src: {1}, IP dst: {2}", 
                           ipp.Protocol, ipp.SSourceIP, ipp.SDestinationIP));
+      }
+
+      if(!IsLocalIP(ipp.SourceIP)) {
+        HandleNewStaticIP(packet.SourceAddress, ipp.SourceIP);
+        return;
       }
 
       if(ipp.DestinationIP[0] >= 224 && ipp.DestinationIP[0] <= 239) {
@@ -293,8 +297,20 @@ namespace Ipop {
           ProtocolLog.Write(IpopLog.PacketLog, String.Format(
                             "Brunet destination ID: {0}", target));
         }
-        SendIP(target, packet);
+        SendIP(target, packet.Payload);
       }
+    }
+
+    /// <summary>Is this our IP?  Are we routing for it?</summary>
+    /// <param name="ip">The IP in question.</param>
+    protected virtual bool IsLocalIP(MemBlock ip) {
+      return ip.Equals(_local_ip);
+    }
+
+    /// <summary>Let's see if we can route for an IP.  Default is do
+    /// nothing!</summary>
+    /// <param name="ip">The IP in question.</param>
+    protected virtual void HandleNewStaticIP(MemBlock ether_addr, MemBlock ip) {
     }
 
     /**

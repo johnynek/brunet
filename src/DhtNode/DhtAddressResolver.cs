@@ -46,7 +46,7 @@ namespace Ipop.DhtNode {
     /// <summary>Maps the Channel in MissCallback to an IP.</summary>
     protected readonly Hashtable _mapping = new Hashtable();
     /// <summary>The dht object to use for dht interactions.</summary>
-    protected readonly Dht _dht;
+    protected readonly IDht _dht;
     /// <summary>The ipop namespace where the dhcp server is storing names</summary>
     protected readonly string _ipop_namespace;
 
@@ -56,8 +56,8 @@ namespace Ipop.DhtNode {
     <param name="ipop_namespace">The ipop namespace where the dhcp server
     is storing names.</param>
     */
-    public DhtAddressResolver(Dht dht, string ipop_namespace) {
-      this._dht = dht;
+    public DhtAddressResolver(IDht dht, string ipop_namespace) {
+      _dht = dht;
       _ipop_namespace = ipop_namespace;
     }
 
