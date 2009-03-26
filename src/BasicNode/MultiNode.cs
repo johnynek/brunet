@@ -40,7 +40,24 @@ namespace Brunet.Applications {
     protected ArrayList _threads;
     /// <summary>The total amount of Brunet.Nodes.</summary>
     protected int _count;
+    protected NodeConfig _node_config_multi;
+    protected NodeConfig _node_config_single;
     public MultiNode(String path, int count): base(path) {
+      _node_config_single = _node_config;
+
+      try {
+        _node_config = Utils.ReadConfig<NodeConfig>(path);
+      }
+      catch (Exception e){
+        Console.WriteLine("Invalid or missing configuration file.");
+        Environment.Exit(1);
+      }
+
+      foreach(NodeConfig.EdgeListener item in _node_config.EdgeListeners) {
+        item.port = 0;
+      }
+
+
       _count = count;
       _nodes = new ArrayList(_count);
       _threads = new ArrayList(_count);
@@ -61,7 +78,7 @@ namespace Brunet.Applications {
       _shutdown = Shutdown.GetShutdown();
       _shutdown.OnExit += OnExit;
 
-      for(int i = 0; i < _count - 1; i++) {
+      for(int i = 1; i < _count - 1; i++) {
         _node_config.NodeAddress = (Utils.GenerateAHAddress()).ToString();
         CreateNode();
         new Information(_node, "MultiNode");
@@ -71,7 +88,7 @@ namespace Brunet.Applications {
         _threads.Add(thread);
       }
 
-      _node_config.NodeAddress = tmp_addr;
+      _node_config = _node_config_single;
       base.Run();
     }
 
