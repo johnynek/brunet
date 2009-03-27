@@ -876,13 +876,26 @@ namespace Brunet
                 //something else
                 return false;
               }
-              //Start to read the packet:
-              Reset(_ba.Buffer, _ba.Offset, size, false);
-              _ba.AdvanceBuffer(size);
+              //Start to read the packet and the duplicate size value at the
+              //end
+              Reset(_ba.Buffer, _ba.Offset, size + 2, false);
+              _ba.AdvanceBuffer(size + 2);
             }
             else {
               try {
-                Edge.ReceivedPacketEvent(MemBlock.Reference(Buffer, Offset, Length));
+                short size = NumberSerializer.ReadShort(Buffer, Offset + Length - 2);
+                if( size == Length - 2) {
+                  Edge.ReceivedPacketEvent(MemBlock.Reference(Buffer, Offset, size));
+                }
+                else {
+                  //The packet seems to have an error:
+                  string err_msg = String.Format("ERROR Packet length mismatch: Edge: {0}; size: {1} != {2}; Packet: {3}",
+                                                 Edge, Length - 2, size,
+                                                 System.Convert.ToBase64String(Buffer, Offset, Length));
+                  ProtocolLog.Write(ProtocolLog.Monitor, err_msg);
+                  //Close the edge
+                  return false;
+                }
               }
               catch(EdgeClosedException) {
                 return false;
