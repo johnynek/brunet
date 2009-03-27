@@ -84,7 +84,7 @@ namespace Ipop.DhtNode {
       int renew_attempts = max_renew_attempts;
       int attempts = 2;
 
-      if(Renew) {
+      if(Renew && ValidIP(RequestedAddr)) {
         MemBlock request_addr = MemBlock.Reference(RequestedAddr);
         renew_attempts = 2;
         attempts = 1;
@@ -96,7 +96,7 @@ namespace Ipop.DhtNode {
       }
 
       byte[] hostname = null;
-      if(para[0] is string) {
+      if(para.Length > 0 && para[0] is string) {
         string shostname = para[0] as string;
         if(!shostname.Equals(string.Empty)) {
           hostname = Encoding.UTF8.GetBytes(Config.Namespace + "." + shostname + "." + DNS.DomainName);
@@ -130,9 +130,10 @@ namespace Ipop.DhtNode {
               _dht.Put(multicast_key, node_addr, Config.LeaseTime);
             }
 
-            _dht.Put(node_addr, dhcp_key, Config.LeaseTime);
+//            _dht.Put(node_addr, dhcp_key, Config.LeaseTime);
           }
-          catch {
+          catch(Exception e) {
+            ProtocolLog.WriteIf(IpopLog.DHCPLog, "Unable to allocate: " + e.Message);
             res = false;
           }
         }

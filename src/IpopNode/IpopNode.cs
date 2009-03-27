@@ -304,7 +304,7 @@ namespace Ipop {
     /// <summary>Is this our IP?  Are we routing for it?</summary>
     /// <param name="ip">The IP in question.</param>
     protected virtual bool IsLocalIP(MemBlock ip) {
-      return ip.Equals(_local_ip);
+      return ip.Equals(_local_ip) || ip.Equals(IPPacket.ZeroAddress);
     }
 
     /// <summary>Let's see if we can route for an IP.  Default is do

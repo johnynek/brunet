@@ -48,8 +48,6 @@ namespace Ipop.IpopRouter {
     /// <summary>Set to true once we have "joined" the network</summary>
     protected bool _connected;
     /// <summary>We use this to set our L3 network</summary>
-    protected MemBlock _first_ip;
-    protected MemBlock _first_nm;
     protected DHCPConfig _dhcp_config;
 
     public IpopRouter(string NodeConfigPath, string IpopConfigPath) :
@@ -87,16 +85,18 @@ namespace Ipop.IpopRouter {
       if(_ip_to_ether.ContainsKey(ap.TargetProtoAddress) ||
           ap.SenderProtoAddress.Equals(IPPacket.BroadcastAddress) ||
           ap.SenderProtoAddress.Equals(IPPacket.ZeroAddress) ||
-          ap.Operation != ARPPacket.Operations.Request ||
-          _first_ip == null ||
-          _first_nm == null) {
+          ap.Operation != ARPPacket.Operations.Request) {
         return;
       }
-      
+
+      if(_dhcp_config == null && !GetDHCPConfig()) {
+        return;
+      }
+    
       _address_resolver.StartResolve(ap.TargetProtoAddress);
 
-      for(int i = 0; i < _first_ip.Length; i++) {
-        if((_first_ip[i] & _first_nm[i]) != (ap.TargetProtoAddress[i] & _first_nm[i])) {
+      for(int i = 0; i < _local_ip.Length; i++) {
+        if((_local_ip[i] & _netmask[i]) != (ap.TargetProtoAddress[i] & _netmask[i])) {
           return;
         }
       }
@@ -130,7 +130,7 @@ namespace Ipop.IpopRouter {
     /// <summary>Is this our IP?  Are we routing for it?</summary>
     /// <param name="ip">The IP in question.</param>
     protected override bool IsLocalIP(MemBlock ip) {
-      return _ip_to_ether.ContainsKey(ip);
+      return _ip_to_ether.ContainsKey(ip) || ip.Equals(IPPacket.ZeroAddress);
     }
 
     /// <summary>Let's see if we can route for an IP.  Default is do
@@ -147,18 +147,20 @@ namespace Ipop.IpopRouter {
       }
 
       WaitCallback wcb = delegate(object o) {
-        byte[] res_ip = dhcp_server.RequestLease(ip, true,
-            Brunet.Address.ToString(),
-            _ipop_config.AddressData.Hostname);
+
+        byte[] res_ip = null;
+
+        try {
+          res_ip = dhcp_server.RequestLease(ip, true,
+              Brunet.Address.ToString(),
+              _ipop_config.AddressData.Hostname);
+        } catch { }
+
         if(res_ip == null) {
           ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
                 "Request for {0} failed!", Utils.MemBlockToString(ip, '.')));
         } else {
-          MemBlock new_ip = MemBlock.Reference(res_ip);
-          if(!_ether_to_ip.ContainsKey(ether_addr) ||
-              !_ether_to_ip[ether_addr].Equals(new_ip)) {
-            UpdateAddressData(ip, MemBlock.Reference(_dhcp_server.Netmask));
-          }
+          UpdateMapping(ether_addr, MemBlock.Reference(res_ip));
         }
 
         CheckInDHCPServer(dhcp_server);
@@ -176,8 +178,15 @@ namespace Ipop.IpopRouter {
         } catch(Exception e) {
           ProtocolLog.WriteIf(IpopLog.DHCPLog, e.ToString());
         }
+
+        if(success) {
+          byte[] ip = Utils.StringToBytes(_dhcp_config.IPBase, '.');
+          byte[] nm = Utils.StringToBytes(_dhcp_config.Netmask, '.');
+          UpdateAddressData(MemBlock.Reference(ip), MemBlock.Reference(nm));
+        }
         Monitor.Exit(_sync);
       }
+
       return success;
     }
 
@@ -192,7 +201,7 @@ namespace Ipop.IpopRouter {
       }
 
       lock(_checked_out.SyncRoot) {
-        if(!_checked_out.Contains(dhcp_server)) {
+        if(_checked_out.Contains(dhcp_server)) {
           return null;
         }
         _checked_out.Add(dhcp_server, true);
@@ -246,19 +255,7 @@ namespace Ipop.IpopRouter {
 
           /* Check our allocation to see if we're getting a new address */
           MemBlock new_addr = rpacket.yiaddr;
-          MemBlock new_netmask = rpacket.Options[DHCPPacket.OptionTypes.SUBNET_MASK];
-
-          lock(_sync) {
-            if(!_ether_to_ip.ContainsKey(ether_addr) ||
-                !_ether_to_ip[ether_addr].Equals(new_addr)) {
-              UpdateAddressData(ether_addr, new_addr, new_netmask);
-
-              ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
-                "IP Address for {0} changed to {1}.",
-                BitConverter.ToString((byte[]) ether_addr).Replace("-", ":"),
-                Utils.MemBlockToString(new_addr, '.')));
-            }
-          }
+          UpdateMapping(ether_addr, new_addr);
 
           MemBlock destination_ip = ipp.SourceIP;
           if(destination_ip.Equals(IPPacket.ZeroAddress)) {
@@ -285,36 +282,26 @@ namespace Ipop.IpopRouter {
 
     /// <summary>Called when an ethernet address has had its IP address changed
     /// or set for the first time.</summary>
-    protected virtual void UpdateAddressData(MemBlock ether_addr,
-        MemBlock ip_addr, MemBlock netmask)
+    protected virtual void UpdateMapping(MemBlock ether_addr, MemBlock ip_addr)
     {
-      // First IP or did our network change?
-      if(_first_ip == null) {
-        _first_ip = ip_addr;
-        _first_nm = netmask;
-        UpdateAddressData(ip_addr, netmask);
-      } else {
-        bool match = true;
-        for(int i = 0; i < ip_addr.Length; i++) {
-          if((ip_addr[i] & netmask[i]) != (_first_ip[i] & netmask[i])) {
-            match = false;
-            break;
-          }
-        }
-        if(!match) {
-          _first_ip = ip_addr;
-          _first_nm = netmask;
-          UpdateAddressData(ip_addr, netmask);
+      bool new_data = false;
+
+      lock(_sync) {
+        if(!_ether_to_ip.ContainsKey(ether_addr) || 
+            !_ether_to_ip[ether_addr].Equals(ip_addr))
+        {
+          _ether_to_ip[ether_addr] = ip_addr;
+          _ip_to_ether[ip_addr] = ether_addr;
+          new_data = true;
         }
       }
 
-      _ether_to_ip[ether_addr] = ip_addr;
-      _ip_to_ether[ip_addr] = ether_addr;
-    }
-
-    protected override void UpdateAddressData(MemBlock ip, MemBlock netmask)
-    {
-      ((CondorDNS) _dns).UpdatePoolRange(ip, netmask);
+      if(new_data) {
+        ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
+          "IP Address for {0} changed to {1}.",
+          BitConverter.ToString((byte[]) ether_addr).Replace("-", ":"),
+          Utils.MemBlockToString(ip_addr, '.')));
+      }
     }
 
     public static new void Main(String[] args) {

@@ -68,11 +68,15 @@ namespace Ipop.DhtNode {
           return;
         }
 
-        byte[] res_ip = _dhcp_server.RequestLease(ip, true,
-            Brunet.Address.ToString(), 
-            _ipop_config.AddressData.Hostname);
-        if(res_ip != null && MemBlock.Reference(res_ip).Equals(ip)) {
-          UpdateAddressData(ip, MemBlock.Reference(_dhcp_server.Netmask));
+        byte[] res_ip = null;
+        try {
+          res_ip = _dhcp_server.RequestLease(ip, true,
+              Brunet.Address.ToString(), 
+              _ipop_config.AddressData.Hostname);
+        } catch { }
+
+        if(res_ip != null) {
+          UpdateAddressData(MemBlock.Reference(ip), MemBlock.Reference(_dhcp_server.Netmask));
         } else {
           ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
                 "Request for {0} failed!", Utils.MemBlockToString(ip, '.')));
