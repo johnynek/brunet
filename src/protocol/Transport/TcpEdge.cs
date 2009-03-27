@@ -137,9 +137,14 @@ namespace Brunet
         throw new EdgeException(true,
                     String.Format("Packet too long: {0}",plength));
       }
-      //Now we're safe, nothing can go wrong:
+      // 
+      //The length at the beginning:
       NumberSerializer.WriteShort((short)plength, _buffer, _written);
-      _written += (plength + 2);
+      //Also write the length at the end so we can detect a bad packet
+      //as we have seen on planetlab:
+      NumberSerializer.WriteShort((short)plength, _buffer, _written + 2 + plength);
+      //If the buffer did not fill up, we have not yet thrown an exception:
+      _written += (plength + 4);
     }
 
   }
