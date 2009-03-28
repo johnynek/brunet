@@ -284,24 +284,22 @@ namespace Ipop.IpopRouter {
     /// or set for the first time.</summary>
     protected virtual void UpdateMapping(MemBlock ether_addr, MemBlock ip_addr)
     {
-      bool new_data = false;
-
       lock(_sync) {
-        if(!_ether_to_ip.ContainsKey(ether_addr) || 
-            !_ether_to_ip[ether_addr].Equals(ip_addr))
-        {
-          _ether_to_ip[ether_addr] = ip_addr;
-          _ip_to_ether[ip_addr] = ether_addr;
-          new_data = true;
+        if(_ether_to_ip.ContainsKey(ether_addr)) {
+          if(_ether_to_ip[ether_addr].Equals(ip_addr)) {
+            return;
+          }
+          _ip_to_ether.Remove(_ether_to_ip[ether_addr]);
         }
+
+        _ether_to_ip[ether_addr] = ip_addr;
+        _ip_to_ether[ip_addr] = ether_addr;
       }
 
-      if(new_data) {
-        ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
-          "IP Address for {0} changed to {1}.",
-          BitConverter.ToString((byte[]) ether_addr).Replace("-", ":"),
-          Utils.MemBlockToString(ip_addr, '.')));
-      }
+      ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
+        "IP Address for {0} changed to {1}.",
+        BitConverter.ToString((byte[]) ether_addr).Replace("-", ":"),
+        Utils.MemBlockToString(ip_addr, '.')));
     }
 
     public static new void Main(String[] args) {
