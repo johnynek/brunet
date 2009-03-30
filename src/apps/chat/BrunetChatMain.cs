@@ -62,13 +62,6 @@ public class BrunetChatMain
       return _chat_config.BuddyList;
     }
   }
-  
-  /**
-   * Allows us to use the request/reply protocol for chats
-   */
-  protected ReqrepManager _rrman;
-  public ReqrepManager RRMan { get { return _rrman; } }
-  
   /** the brunet node of the chat client.
    */
   private StructuredNode _brunet_node;
@@ -185,17 +178,15 @@ public class BrunetChatMain
    
     _message_sinks = new Hashtable();
     
-    _rrman = new ReqrepManager(_brunet_node);
-    
     _chat_config.DeserializeBuddyList();
-    _rrman.Bind( AHPacket.Protocol.Chat, this.Buddies );
+    this.Buddies.Node = _brunet_node;
     this.Buddies.User = CurrentUser;
     //Handle the chat events locally
     this.Buddies.ChatEvent += this.IncomingChatHandler;
     foreach (Buddy bud in Buddies){
-      if( bud.Address != null ) {
-	bud.RRMan = _rrman;
-	bud.User = CurrentUser;
+      if( bud.Sender != null ) {
+        bud.Node = _brunet_node;
+        bud.User = CurrentUser;
         bud.StatusChanged += this.BuddyChangeHandler;
         _store.AppendValues(bud.Alias, bud.Email, bud.Status);
       }
@@ -205,7 +196,7 @@ public class BrunetChatMain
     string[] tas = _chat_config.RemoteTAs.TAs;
     foreach (string ta in tas)
     {
-      _brunet_node.RemoteTAs.Add(new TransportAddress(ta) );
+      _brunet_node.RemoteTAs.Add(TransportAddressFactory.CreateInstance(ta) );
       //Console.WriteLine(ta);
     }
     _brunet_node.ConnectionTable.ConnectionEvent += this.OnConnectionChange;
@@ -220,18 +211,8 @@ public class BrunetChatMain
   {
     Buddy b = (Buddy)buddy;
     ChatEventArgs cea = (ChatEventArgs)args;
-    Address sourceaddress = cea.Source;
     Brunet.Chat.Message mes = cea.Message;
        
-    bool ismessagefromself = sourceaddress.Equals( BrunetNode.Address );
-       
-    if (true == ismessagefromself)
-    {
-      Console.Error.WriteLine("Message is from myself.");
-      Console.Error.WriteLine("This should never happen.");
-      Console.Error.WriteLine("Throw an exception here.");
-    }
-    else {
       /*
        * We use an anonymous delegate here to handle the threading.
        */
@@ -249,7 +230,6 @@ public class BrunetChatMain
        */
       char bell_char = (char)7;
       System.Console.Write(bell_char);
-    }
   }
   
   public void OnButtonAddBuddyClicked(System.Object obj, EventArgs args) 
@@ -257,7 +237,7 @@ public class BrunetChatMain
     BrunetChatAddBuddy dialog = new BrunetChatAddBuddy();
     dialog.dialogBrunetChatAddBuddy.Run();
     Buddy newbud = dialog.NewBuddy;
-    newbud.RRMan = RRMan;
+    newbud.Node = _brunet_node;
     newbud.User = CurrentUser;
     newbud.StatusChanged += this.BuddyChangeHandler;
     if (newbud != null){
@@ -298,13 +278,12 @@ public class BrunetChatMain
     windowBrunetChatMain.Hide();
     //Console.WriteLine("quit");
     _shutting_down = true;
-    _brunet_node.Disconnect();
-    lock( _brunet_node.ConnectionTable.SyncRoot ) {
-      if( _brunet_node.ConnectionTable.TotalCount == 0 ) {
-        //there are no connections, go ahead and finish
-	Application.Quit();
+    _brunet_node.StateChangeEvent += delegate(Node n, Node.ConnectionState cs) {
+      if( cs == Node.ConnectionState.Disconnected) {
+        Application.Quit();
       }
-    }
+    };
+    _brunet_node.Disconnect();
   }
 
   public void OnConnectionChange(object contab, EventArgs args)

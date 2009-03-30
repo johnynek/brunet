@@ -7,15 +7,26 @@ using System.Xml.Serialization;
 namespace Brunet{
 
 [XmlRootAttribute("BuddyList")]
-public class BuddyList : IRequestHandler
+public class BuddyList : Brunet.IRpcHandler
 {
   private ArrayList buddyArrayList;
+ 
+  protected readonly WriteOnce<Node> _node;
+  [XmlIgnore]
+  public Node Node {
+    get { return _node.Value; }
+    set {
+      _node.Value = value;
+      value.Rpc.AddHandler("example:chat", this);
+    }
+  }
   
   public BuddyList()
   {
+    _node = new WriteOnce<Node>();
     buddyArrayList = new ArrayList();
     _email_to_buddy = new Hashtable();
-    _add_to_buddy = new Hashtable();
+    _add_to_buddy = new Hashtable(); 
   }
 
   [XmlArray(ElementName="Buddies")]
@@ -34,7 +45,7 @@ public class BuddyList : IRequestHandler
       Clear();
       Console.Write("Setting Buddies");
       foreach (Buddy bud in value) {
-	Console.WriteLine("Address: {0} Email: {1}", bud.Address, bud.Email);
+	Console.WriteLine("Address: {0} Email: {1}", bud.Sender.ToUri(), bud.Email);
 	Add(bud);
       }
     }
@@ -62,8 +73,8 @@ public class BuddyList : IRequestHandler
   protected Hashtable _email_to_buddy;
   
   public int Add(Buddy bud){
-    if( !Contains(bud) && (bud.Address != null) ) {
-      _add_to_buddy[ bud.Address ] = bud;
+    if( !Contains(bud) ) {
+      _add_to_buddy[ bud.Sender.ToUri() ] = bud;
       _email_to_buddy[ bud.Email ] = bud;
       return buddyArrayList.Add(bud);
     }
@@ -77,17 +88,15 @@ public class BuddyList : IRequestHandler
 
   public bool Contains(Buddy b)
   {
-    if (b.Address == null ) {
-      return false;
-    }
-    return _add_to_buddy.ContainsKey(b.Address);
+    if( b.Sender == null ) { return false; }
+    return _add_to_buddy.ContainsKey(b.Sender.ToUri());
   }
   /**
    * @return the buddy in the list that has the given Address
    */
-  public Buddy GetBuddyWithAddress(Address a)
+  public Buddy GetBuddyWithSender(ISender a)
   {
-    return (Buddy)_add_to_buddy[a];
+    return (Buddy)_add_to_buddy[a.ToUri()];
   }
 
   public Buddy GetBuddyWithEmail(string email)
@@ -103,60 +112,41 @@ public class BuddyList : IRequestHandler
   {
     return buddyArrayList.GetEnumerator(); 
   }
-
-    /*
-     * This is a request of us.
-     */
-    public void HandleRequest(ReqrepManager man, ReqrepManager.ReqrepType rt,
-		              object req, string prot,
-			      System.IO.MemoryStream payload, AHPacket packet)
-    {
-      /*
-       * Ignore requests from ourselves:
-       */
-      if( packet.Source.Equals( User.Address ) ||
-	  !packet.Destination.Equals( User.Address ) ) {
-	//Ignore these requests
-        return;
-      }
-      XmlReader r = new XmlTextReader(payload);
-      //Here is the Message Handling:
-      XmlSerializer mser = new XmlSerializer(typeof(Brunet.Chat.Message));
-      XmlSerializer pser = new XmlSerializer(typeof(Brunet.Chat.Presence));
-      try {
-       if( mser.CanDeserialize(r) ) {
-        Brunet.Chat.Message mes = (Brunet.Chat.Message)mser.Deserialize(r);
-        EventArgs args = new ChatEventArgs(packet.Source, mes);
-        Buddy b = GetBuddyWithAddress(packet.Source);
-        ChatEvent(b, args);
-	byte[] resp = new byte[1];
-	man.SendReply(req, resp);
-       }
-       else if( pser.CanDeserialize(r) ) {
-        //This is a presence request, handle it:
-        Brunet.Chat.Presence pres = (Brunet.Chat.Presence)pser.Deserialize(r);
-        Buddy b = GetBuddyWithAddress(packet.Source);
-        if( b != null ) {
-          b.Presence = pres; 
-          System.IO.MemoryStream ms = new System.IO.MemoryStream();
-          XmlWriter w = new XmlTextWriter(ms, System.Text.Encoding.UTF8);
-          Brunet.Chat.Presence local_p = new Brunet.Chat.Presence();
-          local_p.From = User.Address.ToString();
-          local_p.To = b.Address.ToString();
-          local_p.Show = User.Show;
-          local_p.Status = User.Status;
-          pser.Serialize(w, local_p);
-          man.SendReply( req, ms.ToArray() ); 
-         }
-         else {
-          //Who is this? as if we are going to reply....
-         }
-       }
-      }
-      catch(System.Xml.XmlException x) {
-        //We couldn't deserialize...
-      }
+ 
+  public void HandleRpc(ISender caller, string method, IList arguments, object request_state) {
+    if( method == "message") {
+      var sr = new System.IO.StringReader((string)arguments[0]);
+      XmlReader r = new XmlTextReader(sr);
+      var mser = new XmlSerializer(typeof(Brunet.Chat.Message));
+      var message = (Brunet.Chat.Message)mser.Deserialize(r);
+      var args = new ChatEventArgs(caller, message);
+      Buddy b = GetBuddyWithSender(caller);
+      ChatEvent(b, args);
+      _node.Value.Rpc.SendResult(request_state, true);
     }
+    else if( method == "presence" ) {
+      Buddy b = GetBuddyWithSender(caller);
+      if (b == null) { throw new Exception("Unknown buddy: " + caller.ToUri()); }
+      //Read the presence information:
+      var sr = new System.IO.StringReader((string)arguments[0]);
+      XmlReader r = new XmlTextReader(sr);
+      var pser = new XmlSerializer(typeof(Brunet.Chat.Presence));
+      Brunet.Chat.Presence pres = (Brunet.Chat.Presence)pser.Deserialize(r);
+      b.Presence = pres; 
+      //Send our response:
+      System.IO.StringWriter sw = new System.IO.StringWriter();
+      var tw = new XmlTextWriter(sw);
+      Brunet.Chat.Presence local_p = new Brunet.Chat.Presence();
+      local_p.Show = User.Show;
+      local_p.Status = User.Status;
+      pser.Serialize(tw, local_p);
+      _node.Value.Rpc.SendResult(request_state, sw.ToString());
+    }
+    else {
+      throw new Exception("Unknown method: " + method);
+    }
+  }
+
     /**
      * When the user changes, this code handles it:
      */
@@ -181,10 +171,10 @@ public class BuddyList : IRequestHandler
         return _message;
       }
     }
-    protected Address _source;
-    public Address Source { get { return _source; } }
+    protected ISender _source;
+    public ISender Source { get { return _source; } }
 
-    public ChatEventArgs(Address source, Brunet.Chat.Message m)
+    public ChatEventArgs(ISender source, Brunet.Chat.Message m)
     {
       _source = source; 
       _message = m;

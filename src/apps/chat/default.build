@@ -103,10 +103,11 @@
       <references>
         <include name="${lib.dir}/${assembly}.dll" />
         <include name="${lib.dir}/log4net.dll" />
-        <include name="${gtk.dir}gtk-sharp.dll" />
-        <include name="${gtk.dir}gdk-sharp.dll" />
-        <include name="${gtk.dir}glade-sharp.dll" />
       </references>
+      <pkg-references>
+         <package name="gtk-sharp-2.0"/>
+         <package name="glade-sharp-2.0"/>
+      </pkg-references>
       <!--
         This is the way we should be able to use pkg-config
 	to get the locations of the dlls we need, however,
