@@ -8,7 +8,7 @@ namespace Brunet{
 /**
  * Represents a Buddy in the Chat client
  */
-public class Buddy : IReplyHandler
+public class Buddy
 {
   private string alias;
   private string email;
@@ -80,40 +80,37 @@ public class Buddy : IReplyHandler
     }
   }
   
-  protected ReqrepManager _rrman;
+  protected Node _node;
   [XmlIgnore]
-  public ReqrepManager RRMan {
+  public Node Node {
     get {
-      return _rrman;
+      return _node;
     }
     set {
-      _rrman = value;
+      _node = value;
     }
   }
   /*
    * The Brunet Address for this Buddy
    */
-  protected Address _add;
-  public Address Address {
+  protected ISender _sender;
+  public ISender Sender {
     get {
-      if( null == _add && Email != "") { 
+      if( null == _sender && Email != "") { 
         SHA1 sha = new SHA1CryptoServiceProvider();  
         byte[] budhashedemail = sha.ComputeHash(Encoding.UTF8.GetBytes(Email));
         //inforce type 0
-        budhashedemail[Address.MemSize - 1] &= 0xFE;
-        _add = new AHAddress(budhashedemail);
+        Address.SetClass(budhashedemail, 0);
+        var addr = AddressParser.Parse(budhashedemail);
+        _sender = new AHExactSender(_node, addr);
       }
-      return _add;
+      return _sender;
     }
   }
   
-  protected System.Collections.Hashtable _requests;
-  protected object _sync;
   
   public Buddy(){
     _status = Brunet.Chat.Presence.TypeValues.Unavailable;
-    _requests = new System.Collections.Hashtable();
-    _sync = new System.Object();
   }
   
   public Buddy(string a_alias,string a_email)
@@ -121,84 +118,8 @@ public class Buddy : IReplyHandler
     Alias = a_alias;
     Email = a_email;
     _status = Brunet.Chat.Presence.TypeValues.Unavailable;
-    _requests = new System.Collections.Hashtable();
-    _sync = new System.Object();
   }
 
-  //Implements IReplyHandler.HandleError
-  public void HandleError(ReqrepManager man, int req_num, ReqrepManager.ReqrepError er,
-                          object state)
-  {
-    /** @todo we should tell the user the message was not delivered */
-    object o = null;
-    lock( _sync ) {
-      o = _requests[req_num]; 
-      _requests.Remove(req_num);
-    }
-    //This buddy had an error, unless it was about Presence, we should check
-    //presence:
-    System.Console.WriteLine("In HandleError with: {0}",o);
-    if( o is Brunet.Chat.Presence ) {
-      //I guess this buddy is offline:
-      Status = Brunet.Chat.Presence.TypeValues.Unavailable;
-    }
-    else {
-      //Looks like a non-presence failure.  Now lets check presence.
-      SendPresence();
-    }
-  }
-  
-  //Here we deal with the reply to our chats.  In fact, the replies
-  //are currently empty and only used so we know that the chat made it
-  //to the recipient
-  public bool HandleReply(ReqrepManager man, ReqrepManager.ReqrepType rt,
-                  int mid, string prot, System.IO.MemoryStream payload,
-                  AHPacket packet, object state)
-  {
-    /**
-     * @todo we may want to add some feedback to the user that the message
-     * was recieved
-     */
-    if( packet.Source.Equals( User.Address ) ) {
-      //Ignore our own replies...
-      return true;
-    }
-    XmlReader r = new XmlTextReader(payload);
-    XmlSerializer mser = new XmlSerializer(typeof(Brunet.Chat.Message));
-    XmlSerializer pser = new XmlSerializer(typeof(Brunet.Chat.Presence));
-    try {
-     if( mser.CanDeserialize(r) ) {
-      //This is a message
-     }
-     else if( pser.CanDeserialize(r) ) {
-      //This is presence (I love presence)
-      /*
-       * This is the reply to our presence message.
-       * We don't need to send a reply to this.
-       */
-      Brunet.Chat.Presence p = (Brunet.Chat.Presence)pser.Deserialize(r);
-      this.Presence = p;
-     }
-    }
-    catch(System.Xml.XmlException x) {
-      //Looks like nothing is in the packet...
-    }
-    /*
-     * We got a response, check to see if this Buddy is not offline
-     */
-    if( Status == Brunet.Chat.Presence.TypeValues.Unavailable ) {
-      //We are getting packets from an offline node, double check:
-      SendPresence();
-    }
-    object o = null;
-    lock( _sync ) {
-      o =_requests[mid]; 
-      _requests.Remove(mid);
-    }
-    //Stop listening for further responses:
-    return false;
-  }
-  
   /**
    * Send a message to this buddy.
    */
@@ -208,45 +129,51 @@ public class Buddy : IReplyHandler
      * Prepare a Message object
      */
     XmlSerializer mser = new XmlSerializer(typeof(Brunet.Chat.Message));
-    System.IO.MemoryStream ms = new System.IO.MemoryStream();
-    XmlWriter w = new XmlTextWriter(ms, System.Text.Encoding.UTF8);
+    System.IO.StringWriter sw = new System.IO.StringWriter();
+    XmlWriter w = new XmlTextWriter(sw);
     Brunet.Chat.Message m = new Brunet.Chat.Message();
     m.Body = sendtext;
     mser.Serialize(w, m);
-    lock( _sync ) {
-      int req_num = RRMan.SendRequest( this.Address,
-                                        ReqrepManager.ReqrepType.Request,
-                                        AHPacket.Protocol.Chat,
-                                        ms.ToArray(),
-                                        this,
-                                        null);
-      _requests[req_num] = m;
-    }
+    Channel results = new Channel(1);
+    results.CloseEvent += delegate(object q, System.EventArgs ce) {
+      if( Status == Brunet.Chat.Presence.TypeValues.Unavailable ) {
+        //We are getting packets from an offline node, double check:
+        SendPresence();
+      }
+    };
+    _node.Rpc.Invoke(Sender, results, "example:chat.message", sw.ToString());
   }
   /**
    * Send and request latest presence info for this Buddy:
    */
   public void SendPresence() {
     XmlSerializer ser = new XmlSerializer(typeof(Brunet.Chat.Presence));
-    System.IO.MemoryStream ms = new System.IO.MemoryStream();
-    XmlWriter w = new XmlTextWriter(ms, System.Text.Encoding.UTF8);
+    System.IO.StringWriter sw = new System.IO.StringWriter();
+    XmlWriter w = new XmlTextWriter(sw);
     Brunet.Chat.Presence p = new Brunet.Chat.Presence();
-    p.From = User.Address.ToString();
-    p.To = Address.ToString();
     p.Show = User.Show;
     if( p.Show == Brunet.Chat.Presence.TypeValues.Unavailable ) {
       p.PresType = Brunet.Chat.Presence.TypeValues.Unavailable;
     }
     p.Status = User.Status;
     ser.Serialize(w, p);
-    lock( _sync ) {
-      int req = RRMan.SendRequest( this.Address, ReqrepManager.ReqrepType.Request,
-                                        AHPacket.Protocol.Chat,
-                                        ms.ToArray(),
-                                        this,
-                                        null);
-      _requests[req] = p;
-    }
+    //Wait for one result:
+    Channel results = new Channel(1);
+    results.CloseEvent += delegate(object q, System.EventArgs args) {
+      try {
+        RpcResult res = results.Dequeue() as RpcResult;
+        string p_str = (string)res.Result;
+        XmlReader r = new XmlTextReader(new System.IO.StringReader(p_str));
+        XmlSerializer pser = new XmlSerializer(typeof(Brunet.Chat.Presence));
+
+        this.Presence = (Brunet.Chat.Presence)pser.Deserialize(r);
+      }
+      catch {
+        //I guess this buddy is offline:
+        Status = Brunet.Chat.Presence.TypeValues.Unavailable;
+      }
+    };
+    _node.Rpc.Invoke(Sender, results, "example:chat.presence", sw.ToString());
   }
 }
 
