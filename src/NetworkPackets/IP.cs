@@ -134,6 +134,8 @@ namespace NetworkPackets {
 
     /// <summary> Enumeration of Protocols used by Ipop.</summary>
     public enum Protocols {
+      /// <summary> Internet Control Message Protocol.</summary>
+      ICMP = 1,
       /// <summary>Internet Group Management Protocol.</summary>
       IGMP = 2,
       /// <summary>Transmission Control Protocol.</summary.

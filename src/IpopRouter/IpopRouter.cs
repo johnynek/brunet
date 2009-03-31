@@ -39,6 +39,7 @@ namespace Ipop.IpopRouter {
   public class IpopRouter: CondorIpopNode {
     protected Dictionary<MemBlock, MemBlock> _ether_to_ip;
     protected Dictionary<MemBlock, MemBlock> _ip_to_ether;
+    protected Dictionary<MemBlock, MemBlock> _pre_dhcp;
     protected Dictionary<MemBlock, DHCPServer> _ether_to_dhcp_server;
     protected DHCPServer _static_dhcp_server;
     /// <summary>A hashtable used to lock operations rather than multiple
@@ -49,6 +50,8 @@ namespace Ipop.IpopRouter {
     protected bool _connected;
     /// <summary>We use this to set our L3 network</summary>
     protected DHCPConfig _dhcp_config;
+    protected DateTime _last_check_node;
+    protected int _lock;
 
     public IpopRouter(string NodeConfigPath, string IpopConfigPath) :
       base(NodeConfigPath, IpopConfigPath)
@@ -56,11 +59,15 @@ namespace Ipop.IpopRouter {
       _ether_to_ip = new Dictionary<MemBlock, MemBlock>();
       _ip_to_ether = new Dictionary<MemBlock, MemBlock>();
       _ether_to_dhcp_server = new Dictionary<MemBlock, DHCPServer>();
+      _pre_dhcp = new Dictionary<MemBlock, MemBlock>();
       _checked_out = new Hashtable();
       _dhcp_server = null;
       _connected = false;
       _sync = new object();
       Brunet.StateChangeEvent += NodeStateChange;
+      Brunet.HeartBeatEvent += CheckNode;
+      _last_check_node = DateTime.UtcNow;
+      _lock = 0;
     }
 
     /// <summary>Called from Brunet to notify us if we've come connected.</summary>
@@ -71,6 +78,26 @@ namespace Ipop.IpopRouter {
       }
     }
 
+    protected void CheckNode(object o, EventArgs ea) {
+      lock(_sync) {
+        if(_dhcp_config == null) {
+          GetDHCPConfig();
+          return;
+        }
+        Brunet.HeartBeatEvent -= CheckNode;
+        return;
+
+        // The rest doesn't quite work right yet...
+        DateTime now = DateTime.UtcNow;
+        if((now - _last_check_node).TotalSeconds < 30) {
+          return;
+        }
+        _last_check_node = now;
+      }
+      CheckNetwork();
+    }
+
+
     /// <summary>Parses ARP Packets and writes to the Ethernet the translation.</summary>
     /// <remarks>IpopRouter makes nodes think they are in the same Layer 2 network
     /// so that two nodes in the same network can communicate directly with each
@@ -79,6 +106,17 @@ namespace Ipop.IpopRouter {
     protected override void HandleARP(MemBlock packet)
     {
       ARPPacket ap = new ARPPacket(packet);
+
+      if(ap.Operation == ARPPacket.Operations.Reply) {
+        // This would be a unsolicited ARP
+        if(ap.TargetProtoAddress.Equals(IPPacket.BroadcastAddress) &&
+            !ap.SenderHWAddress.Equals(EthernetPacket.BroadcastAddress) &&
+            !ap.SenderProtoAddress.Equals(IPPacket.BroadcastAddress))
+        {
+          HandleNewStaticIP(ap.SenderHWAddress, ap.SenderProtoAddress);
+        }
+        return;
+      }
 
       /* Must return nothing if the node is checking availability of IPs */
       /* Or he is looking himself up. */
@@ -89,7 +127,7 @@ namespace Ipop.IpopRouter {
         return;
       }
 
-      if(_dhcp_config == null && !GetDHCPConfig()) {
+      if(_dhcp_config == null) {
         return;
       }
     
@@ -137,8 +175,11 @@ namespace Ipop.IpopRouter {
     /// nothing!</summary>
     /// <param name="ip">The IP in question.</param>
     protected override void HandleNewStaticIP(MemBlock ether_addr, MemBlock ip) {
-      if(_dhcp_config == null && !GetDHCPConfig()) {
-        return;
+      lock(_sync) {
+        if(_dhcp_config == null) {
+          _pre_dhcp[ether_addr] = ip;
+          return;
+        }
       }
 
       DHCPServer dhcp_server = CheckOutDHCPServer(ether_addr);
@@ -169,25 +210,41 @@ namespace Ipop.IpopRouter {
       ThreadPool.QueueUserWorkItem(wcb);
     }
 
-    protected bool GetDHCPConfig() {
-      bool success = false;
-      if(Monitor.TryEnter(_sync)) {
+    protected void GetDHCPConfig() {
+      if(Interlocked.Exchange(ref _lock, 1) == 1) {
+        return;
+      }
+
+      WaitCallback wcb = delegate(object o) {
+        bool success = false;
+        DHCPConfig dhcp_config = null;
         try {
-          _dhcp_config = DhtNode.DhtDHCPServer.GetDHCPConfig(Dht, _ipop_config.IpopNamespace);
+          dhcp_config = DhtNode.DhtDHCPServer.GetDHCPConfig(Dht, _ipop_config.IpopNamespace);
           success = true;
         } catch(Exception e) {
           ProtocolLog.WriteIf(IpopLog.DHCPLog, e.ToString());
         }
 
         if(success) {
-          byte[] ip = Utils.StringToBytes(_dhcp_config.IPBase, '.');
-          byte[] nm = Utils.StringToBytes(_dhcp_config.Netmask, '.');
+          byte[] ip = Utils.StringToBytes(dhcp_config.IPBase, '.');
+          byte[] nm = Utils.StringToBytes(dhcp_config.Netmask, '.');
           UpdateAddressData(MemBlock.Reference(ip), MemBlock.Reference(nm));
+          lock(_sync) {
+            _dhcp_config = dhcp_config;
+            _dhcp_server = new DhtNode.DhtDHCPServer(Dht, _dhcp_config, _ipop_config.EnableMulticast);
+          }
         }
-        Monitor.Exit(_sync);
-      }
 
-      return success;
+        Interlocked.Exchange(ref _lock, 0);
+
+        if(success) {
+          foreach(KeyValuePair<MemBlock, MemBlock> kvp in _pre_dhcp) {
+            HandleNewStaticIP(kvp.Key, kvp.Value);
+          }
+        }
+      };
+
+      ThreadPool.QueueUserWorkItem(wcb);
     }
 
     protected DHCPServer CheckOutDHCPServer(MemBlock ether_addr) {
@@ -235,7 +292,7 @@ namespace Ipop.IpopRouter {
       DHCPPacket dhcp_packet = new DHCPPacket(udpp.Payload);
       MemBlock ether_addr = dhcp_packet.chaddr;
 
-      if(_dhcp_config == null && !GetDHCPConfig()) {
+      if(_dhcp_config == null) {
         return true;
       }
 
@@ -262,7 +319,7 @@ namespace Ipop.IpopRouter {
             destination_ip = IPPacket.BroadcastAddress;
           }
 
-          UDPPacket res_udpp = new UDPPacket(67, 68, rpacket.Packet);
+          UDPPacket res_udpp = new UDPPacket(_dhcp_server_port, _dhcp_client_port, rpacket.Packet);
           IPPacket res_ipp = new IPPacket(IPPacket.Protocols.UDP, rpacket.siaddr,
               destination_ip, res_udpp.ICPacket);
           EthernetPacket res_ep = new EthernetPacket(ether_addr, EthernetPacket.UnicastAddress,

@@ -212,6 +212,10 @@ namespace Ipop.RpcNode {
     public void StartResolve(MemBlock ip) {
     }
 
+    public bool Check(MemBlock ip, Address addr) {
+      return _addr_ip[ip].Equals(ip) && _ip_addr[ip].Equals(addr);
+    }
+
     /// <summary>
     /// This method handles Rpc calls for this object
     /// </summary>

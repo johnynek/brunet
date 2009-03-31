@@ -40,7 +40,7 @@ namespace Ipop.DhtNode {
     /// <summary>A lock synchronizer for the hashtables and cache.</summary>
     protected readonly Object _sync = new Object();
     /// <summary>Holds up to 250 IP:Brunet Address translations.</summary>
-    protected readonly Cache _results = new Cache(250);
+    protected readonly Cache _results = new Cache(1024);
     /// <summary>Contains which IP Address Misses are pending.</summary>
     protected readonly Hashtable _queued = new Hashtable();
     /// <summary>Maps the Channel in MissCallback to an IP.</summary>
@@ -84,6 +84,15 @@ namespace Ipop.DhtNode {
       Resolve(ip);
     }
 
+    public bool Check(MemBlock ip, Address addr) {
+      if(addr.Equals(_results[ip])) {
+        return true;
+      }
+
+      Miss(ip);
+      return false;
+    }
+
     /**
     <summary>This is called if the cache's don't have an Address mapping.  It
     prepares an asynchronous Dht query if one doesn't already exist, that is
@@ -92,39 +101,39 @@ namespace Ipop.DhtNode {
     <param name="ip">The IP Address to look up in the Dht.</param>
     */
     protected void Miss(MemBlock ip) {
+      Channel queue = null;
+
       lock(_sync) {
         if (_queued.Contains(ip)) {
           return;
         }
-        String ips = Utils.MemBlockToString(ip, '.');
 
-        ProtocolLog.WriteIf(IpopLog.ResolverLog, String.Format( "Adding {0} to queue.", ips));
-        /*
-        * If we were already looking up this string, there
-        * would be a table entry, since there is not, start a
-        * new lookup
-        */
-        byte[] key = Encoding.UTF8.GetBytes("dhcp:" + _ipop_namespace + ":" + ips);
-        Channel queue = null;
-        try {
-          queue = new Channel();
-          queue.EnqueueEvent += MissCallback;
-          queue.CloseEvent += MissCallback;
-          _queued[ip] = true;
-          _mapping[queue] = ip;
-          _dht.AsyncGet(key, queue);
+        _queued[ip] = true;
+
+        queue = new Channel();
+        queue.CloseEvent += MissCallback;
+        _mapping[queue] = ip;
+      }
+
+      String ips = Utils.MemBlockToString(ip, '.');
+
+      ProtocolLog.WriteIf(IpopLog.ResolverLog, String.Format( "Adding {0} to queue.", ips));
+      /*
+      * If we were already looking up this string, there
+      * would be a table entry, since there is not, start a
+      * new lookup
+      */
+
+      byte[] key = Encoding.UTF8.GetBytes("dhcp:" + _ipop_namespace + ":" + ips);
+      try {
+        _dht.AsyncGet(key, queue);
+      } catch {
+        queue.CloseEvent -= MissCallback;
+        lock(_sync) {
+          _queued.Remove(ip);
+          _mapping.Remove(queue);
         }
-        catch {
-          queue.EnqueueEvent -= MissCallback;
-          queue.CloseEvent -= MissCallback;
-          if(_queued.Contains(ip)) {
-            _queued.Remove(ip);
-          }
-          if(_mapping.Contains(queue)) {
-            _mapping.Remove(queue);
-          }
-          queue.Close();
-        }
+        queue.Close();
       }
     }
 
@@ -153,7 +162,7 @@ namespace Ipop.DhtNode {
       catch {
         if(IpopLog.ResolverLog.Enabled) {
           ProtocolLog.Write(IpopLog.ResolverLog, String.Format(
-            "Failed for {0}.", ip));
+            "Failed for {0}.", Utils.MemBlockToString(ip, '.')));
         }
       }
       try {

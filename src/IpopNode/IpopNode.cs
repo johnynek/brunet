@@ -87,6 +87,9 @@ namespace Ipop {
 
     protected MemBlock _local_ip;
     protected MemBlock _netmask;
+    protected readonly int _dhcp_server_port;
+    protected readonly int _dhcp_client_port;
+
     /// <summary> Byte array representation for the local IP of this node</summary>
     public MemBlock LocalIP { get { return _local_ip; } }
     /// <summary> Byte array representation for the local IP of this node</summary>
@@ -108,6 +111,10 @@ namespace Ipop {
       this.Brunet = _node;
       _ipop_config_path = IpopConfigPath;
       _ipop_config = LoadConfig();
+
+      _dhcp_server_port = _ipop_config.DHCPPort != 0 ? _ipop_config.DHCPPort : 67;
+      _dhcp_client_port = _dhcp_server_port + 1;
+
       Ethernet = new Ethernet(_ipop_config.VirtualNetworkDevice);
       Ethernet.Subscribe(this, null);
 
@@ -203,19 +210,20 @@ namespace Ipop {
         return;
       }
 
-      if(_translator != null) {
-        Address addr = null;
-        if(ret is SecurityAssociation) {
-          ret = ((SecurityAssociation) ret).Sender;
-        }
+      Address addr = null;
+      if(ret is SecurityAssociation) {
+        ret = ((SecurityAssociation) ret).Sender;
+      }
 
-        if(ret is AHSender) {
-          addr = ((AHSender) ret).Destination;
-        } else {
-          ProtocolLog.Write(IpopLog.PacketLog, String.Format(
-            "Incoming packet was not from an AHSender: {0}.", ret));
-          return;
-        }
+      if(ret is AHSender) {
+        addr = ((AHSender) ret).Destination;
+      } else {
+        ProtocolLog.Write(IpopLog.PacketLog, String.Format(
+          "Incoming packet was not from an AHSender: {0}.", ret));
+        return;
+      }
+
+      if(_translator != null) {
         try {
           packet = _translator.Translate(packet, addr);
         }
@@ -227,8 +235,13 @@ namespace Ipop {
         }
       }
 
+      IPPacket ipp = new IPPacket(packet);
+
+      if(!_address_resolver.Check(ipp.SourceIP, addr)) {
+        return;
+      }
+
       if(IpopLog.PacketLog.Enabled) {
-        IPPacket ipp = new IPPacket(packet);
         ProtocolLog.Write(IpopLog.PacketLog, String.Format(
                           "Incoming packet:: IP src: {0}, IP dst: {1}, p2p " +
                               "from: {2}, size: {3}", ipp.SSourceIP, ipp.SDestinationIP,
@@ -275,7 +288,7 @@ namespace Ipop {
       switch(ipp.Protocol) {
         case IPPacket.Protocols.UDP:
           UDPPacket udpp = new UDPPacket(ipp.Payload);
-          if(udpp.SourcePort == 68 && udpp.DestinationPort == 67) {
+          if(udpp.SourcePort == _dhcp_client_port && udpp.DestinationPort == _dhcp_server_port) {
             if(HandleDHCP(ipp)) {
               return;
             }
@@ -288,6 +301,10 @@ namespace Ipop {
       }
 
       if(HandleOther(ipp)) {
+        return;
+      }
+
+      if(_dhcp_server == null || ipp.DestinationIP.Equals(_dhcp_server.ServerIP)) {
         return;
       }
 
@@ -390,7 +407,7 @@ namespace Ipop {
           destination_ip = ipp.SourceIP;
         }
 
-        UDPPacket res_udpp = new UDPPacket(67, 68, rpacket.Packet);
+        UDPPacket res_udpp = new UDPPacket(_dhcp_server_port, _dhcp_client_port, rpacket.Packet);
         IPPacket res_ipp = new IPPacket(IPPacket.Protocols.UDP,
                                          rpacket.ciaddr, destination_ip,
                                          res_udpp.ICPacket);
@@ -456,6 +473,16 @@ namespace Ipop {
     */
     protected virtual void HandleARP(MemBlock packet) {
       ARPPacket ap = new ARPPacket(packet);
+
+      // This would be a unsolicited ARP
+      if(ap.Operation == ARPPacket.Operations.Reply &&
+          ap.TargetProtoAddress.Equals(IPPacket.BroadcastAddress) &&
+          !ap.SenderHWAddress.Equals(EthernetPacket.BroadcastAddress) &&
+          !ap.SenderProtoAddress.Equals(IPPacket.BroadcastAddress))
+      {
+        HandleNewStaticIP(ap.SenderHWAddress, ap.SenderProtoAddress);
+      }
+
       /* Must return nothing if the node is checking availability of IPs */
       /* Or he is looking himself up. */
       if(ap.TargetProtoAddress.Equals(LocalIP) ||
@@ -474,6 +501,26 @@ namespace Ipop {
         response.ICPacket);
       Ethernet.Send(res_ep.ICPacket);
     }
+
+    /// This doesn't illicit responses yet! :(
+    protected virtual void CheckNode(MemBlock dest_ip) {
+      if(_dhcp_server == null) {
+        return;
+      }
+      MemBlock ether_addr = null;
+      if(dest_ip.Equals(IPPacket.BroadcastAddress)) {
+        ether_addr = EthernetPacket.BroadcastAddress;
+      }
+
+      ICMPPacket icmp = new ICMPPacket(ICMPPacket.Types.EchoRequest);
+      IPPacket ip = new IPPacket(IPPacket.Protocols.ICMP, _dhcp_server.ServerIP, dest_ip, icmp.Packet);
+      EthernetPacket ether = new EthernetPacket(EthernetPacket.BroadcastAddress, EthernetPacket.UnicastAddress, EthernetPacket.Types.IP, ip.ICPacket);
+      Ethernet.Send(ether.ICPacket);
+    }
+
+    protected virtual void CheckNetwork() {
+      CheckNode(IPPacket.BroadcastAddress);
+    }
   }
 
   /**
@@ -489,6 +536,11 @@ namespace Ipop {
     /// <summary>Takes an IP and initiates resolution, i.e. async.</summary>
     /// <param name="ip"> the MemBlock representation of the IP</param>
     void StartResolve(MemBlock ip);
+    /// <summary>Sometimes mappings change or we get packets from a place
+    /// that doesn't map correctly, this checks the mapping, returns false
+    /// if the mapping is currently invalid, but then causes a revalidation
+    /// of the mapping</summary>
+    bool Check(MemBlock ip, Address addr);
   }
 
   /**

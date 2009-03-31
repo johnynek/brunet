@@ -38,6 +38,8 @@ namespace Ipop {
     public bool EnableMulticast;
     /// <summary>Enables End-To-End Security</summary>
     public bool EndToEndSecurity;
+    /// <summary>DHCP base port (67 default)</summary>
+    public int DHCPPort;
 
     /**
     <summary>AddressInfo stores end point mappings depending on the system all
