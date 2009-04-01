@@ -155,6 +155,19 @@ namespace Brunet
       }
    }
 
+    protected class LogAction : IAction {
+      protected readonly Brunet.Util.LFBlockingQueue<IAction> _q;
+      public LogAction(Brunet.Util.LFBlockingQueue<IAction> q) {
+        _q = q;
+      }
+
+      public void Start() {
+        ProtocolLog.Write(
+        ProtocolLog.Monitor, String.Format("I am alive: {0}, packet_queue_length: {1}", 
+                                                            DateTime.UtcNow, _q.Count));
+      }
+    }
+
     /**
      * When we do announces using the seperate thread, this is
      * what we pass
@@ -767,24 +780,19 @@ namespace Brunet
      * There can only safely be one of these threads running
      */
     protected void AnnounceThread() {
-      bool log = ProtocolLog.Monitor.Enabled;
+      Brunet.Util.FuzzyEvent fe = null;
       try {
-        DateTime last_debug = DateTime.UtcNow;
         int millisec_timeout = 5000; //log every 5 seconds.
-        TimeSpan debug_period = new TimeSpan(0,0,0,0,millisec_timeout);
         IAction queue_item = null;
         bool timedout = false;
+        if( ProtocolLog.Monitor.Enabled ) {
+          IAction log_act = new LogAction(_packet_queue);
+          Action<DateTime> log_todo = delegate(DateTime dt) {
+            EnqueueAction(log_act);
+          };
+          fe = Brunet.Util.FuzzyTimer.Instance.DoEvery(log_todo, millisec_timeout, millisec_timeout/2);
+        }
         while( 1 == _running ) {
-          if (log) {
-            DateTime now = DateTime.UtcNow;
-            if (now - last_debug > debug_period) {
-              last_debug = now;
-              int q_len = _packet_queue.Count;
-              ProtocolLog.Write(ProtocolLog.Monitor, String.Format("I am alive: {0}, packet_queue_length: {1}", 
-                                                                   now, q_len));
-            }
-          }
-          // Only peek if we're logging the monitoring of _packet_queue
           queue_item = _packet_queue.Dequeue(millisec_timeout, out timedout);
           if (!timedout) {
             _current_action = queue_item;
@@ -804,6 +812,10 @@ namespace Brunet
       catch(Exception x) {
         ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
         "ERROR: Exception in AnnounceThread: {0}", x));
+      }
+      finally {
+        //Make sure we stop logging:
+        if( fe != null ) { fe.TryCancel(); }
       }
       ProtocolLog.Write(ProtocolLog.Monitor,
                         String.Format("Node: {0} leaving AnnounceThread",
