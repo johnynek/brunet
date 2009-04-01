@@ -338,7 +338,7 @@ namespace Brunet
      * This number should be more thoroughly tested, but my system and dht
      * never surpassed 105.
      */
-    public static readonly int MAX_AVG_QUEUE_LENGTH = 512;
+    public static readonly int MAX_AVG_QUEUE_LENGTH = 4096;
     public static readonly float PACKET_QUEUE_RETAIN = 0.99f;
     public bool DisconnectOnOverload {
       get { return _disconnect_on_overload; }
