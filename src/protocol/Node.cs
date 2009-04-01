@@ -337,11 +337,13 @@ namespace Brunet
 
     //Getting from a BooleanSwitch is strangely very expensive, do it once
     protected bool _LOG;
+    //If we get this big, we just throw an exception, and not enqueue it
+    protected static readonly int MAX_QUEUE_LENGTH = 8192;
     /**
      * This number should be more thoroughly tested, but my system and dht
      * never surpassed 105.
      */
-    public static readonly int MAX_AVG_QUEUE_LENGTH = 512;
+    public static readonly int MAX_AVG_QUEUE_LENGTH = 4096;
     public static readonly float PACKET_QUEUE_RETAIN = 0.99f;
     public bool DisconnectOnOverload {
       get { return _disconnect_on_overload; }
@@ -650,6 +652,16 @@ namespace Brunet
       a.Start();
       return;
 #else
+      int queue_size = _packet_queue.Count;
+      if( queue_size > MAX_QUEUE_LENGTH ) {
+        /*
+         * Disconnect actually assumes the _packet_queue is being processed
+         * if it is not, due to a blocking operation, or deadlock, we could
+         * still be adding things into the queue.  This is here to prevent
+         * a memory explosion
+         */
+        throw new Exception(String.Format("Queue is too long: {0}", queue_size));
+      }
       int count = _packet_queue.Enqueue(a);
       _packet_queue_exp_avg = (PACKET_QUEUE_RETAIN * _packet_queue_exp_avg)
           + ((1 - PACKET_QUEUE_RETAIN) * count);
@@ -663,7 +675,7 @@ namespace Brunet
           catch {}
           ProtocolLog.Write(ProtocolLog.Monitor, String.Format(
             "Packet Queue Average too high: {0} at {1}.  Actual length:  {2}\n\tTop most action: {3}",
-            _packet_queue_exp_avg, DateTime.UtcNow, _packet_queue.Count, top_string));
+            _packet_queue_exp_avg, DateTime.UtcNow, count, top_string));
         }
         if(_disconnect_on_overload) {
           Disconnect();
