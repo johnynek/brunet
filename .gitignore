@@ -1,0 +1,6 @@
+*.dll
+*.exe
+BootGraph*
+basicnode.zip
+build/
+tests/protocol/err
