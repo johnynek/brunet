@@ -46,8 +46,6 @@ namespace Ipop.IpopRouter {
     /// locks.</summary>
     protected Hashtable _checked_out;
     protected object _sync;
-    /// <summary>Set to true once we have "joined" the network</summary>
-    protected bool _connected;
     /// <summary>We use this to set our L3 network</summary>
     protected DHCPConfig _dhcp_config;
     protected DateTime _last_check_node;
@@ -62,20 +60,10 @@ namespace Ipop.IpopRouter {
       _pre_dhcp = new Dictionary<MemBlock, MemBlock>();
       _checked_out = new Hashtable();
       _dhcp_server = null;
-      _connected = false;
       _sync = new object();
-      Brunet.StateChangeEvent += NodeStateChange;
       Brunet.HeartBeatEvent += CheckNode;
       _last_check_node = DateTime.UtcNow;
       _lock = 0;
-    }
-
-    /// <summary>Called from Brunet to notify us if we've come connected.</summary>
-    protected void NodeStateChange(Node n, Node.ConnectionState state)
-    {
-      if(state == Node.ConnectionState.Connected) {
-        _connected = true;
-      }
     }
 
     protected void CheckNode(object o, EventArgs ea) {
@@ -84,8 +72,6 @@ namespace Ipop.IpopRouter {
           GetDHCPConfig();
           return;
         }
-        Brunet.HeartBeatEvent -= CheckNode;
-        return;
 
         // The rest doesn't quite work right yet...
         DateTime now = DateTime.UtcNow;
@@ -105,38 +91,51 @@ namespace Ipop.IpopRouter {
     /// <param name="ep">The Ethernet packet to translate</param>
     protected override void HandleARP(MemBlock packet)
     {
+      // Can't do anything until we have network connectivity!
+      if(_dhcp_server == null) {
+        return;
+      }
+
       ARPPacket ap = new ARPPacket(packet);
 
       if(ap.Operation == ARPPacket.Operations.Reply) {
         // This would be a unsolicited ARP
         if(ap.TargetProtoAddress.Equals(IPPacket.BroadcastAddress) &&
             !ap.SenderHWAddress.Equals(EthernetPacket.BroadcastAddress) &&
-            !ap.SenderProtoAddress.Equals(IPPacket.BroadcastAddress))
+            !ap.SenderProtoAddress.Equals(IPPacket.BroadcastAddress) &&
+            _dhcp_server.IPInRange((byte[]) ap.SenderProtoAddress))
         {
           HandleNewStaticIP(ap.SenderHWAddress, ap.SenderProtoAddress);
         }
         return;
       }
 
-      /* Must return nothing if the node is checking availability of IPs */
-      /* Or he is looking himself up. */
+      // We only support request operation hereafter
+      if(ap.Operation != ARPPacket.Operations.Request) {
+        return;
+      }
+
+      // Must return nothing if the node is checking availability of IPs
+      // Or he is looking himself up.
       if(_ip_to_ether.ContainsKey(ap.TargetProtoAddress) ||
           ap.SenderProtoAddress.Equals(IPPacket.BroadcastAddress) ||
-          ap.SenderProtoAddress.Equals(IPPacket.ZeroAddress) ||
-          ap.Operation != ARPPacket.Operations.Request) {
+          ap.SenderProtoAddress.Equals(IPPacket.ZeroAddress))
+      {
         return;
       }
 
-      if(_dhcp_config == null) {
+      // Not in our range!
+      if(!_dhcp_server.IPInRange((byte[]) ap.TargetProtoAddress)) {
         return;
       }
-    
-      _address_resolver.StartResolve(ap.TargetProtoAddress);
 
-      for(int i = 0; i < _local_ip.Length; i++) {
-        if((_local_ip[i] & _netmask[i]) != (ap.TargetProtoAddress[i] & _netmask[i])) {
-          return;
-        }
+      // We shouldn't be returning these messages if no one exists at that end
+      // point
+      if(!ap.TargetProtoAddress.Equals(MemBlock.Reference(_dhcp_server.ServerIP)) && (
+            _address_resolver.Resolve(ap.TargetProtoAddress) == null ||
+            _address_resolver.Resolve(ap.TargetProtoAddress) == Brunet.Address))
+      {
+        return;
       }
 
       ARPPacket response = ap.Respond(EthernetPacket.UnicastAddress);
@@ -210,6 +209,8 @@ namespace Ipop.IpopRouter {
       ThreadPool.QueueUserWorkItem(wcb);
     }
 
+    /// <summary>We need to get the DHCPConfig as soon as possible so that we
+    /// can allocate static addresses, this method helps us do that.</summary>
     protected void GetDHCPConfig() {
       if(Interlocked.Exchange(ref _lock, 1) == 1) {
         return;
@@ -247,6 +248,9 @@ namespace Ipop.IpopRouter {
       ThreadPool.QueueUserWorkItem(wcb);
     }
 
+    /// <summary>Static addresses are handled nearly identically to dynamic, so
+    /// we use one shared method to pull a dhcp server from the list of dhcp
+    /// servers.  We only want one request per Ethernet / IP at a time.</summary>
     protected DHCPServer CheckOutDHCPServer(MemBlock ether_addr) {
       DHCPServer dhcp_server = null;
 
@@ -267,6 +271,8 @@ namespace Ipop.IpopRouter {
       return dhcp_server;
     }
 
+    /// <summary>The request on the IP allocation space (DHT) has returned.  So
+    /// we're done with the server.</summary>
     protected void CheckInDHCPServer(DHCPServer dhcp_server) {
       lock(_checked_out.SyncRoot) {
         _checked_out.Remove(dhcp_server);
@@ -284,10 +290,6 @@ namespace Ipop.IpopRouter {
     /// <returns> true on if dhcp is supported.</returns>
     protected override bool HandleDHCP(IPPacket ipp)
     {
-      if(!_connected) {
-        return true;
-      }
-
       UDPPacket udpp = new UDPPacket(ipp.Payload);
       DHCPPacket dhcp_packet = new DHCPPacket(udpp.Payload);
       MemBlock ether_addr = dhcp_packet.chaddr;
@@ -346,7 +348,9 @@ namespace Ipop.IpopRouter {
           if(_ether_to_ip[ether_addr].Equals(ip_addr)) {
             return;
           }
-          _ip_to_ether.Remove(_ether_to_ip[ether_addr]);
+
+          MemBlock old_ip = _ether_to_ip[ether_addr];
+          _ip_to_ether.Remove(old_ip);
         }
 
         _ether_to_ip[ether_addr] = ip_addr;
@@ -357,6 +361,34 @@ namespace Ipop.IpopRouter {
         "IP Address for {0} changed to {1}.",
         BitConverter.ToString((byte[]) ether_addr).Replace("-", ":"),
         Utils.MemBlockToString(ip_addr, '.')));
+    }
+
+    ///<summary>This sends an ICMP Request to the specified address, we want
+    ///him to respond to us, so we can guarantee that by pretending to be the
+    ///Server (i.e. x.y.z.1).  We'll get a response in our main thread.</summary>
+    ///<param name="dest_ip">Destination IP of our request.</summary>
+    protected virtual void SendICMPRequest(MemBlock dest_ip) {
+      if(_dhcp_server == null) {
+        return;
+      }
+      MemBlock ether_addr = null;
+      if(dest_ip.Equals(IPPacket.BroadcastAddress)) {
+        ether_addr = EthernetPacket.BroadcastAddress;
+      }
+
+      ICMPPacket icmp = new ICMPPacket(ICMPPacket.Types.EchoRequest);
+      IPPacket ip = new IPPacket(IPPacket.Protocols.ICMP, _dhcp_server.ServerIP,
+          dest_ip, icmp.Packet);
+      EthernetPacket ether = new EthernetPacket(EthernetPacket.BroadcastAddress,
+          EthernetPacket.UnicastAddress, EthernetPacket.Types.IP, ip.ICPacket);
+      Ethernet.Send(ether.ICPacket);
+    }
+
+    ///<summary>This let's us discover all machines in our subnet if and
+    ///only if they allow responding to broadcast ICMP Requests, which for
+    ///some reason doesn't seem to be defaulted in my Linux machines!</summary>
+    protected virtual void CheckNetwork() {
+      SendICMPRequest(MemBlock.Reference(_dhcp_server.Broadcast));
     }
 
     public static new void Main(String[] args) {

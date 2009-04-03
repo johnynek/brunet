@@ -57,6 +57,8 @@ namespace Ipop {
   </remarks>
 
   <summary>IP over P2P base class.</summary>
+  @deprecated please [look at IpopRouter, that will soon become an abstract
+  class and should be used as the basis for your code]
  */
   public abstract class IpopNode: BasicNode, IDataHandler {
     /// <summary>The IpopConfig for this IpopNode</summary>
@@ -472,27 +474,52 @@ namespace Ipop {
     <param name="packet">The Ethernet packet to translate</param>
     */
     protected virtual void HandleARP(MemBlock packet) {
+      // Can't do anything until we have network connectivity!
+      if(_dhcp_server == null) {
+        return;
+      }
+
       ARPPacket ap = new ARPPacket(packet);
 
+      if(ap.Operation == ARPPacket.Operations.Reply) {
       // This would be a unsolicited ARP
-      if(ap.Operation == ARPPacket.Operations.Reply &&
-          ap.TargetProtoAddress.Equals(IPPacket.BroadcastAddress) &&
-          !ap.SenderHWAddress.Equals(EthernetPacket.BroadcastAddress) &&
-          !ap.SenderProtoAddress.Equals(IPPacket.BroadcastAddress))
+        if(ap.TargetProtoAddress.Equals(IPPacket.BroadcastAddress) &&
+            !ap.SenderHWAddress.Equals(EthernetPacket.BroadcastAddress) &&
+            !ap.SenderProtoAddress.Equals(IPPacket.BroadcastAddress) &&
+            _dhcp_server.IPInRange((byte[]) ap.SenderProtoAddress))
+        {
+          HandleNewStaticIP(ap.SenderHWAddress, ap.SenderProtoAddress);
+        }
+        return;
+      }
+
+      // We only support request operation hereafter
+      if(ap.Operation != ARPPacket.Operations.Request) {
+        return;
+      }
+
+      // Not in our range!
+      if(!_dhcp_server.IPInRange((byte[]) ap.TargetProtoAddress)) {
+        return;
+      }
+
+      // We shouldn't be returning these messages if no one exists at that end
+      // point
+      if(!_dhcp_server.ServerIP.Equals(ap.TargetProtoAddress) && (
+            _address_resolver.Resolve(ap.TargetProtoAddress) == null ||
+            _address_resolver.Resolve(ap.TargetProtoAddress) == Brunet.Address))
       {
-        HandleNewStaticIP(ap.SenderHWAddress, ap.SenderProtoAddress);
+        return;
       }
 
       /* Must return nothing if the node is checking availability of IPs */
       /* Or he is looking himself up. */
       if(ap.TargetProtoAddress.Equals(LocalIP) ||
           ap.SenderProtoAddress.Equals(IPPacket.BroadcastAddress) ||
-          ap.SenderProtoAddress.Equals(IPPacket.ZeroAddress) ||
-          ap.Operation != ARPPacket.Operations.Request) {
+          ap.SenderProtoAddress.Equals(IPPacket.ZeroAddress)) 
+      {
         return;
       }
-
-      _address_resolver.StartResolve(ap.TargetProtoAddress);
 
       ARPPacket response = ap.Respond(EthernetPacket.UnicastAddress);
 
@@ -500,26 +527,6 @@ namespace Ipop {
         EthernetPacket.UnicastAddress, EthernetPacket.Types.ARP,
         response.ICPacket);
       Ethernet.Send(res_ep.ICPacket);
-    }
-
-    /// This doesn't illicit responses yet! :(
-    protected virtual void CheckNode(MemBlock dest_ip) {
-      if(_dhcp_server == null) {
-        return;
-      }
-      MemBlock ether_addr = null;
-      if(dest_ip.Equals(IPPacket.BroadcastAddress)) {
-        ether_addr = EthernetPacket.BroadcastAddress;
-      }
-
-      ICMPPacket icmp = new ICMPPacket(ICMPPacket.Types.EchoRequest);
-      IPPacket ip = new IPPacket(IPPacket.Protocols.ICMP, _dhcp_server.ServerIP, dest_ip, icmp.Packet);
-      EthernetPacket ether = new EthernetPacket(EthernetPacket.BroadcastAddress, EthernetPacket.UnicastAddress, EthernetPacket.Types.IP, ip.ICPacket);
-      Ethernet.Send(ether.ICPacket);
-    }
-
-    protected virtual void CheckNetwork() {
-      CheckNode(IPPacket.BroadcastAddress);
     }
   }
 
@@ -533,9 +540,6 @@ namespace Ipop {
     /// <param name="ip"> the MemBlock representation of the IP</param>
     /// <returns>translated Brunet.Address</returns>
     Address Resolve(MemBlock ip);
-    /// <summary>Takes an IP and initiates resolution, i.e. async.</summary>
-    /// <param name="ip"> the MemBlock representation of the IP</param>
-    void StartResolve(MemBlock ip);
     /// <summary>Sometimes mappings change or we get packets from a place
     /// that doesn't map correctly, this checks the mapping, returns false
     /// if the mapping is currently invalid, but then causes a revalidation

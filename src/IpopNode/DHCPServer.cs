@@ -154,11 +154,8 @@ namespace Ipop {
     /// <summary>Makes sure that an IP Address is valid.</summary>
     /// <param name="ip">Checks to see if an IP Address is valid.</param>
     public bool ValidIP(byte [] ip) {
-      // Check range
-      for(int i = 0; i < ip.Length; i++) {
-        if((ip[i] & Netmask[i]) != BaseIP[i]) {
-          return false;
-        }
+      if(!IPInRange(ip)) {
+        return false;
       }
 
       // Check Reserved
@@ -169,6 +166,16 @@ namespace Ipop {
           } else if(j == _reserved_ips[i].Length - 1) {
             return false;
           }
+        }
+      }
+      return true;
+    }
+
+    // Check range
+    public bool IPInRange(byte[] ip) {
+      for(int i = 0; i < ip.Length; i++) {
+        if((ip[i] & Netmask[i]) != BaseIP[i]) {
+          return false;
         }
       }
       return true;

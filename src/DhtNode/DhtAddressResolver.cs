@@ -78,12 +78,9 @@ namespace Ipop.DhtNode {
       return addr;
     }
 
-    /// <summary>Takes an IP and initiates resolution, i.e. async.</summary>
-    /// <param name="ip"> the MemBlock representation of the IP</param>
-    public void StartResolve(MemBlock ip) {
-      Resolve(ip);
-    }
-
+    /// <summary>Is the right person sending me this packet?</summary>
+    /// <param name="ip">The IP source.</param>
+    /// <param name="addr">The Brunet.Address source.</summary>
     public bool Check(MemBlock ip, Address addr) {
       if(addr.Equals(_results[ip])) {
         return true;
