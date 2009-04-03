@@ -80,7 +80,7 @@ namespace Ipop.IpopRouter {
         }
         _last_check_node = now;
       }
-      CheckNetwork();
+      ThreadPool.QueueUserWorkItem(CheckNetwork);
     }
 
 
@@ -387,7 +387,7 @@ namespace Ipop.IpopRouter {
     ///<summary>This let's us discover all machines in our subnet if and
     ///only if they allow responding to broadcast ICMP Requests, which for
     ///some reason doesn't seem to be defaulted in my Linux machines!</summary>
-    protected virtual void CheckNetwork() {
+    protected virtual void CheckNetwork(object o) {
       SendICMPRequest(MemBlock.Reference(_dhcp_server.Broadcast));
     }
 
