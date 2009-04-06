@@ -211,10 +211,12 @@ public class FuzzyTimer : IDisposable {
    * @param latency_ms the acceptable latency for this call in milliseconds
    */
   public RepeatingFuzzyEvent DoEvery(System.Action<DateTime> todo, int period_ms, int latency_ms) {
-    DateTime start = DateTime.UtcNow + new TimeSpan(0,0,0,0,period_ms);
+    TimeSpan waitinterval = new TimeSpan(0,0,0,0,period_ms);
     TimeSpan lat = new TimeSpan(0,0,0,0,latency_ms);
+    
+    DateTime start = DateTime.UtcNow + waitinterval;
     DateTime end = start + lat;
-    RepeatingFuzzyEvent new_event = new RepeatingFuzzyEvent(todo, start, end, lat);
+    RepeatingFuzzyEvent new_event = new RepeatingFuzzyEvent(todo, start, end, waitinterval);
     Schedule(new_event);
     return new_event;
   }
@@ -277,11 +279,41 @@ public class FuzzyTimer : IDisposable {
         if( events.Count > 0 ) {
           overlap = events.Peek();
           if( next_schedule_int != null ) {
-            overlap = next_schedule_int.Intersection(overlap);
+            //We already have something scheduled:
+            var new_overlap = next_schedule_int.Intersection(overlap);
+            if( new_overlap == null ) {
+              if( overlap.CompareTo( next_schedule_int ) <= 0 ) {
+              /*
+               * If there is no overlap, but next_schedule_int is after,
+               * overlap, we need to reorder things:
+               */
+                //Put the next_todos back:
+                var new_next = events.Pop();
+                foreach(FuzzyEvent fev in next_todos) {
+                  events.Add(fev); 
+                }
+                next_todos.Clear();
+                next_todos.Add( new_next );
+                next_schedule_int = new_next;
+                overlap = new_next;
+              }
+              else {
+                //we'll deal with overlap later:
+                overlap = null;
+              }
+            }
+            else {
+              //There is an overlap
+              //We can combine the old and new event:
+              overlap = new_overlap;
+              next_schedule_int = overlap;
+              next_todos.Add( events.Pop() );
+            }
           }
-          if( overlap != null ) {
-            next_todos.Add( events.Pop() );
+          else {
+            //There was nothing scheduled:
             next_schedule_int = overlap;
+            next_todos.Add( events.Pop() );
           }
         }
         else {
@@ -321,25 +353,25 @@ public class FuzzyTimerTest {
     int TESTS = 1000;
     int MAX_WAIT = 5000;
     int MAX_LAT = 500;
-    List<TimeSpan> deltas = new List<TimeSpan>();
+    List<double> deltas = new List<double>();
     for(int i = 0; i < TESTS; i++) {
-      int when = r.Next(0, MAX_WAIT); //Random time in next 5 seconds;
-      int lat = r.Next(0,MAX_LAT); //Random interval;
+      int when = r.Next(1, MAX_WAIT); //Random time in next 5 seconds;
+      int lat = r.Next(1,MAX_LAT); //Random interval;
       DateTime now = DateTime.UtcNow;
       DateTime when_dt = now + TimeSpan.FromMilliseconds(when);
       System.Action<DateTime> rt = delegate(DateTime d) {
         lock(deltas) {
           //Record the difference of when we should run
-          deltas.Add(d - when_dt);
+          deltas.Add(System.Math.Abs((d - when_dt).TotalMilliseconds)/((double)(lat)));
         }
       };
       ft.DoAfter(rt, when, lat);
     }
-    Thread.Sleep(2 * MAX_WAIT);
+    Thread.Sleep(3 * MAX_WAIT);
     //Make sure things are good:
     Assert.IsTrue(deltas.Count == TESTS, "Everybody ran");
-    foreach(TimeSpan ts in deltas) {
-     Assert.IsTrue(System.Math.Abs(ts.TotalMilliseconds) < 10 * MAX_LAT, String.Format("Latency too long: {0}",ts)); 
+    foreach(double err in deltas) {
+     Assert.IsTrue( err < 2.0, String.Format("Latency too long: {0}",err)); 
     }
   }
 
