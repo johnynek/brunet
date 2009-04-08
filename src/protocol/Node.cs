@@ -127,8 +127,11 @@ namespace Brunet
         /* Initialize this at 15 seconds */
         _connection_timeout = new TimeSpan(0,0,0,0,15000);
         //Check the edges from time to time
-        this.HeartBeatEvent += new EventHandler(this.CheckEdgesCallback);
         _last_edge_check = DateTime.UtcNow;
+        IAction cec_act = new HeartBeatAction(this, this.CheckEdgesCallback);
+        Brunet.Util.FuzzyTimer.Instance.DoEvery(delegate(DateTime dt) {
+          this.EnqueueAction(cec_act);
+        }, 15000, 1000);
       }
     }
  //////////////
@@ -478,9 +481,10 @@ namespace Brunet
     ///after each HeartPeriod, the HeartBeat event is fired
     public event EventHandler HeartBeatEvent {
       add {
+        IAction hba = new HeartBeatAction(this, value);
         Action<DateTime> torun = delegate(DateTime now) {
           //Execute the code in the node's thread
-          this.EnqueueAction(new HeartBeatAction(this, value));
+          this.EnqueueAction(hba);
         };
         //every period +/- half a period, run this event
         var fe = Brunet.Util.FuzzyTimer.Instance.DoEvery(torun, _heart_period, _heart_period / 2 + 1);
