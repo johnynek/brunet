@@ -177,7 +177,12 @@ namespace Ipop.DhtNode {
 
       XmlSerializer serializer = new XmlSerializer(typeof(DHCPConfig));
       TextReader stringReader = new StringReader(result);
-      return (DHCPConfig) serializer.Deserialize(stringReader);
+      DHCPConfig dhcp_config = (DHCPConfig) serializer.Deserialize(stringReader);
+      if(!ipop_namespace.Equals(dhcp_config.Namespace)) {
+        throw new Exception(String.Format("Namespace mismatch, expected {0}, got {1}",
+              ipop_namespace, dhcp_config.Namespace));
+      }
+      return dhcp_config;
     }
   }
 }
