@@ -402,7 +402,7 @@ namespace Ipop.IpopRouter {
       ICMPPacket icmp = new ICMPPacket(ICMPPacket.Types.EchoRequest);
       IPPacket ip = new IPPacket(IPPacket.Protocols.ICMP, _dhcp_server.ServerIP,
           dest_ip, icmp.Packet);
-      EthernetPacket ether = new EthernetPacket(EthernetPacket.BroadcastAddress,
+      EthernetPacket ether = new EthernetPacket(ether_addr,
           EthernetPacket.UnicastAddress, EthernetPacket.Types.IP, ip.ICPacket);
       Ethernet.Send(ether.ICPacket);
     }
