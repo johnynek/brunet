@@ -48,7 +48,7 @@ namespace Brunet.Applications {
       try {
         _node_config = Utils.ReadConfig<NodeConfig>(path);
       }
-      catch (Exception e){
+      catch (Exception){
         Console.WriteLine("Invalid or missing configuration file.");
         Environment.Exit(1);
       }
@@ -68,13 +68,6 @@ namespace Brunet.Applications {
     the nodes, and call Connect on them in separate threads.</summary>
     */
     public override void Run() {
-      string tmp_addr = null;
-      if(_node_config.NodeAddress != null) {
-        tmp_addr = _node_config.NodeAddress;
-      } else {
-        tmp_addr = (Utils.GenerateAHAddress()).ToString();
-      }
-
       _shutdown = Shutdown.GetShutdown();
       _shutdown.OnExit += OnExit;
 
