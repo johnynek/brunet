@@ -39,48 +39,50 @@ namespace NetworkPackets {
    */
   public class EthernetPacket: NetworkPacket {
     /// <summary>The address where the Ethernet packet is going</summary>
-  public readonly MemBlock DestinationAddress;
+    public readonly MemBlock DestinationAddress;
     /// <summary>The address where the Ethernet packet originated</summary>
-  public readonly MemBlock SourceAddress;
-    /**  <summary>This enumeration holds the types of Ethernet packets, listed
-  are only the types, Ipop is interested in.</summary>
-     */
-  public enum Types {
+    public readonly MemBlock SourceAddress;
+    /// <summary>This enumeration holds the types of Ethernet packets, listed
+    /// are only the types, Ipop is interested in.</summary>
+    public enum Types {
       /// <summary>Payload is an IP Packet</summary>
-    IP = 0x800,
+      IP = 0x800,
       /// <summary>Payload is an ARP Packet</summary>
-    ARP = 0x806
-  }
+      ARP = 0x806
+    }
+
     /// <summary>The type for the Ethernet payload</summary>
-  public readonly Types Type;
+    public readonly Types Type;
     /// <summary>The default unicast address</summary>
-  public static readonly MemBlock UnicastAddress = MemBlock.Reference(
-      new byte[]{0xFE, 0xFD, 0, 0, 0, 0});
+    public static readonly MemBlock UnicastAddress;
     /// <summary>The default broadcast (multicast) address</summary>
-  public static readonly MemBlock BroadcastAddress = MemBlock.Reference(
-      new byte[]{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
+    public static readonly MemBlock BroadcastAddress = MemBlock.Reference(
+        new byte[]{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF});
 
-    /**
-  <summary>This parses a MemBlock into the Ethernet fields</summary>
-  <param name="Packet">The Ethernet packet</param>
-     */
-  public EthernetPacket(MemBlock Packet) {
-    _icpacket = _packet = Packet;
-    DestinationAddress = Packet.Slice(0, 6);
-    SourceAddress = Packet.Slice(6, 6);
-    Type = (Types) ((Packet[12] << 8) | Packet[13]);
-    _icpayload = _payload = Packet.Slice(14);
-  }
+    static EthernetPacket() {
+      Random _rand = new Random();
+      byte[] unicast = new byte[6];
+      _rand.NextBytes(unicast);
+      unicast[0] = 0xFE;
+      UnicastAddress = MemBlock.Reference(unicast);
+    }
 
-    /**
-  <summary>Creates an Ethernet Packet from Ethernet fields and the 
-  payload</summary>
-  <param name="DestinationAddress">Where the Ethernet packet is going.</param>
-  <param name="SourceAddress">Where the Ethernet packet originated.</param>
-  <param name="Type">Type of Ethernet payload.</param>
-  <param name="Payload">Payload as an ICopyable</param>
-     */
-  public EthernetPacket(MemBlock DestinationAddress, MemBlock SourceAddress,
+    /// <summary>This parses a MemBlock into the Ethernet fields</summary>
+    ///  <param name="Packet">The Ethernet packet</param>
+    public EthernetPacket(MemBlock Packet) {
+      _icpacket = _packet = Packet;
+      DestinationAddress = Packet.Slice(0, 6);
+      SourceAddress = Packet.Slice(6, 6);
+      Type = (Types) ((Packet[12] << 8) | Packet[13]);
+      _icpayload = _payload = Packet.Slice(14);
+    }
+
+    /// <summary>Creates an Ethernet Packet from Ethernet fields and the payload</summary>
+    /// <param name="DestinationAddress">Where the Ethernet packet is going.</param>
+    /// <param name="SourceAddress">Where the Ethernet packet originated.</param>
+    /// <param name="Type">Type of Ethernet payload.</param>
+    /// <param name="Payload">Payload as an ICopyable</param>
+    public EthernetPacket(MemBlock DestinationAddress, MemBlock SourceAddress,
                         Types Type, ICopyable Payload) {
       byte[] header = new byte[14];
       for(int i = 0; i < 6; i++) {

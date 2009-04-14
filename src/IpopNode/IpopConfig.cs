@@ -40,6 +40,8 @@ namespace Ipop {
     public bool EndToEndSecurity;
     /// <summary>DHCP base port (67 default)</summary>
     public int DHCPPort;
+    /// <summary>Allow static addresses</summary>
+    public bool AllowStaticAddresses;
 
     /**
     <summary>AddressInfo stores end point mappings depending on the system all

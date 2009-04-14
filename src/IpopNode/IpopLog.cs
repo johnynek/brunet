@@ -37,5 +37,8 @@ namespace Ipop {
     /// <summary>Prints DNS information.</summary>
     public static BooleanSwitch DNS =
         new BooleanSwitch("DNS", "All about DNS");
+    /// <summary>Prints ARP information.</summary>
+    public static BooleanSwitch ARP =
+        new BooleanSwitch("ARP", "All about ARP");
   }
 }

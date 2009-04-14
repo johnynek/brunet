@@ -84,7 +84,11 @@ namespace Ipop.DhtNode {
       int renew_attempts = max_renew_attempts;
       int attempts = 2;
 
-      if(Renew && ValidIP(RequestedAddr)) {
+      if(Renew) {
+        if(!ValidIP(RequestedAddr)) {
+          throw new Exception("Invalid requested address: " +
+              Utils.BytesToString(RequestedAddr, '.'));
+        }
         MemBlock request_addr = MemBlock.Reference(RequestedAddr);
         renew_attempts = 2;
         attempts = 1;

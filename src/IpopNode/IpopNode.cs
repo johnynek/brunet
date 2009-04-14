@@ -114,8 +114,10 @@ namespace Ipop {
       _ipop_config_path = IpopConfigPath;
       _ipop_config = LoadConfig();
 
-      _dhcp_server_port = _ipop_config.DHCPPort != 0 ? _ipop_config.DHCPPort : 67;
-      _dhcp_client_port = _dhcp_server_port + 1;
+      _dhcp_client_port = _ipop_config.DHCPPort != 0 ? _ipop_config.DHCPPort : 68;
+      _dhcp_server_port = _dhcp_client_port - 1;
+      ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
+          "Setting DHCP Ports to: {0},{1}", _dhcp_server_port, _dhcp_client_port));
 
       Ethernet = new Ethernet(_ipop_config.VirtualNetworkDevice);
       Ethernet.Subscribe(this, null);

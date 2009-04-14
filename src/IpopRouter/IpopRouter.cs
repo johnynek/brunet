@@ -98,12 +98,21 @@ namespace Ipop.IpopRouter {
 
       ARPPacket ap = new ARPPacket(packet);
 
+      // Not in our range!
+      if(!_dhcp_server.IPInRange((byte[]) ap.TargetProtoAddress) &&
+          !_dhcp_server.IPInRange((byte[]) ap.SenderProtoAddress))
+      {
+        ProtocolLog.WriteIf(IpopLog.ARP, String.Format("Bad ARP request from {0} for {1}",
+            Utils.MemBlockToString(ap.SenderProtoAddress, '.'),
+            Utils.MemBlockToString(ap.TargetProtoAddress, '.')));
+        return;
+      }
+
+
       if(ap.Operation == ARPPacket.Operations.Reply) {
         // This would be a unsolicited ARP
         if(ap.TargetProtoAddress.Equals(IPPacket.BroadcastAddress) &&
-            !ap.SenderHWAddress.Equals(EthernetPacket.BroadcastAddress) &&
-            !ap.SenderProtoAddress.Equals(IPPacket.BroadcastAddress) &&
-            _dhcp_server.IPInRange((byte[]) ap.SenderProtoAddress))
+            !ap.SenderHWAddress.Equals(EthernetPacket.BroadcastAddress))
         {
           HandleNewStaticIP(ap.SenderHWAddress, ap.SenderProtoAddress);
         }
@@ -124,19 +133,17 @@ namespace Ipop.IpopRouter {
         return;
       }
 
-      // Not in our range!
-      if(!_dhcp_server.IPInRange((byte[]) ap.TargetProtoAddress)) {
-        return;
-      }
-
       // We shouldn't be returning these messages if no one exists at that end
       // point
-      if(!ap.TargetProtoAddress.Equals(MemBlock.Reference(_dhcp_server.ServerIP)) && (
-            _address_resolver.Resolve(ap.TargetProtoAddress) == null ||
-            _address_resolver.Resolve(ap.TargetProtoAddress) == Brunet.Address))
-      {
-        return;
-      }
+     if(!ap.TargetProtoAddress.Equals(MemBlock.Reference(_dhcp_server.ServerIP))) {
+       Address baddr = _address_resolver.Resolve(ap.TargetProtoAddress);
+       if(Brunet.Address.Equals(baddr) || baddr == null) {
+         return;
+       }
+     }
+
+     ProtocolLog.WriteIf(IpopLog.ARP, String.Format("Sending ARP response for: {0}",
+         Utils.MemBlockToString(ap.TargetProtoAddress, '.')));
 
       ARPPacket response = ap.Respond(EthernetPacket.UnicastAddress);
 
@@ -174,6 +181,10 @@ namespace Ipop.IpopRouter {
     /// nothing!</summary>
     /// <param name="ip">The IP in question.</param>
     protected override void HandleNewStaticIP(MemBlock ether_addr, MemBlock ip) {
+      if(!_ipop_config.AllowStaticAddresses) {
+        return;
+      }
+
       lock(_sync) {
         if(_dhcp_config == null) {
           _pre_dhcp[ether_addr] = ip;
@@ -181,10 +192,17 @@ namespace Ipop.IpopRouter {
         }
       }
 
+      if(!_dhcp_server.IPInRange(ip)) {
+        return;
+      }
+
       DHCPServer dhcp_server = CheckOutDHCPServer(ether_addr);
       if(dhcp_server == null) {
         return;
       }
+
+      ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
+          "Static Address request for: {0}", Utils.MemBlockToString(ip, '.')));
 
       WaitCallback wcb = delegate(object o) {
 
@@ -308,36 +326,41 @@ namespace Ipop.IpopRouter {
       byte[] last_ipb = (last_ip == null) ? null : (byte[]) last_ip;
 
       WaitCallback wcb = delegate(object o) {
+        ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
+            "Attemping DHCP for: {0}", Utils.MemBlockToString(ether_addr, '.')));
+
+        DHCPPacket rpacket = null;
         try {
-          DHCPPacket rpacket = dhcp_server.ProcessPacket(dhcp_packet,
+          rpacket = dhcp_server.ProcessPacket(dhcp_packet,
               Brunet.Address.ToString(), last_ipb);
-
-          /* Check our allocation to see if we're getting a new address */
-          MemBlock new_addr = rpacket.yiaddr;
-          UpdateMapping(ether_addr, new_addr);
-
-          MemBlock destination_ip = ipp.SourceIP;
-          if(destination_ip.Equals(IPPacket.ZeroAddress)) {
-            destination_ip = IPPacket.BroadcastAddress;
-          }
-
-          UDPPacket res_udpp = new UDPPacket(_dhcp_server_port, _dhcp_client_port, rpacket.Packet);
-          IPPacket res_ipp = new IPPacket(IPPacket.Protocols.UDP, rpacket.siaddr,
-              destination_ip, res_udpp.ICPacket);
-          EthernetPacket res_ep = new EthernetPacket(ether_addr, EthernetPacket.UnicastAddress,
-              EthernetPacket.Types.IP, res_ipp.ICPacket);
-          Ethernet.Send(res_ep.ICPacket);
-        }
-        catch(Exception e) {
+        } catch(Exception e) {
           ProtocolLog.WriteIf(IpopLog.DHCPLog, e.ToString());
+          CheckInDHCPServer(dhcp_server);
+          return;
         }
-        
+
+        /* Check our allocation to see if we're getting a new address */
+        MemBlock new_addr = rpacket.yiaddr;
+        UpdateMapping(ether_addr, new_addr);
+
+        MemBlock destination_ip = ipp.SourceIP;
+        if(destination_ip.Equals(IPPacket.ZeroAddress)) {
+          destination_ip = IPPacket.BroadcastAddress;
+        }
+
+        UDPPacket res_udpp = new UDPPacket(_dhcp_server_port, _dhcp_client_port, rpacket.Packet);
+        IPPacket res_ipp = new IPPacket(IPPacket.Protocols.UDP, rpacket.siaddr,
+            destination_ip, res_udpp.ICPacket);
+        EthernetPacket res_ep = new EthernetPacket(ether_addr, EthernetPacket.UnicastAddress,
+            EthernetPacket.Types.IP, res_ipp.ICPacket);
+        Ethernet.Send(res_ep.ICPacket);
         CheckInDHCPServer(dhcp_server);
       };
 
       ThreadPool.QueueUserWorkItem(wcb);
       return true;
     }
+
 
     /// <summary>Called when an ethernet address has had its IP address changed
     /// or set for the first time.</summary>
@@ -372,7 +395,7 @@ namespace Ipop.IpopRouter {
         return;
       }
       MemBlock ether_addr = null;
-      if(dest_ip.Equals(IPPacket.BroadcastAddress)) {
+      if(!_ip_to_ether.TryGetValue(dest_ip, out ether_addr)) {
         ether_addr = EthernetPacket.BroadcastAddress;
       }
 
