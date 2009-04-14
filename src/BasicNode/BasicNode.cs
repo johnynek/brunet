@@ -57,7 +57,8 @@ namespace Brunet.Applications {
     /// <summary>The Brunet.Node used to connect to the p2p network.</summary>
     protected StructuredNode _node;
     /// <summary>The Dht object used to participate in the dht.</summary>
-    protected Dht _dht;
+    public IDht Dht { get { return _dht; } }
+    protected IDht _dht;
     /// <summary>The NCService object used for this node.</summary>
     protected NCService _ncservice;
     /// <summary>The DhtRpc service provider.</summary>
@@ -180,7 +181,8 @@ namespace Brunet.Applications {
           try {
             el = new UdpEdgeListener(port, addresses);
           }
-          catch {
+          catch(Exception e) {
+            Console.WriteLine(e);
             el = new UdpEdgeListener(0, addresses);
           }
         }
