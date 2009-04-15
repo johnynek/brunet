@@ -2,12 +2,12 @@
 version=$1
 mkdir -p $version/ipop.src
 mkdir $version/tmp
-hg clone ../../ipop $version/tmp/ipop_tmp
-hg clone ../../brunet1 $version/tmp/brunet1_tmp
+git clone ../../ipop $version/tmp/ipop_tmp
+git clone ../../brunet $version/tmp/brunet_tmp
 mkdir $version/ipop.src/ipop
-mkdir $version/ipop.src/brunet1
+mkdir $version/ipop.src/brunet
 cp -axf $version/tmp/ipop_tmp/* $version/ipop.src/ipop/.
-cp -axf $version/tmp/brunet1_tmp/* $version/ipop.src/brunet1/.
+cp -axf $version/tmp/brunet_tmp/* $version/ipop.src/brunet/.
 
 cd ..
 nant
@@ -19,11 +19,11 @@ brunet_bin_files="BasicNode.exe MultiNode.exe"
 ipop_bin_files="DhtIpopNode.exe CondorIpopNode.exe"
 ipop_lib_files="libtuntap.dll libtuntap.so CookComputing.XmlRpcV2.dll"
 for file in $brunet_lib_files; do 
-  cp ../../brunet1/lib/$file $version/ipop/bin/.
+  cp ../../brunet/lib/$file $version/ipop/bin/.
 done
 
 for file in $brunet_bin_files; do 
-  cp ../../brunet1/bin/$file $version/ipop/bin/.
+  cp ../../brunet/bin/$file $version/ipop/bin/.
 done
 
 for file in $ipop_bin_files; do
@@ -37,7 +37,7 @@ done
 cp -axf ../drivers $version/ipop/.
 cp -axf ../src/c-lib $version/ipop/drivers/.
 
-cp -axf ../../brunet1/scripts $version/ipop/.
+cp -axf ../../brunet/scripts $version/ipop/.
 cp -axf ../config $version/ipop/.
 cd ../docs
 rm -rf doxy_out
