@@ -47,7 +47,6 @@ public class UidGenerator<T> : IEnumerable<T> {
    * @return the new, unique ID, for obj
    */
   public int GenerateID(T obj) {
-    bool fail = true;
     int new_id;
     do {
       new_id = _rand.Next();
