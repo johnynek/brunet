@@ -277,8 +277,8 @@ public class ReqrepManager : SimpleSource, IDataHandler {
      }
 
      public string ToUri() {
-       string uri = _uri.Value;
-       if( uri == null ) {
+       string uri;
+       if( _uri.TryGet(out uri) == false ) {
          Dictionary<string, string> kvpairs = new Dictionary<string, string>();
          kvpairs["id"] = RequestKey.LocalID.ToString();
          kvpairs["retpath"] = RequestKey.Sender.ToUri();

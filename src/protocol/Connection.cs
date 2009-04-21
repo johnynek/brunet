@@ -96,8 +96,8 @@ namespace Brunet {
   
     public string SubType {
       get {
-        string res = _sub_type.Value;
-        if( res == null ) {
+        string res;
+        if( false == _sub_type.TryGet(out res) ) {
           int dot_idx = _ct.IndexOf('.');
           if( dot_idx >= 0 ) {
             res = _ct.Substring(dot_idx);
@@ -166,8 +166,8 @@ namespace Brunet {
      */
 
     public IDictionary ToDictionary() {
-      IDictionary d = _as_dict.Value;
-      if( d != null ) {
+      ListDictionary d;
+      if( _as_dict.TryGet(out d) ) {
         return d;
       }
       ListDictionary ld = new ListDictionary();

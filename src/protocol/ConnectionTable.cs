@@ -435,8 +435,8 @@ namespace Brunet
      */
     public IList ToList() {
       
-      List<object> result = _as_list.Value;
-      if( result == null ) {
+      List<object> result;
+      if( false == _as_list.TryGet(out result) ) {
         result = new List<object>(Count);
         result.Add(Connection.ConnectionTypeToString(MainType));
         result.Add(new string[]{"address", "sender", "subtype"});

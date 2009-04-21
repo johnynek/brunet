@@ -29,6 +29,7 @@ namespace Brunet
 public class WriteOnceIdempotent<T> {
 
   protected object _value;
+  protected static readonly object UNSET = new object();
   
   /**
    * Get the value stored in this write once.  It is null
@@ -37,7 +38,14 @@ public class WriteOnceIdempotent<T> {
    */
   public T Value {
     get {
-      return (T)_value;
+      T val;
+      if( TryGet(out val) ) {
+        return val;
+      }
+      else {
+        //@todo probably we should throw here
+        return default(T);
+      }
     }
     set {
       if (false == TrySet(value)) {
@@ -48,19 +56,30 @@ public class WriteOnceIdempotent<T> {
   }
 
   public WriteOnceIdempotent() {
-    _value = null;
+    _value = UNSET;
   }
 
   public override string ToString() {
-    return  (_value != null) ? _value.ToString() : System.String.Empty;
+    return  (_value != UNSET) ? _value.ToString() : System.String.Empty;
+  }
+
+  public bool TryGet(out T val) {
+    bool result = _value != UNSET;
+    if( result ) {
+      val = (T)_value;
+    }
+    else {
+      val = default(T);
+    }
+    return result;
   }
 
   /** Try to set the value.
    * @return true if the value was set
    */
   public bool TrySet(T val) {
-    object old_val = System.Threading.Interlocked.CompareExchange(ref _value, val, null);
-    return ( old_val == null || old_val.Equals(val) );
+    object old_val = System.Threading.Interlocked.CompareExchange(ref _value, val, UNSET);
+    return ( old_val == UNSET || (old_val == null ? val == null : old_val.Equals(val) ) );
   }
     
 }
@@ -90,7 +109,6 @@ public class WriteOnceIdempotentTest {
       Assert.IsTrue(true, "Null set test (exception case)");
     }
     WriteOnceIdempotent<object> wos2 = new WriteOnceIdempotent<object>();
-    wos2.Value = null;
     Assert.IsNull(wos2.Value, "Value set to null test");
     wos2.Value = wos2;
     Assert.AreEqual(wos2.Value, wos2, "Value set non-null test");

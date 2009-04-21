@@ -54,7 +54,12 @@ namespace Brunet
      * This is only set in the Finish method.
      */
     public Connection Connection {
-      get { return _con.Value; }
+      get {
+        Connection res;
+        //Set to null if fails:
+        _con.TryGet(out res);
+        return res;
+      }
     }
     
     protected readonly WriteOnce<LinkMessage> _lm_reply;
@@ -66,7 +71,11 @@ namespace Brunet
      * method.
      */
     public LinkMessage LinkMessageReply {
-      get { return _lm_reply.Value; }
+      get {
+        LinkMessage res;
+        _lm_reply.TryGet(out res);
+        return res;
+      }
     }
     
     protected volatile LinkProtocolState.Result _result;
@@ -83,7 +92,13 @@ namespace Brunet
     /**
      * If we catch some exception, we store it here, and call Finish
      */
-    public Exception CaughtException { get { return _x.Value; } }
+    public Exception CaughtException {
+      get {
+        Exception x;
+        _x.TryGet(out x);
+        return x;
+      }
+    }
     
     protected Address _target_lock;
 
@@ -205,10 +220,11 @@ namespace Brunet
        */
       if(ProtocolLog.LinkDebug.Enabled) {
         string message;
-        if (_x.Value != null ) {
+        Exception x;
+        if (_x.TryGet(out x) ) {
           message = String.Format(
                       "LPS: {0} finished: {2}, with exception: {1}",
-                      _node.Address, _x, res);
+                      _node.Address, x, res);
         }
         else {
           message = String.Format("LPS: {0} finished: {1}",
@@ -233,7 +249,7 @@ namespace Brunet
       
       try {
         //Check to see if we need to close the edge
-        if( _con.Value == null ) {
+        if( _con.IsSet == false ) {
           /*
            * We didn't get a complete connection,
            * but we may have heard some response.  If so
