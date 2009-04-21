@@ -1,0 +1,85 @@
+<?xml version="1.0"?>
+<project name="socialvpn" default="build" basedir=".">
+  <description> Builds SocialVPN </description>
+  <property name="lib.dir" value="../lib"/>
+  <property name="build.dir" value="build" />
+  <property name="bin.dir" value="../bin"/>
+  <property name="config.dir" value="../config"/>
+
+  <target name="clean" description="Remove build directory">
+    <delete dir="${build.dir}" failonerror="true"/>
+  </target>
+
+  <target name="build" description="Build SocialVPN.exe">
+    <mkdir dir="${build.dir}" failonerror="true"/>
+    <copy todir="${build.dir}" failonerror="true">
+      <fileset basedir="${lib.dir}">
+        <include name="*.dll" />
+      </fileset>
+    </copy>
+    <copy todir="${build.dir}" failonerror="true">
+      <fileset basedir="${bin.dir}">
+        <include name="RpcIpopNode.exe" />
+      </fileset>
+    </copy>
+
+    <csc target="exe" output="${build.dir}/SocialVPN.exe">
+      <sources failonempty="true">
+        <include name="*.cs"/>
+      </sources>
+      <references basedir="${build.dir}">
+        <include name="Brunet.dll" />
+        <include name="Brunet.Dht.dll" />
+        <include name="Brunet.DhtService.dll" />
+        <include name="Brunet.Security.dll" />
+        <include name="Brunet.IPAddresses.dll" />
+        <include name="Brunet.XmlRpc.dll" />
+        <include name="CookComputing.XmlRpcV2.dll" />
+        <include name="System.Runtime.Remoting.dll"/>
+        <include name="Mono.Posix.dll"/>
+        <include name="Mono.Security.dll"/>
+        <include name="RpcIpopNode.exe" />
+      </references>
+    </csc>
+
+    <mkdir dir="${bin.dir}" failonerror="true"/>
+    <copy todir="${bin.dir}" failonerror="true">
+      <fileset basedir="${build.dir}">
+        <include name="SocialVPN.exe" />
+      </fileset>
+    </copy>
+  </target>
+
+  <target name="test" description="Test SocialVPN">
+    <csc target="library" define="SVPN_NUNIT" 
+     output="${build.dir}/SVPN_NUNIT.dll">
+      <sources failonempty="true">
+        <include name="*.cs"/>
+      </sources>
+      <references  basedir="${build.dir}">
+        <include name="Brunet.dll" />
+        <include name="Brunet.Dht.dll" />
+        <include name="Brunet.DhtService.dll" />
+        <include name="Brunet.Security.dll" />
+        <include name="Brunet.IPAddresses.dll" />
+        <include name="Brunet.XmlRpc.dll" />
+        <include name="CookComputing.XmlRpcV2.dll" />
+        <include name="Mono.Posix.dll"/>
+        <include name="Mono.Security.dll"/>
+        <include name="System.Runtime.Remoting.dll"/>
+        <include name="RpcIpopNode.exe" />
+        <include name="nunit.framework.dll"/>
+      </references>
+    </csc>
+
+    <copy todir="${build.dir}" failonerror="true">
+      <fileset basedir="${config.dir}">
+        <include name="brunet.config" />
+      </fileset>
+    </copy>
+    <nunit2>
+      <formatter type="Plain" />
+      <test assemblyname="${build.dir}/SVPN_NUNIT.dll"/>
+    </nunit2>
+  </target>
+</project>
