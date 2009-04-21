@@ -31,7 +31,7 @@ namespace Brunet {
    */
   public abstract class MapReduceGreedy: MapReduceTask {
     public MapReduceGreedy(Node n):base(n) {}
-    public override MapReduceInfo[] GenerateTree(MapReduceArgs mr_args) {
+    public override void GenerateTree(Channel q, MapReduceArgs mr_args) {
       object gen_arg = mr_args.GenArg;
       Log("{0}: {1}, greedy generator called, arg: {2}.", 
           this.TaskName, _node.Address, gen_arg);
@@ -42,14 +42,15 @@ namespace Brunet {
       ConnectionList structs = tab.GetConnections(ConnectionType.Structured);
       Connection next_closest = structs.GetNearestTo((AHAddress) _node.Address, a);
       if (next_closest != null) {
-        MapReduceInfo mr_info = new MapReduceInfo( (ISender) next_closest.Edge,
-                                                   mr_args); //arguments do not change at all
+        //arguments do not change at all
+        MapReduceInfo mr_info = new MapReduceInfo(next_closest.Edge, mr_args);
         retval.Add(mr_info);
       }
       
       Log("{0}: {1}, greedy generator returning: {2} senders.", 
           this.TaskName, _node.Address, retval.Count);
-      return (MapReduceInfo[]) retval.ToArray(typeof(MapReduceInfo));
+      //Send the result:
+      q.Enqueue(retval.ToArray(typeof(MapReduceInfo)));
     }
   }
   
@@ -67,7 +68,7 @@ namespace Brunet {
      * To connection bi assign the range [b_i, b_{i+1}).
      * To the connection bn assign range [b_n, end).]
      */
-    public override MapReduceInfo[] GenerateTree(MapReduceArgs mr_args) 
+    public override void GenerateTree(Channel q, MapReduceArgs mr_args) 
     {
       object gen_arg = mr_args.GenArg;
       string end_range = gen_arg as string;
@@ -127,7 +128,7 @@ namespace Brunet {
           }
         }
       }
-      return (MapReduceInfo[]) retval.ToArray(typeof(MapReduceInfo));
+      q.Enqueue( retval.ToArray(typeof(MapReduceInfo)));
     }
   }   
 }
