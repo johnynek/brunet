@@ -30,25 +30,25 @@ namespace Brunet {
    */ 
   public class MapReduceRangeCounter: MapReduceBoundedBroadcast {
     public MapReduceRangeCounter(Node n): base(n) {}
-    public override object Map(object map_arg) {
+    public override void Map(Channel q, object map_arg) {
       IDictionary my_entry = new ListDictionary();
       my_entry["count"] = 1;
       my_entry["height"] = 1;
-      return my_entry;
+      q.Enqueue( my_entry );
     }
     
-    public override object Reduce(object reduce_arg, 
-                                  object current_result, RpcResult child_rpc,
-                                  out bool done) {
+    public override void Reduce(Channel q, object reduce_arg, 
+                                  object current_result, RpcResult child_rpc) {
 
-      done = false;
+      bool done = false;
       //ISender child_sender = child_rpc.ResultSender;
       //the following can throw an exception, will be handled by the framework
       object child_result = child_rpc.Result;
       
       //child result is a valid result
       if (current_result == null) {
-        return child_result;
+        q.Enqueue(new Brunet.Util.Pair<object, bool>(child_result, done));
+        return;
       }
       
       IDictionary my_entry = current_result as IDictionary;
@@ -62,7 +62,7 @@ namespace Brunet {
       if (z > max_height) {
         my_entry["height"] = z; 
       }
-      return my_entry;
+      q.Enqueue(new Brunet.Util.Pair<object, bool>(my_entry, done));
     }
   }
 }

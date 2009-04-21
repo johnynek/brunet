@@ -30,20 +30,19 @@ namespace Brunet {
    */   
   public class MapReduceTrace: MapReduceGreedy {
     public MapReduceTrace(Node n):base(n) {}
-    public override object Map(object map_arg) {
+    public override void Map(Channel q, object map_arg) {
       IList retval = new ArrayList();
       IDictionary my_entry = new ListDictionary();
       my_entry["node"] = _node.Address.ToString();
       retval.Add(my_entry);
-      return retval;
+      q.Enqueue(retval);
     }
     
 
-    public override object Reduce(object reduce_arg, 
-                                  object current_result, RpcResult child_rpc,
-                                  out bool done) {
+    public override void Reduce(Channel q, object reduce_arg, 
+                                  object current_result, RpcResult child_rpc) {
 
-      done = false;
+      bool done = false;
       ISender child_sender = child_rpc.ResultSender;
       //the following can throw an exception, will be handled by the framework
       object child_result = child_rpc.Result;
@@ -51,21 +50,21 @@ namespace Brunet {
 
       //child result is a valid result
       if (current_result == null) {
-        return child_result;
+        q.Enqueue(new Brunet.Util.Pair<object, bool>(child_result, done));
+        return;
       }
       
 
       ArrayList retval = current_result as ArrayList;
       IDictionary my_entry = (IDictionary) retval[0];
-      Edge e = child_sender as Edge;
-      my_entry["next_con"] = e.ToString();
+      my_entry["next_con"] = child_sender.ToUri();
       retval.AddRange((IList) child_result);
       
       if (LogEnabled) {
         ProtocolLog.Write(ProtocolLog.MapReduce, 
                           String.Format("{0}: {1}, reduce list count: {2}.", this.TaskName, _node.Address, retval.Count));
       }
-      return retval;
+      q.Enqueue(new Brunet.Util.Pair<object, bool>(retval, done));
     }
   }
 }

@@ -43,15 +43,18 @@ public class Channel {
    * Create a new channel with an unlimited number of allowed enqueues
    */
   public Channel() : this(-1) { }
+  public Channel(int max_enq) : this(max_enq, null) { }
   /**
    * @param max_enqueues the maximum number of times Enqueue is allowed, after
+   * @param state some arbitrary object we might want later
    * that it will throw InvalidOperationException and the queue will be closed
    */
-  public Channel(int max_enqueues) {
+  public Channel(int max_enqueues, object state) {
     if( max_enqueues == 0 ) {
       //This doesn't make sense
       throw new ArgumentOutOfRangeException("max_enqueues", max_enqueues, "cannot be zero");
     }
+    State = state;
     _closed = 0;
     _queue = new Brunet.Util.LockFreeQueue<object>();
     _max_enqueues = max_enqueues;
@@ -59,6 +62,8 @@ public class Channel {
     _count = 0;
     _close_event = new FireOnceEvent();
   }
+
+  public readonly object State;
 
   protected readonly Brunet.Util.LockFreeQueue<object> _queue;
   /*
@@ -204,11 +209,20 @@ public class Channel {
     c0.Enqueue(1); //This should close the channel:
     Assert.IsTrue(c_event_fired, "CloseEvent on Enqueue");
     Assert.IsTrue(c0.Closed, "Closed");
+    
+    c0 = new Channel(1);
+    c_event_fired = false;
+    c0.CloseEvent += delegate(object o, EventArgs arg) {
+      c_event_fired = true;
+    };
+    c0.Enqueue(1); //This should close the channel:
+    Assert.IsTrue(c_event_fired, "CloseEvent on Enqueue");
+    Assert.IsTrue(c0.Closed, "Closed");
     //Try with different starting values:
     Random r = new Random();
     int en_count;
     for(int i = 0; i < 100; i++) {
-      int max_enqueues = r.Next(1000);
+      int max_enqueues = r.Next(1,1000);
       c0 = new Channel(max_enqueues);
       c_event_fired = false;
       en_count = 0;
