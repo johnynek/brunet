@@ -121,7 +121,7 @@ namespace SocialVPN {
 
 #if SVPN_NUNIT
   [TestFixture]
-  public class Test {
+  public class SocialUserTester {
     [Test]
     public void SocialUserTest() {
       string uid = "ptony82@ufl.edu";
@@ -129,11 +129,9 @@ namespace SocialVPN {
       string pcid = "pdesktop";
       string version = "SVPN_0.3.0";
       string country = "US";
-      string config = "brunet.config";
 
       Certificate cert = SocialUtils.CreateCertificate(uid, name, pcid, 
-                                                       version,country,
-                                                       config);
+                                                       version, country);
 
       SocialUser user = new SocialUser(cert.X509.RawData);
 

@@ -24,12 +24,18 @@ using System.Xml.Serialization;
 using Brunet;
 using Brunet.Applications;
 
+#if SVPN_NUNIT
+using NUnit.Framework;
+#endif
+
 namespace SocialVPN {
 
   /**
    * SocialUtils Class. A group of helper functions.
    */
   public class SocialUtils {
+
+    public static string BrunetConfig = "brunet.config";
 
     public SocialUtils() {}
 
@@ -44,9 +50,8 @@ namespace SocialVPN {
      */
     public static Certificate CreateCertificate(string uid, string name,
                                                 string pcid, string version,
-                                                string country, 
-                                                string configPath) {
-      NodeConfig config = Utils.ReadConfig<NodeConfig>(configPath);
+                                                string country) {
+      NodeConfig config = Utils.ReadConfig<NodeConfig>(BrunetConfig);
       config.NodeAddress = (Utils.GenerateAHAddress()).ToString();
 
       RSACryptoServiceProvider rsa = new RSACryptoServiceProvider();  
@@ -63,12 +68,33 @@ namespace SocialVPN {
       if(!Directory.Exists(config.Security.CertificatePath)) {
         Directory.CreateDirectory(config.Security.CertificatePath);
       }
-      Utils.WriteConfig(configPath, config);
+      Utils.WriteConfig(BrunetConfig, config);
       WriteToFile(rsa.ExportCspBlob(true), config.Security.KeyPath);
       WriteToFile(cert.X509.RawData, lc_path);
       WriteToFile(cert.X509.RawData, ca_path);
 
       return cert;
+    }
+
+    /**
+     * Saves an X509 certificate to the file system.
+     * @param cert the X509 certificate
+     */
+    public static void SaveCertificate(Certificate cert) {
+      SocialUser friend = new SocialUser(cert);
+      string address = friend.Address.Substring(12);
+      NodeConfig config = Utils.ReadConfig<NodeConfig>(BrunetConfig);
+
+      string lc_path = Path.Combine(config.Security.CertificatePath,
+                                      "lc" + address + ".cert");
+      string ca_path = Path.Combine(config.Security.CertificatePath,
+                                      "ca" + address + ".cert");
+
+      if(!Directory.Exists(config.Security.CertificatePath)) {
+        Directory.CreateDirectory(config.Security.CertificatePath);
+      }
+      WriteToFile(cert.X509.RawData, lc_path);
+      WriteToFile(cert.X509.RawData, ca_path);
     }
 
     /**
@@ -93,6 +119,11 @@ namespace SocialVPN {
       FileStream file = File.Open(path, FileMode.Create);
       file.Write(data, 0, data.Length);
       file.Close();
+    }
+
+    public static string CreateAlias(string uid, string pcid) {
+      uid = uid.Replace('@', '.');
+      return (pcid + "." + uid + ".ipop").ToLower();
     }
 
     /**
@@ -122,4 +153,17 @@ namespace SocialVPN {
       }
     }
   }
+
+#if SVPN_NUNIT
+  [TestFixture]
+  public class SocialUtilsTester {
+    [Test]
+    public void SocialUtilsTest() {
+      string uid = "ptony82@ufl.edu";
+      string pcid = "pdesktop";
+      string alias = SocialUtils.CreateAlias(uid, pcid);
+      Assert.AreEqual(alias, "pdesktop.ptony82.ufl.edu.ipop");
+    }
+  } 
+#endif
 }

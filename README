@@ -1,1 +1,51 @@
-This is a current placeholder for the SocialVPN project
+SocialVPN
+
+Building SocialVPN
+==================
+NAnt build tool is required
+
+For debian-based systems:
+apt-get install nant
+
+For RedHat-based systems:
+yum install nant
+
+cd src/
+
+To compile, run:
+
+nant
+
+To run NUnit test, run:
+
+nant test
+
+To clean, run
+
+nant clean
+
+Dependencies:
+=============
+SocialVPN is built on top of two other projects:
+1) The Brunet P2P Library 
+   - http://github.com/johnynek/brunet/tree/master (based repo)
+   - http://github.com/davidiw/brunet/tree/master (added features)
+2) The IP over P2P Application (IPOP)
+   - http://github.com/davidiw/ipop/tree/master
+
+All packaged binaries found under lib and bin directories are compiled from
+these two projects.
+
+Troubleshooting:
+================
+The libtuntap.so and libtuntap.dll files are platform-dependent, they have to
+be compiled for your platform. Platform specific binaries can be found at
+socialvpn.org.
+
+Questions/Comments:
+===================
+Contact Pierre St Juste <ptony82@ufl.edu> for any questions.
+
+License:
+========
+This code is licensed under the GPLv2 (or at your option any later version).
