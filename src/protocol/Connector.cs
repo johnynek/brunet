@@ -111,7 +111,13 @@ namespace Brunet
     protected readonly WriteOnce<AbortCheck> _abort;
     public AbortCheck AbortIf {
       get {
-        return _abort.Value;
+        AbortCheck res;
+        if( _abort.TryGet(out res) ) {
+          return res;
+        }
+        else {
+          return null;
+        }
       }
       set {
         _abort.Value = value;
