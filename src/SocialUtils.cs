@@ -163,6 +163,37 @@ namespace SocialVPN {
       string pcid = "pdesktop";
       string alias = SocialUtils.CreateAlias(uid, pcid);
       Assert.AreEqual(alias, "pdesktop.ptony82.ufl.edu.ipop");
+
+      string name = "Pierre St Juste";
+      string version = "SVPN_0.3.0";
+      string country = "US";
+
+      Certificate cert = SocialUtils.CreateCertificate(uid, name, pcid, 
+                                                       version, country);
+      SocialUser user = new SocialUser(cert.X509.RawData);
+
+      Assert.AreEqual(uid, user.Uid);
+      Assert.AreEqual(name, user.Name);
+      Assert.AreEqual(pcid, user.PCID);
+      Assert.AreEqual(version, user.Version);
+      Assert.AreEqual(country, user.Country);
+
+      SocialUtils.SaveCertificate(cert);
+      NodeConfig config = 
+        Utils.ReadConfig<NodeConfig>(SocialUtils.BrunetConfig);
+      string certPath = System.IO.Path.Combine(config.Security.CertificatePath,
+        "lc" + user.Address.Substring(12) + ".cert");
+      byte[] certData = SocialUtils.ReadFileBytes(certPath);
+      SocialUser tmp = new SocialUser(certData);
+
+      Assert.AreEqual(tmp.Uid, user.Uid);
+      Assert.AreEqual(tmp.Name, user.Name);
+      Assert.AreEqual(tmp.PCID, user.PCID);
+      Assert.AreEqual(tmp.Version, user.Version);
+      Assert.AreEqual(tmp.Country, user.Country);
+      Assert.AreEqual(tmp.Address, user.Address);
+      Assert.AreEqual(tmp.Fingerprint, user.Fingerprint);
+
     }
   } 
 #endif
