@@ -93,7 +93,7 @@ namespace SocialVPN {
       _pcid = cert.Subject.OrganizationalUnit;
       _address = cert.NodeAddress;
       _version = cert.Subject.Organization;
-      _fingerprint = Convert.ToBase64String(cert.Signature);
+      _fingerprint = SocialUtils.GetMD5(cert.X509.RawData);
       _country = cert.Subject.Country;
     }
 
@@ -140,6 +140,8 @@ namespace SocialVPN {
       Assert.AreEqual(pcid, user.PCID);
       Assert.AreEqual(version, user.Version);
       Assert.AreEqual(country, user.Country);
+
+      Console.WriteLine(user.Fingerprint);
     }
   } 
 #endif

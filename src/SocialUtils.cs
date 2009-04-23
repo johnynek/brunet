@@ -20,6 +20,8 @@ using System;
 using System.IO;
 using System.Security.Cryptography;
 using System.Xml.Serialization;
+using System.Collections.Generic;
+using System.Text;
 
 using Brunet;
 using Brunet.Applications;
@@ -121,11 +123,6 @@ namespace SocialVPN {
       file.Close();
     }
 
-    public static string CreateAlias(string uid, string pcid) {
-      uid = uid.Replace('@', '.');
-      return (pcid + "." + uid + ".ipop").ToLower();
-    }
-
     /**
      * Creates object from an Xml string.
      * @param val Xml string representation.
@@ -152,6 +149,41 @@ namespace SocialVPN {
         return sw.ToString();
       }
     }
+
+    /**
+     * Create a unique alias for a user resource.
+     * @param friends a list of existing alias (users to avoid collisions).
+     * @param uid the user unique identifier.
+     * @param pcid the pc identifier.
+     * @return a unique user alias used for DNS naming.
+     */
+    public static string CreateAlias(Dictionary<string, SocialUser> friends,
+                                     string uid, string pcid) {
+      uid = uid.Replace('@', '.');
+      string alias = (pcid + "." + uid + ".ipop").ToLower();
+      int counter = 1;
+      while(friends.ContainsKey(alias)) {
+        alias = (pcid + counter + "." + uid + ".ipop").ToLower();
+        counter++;
+      }
+      return alias;
+    }
+
+    /**
+     * Creates an MD5 string from a byte array.
+     * @param data the byte array to be hashed.
+     */
+    public static string GetMD5(byte[] data) {
+      MD5 md5 = new MD5CryptoServiceProvider();
+      byte[] result = md5.ComputeHash(data);
+
+      StringBuilder sb = new StringBuilder();
+      for (int i=0;i<result.Length;i++) {
+        sb.Append(result[i].ToString("X2"));
+      }
+      return sb.ToString();
+    }
+
   }
 
 #if SVPN_NUNIT
@@ -161,9 +193,6 @@ namespace SocialVPN {
     public void SocialUtilsTest() {
       string uid = "ptony82@ufl.edu";
       string pcid = "pdesktop";
-      string alias = SocialUtils.CreateAlias(uid, pcid);
-      Assert.AreEqual(alias, "pdesktop.ptony82.ufl.edu.ipop");
-
       string name = "Pierre St Juste";
       string version = "SVPN_0.3.0";
       string country = "US";

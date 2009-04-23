@@ -21,6 +21,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Threading;
 
 using Brunet;
 using Brunet.Applications;
@@ -66,22 +67,39 @@ namespace SocialVPN {
     public SocialNode(string brunetConfig, string ipopConfig) :
       base(brunetConfig, ipopConfig) {
       _friends = new Dictionary<string, SocialUser>();
+      _local_user = null;
+      _local_cert = null;
+    }
+
+    /**
+     * Add local certificates to security handler and stores to DHT.
+     */
+    public void Init() {
       NodeConfig config = 
         Utils.ReadConfig<NodeConfig>(SocialUtils.BrunetConfig);
       string lc_path = Path.Combine(config.Security.CertificatePath,
                                     "lc.cert");
       _local_cert = new Certificate(SocialUtils.ReadFileBytes(lc_path));
       _local_user = new SocialUser(_local_cert);
-      Init();
-    }
 
-    /**
-     * Add local certificates to security handler and stores to DHT
-     */
-    public void Init() {
+      // Store fingerprint with uid
+      string key = "svpn:" + _local_user.Uid;
+      MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
+      MemBlock value = 
+        MemBlock.Reference(Encoding.UTF8.GetBytes(_local_user.Fingerprint));
+      DhtPublish(keyb, value);
+
+      // Publish certificate with key uid + fingerprint
+      key = key + ":" + _local_user.Fingerprint;
+      keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
+      value = MemBlock.Reference(_local_cert.X509.RawData);
+      DhtPublish(keyb, value);
+
       _bso.CertificateHandler.AddCertificate("lc.cert");
       _bso.CertificateHandler.AddCertificate("ca.cert");
-      DhtPublishCert();
+
+      Console.WriteLine("User Info: " + _local_user.Uid + " " +
+                         _local_user.Fingerprint);
     }
 
     /**
@@ -93,7 +111,8 @@ namespace SocialVPN {
       Certificate cert = new Certificate(certData);
       SocialUser friend = new SocialUser(cert);
       Address addr = AddressParser.Parse(friend.Address);
-      friend.Alias = SocialUtils.CreateAlias(friend.Uid, friend.PCID);
+      friend.Alias = SocialUtils.CreateAlias(_friends, friend.Uid, 
+                                             friend.PCID);
 
       // Save certificate to file system
       SocialUtils.SaveCertificate(cert);
@@ -104,18 +123,22 @@ namespace SocialVPN {
       _bso.CertificateHandler.AddCertificate(lc_path);
       _bso.CertificateHandler.AddCertificate(ca_path);
 
+      // Add friend to list
+      _friends.Add(friend.Alias, friend);
+
       // Add friend to the network
       friend.IP = _rarad.RegisterMapping(friend.Alias, addr);
 
-      // Add friend to list
-      _friends.Add(friend.Alias, friend);
+      Console.WriteLine(cert.ToString());
+      Console.WriteLine("Friend Info: " + friend.IP + " " + friend.Alias);
     }
 
     /**
-     * Publishes the local certificate on the dht.
+     * Publishes key/value pair to the Dht.
+     * @param key the index key for the lookup
+     * @param value the value to be stored
      */
-    public void DhtPublishCert() {
-      string key = "svpn:" + _local_user.Uid + ":" + _local_user.Fingerprint;
+    public void DhtPublish(MemBlock key, MemBlock value) {
       Channel q = new Channel();
       q.CloseAfterEnqueue();
       q.CloseEvent += delegate(Object o, EventArgs eargs) {
@@ -129,9 +152,7 @@ namespace SocialVPN {
           Console.WriteLine("Dht Put failed");
         }
       };
-      MemBlock keyb = MemBlock.Reference(Encoding.UTF8.GetBytes(key));
-      MemBlock value = MemBlock.Reference(_local_cert.X509.RawData);
-      this.Dht.AsPut(keyb, value, 3600, q);
+      this.Dht.AsPut(key, value, 3600, q);
     }
 
     /**
@@ -162,6 +183,39 @@ namespace SocialVPN {
      */
     public void RemoveFriend(SocialUser friend) {
       _rarad.UnregisterMapping(friend.Alias);
+    }
+
+    public static new void Main(string[] args) {
+      SocialUtils.BrunetConfig = args[0];
+      NodeConfig config = Utils.ReadConfig<NodeConfig>(args[0]);
+      if(!System.IO.File.Exists(config.Security.KeyPath)) {
+        string uid = "ptony82@ufl.edu";
+        string pcid = Environment.MachineName;
+        string name = "Pierre St Juste";
+        string version = "SVPN_0.3.0";
+        string country = "US";
+
+        SocialUtils.CreateCertificate(uid, name, pcid, version, country);
+      }
+
+      SocialNode node = new SocialNode(args[0], args[1]);
+      Thread thread = new Thread(new ThreadStart(node.InputThread));
+      thread.Start();
+      node.Run();
+    }
+
+    public void InputThread() {
+      while(true) {
+        Console.WriteLine("Please input command: ");
+        string input = Console.ReadLine();
+        string[] inputs = input.Split(' ');
+        if(inputs[0] == "init") {
+          this.Init();
+        }
+        else if(inputs[0] == "add") {
+          AddDhtFriend(inputs[1], inputs[2]);
+        }
+      }
     }
   }
 }
