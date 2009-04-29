@@ -32,50 +32,40 @@ namespace SocialVPN {
    */
   public class SocialUser {
 
-    // Protected variables
-    protected string _uid;
-    protected string _name;
-    protected string _pcid;
-    protected string _address;
-    protected string _version;
-    protected string _fingerprint;
-    protected string _country;
-    protected string _ip;
-    protected string _alias;
-    protected string _time;
-    protected string _access;
+    public string Uid;
 
-    // Accessors
-    public string Uid { get { return _uid; } }
-    public string Name { get { return _name; } }
-    public string PCID { get { return _pcid; } }
-    public string Address { get { return _address; } }
-    public string Fingerprint { get { return _fingerprint; } }
-    public string Country { get { return _country; } }
-    public string Version { get { return _version; } }
+    public string Name;
 
-    public string IP {
-      get { return _ip; }
-      set { _ip = value; }
+    public string PCID;
+
+    public string Address;
+
+    public string Fingerprint;
+
+    public string DhtKey;
+
+    public string Country;
+
+    public string Version;
+
+    public string IP;
+
+    public string Alias;
+
+    public string Time;
+
+    public string Access;
+
+    public string Pic;
+
+    public enum AccessTypes {
+      Approved = 1,
+      Unapproved = 2,
+      Denied = 3,
+      Pending = 4
     }
 
-    public string Alias {
-      get { return _alias; }
-      set { _alias = value; }
-    }
-
-    public string Time {
-      get { return _time; }
-      set { _time = value; }
-    }
-
-    public string Access {
-      get { return _access; }
-      set { _access = value; }
-    }
-
-    // Constructors
-    protected SocialUser() {}
+    public SocialUser() {}
 
     /**
      * Constructor.
@@ -88,34 +78,18 @@ namespace SocialVPN {
      * @param cert X509 certificate.
      */
     public SocialUser(Certificate cert) {
-      _uid = cert.Subject.Email;
-      _name = cert.Subject.Name;
-      _pcid = cert.Subject.OrganizationalUnit;
-      _address = cert.NodeAddress;
-      _version = cert.Subject.Organization;
-      _fingerprint = SocialUtils.GetMD5(cert.X509.RawData);
-      _country = cert.Subject.Country;
-    }
-
-    /**
-     * Constructor based on user input.
-     * @param uid unique user identifier.
-     * @param name user name.
-     * @param pcid PC identifier.
-     * @param address user p2p address.
-     * @param version SocialVPN version.
-     * @param fingerprint X509 Certificate signature
-     * @param country user country.
-     */
-    public SocialUser(string uid, string name, string pcid, string address,
-                      string version, string fingerprint, string country) {
-      _uid = uid;
-      _name = name;
-      _pcid = pcid;
-      _address = address;
-      _version = version;
-      _fingerprint = fingerprint;
-      _country = country;
+      Uid = cert.Subject.Email;
+      Name = cert.Subject.Name;
+      PCID = cert.Subject.OrganizationalUnit;
+      Address = cert.NodeAddress;
+      Version = cert.Subject.Organization;
+      Fingerprint = SocialUtils.GetMD5(cert.X509.RawData);
+      DhtKey = "svpn:" + Uid + ":" + Fingerprint;
+      Country = cert.Subject.Country;
+      IP = "0.0.0.0";
+      Time = "0";
+      Alias = "Unknown";
+      Pic = "pic";
     }
   }
 

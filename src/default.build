@@ -41,7 +41,8 @@
         <include name="Brunet.IPAddresses.dll" />
         <include name="Brunet.XmlRpc.dll" />
         <include name="CookComputing.XmlRpcV2.dll" />
-        <include name="System.Runtime.Remoting.dll"/>
+        <include name="System.Runtime.Remoting.dll" />
+        <include name="System.Web.dll" />
         <include name="Mono.Posix.dll"/>
         <include name="Mono.Security.dll"/>
         <include name="RpcIpopNode.exe" />
@@ -73,6 +74,7 @@
         <include name="Mono.Posix.dll"/>
         <include name="Mono.Security.dll"/>
         <include name="System.Runtime.Remoting.dll"/>
+        <include name="System.Web.dll" />
         <include name="RpcIpopNode.exe" />
         <include name="nunit.framework.dll"/>
       </references>

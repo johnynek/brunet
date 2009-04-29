@@ -19,9 +19,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using System;
 using System.IO;
 using System.Security.Cryptography;
-using System.Xml.Serialization;
 using System.Collections.Generic;
 using System.Text;
+using System.Xml;
+using System.Xml.Serialization;
+using System.Web;
 
 using Brunet;
 using Brunet.Applications;
@@ -95,8 +97,10 @@ namespace SocialVPN {
       if(!Directory.Exists(config.Security.CertificatePath)) {
         Directory.CreateDirectory(config.Security.CertificatePath);
       }
-      WriteToFile(cert.X509.RawData, lc_path);
-      WriteToFile(cert.X509.RawData, ca_path);
+      if(!File.Exists(lc_path)) {
+        WriteToFile(cert.X509.RawData, lc_path);
+        WriteToFile(cert.X509.RawData, ca_path);
+      }
     }
 
     /**
@@ -151,25 +155,6 @@ namespace SocialVPN {
     }
 
     /**
-     * Create a unique alias for a user resource.
-     * @param friends a list of existing alias (users to avoid collisions).
-     * @param uid the user unique identifier.
-     * @param pcid the pc identifier.
-     * @return a unique user alias used for DNS naming.
-     */
-    public static string CreateAlias(Dictionary<string, SocialUser> friends,
-                                     string uid, string pcid) {
-      uid = uid.Replace('@', '.');
-      string alias = (pcid + "." + uid + ".ipop").ToLower();
-      int counter = 1;
-      while(friends.ContainsKey(alias)) {
-        alias = (pcid + counter + "." + uid + ".ipop").ToLower();
-        counter++;
-      }
-      return alias;
-    }
-
-    /**
      * Creates an MD5 string from a byte array.
      * @param data the byte array to be hashed.
      */
@@ -182,6 +167,58 @@ namespace SocialVPN {
         sb.Append(result[i].ToString("X2"));
       }
       return sb.ToString();
+    }
+
+    /*
+    // taken from online http://www.dotnetjohn.com/articles.aspx?articleid=173
+    public static string ObjectToXml<T>(T val) {
+      try {
+        String XmlizedString = null;
+        MemoryStream memoryStream = new MemoryStream();
+        XmlSerializer xs = new XmlSerializer(typeof(T));
+        XmlTextWriter xmlTextWriter = new XmlTextWriter(memoryStream, 
+                                                        Encoding.UTF8);
+        xs.Serialize(xmlTextWriter, val);
+        memoryStream = (MemoryStream) xmlTextWriter.BaseStream;
+        XmlizedString = UTF8ByteArrayToString(memoryStream.ToArray());
+        return XmlizedString;
+      } catch ( Exception e ) {
+        System.Console.WriteLine(e);
+        return null;
+      }
+    }
+
+    // taken from online http://www.dotnetjohn.com/articles.aspx?articleid=173
+    public static T XmlToObject<T>(string val) {
+      XmlSerializer xs = new XmlSerializer(typeof(T));
+      MemoryStream memoryStream = new MemoryStream(StringToUTF8ByteArray(val));
+      return (T) xs.Deserialize(memoryStream);
+    }
+
+    public static string UTF8ByteArrayToString(Byte[] characters) {
+      UTF8Encoding encoding = new UTF8Encoding();
+      String constructedString = encoding.GetString(characters);
+      return constructedString;
+    }
+
+    public static Byte[] StringToUTF8ByteArray(String pXmlString) {
+      UTF8Encoding encoding = new UTF8Encoding ( );
+      Byte[ ] byteArray = encoding.GetBytes ( pXmlString );
+      return byteArray;
+    }*/
+
+    /// converts from url encoding to key, value pair
+    public static Dictionary<string, string> DecodeUrl(string request) {
+      Dictionary<string, string> result = new Dictionary<string, string>();
+      string[] pairs = request.Split('&');
+      if (pairs.Length < 2) return result;
+      
+      for (int x = 0; x < pairs.Length; x++) {
+        string[] item = pairs[x].Split('=');
+        result.Add(HttpUtility.UrlDecode(item[0]), 
+                   HttpUtility.UrlDecode(item[1]));
+      }
+      return result;
     }
 
   }
@@ -210,7 +247,8 @@ namespace SocialVPN {
       SocialUtils.SaveCertificate(cert);
       NodeConfig config = 
         Utils.ReadConfig<NodeConfig>(SocialUtils.BrunetConfig);
-      string certPath = System.IO.Path.Combine(config.Security.CertificatePath,
+      string certPath = 
+        System.IO.Path.Combine(config.Security.CertificatePath,
         "lc" + user.Address.Substring(12) + ".cert");
       byte[] certData = SocialUtils.ReadFileBytes(certPath);
       SocialUser tmp = new SocialUser(certData);
@@ -220,7 +258,7 @@ namespace SocialVPN {
       Assert.AreEqual(tmp.PCID, user.PCID);
       Assert.AreEqual(tmp.Version, user.Version);
       Assert.AreEqual(tmp.Country, user.Country);
-      Assert.AreEqual(tmp.Address, user.Address);
+      Assert.AreEqual(tmp.Address, user.Address, config.NodeAddress);
       Assert.AreEqual(tmp.Fingerprint, user.Fingerprint);
 
     }
