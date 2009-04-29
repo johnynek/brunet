@@ -144,7 +144,7 @@ namespace SocialVPN {
     }
 
     public void AddFriends(string friendlist) {
-      string[] friends = friendlist.Split("\n");
+      string[] friends = friendlist.Split('\n');
       foreach(string friend in friends) {
         AddFriend(friend);
       }
