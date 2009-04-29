@@ -219,7 +219,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
     * to any handler of the data.  When they do a Send on
     * it, we will send the reply
     */
-   public class ReplyState : ISender {
+   public class ReplyState : ISender, IWrappingSender {
      protected int _lid;
      public int LocalID {
        get {
@@ -235,6 +235,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
          }
        }
      }
+
      public int RequestID { get { return RequestKey.RequestID; } }
      protected ICopyable Reply;
      protected DateTime _rep_date;
@@ -251,6 +252,10 @@ public class ReqrepManager : SimpleSource, IDataHandler {
      public int ReplyTimeouts { get { return _reply_timeouts; } }
 
      protected readonly WriteOnce<string> _uri;
+
+     public ISender WrappedSender {
+       get { return RequestKey.Sender; }
+     }
 
      public ReplyState(RequestKey rk) {
        RequestKey = rk;

@@ -33,17 +33,24 @@ namespace Brunet {
    * These tasks are completely stateless. All the state related 
    * to the progress of the computation is stored inside
    * a MapReduceComputation object.
+   * 
+   * By default, all methods throw NotImplemented, so we can
+   * write tasks that just implement Reduce, Map, or GenerateTree
+   * which can individually be accessed by Rpc calls.
    */
   public abstract class MapReduceTask {
-    protected static int _log_enabled = -1;
+    private static int _log_enabled = -1;
     public static bool LogEnabled {
       get {
+        return ProtocolLog.MapReduce.Enabled;
+        /*
         int val = _log_enabled;
         if (val == -1) {
           val = ProtocolLog.MapReduce.Enabled ? 1 : 0;
           Interlocked.Exchange(ref _log_enabled, val);
         }
         return val == 1;
+        */
       }
     }
 
@@ -56,7 +63,7 @@ namespace Brunet {
     }
 
     protected readonly Node _node;
-    private readonly WriteOnce<string> _task_name;
+    protected readonly WriteOnce<string> _task_name;
     /** unique type of the task. */
     public string TaskName {
       get {
@@ -83,7 +90,9 @@ namespace Brunet {
      * @param q the Channel into which the Map result is Enqueue 'd
      * @param map_arg the argument for the map function
      * */
-    public abstract void Map(Channel q, object map_arg);
+    public virtual void Map(Channel q, object map_arg) {
+      throw new NotImplementedException();
+    }
     /** 
      * reduce function.  This reduces the local and children results into one.
      * This is also the error handling function.  Any exceptions must be
@@ -96,12 +105,115 @@ namespace Brunet {
      * @param current_result accumulated result of reductions
      * @param child_rpc result from child computation
      */
-    public abstract void Reduce(Channel q, object reduce_arg, object current_result, RpcResult child_rpc);
+    public virtual void Reduce(Channel q, object reduce_arg, object current_result, RpcResult child_rpc) {
+      throw new NotImplementedException();
+    }
     /** tree generator function.
-     * @param q The channel into which to put exactly one MapReduceInfo[]
+     * @param q The channel into which to put exactly one IList<MapReduceInfo>
      * @param args the MapReduceArgs for this call
-     * */
-    public abstract void GenerateTree(Channel q, MapReduceArgs args);
+     */
+    public virtual void GenerateTree(Channel q, MapReduceArgs args) {
+      throw new NotImplementedException();
+    }
+  }
+
+  /** A class to handle dispatching RPC-based MapReduce
+   * This class handles calling RPC-based MapReduce.  There
+   * is one issue: to support XML-RPC, avoid using
+   * any types not supported by XML-RPC, such as Null.
+   */
+  public class RpcMapReduceTask : MapReduceTask {
+    protected readonly Pair<ISender, string> _map;
+    protected readonly Pair<ISender, string> _tree;
+    protected readonly Pair<ISender, string> _reduce;
+
+    /**
+     * @param node
+     * @param targets keys should contain map, tree, reduce.  Values should be
+     * pairs sender uris and method in that order
+     */
+    public RpcMapReduceTask(Node n, IDictionary targets) : base(n) {
+      _task_name.Value = (string)targets["task_name"];
+      _map = ParseTarget((IList)targets["map"]);
+      _tree = ParseTarget((IList)targets["tree"]);
+      _reduce = ParseTarget((IList)targets["reduce"]);
+    }
+
+    protected Brunet.Util.Pair<ISender, string> ParseTarget(IList targ) {
+      var send = SenderFactory.CreateInstance(_node, (string)targ[0]);
+      var meth = (string)targ[1];
+      return new Brunet.Util.Pair<ISender, string>(send, meth);
+    }
+
+    public override void Map(Channel q, object map_arg) {
+      Channel result = new Channel(1, q);
+      result.CloseEvent += this.MapHandler;
+      _node.Rpc.Invoke(_map.First, result, _map.Second, map_arg);
+    }
+    protected void MapHandler(object o, EventArgs args) {
+      Channel result = (Channel)o;
+      Channel q = (Channel)result.State;
+      try {
+        RpcResult r = (RpcResult)result.Dequeue();
+        q.Enqueue(r.Result);  
+      }
+      catch(Exception x) {
+        //Some kind of problem:
+        q.Enqueue(x);
+      }
+    }
+    public override void GenerateTree(Channel q, MapReduceArgs args) {
+      Channel result = new Channel(1, q);
+      result.CloseEvent += this.TreeHandler;
+      _node.Rpc.Invoke(_tree.First, result, _tree.Second, args.ToHashtable());
+    }
+    protected void TreeHandler(object o, EventArgs eargs) {
+      Channel result = (Channel)o;
+      Channel q = (Channel)result.State;
+      try {
+        RpcResult r = (RpcResult)result.Dequeue();
+        var mris = new List<MapReduceInfo>();
+        foreach(IDictionary d in (IList)r.Result) {
+          var uri = (string)d["sender"];
+          var sender = SenderFactory.CreateInstance(_node, uri);
+          var args = new MapReduceArgs((IDictionary)d["args"]);
+          mris.Add(new MapReduceInfo(sender, args));
+        }
+        q.Enqueue(mris.ToArray());
+      }
+      catch(Exception x) {
+        //Some kind of problem:
+        q.Enqueue(x);
+      }
+    }
+    public override void Reduce(Channel q, object reduce_arg, object current_result, RpcResult child_rpc) {
+      Channel result = new Channel(1, q);
+      result.CloseEvent += this.ReduceHandler;
+      var childrpc_ht = new Hashtable();
+      ISender rsend = child_rpc.ResultSender;
+      childrpc_ht["sender"] = rsend != null ? rsend.ToUri() : "sender:localnode";
+      try {
+        //If this is an exception, this will throw
+        childrpc_ht["result"] = child_rpc.Result; 
+      }
+      catch(Exception x) {
+        childrpc_ht["result"] = x;
+      }
+      _node.Rpc.Invoke(_reduce.First, result, _reduce.Second, reduce_arg, current_result, childrpc_ht);
+    }
+    protected void ReduceHandler(object o, EventArgs args) {
+      Channel result = (Channel)o;
+      Channel q = (Channel)result.State;
+      try {
+        RpcResult r = (RpcResult)result.Dequeue();
+        //The result should be a list:
+        IList l = (IList)r.Result;
+        q.Enqueue(new Pair<object, bool>(l[0], (bool)l[1]));
+      }
+      catch(Exception x) {
+        q.Enqueue(x);
+      }
+    }
   }
   
   /** 
@@ -119,7 +231,7 @@ namespace Brunet {
     protected readonly RpcManager _rpc;
     /** mapping of map-reduce task names to task objects. */
     protected readonly Dictionary<string, MapReduceTask> _name_to_task;
-    
+
     /**
      * Constructor
      * @param n local node
@@ -129,6 +241,15 @@ namespace Brunet {
       _rpc = n.Rpc;
       _name_to_task = new Dictionary<string, MapReduceTask>();
       _sync = new object();
+      //Set up some basic tasks:
+      var basetasks = new MapReduceTask[]{
+        new MapReduceBoundedBroadcast(_node),
+        new MapReduceGreedy(_node),
+        new MapReduceListConcat(_node),
+      };
+      foreach(MapReduceTask mrt in basetasks) {
+        SubscribeTask(mrt);
+      }
     }
     
     /**
@@ -137,21 +258,73 @@ namespace Brunet {
      * "Start". 
      */
     public void HandleRpc(ISender caller, string method, IList args, object req_state) {
-      if (method == "Start") {
-        IDictionary ht = (IDictionary) args[0];
-        MapReduceArgs mr_args = new MapReduceArgs(ht);
-        string task_name = mr_args.TaskName;
-        MapReduceTask task;
-        if (_name_to_task.TryGetValue(task_name, out task)) {
-          MapReduceComputation mr = new MapReduceComputation(_node, req_state, task, mr_args);
-          mr.Start();
-        } 
+      int part_idx = method.IndexOf(':');
+      if( part_idx == -1 ) {
+        if (method == "Start") {
+          IDictionary ht = (IDictionary) args[0];
+          MapReduceArgs mr_args = new MapReduceArgs(ht);
+          string task_name = mr_args.TaskName;
+          MapReduceTask task;
+          if (_name_to_task.TryGetValue(task_name, out task)) {
+            MapReduceComputation mr = new MapReduceComputation(_node, req_state, task, mr_args);
+            mr.Start();
+          } 
+          else {
+            throw new AdrException(-32608, "No mapreduce task with name: " + task_name);          
+          }
+        }
+        else if( method == "AddHandler" ) {
+          //Make sure this is local:
+          ISender tmp_call = caller;
+          bool islocal = tmp_call is Node;
+          while(!islocal && tmp_call is IWrappingSender) {
+            tmp_call =  ((IWrappingSender)tmp_call).WrappedSender;
+            islocal = tmp_call is Node;
+          }
+          if( !islocal ) {
+            throw new AdrException(-32601, "AddHandler only valid for local callers");
+          }
+          SubscribeTask(new RpcMapReduceTask(_node, (IDictionary)args[0]));
+          _rpc.SendResult(req_state, null);
+        }
         else {
-          throw new AdrException(-32608, "No mapreduce task with name: " + task_name);          
+          throw new AdrException(-32601, "No Handler for method: " + method);
         }
       }
       else {
-        throw new AdrException(-32601, "No Handler for method: " + method);
+        //This is a reference to a specific part of a task:
+        string part = method.Substring(0, part_idx);
+        string task_name = method.Substring(part_idx + 1);
+        MapReduceTask task;
+        if(false == _name_to_task.TryGetValue(task_name, out task)) {
+          throw new AdrException(-32608, "No mapreduce task with name: " + task_name);          
+        }
+        if( part == "tree" ) {
+          var mra = new MapReduceArgs((IDictionary)args[0]);
+
+          var tree_res = new Channel(1, req_state);
+          tree_res.CloseEvent += this.HandleTree;
+          task.GenerateTree(tree_res, mra);
+        }
+        else if( part == "reduce" ) {
+          //Prepare the RpcResult:
+          var rres_d = (IDictionary)args[2];
+          ISender send = SenderFactory.CreateInstance(_node, (string)rres_d["sender"]);
+          var rres = new RpcResult(send, rres_d["result"]);
+          
+          Channel reduce_res = new Channel(1, req_state);
+          reduce_res.CloseEvent += this.HandleReduce;
+          task.Reduce(reduce_res, args[0], args[1], rres);
+        }
+        else if( part == "map" ) {
+          Channel map_res = new Channel(1, req_state);
+          map_res.CloseEvent += this.HandleMap;
+          task.Map(map_res, args[0]);
+        }
+        else {
+          throw new AdrException(-32608,
+              String.Format("No mapreduce task({0}) part with name: {1}", task_name, part));          
+        }
       }
     }
     
@@ -166,6 +339,55 @@ namespace Brunet {
         }
         _name_to_task[task.TaskName] = task;
       }
+    }
+
+    protected void HandleMap(object q, EventArgs eargs) {
+      object result;
+      Channel map_res = (Channel)q;
+      try {
+        result = map_res.Dequeue();
+      }
+      catch(Exception x) {
+        result = x;
+      }
+      _rpc.SendResult(map_res.State, result);
+    }
+    protected void HandleReduce(object q, EventArgs args) {
+      object result;
+      Channel red_res = (Channel)q;
+      try {
+        object red_o = red_res.Dequeue();
+        if( red_o is Exception ) {
+          result = red_o;
+        }
+        else {
+          var pres = (Pair<object, bool>)red_o;
+          result = new object[]{pres.First, pres.Second};
+        }
+      }
+      catch(Exception x) {
+        result = x;
+      }
+      _rpc.SendResult(red_res.State, result);
+    }
+    protected void HandleTree(object q, EventArgs args) {
+      object result;
+      Channel resq = (Channel)q;
+      try {
+        var tres = (IEnumerable)resq.Dequeue();
+        var ld = new List<IDictionary>();
+        foreach(MapReduceInfo mri in tres) {
+          var mrid = new ListDictionary();
+          mrid["sender"] = mri.Sender.ToUri();
+          mrid["args"] = mri.Args.ToHashtable();
+          ld.Add(mrid); 
+        }
+        result = ld;
+      }
+      catch(Exception x) {
+        result = x;
+      }
+      _rpc.SendResult(resq.State, result);
     }
   }
     
@@ -237,15 +459,18 @@ namespace Brunet {
    * This class represents an instance of a map-reduce computation. 
    */
   public class MapReduceComputation {
-    protected static int _log_enabled = -1;
+    private static int _log_enabled = -1;
     public static bool LogEnabled {
       get {
+        return ProtocolLog.MapReduce.Enabled;
+        /*
         int val = _log_enabled;
         if (val == -1) {
           val = ProtocolLog.MapReduce.Enabled ? 1 : 0;
           Interlocked.Exchange(ref _log_enabled, val);
         }
         return val == 1;
+        */
       }
     }
     
@@ -301,12 +526,18 @@ namespace Brunet {
        * After we have the map result, we immediately start to reduce it
        */
       public State UpdateMap(object m) {
+        if( MapResult != DEFAULT_OBJ ) {
+          throw new Exception("MapReduce: MapResult already set");
+        }
         return new State(m, Tree, ChildReductions, ReduceResult, Done, Pending, true);
       }
       /*
        * This cannot change our Reducing state.
        */
       public State UpdateTree(MapReduceInfo[] tree) {
+        if( Tree != null ) {
+          throw new Exception("MapReduce: Tree already set");
+        }
         bool done = Done;
         if( ReduceResult != DEFAULT_OBJ ) {
           /*
@@ -326,12 +557,12 @@ namespace Brunet {
         //If we can, pop off a result which we need to reduce:
         ImmutableList<RpcResult> pend;
         bool reduce;
-        bool done = val.Second;
+        bool done = Done || val.Second;
         int child_reds = ChildReductions;
         if( child_reduction ) {
           child_reds++;
         }
-        if( false == Pending.IsEmpty ) {
+        if( false == Pending.IsEmpty && false == done ) {
           //More to reduce:
           pend = Pending.Tail;
           reduce = true;
@@ -340,16 +571,22 @@ namespace Brunet {
           pend = ImmutableList<RpcResult>.Empty;
           reduce = false;
           if( false == done ) {
-            //Check to see if we have hit all our children:
+            /*
+             * Check to see if we have hit all our children
+             * and we have already completed the map
+             */
             if( Tree != null ) {
-              done = child_reds == Tree.Length;
+              done = (child_reds == Tree.Length);
+            }
+            else {
+              //We haven't yet gotten the Tree result back, done = false
             }
           }
         }
         return new State(MapResult, Tree, child_reds, val.First, done, pend, reduce);
       }
       /*
-       * If we were not already reducing, we will be after this call
+       * We always reduce our map call first, then children.
        */
       public State AddChildResult(RpcResult child) {
         if( Reducing ) {
@@ -357,8 +594,19 @@ namespace Brunet {
           var pend = new ImmutableList<RpcResult>(child, Pending);
           return new State(MapResult, Tree, ChildReductions, ReduceResult, Done, pend, true); 
         }
+        else if( MapResult == DEFAULT_OBJ ) {
+          /*
+           * We are not reducing AND we have not finished the first
+           * Reduce, that means we are waiting for the Map result.
+           */
+          var pend = new ImmutableList<RpcResult>(child, Pending);
+          return new State(MapResult, Tree, ChildReductions, ReduceResult, Done, pend, false); 
+        }
         else {
-          //We can go ahead and reduce this new value
+          /*
+           * In this case, we are not already reducing, and we have reduced
+           * the MapResult
+           */
           return new State(MapResult, Tree, ChildReductions, ReduceResult, Done, ImmutableList<RpcResult>.Empty, true); 
         }
       }
@@ -405,9 +653,7 @@ namespace Brunet {
           ProtocolLog.Write(ProtocolLog.MapReduce,        
                           String.Format("MapReduce: {0}, Exception in Map: {1}", _node.Address, x));
         }
-        Channel map_res2 = new Channel(1);
-        map_res2.CloseEvent += this.MapHandler;
-        map_res2.Enqueue(x);
+        HandleException(null, x);
       }
       if( _state.Done ) { return; }
       /* Our local Map was not enough
@@ -428,10 +674,7 @@ namespace Brunet {
           ProtocolLog.Write(ProtocolLog.MapReduce,        
                           String.Format("MapReduce: {0}, Exception in GenerateTree: {1}", _node.Address, x));
         }
-        //Simulate the above except with the Exception enqueued
-        Channel gentree_res = new Channel(1);
-        gentree_res.CloseEvent += this.GenTreeHandler;
-        gentree_res.Enqueue(x);
+        HandleException(null, x);
       }
     }
 
@@ -465,22 +708,32 @@ namespace Brunet {
       }
       while( state != old_state);
       //Do the first reduction:
-      TryNextReduce(new_state, old_state, new RpcResult(null, map_res));
+      TryNextReduce(new_state, old_state, new RpcResult(null, map_res), false);
     }
 
     /**
      * @return true if we successfully started the next reduce
      */
-    protected bool TryNextReduce(State new_s, State old_s, RpcResult v) {
+    protected bool TryNextReduce(State new_s, State old_s, RpcResult v, bool cont) {
       if( new_s.Done ) {
         SendResult( new_s.ReduceResult );
         return false;
       }
-      bool start_red = new_s.Reducing && (false == old_s.Reducing);
+      bool start_red = new_s.Reducing && (cont || (false == old_s.Reducing));
+      if (LogEnabled) {
+        ProtocolLog.Write(ProtocolLog.MapReduce,        
+                          String.Format("MapReduce: {0}, TryNextReduce: {1}.",
+                          _node.Address, start_red));
+      }
       if( start_red ) {
         Channel r_chan = new Channel(1, v);
         r_chan.CloseEvent += this.ReduceHandler;
         object startval = new_s.ReduceResult == State.DEFAULT_OBJ ? null : new_s.ReduceResult;
+        if (LogEnabled) {
+          ProtocolLog.Write(ProtocolLog.MapReduce,        
+                          String.Format("MapReduce: {0} abt to Reduce({1},{2},{3})",
+                            _node.Address, _mr_args.ReduceArg, startval, v));
+        }
         try {
           _mr_task.Reduce(r_chan, _mr_args.ReduceArg, startval, v);
         }
@@ -499,13 +752,27 @@ namespace Brunet {
 
     protected void ReduceHandler(object ro, EventArgs args) {
       Brunet.Util.Pair<object, bool> retval;
-      RpcResult value_reduced;
+      Channel reduce_chan = (Channel)ro;
+      RpcResult value_reduced = (RpcResult)reduce_chan.State;
       try { 
-        Channel reduce_chan = (Channel)ro;
-        value_reduced = (RpcResult)reduce_chan.State;
-        retval = (Brunet.Util.Pair<object, bool>)reduce_chan.Dequeue();
+        object r_o = reduce_chan.Dequeue();
+        Exception r_x = r_o as Exception;
+        if( r_x != null ) {
+          if (LogEnabled) {
+            ProtocolLog.Write(ProtocolLog.MapReduce,        
+                          String.Format("MapReduce: {0}, resulted in: {1}.",
+                          _node.Address, r_x));
+          }
+          SendResult(r_x);
+          return;
+        }
+        retval = (Brunet.Util.Pair<object, bool>)r_o;
       }
       catch(Exception x) {
+        if (LogEnabled) {
+          ProtocolLog.Write(ProtocolLog.MapReduce,        
+                          String.Format("MapReduce: {0}, resulted in: {1}.", _node.Address, x));
+        }
         SendResult(x);
         return;
       }
@@ -523,7 +790,7 @@ namespace Brunet {
       }
       while( state != old_state);
       
-      TryNextReduce(new_state, old_state, old_state.Pending.Head);
+      TryNextReduce(new_state, old_state, old_state.Pending.Head, true);
     }
 
     protected void GenTreeHandler(object chano, EventArgs args) {
@@ -531,57 +798,69 @@ namespace Brunet {
               ProtocolLog.Write(ProtocolLog.MapReduce,        
                           String.Format("MapReduce: {0}, GenTreeHandler", _node.Address));
       }
+      Channel gtchan = (Channel)chano;
+      MapReduceInfo[] children;
+      object gtchan_result = null;
       try {
-        Channel gtchan = (Channel)chano;
-        MapReduceInfo[] children = (MapReduceInfo[])gtchan.Dequeue();
-      
-        //The usual transactional bit:
-        State state = _state;
-        State old_state;
-        State new_state;
-        do {
-          old_state = state;
-          new_state = old_state.UpdateTree(children);
-          state = Interlocked.CompareExchange<State>(ref _state, new_state, old_state);
-        }
-        while( state != old_state);
-        if( new_state.Done ) {
-          //We don't need to start calling our children
-          if (LogEnabled) {
-            ProtocolLog.Write(ProtocolLog.MapReduce,        
-                          String.Format("MapReduce: {0}, done on GenTreeHandler", _node.Address));
-          }
-          SendResult( new_state.ReduceResult );
-          return;
-        }
-        //Now we need to start calling our children:
-        foreach(MapReduceInfo mri in new_state.Tree) {
-          Channel child_q = new Channel(1, mri);
-          child_q.CloseEvent += this.ChildCallback;
-          try {
-            if (LogEnabled) {
-              ProtocolLog.Write(ProtocolLog.MapReduce,        
-                          String.Format("MapReduce: {0}, calling child ({1})", _node.Address, mri.Sender.ToUri()));
-            }
-            _rpc.Invoke(mri.Sender, child_q,  "mapreduce.Start", mri.Args.ToHashtable());
-          }
-          catch(Exception x) {
-            if (LogEnabled) {
-              ProtocolLog.Write(ProtocolLog.MapReduce,        
-                          String.Format("MapReduce: {0}, child ({1}) call threw: {2}.", _node.Address, mri.Sender.ToUri(), x));
-            }
-            Reduce(new RpcResult(mri.Sender, x));
-          }
-        }
+        gtchan_result = gtchan.Dequeue();
+        children = (MapReduceInfo[])gtchan_result;
       }
       catch(Exception x) {
-        //We reduce exceptions:
+        //We could fail to return (queue is empty), or get a bad result
+        Exception rx = gtchan_result as Exception;
+        if( rx != null) {
+          x = rx; //x should have been a bad cast
+        }
         if (LogEnabled) {
             ProtocolLog.Write(ProtocolLog.MapReduce,        
                           String.Format("MapReduce: {0}, GenTreeHandler exception ({1})", _node.Address, x));
         }
-        Reduce(new RpcResult(null, x));
+        HandleException(null, x);
+        return;
       }
+      //The usual transactional bit:
+      State state = _state;
+      State old_state;
+      State new_state;
+      do {
+        old_state = state;
+        new_state = old_state.UpdateTree(children);
+        state = Interlocked.CompareExchange<State>(ref _state, new_state, old_state);
+      }
+      while( state != old_state);
+      if( new_state.Done ) {
+        //We don't need to start calling our children
+        if (LogEnabled) {
+          ProtocolLog.Write(ProtocolLog.MapReduce,        
+                        String.Format("MapReduce: {0}, done on GenTreeHandler", _node.Address));
+        }
+        SendResult( new_state.ReduceResult );
+        return;
+      }
+      //Now we need to start calling our children:
+      foreach(MapReduceInfo mri in children) {
+        Channel child_q = new Channel(1, mri);
+        child_q.CloseEvent += this.ChildCallback;
+        try {
+          if (LogEnabled) {
+            ProtocolLog.Write(ProtocolLog.MapReduce,        
+                        String.Format("MapReduce: {0}, calling child ({1})", _node.Address, mri.Sender.ToUri()));
+          }
+          _rpc.Invoke(mri.Sender, child_q,  "mapreduce.Start", mri.Args.ToHashtable());
+        }
+        catch(Exception x) {
+          if (LogEnabled) {
+            ProtocolLog.Write(ProtocolLog.MapReduce,        
+                        String.Format("MapReduce: {0}, child ({1}) call threw: {2}.", _node.Address, mri.Sender.ToUri(), x));
+          }
+          HandleException(mri.Sender, x);
+        }
+      }
+    }
+
+    protected void HandleException(ISender from, Exception x) {
+      ///@todo perhaps we can get Reduce to handle errors?
+      SendResult(x);
     }
 
     protected void Reduce(RpcResult child_r) {
@@ -596,7 +875,7 @@ namespace Brunet {
       }
       while( state != old_state);
       //If we need to start a new reduce, it's the latest value:  
-      TryNextReduce(new_state, old_state, child_r);
+      TryNextReduce(new_state, old_state, child_r, false);
     }
 
     protected void ChildCallback(object cq, EventArgs arg) {

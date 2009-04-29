@@ -29,8 +29,10 @@ namespace Brunet {
    * The following class provides a base class for tasks utilizing a greedy tree
    *  for computation. 
    */
-  public abstract class MapReduceGreedy: MapReduceTask {
+  public class MapReduceGreedy : MapReduceTask {
     public MapReduceGreedy(Node n):base(n) {}
+    /** Greedy routing.  gen_arg is the Address of the destination
+     */
     public override void GenerateTree(Channel q, MapReduceArgs mr_args) {
       object gen_arg = mr_args.GenArg;
       Log("{0}: {1}, greedy generator called, arg: {2}.", 
@@ -57,7 +59,7 @@ namespace Brunet {
   /** The following class provides the base class for tasks utilizing the
    *  BoundedBroadcastTree generation.
    */
-  public abstract class MapReduceBoundedBroadcast: MapReduceTask 
+  public class MapReduceBoundedBroadcast : MapReduceTask 
   {
     public MapReduceBoundedBroadcast(Node n):base(n) {}
     /**
@@ -131,4 +133,24 @@ namespace Brunet {
       q.Enqueue( retval.ToArray(typeof(MapReduceInfo)));
     }
   }   
+
+  /** A list concatenation task
+   */
+  public class MapReduceListConcat : MapReduceTask {
+    public MapReduceListConcat(Node n) : base(n) { }
+    public override void Reduce(Channel q, object reduce_arg, object current_val, RpcResult child_r) {
+      var rest = child_r.Result as IEnumerable;
+      //If we get here, the child didn't throw an exception
+      var result = new ArrayList();
+      AddEnum(result, current_val as IEnumerable);
+      AddEnum(result, rest);
+      q.Enqueue(new Brunet.Util.Pair<object, bool>(result, false));
+    }
+    protected static void AddEnum(IList into, IEnumerable source) {
+      if( source == null ) { return; }
+      foreach(object o in source) {
+        into.Add(o);
+      }
+    } 
+  }
 }
