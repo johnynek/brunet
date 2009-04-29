@@ -41,6 +41,14 @@ public interface ISender {
   
 }
 
+/** Some senders "wrap" other senders, subclass this
+ */
+public interface IWrappingSender {
+  ISender WrappedSender {
+    get;
+  } 
+}
+
 public class SendException : Exception {
 
   public readonly bool IsTransient;
