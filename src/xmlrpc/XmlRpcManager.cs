@@ -11,6 +11,7 @@ using System.Security.Cryptography;
 using System.IO;
 using System.Diagnostics;
 using System.Reflection;
+using System.Collections.Generic;
 #if BRUNET_NUNIT
 using NUnit.Framework;
 #endif
@@ -355,7 +356,6 @@ namespace Brunet.Rpc {
 
   }
 
-
   /**
    * Client proxy interface.
    */
@@ -372,38 +372,15 @@ namespace Brunet.Rpc {
      * Creates an XmlRpcManager instance with the specified ip, port.
      * Logs Request and Response messages in XML if logReqresp is set to true
      */
-    public static IXmlRpcManager GetXmlRpcManager(string ip, int port, bool logReqresp) {
+    public static IXmlRpcManager GetXmlRpcManager(string ip, int port, 
+      string relativeUri, bool logReqresp) {
       IXmlRpcManager proxy = XmlRpcProxyGen.Create<IXmlRpcManager>();
-      proxy.Url = "http://" + ip + ":" + port + "/xm.rem";
+      proxy.Url = string.Format("http://{0}:{1}/{2}", ip, port, relativeUri);
       if (logReqresp) {
         XmlRpcManagerClientLogger logger = new XmlRpcManagerClientLogger();
         logger.Attach(proxy);
       }
       return proxy;
-    }
-
-    public static IXmlRpcManager GetXmlRpcManager(string ip, int port) {
-      return GetXmlRpcManager(ip, port, false);
-    }
-
-    public static IXmlRpcManager GetXmlRpcManager(int port) {
-      return GetXmlRpcManager("127.0.0.1", port, false);
-    }
-
-    public static IXmlRpcManager GetXmlRpcManager(int port, bool logReqresp) {
-      return GetXmlRpcManager("127.0.0.1", port, logReqresp);
-    }
-
-    public static IXmlRpcManager GetXmlRpcManager(bool logReqresp) {
-      return GetXmlRpcManager("127.0.0.1", 10000, logReqresp);
-    }
-
-    /**
-     * Creates XmlRpcManager instance using localhost address and port 10000
-     * and with logging disabled.
-     */
-    public static IXmlRpcManager GetXmlRpcManager() {
-      return GetXmlRpcManager("127.0.0.1", 10000, false);
     }
   }
 
@@ -432,18 +409,19 @@ namespace Brunet.Rpc {
     }
   }
 
-  /**
-   * .NET Remoting service that hosts the XmlRpcManager instance.
-   */
+  /// <summary>
+  /// .NET Remoting service that hosts the XmlRpcManager instances.
+  /// </summary>
   public class XmlRpcManagerServer {
-    XmlRpcManager _xrm = null;
-    RpcManager _rpc = null;
-    Node _node;
     IChannel _channel;
- 
-    /**
-     * Registers the server at the specified port on local machine.
-     */
+    protected IDictionary<Node, XmlRpcManager> _xrm_mappings = 
+      new Dictionary<Node, XmlRpcManager>();
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="XmlRpcManagerServer"/> class 
+    /// and registers it at the specified port on local machine.
+    /// </summary>
+    /// <param name="port">The port.</param>
     public XmlRpcManagerServer(int port) {
       IServerChannelSinkProvider chain = new XmlRpcServerFormatterSinkProvider();
       IDictionary props = new Hashtable();
@@ -456,12 +434,15 @@ namespace Brunet.Rpc {
        */
       props.Add("name", ""); 
 #else
-      props.Add("name", "xmlrpc");  //so that this channel won't collide with dht services
+      props.Add("name", "xmlrpcmanagers");  //so that this channel won't collide with dht services
 #endif
       _channel = new HttpChannel(props, null, chain);
       ChannelServices.RegisterChannel(_channel, false);
     }
 
+    /// <summary>
+    /// Stops this server.
+    /// </summary>
     public void Stop()
     {
       try {
@@ -473,28 +454,66 @@ namespace Brunet.Rpc {
       } catch{}
     }
 
+    /// <summary>
+    /// Suspends the service objects.
+    /// </summary>
     public void Suspend()
     {
-      RemotingServices.Disconnect(_xrm);
-      _rpc.RemoveHandler("xmlrpc");
+      foreach (var pair in _xrm_mappings) {
+        RemotingServices.Disconnect(pair.Value);
+        pair.Key.Rpc.RemoveHandler("xmlrpc");
+      }
     }
 
-    public void Update(Node node)
-    {
+    /// <summary>
+    /// Adds the specified node to listen to XMLRPC proxy calls.
+    /// </summary>
+    /// <param name="node">The node.</param>
+    /// <remarks>Uses a node's string version of Brunet address plus ".rem" as the 
+    /// relative Uri.</remarks>
+    public virtual void Add(Node node) {
       RpcManager rpc = RpcManager.GetInstance(node);
-      Update(node, rpc);
+      Add(node, rpc, string.Format("{0}.rem", node.Address.ToString()));
     }
 
-    /**
-     * The overloaded method for now is used to allow RpcManager to be replaced
-     * by MockRpcManager in unit tests.
-     */
-    public void Update(Node node, RpcManager rpc) {
-      _rpc = rpc;
-      _node = node;
-      _xrm = new XmlRpcManager(_node, _rpc);
-      _rpc.AddHandler("xmlrpc", _xrm);
-      RemotingServices.Marshal(_xrm, "xm.rem");
+    /// <summary>
+    /// Stops the specified node from listening to XMLRPC proxy calls.
+    /// </summary>
+    /// <param name="node">The node.</param>
+    public void Remove(Node node) {
+        RemotingServices.Disconnect(_xrm_mappings[node]);
+        node.Rpc.RemoveHandler("xmlrpc");
+    }
+
+    /// <summary>
+    /// The overloaded method for now is used to allow RpcManager to be replaced
+    /// by MockRpcManager in unit tests.
+    /// </summary>
+    /// <param name="node"></param>
+    /// <param name="rpc"></param>
+    /// <param name="uri"></param>
+    internal void Add(Node node, RpcManager rpc, string uri) {
+      var xrm = new XmlRpcManager(node, rpc);
+      rpc.AddHandler("xmlrpc", xrm);
+      _xrm_mappings[node] = xrm;
+      RemotingServices.Marshal(xrm, uri);
+    }
+  }
+
+  /// <summary>
+  /// Hosts only one instance of XmlRpcManager thus allows access using the simple 
+  /// uri: xm.rem
+  /// </summary>
+  public class SingleXmlRpcManagerServer : XmlRpcManagerServer {
+    public SingleXmlRpcManagerServer(int port) : base(port) { }
+
+    public override void Add(Node node) {
+      if (_xrm_mappings.Count > 0) {
+        throw new InvalidOperationException("Only one node can be registered.");
+      } else {
+        RpcManager rpc = RpcManager.GetInstance(node);
+        Add(node, rpc, "xm.rem");
+      }
     }
   }
 
@@ -607,11 +626,11 @@ namespace Brunet.Rpc {
     public void InitFixture() {
       ConsoleTraceListener myWriter = new ConsoleTraceListener();
       Debug.Listeners.Add(myWriter);
-      _rpc = XmlRpcManagerClient.GetXmlRpcManager("127.0.0.1", Port, true);
       Node n = new StructuredNode(new AHAddress(new RNGCryptoServiceProvider()));
+      _rpc = XmlRpcManagerClient.GetXmlRpcManager("127.0.0.1", Port, "xm.rem", true);
       _mrm = MockRpcManager.GetInstance(n);
-      _server = new XmlRpcManagerServer(Port);
-      _server.Update(n, _mrm);
+      _server = new SingleXmlRpcManagerServer(Port);
+      _server.Add(n, _mrm, "xm.rem");
       Debug.WriteLine(string.Format("Server started at {0}", Port));
     }
 

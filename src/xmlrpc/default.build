@@ -42,24 +42,15 @@
         <include name="Brunet.XmlRpc.dll" />
       </fileset>
     </copy>
-    <csc target="exe" output="${build.dir}/SimpleXmlRpcClient.exe">
-      <sources failonempty="true">
-        <include name="SimpleXmlRpcClient.cs" />        
-      </sources>
-      <references>
-        <include name="${build.dir}/Brunet.dll" />
-        <include name="${build.dir}/Brunet.XmlRpc.dll" />
-        <include name="System.Runtime.Remoting.dll"/>
-        <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />
-      </references>
-    </csc>
   </target>
 
   <target name="test" description="Build Build Brunet.XmlRpc.dll with tests">
     <mkdir dir="${build.dir}" failonerror="true"/>
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${lib.dir}">
-        <include name="*.dll" />
+        <include name="Brunet.dll" />
+        <include name="CookComputing.XmlRpcV2.dll" />
+        <include name="NUnit.Framework.dll" />
       </fileset>
     </copy>
     <csc target="library" 

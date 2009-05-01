@@ -242,9 +242,11 @@ namespace Brunet.Applications {
     public virtual void StartServices() {
       _shutdown.OnExit += OnExit;
 
-      if(_node_config.XmlRpcManager.Enabled && _xrm == null) {
-        _xrm = new XmlRpcManagerServer(_node_config.XmlRpcManager.Port);
-        _xrm.Update(_node);
+      if(_node_config.XmlRpcManager.Enabled) {
+        if(_xrm == null) {
+          _xrm = new SingleXmlRpcManagerServer(_node_config.XmlRpcManager.Port);
+        }
+        _xrm.Add(_node);
         new RpcDht(_dht, _node);
       }
     }
