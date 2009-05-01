@@ -23,38 +23,53 @@ using System.Web;
 using System.IO;
 using System.Threading;
 
-namespace SocialVPN
-{
-  public class HttpInterface
-  {
+namespace SocialVPN {
+  /**
+   * This class defines the HTTP interface to manage socialvpn.
+   */
+  public class HttpInterface {
+    /**
+     * Location of the Javascript file.
+     */
     public const string JSURL = "socialvpn.js";
 
-    public const string URL = "http://127.0.0.1:58888/";
-
+    /**
+     * This event is fired whenever we get an API request.
+     */
     public event EventHandler ProcessEvent;
 
-    public string StateXml;
-
+    /**
+     * The .NET HTTP listener which implements HTTP protocol.
+     */
     protected HttpListener _listener;
     
+    /**
+     * The seperate thread that the HTTP interface runs on.
+     */
     protected Thread _runner;
 
+    /**
+     * Keeps track of interface state (on/off).
+     */
     protected bool _running;
 
-    public HttpInterface()
-    {
+    /**
+     * Constructor for HTTP interface.
+     * @param port the TCP port for the interface.
+     */
+    public HttpInterface(string port) {
       _listener = new HttpListener();
-      _listener.Prefixes.Add(URL);
+      _listener.Prefixes.Add("http://127.0.0.1:" + port + "/");
       _runner = new Thread(Run);
       _runner.IsBackground = true;
       _running = false;
     }
 
-
-    public static string CrossDomainXML
-    {
-      get
-      {
+    /**
+     * Xml cross-domain policy for Flash clients.
+     */
+    public static string CrossDomainXML {
+      get {
         return "<?xml version=\"1.0\"?>" +
            "<!DOCTYPE cross-domain-policy SYSTEM " +
            "\"http://www.macromedia.com/xml/dtds/cross-domain-policy.dtd\">" +
@@ -64,10 +79,11 @@ namespace SocialVPN
       }
     }
 
-    public static string HTMLText
-    {
-      get
-      {
+    /**
+     * The html content for Web page display.
+     */
+    public static string HTMLText {
+      get {
         return "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" " +
        "\"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">" +
        "<html><head></head><body><script type=\"text/javascript\" src=\""
@@ -75,25 +91,25 @@ namespace SocialVPN
       }
     }
 
-    protected string Process(Object obj)
-    {
+    /**
+     * Process API requests through the process event.
+     */
+    protected string Process(Dictionary<string, string> request) {
       EventHandler processEvent = ProcessEvent;
-      if (processEvent != null)
-      {
-        try
-        {
-          processEvent(obj, EventArgs.Empty);
-        }
-        catch (Exception e)
-        {
-          Console.WriteLine(e);
+      if (processEvent != null) {
+        try {
+          processEvent(request, EventArgs.Empty);
+        } catch (Exception e) {
+          Brunet.ProtocolLog.Write(SocialLog.SVPNLog, e.Message);
         }
       }
-      return StateXml;
+      return request["response"];
     }
 
-    public void Start()
-    {
+    /**
+     * Starts the interface.
+     */
+    public void Start() {
       if(_running) {
         return;
       }
@@ -102,17 +118,20 @@ namespace SocialVPN
       _runner.Start();
     }
 
-    public void Stop()
-    {
+    /**
+     * Stops the interface.
+     */
+    public void Stop() {
       _running = false;
       _listener.Stop();
+      _runner.Join();
     }
 
-    /// </summary>
-    protected void Run()
-    {
-      while(_running)
-      {
+    /**
+     * This method runs the interface.
+     */
+    protected void Run() {
+      while(_running) {
         HttpListenerContext context = null;
 
         try {

@@ -83,7 +83,7 @@ namespace SocialVPN {
       PCID = cert.Subject.OrganizationalUnit;
       Address = cert.NodeAddress;
       Version = cert.Subject.Organization;
-      Fingerprint = SocialUtils.GetMD5(cert.X509.RawData);
+      Fingerprint = SocialUtils.GetSHA1(cert.X509.RawData);
       DhtKey = "svpn:" + Uid + ":" + Fingerprint;
       Country = cert.Subject.Country;
       IP = "0.0.0.0";

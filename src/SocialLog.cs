@@ -19,7 +19,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using System.Diagnostics;
 
 namespace SocialVPN {
+  /**
+   * Classes which defines logging switches for socialvpn.
+   */
   public class SocialLog {
+    /**
+     * Basic logging switch.
+     */
     public static BooleanSwitch SVPNLog = 
       new BooleanSwitch("SVPNLog", "Basic Logging for SVPN");
   }

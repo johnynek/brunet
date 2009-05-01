@@ -24,6 +24,13 @@
     </copy>
 
     <copy todir="${build.dir}" failonerror="true">
+      <fileset basedir=".">
+        <include name="socialvpn.js" />
+        <include name="socialvpn.css" />
+      </fileset>
+    </copy>
+
+    <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${config.dir}">
         <include name="*.config" />
       </fileset>

@@ -39,8 +39,6 @@ namespace SocialVPN {
    */
   public class SocialUtils {
 
-    public static string BrunetConfig = "brunet.config";
-
     public SocialUtils() {}
 
     /**
@@ -50,30 +48,28 @@ namespace SocialVPN {
      * @param pcid PC identifier.
      * @param version SocialVPN version.
      * @param country user country.
+     * @param certDir the path for the certificate directory
+     * @param keyPath the path to the private RSA key
      * @return X509 Certificate.
      */
     public static Certificate CreateCertificate(string uid, string name,
                                                 string pcid, string version,
-                                                string country) {
-      NodeConfig config = Utils.ReadConfig<NodeConfig>(BrunetConfig);
-      config.NodeAddress = (Utils.GenerateAHAddress()).ToString();
-
+                                                string country, 
+                                                string address,
+                                                string certDir,
+                                                string keyPath) {
       RSACryptoServiceProvider rsa = new RSACryptoServiceProvider();  
       CertificateMaker cm = new CertificateMaker(country, version, pcid,
-                                                 name, uid, rsa, 
-                                                 config.NodeAddress);
+                                                 name, uid, rsa, address);
       Certificate cert = cm.Sign(cm, rsa);
       
-      string lc_path = Path.Combine(config.Security.CertificatePath,
-                                    "lc.cert");
-      string ca_path = Path.Combine(config.Security.CertificatePath,
-                                    "ca.cert");
+      string lc_path = Path.Combine(certDir, "lc.cert");
+      string ca_path = Path.Combine(certDir, "ca.cert");
 
-      if(!Directory.Exists(config.Security.CertificatePath)) {
-        Directory.CreateDirectory(config.Security.CertificatePath);
+      if(!Directory.Exists(certDir)) {
+        Directory.CreateDirectory(certDir);
       }
-      Utils.WriteConfig(BrunetConfig, config);
-      WriteToFile(rsa.ExportCspBlob(true), config.Security.KeyPath);
+      WriteToFile(rsa.ExportCspBlob(true), keyPath);
       WriteToFile(cert.X509.RawData, lc_path);
       WriteToFile(cert.X509.RawData, ca_path);
 
@@ -84,21 +80,15 @@ namespace SocialVPN {
      * Saves an X509 certificate to the file system.
      * @param cert the X509 certificate
      */
-    public static void SaveCertificate(Certificate cert) {
+    public static void SaveCertificate(Certificate cert, string certDir) {
       SocialUser friend = new SocialUser(cert);
       string address = friend.Address.Substring(12);
-      NodeConfig config = Utils.ReadConfig<NodeConfig>(BrunetConfig);
+      string ca_path = Path.Combine(certDir, "ca" + address + ".cert");
 
-      string lc_path = Path.Combine(config.Security.CertificatePath,
-                                      "lc" + address + ".cert");
-      string ca_path = Path.Combine(config.Security.CertificatePath,
-                                      "ca" + address + ".cert");
-
-      if(!Directory.Exists(config.Security.CertificatePath)) {
-        Directory.CreateDirectory(config.Security.CertificatePath);
+      if(!Directory.Exists(certDir)) {
+        Directory.CreateDirectory(certDir);
       }
-      if(!File.Exists(lc_path)) {
-        WriteToFile(cert.X509.RawData, lc_path);
+      if(!File.Exists(ca_path)) {
         WriteToFile(cert.X509.RawData, ca_path);
       }
     }
@@ -155,57 +145,13 @@ namespace SocialVPN {
     }
 
     /**
-     * Creates an MD5 string from a byte array.
+     * Creates an SHA1 hash string from a byte array.
      * @param data the byte array to be hashed.
      */
-    public static string GetMD5(byte[] data) {
-      MD5 md5 = new MD5CryptoServiceProvider();
-      byte[] result = md5.ComputeHash(data);
-
-      StringBuilder sb = new StringBuilder();
-      for (int i=0;i<result.Length;i++) {
-        sb.Append(result[i].ToString("X2"));
-      }
-      return sb.ToString();
+    public static string GetSHA1(byte[] data) {
+      SHA1 sha1 = new SHA1CryptoServiceProvider();
+      return Convert.ToBase64String(sha1.ComputeHash(data));
     }
-
-    /*
-    // taken from online http://www.dotnetjohn.com/articles.aspx?articleid=173
-    public static string ObjectToXml<T>(T val) {
-      try {
-        String XmlizedString = null;
-        MemoryStream memoryStream = new MemoryStream();
-        XmlSerializer xs = new XmlSerializer(typeof(T));
-        XmlTextWriter xmlTextWriter = new XmlTextWriter(memoryStream, 
-                                                        Encoding.UTF8);
-        xs.Serialize(xmlTextWriter, val);
-        memoryStream = (MemoryStream) xmlTextWriter.BaseStream;
-        XmlizedString = UTF8ByteArrayToString(memoryStream.ToArray());
-        return XmlizedString;
-      } catch ( Exception e ) {
-        System.Console.WriteLine(e);
-        return null;
-      }
-    }
-
-    // taken from online http://www.dotnetjohn.com/articles.aspx?articleid=173
-    public static T XmlToObject<T>(string val) {
-      XmlSerializer xs = new XmlSerializer(typeof(T));
-      MemoryStream memoryStream = new MemoryStream(StringToUTF8ByteArray(val));
-      return (T) xs.Deserialize(memoryStream);
-    }
-
-    public static string UTF8ByteArrayToString(Byte[] characters) {
-      UTF8Encoding encoding = new UTF8Encoding();
-      String constructedString = encoding.GetString(characters);
-      return constructedString;
-    }
-
-    public static Byte[] StringToUTF8ByteArray(String pXmlString) {
-      UTF8Encoding encoding = new UTF8Encoding ( );
-      Byte[ ] byteArray = encoding.GetBytes ( pXmlString );
-      return byteArray;
-    }*/
 
     /// converts from url encoding to key, value pair
     public static Dictionary<string, string> DecodeUrl(string request) {
@@ -220,7 +166,6 @@ namespace SocialVPN {
       }
       return result;
     }
-
   }
 
 #if SVPN_NUNIT

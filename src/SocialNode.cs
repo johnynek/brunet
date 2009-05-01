@@ -41,9 +41,19 @@ namespace SocialVPN {
   public class SocialNode : RpcIpopNode {
 
     /**
+     * The local certificate file name
+     */
+    public static string CERTFILENAME = "lc.cert";
+
+    /**
      * Dictionary of friends indexed by alias.
      */
     protected Dictionary<string, SocialUser> _friends;
+
+    /**
+     * The certificate directory path.
+     */
+    protected string _cert_dir;
 
     /**
      * The local user.
@@ -80,10 +90,11 @@ namespace SocialVPN {
      * @param brunetConfig configuration file for Brunet P2P library.
      * @param ipopConfig configuration file for IP over P2P app.
      */
-    public SocialNode(string brunetConfig, string ipopConfig) :
-      base(brunetConfig, ipopConfig) {
+    public SocialNode(string brunetConfig, string ipopConfig, 
+                      string certDir) : base(brunetConfig, ipopConfig) {
       _friends = new Dictionary<string, SocialUser>();
-      string cert_path = Path.Combine("certificates", "lc.cert");
+      _cert_dir = certDir;
+      string cert_path = Path.Combine(certDir, CERTFILENAME);
       _local_cert = new Certificate(SocialUtils.ReadFileBytes(cert_path));
       _local_user = new SocialUser(_local_cert);
       _bso.CertificateHandler.AddCACertificate(_local_cert.X509);
@@ -124,50 +135,60 @@ namespace SocialVPN {
         try {
           bool success = (bool) (q.Dequeue());
           if(success) {
-            ProtocolLog.Write(SocialLog.SVPNLog,"Dht Put successful");
+            ProtocolLog.Write(SocialLog.SVPNLog,"PUBLISH CERT SUCCESS: " + 
+                              _local_user.DhtKey);
           }
         } catch (Exception e) {
           ProtocolLog.Write(SocialLog.SVPNLog,e.Message);
-          ProtocolLog.Write(SocialLog.SVPNLog,"Dht Put failed");
+          ProtocolLog.Write(SocialLog.SVPNLog,"PUBLISH CERT FAILURE: " + 
+                            _local_user.DhtKey);
         }
       };
       this.Dht.AsPut(keyb, value, 3600, q);
-
-      ProtocolLog.Write(SocialLog.SVPNLog,"DHT key: " + _local_user.DhtKey);
     }
 
     /**
      * Add a friend to socialvpn from an X509 certificate.
      * @param certData the X509 certificate as a byte array.
+     * @param key the dht_key containing fingerprint.
      */
-    public void AddCertificate(byte[] certData) {
+    protected void AddCertificate(byte[] certData, string key) {
       Certificate cert = new Certificate(certData);
       SocialUser friend = new SocialUser(cert);
+      string[] parts = key.Split(':');
+      string uid = parts[1];
+      string fingerprint = parts[2];
 
+      // Verification on the certificate by email and fingerprint
       if(friend.DhtKey == _local_user.DhtKey || 
          _friends.ContainsKey(friend.DhtKey)) {
-        return;
+        ProtocolLog.Write(SocialLog.SVPNLog, "ADD CERT KEY FOUND: " +
+                       key);
       }
+      else if(fingerprint != friend.Fingerprint || uid != friend.Uid) {
+        ProtocolLog.Write(SocialLog.SVPNLog, "ADD CERT KEY MISMATCH: " +
+                       key + " " + friend.DhtKey);
+      }
+      else {
+        friend.Alias = CreateAlias(friend.Uid, friend.PCID);
+        friend.Access = SocialUser.AccessTypes.Unapproved.ToString();
 
-      friend.Alias = CreateAlias(friend.Uid, friend.PCID);
-      friend.Access = SocialUser.AccessTypes.Unapproved.ToString();
+        // Save certificate to file system
+        SocialUtils.SaveCertificate(cert, _cert_dir);
 
-      // Save certificate to file system
-      SocialUtils.SaveCertificate(cert);
+        // Add certificates to handler
+        _bso.CertificateHandler.AddCACertificate(cert.X509);
 
-      // Add certificates to handler
-      _bso.CertificateHandler.AddCACertificate(cert.X509);
-      _bso.CertificateHandler.AddSignedCertificate(cert.X509);
+        // Add friend to list
+        _friends.Add(friend.DhtKey, friend);
 
-      // Add friend to list
-      _friends.Add(friend.DhtKey, friend);
+        // Temporary
+        AddFriend(friend);
 
-      // Temporary
-      AddFriend(friend);
-
-      ProtocolLog.Write(SocialLog.SVPNLog,cert.ToString());
-      ProtocolLog.Write(SocialLog.SVPNLog,"Friend Info: " + friend.IP + 
-                        " " + friend.Alias);
+        ProtocolLog.Write(SocialLog.SVPNLog,"ADD CERT KEY SUCCESS: " + 
+                          friend.DhtKey + " " + friend.IP + " " + 
+                          friend.Alias);
+      }
     }
 
     /**
@@ -186,19 +207,12 @@ namespace SocialVPN {
         try {
           DhtGetResult dgr = (DhtGetResult) q.Dequeue();
           byte[] certData = dgr.value;
-          string[] parts = key.Split(':');
-          string fingerprint = parts[2];
-          // Only add if fingerprints match
-          if(fingerprint == SocialUtils.GetMD5(certData)) {
-            AddCertificate(certData);
-          }
-          else {
-            ProtocolLog.Write(SocialLog.SVPNLog, "Fingerprint mismatch: " +
-                              key);
-          }
+          AddCertificate(certData, key);
+          ProtocolLog.Write(SocialLog.SVPNLog, "ADD DHT SUCCESS: " +
+                            key);
         } catch (Exception e) {
           ProtocolLog.Write(SocialLog.SVPNLog,e.Message);
-          ProtocolLog.Write(SocialLog.SVPNLog,"Certificate not found: " + 
+          ProtocolLog.Write(SocialLog.SVPNLog,"ADD DHT FAILURE: " + 
                             key);
         }
       };
@@ -228,8 +242,8 @@ namespace SocialVPN {
     }
 
     public static new void Main(string[] args) {
-      SocialUtils.BrunetConfig = args[0];
       NodeConfig config = Utils.ReadConfig<NodeConfig>(args[0]);
+
       if(!System.IO.File.Exists(config.Security.KeyPath)) {
         Console.Write("Enter Name (First Last): ");
         string name = Console.ReadLine();
@@ -239,11 +253,16 @@ namespace SocialVPN {
         string pcid = Console.ReadLine();
         string version = "SVPN_0.3.0";
         string country = "US";
-
-        SocialUtils.CreateCertificate(uid, name, pcid, version, country);
+        
+        config.NodeAddress = (Utils.GenerateAHAddress()).ToString();
+        Utils.WriteConfig(args[0], config);
+        SocialUtils.CreateCertificate(uid, name, pcid, version, country,
+                                      config.NodeAddress, 
+                                      config.Security.CertificatePath,
+                                      config.Security.KeyPath);
       }
-
-      SocialNode node = new SocialNode(args[0], args[1]);
+      SocialNode node = new SocialNode(args[0], args[1], 
+                                       config.Security.CertificatePath);
       node.Run();
     }
   }

@@ -74,7 +74,7 @@ namespace SocialVPN {
       _provider = provider;
       _network = network;
       _friends = new List<string>();
-      _http = new HttpInterface();
+      _http = new HttpInterface("58888");
       _http.ProcessEvent += ProcessHandler;
       _http.Start();
       _timer_thread = new Timer(new TimerCallback(TimerHandler), null,
@@ -86,8 +86,14 @@ namespace SocialVPN {
      * @param obj the default object.
      */
     public void TimerHandler(Object obj) {
-      _node.PublishCertificate();
-      UpdateFriends();
+      try {
+        _node.PublishCertificate();
+        UpdateFriends();
+      } catch (Exception e) {
+        ProtocolLog.Write(SocialLog.SVPNLog, e.Message);
+        ProtocolLog.Write(SocialLog.SVPNLog, "TIMER HANDLER FAILURE " +
+                          DateTime.Now.ToString());
+      }
     }
 
     /**
@@ -108,18 +114,17 @@ namespace SocialVPN {
             UpdateFriends();
             break;
 
-          case "load":
-            LoadFromFiles();
-            break;
-
           default:
             break;
         }
       }
-      _http.StateXml = GetState();
+      request["response"] = GetState();
     }
 
-    private string GetState() {
+    /**
+     * Generates an XML string representing state of the system.
+     */
+    protected string GetState() {
       SocialState state = new SocialState();
       state.LocalUser = _node.LocalUser;
       state.Friends = new SocialUser[_node.Friends.Count];
@@ -130,7 +135,7 @@ namespace SocialVPN {
     /**
      * Updates friends from social newtork.
      */
-    public void UpdateFriends() {
+    protected void UpdateFriends() {
       List<string> new_friends = _network.GetFriends();
       foreach(string uid in new_friends) {
         if(!_friends.Contains(uid)) {
@@ -143,7 +148,10 @@ namespace SocialVPN {
       _provider.StoreFingerprint();
     }
 
-    public void AddFriends(string friendlist) {
+    /**
+     * Adds a list of friends seperated by newline.
+     */
+    protected void AddFriends(string friendlist) {
       string[] friends = friendlist.Split('\n');
       foreach(string friend in friends) {
         AddFriend(friend);
@@ -154,7 +162,7 @@ namespace SocialVPN {
      * Adds a friend based on user id.
      * @param uid the friend's user id.
      */
-    public void AddFriend(string uid) {
+    protected void AddFriend(string uid) {
       if(!_friends.Contains(uid)) _friends.Add(uid);
       List<string> fingerprints = _provider.GetFingerprints(uid);
       foreach(string fpr in fingerprints) {
@@ -162,22 +170,8 @@ namespace SocialVPN {
       }
     }
 
-    public bool Login(string username, string password) {
+    protected bool Login(string username, string password) {
       return _provider.Login(username, password);
-    }
-
-    public void LoadFromFiles() {
-      string[] files = null;
-      try {
-        files = Directory.GetFiles("certificates");
-        foreach(string file in files) {
-          byte[] cert_data = SocialUtils.ReadFileBytes(file);
-          _node.AddCertificate(cert_data);
-        }
-      } catch (Exception e) { 
-        ProtocolLog.Write(SocialLog.SVPNLog, e.Message);
-        ProtocolLog.Write(SocialLog.SVPNLog, "Load from files failed");
-      }
     }
   }
 
@@ -208,8 +202,17 @@ namespace SocialVPN {
     List<string> GetFriends();
   }
 
+  /**
+   * This class defines the social state of the system.
+   */
   public class SocialState {
+    /**
+     * The local user.
+     */
     public SocialUser LocalUser;
+    /**
+     * The list of friends.
+     */
     public SocialUser[] Friends;
   }
 
@@ -218,13 +221,7 @@ namespace SocialVPN {
   public class SocialConnectionManagerTester {
     [Test]
     public void SocialConnectionManagerTest() {
-      string[] files = null;
-      try {
-        files = Directory.GetFiles("certificates");
-        foreach(string file in files) {
-          Console.WriteLine("Directory file: " + file);
-        }
-      } catch {}
+      Assert.AreEqual("test", "test");
     }
   } 
 #endif
