@@ -30,32 +30,34 @@ namespace SocialVPN {
 
   public class SocialNetworkProvider : IProvider, ISocialNetwork {
 
-    protected SocialUser _local_user;
+    protected readonly SocialUser _local_user;
 
-    protected Dht _dht;
+    protected readonly Dht _dht;
 
-    protected IProvider _provider;
+    protected readonly IProvider _provider;
 
-    protected ISocialNetwork _network;
+    protected readonly ISocialNetwork _network;
 
-    protected DrupalNetwork _drupal;
+    protected readonly DrupalNetwork _drupal;
+
+    protected bool _online;
 
     public SocialNetworkProvider(Dht dht, SocialUser user) {
       _local_user = user;
       _dht = dht;
       _drupal = new DrupalNetwork(user);
-      _provider = null;
-      _network = null;
+      _provider = _drupal;
+      _network = _drupal;
+      _online = false;
     }
 
     public bool Login(string username, string password) {
-      _provider = _drupal;
-      _network = _drupal;
+      _online = true;
       return _provider.Login(username, password);
     }
 
     public List<string> GetFriends() {
-      if(_network != null) return _network.GetFriends();
+      if(_online) return _network.GetFriends();
 
       List<string> friends = new List<string>();
       friends.Add(_local_user.Uid);
@@ -63,7 +65,7 @@ namespace SocialVPN {
     }
 
     public List<string> GetFingerprints(string uid) {
-      if(_provider != null) return _provider.GetFingerprints(uid);
+      if(_online) return _provider.GetFingerprints(uid);
 
       List<string> fingerprints = new List<string>();
       DhtGetResult[] dgrs = null;
@@ -81,7 +83,7 @@ namespace SocialVPN {
     }
 
     public bool StoreFingerprint() {
-      if(_provider != null) return _provider.StoreFingerprint();
+      if(_online) return _provider.StoreFingerprint();
 
       string key = "svpn:" + _local_user.Uid;
       string value = _local_user.DhtKey;

@@ -32,31 +32,31 @@ namespace SocialVPN {
    */
   public class SocialUser {
 
-    public string Uid;
+    public readonly string Uid;
 
-    public string Name;
+    public readonly string Name;
 
-    public string PCID;
+    public readonly string PCID;
 
-    public string Address;
+    public readonly string Address;
 
-    public string Fingerprint;
+    public readonly string Fingerprint;
 
-    public string DhtKey;
+    public readonly string DhtKey;
 
-    public string Country;
+    public readonly string Country;
 
-    public string Version;
-
-    public string IP;
+    public readonly string Version;
 
     public string Alias;
+
+    public string IP;
 
     public string Time;
 
     public string Access;
 
-    public string Pic;
+    public  string Pic;
 
     public enum AccessTypes {
       Approved = 1,

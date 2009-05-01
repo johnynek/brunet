@@ -48,32 +48,32 @@ namespace SocialVPN {
     /**
      * Dictionary of friends indexed by alias.
      */
-    protected Dictionary<string, SocialUser> _friends;
+    protected readonly Dictionary<string, SocialUser> _friends;
 
     /**
      * The certificate directory path.
      */
-    protected string _cert_dir;
+    protected readonly string _cert_dir;
 
     /**
      * The local user.
      */
-    protected SocialUser _local_user;
+    protected readonly SocialUser _local_user;
 
     /**
      * The local user certificate.
      */
-    protected Certificate _local_cert;
+    protected readonly Certificate _local_cert;
 
     /**
      * The identity provider and the social network.
      */
-    protected SocialNetworkProvider _snp;
+    protected readonly SocialNetworkProvider _snp;
 
     /**
      * The connection manager.
      */
-    protected SocialConnectionManager _scm;
+    protected readonly SocialConnectionManager _scm;
 
     /**
      * Dictionary representing friends in the system.
@@ -91,7 +91,8 @@ namespace SocialVPN {
      * @param ipopConfig configuration file for IP over P2P app.
      */
     public SocialNode(string brunetConfig, string ipopConfig, 
-                      string certDir) : base(brunetConfig, ipopConfig) {
+                      string certDir, string port) : 
+                      base(brunetConfig, ipopConfig) {
       _friends = new Dictionary<string, SocialUser>();
       _cert_dir = certDir;
       string cert_path = Path.Combine(certDir, CERTFILENAME);
@@ -100,7 +101,7 @@ namespace SocialVPN {
       _bso.CertificateHandler.AddCACertificate(_local_cert.X509);
       _bso.CertificateHandler.AddSignedCertificate(_local_cert.X509);
       _snp = new SocialNetworkProvider(this.Dht, _local_user);
-      _scm = new SocialConnectionManager(this, _snp, _snp);
+      _scm = new SocialConnectionManager(this, _snp, _snp, port);
       _local_user.Alias = "localhost";
     }
 
@@ -242,6 +243,13 @@ namespace SocialVPN {
     }
 
     public static new void Main(string[] args) {
+
+      if(args.Length < 3) {
+        Console.WriteLine("usage: SocialVPN.exe <brunet.config path> " + 
+                           "<ipop.config path> <http port>");
+        return;
+      }
+
       NodeConfig config = Utils.ReadConfig<NodeConfig>(args[0]);
 
       if(!System.IO.File.Exists(config.Security.KeyPath)) {
@@ -261,8 +269,10 @@ namespace SocialVPN {
                                       config.Security.CertificatePath,
                                       config.Security.KeyPath);
       }
+
       SocialNode node = new SocialNode(args[0], args[1], 
-                                       config.Security.CertificatePath);
+                                       config.Security.CertificatePath,
+                                       args[2]);
       node.Run();
     }
   }

@@ -35,50 +35,51 @@ namespace SocialVPN {
     /**
      * The node which accepts peers based on certificates.
      */
-    protected SocialNode _node;
+    protected readonly SocialNode _node;
 
     /*
      * The identity provider.
      */
-    protected IProvider _provider;
+    protected readonly IProvider _provider;
 
     /**
      * The social network or relationship provider.
      */
-    protected ISocialNetwork _network;
+    protected readonly ISocialNetwork _network;
 
     /**
      * The list of unique friend ids.
      */
-    protected List<string> _friends;
+    protected readonly List<string> _friends;
 
     /** 
      * The HTTP interface to manage socialvpn.
      */
-    protected HttpInterface _http;
+    protected readonly HttpInterface _http;
 
     /**
      * Timer thread.
      */
-    protected Timer _timer_thread;
+    protected readonly Timer _timer_thread;
 
     /**
      * Constructor.
      * @param node the social node.
      * @param provider the identity provider.
      * @param network the social network.
+     * @param port the port number for the HTTP interface.
      */
     public SocialConnectionManager(SocialNode node, IProvider provider,
-                                   ISocialNetwork network) {
+                                   ISocialNetwork network, string port) {
       _node = node;
       _provider = provider;
       _network = network;
       _friends = new List<string>();
-      _http = new HttpInterface("58888");
+      _http = new HttpInterface(port);
       _http.ProcessEvent += ProcessHandler;
       _http.Start();
       _timer_thread = new Timer(new TimerCallback(TimerHandler), null,
-                                120000, 120000);
+                                30000, 1800000);
     }
 
     /**
@@ -89,7 +90,9 @@ namespace SocialVPN {
       try {
         _node.PublishCertificate();
         UpdateFriends();
+        _timer_thread.Change(30000, 1800000);
       } catch (Exception e) {
+        _timer_thread.Change(30000, 30000);
         ProtocolLog.Write(SocialLog.SVPNLog, e.Message);
         ProtocolLog.Write(SocialLog.SVPNLog, "TIMER HANDLER FAILURE " +
                           DateTime.Now.ToString());

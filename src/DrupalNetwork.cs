@@ -53,25 +53,23 @@ namespace SocialVPN {
                               string[] args, int offset, int limit);
     }
 
+    protected readonly IDrupalXmlRpc _drupal;
+
+    protected readonly SocialUser _local_user;
+
+    protected readonly Dictionary<string, string> _email_to_uid;
+
     protected string _sessid;
 
-    protected IDrupalXmlRpc _drupal;
-
-    protected SocialUser _local_user;
-
     protected string _drupal_uid;
-
-    protected Dictionary<string, string> _email_to_uid;
 
     protected bool _uid_mismatch;
 
     protected bool _key_found;
 
     public DrupalNetwork(SocialUser user) {
-      _sessid = null;
       _drupal = XmlRpcProxyGen.Create<IDrupalXmlRpc>();
       _local_user = user;
-      _drupal_uid = null;
       _email_to_uid = new Dictionary<string,string>();
       _uid_mismatch = false;
       _key_found = false;

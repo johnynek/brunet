@@ -41,12 +41,12 @@ namespace SocialVPN {
     /**
      * The .NET HTTP listener which implements HTTP protocol.
      */
-    protected HttpListener _listener;
+    protected readonly HttpListener _listener;
     
     /**
      * The seperate thread that the HTTP interface runs on.
      */
-    protected Thread _runner;
+    protected readonly Thread _runner;
 
     /**
      * Keeps track of interface state (on/off).
