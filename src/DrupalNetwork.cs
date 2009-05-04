@@ -171,12 +171,14 @@ namespace SocialVPN {
       string version = "SVPN_0.3.0";
       string country = "US";
 
-      SocialUtils.CreateCertificate(uid, name, pcid, version, country);
+      SocialUtils.CreateCertificate(uid, name, pcid, version, country,
+                                    "address1234", "certificates", 
+                                    "private_key");
 
       string cert_path = System.IO.Path.Combine("certificates", "lc.cert");
       byte[] cert_data = SocialUtils.ReadFileBytes(cert_path);
       SocialUser user = new SocialUser(cert_data);
-
+      /*
       DrupalNetwork drupal = new DrupalNetwork(user);
       drupal.Login("pierre", "stjuste");
 
@@ -191,6 +193,7 @@ namespace SocialVPN {
       }
       drupal.StoreFingerprint();
       drupal.Logout();
+      */
     }
   } 
 #endif

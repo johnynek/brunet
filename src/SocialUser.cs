@@ -113,7 +113,10 @@ namespace SocialVPN {
       string country = "US";
 
       Certificate cert = SocialUtils.CreateCertificate(uid, name, pcid, 
-                                                       version, country);
+                                                       version, country,
+                                                       "address1234",
+                                                       "certificates",
+                                                       "private_key");
 
       SocialUser user = new SocialUser(cert.X509.RawData);
 
@@ -122,8 +125,6 @@ namespace SocialVPN {
       Assert.AreEqual(pcid, user.PCID);
       Assert.AreEqual(version, user.Version);
       Assert.AreEqual(country, user.Country);
-
-      Console.WriteLine(user.Fingerprint);
     }
   } 
 #endif
