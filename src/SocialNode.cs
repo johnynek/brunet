@@ -43,7 +43,12 @@ namespace SocialVPN {
     /**
      * The local certificate file name
      */
-    public static string CERTFILENAME = "lc.cert";
+    public const string CERTFILENAME = "lc.cert";
+
+    /**
+     * The DHT TTL
+     */
+    public const int DHTTTL = 3600;
 
     /**
      * Dictionary of friends indexed by alias.
@@ -76,6 +81,11 @@ namespace SocialVPN {
     protected readonly SocialConnectionManager _scm;
 
     /**
+     * The Rpc handler for socialvpn RPC functions.
+     */
+    protected readonly SocialRpcHandler _srh;
+
+    /**
      * Dictionary representing friends in the system.
      */
     public Dictionary<string, SocialUser> Friends { get { return _friends; } }
@@ -101,8 +111,8 @@ namespace SocialVPN {
       _bso.CertificateHandler.AddCACertificate(_local_cert.X509);
       _bso.CertificateHandler.AddSignedCertificate(_local_cert.X509);
       _snp = new SocialNetworkProvider(this.Dht, _local_user);
-      _scm = new SocialConnectionManager(this, _snp, _snp, port);
-      _local_user.Alias = "localhost";
+      _srh = new SocialRpcHandler(_node, _local_user, _friends);
+      _scm = new SocialConnectionManager(this, _snp, _snp, port, _srh);
     }
 
     /**
@@ -145,7 +155,7 @@ namespace SocialVPN {
                             _local_user.DhtKey);
         }
       };
-      this.Dht.AsPut(keyb, value, 3600, q);
+      this.Dht.AsPut(keyb, value, DHTTTL, q);
     }
 
     /**
@@ -164,7 +174,7 @@ namespace SocialVPN {
       if(friend.DhtKey == _local_user.DhtKey || 
          _friends.ContainsKey(friend.DhtKey)) {
         ProtocolLog.Write(SocialLog.SVPNLog, "ADD CERT KEY FOUND: " +
-                       key);
+                          key);
       }
       else if(fingerprint != friend.Fingerprint || uid != friend.Uid) {
         ProtocolLog.Write(SocialLog.SVPNLog, "ADD CERT KEY MISMATCH: " +
@@ -172,7 +182,6 @@ namespace SocialVPN {
       }
       else {
         friend.Alias = CreateAlias(friend.Uid, friend.PCID);
-        friend.Access = SocialUser.AccessTypes.Unapproved.ToString();
 
         // Save certificate to file system
         SocialUtils.SaveCertificate(cert, _cert_dir);
@@ -186,6 +195,9 @@ namespace SocialVPN {
         // Temporary
         AddFriend(friend);
 
+        // RPC ping to newly added friend
+        _srh.PingFriend(friend);
+
         ProtocolLog.Write(SocialLog.SVPNLog,"ADD CERT KEY SUCCESS: " + 
                           friend.DhtKey + " " + friend.IP + " " + 
                           friend.Alias);
@@ -197,8 +209,10 @@ namespace SocialVPN {
      * @param key the DHT key for friend's certificate.
      */
     public void AddDhtFriend(string key) {
-      // Do not retreive current user's key
       if(key == _local_user.DhtKey || _friends.ContainsKey(key)) {
+        if(key != _local_user.DhtKey) {
+          _srh.PingFriend(_friends[key]);
+        }
         return;
       }
 
@@ -228,7 +242,7 @@ namespace SocialVPN {
       Address addr = AddressParser.Parse(friend.Address);
       friend.IP = _rarad.RegisterMapping(friend.Alias, addr);
       _node.ManagedCO.AddAddress(addr);
-      friend.Access = SocialUser.AccessTypes.Approved.ToString();
+      friend.Access = SocialUser.AccessTypes.Allow.ToString();
     }
 
     /*
@@ -239,7 +253,7 @@ namespace SocialVPN {
       Address addr = AddressParser.Parse(friend.Address);
       _node.ManagedCO.RemoveAddress(addr);
       _rarad.UnregisterMapping(friend.Alias);
-      friend.Access = SocialUser.AccessTypes.Denied.ToString();
+      friend.Access = SocialUser.AccessTypes.Block.ToString();
     }
 
     public static new void Main(string[] args) {

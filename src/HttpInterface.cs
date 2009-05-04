@@ -95,15 +95,18 @@ namespace SocialVPN {
      * Process API requests through the process event.
      */
     protected string Process(Dictionary<string, string> request) {
-      EventHandler processEvent = ProcessEvent;
-      if (processEvent != null) {
+      EventHandler process_event = ProcessEvent;
+      string response = String.Empty;
+      if (process_event != null) {
         try {
-          processEvent(request, EventArgs.Empty);
+          process_event(request, EventArgs.Empty);
+          response = request["response"];
         } catch (Exception e) {
           Brunet.ProtocolLog.Write(SocialLog.SVPNLog, e.Message);
+          response = e.Message;
         }
       }
-      return request["response"];
+      return response;
     }
 
     /**

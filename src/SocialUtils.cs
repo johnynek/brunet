@@ -145,12 +145,12 @@ namespace SocialVPN {
     }
 
     /**
-     * Creates an SHA1 hash string from a byte array.
+     * Creates a SHA256 hash string from a byte array.
      * @param data the byte array to be hashed.
      */
-    public static string GetSHA1(byte[] data) {
-      SHA1 sha1 = new SHA1CryptoServiceProvider();
-      return Convert.ToBase64String(sha1.ComputeHash(data));
+    public static string GetSHA256(byte[] data) {
+      SHA256 sha256 = new SHA256Managed();
+      return Convert.ToBase64String(sha256.ComputeHash(data));
     }
 
     /// converts from url encoding to key, value pair

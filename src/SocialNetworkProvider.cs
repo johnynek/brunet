@@ -30,6 +30,10 @@ namespace SocialVPN {
 
   public class SocialNetworkProvider : IProvider, ISocialNetwork {
 
+    public const int DHTTTL = 3600;
+
+    public const string DHTPREFIX = "svpn:";
+
     protected readonly SocialUser _local_user;
 
     protected readonly Dht _dht;
@@ -45,9 +49,9 @@ namespace SocialVPN {
     public SocialNetworkProvider(Dht dht, SocialUser user) {
       _local_user = user;
       _dht = dht;
-      _drupal = new DrupalNetwork(user);
       _provider = _drupal;
       _network = _drupal;
+      _drupal = new DrupalNetwork(user);
       _online = false;
     }
 
@@ -60,7 +64,6 @@ namespace SocialVPN {
       if(_online) return _network.GetFriends();
 
       List<string> friends = new List<string>();
-      friends.Add(_local_user.Uid);
       return friends;
     }
 
@@ -70,11 +73,12 @@ namespace SocialVPN {
       List<string> fingerprints = new List<string>();
       DhtGetResult[] dgrs = null;
 
+      string key = DHTPREFIX + uid;
       try {
-        dgrs = _dht.Get("svpn:" + uid);
+        dgrs = _dht.Get(key);
       } catch (Exception e) {
         ProtocolLog.Write(SocialLog.SVPNLog,e.Message);
-        ProtocolLog.Write(SocialLog.SVPNLog,"UID not found: " + uid);
+        ProtocolLog.Write(SocialLog.SVPNLog,"DHT GET FPR FAILURE: " + key);
       }
       foreach(DhtGetResult dgr in dgrs) {
         fingerprints.Add(dgr.valueString);
@@ -85,16 +89,24 @@ namespace SocialVPN {
     public bool StoreFingerprint() {
       if(_online) return _provider.StoreFingerprint();
 
-      string key = "svpn:" + _local_user.Uid;
+      string key = DHTPREFIX + _local_user.Uid;
       string value = _local_user.DhtKey;
-      int ttl = 3600;  // in secs = one hour
       try {
-        return _dht.Put(key, value, ttl);
+        return _dht.Put(key, value, DHTTTL);
       } catch (Exception e) {
         ProtocolLog.Write(SocialLog.SVPNLog,e.Message);
-        ProtocolLog.Write(SocialLog.SVPNLog,"Dht Put failed for: " + key);
+        ProtocolLog.Write(SocialLog.SVPNLog,"DHT PUT FPR FAILURE: " + key);
         return false;
       }
     }
   }
+#if SVPN_NUNIT
+  [TestFixture]
+  public class SocialNetworkProviderTester {
+    [Test]
+    public void SocialNetworkProviderTest() {
+      Assert.AreEqual("test", "test");
+    }
+  } 
+#endif
 }

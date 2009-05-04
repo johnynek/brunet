@@ -30,7 +30,22 @@ using NUnit.Framework;
 
 namespace SocialVPN {
 
+  /**
+   * This class is in charge of making connections between friends. It
+   * manages the social networking backends as well as the identity providers
+   * of the system.
+   */
   public class SocialConnectionManager {
+
+    /**
+     * The start time for the timer thread.
+     */
+    private const int STARTTIME = 30000;
+
+    /**
+     * The interval time for the timer thread.
+     */
+    private const int INTERVALTIME = 300000;
 
     /**
      * The node which accepts peers based on certificates.
@@ -58,6 +73,11 @@ namespace SocialVPN {
     protected readonly HttpInterface _http;
 
     /**
+     * The handles RPC for socialvpn.
+     */
+    protected readonly SocialRpcHandler _srh;
+
+    /**
      * Timer thread.
      */
     protected readonly Timer _timer_thread;
@@ -68,9 +88,11 @@ namespace SocialVPN {
      * @param provider the identity provider.
      * @param network the social network.
      * @param port the port number for the HTTP interface.
+     * @param srh the social rpc handler.
      */
     public SocialConnectionManager(SocialNode node, IProvider provider,
-                                   ISocialNetwork network, string port) {
+                                   ISocialNetwork network, string port,
+                                   SocialRpcHandler srh) {
       _node = node;
       _provider = provider;
       _network = network;
@@ -78,8 +100,10 @@ namespace SocialVPN {
       _http = new HttpInterface(port);
       _http.ProcessEvent += ProcessHandler;
       _http.Start();
+      _srh = srh;
+      _srh.SyncEvent += SyncHandler;
       _timer_thread = new Timer(new TimerCallback(TimerHandler), null,
-                                30000, 1800000);
+                                STARTTIME, INTERVALTIME);
     }
 
     /**
@@ -88,11 +112,11 @@ namespace SocialVPN {
      */
     public void TimerHandler(Object obj) {
       try {
-        _node.PublishCertificate();
         UpdateFriends();
-        _timer_thread.Change(30000, 1800000);
+        _node.PublishCertificate();
+        _timer_thread.Change(INTERVALTIME, INTERVALTIME);
       } catch (Exception e) {
-        _timer_thread.Change(30000, 30000);
+        _timer_thread.Change(INTERVALTIME, INTERVALTIME);
         ProtocolLog.Write(SocialLog.SVPNLog, e.Message);
         ProtocolLog.Write(SocialLog.SVPNLog, "TIMER HANDLER FAILURE " +
                           DateTime.Now.ToString());
@@ -109,7 +133,19 @@ namespace SocialVPN {
       if(request.ContainsKey("m")) {
         switch(request["m"]) {
           case "add":
-            AddFriend(request["uids"]);;
+            AddFriends(request["uids"]);;
+            break;
+
+          case "addfpr":
+            AddFingerprints(request["fprs"]);
+            break;
+            
+          case "allow":
+            AllowFriends(request["fprs"]);
+            break;
+
+          case "block":
+            BlockFriends(request["fprs"]);
             break;
 
           case "login":
@@ -125,6 +161,32 @@ namespace SocialVPN {
     }
 
     /**
+     * Sync event handler.
+     * @param obj the default object.
+     * @param eargs the event arguments.
+     */
+    public void SyncHandler(Object obj, EventArgs eargs) {
+      string dht_key = (string) obj;
+      string[] parts = dht_key.Split(':');
+      string uid = parts[1];
+
+      // Makes sure sync request came from a friend
+      if(!_friends.Contains(uid)) {
+        UpdateFriendUids();  
+      }
+      /*
+      // Verify fingerprint with the identity provider
+      if(_friends.Contains(uid)) {
+        List<string> fingerprints = _provider.GetFingerprints(uid);
+        if(fingerprints.Contains(dht_key)) {
+          _node.AddDhtFriend(dht_key);
+        }
+      }
+      */
+      _node.AddDhtFriend(dht_key);
+    }
+
+    /**
      * Generates an XML string representing state of the system.
      */
     protected string GetState() {
@@ -136,15 +198,10 @@ namespace SocialVPN {
     }
 
     /**
-     * Updates friends from social newtork.
+     * Updates friends and adds to socialvpn.
      */
     protected void UpdateFriends() {
-      List<string> new_friends = _network.GetFriends();
-      foreach(string uid in new_friends) {
-        if(!_friends.Contains(uid)) {
-          _friends.Add(uid);
-        }
-      }
+      UpdateFriendUids();
       foreach(string uid in _friends) {
         AddFriend(uid);
       }
@@ -152,12 +209,58 @@ namespace SocialVPN {
     }
 
     /**
+     * Updates friend uids from social newtork.
+     */
+    protected void UpdateFriendUids() {
+      List<string> new_friends = _network.GetFriends();
+      foreach(string uid in new_friends) {
+        if(!_friends.Contains(uid)) {
+          _friends.Add(uid);
+        }
+      }
+    }
+
+    /**
      * Adds a list of friends seperated by newline.
+     * @param friendlist a list of friends unique identifiers.
      */
     protected void AddFriends(string friendlist) {
       string[] friends = friendlist.Split('\n');
       foreach(string friend in friends) {
         AddFriend(friend);
+      }
+    }
+
+    /**
+     * Adds a list of fingerprints seperated by newline.
+     * @param fprlist a list of fingerprints.
+     */
+    protected void AddFingerprints(string fprlist) {
+      string[] fprs = fprlist.Split('\n');
+      foreach(string fpr in fprs) {
+        _node.AddDhtFriend(fpr);
+      }
+    }
+
+    /**
+     * Allow a list of fingerprints seperated by newline.
+     * @param fprlist a list of fingerprints.
+     */
+    protected void AllowFriends(string fprlist) {
+      string[] fprs = fprlist.Split('\n');
+      foreach(string fpr in fprs) {
+        _node.AddFriend(_node.Friends[fpr]);
+      }
+    }
+
+    /**
+     * Block a list of fingerprints seperated by newline.
+     * @param fprlist a list of fingerprints.
+     */
+    protected void BlockFriends(string fprlist) {
+      string[] fprs = fprlist.Split('\n');
+      foreach(string fpr in fprs) {
+        _node.RemoveFriend(_node.Friends[fpr]);
       }
     }
 
@@ -173,6 +276,11 @@ namespace SocialVPN {
       }
     }
 
+    /**
+     * Logins into a identity provider backend.
+     * @param username the username.
+     * @param password the password.
+     */
     protected bool Login(string username, string password) {
       return _provider.Login(username, password);
     }

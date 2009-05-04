@@ -32,21 +32,29 @@ namespace SocialVPN {
    */
   public class SocialUser {
 
-    public readonly string Uid;
+    public const string TIMEDEFAULT = "0";
 
-    public readonly string Name;
+    public const string IPDEFAULT = "0.0.0.0";
 
-    public readonly string PCID;
+    public const string ALIASDEFAULT = "unknown";
 
-    public readonly string Address;
+    public const string PICDEFAULT = "nopic";
 
-    public readonly string Fingerprint;
+    public string Uid;
 
-    public readonly string DhtKey;
+    public string Name;
 
-    public readonly string Country;
+    public string PCID;
 
-    public readonly string Version;
+    public string Address;
+
+    public string Fingerprint;
+
+    public string DhtKey;
+
+    public string Country;
+
+    public string Version;
 
     public string Alias;
 
@@ -59,10 +67,9 @@ namespace SocialVPN {
     public  string Pic;
 
     public enum AccessTypes {
-      Approved = 1,
-      Unapproved = 2,
-      Denied = 3,
-      Pending = 4
+      Allow = 1,
+      Block = 2,
+      Pending = 3
     }
 
     public SocialUser() {}
@@ -83,13 +90,14 @@ namespace SocialVPN {
       PCID = cert.Subject.OrganizationalUnit;
       Address = cert.NodeAddress;
       Version = cert.Subject.Organization;
-      Fingerprint = SocialUtils.GetSHA1(cert.X509.RawData);
+      Fingerprint = SocialUtils.GetSHA256(cert.X509.RawData);
       DhtKey = "svpn:" + Uid + ":" + Fingerprint;
       Country = cert.Subject.Country;
-      IP = "0.0.0.0";
-      Time = "0";
-      Alias = "Unknown";
-      Pic = "pic";
+      Access = AccessTypes.Block.ToString();
+      Time = TIMEDEFAULT;
+      IP = IPDEFAULT;
+      Alias = ALIASDEFAULT;
+      Pic = PICDEFAULT;
     }
   }
 
