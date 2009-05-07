@@ -5,10 +5,10 @@ Building SocialVPN
 NAnt build tool is required
 
 For debian-based systems:
-apt-get install nant
+apt-get install nant uml-utilities
 
 For RedHat-based systems:
-yum install nant
+yum install nant uml-utilities
 
 cd src/
 
@@ -23,6 +23,42 @@ nant test
 To clean, run
 
 nant clean
+
+Running SocialVPN
+=================
+After compiling, all files to run SocialVPN are saved in bin directory.
+Hence, You can move bin directory anywhere that you want without worrying
+about dependencies.
+
+Go inside of bin directory (cd)
+
+For Windows XP, run the start_win.cmd file
+
+For Windows Vista, right-click on start_win.cmd and "Run as administrator"
+
+For Linux, see instructions below to run as normal user (much safer)
+
+To run SocialVPN as non-root on Linux
+-------------------------------------
+
+Run following commands as root:
+
+chmod 666 /dev/net/tun/
+
+tunctl -u "your username" -t tapipop
+
+To find your username run the whoami command
+
+Then run the start_linux.sh
+
+Accessing SocialVPN Web Interface
+=================================
+SocialVPN can be managed through a Web browser or the wget command line
+utility. The start_win.cmd and the start_win.sh files contains the port
+number used to access the interface. The default port number is 58888.
+
+Point your browser to http://127.0.0.1:58888/
+
 
 Dependencies:
 =============

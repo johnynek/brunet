@@ -241,16 +241,16 @@ function showFriends() {
     var friend_time = friends[i].getElementsByTagName('Time')[0].textContent;
     var friend_access = friends[i].getElementsByTagName('Access')[0].textContent;
     if( friend_time == "-1" && (option == "All" || option == "Offline") 
-      && friend_access == "Approved") {
+       && friend_access == "Approved") {
       friends[i].status = "Status: Offline";
       addFriend(friends[i]);
     }
     else if( friend_time != "-1" && (option == "All" || option == "Online") 
-      && friend_access == "Approved") {
+      && friend_access == "Allow") {
       friends[i].status = "Status: Online (" + friend_time + " seconds ago)";
       addFriend(friends[i]);
     }
-    else if(friend_access == "Unapproved" && option == "Blocked") {
+    else if(friend_access == "Block" && option == "Blocked") {
       friends[i].status = "Status: Blocked";
       addFriend(friends[i]);
     }

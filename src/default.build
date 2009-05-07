@@ -15,6 +15,7 @@
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${lib.dir}">
         <include name="*.dll" />
+        <include name="libtuntap.so" />
       </fileset>
     </copy>
     <copy todir="${build.dir}" failonerror="true">
@@ -60,6 +61,22 @@
     <copy todir="${bin.dir}" failonerror="true">
       <fileset basedir="${build.dir}">
         <include name="SocialVPN.exe" />
+        <include name="Brunet.dll" />
+        <include name="Brunet.Dht.dll" />
+        <include name="Brunet.DhtService.dll" />
+        <include name="Brunet.Security.dll" />
+        <include name="Brunet.IPAddresses.dll" />
+        <include name="Brunet.XmlRpc.dll" />
+        <include name="CookComputing.XmlRpcV2.dll" />
+        <include name="System.Runtime.Remoting.dll" />
+        <include name="System.Web.dll" />
+        <include name="Mono.Posix.dll"/>
+        <include name="Mono.Security.dll"/>
+        <include name="libtuntap.dll"/>
+        <include name="libtuntap.so"/>
+        <include name="RpcIpopNode.exe" />
+        <include name="socialvpn.js" />
+        <include name="socialvpn.css" />
       </fileset>
     </copy>
   </target>
