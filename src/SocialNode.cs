@@ -35,6 +35,25 @@ using NUnit.Framework;
 namespace SocialVPN {
 
   /**
+   * This class defines the social state of the system.
+   */
+  public class SocialState {
+
+    /**
+     * The local certificate string
+     */
+    public string Certificate;
+    /**
+     * The local user.
+     */
+    public SocialUser LocalUser;
+    /**
+     * The list of friends.
+     */
+    public SocialUser[] Friends;
+  }
+
+  /**
    * SocialNode Class. Extends the RpcIpopNode to support adding friends based
    * on X509 certificates.
    */
@@ -71,6 +90,11 @@ namespace SocialVPN {
     protected readonly Certificate _local_cert;
 
     /**
+     * The base64 string representation of local certificate
+     */
+    protected readonly string _local_cert_b64;
+
+    /**
      * The identity provider and the social network.
      */
     protected readonly SocialNetworkProvider _snp;
@@ -86,16 +110,6 @@ namespace SocialVPN {
     protected readonly SocialRpcHandler _srh;
 
     /**
-     * Dictionary representing friends in the system.
-     */
-    public Dictionary<string, SocialUser> Friends { get { return _friends; } }
-
-    /**
-     * The local user object.
-     */
-    public SocialUser LocalUser { get { return _local_user; } }
-
-    /**
      * Constructor.
      * @param brunetConfig configuration file for Brunet P2P library.
      * @param ipopConfig configuration file for IP over P2P app.
@@ -108,11 +122,13 @@ namespace SocialVPN {
       string cert_path = Path.Combine(certDir, CERTFILENAME);
       _local_cert = new Certificate(SocialUtils.ReadFileBytes(cert_path));
       _local_user = new SocialUser(_local_cert);
+      _local_cert_b64 = Convert.ToBase64String(_local_cert.X509.RawData);
       _bso.CertificateHandler.AddCACertificate(_local_cert.X509);
       _bso.CertificateHandler.AddSignedCertificate(_local_cert.X509);
       _snp = new SocialNetworkProvider(this.Dht, _local_user);
       _srh = new SocialRpcHandler(_node, _local_user, _friends);
-      _scm = new SocialConnectionManager(this, _snp, _snp, port, _srh);
+      _scm = new SocialConnectionManager(this, _snp, _snp, port, _friends, 
+                                         _srh);
     }
 
     /**
@@ -163,7 +179,7 @@ namespace SocialVPN {
      * @param certData the X509 certificate as a byte array.
      * @param key the dht_key containing fingerprint.
      */
-    protected void AddCertificate(byte[] certData, string key) {
+    public void AddCertificate(byte[] certData, string key) {
       Certificate cert = new Certificate(certData);
       SocialUser friend = new SocialUser(cert);
       string[] parts = key.Split(':');
@@ -254,6 +270,18 @@ namespace SocialVPN {
       _node.ManagedCO.RemoveAddress(addr);
       _rarad.UnregisterMapping(friend.Alias);
       friend.Access = SocialUser.AccessTypes.Block.ToString();
+    }
+
+    /**
+     * Generates an XML string representing state of the system.
+     */
+    public string GetState() {
+      SocialState state = new SocialState();
+      state.Certificate = _local_cert_b64;
+      state.LocalUser = _local_user;
+      state.Friends = new SocialUser[_friends.Count];
+      _friends.Values.CopyTo(state.Friends, 0);
+      return SocialUtils.ObjectToXml<SocialState>(state);
     }
 
     public static new void Main(string[] args) {

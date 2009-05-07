@@ -15,7 +15,7 @@
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${lib.dir}">
         <include name="*.dll" />
-        <include name="libtuntap.so" />
+        <include name="libtuntap.*" />
       </fileset>
     </copy>
     <copy todir="${build.dir}" failonerror="true">
@@ -66,17 +66,19 @@
         <include name="Brunet.DhtService.dll" />
         <include name="Brunet.Security.dll" />
         <include name="Brunet.IPAddresses.dll" />
+        <include name="Brunet.Coordinate.dll" />
         <include name="Brunet.XmlRpc.dll" />
         <include name="CookComputing.XmlRpcV2.dll" />
         <include name="System.Runtime.Remoting.dll" />
         <include name="System.Web.dll" />
         <include name="Mono.Posix.dll"/>
         <include name="Mono.Security.dll"/>
-        <include name="libtuntap.dll"/>
-        <include name="libtuntap.so"/>
+        <include name="libtuntap.*"/>
         <include name="RpcIpopNode.exe" />
         <include name="socialvpn.js" />
         <include name="socialvpn.css" />
+        <include name="brunet.config" />
+        <include name="ipop.config" />
       </fileset>
     </copy>
   </target>
@@ -93,6 +95,7 @@
         <include name="Brunet.DhtService.dll" />
         <include name="Brunet.Security.dll" />
         <include name="Brunet.IPAddresses.dll" />
+        <include name="Brunet.Coordinate.dll" />
         <include name="Brunet.XmlRpc.dll" />
         <include name="CookComputing.XmlRpcV2.dll" />
         <include name="Mono.Posix.dll"/>

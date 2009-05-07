@@ -50,7 +50,7 @@ namespace SocialVPN {
     /**
      * The node which accepts peers based on certificates.
      */
-    protected readonly SocialNode _node;
+    protected readonly SocialNode _snode;
 
     /*
      * The identity provider.
@@ -65,7 +65,7 @@ namespace SocialVPN {
     /**
      * The list of unique friend ids.
      */
-    protected readonly List<string> _friends;
+    protected readonly List<string> _friendlist;
 
     /** 
      * The HTTP interface to manage socialvpn.
@@ -83,6 +83,11 @@ namespace SocialVPN {
     protected readonly Timer _timer_thread;
 
     /**
+     * Dictionary of friends indexed by alias.
+     */
+    protected readonly Dictionary<string, SocialUser> _friends;
+
+    /**
      * Constructor.
      * @param node the social node.
      * @param provider the identity provider.
@@ -92,11 +97,13 @@ namespace SocialVPN {
      */
     public SocialConnectionManager(SocialNode node, IProvider provider,
                                    ISocialNetwork network, string port,
+                                   Dictionary<string, SocialUser> friends,
                                    SocialRpcHandler srh) {
-      _node = node;
+      _snode = node;
       _provider = provider;
       _network = network;
-      _friends = new List<string>();
+      _friendlist = new List<string>();
+      _friends = friends;
       _http = new HttpInterface(port);
       _http.ProcessEvent += ProcessHandler;
       _http.Start();
@@ -113,7 +120,7 @@ namespace SocialVPN {
     public void TimerHandler(Object obj) {
       try {
         UpdateFriends();
-        _node.PublishCertificate();
+        _snode.PublishCertificate();
         _timer_thread.Change(INTERVALTIME, INTERVALTIME);
       } catch (Exception e) {
         _timer_thread.Change(INTERVALTIME, INTERVALTIME);
@@ -139,6 +146,10 @@ namespace SocialVPN {
           case "addfpr":
             AddFingerprints(request["fprs"]);
             break;
+
+          case "addcert":
+            AddCertificate(request["cert"]);
+            break;
             
           case "allow":
             AllowFriends(request["fprs"]);
@@ -157,7 +168,7 @@ namespace SocialVPN {
             break;
         }
       }
-      request["response"] = GetState();
+      request["response"] = _snode.GetState();
     }
 
     /**
@@ -171,30 +182,19 @@ namespace SocialVPN {
       string uid = parts[1];
 
       // Makes sure sync request came from a friend
-      if(!_friends.Contains(uid)) {
+      if(!_friendlist.Contains(uid)) {
         UpdateFriendUids();  
       }
       /*
       // Verify fingerprint with the identity provider
-      if(_friends.Contains(uid)) {
+      if(_friendlist.Contains(uid)) {
         List<string> fingerprints = _provider.GetFingerprints(uid);
         if(fingerprints.Contains(dht_key)) {
-          _node.AddDhtFriend(dht_key);
+          _snode.AddDhtFriend(dht_key);
         }
       }
       */
-      _node.AddDhtFriend(dht_key);
-    }
-
-    /**
-     * Generates an XML string representing state of the system.
-     */
-    protected string GetState() {
-      SocialState state = new SocialState();
-      state.LocalUser = _node.LocalUser;
-      state.Friends = new SocialUser[_node.Friends.Count];
-      _node.Friends.Values.CopyTo(state.Friends, 0);
-      return SocialUtils.ObjectToXml<SocialState>(state);
+      _snode.AddDhtFriend(dht_key);
     }
 
     /**
@@ -202,7 +202,7 @@ namespace SocialVPN {
      */
     protected void UpdateFriends() {
       UpdateFriendUids();
-      foreach(string uid in _friends) {
+      foreach(string uid in _friendlist) {
         AddFriend(uid);
       }
       _provider.StoreFingerprint();
@@ -214,8 +214,8 @@ namespace SocialVPN {
     protected void UpdateFriendUids() {
       List<string> new_friends = _network.GetFriends();
       foreach(string uid in new_friends) {
-        if(!_friends.Contains(uid)) {
-          _friends.Add(uid);
+        if(!_friendlist.Contains(uid)) {
+          _friendlist.Add(uid);
         }
       }
     }
@@ -238,8 +238,19 @@ namespace SocialVPN {
     protected void AddFingerprints(string fprlist) {
       string[] fprs = fprlist.Split('\n');
       foreach(string fpr in fprs) {
-        _node.AddDhtFriend(fpr);
+        _snode.AddDhtFriend(fpr);
       }
+    }
+
+    /**
+     * Adds a certificate to the socialvpn system.
+     * @param certString a base64 encoding string representing certificate.
+     */
+    protected void AddCertificate(string certString) {
+      certString = certString.Replace("\n", "");
+      byte[] certData = Convert.FromBase64String(certString);
+      SocialUser friend = new SocialUser(certData);
+      _snode.AddCertificate(certData, friend.DhtKey);
     }
 
     /**
@@ -249,7 +260,7 @@ namespace SocialVPN {
     protected void AllowFriends(string fprlist) {
       string[] fprs = fprlist.Split('\n');
       foreach(string fpr in fprs) {
-        _node.AddFriend(_node.Friends[fpr]);
+        _snode.AddFriend(_friends[fpr]);
       }
     }
 
@@ -260,7 +271,7 @@ namespace SocialVPN {
     protected void BlockFriends(string fprlist) {
       string[] fprs = fprlist.Split('\n');
       foreach(string fpr in fprs) {
-        _node.RemoveFriend(_node.Friends[fpr]);
+        _snode.RemoveFriend(_friends[fpr]);
       }
     }
 
@@ -269,10 +280,10 @@ namespace SocialVPN {
      * @param uid the friend's user id.
      */
     protected void AddFriend(string uid) {
-      if(!_friends.Contains(uid)) _friends.Add(uid);
+      if(!_friendlist.Contains(uid)) _friendlist.Add(uid);
       List<string> fingerprints = _provider.GetFingerprints(uid);
       foreach(string fpr in fingerprints) {
-        _node.AddDhtFriend(fpr);
+        _snode.AddDhtFriend(fpr);
       }
     }
 
@@ -311,20 +322,6 @@ namespace SocialVPN {
      * Get a list of friends from the social network.
      */
     List<string> GetFriends();
-  }
-
-  /**
-   * This class defines the social state of the system.
-   */
-  public class SocialState {
-    /**
-     * The local user.
-     */
-    public SocialUser LocalUser;
-    /**
-     * The list of friends.
-     */
-    public SocialUser[] Friends;
   }
 
 #if SVPN_NUNIT

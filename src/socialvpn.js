@@ -29,7 +29,8 @@ function init() {
   var intervalID = window.setInterval(getState, 5000);
 }
 
-function createElem(itemType, itemHTML, itemID, itemClass, containerName, functionName) {
+function createElem(itemType, itemHTML, itemID, itemClass, containerName, 
+                    functionName) {
   var elem = document.createElement(itemType);
   elem.id = itemID;
   elem.className = itemClass;
@@ -103,18 +104,23 @@ function loadLogin() {
   var div_tmp_content = document.getElementById('tmp_content');
   div_tmp_content.innerHTML = "";
   
-  createElem("span", "Please enter username and password", "", "f_name", "tmp_content", "");
+  createElem("span", "Please enter username and password", "", "f_name", 
+             "tmp_content", "");
   
-  var user_text = createElem("input", "", "user_input", "", "tmp_content", "");
+  var user_text = createElem("input", "", "user_input", "", "tmp_content", 
+                             "");
   user_text.setAttribute("type", "text");
   
-  var pass_text = createElem("input", "", "pass_input", "", "tmp_content", "");
+  var pass_text = createElem("input", "", "pass_input", "", "tmp_content", 
+                             "");
   pass_text.setAttribute("type", "password");
   
-  var input_button = createElem("button", "Submit", "", "", "tmp_content", submitLogin);
+  var input_button = createElem("button", "Submit", "", "", "tmp_content", 
+                                submitLogin);
   input_button.setAttribute("type", "text");
   
-  var input_button = createElem("button", "Cancel", "", "", "tmp_content", cancelSubmit);
+  var input_button = createElem("button", "Cancel", "", "", "tmp_content", 
+                                cancelSubmit);
   input_button.setAttribute("type", "text");
 }
 
@@ -206,7 +212,8 @@ function loadFriends() {
   createElem("li", "Online Friends", "", "", menu.id, showOnlineFriends);
   createElem("li", "Offline Friends", "", "", menu.id, showOfflineFriends);
   createElem("li", "Blocked Friends", "", "", menu.id, showBlockedFriends);
-  createElem("li", "Add OpenID", "", "", menu.id, addOpenID);
+  createElem("li", "Add Friend Uid", "", "", menu.id, addFriendID);
+  createElem("li", "Add Certificate", "", "", menu.id, addCertificate);
   
   showFriends();
 }
@@ -239,7 +246,8 @@ function showFriends() {
   
   for (var i = 0; i < friends.length; i++) {
     var friend_time = friends[i].getElementsByTagName('Time')[0].textContent;
-    var friend_access = friends[i].getElementsByTagName('Access')[0].textContent;
+    var friend_access = 
+      friends[i].getElementsByTagName('Access')[0].textContent;
     if( friend_time == "-1" && (option == "All" || option == "Offline") 
        && friend_access == "Approved") {
       friends[i].status = "Status: Offline";
@@ -274,17 +282,20 @@ function addFriend(friend) {
   new_td.appendChild(div_opts);
   new_td.appendChild(div_info);
 
-  var opt_item = createElem("span", "Unblock", "", "opts_menu", div_opts, addFriendPost);
+  var opt_item = createElem("span", "Unblock", "", "opts_menu", div_opts, 
+                            addFriendPost);
   opt_item.address = address;
   div_opts.appendChild(document.createElement('br'));
   
-  var opt_item = createElem("span", "Block", "", "opts_menu", div_opts, removeFriendPost);
+  var opt_item = createElem("span", "Block", "", "opts_menu", div_opts, 
+                            removeFriendPost);
   opt_item.address = address;
   div_opts.appendChild(document.createElement('br'));
 
   var img_usr = document.createElement('img');
   img_usr.className = "f_img";
-  img_usr.setAttribute("src", friend.getElementsByTagName('Pic')[0].textContent);
+  img_usr.setAttribute("src", 
+                       friend.getElementsByTagName('Pic')[0].textContent);
   img_usr.setAttribute("width", "50");
   img_usr.setAttribute("height", "50");
   div_info.appendChild(img_usr);
@@ -308,25 +319,58 @@ function cancelSubmit() {
   div_tmp_content.innerHTML = "";
 }
 
-function addOpenID() {  
+function addFriendID() {  
   var div_tmp_content = document.getElementById('tmp_content');
   div_tmp_content.innerHTML = "";
   
-  createElem("span", "Please enter a list of OpenIDs seperated by new line", "", "f_name", "tmp_content", "");
+  createElem("span", "Please enter a list of OpenIDs seperated by new line", 
+             "", "f_name", "tmp_content", "");
   
-  var input_text = createElem("textarea", "", "data_input", "", "tmp_content", "");
+  var input_text = createElem("textarea", "", "data_input", "", "tmp_content",
+                              "");
   input_text.setAttribute("rows", "10");
   input_text.setAttribute("cols", "50");
   
-  var input_button = createElem("button", "Submit", "", "", "tmp_content", submitOpenID);
+  var input_button = createElem("button", "Submit", "", "", "tmp_content", 
+                                submitFriendID);
   input_button.setAttribute("type", "text");
   
-  var input_button = createElem("button", "Cancel", "", "", "tmp_content", cancelSubmit);
+  var input_button = createElem("button", "Cancel", "", "", "tmp_content", 
+                                cancelSubmit);
   input_button.setAttribute("type", "text");
 }
 
-function submitOpenID() {
+function submitFriendID() {
   var input_data ="m=add&uids=" + 
+    encodeURIComponent(document.getElementById('data_input').value);    
+  makeCall(input_data);
+  var div_tmp_content = document.getElementById('tmp_content');
+  div_tmp_content.innerHTML = "";
+}
+
+function addCertificate() {  
+  var div_tmp_content = document.getElementById('tmp_content');
+  div_tmp_content.innerHTML = "";
+  
+  createElem("span", "Paste a friend's certificate", 
+             "", "f_name", "tmp_content", "");
+  
+  var input_text = createElem("textarea", "", "data_input", "", "tmp_content",
+                              "");
+  input_text.setAttribute("rows", "10");
+  input_text.setAttribute("cols", "50");
+  
+  var input_button = createElem("button", "Submit", "", "", "tmp_content", 
+                                submitCertificate);
+  input_button.setAttribute("type", "text");
+  
+  var input_button = createElem("button", "Cancel", "", "", "tmp_content", 
+                                cancelSubmit);
+  input_button.setAttribute("type", "text");
+}
+
+function submitCertificate() {
+  var input_data ="m=addcert&cert=" + 
     encodeURIComponent(document.getElementById('data_input').value);    
   makeCall(input_data);
   var div_tmp_content = document.getElementById('tmp_content');
@@ -374,7 +418,8 @@ function makeCall(postData) {
     }
   };  
   httpRequest.open('POST', 'api', true);
-  httpRequest.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+  httpRequest.setRequestHeader("Content-type", 
+                               "application/x-www-form-urlencoded");
   httpRequest.setRequestHeader("Content-length", postData.length);
   httpRequest.setRequestHeader("Connection", "close");
   httpRequest.send(postData);
