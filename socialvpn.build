@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<project name="SocialVPN" default="build">
+  <!-- Here is some configuration -->
+  <property name="brunet.dir" value="../brunet1" />
+  <property name="ipop.dir" value="../ipop" />
+
+  <!-- Here's the main target -->
+  <target name="build" description="Build SocialVPN">
+    <nant buildfile="src/default.build" />
+  </target>
+</project>
