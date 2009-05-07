@@ -8,6 +8,15 @@
 
   <target name="clean" description="Remove build directory">
     <delete dir="${build.dir}" failonerror="true"/>
+    <delete failonerror="true">
+      <fileset basedir="${bin.dir}">
+        <include name="SocialVPN.exe" />
+        <include name="*.dll" />
+        <include name="libtuntap.*"/>
+        <include name="socialvpn.*" />
+        <include name="*.config" />
+      </fileset>
+    </delete>
   </target>
 
   <target name="build" description="Build SocialVPN.exe">
