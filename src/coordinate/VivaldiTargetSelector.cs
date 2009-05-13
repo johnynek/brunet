@@ -158,10 +158,10 @@ namespace Brunet.Coordinate {
       //create a new request state
       ISender s = new ForwardingSender(_node, 
                                        start, 
-                                       AHPacket.AHOptions.Greedy, 
+                                       AHHeader.Options.Greedy, 
                                        new DirectionalAddress(DirectionalAddress.Direction.Left),
                                        (short) range,
-                                       AHPacket.AHOptions.Path
+                                       AHHeader.Options.Path
                                        );
 
       q.EnqueueEvent += new EventHandler(EnqueueHandler);

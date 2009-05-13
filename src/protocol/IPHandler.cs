@@ -139,7 +139,7 @@ namespace Brunet
         sockets.Add(_mc);
       }
 
-      byte[] buffer =  new byte[Packet.MaxLength];
+      byte[] buffer =  new byte[Int16.MaxValue];
       DateTime last_debug = DateTime.UtcNow;
       TimeSpan debug_period = TimeSpan.FromSeconds(5);
       while(1 == _running) {

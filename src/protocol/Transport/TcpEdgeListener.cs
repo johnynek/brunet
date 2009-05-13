@@ -97,7 +97,7 @@ namespace Brunet
         WriteSocks = new ArrayList();
         Run = true;
         /* Use a shared BufferAllocator for all Edges */
-        BA = new BufferAllocator(2 + Packet.MaxLength);
+        BA = new BufferAllocator(2 + Int16.MaxValue);
         ListenSock.Listen(10);
         TEL = tel;
       }

@@ -41,7 +41,7 @@ namespace Brunet
   public class UdpEdgeListener : EdgeListener, IEdgeSendHandler
   {
     protected Object _send_sync = new Object();
-    protected byte[] _send_buffer = new byte[Packet.MaxLength];
+    protected byte[] _send_buffer = new byte[8 + Int16.MaxValue];
     /*
      * This is the object which we pass to UdpEdges when we create them.
      */
@@ -599,7 +599,7 @@ namespace Brunet
     protected void ListenThread()
     {
       Thread.CurrentThread.Name = "udp_listen_thread";
-      BufferAllocator ba = new BufferAllocator(8 + Packet.MaxLength);
+      BufferAllocator ba = new BufferAllocator(8 + Int16.MaxValue);
       EndPoint end = new IPEndPoint(IPAddress.Any, 0);
 
       DateTime last_debug = DateTime.UtcNow;

@@ -255,7 +255,8 @@ namespace Brunet
       NumberSerializer.WriteInt(remote_id, ids, 5);
       MemBlock ids_mb = MemBlock.Reference( ids );
       ICopyable header = new CopyList( PType.Protocol.AH,
-                                       new AHHeader(1, 2, source, target, AHPacket.AHOptions.Exact),
+                                       new AHHeader(1, 2, source, target,
+                                       AHHeader.Options.Exact),
                                        PType.Protocol.Tunneling,
                                        ids_mb );
       //Now we have assembled the full header to prepend to any data, but

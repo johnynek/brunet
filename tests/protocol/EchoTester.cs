@@ -208,9 +208,10 @@ namespace Brunet
       // update the payload
       // This is a request, so the first byte is greater than zero
       bytes[0] = (byte) 1;
-      AHPacket p = new AHPacket(0, 30,   this_node.Address,
-                                     target,
-                                     AHPacket.Protocol.Echo, bytes);
+      ICopyable p = new CopyList(PType.Protocol.AH,
+                                 new AHHeader(0, 30, this_node.Address,
+                                              target, AHHeader.Options.Greedy),
+                                 PType.Protocol.Echo, MemBlock.Reference(bytes));
 
       ///RDP Experiment: sending the echo packet periodically
 /*      int seq = 0;
@@ -261,7 +262,10 @@ namespace Brunet
 		    // This is a request, so the first byte is greater than zero
 		    bytes[0] = (byte) 1;
 		    NumberSerializer.WriteInt(uid, bytes, 1);
-		    p = new AHPacket(0, 30, this_node.Address, _target_ahaddress, AHPacket.Protocol.Echo, bytes);
+                    p = new CopyList(PType.Protocol.AH,
+                                 new AHHeader(0, 30, this_node.Address,
+                                              _target_ahaddress, AHHeader.Options.Greedy),
+                                 PType.Protocol.Echo, MemBlock.Reference(bytes));
 
 		    this_node.Send(p);
 		    ping_time = pw.Ping(target_ta_configuration.Address, wait_time); //wait wait_time number of ms

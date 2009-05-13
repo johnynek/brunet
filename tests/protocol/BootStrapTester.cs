@@ -228,8 +228,13 @@ namespace Brunet
       results.EnqueueEvent += delegate(object q, EventArgs a) {
         object result = results.Dequeue();
 	RpcResult r = (RpcResult)result;
-	IDictionary data = (IDictionary)r.Result;
-	Console.WriteLine("target: {0}, rtt: {1}", data["target"], data["musec"]);
+        try {
+	  IDictionary data = (IDictionary)r.Result;
+	  Console.WriteLine("target: {0}, rtt: {1}", data["target"], data["musec"]);
+        }
+        catch(Exception x) {
+          Console.WriteLine("target: {0}, Exception: {1}", n1.Address, x);
+        }
       };
       Console.WriteLine("Pinging: {0} -> {1}", n0.Address, n1.Address);
       try {

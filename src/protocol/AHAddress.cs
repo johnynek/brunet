@@ -42,6 +42,8 @@ namespace Brunet
     ///The class of this address type
     public static readonly int _class = 0;
 
+    protected readonly uint _prefix;
+
     public override int Class
     {
       get
@@ -59,6 +61,7 @@ namespace Brunet
       rng.GetBytes(buffer);
       SetClass(buffer, this.Class);
       _buffer = MemBlock.Reference(buffer, 0, MemSize);
+      _prefix = (uint)NumberSerializer.ReadInt(_buffer, 0);
     }
 
     /**
@@ -66,15 +69,18 @@ namespace Brunet
      * This makes a copy of b and initializes the AHAddress with
      * that value
      */
-    public AHAddress(byte[] b) : this(MemBlock.Copy(b, 0, MemSize)) { }
+    public AHAddress(byte[] b) : this(MemBlock.Copy(b, 0, MemSize)) {
+      _prefix = (uint)NumberSerializer.ReadInt(_buffer, 0);
+    }
     
     /**
      * @deprecated
      * This makes a copy of b and initializes the AHAddress with
      * that value
      */
-    public AHAddress(byte[] b, int off) : this(MemBlock.Copy(b, off, MemSize))
-    { }
+    public AHAddress(byte[] b, int off) : this(MemBlock.Copy(b, off, MemSize)) {
+      _prefix = (uint)NumberSerializer.ReadInt(_buffer, 0);
+    }
     
     public AHAddress(MemBlock mb) : base(mb)
     {
@@ -83,6 +89,7 @@ namespace Brunet
         ArgumentException("Class of address is not my class:  ",
                           this.ToString());
       }
+      _prefix = (uint)NumberSerializer.ReadInt(_buffer, 0);
     }
 
     public AHAddress(BigInteger big_int):base(big_int)
@@ -91,6 +98,20 @@ namespace Brunet
         throw new System.
         ArgumentException("Class of address is not my class:  ",
                           this.ToString());
+      }
+      _prefix = (uint)NumberSerializer.ReadInt(_buffer, 0);
+    }
+
+    public override int CompareTo(object o) {
+      if( Object.ReferenceEquals(this, o) ) { 
+        return 0;
+      }
+      AHAddress other = (AHAddress)o;
+      if( other._prefix != _prefix ) {
+        return _prefix < other._prefix ? -1 : 1;
+      }
+      else {
+        return _buffer.CompareTo(other._buffer);
       }
     }
 
@@ -248,6 +269,46 @@ namespace Brunet
         return start.CompareTo(this) > 0 || this.CompareTo(end) > 0;
       }
     }
+
+    /** check which address is closed to this one
+     * @return true if we are closer to the first than second
+     */
+    public bool IsCloserToFirst(AHAddress first, AHAddress sec) {
+      uint pre0 = _prefix;
+      uint pref = first._prefix;
+      uint pres = sec._prefix;
+      if( pref == pres ) {
+        //They could be the same:
+        if( first.Equals( sec ) ) { return false; }
+        return DistanceTo(first).abs() < DistanceTo(sec).abs();
+      }
+      //See if the upper and lower bounds can avoid doing big-int stuff
+      uint udf = pre0 > pref ? pre0 - pref : pref - pre0;
+      uint uds = pre0 > pres ? pre0 - pres : pres - pre0;
+      if( udf > Int32.MaxValue ) {
+        //Wrap it around:
+        udf = UInt32.MaxValue - udf;
+      }
+      if( uds > Int32.MaxValue ) {
+        uds = UInt32.MaxValue - uds;
+      }
+      uint upperbound_f = udf + 1;
+      uint lowerbound_s = uds > 0 ? uds - 1 : 0;
+      if( upperbound_f <= lowerbound_s ) {
+        //There is no way the exact value could make df bigger than ds:
+        return true;
+      }
+      uint upperbound_s = uds + 1;
+      uint lowerbound_f = udf > 0 ? udf - 1 : 0;
+      if( upperbound_s <= lowerbound_f ) {
+        //There is no way the exact value could make ds bigger than df:
+        return false;
+      }
+      //Else just do it the simple, but costly way
+      BigInteger df = DistanceTo(first).abs();
+      BigInteger ds = DistanceTo(sec).abs();
+      return (df < ds);
+    }
   }
   
   
@@ -289,7 +350,7 @@ namespace Brunet
       Assert.IsTrue( a4.CompareTo( test_address_1 ) > 0, "adding increases");
       Assert.IsTrue( a4.CompareTo( test_address_2 ) < 0, "smaller than biggest");
       //Here are some consistency tests:
-      for( int i = 0; i < 100; i++) {
+      for( int i = 0; i < 1000; i++) {
         System.Random r = new Random();
         byte[] b1 = new byte[Address.MemSize];
         r.NextBytes(b1);
@@ -335,6 +396,16 @@ namespace Brunet
           //Then the following must be false:
           Assert.IsFalse( a6.RightDistanceTo(a5) < a6.RightDistanceTo(a7),
                           "BetweenRight false");
+        }
+        if( a5.IsCloserToFirst(a6, a7) ) {
+          Assert.IsTrue( a5.DistanceTo(a6).abs() < a5.DistanceTo(a7).abs(), "IsCloser 1");
+        }
+        else {
+          Assert.IsFalse( a5.DistanceTo(a6).abs() < a5.DistanceTo(a7).abs(), "IsCloser 2");
+        }
+        Assert.IsFalse(a5.IsCloserToFirst(a6, a7) && a5.IsCloserToFirst(a7,a6), "can only be closer to one!");
+        if( false == a5.Equals(a6) ) {
+          Assert.IsTrue(a5.IsCloserToFirst(a5, a6), "Always closer to self");
         }
         Assert.IsFalse(a5.IsBetweenFromLeft(a6, a7) ==
                             a5.IsBetweenFromRight(a6, a7),

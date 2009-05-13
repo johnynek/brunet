@@ -128,7 +128,7 @@ namespace Brunet
     /**
      * Compares them by treating them as MSB first integers
      */
-    public int CompareTo(object obj) {
+    public virtual int CompareTo(object obj) {
       if( obj == this ) { return 0; }
       Address a = obj as Address;
       if( null != a ) {

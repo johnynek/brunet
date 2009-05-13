@@ -116,7 +116,7 @@ namespace Brunet {
 
       ConnectToMessage  ctm = new ConnectToMessage(ConnectionType, _node.GetNodeInfo(8),
           _node.Address.ToString());
-      ISender send = new AHSender(_node, target, AHPacket.AHOptions.Exact);
+      ISender send = new AHExactSender(_node, target);
       Connector con = new Connector(_node, send, ctm, this);
       con.FinishEvent += ConnectorEndHandler;
       con.AbortIf = abort;

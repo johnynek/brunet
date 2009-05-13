@@ -604,8 +604,8 @@ namespace Brunet
         //Don't send too short a distance
 	ttl = 2;
       }
-      else if( ttld > (double)AHPacket.MaxTtl ) {
-        ttl = AHPacket.MaxTtl;
+      else if( ttld > (double)Int16.MaxValue ) {
+        ttl = Int16.MaxValue;
       }
       else {
         ttl = (short)( ttld );
