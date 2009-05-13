@@ -25,18 +25,18 @@ namespace Brunet.Rpc {
   public class XmlRpcManager : MarshalByRefObject, IRpcHandler {
     #region Fields
     [NonSerialized]
-    private RpcManager _rpc;
+    private readonly RpcManager _rpc;
     /**
      * Local Node
      */
-    private Node _node;
+    private readonly Node _node;
     /**
      * Key: handler_name
      * Value: uri
      * Different from _rpc.method_handlers which is <handler_name, proxy>
      */
     [NonSerialized]
-    private Hashtable _registered_xmlrpc = new Hashtable(); 
+    private readonly Hashtable _registered_xmlrpc = new Hashtable(); 
     #endregion
 
     public XmlRpcManager(Node node, RpcManager rpc) {
@@ -116,7 +116,7 @@ namespace Brunet.Rpc {
     }
 
     private object[] Proxy(ISender sender,int maxResultsToWait, string method, object[] args) {
-      BlockingQueue q = new BlockingQueue();
+      BlockingQueue q = new BlockingQueue(maxResultsToWait);
       args = AdrXmlRpcConverter.XmlRpc2AdrParams(args);
       _rpc.Invoke(sender, q, method, args);
       ArrayList allValues = new ArrayList();
@@ -124,6 +124,7 @@ namespace Brunet.Rpc {
       ISender rsSender = null;
       try {
         do {
+          rsSender = null; //Reset it before the following:
           RpcResult rpcRs = (RpcResult)q.Dequeue();
           rsSender = rpcRs.ResultSender;  //get it before exception thrown
           object val = rpcRs.Result;
@@ -251,16 +252,17 @@ namespace Brunet.Rpc {
    * Handles calls from Brunet Rpc, invokes the XML-RPC service that this
    * handler represents and returns the results to Brunet Rpc.
    */
-  public class XmlRpcHandler : XmlRpcClientProtocol, IRpcHandler {
-    private RpcManager _rpc;
-    private Node _node;
+  public class XmlRpcHandler : IRpcHandler {
+    private readonly RpcManager _rpc;
+    private readonly Node _node;
+    private readonly string _url;
 
     /**
      * @param url the URL of the XML-RPC service.
      * @param rpc The XmlRpcManager instance that the handler uses.
      */
     public XmlRpcHandler(string url, Node node) {
-      this.Url = url;
+      _url = url;
       _node = node;
       _rpc = _node.Rpc;
     }
@@ -270,7 +272,7 @@ namespace Brunet.Rpc {
      * Where we don't need RpcManager...
      */
     public XmlRpcHandler(string url) {
-      this.Url = url;
+      this._url = url;
     }
 #endif
 
@@ -278,8 +280,8 @@ namespace Brunet.Rpc {
      * Enables the logging output.
      */
     public void AttachLogger() {
-      XmlRpcManagerClientLogger logger = new XmlRpcManagerClientLogger();
-      logger.Attach(this);
+      //XmlRpcManagerClientLogger logger = new XmlRpcManagerClientLogger();
+      //logger.Attach(this);
     }
     
     /**
@@ -291,10 +293,8 @@ namespace Brunet.Rpc {
     public void BrunetRpc2XmlRpc(object xmlrpcCallState) {
       XmlRpcCallState state = (XmlRpcCallState)xmlrpcCallState;
       object ret = null;
-      this.XmlRpcMethod = state.MethodName;
       try {
-        object[] args = (object[])AdrXmlRpcConverter.Adr2XmlRpc(state.MethodArgs);
-        ret = this.XmlRpcCall(args);
+        ret = state.XmlRpcCall(state.MethodArgs);
         ret = AdrXmlRpcConverter.XmlRpc2Adr(ret);
       } catch (Exception e) {
         Debug.WriteLine(e);
@@ -304,19 +304,6 @@ namespace Brunet.Rpc {
       }
     }
 
-    /**
-     * Represents the remote method.
-     * @exception Whatever caught from XML-RPC is thrown.
-     */
-    [XmlRpcMethod]
-    public object XmlRpcCall(params object[] args) {
-      MethodBase mi = MethodBase.GetCurrentMethod();
-      object ret = null;
-      //Without the cast, XML-RPC.NET throws exception.
-      ret = this.Invoke(mi, (object)args);
-      return ret;
-    }
-
     #region IRpcHandler Members
     /**
      * Asynchronously Invokes the method on the XML-RPC service.
@@ -324,18 +311,32 @@ namespace Brunet.Rpc {
     public void HandleRpc(ISender caller, string method, IList args, object rs) {
       object[] arg_array = new object[args.Count];
       args.CopyTo(arg_array, 0);
-      XmlRpcCallState state = new XmlRpcCallState();
-      state.MethodName = method;
-      state.MethodArgs = arg_array;
-      state.RequestState = rs;
+      XmlRpcCallState state = new XmlRpcCallState(_url, method, arg_array, rs);
       ThreadPool.QueueUserWorkItem(new WaitCallback(BrunetRpc2XmlRpc), state);
     }
     #endregion
 
-    class XmlRpcCallState {
-      public string MethodName;
-      public object[] MethodArgs;
-      public object RequestState;
+    class XmlRpcCallState : XmlRpcClientProtocol {
+      public readonly object[] MethodArgs;
+      public readonly object RequestState;
+      public XmlRpcCallState(string uri, string meth, object[] args, object rs) {
+        this.Url = uri;
+        this.XmlRpcMethod = meth;
+        args = (object[])AdrXmlRpcConverter.Adr2XmlRpc(args);
+        MethodArgs = args;
+        RequestState = rs;
+      }
+      /**
+       * Represents the remote method.
+       * @exception Whatever caught from XML-RPC is thrown.
+       */
+      [XmlRpcMethod]
+      public object XmlRpcCall(params object[] args) {
+        MethodBase mi = MethodBase.GetCurrentMethod();
+        //Without the cast, XML-RPC.NET throws exception.
+        return this.Invoke(mi, (object)args);
+      }
+      
     }
 
     class RpcSendResultAction : IAction {
@@ -355,6 +356,7 @@ namespace Brunet.Rpc {
     }
 
   }
+
 
   /**
    * Client proxy interface.
@@ -413,8 +415,12 @@ namespace Brunet.Rpc {
   /// .NET Remoting service that hosts the XmlRpcManager instances.
   /// </summary>
   public class XmlRpcManagerServer {
-    IChannel _channel;
-    protected IDictionary<Node, XmlRpcManager> _xrm_mappings = 
+    readonly IChannel _channel;
+
+    /// <summary>
+    /// (Node, XmlRpcManager) mapping.
+    /// </summary>
+    protected readonly IDictionary<Node, XmlRpcManager> _xrm_mappings = 
       new Dictionary<Node, XmlRpcManager>();
 
     /// <summary>
