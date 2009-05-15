@@ -30,29 +30,14 @@ using NUnit.Framework;
 namespace SocialVPN {
 
   public class TestNetwork : IProvider, ISocialNetwork {
-    [XmlRpcUrl("http://localhost:8888")]
-    public interface IPythonXmlRpc : IXmlRpcProxy {
-      [XmlRpcMethod("StoreFingerprint")]
-      string StoreFingerprint(string uid, string fingerprint);
 
-      [XmlRpcMethod("GetFingerprints")]
-      string[] GetFingerprints(string uid);
-
-      [XmlRpcMethod("GetFriends")]
-      string[] GetFriends(string uid);
-
-      [XmlRpcMethod("SayHello")]
-      string SayHello(string name);
-
-    }
-
-    protected readonly IPythonXmlRpc _backend;
+    protected readonly string _url;
 
     protected readonly SocialUser _local_user;
 
     public TestNetwork(SocialUser user) {
-      _backend = XmlRpcProxyGen.Create<IPythonXmlRpc>();
       _local_user = user;
+      _url = "http://socialvpntest.appspot.com/api/?";
     }
 
     public bool Login(string username, string password) {
@@ -65,12 +50,20 @@ namespace SocialVPN {
 
     public List<string> GetFriends() {
       List<string> new_friends = new List<string>();
+      string vars = "m=getfriends";
+      string response = SocialUtils.HttpRequest(_url + vars);
+      string[] friends = response.Split('\n');
+      foreach(string friend in friends) {
+        Console.WriteLine(friend);
+      }
       return new_friends;
     }
 
     public List<string> GetFingerprints(string uid) {
       List<string> fingerprints = new List<string>();
-      string[] fprs = _backend.GetFingerprints(uid);
+      string vars = "m=getfprs";
+      string response = SocialUtils.HttpRequest(_url + vars);
+      string[] fprs = response.Split('\n');
       foreach(string fpr in fprs) {
         Console.WriteLine(fpr);
       }
@@ -78,11 +71,14 @@ namespace SocialVPN {
     }
 
     public bool StoreFingerprint() {
+      string vars = "m=store&uid=" + _local_user.Uid + "&fpr=" + 
+        _local_user.DhtKey;
+      SocialUtils.HttpRequest(_url + vars);
       return true;
     }
 
-    public void SayHello() {
-      Console.WriteLine(_backend.SayHello("Pierre"));
+    public bool ValidateCertificate(Certificate cert) {
+      return true;
     }
   }
 
@@ -107,7 +103,8 @@ namespace SocialVPN {
       SocialUser user = new SocialUser(cert_data);
 
       TestNetwork backend = new TestNetwork(user);
-      backend.SayHello();
+      backend.StoreFingerprint();
+      backend.GetFriends();
       backend.GetFingerprints("uid");
     }
   } 

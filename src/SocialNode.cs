@@ -177,26 +177,18 @@ namespace SocialVPN {
     /**
      * Add a friend to socialvpn from an X509 certificate.
      * @param certData the X509 certificate as a byte array.
-     * @param key the dht_key containing fingerprint.
      */
-    public void AddCertificate(byte[] certData, string key) {
+    public void AddCertificate(byte[] certData) {
       Certificate cert = new Certificate(certData);
       SocialUser friend = new SocialUser(cert);
-      string[] parts = key.Split(':');
-      string uid = parts[1];
-      string fingerprint = parts[2];
 
       // Verification on the certificate by email and fingerprint
       if(friend.DhtKey == _local_user.DhtKey || 
          _friends.ContainsKey(friend.DhtKey)) {
         ProtocolLog.Write(SocialLog.SVPNLog, "ADD CERT KEY FOUND: " +
-                          key);
+                          friend.DhtKey);
       }
-      else if(fingerprint != friend.Fingerprint || uid != friend.Uid) {
-        ProtocolLog.Write(SocialLog.SVPNLog, "ADD CERT KEY MISMATCH: " +
-                       key + " " + friend.DhtKey);
-      }
-      else {
+      else if(_snp.ValidateCertificate(cert)) {
         friend.Alias = CreateAlias(friend.Uid, friend.PCID);
 
         // Save certificate to file system
@@ -218,6 +210,10 @@ namespace SocialVPN {
                           friend.DhtKey + " " + friend.IP + " " + 
                           friend.Alias);
       }
+      else {
+        ProtocolLog.Write(SocialLog.SVPNLog, "ADD CERT KEY INVALID: " +
+                          friend.DhtKey);
+      }
     }
 
     /**
@@ -225,29 +221,24 @@ namespace SocialVPN {
      * @param key the DHT key for friend's certificate.
      */
     public void AddDhtFriend(string key) {
-      if(key == _local_user.DhtKey || _friends.ContainsKey(key)) {
-        if(key != _local_user.DhtKey) {
-          _srh.PingFriend(_friends[key]);
-        }
-        return;
+      if(key != _local_user.DhtKey && !_friends.ContainsKey(key)) {
+        Channel q = new Channel();
+        q.CloseAfterEnqueue();
+        q.CloseEvent += delegate(Object o, EventArgs eargs) {
+          try {
+            DhtGetResult dgr = (DhtGetResult) q.Dequeue();
+            byte[] certData = dgr.value;
+            AddCertificate(certData);
+            ProtocolLog.Write(SocialLog.SVPNLog, "ADD DHT SUCCESS: " +
+                              key);
+          } catch (Exception e) {
+            ProtocolLog.Write(SocialLog.SVPNLog,e.Message);
+            ProtocolLog.Write(SocialLog.SVPNLog,"ADD DHT FAILURE: " + 
+                            key);
+          }
+        };
+        this.Dht.AsGet(key, q);
       }
-
-      Channel q = new Channel();
-      q.CloseAfterEnqueue();
-      q.CloseEvent += delegate(Object o, EventArgs eargs) {
-        try {
-          DhtGetResult dgr = (DhtGetResult) q.Dequeue();
-          byte[] certData = dgr.value;
-          AddCertificate(certData, key);
-          ProtocolLog.Write(SocialLog.SVPNLog, "ADD DHT SUCCESS: " +
-                            key);
-        } catch (Exception e) {
-          ProtocolLog.Write(SocialLog.SVPNLog,e.Message);
-          ProtocolLog.Write(SocialLog.SVPNLog,"ADD DHT FAILURE: " + 
-                            key);
-        }
-      };
-      this.Dht.AsGet(key, q);
     }
 
     /*

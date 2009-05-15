@@ -61,14 +61,18 @@ namespace SocialVPN {
     }
 
     public List<string> GetFriends() {
-      if(_online) return _network.GetFriends();
+      if(_online) {
+        return _network.GetFriends();
+      }
 
       List<string> friends = new List<string>();
       return friends;
     }
 
     public List<string> GetFingerprints(string uid) {
-      if(_online) return _provider.GetFingerprints(uid);
+      if(_online) {
+        return _provider.GetFingerprints(uid);
+      }
 
       List<string> fingerprints = new List<string>();
       DhtGetResult[] dgrs = null;
@@ -87,7 +91,9 @@ namespace SocialVPN {
     }
 
     public bool StoreFingerprint() {
-      if(_online) return _provider.StoreFingerprint();
+      if(_online) {
+        return _provider.StoreFingerprint();
+      }
 
       string key = DHTPREFIX + _local_user.Uid;
       string value = _local_user.DhtKey;
@@ -98,6 +104,10 @@ namespace SocialVPN {
         ProtocolLog.Write(SocialLog.SVPNLog,"DHT PUT FPR FAILURE: " + key);
         return false;
       }
+    }
+
+    public bool ValidateCertificate(Certificate cert) {
+      return true;
     }
   }
 #if SVPN_NUNIT

@@ -67,12 +67,15 @@ namespace SocialVPN {
 
     protected bool _key_found;
 
+    protected bool _logged_in;
+
     public DrupalNetwork(SocialUser user) {
       _drupal = XmlRpcProxyGen.Create<IDrupalXmlRpc>();
       _local_user = user;
       _email_to_uid = new Dictionary<string,string>();
       _uid_mismatch = false;
       _key_found = false;
+      _logged_in = false;
     }
 
     internal void Print(XmlRpcStruct data) {
@@ -96,14 +99,20 @@ namespace SocialVPN {
         return false;
       }
       _sessid = (string)login_response["sessid"];
+      _logged_in = true;
       return true;
     }
 
     public bool Logout() {
+      _logged_in = false;
       return _drupal.UserLogout(_sessid);
     }
 
     public List<string> GetFriends() {
+      if(!_logged_in) {
+        throw new Exception("Not logged in");
+      }
+
       List<string> new_friends = new List<string>();
       string[] fields = new string[] {};
       string[] args = new string[] {};
@@ -124,8 +133,11 @@ namespace SocialVPN {
     }
 
     public List<string> GetFingerprints(string email) {
-      List<string> fingerprints = new List<string>();
+      if(!_logged_in) {
+        throw new Exception("Not logged in");
+      }
 
+      List<string> fingerprints = new List<string>();
       if(_email_to_uid.ContainsKey(email)) {
         string uid = _email_to_uid[email];
         string[] fields = new string[] {};
@@ -147,7 +159,13 @@ namespace SocialVPN {
     }
 
     public bool StoreFingerprint() {
-      if(_uid_mismatch) throw new Exception("Uid mismatch");
+      if(!_logged_in) {
+        throw new Exception("Not logged in");
+      }
+
+      if(_uid_mismatch) {
+        throw new Exception("Uid mismatch");
+      }
 
       if(!_key_found) {
         XmlRpcStruct saveData = new XmlRpcStruct();
@@ -156,6 +174,10 @@ namespace SocialVPN {
         saveData["type"] = "fingerprint";
         _drupal.NodeSave(_sessid, saveData);
       }
+      return true;
+    }
+
+    public bool ValidateCertificate(Certificate cert) {
       return true;
     }
   }

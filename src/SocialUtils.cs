@@ -24,6 +24,7 @@ using System.Text;
 using System.Xml;
 using System.Xml.Serialization;
 using System.Web;
+using System.Net;
 
 using Brunet;
 using Brunet.Applications;
@@ -164,6 +165,16 @@ namespace SocialVPN {
         result.Add(HttpUtility.UrlDecode(item[0]), 
                    HttpUtility.UrlDecode(item[1]));
       }
+      return result;
+    }
+
+    public static string HttpRequest(string url) {
+      HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
+      request.Method = "GET";
+      HttpWebResponse response = (HttpWebResponse)request.GetResponse();
+      StreamReader reader = new StreamReader(response.GetResponseStream());
+      string result = reader.ReadToEnd();
+      reader.Close();
       return result;
     }
   }

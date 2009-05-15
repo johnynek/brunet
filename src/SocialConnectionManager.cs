@@ -120,10 +120,11 @@ namespace SocialVPN {
     public void TimerHandler(Object obj) {
       try {
         UpdateFriends();
+        LoadCertificates("certificates");
         _snode.PublishCertificate();
         _timer_thread.Change(INTERVALTIME, INTERVALTIME);
       } catch (Exception e) {
-        _timer_thread.Change(INTERVALTIME, INTERVALTIME);
+        _timer_thread.Change(STARTTIME, STARTTIME);
         ProtocolLog.Write(SocialLog.SVPNLog, e.Message);
         ProtocolLog.Write(SocialLog.SVPNLog, "TIMER HANDLER FAILURE " +
                           DateTime.Now.ToString());
@@ -185,7 +186,7 @@ namespace SocialVPN {
       if(!_friendlist.Contains(uid)) {
         UpdateFriendUids();  
       }
-      /*
+      
       // Verify fingerprint with the identity provider
       if(_friendlist.Contains(uid)) {
         List<string> fingerprints = _provider.GetFingerprints(uid);
@@ -193,8 +194,6 @@ namespace SocialVPN {
           _snode.AddDhtFriend(dht_key);
         }
       }
-      */
-      _snode.AddDhtFriend(dht_key);
     }
 
     /**
@@ -249,8 +248,24 @@ namespace SocialVPN {
     protected void AddCertificate(string certString) {
       certString = certString.Replace("\n", "");
       byte[] certData = Convert.FromBase64String(certString);
-      SocialUser friend = new SocialUser(certData);
-      _snode.AddCertificate(certData, friend.DhtKey);
+      _snode.AddCertificate(certData);
+    }
+
+    /**
+     * Loads certificates from the file system.
+     * @param certdir the directory to load certificates from.
+     */
+    protected void LoadCertificates(string certDir) {
+      string[] cert_files = null;
+      try {
+        cert_files = System.IO.Directory.GetFiles(certDir);
+      } catch (Exception e) {
+        ProtocolLog.Write(SocialLog.SVPNLog, e.Message);
+      }
+      foreach(string cert_file in cert_files) {
+        byte[] cert_data = SocialUtils.ReadFileBytes(cert_file);
+        _snode.AddCertificate(cert_data);
+      }
     }
 
     /**
@@ -280,7 +295,9 @@ namespace SocialVPN {
      * @param uid the friend's user id.
      */
     protected void AddFriend(string uid) {
-      if(!_friendlist.Contains(uid)) _friendlist.Add(uid);
+      if(!_friendlist.Contains(uid)) {
+        _friendlist.Add(uid);
+      }
       List<string> fingerprints = _provider.GetFingerprints(uid);
       foreach(string fpr in fingerprints) {
         _snode.AddDhtFriend(fpr);
@@ -302,7 +319,11 @@ namespace SocialVPN {
    */
   public interface IProvider {
 
+    /**
+     * Authenticates a user to a backend
+     */
     bool Login(string username, string password);
+
     /**
      * Retrieves the fingerprints of a particular peer.
      */
@@ -312,12 +333,23 @@ namespace SocialVPN {
      * Stores the fingerprint of a peer.
      */
     bool StoreFingerprint();
+
+    /**
+     * Validates a certificate
+     * @param cert the certificate to be validated
+     */
+    bool ValidateCertificate(Certificate cert);
   }
 
   /**
    * The interface for a social network.
    */
   public interface ISocialNetwork {
+    /**
+     * Authenticates a user to a backend
+     */
+    bool Login(string username, string password);
+
     /**
      * Get a list of friends from the social network.
      */
