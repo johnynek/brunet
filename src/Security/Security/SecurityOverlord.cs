@@ -29,6 +29,11 @@ using System.Threading;
 #endif
 
 namespace Brunet {
+  /// <summary>This is the brains of the operatin.  User code can ask for a Secure
+  /// Sender for a given sender, this will return one and begin the process of
+  /// securing the sender.  Sending over a sender is only secure if it is done
+  /// throug the secure sender.  On the other side, the user should ensure that
+  /// the packet was sent via a secure sender at some point in the stack. </summary>
   public class SecurityOverlord: SimpleSource, IDataHandler, IReplyHandler {
     protected Dictionary<int, Dictionary<ISender, SecurityAssociation>> _spi;
 #if BRUNET_NUNIT
@@ -45,6 +50,8 @@ namespace Brunet {
     protected readonly Random _rand;
     protected readonly ReqrepManager _rrman;
     protected readonly CertificateHandler _ch;
+    /// <summary>Allows user code to interact with the CertificateHandler given the
+    /// SecurityOverlord</summary>
     public CertificateHandler CertificateHandler { get { return _ch; } } 
 
     ///<summary>Called when an SA has switched between active and not.</summary>
@@ -372,7 +379,26 @@ namespace Brunet {
       sa.Failure();
     }
 
-    /// <summary>This is the control state machine.</summary>
+    /// <summary>This is the control state machine.  There are three paths in
+    /// the state machine, iniator, receiver, and bidirectional.  The
+    /// bidirectional case occurs when two remote ISenders that are matched
+    /// together initiate a handshake at the same time, otherwise the initiator
+    /// /receiver pattern is followed.  The high level overview for the states
+    /// are:
+    /// 1a) Send a Cookie
+    /// 1b) Receive a Cookie which responds with a CookieResponse
+    /// 2a) Receive a CookieResponse that contains a list of CAs, if you have
+    /// a Certificate that supports one of the CAs send it along with a DHE
+    /// and a list of your supported CAs in a DHEWithCertificateAndCAs.
+    /// 2b) Receive a DHEWithCertificateAndCAs, verify the certificate and attempt
+    /// to find a matching Certificate for the list of CAs, if you find one,
+    /// finish the DHE handshake and send the certificate via a DHEWithCertificate
+    /// 3a) Receive a DHEWithCertificate, verify the certificate and DHE and
+    /// send a Confirm that you are ready to Verify the stack and start the
+    /// system.
+    /// 3b) Receive a Confirm, verify the entire stack and send a Confirm
+    /// 4a)Receive a Confirm, verify the entire stack and all set to go
+    /// </summary>
     protected void HandleControl(MemBlock b, ISender return_path) {
       ISender tmp = return_path;
       if(tmp is ReqrepManager.ReplyState) {
@@ -449,6 +475,7 @@ namespace Brunet {
             if(sa == null) {
               throw new Exception("No valid SA!");
             }
+            // This seems like unnecessary code
             scm_reply.Type = SecurityControlMessage.MessageType.CookieResponse;
             X509Certificate lcert = null;
             if(pre_exchg_keys) {

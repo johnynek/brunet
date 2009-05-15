@@ -308,6 +308,10 @@ namespace Brunet {
         throw new Exception("Timed out on this one!");
       }
 
+      // Deriving the DHE exchange and determing the order of keys
+      // Specifically, we need up to 4 keys for the sender/receiver encryption/
+      // authentication codes.  So to determine the order, we say whomever has
+      // the smallest gets the first set of keys.
       byte[] rdhe = (byte[]) RDHE.Value;
       RDHE = null;
       byte[] key = _dh.DecryptKeyExchange(rdhe);
@@ -318,12 +322,14 @@ namespace Brunet {
       bool same = i == _ldhe.Length;
       bool first = !same && (_ldhe[i] < rdhe[i]);
       _ldhe = null;
+      // Gathering our security parameter objects
       SecurityPolicy sp = SecurityPolicy.GetPolicy(_spi);
       SymmetricAlgorithm in_sa = sp.CreateSymmetricAlgorithm();
       HashAlgorithm in_ha = sp.CreateHashAlgorithm();
       SymmetricAlgorithm out_sa = sp.CreateSymmetricAlgorithm();
       HashAlgorithm out_ha = sp.CreateHashAlgorithm();
 
+      // Generating the total key length 
       int key_length = key.Length + 2 + (in_sa.KeySize / 8 + in_sa.BlockSize / 8) * 2;
       KeyedHashAlgorithm in_kha = in_ha as KeyedHashAlgorithm;
       KeyedHashAlgorithm out_kha = out_ha as KeyedHashAlgorithm;
@@ -331,6 +337,7 @@ namespace Brunet {
         key_length += (in_kha.HashSize / 8) * 2;
       }
 
+      // Generating a key by repeatedly hashing the DHE value and the key so far
       SHA1CryptoServiceProvider sha1 = new SHA1CryptoServiceProvider();
       int usable_key_offset = key.Length;
       while(key.Length < key_length) {
@@ -341,6 +348,7 @@ namespace Brunet {
         key = tmp_key;
       }
 
+      // Like a sub-session ID (see DTLS)
       short epoch = (short) ((key[usable_key_offset] << 8) + key[usable_key_offset + 1]);
       usable_key_offset += 2;
 
@@ -352,6 +360,7 @@ namespace Brunet {
       Array.Copy(key, usable_key_offset, key1, 0, key1.Length);
       usable_key_offset += key1.Length;
 
+      // Same may occur if we are forming a session with ourselves!
       if(same) {
         in_sa.Key = key0;
         out_sa.Key = key0;
@@ -393,6 +402,7 @@ namespace Brunet {
       _current_sh = sh;
       _last_epoch = _current_epoch;
       _current_epoch = epoch;
+      // All finished set the state (which will probably fire an event)
       State = SAState.Active;
     }
 
@@ -412,17 +422,22 @@ namespace Brunet {
 
       SecurityHandler sh = _current_sh;
       try {
+        // try to decrypt the data
         sh.DecryptAndVerify(sdm);
       } catch {
+        // Maybe this is just a late arriving packet, if it is, we'll just ignore it
         if(sdm.Epoch == _last_epoch) {
           return;
+        // maybe the current_sh got updated, let's try again
         } else if(_current_sh != sh) {
           _current_sh.DecryptAndVerify(sdm);
+        // maybe its none of the above, let's throw it away!
         } else {
           throw;
         }
       }
 
+      // Hand it to our subscriber
       if(_sub != null) {
         _sub.Handle(sdm.Data, this);
       }
@@ -440,6 +455,7 @@ namespace Brunet {
         return;
       }
 
+      // prepare the packet
       SecurityDataMessage sdm = new SecurityDataMessage();
       sdm.SPI = _spi;
       sdm.Data = data as MemBlock;
@@ -449,6 +465,7 @@ namespace Brunet {
         sdm.Data = MemBlock.Reference(b);
       }
 
+      // Encrypt it!
       SecurityHandler sh = _current_sh;
       try {
         sh.SignAndEncrypt(sdm);
@@ -460,6 +477,7 @@ namespace Brunet {
         }
       }
 
+      // Prepare for sending and send over the underlying ISender!
       data = new CopyList(SecurityOverlord.Security, SecurityOverlord.SecureData, sdm.ICPacket);
       try {
         _sender.Send(data);
@@ -471,7 +489,9 @@ namespace Brunet {
     }
 
     ///<summary>Given a string, this looks inside the certificates SANE to see
-    ///if the string is present.</summary>
+    ///if the string is present.  This isn't inefficient as it looks, there
+    ///tends to be no entries at most of those places, so this usually has
+    ///runtime of 1.</summary>
     public bool VerifyCertificateBySubjectAltName(string name) {
       foreach(X509Extension ext in RemoteCertificate.Value.Extensions) {
         if(!ext.Oid.Equals("2.5.29.17")) {

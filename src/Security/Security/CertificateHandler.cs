@@ -30,7 +30,12 @@ using Mono.Math;
 #endif
 
 namespace Brunet {
-  /// <summary>In our system, certificate's serial numbers are equivalent to the
+  /// <summary>.NET provides a very complicated (and complete) x509 Certificate
+  /// handler.  We do not require all those features and we also embed data that
+  /// we use for quick retrieval that wouldn't be easy to reproduce using that
+  /// framework.  This model can be used on non-x509 certificate models and
+  /// perhaps even abstract to support handshakes on pre-shared keys.
+  /// In our system, certificate's serial numbers are equivalent to the
   /// data common to a certificate request and signed certificate, so that the
   /// model can support self-signed CAs.  Thus a cert.SerialNumber == 
   /// hash(cert.ca.unsigned data)</summary>
@@ -52,6 +57,8 @@ namespace Brunet {
       }
     }
 
+    // The default certificate is the first of our certificates that are entered
+    // into this system
     public X509Certificate DefaultCertificate { 
       get {
         X509Certificate cert = null;

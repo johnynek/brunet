@@ -128,7 +128,9 @@ namespace Brunet {
     }
   }
 
-  /// <summary>This class is used to make signing certificates easier.</summary>
+  /// <summary>This class is used to make signing certificates easier.  The
+  /// other method is to use the OpenSSL stack, which this has been verified
+  /// to work with.</summary>
   public class CertificateMaker: Certificate {
     public CertificateMaker(string Country, string Organization,
         string OrganizationalUnit, string Name, string Email,

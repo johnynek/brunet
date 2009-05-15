@@ -17,6 +17,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 namespace Brunet {
+  /// <summary>Just an abstract packet class</summary>
   public abstract class DataPacket {
     /// <summary>The packet in ICopyable format.</summary>
     protected ICopyable _icpacket;

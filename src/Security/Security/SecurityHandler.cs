@@ -99,6 +99,7 @@ namespace Brunet {
       }
       // Get the sequence id and increment the counter
       int seqid = Interlocked.Increment(ref _last_outgoing_seqid);
+      // We ask for an update at the half life and every 1000 packets thereafter
       if(seqid == HALF_LIFE || (seqid > HALF_LIFE && seqid % 1000 == 0)) {
         if(Update != null) {
           Update(Epoch, EventArgs.Empty);

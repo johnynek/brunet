@@ -6,6 +6,7 @@ using System.IO;
 using System.Security.Cryptography;
 
 namespace Brunet.Security {
+  /// <summary>Very thin wrapper used to support AHSenders.</summary>
   public class BrunetSecurityOverlord : SecurityOverlord, IRpcHandler {
     protected Node _node;
     protected Dictionary<Address, SecurityAssociation> _address_to_sa;
@@ -25,6 +26,8 @@ namespace Brunet.Security {
       }
     }
 
+    // Provides a method for local apps to add certificates to Brunet without
+    // being loaded with Brunet.
     public void HandleRpc(ISender caller, string method, IList args, object rs)
     {
       object result = null;
@@ -45,6 +48,7 @@ namespace Brunet.Security {
       _node.Rpc.SendResult(rs, result);
     }
 
+    // Provides an Exact AH Secure Sender using the default SPI  given an address
     public SecurityAssociation GetSecureSender(Address target)
     {
       SecurityAssociation sa = null;
@@ -68,6 +72,7 @@ namespace Brunet.Security {
       return sa;
     }
 
+    // We override the underlying method so that we can properly wrap incoming AHSenders
     protected override SecurityAssociation CreateSecurityAssociation(ISender sender, int spi)
     {
       SecurityAssociation sa = null;
@@ -101,6 +106,7 @@ namespace Brunet.Security {
       }
     }
 
+    /// <summary>Overridden because we know the Brunet address.</summary>
     protected override bool Verify(SecurityAssociation sa)
     {
       lock(_sync) {
