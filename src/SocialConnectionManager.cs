@@ -133,7 +133,10 @@ namespace SocialVPN {
         _snode.PublishCertificate();
         _timer_thread.Change(INTERVALTIME, INTERVALTIME);
       } catch (Exception e) {
-        _timer_thread.Change(STARTTIME, STARTTIME);
+        if(e.Message.StartsWith("Dht")) {
+          // Only change time on Dht not activitated
+          _timer_thread.Change(STARTTIME, STARTTIME);
+        }
         ProtocolLog.Write(SocialLog.SVPNLog, e.Message);
         ProtocolLog.Write(SocialLog.SVPNLog, "TIMER HANDLER FAILURE " +
                           DateTime.Now.ToString());
@@ -319,67 +322,6 @@ namespace SocialVPN {
     protected bool Login(string id, string username, string password) {
       return _provider.Login(id, username, password);
     }
-  }
-
-  /**
-   * The interface for an identity provider.
-   */
-  public interface IProvider {
-
-    /**
-     * Authenticates a user to a backend.
-     * @param id identifier for the identity provider.
-     * @param username the username.
-     * @param password the password.
-     * @return a boolean.
-     */
-    bool Login(string id, string username, string password);
-
-    /**
-     * Retrieves the fingerprints of a particular peer.
-     * @param uids the list of user identifiers (i.e. email).
-     * @return a list of fingerprints.
-     */
-    List<string> GetFingerprints(string[] uids);
-
-    /**
-     * Retrieves the certificates of a particular peer.
-     * @param uids the list of user identifiers (i.e. email).
-     * @return a list of certificates.
-     */
-    List<byte[]> GetCertificates(string[] uids);
-
-    /**
-     * Stores the fingerprint of a peer.
-     * @return a boolean.
-     */
-    bool StoreFingerprint();
-
-    /**
-     * Validates a certificate
-     * @param certData the certificate to be validated
-     */
-    bool ValidateCertificate(byte[] certData);
-  }
-
-  /**
-   * The interface for a social network.
-   */
-  public interface ISocialNetwork {
-    /**
-     * Authenticates a user to a backend
-     * @param id identifier for the identity provider.
-     * @param username the username.
-     * @param password the password.
-     * @return a boolean.
-     */
-    bool Login(string id, string username, string password);
-
-    /**
-     * Get a list of friends from the social network.
-     * @return a list of friends.
-     */
-    List<string> GetFriends();
   }
 
 #if SVPN_NUNIT

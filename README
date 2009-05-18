@@ -49,7 +49,9 @@ tunctl -u "your username" -t tapipop
 
 To find your username run the whoami command
 
-Then run the start_linux.sh
+Then run:
+
+./start_linux.sh email pcid "name"
 
 Accessing SocialVPN Web Interface
 =================================

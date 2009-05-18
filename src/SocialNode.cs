@@ -60,6 +60,11 @@ namespace SocialVPN {
   public class SocialNode : RpcIpopNode {
 
     /**
+     * The current version of SocialVPN.
+     */
+    public const string VERSION = "SVPN_0.3.0";
+
+    /**
      * The local certificate file name.
      */
     public const string CERTFILENAME = "lc.cert";
@@ -281,22 +286,30 @@ namespace SocialVPN {
 
       if(args.Length < 3) {
         Console.WriteLine("usage: SocialVPN.exe <brunet.config path> " + 
-                           "<ipop.config path> <http port>");
+                           "<ipop.config path> <http port> [email] [pcid] \"[name]\"");
         return;
       }
 
       NodeConfig config = Utils.ReadConfig<NodeConfig>(args[0]);
 
       if(!System.IO.Directory.Exists(config.Security.CertificatePath)) {
-        Console.Write("Enter Name (First Last): ");
-        string name = Console.ReadLine();
-        Console.Write("Enter Email Address: ");
-        string uid = Console.ReadLine();
-        Console.Write("Enter a name for this PC: ");
-        string pcid = Console.ReadLine();
-        string version = "SVPN_0.3.0";
-        string country = "US";
-        
+        string name, uid, pcid, version, country;
+        if(args.Length == 6) {
+          uid = args[3];
+          pcid = args[4];
+          name = args[5];
+        }
+        else {
+          Console.Write("Enter Name (First Last): ");
+          name = Console.ReadLine();
+          Console.Write("Enter Email Address: ");
+          uid = Console.ReadLine();
+          Console.Write("Enter a name for this PC: ");
+          pcid = Console.ReadLine();
+        }
+
+        version = VERSION;
+        country = "US";
         config.NodeAddress = Utils.GenerateAHAddress().ToString();
         Utils.WriteConfig(args[0], config);
         SocialUtils.CreateCertificate(uid, name, pcid, version, country,
