@@ -84,7 +84,7 @@ namespace SocialVPN {
       }
     }
 
-    public bool Login(string username, string password) {
+    public bool Login(string id, string username, string password) {
       XmlRpcStruct login = _drupal.SystemConnect();
       string sessid = (string)(login["sessid"]);
       XmlRpcStruct login_response = _drupal.UserLogin(sessid, username, 
@@ -110,7 +110,7 @@ namespace SocialVPN {
 
     public List<string> GetFriends() {
       if(!_logged_in) {
-        throw new Exception("Not logged in");
+        return null;
       }
 
       List<string> new_friends = new List<string>();
@@ -132,10 +132,13 @@ namespace SocialVPN {
       return new_friends;
     }
 
-    public List<string> GetFingerprints(string email) {
+    public List<string> GetFingerprints(string[] emails) {
       if(!_logged_in) {
-        throw new Exception("Not logged in");
+        return null;
       }
+
+      // TODO - Fix this function
+      string email = emails[0];
 
       List<string> fingerprints = new List<string>();
       if(_email_to_uid.ContainsKey(email)) {
@@ -158,13 +161,17 @@ namespace SocialVPN {
       return fingerprints;
     }
 
+    public List<byte[]> GetCertificates(string[] emails) {
+      return null;
+    }
+
     public bool StoreFingerprint() {
       if(!_logged_in) {
-        throw new Exception("Not logged in");
+        return false;
       }
 
       if(_uid_mismatch) {
-        throw new Exception("Uid mismatch");
+        return false;
       }
 
       if(!_key_found) {
@@ -177,7 +184,7 @@ namespace SocialVPN {
       return true;
     }
 
-    public bool ValidateCertificate(Certificate cert) {
+    public bool ValidateCertificate(byte[] certData) {
       return true;
     }
   }
@@ -187,35 +194,7 @@ namespace SocialVPN {
   public class DrupalNetworkTester {
     [Test]
     public void DrupalNetworkTest() {
-      string uid = "ptony82@ufl.edu";
-      string name = "Pierre St Juste";
-      string pcid = "pdesktop";
-      string version = "SVPN_0.3.0";
-      string country = "US";
-
-      SocialUtils.CreateCertificate(uid, name, pcid, version, country,
-                                    "address1234", "certificates", 
-                                    "private_key");
-
-      string cert_path = System.IO.Path.Combine("certificates", "lc.cert");
-      byte[] cert_data = SocialUtils.ReadFileBytes(cert_path);
-      SocialUser user = new SocialUser(cert_data);
-      /*
-      DrupalNetwork drupal = new DrupalNetwork(user);
-      drupal.Login("pierre", "stjuste");
-
-      List<string> friends = drupal.GetFriends();
-
-      foreach(string friend in friends) {
-        Console.WriteLine(friend);
-        List<string> fprs = drupal.GetFingerprints(friend);
-        foreach(string fpr in fprs) {
-          Console.WriteLine(friend + " " + fpr);
-        }
-      }
-      drupal.StoreFingerprint();
-      drupal.Logout();
-      */
+      Assert.AreEqual("test", "test");
     }
   } 
 #endif

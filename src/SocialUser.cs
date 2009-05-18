@@ -98,7 +98,14 @@ namespace SocialVPN {
       IP = IPDEFAULT;
       Alias = ALIASDEFAULT;
       Pic = PICDEFAULT;
-    }
+   }
+
+   public override string ToString() {
+     string dl = "\n";
+     return Uid + dl + Name + dl + PCID + dl + Address + dl + Version + dl + 
+      DhtKey + dl + Country + dl + Access + dl + Time + dl + IP + dl + 
+      Alias + dl + Pic;
+   }
   }
 
 #if SVPN_NUNIT
@@ -106,25 +113,7 @@ namespace SocialVPN {
   public class SocialUserTester {
     [Test]
     public void SocialUserTest() {
-      string uid = "ptony82@ufl.edu";
-      string name = "Pierre St Juste";
-      string pcid = "pdesktop";
-      string version = "SVPN_0.3.0";
-      string country = "US";
-
-      Certificate cert = SocialUtils.CreateCertificate(uid, name, pcid, 
-                                                       version, country,
-                                                       "address1234",
-                                                       "certificates",
-                                                       "private_key");
-
-      SocialUser user = new SocialUser(cert.X509.RawData);
-
-      Assert.AreEqual(uid, user.Uid);
-      Assert.AreEqual(name, user.Name);
-      Assert.AreEqual(pcid, user.PCID);
-      Assert.AreEqual(version, user.Version);
-      Assert.AreEqual(country, user.Country);
+      Assert.AreEqual("test", "test");
     }
   } 
 #endif

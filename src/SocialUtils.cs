@@ -1,5 +1,6 @@
 /*
 Copyright (C) 2009 Pierre St Juste <ptony82@ufl.edu>, University of Florida
+                   David Wolinsky <davidiw@ufl.edu>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -40,7 +41,17 @@ namespace SocialVPN {
    */
   public class SocialUtils {
 
-    public SocialUtils() {}
+    /**
+     * SHA256 hash object.
+     */
+    protected static readonly SHA256 Sha256;
+
+    /**
+     * Constructor.
+     */
+    static SocialUtils() {
+      Sha256 = new SHA256Managed();  
+    }
 
     /**
      * Creates a self-sign X509 certificate based on user parameters.
@@ -148,16 +159,42 @@ namespace SocialVPN {
     /**
      * Creates a SHA256 hash string from a byte array.
      * @param data the byte array to be hashed.
+     * @return Base64 encoded string representing hash.
      */
     public static string GetSHA256(byte[] data) {
-      SHA256 sha256 = new SHA256Managed();
-      return Convert.ToBase64String(sha256.ComputeHash(data));
+      return Convert.ToBase64String(Sha256.ComputeHash(data));
     }
 
-    /// converts from url encoding to key, value pair
+    /**
+     * Turns dictionary in www-form-urlencoded.
+     * @param parameters the parameters to be encoded.
+     * @return urlencoded string.
+     */
+    public static string UrlEncode(Dictionary<string, string> parameters) {
+      StringBuilder sb = new StringBuilder();
+      int count = 0;
+      foreach (KeyValuePair<string, string> de in parameters) {
+        count++;
+        sb.Append(HttpUtility.UrlEncode(de.Key));
+        sb.Append('=');
+        sb.Append(HttpUtility.UrlEncode(de.Value));
+        if (count < parameters.Count){
+          sb.Append('&');
+        }
+      }
+
+      return sb.ToString();
+    }
+
+    /**
+     * Turn urlencoded string into dictionary.
+     * @param request the urlencoded string.
+     * @return the dictionary containing parameters.
+     */
     public static Dictionary<string, string> DecodeUrl(string request) {
       Dictionary<string, string> result = new Dictionary<string, string>();
       string[] pairs = request.Split('&');
+
       if (pairs.Length < 2) return result;
       
       for (int x = 0; x < pairs.Length; x++) {
@@ -168,14 +205,54 @@ namespace SocialVPN {
       return result;
     }
 
-    public static string HttpRequest(string url) {
-      HttpWebRequest request = (HttpWebRequest)WebRequest.Create(url);
-      request.Method = "GET";
-      HttpWebResponse response = (HttpWebResponse)request.GetResponse();
-      StreamReader reader = new StreamReader(response.GetResponseStream());
-      string result = reader.ReadToEnd();
-      reader.Close();
-      return result;
+    /**
+     * Makes an http request.
+     * @param url the url string.
+     * @return the http response string.
+     */
+    public static string Request(string url) {
+      return Request(url, (byte[])null);
+    }
+
+    /**
+     * Makes an http request.
+     * @param url the url string.
+     * @param parameters the parameters.
+     * @return the http response string.
+     */
+    public static string Request(string url, Dictionary<string, string> 
+                                 parameters) {
+      return Request(url, Encoding.ASCII.GetBytes(UrlEncode(parameters)));
+    }
+
+    /**
+     * Makes an http request.
+     * @param url the url string.
+     * @param parameters the byte representation of parameters.
+     * @return the http response string.
+     */
+    public static string Request(string url, byte[] parameters) {
+      HttpWebRequest webRequest = (HttpWebRequest)WebRequest.Create(url);
+      webRequest.ContentType = "application/x-www-form-urlencoded";
+
+      if (parameters != null) {
+        webRequest.Method = "POST";
+        webRequest.ContentLength = parameters.Length;
+
+        using (Stream buffer = webRequest.GetRequestStream()) {
+          buffer.Write(parameters, 0, parameters.Length);
+          buffer.Close();
+        }
+      }
+      else {
+        webRequest.Method = "GET";
+      }
+
+      WebResponse webResponse = webRequest.GetResponse();
+      using (StreamReader streamReader = 
+        new StreamReader(webResponse.GetResponseStream())) {
+        return streamReader.ReadToEnd();
+      }
     }
   }
 

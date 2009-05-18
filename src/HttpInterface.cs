@@ -165,9 +165,11 @@ namespace SocialVPN {
         }
         else if (request.RawUrl.StartsWith("/getapi"))
         {
-          string getData = request.RawUrl.Substring(8);
-          Brunet.ProtocolLog.Write(SocialLog.SVPNLog, getData);
-          responseString = Process(SocialUtils.DecodeUrl(getData));
+          if(request.RawUrl.Length > 9) {
+            string getData = request.RawUrl.Substring(8);
+            Brunet.ProtocolLog.Write(SocialLog.SVPNLog, getData);
+            responseString = Process(SocialUtils.DecodeUrl(getData));
+          }
         }
         // Cross-domain request made by Flash clients
         else if (request.RawUrl == "/crossdomain.xml")

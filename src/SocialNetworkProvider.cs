@@ -30,84 +30,107 @@ namespace SocialVPN {
 
   public class SocialNetworkProvider : IProvider, ISocialNetwork {
 
-    public const int DHTTTL = 3600;
-
-    public const string DHTPREFIX = "svpn:";
-
     protected readonly SocialUser _local_user;
+
+    protected readonly byte[] _local_cert_data;
 
     protected readonly Dht _dht;
 
-    protected readonly IProvider _provider;
+    protected readonly Dictionary<string, IProvider> _providers;
 
-    protected readonly ISocialNetwork _network;
+    protected readonly Dictionary<string, ISocialNetwork> _networks;
 
-    protected readonly DrupalNetwork _drupal;
-
-    protected bool _online;
-
-    public SocialNetworkProvider(Dht dht, SocialUser user) {
+    public SocialNetworkProvider(Dht dht, SocialUser user, byte[] certData) {
       _local_user = user;
       _dht = dht;
-      _provider = _drupal;
-      _network = _drupal;
-      _drupal = new DrupalNetwork(user);
-      _online = false;
+      _providers = new Dictionary<string, IProvider>();
+      _networks = new Dictionary<string,ISocialNetwork>();
+      _local_cert_data = certData;
+      RegisterBackends();
     }
 
-    public bool Login(string username, string password) {
-      _online = true;
-      return _provider.Login(username, password);
+    public void RegisterBackends() {
+      TestNetwork google_backend = new TestNetwork(_local_user,
+                                                   _local_cert_data);
+      _providers.Add("GoogleBackend", google_backend);
+      _networks.Add("GoogleBackend", google_backend);
+    }
+
+    public bool Login(string id, string username, string password) {
+      bool provider_login = true;
+      bool network_login = true;
+      if(_providers.ContainsKey(id)) {
+        provider_login = _providers[id].Login(id, username, password);
+      }
+      if(_networks.ContainsKey(id)) {
+        network_login = _networks[id].Login(id, username, password);
+      }
+      return (provider_login && network_login);
     }
 
     public List<string> GetFriends() {
-      if(_online) {
-        return _network.GetFriends();
-      }
-
       List<string> friends = new List<string>();
+      foreach(ISocialNetwork network in _networks.Values) {
+        List<string> tmp_friends = network.GetFriends();
+        if(tmp_friends == null) {
+          continue;
+        }
+        foreach(string friend in tmp_friends) {
+          if(friend != "" || !friends.Contains(friend)) {
+            friends.Add(friend);
+          }
+        }
+      }
       return friends;
     }
 
-    public List<string> GetFingerprints(string uid) {
-      if(_online) {
-        return _provider.GetFingerprints(uid);
-      }
-
+    public List<string> GetFingerprints(string[] uids) {
       List<string> fingerprints = new List<string>();
-      DhtGetResult[] dgrs = null;
-
-      string key = DHTPREFIX + uid;
-      try {
-        dgrs = _dht.Get(key);
-      } catch (Exception e) {
-        ProtocolLog.Write(SocialLog.SVPNLog,e.Message);
-        ProtocolLog.Write(SocialLog.SVPNLog,"DHT GET FPR FAILURE: " + key);
-      }
-      foreach(DhtGetResult dgr in dgrs) {
-        fingerprints.Add(dgr.valueString);
+      foreach(IProvider provider in _providers.Values) {
+        List<string> tmp_fprs = provider.GetFingerprints(uids);
+        if(tmp_fprs == null) {
+          continue;
+        }
+        foreach(string fpr in tmp_fprs) {
+          if(fpr != "" || !fingerprints.Contains(fpr)) {
+            fingerprints.Add(fpr);
+          }
+        }
       }
       return fingerprints;
     }
 
-    public bool StoreFingerprint() {
-      if(_online) {
-        return _provider.StoreFingerprint();
+    public List<byte[]> GetCertificates(string[] uids) {
+      List<byte[]> certificates = new List<byte[]>();
+      foreach(IProvider provider in _providers.Values) {
+        List<byte[]> tmp_certs = provider.GetCertificates(uids);
+        if(tmp_certs == null) {
+          continue;
+        }
+        foreach(byte[] cert in tmp_certs) {
+          if(!certificates.Contains(cert)) {
+            certificates.Add(cert);
+          }
+        }
       }
-
-      string key = DHTPREFIX + _local_user.Uid;
-      string value = _local_user.DhtKey;
-      try {
-        return _dht.Put(key, value, DHTTTL);
-      } catch (Exception e) {
-        ProtocolLog.Write(SocialLog.SVPNLog,e.Message);
-        ProtocolLog.Write(SocialLog.SVPNLog,"DHT PUT FPR FAILURE: " + key);
-        return false;
-      }
+      return certificates;
     }
 
-    public bool ValidateCertificate(Certificate cert) {
-      return true;
+    public bool StoreFingerprint() {
+      bool success = false;
+      foreach(IProvider provider in _providers.Values) {
+        success = (success || provider.StoreFingerprint());
+      }
+      return success;
+    }
+
+    public bool ValidateCertificate(byte[] certData) {
+      foreach(IProvider provider in _providers.Values) {
+        if(provider.ValidateCertificate(certData)) {
+          return true;
+        }
+      }
+      return false;
     }
   }
 #if SVPN_NUNIT

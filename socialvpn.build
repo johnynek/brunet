@@ -1,11 +1,27 @@
 <?xml version="1.0"?>
 <project name="SocialVPN" default="build">
-  <!-- Here is some configuration -->
-  <property name="brunet.dir" value="../brunet1" />
   <property name="ipop.dir" value="../ipop" />
 
-  <!-- Here's the main target -->
   <target name="build" description="Build SocialVPN">
-    <nant buildfile="src/default.build" />
+
+    <nant buildfile="${ipop.dir}/ipop.build" failonerror="false"/>
+    <nant buildfile="${ipop.dir}/src/RpcNode/default.build" failonerror="false"/>
+
+    <!-- copy the dlls -->
+    <copy todir="./lib" failonerror="false">
+      <fileset basedir="${ipop.dir}/lib/">
+        <include name="*.dll" />
+        <include name="libtuntap.so" />
+      </fileset>
+    </copy>
+
+    <!-- copy the bins -->
+    <copy todir="./bin" failonerror="false">
+      <fileset basedir="${ipop.dir}/bin/">
+        <include name="RpcIpopNode.exe" />
+      </fileset>
+    </copy>
+    
+    <nant buildfile="src/default.build" failonerror="true"/>
   </target>
 </project>

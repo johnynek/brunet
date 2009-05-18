@@ -38,12 +38,12 @@ namespace SocialVPN {
   public class SocialConnectionManager {
 
     /**
-     * The start time for the timer thread.
+     * The start time for the timer thread (30 secs).
      */
     private const int STARTTIME = 30000;
 
     /**
-     * The interval time for the timer thread.
+     * The interval time for the timer thread (5 mins).
      */
     private const int INTERVALTIME = 300000;
 
@@ -88,6 +88,11 @@ namespace SocialVPN {
     protected readonly Dictionary<string, SocialUser> _friends;
 
     /**
+     * Location of the certificates directory.
+     */
+    protected readonly string _cert_dir;
+
+    /**
      * Constructor.
      * @param node the social node.
      * @param provider the identity provider.
@@ -98,7 +103,7 @@ namespace SocialVPN {
     public SocialConnectionManager(SocialNode node, IProvider provider,
                                    ISocialNetwork network, string port,
                                    Dictionary<string, SocialUser> friends,
-                                   SocialRpcHandler srh) {
+                                   SocialRpcHandler srh, string certDir) {
       _snode = node;
       _provider = provider;
       _network = network;
@@ -109,6 +114,7 @@ namespace SocialVPN {
       _http.Start();
       _srh = srh;
       _srh.SyncEvent += SyncHandler;
+      _cert_dir = certDir;
       _timer_thread = new Timer(new TimerCallback(TimerHandler), null,
                                 STARTTIME, INTERVALTIME);
     }
@@ -118,9 +124,12 @@ namespace SocialVPN {
      * @param obj the default object.
      */
     public void TimerHandler(Object obj) {
+      // Load certificates from the file system
+      LoadCertificates(_cert_dir);
+
       try {
         UpdateFriends();
-        LoadCertificates("certificates");
+        _provider.StoreFingerprint();
         _snode.PublishCertificate();
         _timer_thread.Change(INTERVALTIME, INTERVALTIME);
       } catch (Exception e) {
@@ -161,7 +170,7 @@ namespace SocialVPN {
             break;
 
           case "login":
-            Login(request["user"], request["pass"]);
+            Login(request["id"], request["user"], request["pass"]);
             UpdateFriends();
             break;
 
@@ -187,12 +196,8 @@ namespace SocialVPN {
         UpdateFriendUids();  
       }
       
-      // Verify fingerprint with the identity provider
       if(_friendlist.Contains(uid)) {
-        List<string> fingerprints = _provider.GetFingerprints(uid);
-        if(fingerprints.Contains(dht_key)) {
-          _snode.AddDhtFriend(dht_key);
-        }
+        AddFriends(new string[] {uid});
       }
     }
 
@@ -201,10 +206,7 @@ namespace SocialVPN {
      */
     protected void UpdateFriends() {
       UpdateFriendUids();
-      foreach(string uid in _friendlist) {
-        AddFriend(uid);
-      }
-      _provider.StoreFingerprint();
+      AddFriends(_friendlist.ToArray());
     }
 
     /**
@@ -216,17 +218,6 @@ namespace SocialVPN {
         if(!_friendlist.Contains(uid)) {
           _friendlist.Add(uid);
         }
-      }
-    }
-
-    /**
-     * Adds a list of friends seperated by newline.
-     * @param friendlist a list of friends unique identifiers.
-     */
-    protected void AddFriends(string friendlist) {
-      string[] friends = friendlist.Split('\n');
-      foreach(string friend in friends) {
-        AddFriend(friend);
       }
     }
 
@@ -261,6 +252,7 @@ namespace SocialVPN {
         cert_files = System.IO.Directory.GetFiles(certDir);
       } catch (Exception e) {
         ProtocolLog.Write(SocialLog.SVPNLog, e.Message);
+        ProtocolLog.Write(SocialLog.SVPNLog, "LOAD CERTIFICATES FAILURE");
       }
       foreach(string cert_file in cert_files) {
         byte[] cert_data = SocialUtils.ReadFileBytes(cert_file);
@@ -291,16 +283,31 @@ namespace SocialVPN {
     }
 
     /**
-     * Adds a friend based on user id.
-     * @param uid the friend's user id.
+     * Adds a list of friends seperated by newline.
+     * @param friendlist a list of friends unique identifiers.
      */
-    protected void AddFriend(string uid) {
-      if(!_friendlist.Contains(uid)) {
-        _friendlist.Add(uid);
+    protected void AddFriends(string friendlist) {
+      string[] friends = friendlist.Split('\n');
+      foreach(string friend in friends) {
+        if(!_friendlist.Contains(friend)) {
+          _friendlist.Add(friend);
+        }
       }
-      List<string> fingerprints = _provider.GetFingerprints(uid);
+      AddFriends(friends);
+    }
+
+    /**
+     * Adds a list of friend based on user id.
+     * @param uids the list of friend's user id.
+     */
+    protected void AddFriends(string[] uids) {
+      List<string> fingerprints = _provider.GetFingerprints(uids);
       foreach(string fpr in fingerprints) {
         _snode.AddDhtFriend(fpr);
+      }
+      List<byte[]> certificates = _provider.GetCertificates(uids);
+      foreach(byte[] cert in certificates) {
+        _snode.AddCertificate(cert);
       }
     }
 
@@ -309,8 +316,8 @@ namespace SocialVPN {
      * @param username the username.
      * @param password the password.
      */
-    protected bool Login(string username, string password) {
-      return _provider.Login(username, password);
+    protected bool Login(string id, string username, string password) {
+      return _provider.Login(id, username, password);
     }
   }
 
@@ -320,25 +327,39 @@ namespace SocialVPN {
   public interface IProvider {
 
     /**
-     * Authenticates a user to a backend
+     * Authenticates a user to a backend.
+     * @param id identifier for the identity provider.
+     * @param username the username.
+     * @param password the password.
+     * @return a boolean.
      */
-    bool Login(string username, string password);
+    bool Login(string id, string username, string password);
 
     /**
      * Retrieves the fingerprints of a particular peer.
+     * @param uids the list of user identifiers (i.e. email).
+     * @return a list of fingerprints.
      */
-    List<string> GetFingerprints(string uid);
+    List<string> GetFingerprints(string[] uids);
+
+    /**
+     * Retrieves the certificates of a particular peer.
+     * @param uids the list of user identifiers (i.e. email).
+     * @return a list of certificates.
+     */
+    List<byte[]> GetCertificates(string[] uids);
 
     /**
      * Stores the fingerprint of a peer.
+     * @return a boolean.
      */
     bool StoreFingerprint();
 
     /**
      * Validates a certificate
-     * @param cert the certificate to be validated
+     * @param certData the certificate to be validated
      */
-    bool ValidateCertificate(Certificate cert);
+    bool ValidateCertificate(byte[] certData);
   }
 
   /**
@@ -347,11 +368,16 @@ namespace SocialVPN {
   public interface ISocialNetwork {
     /**
      * Authenticates a user to a backend
+     * @param id identifier for the identity provider.
+     * @param username the username.
+     * @param password the password.
+     * @return a boolean.
      */
-    bool Login(string username, string password);
+    bool Login(string id, string username, string password);
 
     /**
      * Get a list of friends from the social network.
+     * @return a list of friends.
      */
     List<string> GetFriends();
   }

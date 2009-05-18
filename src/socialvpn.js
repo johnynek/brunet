@@ -248,12 +248,12 @@ function showFriends() {
     var friend_time = friends[i].getElementsByTagName('Time')[0].textContent;
     var friend_access = 
       friends[i].getElementsByTagName('Access')[0].textContent;
-    if( friend_time == "-1" && (option == "All" || option == "Offline") 
+    if( friend_time == "0" && (option == "All" || option == "Offline") 
        && friend_access == "Approved") {
       friends[i].status = "Status: Offline";
       addFriend(friends[i]);
     }
-    else if( friend_time != "-1" && (option == "All" || option == "Online") 
+    else if( friend_time != "0" && (option == "All" || option == "Online") 
       && friend_access == "Allow") {
       friends[i].status = "Status: Online (" + friend_time + " seconds ago)";
       addFriend(friends[i]);

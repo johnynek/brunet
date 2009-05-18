@@ -60,12 +60,12 @@ namespace SocialVPN {
   public class SocialNode : RpcIpopNode {
 
     /**
-     * The local certificate file name
+     * The local certificate file name.
      */
     public const string CERTFILENAME = "lc.cert";
 
     /**
-     * The DHT TTL
+     * The DHT TTL.
      */
     public const int DHTTTL = 3600;
 
@@ -90,7 +90,7 @@ namespace SocialVPN {
     protected readonly Certificate _local_cert;
 
     /**
-     * The base64 string representation of local certificate
+     * The base64 string representation of local certificate.
      */
     protected readonly string _local_cert_b64;
 
@@ -125,10 +125,11 @@ namespace SocialVPN {
       _local_cert_b64 = Convert.ToBase64String(_local_cert.X509.RawData);
       _bso.CertificateHandler.AddCACertificate(_local_cert.X509);
       _bso.CertificateHandler.AddSignedCertificate(_local_cert.X509);
-      _snp = new SocialNetworkProvider(this.Dht, _local_user);
+      _snp = new SocialNetworkProvider(this.Dht, _local_user, 
+                                       _local_cert.X509.RawData);
       _srh = new SocialRpcHandler(_node, _local_user, _friends);
       _scm = new SocialConnectionManager(this, _snp, _snp, port, _friends, 
-                                         _srh);
+                                         _srh, _cert_dir);
     }
 
     /**
@@ -188,7 +189,7 @@ namespace SocialVPN {
         ProtocolLog.Write(SocialLog.SVPNLog, "ADD CERT KEY FOUND: " +
                           friend.DhtKey);
       }
-      else if(_snp.ValidateCertificate(cert)) {
+      else if(_snp.ValidateCertificate(cert.X509.RawData)) {
         friend.Alias = CreateAlias(friend.Uid, friend.PCID);
 
         // Save certificate to file system
@@ -285,7 +286,7 @@ namespace SocialVPN {
 
       NodeConfig config = Utils.ReadConfig<NodeConfig>(args[0]);
 
-      if(!System.IO.File.Exists(config.Security.KeyPath)) {
+      if(!System.IO.Directory.Exists(config.Security.CertificatePath)) {
         Console.Write("Enter Name (First Last): ");
         string name = Console.ReadLine();
         Console.Write("Enter Email Address: ");
@@ -295,7 +296,7 @@ namespace SocialVPN {
         string version = "SVPN_0.3.0";
         string country = "US";
         
-        config.NodeAddress = (Utils.GenerateAHAddress()).ToString();
+        config.NodeAddress = Utils.GenerateAHAddress().ToString();
         Utils.WriteConfig(args[0], config);
         SocialUtils.CreateCertificate(uid, name, pcid, version, country,
                                       config.NodeAddress, 

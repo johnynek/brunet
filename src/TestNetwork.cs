@@ -19,9 +19,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using CookComputing.XmlRpc;
+using System.Text;
 
 using Brunet;
+using Brunet.DistributedServices;
 
 #if SVPN_NUNIT
 using NUnit.Framework;
@@ -35,12 +36,12 @@ namespace SocialVPN {
 
     protected readonly SocialUser _local_user;
 
-    public TestNetwork(SocialUser user) {
+    public TestNetwork(SocialUser user, byte[] certData) {
       _local_user = user;
-      _url = "http://socialvpntest.appspot.com/api/?";
+      _url = "http://socialvpntest.appspot.com/api/";
     }
 
-    public bool Login(string username, string password) {
+    public bool Login(string id, string username, string password) {
       return true;
     }
 
@@ -50,34 +51,66 @@ namespace SocialVPN {
 
     public List<string> GetFriends() {
       List<string> new_friends = new List<string>();
-      string vars = "m=getfriends";
-      string response = SocialUtils.HttpRequest(_url + vars);
+      Dictionary<string, string> parameters = 
+        new Dictionary<string, string>();
+
+      parameters["m"] = "getfriends";
+      parameters["uid"] = _local_user.Uid;
+      string response = SocialUtils.Request(_url, parameters);
+
       string[] friends = response.Split('\n');
       foreach(string friend in friends) {
         Console.WriteLine(friend);
+        new_friends.Add(friend);
       }
       return new_friends;
     }
 
-    public List<string> GetFingerprints(string uid) {
+    public List<string> GetFingerprints(string[] uids) {
+      string dl = ",";
+      StringBuilder friendlist = new StringBuilder();
+      if(uids != null) {
+        foreach(string uid in uids) {
+          friendlist.Append(uid + dl);
+        }
+      }
+
       List<string> fingerprints = new List<string>();
-      string vars = "m=getfprs";
-      string response = SocialUtils.HttpRequest(_url + vars);
+      Dictionary<string, string> parameters = 
+        new Dictionary<string, string>();
+
+      parameters["m"] = "getfprs";
+      parameters["uids"] = friendlist.ToString();
+      string response = SocialUtils.Request(_url, parameters);
+
       string[] fprs = response.Split('\n');
       foreach(string fpr in fprs) {
         Console.WriteLine(fpr);
+        fingerprints.Add(fpr);
       }
       return fingerprints;
     }
 
+    public List<byte[]> GetCertificates(string[] uids) {
+      return null;
+    }
+
     public bool StoreFingerprint() {
-      string vars = "m=store&uid=" + _local_user.Uid + "&fpr=" + 
-        _local_user.DhtKey;
-      SocialUtils.HttpRequest(_url + vars);
+      List<string> fingerprints = GetFingerprints(new string[] 
+                                                  {_local_user.Uid});
+      if(!fingerprints.Contains(_local_user.DhtKey)) {
+        Dictionary<string, string> parameters = 
+          new Dictionary<string, string>();
+
+        parameters["m"] = "store";
+        parameters["uid"] = _local_user.Uid;
+        parameters["fpr"] = _local_user.DhtKey;
+        SocialUtils.Request(_url, parameters);
+      }
       return true;
     }
 
-    public bool ValidateCertificate(Certificate cert) {
+    public bool ValidateCertificate(byte[] certData) {
       return true;
     }
   }
@@ -87,25 +120,28 @@ namespace SocialVPN {
   public class TestNetworkTester {
     [Test]
     public void TestNetworkTest() {
+      /*
       string uid = "ptony82@ufl.edu";
       string name = "Pierre St Juste";
       string pcid = "pdesktop";
       string version = "SVPN_0.3.0";
       string country = "US";
-
+      string address = 
+        Brunet.Applications.Utils.GenerateAHAddress().ToString();
       SocialUtils.CreateCertificate(uid, name, pcid, version, country,
-                                    "address1234", "certificates", 
-                                    "private_key");
-
-
+                                    address, "certificates", "private_key");
+      */
       string cert_path = System.IO.Path.Combine("certificates", "lc.cert");
       byte[] cert_data = SocialUtils.ReadFileBytes(cert_path);
       SocialUser user = new SocialUser(cert_data);
 
-      TestNetwork backend = new TestNetwork(user);
+      Console.WriteLine(user);
+      ///*
+      TestNetwork backend = new TestNetwork(user, cert_data);
       backend.StoreFingerprint();
       backend.GetFriends();
-      backend.GetFingerprints("uid");
+      backend.GetFingerprints(null);
+      //*/
     }
   } 
 #endif
