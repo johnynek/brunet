@@ -36,8 +36,11 @@ namespace SocialVPN {
 
     protected readonly SocialUser _local_user;
 
+    protected readonly List<string> _fingerprints;
+
     public TestNetwork(SocialUser user, byte[] certData) {
       _local_user = user;
+      _fingerprints = new List<string>();
       _url = "http://socialvpntest.appspot.com/api/";
     }
 
@@ -60,7 +63,6 @@ namespace SocialVPN {
 
       string[] friends = response.Split('\n');
       foreach(string friend in friends) {
-        Console.WriteLine(friend);
         new_friends.Add(friend);
       }
       return new_friends;
@@ -85,7 +87,6 @@ namespace SocialVPN {
 
       string[] fprs = response.Split('\n');
       foreach(string fpr in fprs) {
-        Console.WriteLine(fpr);
         fingerprints.Add(fpr);
       }
       return fingerprints;

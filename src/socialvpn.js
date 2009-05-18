@@ -378,7 +378,7 @@ function submitCertificate() {
 }
 
 function submitLogin() {
-  var input_data ="m=login&user=" + 
+  var input_data ="m=login&id=drupalbackend&user=" + 
     document.getElementById('user_input').value + "&pass=" +
     document.getElementById('pass_input').value;
   makeCall(input_data);

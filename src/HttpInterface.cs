@@ -93,6 +93,7 @@ namespace SocialVPN {
 
     /**
      * Process API requests through the process event.
+     * @return the response string.
      */
     protected string Process(Dictionary<string, string> request) {
       EventHandler process_event = ProcessEvent;

@@ -266,6 +266,7 @@ namespace SocialVPN {
 
     /**
      * Generates an XML string representing state of the system.
+     * @return a string represential the state.
      */
     public string GetState() {
       SocialState state = new SocialState();

@@ -29,20 +29,49 @@ using NUnit.Framework;
 
 namespace SocialVPN {
 
+  /**
+   * This class implements all of the functions of the SocialVPN RPC
+   * method. RPC mechanism is the main messaging mechanism between
+   * SocialVPN nodes.
+   */
   public class SocialRpcHandler : IRpcHandler {
 
+    /**
+     * The delimiter.
+     */
     public const char DELIM = '-';
 
+    /**
+     * Sync event or function pointer.
+     */
     public event EventHandler SyncEvent;
 
+    /**
+     * The P2P node.
+     */
     protected readonly StructuredNode _node;
 
+    /**
+     * The Rpc manager.
+     */
     protected readonly RpcManager _rpc;
 
+    /**
+     * The SocialUser object for local user.
+     */
     protected readonly SocialUser _local_user;
 
+    /**
+     * The list of friends.
+     */
     protected readonly Dictionary<string, SocialUser> _friends;
 
+    /**
+     * Constructor.
+     * @param node the p2p node.
+     * @param localUser the local user object.
+     * @param friends the list of friends.
+     */
     public SocialRpcHandler(StructuredNode node, SocialUser localUser,
                            Dictionary<string, SocialUser> friends) {
       _node = node;
@@ -52,6 +81,13 @@ namespace SocialVPN {
       _friends = friends;
     }
 
+    /**
+     * Handles incoming RPC calls.
+     * @param caller object containing return path to caller.
+     * @param method the object that is called.
+     * @param arguments the arguments for the object.
+     * @param req_state state object of the request.
+     */
     public void HandleRpc(ISender caller, string method, IList arguments,
                           object req_state) {
       object result = null;
@@ -74,6 +110,10 @@ namespace SocialVPN {
       _rpc.SendResult(req_state, result);
     }
 
+    /** 
+     * Fires the sync event
+     * @param obj object passes to sync event function.
+     */
     protected void FireSync(object obj) {
       EventHandler sync_event = SyncEvent;
       if(sync_event != null) {
@@ -81,6 +121,10 @@ namespace SocialVPN {
       }
     }
 
+    /**
+     * Pings a friend over the P2P network to see if online.
+     * @param friend the friend to ping.
+     */
     public void PingFriend(SocialUser friend) {
       if(friend.Time != SocialUser.TIMEDEFAULT) {
         DateTime past = DateTime.Parse(friend.Time);
@@ -92,6 +136,11 @@ namespace SocialVPN {
       FriendPing(friend.Address);
     }
 
+    /**
+     * Handles a ping request from a friend.
+     * @param dhtkey the identifier for the friend making the request.
+     * @return the respond sent back online/offline.
+     */
     protected string FriendPingHandler(string dhtKey) {
       string response = "offline";
 
@@ -108,6 +157,10 @@ namespace SocialVPN {
       return _local_user.DhtKey + DELIM + response;
     }
 
+    /**
+     * Makes the ping request to a friend.
+     * @param address the address of the friend.
+     */
     protected void FriendPing(string address) {
       Address addr = AddressParser.Parse(address);
       Channel q = new Channel();

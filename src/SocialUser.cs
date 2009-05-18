@@ -100,11 +100,15 @@ namespace SocialVPN {
       Pic = PICDEFAULT;
    }
 
-   public override string ToString() {
-     string dl = "\n";
-     return Uid + dl + Name + dl + PCID + dl + Address + dl + Version + dl + 
-      DhtKey + dl + Country + dl + Access + dl + Time + dl + IP + dl + 
-      Alias + dl + Pic;
+  /**
+   * Override ToString method.
+   * @return the string representation of SocialUser.
+   */
+  public override string ToString() {
+    string dl = "\n";
+    return Uid + dl + Name + dl + PCID + dl + Address + dl + Version + dl + 
+     DhtKey + dl + Country + dl + Access + dl + Time + dl + IP + dl + 
+     Alias + dl + Pic;
    }
   }
 
