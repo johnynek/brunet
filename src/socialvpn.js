@@ -255,7 +255,7 @@ function showFriends() {
     }
     else if( friend_time != "0" && (option == "All" || option == "Online") 
       && friend_access == "Allow") {
-      friends[i].status = "Status: Online (" + friend_time + " seconds ago)";
+      friends[i].status = "Status: Online (" + friend_time + ")";
       addFriend(friends[i]);
     }
     else if(friend_access == "Block" && option == "Blocked") {

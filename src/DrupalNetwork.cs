@@ -95,7 +95,6 @@ namespace SocialVPN {
       _drupal_uid = (string)user["uid"];
       if(_local_user.Uid != uid) {
         _uid_mismatch = true;
-        ProtocolLog.Write(SocialLog.SVPNLog, "Uid mismatch: " + uid);
         return false;
       }
       _sessid = (string)login_response["sessid"];

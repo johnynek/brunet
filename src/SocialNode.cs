@@ -168,13 +168,17 @@ namespace SocialVPN {
         try {
           bool success = (bool) (q.Dequeue());
           if(success) {
-            ProtocolLog.Write(SocialLog.SVPNLog,"PUBLISH CERT SUCCESS: " + 
-                              _local_user.DhtKey);
+            ProtocolLog.WriteIf(SocialLog.SVPNLog,"PUBLISH CERT SUCCESS: " +
+                              DateTime.Now.Second + "." +
+                              DateTime.Now.Millisecond + " " +
+                              DateTime.UtcNow + " " + _local_user.DhtKey);
           }
         } catch (Exception e) {
-          ProtocolLog.Write(SocialLog.SVPNLog,e.Message);
-          ProtocolLog.Write(SocialLog.SVPNLog,"PUBLISH CERT FAILURE: " + 
-                            _local_user.DhtKey);
+          ProtocolLog.WriteIf(SocialLog.SVPNLog,e.Message);
+          ProtocolLog.WriteIf(SocialLog.SVPNLog,"PUBLISH CERT FAILURE: " + 
+                            DateTime.Now.Second + "." +
+                            DateTime.Now.Millisecond + " " +
+                            DateTime.UtcNow + _local_user.DhtKey);
         }
       };
       this.Dht.AsPut(keyb, value, DHTTTL, q);
@@ -191,8 +195,10 @@ namespace SocialVPN {
       // Verification on the certificate by email and fingerprint
       if(friend.DhtKey == _local_user.DhtKey || 
          _friends.ContainsKey(friend.DhtKey)) {
-        ProtocolLog.Write(SocialLog.SVPNLog, "ADD CERT KEY FOUND: " +
-                          friend.DhtKey);
+        ProtocolLog.WriteIf(SocialLog.SVPNLog, "ADD CERT KEY FOUND: " +
+                          DateTime.Now.Second + "." +
+                          DateTime.Now.Millisecond + " " +
+                          DateTime.UtcNow + " " + friend.DhtKey);
       }
       else if(_snp.ValidateCertificate(cert.X509.RawData)) {
         friend.Alias = CreateAlias(friend.Uid, friend.PCID);
@@ -212,13 +218,17 @@ namespace SocialVPN {
         // RPC ping to newly added friend
         _srh.PingFriend(friend);
 
-        ProtocolLog.Write(SocialLog.SVPNLog,"ADD CERT KEY SUCCESS: " + 
-                          friend.DhtKey + " " + friend.IP + " " + 
-                          friend.Alias);
+        ProtocolLog.WriteIf(SocialLog.SVPNLog,"ADD CERT KEY SUCCESS: " +
+                          DateTime.Now.Second + "." +
+                          DateTime.Now.Millisecond + " " +
+                          DateTime.UtcNow + " " + friend.DhtKey + " " + 
+                          friend.Address + " " + friend.Alias);
       }
       else {
-        ProtocolLog.Write(SocialLog.SVPNLog, "ADD CERT KEY INVALID: " +
-                          friend.DhtKey);
+        ProtocolLog.WriteIf(SocialLog.SVPNLog, "ADD CERT KEY INVALID: " +
+                          DateTime.Now.Second + "." +
+                          DateTime.Now.Millisecond + " " +
+                          DateTime.UtcNow + " " + friend.DhtKey);
       }
     }
 
@@ -228,19 +238,27 @@ namespace SocialVPN {
      */
     public void AddDhtFriend(string key) {
       if(key != _local_user.DhtKey && !_friends.ContainsKey(key)) {
+        ProtocolLog.WriteIf(SocialLog.SVPNLog, "ADD DHT FETCH: " + 
+                          DateTime.Now.Second + "." +
+                          DateTime.Now.Millisecond + " " +
+                          DateTime.UtcNow + " " + key);
         Channel q = new Channel();
         q.CloseAfterEnqueue();
         q.CloseEvent += delegate(Object o, EventArgs eargs) {
           try {
             DhtGetResult dgr = (DhtGetResult) q.Dequeue();
             byte[] certData = dgr.value;
+            ProtocolLog.WriteIf(SocialLog.SVPNLog, "ADD DHT SUCCESS: " +
+                              DateTime.Now.Second + "." +
+                              DateTime.Now.Millisecond + " " +
+                              DateTime.UtcNow + " " + key);
             AddCertificate(certData);
-            ProtocolLog.Write(SocialLog.SVPNLog, "ADD DHT SUCCESS: " +
-                              key);
           } catch (Exception e) {
-            ProtocolLog.Write(SocialLog.SVPNLog,e.Message);
-            ProtocolLog.Write(SocialLog.SVPNLog,"ADD DHT FAILURE: " + 
-                            key);
+            ProtocolLog.WriteIf(SocialLog.SVPNLog,e.Message);
+            ProtocolLog.WriteIf(SocialLog.SVPNLog,"ADD DHT FAILURE: " + 
+                              DateTime.Now.Second + "." +
+                              DateTime.Now.Millisecond + " " +
+                              DateTime.UtcNow + " " + key);
           }
         };
         this.Dht.AsGet(key, q);
@@ -282,11 +300,15 @@ namespace SocialVPN {
       return SocialUtils.ObjectToXml<SocialState>(state);
     }
 
+    /**
+     * The main function, starting point for the program.
+     */
     public static new void Main(string[] args) {
 
       if(args.Length < 3) {
         Console.WriteLine("usage: SocialVPN.exe <brunet.config path> " + 
-                           "<ipop.config path> <http port> [email] [pcid] \"[name]\"");
+                           "<ipop.config path> <http port> [email] [pcid] " + 
+                           "\"[name]\"");
         return;
       }
 

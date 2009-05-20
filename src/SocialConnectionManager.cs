@@ -124,6 +124,11 @@ namespace SocialVPN {
      * @param obj the default object.
      */
     public void TimerHandler(Object obj) {
+      ProtocolLog.WriteIf(SocialLog.SVPNLog, "TIMER HANDLER CALL: " +
+                        DateTime.Now.Second + "." +
+                        DateTime.Now.Millisecond + " " +
+                        DateTime.UtcNow);
+
       // Load certificates from the file system
       LoadCertificates(_cert_dir);
 
@@ -137,9 +142,11 @@ namespace SocialVPN {
           // Only change time on Dht not activitated
           _timer_thread.Change(STARTTIME, STARTTIME);
         }
-        ProtocolLog.Write(SocialLog.SVPNLog, e.Message);
-        ProtocolLog.Write(SocialLog.SVPNLog, "TIMER HANDLER FAILURE " +
-                          DateTime.Now.ToString());
+        ProtocolLog.WriteIf(SocialLog.SVPNLog, e.Message);
+        ProtocolLog.WriteIf(SocialLog.SVPNLog, "TIMER HANDLER FAILURE: " +
+                          DateTime.Now.Second + "." +
+                          DateTime.Now.Millisecond + " " +
+                          DateTime.UtcNow);
       }
     }
 
@@ -254,8 +261,8 @@ namespace SocialVPN {
       try {
         cert_files = System.IO.Directory.GetFiles(certDir);
       } catch (Exception e) {
-        ProtocolLog.Write(SocialLog.SVPNLog, e.Message);
-        ProtocolLog.Write(SocialLog.SVPNLog, "LOAD CERTIFICATES FAILURE");
+        ProtocolLog.WriteIf(SocialLog.SVPNLog, e.Message);
+        ProtocolLog.WriteIf(SocialLog.SVPNLog, "LOAD CERTIFICATES FAILURE");
       }
       foreach(string cert_file in cert_files) {
         byte[] cert_data = SocialUtils.ReadFileBytes(cert_file);

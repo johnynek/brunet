@@ -30,7 +30,7 @@ namespace SocialVPN {
 
   /**
    * This class manages all of the social networks and identity providers.
-   * Additional social networks are registers in the register backends method.
+   * Additional networks are registers in the register backends method.
    */
   public class SocialNetworkProvider : IProvider, ISocialNetwork {
 
@@ -80,7 +80,9 @@ namespace SocialVPN {
     public void RegisterBackends() {
       TestNetwork google_backend = new TestNetwork(_local_user,
                                                    _local_cert_data);
+      // Registers the identity provider
       _providers.Add("GoogleBackend", google_backend);
+      // Register the social network
       _networks.Add("GoogleBackend", google_backend);
     }
 
@@ -115,11 +117,15 @@ namespace SocialVPN {
           continue;
         }
         foreach(string friend in tmp_friends) {
-          if(friend != "" || !friends.Contains(friend)) {
+          if(friend.Length > 5 || !friends.Contains(friend)) {
             friends.Add(friend);
           }
         }
       }
+      ProtocolLog.WriteIf(SocialLog.SVPNLog, "GET FRIENDS: " +
+                        DateTime.Now.Second + "." +
+                        DateTime.Now.Millisecond + " " +
+                        DateTime.UtcNow);
       return friends;
     }
 
@@ -136,11 +142,15 @@ namespace SocialVPN {
           continue;
         }
         foreach(string fpr in tmp_fprs) {
-          if(fpr != "" || !fingerprints.Contains(fpr)) {
+          if(fpr.Length > 50 || !fingerprints.Contains(fpr)) {
             fingerprints.Add(fpr);
           }
         }
       }
+      ProtocolLog.WriteIf(SocialLog.SVPNLog, "GET FINGERPRINTS: " +
+                        DateTime.Now.Second + "." +
+                        DateTime.Now.Millisecond + " " +
+                        DateTime.UtcNow);
       return fingerprints;
     }
 
@@ -162,6 +172,10 @@ namespace SocialVPN {
           }
         }
       }
+      ProtocolLog.WriteIf(SocialLog.SVPNLog, "GET CERTIFICATES: " +
+                        DateTime.Now.Second + "." +
+                        DateTime.Now.Millisecond + " " +
+                        DateTime.UtcNow);
       return certificates;
     }
 
@@ -174,6 +188,10 @@ namespace SocialVPN {
       foreach(IProvider provider in _providers.Values) {
         success = (success || provider.StoreFingerprint());
       }
+      ProtocolLog.WriteIf(SocialLog.SVPNLog, "STORE FINGERPRINT: " +
+                        DateTime.Now.Second + "." +
+                        DateTime.Now.Millisecond + " " +
+                        DateTime.UtcNow);
       return success;
     }
 
@@ -188,6 +206,10 @@ namespace SocialVPN {
           return true;
         }
       }
+      ProtocolLog.WriteIf(SocialLog.SVPNLog, "VALIDATE CERTIFICATE: " +
+                        DateTime.Now.Second + "." +
+                        DateTime.Now.Millisecond + " " +
+                        DateTime.UtcNow);
       // TODO - Statement below should be false
       return true;
     }
