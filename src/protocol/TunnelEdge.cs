@@ -279,21 +279,31 @@ namespace Brunet
 #endif
       ISender s = null;
       int p_s_c = -1;
-      //Don't try forever:
-      int attempts = 3 * _packet_senders.Count;
+      //Don't try forever
+      int attempts = 10;
       //Loop until success or failure:
       while(attempts-- > 0) {
         if( IsClosed ) {
           throw new EdgeClosedException(String.Format("Edge closed: {0}", this));
         }
         try {
+          bool close = false;
           lock( _sync ) {
             _last_sender_idx++;
             p_s_c = _packet_senders.Count;
-            if( _last_sender_idx >= p_s_c ) {
+            if( 0 == p_s_c ) {
+              close = true;
+            }
+            else if( _last_sender_idx >= p_s_c ) {
               _last_sender_idx = 0;
             }
-            s = (ISender)_packet_senders[ _last_sender_idx ];
+            if(!close) {
+              s = (ISender)_packet_senders[ _last_sender_idx ];
+            }
+          }
+          if( close ) {
+            Close();
+            throw new EdgeClosedException(String.Format("Edge closed: {0}", this));
           }
           s.Send( new CopyList(_tun_header, p) );
           Interlocked.Exchange(ref _last_out_packet_datetime, DateTime.UtcNow.Ticks);
@@ -512,7 +522,7 @@ namespace Brunet
       IEnumerable struct_cons =
           _node.ConnectionTable.GetConnections(ConnectionType.Structured);
       
-      ArrayList to_add = new ArrayList();
+      bool close_now;
       lock(_sync) {
 #if TUNNEL_DEBUG
 	Console.Error.WriteLine("Edge {0} modified (receiving control).", this); 
@@ -541,6 +551,7 @@ namespace Brunet
             _packet_senders.Add(c.Edge);
           }
         }
+        close_now = (_packet_senders.Count == 0);
         _localta = new TunnelTransportAddress(_node.Address, _forwarders);
         _remoteta = new TunnelTransportAddress(_target, _forwarders);	  
       }//Drop the lock before sending
@@ -548,8 +559,8 @@ namespace Brunet
       Console.Error.WriteLine("Updated (on control) localTA: {0}", _localta);
       Console.Error.WriteLine("Updated (on control) remoteTA: {0}", _remoteta);
 #endif	  
-      if (to_add.Count > 0) {
-        _tel.HandleControlSend(this, to_add, new ArrayList());	  
+      if( close_now ) {
+        Close();
       }
     }
 
