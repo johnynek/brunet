@@ -52,15 +52,10 @@ namespace SocialVPN {
      */
     protected readonly SocialNode _snode;
 
-    /*
-     * The identity provider.
-     */
-    protected readonly IProvider _provider;
-
     /**
-     * The social network or relationship provider.
+     * The social network and identity provider.
      */
-    protected readonly ISocialNetwork _network;
+    protected readonly SocialNetworkProvider _snp;
 
     /**
      * The list of unique friend ids.
@@ -88,11 +83,6 @@ namespace SocialVPN {
     protected readonly Dictionary<string, SocialUser> _friends;
 
     /**
-     * Location of the certificates directory.
-     */
-    protected readonly string _cert_dir;
-
-    /**
      * Constructor.
      * @param node the social node.
      * @param provider the identity provider.
@@ -100,13 +90,11 @@ namespace SocialVPN {
      * @param port the port number for the HTTP interface.
      * @param srh the social rpc handler.
      */
-    public SocialConnectionManager(SocialNode node, IProvider provider,
-                                   ISocialNetwork network, string port,
-                                   Dictionary<string, SocialUser> friends,
-                                   SocialRpcHandler srh, string certDir) {
+    public SocialConnectionManager(SocialNode node,SocialNetworkProvider snp,
+                                   SocialRpcHandler srh, string port,
+                                   Dictionary<string, SocialUser> friends) {
       _snode = node;
-      _provider = provider;
-      _network = network;
+      _snp = snp;
       _friendlist = new List<string>();
       _friends = friends;
       _http = new HttpInterface(port);
@@ -114,7 +102,6 @@ namespace SocialVPN {
       _http.Start();
       _srh = srh;
       _srh.SyncEvent += SyncHandler;
-      _cert_dir = certDir;
       _timer_thread = new Timer(new TimerCallback(TimerHandler), null,
                                 STARTTIME, INTERVALTIME);
     }
@@ -128,14 +115,11 @@ namespace SocialVPN {
                         DateTime.Now.Second + "." +
                         DateTime.Now.Millisecond + " " +
                         DateTime.UtcNow);
-
-      // Load certificates from the file system
-      LoadCertificates(_cert_dir);
-
       try {
         UpdateFriends();
-        _provider.StoreFingerprint();
+        _snp.StoreFingerprint();
         _snode.PublishCertificate();
+        _srh.PingFriends();
         _timer_thread.Change(INTERVALTIME, INTERVALTIME);
       } catch (Exception e) {
         if(e.Message.StartsWith("Dht")) {
@@ -160,15 +144,18 @@ namespace SocialVPN {
       if(request.ContainsKey("m")) {
         switch(request["m"]) {
           case "add":
-            AddFriends(request["uids"]);;
+            _snp.AddFriends(request["uids"]);;
+            UpdateFriends();
             break;
 
           case "addfpr":
-            AddFingerprints(request["fprs"]);
+            _snp.AddFingerprints(request["fprs"]);
+            UpdateFriends();
             break;
 
           case "addcert":
-            AddCertificate(request["cert"]);
+            _snp.AddCertificate(request["cert"]);
+            UpdateFriends();
             break;
             
           case "allow":
@@ -223,50 +210,11 @@ namespace SocialVPN {
      * Updates friend uids from social newtork.
      */
     protected void UpdateFriendUids() {
-      List<string> new_friends = _network.GetFriends();
+      List<string> new_friends = _snp.GetFriends();
       foreach(string uid in new_friends) {
         if(!_friendlist.Contains(uid)) {
           _friendlist.Add(uid);
         }
-      }
-    }
-
-    /**
-     * Adds a list of fingerprints seperated by newline.
-     * @param fprlist a list of fingerprints.
-     */
-    protected void AddFingerprints(string fprlist) {
-      string[] fprs = fprlist.Split('\n');
-      foreach(string fpr in fprs) {
-        _snode.AddDhtFriend(fpr);
-      }
-    }
-
-    /**
-     * Adds a certificate to the socialvpn system.
-     * @param certString a base64 encoding string representing certificate.
-     */
-    protected void AddCertificate(string certString) {
-      certString = certString.Replace("\n", "");
-      byte[] certData = Convert.FromBase64String(certString);
-      _snode.AddCertificate(certData);
-    }
-
-    /**
-     * Loads certificates from the file system.
-     * @param certdir the directory to load certificates from.
-     */
-    protected void LoadCertificates(string certDir) {
-      string[] cert_files = null;
-      try {
-        cert_files = System.IO.Directory.GetFiles(certDir);
-      } catch (Exception e) {
-        ProtocolLog.WriteIf(SocialLog.SVPNLog, e.Message);
-        ProtocolLog.WriteIf(SocialLog.SVPNLog, "LOAD CERTIFICATES FAILURE");
-      }
-      foreach(string cert_file in cert_files) {
-        byte[] cert_data = SocialUtils.ReadFileBytes(cert_file);
-        _snode.AddCertificate(cert_data);
       }
     }
 
@@ -293,29 +241,15 @@ namespace SocialVPN {
     }
 
     /**
-     * Adds a list of friends seperated by newline.
-     * @param friendlist a list of friends unique identifiers.
-     */
-    protected void AddFriends(string friendlist) {
-      string[] friends = friendlist.Split('\n');
-      foreach(string friend in friends) {
-        if(!_friendlist.Contains(friend)) {
-          _friendlist.Add(friend);
-        }
-      }
-      AddFriends(friends);
-    }
-
-    /**
      * Adds a list of friend based on user id.
      * @param uids the list of friend's user id.
      */
     protected void AddFriends(string[] uids) {
-      List<string> fingerprints = _provider.GetFingerprints(uids);
+      List<string> fingerprints = _snp.GetFingerprints(uids);
       foreach(string fpr in fingerprints) {
         _snode.AddDhtFriend(fpr);
       }
-      List<byte[]> certificates = _provider.GetCertificates(uids);
+      List<byte[]> certificates = _snp.GetCertificates(uids);
       foreach(byte[] cert in certificates) {
         _snode.AddCertificate(cert);
       }
@@ -327,7 +261,7 @@ namespace SocialVPN {
      * @param password the password.
      */
     protected bool Login(string id, string username, string password) {
-      return _provider.Login(id, username, password);
+      return _snp.Login(id, username, password);
     }
   }
 

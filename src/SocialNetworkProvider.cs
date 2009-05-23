@@ -60,18 +60,44 @@ namespace SocialVPN {
     protected readonly Dictionary<string, ISocialNetwork> _networks;
 
     /**
+     * Location of the certificates directory.
+     */
+    protected readonly string _cert_dir;
+
+    /**
+     * List of friends manually added.
+     */
+    protected readonly List<string> _friends;
+
+    /**
+     * List of fingerprints manually added.
+     */
+    protected readonly List<string> _fingerprints;
+
+    /**
+     * List of certificates manually added.
+     */
+    protected readonly List<byte[]> _certificates;
+
+    /**
      * Constructor.
      * @param dht the dht object.
      * @param user the local user object.
      * @param certData the local certificate data.
      */
-    public SocialNetworkProvider(Dht dht, SocialUser user, byte[] certData) {
+    public SocialNetworkProvider(Dht dht, SocialUser user, byte[] certData,
+                                 string certDir) {
       _local_user = user;
       _dht = dht;
       _providers = new Dictionary<string, IProvider>();
       _networks = new Dictionary<string,ISocialNetwork>();
       _local_cert_data = certData;
+      _cert_dir = certDir;
+      _friends = new List<string>();
+      _fingerprints = new List<string>();
+      _certificates = new List<byte[]>();
       RegisterBackends();
+      LoadCertificates();
     }
 
     /**
@@ -126,6 +152,13 @@ namespace SocialVPN {
                         DateTime.Now.Second + "." +
                         DateTime.Now.Millisecond + " " +
                         DateTime.UtcNow);
+
+      // Add friends from manual input
+      foreach(string friend in _friends) {
+        if(!friends.Contains(friend)) {
+          friends.Add(friend);
+        }
+      }
       return friends;
     }
 
@@ -151,6 +184,13 @@ namespace SocialVPN {
                         DateTime.Now.Second + "." +
                         DateTime.Now.Millisecond + " " +
                         DateTime.UtcNow);
+
+      // Add fingerprints from manual input
+      foreach(string fpr in _fingerprints) {
+        if(!fingerprints.Contains(fpr)) {
+          fingerprints.Add(fpr);
+        }
+      }
       return fingerprints;
     }
 
@@ -176,6 +216,13 @@ namespace SocialVPN {
                         DateTime.Now.Second + "." +
                         DateTime.Now.Millisecond + " " +
                         DateTime.UtcNow);
+
+      // Add certificates from manual input
+      foreach(byte[] cert in _certificates) {
+        if(!certificates.Contains(cert)) {
+          certificates.Add(cert);
+        }
+      }
       return certificates;
     }
 
@@ -213,6 +260,62 @@ namespace SocialVPN {
       // TODO - Statement below should be false
       return true;
     }
+
+    /**
+     * Loads certificates from the file system.
+     */
+    protected void LoadCertificates() {
+      string[] cert_files = null;
+      try {
+        cert_files = System.IO.Directory.GetFiles(_cert_dir);
+      } catch (Exception e) {
+        ProtocolLog.WriteIf(SocialLog.SVPNLog, e.Message);
+        ProtocolLog.WriteIf(SocialLog.SVPNLog, "LOAD CERTIFICATES FAILURE");
+      }
+      foreach(string cert_file in cert_files) {
+        byte[] cert_data = SocialUtils.ReadFileBytes(cert_file);
+        _certificates.Add(cert_data);
+      }
+    }
+
+    /**
+     * Adds a list of fingerprints seperated by newline.
+     * @param fprlist a list of fingerprints.
+     */
+    public void AddFingerprints(string fprlist) {
+      string[] fprs = fprlist.Split('\n');
+      foreach(string fpr in fprs) {
+        if(!_fingerprints.Contains(fpr)) {
+          _fingerprints.Add(fpr);
+        }
+      }
+    }
+
+    /**
+     * Adds a certificate to the socialvpn system.
+     * @param certString a base64 encoding string representing certificate.
+     */
+    public void AddCertificate(string certString) {
+      certString = certString.Replace("\n", "");
+      byte[] certData = Convert.FromBase64String(certString);
+      if(!_certificates.Contains(certData)) {
+        _certificates.Add(certData);
+      }
+    }
+
+    /**
+     * Adds a list of friends seperated by newline.
+     * @param friendlist a list of friends unique identifiers.
+     */
+    public void AddFriends(string friendlist) {
+      string[] friends = friendlist.Split('\n');
+      foreach(string friend in friends) {
+        if(!_friends.Contains(friend)) {
+          _friends.Add(friend);
+        }
+      }
+    }
+
   }
 #if SVPN_NUNIT
   [TestFixture]

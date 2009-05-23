@@ -152,6 +152,17 @@ namespace SocialVPN {
     }
 
     /**
+     * Ping all the friends.
+     */
+    public void PingFriends() {
+      foreach(SocialUser friend in _friends.Values) {
+        if(friend.Access == SocialUser.AccessTypes.Allow.ToString()) {
+          PingFriend(friend);
+        }
+      }
+    }
+
+    /**
      * Handles a ping request from a friend.
      * @param dhtkey the identifier for the friend making the request.
      * @return the respond sent back online/offline.

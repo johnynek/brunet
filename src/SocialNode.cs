@@ -131,10 +131,9 @@ namespace SocialVPN {
       _bso.CertificateHandler.AddCACertificate(_local_cert.X509);
       _bso.CertificateHandler.AddSignedCertificate(_local_cert.X509);
       _snp = new SocialNetworkProvider(this.Dht, _local_user, 
-                                       _local_cert.X509.RawData);
+                                       _local_cert.X509.RawData, certDir);
       _srh = new SocialRpcHandler(_node, _local_user, _friends);
-      _scm = new SocialConnectionManager(this, _snp, _snp, port, _friends, 
-                                         _srh, _cert_dir);
+      _scm = new SocialConnectionManager(this, _snp, _srh, port, _friends);
     }
 
     /**
