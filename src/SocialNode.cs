@@ -133,7 +133,7 @@ namespace SocialVPN {
       _snp = new SocialNetworkProvider(this.Dht, _local_user, 
                                        _local_cert.X509.RawData, certDir);
       _srh = new SocialRpcHandler(_node, _local_user, _friends);
-      _scm = new SocialConnectionManager(this, _snp, _srh, port, _friends);
+      _scm = new SocialConnectionManager(this, _snp, _srh, port);
     }
 
     /**
@@ -214,9 +214,6 @@ namespace SocialVPN {
         // Temporary
         AddFriend(friend);
 
-        // RPC ping to newly added friend
-        _srh.PingFriend(friend);
-
         ProtocolLog.WriteIf(SocialLog.SVPNLog,"ADD CERT KEY SUCCESS: " +
                           DateTime.Now.Second + "." +
                           DateTime.Now.Millisecond + " " +
@@ -236,7 +233,8 @@ namespace SocialVPN {
      * @param key the DHT key for friend's certificate.
      */
     public void AddDhtFriend(string key) {
-      if(key != _local_user.DhtKey && !_friends.ContainsKey(key)) {
+      if(key != _local_user.DhtKey && !_friends.ContainsKey(key) &&
+         key.Length > 50 ) {
         ProtocolLog.WriteIf(SocialLog.SVPNLog, "ADD DHT FETCH: " + 
                           DateTime.Now.Second + "." +
                           DateTime.Now.Millisecond + " " +
@@ -263,6 +261,27 @@ namespace SocialVPN {
         this.Dht.AsGet(key, q);
       }
     }
+
+    /*
+     * Add a friend from socialvpn.
+     * @param fpr the friend's fingerprint to be added.
+     */
+    public void AddFriend(string fpr) {
+      if(_friends.ContainsKey(fpr)) {
+        AddFriend(_friends[fpr]);
+      }
+    }
+
+    /*
+     * Removes a friend from socialvpn.
+     * @param fpr the friend's fingerprint to be removed.
+     */
+    public void RemoveFriend(string fpr) {
+      if(_friends.ContainsKey(fpr)) {
+        RemoveFriend(_friends[fpr]);
+      }
+    }
+
 
     /*
      * Add a friend from socialvpn.
@@ -319,6 +338,7 @@ namespace SocialVPN {
           uid = args[3];
           pcid = args[4];
           name = args[5];
+          country = "US";
         }
         else {
           Console.Write("Enter Name (First Last): ");
@@ -327,10 +347,11 @@ namespace SocialVPN {
           uid = Console.ReadLine();
           Console.Write("Enter a name for this PC: ");
           pcid = Console.ReadLine();
+          Console.Write("Enter your location: ");
+          country = Console.ReadLine();
         }
 
         version = VERSION;
-        country = "US";
         config.NodeAddress = Utils.GenerateAHAddress().ToString();
         Utils.WriteConfig(args[0], config);
         SocialUtils.CreateCertificate(uid, name, pcid, version, country,

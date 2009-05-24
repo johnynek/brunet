@@ -238,7 +238,8 @@ namespace SocialVPN {
       ProtocolLog.WriteIf(SocialLog.SVPNLog, "STORE FINGERPRINT: " +
                         DateTime.Now.Second + "." +
                         DateTime.Now.Millisecond + " " +
-                        DateTime.UtcNow);
+                        DateTime.UtcNow + " " +
+                        _local_user.DhtKey);
       return success;
     }
 

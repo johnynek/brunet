@@ -26,7 +26,7 @@ function init() {
   getState();
   loadPage();
   loadHeader();
-  var intervalID = window.setInterval(getState, 5000);
+  var intervalID = window.setInterval(getState, 15000);
 }
 
 function createElem(itemType, itemHTML, itemID, itemClass, containerName, 

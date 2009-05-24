@@ -178,7 +178,8 @@ namespace SocialVPN {
           ProtocolLog.WriteIf(SocialLog.SVPNLog, "PING FRIEND HANDLER: " +
                             DateTime.Now.Second + "." +
                             DateTime.Now.Millisecond + " " +
-                            DateTime.UtcNow + " " + _friends[dhtKey].Address);
+                            DateTime.UtcNow + " " + 
+                            dhtKey + " " + _friends[dhtKey].Address);
         }
       }
       else {
