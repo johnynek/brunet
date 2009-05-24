@@ -148,7 +148,7 @@ namespace SocialVPN {
           return;
         };
       }
-      FriendPing(friend.Address);
+      FriendPing(friend.Address, friend.DhtKey);
     }
 
     /**
@@ -191,8 +191,9 @@ namespace SocialVPN {
     /**
      * Makes the ping request to a friend.
      * @param address the address of the friend.
+     * @param dhtKey the friend's dhtkey.
      */
-    protected void FriendPing(string address) {
+    protected void FriendPing(string address, string dhtKey) {
       Address addr = AddressParser.Parse(address);
       Channel q = new Channel();
       q.CloseAfterEnqueue();
@@ -201,17 +202,20 @@ namespace SocialVPN {
           RpcResult res = (RpcResult) q.Dequeue();
           string result = (string) res.Result;
           string[] parts = result.Split(DELIM);
-          string dht_key = parts[0];
           string response = parts[1];
           if(response == ResponseTypes.Online.ToString()) {
-            SocialUser friend = _friends[dht_key];
+            SocialUser friend = _friends[dhtKey];
             friend.Time = DateTime.Now.ToString();
+          }
+          else if(response == ResponseTypes.Offline.ToString()) {
+            _friends[dhtKey].Time = SocialUser.TIMEDEFAULT;
           }
           ProtocolLog.WriteIf(SocialLog.SVPNLog, "PING FRIEND REPLY: " +
                             DateTime.Now.Second + "." +
                             DateTime.Now.Millisecond + " " +
                             DateTime.UtcNow + " " + address + " " + result);
         } catch(Exception e) {
+          _friends[dhtKey].Time = SocialUser.TIMEDEFAULT;
           ProtocolLog.WriteIf(SocialLog.SVPNLog, e.Message);
           ProtocolLog.WriteIf(SocialLog.SVPNLog, "PING FRIEND FAILURE: " +
                             DateTime.Now.Second + "." +
