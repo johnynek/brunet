@@ -65,9 +65,14 @@ namespace SocialVPN {
     public const string VERSION = "SVPN_0.3.0";
 
     /**
+     * The suffix for the DNS names.
+     */
+    public const string DNSSUFFIX = ".svpn";
+
+    /**
      * The local certificate file name.
      */
-    public const string CERTFILENAME = "lc.cert";
+    public const string CERTFILENAME = "local.cert";
 
     /**
      * The DHT TTL.
@@ -78,6 +83,11 @@ namespace SocialVPN {
      * Dictionary of friends indexed by alias.
      */
     protected readonly Dictionary<string, SocialUser> _friends;
+
+    /**
+     * The mapping of aliases to friends
+     */
+    protected readonly Dictionary<string, string> _aliases;
 
     /**
      * The certificate directory path.
@@ -123,6 +133,7 @@ namespace SocialVPN {
                       string certDir, string port) : 
                       base(brunetConfig, ipopConfig) {
       _friends = new Dictionary<string, SocialUser>();
+      _aliases = new Dictionary<string, string>();
       _cert_dir = certDir;
       string cert_path = Path.Combine(certDir, CERTFILENAME);
       _local_cert = new Certificate(SocialUtils.ReadFileBytes(cert_path));
@@ -138,17 +149,23 @@ namespace SocialVPN {
 
     /**
      * Create a unique alias for a user resource.
-     * @param uid the user unique identifier.
+     * @param uid the user unique identifier (email).
      * @param pcid the pc identifier.
+     * @param dhtKey the friend's dht key.
      * @return a unique user alias used for DNS naming.
      */
-    protected virtual string CreateAlias(string uid, string pcid) {
+    protected virtual string CreateAlias(string uid, string pcid, 
+                                         string dhtKey) {
       uid = uid.Replace('@', '.');
-      string alias = (pcid + "." + uid + ".ipop").ToLower();
-      int counter = 1;
-      while(_friends.ContainsKey(alias)) {
-        alias = (pcid + counter + "." + uid + ".ipop").ToLower();
-        counter++;
+      string alias = (pcid + "." + uid + DNSSUFFIX).ToLower();
+
+      // If alias already exists, remove old friend with alias
+      if(_aliases.ContainsKey(alias)) {
+        string dht_key = _aliases[alias];
+        DeleteFriend(_friends[dht_key]);
+      }
+      else {
+        _aliases[alias] = dhtKey;
       }
       return alias;
     }
@@ -200,7 +217,7 @@ namespace SocialVPN {
                           DateTime.UtcNow + " " + friend.DhtKey);
       }
       else if(_snp.ValidateCertificate(cert.X509.RawData)) {
-        friend.Alias = CreateAlias(friend.Uid, friend.PCID);
+        friend.Alias = CreateAlias(friend.Uid, friend.PCID, friend.DhtKey);
 
         // Save certificate to file system
         SocialUtils.SaveCertificate(cert, _cert_dir);
@@ -213,6 +230,9 @@ namespace SocialVPN {
 
         // Temporary
         AddFriend(friend);
+
+        // Ping newly added friend
+        _srh.PingFriend(friend);
 
         ProtocolLog.WriteIf(SocialLog.SVPNLog,"ADD CERT KEY SUCCESS: " +
                           DateTime.Now.Second + "." +
@@ -294,8 +314,8 @@ namespace SocialVPN {
       friend.Access = SocialUser.AccessTypes.Allow.ToString();
     }
 
-    /*
-     * Removes a friend from socialvpn.
+    /**
+     * Removes (block access) a friend from socialvpn.
      * @param friend the friend to be removed.
      */
     public void RemoveFriend(SocialUser friend) {
@@ -303,6 +323,16 @@ namespace SocialVPN {
       _node.ManagedCO.RemoveAddress(addr);
       _rarad.UnregisterMapping(friend.Alias);
       friend.Access = SocialUser.AccessTypes.Block.ToString();
+    }
+
+    /**
+     * Delete (erase) a friend from socialvpn.
+     * @param friend the friend to be deleted.
+     */
+    public void DeleteFriend(SocialUser friend) {
+      RemoveFriend(friend);
+      SocialUtils.DeleteCertificate(friend.Address, _cert_dir);
+      _friends.Remove(friend.DhtKey);
     }
 
     /**

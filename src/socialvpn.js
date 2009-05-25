@@ -249,7 +249,7 @@ function showFriends() {
     var friend_access = 
       friends[i].getElementsByTagName('Access')[0].textContent;
     if( friend_time == "0" && (option == "All" || option == "Offline") 
-       && friend_access == "Approved") {
+       && friend_access == "Allow") {
       friends[i].status = "Status: Offline";
       addFriend(friends[i]);
     }

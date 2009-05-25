@@ -38,14 +38,19 @@ namespace SocialVPN {
   public class SocialConnectionManager {
 
     /**
-     * The start time for the timer thread (30 secs).
+     * The immediate time for the timer thread (.3 sec).
      */
-    private const int STARTTIME = 30000;
+    private const int IMMEDIATETIME = 300;
 
     /**
-     * The interval time for the timer thread (5 mins).
+     * The short time for the timer thread (30 secs).
      */
-    private const int INTERVALTIME = 300000;
+    private const int SHORTTIME = 30000;
+
+    /**
+     * The long time for the timer thread (5 mins).
+     */
+    private const int LONGTIME = 300000;
 
     /**
      * The node which accepts peers based on certificates.
@@ -73,6 +78,24 @@ namespace SocialVPN {
     protected readonly Timer _timer_thread;
 
     /**
+     * The synchronization object.
+     */
+    protected readonly object _sync;
+
+    /**
+     * This is the place holder for the uid for a sync call.
+     */
+    protected string _sync_uid;
+
+    protected int _timer_state;
+
+    public enum Intervals {
+      Long = 1,
+      Short = 2,
+      Immediate = 3
+    }
+
+    /**
      * Constructor.
      * @param node the social node.
      * @param provider the identity provider.
@@ -89,8 +112,11 @@ namespace SocialVPN {
       _http.Start();
       _srh = srh;
       _srh.SyncEvent += SyncHandler;
+      _timer_state = (int) Intervals.Long;
       _timer_thread = new Timer(new TimerCallback(TimerHandler), null,
-                                STARTTIME, INTERVALTIME);
+                                SHORTTIME, LONGTIME);
+      _sync = new object();
+      _sync_uid = null;
     }
 
     /**
@@ -104,14 +130,21 @@ namespace SocialVPN {
                         DateTime.UtcNow);
       try {
         UpdateFriends();
-        _snp.StoreFingerprint();
-        _snode.PublishCertificate();
-        _srh.PingFriends();
-        _timer_thread.Change(INTERVALTIME, INTERVALTIME);
+        if(_timer_state != (int) Intervals.Long) {
+          _timer_thread.Change(LONGTIME, LONGTIME);
+          _timer_state = (int) Intervals.Long;
+        }
+        else {
+          _snp.StoreFingerprint();
+          _snode.PublishCertificate();
+          _srh.PingFriends();
+        }
       } catch (Exception e) {
-        if(e.Message.StartsWith("Dht")) {
+        if(_timer_state != (int) Intervals.Short && 
+           e.Message.StartsWith("Dht")) {
           // Only change time on Dht not activitated
-          _timer_thread.Change(STARTTIME, STARTTIME);
+          _timer_thread.Change(SHORTTIME, SHORTTIME);
+          _timer_state = (int) Intervals.Short;
         }
         ProtocolLog.WriteIf(SocialLog.SVPNLog, e.Message);
         ProtocolLog.WriteIf(SocialLog.SVPNLog, "TIMER HANDLER FAILURE: " +
@@ -119,6 +152,14 @@ namespace SocialVPN {
                           DateTime.Now.Millisecond + " " +
                           DateTime.UtcNow);
       }
+    }
+
+    /**
+     * Change timer class time to do immediate update.
+     */
+    public void TimerUpdate() {
+      _timer_thread.Change(IMMEDIATETIME, IMMEDIATETIME);
+      _timer_state = (int) Intervals.Immediate;
     }
 
     /**
@@ -137,17 +178,17 @@ namespace SocialVPN {
 
           case "addfpr":
             _snp.AddFingerprints(request["fprs"]);
-            UpdateFriends();
+            TimerUpdate();
             break;
 
           case "addcert":
             _snp.AddCertificate(request["cert"]);
-            UpdateFriends();
+            TimerUpdate();
             break;
 
           case "login":
             _snp.Login(request["id"], request["user"], request["pass"]);
-            UpdateFriends();
+            TimerUpdate();
             break;
             
           case "allow":
@@ -173,18 +214,30 @@ namespace SocialVPN {
     public void SyncHandler(Object obj, EventArgs eargs) {
       string dht_key = (string) obj;
       string[] parts = dht_key.Split(':');
-      string uid = parts[1];
-
-      if(_snp.GetFriends().Contains(uid)) {
-        AddFriends(new string[] {uid});
+      lock(_sync) {
+        if(_sync_uid == null) {
+          _sync_uid = parts[1];
+        }
       }
+      TimerUpdate();
     }
 
     /**
      * Updates friends and adds to socialvpn.
      */
     protected void UpdateFriends() {
-      AddFriends(_snp.GetFriends().ToArray());
+      if(_sync_uid != null) {
+        string uid = String.Copy(_sync_uid);
+        if(_snp.GetFriends().Contains(uid)) {
+          AddFriends(new string[] {uid});
+        }
+        lock(_sync) {
+          _sync_uid = null;
+        }
+      }
+      else {
+        AddFriends(_snp.GetFriends().ToArray());
+      }
     }
 
     /**

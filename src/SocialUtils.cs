@@ -19,6 +19,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using System;
 using System.IO;
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
 using System.Security.Cryptography;
 using System.Collections.Generic;
 using System.Text;
@@ -40,6 +42,11 @@ namespace SocialVPN {
    * SocialUtils Class. A group of helper functions.
    */
   public class SocialUtils {
+
+    /**
+    * The suffix for certificate files.
+    */
+    public const string CERTSUFFIX = ".cert";
 
     /**
      * SHA256 hash object.
@@ -75,15 +82,13 @@ namespace SocialVPN {
                                                  name, uid, rsa, address);
       Certificate cert = cm.Sign(cm, rsa);
       
-      string lc_path = Path.Combine(certDir, "lc.cert");
-      string ca_path = Path.Combine(certDir, "ca.cert");
+      string lc_path = Path.Combine(certDir, SocialNode.CERTFILENAME);
 
       if(!Directory.Exists(certDir)) {
         Directory.CreateDirectory(certDir);
       }
       WriteToFile(rsa.ExportCspBlob(true), keyPath);
       WriteToFile(cert.X509.RawData, lc_path);
-      WriteToFile(cert.X509.RawData, ca_path);
 
       return cert;
     }
@@ -95,13 +100,21 @@ namespace SocialVPN {
     public static void SaveCertificate(Certificate cert, string certDir) {
       SocialUser friend = new SocialUser(cert);
       string address = friend.Address.Substring(12);
-      string ca_path = Path.Combine(certDir, "ca" + address + ".cert");
+      string cert_path = Path.Combine(certDir, address + CERTSUFFIX);
 
       if(!Directory.Exists(certDir)) {
         Directory.CreateDirectory(certDir);
       }
-      if(!File.Exists(ca_path)) {
-        WriteToFile(cert.X509.RawData, ca_path);
+      if(!File.Exists(cert_path)) {
+        WriteToFile(cert.X509.RawData, cert_path);
+      }
+    }
+
+    public static void DeleteCertificate(string address, string certDir) {
+      address = address.Substring(12);
+      string cert_path = Path.Combine(certDir, address + CERTSUFFIX);
+      if(!File.Exists(cert_path)) {
+        File.Delete(cert_path);
       }
     }
 
@@ -254,6 +267,20 @@ namespace SocialVPN {
         return streamReader.ReadToEnd();
       }
     }
+
+    public static bool ValidateServerCertificate(object sender, 
+                                                 X509Certificate certificate,
+                                                 X509Chain chain, 
+                                                 SslPolicyErrors
+                                                 sslPolicyErrors) {
+      return true;
+    }
+
+    public static void SetSecurityPolicy() {
+      ServicePointManager.ServerCertificateValidationCallback = 
+        new RemoteCertificateValidationCallback(ValidateServerCertificate);
+    }
+
   }
 
 #if SVPN_NUNIT
