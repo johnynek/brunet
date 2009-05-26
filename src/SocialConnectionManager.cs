@@ -216,7 +216,7 @@ namespace SocialVPN {
       string[] parts = dht_key.Split(':');
       lock(_sync) {
         if(_sync_uid == null) {
-          _sync_uid = parts[1];
+          _sync_uid = parts[2];
         }
       }
       TimerUpdate();
