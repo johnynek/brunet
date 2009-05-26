@@ -77,7 +77,7 @@ namespace SocialVPN {
     /**
      * The DHT TTL.
      */
-    public const int DHTTTL = 3600;
+    public const int DHTTTL = 600;
 
     /**
      * Dictionary of friends indexed by alias.

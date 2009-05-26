@@ -158,8 +158,8 @@ namespace SocialVPN {
      * Change timer class time to do immediate update.
      */
     public void TimerUpdate() {
-      _timer_thread.Change(IMMEDIATETIME, IMMEDIATETIME);
       _timer_state = (int) Intervals.Immediate;
+      _timer_thread.Change(IMMEDIATETIME, IMMEDIATETIME);
     }
 
     /**
