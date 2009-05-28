@@ -113,9 +113,8 @@ namespace SocialVPN {
         result = e;
         ProtocolLog.WriteIf(SocialLog.SVPNLog, e.Message);
         ProtocolLog.WriteIf(SocialLog.SVPNLog, "RPC HANDLER FAILURE: " + 
-                          DateTime.Now.Second + "." +
-                          DateTime.Now.Millisecond + " " +
-                          DateTime.UtcNow + " " + method);
+                            DateTime.Now.TimeOfDay + " " +
+                            arguments[0]);
       }
       _rpc.SendResult(req_state, result);
     }
@@ -126,9 +125,8 @@ namespace SocialVPN {
      */
     protected void FireSync(object obj) {
       ProtocolLog.WriteIf(SocialLog.SVPNLog, "FIRE SYNC: " +
-                        DateTime.Now.Second + "." +
-                        DateTime.Now.Millisecond + " " +
-                        DateTime.UtcNow + " " + (string)obj);
+                          DateTime.Now.TimeOfDay + " " + 
+                          (string) obj);
 
       EventHandler sync_event = SyncEvent;
       if(sync_event != null) {
@@ -176,10 +174,8 @@ namespace SocialVPN {
           _friends[dhtKey].Time = DateTime.Now.ToString();
           response = ResponseTypes.Online.ToString();
           ProtocolLog.WriteIf(SocialLog.SVPNLog, "PING FRIEND HANDLER: " +
-                            DateTime.Now.Second + "." +
-                            DateTime.Now.Millisecond + " " +
-                            DateTime.UtcNow + " " + 
-                            dhtKey + " " + _friends[dhtKey].Address);
+                              DateTime.Now.TimeOfDay + " " + 
+                              dhtKey + " " + _friends[dhtKey].Address);
         }
       }
       else {
@@ -211,22 +207,19 @@ namespace SocialVPN {
             _friends[dhtKey].Time = SocialUser.TIMEDEFAULT;
           }
           ProtocolLog.WriteIf(SocialLog.SVPNLog, "PING FRIEND REPLY: " +
-                            DateTime.Now.Second + "." +
-                            DateTime.Now.Millisecond + " " +
-                            DateTime.UtcNow + " " + address + " " + result);
+                              DateTime.Now.TimeOfDay + " " + 
+                              dhtKey + " " + address + " " + response);
         } catch(Exception e) {
           _friends[dhtKey].Time = SocialUser.TIMEDEFAULT;
           ProtocolLog.WriteIf(SocialLog.SVPNLog, e.Message);
           ProtocolLog.WriteIf(SocialLog.SVPNLog, "PING FRIEND FAILURE: " +
-                            DateTime.Now.Second + "." +
-                            DateTime.Now.Millisecond + " " +
-                            DateTime.UtcNow + " " + address);
+                              DateTime.Now.TimeOfDay + " " + 
+                              dhtKey + " " + address);
         }
       };
       ProtocolLog.WriteIf(SocialLog.SVPNLog, "PING FRIEND REQUEST: " +
-                        DateTime.Now.Second + "." +
-                        DateTime.Now.Millisecond + " " +
-                        DateTime.UtcNow + " " + address);
+                          DateTime.Now.TimeOfDay + " " + 
+                          dhtKey + " " + address);
 
       ISender sender = new AHExactSender(_node, addr);
       _rpc.Invoke(sender, q, "SocialVPN.FriendPing", _local_user.DhtKey);

@@ -245,6 +245,8 @@ namespace SocialVPN {
      * @return the http response string.
      */
     public static string Request(string url, byte[] parameters) {
+      ProtocolLog.WriteIf(SocialLog.SVPNLog,"HTTP REQUEST: " +
+                          DateTime.Now.TimeOfDay + " " + url);
       HttpWebRequest webRequest = (HttpWebRequest)WebRequest.Create(url);
       webRequest.ContentType = "application/x-www-form-urlencoded";
 

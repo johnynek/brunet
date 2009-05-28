@@ -149,9 +149,7 @@ namespace SocialVPN {
         }
       }
       ProtocolLog.WriteIf(SocialLog.SVPNLog, "GET FRIENDS: " +
-                        DateTime.Now.Second + "." +
-                        DateTime.Now.Millisecond + " " +
-                        DateTime.UtcNow);
+                          DateTime.Now.TimeOfDay);
 
       // Add friends from manual input
       foreach(string friend in _friends) {
@@ -181,9 +179,7 @@ namespace SocialVPN {
         }
       }
       ProtocolLog.WriteIf(SocialLog.SVPNLog, "GET FINGERPRINTS: " +
-                        DateTime.Now.Second + "." +
-                        DateTime.Now.Millisecond + " " +
-                        DateTime.UtcNow);
+                          DateTime.Now.TimeOfDay);
 
       // Add fingerprints from manual input
       foreach(string fpr in _fingerprints) {
@@ -213,9 +209,7 @@ namespace SocialVPN {
         }
       }
       ProtocolLog.WriteIf(SocialLog.SVPNLog, "GET CERTIFICATES: " +
-                        DateTime.Now.Second + "." +
-                        DateTime.Now.Millisecond + " " +
-                        DateTime.UtcNow);
+                          DateTime.Now.TimeOfDay);
 
       // Add certificates from manual input
       foreach(byte[] cert in _certificates) {
@@ -236,10 +230,8 @@ namespace SocialVPN {
         success = (success || provider.StoreFingerprint());
       }
       ProtocolLog.WriteIf(SocialLog.SVPNLog, "STORE FINGERPRINT: " +
-                        DateTime.Now.Second + "." +
-                        DateTime.Now.Millisecond + " " +
-                        DateTime.UtcNow + " " +
-                        _local_user.DhtKey);
+                          DateTime.Now.TimeOfDay + " " +
+                          _local_user.DhtKey + " " + _local_user.Address);
       return success;
     }
 
@@ -254,10 +246,6 @@ namespace SocialVPN {
           return true;
         }
       }
-      ProtocolLog.WriteIf(SocialLog.SVPNLog, "VALIDATE CERTIFICATE: " +
-                        DateTime.Now.Second + "." +
-                        DateTime.Now.Millisecond + " " +
-                        DateTime.UtcNow);
       // TODO - Statement below should be false
       return true;
     }

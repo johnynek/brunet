@@ -87,7 +87,7 @@ namespace SocialVPN {
      */
     protected string _sync_uid;
 
-    protected int _timer_state;
+    protected Intervals _timer_state;
 
     public enum Intervals {
       Long = 1,
@@ -112,7 +112,7 @@ namespace SocialVPN {
       _http.Start();
       _srh = srh;
       _srh.SyncEvent += SyncHandler;
-      _timer_state = (int) Intervals.Long;
+      _timer_state = Intervals.Long;
       _timer_thread = new Timer(new TimerCallback(TimerHandler), null,
                                 SHORTTIME, LONGTIME);
       _sync = new object();
@@ -125,14 +125,12 @@ namespace SocialVPN {
      */
     public void TimerHandler(Object obj) {
       ProtocolLog.WriteIf(SocialLog.SVPNLog, "TIMER HANDLER CALL: " +
-                        DateTime.Now.Second + "." +
-                        DateTime.Now.Millisecond + " " +
-                        DateTime.UtcNow);
+                            DateTime.Now.TimeOfDay);
       try {
         UpdateFriends();
-        if(_timer_state != (int) Intervals.Long) {
+        if(_timer_state != Intervals.Long) {
           _timer_thread.Change(LONGTIME, LONGTIME);
-          _timer_state = (int) Intervals.Long;
+          _timer_state = Intervals.Long;
         }
         else {
           _snp.StoreFingerprint();
@@ -140,17 +138,15 @@ namespace SocialVPN {
           _srh.PingFriends();
         }
       } catch (Exception e) {
-        if(_timer_state != (int) Intervals.Short && 
+        if(_timer_state != Intervals.Short && 
            e.Message.StartsWith("Dht")) {
           // Only change time on Dht not activitated
           _timer_thread.Change(SHORTTIME, SHORTTIME);
-          _timer_state = (int) Intervals.Short;
+          _timer_state = Intervals.Short;
         }
         ProtocolLog.WriteIf(SocialLog.SVPNLog, e.Message);
         ProtocolLog.WriteIf(SocialLog.SVPNLog, "TIMER HANDLER FAILURE: " +
-                          DateTime.Now.Second + "." +
-                          DateTime.Now.Millisecond + " " +
-                          DateTime.UtcNow);
+                            DateTime.Now.TimeOfDay);
       }
     }
 
@@ -158,7 +154,7 @@ namespace SocialVPN {
      * Change timer class time to do immediate update.
      */
     public void TimerUpdate() {
-      _timer_state = (int) Intervals.Immediate;
+      _timer_state = Intervals.Immediate;
       _timer_thread.Change(IMMEDIATETIME, IMMEDIATETIME);
     }
 
