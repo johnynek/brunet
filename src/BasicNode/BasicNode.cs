@@ -27,9 +27,7 @@ using System.Net;
 using Brunet;
 using Brunet.Coordinate;
 using Brunet.DistributedServices;
-using Brunet.DhtService;
 using Brunet.Rpc;
-
 
 
 /**
@@ -61,8 +59,6 @@ namespace Brunet.Applications {
     protected IDht _dht;
     /// <summary>The NCService object used for this node.</summary>
     protected NCService _ncservice;
-    /// <summary>The DhtRpc service provider.</summary>
-    protected DhtServer _ds;
     /// <summary>The XmlRpc service provider.</summary>
     protected XmlRpcManagerServer _xrm;
     /// <summary>The shutdown service provider.</summary>
@@ -223,18 +219,10 @@ namespace Brunet.Applications {
     public virtual void StartServices() {
       _shutdown.OnExit += OnExit;
 
-      if(_node_config.RpcDht != null && _node_config.RpcDht.Enabled) {
-        if(_ds == null) {
-          _ds = new DhtServer(_node_config.RpcDht.Port);
-        }
-        _ds.Update(_dht);
-      }
-
-      if(_node_config.XmlRpcManager != null && _node_config.XmlRpcManager.Enabled) {
-        if(_xrm == null) {
-          _xrm = new XmlRpcManagerServer(_node_config.XmlRpcManager.Port);
-        }
+      if(_node_config.XmlRpcManager.Enabled && _xrm == null) {
+        _xrm = new XmlRpcManagerServer(_node_config.XmlRpcManager.Port);
         _xrm.Update(_node);
+        new RpcDht(_dht, _node);
       }
     }
 
@@ -245,9 +233,6 @@ namespace Brunet.Applications {
     </summary>
      */
     public virtual void SuspendServices() {
-      if(_ds != null) {
-        _ds.Stop();
-      }
       if(_xrm != null) {
         _xrm.Suspend();
       }
@@ -259,10 +244,6 @@ namespace Brunet.Applications {
     required and you would like to release the ports</summary>
     */
     public virtual void StopServices() {
-      if(_ds != null) {
-        _ds.Stop();
-        _ds = null;
-      }
       if(_xrm != null) {
         _xrm.Stop();
         _xrm = null;

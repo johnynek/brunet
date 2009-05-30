@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import xmlrpclib, getopt, sys
-pydht = xmlrpclib.Server('http://localhost:64221/xd.rem')
+rpc = xmlrpclib.Server("http://127.0.0.1:10000/xm.rem")
 #pydht = xmlrpclib.Server('http://128.227.56.152:64221/xd.rem')
 
 #usage:
@@ -17,11 +17,11 @@ if (len(args) < 1):
   \tbget.py [--output=<filename to write value to>] [--quiet (only print the value)] <key>"""
   sys.exit(1)
 
-res = pydht.BeginGet(xmlrpclib.Binary(args[0]))
-value_dict = pydht.ContinueGet(res)
+res = rpc.localproxy("DhtClient.BeginGet", xmlrpclib.Binary(args[0]))
+value_dict = rpc.localproxy("DhtClient.ContinueGet", res)
 while len(value_dict) > 0:
   value = value_dict['value'].data
   ttl = value_dict['ttl']
   print value
-  value_dict = pydht.ContinueGet(res)
-pydht.EndGet(res)
+  value_dict = rpc.localproxy("DhtClient.ContinueGet", res)
+rpc.localproxy("DhtClient.EndGet", res)

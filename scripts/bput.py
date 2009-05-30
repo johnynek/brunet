@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import xmlrpclib, getopt, sys
-pydht = xmlrpclib.Server('http://localhost:64221/xd.rem')
-#pydht = xmlrpclib.Server('http://128.227.56.152:64221/xd.rem')
+rpc = xmlrpclib.Server("http://127.0.0.1:10000/xm.rem")
 
 #usage:
 # bput.py [--ttl=<time in sec>] [--input=<filename, - for stdin>] <key> [<value>]
@@ -39,4 +38,4 @@ else:
   #default TTL= 1 day
   ttl = 86400 
 # put (mykey,myvalue) pair into the DHT, with time-to-live of 100000 seconds
-print pydht.Put(xmlrpclib.Binary(args[0]), xmlrpclib.Binary(value), ttl)
+print rpc.localproxy("DhtClient.Put", xmlrpclib.Binary(args[0]), xmlrpclib.Binary(value), ttl)
