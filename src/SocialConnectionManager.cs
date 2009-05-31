@@ -127,12 +127,13 @@ namespace SocialVPN {
       ProtocolLog.WriteIf(SocialLog.SVPNLog, "TIMER HANDLER CALL: " +
                             DateTime.Now.TimeOfDay);
       try {
-        UpdateFriends();
         if(_timer_state != Intervals.Long) {
           _timer_thread.Change(LONGTIME, LONGTIME);
           _timer_state = Intervals.Long;
+          UpdateFriends();
         }
         else {
+          UpdateFriends();
           _snp.StoreFingerprint();
           _snode.PublishCertificate();
           _srh.PingFriends();

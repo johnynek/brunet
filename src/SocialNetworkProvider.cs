@@ -136,6 +136,9 @@ namespace SocialVPN {
      * @return a list of friends uids.
      */
     public List<string> GetFriends() {
+      ProtocolLog.WriteIf(SocialLog.SVPNLog, "GET FRIENDS: " +
+                          DateTime.Now.TimeOfDay);
+
       List<string> friends = new List<string>();
       foreach(ISocialNetwork network in _networks.Values) {
         List<string> tmp_friends = network.GetFriends();
@@ -148,8 +151,6 @@ namespace SocialVPN {
           }
         }
       }
-      ProtocolLog.WriteIf(SocialLog.SVPNLog, "GET FRIENDS: " +
-                          DateTime.Now.TimeOfDay);
 
       // Add friends from manual input
       foreach(string friend in _friends) {
@@ -166,6 +167,9 @@ namespace SocialVPN {
      * @return a list of fingerprints.
      */
     public List<string> GetFingerprints(string[] uids) {
+      ProtocolLog.WriteIf(SocialLog.SVPNLog, "GET FINGERPRINTS: " +
+                          DateTime.Now.TimeOfDay);
+
       List<string> fingerprints = new List<string>();
       foreach(IProvider provider in _providers.Values) {
         List<string> tmp_fprs = provider.GetFingerprints(uids);
@@ -178,9 +182,6 @@ namespace SocialVPN {
           }
         }
       }
-      ProtocolLog.WriteIf(SocialLog.SVPNLog, "GET FINGERPRINTS: " +
-                          DateTime.Now.TimeOfDay);
-
       // Add fingerprints from manual input
       foreach(string fpr in _fingerprints) {
         if(!fingerprints.Contains(fpr)) {
@@ -196,6 +197,9 @@ namespace SocialVPN {
      * @return a list of certificates.
      */
     public List<byte[]> GetCertificates(string[] uids) {
+      ProtocolLog.WriteIf(SocialLog.SVPNLog, "GET CERTIFICATES: " +
+                          DateTime.Now.TimeOfDay);
+
       List<byte[]> certificates = new List<byte[]>();
       foreach(IProvider provider in _providers.Values) {
         List<byte[]> tmp_certs = provider.GetCertificates(uids);
@@ -208,9 +212,6 @@ namespace SocialVPN {
           }
         }
       }
-      ProtocolLog.WriteIf(SocialLog.SVPNLog, "GET CERTIFICATES: " +
-                          DateTime.Now.TimeOfDay);
-
       // Add certificates from manual input
       foreach(byte[] cert in _certificates) {
         if(!certificates.Contains(cert)) {
@@ -225,13 +226,14 @@ namespace SocialVPN {
      * @return boolean indicating success.
      */
     public bool StoreFingerprint() {
+      ProtocolLog.WriteIf(SocialLog.SVPNLog, "STORE FINGERPRINT: " +
+                          DateTime.Now.TimeOfDay + " " +
+                          _local_user.DhtKey + " " + _local_user.Address);
+
       bool success = false;
       foreach(IProvider provider in _providers.Values) {
         success = (success || provider.StoreFingerprint());
       }
-      ProtocolLog.WriteIf(SocialLog.SVPNLog, "STORE FINGERPRINT: " +
-                          DateTime.Now.TimeOfDay + " " +
-                          _local_user.DhtKey + " " + _local_user.Address);
       return success;
     }
 

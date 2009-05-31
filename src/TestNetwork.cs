@@ -32,6 +32,8 @@ namespace SocialVPN {
 
   public class TestNetwork : IProvider, ISocialNetwork {
 
+    public const char DELIM = ',';
+
     protected readonly string _url;
 
     protected readonly SocialUser _local_user;
@@ -62,7 +64,7 @@ namespace SocialVPN {
       parameters["uid"] = _local_user.Uid;
       string response = SocialUtils.Request(_url, parameters);
 
-      string[] friends = response.Split('\n');
+      string[] friends = response.Split(DELIM);
       foreach(string friend in friends) {
         new_friends.Add(friend);
       }
@@ -70,11 +72,15 @@ namespace SocialVPN {
     }
 
     public List<string> GetFingerprints(string[] uids) {
-      string dl = ",";
       StringBuilder friendlist = new StringBuilder();
       if(uids != null) {
-        foreach(string uid in uids) {
-          friendlist.Append(uid + dl);
+        for(int i=0; i < uids.Length; i++) {
+          if(i < uids.Length - 1) {
+            friendlist.Append(uids[i] + DELIM);
+          }
+          else {
+            friendlist.Append(uids[i]);
+          }
         }
       }
 
@@ -86,7 +92,7 @@ namespace SocialVPN {
       parameters["uids"] = friendlist.ToString();
       string response = SocialUtils.Request(_url, parameters);
 
-      string[] fprs = response.Split('\n');
+      string[] fprs = response.Split(DELIM);
       foreach(string fpr in fprs) {
         fingerprints.Add(fpr);
       }
@@ -122,7 +128,7 @@ namespace SocialVPN {
   public class TestNetworkTester {
     [Test]
     public void TestNetworkTest() {
-      /*
+      ///*
       string uid = "ptony82@ufl.edu";
       string name = "Pierre St Juste";
       string pcid = "pdesktop";
@@ -132,18 +138,16 @@ namespace SocialVPN {
         Brunet.Applications.Utils.GenerateAHAddress().ToString();
       SocialUtils.CreateCertificate(uid, name, pcid, version, country,
                                     address, "certificates", "private_key");
-      */
-      string cert_path = System.IO.Path.Combine("certificates", "lc.cert");
+      //*/
+      string cert_path = System.IO.Path.Combine("certificates", "local.cert");
       byte[] cert_data = SocialUtils.ReadFileBytes(cert_path);
       SocialUser user = new SocialUser(cert_data);
 
       Console.WriteLine(user);
-      ///*
       TestNetwork backend = new TestNetwork(user, cert_data);
-      backend.StoreFingerprint();
-      backend.GetFriends();
-      backend.GetFingerprints(null);
-      //*/
+      //backend.StoreFingerprint();
+      //backend.GetFriends();
+      backend.GetFingerprints(new string[] {"item1", "item2"});
     }
   } 
 #endif

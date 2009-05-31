@@ -398,6 +398,11 @@ namespace SocialVPN {
           country = Console.ReadLine();
         }
 
+        if(uid.Length < 1 || pcid.Length < 1 || name.Length < 1 || 
+           country.Length < 1) {
+          return;
+        }
+
         version = VERSION;
         config.NodeAddress = Utils.GenerateAHAddress().ToString();
         Utils.WriteConfig(args[0], config);
