@@ -59,7 +59,7 @@ namespace Brunet.Applications {
       _shutdown = Shutdown.GetShutdown();
       _shutdown.OnExit += OnExit;
 
-      for(int i = 1; i < _count - 1; i++) {
+      for(int i = 1; i < _count; i++) {
         _node_config.NodeAddress = (Utils.GenerateAHAddress()).ToString();
         CreateNode();
         new Information(_node, "MultiNode");
