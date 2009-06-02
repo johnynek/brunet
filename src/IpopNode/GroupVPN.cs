@@ -27,9 +27,13 @@ using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 
 namespace Ipop {
+  /// <summary>Provides the ability to do https (ssl) transactions via web
+  /// services and to trust the remote party.</summary>
   public class CertificatePolicy : ICertificatePolicy {
     protected static Hashtable _certs;
     protected static object _sync;
+    /// <summary>If we can't return a true for a security exchange, let's pass
+    /// the request to the default (original) ICertificatePolicy</summary>
     protected static ICertificatePolicy _old_policy;
 
     static CertificatePolicy()
@@ -40,6 +44,7 @@ namespace Ipop {
       ServicePointManager.CertificatePolicy = new CertificatePolicy();
     }
 
+    /// <summary>Register an x509 certificate.</summary>
     public static void Register(X509Certificate cert)
     {
       MemBlock blob = MemBlock.Reference(cert.GetRawCertData());
@@ -48,6 +53,7 @@ namespace Ipop {
       }
     }
 
+    /// <summary>Unregister an x509 certificate.</summary>
     public static void UnRegister(X509Certificate cert)
     {
       MemBlock blob = MemBlock.Reference(cert.GetRawCertData());
@@ -56,6 +62,8 @@ namespace Ipop {
       }
     }
 
+    /// <summary>Returns true if we have registered the certificate.  Calls the
+    /// next ICertificatePolicy if we fail.</summary>
     public bool CheckValidationResult(ServicePoint service_point,
         X509Certificate cert, WebRequest request, int cert_problem)
     {
@@ -71,6 +79,7 @@ namespace Ipop {
     }
   }
 
+  /// <summary>State machine used in obtaining a GroupVPN signed certificate.</summary>
   public class GroupVPNClient {
     protected readonly string _username;
     protected readonly string _group;
@@ -79,14 +88,21 @@ namespace Ipop {
     protected readonly IGroupVPNServer _group_vpn;
     protected readonly byte[] _unsigned_cert;
     protected States _state;
+    /// <summary>State of the GroupVPN state machine.</summary>
     public States State { get { return _state; } }
     protected Certificate _cert;
+    /// <summary>If State == Finished, we have a valid certificate.</summary>
     public Certificate Certificate { get { return _cert; } }
 
+    /// <summary></summary>
     public enum States {
+      /// <summary>Haven't submitted a request for a certificate.</summary>
       Waiting,
+      /// <summary>Submitted a request for a certificate.</summary>
       Requested,
+      /// <summary>Succeeded in getting the certificate.</summary>
       Finished,
+      /// <summary>Failed in getting the certificate.</summary>
       Failed
     };
 
@@ -106,6 +122,8 @@ namespace Ipop {
       _unsigned_cert = cm.UnsignedData;
     }
 
+    /// <summary>Keeps the thread until either we are successful in getting a
+    /// certificate or we fail.</summary>
     public void Start()
     {
       while(true) {
@@ -129,7 +147,8 @@ namespace Ipop {
       }
     }
 
-    public bool SubmitRequest()
+    /// <summary>Submits a request to be signed!</summary>
+    protected bool SubmitRequest()
     {
       string request_id = string.Empty;
 
@@ -146,6 +165,7 @@ namespace Ipop {
       return true;
     }
 
+    /// <summary>Checks the request to see if it has been signed!</summary>
     public bool CheckRequest()
     {
       byte[] cert = new byte[0];
@@ -163,6 +183,7 @@ namespace Ipop {
     }
   }
 
+  /// <summary>Provides an XmlRpcClient interface to the GroupVPNServer.</summary>
   public interface IGroupVPNServer : IXmlRpcProxy {
     [XmlRpcMethod]
     string SubmitRequest(string username, string group, string secret, byte[] cert);
