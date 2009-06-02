@@ -52,7 +52,6 @@ namespace Ipop.RpcNode {
     }
 
     public static RpcDHCPServer GetRpcDHCPServer(MemBlock ip, MemBlock netmask) {
-
       DHCPConfig config = new DHCPConfig();
       config.LeaseTime = 3200;
       config.Netmask = Utils.MemBlockToString(netmask, '.');

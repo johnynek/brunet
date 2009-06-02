@@ -42,6 +42,8 @@ namespace Ipop {
     public int DHCPPort;
     /// <summary>Allow static addresses</summary>
     public bool AllowStaticAddresses;
+    /// <summary>DNS Type, default none</summary>
+    public string DNSType;
 
     /**
     <summary>AddressInfo stores end point mappings depending on the system all
@@ -58,6 +60,23 @@ namespace Ipop {
       /**  <summary>Not implemented, but should contain last ethernet address
       for the node</summary>*/
       public string EthernetAddress;
+    }
+
+    /// <summary>Path to the configs file system location.</summary>
+    [NonSerialized]
+    public string Path;
+
+    /// <summary>Writres the config to the file system.</summary>
+    public bool WriteConfig() {
+      if(Path == string.Empty) {
+        return false;
+      }
+
+      using(FileStream fs = new FileStream(Path, FileMode.Create, FileAccess.Write)) {
+        XmlSerializer serializer = new XmlSerializer(this.GetType());
+        serializer.Serialize(fs, this);
+      }
+      return true;
     }
   }
 }

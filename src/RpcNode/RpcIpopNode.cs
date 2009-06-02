@@ -31,7 +31,6 @@ using System.Threading;
 \brief Defines Ipop.RpcNode provide the ability to set up translation tables via Rpc
 */
 namespace Ipop.RpcNode {
-
   /// <summary>
   /// This class is a subclass of IpopNode
   /// </summary>
@@ -44,23 +43,22 @@ namespace Ipop.RpcNode {
     /// </summary>
     /// <param name="NodeConfigPath">Path to the node config file</param>
     /// <param name="IpopConfigPath">Path to the ipop config file</param>
-    public RpcIpopNode(string NodeConfigPath, string IpopConfigPath):
-      base(NodeConfigPath, IpopConfigPath) {
+    public RpcIpopNode(NodeConfig node_config, IpopConfig ipop_config) :
+      base(node_config, ipop_config)
+    {
       _dhcp_server = RpcDHCPServer.GetRpcDHCPServer(_ipop_config.VirtualNetworkDevice);  
+      _dhcp_config = _dhcp_server.Config;
       _rarad = new RpcAddressResolverAndDNS(Brunet, _dhcp_server, ((RpcDHCPServer) _dhcp_server).LocalIP);
       _dns = _rarad;
       _address_resolver = _rarad;
       _translator = _rarad;
     }
 
-    /// <summary>
-    /// This method handles incoming DHCP packets
-    /// </summary>
-    /// <param name="ipp">A DHCP IPPacket to be processed</param>
-    /// <returns></returns>
-    protected override bool HandleDHCP(IPPacket ipp) {
-        ProcessDHCP(ipp, null);
-        return true;
+    protected override DHCPServer GetDHCPServer() {
+      return _dhcp_server;
+    }
+
+    protected override void GetDHCPConfig() {
     }
 
     /// <summary>
@@ -83,15 +81,6 @@ namespace Ipop.RpcNode {
         SendIP(addr, ipp.Packet);
       }
       return true;
-    }
-
-    /// <summary>
-    /// Main method
-    /// </summary>
-    /// <param name="args">Argument passed by the user</param>
-    public static new void Main(String[] args) {
-      RpcIpopNode node = new RpcIpopNode(args[0], args[1]);
-      node.Run();
     }
   }
 }

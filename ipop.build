@@ -16,7 +16,5 @@
 
     <nant buildfile="src/c-lib/default.build" />
     <nant buildfile="src/DhtNode/default.build" />
-    <nant buildfile="src/CondorNode/default.build" />
-    <nant buildfile="src/IpopRouter/default.build" />
   </target>
 </project>

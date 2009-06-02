@@ -57,8 +57,6 @@ namespace Ipop.RpcNode {
     protected MemBlock _local_ip;
     /// <summary>Helps assign remote end points</summary>
     protected DHCPServer _dhcp;
-    /// <summary>Object used for synchronization</summary>
-    protected Object _sync;
 
     /// <summary>Array list of multicast addresses</summary>
     public ArrayList mcast_addr;
@@ -68,7 +66,6 @@ namespace Ipop.RpcNode {
     /// </summary>
     /// <param name="node">Takes in a structured node</param>
     public RpcAddressResolverAndDNS(StructuredNode node, DHCPServer dhcp, MemBlock local_ip) {
-      _sync = new Object();
       _node = node;
       _rpc = RpcManager.GetInstance(node);
       _dns_a = new Hashtable();

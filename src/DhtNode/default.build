@@ -21,9 +21,10 @@
         <include name="Brunet.Security.dll"/>
         <include name="Brunet.Coordinate.dll"/>
         <include name="Mono.Security.dll"/>
+        <include name="NDesk.Options.dll"/>
       </fileset>
     </copy>
-    <csc target="exe" output="${build.dir}/DhtIpopNode.exe" main="Ipop.DhtNode.DhtIpopNode" optimize="true">
+    <csc target="exe" output="${build.dir}/DhtIpopNode.exe" main="Ipop.DhtNode.Runner" optimize="true">
       <sources failonempty="true">
         <include name="*.cs"/>
         <include name="../IpopNode/*.cs"/>
@@ -41,6 +42,7 @@
         <include name="Brunet.Security.dll"/>
         <include name="Mono.Security.dll"/>
         <include name="Brunet.Coordinate.dll"/>
+        <include name="NDesk.Options.dll"/>
       </references>
     </csc>
     <mkdir dir="${bin.dir}" failonerror="true"/>

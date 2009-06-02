@@ -23,6 +23,7 @@
         <include name="Brunet.DhtService.dll"/>
         <include name="Brunet.Security.dll"/>
         <include name="Mono.Security.dll"/>
+        <include name="NDesk.Options.dll"/>
       </fileset>
     </copy>
 

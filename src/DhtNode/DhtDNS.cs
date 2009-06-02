@@ -35,8 +35,6 @@ namespace Ipop.DhtNode {
   .ipop)</summary>
   */
   public class DhtDNS: DNS {
-    /// <summary>lock object to make this class thread safe</summary>
-    protected Object _sync;
     /// <summary>Maps names to IP Addresses</summary>
     protected Cache dns_a = new Cache(100);
     /// <summary>Maps IP Addresses to names</summary>
@@ -51,7 +49,6 @@ namespace Ipop.DhtNode {
     <param name="dht">A Dht object used to acquire name translations</param>
     */
     public DhtDNS(IDht dht, String ipop_namespace) {
-      _sync = new Object();
       _ipop_namespace = ipop_namespace;
       _dht = dht;
     }
@@ -66,7 +63,7 @@ namespace Ipop.DhtNode {
     is invalid, it will throw an exception.</returns>
      */
     public override String AddressLookUp(String name) {
-      if(!name.EndsWith(DNS.DomainName)) {
+      if(!name.EndsWith(DomainName)) {
         throw new Exception("Invalid DNS name: " + name);
       }
       String ip = (String) dns_a[name];
