@@ -45,6 +45,8 @@ namespace Ipop {
     /// <summary>DNS Type, default none</summary>
     public string DNSType;
 
+    public GroupVPNInfo GroupVPN;
+
     /**
     <summary>AddressInfo stores end point mappings depending on the system all
     or none of these need to be defined before run time, this is here to save
@@ -60,6 +62,14 @@ namespace Ipop {
       /**  <summary>Not implemented, but should contain last ethernet address
       for the node</summary>*/
       public string EthernetAddress;
+    }
+
+    public class GroupVPNInfo {
+      public bool Enabled;
+      public string ServerURI;
+      public string Group;
+      public string UserName;
+      public string Secret;
     }
 
     /// <summary>Path to the configs file system location.</summary>

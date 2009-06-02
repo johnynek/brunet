@@ -95,6 +95,63 @@ namespace Ipop.DhtNode {
         return -1;
       }
 
+      if(node_config.Security.Enabled && ipop_config.GroupVPN.Enabled && ipop_config.EndToEndSecurity) {
+        RSACryptoServiceProvider public_key = new RSACryptoServiceProvider();
+        bool create = false;
+        if(!File.Exists(node_config.Security.KeyPath)) {
+          using(FileStream fs = File.Open(node_config.Security.KeyPath, FileMode.Create)) {
+            RSACryptoServiceProvider private_key = new RSACryptoServiceProvider(2048);
+            byte[] blob = private_key.ExportCspBlob(true);
+            fs.Write(blob, 0, blob.Length);
+            public_key.ImportCspBlob(private_key.ExportCspBlob(false));
+          }
+          create = true;
+        }
+
+        string cacert_path = Path.Combine(node_config.Security.CertificatePath, "cacert");
+        if(!File.Exists(cacert_path)) {
+          Console.WriteLine("DhtIpop: ");
+          Console.WriteLine("\tMissing CACert: " + cacert_path);
+        }
+
+        string cert_path = Path.Combine(node_config.Security.CertificatePath,
+            "lc." + node_config.NodeAddress);
+        if(create || !File.Exists(cert_path)) {
+          if(!create) {
+            using(FileStream fs = File.Open(node_config.Security.KeyPath, FileMode.Open)) {
+              byte[] blob = new byte[fs.Length];
+              fs.Read(blob, 0, blob.Length);
+              public_key.ImportCspBlob(blob);
+              public_key.ImportCspBlob(public_key.ExportCspBlob(false));
+            }
+          }
+          string webcert_path = Path.Combine(node_config.Security.CertificatePath, "webcert");
+          if(!File.Exists(webcert_path)) {
+            Console.WriteLine("DhtIpop: ");
+            Console.WriteLine("\tMissing Servers signed cert: " + webcert_path);
+          }
+
+          X509Certificate webcert = X509Certificate.CreateFromCertFile(webcert_path);
+          CertificatePolicy.Register(webcert);
+
+          GroupVPNClient gvc = new GroupVPNClient(ipop_config.GroupVPN.UserName,
+              ipop_config.GroupVPN.Group, ipop_config.GroupVPN.Secret,
+              ipop_config.GroupVPN.ServerURI, node_config.NodeAddress,
+              public_key);
+          gvc.Start();
+          if(gvc.State != GroupVPNClient.States.Finished) {
+            Console.WriteLine("DhtIpop: ");
+            Console.WriteLine("\tFailure attempting to use GroupVPN");
+            return -1;
+          }
+
+          using(FileStream fs = File.Open(cert_path, FileMode.Create)) {
+            byte[] blob = gvc.Certificate.X509.RawData;
+            fs.Write(blob, 0, blob.Length);
+          }
+        }
+      }
+
       DhtIpopNode node = new DhtIpopNode(node_config, ipop_config);
       node.Run();
       return 0;
