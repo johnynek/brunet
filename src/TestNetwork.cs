@@ -146,8 +146,14 @@ namespace SocialVPN {
       Console.WriteLine(user);
       TestNetwork backend = new TestNetwork(user, cert_data);
       //backend.StoreFingerprint();
-      //backend.GetFriends();
-      backend.GetFingerprints(new string[] {"item1", "item2"});
+      string[] friends = backend.GetFriends().ToArray();
+      foreach(string friend in friends) {
+        Console.WriteLine(friend);
+      }
+      string[] fprs = backend.GetFingerprints(friends).ToArray();
+      foreach(string fpr in fprs) {
+        Console.WriteLine(fpr);
+      }
     }
   } 
 #endif
