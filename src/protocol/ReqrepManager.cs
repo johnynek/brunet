@@ -76,7 +76,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
     //Don't use negative numbers:
     _req_state_table = new Brunet.Util.UidGenerator<RequestState>(r, true);
     //Don't use negative numbers:
-    _reply_id_table = new Brunet.Util.UidGenerator<RequestKey>(r, true);
+    _reply_id_table = new Brunet.Util.UidGenerator<ReplyState>(r, true);
     _rep_handler_table = new Hashtable();
 
     /**
@@ -85,6 +85,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
      * remove it
      */
     _reply_cache = new Cache(1000);
+    _reply_cache.EvictionEvent += HandleReplyCacheEviction;
     /*
      * Here we set the timeout mechanisms.  There is a default
      * value, but this is now dynamic based on the observed
@@ -111,14 +112,14 @@ public class ReqrepManager : SimpleSource, IDataHandler {
     return node.Rrm;
   }
 
-  public static ISender LookupReplyStateByUri(Node n, string uri) {
+  public static ReplyState LookupReplyStateByUri(Node n, string uri) {
     ReqrepManager rrm = n.Rrm;
     string scheme;
     IDictionary<string, string> kvpairs = SenderFactory.DecodeUri(uri, out scheme);
     int id = Int32.Parse(kvpairs["id"]);
-    RequestKey rk;
-    if( rrm._reply_id_table.TryGet(id, out rk)) {
-      return rk.Sender;
+    ReplyState rs;
+    if( rrm._reply_id_table.TryGet(id, out rs)) {
+      return rs;
     }
     else {
       throw new Exception(String.Format("Invalid id: {0}", id));
@@ -219,6 +220,21 @@ public class ReqrepManager : SimpleSource, IDataHandler {
     * it, we will send the reply
     */
    public class ReplyState : ISender {
+     protected int _lid;
+     public int LocalID {
+       get {
+         int val = _lid;
+         if( val == 0 ) {
+           throw new Exception("LocalID has not yet been set");
+         }
+         return val;
+       }
+       set {
+         if( 0 != Interlocked.CompareExchange(ref _lid, value, 0) ) {
+           throw new Exception(String.Format("Already set local id: {0}", _lid));
+         }
+       }
+     }
      public int RequestID { get { return RequestKey.RequestID; } }
      protected ICopyable Reply;
      protected DateTime _rep_date;
@@ -241,6 +257,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
        RequestDate = DateTime.UtcNow;
        _reply_timeouts = 0;
        _uri = new WriteOnce<string>();
+       _lid = 0;
      }
 
      public int IncrementRepTimeouts() {
@@ -280,7 +297,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
        string uri = _uri.Value;
        if( uri == null ) {
          Dictionary<string, string> kvpairs = new Dictionary<string, string>();
-         kvpairs["id"] = RequestKey.LocalID.ToString();
+         kvpairs["id"] = LocalID.ToString();
          kvpairs["retpath"] = RequestKey.Sender.ToUri();
          uri = SenderFactory.EncodeUri("replystate", kvpairs);
          _uri.TrySet(uri);
@@ -312,17 +329,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
    public class RequestKey {
      public readonly int RequestID;
      public readonly ISender Sender;
-     protected int _lid;
-     public int LocalID {
-       get { return _lid; }
-       set {
-         if( 0 != Interlocked.CompareExchange(ref _lid, value, 0) ) {
-           throw new Exception(String.Format("Already set local id: {0}", _lid));
-         }
-       }
-     }
      public RequestKey(int id, ISender s) {
-       _lid = 0;
        RequestID = id;
        Sender = s;
      }
@@ -343,7 +350,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
    protected readonly string _info;
    public string Info { get { return _info; } }
    protected readonly Brunet.Util.UidGenerator<RequestState> _req_state_table;
-   protected readonly Brunet.Util.UidGenerator<RequestKey> _reply_id_table;
+   protected readonly Brunet.Util.UidGenerator<ReplyState> _reply_id_table;
    protected Cache _reply_cache;
    protected Hashtable _rep_handler_table;
    protected Hashtable _req_handler_table;
@@ -418,6 +425,26 @@ public class ReqrepManager : SimpleSource, IDataHandler {
    }
    // Methods /////
 
+   /** Create a ReplyState for a new Request
+    * Note, this is not synchronized, you must hold the lock when calling!
+    */
+   protected ReplyState GenerateReplyState(RequestKey rk) {
+     var rs = new ReplyState(rk);
+     _reply_cache[rk] = rs;
+     rs.LocalID = _reply_id_table.GenerateID(rs);
+     return rs;
+   }
+
+   /** If our cache evicts items, make sure to pull them out of the Uid table
+    */
+   protected void HandleReplyCacheEviction(object cache, EventArgs ev_args) {
+     var cea = (Cache.EvictionArgs)ev_args;
+     var rs = (ReplyState)cea.Value;
+     lock( _sync ) {
+       ReleaseReplyState(rs);
+     }
+   }
+
    /**
     * This is either a request or response.  Look up the handler
     * for it, and pass the packet to the handler
@@ -460,10 +487,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
      lock( _sync ) {
        rs = (ReplyState)_reply_cache[rk];
        if( rs == null ) {
-         rs = new ReplyState(rk);
-	 //Add the new reply state before we drop the lock
-         _reply_cache[rk] = rs;
-         rk.LocalID = _reply_id_table.GenerateID(rk);
+         rs = GenerateReplyState(rk);
        }
        else {
          resend = true;
@@ -480,9 +504,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
        }
        catch {
          lock( _sync ) {
-           _reply_cache.Remove( rs.RequestKey );
-           RequestKey tmp_rk;
-           _reply_id_table.TryTake(rs.RequestKey.LocalID, out tmp_rk);
+           ReleaseReplyState(rs);
          }
          //This didn't work out:
          try {
@@ -605,9 +627,10 @@ public class ReqrepManager : SimpleSource, IDataHandler {
         * This is unlikely, but we could improve it.
         * @todo improve the reply caching algorithm
         */
-       _reply_cache.Remove(rk);
-       RequestKey tmp_rk;
-       _reply_id_table.TryTake(rk.LocalID, out tmp_rk);
+       ReplyState rs = (ReplyState)_reply_cache[rk]; 
+       if( rs != null ) {
+         ReleaseReplyState(rs);
+       }
      }
    }
 
@@ -725,6 +748,15 @@ public class ReqrepManager : SimpleSource, IDataHandler {
     return _req_state_table.TryGet(request_id, out rs);
   }
 
+  /** Forget all state associated with this ReplyState
+   * Not synchronized!  You have to hold the lock!
+   */
+  protected void ReleaseReplyState(ReplyState rs) {
+    _reply_cache.Remove(rs.RequestKey);
+    ReplyState tmp_rs;
+    _reply_id_table.TryTake(rs.LocalID, out tmp_rs);
+  }
+
   /**
    * This method listens for the HeartBeatEvent from the
    * node and checks for timeouts.
@@ -806,10 +838,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
                 /*
                  * This reply has timed out:
                  */
-                RequestKey rk = (RequestKey)de.Key;
-                _reply_cache.Remove( rk );
-                RequestKey tmp_rk;
-                _reply_id_table.TryTake(rk.LocalID, out tmp_rk);
+                ReleaseReplyState(reps);
               }
             }
           }
