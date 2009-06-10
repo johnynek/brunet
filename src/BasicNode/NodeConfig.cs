@@ -51,6 +51,14 @@ namespace Brunet.Applications {
   /// </code>
   /// </remarks>
   public class NodeConfig {
+    public NodeConfig() {
+      EdgeListeners = new EdgeListener[0];
+      RemoteTAs = new String[0];
+      DevicesToBind = new String[0];
+      XmlRpcManager = new Service();
+      NCService = new NCServiceConfig();
+    }
+
     /**  <summary>This is equivalent to Node.Realm, only Nodes in the same
     realm can communicate with each other.  Required.</summary>*/
     public String BrunetNamespace;
@@ -73,9 +81,6 @@ namespace Brunet.Applications {
     </summary>*/
     [XmlArrayItem (typeof(String), ElementName = "Device")]
     public String[] DevicesToBind;
-    /**  <summary>Specifies RpcDht configuration.  This is optional and only
-    required if RpcDht is desired.</summary>*/
-    public Service RpcDht;
     /**  <summary>Specifies XmlRpc configuration.  This is optional and only
     required if XmlRpc is desired.</summary>*/
     public Service XmlRpcManager;
@@ -117,7 +122,7 @@ namespace Brunet.Applications {
     }
 
     /// <summary>Path to the configs file system location.</summary>
-    [NonSerialized]
+    [XmlIgnoreAttribute]
     public string Path;
 
     /// <summary>Writres the config to the file system.</summary>
