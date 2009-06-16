@@ -6,15 +6,8 @@
   <property name="lib.dir" value="../../lib"/>
   <property name="build.define" value="TRACE"/>
   <property name="build.debug" value="false"/>
-  <property name="last.nunit" value=""/>
-  <property name="last.build" value=""/>
 
   <target name="test" description="Makes a NUnit2 testable build">
-    <if test="${last.nunit != 'test'}">
-      <delete file="${build.dir}/${assembly}.Test.dll" failonerror="false" />
-      <property name="last.nunit" value="test"/>
-    </if>
-
     <mkdir dir="${build.dir}" failonerror="true"/>
 
     <csc target="library" define="BRUNET_NUNIT" output="${build.dir}/${assembly}.Test.dll">
@@ -36,14 +29,9 @@
   </target>
 
   <target name="nunit_test" description="Builds nunit testable Brunet.dll">
-    <if test="${last.nunit != 'nunit_test'}">
-      <delete file="${build.dir}/${assembly}.Test.dll" failonerror="false" />
-      <property name="last.nunit" value="nunit_test"/>
-    </if>
-
     <mkdir dir="${build.dir}" failonerror="true"/>
 
-    <csc target="library" define="BRUNET_NUNIT" optimize="true" output="${build.dir}/${assembly}.Test.dll">
+    <csc target="library" define="BRUNET_NUNIT" optimize="true" output="${build.dir}/${assembly}.NUnit.Test.dll">
       <sources>
         <include name="*.cs"/>
         <include name="Util/*.cs"/>
@@ -55,7 +43,7 @@
     </csc>
     <nunit2>
       <formatter type="Plain" />
-      <test assemblyname="${build.dir}/${assembly}.Test.dll"/>
+      <test assemblyname="${build.dir}/${assembly}.NUnit.Test.dll"/>
     </nunit2>
   </target>
 
@@ -70,7 +58,8 @@
       </sources>
     </csc>
 
-    <copy todir="${lib.dir}">
+
+    <copy todir="${lib.dir}" overwrite="true">
        <fileset basedir="${build.dir}">
           <include name="${assembly}.dll" />
        </fileset>
@@ -78,21 +67,12 @@
   </target>
 
   <target name="build" description="Builds the current configuration">
-    <if test="${last.build != 'build_brunet'}">
-      <delete file="${build.dir}/${assembly}.dll" failonerror="false" />
-      <property name="last.build" value="build_brunet"/>
-    </if>
-
     <call target="build_brunet"/>
   </target>
 
   <target name="simulator" description="Builds a Brunet Simulator!">
-    <if test="${last.build != 'simulator'}">
-      <delete file="${build.dir}/${assembly}.dll" failonerror="false" />
-      <property name="last.build" value="simulator"/>
-    </if>
-
     <property name="build.define" value="${build.define},BRUNET_SIMULATOR"/>
+    <property name="build.dir" value="${build.dir}/simulator" />
     <call target="build_brunet"/>
   </target>
 
