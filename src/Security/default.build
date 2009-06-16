@@ -16,7 +16,7 @@
     <csc target="library" define="BRUNET_NUNIT" output="${build.dir}/Brunet.Security.Test.dll">
       <sources failonempty="true">
         <include name="Transport/*.cs"/>
-        <include name="Security/*.cs"/>
+        <include name="*.cs"/>
         <include name="Protocol/*.cs"/>
       </sources>
       <references basedir="${build.dir}">
@@ -42,7 +42,7 @@
     <csc target="library" define="" output="${build.dir}/Brunet.Security.dll">
       <sources failonempty="true">
         <include name="Transport/*.cs"/>
-        <include name="Security/*.cs"/>
+        <include name="*.cs"/>
         <include name="Protocol/*.cs"/>
       </sources>
       <references basedir="${build.dir}">
