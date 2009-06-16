@@ -44,7 +44,7 @@ namespace Ipop.RpcNode {
     /// <param name="NodeConfigPath">Path to the node config file</param>
     /// <param name="IpopConfigPath">Path to the ipop config file</param>
     public RpcIpopNode(NodeConfig node_config, IpopConfig ipop_config) :
-      base(node_config, ipop_config)
+      base(node_config, ipop_config, null)
     {
       _dhcp_server = RpcDHCPServer.GetRpcDHCPServer(_ipop_config.VirtualNetworkDevice);  
       _dhcp_config = _dhcp_server.Config;

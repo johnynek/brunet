@@ -17,6 +17,11 @@ namespace Ipop {
   /// the extra "0"s are necessary and keep all names at a constant length of 15
   /// (including the domain name .ipop).</remarks>
   public class StaticDNS : DNS {
+    public StaticDNS(MemBlock ip_address, MemBlock netmask) :
+      base(ip_address, netmask)
+    {
+    }
+
     /// <summary>Called during LookUp to perform translation from hostname to IP.
     /// If an entry isn't in cache, we can try to get it from the Dht.  Throws
     /// an exception if the name is invalid and returns null if no name is found.

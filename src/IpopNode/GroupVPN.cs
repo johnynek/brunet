@@ -154,7 +154,8 @@ namespace Ipop {
 
       try {
         request_id = _group_vpn.SubmitRequest(_username, _group, _secret, _unsigned_cert);
-      } catch {
+      } catch(Exception e) {
+        Console.WriteLine(e);
       }
 
       if(request_id == null || request_id == string.Empty) {
@@ -171,7 +172,8 @@ namespace Ipop {
       byte[] cert = new byte[0];
       try {
         cert = _group_vpn.CheckRequest(_group, _request_id);
-      } catch {
+      } catch(Exception e) {
+        Console.WriteLine(e);
       }
 
       if(cert == null || cert.Length == 0) {
@@ -185,9 +187,19 @@ namespace Ipop {
 
   /// <summary>Provides an XmlRpcClient interface to the GroupVPNServer.</summary>
   public interface IGroupVPNServer : IXmlRpcProxy {
+    /// <summary>Submit a request for a certificate.</summary>
+    /// <param name="username">Username to assign to the certificate.</param>
+    /// <param name="group">Group for certificate.</param>
+    /// <param name="secret">A secret used to securely communicate with the proxy.</summary>
+    /// <param name="certificate">Base64 encoded certificate.</summary>
+    /// <returns>A request id that can be used the check the request.</returns>
     [XmlRpcMethod]
-    string SubmitRequest(string username, string group, string secret, byte[] cert);
+    string SubmitRequest(string username, string group, string secret, byte[] certificate);
 
+    /// <summary>Check and potentially retrieve a certificate.</summary>
+    /// <param name="group">Group for certificate.</param>
+    /// <param name="request_id">A request id to retrieve a signed certificate.</param>
+    /// <returns>NULL if not ready or a Base64 encoded certificate.<returns>
     [XmlRpcMethod]
     byte[] CheckRequest(string group, string request_id);
   }

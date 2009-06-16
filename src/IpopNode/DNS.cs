@@ -23,9 +23,20 @@ namespace Ipop {
     protected object _sync;
 
     /// <summary>Default constructor</summary>
-    public DNS()
+    /// <param name="ip_address">An IP Address in the range.</param>
+    /// <param name="netmask">The netmask for the range.</param>
+    public DNS(MemBlock ip_address, MemBlock netmask)
     {
       _sync = new object();
+      byte[] ba = new byte[ip_address.Length];
+      for(int i = 0; i < ip_address.Length; i++) {
+        ba[i] = (byte) (ip_address[i] & netmask[i]);
+      }
+      lock(_sync) {
+        _base_address = MemBlock.Reference(ba);
+        _netmask = netmask;
+      }
+      _active = true;
     }
 
     /// <summary>Look up a hostname given a DNS request in the form of IPPacket
@@ -37,32 +48,26 @@ namespace Ipop {
       UDPPacket req_udpp = new UDPPacket(req_ipp.Payload);
       DNSPacket dnspacket = new DNSPacket(req_udpp.Payload);
       ICopyable rdnspacket = null;
-      Console.WriteLine("0");
       try {
         string qname_response = String.Empty;
         string qname = dnspacket.Questions[0].QNAME;
-      Console.WriteLine("1");
         if(dnspacket.Questions[0].QTYPE == DNSPacket.TYPES.A) {
           qname_response = AddressLookUp(qname);
         }
         else if(dnspacket.Questions[0].QTYPE == DNSPacket.TYPES.PTR) {
-      Console.WriteLine("2");
           if(!InRange(qname)) {
             throw new Exception("Address out of range.");
           }
           qname_response = NameLookUp(qname);
         }
-      Console.WriteLine("3");
         if(qname_response == null) {
           throw new Exception("Unable to resolve name: " + qname);
         }
-      Console.WriteLine("4");
         Response response = new Response(qname, dnspacket.Questions[0].QTYPE,
           dnspacket.Questions[0].QCLASS, 1800, qname_response);
 
         // For some reason, if RD is set and we don't have RA it Linux `host`
         // doesn't work!
-      Console.WriteLine("5");
         DNSPacket res_packet = new DNSPacket(dnspacket.ID, false,
           dnspacket.OPCODE, true, dnspacket.RD, dnspacket.RD,
           dnspacket.Questions, new Response[] {response}, null, null);
@@ -70,10 +75,7 @@ namespace Ipop {
         rdnspacket = res_packet.ICPacket;
       }
       catch(Exception e) {
-      Console.WriteLine("6");
-        Console.WriteLine(e);
         ProtocolLog.WriteIf(IpopLog.DNS, e.Message);
-        //Console.WriteLine(e);
         rdnspacket = DNSPacket.BuildFailedReplyPacket(dnspacket);
       }
       UDPPacket res_udpp = new UDPPacket(req_udpp.DestinationPort,
@@ -102,23 +104,6 @@ namespace Ipop {
         }
       }
       return true;
-    }
-
-    /// <summary>This is called by the outside to let the DNS know what is the
-    /// applicable ranges of IP Addresses to resolve.</summary>
-    /// <param name="ip_address">An IP Address in the range.</param>
-    /// <param name="netmask">The netmask for the range.</param>
-    public void SetAddressInfo(MemBlock ip_address, MemBlock netmask)
-    {
-      byte[] ba = new byte[ip_address.Length];
-      for(int i = 0; i < ip_address.Length; i++) {
-        ba[i] = (byte) (ip_address[i] & netmask[i]);
-      }
-      lock(_sync) {
-        _base_address = MemBlock.Reference(ba);
-        _netmask = netmask;
-      }
-      _active = true;
     }
 
     /// <summary>Called during LookUp to perform translation from hostname to IP</summary>

@@ -38,13 +38,37 @@ namespace Ipop.DhtNode {
     ///<summary>Creates a DhtIpopNode.</summary>
     /// <param name="NodeConfig">NodeConfig object</param>
     /// <param name="IpopConfig">IpopConfig object</param>
-    public DhtIpopNode(NodeConfig node_config, IpopConfig ipop_config) :
-      base(node_config, ipop_config)
+    public DhtIpopNode(NodeConfig node_config, IpopConfig ipop_config,
+        DHCPConfig dhcp_config) : base(node_config, ipop_config, dhcp_config)
     {
       _address_resolver = new DhtAddressResolver(Dht, _ipop_config.IpopNamespace);
+    }
 
-      if("Dht".Equals(ipop_config.DNSType)) {
-        _dns = new DhtDNS(Dht, _ipop_config.IpopNamespace);
+    public DhtIpopNode(NodeConfig node_config, IpopConfig ipop_config) :
+        this(node_config, ipop_config, null)
+    {
+    }
+
+    protected override bool SupportedDNS(string dns) {
+      if("DhtDNS".Equals(dns)) {
+        return true;
+      }
+
+      return base.SupportedDNS(dns);
+    }
+
+    protected override void SetDNS() {
+      if(_dns != null) {
+        return;
+      }
+
+      if("DhtDNS".Equals(_ipop_config.DNSType)) {
+        _dns = new DhtDNS(
+            MemBlock.Reference(Utils.StringToBytes(_dhcp_config.IPBase, '.')),
+            MemBlock.Reference(Utils.StringToBytes(_dhcp_config.Netmask, '.')),
+            Dht, _ipop_config.IpopNamespace);
+      } else {
+        base.SetDNS();
       }
     }
 

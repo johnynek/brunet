@@ -65,9 +65,11 @@ namespace Ipop.RpcNode {
     /// Constructor for the class, it initializes various objects
     /// </summary>
     /// <param name="node">Takes in a structured node</param>
-    public RpcAddressResolverAndDNS(StructuredNode node, DHCPServer dhcp, MemBlock local_ip) {
+    public RpcAddressResolverAndDNS(StructuredNode node, DHCPServer dhcp, MemBlock local_ip) :
+      base(MemBlock.Reference(dhcp.BaseIP), MemBlock.Reference(dhcp.Netmask))
+    {
       _node = node;
-      _rpc = RpcManager.GetInstance(node);
+      _rpc = _node.Rpc;
       _dns_a = new Hashtable();
       _dns_ptr = new Hashtable();
       _ip_addr = new Hashtable();

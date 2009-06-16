@@ -17,6 +17,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using Brunet;
+using Brunet.Security;
 using Brunet.Applications;
 using NetworkPackets;
 using NetworkPackets.DHCP;
@@ -106,8 +107,8 @@ namespace Ipop {
     /// to Brunet for IP Packets</summary>
     /// <param name="node_config">The path to a NodeConfig xml file</param>
     /// <param name="ipop_config">The path to a IpopConfig xml file</param>
-    public IpopNode(NodeConfig node_config, IpopConfig ipop_config) :
-      base(node_config)
+    public IpopNode(NodeConfig node_config, IpopConfig ipop_config,
+        DHCPConfig dhcp_config) : base(node_config)
     {
       CreateNode();
       this.Brunet = _node;
@@ -137,24 +138,21 @@ namespace Ipop {
       ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
           "Setting DHCP Ports to: {0},{1}", _dhcp_server_port, _dhcp_client_port));
       _ether_to_dhcp_server = new Dictionary<MemBlock, DHCPServer>();
-      _dhcp_server = null;
+      _dhcp_config = dhcp_config;
+      if(_dhcp_config != null) {
+        SetDNS();
+        _dhcp_server = GetDHCPServer();
+      }
       _checked_out = new Hashtable();
 
       Brunet.HeartBeatEvent += CheckNode;
       _last_check_node = DateTime.UtcNow;
-
-      if("Static".Equals(_ipop_config.DNSType)) {
-        _dns = new StaticDNS();
-      }
     }
 
     /// <summary>Starts the execution of the IpopNode, this passes the caller 
     /// to execute the Brunet.Connect to eventually become Brunet.AnnounceThread.
     /// </summary>
     public override void Run() {
-      if(_dns == null) {
-        _dns = new StaticDNS();
-      }
       StartServices();
       if(_shutdown != null) {
         _shutdown.OnExit += Ethernet.Stop;
@@ -496,7 +494,7 @@ namespace Ipop {
           rpacket = dhcp_server.ProcessPacket(dhcp_packet,
               Brunet.Address.ToString(), last_ipb);
         } catch(Exception e) {
-          ProtocolLog.WriteIf(IpopLog.DHCPLog, e.ToString());
+          ProtocolLog.WriteIf(IpopLog.DHCPLog, e.Message);
           CheckInDHCPServer(dhcp_server);
           return;
         }
@@ -557,7 +555,9 @@ namespace Ipop {
           res_ip = dhcp_server.RequestLease(ip, true,
               Brunet.Address.ToString(),
               _ipop_config.AddressData.Hostname);
-        } catch { }
+        } catch(Exception e) {
+          ProtocolLog.WriteIf(IpopLog.DHCPLog, e.Message);
+        }
 
         if(res_ip == null) {
           ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
@@ -577,11 +577,26 @@ namespace Ipop {
     /// can allocate static addresses, this method helps us do that.</summary>
     protected virtual void GetDHCPConfig() {
       if(_dhcp_config != null) {
-        if(_dns != null) {
-          _dns.SetAddressInfo(
-              MemBlock.Reference(Utils.StringToBytes(_dhcp_config.IPBase, '.')),
-              MemBlock.Reference(Utils.StringToBytes(_dhcp_config.Netmask, '.')));
-        }
+        SetDNS();
+      }
+    }
+
+    protected virtual bool SupportedDNS(string dns) {
+      if("StaticDNS".Equals(dns)) {
+        return true;
+      }
+      return false;
+    }
+
+    protected virtual void SetDNS() {
+      if(_dns != null) {
+        return;
+      }
+
+      if(!SupportedDNS(_ipop_config.DNSType) || _ipop_config.DNSType == "StaticDNS") {
+        _dns = new StaticDNS(
+            MemBlock.Reference(Utils.StringToBytes(_dhcp_config.IPBase, '.')),
+            MemBlock.Reference(Utils.StringToBytes(_dhcp_config.Netmask, '.')));
       }
     }
 

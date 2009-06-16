@@ -31,6 +31,7 @@ namespace Ipop.DhtNode {
     public static int Main(String[] args) {
       string node_config_path = string.Empty;
       string ipop_config_path = string.Empty;
+      string dhcp_config_path = string.Empty;
       bool show_help = false;
 
       OptionSet opts = new OptionSet() {
@@ -38,6 +39,8 @@ namespace Ipop.DhtNode {
           v => node_config_path = v },
         { "i|IpopConfig=", "Path to an IpopConfig file.",
           v => ipop_config_path = v },
+        { "d|DhcpConfig=", "Path to a DHCPConfig file.",
+          v => dhcp_config_path = v },
         { "h|help", "Display this help and exit.",
           v => show_help = v != null },
       };
@@ -45,9 +48,7 @@ namespace Ipop.DhtNode {
       try {
         opts.Parse(args);
       } catch (OptionException e) {
-        Console.WriteLine("DhtIpop: ");
-        Console.WriteLine(e.Message);
-        Console.WriteLine("Try `DhtIpop.exe --help' for more information.");
+        PrintError(e.Message);
         return -1;
       }
 
@@ -57,16 +58,12 @@ namespace Ipop.DhtNode {
       }
 
       if(node_config_path == string.Empty || !File.Exists(node_config_path)) {
-        Console.WriteLine("DhtIpop: ");
-        Console.WriteLine("\tMissing NodeConfig.");
-        Console.WriteLine("Try `DhtIpop --help' for more information.");
+        PrintError("Missing NodeConfig");
         return -1;
       }
 
       if(ipop_config_path == string.Empty || !File.Exists(ipop_config_path)) {
-        Console.WriteLine("DhtIpop: ");
-        Console.WriteLine("\tMissing IpopConfig.");
-        Console.WriteLine("Try `DhtIpop --help' for more information.");
+        PrintError("Missing IpopConfig");
         return -1;
       }
 
@@ -93,6 +90,25 @@ namespace Ipop.DhtNode {
         Console.WriteLine("Invalid IpopConfig file:");
         Console.WriteLine("\t" + e.Message);
         return -1;
+      }
+
+      DHCPConfig dhcp_config = null;
+      if(dhcp_config_path != string.Empty) {
+        if(!File.Exists(dhcp_config_path)) {
+          PrintError("No such DhtIpop file");
+          return -1;
+        }
+        try {
+          dhcp_config = Utils.ReadConfig<DHCPConfig>(dhcp_config_path);
+        } catch(Exception e) {
+          Console.WriteLine("Invalid DhcpConfig file:");
+          Console.WriteLine("\t" + e.Message);
+        }
+
+        if(!dhcp_config.Namespace.Equals(ipop_config.IpopNamespace)) {
+          PrintError("IpopConfig.Namespace isn't the same as DHCPConfig.Namespace");
+          return -1;
+        }
       }
 
       if(node_config.Security.Enabled && ipop_config.GroupVPN.Enabled && ipop_config.EndToEndSecurity) {
@@ -152,7 +168,13 @@ namespace Ipop.DhtNode {
         }
       }
 
-      DhtIpopNode node = new DhtIpopNode(node_config, ipop_config);
+      DhtIpopNode node = null;
+      if(dhcp_config != null) {
+        node = new DhtIpopNode(node_config, ipop_config, dhcp_config);
+      } else {
+        node = new DhtIpopNode(node_config, ipop_config);
+      }
+
       node.Run();
       return 0;
     }
@@ -163,6 +185,12 @@ namespace Ipop.DhtNode {
       Console.WriteLine();
       Console.WriteLine("Options:");
       p.WriteOptionDescriptions(Console.Out);
+    }
+
+    public static void PrintError(string error) {
+      Console.WriteLine("DhtIpop: ");
+      Console.WriteLine("\t" + error);
+      Console.WriteLine("Try `DhtIpop.exe --help' for more information.");
     }
   }
 }

@@ -10,7 +10,7 @@
     <delete dir="${build.dir}" failonerror="true"/>
   </target>
 
-  <target name="build" description="Build RpcIpopNode.exe">
+  <target name="build" description="Build RpcIpopNode.dll">
     <mkdir dir="${build.dir}" failonerror="true"/>
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${lib.dir}">
@@ -27,7 +27,7 @@
       </fileset>
     </copy>
 
-    <csc target="exe" output="${build.dir}/RpcIpopNode.exe" main="Ipop.RpcNode.RpcIpopNode">
+    <csc target="library" output="${build.dir}/RpcIpopNode.dll">
       <sources failonempty="true">
         <include name="*.cs"/>
         <include name="../NetworkPackets/*.cs"/>
@@ -42,10 +42,10 @@
       </references>
     </csc>
 
-    <mkdir dir="${bin.dir}" failonerror="true"/>
-    <copy todir="${bin.dir}" failonerror="true">
+    <mkdir dir="${lib.dir}" failonerror="true"/>
+    <copy todir="${lib.dir}" failonerror="true">
       <fileset basedir="${build.dir}">
-        <include name="RpcIpopNode.exe" />
+        <include name="RpcIpopNode.dll" />
       </fileset>
     </copy>
   </target>
