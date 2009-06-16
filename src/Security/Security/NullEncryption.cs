@@ -23,8 +23,10 @@ using System.Security.Cryptography;
 using NUnit.Framework;
 #endif
 
-namespace Brunet {
-  /// <summary>Provides a Null SymmetricAlgorithm, its blazing fast!</summary>
+namespace Brunet.Security {
+  /// <summary>Provides a Null SymmetricAlgorithm, its blazing fast!  Typically,
+  /// these classes are not thread-safe, but since the block size is 1 and there
+  /// is no history, it is thread-safe.</summary>
   public class NullEncryption : SymmetricAlgorithm {
     public NullEncryption()
     {

@@ -16,6 +16,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+using Brunet;
 using System;
 using System.Security.Cryptography;
 
@@ -23,8 +24,9 @@ using System.Security.Cryptography;
 using NUnit.Framework;
 #endif
 
-namespace Brunet {
-  /// <summary>Parses and creates SecurityDataMessages</summary>
+namespace Brunet.Security {
+  /// <summary>Parses and creates SecurityDataMessages.  In general this class
+  /// is not thread-safe.</summary>
   /// <remarks>The format for said packets is:
   /// [security params][epoch][seqid][encrypted [data length][data][signature]]
   /// </remarks>

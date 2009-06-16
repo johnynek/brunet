@@ -21,7 +21,7 @@ using System;
 using System.Threading;
 using System.Collections;
 
-namespace Brunet {
+namespace Brunet.Security.Transport {
   ///<summary>Provides a Wrapper for edges, this allows us to control input,
   ///output, and state of the edge.  This class is thread-safe.</summary>
   ///<remarks>This could be an abstract class, but it was fully implemented for

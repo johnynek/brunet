@@ -20,8 +20,9 @@ using System;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 
-namespace Brunet {
-  /// <summary>Each SP supports a specific SymmetricAlgorithm and HashAlgorithm.</summary>
+namespace Brunet.Security {
+  /// <summary>Each SP supports a specific SymmetricAlgorithm and HashAlgorithm.  This class
+  /// is thread-safe.</summary>
   public class SecurityPolicy {
     public static readonly Dictionary<int, SecurityPolicy> _splist;
     public static object _ssync;

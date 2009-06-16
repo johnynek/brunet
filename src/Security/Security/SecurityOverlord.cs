@@ -16,6 +16,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+using Brunet;
 using Mono.Security.X509;
 using System;
 using System.Collections.Generic;
@@ -28,7 +29,7 @@ using NUnit.Framework;
 using System.Threading;
 #endif
 
-namespace Brunet {
+namespace Brunet.Security {
   /// <summary>This is the brains of the operatin.  User code can ask for a Secure
   /// Sender for a given sender, this will return one and begin the process of
   /// securing the sender.  Sending over a sender is only secure if it is done
@@ -301,7 +302,7 @@ namespace Brunet {
           _rrman.HandleData(payload, return_path, null);
         } else {
           Edge edge = return_path as Edge;
-          if(edge != null && !(edge is SecureEdge)) {
+          if(edge != null && !(edge is Brunet.Security.Transport.SecureEdge)) {
             throw new Exception("Insecure edge attempting to communicate with the node!");
           }
           Subscriber sub = _sub;

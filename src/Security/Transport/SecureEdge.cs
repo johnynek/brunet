@@ -16,13 +16,15 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+using Brunet;
+using Brunet.Security;
 using System;
 using System.Threading;
 
-namespace Brunet {
+namespace Brunet.Security.Transport {
   ///<summary>Provides a Security Wrapper for generic Edges.  Basically binds a
   ///SecurityAssociation to an Edge, so that all traffic must traverse the
-  ///SecurityAssociation.</summary>
+  ///SecurityAssociation.  This clsas is thread-safe.</summary>
   public class SecureEdge: WrapperEdge, IDataHandler {
     ///<summary>The Security provider.</summary>
     public readonly SecurityAssociation SA;

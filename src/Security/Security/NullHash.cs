@@ -23,8 +23,10 @@ using System.Security.Cryptography;
 using NUnit.Framework;
 #endif
 
-namespace Brunet {
-  /// <summary>Provides a Null HashAlgorithm, its blazing fast!</summary>
+namespace Brunet.Security {
+  /// <summary>Provides a Null HashAlgorithm, its blazing fast!  Typically,
+  /// these classes  are not thread-safe, but the block-size is 1, there
+  /// is no history, and the result is always an empty byte array.</summary>
   public class NullHash : HashAlgorithm {
     public NullHash()
     {

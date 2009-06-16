@@ -16,13 +16,14 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+using Brunet;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 
-namespace Brunet {
+namespace Brunet.Security.Transport {
   ///<summary>Wraps the underlying EdgeListener by listening for new edges and
-  ///wrapping those edges.</summary>
+  ///wrapping those edges.  This class is thread-safe.</summary>
   ///<remarks>This could be an abstract class, but it was fully implemented for
   ///testing purposes</summary>
   public class WrapperEdgeListener: EdgeListener {

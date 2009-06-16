@@ -30,6 +30,8 @@ using Brunet.Coordinate;
 using Brunet.DistributedServices;
 using Brunet.Rpc;
 using Brunet.Security;
+using Brunet.Security.Protocol;
+using Brunet.Security.Transport;
 
 /**
 \namespace Brunet::Applications Provides BasicNode and core features
@@ -72,9 +74,9 @@ namespace Brunet.Applications {
     /// <summary>True if the node should reincarnate itself if Node.Connect
     /// exits or throws an exception</summary>
     protected bool _running;
-    /// <summary>Provides access to the BrunetSecurityOverlord</summary>
-    public BrunetSecurityOverlord Bso { get { return _bso; } }
-    protected BrunetSecurityOverlord _bso;
+    /// <summary>Provides access to the ProtocolSecurityOverlord</summary>
+    public ProtocolSecurityOverlord Bso { get { return _bso; } }
+    protected ProtocolSecurityOverlord _bso;
 
     /// <summary>Prepares a BasicNode.</summary>
     /// <param name="node_config">A node config object.</param>
@@ -146,7 +148,7 @@ namespace Brunet.Applications {
         rsa_private.ImportCspBlob(blob);
 
         CertificateHandler ch = new CertificateHandler(_node_config.Security.CertificatePath);
-        _bso = new BrunetSecurityOverlord(_node, rsa_private, _node.Rrm, ch);
+        _bso = new ProtocolSecurityOverlord(_node, rsa_private, _node.Rrm, ch);
         _bso.Subscribe(_node, null);
 
         _node.GetTypeSource(SecurityOverlord.Security).Subscribe(_bso, null);

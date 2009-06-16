@@ -16,11 +16,13 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+using Brunet;
+using Brunet.Security;
 using System;
 
-namespace Brunet {
+namespace Brunet.Security.Transport {
   ///<summary>Binds an EdgeListener to the SecurityOverlord and handles the
-  ///securing of insecure edges.</summary>
+  ///securing of insecure edges.  This class is thread-safe.</summary>
   public class SecureEdgeListener: WrapperEdgeListener {
     protected SecurityOverlord _so;
 

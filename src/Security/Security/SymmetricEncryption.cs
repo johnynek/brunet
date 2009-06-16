@@ -47,6 +47,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 
+using Brunet;
 using System;
 using System.Security.Cryptography;
 
@@ -54,9 +55,9 @@ using System.Security.Cryptography;
 using NUnit.Framework;
 #endif
 
-namespace Brunet {
+namespace Brunet.Security {
   /// <summary>This wraps SymmetricAlgorithm to be better supported for lossy
-  /// communication.</summary>
+  /// communication.  This class is not thread-safe.</summary>
   public class SymmetricEncryption {
     SymmetricAlgorithm _sa;
     RandomNumberGenerator rng;

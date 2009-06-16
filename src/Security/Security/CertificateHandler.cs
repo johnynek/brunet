@@ -16,6 +16,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+using Brunet;
 using Mono.Security.X509;
 using Mono.Security.X509.Extensions;
 using System;
@@ -29,7 +30,7 @@ using NUnit.Framework;
 using Mono.Math;
 #endif
 
-namespace Brunet {
+namespace Brunet.Security {
   /// <summary>.NET provides a very complicated (and complete) x509 Certificate
   /// handler.  We do not require all those features and we also embed data that
   /// we use for quick retrieval that wouldn't be easy to reproduce using that
@@ -38,7 +39,7 @@ namespace Brunet {
   /// In our system, certificate's serial numbers are equivalent to the
   /// data common to a certificate request and signed certificate, so that the
   /// model can support self-signed CAs.  Thus a cert.SerialNumber == 
-  /// hash(cert.ca.unsigned data)</summary>
+  /// hash(cert.ca.unsigned data).  This class is thread-safe.</summary>
   public class CertificateHandler {
     /// <summary>Dictionary for authorities local certificates by SerialNumber.</summary>
     protected Dictionary<MemBlock, X509Certificate> _cas;
@@ -130,11 +131,13 @@ namespace Brunet {
     /// we have, false otherwise.</summary>
     public bool Verify(X509Certificate x509) {
       MemBlock sn = MemBlock.Reference(x509.SerialNumber);
-      if(!_cas.ContainsKey(sn)) {
-        throw new Exception("Unsupported CA!");
-      }
-      if(!x509.VerifySignature(_cas[sn].RSA)) {
-        throw new Exception("Unable to verify certificate, bad signature!");
+      lock(_sync) {
+        if(!_cas.ContainsKey(sn)) {
+          throw new Exception("Unsupported CA!");
+        }
+        if(!x509.VerifySignature(_cas[sn].RSA)) {
+          throw new Exception("Unable to verify certificate, bad signature!");
+        }
       }
       return true;
     }
@@ -209,9 +212,11 @@ namespace Brunet {
     /// <returns>A certificate that is supported by one of the CAs in the list
     /// </returns>
     public X509Certificate FindCertificate(List<MemBlock> supported_cas) {
-      foreach(MemBlock mem in supported_cas) {
-        if(_lc_issuers.Contains(mem)) {
-          return _lc[mem];
+      lock(_sync) {
+        foreach(MemBlock mem in supported_cas) {
+          if(_lc_issuers.Contains(mem)) {
+            return _lc[mem];
+          }
         }
       }
       throw new Exception("No supported certificate found!");

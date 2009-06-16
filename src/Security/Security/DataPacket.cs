@@ -16,8 +16,9 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-namespace Brunet {
-  /// <summary>Just an abstract packet class</summary>
+using Brunet;
+namespace Brunet.Security {
+  /// <summary>Just an abstract packet class.  This is thread-safe.</summary>
   public abstract class DataPacket {
     /// <summary>The packet in ICopyable format.</summary>
     protected ICopyable _icpacket;

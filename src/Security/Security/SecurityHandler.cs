@@ -16,6 +16,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+using Brunet;
 using System;
 using System.Security.Cryptography;
 using System.Threading;
@@ -23,11 +24,11 @@ using System.Threading;
 using NUnit.Framework;
 #endif
 
-namespace Brunet {
+namespace Brunet.Security {
   ///<summary>Provides encryption, decryption, and authentication through
   /// a single object.  The format for packets is 2 bytes for index, 2 bytes for
   /// sequence id, data, and signature, with data, and signature being
-  /// encrypted.</summary> 
+  /// encrypted.  This class is not thread-safe.</summary> 
   /// @todo Need to not take in duplicates within the sliding Window! Read Appendix
   /// C of RFC2401*/
   public class SecurityHandler {
@@ -98,7 +99,7 @@ namespace Brunet {
         throw new Exception("SecurityHandler: closed");
       }
       // Get the sequence id and increment the counter
-      int seqid = Interlocked.Increment(ref _last_outgoing_seqid);
+      int seqid = ++_last_outgoing_seqid;
       // We ask for an update at the half life and every 1000 packets thereafter
       if(seqid == HALF_LIFE || (seqid > HALF_LIFE && seqid % 1000 == 0)) {
         if(Update != null) {
@@ -145,12 +146,7 @@ namespace Brunet {
       }
 
       if(seqid > _last_incoming_seqid) {
-        int tmp = Interlocked.Exchange(ref _last_incoming_seqid, seqid);
-        if(tmp > _last_incoming_seqid) {
-          seqid = tmp;
-          tmp = Interlocked.Exchange(ref _last_incoming_seqid, seqid);
-        }
-        seqid = tmp;
+        _last_incoming_seqid = seqid;
       }
     }
 

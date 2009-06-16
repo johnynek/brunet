@@ -25,6 +25,8 @@ using System.Xml.Serialization;
 using System.Security.Cryptography;
 using System.Threading;
 using Brunet.Security;
+using Brunet.Security.Protocol;
+using Brunet.Security.Transport;
 
 namespace Brunet {
   public class SystemTest {
@@ -213,7 +215,7 @@ namespace Brunet {
 
     protected static bool Crawl(bool log, bool secure) {
       NodeMapping nm = (NodeMapping) nodes.GetByIndex(0);
-      BrunetSecurityOverlord bso = null;
+      ProtocolSecurityOverlord bso = null;
       if(secure) {
         bso = nm.BSO;
       }
@@ -336,9 +338,9 @@ namespace Brunet {
       protected Address _first_left;
       protected Address _previous;
       public bool Success { get { return _crawled.Count == _count; } }
-      protected BrunetSecurityOverlord _bso;
+      protected ProtocolSecurityOverlord _bso;
 
-      public CrawlHelper(Node node, int count, BrunetSecurityOverlord bso, bool log) {
+      public CrawlHelper(Node node, int count, ProtocolSecurityOverlord bso, bool log) {
         _count = count;
         _node = node;
         Interlocked.Exchange(ref _done, 0);
@@ -488,7 +490,7 @@ namespace Brunet {
         ch.AddCACertificate(CACert.X509);
         ch.AddSignedCertificate(cert.X509);
 
-        BrunetSecurityOverlord so = new BrunetSecurityOverlord(node, rsa_copy, node.Rrm, ch);
+        ProtocolSecurityOverlord so = new ProtocolSecurityOverlord(node, rsa_copy, node.Rrm, ch);
         so.Subscribe(node, null);
         node.GetTypeSource(SecurityOverlord.Security).Subscribe(so, null);
         nm.BSO = so;
@@ -632,7 +634,7 @@ namespace Brunet {
     public class NodeMapping {
       public int Port;
       public Node Node;
-      public BrunetSecurityOverlord BSO;
+      public ProtocolSecurityOverlord BSO;
     }
   }
 }

@@ -16,6 +16,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+using Brunet;
 using Mono.Security.X509;
 using Mono.Security.X509.Extensions;
 using Mono.Security.Cryptography;
@@ -29,10 +30,10 @@ using Brunet.Mock;
 using NUnit.Framework;
 #endif
 
-namespace Brunet {
+namespace Brunet.Security {
   /// <summary>Because X509Certificates provided by Mono do not have value based
   /// hashcodes, we had to implement this special class that compares the Raw
-  /// Data of a certificate.</summary>
+  /// Data of a certificate.  This class is thread-safe.</summary>
   public class WriteOnceX509 {
     protected X509Certificate _cert;
     ///<summary></summary>
@@ -70,6 +71,9 @@ namespace Brunet {
     }
 
     ///<summary>The state of the SA.</summary>
+    ///<remarks> This is tricky, we shouldn't put this into a lock since setting is
+    ///thread-safe and therefore so is reading.  We also don't want to trigger
+    ///the  called during state change.</remarks>
     public SAState State {
       get {
         return _state;
@@ -156,12 +160,14 @@ namespace Brunet {
     ///<summary>Local half of the DHE</summary>
     public MemBlock LDHE {
       get {
-        if(_ldhe == null) {
-          if(_dh != null) {
-            _dh.Clear();
+        lock(_sync) {
+          if(_ldhe == null) {
+            if(_dh != null) {
+              _dh.Clear();
+            }
+            _dh = new DiffieHellmanManaged();
+            _ldhe = _dh.CreateKeyExchange();
           }
-          _dh = new DiffieHellmanManaged();
-          _ldhe = _dh.CreateKeyExchange();
         }
         return MemBlock.Reference(_ldhe);
       }
@@ -246,20 +252,21 @@ namespace Brunet {
         
         _last_update = DateTime.UtcNow;
         _last_called_request_update = DateTime.UtcNow;
+
+        LocalCertificate = new WriteOnceX509();
+        RemoteCertificate = new WriteOnceX509();
+        DHEWithCertificateAndCAsInHash = new WriteOnceIdempotent<MemBlock>();
+        DHEWithCertificateAndCAsOutHash = new WriteOnceIdempotent<MemBlock>();
+        DHEWithCertificateHash = new WriteOnceIdempotent<MemBlock>();
+        RDHE = new WriteOnceIdempotent<MemBlock>();
+        RemoteCookie = new WriteOnceIdempotent<MemBlock>();
+        _ldhe = null;
+        _hash_verified = false;
+        _called_enable = 0;
+        _incoming = true;
+        _running = true;
       }
 
-      LocalCertificate = new WriteOnceX509();
-      RemoteCertificate = new WriteOnceX509();
-      DHEWithCertificateAndCAsInHash = new WriteOnceIdempotent<MemBlock>();
-      DHEWithCertificateAndCAsOutHash = new WriteOnceIdempotent<MemBlock>();
-      DHEWithCertificateHash = new WriteOnceIdempotent<MemBlock>();
-      RDHE = new WriteOnceIdempotent<MemBlock>();
-      RemoteCookie = new WriteOnceIdempotent<MemBlock>();
-      _ldhe = null;
-      _hash_verified = false;
-      _called_enable = 0;
-      _incoming = true;
-      _running = true;
       if(State == SAState.Active) {
         State = SAState.Updating;
       }
@@ -294,114 +301,117 @@ namespace Brunet {
       // If both parties setup simultaneous SAs we could end up calling this
       // twice, once as a client and the other as server, this way we only
       // go through the whole process once.
-      if(Interlocked.Exchange(ref _called_enable, 1) == 1) {
-        return;
-      } else if(_closed == 1) {
-        throw new Exception("Cannot enable a closed SA!");
-      } else if(_ldhe == null) {
-        throw new Exception("Local DHE not set.");
-      } else if(RDHE.Value == null) {
-        throw new Exception("Remote DHE not set.");
-      } else if(!_hash_verified) {
-        throw new Exception("Hash is not verified!");
-      } else if(TimedOut) {
-        throw new Exception("Timed out on this one!");
-      }
-
-      // Deriving the DHE exchange and determing the order of keys
-      // Specifically, we need up to 4 keys for the sender/receiver encryption/
-      // authentication codes.  So to determine the order, we say whomever has
-      // the smallest gets the first set of keys.
-      byte[] rdhe = (byte[]) RDHE.Value;
-      RDHE = null;
-      byte[] key = _dh.DecryptKeyExchange(rdhe);
-      _dh.Clear();
-      _dh = null;
-      int i = 0;
-      while(i < _ldhe.Length && _ldhe[i] == rdhe[i]) i++;
-      bool same = i == _ldhe.Length;
-      bool first = !same && (_ldhe[i] < rdhe[i]);
-      _ldhe = null;
-      // Gathering our security parameter objects
-      SecurityPolicy sp = SecurityPolicy.GetPolicy(_spi);
-      SymmetricAlgorithm in_sa = sp.CreateSymmetricAlgorithm();
-      HashAlgorithm in_ha = sp.CreateHashAlgorithm();
-      SymmetricAlgorithm out_sa = sp.CreateSymmetricAlgorithm();
-      HashAlgorithm out_ha = sp.CreateHashAlgorithm();
-
-      // Generating the total key length 
-      int key_length = key.Length + 2 + (in_sa.KeySize / 8 + in_sa.BlockSize / 8) * 2;
-      KeyedHashAlgorithm in_kha = in_ha as KeyedHashAlgorithm;
-      KeyedHashAlgorithm out_kha = out_ha as KeyedHashAlgorithm;
-      if(in_kha != null) {
-        key_length += (in_kha.HashSize / 8) * 2;
-      }
-
-      // Generating a key by repeatedly hashing the DHE value and the key so far
-      SHA1CryptoServiceProvider sha1 = new SHA1CryptoServiceProvider();
-      int usable_key_offset = key.Length;
-      while(key.Length < key_length) {
-        byte[] hash = sha1.ComputeHash(key);
-        byte[] tmp_key = new byte[hash.Length + key.Length];
-        key.CopyTo(tmp_key, 0);
-        hash.CopyTo(tmp_key, key.Length);
-        key = tmp_key;
-      }
-
-      // Like a sub-session ID (see DTLS)
-      short epoch = (short) ((key[usable_key_offset] << 8) + key[usable_key_offset + 1]);
-      usable_key_offset += 2;
-
-      byte[] key0 = new byte[in_sa.KeySize / 8];
-      Array.Copy(key, usable_key_offset, key0, 0, key0.Length);
-      usable_key_offset += key0.Length;
-
-      byte[] key1 = new byte[in_sa.KeySize / 8];
-      Array.Copy(key, usable_key_offset, key1, 0, key1.Length);
-      usable_key_offset += key1.Length;
-
-      // Same may occur if we are forming a session with ourselves!
-      if(same) {
-        in_sa.Key = key0;
-        out_sa.Key = key0;
-      } else if(first) {
-        in_sa.Key = key0;
-        out_sa.Key = key1;
-      } else {
-        out_sa.Key = key0;
-        in_sa.Key = key1;
-      }
-
-      if(in_kha != null) {
-        byte[] hkey0 = new byte[in_kha.HashSize / 8];
-        Array.Copy(key, usable_key_offset, hkey0, 0, hkey0.Length);
-        usable_key_offset += hkey0.Length;
-
-        byte[] hkey1 = new byte[in_kha.HashSize / 8];
-        Array.Copy(key, usable_key_offset, hkey1, 0, hkey1.Length);
-        usable_key_offset += hkey1.Length;
-
-        if(same) {
-          in_kha.Key = hkey0;
-          out_kha.Key = hkey0;
-        } else if(first) {
-          in_kha.Key = hkey0;
-          out_kha.Key = hkey1;
-        } else {
-          out_kha.Key = hkey0;
-          in_kha.Key = hkey1;
+      lock(_sync) {
+        if(_called_enable == 1) {
+          return;
+        } else if(_closed == 1) {
+          throw new Exception("Cannot enable a closed SA!");
+        } else if(_ldhe == null) {
+          throw new Exception("Local DHE not set.");
+        } else if(RDHE.Value == null) {
+          throw new Exception("Remote DHE not set.");
+        } else if(!_hash_verified) {
+          throw new Exception("Hash is not verified!");
+        } else if(TimedOut) {
+          throw new Exception("Timed out on this one!");
         }
-      }
+        _called_enable = 1;
 
-      SecurityHandler sh = new SecurityHandler(in_sa, out_sa, in_ha, out_ha, epoch);
-      sh.Update += UpdateSH;
-      SecurityHandler to_close = _current_sh;
-      if(to_close != null) {
-        to_close.Close();
+        // Deriving the DHE exchange and determing the order of keys
+        // Specifically, we need up to 4 keys for the sender/receiver encryption/
+        // authentication codes.  So to determine the order, we say whomever has
+        // the smallest gets the first set of keys.
+        byte[] rdhe = (byte[]) RDHE.Value;
+        RDHE = null;
+        byte[] key = _dh.DecryptKeyExchange(rdhe);
+        _dh.Clear();
+        _dh = null;
+        int i = 0;
+        while(i < _ldhe.Length && _ldhe[i] == rdhe[i]) i++;
+        bool same = i == _ldhe.Length;
+        bool first = !same && (_ldhe[i] < rdhe[i]);
+        _ldhe = null;
+        // Gathering our security parameter objects
+        SecurityPolicy sp = SecurityPolicy.GetPolicy(_spi);
+        SymmetricAlgorithm in_sa = sp.CreateSymmetricAlgorithm();
+        HashAlgorithm in_ha = sp.CreateHashAlgorithm();
+        SymmetricAlgorithm out_sa = sp.CreateSymmetricAlgorithm();
+        HashAlgorithm out_ha = sp.CreateHashAlgorithm();
+
+        // Generating the total key length 
+        int key_length = key.Length + 2 + (in_sa.KeySize / 8 + in_sa.BlockSize / 8) * 2;
+        KeyedHashAlgorithm in_kha = in_ha as KeyedHashAlgorithm;
+        KeyedHashAlgorithm out_kha = out_ha as KeyedHashAlgorithm;
+        if(in_kha != null) {
+          key_length += (in_kha.HashSize / 8) * 2;
+        }
+
+        // Generating a key by repeatedly hashing the DHE value and the key so far
+        SHA1CryptoServiceProvider sha1 = new SHA1CryptoServiceProvider();
+        int usable_key_offset = key.Length;
+        while(key.Length < key_length) {
+          byte[] hash = sha1.ComputeHash(key);
+          byte[] tmp_key = new byte[hash.Length + key.Length];
+          key.CopyTo(tmp_key, 0);
+          hash.CopyTo(tmp_key, key.Length);
+          key = tmp_key;
+        }
+
+        // Like a sub-session ID (see DTLS)
+        short epoch = (short) ((key[usable_key_offset] << 8) + key[usable_key_offset + 1]);
+        usable_key_offset += 2;
+
+        byte[] key0 = new byte[in_sa.KeySize / 8];
+        Array.Copy(key, usable_key_offset, key0, 0, key0.Length);
+        usable_key_offset += key0.Length;
+
+        byte[] key1 = new byte[in_sa.KeySize / 8];
+        Array.Copy(key, usable_key_offset, key1, 0, key1.Length);
+        usable_key_offset += key1.Length;
+
+        // Same may occur if we are forming a session with ourselves!
+        if(same) {
+          in_sa.Key = key0;
+          out_sa.Key = key0;
+        } else if(first) {
+          in_sa.Key = key0;
+          out_sa.Key = key1;
+        } else {
+          out_sa.Key = key0;
+          in_sa.Key = key1;
+        }
+
+        if(in_kha != null) {
+          byte[] hkey0 = new byte[in_kha.HashSize / 8];
+          Array.Copy(key, usable_key_offset, hkey0, 0, hkey0.Length);
+          usable_key_offset += hkey0.Length;
+
+          byte[] hkey1 = new byte[in_kha.HashSize / 8];
+          Array.Copy(key, usable_key_offset, hkey1, 0, hkey1.Length);
+          usable_key_offset += hkey1.Length;
+
+          if(same) {
+            in_kha.Key = hkey0;
+            out_kha.Key = hkey0;
+          } else if(first) {
+            in_kha.Key = hkey0;
+            out_kha.Key = hkey1;
+          } else {
+            out_kha.Key = hkey0;
+            in_kha.Key = hkey1;
+          }
+        }
+
+        SecurityHandler sh = new SecurityHandler(in_sa, out_sa, in_ha, out_ha, epoch);
+        sh.Update += UpdateSH;
+        SecurityHandler to_close = _current_sh;
+        if(to_close != null) {
+          to_close.Close();
+        }
+        _current_sh = sh;
+        _last_epoch = _current_epoch;
+        _current_epoch = epoch;
       }
-      _current_sh = sh;
-      _last_epoch = _current_epoch;
-      _current_epoch = epoch;
       // All finished set the state (which will probably fire an event)
       State = SAState.Active;
     }
@@ -420,18 +430,16 @@ namespace Brunet {
         throw new Exception("Invalid SPI!");
       }
 
-      SecurityHandler sh = _current_sh;
       try {
         // try to decrypt the data
-        sh.DecryptAndVerify(sdm);
+        lock(_sync) {
+          _current_sh.DecryptAndVerify(sdm);
+        }
       } catch {
         // Maybe this is just a late arriving packet, if it is, we'll just ignore it
         if(sdm.Epoch == _last_epoch) {
           return;
-        // maybe the current_sh got updated, let's try again
-        } else if(_current_sh != sh) {
-          _current_sh.DecryptAndVerify(sdm);
-        // maybe its none of the above, let's throw it away!
+        // bad packet, let's throw it away!
         } else {
           throw;
         }
@@ -466,15 +474,8 @@ namespace Brunet {
       }
 
       // Encrypt it!
-      SecurityHandler sh = _current_sh;
-      try {
-        sh.SignAndEncrypt(sdm);
-      } catch {
-        if(sh != _current_sh) {
-          _current_sh.SignAndEncrypt(sdm);
-        } else {
-          throw;
-        }
+      lock(_sync) {
+        _current_sh.SignAndEncrypt(sdm);
       }
 
       // Prepare for sending and send over the underlying ISender!

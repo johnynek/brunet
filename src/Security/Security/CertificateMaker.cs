@@ -16,6 +16,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+using Brunet;
 using Mono.Security.X509;
 using Mono.Security.X509.Extensions;
 using System;
@@ -29,7 +30,7 @@ using NUnit.Framework;
 using Mono.Math;
 #endif
 
-namespace Brunet {
+namespace Brunet.Security {
   /// <summary>This represents an X509 certificate in a more usable format
   /// for our system.</summary>
   public class Certificate {

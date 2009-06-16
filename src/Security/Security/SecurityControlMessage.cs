@@ -16,6 +16,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+using Brunet;
 using System;
 using System.Collections.Generic;
 using System.Security.Cryptography;
@@ -24,8 +25,9 @@ using System.Security.Cryptography;
 using NUnit.Framework;
 #endif
 
-namespace Brunet {
-  /// <summary>Parses and creates SecurityControlMessages</summary>
+namespace Brunet.Security {
+  /// <summary>Parses and creates SecurityControlMessages.  In general, this
+  /// class is not thread-safe.</summary>
   /// <remarks>The format for said packets is:
   /// [version][security params][message type][cookie local][cookie remote]
   /// [dhe length][dhe][cert length][cert][cas length][cas][signature]
