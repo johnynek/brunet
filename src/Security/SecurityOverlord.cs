@@ -401,13 +401,13 @@ namespace Brunet.Security {
     /// 4a)Receive a Confirm, verify the entire stack and all set to go
     /// </summary>
     protected void HandleControl(MemBlock b, ISender return_path) {
-      ISender tmp = return_path;
-      if(tmp is ReqrepManager.ReplyState) {
-        tmp = ((ReqrepManager.ReplyState) tmp).ReturnPath;
+      ISender low_level_sender = return_path;
+      if(low_level_sender is ReqrepManager.ReplyState) {
+        low_level_sender = ((ReqrepManager.ReplyState) low_level_sender).ReturnPath;
       }
 
       SecurityControlMessage scm = new SecurityControlMessage(b);
-      MemBlock calc_cookie = CalculateCookie(tmp);
+      MemBlock calc_cookie = CalculateCookie(low_level_sender);
 
       if(scm.Version != Version) {
         throw new Exception("Invalid version: " + scm.Version);
@@ -428,7 +428,7 @@ namespace Brunet.Security {
       // This can be in a try statement since this is best effort anyway
       try {
         Dictionary<ISender, SecurityAssociation> sender_to_sa = _spi[scm.SPI];
-        sa = sender_to_sa[tmp];
+        sa = sender_to_sa[low_level_sender];
       } catch { }
 
       if(sa != null) {
@@ -440,178 +440,26 @@ namespace Brunet.Security {
         }
       }
 
-      bool pre_exchg_keys = SecurityPolicy.GetPolicy(scm.SPI).PreExchangedKeys;
-
       try {
         switch(scm.Type) {
           case SecurityControlMessage.MessageType.NoSuchSA:
-          {
-            if(sa == null) {
-              ProtocolLog.WriteIf(ProtocolLog.Security, GetHashCode() + " NoSuchSA received, but we have no SA either!");
-            } else {
-              ProtocolLog.WriteIf(ProtocolLog.Security, GetHashCode() + " NoSuchSA received, handling...");
-              StartSA(sa);
-            }
+            HandleControlNoSuchSA(sa);
             break;
-          }
           case SecurityControlMessage.MessageType.Cookie:
-          {
-            ProtocolLog.WriteIf(ProtocolLog.Security, GetHashCode() + " Received Cookie from: " + tmp);
-            scm_reply.Type = SecurityControlMessage.MessageType.CookieResponse;
-            scm_reply.RemoteCookie = scm.LocalCookie;
-            scm_reply.LocalCookie = calc_cookie;
-            if(pre_exchg_keys) {
-              scm_reply.CAs = new List<MemBlock>(0);
-            } else {
-              scm_reply.CAs = _ch.SupportedCAs;
-            }
-            ICopyable to_send = new CopyList(SecureControl, scm_reply.Packet);
-            return_path.Send(to_send);
-            ProtocolLog.WriteIf(ProtocolLog.Security, GetHashCode() + " Successful Cookie from: " + tmp);
+            HandleControlCookie(sa, calc_cookie, scm, scm_reply, return_path, low_level_sender);
             break;
-          }
           case SecurityControlMessage.MessageType.CookieResponse:
-          {
-            ProtocolLog.WriteIf(ProtocolLog.Security, GetHashCode() + " Received CookieResponse from: " + tmp);
-            if(sa == null) {
-              throw new Exception("No valid SA!");
-            }
-            // This seems like unnecessary code
-            scm_reply.Type = SecurityControlMessage.MessageType.CookieResponse;
-            X509Certificate lcert = null;
-            if(pre_exchg_keys) {
-              lcert = _ch.DefaultCertificate;
-            } else {
-              lcert = _ch.FindCertificate(scm.CAs);
-            }
-
-            sa.RemoteCookie.Value = scm.LocalCookie;
-            sa.LocalCertificate.Value = lcert;
-            scm_reply.Certificate = lcert.RawData;
-
-            scm_reply.DHE = sa.LDHE;
-            scm_reply.LocalCookie = scm.RemoteCookie;
-            scm_reply.RemoteCookie = scm.LocalCookie;
-            scm_reply.Type = SecurityControlMessage.MessageType.DHEWithCertificateAndCAs;
-            if(pre_exchg_keys) {
-              scm_reply.CAs = new List<MemBlock>(0);
-            } else {
-              scm_reply.CAs = _ch.SupportedCAs;
-            }
-            HashAlgorithm sha1 = new SHA1CryptoServiceProvider();
-            lock(_private_key_lock) {
-              scm_reply.Sign(_private_key, sha1);
-            }
-
-            sa.DHEWithCertificateAndCAsOutHash.Value = sha1.ComputeHash((byte[]) scm_reply.Packet);
-            ICopyable to_send = new CopyList(Security, SecureControl, scm_reply.Packet);
-            _rrman.SendRequest(return_path, ReqrepManager.ReqrepType.Request,
-                to_send, this, sa);
-            ProtocolLog.WriteIf(ProtocolLog.Security, GetHashCode() + " Successful CookieResponse from: " + tmp);
+            HandleControlCookieResponse(sa, scm, scm_reply, return_path, low_level_sender);
             break;
-          }
           case SecurityControlMessage.MessageType.DHEWithCertificateAndCAs:
-          {
-            ProtocolLog.WriteIf(ProtocolLog.Security, GetHashCode() + " Received DHEWithCertificateAndCAs from: " + tmp);
-            if(sa == null) {
-              sa = CreateSecurityAssociation(tmp, scm.SPI, false);
-            }
-            byte[] cert = new byte[scm.Certificate.Length];
-            scm.Certificate.CopyTo(cert, 0);
-            X509Certificate rcert = new X509Certificate(cert);
-            _ch.Verify(rcert);
-            HashAlgorithm sha1 = new SHA1CryptoServiceProvider();
-            scm.Verify((RSACryptoServiceProvider) rcert.RSA, sha1);
-
-            X509Certificate lcert = null;
-            if(pre_exchg_keys) {
-              lcert = _ch.DefaultCertificate;
-            } else {
-              lcert = _ch.FindCertificate(scm.CAs);
-            }
-
-            sa.LocalCertificate.Value = lcert;
-            sa.RemoteCertificate.Value = rcert;
-            sa.RDHE.Value = scm.DHE;
-            sa.DHEWithCertificateAndCAsInHash.Value = MemBlock.Reference(sha1.ComputeHash((byte[]) scm.Packet));
-
-            scm_reply.LocalCookie = scm.RemoteCookie;
-            scm_reply.RemoteCookie = scm.LocalCookie;
-            scm_reply.DHE = sa.LDHE;
-            scm_reply.Certificate = MemBlock.Reference(lcert.RawData);
-            scm_reply.Type = SecurityControlMessage.MessageType.DHEWithCertificate;
-            lock(_private_key_lock) {
-              scm_reply.Sign(_private_key, sha1);
-            }
-            sa.DHEWithCertificateHash.Value = MemBlock.Reference(sha1.ComputeHash((byte[]) scm_reply.Packet));
-
-            ICopyable to_send = new CopyList(SecureControl, scm_reply.Packet);
-            return_path.Send(to_send);
-            ProtocolLog.WriteIf(ProtocolLog.Security, GetHashCode() + " Successful DHEWithCertificateAndCAs from: " + tmp);
+            HandleControlDHEWithCertificateAndCAs(sa, scm, scm_reply, return_path, low_level_sender);
             break;
-          }
           case SecurityControlMessage.MessageType.DHEWithCertificate:
-          {
-            ProtocolLog.WriteIf(ProtocolLog.Security, GetHashCode() + " Received DHEWithCertificate from: " + tmp);
-            if(sa == null) {
-              throw new Exception("No valid SA!");
-            }
-            byte[] cert = new byte[scm.Certificate.Length];
-            scm.Certificate.CopyTo(cert, 0);
-            X509Certificate rcert = new X509Certificate(cert);
-            HashAlgorithm sha1 = new SHA1CryptoServiceProvider();
-            scm.Verify((RSACryptoServiceProvider) rcert.RSA, sha1);
-            _ch.Verify(rcert);
-
-            sa.RemoteCertificate.Value = rcert;
-            sa.RDHE.Value = scm.DHE;
-
-            scm_reply.LocalCookie = scm.RemoteCookie;
-            scm_reply.RemoteCookie = scm.LocalCookie;
-            scm_reply.Hash = MemBlock.Reference(sha1.ComputeHash((byte[]) scm.Packet));
-            scm_reply.Type = SecurityControlMessage.MessageType.Confirm;
-            lock(_private_key_lock) {
-              scm_reply.Sign(_private_key, sha1);
-            }
-
-            ICopyable to_send = new CopyList(Security, SecureControl, scm_reply.Packet);
-            _rrman.SendRequest(return_path, ReqrepManager.ReqrepType.Request,
-                to_send, this, sa);
-            ProtocolLog.WriteIf(ProtocolLog.Security, GetHashCode() + " Successful DHEWithCertificate from: " + tmp);
+            HandleControlDHEWithCertificates(sa, scm, scm_reply, return_path, low_level_sender);
             break;
-          }
           case SecurityControlMessage.MessageType.Confirm:
-          {
-            ProtocolLog.WriteIf(ProtocolLog.Security, GetHashCode() + " Received Confirm from: " + tmp);
-            if(sa == null) {
-              throw new Exception("No valid SA!");
-            }
-            HashAlgorithm sha1 = new SHA1CryptoServiceProvider();
-            scm.Verify((RSACryptoServiceProvider) sa.RemoteCertificate.Value.RSA, sha1);
-
-            if(return_path == tmp) {
-              sa.VerifyResponse(scm.Hash);
-            } else {
-              sa.VerifyRequest(scm.Hash);
-              scm_reply.LocalCookie = scm.RemoteCookie;
-              scm_reply.RemoteCookie = scm.LocalCookie;
-              scm_reply.Hash = sa.DHEWithCertificateAndCAsInHash.Value;
-              scm_reply.Type = SecurityControlMessage.MessageType.Confirm;
-              lock(_private_key_lock) {
-                scm_reply.Sign(_private_key, sha1);
-              }
-              ICopyable to_send = new CopyList(SecureControl, scm_reply.Packet);
-              return_path.Send(to_send);
-            }
-            if(Verify(sa)) {
-              sa.Enable();
-            } else {
-              sa.Close("Unable to verify the SA as being valid!");
-            }
-
-            ProtocolLog.WriteIf(ProtocolLog.Security, GetHashCode() + " Successful Confirm from: " + tmp);
+            HandleControlConfirm(sa, scm, scm_reply, return_path, low_level_sender);
             break;
-          }
           default:
             throw new Exception("Invalid message!");
         }
@@ -622,6 +470,236 @@ namespace Brunet.Security {
           throw;
         }
       }
+    }
+
+    /// <summary>1a) Send a Cookie</summary>
+    /// <param name="sa">A security association that we wish to perform the
+    /// specified control operation on.</param>
+    protected void HandleControlNoSuchSA(SecurityAssociation sa)
+    {
+      if(sa == null) {
+        ProtocolLog.WriteIf(ProtocolLog.Security, GetHashCode() + " NoSuchSA received, but we have no SA either!");
+      } else {
+        ProtocolLog.WriteIf(ProtocolLog.Security, GetHashCode() + " NoSuchSA received, handling...");
+        StartSA(sa);
+      }
+    }
+
+    /// <summary>1b) Receive a Cookie which responds with a CookieResponse</summary>
+    /// <param name="sa">A security association that we wish to perform the
+    /// specified control operation on.</param>
+    /// <param name="calc_cookie">Cookie value for the association sender.</param>
+    /// <param name="scm">The received SecurityControlMessage.</param>
+    /// <param name="scm_reply">A prepared reply message (with headers and such.</param>
+    /// <param name="return_path">Where to send the result.</param>
+    /// <param name="low_level_sender">We expect the return_path to not be an edge or
+    /// some other type of "low level" sender, so this contains the parsed out value.</param>
+    protected void HandleControlCookie(SecurityAssociation sa,
+        MemBlock calc_cookie, SecurityControlMessage scm,
+        SecurityControlMessage scm_reply, ISender return_path,
+        ISender low_level_sender)
+    {
+      ProtocolLog.WriteIf(ProtocolLog.Security, GetHashCode() + " Received Cookie from: " + low_level_sender);
+      scm_reply.Type = SecurityControlMessage.MessageType.CookieResponse;
+      scm_reply.RemoteCookie = scm.LocalCookie;
+      scm_reply.LocalCookie = calc_cookie;
+      if(SecurityPolicy.GetPolicy(scm.SPI).PreExchangedKeys) {
+        scm_reply.CAs = new List<MemBlock>(0);
+      } else {
+        scm_reply.CAs = _ch.SupportedCAs;
+      }
+      ICopyable to_send = new CopyList(SecureControl, scm_reply.Packet);
+      return_path.Send(to_send);
+      ProtocolLog.WriteIf(ProtocolLog.Security, GetHashCode() + " Successful Cookie from: " + low_level_sender);
+    }
+
+    /// <summary>2a) Receive a CookieResponse that contains a list of CAs, if you have
+    /// a Certificate that supports one of the CAs send it along with a DHE
+    /// and a list of your supported CAs in a DHEWithCertificateAndCAs.</summary>
+    /// <param name="sa">A security association that we wish to perform the
+    /// specified control operation on.</param>
+    /// <param name="scm">The received SecurityControlMessage.</param>
+    /// <param name="scm_reply">A prepared reply message (with headers and such.</param>
+    /// <param name="return_path">Where to send the result.</param>
+    /// <param name="low_level_sender">We expect the return_path to not be an edge or
+    /// some other type of "low level" sender, so this contains the parsed out value.</param>
+    protected void HandleControlCookieResponse(SecurityAssociation sa,
+        SecurityControlMessage scm, SecurityControlMessage scm_reply,
+        ISender return_path, ISender low_level_sender)
+    {
+      ProtocolLog.WriteIf(ProtocolLog.Security, GetHashCode() + " Received CookieResponse from: " + low_level_sender);
+      if(sa == null) {
+        throw new Exception("No valid SA!");
+      }
+      // This seems like unnecessary code
+      scm_reply.Type = SecurityControlMessage.MessageType.CookieResponse;
+      X509Certificate lcert = null;
+      if(SecurityPolicy.GetPolicy(scm.SPI).PreExchangedKeys) {
+        lcert = _ch.DefaultCertificate;
+      } else {
+        lcert = _ch.FindCertificate(scm.CAs);
+      }
+
+      sa.RemoteCookie.Value = scm.LocalCookie;
+      sa.LocalCertificate.Value = lcert;
+      scm_reply.Certificate = lcert.RawData;
+
+      scm_reply.DHE = sa.LDHE;
+      scm_reply.LocalCookie = scm.RemoteCookie;
+      scm_reply.RemoteCookie = scm.LocalCookie;
+      scm_reply.Type = SecurityControlMessage.MessageType.DHEWithCertificateAndCAs;
+      if(SecurityPolicy.GetPolicy(scm.SPI).PreExchangedKeys) {
+        scm_reply.CAs = new List<MemBlock>(0);
+      } else {
+        scm_reply.CAs = _ch.SupportedCAs;
+      }
+      HashAlgorithm sha1 = new SHA1CryptoServiceProvider();
+      lock(_private_key_lock) {
+        scm_reply.Sign(_private_key, sha1);
+      }
+
+      sa.DHEWithCertificateAndCAsOutHash.Value = sha1.ComputeHash((byte[]) scm_reply.Packet);
+      ICopyable to_send = new CopyList(Security, SecureControl, scm_reply.Packet);
+      _rrman.SendRequest(return_path, ReqrepManager.ReqrepType.Request,
+          to_send, this, sa);
+      ProtocolLog.WriteIf(ProtocolLog.Security, GetHashCode() + " Successful CookieResponse from: " + low_level_sender);
+    }
+
+    /// <summary>2b) Receive a DHEWithCertificateAndCAs, verify the certificate and attempt
+    /// to find a matching Certificate for the list of CAs, if you find one,
+    /// finish the DHE handshake and send the certificate via a DHEWithCertificate</summary>
+    /// <param name="sa">A security association that we wish to perform the
+    /// specified control operation on.</param>
+    /// <param name="scm">The received SecurityControlMessage.</param>
+    /// <param name="scm_reply">A prepared reply message (with headers and such.</param>
+    /// <param name="return_path">Where to send the result.</param>
+    /// <param name="low_level_sender">We expect the return_path to not be an edge or
+    /// some other type of "low level" sender, so this contains the parsed out value.</param>
+    protected void HandleControlDHEWithCertificateAndCAs(SecurityAssociation sa,
+        SecurityControlMessage scm, SecurityControlMessage scm_reply,
+        ISender return_path, ISender low_level_sender)
+    {
+      ProtocolLog.WriteIf(ProtocolLog.Security, GetHashCode() + " Received DHEWithCertificateAndCAs from: " + low_level_sender);
+      if(sa == null) {
+        sa = CreateSecurityAssociation(low_level_sender, scm.SPI, false);
+      }
+      byte[] cert = new byte[scm.Certificate.Length];
+      scm.Certificate.CopyTo(cert, 0);
+      X509Certificate rcert = new X509Certificate(cert);
+      _ch.Verify(rcert);
+      HashAlgorithm sha1 = new SHA1CryptoServiceProvider();
+      scm.Verify((RSACryptoServiceProvider) rcert.RSA, sha1);
+
+      X509Certificate lcert = null;
+      if(SecurityPolicy.GetPolicy(scm.SPI).PreExchangedKeys) {
+        lcert = _ch.DefaultCertificate;
+      } else {
+        lcert = _ch.FindCertificate(scm.CAs);
+      }
+
+      sa.LocalCertificate.Value = lcert;
+      sa.RemoteCertificate.Value = rcert;
+      sa.RDHE.Value = scm.DHE;
+      sa.DHEWithCertificateAndCAsInHash.Value = MemBlock.Reference(sha1.ComputeHash((byte[]) scm.Packet));
+
+      scm_reply.LocalCookie = scm.RemoteCookie;
+      scm_reply.RemoteCookie = scm.LocalCookie;
+      scm_reply.DHE = sa.LDHE;
+      scm_reply.Certificate = MemBlock.Reference(lcert.RawData);
+      scm_reply.Type = SecurityControlMessage.MessageType.DHEWithCertificate;
+      lock(_private_key_lock) {
+        scm_reply.Sign(_private_key, sha1);
+      }
+      sa.DHEWithCertificateHash.Value = MemBlock.Reference(sha1.ComputeHash((byte[]) scm_reply.Packet));
+
+      ICopyable to_send = new CopyList(SecureControl, scm_reply.Packet);
+      return_path.Send(to_send);
+      ProtocolLog.WriteIf(ProtocolLog.Security, GetHashCode() + " Successful DHEWithCertificateAndCAs from: " + low_level_sender);
+    }
+
+    /// <summary>3a) Receive a DHEWithCertificate, verify the certificate and DHE and
+    /// send a Confirm that you are ready to Verify the stack and start the
+    /// system.</summary>
+    /// <param name="sa">A security association that we wish to perform the
+    /// specified control operation on.</param>
+    /// <param name="scm">The received SecurityControlMessage.</param>
+    /// <param name="scm_reply">A prepared reply message (with headers and such.</param>
+    /// <param name="return_path">Where to send the result.</param>
+    /// <param name="low_level_sender">We expect the return_path to not be an edge or
+    /// some other type of "low level" sender, so this contains the parsed out value.</param>
+    protected void HandleControlDHEWithCertificates(SecurityAssociation sa,
+        SecurityControlMessage scm, SecurityControlMessage scm_reply,
+        ISender return_path, ISender low_level_sender)
+    {
+      ProtocolLog.WriteIf(ProtocolLog.Security, GetHashCode() + " Received DHEWithCertificate from: " + low_level_sender);
+      if(sa == null) {
+        throw new Exception("No valid SA!");
+      }
+      byte[] cert = new byte[scm.Certificate.Length];
+      scm.Certificate.CopyTo(cert, 0);
+      X509Certificate rcert = new X509Certificate(cert);
+      HashAlgorithm sha1 = new SHA1CryptoServiceProvider();
+      scm.Verify((RSACryptoServiceProvider) rcert.RSA, sha1);
+      _ch.Verify(rcert);
+
+      sa.RemoteCertificate.Value = rcert;
+      sa.RDHE.Value = scm.DHE;
+
+      scm_reply.LocalCookie = scm.RemoteCookie;
+      scm_reply.RemoteCookie = scm.LocalCookie;
+      scm_reply.Hash = MemBlock.Reference(sha1.ComputeHash((byte[]) scm.Packet));
+      scm_reply.Type = SecurityControlMessage.MessageType.Confirm;
+      lock(_private_key_lock) {
+        scm_reply.Sign(_private_key, sha1);
+      }
+
+      ICopyable to_send = new CopyList(Security, SecureControl, scm_reply.Packet);
+      _rrman.SendRequest(return_path, ReqrepManager.ReqrepType.Request,
+          to_send, this, sa);
+      ProtocolLog.WriteIf(ProtocolLog.Security, GetHashCode() + " Successful DHEWithCertificate from: " + low_level_sender);
+    }
+
+    /// <summary>3b) Receive a Confirm, verify the entire stack and send a Confirm
+    /// 4a)Receive a Confirm, verify the entire stack and all set to go</summary>
+    /// <param name="sa">A security association that we wish to perform the
+    /// specified control operation on.</param>
+    /// <param name="scm">The received SecurityControlMessage.</param>
+    /// <param name="scm_reply">A prepared reply message (with headers and such.</param>
+    /// <param name="return_path">Where to send the result.</param>
+    /// <param name="low_level_sender">We expect the return_path to not be an edge or
+    /// some other type of "low level" sender, so this contains the parsed out value.</param>
+    protected void HandleControlConfirm(SecurityAssociation sa,
+        SecurityControlMessage scm, SecurityControlMessage scm_reply,
+        ISender return_path, ISender low_level_sender)
+    {
+      ProtocolLog.WriteIf(ProtocolLog.Security, GetHashCode() + " Received Confirm from: " + low_level_sender);
+      if(sa == null) {
+        throw new Exception("No valid SA!");
+      }
+      HashAlgorithm sha1 = new SHA1CryptoServiceProvider();
+      scm.Verify((RSACryptoServiceProvider) sa.RemoteCertificate.Value.RSA, sha1);
+
+      if(return_path == low_level_sender) {
+        sa.VerifyResponse(scm.Hash);
+      } else {
+        sa.VerifyRequest(scm.Hash);
+        scm_reply.LocalCookie = scm.RemoteCookie;
+        scm_reply.RemoteCookie = scm.LocalCookie;
+        scm_reply.Hash = sa.DHEWithCertificateAndCAsInHash.Value;
+        scm_reply.Type = SecurityControlMessage.MessageType.Confirm;
+        lock(_private_key_lock) {
+          scm_reply.Sign(_private_key, sha1);
+        }
+        ICopyable to_send = new CopyList(SecureControl, scm_reply.Packet);
+        return_path.Send(to_send);
+      }
+      if(Verify(sa)) {
+        sa.Enable();
+      } else {
+        sa.Close("Unable to verify the SA as being valid!");
+      }
+
+      ProtocolLog.WriteIf(ProtocolLog.Security, GetHashCode() + " Successful Confirm from: " + low_level_sender);
     }
 
     /// <summary>Higher level SOs may have a better way to verify these SAs
