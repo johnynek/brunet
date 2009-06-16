@@ -235,9 +235,9 @@ namespace SocialVPN {
      */
     public static string Request(string url, Dictionary<string, string> 
                                  parameters) {
-      ProtocolLog.WriteIf(SocialLog.SVPNLog,"HTTP REQUEST: " +
-                          DateTime.Now.TimeOfDay + " " + 
-                          url + " " + parameters["m"]);
+      ProtocolLog.WriteIf(SocialLog.SVPNLog,
+                          String.Format("HTTP REQUEST: {0} {1} {2}",
+                          DateTime.Now.TimeOfDay, url, parameters["m"]));
       return Request(url, Encoding.ASCII.GetBytes(UrlEncode(parameters)));
     }
 

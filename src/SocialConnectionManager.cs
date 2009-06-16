@@ -124,8 +124,9 @@ namespace SocialVPN {
      * @param obj the default object.
      */
     public void TimerHandler(Object obj) {
-      ProtocolLog.WriteIf(SocialLog.SVPNLog, "TIMER HANDLER CALL: " +
-                            DateTime.Now.TimeOfDay);
+      ProtocolLog.WriteIf(SocialLog.SVPNLog, 
+                          String.Format("TIMER HANDLER CALL: {0}", 
+                          DateTime.Now.TimeOfDay));
       try {
         if(_timer_state != Intervals.Long) {
           _timer_thread.Change(LONGTIME, LONGTIME);
@@ -146,8 +147,9 @@ namespace SocialVPN {
           _timer_state = Intervals.Short;
         }
         ProtocolLog.WriteIf(SocialLog.SVPNLog, e.Message);
-        ProtocolLog.WriteIf(SocialLog.SVPNLog, "TIMER HANDLER FAILURE: " +
-                            DateTime.Now.TimeOfDay);
+        ProtocolLog.WriteIf(SocialLog.SVPNLog, 
+                            String.Format("TIMER HANDLER FAILURE: {0}",
+                            DateTime.Now.TimeOfDay));
       }
     }
 

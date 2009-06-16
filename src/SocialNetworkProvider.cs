@@ -136,8 +136,9 @@ namespace SocialVPN {
      * @return a list of friends uids.
      */
     public List<string> GetFriends() {
-      ProtocolLog.WriteIf(SocialLog.SVPNLog, "GET FRIENDS: " +
-                          DateTime.Now.TimeOfDay);
+      ProtocolLog.WriteIf(SocialLog.SVPNLog, 
+                          String.Format("GET FRIENDS: {0}",
+                          DateTime.Now.TimeOfDay));
 
       List<string> friends = new List<string>();
       foreach(ISocialNetwork network in _networks.Values) {
@@ -167,8 +168,9 @@ namespace SocialVPN {
      * @return a list of fingerprints.
      */
     public List<string> GetFingerprints(string[] uids) {
-      ProtocolLog.WriteIf(SocialLog.SVPNLog, "GET FINGERPRINTS: " +
-                          DateTime.Now.TimeOfDay);
+      ProtocolLog.WriteIf(SocialLog.SVPNLog, 
+                          String.Format("GET FINGERPRINTS: {0}",
+                          DateTime.Now.TimeOfDay));
 
       List<string> fingerprints = new List<string>();
       foreach(IProvider provider in _providers.Values) {
@@ -197,8 +199,9 @@ namespace SocialVPN {
      * @return a list of certificates.
      */
     public List<byte[]> GetCertificates(string[] uids) {
-      ProtocolLog.WriteIf(SocialLog.SVPNLog, "GET CERTIFICATES: " +
-                          DateTime.Now.TimeOfDay);
+      ProtocolLog.WriteIf(SocialLog.SVPNLog, 
+                          String.Format("GET CERTIFICATES: {0}",
+                          DateTime.Now.TimeOfDay));
 
       List<byte[]> certificates = new List<byte[]>();
       foreach(IProvider provider in _providers.Values) {
@@ -226,9 +229,10 @@ namespace SocialVPN {
      * @return boolean indicating success.
      */
     public bool StoreFingerprint() {
-      ProtocolLog.WriteIf(SocialLog.SVPNLog, "STORE FINGERPRINT: " +
-                          DateTime.Now.TimeOfDay + " " +
-                          _local_user.DhtKey + " " + _local_user.Address);
+      ProtocolLog.WriteIf(SocialLog.SVPNLog, 
+                          String.Format("STORE FINGERPRINT: {0} {1} {2}",
+                          DateTime.Now.TimeOfDay,_local_user.DhtKey,
+                          _local_user.Address));
 
       bool success = false;
       foreach(IProvider provider in _providers.Values) {
