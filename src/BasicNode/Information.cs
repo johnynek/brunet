@@ -43,6 +43,8 @@ namespace Brunet.Applications {
     protected readonly StructuredNode _node;
     /// <summary>The name of the application providing service.</summary>
     protected readonly String _type;
+    public SecurityOverlord _so;
+
 
     /**
     <summary>Creates an Information object for the node and type of service
@@ -57,6 +59,12 @@ namespace Brunet.Applications {
       _node = node;
       _rpc = RpcManager.GetInstance(node);
       _rpc.AddHandler("Information", this);
+    }
+
+    public Information(StructuredNode node, String type, SecurityOverlord so) :
+      this(node, type)
+    {
+      _so = so;
     }
 
     /**
@@ -90,6 +98,25 @@ namespace Brunet.Applications {
       ht.Add("geo_loc", geo_loc);
       ht.Add("localips", _node.sys_link.GetLocalIPAddresses());
       ht.Add("neighbors", _node.sys_link.GetNeighbors());
+      int wedge_count = 0;
+
+      foreach(EdgeListener el in _node.EdgeListenerList) {
+        WrapperEdgeListener wel = el as WrapperEdgeListener;
+        if(wel != null) {
+          ht.Add(TransportAddress.TATypeToString(wel.TAType), wel.UnderlyingCount);
+          wedge_count += el.Count;
+        } else {
+          ht.Add(TransportAddress.TATypeToString(el.TAType), el.Count);
+        }
+      }
+
+      ht.Add("cons", _node.ConnectionTable.TotalCount);
+      if(wedge_count != 0) {
+        ht.Add("wedges", wedge_count);
+      }
+      if(_so != null) {
+        ht.Add("sas", _so.SACount);
+      }
       return ht;
     }
 

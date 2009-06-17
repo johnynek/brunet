@@ -57,6 +57,7 @@ namespace Brunet.Applications {
       DevicesToBind = new String[0];
       XmlRpcManager = new Service();
       NCService = new NCServiceConfig();
+      Security = new SecurityPolicy();
     }
 
     /**  <summary>This is equivalent to Node.Realm, only Nodes in the same
@@ -85,6 +86,26 @@ namespace Brunet.Applications {
     required if XmlRpc is desired.</summary>*/
     public Service XmlRpcManager;
     public NCServiceConfig NCService;
+    public SecurityPolicy Security;
+
+    public class SecurityPolicy {
+      public SecurityPolicy() {
+        KeyPath = "private_key";
+        CertificatePath = "certificates";
+      }
+
+      public bool Enabled;
+      public bool SecureEdges;
+      public bool TestEnable;
+      public bool SecureEdgesEnabled { get { return Enabled && SecureEdges; } }
+      /// <summary>In this mode, we allow preshared self-signed certificates.
+      /// If we were to not have this mode, we could potentially be passing
+      /// around very large messages listing all the CAs we support, when all
+      /// CAs only support themselves! </summary>
+      public bool SelfSignedCertificates;
+      public string KeyPath;
+      public string CertificatePath;
+    }
 
     /**
     <summary>Used by services to specify if they are enabled and their port.

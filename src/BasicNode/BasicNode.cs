@@ -21,6 +21,7 @@ using System.IO;
 using System.Collections;
 using System.Xml;
 using System.Xml.Serialization;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Net;
 
@@ -28,7 +29,7 @@ using Brunet;
 using Brunet.Coordinate;
 using Brunet.DistributedServices;
 using Brunet.Rpc;
-
+using Brunet.Security;
 
 /**
 \namespace Brunet::Applications Provides BasicNode and core features
@@ -41,12 +42,10 @@ local machines and their associated names.
 \brief Provides BasicNode which implements a simple Brunet P2P Node.
 */
 namespace Brunet.Applications {
-  /**
-  <summary>BasicNode provides the core Brunet features in a deployable model
-  the inputs are a xml config file called NodeConfig, which specifies which
-  if any services to deploy.  Other projects should inherit this as their
-  base class rather than implementing their own interfaces to Brunet.</summary>
-  */
+  /// <summary>BasicNode provides the core Brunet features in a deployable model
+  /// the inputs are a xml config file called NodeConfig, which specifies which
+  /// if any services to deploy.  Other projects should inherit this as their
+  /// base class rather than implementing their own interfaces to Brunet.</summary>
   public class BasicNode {
     /// <summary>The path to the NodeConfig.</summary>
     protected String _path;
@@ -54,6 +53,10 @@ namespace Brunet.Applications {
     protected NodeConfig _node_config;
     /// <summary>The Brunet.Node used to connect to the p2p network.</summary>
     protected StructuredNode _node;
+    /// <summary>The p2p address for the local node.</summary>
+    public Address LocalAddress { get { return _node.Address; } }
+    /// <summary>An rpc interface over the local node.</summary>
+    public RpcManager Rpc { get { return _node.Rpc; } }
     /// <summary>The Dht object used to participate in the dht.</summary>
     public IDht Dht { get { return _dht; } }
     protected IDht _dht;
@@ -66,9 +69,12 @@ namespace Brunet.Applications {
     protected Shutdown _shutdown;
     /// <summary>Path to the node config (for updating it).</summary>
     protected string _node_config_path;
-    /**  <summary>True if the node should reincarnate itself if Node.Connect
-    exits or throws an exception</summary>*/
+    /// <summary>True if the node should reincarnate itself if Node.Connect
+    /// exits or throws an exception</summary>
     protected bool _running;
+    /// <summary>Provides access to the BrunetSecurityOverlord</summary>
+    public BrunetSecurityOverlord Bso { get { return _bso; } }
+    protected BrunetSecurityOverlord _bso;
 
     /// <summary>Prepares a BasicNode.</summary>
     /// <param name="node_config">A node config object.</param>
@@ -113,18 +119,56 @@ namespace Brunet.Applications {
       }
     }
 
-    /**
-    <summary>Creates a Brunet.Node, the resulting node will be available in
-    the class as _node.</summary>
-    <remarks>The steps to creating a node are first constructing it with a
-    namespace, optionally adding local ip addresses to bind to, specifying
-    local end points, specifying remote end points, and finally registering
-    the dht.</remarks>
-    */
+    /// <summary>Creates a Brunet.Node, the resulting node will be available in
+    /// the class as _node.</summary>
+    /// <remarks>The steps to creating a node are first constructing it with a
+    /// namespace, optionally adding local ip addresses to bind to, specifying
+    /// local end points, specifying remote end points, and finally registering
+    /// the dht.</remarks>
     public virtual void CreateNode() {
       AHAddress address = (AHAddress) AddressParser.Parse(_node_config.NodeAddress);
       _node = new StructuredNode(address, _node_config.BrunetNamespace);
       IEnumerable addresses = IPAddresses.GetIPAddresses(_node_config.DevicesToBind);
+
+      if(_node_config.Security.Enabled) {
+        if(_node_config.Security.SelfSignedCertificates) {
+          SecurityPolicy.SetDefaultSecurityPolicy(SecurityPolicy.DefaultEncryptor,
+              SecurityPolicy.DefaultAuthenticator, true);
+        }
+
+        byte[] blob = null;
+        using(FileStream fs = File.Open(_node_config.Security.KeyPath, FileMode.Open)) {
+          blob = new byte[fs.Length];
+          fs.Read(blob, 0, blob.Length);
+        }
+
+        RSACryptoServiceProvider rsa_private = new RSACryptoServiceProvider();
+        rsa_private.ImportCspBlob(blob);
+
+        CertificateHandler ch = new CertificateHandler(_node_config.Security.CertificatePath);
+        _bso = new BrunetSecurityOverlord(_node, rsa_private, _node.Rrm, ch);
+        _bso.Subscribe(_node, null);
+
+        _node.GetTypeSource(SecurityOverlord.Security).Subscribe(_bso, null);
+        _node.HeartBeatEvent += _bso.Heartbeat;
+
+        if(_node_config.Security.TestEnable) {
+          blob = rsa_private.ExportCspBlob(false);
+          RSACryptoServiceProvider rsa_pub = new RSACryptoServiceProvider();
+          rsa_pub.ImportCspBlob(blob);
+          CertificateMaker cm = new CertificateMaker("United States", "UFL", 
+              "ACIS", "David Wolinsky", "davidiw@ufl.edu", rsa_pub,
+              "brunet:node:abcdefghijklmnopqrs");
+          Certificate cacert = cm.Sign(cm, rsa_private);
+
+          cm = new CertificateMaker("United States", "UFL", 
+              "ACIS", "David Wolinsky", "davidiw@ufl.edu", rsa_pub,
+              address.ToString());
+          Certificate cert = cm.Sign(cacert, rsa_private);
+          ch.AddCACertificate(cacert.X509);
+          ch.AddSignedCertificate(cert.X509);
+        }
+      }
 
       Brunet.EdgeListener el = null;
       foreach(NodeConfig.EdgeListener item in _node_config.EdgeListeners) {
@@ -148,9 +192,16 @@ namespace Brunet.Applications {
         else {
           throw new Exception("Unrecognized transport: " + item.type);
         }
+        if(_node_config.Security.SecureEdgesEnabled) {
+          el = new SecureEdgeListener(el, _bso);
+        }
         _node.AddEdgeListener(el);
       }
+
       el = new TunnelEdgeListener(_node);
+      if(_node_config.Security.SecureEdgesEnabled) {
+        el = new SecureEdgeListener(el, _bso);
+      }
       _node.AddEdgeListener(el);
 
       ArrayList RemoteTAs = null;
@@ -174,11 +225,9 @@ namespace Brunet.Applications {
       _dht = new Dht(_node, 3, 20);
     }
 
-    /**
-    <summary>Starts services such as shutdown, rpcdht, and xmlrpc.  If you wish
-    to have your own shutdown path, edit OnExit instead of this.  This can be
-    called multiple times without negative effect.</summary>
-    */
+    /// <summary>Starts services such as shutdown, rpcdht, and xmlrpc.  If you wish
+    /// to have your own shutdown path, edit OnExit instead of this.  This can be
+    /// called multiple times without negative effect.</summary>
     public virtual void StartServices() {
       _shutdown.OnExit += OnExit;
 
