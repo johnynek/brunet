@@ -191,16 +191,28 @@ namespace Brunet.Applications {
       }
     }
 
-    /**
-    <summary>A generic object to XML, used for configuration objects</summary>
-    <param name="path">The full path where the file will be stored.</param>
-    <param name="config">An object to be written to the path as an XML file</param>
-    */
+    /// <summary>A generic object to XML, used for configuration objects</summary>
+    /// <param name="path">The full path where the file will be stored.</param>
+    /// <param name="config">An object to be written to the path as an XML file</param>
     public static void WriteConfig(String path, Object config) {
       using(FileStream fs = new FileStream(path, FileMode.Create, FileAccess.Write)) {
         XmlSerializer serializer = new XmlSerializer(config.GetType());
         serializer.Serialize(fs, config);
       }
+    }
+
+    /// <summary>Makes a deep copy of an object, similar to a C++ copy
+    /// constructor.</summary>
+    public static T Copy<T>(T tobject) {
+      T tcopy = default(T);
+
+      using(Stream ms = new MemoryStream()) {
+        XmlSerializer serializer = new XmlSerializer(typeof(T));
+        serializer.Serialize(ms, tobject);
+        ms.Position = 0;
+        tcopy = (T) serializer.Deserialize(ms);
+      }
+      return tcopy;
     }
   }
 }

@@ -18,6 +18,7 @@
         <include name="Ipop.IBlockingQueue.dll" />
         <include name="Brunet.XmlRpc.dll" />
         <include name="Brunet.DhtService.dll"/>
+        <include name="NDesk.Options.dll"/>
       </fileset>
     </copy>
 
@@ -28,48 +29,18 @@
       </sources>
     </csc>
 
-    <csc target="exe" output="${build.dir}/BasicNode.exe">
+    <csc target="exe" output="${build.dir}/P2PNode.exe">
       <sources failonempty="true">
-        <include name="BasicNode.cs"/>
-        <include name="NodeConfig.cs"/>
-        <include name="IPAddresses.cs"/>
-        <include name="Information.cs"/>
-        <include name="OSDependent.cs"/>
-        <include name="Utils.cs"/>
-        <include name="Shutdown.cs"/>
+        <include name="*.cs"/>
       </sources>
-      <references>
-        <include name="${build.dir}/Brunet.dll"/>
-        <include name="${build.dir}/Brunet.Dht.dll"/>
-        <include name="${build.dir}/Brunet.Coordinate.dll"/>
-        <include name="${build.dir}/Ipop.IBlockingQueue.dll"/>
-        <include name="${build.dir}/Brunet.XmlRpc.dll" />
-        <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />
-        <include name="${build.dir}/Brunet.DhtService.dll"/>
-        <include name="System.Runtime.Remoting.dll"/>
-        <include name="Mono.Posix.dll"/>
-      </references>
-    </csc>
-
-    <csc target="exe" output="${build.dir}/MultiNode.exe" main="Brunet.Applications.MultiNode">
-      <sources failonempty="true">
-        <include name="MultiNode.cs"/>
-        <include name="BasicNode.cs"/>
-        <include name="NodeConfig.cs"/>
-        <include name="IPAddresses.cs"/>
-        <include name="Information.cs"/>
-        <include name="OSDependent.cs"/>
-        <include name="Utils.cs"/>
-        <include name="Shutdown.cs"/>
-      </sources>
-      <references>
-        <include name="${build.dir}/Brunet.dll"/>
-        <include name="${build.dir}/Brunet.Dht.dll"/>
-        <include name="${build.dir}/Brunet.Coordinate.dll"/>
-        <include name="${build.dir}/Ipop.IBlockingQueue.dll"/>
-        <include name="${build.dir}/Brunet.XmlRpc.dll" />
-        <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />
-        <include name="${build.dir}/Brunet.DhtService.dll"/>
+      <references basedir="${build.dir}">
+        <include name="Brunet.dll"/>
+        <include name="Brunet.Dht.dll"/>
+        <include name="Brunet.Coordinate.dll"/>
+        <include name="Ipop.IBlockingQueue.dll"/>
+        <include name="Brunet.XmlRpc.dll" />
+        <include name="CookComputing.XmlRpcV2.dll" />
+        <include name="NDesk.Options.dll"/>
         <include name="System.Runtime.Remoting.dll"/>
         <include name="Mono.Posix.dll"/>
       </references>
@@ -82,8 +53,7 @@
     </copy>
     <copy todir="${bin.dir}" failonerror="true">
       <fileset basedir="${build.dir}">
-        <include name="BasicNode.exe" />
-        <include name="MultiNode.exe" />
+        <include name="P2PNode.exe" />
       </fileset>
     </copy>
   </target>
