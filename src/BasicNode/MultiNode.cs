@@ -59,9 +59,7 @@ namespace Brunet.Applications {
       }
 
       _shutdown = Shutdown.GetShutdown();
-      if(_shutdown != null) {
-        _shutdown.OnExit += OnExit;
-      }
+      _shutdown.OnExit += OnExit;
 
       for(int i = 0; i < _count - 1; i++) {
         _node_config.NodeAddress = (Utils.GenerateAHAddress()).ToString();
