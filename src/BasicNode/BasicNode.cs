@@ -96,7 +96,7 @@ namespace Brunet.Applications {
       while(_running) {
         CreateNode();
         new Information(_node, "BasicNode");
-        Console.Error.WriteLine("I am connected to {0} as {1}.  Current time is {2}.",
+        Console.WriteLine("I am connected to {0} as {1}.  Current time is {2}.",
                                 _node.Realm, _node.Address.ToString(), DateTime.UtcNow);
         _node.DisconnectOnOverload = true;
         start_time = DateTime.UtcNow;
@@ -128,7 +128,13 @@ namespace Brunet.Applications {
     /// local end points, specifying remote end points, and finally registering
     /// the dht.</remarks>
     public virtual void CreateNode() {
-      AHAddress address = (AHAddress) AddressParser.Parse(_node_config.NodeAddress);
+      AHAddress address = null;
+      try {
+        address = (AHAddress) AddressParser.Parse(_node_config.NodeAddress);
+      } catch {
+        address = Utils.GenerateAHAddress();
+      }
+
       _node = new StructuredNode(address, _node_config.BrunetNamespace);
       IEnumerable addresses = IPAddresses.GetIPAddresses(_node_config.DevicesToBind);
 
