@@ -12,25 +12,15 @@ name=$3
 # the user location
 location=$4
 
-user=`whoami`
-device=tapipop
-
-if [[ $user != "root" ]]; then
-  sudo tunctl -u $user -t $device
-  sudo chmod 666 /dev/net/tun
-fi
-
+# set variables
 cert_dir=certificates
 
 if [[ -d $cert_dir ]]; then
   mono SocialVPN.exe brunet.config ipop.config 58888 &> log.txt &
 else
-  if [[ -z $4 ]]; then
+  if [[ $# -lt 4 ]]; then
     echo "usage (on first run): ./start_linux.sh <email> <pcid> <name> <location>"
     exit
   fi
   mono SocialVPN.exe brunet.config ipop.config 58888 $email $pcid "$name" $location &> log.txt &
 fi
-
-sleep 3
-sudo /sbin/dhclient -pf /var/run/dhclient.$device.pid -lf /var/lib/dhcp3/dhclient.$device.leases $device

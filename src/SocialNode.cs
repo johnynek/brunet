@@ -35,25 +35,6 @@ using NUnit.Framework;
 namespace SocialVPN {
 
   /**
-   * This class defines the social state of the system.
-   */
-  public class SocialState {
-
-    /**
-     * The local certificate string
-     */
-    public string Certificate;
-    /**
-     * The local user.
-     */
-    public SocialUser LocalUser;
-    /**
-     * The list of friends.
-     */
-    public SocialUser[] Friends;
-  }
-
-  /**
    * SocialNode Class. Extends the RpcIpopNode to support adding friends based
    * on X509 certificates.
    */
@@ -130,6 +111,11 @@ namespace SocialVPN {
     protected readonly SocialRpcHandler _srh;
 
     /**
+     * The synchronization object.
+     */
+    protected readonly object _sync;
+
+    /**
      * Constructor.
      * @param brunetConfig configuration file for Brunet P2P library.
      * @param ipopConfig configuration file for IP over P2P app.
@@ -152,6 +138,7 @@ namespace SocialVPN {
       _srh = new SocialRpcHandler(_node, _local_user, _friends);
       _scm = new SocialConnectionManager(this, _snp, _srh, port);
       _node.ConnectionTable.ConnectionEvent += ConnectHandler;
+      _sync = new object();
     }
 
     /**
@@ -209,7 +196,7 @@ namespace SocialVPN {
           bool success = (bool) (q.Dequeue());
           if(success) {
             ProtocolLog.WriteIf(SocialLog.SVPNLog,
-                                String.Format("PUBLISH CERT SUCCESS: {0} {1}", 
+                                String.Format("PUBLISH CERT SUCCESS: {0} {1}",
                                 DateTime.Now.TimeOfDay, _local_user.DhtKey));
           }
         } catch (Exception e) {
@@ -237,26 +224,16 @@ namespace SocialVPN {
                             String.Format("ADD CERT KEY FOUND: {0} {1}",
                             DateTime.Now.TimeOfDay, friend.DhtKey));
       }
-      else if(_snp.ValidateCertificate(cert.X509.RawData)) {
-        friend.Alias = CreateAlias(friend.Uid, friend.PCID, friend.DhtKey);
-
-        // Save certificate to file system
-        SocialUtils.SaveCertificate(cert, _cert_dir);
-
-        // Add certificates to handler
-        _bso.CertificateHandler.AddCACertificate(cert.X509);
-
-        // Add friend to list
-        _friends.Add(friend.DhtKey, friend);
-
-        // Store address to key mapping
-        _addr_to_key.Add(friend.Address, friend.DhtKey);
-
-        // Temporary
-        AddFriend(friend);
-
-        // Ping newly added friend
-        _srh.PingFriend(friend);
+      else if(_snp.ValidateCertificate(certData)) {
+        lock(_sync) {
+          friend.Alias = CreateAlias(friend.Uid, friend.PCID, friend.DhtKey);
+          SocialUtils.SaveCertificate(cert, _cert_dir);
+          _bso.CertificateHandler.AddCACertificate(cert.X509);
+          _friends.Add(friend.DhtKey, friend);
+          _addr_to_key.Add(friend.Address, friend.DhtKey);
+          AddFriend(friend);
+          _srh.PingFriend(friend);
+        }
 
         ProtocolLog.WriteIf(SocialLog.SVPNLog,
                             String.Format("ADD CERT KEY SUCCESS: {0} {1} {2}",

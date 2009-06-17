@@ -87,8 +87,14 @@ namespace SocialVPN {
      */
     protected string _sync_uid;
 
+    /**
+     * The different timer states.
+     */
     protected Intervals _timer_state;
 
+    /**
+     * Enumeration for timer states.
+     */
     public enum Intervals {
       Long = 1,
       Short = 2,
@@ -226,7 +232,10 @@ namespace SocialVPN {
      */
     protected void UpdateFriends() {
       if(_sync_uid != null) {
-        string uid = String.Copy(_sync_uid);
+        string uid = null;
+        lock(_sync) {
+          uid = String.Copy(_sync_uid);
+        }
         if(_snp.GetFriends().Contains(uid)) {
           AddFriends(new string[] {uid});
         }
