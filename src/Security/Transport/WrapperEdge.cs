@@ -16,13 +16,14 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+using Brunet;
 using System;
 using System.Threading;
 using System.Collections;
 
 namespace Brunet {
   ///<summary>Provides a Wrapper for edges, this allows us to control input,
-  ///output, and state of the edge.</summary>
+  ///output, and state of the edge.  This class is thread-safe.</summary>
   ///<remarks>This could be an abstract class, but it was fully implemented for
   ///testing purposes</summary>
   public class WrapperEdge: Edge, IDataHandler {
@@ -50,12 +51,13 @@ namespace Brunet {
       ReceivedPacketEvent(b);
     }
 
-    public override void Close() {
+    public override bool Close() {
       if(Interlocked.Exchange(ref _weclosed, 1) == 1) {
-        return;
+        return false;
       }
       base.Close();
       _edge.Close();
+      return true;
     }
 
     ///<summary>This is the underlying Edge's state.  By default, we do not
@@ -101,36 +103,6 @@ namespace Brunet {
     ///<summary>Sends the data over the underlying edge.</summary>
     public override void Send(ICopyable p) {
       _edge.Send(p);
-    }
-
-    ///<summary>The underlying edges LocalTA.  By default we do not change
-    ///this state.</summary>
-    public override DateTime CreatedDateTime {
-      get {
-        return _edge.CreatedDateTime;
-      }
-    }
-
-    ///<summary>The underlying edges LocalTA.  By default we do not change
-    ///this state.</summary>
-    public override DateTime LastOutPacketDateTime {
-      get {
-        return _edge.LastOutPacketDateTime;
-      }
-    }
-
-    public override bool IsClosed {
-      get {
-        return _weclosed == 1;
-      }
-    }
-
-    ///<summary>This is the underlying Edge's state.  By default, we do not
-    ///change this state.</summary>
-    public override bool IsInbound {
-      get {
-        return _edge.IsInbound;
-      }
     }
 
     public override string ToString() {

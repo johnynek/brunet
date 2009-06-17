@@ -48,22 +48,17 @@ namespace Brunet {
       }
     }
 
-    public override void Close() {
+    public override bool Close() {
       if(Interlocked.Exchange(ref _closed, 1) == 1) {
-        return;
+        return false;
       }
       SA.Close("Edge closed!");
       base.Close();
+      return true;
     }
 
     public override string ToString() {
       return "SecureEdge: " + _edge.ToString();
-    }
-
-    public override bool IsClosed {
-      get {
-        return _closed == 1;
-      }
     }
   }
 }

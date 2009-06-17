@@ -177,7 +177,7 @@ namespace Brunet
    /**
     * @return true if the edge is an in-degree
     */
-    protected readonly bool IsInbound;
+    public readonly bool IsInbound;
 
     public int CompareTo(object e)
     {
