@@ -40,7 +40,7 @@ namespace SocialVPN {
 
     public const string PICDEFAULT = "nopic";
 
-    public const string DHTPREFIX = "svpn";
+    public const string DHTPREFIX = "svpn:";
 
     public string Uid;
 
@@ -93,7 +93,7 @@ namespace SocialVPN {
       Address = cert.NodeAddress;
       Version = cert.Subject.Organization;
       Fingerprint = SocialUtils.GetSHA256(cert.X509.RawData);
-      DhtKey = DHTPREFIX + ":" + PCID + ":" + Uid + ":" + Fingerprint;
+      DhtKey = DHTPREFIX + Fingerprint;
       Country = cert.Subject.Country;
       Access = AccessTypes.Block.ToString();
       Time = TIMEDEFAULT;

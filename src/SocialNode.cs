@@ -111,9 +111,9 @@ namespace SocialVPN {
     protected readonly SocialRpcHandler _srh;
 
     /**
-     * The synchronization object.
+     * The main blocking queue used for message passing between threads.
      */
-    protected readonly object _sync;
+    protected readonly BlockingQueue _queue;
 
     /**
      * Constructor.
@@ -135,10 +135,11 @@ namespace SocialVPN {
       _bso.CertificateHandler.AddSignedCertificate(_local_cert.X509);
       _snp = new SocialNetworkProvider(this.Dht, _local_user, 
                                        _local_cert.X509.RawData, certDir);
-      _srh = new SocialRpcHandler(_node, _local_user, _friends);
-      _scm = new SocialConnectionManager(this, _snp, _srh, port);
+      _queue = new BlockingQueue();
+      _srh = new SocialRpcHandler(_node, _local_user, _friends, _queue);
+      _scm = new SocialConnectionManager(this, _snp, _srh, port, _queue);
       _node.ConnectionTable.ConnectionEvent += ConnectHandler;
-      _sync = new object();
+      _node.HeartBeatEvent += _scm.HeartBeatHandler;
     }
 
     /**
@@ -225,15 +226,13 @@ namespace SocialVPN {
                             DateTime.Now.TimeOfDay, friend.DhtKey));
       }
       else if(_snp.ValidateCertificate(certData)) {
-        lock(_sync) {
-          friend.Alias = CreateAlias(friend.Uid, friend.PCID, friend.DhtKey);
-          SocialUtils.SaveCertificate(cert, _cert_dir);
-          _bso.CertificateHandler.AddCACertificate(cert.X509);
-          _friends.Add(friend.DhtKey, friend);
-          _addr_to_key.Add(friend.Address, friend.DhtKey);
-          AddFriend(friend);
-          _srh.PingFriend(friend);
-        }
+        friend.Alias = CreateAlias(friend.Uid, friend.PCID, friend.DhtKey);
+        SocialUtils.SaveCertificate(cert, _cert_dir);
+        _bso.CertificateHandler.AddCACertificate(cert.X509);
+        _friends.Add(friend.DhtKey, friend);
+        _addr_to_key.Add(friend.Address, friend.DhtKey);
+        AddFriend(friend);
+        _srh.PingFriend(friend);
 
         ProtocolLog.WriteIf(SocialLog.SVPNLog,
                             String.Format("ADD CERT KEY SUCCESS: {0} {1} {2}",
@@ -254,7 +253,7 @@ namespace SocialVPN {
      */
     public void AddDhtFriend(string key) {
       if(key != _local_user.DhtKey && !_friends.ContainsKey(key) &&
-         key.Length > 50 ) {
+         key.Length >= 45) {
         ProtocolLog.WriteIf(SocialLog.SVPNLog, 
                             String.Format("ADD DHT FETCH: {0} {1}", 
                             DateTime.Now.TimeOfDay, key));
@@ -267,7 +266,8 @@ namespace SocialVPN {
             ProtocolLog.WriteIf(SocialLog.SVPNLog, 
                                 String.Format("ADD DHT SUCCESS: {0} {1}",
                                 DateTime.Now.TimeOfDay, key));
-            AddCertificate(certData);
+            _queue.Enqueue(new QueueItem(
+              QueueItem.Actions.AddCert, certData));
           } catch (Exception e) {
             ProtocolLog.WriteIf(SocialLog.SVPNLog,e.Message);
             ProtocolLog.WriteIf(SocialLog.SVPNLog,

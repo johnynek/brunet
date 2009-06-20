@@ -179,7 +179,7 @@ namespace SocialVPN {
           continue;
         }
         foreach(string fpr in tmp_fprs) {
-          if(fpr.Length > 50 || !fingerprints.Contains(fpr)) {
+          if(fpr.Length > 45 || !fingerprints.Contains(fpr)) {
             fingerprints.Add(fpr);
           }
         }

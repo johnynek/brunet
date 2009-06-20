@@ -30,27 +30,30 @@ using NUnit.Framework;
 
 namespace SocialVPN {
 
+  public class QueueItem {
+
+    public enum Actions {
+      AddCert,
+      Sync,
+      Process,
+      HeartBeat
+    }
+
+    public Actions Action;
+    public object Obj;
+
+    public QueueItem(Actions action, object obj) {
+      this.Action = action;
+      this.Obj = obj;
+    }
+  }
+
   /**
    * This class is in charge of making connections between friends. It
    * manages the social networking backends as well as the identity providers
    * of the system.
    */
   public class SocialConnectionManager {
-
-    /**
-     * The immediate time for the timer thread (.3 sec).
-     */
-    private const int IMMEDIATETIME = 300;
-
-    /**
-     * The short time for the timer thread (30 secs).
-     */
-    private const int SHORTTIME = 30000;
-
-    /**
-     * The long time for the timer thread (5 mins).
-     */
-    private const int LONGTIME = 300000;
 
     /**
      * The node which accepts peers based on certificates.
@@ -73,33 +76,24 @@ namespace SocialVPN {
     protected readonly SocialRpcHandler _srh;
 
     /**
-     * Timer thread.
+     * The main blocking queue used for message passing between threads.
      */
-    protected readonly Timer _timer_thread;
+    protected readonly BlockingQueue _queue;
 
     /**
-     * The synchronization object.
+     * Main processing thread thread.
      */
-    protected readonly object _sync;
+    protected readonly Thread _main_thread;
 
     /**
-     * This is the place holder for the uid for a sync call.
+     * The time keepers.
      */
-    protected string _sync_uid;
+    protected DateTime _last_update, _last_publish, _last_store, _last_ping;
 
     /**
-     * The different timer states.
+     * Interval for periodic operations
      */
-    protected Intervals _timer_state;
-
-    /**
-     * Enumeration for timer states.
-     */
-    public enum Intervals {
-      Long = 1,
-      Short = 2,
-      Immediate = 3
-    }
+    protected readonly TimeSpan _interval;
 
     /**
      * Constructor.
@@ -110,61 +104,95 @@ namespace SocialVPN {
      * @param srh the social rpc handler.
      */
     public SocialConnectionManager(SocialNode node,SocialNetworkProvider snp,
-                                   SocialRpcHandler srh, string port) {
+                                   SocialRpcHandler srh, string port,
+                                   BlockingQueue queue) {
       _snode = node;
       _snp = snp;
       _http = new HttpInterface(port);
       _http.ProcessEvent += ProcessHandler;
       _http.Start();
       _srh = srh;
-      _srh.SyncEvent += SyncHandler;
-      _timer_state = Intervals.Long;
-      _timer_thread = new Timer(new TimerCallback(TimerHandler), null,
-                                SHORTTIME, LONGTIME);
-      _sync = new object();
-      _sync_uid = null;
+      _queue = queue;
+      _main_thread = new Thread(Start);
+      _main_thread.Start();
+      _interval = new TimeSpan(0,5,0);
+      _last_update = DateTime.Now - _interval;
+      _last_store = _last_update;
+      _last_publish = _last_update;
+      _last_ping = _last_update;
+    }
+
+    public void Start() {
+      if (Thread.CurrentThread.Name == null) {
+        Thread.CurrentThread.Name = "svpn_main_thread";
+      }
+
+      while(true) {
+        QueueItem item = (QueueItem)_queue.Dequeue();
+        switch(item.Action) {
+          case QueueItem.Actions.AddCert:
+            _snode.AddCertificate((byte[]) item.Obj);      
+            break;
+
+          case QueueItem.Actions.Sync:
+            UpdateFriends((string) item.Obj);
+            break;
+
+          case QueueItem.Actions.Process:
+            ProcessRequest((Dictionary<string, string>) item.Obj);
+            break;
+
+          case QueueItem.Actions.HeartBeat:
+            HeartBeatAction();
+            break;
+
+          default:
+            break;
+        }
+      }
+    }
+
+    /**
+     * Heartbeat event handler.
+     * @param obj the default object.
+     * @param eargs the event arguments.
+     */
+    public void HeartBeatHandler(Object obj, EventArgs eargs) {
+      _queue.Enqueue(new QueueItem(QueueItem.Actions.HeartBeat, obj));
     }
 
     /**
      * Timer event handler.
      * @param obj the default object.
      */
-    public void TimerHandler(Object obj) {
-      ProtocolLog.WriteIf(SocialLog.SVPNLog, 
-                          String.Format("TIMER HANDLER CALL: {0}", 
-                          DateTime.Now.TimeOfDay));
+    public void HeartBeatAction(){
+      if(!_snode.Dht.Activated) {
+        return;
+      }
+      DateTime now = DateTime.Now;
       try {
-        if(_timer_state != Intervals.Long) {
-          _timer_thread.Change(LONGTIME, LONGTIME);
-          _timer_state = Intervals.Long;
-          UpdateFriends();
+        if((now - _last_update).Minutes >= 5 ) {
+          UpdateFriends(null);
+          _last_update = now;
         }
-        else {
-          UpdateFriends();
+        if((now - _last_store).Minutes >= 5 ) {
           _snp.StoreFingerprint();
+          _last_store = now;
+        }
+        if((now - _last_publish).Minutes >= 5 ) {
           _snode.PublishCertificate();
+          _last_publish = now;
+        }
+        if((now - _last_ping).Minutes >= 5 ) {
           _srh.PingFriends();
+          _last_ping = now;
         }
       } catch (Exception e) {
-        if(_timer_state != Intervals.Short && 
-           e.Message.StartsWith("Dht")) {
-          // Only change time on Dht not activitated
-          _timer_thread.Change(SHORTTIME, SHORTTIME);
-          _timer_state = Intervals.Short;
-        }
         ProtocolLog.WriteIf(SocialLog.SVPNLog, e.Message);
         ProtocolLog.WriteIf(SocialLog.SVPNLog, 
-                            String.Format("TIMER HANDLER FAILURE: {0}",
+                            String.Format("HEARTBEAT ACTION FAILURE: {0}",
                             DateTime.Now.TimeOfDay));
       }
-    }
-
-    /**
-     * Change timer class time to do immediate update.
-     */
-    public void TimerUpdate() {
-      _timer_state = Intervals.Immediate;
-      _timer_thread.Change(IMMEDIATETIME, IMMEDIATETIME);
     }
 
     /**
@@ -173,27 +201,33 @@ namespace SocialVPN {
      * @param eargs the event arguments.
      */
     public void ProcessHandler(Object obj, EventArgs eargs) {
-      Dictionary<string, string> request = (Dictionary<string,string>) obj;
+      ((Dictionary<string, string>)obj)["response"] = _snode.GetState();
+      // Allows main thread to run request, main thread does all the work
+      _queue.Enqueue(new QueueItem(QueueItem.Actions.Process, obj));
+    }
+
+    /**
+     * Process event handler.
+     * This is run by the main_thread.
+     * @param request the dictionary containing request params
+     */
+    public void ProcessRequest(Dictionary<string, string> request) {
       if(request.ContainsKey("m")) {
         switch(request["m"]) {
           case "add":
-            _snp.AddFriends(request["uids"]);;
-            UpdateFriends();
+            _snp.AddFriends(request["uids"]);
             break;
 
           case "addfpr":
             _snp.AddFingerprints(request["fprs"]);
-            TimerUpdate();
             break;
 
           case "addcert":
             _snp.AddCertificate(request["cert"]);
-            TimerUpdate();
             break;
 
           case "login":
             _snp.Login(request["id"], request["user"], request["pass"]);
-            TimerUpdate();
             break;
             
           case "allow":
@@ -207,41 +241,20 @@ namespace SocialVPN {
           default:
             break;
         }
-      }
-      request["response"] = _snode.GetState();
-    }
-
-    /**
-     * Sync event handler.
-     * @param obj the default object.
-     * @param eargs the event arguments.
-     */
-    public void SyncHandler(Object obj, EventArgs eargs) {
-      string dht_key = (string) obj;
-      string[] parts = dht_key.Split(':');
-      lock(_sync) {
-        if(_sync_uid == null) {
-          _sync_uid = parts[2];
+        if(request["m"] == "add" || request["m"] == "addfpr" || 
+            request["m"] == "addcert") {
+          UpdateFriends(null);
         }
       }
-      TimerUpdate();
     }
 
     /**
      * Updates friends and adds to socialvpn.
+     * @param uid given if only one friends needs updating
      */
-    protected void UpdateFriends() {
-      if(_sync_uid != null) {
-        string uid = null;
-        lock(_sync) {
-          uid = String.Copy(_sync_uid);
-        }
-        if(_snp.GetFriends().Contains(uid)) {
-          AddFriends(new string[] {uid});
-        }
-        lock(_sync) {
-          _sync_uid = null;
-        }
+    protected void UpdateFriends(string uid) {
+      if(uid != null && _snp.GetFriends().Contains(uid)) {
+        AddFriends(new string[] {uid});
       }
       else {
         AddFriends(_snp.GetFriends().ToArray());

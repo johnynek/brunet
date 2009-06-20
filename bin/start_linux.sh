@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # the name email
 email=$1
