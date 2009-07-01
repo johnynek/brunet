@@ -162,6 +162,9 @@ namespace Brunet
       public void RemoveEdge(TcpEdge e)
       {
         Socket s = e.Socket;
+        if( false == _sock_to_rs.Contains(s) ) {
+          return;
+        }
         // Go ahead and remove from the map. ... this needs to be done because
         // Socket's dynamic HashCode, a bug in an older version of Mono
         Hashtable new_s_to_rs = new Hashtable( _sock_to_rs.Count );

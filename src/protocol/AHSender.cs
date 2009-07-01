@@ -34,7 +34,7 @@ public class AHHeader : ICopyable {
 
   public AHHeader(short hops, short ttl, Address source, Address dest, ushort options) {
     //Make the header part:
-    byte[] header = new byte[ 46 ];
+    byte[] header = new byte[ AHPacket.HeaderLength ];
     int offset = 0;
     //Write hops:
     NumberSerializer.WriteShort(hops, header, offset);
@@ -272,9 +272,8 @@ public class AHHandler : IDataHandler {
       ISender resp_send = new AHSender(_n, ret_path, p.Source,
                                        _n.DefaultTTLFor(p.Source),
                                        AHPacket.AHOptions.Exact);
-      //There are 2 (hops) + 2 (ttl) + 20 (s) + 20 (d) + 2 (opts) = 46 bytes to the payload encapsulated
       //data:
-      _n.HandleData( data.Slice(46), resp_send, this); 
+      _n.HandleData( data.Slice(AHPacket.HeaderLength), resp_send, this); 
     }
 
   }

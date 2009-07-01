@@ -39,6 +39,7 @@ namespace Brunet
 
     /** This is the largest positive short */
     public static readonly short MaxTtl = (short) 32767;
+    public static readonly int HeaderLength = 6 + Address.MemSize * 2;
 
 
     protected MemBlock _buffer;
@@ -65,7 +66,7 @@ namespace Brunet
       _ttl = NumberSerializer.ReadShort(buffer, offset);
       offset += 2;
       //Skip the addresses
-      offset += 40;
+      offset += Address.MemSize * 2;
       _options = (ushort)NumberSerializer.ReadShort(buffer, offset);
       _buffer = MemBlock.Reference(buffer, 0, length);
     }
@@ -80,14 +81,13 @@ namespace Brunet
         ArgumentException("Packet is not an AHPacket: " + buf[0].ToString());
       }
       _buffer = buf;
-      int offset = 0; 
-      offset += 1;
+      int offset = 1; 
       _hops = NumberSerializer.ReadShort(_buffer, offset);
       offset += 2;
       _ttl = NumberSerializer.ReadShort(_buffer, offset);
       offset += 2;
       //Skip the addresses
-      offset += 40;
+      offset += Address.MemSize * 2;
       _options = (ushort)NumberSerializer.ReadShort(_buffer, offset);
     }
 
@@ -159,7 +159,7 @@ namespace Brunet
       }
       _pt = payload_prot;
       _type_length = NumberSerializer.GetByteCount(_pt);
-      int total_size = 47 + _type_length + len;
+      int total_size = HeaderLength + 1 + _type_length + len;
       byte[] buffer = new byte[ total_size ]; 
       int off = 0;
       buffer[off] = (byte)Packet.ProtType.AH;
@@ -168,10 +168,8 @@ namespace Brunet
       off += 2;
       NumberSerializer.WriteShort(_ttl, buffer, off);
       off += 2;
-      _source.CopyTo(buffer, off);
-      off += 20;
-      _destination.CopyTo(buffer, off);
-      off += 20;
+      off += _source.CopyTo(buffer, off);
+      off += _destination.CopyTo(buffer, off);
       NumberSerializer.WriteShort((short)_options, buffer, off);
       off += 2;
       off += NumberSerializer.WriteString(_pt, buffer, off);
@@ -229,11 +227,11 @@ namespace Brunet
            * the first null.  Then, since the type length includes the null,
            * we add 1 to it.
            */
-          _type_length = _buffer.Slice(47).IndexOf(0);
-          _pt = _buffer.Slice(47, _type_length).GetString(System.Text.Encoding.UTF8);
+          _type_length = _buffer.Slice(HeaderLength + 1).IndexOf(0);
+          _pt = _buffer.Slice(HeaderLength + 1, _type_length).GetString(System.Text.Encoding.UTF8);
           _type_length = _type_length + 1;
         }
-        return 47 + _type_length;
+        return HeaderLength + 1 + _type_length;
       }
     }
 
@@ -270,7 +268,7 @@ namespace Brunet
     public Address Destination {
       get {
         if( _destination == null ) {
-          _destination = AddressParser.Parse( _buffer.Slice(25, Address.MemSize) );
+          _destination = AddressParser.Parse( _buffer.Slice(5 + Address.MemSize, Address.MemSize) );
         }
         return _destination;
       }
@@ -288,8 +286,8 @@ namespace Brunet
     public string PayloadType {
       get {
         if( _pt == null ) {
-          _type_length = _buffer.Slice(47).IndexOf(0);
-          _pt = _buffer.Slice(47, _type_length).GetString(System.Text.Encoding.UTF8);
+          _type_length = _buffer.Slice(HeaderLength + 1).IndexOf(0);
+          _pt = _buffer.Slice(HeaderLength + 1, _type_length).GetString(System.Text.Encoding.UTF8);
           _type_length = _type_length + 1;
         }
         return _pt;

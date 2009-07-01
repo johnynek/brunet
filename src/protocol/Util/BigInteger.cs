@@ -168,7 +168,11 @@ namespace Brunet
      * Using 10 uints means we can multiply two addresses
      * together and still be okay.
      */
+#if BRUNET_SIMULATOR
+    private const int maxLength = 4;
+#else
     private const int maxLength = 10;
+#endif
 
     // primes smaller than 2000 to test the generated prime number
 

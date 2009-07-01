@@ -110,7 +110,7 @@ namespace Brunet
         if(now - _last_activate_call < TimeSpan.FromSeconds(10)) {
           return;
         }
-        _last_announce_call = now;
+        _last_activate_call = now;
 
         Random rand = new Random();
         for(int i = 0; i < MAX_LC - _local_cons; i++) {

@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# adds all nodes to one ore more slices
 import xmlrpclib
  
 api_server = xmlrpclib.ServerProxy('https://www.planet-lab.org/PLCAPI/', allow_none=True)
@@ -27,10 +28,16 @@ all_nodes = api_server.GetNodes(auth, {}, ['hostname'])
  
 # Create an array of string hostnames
 node_hostnames = [node['hostname'] for node in all_nodes]
-print node_hostnames
  
-print "Enter Slice Name: "
-slice = raw_input(">")
-# Add slice to each node
-result = api_server.AddSliceToNodes(auth, slice, node_hostnames)
+print "Enter Slice Name(s) - separated by commas: "
+slices = raw_input(">")
+slices = slices.split(",")
 
+tse = int(time.time()) + 59*60*24*7*8
+for slice in slices:
+  slice = slice.strip()
+  result = api_server.AddSliceToNodes(auth, slice, node_hostnames)
+  if result == 1:
+    print slice + " Successful"
+  else:
+    print slice + " Failure"

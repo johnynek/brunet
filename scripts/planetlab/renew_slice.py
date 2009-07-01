@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# Sets the maximum lifetime for a slice or slices
 import xmlrpclib, sys, time
  
 api_server = xmlrpclib.ServerProxy('https://www.planet-lab.org/PLCAPI/', allow_none=True)
@@ -26,13 +27,15 @@ except:
 if authorized:
   print 'We are authorized!'
  
-print "Enter Slice Name: "
-slice = raw_input(">")
+print "Enter Slice Name(s) - separated by commas: "
+slices = raw_input(">")
+slices = slices.split(",")
 
 tse = int(time.time()) + 59*60*24*7*8
-result = api_server.UpdateSlice(auth, slice, {"expires": tse})
-
-if result == 1:
-  print "Successful"
-else:
-  print "Failure"
+for slice in slices:
+  slice = slice.strip()
+  result = api_server.UpdateSlice(auth, slice, {"expires": tse})
+  if result == 1:
+    print slice + " Successful"
+  else:
+    print slice + " Failure"

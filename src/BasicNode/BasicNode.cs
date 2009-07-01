@@ -62,6 +62,7 @@ namespace Brunet.Applications {
     /// <summary>The XmlRpc service provider.</summary>
     protected XmlRpcManagerServer _xrm;
     /// <summary>The shutdown service provider.</summary>
+    public Shutdown Shutdown { get { return _shutdown; } }
     protected Shutdown _shutdown;
     /// <summary>Path to the node config (for updating it).</summary>
     protected string _node_config_path;
@@ -90,6 +91,7 @@ namespace Brunet.Applications {
         Utils.WriteConfig(path, _node_config);
       }
       _running = true;
+      _shutdown = Shutdown.GetShutdown();
     }
 
     /**
@@ -214,10 +216,7 @@ namespace Brunet.Applications {
     called multiple times without negative effect.</summary>
     */
     public virtual void StartServices() {
-      _shutdown = Shutdown.GetShutdown();
-      if(_shutdown != null) {
-        _shutdown.OnExit += OnExit;
-      }
+      _shutdown.OnExit += OnExit;
 
       if(_node_config.RpcDht != null && _node_config.RpcDht.Enabled) {
         if(_ds == null) {
