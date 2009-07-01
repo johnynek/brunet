@@ -24,10 +24,11 @@ using System.Xml.Serialization;
 using System.Threading;
 using System.Net;
 
-using Brunet.DistributedServices;
-using Brunet.Rpc;
 using Brunet;
 using Brunet.Coordinate;
+using Brunet.DistributedServices;
+using Brunet.Rpc;
+
 
 /**
 \namespace Brunet::Applications Provides BasicNode and core features
@@ -54,11 +55,10 @@ namespace Brunet.Applications {
     /// <summary>The Brunet.Node used to connect to the p2p network.</summary>
     protected StructuredNode _node;
     /// <summary>The Dht object used to participate in the dht.</summary>
-    protected Dht _dht;
+    public IDht Dht { get { return _dht; } }
+    protected IDht _dht;
     /// <summary>The NCService object used for this node.</summary>
     protected NCService _ncservice;
-    /// <summary>The DhtRpc service provider.</summary>
-    protected DhtServer _ds;
     /// <summary>The XmlRpc service provider.</summary>
     protected XmlRpcManagerServer _xrm;
     /// <summary>The shutdown service provider.</summary>
@@ -177,7 +177,8 @@ namespace Brunet.Applications {
           try {
             el = new UdpEdgeListener(port, addresses);
           }
-          catch {
+          catch(Exception e) {
+            Console.WriteLine(e);
             el = new UdpEdgeListener(0, addresses);
           }
         }
@@ -198,15 +199,15 @@ namespace Brunet.Applications {
         _node.RemoteTAs = RemoteTAs;
       }
 
-      try {
-        if (_node_config.NCService.Enabled) {
-          _ncservice = new NCService(_node, _node_config.NCService.Checkpoint);
+      if (_node_config.NCService.Enabled) {
+        _ncservice = new NCService(_node, _node_config.NCService.Checkpoint);
 
-          if (_node_config.NCService.OptimizeShortcuts) {
-            _node.Sco.TargetSelector = new VivaldiTargetSelector(_node, _ncservice);
-          }
+        if (_node_config.NCService.OptimizeShortcuts) {
+          _node.Sco.TargetSelector = new VivaldiTargetSelector(_node, _ncservice);
         }
-      } catch {}
+      }
+
+      new TableServer(_node);
       _dht = new Dht(_node, 3, 20);
     }
 
@@ -218,18 +219,10 @@ namespace Brunet.Applications {
     public virtual void StartServices() {
       _shutdown.OnExit += OnExit;
 
-      if(_node_config.RpcDht != null && _node_config.RpcDht.Enabled) {
-        if(_ds == null) {
-          _ds = new DhtServer(_node_config.RpcDht.Port);
-        }
-        _ds.Update(_dht);
-      }
-
-      if(_node_config.XmlRpcManager != null && _node_config.XmlRpcManager.Enabled) {
-        if(_xrm == null) {
-          _xrm = new XmlRpcManagerServer(_node_config.XmlRpcManager.Port);
-        }
+      if(_node_config.XmlRpcManager.Enabled && _xrm == null) {
+        _xrm = new XmlRpcManagerServer(_node_config.XmlRpcManager.Port);
         _xrm.Update(_node);
+        new RpcDht(_dht, _node);
       }
     }
 
@@ -240,9 +233,6 @@ namespace Brunet.Applications {
     </summary>
      */
     public virtual void SuspendServices() {
-      if(_ds != null) {
-        _ds.Stop();
-      }
       if(_xrm != null) {
         _xrm.Suspend();
       }
@@ -254,10 +244,6 @@ namespace Brunet.Applications {
     required and you would like to release the ports</summary>
     */
     public virtual void StopServices() {
-      if(_ds != null) {
-        _ds.Stop();
-        _ds = null;
-      }
       if(_xrm != null) {
         _xrm.Stop();
         _xrm = null;

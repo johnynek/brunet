@@ -1,6 +1,7 @@
 using System;
 using System.Text;
 using System.Collections;
+using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Threading;
 
@@ -10,7 +11,7 @@ using Brunet.DistributedServices;
 namespace Test {
   public class DhtOpTester {
     SortedList nodes = new SortedList();
-    SortedList dhts = new SortedList();
+    Dictionary<Address, TableServer> tables = new Dictionary<Address, TableServer>();
     Dht default_dht;
     static readonly int degree = 3;
     static int network_size = 60;
@@ -110,12 +111,12 @@ namespace Test {
       byte[][] expected_results = (byte[][]) ht["results"];
       int op = (int) ht["op"];
       try {
-        DhtGetResult[] result = default_dht.Get(key);
+        Hashtable[] result = default_dht.Get(key);
         bool found = false;
         int found_count = 0;
         for(int i = 0; i < result.Length; i++) {
           for(int j = 0; j < expected_results.Length; j++) {
-            if(ArrayComparer(result[i].value, expected_results[j])) {
+            if(ArrayComparer((byte[]) result[i]["value"], expected_results[j])) {
               found = true;
               break;
             }
@@ -140,34 +141,34 @@ namespace Test {
       }
     }
 
-    public void SerialAsGet(byte[] key, byte[][] results, int op) {
+    public void SerialAsyncGet(byte[] key, byte[][] results, int op) {
       Hashtable ht = new Hashtable();
       ht.Add("key", key);
       ht.Add("results", results);
       ht.Add("op", op);
-      SerialAsGet((object) ht);
+      SerialAsyncGet((object) ht);
     }
 
-    public void SerialAsGet(object data) {
+    public void SerialAsyncGet(object data) {
       Hashtable ht = (Hashtable) data;
       byte[] key = (byte[]) ht["key"];
       byte[][] expected_results = (byte[][]) ht["results"];
       int op = (int) ht["op"];
       try {
         BlockingQueue queue = new BlockingQueue();
-        default_dht.AsGet(key, queue);
+        default_dht.AsyncGet(key, queue);
         bool found = false;
         int found_count = 0;
         while(true) {
-          DhtGetResult dgr = null;
+          Hashtable dgr = null;
           try {
-            dgr = (DhtGetResult) queue.Dequeue();
+            dgr = (Hashtable) queue.Dequeue();
           }
           catch(Exception){
               break;
           }
           for(int j = 0; j < expected_results.Length; j++) {
-            if(ArrayComparer(dgr.value, expected_results[j])) {
+            if(ArrayComparer((byte[]) dgr["value"], expected_results[j])) {
               found = true;
               break;
             }
@@ -263,13 +264,13 @@ namespace Test {
         nodes.Add(addr, node);
         node.AddEdgeListener(new UdpEdgeListener(base_port + i));
         node.RemoteTAs = RemoteTA;
+        tables[addr] = new TableServer(node);
         (new Thread(node.Connect)).Start();
-        dhts.Add(addr, new Dht(node, degree));
-        if(i < network_size / ((Dht)dhts.GetByIndex(i)).DEGREE) {
+//        if(i < network_size / ((Dht)dhts.GetByIndex(i)).DEGREE) {
 //          ((Dht)dhts.GetByIndex(i)).debug = true;
-        }
+//        }
       }
-      default_dht = (Dht) dhts.GetByIndex(0);
+      default_dht = new Dht((Node) nodes.GetByIndex(0), degree);
     }
 
     // Checks the ring for completeness
@@ -454,7 +455,7 @@ namespace Test {
         rng.GetBytes(value);
         al_results.Add(value);
         results_queue[i] = new BlockingQueue();
-        default_dht.AsPut(key, value, 3000, results_queue[i]);
+        default_dht.AsyncPut(key, value, 3000, results_queue[i]);
       }
       for (int i = 0; i < 60; i++) {
         try {
@@ -466,10 +467,10 @@ namespace Test {
         }
       }
       Console.WriteLine("Insertion done...");
-      this.SerialAsGet(key, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
+      this.SerialAsyncGet(key, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
       Thread.Sleep(5000);
       Console.WriteLine("This checks to make sure our follow up Puts succeeded");
-      this.SerialAsGet(key, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
+      this.SerialAsyncGet(key, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
     }
 
@@ -771,7 +772,7 @@ namespace Test {
         rng.GetBytes(value);
         al_results.Add(value);
         results_queue[i] = new BlockingQueue();
-        default_dht.AsPut(key, value, 3000, results_queue[i]);
+        default_dht.AsyncPut(key, value, 3000, results_queue[i]);
       }
       for (int i = 0; i < count; i++) {
         try {
@@ -819,11 +820,11 @@ namespace Test {
         Node node = (Node) nodes[laddr];
         node.Disconnect();
         nodes.Remove(laddr);
-        dhts.Remove(laddr);
+        tables.Remove(laddr);
         network_size--;
       }
 
-      default_dht = (Dht) dhts.GetByIndex(0);
+      default_dht = new Dht((Node) nodes.GetByIndex(0), degree);
 
       // Checking the ring every 5 seconds..
       do  { Thread.Sleep(5000);}
@@ -831,14 +832,13 @@ namespace Test {
       Console.WriteLine("Going to sleep now...");
       Thread.Sleep(15000);
       Console.WriteLine("Timeout done.... now attempting gets");
-      this.SerialAsGet(key, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
+      this.SerialAsyncGet(key, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
       Thread.Sleep(5000);
       Console.WriteLine("This checks to make sure our follow up Puts succeeded");
-      this.SerialAsGet(key, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
+      this.SerialAsyncGet(key, (byte[][]) al_results.ToArray(typeof(byte[])), op++);
       Console.WriteLine("If no error messages successful up to: " + (op - 1));
-      foreach(DictionaryEntry de in dhts) {
-        Dht dht = (Dht) de.Value;
-        Console.WriteLine("Count ... " + dht.Count);
+      foreach(TableServer ts in tables.Values) {
+        Console.WriteLine("Count ... " + ts.Count);
       }
     }
 

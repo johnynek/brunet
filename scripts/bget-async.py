@@ -17,7 +17,11 @@ if (len(args) < 1):
   \tbget.py [--output=<filename to write value to>] [--quiet (only print the value)] <key>"""
   sys.exit(1)
 
-for value_dict in rpc.localproxy("DhtClient.Get", xmlrpclib.Binary(args[0])):
+res = rpc.localproxy("DhtClient.BeginGet", xmlrpclib.Binary(args[0]))
+value_dict = rpc.localproxy("DhtClient.ContinueGet", res)
+while len(value_dict) > 0:
   value = value_dict['value'].data
   ttl = value_dict['ttl']
   print value
+  value_dict = rpc.localproxy("DhtClient.ContinueGet", res)
+rpc.localproxy("DhtClient.EndGet", res)

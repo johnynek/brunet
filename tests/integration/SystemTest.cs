@@ -133,8 +133,6 @@ namespace Test {
           if(dht_enabled) {
             NodeMapping nm = (NodeMapping) nodes.GetByIndex(rand.Next(0, nodes.Count));
             Dht dht = nm.Dht;
-            if(!dht.Activated)
-              continue;
             BlockingQueue returns = new BlockingQueue();
             dht.AsGet("tester", returns);
             int count = 0;
@@ -340,6 +338,7 @@ namespace Test {
       TakenPorts[nm.Port] = nm.Port;
 
       if(dht_enabled) {
+        new TableServer(node);
         nm.Dht = new Dht(node, 3);
       }
 
@@ -356,8 +355,6 @@ namespace Test {
         NodeMapping nm = (NodeMapping) de.Value;
         Dht dht = nm.Dht;
         Node node = nm.Node;
-        if(!dht.Activated)
-          continue;
         Channel returns = new Channel();
         dht.AsPut("tester", node.Address.ToString(), 2 * time_interval * dht_put_interval, returns);
       }
@@ -368,8 +365,6 @@ namespace Test {
       for(int i = 0; i < network_size / 25; i++) {
         int index = rand.Next(0, network_size);
         Dht dht = ((NodeMapping) nodes.GetByIndex(index)).Dht;
-        if(!dht.Activated)
-          continue;
         Channel returns = new Channel();
         dht.AsGet("tester", returns);
       }
