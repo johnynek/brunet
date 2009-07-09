@@ -27,31 +27,31 @@ using System.Net;
 using System.Threading;
 
 /**
-\namespace Ipop::RpcNode
-\brief Defines Ipop.RpcNode provide the ability to set up translation tables via Rpc
+\namespace Ipop::ManagedNode
+\brief Defines Ipop.ManagedNode provide the ability to set up translation tables via Managed
 */
-namespace Ipop.RpcNode {
+namespace Ipop.ManagedNode {
   /// <summary>
   /// This class is a subclass of IpopNode
   /// </summary>
-  public class RpcIpopNode: IpopNode {
+  public class ManagedIpopNode: IpopNode {
     /// <summary>Provides Address resolution, dns, and translation.</summary>
-    protected RpcAddressResolverAndDNS _rarad;
+    protected ManagedAddressResolverAndDNS _marad;
 
     /// <summary>
     /// The constructor takes two config files
     /// </summary>
-    /// <param name="NodeConfigPath">Path to the node config file</param>
-    /// <param name="IpopConfigPath">Path to the ipop config file</param>
-    public RpcIpopNode(NodeConfig node_config, IpopConfig ipop_config) :
+    /// <param name="NodeConfigPath">Node config object</param>
+    /// <param name="IpopConfigPath">Ipop config object</param>
+    public ManagedIpopNode(NodeConfig node_config, IpopConfig ipop_config) :
       base(node_config, ipop_config, null)
     {
-      _dhcp_server = RpcDHCPServer.GetRpcDHCPServer(_ipop_config.VirtualNetworkDevice);  
+      _dhcp_server = ManagedDHCPServer.GetManagedDHCPServer(_ipop_config.VirtualNetworkDevice);  
       _dhcp_config = _dhcp_server.Config;
-      _rarad = new RpcAddressResolverAndDNS(Brunet, _dhcp_server, ((RpcDHCPServer) _dhcp_server).LocalIP);
-      _dns = _rarad;
-      _address_resolver = _rarad;
-      _translator = _rarad;
+      _marad = new ManagedAddressResolverAndDNS(Brunet, _dhcp_server, ((ManagedDHCPServer) _dhcp_server).LocalIP);
+      _dns = _marad;
+      _address_resolver = _marad;
+      _translator = _marad;
     }
 
     protected override DHCPServer GetDHCPServer() {
@@ -77,7 +77,7 @@ namespace Ipop.RpcNode {
     /// <param name="ipp">A multicast packet to be processed</param>
     /// <returns></returns>
     protected override bool HandleMulticast(IPPacket ipp) {
-      foreach(Address addr in _rarad.mcast_addr) {
+      foreach(Address addr in _marad.mcast_addr) {
         SendIP(addr, ipp.Packet);
       }
       return true;

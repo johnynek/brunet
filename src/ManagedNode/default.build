@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <project name="ipop-common" default="build" basedir=".">
-  <description> Builds the Ipop dll </description>
+  <description> Builds the ManagedNode dll </description>
   <property name="brunet.dir" value="../brunet" unless="${property::exists('brunet.dir')}" />
   <property name="lib.dir" value="../../lib"/>
   <property name="build.dir" value="build" />
@@ -10,7 +10,7 @@
     <delete dir="${build.dir}" failonerror="true"/>
   </target>
 
-  <target name="build" description="Build RpcIpopNode.dll">
+  <target name="build" description="Build ManagedIpopNode.dll">
     <mkdir dir="${build.dir}" failonerror="true"/>
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${lib.dir}">
@@ -18,16 +18,16 @@
         <include name="libtuntap.so" />
         <include name="Brunet.Dht.dll" />
         <include name="CookComputing.XmlRpcV2.dll" />
-        <include name="Brunet.Coordinate.dll"/>
         <include name="Brunet.XmlRpc.dll" />
         <include name="Brunet.DhtService.dll"/>
         <include name="Brunet.Security.dll"/>
+        <include name="Brunet.Coordinate.dll"/>
         <include name="Mono.Security.dll"/>
         <include name="NDesk.Options.dll"/>
       </fileset>
     </copy>
 
-    <csc target="library" output="${build.dir}/RpcIpopNode.dll">
+    <csc target="library" output="${build.dir}/ManagedIpopNode.dll">
       <sources failonempty="true">
         <include name="*.cs"/>
         <include name="../NetworkPackets/*.cs"/>
@@ -45,16 +45,16 @@
     <mkdir dir="${lib.dir}" failonerror="true"/>
     <copy todir="${lib.dir}" failonerror="true">
       <fileset basedir="${build.dir}">
-        <include name="RpcIpopNode.dll" />
+        <include name="ManagedIpopNode.dll" />
       </fileset>
     </copy>
   </target>
 
-  <target name="doc" description="Build RpcIpopNode.xml">
+  <target name="doc" description="Build ManagedIpopNode.xml">
   </target>
 
-  <target name="test" description="Test RpcIpopNode">
-    <csc target="library" define="RpcIpopNodeNUNIT" output="${build.dir}/RpcIpopNode.test.dll">
+  <target name="test" description="Test ManagedIpopNode">
+    <csc target="library" define="ManagedIpopNodeNUNIT" output="${build.dir}/ManagedIpopNode.test.dll">
       <sources failonempty="true">
         <include name="*.cs"/>
         <include name="../NetworkPackets/*.cs"/>
@@ -71,7 +71,7 @@
     </csc>
     <nunit2>
       <formatter type="Plain" />
-      <test assemblyname="${build.dir}/RpcIpopNode.test.dll"/>
+      <test assemblyname="${build.dir}/ManagedIpopNode.test.dll"/>
     </nunit2>
   </target>
 </project>
