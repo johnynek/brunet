@@ -47,7 +47,7 @@ namespace SocialVPN {
     /**
      * Dht object used to store data in P2P data store.
      */
-    protected readonly Dht _dht;
+    protected readonly IDht _dht;
 
     /**
      * The list of identity providers.
@@ -85,7 +85,7 @@ namespace SocialVPN {
      * @param user the local user object.
      * @param certData the local certificate data.
      */
-    public SocialNetworkProvider(Dht dht, SocialUser user, byte[] certData,
+    public SocialNetworkProvider(IDht dht, SocialUser user, byte[] certData,
                                  string certDir) {
       _local_user = user;
       _dht = dht;
@@ -104,12 +104,14 @@ namespace SocialVPN {
      * Registers the various socialvpn backends.
      */
     public void RegisterBackends() {
+      /*
       TestNetwork google_backend = new TestNetwork(_local_user,
                                                    _local_cert_data);
       // Registers the identity provider
       _providers.Add("GoogleBackend", google_backend);
       // Register the social network
       _networks.Add("GoogleBackend", google_backend);
+      */
     }
 
     /**
@@ -280,8 +282,12 @@ namespace SocialVPN {
     public void AddFingerprints(string fprlist) {
       string[] fprs = fprlist.Split('\n');
       foreach(string fpr in fprs) {
-        if(!_fingerprints.Contains(fpr)) {
-          _fingerprints.Add(fpr);
+        string tmp_fpr = null;
+        if(!fpr.Contains("=")) {
+          tmp_fpr = fpr + "=";
+        }
+        if(!_fingerprints.Contains(tmp_fpr)) {
+          _fingerprints.Add(tmp_fpr);
         }
       }
     }

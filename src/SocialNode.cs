@@ -26,7 +26,9 @@ using System.Threading;
 using Brunet;
 using Brunet.Applications;
 using Brunet.DistributedServices;
-using Ipop.RpcNode;
+using Brunet.Security;
+using Ipop;
+using Ipop.ManagedNode;
 
 #if SVPN_NUNIT
 using NUnit.Framework;
@@ -38,7 +40,7 @@ namespace SocialVPN {
    * SocialNode Class. Extends the RpcIpopNode to support adding friends based
    * on X509 certificates.
    */
-  public class SocialNode : RpcIpopNode {
+  public class SocialNode : ManagedIpopNode {
 
     /**
      * The current version of SocialVPN.
@@ -48,7 +50,7 @@ namespace SocialVPN {
     /**
      * The suffix for the DNS names.
      */
-    public const string DNSSUFFIX = ".svpn";
+    public const string DNSSUFFIX = ".ipop";
 
     /**
      * The local certificate file name.
@@ -120,7 +122,7 @@ namespace SocialVPN {
      * @param brunetConfig configuration file for Brunet P2P library.
      * @param ipopConfig configuration file for IP over P2P app.
      */
-    public SocialNode(string brunetConfig, string ipopConfig, 
+    public SocialNode(NodeConfig brunetConfig, IpopConfig ipopConfig, 
                       string certDir, string port) : 
                       base(brunetConfig, ipopConfig) {
       _friends = new Dictionary<string, SocialUser>();
@@ -140,6 +142,10 @@ namespace SocialVPN {
       _scm = new SocialConnectionManager(this, _snp, _srh, port, _queue);
       _node.ConnectionTable.ConnectionEvent += ConnectHandler;
       _node.HeartBeatEvent += _scm.HeartBeatHandler;
+      _local_user.IP = _marad.LocalIP;
+      _local_user.Alias = CreateAlias(_local_user.Uid, _local_user.PCID,
+                                     _local_user.DhtKey);
+      _marad.MapLocalDNS(_local_user.Alias);
     }
 
     /**
@@ -207,7 +213,7 @@ namespace SocialVPN {
                               DateTime.Now.TimeOfDay, _local_user.DhtKey));
         }
       };
-      this.Dht.AsPut(keyb, value, DHTTTL, q);
+      this.Dht.AsyncPut(keyb, value, DHTTTL, q);
     }
 
     /**
@@ -261,8 +267,8 @@ namespace SocialVPN {
         q.CloseAfterEnqueue();
         q.CloseEvent += delegate(Object o, EventArgs eargs) {
           try {
-            DhtGetResult dgr = (DhtGetResult) q.Dequeue();
-            byte[] certData = dgr.value;
+            Hashtable result = (Hashtable) q.Dequeue();
+            byte[] certData = (byte[]) result["value"];
             ProtocolLog.WriteIf(SocialLog.SVPNLog, 
                                 String.Format("ADD DHT SUCCESS: {0} {1}",
                                 DateTime.Now.TimeOfDay, key));
@@ -275,7 +281,9 @@ namespace SocialVPN {
                                 DateTime.Now.TimeOfDay, key));
           }
         };
-        this.Dht.AsGet(key, q);
+        byte[] key_bytes = Encoding.UTF8.GetBytes(key);
+        MemBlock keyb = MemBlock.Reference(key_bytes);
+        this.Dht.AsyncGet(keyb, q);
       }
     }
 
@@ -306,7 +314,7 @@ namespace SocialVPN {
      */
     public void AddFriend(SocialUser friend) {
       Address addr = AddressParser.Parse(friend.Address);
-      friend.IP = _rarad.RegisterMapping(friend.Alias, addr);
+      friend.IP = _marad.RegisterMapping(friend.Alias, addr);
       _node.ManagedCO.AddAddress(addr);
       friend.Access = SocialUser.AccessTypes.Allow.ToString();
     }
@@ -318,7 +326,7 @@ namespace SocialVPN {
     public void RemoveFriend(SocialUser friend) {
       Address addr = AddressParser.Parse(friend.Address);
       _node.ManagedCO.RemoveAddress(addr);
-      _rarad.UnregisterMapping(friend.Alias);
+      _marad.UnregisterMapping(friend.Alias);
       friend.Access = SocialUser.AccessTypes.Block.ToString();
     }
 
@@ -353,19 +361,19 @@ namespace SocialVPN {
       if(args.Length < 3) {
         Console.WriteLine("usage: SocialVPN.exe <brunet.config path> " + 
                            "<ipop.config path> <http port> [email] [pcid] " + 
-                           "[\"name\"] [location]");
+                           "[\"name\"]");
         return;
       }
 
-      NodeConfig config = Utils.ReadConfig<NodeConfig>(args[0]);
+      NodeConfig node_config = Utils.ReadConfig<NodeConfig>(args[0]);
+      IpopConfig ipop_config = Utils.ReadConfig<IpopConfig>(args[1]);
 
-      if(!System.IO.Directory.Exists(config.Security.CertificatePath)) {
+      if(!System.IO.Directory.Exists(node_config.Security.CertificatePath)) {
         string name, uid, pcid, version, country;
-        if(args.Length == 7) {
+        if(args.Length >= 6) {
           uid = args[3];
           pcid = args[4];
           name = args[5];
-          country = args[6];
         }
         else {
           Console.Write("Enter Name (First Last): ");
@@ -374,26 +382,24 @@ namespace SocialVPN {
           uid = Console.ReadLine();
           Console.Write("Enter a unique name for this machine: ");
           pcid = Console.ReadLine();
-          Console.Write("Enter your location (City-Country): ");
-          country = Console.ReadLine();
         }
 
-        if(uid.Length < 1 || pcid.Length < 1 || name.Length < 1 || 
-           country.Length < 1) {
+        if(uid.Length < 1 || pcid.Length < 1 || name.Length < 1) {
           return;
         }
 
+        country = "Undefined";
         version = VERSION;
-        config.NodeAddress = Utils.GenerateAHAddress().ToString();
-        Utils.WriteConfig(args[0], config);
+        node_config.NodeAddress = Utils.GenerateAHAddress().ToString();
+        Utils.WriteConfig(args[0], node_config);
         SocialUtils.CreateCertificate(uid, name, pcid, version, country,
-                                      config.NodeAddress, 
-                                      config.Security.CertificatePath,
-                                      config.Security.KeyPath);
+                                      node_config.NodeAddress, 
+                                      node_config.Security.CertificatePath,
+                                      node_config.Security.KeyPath);
       }
 
-      SocialNode node = new SocialNode(args[0], args[1], 
-                                       config.Security.CertificatePath,
+      SocialNode node = new SocialNode(node_config, ipop_config, 
+                                       node_config.Security.CertificatePath,
                                        args[2]);
       node.Run();
     }

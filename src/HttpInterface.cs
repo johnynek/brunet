@@ -23,6 +23,8 @@ using System.Web;
 using System.IO;
 using System.Threading;
 
+using Brunet;
+
 namespace SocialVPN {
   /**
    * This class defines the HTTP interface to manage socialvpn.
@@ -160,12 +162,18 @@ namespace SocialVPN {
           string postData = reader.ReadToEnd();
           request.InputStream.Close();
           reader.Close();
+          ProtocolLog.WriteIf(SocialLog.SVPNLog, String.Format(
+                              "HTTP API: {0} {1}",
+                              DateTime.Now.TimeOfDay, postData));
           responseString = Process(SocialUtils.DecodeUrl(postData));
         }
         else if (request.RawUrl.StartsWith("/getapi"))
         {
           if(request.RawUrl.Length > 9) {
             string getData = request.RawUrl.Substring(8);
+            ProtocolLog.WriteIf(SocialLog.SVPNLog, String.Format(
+                                "HTTP API: {0} {1}",
+                                DateTime.Now.TimeOfDay, getData));
             responseString = Process(SocialUtils.DecodeUrl(getData));
           }
         }

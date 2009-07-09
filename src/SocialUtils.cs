@@ -31,6 +31,7 @@ using System.Net;
 
 using Brunet;
 using Brunet.Applications;
+using Brunet.Security;
 
 #if SVPN_NUNIT
 using NUnit.Framework;
@@ -212,8 +213,11 @@ namespace SocialVPN {
       
       for (int x = 0; x < pairs.Length; x++) {
         string[] item = pairs[x].Split('=');
+        /*
         result.Add(HttpUtility.UrlDecode(item[0]), 
                    HttpUtility.UrlDecode(item[1]));
+        */
+        result.Add(item[0], item[1]);
       }
       return result;
     }
@@ -271,17 +275,16 @@ namespace SocialVPN {
       }
     }
 
-    public static bool ValidateServerCertificate(object sender, 
-                                                 X509Certificate certificate,
-                                                 X509Chain chain, 
-                                                 SslPolicyErrors
-                                                 sslPolicyErrors) {
-      return true;
+    public class SocialPolicy : ICertificatePolicy {
+      public bool CheckValidationResult (ServicePoint sp, 
+          X509Certificate certificate, WebRequest request, int error)
+        {
+          return true;
+        }
     }
 
     public static void SetSecurityPolicy() {
-      ServicePointManager.ServerCertificateValidationCallback = 
-        new RemoteCertificateValidationCallback(ValidateServerCertificate);
+      ServicePointManager.CertificatePolicy = new SocialPolicy();
     }
 
   }

@@ -129,25 +129,32 @@ namespace SocialVPN {
 
       while(true) {
         QueueItem item = (QueueItem)_queue.Dequeue();
-        switch(item.Action) {
-          case QueueItem.Actions.AddCert:
-            _snode.AddCertificate((byte[]) item.Obj);      
-            break;
+        try {
+          switch(item.Action) {
+            case QueueItem.Actions.AddCert:
+              _snode.AddCertificate((byte[]) item.Obj);      
+              break;
 
-          case QueueItem.Actions.Sync:
-            UpdateFriends((string) item.Obj);
-            break;
+            case QueueItem.Actions.Sync:
+              UpdateFriends((string) item.Obj);
+              break;
 
-          case QueueItem.Actions.Process:
-            ProcessRequest((Dictionary<string, string>) item.Obj);
-            break;
+            case QueueItem.Actions.Process:
+              ProcessRequest((Dictionary<string, string>) item.Obj);
+              break;
 
-          case QueueItem.Actions.HeartBeat:
-            HeartBeatAction();
-            break;
+            case QueueItem.Actions.HeartBeat:
+              HeartBeatAction();
+              break;
 
-          default:
-            break;
+            default:
+              break;
+          }
+        } catch (Exception e) {
+          ProtocolLog.WriteIf(SocialLog.SVPNLog, e.Message);
+          ProtocolLog.WriteIf(SocialLog.SVPNLog, 
+                              String.Format("HEARTBEAT ACTION FAILURE: {0}",
+                              DateTime.Now.TimeOfDay));
         }
       }
     }
@@ -166,32 +173,25 @@ namespace SocialVPN {
      * @param obj the default object.
      */
     public void HeartBeatAction(){
-      if(!_snode.Dht.Activated) {
+      if(!_snode.Dht.Online) {
         return;
       }
       DateTime now = DateTime.Now;
-      try {
-        if((now - _last_update).Minutes >= 5 ) {
-          UpdateFriends(null);
-          _last_update = now;
-        }
-        if((now - _last_store).Minutes >= 5 ) {
-          _snp.StoreFingerprint();
-          _last_store = now;
-        }
-        if((now - _last_publish).Minutes >= 5 ) {
-          _snode.PublishCertificate();
-          _last_publish = now;
-        }
-        if((now - _last_ping).Minutes >= 5 ) {
-          _srh.PingFriends();
-          _last_ping = now;
-        }
-      } catch (Exception e) {
-        ProtocolLog.WriteIf(SocialLog.SVPNLog, e.Message);
-        ProtocolLog.WriteIf(SocialLog.SVPNLog, 
-                            String.Format("HEARTBEAT ACTION FAILURE: {0}",
-                            DateTime.Now.TimeOfDay));
+      if((now - _last_update).Minutes >= 5 ) {
+        UpdateFriends(null);
+        _last_update = now;
+      }
+      if((now - _last_store).Minutes >= 5 ) {
+        _snp.StoreFingerprint();
+        _last_store = now;
+      }
+      if((now - _last_publish).Minutes >= 5 ) {
+        _snode.PublishCertificate();
+        _last_publish = now;
+      }
+      if((now - _last_ping).Minutes >= 5 ) {
+        _srh.PingFriends();
+        _last_ping = now;
       }
     }
 

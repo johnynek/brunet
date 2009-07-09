@@ -5,7 +5,7 @@
   <target name="build" description="Build SocialVPN">
 
     <nant buildfile="${ipop.dir}/ipop.build" failonerror="false"/>
-    <nant buildfile="${ipop.dir}/src/RpcNode/default.build" failonerror="false"/>
+    <nant buildfile="${ipop.dir}/src/ManagedNode/default.build" failonerror="false"/>
 
     <!-- copy the dlls -->
     <copy todir="./lib" failonerror="false">
@@ -15,13 +15,7 @@
       </fileset>
     </copy>
 
-    <!-- copy the bins -->
-    <copy todir="./bin" failonerror="false">
-      <fileset basedir="${ipop.dir}/bin/">
-        <include name="RpcIpopNode.exe" />
-      </fileset>
-    </copy>
-    
     <nant buildfile="src/default.build" failonerror="true"/>
+    <nant buildfile="utils/default.build" failonerror="true"/>
   </target>
 </project>
