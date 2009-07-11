@@ -43,8 +43,7 @@ namespace Brunet.Security {
     static SecurityPolicy() {
       _ssync = new object();
       _splist = new Dictionary<int, SecurityPolicy>();
-      new SecurityPolicy(DefaultSPI, DefaultEncryptor, DefaultAuthenticator,
-          DefaultPreExchangedKeys);
+      SetDefaultSecurityPolicy(DefaultEncryptor, DefaultAuthenticator, DefaultPreExchangedKeys);
     }
 
     public static void SetDefaultSecurityPolicy(string Encryptor, string Authenticator,

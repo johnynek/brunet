@@ -31,14 +31,14 @@ namespace Brunet.Security {
     public NullEncryption()
     {
       KeySizeValue = 0;
-      BlockSizeValue = 1;
+      BlockSizeValue = 8;
       FeedbackSizeValue = 0;
 
       LegalKeySizesValue = new KeySizes[1];
       LegalKeySizesValue[0] = new KeySizes(0, 0, 0);
 
       LegalBlockSizesValue = new KeySizes[1];
-      LegalBlockSizesValue[0] = new KeySizes(1, 1, 0);
+      LegalBlockSizesValue[0] = new KeySizes(8, 8, 0);
     }
 
     public override void GenerateIV()
