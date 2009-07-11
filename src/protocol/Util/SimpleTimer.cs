@@ -27,7 +27,7 @@ using System.Collections;
 #endif
 
 namespace Brunet {
-  public class BrunetTimer : IDisposable, IComparable<BrunetTimer> {
+  public class SimpleTimer : IDisposable, IComparable<SimpleTimer> {
     protected WaitCallback _callback;
     protected object _state;
     public int Period { get { return _period_ms; } }
@@ -36,15 +36,15 @@ namespace Brunet {
     protected long _next_run;
 
     protected static object _sync;
-    protected static Heap<BrunetTimer> _timers;
+    protected static Heap<SimpleTimer> _timers;
     protected static int _running;
     protected static AutoResetEvent _re;
     protected static Thread _thread;
 
-    static BrunetTimer()
+    static SimpleTimer()
     {
       _sync = new object();
-      _timers = new Heap<BrunetTimer>();
+      _timers = new Heap<SimpleTimer>();
 #if !BRUNET_SIMULATOR
       _re = new AutoResetEvent(false);
       _thread = new Thread(TimerThread);
@@ -74,7 +74,7 @@ namespace Brunet {
     {
       long min_next_run = long.MaxValue;
       long ticks = DateTime.UtcNow.Ticks;
-      BrunetTimer timer = null;
+      SimpleTimer timer = null;
       _running = 0;
       while(true) {
         bool dispose = false;
@@ -129,7 +129,7 @@ namespace Brunet {
       }
     }
 
-    public BrunetTimer(WaitCallback callback, object state, int dueTime, int period)
+    public SimpleTimer(WaitCallback callback, object state, int dueTime, int period)
     {
       if(dueTime < -1) {
         throw new ArgumentOutOfRangeException("dueTime");
@@ -170,7 +170,7 @@ namespace Brunet {
       _disposed = true;
     }
 
-    public int CompareTo(BrunetTimer t) {
+    public int CompareTo(SimpleTimer t) {
       return this._next_run.CompareTo(t._next_run);
     }
   }
@@ -189,7 +189,7 @@ namespace Brunet {
     }
 
     public void PeriodCallback(object state) {
-      BrunetTimer t = state as BrunetTimer;
+      SimpleTimer t = state as SimpleTimer;
       int calls = (int) _hash[t];
       lock(_sync) {
         _hash[t] = ++calls;
@@ -203,7 +203,7 @@ namespace Brunet {
     public void TestDipose() {
       _order = new ArrayList();
       for(int i = 0; i < 100; i++) {
-        BrunetTimer t = new BrunetTimer(Callback, i, 100 + i, 0);
+        SimpleTimer t = new SimpleTimer(Callback, i, 100 + i, 0);
         if(i % 2 == 0) {
           t.Dispose();
         }
@@ -221,12 +221,12 @@ namespace Brunet {
       _hash = new Hashtable();
       _order = new ArrayList();
       for(int i = 0; i < 10000; i++) {
-        new BrunetTimer(Callback, i, 200, 0);
+        new SimpleTimer(Callback, i, 200, 0);
       }
 
       for(int i = 0; i < 5; i++) {
-        BrunetTimer t = null;
-        t = new BrunetTimer(PeriodCallback, t, 50, 50);
+        SimpleTimer t = null;
+        t = new SimpleTimer(PeriodCallback, t, 50, 50);
       }
 
       Thread.Sleep(500);

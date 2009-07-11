@@ -24,6 +24,7 @@ using System.Xml;
 using System.Xml.Serialization;
 using System.Security.Cryptography;
 using System.Threading;
+using Brunet.Util;
 using Brunet.Security;
 using Brunet.Security.Protocol;
 using Brunet.Security.Transport;
@@ -232,7 +233,7 @@ namespace Brunet {
     protected static void RunSteps(int cycles) {
       long cycle = DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond;
       long diff = cycle + cycles;
-      cycle = BrunetTimer.Minimum / TimeSpan.TicksPerMillisecond;
+      cycle = SimpleTimer.Minimum / TimeSpan.TicksPerMillisecond;
 
       System.DateTime last = System.DateTime.UtcNow;
       while(diff > cycle) {
@@ -242,14 +243,14 @@ namespace Brunet {
           Console.WriteLine(now + ": " + DateTime.UtcNow);
         }
         Brunet.DateTime.SetTime(cycle);
-        cycle = BrunetTimer.Run() / TimeSpan.TicksPerMillisecond;
+        cycle = SimpleTimer.Run() / TimeSpan.TicksPerMillisecond;
       }
     }
 
     protected static void RunStep() {
-      long next = BrunetTimer.Minimum;
+      long next = SimpleTimer.Minimum;
       Brunet.DateTime.SetTime(next / TimeSpan.TicksPerMillisecond);
-      BrunetTimer.Run();
+      SimpleTimer.Run();
     }
 
     public class AllToAllHelper {

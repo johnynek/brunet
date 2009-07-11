@@ -183,7 +183,7 @@ namespace Brunet
       protected Thread _hb_thread;
       protected int _run_hb_thread;
 #if BRUNET_SIMULATOR
-      protected BrunetTimer _timer;
+      protected SimpleTimer _timer;
 #endif
 
       public long TimeSinceLastFire {
@@ -222,7 +222,7 @@ namespace Brunet
       protected void NodeStateChangeHandler(Node n, ConnectionState cs) {
         if( cs == ConnectionState.Joining ) {
 #if BRUNET_SIMULATOR
-          _timer = new BrunetTimer(CheckForTime, null, _heart_beat_interval, _heart_beat_interval);
+          _timer = new SimpleTimer(CheckForTime, null, _heart_beat_interval, _heart_beat_interval);
 #else
           StartThread();
 #endif
