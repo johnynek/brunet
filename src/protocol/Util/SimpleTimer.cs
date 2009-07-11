@@ -16,7 +16,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-using Brunet.Util;
+using Brunet;
 using System.Threading;
 using System.Collections.Generic;
 using System;
@@ -26,20 +26,23 @@ using NUnit.Framework;
 using System.Collections;
 #endif
 
-namespace Brunet {
+namespace Brunet.Util {
+  /// <summary>A very simple timer, single-threaded blocking timer, inspired
+  /// by Mono's System.Threading.Timer. </summary>
   public class SimpleTimer : IDisposable, IComparable<SimpleTimer> {
-    protected WaitCallback _callback;
-    protected object _state;
+    protected readonly WaitCallback _callback;
+    protected readonly object _state;
+    /// <summary>How often the timer will be called.</summary>
     public int Period { get { return _period_ms; } }
-    protected int _period_ms;
+    protected readonly int _period_ms;
     protected bool _disposed;
     protected long _next_run;
 
-    protected static object _sync;
-    protected static Heap<SimpleTimer> _timers;
+    protected readonly static object _sync;
+    protected readonly static Heap<SimpleTimer> _timers;
     protected static int _running;
-    protected static AutoResetEvent _re;
-    protected static Thread _thread;
+    protected readonly static AutoResetEvent _re;
+    protected readonly static Thread _thread;
 
     static SimpleTimer()
     {
@@ -66,6 +69,8 @@ namespace Brunet {
     }
 #endif
 
+    /// <summary>Process all applicable events.  Called by TimerThread for
+    /// non-simulation and directly for Simulation of real time.</summary>
 #if BRUNET_SIMULATOR
     public static long Run()
 #else
@@ -114,6 +119,7 @@ namespace Brunet {
       return min_next_run;
     }
 
+    /// <summary>Wait for the next event.</summary>
     protected static void TimerThread() {
       while(true) {
         long next_run = Run();
@@ -129,6 +135,7 @@ namespace Brunet {
       }
     }
 
+    /// <summary>Creates a new timer.</summary>
     public SimpleTimer(WaitCallback callback, object state, int dueTime, int period)
     {
       if(dueTime < -1) {
@@ -139,14 +146,14 @@ namespace Brunet {
 
       _callback = callback;
       _state = state;
+      _period_ms = period;
 
       Update(dueTime, period);
     }
 
+    /// <summary>Updates a timer for its first or next run.</summary>
     protected void Update(int dueTime, int period)
     {
-      _period_ms = period;
-
       long now = DateTime.UtcNow.Ticks;
       if(dueTime == Timeout.Infinite) {
         throw new Exception("There must be a due time!");
@@ -158,6 +165,7 @@ namespace Brunet {
       lock(_sync) {
         first = _timers.Add(this);
       }
+      // If we're in the simulator, we don't use the AutoResetEvent
 #if !BRUNET_SIMULATOR
       if(first) {
         _re.Set();
@@ -165,13 +173,16 @@ namespace Brunet {
 #endif
     }
 
+    /// <summary>Don't call the event, I'm done.</summary>
     public void Dispose()
     {
       _disposed = true;
     }
 
     public int CompareTo(SimpleTimer t) {
-      return this._next_run.CompareTo(t._next_run);
+      lock(_sync) {
+        return this._next_run.CompareTo(t._next_run);
+      }
     }
   }
 
