@@ -1,0 +1,22 @@
+IPOP - IP over P2P VPN Service
+
+Overview
+=========
+http://www.grid-appliance.org/wiki/index.php/IPOP
+
+Building IPOP and More
+=======================
+http://www.grid-appliance.org/wiki/index.php?title=IpopNodeReadme&oldid=2515
+
+Linux packaging information can be found at:
+http://www.grid-appliance.org/wiki/index.php/IPOPPackaging
+
+Contact
+========
+Join the P2P Mailing list at Google Groups:
+Development issues: http://groups.google.com/group/acisp2p
+User issues: http://groups.google.com/group/acisp2pusers
+
+License
+========
+This code is license under GPLv2.
