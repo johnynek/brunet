@@ -1,4 +1,11 @@
 ===============================================================================
+Revision GroupVPN Alpha
+-------------------------------------------------------------------------------
+- IPOP now supports a VPN Router mode
+- For Security, IPOP now supports a Group model called GroupVPN
+- Merged CondorIpopNode and DhtIpopNode
+- ARPs are only returned if there is an end point for the requested IP
+===============================================================================
 Revision 8
 -------------------------------------------------------------------------------
 - Fixes for TAP
