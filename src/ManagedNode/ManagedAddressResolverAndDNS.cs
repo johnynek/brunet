@@ -225,6 +225,8 @@ namespace Ipop.ManagedNode {
         if(ip == null && _blocked_addrs.Contains(addr)) {
           ip = (MemBlock) _blocked_addrs[addr];
           _blocked_addrs.Remove(addr);
+          _addr_ip.Add(addr, ip);
+          _ip_addr.Add(ip, addr);
           mcast_addr.Add(addr);
         }
 
