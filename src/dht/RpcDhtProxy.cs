@@ -21,14 +21,14 @@ using System.Collections.Generic;
 using Brunet;
 using Brunet.Util;
 
-namespace Brunet.DistributedServices{
+namespace Brunet.DistributedServices {
   /// <summary>Provides RpcProxyHandler service, 
   /// which reinserts dht entry before its ttl expires</summary>
-  public class RpcDhtProxy : IRpcHandler{
-    private Node _node;
-    private static IDht _dht;
-    private Dictionary<MemBlock, Dictionary<MemBlock, Entry>> _entries;
-    private object _sync;
+  public class RpcDhtProxy : IRpcHandler {
+    protected Node _node;
+    protected static IDht _dht;
+    protected Dictionary<MemBlock, Dictionary<MemBlock, Entry>> _entries;
+    protected object _sync;
 
 
     /// <summary>Initiates a RpcProxyHandler instance. It uses reflection for rpc call.
@@ -36,7 +36,8 @@ namespace Brunet.DistributedServices{
     /// to keep track of key, value, and ttl</summary>
     /// <param name="node">node which is currently connected.</param>
     /// <param name="dht">IDht instance</param>
-    public RpcDhtProxy(IDht dht, Node node){
+    public RpcDhtProxy(IDht dht, Node node)
+    {
       _entries = new Dictionary<MemBlock, Dictionary<MemBlock, Entry>>();
       _node = node;
       _dht = dht;
@@ -44,7 +45,8 @@ namespace Brunet.DistributedServices{
       _node.Rpc.AddHandler("RpcDhtProxy", this);
     }
 
-    public void HandleRpc(ISender caller, string method, IList arguments, object request_state){
+    public void HandleRpc(ISender caller, string method, IList arguments, object request_state)
+    {
       object result = null;
       MemBlock key;
       MemBlock value;
@@ -100,6 +102,7 @@ namespace Brunet.DistributedServices{
         entry = new Entry(key, value, ttl);
         key_entries[value] = entry;
       }
+
       if(entry != null) {
         entry.Timer = new SimpleTimer(EntryCallback, entry, 0, 30000);
       }
@@ -125,14 +128,18 @@ namespace Brunet.DistributedServices{
       return true;
     }
     
-    ///<summary> not implemented yet</summary>
-    public object Dump(){
-      List<MemBlock> key_list = new List<MemBlock>();
-      foreach(MemBlock key in _entries.Keys) {
-        key_list.Add(key);
+    ///<summary>Returns all stored values in a list.</summary>
+    public object Dump()
+    {
+      ArrayList all_entries = new ArrayList();
+      lock(_sync) {
+        foreach(KeyValuePair<MemBlock, Dictionary<MemBlock, Entry>> key_entries in _entries) {
+          foreach(KeyValuePair<MemBlock, Entry> values in key_entries.Value) {
+            all_entries.Add((Hashtable) values.Value);
+          }
+        }
       }
-      
-      return key_list;
+      return all_entries;
     }
 
     ///<summary> If half of ttl time passed, this event handler is called. AlarmEventHandler calls
@@ -173,11 +180,20 @@ namespace Brunet.DistributedServices{
       public SimpleTimer Timer;
       public bool Working;
 
-      public Entry(MemBlock key, MemBlock value, int ttl) {
+      public Entry(MemBlock key, MemBlock value, int ttl)
+      {
         Key = key;
         Value = value;
         Ttl = ttl;
         Working = false;
+      }
+
+      public static explicit operator Hashtable(Entry e)
+      {
+        Hashtable ht = new Hashtable(2);
+        ht["Key"] = e.Key;
+        ht["Value"] = e.Value;
+        return ht;
       }
     }
   }

@@ -8,7 +8,7 @@ ttl_min=120
 ttl_max=600
 
 socket.setdefaulttimeout(10)
-rpc = xmlrpclib.Server("http://127.0.0.1:10001/xm.rem")
+rpc = xmlrpclib.Server("http://127.0.0.1:10000/xm.rem")
 
 def main():
   start = datetime.now()
