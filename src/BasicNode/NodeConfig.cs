@@ -148,7 +148,7 @@ namespace Brunet.Applications {
 
     /// <summary>Writres the config to the file system.</summary>
     public bool WriteConfig() {
-      if(Path == string.Empty) {
+      if(Path == string.Empty || Path == null) {
         return false;
       }
 

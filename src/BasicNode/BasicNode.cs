@@ -98,7 +98,7 @@ namespace Brunet.Applications {
         new Information(_node, "BasicNode");
         Console.WriteLine("I am connected to {0} as {1}.  Current time is {2}.",
                                 _node.Realm, _node.Address.ToString(), DateTime.UtcNow);
-        _node.DisconnectOnOverload = true;
+//        _node.DisconnectOnOverload = true;
         start_time = DateTime.UtcNow;
         StartServices();
         _node.Connect();
@@ -244,6 +244,7 @@ namespace Brunet.Applications {
         _xrm = new XmlRpcManagerServer(_node_config.XmlRpcManager.Port);
         _xrm.Update(_node);
         new RpcDht(_dht, _node);
+        new RpcDhtProxy(_dht, _node);
       }
     }
 

@@ -43,6 +43,7 @@ namespace Brunet.Applications {
     public MultiNode(NodeConfig node_config, int count) : base(node_config) 
     {
       _node_config_single = Utils.Copy<NodeConfig>(node_config);
+      _node_config_single.Path = node_config.Path;
 
       foreach(NodeConfig.EdgeListener item in _node_config.EdgeListeners) {
         item.port = 0;
