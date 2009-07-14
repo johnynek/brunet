@@ -51,6 +51,7 @@ namespace Brunet.Util {
 #if !BRUNET_SIMULATOR
       _re = new AutoResetEvent(false);
       _thread = new Thread(TimerThread);
+      _thread.IsBackground = true;
       _thread.Start();
 #endif
     }
