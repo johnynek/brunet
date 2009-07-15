@@ -70,6 +70,8 @@ namespace Brunet.Applications {
 
       NodeConfig node_config = null;
       try {
+        ConfigurationValidator cv = new ConfigurationValidator();
+        cv.Validate(node_config_path, "Node.xsd");
         node_config = Utils.ReadConfig<NodeConfig>(node_config_path);
         node_config.Path = node_config_path;
       } catch (Exception e) {

@@ -47,6 +47,9 @@
         <include name="System.Runtime.Remoting.dll"/>
         <include name="Mono.Posix.dll"/>
       </references>
+      <resources>
+        <include name="Node.xsd"/>
+      </resources>
     </csc>
 
     <copy todir="${lib.dir}" failonerror="true">
