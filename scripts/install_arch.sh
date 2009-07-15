@@ -5,6 +5,12 @@ if [[ ! -e `which tunctl 2> /dev/null` ]]; then
 elif [[ ! -e `which mono 2> /dev/null` ]]; then
   echo "Missing mono -- install mono"
   exit
+elif [[ ! -e `which cronolog 2> /dev/null` ]]; then
+  echo "Missing cronolog -- install cronolog"
+  exit
+elif [[ ! -e `which python 2> /dev/null` ]]; then
+  echo "Missing python -- install python"
+  exit
 fi
 
 path=`which $0`
@@ -18,7 +24,6 @@ cp ./bin/*sh /opt/ipop/bin/.
 
 mkdir -p /opt/ipop/lib
 cp ./bin/*dll /opt/ipop/lib/.
-cp ./bin/*so /opt/ipop/lib/.
 
 mkdir -p /opt/ipop/etc
 cp ./config/ipop.vpn.config /opt/ipop/etc/.

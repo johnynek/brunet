@@ -14,7 +14,6 @@
       </fileset>
     </copy>
 
-    <nant buildfile="src/c-lib/default.build" />
     <nant buildfile="src/DhtNode/default.build" />
   </target>
 </project>

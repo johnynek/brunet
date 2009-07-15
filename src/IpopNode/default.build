@@ -10,49 +10,6 @@
   </target>
   <target name="build" description="Nothing to build">
   </target>
-  <target name="doc" description="Build Ipop.dll">
-    <mkdir dir="${build.dir}" failonerror="true"/>
-    <copy todir="${build.dir}" failonerror="true">
-      <fileset basedir="${lib.dir}">
-        <include name="Brunet.dll" />
-        <include name="libtuntap.so" />
-        <include name="Brunet.Dht.dll" />
-        <include name="CookComputing.XmlRpcV2.dll" />
-        <include name="Brunet.XmlRpc.dll" />
-        <include name="Brunet.DhtService.dll"/>
-        <include name="Brunet.BasicNode.dll"/>
-        <include name="NetworkPackets.dll"/>
-        <include name="Mono.Security.dll"/>
-        <include name="NDesk.Options.dll"/>
-      </fileset>
-    </copy>
-
-    <mkdir dir="${doc.dir}" failonerror="true"/>
-    <csc target="library" output="${build.dir}/Ipop.dll" doc="${doc.dir}/IpopNode.xml">
-      <sources failonempty="true">
-        <include name="*.cs"/>
-      </sources>
-      <references basedir="${build.dir}">
-        <include name="NDesk.Options.dll"/>
-        <include name="Brunet.BasicNode.dll"/>
-        <include name="Brunet.dll"/>
-        <include name="Brunet.Dht.dll"/>
-        <include name="Brunet.XmlRpc.dll" />
-        <include name="CookComputing.XmlRpcV2.dll" />
-        <include name="Brunet.DhtService.dll"/>
-        <include name="System.Runtime.Remoting.dll"/>
-        <include name="Mono.Posix.dll"/>
-        <include name="NetworkPackets.dll"/>
-        <include name="Mono.Security.dll"/>
-      </references>
-    </csc>
-
-    <copy todir="${lib.dir}" failonerror="true">
-      <fileset basedir="${build.dir}">
-        <include name="Ipop.dll" />
-      </fileset>
-    </copy>
-  </target>
 
   <target name="test" description="Build IpopNode.Test.dll">
     <mkdir dir="${build.dir}" failonerror="true"/>
@@ -70,9 +27,10 @@
         <include name="NDesk.Options.dll"/>
       </fileset>
     </copy>
-    <csc target="library" output="${build.dir}/IpopNode.Test.dll" define="NUNIT">
+    <csc target="library" output="${build.dir}/IpopNode.Test.dll" define="NUNIT" unsafe="true">
       <sources failonempty="true">
         <include name="*.cs"/>
+        <include name="../Tap/*.cs"/>
         <include name="../DhtNode/*.cs"/>
         <include name="../IpopNode/*.cs"/>
         <include name="../NetworkPackets/*.cs"/>

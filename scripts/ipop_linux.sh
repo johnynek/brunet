@@ -16,7 +16,7 @@ function trace()
 
 function stop()
 {
-  echo "Stopping Grid Services..."
+  echo "Stopping IPOP..."
 
   dhcp_pid=`get_pid tapipop`
   if [[ $dhcp_pid ]]; then
@@ -25,21 +25,21 @@ function stop()
 
   pid=`get_pid DhtIpopNode.exe`
 
-  if [[ ! $pid ]]; then
-    return 1
+  if [[ $pid ]]; then
+    kill -SIGINT $pid &> /dev/null
+
+    while [[ `get_pid DhtIpopNode.exe` ]]; do
+      sleep 5
+      kill -KILL $pid &> /dev/null
+    done
   fi
-
-  kill -SIGINT $pid &> /dev/null
-
-  while [[ `get_pid DhtIpopNode.exe` ]]; do
-    sleep 5
-    kill -KILL $pid &> /dev/null
-  done
 
   echo "Shutting off the TAP device"
   if [[ -e /proc/sys/net/ipv4/neigh/tapipop ]]; then
-    ./tunctl -d tapipop 2>1 | logger -t ipop
+    tunctl -d tapipop 2>1 | logger -t ipop
   fi
+
+  echo "Stopped IPOP..."
 }
 
 function start()
@@ -51,10 +51,14 @@ function start()
     return 1
   fi
 
-  reguid=$uid
-  if [[ ! "$uid" ]]; then
-    reguid=$UID
-    uid=\#$UID
+  if [[ "$USER" ]]; then
+    chown -R $USER $DIR/etc
+    chown -R $USER $DIR/var
+    user="--user="$USER
+    tunctl_user="-u "$USER
+    if [[ "$GROUP" ]]; then
+      group="--group="$GROUP
+    fi
   fi
 
   if [[ "$USE_IPOP_HOSTNAME" ]]; then
@@ -65,16 +69,13 @@ function start()
 
   if [[ ! -e /proc/sys/net/ipv4/neigh/tapipop ]]; then
     chmod 666 /dev/net/tun
-    tunctl -t tapipop -u $reguid &> /dev/null
+    tunctl -t tapipop $tunctl_user &> /dev/null
   fi
 
   cd $DIR/bin &> /dev/null
-  ld_lib="LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$DIR/lib"
-  mono_lib="MONO_PATH=$MONO_PATH:$DIR/lib"
-  chown -R $reguid $DIR/etc
-  chown -R $reguid $DIR/var
+  export MONO_PATH=$MONO_PATH:$DIR/lib
 #trace is only enabled to help find bugs, to use it execute ipop_linux.sh trace
-  sudo -u $uid $ld_lib $mono_lib mono --trace=disabled DhtIpopNode.exe -n $DIR/etc/node.config -i $DIR/etc/ipop.config -d $DIR/etc/dhcp.config 2>&1 | sudo -u $uid cronolog --period="1 day" --symlink=$DIR/var/ipoplog $DIR/var/ipop.log.%y%m%d &
+  python daemon.py $user $group "mono --trace=disabled DhtIpopNode.exe -n $DIR/etc/node.config -i $DIR/etc/ipop.config -d $DIR/etc/dhcp.config 2>&1 | sudo -u $uid cronolog --period=\"1 day\" --symlink=$DIR/var/ipoplog $DIR/var/ipop.log.%y%m%d"
   cd - &> /dev/null
   pid=`get_pid DhtIpopNode.exe`
   if [[ ! $pid ]]; then
@@ -111,7 +112,7 @@ function start()
 
 # setup logging
   ln -sf $DIR/var/ipoplog /var/log/ipop
-  echo "IPOP has started"
+  echo "Started IPOP..."
 }
 
 case "$1" in
