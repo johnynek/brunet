@@ -6,6 +6,7 @@ Revision GroupVPN Alpha
 - Merged CondorIpopNode and DhtIpopNode
 - ARPs are only returned if there is an end point for the requested IP
 - Removed Linux dependency on c-lib
+- Added static address support
 ===============================================================================
 Revision 8
 -------------------------------------------------------------------------------
