@@ -67,8 +67,10 @@ namespace Ipop.DhtNode {
         return -1;
       }
 
+      ConfigurationValidator cv = new ConfigurationValidator();
       NodeConfig node_config = null;
       try {
+        cv.Validate(node_config_path, "Node.xsd");
         node_config = Utils.ReadConfig<NodeConfig>(node_config_path);
         node_config.Path = node_config_path;
       } catch (Exception e) {
@@ -84,6 +86,7 @@ namespace Ipop.DhtNode {
 
       IpopConfig ipop_config = null;
       try {
+        cv.Validate(ipop_config_path, "Ipop.xsd");
         ipop_config = Utils.ReadConfig<IpopConfig>(ipop_config_path);
         ipop_config.Path = ipop_config_path;
       } catch (Exception e) {
@@ -99,10 +102,12 @@ namespace Ipop.DhtNode {
           return -1;
         }
         try {
+          cv.Validate(dhcp_config_path, "Dhcp.xsd");
           dhcp_config = Utils.ReadConfig<DHCPConfig>(dhcp_config_path);
         } catch(Exception e) {
           Console.WriteLine("Invalid DhcpConfig file:");
           Console.WriteLine("\t" + e.Message);
+          return -1;
         }
 
         if(!dhcp_config.Namespace.Equals(ipop_config.IpopNamespace)) {
