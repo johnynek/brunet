@@ -36,7 +36,7 @@ function stop()
 
   echo "Shutting off the TAP device"
   if [[ -e /proc/sys/net/ipv4/neigh/tapipop ]]; then
-    tunctl -d tapipop 2>1 | logger -t ipop
+    tunctl -d tapipop 2>&1 | logger -t ipop
   fi
 
   echo "Stopped IPOP..."

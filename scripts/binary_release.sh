@@ -36,6 +36,7 @@ done
 
 cp ../scripts/groupvpn_prepare.sh $version/ipop/bin/.
 cp ../scripts/ipop_linux.sh $version/ipop/bin/.
+cp ../scripts/bootstrap_linux.sh $version/ipop/bin/.
 cp ../scripts/daemon.py $version/ipop/bin/.
 cp ../scripts/install* $version/ipop/.
 
