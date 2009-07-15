@@ -17,8 +17,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using Brunet;
-using Brunet.Security;
 using Brunet.Applications;
+using Brunet.Security;
+using Brunet.Util;
 using NetworkPackets;
 using NetworkPackets.DHCP;
 using System;
@@ -89,6 +90,7 @@ namespace Ipop {
     protected readonly int _dhcp_client_port;
     /// <summary>Mapping of Ethernet to the its DHCP server.</summary>
     protected Dictionary<MemBlock, DHCPServer> _ether_to_dhcp_server;
+    protected Dictionary<MemBlock, SimpleTimer> _static_mapping;
     /// <summary>Used to hold configuration information.</summary>
     protected DHCPServer _static_dhcp_server;
     /// <summary>A hashtable used to lock DHCP Servers.</summary>
@@ -138,6 +140,7 @@ namespace Ipop {
       ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
           "Setting DHCP Ports to: {0},{1}", _dhcp_server_port, _dhcp_client_port));
       _ether_to_dhcp_server = new Dictionary<MemBlock, DHCPServer>();
+      _static_mapping = new Dictionary<MemBlock, SimpleTimer>();
       _dhcp_config = dhcp_config;
       if(_dhcp_config != null) {
         SetDNS();
@@ -547,8 +550,9 @@ namespace Ipop {
       ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
           "Static Address request for: {0}", Utils.MemBlockToString(ip, '.')));
 
-      WaitCallback wcb = delegate(object o) {
+      WaitCallback wcb = null;
 
+      wcb = delegate(object o) {
         byte[] res_ip = null;
 
         try {
@@ -563,7 +567,23 @@ namespace Ipop {
           ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
                 "Request for {0} failed!", Utils.MemBlockToString(ip, '.')));
         } else {
-          UpdateMapping(ether_addr, MemBlock.Reference(res_ip));
+          lock(_sync) {
+            bool new_entry = true;
+            if(_ether_to_ip.ContainsKey(ether_addr)) {
+              if(_ether_to_ip[ether_addr].Equals(ip)) {
+                new_entry = false;
+              }
+            }
+            if(new_entry) {
+              if(_static_mapping.ContainsKey(ether_addr)) {
+                _static_mapping[ether_addr].Dispose();
+              }
+              _static_mapping[ether_addr] = new SimpleTimer(wcb, null,
+                  _dhcp_config.LeaseTime * 1000 / 2,
+                  _dhcp_config.LeaseTime * 1000 / 2);
+            }
+            UpdateMapping(ether_addr, MemBlock.Reference(res_ip));
+          }
         }
 
         CheckInDHCPServer(dhcp_server);

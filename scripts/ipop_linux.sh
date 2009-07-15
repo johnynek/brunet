@@ -75,7 +75,7 @@ function start()
   cd $DIR/bin &> /dev/null
   export MONO_PATH=$MONO_PATH:$DIR/lib
 #trace is only enabled to help find bugs, to use it execute ipop_linux.sh trace
-  python daemon.py $user $group "mono --trace=disabled DhtIpopNode.exe -n $DIR/etc/node.config -i $DIR/etc/ipop.config -d $DIR/etc/dhcp.config 2>&1 | sudo -u $uid cronolog --period=\"1 day\" --symlink=$DIR/var/ipoplog $DIR/var/ipop.log.%y%m%d"
+  python daemon.py $user $group "mono --trace=disabled DhtIpopNode.exe -n $DIR/etc/node.config -i $DIR/etc/ipop.config -d $DIR/etc/dhcp.config 2>&1 | cronolog --period=\"1 day\" --symlink=$DIR/var/ipoplog $DIR/var/ipop.log.%y%m%d"
   cd - &> /dev/null
   pid=`get_pid DhtIpopNode.exe`
   if [[ ! $pid ]]; then
@@ -90,24 +90,28 @@ function start()
 
   renice -19 -p $pid &> /dev/null
 
-  if [[ ! "$DHCP" ]]; then
-    if [[ "`which dhclient3 2> /dev/null`" ]]; then
-      DHCP=dhclient3
-    elif [[ "`which dhcpcd 2> /dev/null`" ]]; then
-      DHCP=dhcpcd
+  if [[ "$STATIC" ]]; then
+    ifconfig $DEVICE $IP netmask $NETMASK
+  else
+    if [[ ! "$DHCP" ]]; then
+      if [[ "`which dhclient3 2> /dev/null`" ]]; then
+        DHCP=dhclient3
+      elif [[ "`which dhcpcd 2> /dev/null`" ]]; then
+        DHCP=dhcpcd
+      else
+        echo "No valid DHCP client"
+        exit
+      fi
+    fi
+
+    if [[ $DHCP == "dhclient3" ]]; then
+      dhclient3 -pf /var/run/dhclient.$DEVICE.pid -lf /var/lib/dhcp3/dhclient.$DEVICE.leases $DEVICE
+    elif [[ $DHCP == "dhcpcd" ]]; then
+      dhcpcd $DEVICE
     else
       echo "No valid DHCP client"
       exit
     fi
-  fi
-
-  if [[ $DHCP == "dhclient3" ]]; then
-    dhclient3 -pf /var/run/dhclient.$DEVICE.pid -lf /var/lib/dhcp3/dhclient.$DEVICE.leases $DEVICE
-  elif [[ $DHCP == "dhcpcd" ]]; then
-    dhcpcd $DEVICE
-  else
-    echo "No valid DHCP client"
-    exit
   fi
 
 # setup logging
