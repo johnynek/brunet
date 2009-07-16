@@ -26,12 +26,12 @@ using System.Collections;
 using System.IO;
 using System.Text;
 
-namespace Ipop.RpcNode {
+namespace Ipop.ManagedNode {
 
   /// <summary>
   /// Subclass of DHCPServer implements GetDHCPLeaseController method
   /// </summary>
-  public class RpcDHCPServer : DHCPServer {
+  public class ManagedDHCPServer : DHCPServer {
     public readonly byte[] LocalIP;
 
     /// <summary>
@@ -39,19 +39,19 @@ namespace Ipop.RpcNode {
     /// </summary>
     /// <param name="networkdevice">A string indicating starting point for
     /// network probe</param>
-    protected RpcDHCPServer(DHCPConfig config) : base(config) {
+    protected ManagedDHCPServer(DHCPConfig config) : base(config) {
       LocalIP = new byte[4];
       BaseIP.CopyTo(LocalIP, 0);
       LocalIP[3] = 2;
     }
 
-    public static RpcDHCPServer GetRpcDHCPServer(string networkdevice) {
-      MemBlock IP = RpcNodeHelper.GetNetwork(networkdevice, MemBlock.Reference(new byte[]{10, 254, 0, 0}));
+    public static ManagedDHCPServer GetManagedDHCPServer(string networkdevice) {
+      MemBlock IP = ManagedNodeHelper.GetNetwork(networkdevice, MemBlock.Reference(new byte[]{172, 31, 0, 0}));
       byte[] nm = new byte[4] { 255, 255, 0, 0 };
-      return GetRpcDHCPServer(IP, MemBlock.Reference(nm));
+      return GetManagedDHCPServer(IP, MemBlock.Reference(nm));
     }
 
-    public static RpcDHCPServer GetRpcDHCPServer(MemBlock ip, MemBlock netmask) {
+    public static ManagedDHCPServer GetManagedDHCPServer(MemBlock ip, MemBlock netmask) {
       DHCPConfig config = new DHCPConfig();
       config.LeaseTime = 3200;
       config.Netmask = Utils.MemBlockToString(netmask, '.');
@@ -67,7 +67,7 @@ namespace Ipop.RpcNode {
       config.ReservedIPs[0].IPBase = Utils.BytesToString(local_ip, '.');
       config.ReservedIPs[0].Mask = "255.255.255.255";
 
-      return new RpcDHCPServer(config);
+      return new ManagedDHCPServer(config);
     }
 
 

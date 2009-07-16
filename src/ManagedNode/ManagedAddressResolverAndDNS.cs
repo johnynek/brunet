@@ -28,22 +28,18 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 
-#if RpcIpopNodeNUNIT
+#if ManagedIpopNodeNUNIT
 using NUnit.Framework;
 #endif
 
-namespace Ipop.RpcNode {
+namespace Ipop.ManagedNode {
   /// <summary>
-  /// This class implements DNS, IAddressResolver, IRpcHandler, and
-  /// ITranslator. It provides most functionality needed by RpcIpopNode.
+  /// This class implements DNS, IAddressResolver, IManagedHandler, and
+  /// ITranslator. It provides most functionality needed by ManagedIpopNode.
   /// </summary>
-  public class RpcAddressResolverAndDNS : DNS, IAddressResolver, IRpcHandler,
-    ITranslator
-  {
+  public class ManagedAddressResolverAndDNS : DNS, IAddressResolver, ITranslator {
     /// <summary>The node to do ping checks on.</summary>
     protected StructuredNode _node;
-    /// <summary>The rpc manager to make rpc requests over.</summary>
-    protected RpcManager _rpc;
     /// <summary>Contains ip:hostname mapping.</summary>
     protected Hashtable _dns_a;
     /// <summary>Contains hostname:ip mapping.</summary>
@@ -52,12 +48,12 @@ namespace Ipop.RpcNode {
     protected Hashtable _ip_addr;
     /// <summary>Maps Brunet Address as Address to MemBlock IP Addresses</summary>
     protected Hashtable _addr_ip;
+    /// <summary>Keeps track of blocked addresses</summary>
     protected Hashtable _blocked_addrs;
     /// <summary>MemBlock of the IP mapped to local node</summary>
     protected MemBlock _local_ip;
     /// <summary>Helps assign remote end points</summary>
     protected DHCPServer _dhcp;
-
     /// <summary>Array list of multicast addresses</summary>
     public ArrayList mcast_addr;
 
@@ -65,11 +61,10 @@ namespace Ipop.RpcNode {
     /// Constructor for the class, it initializes various objects
     /// </summary>
     /// <param name="node">Takes in a structured node</param>
-    public RpcAddressResolverAndDNS(StructuredNode node, DHCPServer dhcp, MemBlock local_ip) :
+    public ManagedAddressResolverAndDNS(StructuredNode node, DHCPServer dhcp, MemBlock local_ip) :
       base(MemBlock.Reference(dhcp.BaseIP), MemBlock.Reference(dhcp.Netmask))
     {
       _node = node;
-      _rpc = _node.Rpc;
       _dns_a = new Hashtable();
       _dns_ptr = new Hashtable();
       _ip_addr = new Hashtable();
@@ -79,8 +74,11 @@ namespace Ipop.RpcNode {
 
       _dhcp = dhcp;
       _local_ip = local_ip;
+    }
 
-      _rpc.AddHandler("RpcIpopNode", this);
+    // Return string of localIP
+    public string LocalIP {
+      get { return Utils.MemBlockToString(_local_ip, '.'); }
     }
 
     /// <summary>
@@ -102,7 +100,7 @@ namespace Ipop.RpcNode {
     }
 
     /**
-    <summary>Implements the ITranslator portion for RpcAddress..., takes an
+    <summary>Implements the ITranslator portion for ManagedAddress..., takes an
     IP Packet, based upon who the originating Brunet Sender was, changes who
     the packet was sent from and then switches the destination address to the
     local nodes address</summary>
@@ -193,7 +191,7 @@ namespace Ipop.RpcNode {
       string new_ss_ip = Utils.MemBlockToString(source_ip, '.');
       string new_sd_ip = Utils.MemBlockToString(_local_ip, '.'); 
       string packet_id = "SIP/2.0";
-      MemBlock payload = RpcNodeHelper.TextTranslate(udpp.Payload, old_ss_ip,
+      MemBlock payload = ManagedNodeHelper.TextTranslate(udpp.Payload, old_ss_ip,
                                              old_sd_ip, new_ss_ip, new_sd_ip,
                                              packet_id); 
       return new UDPPacket(udpp.SourcePort, udpp.DestinationPort, payload);
@@ -209,55 +207,7 @@ namespace Ipop.RpcNode {
     }
 
     public bool Check(MemBlock ip, Address addr) {
-      return _addr_ip[ip].Equals(ip) && _ip_addr[ip].Equals(addr);
-    }
-
-    /// <summary>
-    /// This method handles Rpc calls for this object
-    /// </summary>
-    /// <param name="caller">An ISender</param>
-    /// <param name="method">A string that specifies the name of the called method</param>
-    /// <param name="arguments">An IList of parameters for the method</param>
-    /// <param name="request_state">An object state</param>
-    public void HandleRpc(ISender caller, String method, IList arguments, object request_state) {
-      Object result = null;
-      if(method != "CheckInstance") {
-        try {
-          ReqrepManager.ReplyState _rs = (ReqrepManager.ReplyState)caller;
-          UnicastSender _us = (UnicastSender)_rs.ReturnPath;
-          IPEndPoint _ep = (IPEndPoint)_us.EndPoint;
-          if (!_ep.Address.ToString().Equals("127.0.0.1")) { 
-            throw new Exception("Not calling from local BrunetRpc locally!");
-          }
-        }
-        catch (Exception e){
-          result = new InvalidOperationException(e.Message);
-          _rpc.SendResult(request_state, result);
-          return;
-        }
-      }
-
-      try {
-        switch (method) {
-          case "RegisterMapping":
-            Address addr_rm = AddressParser.Parse((String)arguments[1]);
-            result = RegisterMapping((String)arguments[0], addr_rm);
-            break;
-          case "UnregisterMapping":
-            result = UnregisterMapping((String)arguments[0]);
-            break;
-          case "CheckInstance":
-            result = true;
-            break;
-          default: 
-            result = new InvalidOperationException("Invalid Method");
-            break;
-        }
-      } catch (Exception e) {
-        result = e;
-      }
-      _rpc.SendResult(request_state, result);
-
+      return _addr_ip[addr].Equals(ip) && _ip_addr[ip].Equals(addr);
     }
 
     /// <summary>
@@ -275,6 +225,8 @@ namespace Ipop.RpcNode {
         if(ip == null && _blocked_addrs.Contains(addr)) {
           ip = (MemBlock) _blocked_addrs[addr];
           _blocked_addrs.Remove(addr);
+          _addr_ip.Add(addr, ip);
+          _ip_addr.Add(ip, addr);
           mcast_addr.Add(addr);
         }
 
@@ -334,11 +286,22 @@ namespace Ipop.RpcNode {
       }
       return true;
     }
+
+    /// <summary>
+    /// Sets up DNS for localhost
+    /// </summary>
+    /// <param name="name">The DNS alias for the localhost</param>
+    /// <returns>true if successful</returns>
+    public bool MapLocalDNS(string name) {
+      _dns_a.Add(name, LocalIP);
+      _dns_ptr.Add(LocalIP, name);
+      return true;
+    }
   }
 
-#if RpcIpopNodeNUNIT
+#if ManagedIpopNodeNUNIT
   [TestFixture]
-  public class RpcTester {
+  public class ManagedTester {
     [Test]
     public void Test() { 
       MemBlock mdnsm = MemBlock.Reference(new byte[] {0x00, 0x00, 0x00, 0x00,
@@ -349,9 +312,9 @@ namespace Ipop.RpcNode {
         0x00, 0x01});
       DNSPacket mdns = new DNSPacket(mdnsm);
       String ss_ip = "10.254.112.232";
-      bool change = RpcAddressResolverAndDNS.mDnsTranslate(mdns.Answers, ss_ip);
-      change |= RpcAddressResolverAndDNS.mDnsTranslate(mdns.Authority, ss_ip);
-      change |= RpcAddressResolverAndDNS.mDnsTranslate(mdns.Additional, ss_ip);
+      bool change = ManagedAddressResolverAndDNS.mDnsTranslate(mdns.Answers, ss_ip);
+      change |= ManagedAddressResolverAndDNS.mDnsTranslate(mdns.Authority, ss_ip);
+      change |= ManagedAddressResolverAndDNS.mDnsTranslate(mdns.Additional, ss_ip);
       // If we make a change let's make a new packet!
       if(change) {
           mdns = new DNSPacket(mdns.ID, mdns.QUERY, mdns.OPCODE, mdns.AA,

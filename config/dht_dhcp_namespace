@@ -1,1 +1,1 @@
-<DHCPConfig><Namespace>Generic</Namespace><Netmask>255.255.0.0</Netmask><IPBase>10.250.0.0</IPBase><LeaseTime>3600</LeaseTime></DHCPConfig>
+<DHCPConfig><Namespace>SC09</Namespace><Netmask>255.255.0.0</Netmask><IPBase>10.250.0.0</IPBase><LeaseTime>3600</LeaseTime></DHCPConfig>
