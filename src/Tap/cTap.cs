@@ -41,9 +41,9 @@ namespace Ipop.Tap {
       _addr = MemBlock.Reference(addr);
     }
 
-    public override int Write(byte[] packet)
+    public override int Write(byte[] packet, int length)
     {
-      return send_tap(_fd, packet, packet.Length);
+      return send_tap(_fd, packet, length);
     }
 
     public override int Read(byte[] packet)

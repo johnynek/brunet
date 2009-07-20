@@ -117,7 +117,7 @@ namespace Ipop {
     public void Send(ICopyable data)
     {
       int length = data.CopyTo(_send_buffer, 0);
-      int n = _tap.Write(_send_buffer); 
+      int n = _tap.Write(_send_buffer, length); 
       if(n != length) {
         if(_running) {
           ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(

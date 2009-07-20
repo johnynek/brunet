@@ -90,10 +90,10 @@ namespace Ipop.Tap {
       _addr =  MemBlock.Reference(ASCIIEncoding.UTF8.GetBytes(ifr2.ifr_hwaddr.sa_data));
     }
 
-    unsafe public override int Write(byte[] packet)
+    unsafe public override int Write(byte[] packet, int length)
     {
       fixed(byte *p = packet) {
-        return (int) Syscall.write(_fd, (IntPtr) p, (ulong) packet.Length);
+        return (int) Syscall.write(_fd, (IntPtr) p, (ulong) length);
         // See Mono source; they are doing the same thing (mcs/class/Mono.Posix/Mono.Unix.Native/Syscall.cs).
       }
     }

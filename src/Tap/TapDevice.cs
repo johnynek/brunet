@@ -17,7 +17,7 @@ namespace Ipop.Tap {
     }
 
     public abstract MemBlock Address { get; }
-    public abstract int Write(byte[] packet);
+    public abstract int Write(byte[] packet, int length);
     public abstract int Read(byte[] packet);
     public abstract void Close();
   }

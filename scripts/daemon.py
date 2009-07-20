@@ -53,9 +53,6 @@ import pwd
 # File mode creation mask of the daemon.
 UMASK = 0
 
-# Default working directory for the daemon.
-WORKDIR = "/"
-
 # Default maximum for the number of available file descriptors.
 MAXFD = 1024
 
