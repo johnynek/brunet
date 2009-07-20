@@ -52,7 +52,7 @@ namespace Brunet
     public ManagedConnectionOverlord ManagedCO { get { return _mco; } }
 
     //maximum number of neighbors we report in our status
-    protected static readonly int MAX_NEIGHBORS = 4;
+    protected static readonly int MAX_NEIGHBORS = 8;
     public ConnectionPacketHandler sys_link;
 
     public override bool IsConnected {
@@ -391,30 +391,29 @@ namespace Brunet
     {
       ArrayList neighbors = new ArrayList();
       //Get the neighbors of this type:
-        /*
-         * Send the list of all neighbors of this type.
-         * @todo make sure we are not sending more than
-         * will fit in a single packet.
-         */
-        ConnectionType ct = Connection.StringToMainType( con_type_string );
-	AHAddress ah_addr = addr as AHAddress;
-	if (ah_addr != null) {
-	  //we need to find the MAX_NEIGHBORS closest guys to addr
-	  foreach(Connection c in  _connection_table.GetNearestTo(ah_addr, MAX_NEIGHBORS))
-	  {
-	    neighbors.Add( NodeInfo.CreateInstance( c.Address ) );
-	  }
-	} else {
-	//if address is null, we send the list of
-	  int count = 0;
-	  foreach(Connection c in _connection_table.GetConnections( ct ) ) {
-	    neighbors.Add( NodeInfo.CreateInstance( c.Address ) );
-	    count++;
-	    if (count >= MAX_NEIGHBORS) {
-	      break;
-	    }
-	  }
+      /*
+       * Send the list of all neighbors of this type.
+       * @todo make sure we are not sending more than
+       * will fit in a single packet.
+       */
+      ConnectionType ct = Connection.StringToMainType( con_type_string );
+      AHAddress ah_addr = addr as AHAddress;
+      if (ah_addr != null) {
+        //we need to find the MAX_NEIGHBORS closest guys to addr
+        foreach(Connection c in  _connection_table.GetNearestTo(ah_addr, MAX_NEIGHBORS)) {
+          neighbors.Add(NodeInfo.CreateInstance(c.Address,c.Edge.RemoteTA));
         }
+      } else {
+        //if address is null, we send the list of
+        int count = 0;
+        foreach(Connection c in _connection_table.GetConnections( ct ) ) {
+          neighbors.Add(NodeInfo.CreateInstance(c.Address, c.Edge.RemoteTA));
+          count++;
+          if (count >= MAX_NEIGHBORS) {
+            break;
+          }
+        }
+      }
       return new StatusMessage( con_type_string, neighbors );
     }
     /**

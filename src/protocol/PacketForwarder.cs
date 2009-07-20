@@ -132,7 +132,8 @@ namespace Brunet
     }
 
 
-    protected ISender _sender;
+    protected AHSender _sender;
+    public Address Forwarder { get { return _sender.Destination; } }
     protected ICopyable _header;
     protected Node _n;
     

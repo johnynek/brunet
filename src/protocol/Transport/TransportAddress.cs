@@ -21,6 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using System;
 using System.Collections;
 using System.Net;
+using System.Text;
 using System.Threading;
 
 #if BRUNET_NUNIT
@@ -394,22 +395,24 @@ namespace Brunet
       _forwarders.Sort();
     }
 
-    public TunnelTransportAddress(Address target, ArrayList forwarders): 
+    public TunnelTransportAddress(Address target, IEnumerable forwarders): 
       this(GetString(target, forwarders)) 
     {
     }
 
-    private static string GetString(Address target, ArrayList forwarders) {
-      string s = "brunet.tunnel://" +  target.ToString().Substring(12) + "/";
-      for (int idx = 0; idx < forwarders.Count; idx++) {
-        Address a = (Address) forwarders[idx];
-        s +=  a.ToString().Substring(12,8);
-        //not the last element
-        if (idx < forwarders.Count - 1) {
-          s = s + "+";
-        }      
+    private static string GetString(Address target, IEnumerable forwarders) {
+      StringBuilder sb = new StringBuilder();
+      sb.Append("brunet.tunnel://");
+      sb.Append(target.ToString().Substring(12));
+      sb.Append("/");
+      foreach(Address addr in forwarders) {
+        sb.Append(addr.ToString().Substring(12,8));
+        sb.Append("+");
       }
-      return s;
+      if(sb[sb.Length - 1] == '+') {
+        sb.Remove(sb.Length - 1, 1);
+      }
+      return sb.ToString();
     }
 
     public override TAType TransportAddressType { 

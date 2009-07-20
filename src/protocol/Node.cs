@@ -59,6 +59,7 @@ namespace Brunet
      * @param addr Address for the local node
      * @param realm the Realm or Namespace this node belongs to
      */
+
     protected Node(Address addr, string realm)
     {
       //Start with the address hashcode:
@@ -1047,7 +1048,7 @@ namespace Brunet
        */
       ConnectionType ct = Connection.StringToMainType( con_type_string );
       foreach(Connection c in _connection_table.GetConnections( ct ) ) {
-        neighbors.Add( NodeInfo.CreateInstance( c.Address ) );
+        neighbors.Add(NodeInfo.CreateInstance(c.Address, c.Edge.RemoteTA));
       }
       return new StatusMessage( con_type_string, neighbors );
     }
