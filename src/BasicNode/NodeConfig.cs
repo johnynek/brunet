@@ -18,40 +18,47 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using System;
 using System.Collections;
+using System.IO;
 using System.Xml;
 using System.Xml.Serialization;
 
 namespace Brunet.Applications {
-  /**
-  <summary>The class configuration for BasicNode.  brunet1/config/ has some
-  sample xml versions.</summary>
-  <remarks>Below is a complete generic NodeConfig:
-  <code>
-  <NodeConfig>
-    <BrunetNamespace>GenericRealm</BrunetNamespace>
-    <RemoteTAs>
-      <Transport>brunet.udp://71.122.33.252:12342</Transport>
-      <Transport>brunet.udp://64.92.171.16:45322</Transport>
-    </RemoteTAs>
-    <EdgeListeners>
-      <EdgeListener type="udp"/>
-      <EdgeListener type="tcp">
-        <port>12333</port>
-      </EdgeListener>
-    </EdgeListeners>
-    <DevicesToBind>
-      <Device>eth0</Device>
-      <Device>Local Area Network 1</Device>
-    </DevicesToBind>
-    <XmlRpcManager>
-      <Enabled>true</Enabled>
-      <Port>23322</Port>
-    </XmlRpcManager>
-   </NodeConfig>
-  </code>
-  </remarks>
-  */
+  /// <summary>The class configuration for BasicNode.  brunet1/config/ has some
+  /// sample xml versions.</summary>
+  /// <remarks>Below is a complete generic NodeConfig:
+  /// <code>
+  /// <NodeConfig>
+  ///   <BrunetNamespace>GenericRealm</BrunetNamespace>
+  ///     <RemoteTAs>
+  ///       <Transport>brunet.udp://71.122.33.252:12342</Transport>
+  ///       <Transport>brunet.udp://64.92.171.16:45322</Transport>
+  ///     <RemoteTAs>
+  ///   <EdgeListeners>
+  ///     <EdgeListener type="udp"/>
+  ///     <EdgeListener type="tcp">
+  ///       <port>12333</port>
+  ///     </EdgeListener>
+  ///   </EdgeListeners>
+  ///   <DevicesToBind>
+  ///     <Device>eth0</Device>
+  ///     <Device>Local Area Network 1</Device>
+  ///   </DevicesToBind>
+  ///   <XmlRpcManager>
+  ///     <Enabled>true</Enabled>
+  ///     <Port>23322</Port>
+  ///   </XmlRpcManager>
+  /// </NodeConfig>
+  /// </code>
+  /// </remarks>
   public class NodeConfig {
+    public NodeConfig() {
+      EdgeListeners = new EdgeListener[0];
+      RemoteTAs = new String[0];
+      DevicesToBind = new String[0];
+      XmlRpcManager = new Service();
+      NCService = new NCServiceConfig();
+    }
+
     /**  <summary>This is equivalent to Node.Realm, only Nodes in the same
     realm can communicate with each other.  Required.</summary>*/
     public String BrunetNamespace;
@@ -74,9 +81,6 @@ namespace Brunet.Applications {
     </summary>*/
     [XmlArrayItem (typeof(String), ElementName = "Device")]
     public String[] DevicesToBind;
-    /**  <summary>Specifies RpcDht configuration.  This is optional and only
-    required if RpcDht is desired.</summary>*/
-    public Service RpcDht;
     /**  <summary>Specifies XmlRpc configuration.  This is optional and only
     required if XmlRpc is desired.</summary>*/
     public Service XmlRpcManager;
@@ -115,6 +119,23 @@ namespace Brunet.Applications {
       public String type;
       /// <summary>A specific port number, 0 or missing for random</summary>
       public int port;
+    }
+
+    /// <summary>Path to the configs file system location.</summary>
+    [XmlIgnoreAttribute]
+    public string Path;
+
+    /// <summary>Writres the config to the file system.</summary>
+    public bool WriteConfig() {
+      if(Path == string.Empty) {
+        return false;
+      }
+
+      using(FileStream fs = new FileStream(Path, FileMode.Create, FileAccess.Write)) {
+        XmlSerializer serializer = new XmlSerializer(this.GetType());
+        serializer.Serialize(fs, this);
+      }
+      return true;
     }
   }
 }

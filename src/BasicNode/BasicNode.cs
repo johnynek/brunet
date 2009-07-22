@@ -70,53 +70,17 @@ namespace Brunet.Applications {
     exits or throws an exception</summary>*/
     protected bool _running;
 
-    /**
-    <summary>Loads a configuration file and creates a Node.Address if
-    necessary.</summary>
-    <param name="path">The path to a NodeConfig</param>
-    <returns>Exits if NodeConfig is invalid.</returns>
-    */
-    public BasicNode(String path) {
-      try {
-        _node_config = Utils.ReadConfig<NodeConfig>(path);
-      }
-      catch {
-        Console.WriteLine("Invalid or missing configuration file.");
-        Environment.Exit(1);
-      }
-
-      _node_config_path = path;
-      if(_node_config.NodeAddress == null) {
-        _node_config.NodeAddress = (Utils.GenerateAHAddress()).ToString();
-        Utils.WriteConfig(path, _node_config);
-      }
+    /// <summary>Prepares a BasicNode.</summary>
+    /// <param name="node_config">A node config object.</param>
+    public BasicNode(NodeConfig node_config) {
+      _node_config = node_config;
       _running = true;
       _shutdown = Shutdown.GetShutdown();
     }
 
-    /**
-    <summary>A constructor to be used only by sub-classes.  The goal here being
-    that inheritors may want to implement their own subclass of config but
-    BasicNode still needs to be configured and possibly write to the config
-    file.  This gets around that problem!</summary>
-    <param name="path">The Path of the NodeConfig in the second parameter
-    </param>
-    <param name="config">A NodeConfig inherited object.</param>
-    */
-    protected BasicNode(String path, NodeConfig config) {
-      _node_config = config;
-      if(_node_config.NodeAddress == null) {
-        _node_config.NodeAddress = (Utils.GenerateAHAddress()).ToString();
-        Utils.WriteConfig(path, _node_config);
-      }
-      _running = true;
-    }
-
-    /**
-    <summary>This should be called by the Main after all the setup is done
-    this passes control to the _node and won't return until the program is
-    exiting.  (It is synchronous.)</summary>
-    */
+    /// <summary>This should be called by the Main after all the setup is done
+    /// this passes control to the _node and won't return until the program is
+    /// exiting.  (It is synchronous.)</summary>
     public virtual void Run() {
       int sleep = 60, sleep_min = 60, sleep_max = 3600;
       DateTime start_time = DateTime.UtcNow;
@@ -136,7 +100,7 @@ namespace Brunet.Applications {
         }
         // Assist in garbage collection
         DateTime now = DateTime.UtcNow;
-        Console.Error.WriteLine("Going to sleep for {0} seconds. Current time is: {1}", sleep, now);
+        Console.WriteLine("Going to sleep for {0} seconds. Current time is: {1}", sleep, now);
         Thread.Sleep(sleep * 1000);
         if(now - start_time < TimeSpan.FromSeconds(sleep_max)) {
           sleep *= 2;
@@ -177,8 +141,7 @@ namespace Brunet.Applications {
           try {
             el = new UdpEdgeListener(port, addresses);
           }
-          catch(Exception e) {
-            Console.WriteLine(e);
+          catch {
             el = new UdpEdgeListener(0, addresses);
           }
         }
@@ -261,37 +224,16 @@ namespace Brunet.Applications {
         string checkpoint = _ncservice.GetCheckpoint();
         string prev_cp = _node_config.NCService.Checkpoint;
         string empty_cp = (new Point()).ToString();
-        if(!checkpoint.Equals(prev_cp) && !checkpoint.Equals(empty_cp)) {
+        if(!checkpoint.Equals(prev_cp) && !checkpoint.Equals(empty_cp))
+        {
           _node_config.NCService.Checkpoint = checkpoint;
-          Utils.WriteConfig(_node_config_path, _node_config);
+          _node_config.WriteConfig();
         }
       }
 
       StopServices();
       _running = false;
       _node.Disconnect();
-    }
-
-    /**
-    <summary>Runs the BasicNode.  This should be implemented in all inherited
-    classes.</summary>
-    <remarks>
-    <para>To execute this at a command-line using Mono:</para>
-    <code>
-    mono BasicNode.exe path/to/node_config
-    </code>
-    <para>To execute this at a command-line using Windows .NET:</para>
-    <code>
-    BasicNode.exe path/to/node_config
-    </code>
-    </remarks>
-    <param name="args">The command line argument required is a path to a
-    NodeConfig</param>
-    */
-    public static int Main(String[] args) {
-      BasicNode node = new BasicNode(args[0]);
-      node.Run();
-      return 0;
     }
   }
 }
