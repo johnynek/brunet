@@ -65,8 +65,8 @@ namespace Brunet.DistributedServices {
             value = MemBlock.Reference((byte[]) arguments[1]);
             result = Unregister(key, value);
             break;
-          case "Dump":
-            result = Dump();
+          case "ListEntries":
+            result = ListEntries();
             break;
           default:
             throw new Exception("Invalid method");
@@ -129,7 +129,7 @@ namespace Brunet.DistributedServices {
     }
     
     ///<summary>Returns all stored values in a list.</summary>
-    public object Dump()
+    public object ListEntries()
     {
       ArrayList all_entries = new ArrayList();
       lock(_sync) {
