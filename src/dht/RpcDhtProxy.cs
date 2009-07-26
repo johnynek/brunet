@@ -25,6 +25,7 @@ namespace Brunet.DistributedServices {
   /// <summary>Provides RpcProxyHandler service, 
   /// which reinserts dht entry before its ttl expires</summary>
   public class RpcDhtProxy : IRpcHandler {
+    public static readonly int RETRY_TIMEOUT = 30000;
     protected Node _node;
     protected static IDht _dht;
     protected Dictionary<MemBlock, Dictionary<MemBlock, Entry>> _entries;
@@ -104,7 +105,7 @@ namespace Brunet.DistributedServices {
       }
 
       if(entry != null) {
-        entry.Timer = new SimpleTimer(EntryCallback, entry, 0, 30000);
+        entry.Timer = new SimpleTimer(EntryCallback, entry, 0, RETRY_TIMEOUT);
       }
       return true;
     }
@@ -161,7 +162,12 @@ namespace Brunet.DistributedServices {
         if(success && !entry.Working) {
           entry.Timer.Dispose();
           entry.Working = true;
-          entry.Timer = new SimpleTimer(EntryCallback, entry, 0, entry.Ttl * 1000 / 2);
+          int time = entry.Ttl * 1000 / 2;
+          entry.Timer = new SimpleTimer(EntryCallback, entry, time, time);
+        } else if(!success && entry.Working) {
+          entry.Timer.Dispose();
+          entry.Working = false;
+          entry.Timer = new SimpleTimer(EntryCallback, entry, RETRY_TIMEOUT, RETRY_TIMEOUT);
         }
       };
 
