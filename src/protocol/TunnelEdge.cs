@@ -56,9 +56,9 @@ namespace Brunet {
     protected readonly TransportAddress _remote_ta;
 
     /// <summary>These are the overlapping neighbors.</summary>
-    public IList Tunnels { get { return _tunnels_re; } }
+    public IList Tunnels { get { return _tunnels; } }
+    /// <summary>A readonly list of tunnels.  Must be replaced to update.</summary>
     protected ArrayList _tunnels;
-    protected ArrayList _tunnels_re;
 
     public override Brunet.TransportAddress LocalTA {
       get {
@@ -94,8 +94,7 @@ namespace Brunet {
       _mid = MemBlock.Reference(bid);
       _local_ta = local_ta;
       _remote_ta = remote_ta;
-      _tunnels = neighbors;
-      _tunnels_re = ArrayList.ReadOnly(_tunnels);
+      _tunnels = ArrayList.ReadOnly(new ArrayList(neighbors));
     }
 
     /// <summary>Constructor for an incoming edge, since we know the remote id,
@@ -114,8 +113,7 @@ namespace Brunet {
       _mid = MemBlock.Reference(bid);
       _local_ta = local_ta;
       _remote_ta = remote_ta;
-      _tunnels = neighbors;
-      _tunnels_re = ArrayList.ReadOnly(_tunnels);
+      _tunnels = ArrayList.ReadOnly(new ArrayList(neighbors));
     }
 
     /// <summary>When our tunnel peer has some state change, he notifies us and
@@ -124,8 +122,7 @@ namespace Brunet {
     {
       bool close = false;
       lock(_sync) {
-        _tunnels = new ArrayList(neighbors);
-        _tunnels_re = ArrayList.ReadOnly(_tunnels);
+        _tunnels = ArrayList.ReadOnly(new ArrayList(neighbors));
         close = _tunnels.Count == 0;
       }
 
@@ -140,9 +137,13 @@ namespace Brunet {
     {
       bool close = false;
       lock(_sync) {
-        ArrayList tunnels = new ArrayList(_tunnels);
-        tunnels.Remove(addr);
-        _tunnels = tunnels;
+        int index = _tunnels.IndexOf(addr);
+        if(_tunnels.IndexOf(addr) < 0) {
+          return;
+        }
+
+        ArrayList tunnels = Functional.RemoveAt(_tunnels, index);
+        _tunnels = ArrayList.ReadOnly(tunnels);
         close = _tunnels.Count == 0;
       }
 
