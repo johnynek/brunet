@@ -26,9 +26,28 @@ namespace Brunet {
   /// <summary>Holds the state information for a Tunnels.</summary>
   public class TunnelEdge : Edge {
     protected static readonly Random _rand = new Random();
-    public readonly int LocalId;
+    public readonly int LocalID;
     protected int _remote_id;
-    public int RemoteId { get { return _remote_id; } }
+
+    public int RemoteID {
+      get {
+        return _remote_id;
+      }
+      set {
+        //When an outgoing edge first hears back, he doesn't know the
+        //remote id, we set it ONCE and fail if it is attempted again!
+        if(Interlocked.CompareExchange(ref _remote_id, value, -1) != -1) {
+          throw new Exception("RemoteID already set!");
+        }
+
+        byte[] bid = new byte[8];
+        NumberSerializer.WriteInt(LocalID, bid, 0);
+        NumberSerializer.WriteInt(_remote_id, bid, 4);
+        MemBlock mid = MemBlock.Reference(bid);
+        Interlocked.Exchange(ref _mid, mid);
+      }
+    }
+
 
     protected MemBlock _mid;
     public MemBlock MId { get { return _mid; } }
@@ -37,8 +56,9 @@ namespace Brunet {
     protected readonly TransportAddress _remote_ta;
 
     /// <summary>These are the overlapping neighbors.</summary>
-    public IList Tunnels { get { return _tunnels; } }
+    public IList Tunnels { get { return _tunnels_re; } }
     protected ArrayList _tunnels;
+    protected ArrayList _tunnels_re;
 
     public override Brunet.TransportAddress LocalTA {
       get {
@@ -65,16 +85,17 @@ namespace Brunet {
         base(send_handler, false)
     {
       lock(_rand) {
-        LocalId = _rand.Next();
+        LocalID = _rand.Next();
       }
       _remote_id = -1;
       byte[] bid = new byte[8];
-      NumberSerializer.WriteInt(LocalId, bid, 0);
-      NumberSerializer.WriteInt(RemoteId, bid, 4);
+      NumberSerializer.WriteInt(LocalID, bid, 0);
+      NumberSerializer.WriteInt(RemoteID, bid, 4);
       _mid = MemBlock.Reference(bid);
       _local_ta = local_ta;
       _remote_ta = remote_ta;
       _tunnels = neighbors;
+      _tunnels_re = ArrayList.ReadOnly(_tunnels);
     }
 
     /// <summary>Constructor for an incoming edge, since we know the remote id,
@@ -85,41 +106,30 @@ namespace Brunet {
     {
       _remote_id = remote_id;
       lock(_rand) {
-        LocalId = _rand.Next();
+        LocalID = _rand.Next();
       }
       byte[] bid = new byte[8];
-      NumberSerializer.WriteInt(LocalId, bid, 0);
+      NumberSerializer.WriteInt(LocalID, bid, 0);
       NumberSerializer.WriteInt(_remote_id, bid, 4);
       _mid = MemBlock.Reference(bid);
       _local_ta = local_ta;
       _remote_ta = remote_ta;
       _tunnels = neighbors;
-    }
-
-    /// <summary>When an outgoing edge first hears back, he doesn't know the
-    /// remote id, we set it ONCE and fail if it is attempted again!</summary>
-    public void SetRemoteId(int id)
-    {
-      if(Interlocked.CompareExchange(ref _remote_id, id, -1) != -1) {
-        throw new Exception("RemoteID already set!");
-      }
-
-      byte[] bid = new byte[8];
-      NumberSerializer.WriteInt(LocalId, bid, 0);
-      NumberSerializer.WriteInt(_remote_id, bid, 4);
-      MemBlock mid = MemBlock.Reference(bid);
-      Interlocked.Exchange(ref _mid, mid);
+      _tunnels_re = ArrayList.ReadOnly(_tunnels);
     }
 
     /// <summary>When our tunnel peer has some state change, he notifies us and
     /// use that information to update our overlap, here we set the overlap.</summary>
-    public void StatusUpdate(ArrayList neighbors)
+    public void UpdateNeighborIntersection(ArrayList neighbors)
     {
+      bool close = false;
       lock(_sync) {
-        _tunnels = neighbors;
+        _tunnels = new ArrayList(neighbors);
+        _tunnels_re = ArrayList.ReadOnly(_tunnels);
+        close = _tunnels.Count == 0;
       }
 
-      if(_tunnels.Count == 0) {
+      if(close) {
         Close();
       }
     }
@@ -128,11 +138,15 @@ namespace Brunet {
     /// connections and edges!</summary>
     public void DisconnectionHandler(Address addr)
     {
+      bool close = false;
       lock(_sync) {
-        _tunnels.Remove(addr);
+        ArrayList tunnels = new ArrayList(_tunnels);
+        tunnels.Remove(addr);
+        _tunnels = tunnels;
+        close = _tunnels.Count == 0;
       }
 
-      if(_tunnels.Count == 0) {
+      if(close) {
         Close();
       }
     }
