@@ -103,8 +103,7 @@ public class PType : ICopyable {
     public static readonly PType AH = new PType(2);
     public static readonly PType Connection = new PType("c");
     public static readonly PType Forwarding = new PType("f");
-    //for tunnel edges
-    public static readonly PType Tunneling = new PType("t");
+    public static readonly PType Tunneling = new PType("ftun");
     public static readonly PType Echo = new PType("e");
     public static readonly PType Tftp = new PType("tftp");
     public static readonly PType Chat = new PType("chat");
