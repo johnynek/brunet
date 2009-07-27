@@ -208,7 +208,7 @@ public class Channel {
     Random r = new Random();
     int en_count;
     for(int i = 0; i < 100; i++) {
-      int max_enqueues = r.Next(1000);
+      int max_enqueues = r.Next(1, 1000);
       c0 = new Channel(max_enqueues);
       c_event_fired = false;
       en_count = 0;
