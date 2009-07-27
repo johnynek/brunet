@@ -114,7 +114,7 @@ namespace SocialVPN {
     public static void DeleteCertificate(string address, string certDir) {
       address = address.Substring(12);
       string cert_path = Path.Combine(certDir, address + CERTSUFFIX);
-      if(!File.Exists(cert_path)) {
+      if(File.Exists(cert_path)) {
         File.Delete(cert_path);
       }
     }
@@ -213,11 +213,11 @@ namespace SocialVPN {
       
       for (int x = 0; x < pairs.Length; x++) {
         string[] item = pairs[x].Split('=');
-        /*
+        
         result.Add(HttpUtility.UrlDecode(item[0]), 
                    HttpUtility.UrlDecode(item[1]));
-        */
-        result.Add(item[0], item[1]);
+        
+        //result.Add(item[0], item[1]);
       }
       return result;
     }

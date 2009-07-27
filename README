@@ -2,27 +2,17 @@ SocialVPN
 
 Building SocialVPN
 ==================
-NAnt build tool is required
+NAnt build tool is required.
 
-For debian-based systems:
-apt-get install nant uml-utilities
+For Debian-based systems:
+apt-get install nant uml-utilities resolvconf curl
 
 For RedHat-based systems:
-yum install nant uml-utilities
-
-cd src/
+yum install nant uml-utilities curl
 
 To compile, run:
 
 nant
-
-To run NUnit test, run:
-
-nant test
-
-To clean, run
-
-nant clean
 
 Running SocialVPN
 =================
@@ -36,31 +26,21 @@ For Windows XP, run the start_win.cmd file
 
 For Windows Vista, right-click on start_win.cmd and "Run as administrator"
 
-For Linux, see instructions below to run as normal user (much safer)
+For Linux, run the following commands:
 
-To run SocialVPN as non-root on Linux
--------------------------------------
+whoami > user.txt
 
-Run following commands as root:
+su root
 
-chmod 666 /dev/net/tun/
-
-tunctl -u "your username" -t tapipop
-
-To find your username run the whoami command
-
-Then run:
-
-./start_linux.sh email pcid "name"
+./start_linux.sh
 
 Accessing SocialVPN Web Interface
 =================================
-SocialVPN can be managed through a Web browser or the wget command line
-utility. The start_win.cmd and the start_win.sh files contains the port
-number used to access the interface. The default port number is 58888.
+SocialVPN can be managed through a Web browser or the SVPNTool.exe command 
+line utility. The start_win.cmd and the start_win.sh files contains the 
+port number used to access the interface. The default port number is 58888.
 
 Point your browser to http://127.0.0.1:58888/
-
 
 Dependencies:
 =============
@@ -73,14 +53,6 @@ SocialVPN is built on top of two other projects:
 
 All packaged binaries found under lib and bin directories are compiled from
 these two projects.
-
-Troubleshooting:
-================
-The libtuntap.so and libtuntap.dll files are platform-dependent, they have to
-be compiled for your platform. Under the bin directory there are two other
-libtuntap.so files on for 32-bit systems (libtuntap.so_32) and another for
-64-bit systems (libtuntap.so_64). Rename one of these files to libtuntap.so
-depending on your architecture. Windows 64-bit will be available soon.
 
 Questions/Comments:
 ===================

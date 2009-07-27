@@ -5,18 +5,12 @@
   <property name="build.dir" value="build" />
   <property name="bin.dir" value="../bin"/>
   <property name="config.dir" value="../config"/>
+  <property name="scripts.dir" value="../scripts"/>
+  <property name="images.dir" value="../images"/>
 
   <target name="clean" description="Remove build directory">
     <delete dir="${build.dir}" failonerror="true"/>
-    <delete failonerror="true">
-      <fileset basedir="${bin.dir}">
-        <include name="SocialVPN.exe" />
-        <include name="*.dll" />
-        <include name="libtuntap.*"/>
-        <include name="socialvpn.*" />
-        <include name="*.config" />
-      </fileset>
-    </delete>
+    <delete dir="${bin.dir}" failonerror="true" />
   </target>
 
   <target name="build" description="Build SocialVPN.exe">
@@ -24,10 +18,10 @@
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${lib.dir}">
         <include name="*.dll" />
-        <include name="libtuntap.*" />
       </fileset>
     </copy>
 
+    <mkdir dir="${bin.dir}" failonerror="true"/>
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir=".">
         <include name="socialvpn.js" />
@@ -37,11 +31,23 @@
 
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${config.dir}">
-        <include name="*.config" />
+        <include name="*" />
       </fileset>
     </copy>
 
-    <csc target="exe" output="${build.dir}/SocialVPN.exe">
+    <copy todir="${build.dir}" failonerror="true">
+      <fileset basedir="${scripts.dir}">
+        <include name="*" />
+      </fileset>
+    </copy>
+
+    <copy todir="${build.dir}" failonerror="true">
+      <fileset basedir="${images.dir}">
+        <include name="*" />
+      </fileset>
+    </copy>
+
+    <csc target="winexe" main="SocialVPN.SocialNode" output="${build.dir}/SocialVPN.exe">
       <sources failonempty="true">
         <include name="*.cs"/>
       </sources>
@@ -61,10 +67,11 @@
       </references>
     </csc>
 
-    <mkdir dir="${bin.dir}" failonerror="true"/>
-    <copy todir="${bin.dir}" failonerror="true">
-      <fileset basedir="${build.dir}">
-        <include name="SocialVPN.exe" />
+    <csc target="exe" main="SocialVPN.SVPNTool" output="${build.dir}/SVPNTool.exe">
+      <sources failonempty="true">
+        <include name="*.cs"/>
+      </sources>
+      <references basedir="${build.dir}">
         <include name="Brunet.dll" />
         <include name="Brunet.Dht.dll" />
         <include name="Brunet.DhtService.dll" />
@@ -73,16 +80,18 @@
         <include name="Brunet.Coordinate.dll" />
         <include name="Brunet.XmlRpc.dll" />
         <include name="CookComputing.XmlRpcV2.dll" />
-        <include name="System.Runtime.Remoting.dll" />
-        <include name="System.Web.dll" />
         <include name="Mono.Posix.dll"/>
         <include name="Mono.Security.dll"/>
-        <include name="libtuntap.*"/>
+        <include name="System.Runtime.Remoting.dll"/>
+        <include name="System.Web.dll" />
         <include name="ManagedIpopNode.dll" />
-        <include name="socialvpn.js" />
-        <include name="socialvpn.css" />
-        <include name="brunet.config" />
-        <include name="ipop.config" />
+        <include name="nunit.framework.dll"/>
+      </references>
+    </csc>
+
+    <copy todir="${bin.dir}" failonerror="true">
+      <fileset basedir="${build.dir}">
+        <include name="*" />
       </fileset>
     </copy>
   </target>

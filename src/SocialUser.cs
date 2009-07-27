@@ -39,7 +39,7 @@ namespace SocialVPN {
 
     public const string ALIASDEFAULT = "unknown";
 
-    public const string PICDEFAULT = "nopic";
+    public const string PICDEFAULT = "pic.png";
 
     public const string DHTPREFIX = "svpn:";
 

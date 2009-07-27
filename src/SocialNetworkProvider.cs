@@ -17,7 +17,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Text;
 
 using Brunet;
 using Brunet.DistributedServices;
@@ -60,11 +62,6 @@ namespace SocialVPN {
     protected readonly Dictionary<string, ISocialNetwork> _networks;
 
     /**
-     * Location of the certificates directory.
-     */
-    protected readonly string _cert_dir;
-
-    /**
      * List of friends manually added.
      */
     protected readonly List<string> _friends;
@@ -85,19 +82,17 @@ namespace SocialVPN {
      * @param user the local user object.
      * @param certData the local certificate data.
      */
-    public SocialNetworkProvider(IDht dht, SocialUser user, byte[] certData,
-                                 string certDir) {
+    public SocialNetworkProvider(IDht dht, SocialUser user, byte[] certData) {
       _local_user = user;
       _dht = dht;
       _providers = new Dictionary<string, IProvider>();
       _networks = new Dictionary<string,ISocialNetwork>();
       _local_cert_data = certData;
-      _cert_dir = certDir;
       _friends = new List<string>();
+      _friends.Add(_local_user.Uid);
       _fingerprints = new List<string>();
       _certificates = new List<byte[]>();
       RegisterBackends();
-      LoadCertificates();
     }
 
     /**
@@ -181,7 +176,7 @@ namespace SocialVPN {
           continue;
         }
         foreach(string fpr in tmp_fprs) {
-          if(fpr.Length > 45 || !fingerprints.Contains(fpr)) {
+          if(fpr.Length >= 45 || !fingerprints.Contains(fpr)) {
             fingerprints.Add(fpr);
           }
         }
@@ -191,6 +186,21 @@ namespace SocialVPN {
         if(!fingerprints.Contains(fpr)) {
           fingerprints.Add(fpr);
         }
+      }
+
+      // Get friends from DHT
+      foreach(string friend in _friends) {
+        byte[] key_bytes = Encoding.UTF8.GetBytes(friend);
+        MemBlock keyb = MemBlock.Reference(key_bytes);
+        Hashtable[] results = _dht.Get(keyb);
+        foreach(Hashtable result in results) {
+          byte[] fpr_data = (byte[]) result["value"];
+          string fpr = Encoding.UTF8.GetString(fpr_data);
+          if(!fingerprints.Contains(fpr)) {
+            fingerprints.Add(fpr);
+          }
+        }
+        
       }
       return fingerprints;
     }
@@ -240,6 +250,25 @@ namespace SocialVPN {
       foreach(IProvider provider in _providers.Values) {
         success = (success || provider.StoreFingerprint());
       }
+      // Store in the DHT by default
+      byte[] key_bytes = Encoding.UTF8.GetBytes(_local_user.Uid);
+      MemBlock keyb = MemBlock.Reference(key_bytes);
+      byte[] value_bytes = Encoding.UTF8.GetBytes(_local_user.DhtKey);
+      MemBlock valueb = MemBlock.Reference(value_bytes);
+      if(_dht.Put(keyb, valueb, SocialNode.DHTTTL)) {
+        ProtocolLog.WriteIf(SocialLog.SVPNLog, 
+                          String.Format("STORE UID SUCCESS: {0} {1} {2}",
+                          DateTime.Now.TimeOfDay,_local_user.DhtKey,
+                          _local_user.Uid));
+
+      }
+      else {
+        ProtocolLog.WriteIf(SocialLog.SVPNLog, 
+                          String.Format("STORE UID FAILURE: {0} {1} {2}",
+                          DateTime.Now.TimeOfDay,_local_user.DhtKey,
+                          _local_user.Uid));
+      }
+      
       return success;
     }
 
@@ -259,35 +288,13 @@ namespace SocialVPN {
     }
 
     /**
-     * Loads certificates from the file system.
+     * Adds a list of fingerprints.
+     * @param fprs a list of fingerprints.
      */
-    protected void LoadCertificates() {
-      string[] cert_files = null;
-      try {
-        cert_files = System.IO.Directory.GetFiles(_cert_dir);
-      } catch (Exception e) {
-        ProtocolLog.WriteIf(SocialLog.SVPNLog, e.Message);
-        ProtocolLog.WriteIf(SocialLog.SVPNLog, "LOAD CERTIFICATES FAILURE");
-      }
-      foreach(string cert_file in cert_files) {
-        byte[] cert_data = SocialUtils.ReadFileBytes(cert_file);
-        _certificates.Add(cert_data);
-      }
-    }
-
-    /**
-     * Adds a list of fingerprints seperated by newline.
-     * @param fprlist a list of fingerprints.
-     */
-    public void AddFingerprints(string fprlist) {
-      string[] fprs = fprlist.Split('\n');
+    public void AddFingerprints(string[] fprs) {
       foreach(string fpr in fprs) {
-        string tmp_fpr = null;
-        if(!fpr.Contains("=")) {
-          tmp_fpr = fpr + "=";
-        }
-        if(!_fingerprints.Contains(tmp_fpr)) {
-          _fingerprints.Add(tmp_fpr);
+        if(!_fingerprints.Contains(fpr)) {
+          _fingerprints.Add(fpr);
         }
       }
     }
@@ -305,14 +312,25 @@ namespace SocialVPN {
     }
 
     /**
-     * Adds a list of friends seperated by newline.
-     * @param friendlist a list of friends unique identifiers.
+     * Adds a list of friends.
+     * @param friends a list of friends unique identifiers.
      */
-    public void AddFriends(string friendlist) {
-      string[] friends = friendlist.Split('\n');
+    public void AddFriends(string[] friends) {
       foreach(string friend in friends) {
         if(!_friends.Contains(friend)) {
           _friends.Add(friend);
+        }
+      }
+    }
+
+    /**
+     * Remove a list of friends.
+     * @param fprs a list of friends unique identifiers.
+     */
+    public void DeleteFingerprints(string[] fprs) {
+      foreach(string fpr in fprs) {
+        if(_fingerprints.Contains(fpr)) {
+          _fingerprints.Remove(fpr);
         }
       }
     }

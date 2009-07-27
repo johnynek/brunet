@@ -129,7 +129,7 @@ namespace SocialVPN {
     public void Stop() {
       _running = false;
       _listener.Stop();
-      _runner.Join();
+      _runner.Abort();
     }
 
     /**
@@ -147,15 +147,14 @@ namespace SocialVPN {
           }
           Console.WriteLine(e);
         }
-
         HttpListenerRequest request = context.Request;
         HttpListenerResponse response = context.Response;
         string responseString = String.Empty;
+        byte[] buffer = null;
         response.ContentType = "text/xml";
 
         // Process api post request from the Javascript interface
-        if (request.RawUrl == "/api")
-        {
+        if (request.RawUrl == "/api") {
           StreamReader reader = new StreamReader(request.InputStream,
                                                  request.ContentEncoding);
 
@@ -167,36 +166,32 @@ namespace SocialVPN {
                               DateTime.Now.TimeOfDay, postData));
           responseString = Process(SocialUtils.DecodeUrl(postData));
         }
-        else if (request.RawUrl.StartsWith("/getapi"))
-        {
-          if(request.RawUrl.Length > 9) {
-            string getData = request.RawUrl.Substring(8);
-            ProtocolLog.WriteIf(SocialLog.SVPNLog, String.Format(
-                                "HTTP API: {0} {1}",
-                                DateTime.Now.TimeOfDay, getData));
-            responseString = Process(SocialUtils.DecodeUrl(getData));
-          }
-        }
         // Cross-domain request made by Flash clients
-        else if (request.RawUrl == "/crossdomain.xml")
-        {
+        else if (request.RawUrl == "/crossdomain.xml") {
           responseString = CrossDomainXML;
         }
-        else if (request.RawUrl == "/socialvpn.js")
-        {
-          using (StreamReader text = new StreamReader("socialvpn.js"))
-          {
+        else if (request.RawUrl == "/socialvpn.js") {
+          using (StreamReader text = new StreamReader("socialvpn.js")) {
             responseString = text.ReadToEnd();
           }
           response.ContentType = "text/javascript";
         }
-        else if (request.RawUrl == "/socialvpn.css")
-        {
-          using (StreamReader text = new StreamReader("socialvpn.css"))
-          {
+        else if (request.RawUrl == "/socialvpn.css") {
+          using (StreamReader text = new StreamReader("socialvpn.css")) {
             responseString = text.ReadToEnd();
           }
           response.ContentType = "text/css";
+        }
+        else if (request.RawUrl == "/pic.svg") {
+          using (StreamReader text = new StreamReader("pic.svg")) {
+            responseString = text.ReadToEnd();
+          }
+          response.ContentType = "image/svg+xml";
+        }
+        else if (request.RawUrl == "/pic.png") {
+          responseString = null;
+          buffer = SocialUtils.ReadFileBytes("pic.png");
+          response.ContentType = "image/png";
         }
         // Return html content for page display
         else
@@ -205,7 +200,9 @@ namespace SocialVPN {
           response.ContentType = "text/html";
         }
 
-        byte[] buffer = System.Text.Encoding.UTF8.GetBytes(responseString);
+        if ( buffer == null && responseString != null) {
+          buffer = System.Text.Encoding.UTF8.GetBytes(responseString);
+        }
         response.ContentLength64 = buffer.Length;
         response.AddHeader("Cache-Control", "No-cache");
         System.IO.Stream output = response.OutputStream;

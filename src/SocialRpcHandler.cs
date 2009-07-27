@@ -171,6 +171,7 @@ namespace SocialVPN {
                             String.Format("FIRE SYNC: {0} {1} {2}",
                             DateTime.Now.TimeOfDay, dhtKey, uid));
 
+        _queue.Enqueue(new QueueItem(QueueItem.Actions.DhtAdd, dhtKey));
         _queue.Enqueue(new QueueItem(QueueItem.Actions.Sync, uid));
       }
       return _local_user.DhtKey + DELIM + response;
@@ -215,7 +216,7 @@ namespace SocialVPN {
 
       ISender sender = new AHExactSender(_node, addr);
       _rpc.Invoke(sender, q, "SocialVPN.FriendPing", _local_user.DhtKey,
-        _local_user.Uid);
+                  _local_user.Uid);
     }
   }
 #if SVPN_NUNIT

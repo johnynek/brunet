@@ -12,9 +12,11 @@ name=${@:3}
 # set variables
 cert_dir=certificates
 root=`whoami`
+user=`cat user.txt`
 device=tapipop
 
 if [[ $root != root ]]; then
+  whoami > user.txt
   echo "Please run as root"
   exit
 fi
@@ -24,7 +26,6 @@ if [[ ! -f user.txt ]]; then
   exit
 fi
 
-user=`cat user.txt`
 
 if [[ $user == root ]]; then
   echo "Run the follow command first (AS NON-ROOT): whoami > user.txt"
@@ -36,12 +37,21 @@ fi
 chmod 666 /dev/net/tun
 
 if [[ -d $cert_dir ]]; then
-  su $user -c "mono SocialVPN.exe brunet.config ipop.config 58888 &> log.txt &"
+  su $user -c "mono SocialVPN.exe brunet.config ipop.config 58888 on &> log.txt &"
 elif [[ $# -lt 3 ]]; then
-  echo "usage (on first run): ./start_linux.sh <email> <pcid> <name>"
+  echo "usage (on first run): ./socialvpn <email> <pcid> <name>"
   exit
 else
-  su $user -c "mono SocialVPN.exe brunet.config ipop.config 58888 $email $pcid \"$name\" &> log.txt &"
+  su $user -c "mono SocialVPN.exe brunet.config ipop.config 58888 on $email $pcid \"$name\" &> log.txt &"
 fi
 
+cp /etc/resolv.conf .
+
+sleep 3
 /sbin/dhclient -pf /var/run/dhclient.$device.pid -lf /var/lib/dhcp3/dhclient.$device.leases $device
+chmod 600 private_key
+
+echo "Your resolv.conf file has been modified, you can restore it with cp ./resolv.conf /etc/"
+echo "SocialVPN started successfully"
+echo "Point your browser to http://127.0.0.1:58888"
+firefox "http://127.0.0.1:58888"
