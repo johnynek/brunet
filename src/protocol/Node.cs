@@ -223,13 +223,14 @@ namespace Brunet
         if( cs == ConnectionState.Joining ) {
 #if BRUNET_SIMULATOR
           _timer = new Brunet.Util.SimpleTimer(CheckForTime, null, _heart_beat_interval, _heart_beat_interval);
+          _timer.Start();
 #else
           StartThread();
 #endif
         }
         else if( cs == ConnectionState.Disconnected ) {
 #if BRUNET_SIMULATOR
-          _timer.Dispose();
+          _timer.Stop();
 #else
           StopThread();
 #endif

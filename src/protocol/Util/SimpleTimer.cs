@@ -29,20 +29,22 @@ using System.Collections;
 namespace Brunet.Util {
   /// <summary>A very simple timer, single-threaded blocking timer, inspired
   /// by Mono's System.Threading.Timer. </summary>
-  public class SimpleTimer : IDisposable, IComparable<SimpleTimer> {
+  public class SimpleTimer : IComparable<SimpleTimer> {
     protected readonly WaitCallback _callback;
     protected readonly object _state;
     /// <summary>How often the timer will be called.</summary>
     public int Period { get { return _period_ms; } }
     protected readonly int _period_ms;
-    protected bool _disposed;
+    protected bool _stopped;
     protected long _next_run;
+    protected readonly int _first_run;
 
     protected readonly static object _sync;
     protected readonly static Heap<SimpleTimer> _timers;
     protected static int _running;
     protected readonly static AutoResetEvent _re;
     protected readonly static Thread _thread;
+    protected int _started;
 
     static SimpleTimer()
     {
@@ -83,7 +85,7 @@ namespace Brunet.Util {
       SimpleTimer timer = null;
       _running = 0;
       while(true) {
-        bool dispose = false;
+        bool stopped = false;
         lock(_sync) {
           if(_timers.Empty) {
             break;
@@ -96,13 +98,13 @@ namespace Brunet.Util {
           }
 
           _timers.Pop();
-          if(timer._disposed) {
+          if(timer._stopped) {
             continue;
           }
           if(timer._period_ms > 0 && timer._period_ms != Timeout.Infinite) {
             timer.Update(timer._period_ms, timer._period_ms);
           } else {
-            dispose = true;
+            stopped = true;
           }
         }
 
@@ -112,8 +114,8 @@ namespace Brunet.Util {
           ProtocolLog.WriteIf(ProtocolLog.Exceptions, e.ToString());
         }
 
-        if(dispose) {
-          timer.Dispose();
+        if(stopped) {
+          timer.Stop();
         }
       }
 
@@ -145,11 +147,23 @@ namespace Brunet.Util {
         throw new ArgumentOutOfRangeException("period");
       }
 
+      _first_run = dueTime;
       _callback = callback;
       _state = state;
       _period_ms = period;
+      _stopped = false;
+      _started = 0;
+    }
 
-      Update(dueTime, period);
+    /// <summary>Puts the timer in the queue to be executed!  Can only be
+    /// started once!</summary>
+    public void Start()
+    {
+      if(Interlocked.Exchange(ref _started, 1) == 1) {
+        throw new Exception("Already started!");
+      }
+
+      Update(_first_run, _period_ms);
     }
 
     /// <summary>Updates a timer for its first or next run.</summary>
@@ -175,9 +189,9 @@ namespace Brunet.Util {
     }
 
     /// <summary>Don't call the event, I'm done.</summary>
-    public void Dispose()
+    public void Stop()
     {
-      _disposed = true;
+      _stopped = true;
     }
 
     public int CompareTo(SimpleTimer t) {
@@ -207,7 +221,7 @@ namespace Brunet.Util {
         _hash[t] = ++calls;
       }
       if(calls == 5) {
-        t.Dispose();
+        t.Stop();
       }
     }
 
@@ -216,8 +230,9 @@ namespace Brunet.Util {
       _order = new ArrayList();
       for(int i = 0; i < 100; i++) {
         SimpleTimer t = new SimpleTimer(Callback, i, 100 + i, 0);
+        t.Start();
         if(i % 2 == 0) {
-          t.Dispose();
+          t.Stop();
         }
       }
 
@@ -233,12 +248,14 @@ namespace Brunet.Util {
       _hash = new Hashtable();
       _order = new ArrayList();
       for(int i = 0; i < 10000; i++) {
-        new SimpleTimer(Callback, i, 200, 0);
+        SimpleTimer t = new SimpleTimer(Callback, i, 200, 0);
+        t.Start();
       }
 
       for(int i = 0; i < 5; i++) {
         SimpleTimer t = null;
         t = new SimpleTimer(PeriodCallback, t, 50, 50);
+        t.Start();
       }
 
       Thread.Sleep(500);

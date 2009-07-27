@@ -110,7 +110,8 @@ namespace Brunet
     public void Push(MemBlock p) {
       if( 0 == _is_closed ) {
         if(Delay > 0) {
-          new Brunet.Util.SimpleTimer(DelayedPush, p, Delay, 0);
+          var timer = new Brunet.Util.SimpleTimer(DelayedPush, p, Delay, 0);
+          timer.Start();
         } else {
           ReceivedPacketEvent(p);
         }

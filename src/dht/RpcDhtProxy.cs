@@ -97,7 +97,7 @@ namespace Brunet.DistributedServices {
         }
 
         if(key_entries.ContainsKey(value)) {
-          key_entries[value].Timer.Dispose();
+          key_entries[value].Timer.Stop();
         }
 
         entry = new Entry(key, value, ttl);
@@ -106,18 +106,19 @@ namespace Brunet.DistributedServices {
 
       if(entry != null) {
         entry.Timer = new SimpleTimer(EntryCallback, entry, 0, RETRY_TIMEOUT);
+        entry.Timer.Start();
       }
       return true;
     }
 
     ///<summary>Unregister the proxy entry. Removes the entry from Dictionary and set
-    /// the Disposed flag as false to disable future reference</summary>
+    /// the stop the timer to disable future reference</summary>
     public bool Unregister(MemBlock key, MemBlock value)
     {
       lock(_sync) {
         if(_entries.ContainsKey(key)) {
           if(_entries[key].ContainsKey(value)) {
-            _entries[key][value].Timer.Dispose();
+            _entries[key][value].Timer.Stop();
             if(_entries[key].Count == 1) {
               _entries.Remove(key);
             } else {
@@ -160,14 +161,16 @@ namespace Brunet.DistributedServices {
         }
 
         if(success && !entry.Working) {
-          entry.Timer.Dispose();
+          entry.Timer.Stop();
           entry.Working = true;
           int time = entry.Ttl * 1000 / 2;
           entry.Timer = new SimpleTimer(EntryCallback, entry, time, time);
+          entry.Timer.Start();
         } else if(!success && entry.Working) {
-          entry.Timer.Dispose();
+          entry.Timer.Stop();
           entry.Working = false;
           entry.Timer = new SimpleTimer(EntryCallback, entry, RETRY_TIMEOUT, RETRY_TIMEOUT);
+          entry.Timer.Start();
         }
       };
 
