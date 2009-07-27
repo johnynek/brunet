@@ -136,7 +136,7 @@ namespace Ipop.DhtNode {
         }
 
         string cert_path = Path.Combine(node_config.Security.CertificatePath,
-            "lc." + node_config.NodeAddress);
+            "lc." + node_config.NodeAddress.Substring(12));
         if(create || !File.Exists(cert_path)) {
           if(!create) {
             using(FileStream fs = File.Open(node_config.Security.KeyPath, FileMode.Open)) {
