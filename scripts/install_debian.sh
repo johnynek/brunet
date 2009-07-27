@@ -34,7 +34,7 @@ mkdir -p /opt/ipop/var
 
 ln -sf /opt/ipop/bin/groupvpn_prepare.sh /usr/sbin/.
 ln -sf /opt/ipop/bin/ipop_linux.sh /etc/init.d/ipop_linux.sh
-ln -sf /opt/ipop/bin/bootstrap_linux.sh /etc/rc.d/bootstrap_linux.sh
+ln -sf /opt/ipop/bin/bootstrap_linux.sh /etc/init.d/bootstrap_linux.sh
 ln -sf /opt/ipop/etc/ipop.vpn.config /etc/.
 
 echo "Done installing IPOP"
