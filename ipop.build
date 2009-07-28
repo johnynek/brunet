@@ -15,5 +15,7 @@
     </copy>
 
     <nant buildfile="src/DhtNode/default.build" />
+    <nant buildfile="src/GroupVPNService/default.build" />
+    <nant buildfile="src/ManagedNode/default.build" />
   </target>
 </project>

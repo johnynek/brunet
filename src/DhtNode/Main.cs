@@ -28,6 +28,9 @@ using System.Security.Cryptography.X509Certificates;
 
 namespace Ipop.DhtNode {
   public class Runner {
+    public static DhtIpopNode CurrentNode { get { return _current_node; } }
+    protected static DhtIpopNode _current_node;
+
     public static int Main(String[] args) {
       string node_config_path = string.Empty;
       string ipop_config_path = string.Empty;
@@ -173,14 +176,13 @@ namespace Ipop.DhtNode {
         }
       }
 
-      DhtIpopNode node = null;
       if(dhcp_config != null) {
-        node = new DhtIpopNode(node_config, ipop_config, dhcp_config);
+        _current_node = new DhtIpopNode(node_config, ipop_config, dhcp_config);
       } else {
-        node = new DhtIpopNode(node_config, ipop_config);
+        _current_node = new DhtIpopNode(node_config, ipop_config);
       }
 
-      node.Run();
+      _current_node.Run();
       return 0;
     }
 
