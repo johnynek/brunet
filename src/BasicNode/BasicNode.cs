@@ -77,6 +77,7 @@ namespace Brunet.Applications {
     /// <summary>Provides access to the ProtocolSecurityOverlord</summary>
     public ProtocolSecurityOverlord Bso { get { return _bso; } }
     protected ProtocolSecurityOverlord _bso;
+    protected RpcDhtProxy _dht_proxy;
 
     /// <summary>Prepares a BasicNode.</summary>
     /// <param name="node_config">A node config object.</param>
@@ -232,6 +233,7 @@ namespace Brunet.Applications {
 
       new TableServer(_node);
       _dht = new Dht(_node, 3, 20);
+      _dht_proxy = new RpcDhtProxy(_dht, _node);
     }
 
     /// <summary>Starts services such as shutdown, rpcdht, and xmlrpc.  If you wish
@@ -244,7 +246,6 @@ namespace Brunet.Applications {
         _xrm = new XmlRpcManagerServer(_node_config.XmlRpcManager.Port);
         _xrm.Update(_node);
         new RpcDht(_dht, _node);
-        new RpcDhtProxy(_dht, _node);
       }
     }
 
