@@ -68,9 +68,13 @@ public class ReqrepManager : SimpleSource, IDataHandler {
    * running on a node. 
    * @param node The Node we work for
    */
-  public ReqrepManager(string info) {
-    _info = info;
+  public ReqrepManager(string info) : this(info, PType.Protocol.ReqRep) {
 
+  }
+
+  public ReqrepManager(string info, PType prefix) {
+    _info = info;
+    _prefix = prefix;
     _req_handler_table = new Hashtable();
     Random r = new Random();
     //Don't use negative numbers:
@@ -272,6 +276,8 @@ public class ReqrepManager : SimpleSource, IDataHandler {
 
      protected int _reply_timeouts;
      public int ReplyTimeouts { get { return _reply_timeouts; } }
+     
+     protected readonly PType _prefix;
 
      protected readonly WriteOnce<string> _uri;
 
@@ -279,7 +285,8 @@ public class ReqrepManager : SimpleSource, IDataHandler {
        get { return RequestKey.Sender; }
      }
 
-     public ReplyState(RequestKey rk) {
+     public ReplyState(PType prefix, RequestKey rk) {
+       _prefix = prefix;
        RequestKey = rk;
        RequestDate = DateTime.UtcNow;
        _reply_timeouts = 0;
@@ -299,7 +306,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
          header[0] = (byte)ReqrepType.Reply;
          NumberSerializer.WriteInt(RequestID, header, 1);
          MemBlock mb_header = MemBlock.Reference(header);
-         Reply = new CopyList(PType.Protocol.ReqRep, mb_header, data);
+         Reply = new CopyList(_prefix, mb_header, data);
          Resend();
        }
        else {
@@ -317,7 +324,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
        header[0] = (byte)ReqrepType.RequestAck;
        NumberSerializer.WriteInt(RequestID, header, 1);
        MemBlock mb_header = MemBlock.Reference(header);
-       ReturnPath.Send( new CopyList(PType.Protocol.ReqRep, mb_header) );
+       ReturnPath.Send( new CopyList(_prefix, mb_header) );
      }
 
      public string ToUri() {
@@ -378,6 +385,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
    public string Info { get { return _info; } }
    protected readonly Brunet.Util.UidGenerator<RequestState> _req_state_table;
    protected readonly Brunet.Util.UidGenerator<ReplyState> _reply_id_table;
+   protected readonly PType _prefix;
    protected Cache _reply_cache;
    protected Hashtable _rep_handler_table;
    protected Hashtable _req_handler_table;
@@ -455,8 +463,8 @@ public class ReqrepManager : SimpleSource, IDataHandler {
    /** Create a ReplyState for a new Request
     * Note, this is not synchronized, you must hold the lock when calling!
     */
-   protected ReplyState GenerateReplyState(RequestKey rk) {
-     var rs = new ReplyState(rk);
+   protected ReplyState GenerateReplyState(PType prefix, RequestKey rk) {
+     var rs = new ReplyState(_prefix, rk);
      _reply_cache[rk] = rs;
      rs.LocalID = _reply_id_table.GenerateID(rs);
      return rs;
@@ -514,7 +522,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
      lock( _sync ) {
        rs = (ReplyState)_reply_cache[rk];
        if( rs == null ) {
-         rs = GenerateReplyState(rk);
+         rs = GenerateReplyState(_prefix, rk);
        }
        else {
          resend = true;
@@ -691,7 +699,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
      header[0] = (byte)rt;
      NumberSerializer.WriteInt( next_rep, header, 1 );
      MemBlock mb_header = MemBlock.Reference(header);
-     return new CopyList(PType.Protocol.ReqRep, mb_header, data);
+     return new CopyList(_prefix, mb_header, data);
    }
 
   /**
@@ -753,7 +761,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
        byte[] ack_payload = new byte[5];
        ack_payload[0] = (byte)ReqrepType.ReplyAck;
        NumberSerializer.WriteInt(request_id, ack_payload, 1);
-       ICopyable data = new CopyList(PType.Protocol.ReqRep, MemBlock.Reference(ack_payload));
+       ICopyable data = new CopyList(_prefix, MemBlock.Reference(ack_payload));
        foreach(ISender ret_path in rs.Repliers) {
          try {
            //Try to send an ack, but if we can't, oh well...
