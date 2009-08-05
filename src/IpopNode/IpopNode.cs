@@ -576,11 +576,12 @@ namespace Ipop {
             }
             if(new_entry) {
               if(_static_mapping.ContainsKey(ether_addr)) {
-                _static_mapping[ether_addr].Dispose();
+                _static_mapping[ether_addr].Stop();
               }
               _static_mapping[ether_addr] = new SimpleTimer(wcb, null,
                   _dhcp_config.LeaseTime * 1000 / 2,
                   _dhcp_config.LeaseTime * 1000 / 2);
+              _static_mapping[ether_addr].Start();
             }
             UpdateMapping(ether_addr, MemBlock.Reference(res_ip));
           }
