@@ -54,7 +54,7 @@
     <mkdir dir="${bin.dir}" failonerror="true"/>
     <copy todir="${bin.dir}" failonerror="true">
       <fileset basedir="${build.dir}">
-        <include name="GroupVPNService"/>
+        <include name="GroupVPNService.exe"/>
       </fileset>
     </copy>
   </target>

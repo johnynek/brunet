@@ -98,6 +98,8 @@ function start()
         DHCP=dhclient3
       elif [[ "`which dhcpcd 2> /dev/null`" ]]; then
         DHCP=dhcpcd
+      elif [[ "`which dhclient 2> /dev/null`" ]]; then
+        DHCP=dhclient
       else
         echo "No valid DHCP client"
         exit
@@ -108,6 +110,8 @@ function start()
       dhclient3 -pf /var/run/dhclient.$DEVICE.pid -lf /var/lib/dhcp3/dhclient.$DEVICE.leases $DEVICE
     elif [[ $DHCP == "dhcpcd" ]]; then
       dhcpcd $DEVICE
+    elif [[ $DHCP == "dhclient" ]]; then
+      dhclient -pf /var/run/dhclient.$DEVICE.pid -lf /var/lib/dhcp/dhclient.$DEVICE.leases $DEVICE
     else
       echo "No valid DHCP client"
       exit

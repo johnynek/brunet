@@ -16,8 +16,7 @@ cd -
 mkdir -p $version/ipop/bin
 brunet_lib_files="Brunet.dll Brunet.Dht.dll Brunet.XmlRpc.dll Mono.Security.dll Brunet.Coordinate.dll Brunet.Security.dll NDesk.Options.dll CookComputing.XmlRpcV2.dll"
 brunet_bin_files="P2PNode.exe"
-ipop_bin_files="DhtIpopNode.exe"
-ipop_lib_files="libtuntap.dll"
+ipop_bin_files="DhtIpopNode.exe GroupVPNService.exe"
 for file in $brunet_lib_files; do
   cp ../../brunet/lib/$file $version/ipop/bin/.
 done
@@ -37,11 +36,11 @@ done
 cp ../scripts/groupvpn_prepare.sh $version/ipop/bin/.
 cp ../scripts/ipop_linux.sh $version/ipop/bin/.
 cp ../scripts/bootstrap_linux.sh $version/ipop/bin/.
+cp ../scripts/install_windows.bat $version/ipop/bin/.
 cp ../scripts/daemon.py $version/ipop/bin/.
 cp ../scripts/install* $version/ipop/.
 
 cp -axf ../drivers $version/ipop/.
-cp -axf ../src/c-lib $version/ipop/drivers/.
 
 brunet_scripts="bget.py bput.py crawl.py pybru.py"
 for file in $brunet_scripts; do

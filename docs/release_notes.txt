@@ -5,8 +5,9 @@ Revision GroupVPN Alpha
 - For Security, IPOP now supports a Group model called GroupVPN
 - Merged CondorIpopNode and DhtIpopNode
 - ARPs are only returned if there is an end point for the requested IP
-- Removed Linux dependency on c-lib
+- Removed Linux and Windows dependency on c-lib
 - Added static address support
+- Windows and Linux service scripts
 ===============================================================================
 Revision 8
 -------------------------------------------------------------------------------
