@@ -153,7 +153,7 @@ namespace Brunet.Simulator {
       node.AddEdgeListener(el);
 
       if(Broken != 0) {
-        el = new TunnelEdgeListener(node);
+        el = new Tunnel.TunnelEdgeListener(node);
         node.AddEdgeListener(el);
       }
 

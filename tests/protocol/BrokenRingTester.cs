@@ -47,7 +47,7 @@ namespace Brunet {
         arr_tas.Add(new ConstantAuthorizer(TAAuthorizer.Decision.Allow));
         TAAuthorizer ta_auth = new SeriesTAAuthorizer(arr_tas);
         node.AddEdgeListener(new UdpEdgeListener(base_port + i, null, ta_auth));
-        node.AddEdgeListener(new TunnelEdgeListener(node));
+        node.AddEdgeListener(new Tunnel.TunnelEdgeListener(node));
         node.RemoteTAs = RemoteTA;
         Thread t = new Thread(new ThreadStart(node.Connect));
         t.Start();

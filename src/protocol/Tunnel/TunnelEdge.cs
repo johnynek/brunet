@@ -22,7 +22,7 @@ using System.Threading;
 using System.Collections;
 using System.Collections.Generic;
 
-namespace Brunet {
+namespace Brunet.Tunnel {
   /// <summary>Holds the state information for a Tunnels.</summary>
   public class TunnelEdge : Edge {
     protected static readonly Random _rand = new Random();

@@ -207,7 +207,7 @@ namespace Brunet.Applications {
         _node.AddEdgeListener(el);
       }
 
-      el = new TunnelEdgeListener(_node);
+      el = new Tunnel.TunnelEdgeListener(_node);
       if(_node_config.Security.SecureEdgesEnabled) {
         Brunet.LinkProtocolState.EdgeVerifyMethod = EdgeVerify.AddressInSubjectAltName;
         el = new SecureEdgeListener(el, _bso);

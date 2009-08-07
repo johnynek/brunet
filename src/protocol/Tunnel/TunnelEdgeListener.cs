@@ -23,7 +23,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
 
-namespace Brunet {
+namespace Brunet.Tunnel {
   /// <summary>Tunnels provide the ability for disconnected peers to form
   /// via existing overlay connections.  For example, two nodes behind asymmetric
   /// NATs can form a tunnel over a common peer forming a virtual direct link

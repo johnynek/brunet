@@ -12,9 +12,8 @@
 
     <csc target="library" define="BRUNET_NUNIT" output="${build.dir}/${assembly}.Test.dll">
       <sources failonempty="true">
-        <include name="Util/*.cs"/>
-        <include name="Transport/*.cs"/>
         <include name="*.cs"/>
+        <include name="*/*.cs"/>
       </sources>
       <references>
         <!-- <include name="${lib.dir}/NUnit.Framework.dll" /> -->
@@ -36,8 +35,7 @@
     <csc target="library" define="BRUNET_NUNIT" optimize="true" output="${build.dir}/${assembly}.NUnit.Test.dll">
       <sources>
         <include name="*.cs"/>
-        <include name="Util/*.cs"/>
-        <include name="Transport/*.cs"/>
+        <include name="*/*.cs"/>
       </sources>
       <references basedir="${build.dir}">
         <include name="nunit.framework.dll" />
@@ -56,8 +54,7 @@
     <csc target="library" debug="${build.debug}" define="${build.define}" optimize="true" output="${build.dir}/${assembly}.dll">
       <sources failonempty="true">
         <include name="*.cs"/>
-        <include name="Util/*.cs"/>
-        <include name="Transport/*.cs"/>
+        <include name="*/*.cs"/>
       </sources>
       <references>
         <include name="System.Web.dll"/>
