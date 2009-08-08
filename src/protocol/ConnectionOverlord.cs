@@ -162,9 +162,6 @@ namespace Brunet {
         }
         return stop;
       };
-      if (abort(null)) {
-        return null;
-      }
 
       ConnectToMessage ctm = GetConnectToMessage(ConnectionType, token);
       Connector con = new Connector(_node, sender, ctm, this, target);

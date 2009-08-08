@@ -15,7 +15,18 @@
         <include name="Brunet.Security.dll"/>
       </fileset>
     </copy>
-    <csc target="exe" output="${build.dir}/Simulator.exe">
+
+    <csc target="exe" output="${build.dir}/Simulator.exe" main="Brunet.Simulator.Runner">
+      <sources failonempty="true">
+        <include name="*.cs"/>
+      </sources>
+      <references basedir="${build.dir}">
+        <include name="Brunet.dll"/>
+        <include name="Brunet.Security.dll"/>
+      </references>
+    </csc>
+
+    <csc target="exe" output="${build.dir}/TunnelOverlapSimulator.exe" main="Brunet.Simulator.TunnelOverlapSimulator">
       <sources failonempty="true">
         <include name="*.cs"/>
       </sources>

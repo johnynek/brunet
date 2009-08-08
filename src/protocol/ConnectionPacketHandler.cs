@@ -318,7 +318,7 @@ namespace Brunet
         return GetEdge( ((ReqrepManager.ReplyState) s).ReturnPath );
       }
       else {
-        return (Edge)s;
+        return s as Edge;
       }
     }
     /**
@@ -329,12 +329,20 @@ namespace Brunet
       if( 1 == _disconnecting ) {
         throw new AdrException((int)ErrorMessage.ErrorCode.Disconnecting, "disconnecting");
       }
+
       StatusMessage sm = new StatusMessage(status_message);
       Edge from = GetEdge(edge);
-      if(ProtocolLog.LinkDebug.Enabled)
+
+      if(ProtocolLog.LinkDebug.Enabled) {
         ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
-          "{0} -start- sys:link.GetStatus({1},{2})", _node.Address,sm,from));
-      CphState cphstate = (CphState)_edge_to_cphstate[from];
+          "{0} -start- sys:link.GetStatus({1},{2})", _node.Address, sm, edge));
+      }
+
+      CphState cphstate = null;
+      if(from != null) {
+        cphstate = _edge_to_cphstate[from] as CphState;
+      }
+
      /**
       * StatusMessage objects are used to verify the completion
       * of the Link protocol.  If we receive a StatusMessage request
@@ -368,13 +376,15 @@ namespace Brunet
         if( c != null ) {
           fadd = c.Address;
             tab.UpdateStatus(c, sm);
-        }  
+        }
         response = _node.GetStatus( sm.NeighborType, fadd );
       }
       
-      if(ProtocolLog.LinkDebug.Enabled)
+      if(ProtocolLog.LinkDebug.Enabled) {
         ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
           "{0} -end- sys:link.GetStatus()->{1}", _node.Address,response));
+      }
+
       return response.ToDictionary();
     }
 

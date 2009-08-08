@@ -41,6 +41,8 @@ namespace Brunet.Tunnel {
     public override IEnumerable LocalTAs { get { return _local_tas; } }
     public override int Count { get { return _id_to_tunnel.Count; } }
     protected ConnectionList _connections;
+    protected readonly ITunnelOverlap _ito;
+    protected readonly OverlapConnectionOverlord _oco;
 
     public override TransportAddress.TAType TAType {
       get {
@@ -54,8 +56,16 @@ namespace Brunet.Tunnel {
       }
     }
 
-    public TunnelEdgeListener(Node node)
+
+
+    public TunnelEdgeListener(Node node) : this(node, new SimpleTunnelOverlap(node))
     {
+    }
+
+    public TunnelEdgeListener(Node node, ITunnelOverlap ito) 
+    {
+      _ito = ito;
+      _oco = new OverlapConnectionOverlord(node);
       _count = 0;
       _node = node;
       _running = 0;
@@ -107,13 +117,53 @@ namespace Brunet.Tunnel {
       ConnectionList cons = _connections;
       ArrayList overlap = FindOverlap(teca.TunnelTA, cons);
       if(overlap.Count == 0) {
-        teca.Success.Value = false;
-        teca.Exception.Value = new Exception("Not enough forwarders!");
-        teca.Edge.Value = null;
-        _node.EnqueueAction(teca);
+        if(_ito == null) {
+          FailedEdgeCreate(teca);
+        } else {
+          AttemptToCreateOverlap(teca);
+        }
         return;
       }
 
+      CreateEdge(teca, overlap);
+    }
+
+    /// <summary>First we try to find a third party we can connect with for
+    /// overlap, if that is successful, we attempt to connect to him, if that
+    /// is successful, we create a new tunnel edge.</summary>
+    protected void AttemptToCreateOverlap(TunnelEdgeCallbackAction teca)
+    {
+       WaitCallback create_connection = delegate(object o) {
+        Address target = o as Address;
+        if(o == null) {
+          FailedEdgeCreate(teca);
+          return;
+        }
+
+        if(!_node.ConnectionTable.Contains(OverlapConnectionOverlord.MAIN_TYPE, target)) {
+          FailedEdgeCreate(teca);
+          return;
+        }
+
+        ArrayList overlap = new ArrayList(1);
+        overlap.Add(target);
+        CreateEdge(teca, overlap);
+      };
+
+      WaitCallback found_overlap = delegate(object o) {
+        Address target = o as Address;
+        if(o == null) {
+          FailedEdgeCreate(teca);
+        } else {
+          _oco.ConnectTo(target, create_connection);
+        }
+      };
+      
+      _ito.FindOverlap(teca.TunnelTA, found_overlap);
+    }
+
+    protected void CreateEdge(TunnelEdgeCallbackAction teca, ArrayList overlap)
+    {
       TunnelEdge te = new TunnelEdge(this, (TransportAddress) _local_tas[0], teca.TunnelTA, overlap);
       lock(_sync) {
         _id_to_tunnel[te.LocalID] = te;
@@ -123,6 +173,14 @@ namespace Brunet.Tunnel {
       teca.Success.Value = true;
       teca.Exception.Value = null;
       teca.Edge.Value = te;
+      _node.EnqueueAction(teca);
+    }
+
+    protected void FailedEdgeCreate(TunnelEdgeCallbackAction teca)
+    {
+      teca.Success.Value = false;
+      teca.Exception.Value = new Exception("Not enough forwarders!");
+      teca.Edge.Value = null;
       _node.EnqueueAction(teca);
     }
 
@@ -331,11 +389,13 @@ namespace Brunet.Tunnel {
         throw new Exception("TunnelEdgeListener cannot be started twice.");
       }
 
+      _oco.IsActive = true;
       Interlocked.Exchange(ref _running, 1);
     }
 
     public override void Stop()
     {
+      _oco.IsActive = false;
       Interlocked.Exchange(ref _running, 0);
       base.Stop();
     }
