@@ -87,6 +87,7 @@ namespace Brunet.Simulator {
       sim.AddDisconnectedPair(out addr1, out addr2);
       Complete(sim);
       StructuredNode node = (sim.Nodes[addr1] as NodeMapping).Node as StructuredNode;
+      StructuredNode node2 = (sim.Nodes[addr2] as NodeMapping).Node as StructuredNode;
       node.ManagedCO.AddAddress(addr2);
       int count = 0;
       while(count++ < 100000) {
@@ -100,7 +101,34 @@ namespace Brunet.Simulator {
       Console.WriteLine("\t" + node.ConnectionTable.GetConnection(ConnectionType.Structured, addr2) + "\n");
       sim.PrintConnections(node);
       Console.WriteLine();
-      sim.PrintConnections((sim.Nodes[addr1] as NodeMapping).Node);
+      sim.PrintConnections(node2);
+
+      Console.WriteLine("\nPhase 2 -- Disconnect...");
+      foreach(Connection con in node.ConnectionTable.GetConnections(Tunnel.OverlapConnectionOverlord.STRUC_OVERLAP)) {
+        Console.WriteLine("Closing: " + con);
+        con.Edge.Close();
+      }
+
+      foreach(Connection con in node2.ConnectionTable.GetConnections(Tunnel.OverlapConnectionOverlord.STRUC_OVERLAP)) {
+        Console.WriteLine("Closing: " + con);
+        con.Edge.Close();
+      }
+
+      SimpleTimer.RunSteps(100000);
+      count = 0;
+      while(count++ < 100000) {
+        SimpleTimer.RunStep();
+        if(node.ConnectionTable.Contains(ConnectionType.Structured, addr2)) {
+          break;
+        }
+      }
+
+      Console.WriteLine(addr1 + "<=>" + addr2 + ":");
+      Console.WriteLine("\t" + node.ConnectionTable.GetConnection(ConnectionType.Structured, addr2) + "\n");
+      sim.PrintConnections(node);
+      Console.WriteLine();
+      sim.PrintConnections(node2);
+
       sim.Disconnect();
     }
 
