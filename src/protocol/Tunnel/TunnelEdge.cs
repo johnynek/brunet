@@ -78,30 +78,17 @@ namespace Brunet.Tunnel {
       }
     }
 
-    /// <summary>Constructor for an outgoing edge, since we don't know the remote
-    /// id yet, it must be outgoing!</summary>
+    /// <summary>Outgoing edge, since we don't know the RemoteID yet!</summary>
     public TunnelEdge(IEdgeSendHandler send_handler, TransportAddress local_ta,
         TransportAddress remote_ta, ArrayList neighbors) :
-        base(send_handler, false)
+      this(send_handler, local_ta, remote_ta, neighbors, -1)
     {
-      lock(_rand) {
-        LocalID = _rand.Next();
-      }
-      _remote_id = -1;
-      byte[] bid = new byte[8];
-      NumberSerializer.WriteInt(LocalID, bid, 0);
-      NumberSerializer.WriteInt(RemoteID, bid, 4);
-      _mid = MemBlock.Reference(bid);
-      _local_ta = local_ta;
-      _remote_ta = remote_ta;
-      _tunnels = ArrayList.ReadOnly(new ArrayList(neighbors));
     }
 
-    /// <summary>Constructor for an incoming edge, since we know the remote id,
-    /// it must be incoming!</summary>
+    /// <summary>Constructor for a TunnelEdge, RemoteID == -1 for out bound.</summary>
     public TunnelEdge(IEdgeSendHandler send_handler, TransportAddress local_ta,
         TransportAddress remote_ta, ArrayList neighbors, int remote_id) :
-        base(send_handler, true)
+        base(send_handler, remote_id != -1)
     {
       _remote_id = remote_id;
       lock(_rand) {
