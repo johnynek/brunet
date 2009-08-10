@@ -36,13 +36,13 @@ namespace Brunet.Tunnel {
     Dictionary<int, TunnelEdge> _id_to_tunnel;
     object _sync;
     protected IList _local_tas;
-    protected int _count;
 
     public override IEnumerable LocalTAs { get { return _local_tas; } }
     public override int Count { get { return _id_to_tunnel.Count; } }
     protected ConnectionList _connections;
     protected readonly ITunnelOverlap _ito;
     protected readonly OverlapConnectionOverlord _oco;
+    protected readonly IAddressSelectorFactory _iasf;
 
     public override TransportAddress.TAType TAType {
       get {
@@ -58,22 +58,23 @@ namespace Brunet.Tunnel {
 
 
 
-    public TunnelEdgeListener(Node node) : this(node, new SimpleTunnelOverlap(node))
+    public TunnelEdgeListener(Node node) :
+      this(node, new SimpleTunnelOverlap(node), new SimpleAddressSelectorFactory())
     {
     }
 
-    public TunnelEdgeListener(Node node, ITunnelOverlap ito) 
+    public TunnelEdgeListener(Node node, ITunnelOverlap ito, IAddressSelectorFactory iasf)
     {
       _ito = ito;
+      _iasf = iasf;
       _oco = new OverlapConnectionOverlord(node);
-      _count = 0;
       _node = node;
       _running = 0;
       _started = 0;
       _id_to_tunnel = new Dictionary<int, TunnelEdge>();
       _sync = new object();
 
-      TransportAddress ta = new TunnelTransportAddress(node.Address, new ArrayList());
+      TransportAddress ta = new TunnelTransportAddress(node.Address, new List<Address>());
       ArrayList local_tas = new ArrayList(1);
       local_tas.Add(ta);
       _local_tas = local_tas;
@@ -115,7 +116,7 @@ namespace Brunet.Tunnel {
     {
       TunnelEdgeCallbackAction teca = o as TunnelEdgeCallbackAction;
       ConnectionList cons = _connections;
-      ArrayList overlap = FindOverlap(teca.TunnelTA, cons);
+      List<Address> overlap = FindOverlap(teca.TunnelTA, cons);
       if(overlap.Count == 0) {
         if(_ito == null) {
           FailedEdgeCreate(teca);
@@ -145,7 +146,7 @@ namespace Brunet.Tunnel {
           return;
         }
 
-        ArrayList overlap = new ArrayList(1);
+        List<Address> overlap = new List<Address>(1);
         overlap.Add(target);
         CreateEdge(teca, overlap);
       };
@@ -162,9 +163,10 @@ namespace Brunet.Tunnel {
       _ito.FindOverlap(teca.TunnelTA, found_overlap);
     }
 
-    protected void CreateEdge(TunnelEdgeCallbackAction teca, ArrayList overlap)
+    protected void CreateEdge(TunnelEdgeCallbackAction teca, List<Address> overlap)
     {
-      TunnelEdge te = new TunnelEdge(this, (TransportAddress) _local_tas[0], teca.TunnelTA, overlap);
+      TunnelEdge te = new TunnelEdge(this, (TransportAddress) _local_tas[0],
+          teca.TunnelTA, _iasf.GetAddressSelector(), overlap);
       lock(_sync) {
         _id_to_tunnel[te.LocalID] = te;
       }
@@ -198,7 +200,7 @@ namespace Brunet.Tunnel {
       }
 
       ConnectionList cur_cons = _connections;
-      ArrayList overlap = new ArrayList();
+      List<Address> overlap = new List<Address>();
       // iterate through all remote peers information
       foreach(NodeInfo ni in sm.Neighbors) {
         bool is_tunnel = false;
@@ -282,10 +284,10 @@ namespace Brunet.Tunnel {
 
     /// <summary>Returns our nearest neighbors to the specified address, which
     /// is in turn used to help communicate with tunnel peer.</summary>
-    public static ArrayList GetNearest(Address addr, ConnectionList cons)
+    public static List<Address> GetNearest(Address addr, ConnectionList cons)
     {
       ConnectionList cons_near = cons.GetNearestTo(addr, 8);
-      ArrayList addrs = new ArrayList();
+      List<Address> addrs = new List<Address>();
       foreach(Connection con in cons_near) {
         addrs.Add(con.Address);
       }
@@ -295,9 +297,9 @@ namespace Brunet.Tunnel {
     /// <summary>Attempt to find the overlap in a remote TunnelTransportAddress
     /// and our local node.  This will be used to help communicate with a new
     /// tunneled peer.</summary>
-    public static ArrayList FindOverlap(TunnelTransportAddress ta, ConnectionList cons)
+    public static List<Address> FindOverlap(TunnelTransportAddress ta, ConnectionList cons)
     {
-      ArrayList overlap = new ArrayList();
+      List<Address> overlap = new List<Address>();
       foreach(Connection con in cons) {
         if(con.Edge.TAType == TransportAddress.TAType.Tunnel) {
           continue;
@@ -337,11 +339,12 @@ namespace Brunet.Tunnel {
           return;
         }
 
-        ArrayList overlap_addrs = new ArrayList();
+        List<Address> overlap_addrs = new List<Address>();
         overlap_addrs.Add(cons[index].Address);
 
         te = new TunnelEdge(this, (TransportAddress) _local_tas[0],
-            new TunnelTransportAddress(target, overlap_addrs), overlap_addrs, remote_id);
+            new TunnelTransportAddress(target, overlap_addrs),
+            _iasf.GetAddressSelector(), overlap_addrs, remote_id);
         lock(_sync) {
           _id_to_tunnel[te.LocalID] = te;
         }
@@ -372,9 +375,7 @@ namespace Brunet.Tunnel {
     public void HandleEdgeSend(Edge from, ICopyable data)
     {
       TunnelEdge te = from as TunnelEdge;
-      int count = Interlocked.Increment(ref _count);
-      IList tunnels = te.Tunnels;
-      Address forwarder  = tunnels[count % tunnels.Count] as Address;
+      Address forwarder  = te.NextAddress;
       Address target = (te.RemoteTA as TunnelTransportAddress).Target;
 
       ForwardingSender s = new ForwardingSender(_node, forwarder,

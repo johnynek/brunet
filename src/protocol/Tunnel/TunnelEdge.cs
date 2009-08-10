@@ -55,10 +55,15 @@ namespace Brunet.Tunnel {
     protected readonly TransportAddress _local_ta;
     protected readonly TransportAddress _remote_ta;
 
-    /// <summary>These are the overlapping neighbors.</summary>
-    public IList Tunnels { get { return _tunnels; } }
-    /// <summary>A readonly list of tunnels.  Must be replaced to update.</summary>
-    protected ArrayList _tunnels;
+    /// <summary>A functional list of tunnels.  Replace to update.</summary>
+    protected List<Address> _tunnels;
+    protected IAddressSelector _ias;
+
+    public Address NextAddress {
+      get {
+        return _ias.NextAddress;
+      }
+    }
 
     public override Brunet.TransportAddress LocalTA {
       get {
@@ -80,14 +85,14 @@ namespace Brunet.Tunnel {
 
     /// <summary>Outgoing edge, since we don't know the RemoteID yet!</summary>
     public TunnelEdge(IEdgeSendHandler send_handler, TransportAddress local_ta,
-        TransportAddress remote_ta, ArrayList neighbors) :
-      this(send_handler, local_ta, remote_ta, neighbors, -1)
+        TransportAddress remote_ta, IAddressSelector ias, List<Address> overlap) :
+      this(send_handler, local_ta, remote_ta, ias, overlap, -1)
     {
     }
 
     /// <summary>Constructor for a TunnelEdge, RemoteID == -1 for out bound.</summary>
     public TunnelEdge(IEdgeSendHandler send_handler, TransportAddress local_ta,
-        TransportAddress remote_ta, ArrayList neighbors, int remote_id) :
+        TransportAddress remote_ta, IAddressSelector ias, List<Address> overlap, int remote_id) :
         base(send_handler, remote_id != -1)
     {
       _remote_id = remote_id;
@@ -100,22 +105,25 @@ namespace Brunet.Tunnel {
       _mid = MemBlock.Reference(bid);
       _local_ta = local_ta;
       _remote_ta = remote_ta;
-      _tunnels = ArrayList.ReadOnly(new ArrayList(neighbors));
+      _tunnels = new List<Address>(overlap);
+      _ias = ias;
+      _ias.Update(_tunnels);
     }
 
     /// <summary>When our tunnel peer has some state change, he notifies us and
     /// use that information to update our overlap, here we set the overlap.</summary>
-    public void UpdateNeighborIntersection(ArrayList neighbors)
+    public void UpdateNeighborIntersection(List<Address> neighbors)
     {
       bool close = false;
       lock(_sync) {
-        _tunnels = ArrayList.ReadOnly(new ArrayList(neighbors));
+        _tunnels = new List<Address>(neighbors);
         close = _tunnels.Count == 0;
       }
 
       if(close) {
         Close();
       }
+      _ias.Update(_tunnels);
     }
 
     /// <summary>We don't want to send on disconnected edges.  So we remove said
@@ -124,19 +132,19 @@ namespace Brunet.Tunnel {
     {
       bool close = false;
       lock(_sync) {
-        int index = _tunnels.IndexOf(addr);
-        if(_tunnels.IndexOf(addr) < 0) {
+        List<Address> tunnels = new List<Address>(_tunnels);
+        tunnels.Remove(addr);
+        if(_tunnels.Count == tunnels.Count) {
           return;
         }
-
-        ArrayList tunnels = Functional.RemoveAt(_tunnels, index);
-        _tunnels = ArrayList.ReadOnly(tunnels);
+        _tunnels = tunnels;
         close = _tunnels.Count == 0;
       }
 
       if(close) {
         Close();
       }
+      _ias.Update(_tunnels);
     }
   }
 }
