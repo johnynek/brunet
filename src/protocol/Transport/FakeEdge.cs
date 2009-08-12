@@ -41,9 +41,16 @@ namespace Brunet
 
     private TransportAddress local_add;
     private TransportAddress remote_add;
+    private readonly TransportAddress.TAType _tatype;
 
-    public FakeEdge(TransportAddress local, TransportAddress remote)
+    public FakeEdge(TransportAddress local, TransportAddress remote) :
+      this(local, remote, TransportAddress.TAType.Tcp)
     {
+    }
+
+    public FakeEdge(TransportAddress local, TransportAddress remote, TransportAddress.TAType tatype)
+    {
+      _tatype = tatype;
       local_add = local;
       remote_add = remote;
     }
@@ -67,7 +74,7 @@ namespace Brunet
     {
       get
       {
-        return Brunet.TransportAddress.TAType.Tcp;
+        return _tatype;
       }
     }
   }

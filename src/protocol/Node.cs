@@ -1048,7 +1048,7 @@ namespace Brunet
        */
       ConnectionType ct = Connection.StringToMainType( con_type_string );
       foreach(Connection c in _connection_table.GetConnections( ct ) ) {
-        neighbors.Add(NodeInfo.CreateInstance(c.Address, c.Edge.RemoteTA));
+        neighbors.Add(NodeInfo.CreateInstance(c.Address));
       }
       return new StatusMessage( con_type_string, neighbors );
     }

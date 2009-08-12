@@ -52,7 +52,7 @@ namespace Brunet
     public ManagedConnectionOverlord ManagedCO { get { return _mco; } }
 
     //maximum number of neighbors we report in our status
-    protected static readonly int MAX_NEIGHBORS = 8;
+    protected static readonly int MAX_NEIGHBORS = 4;
     public ConnectionPacketHandler sys_link;
 
     public override bool IsConnected {
@@ -401,13 +401,13 @@ namespace Brunet
       if (ah_addr != null) {
         //we need to find the MAX_NEIGHBORS closest guys to addr
         foreach(Connection c in  _connection_table.GetNearestTo(ah_addr, MAX_NEIGHBORS)) {
-          neighbors.Add(NodeInfo.CreateInstance(c.Address,c.Edge.RemoteTA));
+          neighbors.Add(NodeInfo.CreateInstance(c.Address));
         }
       } else {
         //if address is null, we send the list of
         int count = 0;
         foreach(Connection c in _connection_table.GetConnections( ct ) ) {
-          neighbors.Add(NodeInfo.CreateInstance(c.Address, c.Edge.RemoteTA));
+          neighbors.Add(NodeInfo.CreateInstance(c.Address));
           count++;
           if (count >= MAX_NEIGHBORS) {
             break;

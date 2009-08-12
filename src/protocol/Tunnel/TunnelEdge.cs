@@ -59,6 +59,8 @@ namespace Brunet.Tunnel {
     protected List<Address> _tunnels;
     protected IAddressSelector _ias;
 
+    public IList<Address> Overlap { get { return _tunnels.AsReadOnly(); } }
+
     public Address NextAddress {
       get {
         return _ias.NextAddress;
@@ -83,17 +85,19 @@ namespace Brunet.Tunnel {
       }
     }
 
+    public readonly MemBlock Header;
+
     /// <summary>Outgoing edge, since we don't know the RemoteID yet!</summary>
-    public TunnelEdge(IEdgeSendHandler send_handler, TransportAddress local_ta,
-        TransportAddress remote_ta, IAddressSelector ias, List<Address> overlap) :
+    public TunnelEdge(IEdgeSendHandler send_handler, TunnelTransportAddress local_ta,
+        TunnelTransportAddress remote_ta, IAddressSelector ias, List<Address> overlap) :
       this(send_handler, local_ta, remote_ta, ias, overlap, -1)
     {
     }
 
     /// <summary>Constructor for a TunnelEdge, RemoteID == -1 for out bound.</summary>
-    public TunnelEdge(IEdgeSendHandler send_handler, TransportAddress local_ta,
-        TransportAddress remote_ta, IAddressSelector ias, List<Address> overlap, int remote_id) :
-        base(send_handler, remote_id != -1)
+    public TunnelEdge(IEdgeSendHandler send_handler, TunnelTransportAddress local_ta,
+        TunnelTransportAddress remote_ta, IAddressSelector ias, List<Address> overlap,
+        int remote_id) : base(send_handler, remote_id != -1)
     {
       _remote_id = remote_id;
       lock(_rand) {
@@ -108,6 +112,12 @@ namespace Brunet.Tunnel {
       _tunnels = new List<Address>(overlap);
       _ias = ias;
       _ias.Update(_tunnels);
+
+      AHHeader ahh = new AHHeader(1, 20, local_ta.Target, remote_ta.Target,
+          AHHeader.Options.Exact);
+      ICopyable header = new CopyList(PType.Protocol.AH, ahh,
+          PType.Protocol.Tunneling);
+      Header = MemBlock.Copy(header);
     }
 
     /// <summary>When our tunnel peer has some state change, he notifies us and
