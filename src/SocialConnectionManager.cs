@@ -138,11 +138,22 @@ namespace SocialVPN {
       _heartbeat_counter = 0;
     }
 
-    public void SetGlobalAccess(string global_access) {
-      _global_access = (global_access == "on");
+    /**
+     * Sets the gbobal access option for automatic creation links.
+     */
+    public bool GlobalAccess {
+      set {
+        _global_access = value;
+      }
+      get {
+        return _global_access;
+      }
     }
 
-    public void Start() {
+    /**
+     * Method for main thread, listens on queue for job to do
+     */
+    protected void Start() {
       if (Thread.CurrentThread.Name == null) {
         Thread.CurrentThread.Name = "svpn_main_thread";
       }
@@ -160,7 +171,9 @@ namespace SocialVPN {
               break;
 
             case QueueItem.Actions.DhtAdd:
-              _snode.AddDhtFriend((string) item.Obj, _global_access);      
+              if(_global_access) {
+                _snode.AddDhtFriend((string) item.Obj, _global_access);
+              }
               break;
 
             case QueueItem.Actions.Sync:
@@ -191,10 +204,15 @@ namespace SocialVPN {
       }
     }
 
+    /**
+     * Calls when the node is shutting down, close cleanly.
+     */
     public void Stop() {
+      _snp.Logout();
       _http.Stop();
       _main_thread.Abort();
-      Environment.Exit(1);
+      // TODO:Take out this line
+      //Environment.Exit(1);
     }
 
     /**
@@ -203,7 +221,8 @@ namespace SocialVPN {
      * @param eargs the event arguments.
      */
     public void HeartBeatHandler(Object obj, EventArgs eargs) {
-      if( _heartbeat_counter % 60 == 0) {
+      // Check every 15 seconds since heartbeart occurs every 500 ms
+      if( _heartbeat_counter % 30 == 0) {
         if(!_snode.CertPublished) {
           _queue.Enqueue(new QueueItem(QueueItem.Actions.Publish, null));
         }
@@ -218,7 +237,7 @@ namespace SocialVPN {
      * Timer event handler.
      * @param obj the default object.
      */
-    public void HeartBeatAction(){
+    protected void HeartBeatAction(){
       DateTime now = DateTime.Now;
       DateTime min = DateTime.MinValue;
       if(_last_update == min || (now - _last_update).Minutes >= 5 ) {
@@ -245,9 +264,13 @@ namespace SocialVPN {
      * @param eargs the event arguments.
      */
     public void ProcessHandler(Object obj, EventArgs eargs) {
-      ((Dictionary<string, string>)obj)["response"] = _snode.GetState(false);
+      Dictionary <string, string> request = (Dictionary<string, string>)obj;
+      if(request.ContainsKey("m") && request["m"] == "login") {
+        _snp.Login(request["id"], request["user"], request["pass"]);
+      }
       // Allows main thread to run request, main thread does all the work
       _queue.Enqueue(new QueueItem(QueueItem.Actions.Process, obj));
+      request["response"] = _snode.GetState(false);
     }
 
     /**
@@ -255,25 +278,18 @@ namespace SocialVPN {
      * This is run by the main_thread.
      * @param request the dictionary containing request params
      */
-    public void ProcessRequest(Dictionary<string, string> request) {
+    protected void ProcessRequest(Dictionary<string, string> request) {
       if(request.ContainsKey("m")) {
-        switch(request["m"]) {
+        string method = request["m"];
+        switch(method) {
           case "add":
             _snp.AddFriends(request["uids"].Split(DELIM));
-            break;
-
-          case "addfpr":
-            _snp.AddFingerprints(request["fprs"].Split(DELIM));
             break;
 
           case "addcert":
             _snp.AddCertificate(request["cert"]);
             break;
 
-          case "login":
-            _snp.Login(request["id"], request["user"], request["pass"]);
-            break;
-            
           case "allow":
             AllowFriends(request["fprs"]);
             break;
@@ -282,22 +298,17 @@ namespace SocialVPN {
             BlockFriends(request["fprs"]);
             break;
 
-          case "delete":
-            DeleteFriends(request["fprs"]);
-            break;
-
-          case "global":
-            SetGlobalAccess(request["access"]);
+          case "exit":
+            Stop();
+            Environment.Exit(1);
             break;
 
           default:
             break;
         }
-        if(request["m"] == "add" || request["m"] == "addfpr" || 
-            request["m"] == "addcert") {
-          if(_snode.CertPublished) {
-            UpdateFriends(null);
-          }
+        if(method == "add" || method == "addcert" || method == "refresh" ||
+           method == "login") {
+          UpdateFriends(null);
         }
       }
     }
@@ -307,9 +318,11 @@ namespace SocialVPN {
      * @param uid given if only one friends needs updating
      */
     protected void UpdateFriends(string uid) {
+      // only get fingerprints for one friend
       if(uid != null && _snp.GetFriends().Contains(uid)) {
         AddFriends(new string[] {uid});
       }
+      // Get fingerprints for all friends
       else {
         AddFriends(_snp.GetFriends().ToArray());
       }
@@ -349,17 +362,6 @@ namespace SocialVPN {
       List<string> fingerprints = _snp.GetFingerprints(uids);
       foreach(string fpr in fingerprints) {
         _snode.AddDhtFriend(fpr, true);
-      }
-    }
-
-    /**
-     * Delete a list of fingerprints seperated by newline.
-     * @param fprlist a list of fingerprints.
-     */
-    protected void DeleteFriends(string fprlist) {
-      string[] fprs = fprlist.Split(DELIM);
-      foreach(string fpr in fprs) {
-        _snode.DeleteFriend(fpr);
       }
     }
   }

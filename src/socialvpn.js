@@ -71,8 +71,6 @@ function loadPage() {
   headElement.appendChild(styleSheet);
   
   document.body.innerHTML = '';
-  document.body = document.createElement('body');
-
   var div_wrapper = document.createElement('div');
   div_wrapper.id = "wrapper";
   document.body.appendChild(div_wrapper);
@@ -97,42 +95,42 @@ function loadHeader() {
   div_subheader.appendChild(main_title);
   div_subheader.appendChild(menu);
 
-  //createElem("li", "Friends", "", "", menu.id, loadFriends); 
+  createElem("li", "...", "status_id", "", menu, "");
+  createElem("li", "Login", "", "", menu, loadLogin); 
+  createElem("li", "Refresh", "", "", menu, makeRefresh);
+  createElem("li", "Exit", "", "", menu, makeExit); 
 }
 
 function loadFriends() {
   pageID = "friends";
   
-  clearDiv("local_nav");
-  clearDiv("main_content");
+  clearDiv('local_nav');
+  clearDiv('main_content');
 
   var local_user = stateXML.getElementsByTagName('LocalUser')[0];
   var name = local_user.getElementsByTagName('Name')[0].textContent;
   var alias = local_user.getElementsByTagName('Alias')[0].textContent;
   var ip = local_user.getElementsByTagName('IP')[0].textContent;
   var fingerprint = local_user.getElementsByTagName('DhtKey')[0].textContent;
+  var user_status = stateXML.getElementsByTagName('Status')[0].textContent;
   
-  var title = document.createElement('h4');
-  title.innerHTML = name + " - " + alias + " - " + ip;
+  var status_elem = document.getElementById('status_id');
+  status_elem.innerHTML = "..." + user_status +"...";
+  
+  var titleHTML = name + " - " + alias + " - " + ip;
+  var subtitleHTML = "Your fingerprint - " + fingerprint;
+  var menuid = "nav_menu";
 
-  var menu = document.createElement('ul');
-  menu.id = "friends_menu";
-    
-  var div_local_nav = document.getElementById('local_nav');
-  div_local_nav.innerHTML = "";
-  div_local_nav.appendChild(title);
-  var subtitle = document.createElement('h5');
-  subtitle.innerHTML = "Your fingerprint - " + fingerprint;  
-  div_local_nav.appendChild(subtitle);
-  div_local_nav.appendChild(menu);
+  createElem("h4", titleHTML, "titleID", "", "local_nav", "");
+  createElem("h5", subtitleHTML, "", "", "local_nav", "");
+  createElem("ul", "", menuid, "", "local_nav", "");
   
-  createElem("li", "All Friends", "", "", menu.id, showAllFriends);
-  createElem("li", "Online Friends", "", "", menu.id, showOnlineFriends);
-  createElem("li", "Offline Friends", "", "", menu.id, showOfflineFriends);
-  createElem("li", "Blocked Friends", "", "", menu.id, showBlockedFriends);
-  createElem("li", "Show/Hide Fingerprints", "", "", menu.id, toggleFprs);
-  createElem("li", "Add Friends", "", "", menu.id, addEmails);
-  //createElem("li", "Add Fingerprints", "", "", menu.id, addFingerprints);
+  createElem("li", "All Friends", "", "", menuid, showAllFriends);
+  createElem("li", "Online Friends", "", "", menuid, showOnlineFriends);
+  createElem("li", "Offline Friends", "", "", menuid, showOfflineFriends);
+  createElem("li", "Blocked Friends", "", "", menuid, showBlockedFriends);
+  createElem("li", "Show/Hide Fingerprints", "", "", menuid, toggleFprs);
+  createElem("li", "Add Friends", "", "", menuid, addFriends);
   
   showFriends();
 }
@@ -220,11 +218,6 @@ function addFriend(friend) {
                             addFriendPost);
   opt_item.dhtkey = dhtkey;
   div_opts.appendChild(document.createElement('br'));
-  
-  var opt_item = createElem("span", "Delete", "", "opts_menu", div_opts, 
-                            deleteFriendPost);
-  opt_item.dhtkey = dhtkey;
-  div_opts.appendChild(document.createElement('br'));
 
   var img_usr = document.createElement('img');
   img_usr.className = "f_img";
@@ -268,58 +261,57 @@ function cancelSubmit() {
   div_tmp_content.innerHTML = "";
 }
 
-function addEmails() {  
+function loadLogin() {  
   var div_tmp_content = document.getElementById('tmp_content');
   div_tmp_content.innerHTML = "";
+  var message = "Enter Jabber ID and password";
+  createElem("span", message, "", "f_name", "tmp_content", "");
   
-  createElem("span", "Enter friend's email addresses (comma seperated)", 
-             "", "f_name", "tmp_content", "");
-  
-  var input_text = createElem("textarea", "", "data_input", "", "tmp_content",
-                              "");
-  input_text.setAttribute("rows", "5");
-  input_text.setAttribute("cols", "50");
-  
-  var input_button = createElem("button", "Submit", "", "", "tmp_content", 
-                                submitEmails);
-  input_button.setAttribute("type", "text");
-  
-  var input_button = createElem("button", "Cancel", "", "", "tmp_content", 
-                                cancelSubmit);
-  input_button.setAttribute("type", "text");
+  var id = createElem("input", "", "data_in_id", "", "tmp_content","");
+  var pass = createElem("input", "", "data_in_pass", "", "tmp_content", "");
+  pass.setAttribute("type", "password");
+  var in_butt = createElem("button", "Submit", "", "", "tmp_content", 
+                           submitLogin);
+  in_butt.setAttribute("type", "text");
+  var in_butt2 = createElem("button", "Cancel", "", "", "tmp_content", 
+                            cancelSubmit);
+  in_butt2.setAttribute("type", "text");
 }
 
-function addFingerprints() {  
-  var div_tmp_content = document.getElementById('tmp_content');
-  div_tmp_content.innerHTML = "";
-  
-  createElem("span", "Paste fingerprints (comma seperated)", 
-             "", "f_name", "tmp_content", "");
-  
-  var input_text = createElem("textarea", "", "data_input", "", "tmp_content",
-                              "");
-  input_text.setAttribute("rows", "5");
-  input_text.setAttribute("cols", "50");
-  
-  var input_button = createElem("button", "Submit", "", "", "tmp_content", 
-                                submitFingerprints);
-  input_button.setAttribute("type", "text");
-  
-  var input_button = createElem("button", "Cancel", "", "", "tmp_content", 
-                                cancelSubmit);
-  input_button.setAttribute("type", "text");
-}
-
-function submitEmails() {
-  var input_data ="m=add&uids=" + 
-    encodeURIComponent(document.getElementById('data_input').value);    
+function submitLogin() {
+  var input_data ="m=login&id=jabber&user=" + 
+    encodeURIComponent(document.getElementById('data_in_id').value) +
+    "&pass=" + encodeURIComponent(document.getElementById('data_in_pass').value);    
   makeCall(input_data, 2000);
   var div_tmp_content = document.getElementById('tmp_content');
   div_tmp_content.innerHTML = "";
+  var status_elem = document.getElementById('status_id');
+  status_elem.innerHTML = "...connecting...";
 }
 
-function submitFingerprints() {
-  var input_data ="m=addfpr&fprs=" + 
+function addFriends() {  
+  var div_tmp_content = document.getElementById('tmp_content');
+  div_tmp_content.innerHTML = "";
+  var message = "Enter userid and fingerprint on the same line " +
+                 "<br/>( ex. userid@host.com svpn:abcdef0123456789)";
+
+  createElem("span", message, "", "f_name", "tmp_content", "");
+  
+  var itext = createElem("textarea", "", "data_input", "", "tmp_content","");
+  itext.setAttribute("rows", "5");
+  itext.setAttribute("cols", "50");
+  
+  var in_butt = createElem("button", "Submit", "", "", "tmp_content", 
+                           submitFriends);
+  in_butt.setAttribute("type", "text");
+  
+  var in_butt2 = createElem("button", "Cancel", "", "", "tmp_content", 
+                            cancelSubmit);
+  in_butt2.setAttribute("type", "text");
+}
+
+function submitFriends() {
+  var input_data ="m=add&uids=" + 
     encodeURIComponent(document.getElementById('data_input').value);    
   makeCall(input_data, 2000);
   var div_tmp_content = document.getElementById('tmp_content');
@@ -328,6 +320,15 @@ function submitFingerprints() {
 
 function getState() {
   makeCall('m=getstate', 0);
+}
+
+function makeRefresh() {
+  makeCall('m=refresh', 1000);
+}
+
+function makeExit() {
+  makeCall('m=exit', 0);
+  document.write("SocialVPN is shut down");
 }
 
 function removeFriendPost() {

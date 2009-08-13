@@ -43,8 +43,7 @@ namespace SocialVPN {
     public TestNetwork(SocialUser user, byte[] certData) {
       _local_user = user;
       _fingerprints = new List<string>();
-      _url = "https://socialvpntest.appspot.com/api/";
-      SocialUtils.SetSecurityPolicy();
+      _url = "http://socialvpntest.appspot.com/api/";
     }
 
     public bool Login(string id, string username, string password) {
@@ -118,7 +117,7 @@ namespace SocialVPN {
       return true;
     }
 
-    public bool ValidateCertificate(byte[] certData) {
+    public bool ValidateCertificate(SocialUser user, byte[] certData) {
       return true;
     }
   }

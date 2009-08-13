@@ -30,6 +30,11 @@ namespace SocialVPN {
      * The local certificate string
      */
     public string Certificate;
+
+    public string Status;
+
+    public string Message;
+
     /**
      * The local user.
      */
@@ -39,8 +44,5 @@ namespace SocialVPN {
      */
     public SocialUser[] Friends;
 
-    public List<string> Deletes;
-
-    public List<string> Messages;
   }
 }

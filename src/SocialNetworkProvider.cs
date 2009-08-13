@@ -64,17 +64,16 @@ namespace SocialVPN {
     /**
      * List of friends manually added.
      */
-    protected readonly List<string> _friends;
-
-    /**
-     * List of fingerprints manually added.
-     */
-    protected readonly List<string> _fingerprints;
+    protected readonly Dictionary<string, List<string>> _friends;
 
     /**
      * List of certificates manually added.
      */
     protected readonly List<byte[]> _certificates;
+
+    protected readonly BlockingQueue _queue;
+
+    public string Status = "offline";
 
     /**
      * Constructor.
@@ -82,15 +81,15 @@ namespace SocialVPN {
      * @param user the local user object.
      * @param certData the local certificate data.
      */
-    public SocialNetworkProvider(IDht dht, SocialUser user, byte[] certData) {
+    public SocialNetworkProvider(IDht dht, SocialUser user, byte[] certData,
+      BlockingQueue queue) {
       _local_user = user;
       _dht = dht;
+      _queue = queue;
       _providers = new Dictionary<string, IProvider>();
       _networks = new Dictionary<string,ISocialNetwork>();
       _local_cert_data = certData;
-      _friends = new List<string>();
-      _friends.Add(_local_user.Uid);
-      _fingerprints = new List<string>();
+      _friends = new Dictionary<string, List<string>>();
       _certificates = new List<byte[]>();
       RegisterBackends();
     }
@@ -99,14 +98,12 @@ namespace SocialVPN {
      * Registers the various socialvpn backends.
      */
     public void RegisterBackends() {
-      /*
-      TestNetwork google_backend = new TestNetwork(_local_user,
-                                                   _local_cert_data);
+      JabberNetwork jnetwork = new JabberNetwork(_local_user,
+                                                   _local_cert_data, _queue);
       // Registers the identity provider
-      _providers.Add("GoogleBackend", google_backend);
+      _providers.Add("jabber", jnetwork);
       // Register the social network
-      _networks.Add("GoogleBackend", google_backend);
-      */
+      _networks.Add("jabber", jnetwork);
     }
 
     /**
@@ -117,6 +114,7 @@ namespace SocialVPN {
      * @return a boolean indicating success or failure.
      */
     public bool Login(string id, string username, string password) {
+      Status = "connecting";
       bool provider_login = true;
       bool network_login = true;
       if(_providers.ContainsKey(id)) {
@@ -125,7 +123,25 @@ namespace SocialVPN {
       if(_networks.ContainsKey(id)) {
         network_login = _networks[id].Login(id, username, password);
       }
-      return (provider_login && network_login);
+
+      bool success = (provider_login && network_login);
+      if(success) {
+        Status = "online";
+      }
+      else {
+        Status = "failed";
+      }
+      return success;
+    }
+
+    public bool Logout() {
+      foreach(IProvider provider in _providers.Values) {
+        provider.Logout();
+      }
+      foreach(ISocialNetwork network in _networks.Values) {
+        network.Logout();
+      }
+      return true;
     }
 
     /**
@@ -144,14 +160,14 @@ namespace SocialVPN {
           continue;
         }
         foreach(string friend in tmp_friends) {
-          if(friend.Length > 5 || !friends.Contains(friend)) {
+          if(friend.Length > 5 && !friends.Contains(friend)) {
             friends.Add(friend);
           }
         }
       }
 
       // Add friends from manual input
-      foreach(string friend in _friends) {
+      foreach(string friend in _friends.Keys) {
         if(!friends.Contains(friend)) {
           friends.Add(friend);
         }
@@ -176,31 +192,20 @@ namespace SocialVPN {
           continue;
         }
         foreach(string fpr in tmp_fprs) {
-          if(fpr.Length >= 45 || !fingerprints.Contains(fpr)) {
+          if(fpr.Length >= 45 && !fingerprints.Contains(fpr)) {
             fingerprints.Add(fpr);
           }
         }
       }
       // Add fingerprints from manual input
-      foreach(string fpr in _fingerprints) {
-        if(!fingerprints.Contains(fpr)) {
-          fingerprints.Add(fpr);
-        }
-      }
-
-      // Get friends from DHT
-      foreach(string friend in _friends) {
-        byte[] key_bytes = Encoding.UTF8.GetBytes(friend);
-        MemBlock keyb = MemBlock.Reference(key_bytes);
-        Hashtable[] results = _dht.Get(keyb);
-        foreach(Hashtable result in results) {
-          byte[] fpr_data = (byte[]) result["value"];
-          string fpr = Encoding.UTF8.GetString(fpr_data);
-          if(!fingerprints.Contains(fpr)) {
-            fingerprints.Add(fpr);
+      foreach(string uid in uids) {
+        if(_friends.ContainsKey(uid)) {
+          foreach(string fpr in _friends[uid]) {
+            if(!fingerprints.Contains(fpr)) {
+              fingerprints.Add(fpr);
+            }
           }
         }
-        
       }
       return fingerprints;
     }
@@ -250,53 +255,26 @@ namespace SocialVPN {
       foreach(IProvider provider in _providers.Values) {
         success = (success || provider.StoreFingerprint());
       }
-      // Store in the DHT by default
-      byte[] key_bytes = Encoding.UTF8.GetBytes(_local_user.Uid);
-      MemBlock keyb = MemBlock.Reference(key_bytes);
-      byte[] value_bytes = Encoding.UTF8.GetBytes(_local_user.DhtKey);
-      MemBlock valueb = MemBlock.Reference(value_bytes);
-      if(_dht.Put(keyb, valueb, SocialNode.DHTTTL)) {
-        ProtocolLog.WriteIf(SocialLog.SVPNLog, 
-                          String.Format("STORE UID SUCCESS: {0} {1} {2}",
-                          DateTime.Now.TimeOfDay,_local_user.DhtKey,
-                          _local_user.Uid));
-
-      }
-      else {
-        ProtocolLog.WriteIf(SocialLog.SVPNLog, 
-                          String.Format("STORE UID FAILURE: {0} {1} {2}",
-                          DateTime.Now.TimeOfDay,_local_user.DhtKey,
-                          _local_user.Uid));
-      }
-      
       return success;
     }
 
     /**
      * Validates a certificate
+     * @param user the user object.
      * @param certData the certificate data.
      * @return boolean indicating success.
      */
-    public bool ValidateCertificate(byte[] certData) {
+    public bool ValidateCertificate(SocialUser user, byte[] certData) {
       foreach(IProvider provider in _providers.Values) {
-        if(provider.ValidateCertificate(certData)) {
+        if(provider.ValidateCertificate(user, certData)) {
           return true;
         }
       }
-      // TODO - Statement below should be false
-      return true;
-    }
-
-    /**
-     * Adds a list of fingerprints.
-     * @param fprs a list of fingerprints.
-     */
-    public void AddFingerprints(string[] fprs) {
-      foreach(string fpr in fprs) {
-        if(!_fingerprints.Contains(fpr)) {
-          _fingerprints.Add(fpr);
-        }
+      if(_friends.ContainsKey(user.Uid) && 
+         _friends[user.Uid].Contains(user.DhtKey)) {
+        return true;
       }
+      return false;
     }
 
     /**
@@ -317,24 +295,19 @@ namespace SocialVPN {
      */
     public void AddFriends(string[] friends) {
       foreach(string friend in friends) {
-        if(!_friends.Contains(friend)) {
-          _friends.Add(friend);
+        string[] parts = friend.Split();
+        string uid = parts[0];
+        string fpr = parts[1];
+        if(!_friends.ContainsKey(uid)) {
+          List<string> fprs = new List<string>();
+          fprs.Add(fpr);
+          _friends.Add(uid, fprs);
+        }
+        else {
+          _friends[uid].Add(fpr);
         }
       }
     }
-
-    /**
-     * Remove a list of friends.
-     * @param fprs a list of friends unique identifiers.
-     */
-    public void DeleteFingerprints(string[] fprs) {
-      foreach(string fpr in fprs) {
-        if(_fingerprints.Contains(fpr)) {
-          _fingerprints.Remove(fpr);
-        }
-      }
-    }
-
   }
 #if SVPN_NUNIT
   [TestFixture]

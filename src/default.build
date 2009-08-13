@@ -47,7 +47,7 @@
       </fileset>
     </copy>
 
-    <csc target="winexe" main="SocialVPN.SocialNode" output="${build.dir}/SocialVPN.exe">
+    <csc target="exe" main="SocialVPN.SocialNode" output="${build.dir}/SocialVPN.exe">
       <sources failonempty="true">
         <include name="*.cs"/>
       </sources>
@@ -64,6 +64,7 @@
         <include name="Mono.Posix.dll"/>
         <include name="Mono.Security.dll"/>
         <include name="ManagedIpopNode.dll" />
+        <include name="jabber-net.dll" />
       </references>
     </csc>
 
@@ -85,13 +86,36 @@
         <include name="System.Runtime.Remoting.dll"/>
         <include name="System.Web.dll" />
         <include name="ManagedIpopNode.dll" />
-        <include name="nunit.framework.dll"/>
+        <include name="jabber-net.dll" />
       </references>
     </csc>
 
     <copy todir="${bin.dir}" failonerror="true">
       <fileset basedir="${build.dir}">
-        <include name="*" />
+        <include name="Brunet.dll" />
+        <include name="Brunet.Dht.dll" />
+        <include name="Brunet.DhtService.dll" />
+        <include name="Brunet.Security.dll" />
+        <include name="Brunet.IPAddresses.dll" />
+        <include name="Brunet.Coordinate.dll" />
+        <include name="Brunet.XmlRpc.dll" />
+        <include name="CookComputing.XmlRpcV2.dll" />
+        <include name="Mono.Security.dll"/>
+        <include name="ManagedIpopNode.dll" />
+        <include name="jabber-net.dll" />
+        <include name="SocialVPN.exe" />
+        <include name="SVPNTool.exe" />
+        <include name="socialvpn" />
+        <include name="socialvpn.js" />
+        <include name="socialvpn.css" />
+        <include name="setup.cmd" />
+        <include name="stop_svpn.cmd" />
+        <include name="create_cert.js" />
+        <include name="brunet.config" />
+        <include name="ipop.config" />
+        <include name="SocialVPN.exe.config" />
+        <include name="pic.png" />
+        <include name="README.txt" />
       </fileset>
     </copy>
   </target>
@@ -116,6 +140,7 @@
         <include name="System.Runtime.Remoting.dll"/>
         <include name="System.Web.dll" />
         <include name="ManagedIpopNode.dll" />
+        <include name="jabber-net.dll" />
         <include name="nunit.framework.dll"/>
       </references>
     </csc>

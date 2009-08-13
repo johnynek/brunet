@@ -161,9 +161,11 @@ namespace SocialVPN {
           string postData = reader.ReadToEnd();
           request.InputStream.Close();
           reader.Close();
+          /*
           ProtocolLog.WriteIf(SocialLog.SVPNLog, String.Format(
                               "HTTP API: {0} {1}",
                               DateTime.Now.TimeOfDay, postData));
+          */
           responseString = Process(SocialUtils.DecodeUrl(postData));
         }
         // Cross-domain request made by Flash clients

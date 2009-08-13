@@ -1,2 +1,1 @@
-taskkill /F /IM SocialVPN.exe
-pause
+taskkill /IM SocialVPN.exe

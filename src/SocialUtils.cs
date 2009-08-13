@@ -50,15 +50,9 @@ namespace SocialVPN {
     public const string CERTSUFFIX = ".cert";
 
     /**
-     * SHA256 hash object.
-     */
-    protected static readonly SHA256 Sha256;
-
-    /**
      * Constructor.
      */
     static SocialUtils() {
-      Sha256 = new SHA256Managed();  
     }
 
     /**
@@ -119,6 +113,13 @@ namespace SocialVPN {
       }
     }
 
+    public static string GetHashString(byte[] data) {
+      SHA1CryptoServiceProvider sha1 = new SHA1CryptoServiceProvider();
+      string hash = BitConverter.ToString(sha1.ComputeHash(data));
+      hash = hash.Replace("-", "");
+      return hash;
+    }
+
     /**
      * Reads bytes from a file.
      * @param path file path.
@@ -168,15 +169,6 @@ namespace SocialVPN {
         serializer.Serialize(sw, val);
         return sw.ToString();
       }
-    }
-
-    /**
-     * Creates a SHA256 hash string from a byte array.
-     * @param data the byte array to be hashed.
-     * @return Base64 encoded string representing hash.
-     */
-    public static string GetSHA256(byte[] data) {
-      return Convert.ToBase64String(Sha256.ComputeHash(data));
     }
 
     /**
@@ -274,19 +266,6 @@ namespace SocialVPN {
         return streamReader.ReadToEnd();
       }
     }
-
-    public class SocialPolicy : ICertificatePolicy {
-      public bool CheckValidationResult (ServicePoint sp, 
-          X509Certificate certificate, WebRequest request, int error)
-        {
-          return true;
-        }
-    }
-
-    public static void SetSecurityPolicy() {
-      ServicePointManager.CertificatePolicy = new SocialPolicy();
-    }
-
   }
 
 #if SVPN_NUNIT

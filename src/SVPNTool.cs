@@ -71,6 +71,26 @@ namespace SocialVPN {
       GetState();
     }
 
+    public static void Login(string user, string pass) {
+      Dictionary<string, string> parameters = 
+        new Dictionary<string, string>();
+
+      parameters["m"] = "login";
+      parameters["id"] = "jabber";
+      parameters["user"] = user;
+      parameters["pass"] = pass;
+
+      try {
+        SocialUtils.Request(URL, parameters);
+      } catch(Exception e) {
+        Console.WriteLine(e.Message);
+        Console.WriteLine("Could not connect to SocialVPN, make sure" +
+                          "process is running");
+      }
+      System.Threading.Thread.Sleep(2000);
+      GetState();
+    }
+
     public static void GetState() {
       PrintState(SocialUtils.Request(URL));
     }
@@ -104,12 +124,13 @@ namespace SocialVPN {
       string help = "usage: SVPNTool.exe <option> <fingerprint>\n\n" +
                     "options:\n" +
                     "  friends - shows current user info and friends\n" +
+                    "  login <user> <pass> - log in user\n" +
                     "  add <emails> - add a friend by email address\n" +
                     "  addfpr <fprs> - add a friend by fingerprint\n" +
                     "  unblock <fprs> - unblock a friend by fingerprint\n" +
                     "  block <fprs> - block a friend by fingerprint\n" + 
                     "  delete <fprs> - remove a friend from the list\n" +
-                    "  global <on/off> - set global access (automatic links)\n" +
+                    "  global <on/off> - set global access (auto connect)\n" +
                     "  help - shows this help";
       Console.WriteLine(help);
     }
@@ -129,6 +150,9 @@ namespace SocialVPN {
       }
       else if(args[0] == "cert") {
         CreateCertificate(args[1], args[2], args[3]);
+      }
+      else if(args[0] == "login") {
+        Login(args[1], args[2]);
       }
       else {
         MakeCall(args[0], args[1]);

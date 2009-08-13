@@ -183,7 +183,7 @@ namespace SocialVPN {
       return true;
     }
 
-    public bool ValidateCertificate(byte[] certData) {
+    public bool ValidateCertificate(SocialUser user, byte[] certData) {
       return true;
     }
   }

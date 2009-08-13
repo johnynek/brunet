@@ -156,9 +156,9 @@ namespace SocialVPN {
       _local_cert_b64 = Convert.ToBase64String(_local_cert.X509.RawData);
       _bso.CertificateHandler.AddCACertificate(_local_cert.X509);
       _bso.CertificateHandler.AddSignedCertificate(_local_cert.X509);
-      _snp = new SocialNetworkProvider(this.Dht, _local_user, 
-                                       _local_cert.X509.RawData);
       _queue = new BlockingQueue();
+      _snp = new SocialNetworkProvider(this.Dht, _local_user, 
+                                       _local_cert.X509.RawData, _queue);
       _srh = new SocialRpcHandler(_node, _local_user, _friends, _queue);
       _scm = new SocialConnectionManager(this, _snp, _srh, port, _queue);
       _cert_published = false;
@@ -168,7 +168,7 @@ namespace SocialVPN {
       _local_user.IP = _marad.LocalIP;
       CreateAlias(_local_user);
       _marad.MapLocalDNS(_local_user.Alias);
-      _scm.SetGlobalAccess(global_access);
+      _scm.GlobalAccess = (global_access == "on");
       LoadCertificates();
     }
 
@@ -210,6 +210,7 @@ namespace SocialVPN {
      * Add local certificate to the DHT.
      */
     public void PublishCertificate() {
+
       byte[] key_bytes = Encoding.UTF8.GetBytes(_local_user.DhtKey);
       MemBlock keyb = MemBlock.Reference(key_bytes);
       MemBlock valueb = MemBlock.Reference(_local_cert.X509.RawData);
@@ -251,7 +252,7 @@ namespace SocialVPN {
                             String.Format("ADD CERT KEY FOUND: {0} {1}",
                             DateTime.Now.TimeOfDay, friend.DhtKey));
       }
-      else if(_snp.ValidateCertificate(certData)) {
+      else if(_snp.ValidateCertificate(friend, certData)) {
         CreateAlias(friend);
         SocialUtils.SaveCertificate(cert, _cert_dir);
         _bso.CertificateHandler.AddCACertificate(cert.X509);
@@ -295,9 +296,9 @@ namespace SocialVPN {
           try {
             Hashtable result = (Hashtable) q.Dequeue();
             byte[] certData = (byte[]) result["value"];
-            string tmp_key = SocialUser.DHTPREFIX + 
-                             SocialUtils.GetSHA256(certData);
-            if(tmp_key == key) {
+            string tmp_key = SocialUtils.GetHashString(certData);
+            tmp_key = SocialUser.DHTPREFIX + tmp_key;
+            if(key == tmp_key) {
               ProtocolLog.WriteIf(SocialLog.SVPNLog, 
                                   String.Format("ADD DHT SUCCESS: {0} {1}",
                                   DateTime.Now.TimeOfDay, key));
@@ -435,6 +436,7 @@ namespace SocialVPN {
       SocialState state = new SocialState();
       state.Certificate = _local_cert_b64;
       state.LocalUser = _local_user;
+      state.Status = _snp.Status;
       //state.Deletes = _deletes;
       state.Friends = new SocialUser[_friends.Count];
       _friends.Values.CopyTo(state.Friends, 0);
@@ -458,12 +460,12 @@ namespace SocialVPN {
           node_config = Utils.ReadConfig<NodeConfig>("brunet.config");
           ipop_config = Utils.ReadConfig<IpopConfig>("ipop.config");
           port = "58888";
-          global_access = "on";
+          global_access = "off";
         } catch {
           Console.WriteLine("usage: SocialVPN.exe <brunet.config path> " + 
                              "<ipop.config path> <http port> " +
                              "<global_access(on/off)>" + 
-                             "[email] [pcid] [\"name\"]");
+                             "[userid] [pcid] [\"name\"]");
           return;
         }
       }
@@ -485,7 +487,7 @@ namespace SocialVPN {
           Console.WriteLine("usage (on first run): SocialVPN.exe " +
                             "<brunet.config path> <ipop.config path>" +
                             "<http port> <global_access(on/off)> " +
-                            "<email> <pcid> <\"name\">");
+                            "<userid> <pcid> <\"name\">");
           return;
         }
 

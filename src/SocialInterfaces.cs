@@ -60,7 +60,9 @@ namespace SocialVPN {
      * Validates a certificate
      * @param certData the certificate to be validated
      */
-    bool ValidateCertificate(byte[] certData);
+    bool ValidateCertificate(SocialUser user, byte[] certData);
+
+    bool Logout();
   }
 
   /**
@@ -81,5 +83,7 @@ namespace SocialVPN {
      * @return a list of friends.
      */
     List<string> GetFriends();
+
+    bool Logout();
   }
 }
