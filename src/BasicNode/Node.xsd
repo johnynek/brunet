@@ -1,0 +1,179 @@
+<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"> 
+
+<xs:element name="NodeConfig">
+  <xs:complexType>
+    <xs:all>
+      <xs:element name="BrunetNamespace" type="xs:string" minOccurs="1"/>
+      <xs:element ref="RemoteTAs" minOccurs="0" maxOccurs="1"/>
+      <xs:element ref="EdgeListeners" />
+      <xs:element ref="XmlRpcManager" minOccurs="0" maxOccurs="1"/>
+      <xs:element ref="NCService" minOccurs="0" maxOccurs="1"/>
+      <xs:element ref="Security" minOccurs="0" maxOccurs="1"/>
+      <xs:element ref="DevicesToBind" minOccurs="0" maxOccurs="1"/>
+      <xs:element name="NodeAddress" type="xs:string" minOccurs="0" maxOccurs="1"/>   
+      <xs:element name="Path" type="xs:string" minOccurs="0" maxOccurs="1"/>      
+    </xs:all>
+  </xs:complexType>
+</xs:element>
+
+<xs:element name="RemoteTAs">
+  <xs:complexType>
+    <xs:sequence>
+      <xs:element name="Transport" maxOccurs="unbounded" minOccurs="0">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:pattern value="brunet\.(udp|tcp)://((1?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])\.){3}(1?[0-9]?[0-9]|2[0-4][0-9]|25[0-5]):([0-9][0-9][0-9][0-9]?[0-9])" />
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+</xs:element>
+
+<xs:element name="EdgeListeners">
+  <xs:complexType>
+    <xs:sequence>
+      <xs:element name="EdgeListener" maxOccurs="unbounded" minOccurs="0">
+        <xs:complexType>
+	  <xs:sequence>
+            <xs:element ref="port" minOccurs="0" maxOccurs="1"/>
+	  </xs:sequence>
+ 	  <xs:attribute name="type">
+            <xs:simpleType>
+              <xs:restriction base="xs:string">
+                <xs:enumeration value="udp"/>
+                <xs:enumeration value="tcp"/>
+              </xs:restriction>
+            </xs:simpleType>
+	  </xs:attribute>
+	</xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+</xs:element>
+
+<xs:element name="XmlRpcManager">
+  <xs:complexType>
+    <xs:all>
+      <xs:element ref="Enabled" />
+      <xs:element ref="Port" />
+    </xs:all>
+  </xs:complexType>
+</xs:element>
+
+<xs:element name="NCService">
+  <xs:complexType>
+    <xs:all>
+      <xs:element ref="Enabled" />
+      <xs:element ref="OptimizeShortcuts" />
+      <xs:element ref="Checkpointing" />
+      <xs:element name="Checkpoint" type="xs:string" minOccurs="0"/>
+    </xs:all>
+  </xs:complexType>
+</xs:element>
+
+<xs:element name="Security">
+  <xs:complexType>
+    <xs:all>
+      <xs:element ref="Enabled" minOccurs="1"/>
+      <xs:element ref="SecureEdges" minOccurs="0"/>
+      <xs:element ref="TestEnable" minOccurs="0"/>
+      <xs:element ref="SecureEdgesEnabled" minOccurs="0"/>
+      <xs:element ref="SelfSignedCertificates" minOccurs="0"/>
+      <xs:element name="KeyPath" type="xs:string" minOccurs="0"/>
+      <xs:element name="CertificatePath" type="xs:string" minOccurs="0"/>
+    </xs:all>
+  </xs:complexType>
+</xs:element>
+
+<xs:element name="DevicesToBind">
+  <xs:complexType>
+    <xs:sequence>
+      <xs:element name="Device" type="xs:string" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+</xs:element>
+
+<xs:element name="Enabled">
+  <xs:simpleType>
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="true"/>
+      <xs:enumeration value="false"/>
+    </xs:restriction>
+  </xs:simpleType>
+</xs:element>
+
+<xs:element name="OptimizeShortcuts">
+  <xs:simpleType>
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="true"/>
+      <xs:enumeration value="false"/>
+    </xs:restriction>
+  </xs:simpleType>
+</xs:element>
+
+<xs:element name="Checkpointing">
+  <xs:simpleType>
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="true"/>
+      <xs:enumeration value="false"/>
+    </xs:restriction>
+  </xs:simpleType>
+</xs:element>
+
+<xs:element name="SecureEdges">
+  <xs:simpleType>
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="true"/>
+      <xs:enumeration value="false"/>
+    </xs:restriction>
+  </xs:simpleType>
+</xs:element>
+
+<xs:element name="TestEnable">
+  <xs:simpleType>
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="true"/>
+      <xs:enumeration value="false"/>
+    </xs:restriction>
+  </xs:simpleType>
+</xs:element>
+
+<xs:element name="SelfSignedCertificates">
+  <xs:simpleType>
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="true"/>
+      <xs:enumeration value="false"/>
+    </xs:restriction>
+  </xs:simpleType>
+</xs:element>
+
+<xs:element name="SecureEdgesEnabled">
+  <xs:simpleType>
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="true"/>
+      <xs:enumeration value="false"/>
+    </xs:restriction>
+  </xs:simpleType>
+</xs:element>
+
+<xs:element name="port">
+  <xs:simpleType>
+    <xs:restriction base="xs:integer">
+      <xs:minInclusive value="0"/>
+      <xs:maxInclusive value="65536"/>
+    </xs:restriction>
+  </xs:simpleType>
+</xs:element>
+
+<xs:element name="Port">
+  <xs:simpleType>
+    <xs:restriction base="xs:integer">
+      <xs:minInclusive value="0"/>
+      <xs:maxInclusive value="65536"/>
+    </xs:restriction>
+  </xs:simpleType>
+</xs:element>
+
+</xs:schema>

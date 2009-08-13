@@ -1,0 +1,61 @@
+<?xml version="1.0"?>
+<project name="Brunet.Security" default="build">
+  <description> Builds Brunet.Security.dll </description>
+  <property name="build.dir" value="build"/>
+  <property name="lib.dir" value="../../lib"/>
+  <property name="bin.dir" value="../../bin"/>
+
+  <target name="test" description="Configures a debug build">
+    <copy todir="${build.dir}">
+       <fileset basedir="${lib.dir}">
+          <include name="Mono.Security.dll" />
+          <include name="Brunet.dll" />
+          <include name="Brunet.Mock.dll" />
+       </fileset>
+    </copy>
+    <csc target="library" define="BRUNET_NUNIT" output="${build.dir}/Brunet.Security.Test.dll">
+      <sources failonempty="true">
+        <include name="Transport/*.cs"/>
+        <include name="*.cs"/>
+        <include name="Protocol/*.cs"/>
+      </sources>
+      <references basedir="${build.dir}">
+        <include name="Mono.Security.dll" />
+        <include name="Brunet.dll" />
+        <include name="Brunet.Mock.dll" />
+        <include name="nunit.framework.dll" />
+      </references>
+    </csc>
+    <nunit2>
+      <formatter type="Plain" />
+      <test assemblyname="${build.dir}/Brunet.Security.Test.dll"/>
+    </nunit2>
+  </target>
+
+  <target name="build" description="Builds Brunet.Security.dll for release">
+    <copy todir="${build.dir}">
+       <fileset basedir="${lib.dir}">
+          <include name="Brunet.dll" />
+          <include name="Mono.Security.dll" />
+       </fileset>
+    </copy>
+    <csc target="library" define="" output="${build.dir}/Brunet.Security.dll">
+      <sources failonempty="true">
+        <include name="Transport/*.cs"/>
+        <include name="*.cs"/>
+        <include name="Protocol/*.cs"/>
+      </sources>
+      <references basedir="${build.dir}">
+        <include name="Mono.Security.dll"/>
+        <include name="Brunet.dll" />
+      </references>
+    </csc>
+    <copy todir="${lib.dir}">
+      <fileset basedir="${build.dir}">
+           <include name="Brunet.Security.dll" />
+      </fileset>
+    </copy>
+
+    <nant buildfile="Utils/default.build" />
+  </target>
+</project>

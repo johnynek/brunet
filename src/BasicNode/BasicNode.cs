@@ -21,6 +21,7 @@ using System.IO;
 using System.Collections;
 using System.Xml;
 using System.Xml.Serialization;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Net;
 
@@ -28,7 +29,9 @@ using Brunet;
 using Brunet.Coordinate;
 using Brunet.DistributedServices;
 using Brunet.Rpc;
-
+using Brunet.Security;
+using Brunet.Security.Protocol;
+using Brunet.Security.Transport;
 
 /**
 \namespace Brunet::Applications Provides BasicNode and core features
@@ -41,12 +44,10 @@ local machines and their associated names.
 \brief Provides BasicNode which implements a simple Brunet P2P Node.
 */
 namespace Brunet.Applications {
-  /**
-  <summary>BasicNode provides the core Brunet features in a deployable model
-  the inputs are a xml config file called NodeConfig, which specifies which
-  if any services to deploy.  Other projects should inherit this as their
-  base class rather than implementing their own interfaces to Brunet.</summary>
-  */
+  /// <summary>BasicNode provides the core Brunet features in a deployable model
+  /// the inputs are a xml config file called NodeConfig, which specifies which
+  /// if any services to deploy.  Other projects should inherit this as their
+  /// base class rather than implementing their own interfaces to Brunet.</summary>
   public class BasicNode {
     /// <summary>The path to the NodeConfig.</summary>
     protected String _path;
@@ -54,6 +55,10 @@ namespace Brunet.Applications {
     protected NodeConfig _node_config;
     /// <summary>The Brunet.Node used to connect to the p2p network.</summary>
     protected StructuredNode _node;
+    /// <summary>The p2p address for the local node.</summary>
+    public Address LocalAddress { get { return _node.Address; } }
+    /// <summary>An rpc interface over the local node.</summary>
+    public RpcManager Rpc { get { return _node.Rpc; } }
     /// <summary>The Dht object used to participate in the dht.</summary>
     public IDht Dht { get { return _dht; } }
     protected IDht _dht;
@@ -66,57 +71,24 @@ namespace Brunet.Applications {
     protected Shutdown _shutdown;
     /// <summary>Path to the node config (for updating it).</summary>
     protected string _node_config_path;
-    /**  <summary>True if the node should reincarnate itself if Node.Connect
-    exits or throws an exception</summary>*/
+    /// <summary>True if the node should reincarnate itself if Node.Connect
+    /// exits or throws an exception</summary>
     protected bool _running;
+    /// <summary>Provides access to the ProtocolSecurityOverlord</summary>
+    public ProtocolSecurityOverlord Bso { get { return _bso; } }
+    protected ProtocolSecurityOverlord _bso;
 
-    /**
-    <summary>Loads a configuration file and creates a Node.Address if
-    necessary.</summary>
-    <param name="path">The path to a NodeConfig</param>
-    <returns>Exits if NodeConfig is invalid.</returns>
-    */
-    public BasicNode(String path) {
-      try {
-        _node_config = Utils.ReadConfig<NodeConfig>(path);
-      }
-      catch {
-        Console.WriteLine("Invalid or missing configuration file.");
-        Environment.Exit(1);
-      }
-
-      _node_config_path = path;
-      if(_node_config.NodeAddress == null) {
-        _node_config.NodeAddress = (Utils.GenerateAHAddress()).ToString();
-        Utils.WriteConfig(path, _node_config);
-      }
+    /// <summary>Prepares a BasicNode.</summary>
+    /// <param name="node_config">A node config object.</param>
+    public BasicNode(NodeConfig node_config) {
+      _node_config = node_config;
       _running = true;
       _shutdown = Shutdown.GetShutdown();
     }
 
-    /**
-    <summary>A constructor to be used only by sub-classes.  The goal here being
-    that inheritors may want to implement their own subclass of config but
-    BasicNode still needs to be configured and possibly write to the config
-    file.  This gets around that problem!</summary>
-    <param name="path">The Path of the NodeConfig in the second parameter
-    </param>
-    <param name="config">A NodeConfig inherited object.</param>
-    */
-    protected BasicNode(String path, NodeConfig config) {
-      _node_config = config;
-      if(_node_config.NodeAddress == null) {
-        _node_config.NodeAddress = (Utils.GenerateAHAddress()).ToString();
-        Utils.WriteConfig(path, _node_config);
-      }
-      _running = true;
-    }
-
-    /**
-    <summary>This should be called by the Main after all the setup is done
-    this passes control to the _node and won't return until the program is
-    exiting.  (It is synchronous.)</summary>
-    */
+    /// <summary>This should be called by the Main after all the setup is done
+    /// this passes control to the _node and won't return until the program is
+    /// exiting.  (It is synchronous.)</summary>
     public virtual void Run() {
       int sleep = 60, sleep_min = 60, sleep_max = 3600;
       DateTime start_time = DateTime.UtcNow;
@@ -124,9 +96,9 @@ namespace Brunet.Applications {
       while(_running) {
         CreateNode();
         new Information(_node, "BasicNode");
-        Console.Error.WriteLine("I am connected to {0} as {1}.  Current time is {2}.",
+        Console.WriteLine("I am connected to {0} as {1}.  Current time is {2}.",
                                 _node.Realm, _node.Address.ToString(), DateTime.UtcNow);
-        _node.DisconnectOnOverload = true;
+//        _node.DisconnectOnOverload = true;
         start_time = DateTime.UtcNow;
         StartServices();
         _node.Connect();
@@ -136,7 +108,7 @@ namespace Brunet.Applications {
         }
         // Assist in garbage collection
         DateTime now = DateTime.UtcNow;
-        Console.Error.WriteLine("Going to sleep for {0} seconds. Current time is: {1}", sleep, now);
+        Console.WriteLine("Going to sleep for {0} seconds. Current time is: {1}", sleep, now);
         Thread.Sleep(sleep * 1000);
         if(now - start_time < TimeSpan.FromSeconds(sleep_max)) {
           sleep *= 2;
@@ -149,18 +121,62 @@ namespace Brunet.Applications {
       }
     }
 
-    /**
-    <summary>Creates a Brunet.Node, the resulting node will be available in
-    the class as _node.</summary>
-    <remarks>The steps to creating a node are first constructing it with a
-    namespace, optionally adding local ip addresses to bind to, specifying
-    local end points, specifying remote end points, and finally registering
-    the dht.</remarks>
-    */
+    /// <summary>Creates a Brunet.Node, the resulting node will be available in
+    /// the class as _node.</summary>
+    /// <remarks>The steps to creating a node are first constructing it with a
+    /// namespace, optionally adding local ip addresses to bind to, specifying
+    /// local end points, specifying remote end points, and finally registering
+    /// the dht.</remarks>
     public virtual void CreateNode() {
-      AHAddress address = (AHAddress) AddressParser.Parse(_node_config.NodeAddress);
+      AHAddress address = null;
+      try {
+        address = (AHAddress) AddressParser.Parse(_node_config.NodeAddress);
+      } catch {
+        address = Utils.GenerateAHAddress();
+      }
+
       _node = new StructuredNode(address, _node_config.BrunetNamespace);
       IEnumerable addresses = IPAddresses.GetIPAddresses(_node_config.DevicesToBind);
+
+      if(_node_config.Security.Enabled) {
+        if(_node_config.Security.SelfSignedCertificates) {
+          SecurityPolicy.SetDefaultSecurityPolicy(SecurityPolicy.DefaultEncryptor,
+              SecurityPolicy.DefaultAuthenticator, true);
+        }
+
+        byte[] blob = null;
+        using(FileStream fs = File.Open(_node_config.Security.KeyPath, FileMode.Open)) {
+          blob = new byte[fs.Length];
+          fs.Read(blob, 0, blob.Length);
+        }
+
+        RSACryptoServiceProvider rsa_private = new RSACryptoServiceProvider();
+        rsa_private.ImportCspBlob(blob);
+
+        CertificateHandler ch = new CertificateHandler(_node_config.Security.CertificatePath);
+        _bso = new ProtocolSecurityOverlord(_node, rsa_private, _node.Rrm, ch);
+        _bso.Subscribe(_node, null);
+
+        _node.GetTypeSource(SecurityOverlord.Security).Subscribe(_bso, null);
+        _node.HeartBeatEvent += _bso.Heartbeat;
+
+        if(_node_config.Security.TestEnable) {
+          blob = rsa_private.ExportCspBlob(false);
+          RSACryptoServiceProvider rsa_pub = new RSACryptoServiceProvider();
+          rsa_pub.ImportCspBlob(blob);
+          CertificateMaker cm = new CertificateMaker("United States", "UFL", 
+              "ACIS", "David Wolinsky", "davidiw@ufl.edu", rsa_pub,
+              "brunet:node:abcdefghijklmnopqrs");
+          Certificate cacert = cm.Sign(cm, rsa_private);
+
+          cm = new CertificateMaker("United States", "UFL", 
+              "ACIS", "David Wolinsky", "davidiw@ufl.edu", rsa_pub,
+              address.ToString());
+          Certificate cert = cm.Sign(cacert, rsa_private);
+          ch.AddCACertificate(cacert.X509);
+          ch.AddSignedCertificate(cert.X509);
+        }
+      }
 
       Brunet.EdgeListener el = null;
       foreach(NodeConfig.EdgeListener item in _node_config.EdgeListeners) {
@@ -177,17 +193,24 @@ namespace Brunet.Applications {
           try {
             el = new UdpEdgeListener(port, addresses);
           }
-          catch(Exception e) {
-            Console.WriteLine(e);
+          catch {
             el = new UdpEdgeListener(0, addresses);
           }
         }
         else {
           throw new Exception("Unrecognized transport: " + item.type);
         }
+        if(_node_config.Security.SecureEdgesEnabled) {
+          el = new SecureEdgeListener(el, _bso);
+        }
         _node.AddEdgeListener(el);
       }
+
       el = new TunnelEdgeListener(_node);
+      if(_node_config.Security.SecureEdgesEnabled) {
+        Brunet.LinkProtocolState.EdgeVerifyMethod = EdgeVerify.AddressInSubjectAltName;
+        el = new SecureEdgeListener(el, _bso);
+      }
       _node.AddEdgeListener(el);
 
       ArrayList RemoteTAs = null;
@@ -211,11 +234,9 @@ namespace Brunet.Applications {
       _dht = new Dht(_node, 3, 20);
     }
 
-    /**
-    <summary>Starts services such as shutdown, rpcdht, and xmlrpc.  If you wish
-    to have your own shutdown path, edit OnExit instead of this.  This can be
-    called multiple times without negative effect.</summary>
-    */
+    /// <summary>Starts services such as shutdown, rpcdht, and xmlrpc.  If you wish
+    /// to have your own shutdown path, edit OnExit instead of this.  This can be
+    /// called multiple times without negative effect.</summary>
     public virtual void StartServices() {
       _shutdown.OnExit += OnExit;
 
@@ -223,6 +244,7 @@ namespace Brunet.Applications {
         _xrm = new XmlRpcManagerServer(_node_config.XmlRpcManager.Port);
         _xrm.Update(_node);
         new RpcDht(_dht, _node);
+        new RpcDhtProxy(_dht, _node);
       }
     }
 
@@ -261,37 +283,16 @@ namespace Brunet.Applications {
         string checkpoint = _ncservice.GetCheckpoint();
         string prev_cp = _node_config.NCService.Checkpoint;
         string empty_cp = (new Point()).ToString();
-        if(!checkpoint.Equals(prev_cp) && !checkpoint.Equals(empty_cp)) {
+        if(!checkpoint.Equals(prev_cp) && !checkpoint.Equals(empty_cp))
+        {
           _node_config.NCService.Checkpoint = checkpoint;
-          Utils.WriteConfig(_node_config_path, _node_config);
+          _node_config.WriteConfig();
         }
       }
 
       StopServices();
       _running = false;
       _node.Disconnect();
-    }
-
-    /**
-    <summary>Runs the BasicNode.  This should be implemented in all inherited
-    classes.</summary>
-    <remarks>
-    <para>To execute this at a command-line using Mono:</para>
-    <code>
-    mono BasicNode.exe path/to/node_config
-    </code>
-    <para>To execute this at a command-line using Windows .NET:</para>
-    <code>
-    BasicNode.exe path/to/node_config
-    </code>
-    </remarks>
-    <param name="args">The command line argument required is a path to a
-    NodeConfig</param>
-    */
-    public static int Main(String[] args) {
-      BasicNode node = new BasicNode(args[0]);
-      node.Run();
-      return 0;
     }
   }
 }

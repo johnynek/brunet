@@ -16,7 +16,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-using Brunet.Util;
+using Brunet;
 using System.Threading;
 using System.Collections.Generic;
 using System;
@@ -26,28 +26,34 @@ using NUnit.Framework;
 using System.Collections;
 #endif
 
-namespace Brunet {
-  public class BrunetTimer : IDisposable, IComparable<BrunetTimer> {
-    protected WaitCallback _callback;
-    protected object _state;
+namespace Brunet.Util {
+  /// <summary>A very simple timer, single-threaded blocking timer, inspired
+  /// by Mono's System.Threading.Timer. </summary>
+  public class SimpleTimer : IComparable<SimpleTimer> {
+    protected readonly WaitCallback _callback;
+    protected readonly object _state;
+    /// <summary>How often the timer will be called.</summary>
     public int Period { get { return _period_ms; } }
-    protected int _period_ms;
-    protected bool _disposed;
+    protected readonly int _period_ms;
+    protected bool _stopped;
     protected long _next_run;
+    protected readonly int _first_run;
 
-    protected static object _sync;
-    protected static Heap<BrunetTimer> _timers;
+    protected readonly static object _sync;
+    protected readonly static Heap<SimpleTimer> _timers;
     protected static int _running;
-    protected static AutoResetEvent _re;
-    protected static Thread _thread;
+    protected readonly static AutoResetEvent _re;
+    protected readonly static Thread _thread;
+    protected int _started;
 
-    static BrunetTimer()
+    static SimpleTimer()
     {
       _sync = new object();
-      _timers = new Heap<BrunetTimer>();
+      _timers = new Heap<SimpleTimer>();
 #if !BRUNET_SIMULATOR
       _re = new AutoResetEvent(false);
       _thread = new Thread(TimerThread);
+      _thread.IsBackground = true;
       _thread.Start();
 #endif
     }
@@ -66,6 +72,8 @@ namespace Brunet {
     }
 #endif
 
+    /// <summary>Process all applicable events.  Called by TimerThread for
+    /// non-simulation and directly for Simulation of real time.</summary>
 #if BRUNET_SIMULATOR
     public static long Run()
 #else
@@ -74,10 +82,10 @@ namespace Brunet {
     {
       long min_next_run = long.MaxValue;
       long ticks = DateTime.UtcNow.Ticks;
-      BrunetTimer timer = null;
+      SimpleTimer timer = null;
       _running = 0;
       while(true) {
-        bool dispose = false;
+        bool stopped = false;
         lock(_sync) {
           if(_timers.Empty) {
             break;
@@ -90,13 +98,13 @@ namespace Brunet {
           }
 
           _timers.Pop();
-          if(timer._disposed) {
+          if(timer._stopped) {
             continue;
           }
           if(timer._period_ms > 0 && timer._period_ms != Timeout.Infinite) {
             timer.Update(timer._period_ms, timer._period_ms);
           } else {
-            dispose = true;
+            stopped = true;
           }
         }
 
@@ -106,14 +114,15 @@ namespace Brunet {
           ProtocolLog.WriteIf(ProtocolLog.Exceptions, e.ToString());
         }
 
-        if(dispose) {
-          timer.Dispose();
+        if(stopped) {
+          timer.Stop();
         }
       }
 
       return min_next_run;
     }
 
+    /// <summary>Wait for the next event.</summary>
     protected static void TimerThread() {
       while(true) {
         long next_run = Run();
@@ -129,7 +138,8 @@ namespace Brunet {
       }
     }
 
-    public BrunetTimer(WaitCallback callback, object state, int dueTime, int period)
+    /// <summary>Creates a new timer.</summary>
+    public SimpleTimer(WaitCallback callback, object state, int dueTime, int period)
     {
       if(dueTime < -1) {
         throw new ArgumentOutOfRangeException("dueTime");
@@ -137,16 +147,28 @@ namespace Brunet {
         throw new ArgumentOutOfRangeException("period");
       }
 
+      _first_run = dueTime;
       _callback = callback;
       _state = state;
-
-      Update(dueTime, period);
+      _period_ms = period;
+      _stopped = false;
+      _started = 0;
     }
 
+    /// <summary>Puts the timer in the queue to be executed!  Can only be
+    /// started once!</summary>
+    public void Start()
+    {
+      if(Interlocked.Exchange(ref _started, 1) == 1) {
+        throw new Exception("Already started!");
+      }
+
+      Update(_first_run, _period_ms);
+    }
+
+    /// <summary>Updates a timer for its first or next run.</summary>
     protected void Update(int dueTime, int period)
     {
-      _period_ms = period;
-
       long now = DateTime.UtcNow.Ticks;
       if(dueTime == Timeout.Infinite) {
         throw new Exception("There must be a due time!");
@@ -158,6 +180,7 @@ namespace Brunet {
       lock(_sync) {
         first = _timers.Add(this);
       }
+      // If we're in the simulator, we don't use the AutoResetEvent
 #if !BRUNET_SIMULATOR
       if(first) {
         _re.Set();
@@ -165,13 +188,16 @@ namespace Brunet {
 #endif
     }
 
-    public void Dispose()
+    /// <summary>Don't call the event, I'm done.</summary>
+    public void Stop()
     {
-      _disposed = true;
+      _stopped = true;
     }
 
-    public int CompareTo(BrunetTimer t) {
-      return this._next_run.CompareTo(t._next_run);
+    public int CompareTo(SimpleTimer t) {
+      lock(_sync) {
+        return this._next_run.CompareTo(t._next_run);
+      }
     }
   }
 
@@ -189,13 +215,13 @@ namespace Brunet {
     }
 
     public void PeriodCallback(object state) {
-      BrunetTimer t = state as BrunetTimer;
+      SimpleTimer t = state as SimpleTimer;
       int calls = (int) _hash[t];
       lock(_sync) {
         _hash[t] = ++calls;
       }
       if(calls == 5) {
-        t.Dispose();
+        t.Stop();
       }
     }
 
@@ -203,9 +229,10 @@ namespace Brunet {
     public void TestDipose() {
       _order = new ArrayList();
       for(int i = 0; i < 100; i++) {
-        BrunetTimer t = new BrunetTimer(Callback, i, 100 + i, 0);
+        SimpleTimer t = new SimpleTimer(Callback, i, 100 + i, 0);
+        t.Start();
         if(i % 2 == 0) {
-          t.Dispose();
+          t.Stop();
         }
       }
 
@@ -221,12 +248,14 @@ namespace Brunet {
       _hash = new Hashtable();
       _order = new ArrayList();
       for(int i = 0; i < 10000; i++) {
-        new BrunetTimer(Callback, i, 200, 0);
+        SimpleTimer t = new SimpleTimer(Callback, i, 200, 0);
+        t.Start();
       }
 
       for(int i = 0; i < 5; i++) {
-        BrunetTimer t = null;
-        t = new BrunetTimer(PeriodCallback, t, 50, 50);
+        SimpleTimer t = null;
+        t = new SimpleTimer(PeriodCallback, t, 50, 50);
+        t.Start();
       }
 
       Thread.Sleep(500);
