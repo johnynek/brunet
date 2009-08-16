@@ -25,23 +25,36 @@ using System.Xml.Serialization;
 using System.Security.Cryptography;
 using System.Threading;
 using Brunet.Util;
+using Brunet.Coordinate;
 using Brunet.Security;
 using Brunet.Security.Protocol;
 using Brunet.Security.Transport;
+using Brunet.Tunnel;
 
 namespace Brunet.Simulator {
   public class Simulator {
     public int StartingNetworkSize = 10;
-    protected SortedList Nodes = new SortedList();
+    public SortedList Nodes = new SortedList();
     protected SortedList TakenPorts = new SortedList();
 
     public int CurrentNetworkSize = 0;
-    protected Random _rand = new Random();
+    protected Random _rand;
     public readonly string BrunetNamespace;
     public double Broken = 0;
+    public int Seed {
+      set {
+        _rand = new Random(value);
+        _seed = value;
+      }
+      get {
+        return _seed;
+      }
+    }
+    protected int _seed;
 
     public bool SecureEdges;
     public bool SecureSenders;
+    public bool NCEnable;
     protected RSACryptoServiceProvider SEKey;
     protected Certificate CACert;
 
@@ -50,6 +63,7 @@ namespace Brunet.Simulator {
       StartingNetworkSize = 10;
       Nodes = new SortedList();
       TakenPorts = new SortedList();
+
       _rand = new Random();
       BrunetNamespace = "testing" + _rand.Next();
       Broken = 0;
@@ -73,6 +87,16 @@ namespace Brunet.Simulator {
       Certificate cert = cm.Sign(cm, SEKey);
       CACert = cert;
     }
+
+    public void Complete()
+    {
+      DateTime start = DateTime.UtcNow;
+      while(!CheckRing(false)) {
+        SimpleTimer.RunStep();
+      }
+      Console.WriteLine("It took {0} to complete the ring", DateTime.UtcNow - start);
+    }
+
 
     public void AllToAll(bool secure)
     {
@@ -111,7 +135,10 @@ namespace Brunet.Simulator {
 
     // adds a node to the pool
     public void AddNode(bool output) {
-      AHAddress address = new AHAddress(new RNGCryptoServiceProvider());
+      byte[] addr = new byte[Address.MemSize];
+      _rand.NextBytes(addr);
+      Address.SetClass(addr, AHAddress._class);
+      AHAddress address = new AHAddress(MemBlock.Reference(addr));
       Node node = new StructuredNode(address, BrunetNamespace);
       NodeMapping nm = new NodeMapping();
       nm.Node = node;
@@ -152,11 +179,6 @@ namespace Brunet.Simulator {
 
       node.AddEdgeListener(el);
 
-      if(Broken != 0) {
-        el = new Tunnel.TunnelEdgeListener(node);
-        node.AddEdgeListener(el);
-      }
-
       ArrayList RemoteTAs = new ArrayList();
       for(int i = 0; i < 5 && i < TakenPorts.Count; i++) {
         int rport = (int) TakenPorts.GetByIndex(_rand.Next(0, TakenPorts.Count));
@@ -165,6 +187,21 @@ namespace Brunet.Simulator {
       node.RemoteTAs = RemoteTAs;
 
       TakenPorts[nm.Port] = nm.Port;
+
+      ITunnelOverlap ito = null;
+      if(NCEnable) {
+        nm.NCService = new NCService(node, new Point());
+// My evaluations show that when this is enabled the system sucks
+//        (node as StructuredNode).Sco.TargetSelector = new VivaldiTargetSelector(node, ncservice);
+        ito = new NCTunnelOverlap(nm.NCService);
+      } else {
+        ito = new SimpleTunnelOverlap();
+      }
+
+      if(Broken != 0) {
+        el = new Tunnel.TunnelEdgeListener(node, ito);
+        node.AddEdgeListener(el);
+      }
 
       if(output) {
         Console.WriteLine("Adding: " + nm.Node.Address);
@@ -190,9 +227,11 @@ namespace Brunet.Simulator {
 
     /// <summary>Performs a crawl of the network using the ConnectionTable of
     /// each node.</summary>
-    public bool CheckRing()
+    public bool CheckRing(bool log)
     {
-      Console.WriteLine("Checking ring...");
+      if(log) {
+        Console.WriteLine("Checking ring...");
+      }
       Address start_addr = (Address) Nodes.GetKeyList()[0];
       Address curr_addr = start_addr;
 
@@ -207,14 +246,20 @@ namespace Brunet.Simulator {
         catch {}
 
         if(con == null) {
-          Console.WriteLine("Found no connection.");
+          if(log) {
+            Console.WriteLine("Found no connection.");
+          }
           return false;
         }
-        Console.WriteLine("Hop {2}\t Address {0}\n\t Connection to left {1}\n", curr_addr, con, i);
+        if(log) {
+          Console.WriteLine("Hop {2}\t Address {0}\n\t Connection to left {1}\n", curr_addr, con, i);
+        }
         Address next_addr = con.Address;
 
         if (next_addr == null) {
-          Console.WriteLine("Found no connection.");
+          if(log) {
+            Console.WriteLine("Found no connection.");
+          }
           return false;
         }
 
@@ -226,21 +271,28 @@ namespace Brunet.Simulator {
         catch {}
 
         if( (lc == null) || !curr_addr.Equals(lc.Address)) {
-          Address left_addr = lc.Address;
-          Console.WriteLine(curr_addr + " != " + left_addr);
-          Console.WriteLine("Right had edge, but left has no record of it!\n{0} != {1}", con, lc);
+          if(log) {
+            if(lc != null) {
+              Console.WriteLine(curr_addr + " != " + lc.Address);
+            }
+            Console.WriteLine("Right had edge, but left has no record of it!\n{0} != {1}", con, lc);
+          }
           return false;
         }
         else if(next_addr.Equals(start_addr) && i != Nodes.Count -1) {
-          Console.WriteLine("Completed circle too early.  Only {0} nodes in the ring.",
-                            (i + 1));
+          if(log) {
+            Console.WriteLine("Completed circle too early.  Only {0} nodes in the ring.",
+                (i + 1));
+          }
           return false;
         }
         curr_addr = next_addr;
       }
 
       if(start_addr.Equals(curr_addr)) {
-        Console.WriteLine("Ring properly formed!");
+        if(log) {
+          Console.WriteLine("Ring properly formed!");
+        }
         return true;
       }
       return false;
@@ -464,6 +516,7 @@ namespace Brunet.Simulator {
     public int Port;
     public Node Node;
     public ProtocolSecurityOverlord BSO;
+    public NCService NCService;
   }
 
   public class BrokenTAAuth : TAAuthorizer {

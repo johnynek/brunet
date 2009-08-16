@@ -28,6 +28,18 @@ namespace Brunet.Simulator {
     {
       Simulator sim = new Simulator();
       bool complete = false;
+      ParseCommandLine(args, out complete, ref sim);
+
+      if(complete) {
+        sim.Complete();
+      } else {
+        Commands(sim);
+      }
+    }
+
+    public static void ParseCommandLine(string []args, out bool complete, ref Simulator sim)
+    {
+      complete = false;
       string dataset_filename = String.Empty;
       int carg = 0;
 
@@ -43,6 +55,9 @@ namespace Brunet.Simulator {
               break;
             case "--complete":
               complete = true;
+              break;
+            case "--seed":
+              sim.Seed = Int32.Parse(parts[1]);
               break;
             case "--se":
               sim.SecureEdges = true;
@@ -96,26 +111,10 @@ namespace Brunet.Simulator {
         sim.AddNode(false);
       }
 
-      Console.WriteLine("Done setting up...\n");
-
-      if(complete) {
-        Complete(sim);
-      } else {
-        Commands(sim);
-      }
-      sim.Disconnect();
+      Console.WriteLine("Initialization complete...\n");
     }
 
-    protected static void Complete(Simulator sim)
-    {
-      DateTime start = DateTime.UtcNow;
-      while(!sim.Crawl(false, sim.SecureSenders)) {
-        SimpleTimer.RunStep();
-      }
-      Console.WriteLine("It took {0} to complete the ring", DateTime.UtcNow - start);
-    }
-
-    protected static void Commands(Simulator sim)
+    public static void Commands(Simulator sim)
     {
       string command = String.Empty;
       Console.WriteLine("Type HELP for a list of commands.\n");
@@ -129,7 +128,7 @@ namespace Brunet.Simulator {
         try {
           switch(command) {
             case "C":
-              sim.CheckRing();
+              sim.CheckRing(true);
               break;
             case "P":
               sim.PrintConnections();
