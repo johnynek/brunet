@@ -13,6 +13,7 @@
       <fileset basedir="${lib.dir}">
         <include name="Brunet.dll"/>
         <include name="Brunet.Security.dll"/>
+        <include name="Brunet.Coordinate.dll"/>
       </fileset>
     </copy>
 
@@ -22,6 +23,7 @@
       </sources>
       <references basedir="${build.dir}">
         <include name="Brunet.dll"/>
+        <include name="Brunet.Coordinate.dll"/>
         <include name="Brunet.Security.dll"/>
       </references>
     </csc>
@@ -32,6 +34,18 @@
       </sources>
       <references basedir="${build.dir}">
         <include name="Brunet.dll"/>
+        <include name="Brunet.Coordinate.dll"/>
+        <include name="Brunet.Security.dll"/>
+      </references>
+    </csc>
+
+    <csc target="exe" output="${build.dir}/Evaluator.exe" main="Brunet.Simulator.Evaluator">
+      <sources failonempty="true">
+        <include name="*.cs"/>
+      </sources>
+      <references basedir="${build.dir}">
+        <include name="Brunet.dll"/>
+        <include name="Brunet.Coordinate.dll"/>
         <include name="Brunet.Security.dll"/>
       </references>
     </csc>
