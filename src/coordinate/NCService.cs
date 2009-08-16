@@ -269,12 +269,11 @@ namespace Brunet.Coordinate {
 #if NC_DEBUG        
         Console.Error.WriteLine("[NCService] {0} Requesting latency sample from: {1}.", _node.Address, _target_address);
 #endif
-        Stopwatch watch = new Stopwatch();
-        watch.Start(); //start the watch
+        DateTime start = DateTime.UtcNow;
         Channel q = new Channel(1);
         q.CloseEvent += delegate(object o, EventArgs args) {
           Channel res_q = (Channel) o;
-          watch.Stop();//stop the watch
+          DateTime stop = DateTime.UtcNow;
           bool do_consider = false;
           if (res_q.Count > 0 ) {
             try {
@@ -291,7 +290,7 @@ namespace Brunet.Coordinate {
           }
           
           if (do_consider) {
-            double elapsed = watch.Elapsed.TotalMilliseconds;
+            double elapsed = (stop - start).TotalMilliseconds;
             int count = Interlocked.Increment(ref _num_samples);
 #if NC_DEBUG        
             Console.Error.WriteLine("[NCService] {0} Got latency sample from: {1}, sample #: {2}.", 
