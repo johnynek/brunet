@@ -44,6 +44,7 @@
               <xs:restriction base="xs:string">
                 <xs:enumeration value="udp"/>
                 <xs:enumeration value="tcp"/>
+                <xs:enumeration value="function"/>
               </xs:restriction>
             </xs:simpleType>
 	  </xs:attribute>

@@ -32,6 +32,7 @@ using Brunet.Rpc;
 using Brunet.Security;
 using Brunet.Security.Protocol;
 using Brunet.Security.Transport;
+using Brunet.Tunnel;
 
 /**
 \namespace Brunet::Applications Provides BasicNode and core features
@@ -182,23 +183,24 @@ namespace Brunet.Applications {
       Brunet.EdgeListener el = null;
       foreach(NodeConfig.EdgeListener item in _node_config.EdgeListeners) {
         int port = item.port;
-        if (item.type =="tcp") {
+        if(item.type == "tcp") {
           try {
             el = new TcpEdgeListener(port, addresses);
           }
           catch {
             el = new TcpEdgeListener(0, addresses);
           }
-        }
-        else if (item.type == "udp") {
+        } else if(item.type == "udp") {
           try {
             el = new UdpEdgeListener(port, addresses);
           }
           catch {
             el = new UdpEdgeListener(0, addresses);
           }
-        }
-        else {
+        } else if(item.type == "function") {
+          port = port == 0 ? (new Random()).Next(1024, 65535) : port;
+          el = new FunctionEdgeListener(port, 0, null);
+        } else {
           throw new Exception("Unrecognized transport: " + item.type);
         }
         if(_node_config.Security.SecureEdgesEnabled) {
@@ -206,13 +208,6 @@ namespace Brunet.Applications {
         }
         _node.AddEdgeListener(el);
       }
-
-      el = new Tunnel.TunnelEdgeListener(_node);
-      if(_node_config.Security.SecureEdgesEnabled) {
-        Brunet.LinkProtocolState.EdgeVerifyMethod = EdgeVerify.AddressInSubjectAltName;
-        el = new SecureEdgeListener(el, _bso);
-      }
-      _node.AddEdgeListener(el);
 
       ArrayList RemoteTAs = null;
       if(_node_config.RemoteTAs != null) {
@@ -223,13 +218,25 @@ namespace Brunet.Applications {
         _node.RemoteTAs = RemoteTAs;
       }
 
-      if (_node_config.NCService.Enabled) {
+      ITunnelOverlap ito = null;
+      if(_node_config.NCService.Enabled) {
         _ncservice = new NCService(_node, _node_config.NCService.Checkpoint);
 
         if (_node_config.NCService.OptimizeShortcuts) {
           _node.Ssco.TargetSelector = new VivaldiTargetSelector(_node, _ncservice);
         }
+        ito = new NCTunnelOverlap(_ncservice);
+      } else {
+        ito = new SimpleTunnelOverlap();
       }
+
+      el = new Tunnel.TunnelEdgeListener(_node, ito);
+      if(_node_config.Security.SecureEdgesEnabled) {
+        Brunet.LinkProtocolState.EdgeVerifyMethod = EdgeVerify.AddressInSubjectAltName;
+        el = new SecureEdgeListener(el, _bso);
+      }
+      _node.AddEdgeListener(el);
+
 
       new TableServer(_node);
       _dht = new Dht(_node, 3, 20);
