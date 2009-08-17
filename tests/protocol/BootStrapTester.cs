@@ -352,7 +352,7 @@ namespace Brunet
           pem.Start();
           tmp_node.DemuxHandler.GetTypeSource(path_p).Subscribe(pem, path_p);
           //Make the default path:
-          tmp_node.AddEdgeListener(pem.CreatePath("/"));
+          tmp_node.AddEdgeListener(pem.CreateRootPath());
           break;
         default:
           throw new Exception("Unknown net type: " + net_type);

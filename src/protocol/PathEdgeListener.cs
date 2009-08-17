@@ -40,6 +40,7 @@ namespace Brunet {
    *   tmp_node.AddEdgeListener(pem.CreatePath("/tmp_node_path"));
    */
   public class PathELManager : IDataHandler, IRpcHandler {
+    public static readonly string Root = "/";
     
     //Properties and Variables
     readonly object _sync;
@@ -88,8 +89,8 @@ namespace Brunet {
      */
     public PathEdgeListener CreatePath(string path) {
       PathEdgeListener new_pel = null;
-      if( path[0] != '/') {
-        path = String.Format("/{0}",path);
+      if(!path[0].Equals('/')) {
+        path = String.Format("/{0}", path);
       }
       lock( _sync ) {
         //Make sure the path doesn't already exist,
@@ -102,6 +103,12 @@ namespace Brunet {
         }
       }
       return new_pel;
+    }
+
+    /** Creates a new PathEdgeListener using the Root path
+     */
+    public PathEdgeListener CreateRootPath() {
+      return CreatePath(Root);
     }
 
     /** Handle incoming data on an Edge 
@@ -154,8 +161,8 @@ namespace Brunet {
             /*
              * This must be a "default path" incoming connection
              */
-            pel = _pel_map["/"];
-            pe = new PathEdge(e, "/", "/");
+            pel = _pel_map[Root];
+            pe = new PathEdge(e, Root, Root);
           }
           pel.SendPathEdgeEvent(pe);
           pe.Subscribe();
@@ -348,7 +355,7 @@ namespace Brunet {
       }
       string rempath;
       TransportAddress base_ta = PathELManager.SplitPath(ta, out rempath);
-      if( _path == "/" && rempath == "/" ) {
+      if( _path == PathELManager.Root && rempath == PathELManager.Root ) {
         /*
          * This is "normal" case, and we can skip all this stuff
          */
