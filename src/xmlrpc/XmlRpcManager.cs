@@ -485,8 +485,7 @@ namespace Brunet.Rpc {
     /// <remarks>Uses a node's string version of Brunet address plus ".rem" as the 
     /// relative Uri.</remarks>
     public virtual void Add(Node node) {
-      RpcManager rpc = RpcManager.GetInstance(node);
-      Add(node, rpc, string.Format("{0}.rem", node.Address.ToString()));
+      Add(node, node.Rpc, string.Format("{0}.rem", node.Address.ToString()));
     }
 
     /// <summary>
@@ -625,8 +624,7 @@ namespace Brunet.Rpc {
 
     public new static MockRpcManager GetInstance(Node node) {
       if(_instance == null) {
-        ReqrepManager rrm = ReqrepManager.GetInstance(node);
-        _instance = new MockRpcManager(rrm);
+        _instance = new MockRpcManager(node.Rrm);
       }
       return _instance;
     }
