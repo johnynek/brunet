@@ -18,6 +18,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
+using Brunet.Util;
 using System;
 using System.Threading;
 using System.Collections;
@@ -51,16 +52,16 @@ namespace Brunet {
 
     //Here's how we handle the protocol:
     readonly ReqrepManager _rrm;
-    readonly Thread _timer_thread;
     public readonly RpcManager Rpc;
-    volatile bool _running;
+
+    protected bool _running;
+    protected readonly Thread _timer_thread;
+    protected readonly int _period = 1000;
+    protected readonly FuzzyEvent _fe;
 
     //Methods:
 
-    /** Multiplex an EdgeListener using Pathing
-     * @param el the EdgeListener to multiplex
-     */
-    public PathELManager(EdgeListener el) {
+    protected PathELManager(EdgeListener el, bool thread) {
       _el = el;
       _sync = new object();
       _edges = new List<Edge>();
@@ -73,16 +74,56 @@ namespace Brunet {
       Rpc.AddHandler("sys:pathing", this);
       _el.EdgeEvent += HandleEdge;
       _running = true;
-      _timer_thread = new Thread(
-        delegate() {
-          while(_running) {
-            Thread.Sleep(1000);
-            _rrm.TimeoutChecker(null, null);
+
+      if(thread) {
+        _timer_thread = new Thread(
+          delegate() {
+            while(_running) {
+              Thread.Sleep(1000);
+              TimeoutCheck();
+            }
           }
-        }
-      );
-      _timer_thread.IsBackground = true;
-      _timer_thread.Start();
+        );
+
+        _timer_thread.IsBackground = true;
+        _timer_thread.Start();
+      }
+    }
+
+    /** Multiplex an EdgeListener using Pathing with a thread managing the Rrm
+     * @param el the EdgeListener to multiplex
+     */
+    public PathELManager(EdgeListener el) : this(el, true) {
+    }
+
+    /** Multiplex an EdgeListener using Pathing with the IActionQueue managing the
+     * Rrm.
+     * @param el the EdgeListener to multiplex
+     */
+    public PathELManager(EdgeListener el, IActionQueue queue) : this(el, false) {
+      PathELManagerAction pema = new PathELManagerAction(this);
+
+      Action<DateTime> torun = delegate(DateTime now) {
+        queue.EnqueueAction(pema);
+      };
+
+      _fe = Brunet.Util.FuzzyTimer.Instance.DoEvery(torun, _period, _period / 2 + 1);
+    }
+
+    protected class PathELManagerAction : IAction {
+      protected readonly PathELManager _pem;
+
+      public PathELManagerAction(PathELManager pem) {
+        _pem = pem;
+      }
+
+      public void Start() {
+        _pem.TimeoutCheck();
+      }
+    }
+
+    protected void TimeoutCheck() {
+      _rrm.TimeoutChecker(null, null);
     }
 
     /** create a new PathEdgeListener
@@ -213,6 +254,9 @@ namespace Brunet {
      */
     public void Stop() {
       _running = false;
+      if(_fe != null) {
+        _fe.TryCancel();
+      }
       _el.Stop();
    }
 

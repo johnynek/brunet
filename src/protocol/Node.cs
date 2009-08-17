@@ -40,7 +40,7 @@ namespace Brunet
    * connections. 
    * 
    */
-  abstract public class Node : IDataHandler, ISender
+  abstract public class Node : IDataHandler, ISender, IActionQueue
   {
     static Node() {
       SenderFactory.Register("localnode", CreateLocalSender); 
