@@ -485,7 +485,7 @@ namespace Brunet.Rpc {
     /// <remarks>Uses a node's string version of Brunet address plus ".rem" as the 
     /// relative Uri.</remarks>
     public virtual void Add(Node node) {
-      Add(node, node.Rpc, string.Format("{0}.rem", node.Address.ToString()));
+      Add(node, string.Format("{0}.rem", node.Address.ToString()));
     }
 
     /// <summary>
@@ -502,6 +502,24 @@ namespace Brunet.Rpc {
     }
 
     /// <summary>
+    /// Allows nodes to be registered by whatever URI the user provides
+    /// </summary>
+    /// <param name="node"></param>
+    /// <param name="uri"></param>
+    public void Add(Node node, string uri) {
+      var xrm = new XmlRpcManager(node, node.Rpc);
+      lock (_sync_root) {
+        // throw an exception if this mapping exists...
+        _xrm_mappings.Add(node, xrm);
+        RemotingServices.Marshal(xrm, uri);
+        CheckAndSetDefaultManager();
+      }
+      // We only add this if there is no exception above...
+      node.Rpc.AddHandler("xmlrpc", xrm);
+    }
+
+#if BRUNET_NUNIT
+    /// <summary>
     /// The overloaded method for now is used to allow RpcManager to be replaced
     /// by MockRpcManager in unit tests.
     /// </summary>
@@ -510,13 +528,15 @@ namespace Brunet.Rpc {
     /// <param name="uri"></param>
     internal void Add(Node node, RpcManager rpc, string uri) {
       var xrm = new XmlRpcManager(node, rpc);
-      rpc.AddHandler("xmlrpc", xrm);
       lock (_sync_root) {
-        _xrm_mappings[node] = xrm;
+        // throw an exception if this mapping exists...
+        _xrm_mappings.Add(node, xrm);
         RemotingServices.Marshal(xrm, uri);
         CheckAndSetDefaultManager();
       }
+      rpc.AddHandler("xmlrpc", xrm);
     }
+#endif
 
     /// <summary>
     /// Checks and sets the default XmlRpcManager. Should only be called by Add 
