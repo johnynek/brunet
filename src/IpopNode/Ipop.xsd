@@ -7,11 +7,12 @@
       <xs:element name="IpopNamespace" type="xs:string" minOccurs="1" maxOccurs="1"/>
       <xs:element name="VirtualNetworkDevice" type="xs:string" minOccurs="1" maxOccurs="1"/>
       <xs:element ref="AddressData" minOccurs="0" />
-      <xs:element ref="EnableMulticast" minOccurs="0" />
-      <xs:element ref="EndToEndSecurity" minOccurs="0" />
+      <xs:element name="EnableMulticast" type="xs:bool" minOccurs="0" />
+      <xs:element name="EndToEndSecurity" type="xs:bool" minOccurs="0" />
       <xs:element ref="DHCPPort" minOccurs="0" />
-      <xs:element ref="AllowStaticAddresses" minOccurs="0" />
+      <xs:element name="AllowStaticAddresses" type="xs:bool" minOccurs="0" />
       <xs:element ref="GroupVPN" minOccurs="0" />
+      <xs:element ref="DNSType" minOccurs="0" maxOccurs="1" />
     </xs:all>
   </xs:complexType>
 </xs:element>
@@ -34,27 +35,9 @@
       <xs:element name="Group" type="xs:string" minOccurs="0"/>
       <xs:element name="UserName" type="xs:string" minOccurs="0"/>
       <xs:element name="Secret" type="xs:string" minOccurs="0"/>
-      <xs:element ref="Enabled" minOccurs="0" />
+      <xs:element name="Enabled" type="xs:bool" />
     </xs:all>
   </xs:complexType>
-</xs:element>
-
-<xs:element name="EnableMulticast">
-  <xs:simpleType>
-    <xs:restriction base="xs:string">
-      <xs:enumeration value="true"/>
-      <xs:enumeration value="false"/>
-    </xs:restriction>
-  </xs:simpleType>
-</xs:element>
-
-<xs:element name="EndToEndSecurity">
-  <xs:simpleType>
-    <xs:restriction base="xs:string">
-      <xs:enumeration value="true"/>
-      <xs:enumeration value="false"/>
-    </xs:restriction>
-  </xs:simpleType>
 </xs:element>
 
 <xs:element name="DHCPPort">
@@ -90,20 +73,11 @@
   </xs:simpleType>
 </xs:element>
 
-<xs:element name="AllowStaticAddresses">
+<xs:element name="DNSType">
   <xs:simpleType>
     <xs:restriction base="xs:string">
-      <xs:enumeration value="true"/>
-      <xs:enumeration value="false"/>
-    </xs:restriction>
-  </xs:simpleType>
-</xs:element>
-
-<xs:element name="Enabled">
-  <xs:simpleType>
-    <xs:restriction base="xs:string">
-      <xs:enumeration value="true"/>
-      <xs:enumeration value="false"/>
+      <xs:enumeration value="StaticDNS"/>
+      <xs:enumeration value="DhtDNS"/>
     </xs:restriction>
   </xs:simpleType>
 </xs:element>
