@@ -40,16 +40,46 @@ namespace Brunet.Tunnel {
     /// <summary>Returns a Tunnel Sync message containing information to
     /// be used to determine overlap.</summary>
     IDictionary GetSyncMessage(IList<Address> current_overlap,
-        Address local_addr, ConnectionList all_cons);
+        Address local_addr, ConnectionList cons);
     /// <summary>Attempt to FindOverlap based upon our connections and the
     /// Remote TunnelTA.</summary>
     List<Address> FindOverlap(TunnelTransportAddress ta, ConnectionList cons);
   }
 
   public class SimpleTunnelOverlap : ITunnelOverlap {
-    /// <summary>Always returns the first non-tunnel address.</summary>
+    /// <summary>Returns the 4 oldest addresses.</summary>
+    protected List<Address> GetOldest(ConnectionList cons)
+    {
+      List<Connection> oldest = new List<Connection>(cons.Count);
+      foreach(Connection con in cons) {
+        oldest.Add(con);
+      }
+
+      return GetOldest(oldest);
+    }
+
+    /// <summary>Returns the 4 oldest addresses.</summary>
+    protected List<Address> GetOldest(List<Connection> cons)
+    {
+      List<Connection> oldest = new List<Connection>(cons);
+
+      Comparison<Connection> comparer = delegate(Connection x, Connection y) {
+        return x.CreationTime.CompareTo(y.CreationTime);
+      };
+
+      oldest.Sort(comparer);
+      List<Address> addrs = new List<Address>(4);
+      for(int i = 0; i < 4 && i < oldest.Count; i++) {
+        addrs.Add(oldest[i].Address);
+      }
+      return addrs;
+    }
+
+    /// <summary>Always returns the oldest non-tunnel address.</summary>
     public virtual Address EvaluatePotentialOverlap(IDictionary msg)
     {
+      Address oldest_addr = null;
+      int oldest_age = -1;
       foreach(DictionaryEntry de in msg) {
         byte[] baddr = Convert.FromBase64String(de.Key as string);
         Address addr = new AHAddress(MemBlock.Reference(baddr));
@@ -62,16 +92,19 @@ namespace Brunet.Tunnel {
           continue;
         }
 
-        return addr;
+        int age = (int) values["ct"];
+        if(age > oldest_age) {
+          oldest_addr = addr;
+        }
       }
 
-      return null;
+      return oldest_addr;
     }
 
-    /// <summary>Returns all addresses in the overlap.</summary>
+    /// <summary>Returns the oldest 4 addresses in the overlap.</summary>
     public virtual List<Address> EvaluateOverlap(ConnectionList cons, IDictionary msg)
     {
-      List<Address> overlap = new List<Address>();
+      List<Connection> overlap = new List<Connection>();
 
       foreach(DictionaryEntry de in msg) {
         byte[] baddr = Convert.FromBase64String(de.Key as string);
@@ -95,33 +128,36 @@ namespace Brunet.Tunnel {
             continue;
           }
         }
-        overlap.Add(con.Address);
+        overlap.Add(con);
       }
 
-      return overlap;
+      return GetOldest(overlap);
     }
 
     /// <summary>Returns a Tunnel Sync message containing up to 40 addresses
     /// first starting with previous overlap followed by new potential
     /// connections for overlap.</summary>
     public virtual IDictionary GetSyncMessage(IList<Address> current_overlap,
-        Address local_addr, ConnectionList all_cons)
+        Address local_addr, ConnectionList cons)
     {
-      Hashtable ht = new Hashtable(20);
-      ConnectionList cons = all_cons;
-      if(current_overlap != null && all_cons.Count > 20) {
+      Hashtable ht = new Hashtable();
+      DateTime now = DateTime.UtcNow;
+      if(current_overlap != null) {
         foreach(Address addr in current_overlap) {
-          int index = all_cons.IndexOf(addr);
+          int index = cons.IndexOf(addr);
           if(index < 0) {
             continue;
           }
-          Connection con = all_cons[index];
+          Connection con = cons[index];
           Hashtable info = new Hashtable(1);
           info["ta"] = TransportAddress.TATypeToString(con.Edge.TAType);
+          info["ct"] = (int) (now - con.CreationTime).TotalMilliseconds;
           ht[con.Address.ToMemBlock().ToBase64String()] = info;
         }
+      }
 
-        cons = all_cons.GetNearestTo(local_addr, 20);
+      if(cons.Count > 20) {
+        cons = cons.GetNearestTo(local_addr, 20);
       }
 
       foreach(Connection con in cons) {
@@ -131,6 +167,7 @@ namespace Brunet.Tunnel {
         }
         Hashtable info = new Hashtable();
         info["ta"] = TransportAddress.TATypeToString(con.Edge.TAType);
+        info["ct"] = (int) (now - con.CreationTime).TotalMilliseconds;
         ht[key] = info;
       }
 
@@ -142,18 +179,18 @@ namespace Brunet.Tunnel {
     /// tunneled peer.</summary>
     public virtual List<Address> FindOverlap(TunnelTransportAddress ta, ConnectionList cons)
     {
-      List<Address> overlap = new List<Address>();
+      List<Connection> overlap = new List<Connection>();
       foreach(Connection con in cons) {
         if(con.Edge.TAType == TransportAddress.TAType.Tunnel) {
           continue;
         }
 
-        Address addr = con.Address;
-        if(ta.ContainsForwarder(addr)) {
-          overlap.Add(addr);
+        if(ta.ContainsForwarder(con.Address)) {
+          overlap.Add(con);
         }
       }
-      return overlap;
+
+      return GetOldest(overlap);
     }
   }
 #if BRUNET_NUNIT

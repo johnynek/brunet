@@ -103,6 +103,10 @@ namespace Brunet.Coordinate {
           best_latency = latency;
         }
 
+        if(!info.Contains("lat")) {
+          continue;
+        }
+
         latency = (double) info["lat"];
         if(latency > 0 && latency < their_best_latency) {
           their_best_addr = addr;
@@ -153,6 +157,7 @@ namespace Brunet.Coordinate {
         Address local_addr, ConnectionList cons)
     {
       Hashtable ht = new Hashtable(40);
+      DateTime now = DateTime.UtcNow;
 
       if(current_overlap != null) {
         foreach(Address addr in current_overlap) {
@@ -165,6 +170,7 @@ namespace Brunet.Coordinate {
           Hashtable info = new Hashtable(1);
           info["ta"] = TransportAddress.TATypeToString(con.Edge.TAType);
           info["lat"] = _ncservice.GetMeasuredLatency(addr);
+          info["ct"] = (int) (now - con.CreationTime).TotalMilliseconds;
           ht[addr.ToMemBlock().ToBase64String()] = info;
         }
       }
@@ -188,6 +194,7 @@ namespace Brunet.Coordinate {
         Hashtable info = new Hashtable();
         info["ta"] = TransportAddress.TATypeToString(con.Edge.TAType);
         info["lat"] = _ncservice.GetMeasuredLatency(addr);
+        info["ct"] = (int) (now - con.CreationTime).TotalMilliseconds;
         ht[key] = info;
       }
 
