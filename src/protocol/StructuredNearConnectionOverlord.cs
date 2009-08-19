@@ -621,7 +621,7 @@ namespace Brunet {
         near_ni[i] = NodeInfo.CreateInstance(cons.Address);
         i++;
       }
-      return new ConnectToMessage(ConnectionType,_node.GetNodeInfo(8), near_ni, token);
+      return new ConnectToMessage(ConnectionType, _node.GetNodeInfo(8, TAAuth), near_ni, token);
     }
 
     /**
@@ -710,14 +710,7 @@ namespace Brunet {
     override public bool HandleCtmResponse(Connector c, ISender ret_path,
                                            ConnectToMessage ctm_resp)
     {
-      /**
-       * Time to start linking:
-       */
-      Linker l = new Linker(_node, ctm_resp.Target.Address,
-                            ctm_resp.Target.Transports,
-                            ctm_resp.ConnectionType,
-                            ctm_resp.Token);
-      _node.TaskQueue.Enqueue( l );
+      base.HandleCtmResponse(c, ret_path, ctm_resp);
       /**
        * Check this guys neighbors:
        */

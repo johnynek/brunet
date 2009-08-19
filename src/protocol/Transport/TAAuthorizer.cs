@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Net;
 
 #if BRUNET_NUNIT
@@ -255,6 +256,31 @@ public class NetmaskTAAuthorizer : TAAuthorizer {
     int ai = a & mask;
     int bi = b & mask;
     return (ai == bi);
+  }
+}
+
+/// A simple TAAuth that denies based upon TAType
+public class TATypeAuthorizer : TAAuthorizer {
+  protected readonly Dictionary<TransportAddress.TAType, bool> _match_table;
+  protected TAAuthorizer.Decision _on_match;
+  protected TAAuthorizer.Decision _on_mismatch;
+
+  public TATypeAuthorizer(TransportAddress.TAType[] list,
+                                   TAAuthorizer.Decision on_match,
+                                   TAAuthorizer.Decision on_mismatch) {
+    _on_match = on_match;
+    _on_mismatch = on_mismatch;
+    _match_table = new Dictionary<TransportAddress.TAType, bool>();
+    foreach(TransportAddress.TAType tatype in list) {
+      _match_table[tatype] = true;
+    }
+  }
+
+  public override TAAuthorizer.Decision Authorize(TransportAddress a) {
+    if(_match_table.ContainsKey(a.TransportAddressType)) {
+      return _on_match;
+    }
+    return _on_mismatch;
   }
 }
 

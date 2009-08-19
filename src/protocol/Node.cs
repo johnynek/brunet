@@ -1006,11 +1006,26 @@ namespace Brunet
      * at most max_local local Transport addresses
      */
     virtual public NodeInfo GetNodeInfo(int max_local) {
+      return GetNodeInfo(max_local, null);
+    }
+
+    virtual public NodeInfo GetNodeInfo(int max_local, TAAuthorizer ta_auth) {
       ArrayList l = new ArrayList( this.LocalTAs );
+      if(ta_auth != null) {
+        ArrayList ta_authed = new ArrayList();
+        foreach(TransportAddress ta in l) {
+          if(ta_auth.Authorize(ta) != TAAuthorizer.Decision.Deny) {
+            ta_authed.Add(ta);
+          }
+        }
+        l = ta_authed;
+      }
+
       if( l.Count > max_local ) {
         int rm_count = l.Count - max_local;
         l.RemoveRange( max_local, rm_count );
       }
+
       return NodeInfo.CreateInstance( this.Address, l);
     }
     /**

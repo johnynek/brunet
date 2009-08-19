@@ -2,6 +2,7 @@
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
 Copyright (C) 2005  University of California
+Copyright (C) 2009 David Wolinsky <davidiw@ufl.edu>, University of Florida
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -37,6 +38,9 @@ namespace Brunet {
   public abstract class ConnectionOverlord {
     protected Node _node;
 
+    /// A TAAuthorizer for the CO
+    public virtual TAAuthorizer TAAuth { get { return null;} }
+
     /**
      * If IsActive, then start trying to get connections.
      */
@@ -61,6 +65,7 @@ namespace Brunet {
     {
       get;
     }
+
     /**
      * @return true if the ConnectionOverlord has sufficient connections
      *  for connectivity (no routing performance yet!)
@@ -78,10 +83,20 @@ namespace Brunet {
        * Time to start linking:
        */
 
-      Linker l = new Linker(_node, resp.Target.Address,
-                            resp.Target.Transports,
-                            resp.ConnectionType,
-                            _node.Address.ToString());
+      ICollection transports = resp.Target.Transports;
+
+      if(TAAuth != null) {
+        ArrayList trans = new ArrayList();
+        foreach(TransportAddress ta in resp.Target.Transports) {
+          if(TAAuth.Authorize(ta) != TAAuthorizer.Decision.Deny) {
+            trans.Add(ta);
+          }
+        }
+        transports = trans;
+      }
+
+      Linker l = new Linker(_node, resp.Target.Address, transports,
+          resp.ConnectionType, _node.Address.ToString());
       l.FinishEvent += LinkerEndHandler;
       _node.TaskQueue.Enqueue( l );
       return true;
@@ -164,7 +179,7 @@ namespace Brunet {
     virtual protected ConnectToMessage GetConnectToMessage(string ConnectionType,
         string token)
     {
-      return new ConnectToMessage(ConnectionType, _node.GetNodeInfo(8), token);
+      return new ConnectToMessage(ConnectionType, _node.GetNodeInfo(8, TAAuth), token);
     }
 
     virtual protected void ConnectorEndHandler(object o, EventArgs eargs) {
