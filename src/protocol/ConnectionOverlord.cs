@@ -82,6 +82,7 @@ namespace Brunet {
                             resp.Target.Transports,
                             resp.ConnectionType,
                             _node.Address.ToString());
+      l.FinishEvent += LinkerEndHandler;
       _node.TaskQueue.Enqueue( l );
       return true;
     }
@@ -124,6 +125,9 @@ namespace Brunet {
     }
 
     virtual protected void ConnectorEndHandler(object o, EventArgs eargs) {
+    }
+
+    virtual protected void LinkerEndHandler(object o, EventArgs eargs) {
     }
   }
 }
