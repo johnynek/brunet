@@ -1,0 +1,10 @@
+Package: IPOP
+Priority: optional
+Section: net
+Installed-Size: 2
+Maintainer: Yonggang Liu <yonggang@acis.ufl.edu> David Wolinsky <davidiw@ufl.edu>
+Architecture: all
+Version: 8.9.4
+Depends: mono-gmcs,libmono-system-runtime2.0-cil,libmono-posix2.0-cil,uml-utilities,cronolog,python
+Recommends: resolvconf
+Description: Virtual Networking

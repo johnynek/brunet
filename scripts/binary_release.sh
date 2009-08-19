@@ -40,6 +40,9 @@ cp ../scripts/install_windows.bat $version/ipop/bin/.
 cp ../scripts/daemon.py $version/ipop/bin/.
 cp ../scripts/install* $version/ipop/.
 
+mkdir $version/ipop/deb
+cp deb/* $version/ipop/deb/.
+
 cp -axf ../drivers $version/ipop/.
 
 brunet_scripts="bget.py bput.py crawl.py pybru.py"
