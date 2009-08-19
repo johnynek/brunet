@@ -188,8 +188,7 @@ namespace Brunet
           //Now we double the retry interval.  When we get a connection
           //We reset it back to the default value:
           _last_retry = now;
-          _current_retry_interval = _current_retry_interval + _current_retry_interval;
-          _current_retry_interval = _current_retry_interval + _current_retry_interval;
+          _current_retry_interval += _current_retry_interval;
           _current_retry_interval = (_MAX_RETRY_INTERVAL < _current_retry_interval) ?
               _MAX_RETRY_INTERVAL : _current_retry_interval;
 
