@@ -74,24 +74,27 @@ namespace Brunet
       TransportAddress result = null;
       TransportAddress.TAType ta_type = StringToType(t);
       
-      if (ta_type ==  TransportAddress.TAType.Tcp) {
-	result = new IPTransportAddress(s);
+      switch(ta_type) {
+        case TransportAddress.TAType.Tcp:
+          result = new IPTransportAddress(s);
+          break;
+        case TransportAddress.TAType.Udp:
+          result = new IPTransportAddress(s);
+          break;
+        case TransportAddress.TAType.Function:
+          result = new IPTransportAddress(s);
+          break;
+        case TransportAddress.TAType.Tls:
+          result = new IPTransportAddress(s);
+          break;
+        case TransportAddress.TAType.TlsTest:
+          result = new IPTransportAddress(s);
+          break;
+        case TransportAddress.TAType.Tunnel:
+          result = new TunnelTransportAddress(s);
+          break;
       }
-      if (ta_type ==  TransportAddress.TAType.Udp) {
-	result = new IPTransportAddress(s);
-      }
-      if (ta_type ==  TransportAddress.TAType.Function) {
-	result = new IPTransportAddress(s);
-      }
-      if (ta_type ==  TransportAddress.TAType.Tls) {
-	result = new IPTransportAddress(s);
-      }
-      if (ta_type ==  TransportAddress.TAType.TlsTest) {
-	result = new IPTransportAddress(s);
-      }
-      if (ta_type ==  TransportAddress.TAType.Tunnel) {
-	result = new TunnelTransportAddress(s);
-      }
+
       return result;
     }
     
@@ -122,37 +125,16 @@ namespace Brunet
         return (TransportAddress.TAType)t;
       }
     }
+
     public static TransportAddress CreateInstance(TransportAddress.TAType t,
-						  string host, int port) {  
+              string host, int port) {  
       Cache ta_cache = Interlocked.Exchange<Cache>(ref _ta_cache, null);
       if( ta_cache != null ) {
         TransportAddress ta = null;
         try {
           CacheKey key = new CacheKey(host, port, t);
           ta = (TransportAddress) ta_cache[key];
-	        if( ta == null ) {
-            ta = new IPTransportAddress(t, host, port);
-            ta_cache[key] = ta; 
-           }
-        }
-        finally {
-          Interlocked.Exchange<Cache>(ref _ta_cache, ta_cache);
-        }
-        return ta;
-      }
-      else {
-        return new IPTransportAddress(t, host, port);
-      }
-    }
-    public static TransportAddress CreateInstance(TransportAddress.TAType t,
-                            System.Net.IPAddress host, int port) {
-      Cache ta_cache = Interlocked.Exchange<Cache>(ref _ta_cache, null);
-      if( ta_cache != null ) {
-        TransportAddress ta = null;
-        try {
-          CacheKey key = new CacheKey(host, port, t);
-          ta = (TransportAddress) ta_cache[key];
-	        if( ta == null ) {
+          if( ta == null ) {
             ta = new IPTransportAddress(t, host, port);
             ta_cache[key] = ta; 
            }
@@ -168,7 +150,30 @@ namespace Brunet
     }
 
     public static TransportAddress CreateInstance(TransportAddress.TAType t,
-				   System.Net.IPEndPoint ep) {
+                            IPAddress host, int port) {
+      Cache ta_cache = Interlocked.Exchange<Cache>(ref _ta_cache, null);
+      if( ta_cache != null ) {
+        TransportAddress ta = null;
+        try {
+          CacheKey key = new CacheKey(host, port, t);
+          ta = (TransportAddress) ta_cache[key];
+          if( ta == null ) {
+            ta = new IPTransportAddress(t, host, port);
+            ta_cache[key] = ta; 
+           }
+        }
+        finally {
+          Interlocked.Exchange<Cache>(ref _ta_cache, ta_cache);
+        }
+        return ta;
+      }
+      else {
+        return new IPTransportAddress(t, host, port);
+      }
+    }
+
+    public static TransportAddress CreateInstance(TransportAddress.TAType t,
+           IPEndPoint ep){
       return CreateInstance(t, ep.Address, ep.Port);
     }
 
@@ -239,6 +244,7 @@ namespace Brunet
       TlsTest,
       Tunnel,
     }
+
    protected static readonly string _UDP_S = "udp";
    protected static readonly string _TCP_S = "tcp";
    protected static readonly string _FUNCTION_S = "function";
@@ -262,7 +268,6 @@ namespace Brunet
     }
 
     public abstract TAType TransportAddressType { get;}
-
 
     public int CompareTo(object ta)
     {
@@ -294,16 +299,8 @@ namespace Brunet
     }
     
 
-    public string Host {
-      get {
-	return _uri.Host;
-      }
-    }
-    public int Port {
-      get {
-	return _uri.Port;
-      }
-    }
+    public string Host { get { return _uri.Host; } }
+    public int Port { get { return _uri.Port; } }
     protected TAType _type = TAType.Unknown;
     protected readonly string _string_rep;
 
@@ -317,30 +314,35 @@ namespace Brunet
         return _type;
       }
     }
+
     public override bool Equals(object o) {
       if ( o == this ) { return true; }
       IPTransportAddress other = o as IPTransportAddress;
       if ( other == null ) { return false; }
       return _uri.Equals( other._uri );  
     }
+
     public override int GetHashCode() {
       return _uri.GetHashCode();
     }
+
     public override string ToString() {
       return _string_rep;
     }
+
     public IPTransportAddress(string uri_s) { 
       //Make sure we can parse the URI:
       _string_rep = uri_s;
       _ips = null;
     }
-    public IPTransportAddress(TransportAddress.TAType t,
-                            string host, int port):
+
+    public IPTransportAddress(TransportAddress.TAType t, string host, int port) :
       this("brunet." + TATypeToString(t) + "://" + host + ":" + port.ToString())
     {
       _type = t;
       _ips = null;
     }
+
     public IPTransportAddress(TransportAddress.TAType t,
                             System.Net.IPAddress addr, int port):
           this("brunet." + TATypeToString(t) + "://"
@@ -366,11 +368,7 @@ namespace Brunet
 
   public class TunnelTransportAddress: TransportAddress {
     protected Address _target;
-    public Address Target {
-      get {
-	return _target;
-      }
-    }
+    public Address Target { get { return _target; } }
     //in this new implementation, we have more than one packer forwarders
     protected ArrayList _forwarders;
     protected readonly string _string_rep;
@@ -388,10 +386,10 @@ namespace Brunet
       k = k1 + 1;
       _forwarders = new ArrayList();
       while (k < s.Length) {
-	byte [] addr_prefix = Base32.Decode(s.Substring(k, 8));
-	_forwarders.Add(MemBlock.Reference(addr_prefix));
-	//jump over the 8 characters and the + sign
-	k = k + 9;
+        byte [] addr_prefix = Base32.Decode(s.Substring(k, 8));
+        _forwarders.Add(MemBlock.Reference(addr_prefix));
+        //jump over the 8 characters and the + sign
+        k = k + 9;
       }
       _forwarders.Sort();
     }
@@ -402,26 +400,28 @@ namespace Brunet
     }
 
     private static string GetString(Address target, ArrayList forwarders) {
-      string s = "brunet.tunnel://" +  
-	target.ToString().Substring(12) + "/";
+      string s = "brunet.tunnel://" +  target.ToString().Substring(12) + "/";
       for (int idx = 0; idx < forwarders.Count; idx++) {
-	Address a = (Address) forwarders[idx];
-	s +=  a.ToString().Substring(12,8);
-	if (idx < forwarders.Count - 1) {
-	  //not the last element
-	  s = s + "+";
-	}      
+        Address a = (Address) forwarders[idx];
+        s +=  a.ToString().Substring(12,8);
+        //not the last element
+        if (idx < forwarders.Count - 1) {
+          s = s + "+";
+        }      
       }
       return s;
     }
+
     public override TAType TransportAddressType { 
       get {
-	return TransportAddress.TAType.Tunnel;
+        return TransportAddress.TAType.Tunnel;
       }
     }
+
     public override string ToString() {
       return _string_rep;
     }
+
     public override bool Equals(object o) {
       if ( o == this ) { return true; }
       TunnelTransportAddress other = o as TunnelTransportAddress;
@@ -439,11 +439,7 @@ namespace Brunet
 
     public bool ContainsForwarder(Address addr) {
       MemBlock test_mem = MemBlock.Reference(Base32.Decode(addr.ToString().Substring(12, 8)));
-      if (_forwarders.Contains(test_mem)) {
-	return true;
-      } 
-
-      return false;
+      return _forwarders.Contains(test_mem);
     }
 
     public override int GetHashCode() {
@@ -462,6 +458,7 @@ namespace Brunet
         Assert.AreEqual(s, TransportAddress.TATypeToString(t), "TATypeToString");
       }
     }
+
     [Test]
     public void Test() {
       TransportAddress ta1 = TransportAddressFactory.CreateInstance("brunet.udp://10.5.144.69:5000");
@@ -488,25 +485,25 @@ namespace Brunet
       Assert.AreEqual(tun_ta.ToString(), test_ta.ToString(), "testing tunnel TA compression enhancements (toString)");
 
       Assert.AreEqual(tun_ta.ContainsForwarder(new AHAddress(Base32.Decode("CADSL6GVVBM6V442CETP4JTEAWACLC5A"))), true, 
-		      "testing tunnel TA contains forwarder (1)");
+          "testing tunnel TA contains forwarder (1)");
 
       Assert.AreEqual(tun_ta.ContainsForwarder(new AHAddress(Base32.Decode("CADSL6GUVBM6V442CETP4JTEAWACLC5A"))), true, 
-		      "testing tunnel TA contains forwarder (2)");
+          "testing tunnel TA contains forwarder (2)");
 
       
       
       string StrLocalHost = Dns.GetHostName();
       IPHostEntry IPEntry = Dns.GetHostEntry(StrLocalHost);
       TransportAddress local_ta = TransportAddressFactory.CreateInstance("brunet.udp://" +  IPEntry.AddressList[0].ToString() + 
-									 ":" + 5000);
+                   ":" + 5000);
       IEnumerable locals = TransportAddressFactory.CreateForLocalHost(TransportAddress.TAType.Udp, 5000);
 
       bool match = false;
       foreach (TransportAddress test_ta1 in locals) {
-	//Console.WriteLine("test_ta: {0}", test_ta1);
-	if (test_ta1.Equals(local_ta)) {
-	  match = true;
-	}
+        //Console.WriteLine("test_ta: {0}", test_ta1);
+        if (test_ta1.Equals(local_ta)) {
+          match = true;
+        }
       }
       Assert.AreEqual(match, true, "testing local TA matches");
       //testing function TA

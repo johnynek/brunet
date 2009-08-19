@@ -181,9 +181,10 @@ namespace Brunet
     /// <summary>If we get here, a Connector attempt has ended, we will check
     /// to see if the connection succeeded.  If it hasn't, we attempt to
     /// connect again.</summary>
-    override protected void ConnectorEndHandler(object o, EventArgs eargs) {
-      Connector c = (Connector) o;
-      Address caddr = c.State as Address;
+    override protected void LinkerEndHandler(object o, EventArgs eargs)
+    {
+      Linker linker = o as Linker;
+      Address caddr = linker.Target;
       if(caddr == null) {
         return;
       }

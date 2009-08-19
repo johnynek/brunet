@@ -93,6 +93,7 @@ namespace Brunet
         return GuessLocalEndPoint(_tas); 
       }
     }
+    public IPEndPoint LocalEndPoint { get { return _local_ep; } }
 
     protected enum ControlCode : int
     {

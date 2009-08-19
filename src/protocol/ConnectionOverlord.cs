@@ -82,6 +82,7 @@ namespace Brunet {
                             resp.Target.Transports,
                             resp.ConnectionType,
                             _node.Address.ToString());
+      l.FinishEvent += LinkerEndHandler;
       _node.TaskQueue.Enqueue( l );
       return true;
     }
@@ -117,13 +118,16 @@ namespace Brunet {
       ConnectToMessage  ctm = new ConnectToMessage(ConnectionType, _node.GetNodeInfo(8),
           _node.Address.ToString());
       ISender send = new AHSender(_node, target, AHPacket.AHOptions.Exact);
-      Connector con = new Connector(_node, send, ctm, this);
+      Connector con = new Connector(_node, send, ctm, this, target);
       con.FinishEvent += ConnectorEndHandler;
       con.AbortIf = abort;
       _node.TaskQueue.Enqueue(con);
     }
 
     virtual protected void ConnectorEndHandler(object o, EventArgs eargs) {
+    }
+
+    virtual protected void LinkerEndHandler(object o, EventArgs eargs) {
     }
   }
 }

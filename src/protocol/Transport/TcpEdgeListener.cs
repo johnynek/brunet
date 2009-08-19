@@ -42,6 +42,12 @@ namespace Brunet
   {
     protected readonly Socket _listen_sock;
     protected readonly IPEndPoint _local_endpoint;
+    public IPEndPoint LocalEndPoint {
+      get {
+        return new IPEndPoint(_local_endpoint.Address, _local_endpoint.Port);
+      }
+    }
+
     protected readonly Thread _loop;
 
     protected readonly IEnumerable _tas;

@@ -42,6 +42,7 @@ namespace Test {
 
     static Random rand = new Random();
     static string brunet_namespace = "testing";
+    static MemBlock dht_key = MemBlock.Reference(System.Text.Encoding.UTF8.GetBytes("tester"));
 
     static bool dht_enabled = false;
     static bool discovery = false;
@@ -134,7 +135,7 @@ namespace Test {
             NodeMapping nm = (NodeMapping) nodes.GetByIndex(rand.Next(0, nodes.Count));
             Dht dht = nm.Dht;
             BlockingQueue returns = new BlockingQueue();
-            dht.AsGet("tester", returns);
+            dht.AsyncGet(dht_key, returns);
             int count = 0;
             try {
               while(true) {
@@ -356,7 +357,7 @@ namespace Test {
         Dht dht = nm.Dht;
         Node node = nm.Node;
         Channel returns = new Channel();
-        dht.AsPut("tester", node.Address.ToString(), 2 * time_interval * dht_put_interval, returns);
+        dht.AsyncPut(dht_key, node.Address.ToMemBlock(), 2 * time_interval * dht_put_interval, returns);
       }
     }
 
@@ -366,7 +367,7 @@ namespace Test {
         int index = rand.Next(0, network_size);
         Dht dht = ((NodeMapping) nodes.GetByIndex(index)).Dht;
         Channel returns = new Channel();
-        dht.AsGet("tester", returns);
+        dht.AsyncGet(dht_key, returns);
       }
     }
 
