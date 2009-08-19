@@ -37,13 +37,15 @@ namespace Brunet
      * Here are the ConnectionOverlords for this type of Node
      */
     protected ConnectionOverlord _leafco;
-    protected ConnectionOverlord _sco;
+    protected ConnectionOverlord _snco;
+    protected ConnectionOverlord _ssco;
     //give access to the Structured connection overlord
-    public StructuredConnectionOverlord Sco {
+    public StructuredShortcutConnectionOverlord Ssco {
       get {
-        return _sco as StructuredConnectionOverlord;
+        return _ssco as StructuredShortcutConnectionOverlord;
       }
     }
+
     protected ConnectionOverlord _cco;
     protected ConnectionOverlord _localco;
     protected ManagedConnectionOverlord _mco;
@@ -53,29 +55,12 @@ namespace Brunet
     protected static readonly int MAX_NEIGHBORS = 4;
     public ConnectionPacketHandler sys_link;
 
-
-    /**
-     * Right now, this just asks if the main ConnectionOverlords
-     * are looking for connections, with the assumption being
-     * that if they are, we are not correctly connected.
-     *
-     * In the future, it might use a smarter algorithm
-     */
-    //     public override bool IsConnected {
-    //       get {
-    //         lock( _sync ) {
-    //           //To be routable, 
-    //           return !(_leafco.NeedConnection || _sco.NeedConnection);
-    //         }
-    //       }
-    //     }
-
     public override bool IsConnected {
       get {
-	return _sco.IsConnected;
+        return _snco.IsConnected;
       }
-
     }
+
     public StructuredNode(AHAddress add, string realm):base(add,realm)
     {
       // Instantiate rpc early!
@@ -84,7 +69,8 @@ namespace Brunet
        * Here are the ConnectionOverlords
        */ 
       _leafco = new LeafConnectionOverlord(this);
-      _sco = new StructuredConnectionOverlord(this);
+      _snco = new StructuredNearConnectionOverlord(this);
+      _ssco = new StructuredShortcutConnectionOverlord(this);
       _cco = new ChotaConnectionOverlord(this);
       _mco = new ManagedConnectionOverlord(this);
 #if !BRUNET_SIMULATOR
@@ -165,7 +151,8 @@ namespace Brunet
 #endif
 
       _leafco.IsActive = false;
-      _sco.IsActive = false;
+      _snco.IsActive = false;
+      _ssco.IsActive = false;
       _cco.IsActive = false;
       _mco.IsActive = false;
       StopAllEdgeListeners();
@@ -182,14 +169,16 @@ namespace Brunet
       StartAllEdgeListeners();
 
       _leafco.IsActive = true;
-      _sco.IsActive = true;
+      _snco.IsActive = true;
+      _ssco.IsActive = true;
       _cco.IsActive = true;
       _mco.IsActive = true;
 
 #if !BRUNET_SIMULATOR
       _localco.IsActive = true;
       _leafco.Activate();
-      _sco.Activate();
+      _ssco.Activate();
+      _snco.Activate();
       _cco.Activate();
       _localco.Activate();
       _mco.Activate();
@@ -215,7 +204,8 @@ namespace Brunet
       _localco.IsActive = false;
 #endif
       _leafco.IsActive = false;
-      _sco.IsActive = false;
+      _snco.IsActive = false;
+      _ssco.IsActive = false;
       _cco.IsActive = false;
       _mco.IsActive = false;
 

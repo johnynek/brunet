@@ -65,7 +65,7 @@ namespace Brunet {
      * @return true if the ConnectionOverlord has sufficient connections
      *  for connectivity (no routing performance yet!)
      */
-    virtual public bool IsConnected { get { throw new Exception("Not implemented!"); } }
+    virtual public bool IsConnected { get { throw new NotImplementedException(); } }
 
     /**
      * Connectors just send and receive ConnectToMessages.  They return all responses
@@ -87,7 +87,43 @@ namespace Brunet {
       return true;
     }
 
+    /**
+     * So many ways to ConnectTo a remote node, at a minimum we need to know the
+     * remote nodes address and the connection type.  Alternatively we could also
+     * know a sender and a token as well.
+     */
     virtual protected void ConnectTo(Address target, string ConnectionType) {
+      ConnectTo(target, ConnectionType, _node.Address.ToString());
+    }
+
+    virtual protected void ConnectTo(Address target, string ConnectionType,
+        string token)
+    {
+      ISender sender = new AHExactSender(_node, target);
+      ConnectTo(sender, target, ConnectionType, _node.Address.ToString());
+    }
+
+    virtual protected void ConnectTo(ISender sender, Address target,
+        string ConnectionType)
+    {
+      ConnectTo(sender, target, ConnectionType, _node.Address.ToString());
+    }
+
+    virtual protected void ConnectTo(ISender sender, Address target,
+        string ConnectionType, string token)
+    {
+      Connector con = GetConnector(sender, target, ConnectionType, token);
+      if(con != null) {
+        _node.TaskQueue.Enqueue(con);
+      }
+    }
+
+    /**
+     * This method allows a user to add some state in the ConnectTo call (see SNCO).
+     */
+    virtual protected Connector GetConnector(ISender sender, Address target,
+        string ConnectionType, string token)
+    {
       ConnectionType mt = Connection.StringToMainType(ConnectionType);
       /*
        * This is an anonymous delegate which is called before
@@ -112,16 +148,23 @@ namespace Brunet {
         return stop;
       };
       if (abort(null)) {
-        return;
+        return null;
       }
 
-      ConnectToMessage  ctm = new ConnectToMessage(ConnectionType, _node.GetNodeInfo(8),
-          _node.Address.ToString());
-      ISender send = new AHExactSender(_node, target);
-      Connector con = new Connector(_node, send, ctm, this, target);
+      ConnectToMessage ctm = GetConnectToMessage(ConnectionType, token);
+      Connector con = new Connector(_node, sender, ctm, this, target);
       con.FinishEvent += ConnectorEndHandler;
       con.AbortIf = abort;
-      _node.TaskQueue.Enqueue(con);
+      return con;
+    }
+
+    /**
+     * Not all COs want to have the same Ctm (see SNCO)
+     */
+    virtual protected ConnectToMessage GetConnectToMessage(string ConnectionType,
+        string token)
+    {
+      return new ConnectToMessage(ConnectionType, _node.GetNodeInfo(8), token);
     }
 
     virtual protected void ConnectorEndHandler(object o, EventArgs eargs) {
