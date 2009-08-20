@@ -52,7 +52,7 @@ based on ...
 using System;
 
 namespace Brunet {
-	public class DateTime {
+	public class DateTime : IComparable, IComparable<DateTime> {
     protected long _ticks;
     public long Ticks { get { return _ticks; } }
 		public static readonly DateTime MaxValue = new DateTime(long.MaxValue);
@@ -71,7 +71,7 @@ namespace Brunet {
       _cticks += TimeSpan.TicksPerMillisecond * ms;
     }
 
-    protected static long _cticks;
+    protected static long _cticks = 0;
     public static DateTime UtcNow {
       get {
         return new DateTime(_cticks);

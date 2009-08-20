@@ -61,14 +61,41 @@ namespace Brunet.Util {
 #if BRUNET_SIMULATOR
     public static long Minimum {
       get {
-        lock(_sync) {
-          if(_timers.Empty) {
-            return long.MaxValue;
-          } else {
-            return _timers.Peek()._next_run;
+        long minimum = long.MaxValue;
+        if(!_timers.Empty) {
+          minimum = _timers.Peek()._next_run;
+        }
+        return System.Math.Min(minimum, FuzzyTimer.Instance.Minimum);
+      }
+    }
+
+    public static void RunSteps(int cycles) {
+      RunSteps(cycles, true);
+    }
+
+    public static void RunSteps(int cycles, bool log) {
+      long cycle = DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond;
+      long diff = cycle + cycles;
+      cycle = SimpleTimer.Minimum / TimeSpan.TicksPerMillisecond;
+
+      System.DateTime last = System.DateTime.UtcNow;
+      while(diff > cycle) {
+        System.DateTime now = System.DateTime.UtcNow;
+        if(last.AddSeconds(5) < now) {
+          last = now;
+          if(log) {
+            Console.WriteLine(now + ": " + DateTime.UtcNow);
           }
         }
+        Brunet.DateTime.SetTime(cycle);
+        cycle = SimpleTimer.Run() / TimeSpan.TicksPerMillisecond;
       }
+    }
+
+    public static void RunStep() {
+      long next = SimpleTimer.Minimum;
+      Brunet.DateTime.SetTime(next / TimeSpan.TicksPerMillisecond);
+      SimpleTimer.Run();
     }
 #endif
 
@@ -86,7 +113,9 @@ namespace Brunet.Util {
       _running = 0;
       while(true) {
         bool stopped = false;
+#if !BRUNET_SIMULATOR
         lock(_sync) {
+#endif
           if(_timers.Empty) {
             break;
           }
@@ -106,7 +135,9 @@ namespace Brunet.Util {
           } else {
             stopped = true;
           }
+#if !BRUNET_SIMULATOR
         }
+#endif
 
         try {
           timer._callback(timer._state);
@@ -119,6 +150,10 @@ namespace Brunet.Util {
           timer.Stop();
         }
       }
+
+#if BRUNET_SIMULATOR
+      min_next_run = System.Math.Min(min_next_run, FuzzyTimer.Instance.Run());
+#endif
 
       return min_next_run;
     }
@@ -177,12 +212,14 @@ namespace Brunet.Util {
         _next_run = dueTime * TimeSpan.TicksPerMillisecond + now;
       }
 
+#if BRUNET_SIMULATOR
+      _timers.Add(this);
+#else
       bool first = false;
       lock(_sync) {
         first = _timers.Add(this);
       }
       // If we're in the simulator, we don't use the AutoResetEvent
-#if !BRUNET_SIMULATOR
       if(first) {
         _re.Set();
       }

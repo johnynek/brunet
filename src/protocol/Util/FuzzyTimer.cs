@@ -132,8 +132,10 @@ public class RepeatingFuzzyEvent : FuzzyEvent {
  */
 public class FuzzyTimer : IDisposable {
 
+#if !BRUNET_SIMULATOR
   readonly LFBlockingQueue<FuzzyEvent> _incoming_events;
   readonly Thread _timer_thread;
+#endif
   protected static FuzzyTimer _singleton;
   //This is a singleton class
   public static FuzzyTimer Instance {
@@ -146,8 +148,10 @@ public class FuzzyTimer : IDisposable {
       FuzzyTimer new_val = new FuzzyTimer();
       FuzzyTimer old_val = Interlocked.CompareExchange<FuzzyTimer>(ref _singleton, new_val, null);
       if( old_val == null ) {
+#if !BRUNET_SIMULATOR
         //We just created a new FuzzyTimer, so we have to start it:
         new_val._timer_thread.Start();
+#endif
         return new_val;
       }
       else {
@@ -166,9 +170,11 @@ public class FuzzyTimer : IDisposable {
   }
 
   protected FuzzyTimer() {
+#if !BRUNET_SIMULATOR
     _incoming_events = new LFBlockingQueue<FuzzyEvent>(); 
     _timer_thread = new Thread(TimerThread);
     _timer_thread.IsBackground = true;
+#endif
   }
 
   ~FuzzyTimer() {
@@ -222,16 +228,46 @@ public class FuzzyTimer : IDisposable {
   }
 
   public void Dispose() {
+#if !BRUNET_SIMULATOR
     _incoming_events.Enqueue(null);
     if( Thread.CurrentThread != _timer_thread ) {
       _timer_thread.Join();
     }
+#endif
   }
+
+#if BRUNET_SIMULATOR
+  // Simulator does not need a lock as it is single threaded
+  Heap<FuzzyEvent> _events = new Heap<FuzzyEvent>();
+
+  public long Minimum {
+    get {
+      if(_events.Count == 0) {
+        return long.MaxValue;
+      }
+      return _events.Peek().Start.Ticks;
+    }
+  }
+
+  public long Run() {
+    DateTime now = DateTime.UtcNow;
+    while(_events.Count > 0 && _events.Peek().Start <= now) {
+      FuzzyEvent fe = _events.Pop();
+      fe.TryRun(now);
+    }
+    return Minimum;
+  }
+#endif
 
   public void Schedule(FuzzyEvent e) {
+#if BRUNET_SIMULATOR
+    _events.Add(e);
+#else
     _incoming_events.Enqueue(e);
+#endif
   }
 
+#if !BRUNET_SIMULATOR
   protected void TimerThread() {
     Heap<FuzzyEvent> events = new Heap<FuzzyEvent>();
     List<FuzzyEvent> next_todos = new List<FuzzyEvent>();
@@ -336,6 +372,7 @@ public class FuzzyTimer : IDisposable {
       }
     }
   }
+#endif
 
 }
 
