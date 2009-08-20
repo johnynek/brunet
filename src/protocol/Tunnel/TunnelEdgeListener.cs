@@ -54,6 +54,8 @@ namespace Brunet.Tunnel {
     protected readonly ITunnelOverlap _ito;
     protected readonly OverlapConnectionOverlord _oco;
     protected readonly IAddressSelectorFactory _iasf;
+    protected readonly SimpleTimer _oco_trim_timer;
+    protected readonly int _oco_trim_timeout = 300000; // 5 minutes
 
     public override TransportAddress.TAType TAType {
       get {
@@ -100,6 +102,39 @@ namespace Brunet.Tunnel {
       ConnectionList cons = _node.ConnectionTable.GetConnections(ConnectionType.Structured);
       Interlocked.Exchange(ref _connections, cons);
       _node.Rpc.AddHandler("tunnel", this);
+      _oco_trim_timer = new SimpleTimer(OcoTrim, null, _oco_trim_timeout, _oco_trim_timeout);
+    }
+
+    /// <summary>A callback to trim Overlapped Connections.  We do this here,
+    /// since we control Oco and he is essentially headless.</summary>
+    protected void OcoTrim(object o)
+    {
+      Hashtable used_addrs = new Hashtable();
+      foreach(TunnelEdge te in _tunnels) {
+        foreach(Address addr in te.Overlap) {
+          used_addrs[addr] = true;
+        }
+      }
+
+      ConnectionList cons = _connections;
+      DateTime timeout = DateTime.UtcNow.AddMilliseconds(-1 * _oco_trim_timeout);
+      foreach(Connection con in cons) {
+        if(!con.ConType.Equals(OverlapConnectionOverlord.STRUC_OVERLAP)) {
+          continue;
+        }
+        // If we don't use it or it is still young we'll spare it for now
+        if(used_addrs.Contains(con.Address) || con.CreationTime > timeout) {
+          continue;
+        }
+
+        int left_pos = _connections.LeftInclusiveCount(_node.Address, con.Address);
+        int right_pos = _connections.RightInclusiveCount(_node.Address, con.Address);
+        if( left_pos >= StructuredNearConnectionOverlord.DESIRED_NEIGHBORS &&
+            right_pos >= StructuredNearConnectionOverlord.DESIRED_NEIGHBORS )
+        {
+          _node.GracefullyClose(con.Edge, "OCO, unused overlapped connection");
+        }
+      }
     }
 
     public void HandleRpc(ISender caller, string method, IList args, object rs)
@@ -437,12 +472,14 @@ namespace Brunet.Tunnel {
 
       _oco.IsActive = true;
       Interlocked.Exchange(ref _running, 1);
+      _oco_trim_timer.Start();
     }
 
     public override void Stop()
     {
       _oco.IsActive = false;
       Interlocked.Exchange(ref _running, 0);
+      _oco_trim_timer.Stop();
       base.Stop();
     }
 
