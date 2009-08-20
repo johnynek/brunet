@@ -32,7 +32,7 @@ namespace Brunet {
  */
 public class AHHeader : ICopyable {
   
-  public static readonly int LENGTH = 46;
+  public static readonly int LENGTH = 6 + 2 * Address.MemSize;
   protected readonly MemBlock _data;
   
   public readonly short Hops;
@@ -43,7 +43,7 @@ public class AHHeader : ICopyable {
   public Address Destination {
     get {
       if( null == _dest ) {
-        _dest = AddressParser.Parse(_data.Slice(24,20));
+        _dest = AddressParser.Parse(_data.Slice(Address.MemSize + 4, Address.MemSize));
       }
       return _dest;
     }
@@ -52,7 +52,7 @@ public class AHHeader : ICopyable {
   public Address Source {
     get {
       if( null == _src ) {
-        _src = AddressParser.Parse(_data.Slice(4,20));
+        _src = AddressParser.Parse(_data.Slice(4, Address.MemSize));
       }
       return _src;
     }
@@ -74,7 +74,7 @@ public class AHHeader : ICopyable {
     Hops = NumberSerializer.ReadShort(mb, 0);
     Ttl = NumberSerializer.ReadShort(mb, 2);
     //We parse the Address objects lazily
-    Opts = (ushort)NumberSerializer.ReadShort(mb, 44);
+    Opts = (ushort)NumberSerializer.ReadShort(mb, 2 * Address.MemSize + 4);
     if( mb.Length != LENGTH ) {
       mb = mb.Slice(0,LENGTH);
     }
