@@ -22,6 +22,10 @@ using System.Threading;
 using System.Collections;
 using System.Collections.Generic;
 
+#if BRUNET_NUNIT
+using NUnit.Framework;
+#endif
+
 namespace Brunet.Tunnel {
   /// <summary>Holds the state information for a Tunnels.</summary>
   public class TunnelEdge : Edge {
@@ -125,9 +129,10 @@ namespace Brunet.Tunnel {
     public void UpdateNeighborIntersection(List<Connection> neighbors)
     {
       lock(_sync) {
-        _tunnels = neighbors;
+        _tunnels = new List<Connection>(neighbors);
       }
-      if(neighbors.Count == 0) {
+
+      if(neighbors.Count == 0 || ShouldClose()) {
         Close();
       }
       _ias.Update(neighbors);
@@ -147,7 +152,7 @@ namespace Brunet.Tunnel {
           tunnels.Add(ccon);
         }
 
-        if(tunnels.Count == tunnels.Count) {
+        if(tunnels.Count == _tunnels.Count) {
           return;
         }
 
@@ -155,10 +160,93 @@ namespace Brunet.Tunnel {
         close = _tunnels.Count == 0;
       }
 
-      if(close) {
+      if(close || ShouldClose()) {
         Close();
       }
       _ias.Update(_tunnels);
     }
+
+    /// <summary>We need to make sure we still have a way out of the tunnel
+    /// maze, otherwise we could get an endless loop resulting in a stack
+    /// exception.  For now, we will simply ensure that one of our overlap
+    /// or our overlaps overlap has at least one such connection.  Furthermore,
+    /// if we have a long chain of tunnels relying on one overlap, they will
+    /// eventually all close after the top most peer which happens to be in
+    /// their overlap closes.</summary>
+#if BRUNET_NUNIT
+    public bool ShouldClose() {
+#else
+    protected bool ShouldClose() {
+#endif
+      Hashtable have_passed = new Hashtable();
+      Stack stack = new Stack();
+      stack.Push(_tunnels.GetEnumerator());
+      while(stack.Count > 0) {
+        IEnumerator<Connection> cons = stack.Pop() as IEnumerator<Connection>;
+        while(cons.MoveNext()) {
+          TunnelEdge te = cons.Current.Edge as TunnelEdge;
+          if(te == null) {
+            return false;
+          }
+
+          if(have_passed.Contains(te)) {
+            continue;
+          }
+          have_passed[te] = true;
+          stack.Push(cons);
+          cons = te.Overlap.GetEnumerator();
+        }
+      }
+      return true;
+    }
   }
+#if BRUNET_NUNIT
+  [TestFixture]
+  public class TunnelEdgeTest {
+    [Test]
+    public void Test()
+    {
+      AHAddress addr = new AHAddress(new System.Security.Cryptography.RNGCryptoServiceProvider());
+      TransportAddress ta = TransportAddressFactory.CreateInstance("brunet.tcp://169.0.5.1:5000");
+      FakeEdge fe = new FakeEdge(ta, ta);
+      Connection fcon = new Connection(fe, addr, "structured", null, null);
+
+      List<Connection> overlap = new List<Connection>();
+      overlap.Add(fcon);
+      TunnelTransportAddress tta = new TunnelTransportAddress(addr, overlap);
+      TunnelEdge te1 = new TunnelEdge(null, tta, tta, new SimpleForwarderSelector(), overlap);
+      Connection t1con = new Connection(te1, addr, "structured", null, null);
+
+      overlap = new List<Connection>();
+      overlap.Add(t1con);
+      TunnelEdge te2 = new TunnelEdge(null, tta, tta, new SimpleForwarderSelector(), overlap);
+      Connection t2con = new Connection(te2, addr, "structured", null, null);
+
+      overlap = new List<Connection>();
+      overlap.Add(t2con);
+      TunnelEdge te3 = new TunnelEdge(null, tta, tta, new SimpleForwarderSelector(), overlap);
+      Connection t3con = new Connection(te3, addr, "structured", null, null);
+
+      overlap = new List<Connection>();
+      overlap.Add(t3con);
+      TunnelEdge te4 = new TunnelEdge(null, tta, tta, new SimpleForwarderSelector(), overlap);
+      Connection t4con = new Connection(te4, addr, "structured", null, null);
+
+      overlap = new List<Connection>();
+      overlap.Add(t4con);
+      TunnelEdge te5 = new TunnelEdge(null, tta, tta, new SimpleForwarderSelector(), overlap);
+      Connection t5con = new Connection(te5, addr, "structured", null, null);
+
+      Assert.AreEqual(te5.ShouldClose(), false, "Shouldn't close yet...");
+      te1.DisconnectionHandler(fcon);
+      Assert.AreEqual(te5.ShouldClose(), true, "Should close...");
+
+      overlap.Add(t5con);
+      overlap.Add(t3con);
+      overlap.Add(t1con);
+      te2.UpdateNeighborIntersection(overlap);
+      Assert.AreEqual(te5.ShouldClose(), true, "Should close... 2");
+    }
+  }
+#endif
 }

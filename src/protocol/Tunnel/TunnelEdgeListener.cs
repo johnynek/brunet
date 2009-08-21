@@ -344,6 +344,7 @@ namespace Brunet.Tunnel {
         if(te.IsClosed) {
           continue;
         }
+
         IDictionary sync_message = _ito.GetSyncMessage(te.Overlap, _node.Address, cons);
         Channel chan = new Channel(1);
         _node.Rpc.Invoke(te, chan, "tunnel.Sync", sync_message);
