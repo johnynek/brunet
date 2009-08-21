@@ -86,8 +86,11 @@ namespace Brunet.Coordinate {
       double their_best_latency = double.MaxValue;
 
       foreach(DictionaryEntry de in msg) {
-        byte[] baddr = Convert.FromBase64String(de.Key as string);
-        Address addr = new AHAddress(MemBlock.Reference(baddr));
+        MemBlock key = de.Key as MemBlock;
+        if(key == null) {
+          key = MemBlock.Reference((byte[]) de.Key);
+        }
+        Address addr = new AHAddress(key);
 
         IDictionary info = de.Value as IDictionary;
         TransportAddress.TAType tatype =
@@ -124,8 +127,11 @@ namespace Brunet.Coordinate {
       List<Address> overlap = new List<Address>();
 
       foreach(DictionaryEntry de in msg) {
-        byte[] baddr = Convert.FromBase64String(de.Key as string);
-        Address addr = new AHAddress(MemBlock.Reference(baddr));
+        MemBlock key = de.Key as MemBlock;
+        if(key == null) {
+          key = MemBlock.Reference((byte[]) de.Key);
+        }
+        Address addr = new AHAddress(key);
 
         int index = cons.IndexOf(addr);
         if(index < 0) {
@@ -171,7 +177,7 @@ namespace Brunet.Coordinate {
           info["ta"] = TransportAddress.TATypeToString(con.Edge.TAType);
           info["lat"] = _ncservice.GetMeasuredLatency(addr);
           info["ct"] = (int) (now - con.CreationTime).TotalMilliseconds;
-          ht[addr.ToMemBlock().ToBase64String()] = info;
+          ht[addr.ToMemBlock()] = info;
         }
       }
 
@@ -183,7 +189,7 @@ namespace Brunet.Coordinate {
 
       for(int i = 0; i < closest.Count && i < 4; i++) {
         Address addr = closest[i];
-        string key = addr.ToMemBlock().ToBase64String();
+        MemBlock key = addr.ToMemBlock();
         if(ht.Contains(key)) {
           continue;
         }

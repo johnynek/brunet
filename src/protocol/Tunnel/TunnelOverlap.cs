@@ -81,8 +81,7 @@ namespace Brunet.Tunnel {
       Address oldest_addr = null;
       int oldest_age = -1;
       foreach(DictionaryEntry de in msg) {
-        byte[] baddr = Convert.FromBase64String(de.Key as string);
-        Address addr = new AHAddress(MemBlock.Reference(baddr));
+        Address addr = new AHAddress(MemBlock.Reference((byte[]) de.Key));
 
         Hashtable values = de.Value as Hashtable;
         TransportAddress.TAType tatype =
@@ -107,8 +106,7 @@ namespace Brunet.Tunnel {
       List<Connection> overlap = new List<Connection>();
 
       foreach(DictionaryEntry de in msg) {
-        byte[] baddr = Convert.FromBase64String(de.Key as string);
-        Address addr = new AHAddress(MemBlock.Reference(baddr));
+        Address addr = new AHAddress(MemBlock.Reference((byte[]) de.Key));
 
         int index = cons.IndexOf(addr);
         if(index < 0) {
@@ -116,6 +114,9 @@ namespace Brunet.Tunnel {
         }
 
         Connection con = cons[index];
+        if(con.Edge.TAType == TransportAddress.TAType.Tunnel) {
+          continue;
+        }
 
         // Since there are no guarantees about routing over two tunnels, we do
         // not consider cases where we are connected to the overlapping tunnels
@@ -149,19 +150,24 @@ namespace Brunet.Tunnel {
             continue;
           }
           Connection con = cons[index];
-          Hashtable info = new Hashtable(1);
+          Hashtable info = new Hashtable(2);
           info["ta"] = TransportAddress.TATypeToString(con.Edge.TAType);
           info["ct"] = (int) (now - con.CreationTime).TotalMilliseconds;
-          ht[con.Address.ToMemBlock().ToBase64String()] = info;
+          ht[con.Address.ToMemBlock()] = info;
         }
       }
 
-      if(cons.Count > 20) {
-        cons = cons.GetNearestTo(local_addr, 20);
+      int idx = cons.IndexOf(local_addr);
+      if(idx < 0) {
+        idx = ~idx;
       }
+      int max = cons.Count < 16 ? cons.Count : 16;
+      int start = idx - max / 2;
+      int end = idx + max / 2;
 
-      foreach(Connection con in cons) {
-        string key = con.Address.ToMemBlock().ToBase64String();
+      for(int i = start; i < end; i++) {
+        Connection con = cons[i];
+        MemBlock key = con.Address.ToMemBlock();
         if(ht.Contains(key)) {
           continue;
         }
