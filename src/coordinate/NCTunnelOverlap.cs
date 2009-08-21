@@ -41,23 +41,34 @@ namespace Brunet.Coordinate {
       _ncservice = ncservice;
     }
 
-    /// <summary>Returns at most the 4 closest addresses in order.</summary>
-    protected List<Address> GetClosest(List<Address> addrs)
+    /// <summary>Returns the 4 oldest connections.</summary>
+    protected List<Connection> GetClosest(ConnectionList cons)
     {
-      List<Address> closest = new List<Address>(addrs);
+      List<Connection> lcons = new List<Connection>(cons.Count);
+      foreach(Connection con in cons) {
+        lcons.Add(con);
+      }
+
+      return GetClosest(lcons);
+    }
+
+    /// <summary>Returns at most the 4 closest addresses in order.</summary>
+    protected List<Connection> GetClosest(List<Connection> cons)
+    {
+      List<Connection> closest = new List<Connection>(cons);
 
       // Since MeasuredLatency could change the duration of our sorting we make
       // a copy as necessary
-      Dictionary<Address, double> latencies = new Dictionary<Address, double>();
+      Dictionary<Connection, double> latencies = new Dictionary<Connection, double>();
 
-      Comparison<Address> comparer = delegate(Address x, Address y) {
+      Comparison<Connection> comparer = delegate(Connection x, Connection y) {
         double lat_x, lat_y;
         if(!latencies.TryGetValue(x, out lat_x)) {
-          lat_x = _ncservice.GetMeasuredLatency(x);
+          lat_x = _ncservice.GetMeasuredLatency(x.Address);
           latencies[x] = lat_x;
         }
         if(!latencies.TryGetValue(y, out lat_y)) {
-          lat_y = _ncservice.GetMeasuredLatency(y);
+          lat_y = _ncservice.GetMeasuredLatency(y.Address);
           latencies[y] = lat_y;
         }
 
@@ -122,9 +133,9 @@ namespace Brunet.Coordinate {
     }
 
     /// <summary>Returns the four fastest in the overlap.</summary>
-    public override List<Address> EvaluateOverlap(ConnectionList cons, IDictionary msg)
+    public override List<Connection> EvaluateOverlap(ConnectionList cons, IDictionary msg)
     {
-      List<Address> overlap = new List<Address>();
+      List<Connection> overlap = new List<Connection>();
 
       foreach(DictionaryEntry de in msg) {
         MemBlock key = de.Key as MemBlock;
@@ -151,7 +162,7 @@ namespace Brunet.Coordinate {
             continue;
           }
         }
-        overlap.Add(con.Address);
+        overlap.Add(con);
       }
 
       return GetClosest(overlap);
@@ -159,47 +170,32 @@ namespace Brunet.Coordinate {
 
     /// <summary>Returns a Tunnel Sync message containing all overlap and then
     /// the four fastest (if not included in the overlap.</summary>
-    public override IDictionary GetSyncMessage(IList<Address> current_overlap,
+    public override IDictionary GetSyncMessage(IList<Connection> current_overlap,
         Address local_addr, ConnectionList cons)
     {
       Hashtable ht = new Hashtable(40);
       DateTime now = DateTime.UtcNow;
 
       if(current_overlap != null) {
-        foreach(Address addr in current_overlap) {
-          int index = cons.IndexOf(addr);
-          // I guess we aren't really overlapped any more
-          if(index < 0) {
-            continue;
-          }
-          Connection con = cons[index];
-          Hashtable info = new Hashtable(1);
+        foreach(Connection con in current_overlap) {
+          Hashtable info = new Hashtable(3);
           info["ta"] = TransportAddress.TATypeToString(con.Edge.TAType);
-          info["lat"] = _ncservice.GetMeasuredLatency(addr);
+          info["lat"] = _ncservice.GetMeasuredLatency(con.Address);
           info["ct"] = (int) (now - con.CreationTime).TotalMilliseconds;
-          ht[addr.ToMemBlock()] = info;
+          ht[con.Address.ToMemBlock()] = info;
         }
       }
 
-      List<Address> all_addresses = new List<Address>(cons.Count);
-      foreach(Connection con in cons) {
-        all_addresses.Add(con.Address);
-      }
-      List<Address> closest = GetClosest(all_addresses);
-
-      for(int i = 0; i < closest.Count && i < 4; i++) {
-        Address addr = closest[i];
-        MemBlock key = addr.ToMemBlock();
+      foreach(Connection con in GetClosest(cons)) {
+        MemBlock key = con.Address.ToMemBlock();
         if(ht.Contains(key)) {
           continue;
         }
         // No need to verify it is >= 0, since addr comes from cons in a
         // previous stage
-        int index = cons.IndexOf(addr);
-        Connection con = cons[index];
-        Hashtable info = new Hashtable();
+        Hashtable info = new Hashtable(3);
         info["ta"] = TransportAddress.TATypeToString(con.Edge.TAType);
-        info["lat"] = _ncservice.GetMeasuredLatency(addr);
+        info["lat"] = _ncservice.GetMeasuredLatency(con.Address);
         info["ct"] = (int) (now - con.CreationTime).TotalMilliseconds;
         ht[key] = info;
       }
@@ -219,7 +215,7 @@ namespace Brunet.Coordinate {
       Address.SetClass(addrbuff, AHAddress._class);
       Address addr_y = new AHAddress(addrbuff);
 
-      ArrayList addresses = new ArrayList();
+      List<Connection> connections = new List<Connection>();
       ConnectionTable ct_x = new ConnectionTable();
       ConnectionTable ct_y = new ConnectionTable();
       ConnectionTable ct_empty = new ConnectionTable();
@@ -230,12 +226,13 @@ namespace Brunet.Coordinate {
         addrbuff = Address.ConvertToAddressBuffer(addr_x.ToBigInteger() + (i * Address.Full / 16));
         Address.SetClass(addrbuff, AHAddress._class);
         Address addr = new AHAddress(addrbuff);
-        addresses.Add(addr);
+        Connection con = null;
 
         TransportAddress ta = TransportAddressFactory.CreateInstance("brunet.tcp://158.7.0.1:5000");
         Edge fe = new FakeEdge(ta, ta, TransportAddress.TAType.Tcp);
         if(i <= 10) {
-          ct_x.Add(new Connection(fe, addr, "structured", null, null));
+          con = new Connection(fe, addr, "structured", null, null);
+          ct_x.Add(con);
           if(i % 2 == 0) {
             ncservice.ProcessSample(DateTime.UtcNow, String.Empty, addr,
                 new Point(new double[] {0, 0}, 0), 0, i*10);
@@ -247,38 +244,39 @@ namespace Brunet.Coordinate {
         }
 
         if(i == 10) {
-          ct_y.Add(new Connection(fe, addr, "structured", null, null));
+          ct_y.Add(con);
         }
+        connections.Add(con);
       }
 
       ITunnelOverlap sto = new SimpleTunnelOverlap();
       ITunnelOverlap nto = new NCTunnelOverlap(ncservice);
 
       ConnectionType con_type = ConnectionType.Structured;
-      List<Address> pre_addrs = new List<Address>();
-      pre_addrs.Add(addresses[9] as Address);
-      IDictionary id = nto.GetSyncMessage(pre_addrs, addr_x, ct_x.GetConnections(con_type));
+      List<Connection> pre_cons = new List<Connection>();
+      pre_cons.Add(connections[9]);
+      IDictionary id = nto.GetSyncMessage(pre_cons, addr_x, ct_x.GetConnections(con_type));
 
       // We do have some pre-existing overlap
-      Assert.AreEqual(nto.EvaluateOverlap(ct_y.GetConnections(con_type), id)[0], addresses[9], "NC: Have an overlap!");
-      Assert.AreEqual(sto.EvaluateOverlap(ct_y.GetConnections(con_type), id)[0], addresses[9], "Simple: Have an overlap!");
+      Assert.AreEqual(nto.EvaluateOverlap(ct_y.GetConnections(con_type), id)[0], connections[9], "NC: Have an overlap!");
+      Assert.AreEqual(sto.EvaluateOverlap(ct_y.GetConnections(con_type), id)[0], connections[9], "Simple: Have an overlap!");
 
       // We have no overlap with an empty connection table
       Assert.AreEqual(nto.EvaluateOverlap(ct_empty.GetConnections(con_type), id).Count, 0, "No overlap!");
       Assert.AreEqual(sto.EvaluateOverlap(ct_empty.GetConnections(con_type), id).Count, 0, "No overlap!");
 
       // latency[0] == -1
-      Assert.AreEqual(addresses[1].Equals(nto.EvaluatePotentialOverlap(id)), true,
+      Assert.AreEqual(connections[1].Address.Equals(nto.EvaluatePotentialOverlap(id)), true,
           "NC: EvaluatePotentialOverlap returns expected!");
-      Assert.AreEqual(addresses.Contains(sto.EvaluatePotentialOverlap(id)), true,
+      Assert.AreEqual(ct_x.Contains(con_type, sto.EvaluatePotentialOverlap(id)), true,
           "Simple: EvaluatePotentialOverlap returns valid!");
 
       ct_y.Add(fast_con);
       ct_x.Add(fast_con);
-      id = nto.GetSyncMessage(pre_addrs, addr_x, ct_x.GetConnections(con_type));
-      Assert.AreEqual(addresses[10].Equals(nto.EvaluatePotentialOverlap(id)), true,
+      id = nto.GetSyncMessage(pre_cons, addr_x, ct_x.GetConnections(con_type));
+      Assert.AreEqual(fast_con.Address.Equals(nto.EvaluatePotentialOverlap(id)), true,
           "NC: EvaluatePotentialOverlap returns expected!");
-      Assert.AreEqual(nto.EvaluateOverlap(ct_y.GetConnections(con_type), id)[0], addresses[10], "NC: Have better overlap!");
+      Assert.AreEqual(nto.EvaluateOverlap(ct_y.GetConnections(con_type), id)[0], fast_con, "NC: Have better overlap!");
     }
   }
 #endif

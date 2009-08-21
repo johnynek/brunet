@@ -53,7 +53,7 @@ namespace Brunet.Tunnel {
     protected ConnectionList _connections;
     protected readonly ITunnelOverlap _ito;
     protected readonly OverlapConnectionOverlord _oco;
-    protected readonly IAddressSelectorFactory _iasf;
+    protected readonly IForwarderSelectorFactory _iasf;
     protected readonly SimpleTimer _oco_trim_timer;
     protected readonly int _oco_trim_timeout = 300000; // 5 minutes
 
@@ -70,16 +70,16 @@ namespace Brunet.Tunnel {
     }
 
     public TunnelEdgeListener(Node node) :
-      this(node, new SimpleTunnelOverlap(), new SimpleAddressSelectorFactory())
+      this(node, new SimpleTunnelOverlap(), new SimpleForwarderSelectorFactory())
     {
     }
 
     public TunnelEdgeListener(Node node, ITunnelOverlap ito) :
-      this(node, ito, new SimpleAddressSelectorFactory())
+      this(node, ito, new SimpleForwarderSelectorFactory())
     {
     }
 
-    public TunnelEdgeListener(Node node, ITunnelOverlap ito, IAddressSelectorFactory iasf)
+    public TunnelEdgeListener(Node node, ITunnelOverlap ito, IForwarderSelectorFactory iasf)
     {
       _ito = ito;
       _iasf = iasf;
@@ -111,8 +111,8 @@ namespace Brunet.Tunnel {
     {
       Hashtable used_addrs = new Hashtable();
       foreach(TunnelEdge te in _tunnels) {
-        foreach(Address addr in te.Overlap) {
-          used_addrs[addr] = true;
+        foreach(Connection con in te.Overlap) {
+          used_addrs[con.Address] = true;
         }
       }
 
@@ -192,7 +192,7 @@ namespace Brunet.Tunnel {
       TunnelEdgeCallbackAction teca = o as TunnelEdgeCallbackAction;
       ConnectionList cons = _connections;
 
-      List<Address> overlap = _ito.FindOverlap(teca.TunnelTA, cons);
+      List<Connection> overlap = _ito.FindOverlap(teca.TunnelTA, cons);
       if(overlap.Count == 0) {
         if(_ito == null) {
           FailedEdgeCreate(teca);
@@ -217,13 +217,15 @@ namespace Brunet.Tunnel {
           return;
         }
 
-        if(!_node.ConnectionTable.Contains(OverlapConnectionOverlord.MAIN_TYPE, target)) {
+        ConnectionList cons = _connections;
+        int index = cons.IndexOf(target);
+        if(index < 0) {
           FailedEdgeCreate(teca);
           return;
         }
 
-        List<Address> overlap = new List<Address>(1);
-        overlap.Add(target);
+        List<Connection> overlap = new List<Connection>(1);
+        overlap.Add(cons[index]);
         CreateEdge(teca, overlap);
       };
 
@@ -248,7 +250,7 @@ namespace Brunet.Tunnel {
     }
 
     /// <summary>Common code to Create an outgoing edge.</summary>
-    protected void CreateEdge(TunnelEdgeCallbackAction teca, List<Address> overlap)
+    protected void CreateEdge(TunnelEdgeCallbackAction teca, List<Connection> overlap)
     {
       if(_connections.Contains(teca.TunnelTA.Target)) {
         FailedEdgeCreate(teca);
@@ -256,7 +258,7 @@ namespace Brunet.Tunnel {
       }
 
       TunnelEdge te = new TunnelEdge(this, (TunnelTransportAddress) _local_tas[0],
-          teca.TunnelTA, _iasf.GetAddressSelector(), overlap);
+          teca.TunnelTA, _iasf.GetForwarderSelector(), overlap);
       lock(_sync) {
         _id_to_tunnel[te.LocalID] = te;
       }
@@ -284,7 +286,7 @@ namespace Brunet.Tunnel {
     /// it is empty.</summary>
     protected void UpdateNeighborIntersection(TunnelEdge from, IDictionary msg)
     {
-      List<Address> overlap = _ito.EvaluateOverlap(_connections, msg);
+      List<Connection> overlap = _ito.EvaluateOverlap(_connections, msg);
       from.UpdateNeighborIntersection(overlap);
     }
 
@@ -338,7 +340,7 @@ namespace Brunet.Tunnel {
 
 
       foreach(TunnelEdge te in _tunnels) {
-        te.DisconnectionHandler(cea.Connection.Address);
+        te.DisconnectionHandler(cea.Connection);
         if(te.IsClosed) {
           continue;
         }
@@ -352,7 +354,7 @@ namespace Brunet.Tunnel {
     /// is in turn used to help communicate with tunnel peer.</summary>
     public static List<Address> GetNearest(Address addr, ConnectionList cons)
     {
-      ConnectionList cons_near = cons.GetNearestTo(addr, 8);
+      ConnectionList cons_near = cons.GetNearestTo(addr, 16);
       List<Address> addrs = new List<Address>();
       foreach(Connection con in cons_near) {
         addrs.Add(con.Address);
@@ -396,12 +398,12 @@ namespace Brunet.Tunnel {
           return;
         }
 
-        List<Address> overlap_addrs = new List<Address>();
-        overlap_addrs.Add(cons[index].Address);
+        List<Connection> overlap_addrs = new List<Connection>();
+        overlap_addrs.Add(cons[index]);
 
         te = new TunnelEdge(this, (TunnelTransportAddress) _local_tas[0],
             new TunnelTransportAddress(target, overlap_addrs),
-            _iasf.GetAddressSelector(), overlap_addrs, remote_id);
+            _iasf.GetForwarderSelector(), overlap_addrs, remote_id);
         lock(_sync) {
           _id_to_tunnel[te.LocalID] = te;
         }
@@ -440,23 +442,15 @@ namespace Brunet.Tunnel {
     public void HandleEdgeSend(Edge from, ICopyable data)
     {
       TunnelEdge te = from as TunnelEdge;
-      Address forwarder  = te.NextAddress;
+      Connection forwarder = te.NextForwarder;
 
       if(te.RemoteID == -1) {
         Address target = (te.RemoteTA as TunnelTransportAddress).Target;
-        ISender sender = new ForwardingSender(_node, forwarder, target);
+        ISender sender = new ForwardingSender(_node, forwarder.Address, target);
         sender.Send(new CopyList(PType.Protocol.Tunneling, te.MId, data));
       } else {
-        ConnectionList cons = _connections;
-        int index = cons.IndexOf(forwarder);
-        // While this shouldn't happen, it could
-        if(index < 0) {
-          return;
-        }
-
-        ISender sender = cons[index].Edge;
         try {
-          sender.Send(new CopyList(te.Header, te.MId, data));
+          forwarder.Edge.Send(new CopyList(te.Header, te.MId, data));
         } catch {
           // We could be sending aon a closed edge... we could deal with this
           // better, but let's just let the system take its natural course.

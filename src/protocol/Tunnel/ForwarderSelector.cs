@@ -25,48 +25,48 @@ using System.Threading;
 namespace Brunet.Tunnel {
   /// <summary>Because the only way to instantiate objects from type information
   /// is via reflection and I'm not a big fan of reflection, I use an object
-  /// factory to create new objects.  In this case, we are generating Address
+  /// factory to create new objects.  In this case, we are generating Forwarder 
   /// Selectors.</summary>
-  public interface IAddressSelectorFactory {
-    IAddressSelector GetAddressSelector();
+  public interface IForwarderSelectorFactory {
+    IForwarderSelector GetForwarderSelector();
   }
 
-  /// <summary>Creates new SimpleAddressSelector.</summary>
-  public class SimpleAddressSelectorFactory : IAddressSelectorFactory {
-    public IAddressSelector GetAddressSelector()
+  /// <summary>Creates new SimpleForwarderSelector.</summary>
+  public class SimpleForwarderSelectorFactory : IForwarderSelectorFactory {
+    public IForwarderSelector GetForwarderSelector()
     {
-      return new SimpleAddressSelector();
+      return new SimpleForwarderSelector();
     }
   }
 
   /// <summary>Selects an address from a list of addresses.</summary>
-  public interface IAddressSelector {
-    void Update(List<Address> addresses);
-    Address NextAddress { get; }
+  public interface IForwarderSelector {
+    void Update(List<Connection> cons);
+    Connection NextForwarder { get; }
   }
 
-  /// <summary>An AddressSelector that returns an address from the list
+  /// <summary>An ForwarderSelector that returns an address from the list
   /// pseudorandomly.</summary>
-  public class SimpleAddressSelector : IAddressSelector {
+  public class SimpleForwarderSelector : IForwarderSelector {
     protected int _count;
-    protected List<Address> _addresses;
+    protected List<Connection> _cons;
 
-    public SimpleAddressSelector()
+    public SimpleForwarderSelector()
     {
       _count = 0;
     }
 
-    public Address NextAddress {
+    public Connection NextForwarder {
       get {
         int pos = Interlocked.Increment(ref _count);
-        var addresses = _addresses;
-        return addresses[pos % addresses.Count];
+        List<Connection> cons = _cons;
+        return cons[pos % cons.Count];
       }
     }
 
-    public void Update(List<Address> addresses)
+    public void Update(List<Connection> cons)
     {
-      Interlocked.Exchange(ref _addresses, addresses);
+      Interlocked.Exchange(ref _cons, cons);
     }
   }
 }

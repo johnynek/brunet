@@ -56,14 +56,14 @@ namespace Brunet.Tunnel {
     protected readonly TransportAddress _remote_ta;
 
     /// <summary>A functional list of tunnels.  Replace to update.</summary>
-    protected List<Address> _tunnels;
-    protected IAddressSelector _ias;
+    protected List<Connection> _tunnels;
+    protected IForwarderSelector _ias;
 
-    public IList<Address> Overlap { get { return _tunnels.AsReadOnly(); } }
+    public IList<Connection> Overlap { get { return _tunnels.AsReadOnly(); } }
 
-    public Address NextAddress {
+    public Connection NextForwarder {
       get {
-        return _ias.NextAddress;
+        return _ias.NextForwarder;
       }
     }
 
@@ -89,14 +89,14 @@ namespace Brunet.Tunnel {
 
     /// <summary>Outgoing edge, since we don't know the RemoteID yet!</summary>
     public TunnelEdge(IEdgeSendHandler send_handler, TunnelTransportAddress local_ta,
-        TunnelTransportAddress remote_ta, IAddressSelector ias, List<Address> overlap) :
+        TunnelTransportAddress remote_ta, IForwarderSelector ias, List<Connection> overlap) :
       this(send_handler, local_ta, remote_ta, ias, overlap, -1)
     {
     }
 
     /// <summary>Constructor for a TunnelEdge, RemoteID == -1 for out bound.</summary>
     public TunnelEdge(IEdgeSendHandler send_handler, TunnelTransportAddress local_ta,
-        TunnelTransportAddress remote_ta, IAddressSelector ias, List<Address> overlap,
+        TunnelTransportAddress remote_ta, IForwarderSelector ias, List<Connection> overlap,
         int remote_id) : base(send_handler, remote_id != -1)
     {
       _remote_id = remote_id;
@@ -109,7 +109,7 @@ namespace Brunet.Tunnel {
       _mid = MemBlock.Reference(bid);
       _local_ta = local_ta;
       _remote_ta = remote_ta;
-      _tunnels = new List<Address>(overlap);
+      _tunnels = new List<Connection>(overlap);
       _ias = ias;
       _ias.Update(_tunnels);
 
@@ -122,31 +122,35 @@ namespace Brunet.Tunnel {
 
     /// <summary>When our tunnel peer has some state change, he notifies us and
     /// use that information to update our overlap, here we set the overlap.</summary>
-    public void UpdateNeighborIntersection(List<Address> neighbors)
+    public void UpdateNeighborIntersection(List<Connection> neighbors)
     {
-      bool close = false;
       lock(_sync) {
-        _tunnels = new List<Address>(neighbors);
-        close = _tunnels.Count == 0;
+        _tunnels = neighbors;
       }
-
-      if(close) {
+      if(neighbors.Count == 0) {
         Close();
       }
-      _ias.Update(_tunnels);
+      _ias.Update(neighbors);
     }
 
     /// <summary>We don't want to send on disconnected edges.  So we remove said
     /// connections and edges!</summary>
-    public void DisconnectionHandler(Address addr)
+    public void DisconnectionHandler(Connection con)
     {
       bool close = false;
       lock(_sync) {
-        List<Address> tunnels = new List<Address>(_tunnels);
-        tunnels.Remove(addr);
-        if(_tunnels.Count == tunnels.Count) {
+        List<Connection> tunnels = new List<Connection>(_tunnels.Count);
+        foreach(Connection ccon in _tunnels) {
+          if(con.Edge.Equals(ccon.Edge)){
+            continue;
+          }
+          tunnels.Add(ccon);
+        }
+
+        if(tunnels.Count == tunnels.Count) {
           return;
         }
+
         _tunnels = tunnels;
         close = _tunnels.Count == 0;
       }

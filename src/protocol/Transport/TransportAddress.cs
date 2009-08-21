@@ -405,7 +405,11 @@ namespace Brunet
       sb.Append("brunet.tunnel://");
       sb.Append(target.ToString().Substring(12));
       sb.Append("/");
-      foreach(Address addr in forwarders) {
+      foreach(object forwarder in forwarders) {
+        Address addr = forwarder as Address;
+        if(addr == null) {
+          addr = (forwarder as Connection).Address;
+        }
         sb.Append(addr.ToString().Substring(12,8));
         sb.Append("+");
       }

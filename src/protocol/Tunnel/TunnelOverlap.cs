@@ -36,43 +36,40 @@ namespace Brunet.Tunnel {
     /// <summary>Returns a list of addresses that contain an overlap between
     /// the connection list and the sync message.  This can be filtered for
     /// performance / fault tolerance purpose.</summary>
-    List<Address> EvaluateOverlap(ConnectionList con, IDictionary msg);
+    List<Connection> EvaluateOverlap(ConnectionList con, IDictionary msg);
     /// <summary>Returns a Tunnel Sync message containing information to
     /// be used to determine overlap.</summary>
-    IDictionary GetSyncMessage(IList<Address> current_overlap,
+    IDictionary GetSyncMessage(IList<Connection> current_overlap,
         Address local_addr, ConnectionList cons);
     /// <summary>Attempt to FindOverlap based upon our connections and the
     /// Remote TunnelTA.</summary>
-    List<Address> FindOverlap(TunnelTransportAddress ta, ConnectionList cons);
+    List<Connection> FindOverlap(TunnelTransportAddress ta, ConnectionList cons);
   }
 
   public class SimpleTunnelOverlap : ITunnelOverlap {
-    /// <summary>Returns the 4 oldest addresses.</summary>
-    protected List<Address> GetOldest(ConnectionList cons)
+    /// <summary>Returns the 4 oldest connections.</summary>
+    protected List<Connection> GetOldest(ConnectionList cons)
     {
-      List<Connection> oldest = new List<Connection>(cons.Count);
+      List<Connection> lcons = new List<Connection>(cons.Count);
       foreach(Connection con in cons) {
-        oldest.Add(con);
+        lcons.Add(con);
       }
 
-      return GetOldest(oldest);
+      return GetOldest(lcons);
     }
 
-    /// <summary>Returns the 4 oldest addresses.</summary>
-    protected List<Address> GetOldest(List<Connection> cons)
+    protected List<Connection> GetOldest(List<Connection> cons)
     {
       List<Connection> oldest = new List<Connection>(cons);
-
       Comparison<Connection> comparer = delegate(Connection x, Connection y) {
         return x.CreationTime.CompareTo(y.CreationTime);
       };
 
       oldest.Sort(comparer);
-      List<Address> addrs = new List<Address>(4);
-      for(int i = 0; i < 4 && i < oldest.Count; i++) {
-        addrs.Add(oldest[i].Address);
+      if(oldest.Count > 4) {
+        oldest.RemoveRange(0, oldest.Count - 4);
       }
-      return addrs;
+      return oldest;
     }
 
     /// <summary>Always returns the oldest non-tunnel address.</summary>
@@ -81,7 +78,11 @@ namespace Brunet.Tunnel {
       Address oldest_addr = null;
       int oldest_age = -1;
       foreach(DictionaryEntry de in msg) {
-        Address addr = new AHAddress(MemBlock.Reference((byte[]) de.Key));
+        MemBlock key = de.Key as MemBlock;
+        if(key == null) {
+          key = MemBlock.Reference((byte[]) de.Key);
+        }
+        Address addr = new AHAddress(key);
 
         Hashtable values = de.Value as Hashtable;
         TransportAddress.TAType tatype =
@@ -101,12 +102,16 @@ namespace Brunet.Tunnel {
     }
 
     /// <summary>Returns the oldest 4 addresses in the overlap.</summary>
-    public virtual List<Address> EvaluateOverlap(ConnectionList cons, IDictionary msg)
+    public virtual List<Connection> EvaluateOverlap(ConnectionList cons, IDictionary msg)
     {
       List<Connection> overlap = new List<Connection>();
 
       foreach(DictionaryEntry de in msg) {
-        Address addr = new AHAddress(MemBlock.Reference((byte[]) de.Key));
+        MemBlock key = de.Key as MemBlock;
+        if(key == null) {
+          key = MemBlock.Reference((byte[]) de.Key);
+        }
+        Address addr = new AHAddress(key);
 
         int index = cons.IndexOf(addr);
         if(index < 0) {
@@ -114,9 +119,6 @@ namespace Brunet.Tunnel {
         }
 
         Connection con = cons[index];
-        if(con.Edge.TAType == TransportAddress.TAType.Tunnel) {
-          continue;
-        }
 
         // Since there are no guarantees about routing over two tunnels, we do
         // not consider cases where we are connected to the overlapping tunnels
@@ -138,18 +140,13 @@ namespace Brunet.Tunnel {
     /// <summary>Returns a Tunnel Sync message containing up to 40 addresses
     /// first starting with previous overlap followed by new potential
     /// connections for overlap.</summary>
-    public virtual IDictionary GetSyncMessage(IList<Address> current_overlap,
+    public virtual IDictionary GetSyncMessage(IList<Connection> current_overlap,
         Address local_addr, ConnectionList cons)
     {
       Hashtable ht = new Hashtable();
       DateTime now = DateTime.UtcNow;
       if(current_overlap != null) {
-        foreach(Address addr in current_overlap) {
-          int index = cons.IndexOf(addr);
-          if(index < 0) {
-            continue;
-          }
-          Connection con = cons[index];
+        foreach(Connection con in current_overlap) {
           Hashtable info = new Hashtable(2);
           info["ta"] = TransportAddress.TATypeToString(con.Edge.TAType);
           info["ct"] = (int) (now - con.CreationTime).TotalMilliseconds;
@@ -183,14 +180,10 @@ namespace Brunet.Tunnel {
     /// <summary>Attempt to find the overlap in a remote TunnelTransportAddress
     /// and our local node.  This will be used to help communicate with a new
     /// tunneled peer.</summary>
-    public virtual List<Address> FindOverlap(TunnelTransportAddress ta, ConnectionList cons)
+    public virtual List<Connection> FindOverlap(TunnelTransportAddress ta, ConnectionList cons)
     {
       List<Connection> overlap = new List<Connection>();
       foreach(Connection con in cons) {
-        if(con.Edge.TAType == TransportAddress.TAType.Tunnel) {
-          continue;
-        }
-
         if(ta.ContainsForwarder(con.Address)) {
           overlap.Add(con);
         }
@@ -231,7 +224,7 @@ namespace Brunet.Tunnel {
 
       ConnectionType con_type = ConnectionType.Structured;
       IDictionary id = _ito.GetSyncMessage(null, addr_x, ct_x.GetConnections(con_type));
-      Assert.AreEqual(_ito.EvaluateOverlap(ct_y.GetConnections(con_type), id)[0], addresses[9], "Have an overlap!");
+      Assert.AreEqual(_ito.EvaluateOverlap(ct_y.GetConnections(con_type), id)[0].Address, addresses[9], "Have an overlap!");
       Assert.AreEqual(_ito.EvaluateOverlap(ct_empty.GetConnections(con_type), id).Count, 0, "No overlap!");
       Assert.AreEqual(addresses.Contains(_ito.EvaluatePotentialOverlap(id)), true, "EvaluatePotentialOverlap returns valid!");
     }
