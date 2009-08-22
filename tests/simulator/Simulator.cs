@@ -147,7 +147,7 @@ namespace Brunet.Simulator {
       nm.Port = TakePort();
 
       TAAuthorizer auth = null;
-      if(Broken != 0) {
+      if(Broken != 0 && nm.Port > 0) {
         auth = new BrokenTAAuth(Broken);
       }
 
@@ -183,6 +183,9 @@ namespace Brunet.Simulator {
       for(int i = 0; i < 5 && i < TakenPorts.Count; i++) {
         int rport = (int) TakenPorts.GetByIndex(_rand.Next(0, TakenPorts.Count));
         RemoteTAs.Add(TransportAddressFactory.CreateInstance("brunet.function://127.0.0.1:" + rport));
+      }
+      if(auth != null) {
+        RemoteTAs.Add(TransportAddressFactory.CreateInstance("brunet.function://127.0.0.1:" + 0));
       }
       node.RemoteTAs = RemoteTAs;
 
@@ -534,6 +537,9 @@ namespace Brunet.Simulator {
 
     public override TAAuthorizer.Decision Authorize(TransportAddress a) {
       int port = ((IPTransportAddress) a).Port;
+      if(port == 0) {
+        return TAAuthorizer.Decision.Allow;
+      }
       lock(_sync) {
         if(!_allowed.Contains(port)) {
           if(_rand.NextDouble() > _prob) {
