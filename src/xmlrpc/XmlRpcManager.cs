@@ -416,11 +416,13 @@ namespace Brunet.Rpc {
   /// </summary>
   public class XmlRpcManagerServer {
     readonly IChannel _channel;
+    readonly Dumper _dumper;
+    readonly object _sync_root = new object();
 
     /// <summary>
     /// (Node, XmlRpcManager) mapping.
     /// </summary>
-    protected readonly IDictionary<Node, XmlRpcManager> _xrm_mappings = 
+    readonly IDictionary<Node, XmlRpcManager> _xrm_mappings = 
       new Dictionary<Node, XmlRpcManager>();
 
     /// <summary>
@@ -444,6 +446,9 @@ namespace Brunet.Rpc {
 #endif
       _channel = new HttpChannel(props, null, chain);
       ChannelServices.RegisterChannel(_channel, false);
+
+      _dumper = new Dumper(this);
+      RemotingServices.Marshal(_dumper, "xmserver.rem");
     }
 
     /// <summary>
@@ -452,7 +457,7 @@ namespace Brunet.Rpc {
     public void Stop()
     {
       try {
-        Suspend();
+        RemoveAll();
       } catch{}
      
       try {
@@ -463,11 +468,13 @@ namespace Brunet.Rpc {
     /// <summary>
     /// Suspends the service objects.
     /// </summary>
-    public void Suspend()
-    {
-      foreach (var pair in _xrm_mappings) {
-        RemotingServices.Disconnect(pair.Value);
-        pair.Key.Rpc.RemoveHandler("xmlrpc");
+    public void RemoveAll() {
+      lock (_sync_root) {
+        foreach (var pair in _xrm_mappings) {
+          RemotingServices.Disconnect(pair.Value);
+          pair.Key.Rpc.RemoveHandler("xmlrpc");
+        }
+        _xrm_mappings.Clear();
       }
     }
 
@@ -487,8 +494,12 @@ namespace Brunet.Rpc {
     /// </summary>
     /// <param name="node">The node.</param>
     public void Remove(Node node) {
+      lock (_sync_root) {
         RemotingServices.Disconnect(_xrm_mappings[node]);
         node.Rpc.RemoveHandler("xmlrpc");
+        _xrm_mappings.Remove(node);
+        CheckAndSetDefaultManager();
+      }
     }
 
     /// <summary>
@@ -501,24 +512,52 @@ namespace Brunet.Rpc {
     internal void Add(Node node, RpcManager rpc, string uri) {
       var xrm = new XmlRpcManager(node, rpc);
       rpc.AddHandler("xmlrpc", xrm);
-      _xrm_mappings[node] = xrm;
-      RemotingServices.Marshal(xrm, uri);
+      lock (_sync_root) {
+        _xrm_mappings[node] = xrm;
+        RemotingServices.Marshal(xrm, uri);
+        CheckAndSetDefaultManager();
+      }
     }
-  }
 
-  /// <summary>
-  /// Hosts only one instance of XmlRpcManager thus allows access using the simple 
-  /// uri: xm.rem
-  /// </summary>
-  public class SingleXmlRpcManagerServer : XmlRpcManagerServer {
-    public SingleXmlRpcManagerServer(int port) : base(port) { }
+    /// <summary>
+    /// Checks and sets the default XmlRpcManager. Should only be called by Add 
+    /// and Remove.
+    /// </summary>
+    void CheckAndSetDefaultManager() {
+        if (_xrm_mappings.Count == 1) {
+          // Add an alias for the first node.
+          foreach(var pair in _xrm_mappings) {
+            RemotingServices.Marshal(pair.Value, "xm.rem");
+            // Since only one pair, break here.
+            break;
+          }
+      }
+    }
 
-    public override void Add(Node node) {
-      if (_xrm_mappings.Count > 0) {
-        throw new InvalidOperationException("Only one node can be registered.");
-      } else {
-        RpcManager rpc = RpcManager.GetInstance(node);
-        Add(node, rpc, "xm.rem");
+    /// <summary>
+    /// Responsible for dumping server information to XML-RPC clients.
+    /// </summary>
+    public class Dumper : MarshalByRefObject {
+      readonly XmlRpcManagerServer _outer;
+
+      internal Dumper(XmlRpcManagerServer outer) {
+        _outer = outer;
+      }
+
+      /// <summary>
+      /// Dumps a list of nodes registered with the server. The URI of a node's 
+      /// corresponding XmlRpcManager is "{address}.rem"
+      /// </summary>
+      /// <returns>The list of node addresses.</returns>
+      [XmlRpcMethod("listNodes")]
+      public string[] ListNodes() {
+        var ret = new ArrayList();
+        lock (_outer._sync_root) {
+          foreach (var pair in _outer._xrm_mappings) {
+            ret.Add(pair.Key.Address.ToString());
+          }
+        }
+        return ret.ToArray(typeof(string)) as string[];
       }
     }
   }
@@ -635,8 +674,8 @@ namespace Brunet.Rpc {
       Node n = new StructuredNode(new AHAddress(new RNGCryptoServiceProvider()));
       _rpc = XmlRpcManagerClient.GetXmlRpcManager("127.0.0.1", Port, "xm.rem", true);
       _mrm = MockRpcManager.GetInstance(n);
-      _server = new SingleXmlRpcManagerServer(Port);
-      _server.Add(n, _mrm, "xm.rem");
+      _server = new XmlRpcManagerServer(Port);
+      _server.Add(n, _mrm, "xm1.rem");
       Debug.WriteLine(string.Format("Server started at {0}", Port));
     }
 
@@ -760,6 +799,7 @@ namespace Brunet.Rpc {
       this._mrm.CurrentInvokeState.RetValues = new object[] { e };
       this._rpc.localproxy("Foo");
     }
+
   }
 #endif
 }
