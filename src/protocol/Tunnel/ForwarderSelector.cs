@@ -66,6 +66,21 @@ namespace Brunet.Tunnel {
 
     public void Update(List<Connection> cons)
     {
+      // Strip out tunnels as forwarders, if there is a non-tunnel forwarder it
+      // would probably be closer in the ring then one of our tunnel forwarders
+      List<Connection> no_tunnels = new List<Connection>();
+      foreach(Connection con in cons) {
+        if(con.Edge is TunnelEdge) {
+          continue;
+        }
+        no_tunnels.Add(con);
+      }
+
+      // We only swap if there is at least one tunnel that is not a forwarder
+      if(no_tunnels.Count > 0) {
+        cons = no_tunnels;
+      }
+
       Interlocked.Exchange(ref _cons, cons);
     }
   }
