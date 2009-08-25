@@ -200,4 +200,10 @@
 
   </target>
 
+  <target name="simulator" description="compiles the simulator">
+    <nant target="simulator" buildfile="src/protocol/default.build" />
+    <nant buildfile="src/Security/default.build" />
+    <nant buildfile="tests/simulator/default.build" />
+  </target>
+
 </project>

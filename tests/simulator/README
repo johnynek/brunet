@@ -1,0 +1,17 @@
+A Simulator for Brunet using virtual time caused by namespace confusion,
+specifically the use of Brunet.DateTime to hide System.DateTime.  Most commands
+are made clear on the command line and user interface.
+Checkout
+$ mono Simulator.exe --help
+and when in the Simulator type:
+#: HELP
+
+What's not listed are Run and RunSteps
+RUN will execute all tasks that occur in the next epoch (minimum time we have
+to move to cause a new event to occur)
+RUN with an integer parameter (like RUN 1000000) will execute 1000000 ms or
+16.667 minutes (each cycle is 1 ms)
+
+To compile execute nant simulator in Brunet's root directory.  Note, the
+Brunet.dll generated will NOT work with any other code in the codebase, you
+will need to recompile to perform other tasks.
