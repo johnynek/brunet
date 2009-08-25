@@ -138,10 +138,10 @@ namespace Brunet
         }
         int add_class = Address.ClassOf(mb);
         switch (add_class) {
-        case 0:
+        case AHAddress.ClassValue:
           a = new AHAddress(mb);
           break;
-        case 124:
+        case DirectionalAddress.ClassValue:
           a = new DirectionalAddress(mb);
           break;
         default:

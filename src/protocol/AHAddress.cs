@@ -39,6 +39,7 @@ namespace Brunet
 
   public class AHAddress:Brunet.StructuredAddress
   {
+    public const int ClassValue = 0;
     ///The class of this address type
     public static readonly int _class = 0;
 
@@ -48,7 +49,7 @@ namespace Brunet
     {
       get
       {
-        return _class;
+        return ClassValue;
       }
     }
 

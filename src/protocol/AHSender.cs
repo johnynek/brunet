@@ -615,7 +615,7 @@ public class AHHandler : IDataHandler {
 
     public AHRoutingAlgorithm GetRoutingAlgo(AHHeader head) {
       int addclass = head.Destination.Class;
-      if( addclass == 0 ) {
+      if( addclass == AHAddress.ClassValue ) {
         ushort opts = head.Opts;
         if( opts == AHHeader.Options.Last
          || opts == AHHeader.Options.Greedy ) {
@@ -625,7 +625,7 @@ public class AHHandler : IDataHandler {
           return _annealing;
         }
       }
-      else if( addclass == 124 ) {
+      else if( addclass == DirectionalAddress.ClassValue ) {
         return _directional;
       }
       else {

@@ -57,6 +57,12 @@ namespace Brunet
       _buffer = MemBlock.Reference(buffer, 0, MemSize);
     }
 
+#if BRUNET_SIMULATOR
+    public const int ClassValue = 1;
+#else
+    public const int ClassValue = 124;
+#endif
+
     /**
      * This is class 124
      */
@@ -64,7 +70,7 @@ namespace Brunet
     {
       get
       {
-        return 124;
+        return ClassValue;
       }
     }
 
