@@ -178,32 +178,47 @@ namespace Brunet
       }
     }
 
-    /// <summary>If we get here, a Connector attempt has ended, we will check
-    /// to see if the connection succeeded.  If it hasn't, we attempt to
-    /// connect again.</summary>
+    /// <summary>Find out if the Connector succeeded, if not, let's call
+    /// UpdateStatus.</summary>
+    override protected void ConnectorEndHandler(object o, EventArgs eargs)
+    {
+      Connector con = o as Connector;
+      Address addr = con.State as Address;
+      if(addr != null && con.ReceivedCTMs.Count == 0) {
+        UpdateState(addr);
+      }
+    }
+
+    /// <summary>If we get here, a Connector attempt has ended, let's call
+    /// UpdateStatus.</summary>
     override protected void LinkerEndHandler(object o, EventArgs eargs)
     {
       Linker linker = o as Linker;
-      Address caddr = linker.Target;
-      if(caddr == null) {
-        return;
+      Address addr = linker.Target;
+      if(addr != null) {
+        UpdateState(addr);
       }
+    }
 
+    /// <summary>We will check to see if the connection succeeded.  If it
+    /// hasn't, we attempt to connect again.</summary>
+    protected void UpdateState(Address addr)
+    {
       lock(_sync) {
         // First case, why are we here
         // Second case, have we connected
-        if(!_connection_state.ContainsKey(caddr))
+        if(!_connection_state.ContainsKey(addr))
           return;
 
-        switch(_connection_state[caddr]) {
+        switch(_connection_state[addr]) {
           case MCState.Off:
-            _connection_state[caddr] = MCState.Attempt1;
+            _connection_state[addr] = MCState.Attempt1;
             break;
           case MCState.Attempt1:
-            _connection_state[caddr] = MCState.Attempt2;
+            _connection_state[addr] = MCState.Attempt2;
             break;
           case MCState.Attempt2:
-            _connection_state[caddr] = MCState.Off;
+            _connection_state[addr] = MCState.Off;
             return;
           case MCState.On:
             return;
@@ -211,7 +226,7 @@ namespace Brunet
       }
       if(_active) {
         // Well we should be connected, but we aren't, try again!
-        ConnectTo(caddr, struc_managed);
+        ConnectTo(addr, struc_managed);
       }
     }
 
