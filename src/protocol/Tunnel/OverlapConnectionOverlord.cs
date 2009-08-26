@@ -78,14 +78,30 @@ namespace Brunet.Tunnel {
       ConnectTo(target, STRUC_OVERLAP);
     }
 
+    override protected void ConnectorEndHandler(object o, EventArgs eargs)
+    {
+      Connector con = o as Connector;
+      if(con.ReceivedCTMs.Count > 0) {
+        return;
+      }
+
+      Address target = con.State as Address;
+      if(target != null) {
+        FinishConnectTo(target);
+      }
+    }
+
     override protected void LinkerEndHandler(object o, EventArgs eargs)
     {
       Linker linker = o as Linker;
       Address target = linker.Target;
-      if(target == null) {
-        return;
+      if(target != null) {
+        FinishConnectTo(target);
       }
+    }
 
+    protected void FinishConnectTo(Address target)
+    {
       WaitCallback callback = null;
       lock(_sync) {
         if(!_address_to_callback.TryGetValue(target, out callback)) {

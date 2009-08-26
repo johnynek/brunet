@@ -90,10 +90,12 @@ namespace Brunet
       get;
     }
           /**
+           * It is imperative that the ECB be called and not ignored.  Not
+           * calling back will leave the system in a stale state as it waits
+           * for the CreateEdgeTo to complete.
            * @param ta TransportAddress to create an edge to
            * @param ecb the EdgeCreationCallback to call when done
            * @throw EdgeException if we try to call this before calling
-           * Start.
            */
     public abstract void CreateEdgeTo(TransportAddress ta, EdgeCreationCallback ecb);
 
