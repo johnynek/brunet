@@ -264,6 +264,17 @@ namespace Brunet.Simulator {
       }
     }
 
+    public void PrintConnectionState()
+    {
+      int count = 0;
+      foreach(DictionaryEntry de in Nodes) {
+        Node node = ((NodeMapping)de.Value).Node;
+        Console.WriteLine(node.Address + " " + node.ConState);
+        count = node.IsConnected ? count + 1 : count;
+      }
+      Console.WriteLine("Connected: " + count);
+    }
+
     /// <summary>Disconnects all the nodes in the simulator.</summary>
     public void Disconnect()
     {

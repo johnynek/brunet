@@ -168,6 +168,9 @@ namespace Brunet.Simulator {
               break;
             case "Q":
               break;
+            case "CONSTATE":
+              sim.PrintConnectionState();
+              break;
             case "H":
               Console.WriteLine("Commands: \n");
               Console.WriteLine("A - add a node");
