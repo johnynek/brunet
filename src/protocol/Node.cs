@@ -127,7 +127,6 @@ namespace Brunet
         /* Initialize this at 15 seconds */
         _connection_timeout = new TimeSpan(0,0,0,0,15000);
         //Check the edges from time to time
-        _last_edge_check = DateTime.UtcNow;
         IAction cec_act = new HeartBeatAction(this, this.CheckEdgesCallback);
         Brunet.Util.FuzzyTimer.Instance.DoEvery(delegate(DateTime dt) {
           this.EnqueueAction(cec_act);
@@ -477,8 +476,6 @@ namespace Brunet
      * This does not control how many we send to our neighbors.
      */
     static protected readonly int _MAX_RECORDED_TAS = 10000;
-    ///The DateTime that we last checked the edges.  @see CheckEdgesCallback
-    protected DateTime _last_edge_check;
 
     ///after each HeartPeriod, the HeartBeat event is fired
     public event EventHandler HeartBeatEvent {
@@ -1136,18 +1133,6 @@ namespace Brunet
     virtual protected void CheckEdgesCallback(object node, EventArgs args)
     {
       DateTime now = DateTime.UtcNow;
-#if BRUNET_SIMULATOR
-      lock(_sync) {
-        // this is expensive to call in the simulator
-        if(_last_edge_check.AddMilliseconds(7500) < now) {
-          return;
-        }
-
-        _last_edge_check = now;
-      }
-#else
-      _last_edge_check = now;
-#endif
         
         //_connection_timeout = ComputeDynamicTimeout();
         _connection_timeout = MAX_CONNECTION_TIMEOUT;
