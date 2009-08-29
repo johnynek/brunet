@@ -1134,83 +1134,83 @@ namespace Brunet
     {
       DateTime now = DateTime.UtcNow;
         
-        //_connection_timeout = ComputeDynamicTimeout();
-        _connection_timeout = MAX_CONNECTION_TIMEOUT;
-        /*
-         * If we haven't heard from any of these people in this time,
-         * we ping them, and if we don't get a response, we close them
-         */
-        RpcManager rpc = RpcManager.GetInstance(this);
-        foreach(Connection c in _connection_table) {
-          Edge e = c.Edge;
-          TimeSpan since_last_in = now - e.LastInPacketDateTime; 
-          if( (1 == _send_pings) && ( since_last_in > _connection_timeout ) ) {
+      //_connection_timeout = ComputeDynamicTimeout();
+      _connection_timeout = MAX_CONNECTION_TIMEOUT;
+      /*
+       * If we haven't heard from any of these people in this time,
+       * we ping them, and if we don't get a response, we close them
+       */
+      RpcManager rpc = RpcManager.GetInstance(this);
+      foreach(Connection c in _connection_table) {
+        Edge e = c.Edge;
+        TimeSpan since_last_in = now - e.LastInPacketDateTime; 
+        if( (1 == _send_pings) && ( since_last_in > _connection_timeout ) ) {
 
-            object ping_arg = String.Empty;
-            DateTime start = DateTime.UtcNow;
-            EventHandler on_close = delegate(object q, EventArgs cargs) {
-              Channel qu = (Channel)q;
-              if( qu.Count == 0 ) {
-                /* we never got a response! */
-                if( !e.IsClosed ) {
-                  //We are going to close it after waiting:
-                  ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
-	                  "On an edge timeout({1}), closing connection: {0}",
-                    c, DateTime.UtcNow - start));
-                  //Make sure it is indeed closed.
-                  e.Close();
-                }
-                else {
-                  //The edge was closed somewhere else, so it
-                  //didn't timeout.
-                }
-              }
-              else {
-                //We got a response, let's make sure it's not an exception:
-                bool close = false;
-                try {
-                  RpcResult r = (RpcResult)qu.Dequeue();
-                  object o = r.Result; //This will throw an exception if there was a problem
-                  if( !o.Equals( ping_arg ) ) {
-                    //Something is wrong with the other node:
-                    ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
-                      "Ping({0}) != {1} on {2}", ping_arg, o, c));
-                    close = true;
-                  }
-                }
-                catch(Exception x) {
-                  ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
-                    "Ping on {0}: resulted in: {1}", c, x));
-                  close = true;
-                }
-                if( close ) { e.Close(); }
-              }
-            };
-            Channel tmp_queue = new Channel(1);
-            tmp_queue.CloseEvent += on_close;
-            //Do the ping
-            try {
-              rpc.Invoke(e, tmp_queue, "sys:link.Ping", ping_arg);
-            }
-            catch(EdgeClosedException) {
-              //Just ignore closed edges, clearly we can't ping them
-            }
-            catch(EdgeException x) {
-              if(!x.IsTransient) {
-                //Go ahead and close the Edge
+          object ping_arg = String.Empty;
+          DateTime start = DateTime.UtcNow;
+          EventHandler on_close = delegate(object q, EventArgs cargs) {
+            Channel qu = (Channel)q;
+            if( qu.Count == 0 ) {
+              /* we never got a response! */
+              if( !e.IsClosed ) {
+                //We are going to close it after waiting:
+                ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
+	                "On an edge timeout({1}), closing connection: {0}",
+                  c, DateTime.UtcNow - start));
+                //Make sure it is indeed closed.
                 e.Close();
               }
+              else {
+                //The edge was closed somewhere else, so it
+                //didn't timeout.
+              }
+            }
+            else {
+              //We got a response, let's make sure it's not an exception:
+              bool close = false;
+              try {
+                RpcResult r = (RpcResult)qu.Dequeue();
+                object o = r.Result; //This will throw an exception if there was a problem
+                if( !o.Equals( ping_arg ) ) {
+                  //Something is wrong with the other node:
+                  ProtocolLog.WriteIf(ProtocolLog.NodeLog, String.Format(
+                    "Ping({0}) != {1} on {2}", ping_arg, o, c));
+                  close = true;
+                }
+              }
+              catch(Exception x) {
+                ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+                  "Ping on {0}: resulted in: {1}", c, x));
+                close = true;
+              }
+              if( close ) { e.Close(); }
+            }
+          };
+          Channel tmp_queue = new Channel(1);
+          tmp_queue.CloseEvent += on_close;
+          //Do the ping
+          try {
+            rpc.Invoke(e, tmp_queue, "sys:link.Ping", ping_arg);
+          }
+          catch(EdgeClosedException) {
+            //Just ignore closed edges, clearly we can't ping them
+          }
+          catch(EdgeException x) {
+            if(!x.IsTransient) {
+              //Go ahead and close the Edge
+              e.Close();
             }
           }
         }
-        foreach(Edge e in _connection_table.GetUnconnectedEdges() ) {
-          if( now - e.LastInPacketDateTime > _unconnected_timeout ) {
-            if(ProtocolLog.Connections.Enabled)
-              ProtocolLog.Write(ProtocolLog.Connections, String.Format(
-                "Closed an unconnected edge: {0}", e));
-            e.Close();
-          }
+      }
+      foreach(Edge e in _connection_table.GetUnconnectedEdges() ) {
+        if( now - e.LastInPacketDateTime > _unconnected_timeout ) {
+          if(ProtocolLog.Connections.Enabled)
+            ProtocolLog.Write(ProtocolLog.Connections, String.Format(
+              "Closed an unconnected edge: {0}", e));
+          e.Close();
         }
+      }
     }
 
     /**
