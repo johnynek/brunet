@@ -255,9 +255,7 @@ namespace Brunet
     }
     public static float ReadFloat(MemBlock mb)
     {
-      byte[] bin = new byte[4];
-      mb.CopyTo(bin,0);
-      return ReadFloat(bin, 0);
+      return ReadFloat(mb, 0);
     }
     public static float ReadFloat(MemBlock mb, int offset)
     {
@@ -295,9 +293,7 @@ namespace Brunet
     }
     public static double ReadDouble(MemBlock mb)
     {
-      byte[] bin = new byte[8];
-      mb.CopyTo(bin,0);
-      return ReadDouble(bin, 0);
+      return ReadDouble(mb,0);
     }
     public static double ReadDouble(MemBlock mb, int offset)
     {
