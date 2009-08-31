@@ -408,7 +408,7 @@ namespace Brunet
     }
     //Start an XML-RPC server:
     Brunet.Rpc.XmlRpcManagerServer xrs = new Brunet.Rpc.XmlRpcManagerServer(20000);
-    xrs.Update((Node)node_list[0]);
+    xrs.Add((Node)node_list[0]);
 
     System.Console.Out.WriteLine("Finished with BootStrapTester.Main");
     string[] this_command = new string[] { "Q" };
