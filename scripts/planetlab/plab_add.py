@@ -33,7 +33,6 @@ print "Enter Slice Name(s) - separated by commas: "
 slices = raw_input(">")
 slices = slices.split(",")
 
-tse = int(time.time()) + 59*60*24*7*8
 for slice in slices:
   slice = slice.strip()
   result = api_server.AddSliceToNodes(auth, slice, node_hostnames)
