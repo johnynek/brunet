@@ -38,13 +38,13 @@ cd $PACKAGE_DIR/usr/sbin
 ln -sf ../../opt/ipop/bin/groupvpn_prepare.sh .
 cd - &> /dev/null
 cd $PACKAGE_DIR/etc/init.d
-ln -sf ../../opt/ipop/bin/ipop_linux.sh .
-ln -sf ../../opt/ipop/bin/bootstrap_linux.sh .
+ln -sf ../../opt/ipop/bin/groupvpn.sh .
+ln -sf ../../opt/ipop/bin/groupvpn_bootstrap.sh .
 cd - &> /dev/null
 cd $PACKAGE_DIR/etc
 ln -sf ../opt/ipop/etc/ipop.vpn.config .
 cd - &> /dev/null
 
 if [[ ! $PACKAGE_DIR ]]; then
-  echo "Done installing IPOP"
+  echo "Done installing GroupVPN"
 fi

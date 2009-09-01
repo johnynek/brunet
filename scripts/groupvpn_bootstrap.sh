@@ -54,7 +54,7 @@ function start()
 
   cd $DIR/bin &> /dev/null
   export MONO_PATH=$MONO_PATH:$DIR/lib
-#trace is only enabled to help find bugs, to use it execute ipop_linux.sh trace
+#trace is only enabled to help find bugs, to use it execute groupvpn.sh trace
   python daemon.py $user $group "mono --trace=disabled P2PNode.exe -c 10 -n $DIR/etc/bootstrap.config 2>&1 | cronolog --period=\"1 day\" --symlink=$DIR/var/bootstraplog $DIR/var/bootstrap.log.%y%m%d"
   cd - &> /dev/null
   pid=`get_pid P2PNode.exe`

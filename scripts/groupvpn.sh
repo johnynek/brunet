@@ -74,7 +74,7 @@ function start()
 
   cd $DIR/bin &> /dev/null
   export MONO_PATH=$MONO_PATH:$DIR/lib
-#trace is only enabled to help find bugs, to use it execute ipop_linux.sh trace
+#trace is only enabled to help find bugs, to use it execute groupvpn.sh trace
   python daemon.py $user $group "mono --trace=disabled DhtIpopNode.exe -n $DIR/etc/node.config -i $DIR/etc/ipop.config -d $DIR/etc/dhcp.config 2>&1 | cronolog --period=\"1 day\" --symlink=$DIR/var/ipoplog $DIR/var/ipop.log.%y%m%d"
   cd - &> /dev/null
   pid=`get_pid DhtIpopNode.exe`
