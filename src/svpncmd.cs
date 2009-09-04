@@ -30,7 +30,7 @@ namespace SocialVPN {
    * SocialNode Class. Extends the RpcIpopNode to support adding friends based
    * on X509 certificates.
    */
-  public class SVPNTool {
+  public class Svpncmd {
 
     public const string URL = "http://127.0.0.1:58888/api";
 
@@ -91,20 +91,41 @@ namespace SocialVPN {
       GetState();
     }
 
-    public static void GetState() {
-      PrintState(SocialUtils.Request(URL));
+    public static void Logout() {
+      Dictionary<string, string> parameters = 
+        new Dictionary<string, string>();
+
+      parameters["m"] = "logout";
+
+      try {
+        SocialUtils.Request(URL, parameters);
+      } catch(Exception e) {
+        Console.WriteLine(e.Message);
+        Console.WriteLine("Could not connect to SocialVPN, make sure" +
+                          "process is running");
+      }
+      System.Threading.Thread.Sleep(2000);
+      GetState();
     }
 
-    public static void PrintState(string stateString) {
+    public static void GetState() {
+      string stateString = SocialUtils.Request(URL);
+      PrintInfo(stateString);
+      PrintFriends(stateString);
+    }
+
+    public static void PrintInfo(string stateString) {
       SocialState state = SocialUtils.XmlToObject<SocialState>(stateString);
-      string header = String.Format("{0} - {1} - {2}\nYour fingerprint - {3}",
-                                    state.LocalUser.Name,
-                                    state.LocalUser.Alias, 
-                                    state.LocalUser.IP,
-                                    state.LocalUser.DhtKey);
-      Console.WriteLine("\n" + header + "\n");
-      Console.WriteLine("{0,-20}{1,-30}{2,-16}{3,-10}{4,-50}",
-                          "Name", "Alias", "IP Address", "Status", 
+      Console.WriteLine("Name: {0}\nAlias: {1}\nIP: {2}\nStatus: {3}\n" +
+                        "Fingerprint: {4}\n",
+                         state.LocalUser.Name, state.LocalUser.Alias,
+                         state.LocalUser.IP, state.Status, state.LocalUser.DhtKey);
+    }
+
+    public static void PrintFriends(string stateString) {
+      SocialState state = SocialUtils.XmlToObject<SocialState>(stateString);
+      Console.WriteLine("{0},{1},{2},{3},{4}",
+                          "Name", "Alias", "IP", "Status", 
                           "Fingerprint");
       foreach(SocialUser friend in state.Friends) {
         string status = "Online";
@@ -114,23 +135,21 @@ namespace SocialVPN {
         else if(friend.Access == "Block") {
           status = "Blocked";
         }
-        Console.WriteLine("{0,-20}{1,-30}{2,-16}{3,-10}{4,-50}",
+        Console.WriteLine("{0},{1},{2},{3},{4}",
                           friend.Name, friend.Alias, friend.IP, 
                           status, friend.DhtKey);
       }
     }
 
     public static void ShowHelp() {
-      string help = "usage: SVPNTool.exe <option> <fingerprint>\n\n" +
+      string help = "usage: svpncmd.exe <option> <fingerprint>\n\n" +
                     "options:\n" +
-                    "  friends - shows current user info and friends\n" +
+                    "  info - shows current user's info and friends\n" +
                     "  login <user> <pass> - log in user\n" +
-                    "  add <emails> - add a friend by email address\n" +
-                    "  addfpr <fprs> - add a friend by fingerprint\n" +
-                    "  unblock <fprs> - unblock a friend by fingerprint\n" +
-                    "  block <fprs> - block a friend by fingerprint\n" + 
-                    "  delete <fprs> - remove a friend from the list\n" +
-                    "  global <on/off> - set global access (auto connect)\n" +
+                    "  logout - log out user\n" +
+                    "  add email fpr - add a friend by fingerprint\n" +
+                    "  unblock fpr - unblock a friend's pc by fingerprint\n" +
+                    "  block fpr - block a friend's by fingerprint\n" + 
                     "  help - shows this help";
       Console.WriteLine(help);
     }
@@ -145,7 +164,7 @@ namespace SocialVPN {
       else if(args[0] == "help") {
         ShowHelp();
       }
-      else if(args[0] == "friends") {
+      else if(args[0] == "info") {
         GetState();
       }
       else if(args[0] == "cert") {
@@ -153,6 +172,12 @@ namespace SocialVPN {
       }
       else if(args[0] == "login") {
         Login(args[1], args[2]);
+      }
+      else if(args[0] == "logout") {
+        Logout();
+      }
+      else if(args[0] == "add") {
+        MakeCall("add", args[1] + " " + args[2]);
       }
       else {
         MakeCall(args[0], args[1]);

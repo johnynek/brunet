@@ -20,6 +20,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Text;
+using System.Xml;
 
 using System.Net.Security;
 using System.Security.Cryptography;
@@ -44,7 +45,9 @@ namespace SocialVPN {
 
   public class JabberNetwork : ISocialNetwork, IProvider {
 
-    public const string SVPNKEY = "svpnkey";
+    public const string SVPNKEYNS = "jabber:iq:svpnkey";
+
+    public const string SVPNRESOURCE = "SVPN_XMPP";
 
     protected readonly JabberClient _jclient;
 
@@ -58,6 +61,8 @@ namespace SocialVPN {
 
     protected bool _auth_pending;
 
+    protected bool _pres_sent;
+
     public JabberNetwork(SocialUser user, byte[] certData, 
       BlockingQueue queue) {
       _local_user = user;
@@ -65,6 +70,7 @@ namespace SocialVPN {
       _friends = new Dictionary<string, List<string>>();
       _online = false;
       _auth_pending = false;
+      _pres_sent = false;
       _jclient = new JabberClient();
 
       _jclient.AutoReconnect = 30F;
@@ -73,72 +79,106 @@ namespace SocialVPN {
       _jclient.AutoPresence = false;
       _jclient.AutoRoster = false;
       _jclient.LocalCertificate = null;
+      _jclient.Resource = SVPNRESOURCE + 
+        _local_user.Fingerprint.Substring(0, 10);
       
-      _jclient.OnError += new bedrock.ExceptionHandler(OnError);
-      _jclient.OnAuthError += new jabber.protocol.ProtocolHandler(OnAuthError);
+      _jclient.OnError += HandleOnError;
+      _jclient.OnAuthError += HandleOnAuthError;
 
-      //_jclient.OnReadText += new bedrock.TextHandler(OnReadText);
-      //_jclient.OnWriteText += new bedrock.TextHandler(OnWriteText);
-      _jclient.OnPresence += new PresenceHandler(OnPresence);
-      _jclient.OnAuthenticate += new bedrock.ObjectHandler(OnAuthenticate);
-      _jclient.OnInvalidCertificate += 
-        new RemoteCertificateValidationCallback(InvalidCertHandler);
+#if SVPN_NUNIT
+      _jclient.OnReadText += HandleOnReadText;
+      _jclient.OnWriteText += HandleOnWriteText;
+#endif
+      _jclient.OnAuthenticate += HandleOnAuthenticate;
+      _jclient.OnPresence += HandleOnPresence;
+      _jclient.OnIQ += HandleOnIQ;
+      _jclient.OnInvalidCertificate += HandleInvalidCert;
     }
     
-    private void OnAuthError(object sender, System.Xml.XmlElement rp) {
+    private void HandleOnAuthError(object sender, System.Xml.XmlElement rp) {
       _online = false;
       _auth_pending = false;
-      Console.WriteLine("AUTH ERROR");
       Console.WriteLine(rp.OuterXml);
     }
 
-    private void OnError(object sender, Exception ex){
+    private void HandleOnError(object sender, Exception ex){
       Console.WriteLine(ex.ToString());
     }
 
-    private void OnAuthenticate(object sender) {
-      string status = _local_user.DhtKey;
-      string show = SVPNKEY;
-      int priority = 24;
+    private void HandleOnAuthenticate(object sender) {
       _auth_pending = false;
-      // Send presence message containing dhtkey
-      _jclient.Presence(PresenceType.available, status, show, priority);
+      Presence pres = new Presence(_jclient.Document);
+      pres.Show = "dnd";
+      pres.Status = "Chat Disabled";
+      _jclient.Write(pres);
     }
 
-    private bool InvalidCertHandler(object sender, X509Certificate cert, 
+    private bool HandleInvalidCert(object sender, X509Certificate cert, 
       X509Chain chain, SslPolicyErrors errors) {
-      Console.WriteLine("We are blindly trusting this certificate");
-      Console.WriteLine("Cert Hash String: {0}", cert.GetCertHashString());
+      string cert_info = String.Format("\nXMPP Server Data\n" + 
+                         "Subject: {0}\nIssuer: {1}\n" + 
+                         "SHA1 Fingerprint: {2}\n", cert.Subject, cert.Issuer,
+                         cert.GetCertHashString());
+      byte[] cert_data = Encoding.UTF8.GetBytes(cert_info);
+      string path = _jclient.Server + "-server-data.txt";
+      SocialUtils.WriteToFile(cert_data, path);
       return true;
     }
 
-    /*
+#if SVPN_NUNIT
     // only used for debugging
-    private void OnReadText(object sender, string txt) {
+    private void HandleOnReadText(object sender, string txt) {
       Console.WriteLine("RECV: " + txt);
     }
 
     // only used for debugging
-    private void OnWriteText(object sender, string txt) {
+    private void HandleOnWriteText(object sender, string txt) {
       Console.WriteLine("SENT: " + txt);
     }
-    */
-    
-    private void OnPresence(object sender, Presence pres) {
-      if(pres.Show == SVPNKEY ) {
-        string uid = pres.From.User + "@" + pres.From.Server;
-        string fpr = pres.Status;
-        if(!_friends.ContainsKey(uid)) {
-          _friends[uid] = new List<string>();
-          _friends[uid].Add(fpr);
-          _queue.Enqueue(new QueueItem(QueueItem.Actions.Sync, uid));
-          Console.WriteLine("Adding {0} {1}", uid, fpr);
+#endif
+
+    private void HandleOnPresence(Object sender, Presence pres) {
+      if(pres.From.Resource != null && 
+         pres.From != _jclient.JID &&
+         pres.From.Resource.StartsWith(SVPNRESOURCE)) {
+        IQ iq = new IQ(_jclient.Document);
+        iq.To = pres.From;
+        iq.From = _jclient.JID;
+        iq.Query = _jclient.Document.CreateElement(null, "query", SVPNKEYNS);
+        _jclient.Write(iq);
+      }
+      if(!_pres_sent && pres.From.Bare == _jclient.JID.Bare &&
+         pres.From != _jclient.JID && pres.Type == PresenceType.available) {
+        // Mirror another client that's available
+        Presence new_pres = new Presence(_jclient.Document);
+        new_pres.Show = pres.Show;
+        new_pres.Status = pres.Status;
+        _jclient.Write(new_pres);
+        _pres_sent = true;
+      }
+    }
+
+    private void HandleOnIQ(Object sender, IQ iq) {
+      if(iq.Query != null && iq.Query.NamespaceURI != null && 
+         iq.Query.NamespaceURI == SVPNKEYNS) {
+        if(iq.Type == IQType.get) {
+          iq = iq.GetResponse(_jclient.Document);
+          iq.Query.SetAttribute("value", _local_user.DhtKey);
+          _jclient.Write(iq);
         }
-        else {
-          if(!_friends[uid].Contains(fpr)) {
-            _friends[uid].Add(fpr);
-            _queue.Enqueue(new QueueItem(QueueItem.Actions.Sync, uid));
-            Console.WriteLine("Adding {0} {1}", uid, fpr);
+        else if (iq.Type == IQType.result) {
+          string friend = iq.From.User + "@" + iq.From.Server;
+          string fpr = iq.Query.GetAttribute("value");
+          if(_friends.ContainsKey(friend)) {
+            if(!_friends[friend].Contains(fpr)) {
+              _friends[friend].Add(fpr);
+            }
+          }
+          else {
+            List<string> fprs = new List<string>();
+            fprs.Add(fpr);
+            _friends.Add(friend, fprs);
+            Console.WriteLine("Friend {0} at {1}", friend, fpr);
           }
         }
       }
@@ -168,6 +208,7 @@ namespace SocialVPN {
     public bool Logout() {
       if(_online) {
         _jclient.Close();
+        _online = false;
       }
       return true;
     }
@@ -197,10 +238,6 @@ namespace SocialVPN {
     }
 
     public bool StoreFingerprint() {
-      if(_jclient.IsAuthenticated) {
-        // This calls sends presence message to all friends
-        OnAuthenticate(null);
-      }
       return true;
     }
 
@@ -218,17 +255,18 @@ namespace SocialVPN {
   public class JabberNetworkTester {
     [Test]
     public void JabberNetworkTest() {
-      Certificate cert = SocialUtils.CreateCertificate("ptony82@gmail.com",
-        "Pierre St Juste", "testpc", "version", "country", "address", 
-        "certdir", "path");
+      string userid = "pierre@pdebian64";
+      Certificate cert = SocialUtils.CreateCertificate(userid,
+        "Pierre St Juste", "testpc", "version", "country", "address", "certdir", "path");
       SocialUser user = new SocialUser(cert.X509.RawData);
-      JabberNetwork jnetwork = new JabberNetwork(user, cert.X509.RawData);
-      jnetwork.Login("jabber", "ptony82@gmail.com", "ob681021");
-      Console.WriteLine("Waiting 15 seconds for resuls");
-      System.Threading.Thread.Sleep(15000);
+      BlockingQueue queue = new BlockingQueue();
+      JabberNetwork jnetwork = new JabberNetwork(user, cert.X509.RawData, queue);
+      jnetwork.Login("jabber", userid,"stjuste");
+      Console.WriteLine("Waiting 5 seconds for resuls");
+      System.Threading.Thread.Sleep(5000);
       Console.WriteLine("Done waiting for results");
       foreach(string friend in jnetwork.GetFriends()) Console.WriteLine(friend);
-      jnetwork.GetFingerprints(new string[] {"ptony82@gmail.com"});
+      jnetwork.GetFingerprints(new string[] {userid});
       jnetwork.StoreFingerprint();
       jnetwork.Logout();
     }

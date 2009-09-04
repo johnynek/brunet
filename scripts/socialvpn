@@ -1,55 +1,28 @@
 #!/bin/bash
 
-# the userid
-userid=$1
-
-# unique pc identifier
-pcid=$2
-
-# the user name
-name=${@:3}
-
 # set variables
+port=58888
 cert_dir=certificates
 root=`whoami`
-user=`cat user.txt`
+user=`ls -l private_key | awk '{ print $4 }'`
 device=tapipop
 
-if [[ $root != root ]]; then
-  whoami > user.txt
+if [[ $root != "root" ]]; then
   echo "Please run as root"
-  exit
+  exit 1
 fi
-
-if [[ ! -f user.txt ]]; then
-  echo "Run the following command first (as non-root): whoami > user.txt"
-  exit
-fi
-
-if [[ $user == root ]]; then
-  echo "Run the follow command first (AS NON-ROOT): whoami > user.txt"
-  exit
-fi
-
-./tunctl -d $device
-./tunctl -u $user -t $device
-chmod 666 /dev/net/tun
 
 if [[ -d $cert_dir ]]; then
-  su $user -c "mono SocialVPN.exe brunet.config ipop.config 58888 off &> log.txt &"
-elif [[ $# -lt 3 ]]; then
-  echo "usage (on first run): ./socialvpn <userid> <pcid> <name>"
-  exit
+  ./tunctl -d $device
+  ./tunctl -u $user -t $device
+  chmod 666 /dev/net/tun
+  su $user -c "mono SocialVPN.exe brunet.config ipop.config $port off &> log.txt &"
 else
-  su $user -c "mono SocialVPN.exe brunet.config ipop.config 58888 off $userid $pcid \"$name\" &> log.txt &"
+  echo "Run ./setup as non-root"
+  exit 1
 fi
-
-cp /etc/resolv.conf .
 
 sleep 3
 /sbin/dhclient -pf /var/run/dhclient.$device.pid -lf /var/lib/dhcp3/dhclient.$device.leases $device
-chmod 600 private_key
 
-echo "Your resolv.conf file has been modified, you can restore it with cp ./resolv.conf /etc/"
-echo ""
 echo "Point your browser to http://127.0.0.1:58888"

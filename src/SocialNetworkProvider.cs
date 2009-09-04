@@ -141,6 +141,7 @@ namespace SocialVPN {
       foreach(ISocialNetwork network in _networks.Values) {
         network.Logout();
       }
+      Status = "offline";
       return true;
     }
 

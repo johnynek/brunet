@@ -45,11 +45,6 @@ namespace SocialVPN {
   public class SocialUtils {
 
     /**
-    * The suffix for certificate files.
-    */
-    public const string CERTSUFFIX = ".cert";
-
-    /**
      * Constructor.
      */
     static SocialUtils() {
@@ -86,31 +81,6 @@ namespace SocialVPN {
       WriteToFile(cert.X509.RawData, lc_path);
 
       return cert;
-    }
-
-    /**
-     * Saves an X509 certificate to the file system.
-     * @param cert the X509 certificate
-     */
-    public static void SaveCertificate(Certificate cert, string certDir) {
-      SocialUser friend = new SocialUser(cert);
-      string address = friend.Address.Substring(12);
-      string cert_path = Path.Combine(certDir, address + CERTSUFFIX);
-
-      if(!Directory.Exists(certDir)) {
-        Directory.CreateDirectory(certDir);
-      }
-      if(!File.Exists(cert_path)) {
-        WriteToFile(cert.X509.RawData, cert_path);
-      }
-    }
-
-    public static void DeleteCertificate(string address, string certDir) {
-      address = address.Substring(12);
-      string cert_path = Path.Combine(certDir, address + CERTSUFFIX);
-      if(File.Exists(cert_path)) {
-        File.Delete(cert_path);
-      }
     }
 
     public static string GetHashString(byte[] data) {
@@ -201,15 +171,13 @@ namespace SocialVPN {
       Dictionary<string, string> result = new Dictionary<string, string>();
       string[] pairs = request.Split('&');
 
-      if (pairs.Length < 2) return result;
-      
       for (int x = 0; x < pairs.Length; x++) {
         string[] item = pairs[x].Split('=');
+        if(item.Length > 1 ) {
+          result.Add(HttpUtility.UrlDecode(item[0]), 
+                     HttpUtility.UrlDecode(item[1]));
+        }
         
-        result.Add(HttpUtility.UrlDecode(item[0]), 
-                   HttpUtility.UrlDecode(item[1]));
-        
-        //result.Add(item[0], item[1]);
       }
       return result;
     }

@@ -62,11 +62,6 @@ namespace SocialVPN {
   public class SocialConnectionManager {
 
     /**
-     * The common delimiter for user input
-     */
-    public const char DELIM = ',';
-
-    /**
      * The node which accepts peers based on certificates.
      */
     protected readonly SocialNode _snode;
@@ -95,6 +90,11 @@ namespace SocialVPN {
      * Main processing thread thread.
      */
     protected readonly Thread _main_thread;
+
+    /**
+     * Delims for user input
+     */ 
+    protected readonly char[] _delims;
 
     /**
      * The time keepers.
@@ -131,6 +131,7 @@ namespace SocialVPN {
       _queue = queue;
       _main_thread = new Thread(Start);
       _main_thread.Start();
+      _delims = new char[] {'\n',','};
       _last_update = DateTime.MinValue;
       _last_store = _last_update;
       _last_publish = _last_update;
@@ -211,8 +212,6 @@ namespace SocialVPN {
       _snp.Logout();
       _http.Stop();
       _main_thread.Abort();
-      // TODO:Take out this line
-      //Environment.Exit(1);
     }
 
     /**
@@ -268,6 +267,9 @@ namespace SocialVPN {
       if(request.ContainsKey("m") && request["m"] == "login") {
         _snp.Login(request["id"], request["user"], request["pass"]);
       }
+      else if(request.ContainsKey("m") && request["m"] == "logout") {
+        _snp.Logout();
+      }
       // Allows main thread to run request, main thread does all the work
       _queue.Enqueue(new QueueItem(QueueItem.Actions.Process, obj));
       request["response"] = _snode.GetState(false);
@@ -283,7 +285,7 @@ namespace SocialVPN {
         string method = request["m"];
         switch(method) {
           case "add":
-            _snp.AddFriends(request["uids"].Split(DELIM));
+            _snp.AddFriends(request["uids"].Split(_delims));
             break;
 
           case "addcert":
@@ -296,11 +298,6 @@ namespace SocialVPN {
 
           case "block":
             BlockFriends(request["fprs"]);
-            break;
-
-          case "exit":
-            Stop();
-            Environment.Exit(1);
             break;
 
           default:
@@ -333,7 +330,7 @@ namespace SocialVPN {
      * @param fprlist a list of fingerprints.
      */
     protected void AllowFriends(string fprlist) {
-      string[] fprs = fprlist.Split(DELIM);
+      string[] fprs = fprlist.Split(_delims);
       foreach(string fpr in fprs) {
         _snode.AddFriend(fpr);
       }
@@ -344,7 +341,7 @@ namespace SocialVPN {
      * @param fprlist a list of fingerprints.
      */
     protected void BlockFriends(string fprlist) {
-      string[] fprs = fprlist.Split(DELIM);
+      string[] fprs = fprlist.Split(_delims);
       foreach(string fpr in fprs) {
         _snode.RemoveFriend(fpr);
       }

@@ -50,7 +50,12 @@ namespace SocialVPN {
     /**
      * The suffix for the DNS names.
      */
-    public const string DNSSUFFIX = ".ipop";
+    public const string DNSSUFFIX = "ipop";
+
+    /**
+     * The suffix for the user certificates.
+     */
+    public const string CERTSUFFIX = ".cert";
 
     /**
      * The local certificate file name.
@@ -177,7 +182,12 @@ namespace SocialVPN {
      * @param user the object representing the user.
      */
     protected virtual void CreateAlias(SocialUser friend) {
-      string user = friend.Uid.Split('@')[0];
+      char[] delims = new char[] {'@','.'};
+      string[] parts = friend.Uid.Split(delims);
+      string user = String.Empty;
+      for(int i = 0; i < parts.Length-1; i++) {
+        user += parts[i] + ".";
+      }
       string alias = (friend.PCID + "." + user + DNSSUFFIX).ToLower();
       int counter = 1;
       // If alias already exists, remove old friend with alias
@@ -210,7 +220,6 @@ namespace SocialVPN {
      * Add local certificate to the DHT.
      */
     public void PublishCertificate() {
-
       byte[] key_bytes = Encoding.UTF8.GetBytes(_local_user.DhtKey);
       MemBlock keyb = MemBlock.Reference(key_bytes);
       MemBlock valueb = MemBlock.Reference(_local_cert.X509.RawData);
@@ -254,7 +263,9 @@ namespace SocialVPN {
       }
       else if(_snp.ValidateCertificate(friend, certData)) {
         CreateAlias(friend);
-        SocialUtils.SaveCertificate(cert, _cert_dir);
+        string path = System.IO.Path.Combine(_cert_dir, friend.Alias + 
+                      CERTSUFFIX);
+        SocialUtils.WriteToFile(certData, path);
         _bso.CertificateHandler.AddCACertificate(cert.X509);
         _friends.Add(friend.DhtKey, friend);
         _addr_to_key.Add(friend.Address, friend.DhtKey);
@@ -345,16 +356,6 @@ namespace SocialVPN {
     }
 
     /*
-     * Deletes a friend from socialvpn.
-     * @param fpr the friend's fingerprint to be removed.
-     */
-    public void DeleteFriend(string fpr) {
-      if(_friends.ContainsKey(fpr)) {
-        DeleteFriend(_friends[fpr]);
-      }
-    }
-
-    /*
      * Add a friend from socialvpn.
      * @param friend the friend to be added.
      */
@@ -380,19 +381,6 @@ namespace SocialVPN {
     }
 
     /**
-     * Delete (erase) a friend from socialvpn.
-     * @param friend the friend to be deleted.
-     */
-    protected void DeleteFriend(SocialUser friend) {
-      RemoveFriend(friend);
-      _friends.Remove(friend.DhtKey);
-      _addr_to_key.Remove(friend.Address);
-      _aliases.Remove(friend.Alias);
-      SocialUtils.DeleteCertificate(friend.Address, _cert_dir);
-      GetState(true);
-    }
-
-    /**
      * Loads certificates from the file system.
      */
     protected void LoadCertificates() {
@@ -402,29 +390,18 @@ namespace SocialVPN {
         SocialState state = Utils.ReadConfig<SocialState>(STATEPATH);
         foreach(string cert_file in cert_files) {
           byte[] cert_data = SocialUtils.ReadFileBytes(cert_file);
+          SocialUser user = new SocialUser(cert_data);
+          _snp.AddFriends(new string[] {user.Uid + " " + user.DhtKey});
           AddCertificate(cert_data, true);
         }
-        SetState(state);
+        foreach(SocialUser friend in state.Friends) {
+          if(friend.Access == SocialUser.AccessTypes.Block.ToString()) {
+            RemoveFriend(friend.DhtKey);
+          }
+        }
       } catch (Exception e) {
         ProtocolLog.WriteIf(SocialLog.SVPNLog, e.Message);
         ProtocolLog.WriteIf(SocialLog.SVPNLog, "LOAD CERTIFICATES FAILURE");
-      }
-    }
-
-    /**
-     * Restores the previous state from the file system.
-     * @param state the social state to set.
-     */
-    public void SetState(SocialState state) {
-      try {
-        foreach(SocialUser friend in state.Friends) {
-          if(friend.Access == SocialUser.AccessTypes.Block.ToString()) {
-            DeleteFriend(friend.DhtKey);
-          }
-        }
-      } catch(Exception e) { 
-        ProtocolLog.WriteIf(SocialLog.SVPNLog, e.Message);
-        ProtocolLog.WriteIf(SocialLog.SVPNLog, "SET STATE FAILURE");
       }
     }
 
@@ -437,7 +414,6 @@ namespace SocialVPN {
       state.Certificate = _local_cert_b64;
       state.LocalUser = _local_user;
       state.Status = _snp.Status;
-      //state.Deletes = _deletes;
       state.Friends = new SocialUser[_friends.Count];
       _friends.Values.CopyTo(state.Friends, 0);
       if(write_to_file) {
@@ -456,49 +432,16 @@ namespace SocialVPN {
       string port, global_access;
 
       if(args.Length < 4) {
-        try {
-          node_config = Utils.ReadConfig<NodeConfig>("brunet.config");
-          ipop_config = Utils.ReadConfig<IpopConfig>("ipop.config");
-          port = "58888";
-          global_access = "off";
-        } catch {
-          Console.WriteLine("usage: SocialVPN.exe <brunet.config path> " + 
-                             "<ipop.config path> <http port> " +
-                             "<global_access(on/off)>" + 
-                             "[userid] [pcid] [\"name\"]");
-          return;
-        }
+        node_config = Utils.ReadConfig<NodeConfig>("brunet.config");
+        ipop_config = Utils.ReadConfig<IpopConfig>("ipop.config");
+        port = "58888";
+        global_access = "off";
       }
       else {
         node_config = Utils.ReadConfig<NodeConfig>(args[0]);
         ipop_config = Utils.ReadConfig<IpopConfig>(args[1]);
         port = args[2];
         global_access = args[3];
-      }
-
-      if(!System.IO.Directory.Exists(node_config.Security.CertificatePath)) {
-        string name, uid, pcid, version, country;
-        if(args.Length >= 7) {
-          uid = args[4];
-          pcid = args[5];
-          name = args[6];
-        }
-        else {
-          Console.WriteLine("usage (on first run): SocialVPN.exe " +
-                            "<brunet.config path> <ipop.config path>" +
-                            "<http port> <global_access(on/off)> " +
-                            "<userid> <pcid> <\"name\">");
-          return;
-        }
-
-        country = "Undefined";
-        version = VERSION;
-        node_config.NodeAddress = Utils.GenerateAHAddress().ToString();
-        Utils.WriteConfig(args[0], node_config);
-        SocialUtils.CreateCertificate(uid, name, pcid, version, country,
-                                      node_config.NodeAddress, 
-                                      node_config.Security.CertificatePath,
-                                      node_config.Security.KeyPath);
       }
 
       SocialNode node = new SocialNode(node_config, ipop_config, 

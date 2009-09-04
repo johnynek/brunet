@@ -1,7 +1,7 @@
 SocialVPN - The Social Virtual Private Network
 ==============================================
 This application allows you to create encrypted P2P VPN links through the use
-of the BruNet P2P Library. You can download it from socialvpn.org.
+of the IPOP/BruNet P2P Library. You can download it from socialvpn.org.
 
 Running SocialVPN
 =================
@@ -19,17 +19,12 @@ apt-get install resolvconf nant
 
 tar -xzvf socialvpn.x.x.x
 cd socialvpn.x.x.x
-whoami > user.txt (only at first run)
-su root
-./socialvpn email pcid name
-
-*pcid = a name to identify this current machine
-**You only need to provide input params (email, pcid, name) on first run
+./setup.sh (only at first run)
+su
+./socialvpn
 
 2) Windows XP/Vista Instructions
 --------------------------------
-Install OpenVPN (openvpn.net) and rename Tap Win32 Adapter to tapipop
-
 Run Setup.cmd, then
 
 For XP, Double-click on SocialVPN.exe
@@ -38,16 +33,19 @@ For Vista, right-click on SocialVPN.exe and "Run as administrator"
 
 Using SocialVPN
 ===============
-SocialVPN can be managed through a Web browser or the SVPNTool.exe command 
+SocialVPN can be managed through a Web browser or the svpncmd.exe command 
 line utility.
 
 1) Web Access
 -- Point your Mozilla-based (Firefox or Chrome) browser to http://127.0.0.1:58888/
--- To add a friend, click on "Add Friends", enter friend's email address then submit
+-- To add a friend, click on "Add Friends", enter friend's email address and 
+   and fingerprint then submit
+
+   jabberid@jabber.org SVPN:1232312892123213
 
 2) Console Access
--- mono SVPNTool.exe friends - shows user info and list of friends
--- mono SVPNTool.exe add email - add a friend by email address
+-- mono svpncmd.exe info - shows user info and list of friends
+-- mono svpncmd.exe add email fpr - add a friend by email address
 
 Frequently Asked Questions
 ==========================

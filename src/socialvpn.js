@@ -39,7 +39,9 @@ function createElem(itemType, itemHTML, itemID, itemClass, containerName,
   if(functionName != "") {
     elem.addEventListener("click", functionName, false);
   }
-  elem.innerHTML = itemHTML;
+  try {
+    elem.innerHTML = itemHTML;
+  } catch (err) {}
   if(typeof containerName == 'string') {
     var container = document.getElementById(containerName); 
     container.appendChild(elem);
@@ -96,9 +98,9 @@ function loadHeader() {
   div_subheader.appendChild(menu);
 
   createElem("li", "...", "status_id", "", menu, "");
-  createElem("li", "Login", "", "", menu, loadLogin); 
   createElem("li", "Refresh", "", "", menu, makeRefresh);
-  createElem("li", "Exit", "", "", menu, makeExit); 
+  createElem("li", "Login", "", "", menu, loadLogin); 
+  createElem("li", "Logout", "", "", menu, makeLogout); 
 }
 
 function loadFriends() {
@@ -115,7 +117,7 @@ function loadFriends() {
   var user_status = stateXML.getElementsByTagName('Status')[0].textContent;
   
   var status_elem = document.getElementById('status_id');
-  status_elem.innerHTML = "..." + user_status +"...";
+  status_elem.innerHTML = "[[ " + user_status +" ]]";
   
   var titleHTML = name + " - " + alias + " - " + ip;
   var subtitleHTML = "Your fingerprint - " + fingerprint;
@@ -286,7 +288,7 @@ function submitLogin() {
   var div_tmp_content = document.getElementById('tmp_content');
   div_tmp_content.innerHTML = "";
   var status_elem = document.getElementById('status_id');
-  status_elem.innerHTML = "...connecting...";
+  status_elem.innerHTML = "[[ ...connecting... ]]";
 }
 
 function addFriends() {  
@@ -323,12 +325,15 @@ function getState() {
 }
 
 function makeRefresh() {
+  var status_elem = document.getElementById('status_id');
+  status_elem.innerHTML = "[[ ...refreshing... ]]";
   makeCall('m=refresh', 1000);
 }
 
-function makeExit() {
-  makeCall('m=exit', 0);
-  document.write("SocialVPN is shut down");
+function makeLogout() {
+  var status_elem = document.getElementById('status_id');
+  status_elem.innerHTML = "[[ ...logging out... ]]";
+  makeCall('m=logout', 1000);
 }
 
 function removeFriendPost() {
