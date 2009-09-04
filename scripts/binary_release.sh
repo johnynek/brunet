@@ -33,10 +33,7 @@ for file in $ipop_lib_files; do
   cp ../lib/$file $version/ipop/bin/.
 done
 
-cp ../scripts/groupvpn_prepare.sh $version/ipop/bin/.
-cp ../scripts/groupvpn.sh $version/ipop/bin/.
-cp ../scripts/groupvpn_bootstrap.sh $version/ipop/bin/.
-cp ../scripts/install_windows.bat $version/ipop/bin/.
+cp ../scripts/groupvpn* $version/ipop/bin/.
 cp ../scripts/daemon.py $version/ipop/bin/.
 cp ../scripts/install* $version/ipop/.
 

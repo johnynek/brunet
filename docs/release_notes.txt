@@ -10,6 +10,8 @@ single instance of IPOP
 - Added static address support
 - Windows and Linux service scripts
 - Support for intelligent relay selection based upon physical proximity
+- Windows and Linux GroupVPN processing scripts
+- 64-bit drivers for Windows
 ===============================================================================
 Revision 8
 -------------------------------------------------------------------------------
