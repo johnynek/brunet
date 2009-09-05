@@ -688,6 +688,7 @@ namespace Ipop {
     /// or set for the first time.</summary>
     protected virtual void UpdateMapping(MemBlock ether_addr, MemBlock ip_addr)
     {
+      ArrayList ips = null;
       lock(_sync) {
         if(_ether_to_ip.ContainsKey(ether_addr)) {
           if(_ether_to_ip[ether_addr].Equals(ip_addr)) {
@@ -700,7 +701,13 @@ namespace Ipop {
 
         _ether_to_ip[ether_addr] = ip_addr;
         _ip_to_ether[ip_addr] = ether_addr;
+
+        ips = new ArrayList(_ip_to_ether.Keys.Count);
+        foreach(MemBlock ip in _ip_to_ether.Keys) {
+          ips.Add(Utils.MemBlockToString(ip, '.'));
+        }
       }
+      _info.UserData["VirtualIPs"] = ips;
 
       ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
         "IP Address for {0} changed to {1}.",
