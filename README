@@ -2,14 +2,11 @@ IPOP - IP over P2P VPN Service
 
 Overview
 =========
-http://www.grid-appliance.org/wiki/index.php/IPOP
-
-Building IPOP and More
-=======================
-http://www.grid-appliance.org/wiki/index.php?title=IpopNodeReadme&oldid=2515
-
-Linux packaging information can be found at:
-http://www.grid-appliance.org/wiki/index.php/IPOPPackaging
+http://www.ipop-project.org
+GroupVPN -- Using groups as a medium to connect IPOP -- http://www.grid-appliance.org/wiki/index.php/GroupVPN
+SocialVPN -- using social links (like IM) as a medium to connect IPOP -- http://www.socialvpn.org
+Overlay Readme -- http://www.grid-appliance.org/wiki/index.php/BasicNodeReadme
+IpopNode Readme -- http://www.grid-appliance.org/wiki/index.php/IpopNodeReadme
 
 Contact
 ========

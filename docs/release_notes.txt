@@ -1,5 +1,5 @@
 ===============================================================================
-Revision GroupVPN Alpha
+Revision 9
 -------------------------------------------------------------------------------
 - IPOP now supports a VPN Router mode -- many participants in a LAN for a
 single instance of IPOP 
