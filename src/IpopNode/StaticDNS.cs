@@ -37,23 +37,18 @@ namespace Ipop {
       String res = null;
       // C 123 123 123 . domain.length
       int length = 1 + 9 + 1 + DomainName.Length;
-      Console.WriteLine(name);
       if(name.Length == length && name[0] == 'C' && name.EndsWith(DomainName)) {
-      Console.WriteLine(name);
         res = String.Empty;
         for(int i = 0; i < 3; i++) {
           try {
             res += Int32.Parse(name.Substring((3*i)+1, 3)) + ".";
           }
           catch {
-      Console.WriteLine(name + "HMM");
             return null;
           }
         }
-      Console.WriteLine(name);
         res = _base_address[0] + "." + res.Substring(0, res.Length - 1);
       }
-      Console.WriteLine(name);
       return res;
     }
 
