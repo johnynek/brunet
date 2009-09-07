@@ -33,7 +33,7 @@ cd - &> /dev/null
 mkdir -p /opt/ipop/var
 
 ln -sf /opt/ipop/bin/groupvpn_prepare.sh /usr/sbin/.
-ln -sf /opt/ipop/bin/groupvpn.sh /etc/rc.d/ipop_linux.sh
+ln -sf /opt/ipop/bin/groupvpn.sh /etc/rc.d/groupvpn.sh
 ln -sf /opt/ipop/bin/groupvpn_bootstrap.sh /etc/rc.d/bootstrap_linux.sh
 ln -sf /opt/ipop/etc/ipop.vpn.config /etc/.
 
