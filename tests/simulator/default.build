@@ -60,5 +60,16 @@
         <include name="Brunet.Security.dll"/>
       </references>
     </csc>
+
+    <csc target="exe" output="${build.dir}/HeavyChurnSimulator.exe" main="Brunet.Simulator.HeavyChurnSimulator">
+      <sources failonempty="true">
+        <include name="*.cs"/>
+      </sources>
+      <references basedir="${build.dir}">
+        <include name="Brunet.dll"/>
+        <include name="Brunet.Coordinate.dll"/>
+        <include name="Brunet.Security.dll"/>
+      </references>
+    </csc>
   </target>
 </project>

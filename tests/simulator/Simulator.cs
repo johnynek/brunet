@@ -134,7 +134,7 @@ namespace Brunet.Simulator {
     }
 
     // adds a node to the pool
-    public void AddNode(bool output) {
+    public virtual Node AddNode(bool output) {
       byte[] addr = new byte[Address.MemSize];
       _rand.NextBytes(addr);
       Address.SetClass(addr, AHAddress._class);
@@ -210,6 +210,18 @@ namespace Brunet.Simulator {
         Console.WriteLine("Adding: " + nm.Node.Address);
       }
       node.Connect();
+      return node;
+    }
+
+    public void RemoveNode(Node node, bool cleanly) {
+      NodeMapping nm = (NodeMapping) Nodes[node.Address];
+      if(cleanly) {
+        node.Disconnect();
+      } else {
+        node.Abort();
+      }
+      TakenPorts.Remove(nm.Port);
+      Nodes.Remove(node.Address);
     }
 
     // removes a node from the pool
