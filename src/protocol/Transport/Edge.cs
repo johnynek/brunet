@@ -253,7 +253,7 @@ namespace Brunet
         //want unhandled packets to keep edges open.
         //
         //This packet is going into the trash:
-        Console.Error.WriteLine("{0} lost packet {1}",this,b.ToBase16String());
+//        Console.Error.WriteLine("{0} lost packet {1}",this,b.ToBase16String());
       }
     }
     /**
