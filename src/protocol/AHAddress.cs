@@ -106,11 +106,14 @@ namespace Brunet
       if( Object.ReferenceEquals(this, o) ) { 
         return 0;
       }
-      AHAddress other = (AHAddress)o;
-      if( other._prefix != _prefix ) {
+
+      AHAddress other = o as AHAddress;
+
+      if(other == null) {
+        return base.CompareTo(o);
+      } else if( other._prefix != _prefix ) {
         return _prefix < other._prefix ? -1 : 1;
-      }
-      else {
+      } else {
         return _buffer.CompareTo(other._buffer);
       }
     }
