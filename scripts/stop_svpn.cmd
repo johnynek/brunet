@@ -1,1 +1,1 @@
-taskkill /IM SocialVPN.exe
+taskkill /F /IM SocialVPN.exe

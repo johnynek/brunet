@@ -25,10 +25,6 @@
       <arg line="-r ${bin.dir} socialvpn_0.3.0"/>
     </exec>
 
-    <exec program="tar" failonerror="false">
-      <arg line="-czvf socialvpn_0.3.0.tgz socialvpn_0.3.0"/>
-    </exec>
-
     <exec program="zip" failonerror="false">
       <arg line="-r socialvpn_0.3.0.zip socialvpn_0.3.0"/>
     </exec>
