@@ -128,7 +128,7 @@ namespace Brunet
         _connection_timeout = new TimeSpan(0,0,0,0,15000);
         //Check the edges from time to time
         IAction cec_act = new HeartBeatAction(this, this.CheckEdgesCallback);
-        Brunet.Util.FuzzyTimer.Instance.DoEvery(delegate(DateTime dt) {
+        _check_edges = Brunet.Util.FuzzyTimer.Instance.DoEvery(delegate(DateTime dt) {
           this.EnqueueAction(cec_act);
         }, 15000, 1000);
       }
@@ -387,6 +387,7 @@ namespace Brunet
      */
     protected int _running;
     protected int _send_pings;
+    protected Util.FuzzyEvent _check_edges;
 
     /** Object which we lock for thread safety */
     protected readonly object _sync;
@@ -786,6 +787,7 @@ namespace Brunet
             //Stop running the event
             de.Value.TryCancel();
           }
+          _check_edges.TryCancel();
         }
       }
     }
