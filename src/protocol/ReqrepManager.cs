@@ -135,10 +135,12 @@ public class ReqrepManager : SimpleSource, IDataHandler {
     * of all the information for a request
     */
    protected class RequestState {
-     public RequestState() {
-       Timeouts = _MAX_RESENDS;
+     public RequestState(TimeSpan to, TimeSpan ack_to) {
+       _timeouts = _MAX_RESENDS;
        _send_count = 0;
        _repliers = new ArrayList();
+       _timeout = to;
+       _ack_timeout = ack_to;
      }
      //Send the request again
      public void Send() {
@@ -148,7 +150,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
        Sender.Send( Request );
      }
 
-     public int Timeouts;
+     protected int _timeouts;
      public IReplyHandler ReplyHandler;
      protected readonly ArrayList _repliers;
      public ArrayList Repliers { get { return _repliers; } }
@@ -164,7 +166,12 @@ public class ReqrepManager : SimpleSource, IDataHandler {
      protected int _send_count;
      //number of times request has been sent out
      public int SendCount { get { return _send_count; } }
-     
+     protected TimeSpan _timeout;
+     protected TimeSpan _ack_timeout;
+    
+     public bool IsTimedOut {
+       get { return (_timeouts < 0); }
+     }
      ///True if we should resend
      public bool NeedToResend {
        get {
@@ -211,6 +218,21 @@ public class ReqrepManager : SimpleSource, IDataHandler {
        else {
          return false;
        }
+     }
+     public bool IsTimeToAct(DateTime now) {
+       TimeSpan timeout = _ackers == null ? _timeout : _ack_timeout;
+       if( now - _req_date > timeout ) {
+         _timeouts--;
+         if( _ackers != null ) {
+           if( _timeouts < 0 ) {
+             //Now, the ACK has timed out, reset them:
+             _ackers = null;
+             _timeouts = _MAX_RESENDS;
+           }
+         }
+         return true;
+       }
+       return false;
      }
    }
    /**
@@ -663,7 +685,8 @@ public class ReqrepManager : SimpleSource, IDataHandler {
     if ( reqt != ReqrepType.Request && reqt != ReqrepType.LossyRequest ) {
       throw new Exception("Not a request");
     }
-    RequestState rs = new RequestState();
+    TimeSpan timeout = sender is Edge ? _edge_reqtimeout : _nonedge_reqtimeout;
+    RequestState rs = new RequestState(timeout, _acked_reqtimeout);
     rs.Sender = sender;
     rs.ReplyHandler = reply;
     rs.RequestType = reqt;
@@ -746,30 +769,18 @@ public class ReqrepManager : SimpleSource, IDataHandler {
       //Here is a list of all the handlers for the requests that timed out
       lock( _sync ) {
         _last_check = now;
-        TimeSpan timeout;
         foreach(RequestState reqs in _req_state_table) {
-          if( reqs.GotAck ) {
-            timeout = _acked_reqtimeout;
-          }
-          else if( reqs.Sender is Edge ) {
-            timeout = _edge_reqtimeout;
-          }
-          else {
-            timeout = _nonedge_reqtimeout;
-          }
-          if( now - reqs.ReqDate > timeout ) {
-            reqs.Timeouts--;
-            if( reqs.Timeouts >= 0 ) {
-              if( reqs.NeedToResend ) {
-                ///@todo improve the logic of resending to be less wasteful
-                if( to_resend == null ) { to_resend = new ArrayList(); }
-                to_resend.Add( reqs );
-              }
-            }
-            else {
+          if( reqs.IsTimeToAct(now) ) {
+            //We need to act:
+            if( reqs.IsTimedOut ) {
               //We have timed out.
               if( timeout_hands == null ) { timeout_hands = new ArrayList(); }
               timeout_hands.Add( reqs ); 
+            }
+            else if( reqs.NeedToResend ) {
+              ///@todo improve the logic of resending to be less wasteful
+              if( to_resend == null ) { to_resend = new ArrayList(); }
+              to_resend.Add( reqs );
             }
           }
         }
