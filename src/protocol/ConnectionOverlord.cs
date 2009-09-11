@@ -96,7 +96,7 @@ namespace Brunet {
       }
 
       Linker l = new Linker(_node, resp.Target.Address, transports,
-          resp.ConnectionType, _node.Address.ToString());
+          resp.ConnectionType, resp.Token);
       l.FinishEvent += LinkerEndHandler;
       _node.TaskQueue.Enqueue( l );
       return true;
