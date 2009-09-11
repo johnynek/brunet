@@ -218,7 +218,7 @@ namespace Brunet
     {
       Interlocked.Exchange(ref _is_started, 0);
       lock ( _listener_map.SyncRoot ) {
-        _listener_map.Remove(this);
+        _listener_map.Remove(_listener_id);
       }
 
       ArrayList list = null;

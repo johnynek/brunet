@@ -203,6 +203,9 @@ namespace Brunet
     public override void Stop()
     {
       Interlocked.Exchange(ref _is_started, 0);
+      lock( _listener_map ) {
+        _listener_map.Remove(_listener_id);
+      }
       //Make sure to wake up the queue thread
       _queue.Enqueue(new FQEntry(null,null));
       if( Thread.CurrentThread != _queue_thread ) {
