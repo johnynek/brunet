@@ -47,7 +47,8 @@
       </fileset>
     </copy>
 
-    <csc target="winexe" main="SocialVPN.SocialNode" output="${build.dir}/SocialVPN.exe">
+    <csc target="exe" main="SocialVPN.SocialNode" 
+    output="${build.dir}/SocialVPN.exe">
       <sources failonempty="true">
         <include name="*.cs"/>
       </sources>
@@ -61,10 +62,28 @@
         <include name="CookComputing.XmlRpcV2.dll" />
         <include name="System.Runtime.Remoting.dll" />
         <include name="System.Web.dll" />
+        <include name="System.Configuration.Install.dll"/>
+        <include name="System.ServiceProcess.dll"/>
         <include name="Mono.Posix.dll"/>
         <include name="Mono.Security.dll"/>
         <include name="ManagedIpopNode.dll" />
         <include name="jabber-net.dll" />
+      </references>
+    </csc>
+
+    <csc target="exe" main="WindowsService.WindowsService" 
+    output="${build.dir}/SocialVPNService.exe">
+      <sources failonempty="true">
+        <include name="Service.cs"/>
+        <include name="ServiceInstaller.cs"/>
+        <include name="AssemblyInfo.cs"/>
+      </sources>
+      <references basedir="${build.dir}">
+        <include name="Brunet.dll" />
+        <include name="System.Configuration.Install.dll"/>
+        <include name="System.ServiceProcess.dll"/>
+        <include name="ManagedIpopNode.dll" />
+        <include name="SocialVPN.exe" />
       </references>
     </csc>
 
@@ -93,13 +112,16 @@
         <include name="ManagedIpopNode.dll" />
         <include name="jabber-net.dll" />
         <include name="SocialVPN.exe" />
+        <include name="SocialVPNService.exe" />
         <include name="svpncmd.exe" />
         <include name="socialvpn" />
         <include name="socialvpn.js" />
         <include name="socialvpn.css" />
         <include name="setup.cmd" />
+        <include name="start_socialvpn.cmd" />
+        <include name="stop_socialvpn.cmd" />
         <include name="setup.sh" />
-        <include name="stop_svpn.cmd" />
+        <include name="uninstall.cmd" />
         <include name="create_cert.js" />
         <include name="brunet.config" />
         <include name="ipop.config" />

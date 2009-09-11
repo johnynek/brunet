@@ -129,7 +129,7 @@ namespace SocialVPN {
     public void Stop() {
       _running = false;
       _listener.Stop();
-      _runner.Abort();
+      _runner.Join();
     }
 
     /**

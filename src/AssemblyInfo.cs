@@ -18,5 +18,5 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyCompany("ACIS Lab - University of Florida")]
 [assembly: AssemblyProduct("socialvpn")]
 [assembly: AssemblyCopyright("Copyright (c) University of Florida")]
-[assembly: AssemblyVersion("0.3.0")]
+[assembly: AssemblyVersion("0.3.1")]
 

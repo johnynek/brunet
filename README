@@ -1,4 +1,6 @@
 SocialVPN
+=========
+Get IP connectivity to your friends
 
 Building SocialVPN
 ==================
@@ -16,40 +18,19 @@ nant
 
 Running SocialVPN
 =================
-After compiling, all files to run SocialVPN are saved in bin directory.
-Hence, You can move bin directory anywhere that you want without worrying
-about dependencies.
+Instructions on running SocialVPN are under scripts/README.txt
 
-Go inside of bin directory (cd)
-
-For Windows XP, run the start_win.cmd file
-
-For Windows Vista, right-click on start_win.cmd and "Run as administrator"
-
-For Linux, run the following commands:
-
-whoami > user.txt
-
-su root
-
-./start_linux.sh
-
-Accessing SocialVPN Web Interface
-=================================
-SocialVPN can be managed through a Web browser or the SVPNTool.exe command 
-line utility. The start_win.cmd and the start_win.sh files contains the 
-port number used to access the interface. The default port number is 58888.
-
-Point your browser to http://127.0.0.1:58888/
-
-Dependencies:
+Libraries:
 =============
-SocialVPN is built on top of two other projects:
+SocialVPN is built on top of the following projects:
 1) The Brunet P2P Library 
-   - http://github.com/johnynek/brunet/tree/master (based repo)
+   - http://github.com/johnynek/brunet/tree/master (base repo)
    - http://github.com/davidiw/brunet/tree/master (added features)
 2) The IP over P2P Application (IPOP)
    - http://github.com/davidiw/ipop/tree/master
+3) The Jabber-Net XMPP Library
+  - http:code.google.com/p/jabber-net
+  - http://github.com/ptony82/jabber-net/tree/master (modified for socialvpn)
 
 All packaged binaries found under lib and bin directories are compiled from
 these two projects.

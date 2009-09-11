@@ -23,13 +23,17 @@ cd socialvpn.x.x.x
 su
 ./socialvpn
 
+To stop SocialVPN, kill -INT (svpnpid) 
+
 2) Windows XP/Vista Instructions
 --------------------------------
-Run Setup.cmd, then
+Run setup.cmd to install Virtual Network Interface
 
-For XP, Double-click on SocialVPN.exe
+To start SocialVPN, run start_socialvpn.cmd
 
-For Vista, right-click on SocialVPN.exe and "Run as administrator"
+To stop SocialVPN, run stop_socialvpn.cmd
+
+For Vista, right-click and "Run as administrator" for each step.
 
 Using SocialVPN
 ===============

@@ -15,21 +15,14 @@
       </fileset>
     </copy>
 
+    <nant buildfile="src/default.build" failonerror="true"/>
+    <nant buildfile="utils/default.build" failonerror="true"/>
+
     <mkdir dir="${bin.dir}" failonerror="true"/>
 
     <exec program="cp" failonerror="false">
       <arg line="-r ${ipop.dir}/drivers ${bin.dir}"/>
     </exec>
 
-    <exec program="cp" failonerror="false">
-      <arg line="-r ${bin.dir} socialvpn_0.3.0"/>
-    </exec>
-
-    <exec program="zip" failonerror="false">
-      <arg line="-r socialvpn_0.3.0.zip socialvpn_0.3.0"/>
-    </exec>
-
-    <nant buildfile="src/default.build" failonerror="true"/>
-    <nant buildfile="utils/default.build" failonerror="true"/>
   </target>
 </project>

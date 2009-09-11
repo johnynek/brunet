@@ -14,6 +14,7 @@ if [[ ! -d certificates ]]; then
   read pcid
   echo -n "Enter Name (Jane Doe): "
   read name
+  echo "Creating certificate..."
   mono svpncmd.exe cert $userid $pcid "$name"
   chmod 600 private_key
   if [[ -d certificates ]]; then

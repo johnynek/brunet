@@ -11,13 +11,8 @@ if(!filesys.FolderExists("certificates")) {
   pcid = stdin.ReadLine();
   stdout.Write("Enter Name (Jane Doe): ");
   name = stdin.ReadLine();
+  stdout.WriteLine("Creating certificate...");
   var oExec = WshShell.Run("svpncmd.exe cert " + userid + " " + pcid + 
     " \"" + name + "\"", 0, true);
-
-  if(filesys.FolderExists("certificates")) {
-    stdout.WriteLine("Run SocialVPN.exe as administrator");
-    stdout.WriteLine("Press Enter to close this window");
-    stdin.ReadLine();
-  }
 }
 
