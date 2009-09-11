@@ -235,6 +235,10 @@ public class LFBlockingQueue<T> {
     _are = new AutoResetEvent(false);
   }
 
+  ~LFBlockingQueue() {
+    _are.Close();
+  }
+
   /** Safe for multiple threads to call simulataneously
    */
   public int Enqueue(T a) {
