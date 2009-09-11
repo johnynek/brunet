@@ -102,9 +102,9 @@ namespace Brunet.Simulator {
 
     protected int TakePort()
     {
-      int port = TakenPorts.Count;
+      int port = TakenPorts.Count + 1;
       while(TakenPorts.Contains(port)) {
-        port = _rand.Next(0, 65535);
+        port = _rand.Next(1, 65535);
       }
       return port;
     }
@@ -282,6 +282,7 @@ namespace Brunet.Simulator {
         Node node = ((NodeMapping) de.Value).Node;
         node.Disconnect();
       }
+      Nodes.Clear();
     }
 
     /// <summary>Helps performing a live crawl on the Simulator</summary>
