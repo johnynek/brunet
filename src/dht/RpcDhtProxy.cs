@@ -26,7 +26,7 @@ namespace Brunet.DistributedServices {
   /// which reinserts dht entry before its ttl expires</summary>
   public class RpcDhtProxy : IRpcHandler {
     public static readonly int RETRY_TIMEOUT = 30000;
-    protected Node _node;
+    protected RpcManager _rpc;
     protected static IDht _dht;
     protected Dictionary<MemBlock, Dictionary<MemBlock, Entry>> _entries;
     protected object _sync;
@@ -40,10 +40,10 @@ namespace Brunet.DistributedServices {
     public RpcDhtProxy(IDht dht, Node node)
     {
       _entries = new Dictionary<MemBlock, Dictionary<MemBlock, Entry>>();
-      _node = node;
+      _rpc = node.Rpc;
       _dht = dht;
       _sync = new Object();
-      _node.Rpc.AddHandler("RpcDhtProxy", this);
+      _rpc.AddHandler("RpcDhtProxy", this);
     }
 
     public void HandleRpc(ISender caller, string method, IList arguments, object request_state)
@@ -76,7 +76,7 @@ namespace Brunet.DistributedServices {
       catch (Exception e) {
         result = new AdrException(-32602, e);
       }
-      _node.Rpc.SendResult(request_state, result);
+      _rpc.SendResult(request_state, result);
     }
 
     /// <summary>This is a RpcDhtProxy rpc call entry, which can be called using "RpcDhtProxy.Register"
