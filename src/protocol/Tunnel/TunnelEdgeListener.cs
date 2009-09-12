@@ -476,6 +476,17 @@ namespace Brunet.Tunnel {
       Interlocked.Exchange(ref _running, 0);
       _oco_trim_timer.Stop();
       base.Stop();
+
+      ArrayList list = null;
+      lock(_sync) {
+        list = new ArrayList(_id_to_tunnel.Values);
+      }
+
+      foreach(Edge e in list) {
+        try {
+          e.Close();
+        } catch { }
+      }
     }
 
     /// <summary>Used to bundle a TunnelTA, an ECB, and an IAction
