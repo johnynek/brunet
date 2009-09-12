@@ -477,12 +477,9 @@ namespace Brunet.Tunnel {
       _oco_trim_timer.Stop();
       base.Stop();
 
-      ArrayList list = null;
-      lock(_sync) {
-        list = new ArrayList(_id_to_tunnel.Values);
-      }
+      List<TunnelEdge> tunnels = _tunnels;
 
-      foreach(Edge e in list) {
+      foreach(Edge e in tunnels) {
         try {
           e.Close();
         } catch { }
