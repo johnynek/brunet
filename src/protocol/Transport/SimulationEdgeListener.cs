@@ -57,6 +57,7 @@ namespace Brunet
      */
     protected int _listener_id;
     protected Random _rand;
+    protected Hashtable _edges;
 
     protected ArrayList _tas;
     /**
@@ -90,6 +91,7 @@ namespace Brunet
 
     public SimulationEdgeListener(int id, double loss_prob, TAAuthorizer ta_auth, bool use_delay)
     {
+      _edges = new Hashtable();
       _use_delay = use_delay;
       _sync = new object();
       _ba = new BufferAllocator(2048, 8);
@@ -156,6 +158,7 @@ namespace Brunet
       }
 
       SimulationEdge se_l = new SimulationEdge(this, _listener_id, remote_id, false, delay);
+      AddEdge(se_l);
 
       SimulationEdgeListener remote = (SimulationEdgeListener) _listener_map[remote_id];
       if( remote != null ) {
@@ -173,6 +176,7 @@ namespace Brunet
         }
 
         SimulationEdge se_r = new SimulationEdge(remote, remote_id, _listener_id, true, delay);
+        remote.AddEdge(se_r);
 
         se_l.Partner = se_r;
         se_r.Partner = se_l;
@@ -182,6 +186,22 @@ namespace Brunet
           //behavior of just making an edge that goes nowhere.
       }
       ecb(true, se_l, null);
+    }
+
+
+    protected void AddEdge(Edge edge)
+    {
+      edge.CloseEvent += CloseHandler;
+      lock(_sync) {
+        _edges.Add(edge, edge);
+      }
+    }
+
+    protected void CloseHandler(object edge, EventArgs ea)
+    {
+      lock(_sync) {
+        _edges.Remove(edge);
+      }
     }
 
     public override void Start()
@@ -199,6 +219,17 @@ namespace Brunet
       Interlocked.Exchange(ref _is_started, 0);
       lock ( _listener_map.SyncRoot ) {
         _listener_map.Remove(this);
+      }
+
+      ArrayList list = null;
+      lock(_sync) {
+        list = new ArrayList(_edges.Values);
+      }
+
+      foreach(Edge e in list) {
+        try {
+          e.Close();
+        } catch { }
       }
     }
 

@@ -587,6 +587,17 @@ namespace Brunet
         } while( false == _listen_finished_event.WaitOne(500, false) );
         _listen_thread.Join();
       }
+
+      ArrayList list = null;
+      lock(_sync) {
+        list = new ArrayList(_id_ht.Values);
+      }
+
+      foreach(Edge e in list) {
+        try {
+          e.Close();
+        } catch { }
+      }
     }
 
     /**
