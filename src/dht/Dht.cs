@@ -196,7 +196,7 @@ namespace Brunet.DistributedServices {
       adgs.brunet_address_for_key = MapToRing(key);
       for (int k = 0; k < DEGREE; k++) {
         Address target = new AHAddress(adgs.brunet_address_for_key[k]);
-        AHSender s = new AHSender(Node, target, AHPacket.AHOptions.Greedy);
+        AHSender s = new AHGreedySender(Node, target);
         // 1024 is in there for backwards compatibility
         _rpc.Invoke(s, q[k], "dht.Get", adgs.brunet_address_for_key[k], 1024, null);
       }
@@ -397,7 +397,7 @@ namespace Brunet.DistributedServices {
             MemBlock key = adgs.brunet_address_for_key[i];
             Channel queue = new Channel();
             Address target = new AHAddress(key);
-            AHSender s = new AHSender(Node, target, AHPacket.AHOptions.Greedy);
+            AHSender s = new AHGreedySender(Node, target);
             try {
              _rpc.Invoke(s, queue, "dht.Put", key, value, ttl, false);
             }
@@ -472,7 +472,7 @@ namespace Brunet.DistributedServices {
 
       for (int k = 0; k < DEGREE; k++) {
         Address target = new AHAddress(brunet_address_for_key[k]);
-        AHSender s = new AHSender(Node, target, AHPacket.AHOptions.Greedy);
+        AHSender s = new AHGreedySender(Node, target);
         _rpc.Invoke(s, q[k], "dht.Put", brunet_address_for_key[k], value, ttl, unique);
       }
     }

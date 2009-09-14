@@ -578,7 +578,7 @@ namespace Brunet {
 #endif
             target = new DirectionalAddress(DirectionalAddress.Direction.Left);
             short ttl = (short)DESIRED_NEIGHBORS;
-            sender = new AHSender(_node, target, ttl, AHPacket.AHOptions.Last);
+            sender = new AHSender(_node, target, ttl, AHHeader.Options.Last);
             contype = STRUC_NEAR;
           }
           else if( NeedRightNeighbor ) {
@@ -587,7 +587,7 @@ namespace Brunet {
 #endif
             target = new DirectionalAddress(DirectionalAddress.Direction.Right);
             short ttl = (short)DESIRED_NEIGHBORS;
-            sender = new AHSender(_node, target, ttl, AHPacket.AHOptions.Last);
+            sender = new AHSender(_node, target, ttl, AHHeader.Options.Last);
             contype = STRUC_NEAR;
           }
           else if( NeedShortcut ) {
@@ -999,7 +999,7 @@ namespace Brunet {
             Address target = new DirectionalAddress(DirectionalAddress.Direction.Right);
             short ttl = (short)DESIRED_NEIGHBORS;
             string contype = STRUC_NEAR;
-            ISender send = new AHSender(_node, target, ttl, AHPacket.AHOptions.Last);
+            ISender send = new AHSender(_node, target, ttl, AHHeader.Options.Last);
             ConnectTo(send, contype);
           }
           if( left_pos < DESIRED_NEIGHBORS ) {
@@ -1007,7 +1007,7 @@ namespace Brunet {
             Address target = new DirectionalAddress(DirectionalAddress.Direction.Left);
             short ttl = (short)DESIRED_NEIGHBORS;
             string contype = STRUC_NEAR;
-            ISender send = new AHSender(_node, target, ttl, AHPacket.AHOptions.Last);
+            ISender send = new AHSender(_node, target, ttl, AHHeader.Options.Last);
             ConnectTo(send, contype);
           }
           if( c.ConType == STRUC_SHORT ) {

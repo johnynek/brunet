@@ -79,7 +79,6 @@ namespace Brunet
 
     /** global lock for thread synchronization */
     protected readonly object _sync;
-    protected readonly ListDictionary _to_close;
 
     //This is true when the node starts to disconnect
     protected int _disconnecting;
@@ -93,8 +92,6 @@ namespace Brunet
       _sync = new object();
       _edge_to_cphstate = new Hashtable();
       _node = n;
-      _node.HeartBeatEvent += this.DelayedCloseHandler;
-      _to_close = new ListDictionary();
       _disconnecting = 0;
       //When Disconnect is called, set disconnecting to true, disallowing new
       //connections.
@@ -136,41 +133,10 @@ namespace Brunet
       /**
        * Try to close the edge after a small time span:
        */
-      DateTime to_close = DateTime.UtcNow + new TimeSpan(0,0,0,5,0);
-      lock( _sync ) {
-        _to_close[from] = to_close;
-      }
+      Brunet.Util.FuzzyTimer.Instance.DoAfter(delegate(DateTime now) {
+        _node.EnqueueAction(new Node.GracefulCloseAction(_node, from, "CPH, delayed close"));
+      }, 5000, 1000);
       return new ListDictionary();
-    }
-
-    /**
-     * This method looks to see if there are any edges we need to
-     * try to close.  We try this after the other side has asked
-     * up to close an edge (since we don't know if they got our
-     * response or not).
-     */
-    protected void DelayedCloseHandler(object n, EventArgs a) {
-      ArrayList l = null;
-      lock( _sync ) {
-        if( _to_close.Count == 0 ) { return; }
-        l = new ArrayList( _to_close.Count );
-        DateTime now = DateTime.UtcNow;
-        foreach(DictionaryEntry de in _to_close) {
-          DateTime to_close_date = (DateTime)de.Value;
-          Edge e = (Edge)de.Key;
-          if( now > to_close_date ) {
-            l.Add(e);
-          }
-        }
-        foreach(object e in l) {
-          _to_close.Remove(e);
-        }
-      }
-      if( l != null ) {
-        foreach(Edge e in l) {
-          _node.GracefullyClose(e, "CPH, delayed close handler.");
-        }
-      }
     }
 
     /**

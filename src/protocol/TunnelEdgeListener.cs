@@ -233,7 +233,7 @@ namespace Brunet
           //when we actually get a response
           
           //now build the packet payload
-          Packet p = null;
+          ICopyable p = null;
           using(MemoryStream ms = new MemoryStream()) {
             ms.WriteByte((byte) MessageType.EdgeRequest);
             NumberSerializer.WriteInt(localid, ms);
@@ -264,8 +264,7 @@ namespace Brunet
             Console.Error.WriteLine("Creating a memory stream holding the payload");
     #endif
             AdrConverter.Serialize(args, ms);
-            p = new AHPacket(1, 2, _node.Address, tun_ta.Target, AHPacket.AHOptions.Exact, 
-                                 AHPacket.Protocol.Tunneling, ms.ToArray());
+            p = MakePacket(tun_ta.Target, ms);
           }
 #if TUNNEL_DEBUG
           Console.Error.WriteLine("Created a request packet.");
@@ -293,7 +292,7 @@ namespace Brunet
       public static readonly TimeSpan ReqTimeout = new TimeSpan(0,0,0,0,5000);
       public readonly int Id;
       protected EdgeCreationCallback _ecb; 
-      protected readonly Packet RequestPacket;
+      protected readonly ICopyable RequestPacket;
       protected readonly IList Senders;
       protected DateTime _last_send;
       protected object _last_send_lock;
@@ -307,7 +306,7 @@ namespace Brunet
       protected readonly Random _r;
       protected Edge _edge; //reference type
       public Edge CreatedEdge { get { return _edge; } }
-      public EdgeCreationState(int id, IList senders, Packet p, EdgeCreationCallback ecb) {
+      public EdgeCreationState(int id, IList senders, ICopyable p, EdgeCreationCallback ecb) {
         Id = id;
         Senders = senders;
         _ecb = ecb;
@@ -828,7 +827,7 @@ namespace Brunet
       /*
        * No matter what, we send a response back now
        */
-        Packet p = null;
+        ICopyable p = null;
         using(MemoryStream ms = new MemoryStream()) {
           ms.WriteByte((byte) MessageType.EdgeResponse);
           NumberSerializer.WriteInt(localid, ms);
@@ -838,8 +837,7 @@ namespace Brunet
           args[0] = _node.Address.ToMemBlock();
 
           AdrConverter.Serialize(args, ms);
-          p = new AHPacket(1, 2, _node.Address, target, AHPacket.AHOptions.Exact, 
-                                AHPacket.Protocol.Tunneling, ms.ToArray());
+          p = MakePacket(target, ms);
         }
         //send using the edge we received data on
 #if TUNNEL_DEBUG
@@ -877,7 +875,7 @@ namespace Brunet
         return;
       }
       TunnelEdge tun_edge = (TunnelEdge)e;
-      Packet p = null;
+      ICopyable p = null;
       using( MemoryStream ms = new MemoryStream() ) {
         ms.WriteByte((byte) MessageType.EdgeControl);
   
@@ -912,9 +910,7 @@ namespace Brunet
         AdrConverter.Serialize(arg2, ms);
         
   
-        p = new AHPacket(1, 2, _node.Address, tun_edge.Target,
-                                AHPacket.AHOptions.Exact, 
-                                AHPacket.Protocol.Tunneling, ms.ToArray());
+        p = MakePacket(tun_edge.Target, ms);
       }
       
 
@@ -955,7 +951,7 @@ namespace Brunet
         return;
       }
       TunnelEdge tun_edge = (TunnelEdge)e;
-      Packet p = null;
+      ICopyable p = null;
       using( MemoryStream ms = new MemoryStream() ) {
         ms.WriteByte((byte) MessageType.EdgeSync);
   
@@ -970,10 +966,7 @@ namespace Brunet
         }
   
         AdrConverter.Serialize(args, ms);
-  
-        p = new AHPacket(1, 2, _node.Address, tun_edge.Target,
-                                AHPacket.AHOptions.Exact, 
-                                AHPacket.Protocol.Tunneling, ms.ToArray());
+        p = MakePacket(tun_edge.Target, ms);
       }
       
      ArrayList packet_senders = tun_edge.PacketSenders;
@@ -1003,6 +996,12 @@ namespace Brunet
              "Error sending edge sync on packet_sender: {0}, {1}", sender, ex));
        }
      }      
+    }
+
+    protected ICopyable MakePacket(Address target, MemoryStream ms) {
+      var head = new AHHeader(1, 2, _node.Address, target, AHHeader.Options.Exact);
+      return new CopyList(PType.Protocol.AH, head,
+                    PType.Protocol.Tunneling, MemBlock.Reference(ms.ToArray()));
     }
      
     /*

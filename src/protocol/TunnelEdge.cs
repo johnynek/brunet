@@ -112,11 +112,7 @@ namespace Brunet
     protected bool _is_connected;
 
     protected static readonly TimeSpan SyncInterval = new TimeSpan(0, 0, 30);//30 seconds.
-    /**
-     * Last time when we synchronized with the tunnel edge target,
-     * on the list of forwarders. 
-     */
-    protected DateTime _last_sync_dt;
+    protected readonly Brunet.Util.FuzzyEvent _timer_event;
     protected readonly TunnelEdgeListener _tel;
 
     /**
@@ -203,10 +199,11 @@ namespace Brunet
       _remoteta = new TunnelTransportAddress(target, _forwarders);
       
       lock(_sync) {
-        _last_sync_dt = DateTime.UtcNow; //we just synchronized now.
         _node.ConnectionTable.DisconnectionEvent += new EventHandler(DisconnectHandler);
         _node.ConnectionTable.ConnectionEvent += new EventHandler(ConnectHandler);
-        _node.HeartBeatEvent += new EventHandler(SynchronizeEdge);
+        int sync_int_ms = (int)SyncInterval.TotalMilliseconds;
+        //Every interval +/- 1 second, call EnqueueSyncAction
+        _timer_event = Brunet.Util.FuzzyTimer.Instance.DoEvery(this.EnqueueSyncAction, sync_int_ms, 1000);
       }
       
 #if TUNNEL_DEBUG 
@@ -223,7 +220,8 @@ namespace Brunet
         //unsubscribe the disconnecthandler
         _node.ConnectionTable.ConnectionEvent -= new EventHandler(ConnectHandler);      
         _node.ConnectionTable.DisconnectionEvent -= new EventHandler(DisconnectHandler); 
-        _node.HeartBeatEvent -= new EventHandler(SynchronizeEdge);
+        //Go ahead and try to stop the timer:
+        _timer_event.TryCancel();
       }
 #if TUNNEL_DEBUG 
       Console.Error.WriteLine("Closing: {0}", this);
@@ -257,7 +255,8 @@ namespace Brunet
       NumberSerializer.WriteInt(remote_id, ids, 5);
       MemBlock ids_mb = MemBlock.Reference( ids );
       ICopyable header = new CopyList( PType.Protocol.AH,
-                                       new AHHeader(1, 2, source, target, AHPacket.AHOptions.Exact),
+                                       new AHHeader(1, 2, source, target,
+                                       AHHeader.Options.Exact),
                                        PType.Protocol.Tunneling,
                                        ids_mb );
       //Now we have assembled the full header to prepend to any data, but
@@ -280,21 +279,31 @@ namespace Brunet
 #endif
       ISender s = null;
       int p_s_c = -1;
-      //Don't try forever:
-      int attempts = 3 * _packet_senders.Count;
+      //Don't try forever
+      int attempts = 10;
       //Loop until success or failure:
       while(attempts-- > 0) {
         if( IsClosed ) {
           throw new EdgeClosedException(String.Format("Edge closed: {0}", this));
         }
         try {
+          bool close = false;
           lock( _sync ) {
             _last_sender_idx++;
             p_s_c = _packet_senders.Count;
-            if( _last_sender_idx >= p_s_c ) {
+            if( 0 == p_s_c ) {
+              close = true;
+            }
+            else if( _last_sender_idx >= p_s_c ) {
               _last_sender_idx = 0;
             }
-            s = (ISender)_packet_senders[ _last_sender_idx ];
+            if(!close) {
+              s = (ISender)_packet_senders[ _last_sender_idx ];
+            }
+          }
+          if( close ) {
+            Close();
+            throw new EdgeClosedException(String.Format("Edge closed: {0}", this));
           }
           s.Send( new CopyList(_tun_header, p) );
           Interlocked.Exchange(ref _last_out_packet_datetime, DateTime.UtcNow.Ticks);
@@ -463,7 +472,20 @@ namespace Brunet
         _tel.HandleControlSend(this, added, lost);
       }
     }
-    
+
+    //Call SynchronizeEdge in the Node's main thread:
+    protected class SyncAction : IAction {
+      protected readonly TunnelEdge _te;
+      public SyncAction(TunnelEdge te) {
+        _te = te;
+      }
+      public void Start() {
+        _te.SynchronizeEdge();
+      }
+    }
+    protected void EnqueueSyncAction(DateTime dt) {
+      _node.EnqueueAction(new SyncAction(this)); 
+    }
     /**
      * Handle periodic synchronization about forwarders with the
      * edge target.
@@ -471,17 +493,8 @@ namespace Brunet
      * @param args event arguments.
 
      */
-    protected void SynchronizeEdge(object o, EventArgs args) {
-      
+    protected void SynchronizeEdge() {
       // Send a message about my local connections.
-      DateTime now = DateTime.UtcNow;
-      lock(_sync) {
-        if (now - _last_sync_dt < SyncInterval) {
-          return;
-        } 
-        _last_sync_dt = now;
-      }
-
 #if TUNNEL_DEBUG
       Console.Error.WriteLine("Sending synchronize for edge: {0}.", this);
 #endif
@@ -509,7 +522,7 @@ namespace Brunet
       IEnumerable struct_cons =
           _node.ConnectionTable.GetConnections(ConnectionType.Structured);
       
-      ArrayList to_add = new ArrayList();
+      bool close_now;
       lock(_sync) {
 #if TUNNEL_DEBUG
 	Console.Error.WriteLine("Edge {0} modified (receiving control).", this); 
@@ -538,6 +551,7 @@ namespace Brunet
             _packet_senders.Add(c.Edge);
           }
         }
+        close_now = (_packet_senders.Count == 0);
         _localta = new TunnelTransportAddress(_node.Address, _forwarders);
         _remoteta = new TunnelTransportAddress(_target, _forwarders);	  
       }//Drop the lock before sending
@@ -545,8 +559,8 @@ namespace Brunet
       Console.Error.WriteLine("Updated (on control) localTA: {0}", _localta);
       Console.Error.WriteLine("Updated (on control) remoteTA: {0}", _remoteta);
 #endif	  
-      if (to_add.Count > 0) {
-        _tel.HandleControlSend(this, to_add, new ArrayList());	  
+      if( close_now ) {
+        Close();
       }
     }
 

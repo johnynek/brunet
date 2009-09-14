@@ -93,11 +93,11 @@ namespace Brunet
      * Start sending packets
      */
     public void Run() {
-      byte[] buf = new byte[Packet.MaxLength];
+      byte[] buf = new byte[UInt16.MaxValue];
       Random ran_obj = new Random();
       for(int counter = 0; counter < count; counter++) {
         try {
-          int size = ran_obj.Next(4, Packet.MaxLength);
+          int size = ran_obj.Next(4, Int16.MaxValue);
           ran_obj.NextBytes(buf);
           NumberSerializer.WriteInt(counter, buf, 0);
           MemBlock cp = MemBlock.Copy(buf, 0, Math.Max(4,counter));

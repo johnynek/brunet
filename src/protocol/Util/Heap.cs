@@ -44,8 +44,13 @@ public class Heap<T> : IEnumerable<T> {
   protected HeapNode<T> _root;
   readonly protected IComparer<T> _comp;
 
+  //Here is the stack of "free" nodes
+  protected HeapNode<T> _free_stack;
+  protected int _free_count;
+
   public Heap(IComparer<T> comp) {
     _comp = comp;
+    _free_count = 0;
   }
 
   public Heap() : this(Comparer<T>.Default) { }
@@ -68,7 +73,7 @@ public class Heap<T> : IEnumerable<T> {
    * returns true if this is the minimal value
    */
   public bool Add(T newval) {
-    HeapNode<T> newnode = new HeapNode<T>();
+    HeapNode<T> newnode = AllocNode();
     newnode.Value = newval;
     if( _root == null ) {
       _root = newnode;
@@ -76,13 +81,47 @@ public class Heap<T> : IEnumerable<T> {
     else {
       InsertAt(_root, newnode);
     }
-    return _root.Value.Equals(newval);
+    return newval == null ? _root.Value == null : newval.Equals(_root.Value);
+  }
+
+  //does some recycling of nodes due to Mono's GC weaknesses
+  protected HeapNode<T> AllocNode() {
+    HeapNode<T> new_node;
+    if( _free_stack != null ) {
+      new_node = _free_stack;
+      _free_stack = _free_stack.Parent; 
+      //Take it out of the list:
+      new_node.Parent = null;
+      _free_count -= 1;
+    }
+    else {
+      new_node = new HeapNode<T>();
+    }
+    return new_node;
   }
 
   /** Remove all items from the heap
    */
   public void Clear() {
     _root = null;  
+  }
+
+  protected void FreeNode(HeapNode<T> to_free) {
+    to_free.Child0 = null;
+    to_free.Child1 = null;
+    to_free.Value = default(T);
+    //See if we can add it to the stack:
+    if( _free_count <= 2 * Count + 100 ) {
+      //We don't want the free stack too large:
+      to_free.Parent = _free_stack;
+      to_free.Children = 0;
+      _free_stack = to_free;
+      _free_count += 1;
+    }
+    else {
+      //The free stack is too big, just null this out
+      to_free.Parent = null;
+    }
   }
 
   IEnumerator IEnumerable.GetEnumerator() {
@@ -161,6 +200,8 @@ public class Heap<T> : IEnumerable<T> {
     }
     else {
       T val = _root.Value;
+      //Make sure Value stops pointing (maybe helps GC):
+      _root.Value = default(T);
       _root = ReplaceValue(_root);
       return val;
     }
@@ -273,6 +314,8 @@ public class Heap<T> : IEnumerable<T> {
        * Note, the heap property is still valid, we just removed
        * a child
        */
+      //Delete parent's references to be nice to the garbage collector:
+      FreeNode(parent);
       return new_parent;
     }
   }

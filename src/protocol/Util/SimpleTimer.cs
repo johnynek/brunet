@@ -111,7 +111,8 @@ namespace Brunet.Util {
         try {
           timer._callback(timer._state);
         } catch (Exception e) {
-          ProtocolLog.WriteIf(ProtocolLog.Exceptions, e.ToString());
+          //ProtocolLog is not in Brunet.Util:
+          //ProtocolLog.WriteIf(ProtocolLog.Exceptions, e.ToString());
         }
 
         if(stopped) {
