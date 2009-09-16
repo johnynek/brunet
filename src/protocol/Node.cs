@@ -658,7 +658,8 @@ namespace Brunet
          * still be adding things into the queue.  This is here to prevent
          * a memory explosion
          */
-        throw new Exception(String.Format("Queue is too long: {0}", queue_size));
+//        throw new Exception(String.Format("Queue is too long: {0}", queue_size));
+        ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format("Queue is too long: {0}", queue_size));
       }
       int count = _packet_queue.Enqueue(a);
       _packet_queue_exp_avg = (PACKET_QUEUE_RETAIN * _packet_queue_exp_avg)
