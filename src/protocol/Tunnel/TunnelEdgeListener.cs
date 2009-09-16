@@ -179,7 +179,7 @@ namespace Brunet.Tunnel {
         ecb(false, null, new Exception("TA Type is not Tunnel!"));
       } else {
         TunnelEdgeCallbackAction teca = new TunnelEdgeCallbackAction(tta, ecb);
-        SimpleTimer timer = new SimpleTimer(CreateEdgeTo, teca, 5000, 0);
+        SimpleTimer timer = new SimpleTimer(CreateEdgeTo, teca, 10000, 0);
         timer.Start();
       }
     }
