@@ -121,15 +121,26 @@ namespace Ipop.DhtNode {
 
       if(node_config.Security.Enabled && ipop_config.GroupVPN.Enabled && ipop_config.EndToEndSecurity) {
         RSACryptoServiceProvider public_key = new RSACryptoServiceProvider();
-        bool create = false;
-        if(!File.Exists(node_config.Security.KeyPath)) {
+        bool create = true;
+        if(File.Exists(node_config.Security.KeyPath)) {
+          try {
+            using(FileStream fs = File.Open(node_config.Security.KeyPath, FileMode.Open)) {
+              byte[] blob = new byte[fs.Length];
+              fs.Read(blob, 0, blob.Length);
+              public_key.ImportCspBlob(blob);
+              public_key.ImportCspBlob(public_key.ExportCspBlob(false));
+            }
+            create = false;
+          } catch { }
+        }
+
+        if(create) {
           using(FileStream fs = File.Open(node_config.Security.KeyPath, FileMode.Create)) {
             RSACryptoServiceProvider private_key = new RSACryptoServiceProvider(2048);
             byte[] blob = private_key.ExportCspBlob(true);
             fs.Write(blob, 0, blob.Length);
             public_key.ImportCspBlob(private_key.ExportCspBlob(false));
           }
-          create = true;
         }
 
         string cacert_path = Path.Combine(node_config.Security.CertificatePath, "cacert");
@@ -141,14 +152,6 @@ namespace Ipop.DhtNode {
         string cert_path = Path.Combine(node_config.Security.CertificatePath,
             "lc." + node_config.NodeAddress.Substring(12));
         if(create || !File.Exists(cert_path)) {
-          if(!create) {
-            using(FileStream fs = File.Open(node_config.Security.KeyPath, FileMode.Open)) {
-              byte[] blob = new byte[fs.Length];
-              fs.Read(blob, 0, blob.Length);
-              public_key.ImportCspBlob(blob);
-              public_key.ImportCspBlob(public_key.ExportCspBlob(false));
-            }
-          }
           string webcert_path = Path.Combine(node_config.Security.CertificatePath, "webcert");
           if(!File.Exists(webcert_path)) {
             Console.WriteLine("DhtIpop: ");
@@ -182,6 +185,7 @@ namespace Ipop.DhtNode {
         _current_node = new DhtIpopNode(node_config, ipop_config);
       }
 
+      Console.WriteLine("Starting IPOP: " + DateTime.UtcNow);
       _current_node.Run();
       return 0;
     }
