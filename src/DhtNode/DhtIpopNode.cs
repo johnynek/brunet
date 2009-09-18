@@ -86,6 +86,11 @@ namespace Ipop.DhtNode {
       return true;
     }
 
+    /// <summary>Calls HandleMulticast.</summary>
+    protected override bool HandleBroadcast(IPPacket ipp) {
+      return HandleMulticast(ipp);
+    }
+
     /// <summary>Called by HandleIPOut if the current packet has a Multicast 
     /// address in its destination field.  This sends the multicast packet
     /// to all members of the multicast group stored in the dht.</summary>

@@ -100,5 +100,19 @@ namespace NetworkPackets {
       this.SourceAddress = SourceAddress;
       this.Type = Type;
     }
+
+    /// <summary>Generates a multicast mac address based upon the multicast IP address.</summary>
+    /// <param name="mcast_ip">The multicast ip address</param>
+    public static MemBlock GetMulticastEthernetAddress(MemBlock mcast_ip) {
+      // set multicast bit and create address
+      byte[] mcast_addr = new byte[6];
+      mcast_addr[0] = 0x01;
+      mcast_addr[1] = 0x00;
+      mcast_addr[2] = 0x5E;
+      mcast_addr[3] = (byte)(mcast_ip[1] & 0x7F);
+      mcast_addr[4] = mcast_ip[2];
+      mcast_addr[5] = mcast_ip[3];
+      return MemBlock.Reference(mcast_addr);
+    }
   }
 }

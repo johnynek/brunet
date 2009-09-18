@@ -269,6 +269,12 @@ namespace Ipop {
         }
       }
 
+      if(ipp.DestinationIP.Equals(IPPacket.BroadcastAddress)) {
+        if(HandleBroadcast(ipp)) {
+          return;
+        }
+      }
+
       switch(ipp.Protocol) {
         case IPPacket.Protocols.UDP:
           UDPPacket udpp = new UDPPacket(ipp.Payload);
@@ -389,6 +395,16 @@ namespace Ipop {
       return false;
     }
 
+    /// <summary>This method is called by HandleIPOut if the destination address
+    /// is the broadcast address.  If you want Broadcast, implement
+    /// this method, output will most likely be sent via the SendIP() method in the
+    /// IpopNode base class.</summary>
+    /// <param name="ipp"> The IPPacket the contains the broadcast message</param>
+    /// <returns>True if implemented, false otherwise.</returns>
+    protected virtual bool HandleBroadcast(IPPacket ipp) {
+      return false;
+    }
+
     /// <summary>If a request is sent to address a.b.c.255 with the dns port (53),
     /// this method will be called by HandleIPOut.  If you want DNS, implement this
     /// method, responses should be written directly to the tap interface using
@@ -430,12 +446,19 @@ namespace Ipop {
 
       IPPacket ipp = new IPPacket(mp);
       MemBlock dest = null;
+  
       if(!_ip_to_ether.TryGetValue(ipp.DestinationIP, out dest)) {
-        return;
+        if(ipp.DestinationIP[0] >= 224 && ipp.DestinationIP[0] <= 239) {
+          dest = EthernetPacket.GetMulticastEthernetAddress(ipp.DestinationIP);
+        } else if(ipp.DestinationIP[3] == 255){
+          dest = EthernetPacket.BroadcastAddress;
+        } else {
+          return;
+        }
       }
 
-      EthernetPacket res_ep = new EthernetPacket(_ip_to_ether[ipp.DestinationIP],
-          EthernetPacket.UnicastAddress, EthernetPacket.Types.IP, mp);
+      EthernetPacket res_ep = new EthernetPacket(dest,
+            EthernetPacket.UnicastAddress, EthernetPacket.Types.IP, mp);
       Ethernet.Send(res_ep.ICPacket);
     }
 
