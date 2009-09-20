@@ -157,7 +157,7 @@ namespace SocialVPN {
     /**
      * The main function, starting point for the program.
      */
-    public static new void Main(string[] args) {
+    public static void Main(string[] args) {
       if(args.Length == 0) {
         ShowHelp();
       }
@@ -177,10 +177,16 @@ namespace SocialVPN {
         Logout();
       }
       else if(args[0] == "add") {
-        MakeCall("add", args[1] + " " + args[2]);
+        MakeCall(args[0], args[1] + " " + args[2]);
+      }
+      else if(args[0] == "unblock") {
+        MakeCall("allow", args[1]);
+      }
+      else if(args[0] == "block") {
+        MakeCall("block", args[1]);
       }
       else {
-        MakeCall(args[0], args[1]);
+        ShowHelp();
       }
     }
   }

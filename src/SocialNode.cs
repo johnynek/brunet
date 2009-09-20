@@ -45,7 +45,7 @@ namespace SocialVPN {
     /**
      * The current version of SocialVPN.
      */
-    public const string VERSION = "SVPN_0.3.1";
+    public const string VERSION = "SVPN_0.3.3";
 
     /**
      * The suffix for the DNS names.
@@ -425,7 +425,7 @@ namespace SocialVPN {
     /**
      * The main function, starting point for the program.
      */
-    public static new void Main(string[] args) {
+    public static void Main(string[] args) {
 
       NodeConfig node_config = null;
       IpopConfig ipop_config = null;

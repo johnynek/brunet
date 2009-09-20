@@ -110,6 +110,7 @@
         <include name="CookComputing.XmlRpcV2.dll" />
         <include name="Mono.Security.dll"/>
         <include name="ManagedIpopNode.dll" />
+        <include name="libtuntap.dll" />
         <include name="jabber-net.dll" />
         <include name="SocialVPN.exe" />
         <include name="SocialVPNService.exe" />
@@ -126,6 +127,7 @@
         <include name="brunet.config" />
         <include name="ipop.config" />
         <include name="SocialVPN.exe.config" />
+        <include name="SocialVPNService.exe.config" />
         <include name="pic.png" />
         <include name="README.txt" />
       </fileset>

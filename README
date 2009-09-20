@@ -35,6 +35,12 @@ SocialVPN is built on top of the following projects:
 All packaged binaries found under lib and bin directories are compiled from
 these two projects.
 
+Troubleshooting
+===============
+CorFlags.exe tool is used to set SocialVPN as a 32-bit binary.
+CorFlags.exe /32BIT+ SocialVPN.exe
+CorFlags.exe /32BIT+ SocialVPNService.exe
+
 Questions/Comments:
 ===================
 Contact Pierre St Juste <ptony82@ufl.edu> for any questions.
