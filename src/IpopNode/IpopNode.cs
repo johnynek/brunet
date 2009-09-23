@@ -113,6 +113,7 @@ namespace Ipop {
         DHCPConfig dhcp_config) : base(node_config)
     {
       CreateNode();
+      _node.DisconnectOnOverload = false;
       this.Brunet = _node;
       _ipop_config = ipop_config;
 
