@@ -117,21 +117,28 @@ namespace SocialVPN {
       Status = "connecting";
       bool provider_login = true;
       bool network_login = true;
-      if(_providers.ContainsKey(id)) {
-        provider_login = _providers[id].Login(id, username, password);
-      }
-      if(_networks.ContainsKey(id)) {
-        network_login = _networks[id].Login(id, username, password);
-      }
+      try {
+        if(_providers.ContainsKey(id)) {
+          provider_login = _providers[id].Login(id, username, password);
+        }
+        if(_networks.ContainsKey(id)) {
+          network_login = _networks[id].Login(id, username, password);
+        }
 
-      bool success = (provider_login && network_login);
-      if(success) {
-        Status = "online";
+        if(provider_login && network_login) {
+          Status = "online";
+        }
+        else {
+          Status = "failed";
+        }
+        return true;
+      } catch (Exception e) {
+        ProtocolLog.WriteIf(SocialLog.SVPNLog, 
+                            String.Format("LOGIN ERROR: {0} {1}",
+                            DateTime.Now.TimeOfDay, e.Message));
+        Status = "error - uid mismatch";
+        return false;
       }
-      else {
-        Status = "failed";
-      }
-      return success;
     }
 
     public bool Logout() {

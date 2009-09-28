@@ -45,7 +45,7 @@ namespace SocialVPN {
     /**
      * The current version of SocialVPN.
      */
-    public const string VERSION = "SVPN_0.3.3";
+    public const string VERSION = "SVPN_0.3.4";
 
     /**
      * The suffix for the DNS names.
