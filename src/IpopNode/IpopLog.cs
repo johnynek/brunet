@@ -40,5 +40,8 @@ namespace Ipop {
     /// <summary>Prints ARP information.</summary>
     public static BooleanSwitch ARP =
         new BooleanSwitch("ARP", "All about ARP");
+    /// <summary>Prints TAP Info.</summary>
+    public static BooleanSwitch TapLog =
+        new BooleanSwitch("TapLog", "All about Tap");
   }
 }

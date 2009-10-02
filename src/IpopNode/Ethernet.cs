@@ -80,31 +80,33 @@ namespace Ipop {
     /// copied to a minimum sized MemBlock and send to the subscriber. </remarks>
     protected void ReadLoop()
     {
-      try {
-        byte[] read_buffer = new byte[MTU];
-        BufferAllocator ba = new BufferAllocator(MTU, 1.1);
-        while(_running) {
-          int length  = _tap.Read(read_buffer);
-          if (length == 0 || length == -1) {
-            ProtocolLog.WriteIf(ProtocolLog.Exceptions, "Couldn't read TAP");
-            continue;
+      byte[] read_buffer = new byte[MTU];
+      BufferAllocator ba = new BufferAllocator(MTU, 1.1);
+      while(_running) {
+        int length = -1;
+        try {
+          length  = _tap.Read(read_buffer);
+        } catch(ThreadInterruptedException x) {
+          if(_running && ProtocolLog.Exceptions.Enabled) {
+            ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
           }
-
-          Array.Copy(read_buffer, 0, ba.Buffer, ba.Offset, length);
-          MemBlock packet = MemBlock.Reference(ba.Buffer, ba.Offset, length);
-          ba.AdvanceBuffer(length);
-
-          Subscriber s = _sub;
-          if(s != null) {
-            s.Handle(packet, this);
-          }
+        } catch(Exception e) {
+          ProtocolLog.WriteIf(ProtocolLog.Exceptions, e.ToString());
         }
-      } catch(ThreadInterruptedException x) {
-        if(_running && ProtocolLog.Exceptions.Enabled) {
-          ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
+
+        if (length == 0 || length == -1) {
+          ProtocolLog.WriteIf(IpopLog.TapLog, "Couldn't read TAP");
+          continue;
         }
-      } catch(Exception e) {
-        ProtocolLog.WriteIf(ProtocolLog.Exceptions, e.ToString());
+
+        Array.Copy(read_buffer, 0, ba.Buffer, ba.Offset, length);
+        MemBlock packet = MemBlock.Reference(ba.Buffer, ba.Offset, length);
+        ba.AdvanceBuffer(length);
+
+        Subscriber s = _sub;
+        if(s != null) {
+          s.Handle(packet, this);
+        }
       }
     }
 
@@ -116,24 +118,31 @@ namespace Ipop {
     /// <param name="data">ICopyable of the data to be written.</param>
     public void Send(ICopyable data)
     {
-      int length = data.CopyTo(_send_buffer, 0);
-      int n = _tap.Write(_send_buffer, length); 
+      int length = 0, n = 0;
+      lock(_send_buffer) {
+        length = data.CopyTo(_send_buffer, 0);
+        n = _tap.Write(_send_buffer, length); 
+      }
+
       if(n != length) {
         if(_running) {
-          ProtocolLog.WriteIf(ProtocolLog.Exceptions, String.Format(
+          ProtocolLog.WriteIf(IpopLog.TapLog, String.Format(
             "TAP: Didn't write all data ... only {0} / {1}", n, length));
         }
       }
     }
 
     /// <summary>Call this method when exiting to stop the _read_thread.</summary>
-    public void Stop() {
-      _tap.Close();
+    public void Stop()
+    {
       _running = false;
+      Thread.MemoryBarrier();
       _read_thread.Interrupt();
+      _tap.Close();
     }
 
-    public String ToUri() {
+    public String ToUri()
+    {
       throw new NotImplementedException();
     }
   }
