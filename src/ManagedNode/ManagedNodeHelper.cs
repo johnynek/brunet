@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using System;
 using System.Collections;
+using System.Net;
 using Brunet;
 using Brunet.Applications;
 
@@ -34,22 +35,15 @@ namespace Ipop.ManagedNode {
     /// <param name="startip">Device to be ignored</param> 
     /// <returns>Return IP to use</returns> 
     public static MemBlock GetNetwork(string networkdevice, MemBlock startip) {
-      IPAddresses ipaddrs = IPAddresses.GetIPAddresses();
-      ArrayList used_networks = new ArrayList();
       MemBlock netip = startip;
+      ArrayList used_networks = new ArrayList();
+      IPHostEntry entry = Dns.GetHostEntry(Dns.GetHostName());
 
-      foreach (Hashtable ht in ipaddrs.AllInterfaces) {
-        if (ht["inet addr"] != null && ht["Mask"] != null
-            && (string)ht["interface"] != networkdevice) {
-          MemBlock addr = MemBlock.Reference(Utils.StringToBytes((string) ht["inet addr"], '.'));
-          MemBlock mask = MemBlock.Reference(Utils.StringToBytes((string) ht["Mask"], '.'));
-
-          byte[] tmp = new byte[addr.Length];
-          for(int i = 0; i < addr.Length; i++) {
-            tmp[i] = (byte)(addr[i] & mask[i]);
-          }
-          used_networks.Add(MemBlock.Reference(tmp));
-        }
+      foreach(IPAddress ip in entry.AddressList) {
+        byte[] address = ip.GetAddressBytes();
+        address[2] = 0;
+        address[3] = 0;
+        used_networks.Add(MemBlock.Reference(address));
       }
 
       while(used_networks.Contains(netip)) {
@@ -62,6 +56,7 @@ namespace Ipop.ManagedNode {
         netip = MemBlock.Reference(tmp);
       }
       return netip;
+
     }
 
     /// <summary>
