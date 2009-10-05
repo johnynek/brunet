@@ -90,27 +90,30 @@ namespace Ipop {
   public class StaticDNSTest {
     [Test]
     public void Test() {
-      StaticDNS dns = new StaticDNS();
-      Assert.AreEqual(dns.NameLookUp("10.250.1.1"), null, "NameLookUp Dns not set.");
-      Assert.AreEqual(dns.AddressLookUp("C250001001.ipop"), null, "AddressLookUp Dns not set.");
-      dns.SetAddressInfo(MemBlock.Reference(Utils.StringToBytes("10.250.0.0", '.')),
+      StaticDNS dns = new StaticDNS(
+          MemBlock.Reference(Utils.StringToBytes("10.250.0.0", '.')),
           MemBlock.Reference(Utils.StringToBytes("255.255.0.0", '.')));
+
       Assert.AreEqual(dns.NameLookUp("10.250.1.1"), "C250001001.ipop", "NameLookUp Dns set in range.");
       Assert.AreEqual(dns.NameLookUp("10.251.1.1"), null, "NameLookUp Dns set out of range.");
       Assert.AreEqual(dns.AddressLookUp("C250001001.ipop"), "10.250.1.1", "AddressLookUp Dns set.");
       Assert.AreEqual(dns.AddressLookUp("C250001001.blaha"), null, "AddressLookUp Dns set bad dns name: blaha.");
       Assert.AreEqual(dns.AddressLookUp("C250001001.blah"), null, "AddressLookUp Dns set bad dns name: blah.");
-      dns.SetAddressInfo(MemBlock.Reference(Utils.StringToBytes("10.251.0.0", '.')),
+
+      dns = new StaticDNS(
+          MemBlock.Reference(Utils.StringToBytes("10.251.0.0", '.')),
           MemBlock.Reference(Utils.StringToBytes("255.255.0.0", '.')));
+
       Assert.AreEqual(dns.NameLookUp("10.250.1.1"), null, "NameLookUp Dns changed out of range.");
       Assert.AreEqual(dns.NameLookUp("10.251.1.1"), "C251001001.ipop", "NameLookUp Dns changed in range.");
     }
 
     [Test]
     public void SmallMaskTest() {
-      StaticDNS dns = new StaticDNS();
-      dns.SetAddressInfo(MemBlock.Reference(Utils.StringToBytes("10.1.2.0", '.')),
+      StaticDNS dns = new StaticDNS(
+          MemBlock.Reference(Utils.StringToBytes("10.1.2.0", '.')),
           MemBlock.Reference(Utils.StringToBytes("255.255.255.0", '.')));
+
       Assert.AreEqual(dns.NameLookUp("10.1.2.94"), "C001002094.ipop");
       Assert.AreEqual(dns.AddressLookUp("C001002094.ipop"), "10.1.2.94");
     }
