@@ -263,6 +263,21 @@ namespace Ipop {
         return;
       }
 
+      switch(ipp.Protocol) {
+        case IPPacket.Protocols.UDP:
+          UDPPacket udpp = new UDPPacket(ipp.Payload);
+          if(udpp.SourcePort == _dhcp_client_port && udpp.DestinationPort == _dhcp_server_port) {
+            if(HandleDHCP(ipp)) {
+              return;
+            }
+          } else if(udpp.DestinationPort == 53 && ipp.DestinationIP.Equals(_dhcp_server.ServerIP)) {
+            if(HandleDNS(ipp)) {
+              return;
+            }
+          }
+          break;
+      }
+
       if(ipp.DestinationIP[0] >= 224 && ipp.DestinationIP[0] <= 239) {
         if(HandleMulticast(ipp)) {
           return;
@@ -273,21 +288,6 @@ namespace Ipop {
         if(HandleBroadcast(ipp)) {
           return;
         }
-      }
-
-      switch(ipp.Protocol) {
-        case IPPacket.Protocols.UDP:
-          UDPPacket udpp = new UDPPacket(ipp.Payload);
-          if(udpp.SourcePort == _dhcp_client_port && udpp.DestinationPort == _dhcp_server_port) {
-            if(HandleDHCP(ipp)) {
-              return;
-            }
-          } else if(udpp.DestinationPort == 53 &&ipp.DestinationIP.Equals(_dhcp_server.ServerIP)) {
-            if(HandleDNS(ipp)) {
-              return;
-            }
-          }
-          break;
       }
 
       if(HandleOther(ipp)) {
