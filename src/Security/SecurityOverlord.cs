@@ -45,6 +45,19 @@ namespace Brunet.Security {
       }
     }
 #endif
+
+    protected List<SecurityAssociation> _security_associations {
+      get {
+        List<SecurityAssociation> sas = new List<SecurityAssociation>();
+        lock(_sync) {
+          foreach(Dictionary<ISender, SecurityAssociation> sender_to_sa in _spi.Values) {
+            sas.AddRange(sender_to_sa.Values);
+          }
+        }
+        return sas;
+      }
+    }
+
     protected readonly object _private_key_lock;
     protected readonly RSACryptoServiceProvider _private_key;
     protected byte[] _cookie;
@@ -75,17 +88,7 @@ namespace Brunet.Security {
     protected DateTime _last_growfast;
 
     ///<summary>Total count of all Security Associations.</summary>
-    public int SACount {
-      get {
-        int count = 0;
-        lock(_sync) {
-          foreach(int spi in _spi.Keys) {
-            count += _spi[spi].Count;
-          }
-        }
-        return count;
-      }
-    }
+    public int SACount { get { return _security_associations.Count; } }
 
     static SecurityOverlord() {
       byte[] cookie = new byte[CookieLength];
@@ -153,14 +156,7 @@ namespace Brunet.Security {
     protected void SAGarbageCollect()
 #endif
     {
-      List<SecurityAssociation> senders_to_sa = new List<SecurityAssociation>();
-      lock(_sync) {
-        foreach(Dictionary<ISender, SecurityAssociation> sender_to_sa in _spi.Values) {
-          senders_to_sa.AddRange(sender_to_sa.Values);
-        }
-      }
-
-      foreach(SecurityAssociation sa in senders_to_sa) {
+      foreach(SecurityAssociation sa in _security_associations) {
         sa.GarbageCollect();
       }
     }
@@ -724,6 +720,27 @@ namespace Brunet.Security {
       HashAlgorithm sha1 = new SHA1CryptoServiceProvider();
       byte[] cookie = sha1.ComputeHash(data);
       return MemBlock.Reference(cookie);
+    }
+
+    /// <summary>Checks with the CertificateHandler to see if the certificates
+    /// for active sessions are still valid.  If they are not, they are closed
+    /// immediately.</summary>
+    public void CheckSAs()
+    {
+      foreach(SecurityAssociation sa in _security_associations) {
+        bool valid = false;
+        string message = "Certificate revoked.";
+
+        try {
+          valid = _ch.Verify(sa.RemoteCertificate.Value);
+        } catch(Exception e) {
+          message = e.Message;
+        }
+
+        if(!valid) {
+          sa.Close(message);
+        }
+      }
     }
   }
 #if BRUNET_NUNIT

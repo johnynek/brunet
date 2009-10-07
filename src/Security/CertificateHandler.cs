@@ -58,6 +58,19 @@ namespace Brunet.Security {
       }
     }
 
+    protected List<ICertificateVerification> _certificate_verifiers;
+    /// <summary>Add an ICertificateVerification to be called during verification of
+    /// certificates</summary>
+    public bool AddCertificateVerification(ICertificateVerification certificate_verifier) {
+      _certificate_verifiers.Add(certificate_verifier);
+      return true;
+    }
+
+    /// <summary>Remove an  ICertificateVerification.</summary>
+    public bool RemoveCertificateVerification(ICertificateVerification certificate_verifier) {
+      return _certificate_verifiers.Remove(certificate_verifier);
+    }
+
     // The default certificate is the first of our certificates that are entered
     // into this system
     public X509Certificate DefaultCertificate { 
@@ -82,6 +95,7 @@ namespace Brunet.Security {
     public CertificateHandler(string cert_dir) {
       _sync = new object();
       lock(_sync) {
+        _certificate_verifiers = new List<ICertificateVerification>();
         CertDir = cert_dir;
         _cas = new Dictionary<MemBlock, X509Certificate>();
         _supported_cas = new List<MemBlock>();
@@ -98,7 +112,7 @@ namespace Brunet.Security {
     /// <param name="x509">The certificate to check</param>
     /// <param name="RemoteID">The URI to look for</param>
     /// <returns>True if the URI exists, false otherwise</returns>
-    public bool Verify(X509Certificate x509, string RemoteID) {
+    public virtual bool Verify(X509Certificate x509, string RemoteID) {
       if(!Verify(x509)) {
         throw new Exception("Invalid certificate!");
       }
@@ -139,6 +153,13 @@ namespace Brunet.Security {
           throw new Exception("Unable to verify certificate, bad signature!");
         }
       }
+
+      foreach(ICertificateVerification icv in _certificate_verifiers) {
+        if(!icv.Verify(x509)) {
+          throw new Exception("Certificate not valid, reason unsure");
+        }
+      }
+
       return true;
     }
 
