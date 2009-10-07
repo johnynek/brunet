@@ -149,7 +149,8 @@ namespace Brunet
       int delay = 0;
       if(_use_delay) {
         if(LatencyMap != null) {
-          delay = LatencyMap[_listener_id][remote_id] / 1000;
+          // id != 0, so we reduce all by 1
+          delay = LatencyMap[_listener_id - 1][remote_id - 1] / 1000;
         } else {
           lock(_sync) {
             delay = _rand.Next(10, 250);
