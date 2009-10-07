@@ -119,7 +119,13 @@ namespace Ipop.DhtNode {
         }
       }
 
-      if(node_config.Security.Enabled && ipop_config.GroupVPN.Enabled && ipop_config.EndToEndSecurity) {
+      bool groupvpn = node_config.Security.Enabled &&
+        ipop_config.GroupVPN.Enabled &&
+        ipop_config.EndToEndSecurity;
+      
+      // enable GroupVPN!
+      if(groupvpn) {
+        // check to see if we have a valid private key
         RSACryptoServiceProvider public_key = new RSACryptoServiceProvider();
         bool create = true;
         if(File.Exists(node_config.Security.KeyPath)) {
@@ -134,6 +140,7 @@ namespace Ipop.DhtNode {
           } catch { }
         }
 
+        // we don't, let's create one
         if(create) {
           using(FileStream fs = File.Open(node_config.Security.KeyPath, FileMode.Create)) {
             RSACryptoServiceProvider private_key = new RSACryptoServiceProvider(2048);
@@ -143,15 +150,19 @@ namespace Ipop.DhtNode {
           }
         }
 
+        // verify we have a cacert
         string cacert_path = Path.Combine(node_config.Security.CertificatePath, "cacert");
         if(!File.Exists(cacert_path)) {
           Console.WriteLine("DhtIpop: ");
           Console.WriteLine("\tMissing CACert: " + cacert_path);
         }
 
+        // do we already have a certificate that matches our node id?
         string cert_path = Path.Combine(node_config.Security.CertificatePath,
             "lc." + node_config.NodeAddress.Substring(12));
+        // no, let's create one
         if(create || !File.Exists(cert_path)) {
+          // prepare access to the groupvpn site
           string webcert_path = Path.Combine(node_config.Security.CertificatePath, "webcert");
           if(!File.Exists(webcert_path)) {
             Console.WriteLine("DhtIpop: ");
@@ -161,6 +172,7 @@ namespace Ipop.DhtNode {
           X509Certificate webcert = X509Certificate.CreateFromCertFile(webcert_path);
           CertificatePolicy.Register(webcert);
 
+          // get certificate and store it to file
           GroupVPNClient gvc = new GroupVPNClient(ipop_config.GroupVPN.UserName,
               ipop_config.GroupVPN.Group, ipop_config.GroupVPN.Secret,
               ipop_config.GroupVPN.ServerURI, node_config.NodeAddress,
@@ -183,6 +195,18 @@ namespace Ipop.DhtNode {
         _current_node = new DhtIpopNode(node_config, ipop_config, dhcp_config);
       } else {
         _current_node = new DhtIpopNode(node_config, ipop_config);
+      }
+      
+      if(groupvpn) {
+        // hack until I can come up with a cleaner solution to add features
+        // that don't break config files on previous IPOP
+        string cacert_path = Path.Combine(node_config.Security.CertificatePath, "cacert");
+        string revocation_url = ipop_config.GroupVPN.ServerURI.Replace("mono/GroupVPN.rem",
+            "data/" + ipop_config.GroupVPN.Group + "/revocation_list");
+        revocation_url = revocation_url.Replace("https", "http");
+        var icv = new GroupCertificateVerification(revocation_url, cacert_path);
+        _current_node.Bso.CertificateHandler.AddCertificateVerification(icv);
+        icv.RevocationUpdate += _current_node.Bso.CheckSAs;
       }
 
       Console.WriteLine("Starting IPOP: " + DateTime.UtcNow);

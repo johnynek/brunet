@@ -43,5 +43,7 @@ namespace Ipop {
     /// <summary>Prints TAP Info.</summary>
     public static BooleanSwitch TapLog =
         new BooleanSwitch("TapLog", "All about Tap");
+    public static BooleanSwitch GroupVPN =
+        new BooleanSwitch("GroupVPN", "All about GroupVPN");
   }
 }
