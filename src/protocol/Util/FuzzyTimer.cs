@@ -36,7 +36,11 @@ public class FuzzyEvent : Interval<DateTime> {
   protected readonly System.Action<DateTime> _todo;
 
   public FuzzyEvent(System.Action<DateTime> todo, DateTime start, DateTime end)
+#if BRUNET_SIMULATOR
+       : base(end, false, end, false, Comparer<DateTime>.Default) {
+#else
        : base(start, false, end, false, Comparer<DateTime>.Default) {
+#endif
     _todo = todo;
     _has_run = 0;
   }
