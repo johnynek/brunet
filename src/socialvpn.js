@@ -37,7 +37,12 @@ function createElem(itemType, itemHTML, itemID, itemClass, containerName,
   elem.id = itemID;
   elem.className = itemClass;
   if(functionName != "") {
-    elem.addEventListener("click", functionName, false);
+    if(elem.addEventListener) {
+      elem.addEventListener("click", functionName, false);
+    }
+    else if(elem.attachEvent) {
+      elem.attachEvent("onclick", functionName);
+    }
   }
   try {
     elem.innerHTML = itemHTML;
@@ -50,6 +55,17 @@ function createElem(itemType, itemHTML, itemID, itemClass, containerName,
     containerName.appendChild(elem);
   }
   return elem;
+}
+
+function getContent(xmlElem) {
+  var content = "";
+  if(xmlElem.textContent) {
+    content = xmlElem.textContent;
+  }
+  else if(xmlElem.text) {
+    content = xmlElem.text;
+  }
+  return content;
 }
 
 function clearDiv(name) {
@@ -110,11 +126,11 @@ function loadFriends() {
   clearDiv('main_content');
 
   var local_user = stateXML.getElementsByTagName('LocalUser')[0];
-  var name = local_user.getElementsByTagName('Name')[0].textContent;
-  var alias = local_user.getElementsByTagName('Alias')[0].textContent;
-  var ip = local_user.getElementsByTagName('IP')[0].textContent;
-  var fingerprint = local_user.getElementsByTagName('DhtKey')[0].textContent;
-  var user_status = stateXML.getElementsByTagName('Status')[0].textContent;
+  var name = getContent(local_user.getElementsByTagName('Name')[0]);
+  var alias = getContent(local_user.getElementsByTagName('Alias')[0]);
+  var ip = getContent(local_user.getElementsByTagName('IP')[0]);
+  var fingerprint = getContent(local_user.getElementsByTagName('DhtKey')[0]);
+  var user_status = getContent(stateXML.getElementsByTagName('Status')[0]);
   
   var status_elem = document.getElementById('status_id');
   status_elem.innerHTML = "[[ " + user_status +" ]]";
@@ -174,28 +190,28 @@ function showFriends() {
   var friends = stateXML.getElementsByTagName('SocialUser');
   
   for (var i = 0; i < friends.length; i++) {
-    var friend_time = friends[i].getElementsByTagName('Time')[0].textContent;
+    var friend_time = getContent(friends[i].getElementsByTagName('Time')[0]);
     var friend_access = 
-      friends[i].getElementsByTagName('Access')[0].textContent;
+      getContent(friends[i].getElementsByTagName('Access')[0]);
     if( friend_time == "0" && (option == "All" || option == "Offline") 
        && friend_access == "Allow") {
-      friends[i].status = "Status: Offline";
-      addFriend(friends[i]);
+      var status = "Status: Offline";
+      addFriend(friends[i], status);
     }
     else if( friend_time != "0" && (option == "All" || option == "Online") 
       && friend_access == "Allow") {
-      friends[i].status = "Status: Online (" + friend_time + ")";
-      addFriend(friends[i]);
+      var status = "Status: Online (" + friend_time + ")";
+      addFriend(friends[i], status);
     }
     else if(friend_access == "Block" && option == "Blocked" || option == "All") {
-      friends[i].status = "Status: Blocked";
-      addFriend(friends[i]);
+      var status = "Status: Blocked";
+      addFriend(friends[i], status);
     }
   }
 }
 
-function addFriend(friend) {
-  var dhtkey = friend.getElementsByTagName('DhtKey')[0].textContent;
+function addFriend(friend, status) {
+  var dhtkey = getContent(friend.getElementsByTagName('DhtKey')[0]);
   var dtTable = document.getElementById('data_table');
   
   var new_tr = document.createElement('tr');
@@ -224,22 +240,22 @@ function addFriend(friend) {
   var img_usr = document.createElement('img');
   img_usr.className = "f_img";
   img_usr.setAttribute("src", 
-                       friend.getElementsByTagName('Pic')[0].textContent);
+                       getContent(friend.getElementsByTagName('Pic')[0]));
   img_usr.setAttribute("width", "50");
   img_usr.setAttribute("height", "50");
   div_info.appendChild(img_usr);
   
-  var name = friend.getElementsByTagName('Name')[0].textContent;
+  var name = getContent(friend.getElementsByTagName('Name')[0]);
   var innerHTML = name;
   var info_item = createElem("span", innerHTML, "", "f_name", div_info, "");
   div_info.appendChild(document.createElement('br'));
   
-  var innerHTML = friend.getElementsByTagName('Alias')[0].textContent + 
-    " - " + friend.getElementsByTagName('IP')[0].textContent;
+  var innerHTML = getContent(friend.getElementsByTagName('Alias')[0]) + 
+    " - " + getContent(friend.getElementsByTagName('IP')[0]);
   var info_item = createElem("span", innerHTML, "", "f_info", div_info, "");
   div_info.appendChild(document.createElement('br'));
-  
-  var innerHTML = friend.status;
+
+  var innerHTML = status;
   var info_item = createElem("span", innerHTML, "", "f_online", div_info, "");
   div_info.appendChild(document.createElement('br'));
 
@@ -250,7 +266,7 @@ function addFriend(friend) {
 	var div_info = document.createElement('div');
 	div_info.className = "div_fpr";
 	div_info.innerHTML = name + "'s fingerprint - " +
-		friend.getElementsByTagName('DhtKey')[0].textContent;
+		getContent(friend.getElementsByTagName('DhtKey')[0]);
   
 	dtTable.appendChild(new_tr);
 	new_tr.appendChild(new_td);  
@@ -270,8 +286,11 @@ function loadLogin() {
   createElem("span", message, "", "f_name", "tmp_content", "");
   
   var id = createElem("input", "", "data_in_id", "", "tmp_content","");
-  var pass = createElem("input", "", "data_in_pass", "", "tmp_content", "");
-  pass.setAttribute("type", "password");
+  //var pass = createElem("input", "", "data_in_pass", "", "tmp_content", "");
+  //pass.setAttribute("type", "password");
+  // This is a stupid work-around for IE, IE sucks
+  var pass_html = "<input id=\"data_in_pass\" type=\"password\">";
+  var span_pass = createElem("span", pass_html, "", "","tmp_content", "");
   var in_butt = createElem("button", "Submit", "", "", "tmp_content", 
                            submitLogin);
   in_butt.setAttribute("type", "text");
@@ -287,8 +306,7 @@ function submitLogin() {
   makeCall(input_data, 2000);
   var div_tmp_content = document.getElementById('tmp_content');
   div_tmp_content.innerHTML = "";
-  var status_elem = document.getElementById('status_id');
-  status_elem.innerHTML = "[[ ...connecting... ]]";
+  setStatus("connecting");
 }
 
 function addFriends() {  
@@ -325,39 +343,59 @@ function getState() {
 }
 
 function makeRefresh() {
-  var status_elem = document.getElementById('status_id');
-  status_elem.innerHTML = "[[ ...refreshing... ]]";
+  setStatus("refreshing");
   makeCall('m=refresh', 1000);
 }
 
 function makeLogout() {
-  var status_elem = document.getElementById('status_id');
-  status_elem.innerHTML = "[[ ...logging out... ]]";
+  setStatus("logging out");
   makeCall('m=logout', 1000);
 }
 
+function setStatus(message) {
+  var status_elem = document.getElementById('status_id');
+  status_elem.innerHTML = "[[ ..."+ message +"... ]]";
+}
+
+function getKey() {
+  var key;
+  if(event.srcElement) {
+    key = event.srcElement.dhtkey;
+  }
+  else {
+    key = this.dhtkey;
+  }
+  return key;
+}
+
 function removeFriendPost() {
+  setStatus("blocking friend");
   var postData = "m=block&fprs=" + 
-    encodeURIComponent(this.dhtkey);
+    encodeURIComponent(getKey());
   makeCall(postData, 1000);
 }
 
 function addFriendPost() {
+  setStatus("unblocking friend");
   var postData = "m=allow&fprs=" + 
-    encodeURIComponent(this.dhtkey);
-  makeCall(postData, 1000);
-}
-
-function deleteFriendPost() {
-  var postData = "m=delete&fprs=" + 
-    encodeURIComponent(this.dhtkey);
+    encodeURIComponent(getKey());
   makeCall(postData, 1000);
 }
 
 function makeCall(postData, ref_time) {
   refresh_time = ref_time
-  var httpRequest = new XMLHttpRequest();
-  httpRequest.overrideMimeType('text/xml');
+  var httpRequest;
+  if(window.XMLHttpRequest) {
+    httpRequest = new XMLHttpRequest();
+    //httpRequest.overrideMimeType('text/xml');
+  }
+  else if(window.ActiveXObject) {
+    httpRequest = new ActiveXObject("Microsoft.XMLHTTP");
+  }
+  else {
+    alert("No XMLHTTP support, try another browser");
+  }
+  
   httpRequest.onreadystatechange = function() { 
     if(httpRequest.readyState == 4) {
       stateXML = httpRequest.responseXML;

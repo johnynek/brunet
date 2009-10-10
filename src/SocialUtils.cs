@@ -118,8 +118,8 @@ namespace SocialVPN {
      * Creates object from an Xml string.
      * @param val Xml string representation.
      * @return Object of type T.
-     */
-    public static T XmlToObject<T>(string val) {
+     //*/
+    public static T XmlToObject1<T>(string val) {
       XmlSerializer serializer = new XmlSerializer(typeof(T));
       T res = default(T);
       using (StringReader sr = new StringReader(val)) {
@@ -133,12 +133,49 @@ namespace SocialVPN {
      * @param val object to be Xml serialized.
      * @return Xml string representation.
      */
-    public static string ObjectToXml<T>(T val) {
+    public static string ObjectToXml1<T>(T val) {
       using (StringWriter sw = new StringWriter()) {
         XmlSerializer serializer = new XmlSerializer(typeof(T));
         serializer.Serialize(sw, val);
         return sw.ToString();
       }
+    }
+
+    // taken from online http://www.dotnetjohn.com/articles.aspx?articleid=173
+    public static string ObjectToXml<T>(T val) {
+      try {
+        String XmlizedString = null;
+        MemoryStream memoryStream = new MemoryStream();
+        XmlSerializer xs = new XmlSerializer(typeof(T));
+        XmlTextWriter xmlTextWriter = new XmlTextWriter(memoryStream, 
+                                                        Encoding.UTF8);
+        xs.Serialize(xmlTextWriter, val);
+        memoryStream = (MemoryStream) xmlTextWriter.BaseStream;
+        XmlizedString = UTF8ByteArrayToString(memoryStream.ToArray());
+        return XmlizedString;
+      } catch ( Exception e ) {
+        System.Console.WriteLine(e);
+        return null;
+      }
+    }
+
+    // taken from online http://www.dotnetjohn.com/articles.aspx?articleid=173
+    public static T XmlToObject<T>(string val) {
+      XmlSerializer xs = new XmlSerializer(typeof(T));
+      MemoryStream memoryStream = new MemoryStream(StringToUTF8ByteArray(val));
+      return (T) xs.Deserialize(memoryStream);
+    }
+
+    public static string UTF8ByteArrayToString(Byte[] characters) {
+      UTF8Encoding encoding = new UTF8Encoding();
+      String constructedString = encoding.GetString(characters);
+      return constructedString;
+    }
+
+    public static Byte[] StringToUTF8ByteArray(String pXmlString) {
+      UTF8Encoding encoding = new UTF8Encoding ( );
+      Byte[ ] byteArray = encoding.GetBytes ( pXmlString );
+      return byteArray;
     }
 
     /**
