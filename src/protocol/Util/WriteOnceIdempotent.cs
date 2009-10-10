@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #if BRUNET_NUNIT
 using NUnit.Framework;
 #endif
+using System;
 
 namespace Brunet
 {
@@ -110,12 +111,13 @@ public class WriteOnceIdempotentTest {
     }
     WriteOnceIdempotent<object> wos2 = new WriteOnceIdempotent<object>();
     Assert.IsNull(wos2.Value, "Value set to null test");
-    wos2.Value = wos2;
-    Assert.AreEqual(wos2.Value, wos2, "Value set non-null test");
-    wos2.Value = wos2;
-    Assert.AreEqual(wos2.Value, wos2, "Value set twice test");
+    object wos2value = new object();
+    wos2.Value = wos2value;
+    Assert.AreEqual(wos2.Value, wos2value, "Value set non-null test");
+    wos2.Value = wos2value;
+    Assert.AreEqual(wos2.Value, wos2value, "Value set twice test");
     try {
-      wos2.Value = wos;
+      wos2.Value = wos.Value;
       Assert.IsTrue(false, "Value cannot be set twice!");
     } catch {}
 
@@ -124,8 +126,8 @@ public class WriteOnceIdempotentTest {
       Assert.IsTrue(false, "Value cannot be set twice!");
     } catch {}
 
-    wos2.Value = wos2;
-    Assert.AreEqual(wos2.Value, wos2, "Value set twice test");
+    wos2.Value = wos2value;
+    Assert.AreEqual(wos2.Value, wos2value, "Value set twice test");
   }
 }
 
