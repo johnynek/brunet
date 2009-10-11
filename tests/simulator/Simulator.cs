@@ -35,7 +35,7 @@ namespace Brunet.Simulator {
   public class Simulator {
     public int StartingNetworkSize = 10;
     public SortedList Nodes = new SortedList();
-    protected SortedList TakenPorts = new SortedList();
+    protected SortedList TakenIDs = new SortedList();
 
     public int CurrentNetworkSize = 0;
     protected Random _rand;
@@ -62,7 +62,7 @@ namespace Brunet.Simulator {
     {
       StartingNetworkSize = 10;
       Nodes = new SortedList();
-      TakenPorts = new SortedList();
+      TakenIDs = new SortedList();
 
       _rand = new Random();
       BrunetNamespace = "testing" + _rand.Next();
@@ -123,13 +123,13 @@ namespace Brunet.Simulator {
       return ch.Success;
     }
 
-    protected int TakePort()
+    protected int TakeID()
     {
-      int port = TakenPorts.Count + 1;
-      while(TakenPorts.Contains(port)) {
-        port = _rand.Next(1, 65535);
+      int id = TakenIDs.Count;
+      while(TakenIDs.Contains(id)) {
+        id = _rand.Next(0, Int32.MaxValue);
       }
-      return port;
+      return id;
     }
 
     // adds a node to the pool
@@ -143,14 +143,14 @@ namespace Brunet.Simulator {
       nm.Node = node;
       Nodes.Add((Address) address, nm);
 
-      nm.Port = TakePort();
+      nm.ID = TakeID();
 
       TAAuthorizer auth = null;
-      if(Broken != 0 && nm.Port > 0) {
+      if(Broken != 0 && nm.ID > 0) {
         auth = new BrokenTAAuth(Broken);
       }
 
-      EdgeListener el = new SimulationEdgeListener(nm.Port, 0, auth, true);
+      EdgeListener el = new SimulationEdgeListener(nm.ID, 0, auth, true);
 
       if(SecureEdges || SecureSenders) {
         byte[] blob = SEKey.ExportCspBlob(true);
@@ -180,16 +180,16 @@ namespace Brunet.Simulator {
       node.AddEdgeListener(el);
 
       ArrayList RemoteTAs = new ArrayList();
-      for(int i = 0; i < 5 && i < TakenPorts.Count; i++) {
-        int rport = (int) TakenPorts.GetByIndex(_rand.Next(0, TakenPorts.Count));
-        RemoteTAs.Add(TransportAddressFactory.CreateInstance("brunet.function://127.0.0.1:" + rport));
+      for(int i = 0; i < 5 && i < TakenIDs.Count; i++) {
+        int rid = (int) TakenIDs.GetByIndex(_rand.Next(0, TakenIDs.Count));
+        RemoteTAs.Add(TransportAddressFactory.CreateInstance("b.s://" + rid));
       }
       if(auth != null) {
-        RemoteTAs.Add(TransportAddressFactory.CreateInstance("brunet.function://127.0.0.1:" + 0));
+        RemoteTAs.Add(TransportAddressFactory.CreateInstance("b.s://" + 0));
       }
       node.RemoteTAs = RemoteTAs;
 
-      TakenPorts[nm.Port] = nm.Port;
+      TakenIDs[nm.ID] = nm.ID;
 
       ITunnelOverlap ito = null;
       if(NCEnable) {
@@ -220,7 +220,7 @@ namespace Brunet.Simulator {
       } else {
         node.Abort();
       }
-      TakenPorts.Remove(nm.Port);
+      TakenIDs.Remove(nm.ID);
       Nodes.Remove(node.Address);
     }
 
@@ -236,7 +236,7 @@ namespace Brunet.Simulator {
       } else {
         nm.Node.Abort();
       }
-      TakenPorts.Remove(nm.Port);
+      TakenIDs.Remove(nm.ID);
       Nodes.RemoveAt(index);
     }
 
@@ -485,7 +485,7 @@ namespace Brunet.Simulator {
 
           _total_latency += (DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond) - _start_time;
         } catch(Exception e) {
-          Console.WriteLine(e);
+//          Console.WriteLine(e);
         }
         if(Interlocked.Decrement(ref _waiting_on) == 0) {
           Interlocked.Exchange(ref _done, 1);
@@ -514,12 +514,10 @@ namespace Brunet.Simulator {
             q.CloseEvent += Callback;
             try {
               nm_from.Node.Rpc.Invoke(sender, q, "sys:link.Ping", 0);
-              lock(_sync) {
-                _count++;
-                _waiting_on++;
-              }
+              _count++;
+              _waiting_on++;
             } catch(Exception e) {
-              Console.WriteLine(e);
+//              Console.WriteLine(e);
             }
           }
         }
@@ -528,7 +526,7 @@ namespace Brunet.Simulator {
   }
 
   public class NodeMapping {
-    public int Port;
+    public int ID;
     public Node Node;
     public ProtocolSecurityOverlord BSO;
     public NCService NCService;
@@ -548,20 +546,20 @@ namespace Brunet.Simulator {
     }
 
     public override TAAuthorizer.Decision Authorize(TransportAddress a) {
-      int port = ((IPTransportAddress) a).Port;
-      if(port == 0) {
+      int id = ((SimulationTransportAddress) a).ID;
+      if(id == 0) {
         return TAAuthorizer.Decision.Allow;
       }
-      lock(_sync) {
-        if(!_allowed.Contains(port)) {
-          if(_rand.NextDouble() > _prob) {
-            _allowed[port] = TAAuthorizer.Decision.Allow;
-          } else {
-            _allowed[port] = TAAuthorizer.Decision.Deny;
-          }
+
+      if(!_allowed.Contains(id)) {
+        if(_rand.NextDouble() > _prob) {
+          _allowed[id] = TAAuthorizer.Decision.Allow;
+        } else {
+          _allowed[id] = TAAuthorizer.Decision.Deny;
         }
       }
-      return (TAAuthorizer.Decision) _allowed[port];
+
+      return (TAAuthorizer.Decision) _allowed[id];
     }
   }
 }

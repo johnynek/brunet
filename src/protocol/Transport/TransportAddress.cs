@@ -85,6 +85,9 @@ namespace Brunet
         case TransportAddress.TAType.Function:
           result = new IPTransportAddress(s);
           break;
+        case TransportAddress.TAType.S:
+          result = new SimulationTransportAddress(s);
+          break;
         case TransportAddress.TAType.Tls:
           result = new IPTransportAddress(s);
           break;
@@ -241,6 +244,7 @@ namespace Brunet
       Tcp,
       Udp,
       Function,
+      S,
       Tls,
       TlsTest,
       Tunnel,
@@ -250,11 +254,14 @@ namespace Brunet
    protected static readonly string _TCP_S = "tcp";
    protected static readonly string _FUNCTION_S = "function";
    protected static readonly string _TUNNEL_S = "tunnel";
+   protected static readonly string _SIMULATION_S = "s";
     /**
      * .Net methods are not always so fast here
      */
     public static string TATypeToString(TAType t) {
       switch(t) {
+        case TAType.S:
+          return _SIMULATION_S;
         case TAType.Udp:
           return _UDP_S;
         case TAType.Tunnel:
@@ -364,6 +371,35 @@ namespace Brunet
     }
   }
 
+  public class SimulationTransportAddress: TransportAddress {
+    public readonly int ID;
+    protected TAType _type = TAType.S;
+    public override TAType TransportAddressType { get { return TAType.S; } }
+
+    public override bool Equals(object o) {
+      if ( o == this ) { return true; }
+      SimulationTransportAddress other = o as SimulationTransportAddress;
+      return other != null ? ID == other.ID : false;
+    }
+
+    public override int GetHashCode() {
+      return base.GetHashCode();
+    }
+
+    public SimulationTransportAddress(string s) : base(s)
+    {
+      int pos = s.IndexOf(":") + 3;
+      int end = s.IndexOf("/", pos);
+      end = end > 0 ? end : s.Length;
+      ID = Int32.Parse(s.Substring(pos, end - pos));
+    }
+
+    public SimulationTransportAddress(int id) : this("b.s://" + id)
+    {
+      ID = id;
+    }
+  }
+
   public class TunnelTransportAddress: TransportAddress {
     protected Address _target;
     public Address Target { get { return _target; } }
@@ -459,6 +495,10 @@ namespace Brunet
 
     [Test]
     public void Test() {
+      TransportAddress tas = TransportAddressFactory.CreateInstance("b.s://234580");
+      Assert.AreEqual(tas.ToString(), "b.s://234580", "Simulation string");
+      Assert.AreEqual((tas as SimulationTransportAddress).ID, 234580, "Simulation id");
+      Assert.AreEqual(TransportAddress.TAType.S, tas.TransportAddressType, "Simulation ta type");
       TransportAddress ta1 = TransportAddressFactory.CreateInstance("brunet.udp://10.5.144.69:5000");
       Assert.AreEqual(ta1.ToString(), "brunet.udp://10.5.144.69:5000", "Testing TA parsing");
       

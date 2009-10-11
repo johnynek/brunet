@@ -131,6 +131,29 @@ public class PortTAAuthorizer : TAAuthorizer {
   }
 }
 
+  /**
+     Denies any attempt on a particular Simulator node ID.
+     @param id id to which edge creation attempt is denied
+  */
+
+public class IDTAAuthorizer : TAAuthorizer {
+  protected int _denied_id;
+  public IDTAAuthorizer(int id) {
+    _denied_id = id;
+  }
+
+  public override TAAuthorizer.Decision Authorize(TransportAddress a) {
+    if (_denied_id == ((SimulationTransportAddress)a).ID) {
+      return TAAuthorizer.Decision.Deny;
+    } else {
+      //else this decision should not matter
+      return TAAuthorizer.Decision.None;
+    }
+  }
+}
+
+  /** 
+
   /** 
       Denies a random TA and remembers it for subsequent denials.
    */

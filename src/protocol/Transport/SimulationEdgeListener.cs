@@ -75,14 +75,7 @@ namespace Brunet
     protected double _ploss_prob;
     protected BufferAllocator _ba;
     protected object _sync;
-
-    public override TransportAddress.TAType TAType
-    {
-      get
-      {
-        return TransportAddress.TAType.Function;
-      }
-    }
+    public override TransportAddress.TAType TAType { get { return TransportAddress.TAType.S; } }
 
 
     public SimulationEdgeListener(int id):this(id, 0.05, null) {}
@@ -103,8 +96,7 @@ namespace Brunet
         _ta_auth = ta_auth;
       }
       _tas = new ArrayList();
-      _tas.Add(TransportAddressFactory.CreateInstance("brunet.function://localhost:" +
-                                     _listener_id.ToString()) );
+      _tas.Add(TransportAddressFactory.CreateInstance("b.s://" + _listener_id));
       _rand = new Random();
     }
 
@@ -142,7 +134,7 @@ namespace Brunet
         return;
       }
       
-      int remote_id = ((IPTransportAddress) ta).Port;
+      int remote_id = ((SimulationTransportAddress) ta).ID;
       //Get the edgelistener: 
 
       //Outbound edge:
@@ -150,7 +142,7 @@ namespace Brunet
       if(_use_delay) {
         if(LatencyMap != null) {
           // id != 0, so we reduce all by 1
-          delay = LatencyMap[_listener_id - 1][remote_id - 1] / 1000;
+          delay = LatencyMap[_listener_id][remote_id] / 1000;
         } else {
           lock(_sync) {
             delay = _rand.Next(10, 250);

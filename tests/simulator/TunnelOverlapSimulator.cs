@@ -120,16 +120,16 @@ namespace Brunet.Simulator {
     public void AddDisconnectedPair(Address address1, Address address2, bool nctunnel)
     {
       NodeMapping nm1 = new NodeMapping();
-      nm1.Port = TakePort();
-      TakenPorts[nm1.Port] = nm1.Port;
+      nm1.ID = TakeID();
+      TakenIDs[nm1.ID] = nm1.ID;
       NodeMapping nm2 = new NodeMapping();
-      nm2.Port = TakePort();
-      TakenPorts[nm2.Port] = nm2.Port;
+      nm2.ID = TakeID();
+      TakenIDs[nm2.ID] = nm2.ID;
 
-      AddBrokenNode(ref nm1, address1, nm2.Port, nctunnel);
+      AddBrokenNode(ref nm1, address1, nm2.ID, nctunnel);
       Nodes[address1] = nm1;
 
-      AddBrokenNode(ref nm2, address2, nm1.Port, nctunnel);
+      AddBrokenNode(ref nm2, address2, nm1.ID, nctunnel);
       Nodes[address2] = nm2;
     }
 
@@ -137,8 +137,8 @@ namespace Brunet.Simulator {
     {
       nm.Node = new StructuredNode(addr as AHAddress, BrunetNamespace);
 
-      TAAuthorizer auth = new PortTAAuthorizer(broken_port);
-      nm.Node.AddEdgeListener(new SimulationEdgeListener(nm.Port, 0, auth, true));
+      TAAuthorizer auth = new IDTAAuthorizer(broken_port);
+      nm.Node.AddEdgeListener(new SimulationEdgeListener(nm.ID, 0, auth, true));
 
       ITunnelOverlap ito = null;
       if(NCEnable) {
@@ -155,8 +155,8 @@ namespace Brunet.Simulator {
       nm.Node.AddEdgeListener(new Tunnel.TunnelEdgeListener(nm.Node, ito));
 
       ArrayList RemoteTAs = new ArrayList();
-      for(int i = 0; i < 5 && i < TakenPorts.Count; i++) {
-        int rport = (int) TakenPorts.GetByIndex(_rand.Next(0, TakenPorts.Count));
+      for(int i = 0; i < 5 && i < TakenIDs.Count; i++) {
+        int rport = (int) TakenIDs.GetByIndex(_rand.Next(0, TakenIDs.Count));
         RemoteTAs.Add(TransportAddressFactory.CreateInstance("brunet.function://127.0.0.1:" + rport));
       }
       nm.Node.RemoteTAs = RemoteTAs;

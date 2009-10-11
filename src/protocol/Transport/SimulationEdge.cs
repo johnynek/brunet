@@ -71,37 +71,29 @@ namespace Brunet
     }
 
 
-    public override Brunet.TransportAddress.TAType TAType
-    {
-      get
-      {
-        return Brunet.TransportAddress.TAType.Function;
-      }
-    }
+    public override Brunet.TransportAddress.TAType TAType { get { return TransportAddress.TAType.S; } }
 
     public int ListenerId {
       get { return _l_id; }
     }
 
     protected TransportAddress _local_ta;
-    public override Brunet.TransportAddress LocalTA
+    public override TransportAddress LocalTA
     {
       get {
         if ( _local_ta == null ) {
-          _local_ta = TransportAddressFactory.CreateInstance("brunet.function://localhost:"
-                                    + _l_id.ToString());
+          _local_ta = TransportAddressFactory.CreateInstance("b.s://" + _l_id);
         }
         return _local_ta;
       }
     }
 
     protected TransportAddress _remote_ta;
-    public override Brunet.TransportAddress RemoteTA
+    public override TransportAddress RemoteTA
     {
       get {
         if ( _remote_ta == null ) {
-          _remote_ta = TransportAddressFactory.CreateInstance("brunet.function://localhost:"
-                                    + _r_id.ToString());
+          _remote_ta = TransportAddressFactory.CreateInstance("b.s://" + _r_id);
         }
         return _remote_ta;
       }
