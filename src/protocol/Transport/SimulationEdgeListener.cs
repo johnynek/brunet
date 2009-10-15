@@ -200,6 +200,7 @@ namespace Brunet
 
     protected void CloseHandler(object edge, EventArgs ea)
     {
+      (edge as SimulationEdge).Partner = null;
       lock(_sync) {
         _edges.Remove(edge);
       }

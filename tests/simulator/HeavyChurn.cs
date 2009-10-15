@@ -49,7 +49,8 @@ namespace Brunet.Simulator {
             continue;
           }
 
-          sim.RemoveNode(node, prob > .9);
+//          sim.RemoveNode(node, prob > .9);
+          sim.RemoveNode(node, true);
           to_remove.Add(node);
         }
 
