@@ -37,7 +37,7 @@ namespace Brunet
   {
 
 #if BRUNET_SIMULATOR
-    public static readonly int MemSize = 8;
+    public static readonly int MemSize = 4;
 #else
     ///The number of bytes to represent the address
     public static readonly int MemSize = 20;
