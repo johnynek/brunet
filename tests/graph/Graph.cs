@@ -352,19 +352,53 @@ namespace Brunet.Graph {
       return Math.Sqrt(variance / (data.Count - 1));
     }
 
+    ///<summary> Creates a Dot file which can generate an image using either
+    ///neato with using the -n parameter or circo.</summary>
+    public void WriteGraphFile(string outfile)
+    {
+      double nodesize = .5;
+      int canvassize = _addrs.Count * 25;
+      double r = (double) canvassize / 2.0 - 1.0 - 36.0 * nodesize;
+      int c = canvassize / 2;
+      double phi = Math.PI / (2 * _addrs.Count);
+
+      using(StreamWriter sw = File.CreateText(outfile)) {
+        sw.WriteLine("graph brunet {");
+        for(int i = 0; i < _addrs.Count; i++) {
+          double theta = (4 * i) * phi;
+          int x = c + (int)(r * Math.Sin(theta));
+          int y = c - (int)(r * Math.Cos(theta));
+          sw.WriteLine("  {0} [pos = \"{1}, {2}\", width = \"{3}\", height = \"{3}\"];", i, x, y, nodesize);
+        }
+        for(int i = 0; i < _addrs.Count; i++) {
+          GraphNode node = _addr_to_node[_addrs[i]];
+          ConnectionList cl = node.ConnectionTable.GetConnections(ConnectionType.Structured);
+          foreach(Connection con in cl) {
+            AHAddress caddr = con.Address as AHAddress;
+            int caddr_index = _addr_to_index[caddr];
+            // we've already visited this connection no need to have it in
+            // there twice
+            if(caddr_index < i) {
+              continue;
+            }
+            sw.WriteLine("  {0} -- {1};", i, _addr_to_index[caddr]);
+          }
+        }
+        sw.WriteLine("}");
+      }
+    }
 
     public static void Main(string[] args)
     {
       int size = 100;
       int shortcuts = 1;
       int near = 3;
-      string dataset = String.Empty;
       int seed = (new Random()).Next();
-      string outfile = String.Empty;
+      string outfile = string.Empty;
 
       int carg = 0;
       while(carg < args.Length) {
-        String[] parts = args[carg++].Split('=');
+        string[] parts = args[carg++].Split('=');
         try {
           switch(parts[0]) {
             case "--size":
@@ -378,6 +412,9 @@ namespace Brunet.Graph {
               break;
             case "--seed":
               seed = Int32.Parse(parts[1]);
+              break;
+            case "--outfile":
+              outfile = parts[1];
               break;
             default:
               throw new Exception("Invalid parameter");
@@ -394,6 +431,10 @@ namespace Brunet.Graph {
       Console.WriteLine("Done populating graph...");
       graph.Crawl();
       graph.AllToAll();
+      if(outfile != string.Empty) {
+        Console.WriteLine("Saving dot file to: " + outfile);
+        graph.WriteGraphFile(outfile);
+      }
     }
   }
 }
