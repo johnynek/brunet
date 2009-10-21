@@ -105,7 +105,11 @@ namespace Ipop {
 
         Subscriber s = _sub;
         if(s != null) {
-          s.Handle(packet, this);
+          try {
+            s.Handle(packet, this);
+          } catch(Exception e) {
+            ProtocolLog.WriteIf(ProtocolLog.Exceptions, e.ToString());
+          }
         }
       }
     }
