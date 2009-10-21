@@ -21,6 +21,7 @@ mkdir -p /opt/ipop/bin
 cp ./bin/*py /opt/ipop/bin/.
 cp ./bin/*exe /opt/ipop/bin/.
 cp ./bin/*sh /opt/ipop/bin/.
+cp ./config/Log.config /opt/ipop/bin/DhtIpopNode.exe.config
 
 mkdir -p /opt/ipop/lib
 cp ./bin/*dll /opt/ipop/lib/.

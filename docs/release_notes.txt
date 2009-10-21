@@ -1,4 +1,14 @@
 ===============================================================================
+Revision 9.3
+-------------------------------------------------------------------------------
+- Removed UidGenerator and creation of many sender types via SenderFactory
+until memory leaks are fixed
+- Improved Ethernet sending to be threadsafe
+- Improved Ethernet reading to better handle exceptions
+- Logging is now enabled for GroupVPN
+- Multicast and broadcast support fixed since IpopRouter inclusion
+- GroupVPN supports a user revocation list
+===============================================================================
 Revision 9.2
 -------------------------------------------------------------------------------
 - More fixes for Brunet
