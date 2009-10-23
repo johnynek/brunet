@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION=$1
+VERSION=`cat ../version`
 DISTRIBUTIONS="ubuntu8.10 ubuntu9.04"
 for DISTRIBUTION in $DISTRIBUTIONS; do
   export PACKAGE_DIR=ipop\_$VERSION\_$DISTRIBUTION\_all
@@ -12,6 +12,8 @@ for DISTRIBUTION in $DISTRIBUTIONS; do
 
   mkdir -p $PACKAGE_DIR/DEBIAN
   cp control_$DISTRIBUTION $DEBIANDIR/control
+  version=$VERSION"_"$DISTRIBUTION
+  echo "Version: $version" >> $DEBIANDIR/control
 
   dpkg-deb -b $PACKAGE_DIR
   rm -rf $PACKAGE_DIR

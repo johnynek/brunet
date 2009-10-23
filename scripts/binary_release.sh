@@ -50,6 +50,7 @@ done
 cp -axf ../config $version/ipop/.
 cp ../docs/release_notes.txt $version/ipop/.
 cp ../README $version/ipop/.
+echo $version > $version/ipop/version
 
 cd $version
 zip -r9 ipop.src.$version.zip ipop.src
