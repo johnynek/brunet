@@ -4,6 +4,6 @@ Section: net
 Installed-Size: 2
 Maintainer: Yonggang Liu <yonggang@acis.ufl.edu> David Wolinsky <davidiw@ufl.edu>
 Architecture: all
-Depends: mono-gmcs,libmono-system-runtime2.0-cil,libmono-posix2.0-cil,uml-utilities,cronolog,python
+Depends: mono-gmcs,libmono-system-runtime2.0-cil,libmono-posix2.0-cil,uml-utilities,cronolog,python,unzip
 Recommends: resolvconf
 Description: Virtual Networking

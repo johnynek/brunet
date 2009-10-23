@@ -28,7 +28,7 @@ cp $path/bin/*sh $PACKAGE_DIR/opt/ipop/bin/.
 cp $path/config/Log.config $PACKAGE_DIR/opt/ipop/bin/DhtIpopNode.exe.config
 
 mkdir -p $PACKAGE_DIR/opt/ipop/lib
-cp $path/bin/*dll $PACKAGE_DIR/opt/ipop/lib/.
+cp $path/bin/*dll* $PACKAGE_DIR/opt/ipop/lib/.
 
 mkdir -p $PACKAGE_DIR/opt/ipop/etc
 cp $path/config/ipop.vpn.config $PACKAGE_DIR/opt/ipop/etc/.

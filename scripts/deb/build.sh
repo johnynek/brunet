@@ -12,6 +12,8 @@ for DISTRIBUTION in $DISTRIBUTIONS; do
 
   mkdir -p $PACKAGE_DIR/DEBIAN
   cp control_$DISTRIBUTION $DEBIANDIR/control
+  cp postinst $DEBIANDIR/.
+  cp prerm $DEBIANDIR/.
   version=$VERSION"_"$DISTRIBUTION
   echo "Version: $version" >> $DEBIANDIR/control
 
