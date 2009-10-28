@@ -28,7 +28,7 @@ namespace Brunet.Simulator {
     {
       Simulator sim = new Simulator();
       bool complete = false;
-      ParseCommandLine(args, out complete, ref sim);
+      ParseCommandLine(args, out complete, sim);
 
       if(complete) {
         sim.Complete();
@@ -37,12 +37,13 @@ namespace Brunet.Simulator {
       }
     }
 
-    public static void ParseCommandLine(string []args, out bool complete, ref Simulator sim)
+    public static void ParseCommandLine(string []args, out bool complete, Simulator sim)
     {
       complete = false;
       string dataset_filename = String.Empty;
       int carg = 0;
 
+      sim.StartingNetworkSize = 10;
       while(carg < args.Length) {
         String[] parts = args[carg++].Split('=');
         try {
@@ -108,7 +109,7 @@ namespace Brunet.Simulator {
 
       for(int i = 0; i < sim.StartingNetworkSize; i++) {
         Console.WriteLine("Setting up node: " + i);
-        sim.AddNode(false);
+        sim.AddNode();
       }
 
       Console.WriteLine("Initialization complete...\n");
@@ -126,6 +127,11 @@ namespace Brunet.Simulator {
         command = parts[0];
 
         try {
+          if(command.Equals("S")) {
+            secure = true;
+            command = parts[1];
+          }
+
           switch(command) {
             case "C":
               sim.CheckRing(true);
@@ -139,20 +145,14 @@ namespace Brunet.Simulator {
             case "CR":
               sim.Crawl(true, secure);
               break;
-            case "SCR":
-              secure = true;
-              goto case "CR";
             case "A2A":
               sim.AllToAll(secure);
               break;
-            case "SA2A":
-              secure = true;
-              goto case "A2A";
             case "A":
-              sim.AddNode(true);
+              sim.AddNode();
               break;
             case "D":
-              sim.RemoveNode(true, false);
+              sim.RemoveNode(true, true);
               break;
             case "R":
               sim.RemoveNode(true, false);
@@ -173,14 +173,13 @@ namespace Brunet.Simulator {
             case "H":
               Console.WriteLine("Commands: \n");
               Console.WriteLine("A - add a node");
-              Console.WriteLine("R - remove a node");
+              Console.WriteLine("D - remove a node");
+              Console.WriteLine("R - abort a node");
               Console.WriteLine("C - check the ring using ConnectionTables");
               Console.WriteLine("P - Print connections for each node to the screen");
               Console.WriteLine("M - Current memory usage according to the garbage collector");
-              Console.WriteLine("G - Retrieve total dht entries");
-              Console.WriteLine("CR - Perform a crawl of the network using RPC");
-              Console.WriteLine("ST - Speed test, parameter - integer - times to end data");
-              Console.WriteLine("CM - ManagedCO test");
+              Console.WriteLine("[S] CR - Perform a (secure) crawl of the network using RPC");
+              Console.WriteLine("[S] A2A - Perform all-to-all measurement of the network using RPC");
               Console.WriteLine("Q - Quit");
               break;
             default:

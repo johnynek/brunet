@@ -30,9 +30,8 @@ namespace Brunet.Simulator {
     public static void Main(string []args)
     {
       TunnelOverlapSimulator sim = new TunnelOverlapSimulator();
-      Simulator simulator = sim as Simulator;
       bool complete;
-      Runner.ParseCommandLine(args, out complete, ref simulator);
+      Runner.ParseCommandLine(args, out complete, sim);
       sim.Complete();
 
       Address addr1 = null, addr2 = null;

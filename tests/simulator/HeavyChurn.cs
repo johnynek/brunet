@@ -32,7 +32,7 @@ namespace Brunet.Simulator {
     {
       Simulator sim = new Simulator();
       bool complete;
-      Runner.ParseCommandLine(args, out complete, ref sim);
+      Runner.ParseCommandLine(args, out complete, sim);
       DateTime start = DateTime.UtcNow;
       sim.Complete();
 
@@ -60,7 +60,7 @@ namespace Brunet.Simulator {
 
         Console.WriteLine("Removed: {0} Nodes" , to_remove.Count);
         while(volatile_nodes.Count < max) {
-          Node node = sim.AddNode(false);
+          Node node = sim.AddNode();
           volatile_nodes.Add(node, node);
         }
       }

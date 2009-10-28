@@ -29,7 +29,7 @@ namespace Brunet.Simulator {
     {
       bool complete = false;
       Simulator sim = new Simulator();
-      Runner.ParseCommandLine(args, out complete, ref sim);
+      Runner.ParseCommandLine(args, out complete, sim);
 
       DateTime now = DateTime.UtcNow;
       sim.Complete();
