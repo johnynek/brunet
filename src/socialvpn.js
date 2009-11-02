@@ -357,13 +357,13 @@ function setStatus(message) {
   status_elem.innerHTML = "[[ ..."+ message +"... ]]";
 }
 
-function getKey() {
-  var key;
-  if(event.srcElement) {
-    key = event.srcElement.dhtkey;
+function getKey(caller) {
+  var key;  
+  if(caller.dhtkey) {
+    key = caller.dhtkey;
   }
-  else {
-    key = this.dhtkey;
+  else if(event !== undefined) {
+    key = event.srcElement.dhtkey;
   }
   return key;
 }
@@ -371,14 +371,14 @@ function getKey() {
 function removeFriendPost() {
   setStatus("blocking friend");
   var postData = "m=block&fprs=" + 
-    encodeURIComponent(getKey());
+    encodeURIComponent(getKey(this));
   makeCall(postData, 1000);
 }
 
 function addFriendPost() {
   setStatus("unblocking friend");
   var postData = "m=allow&fprs=" + 
-    encodeURIComponent(getKey());
+    encodeURIComponent(getKey(this));
   makeCall(postData, 1000);
 }
 
