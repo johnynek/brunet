@@ -17,11 +17,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using Brunet;
-using Brunet.Applications;
 using NDesk.Options;
 using System;
-using System.Collections.Generic;
-using System.IO;
 
 namespace Brunet.Applications {
   public class Runner {
@@ -43,9 +40,7 @@ namespace Brunet.Applications {
       try {
         opts.Parse(args);
       } catch (OptionException e) {
-        Console.WriteLine("P2PNode: ");
-        Console.WriteLine(e.Message);
-        Console.WriteLine("Try `P2PNode --help' for more information.");
+        HandleError(e.Message);
         return -1;
       }
 
@@ -54,50 +49,45 @@ namespace Brunet.Applications {
         return -1;
       }
 
-      if(node_config_path == string.Empty || !File.Exists(node_config_path)) {
-        Console.WriteLine("P2PNode: ");
-        Console.WriteLine("\tMissing NodeConfig.");
-        Console.WriteLine("Try `P2PNode --help' for more information.");
-        return -1;
-      }
-
-      if(str_count != string.Empty && !Int32.TryParse(str_count, out count) && count > 0) {
-        Console.WriteLine("P2PNode: ");
-        Console.WriteLine("\tInvalid count.  Count must be a positive integer.");
-        Console.WriteLine("Try `P2PNode --help' for more information.");
+      if(str_count != string.Empty && (!Int32.TryParse(str_count, out count) || count < 0)) {
+        HandleError("Invalid count.  Count must be a positive integer.");
         return -1;
       }
 
       NodeConfig node_config = null;
       try {
-        ConfigurationValidator cv = new ConfigurationValidator();
-        cv.Validate(node_config_path, "Node.xsd");
-        node_config = Utils.ReadConfig<NodeConfig>(node_config_path);
-        node_config.Path = node_config_path;
+        node_config = NodeConfig.ReadConfig(node_config_path);
       } catch (Exception e) {
-        Console.WriteLine("Invalid NodeConfig file:");
-        Console.WriteLine("\t" + e.Message);
+        HandleError("Invalid NodeConfig file: " + e.Message);
         return -1;
       }
 
       if(node_config.NodeAddress == null) {
-        node_config.NodeAddress = (Utils.GenerateAHAddress()).ToString();
+        node_config.NodeAddress = Utils.GenerateAHAddress().ToString();
         node_config.WriteConfig();
       }
 
+      BasicNode node = null;
       if(count == 1) {
-        BasicNode node = new BasicNode(node_config);
-        node.Run();
+        node = new BasicNode(node_config);
       } else {
-        MultiNode node = new MultiNode(node_config, count);
-        node.Run();
+        node = new MultiNode(node_config, count);
       }
+      node.Run();
+
       return 0;
     }
 
+    public static void HandleError(string error)
+    {
+      Console.WriteLine("P2PNode:");
+      Console.WriteLine("\t{0}", error);
+      Console.WriteLine("Try `P2PNode --help' for more information.");
+    }
+
     public static void ShowHelp(OptionSet p) {
-      Console.WriteLine("Usage: IpopRouter --IpopConfig=filename --NodeConfig=filename");
-      Console.WriteLine("IpopRouter - Virtual Networking Daemon.");
+      Console.WriteLine("Usage: P2PNode Options");
+      Console.WriteLine("P2PNode -- Multifunction Brunet Node");
       Console.WriteLine();
       Console.WriteLine("Options:");
       p.WriteOptionDescriptions(Console.Out);

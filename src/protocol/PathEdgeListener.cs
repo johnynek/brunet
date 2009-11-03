@@ -147,7 +147,6 @@ namespace Brunet {
       lock(_sync) {
         foreach(Edge e in _unannounced.Keys) {
           if(e.CreatedDateTime < remove_timeout) {
-            Console.WriteLine("HERE");
             to_close.Add(e);
           }
         }

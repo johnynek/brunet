@@ -106,8 +106,8 @@ namespace Brunet.Applications {
         WrapperEdgeListener wel = el as WrapperEdgeListener;
         if(wel != null) {
           try {
-            ht.Add(TransportAddress.TATypeToString(wel.TAType), wel.UnderlyingCount);
             wedge_count += el.Count;
+            ht.Add(TransportAddress.TATypeToString(wel.TAType), wel.UnderlyingCount);
           } catch { }
         } else {
           int count = 0;
