@@ -19,7 +19,8 @@
 
     <csc target="exe" output="${build.dir}/Simulator.exe" main="Brunet.Simulator.Runner">
       <sources failonempty="true">
-        <include name="*.cs"/>
+        <include name="Main.cs"/>
+        <include name="Simulator.cs"/>
       </sources>
       <references basedir="${build.dir}">
         <include name="Brunet.dll"/>
@@ -30,7 +31,9 @@
 
     <csc target="exe" output="${build.dir}/TunnelOverlapSimulator.exe" main="Brunet.Simulator.TunnelOverlapSimulator">
       <sources failonempty="true">
-        <include name="*.cs"/>
+        <include name="TunnelOverlapSimulator.cs"/>
+        <include name="Main.cs"/>
+        <include name="Simulator.cs"/>
       </sources>
       <references basedir="${build.dir}">
         <include name="Brunet.dll"/>
@@ -41,7 +44,9 @@
 
     <csc target="exe" output="${build.dir}/Evaluator.exe" main="Brunet.Simulator.Evaluator">
       <sources failonempty="true">
-        <include name="*.cs"/>
+        <include name="Evaluator.cs"/>
+        <include name="Main.cs"/>
+        <include name="Simulator.cs"/>
       </sources>
       <references basedir="${build.dir}">
         <include name="Brunet.dll"/>
@@ -52,7 +57,10 @@
 
     <csc target="exe" output="${build.dir}/TunnelOverlapEvaluator.exe" main="Brunet.Simulator.TunnelOverlapEvaluator">
       <sources failonempty="true">
-        <include name="*.cs"/>
+        <include name="TunnelOverlapEvaluator.cs"/>
+        <include name="TunnelOverlapSimulator.cs"/>
+        <include name="Main.cs"/>
+        <include name="Simulator.cs"/>
       </sources>
       <references basedir="${build.dir}">
         <include name="Brunet.dll"/>
@@ -63,7 +71,9 @@
 
     <csc target="exe" output="${build.dir}/HeavyChurnSimulator.exe" main="Brunet.Simulator.HeavyChurnSimulator">
       <sources failonempty="true">
-        <include name="*.cs"/>
+        <include name="HeavyChurn.cs"/>
+        <include name="Main.cs"/>
+        <include name="Simulator.cs"/>
       </sources>
       <references basedir="${build.dir}">
         <include name="Brunet.dll"/>
