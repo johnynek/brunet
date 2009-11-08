@@ -18,6 +18,7 @@ if [[ $root != root ]]; then
 fi
 
 if [[ -d $cert_dir ]]; then
+  user=`ls -l private_key | awk '{ print $3 }'`
   if [[ $platform == linux ]]; then
     ./tunctl -d $device
     ./tunctl -u $user -t $device
@@ -25,7 +26,6 @@ if [[ -d $cert_dir ]]; then
   elif [[ $platform == mac ]]; then
     chmod 666 /dev/tap0
   fi
-  user=`ls -l private_key | awk '{ print $3 }'`
   su $user -c "mono SocialVPN.exe brunet.config ipop.config $port off &> log.txt &"
 else
   echo "Run ./setup as non-root"
