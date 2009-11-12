@@ -26,6 +26,7 @@ using System.Security.Cryptography;
 using System.Threading;
 using Brunet.Util;
 using Brunet.Coordinate;
+using Brunet.DistributedServices;
 using Brunet.Security;
 using Brunet.Security.Protocol;
 using Brunet.Security.Transport;
@@ -249,6 +250,8 @@ namespace Brunet.Simulator {
         el = new Tunnel.TunnelEdgeListener(node, ito);
         node.AddEdgeListener(el);
       }
+      // Enables Dht data store
+      new Brunet.DistributedServices.TableServer(node);
       return node;
     }
 
@@ -519,7 +522,7 @@ namespace Brunet.Simulator {
         _secure = secure;
       }
 
-      public void Callback(object o, EventArgs ea) {
+      protected void Callback(object o, EventArgs ea) {
         Channel q = o as Channel;
         try {
           RpcResult res = (RpcResult) q.Dequeue();
@@ -568,6 +571,100 @@ namespace Brunet.Simulator {
             }
           }
         }
+      }
+    }
+
+    /// <summary>Used to perform a DhtPut from a specific node.</summary>
+    protected class DhtPut {
+      public bool Done { get { return _done; } }
+      protected bool _done;
+      protected readonly Node _node;
+      protected readonly MemBlock _key;
+      protected readonly MemBlock _value;
+      protected readonly int _ttl;
+      protected readonly EventHandler _callback;
+      public bool Successful { get { return _successful; } }
+      protected bool _successful;
+
+      public DhtPut(Node node, MemBlock key, MemBlock value, int ttl, EventHandler callback)
+      {
+        _node = node;
+        _key = key;
+        _value = value;
+        _ttl = ttl;
+        _callback = callback;
+        _successful = false;
+      }
+
+      public void Start()
+      {
+        Channel returns = new Channel();
+        returns.CloseEvent += delegate(object o, EventArgs ea) {
+          try {
+            _successful = (bool) returns.Dequeue();
+          } catch {
+          }
+
+          _done = true;
+          if(_callback != null) {
+            _callback(this, EventArgs.Empty);
+          }
+        };
+        Dht dht = new Dht(_node, 3, 20);
+        dht.AsyncPut(_key, _value, _ttl, returns);
+      }
+    }
+
+    /// <summary>Used to perform a DhtGet from a specific node.</summary>
+    protected class DhtGet {
+      public bool Done { get { return _done; } }
+      protected bool _done;
+      public Queue<MemBlock> Results;
+      public readonly Node Node;
+      protected readonly MemBlock _key;
+      protected readonly EventHandler _enqueue;
+      protected readonly EventHandler _close;
+
+      public DhtGet(Node node, MemBlock key, EventHandler enqueue, EventHandler close)
+      {
+        Node = node;
+        _key = key;
+        _enqueue = enqueue;
+        _close = close;
+        Results = new Queue<MemBlock>();
+      }
+
+      public void Start()
+      {
+        Channel returns = new Channel();
+        returns.EnqueueEvent += delegate(object o, EventArgs ea) {
+          while(returns.Count > 0) {
+            Hashtable result = null;
+            try {
+              result = returns.Dequeue() as Hashtable;
+            } catch {
+              continue;
+            }
+
+            byte[] res = result["value"] as byte[];
+            if(res != null) {
+              Results.Enqueue(MemBlock.Reference(res));
+            }
+          }
+          if(_enqueue != null) {
+            _enqueue(this, EventArgs.Empty);
+          }
+        };
+
+        returns.CloseEvent += delegate(object o, EventArgs ea) {
+          if(_close != null) {
+            _close(this, EventArgs.Empty);
+          }
+          _done = true;
+        };
+
+        Dht dht = new Dht(Node, 3, 20);
+        dht.AsyncGet(_key, returns);
       }
     }
   }

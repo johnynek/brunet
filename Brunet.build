@@ -204,6 +204,7 @@
     <nant target="simulator" buildfile="src/protocol/default.build" />
     <nant buildfile="src/Security/default.build" />
     <nant buildfile="src/coordinate/default.build" />
+    <nant buildfile="src/dht/default.build" />
     <nant buildfile="tests/simulator/default.build" />
     <nant buildfile="tests/graph/default.build" />
   </target>

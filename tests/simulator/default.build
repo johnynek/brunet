@@ -12,6 +12,7 @@
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${lib.dir}">
         <include name="Brunet.dll"/>
+        <include name="Brunet.Dht.dll"/>
         <include name="Brunet.Security.dll"/>
         <include name="Brunet.Coordinate.dll"/>
       </fileset>
@@ -24,6 +25,7 @@
       </sources>
       <references basedir="${build.dir}">
         <include name="Brunet.dll"/>
+        <include name="Brunet.Dht.dll"/>
         <include name="Brunet.Coordinate.dll"/>
         <include name="Brunet.Security.dll"/>
       </references>
@@ -37,6 +39,7 @@
       </sources>
       <references basedir="${build.dir}">
         <include name="Brunet.dll"/>
+        <include name="Brunet.Dht.dll"/>
         <include name="Brunet.Coordinate.dll"/>
         <include name="Brunet.Security.dll"/>
       </references>
@@ -50,6 +53,7 @@
       </sources>
       <references basedir="${build.dir}">
         <include name="Brunet.dll"/>
+        <include name="Brunet.Dht.dll"/>
         <include name="Brunet.Coordinate.dll"/>
         <include name="Brunet.Security.dll"/>
       </references>
@@ -64,6 +68,7 @@
       </sources>
       <references basedir="${build.dir}">
         <include name="Brunet.dll"/>
+        <include name="Brunet.Dht.dll"/>
         <include name="Brunet.Coordinate.dll"/>
         <include name="Brunet.Security.dll"/>
       </references>
@@ -77,6 +82,7 @@
       </sources>
       <references basedir="${build.dir}">
         <include name="Brunet.dll"/>
+        <include name="Brunet.Dht.dll"/>
         <include name="Brunet.Coordinate.dll"/>
         <include name="Brunet.Security.dll"/>
       </references>

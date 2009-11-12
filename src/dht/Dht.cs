@@ -535,7 +535,7 @@ namespace Brunet.DistributedServices {
       HashAlgorithm algo = new SHA1CryptoServiceProvider();
       byte[] target = algo.ComputeHash(key);
       Address.SetClass(target, AHAddress._class);
-      targets[0] = MemBlock.Reference(target);
+      targets[0] = MemBlock.Reference(target, 0, Address.MemSize);
 
       // Setup the rest of the keys
       BigInteger inc_addr = Address.Full/DEGREE;
