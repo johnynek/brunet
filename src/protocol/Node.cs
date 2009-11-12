@@ -239,6 +239,9 @@ namespace Brunet
 // End of inner classes
 /////
 
+    public delegate bool EdgeVerifier(Node node, Edge e, Address addr);
+    public EdgeVerifier EdgeVerifyMethod;
+
     /**
      * This represents the Connection state of the node.
      * We use different words for each state to reduce the

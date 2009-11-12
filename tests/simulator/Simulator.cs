@@ -76,7 +76,6 @@ namespace Brunet.Simulator {
       if(SEKey != null) {
         return;
       }
-      LinkProtocolState.EdgeVerifyMethod = EdgeVerify.AddressInSubjectAltName;
       SEKey = new RSACryptoServiceProvider();
       byte[] blob = SEKey.ExportCspBlob(false);
       RSACryptoServiceProvider rsa_pub = new RSACryptoServiceProvider();
@@ -174,6 +173,7 @@ namespace Brunet.Simulator {
         node.HeartBeatEvent += so.Heartbeat;
       }
       if(SecureEdges) {
+        node.EdgeVerifyMethod = EdgeVerify.AddressInSubjectAltName;
         el = new SecureEdgeListener(el, nm.BSO);
       }
 

@@ -33,9 +33,6 @@ namespace Brunet
    * was created using one TransportAddress
    */
   public class LinkProtocolState : TaskWorker, ILinkLocker {
-    public delegate bool EdgeVerifier(Node node, Edge e, Address addr);
-    public static EdgeVerifier EdgeVerifyMethod;
-    
     //====================
     // Write Once Variables.
     //====================
@@ -543,8 +540,8 @@ namespace Brunet
         //If we got no result
         RpcResult res = (RpcResult)resq.Dequeue();
         StatusMessage sm = new StatusMessage((IDictionary)res.Result);
-        if(EdgeVerifyMethod != null) {
-          if(!EdgeVerifyMethod(_node, _e, LinkMessageReply.Local.Address)) {
+        if(_node.EdgeVerifyMethod != null) {
+          if(!_node.EdgeVerifyMethod(_node, _e, LinkMessageReply.Local.Address)) {
             throw new Exception("Edge verification failed!");
           }
         }
