@@ -16,7 +16,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-//#define DEBUG
+//#define BRUNET_DEBUG
 
 using System.Collections;
 using System.Threading;
@@ -109,7 +109,7 @@ public class Channel {
       _close_event.Fire(this, null);
       return true;
     }
-#if DEBUG
+#if BRUNET_DEBUG
     Console.Error.WriteLine("Close set");
 #endif
     return false;
@@ -322,7 +322,7 @@ public sealed class BlockingQueue : Channel {
       close_are = (_waiters == 0);
     }
     
-#if DEBUG
+#if BRUNET_DEBUG
     System.Console.Error.WriteLine("Close set");
 #endif
     //Fire the close event
@@ -495,7 +495,7 @@ public sealed class BlockingQueue : Channel {
         throw new InvalidOperationException("BlockingQueue is closed, Enqueue failed");
       }
       //Wake up any waiting threads
-#if DEBUG
+#if BRUNET_DEBUG
       Console.Error.WriteLine("Enqueue set: count {0}", Count);
 #endif
     }

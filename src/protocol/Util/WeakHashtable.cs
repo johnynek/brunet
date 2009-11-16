@@ -17,7 +17,7 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
-//#define DEBUG
+//#define BRUNET_DEBUG
 
 using System;
 using System.Collections;
@@ -123,7 +123,7 @@ public class WeakHashtable {
     Init(_MIN_EXP);
   }
   protected void Init(int exp) {
-#if DEBUG
+#if BRUNET_DEBUG
     Console.Error.WriteLine("Old exp: {0}, new exp: {1}", _expon, exp);
 #endif
     _expon = exp;
@@ -151,7 +151,7 @@ public class WeakHashtable {
    * @throws ArgumentException if replace is true and key is already present
    */
   protected void Add(object key, object val, bool replace, bool rebalance) {
-#if DEBUG
+#if BRUNET_DEBUG
     Console.Error.WriteLine("WeakHashtable.Add({0},{1})", key, val);
 #endif
     Element old = GetElement(key);
@@ -178,7 +178,7 @@ public class WeakHashtable {
     if( rebalance ) {
       Rebalance();
     }
-#if DEBUG
+#if BRUNET_DEBUG
     Console.Error.WriteLine("Done: Add");
 #endif
   }
@@ -210,7 +210,7 @@ public class WeakHashtable {
    * @throw ArgumentNullException if key is null
    */
   protected Element GetElement(object key) {
-#if DEBUG
+#if BRUNET_DEBUG
     Console.Error.WriteLine("WeakHashtable.GetElement({0})", key);
 #endif
     if( key == null ) {
@@ -248,7 +248,7 @@ public class WeakHashtable {
       }
       _count += live_count - l.Count;
     }
-#if DEBUG
+#if BRUNET_DEBUG
     Console.Error.WriteLine("Done: GetElement: {0}", res);
 #endif
     return res;
@@ -259,7 +259,7 @@ public class WeakHashtable {
    * @throw ArgumentNullException if key is null
    */
   public void Remove(object key) {
-#if DEBUG
+#if BRUNET_DEBUG
     Console.Error.WriteLine("WeakHashtable.Remove({0})", key);
 #endif
     if( key == null ) {
@@ -293,7 +293,7 @@ public class WeakHashtable {
       _count += keep_count - l.Count;
     }
     Rebalance();
-#if DEBUG
+#if BRUNET_DEBUG
     Console.Error.WriteLine("Done: Remove");
 #endif
   }
@@ -310,12 +310,12 @@ public class WeakHashtable {
       }
     }
     set {
-#if DEBUG
+#if BRUNET_DEBUG
     Console.Error.WriteLine("WeakHashtable[{0}] = {1}", key, value);
 #endif
       //Just call Add
       Add(key, value, true, true);
-#if DEBUG
+#if BRUNET_DEBUG
     Console.Error.WriteLine("Done set");
 #endif
     }
@@ -326,7 +326,7 @@ public class WeakHashtable {
    * and if so, make sure to remove GC'ed keys
    */
   protected void Rebalance() {
-#if DEBUG
+#if BRUNET_DEBUG
     Console.Error.WriteLine("Rebalance");
 #endif
     int new_expon = _expon;
@@ -344,7 +344,7 @@ public class WeakHashtable {
       }
     }
     if( new_expon != _expon ) {
-#if DEBUG
+#if BRUNET_DEBUG
       Console.Error.WriteLine("Rebalance: go");
 #endif
       ArrayList all_elements = new ArrayList();
