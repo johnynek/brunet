@@ -87,7 +87,7 @@ namespace Brunet
       _edges = new Hashtable();
       _use_delay = use_delay;
       _sync = new object();
-      _ba = new BufferAllocator(2048, 8);
+      _ba = new BufferAllocator(Int16.MaxValue);
       _listener_id = id;
       _ploss_prob = loss_prob;
       if (ta_auth == null) {
