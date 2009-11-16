@@ -415,6 +415,9 @@ namespace Brunet
        * Make sure the link message is Kosher.
        * This are critical errors.  This Link fails if these occur
        */
+      if( lm.Local == null) {
+        throw new LinkException("Bad response");
+      }
       if( _node.Address.Equals( lm.Local.Address ) ) {
         //Somehow, we got a response from someone claiming to be us.
         throw new LinkException("Got a LinkMessage response from our address");

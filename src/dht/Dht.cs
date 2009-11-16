@@ -229,6 +229,9 @@ namespace Brunet.DistributedServices {
         RpcResult rpc_reply = (RpcResult) queue.Dequeue();
         ArrayList result = (ArrayList) rpc_reply.Result;
         //Result may be corrupted
+        if(result == null) {
+          throw new Exception("Invalid result");
+        }
         ArrayList values = (ArrayList) result[0];
         int remaining = (int) result[1];
         if(remaining > 0) {
