@@ -33,14 +33,14 @@ namespace Brunet.DistributedServices {
      * with some timeout mechanism to support multiple interactions at the 
      * same time.
      */
-    protected Cache _bqs;
+    protected Cache _channels;
     /// <summary>If true, only local node can perform ops.  When false anyone
     /// can. </summary>
     public bool LocalUseOnly;
 
     public RpcDht(IDht dht, Node node) {
       LocalUseOnly = true;
-      _bqs = new Cache(100);
+      _channels = new Cache(100);
       _node = node;
       _dht = dht;
       _node.Rpc.AddHandler("DhtClient", this);
@@ -94,7 +94,7 @@ namespace Brunet.DistributedServices {
           {
             // Needs to be Async so we don't deadlock!
             MemBlock key = MemBlock.Reference((byte[]) args[0]);
-            Channel returns = new Channel(1);
+            Channel returns = new Channel();
             returns.CloseEvent += delegate(object o, EventArgs eargs) {
               Hashtable []results = new Hashtable[returns.Count];
               int pos = 0;
@@ -115,8 +115,8 @@ namespace Brunet.DistributedServices {
           case "ContinueGet":
           {
             MemBlock token = MemBlock.Reference((byte[]) args[0]);
-            result = ContinueGet(token);
-            break;
+            ContinueGet(token, rs);
+            return;
           }
           case "EndGet":
           {
@@ -136,42 +136,72 @@ namespace Brunet.DistributedServices {
     /// <param name="key">Key to retrieve</param>
     /// <returns>A token used to continue or end the get</returns>
     public byte[] BeginGet(MemBlock key) {
-      BlockingQueue q  = new BlockingQueue();
-      this._dht.AsyncGet(key, q);
+      Channel q = new Channel();
+      _dht.AsyncGet(key, q);
       byte[] tk = GenToken(key);
-      _bqs.Add(MemBlock.Reference(tk), q);
+      _channels.Add(MemBlock.Reference(tk), q);
       return tk;
     }
 
     /// <summary>Block until a value returns from the get or the get ends.</summary>
     /// <param name="token">A token to specify which get to follow up.</param>
     /// <returns>A value from the get.</returns>
-    public IDictionary ContinueGet(MemBlock token) {
-      BlockingQueue q = (BlockingQueue)this._bqs[token];
+    public void ContinueGet(MemBlock token, object rs) {
+      Channel q = (Channel) _channels[token];
       if(q == null) {
         throw new ArgumentException("Invalid token");
       }
-      IDictionary res = null;
+
+      int sent = 0;
+      EventHandler eh = null;
+      eh = delegate(object o, EventArgs ea) {
+        if(System.Threading.Interlocked.Exchange(ref sent, 1) == 1) {
+          return;
+        }
+        Channel ch = o as Channel;
+
+        IDictionary res = null;
+        try {
+          res = (IDictionary) ch.Dequeue();
+        } catch {
+          if(ch.Closed) {
+            ch.Close();
+            res = new Hashtable();
+          }
+        }
+
+        if(res != null) {
+          _node.Rpc.SendResult(rs, res);
+          ch.CloseEvent -= eh;
+          ch.EnqueueEvent -= eh;
+        }
+      };
+
       try {
-        res = (IDictionary) q.Dequeue();
+        q.CloseEvent += eh;
+      } catch {
+        eh(q, EventArgs.Empty);
       }
-      catch {
-        res = new Hashtable();
-        _bqs.Remove(q);
+
+      if(!q.Closed) {
+        if(q.Count > 0) {
+          eh(q, EventArgs.Empty);
+        } else {
+          q.EnqueueEvent += eh;
+        }
       }
-      return res;
     }
 
     /// <summary>Closes a BeginGet.</summary>
     /// <param name="token">A token to specify which get to close.</param>
     public void EndGet(MemBlock token) {
-      BlockingQueue q = (BlockingQueue)this._bqs[token];
+      Channel q = (Channel) _channels[token];
       if (q == null) {
         throw new ArgumentException("Invalid token");
       }
       else {
         q.Close();
-        this._bqs.Remove(q);
+        _channels.Remove(q);
       }
     }
 
