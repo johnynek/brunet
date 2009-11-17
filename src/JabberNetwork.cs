@@ -73,6 +73,7 @@ namespace SocialVPN {
       _pres_sent = false;
       _jclient = new JabberClient();
 
+      _jclient.Port = 5222;
       _jclient.AutoReconnect = 30F;
       _jclient.AutoStartTLS = true;
       _jclient.KeepAlive = 30F;
