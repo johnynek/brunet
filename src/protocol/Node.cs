@@ -303,8 +303,9 @@ namespace Brunet
       get {
         //Make sure we don't keep too many of these things:
         ArrayList local_ta = new ArrayList();
-        foreach(EdgeListener el in _edgelistener_list) {
-          foreach(TransportAddress ta in el.LocalTAs) {
+        foreach(EdgeListener el in EdgeListenerList) {
+          IEnumerable el_tas = el.LocalTAs;
+          foreach(TransportAddress ta in el_tas) {
             local_ta.Add(ta);
             if( local_ta.Count >= _MAX_RECORDED_TAS ) {
               break;
