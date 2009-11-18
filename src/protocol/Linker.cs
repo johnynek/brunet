@@ -19,8 +19,6 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-//#define DEBUG
-
 //#define LINK_DEBUG
 
 #if BRUNET_NUNIT
@@ -447,13 +445,14 @@ namespace Brunet
 #if LINK_DEBUG
       _lid = Interlocked.Increment(ref _last_lid);
       if(ProtocolLog.LinkDebug.Enabled) {
-	ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format("Making {0}",this));
-	if( target_list != null ) {
-	  ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format("TAs:"));
-	  foreach(TransportAddress ta in target_list) {
-	    ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format("{0}", ta));
-	  }
-	}
+        ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format("{0}: Making {1}",
+              _local_n.Address, this));
+        if( target_list != null ) {
+	        ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format("TAs:"));
+          foreach(TransportAddress ta in target_list) {
+            ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format("{0}", ta));
+          }
+        }
       }
 #endif
     }
@@ -471,7 +470,7 @@ namespace Brunet
     override public void Start() {
 #if LINK_DEBUG
       if (ProtocolLog.LinkDebug.Enabled) {
-	ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format("Linker({0}).Start at: {1}", _lid, DateTime.Now));
+        ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format("{0}, Linker({1}).Start at: {2}", _local_n.Address, _lid, DateTime.UtcNow));
       }
 #endif
       //Try to set _started to 1, if already set to one, throw an exception
@@ -581,8 +580,8 @@ namespace Brunet
 #if LINK_DEBUG
       if (ProtocolLog.LinkDebug.Enabled) {
 	  ProtocolLog.Write(ProtocolLog.LinkDebug,
-                            String.Format("Linker({0}) {1}: transfering lock on {2} to {3}",
-                                          _lid, (_target_lock == null), a, l));
+                            String.Format("{0}: Linker({1}) {2}: transfering lock on {3} to {4}",
+                              _local_n.Address, _lid, (_target_lock == null), a, l));
       }
 #endif
       return allow;
@@ -677,9 +676,10 @@ namespace Brunet
         Unlock();
 #if LINK_DEBUG
         if (ProtocolLog.LinkDebug.Enabled) {
-	  ProtocolLog.Write(ProtocolLog.LinkDebug, 
-			    String.Format("Linker({0}) finished at: {1}", _lid, DateTime.Now));
-	}
+          ProtocolLog.Write(ProtocolLog.LinkDebug, 
+			      String.Format("{0}: Linker({1}) finished at: {2}",
+              _local_n.Address, _lid, DateTime.UtcNow));
+        }
 #endif
         FireFinished();
       }
@@ -715,8 +715,8 @@ namespace Brunet
 #if LINK_DEBUG
       if (ProtocolLog.LinkDebug.Enabled) {
         ProtocolLog.Write(ProtocolLog.LinkDebug, 
-          String.Format("Linker({0}) restarting; remaining attempts: {1}",
-                        _lid, rss.RemainingAttempts));
+          String.Format("{0}: Linker({1}) restarting; remaining attempts: {2}",
+            _local_n.Address, _lid, rss.RemainingAttempts));
         }
 #endif
     }
@@ -728,8 +728,8 @@ namespace Brunet
 #if LINK_DEBUG
      if (ProtocolLog.LinkDebug.Enabled) {
 	ProtocolLog.Write(ProtocolLog.LinkDebug, 
-			  String.Format("Linker({0}): {1} finished with result: {2} at: {3}", _lid,
-					lps, lps.MyResult, DateTime.Now));
+			  String.Format("{0}: Linker({1}): {2} finished with result: {3} at: {4}",
+          _local_n.Address, _lid, lps, lps.MyResult, DateTime.UtcNow));
      }
 #endif
      TaskWorker next_task = null;
@@ -745,7 +745,8 @@ namespace Brunet
 #if LINK_DEBUG
          if (ProtocolLog.LinkDebug.Enabled) {
            ProtocolLog.Write(ProtocolLog.LinkDebug, 
-             String.Format("Linker({0}) added {1} at: {2}", _lid, lps.Connection, DateTime.Now));
+             String.Format("{0}: Linker({1}) added {2} at: {3}", _local_n.Address,
+               _lid, lps.Connection, DateTime.UtcNow));
          }
 #endif
          break;
@@ -871,7 +872,7 @@ namespace Brunet
 #if LINK_DEBUG
         if (ProtocolLog.LinkDebug.Enabled) {
           ProtocolLog.Write(ProtocolLog.LinkDebug, 
-            String.Format("Linker ({0}) attempting to lock {1}", _lid, _target));
+            String.Format("{0}: Linker ({1}) attempting to lock {2}", _local_n.Address, _lid, _target));
         }
 #endif
         /*
@@ -886,9 +887,9 @@ namespace Brunet
 #if LINK_DEBUG
         if (ProtocolLog.LinkDebug.Enabled) {
             ProtocolLog.Write(ProtocolLog.LinkDebug, 
-			        String.Format("Linker ({0}) acquired lock on {1}", _lid, _target));
+			        String.Format("{0}: Linker ({1}) acquired lock on {2}", _local_n.Address, _lid, _target));
             ProtocolLog.Write(ProtocolLog.LinkDebug, 
-              String.Format("Linker: ({0}) Trying TA: {1}", _lid, next_ta));
+              String.Format("{0}: Linker: ({1}) Trying TA: {2}", _local_n.Address, _lid, next_ta));
         }
 #endif
         next_task = new EdgeWorker(_local_n, next_ta);
@@ -902,7 +903,7 @@ namespace Brunet
 #if LINK_DEBUG
         if (ProtocolLog.LinkDebug.Enabled) {
           ProtocolLog.Write(ProtocolLog.LinkDebug, 
-            String.Format("Linker ({0}) failed to lock {1}", _lid, _target));
+            String.Format("{0}: Linker ({1}) failed to lock {2}", _local_n.Address, _lid, _target));
         }
 #endif
         next_task = GetRestartState(next_ta);

@@ -151,6 +151,9 @@ namespace Brunet
     }
 
     override public void Start() {
+      ProtocolLog.WriteIf(ProtocolLog.LinkDebug,
+          String.Format("{0}: Starting Connector: {1}, {2}",
+            _local_node.Address, _sender, State));
       AbortCheck ac = _abort.Value;
       if( ac != null ) {
         if( ac(this) ) {
@@ -199,6 +202,9 @@ namespace Brunet
      * it here.  This method is only called once.
      */
     protected void QueueCloseHandler(object queue, EventArgs arg) {
+      ProtocolLog.WriteIf(ProtocolLog.LinkDebug,
+          String.Format("{0}: Connector Finished: {1}, {2}, results: {3}",
+            _local_node.Address, _sender, State, _got_ctms.Count));
       System.Threading.Interlocked.Exchange(ref _is_finished, 1);
       FireFinished();
     }
