@@ -29,9 +29,11 @@ namespace Brunet {
    * The following class provides a base class for tasks utilizing a greedy tree
    *  for computation. 
    */
-  public abstract class MapReduceGreedy: MapReduceTask {
+  public class MapReduceGreedy : MapReduceTask {
     public MapReduceGreedy(Node n):base(n) {}
-    public override MapReduceInfo[] GenerateTree(MapReduceArgs mr_args) {
+    /** Greedy routing.  gen_arg is the Address of the destination
+     */
+    public override void GenerateTree(Channel q, MapReduceArgs mr_args) {
       object gen_arg = mr_args.GenArg;
       Log("{0}: {1}, greedy generator called, arg: {2}.", 
           this.TaskName, _node.Address, gen_arg);
@@ -42,21 +44,22 @@ namespace Brunet {
       ConnectionList structs = tab.GetConnections(ConnectionType.Structured);
       Connection next_closest = structs.GetNearestTo((AHAddress) _node.Address, a);
       if (next_closest != null) {
-        MapReduceInfo mr_info = new MapReduceInfo( (ISender) next_closest.Edge,
-                                                   mr_args); //arguments do not change at all
+        //arguments do not change at all
+        MapReduceInfo mr_info = new MapReduceInfo(next_closest.Edge, mr_args);
         retval.Add(mr_info);
       }
       
       Log("{0}: {1}, greedy generator returning: {2} senders.", 
           this.TaskName, _node.Address, retval.Count);
-      return (MapReduceInfo[]) retval.ToArray(typeof(MapReduceInfo));
+      //Send the result:
+      q.Enqueue(retval.ToArray(typeof(MapReduceInfo)));
     }
   }
   
   /** The following class provides the base class for tasks utilizing the
    *  BoundedBroadcastTree generation.
    */
-  public abstract class MapReduceBoundedBroadcast: MapReduceTask 
+  public class MapReduceBoundedBroadcast : MapReduceTask 
   {
     public MapReduceBoundedBroadcast(Node n):base(n) {}
     /**
@@ -67,7 +70,7 @@ namespace Brunet {
      * To connection bi assign the range [b_i, b_{i+1}).
      * To the connection bn assign range [b_n, end).]
      */
-    public override MapReduceInfo[] GenerateTree(MapReduceArgs mr_args) 
+    public override void GenerateTree(Channel q, MapReduceArgs mr_args) 
     {
       object gen_arg = mr_args.GenArg;
       string end_range = gen_arg as string;
@@ -127,7 +130,27 @@ namespace Brunet {
           }
         }
       }
-      return (MapReduceInfo[]) retval.ToArray(typeof(MapReduceInfo));
+      q.Enqueue( retval.ToArray(typeof(MapReduceInfo)));
     }
   }   
+
+  /** A list concatenation task
+   */
+  public class MapReduceListConcat : MapReduceTask {
+    public MapReduceListConcat(Node n) : base(n) { }
+    public override void Reduce(Channel q, object reduce_arg, object current_val, RpcResult child_r) {
+      var rest = child_r.Result as IEnumerable;
+      //If we get here, the child didn't throw an exception
+      var result = new ArrayList();
+      AddEnum(result, current_val as IEnumerable);
+      AddEnum(result, rest);
+      q.Enqueue(new Brunet.Util.Pair<object, bool>(result, false));
+    }
+    protected static void AddEnum(IList into, IEnumerable source) {
+      if( source == null ) { return; }
+      foreach(object o in source) {
+        into.Add(o);
+      }
+    } 
+  }
 }

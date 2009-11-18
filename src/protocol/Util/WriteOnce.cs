@@ -23,12 +23,16 @@ using NUnit.Framework;
 namespace Brunet
 {
 /**
- * This class gives us write once reference types.
+ * This class gives us write once variables.
+ * For value types, it uses boxing, which may
+ * be bad for performance.
+ *
  * It is thread safe.
  */
 public class WriteOnce<T> {
 
   protected object _value;
+  protected readonly static object UNSET = new object();
   
   /**
    * Get the value stored in this write once.  It is null
@@ -37,7 +41,14 @@ public class WriteOnce<T> {
    */
   public T Value {
     get {
-      return (T)_value;
+      T val;
+      if( TryGet(out val) ) {
+        return val;
+      }
+      else {
+        //@todo I think we should throw an exception here:
+        return default(T);
+      }
     }
     set {
       if (false == TrySet(value)) {
@@ -47,20 +58,33 @@ public class WriteOnce<T> {
     }
   }
 
+  public bool IsSet { get { return _value != UNSET; } }
+
   public WriteOnce() {
-    _value = null;
+    _value = UNSET;
   }
 
   public override string ToString() {
-    return  (_value != null) ? _value.ToString() : System.String.Empty;
+    return  (_value != UNSET) ? _value.ToString() : System.String.Empty;
+  }
+
+  public bool TryGet(out T val) {
+    bool result = _value != UNSET;
+    if( result ) {
+      val = (T)_value;
+    }
+    else {
+      val = default(T);
+    }
+    return result;
   }
 
   /** Try to set the value.
    * @return true if the value was set
    */
   public bool TrySet(T val) {
-    object old = System.Threading.Interlocked.CompareExchange(ref _value, val, null);
-    return ( old == null );
+    object old = System.Threading.Interlocked.CompareExchange(ref _value, val, UNSET);
+    return ( old == UNSET );
   }
     
 }
@@ -90,10 +114,26 @@ public class WriteOnceTest {
       Assert.IsTrue(true, "Null set test (exception case)");
     }
     WriteOnce<object> wos2 = new WriteOnce<object>();
-    wos2.Value = null;
     Assert.IsNull(wos2.Value, "Value set to null test");
     wos2.Value = wos2;
     Assert.AreEqual(wos2.Value, wos2, "Value set non-null test");
+
+    //Try it with an int:
+    WriteOnce<int> woi = new WriteOnce<int>();
+    int iv;
+    Assert.IsFalse(woi.TryGet(out iv), "int is unset");
+    woi.Value = 2;
+    Assert.IsTrue(woi.TryGet(out iv), "int is set");
+    Assert.AreEqual(iv, 2, "tryget works");
+    Assert.AreEqual(woi.Value, 2, "int is set");
+    //Second set should fail:
+    try {
+      woi.Value = 3;
+      Assert.IsTrue(false, "second int set test");
+    }
+    catch {
+      Assert.IsTrue(true, "second int set test passed");
+    }
   }
 }
 

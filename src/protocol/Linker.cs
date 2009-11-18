@@ -193,7 +193,7 @@ namespace Brunet
       public TransportAddress TA { get { return _ta; } }
       public override object Task { get { return _ta; } }
       
-      public override bool IsFinished { get { return (_result.Value != null); } }
+      public override bool IsFinished { get { return _result.IsSet; } }
 
       protected readonly Node _n;
       public class EWResult {
@@ -214,8 +214,8 @@ namespace Brunet
        */
       public Edge NewEdge {
         get {
-          EWResult r = _result.Value;
-          if( r == null ) {
+          EWResult r;
+          if( false == _result.TryGet(out r) ) {
             return null;
           }
           if( r.Exception != null ) {
@@ -234,21 +234,22 @@ namespace Brunet
       }
       
       public override void Start() {
-        if( _result.Value == null ) {
+        EWResult res;
+        if( false == _result.TryGet(out res) ) {
           //This is the first time we've been called.
           _n.EdgeFactory.CreateEdgeTo(_ta, this.HandleEdge);
         }
         else {
           //This is the second time we've been called:
           if(ProtocolLog.LinkDebug.Enabled) {
-            if (_result.Value.Success) {
+            if (res.Success) {
               if(ProtocolLog.LinkDebug.Enabled)
                   ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
-                    "(Linker) Handle edge success: {0}", _result.Value.Edge));
+                    "(Linker) Handle edge success: {0}", res.Edge));
             } else {
               if(ProtocolLog.LinkDebug.Enabled) {
                 ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
-                "(Linker) Handle edge failure: {0} done.", _result.Value.Exception));
+                "(Linker) Handle edge failure: {0} done.", res.Exception));
   	          }
             }
           }

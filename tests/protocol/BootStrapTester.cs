@@ -24,6 +24,7 @@ using System.IO;
 using System;
 using System.Threading;
 using System.Collections;
+using System.Collections.Generic;
 //using log4net;
 //using log4net.Config;
 using System.Security.Cryptography;
@@ -390,11 +391,14 @@ namespace Brunet
           }
     }
     ArrayList c_threads = new ArrayList(); 
+	  var xrms = new Brunet.Rpc.XmlRpcManagerServer(20000);
+    int cnt = 0;
     foreach( Node item in rnd_list)
     {
       Thread t = new Thread( item.Connect );
       c_threads.Add(t);
       t.Start();
+      xrms.Add(item, "xm" + cnt++ + ".rem");
       Console.WriteLine(item.Address.ToString()
 		      + " RemoteTAs count: " + item.RemoteTAs.Count);
       total_started++;
@@ -406,9 +410,6 @@ namespace Brunet
       //  Console.WriteLine(item2);
     
     }
-    //Start an XML-RPC server:
-    Brunet.Rpc.XmlRpcManagerServer xrs = new Brunet.Rpc.XmlRpcManagerServer(20000);
-    xrs.Add((Node)node_list[0]);
 
     System.Console.Out.WriteLine("Finished with BootStrapTester.Main");
     string[] this_command = new string[] { "Q" };

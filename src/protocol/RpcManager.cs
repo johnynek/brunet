@@ -337,10 +337,14 @@ public class RpcManager : IReplyHandler, IDataHandler {
       lock( _sync ) {
         object[] info = (object[]) _method_cache[methname];
         if( info == null ) {
-          string[] parts = methname.Split('.');
-          string hname = parts[0];
-          mname = parts[1];
-          
+          int dot_idx = methname.IndexOf('.');
+          if( dot_idx == -1 ) {
+            throw new AdrException(-32601, "No Handler for method: " + methname);
+          }
+          string hname = methname.Substring(0, dot_idx);
+          //Skip the '.':
+          mname = methname.Substring(dot_idx + 1);
+
           handler = (IRpcHandler)_method_handlers[ hname ];
           if( handler == null ) {
             //No handler for this.
