@@ -180,6 +180,9 @@ namespace Brunet
       try {
         rpc_res = (RpcResult)q.Dequeue();
         ConnectToMessage new_ctm = new ConnectToMessage( (IDictionary)rpc_res.Result );
+        if(_local_node.Address.Equals(new_ctm.Target.Address)) {
+          throw new Exception("Trying to connect to myself!");
+        }
         lock( _sync ) {
         /**
          * It is the responsibilty of the ConnectionOverlord

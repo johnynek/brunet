@@ -61,6 +61,9 @@ namespace Brunet
       ConnectToMessage ctm_req = new ConnectToMessage(ht);
       //Console.Error.WriteLine("[{0}.ConnectTo({1})]", _n.Address, ctm_req);
       NodeInfo target = ctm_req.Target;
+      if(_n.Address.Equals(target.Address)) {
+        throw new Exception("Trying to connect to myself!");
+      }
       string contype = ctm_req.ConnectionType;
       Linker l = new Linker(_n, target.Address, target.Transports, contype, ctm_req.Token);
       //Here we start the job:
