@@ -456,6 +456,7 @@ namespace Brunet.Rpc {
     /// </summary>
     public void Stop()
     {
+      RemotingServices.Disconnect(_dumper);
       try {
         RemoveAll();
       } catch{}
