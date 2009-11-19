@@ -27,7 +27,7 @@ namespace Brunet.DistributedServices {
   public class RpcDhtProxy : IRpcHandler {
     public static readonly int RETRY_TIMEOUT = 30000;
     protected RpcManager _rpc;
-    protected static IDht _dht;
+    protected IDht _dht;
     protected Dictionary<MemBlock, Dictionary<MemBlock, Entry>> _entries;
     protected object _sync;
 
@@ -155,8 +155,13 @@ namespace Brunet.DistributedServices {
       returns.CloseEvent += delegate(object obj, EventArgs eargs) {
         bool success = false;
         try {
-          success = (bool) returns.Dequeue();
-        } catch {
+          object ret = returns.Dequeue();
+          if(ret is Exception) {
+            throw (ret as Exception);
+          }
+          success = (bool) ret;
+        } catch(Exception e) {
+          ProtocolLog.WriteIf(ProtocolLog.Exceptions, "EntryCallback: " + e);
           success = false;
         }
 
