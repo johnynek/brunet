@@ -329,6 +329,8 @@ namespace Brunet {
       _is_started = 0;
     }
 
+    public override int Count { get { return _el.Count; } }
+
     public override IEnumerable LocalTAs {
       get {
         List<TransportAddress> ltas = new List<TransportAddress>();
