@@ -1,4 +1,12 @@
 ===============================================================================
+Revision 9.4
+-------------------------------------------------------------------------------
+- Memory leaks have been fixed
+- Added MapReduce
+- Fixed a bug that resulted in occasional slow connectivity to the overlay
+- Fixed in the XmlRpc Dht interface that was returning only a single get result
+- GroupVPN supports revocation through the web interface and a CRL
+===============================================================================
 Revision 9.3
 -------------------------------------------------------------------------------
 - Removed UidGenerator and creation of many sender types via SenderFactory
