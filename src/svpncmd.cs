@@ -32,7 +32,14 @@ namespace SocialVPN {
    */
   public class Svpncmd {
 
-    public const string URL = "http://127.0.0.1:58888/api";
+    public static string _url = null;
+
+    public static void SetUrl() {
+      if(_url == null && System.IO.File.Exists("social.config")) {
+        SocialConfig config = Utils.ReadConfig<SocialConfig>("social.config");
+        _url = "http://127.0.0.1:" + config.HttpPort + "/api";
+      }
+    }
 
     public static bool CreateCertificate(string uid, string pcid, string name) {
       string config_path = "brunet.config";
@@ -48,10 +55,25 @@ namespace SocialVPN {
                                       node_config.NodeAddress, 
                                       node_config.Security.CertificatePath,
                                       node_config.Security.KeyPath);
+
+        if(!System.IO.File.Exists("social.config")) {
+          CreateConfig();
+        }
+
         Console.WriteLine("Certificate creation successful");
         return true;
       }
       return false;
+    }
+
+    public static void CreateConfig() {
+      SocialConfig social_config = new SocialConfig();
+      social_config.BrunetConfig = "brunet.config";
+      social_config.IpopConfig = "ipop.config";
+      social_config.HttpPort = "58888";
+      social_config.JabberPort = "5222";
+      social_config.GlobalAccess = "off";
+      Utils.WriteConfig("social.config", social_config);
     }
 
     public static void MakeCall(string method, string fprs) {
@@ -59,9 +81,14 @@ namespace SocialVPN {
         new Dictionary<string, string>();
 
       parameters["m"] = method;
-      parameters["fprs"] = fprs;
+      if(method == "add") {
+        parameters["uids"] = fprs;
+      }
+      else {
+        parameters["fprs"] = fprs;
+      }
       try {
-        SocialUtils.Request(URL, parameters);
+        SocialUtils.Request(_url, parameters);
       } catch(Exception e) {
         Console.WriteLine(e.Message);
         Console.WriteLine("Could not connect to SocialVPN, make sure" +
@@ -81,7 +108,7 @@ namespace SocialVPN {
       parameters["pass"] = pass;
 
       try {
-        SocialUtils.Request(URL, parameters);
+        SocialUtils.Request(_url, parameters);
       } catch(Exception e) {
         Console.WriteLine(e.Message);
         Console.WriteLine("Could not connect to SocialVPN, make sure" +
@@ -98,7 +125,7 @@ namespace SocialVPN {
       parameters["m"] = "logout";
 
       try {
-        SocialUtils.Request(URL, parameters);
+        SocialUtils.Request(_url, parameters);
       } catch(Exception e) {
         Console.WriteLine(e.Message);
         Console.WriteLine("Could not connect to SocialVPN, make sure" +
@@ -109,7 +136,7 @@ namespace SocialVPN {
     }
 
     public static void GetState() {
-      string stateString = SocialUtils.Request(URL);
+      string stateString = SocialUtils.Request(_url);
       PrintInfo(stateString);
       PrintFriends(stateString);
     }
@@ -158,6 +185,7 @@ namespace SocialVPN {
      * The main function, starting point for the program.
      */
     public static void Main(string[] args) {
+      SetUrl();
       if(args.Length == 0) {
         ShowHelp();
       }

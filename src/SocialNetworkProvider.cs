@@ -73,6 +73,8 @@ namespace SocialVPN {
 
     protected readonly BlockingQueue _queue;
 
+    protected readonly string _jabber_port;
+
     public string Status = "offline";
 
     /**
@@ -82,7 +84,7 @@ namespace SocialVPN {
      * @param certData the local certificate data.
      */
     public SocialNetworkProvider(IDht dht, SocialUser user, byte[] certData,
-      BlockingQueue queue) {
+      BlockingQueue queue, string jabber_port) {
       _local_user = user;
       _dht = dht;
       _queue = queue;
@@ -91,6 +93,7 @@ namespace SocialVPN {
       _local_cert_data = certData;
       _friends = new Dictionary<string, List<string>>();
       _certificates = new List<byte[]>();
+      _jabber_port = jabber_port;
       RegisterBackends();
     }
 
@@ -99,7 +102,8 @@ namespace SocialVPN {
      */
     public void RegisterBackends() {
       JabberNetwork jnetwork = new JabberNetwork(_local_user,
-                                                   _local_cert_data, _queue);
+                                                   _local_cert_data, _queue,
+                                                   _jabber_port);
       // Registers the identity provider
       _providers.Add("jabber", jnetwork);
       // Register the social network

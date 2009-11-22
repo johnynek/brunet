@@ -64,7 +64,7 @@ namespace SocialVPN {
     protected bool _pres_sent;
 
     public JabberNetwork(SocialUser user, byte[] certData, 
-      BlockingQueue queue) {
+      BlockingQueue queue, string jabber_port) {
       _local_user = user;
       _queue = queue;
       _friends = new Dictionary<string, List<string>>();
@@ -73,7 +73,7 @@ namespace SocialVPN {
       _pres_sent = false;
       _jclient = new JabberClient();
 
-      _jclient.Port = 5222;
+      _jclient.Port = Int32.Parse(jabber_port);
       _jclient.AutoReconnect = 30F;
       _jclient.AutoStartTLS = true;
       _jclient.KeepAlive = 30F;

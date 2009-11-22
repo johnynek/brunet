@@ -72,14 +72,21 @@ namespace WindowsService {
       string app_dir = AppDomain.CurrentDomain.SetupInformation.ApplicationBase;
       System.IO.Directory.SetCurrentDirectory(app_dir);
 
-      NodeConfig node_config = Utils.ReadConfig<NodeConfig>("brunet.config");
-      IpopConfig ipop_config = Utils.ReadConfig<IpopConfig>("ipop.config");
-      string port = "58888";
-      string global_access = "off";
+      SocialConfig social_config = null;
+      NodeConfig node_config = null;
+      IpopConfig ipop_config = null;
+      string http_port, jabber_port, global_access;
+
+      social_config = Utils.ReadConfig<SocialConfig>("social.config");
+      node_config = Utils.ReadConfig<NodeConfig>(social_config.BrunetConfig);
+      ipop_config = Utils.ReadConfig<IpopConfig>(social_config.IpopConfig);
+      http_port = social_config.HttpPort;
+      jabber_port = social_config.JabberPort;
+      global_access = social_config.GlobalAccess;
 
       _node = new SocialNode(node_config, ipop_config, 
                                        node_config.Security.CertificatePath,
-                                       port, global_access);
+                                       http_port, jabber_port, global_access);
       _node.Run();
       //Thread.MemoryBarrier();
     }

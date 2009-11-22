@@ -148,13 +148,14 @@ namespace SocialVPN {
      * @param ipopConfig configuration file for IP over P2P app.
      */
     public SocialNode(NodeConfig brunetConfig, IpopConfig ipopConfig, 
-                      string certDir, string port, string global_access) : 
+                      string certDir, string http_port, string jabber_port,
+                      string global_access) : 
                       base(brunetConfig, ipopConfig) {
       _friends = new Dictionary<string, SocialUser>();
       _aliases = new Dictionary<string, string>();
       _addr_to_key = new Dictionary<string, string>();
       _cert_dir = certDir;
-      _http_port = port;
+      _http_port = http_port;
       string cert_path = Path.Combine(certDir, CERTFILENAME);
       _local_cert = new Certificate(SocialUtils.ReadFileBytes(cert_path));
       _local_user = new SocialUser(_local_cert);
@@ -163,9 +164,10 @@ namespace SocialVPN {
       _bso.CertificateHandler.AddSignedCertificate(_local_cert.X509);
       _queue = new BlockingQueue();
       _snp = new SocialNetworkProvider(this.Dht, _local_user, 
-                                       _local_cert.X509.RawData, _queue);
+                                       _local_cert.X509.RawData, _queue, 
+                                       jabber_port);
       _srh = new SocialRpcHandler(_node, _local_user, _friends, _queue);
-      _scm = new SocialConnectionManager(this, _snp, _srh, port, _queue);
+      _scm = new SocialConnectionManager(this, _snp, _srh, http_port, _queue);
       _cert_published = false;
       _node.ConnectionTable.ConnectionEvent += ConnectHandler;
       _node.HeartBeatEvent += _scm.HeartBeatHandler;
@@ -427,26 +429,21 @@ namespace SocialVPN {
      */
     public static void Main(string[] args) {
 
+      SocialConfig social_config = null;
       NodeConfig node_config = null;
       IpopConfig ipop_config = null;
-      string port, global_access;
+      string http_port, jabber_port, global_access;
 
-      if(args.Length < 4) {
-        node_config = Utils.ReadConfig<NodeConfig>("brunet.config");
-        ipop_config = Utils.ReadConfig<IpopConfig>("ipop.config");
-        port = "58888";
-        global_access = "off";
-      }
-      else {
-        node_config = Utils.ReadConfig<NodeConfig>(args[0]);
-        ipop_config = Utils.ReadConfig<IpopConfig>(args[1]);
-        port = args[2];
-        global_access = args[3];
-      }
+      social_config = Utils.ReadConfig<SocialConfig>("social.config");
+      node_config = Utils.ReadConfig<NodeConfig>(social_config.BrunetConfig);
+      ipop_config = Utils.ReadConfig<IpopConfig>(social_config.IpopConfig);
+      http_port = social_config.HttpPort;
+      jabber_port = social_config.JabberPort;
+      global_access = social_config.GlobalAccess;
 
       SocialNode node = new SocialNode(node_config, ipop_config, 
                                        node_config.Security.CertificatePath,
-                                       port, global_access);
+                                       http_port, jabber_port, global_access);
       node.Run();
     }
   }
