@@ -474,40 +474,14 @@ namespace Brunet
 
   public sealed class ConnectionTable : IEnumerable
   {
-    public int AverageEdgeTime {
-      get {
-        DateTime now = DateTime.UtcNow;
-        int total_active_edges_time = 0, count = 0;
-        foreach(DictionaryEntry de in _edge_start_time) {
-          DateTime start = (DateTime) de.Value;
-          total_active_edges_time += (int) (now - start).TotalSeconds;
-          count++;
-        }
-        count += _closed_edges_time.Count;
-        int average = 0;
-        if(count != 0)
-          average = (total_active_edges_time + _total_closed_edges_time) /
-            (count + _closed_edges_time.Count);
-        return average;
-      }
-    }
-
-    protected int _total_closed_edges_time = 0;
-    public const int MAX_CLOSED_EDGE_TIMES = 10;
-
-    /* Only access this in locked methods */
-    protected Queue _closed_edges_time;
-
-    protected Hashtable _edge_start_time;
-
-    protected readonly Random _rand;
+    private readonly Random _rand;
 
     /*
      * These objects are often being reset (since we don't ever
      * modify the data structures once set).
      */
-    protected Hashtable _type_to_conlist;
-    protected Hashtable _edge_to_con;
+    private Hashtable _type_to_conlist;
+    private Hashtable _edge_to_con;
 
     /** Sequence number to track changes to the table.
      * Local events should be processed in order, but 
@@ -516,21 +490,21 @@ namespace Brunet
      * is so they can be ordered properly.  This number
      * increases every time we make a change to the ConnectionTable
      */
-    protected int _view;
+    private int _view;
 
     //We mostly deal with structured connections,
     //so we keep a ref to the address list for sructured
     //this is an optimization.
-    protected ConnectionList _struct_conlist;
+    private ConnectionList _struct_conlist;
 
-    protected ArrayList _unconnected;
+    private ArrayList _unconnected;
 
     /**
      * These are the addresses we are trying to connect to.
      * The key is the address, the value is the object that
      * holds the lock.
      */
-    protected readonly Hashtable _address_locks;
+    private readonly Hashtable _address_locks;
 
     /** an object to lock for thread sync */
     private readonly object _sync;
@@ -548,9 +522,9 @@ namespace Brunet
      */
     public event EventHandler StatusChangedEvent;
 
-    protected readonly Address _local;
+    private readonly Address _local;
 
-    protected bool _closed; 
+    private bool _closed; 
     /**
      * Returns the total number of Connections.
      * This is for the ICollection interface
@@ -588,8 +562,6 @@ namespace Brunet
         _edge_to_con = new Hashtable();
         _closed = false;
         _unconnected = new ArrayList();
-//        _closed_edges_time = new Queue(10);
-//        _edge_start_time = new Hashtable();
 
         _address_locks = new Hashtable();
         // init all--it is safer to do it this way and avoid null pointer exceptions
@@ -913,7 +885,7 @@ namespace Brunet
      * Before we can use a ConnectionType, that type must
      * be initialized 
      */
-    protected void Init(ConnectionType t)
+    private void Init(ConnectionType t)
     {
       ConnectionList new_list = new ConnectionList(t);
       lock( _sync ) {
@@ -1029,7 +1001,7 @@ namespace Brunet
      * @param add_unconnected if true, keep a reference to the edge in the
      * _unconnected list
      */
-    protected void Remove(Edge e, bool add_unconnected)
+    private void Remove(Edge e, bool add_unconnected)
     {
       int index = -1;
       bool have_con = false;
@@ -1107,7 +1079,7 @@ namespace Brunet
      * When an Edge closes, this handler is called
      * This is just a wrapper for Remove
      */
-    protected void RemoveHandler(object edge, EventArgs args)
+    private void RemoveHandler(object edge, EventArgs args)
     {
       Edge e = (Edge)edge;
       e.CloseEvent -= this.RemoveHandler;
@@ -1286,8 +1258,6 @@ namespace Brunet
         if( idx < 0 ) {
           _unconnected = Functional.Add(_unconnected, e);
         }
-/*        if(!_edge_start_time.Contains(e))
-          _edge_start_time = Functional.Add(_edge_start_time, e, DateTime.UtcNow);*/
         try {
           e.CloseEvent += this.RemoveHandler;
         }

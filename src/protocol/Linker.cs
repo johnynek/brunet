@@ -647,7 +647,7 @@ namespace Brunet
         /*
          * The edge creation didn't work out so well
          */
-//        Console.Error.WriteLine(ex);
+        ProtocolLog.WriteIf(ProtocolLog.LinkDebug, ex.ToString());
         next_task = StartAttempt( NextTA() );
       }
       if( close_edge ) {

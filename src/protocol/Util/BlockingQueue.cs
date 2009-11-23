@@ -294,10 +294,10 @@ public sealed class BlockingQueue : Channel {
     //Make sure the close method is eventually called:
     Close();
   }
-  protected AutoResetEvent _re;
-  protected readonly object _re_sync; 
-  protected readonly object _sync; 
-  protected int _waiters;
+  private AutoResetEvent _re;
+  private readonly object _re_sync; 
+  private readonly object _sync; 
+  private int _waiters;
 
   /* **********************************************
    * Here all the methods
@@ -340,7 +340,7 @@ public sealed class BlockingQueue : Channel {
    * @return true if the RE was already closed.
    * both arguments should not be true
    */
-  protected bool SetOrCloseRE(bool set, bool close) {
+  private bool SetOrCloseRE(bool set, bool close) {
     lock( _re_sync ) {
       if( _re == null ) {
         return true;
@@ -376,7 +376,7 @@ public sealed class BlockingQueue : Channel {
     return Dequeue(millisec, out timedout, true);
   }
   
-  protected object Dequeue(int millisec, out bool timedout, bool advance)
+  private object Dequeue(int millisec, out bool timedout, bool advance)
   {
     lock( _sync ) {
       if( _count > 1 || _closed == 1 ) {

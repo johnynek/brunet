@@ -39,7 +39,7 @@ namespace Brunet {
    * which can individually be accessed by Rpc calls.
    */
   public abstract class MapReduceTask {
-    private static int _log_enabled = -1;
+//    private static int _log_enabled = -1;
     public static bool LogEnabled {
       get {
         return ProtocolLog.MapReduce.Enabled;
@@ -459,7 +459,7 @@ namespace Brunet {
    * This class represents an instance of a map-reduce computation. 
    */
   public class MapReduceComputation {
-    private static int _log_enabled = -1;
+//    private static int _log_enabled = -1;
     public static bool LogEnabled {
       get {
         return ProtocolLog.MapReduce.Enabled;

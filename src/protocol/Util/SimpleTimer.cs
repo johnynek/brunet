@@ -143,6 +143,7 @@ namespace Brunet.Util {
           timer._callback(timer._state);
         } catch (Exception e) {
           //ProtocolLog is not in Brunet.Util:
+          Console.WriteLine(e);
           //ProtocolLog.WriteIf(ProtocolLog.Exceptions, e.ToString());
         }
 

@@ -302,6 +302,7 @@ public class FuzzyTimer : IDisposable {
               feitem.TryRun(now);
             }
             catch(Exception x) {
+              Console.WriteLine(x);
               //Something bad happened
             }
           }
