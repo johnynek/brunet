@@ -45,11 +45,6 @@ namespace Brunet
 
   public class ConnectionPacketHandler : IRpcHandler
   {
-
-    /*private static readonly log4net.ILog log =
-        log4net.LogManager.GetLogger(System.Reflection.MethodBase.
-        GetCurrentMethod().DeclaringType);*/
-
     /**
      * This is the only stateful object here.  The rest
      * do not need thread synchronization.

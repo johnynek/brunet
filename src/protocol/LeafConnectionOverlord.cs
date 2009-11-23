@@ -21,7 +21,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using System;
 using System.Collections;
-//using log4net;
 namespace Brunet
 {
   /**
@@ -31,10 +30,6 @@ namespace Brunet
    */
   public class LeafConnectionOverlord:ConnectionOverlord
   {
-    /*private static readonly log4net.ILog log =
-        log4net.LogManager.GetLogger(System.Reflection.MethodBase.
-        GetCurrentMethod().DeclaringType);*/
-
     private static readonly int DESIRED_CONS = 3;
     //After this many secs of not seeing any new connections or disconnections,
     //we decide we don't need leafs anymore.

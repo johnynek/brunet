@@ -44,13 +44,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using System.IO;
 using System;
 using System.Collections;
-using log4net;
-using log4net.Config;
 using System.Security.Cryptography;
 using System.Diagnostics;
 using System.Text;
 
-[assembly: log4net.Config.DOMConfigurator(Watch=true)]
 namespace Brunet
 {
   /**
@@ -59,11 +56,6 @@ namespace Brunet
    */
   public class BootStrapTester
   {
-
-    private static readonly log4net.ILog log =
-      log4net.LogManager.GetLogger(System.Reflection.MethodBase.
-                                   GetCurrentMethod().
-                                   DeclaringType);
     BootStrapTester()
     {
     }

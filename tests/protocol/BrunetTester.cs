@@ -35,8 +35,6 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-//[assembly:log4net.Config.DOMConfigurator(Watch = true)]
-
 namespace Brunet
 {
 #if ECHO
@@ -110,18 +108,6 @@ namespace Brunet
         num_remote_ta--;
       }
 
-#if PLAB_LOG
-      bool net_stream = false;
-      String server_ipadd = "cantor.ee.ucla.edu";
-      int server_port = 8002;
-      int time_diff = 0;
-      String td_file_string = "~/joe/time_diff.txt";
-      if(File.Exists(td_file_string)){
-        StreamReader sr = new StreamReader(td_file_string);
-        time_diff = Convert.ToInt32( sr.ReadLine() );     
-        sr.Close();
-      }  
-#endif
       //String file_string = "./data/brunetadd" + Convert.ToString(desired_port) + ".log";
       fs.WriteLine( "local_address " + node.Address.ToBigInteger().ToString() 
           + " " + Dns.GetHostName() + ":" + desired_port);
@@ -129,12 +115,6 @@ namespace Brunet
           ":" + DateTime.Now.ToUniversalTime().Millisecond +
           "  Start  Start  " + node.Address.ToBigInteger().ToString() + '\n'); 
       fs.Flush(); 
-#if PLAB_LOG
-      BrunetLogger bl = new BrunetLogger(desired_port, (AHAddress)node.Address, 
-          net_stream, server_ipadd, server_port, time_diff, fs); 
-
-      node.Logger = bl;
-#endif
       //bool log_rdp = false;	  
 
 #if PACKET_LOG

@@ -25,32 +25,11 @@ using System.IO;
 using System.Net;
 using System.Security.Cryptography;
 using System.Diagnostics;
-//using log4net;
-//using log4net.Config;
-
-//[assembly:log4net.Config.DOMConfigurator(Watch = true)]
 
 namespace Brunet
 {
   public class EchoTester : IDataHandler
   {
-  /*private static readonly log4net.ILog log =
-            log4net.LogManager.GetLogger(System.Reflection.MethodBase.
-                                        GetCurrentMethod().
-                                        DeclaringType);*/
-#if PLAB_LOG
-    protected BrunetLogger _logger;
-    public BrunetLogger Logger{
-      get{
-        return _logger;
-      }
-      set
-      {
-        _logger = value;
-      }
-    }
-#endif
-
     public static Hashtable uid_starttime = new Hashtable();
     public static Hashtable uid_brunetpingtime = new Hashtable();
     public static Hashtable uid_pingtime = new Hashtable();
@@ -185,12 +164,6 @@ namespace Brunet
       EchoTester echo_printer = new EchoTester();
       this_node.GetTypeSource(PType.Protocol.Echo).Subscribe(echo_printer, this_node);
 
-#if PLAB_LOG     
-       ///Initialize Brunet logger
-      BrunetLogger bl = new BrunetLogger(desired_port, (AHAddress)this_node.Address);
-      this_node.Logger = bl;
-#endif 
-
       this_node.Connect();
 
        //Send a "hello message" to a random neighbor
@@ -248,13 +221,6 @@ namespace Brunet
 		  //inforce type 0
 		  hashedbytes[Address.MemSize - 1] &= 0xFE;
 		  AHAddress _target_ahaddress = new AHAddress(hashedbytes);	      
-#if PLAB_LOG
-		  ///Write the header to a log file  
-		  bl.LogBPHeader(local_ta_configuration.Address, local_ta_configuration.Port, 
-				  target_ta_configuration.Address, target_ta_configuration.Port);  
-		  bl.LogPingHeader(local_ta_configuration.Address, local_ta_configuration.Port, 
-				  target_ta_configuration.Address, target_ta_configuration.Port);
-#endif
 		  for(int i = 0; i < num_pings; i++){
 		    //ping and Brunet-ping the target node for a number of times
 		    int uid = uid_generator.Next(); //this is the unique id of the packet
@@ -269,11 +235,7 @@ namespace Brunet
 
 		    this_node.Send(p);
 		    ping_time = pw.Ping(target_ta_configuration.Address, wait_time); //wait wait_time number of ms
-#if PLAB_LOG
-		    bl.LogPing(ping_time);	
-#else
 		    System.Console.WriteLine("Ping time: {0}",ping_time);
-#endif
 		    System.Threading.Thread.Sleep(wait_time); 
 		  }//end of for-loop 
 		}                  

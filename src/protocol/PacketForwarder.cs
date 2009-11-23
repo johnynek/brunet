@@ -36,11 +36,6 @@ namespace Brunet
    */
   public class PacketForwarder : IDataHandler
   {
-
-    /*private static readonly log4net.ILog _log =
-        log4net.LogManager.GetLogger(System.Reflection.MethodBase.
-        GetCurrentMethod().DeclaringType);*/
-    
     protected Address _local;
     protected Node _n;
 

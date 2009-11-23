@@ -105,41 +105,9 @@
                 <references>
                    <include name="Brunet.XmlRpc.dll"/>
                    <include name="${lib.dir}/NUnit.Framework.dll" />
-                   <include name="${lib.dir}/log4net.dll" />
                    <include name="${lib.dir}/${assembly}.dll" />
                    <include name="${lib.dir}/${assembly}-TestUtil.dll" />
 		               <include name="/usr/share/dotnet/mono/1.0/Mono.Posix.dll" />
-                </references>
-             </csc>
-       </do>
-    </foreach>
-
-  </target>
-
-  <target
-    name="plab-log"
-    depends="init"
-    description="Builds the Brunet test apps for the current configuration">
-
-    <foreach item="File" property="filename">
-       <in>
-           <items>
-              <include name="*.cs" />
-           </items>
-       </in>
- 
-       <do>
-             <csc target="exe" output="${out.dir}/${string::replace(path::get-file-name(filename),'.cs', '.exe')}"
-                  define="PLAB_LOG" >
-                <sources>
-                  <include name="${filename}" />
-                </sources>
-                <references>
-                   <include name="${lib.dir}/NUnit.Framework.dll" />
-                   <include name="${lib.dir}/log4net.dll" />
-                   <include name="${lib.dir}/${assembly}.dll" />
-                   <include name="${lib.dir}/${assembly}-TestUtil.dll" />
-		   <include name="/usr/share/dotnet/mono/1.0/Mono.Posix.dll" />
                 </references>
              </csc>
        </do>

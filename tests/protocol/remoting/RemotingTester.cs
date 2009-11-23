@@ -22,7 +22,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#define PACKET_LOG
 //#define MEMORY_LOG
 ///WARNING: ECHO and MEMORY_LOG cannot be turned on at the same time
-#define PLAB_LOG
 
 using System;
 using System.Text;
@@ -133,11 +132,6 @@ namespace Brunet
           "  Start  Start  " + node.Address.ToBigInteger().ToString() + '\n'); 
       fs.Flush(); 
 
-#if PLAB_LOG
-      BrunetLogger bl = new BrunetLogger(desired_port, (AHAddress)node.Address, 
-          net_stream, server_ipadd, server_port, time_diff, fs); 
-      node.Logger = bl;
-#endif
       //bool log_rdp = false;	  
 
 #if PACKET_LOG

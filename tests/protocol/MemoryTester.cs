@@ -127,11 +127,6 @@ namespace Brunet
       //this_node.Subscribe(AHPacket.Protocol.Echo, echo_printer);
 
       this_node.Connect();
-#if PLAB_LOG
-      ///Initialize Brunet logger
-      BrunetLogger bl = new BrunetLogger(desired_port, (AHAddress)this_node.Address);
-      this_node.Logger = bl;
-#endif
       DateTime start_time = DateTime.Now;
       TimeSpan elapsed_time = System.DateTime.Now - start_time;
       StreamWriter memory_sw = new StreamWriter("memory_usage.log", true);

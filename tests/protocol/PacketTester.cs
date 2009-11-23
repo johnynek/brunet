@@ -113,11 +113,6 @@ namespace Brunet
 
       //EchoTester echo_printer = new EchoTester();
       //this_node.Subscribe(AHPacket.Protocol.Echo, echo_printer);
-#if PLAB_LOG
-      ///Initialize Brunet logger
-      BrunetLogger bl = new BrunetLogger(desired_port, (AHAddress)this_node.Address);
-      this_node.Logger = bl;
-#endif      
       StreamWriter stamp_sw = new StreamWriter("time_stamp.log", true);
       stamp_sw.WriteLine("Local_node: {0} start_time_GMT: {1}:{2}", Dns.GetHostName(), DateTime.Now.ToUniversalTime().ToString(),
 			DateTime.Now.ToUniversalTime().Millisecond );

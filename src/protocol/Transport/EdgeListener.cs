@@ -39,19 +39,6 @@ namespace Brunet
 
   public abstract class EdgeListener
   {
-
-#if PLAB_LOG
-    private BrunetLogger _logger;
-    public BrunetLogger Logger{
-	get{
-	  return _logger;
-	}
-	set
-	{
-	  _logger = value;          
-	}
-    }
-#endif
     protected TAAuthorizer _ta_auth;
     virtual public TAAuthorizer TAAuth {
       get { return _ta_auth; }

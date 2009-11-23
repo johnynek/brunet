@@ -41,11 +41,6 @@ namespace Brunet
 
   public class Connector : TaskWorker
   {
-
-    /*private static readonly log4net.ILog _log =
-        log4net.LogManager.GetLogger(System.Reflection.MethodBase.
-        GetCurrentMethod().DeclaringType);*/
-
     protected int _is_finished;
     override public bool IsFinished {
       get { return (_is_finished == 1); }

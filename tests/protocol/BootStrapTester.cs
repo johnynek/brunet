@@ -25,14 +25,10 @@ using System;
 using System.Threading;
 using System.Collections;
 using System.Collections.Generic;
-//using log4net;
-//using log4net.Config;
 using System.Security.Cryptography;
 using System.Diagnostics;
 using System.Text;
 
-
-//[assembly: log4net.Config.DOMConfigurator(Watch=true)]
 namespace Brunet 
 {
   /** 
