@@ -58,6 +58,7 @@ namespace Brunet {
     protected readonly Thread _timer_thread;
     protected readonly int _period = 1000;
     protected readonly FuzzyEvent _fe;
+    protected long _next_check;
 
     //Methods:
 
@@ -74,6 +75,7 @@ namespace Brunet {
       Rpc.AddHandler("sys:pathing", this);
       _el.EdgeEvent += HandleEdge;
       _running = true;
+      _next_check = DateTime.UtcNow.Ticks;
 
       if(thread) {
         _timer_thread = new Thread(
@@ -122,8 +124,55 @@ namespace Brunet {
       }
     }
 
+    /**
+     * Handles Rrm TimeoutChecking as well as removing stale entries from the
+     * _unannounced Edge dictionary.
+     */
     protected void TimeoutCheck() {
       _rrm.TimeoutChecker(null, null);
+
+      DateTime now = DateTime.UtcNow;
+      long next = _next_check;
+      if(next < now.Ticks) {
+        // If someone else is checking it, let's just end it here
+        long current = Interlocked.Exchange(ref _next_check, now.AddMinutes(5).Ticks);
+        if(next != current) {
+          return;
+        }
+      }
+
+      // Get the list of old edges
+      DateTime remove_timeout = now.AddMinutes(-5);
+      List<Edge> to_close =  new List<Edge>();
+      lock(_sync) {
+        foreach(Edge e in _unannounced.Keys) {
+          if(e.CreatedDateTime < remove_timeout) {
+            Console.WriteLine("HERE");
+            to_close.Add(e);
+          }
+        }
+      }
+
+      // Close the Edges
+      foreach(Edge e in to_close) {
+        PathEdge pe = null;
+        if(!_unannounced.TryGetValue(e, out pe)) {
+          continue;
+        }
+
+        try {
+          pe.Close();
+        } catch(Exception ex) {
+          Console.WriteLine(ex);
+        }
+      }
+
+      // Remove them from the _unannounced dictionary
+      lock(_sync) {
+        foreach(Edge e in to_close) {
+          _unannounced.Remove(e);
+        }
+      }
     }
 
     /** create a new PathEdgeListener
@@ -253,6 +302,14 @@ namespace Brunet {
      * thread and resources that might be allocated by that EdgeListener.
      */
     public void Stop() {
+      foreach(Edge e in _unannounced.Values) {
+        try {
+          e.Close();
+        } catch(Exception ex) {
+          Console.WriteLine(ex);
+        }
+      }
+
       _running = false;
       if(_fe != null) {
         _fe.TryCancel();
@@ -372,6 +429,10 @@ namespace Brunet {
             try {
               RpcResult res = (RpcResult)results.Dequeue();
               object o = res.Result;
+              if(o is Exception) {
+                Console.WriteLine(o);
+                throw (o as Exception);
+              }
               //If we get here, everything looks good:
               PathEdge pe = new PathEdge(e, LocalPath, RemotePath);
               //Start sending e's packets into pe
