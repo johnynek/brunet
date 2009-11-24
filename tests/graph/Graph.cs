@@ -32,13 +32,20 @@ namespace Brunet.Graph {
   ///latency, hop count, user specified latency, tweaking of network size,
   ///near neighbor count, shortcut count.</remarks>
   public class Graph {
+    public const int DHT_DEGREE = 8;
     protected Dictionary<AHAddress, GraphNode> _addr_to_node;
     protected List<AHAddress> _addrs;
     protected Random _rand;
     protected Dictionary<AHAddress, int>  _addr_to_index;
+    protected List<List<int>> _latency_map = null;
 
     public Graph(int count, int near, int shortcuts) :
       this(count, near, shortcuts, (new Random()).Next())
+    {
+    }
+
+    public Graph(int count, int near, int shortcuts, int seed) :
+      this(count, near, shortcuts, seed, null)
     {
     }
 
@@ -52,32 +59,27 @@ namespace Brunet.Graph {
     ///<param name="cluster_count">A cluster is a 100 node network operating on
     ///a single point in the network.  A cluster cannot communicate directly
     ///with another cluster.</param>
-    public Graph(int count, int near, int shortcuts, int random_seed)
+    ///<param name="dataset">A square dataset consisting of pairwise latencies.</param>
+    public Graph(int count, int near, int shortcuts, int random_seed, List<List<int>> dataset)
     {
+      _latency_map = dataset;
+
       _rand = new Random(random_seed);
+      GraphNode.SetSeed(_rand.Next());
+
       _addr_to_node = new Dictionary<AHAddress, GraphNode>(count);
       _addrs = new List<AHAddress>(count);
       _addr_to_index = new Dictionary<AHAddress, int>(count);
 
       // first we create our regular network
       while(_addrs.Count < count) {
-        byte[] baddr = new byte[Address.MemSize];
-        _rand.NextBytes(baddr);
-        Address.SetClass(baddr, AHAddress.ClassValue);
-        AHAddress addr = new AHAddress(MemBlock.Reference(baddr));
-        if(_addr_to_node.ContainsKey(addr)) {
-          continue;
-        }
+        AHAddress addr = GenerateAddress();
         GraphNode node = new GraphNode(addr);
         _addr_to_node[addr] = node;
         _addrs.Add(addr);
       }
 
-      _addrs.Sort();
-
-      for(int i = 0; i < count; i++) {
-        _addr_to_index[_addrs[i]] = i;
-      }
+      FixLists();
 
       for(int i = 0; i < count; i++) {
         GraphNode cnode = _addr_to_node[_addrs[i]];
@@ -136,9 +138,37 @@ namespace Brunet.Graph {
       }
     }
 
+    protected AHAddress GenerateAddress()
+    {
+      AHAddress addr = null;
+      do {
+        byte[] baddr = new byte[Address.MemSize];
+        _rand.NextBytes(baddr);
+        Address.SetClass(baddr, AHAddress.ClassValue);
+        addr = new AHAddress(MemBlock.Reference(baddr));
+      } while(_addr_to_node.ContainsKey(addr));
+      return addr;
+    }
+
+    protected void FixLists()
+    {
+      _addrs.Sort();
+
+      for(int i = 0; i < _addrs.Count; i++) {
+        _addr_to_index[_addrs[i]] = i;
+      }
+    }
+
     ///<summary>Calculates the delay between two nodes.</summary>
     protected virtual int CalculateDelay(GraphNode node1, GraphNode node2)
     {
+      if(_latency_map != null) {
+        int mod = _latency_map.Count;
+        int x = node1.UniqueID % mod;
+        int y = node2.UniqueID % mod;
+        return (int) (_latency_map[x][y] / 1000.0);
+      }
+
       return _rand.Next(10, 240);
     }
 
@@ -219,10 +249,32 @@ namespace Brunet.Graph {
       return to_use;
     }
 
-    /// <summary>Sends a packet from A to B returning the delay and hop count.</summary>
-    public Pair<int, int> SendPacket(AHAddress from, AHAddress to)
+    public AHAddress GetNearTarget(AHAddress address)
     {
-      AHHeader ah = new AHHeader(0, 100, from, to, AHHeader.Options.Greedy);
+      /**
+       * try to get at least one neighbor using forwarding through the 
+       * leaf .  The forwarded address is 2 larger than the address of
+       * the new node that is getting connected.
+       */
+      BigInteger local_int_add = address.ToBigInteger();
+      //must have even addresses so increment twice
+      local_int_add += 2;
+      //Make sure we don't overflow:
+      BigInteger tbi = new BigInteger(local_int_add % Address.Full);
+      return new AHAddress(tbi);
+    }
+
+    /// <summary>Sends a packet from A to B returning the delay and hop count
+    /// using the Greedy Routing Algorithm.</summary>
+    public List<SendPacketResult> SendPacket(AHAddress from, AHAddress to)
+    {
+      return SendPacket(from, to, AHHeader.Options.Greedy);
+    }
+
+    /// <summary>Sends a packet from A to B returning the delay and hop count.</summary>
+    public List<SendPacketResult> SendPacket(AHAddress from, AHAddress to, ushort option)
+    {
+      AHHeader ah = new AHHeader(0, 100, from, to, option);
 
       GraphNode cnode = _addr_to_node[from];
       Edge cedge = null;
@@ -231,25 +283,65 @@ namespace Brunet.Graph {
 
       int delay = 0;
       int hops = 0;
+      var results = new List<SendPacketResult>();
 
-      while(!next.Second) {
-        next = cnode.Router.NextConnection(cedge, ah);
-        if(next.First == null && !next.Second) {
-          break;
-        } else if(next.First != null && next.Second) {
-          break;
-        } else if(next.First != null) {
-          AHAddress caddress = next.First.Address as AHAddress;
-          cnode = _addr_to_node[caddress];
-          cedge = cnode.ConnectionTable.GetConnection(ConnectionType.Structured, last_addr).Edge;
-          last_addr = caddress;
-          delay += (cedge as GraphEdge).Delay;
-          hops++;
+      while(true) {
+        next = cnode.NextConnection(cedge, ah);
+        if(next.Second) {
+          results.Add(new SendPacketResult(last_addr, delay, hops));
         }
+        if(next.First == null) {
+          break;
+        }
+        AHAddress caddress = next.First.Address as AHAddress;
+        cnode = _addr_to_node[caddress];
+        cedge = cnode.ConnectionTable.GetConnection(next.First.MainType, last_addr).Edge;
+        last_addr = caddress;
+        delay += (cedge as GraphEdge).Delay;
+        hops++;
       }
 
-      return new Pair<int, int>(delay, hops);
+      return results;
     }
+
+    public int DhtQuery(AHAddress from, byte[] key)
+    {
+      // Done with getting connected to nearest neighbors
+      // On to querying the Dht
+      MemBlock[] endpoints = MapToRing(key);
+      int slowest = 0;
+      foreach(MemBlock endpoint in endpoints) {
+        AHAddress to = new AHAddress(endpoint);
+        var request = SendPacket(from, to, AHHeader.Options.Greedy);
+        var response = SendPacket(request[0].Destination, from, AHHeader.Options.Greedy);
+        int delay = request[0].Delay + response[0].Delay;
+        if(delay > slowest) {
+          slowest = delay;
+        }
+      }
+      return slowest;
+    }
+
+    protected MemBlock[] MapToRing(byte[] key) {
+      MemBlock[] targets = new MemBlock[DHT_DEGREE];
+      // Setup the first key
+      HashAlgorithm algo = new SHA1CryptoServiceProvider();
+      byte[] target = algo.ComputeHash(key);
+      Address.SetClass(target, AHAddress._class);
+      targets[0] = MemBlock.Reference(target, 0, Address.MemSize);
+
+      // Setup the rest of the keys
+      BigInteger inc_addr = Address.Full/DHT_DEGREE;
+      BigInteger curr_addr = new BigInteger(targets[0]);
+      for (int k = 1; k < targets.Length; k++) {
+        curr_addr = curr_addr + inc_addr;
+        target = Address.ConvertToAddressBuffer(curr_addr);
+        Address.SetClass(target, AHAddress._class);
+        targets[k] = target;
+      }
+      return targets;
+    }
+
 
     /// <summary>Crawls the network using a random address in the network.</summary>
     public void Crawl()
@@ -271,12 +363,15 @@ namespace Brunet.Graph {
 
       while(pos != start_pos) {
         AHAddress current = _addrs[pos];
-        Pair<int, int> delay_hops = SendPacket(start, current);
+        var results = SendPacket(start, current);
+        if(results.Count == 0) {
+          throw new Exception("SendPacket failed!");
+        }
 
-        total_delay += delay_hops.First;
-        delays.Add(delay_hops.First);
-        total_hops += delay_hops.Second;
-        hops.Add(delay_hops.Second);
+        total_delay += results[0].Delay;
+        delays.Add(results[0].Delay);
+        total_hops += results[0].Hops;
+        hops.Add(results[0].Hops);
 
         pos++;
         if(pos >= network_size) {
@@ -311,12 +406,15 @@ namespace Brunet.Graph {
           }
           AHAddress from = _addrs[i];
           AHAddress to = _addrs[j];
-          Pair<int, int> delay_hops = SendPacket(from, to);
+          var results = SendPacket(from, to);
+          if(results.Count == 0) {
+            throw new Exception("SendPacket failed!");
+          }
 
-          total_delay += delay_hops.First;
-          delays.Add(delay_hops.First);
-          total_hops += delay_hops.Second;
-          hops.Add(delay_hops.Second);
+          total_delay += results[0].Delay;
+          delays.Add(results[0].Delay);
+          total_hops += results[0].Hops;
+          hops.Add(results[0].Hops);
         }
       }
 
@@ -327,29 +425,6 @@ namespace Brunet.Graph {
       average = Average(delays);
       Console.WriteLine("\tDelay: Total: {0}, Average: {1}, Stdev: {2}",
           total_delay, average, StandardDeviation(delays, average));
-    }
-
-    /// <summary>Calculates the average of a data set.</summary>
-    public static double Average(List<int> data)
-    {
-      long total = 0;
-      foreach(int point in data) {
-        total += point;
-      }
-
-      return (double) total / data.Count;
-    }
-
-    /// <summary>Calculates the standard deviation given a data set and the
-    /// average.</summary>
-    public static double StandardDeviation(List<int> data, double avg)
-    {
-      double variance = 0;
-      foreach(int point in data) {
-        variance += Math.Pow(point  - avg, 2.0);
-      }
-
-      return Math.Sqrt(variance / (data.Count - 1));
     }
 
     ///<summary> Creates a Dot file which can generate an image using either
@@ -388,53 +463,51 @@ namespace Brunet.Graph {
       }
     }
 
-    public static void Main(string[] args)
+    /// <summary>Calculates the average of a data set.</summary>
+    public static double Average(List<int> data)
     {
-      int size = 100;
-      int shortcuts = 1;
-      int near = 3;
-      int seed = (new Random()).Next();
-      string outfile = string.Empty;
+      long total = 0;
+      foreach(int point in data) {
+        total += point;
+      }
 
-      int carg = 0;
-      while(carg < args.Length) {
-        string[] parts = args[carg++].Split('=');
-        try {
-          switch(parts[0]) {
-            case "--size":
-              size = Int32.Parse(parts[1]);
-              break;
-            case "--shortcuts":
-              shortcuts = Int32.Parse(parts[1]);
-              break;
-            case "--near":
-              near = Int32.Parse(parts[1]);
-              break;
-            case "--seed":
-              seed = Int32.Parse(parts[1]);
-              break;
-            case "--outfile":
-              outfile = parts[1];
-              break;
-            default:
-              throw new Exception("Invalid parameter");
+      return (double) total / data.Count;
+    }
+
+    /// <summary>Calculates the standard deviation given a data set and the
+    /// average.</summary>
+    public static double StandardDeviation(List<int> data, double avg)
+    {
+      double variance = 0;
+      foreach(int point in data) {
+        variance += Math.Pow(point  - avg, 2.0);
+      }
+
+      return Math.Sqrt(variance / (data.Count - 1));
+    }
+
+    /// <summary>Loads a square matrix based latency data set from a file.</summary>
+    public static List<List<int>> ReadLatencyDataSet(string dataset)
+    {
+      var latency_map = new List<List<int>>();
+      using(StreamReader fs = new StreamReader(new FileStream(dataset, FileMode.Open))) {
+        string line = null;
+        while((line = fs.ReadLine()) != null) {
+          string[] points = line.Split(' ');
+          List<int> current = new List<int>(points.Length);
+          foreach(string point in points) {
+            int val;
+            if(!Int32.TryParse(point, out val)) {
+              val = 500;
+            } else if(val < 0) {
+              val = 500;
+            }
+            current.Add(val);
           }
-        } catch {
-          Console.WriteLine("oops...");
+          latency_map.Add(current);
         }
       }
-
-      Console.WriteLine("Creating a graph with base size: {0}, near connections: {1}, shortcuts {2}",
-          size, near, shortcuts);
-
-      Graph graph = new Graph(size, near, shortcuts, seed);
-      Console.WriteLine("Done populating graph...");
-      graph.Crawl();
-      graph.AllToAll();
-      if(outfile != string.Empty) {
-        Console.WriteLine("Saving dot file to: " + outfile);
-        graph.WriteGraphFile(outfile);
-      }
+      return latency_map;
     }
   }
 }

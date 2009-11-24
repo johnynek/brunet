@@ -16,9 +16,13 @@
       </fileset>
     </copy>
 
-    <csc target="exe" output="${build.dir}/Graph.exe">
+    <csc optimize="true" target="exe" output="${build.dir}/Graph.exe">
       <sources failonempty="true">
-        <include name="*.cs"/>
+        <include name="Graph.cs"/>
+        <include name="GraphEdge.cs"/>
+        <include name="GraphNode.cs"/>
+        <include name="SendPacketResult.cs"/>
+        <include name="Main.cs"/>
       </sources>
       <references basedir="${build.dir}">
         <include name="Brunet.dll"/>

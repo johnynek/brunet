@@ -584,7 +584,7 @@ public class AHHandler : IDataHandler {
   protected readonly Node _n;
   protected AHState _state;
 
-  protected class AHState {
+  public class AHState {
     public readonly ConnectionList Leafs;
     public readonly ConnectionList Structs;
     public readonly AHAddress Local;
