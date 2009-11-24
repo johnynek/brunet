@@ -54,7 +54,7 @@ namespace Brunet.Tunnel {
     protected readonly ITunnelOverlap _ito;
     protected readonly OverlapConnectionOverlord _oco;
     protected readonly IForwarderSelectorFactory _iasf;
-    protected readonly SimpleTimer _oco_trim_timer;
+    protected readonly FuzzyEvent _oco_trim_timer;
     protected readonly int _oco_trim_timeout = 300000; // 5 minutes
 
     public override TransportAddress.TAType TAType {
@@ -102,13 +102,17 @@ namespace Brunet.Tunnel {
       ConnectionList cons = _node.ConnectionTable.GetConnections(ConnectionType.Structured);
       Interlocked.Exchange(ref _connections, cons);
       _node.Rpc.AddHandler("tunnel", this);
-      _oco_trim_timer = new SimpleTimer(OcoTrim, null, _oco_trim_timeout, _oco_trim_timeout);
+      _oco_trim_timer = Brunet.Util.FuzzyTimer.Instance.DoEvery(OcoTrim, _oco_trim_timeout, 0);
     }
 
     /// <summary>A callback to trim Overlapped Connections.  We do this here,
     /// since we control Oco and he is essentially headless.</summary>
-    protected void OcoTrim(object o)
+    protected void OcoTrim(DateTime now)
     {
+      if(_running != 1) {
+        return;
+      }
+
       Hashtable used_addrs = new Hashtable();
       foreach(TunnelEdge te in _tunnels) {
         foreach(Connection con in te.Overlap) {
@@ -179,17 +183,18 @@ namespace Brunet.Tunnel {
         ecb(false, null, new Exception("TA Type is not Tunnel!"));
       } else {
         TunnelEdgeCallbackAction teca = new TunnelEdgeCallbackAction(tta, ecb);
-        SimpleTimer timer = new SimpleTimer(CreateEdgeTo, teca, 10000, 0);
-        timer.Start();
+        System.Action<DateTime> callback = delegate(DateTime now) {
+          CreateEdgeTo(teca);
+        };
+        Brunet.Util.FuzzyTimer.Instance.DoAfter(callback, 10000, 0);
       }
     }
 
     /// <summary>The delayed callback for CreateEdgeTo, we create an edge if
     /// there is a potential non-tunnel overlap and allow the Linker to do the
     /// rest.</summary>
-    protected void CreateEdgeTo(object o)
+    protected void CreateEdgeTo(TunnelEdgeCallbackAction teca)
     {
-      TunnelEdgeCallbackAction teca = o as TunnelEdgeCallbackAction;
       ConnectionList cons = _connections;
 
       List<Connection> overlap = _ito.FindOverlap(teca.TunnelTA, cons);
@@ -257,11 +262,18 @@ namespace Brunet.Tunnel {
         return;
       }
 
-      TunnelEdge te = new TunnelEdge(this, (TunnelTransportAddress) _local_tas[0],
-          teca.TunnelTA, _iasf.GetForwarderSelector(), overlap);
-      lock(_sync) {
-        _id_to_tunnel[te.LocalID] = te;
+      TunnelEdge te = null;
+      while(true) {
+        te = new TunnelEdge(this, (TunnelTransportAddress) _local_tas[0],
+            teca.TunnelTA, _iasf.GetForwarderSelector(), overlap);
+        lock(_sync) {
+          if(!_id_to_tunnel.ContainsKey(te.LocalID)) {
+            _id_to_tunnel[te.LocalID] = te;
+            break;
+          }
+        }
       }
+
       te.CloseEvent += CloseHandler;
 
       teca.Success.Value = true;
@@ -402,12 +414,18 @@ namespace Brunet.Tunnel {
         List<Connection> overlap_addrs = new List<Connection>();
         overlap_addrs.Add(cons[index]);
 
-        te = new TunnelEdge(this, (TunnelTransportAddress) _local_tas[0],
-            new TunnelTransportAddress(target, overlap_addrs),
-            _iasf.GetForwarderSelector(), overlap_addrs, remote_id);
-        lock(_sync) {
-          _id_to_tunnel[te.LocalID] = te;
+        while(true) {
+          te = new TunnelEdge(this, (TunnelTransportAddress) _local_tas[0],
+              new TunnelTransportAddress(target, overlap_addrs),
+              _iasf.GetForwarderSelector(), overlap_addrs, remote_id);
+          lock(_sync) {
+            if(!_id_to_tunnel.ContainsKey(te.LocalID)) {
+              _id_to_tunnel[te.LocalID] = te;
+              break;
+            }
+          }
         }
+
         local_id = te.LocalID;
 
         te.CloseEvent += CloseHandler;
@@ -467,14 +485,13 @@ namespace Brunet.Tunnel {
 
       _oco.IsActive = true;
       Interlocked.Exchange(ref _running, 1);
-      _oco_trim_timer.Start();
     }
 
     public override void Stop()
     {
       _oco.IsActive = false;
       Interlocked.Exchange(ref _running, 0);
-      _oco_trim_timer.Stop();
+      _oco_trim_timer.TryCancel();
       base.Stop();
 
       List<TunnelEdge> tunnels = _tunnels;

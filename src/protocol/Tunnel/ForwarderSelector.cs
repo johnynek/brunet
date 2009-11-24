@@ -73,6 +73,9 @@ namespace Brunet.Tunnel {
         if(con.Edge is TunnelEdge) {
           continue;
         }
+        if(con.Edge.IsClosed) {
+          continue;
+        }
         no_tunnels.Add(con);
       }
 

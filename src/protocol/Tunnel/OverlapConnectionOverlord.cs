@@ -61,6 +61,8 @@ namespace Brunet.Tunnel {
     /// necessary!</summary>
     override public bool NeedConnection { get { return false; }  }
 
+    /// <summary>Attempt to connect to a remote overlay address and notify the
+    /// caller when the process has completed, successful or not.</summary>
     public void ConnectTo(Address target, WaitCallback wcb)
     {
       bool exists = false;
@@ -78,6 +80,8 @@ namespace Brunet.Tunnel {
       ConnectTo(target, STRUC_OVERLAP);
     }
 
+    /// <summary>If we get a response, its handled by the base.HandleCtmResponse.
+    /// If we don't get a response, we should finish this attempt to connect.</summary>
     override protected void ConnectorEndHandler(object o, EventArgs eargs)
     {
       Connector con = o as Connector;
@@ -91,6 +95,9 @@ namespace Brunet.Tunnel {
       }
     }
 
+    /// <summary>At the end of the linking process, we are either connected or
+    /// not connected to the remote endpoint, so we can notify the caller of the
+    /// result.</summary>
     override protected void LinkerEndHandler(object o, EventArgs eargs)
     {
       Linker linker = o as Linker;
@@ -100,6 +107,9 @@ namespace Brunet.Tunnel {
       }
     }
 
+    /// <summary>Cleans up state and calls the callback so that it can
+    /// determine by ConnectionTable inspection if the connection was
+    /// successful.</summary>
     protected void FinishConnectTo(Address target)
     {
       WaitCallback callback = null;

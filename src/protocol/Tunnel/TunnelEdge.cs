@@ -63,6 +63,9 @@ namespace Brunet.Tunnel {
     protected List<Connection> _tunnels;
     protected IForwarderSelector _ias;
 
+    /// <summary>_tunnels is never modified, only replaced, this allows
+    /// external code access with thread-safety without making an additional
+    /// copy.</summary>
     public IList<Connection> Overlap { get { return _tunnels.AsReadOnly(); } }
 
     public Connection NextForwarder {
@@ -143,8 +146,9 @@ namespace Brunet.Tunnel {
     public void DisconnectionHandler(Connection con)
     {
       bool close = false;
+      List<Connection> tunnels = null;
       lock(_sync) {
-        List<Connection> tunnels = new List<Connection>(_tunnels.Count);
+        tunnels = new List<Connection>(_tunnels.Count);
         foreach(Connection ccon in _tunnels) {
           if(con.Edge.Equals(ccon.Edge)){
             continue;
@@ -163,7 +167,10 @@ namespace Brunet.Tunnel {
       if(close || ShouldClose()) {
         Close();
       }
-      _ias.Update(_tunnels);
+
+      //_tunnels is immutable and if we don't pass the latest _tunnels to _ias
+      //he will go into an inconsistent state.
+      _ias.Update(tunnels);
     }
 
     /// <summary>We need to make sure we still have a way out of the tunnel
@@ -178,7 +185,7 @@ namespace Brunet.Tunnel {
 #else
     protected bool ShouldClose() {
 #endif
-      Hashtable have_passed = new Hashtable();
+      Dictionary<Edge, bool> have_passed = new Dictionary<Edge, bool>();
       Stack stack = new Stack();
       stack.Push(_tunnels.GetEnumerator());
       while(stack.Count > 0) {
@@ -189,7 +196,7 @@ namespace Brunet.Tunnel {
             return false;
           }
 
-          if(have_passed.Contains(te)) {
+          if(have_passed.ContainsKey(te)) {
             continue;
           }
           have_passed[te] = true;
