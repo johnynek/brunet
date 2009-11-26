@@ -267,7 +267,29 @@ namespace Brunet
           return t.ToString().ToLower();
       }
     }
+    protected readonly string _string_rep;
+    /**
+     * URI objects are pretty expensive, don't keep this around
+     * since we won't often use it
+     */
+    protected System.Uri _parsed_uri;
+    public System.Uri Uri {
+      get {
+        if( _parsed_uri == null ) {
+          _parsed_uri = new Uri(_string_rep);
+        }
+        return _parsed_uri;
+      }
+    }
 
+    protected TransportAddress(string s) {
+      _string_rep = s;
+    }
+    
+    public override string ToString() {
+      return _string_rep;
+    }
+    
     public abstract TAType TransportAddressType { get;}
 
     public int CompareTo(object ta)
@@ -284,32 +306,15 @@ namespace Brunet
 
   public class IPTransportAddress: TransportAddress {
     protected ArrayList _ips = null;
-
-    /**
-     * URI objects are pretty expensive, don't keep this around
-     * since we won't often use it
-     */
-    protected System.Uri _parsed_uri;
-    protected System.Uri _uri {
-      get {
-        if( _parsed_uri == null ) {
-          _parsed_uri = new Uri(_string_rep);
-        }
-        return _parsed_uri;
-      }
-    }
-    
-
-    public string Host { get { return _uri.Host; } }
-    public int Port { get { return _uri.Port; } }
+    public string Host { get { return Uri.Host; } }
+    public int Port { get { return Uri.Port; } }
     protected TAType _type = TAType.Unknown;
-    protected readonly string _string_rep;
 
     public override TAType TransportAddressType
     {
       get {
         if( _type == TAType.Unknown ) {
-          string t = _uri.Scheme.Substring(_uri.Scheme.IndexOf('.') + 1);
+          string t = Uri.Scheme.Substring(Uri.Scheme.IndexOf('.') + 1);
           _type = TransportAddressFactory.StringToType(t);
         }
         return _type;
@@ -320,34 +325,26 @@ namespace Brunet
       if ( o == this ) { return true; }
       IPTransportAddress other = o as IPTransportAddress;
       if ( other == null ) { return false; }
-      return _uri.Equals( other._uri );  
+      return Uri.Equals( other.Uri );  
     }
 
     public override int GetHashCode() {
-      return _uri.GetHashCode();
+      return Uri.GetHashCode();
     }
 
-    public override string ToString() {
-      return _string_rep;
-    }
-
-    public IPTransportAddress(string uri_s) { 
-      //Make sure we can parse the URI:
-      _string_rep = uri_s;
+    public IPTransportAddress(string uri_s) : base(uri_s) { 
       _ips = null;
     }
 
     public IPTransportAddress(TransportAddress.TAType t, string host, int port) :
-      this("brunet." + TATypeToString(t) + "://" + host + ":" + port.ToString())
+      this(String.Format("brunet.{0}://{1}:{2}", TATypeToString(t), host, port))
     {
       _type = t;
       _ips = null;
     }
 
-    public IPTransportAddress(TransportAddress.TAType t,
-                            System.Net.IPAddress addr, int port):
-          this("brunet." + TATypeToString(t) + "://"
-         + addr.ToString() + ":" + port.ToString())
+    public IPTransportAddress(TransportAddress.TAType t, IPAddress addr, int port):
+      this(String.Format("brunet.{0}://{1}:{2}", TATypeToString(t), addr, port))
     {
       _type = t;
       _ips = new ArrayList(1);
@@ -360,7 +357,7 @@ namespace Brunet
         return (IPAddress) _ips[0];
       }
 
-      IPAddress a = IPAddress.Parse(_uri.Host);
+      IPAddress a = IPAddress.Parse(Uri.Host);
       _ips = new ArrayList(1);
       _ips.Add(a);
       return a;
@@ -372,10 +369,8 @@ namespace Brunet
     public Address Target { get { return _target; } }
     //in this new implementation, we have more than one packer forwarders
     protected ArrayList _forwarders;
-    protected readonly string _string_rep;
 
-    public TunnelTransportAddress(string s) {
-      _string_rep = s;
+    public TunnelTransportAddress(string s) : base(s) {
       /** String representing the tunnel TA is as follows: brunet.tunnel://A/X1+X2+X3
        *  A: target address
        *  X1, X2, X3: forwarders, each X1, X2 and X3 is actually a slice of the initial few bytes of the address.
@@ -423,10 +418,6 @@ namespace Brunet
       get {
         return TransportAddress.TAType.Tunnel;
       }
-    }
-
-    public override string ToString() {
-      return _string_rep;
     }
 
     public override bool Equals(object o) {
