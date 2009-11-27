@@ -200,6 +200,23 @@ namespace Brunet {
       return CreatePath(Root);
     }
 
+    /** Removes a path from the PEM and Closes it if it is still operational.
+     */
+    public void RemovePath(string path) {
+      PathEdgeListener pel = null;
+
+      lock( _sync ) {
+        if(!_pel_map.TryGetValue(path, out pel)) {
+          return;
+        }
+        _pel_map.Remove(path);
+      }
+
+      if(pel != null) {
+        pel.Stop();
+      }
+    }
+
     /** Handle incoming data on an Edge 
      */
     public void HandleData(MemBlock data, ISender retpath, object state) {
@@ -486,9 +503,11 @@ namespace Brunet {
     }
 
     public override void Stop() {
-      if( 1 == Interlocked.Exchange(ref _is_started, 0) ) {
-        //Actually stopped this time.
+      if( 0 == Interlocked.Exchange(ref _is_started, 0) ) {
+        return;
       }
+      //Actually stopped this time.
+      _pem.RemovePath(_path);
     }
 
     /** try to create a new PathEdge and send the EdgeEvent
