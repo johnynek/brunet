@@ -267,16 +267,13 @@ namespace Brunet.Applications {
         ApplicationNode node, IEnumerable addresses)
     {
       PathELManager pem = null;
-      EdgeListener el = null;
       if(!_type_to_pem.TryGetValue(el_info.type, out pem)) {
         pem = new PathELManager(CreateBaseEdgeListener(el_info, node, addresses), node.Node);
         pem.Start();
         _type_to_pem[el_info.type] = pem;
-        el = pem.CreateRootPath();
-      } else {
-        el = pem.CreatePath(_rand.Next().ToString());
       }
 
+      EdgeListener el = pem.CreatePath();
       PType path_p = PType.Protocol.Pathing;
       node.Node.DemuxHandler.GetTypeSource(path_p).Subscribe(pem, path_p);
       return el;

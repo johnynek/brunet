@@ -200,6 +200,28 @@ namespace Brunet {
       return CreatePath(Root);
     }
 
+    /**
+     * Creates a new Path, the root one, if it doesn't exist, otherwise a
+     * random path.
+     */
+    public PathEdgeListener CreatePath()
+    {
+      Random rand = new Random();
+      PathEdgeListener pel = null;
+
+      lock( _sync ) {
+        string path = Root;
+        while( _pel_map.ContainsKey(path) ) {
+          path = String.Format("/{0}", rand.Next().ToString());
+        }
+
+        pel = new PathEdgeListener(this, path, _el);
+        _pel_map[path] = pel;
+      }
+
+      return pel;
+    }
+
     /** Removes a path from the PEM and Closes it if it is still operational.
      */
     public void RemovePath(string path) {
