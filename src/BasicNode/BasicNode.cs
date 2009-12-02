@@ -120,6 +120,13 @@ namespace Brunet.Applications {
         node = null;
         _app_node = null;
 
+        // DisconnectOnOverload seems to be having issues with pathing...
+        foreach(var kvm in _type_to_pem) {
+          kvm.Value.Stop();
+        }
+
+        _type_to_pem.Clear();
+
         DateTime now = DateTime.UtcNow;
         Console.WriteLine("Going to sleep for {0} seconds. Current time is: {1}", sleep, now);
         Thread.Sleep(sleep * 1000);
