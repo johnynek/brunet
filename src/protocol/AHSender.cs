@@ -549,7 +549,7 @@ public class DirectionalRouting : AHRoutingAlgorithm {
   
   public override Pair<Connection, bool> NextConnection(Edge from, AHHeader h) {
     DirectionalAddress dest = (DirectionalAddress)h.Destination;
-    if( h.Ttl >= h.Hops ) {
+    if( h.Ttl <= h.Hops ) {
       //Deliver it to us but stop it here:
       return _NULL_TRUE;
     }
