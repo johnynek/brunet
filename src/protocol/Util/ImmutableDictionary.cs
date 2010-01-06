@@ -8,6 +8,24 @@ using NUnit.Framework;
 
 namespace Brunet.Util {
 
+/** Read-only immutable data structure for IComparable Keys
+ * Implemented as a readonly binary tree, so most operations
+ * have Log C complexity where C is the count.
+ * 
+ * To modify, use the InsertIntoNew and RemoveFromNew methods
+ * which return a new instance with minimal changes (about Log C),
+ * so this is an efficient way to make changes without having
+ * to copy the entire data structure.
+ * 
+ * Clearly this is a thread-safe class (because it is read-only),
+ * but note: if the K or V types are not immutable, you could have
+ * a problem: someone could modify the object without changing the 
+ * dictionary and not only would the Dictionary be incorrectly ordered
+ * you could have race conditions.  It is required that you only use
+ * immutable key types in the dictionary, and only thread-safe if
+ * both the keys and values are immutable.
+ */
+
 public class ImmutableDictionary<K,V> : IDictionary<K,V>
                                         where K : System.IComparable<K> {
   public readonly K Key;
@@ -16,12 +34,16 @@ public class ImmutableDictionary<K,V> : IDictionary<K,V>
   public readonly ImmutableDictionary<K,V> GTDict;
   protected readonly int _count;
 
+  /** This is the only way to represent an Empty Dictionary
+   */
   public static readonly ImmutableDictionary<K,V> Empty = new ImmutableDictionary<K,V>();
 
   ///////////////////////
   // Constructors 
   //////////////////////
 
+  /** Only used to create the Empty dictionary
+   */
   protected ImmutableDictionary() {
     Key = default(K);
     Value = default(V);
@@ -39,14 +61,13 @@ public class ImmutableDictionary<K,V> : IDictionary<K,V>
   } 
   /** Create a Dictionary with just one pair
    */
-  public ImmutableDictionary(K key, V val) {
-    Key = key;
-    Value = val;
-    LTDict = Empty;
-    GTDict = Empty;
-    _count = 1;
+  public ImmutableDictionary(K key, V val) : this(key, val, Empty, Empty) {
+  
   }
   
+  /** Create a dictionary from an existing ICollectioni (including
+   * IDictionaries)
+   */
   public ImmutableDictionary(ICollection<KeyValuePair<K,V>> kvs) :
     this(new List<KeyValuePair<K,V>>(kvs), 0, kvs.Count, true) {
   }
@@ -56,13 +77,13 @@ public class ImmutableDictionary<K,V> : IDictionary<K,V>
    */
   protected ImmutableDictionary(List<KeyValuePair<K,V>> kvs, int start,
                                 int upbound, bool sort) {
-    if( sort ) {
-      kvs.Sort(this.CompareKV);
-    }
     int count = upbound - start;
     if( count == 0 ) {
       //Can't handle this case
       throw new Exception("Can't create an Empty ImmutableDictionary this way, use Empty");
+    }
+    if( sort ) {
+      kvs.Sort(this.CompareKV);
     }
     int mid = start + (count / 2);
     Key = kvs[mid].Key;
@@ -511,6 +532,19 @@ public class ImDictTest {
       Assert.IsTrue(has_it, "TryGetValue return test2");
       Assert.AreEqual(val, kv.Value, "TryGetValue value test2");
     }
+    //Make sure that non-present keys fail:
+    for(int i = 0; i < 10000; i++) {
+      //Generate a random key:
+      int k = r.Next();
+      bool ispresent = good_d.ContainsKey(k);
+      Assert.AreEqual(ispresent, dict.ContainsKey(k),
+                      "ContainsKey test");
+      if( !ispresent ) {
+        int val;
+        Assert.IsFalse(dict.TryGetValue(k, out val),
+                       "TryGetValue fails on bad key");
+      }
+    }
     //Enumeration testing:
     var d_key_list = new List<int>();
     foreach(var kv in dict) {
@@ -530,11 +564,29 @@ public class ImDictTest {
     //Remove everything:
     var all_keys = new List<int>(good_d.Keys);
     foreach(var k in all_keys) {
+      var val = good_d[k];
       good_d.Remove(k);
       ImmutableDictionary<int,int> old;
-      dict = dict.RemoveFromNew(k, out old);
-      Assert.AreEqual(good_d.Count, dict.Count, "Remove count test");
+      var ndict = dict.RemoveFromNew(k, out old);
+      Assert.AreEqual(old.Key, k, "Removed key is correct");
+      Assert.AreEqual(old.Value, val, "Removed val is correct");
+      Assert.AreEqual(good_d.Count, ndict.Count, "Remove count test");
       Assert.IsFalse(old.IsEmpty, "Old is not empty test");
+      //Test RemoveRoot, RemoveMin, RemoveMax:
+      var max = dict.Max;
+      ImmutableDictionary<int,int> max2;
+      Assert.IsFalse(dict.RemoveMax(out max2).ContainsKey(max.Key),
+                     "RemoveMax removal test");
+      Assert.IsTrue(max == max2, "RemoveMax out parameter test");
+      var min = dict.Min;
+      ImmutableDictionary<int,int> min2;
+      Assert.IsFalse(dict.RemoveMin(out min2).ContainsKey(min.Key),
+                     "RemoveMin removal test");
+      Assert.IsTrue(min == min2, "RemoveMin out parameter test");
+      //RemoveRoot depends on the above
+      Assert.IsFalse(dict.RemoveRoot().ContainsKey(dict.Key),
+                     "RemoveRoot works");
+      dict = ndict;
     }
   }
 }
