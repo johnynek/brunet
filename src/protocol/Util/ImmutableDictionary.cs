@@ -9,9 +9,11 @@ using NUnit.Framework;
 namespace Brunet.Util {
 
 /** Read-only immutable data structure for IComparable Keys
- * Implemented as a readonly binary tree, so most operations
- * have Log C complexity where C is the count.
- * 
+ * Implemented as a readonly binary AVL tree, so most operations
+ * have 1.44 Log C complexity where C is the count.
+ *
+ * http://en.wikipedia.org/wiki/AVL_tree
+  
  * To modify, use the InsertIntoNew and RemoveFromNew methods
  * which return a new instance with minimal changes (about Log C),
  * so this is an efficient way to make changes without having
@@ -33,6 +35,7 @@ public class ImmutableDictionary<K,V> : IDictionary<K,V>
   public readonly ImmutableDictionary<K,V> LTDict;
   public readonly ImmutableDictionary<K,V> GTDict;
   protected readonly int _count;
+  protected readonly int _depth;
 
   /** This is the only way to represent an Empty Dictionary
    */
@@ -50,6 +53,7 @@ public class ImmutableDictionary<K,V> : IDictionary<K,V>
     LTDict = null;
     GTDict = null; 
     _count = 0;
+    _depth = 0;
   }
 
   protected ImmutableDictionary(K key, V val, ImmutableDictionary<K,V> lt, ImmutableDictionary<K,V> gt) {
@@ -58,6 +62,7 @@ public class ImmutableDictionary<K,V> : IDictionary<K,V>
     LTDict = lt;
     GTDict = gt;
     _count = 1 + LTDict._count + GTDict._count;
+    _depth = 1 + Math.Max(LTDict._depth, GTDict._depth);
   } 
   /** Create a Dictionary with just one pair
    */
@@ -65,7 +70,7 @@ public class ImmutableDictionary<K,V> : IDictionary<K,V>
   
   }
   
-  /** Create a dictionary from an existing ICollectioni (including
+  /** Create a dictionary from an existing ICollection (including
    * IDictionaries)
    */
   public ImmutableDictionary(ICollection<KeyValuePair<K,V>> kvs) :
@@ -93,6 +98,7 @@ public class ImmutableDictionary<K,V> : IDictionary<K,V>
               new ImmutableDictionary<K,V>(kvs, mid+1, upbound, false)
               : Empty;
     _count = count;
+    _depth = 1 + Math.Max(LTDict._depth, GTDict._depth);
   }
 
   ///////////////////////
@@ -118,6 +124,13 @@ public class ImmutableDictionary<K,V> : IDictionary<K,V>
   // Properties
   //////////////////////
 
+  protected int Balance {
+    get {
+      if( this == Empty ) { return 0; }
+      return LTDict._depth - GTDict._depth;
+    }
+  }
+
   public int Count {
     get {
       return _count;
@@ -126,12 +139,7 @@ public class ImmutableDictionary<K,V> : IDictionary<K,V>
 
   public int Depth {
     get {
-      if( this == Empty ) {
-        return 0;
-      }
-      else {
-        return 1 + Math.Max(LTDict.Depth, GTDict.Depth);
-      }
+      return _depth;
     }
   }
 
@@ -263,6 +271,53 @@ public class ImmutableDictionary<K,V> : IDictionary<K,V>
     return kv0.Key.CompareTo(kv1.Key);
   }
 
+  /** Fix the root balance if LTDict and GTDict have good balance
+   * Used to keep the depth less than 1.44 log_2 N (AVL tree)
+   */
+  protected ImmutableDictionary<K,V> FixRootBalance() {
+    int bal = Balance;
+    if( Math.Abs(bal) < 2 ) {
+      return this; 
+    }
+    else if( bal == 2 ) {
+      if( LTDict.Balance == 1 || LTDict.Balance == 0) {
+        //Easy case:
+        return this.RotateToGT();
+      }
+      else if( LTDict.Balance == -1 ) {
+        //Rotate LTDict:
+        var newlt = LTDict.RotateToLT();
+        var newroot = new ImmutableDictionary<K,V>(Key, Value, newlt, GTDict);
+        return newroot.RotateToGT();
+      }
+      else {
+        throw new Exception(String.Format("LTDict too unbalanced: {0}", LTDict.Balance));
+      }
+    }
+    else if( bal == -2 ) {
+      if( GTDict.Balance == -1 || GTDict.Balance == 0 ) {
+        //Easy case:
+        return this.RotateToLT();
+      }
+      else if( GTDict.Balance == 1 ) {
+        //Rotate GTDict:
+        var newgt = GTDict.RotateToGT();
+        var newroot = new ImmutableDictionary<K,V>(Key, Value, LTDict, newgt);
+        return newroot.RotateToLT();
+      }
+      else {
+        throw new Exception(String.Format("LTDict too unbalanced: {0}", LTDict.Balance));
+      }
+
+    }
+    else {
+      //In this case we can show: |bal| > 2
+      //if( Math.Abs(bal) > 2 ) {
+      throw new Exception(String.Format("Tree too out of balance: {0}",
+                          Balance));
+    }
+  }
+
   /** Enumerate from smallest to largest key
    */
   public IEnumerator<KeyValuePair<K,V>> GetEnumerator() {
@@ -357,30 +412,32 @@ public class ImmutableDictionary<K,V> : IDictionary<K,V>
       newk = key;
       newv = val;
     }
-    return new ImmutableDictionary<K,V>(newk, newv, newlt, newgt);
+    var newroot = new ImmutableDictionary<K,V>(newk, newv, newlt, newgt);
+    return newroot.FixRootBalance();
   }
 
   /** Merge two Dictionaries into one.
    */
   public static ImmutableDictionary<K,V> Merge(ImmutableDictionary<K,V> one,
                                                ImmutableDictionary<K,V> two) {
-    if( one == Empty ) {
-      return two; 
-    }
-    if( two == Empty ) {
-      return one;
-    }
-    //Neither are Empty
-    //Merge from two into one:
     if( two._count > one._count ) {
       //Swap them so the sub-merge is on the smaller:
       var temp = two;
       two = one;
       one = temp;
     }
-    var two_m = Merge(two.LTDict, two.GTDict);
-    var one_m = one.InsertIntoNew(two.Key, two.Value);
-    return Merge(one_m, two_m); 
+    ImmutableDictionary<K,V> min;
+    /*
+     * A nice recursive algorithm is just return Merge,
+     * rather than loop, but I'm afraid O(N) recursions
+     * will cause .Net to explode EVEN THOUGH IT IS TAIL
+     * RECURSION!  (they should use tailcall).
+     */
+    while(two._count > 0) {
+      two = two.RemoveMin(out min);
+      one = one.InsertIntoNew(min.Key, min.Value);
+    }
+    return one;
   }
 
   /** For IDictionary
@@ -410,7 +467,8 @@ public class ImmutableDictionary<K,V> : IDictionary<K,V>
         //Not found, so nothing changed
         return this;
       }
-      return new ImmutableDictionary<K,V>(Key, Value, LTDict, newgt);
+      var newroot = new ImmutableDictionary<K,V>(Key, Value, LTDict, newgt);
+      return newroot.FixRootBalance();
     }
     else if( comp > 0 ) {
       var newlt = LTDict.RemoveFromNew(key, out old_node);
@@ -418,7 +476,8 @@ public class ImmutableDictionary<K,V> : IDictionary<K,V>
         //Not found, so nothing changed
         return this;
       }
-      return new ImmutableDictionary<K,V>(Key, Value, newlt, GTDict);
+      var newroot = new ImmutableDictionary<K,V>(Key, Value, newlt, GTDict);
+      return newroot.FixRootBalance();
     }
     else {
       //found it
@@ -441,7 +500,8 @@ public class ImmutableDictionary<K,V> : IDictionary<K,V>
     else {
       //Go down:
       var newgt = GTDict.RemoveMax(out max);
-      return new ImmutableDictionary<K,V>(Key, Value, LTDict, newgt);
+      var newroot = new ImmutableDictionary<K,V>(Key, Value, LTDict, newgt);
+      return newroot.FixRootBalance();
     }
   }
 
@@ -459,7 +519,8 @@ public class ImmutableDictionary<K,V> : IDictionary<K,V>
     else {
       //Go down:
       var newlt = LTDict.RemoveMin(out min);
-      return new ImmutableDictionary<K,V>(Key, Value, newlt, GTDict);
+      var newroot = new ImmutableDictionary<K,V>(Key, Value, newlt, GTDict);
+      return newroot.FixRootBalance();
     }
   }
 
@@ -480,13 +541,39 @@ public class ImmutableDictionary<K,V> : IDictionary<K,V>
       //LTDict has fewer, so promote from GTDict to minimize depth
       ImmutableDictionary<K,V> min;
       var newgt = GTDict.RemoveMin(out min);
-      return new ImmutableDictionary<K,V>(min.Key, min.Value, LTDict, newgt);
+      var newroot = new ImmutableDictionary<K,V>(min.Key, min.Value, LTDict, newgt);
+      return newroot.FixRootBalance();
     }
     else {
       ImmutableDictionary<K,V> max;
       var newlt = LTDict.RemoveMax(out max);
-      return new ImmutableDictionary<K,V>(max.Key, max.Value, newlt, GTDict);
+      var newroot = new ImmutableDictionary<K,V>(max.Key, max.Value, newlt, GTDict);
+      return newroot.FixRootBalance();
     }
+  }
+  /** Move the Root into the GTDict and promote LTDict node up
+   * If LTDict is empty, this operation returns this
+   */
+  public ImmutableDictionary<K,V> RotateToGT() {
+    if (LTDict == Empty || this == Empty) {
+      return this;
+    }
+    var gLT = LTDict.LTDict;
+    var gGT = LTDict.GTDict;
+    var newgt = new ImmutableDictionary<K,V>(Key, Value, gGT, GTDict);
+    return new ImmutableDictionary<K,V>(LTDict.Key, LTDict.Value, gLT, newgt);
+  }
+  /** Move the Root into the LTDict and promote GTDict node up
+   * If GTDict is empty, this operation returns this
+   */
+  public ImmutableDictionary<K,V> RotateToLT() {
+    if (GTDict == Empty || this == Empty) {
+      return this;
+    }
+    var gLT = GTDict.LTDict;
+    var gGT = GTDict.GTDict;
+    var newlt = new ImmutableDictionary<K,V>(Key, Value, LTDict, gLT);
+    return new ImmutableDictionary<K,V>(GTDict.Key, GTDict.Value, newlt, gGT);
   }
 
   public bool TryGetValue(K key, out V val) {
@@ -500,6 +587,27 @@ public class ImmutableDictionary<K,V> : IDictionary<K,V>
 
 [TestFixture]
 public class ImDictTest {
+  public void AssertEqualDict<K,V>(IDictionary<K,V> d1, IDictionary<K,V> d2) {
+    Assert.AreEqual(d1.Count, d2.Count, "Equal Count");
+    foreach(var kv in d1) {
+      V val;
+      bool has_it = d2.TryGetValue(kv.Key, out val);
+      Assert.IsTrue(d2.ContainsKey(kv.Key), "ContainsKey test");
+      Assert.IsTrue(has_it, "TryGetValue return test");
+      Assert.AreEqual(val, kv.Value, "TryGetValue value test");
+    }
+  }
+  public void AssertDepthGood<K,V>(ImmutableDictionary<K,V> d) where K : IComparable<K> {
+      double maxdepth = 1.0 + 1.45 * Math.Log((double)d.Count)/Math.Log(2.0);
+      Assert.IsTrue(d.Depth <= maxdepth,
+       String.Format("Depth is too large: AVL Tree: {0} > {1}",
+       d.Depth, maxdepth));
+      
+      double mindepth = Math.Log((double)(d.Count+1))/Math.Log(2.0);
+      Assert.IsTrue(d.Depth >= mindepth,
+       String.Format("Depth is too small: AVL Tree: {0} < {1}",
+       d.Depth, mindepth));
+  }
   [Test]
   public void Test() {
     var r = new System.Random();
@@ -507,31 +615,31 @@ public class ImDictTest {
     var good_d = new Dictionary<int, int>();
     Assert.IsTrue(dict.IsEmpty, "IsEmpty test");
     Assert.AreEqual(0, dict.Count, "Initially zero");
-    for(int i = 0 ; i < 10000; i++) {
+    for(int i = 0 ; i < 1000; i++) {
       int k = r.Next();
       int v = r.Next();
       good_d.Add(k,v);
       dict = dict.InsertIntoNew(k,v);
       Assert.AreEqual(good_d.Count, dict.Count, "Equal Count");
+      AssertEqualDict<int,int>(dict, dict.RotateToGT());
+      AssertEqualDict<int,int>(dict, dict.RotateToLT());
+      AssertDepthGood<int,int>(dict);
     }
+    //Do an inorder add to really tax the balancing:
+    var depthtest = ImmutableDictionary<int,int>.Empty;
+    foreach(var kv in dict) {
+      depthtest = depthtest.InsertIntoNew(kv.Key, kv.Value);
+      AssertDepthGood<int,int>(depthtest);
+    }
+    AssertEqualDict<int,int>(good_d, dict);
+    AssertEqualDict<int,int>(dict, good_d);
     //Check that all are in there:
-    foreach(var kv in good_d) {
-      int val;
-      bool has_it = dict.TryGetValue(kv.Key, out val);
-      Assert.IsTrue(dict.ContainsKey(kv.Key), "ContainsKey test");
-      Assert.IsTrue(has_it, "TryGetValue return test");
-      Assert.AreEqual(val, kv.Value, "TryGetValue value test");
-    }
     var dict2 = new ImmutableDictionary<int,int>(dict);
-    //Check that all are in dict2:
-    Assert.AreEqual(dict2.Count, good_d.Count, "dict2 equal size");
-    foreach(var kv in good_d) {
-      int val;
-      bool has_it = dict2.TryGetValue(kv.Key, out val);
-      Assert.IsTrue(dict2.ContainsKey(kv.Key), "ContainsKey test2");
-      Assert.IsTrue(has_it, "TryGetValue return test2");
-      Assert.AreEqual(val, kv.Value, "TryGetValue value test2");
-    }
+    AssertDepthGood<int,int>(dict2);
+    AssertEqualDict<int,int>(dict, dict2);
+    AssertEqualDict<int,int>(good_d, dict2);
+    AssertEqualDict<int,int>(dict2, good_d);
+
     //Make sure that non-present keys fail:
     for(int i = 0; i < 10000; i++) {
       //Generate a random key:
