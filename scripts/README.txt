@@ -33,7 +33,7 @@ To start SocialVPN, run start_socialvpn.cmd
 
 To stop SocialVPN, run stop_socialvpn.cmd
 
-For Vista, right-click and "Run as administrator" for each step.
+For Vista and Windos 7, right-click and "Run as administrator" for each step.
 
 Using SocialVPN
 ===============
