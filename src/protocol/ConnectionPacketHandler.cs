@@ -211,6 +211,9 @@ namespace Brunet
         case "GetNeighbors":
           result = GetNeighbors();
           break;
+        case "GetNodeInfo":
+          result = _node.GetNodeInfo(12).ToDictionary();
+          break;
         case "GetStatus":
           result = GetStatus((IDictionary)arguments[0],caller);
           break;
