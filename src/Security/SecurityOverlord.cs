@@ -85,7 +85,6 @@ namespace Brunet.Security {
     public static readonly PType SecureControl = new PType(31);
 
     protected DateTime _last_heartbeat;
-    protected DateTime _last_growfast;
 
     ///<summary>Total count of all Security Associations.</summary>
     public int SACount { get { return _security_associations.Count; } }
@@ -108,7 +107,6 @@ namespace Brunet.Security {
       _rand.NextBytes(_cookie);
       _rrman = rrman;
       _last_heartbeat = DateTime.UtcNow;
-      _last_growfast = DateTime.UtcNow;
       _rrman.Subscribe(this, null);
     }
 
@@ -120,28 +118,8 @@ namespace Brunet.Security {
       lock(_sync) {
         if(_last_heartbeat.AddMinutes(5) > DateTime.UtcNow) {
           return;
-        } else if(_last_growfast.AddMinutes(5) > DateTime.UtcNow) {
-          return;
         }
         _last_heartbeat = DateTime.UtcNow;
-        _last_growfast = DateTime.UtcNow;
-      }
-
-      SAGarbageCollect();
-    }
-
-    /// <summary>This is meant to help with leaf connections which can cause
-    /// memory issues
-    protected void SAGrowingFast() {
-      lock(_sync) {
-        if(_last_heartbeat.AddMinutes(5) > DateTime.UtcNow) {
-          return;
-        }
-        if(_last_growfast.AddMinutes(5) > DateTime.UtcNow) {
-          return;
-        }
-        _last_heartbeat = DateTime.UtcNow;
-        _last_growfast = DateTime.UtcNow;
       }
 
       SAGarbageCollect();
@@ -244,9 +222,6 @@ namespace Brunet.Security {
           sa.RequestUpdate += SARequestUpdate;
           sender_to_sa[Sender] = sa;
         }
-      }
-      if(count > 99 && ((count % 100) == 0)) {
-        SAGrowingFast();
       }
       return sa;
     }
