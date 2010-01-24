@@ -254,11 +254,16 @@ namespace Brunet.Util {
     }
 
     public void PeriodCallback(object state) {
-      SimpleTimer t = state as SimpleTimer;
-      int calls = (int) _hash[t];
+      SimpleTimer t = _hash[state] as SimpleTimer;
+      int calls = 0;
+
       lock(_sync) {
+        if(_hash.Contains(t)) {
+          calls = (int) _hash[t];
+        }
         _hash[t] = ++calls;
       }
+
       if(calls == 5) {
         t.Stop();
       }
@@ -292,16 +297,21 @@ namespace Brunet.Util {
       }
 
       for(int i = 0; i < 5; i++) {
-        SimpleTimer t = null;
-        t = new SimpleTimer(PeriodCallback, t, 50, 50);
+        object state = new object();
+        SimpleTimer t =  new SimpleTimer(PeriodCallback, state, 50, 50);
+        lock(_sync) {
+          _hash[state] = t;
+        }
         t.Start();
       }
 
       Thread.Sleep(500);
 
       Assert.AreEqual(_order.Count, 10000, "Should be 10000");
-      foreach(int val in _hash.Values) {
-        Assert.AreEqual(val, 5, "Should be 5");
+      foreach(object o in _hash.Keys) {
+        if(o is SimpleTimer) {
+          Assert.AreEqual((int) _hash[o], 5, "Should be 5");
+        }
       }
     }
   }
