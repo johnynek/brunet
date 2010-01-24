@@ -179,21 +179,21 @@ public class Cache : IEnumerable {
       if( _current_size >= _max_size ) {
         //Remove the oldest item, and we'll reuse the entry
         e = Pop();
-	_ht.Remove(e.Key);
-	//Let someone know there has been an eviction
+        _ht.Remove(e.Key);
+        //Let someone know there has been an eviction
         if( EvictionEvent != null ) {
           EvictionEvent(this, new EvictionArgs(e.Key, e.Value));
-	}
+        }
       }
       else {
         //There is no eviction, so we need to make a new entry:
         e = new Entry();
       }
       e.Key = key;
-      e.Value = val;
       _ht[key] = e;
     }
     //Now put it as the last entry in the list:
+    e.Value = val;
     PushBack(e);
   }
 
@@ -330,6 +330,18 @@ public class CacheTest {
     Assert.IsFalse(test2.Equals(test4), "CacheKey non-equality");
     Assert.IsFalse(test3.Equals(test4), "CacheKey non-equality");
   }
+
+  [Test]
+  public void TestUpdate() {
+    Cache c = new Cache(16);
+    object entry = new object();
+    object first = new object();
+    object second = new object();
+    c[entry] = first;
+    c[entry] = second;
+    Assert.IsTrue(c[entry].Equals(second), "Entry equals second");
+  }
+
   [Test]
   public void TestRecall() {
     const int MAX_SIZE = 100;
@@ -351,6 +363,7 @@ public class CacheTest {
     }
   }
   [Test]
+
   public void TestEnumeration() {
     const int MAX_SIZE = 100;
     Random r = new Random();
@@ -392,6 +405,7 @@ public class CacheTest {
     }
     Assert.AreEqual(0, c.Count, "Removed everything");
   }
+
   [Test]
   public void TestEviction() {
     const int MAX_SIZE = 1000;
