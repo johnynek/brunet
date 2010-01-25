@@ -138,7 +138,7 @@ namespace NetworkPackets {
       ICMP = 1,
       /// <summary>Internet Group Management Protocol.</summary>
       IGMP = 2,
-      /// <summary>Transmission Control Protocol.</summary.
+      /// <summary>Transmission Control Protocol.</summary>
       TCP = 6,
       /// <summary>User Datagram Protocol.</summary>
       UDP = 17
@@ -288,7 +288,7 @@ namespace NetworkPackets {
         new_packet[length + 17] = 0;
         MemBlock payload = MemBlock.Reference(new_packet).Slice(length);
         MemBlock pseudoheader = IPPacket.MakePseudoHeader(SourceIP,
-            DestinationIP, (byte) Protocols.TCP, Packet.Length - 20);
+            DestinationIP, (byte) Protocols.TCP, (ushort) (Packet.Length - 20));
         checksum = IPPacket.GenerateChecksum(payload, pseudoheader);
         new_packet[length + 16] = (byte) ((checksum >> 8) & 0xFF);
         new_packet[length + 17] = (byte) (checksum & 0xFF);
@@ -304,7 +304,7 @@ namespace NetworkPackets {
     calculations.</param>
     <returns>a 16-bit IP header checksum.</returns>
     */
-    public static int GenerateChecksum(MemBlock header, params Object[] args) {
+    public static ushort GenerateChecksum(MemBlock header, params Object[] args) {
       int value = 0;
       int length = header.Length;
 
@@ -328,19 +328,20 @@ namespace NetworkPackets {
         value = (value & 0xFFFF) + (value >> 16);
       }
 
-      return ~value & 0xFFFF;
+      return (ushort) (~value & 0xFFFF);
     }
 
-    public static MemBlock MakePseudoHeader(MemBlock SourceIP,
-                                            MemBlock DestinationIP,
-                                            byte Protocol,
-                                            int Length) {
-      byte[] pseudoheader = new byte[12];
-      SourceIP.CopyTo(pseudoheader, 0);
-      DestinationIP.CopyTo(pseudoheader, 4);
-      pseudoheader[9] = Protocol;
-      pseudoheader[10] = (byte) ((Length >> 8) & 0xFF);
-      pseudoheader[11] = (byte) (Length & 0xFF);
+    public static MemBlock MakePseudoHeader(MemBlock source_address,
+        MemBlock destination_address, byte protocol, ushort length)
+    {
+      byte[] pseudoheader = new byte[source_address.Length + destination_address.Length + 4];
+      int pos = 0;
+      source_address.CopyTo(pseudoheader, pos);
+      pos += source_address.Length;
+      destination_address.CopyTo(pseudoheader, pos);
+      pos += destination_address.Length;
+      pseudoheader[++pos] = protocol;
+      NumberSerializer.WriteUShort(length, pseudoheader, ++pos);
       return MemBlock.Reference(pseudoheader);
     }
 
