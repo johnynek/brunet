@@ -14,11 +14,11 @@ nant
 cd -
 
 mkdir -p $version/ipop/bin
-brunet_lib_files="Brunet.dll Brunet.Dht.dll Brunet.XmlRpc.dll Mono.Security.dll Brunet.Coordinate.dll Brunet.Security.dll NDesk.Options.dll CookComputing.XmlRpcV2.dll System.Runtime.Remoting.dll.use_for_mono_2"
+lib_files="Brunet.dll Brunet.Dht.dll Brunet.XmlRpc.dll Mono.Security.dll Brunet.Coordinate.dll Brunet.Security.dll NDesk.Options.dll CookComputing.XmlRpcV2.dll System.Runtime.Remoting.dll.use_for_mono_2"
 brunet_bin_files="P2PNode.exe"
 ipop_bin_files="DhtIpopNode.exe GroupVPNService.exe"
-for file in $brunet_lib_files; do
-  cp ../../brunet/lib/$file $version/ipop/bin/.
+for file in $lib_files; do
+  cp ../lib/$file $version/ipop/bin/.
 done
 
 for file in $brunet_bin_files; do 
