@@ -50,7 +50,7 @@ namespace Ipop {
   /// still provides dynamic IP addresses for all nodes in the combined
   /// cluster, and allows machines in the same cluster to talk directly with
   /// each other. </remarks>
-  public abstract class IpopNode : BasicNode, IDataHandler {
+  public abstract class IpopNode : BasicNode, IDataHandler, IRpcHandler {
     /// <summary>The IpopConfig for this IpopNode</summary>
     protected readonly IpopConfig _ipop_config;
     /// <summary>The Virtual Network handler</summary>
@@ -59,6 +59,8 @@ namespace Ipop {
     public readonly Information Info;
     /// <summary>The Brunet.Node for this IpopNode</summary>
     public readonly StructuredNode Brunet;
+    /// <summary>Chota for Brunet.</summary>
+    protected readonly ChotaConnectionOverlord _chota;
     /// <summary>Resolves IP Addresses to Brunet.Addresses</summary>
     protected IAddressResolver _address_resolver;
     /// <summary>Resolves hostnames and IP Addresses</summary>
@@ -115,6 +117,7 @@ namespace Ipop {
       CreateNode();
       _node.DisconnectOnOverload = false;
       this.Brunet = _node;
+      _chota = Brunet.Cco;
       _ipop_config = ipop_config;
 
       Ethernet = new Ethernet(_ipop_config.VirtualNetworkDevice);
@@ -151,6 +154,8 @@ namespace Ipop {
 
       Brunet.HeartBeatEvent += CheckNode;
       _last_check_node = DateTime.UtcNow;
+
+      Brunet.Rpc.AddHandler("Ipop", this);
     }
 
     /// <summary>Starts the execution of the IpopNode, this passes the caller 
@@ -229,8 +234,20 @@ namespace Ipop {
 
       IPPacket ipp = new IPPacket(packet);
 
-      if(!_address_resolver.Check(ipp.SourceIP, addr)) {
-        return;
+      try {
+        if(!_address_resolver.Check(ipp.SourceIP, addr)) {
+          return;
+        }
+      } catch (AddressResolutionException ex) {
+        if(ex.Issue == AddressResolutionException.Issues.DoesNotExist) {
+          ProtocolLog.WriteIf(IpopLog.ResolverLog, "Notifying remote node of " +
+              " missing address: " + addr + ":" + ipp.SSourceIP);
+          ISender sender = new AHExactSender(Brunet, addr);
+          Brunet.Rpc.Invoke(sender, null, "Ipop.NoSuchMapping", ipp.SSourceIP);
+          return;
+        } else {
+          throw;
+        }
       }
 
       if(IpopLog.PacketLog.Enabled) {
@@ -298,8 +315,17 @@ namespace Ipop {
         return;
       }
 
-      AHAddress target = (AHAddress) _address_resolver.Resolve(ipp.DestinationIP);
-      if (target != null) {
+      Address target = null;
+      try {
+        target = _address_resolver.Resolve(ipp.DestinationIP) as AHAddress;
+      } catch(AddressResolutionException ex) {
+        if(ex.Issue != AddressResolutionException.Issues.DoesNotExist) {
+          throw;
+        }
+        // Otherwise nothing to do, mapping doesn't exist...
+      }
+
+      if(target != null) {
         if(IpopLog.PacketLog.Enabled) {
           ProtocolLog.Write(IpopLog.PacketLog, String.Format(
                             "Brunet destination ID: {0}", target));
@@ -360,7 +386,17 @@ namespace Ipop {
       // We shouldn't be returning these messages if no one exists at that end
       // point
      if(!ap.TargetProtoAddress.Equals(MemBlock.Reference(_dhcp_server.ServerIP))) {
-       Address baddr = _address_resolver.Resolve(ap.TargetProtoAddress);
+       Address baddr = null;
+
+       try {
+         baddr = _address_resolver.Resolve(ap.TargetProtoAddress);
+       } catch(AddressResolutionException ex) {
+         if(ex.Issue != AddressResolutionException.Issues.DoesNotExist) {
+           throw;
+         }
+         // Otherwise nothing to do, mapping doesn't exist...
+       }
+
        if(Brunet.Address.Equals(baddr) || baddr == null) {
          return;
        }
@@ -514,7 +550,7 @@ namespace Ipop {
 
       WaitCallback wcb = delegate(object o) {
         ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
-            "Attemping DHCP for: {0}", Utils.MemBlockToString(ether_addr, '.')));
+            "Attempting DHCP for: {0}", Utils.MemBlockToString(ether_addr, '.')));
 
         DHCPPacket rpacket = null;
         try {
@@ -745,7 +781,44 @@ namespace Ipop {
     protected virtual void CheckNetwork(object o) {
       SendICMPRequest(MemBlock.Reference(_dhcp_server.Broadcast));
     }
+
+    public void HandleRpc(ISender caller, string method, IList args, object rs) {
+      if(method.Equals("NoSuchMapping")) {
+        string sip = args[0] as string;
+        MemBlock ip = MemBlock.Reference(Utils.StringToBytes(sip, '.'));
+        MappingMissing(ip);
+      } else {
+        throw new Exception("Invalid method!");
+      }
+    }
+
+    protected virtual bool MappingMissing(MemBlock ip)
+    {
+      ProtocolLog.WriteIf(IpopLog.ResolverLog, "Notified of address missing.");
+      // do we even own this ip?
+      return _ip_to_ether.ContainsKey(ip);
+    }
 #endregion
+  }
+
+  /// <summary>Provides exception handling cases for the Address resolver so
+  /// that Ipop can perform actions to resolve the issue.</summary>
+  public class AddressResolutionException : Exception
+  {
+    public enum Issues {
+      /// <summary>Existing mapping doesn't match the current message.</summary>
+      Mismatch,
+      /// <summary>No mapping for the current message.</summary>
+      DoesNotExist
+    }
+
+    public readonly Issues Issue;
+
+    public AddressResolutionException(string message, Issues issue) :
+      base(message)
+    {
+      Issue = issue;
+    }
   }
 
   /// <summary>This interface is used for IP Address to Brunet address translations.

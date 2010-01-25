@@ -39,8 +39,10 @@ namespace Ipop.DhtNode {
   public class DhtAddressResolver: IAddressResolver {
     /// <summary>A lock synchronizer for the hashtables and cache.</summary>
     protected readonly Object _sync = new Object();
-    /// <summary>Holds up to 250 IP:Brunet Address translations.</summary>
+    /// <summary>Holds up to 1024 IP:Brunet Address translations.</summary>
     protected readonly Cache _results = new Cache(1024);
+    /// <summary>Failed query attempts.</summary>
+    protected readonly Cache _attempts = new Cache(1024);
     /// <summary>Contains which IP Address Misses are pending.</summary>
     protected readonly Hashtable _queued = new Hashtable();
     /// <summary>Maps the Channel in MissCallback to an IP.</summary>
@@ -82,12 +84,36 @@ namespace Ipop.DhtNode {
     /// <param name="ip">The IP source.</param>
     /// <param name="addr">The Brunet.Address source.</summary>
     public bool Check(MemBlock ip, Address addr) {
-      if(addr.Equals(_results[ip])) {
+      Address stored_addr = _results[ip] as Address;
+      if(addr.Equals(stored_addr)) {
         return true;
+      } else if(stored_addr == null) {
+        if(Miss(ip)) {
+          IncrementMisses(ip);
+        }
+        return false;
+      } else {
+        Miss(ip);
+        throw new AddressResolutionException(String.Format("IP:Address mismatch, expected: {0}, got: {1}",
+              addr, stored_addr), AddressResolutionException.Issues.Mismatch);
       }
+    }
 
-      Miss(ip);
-      return false;
+    protected void IncrementMisses(MemBlock ip) {
+      lock(_sync) {
+        int count = 1;
+        if(_attempts.Contains(ip)) {
+          count = ((int) _attempts[ip]) + 1;
+        }
+        _attempts[ip] = count;
+        Console.WriteLine(Utils.MemBlockToString(ip, '.') + " : " + count);
+
+        if(count >= 3) {
+          _attempts.Remove(ip);
+          throw new AddressResolutionException("No Address mapped to: " + Utils.MemBlockToString(ip, '.'),
+              AddressResolutionException.Issues.DoesNotExist);
+        }
+      }
     }
 
     /**
@@ -97,12 +123,12 @@ namespace Ipop.DhtNode {
     ansychonorous call back is call MissCallback.</summary>
     <param name="ip">The IP Address to look up in the Dht.</param>
     */
-    protected void Miss(MemBlock ip) {
+    protected bool Miss(MemBlock ip) {
       Channel queue = null;
 
       lock(_sync) {
         if (_queued.Contains(ip)) {
-          return;
+          return false;
         }
 
         _queued[ip] = true;
@@ -132,6 +158,8 @@ namespace Ipop.DhtNode {
         }
         queue.Close();
       }
+
+      return true;
     }
 
     /**
@@ -166,6 +194,7 @@ namespace Ipop.DhtNode {
         lock(_sync) {
           if(addr != null) {
             _results[ip] = addr;
+            _attempts.Remove(ip);
           }
 
           _queued.Remove(ip);

@@ -23,6 +23,7 @@ using Ipop;
 using NetworkPackets;
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Net;
 using System.Text;
 using System.Threading;
@@ -35,6 +36,8 @@ namespace Ipop.DhtNode {
   /// <summary>This class provides an IpopNode that does address and name
   /// resolution using Brunet's Dht.  Multicast is supported.</summary>
   public class DhtIpopNode: IpopNode {
+    protected bool _connected;
+
     ///<summary>Creates a DhtIpopNode.</summary>
     /// <param name="NodeConfig">NodeConfig object</param>
     /// <param name="IpopConfig">IpopConfig object</param>
@@ -42,11 +45,73 @@ namespace Ipop.DhtNode {
         DHCPConfig dhcp_config) : base(node_config, ipop_config, dhcp_config)
     {
       _address_resolver = new DhtAddressResolver(Dht, _ipop_config.IpopNamespace);
+
+      _connected = false;
+      Brunet.StateChangeEvent += StateChangeHandler;
+      StateChangeHandler(Brunet, Brunet.ConState);
     }
 
     public DhtIpopNode(NodeConfig node_config, IpopConfig ipop_config) :
         this(node_config, ipop_config, null)
     {
+    }
+
+    /// <summary> Occassionally nodes will get a true return from a allocation
+    /// attempt, in order to prevent this, we reissue all dhcp requests after
+    /// getting "connected" to the overlay.</summary>
+    protected void StateChangeHandler(Node n, Node.ConnectionState state) {
+      List<MemBlock> ips = null;
+
+      lock(_sync) {
+        if(state == Node.ConnectionState.Connected) {
+          if(_connected) {
+            return;
+          }
+          Brunet.StateChangeEvent -= StateChangeHandler;
+          _connected = true;
+        } else {
+          return;
+        }
+
+        ips = new List<MemBlock>(_ip_to_ether.Keys.Count);
+        foreach(MemBlock ip in _ip_to_ether.Keys) {
+          ips.Add(ip);
+        }
+      }
+
+      WaitCallback callback = delegate(object o) {
+        // Get a new DHCP server so we get new state!
+        DHCPServer dhcp_server = GetDHCPServer();
+        foreach(MemBlock ip in ips) {
+          try {
+            dhcp_server.RequestLease(ip, true, Brunet.Address.ToString(),
+                _ipop_config.AddressData.Hostname);
+          } catch(Exception e) {
+            ProtocolLog.WriteIf(IpopLog.DHCPLog, e.Message);
+          }
+        }
+      };
+
+      ThreadPool.QueueUserWorkItem(callback, null);
+    }
+
+    /// <summary>Someone told us we didn't have a mapping... let's fix that.</summary>
+    protected override bool MappingMissing(MemBlock ip)
+    {
+      if(!base.MappingMissing(ip)) {
+        return false;
+      }
+
+      // Easiest approach is to simply update the mapping...
+      DHCPServer dhcp_server = GetDHCPServer();
+      try {
+        dhcp_server.RequestLease(ip, true, Brunet.Address.ToString(),
+            _ipop_config.AddressData.Hostname);
+      } catch(Exception e) {
+        ProtocolLog.WriteIf(IpopLog.DHCPLog, e.Message);
+      }
+
+      return true;
     }
 
     protected override bool SupportedDNS(string dns) {
