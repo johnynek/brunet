@@ -40,8 +40,76 @@ public class LockFreeQueue<T> {
     public Element<R> Next;
   }
 
-  protected Element<T> _head;
-  protected Element<T> _tail;
+  /*
+   * this inner class represents the state-commit pattern.  You
+   * make one immutable class that encapsulates the state machine:
+   * it creates new instances for each allowed transition.
+   * Then, the outer class: LockFreeQueue keeps one state object
+   * and uses CompareExchange to do "commits" of the transactions.
+   * It is almost trivial to see that the logic is correc then,
+   * and no locking is ever needed.
+   * NOTE: this is ALMOST that pattern, the Enqueue action actually
+   * changes state but similiar to the WriteOnce variable, so it is
+   * you can clearly see that it is logically correct.
+   */
+  protected class State<R> {
+    public readonly Element<R> Head;
+    //This is only a hint of where to find the tail
+    //The "real tail" is the first null found in linked list started at Head
+    public readonly Element<R> TailHint;
+    
+    public State(Element<R> head, Element<R> tail) {
+      Head = head;
+      TailHint = tail;
+    }
+
+    /*
+     * If we return false, we can't dequeue, ignore newstate
+     * If we return true, the newstate is computed.  The dequeue
+     * is not final until the _state of the LockFreeQueue is updated
+     */
+    public bool TryDequeue(out State<R> newstate) {
+      if( Head.Next == null ) {
+        //We can't move forward.
+        newstate = null;
+        return false;
+      }
+      else if( Head == TailHint ) {
+        //We can move forward, BUT TailHint would be behind Head,
+        //update TailHint at the same time
+        newstate = new State<R>(Head.Next, Head.Next);
+        return true;
+      }
+      else {
+        newstate = new State<R>(Head.Next, TailHint);
+        return true; 
+      }
+    }
+    /*
+     * If this returns true, the enqueue was successful.  Updating the state
+     * should be attempted, but if it fails, we must let a future dequeue or
+     * enqueue fix it.  DON'T TRY TO ENQUEUE AGAIN IF THIS RETURNS TRUE,
+     * THE DATA HAS ALREADY BEEN ADDED!
+     */
+    public bool TryEnqueue(Element<R> newtail, out State<R> newstate) {
+      var old_next = Interlocked.CompareExchange<Element<R>>(ref TailHint.Next, newtail, null);
+      if( old_next == null ) {
+        //This was success:
+        newstate = new State<R>(Head, newtail);
+        return true;
+      }
+      else {
+        //This was a failure, we have a new TailHint
+        newstate = new State<R>(Head, old_next);
+        return false;
+      }
+    }
+  }
+
+  /*
+   * this is the only mutable variable for the queue.
+   */
+  protected State<T> _state;
   //This is used to denote an Element that has been removed from the list
   protected static readonly Element<T> REMOVED = new Element<T>();
 
@@ -54,7 +122,9 @@ public class LockFreeQueue<T> {
    * can guarantee there is only one thread dequeueing at a time).
    */
   public bool IsEmpty {
-    get { return (_head.Next == null); }
+    get {
+      return _state.Head.Next == null;
+    }
   }
 
   public LockFreeQueue() {
@@ -62,8 +132,8 @@ public class LockFreeQueue<T> {
      * Head and tail are never null.  Empty is when they
      * point to the same element and _head.Next is null.
      */
-    _head = new Element<T>();
-    _tail = _head;
+     var head = new Element<T>();
+    _state = new State<T>(head, head);
   }
 
   
@@ -85,38 +155,33 @@ public class LockFreeQueue<T> {
   /** Enqueue an item.
    */
   public void Enqueue(T item) {
-    Element<T> old_tail = _tail;
-    Element<T> old_next;
-    Element<T> tmp_tail;
+    var state = _state;
+    State<T> new_state;
+    State<T> oldstate;
 
     Element<T> el = new Element<T>();
     el.Data = item;
-    while(true) {
+    bool success;
+    do {
+      success = state.TryEnqueue(el, out new_state);
       /*
-       * We optimistically try to do the enqueue rather than checking to see
-       * that tail might be out of date.  If it is out of date, we'll find out
-       * below
+       * We *TRY* to update the state, but since Enqueue can
+       * only change the TailHint, and as the name suggests
+       * TailHint is only a HINT as to where the tail is,
+       * we don't care if this fails.  We only care if the
+       * above fails and success is false, which would indicate
+       * that the item was not added to the list yet.
        */
-      old_next = Interlocked.CompareExchange<Element<T>>(ref old_tail.Next, el, null);
-      if( old_next == null ) {
-        //This is success!
-        //Try to update the tail, if it doesn't work, the next Enqueue will get it
-        Interlocked.CompareExchange<Element<T>>(ref _tail, el, old_tail);
-        return;
+      oldstate = Interlocked.CompareExchange<State<T>>(ref _state, new_state, state);
+      if( oldstate == state ) {
+        //The update worked:
+        state = new_state;
       }
       else {
-        /*
-         * Looks like the tail is out of date, try to update it with the next
-         * item after the out of date tail
-         */
-        tmp_tail = old_tail;
-        old_tail = Interlocked.CompareExchange<Element<T>>(ref _tail, old_next, tmp_tail);
-        //Set old_tail to the most up-to-date value
-        if( tmp_tail == old_tail ) {
-          old_tail = old_next;
-        }
+        //Someone else updated first
+        state = oldstate;
       }
-    }
+    } while( false == success );
   }
   
   /** "traditional" Peek, throws an exception if empty
@@ -139,71 +204,51 @@ public class LockFreeQueue<T> {
    * @return the next item in the queue
    */
   public T TryDequeue(out bool success) {
-    Element<T> head;
-    Element<T> tail;
-    //This is the only place we read _head outside of a Interlocked call
-    //By the time we read these, they may be old:
-    Element<T> old_tail = _tail;
-    Element<T> old_head = _head;
-    Element<T> old_head_next;
+    //This is the only place we read _state outside of a Interlocked call
+    var state = _state;
+    State<T> newstate;
+    State<T> oldstate;
     success = false;
     do {
-      head = old_head;
-      old_head_next = old_head.Next;
-      if( old_head_next == null ) {
-        /*
-         * Make sure to never set _head to null
-         */
+      //This doesn't effect the state at all
+      if( !state.TryDequeue(out newstate) ) {
+        //We couldn't dequeue:
         return default(T);
       }
+      //Otherwise, we have try to update the state:
+      oldstate = Interlocked.CompareExchange<State<T>>(ref _state, newstate, state);
+      if( oldstate == state ) {
+        success = true;
+      }
       else {
-        if( old_head != old_tail ) {
-          old_head = Interlocked.CompareExchange<Element<T>>(ref _head, old_head_next, head);
-          /*
-           * Either head == old_head and we moved, or we just read a new value
-           * for _head and we can try again:
-           */
-          success = (head == old_head);
-        }
-        else {
-        /*
-         * head.Next exists, but tail is pointing at head, let's try to
-         * advance tail.
-         * 
-         * We don't advance head if head == _tail, because we don't want head past
-         * tail.  This can happen if a TryDequeue happens concurrently with an
-         * Enqueue
-         */
-          tail = old_tail;
-          old_tail = Interlocked.CompareExchange<Element<T>>(ref _tail, old_head_next, tail);
-          //Make old_tail as current as we can see:
-          if( old_tail == tail ) {
-            old_tail = old_head_next;
-          }
-        }
+        //Update the state and try again
+        state = oldstate;
       }
     } while(false == success);
-    T result = old_head_next.Data;
     /*
-     * Now, no one will ever touch this field again, so
+     * If we got here, oldstate == state, and newstate was stored as state
+     * also, oldstate.Head.Next == newstate.Head
+     *
+     * Now, no one will ever touch oldstate again, so
      * let's go ahead and null it out to possibly help
      * in garbage collection.  In benchmarks with mono
      * if we don't do this, it's easy for the memory
      * to get filled up due to the difficulty of collecting
      * a linked list.
      */
-    old_head_next.Data = default(T);
-    head.Next = REMOVED;
+    T result = newstate.Head.Data;
+    oldstate.Head.Next = REMOVED;
+    newstate.Head.Data = default(T);
     return result;
   }
 
   /** Try to see what a TryDequeue would have returned
    */
   public T TryPeek(out bool success) {
-    Element<T> head_next = _head.Next;
-    success = head_next != null;
+    var node = _state.Head.Next;
+    success = node != null;
     if( success ) {
-      return head_next.Data;
+      return node.Data;
     }
     else {
       return default(T);
