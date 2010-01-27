@@ -47,6 +47,12 @@ namespace Brunet
     }
 
     protected ConnectionOverlord _cco;
+    public ChotaConnectionOverlord Cco {
+      get {
+        return _cco as ChotaConnectionOverlord;
+      }
+    }
+
     protected ConnectionOverlord _localco;
     protected ManagedConnectionOverlord _mco;
     public ManagedConnectionOverlord ManagedCO { get { return _mco; } }

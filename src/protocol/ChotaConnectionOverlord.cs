@@ -104,7 +104,8 @@ namespace Brunet {
     protected bool _active;
     
     //minimum score before we start forming chota connections
-    private static readonly int MIN_SCORE_THRESHOLD = SAMPLE_SIZE + 1;
+//    private static readonly int MIN_SCORE_THRESHOLD = SAMPLE_SIZE + 1;
+    public const int MIN_SCORE_THRESHOLD = 1;
 
     //the maximum number of Chota connections we plan to support
     private static readonly int MAX_CHOTA = 200;
@@ -141,9 +142,9 @@ namespace Brunet {
       	// we assess trimming/growing situation on every heart beat
         _node.HeartBeatEvent += this.CheckState;
 	      //subscribe the ip_handler to IP packets
-        _node.GetTypeSource(PType.Protocol.IP).Subscribe(this, null);
+//        _node.GetTypeSource(PType.Protocol.IP).Subscribe(this, null);
         // this is for security
-        _node.GetTypeSource(new PType(29)).Subscribe(this, null);
+//        _node.GetTypeSource(new PType(29)).Subscribe(this, null);
       }
     }
 
@@ -213,21 +214,12 @@ namespace Brunet {
       set { _active = value; }
     }
 
-    /**
-     * We count incoming IP packets here
-     */
-    public void HandleData(MemBlock p, ISender from, object state) {
-      AHSender ahs = from as AHSender;
-      if( ahs == null ) {
-        return;
-      }
-
+    public void Increment(Address dest) {
       // Sample every 1 / SAMPLE_SIZE
       if( _rand.Next(SAMPLE_SIZE) != 0 ) {
         return;
       }
 
-      Address dest = ahs.Destination;
 
       lock(_sync) {
         NodeRankInformation node_rank =
@@ -240,6 +232,18 @@ namespace Brunet {
         // Increment by SAMPLE_SIZE
         node_rank.Count += SAMPLE_SIZE;
       }
+    }
+
+    /**
+     * We count incoming IP packets here
+     */
+    public void HandleData(MemBlock p, ISender from, object state) {
+      AHSender ahs = from as AHSender;
+      if( ahs == null ) {
+        return;
+      }
+
+      Increment(ahs.Destination);
     }
 
     /**
