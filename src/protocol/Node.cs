@@ -304,20 +304,17 @@ namespace Brunet
      */
     public IList LocalTAs {
       get {
-        //Make sure we don't keep too many of these things:
-        ArrayList local_ta = new ArrayList();
-        foreach(EdgeListener el in EdgeListenerList) {
-          IEnumerable el_tas = el.LocalTAs;
-          foreach(TransportAddress ta in el_tas) {
-            local_ta.Add(ta);
-            if( local_ta.Count >= _MAX_RECORDED_TAS ) {
-              break;
-            }
-          }
-          if( local_ta.Count >= _MAX_RECORDED_TAS ) {
-            break;
-          }
+        var local_ta = new List<TransportAddress>();
+        var enums = new List<IEnumerable>();
+        foreach(EdgeListener el in _edgelistener_list) {
+          enums.Add( el.LocalTAs );
         }
+        //Go round robin through all the LocalTAs:
+        var uncast_tas = new Functional.Interleave(enums);
+        //Cast the resulting IEnumerable into IEnumerable<TransportAddress>
+        var all_tas = new Functional.CastEnumerable<TransportAddress>(uncast_tas);
+        //Make sure we don't keep too many of these things:
+        local_ta.AddRange(new Functional.Take<TransportAddress>(all_tas, _MAX_RECORDED_TAS));
         return local_ta;
       }
     }

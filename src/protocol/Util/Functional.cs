@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using System;
 using System.Collections;
+using System.Collections.Generic;
 
 #if BRUNET_NUNIT
 using NUnit.Framework;
@@ -51,6 +52,27 @@ public class Functional {
     return copy;
   }
 
+  /** Create a generic enumerable by casting each element of an IEnumerable
+   */
+  public class CastEnumerable<T> : IEnumerable<T> {
+    protected readonly IEnumerable _enum;
+    public CastEnumerable(IEnumerable from) {
+      _enum = from;
+    }
+
+    public IEnumerator<T> GetEnumerator() {
+      foreach(T ob in _enum) {
+        yield return ob;
+      }
+    }
+    IEnumerator IEnumerable.GetEnumerator() {
+      foreach(var ob in _enum) {
+        //Cast will throw if there is a problem
+        yield return (T)ob;
+      }
+    }
+  }
+
   public delegate bool FilterFunction(object o);
   /**
    * Use this to filter an enumerable
@@ -77,6 +99,38 @@ public class Functional {
     ArrayList copy = (ArrayList)l.Clone();
     copy.Insert(pos, o);
     return copy;
+  }
+
+  //Goes round-robin through a list of IEnumerable objects
+  //and yields first from the first, then second, etc.. until
+  //all items have been yielded.
+  public class Interleave : IEnumerable, IEnumerable<object> {
+    protected readonly IList<IEnumerable> _sources;
+    public Interleave(IList<IEnumerable> sources) {
+      _sources = sources;
+    }
+    public IEnumerator<object> GetEnumerator() {
+      List<IEnumerator> enums = new List<IEnumerator>();
+      foreach(var eable in _sources) {
+        enums.Add(eable.GetEnumerator());
+      }
+      bool all_done;
+      do {
+        all_done = true;
+        foreach(var ietor in enums) {
+          bool this_one = ietor.MoveNext();
+          //We are all done when all the ienumerators can't move.
+          all_done = all_done && (false == this_one);
+          if( this_one ) {
+            yield return ietor.Current;
+          }
+        }
+      } while(!all_done);
+    }
+
+    IEnumerator IEnumerable.GetEnumerator() {
+      return this.GetEnumerator();
+    }
   }
 
   public delegate object MapFunction(object o);
@@ -136,6 +190,38 @@ public class Functional {
     copy[k] = v;
     return copy;
   }
+
+  /** Enumerates at most a certain number of items
+   */
+  public class Take<T> : IEnumerable, IEnumerable<T> {
+    protected readonly int _count;
+    protected readonly IEnumerable<T> _from;
+
+    public Take(IEnumerable<T> from, int count) {
+      _from = from;
+      if( count < 0 ) {
+        throw new ArgumentOutOfRangeException("count must be non-negative");
+      }
+      _count = count;
+    }
+
+    public IEnumerator<T> GetEnumerator() {
+      int c = _count;
+      IEnumerator<T> from_e = _from.GetEnumerator();
+      while(--c >= 0) {
+        if( from_e.MoveNext() ) {
+          yield return from_e.Current;
+        }
+        else {
+          break;
+        }
+      }
+    }
+    IEnumerator IEnumerable.GetEnumerator() {
+      return this.GetEnumerator();
+    }
+  }
+
   #if BRUNET_NUNIT
   [Test]
   public void Test() {
@@ -163,6 +249,32 @@ public class Functional {
     for(int i = 0; i < TEST_LENGTH; i++) {
       Assert.AreEqual(l[i], mut[i], "element equality after sets");
     }
+  }
+
+  public void TestInterleave() {
+    int[] ints = new int[]{1, 2, 3};
+    string[] strs = new string[]{"one", "two", "three"};
+    List<IEnumerable> enums = new List<IEnumerable>();
+    enums.Add(ints);
+    enums.Add(strs);
+    var items = new List<object>();
+    items.AddRange(new Interleave(enums));
+    Assert.AreEqual(items[0], 1, "Interleave test1");
+    Assert.AreEqual(items[1], "one", "Interleave test1");
+    Assert.AreEqual(items[2], 2, "Interleave test1");
+    Assert.AreEqual(items[3], "two", "Interleave test1");
+    Assert.AreEqual(items[4], 3, "Interleave test1");
+    Assert.AreEqual(items[5], "three", "Interleave test1");
+  }
+
+  public void TestTake() {
+    int[] ints = new int[]{1, 2, 3, 4};
+    var items = new List<int>();
+    items.AddRange(new Take<int>(ints, 3));
+    Assert.AreEqual(3, items.Count, "Take correct number");
+    Assert.AreEqual(items[0], 1, "Take test1");
+    Assert.AreEqual(items[1], 2, "Take test2");
+    Assert.AreEqual(items[2], 3, "Take test3");
   }
   #endif
 }
