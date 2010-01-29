@@ -621,7 +621,7 @@ namespace Brunet {
         near_ni[i] = NodeInfo.CreateInstance(cons.Address);
         i++;
       }
-      return new ConnectToMessage(ConnectionType, _node.GetNodeInfo(8, TAAuth), near_ni, token);
+      return new ConnectToMessage(ConnectionType, _node.GetNodeInfo(12, TAAuth), near_ni, token);
     }
 
     /**

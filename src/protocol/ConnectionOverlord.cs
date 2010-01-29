@@ -176,7 +176,7 @@ namespace Brunet {
     virtual protected ConnectToMessage GetConnectToMessage(string ConnectionType,
         string token)
     {
-      return new ConnectToMessage(ConnectionType, _node.GetNodeInfo(8, TAAuth), token);
+      return new ConnectToMessage(ConnectionType, _node.GetNodeInfo(12, TAAuth), token);
     }
 
     virtual protected void ConnectorEndHandler(object o, EventArgs eargs) {

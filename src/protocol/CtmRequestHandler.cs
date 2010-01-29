@@ -89,7 +89,7 @@ namespace Brunet
       for(int i = 0; i < neighbors.Count; i++) {
         neigh_array[i] = (NodeInfo)neighbors[i];
       }
-      return new ConnectToMessage(ctm_req.ConnectionType, _n.GetNodeInfo(8), neigh_array, ctm_req.Token);
+      return new ConnectToMessage(ctm_req.ConnectionType, _n.GetNodeInfo(12), neigh_array, ctm_req.Token);
     }
   }
 
