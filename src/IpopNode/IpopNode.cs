@@ -269,6 +269,7 @@ namespace Ipop {
     /// <param name="from"> This should always be the tap device</param>
     protected virtual void HandleIPOut(EthernetPacket packet, ISender ret) {
       IPPacket ipp = new IPPacket(packet.Payload);
+
       if(IpopLog.PacketLog.Enabled) {
         ProtocolLog.Write(IpopLog.PacketLog, String.Format(
                           "Outgoing {0} packet::IP src: {1}, IP dst: {2}", 
@@ -280,9 +281,10 @@ namespace Ipop {
         return;
       }
 
+      UDPPacket udpp = null;
       switch(ipp.Protocol) {
         case IPPacket.Protocols.UDP:
-          UDPPacket udpp = new UDPPacket(ipp.Payload);
+          udpp = new UDPPacket(ipp.Payload);
           if(udpp.SourcePort == _dhcp_client_port && udpp.DestinationPort == _dhcp_server_port) {
             if(HandleDHCP(ipp)) {
               return;
@@ -296,7 +298,10 @@ namespace Ipop {
       }
 
       if(ipp.DestinationIP[0] >= 224 && ipp.DestinationIP[0] <= 239) {
-        if(HandleMulticast(ipp)) {
+        // We don't want to send Brunet multicast packets over IPOP!
+        if(udpp != null && udpp.DestinationPort == IPHandler.mc_port) {
+          return;
+        } else if(HandleMulticast(ipp)) {
           return;
         }
       }

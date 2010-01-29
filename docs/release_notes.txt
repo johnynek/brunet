@@ -1,4 +1,19 @@
 ===============================================================================
+Revision 9.4.3
+-------------------------------------------------------------------------------
+- No longer forwarding Brunet based multicast packets
+===============================================================================
+Revision 9.4.2
+-------------------------------------------------------------------------------
+Improved connectivity:
+- Changed the ordering of TAs to ensure that Tunnel and TCP TAs are sent
+- Increased the number of TAs sent
+===============================================================================
+Revision 9.4.1
+-------------------------------------------------------------------------------
+- Improved direct connectivity detector, though this is in testing state
+- Remote peers notify a VPN end-point if its DHT registration failed
+===============================================================================
 Revision 9.4
 -------------------------------------------------------------------------------
 - Memory leaks have been fixed
