@@ -272,6 +272,9 @@ namespace Brunet.Tunnel {
             break;
           }
         }
+        // Arriving here, implies another TunnelEdge will be created and this
+        // one needs to be closed
+        te.Close();
       }
 
       te.CloseEvent += CloseHandler;
@@ -424,6 +427,9 @@ namespace Brunet.Tunnel {
               break;
             }
           }
+          // Arriving here, implies another TunnelEdge will be created and this
+          // one needs to be closed
+          te.Close();
         }
 
         local_id = te.LocalID;
