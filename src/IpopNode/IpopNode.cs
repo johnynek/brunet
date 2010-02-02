@@ -336,6 +336,7 @@ namespace Ipop {
                             "Brunet destination ID: {0}", target));
         }
         SendIP(target, packet.Payload);
+        Brunet.Cco.Increment(target);
       }
     }
 
