@@ -1,4 +1,9 @@
 ===============================================================================
+Revision 9.4.4
+-------------------------------------------------------------------------------
+- Shortcut contruction is explicit on outgoing packets now
+- Rewrote groupvpn_prepare.sh to notify of errors on parsing a config.zip
+===============================================================================
 Revision 9.4.3
 -------------------------------------------------------------------------------
 - No longer forwarding Brunet based multicast packets
