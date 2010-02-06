@@ -87,6 +87,11 @@ namespace SocialVPN {
     protected readonly BlockingQueue _queue;
 
     /**
+     * The social DNS manager.
+     */
+    protected readonly SocialDnsManager _sdm;
+
+    /**
      * Main processing thread thread.
      */
     protected readonly Thread _main_thread;
@@ -121,7 +126,8 @@ namespace SocialVPN {
      */
     public SocialConnectionManager(SocialNode node,SocialNetworkProvider snp,
                                    SocialRpcHandler srh, string port,
-                                   BlockingQueue queue) {
+                                   BlockingQueue queue, 
+                                   SocialDnsManager sdm) {
       _snode = node;
       _snp = snp;
       _http = new HttpInterface(port);
@@ -129,6 +135,7 @@ namespace SocialVPN {
       _http.Start();
       _srh = srh;
       _queue = queue;
+      _sdm = sdm;
       _main_thread = new Thread(Start);
       _main_thread.Start();
       _delims = new char[] {'\n',','};
@@ -264,15 +271,22 @@ namespace SocialVPN {
      */
     public void ProcessHandler(Object obj, EventArgs eargs) {
       Dictionary <string, string> request = (Dictionary<string, string>)obj;
-      if(request.ContainsKey("m") && request["m"] == "login") {
+      string method = request["m"];
+
+      if(method == "login") {
         _snp.Login(request["id"], request["user"], request["pass"]);
       }
-      else if(request.ContainsKey("m") && request["m"] == "logout") {
+      else if(method == "logout") {
         _snp.Logout();
       }
       // Allows main thread to run request, main thread does all the work
       _queue.Enqueue(new QueueItem(QueueItem.Actions.Process, obj));
-      request["response"] = _snode.GetState(false);
+      if (method.StartsWith("map")) {
+        request["response"] = _sdm.GetState();
+      }
+      else {
+        request["response"] = _snode.GetState(false);
+      }
     }
 
     /**
@@ -285,11 +299,11 @@ namespace SocialVPN {
         string method = request["m"];
         switch(method) {
           case "add":
-            _snp.AddFriends(request["uids"].Split(_delims));
+            AddFriendUids(request["uids"].Split(_delims));
             break;
 
           case "addcert":
-            _snp.AddCertificate(request["cert"]);
+            AddCertificate(request["cert"]);
             break;
 
           case "allow":
@@ -300,6 +314,26 @@ namespace SocialVPN {
             BlockFriends(request["fprs"]);
             break;
 
+          case "user.allow":
+            AllowUsers(request["uids"]);
+            break;
+
+          case "user.block":
+            BlockUsers(request["uids"]);
+            break;
+
+          case "mapping.add":
+            AddMapping(request["mapping"]);
+            break;
+
+          case "mapping.addtmp":
+            AddTmpMapping(request["mapping"]);
+            break;
+
+          case "mapping.lookup":
+            LookupMapping(request["mapping"]);
+            break;
+
           default:
             break;
         }
@@ -308,6 +342,14 @@ namespace SocialVPN {
           UpdateFriends(null);
         }
       }
+    }
+
+    protected void AddFriendUids(string[] uids) {
+      _snp.AddFriends(uids);
+    }
+
+    protected void AddCertificate(string cert) {
+      _snp.AddCertificate(cert);
     }
 
     /**
@@ -348,6 +390,28 @@ namespace SocialVPN {
     }
 
     /**
+     * Allow a list of userids seperated by newline.
+     * @param uids a list of useruids.
+     */
+    protected void AllowUsers(string uidlist) {
+      string[] uids = uidlist.Split(_delims);
+      foreach(string uid in uids) {
+        _snode.AddUser(uid);
+      }
+    }
+
+    /**
+     * Block a list of userids seperated by newline.
+     * @param uidlist a list of userids.
+     */
+    protected void BlockUsers(string uidlist) {
+      string[] uids = uidlist.Split(_delims);
+      foreach(string uid in uids) {
+        _snode.RemoveUser(uid);
+      }
+    }
+
+    /**
      * Adds a list of friend based on user id.
      * @param uids the list of friend's user id.
      */
@@ -360,6 +424,19 @@ namespace SocialVPN {
       foreach(string fpr in fingerprints) {
         _snode.AddDhtFriend(fpr, true);
       }
+    }
+
+    protected void AddMapping(string mapping) {
+      _sdm.AddMapping(mapping);
+    }
+
+    protected void AddTmpMapping(string mapping) {
+      _sdm.AddTmpMapping(mapping);
+    }
+
+    protected void LookupMapping(string query) {
+      _sdm.ClearResults();
+      _srh.SearchFriends(query);
     }
   }
 

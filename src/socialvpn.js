@@ -383,7 +383,7 @@ function addFriendPost() {
 }
 
 function makeCall(postData, ref_time) {
-  refresh_time = ref_time
+  refresh_time = ref_time;
   var httpRequest;
   if(window.XMLHttpRequest) {
     httpRequest = new XMLHttpRequest();

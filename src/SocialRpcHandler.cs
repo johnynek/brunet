@@ -75,6 +75,11 @@ namespace SocialVPN {
     protected readonly BlockingQueue _queue;
 
     /**
+     * This is the DnsManager that handles DNS functions.
+     */
+    protected readonly SocialDnsManager _sdm;
+
+    /**
      * Constructor.
      * @param node the p2p node.
      * @param localUser the local user object.
@@ -82,13 +87,14 @@ namespace SocialVPN {
      */
     public SocialRpcHandler(StructuredNode node, SocialUser localUser,
                            Dictionary<string, SocialUser> friends,
-                           BlockingQueue queue) {
+                           BlockingQueue queue, SocialDnsManager sdm) {
       _node = node;
       _rpc = node.Rpc;
       _rpc.AddHandler("SocialVPN", this);
       _local_user = localUser;
       _friends = friends;
       _queue = queue;
+      _sdm = sdm;
     }
 
     /**
@@ -105,6 +111,10 @@ namespace SocialVPN {
         switch (method) {
           case "FriendPing":
             result = FriendPingHandler((string)args[0], (string) args[1]);
+            break;
+
+          case "GetDnsMapping":
+            result = GetDnsMappingHandler((string)args[0], (string) args[1]);
             break;
 
           default:
@@ -148,8 +158,21 @@ namespace SocialVPN {
     }
 
     /**
+     * Send query to all friends.
+     * @param query the query to search.
+     */
+    public void SearchFriends(string query) {
+      foreach(SocialUser friend in _friends.Values) {
+        if(friend.Time != SocialUser.TIMEDEFAULT) {
+          FriendSearch(friend.Address, friend.DhtKey, query);
+        }
+      }
+    }
+
+    /**
      * Handles a ping request from a friend.
      * @param dhtkey the identifier for the friend making the request.
+     * @param uid the user identifier for the friend (jabber id).
      * @return the respond sent back online/offline.
      */
     protected string FriendPingHandler(string dhtKey, string uid) {
@@ -178,6 +201,23 @@ namespace SocialVPN {
     }
 
     /**
+     * Handles a ping request from a friend.
+     * @param dhtkey the identifier for the friend making the request.
+     * @param alias the name to search for in the local cache.
+     * @return the respond sent back online/offline.
+     */
+    protected string GetDnsMappingHandler(string dhtKey, string query) {
+      string response = String.Empty;
+      if (_friends.ContainsKey(dhtKey)) {
+        response = _sdm.GetMapping(query);
+        ProtocolLog.WriteIf(SocialLog.SVPNLog, 
+                            String.Format("DNS MAPPING HANDLER: {0} {1} {2}",
+                            DateTime.Now.TimeOfDay, dhtKey, query));
+      }
+      return response;
+    }
+
+    /**
      * Makes the ping request to a friend.
      * @param address the address of the friend.
      * @param dhtKey the friend's dhtkey.
@@ -192,13 +232,7 @@ namespace SocialVPN {
           string result = (string) res.Result;
           string[] parts = result.Split(DELIM);
           string response = parts[1];
-          if(response == ResponseTypes.Online.ToString()) {
-            SocialUser friend = _friends[dhtKey];
-            friend.Time = DateTime.Now.ToString();
-          }
-          else if(response == ResponseTypes.Offline.ToString()) {
-            _friends[dhtKey].Time = SocialUser.TIMEDEFAULT;
-          }
+          UpdatePingTime(dhtKey, response);
           ProtocolLog.WriteIf(SocialLog.SVPNLog, 
                           String.Format("PING FRIEND REPLY: {0} {1} {2} {3}",
                           DateTime.Now.TimeOfDay, dhtKey, address, response));
@@ -218,7 +252,62 @@ namespace SocialVPN {
       _rpc.Invoke(sender, q, "SocialVPN.FriendPing", _local_user.DhtKey,
                   _local_user.Uid);
     }
+
+    /**
+     * Update a friend's online time from a ping request.
+     * @param dhtKey the friend's dhtKey.
+     * @param response the response from the friend.
+     */
+    protected void UpdatePingTime(string dhtKey, string response) {
+      if(response == ResponseTypes.Online.ToString()) {
+        SocialUser friend = _friends[dhtKey];
+        friend.Time = DateTime.Now.ToString();
+      }
+      else if(response == ResponseTypes.Offline.ToString()) {
+         _friends[dhtKey].Time = SocialUser.TIMEDEFAULT;
+      }
+    }
+
+    /**
+     * Makes the ping request to a friend.
+     * @param address the address of the friend.
+     * @param dhtKey the friend's dhtkey.
+     */
+    protected void FriendSearch(string address, string dhtKey, 
+      string query) {
+      Address addr = AddressParser.Parse(address);
+      Channel q = new Channel();
+      q.CloseAfterEnqueue();
+      q.CloseEvent += delegate(object obj, EventArgs eargs) {
+        try {
+          RpcResult res = (RpcResult) q.Dequeue();
+          string result = (string) res.Result;
+          UpdateDnsMapping(dhtKey, result);
+          ProtocolLog.WriteIf(SocialLog.SVPNLog, 
+                          String.Format("SEARCH FRIEND REPLY: {0} {1} {2} {3}",
+                          DateTime.Now.TimeOfDay, dhtKey, address, result));
+        } catch(Exception e) {
+          _friends[dhtKey].Time = SocialUser.TIMEDEFAULT;
+          ProtocolLog.WriteIf(SocialLog.SVPNLog, e.Message);
+          ProtocolLog.WriteIf(SocialLog.SVPNLog, 
+                             String.Format("SEARCH FRIEND FAILURE: {0} {1} {2}",
+                             DateTime.Now.TimeOfDay, dhtKey, address));
+        }
+      };
+      ProtocolLog.WriteIf(SocialLog.SVPNLog, 
+                          String.Format("SEARCH FRIEND REQUEST: {0} {1} {2}",
+                          DateTime.Now.TimeOfDay, dhtKey, address));
+
+      ISender sender = new AHExactSender(_node, addr);
+      _rpc.Invoke(sender, q, "SocialVPN.GetDnsMapping", _local_user.DhtKey,
+                  query);
+    }
+
+    protected void UpdateDnsMapping(string dhtKey, string result) {
+      _sdm.AddTmpMapping(result);
+    }
   }
+
 #if SVPN_NUNIT
   [TestFixture]
   public class SocialRpcHandlerTester {

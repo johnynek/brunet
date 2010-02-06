@@ -26,6 +26,8 @@
       <fileset basedir=".">
         <include name="socialvpn.js" />
         <include name="socialvpn.css" />
+        <include name="socialdns.js" />
+        <include name="socialdns.css" />
       </fileset>
     </copy>
 
@@ -118,6 +120,8 @@
         <include name="socialvpn" />
         <include name="socialvpn.js" />
         <include name="socialvpn.css" />
+        <include name="socialdns.js" />
+        <include name="socialdns.css" />
         <include name="setup.cmd" />
         <include name="start_socialvpn.cmd" />
         <include name="stop_socialvpn.cmd" />
@@ -148,22 +152,18 @@
         <include name="Brunet.DhtService.dll" />
         <include name="Brunet.Security.dll" />
         <include name="Brunet.IPAddresses.dll" />
-        <include name="Brunet.Coordinate.dll" />
         <include name="Brunet.XmlRpc.dll" />
         <include name="CookComputing.XmlRpcV2.dll" />
+        <include name="System.Runtime.Remoting.dll" />
+        <include name="System.Web.dll" />
+        <include name="System.Configuration.Install.dll"/>
+        <include name="System.ServiceProcess.dll"/>
         <include name="Mono.Posix.dll"/>
         <include name="Mono.Security.dll"/>
-        <include name="System.Runtime.Remoting.dll"/>
-        <include name="System.Web.dll" />
         <include name="ManagedIpopNode.dll" />
         <include name="jabber-net.dll" />
         <include name="nunit.framework.dll"/>
       </references>
     </csc>
-
-    <nunit2>
-      <formatter type="Plain" />
-      <test assemblyname="${build.dir}/SVPN_NUNIT.dll"/>
-    </nunit2>
   </target>
 </project>

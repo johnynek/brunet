@@ -36,6 +36,11 @@ namespace SocialVPN {
     public const string JSURL = "socialvpn.js";
 
     /**
+     * Location of the Javascript file.
+     */
+    public const string JSURLDNS = "socialdns.js";
+
+    /**
      * This event is fired whenever we get an API request.
      */
     public event EventHandler ProcessEvent;
@@ -90,6 +95,18 @@ namespace SocialVPN {
        "\"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">" +
        "<html><head></head><body><script type=\"text/javascript\" src=\""
        + JSURL + "\"></script></body></html>";
+      }
+    }
+
+    /**
+     * The html content for Web page display.
+     */
+    public static string DnsHTMLText {
+      get {
+        return "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" " +
+       "\"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">" +
+       "<html><head></head><body><script type=\"text/javascript\" src=\""
+       + JSURLDNS + "\"></script></body></html>";
       }
     }
 
@@ -168,10 +185,6 @@ namespace SocialVPN {
           
           responseString = Process(SocialUtils.DecodeUrl(postData));
         }
-        // Cross-domain request made by Flash clients
-        else if (request.RawUrl == "/crossdomain.xml") {
-          responseString = CrossDomainXML;
-        }
         else if (request.RawUrl == "/socialvpn.js") {
           using (StreamReader text = new StreamReader("socialvpn.js")) {
             responseString = text.ReadToEnd();
@@ -180,6 +193,18 @@ namespace SocialVPN {
         }
         else if (request.RawUrl == "/socialvpn.css") {
           using (StreamReader text = new StreamReader("socialvpn.css")) {
+            responseString = text.ReadToEnd();
+          }
+          response.ContentType = "text/css";
+        }
+        else if (request.RawUrl == "/socialdns.js") {
+          using (StreamReader text = new StreamReader("socialdns.js")) {
+            responseString = text.ReadToEnd();
+          }
+          response.ContentType = "text/javascript";
+        }
+        else if (request.RawUrl == "/socialdns.css") {
+          using (StreamReader text = new StreamReader("socialdns.css")) {
             responseString = text.ReadToEnd();
           }
           response.ContentType = "text/css";
@@ -195,9 +220,12 @@ namespace SocialVPN {
           buffer = SocialUtils.ReadFileBytes("pic.png");
           response.ContentType = "image/png";
         }
+        else if (request.RawUrl == "/dns") {
+          responseString = DnsHTMLText;
+          response.ContentType = "text/html";
+        }
         // Return html content for page display
-        else
-        {
+        else {
           responseString = HTMLText;
           response.ContentType = "text/html";
         }

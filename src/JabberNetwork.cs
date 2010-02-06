@@ -258,10 +258,12 @@ namespace SocialVPN {
     public void JabberNetworkTest() {
       string userid = "pierre@pdebian64";
       Certificate cert = SocialUtils.CreateCertificate(userid,
-        "Pierre St Juste", "testpc", "version", "country", "address", "certdir", "path");
+        "Pierre St Juste", "testpc", "version", "country", "address", 
+        "certdir", "path");
       SocialUser user = new SocialUser(cert.X509.RawData);
       BlockingQueue queue = new BlockingQueue();
-      JabberNetwork jnetwork = new JabberNetwork(user, cert.X509.RawData, queue);
+      JabberNetwork jnetwork = new JabberNetwork(user, cert.X509.RawData, 
+          queue, "5222");
       jnetwork.Login("jabber", userid,"stjuste");
       Console.WriteLine("Waiting 5 seconds for resuls");
       System.Threading.Thread.Sleep(5000);

@@ -123,6 +123,11 @@ namespace SocialVPN {
     protected readonly SocialRpcHandler _srh;
 
     /**
+     * The social DNS manager.
+     */
+    protected readonly SocialDnsManager _sdm;
+
+    /**
      * The main blocking queue used for message passing between threads.
      */
     protected readonly BlockingQueue _queue;
@@ -166,8 +171,10 @@ namespace SocialVPN {
       _snp = new SocialNetworkProvider(this.Dht, _local_user, 
                                        _local_cert.X509.RawData, _queue, 
                                        jabber_port);
-      _srh = new SocialRpcHandler(_node, _local_user, _friends, _queue);
-      _scm = new SocialConnectionManager(this, _snp, _srh, http_port, _queue);
+      _sdm = new SocialDnsManager(this, _local_user);
+      _srh = new SocialRpcHandler(_node, _local_user, _friends, _queue, _sdm);
+      _scm = new SocialConnectionManager(this, _snp, _srh, http_port, _queue,
+                                         _sdm);
       _cert_published = false;
       _node.ConnectionTable.ConnectionEvent += ConnectHandler;
       _node.HeartBeatEvent += _scm.HeartBeatHandler;
@@ -358,6 +365,31 @@ namespace SocialVPN {
     }
 
     /*
+     * Add a friend from socialvpn by uid.
+     * @param uid the friend's userid to be added.
+     */
+    public void AddUser(string uid) {
+      foreach (SocialUser friend in _friends.Values) {
+        if (friend.Uid == uid) {
+          AddFriend(friend);
+        }
+        //TODO - Make block friends persistent
+      }
+    }
+
+    /*
+     * Removes a friend from socialvpn by uid.
+     * @param uid the friend's userid to be removed.
+     */
+    public void RemoveUser(string uid) {
+      foreach (SocialUser friend in _friends.Values) {
+        if (friend.Uid == uid) {
+          RemoveFriend(friend);
+        }
+      }
+    }
+
+    /*
      * Add a friend from socialvpn.
      * @param friend the friend to be added.
      */
@@ -380,6 +412,10 @@ namespace SocialVPN {
       _marad.UnregisterMapping(friend.Alias);
       friend.Access = SocialUser.AccessTypes.Block.ToString();
       GetState(true);
+    }
+
+    public void AddDnsMapping(string alias, string ip) {
+      _marad.AddDnsMapping(alias, ip);
     }
 
     /**

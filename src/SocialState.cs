@@ -31,18 +31,30 @@ namespace SocialVPN {
      */
     public string Certificate;
 
+    /**
+     * The local user's status
+     */ 
     public string Status;
 
+    /**
+     * A message used by the browser
+     */ 
     public string Message;
 
     /**
      * The local user.
      */
     public SocialUser LocalUser;
+
     /**
      * The list of friends.
      */
     public SocialUser[] Friends;
+
+    /**
+     * The list of blocked friends.
+     */
+    public List<string> BlockedFriends;
 
   }
 }
