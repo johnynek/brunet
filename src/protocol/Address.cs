@@ -33,7 +33,7 @@ namespace Brunet
    * they cannot be changed
    */
 
-  public abstract class Address : System.IComparable, Brunet.ICopyable
+  public abstract class Address : System.IComparable<Address>, System.IComparable, Brunet.ICopyable
   {
 
 #if BRUNET_SIMULATOR
@@ -124,12 +124,13 @@ namespace Brunet
       while( (this_byte & _mask[idx]) != 0 );
       return consecutive_ones;
     }
-
+    public virtual int CompareTo(Address obj) {
+      return this._buffer.CompareTo(obj._buffer);
+    }
     /**
      * Compares them by treating them as MSB first integers
      */
     public virtual int CompareTo(object obj) {
-      if( obj == this ) { return 0; }
       Address a = obj as Address;
       if( null != a ) {
         return this._buffer.CompareTo( a._buffer );
