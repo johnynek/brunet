@@ -209,7 +209,7 @@ namespace SocialVPN {
     protected string GetDnsMappingHandler(string dhtKey, string query) {
       string response = String.Empty;
       if (_friends.ContainsKey(dhtKey)) {
-        response = _sdm.GetMapping(query);
+        response = _sdm.GetMapping(query) + DELIM + query;
         ProtocolLog.WriteIf(SocialLog.SVPNLog, 
                             String.Format("DNS MAPPING HANDLER: {0} {1} {2}",
                             DateTime.Now.TimeOfDay, dhtKey, query));
@@ -290,13 +290,13 @@ namespace SocialVPN {
           _friends[dhtKey].Time = SocialUser.TIMEDEFAULT;
           ProtocolLog.WriteIf(SocialLog.SVPNLog, e.Message);
           ProtocolLog.WriteIf(SocialLog.SVPNLog, 
-                             String.Format("SEARCH FRIEND FAILURE: {0} {1} {2}",
-                             DateTime.Now.TimeOfDay, dhtKey, address));
+                         String.Format("SEARCH FRIEND FAILURE: {0} {1} {2} {3]",
+                         DateTime.Now.TimeOfDay, dhtKey, address, query));
         }
       };
       ProtocolLog.WriteIf(SocialLog.SVPNLog, 
-                          String.Format("SEARCH FRIEND REQUEST: {0} {1} {2}",
-                          DateTime.Now.TimeOfDay, dhtKey, address));
+                      String.Format("SEARCH FRIEND REQUEST: {0} {1} {2} {3}",
+                      DateTime.Now.TimeOfDay, dhtKey, address, query));
 
       ISender sender = new AHExactSender(_node, addr);
       _rpc.Invoke(sender, q, "SocialVPN.GetDnsMapping", _local_user.DhtKey,

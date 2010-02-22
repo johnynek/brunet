@@ -146,7 +146,7 @@
       <sources failonempty="true">
         <include name="*.cs"/>
       </sources>
-      <references  basedir="${build.dir}">
+      <references basedir="${build.dir}">
         <include name="Brunet.dll" />
         <include name="Brunet.Dht.dll" />
         <include name="Brunet.DhtService.dll" />

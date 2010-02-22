@@ -256,22 +256,6 @@ namespace SocialVPN {
   public class JabberNetworkTester {
     [Test]
     public void JabberNetworkTest() {
-      string userid = "pierre@pdebian64";
-      Certificate cert = SocialUtils.CreateCertificate(userid,
-        "Pierre St Juste", "testpc", "version", "country", "address", 
-        "certdir", "path");
-      SocialUser user = new SocialUser(cert.X509.RawData);
-      BlockingQueue queue = new BlockingQueue();
-      JabberNetwork jnetwork = new JabberNetwork(user, cert.X509.RawData, 
-          queue, "5222");
-      jnetwork.Login("jabber", userid,"stjuste");
-      Console.WriteLine("Waiting 5 seconds for resuls");
-      System.Threading.Thread.Sleep(5000);
-      Console.WriteLine("Done waiting for results");
-      foreach(string friend in jnetwork.GetFriends()) Console.WriteLine(friend);
-      jnetwork.GetFingerprints(new string[] {userid});
-      jnetwork.StoreFingerprint();
-      jnetwork.Logout();
     }
   } 
 #endif

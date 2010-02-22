@@ -220,7 +220,7 @@ namespace SocialVPN {
           buffer = SocialUtils.ReadFileBytes("pic.png");
           response.ContentType = "image/png";
         }
-        else if (request.RawUrl == "/dns") {
+        else if (request.RawUrl == "/sdns") {
           responseString = DnsHTMLText;
           response.ContentType = "text/html";
         }

@@ -79,7 +79,6 @@ namespace SocialVPN {
       }
       WriteToFile(rsa.ExportCspBlob(true), keyPath);
       WriteToFile(cert.X509.RawData, lc_path);
-
       return cert;
     }
 

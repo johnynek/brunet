@@ -45,7 +45,12 @@ namespace SocialVPN {
     /**
      * The current version of SocialVPN.
      */
-    public const string VERSION = "SVPN_0.3.X";
+    public const string VERSION = "SVPN_0.3";
+
+    /**
+     * The current country of SocialVPN.
+     */
+    public const string COUNTRY = "country";
 
     /**
      * The suffix for the DNS names.
@@ -395,8 +400,8 @@ namespace SocialVPN {
      */
     protected void AddFriend(SocialUser friend) {
       Address addr = AddressParser.Parse(friend.Address);
-      friend.IP = _marad.RegisterMapping(friend.Alias, addr);
-      _node.ManagedCO.AddAddress(addr);
+      //friend.IP = _marad.RegisterMapping(friend.Alias, addr);
+      //_node.ManagedCO.AddAddress(addr);
       friend.Access = SocialUser.AccessTypes.Allow.ToString();
       _srh.PingFriend(friend);
       GetState(true);
@@ -408,8 +413,8 @@ namespace SocialVPN {
      */
     protected void RemoveFriend(SocialUser friend) {
       Address addr = AddressParser.Parse(friend.Address);
-      _node.ManagedCO.RemoveAddress(addr);
-      _marad.UnregisterMapping(friend.Alias);
+      //_node.ManagedCO.RemoveAddress(addr);
+      //_marad.UnregisterMapping(friend.Alias);
       friend.Access = SocialUser.AccessTypes.Block.ToString();
       GetState(true);
     }

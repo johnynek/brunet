@@ -53,7 +53,6 @@ namespace SocialVPN {
     public bool AddMapping(DnsMapping mapping) {
       Console.WriteLine("Adding " + mapping);
       _mappings.Add(mapping.Alias, mapping);
-      //TODO - Add to RpcIpopNode (real dns system)
       _node.AddDnsMapping(mapping.Alias, mapping.Address);
       return true;
     }
@@ -149,14 +148,6 @@ namespace SocialVPN {
     [Test]
     public void SocialDnsManagerTest() {
       Assert.AreEqual("test", "test");
-      SocialDnsManager sdm = new SocialDnsManager();
-      DnsMapping mapping = new DnsMapping("www.pierre.sdns", "127.0.0.1",
-        "source", "rating");
-      sdm.AddMapping(mapping);
-      sdm.AddTmpMapping(mapping);
-      sdm.GetMapping(mapping.Alias);
-      string xml = sdm.GetState();
-      Console.WriteLine(xml);
     }
   } 
 #endif

@@ -46,7 +46,7 @@ namespace SocialVPN {
       NodeConfig node_config = Utils.ReadConfig<NodeConfig>(config_path);
       if(!System.IO.Directory.Exists(node_config.Security.CertificatePath)) {
         string version = SocialNode.VERSION;
-        string country = "undefined";
+        string country = SocialNode.COUNTRY;
         
 
         node_config.NodeAddress = Utils.GenerateAHAddress().ToString();
@@ -60,7 +60,6 @@ namespace SocialVPN {
           CreateConfig();
         }
 
-        Console.WriteLine("Certificate creation successful");
         return true;
       }
       return false;
