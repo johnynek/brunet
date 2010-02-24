@@ -210,50 +210,59 @@ public class Heap<T> : IEnumerable<T> {
   // Non-Public methods:
 
   protected void InsertAt(HeapNode<T> parent, HeapNode<T> new_node) {
-    if( parent.Child0 == null ) {
-      new_node.Parent = parent;
-      parent.Child0 = new_node;
-      FixChildrenCount(parent);
-      FixHeapProperty(new_node);
-    }
-    else if( parent.Child1 == null ) {
-      new_node.Parent = parent;
-      parent.Child1 = new_node;
-      FixChildrenCount(parent);
-      FixHeapProperty(new_node);
-    }
-    else {
-      //Both children exist, go to the one with the minimum children:
-      if( parent.Child0.Children < parent.Child1.Children) {
-        InsertAt(parent.Child0, new_node);
+    while(true) {
+      if( parent.Child0 == null ) {
+        new_node.Parent = parent;
+        parent.Child0 = new_node;
+        IncrementChildrenCount(parent);
+        FixHeapProperty(new_node);
+        return;
+      }
+      else if( parent.Child1 == null ) {
+        new_node.Parent = parent;
+        parent.Child1 = new_node;
+        IncrementChildrenCount(parent);
+        FixHeapProperty(new_node);
+        return;
       }
       else {
-        InsertAt(parent.Child1, new_node);
+        //Both children exist, go to the one with the minimum children:
+        if( parent.Child0.Children < parent.Child1.Children) {
+          parent = parent.Child0;
+        }
+        else {
+          parent = parent.Child1;
+        }
       }
     }
   }
 
-  protected void FixChildrenCount(HeapNode<T> node) {
-    if( node == null ) { return; }
-    int c0 = node.Child0 != null ? node.Child0.Children + 1 : 0;
-    int c1 = node.Child1 != null ? node.Child1.Children + 1 : 0;
-    node.Children = c0 + c1;
-    FixChildrenCount(node.Parent);
+  protected void IncrementChildrenCount(HeapNode<T> node) {
+    while(node != null) {
+      node.Children += 1;
+      node = node.Parent;
+    }
   }
 
   protected void FixHeapProperty(HeapNode<T> child) {
     HeapNode<T> parent = child.Parent;
-    if( parent == null ) { return; }
-    if( _comp.Compare(child.Value, parent.Value) < 0 ) {
+    while(parent != null) {
+      if( _comp.Compare(child.Value, parent.Value) < 0 ) {
       /*
        * The Parent should be (and was) smaller than all other children, but this
        * child is even smaller, so just swap it, and check above
        */
-      T val = parent.Value;
-      parent.Value = child.Value;
-      child.Value = val;
-      //Now fix the parent:
-      FixHeapProperty(parent);
+        T val = parent.Value;
+        parent.Value = child.Value;
+        child.Value = val;
+        //Now go up!
+        child = parent;
+        parent = child.Parent;
+      }
+      else {
+        //The parent already satisfy the heap property, stop here!
+        return;
+      }
     }
   }
 
