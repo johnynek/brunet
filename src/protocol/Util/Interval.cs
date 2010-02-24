@@ -266,7 +266,11 @@ public class Interval<T> : IComparable, IComparable<Interval<T>>, IComparable<T>
     if( new_cmp < 0 ) {
       return new Interval<T>(new_start, new_s_open, new_end, new_e_open,  _comp); 
     }
-    else if( new_cmp == 0 ) {
+    else if( new_cmp > 0 ) {
+      //Start can't be before end
+      return null;
+    }
+    else {
       //This is only a valid interval if it is closed, i.e. it is a single
       //point:
       if( new_s_open || new_e_open ) {
@@ -277,9 +281,6 @@ public class Interval<T> : IComparable, IComparable<Interval<T>>, IComparable<T>
         //Both ends are closed:
         return new Interval<T>(new_start, false, new_end, false, _comp);
       }
-    }
-    else {
-      return null; 
     }
   }
   
