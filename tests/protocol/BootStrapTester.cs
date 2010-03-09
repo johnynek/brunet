@@ -29,6 +29,14 @@ using System.Security.Cryptography;
 using System.Diagnostics;
 using System.Text;
 
+using Brunet.Concurrent;
+using Brunet.Connections;
+using Brunet.Collections;
+using Brunet.Transport;
+using Brunet.Util;
+
+using Brunet.Symphony;
+using Brunet.Messaging;
 namespace Brunet 
 {
   /** 
@@ -549,14 +557,14 @@ namespace Brunet
           }
     }
     ArrayList c_threads = new ArrayList(); 
-	  var xrms = new Brunet.Rpc.XmlRpcManagerServer(20000);
+    //var xrms = new Brunet.Rpc.XmlRpcManagerServer(20000);
     int cnt = 0;
     foreach( Node item in rnd_list)
     {
       Thread t = new Thread( item.Connect );
       c_threads.Add(t);
       t.Start();
-      xrms.Add(item, "xm" + cnt++ + ".rem");
+      //xrms.Add(item, "xm" + cnt++ + ".rem");
       Console.WriteLine(item.Address.ToString()
 		      + " RemoteTAs count: " + item.RemoteTAs.Count);
       total_started++;

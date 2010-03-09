@@ -103,7 +103,7 @@
                   <include name="${filename}" />
                 </sources>
                 <references>
-                   <include name="Brunet.XmlRpc.dll"/>
+                   <include name="Brunet.Services.XmlRpc.dll"/>
                    <include name="${lib.dir}/NUnit.Framework.dll" />
                    <include name="${lib.dir}/${assembly}.dll" />
                    <include name="${lib.dir}/${assembly}-TestUtil.dll" />

@@ -26,6 +26,11 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Diagnostics;
 
+using Brunet.Util;
+using Brunet.Transport;
+
+using Brunet.Messaging;
+using Brunet.Symphony;
 namespace Brunet
 {
   public class EchoTester : IDataHandler

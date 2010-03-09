@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<UserList xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
-  <Users>
-    <User Alias="Jesse" Email="jsab@pobox.com" IsDefault="true"/>
-    <User Alias="Cantor2" Email="two@cantor.ee.ucla.edu" IsDefault="false"/>
-    <User Alias="Cantor3" Email="three@cantor.ee.ucla.edu" IsDefault="false"/>
-  </Users>
-</UserList>

@@ -5,7 +5,10 @@ using System.Xml;
 using System.Xml.Serialization;
 using System.Security.Cryptography;
 using System.Threading; 
+using Brunet.Transport;
+using Brunet.Connections;
 
+using Brunet.Symphony;
 namespace Brunet {
   public class BrokenRingTester {
     public static void Main(string []args) {

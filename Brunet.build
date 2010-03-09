@@ -73,13 +73,12 @@
       name="configured"
       value="true"/>
 
-    <nant buildfile="src/protocol/default.build" />
-    <nant buildfile="src/dht/default.build" />
-    <nant buildfile="src/coordinate/default.build" />
-    <nant buildfile="src/apps/default.build" />
-    <nant buildfile="src/xmlrpc/default.build" />
-    <nant buildfile="src/Security/default.build" />
-    <nant buildfile="src/BasicNode/default.build" />
+    <nant buildfile="src/Brunet/default.build" />
+    <nant buildfile="src/Brunet/Services/Dht/default.build" />
+    <nant buildfile="src/Brunet/Services/Coordinate/default.build" />
+    <nant buildfile="src/Brunet/Services/XmlRpc/default.build" />
+    <nant buildfile="src/Brunet/Security/default.build" />
+    <nant buildfile="src/Brunet/Applications/default.build" />
     <nant buildfile="tests/util/default.build" />
     <nant buildfile="tests/protocol/default.build" />
 
@@ -92,12 +91,12 @@
       name="configured"
       value="true"/>
 
-    <nant buildfile="src/protocol/default.build" target="plab-log"/>
-    <nant buildfile="src/apps/default.build" />
-    <nant buildfile="src/dht/default.build" />
-    <nant buildfile="src/coordinate/default.build" />
+    <nant buildfile="src/Brunet/default.build" target="plab-log"/>
+    <nant buildfile="src/Brunet/Services/Dht/default.build" />
+    <nant buildfile="src/Brunet/Services/Coordinate/default.build" />
+    <nant buildfile="src/Brunet/Services/XmlRpc/default.build" />
     <nant buildfile="tests/util/default.build" />
-    <nant buildfile="tests/protocol/default.build" target="plab-log"/>
+    <nant buildfile="tests/Brunet/default.build" target="plab-log"/>
 
   </target>
  
@@ -184,7 +183,7 @@
       name="configured"
       value="true"/>
 
-    <nant buildfile="tests/protocol/default.build" />   
+    <nant buildfile="tests/Brunet/default.build" />   
 
   </target>
 
@@ -193,7 +192,7 @@
           depends="build">
     <zip zipfile="basicnode.zip"
          encoding="utf-8">
-      <fileset basedir="src/BasicNode/build/" prefix="">
+      <fileset basedir="src/Brunet/Applications/build/" prefix="">
           <include name="*" />
       </fileset>
     </zip>
@@ -201,10 +200,11 @@
   </target>
 
   <target name="simulator" description="compiles the simulator">
-    <nant target="simulator" buildfile="src/protocol/default.build" />
-    <nant buildfile="src/Security/default.build" />
-    <nant buildfile="src/coordinate/default.build" />
-    <nant buildfile="src/dht/default.build" />
+    <nant target="simulator" buildfile="src/Brunet/default.build" />
+    <nant buildfile="src/Brunet/Services/Dht/default.build" />
+    <nant buildfile="src/Brunet/Services/Coordinate/default.build" />
+    <nant buildfile="src/Brunet/Services/XmlRpc/default.build" />
+    <nant buildfile="src/Brunet/DistributedServices/default.build" />
     <nant buildfile="tests/simulator/default.build" />
     <nant buildfile="tests/graph/default.build" />
   </target>

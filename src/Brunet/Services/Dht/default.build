@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+
+<project name="Brunet" default="build">
+  <description> Builds Brunet.Services.Dht.dll </description>
+  <property name="build.dir" value="build"/>
+  <property name="lib.dir" value="../../../../lib"/>
+
+  <target name="test" description="Configures a debug build">
+    <copy todir="${build.dir}">
+       <fileset basedir="${lib.dir}">
+          <include name="Brunet.dll" />
+       </fileset>
+    </copy>
+    <csc target="library" define="BRUNET_NUNIT" output="${build.dir}/Brunet.Services.Dht.Test.dll">
+      <sources failonempty="true">
+        <include name="*.cs"/>
+      </sources>
+      <references>
+        <include name="${build.dir}/Brunet.dll" />
+        <include name="nunit.framework.dll" />
+      </references>
+    </csc>
+    <nunit2>
+      <formatter type="Plain" />
+      <test assemblyname="${build.dir}/Brunet.Services.Dht.Test.dll"/>
+    </nunit2>
+  </target>
+
+  <target name="build" description="Builds Brunet.Services.Dht.dll for release">
+    <copy todir="${build.dir}">
+       <fileset basedir="${lib.dir}">
+          <include name="Brunet.dll" />
+       </fileset>
+    </copy>
+    <csc target="library" define="" output="${build.dir}/Brunet.Services.Dht.dll">
+      <sources failonempty="true">
+        <include name="*.cs"/>
+      </sources>
+      <references basedir="${build.dir}">
+        <include name="Brunet.dll" />
+      </references>
+    </csc>
+    <copy todir="${lib.dir}">
+      <fileset basedir="${build.dir}">
+           <include name="Brunet.Services.Dht.dll" />
+      </fileset>
+    </copy>
+  </target>
+</project>

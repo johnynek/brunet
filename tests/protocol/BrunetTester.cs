@@ -34,7 +34,9 @@ using System.Security.Cryptography;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
+using Brunet.Transport;
 
+using Brunet.Symphony;
 namespace Brunet
 {
 #if ECHO
