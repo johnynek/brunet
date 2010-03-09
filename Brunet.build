@@ -118,9 +118,11 @@
       dir="${build.dir}/${package.name}"
       failonerror="false"/>
 
-    <delete
-      file="${lib.dir}/${assembly}.dll"
-      failonerror="false"/>
+    <delete failonerror="false">
+      <fileset basedir="lib/">
+        <include name="Brunet*.dll"/>
+      </fileset>
+    </delete>
 
     <delete
       file="${lib.dir}/${assembly}-TestUtil.dll"
