@@ -1,0 +1,21 @@
+Collections : 
+
+Concurrent : Collections
+
+Util : Collections, Concurrent
+
+Messaging : Collections, Concurrent, Util
+
+Transport : Collections, Concurrent, Messaging, Util
+
+Connections : Collections, Concurrent, Messaging, Transport, Util
+
+Symphony : Collections, Concurrent, Connections, Util, Messaging, Transport
+
+Security : Collections, Concurrent, Connections, Util, Messaging, Symphony, Transport
+
+Tunnel : Collections, Concurrent, Connections, Util, Messaging, Symphony, Transport
+
+or subsuming the dependencies of each module:
+
+Collections < Concurrent < Util < Messaging < Transport < Connections < Symphony < (Security | Tunnel)

@@ -1,0 +1,23 @@
+PURPOSE
+==========
+The Brunet.Messaging module provides a basic model for datagram style
+messaging, and services which can be build on top of such a model.  There is
+nothing specific to P2P protocols here, but only communication tools that make
+building systems easier.
+
+MODULE DEPENDENCIES
+==========
+This code depends on:
+Brunet.Collections
+Brunet.Concurrent
+Brunet.Util
+
+TODO
+==========
+This module currently depends on Node, which depends on almost everything.  In
+order to improve modularization, that should be fixed.  The path I suggest is
+to remove the Node dependency in ReqrepManager and RpcManager.  Also,
+SenderFactory should not take a Node and a string to create a sender, it
+should probably take an object and sender.  The object can represent the
+"context" that the sender is being created in.  When the Node creates a
+sender, it can do so with itself as the context.
