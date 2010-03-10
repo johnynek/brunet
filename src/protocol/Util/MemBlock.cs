@@ -477,6 +477,12 @@ public class MemBlock : System.IComparable, System.ICloneable, Brunet.ICopyable 
     return sb.ToString();
   }
 
+  public override string ToString() {
+    return System.String.Format("{0}, length: {1}, hash: {2}", GetType(),
+        Length, GetHashCode());
+  }
+
+
 #if BRUNET_NUNIT
   [Test]
   public void StringTests() {
