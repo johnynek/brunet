@@ -13,6 +13,7 @@
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${lib.dir}">
         <include name="Brunet.dll"/>
+        <include name="NDesk.Options.dll"/>
       </fileset>
     </copy>
 
@@ -22,11 +23,14 @@
         <include name="GraphEdge.cs"/>
         <include name="GraphNode.cs"/>
         <include name="SendPacketResult.cs"/>
+        <include name="Parameters.cs"/>
         <include name="Main.cs"/>
       </sources>
       <references basedir="${build.dir}">
         <include name="Brunet.dll"/>
+        <include name="NDesk.Options.dll"/>
       </references>
     </csc>
+
   </target>
 </project>
