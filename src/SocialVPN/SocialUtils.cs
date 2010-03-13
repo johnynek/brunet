@@ -65,28 +65,44 @@ namespace SocialVPN {
                                                 string pcid, string version,
                                                 string country, 
                                                 string address,
-                                                string certDir,
                                                 string keyPath) {
       RSACryptoServiceProvider rsa = new RSACryptoServiceProvider();  
       CertificateMaker cm = new CertificateMaker(country, version, pcid,
                                                  name, uid, rsa, address);
       Certificate cert = cm.Sign(cm, rsa);
-      
-      string lc_path = Path.Combine(certDir, SocialNode.CERTFILENAME);
 
-      if(!Directory.Exists(certDir)) {
-        Directory.CreateDirectory(certDir);
+      if (keyPath != null) {
+        string lc_path = "local.cert";
+        string lc_path2 = pcid + ".cert";
+        WriteToFile(rsa.ExportCspBlob(true), keyPath);
+        WriteToFile(cert.X509.RawData, lc_path);
+        WriteToFile(cert.X509.RawData, lc_path2);
       }
-      WriteToFile(rsa.ExportCspBlob(true), keyPath);
-      WriteToFile(cert.X509.RawData, lc_path);
       return cert;
     }
 
-    public static string GetHashString(byte[] data) {
+    public static string GetSHA1HashString(string input) {
+      byte[] data = Encoding.Default.GetBytes(input.ToLower());
+      return GetSHA1HashString(data);
+    }
+
+    public static string GetSHA1HashString(byte[] data) {
       SHA1CryptoServiceProvider sha1 = new SHA1CryptoServiceProvider();
       string hash = BitConverter.ToString(sha1.ComputeHash(data));
       hash = hash.Replace("-", "");
-      return hash;
+      return hash.ToLower();
+    }
+
+    public static string GetMD5HashString(string input) {
+      byte[] data = Encoding.Default.GetBytes(input.ToLower());
+      return GetMD5HashString(data);
+    }
+
+    public static string GetMD5HashString(byte[] data) {
+      MD5CryptoServiceProvider sha1 = new MD5CryptoServiceProvider();
+      string hash = BitConverter.ToString(sha1.ComputeHash(data));
+      hash = hash.Replace("-", "");
+      return hash.ToLower();
     }
 
     /**

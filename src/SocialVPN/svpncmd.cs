@@ -41,141 +41,108 @@ namespace SocialVPN {
       }
     }
 
-    public static bool CreateCertificate(string uid, string pcid, string name) {
-      string config_path = "brunet.config";
-      NodeConfig node_config = Utils.ReadConfig<NodeConfig>(config_path);
-      if(!System.IO.Directory.Exists(node_config.Security.CertificatePath)) {
-        string version = SocialNode.VERSION;
-        string country = SocialNode.COUNTRY;
-        
-
-        node_config.NodeAddress = Utils.GenerateAHAddress().ToString();
-        Utils.WriteConfig(config_path, node_config);
-        SocialUtils.CreateCertificate(uid, name, pcid, version, country,
-                                      node_config.NodeAddress, 
-                                      node_config.Security.CertificatePath,
-                                      node_config.Security.KeyPath);
-
-        if(!System.IO.File.Exists("social.config")) {
-          CreateConfig();
-        }
-
-        return true;
-      }
-      return false;
-    }
-
-    public static void CreateConfig() {
+    public static void CreateConfig(string uid) {
       SocialConfig social_config = new SocialConfig();
       social_config.BrunetConfig = "brunet.config";
       social_config.IpopConfig = "ipop.config";
       social_config.HttpPort = "58888";
       social_config.JabberPort = "5222";
-      social_config.GlobalAccess = "off";
+      social_config.JabberID = uid;
+      social_config.JabberPass = "password";
+      social_config.AutoLogin = false;
       Utils.WriteConfig("social.config", social_config);
     }
 
-    public static void MakeCall(string method, string fprs) {
+    public static void CreateCertificate(string uid, string pcid, string name) {
+      CreateConfig(uid);
+      string config_path = "brunet.config";
+      NodeConfig node_config = Utils.ReadConfig<NodeConfig>(config_path);
+      string version = "0.4";
+      string country = "country";
+
+      node_config.NodeAddress = Utils.GenerateAHAddress().ToString();
+      Utils.WriteConfig(config_path, node_config);
+      SocialUtils.CreateCertificate(uid, name, pcid, version, country,
+                                    node_config.NodeAddress, 
+                                    node_config.Security.KeyPath);
+
+    }
+
+    public static string Add(string filename, string uid, string ip) {
+      byte[] certData = SocialUtils.ReadFileBytes(filename);
+      string cert = Convert.ToBase64String(certData);
+
       Dictionary<string, string> parameters = 
         new Dictionary<string, string>();
 
-      parameters["m"] = method;
-      if(method == "add") {
-        parameters["uids"] = fprs;
-      }
-      else {
-        parameters["fprs"] = fprs;
-      }
-      try {
-        SocialUtils.Request(_url, parameters);
-      } catch(Exception e) {
-        Console.WriteLine(e.Message);
-        Console.WriteLine("Could not connect to SocialVPN, make sure" +
-                          "process is running");
-      }
-      System.Threading.Thread.Sleep(2000);
-      GetState();
+      parameters["m"] = "add";
+      parameters["cert"] = cert;
+      parameters["uid"] = uid;
+      if (ip !=null) parameters["ip"] = ip;
+      return Print(SocialUtils.Request(_url, parameters));
     }
 
-    public static void Login(string user, string pass) {
+    public static string Remove(string alias) {
+      Dictionary<string, string> parameters = 
+        new Dictionary<string, string>();
+
+      parameters["m"] = "remove";
+      parameters["alias"] = alias;
+      return Print(SocialUtils.Request(_url, parameters));
+    }
+
+    public static string Block(string uid) {
+      Dictionary<string, string> parameters = 
+        new Dictionary<string, string>();
+
+      parameters["m"] = "block";
+      parameters["uid"] = uid;
+      return Print(SocialUtils.Request(_url, parameters));
+    }
+
+    public static string Unblock(string uid) {
+      Dictionary<string, string> parameters = 
+        new Dictionary<string, string>();
+
+      parameters["m"] = "unblock";
+      parameters["uid"] = uid;
+      return Print(SocialUtils.Request(_url, parameters));
+    }
+
+    public static string Login(string user, string pass) {
       Dictionary<string, string> parameters = 
         new Dictionary<string, string>();
 
       parameters["m"] = "login";
-      parameters["id"] = "jabber";
       parameters["user"] = user;
       parameters["pass"] = pass;
-
-      try {
-        SocialUtils.Request(_url, parameters);
-      } catch(Exception e) {
-        Console.WriteLine(e.Message);
-        Console.WriteLine("Could not connect to SocialVPN, make sure" +
-                          "process is running");
-      }
-      System.Threading.Thread.Sleep(2000);
-      GetState();
+      return Print(SocialUtils.Request(_url, parameters));
     }
 
-    public static void Logout() {
+    public static string Logout() {
       Dictionary<string, string> parameters = 
         new Dictionary<string, string>();
 
       parameters["m"] = "logout";
-
-      try {
-        SocialUtils.Request(_url, parameters);
-      } catch(Exception e) {
-        Console.WriteLine(e.Message);
-        Console.WriteLine("Could not connect to SocialVPN, make sure" +
-                          "process is running");
-      }
-      System.Threading.Thread.Sleep(2000);
-      GetState();
+      return Print(SocialUtils.Request(_url, parameters));
     }
 
-    public static void GetState() {
-      string stateString = SocialUtils.Request(_url);
-      PrintInfo(stateString);
-      PrintFriends(stateString);
-    }
-
-    public static void PrintInfo(string stateString) {
-      SocialState state = SocialUtils.XmlToObject<SocialState>(stateString);
-      Console.WriteLine("Name: {0}\nAlias: {1}\nIP: {2}\nStatus: {3}\n" +
-                        "Fingerprint: {4}\n",
-                         state.LocalUser.Name, state.LocalUser.Alias,
-                         state.LocalUser.IP, state.Status, state.LocalUser.DhtKey);
-    }
-
-    public static void PrintFriends(string stateString) {
-      SocialState state = SocialUtils.XmlToObject<SocialState>(stateString);
-      Console.WriteLine("{0},{1},{2},{3},{4}",
-                          "Name", "Alias", "IP", "Status", 
-                          "Fingerprint");
-      foreach(SocialUser friend in state.Friends) {
-        string status = "Online";
-        if(friend.Time == "0" & friend.Access == "Allow") {
-          status = "Offline";
-        }
-        else if(friend.Access == "Block") {
-          status = "Blocked";
-        }
-        Console.WriteLine("{0},{1},{2},{3},{4}",
-                          friend.Name, friend.Alias, friend.IP, 
-                          status, friend.DhtKey);
-      }
+    public static string Print(string output) {
+      Console.WriteLine(output);
+      return output;
     }
 
     public static void ShowHelp() {
       string help = "usage: svpncmd.exe <option> <fingerprint>\n\n" +
                     "options:\n" +
-                    "  info - shows current user's info and friends\n" +
-                    "  login <user> <pass> - log in user\n" +
+                    "  cert <jabberid> <pcid> - create cert w/pcid\n" +
+                    "  login <pass> - log in user\n" +
                     "  logout - log out user\n" +
-                    "  add email fpr - add a friend by fingerprint\n" +
-                    "  unblock fpr - unblock a friend's pc by fingerprint\n" +
-                    "  block fpr - block a friend's by fingerprint\n" + 
+                    "  add <certfile> <uid> - add by certfile\n" +
+                    "  addip <certfile> <uid> <ip> - add by certfile w/ip\n" +
+                    "  remove <alias> - remove by alias\n" +
+                    "  block <uid> - block by uid\n" + 
+                    "  unblock <uid> - unblock by uid\n" + 
                     "  help - shows this help";
       Console.WriteLine(help);
     }
@@ -185,35 +152,46 @@ namespace SocialVPN {
      */
     public static void Main(string[] args) {
       SetUrl();
-      if(args.Length == 0) {
-        ShowHelp();
-      }
-      else if(args[0] == "help") {
-        ShowHelp();
-      }
-      else if(args[0] == "info") {
-        GetState();
-      }
-      else if(args[0] == "cert") {
-        CreateCertificate(args[1], args[2], args[3]);
-      }
-      else if(args[0] == "login") {
-        Login(args[1], args[2]);
-      }
-      else if(args[0] == "logout") {
-        Logout();
-      }
-      else if(args[0] == "add") {
-        MakeCall(args[0], args[1] + " " + args[2]);
-      }
-      else if(args[0] == "unblock") {
-        MakeCall("allow", args[1]);
-      }
-      else if(args[0] == "block") {
-        MakeCall("block", args[1]);
-      }
-      else {
-        ShowHelp();
+      switch (args[0]) {
+        case "help":
+          ShowHelp();
+          break;
+
+        case "cert":
+          CreateCertificate(args[1], args[2], args[1]);
+          break;
+
+        case "login":
+          Login(args[1], args[2]);
+          break;
+
+        case "logout":
+          Logout();
+          break;
+
+        case "add":
+          Add(args[1], args[2], null);
+          break;
+
+        case "addip":
+          Add(args[1], args[2], args[3]);
+          break;
+
+        case "remove":
+          Remove(args[1]);
+          break;
+
+        case "block":
+          Block(args[1]);
+          break;
+
+        case "unblock":
+          Unblock(args[1]);
+          break;
+
+        default:
+          ShowHelp();
+          break;
       }
     }
   }

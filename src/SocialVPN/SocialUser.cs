@@ -33,15 +33,11 @@ namespace SocialVPN {
    */
   public class SocialUser {
 
-    public const string TIMEDEFAULT = "0";
+    public const string STATUSDEFAULT = "offline";
 
     public const string IPDEFAULT = "0.0.0.0";
 
-    public const string ALIASDEFAULT = "unknown";
-
-    public const string PICDEFAULT = "pic.png";
-
-    public const string DHTPREFIX = "SVPN:";
+    public const string PICPREFIX = "http://www.gravatar.com/avatar/";
 
     public string Uid;
 
@@ -49,31 +45,23 @@ namespace SocialVPN {
 
     public string PCID;
 
+    public string Alias;
+
     public string Address;
 
     public string Fingerprint;
-
-    public string DhtKey;
 
     public string Country;
 
     public string Version;
 
-    public string Alias;
-
     public string IP;
 
-    public string Time;
-
-    public string Access;
+    public string Status;
 
     public  string Pic;
 
-    public enum AccessTypes {
-      Allow = 1,
-      Block = 2,
-      Pending = 3
-    }
+    public string Certificate;
 
     public SocialUser() {}
 
@@ -88,31 +76,19 @@ namespace SocialVPN {
      * @param cert X509 certificate.
      */
     public SocialUser(Certificate cert) {
-      Uid = cert.Subject.Email;
+      Uid = cert.Subject.Email.ToLower();
       Name = cert.Subject.Name;
       PCID = cert.Subject.OrganizationalUnit;
       Address = cert.NodeAddress;
       Version = cert.Subject.Organization;
-      Fingerprint = SocialUtils.GetHashString(cert.X509.RawData);
-      DhtKey = DHTPREFIX + Fingerprint;
+      Fingerprint = SocialUtils.GetSHA1HashString(cert.X509.RawData);
       Country = cert.Subject.Country;
-      Access = AccessTypes.Block.ToString();
-      Time = TIMEDEFAULT;
+      Status = STATUSDEFAULT;
       IP = IPDEFAULT;
-      Alias = ALIASDEFAULT;
-      Pic = PICDEFAULT;
-   }
-
-  /**
-   * Override ToString method.
-   * @return the string representation of SocialUser.
-   */
-  public override string ToString() {
-    string dl = "\n";
-    return Uid + dl + Name + dl + PCID + dl + Address + dl + Version + dl + 
-     DhtKey + dl + Country + dl + Access + dl + Time + dl + IP + dl + 
-     Alias + dl + Pic;
-   }
+      Pic = PICPREFIX + SocialUtils.GetMD5HashString(Uid);
+      Certificate = Convert.ToBase64String(cert.X509.RawData, 0,
+        cert.X509.RawData.Length, Base64FormattingOptions.InsertLineBreaks);
+    }
   }
 
 #if SVPN_NUNIT
@@ -120,6 +96,11 @@ namespace SocialVPN {
   public class SocialUserTester {
     [Test]
     public void SocialUserTest() {
+      Certificate cert = SocialUtils.CreateCertificate("ptony82@gmail.com",
+        "Pierre St Juste", "pcid", "version", "country", "address1234", null);
+      SocialUser user = new SocialUser(cert.X509.RawData);
+      string xml = SocialUtils.ObjectToXml1<SocialUser>(user);
+      Console.WriteLine(xml);
       Assert.AreEqual("test", "test");
     }
   } 

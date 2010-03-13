@@ -34,7 +34,12 @@ namespace SocialVPN {
 
     public string JabberPort;
 
-    public string GlobalAccess;
+    public string JabberHost;
 
+    public string JabberID;
+
+    public string JabberPass;
+
+    public bool AutoLogin;
   }
 }

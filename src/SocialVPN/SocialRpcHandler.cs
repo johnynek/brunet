@@ -52,7 +52,7 @@ namespace SocialVPN {
     /**
      * The P2P node.
      */
-    protected readonly StructuredNode _node;
+    protected readonly SocialNode _node;
 
     /**
      * The Rpc manager.
@@ -60,24 +60,9 @@ namespace SocialVPN {
     protected readonly RpcManager _rpc;
 
     /**
-     * The SocialUser object for local user.
-     */
-    protected readonly SocialUser _local_user;
-
-    /**
      * The list of friends.
      */
     protected readonly Dictionary<string, SocialUser> _friends;
-
-    /**
-     * The main blocking queue used for message passing between threads.
-     */
-    protected readonly BlockingQueue _queue;
-
-    /**
-     * This is the DnsManager that handles DNS functions.
-     */
-    protected readonly SocialDnsManager _sdm;
 
     /**
      * Constructor.
@@ -85,16 +70,12 @@ namespace SocialVPN {
      * @param localUser the local user object.
      * @param friends the list of friends.
      */
-    public SocialRpcHandler(StructuredNode node, SocialUser localUser,
-                           Dictionary<string, SocialUser> friends,
-                           BlockingQueue queue, SocialDnsManager sdm) {
+    public SocialRpcHandler(SocialNode node) {
       _node = node;
       _rpc = node.Rpc;
       _rpc.AddHandler("SocialVPN", this);
-      _local_user = localUser;
-      _friends = friends;
-      _queue = queue;
-      _sdm = sdm;
+      _friends = null;
+      //_friends = node.Friends;
     }
 
     /**
@@ -109,10 +90,6 @@ namespace SocialVPN {
       object result = null;
       try {
         switch (method) {
-          case "FriendPing":
-            result = FriendPingHandler((string)args[0], (string) args[1]);
-            break;
-
           case "GetDnsMapping":
             result = GetDnsMappingHandler((string)args[0], (string) args[1]);
             break;
@@ -132,72 +109,15 @@ namespace SocialVPN {
     }
 
     /**
-     * Pings a friend over the P2P network to see if online.
-     * @param friend the friend to ping.
-     */
-    public void PingFriend(SocialUser friend) {
-      if(friend.Time != SocialUser.TIMEDEFAULT) {
-        DateTime past = DateTime.Parse(friend.Time);
-        TimeSpan last_checked = DateTime.Now - past;
-        if(last_checked.Minutes < 5) {
-          return;
-        };
-      }
-      FriendPing(friend.Address, friend.DhtKey);
-    }
-
-    /**
-     * Ping all the friends.
-     */
-    public void PingFriends() {
-      foreach(SocialUser friend in _friends.Values) {
-        if(friend.Access == SocialUser.AccessTypes.Allow.ToString()) {
-          PingFriend(friend);
-        }
-      }
-    }
-
-    /**
      * Send query to all friends.
      * @param query the query to search.
      */
     public void SearchFriends(string query) {
       foreach(SocialUser friend in _friends.Values) {
         if(friend.Time != SocialUser.TIMEDEFAULT) {
-          FriendSearch(friend.Address, friend.DhtKey, query);
+          FriendSearch(friend.Address, query);
         }
       }
-    }
-
-    /**
-     * Handles a ping request from a friend.
-     * @param dhtkey the identifier for the friend making the request.
-     * @param uid the user identifier for the friend (jabber id).
-     * @return the respond sent back online/offline.
-     */
-    protected string FriendPingHandler(string dhtKey, string uid) {
-      string response = ResponseTypes.Offline.ToString();
-
-      if(_friends.ContainsKey(dhtKey)) { 
-        if(_friends[dhtKey].Access == 
-           SocialUser.AccessTypes.Allow.ToString()) {
-          _friends[dhtKey].Time = DateTime.Now.ToString();
-          response = ResponseTypes.Online.ToString();
-          ProtocolLog.WriteIf(SocialLog.SVPNLog, 
-                              String.Format("PING FRIEND HANDLER: {0} {1}",
-                              DateTime.Now.TimeOfDay, dhtKey,
-                              _friends[dhtKey].Address));
-        }
-      }
-      else {
-        ProtocolLog.WriteIf(SocialLog.SVPNLog, 
-                            String.Format("FIRE SYNC: {0} {1} {2}",
-                            DateTime.Now.TimeOfDay, dhtKey, uid));
-
-        _queue.Enqueue(new QueueItem(QueueItem.Actions.DhtAdd, dhtKey));
-        _queue.Enqueue(new QueueItem(QueueItem.Actions.Sync, uid));
-      }
-      return _local_user.DhtKey + DELIM + response;
     }
 
     /**
@@ -209,7 +129,7 @@ namespace SocialVPN {
     protected string GetDnsMappingHandler(string dhtKey, string query) {
       string response = String.Empty;
       if (_friends.ContainsKey(dhtKey)) {
-        response = _sdm.GetMapping(query) + DELIM + query;
+        //response = _sdm.GetMapping(query) + DELIM + query;
         ProtocolLog.WriteIf(SocialLog.SVPNLog, 
                             String.Format("DNS MAPPING HANDLER: {0} {1} {2}",
                             DateTime.Now.TimeOfDay, dhtKey, query));
@@ -222,59 +142,7 @@ namespace SocialVPN {
      * @param address the address of the friend.
      * @param dhtKey the friend's dhtkey.
      */
-    protected void FriendPing(string address, string dhtKey) {
-      Address addr = AddressParser.Parse(address);
-      Channel q = new Channel();
-      q.CloseAfterEnqueue();
-      q.CloseEvent += delegate(object obj, EventArgs eargs) {
-        try {
-          RpcResult res = (RpcResult) q.Dequeue();
-          string result = (string) res.Result;
-          string[] parts = result.Split(DELIM);
-          string response = parts[1];
-          UpdatePingTime(dhtKey, response);
-          ProtocolLog.WriteIf(SocialLog.SVPNLog, 
-                          String.Format("PING FRIEND REPLY: {0} {1} {2} {3}",
-                          DateTime.Now.TimeOfDay, dhtKey, address, response));
-        } catch(Exception e) {
-          _friends[dhtKey].Time = SocialUser.TIMEDEFAULT;
-          ProtocolLog.WriteIf(SocialLog.SVPNLog, e.Message);
-          ProtocolLog.WriteIf(SocialLog.SVPNLog, 
-                             String.Format("PING FRIEND FAILURE: {0} {1} {2}",
-                             DateTime.Now.TimeOfDay, dhtKey, address));
-        }
-      };
-      ProtocolLog.WriteIf(SocialLog.SVPNLog, 
-                          String.Format("PING FRIEND REQUEST: {0} {1} {2}",
-                          DateTime.Now.TimeOfDay, dhtKey, address));
-
-      ISender sender = new AHExactSender(_node, addr);
-      _rpc.Invoke(sender, q, "SocialVPN.FriendPing", _local_user.DhtKey,
-                  _local_user.Uid);
-    }
-
-    /**
-     * Update a friend's online time from a ping request.
-     * @param dhtKey the friend's dhtKey.
-     * @param response the response from the friend.
-     */
-    protected void UpdatePingTime(string dhtKey, string response) {
-      if(response == ResponseTypes.Online.ToString()) {
-        SocialUser friend = _friends[dhtKey];
-        friend.Time = DateTime.Now.ToString();
-      }
-      else if(response == ResponseTypes.Offline.ToString()) {
-         _friends[dhtKey].Time = SocialUser.TIMEDEFAULT;
-      }
-    }
-
-    /**
-     * Makes the ping request to a friend.
-     * @param address the address of the friend.
-     * @param dhtKey the friend's dhtkey.
-     */
-    protected void FriendSearch(string address, string dhtKey, 
-      string query) {
+    protected void FriendSearch(string address, string query) {
       Address addr = AddressParser.Parse(address);
       Channel q = new Channel();
       q.CloseAfterEnqueue();
@@ -284,27 +152,26 @@ namespace SocialVPN {
           string result = (string) res.Result;
           UpdateDnsMapping(dhtKey, result);
           ProtocolLog.WriteIf(SocialLog.SVPNLog, 
-                          String.Format("SEARCH FRIEND REPLY: {0} {1} {2} {3}",
-                          DateTime.Now.TimeOfDay, dhtKey, address, result));
+                          String.Format("SEARCH FRIEND REPLY: {0} {1} {2}",
+                          DateTime.Now.TimeOfDay, address, result));
         } catch(Exception e) {
           _friends[dhtKey].Time = SocialUser.TIMEDEFAULT;
           ProtocolLog.WriteIf(SocialLog.SVPNLog, e.Message);
           ProtocolLog.WriteIf(SocialLog.SVPNLog, 
-                         String.Format("SEARCH FRIEND FAILURE: {0} {1} {2} {3]",
-                         DateTime.Now.TimeOfDay, dhtKey, address, query));
+                         String.Format("SEARCH FRIEND FAILURE: {0} {1} {2}",
+                         DateTime.Now.TimeOfDay, address, query));
         }
       };
       ProtocolLog.WriteIf(SocialLog.SVPNLog, 
-                      String.Format("SEARCH FRIEND REQUEST: {0} {1} {2} {3}",
-                      DateTime.Now.TimeOfDay, dhtKey, address, query));
+                      String.Format("SEARCH FRIEND REQUEST: {0} {1} {2}",
+                      DateTime.Now.TimeOfDay, address, query));
 
       ISender sender = new AHExactSender(_node, addr);
-      _rpc.Invoke(sender, q, "SocialVPN.GetDnsMapping", _local_user.DhtKey,
-                  query);
+      _rpc.Invoke(sender, q, "SocialVPN.GetDnsMapping", query);
     }
 
-    protected void UpdateDnsMapping(string dhtKey, string result) {
-      _sdm.AddTmpMapping(result);
+    protected void UpdateDnsMapping(string result) {
+      //_sdm.AddTmpMapping(result);
     }
   }
 

@@ -1,0 +1,131 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<SocialState xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <LocalUser>
+    <Uid>ptony82@gmail.com</Uid>
+    <Name>Pierre St Juste</Name>
+    <PCID>laptop</PCID>
+    <Address>brunet:node:DGTRKICNDIGHWKJYITHAWJU3TXGZL3IE</Address>
+    <Fingerprint>297e0b954983ca3fee4f750a534188ada588c619</Fingerprint>
+    <Country>country</Country>
+    <Version>0.4</Version>
+    <Alias>laptop.ptony82.gmail.ipop</Alias>
+    <IP>172.31.0.2</IP>
+    <Time>0</Time>
+    <Pic>http://www.gravatar.com/avatar/916abb4acaef9373989acd6c2b64cc82</Pic>
+    <Certificate>MIICnjCCAgegAwIBAgIUkfrlHzlRuOZpOGw0Ys2UPFHyYdIwDQYJKoZIhvcNAQEFBQAwbTEQMA4G
+A1UEBhMHY291bnRyeTEMMAoGA1UEChMDMC40MQ8wDQYDVQQLEwZsYXB0b3AxGDAWBgNVBAMTD1Bp
+ZXJyZSBTdCBKdXN0ZTEgMB4GCSqGSIb3DQEJARYRcHRvbnk4MkBnbWFpbC5jb20wIBcNMDEwMTAx
+MDUwMDAwWhgPOTk5OTEyMzEyMzU5NTlaMG0xEDAOBgNVBAYTB2NvdW50cnkxDDAKBgNVBAoTAzAu
+NDEPMA0GA1UECxMGbGFwdG9wMRgwFgYDVQQDEw9QaWVycmUgU3QgSnVzdGUxIDAeBgkqhkiG9w0B
+CQEWEXB0b255ODJAZ21haWwuY29tMIGdMA0GCSqGSIb3DQEBAQUAA4GLADCBhwKBgQC3BIfjRoAs
+ziiFenY6q+bViWKfNF5l55GMZp6HONfWVzXmAJRnsYKtc8FnGwr+f0UYuCeSlKNMSB4stWXL2ot8
+Z4AIxn/izXwlUtRwwl2PXxKE7IXRlCgxmENDqYOjq02gLbNV+FZuCCqxp3fu0THSzwZZ0WzaVVt8
+m1FjMa3o5QIBEaM7MDkwNwYDVR0RBDAwLoYsYnJ1bmV0Om5vZGU6REdUUktJQ05ESUdIV0tKWUlU
+SEFXSlUzVFhHWkwzSUUwDQYJKoZIhvcNAQEFBQADgYEAgCSymK72wJhAFy/t4l+U1J4teZwq1Sw5
+s19RQUOLp6uIn+M64tTk8iKMACTAAbGSLbjfCzh4ifkM5qePIyWJonQJ0uYIXJZFnmmr3OUJ1mqY
+qkitC8OMCC8BSKvuPS8ctR223DjASo/nqOwVY5gTAVqa8Pf33CxFvVTVQxvKqXc=</Certificate>
+  </LocalUser>
+  <Friends>
+    <SocialUser>
+      <Uid>ptony82@gmail.com</Uid>
+      <Name>Pierre St Juste</Name>
+      <PCID>pwinxp</PCID>
+      <Address>brunet:node:J5DNRCK5ML4HOW3P3TKXGIXZU5FU2MLI</Address>
+      <Fingerprint>d19e89af9b4474fced0407df4db25180d7e48a81</Fingerprint>
+      <Country>country</Country>
+      <Version>0.4</Version>
+      <Alias>pwinxp.ptony82.gmail.ipop</Alias>
+      <IP>172.31.67.154</IP>
+      <Time>offline</Time>
+      <Pic>http://www.gravatar.com/avatar/916abb4acaef9373989acd6c2b64cc82</Pic>
+      <Certificate>MIICoDCCAgmgAwIBAgIU1SqceTwx4Yo65sGDpDCwVEd8RokwDQYJKoZIhvcNAQEFBQAwbTEQMA4G
+A1UEBhMHY291bnRyeTEMMAoGA1UEChMDMC40MQ8wDQYDVQQLEwZwd2lueHAxGDAWBgNVBAMTD1Bp
+ZXJyZSBTdCBKdXN0ZTEgMB4GCSqGSIb3DQEJARYRcHRvbnk4MkBnbWFpbC5jb20wIBcNMDEwMTAx
+MDUwMDAwWhgPOTk5OTEyMzEyMzU5NTlaMG0xEDAOBgNVBAYTB2NvdW50cnkxDDAKBgNVBAoTAzAu
+NDEPMA0GA1UECxMGcHdpbnhwMRgwFgYDVQQDEw9QaWVycmUgU3QgSnVzdGUxIDAeBgkqhkiG9w0B
+CQEWEXB0b255ODJAZ21haWwuY29tMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDGWqErCvkD
+QIXwzoF7qBPVi4l5bFqgArMjNP3X2+HtYaGmrdNNSiiA7KzM2CObXLyk63vrLrCXUfEmRP2OH7bL
+BIz8akXoiLVy9BA+NcH4GSYBlMKYDO8eFSfE5Y1y+F40M08KRDIPamSZUh+wCvqDGojWzSVtKADT
+yqvvaLpn1QIDAQABozswOTA3BgNVHREEMDAuhixicnVuZXQ6bm9kZTpKNUROUkNLNU1MNEhPVzNQ
+M1RLWEdJWFpVNUZVMk1MSTANBgkqhkiG9w0BAQUFAAOBgQBrq0Zs1LYggRWdWAJDYeXyxDwaGJB6
+8FwlyQlASYrHE353iYIXyLi09N8weeHKnrnqpllWWe8vNETozXzyvNUnxznPzCiHQ+zA9haRSdRz
+6N1UR20wMTtkDhMC5/wsBey0Lka/TiwOEv8WYzFpBQHvVrI2sG1DAy4j4cB3BZZZvg==</Certificate>
+    </SocialUser>
+    <SocialUser>
+      <Uid>ptony82@gmail.com</Uid>
+      <Name>Pierre St Juste</Name>
+      <PCID>pwinxp</PCID>
+      <Address>brunet:node:J5DNRCK5ML4HOW3P3TKXGIXZU5FU2MLI</Address>
+      <Fingerprint>d19e89af9b4474fced0407df4db25180d7e48a81</Fingerprint>
+      <Country>country</Country>
+      <Version>0.4</Version>
+      <Alias>pdesktop.ptony82.gmail.ipop</Alias>
+      <IP>172.31.11.212</IP>
+      <Time>offline</Time>
+      <Pic>http://www.gravatar.com/avatar/916abb4acaef9373989acd6c2b64cc82</Pic>
+      <Certificate>MIICoDCCAgmgAwIBAgIU1SqceTwx4Yo65sGDpDCwVEd8RokwDQYJKoZIhvcNAQEFBQAwbTEQMA4G
+A1UEBhMHY291bnRyeTEMMAoGA1UEChMDMC40MQ8wDQYDVQQLEwZwd2lueHAxGDAWBgNVBAMTD1Bp
+ZXJyZSBTdCBKdXN0ZTEgMB4GCSqGSIb3DQEJARYRcHRvbnk4MkBnbWFpbC5jb20wIBcNMDEwMTAx
+MDUwMDAwWhgPOTk5OTEyMzEyMzU5NTlaMG0xEDAOBgNVBAYTB2NvdW50cnkxDDAKBgNVBAoTAzAu
+NDEPMA0GA1UECxMGcHdpbnhwMRgwFgYDVQQDEw9QaWVycmUgU3QgSnVzdGUxIDAeBgkqhkiG9w0B
+CQEWEXB0b255ODJAZ21haWwuY29tMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDGWqErCvkD
+QIXwzoF7qBPVi4l5bFqgArMjNP3X2+HtYaGmrdNNSiiA7KzM2CObXLyk63vrLrCXUfEmRP2OH7bL
+BIz8akXoiLVy9BA+NcH4GSYBlMKYDO8eFSfE5Y1y+F40M08KRDIPamSZUh+wCvqDGojWzSVtKADT
+yqvvaLpn1QIDAQABozswOTA3BgNVHREEMDAuhixicnVuZXQ6bm9kZTpKNUROUkNLNU1MNEhPVzNQ
+M1RLWEdJWFpVNUZVMk1MSTANBgkqhkiG9w0BAQUFAAOBgQBrq0Zs1LYggRWdWAJDYeXyxDwaGJB6
+8FwlyQlASYrHE353iYIXyLi09N8weeHKnrnqpllWWe8vNETozXzyvNUnxznPzCiHQ+zA9haRSdRz
+6N1UR20wMTtkDhMC5/wsBey0Lka/TiwOEv8WYzFpBQHvVrI2sG1DAy4j4cB3BZZZvg==</Certificate>
+    </SocialUser>
+    <SocialUser>
+      <Uid>ptony82@gmail.com</Uid>
+      <Name>Pierre St Juste</Name>
+      <PCID>pwinxp</PCID>
+      <Address>brunet:node:J5DNRCK5ML4HOW3P3TKXGIXZU5FU2MLI</Address>
+      <Fingerprint>d19e89af9b4474fced0407df4db25180d7e48a81</Fingerprint>
+      <Country>country</Country>
+      <Version>0.4</Version>
+      <Alias>pdesktop.ptony82.gmail.ipop</Alias>
+      <IP>172.31.11.212</IP>
+      <Time>offline</Time>
+      <Pic>http://www.gravatar.com/avatar/916abb4acaef9373989acd6c2b64cc82</Pic>
+      <Certificate>MIICoDCCAgmgAwIBAgIU1SqceTwx4Yo65sGDpDCwVEd8RokwDQYJKoZIhvcNAQEFBQAwbTEQMA4G
+A1UEBhMHY291bnRyeTEMMAoGA1UEChMDMC40MQ8wDQYDVQQLEwZwd2lueHAxGDAWBgNVBAMTD1Bp
+ZXJyZSBTdCBKdXN0ZTEgMB4GCSqGSIb3DQEJARYRcHRvbnk4MkBnbWFpbC5jb20wIBcNMDEwMTAx
+MDUwMDAwWhgPOTk5OTEyMzEyMzU5NTlaMG0xEDAOBgNVBAYTB2NvdW50cnkxDDAKBgNVBAoTAzAu
+NDEPMA0GA1UECxMGcHdpbnhwMRgwFgYDVQQDEw9QaWVycmUgU3QgSnVzdGUxIDAeBgkqhkiG9w0B
+CQEWEXB0b255ODJAZ21haWwuY29tMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDGWqErCvkD
+QIXwzoF7qBPVi4l5bFqgArMjNP3X2+HtYaGmrdNNSiiA7KzM2CObXLyk63vrLrCXUfEmRP2OH7bL
+BIz8akXoiLVy9BA+NcH4GSYBlMKYDO8eFSfE5Y1y+F40M08KRDIPamSZUh+wCvqDGojWzSVtKADT
+yqvvaLpn1QIDAQABozswOTA3BgNVHREEMDAuhixicnVuZXQ6bm9kZTpKNUROUkNLNU1MNEhPVzNQ
+M1RLWEdJWFpVNUZVMk1MSTANBgkqhkiG9w0BAQUFAAOBgQBrq0Zs1LYggRWdWAJDYeXyxDwaGJB6
+8FwlyQlASYrHE353iYIXyLi09N8weeHKnrnqpllWWe8vNETozXzyvNUnxznPzCiHQ+zA9haRSdRz
+6N1UR20wMTtkDhMC5/wsBey0Lka/TiwOEv8WYzFpBQHvVrI2sG1DAy4j4cB3BZZZvg==</Certificate>
+    </SocialUser>
+    <SocialUser>
+      <Uid>ptony83@gmail.com</Uid>
+      <Name>Pierre St Juste</Name>
+      <PCID>pwinxp</PCID>
+      <Address>brunet:node:J5DNRCK5ML4HOW3P3TKXGIXZU5FU2MLI</Address>
+      <Fingerprint>d19e89af9b4474fced0407df4db25180d7e48a81</Fingerprint>
+      <Country>country</Country>
+      <Version>0.4</Version>
+      <Alias>pdesktop.ptony82.gmail.ipop</Alias>
+      <IP>172.31.11.212</IP>
+      <Time>offline</Time>
+      <Pic>http://www.gravatar.com/avatar/916abb4acaef9373989acd6c2b64cc82</Pic>
+      <Certificate>MIICoDCCAgmgAwIBAgIU1SqceTwx4Yo65sGDpDCwVEd8RokwDQYJKoZIhvcNAQEFBQAwbTEQMA4G
+A1UEBhMHY291bnRyeTEMMAoGA1UEChMDMC40MQ8wDQYDVQQLEwZwd2lueHAxGDAWBgNVBAMTD1Bp
+ZXJyZSBTdCBKdXN0ZTEgMB4GCSqGSIb3DQEJARYRcHRvbnk4MkBnbWFpbC5jb20wIBcNMDEwMTAx
+MDUwMDAwWhgPOTk5OTEyMzEyMzU5NTlaMG0xEDAOBgNVBAYTB2NvdW50cnkxDDAKBgNVBAoTAzAu
+NDEPMA0GA1UECxMGcHdpbnhwMRgwFgYDVQQDEw9QaWVycmUgU3QgSnVzdGUxIDAeBgkqhkiG9w0B
+CQEWEXB0b255ODJAZ21haWwuY29tMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDGWqErCvkD
+QIXwzoF7qBPVi4l5bFqgArMjNP3X2+HtYaGmrdNNSiiA7KzM2CObXLyk63vrLrCXUfEmRP2OH7bL
+BIz8akXoiLVy9BA+NcH4GSYBlMKYDO8eFSfE5Y1y+F40M08KRDIPamSZUh+wCvqDGojWzSVtKADT
+yqvvaLpn1QIDAQABozswOTA3BgNVHREEMDAuhixicnVuZXQ6bm9kZTpKNUROUkNLNU1MNEhPVzNQ
+M1RLWEdJWFpVNUZVMk1MSTANBgkqhkiG9w0BAQUFAAOBgQBrq0Zs1LYggRWdWAJDYeXyxDwaGJB6
+8FwlyQlASYrHE353iYIXyLi09N8weeHKnrnqpllWWe8vNETozXzyvNUnxznPzCiHQ+zA9haRSdRz
+6N1UR20wMTtkDhMC5/wsBey0Lka/TiwOEv8WYzFpBQHvVrI2sG1DAy4j4cB3BZZZvg==</Certificate>
+    </SocialUser>
+  </Friends>
+  <BlockedFriends />
+</SocialState>

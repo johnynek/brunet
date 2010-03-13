@@ -33,12 +33,12 @@ namespace SocialVPN {
     /**
      * Location of the Javascript file.
      */
-    public const string JSURL = "socialvpn.js";
+    protected const string JSURL = "socialvpn.js";
 
     /**
      * Location of the Javascript file.
      */
-    public const string JSURLDNS = "socialdns.js";
+    protected const string JSURLDNS = "socialdns.js";
 
     /**
      * This event is fired whenever we get an API request.
@@ -72,48 +72,13 @@ namespace SocialVPN {
       _running = false;
     }
 
-    /**
-     * Xml cross-domain policy for Flash clients.
-     */
-    public static string CrossDomainXML {
-      get {
-        return "<?xml version=\"1.0\"?>" +
-           "<!DOCTYPE cross-domain-policy SYSTEM " +
-           "\"http://www.macromedia.com/xml/dtds/cross-domain-policy.dtd\">" +
-           "<cross-domain-policy>" +
-           "<allow-access-from domain=\"*\" />" +
-           "</cross-domain-policy>";
-      }
-    }
-
-    /**
-     * The html content for Web page display.
-     */
-    public static string HTMLText {
-      get {
-        return "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" " +
+    protected static string GetHtmlText(string url) {
+      return "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" " +
        "\"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">" +
-       "<html><head></head><body><script type=\"text/javascript\" src=\""
-       + JSURL + "\"></script></body></html>";
-      }
+       "<html><head><script type=\"text/javascript\" src=\""
+       + url + "\"></script></head></html>";
     }
 
-    /**
-     * The html content for Web page display.
-     */
-    public static string DnsHTMLText {
-      get {
-        return "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Strict//EN\" " +
-       "\"http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd\">" +
-       "<html><head></head><body><script type=\"text/javascript\" src=\""
-       + JSURLDNS + "\"></script></body></html>";
-      }
-    }
-
-    /**
-     * Process API requests through the process event.
-     * @return the response string.
-     */
     protected string Process(Dictionary<string, string> request) {
       EventHandler process_event = ProcessEvent;
       string response = String.Empty;
@@ -122,15 +87,12 @@ namespace SocialVPN {
           process_event(request, EventArgs.Empty);
           response = request["response"];
         } catch (Exception e) {
-          response = e.Message;
+          response = e.ToString();
         }
-      }
+      }      
       return response;
     }
 
-    /**
-     * Starts the interface.
-     */
     public void Start() {
       if(_running) {
         return;
@@ -140,18 +102,12 @@ namespace SocialVPN {
       _runner.Start();
     }
 
-    /**
-     * Stops the interface.
-     */
     public void Stop() {
       _running = false;
       _listener.Stop();
       _runner.Join();
     }
 
-    /**
-     * This method runs the interface.
-     */
     protected void Run() {
       while(_running) {
         HttpListenerContext context = null;
@@ -170,8 +126,7 @@ namespace SocialVPN {
         byte[] buffer = null;
         response.ContentType = "text/xml";
 
-        // Process api post request from the Javascript interface
-        if (request.RawUrl == "/api") {
+        if (request.RawUrl == "/state.xml") {
           StreamReader reader = new StreamReader(request.InputStream,
                                                  request.ContentEncoding);
 
@@ -209,24 +164,12 @@ namespace SocialVPN {
           }
           response.ContentType = "text/css";
         }
-        else if (request.RawUrl == "/pic.svg") {
-          using (StreamReader text = new StreamReader("pic.svg")) {
-            responseString = text.ReadToEnd();
-          }
-          response.ContentType = "image/svg+xml";
-        }
-        else if (request.RawUrl == "/pic.png") {
-          responseString = null;
-          buffer = SocialUtils.ReadFileBytes("pic.png");
-          response.ContentType = "image/png";
-        }
         else if (request.RawUrl == "/sdns") {
-          responseString = DnsHTMLText;
+          responseString = GetHtmlText(JSURLDNS);
           response.ContentType = "text/html";
         }
-        // Return html content for page display
         else {
-          responseString = HTMLText;
+          responseString = GetHtmlText(JSURL);
           response.ContentType = "text/html";
         }
 

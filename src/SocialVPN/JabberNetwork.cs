@@ -43,78 +43,64 @@ using NUnit.Framework;
 
 namespace SocialVPN {
 
-  public class JabberNetwork : ISocialNetwork, IProvider {
+  public class JabberNetwork {
 
     public const string SVPNKEYNS = "jabber:iq:svpnkey";
 
     public const string SVPNRESOURCE = "SVPN_XMPP";
 
+    public event EventHandler ProcessEvent;
+
     protected readonly JabberClient _jclient;
 
     protected readonly SocialUser _local_user;
 
-    protected readonly Dictionary<string, List<string>> _friends;
+    public JabberNetwork(string network_host, string jabber_port, 
+                         SocialUser local_user) {
 
-    protected readonly BlockingQueue _queue;
-
-    protected bool _online;
-
-    protected bool _auth_pending;
-
-    protected bool _pres_sent;
-
-    public JabberNetwork(SocialUser user, byte[] certData, 
-      BlockingQueue queue, string jabber_port) {
-      _local_user = user;
-      _queue = queue;
-      _friends = new Dictionary<string, List<string>>();
-      _online = false;
-      _auth_pending = false;
-      _pres_sent = false;
+      _local_user = local_user;
       _jclient = new JabberClient();
-
       _jclient.Port = Int32.Parse(jabber_port);
+      _jclient.NetworkHost = network_host;
       _jclient.AutoReconnect = 30F;
       _jclient.AutoStartTLS = true;
       _jclient.KeepAlive = 30F;
       _jclient.AutoPresence = false;
       _jclient.AutoRoster = false;
       _jclient.LocalCertificate = null;
-      _jclient.Resource = SVPNRESOURCE + 
-        _local_user.Fingerprint.Substring(0, 10);
-      
-      _jclient.OnError += HandleOnError;
-      _jclient.OnAuthError += HandleOnAuthError;
+      Random rand = new Random();
+      _jclient.Resource = SVPNRESOURCE + rand.Next(Int32.MaxValue);
 
-#if SVPN_NUNIT
-      _jclient.OnReadText += HandleOnReadText;
-      _jclient.OnWriteText += HandleOnWriteText;
-#endif
       _jclient.OnAuthenticate += HandleOnAuthenticate;
       _jclient.OnPresence += HandleOnPresence;
       _jclient.OnIQ += HandleOnIQ;
-      _jclient.OnInvalidCertificate += HandleInvalidCert;
+      _jclient.OnInvalidCertificate += 
+        new RemoteCertificateValidationCallback(HandleInvalidCert);
+      
+      _jclient.OnError += HandleOnError;
+      _jclient.OnAuthError += HandleOnAuthError;
+      _jclient.OnReadText += HandleOnReadText;
+      _jclient.OnWriteText += HandleOnWriteText;
     }
     
-    private void HandleOnAuthError(object sender, System.Xml.XmlElement rp) {
-      _online = false;
-      _auth_pending = false;
+    protected void HandleOnAuthError(object sender, System.Xml.XmlElement rp) {
+      _local_user.Status = "login_failed";
       Console.WriteLine(rp.OuterXml);
     }
 
-    private void HandleOnError(object sender, Exception ex){
+    protected void HandleOnError(object sender, Exception ex){
       Console.WriteLine(ex.ToString());
     }
 
-    private void HandleOnAuthenticate(object sender) {
-      _auth_pending = false;
+    protected void HandleOnAuthenticate(object sender) {
+      _local_user.Status = "online";
       Presence pres = new Presence(_jclient.Document);
       pres.Show = "dnd";
       pres.Status = "Chat Disabled";
       _jclient.Write(pres);
     }
 
-    private bool HandleInvalidCert(object sender, X509Certificate cert, 
+    protected bool HandleInvalidCert(object sender, X509Certificate cert, 
       X509Chain chain, SslPolicyErrors errors) {
       string cert_info = String.Format("\nXMPP Server Data\n" + 
                          "Subject: {0}\nIssuer: {1}\n" + 
@@ -126,19 +112,15 @@ namespace SocialVPN {
       return true;
     }
 
-#if SVPN_NUNIT
-    // only used for debugging
-    private void HandleOnReadText(object sender, string txt) {
-      Console.WriteLine("RECV: " + txt);
+    protected void HandleOnReadText(object sender, string txt) {
+      //Console.WriteLine("RECV: " + txt);
     }
 
-    // only used for debugging
-    private void HandleOnWriteText(object sender, string txt) {
-      Console.WriteLine("SENT: " + txt);
+    protected void HandleOnWriteText(object sender, string txt) {
+      //Console.WriteLine("SENT: " + txt);
     }
-#endif
 
-    private void HandleOnPresence(Object sender, Presence pres) {
+    protected void HandleOnPresence(Object sender, Presence pres) {
       if(pres.From.Resource != null && 
          pres.From != _jclient.JID &&
          pres.From.Resource.StartsWith(SVPNRESOURCE)) {
@@ -148,107 +130,97 @@ namespace SocialVPN {
         iq.Query = _jclient.Document.CreateElement(null, "query", SVPNKEYNS);
         _jclient.Write(iq);
       }
-      if(!_pres_sent && pres.From.Bare == _jclient.JID.Bare &&
-         pres.From != _jclient.JID && pres.Type == PresenceType.available) {
-        // Mirror another client that's available
-        Presence new_pres = new Presence(_jclient.Document);
-        new_pres.Show = pres.Show;
-        new_pres.Status = pres.Status;
-        _jclient.Write(new_pres);
-        _pres_sent = true;
-      }
     }
 
-    private void HandleOnIQ(Object sender, IQ iq) {
+    protected void HandleOnIQ(Object sender, IQ iq) {
       if(iq.Query != null && iq.Query.NamespaceURI != null && 
          iq.Query.NamespaceURI == SVPNKEYNS) {
         if(iq.Type == IQType.get) {
           iq = iq.GetResponse(_jclient.Document);
-          iq.Query.SetAttribute("value", _local_user.DhtKey);
+          iq.Query.SetAttribute("value", GetQueryResponse());
           _jclient.Write(iq);
         }
         else if (iq.Type == IQType.result) {
-          string friend = iq.From.User + "@" + iq.From.Server;
-          string fpr = iq.Query.GetAttribute("value");
-          if(_friends.ContainsKey(friend)) {
-            if(!_friends[friend].Contains(fpr)) {
-              _friends[friend].Add(fpr);
-            }
-          }
-          else {
-            List<string> fprs = new List<string>();
-            fprs.Add(fpr);
-            _friends.Add(friend, fprs);
-            Console.WriteLine("Friend {0} at {1}", friend, fpr);
-          }
+          string uid = iq.From.User + "@" + iq.From.Server;
+          ProcessResponse(iq.Query.GetAttribute("value"), uid);
         }
       }
     }
 
-    public bool Login(string id, string username, string password) {
-      if(_local_user.Uid != username) {
-        throw new Exception("Jabber ID mismatch, cert uid does not match jabber id");
-      }
-      if(!_online) {
+    protected string GetQueryResponse() {
+      Dictionary<string, string> request = new Dictionary<string,string>();
+      request["m"] = "query.cert";
+      EventHandler process_event = ProcessEvent;
+      string response = String.Empty;
+      if (process_event != null) {
+        try {
+          process_event(request, EventArgs.Empty);
+          response = request["response"];
+        } catch (Exception e) {
+          response = e.Message;
+          Console.WriteLine(response);
+        }
+      }      
+      return response;
+    }
+
+    protected string ProcessResponse(string cert, string uid) {
+      Dictionary<string, string> request = new Dictionary<string,string>();
+      request["m"] = "add";
+      request["cert"] = cert;
+      request["uid"] = uid;
+      EventHandler process_event = ProcessEvent;
+      string response = String.Empty;
+      if (process_event != null) {
+        try {
+          process_event(request, EventArgs.Empty);
+          response = request["response"];
+        } catch (Exception e) {
+          response = e.Message;
+          Console.WriteLine(response);
+        }
+      } 
+      return response;
+    }
+
+    public void Login(string username, string password) {
+      if(_local_user.Status != "online") {
         JID jid = new JID(username);
         _jclient.User = jid.User;
         _jclient.Server = jid.Server;
         _jclient.Password = password;
         _jclient.Connect();
-        _online = true;
-        _auth_pending = true;
-
-        while (_auth_pending) {
-          // Wait for login to complete
-          System.Threading.Thread.Sleep(5000);
-        }
       }
-      return _online;
     }
 
-    public bool Logout() {
-      if(_online) {
+    public void Logout() {
+      if(_local_user.Status == "online") {
         _jclient.Close();
-        _online = false;
+        _local_user.Status = "offline";
       }
-      return true;
     }
 
-    public List<string> GetFriends() {
-      List<string> friends = new List<string>();
-      foreach(string friend in _friends.Keys) {
-        friends.Add(friend);
+    public void ProcessHandler(Object obj, EventArgs eargs) {
+      Dictionary <string, string> request = (Dictionary<string, string>)obj;
+      string method = String.Empty;
+      if (request.ContainsKey("m")) {
+        method = request["m"];
       }
-      return friends;
-    }
 
-    public List<string> GetFingerprints(string[] uids) {
-      List<string> fingerprints = new List<string>();
-      foreach(string uid in uids) {
-        if(_friends.ContainsKey(uid)) {
-          foreach(string fpr in _friends[uid]) {
-            fingerprints.Add(fpr);
-          }
-        }
+      switch(method) {
+        case "login":
+          Login(request["uid"], request["pass"]);
+          break;
+
+        case "logout":
+          Logout();
+          break;
+
+        default:
+          break;
       }
-      return fingerprints;
     }
 
-    public List<byte[]> GetCertificates(string[] uids) {
-      return null;
-    }
-
-    public bool StoreFingerprint() {
-      return true;
-    }
-
-    public bool ValidateCertificate(SocialUser user, byte[] certData) {
-      if(_friends.ContainsKey(user.Uid) && 
-         _friends[user.Uid].Contains(user.DhtKey)) {
-        return true;
-      }
-      return false;
-    }
   }
 
 #if SVPN_NUNIT
@@ -256,8 +228,14 @@ namespace SocialVPN {
   public class JabberNetworkTester {
     [Test]
     public void JabberNetworkTest() {
+      JabberNetwork jabber = new JabberNetwork(null, "5222");
+      Console.Write("Please enter jabber id and password: ");
+      string input = Console.ReadLine();
+      string[] parts = input.Split(' ');
+      jabber.Login(parts[0], parts[1]);
+      Console.ReadLine();
+      jabber.Logout();
     }
   } 
 #endif
-
 }
