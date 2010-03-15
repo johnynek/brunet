@@ -18,9 +18,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
 using System;
+using Brunet.Transport;
 
 namespace Brunet.Graph {
-  public class GraphEdge : Brunet.Edge {
+  public class GraphEdge : Edge {
     public static readonly TransportAddress DefaultTA  =
       TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:10000");
     public readonly int Delay;
@@ -30,8 +31,8 @@ namespace Brunet.Graph {
       Delay = delay;
     }
 
-    public override Brunet.TransportAddress LocalTA { get { return DefaultTA; } }
-    public override Brunet.TransportAddress RemoteTA { get { return DefaultTA; } }
-    public override Brunet.TransportAddress.TAType TAType { get { return Brunet.TransportAddress.TAType.Tcp; } }
+    public override TransportAddress LocalTA { get { return DefaultTA; } }
+    public override TransportAddress RemoteTA { get { return DefaultTA; } }
+    public override TransportAddress.TAType TAType { get { return TransportAddress.TAType.Tcp; } }
   }
 }
