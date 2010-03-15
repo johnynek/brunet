@@ -5,6 +5,8 @@ using Brunet;
 using System.Collections;
 using System.Diagnostics;
 using System.Security.Cryptography;
+using Brunet.Transport;
+using Brunet.Util;
 
 
 #if BRUNET_NUNIT
@@ -12,6 +14,7 @@ using System.Collections.Specialized;
 using NUnit.Framework;
 #endif
 
+using Brunet.Symphony;
 namespace Brunet {
   public abstract class Authorizer {
     public abstract bool Allow(SimNode n1, SimNode n2);

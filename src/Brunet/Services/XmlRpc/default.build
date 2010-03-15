@@ -1,0 +1,72 @@
+<?xml version="1.0"?>
+<project default="build" basedir=".">
+  <property name="debug" value="false" />
+  <property name="lib.dir" value="../../../../lib"/>
+  <property name="build.dir" value="build" />
+
+  <target name="clean" description="Remove build directory">
+    <delete dir="${build.dir}" failonerror="true"/>
+  </target>
+
+  <target name="build">
+    <call target="buildProject" />
+  </target>
+
+  <target name="debug">
+    <property name="debug" value="true" />
+    <call target="buildProject" />
+  </target>
+  
+  <target name="buildProject" description="Build Brunet.Services.XmlRpc.dll and SimpleXmlRpcClient.exe">
+    <mkdir dir="${build.dir}" failonerror="true"/>
+    <copy todir="${build.dir}" failonerror="true">
+      <fileset basedir="${lib.dir}">
+        <include name="Brunet.dll" />
+        <include name="CookComputing.XmlRpcV2.dll" />
+        <include name="NUnit.Framework.dll" />
+      </fileset>
+    </copy>
+    <csc debug="${debug}" target="library" output="${build.dir}/Brunet.Services.XmlRpc.dll">
+      <sources failonempty="true">       
+        <include name="XmlRpcManager.cs" />
+        <include name="AdrXmlRpcConverter.cs" />
+      </sources>
+      <references>        
+        <include name="${build.dir}/Brunet.dll" />
+        <include name="System.Runtime.Remoting.dll"/>
+        <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />
+      </references>
+    </csc>
+    <copy todir="${lib.dir}" failonerror="true">
+      <fileset basedir="${build.dir}">
+        <include name="Brunet.Services.XmlRpc.dll" />
+      </fileset>
+    </copy>
+  </target>
+
+  <target name="test" description="Build Build Brunet.Services.XmlRpc.dll with tests">
+    <mkdir dir="${build.dir}" failonerror="true"/>
+    <copy todir="${build.dir}" failonerror="true">
+      <fileset basedir="${lib.dir}">
+        <include name="Brunet.dll" />
+        <include name="CookComputing.XmlRpcV2.dll" />
+        <include name="NUnit.Framework.dll" />
+      </fileset>
+    </copy>
+    <csc target="library" 
+         output="${build.dir}/Brunet.Services.XmlRpc.dll" 
+         debug="${debug}"
+         define="BRUNET_NUNIT">
+      <sources failonempty="true">
+        <include name="XmlRpcManager.cs" />
+        <include name="AdrXmlRpcConverter.cs" />
+      </sources>
+      <references>
+        <include name="${build.dir}/Brunet.dll" />
+        <include name="System.Runtime.Remoting.dll"/>
+        <include name="${build.dir}/CookComputing.XmlRpcV2.dll" />
+        <include name="${build.dir}/NUnit.Framework.dll" />
+      </references>
+    </csc>
+  </target>
+</project>

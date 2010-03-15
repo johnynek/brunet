@@ -1,1 +1,0 @@
-mcs /unsafe -r /usr/share/dotnet/mono/gtk-sharp/gtk-sharp.dll -r /usr/share/dotnet/mono/gtk-sharp/glade-sharp.dll -r ../../../lib/Brunet.dll BrunetChatMain.cs BrunetChatIM.cs BrunetChatLogin.cs Buddy.cs BuddyList.cs RemoteTAs.cs LocalTcpPort.cs ChatMessageHandler.cs InstantMessage.cs /out:BrunetChatMain.exe

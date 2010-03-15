@@ -8,6 +8,7 @@ using System.Diagnostics;
  
 //[assembly:log4net.Config.DOMConfigurator(Watch = true)]
  
+using Brunet.Symphony;
 namespace Brunet
 {
   public class AddtoDns

@@ -1,0 +1,10 @@
+PURPOSE
+==========
+This code represents things we wish we had in the .Net standard library, but
+unfortunately do not.  It does not include Collection or Concurrency classes
+which are in their own module.
+
+MODULE DEPENDENCIES
+==========
+Brunet.Collections
+Brunet.Concurrent

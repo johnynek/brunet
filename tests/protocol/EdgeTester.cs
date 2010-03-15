@@ -21,6 +21,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //using log4net;
 using Brunet;
+using Brunet.Util;
+using Brunet.Transport;
 using System.Net.Sockets;
 using System.Net;
 using System;
@@ -29,6 +31,7 @@ using System.Threading;
 using System.Collections;
 
 //[assembly: log4net.Config.DOMConfigurator(Watch=true)]
+using Brunet.Messaging;
 namespace Brunet
 {
         /**

@@ -2,6 +2,10 @@
 using System;
 using System.Security.Cryptography;
 using Brunet;
+using Brunet.Util;
+using Brunet.Transport;
+using Brunet.Messaging;
+using Brunet.Symphony;
 
 /**
  * Simple Brunet program that starts a node and potentially
@@ -20,7 +24,7 @@ using Brunet;
  *
  * You can do basically the same thing with a HybridNode.
  */
-public class ReqrepExample : IDataHandler, Brunet.IReplyHandler {
+public class ReqrepExample : IDataHandler, IReplyHandler {
 
   public void HandleData(MemBlock data, ISender return_path, object state)
   {
@@ -38,7 +42,7 @@ public class ReqrepExample : IDataHandler, Brunet.IReplyHandler {
 		   PType prot,
 		   MemBlock payload,
 		   ISender from,
-		   Brunet.ReqrepManager.Statistics s,
+		   ReqrepManager.Statistics s,
 		   object state)
   {
     Console.WriteLine("{0} got our message", from);
@@ -64,13 +68,13 @@ public class ReqrepExample : IDataHandler, Brunet.IReplyHandler {
     /**
      * Make the edge listener:
      */
-    Brunet.EdgeListener el = null;
+    EdgeListener el = null;
     int port = Int32.Parse( args[1] );
     if( args[0].ToLower() == "tcp" ) {
-      el = new Brunet.TcpEdgeListener(port);
+      el = new TcpEdgeListener(port);
     }
     else if( args[0].ToLower() == "udp" ) {
-      el = new Brunet.UdpEdgeListener(port);
+      el = new UdpEdgeListener(port);
     }
     /**
      * Create a random address for our node.
@@ -80,14 +84,15 @@ public class ReqrepExample : IDataHandler, Brunet.IReplyHandler {
      * of secure hashes) the network might not behave correctly.
      */
     RandomNumberGenerator rng = new RNGCryptoServiceProvider();
-    Brunet.AHAddress tmp_add = new Brunet.AHAddress(rng);
+    AHAddress tmp_add = new AHAddress(rng);
     Console.WriteLine("Address: {0}", tmp_add);
     /**
      * Make the node that lives in a particular
+using Brunet.Messaging;
      * namespace (or realm) called "testspace"
      */
-    Brunet.Node tmp_node = new Brunet.StructuredNode(tmp_add, "testspace");
-    Brunet.ReqrepManager rrman = Brunet.ReqrepManager.GetInstance(tmp_node);
+    Node tmp_node = new StructuredNode(tmp_add, "testspace");
+    ReqrepManager rrman = ReqrepManager.GetInstance(tmp_node);
     ReqrepExample irh = new ReqrepExample();
     tmp_node.GetTypeSource(PType.Protocol.Chat).Subscribe(irh, tmp_node);
     /**

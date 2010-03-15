@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+
+<project name="Brunet" default="build">
+  <target name="build" description="Make Brunet.Collections.dll">
+    <csc target="library" output="Brunet.Collections.dll">
+      <sources><include name="*.cs"/></sources>
+    </csc>
+  </target>
+</project>

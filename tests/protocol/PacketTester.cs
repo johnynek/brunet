@@ -26,9 +26,11 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Diagnostics;
 
+using Brunet.Transport;
 
 //[assembly:log4net.Config.DOMConfigurator(Watch = true)]
 
+using Brunet.Symphony;
 namespace Brunet
 {
   public class PacketTester //:IAHPacketHandler

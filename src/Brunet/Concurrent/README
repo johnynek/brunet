@@ -1,0 +1,10 @@
+PURPOSE
+==========
+Make concurrent programming easier using message-passing and transactional
+style of programming.  These classes are usually thread-safe tools to make
+writing thread-safe code much easier.  The goal is high-performance but
+of course also correct, code.
+
+MODULE DEPENDENCIES
+==========
+This code depends on the Brunet.Collections module.

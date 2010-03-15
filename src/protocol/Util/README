@@ -1,3 +1,0 @@
-Code in the directory should be self contained and not depend on code in any
-other directory.  This code represents things we wish we had in the .Net
-standard library, but unfortunately do not.

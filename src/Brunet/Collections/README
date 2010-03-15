@@ -1,0 +1,7 @@
+PURPOSE
+==========
+Represent collection classes that are not provided by the .Net framework.
+
+MODULE DEPENDENCIES
+==========
+This code does not depend on any other modules.

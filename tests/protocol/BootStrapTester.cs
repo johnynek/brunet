@@ -29,6 +29,14 @@ using System.Security.Cryptography;
 using System.Diagnostics;
 using System.Text;
 
+using Brunet.Concurrent;
+using Brunet.Connections;
+using Brunet.Collections;
+using Brunet.Transport;
+using Brunet.Util;
+
+using Brunet.Symphony;
+using Brunet.Messaging;
 namespace Brunet 
 {
   /** 
@@ -84,6 +92,168 @@ namespace Brunet
         ct.ConnectionEvent += new EventHandler(this.ConnectionTableChangeHandler);
         ct.DisconnectionEvent += new EventHandler(this.ConnectionTableChangeHandler);
       }
+    }
+    public void BenchmarkHops(int reps) {
+      List<int> hops = new List<int>();
+      Random my_r = new Random();
+      ArrayList nodes = null;
+      lock(_sync) {
+        //Make a copy
+        nodes = new ArrayList(_node_list);
+      }
+      Stack<Action> pings = new Stack<Action>();
+      for(int i = 0; i < reps; i++) {
+        int idx0 = my_r.Next(0, nodes.Count);
+        int idx1 = my_r.Next(0, nodes.Count);
+        Node n0 = (Node)nodes[idx0];
+        Node n1 = (Node)nodes[idx1];
+        Action ping = delegate() {
+          RpcManager pinger = RpcManager.GetInstance( n0 );
+          Channel results = new Channel(1);
+          results.CloseEvent += delegate(object q, EventArgs a) {
+            try {
+              object result = results.Dequeue();
+	      RpcResult r = (RpcResult)result;
+	      IList data = (IList)r.Result;
+              hops.Add(data.Count - 1);
+            }
+            catch(Exception x) {
+              Console.WriteLine("target: {0}, Exception: {1}", n1.Address, x);
+            }
+            if( pings.Count > 0 ) {
+              var next = pings.Pop();
+              next();
+            }
+            else {
+              double ave_rtt = 0;
+              foreach(int s in hops) {
+                ave_rtt += (double)s;     
+              }
+              ave_rtt /= hops.Count;
+              double var = 0;
+              foreach(int s in hops) {
+                var += (ave_rtt - (double)s) * (ave_rtt - (double)s);
+              }
+              var /= hops.Count;
+              var stdev = Math.Sqrt(var);
+              Console.WriteLine("Average: {0} Stdev: {1} Samples: {2} Reps: {3}", ave_rtt, stdev, hops.Count, reps); 
+            }
+          };
+          try {
+            pinger.Invoke(n0, results, "trace.GetRouteTo", n1.Address.ToString());
+          }
+          catch(Exception x) {
+            Console.WriteLine("Exception: {0}", x);
+            if( pings.Count > 0 ) {
+              var next = pings.Pop();
+              next();
+            }
+            else {
+              double ave_rtt = 0;
+              foreach(int s in hops) {
+                ave_rtt += (double)s;     
+              }
+              ave_rtt /= hops.Count;
+              double var = 0;
+              foreach(int s in hops) {
+                var += (ave_rtt - (double)s) * (ave_rtt - (double)s);
+              }
+              var /= hops.Count;
+              var stdev = Math.Sqrt(var);
+              Console.WriteLine("Average: {0} Stdev: {1} Samples: {2} Reps: {3}", ave_rtt, stdev, hops.Count, reps); 
+            }
+          }
+        };
+        pings.Push(ping);
+      }
+      //Now pop off the first one and go:
+      var first = pings.Pop();
+      first();
+    }
+    public void BenchmarkPing(int reps) {
+      List<int> mu_sec_pings = new List<int>();
+      Random my_r = new Random();
+      ArrayList nodes = null;
+      lock(_sync) {
+        //Make a copy
+        nodes = new ArrayList(_node_list);
+      }
+      Stack<Action> pings = new Stack<Action>();
+      for(int i = 0; i < reps; i++) {
+        int idx0 = my_r.Next(0, nodes.Count);
+        int idx1 = my_r.Next(0, nodes.Count);
+        Node n0 = (Node)nodes[idx0];
+        Node n1 = (Node)nodes[idx1];
+        Action ping = delegate() {
+          RpcManager pinger = RpcManager.GetInstance( n0 );
+          Channel results = new Channel(1);
+          results.CloseEvent += delegate(object q, EventArgs a) {
+            try {
+              object result = results.Dequeue();
+	      RpcResult r = (RpcResult)result;
+	      IDictionary data = (IDictionary)r.Result;
+              int rtt = (int)data["musec"];
+	      //Console.WriteLine("target: {0}, rtt: {1}", data["target"], data["musec"]);
+              mu_sec_pings.Add(rtt);
+            }
+            catch(Exception x) {
+              Console.WriteLine("target: {0}, Exception: {1}", n1.Address, x);
+            }
+            if( pings.Count > 0 ) {
+              var next = pings.Pop();
+              next();
+            }
+            else {
+              double ave_rtt = 0;
+              foreach(int s in mu_sec_pings) {
+                ave_rtt += (double)s;     
+              }
+              ave_rtt /= mu_sec_pings.Count;
+              double var = 0;
+              foreach(int s in mu_sec_pings) {
+                var += (ave_rtt - (double)s) * (ave_rtt - (double)s);
+              }
+              var /= mu_sec_pings.Count;
+              var stdev = Math.Sqrt(var);
+              mu_sec_pings.Sort();
+              var median = mu_sec_pings[ mu_sec_pings.Count / 2];
+              Console.WriteLine("Average: {0} Median: {1} Stdev: {2} Samples: {3} Reps: {4}",
+                                ave_rtt, median, stdev, mu_sec_pings.Count, reps); 
+            }
+          };
+          try {
+            pinger.Invoke(n0, results, "trace.GetRttTo", n1.Address.ToString());
+          }
+          catch(Exception x) {
+            Console.WriteLine("Exception: {0}", x);
+            if( pings.Count > 0 ) {
+              var next = pings.Pop();
+              next();
+            }
+            else {
+              double ave_rtt = 0;
+              foreach(int s in mu_sec_pings) {
+                ave_rtt += (double)s;     
+              }
+              ave_rtt /= mu_sec_pings.Count;
+              double var = 0;
+              foreach(int s in mu_sec_pings) {
+                var += (ave_rtt - (double)s) * (ave_rtt - (double)s);
+              }
+              var /= mu_sec_pings.Count;
+              var stdev = Math.Sqrt(var);
+              mu_sec_pings.Sort();
+              var median = mu_sec_pings[ mu_sec_pings.Count / 2];
+              Console.WriteLine("Average: {0} Median: {1} Stdev: {2} Samples: {3} Reps: {4}",
+                                ave_rtt, median, stdev, mu_sec_pings.Count, reps); 
+            }
+          }
+        };
+        pings.Push(ping);
+      }
+      //Now pop off the first one and go:
+      var first = pings.Pop();
+      first();
     }
 
     public void Remove(Node n) {
@@ -387,14 +557,14 @@ namespace Brunet
           }
     }
     ArrayList c_threads = new ArrayList(); 
-	  var xrms = new Brunet.Rpc.XmlRpcManagerServer(20000);
+    //var xrms = new Brunet.Rpc.XmlRpcManagerServer(20000);
     int cnt = 0;
     foreach( Node item in rnd_list)
     {
       Thread t = new Thread( item.Connect );
       c_threads.Add(t);
       t.Start();
-      xrms.Add(item, "xm" + cnt++ + ".rem");
+      //xrms.Add(item, "xm" + cnt++ + ".rem");
       Console.WriteLine(item.Address.ToString()
 		      + " RemoteTAs count: " + item.RemoteTAs.Count);
       total_started++;
@@ -445,6 +615,24 @@ namespace Brunet
       if( this_command[0] == "P" ) {
         //Pick a random pair of nodes to ping:
 	Ping(node_list);
+      }
+      if( this_command[0] == "BP" ) {
+        try {
+          int reps = Int32.Parse(this_command[1]);
+          bst.BenchmarkPing(reps);
+        }
+        catch(Exception x) {
+          Console.WriteLine(x);
+        }
+      }
+      if( this_command[0] == "BH" ) {
+        try {
+          int reps = Int32.Parse(this_command[1]);
+          bst.BenchmarkHops(reps);
+        }
+        catch(Exception x) {
+          Console.WriteLine(x);
+        }
       }
       if( this_command[0] == "T" ) {
         //Pick a random pair of nodes to ping:

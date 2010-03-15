@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+
+<project name="Brunet" default="build">
+  <target name="build" description="Make Brunet.Concurrent.dll">
+    <csc target="library" output="Brunet.Concurrent.dll">
+      <sources><include name="*.cs"/></sources>
+      <references>
+        <include name="../Collections/Brunet.Collections.dll"/>
+      </references>
+    </csc>
+  </target>
+</project>

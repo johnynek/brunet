@@ -21,8 +21,11 @@ using System.IO;
 using System.Collections;
 using System.Collections.Generic;
 using System.Security.Cryptography;
-using Brunet.Coordinate;
+using Brunet.Connections;
+using Brunet.Services.Coordinate;
+using Brunet.Symphony;
 using Brunet.Tunnel;
+using Brunet.Transport;
 using Brunet.Util;
 
 namespace Brunet.Simulator {
