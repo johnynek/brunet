@@ -21,7 +21,10 @@ using System.IO;
 using System.Collections;
 using System.Collections.Generic;
 using System.Security.Cryptography;
-using Brunet.Coordinate;
+using Brunet.Connections;
+using Brunet.Services.Coordinate;
+using Brunet.Symphony;
+using Brunet.Transport;
 using Brunet.Tunnel;
 using Brunet.Util;
 

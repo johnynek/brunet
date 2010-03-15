@@ -24,13 +24,20 @@ using System.Xml;
 using System.Xml.Serialization;
 using System.Security.Cryptography;
 using System.Threading;
-using Brunet.Util;
-using Brunet.Coordinate;
-using Brunet.DistributedServices;
+
+using Brunet.Concurrent;
+using Brunet.Connections;
+using Brunet.Messaging;
 using Brunet.Security;
 using Brunet.Security.Protocol;
 using Brunet.Security.Transport;
+using Brunet.Services;
+using Brunet.Services.Coordinate;
+using Brunet.Services.Dht;
+using Brunet.Symphony;
+using Brunet.Transport;
 using Brunet.Tunnel;
+using Brunet.Util;
 
 namespace Brunet.Simulator {
   public class Simulator {
@@ -251,7 +258,7 @@ namespace Brunet.Simulator {
         node.AddEdgeListener(el);
       }
       // Enables Dht data store
-      new Brunet.DistributedServices.TableServer(node);
+      new TableServer(node);
       return node;
     }
 
