@@ -206,7 +206,6 @@
     <nant buildfile="src/Brunet/Services/Dht/default.build" />
     <nant buildfile="src/Brunet/Services/Coordinate/default.build" />
     <nant buildfile="src/Brunet/Services/XmlRpc/default.build" />
-    <nant buildfile="src/Brunet/DistributedServices/default.build" />
     <nant buildfile="tests/simulator/default.build" />
     <nant buildfile="tests/graph/default.build" />
   </target>

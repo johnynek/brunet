@@ -20,6 +20,7 @@ using System;
 using System.IO;
 using System.Collections;
 using System.Collections.Generic;
+using Brunet.Transport;
 using Brunet.Util;
 
 namespace Brunet.Simulator {

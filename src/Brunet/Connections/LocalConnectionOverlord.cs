@@ -277,7 +277,7 @@ namespace Brunet.Connections
     protected Hashtable GetInformation()
     {
       Hashtable ht = new Hashtable(3);
-      IList tas = (IList) ((ArrayList)_node.LocalTAs).Clone();
+      IList tas = _node.LocalTAs;
       string[] tas_string = new string[tas.Count];
       for(int i = 0; i < tas.Count; i++) {
         tas_string[i] = tas[i].ToString();

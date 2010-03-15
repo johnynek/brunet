@@ -51,7 +51,7 @@ based on ...
 #if BRUNET_SIMULATOR
 using System;
 
-namespace Brunet.Util {
+namespace Brunet {
 	public class DateTime : IComparable, IComparable<DateTime> {
     protected long _ticks;
     public long Ticks { get { return _ticks; } }

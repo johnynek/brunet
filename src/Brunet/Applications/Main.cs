@@ -76,7 +76,7 @@ namespace Brunet.Applications {
         node_config.Path = node_config_path;
       } catch (Exception e) {
         Console.WriteLine("Invalid NodeConfig file:");
-        Console.WriteLine("\t" + e.Message);
+        Console.WriteLine("\t" + e);
         return -1;
       }
 
