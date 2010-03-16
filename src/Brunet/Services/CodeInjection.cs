@@ -37,7 +37,7 @@ namespace Brunet.Services
     public CodeInjection(Node node)
     {
       _node = node;
-      RpcManager.GetInstance(_node).AddHandler("CodeInjection", this);
+      _node.Rpc.AddHandler("CodeInjection", this);
     }
 
     /**

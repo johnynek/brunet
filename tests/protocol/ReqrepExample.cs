@@ -92,7 +92,7 @@ using Brunet.Messaging;
      * namespace (or realm) called "testspace"
      */
     Node tmp_node = new StructuredNode(tmp_add, "testspace");
-    ReqrepManager rrman = ReqrepManager.GetInstance(tmp_node);
+    ReqrepManager rrman = tmp_node.Rrm;
     ReqrepExample irh = new ReqrepExample();
     tmp_node.GetTypeSource(PType.Protocol.Chat).Subscribe(irh, tmp_node);
     /**

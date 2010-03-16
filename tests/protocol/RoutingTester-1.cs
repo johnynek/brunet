@@ -193,7 +193,7 @@ namespace Brunet {
 	_node_list.Add(node);
 	RouteTestHandler test_handler = new RouteTestHandler();
 	node.GetTypeSource(new PType(routing_test)).Subscribe(test_handler, address.ToMemBlock());
-	RpcManager rpc_man = RpcManager.GetInstance(node);
+	RpcManager rpc_man = node.Rpc;
 	rpc_man.AddHandler("rpc_routing_test", new  RpcRoutingTestHandler(node));
       }
 
@@ -293,7 +293,7 @@ namespace Brunet {
 	  //Console.WriteLine("{0} -> {1}", src_idx, dest_idx);
 	  Address dest_address = (Address) dest_node.Address;
 	  ISender s = new AHExactSender(src_node, dest_address);
-	  RpcManager rpc_man = RpcManager.GetInstance(src_node);
+	  RpcManager rpc_man = src_node.Rpc;
 	  Channel q = new Channel();
 	  lock (_class_lock) {
 	    queue_to_address[q] = dest_address;

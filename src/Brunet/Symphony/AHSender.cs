@@ -220,7 +220,8 @@ public class AHSender : ISender {
     _buf_alloc = new BufferAllocator(System.UInt16.MaxValue);
   }
 
-  protected static AHSender CreateInstance(Node n, string uri) {
+  protected static AHSender CreateInstance(object node_ctx, string uri) {
+    Node n = (Node)node_ctx;
     string ahscheme; //Should be "ah"
     IDictionary<string, string> kvpairs = SenderFactory.DecodeUri(uri, out ahscheme);
     Address target = AddressParser.Parse(kvpairs["dest"]);
@@ -750,5 +751,49 @@ public class AHHandler : IDataHandler {
     }
   }
 }
+
+#if BRUNET_NUNIT
+  [TestFixture]
+  public class AHSenderFactoryTester {
+    [Test]
+    public void Test() {
+      RandomNumberGenerator rng = new RNGCryptoServiceProvider();      
+      AHAddress tmp_add = new AHAddress(rng);
+      Node n = new StructuredNode(tmp_add, "unittest");
+      AHSender ah = new AHSender(n, AddressParser.Parse("brunet:node:JOJZG7VO6RFOEZJ6CJJ2WOIJWTXRVRP4"));
+      ForwardingSender fs = new ForwardingSender(n, 
+                                                 AddressParser.Parse("brunet:node:JOJZG7VO6RFOEZJ6CJJ2WOIJWTXRVRP4"),
+                                                 AddressParser.Parse("brunet:node:5FMQW3KKJWOOGVDO6QAQP65AWVZQ4VUQ"));
+      
+      string uri = "sender:ah?dest=JOJZG7VO6RFOEZJ6CJJ2WOIJWTXRVRP4&mode=exact";
+      ISender s = SenderFactory.CreateInstance(n, uri);
+      Assert.IsTrue(s is AHSender);
+      Assert.AreEqual(uri, s.ToUri());
+      uri = "sender:ah?dest=JOJZG7VO6RFOEZJ6CJJ2WOIJWTXRVRP4&mode=greedy";
+      
+      //Create the above programatically
+      IDictionary<string, string> param_args = new Dictionary<string,string>();
+      param_args["dest"] = "JOJZG7VO6RFOEZJ6CJJ2WOIJWTXRVRP4";
+      param_args["mode"] = "greedy";
+      string uri0 = SenderFactory.EncodeUri("ah", param_args); 
+      Assert.AreEqual(uri, uri0, "EncodeUri works");
+      //Check decode:
+      string scheme;
+      param_args = SenderFactory.DecodeUri(uri, out scheme);
+      Assert.AreEqual(scheme, "ah", "Scheme decoded");
+      Assert.AreEqual(param_args.Count, 2, "2 parameters in uri");
+      Assert.AreEqual(param_args["dest"], "JOJZG7VO6RFOEZJ6CJJ2WOIJWTXRVRP4", "Extracted address");
+      Assert.AreEqual(param_args["mode"], "greedy", "got mode");
+
+      s = SenderFactory.CreateInstance(n, uri);
+      Assert.IsTrue(s is AHSender);
+      Assert.AreEqual(uri, s.ToUri());      
+      string furi = "sender:fw?relay=JOJZG7VO6RFOEZJ6CJJ2WOIJWTXRVRP4&init_mode=greedy&dest=5FMQW3KKJWOOGVDO6QAQP65AWVZQ4VUQ&ttl=3&mode=path";
+      s = SenderFactory.CreateInstance(n, furi);
+      Assert.IsTrue(s is ForwardingSender);
+      Assert.AreEqual(furi, s.ToUri());
+    }
+  }
+#endif
 
 }

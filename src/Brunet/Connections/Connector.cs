@@ -162,7 +162,7 @@ namespace Brunet.Connections
         }
       }
       
-      RpcManager rpc = RpcManager.GetInstance(_local_node);
+      RpcManager rpc = _local_node.Rpc;
 
       Channel results = new Channel();
       results.EnqueueEvent += this.EnqueueHandler;

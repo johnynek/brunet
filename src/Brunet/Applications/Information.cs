@@ -63,7 +63,7 @@ namespace Brunet.Applications {
       UserData = new Hashtable();
       _type = type;
       _node = node;
-      _rpc = RpcManager.GetInstance(node);
+      _rpc = node.Rpc;
       _rpc.AddHandler("Information", this);
     }
 

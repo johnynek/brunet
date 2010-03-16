@@ -108,7 +108,7 @@ namespace Brunet
         Node n0 = (Node)nodes[idx0];
         Node n1 = (Node)nodes[idx1];
         Action ping = delegate() {
-          RpcManager pinger = RpcManager.GetInstance( n0 );
+          RpcManager pinger = n0.Rpc;
           Channel results = new Channel(1);
           results.CloseEvent += delegate(object q, EventArgs a) {
             try {
@@ -185,7 +185,7 @@ namespace Brunet
         Node n0 = (Node)nodes[idx0];
         Node n1 = (Node)nodes[idx1];
         Action ping = delegate() {
-          RpcManager pinger = RpcManager.GetInstance( n0 );
+          RpcManager pinger = n0.Rpc;
           Channel results = new Channel(1);
           results.CloseEvent += delegate(object q, EventArgs a) {
             try {
@@ -390,7 +390,7 @@ namespace Brunet
       int idx1 = my_r.Next(0, nodes.Count);
       Node n0 = (Node)nodes[idx0];
       Node n1 = (Node)nodes[idx1];
-      RpcManager pinger = RpcManager.GetInstance( n0 );
+      RpcManager pinger = n0.Rpc;
       Channel results = new Channel();
       results.EnqueueEvent += delegate(object q, EventArgs a) {
         object result = results.Dequeue();
@@ -417,7 +417,7 @@ namespace Brunet
       int idx1 = my_r.Next(0, nodes.Count);
       Node n0 = (Node)nodes[idx0];
       Node n1 = (Node)nodes[idx1];
-      RpcManager pinger = RpcManager.GetInstance( n0 );
+      RpcManager pinger = n0.Rpc;
       Channel results = new Channel();
       Console.WriteLine("Traceroute: {0} -> {1}", n0.Address, n1.Address);
       results.EnqueueEvent += delegate(object q, EventArgs a) {

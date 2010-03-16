@@ -171,7 +171,7 @@ namespace Brunet.Services.Coordinate {
 
       q.EnqueueEvent += new EventHandler(EnqueueHandler);
       q.CloseEvent += new EventHandler(CloseHandler);
-      RpcManager rpc = RpcManager.GetInstance(_node);
+      RpcManager rpc = _node.Rpc;
       rpc.Invoke(s, q, "ncserver.EchoVivaldiState", new object[]{});
     }
     

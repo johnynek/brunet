@@ -56,8 +56,8 @@ namespace Brunet
       SenderFactory.Register("localnode", CreateLocalSender); 
     }
 
-    public static Node CreateLocalSender(Node n, string uri) {
-      return n;
+    public static Node CreateLocalSender(object n, string uri) {
+      return (Node)n;
     }
     /**
      * Create a node in the realm "global"
@@ -102,7 +102,7 @@ namespace Brunet
         _con_state = Node.ConnectionState.Offline;
         
         /* Set up the ReqrepManager as a filter */
-        _rrm = new ReqrepManager(Address.ToString());
+        _rrm = new ReqrepManager(this);
         DemuxHandler.GetTypeSource(PType.Protocol.ReqRep).Subscribe(_rrm, null);
         _rrm.Subscribe(this, null);
         this.HeartBeatEvent += _rrm.TimeoutChecker;
@@ -767,6 +767,11 @@ namespace Brunet
         }
       }
     }
+
+    public override string ToString() {
+      return String.Format("Node({0})", Address);
+    }
+
     /**
      * There can only safely be one of these threads running
      */
@@ -1066,9 +1071,8 @@ namespace Brunet
         e.Close(); 
       };
       results.CloseEvent += close_eh;
-      RpcManager rpc = RpcManager.GetInstance(this);
       try {
-        rpc.Invoke(e, results, "sys:link.Close", close_info);
+        _rpc.Invoke(e, results, "sys:link.Close", close_info);
       }
       catch { Close(e); }
     }
@@ -1132,7 +1136,6 @@ namespace Brunet
        * If we haven't heard from any of these people in this time,
        * we ping them, and if we don't get a response, we close them
        */
-      RpcManager rpc = RpcManager.GetInstance(this);
       foreach(Connection c in _connection_table) {
         Edge e = c.Edge;
         TimeSpan since_last_in = now - e.LastInPacketDateTime; 
@@ -1182,7 +1185,7 @@ namespace Brunet
           tmp_queue.CloseEvent += on_close;
           //Do the ping
           try {
-            rpc.Invoke(e, tmp_queue, "sys:link.Ping", ping_arg);
+            _rpc.Invoke(e, tmp_queue, "sys:link.Ping", ping_arg);
           }
           catch(EdgeClosedException) {
             //Just ignore closed edges, clearly we can't ping them

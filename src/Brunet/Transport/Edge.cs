@@ -81,7 +81,7 @@ namespace Brunet.Transport
     /** Return the edge specified in the given URI
      * this matches the SenderFactory
      */
-    public static Edge CreateInstance(Node n, string uri) {
+    public static Edge CreateInstance(object n, string uri) {
       string scheme;
       IDictionary<string, string> args = SenderFactory.DecodeUri(uri, out scheme);
       return GetEdgeNum( Int64.Parse( args["num"] ) );

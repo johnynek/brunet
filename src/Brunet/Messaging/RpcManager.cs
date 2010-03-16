@@ -36,7 +36,7 @@ public interface IRpcHandler {
   /**
    * When you're done with the method call use:
    * RpcManager.SendResult(request_state, result);
-   * @param caller the ISender that sends to the Node that made the RPC call
+   * @param caller the ISender that sends to the point that made the RPC call
    * @param method the part after the first "." in the method call
    * @param arguments a list of arguments passed
    * @param request_state used to send the response via RpcManager.SendResult
@@ -76,7 +76,7 @@ public class RpcResult {
   }
   protected ISender _ret_path;
   /**
-   * This is a ISender that can send to the Node that
+   * This is a ISender that can send to the point that
    * sent this result.
    */
   public ISender ResultSender { get { return _ret_path; } }
@@ -218,15 +218,6 @@ public class RpcManager : IReplyHandler, IDataHandler {
     _rpc_thread.IsBackground = true;
     _rpc_thread.Start();
 #endif
-  }
-
-  /**
-   * Static method to create RpcManager objects
-   * @param node The node we work for
-   * @deprecated use node.Rpc
-   */
-  public static RpcManager GetInstance(Node node) {
-    return node.Rpc;
   }
 
   /**

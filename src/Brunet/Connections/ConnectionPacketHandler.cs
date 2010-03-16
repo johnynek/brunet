@@ -299,7 +299,7 @@ namespace Brunet.Connections
           Connection c = tab.GetConnection( lm.ConnectionType,
                                              lm.Local.Address );
           if( c != null ) {
-            RpcManager rpc = RpcManager.GetInstance(_node);
+            RpcManager rpc = _node.Rpc;
             rpc.Invoke(c.Edge, null, "sys:link.Ping", String.Empty);
           }
         }

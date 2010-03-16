@@ -115,7 +115,8 @@ namespace Brunet.Symphony
       SenderFactory.Register("fw", CreateInstance);
     }
     
-    public static ForwardingSender CreateInstance(Node n, string uri) {
+    public static ForwardingSender CreateInstance(object node_ctx, string uri) {
+      Node n = (Node)node_ctx;
       string fw_scheme; //Should be "fw"
       IDictionary<string, string> kvpairs = SenderFactory.DecodeUri(uri, out fw_scheme);
       Address forwarder = AddressParser.Parse(kvpairs["relay"]);

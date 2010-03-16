@@ -76,8 +76,6 @@ namespace Brunet.Symphony
 
     public StructuredNode(AHAddress add, string realm):base(add,realm)
     {
-      // Instantiate rpc early!
-      RpcManager rpc = RpcManager.GetInstance(this);
       /**
        * Here are the ConnectionOverlords
        */ 
@@ -102,16 +100,16 @@ namespace Brunet.Symphony
       GetTypeSource(PType.Protocol.Echo).Subscribe(new EchoHandler(), this);
       
       //Add the standard RPC handlers:
-      rpc.AddHandler("sys:ctm", new CtmRequestHandler(this));
+      _rpc.AddHandler("sys:ctm", new CtmRequestHandler(this));
       sys_link = new ConnectionPacketHandler(this);
-      rpc.AddHandler("sys:link", sys_link);
-      rpc.AddHandler("trace", new TraceRpcHandler(this));
+      _rpc.AddHandler("sys:link", sys_link);
+      _rpc.AddHandler("trace", new TraceRpcHandler(this));
       //Serve some public information about our ConnectionTable
-      rpc.AddHandler("ConnectionTable", new ConnectionTableRpc(ConnectionTable, rpc));
+      _rpc.AddHandler("ConnectionTable", new ConnectionTableRpc(ConnectionTable, _rpc));
       //Add a map-reduce handlers:
       _mr_handler = new MapReduceHandler(this);
       //Subscribe it with the RPC handler:
-      rpc.AddHandler("mapreduce", _mr_handler);
+      _rpc.AddHandler("mapreduce", _mr_handler);
 
       //Subscribe map-reduce tasks
       _mr_handler.SubscribeTask(new MapReduceTrace(this));
@@ -254,7 +252,6 @@ namespace Brunet.Symphony
           StopAllEdgeListeners();
         }
       };
-      RpcManager rpc = RpcManager.GetInstance(this);
       if(ProtocolLog.NodeLog.Enabled)
         ProtocolLog.Write(ProtocolLog.NodeLog, String.Format(
           "{0} About to gracefully close all edges", this.Address));
@@ -278,7 +275,7 @@ namespace Brunet.Symphony
             e.Close();
           };
           try {
-            rpc.Invoke(e, res_q, "sys:link.Close", carg);
+            _rpc.Invoke(e, res_q, "sys:link.Close", carg);
           }
           catch(EdgeException) {
             /*
@@ -448,8 +445,7 @@ namespace Brunet.Symphony
           }
         };
         stat_res.CloseEvent += handle_result;
-        RpcManager rpc = RpcManager.GetInstance(this);
-        rpc.Invoke(c.Edge, stat_res, "sys:link.GetStatus", req.ToDictionary() );
+        _rpc.Invoke(c.Edge, stat_res, "sys:link.GetStatus", req.ToDictionary() );
       }
     }
     /**

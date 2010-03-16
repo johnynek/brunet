@@ -80,7 +80,7 @@ namespace Brunet.Services.Dht {
       _transfer_sync = new Object();
 
       _node = node;
-      _rpc = RpcManager.GetInstance(node);
+      _rpc = node.Rpc;
 
       _data = new TableServerData(_node);
       lock(_transfer_sync) {

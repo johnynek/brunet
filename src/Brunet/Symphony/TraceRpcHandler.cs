@@ -44,7 +44,7 @@ public class TraceRpcHandler : IRpcHandler {
    */
   public TraceRpcHandler(Node n) {
     _node = n;
-    _rpc = RpcManager.GetInstance(n);
+    _rpc = n.Rpc;
   }
   /**
    * This dispatches the particular methods this class provides
@@ -221,8 +221,8 @@ public class TraceRpcHandler : IRpcHandler {
     protected DateTime _start_time;
 
     public EchoSendHandler(Node n, ISender dest, object req_state) {
-      _rpc = RpcManager.GetInstance(n);
-      _rrman = ReqrepManager.GetInstance(n);
+      _rrman = n.Rrm;
+      _rpc = n.Rpc;
       _req_state = req_state;
       _dest = dest;
     }

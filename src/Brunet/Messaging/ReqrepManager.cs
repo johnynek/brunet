@@ -67,14 +67,27 @@ public class ReqrepManager : SimpleSource, IDataHandler {
 
   static ReqrepManager() {
     SenderFactory.Register("replystate", LookupReplyStateByUri);
+    _inst_tab_sync = new object();
+    lock(_inst_tab_sync) {
+      _instance_table = new Dictionary<object, ReqrepManager>();
+    } 
   }
   /**
    * Protected constructor, we want to control ReqrepManager instances
    * running on a node. 
-   * @param node The Node we work for
+   * @param info some context that we work for
    */
-  public ReqrepManager(string info) {
-    _info = info;
+  public ReqrepManager(object info) {
+    ReqrepManager existing;
+    lock( _inst_tab_sync ) {
+      if(_instance_table.TryGetValue(info, out existing) ) {
+        throw new Exception("Already an existing ReqrepManager for: " + info.ToString());
+      }
+      else {
+        _instance_table[info] = this;
+      }
+    }
+    _info = info.ToString();
 
     _req_handler_table = new Hashtable();
     Random r = new Random();
@@ -108,17 +121,26 @@ public class ReqrepManager : SimpleSource, IDataHandler {
     _last_check = DateTime.UtcNow;
   }
 
+  protected static object _inst_tab_sync;
+  protected static Dictionary<object, ReqrepManager> _instance_table;
+
   /** 
    * Static method to create ReqrepManager objects
-   * @param node The node we work for
-   * @deprecated use node.Rrm;
+   * @param context the object that this manager works for
    */
-  public static ReqrepManager GetInstance(Node node) {
-    return node.Rrm;
+  public static ReqrepManager GetInstance(object context) {
+    lock(_inst_tab_sync) {
+      ReqrepManager inst;
+      if( !_instance_table.TryGetValue(context, out inst)) {
+        //This puts the item into _instance_table:
+        inst = new ReqrepManager(context);
+      }
+      return inst;
+    }
   }
 
-  public static ReplyState LookupReplyStateByUri(Node n, string uri) {
-    ReqrepManager rrm = n.Rrm;
+  public static ReplyState LookupReplyStateByUri(object ctx, string uri) {
+    ReqrepManager rrm = _instance_table[ctx];
     string scheme;
     IDictionary<string, string> kvpairs = SenderFactory.DecodeUri(uri, out scheme);
     int id = Int32.Parse(kvpairs["id"]);

@@ -79,7 +79,7 @@ namespace Brunet.Connections
       _node = node;
 
       lock(_sync) {
-        _rpc = RpcManager.GetInstance(node);
+        _rpc = node.Rpc;
         _rpc.AddHandler("LocalCO", this);
 
         _node.HeartBeatEvent += CheckConnection;

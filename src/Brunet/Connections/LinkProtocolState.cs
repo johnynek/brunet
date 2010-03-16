@@ -391,7 +391,7 @@ namespace Brunet.Connections
         Channel results = new Channel();
         results.CloseAfterEnqueue();
         results.CloseEvent += this.LinkCloseHandler;
-        RpcManager rpc = RpcManager.GetInstance(_node);
+        RpcManager rpc = _node.Rpc;
 	if(ProtocolLog.LinkDebug.Enabled) {
 	  ProtocolLog.Write(ProtocolLog.LinkDebug, 
 			    String.Format("LPS target: {0} Invoking Start() over edge: {1}", _linker.Target, _e));
@@ -488,7 +488,7 @@ namespace Brunet.Connections
         Channel results = new Channel();
         results.CloseAfterEnqueue();
         results.CloseEvent += this.StatusCloseHandler;
-        RpcManager rpc = RpcManager.GetInstance(_node);
+        RpcManager rpc = _node.Rpc;
 	if (ProtocolLog.LinkDebug.Enabled) {
 	      ProtocolLog.Write(ProtocolLog.LinkDebug, 
                 String.Format(
