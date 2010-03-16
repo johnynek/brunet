@@ -590,43 +590,6 @@ namespace Brunet
     }
 
     /**
-     * The default TTL for this destination 
-     */
-    public virtual short DefaultTTLFor(Address destination)
-    {
-      short ttl;
-      double ttld;
-      if( destination is StructuredAddress ) {
-	 //This is from the original papers on
-	 //small world routing.  The maximum distance
-	 //is almost certainly less than log^3 N
-        ttld = Math.Log( NetworkSize );
-        ttld = ttld * ttld * ttld;
-      }
-      else {
-	//Most random networks have diameter
-	//of size order Log N
-        ttld = Math.Log( NetworkSize, 2.0 );
-        ttld = 2.0 * ttld;
-      }
-      
-      if( ttld < 2.0 ) {
-        //Don't send too short a distance
-	ttl = 2;
-      }
-      else if( ttld > (double)Int16.MaxValue ) {
-        ttl = Int16.MaxValue;
-      }
-      else {
-        ttl = (short)( ttld );
-      }
-      //When the network is very small this could happen, at least give it one
-      //hop:
-      if( ttl < 1 ) { ttl = 1; }
-      return ttl;
-    }
-
-    /**
      * This Handler should be connected to incoming EdgeEvent
      * events.  If it is not, it cannot hear the new edges.
      *
