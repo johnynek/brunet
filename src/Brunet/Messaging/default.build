@@ -1,14 +1,17 @@
 <?xml version="1.0"?>
 
 <project name="Brunet" default="build">
-  <target name="build" description="Make Brunet.Util.dll">
+  <target name="build" description="Make Brunet.Messaging.dll">
     <nant buildfile="../Collections/default.build"/>
     <nant buildfile="../Concurrent/default.build"/>
-    <csc target="library" output="Brunet.Util.dll">
+    <nant buildfile="../Util/default.build"/>
+    <csc target="library" output="Brunet.Messaging.dll">
       <sources><include name="*.cs"/></sources>
       <references>
         <include name="../Collections/Brunet.Collections.dll"/>
         <include name="../Concurrent/Brunet.Concurrent.dll"/>
+        <include name="../Util/Brunet.Util.dll"/>
+        <include name="System.Web.dll"/>
       </references>
     </csc>
   </target>

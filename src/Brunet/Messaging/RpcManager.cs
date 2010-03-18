@@ -28,7 +28,6 @@ using System.Threading;
 using Brunet.Collections;
 using Brunet.Util;
 using Brunet.Concurrent;
-using Brunet.Transport;
 
 namespace Brunet.Messaging {
 public interface IRpcHandler {
@@ -411,11 +410,6 @@ public class RpcManager : IReplyHandler, IDataHandler {
           if( bq != null ) { bq.Close(); }
           break;
         case ReqrepManager.ReqrepError.Send:
-          if( rs.RpcTarget is Edge ) { 
-            Edge e = (Edge)rs.RpcTarget;
-            //This definitely won't get any more responses:
-            if( e.IsClosed && bq != null ) { bq.Close(); } 
-          }
           //We had some problem sending, but ignore it for now
           break;
     }

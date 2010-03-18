@@ -2,6 +2,7 @@
 
 <project name="Brunet" default="build">
   <target name="build" description="Make Brunet.Concurrent.dll">
+    <nant buildfile="../Collections/default.build"/>
     <csc target="library" output="Brunet.Concurrent.dll">
       <sources><include name="*.cs"/></sources>
       <references>

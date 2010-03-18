@@ -88,13 +88,11 @@ public class ReqrepManager : SimpleSource, IDataHandler {
     }
     _info = info.ToString();
 
-    _req_handler_table = new Hashtable();
     Random r = new Random();
     //Don't use negative numbers:
     _req_state_table = new UidGenerator<RequestState>(r, true);
     //Don't use negative numbers:
     _reply_id_table = new UidGenerator<ReplyState>(r, true);
-    _rep_handler_table = new Hashtable();
 
     /**
      * We keep a list of the most recent 1000 replies until they
@@ -399,21 +397,22 @@ public class ReqrepManager : SimpleSource, IDataHandler {
    // ///////
    // Member variables
    // ////////
-     private TimeSpan _edge_reqtimeout;
-     private TimeSpan _nonedge_reqtimeout;
-     private TimeSpan _acked_reqtimeout;
      //This is to keep track of when we looked for timeouts last
      private DateTime _last_check;
-     private TimeStats _nonedge_rtt_stats;
-     private TimeStats _edge_rtt_stats;
-     private TimeStats _acked_rtt_stats;
+     private double _min_timeout;
+
+     private readonly object _sync;
+     private readonly Cache _send_stats;
+     private readonly Cache _type_stats;
+     private readonly TimeStats _global_stats;
+     private readonly TimeStats _acked_rtt_stats;
 
      // ///////
      // Properties
      // ///////
      public TimeSpan MinimumTimeOut {
        get {
-         return (_edge_reqtimeout < _nonedge_reqtimeout) ? _edge_reqtimeout : _nonedge_reqtimeout;
+         return TimeSpan.FromMilliseconds( _min_timeout );
        }
      }
      public DateTime LastCheck {
@@ -423,7 +422,10 @@ public class ReqrepManager : SimpleSource, IDataHandler {
 
      public TimeSpan AckedTimeOut {
        get {
-         return _acked_reqtimeout;
+         TimeStats ts = _acked_rtt_stats;
+         double timeout = ts.AvePlusKStdDev(_STD_DEVS);
+         timeout = Math.Max(_MINIMUM_TIMEOUT, timeout);
+         return TimeSpan.FromMilliseconds( timeout );
        }
      }
 
@@ -433,27 +435,51 @@ public class ReqrepManager : SimpleSource, IDataHandler {
         * value, but this is now dynamic based on the observed
         * RTT of the network
         */
-       //resend the request after 5 seconds.
-       _edge_reqtimeout = new TimeSpan(0,0,0,0,5000);
-       _nonedge_reqtimeout = new TimeSpan(0,0,0,0,5000);
+       //resend the request after 5 seconds by default
+       _min_timeout = 5000;
+       _global_stats = new TimeStats(_min_timeout, 0.98);
        //Start with 50 sec timeout
-       _acked_reqtimeout = new TimeSpan(0,0,0,0,50000);
-       //Here we track the statistics to improve the timeouts:
-       _nonedge_rtt_stats = new TimeStats(_nonedge_reqtimeout.TotalMilliseconds, 0.98);
-       _edge_rtt_stats = new TimeStats(_edge_reqtimeout.TotalMilliseconds, 0.98);
-       _acked_rtt_stats = new TimeStats(_acked_reqtimeout.TotalMilliseconds, 0.98);
+       _acked_rtt_stats = new TimeStats(_min_timeout * 10, 0.98);
        _last_check = DateTime.UtcNow;
+       _send_stats = new Cache(1000);
+       _type_stats = new Cache(100);
+       _sync = new object();
+     }
+     private Pair<TimeStats,TimeStats> GetStatsFor(ISender s) {
+       System.Type st = s.GetType();
+       TimeStats typets = (TimeStats)_type_stats[st];
+       if(null == typets) {
+         typets = _global_stats.Clone();
+         _type_stats[st] = typets;
+       }
+       
+       TimeStats sendts = (TimeStats)_send_stats[s];
+       if(null == sendts) {
+         sendts = typets.Clone();
+         _type_stats[s] = sendts;
+       }
+       return new Pair<TimeStats,TimeStats>(typets, sendts);
      }
      public TimeSpan GetTimeOutFor(ISender s) {
-       ///@todo this is the only dependence on Edge, remove it
-       return s is Brunet.Transport.Edge ? _edge_reqtimeout : _nonedge_reqtimeout;
+       double timeout;
+       lock(_sync) {
+         //Has to be locked because we modify the cache
+         var ts = GetStatsFor(s).Second;
+         timeout = ts.AvePlusKStdDev(_STD_DEVS);
+       }
+       timeout = Math.Max(_MINIMUM_TIMEOUT, timeout);
+       return TimeSpan.FromMilliseconds( timeout );
      }
      public void AddAckSampleFor(RequestState reqs, ISender s, TimeSpan rtt) {
-       if( s is Brunet.Transport.Edge ) {
-         _edge_reqtimeout = ComputeNewTimeOut(rtt, _edge_rtt_stats);
-       }
-       else {
-        _nonedge_reqtimeout = ComputeNewTimeOut(rtt, _nonedge_rtt_stats);
+       lock( _sync ) {
+         var tsp = GetStatsFor(s);
+         tsp.First.AddSample(rtt.TotalMilliseconds);
+         tsp.Second.AddSample(rtt.TotalMilliseconds);
+         _global_stats.AddSample(rtt.TotalMilliseconds);
+         //Update the minimum:
+         _min_timeout = Math.Min(_min_timeout, tsp.First.AvePlusKStdDev(_STD_DEVS));
+         _min_timeout = Math.Min(_min_timeout, tsp.Second.AvePlusKStdDev(_STD_DEVS));
+         _min_timeout = Math.Min(_min_timeout, _global_stats.AvePlusKStdDev(_STD_DEVS));
        }
      }
      public void AddReplySampleFor(RequestState reqs, ISender s, TimeSpan rtt) {
@@ -461,7 +487,11 @@ public class ReqrepManager : SimpleSource, IDataHandler {
         * Let's look at how long it took to get this reply:
         */
        if( reqs.GotAck ) {
-         _acked_reqtimeout = ComputeNewTimeOut(rtt, _acked_rtt_stats);
+         lock(_sync) {
+           TimeStats ts = _acked_rtt_stats;
+           ts.AddSample(rtt.TotalMilliseconds);
+           _min_timeout = Math.Min(_min_timeout, ts.AvePlusKStdDev(_STD_DEVS));
+         }
        }
        else {
          AddAckSampleFor(reqs, s, rtt);
@@ -469,12 +499,6 @@ public class ReqrepManager : SimpleSource, IDataHandler {
      }
      public bool IsTimeToCheck(DateTime dt) {
        return dt - _last_check > MinimumTimeOut;
-     }
-     private TimeSpan ComputeNewTimeOut(TimeSpan ms, TimeStats stats) {
-       stats.AddSample(ms.TotalMilliseconds);
-       double timeout = stats.Average + _STD_DEVS * stats.StdDev;
-       timeout = Math.Max(_MINIMUM_TIMEOUT, timeout);
-       return TimeSpan.FromMilliseconds( timeout );
      }
    }
    // Member variables:
@@ -485,8 +509,6 @@ public class ReqrepManager : SimpleSource, IDataHandler {
    protected readonly UidGenerator<ReplyState> _reply_id_table;
    protected readonly TimeOutManager _to_mgr;
    protected readonly Cache _reply_cache;
-   protected readonly Hashtable _rep_handler_table;
-   protected readonly Hashtable _req_handler_table;
    //When a message times out, how many times should
    //we resend before giving up
    private const int _MAX_RESENDS = 5;
@@ -498,7 +520,7 @@ public class ReqrepManager : SimpleSource, IDataHandler {
     * When f = 1, we never change: a[t+1] = a[t]
     */
    protected class TimeStats {
-     protected readonly double _exp_factor = 0.98; //approximately use the last 50
+     protected readonly double _exp_factor;
      protected double _exp_moving_rtt;
      
      public double Average { get { return _exp_moving_rtt; } }
@@ -539,6 +561,18 @@ public class ReqrepManager : SimpleSource, IDataHandler {
        double timeout = _exp_moving_rtt + _STD_DEVS * std_dev;
        Console.Error.WriteLine("mean: {0}, std-dev: {1}, max: {2}, timeout: {3}", _exp_moving_rtt, std_dev, _max_rtt, timeout);
   #endif
+     }
+
+     public double AvePlusKStdDev(double k) {
+       return _exp_moving_rtt + k * _exp_moving_stdev; 
+     }
+
+     public TimeStats Clone() {
+       var ret = new TimeStats(_exp_moving_rtt, 0.98);
+       ret._exp_moving_square_rtt = _exp_moving_square_rtt;
+       ret._exp_moving_stdev = _exp_moving_stdev;
+       ret._max_rtt = _max_rtt;
+       return ret;
      }
 
    }
