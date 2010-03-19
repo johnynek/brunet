@@ -25,6 +25,8 @@ using System.Collections.Specialized;
 #if BRUNET_NUNIT
 using System.Security.Cryptography;
 using NUnit.Framework;
+using Brunet.Symphony;
+using Brunet.Transport;
 #endif
 
 namespace Brunet.Connections

@@ -21,6 +21,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #if BRUNET_NUNIT
 using NUnit.Framework;
+using Brunet.Transport;
+using Brunet.Symphony;
 #endif
 using System;
 using System.Text;

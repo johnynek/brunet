@@ -29,6 +29,8 @@ using Brunet.Transport;
 using Brunet.Util;
 
 #if BRUNET_NUNIT 
+using Brunet.Symphony;
+using System.Security.Cryptography;
 using NUnit.Framework;
 #endif
 
@@ -306,8 +308,9 @@ namespace Brunet.Connections
     [Test]
     public void CacheTest()
     {
-      Address a = new DirectionalAddress(DirectionalAddress.Direction.Left);
-      Address a2 = new DirectionalAddress(DirectionalAddress.Direction.Left);
+      RandomNumberGenerator rng = new RNGCryptoServiceProvider();
+      Address a = new AHAddress(rng);
+      Address a2 = new AHAddress(a.ToMemBlock());
       TransportAddress ta = TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:5000");
       TransportAddress ta2 = TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:5000");
       NodeInfo ni = NodeInfo.CreateInstance(a, ta);
@@ -317,7 +320,8 @@ namespace Brunet.Connections
     [Test]
     public void TestWriteAndParse()
     {
-      Address a = new DirectionalAddress(DirectionalAddress.Direction.Left);
+      RandomNumberGenerator rng = new RNGCryptoServiceProvider();
+      Address a = new AHAddress(rng);
       TransportAddress ta = TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:5000");
       NodeInfo ni = NodeInfo.CreateInstance(a, ta);
       RoundTripHT(ni);
