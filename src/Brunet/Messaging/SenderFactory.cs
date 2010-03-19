@@ -78,7 +78,13 @@ namespace Brunet.Messaging {
       try {
         string type = GetScheme(uri, out varidx);
         return _handlers[type](ctx, uri);
-      } catch {
+      } catch(Exception
+        #if BRUNET_NUNIT
+        x) {
+        Console.WriteLine(x);
+        #else
+        ) {
+        #endif
         throw new SenderFactoryException("Cannot parse URI: " + uri);         
       }
     }

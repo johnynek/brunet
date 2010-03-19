@@ -119,9 +119,9 @@ namespace Brunet.Symphony
       Node n = (Node)node_ctx;
       string fw_scheme; //Should be "fw"
       IDictionary<string, string> kvpairs = SenderFactory.DecodeUri(uri, out fw_scheme);
-      Address forwarder = AddressParser.Parse(kvpairs["relay"]);
+      Address forwarder = AddressParser.Parse("brunet:node:" + kvpairs["relay"]);
       ushort init_option = AHHeader.Options.StringToUShort(kvpairs["init_mode"]);
-      Address target = AddressParser.Parse(kvpairs["dest"]);
+      Address target = AddressParser.Parse("brunet:node:" + kvpairs["dest"]);
       short ttl = (short) Int16.Parse(kvpairs["ttl"]);
       ushort option = AHHeader.Options.StringToUShort(kvpairs["mode"]);
 

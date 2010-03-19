@@ -26,8 +26,13 @@ using System.Threading;
 using Brunet.Collections;
 using Brunet.Connections;
 using Brunet.Transport;
-
 using Brunet.Messaging;
+
+#if BRUNET_NUNIT
+using NUnit.Framework;
+using System.Security.Cryptography;
+#endif
+
 namespace Brunet.Symphony {
 
 /**
@@ -224,7 +229,7 @@ public class AHSender : ISender {
     Node n = (Node)node_ctx;
     string ahscheme; //Should be "ah"
     IDictionary<string, string> kvpairs = SenderFactory.DecodeUri(uri, out ahscheme);
-    Address target = AddressParser.Parse(kvpairs["dest"]);
+    Address target = AddressParser.Parse("brunet:node:" + kvpairs["dest"]);
     ushort option = AHHeader.Options.StringToUShort(kvpairs["mode"]);
     return new AHSender(n, target, option);
   }
