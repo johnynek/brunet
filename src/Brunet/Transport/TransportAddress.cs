@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Net;
 using System.Text;
 using System.Threading;
@@ -71,41 +72,20 @@ namespace Brunet.Transport
     }
     protected static TransportAddress NoCacheCreateInstance(string s) {
       string scheme = s.Substring(0, s.IndexOf(":"));
-      string t = scheme.Substring(scheme.IndexOf('.') + 1);
-      //Console.Error.WriteLine(t);
-      
-      TransportAddress result = null;
-      TransportAddress.TAType ta_type = StringToType(t);
-      
-      switch(ta_type) {
-        case TransportAddress.TAType.Tcp:
-          result = new IPTransportAddress(s);
-          break;
-        case TransportAddress.TAType.Udp:
-          result = new IPTransportAddress(s);
-          break;
-        case TransportAddress.TAType.Function:
-          result = new IPTransportAddress(s);
-          break;
-        case TransportAddress.TAType.S:
-          result = new SimulationTransportAddress(s);
-          break;
-        case TransportAddress.TAType.Tls:
-          result = new IPTransportAddress(s);
-          break;
-        case TransportAddress.TAType.TlsTest:
-          result = new IPTransportAddress(s);
-          break;
-        case TransportAddress.TAType.Tunnel:
-          result = new TunnelTransportAddress(s);
-          break;
-      }
+      string t = scheme.Substring(scheme.IndexOf('.') + 1).ToLower();
 
-      return result;
+      Converter<string, TransportAddress> factory;
+      if( _ta_factories.TryGetValue(t, out factory ) ) {
+        return factory(s);
+      }
+      else {
+        throw new ParseException("Cannot parse: " + s);
+      }
     }
     
 
-    protected static Hashtable _string_to_type;
+    private static readonly Dictionary<string,TransportAddress.TAType> _string_to_type;
+    private static readonly Dictionary<string, Converter<string,TransportAddress>> _ta_factories;
     /*
      * Parsing strings into TransportAddress objects is pretty 
      * expensive (according to the profiler).  Since both
@@ -117,19 +97,37 @@ namespace Brunet.Transport
     protected const int CACHE_SIZE = 1024;
     
     static TransportAddressFactory() {
-      _string_to_type = new Hashtable();
+      _string_to_type = new Dictionary<string,TransportAddress.TAType>();
       _ta_cache = new Cache(CACHE_SIZE);
+      _ta_factories = new Dictionary<string,Converter<string,TransportAddress>>();
+      AddFactoryMethod("tcp", IPTransportAddress.Create);
+      AddFactoryMethod("udp", IPTransportAddress.Create);
+      AddFactoryMethod("function", IPTransportAddress.Create);
+      AddFactoryMethod("tls", IPTransportAddress.Create);
+      AddFactoryMethod("tlstest", IPTransportAddress.Create);
+      //Here's the odd ball:
+      AddFactoryMethod("s", delegate(string s) {
+        return new SimulationTransportAddress(s);
+      });
+    }
+    public static void AddFactoryMethod(string s, Converter<string,TransportAddress> meth) {
+      lock( _ta_factories ) {
+        _ta_factories[s.ToLower()] = meth;
+      }
     }
 
     public static TransportAddress.TAType StringToType(string s) {
-      lock( _string_to_type ) {
-        object t = _string_to_type[s];
-        if( t == null ) {
-          t = System.Enum.Parse(typeof(TransportAddress.TAType), s, true);
+      TransportAddress.TAType t;
+      //reading is thread-safe:
+      if(! _string_to_type.TryGetValue(s, out t) ) {
+        lock( _string_to_type ) {
+          //This is safe, because even if another thread does this again,
+          //we are going to put the same cached value in:
+          t = (TransportAddress.TAType)System.Enum.Parse(typeof(TransportAddress.TAType), s, true);
           _string_to_type[ String.Intern(s) ] = t;
         }
-        return (TransportAddress.TAType)t;
       }
+      return t;
     }
 
     public static TransportAddress CreateInstance(TransportAddress.TAType t,
@@ -329,6 +327,9 @@ namespace Brunet.Transport
         return _type;
       }
     }
+    public static TransportAddress Create(string s) {
+      return new IPTransportAddress(s);
+    }
 
     public override bool Equals(object o) {
       if ( o == this ) { return true; }
@@ -401,87 +402,6 @@ namespace Brunet.Transport
       ID = id;
     }
   }
-
-  public class TunnelTransportAddress: TransportAddress {
-    protected Address _target;
-    public Address Target { get { return _target; } }
-    //in this new implementation, we have more than one packer forwarders
-    protected ArrayList _forwarders;
-
-    public TunnelTransportAddress(string s) : base(s) {
-      /** String representing the tunnel TA is as follows: brunet.tunnel://A/X1+X2+X3
-       *  A: target address
-       *  X1, X2, X3: forwarders, each X1, X2 and X3 is actually a slice of the initial few bytes of the address.
-       */
-      int k = s.IndexOf(":") + 3;
-      int k1 = s.IndexOf("/", k);
-      byte []addr_t  = Base32.Decode(s.Substring(k, k1 - k)); 
-      _target = AddressParser.Parse( MemBlock.Reference(addr_t) );
-      k = k1 + 1;
-      _forwarders = new ArrayList();
-      while (k < s.Length) {
-        byte [] addr_prefix = Base32.Decode(s.Substring(k, 8));
-        _forwarders.Add(MemBlock.Reference(addr_prefix));
-        //jump over the 8 characters and the + sign
-        k = k + 9;
-      }
-      _forwarders.Sort();
-    }
-
-    public TunnelTransportAddress(Address target, IEnumerable forwarders): 
-      this(GetString(target, forwarders)) 
-    {
-    }
-
-    private static string GetString(Address target, IEnumerable forwarders) {
-      StringBuilder sb = new StringBuilder();
-      sb.Append("brunet.tunnel://");
-      sb.Append(target.ToString().Substring(12));
-      sb.Append("/");
-      foreach(object forwarder in forwarders) {
-        Address addr = forwarder as Address;
-        if(addr == null) {
-          addr = (forwarder as Brunet.Connections.Connection).Address;
-        }
-        sb.Append(addr.ToString().Substring(12,8));
-        sb.Append("+");
-      }
-      if(sb[sb.Length - 1] == '+') {
-        sb.Remove(sb.Length - 1, 1);
-      }
-      return sb.ToString();
-    }
-
-    public override TAType TransportAddressType { 
-      get {
-        return TransportAddress.TAType.Tunnel;
-      }
-    }
-
-    public override bool Equals(object o) {
-      if ( o == this ) { return true; }
-      TunnelTransportAddress other = o as TunnelTransportAddress;
-      if ( other == null ) { return false; }
-
-      bool same = _target.Equals(other._target);
-      same &= (_forwarders.Count == other._forwarders.Count);
-      if( !same ) { return false; }
-      for(int i = 0; i < _forwarders.Count; i++) {
-        same = _forwarders[i].Equals( other._forwarders[i] );
-        if( !same ) { return false; }
-      }
-      return true;
-    }
-
-    public bool ContainsForwarder(Address addr) {
-      MemBlock test_mem = MemBlock.Reference(Base32.Decode(addr.ToString().Substring(12, 8)));
-      return _forwarders.Contains(test_mem);
-    }
-
-    public override int GetHashCode() {
-      return _target.GetHashCode();
-    }
-  }
 #if BRUNET_NUNIT
 
   [TestFixture]
@@ -507,29 +427,6 @@ namespace Brunet.Transport
       TransportAddress ta2 = TransportAddressFactory.CreateInstance("brunet.udp://10.5.144.69:5000"); 
       Assert.AreEqual(ta1, ta2, "Testing TA Equals");
       
-      string ta_string = "brunet.tunnel://UBU72YLHU5C3SY7JMYMJRTKK4D5BGW22/FE4QWASN+FE4QWASM";
-      TransportAddress ta = TransportAddressFactory.CreateInstance("brunet.tunnel://UBU72YLHU5C3SY7JMYMJRTKK4D5BGW22/FE4QWASN+FE4QWASM");
-      Assert.AreEqual(ta.ToString(), ta_string, "testing tunnel TA parsing");
-      //Console.WriteLine(ta);
-
-      TunnelTransportAddress tun_ta = (TunnelTransportAddress) TransportAddressFactory.CreateInstance("brunet.tunnel://OIHZCNNUAXTLLARQIOBNCUWXYNAS62LO/CADSL6GV+CADSL6GU");
-
-      ArrayList fwd = new ArrayList();
-      fwd.Add(new AHAddress(Base32.Decode("CADSL6GVVBM6V442CETP4JTEAWACLC5A")));
-      fwd.Add(new AHAddress(Base32.Decode("CADSL6GUVBM6V442CETP4JTEAWACLC5A")));
-      
-      TunnelTransportAddress test_ta = new TunnelTransportAddress(tun_ta.Target, fwd);
-      Assert.AreEqual(tun_ta, test_ta, "testing tunnel TA compression enhancements");
-      //Console.WriteLine(tun_ta.ToString());
-      //Console.WriteLine(test_ta.ToString());
-      Assert.AreEqual(tun_ta.ToString(), test_ta.ToString(), "testing tunnel TA compression enhancements (toString)");
-
-      Assert.AreEqual(tun_ta.ContainsForwarder(new AHAddress(Base32.Decode("CADSL6GVVBM6V442CETP4JTEAWACLC5A"))), true, 
-          "testing tunnel TA contains forwarder (1)");
-
-      Assert.AreEqual(tun_ta.ContainsForwarder(new AHAddress(Base32.Decode("CADSL6GUVBM6V442CETP4JTEAWACLC5A"))), true, 
-          "testing tunnel TA contains forwarder (2)");
-
       
       
       string StrLocalHost = Dns.GetHostName();
