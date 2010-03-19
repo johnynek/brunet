@@ -143,7 +143,7 @@ namespace Brunet.Symphony
 
     public ForwardingSender(Node n, Address forwarder, Address destination)
       :this(n, forwarder, AHHeader.Options.Exact, destination,
-      AHSender.DefaultTTLFor(n,destination), AHHeader.Options.Annealing){}
+      AHSender.DefaultTTLFor(n.NetworkSize), AHHeader.Options.Annealing){}
     
     public ForwardingSender(Node n, Address forwarder, ushort init_option, Address destination, short ttl, ushort option) {
       _n = n;

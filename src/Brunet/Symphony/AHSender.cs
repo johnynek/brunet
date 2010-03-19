@@ -262,7 +262,7 @@ public class AHSender : ISender {
   protected int _header_length;
 
   public AHSender(Node n, Address destination, ushort options)
-  : this( n, n, destination, DefaultTTLFor(n, destination), options) {
+  : this( n, n, destination, DefaultTTLFor(n.NetworkSize), options) {
 
   }
 
@@ -284,34 +284,40 @@ public class AHSender : ISender {
    * This is probably the most commonly used AHSender
    */
   public AHSender(Node n, Address destination)
-    : this(n, destination, DefaultTTLFor(n, destination),
+    : this(n, destination, DefaultTTLFor(n.NetworkSize),
            AHHeader.Options.AddClassDefault) {
     
   }
   /**
    * The default TTL for this destination 
    */
-  static public short DefaultTTLFor(Node n, Address destination)
+  static public short DefaultTTLFor(int netsize)
   {
     short ttl;
-    //This is from the original papers on
-    //small world routing.  The maximum distance
-    //is almost certainly less than log^3 N
-    double ttld = Math.Log( n.NetworkSize );
-    ttld = ttld * ttld * ttld;
-    if( ttld < 2.0 ) {
+    if( netsize < 4 ) {
       //Don't send too short a distance
       ttl = 2;
     }
-    else if( ttld > (double)Int16.MaxValue ) {
+    /*
+    else if( netsize > 78962960182680 ) {
+       //
+       // in this case, the ttl will be greater than the
+       // maximum value, but that number is greater than 2^31,
+       // so it can't be contained in an int anyway.  If we later
+       // deal with network sizes larger than 1 billion, we'll have to
+       // fix this issue.
+       //
       ttl = Int16.MaxValue;
     }
+    */
     else {
+      //This is from the original papers on
+      //small world routing.  The maximum distance
+      //is almost certainly less than log^3 N
+      double ttld = Math.Log( netsize );
+      ttld = ttld * ttld * ttld;
       ttl = (short)( ttld );
     }
-    //When the network is very small this could happen, at least give it one
-    //hop:
-    if( ttl < 1 ) { ttl = 1; }
     return ttl;
   }
 
@@ -403,7 +409,7 @@ public class AHSender : ISender {
  */
 public class AHExactSender : AHSender {
   public AHExactSender(Node n, Address target)
-    : base(n, target, DefaultTTLFor(n, target), AHHeader.Options.Exact) { }
+    : base(n, target, DefaultTTLFor(n.NetworkSize), AHHeader.Options.Exact) { }
 }
 
 /**
@@ -412,7 +418,7 @@ public class AHExactSender : AHSender {
  */
 public class AHGreedySender : AHSender {
   public AHGreedySender(Node n, Address target)
-    : base(n, target, DefaultTTLFor(n, target), AHHeader.Options.Greedy) { }
+    : base(n, target, DefaultTTLFor(n.NetworkSize), AHHeader.Options.Greedy) { }
 }
 
 public abstract class AHRoutingAlgorithm {
@@ -735,7 +741,7 @@ public class AHHandler : IDataHandler {
       if( result.Second ) {
         //Send a response exactly back to the node that sent to us
         var resp_send = new AHSender(_n, ret_path, header.Source,
-                                       AHSender.DefaultTTLFor(_n, header.Source),
+                                       AHSender.DefaultTTLFor(_n.NetworkSize),
                                        AHHeader.Options.Exact);
         _n.HandleData( payload, resp_send, this); 
       }
