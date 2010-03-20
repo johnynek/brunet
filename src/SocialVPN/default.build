@@ -55,6 +55,7 @@
     output="${build.dir}/SocialVPN.exe">
       <sources failonempty="true">
         <include name="SocialNode.cs"/>
+        <include name="SocialDnsManager.cs"/>
         <include name="SocialUser.cs"/>
         <include name="SocialUtils.cs"/>
         <include name="SocialLog.cs"/>
@@ -154,6 +155,7 @@
      output="${build.dir}/SVPN_NUNIT.dll">
       <sources failonempty="true">
         <include name="SocialNode.cs"/>
+        <include name="SocialDnsManager.cs"/>
         <include name="SocialUser.cs"/>
         <include name="SocialUtils.cs"/>
         <include name="SocialLog.cs"/>

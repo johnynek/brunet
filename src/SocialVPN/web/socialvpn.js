@@ -18,14 +18,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 var stateXML = "";
 var refresh_time = 0;
+var global_status = "Offline";
 
 init();
 
 function init() {
   getState();
   loadPage();
-  loadHeader();
-  var intervalID = window.setInterval(getState, 15000);
 }
 
 function createElem(itemType, itemHTML, itemID, itemClass, containerName, 
@@ -39,18 +38,11 @@ function createElem(itemType, itemHTML, itemID, itemClass, containerName,
     elem.className = itemClass;
   }
 
-  if(functionName != "") {
-    if(elem.addEventListener) {
-      elem.addEventListener("click", functionName, false);
-    }
-    else if(elem.attachEvent) {
-      elem.attachEvent("onclick", functionName);
-    }
-  }
-
   try {
     elem.innerHTML = itemHTML;
   } catch (err) {}
+
+  setEvent(elem, functionName);
 
   if(typeof containerName == 'string') {
     var container = document.getElementById(containerName); 
@@ -60,6 +52,17 @@ function createElem(itemType, itemHTML, itemID, itemClass, containerName,
     containerName.appendChild(elem);
   }
   return elem;
+}
+
+function setEvent(elem, functionName) {
+  if(functionName != "") {
+    if(elem.addEventListener) {
+      elem.addEventListener("click", functionName, false);
+    }
+    else if(elem.attachEvent) {
+      elem.attachEvent("onclick", functionName);
+    }
+  }
 }
 
 function getContent(xmlElem) {
@@ -97,14 +100,18 @@ function loadPage() {
 }
 
 function loadHeader() {
+  clearDiv('subheader');
   createElem("h1", "SocialVPN", "", "", "subheader", "");
 
   var menu = createElem("ul", "", "", "", "subheader", "");
   createElem("li", "", "status_id", "", menu, "");
-  createElem("li", "Refresh", "", "", menu, getState);
-  createElem("li", "Add", "", "", menu, addCert);
-  createElem("li", "Login", "", "", menu, loadLogin); 
-  createElem("li", "Logout", "", "", menu, makeLogout); 
+  createElem("li", "Add Friend", "", "", menu, addCert);
+  if(global_status == "Offline") {
+    createElem("li", "Login", "login_id", "", menu, loadLogin); 
+  }
+  else {
+    createElem("li", "Logout", "login_id", "", menu, makeLogout);
+  }
 }
 
 function loadUser() {
@@ -113,15 +120,15 @@ function loadUser() {
   var local_user = stateXML.getElementsByTagName('LocalUser')[0]; 
   var uid = getContent(local_user.getElementsByTagName('Uid')[0]);
   var pcid = getContent(local_user.getElementsByTagName('PCID')[0]);
-  var status = getContent(local_user.getElementsByTagName('Status')[0]);
+  global_status = getContent(local_user.getElementsByTagName('Status')[0]);
   var img_src = getContent(local_user.getElementsByTagName('Pic')[0]);
   var img_usr = createElem("img", "", "", "f_left", "user_content", ""); 
   img_usr.setAttribute("src", img_src);
   img_usr.setAttribute("width", "50");
   img_usr.setAttribute("height", "50");
-  var innerHTML = uid + " <em(" + pcid + ")</em>";
+  var innerHTML = uid + " <em>(" + pcid + ")</em>";
   createElem("h2", innerHTML, "", "", "user_content", "");
-  setStatus(status);
+  setStatus("");
 }
 
 function loadFriends() {
@@ -180,9 +187,9 @@ function addInfo(friend) {
   var uid = getContent(friend.getElementsByTagName('Uid')[0]);
   var friend_td = document.getElementById(uid);
   var info = "+ " + getContent(friend.getElementsByTagName('Alias')[0]) +
+    " - " + getContent(friend.getElementsByTagName('IP')[0]) +
     " (" + getContent(friend.getElementsByTagName('Status')[0]) + ")";
-  createElem("span", info, "", "f_info", friend_td, "");
-  friend_td.appendChild(document.createElement('br'));
+  createElem("p", info, "", "f_info", friend_td, "");
 }
 
 function cancelSubmit() {
@@ -192,17 +199,13 @@ function cancelSubmit() {
 function loadLogin() {  
   clearDiv('tmp_content');
 
-  var message = "Your JabberID (user@example.com):";
-  createElem("span", message, "", "f_name", "tmp_content", "");
-  var id = createElem("input", "", "data_in_id", "", "tmp_content","");
-
   var message = "Password:";
   createElem("span", message, "", "f_name", "tmp_content", "");
 
   var pass_html = "<input id=\"data_in_pass\" type=\"password\">";
   var span_pass = createElem("span", pass_html, "", "","tmp_content", "");
 
-  var in_butt = createElem("button", "Submit", "", "", "tmp_content", 
+  var in_butt = createElem("button", "Login", "", "", "tmp_content", 
                            submitLogin);
   in_butt.setAttribute("type", "text");
   var in_butt2 = createElem("button", "Cancel", "", "", "tmp_content", 
@@ -211,13 +214,16 @@ function loadLogin() {
 }
 
 function submitLogin() {
-  var input_data ="m=login&uid=" + 
-    encodeURIComponent(document.getElementById('data_in_id').value) +
+  var local_user = stateXML.getElementsByTagName('LocalUser')[0]; 
+  var uid = getContent(local_user.getElementsByTagName('Uid')[0]);
+
+  var input_data ="m=jabber.login&uid=" + 
+    encodeURIComponent(uid) +
     "&pass=" +    
     encodeURIComponent(document.getElementById('data_in_pass').value);    
   makeCall(input_data, 2000);
   clearDiv('tmp_content');
-  setStatus("connecting");
+  setStatus("Logging in");
 }
 
 function addCert() {  
@@ -233,7 +239,7 @@ function addCert() {
   itext.setAttribute("rows", "5");
   itext.setAttribute("cols", "50");
   
-  var in_butt = createElem("button", "Submit", "", "", "tmp_content", 
+  var in_butt = createElem("button", "Add Friend", "", "", "tmp_content", 
                            submitCert);
   in_butt.setAttribute("type", "text");
   
@@ -253,18 +259,17 @@ function submitCert() {
 
 function getState() {
   makeCall('m=getstate', 0);
-  setStatus("");
 }
 
 function makeLogout() {
-  setStatus("logging out");
-  makeCall('m=logout', 1000);
+  setStatus("Logging out");
+  makeCall('m=jabber.logout', 1000);
 }
 
 function setStatus(message) {
   var status_elem = document.getElementById('status_id');
   if (status_elem != null) {
-    status_elem.innerHTML = "[[ ..."+ message +"... ]]";
+    status_elem.innerHTML = message + " ...";
   }
 }
 
@@ -315,6 +320,7 @@ function makeCall(postData, ref_time) {
       }
       else {
         loadUser();
+        loadHeader();
         loadFriends();
       }
     }

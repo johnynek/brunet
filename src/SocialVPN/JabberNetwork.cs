@@ -53,12 +53,11 @@ namespace SocialVPN {
 
     protected readonly JabberClient _jclient;
 
-    protected readonly SocialUser _local_user;
+    protected StatusTypes _status;
 
-    public JabberNetwork(string network_host, string jabber_port, 
-                         SocialUser local_user) {
+    public JabberNetwork(string network_host, string jabber_port) {
 
-      _local_user = local_user;
+      _status = StatusTypes.Offline;
       _jclient = new JabberClient();
       _jclient.Port = Int32.Parse(jabber_port);
       _jclient.NetworkHost = network_host;
@@ -84,7 +83,7 @@ namespace SocialVPN {
     }
     
     protected void HandleOnAuthError(object sender, System.Xml.XmlElement rp) {
-      _local_user.Status = "login_failed";
+      UpdateStatus(StatusTypes.Failed);
       Console.WriteLine(rp.OuterXml);
     }
 
@@ -93,7 +92,7 @@ namespace SocialVPN {
     }
 
     protected void HandleOnAuthenticate(object sender) {
-      _local_user.Status = "online";
+      UpdateStatus(StatusTypes.Online);
       Presence pres = new Presence(_jclient.Document);
       pres.Show = "dnd";
       pres.Status = "Chat Disabled";
@@ -107,7 +106,7 @@ namespace SocialVPN {
                          "SHA1 Fingerprint: {2}\n", cert.Subject, cert.Issuer,
                          cert.GetCertHashString());
       byte[] cert_data = Encoding.UTF8.GetBytes(cert_info);
-      string path = _jclient.Server + "-server-data.txt";
+      string path = _jclient.Server + "-server-cert-data.txt";
       SocialUtils.WriteToFile(cert_data, path);
       return true;
     }
@@ -147,21 +146,18 @@ namespace SocialVPN {
       }
     }
 
+    protected string UpdateStatus(StatusTypes status) {
+      _status = status;
+      Dictionary<string, string> request = new Dictionary<string,string>();
+      request["m"] = "updatestat";
+      request["status"] = status.ToString();
+      return FireEvent(request);
+    }
+
     protected string GetQueryResponse() {
       Dictionary<string, string> request = new Dictionary<string,string>();
-      request["m"] = "query.cert";
-      EventHandler process_event = ProcessEvent;
-      string response = String.Empty;
-      if (process_event != null) {
-        try {
-          process_event(request, EventArgs.Empty);
-          response = request["response"];
-        } catch (Exception e) {
-          response = e.Message;
-          Console.WriteLine(response);
-        }
-      }      
-      return response;
+      request["m"] = "getcert";
+      return FireEvent(request);
     }
 
     protected string ProcessResponse(string cert, string uid) {
@@ -169,6 +165,10 @@ namespace SocialVPN {
       request["m"] = "add";
       request["cert"] = cert;
       request["uid"] = uid;
+      return FireEvent(request);
+    }
+
+    protected string FireEvent(Dictionary<string,string> request) {
       EventHandler process_event = ProcessEvent;
       string response = String.Empty;
       if (process_event != null) {
@@ -184,7 +184,7 @@ namespace SocialVPN {
     }
 
     public void Login(string username, string password) {
-      if(_local_user.Status != "online") {
+      if(_status != StatusTypes.Online) {
         JID jid = new JID(username);
         _jclient.User = jid.User;
         _jclient.Server = jid.Server;
@@ -194,9 +194,9 @@ namespace SocialVPN {
     }
 
     public void Logout() {
-      if(_local_user.Status == "online") {
+      if(_status == StatusTypes.Online) {
         _jclient.Close();
-        _local_user.Status = "offline";
+        UpdateStatus(StatusTypes.Offline);
       }
     }
 
@@ -208,11 +208,11 @@ namespace SocialVPN {
       }
 
       switch(method) {
-        case "login":
+        case "jabber.login":
           Login(request["uid"], request["pass"]);
           break;
 
-        case "logout":
+        case "jabber.logout":
           Logout();
           break;
 

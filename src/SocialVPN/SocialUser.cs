@@ -33,8 +33,6 @@ namespace SocialVPN {
    */
   public class SocialUser {
 
-    public const string STATUSDEFAULT = "offline";
-
     public const string IPDEFAULT = "0.0.0.0";
 
     public const string PICPREFIX = "http://www.gravatar.com/avatar/";
@@ -83,7 +81,7 @@ namespace SocialVPN {
       Version = cert.Subject.Organization;
       Fingerprint = SocialUtils.GetSHA1HashString(cert.X509.RawData);
       Country = cert.Subject.Country;
-      Status = STATUSDEFAULT;
+      Status = StatusTypes.Offline.ToString();
       IP = IPDEFAULT;
       Pic = PICPREFIX + SocialUtils.GetMD5HashString(Uid);
       Certificate = Convert.ToBase64String(cert.X509.RawData, 0,

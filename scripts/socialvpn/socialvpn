@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # set variables
-cert_dir=certificates
+key=private_key
 root=`whoami`
 device=tapipop
 platform=linux
@@ -16,7 +16,7 @@ if [[ $root != root ]]; then
   exit 1
 fi
 
-if [[ -d $cert_dir ]]; then
+if [[ -f $key ]]; then
   user=`ls -l private_key | awk '{ print $3 }'`
   if [[ $platform == linux ]]; then
     ./tunctl -d $device

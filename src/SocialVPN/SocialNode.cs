@@ -54,22 +54,33 @@ namespace SocialVPN {
 
   }
 
+  public enum StatusTypes {
+    Online,
+    Offline,
+    Failed,
+    Blocked
+  }
+
   public class SocialNode : ManagedIpopNode {
 
     public const string DNSSUFFIX = "ipop";
 
     public const string STATEPATH = "state.xml";
 
-    protected Dictionary<string, SocialUser> _friends;
+    protected readonly Dictionary<string, SocialUser> _friends;
 
-    protected List<string> _bfriends;
-
-    protected readonly object _sync;
+    protected readonly List<string> _bfriends;
 
     protected readonly SocialUser _local_user;
 
+    protected readonly object _sync;
+
     public SocialUser LocalUser {
       get { return _local_user; }
+    }
+
+    public Node RpcNode {
+      get { return _node; }
     }
 
     public SocialNode(NodeConfig brunetConfig, IpopConfig ipopConfig,
@@ -99,14 +110,24 @@ namespace SocialVPN {
     }
 
     protected void UpdateStatus() {
-      foreach(SocialUser user in _friends.Values) {
+      foreach(SocialUser user in GetFriends()) {
         Address addr = AddressParser.Parse(user.Address);
         if(_node.ConnectionTable.Contains(ConnectionType.Structured, 
-           addr) && user.Status != "blocked") {
-          user.Status = DateTime.Now.ToString();
+           addr) && user.Status != StatusTypes.Blocked.ToString()) {
+          lock (_sync) {
+            SocialUser tmp_user;
+            if(_friends.TryGetValue(user.Alias, out tmp_user)) {
+              tmp_user.Status = StatusTypes.Online.ToString();
+            }
+          }
         }
-        else if (user.Status != "blocked") {
-          user.Status = SocialUser.STATUSDEFAULT;
+        else if (user.Status != StatusTypes.Blocked.ToString()) {
+          lock (_sync) {
+            SocialUser tmp_user;
+            if(_friends.TryGetValue(user.Alias, out tmp_user)) {
+              tmp_user.Status = StatusTypes.Offline.ToString();
+            }
+          }
         }
       }
     }
@@ -120,6 +141,7 @@ namespace SocialVPN {
       if (_bfriends.Contains(uid)) {
         throw new Exception("Uid blocked, cannot add");
       }
+
       Certificate cert = new Certificate(certData);
       SocialUser user = new SocialUser(cert);
       user.Alias = CreateAlias(user);
@@ -128,11 +150,11 @@ namespace SocialVPN {
       if (user.Uid.ToLower() != uid.ToLower()) return null;
 
       // Only add new addresses
-      foreach (SocialUser tmp_user in _friends.Values) {
+      foreach (SocialUser tmp_user in GetFriends()) {
         if (tmp_user.Address == user.Address) return null;
       }
 
-      // Remove duplicate names
+      // If old is mapping is found, remove
       if (_friends.ContainsKey(user.Alias)) {
         RemoveFriend(user.Alias);
       }
@@ -142,6 +164,7 @@ namespace SocialVPN {
       _node.ManagedCO.AddAddress(addr);
       user.IP = _marad.AddIPMapping(ip, addr);
       _marad.AddDnsMapping(user.Alias, user.IP, true);
+
       lock (_sync) {
         _friends.Add(user.Alias, user);
       }
@@ -153,11 +176,13 @@ namespace SocialVPN {
       if (!_friends.ContainsKey(alias)) {
         throw new Exception("Alias not found");
       }
+
       SocialUser user = _friends[alias];
       Address addr = AddressParser.Parse(user.Address);
       _node.ManagedCO.RemoveAddress(addr);
       _marad.RemoveIPMapping(user.IP);
       _marad.RemoveDnsMapping(user.Alias, true);
+
       lock (_sync) {
         _friends.Remove(user.Alias);
       }
@@ -168,12 +193,19 @@ namespace SocialVPN {
       if (_bfriends.Contains(uid)) {
         throw new Exception("Uid already blocked");
       }
-      foreach(SocialUser user in _friends.Values) {
+
+      foreach(SocialUser user in GetFriends()) {
         if (user.Uid == uid) {
           _marad.RemoveIPMapping(user.IP);
-          user.Status = "blocked";
+          lock (_sync) {
+            SocialUser tmp_user;
+            if(_friends.TryGetValue(user.Alias, out tmp_user)) {
+              tmp_user.Status = StatusTypes.Blocked.ToString();
+            }
+          }
         }
       }
+
       lock (_sync) {
         _bfriends.Add(uid);
       }
@@ -181,20 +213,26 @@ namespace SocialVPN {
     }
 
     protected void Unblock(string uid) {
-      foreach(SocialUser user in _friends.Values) {
+      foreach(SocialUser user in GetFriends()) {
         if (user.Uid == uid) {
           Address addr = AddressParser.Parse(user.Address);
           _marad.AddIPMapping(user.IP, addr);
-          user.Status = "offline";
+          lock (_sync) {
+            SocialUser tmp_user;
+            if(_friends.TryGetValue(user.Alias, out tmp_user)) {
+              tmp_user.Status = StatusTypes.Offline.ToString();
+            }
+          }
         }
       }
+
       lock (_sync) {
         _bfriends.Remove(uid);
       }
       GetState(true);
     }
 
-    protected void AddDnsMapping(string alias, string ip) {
+    public void AddDnsMapping(string alias, string ip) {
       _marad.AddDnsMapping(alias, ip, false);
     }
 
@@ -233,12 +271,19 @@ namespace SocialVPN {
       }
     }
 
+    public SocialUser[] GetFriends() {
+      SocialUser[] friends;
+      lock(_sync) {
+        friends = new SocialUser[_friends.Count];
+        _friends.Values.CopyTo(friends, 0);
+      }
+      return friends;
+    }
+
     public void ProcessHandler(Object obj, EventArgs eargs) {
       Dictionary <string, string> request = (Dictionary<string, string>)obj;
       string method = String.Empty;
-      if (request.ContainsKey("m")) {
-        method = request["m"];
-      }
+      request.TryGetValue("m", out method);
 
       switch(method) {
         case "add":
@@ -261,8 +306,12 @@ namespace SocialVPN {
           Unblock(request["uid"]);
           break;
 
-        case "query.cert":
+        case "getcert":
           request["response"] = _local_user.Certificate;
+          break;
+
+        case "updatestat":
+          _local_user.Status = request["status"];
           break;
 
         default:
@@ -273,8 +322,7 @@ namespace SocialVPN {
       }
     }
 
-    public static void Main(string[] args) {
-      
+    public static new SocialNode CreateNode() {
       SocialConfig social_config;
       NodeConfig node_config;
       IpopConfig ipop_config;
@@ -286,12 +334,13 @@ namespace SocialVPN {
 
       SocialNode node = new SocialNode(node_config, ipop_config, certData);
       HttpInterface http_ui = new HttpInterface(social_config.HttpPort);
+      SocialDnsManager dns_manager = new SocialDnsManager(node);
       JabberNetwork jabber = new JabberNetwork(social_config.JabberHost,
-                                               social_config.JabberPort,
-                                               node.LocalUser);
+                                               social_config.JabberPort);
 
       http_ui.ProcessEvent += node.ProcessHandler;
       http_ui.ProcessEvent += jabber.ProcessHandler;
+      http_ui.ProcessEvent += dns_manager.ProcessHandler;
       jabber.ProcessEvent += node.ProcessHandler;
 
       node.Shutdown.OnExit += http_ui.Stop;
@@ -301,6 +350,12 @@ namespace SocialVPN {
         jabber.Login(social_config.JabberID, social_config.JabberPass);
       }
       http_ui.Start();
+      return node;
+    }
+
+    public static void Main(string[] args) {
+      
+      SocialNode node = SocialNode.CreateNode();
       node.Run();
     }
   }

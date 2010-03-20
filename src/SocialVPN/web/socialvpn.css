@@ -36,6 +36,10 @@ body {
   cursor: pointer;
 }
 
+#subheader li:hover {
+  text-decoration: underline;
+}
+
 #main_body {
   margin: auto;
   width: 800px;
@@ -100,7 +104,10 @@ body {
 }
 
 .f_info {
-  color: gray;
+  color: #999999;
+  margin: 0px;
+  padding: 2px;
+  font-weight: bold;
 }
 
 img {

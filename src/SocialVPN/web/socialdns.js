@@ -91,7 +91,7 @@ function loadPage() {
   styleSheet.setAttribute('href', 'socialdns.css');
   headElement.appendChild(styleSheet);
   
-  document.body.innerHTML = '';
+  document.body = document.createElement('body');
   var div_wrapper = document.createElement('div');
   div_wrapper.id = "wrapper";
   document.body.appendChild(div_wrapper);
@@ -163,14 +163,15 @@ function addMapping(mapping) {
   new_tr.appendChild(new_td2);  
 
   var alias = getContent(mapping.getElementsByTagName('Alias')[0]);
+  var ip = getContent(mapping.getElementsByTagName('IP')[0]);
   var address = getContent(mapping.getElementsByTagName('Address')[0]);
   var source = getContent(mapping.getElementsByTagName('Source')[0]);
   var rating = getContent(mapping.getElementsByTagName('Rating')[0]);
 
-  var innerHTML = alias + " - " + address;
+  var innerHTML = alias + " - " + ip;
   var info_item = createElem("p", innerHTML, "", "f_name", new_td,
     addOnClick);
-  info_item.key = alias + ":" + address + ":" + source;
+  info_item.key = alias + "=" + address + "=" + source + "=" + ip;
 
   var innerHTML = "Created by " + source;
   var info_item = createElem("p", innerHTML, "", "f_info", new_td, "");
@@ -221,25 +222,25 @@ function loadSearch() {
 }
 
 function submitSearch() {
-  var input_data ="m=mapping.lookup&mapping=" + 
+  var input_data ="m=sdns.lookup&query=" + 
     encodeURIComponent(document.getElementById('data_in_id').value);
   makeCall(input_data, 5000);
 }
 
 function addOnInput() {
-  var input_data ="m=mapping.add&mapping=" + 
+  var input_data ="m=sdns.addmapping&mapping=" + 
     encodeURIComponent(document.getElementById('data_in_id').value);
   makeCall(input_data, 1000);
 }
 
 function addOnClick() {
-  var postData = "m=mapping.add&mapping=" +
+  var postData = "m=sdns.addmapping&mapping=" +
     encodeURIComponent(getKey(this));
   makeCall(postData, 1000);
 }
 
 function getState() {
-  makeCall('m=mapping', 15000);
+  makeCall('m=sdns.getstate', 15000);
 }
 
 function getKey(caller) {
@@ -274,7 +275,7 @@ function makeCall(postData, ref_time) {
       loadMappings();
     }
   };  
-  httpRequest.open('POST', 'api', true);
+  httpRequest.open('POST', 'state.xml', true);
   httpRequest.setRequestHeader("Content-type", 
                                "application/x-www-form-urlencoded");
   httpRequest.setRequestHeader("Content-length", postData.length);
