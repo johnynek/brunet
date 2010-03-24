@@ -27,6 +27,7 @@ namespace Brunet.Services.XmlRpc {
    * register and unregister XML-RPC services for local node
    */
   public class XmlRpcManager : MarshalByRefObject, IRpcHandler {
+    public readonly string Uri;
     #region Fields
     [NonSerialized]
     private readonly RpcManager _rpc;
@@ -43,7 +44,8 @@ namespace Brunet.Services.XmlRpc {
     private readonly Hashtable _registered_xmlrpc = new Hashtable(); 
     #endregion
 
-    public XmlRpcManager(Node node, RpcManager rpc) {
+    public XmlRpcManager(Node node, RpcManager rpc, string uri) {
+      Uri = uri;
       _node = node;
       _rpc = rpc;
     }
@@ -512,7 +514,7 @@ namespace Brunet.Services.XmlRpc {
     /// <param name="node"></param>
     /// <param name="uri"></param>
     public void Add(Node node, string uri) {
-      var xrm = new XmlRpcManager(node, node.Rpc);
+      var xrm = new XmlRpcManager(node, node.Rpc, uri);
       lock (_sync_root) {
         // throw an exception if this mapping exists...
         _xrm_mappings.Add(node, xrm);
@@ -577,8 +579,8 @@ namespace Brunet.Services.XmlRpc {
       public string[] ListNodes() {
         var ret = new ArrayList();
         lock (_outer._sync_root) {
-          foreach (var pair in _outer._xrm_mappings) {
-            ret.Add(pair.Key.Address.ToString());
+          foreach(XmlRpcManager xrm in _outer._xrm_mappings.Values) {
+            ret.Add(xrm.Uri);
           }
         }
         return ret.ToArray(typeof(string)) as string[];

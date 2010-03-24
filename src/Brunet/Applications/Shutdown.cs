@@ -12,7 +12,7 @@ namespace Brunet.Applications {
   */
   public class Shutdown {
     /// <summary>Add the shutdown method to this delegate</summary>
-    public ThreadStart OnExit;
+    public event ThreadStart OnExit;
     /**  <summary>This should be called by ctrl-c handlers in inherited classes
     </summary>*/
     public int Exit() {
