@@ -112,27 +112,30 @@ namespace Brunet.Applications.Examples {
         Console.WriteLine("Sent...\n");
       }
     }
-  }
 
-  public class Runner {
     public static int Main(string [] args) {
-      // We need a valid NodeConfig, these are the proper steps to ensure we get one
-      if(args.Length < 1 || !File.Exists(args[0])) {
-        Console.WriteLine("First argument must be a NodeConfig");
-        return -1;
-      }
+      // Create a new RuntimeParameters to parse the args
+      RuntimeParameters parameters = new RuntimeParameters(
+          "HelloWorldNodeDataHandler",
+          "HelloWorld using IDataHandler/ISender paradigm");
 
-      NodeConfig node_config = null;
-      try {
-        node_config = Utils.ReadConfig<NodeConfig>(args[0]);
-      } catch (Exception e) {
-        Console.WriteLine("Invalid NodeConfig file:");
-        Console.WriteLine("\t" + e.Message);
+      // Parse the args, if we don't get 0 back, there was an error
+      if(parameters.Parse(args) != 0) {
+        // Print the error and help
+        Console.WriteLine(parameters.ErrorMessage);
+        parameters.ShowHelp();
+        // exit after error
         return -1;
+      } else if(parameters.Help) {
+        // Caller asked for help, let's print it
+        parameters.ShowHelp();
+        // exit after printing help
+        return 0;
       }
 
       // Instantiate a new inherited node of your choice
-      HelloWorldNodeDataHandler hwn = new HelloWorldNodeDataHandler(node_config);
+      HelloWorldNodeDataHandler hwn =
+        new HelloWorldNodeDataHandler(parameters.NodeConfig);
       // And run it... this hijacks the current thread, we'll return once the node disconnects
       hwn.Run();
 
