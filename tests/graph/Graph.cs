@@ -37,7 +37,9 @@ namespace Brunet.Graph {
   ///near neighbor count, shortcut count.</remarks>
   public class Graph {
     public const int DHT_DEGREE = 8;
+    public const int MAJORITY = (DHT_DEGREE / 2) + 1;
     protected Dictionary<AHAddress, GraphNode> _addr_to_node;
+    public List<AHAddress> Addresses { get { return new List<AHAddress>(_addrs); } }
     protected List<AHAddress> _addrs;
     protected Random _rand;
     protected Dictionary<AHAddress, int>  _addr_to_index;
@@ -66,9 +68,36 @@ namespace Brunet.Graph {
     ///<param name="dataset">A square dataset consisting of pairwise latencies.</param>
     public Graph(int count, int near, int shortcuts, int random_seed, List<List<int>> dataset)
     {
-      _latency_map = dataset;
-
       _rand = new Random(random_seed);
+
+      if(dataset != null) {
+        if(count >= dataset.Count) {
+          _latency_map = dataset;
+        } else {
+          // If the count size is less than the data set, we may get inconclusive
+          // results as network size changes due to the table potentially being
+          // heavy set early and lighter later.  This randomly orders all entries
+          // so that multiple calls to the graph will provide a good distribution.
+          Dictionary<int, int> chosen = new Dictionary<int, int>(count);
+          for(int i = 0; i < count; i++) {
+            int index = _rand.Next(0, dataset.Count - 1);
+            while(chosen.ContainsKey(index)) {
+              index = _rand.Next(0, dataset.Count - 1);
+            }
+            chosen.Add(i, index);
+          }
+
+          _latency_map = new List<List<int>>(dataset.Count);
+          for(int i = 0; i < count; i++) {
+            List<int> map = new List<int>(count);
+            for(int j = 0; j < count; j++) {
+              map.Add(dataset[chosen[i]][chosen[j]]);
+            }
+            _latency_map.Add(map);
+          }
+        }
+      }
+
       GraphNode.SetSeed(_rand.Next());
 
       _addr_to_node = new Dictionary<AHAddress, GraphNode>(count);
@@ -78,8 +107,7 @@ namespace Brunet.Graph {
       // first we create our regular network
       while(_addrs.Count < count) {
         AHAddress addr = GenerateAddress();
-        GraphNode node = new GraphNode(addr);
-        _addr_to_node[addr] = node;
+        _addr_to_node[addr] = CreateNode(addr);
         _addrs.Add(addr);
       }
 
@@ -142,6 +170,12 @@ namespace Brunet.Graph {
       }
     }
 
+    /// <summary>Let the inheritor create their own node types</summary>
+    protected virtual GraphNode CreateNode(AHAddress addr)
+    {
+      return new GraphNode(addr);
+    }
+
     protected AHAddress GenerateAddress()
     {
       AHAddress addr = null;
@@ -166,10 +200,19 @@ namespace Brunet.Graph {
     ///<summary>Calculates the delay between two nodes.</summary>
     protected virtual int CalculateDelay(GraphNode node1, GraphNode node2)
     {
+      if(node1 == node2) {
+        return 0;
+      }
+
       if(_latency_map != null) {
         int mod = _latency_map.Count;
         int x = node1.UniqueID % mod;
         int y = node2.UniqueID % mod;
+        if(x == y) {
+          return 0;
+        } else if(_latency_map[x][y] <= 0) {
+          _latency_map[x][y] = 1000 * 1000;
+        }
         return (int) (_latency_map[x][y] / 1000.0);
       }
 
@@ -313,17 +356,16 @@ namespace Brunet.Graph {
       // Done with getting connected to nearest neighbors
       // On to querying the Dht
       MemBlock[] endpoints = MapToRing(key);
-      int slowest = 0;
+      List<int> delays = new List<int>();
       foreach(MemBlock endpoint in endpoints) {
         AHAddress to = new AHAddress(endpoint);
         var request = SendPacket(from, to, AHHeader.Options.Greedy);
         var response = SendPacket(request[0].Destination, from, AHHeader.Options.Greedy);
-        int delay = request[0].Delay + response[0].Delay;
-        if(delay > slowest) {
-          slowest = delay;
-        }
+        delays.Add(request[0].Delay + response[0].Delay);
       }
-      return slowest;
+      delays.Sort();
+      return delays[0];
+      //return delays[delays.Count / 2 + 1];
     }
 
     protected MemBlock[] MapToRing(byte[] key) {
@@ -346,6 +388,90 @@ namespace Brunet.Graph {
       return targets;
     }
 
+    public void BroadcastAverage()
+    {
+      int count = 50;
+      List<int> delays = new List<int>(count);
+      for(int i = 0; i < count; i++) {
+        delays.Add(Broadcast(_addrs[_rand.Next(0, _addrs.Count)]));
+      }
+
+      double average = Average(delays);
+      Console.WriteLine("Broadcast results: Average: {0}, Stdev: {1}",
+          average, StandardDeviation(delays, average));
+    }
+
+    /// <summary>Performs a broadcast to the entire overlay.</summary>
+    public int Broadcast()
+    {
+      return Broadcast(_addrs[_rand.Next(0, _addrs.Count)]);
+    }
+
+    /// <summary>Performs a broadcast to the entire overlay.</summary>
+    public int Broadcast(AHAddress from)
+    {
+      GraphNode node = _addr_to_node[from];
+      ConnectionList cl = node.ConnectionTable.GetConnections(ConnectionType.Structured);
+      int index = cl.IndexOf(from);
+      if(index < 0) {
+        index = ~index;
+      }
+      AHAddress start = cl[index].Address as AHAddress;
+
+      return BoundedBroadcast(from, start, GetLeftNearTarget(from));
+    }
+
+    /// <summary>Performs the bounded broadcast using recursion.</summary>
+    public int BoundedBroadcast(AHAddress caller, AHAddress from, AHAddress to)
+    {
+      GraphNode node = _addr_to_node[from];
+      ConnectionList cl = node.ConnectionTable.GetConnections(ConnectionType.Structured);
+
+      // We start with the node immediately after the starting index
+      int start = cl.IndexOf(from);
+      if(start < 0) {
+        start = ~start;
+      }
+
+      // We end with the node immediately before the end index
+      int end = cl.IndexOf(to);
+      if(end < 0) {
+        end = ~end;
+      }
+
+      // Ensure we wrap around as necessary
+      if(start > end && GetNearTarget(from).IsBetweenFromRight(to, from)) {
+        end += cl.Count;
+      }
+
+      int max_delay = 0;
+      for(int i = start; i < end; i++) {
+        AHAddress nfrom = cl[i].Address as AHAddress;
+        AHAddress nto = GetLeftNearTarget(cl[i + 1].Address as AHAddress);
+        // If this is the last one, just have him query to 'to'
+        if(i == end - 1) {
+          nto = to;
+        }
+        // recursion, yuck
+        int delay = BoundedBroadcast(from, nfrom, nto);
+        // We send a message and potentially the peer does as well
+        max_delay = delay > max_delay ? delay : max_delay;
+      }
+
+      // Return our delay and the bytes cost for sending to us
+      return max_delay + SendPacket(caller, from)[0].Delay;
+    }
+
+    /// <summary>Calculate the Left AHAddress of the given address.</summary>
+    public AHAddress GetLeftNearTarget(AHAddress address)
+    {
+      BigInteger local_int_add = address.ToBigInteger();
+      //must have even addresses so increment twice
+      local_int_add -= 2;
+      //Make sure we don't overflow:
+      BigInteger tbi = new BigInteger(local_int_add % Address.Full);
+      return new AHAddress(tbi);
+    }
 
     /// <summary>Crawls the network using a random address in the network.</summary>
     public void Crawl()
@@ -484,7 +610,7 @@ namespace Brunet.Graph {
     {
       double variance = 0;
       foreach(int point in data) {
-        variance += Math.Pow(point  - avg, 2.0);
+        variance += Math.Pow(point - avg, 2.0);
       }
 
       return Math.Sqrt(variance / (data.Count - 1));

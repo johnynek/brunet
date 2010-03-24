@@ -20,91 +20,90 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using Brunet;
 using System;
+using System.Threading;
 
 #if BRUNET_NUNIT
 using NUnit.Framework;
 using System.Security.Cryptography;
 #endif
 
-namespace Brunet.Messaging.Mock {
+namespace Brunet.Mock {
   /// <summary>This class provides a MockSender object for a multiple clients
   /// and a single end point, which is the Receiver provided in the
   /// constructor.</summary>
   /// <remarks>A user must supply the return path and state to use.</remarks>
-  public class MockSender: ISender {
-    public IDataHandler Receiver;
-    public ISender ReturnPath;
-    public object State;
-    int _remove_n_ptypes;
-    double _drop_rate;
-    Random _rand;
+  public class ThreadedMockSender: MockSender {
+    BlockingQueue _queue;
 
-    public MockSender(ISender ReturnPath, object State, IDataHandler Receiver,
-        int RemoveNPTypes) : this(ReturnPath, State, Receiver, RemoveNPTypes, 0)
+    public ThreadedMockSender(ISender ReturnPath, object State,
+        IDataHandler Receiver, int RemoveNPTypes) :
+      this(ReturnPath, State, Receiver, RemoveNPTypes, 0)
     {
     }
 
-    public MockSender(ISender ReturnPath, object State, IDataHandler Receiver,
-        int RemoveNPTypes, double drop_rate)
+    public ThreadedMockSender(ISender ReturnPath, object State,
+        IDataHandler Receiver, int RemoveNPTypes, double drop_rate) :
+      base(ReturnPath, State, Receiver, RemoveNPTypes, drop_rate)
     {
-      this.ReturnPath = ReturnPath;
-      this.State = State;
-      this.Receiver = Receiver;
-      _remove_n_ptypes = RemoveNPTypes;
-      _drop_rate = drop_rate;
-      _rand = new Random();
+      _queue = new BlockingQueue();
+      Thread runner = new Thread(ThreadRun);
+      runner.IsBackground = true;
+      runner.Start();
     }
 
-    public virtual void Send(ICopyable data) {
-      if( _rand.NextDouble() < _drop_rate) {
-        return;
-      }
-
-      MemBlock mdata = data as MemBlock;
-      if(mdata == null) {
-        mdata = MemBlock.Copy(data);
-      }
-
-      for(int i = 0; i < _remove_n_ptypes; i++) {
-        MemBlock payload = mdata;
-        PType.Parse(mdata, out payload);
-        mdata = payload;
-      }
-      Receiver.HandleData(mdata, ReturnPath, State);
+    public override void Send(ICopyable data) {
+      _queue.Enqueue(data);
     }
 
-    public String ToUri() {
-      throw new NotImplementedException();
+    protected void ThreadRun()
+    {
+      while(true) {
+        ICopyable data = _queue.Dequeue() as ICopyable;
+        try {
+          base.Send(data);
+        } catch(Exception e) {
+          Console.WriteLine(e);
+        }
+      }
     }
-    
+
     public override string ToString() {
-      return ("MockSender: " + this.GetHashCode());
+      return ("ThreadedMockSender: " + this.GetHashCode());
     }
   }
 #if BRUNET_NUNIT
   [TestFixture]
-  public class MSTest {
+  public class TMSTest {
     [Test]
     public void NoPType() {
       MockDataHandler idh = new MockDataHandler();
-      MockSender mspr = new MockSender(null, null, idh, 0);
+      MockSender mspr = new ThreadedMockSender(null, null, idh, 0);
       byte[] data = new byte[1024];
       RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
       rng.GetBytes(data);
       MemBlock mdata = MemBlock.Reference(data);
+      object lr = idh.LastReceived;
       mspr.Send(mdata);
+      while(lr == idh.LastReceived) {
+        Thread.Sleep(0);
+      }
       Assert.AreEqual(mdata, idh.LastReceived, "No PType MockSender");
     }
 
     [Test]
     public void PType() {
       MockDataHandler idh = new MockDataHandler();
-      MockSender mspr = new MockSender(null, null, idh, 1);
+      MockSender mspr = new ThreadedMockSender(null, null, idh, 1);
       byte[] data = new byte[1024];
       RNGCryptoServiceProvider rng = new RNGCryptoServiceProvider();
       rng.GetBytes(data);
       MemBlock mdata = MemBlock.Reference(data);
+      object lr = idh.LastReceived;
       mspr.Send(new CopyList(new PType("LONG"), mdata));
+      while(lr == idh.LastReceived) {
+        Thread.Sleep(0);
+      }
+
       Assert.AreEqual(mdata, idh.LastReceived, "PType MockSender");
     }
   }

@@ -99,10 +99,22 @@ namespace Brunet.Simulator {
     public void Complete()
     {
       DateTime start = DateTime.UtcNow;
-      while(!CheckRing(false)) {
+      long ticks_start = start.Ticks;
+      long ticks_end = start.AddHours(1).Ticks;
+      bool success = false;
+      while(DateTime.UtcNow.Ticks < ticks_end) {
+        success = CheckRing(false);
+        if(success) {
+          break;
+        }
         SimpleTimer.RunStep();
       }
-      Console.WriteLine("It took {0} to complete the ring", DateTime.UtcNow - start);
+      AllToAll(false);
+      if(success) {
+        Console.WriteLine("It took {0} to complete the ring", DateTime.UtcNow - start);
+      } else {
+        Console.WriteLine("Unable to complete ring.");
+      }
     }
 
     public void SimComplete()

@@ -13,6 +13,7 @@
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${lib.dir}">
         <include name="Brunet.dll"/>
+        <include name="NDesk.Options.dll"/>
       </fileset>
     </copy>
 
@@ -22,10 +23,42 @@
         <include name="GraphEdge.cs"/>
         <include name="GraphNode.cs"/>
         <include name="SendPacketResult.cs"/>
+        <include name="Parameters.cs"/>
         <include name="Main.cs"/>
       </sources>
       <references basedir="${build.dir}">
         <include name="Brunet.dll"/>
+        <include name="NDesk.Options.dll"/>
+      </references>
+    </csc>
+
+    <csc optimize="true" target="exe" output="${build.dir}/GroupGraph.exe">
+      <sources failonempty="true">
+        <include name="Graph.cs"/>
+        <include name="GraphEdge.cs"/>
+        <include name="GraphNode.cs"/>
+        <include name="SendPacketResult.cs"/>
+        <include name="Parameters.cs"/>
+        <include name="Group.cs"/>
+      </sources>
+      <references basedir="${build.dir}">
+        <include name="Brunet.dll"/>
+        <include name="NDesk.Options.dll"/>
+      </references>
+    </csc>
+
+    <csc optimize="true" target="exe" output="${build.dir}/Relay.exe">
+      <sources failonempty="true">
+        <include name="Graph.cs"/>
+        <include name="GraphEdge.cs"/>
+        <include name="GraphNode.cs"/>
+        <include name="SendPacketResult.cs"/>
+        <include name="Parameters.cs"/>
+        <include name="Relay.cs"/>
+      </sources>
+      <references basedir="${build.dir}">
+        <include name="Brunet.dll"/>
+        <include name="NDesk.Options.dll"/>
       </references>
     </csc>
   </target>
