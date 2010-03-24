@@ -27,7 +27,7 @@ using NUnit.Framework;
 using System.Security.Cryptography;
 #endif
 
-namespace Brunet.Mock {
+namespace Brunet.Messaging.Mock {
   /// <summary>This class provides a MockSender object for a multiple clients
   /// and a single end point, which is the Receiver provided in the
   /// constructor.</summary>
