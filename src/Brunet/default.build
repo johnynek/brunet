@@ -21,7 +21,7 @@
         <include name="Symphony/*.cs"/>
         <include name="Messaging/*.cs"/>
         <include name="Transport/*.cs"/>
-        <include name="Tunnel/*.cs"/>
+        <include name="Relay/*.cs"/>
         <include name="Util/*.cs"/>
       </sources>
       <references>
@@ -52,7 +52,7 @@
         <include name="Symphony/*.cs"/>
         <include name="Messaging/*.cs"/>
         <include name="Transport/*.cs"/>
-        <include name="Tunnel/*.cs"/>
+        <include name="Relay/*.cs"/>
         <include name="Util/*.cs"/>
       </sources>
       <references basedir="${build.dir}">
@@ -80,7 +80,7 @@
         <include name="Symphony/*.cs"/>
         <include name="Messaging/*.cs"/>
         <include name="Transport/*.cs"/>
-        <include name="Tunnel/*.cs"/>
+        <include name="Relay/*.cs"/>
         <include name="Util/*.cs"/>
       </sources>
       <references>

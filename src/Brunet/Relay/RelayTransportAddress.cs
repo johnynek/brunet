@@ -10,19 +10,19 @@ using Brunet.Symphony;
 using NUnit.Framework;
 #endif
 
-namespace Brunet.Tunnel {
-  public class TunnelTransportAddress : TransportAddress {
+namespace Brunet.Relay {
+  public class RelayTransportAddress : TransportAddress {
     protected readonly Address _target;
     public Address Target { get { return _target; } }
     //in this new implementation, we have more than one packer forwarders
     protected readonly List<MemBlock> _forwarders;
     
-    static TunnelTransportAddress() {
+    static RelayTransportAddress() {
       //Add support to create brunet.tunnel addresses:
       TransportAddressFactory.AddFactoryMethod("tunnel", Create);
     }
 
-    public TunnelTransportAddress(string s) : base(s) {
+    public RelayTransportAddress(string s) : base(s) {
       /** String representing the tunnel TA is as follows: brunet.tunnel://A/X1+X2+X3
        *  A: target address
        *  X1, X2, X3: forwarders, each X1, X2 and X3 is actually a slice of the initial few bytes of the address.
@@ -42,13 +42,13 @@ namespace Brunet.Tunnel {
       _forwarders.Sort();
     }
 
-    public TunnelTransportAddress(Address target, IEnumerable forwarders): 
+    public RelayTransportAddress(Address target, IEnumerable forwarders): 
       this(GetString(target, forwarders)) 
     {
     }
 
     public static TransportAddress Create(string s) {
-      return new TunnelTransportAddress(s);
+      return new RelayTransportAddress(s);
     }
 
     private static string GetString(Address target, IEnumerable forwarders) {
@@ -72,13 +72,13 @@ namespace Brunet.Tunnel {
 
     public override TAType TransportAddressType { 
       get {
-        return TransportAddress.TAType.Tunnel;
+        return TransportAddress.TAType.Relay;
       }
     }
 
     public override bool Equals(object o) {
       if ( o == this ) { return true; }
-      TunnelTransportAddress other = o as TunnelTransportAddress;
+      RelayTransportAddress other = o as RelayTransportAddress;
       if ( other == null ) { return false; }
 
       bool same = _target.Equals(other._target);
@@ -111,13 +111,13 @@ namespace Brunet.Tunnel {
       Assert.AreEqual(ta.ToString(), ta_string, "testing tunnel TA parsing");
       //Console.WriteLine(ta);
 
-      TunnelTransportAddress tun_ta = (TunnelTransportAddress) TransportAddressFactory.CreateInstance("brunet.tunnel://OIHZCNNUAXTLLARQIOBNCUWXYNAS62LO/CADSL6GV+CADSL6GU");
+      RelayTransportAddress tun_ta = (RelayTransportAddress) TransportAddressFactory.CreateInstance("brunet.tunnel://OIHZCNNUAXTLLARQIOBNCUWXYNAS62LO/CADSL6GV+CADSL6GU");
 
       ArrayList fwd = new ArrayList();
       fwd.Add(new AHAddress(Base32.Decode("CADSL6GVVBM6V442CETP4JTEAWACLC5A")));
       fwd.Add(new AHAddress(Base32.Decode("CADSL6GUVBM6V442CETP4JTEAWACLC5A")));
       
-      TunnelTransportAddress test_ta = new TunnelTransportAddress(tun_ta.Target, fwd);
+      RelayTransportAddress test_ta = new RelayTransportAddress(tun_ta.Target, fwd);
       Assert.AreEqual(tun_ta, test_ta, "testing tunnel TA compression enhancements");
       //Console.WriteLine(tun_ta.ToString());
       //Console.WriteLine(test_ta.ToString());

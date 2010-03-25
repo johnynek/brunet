@@ -37,8 +37,8 @@ using Brunet.Transport;
 using Brunet.Util;
 
 using Brunet.Symphony;
-namespace Brunet.Tunnel {
-  public interface ITunnelOverlap {
+namespace Brunet.Relay {
+  public interface IRelayOverlap {
     /// <summary>Selects an Address from the msg which should be a good
     /// candidate for connecting to as a proxy.</summary>
     Address EvaluatePotentialOverlap(IDictionary msg);
@@ -46,16 +46,16 @@ namespace Brunet.Tunnel {
     /// the connection list and the sync message.  This can be filtered for
     /// performance / fault tolerance purpose.</summary>
     List<Connection> EvaluateOverlap(ConnectionList con, IDictionary msg);
-    /// <summary>Returns a Tunnel Sync message containing information to
+    /// <summary>Returns a Relay Sync message containing information to
     /// be used to determine overlap.</summary>
     IDictionary GetSyncMessage(IList<Connection> current_overlap,
         Address local_addr, ConnectionList cons);
     /// <summary>Attempt to FindOverlap based upon our connections and the
-    /// Remote TunnelTA.</summary>
-    List<Connection> FindOverlap(TunnelTransportAddress ta, ConnectionList cons);
+    /// Remote RelayTA.</summary>
+    List<Connection> FindOverlap(RelayTransportAddress ta, ConnectionList cons);
   }
 
-  public class SimpleTunnelOverlap : ITunnelOverlap {
+  public class SimpleRelayOverlap : IRelayOverlap {
     /// <summary>Returns the 4 oldest connections.</summary>
     protected List<Connection> GetOldest(ConnectionList cons)
     {
@@ -97,7 +97,7 @@ namespace Brunet.Tunnel {
         TransportAddress.TAType tatype =
           TransportAddressFactory.StringToType(values["ta"] as string);
 
-        if(tatype.Equals(TransportAddress.TAType.Tunnel)) {
+        if(tatype.Equals(TransportAddress.TAType.Relay)) {
           continue;
         }
 
@@ -132,11 +132,11 @@ namespace Brunet.Tunnel {
         // Since there are no guarantees about routing over two tunnels, we do
         // not consider cases where we are connected to the overlapping tunnels
         // peers via tunnels
-        if(con.Edge.TAType.Equals(TransportAddress.TAType.Tunnel)) {
+        if(con.Edge.TAType.Equals(TransportAddress.TAType.Relay)) {
           Hashtable values = de.Value as Hashtable;
           TransportAddress.TAType tatype =
             TransportAddressFactory.StringToType(values["ta"] as string);
-          if(tatype.Equals(TransportAddress.TAType.Tunnel)) {
+          if(tatype.Equals(TransportAddress.TAType.Relay)) {
             continue;
           }
         }
@@ -146,7 +146,7 @@ namespace Brunet.Tunnel {
       return GetOldest(overlap);
     }
 
-    /// <summary>Returns a Tunnel Sync message containing up to 40 addresses
+    /// <summary>Returns a Relay Sync message containing up to 40 addresses
     /// first starting with previous overlap followed by new potential
     /// connections for overlap.</summary>
     public virtual IDictionary GetSyncMessage(IList<Connection> current_overlap,
@@ -186,10 +186,10 @@ namespace Brunet.Tunnel {
       return ht;
     }
 
-    /// <summary>Attempt to find the overlap in a remote TunnelTransportAddress
+    /// <summary>Attempt to find the overlap in a remote RelayTransportAddress
     /// and our local node.  This will be used to help communicate with a new
     /// tunneled peer.</summary>
-    public virtual List<Connection> FindOverlap(TunnelTransportAddress ta, ConnectionList cons)
+    public virtual List<Connection> FindOverlap(RelayTransportAddress ta, ConnectionList cons)
     {
       List<Connection> overlap = new List<Connection>();
       foreach(Connection con in cons) {
@@ -203,11 +203,11 @@ namespace Brunet.Tunnel {
   }
 #if BRUNET_NUNIT
   [TestFixture]
-  public class SimpleTunnelOverlapTester {
+  public class SimpleRelayOverlapTester {
     [Test]
     public void Test()
     {
-      ITunnelOverlap _ito = new SimpleTunnelOverlap();
+      IRelayOverlap _ito = new SimpleRelayOverlap();
       Address addr_x = new AHAddress(new RNGCryptoServiceProvider());
       byte[] addrbuff = Address.ConvertToAddressBuffer(addr_x.ToBigInteger() + (Address.Full / 2));
       Address.SetClass(addrbuff, AHAddress._class);

@@ -26,8 +26,8 @@ namespace Brunet.Util {
         new BooleanSwitch("Stats", "Log for stats of the system");
     public static BooleanSwitch LinkDebug =
         new BooleanSwitch("LinkDebug", "Log for Link");
-    public static BooleanSwitch TunnelEdge =
-        new BooleanSwitch("TunnelEdge", "Log for TunnelEdge");
+    public static BooleanSwitch RelayEdge =
+        new BooleanSwitch("RelayEdge", "Log for RelayEdge");
     public static BooleanSwitch LPS =
         new BooleanSwitch("LPS", "Log for link protocol state");
     public static BooleanSwitch Monitor =

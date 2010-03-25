@@ -37,7 +37,7 @@ using Brunet.Services.XmlRpc;
 using Brunet.Security;
 using Brunet.Security.Protocol;
 using Brunet.Security.Transport;
-using Brunet.Tunnel;
+using Brunet.Relay;
 using Brunet.Transport;
 using Brunet.Messaging;
 using Brunet.Symphony;
@@ -215,7 +215,7 @@ namespace Brunet.Applications {
       RpcDhtProxy dht_proxy = new RpcDhtProxy(dht, node);
 
       // Setup Vivaldi if requested
-      ITunnelOverlap ito = null;
+      IRelayOverlap ito = null;
       NCService ncservice = null;
       if(node_config.NCService.Enabled) {
         ncservice = new NCService(node, node_config.NCService.Checkpoint);
@@ -223,9 +223,9 @@ namespace Brunet.Applications {
         if (node_config.NCService.OptimizeShortcuts) {
           node.Ssco.TargetSelector = new VivaldiTargetSelector(node, ncservice);
         }
-        ito = new NCTunnelOverlap(ncservice);
+        ito = new NCRelayOverlap(ncservice);
       } else {
-        ito = new SimpleTunnelOverlap();
+        ito = new SimpleRelayOverlap();
       }
 
       // Create the ApplicationNode
@@ -242,7 +242,7 @@ namespace Brunet.Applications {
       }
 
       // Create the tunnel and potentially wrap it in a SecureEL
-      el = new Tunnel.TunnelEdgeListener(node, ito);
+      el = new Relay.RelayEdgeListener(node, ito);
       if(node_config.Security.SecureEdgesEnabled) {
         node.EdgeVerifyMethod = EdgeVerify.AddressInSubjectAltName;
         el = new SecureEdgeListener(el, pso);

@@ -293,7 +293,7 @@ namespace Brunet.Symphony {
 
     public override TAAuthorizer TAAuth { get { return _ta_auth;} }
     protected readonly static TAAuthorizer _ta_auth = new TATypeAuthorizer(
-          new TransportAddress.TAType[]{TransportAddress.TAType.Tunnel},
+          new TransportAddress.TAType[]{TransportAddress.TAType.Relay},
           TAAuthorizer.Decision.Deny,
           TAAuthorizer.Decision.None);
     

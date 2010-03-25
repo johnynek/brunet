@@ -33,23 +33,23 @@ using Brunet.Transport;
 
 using Brunet.Messaging;
 using Brunet.Symphony;
-namespace Brunet.Tunnel {
-  /// <summary>Tunnels provide the ability for disconnected peers to form
+namespace Brunet.Relay {
+  /// <summary>Relays provide the ability for disconnected peers to form
   /// via existing overlay connections.  For example, two nodes behind asymmetric
   /// NATs can form a tunnel over a common peer forming a virtual direct link
-  /// between each other.  Tunnels provide a mechanism for forming a complete
+  /// between each other.  Relays provide a mechanism for forming a complete
   /// ring.</summary>
-  public class TunnelEdgeListener : EdgeListener, IEdgeSendHandler, IDataHandler, IRpcHandler {
+  public class RelayEdgeListener : EdgeListener, IEdgeSendHandler, IDataHandler, IRpcHandler {
     protected Node _node;
     protected int _running;
     protected int _started;
-    Dictionary<int, TunnelEdge> _id_to_tunnel;
+    Dictionary<int, RelayEdge> _id_to_tunnel;
     /// <summary>Thread safe access to all our tunnel edges.</summary>
-    List<TunnelEdge> _tunnels {
+    List<RelayEdge> _tunnels {
       get {
-        List<TunnelEdge> tunnels = null;
+        List<RelayEdge> tunnels = null;
         lock(_sync) {
-          tunnels = new List<TunnelEdge>(_id_to_tunnel.Values);
+          tunnels = new List<RelayEdge>(_id_to_tunnel.Values);
         }
         return tunnels;
       }
@@ -61,7 +61,7 @@ namespace Brunet.Tunnel {
     public override IEnumerable LocalTAs { get { return _local_tas; } }
     public override int Count { get { return _id_to_tunnel.Count; } }
     protected ConnectionList _connections;
-    protected readonly ITunnelOverlap _ito;
+    protected readonly IRelayOverlap _ito;
     protected readonly OverlapConnectionOverlord _oco;
     protected readonly IForwarderSelectorFactory _iasf;
     protected readonly FuzzyEvent _oco_trim_timer;
@@ -69,7 +69,7 @@ namespace Brunet.Tunnel {
 
     public override TransportAddress.TAType TAType {
       get {
-        return TransportAddress.TAType.Tunnel;
+        return TransportAddress.TAType.Relay;
       }
     }
 
@@ -79,17 +79,17 @@ namespace Brunet.Tunnel {
       }
     }
 
-    public TunnelEdgeListener(Node node) :
-      this(node, new SimpleTunnelOverlap(), new SimpleForwarderSelectorFactory())
+    public RelayEdgeListener(Node node) :
+      this(node, new SimpleRelayOverlap(), new SimpleForwarderSelectorFactory())
     {
     }
 
-    public TunnelEdgeListener(Node node, ITunnelOverlap ito) :
+    public RelayEdgeListener(Node node, IRelayOverlap ito) :
       this(node, ito, new SimpleForwarderSelectorFactory())
     {
     }
 
-    public TunnelEdgeListener(Node node, ITunnelOverlap ito, IForwarderSelectorFactory iasf)
+    public RelayEdgeListener(Node node, IRelayOverlap ito, IForwarderSelectorFactory iasf)
     {
       _ito = ito;
       _iasf = iasf;
@@ -97,15 +97,15 @@ namespace Brunet.Tunnel {
       _node = node;
       _running = 0;
       _started = 0;
-      _id_to_tunnel = new Dictionary<int, TunnelEdge>();
+      _id_to_tunnel = new Dictionary<int, RelayEdge>();
       _sync = new object();
 
-      TransportAddress ta = new TunnelTransportAddress(node.Address, new List<Address>());
+      TransportAddress ta = new RelayTransportAddress(node.Address, new List<Address>());
       ArrayList local_tas = new ArrayList(1);
       local_tas.Add(ta);
       _local_tas = local_tas;
 
-      _node.DemuxHandler.GetTypeSource(PType.Protocol.Tunneling).Subscribe(this, null);
+      _node.DemuxHandler.GetTypeSource(PType.Protocol.Relaying).Subscribe(this, null);
       _node.ConnectionTable.ConnectionEvent += ConnectionHandler;
       _node.ConnectionTable.DisconnectionEvent += DisconnectionHandler;
 
@@ -124,7 +124,7 @@ namespace Brunet.Tunnel {
       }
 
       Hashtable used_addrs = new Hashtable();
-      foreach(TunnelEdge te in _tunnels) {
+      foreach(RelayEdge te in _tunnels) {
         foreach(Connection con in te.Overlap) {
           used_addrs[con.Address] = true;
         }
@@ -154,10 +154,10 @@ namespace Brunet.Tunnel {
     public void HandleRpc(ISender caller, string method, IList args, object rs)
     {
       if(method.Equals("Sync")) {
-        TunnelEdge te = (caller as ReqrepManager.ReplyState).ReturnPath as TunnelEdge;
+        RelayEdge te = (caller as ReqrepManager.ReplyState).ReturnPath as RelayEdge;
         if(te == null) {
           throw new Exception(String.Format(
-                "{0} must be called from a TunnelEdge.", method));
+                "{0} must be called from a RelayEdge.", method));
         }
 
         IDictionary dict = args[0] as IDictionary;
@@ -174,11 +174,11 @@ namespace Brunet.Tunnel {
       }
     }
 
-    /// <summary>When a TunnelEdge closes, we must remove it from our
+    /// <summary>When a RelayEdge closes, we must remove it from our
     /// hashtable.</summary>
     protected void CloseHandler(object o, EventArgs ea)
     {
-      TunnelEdge te = o as TunnelEdge;
+      RelayEdge te = o as RelayEdge;
       lock(_sync) {
         _id_to_tunnel.Remove(te.LocalID);
       }
@@ -188,11 +188,11 @@ namespace Brunet.Tunnel {
     /// it tells a timer to wait 5 seconds prior to attempting an edge.</summary>
     public override void CreateEdgeTo(TransportAddress ta, EdgeCreationCallback ecb)
     {
-      TunnelTransportAddress tta = ta as TunnelTransportAddress;
+      RelayTransportAddress tta = ta as RelayTransportAddress;
       if(tta == null) {
-        ecb(false, null, new Exception("TA Type is not Tunnel!"));
+        ecb(false, null, new Exception("TA Type is not Relay!"));
       } else {
-        TunnelEdgeCallbackAction teca = new TunnelEdgeCallbackAction(tta, ecb);
+        RelayEdgeCallbackAction teca = new RelayEdgeCallbackAction(tta, ecb);
         System.Action<DateTime> callback = delegate(DateTime now) {
           CreateEdgeTo(teca);
         };
@@ -203,11 +203,11 @@ namespace Brunet.Tunnel {
     /// <summary>The delayed callback for CreateEdgeTo, we create an edge if
     /// there is a potential non-tunnel overlap and allow the Linker to do the
     /// rest.</summary>
-    protected void CreateEdgeTo(TunnelEdgeCallbackAction teca)
+    protected void CreateEdgeTo(RelayEdgeCallbackAction teca)
     {
       ConnectionList cons = _connections;
 
-      List<Connection> overlap = _ito.FindOverlap(teca.TunnelTA, cons);
+      List<Connection> overlap = _ito.FindOverlap(teca.RelayTA, cons);
       if(overlap.Count == 0) {
         if(_ito == null) {
           FailedEdgeCreate(teca);
@@ -223,7 +223,7 @@ namespace Brunet.Tunnel {
     /// <summary>First we try to find a third party we can connect with for
     /// overlap, if that is successful, we attempt to connect to him, if that
     /// is successful, we create a new tunnel edge.</summary>
-    protected void AttemptToCreateOverlap(TunnelEdgeCallbackAction teca)
+    protected void AttemptToCreateOverlap(RelayEdgeCallbackAction teca)
     {
       WaitCallback create_connection = delegate(object o) {
         Address target = o as Address;
@@ -260,29 +260,29 @@ namespace Brunet.Tunnel {
         }
       };
 
-      ISender s = new AHExactSender(_node, teca.TunnelTA.Target);
+      ISender s = new AHExactSender(_node, teca.RelayTA.Target);
       _node.Rpc.Invoke(s, chan, "tunnel.RequestSync");
     }
 
     /// <summary>Common code to Create an outgoing edge.</summary>
-    protected void CreateEdge(TunnelEdgeCallbackAction teca, List<Connection> overlap)
+    protected void CreateEdge(RelayEdgeCallbackAction teca, List<Connection> overlap)
     {
-      if(_connections.Contains(teca.TunnelTA.Target)) {
+      if(_connections.Contains(teca.RelayTA.Target)) {
         FailedEdgeCreate(teca);
         return;
       }
 
-      TunnelEdge te = null;
+      RelayEdge te = null;
       while(true) {
-        te = new TunnelEdge(this, (TunnelTransportAddress) _local_tas[0],
-            teca.TunnelTA, _iasf.GetForwarderSelector(), overlap);
+        te = new RelayEdge(this, (RelayTransportAddress) _local_tas[0],
+            teca.RelayTA, _iasf.GetForwarderSelector(), overlap);
         lock(_sync) {
           if(!_id_to_tunnel.ContainsKey(te.LocalID)) {
             _id_to_tunnel[te.LocalID] = te;
             break;
           }
         }
-        // Arriving here, implies another TunnelEdge will be created and this
+        // Arriving here, implies another RelayEdge will be created and this
         // one needs to be closed
         te.Close();
       }
@@ -297,7 +297,7 @@ namespace Brunet.Tunnel {
     }
 
     /// <summary>Common code to signify the failure of edge creation.</summary>
-    protected void FailedEdgeCreate(TunnelEdgeCallbackAction teca)
+    protected void FailedEdgeCreate(RelayEdgeCallbackAction teca)
     {
       teca.Success.Value = false;
       teca.Exception.Value = new Exception("Not enough forwarders!");
@@ -309,7 +309,7 @@ namespace Brunet.Tunnel {
     /// we use this to build a consisting of the intersection of our peers
     /// creating a table of potential tunneling options.  We close the edge if
     /// it is empty.</summary>
-    protected void UpdateNeighborIntersection(TunnelEdge from, IDictionary msg)
+    protected void UpdateNeighborIntersection(RelayEdge from, IDictionary msg)
     {
       List<Connection> overlap = _ito.EvaluateOverlap(_connections, msg);
       from.UpdateNeighborIntersection(overlap);
@@ -329,14 +329,14 @@ namespace Brunet.Tunnel {
       Interlocked.Exchange(ref _connections, cons);
 
       IList addresses = GetNearest(_node.Address, cons);
-      TransportAddress ta = new TunnelTransportAddress(_node.Address, addresses);
+      TransportAddress ta = new RelayTransportAddress(_node.Address, addresses);
 
       ArrayList tas = new ArrayList(1);
       tas.Add(ta);
 
       Interlocked.Exchange(ref _local_tas, tas);
 
-      foreach(TunnelEdge te in _tunnels) {
+      foreach(RelayEdge te in _tunnels) {
         IDictionary sync_message = _ito.GetSyncMessage(te.Overlap, _node.Address, cons);
         Channel chan = new Channel(1);
         _node.Rpc.Invoke(te, chan, "tunnel.Sync", sync_message);
@@ -356,7 +356,7 @@ namespace Brunet.Tunnel {
       Interlocked.Exchange(ref _connections, cons);;
 
       IList addresses = GetNearest(_node.Address, cons);
-      TransportAddress ta = new TunnelTransportAddress(_node.Address, addresses);
+      TransportAddress ta = new RelayTransportAddress(_node.Address, addresses);
 
       ArrayList tas = new ArrayList(1);
       tas.Add(ta);
@@ -364,7 +364,7 @@ namespace Brunet.Tunnel {
       Interlocked.Exchange(ref _local_tas, tas);
 
 
-      foreach(TunnelEdge te in _tunnels) {
+      foreach(RelayEdge te in _tunnels) {
         te.DisconnectionHandler(cea.Connection);
         if(te.IsClosed) {
           continue;
@@ -389,7 +389,7 @@ namespace Brunet.Tunnel {
     }
 
     /// <summary>Where data packets prepended with a tunnel come.  Here we
-    /// receive data as well as create new TunnelEdges.</summary>
+    /// receive data as well as create new RelayEdges.</summary>
     public void HandleData(MemBlock data, ISender return_path, object state)
     {
       AHSender ah_from = return_path as AHSender;
@@ -408,8 +408,8 @@ namespace Brunet.Tunnel {
       int remote_id = NumberSerializer.ReadInt(data, 0);
       int local_id = NumberSerializer.ReadInt(data, 4);
 
-      TunnelEdge te = null;
-      // No locally assigned ID, so we'll create a new TunnelEdge and assign it one.
+      RelayEdge te = null;
+      // No locally assigned ID, so we'll create a new RelayEdge and assign it one.
       // This could be hit many times by the same RemoteID, but it is safe since
       // we'll attempt Linkers on all of them and he'll only respond to the first
       // one he receives back.
@@ -428,8 +428,8 @@ namespace Brunet.Tunnel {
         overlap_addrs.Add(cons[index]);
 
         while(true) {
-          te = new TunnelEdge(this, (TunnelTransportAddress) _local_tas[0],
-              new TunnelTransportAddress(target, overlap_addrs),
+          te = new RelayEdge(this, (RelayTransportAddress) _local_tas[0],
+              new RelayTransportAddress(target, overlap_addrs),
               _iasf.GetForwarderSelector(), overlap_addrs, remote_id);
           lock(_sync) {
             if(!_id_to_tunnel.ContainsKey(te.LocalID)) {
@@ -437,7 +437,7 @@ namespace Brunet.Tunnel {
               break;
             }
           }
-          // Arriving here, implies another TunnelEdge will be created and this
+          // Arriving here, implies another RelayEdge will be created and this
           // one needs to be closed
           te.Close();
         }
@@ -476,13 +476,13 @@ namespace Brunet.Tunnel {
     /// using a randomly selected peer from our overlap list.</summary>
     public void HandleEdgeSend(Edge from, ICopyable data)
     {
-      TunnelEdge te = from as TunnelEdge;
+      RelayEdge te = from as RelayEdge;
       Connection forwarder = te.NextForwarder;
 
       if(te.RemoteID == -1) {
-        Address target = (te.RemoteTA as TunnelTransportAddress).Target;
+        Address target = (te.RemoteTA as RelayTransportAddress).Target;
         ISender sender = new ForwardingSender(_node, forwarder.Address, target);
-        sender.Send(new CopyList(PType.Protocol.Tunneling, te.MId, data));
+        sender.Send(new CopyList(PType.Protocol.Relaying, te.MId, data));
       } else {
         try {
           forwarder.Edge.Send(new CopyList(te.Header, te.MId, data));
@@ -496,7 +496,7 @@ namespace Brunet.Tunnel {
     public override void Start()
     {
       if(Interlocked.Exchange(ref _started, 1) == 1) {
-        throw new Exception("TunnelEdgeListener cannot be started twice.");
+        throw new Exception("RelayEdgeListener cannot be started twice.");
       }
 
       _oco.IsActive = true;
@@ -510,7 +510,7 @@ namespace Brunet.Tunnel {
       _oco_trim_timer.TryCancel();
       base.Stop();
 
-      List<TunnelEdge> tunnels = _tunnels;
+      List<RelayEdge> tunnels = _tunnels;
 
       foreach(Edge e in tunnels) {
         try {
@@ -519,18 +519,18 @@ namespace Brunet.Tunnel {
       }
     }
 
-    /// <summary>Used to bundle a TunnelTA, an ECB, and an IAction
+    /// <summary>Used to bundle a RelayTA, an ECB, and an IAction
     /// altogether.</summary>
-    public class TunnelEdgeCallbackAction : IAction {
-      public readonly TunnelTransportAddress TunnelTA;
+    public class RelayEdgeCallbackAction : IAction {
+      public readonly RelayTransportAddress RelayTA;
       public readonly EdgeCreationCallback Ecb;
       public readonly WriteOnce<Exception> Exception;
       public readonly WriteOnce<bool> Success;
       public readonly WriteOnce<Edge> Edge;
 
-      public TunnelEdgeCallbackAction(TunnelTransportAddress tta, EdgeCreationCallback ecb)
+      public RelayEdgeCallbackAction(RelayTransportAddress tta, EdgeCreationCallback ecb)
       {
-        TunnelTA = tta;
+        RelayTA = tta;
         Ecb = ecb;
         Exception = new WriteOnce<Exception>();
         Success = new WriteOnce<bool>();

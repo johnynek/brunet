@@ -27,7 +27,7 @@ using System.Collections.Generic;
 using System.Threading;
 using Brunet.Connections;
 
-namespace Brunet.Tunnel {
+namespace Brunet.Relay {
   /// <summary>Because the only way to instantiate objects from type information
   /// is via reflection and I'm not a big fan of reflection, I use an object
   /// factory to create new objects.  In this case, we are generating Forwarder 
@@ -75,7 +75,7 @@ namespace Brunet.Tunnel {
       // would probably be closer in the ring then one of our tunnel forwarders
       List<Connection> no_tunnels = new List<Connection>();
       foreach(Connection con in cons) {
-        if(con.Edge is TunnelEdge) {
+        if(con.Edge is RelayEdge) {
           continue;
         }
         if(con.Edge.IsClosed) {

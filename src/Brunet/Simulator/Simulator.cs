@@ -36,7 +36,7 @@ using Brunet.Services.Coordinate;
 using Brunet.Services.Dht;
 using Brunet.Symphony;
 using Brunet.Transport;
-using Brunet.Tunnel;
+using Brunet.Relay;
 using Brunet.Util;
 
 namespace Brunet.Simulator {
@@ -265,18 +265,18 @@ namespace Brunet.Simulator {
 
       node.RemoteTAs = GetRemoteTAs();
 
-      ITunnelOverlap ito = null;
+      IRelayOverlap ito = null;
       if(NCEnable) {
         nm.NCService = new NCService(node, new Point());
 // My evaluations show that when this is enabled the system sucks
 //        (node as StructuredNode).Sco.TargetSelector = new VivaldiTargetSelector(node, ncservice);
-        ito = new NCTunnelOverlap(nm.NCService);
+        ito = new NCRelayOverlap(nm.NCService);
       } else {
-        ito = new SimpleTunnelOverlap();
+        ito = new SimpleRelayOverlap();
       }
 
       if(_broken != 0) {
-        el = new Tunnel.TunnelEdgeListener(node, ito);
+        el = new Relay.RelayEdgeListener(node, ito);
         node.AddEdgeListener(el);
       }
       // Enables Dht data store

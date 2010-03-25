@@ -202,7 +202,7 @@ namespace Brunet.Services.Coordinate {
         ArrayList con_list = new ArrayList();
         foreach (Connection con in _node.ConnectionTable.GetConnections(ConnectionType.Structured))
         {
-          if (con.Edge is Tunnel.TunnelEdge) {
+          if (con.Edge is Relay.RelayEdge) {
             continue;
           }
           con_list.Add(con);

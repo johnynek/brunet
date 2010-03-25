@@ -225,7 +225,7 @@ namespace Brunet {
 	
 	if (tunnel) {
 	  Console.WriteLine("Adding a tunnel edge listener");
-	  node.AddEdgeListener(new Tunnel.TunnelEdgeListener(node));
+	  node.AddEdgeListener(new Relay.RelayEdgeListener(node));
 	}
 	_node_to_port[node] = base_port + i;
         node.RemoteTAs = RemoteTA;	

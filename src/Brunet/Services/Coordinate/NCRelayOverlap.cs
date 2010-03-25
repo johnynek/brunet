@@ -22,7 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
-using Brunet.Tunnel;
+using Brunet.Relay;
 using Brunet.Transport;
 using Brunet.Util;
 using Brunet.Connections;
@@ -38,12 +38,12 @@ using System.Security.Cryptography;
 
 using Brunet.Symphony;
 namespace Brunet.Services.Coordinate {
-  /// <summary>Implements an ITunnelOverlap that uses NCService to make
+  /// <summary>Implements an IRelayOverlap that uses NCService to make
   /// intelligent decisions about selecting tunnel overlap.</summary>
-  public class NCTunnelOverlap : SimpleTunnelOverlap {
+  public class NCRelayOverlap : SimpleRelayOverlap {
     protected NCService _ncservice;
 
-    public NCTunnelOverlap(NCService ncservice)
+    public NCRelayOverlap(NCService ncservice)
     {
       _ncservice = ncservice;
     }
@@ -114,7 +114,7 @@ namespace Brunet.Services.Coordinate {
         TransportAddress.TAType tatype =
           TransportAddressFactory.StringToType(info["ta"] as string);
 
-        if(tatype.Equals(TransportAddress.TAType.Tunnel)) {
+        if(tatype.Equals(TransportAddress.TAType.Relay)) {
           continue;
         }
 
@@ -161,11 +161,11 @@ namespace Brunet.Services.Coordinate {
         // Since there are no guarantees about routing over two tunnels, we do
         // not consider cases where we are connected to the overlapping tunnels
         // peers via tunnels
-        if(con.Edge.TAType.Equals(TransportAddress.TAType.Tunnel)) {
+        if(con.Edge.TAType.Equals(TransportAddress.TAType.Relay)) {
           Hashtable values = de.Value as Hashtable;
           TransportAddress.TAType tatype =
             TransportAddressFactory.StringToType(values["ta"] as string);
-          if(tatype.Equals(TransportAddress.TAType.Tunnel)) {
+          if(tatype.Equals(TransportAddress.TAType.Relay)) {
             continue;
           }
         }
@@ -175,7 +175,7 @@ namespace Brunet.Services.Coordinate {
       return GetClosest(overlap);
     }
 
-    /// <summary>Returns a Tunnel Sync message containing all overlap and then
+    /// <summary>Returns a Relay Sync message containing all overlap and then
     /// the four fastest (if not included in the overlap.</summary>
     public override IDictionary GetSyncMessage(IList<Connection> current_overlap,
         Address local_addr, ConnectionList cons)
@@ -212,7 +212,7 @@ namespace Brunet.Services.Coordinate {
   }
 #if NC_NUNIT
   [TestFixture]
-  public class NCTunnelOverlapTest {
+  public class NCRelayOverlapTest {
     // This tests some simple cases for the NCTunelOverlap
     [Test]
     public void Test()
@@ -256,8 +256,8 @@ namespace Brunet.Services.Coordinate {
         connections.Add(con);
       }
 
-      ITunnelOverlap sto = new SimpleTunnelOverlap();
-      ITunnelOverlap nto = new NCTunnelOverlap(ncservice);
+      IRelayOverlap sto = new SimpleRelayOverlap();
+      IRelayOverlap nto = new NCRelayOverlap(ncservice);
 
       ConnectionType con_type = ConnectionType.Structured;
       List<Connection> pre_cons = new List<Connection>();

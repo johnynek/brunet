@@ -28,7 +28,7 @@ using System.Threading;
 using Brunet.Connections;
 using Brunet.Transport;
 
-namespace Brunet.Tunnel {
+namespace Brunet.Relay {
   /// <summary>A CO used to create Overlap so that tunnels can be made between
   /// two peers that cannot directly connect. </summary>
   public class OverlapConnectionOverlord : ConnectionOverlord {
@@ -39,7 +39,7 @@ namespace Brunet.Tunnel {
 
     public override TAAuthorizer TAAuth { get { return _ta_auth;} }
     protected readonly static TAAuthorizer _ta_auth = new TATypeAuthorizer(
-          new TransportAddress.TAType[]{TransportAddress.TAType.Tunnel},
+          new TransportAddress.TAType[]{TransportAddress.TAType.Relay},
           TAAuthorizer.Decision.Deny,
           TAAuthorizer.Decision.None);
 

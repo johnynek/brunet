@@ -93,7 +93,7 @@ public class PType : Brunet.Util.ICopyable {
                                 AH,
                                 Connection,
                                 Forwarding,
-                                Tunneling,
+                                Relaying,
                                 Echo,
                                 IP,
                                 ReqRep,
@@ -107,7 +107,7 @@ public class PType : Brunet.Util.ICopyable {
     public static readonly PType AH = new PType(2);
     public static readonly PType Connection = new PType("c");
     public static readonly PType Forwarding = new PType("f");
-    public static readonly PType Tunneling = new PType("ftun");
+    public static readonly PType Relaying = new PType("ftun");
     public static readonly PType Echo = new PType("e");
     public static readonly PType Tftp = new PType("tftp");
     public static readonly PType Chat = new PType("chat");

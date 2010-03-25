@@ -32,7 +32,7 @@ using System.Threading;
 namespace Brunet.Graph {
   ///<summary>Graph provides the ability to test routing algorithms for
   ///ring-based structured p2p networks</summary>
-  ///<remarks>Key features provided by Graph include support for Tunnels,
+  ///<remarks>Key features provided by Graph include support for Relays,
   ///latency, hop count, user specified latency, tweaking of network size,
   ///near neighbor count, shortcut count.</remarks>
   public class Graph {

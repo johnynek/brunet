@@ -34,9 +34,9 @@
       </references>
     </csc>
 
-    <csc target="exe" output="${build.dir}/TunnelOverlapSimulator.exe" main="Brunet.Simulator.TunnelOverlapSimulator">
+    <csc target="exe" output="${build.dir}/RelayOverlapSimulator.exe" main="Brunet.Simulator.RelayOverlapSimulator">
       <sources failonempty="true">
-        <include name="TunnelOverlapSimulator.cs"/>
+        <include name="RelayOverlapSimulator.cs"/>
         <include name="Simulator.cs"/>
         <include name="Parameters.cs"/>
       </sources>

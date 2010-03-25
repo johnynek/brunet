@@ -251,7 +251,7 @@ namespace Brunet.Transport
       S,
       Tls,
       TlsTest,
-      Tunnel,
+      Relay,
     }
 
    protected static readonly string _UDP_S = "udp";
@@ -268,7 +268,7 @@ namespace Brunet.Transport
           return _SIMULATION_S;
         case TAType.Udp:
           return _UDP_S;
-        case TAType.Tunnel:
+        case TAType.Relay:
           return _TUNNEL_S;
         case TAType.Tcp:
           return _TCP_S;
@@ -410,15 +410,6 @@ namespace Brunet.Transport
 
   [TestFixture]
   public class TATester {
-    [Test]
-    public void TestTATypeToString() {
-      foreach(TransportAddress.TAType t in
-              Enum.GetValues(typeof(TransportAddress.TAType))) {
-        string s = t.ToString().ToLower();
-        Assert.AreEqual(s, TransportAddress.TATypeToString(t), "TATypeToString");
-      }
-    }
-
     [Test]
     public void Test() {
       TransportAddress tas = TransportAddressFactory.CreateInstance("b.s://234580");

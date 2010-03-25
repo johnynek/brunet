@@ -24,19 +24,19 @@ using System.Security.Cryptography;
 using Brunet.Connections;
 using Brunet.Services.Coordinate;
 using Brunet.Symphony;
-using Brunet.Tunnel;
+using Brunet.Relay;
 using Brunet.Transport;
 using Brunet.Util;
 
 namespace Brunet.Simulator {
-  public class TunnelOverlapSimulator : Simulator {
-    public TunnelOverlapSimulator(Parameters p) : base(p)
+  public class RelayOverlapSimulator : Simulator {
+    public RelayOverlapSimulator(Parameters p) : base(p)
     {
     }
 
     public void CloseOverlap(Node node)
     {
-      foreach(Connection con in node.ConnectionTable.GetConnections(Tunnel.OverlapConnectionOverlord.STRUC_OVERLAP)) {
+      foreach(Connection con in node.ConnectionTable.GetConnections(Relay.OverlapConnectionOverlord.STRUC_OVERLAP)) {
         Console.WriteLine("Closing: " + con);
         con.Edge.Close();
       }
@@ -51,7 +51,7 @@ namespace Brunet.Simulator {
     protected void FindOverlapWorker(Node node1, Node node2)
     {
       ConnectionList cl = node1.ConnectionTable.GetConnections(ConnectionType.Structured);
-      IEnumerable ov = node1.ConnectionTable.GetConnections(Tunnel.OverlapConnectionOverlord.STRUC_OVERLAP);
+      IEnumerable ov = node1.ConnectionTable.GetConnections(Relay.OverlapConnectionOverlord.STRUC_OVERLAP);
       foreach(Connection ov_con in ov) {
 
         int index = cl.IndexOf(ov_con.Address);
@@ -99,26 +99,26 @@ namespace Brunet.Simulator {
       TAAuthorizer auth = new IDTAAuthorizer(broken_port);
       nm.Node.AddEdgeListener(new SimulationEdgeListener(nm.ID, 0, auth, true));
 
-      ITunnelOverlap ito = null;
+      IRelayOverlap ito = null;
       if(NCEnable) {
         nm.NCService = new NCService(nm.Node, new Point());
 // Until we figure out what's going on with VivaldiTargetSelector its not quite useful for these purposes
 //        (nm.Node as StructuredNode).Sco.TargetSelector = new VivaldiTargetSelector(nm.Node, ncservice);
       }
       if(nctunnel && NCEnable) {
-        ito = new NCTunnelOverlap(nm.NCService);
+        ito = new NCRelayOverlap(nm.NCService);
       } else {
-        ito = new SimpleTunnelOverlap();
+        ito = new SimpleRelayOverlap();
       }
 
-      nm.Node.AddEdgeListener(new Tunnel.TunnelEdgeListener(nm.Node, ito));
+      nm.Node.AddEdgeListener(new Relay.RelayEdgeListener(nm.Node, ito));
       nm.Node.RemoteTAs = GetRemoteTAs();
       nm.Node.Connect();
     }
 
     // Static Members
 
-    public static void Simulator(TunnelOverlapSimulator sim)
+    public static void Simulator(RelayOverlapSimulator sim)
     {
       Address addr1 = null, addr2 = null;
       sim.AddDisconnectedPair(out addr1, out addr2, sim.NCEnable);
@@ -152,7 +152,7 @@ namespace Brunet.Simulator {
       sim.Disconnect();
     }
 
-    public static void Evaluator(TunnelOverlapSimulator sim)
+    public static void Evaluator(RelayOverlapSimulator sim)
     {
       Address addr1 = null, addr2 = null;
       sim.AddDisconnectedPair(out addr1, out addr2, true);
@@ -178,7 +178,7 @@ namespace Brunet.Simulator {
       Run(sim, addr1, addr2);
     }
 
-    public static void Run(TunnelOverlapSimulator sim, Address addr1, Address addr2)
+    public static void Run(RelayOverlapSimulator sim, Address addr1, Address addr2)
     {
       Console.WriteLine("Beginning");
       sim.Complete();
@@ -206,7 +206,7 @@ namespace Brunet.Simulator {
 
     public static int Main(string []args)
     {
-      Parameters p = new Parameters("TunnelOverlapSimulator", "Brunet Time Based Simulator for Tunnels");
+      Parameters p = new Parameters("RelayOverlapSimulator", "Brunet Time Based Simulator for Relays");
       if(p.Parse(args) != 0) {
         Console.WriteLine(p.ErrorMessage);
         p.ShowHelp();
@@ -216,7 +216,7 @@ namespace Brunet.Simulator {
         return -1;
       }
 
-      TunnelOverlapSimulator sim = new TunnelOverlapSimulator(p);
+      RelayOverlapSimulator sim = new RelayOverlapSimulator(p);
       sim.Complete();
       if(p.Evaluation) {
         Evaluator(sim);

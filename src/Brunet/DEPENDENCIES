@@ -14,8 +14,8 @@ Symphony : Collections, Concurrent, Connections, Util, Messaging, Transport
 
 Security : Collections, Concurrent, Connections, Util, Messaging, Symphony, Transport
 
-Tunnel : Collections, Concurrent, Connections, Util, Messaging, Symphony, Transport
+Relay : Collections, Concurrent, Connections, Util, Messaging, Symphony, Transport
 
 or subsuming the dependencies of each module:
 
-Collections < Concurrent < Util < Messaging < Transport < Connections < Symphony < (Security | Tunnel)
+Collections < Concurrent < Util < Messaging < Transport < Connections < Symphony < (Security | Relay)

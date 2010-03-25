@@ -35,9 +35,9 @@ using Brunet.Transport;
 using Brunet.Util;
 
 using Brunet.Symphony;
-namespace Brunet.Tunnel {
-  /// <summary>Holds the state information for a Tunnels.</summary>
-  public class TunnelEdge : Brunet.Transport.Edge {
+namespace Brunet.Relay {
+  /// <summary>Holds the state information for a Relays.</summary>
+  public class RelayEdge : Brunet.Transport.Edge {
     protected static readonly Random _rand = new Random();
     public readonly int LocalID;
     protected int _remote_id;
@@ -97,22 +97,22 @@ namespace Brunet.Tunnel {
 
     public override TransportAddress.TAType TAType {
       get {
-        return TransportAddress.TAType.Tunnel;
+        return TransportAddress.TAType.Relay;
       }
     }
 
     public readonly MemBlock Header;
 
     /// <summary>Outgoing edge, since we don't know the RemoteID yet!</summary>
-    public TunnelEdge(IEdgeSendHandler send_handler, TunnelTransportAddress local_ta,
-        TunnelTransportAddress remote_ta, IForwarderSelector ias, List<Connection> overlap) :
+    public RelayEdge(IEdgeSendHandler send_handler, RelayTransportAddress local_ta,
+        RelayTransportAddress remote_ta, IForwarderSelector ias, List<Connection> overlap) :
       this(send_handler, local_ta, remote_ta, ias, overlap, -1)
     {
     }
 
-    /// <summary>Constructor for a TunnelEdge, RemoteID == -1 for out bound.</summary>
-    public TunnelEdge(IEdgeSendHandler send_handler, TunnelTransportAddress local_ta,
-        TunnelTransportAddress remote_ta, IForwarderSelector ias, List<Connection> overlap,
+    /// <summary>Constructor for a RelayEdge, RemoteID == -1 for out bound.</summary>
+    public RelayEdge(IEdgeSendHandler send_handler, RelayTransportAddress local_ta,
+        RelayTransportAddress remote_ta, IForwarderSelector ias, List<Connection> overlap,
         int remote_id) : base(send_handler, remote_id != -1)
     {
       _remote_id = remote_id;
@@ -132,7 +132,7 @@ namespace Brunet.Tunnel {
       AHHeader ahh = new AHHeader(1, 20, local_ta.Target, remote_ta.Target,
           AHHeader.Options.Exact);
       ICopyable header = new CopyList(PType.Protocol.AH, ahh,
-          PType.Protocol.Tunneling);
+          PType.Protocol.Relaying);
       Header = MemBlock.Copy(header);
     }
 
@@ -200,7 +200,7 @@ namespace Brunet.Tunnel {
       while(stack.Count > 0) {
         IEnumerator<Connection> cons = stack.Pop() as IEnumerator<Connection>;
         while(cons.MoveNext()) {
-          TunnelEdge te = cons.Current.Edge as TunnelEdge;
+          RelayEdge te = cons.Current.Edge as RelayEdge;
           if(te == null) {
             return false;
           }
@@ -218,7 +218,7 @@ namespace Brunet.Tunnel {
   }
 #if BRUNET_NUNIT
   [TestFixture]
-  public class TunnelEdgeTest {
+  public class RelayEdgeTest {
     [Test]
     public void Test()
     {
@@ -229,28 +229,28 @@ namespace Brunet.Tunnel {
 
       List<Connection> overlap = new List<Connection>();
       overlap.Add(fcon);
-      TunnelTransportAddress tta = new TunnelTransportAddress(addr, overlap);
-      TunnelEdge te1 = new TunnelEdge(null, tta, tta, new SimpleForwarderSelector(), overlap);
+      RelayTransportAddress tta = new RelayTransportAddress(addr, overlap);
+      RelayEdge te1 = new RelayEdge(null, tta, tta, new SimpleForwarderSelector(), overlap);
       Connection t1con = new Connection(te1, addr, "structured", null, null);
 
       overlap = new List<Connection>();
       overlap.Add(t1con);
-      TunnelEdge te2 = new TunnelEdge(null, tta, tta, new SimpleForwarderSelector(), overlap);
+      RelayEdge te2 = new RelayEdge(null, tta, tta, new SimpleForwarderSelector(), overlap);
       Connection t2con = new Connection(te2, addr, "structured", null, null);
 
       overlap = new List<Connection>();
       overlap.Add(t2con);
-      TunnelEdge te3 = new TunnelEdge(null, tta, tta, new SimpleForwarderSelector(), overlap);
+      RelayEdge te3 = new RelayEdge(null, tta, tta, new SimpleForwarderSelector(), overlap);
       Connection t3con = new Connection(te3, addr, "structured", null, null);
 
       overlap = new List<Connection>();
       overlap.Add(t3con);
-      TunnelEdge te4 = new TunnelEdge(null, tta, tta, new SimpleForwarderSelector(), overlap);
+      RelayEdge te4 = new RelayEdge(null, tta, tta, new SimpleForwarderSelector(), overlap);
       Connection t4con = new Connection(te4, addr, "structured", null, null);
 
       overlap = new List<Connection>();
       overlap.Add(t4con);
-      TunnelEdge te5 = new TunnelEdge(null, tta, tta, new SimpleForwarderSelector(), overlap);
+      RelayEdge te5 = new RelayEdge(null, tta, tta, new SimpleForwarderSelector(), overlap);
       Connection t5con = new Connection(te5, addr, "structured", null, null);
 
       Assert.AreEqual(te5.ShouldClose(), false, "Shouldn't close yet...");
