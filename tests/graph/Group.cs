@@ -21,6 +21,9 @@ using NDesk.Options;
 using System;
 using System.Collections.Generic;
 
+using Brunet.Symphony;
+using Brunet.Util;
+
 namespace Brunet.Graph {
   public class GroupParameters : Parameters {
     public int GroupSize { get { return _group_size; } }

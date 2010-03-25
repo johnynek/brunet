@@ -21,6 +21,11 @@ using NDesk.Options;
 using System;
 using System.Collections.Generic;
 
+using Brunet.Connections;
+using Brunet.Symphony;
+using Brunet.Transport;
+using Brunet.Util;
+
 namespace Brunet.Graph {
   public class Relay : Graph {
     public Relay(int count, int near, int shortcuts, int random_seed,
