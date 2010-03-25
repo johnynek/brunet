@@ -63,7 +63,7 @@ namespace Brunet.Applications.Examples {
     public void SendMessage(Address remote_addr, ICopyable data) {
       // This instantiates a multi-use method to sending to the remote node,
       // though we will only use it once.  It is VERY similar to UDP.
-      AHExactSender sender = new AHExactSender(_node, remote_addr);
+      AHExactSender sender = new AHExactSender(_app_node.Node, remote_addr);
       // This is the process of actually sending the data.
       sender.Send(new CopyList(HW, data));
     }
@@ -71,28 +71,27 @@ namespace Brunet.Applications.Examples {
     /// <summary>This is the work horse method.</summary>
     public override void Run() {
       // This handles the whole process of preparing the Brunet.Node.
-      CreateNode();
+      _app_node = CreateNode(_node_config);
       // Each Brunet.Node contains a DemuxHandler, this object allows us to
       // request that any message with a specific PType arrive here at the
       // HandleData method.  In this case, we want the PType("HelloWorld"),
       // to arrive here, and without state.
-      _node.DemuxHandler.GetTypeSource(HW).Subscribe(this, null);
+      _app_node.Node.DemuxHandler.GetTypeSource(HW).Subscribe(this, null);
 
       // Services include XmlRpcManager and Dht over XmlRpcManager
-      StartServices();
       // Start the Brunet.Node and allow it to connect to remote nodes
-      Thread thread = new Thread(_node.Connect);
+      Thread thread = new Thread(_app_node.Node.Connect);
       thread.Start();
 
       // We finally are at the hello world
       // This is our address, you can copy and paste this locally and at other
       // sites to communicate
-      Console.WriteLine("Your address is: " + _node.Address + "\n");
+      Console.WriteLine("Your address is: " + _app_node.Node.Address + "\n");
 
       // We will continue on, until we get to the Disconnected states.  Assumming
       // you are running this on a supported platform, that would be triggered 
       // initially by ctrl-c
-      while(_node.ConState != Node.ConnectionState.Disconnected) {
+      while(_app_node.Node.ConState != Node.ConnectionState.Disconnected) {
         // First we need the address of the remote node
         Console.Write("Send message to: ");
         string address_string = Console.ReadLine().Trim(new char[] {' ', '\t'});
@@ -112,31 +111,31 @@ namespace Brunet.Applications.Examples {
         SendMessage(addr, MemBlock.Reference(Encoding.UTF8.GetBytes(message)));
         Console.WriteLine("Sent...\n");
       }
-
-      // Stops the XmlRpcManager and associated services
-      StopServices();
     }
-  }
 
-  public class Runner {
     public static int Main(string [] args) {
-      // We need a valid NodeConfig, these are the proper steps to ensure we get one
-      if(args.Length < 1 || !File.Exists(args[0])) {
-        Console.WriteLine("First argument must be a NodeConfig");
-        return -1;
-      }
+      // Create a new RuntimeParameters to parse the args
+      RuntimeParameters parameters = new RuntimeParameters(
+          "HelloWorldNodeDataHandler",
+          "HelloWorld using IDataHandler/ISender paradigm");
 
-      NodeConfig node_config = null;
-      try {
-        node_config = Utils.ReadConfig<NodeConfig>(args[0]);
-      } catch (Exception e) {
-        Console.WriteLine("Invalid NodeConfig file:");
-        Console.WriteLine("\t" + e.Message);
+      // Parse the args, if we don't get 0 back, there was an error
+      if(parameters.Parse(args) != 0) {
+        // Print the error and help
+        Console.WriteLine(parameters.ErrorMessage);
+        parameters.ShowHelp();
+        // exit after error
         return -1;
+      } else if(parameters.Help) {
+        // Caller asked for help, let's print it
+        parameters.ShowHelp();
+        // exit after printing help
+        return 0;
       }
 
       // Instantiate a new inherited node of your choice
-      HelloWorldNodeDataHandler hwn = new HelloWorldNodeDataHandler(node_config);
+      HelloWorldNodeDataHandler hwn =
+        new HelloWorldNodeDataHandler(parameters.NodeConfig);
       // And run it... this hijacks the current thread, we'll return once the node disconnects
       hwn.Run();
 

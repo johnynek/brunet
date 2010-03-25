@@ -22,7 +22,7 @@
       </fileset>
     </copy>
 
-    <csc target="exe" output="${build.dir}/HelloWorldNodeDataHandler.exe" main="Brunet.Applications.Examples.Runner" optimize="true">
+    <csc target="exe" output="${build.dir}/HelloWorldNodeDataHandler.exe" main="Brunet.Applications.Examples.HelloWorldNodeDataHandler" optimize="true">
       <sources failonempty="true">
         <include name="HelloWorldNodeDataHandler.cs"/>
         <include name="../*.cs"/>

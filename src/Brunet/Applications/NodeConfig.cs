@@ -158,5 +158,23 @@ namespace Brunet.Applications {
       }
       return true;
     }
+
+    /// <summary>Read a NodeConfig, if it fails, then let's find the problem.</summary>
+    public static NodeConfig ReadConfig(string path)
+    {
+      if(!File.Exists(path)) {
+        throw new Exception("Missing NodeConfig.");
+      }
+
+      NodeConfig node_config = null;
+      try {
+        node_config = Utils.ReadConfig<NodeConfig>(path);
+        node_config.Path = path;
+      } catch {
+        ConfigurationValidator cv = new ConfigurationValidator();
+        cv.Validate(path, "Node.xsd");
+      }
+      return node_config;
+    }
   }
 }
