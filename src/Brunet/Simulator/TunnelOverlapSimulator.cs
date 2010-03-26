@@ -30,82 +30,39 @@ using Brunet.Util;
 
 namespace Brunet.Simulator {
   public class TunnelOverlapSimulator : Simulator {
-    public static void Main(string []args)
+    public TunnelOverlapSimulator(Parameters p) : base(p)
     {
-      TunnelOverlapSimulator sim = new TunnelOverlapSimulator();
-      bool complete;
-      Runner.ParseCommandLine(args, out complete, sim);
-      sim.Complete();
+    }
 
-      Address addr1 = null, addr2 = null;
-      sim.AddDisconnectedPair(out addr1, out addr2, sim.NCEnable);
-      sim.Complete();
-
-      SimpleTimer.RunSteps(1000000, false);
-      StructuredNode node1 = (sim.Nodes[addr1] as NodeMapping).Node as StructuredNode;
-      StructuredNode node2 = (sim.Nodes[addr2] as NodeMapping).Node as StructuredNode;
-      node1.ManagedCO.AddAddress(addr2);
-      SimpleTimer.RunSteps(100000, false);
-
-      Console.WriteLine(addr1 + "<=>" + addr2 + ":");
-      Console.WriteLine("\t" + node1.ConnectionTable.GetConnection(ConnectionType.Structured, addr2) + "\n");
-      sim.PrintConnections(node1);
-      Console.WriteLine();
-      sim.PrintConnections(node2);
-
-      Console.WriteLine("\nPhase 2 -- Disconnect...");
-      Hashtable ht = new Hashtable();
-      foreach(Connection con in node1.ConnectionTable.GetConnections(Tunnel.OverlapConnectionOverlord.STRUC_OVERLAP)) {
-        ht[con.Address] = (con.Edge as SimulationEdge).Delay;
+    public void CloseOverlap(Node node)
+    {
+      foreach(Connection con in node.ConnectionTable.GetConnections(Tunnel.OverlapConnectionOverlord.STRUC_OVERLAP)) {
         Console.WriteLine("Closing: " + con);
         con.Edge.Close();
       }
+    }
 
+    public void FindOverlap(Node node1, Node node2)
+    {
+      FindOverlapWorker(node1, node2);
+      FindOverlapWorker(node2, node1);
+    }
 
-      ConnectionList cl2 = node2.ConnectionTable.GetConnections(ConnectionType.Structured);
-      foreach(DictionaryEntry de in ht) {
-        Address addr = de.Key as Address;
-        int delay = (int) de.Value;
-        int index = cl2.IndexOf(addr);
+    protected void FindOverlapWorker(Node node1, Node node2)
+    {
+      ConnectionList cl = node1.ConnectionTable.GetConnections(ConnectionType.Structured);
+      IEnumerable ov = node1.ConnectionTable.GetConnections(Tunnel.OverlapConnectionOverlord.STRUC_OVERLAP);
+      foreach(Connection ov_con in ov) {
+
+        int index = cl.IndexOf(ov_con.Address);
         if(index < 0) {
           Console.WriteLine("No matching pair for overlap...");
           continue;
         }
-        Connection con = cl2[index];
-        delay += (con.Edge as SimulationEdge).Delay;
+        Connection con = cl[index];
+        int delay = (ov_con.Edge as SimulationEdge).Delay + (con.Edge as SimulationEdge).Delay;
         Console.WriteLine("Delay: " + delay);
       }
-      ht.Clear();
-
-      foreach(Connection con in node2.ConnectionTable.GetConnections(Tunnel.OverlapConnectionOverlord.STRUC_OVERLAP)) {
-        ht[con.Address] = (con.Edge as SimulationEdge).Delay;
-        Console.WriteLine("Closing: " + con);
-        con.Edge.Close();
-      }
-
-      ConnectionList cl1 = node1.ConnectionTable.GetConnections(ConnectionType.Structured);
-      foreach(DictionaryEntry de in ht) {
-        Address addr = de.Key as Address;
-        int delay = (int) de.Value;
-        int index = cl1.IndexOf(addr);
-        if(index < 0) {
-          Console.WriteLine("No matching pair for overlap...");
-          continue;
-        }
-        Connection con = cl1[index];
-        delay += (con.Edge as SimulationEdge).Delay;
-        Console.WriteLine("Delay: " + delay);
-      }
-
-      SimpleTimer.RunSteps(100000, false);
-
-      Console.WriteLine(addr1 + "<=>" + addr2 + ":");
-      Console.WriteLine("\t" + node1.ConnectionTable.GetConnection(ConnectionType.Structured, addr2) + "\n");
-      sim.PrintConnections(node1);
-      Console.WriteLine();
-      sim.PrintConnections(node2);
-
-      sim.Disconnect();
     }
 
     // adds a disconnected pair to the pool
@@ -155,15 +112,119 @@ namespace Brunet.Simulator {
       }
 
       nm.Node.AddEdgeListener(new Tunnel.TunnelEdgeListener(nm.Node, ito));
-
-      ArrayList RemoteTAs = new ArrayList();
-      for(int i = 0; i < 5 && i < TakenIDs.Count; i++) {
-        int rport = (int) TakenIDs.GetByIndex(_rand.Next(0, TakenIDs.Count));
-        RemoteTAs.Add(TransportAddressFactory.CreateInstance("brunet.function://127.0.0.1:" + rport));
-      }
-      nm.Node.RemoteTAs = RemoteTAs;
-
+      nm.Node.RemoteTAs = GetRemoteTAs();
       nm.Node.Connect();
+    }
+
+    // Static Members
+
+    public static void Simulator(TunnelOverlapSimulator sim)
+    {
+      Address addr1 = null, addr2 = null;
+      sim.AddDisconnectedPair(out addr1, out addr2, sim.NCEnable);
+      sim.Complete();
+
+      SimpleTimer.RunSteps(1000000, false);
+      StructuredNode node1 = (sim.Nodes[addr1] as NodeMapping).Node as StructuredNode;
+      StructuredNode node2 = (sim.Nodes[addr2] as NodeMapping).Node as StructuredNode;
+      node1.ManagedCO.AddAddress(addr2);
+      SimpleTimer.RunSteps(100000, false);
+
+      Console.WriteLine(addr1 + "<=>" + addr2 + ":");
+      Console.WriteLine("\t" + node1.ConnectionTable.GetConnection(ConnectionType.Structured, addr2) + "\n");
+      sim.PrintConnections(node1);
+      Console.WriteLine();
+      sim.PrintConnections(node2);
+
+      Console.WriteLine("\nPhase 2 -- Disconnect...");
+      sim.FindOverlap(node1, node2);
+      sim.CloseOverlap(node1);
+      sim.CloseOverlap(node2);
+
+      SimpleTimer.RunSteps(100000, false);
+
+      Console.WriteLine(addr1 + "<=>" + addr2 + ":");
+      Console.WriteLine("\t" + node1.ConnectionTable.GetConnection(ConnectionType.Structured, addr2) + "\n");
+      sim.PrintConnections(node1);
+      Console.WriteLine();
+      sim.PrintConnections(node2);
+
+      sim.Disconnect();
+    }
+
+    public static void Evaluator(TunnelOverlapSimulator sim)
+    {
+      Address addr1 = null, addr2 = null;
+      sim.AddDisconnectedPair(out addr1, out addr2, true);
+      Run(sim, addr1, addr2);
+      sim.AddDisconnectedPair(addr1, addr2, false);
+      Run(sim, addr1, addr2);
+      sim.AddDisconnectedPair(addr1, addr2, false);
+      Run(sim, addr1, addr2);
+      sim.AddDisconnectedPair(addr1, addr2, false);
+      Run(sim, addr1, addr2);
+      sim.AddDisconnectedPair(addr1, addr2, false);
+      Run(sim, addr1, addr2);
+      Console.WriteLine("NC Tests");
+      sim.AddDisconnectedPair(addr1, addr2, true);
+      Run(sim, addr1, addr2);
+      sim.AddDisconnectedPair(addr1, addr2, true);
+      Run(sim, addr1, addr2);
+      sim.AddDisconnectedPair(addr1, addr2, true);
+      Run(sim, addr1, addr2);
+      sim.AddDisconnectedPair(addr1, addr2, true);
+      Run(sim, addr1, addr2);
+      sim.AddDisconnectedPair(addr1, addr2, true);
+      Run(sim, addr1, addr2);
+    }
+
+    public static void Run(TunnelOverlapSimulator sim, Address addr1, Address addr2)
+    {
+      Console.WriteLine("Beginning");
+      sim.Complete();
+
+      SimpleTimer.RunSteps(1000000, false);
+      StructuredNode node1 = (sim.Nodes[addr1] as NodeMapping).Node as StructuredNode;
+      StructuredNode node2 = (sim.Nodes[addr2] as NodeMapping).Node as StructuredNode;
+      sim.Complete(true);
+      node1.ManagedCO.AddAddress(addr2);
+
+      Connection con1 = node1.ConnectionTable.GetConnection(ConnectionType.Structured, addr2);
+      while(con1 == null) {
+        SimpleTimer.RunStep();
+        con1 = node1.ConnectionTable.GetConnection(ConnectionType.Structured, addr2);
+      }
+
+      Console.WriteLine(addr1 + "<=>" + addr2 + ":");
+      Console.WriteLine("\t" + node1.ConnectionTable.GetConnection(ConnectionType.Structured, addr2) + "\n");
+      sim.FindOverlap(node1, node2);
+      node1.Disconnect();
+      node2.Disconnect();
+      SimpleTimer.RunSteps(100000);
+      Console.WriteLine("End");
+    }
+
+    public static int Main(string []args)
+    {
+      Parameters p = new Parameters("TunnelOverlapSimulator", "Brunet Time Based Simulator for Tunnels");
+      if(p.Parse(args) != 0) {
+        Console.WriteLine(p.ErrorMessage);
+        p.ShowHelp();
+        return -1;
+      } else if(p.Help) {
+        p.ShowHelp();
+        return -1;
+      }
+
+      TunnelOverlapSimulator sim = new TunnelOverlapSimulator(p);
+      sim.Complete();
+      if(p.Evaluation) {
+        Evaluator(sim);
+      } else {
+        Simulator(sim);
+      }
+
+      return 0;
     }
   }
 }

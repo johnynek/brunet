@@ -48,55 +48,58 @@ namespace Brunet.Simulator {
     public int CurrentNetworkSize;
     protected Random _rand;
     public readonly string BrunetNamespace;
-    public double Broken = 0;
-    public int Seed {
-      set {
-        _rand = new Random(value);
-        _seed = value;
-      }
-      get {
-        return _seed;
-      }
-    }
-    protected int _seed;
 
-    public bool SecureEdges;
-    public bool SecureSenders;
+    protected readonly double _broken;
+    protected readonly bool _secure_edges;
+    protected readonly bool _secure_senders;
     public bool NCEnable;
-    protected RSACryptoServiceProvider SEKey;
-    protected Certificate CACert;
+    protected RSACryptoServiceProvider _se_key;
+    protected Certificate _ca_cert;
 
-    public Simulator()
+    public Simulator(Parameters parameters)
     {
-      StartingNetworkSize = 0;
+      StartingNetworkSize = parameters.Size;
       CurrentNetworkSize = 0;
       Nodes = new SortedList();
       TakenIDs = new SortedList();
 
-      _rand = new Random();
-      BrunetNamespace = "testing" + _rand.Next();
-      Broken = 0;
-      SecureEdges = false;
-      SecureSenders = false;
-    }
-
-    public void SecureStartup()
-    {
-      if(SEKey != null) {
-        return;
+      if(parameters.Seed != -1) {
+        _rand = new Random(parameters.Seed);
+      } else {
+        _rand = new Random(parameters.Seed);
       }
-      SEKey = new RSACryptoServiceProvider();
-      byte[] blob = SEKey.ExportCspBlob(false);
-      RSACryptoServiceProvider rsa_pub = new RSACryptoServiceProvider();
-      rsa_pub.ImportCspBlob(blob);
-      CertificateMaker cm = new CertificateMaker("United States", "UFL", 
-          "ACIS", "David Wolinsky", "davidiw@ufl.edu", rsa_pub,
-          "brunet:node:abcdefghijklmnopqrs");
-      Certificate cert = cm.Sign(cm, SEKey);
-      CACert = cert;
+
+      BrunetNamespace = "testing" + _rand.Next();
+      _broken = 0;
+      _secure_edges = parameters.SecureEdges;
+      _secure_senders = parameters.SecureSenders;
+      if(_secure_edges || _secure_senders) {
+        _se_key = new RSACryptoServiceProvider();
+        byte[] blob = _se_key.ExportCspBlob(false);
+        RSACryptoServiceProvider rsa_pub = new RSACryptoServiceProvider();
+        rsa_pub.ImportCspBlob(blob);
+        CertificateMaker cm = new CertificateMaker("United States", "UFL", 
+            "ACIS", "David Wolinsky", "davidiw@ufl.edu", rsa_pub,
+            "brunet:node:abcdefghijklmnopqrs");
+        Certificate cert = cm.Sign(cm, _se_key);
+        _ca_cert = cert;
+      }
+
+      if(parameters.LatencyMap != null) {
+        SimulationEdgeListener.LatencyMap = parameters.LatencyMap;
+      }
+
+      for(int i = 0; i < parameters.Size; i++) {
+        AddNode();
+      }
     }
 
-    public void Complete()
+    public bool Complete()
+    {
+      return Complete(false);
+    }
+
+    public bool Complete(bool quiet)
     {
       DateTime start = DateTime.UtcNow;
       long ticks_start = start.Ticks;
@@ -109,19 +112,21 @@ namespace Brunet.Simulator {
         }
         SimpleTimer.RunStep();
       }
-      AllToAll(false);
-      if(success) {
-        Console.WriteLine("It took {0} to complete the ring", DateTime.UtcNow - start);
-      } else {
-        Console.WriteLine("Unable to complete ring.");
+
+      if(!quiet) {
+        if(success) {
+          Console.WriteLine("It took {0} to complete the ring", DateTime.UtcNow - start);
+        } else {
+          Console.WriteLine("Unable to complete ring.");
+        }
       }
+
+      return success;
     }
 
-    public void SimComplete()
+    public void AllToAll()
     {
-      while(!CheckRing(false)) {
-        SimpleTimer.RunSteps(1000, false);
-      }
+      AllToAll(_secure_senders);
     }
 
     public void AllToAll(bool secure)
@@ -131,6 +136,11 @@ namespace Brunet.Simulator {
       while(a2ah.Done == 0) {
         SimpleTimer.RunStep();
       }
+    }
+
+    public void Crawl()
+    {
+      Crawl(false, _secure_edges);
     }
 
     public bool Crawl(bool log, bool secure)
@@ -189,8 +199,8 @@ namespace Brunet.Simulator {
     protected virtual EdgeListener CreateEdgeListener(int id)
     {
       TAAuthorizer auth = null;
-      if(Broken != 0 && id > 0) {
-        auth = new BrokenTAAuth(Broken);
+      if(_broken != 0 && id > 0) {
+        auth = new BrokenTAAuth(_broken);
       }
 
       return new SimulationEdgeListener(id, 0, auth, true);
@@ -203,7 +213,7 @@ namespace Brunet.Simulator {
         int rid = (int) TakenIDs.GetByIndex(_rand.Next(0, TakenIDs.Count));
         RemoteTAs.Add(TransportAddressFactory.CreateInstance("b.s://" + rid));
       }
-      if(Broken != 0) {
+      if(_broken != 0) {
         RemoteTAs.Add(TransportAddressFactory.CreateInstance("b.s://" + 0));
       }
 
@@ -225,18 +235,18 @@ namespace Brunet.Simulator {
 
       EdgeListener el = CreateEdgeListener(nm.ID);
 
-      if(SecureEdges || SecureSenders) {
-        byte[] blob = SEKey.ExportCspBlob(true);
+      if(_secure_edges || _secure_senders) {
+        byte[] blob = _se_key.ExportCspBlob(true);
         RSACryptoServiceProvider rsa_copy = new RSACryptoServiceProvider();
         rsa_copy.ImportCspBlob(blob);
 
         CertificateMaker cm = new CertificateMaker("United States", "UFL", 
           "ACIS", "David Wolinsky", "davidiw@ufl.edu", rsa_copy,
           address.ToString());
-        Certificate cert = cm.Sign(CACert, SEKey);
+        Certificate cert = cm.Sign(_ca_cert, _se_key);
 
         CertificateHandler ch = new CertificateHandler();
-        ch.AddCACertificate(CACert.X509);
+        ch.AddCACertificate(_ca_cert.X509);
         ch.AddSignedCertificate(cert.X509);
 
         ProtocolSecurityOverlord so = new ProtocolSecurityOverlord(node, rsa_copy, node.Rrm, ch);
@@ -246,7 +256,7 @@ namespace Brunet.Simulator {
         node.HeartBeatEvent += so.Heartbeat;
       }
 
-      if(SecureEdges) {
+      if(_secure_edges) {
         node.EdgeVerifyMethod = EdgeVerify.AddressInSubjectAltName;
         el = new SecureEdgeListener(el, nm.BSO);
       }
@@ -265,7 +275,7 @@ namespace Brunet.Simulator {
         ito = new SimpleTunnelOverlap();
       }
 
-      if(Broken != 0) {
+      if(_broken != 0) {
         el = new Tunnel.TunnelEdgeListener(node, ito);
         node.AddEdgeListener(el);
       }

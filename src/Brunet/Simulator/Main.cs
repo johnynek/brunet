@@ -25,95 +25,72 @@ using Brunet.Util;
 
 namespace Brunet.Simulator {
   public class Runner {
-    public static void Main(string []args)
+    public static int Main(string []args)
     {
-      Simulator sim = new Simulator();
-      bool complete = false;
-      ParseCommandLine(args, out complete, sim);
+      Parameters p = new Parameters("Simulator", "Simulator - Brunet Time Based Simulator");
+      if(p.Parse(args) != 0) {
+        Console.WriteLine(p.ErrorMessage);
+        p.ShowHelp();
+        return -1;
+      } else if(p.Help) {
+        p.ShowHelp();
+        return -1;
+      }
 
-      if(complete) {
+      Simulator sim = new Simulator(p);
+
+      if(p.Complete) {
         sim.Complete();
+      } else if(p.Evaluation) {
+        DateTime now = DateTime.UtcNow;
+        sim.Complete();
+        SimpleTimer.RunSteps(p.EvaluationTime, false);
+        sim.Complete();
+        Console.WriteLine("Time spent setting up: " + (DateTime.UtcNow - now).ToString());
+        sim.AllToAll();
+        sim.Crawl();
+      } else if(p.HeavyChurn) {
+        HeavyChurn(sim, p.EvaluationTime);
       } else {
         Commands(sim);
       }
+       return 0;
     }
 
-    public static void ParseCommandLine(string []args, out bool complete, Simulator sim)
+    public static void HeavyChurn(Simulator sim, int time)
     {
-      complete = false;
-      string dataset_filename = String.Empty;
-      int carg = 0;
+      sim.Complete();
+      Dictionary<Node, Node> volatile_nodes = new Dictionary<Node, Node>();
+      int fifteen_mins = (int) ((new TimeSpan(0, 15, 0)).Ticks / TimeSpan.TicksPerMillisecond);
 
-      sim.StartingNetworkSize = 10;
-      while(carg < args.Length) {
-        String[] parts = args[carg++].Split('=');
-        try {
-          switch(parts[0]) {
-            case "--n":
-              sim.StartingNetworkSize = Int32.Parse(parts[1]);
-              break;
-            case "--broken":
-              sim.Broken = Double.Parse(parts[1]);
-              break;
-            case "--complete":
-              complete = true;
-              break;
-            case "--seed":
-              sim.Seed = Int32.Parse(parts[1]);
-              break;
-            case "--se":
-              sim.SecureEdges = true;
-              sim.SecureStartup();
-              break;
-            case "--ss":
-              sim.SecureSenders = true;
-              sim.SecureStartup();
-              break;
-            case "--dataset":
-              dataset_filename = parts[1];
-              break;
-            case "--help":
-            default:
-              PrintHelp();
-              break;
+      int max = sim.StartingNetworkSize * 2;
+      Random rand = new Random();
+      DateTime end = DateTime.UtcNow.AddSeconds(time);
+      while(end > DateTime.UtcNow) {
+        SimpleTimer.RunSteps(fifteen_mins);
+        List<Node> to_remove = new List<Node>();
+        foreach(Node node in volatile_nodes.Keys) {
+          double prob = rand.NextDouble();
+          if(prob <= .7) {
+            continue;
           }
+
+// This is due to some bug that I can no longer remember
+//          sim.RemoveNode(node, prob > .9);
+          sim.RemoveNode(node, true);
+          to_remove.Add(node);
         }
-        catch {
-          PrintHelp();
+
+        foreach(Node node in to_remove) {
+          volatile_nodes.Remove(node);
+        }
+
+        Console.WriteLine("Removed: {0} Nodes" , to_remove.Count);
+        while(volatile_nodes.Count < max) {
+          Node node = sim.AddNode();
+          volatile_nodes.Add(node, node);
         }
       }
-
-      Console.WriteLine("Initializing...");
-
-      if(dataset_filename != String.Empty) {
-        List<List<int>> latency = new List<List<int>>();
-        using(StreamReader fs = new StreamReader(new FileStream(dataset_filename, FileMode.Open))) {
-          string line = null;
-          while((line = fs.ReadLine()) != null) {
-            string[] points = line.Split(' ');
-            List<int> current = new List<int>(points.Length);
-            foreach(string point in points) {
-              int val;
-              if(!Int32.TryParse(point, out val)) {
-                continue;
-              }
-              current.Add(Int32.Parse(point));
-            }
-            latency.Add(current);
-          }
-        }
-        if(sim.StartingNetworkSize == 10) {
-          sim.StartingNetworkSize = latency.Count;
-        }
-        SimulationEdgeListener.LatencyMap = latency;
-      }
-
-      for(int i = 0; i < sim.StartingNetworkSize; i++) {
-        Console.WriteLine("Setting up node: " + i);
-        sim.AddNode();
-      }
-
-      Console.WriteLine("Initialization complete...\n");
     }
 
     public static void Commands(Simulator sim)
@@ -192,17 +169,6 @@ namespace Brunet.Simulator {
         }
         Console.WriteLine();
       }
-    }
-
-    public static void PrintHelp() {
-      Console.WriteLine("Usage: SystemTest.exe --option[=value]...\n");
-      Console.WriteLine("Options:");
-      Console.WriteLine("--n=int - network size");
-      Console.WriteLine("--broken - broken system test");
-      Console.WriteLine("--complete -- run until fully connected network");
-      Console.WriteLine("--help - this menu");
-      Console.WriteLine();
-      Environment.Exit(0);
     }
   }
 }

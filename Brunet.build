@@ -47,4 +47,16 @@
     <nant buildfile="src/Brunet/Graph/default.build" />
   </target>
 
+  <target name="test" description="nunit test brunet!">
+    <nant target="simulator" buildfile="src/Brunet/default.build" />
+    <nant buildfile="src/Brunet/Services/Dht/default.build" />
+    <nant buildfile="src/Brunet/Services/Coordinate/default.build" />
+    <nant buildfile="src/Brunet/Services/XmlRpc/default.build" />
+    <nant target="test" buildfile="src/Brunet/Simulator/default.build" />
+
+    <nant buildfile="src/Brunet/default.build" />
+    <nant target="test" buildfile="src/Brunet/Services/Dht/default.build" />
+    <nant target="test" buildfile="src/Brunet/Services/Coordinate/default.build" />
+    <nant target="nunit_test" buildfile="src/Brunet/default.build" />
+  </target>
 </project>
