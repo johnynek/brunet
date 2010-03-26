@@ -2,7 +2,7 @@
 <project name="security-test" default="build" basedir=".">
   <description> Builds security-test </description>
   <property name="debug" value="true" overwrite="false" />
-  <property name="lib.dir" value="../../lib"/>
+  <property name="lib.dir" value="../../../lib"/>
   <property name="build.dir" value="build" />
   <target name="clean" description="Remove build directory">
     <delete dir="${build.dir}" failonerror="true"/>

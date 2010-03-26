@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <project name="modeler" default="build" basedir=".">
   <description> Builds a brunet modeler </description>
-  <property name="lib.dir" value="../../lib"/>
+  <property name="lib.dir" value="../../../lib"/>
   <property name="build.dir" value="build" />
 
   <target name="clean" description="Remove build directory">
