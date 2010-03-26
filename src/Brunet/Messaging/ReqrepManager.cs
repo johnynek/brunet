@@ -68,25 +68,20 @@ public class ReqrepManager : SimpleSource, IDataHandler {
     SenderFactory.Register("replystate", LookupReplyStateByUri);
     _inst_tab_sync = new object();
     lock(_inst_tab_sync) {
-      _instance_table = new Dictionary<object, ReqrepManager>();
+      _instance_table = new WeakValueTable<string, ReqrepManager>();
     } 
   }
   /**
    * Protected constructor, we want to control ReqrepManager instances
-   * running on a node. 
+   * running on a node.  
+   * If you want a Singleton-like behavior, use GetInstance()
    * @param info some context that we work for
    */
-  public ReqrepManager(object info) {
-    ReqrepManager existing;
+  public ReqrepManager(string info) {
     lock( _inst_tab_sync ) {
-      if(_instance_table.TryGetValue(info, out existing) ) {
-        throw new Exception("Already an existing ReqrepManager for: " + info.ToString());
-      }
-      else {
-        _instance_table[info] = this;
-      }
+      _instance_table.Replace(info, this);
     }
-    _info = info.ToString();
+    _info = info;
 
     Random r = new Random();
     //Don't use negative numbers:
@@ -105,16 +100,16 @@ public class ReqrepManager : SimpleSource, IDataHandler {
   }
 
   protected static object _inst_tab_sync;
-  protected static Dictionary<object, ReqrepManager> _instance_table;
+  protected static WeakValueTable<string, ReqrepManager> _instance_table;
 
   /** 
    * Static method to create ReqrepManager objects
    * @param context the object that this manager works for
    */
-  public static ReqrepManager GetInstance(object context) {
+  public static ReqrepManager GetInstance(string context) {
     lock(_inst_tab_sync) {
-      ReqrepManager inst;
-      if( !_instance_table.TryGetValue(context, out inst)) {
+      var inst = _instance_table.GetValue(context);
+      if(null == inst) {
         //This puts the item into _instance_table:
         inst = new ReqrepManager(context);
       }
@@ -123,7 +118,10 @@ public class ReqrepManager : SimpleSource, IDataHandler {
   }
 
   public static ReplyState LookupReplyStateByUri(object ctx, string uri) {
-    ReqrepManager rrm = _instance_table[ctx];
+    var rrm = _instance_table.GetValue(ctx.ToString());
+    if(null == rrm) {
+      throw new Exception(String.Format("Invalid Context for ReqrepManager: {0}", ctx));
+    }
     string scheme;
     IDictionary<string, string> kvpairs = SenderFactory.DecodeUri(uri, out scheme);
     int id = Int32.Parse(kvpairs["id"]);

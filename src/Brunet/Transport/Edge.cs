@@ -28,7 +28,7 @@ using System.Collections.Generic;
 using BU = Brunet.Util;
 using BM = Brunet.Messaging;
 using Brunet.Concurrent;
-
+using BCol = Brunet.Collections;
 using Brunet.Messaging;
 namespace Brunet.Transport
 {
@@ -48,31 +48,26 @@ namespace Brunet.Transport
      * We use a weakreference to make sure this doesn't keep items in scope
      * if there are unclosed edges.
      */
-    private readonly static Dictionary<long, WeakReference> _num_to_edge;
+    private readonly static BCol.WeakValueTable<long, Edge> _num_to_edge;
 
     static Edge() {
       _edge_count = 0;
-      _num_to_edge = new Dictionary<long, WeakReference>();
+      _num_to_edge = new BCol.WeakValueTable<long, Edge>();
       SenderFactory.Register("edge", CreateInstance);
     }
     protected static long AllocEdgeNum(Edge e) {
       long result;
       lock( _num_to_edge ) {
         result = ++_edge_count;
-        var new_item = new WeakReference(e);
-        _num_to_edge[result] = new_item;
+        _num_to_edge.Add(result, e);
       }
       return result;
     }
     /** Get the edge with the given edge number.
-     * @throws KeyException if there is no (non-closed) edge with this number
+     * @throws Exception if there is no (non-closed) edge with this number
      */
     public static Edge GetEdgeNum(long num) {
-      WeakReference item;
-      Edge e = null;
-      if( _num_to_edge.TryGetValue(num, out item) ) {
-        e = item.Target as Edge;
-      }
+      Edge e = _num_to_edge.GetValue(num);
       if( e == null ) {
         throw new Exception(String.Format("No Edge with number: {0}", num));
       }
@@ -90,33 +85,8 @@ namespace Brunet.Transport
     protected static void ReleaseEdgeNum(long num) {
       lock( _num_to_edge ) {
         _num_to_edge.Remove(num);
-        /*
-         * Every once in a while, clean up the table:
-         * in the below, every time the number of edges
-         * in the table is 19k + 18, for some value of k,
-         * we check to see if there are some out of scope
-         * Edges, and if so, remove them
-         */
-        if( _num_to_edge.Count % 19 == 18) {
-          CleanEdgeTable();
-        }
       }
     }
-    ///Look through the long -> Edge table to see if any Edges have gone out scope
-    // not synchronized, you must hold the lock on _num_to_edge when calling.
-    protected static void CleanEdgeTable() {
-      var to_remove = new List<long>();
-      foreach(var kvp in _num_to_edge) {
-        if( kvp.Value.Target == null ) {
-          //This edge is out of scope:
-          to_remove.Add(kvp.Key);
-        }
-      }
-      foreach(long edge_num in to_remove) {
-        _num_to_edge.Remove(edge_num);
-      }
-    }
-
     //Non-statics...
 
     protected Edge()

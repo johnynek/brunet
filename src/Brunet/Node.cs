@@ -102,7 +102,7 @@ namespace Brunet
         _con_state = Node.ConnectionState.Offline;
         
         /* Set up the ReqrepManager as a filter */
-        _rrm = new ReqrepManager(this);
+        _rrm = ReqrepManager.GetInstance(this.ToString());
         DemuxHandler.GetTypeSource(PType.Protocol.ReqRep).Subscribe(_rrm, null);
         _rrm.Subscribe(this, null);
         this.HeartBeatEvent += _rrm.TimeoutChecker;
