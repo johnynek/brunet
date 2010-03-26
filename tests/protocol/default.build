@@ -1,150 +1,62 @@
 <?xml version="1.0"?>
 
-<project
-  name="Brunet"
-  default="build">
+<project name="Brunet" default="build">
+  <property name="out.dir" value="." />
+  <property name="build.dir" value="build" />
+  <property name="lib.dir" value="../../lib" />
 
-  <!-- determine whether the build environment
-       has been already configured -->
-  <if test="${property::exists('configured')}">
-    <property
-      name="out.dir"
-      value="${build.dir}/${package.name}/bin"/>
-  </if>
-
-  <ifnot test="${property::exists('configured')}">
-    <property
-      name="configured"
-      value="false"/>
-
-    <property
-      name="out.dir"
-      value="."/>
-  </ifnot>
-      
-  <!-- default configuration -->
-  <property
-    name="assembly"
-    value="Brunet"/>
-  <property
-    name="package.name"
-    value="${nant.project.name}"
-    unless="${configured}"/>
-  <property
-    name="build.dir"
-    value="../../build"
-    unless="${configured}"/>
-  <property
-    name="lib.dir"
-    value="../../lib"
-    unless="${configured}"/>
-  <property
-    name="project.config"
-    value="debug"
-    unless="${configured}"/>
-
-  <!-- named configurations -->
-  <target
-    name="init"
-    description="Initializes build properties">
-    <copy todir="./">
+  <target name="build" description="Builds the Brunet test apps for the current configuration">
+    <copy todir="${build.dir}">
       <fileset basedir="../../lib/">
         <include name="*.dll" />
       </fileset>
     </copy>
-    <call target="${project.config}"/>
-  </target>
-
-  <target
-    name="debug"
-    description="Configures a debug build">
-    <property
-      name="project.config"
-      value="debug"
-      unless="${configured}"/>
-    <property
-      name="build.debug"
-      value="true"
-      unless="${configured}"/>
-    <property
-      name="package.name"
-      value="${nant.project.name}-${project.config}"
-      unless="${configured}"/>
-  </target>
-
-  <target
-    name="release"
-    description="Configures a release build">
-    <property
-      name="project.config"
-      value="release"
-      unless="${configured}"/>
-    <property
-      name="build.debug"
-      value="false"
-      unless="${configured}"/>
-  </target>
-
-  <target
-    name="build"
-    depends="init"
-    description="Builds the Brunet test apps for the current configuration">
 
     <foreach item="File" property="filename">
        <in>
-           <items>
-              <include name="*.cs" />
-           </items>
+         <items>
+           <include name="*.cs" />
+         </items>
        </in>
  
        <do>
-             <csc target="exe" output="${out.dir}/${string::replace(path::get-file-name(filename),'.cs', '.exe')}">
-                <sources>
-                  <include name="${filename}" />
-                </sources>
-                <references>
-                   <include name="Brunet.Services.XmlRpc.dll"/>
-                   <include name="${lib.dir}/NUnit.Framework.dll" />
-                   <include name="${lib.dir}/${assembly}.dll" />
-                   <include name="${lib.dir}/${assembly}-TestUtil.dll" />
-		               <include name="/usr/share/dotnet/mono/1.0/Mono.Posix.dll" />
-                </references>
-             </csc>
+         <csc target="exe" output="${build.dir}/${string::replace(path::get-file-name(filename),'.cs', '.exe')}">
+           <sources>
+             <include name="${filename}" />
+           </sources>
+           <references>
+             <include name="Brunet.Services.XmlRpc.dll"/>
+             <include name="${lib.dir}/NUnit.Framework.dll" />
+             <include name="${lib.dir}/Brunet.dll" />
+           </references>
+         </csc>
        </do>
     </foreach>
-
   </target>
 
-  <target name="clean"
-    depends="clean-logs"
-    description="Deletes the current configuration">
+  <target name="clean" depends="clean-logs" description="Deletes the current configuration">
     <call target="${project.config}"/>
     <delete>
        <fileset>
-         <include name="${out.dir}/*.exe" />
-         <include name="${out.dir}/*.dll" />
+         <include name="${build.dir}/*.exe" />
+         <include name="${build.dir}/*.dll" />
        </fileset>
     </delete>
   </target>
 
-  <target name="clean-logs"
-    description="Deletes old log files">
+  <target name="clean-logs" description="Deletes old log files">
     <call target="${project.config}"/>
     <delete>
       <fileset>
         <include name="${out.dir}/BootGraph_*" />
-	<include name="${out.dir}/boot.out" />
-	<include name="${out.dir}/boot.log" />
+        <include name="${out.dir}/boot.out" />
+        <include name="${out.dir}/boot.log" />
       </fileset>
     </delete>
   </target>
 
-  <target
-    name="clean-all"
-    description="Deletes all the configurations">
-    <delete
-      dir="${build.dir}"
-      failonerror="false"/>
+  <target name="clean-all" description="Deletes all the configurations">
+    <delete dir="${build.dir}" failonerror="false"/>
   </target>
 
 </project>
