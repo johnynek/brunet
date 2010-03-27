@@ -128,6 +128,14 @@ namespace Brunet.Transport
     
     //UDP ports are always bi-directional, and never ephemeral
     public override bool RemoteTANotEphemeral { get { return true; } }
+
+    ///@return true if the id is note yet set, or set to rem
+    public int TrySetRemoteID(int rem) {
+      if( _remoteid == rem ) {
+        return rem;
+      }
+      return Interlocked.CompareExchange(ref _remoteid, rem, 0);
+    }
   }
 
 }
