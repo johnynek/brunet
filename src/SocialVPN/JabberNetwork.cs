@@ -43,6 +43,12 @@ using NUnit.Framework;
 
 namespace SocialVPN {
 
+  public enum StatusTypes {
+    Online,
+    Offline,
+    Failed
+  }
+
   public class JabberNetwork {
 
     public const string SVPNKEYNS = "jabber:iq:svpnkey";

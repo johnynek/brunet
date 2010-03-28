@@ -97,7 +97,7 @@ body {
 }
 
 .f_name {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: bold;
   color: #3B5998;
   margin: 5px 0px 5px 0px;
@@ -107,7 +107,13 @@ body {
   color: #999999;
   margin: 0px;
   padding: 2px;
-  font-weight: bold;
+}
+
+.f_info2 {
+  color: #999999;
+  margin: 0px;
+  padding: 2px;
+  color: #3B5998;
 }
 
 img {

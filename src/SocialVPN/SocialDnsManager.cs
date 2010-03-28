@@ -40,12 +40,23 @@ namespace SocialVPN {
 
     protected readonly SocialUser _local_user;
 
+    protected int _beat_counter;
+
     public SocialDnsManager(SocialNode node) {
       _mappings = new Dictionary<string, DnsMapping>();
       _tmappings = new List<DnsMapping>();
       _node = node;
       _node.Rpc.AddHandler("SocialDNS", this);
       _local_user = _node.LocalUser;
+      _beat_counter = 0;
+      _node.RpcNode.HeartBeatEvent += HeartBeatHandler;
+    }
+
+    public void HeartBeatHandler(object obj, EventArgs eargs) {
+      if(_beat_counter % 120 == 0) {
+        PingFriends();
+      }
+      _beat_counter++;
     }
 
     public void ProcessHandler(Object obj, EventArgs eargs) {
@@ -95,6 +106,10 @@ namespace SocialVPN {
             result = AddTmpMapping((string)args[0], (string)args[1]);
             break;
 
+          case "Ping":
+            result = HandlePing((string)args[0], (string)args[1]);
+            break;
+
           default:
             result = new InvalidOperationException("Invalid Method");
             break;
@@ -140,12 +155,58 @@ namespace SocialVPN {
       _node.Rpc.Invoke(sender, q, method, _local_user.Address, query);
     }
 
+    protected void PingFriends() {
+      Console.WriteLine("calling ping friends ");
+      SocialUser[] friends = _node.GetFriends();
+      foreach(SocialUser friend in friends) {
+        if(friend.Time == String.Empty) {
+          string time = DateTime.Now.ToString();
+          string status = StatusTypes.Offline.ToString();
+          _node.UpdateFriend(friend.Alias, friend.IP, time, friend.Access,
+            status);
+          continue;
+        }
+        if(friend.Access != AccessTypes.Block.ToString()) {
+          DateTime old_time = DateTime.Parse(friend.Time);
+          TimeSpan interval = DateTime.Now - old_time;
+          if(interval.Minutes > 1) { 
+            string method = "Ping";
+            SendRpcMessage(friend.Address, method, "request");
+          }
+          if(interval.Minutes > 3) {
+            string status = StatusTypes.Offline.ToString();
+            _node.UpdateFriend(friend.Alias, friend.IP, friend.Time, 
+              friend.Access, status);
+          }
+        }
+      }
+    }
+
+    protected bool HandlePing(string address, string message) {
+      SocialUser[] friends = _node.GetFriends();
+      foreach(SocialUser friend in friends) {
+        if(friend.Address == address && 
+          friend.Access != AccessTypes.Block.ToString()) {
+          string status = StatusTypes.Online.ToString();
+          string time = DateTime.Now.ToString();
+          _node.UpdateFriend(friend.Alias, friend.IP, time, friend.Access,
+            status);
+          if(message == "request") {
+            string method = "Ping";
+            SendRpcMessage(address, method, "reply");
+          }
+          return true;
+        }
+      }
+      return false;
+    }
+
     protected void SearchFriends(string query) {
       Console.WriteLine("calling search friends " + query);
       SocialUser[] friends = _node.GetFriends();
-      string method = "SearchMapping";
       foreach(SocialUser friend in friends) {
-        if(friend.Status != StatusTypes.Blocked.ToString()) {
+        if(friend.Access != AccessTypes.Block.ToString()) {
+          string method = "SearchMapping";
           SendRpcMessage(friend.Address, method, query);
         }
       }

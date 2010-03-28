@@ -25,6 +25,7 @@ init();
 function init() {
   getState();
   loadPage();
+  window.setInterval(getState, 15000);
 }
 
 function createElem(itemType, itemHTML, itemID, itemClass, containerName, 
@@ -106,11 +107,11 @@ function loadHeader() {
   var menu = createElem("ul", "", "", "", "subheader", "");
   createElem("li", "", "status_id", "", menu, "");
   createElem("li", "Add Friend", "", "", menu, addCert);
-  if(global_status == "Offline") {
-    createElem("li", "Login", "login_id", "", menu, loadLogin); 
+  if(global_status == "Online") {
+    createElem("li", "Logout", "login_id", "", menu, makeLogout);
   }
   else {
-    createElem("li", "Logout", "login_id", "", menu, makeLogout);
+    createElem("li", "Login", "login_id", "", menu, loadLogin); 
   }
 }
 
@@ -186,10 +187,24 @@ function addFriend(friend) {
 function addInfo(friend) {
   var uid = getContent(friend.getElementsByTagName('Uid')[0]);
   var friend_td = document.getElementById(uid);
-  var info = "+ " + getContent(friend.getElementsByTagName('Alias')[0]) +
-    " - " + getContent(friend.getElementsByTagName('IP')[0]) +
-    " (" + getContent(friend.getElementsByTagName('Status')[0]) + ")";
-  createElem("p", info, "", "f_info", friend_td, "");
+  var alias = getContent(friend.getElementsByTagName('Alias')[0]);
+  var ip = getContent(friend.getElementsByTagName('IP')[0]);
+  var access = getContent(friend.getElementsByTagName('Access')[0]);
+  var stat = getContent(friend.getElementsByTagName('Status')[0]);
+  var time = getContent(friend.getElementsByTagName('Time')[0]);
+
+  if(access == "Block") {
+    var info = "- " + alias + " - (Blocked)";
+    createElem("p", info, "", "f_info", friend_td, "");
+  }
+  else if( stat == "Online") {
+    var info = "+ " + alias + " - " + ip + " (" + stat + ")";
+    createElem("p", info, "", "f_info2", friend_td, "");
+  }
+  else {
+    var info = "- " + alias + " - (" + stat + ")";
+    createElem("p", info, "", "f_info", friend_td, "");
+  }
 }
 
 function cancelSubmit() {

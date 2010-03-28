@@ -27,65 +27,164 @@ using NUnit.Framework;
 
 namespace SocialVPN {
 
-  /**
-   * SocialUser Class. Contains information needed to represent a social
-   * user.
-   */
   public class SocialUser {
-
-    public const string IPDEFAULT = "0.0.0.0";
 
     public const string PICPREFIX = "http://www.gravatar.com/avatar/";
 
-    public string Uid;
+    private Certificate _cert = null;
 
-    public string Name;
+    private string _alias = String.Empty;
 
-    public string PCID;
+    private string _fingerprint = String.Empty;
 
-    public string Alias;
+    private string _access = String.Empty;
 
-    public string Address;
+    private string _ip = String.Empty;
 
-    public string Fingerprint;
+    private string _time = String.Empty;
 
-    public string Country;
+    private string _status = String.Empty;
 
-    public string Version;
+    private string _pic = String.Empty;
 
-    public string IP;
+    private string _certificate = String.Empty;
 
-    public string Status;
+    public string Uid {
+      get { return _cert.Subject.Email.ToLower(); }
+      set {}
+    }
 
-    public  string Pic;
+    public string Name {
+      get { return _cert.Subject.Name; }
+      set {}
+    }
 
-    public string Certificate;
+    public string PCID {
+      get { return _cert.Subject.OrganizationalUnit; }
+      set {}
+    }
+
+    public string Country {
+      get { return _cert.Subject.Country; }
+      set {}
+    }
+
+    public string Version {
+      get { return _cert.Subject.Organization; }
+      set {}
+    }
+
+    public string Address {
+      get { return _cert.NodeAddress; }
+      set {}
+    }
+
+    public string Pic {
+      get { return _pic; }
+      set {}
+    }
+
+    public string Fingerprint {
+      get { return _fingerprint; }
+      set {}
+    }
+
+    public string Alias {
+      get { return _alias; }
+      set {}
+    }
+
+    public string IP {
+      get { return _ip; }
+      set { 
+        if(_ip == String.Empty) {
+          _ip = value; 
+        }
+      }
+    }
+
+    public string Time {
+      get { return _time; }
+      set { 
+        if(_time == String.Empty) {
+          _time = value; 
+        }
+      }
+    }
+
+    public string Access {
+      get { return _access; }
+      set { 
+        if(_access == String.Empty) {
+          _access = value; 
+        }
+      }
+    }
+
+    public string Status {
+      get { return _status; }
+      set { 
+        if(_status == String.Empty) {
+          _status = value; 
+        }
+      }
+    }
+
+    public string Certificate {
+      get { return _certificate; }
+      set {
+        if(_certificate == String.Empty) {
+          _certificate = value;
+          byte[] certData = Convert.FromBase64String(value);
+          _cert = new Certificate(certData);
+          string uid = _cert.Subject.Email.ToLower();
+          _fingerprint = SocialUtils.GetSHA1HashString(certData);
+          _pic = PICPREFIX + SocialUtils.GetMD5HashString(uid);
+          _alias = CreateAlias(PCID, uid);
+        }
+      }
+    }
 
     public SocialUser() {}
 
-    /**
-     * Constructor.
-     * @param certData X509 certificate bytes.
-     */
-    public SocialUser(byte[] certData): this(new Certificate(certData)) {}
+    protected static string CreateAlias(string pcid, string uid) {
+      char[] delims = new char[] {'@','.'};
+      string[] parts = uid.Split(delims);
+      string alias = String.Empty;
+      for(int i = 0; i < parts.Length-1; i++) {
+        alias += parts[i] + ".";
+      }
+      alias = (pcid + "." + alias + SocialNode.DNSSUFFIX).ToLower();
+      return alias;
+    }
 
-    /**
-     * Constructor that takes an X509 certificate.
-     * @param cert X509 certificate.
-     */
-    public SocialUser(Certificate cert) {
-      Uid = cert.Subject.Email.ToLower();
-      Name = cert.Subject.Name;
-      PCID = cert.Subject.OrganizationalUnit;
-      Address = cert.NodeAddress;
-      Version = cert.Subject.Organization;
-      Fingerprint = SocialUtils.GetSHA1HashString(cert.X509.RawData);
-      Country = cert.Subject.Country;
-      Status = StatusTypes.Offline.ToString();
-      IP = IPDEFAULT;
-      Pic = PICPREFIX + SocialUtils.GetMD5HashString(Uid);
-      Certificate = Convert.ToBase64String(cert.X509.RawData, 0,
-        cert.X509.RawData.Length, Base64FormattingOptions.InsertLineBreaks);
+    public Certificate GetCert() {
+      return _cert;
+    }
+
+    public SocialUser WeakCopy() {
+      SocialUser user = new SocialUser();
+      user.Certificate = this.Certificate;
+      return user;
+    }
+
+    public SocialUser ExactCopy() {
+      SocialUser user = WeakCopy();
+      user.IP = this.IP;
+      user.Time = this.Time;
+      user.Access = this.Access;
+      user.Status = this.Status;
+      return user;
+    }
+
+    public SocialUser ChangedCopy(string ip, string time, string access,
+      string status) {
+      SocialUser user = WeakCopy();
+      user.IP = ip;
+      user.Time = time;
+      user.Access = access;
+      user.Status = status;
+      return user;
     }
   }
 
@@ -94,11 +193,6 @@ namespace SocialVPN {
   public class SocialUserTester {
     [Test]
     public void SocialUserTest() {
-      Certificate cert = SocialUtils.CreateCertificate("ptony82@gmail.com",
-        "Pierre St Juste", "pcid", "version", "country", "address1234", null);
-      SocialUser user = new SocialUser(cert.X509.RawData);
-      string xml = SocialUtils.ObjectToXml1<SocialUser>(user);
-      Console.WriteLine(xml);
       Assert.AreEqual("test", "test");
     }
   } 

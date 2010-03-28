@@ -39,28 +39,8 @@ using NUnit.Framework;
 
 namespace SocialVPN {
 
-  /**
-   * SocialUtils Class. A group of helper functions.
-   */
-  public class SocialUtils {
+  public static class SocialUtils {
 
-    /**
-     * Constructor.
-     */
-    static SocialUtils() {
-    }
-
-    /**
-     * Creates a self-sign X509 certificate based on user parameters.
-     * @param uid unique user identifier.
-     * @param name user name.
-     * @param pcid PC identifier.
-     * @param version SocialVPN version.
-     * @param country user country.
-     * @param certDir the path for the certificate directory
-     * @param keyPath the path to the private RSA key
-     * @return X509 Certificate.
-     */
     public static Certificate CreateCertificate(string uid, string name,
                                                 string pcid, string version,
                                                 string country, 
@@ -105,11 +85,6 @@ namespace SocialVPN {
       return hash.ToLower();
     }
 
-    /**
-     * Reads bytes from a file.
-     * @param path file path.
-     * @return byte array.
-     */
     public static byte[] ReadFileBytes(string path) {
       FileStream file = File.Open(path, FileMode.Open);
       byte[] blob = new byte[file.Length];
@@ -118,22 +93,12 @@ namespace SocialVPN {
       return blob;
     }
 
-    /**
-     * Writes bytes to file.
-     * @param data byte array containing data.
-     * @param path file path.
-     */
     public static void WriteToFile(byte[] data, string path) {
       FileStream file = File.Open(path, FileMode.Create);
       file.Write(data, 0, data.Length);
       file.Close();
     }
 
-    /**
-     * Creates object from an Xml string.
-     * @param val Xml string representation.
-     * @return Object of type T.
-     //*/
     public static T XmlToObject1<T>(string val) {
       XmlSerializer serializer = new XmlSerializer(typeof(T));
       T res = default(T);
@@ -143,11 +108,6 @@ namespace SocialVPN {
       return res;
     }
 
-    /**
-     * Returns an Xml string representation of an object.
-     * @param val object to be Xml serialized.
-     * @return Xml string representation.
-     */
     public static string ObjectToXml1<T>(T val) {
       using (StringWriter sw = new StringWriter()) {
         XmlSerializer serializer = new XmlSerializer(typeof(T));
@@ -193,11 +153,6 @@ namespace SocialVPN {
       return byteArray;
     }
 
-    /**
-     * Turns dictionary in www-form-urlencoded.
-     * @param parameters the parameters to be encoded.
-     * @return urlencoded string.
-     */
     public static string UrlEncode(Dictionary<string, string> parameters) {
       StringBuilder sb = new StringBuilder();
       int count = 0;
@@ -214,11 +169,6 @@ namespace SocialVPN {
       return sb.ToString();
     }
 
-    /**
-     * Turn urlencoded string into dictionary.
-     * @param request the urlencoded string.
-     * @return the dictionary containing parameters.
-     */
     public static Dictionary<string, string> DecodeUrl(string request) {
       Dictionary<string, string> result = new Dictionary<string, string>();
       string[] pairs = request.Split('&');
@@ -234,21 +184,10 @@ namespace SocialVPN {
       return result;
     }
 
-    /**
-     * Makes an http request.
-     * @param url the url string.
-     * @return the http response string.
-     */
     public static string Request(string url) {
       return Request(url, (byte[])null);
     }
 
-    /**
-     * Makes an http request.
-     * @param url the url string.
-     * @param parameters the parameters.
-     * @return the http response string.
-     */
     public static string Request(string url, Dictionary<string, string> 
                                  parameters) {
       ProtocolLog.WriteIf(SocialLog.SVPNLog,
@@ -257,12 +196,6 @@ namespace SocialVPN {
       return Request(url, Encoding.ASCII.GetBytes(UrlEncode(parameters)));
     }
 
-    /**
-     * Makes an http request.
-     * @param url the url string.
-     * @param parameters the byte representation of parameters.
-     * @return the http response string.
-     */
     public static string Request(string url, byte[] parameters) {
       HttpWebRequest webRequest = (HttpWebRequest)WebRequest.Create(url);
       webRequest.ContentType = "application/x-www-form-urlencoded";
