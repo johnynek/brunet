@@ -59,6 +59,20 @@ public class UidGenerator<T> : IEnumerable<T> {
     return new_id;
   }
 
+  public Pair<int,T> GenerateID(System.Converter<int, T> genfun) {
+    int new_id;
+    do {
+      new_id = _rand.Next();
+      if( _nonneg && new_id < 0 ) {
+        new_id = ~new_id;
+      }
+    } while( new_id == 0 || _obj_map.ContainsKey(new_id) );
+    //Awesome! this is a new ID:
+    T obj = genfun(new_id);
+    _obj_map.Add(new_id, obj);
+    return new Pair<int, T>(new_id, obj);
+  }
+
   /** Enumerate over all the values
    */
   public IEnumerator<T> GetEnumerator() {
