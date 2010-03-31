@@ -86,13 +86,6 @@ namespace SocialVPN {
       }
     }
 
-    /**
-     * Handles incoming RPC calls.
-     * @param caller object containing return path to caller.
-     * @param method the object that is called.
-     * @param arguments the arguments for the object.
-     * @param req_state state object of the request.
-     */
     public void HandleRpc(ISender caller, string method, IList args,
                           object req_state) {
       object result = null;
@@ -157,6 +150,7 @@ namespace SocialVPN {
 
     protected void PingFriends() {
       Console.WriteLine("calling ping friends ");
+      _node.UpdateTime();
       SocialUser[] friends = _node.GetFriends();
       foreach(SocialUser friend in friends) {
         if(friend.Time == String.Empty) {
@@ -164,16 +158,18 @@ namespace SocialVPN {
           string status = StatusTypes.Offline.ToString();
           _node.UpdateFriend(friend.Alias, friend.IP, time, friend.Access,
             status);
+          string method = "Ping";
+          SendRpcMessage(friend.Address, method, "request");
           continue;
         }
         if(friend.Access != AccessTypes.Block.ToString()) {
           DateTime old_time = DateTime.Parse(friend.Time);
           TimeSpan interval = DateTime.Now - old_time;
-          if(interval.Minutes > 1) { 
+          if(friend.Status == StatusTypes.Relay.ToString()) { 
             string method = "Ping";
             SendRpcMessage(friend.Address, method, "request");
           }
-          if(interval.Minutes > 3) {
+          if(interval.Minutes > 1 || interval.Seconds > 30) {
             string status = StatusTypes.Offline.ToString();
             _node.UpdateFriend(friend.Alias, friend.IP, friend.Time, 
               friend.Access, status);
@@ -280,7 +276,7 @@ namespace SocialVPN {
       _mappings.Values.CopyTo(state.Mappings, 0);
       _tmappings.Sort(new MappingComparer());
       state.TmpMappings = _tmappings.ToArray();
-      return SocialUtils.ObjectToXml1<DnsState>(state);
+      return SocialUtils.ObjectToXml<DnsState>(state);
     }
   }
 

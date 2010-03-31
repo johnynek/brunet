@@ -37,7 +37,7 @@ namespace SocialVPN {
     public static void SetUrl() {
       if(_url == null && System.IO.File.Exists("social.config")) {
         SocialConfig config = Utils.ReadConfig<SocialConfig>("social.config");
-        _url = "http://127.0.0.1:" + config.HttpPort + "/api";
+        _url = "http://127.0.0.1:" + config.HttpPort + "/state.xml";
       }
     }
 
@@ -127,6 +127,14 @@ namespace SocialVPN {
       return Print(SocialUtils.Request(_url, parameters));
     }
 
+    public static string GetInfo() {
+      Dictionary<string, string> parameters = 
+        new Dictionary<string, string>();
+
+      parameters["m"] = "getstate";
+      return Print(SocialUtils.Request(_url, parameters));
+    }
+
     public static string Print(string output) {
       Console.WriteLine(output);
       return output;
@@ -143,6 +151,7 @@ namespace SocialVPN {
                     "  remove <alias> - remove by alias\n" +
                     "  block <uid> - block by uid\n" + 
                     "  unblock <uid> - unblock by uid\n" + 
+                    "  getstate - print current state in xml\n" + 
                     "  help - shows this help";
       Console.WriteLine(help);
     }
@@ -152,6 +161,10 @@ namespace SocialVPN {
      */
     public static void Main(string[] args) {
       SetUrl();
+      if(args.Length < 1) {
+        ShowHelp();
+        return;
+      }
       switch (args[0]) {
         case "help":
           ShowHelp();
@@ -187,6 +200,10 @@ namespace SocialVPN {
 
         case "unblock":
           Unblock(args[1]);
+          break;
+
+        case "getstate":
+          GetInfo();
           break;
 
         default:

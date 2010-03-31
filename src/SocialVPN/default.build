@@ -7,6 +7,7 @@
   <property name="config.dir" value="../../config"/>
   <property name="scripts.dir" value="../../scripts/socialvpn"/>
   <property name="images.dir" value="../../images"/>
+  <property name="web.dir" value="web"/>
 
   <target name="clean" description="Remove build directory">
     <delete dir="${build.dir}" failonerror="true"/>
@@ -22,7 +23,7 @@
 
     <mkdir dir="${bin.dir}" failonerror="true"/>
     <copy todir="${build.dir}" failonerror="true">
-      <fileset basedir=".">
+      <fileset basedir="${web.dir}">
         <include name="socialvpn.js" />
         <include name="socialvpn.css" />
         <include name="socialdns.js" />
@@ -147,7 +148,6 @@
         <include name="README.txt" />
       </fileset>
     </copy>
-    <nant buildfile="utils/default.build" failonerror="true"/>
   </target>
 
   <target name="test" description="Test SocialVPN">

@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 var stateXML = "";
 var refresh_time = 0;
 var global_status = "Offline";
+var local_user;
 
 init();
 
@@ -118,11 +119,11 @@ function loadHeader() {
 function loadUser() {
   clearDiv("user_content");
 
-  var local_user = stateXML.getElementsByTagName('LocalUser')[0]; 
-  var uid = getContent(local_user.getElementsByTagName('Uid')[0]);
-  var pcid = getContent(local_user.getElementsByTagName('PCID')[0]);
-  global_status = getContent(local_user.getElementsByTagName('Status')[0]);
-  var img_src = getContent(local_user.getElementsByTagName('Pic')[0]);
+  var user = stateXML.getElementsByTagName('LocalUser')[0]; 
+  var uid = getContent(user.getElementsByTagName('Uid')[0]);
+  var pcid = getContent(user.getElementsByTagName('PCID')[0]);
+  global_status = getContent(user.getElementsByTagName('Status')[0]);
+  var img_src = getContent(user.getElementsByTagName('Pic')[0]);
   var img_usr = createElem("img", "", "", "f_left", "user_content", ""); 
   img_usr.setAttribute("src", img_src);
   img_usr.setAttribute("width", "50");
@@ -130,6 +131,7 @@ function loadUser() {
   var innerHTML = uid + " <em>(" + pcid + ")</em>";
   createElem("h2", innerHTML, "", "", "user_content", "");
   setStatus("");
+  local_user = uid;
 }
 
 function loadFriends() {
@@ -138,14 +140,24 @@ function loadFriends() {
 
   var friends = stateXML.getElementsByTagName('SocialUser');
   for (var i = 0; i < friends.length; i++) {
-    addFriend(friends[i]);
-    addInfo(friends[i]);
+    var uid = getContent(friends[i].getElementsByTagName('Uid')[0]);
+    if(uid == local_user) {
+      uid = "This is you";
+      addFriend(friends[i], uid);
+      addInfo(friends[i], uid);
+    }
+  }
+  for (var i = 0; i < friends.length; i++) {
+    var uid = getContent(friends[i].getElementsByTagName('Uid')[0]);
+    if(uid != local_user) {
+      addFriend(friends[i], uid);
+      addInfo(friends[i], uid);
+    }
   }
 }
 
-function addFriend(friend) {
+function addFriend(friend, uid) {
 
-  var uid = getContent(friend.getElementsByTagName('Uid')[0]);
   var friend_td = document.getElementById(uid);
   if (friend_td == null) {
  
@@ -172,8 +184,7 @@ function addFriend(friend) {
     img_usr.setAttribute("height", "30");
     new_td1.appendChild(img_usr);
 
-    var name = getContent(friend.getElementsByTagName('Uid')[0]);
-    var info_item = createElem("span", name, "", "f_name", new_td2, "");
+    var info_item = createElem("span", uid, "", "f_name", new_td2, "");
     new_td2.appendChild(document.createElement('br'));
 
     var dtTable = document.getElementById('data_table');
@@ -184,8 +195,7 @@ function addFriend(friend) {
   }
 }
 
-function addInfo(friend) {
-  var uid = getContent(friend.getElementsByTagName('Uid')[0]);
+function addInfo(friend, uid) {
   var friend_td = document.getElementById(uid);
   var alias = getContent(friend.getElementsByTagName('Alias')[0]);
   var ip = getContent(friend.getElementsByTagName('IP')[0]);

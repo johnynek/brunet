@@ -7,17 +7,13 @@ if [[ $user == "root" ]]; then
   exit
 fi
 
-if [[ ! -d certificates ]]; then
+if [[ $user != "root"  ]]; then
   echo -n "Enter userid (jabberid@host.com): "
   read userid
   echo -n "Enter PCID (home-pc): "
   read pcid
-  echo -n "Enter Name (Jane Doe): "
-  read name
   echo "Creating certificate..."
-  mono svpncmd.exe cert $userid $pcid "$name"
+  mono svpncmd.exe cert $userid $pcid 
   chmod 600 private_key
-  if [[ -d certificates ]]; then
-    echo "Run ./socialvpn as root"
-  fi
+  echo "Run ./socialvpn as root"
 fi

@@ -154,6 +154,9 @@ namespace SocialVPN {
       for(int i = 0; i < parts.Length-1; i++) {
         alias += parts[i] + ".";
       }
+      if(parts[parts.Length-1] == "com") {
+        alias += "com.";
+      }
       alias = (pcid + "." + alias + SocialNode.DNSSUFFIX).ToLower();
       return alias;
     }
@@ -168,15 +171,6 @@ namespace SocialVPN {
       return user;
     }
 
-    public SocialUser ExactCopy() {
-      SocialUser user = WeakCopy();
-      user.IP = this.IP;
-      user.Time = this.Time;
-      user.Access = this.Access;
-      user.Status = this.Status;
-      return user;
-    }
-
     public SocialUser ChangedCopy(string ip, string time, string access,
       string status) {
       SocialUser user = WeakCopy();
@@ -186,6 +180,11 @@ namespace SocialVPN {
       user.Status = status;
       return user;
     }
+
+    public SocialUser ExactCopy() {
+      return ChangedCopy(IP, Time, Access, Status);
+    }
+
   }
 
 #if SVPN_NUNIT

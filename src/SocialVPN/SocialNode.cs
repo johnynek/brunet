@@ -59,6 +59,8 @@ namespace SocialVPN {
 
     protected readonly object _sync;
 
+    private string _status;
+
     public SocialUser LocalUser {
       get { return _local_user; }
     }
@@ -72,6 +74,7 @@ namespace SocialVPN {
       _friends = new Dictionary<string, SocialUser>();
       _bfriends = new List<string>();
       _sync = new object();
+      _status = StatusTypes.Offline.ToString();
       _local_user = new SocialUser();
       _local_user.Certificate = certificate;
       _local_user.IP = _marad.LocalIP;
@@ -84,6 +87,7 @@ namespace SocialVPN {
     protected SocialUser AddFriend(string certb64, string uid, string ip) {
       SocialUser user = new SocialUser();
       user.Certificate = certb64;
+      user.Status = StatusTypes.Offline.ToString();
 
       if (user.Uid.ToLower() != uid.ToLower()) {
         throw new Exception("Uids do not match");
@@ -181,8 +185,10 @@ namespace SocialVPN {
     }
 
     protected string GetState(bool write_to_file) {
+      UpdateTime();
       SocialState state = new SocialState();
-      state.LocalUser = _local_user;
+      state.LocalUser = _local_user.ChangedCopy(_local_user.IP, 
+        String.Empty, String.Empty, _status);
       state.Friends = new SocialUser[_friends.Count];
       state.BlockedFriends = new string[_bfriends.Count];
       _friends.Values.CopyTo(state.Friends, 0);
@@ -190,7 +196,7 @@ namespace SocialVPN {
       if(write_to_file) {
         Utils.WriteConfig(STATEPATH, state);
       }
-      return SocialUtils.ObjectToXml1<SocialState>(state);
+      return SocialUtils.ObjectToXml<SocialState>(state);
     }
 
     protected void LoadState() {
@@ -238,6 +244,21 @@ namespace SocialVPN {
       }
     }
 
+    public void UpdateTime() {
+      foreach(SocialUser user in GetFriends()) {
+        Address addr = AddressParser.Parse(user.Address);
+        if(_node.ConnectionTable.Contains(ConnectionType.Structured,addr)) {
+          string time = DateTime.Now.ToString();
+          string status = StatusTypes.Online.ToString();
+          UpdateFriend(user.Alias, user.IP, time, user.Access, status);
+        }
+        else if(user.Status == StatusTypes.Online.ToString()) {
+          string status = StatusTypes.Relay.ToString();
+          UpdateFriend(user.Alias, user.IP, user.Time, user.Access, status);
+        }
+      }
+    }
+
     public void ProcessHandler(Object obj, EventArgs eargs) {
       Dictionary <string, string> request = (Dictionary<string, string>)obj;
       string method = String.Empty;
@@ -269,7 +290,7 @@ namespace SocialVPN {
           break;
 
         case "updatestat":
-          _local_user.Status = request["status"];
+          _status = request["status"];
           break;
 
         default:
@@ -286,9 +307,7 @@ namespace SocialVPN {
       IpopConfig ipop_config;
 
       byte[] certData = SocialUtils.ReadFileBytes("local.cert");
-      string certb64 = Convert.ToBase64String(certData, 0,
-        certData.Length, Base64FormattingOptions.InsertLineBreaks);
-
+      string certb64 = Convert.ToBase64String(certData);
       social_config = Utils.ReadConfig<SocialConfig>("social.config");
       node_config = Utils.ReadConfig<NodeConfig>(social_config.BrunetConfig);
       ipop_config = Utils.ReadConfig<IpopConfig>(social_config.IpopConfig);

@@ -46,6 +46,7 @@ namespace SocialVPN {
   public enum StatusTypes {
     Online,
     Offline,
+    Relay,
     Failed
   }
 

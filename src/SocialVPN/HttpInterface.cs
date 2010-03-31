@@ -26,44 +26,20 @@ using System.Threading;
 using Brunet;
 
 namespace SocialVPN {
-  /**
-   * This class defines the HTTP interface to manage socialvpn.
-   */
+
   public class HttpInterface {
-    /**
-     * Location of the Javascript file.
-     */
     protected const string JSURL = "socialvpn.js";
 
-    /**
-     * Location of the Javascript file.
-     */
     protected const string JSURLDNS = "socialdns.js";
 
-    /**
-     * This event is fired whenever we get an API request.
-     */
     public event EventHandler ProcessEvent;
 
-    /**
-     * The .NET HTTP listener which implements HTTP protocol.
-     */
     protected readonly HttpListener _listener;
     
-    /**
-     * The seperate thread that the HTTP interface runs on.
-     */
     protected readonly Thread _runner;
 
-    /**
-     * Keeps track of interface state (on/off).
-     */
     protected bool _running;
 
-    /**
-     * Constructor for HTTP interface.
-     * @param port the TCP port for the interface.
-     */
     public HttpInterface(string port) {
       _listener = new HttpListener();
       _listener.Prefixes.Add("http://127.0.0.1:" + port + "/");
