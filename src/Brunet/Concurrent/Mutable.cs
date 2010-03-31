@@ -121,6 +121,25 @@ public class Mutable<T> where T : class {
     } while(old_state != state);
     return new Pair<T,T>(state, new_state);
   }
+  /*
+   * This allows you to join a bunch of Updaters into
+   * a single atomic sequence
+   */
+  public Pair<T,T> UpdateSeq(params Mutable<T>.Updater[] update_meths) {
+    T old_state = _state;
+    T state;
+    T new_state;
+    do {
+      state = old_state;
+      new_state = state;
+      //Chain them up in order:
+      foreach(var upd in update_meths) {
+        new_state = upd.ComputeNewState(new_state);
+      }
+      old_state = Interlocked.CompareExchange<T>(ref _state, new_state, state);
+    } while(old_state != state);
+    return new Pair<T,T>(state, new_state);
+  }
   /** Update and return old, new and side result
    * this is faster than the delegate based approach
    * NO GUARANTEE THAT update_meth IS ONLY CALLED ONCE!!!!
@@ -142,5 +161,110 @@ public class Mutable<T> where T : class {
 }
 
 #if BRUNET_NUNIT
+[TestFixture]
+/*
+The point of this code was to put in a test for a racey operation.
+incrementing and decrementing will give bugs (due to races) if there
+is not good thread-safety.
+
+This is just an example to make sure there are no bugs.  No one really
+wants to do this much, but if there were a bug in the synchronization,
+it would probably show up in this kind of test (try it without any
+locks or synchronization and I think you'll see what I mean).
+ */
+public class MutableTester {
+  public class TestState {
+    public readonly int Val;
+    public TestState(int v) { Val = v; }
+  }
+  public class Inc : Mutable<TestState>.Updater {
+    public TestState ComputeNewState(TestState old) {
+      return new TestState(old.Val + 1);
+    }
+  }
+  public class Dec : Mutable<TestState>.Updater {
+    public TestState ComputeNewState(TestState old) {
+      return new TestState(old.Val - 1);
+    }
+  }
+
+  readonly Mutable<TestState> m_state;
+  int good;
+  public MutableTester() {
+    good = 0;
+    m_state = new Mutable<TestState>(new TestState(0));
+  }
+
+  [Test]
+  public void Test0() {
+    int THREAD_COUNT = 100;
+    var threads = new Thread[THREAD_COUNT];
+    for(int i = 0; i < THREAD_COUNT; i++) {
+      threads[i] = new Thread(this.TestThread0);
+    }
+    foreach(var t in threads) {
+      t.Start();
+    }
+    foreach(var t in threads) {
+      t.Join();
+    }
+    Assert.AreEqual(good, m_state.State.Val, "final value is correct");
+    //Do it again except test UpdateSeq
+    for(int i = 0; i < THREAD_COUNT; i++) {
+      threads[i] = new Thread(this.TestThread1);
+    }
+    foreach(var t in threads) {
+      t.Start();
+    }
+    foreach(var t in threads) {
+      t.Join();
+    }
+    Assert.AreEqual(good, m_state.State.Val, "final value is correct");
+  }
+  public void TestThread0() {
+    var rnd = new System.Random();
+    //put at most 1000 changes:
+    int count = rnd.Next(1000);
+    for(int i=0; i < count; i++) {
+      //This will work:
+      Interlocked.Increment(ref good);
+    }
+    var inc_up = new Inc();
+    for(int i = 0; i < count; i++) {
+      m_state.Update(inc_up);
+    }
+    //Now decrement:
+    count = rnd.Next(1000);
+    for(int i=0; i < count; i++) {
+      //This will work:
+      Interlocked.Decrement(ref good);
+    }
+    var dec_up = new Dec();
+    for(int i = 0; i < count; i++) {
+      m_state.Update(dec_up);
+    }
+  }
+  public void TestThread1() {
+    var rnd = new System.Random();
+    //put at most 1000 changes:
+    int count = rnd.Next(1000);
+    Interlocked.Add(ref good, count);
+    var inc_up = new Inc();
+    var ups = new Mutable<TestState>.Updater[count];
+    for(int i = 0; i < count; i++) {
+      ups[i] = inc_up;
+    }
+    m_state.UpdateSeq(ups);
+    //Now decrement:
+    count = rnd.Next(1000);
+    Interlocked.Add(ref good, -count);
+    var downs = new Mutable<TestState>.Updater[count];
+    var dec_up = new Dec();
+    for(int i = 0; i < count; i++) {
+      downs[i] = dec_up;
+    }
+    m_state.UpdateSeq(downs);
+  }
+}
 #endif
 }
