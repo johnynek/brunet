@@ -28,6 +28,18 @@
   </xs:complexType>
 </xs:element>
 
+<xs:element name="XmppServices">
+  <xs:complexType>
+    <xs:all>
+      <xs:element name="Enabled" type="xs:boolean" minOccurs="0" maxOccurs="1" />
+      <xs:element ref="Port" minOccurs="0" maxOccurs="1" />
+      <xs:element name="Username" type="xs:string" minOccurs="0" maxOccurs="1" />
+      <xs:element name="Password" type="xs:string" minOccurs="0" maxOccurs="1" />
+      <xs:element name="Server" type="xs:string" minOccurs="0" maxOccurs="1" />
+    </xs:all>
+  </xs:complexType>
+</xs:element>
+
 <xs:element name="RemoteTAs">
   <xs:complexType>
     <xs:sequence>
@@ -47,19 +59,20 @@
     <xs:sequence>
       <xs:element name="EdgeListener" maxOccurs="unbounded" minOccurs="0">
         <xs:complexType>
-	  <xs:sequence>
+          <xs:sequence>
             <xs:element ref="port" minOccurs="0" maxOccurs="1"/>
-	  </xs:sequence>
- 	  <xs:attribute name="type">
+          </xs:sequence>
+          <xs:attribute name="type">
             <xs:simpleType>
               <xs:restriction base="xs:string">
-                <xs:enumeration value="udp"/>
-                <xs:enumeration value="tcp"/>
                 <xs:enumeration value="function"/>
+                <xs:enumeration value="tcp"/>
+                <xs:enumeration value="udp"/>
+                <xs:enumeration value="xmpp"/>
               </xs:restriction>
             </xs:simpleType>
-	  </xs:attribute>
-	</xs:complexType>
+          </xs:attribute>
+        </xs:complexType>
       </xs:element>
     </xs:sequence>
   </xs:complexType>
@@ -68,7 +81,7 @@
 <xs:element name="XmlRpcManager">
   <xs:complexType>
     <xs:all>
-      <xs:element ref="Enabled" />
+      <xs:element name="Enabled" type="xs:boolean" minOccurs="0" maxOccurs="1" />
       <xs:element ref="Port" />
     </xs:all>
   </xs:complexType>
@@ -77,9 +90,9 @@
 <xs:element name="NCService">
   <xs:complexType>
     <xs:all>
-      <xs:element ref="Enabled" />
-      <xs:element ref="OptimizeShortcuts" />
-      <xs:element ref="Checkpointing" />
+      <xs:element name="Enabled" type="xs:boolean" minOccurs="0" maxOccurs="1" />
+      <xs:element name="OptimizeShortcuts" type="xs:boolean" minOccurs="0" maxOccurs="1" />
+      <xs:element name="Checkpointing" type="xs:boolean" minOccurs="0" maxOccurs="1" />
       <xs:element name="Checkpoint" type="xs:string" minOccurs="0"/>
     </xs:all>
   </xs:complexType>
@@ -88,11 +101,10 @@
 <xs:element name="Security">
   <xs:complexType>
     <xs:all>
-      <xs:element ref="Enabled" minOccurs="1"/>
-      <xs:element ref="SecureEdges" minOccurs="0"/>
-      <xs:element ref="TestEnable" minOccurs="0"/>
-      <xs:element ref="SecureEdgesEnabled" minOccurs="0"/>
-      <xs:element ref="SelfSignedCertificates" minOccurs="0"/>
+      <xs:element name="Enabled" type="xs:boolean" minOccurs="0" maxOccurs="1" />
+      <xs:element name="TestEnable" type="xs:boolean" minOccurs="0" maxOccurs="1" />
+      <xs:element name="SecureEdges" type="xs:boolean" minOccurs="0" maxOccurs="1" />
+      <xs:element name="SelfSignedCertificates" type="xs:boolean" minOccurs="0" maxOccurs="1" />
       <xs:element name="KeyPath" type="xs:string" minOccurs="0"/>
       <xs:element name="CertificatePath" type="xs:string" minOccurs="0"/>
     </xs:all>
@@ -105,69 +117,6 @@
       <xs:element name="Device" type="xs:string" minOccurs="0" maxOccurs="unbounded" />
     </xs:sequence>
   </xs:complexType>
-</xs:element>
-
-<xs:element name="Enabled">
-  <xs:simpleType>
-    <xs:restriction base="xs:string">
-      <xs:enumeration value="true"/>
-      <xs:enumeration value="false"/>
-    </xs:restriction>
-  </xs:simpleType>
-</xs:element>
-
-<xs:element name="OptimizeShortcuts">
-  <xs:simpleType>
-    <xs:restriction base="xs:string">
-      <xs:enumeration value="true"/>
-      <xs:enumeration value="false"/>
-    </xs:restriction>
-  </xs:simpleType>
-</xs:element>
-
-<xs:element name="Checkpointing">
-  <xs:simpleType>
-    <xs:restriction base="xs:string">
-      <xs:enumeration value="true"/>
-      <xs:enumeration value="false"/>
-    </xs:restriction>
-  </xs:simpleType>
-</xs:element>
-
-<xs:element name="SecureEdges">
-  <xs:simpleType>
-    <xs:restriction base="xs:string">
-      <xs:enumeration value="true"/>
-      <xs:enumeration value="false"/>
-    </xs:restriction>
-  </xs:simpleType>
-</xs:element>
-
-<xs:element name="TestEnable">
-  <xs:simpleType>
-    <xs:restriction base="xs:string">
-      <xs:enumeration value="true"/>
-      <xs:enumeration value="false"/>
-    </xs:restriction>
-  </xs:simpleType>
-</xs:element>
-
-<xs:element name="SelfSignedCertificates">
-  <xs:simpleType>
-    <xs:restriction base="xs:string">
-      <xs:enumeration value="true"/>
-      <xs:enumeration value="false"/>
-    </xs:restriction>
-  </xs:simpleType>
-</xs:element>
-
-<xs:element name="SecureEdgesEnabled">
-  <xs:simpleType>
-    <xs:restriction base="xs:string">
-      <xs:enumeration value="true"/>
-      <xs:enumeration value="false"/>
-    </xs:restriction>
-  </xs:simpleType>
 </xs:element>
 
 <xs:element name="port">

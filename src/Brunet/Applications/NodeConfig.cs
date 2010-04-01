@@ -78,6 +78,7 @@ namespace Brunet.Applications {
       Security = new SecurityPolicy();
       PrivateNodeConfig = new PrivateNodeConfig();
       BrunetNamespace = String.Empty;
+      XmppServices = new XmppConfig();
     }
 
     /// <summary>Create a new node config given a public node config and a
@@ -119,8 +120,8 @@ namespace Brunet.Applications {
     /**  <summary>Specifies XmlRpc configuration.  This is optional and only
     required if XmlRpc is desired.</summary>*/
     public Service XmlRpcManager;
-    public NCServiceConfig NCService;
     public SecurityPolicy Security;
+    public XmppConfig XmppServices;
 
     public class SecurityPolicy {
       public SecurityPolicy() {
@@ -131,6 +132,7 @@ namespace Brunet.Applications {
       public bool Enabled;
       public bool SecureEdges;
       public bool TestEnable;
+      [XmlIgnoreAttribute]
       public bool SecureEdgesEnabled { get { return Enabled && SecureEdges; } }
       /// <summary>In this mode, we allow preshared self-signed certificates.
       /// If we were to not have this mode, we could potentially be passing
@@ -174,6 +176,15 @@ namespace Brunet.Applications {
       public String type;
       /// <summary>A specific port number, 0 or missing for random</summary>
       public int port;
+    }
+
+    /// <summary>Used to configure XmppServices.</summary>
+    public class XmppConfig {
+      public bool Enabled;
+      public string Username;
+      public string Password;
+      public string Server;
+      public int Port;
     }
 
     /// <summary>Path to the configs file system location.</summary>

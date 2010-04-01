@@ -27,6 +27,10 @@ using System.Threading;
 using System.Collections;
 using System.Collections.Generic;
 
+#if BRUNET_NUNIT
+using NUnit.Framework;
+#endif
+
 namespace Brunet.Transport {
 
   /** Manages the PathEdgeListener objects for multiple Nodes
@@ -341,10 +345,29 @@ namespace Brunet.Transport {
     /** return the base TransportAddress and the path associated with it
      */
     public static TransportAddress SplitPath(TransportAddress ta, out string path) {
-      Uri orig_u = ta.Uri;
-      path = orig_u.AbsolutePath;
-      string base_uri = String.Format("{0}://{1}", orig_u.Scheme, orig_u.Authority);
-      return TransportAddressFactory.CreateInstance(base_uri);
+      string tas = ta.ToString();
+      // Need to be careful of the case ta:////ta:9/
+      int init_idx = tas.IndexOf("://") + 3;
+      int idx = init_idx;
+      int pos = 0;
+      bool next = false;
+      for(; idx < tas.Length; idx++) {
+        if(tas[idx] == '/') {
+          if(!next) {
+            pos = idx;
+          }
+        } else {
+          next = false;
+        }
+      }
+
+      if(pos > 0) {
+        path = tas.Substring(pos);
+        return TransportAddressFactory.CreateInstance(tas.Substring(0, pos));
+      } else {
+        path = "/";
+        return ta;
+      }
     }
 
     /** Start the underlying EdgeListener and start processing edges
@@ -625,4 +648,27 @@ namespace Brunet.Transport {
       this.Close();
     }
   }
+
+#if BRUNET_NUNIT
+  [TestFixture]
+  public class PathTester {
+    [Test]
+    public void Test() {
+      TransportAddress ta = new IPTransportAddress(
+          "brunet.udp://127.0.0.1:9");
+      TransportAddress ta0 = new IPTransportAddress(
+          "brunet.udp:///127.0.0.1:9/Path");
+      TransportAddress ta1 = new IPTransportAddress(
+          "brunet.udp://127.0.0.1:9//Path");
+
+      string path;
+      PathELManager.SplitPath(ta, out path);
+      Assert.AreEqual("/", path);
+      PathELManager.SplitPath(ta0, out path);
+      Assert.AreEqual("/Path", path);
+      PathELManager.SplitPath(ta1, out path);
+      Assert.AreEqual("/Path", path);
+    }
+  }
+#endif
 }

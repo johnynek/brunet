@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+
+<project name="Brunet" default="build">
+  <description> Builds Brunet.Xmpp.dll </description>
+  <property name="build.dir" value="build"/>
+  <property name="lib.dir" value="../../../lib"/>
+
+  <target name="test" description="Configures a debug build">
+    <copy todir="${build.dir}">
+       <fileset basedir="${lib.dir}">
+          <include name="Brunet.dll" />
+       </fileset>
+    </copy>
+    <csc target="library" define="NUNIT" output="${build.dir}/Brunet.Xmpp.Test.dll">
+      <sources failonempty="true">
+        <include name="*.cs"/>
+      </sources>
+      <references basedir="${build.dir}">
+        <include name="Brunet.dll" />
+        <include name="jabber-net.dll" />
+        <include name="nunit.framework.dll" />
+      </references>
+    </csc>
+    <nunit2>
+      <formatter type="Plain" />
+      <test assemblyname="${build.dir}/Brunet.Xmpp.Test.dll"/>
+    </nunit2>
+  </target>
+
+  <target name="build" description="Builds Brunet.Xmpp.dll for release">
+    <copy todir="${build.dir}">
+       <fileset basedir="${lib.dir}">
+          <include name="Brunet.dll" />
+          <include name="jabber-net.dll" />
+       </fileset>
+    </copy>
+    <csc target="library" define="" output="${build.dir}/Brunet.Xmpp.dll">
+      <sources failonempty="true">
+        <include name="*.cs"/>
+      </sources>
+      <references basedir="${build.dir}">
+        <include name="Brunet.dll" />
+        <include name="jabber-net.dll" />
+      </references>
+    </csc>
+    <copy todir="${lib.dir}">
+      <fileset basedir="${build.dir}">
+           <include name="Brunet.Xmpp.dll" />
+      </fileset>
+    </copy>
+  </target>
+</project>

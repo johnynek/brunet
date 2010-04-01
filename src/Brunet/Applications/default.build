@@ -21,6 +21,8 @@
         <include name="NDesk.Options.dll"/>
         <include name="Mono.Security.dll" />
         <include name="Brunet.Security.dll"/>
+        <include name="Brunet.Xmpp.dll"/>
+        <include name="jabber-net.dll" />
       </fileset>
     </copy>
 
@@ -41,10 +43,12 @@
         <include name="Brunet.Services.Coordinate.dll" />
         <include name="Brunet.Services.XmlRpc.dll" />
         <include name="Brunet.Services.Dht.dll"/>
+        <include name="Brunet.Xmpp.dll"/>
         <include name="CookComputing.XmlRpcV2.dll" />
         <include name="NDesk.Options.dll"/>
         <include name="Brunet.Security.dll"/>
         <include name="System.Runtime.Remoting.dll"/>
+        <include name="jabber-net.dll" />
         <include name="Mono.Posix.dll"/>
       </references>
       <resources>

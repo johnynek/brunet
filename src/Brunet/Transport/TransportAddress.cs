@@ -252,7 +252,8 @@ namespace Brunet.Transport
       S,
       Subring,
       Tls,
-      TlsTest
+      TlsTest,
+      Xmpp
     }
 
    protected static readonly string _UDP_S = "udp";

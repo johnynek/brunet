@@ -13,6 +13,7 @@
     <nant buildfile="src/Brunet/Services/Coordinate/default.build" />
     <nant buildfile="src/Brunet/Services/XmlRpc/default.build" />
     <nant buildfile="src/Brunet/Security/default.build" />
+    <nant buildfile="src/Brunet/Xmpp/default.build" />
     <nant buildfile="src/Brunet/Applications/default.build" />
     <nant buildfile="src/Brunet/Messaging/Mock/default.build" />
     <nant buildfile="tests/protocol/default.build" />

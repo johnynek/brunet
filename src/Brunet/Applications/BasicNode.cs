@@ -42,6 +42,7 @@ using Brunet.Relay;
 using Brunet.Transport;
 using Brunet.Messaging;
 using Brunet.Symphony;
+using Brunet.Xmpp;
 using Brunet.Util;
 
 /**
@@ -83,6 +84,7 @@ namespace Brunet.Applications {
 
     protected Dictionary<string, PathELManager> _type_to_pem;
     protected Random _rand;
+    public readonly XmppService XmppService;
 
     /// <summary>Prepares a BasicNode.</summary>
     /// <param name="node_config">A node config object.</param>
@@ -95,6 +97,13 @@ namespace Brunet.Applications {
 
       _type_to_pem = new Dictionary<string, PathELManager>();
       _rand = new Random();
+
+      if(_node_config.XmppServices.Enabled) {
+        XmppService = new XmppService(_node_config.XmppServices.Username,
+            _node_config.XmppServices.Password,// _node_config.XmppServices.Server,
+            _node_config.XmppServices.Port);
+        XmppService.Connect();
+      }
     }
 
     /// <summary>This should be called by the Main after all the setup is done
@@ -352,6 +361,12 @@ namespace Brunet.Applications {
       } else if(el_info.type == "function") {
         port = port == 0 ? (new Random()).Next(1024, 65535) : port;
         el = new FunctionEdgeListener(port, 0, null);
+      } else if(el_info.type == "xmpp") {
+        if(!_node_config.XmppServices.Enabled) {
+          throw new Exception("XmppServices must be enabled to use XmppEL");
+        }
+        el = new XmppEdgeListener(XmppService);
+        node.Node.AddTADiscovery(new XmppDiscovery(node.Node, XmppService, node.Node.Realm));
       } else {
         throw new Exception("Unrecognized transport: " + el_info.type);
       }
