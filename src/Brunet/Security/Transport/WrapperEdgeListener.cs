@@ -179,7 +179,7 @@ namespace Brunet.Security.Transport {
     
     ///<summary>This is passed tothe underlying EdgeListener.  By default we do
     ///nothing to this.</summary>
-    public override void UpdateRemoteTAs(IList list, Edge e, TransportAddress ta) {
+    public override void UpdateRemoteTAs(IList<TransportAddress> list, Edge e, TransportAddress ta) {
       WrapperEdge edge = e as WrapperEdge;
       _el.UpdateRemoteTAs(list, edge.WrappedEdge, ta);
     }

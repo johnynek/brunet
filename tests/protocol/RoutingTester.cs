@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Collections;
+using System.Collections.Generic;
 using System.Xml;
 using System.Xml.Serialization;
 using System.Security.Cryptography;
@@ -177,7 +178,7 @@ namespace Brunet {
       string brunet_namespace = "testing";
       Console.WriteLine("Initializing...");
 
-      ArrayList RemoteTA = new ArrayList();
+      var RemoteTA = new List<TransportAddress>();
       for(int i = 0; i < network_size; i++) {
 	if (proto.Equals("udp")) {
 	  RemoteTA.Add(TransportAddressFactory.CreateInstance("brunet.udp://localhost:" + (base_port + i)));

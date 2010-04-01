@@ -28,6 +28,7 @@ using System;
 using System.Net;
 using System.Net.Sockets;
 using System.Collections;
+using System.Collections.Generic;
 
 namespace Brunet.Transport
 {
@@ -175,7 +176,7 @@ namespace Brunet.Transport
      * @param ta the TransportAddress the remote end of the
      * edge according to our peer
      */
-    public virtual void UpdateRemoteTAs(IList list, Edge e, TransportAddress ta) {
+    public virtual void UpdateRemoteTAs(IList<TransportAddress> list, Edge e, TransportAddress ta) {
       if( e.TAType == this.TAType ) {
         if( e.RemoteTANotEphemeral ) {
           //There is some chance this will be good again in the future

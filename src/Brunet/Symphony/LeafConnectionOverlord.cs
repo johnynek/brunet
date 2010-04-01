@@ -25,6 +25,7 @@ THE SOFTWARE.
 
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using Brunet.Connections;
 using Brunet.Transport;
 namespace Brunet.Symphony
@@ -196,7 +197,7 @@ namespace Brunet.Symphony
           //Get a random address to connect to:
   
           //Make a copy:
-          object[] tas = _local.RemoteTAs.ToArray();
+          object[] tas = (new List<TransportAddress>(_local.RemoteTAs)).ToArray();
           /*
            * Make a randomized list of TransportAddress objects to connect to:
            * This is a very nice algorithm.  It is optimal in that it produces

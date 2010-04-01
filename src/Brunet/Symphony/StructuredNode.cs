@@ -64,7 +64,6 @@ namespace Brunet.Symphony
       }
     }
 
-    protected ConnectionOverlord _localco;
     protected ManagedConnectionOverlord _mco;
     public ManagedConnectionOverlord ManagedCO { get { return _mco; } }
 
@@ -89,9 +88,9 @@ namespace Brunet.Symphony
       _cco = new ChotaConnectionOverlord(this);
       _mco = new ManagedConnectionOverlord(this);
 #if !BRUNET_SIMULATOR
-      _localco = new LocalConnectionOverlord(this);
       _iphandler = new IPHandler();
       _iphandler.Subscribe(this, null);
+      AddTADiscovery(new LocalDiscovery(this, Realm, _rpc, _iphandler));
 #endif
 
       /**
@@ -161,7 +160,6 @@ namespace Brunet.Symphony
       }
 
 #if !BRUNET_SIMULATOR
-      _localco.IsActive = false;
       _iphandler.Stop();
 #endif
 
@@ -190,12 +188,10 @@ namespace Brunet.Symphony
       _mco.IsActive = true;
 
 #if !BRUNET_SIMULATOR
-      _localco.IsActive = true;
       _leafco.Activate();
       _ssco.Activate();
       _snco.Activate();
       _cco.Activate();
-      _localco.Activate();
       _mco.Activate();
       AnnounceThread();
 #endif
@@ -216,7 +212,6 @@ namespace Brunet.Symphony
 
 #if !BRUNET_SIMULATOR
       _iphandler.Stop();
-      _localco.IsActive = false;
 #endif
       _leafco.IsActive = false;
       _snco.IsActive = false;

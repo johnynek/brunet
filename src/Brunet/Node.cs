@@ -54,7 +54,7 @@ namespace Brunet
    * connections. 
    * 
    */
-  abstract public class Node : IDataHandler, ISender, IActionQueue
+  abstract public class Node : IDataHandler, ISender, IActionQueue, ITAHandler
   {
     static Node() {
       SenderFactory.Register("localnode", CreateLocalSender); 
@@ -132,12 +132,14 @@ namespace Brunet
          * Here are the protocols that every edge must support
          */
         /* Here are the transport addresses */
-        _remote_ta = new ArrayList();
+        _remote_ta = ImmutableList<TransportAddress>.Empty;
         /*@throw ArgumentNullException if the list ( new ArrayList()) is null.
          */
         /* EdgeListener's */
         _edgelistener_list = new ArrayList();
         _edge_factory = new EdgeFactory();
+        _ta_discovery = ImmutableList<Discovery>.Empty;
+        StateChangeEvent += HandleTADiscoveryState;
         
         /* Initialize this at 15 seconds */
         _connection_timeout = new TimeSpan(0,0,0,0,15000);
@@ -301,6 +303,8 @@ namespace Brunet
      */
     public EdgeFactory EdgeFactory { get { return _edge_factory; } }
 
+    protected ImmutableList<Discovery> _ta_discovery;
+
     /**
      * Here are all the EdgeListener objects for this Node
      */
@@ -316,7 +320,7 @@ namespace Brunet
      * refer to EdgeListener objects attached to this node.
      * This IList is ReadOnly
      */
-    public IList LocalTAs {
+    public IList<TransportAddress> LocalTAs {
       get {
         var local_ta = new List<TransportAddress>();
         var enums = new List<IEnumerable>();
@@ -378,7 +382,7 @@ namespace Brunet
      */
     public string Realm { get { return _realm; } }
     
-    protected readonly ArrayList _remote_ta;
+    protected ImmutableList<TransportAddress> _remote_ta;
     /**
      * These are all the remote TransportAddress objects that
      * this Node may use to connect to remote Nodes
@@ -388,7 +392,7 @@ namespace Brunet
      * This is the ONLY proper way to set the RemoteTAs for this
      * node.
      */
-    public ArrayList RemoteTAs {
+    public IList<TransportAddress> RemoteTAs {
       get {
         return _remote_ta;
       }
@@ -544,6 +548,39 @@ namespace Brunet
         EdgeCloseRequestArgs ecra = (EdgeCloseRequestArgs)args;
         Close(ecra.Edge);
       };
+    }
+
+    /// <summary>Add a TA discovery agent.</summary>
+    public virtual void AddTADiscovery(Discovery disc)
+    {
+      lock(_sync) {
+        _ta_discovery = _ta_discovery.PushIntoNew(disc);
+      }
+
+      HandleTADiscoveryState(this, ConState);
+    }
+
+    /// <summary>If the node is connecting, we need TAs, if its in any other
+    /// state, we'll deal with what we have.</summary>
+    protected void HandleTADiscoveryState(Node n, ConnectionState newstate)
+    {
+      ImmutableList<Discovery> discs = _ta_discovery;
+      if(newstate == ConnectionState.Joining ||
+          newstate == ConnectionState.SeekingConnections) {
+        foreach(Discovery disc in discs) {
+          disc.BeginFindingTAs();
+        }
+      } else if(newstate == ConnectionState.Leaving ||
+          newstate == ConnectionState.Disconnected)
+      {
+        foreach(Discovery disc in discs) {
+          disc.Stop();
+        }
+      } else {
+        foreach(Discovery disc in discs) {
+          disc.EndFindingTAs();
+        }
+      }
     }
 
     /** Immediately stop the node. ONLY USE FOR TESTING!!!!!!!
@@ -943,7 +980,7 @@ namespace Brunet
        * Make a copy so that _remote_ta never changes while
        * someone is using it
        */
-      ArrayList new_remote_ta = new ArrayList();
+      var new_remote_ta = new List<TransportAddress>();
       foreach(EdgeListener el in _edgelistener_list) {
         //Update our local list:
         el.UpdateLocalTAs(edge, reported_ta);
@@ -953,35 +990,41 @@ namespace Brunet
     }
 
     /**
-     * Called by ConnectionEvent and the LocalConnectionOverlord to update
-     * the remote ta list.
+     * Updates the RemoteTA list hosted by the Node.
      */
-    public void UpdateRemoteTAs(ArrayList tas_to_add)
+    public void UpdateRemoteTAs(IList<TransportAddress> tas_to_add)
     {
-      //Make a copy so as not to mess up tas_to_add:
-      ArrayList new_remote_ta = new ArrayList(tas_to_add);
-      //Build a set that can be quickly checked for membership
-      Hashtable new_addr = new Hashtable(new_remote_ta.Count);
-      foreach(TransportAddress ta in new_remote_ta) {
-        new_addr[ta] = ta;
-      }
-      lock( _remote_ta ) {
-        //Now append all the items in _remote_ta *NOT* already present:
+      lock(_sync) {
+        // Remove duplicates in tas_to_add
+        var dup_test = new Dictionary<TransportAddress, bool>();
+        foreach(TransportAddress ta in tas_to_add) {
+          if(dup_test.ContainsKey(ta)) {
+            continue;
+          }
+          dup_test.Add(ta, true);
+        }
+
+        // Remove duplicates found in tas_to_add and _remote_ta.  If we don't,
+        // we could be flooded by a single node and lose track of good TAs.
         foreach(TransportAddress ta in _remote_ta) {
-          if( false == new_addr.ContainsKey(ta)) {
-            //We should add it to the end:
-            new_remote_ta.Add(ta);
+          if(dup_test.ContainsKey(ta)) {
+            dup_test.Remove(ta);
           }
         }
-        //Now make sure we don'tkeep too many:
-        int count = new_remote_ta.Count;
-        if( count > _MAX_RECORDED_TAS ) {
-          int rm_count = count - _MAX_RECORDED_TAS;
-          new_remote_ta.RemoveRange(_MAX_RECORDED_TAS, rm_count);
+        
+        // Add in the remaining TAs
+        foreach(TransportAddress ta in dup_test.Keys) {
+          _remote_ta = _remote_ta.PushIntoNew(ta);
         }
-        //Now fill up _remote_ta with new_remote_ta:
-        _remote_ta.Clear();
-        _remote_ta.AddRange(new_remote_ta);
+
+        // Remove older TAs after _MAX_RECORDED_TAS
+        int count = _remote_ta.Count;
+
+        if(count > _MAX_RECORDED_TAS) {
+          for(int i = _MAX_RECORDED_TAS; i < count; i++) {
+            _remote_ta = _remote_ta.RemoveAtFromNew(_MAX_RECORDED_TAS);
+          }
+        }
       }
     }
 
@@ -994,9 +1037,9 @@ namespace Brunet
     }
 
     virtual public NodeInfo GetNodeInfo(int max_local, TAAuthorizer ta_auth) {
-      ArrayList l = new ArrayList( this.LocalTAs );
+      var l = new List<TransportAddress>(LocalTAs);
       if(ta_auth != null) {
-        ArrayList ta_authed = new ArrayList();
+        var ta_authed = new List<TransportAddress>();
         foreach(TransportAddress ta in l) {
           if(ta_auth.Authorize(ta) != TAAuthorizer.Decision.Deny) {
             ta_authed.Add(ta);

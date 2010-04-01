@@ -249,9 +249,9 @@ namespace Brunet.Applications {
       }
       node.AddEdgeListener(el);
 
-      ArrayList RemoteTAs = null;
+      List<TransportAddress> RemoteTAs = null;
       if(node_config.RemoteTAs != null) {
-        RemoteTAs = new ArrayList();
+        RemoteTAs = new List<TransportAddress>();
         foreach(String ta in node_config.RemoteTAs) {
           RemoteTAs.Add(TransportAddressFactory.CreateInstance(ta));
         }

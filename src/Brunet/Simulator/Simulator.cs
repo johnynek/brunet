@@ -206,9 +206,9 @@ namespace Brunet.Simulator {
       return new SimulationEdgeListener(id, 0, auth, true);
     }
 
-    protected virtual ArrayList GetRemoteTAs()
+    protected virtual List<TransportAddress> GetRemoteTAs()
     {
-      ArrayList RemoteTAs = new ArrayList();
+      var RemoteTAs = new List<TransportAddress>();
       for(int i = 0; i < 5 && i < TakenIDs.Count; i++) {
         int rid = (int) TakenIDs.GetByIndex(_rand.Next(0, TakenIDs.Count));
         RemoteTAs.Add(TransportAddressFactory.CreateInstance("b.s://" + rid));
