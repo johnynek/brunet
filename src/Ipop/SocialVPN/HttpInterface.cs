@@ -25,7 +25,7 @@ using System.Threading;
 
 using Brunet;
 
-namespace SocialVPN {
+namespace Ipop.SocialVPN {
 
   public class HttpInterface {
     protected const string JSURL = "socialvpn.js";

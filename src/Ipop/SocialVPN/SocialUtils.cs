@@ -37,7 +37,7 @@ using Brunet.Security;
 using NUnit.Framework;
 #endif
 
-namespace SocialVPN {
+namespace Ipop.SocialVPN {
 
   public static class SocialUtils {
 

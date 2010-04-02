@@ -41,7 +41,7 @@ using bedrock.util;
 using NUnit.Framework;
 #endif
 
-namespace SocialVPN {
+namespace Ipop.SocialVPN {
 
   public enum StatusTypes {
     Online,

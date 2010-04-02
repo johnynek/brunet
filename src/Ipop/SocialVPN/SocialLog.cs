@@ -16,32 +16,17 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-using System;
-using System.Collections.Generic;
+using System.Diagnostics;
 
-namespace SocialVPN {
-
+namespace Ipop.SocialVPN {
   /**
-   * This class contains definitions for social configurations.
+   * Classes which defines logging switches for socialvpn.
    */
-  public class SocialConfig {
-
-    public string BrunetConfig;
-
-    public string IpopConfig;
-
-    public string HttpPort;
-
-    public string JabberPort;
-
-    public string JabberHost;
-
-    public string JabberID;
-
-    public string JabberPass;
-
-    public bool AutoLogin;
-
-    public bool GlobalBlock;
+  public class SocialLog {
+    /**
+     * Basic logging switch.
+     */
+    public static BooleanSwitch SVPNLog = 
+      new BooleanSwitch("SVPNLog", "Basic Logging for SVPN");
   }
 }

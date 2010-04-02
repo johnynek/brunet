@@ -29,7 +29,7 @@ using Ipop.ManagedNode;
 using NUnit.Framework;
 #endif
 
-namespace SocialVPN {
+namespace Ipop.SocialVPN {
 
   public enum AccessTypes {
     Allow,

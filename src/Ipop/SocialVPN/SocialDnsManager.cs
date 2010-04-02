@@ -28,7 +28,7 @@ using Brunet.DistributedServices;
 using NUnit.Framework;
 #endif
 
-namespace SocialVPN {
+namespace Ipop.SocialVPN {
 
   public class SocialDnsManager : IRpcHandler {
 

@@ -24,7 +24,7 @@ using System.Text;
 using Brunet;
 using Brunet.Applications;
 
-namespace SocialVPN {
+namespace Ipop.SocialVPN {
 
   /**
    * SocialNode Class. Extends the RpcIpopNode to support adding friends based
