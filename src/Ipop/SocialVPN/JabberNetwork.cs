@@ -26,10 +26,6 @@ using System.Net.Security;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
-using Brunet;
-using Brunet.Security;
-using Brunet.DistributedServices;
-
 using jabber;
 using jabber.client;
 using jabber.protocol.client;

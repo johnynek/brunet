@@ -22,7 +22,10 @@ using System.Collections.Generic;
 using System.Text.RegularExpressions;
 
 using Brunet;
-using Brunet.DistributedServices;
+using Brunet.Util;
+using Brunet.Concurrent;
+using Brunet.Messaging;
+using Brunet.Symphony;
 
 #if SVPN_NUNIT
 using NUnit.Framework;

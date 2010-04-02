@@ -23,7 +23,7 @@ using Brunet;
 using Brunet.Security;
 using Brunet.Applications;
 using Ipop;
-using Ipop.ManagedNode;
+using Ipop.Managed;
 
 #if SVPN_NUNIT
 using NUnit.Framework;
@@ -262,21 +262,6 @@ namespace Ipop.SocialVPN {
       }
       else {
         throw new Exception("Could not get value to update");
-      }
-    }
-
-    public void UpdateTime() {
-      foreach(SocialUser user in GetFriends()) {
-        Address addr = AddressParser.Parse(user.Address);
-        if(_node.ConnectionTable.Contains(ConnectionType.Structured,addr)) {
-          string time = DateTime.Now.ToString();
-          string status = StatusTypes.Online.ToString();
-          UpdateFriend(user.Alias, user.IP, time, user.Access, status);
-        }
-        else if(user.Status == StatusTypes.Online.ToString()) {
-          string status = StatusTypes.Relay.ToString();
-          UpdateFriend(user.Alias, user.IP, user.Time, user.Access, status);
-        }
       }
     }
 

@@ -23,7 +23,7 @@ using System.Web;
 using System.IO;
 using System.Threading;
 
-using Brunet;
+using Brunet.Util;
 
 namespace Ipop.SocialVPN {
 

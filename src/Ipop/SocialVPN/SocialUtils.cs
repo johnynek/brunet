@@ -29,7 +29,7 @@ using System.Xml.Serialization;
 using System.Web;
 using System.Net;
 
-using Brunet;
+using Brunet.Util;
 using Brunet.Applications;
 using Brunet.Security;
 
