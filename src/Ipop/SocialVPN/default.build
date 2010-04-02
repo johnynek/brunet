@@ -86,10 +86,7 @@
       </references>
     </csc>
 
-  </target>
-
-  <target name="service" description="Test SocialVPN">
-    <csc target="exe" main="WindowsService.WindowsService" 
+    <csc target="exe" main="Ipop.SocialVPN.Service.WindowsService" 
     output="${build.dir}/SocialVPNService.exe">
       <sources failonempty="true">
         <include name="Service.cs"/>
@@ -97,14 +94,15 @@
         <include name="AssemblyInfo.cs"/>
       </sources>
       <references basedir="${build.dir}">
-        <include name="Brunet.dll" />
         <include name="System.Configuration.Install.dll"/>
         <include name="System.ServiceProcess.dll"/>
-        <include name="ManagedIpopNode.dll" />
         <include name="SocialVPN.exe" />
       </references>
     </csc>
 
+  </target>
+
+  <target name="release" description="Test SocialVPN">
     <copy todir="${bin.dir}" failonerror="true">
       <fileset basedir="${build.dir}">
         <include name="Brunet.dll" />

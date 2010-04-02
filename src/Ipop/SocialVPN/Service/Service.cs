@@ -22,16 +22,11 @@ using System.Diagnostics;
 using System.ServiceProcess;
 using System.Threading;
 
-using Brunet;
-using Brunet.Applications;
-using Ipop;
-using SocialVPN;
-
-namespace WindowsService {
+namespace Ipop.SocialVPN.Service {
   class WindowsService : ServiceBase {
     object _sync;
     Thread _thread;
-    SocialNode _node;
+    Ipop.SocialVPN.SocialNode _node;
 
     public WindowsService()
     {
@@ -69,7 +64,7 @@ namespace WindowsService {
 
     protected virtual void Start()
     {
-      _node. SocialNode.Start();
+      _node = Ipop.SocialVPN.SocialNode.CreateNode();
       _node.Run();
     }
 
