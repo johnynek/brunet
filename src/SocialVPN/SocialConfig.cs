@@ -41,5 +41,7 @@ namespace SocialVPN {
     public string JabberPass;
 
     public bool AutoLogin;
+
+    public bool GlobalBlock;
   }
 }

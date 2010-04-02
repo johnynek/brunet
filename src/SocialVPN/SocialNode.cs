@@ -59,7 +59,9 @@ namespace SocialVPN {
 
     protected readonly object _sync;
 
-    private string _status;
+    protected string _status;
+
+    protected bool _global_block;
 
     public SocialUser LocalUser {
       get { return _local_user; }
@@ -75,16 +77,17 @@ namespace SocialVPN {
       _bfriends = new List<string>();
       _sync = new object();
       _status = StatusTypes.Offline.ToString();
+      _global_block = false;
       _local_user = new SocialUser();
       _local_user.Certificate = certificate;
       _local_user.IP = _marad.LocalIP;
       _marad.AddDnsMapping(_local_user.Alias, _local_user.IP, true);
       _bso.CertificateHandler.AddCACertificate(_local_user.GetCert().X509);
       _bso.CertificateHandler.AddSignedCertificate(_local_user.GetCert().X509);
-      LoadState();
     }
 
     protected SocialUser AddFriend(string certb64, string uid, string ip) {
+      bool new_friend = IsNewFriend(uid);
       SocialUser user = new SocialUser();
       user.Certificate = certb64;
       user.Status = StatusTypes.Offline.ToString();
@@ -106,17 +109,22 @@ namespace SocialVPN {
       Address addr = AddressParser.Parse(user.Address);
       _bso.CertificateHandler.AddCACertificate(user.GetCert().X509);
       _node.ManagedCO.AddAddress(addr);
-      if (!_bfriends.Contains(uid)) {
+
+      if(_bfriends.Contains(uid)) {
+        user.Access = AccessTypes.Block.ToString();
+      }
+      else {
         user.IP = _marad.AddIPMapping(ip, addr);
         _marad.AddDnsMapping(user.Alias, user.IP, true);
         user.Access = AccessTypes.Allow.ToString();
       }
-      else {
-        user.Access = AccessTypes.Block.ToString();
-      }
 
       lock (_sync) {
         _friends.Add(user.Alias, user);
+      }
+      // Check global block option and block if necessary
+      if(new_friend && _global_block) {
+        Block(uid);
       }
       GetState(true);
       return user;
@@ -176,6 +184,15 @@ namespace SocialVPN {
       GetState(true);
     }
 
+    protected bool IsNewFriend(string uid) {
+      foreach(SocialUser user in GetFriends()) {
+        if(user.Uid == uid) {
+          return true;
+        }
+      }
+      return false;
+    }
+
     public void AddDnsMapping(string alias, string ip) {
       _marad.AddDnsMapping(alias, ip, false);
     }
@@ -185,7 +202,6 @@ namespace SocialVPN {
     }
 
     protected string GetState(bool write_to_file) {
-      UpdateTime();
       SocialState state = new SocialState();
       state.LocalUser = _local_user.ChangedCopy(_local_user.IP, 
         String.Empty, String.Empty, _status);
@@ -199,7 +215,7 @@ namespace SocialVPN {
       return SocialUtils.ObjectToXml<SocialState>(state);
     }
 
-    protected void LoadState() {
+    public void LoadState() {
       try {
         SocialState state = Utils.ReadConfig<SocialState>(STATEPATH);
         foreach (string user in state.BlockedFriends) {
@@ -227,6 +243,11 @@ namespace SocialVPN {
         }
       }
       return friends;
+    }
+
+    public void SetGlobalBlock(bool global_block) {
+      Console.WriteLine("setting global_block to " + global_block);
+      _global_block = global_block;
     }
 
     public void UpdateFriend(string alias, string ip, string time, 
@@ -326,6 +347,8 @@ namespace SocialVPN {
       node.Shutdown.OnExit += http_ui.Stop;
       node.Shutdown.OnExit += jabber.Logout;
 
+      node.SetGlobalBlock(social_config.GlobalBlock);
+      node.LoadState();
       if (social_config.AutoLogin) {
         jabber.Login(social_config.JabberID, social_config.JabberPass);
       }

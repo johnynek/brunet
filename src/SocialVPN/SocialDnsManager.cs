@@ -130,27 +130,25 @@ namespace SocialVPN {
           bool result = (bool) res.Result;
           if(result) {
             ProtocolLog.WriteIf(SocialLog.SVPNLog, 
-                          String.Format("SEARCH FRIEND REPLY: {0} {1} {2}",
-                          DateTime.Now.TimeOfDay, address, result));
+                          String.Format("RPC REPLY {3}: {0} {1} {2}",
+                          DateTime.Now.TimeOfDay, address, result, method));
           }
         } catch(Exception e) {
           ProtocolLog.WriteIf(SocialLog.SVPNLog, e.Message);
           ProtocolLog.WriteIf(SocialLog.SVPNLog, 
-                         String.Format("SEARCH FRIEND FAILURE: {0} {1} {2}",
-                         DateTime.Now.TimeOfDay, address, query));
+                         String.Format("RPC FAILURE {3}: {0} {1} {2}",
+                         DateTime.Now.TimeOfDay, address, query, method));
         }
       };
       ProtocolLog.WriteIf(SocialLog.SVPNLog, 
-                      String.Format("SEARCH FRIEND REQUEST: {0} {1} {2}",
-                      DateTime.Now.TimeOfDay, address, query));
+                      String.Format("RPC REQUEST {3}: {0} {1} {2}",
+                      DateTime.Now.TimeOfDay, address, query, method));
 
       ISender sender = new AHExactSender(_node.RpcNode, addr);
       _node.Rpc.Invoke(sender, q, method, _local_user.Address, query);
     }
 
     protected void PingFriends() {
-      Console.WriteLine("calling ping friends ");
-      _node.UpdateTime();
       SocialUser[] friends = _node.GetFriends();
       foreach(SocialUser friend in friends) {
         if(friend.Time == String.Empty) {
@@ -158,23 +156,18 @@ namespace SocialVPN {
           string status = StatusTypes.Offline.ToString();
           _node.UpdateFriend(friend.Alias, friend.IP, time, friend.Access,
             status);
-          string method = "Ping";
-          SendRpcMessage(friend.Address, method, "request");
-          continue;
         }
-        if(friend.Access != AccessTypes.Block.ToString()) {
+        else if(friend.Access != AccessTypes.Block.ToString()) {
           DateTime old_time = DateTime.Parse(friend.Time);
           TimeSpan interval = DateTime.Now - old_time;
-          if(friend.Status == StatusTypes.Relay.ToString()) { 
-            string method = "Ping";
-            SendRpcMessage(friend.Address, method, "request");
-          }
-          if(interval.Minutes > 1 || interval.Seconds > 30) {
+          if(interval.Minutes >= 1) {
             string status = StatusTypes.Offline.ToString();
             _node.UpdateFriend(friend.Alias, friend.IP, friend.Time, 
               friend.Access, status);
           }
         }
+        string method = "Ping";
+        SendRpcMessage(friend.Address, method, "request");
       }
     }
 

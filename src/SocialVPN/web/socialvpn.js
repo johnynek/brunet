@@ -173,9 +173,10 @@ function addFriend(friend, uid) {
     var unblock = 
       createElem("span", "Unblock", "", "opts_menu", new_td3, unblockFriend);
 
+    var key = getContent(friend.getElementsByTagName('Uid')[0]);
     new_td2.id = uid;
-    block.key = uid;
-    unblock.key = uid;
+    block.key = key;
+    unblock.key = key;
 
     var img_src = getContent(friend.getElementsByTagName('Pic')[0]);
     var img_usr = document.createElement('img');

@@ -50,6 +50,7 @@ namespace SocialVPN {
       social_config.JabberID = uid;
       social_config.JabberPass = "password";
       social_config.AutoLogin = false;
+      social_config.GlobalBlock = false;
       Utils.WriteConfig("social.config", social_config);
     }
 
