@@ -12,7 +12,7 @@
       <xs:element ref="DHCPPort" minOccurs="0" />
       <xs:element name="AllowStaticAddresses" type="xs:boolean" minOccurs="0" />
       <xs:element ref="GroupVPN" minOccurs="0" />
-      <xs:element ref="DNSType" minOccurs="0" maxOccurs="1" />
+      <xs:element ref="DNS" minOccurs="0" />
     </xs:all>
   </xs:complexType>
 </xs:element>
@@ -24,6 +24,16 @@
       <xs:element ref="IPAddress" minOccurs="0" />
       <xs:element ref="Netmask" minOccurs="0" />
       <xs:element ref="EthernetAddress" minOccurs="0" />
+    </xs:all>
+  </xs:complexType>
+</xs:element>
+
+<xs:element name="DNS">
+  <xs:complexType>
+    <xs:all>
+      <xs:element name="Type" type="xs:string" minOccurs="0"/>
+      <xs:element name="ForwardQueries" type="xs:boolean" minOccurs="0" />
+      <xs:element name="NameServer" type="xs:string" minOccurs="0"/>
     </xs:all>
   </xs:complexType>
 </xs:element>
@@ -73,7 +83,7 @@
   </xs:simpleType>
 </xs:element>
 
-<xs:element name="DNSType">
+<xs:element name="Type">
   <xs:simpleType>
     <xs:restriction base="xs:string">
       <xs:enumeration value="StaticDNS"/>
