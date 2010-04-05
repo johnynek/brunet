@@ -43,7 +43,7 @@ namespace Ipop.SocialVPN {
 
     protected readonly SocialUser _local_user;
 
-    protected int _beat_counter;
+    private int _beat_counter;
 
     public SocialDnsManager(SocialNode node) {
       _mappings = new Dictionary<string, DnsMapping>();
@@ -156,9 +156,8 @@ namespace Ipop.SocialVPN {
       foreach(SocialUser friend in friends) {
         if(friend.Time == String.Empty) {
           string time = DateTime.Now.ToString();
-          string status = StatusTypes.Offline.ToString();
           _node.UpdateFriend(friend.Alias, friend.IP, time, friend.Access,
-            status);
+            friend.Status);
         }
         else if(friend.Access != AccessTypes.Block.ToString()) {
           DateTime old_time = DateTime.Parse(friend.Time);

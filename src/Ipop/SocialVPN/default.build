@@ -85,21 +85,6 @@
         <include name="SocialVPN.exe" />
       </references>
     </csc>
-
-    <csc target="exe" main="Ipop.SocialVPN.Service.WindowsService" 
-    output="${build.dir}/SocialVPNService.exe">
-      <sources failonempty="true">
-        <include name="Service.cs"/>
-        <include name="ServiceInstaller.cs"/>
-        <include name="AssemblyInfo.cs"/>
-      </sources>
-      <references basedir="${build.dir}">
-        <include name="System.Configuration.Install.dll"/>
-        <include name="System.ServiceProcess.dll"/>
-        <include name="SocialVPN.exe" />
-      </references>
-    </csc>
-
   </target>
 
   <target name="release" description="Test SocialVPN">

@@ -255,7 +255,7 @@ function submitLogin() {
 function addCert() {  
   clearDiv('tmp_content');
 
-  var message = "Friend JabberID:";
+  var message = "Friend ID:";
   createElem("span", message, "", "f_name", "tmp_content", "");
   var id = createElem("input", "", "data_in_id", "", "tmp_content","");
 

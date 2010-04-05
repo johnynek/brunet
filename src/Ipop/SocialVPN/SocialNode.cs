@@ -38,7 +38,7 @@ namespace Ipop.SocialVPN {
 
   public class SocialNode : ManagedIpopNode {
 
-    public class SocialState {
+    public sealed class SocialState {
 
       public SocialUser LocalUser;
 
@@ -59,9 +59,9 @@ namespace Ipop.SocialVPN {
 
     protected readonly object _sync;
 
-    protected string _status;
+    private bool _global_block;
 
-    protected bool _global_block;
+    private string _status;
 
     public SocialUser LocalUser {
       get { return _local_user; }
@@ -109,21 +109,15 @@ namespace Ipop.SocialVPN {
       Address addr = AddressParser.Parse(user.Address);
       _bso.CertificateHandler.AddCACertificate(user.GetCert().X509);
       _node.ManagedCO.AddAddress(addr);
-
-      if(_bfriends.Contains(uid)) {
-        user.Access = AccessTypes.Block.ToString();
-      }
-      else {
-        user.IP = _marad.AddIPMapping(ip, addr);
-        _marad.AddDnsMapping(user.Alias, user.IP, true);
-        user.Access = AccessTypes.Allow.ToString();
-      }
+      user.IP = _marad.AddIPMapping(ip, addr);
+      _marad.AddDnsMapping(user.Alias, user.IP, true);
+      user.Access = AccessTypes.Allow.ToString();
 
       lock (_sync) {
         _friends.Add(user.Alias, user);
       }
       // Check global block option and block if necessary
-      if(new_friend && _global_block) {
+      if((new_friend && _global_block) || _bfriends.Contains(uid)) {
         Block(uid);
       }
       GetState(true);
@@ -148,31 +142,27 @@ namespace Ipop.SocialVPN {
     }
 
     protected void Block(string uid) {
-      if (_bfriends.Contains(uid)) {
-        throw new Exception("Uid already blocked");
-      }
-
       foreach(SocialUser user in GetFriends()) {
-        if (user.Uid == uid) {
+        if(user.Uid == uid && user.Access != AccessTypes.Block.ToString()) {
           _marad.RemoveIPMapping(user.IP);
-          _marad.RemoveDnsMapping(user.Alias, true);
           string access = AccessTypes.Block.ToString();
           UpdateFriend(user.Alias, user.IP, user.Time, access, user.Status);
         }
       }
 
       lock (_sync) {
-        _bfriends.Add(uid);
+        if(!_bfriends.Contains(uid)) {
+          _bfriends.Add(uid);
+        }
       }
       GetState(true);
     }
 
     protected void Unblock(string uid) {
       foreach(SocialUser user in GetFriends()) {
-        if (user.Uid == uid) {
+        if(user.Uid == uid && user.Access == AccessTypes.Block.ToString()) {
           Address addr = AddressParser.Parse(user.Address);
           user.IP = _marad.AddIPMapping(user.IP, addr);
-          _marad.AddDnsMapping(user.Alias, user.IP, true);
           string access = AccessTypes.Allow.ToString();
           UpdateFriend(user.Alias, user.IP, user.Time, access, user.Status);
         }
@@ -191,14 +181,6 @@ namespace Ipop.SocialVPN {
         }
       }
       return false;
-    }
-
-    public void AddDnsMapping(string alias, string ip) {
-      _marad.AddDnsMapping(alias, ip, false);
-    }
-
-    protected void RemoveDnsMapping(string alias) {
-      _marad.RemoveDnsMapping(alias, false);
     }
 
     protected string GetState(bool write_to_file) {
@@ -246,7 +228,6 @@ namespace Ipop.SocialVPN {
     }
 
     public void SetGlobalBlock(bool global_block) {
-      Console.WriteLine("setting global_block to " + global_block);
       _global_block = global_block;
     }
 
@@ -263,6 +244,14 @@ namespace Ipop.SocialVPN {
       else {
         throw new Exception("Could not get value to update");
       }
+    }
+
+    public void AddDnsMapping(string alias, string ip) {
+      _marad.AddDnsMapping(alias, ip, false);
+    }
+
+    public void RemoveDnsMapping(string alias) {
+      _marad.RemoveDnsMapping(alias, false);
     }
 
     public void ProcessHandler(Object obj, EventArgs eargs) {
