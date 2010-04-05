@@ -61,8 +61,8 @@ namespace Ipop.ManagedNode {
     /// Constructor for the class, it initializes various objects
     /// </summary>
     /// <param name="node">Takes in a structured node</param>
-    public ManagedAddressResolverAndDNS(StructuredNode node, DHCPServer dhcp, MemBlock local_ip) :
-      base(MemBlock.Reference(dhcp.BaseIP), MemBlock.Reference(dhcp.Netmask))
+    public ManagedAddressResolverAndDNS(StructuredNode node, DHCPServer dhcp,  MemBlock local_ip, MemBlock name_server, bool forward_queries) :
+      base(MemBlock.Reference(dhcp.BaseIP), MemBlock.Reference(dhcp.Netmask), MemBlock.Reference(name_server), forward_queries)
     {
       _node = node;
       _dns_a = new Hashtable();

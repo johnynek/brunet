@@ -48,8 +48,8 @@ namespace Ipop.DhtNode {
     <summary>Create a DhtDNS using the specified Dht object</summary>
     <param name="dht">A Dht object used to acquire name translations</param>
     */
-    public DhtDNS(MemBlock ip, MemBlock netmask, IDht dht, String ipop_namespace) :
-      base(ip, netmask)
+    public DhtDNS(MemBlock ip, MemBlock netmask, IDht dht, String ipop_namespace, MemBlock name_server, bool forward_queries) :
+      base(ip, netmask, name_server, forward_queries)
     {
       _ipop_namespace = ipop_namespace;
       _dht = dht;

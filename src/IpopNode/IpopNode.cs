@@ -680,10 +680,12 @@ namespace Ipop {
         return;
       }
 
-      if(!SupportedDNS(_ipop_config.DNSType) || _ipop_config.DNSType == "StaticDNS") {
+      if(!SupportedDNS(_ipop_config.DNS.Type) || _ipop_config.DNS.Type == "StaticDNS") {
         _dns = new StaticDNS(
             MemBlock.Reference(Utils.StringToBytes(_dhcp_config.IPBase, '.')),
-            MemBlock.Reference(Utils.StringToBytes(_dhcp_config.Netmask, '.')));
+            MemBlock.Reference(Utils.StringToBytes(_dhcp_config.Netmask, '.')),
+            MemBlock.Reference(Utils.StringToBytes(_ipop_config.DNS.NameServer, '.')),
+            _ipop_config.DNS.ForwardQueries);
       }
     }
 

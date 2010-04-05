@@ -17,8 +17,8 @@ namespace Ipop {
   /// the extra "0"s are necessary and keep all names at a constant length of 15
   /// (including the domain name .ipop).</remarks>
   public class StaticDNS : DNS {
-    public StaticDNS(MemBlock ip_address, MemBlock netmask) :
-      base(ip_address, netmask)
+    public StaticDNS(MemBlock ip_address, MemBlock netmask, MemBlock name_server, bool forward_queries) : 
+      base(ip_address, netmask, name_server, forward_queries)
     {
     }
 

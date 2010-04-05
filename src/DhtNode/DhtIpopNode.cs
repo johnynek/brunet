@@ -127,11 +127,13 @@ namespace Ipop.DhtNode {
         return;
       }
 
-      if("DhtDNS".Equals(_ipop_config.DNSType)) {
+      if("DhtDNS".Equals(_ipop_config.DNS.Type)) {
         _dns = new DhtDNS(
             MemBlock.Reference(Utils.StringToBytes(_dhcp_config.IPBase, '.')),
             MemBlock.Reference(Utils.StringToBytes(_dhcp_config.Netmask, '.')),
-            Dht, _ipop_config.IpopNamespace);
+            Dht, _ipop_config.IpopNamespace,
+            MemBlock.Reference(Utils.StringToBytes(_ipop_config.DNS.NameServer, '.')),
+            _ipop_config.DNS.ForwardQueries);
       } else {
         base.SetDNS();
       }
