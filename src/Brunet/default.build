@@ -17,6 +17,7 @@
         <include name="Concurrent/*.cs"/>
         <include name="Connections/*.cs"/>
         <include name="Services/MapReduce/*.cs"/>
+        <include name="Services/Deetoo/*.cs"/>
         <include name="Services/*.cs"/>
         <include name="Symphony/*.cs"/>
         <include name="Messaging/*.cs"/>
@@ -48,6 +49,7 @@
         <include name="Concurrent/*.cs"/>
         <include name="Connections/*.cs"/>
         <include name="Services/MapReduce/*.cs"/>
+        <include name="Services/Deetoo/*.cs"/>
         <include name="Services/*.cs"/>
         <include name="Symphony/*.cs"/>
         <include name="Messaging/*.cs"/>
@@ -76,6 +78,7 @@
         <include name="Concurrent/*.cs"/>
         <include name="Connections/*.cs"/>
         <include name="Services/MapReduce/*.cs"/>
+        <include name="Services/Deetoo/*.cs"/>
         <include name="Services/*.cs"/>
         <include name="Symphony/*.cs"/>
         <include name="Messaging/*.cs"/>
