@@ -27,7 +27,7 @@ using System.Threading;
 using System.Collections;
 using System.Collections.Generic;
 
-namespace Brunet {
+namespace Brunet.Transport {
 
   /** Manages the PathEdgeListener objects for multiple Nodes
    *

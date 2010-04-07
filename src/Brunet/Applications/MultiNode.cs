@@ -27,9 +27,10 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Net;
 
+using Brunet;
 using Brunet.Services.Dht;
 using Brunet.Services.XmlRpc;
-using Brunet;
+using Brunet.Transport;
 
 namespace Brunet.Applications {
   /// <summary>This class provides a layer on top of BasicNode to support
