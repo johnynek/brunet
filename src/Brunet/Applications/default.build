@@ -33,7 +33,16 @@
 
     <csc target="exe" output="${build.dir}/P2PNode.exe">
       <sources failonempty="true">
-        <include name="*.cs"/>
+        <include name="BasicNode.cs"/>
+        <include name="Information.cs"/>
+        <include name="MultiNode.cs"/>
+        <include name="Shutdown.cs"/>
+        <include name="ConfigurationValidator.cs"/>
+        <include name="IPAddresses.cs"/>
+        <include name="NodeConfig.cs"/>
+        <include name="Utils.cs"/>
+        <include name="Main.cs"/>
+        <include name="OSDependent.cs"/>
       </sources>
       <references basedir="${build.dir}">
         <include name="Brunet.dll"/>
@@ -51,6 +60,30 @@
         <include name="Node.xsd"/>
       </resources>
     </csc>
+    <csc target="exe" output="${build.dir}/DeetooNode.exe">
+      <sources failonempty="true">
+        <include name="DeetooNode.cs"/>
+        <include name="Information.cs"/>
+        <include name="Shutdown.cs"/>
+        <include name="ConfigurationValidator.cs"/>
+        <include name="IPAddresses.cs"/>
+        <include name="NodeConfig.cs"/>
+        <include name="Utils.cs"/>
+        <include name="OSDependent.cs"/>
+      </sources>
+      <references basedir="${build.dir}">
+        <include name="Brunet.dll"/>
+        <include name="Ipop.IBlockingQueue.dll"/>
+        <include name="Brunet.Services.Coordinate.dll" />
+        <include name="Brunet.Services.XmlRpc.dll" />
+        <include name="Brunet.Services.Dht.dll"/>
+        <include name="CookComputing.XmlRpcV2.dll" />
+        <include name="NDesk.Options.dll"/>
+        <include name="Brunet.Security.dll"/>
+        <include name="System.Runtime.Remoting.dll"/>
+        <include name="Mono.Posix.dll"/>
+      </references>
+    </csc>
 
     <copy todir="${lib.dir}" failonerror="true">
       <fileset basedir="${build.dir}">
@@ -60,6 +93,11 @@
     <copy todir="${bin.dir}" failonerror="true">
       <fileset basedir="${build.dir}">
         <include name="P2PNode.exe" />
+      </fileset>
+    </copy>
+    <copy todir="${bin.dir}" failonerror="true">
+      <fileset basedir="${build.dir}">
+        <include name="DeetooNode.exe" />
       </fileset>
     </copy>
   </target>
