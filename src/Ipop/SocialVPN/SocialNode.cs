@@ -92,6 +92,7 @@ namespace Ipop.SocialVPN {
       SocialUser user = new SocialUser();
       user.Certificate = certb64;
       user.Status = StatusTypes.Offline.ToString();
+      user.Time = String.Empty;
 
       if (user.Uid.ToLower() != uid.ToLower()) {
         throw new Exception("Uids do not match");
