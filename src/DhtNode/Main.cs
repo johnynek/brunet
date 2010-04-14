@@ -98,17 +98,6 @@ namespace Ipop.DhtNode {
         return -1;
       }
 
-      if ((ipop_config.DNS.ForwardQueries == true) &&
-        (ipop_config.DNS.NameServer == null)) {
-          Console.WriteLine("Invalid IpopConfig file:");
-          Console.WriteLine("\tNameServer to forward queries is not mentioned");
-          return -1;
-      }
-      else if (ipop_config.DNS.NameServer == null) {
-        //Cannot use an empty or null string - occurs when NameServer is not mentioned in ipop.config
-        ipop_config.DNS.NameServer = "0";
-      }
-
       DHCPConfig dhcp_config = null;
       if(dhcp_config_path != string.Empty) {
         if(!File.Exists(dhcp_config_path)) {

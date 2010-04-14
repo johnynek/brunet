@@ -18,35 +18,37 @@ namespace Ipop {
     /// <summary>The mask for the ip address to perform lookups on.</summary>
     protected MemBlock _netmask;
     /// <summary>DNS Server </summary>
-    protected MemBlock _name_server; 
+    protected EndPoint _name_server; 
     /// <summary>Is true if IPOP is asked to forward DNS queries to external nameserver </summary>
     protected bool _forward_queries;
-    /// <summary>Becomes true after the first SetAddressInfo.</summary>
-    protected bool _active;
     /// <summary>Domain name is:</summary>
     public static string DomainName = "ipop";
-    /// <summary>Lock</summary>
-    protected object _sync;
 
     /// <summary>Default constructor</summary>
     /// <param name="ip_address">An IP Address in the range.</param>
     /// <param name="netmask">The netmask for the range.</param>
     /// <param name="name_server">The external name server to be queried.</param>
     /// <param name="forward_queries">Set if queries are to be forwarded to external name server.</param>
-    public DNS(MemBlock ip_address, MemBlock netmask, MemBlock name_server, bool forward_queries)
+    public DNS(MemBlock ip_address, MemBlock netmask, string name_server,
+        bool forward_queries)
     {
-      _name_server = name_server;
+      if(forward_queries) {
+        if(name_server == null || name_server == string.Empty) {
+          // GoogleDNS
+          name_server = "8.8.8.8";
+        }
+
+        _name_server = new IPEndPoint(IPAddress.Parse(name_server), 53);
+      }
+        
       _forward_queries = forward_queries;
-      _sync = new object();
+      _netmask = netmask;
+
       byte[] ba = new byte[ip_address.Length];
       for(int i = 0; i < ip_address.Length; i++) {
         ba[i] = (byte) (ip_address[i] & netmask[i]);
       }
-      lock(_sync) {
-        _base_address = MemBlock.Reference(ba);
-        _netmask = netmask;
-      }
-      _active = true;
+      _base_address = MemBlock.Reference(ba);
     }
 
     /// <summary>Look up a hostname given a DNS request in the form of IPPacket
@@ -57,48 +59,50 @@ namespace Ipop {
     {
       UDPPacket req_udpp = new UDPPacket(req_ipp.Payload);
       DNSPacket dnspacket = new DNSPacket(req_udpp.Payload);
-      DNSPacket res_packet = null;
       ICopyable rdnspacket = null;
+      string qname = string.Empty;
+
       try {
         string qname_response = String.Empty;
-        string qname = dnspacket.Questions[0].QNAME;
+        qname = dnspacket.Questions[0].QNAME;
         if(dnspacket.Questions[0].QTYPE == DNSPacket.TYPES.A) {
           qname_response = AddressLookUp(qname);
-        }
-        else if(dnspacket.Questions[0].QTYPE == DNSPacket.TYPES.PTR) {
-          if(InRange(qname)) {
-            qname_response = NameLookUp(qname);
-          }
-          else {
-           qname_response = null;
-          }
-        }
-        else{
-          qname_response = null;
+        } else if(dnspacket.Questions[0].QTYPE == DNSPacket.TYPES.PTR) {
+          qname_response = NameLookUp(qname);
         }
 
-        if((qname_response == null) && (_forward_queries)) {
-          res_packet = new DNSPacket(QueryRecursiveNameServer(
-            new IPEndPoint(new IPAddress(_name_server), 53),
-            (byte[])req_udpp.Payload));
+        if(qname_response == null) {
+          throw new Exception("Unable to resolve");
         }
-        else {
-          Response response = new Response(qname, dnspacket.Questions[0].QTYPE,
+
+        Response response = new Response(qname, dnspacket.Questions[0].QTYPE,
             dnspacket.Questions[0].QCLASS, 1800, qname_response);
-          //Host resolver will not accept if recursive is not available 
-            //when it is desired
-          res_packet = new DNSPacket(dnspacket.ID, false,
+        //Host resolver will not accept if recursive is not available 
+        //when it is desired
+        DNSPacket res_packet = new DNSPacket(dnspacket.ID, false,
             dnspacket.OPCODE, true, dnspacket.RD, dnspacket.RD,
             dnspacket.Questions, new Response[] {response}, null, null);
-        }
-        if (res_packet == null)
-          throw new Exception("Unable to resolve name: " + qname);
+
         rdnspacket = res_packet.ICPacket;
+      } catch(Exception e) {
+        bool failed_resolve = false;
+        // The above resolver failed, let's see if another resolver works
+        if(_forward_queries) {
+          try {
+            byte[] result = Resolve(_name_server, (byte[]) dnspacket.Packet);
+            rdnspacket = MemBlock.Reference(result);
+          } catch(Exception ex) {
+            e = ex;
+            failed_resolve = true;
+          }
+        }
+
+        if(!_forward_queries || failed_resolve) {
+          ProtocolLog.WriteIf(IpopLog.DNS, "Failed to resolve: " + qname + "\t" + e.Message);
+          rdnspacket = DNSPacket.BuildFailedReplyPacket(dnspacket);
+        }
       }
-      catch(Exception e) {
-        ProtocolLog.WriteIf(IpopLog.DNS, e.Message);
-        rdnspacket = DNSPacket.BuildFailedReplyPacket(dnspacket);
-      }
+
       UDPPacket res_udpp = new UDPPacket(req_udpp.DestinationPort,
                                          req_udpp.SourcePort, rdnspacket);
       IPPacket res_ipp = new IPPacket(IPPacket.Protocols.UDP,
@@ -133,21 +137,28 @@ namespace Ipop {
     /// <param name="dns_server">The IPEndPoint of the DNS Server 
     /// <param name="request"> DNS Packet to be sent</param>
     /// <returns></returns>
-    protected byte[] QueryRecursiveNameServer(IPEndPoint name_server, byte[] request)
+    public MemBlock Resolve(EndPoint server, byte[] request)
     {
       Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
       socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReceiveTimeout, 1000);
-      socket.SendTo(request, request.Length, SocketFlags.None, name_server);
-      byte[] response = new byte[512];
+      socket.Connect(server);
+      socket.Send(request, request.Length, SocketFlags.None);
+
+      MemBlock response = null;
       try {
-        socket.Receive(response);
-        if ((response[0] == request[0]) &&
-            (response[1] == request[1]))
-          return response;
+        byte[] tmp = new byte[512];
+        int  length = socket.Receive(tmp);
+        response = MemBlock.Reference(tmp, 0, length);
       } finally {
         socket.Close();
       }
-      return null;
+
+      // Is this a response to our request?
+      if ((response[0] != request[0]) || (response[1] != request[1])) {
+        throw new Exception("Invalid response");
+      }
+
+      return response;
     }
 
     /// <summary>Called during LookUp to perform translation from hostname to IP</summary>

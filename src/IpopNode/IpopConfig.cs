@@ -44,14 +44,12 @@ namespace Ipop {
     public bool AllowStaticAddresses;
     /// <summary>DNS Configuration Setting, default none</summary>
     public DNSInfo DNS;
-
+    /// <summary>GroupVPN configuration settings, default none</summary>
     public GroupVPNInfo GroupVPN;
 
-    /**
-    <summary>AddressInfo stores end point mappings depending on the system all
-    or none of these need to be defined before run time, this is here to save
-    configuration for future use.</summary>
-    */
+    /// <summary>AddressInfo stores end point mappings depending on the system
+    /// all or none of these need to be defined before run time, this is here
+    /// to save configuration for future use.</summary>
     public class AddressInfo {
       /// <summary>The hostname to associate to the IP.</summary>
       public string Hostname;

@@ -43,16 +43,19 @@ namespace Ipop.DhtNode {
     protected IDht _dht;
     /// <summary>The namespace where the hostnames are being stored.</summary>
     protected String _ipop_namespace;
+    protected object _sync;
 
     /**
     <summary>Create a DhtDNS using the specified Dht object</summary>
     <param name="dht">A Dht object used to acquire name translations</param>
     */
-    public DhtDNS(MemBlock ip, MemBlock netmask, IDht dht, String ipop_namespace, MemBlock name_server, bool forward_queries) :
+    public DhtDNS(MemBlock ip, MemBlock netmask, string name_server,
+        bool forward_queries, IDht dht, String ipop_namespace) :
       base(ip, netmask, name_server, forward_queries)
     {
       _ipop_namespace = ipop_namespace;
       _dht = dht;
+      _sync = new object();
     }
 
     /**

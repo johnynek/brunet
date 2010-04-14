@@ -684,8 +684,7 @@ namespace Ipop {
         _dns = new StaticDNS(
             MemBlock.Reference(Utils.StringToBytes(_dhcp_config.IPBase, '.')),
             MemBlock.Reference(Utils.StringToBytes(_dhcp_config.Netmask, '.')),
-            MemBlock.Reference(Utils.StringToBytes(_ipop_config.DNS.NameServer, '.')),
-            _ipop_config.DNS.ForwardQueries);
+            _ipop_config.DNS.NameServer, _ipop_config.DNS.ForwardQueries);
       }
     }
 

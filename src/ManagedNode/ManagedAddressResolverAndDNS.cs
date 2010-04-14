@@ -56,13 +56,16 @@ namespace Ipop.ManagedNode {
     protected DHCPServer _dhcp;
     /// <summary>Array list of multicast addresses</summary>
     public ArrayList mcast_addr;
+    protected object _sync;
 
     /// <summary>
     /// Constructor for the class, it initializes various objects
     /// </summary>
     /// <param name="node">Takes in a structured node</param>
-    public ManagedAddressResolverAndDNS(StructuredNode node, DHCPServer dhcp,  MemBlock local_ip, MemBlock name_server, bool forward_queries) :
-      base(MemBlock.Reference(dhcp.BaseIP), MemBlock.Reference(dhcp.Netmask), MemBlock.Reference(name_server), forward_queries)
+    public ManagedAddressResolverAndDNS(StructuredNode node, DHCPServer dhcp,
+        MemBlock local_ip, string name_server, bool forward_queries) :
+      base(MemBlock.Reference(dhcp.BaseIP), MemBlock.Reference(dhcp.Netmask),
+          name_server, forward_queries)
     {
       _node = node;
       _dns_a = new Hashtable();
@@ -74,6 +77,7 @@ namespace Ipop.ManagedNode {
 
       _dhcp = dhcp;
       _local_ip = local_ip;
+      _sync = new object();
     }
 
     // Return string of localIP
@@ -86,8 +90,8 @@ namespace Ipop.ManagedNode {
     /// </summary>
     /// <param name="IP">IP address of the name that's being looked up</param>
     /// <returns>Returns the name as string of the IP specified</returns>
-    public override String NameLookUp(String IP) {
-      return (String)_dns_ptr[IP];
+    public override String NameLookUp(String ip) {
+      return (String)_dns_ptr[ip];
     }
 
     /// <summary>
@@ -95,8 +99,8 @@ namespace Ipop.ManagedNode {
     /// </summary>
     /// <param name="Name">Takes in name as string to lookup</param>
     /// <returns>The result as a String Ip address</returns>
-    public override String AddressLookUp(String Name) {
-      return (String)_dns_a[Name];
+    public override String AddressLookUp(String name) {
+      return (String)_dns_a[name];
     }
 
     /**

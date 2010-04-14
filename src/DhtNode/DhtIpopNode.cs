@@ -131,9 +131,8 @@ namespace Ipop.DhtNode {
         _dns = new DhtDNS(
             MemBlock.Reference(Utils.StringToBytes(_dhcp_config.IPBase, '.')),
             MemBlock.Reference(Utils.StringToBytes(_dhcp_config.Netmask, '.')),
-            Dht, _ipop_config.IpopNamespace,
-            MemBlock.Reference(Utils.StringToBytes(_ipop_config.DNS.NameServer, '.')),
-            _ipop_config.DNS.ForwardQueries);
+            _ipop_config.DNS.NameServer, _ipop_config.DNS.ForwardQueries,
+            Dht, _ipop_config.IpopNamespace);
       } else {
         base.SetDNS();
       }

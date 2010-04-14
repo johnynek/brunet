@@ -17,7 +17,8 @@ namespace Ipop {
   /// the extra "0"s are necessary and keep all names at a constant length of 15
   /// (including the domain name .ipop).</remarks>
   public class StaticDNS : DNS {
-    public StaticDNS(MemBlock ip_address, MemBlock netmask, MemBlock name_server, bool forward_queries) : 
+    public StaticDNS(MemBlock ip_address, MemBlock netmask, string name_server,
+        bool forward_queries) : 
       base(ip_address, netmask, name_server, forward_queries)
     {
     }
@@ -31,21 +32,13 @@ namespace Ipop {
     /// is invalid, it will throw an exception.</returns>
     public override String AddressLookUp(String name)
     {
-      if(!_active) {
-        return null;
-      }
       String res = null;
       // C 123 123 123 . domain.length
       int length = 1 + 9 + 1 + DomainName.Length;
       if(name.Length == length && name[0] == 'C' && name.EndsWith(DomainName)) {
         res = String.Empty;
         for(int i = 0; i < 3; i++) {
-          try {
-            res += Int32.Parse(name.Substring((3*i)+1, 3)) + ".";
-          }
-          catch {
-            return null;
-          }
+          res += Int32.Parse(name.Substring((3*i)+1, 3)) + ".";
         }
         res = _base_address[0] + "." + res.Substring(0, res.Length - 1);
       }
@@ -53,33 +46,28 @@ namespace Ipop {
     }
 
     /// <summary>Called during LookUp to perfrom a translation from IP to hostname.</summary>
-    /// <param name="IP">The IP to look up.</param>
+    /// <param name="ip">The IP to look up.</param>
     /// <returns>The name or null if none exists for the IP.</returns>
-    public override String NameLookUp(String IP)
+    public override String NameLookUp(String ip)
     {
-      if(!_active) {
-        return null;
+      if(!InRange(ip)) {
+        throw new Exception("Unable to resolve");
       }
 
       String res = null;
-      if(InRange(IP)) {
-        try {
-          res = "C";
-          byte [] ipb = Utils.StringToBytes(IP, '.');
-          for(int i = 1; i < 4; i++) {
-            if(ipb[i] < 10) {
-              res += "00";
-            }
-            else if(ipb[i] < 100) {
-              res += "0";
-            }
-            res += ipb[i];
+      if(InRange(ip)) {
+        res = "C";
+        byte [] ipb = Utils.StringToBytes(ip, '.');
+        for(int i = 1; i < 4; i++) {
+          if(ipb[i] < 10) {
+            res += "00";
           }
-          res += ".ipop";
+          else if(ipb[i] < 100) {
+            res += "0";
+          }
+          res += ipb[i];
         }
-        catch {
-          res = null;
-        }
+        res += "." + DomainName;
       }
       return res;
     }
@@ -92,19 +80,34 @@ namespace Ipop {
     public void Test() {
       StaticDNS dns = new StaticDNS(
           MemBlock.Reference(Utils.StringToBytes("10.250.0.0", '.')),
-          MemBlock.Reference(Utils.StringToBytes("255.255.0.0", '.')));
+          MemBlock.Reference(Utils.StringToBytes("255.255.0.0", '.')),
+          string.Empty, false);
 
       Assert.AreEqual(dns.NameLookUp("10.250.1.1"), "C250001001.ipop", "NameLookUp Dns set in range.");
-      Assert.AreEqual(dns.NameLookUp("10.251.1.1"), null, "NameLookUp Dns set out of range.");
+
+      try {
+        Assert.AreEqual(dns.NameLookUp("10.251.1.1"), null, "NameLookUp Dns set out of range.");
+      } catch { }
+
       Assert.AreEqual(dns.AddressLookUp("C250001001.ipop"), "10.250.1.1", "AddressLookUp Dns set.");
-      Assert.AreEqual(dns.AddressLookUp("C250001001.blaha"), null, "AddressLookUp Dns set bad dns name: blaha.");
-      Assert.AreEqual(dns.AddressLookUp("C250001001.blah"), null, "AddressLookUp Dns set bad dns name: blah.");
+
+      try {
+        Assert.AreEqual(dns.AddressLookUp("C250001001.blaha"), null, "AddressLookUp Dns set bad dns name: blaha.");
+      } catch { }
+
+      try {
+        Assert.AreEqual(dns.AddressLookUp("C250001001.blah"), null, "AddressLookUp Dns set bad dns name: blah.");
+      } catch { }
 
       dns = new StaticDNS(
           MemBlock.Reference(Utils.StringToBytes("10.251.0.0", '.')),
-          MemBlock.Reference(Utils.StringToBytes("255.255.0.0", '.')));
+          MemBlock.Reference(Utils.StringToBytes("255.255.0.0", '.')),
+          string.Empty, false);
 
-      Assert.AreEqual(dns.NameLookUp("10.250.1.1"), null, "NameLookUp Dns changed out of range.");
+      try {
+        Assert.AreEqual(dns.NameLookUp("10.250.1.1"), null, "NameLookUp Dns changed out of range.");
+      } catch { }
+
       Assert.AreEqual(dns.NameLookUp("10.251.1.1"), "C251001001.ipop", "NameLookUp Dns changed in range.");
     }
 
@@ -112,7 +115,8 @@ namespace Ipop {
     public void SmallMaskTest() {
       StaticDNS dns = new StaticDNS(
           MemBlock.Reference(Utils.StringToBytes("10.1.2.0", '.')),
-          MemBlock.Reference(Utils.StringToBytes("255.255.255.0", '.')));
+          MemBlock.Reference(Utils.StringToBytes("255.255.255.0", '.')),
+          string.Empty, false);
 
       Assert.AreEqual(dns.NameLookUp("10.1.2.94"), "C001002094.ipop");
       Assert.AreEqual(dns.AddressLookUp("C001002094.ipop"), "10.1.2.94");
