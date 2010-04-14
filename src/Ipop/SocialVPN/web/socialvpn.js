@@ -91,11 +91,15 @@ function loadPage() {
   styleSheet.setAttribute('type', 'text/css');
   styleSheet.setAttribute('href', 'socialvpn.css');
   headElement.appendChild(styleSheet);
-  document.body = document.createElement('body');
 
-  var header = createElem("div", "","header","", document.body, "");
+  document.body.innerHTML = '';
+  var div_wrapper = document.createElement('div');
+  div_wrapper.id = "wrapper";
+  document.body.appendChild(div_wrapper);
+
+  var header = createElem("div", "","header","", div_wrapper, "");
   var subheader = createElem("div", "", "subheader","", header, "");
-  var main = createElem("div", "", "main_body", "", document.body, "");
+  var main = createElem("div", "", "main_body", "", div_wrapper, "");
   var tmp_content = createElem("div", "", "user_content", "", main, "");
   var tmp_content = createElem("div", "", "tmp_content", "", main, "");
   var main_content = createElem("div", "", "main_content", "", main, "");
