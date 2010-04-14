@@ -58,62 +58,65 @@ MAXFD = 1024
 
 # The standard I/O file descriptors are redirected to /dev/null by default.
 if (hasattr(os, "devnull")):
-   REDIRECT_TO = os.devnull
+  REDIRECT_TO = os.devnull
 else:
-   REDIRECT_TO = "/dev/null"
+  REDIRECT_TO = "/dev/null"
 
 if __name__ == "__main__":
-   """Detach a process from the controlling terminal and run it in the
-   background as a daemon.
-   """
+  """Detach a process from the controlling terminal and run it in the
+  background as a daemon.
+  """
 
-   opt, args = getopt.getopt(sys.argv[1:], "", ["user=", "group="])
-   opt_dict = {}
-   filter(opt_dict.update, map(lambda md: {md[0] : md[1]}, opt))
-   if "--user" in opt_dict:
-     uid = pwd.getpwnam(opt_dict["--user"]).pw_uid
-     gid = pwd.getpwnam(opt_dict["--user"]).pw_gid
-     if "--group" in opt_dict:
-       gid = grp.getgrnam(opt_dict["--group"]).gr_gid
-     # Below: order matters
-     os.setgid(gid)
-     os.setuid(uid)
-   for arg in args:
-     cmd = arg + " "
+  opt, args = getopt.getopt(sys.argv[1:], "", ["user=", "group="])
+  opt_dict = {}
+  filter(opt_dict.update, map(lambda md: {md[0] : md[1]}, opt))
+  if "--user" in opt_dict:
+    uid = pwd.getpwnam(opt_dict["--user"]).pw_uid
+    gid = pwd.getpwnam(opt_dict["--user"]).pw_gid
+    if "--group" in opt_dict:
+      gid = grp.getgrnam(opt_dict["--group"]).gr_gid
+    # Below: order matters
+    os.setgid(gid)
+    os.setuid(uid)
+  for arg in args:
+    cmd = arg + " "
 
-   try:
-      pid = os.fork()
-   except OSError, e:
-      raise Exception, "%s [%d]" % (e.strerror, e.errno)
+  try:
+    if os.fork() > 0:
+      os._exit(0)
+  except OSError, e:
+     raise Exception, "%s [%d]" % (e.strerror, e.errno)
 
-   if (pid == 0): # The first child.
-      os.setsid()
-      try:
-         pid = os.fork()  # Fork a second child.
-      except OSError, e:
-         raise Exception, "%s [%d]" % (e.strerror, e.errno)
+  os.setsid()
+  try:
+    if os.fork() > 0:
+      os._exit(0)
+  except OSError, e:
+    raise Exception, "%s [%d]" % (e.strerror, e.errno)
 
-      if (pid == 0):  # The second child.
-         os.umask(UMASK)
-      else:
-         os._exit(0)  # Exit parent (the first child) of the second child.
-   else:
-      os._exit(0) # Exit parent of the first child.
+  os.umask(UMASK)
 
-   maxfd = resource.getrlimit(resource.RLIMIT_NOFILE)[1]
-   if (maxfd == resource.RLIM_INFINITY):
-      maxfd = MAXFD
+  maxfd = resource.getrlimit(resource.RLIMIT_NOFILE)[1]
+  if maxfd == resource.RLIM_INFINITY:
+    maxfd = MAXFD
   
-   # Iterate through and close all file descriptors.
-   for fd in range(0, maxfd):
-      try:
-         os.close(fd)
-      except OSError: # ERROR, fd wasn't open to begin with (ignored)
-         pass
+  # Iterate through and close all file descriptors.
+  for fd in range(0, maxfd):
+    try:
+      os.close(fd)
+    except OSError: # ERROR, fd wasn't open to begin with (ignored)
+      pass
 
-   os.open(REDIRECT_TO, os.O_RDWR)  # standard input (0)
-   os.dup2(0, 1)      # standard output (1)
-   os.dup2(0, 2)      # standard error (2)
+  sys.stdout.flush()
+  sys.stderr.flush()
 
-   os.system(cmd)
-   sys.exit(0)
+  si = file(REDIRECT_TO, 'r')
+  so = file(REDIRECT_TO, 'a+')
+  se = file(REDIRECT_TO, 'a+', 0)
+
+  os.dup2(si.fileno(), sys.stdin.fileno())
+  os.dup2(so.fileno(), sys.stdout.fileno())
+  os.dup2(se.fileno(), sys.stderr.fileno())
+
+  os.system("nohup " + cmd + " &")
+  sys.exit(0)
