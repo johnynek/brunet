@@ -51,6 +51,7 @@ namespace Ipop.SocialVPN {
       social_config.JabberPass = "password";
       social_config.AutoLogin = false;
       social_config.GlobalBlock = false;
+      social_config.AutoFriend = false;
       Utils.WriteConfig("social.config", social_config);
     }
 

@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using Brunet;
 using Brunet.Security;
 using Brunet.Applications;
+using Brunet.Concurrent;
 using Ipop;
 using Ipop.Managed;
 
@@ -59,7 +60,7 @@ namespace Ipop.SocialVPN {
 
     protected readonly object _sync;
 
-    private bool _global_block;
+    private WriteOnce<bool> _global_block;
 
     private string _status;
 
@@ -77,7 +78,7 @@ namespace Ipop.SocialVPN {
       _bfriends = new List<string>();
       _sync = new object();
       _status = StatusTypes.Offline.ToString();
-      _global_block = false;
+      _global_block = new WriteOnce<bool>();
       _local_user = new SocialUser();
       _local_user.Certificate = certificate;
       _local_user.IP = _marad.LocalIP;
@@ -117,7 +118,7 @@ namespace Ipop.SocialVPN {
         _friends.Add(user.Alias, user);
       }
       // Check global block option and block if necessary
-      if((new_friend && _global_block) || _bfriends.Contains(uid)) {
+      if((new_friend && _global_block.Value) || _bfriends.Contains(uid)) {
         Block(uid);
       }
       GetState(true);
@@ -228,7 +229,7 @@ namespace Ipop.SocialVPN {
     }
 
     public void SetGlobalBlock(bool global_block) {
-      _global_block = global_block;
+      _global_block.Value = global_block;
     }
 
     public void UpdateFriend(string alias, string ip, string time, 
@@ -311,7 +312,9 @@ namespace Ipop.SocialVPN {
       HttpInterface http_ui = new HttpInterface(social_config.HttpPort);
       SocialDnsManager dns_manager = new SocialDnsManager(node);
       JabberNetwork jabber = new JabberNetwork(social_config.JabberHost,
-                                               social_config.JabberPort);
+                                               social_config.JabberPort,
+                                               social_config.AutoFriend,
+                                               node.LocalUser);
 
       http_ui.ProcessEvent += node.ProcessHandler;
       http_ui.ProcessEvent += jabber.ProcessHandler;

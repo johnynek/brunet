@@ -43,5 +43,7 @@ namespace Ipop.SocialVPN {
     public bool AutoLogin;
 
     public bool GlobalBlock;
+
+    public bool AutoFriend;
   }
 }

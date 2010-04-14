@@ -56,16 +56,19 @@ namespace Ipop.SocialVPN {
 
     protected readonly JabberClient _jclient;
 
-    protected StatusTypes _status;
+    protected readonly RosterManager _rman;
 
-    public JabberNetwork(string network_host, string jabber_port) {
+    protected readonly SocialUser _user;
 
-      _status = StatusTypes.Offline;
+    public JabberNetwork(string network_host, string jabber_port,
+      bool autoFriend, SocialUser user) {
+
       _jclient = new JabberClient();
       _jclient.Port = Int32.Parse(jabber_port);
       _jclient.NetworkHost = network_host;
       _jclient.AutoReconnect = 30F;
       _jclient.AutoStartTLS = true;
+      _jclient.AutoStartCompression = false;
       _jclient.KeepAlive = 30F;
       _jclient.AutoPresence = false;
       _jclient.AutoRoster = false;
@@ -83,6 +86,14 @@ namespace Ipop.SocialVPN {
       _jclient.OnAuthError += HandleOnAuthError;
       _jclient.OnReadText += HandleOnReadText;
       _jclient.OnWriteText += HandleOnWriteText;
+
+      _rman = null;
+      _user = user;
+      if(autoFriend) {
+        _rman = new RosterManager();
+        _rman.AutoAllow = jabber.client.AutoSubscriptionHanding.AllowAll;
+        _rman.Stream = _jclient;
+      }
     }
     
     protected void HandleOnAuthError(object sender, System.Xml.XmlElement rp) {
@@ -115,11 +126,15 @@ namespace Ipop.SocialVPN {
     }
 
     protected void HandleOnReadText(object sender, string txt) {
-      //Console.WriteLine("RECV: " + txt);
+#if SVPN_NUNIT
+      Console.WriteLine("RECV: " + txt);
+#endif
     }
 
     protected void HandleOnWriteText(object sender, string txt) {
-      //Console.WriteLine("SENT: " + txt);
+#if SVPN_NUNIT
+      Console.WriteLine("SENT: " + txt);
+#endif
     }
 
     protected void HandleOnPresence(Object sender, Presence pres) {
@@ -150,7 +165,6 @@ namespace Ipop.SocialVPN {
     }
 
     protected string UpdateStatus(StatusTypes status) {
-      _status = status;
       Dictionary<string, string> request = new Dictionary<string,string>();
       request["m"] = "updatestat";
       request["status"] = status.ToString();
@@ -158,9 +172,7 @@ namespace Ipop.SocialVPN {
     }
 
     protected string GetQueryResponse() {
-      Dictionary<string, string> request = new Dictionary<string,string>();
-      request["m"] = "getcert";
-      return FireEvent(request);
+      return _user.Certificate;
     }
 
     protected string ProcessResponse(string cert, string uid) {
@@ -187,20 +199,16 @@ namespace Ipop.SocialVPN {
     }
 
     public void Login(string username, string password) {
-      if(_status != StatusTypes.Online) {
-        JID jid = new JID(username);
-        _jclient.User = jid.User;
-        _jclient.Server = jid.Server;
-        _jclient.Password = password;
-        _jclient.Connect();
-      }
+      JID jid = new JID(username);
+      _jclient.User = jid.User;
+      _jclient.Server = jid.Server;
+      _jclient.Password = password;
+      _jclient.Connect();
     }
 
     public void Logout() {
-      if(_status == StatusTypes.Online) {
-        _jclient.Close();
-        UpdateStatus(StatusTypes.Offline);
-      }
+      _jclient.Close();
+      UpdateStatus(StatusTypes.Offline);
     }
 
     public void ProcessHandler(Object obj, EventArgs eargs) {

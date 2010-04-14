@@ -20,6 +20,7 @@ using System;
 
 using Brunet;
 using Brunet.Security;
+using Brunet.Concurrent;
 
 #if SVPN_NUNIT
 using NUnit.Framework;
@@ -31,121 +32,113 @@ namespace Ipop.SocialVPN {
 
     public const string PICPREFIX = "http://www.gravatar.com/avatar/";
 
-    private Certificate _cert = null;
+    private WriteOnce<Certificate> _cert;
 
-    private string _alias = String.Empty;
+    private WriteOnce<string> _alias;
 
-    private string _fingerprint = String.Empty;
+    private WriteOnce<string> _fingerprint;
 
-    private string _access = String.Empty;
+    private WriteOnce<string> _access;
 
-    private string _ip = String.Empty;
+    private WriteOnce<string> _ip;
 
-    private string _time = String.Empty;
+    private WriteOnce<string> _time;
 
-    private string _status = String.Empty;
+    private WriteOnce<string> _status;
 
-    private string _pic = String.Empty;
+    private WriteOnce<string> _pic;
 
-    private string _certificate = String.Empty;
+    private WriteOnce<string> _certificate;
 
     public string Uid {
-      get { return _cert.Subject.Email.ToLower(); }
+      get { return _cert.Value.Subject.Email.ToLower(); }
       set {}
     }
 
     public string Name {
-      get { return _cert.Subject.Name; }
+      get { return _cert.Value.Subject.Name; }
       set {}
     }
 
     public string PCID {
-      get { return _cert.Subject.OrganizationalUnit; }
+      get { return _cert.Value.Subject.OrganizationalUnit; }
       set {}
     }
 
     public string Country {
-      get { return _cert.Subject.Country; }
+      get { return _cert.Value.Subject.Country; }
       set {}
     }
 
     public string Version {
-      get { return _cert.Subject.Organization; }
+      get { return _cert.Value.Subject.Organization; }
       set {}
     }
 
     public string Address {
-      get { return _cert.NodeAddress; }
+      get { return _cert.Value.NodeAddress; }
       set {}
     }
 
     public string Pic {
-      get { return _pic; }
+      get { return _pic.Value; }
       set {}
     }
 
     public string Fingerprint {
-      get { return _fingerprint; }
+      get { return _fingerprint.Value; }
       set {}
     }
 
     public string Alias {
-      get { return _alias; }
+      get { return _alias.Value; }
       set {}
     }
 
     public string IP {
-      get { return _ip; }
-      set { 
-        if(_ip == String.Empty) {
-          _ip = value; 
-        }
-      }
+      get { return _ip.Value; }
+      set { _ip.Value = value;}
     }
 
     public string Time {
-      get { return _time; }
-      set { 
-        if(_time == String.Empty) {
-          _time = value; 
-        }
-      }
+      get { return _time.Value; }
+      set { _time.Value = value; }
     }
 
     public string Access {
-      get { return _access; }
-      set { 
-        if(_access == String.Empty) {
-          _access = value; 
-        }
-      }
+      get { return _access.Value; }
+      set { _access.Value = value; }
     }
 
     public string Status {
-      get { return _status; }
-      set { 
-        if(_status == String.Empty) {
-          _status = value; 
-        }
-      }
+      get { return _status.Value; }
+      set { _status.Value = value; }
     }
 
     public string Certificate {
-      get { return _certificate; }
+      get { return _certificate.Value; }
       set {
-        if(_certificate == String.Empty) {
-          _certificate = value;
-          byte[] certData = Convert.FromBase64String(value);
-          _cert = new Certificate(certData);
-          string uid = _cert.Subject.Email.ToLower();
-          _fingerprint = SocialUtils.GetSHA1HashString(certData);
-          _pic = PICPREFIX + SocialUtils.GetMD5HashString(uid);
-          _alias = CreateAlias(PCID, uid);
-        }
+        _certificate.Value = value;
+        byte[] certData = Convert.FromBase64String(value);
+        _cert.Value = new Certificate(certData);
+        string uid = _cert.Value.Subject.Email.ToLower();
+        _fingerprint.Value = SocialUtils.GetSHA1HashString(certData);
+        _pic.Value = PICPREFIX + SocialUtils.GetMD5HashString(uid);
+        _alias.Value = CreateAlias(PCID, uid);
       }
     }
 
-    public SocialUser() {}
+    public SocialUser() {
+      _cert = new WriteOnce<Certificate>();
+      _alias = new WriteOnce<string>();
+      _fingerprint = new WriteOnce<string>();
+      _access = new WriteOnce<string>();
+      _ip = new WriteOnce<string>();
+      _time = new WriteOnce<string>();
+      _status = new WriteOnce<string>();
+      _pic = new WriteOnce<string>();
+      _certificate = new WriteOnce<string>();
+    }
 
     protected static string CreateAlias(string pcid, string uid) {
       char[] delims = new char[] {'@','.'};
@@ -162,7 +155,7 @@ namespace Ipop.SocialVPN {
     }
 
     public Certificate GetCert() {
-      return _cert;
+      return _cert.Value;
     }
 
     public SocialUser WeakCopy() {
