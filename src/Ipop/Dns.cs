@@ -1,5 +1,6 @@
 using Brunet;
 using Brunet.Applications;
+using Brunet.Util;
 using NetworkPackets;
 using NetworkPackets.Dns;
 using System;

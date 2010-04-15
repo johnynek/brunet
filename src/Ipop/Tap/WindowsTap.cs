@@ -24,6 +24,7 @@ using Microsoft.Win32.SafeHandles;
 using System.Threading;
 using System.Runtime.InteropServices;
 using Brunet;
+using Brunet.Util;
 
 namespace Ipop.Tap {
   /// <summary>A C# Tap driver interface.  We use CreateFile to create a

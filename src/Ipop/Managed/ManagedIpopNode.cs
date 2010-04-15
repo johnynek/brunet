@@ -19,7 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using Brunet;
 using Brunet.Applications;
-using Brunet.DistributedServices;
+using Brunet.Util;
 using NetworkPackets;
 using System;
 using System.Collections;
@@ -48,7 +48,7 @@ namespace Ipop.Managed {
     {
       _dhcp_server = ManagedDhcpServer.GetManagedDhcpServer(_ipop_config.VirtualNetworkDevice);  
       _dhcp_config = _dhcp_server.Config;
-      _marad = new ManagedAddressResolverAndDns(Brunet, _dhcp_server,
+      _marad = new ManagedAddressResolverAndDns(AppNode.Node, _dhcp_server,
           ((ManagedDhcpServer) _dhcp_server).LocalIP, _ipop_config.Dns.NameServer,
           _ipop_config.Dns.ForwardQueries);
       _dns = _marad;

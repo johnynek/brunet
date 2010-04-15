@@ -1,5 +1,6 @@
 using Brunet;
 using Brunet.Applications;
+using Brunet.Util;
 using Ipop;
 using System;
 using System.Net;

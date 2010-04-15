@@ -16,13 +16,15 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-using NetworkPackets;
+using Brunet;
+using Brunet.Messaging;
+using Brunet.Util;
 using Ipop.Tap;
+using NetworkPackets;
 using System;
 using System.Runtime.InteropServices;
 using System.Net;
 using System.Threading;
-using Brunet;
 
 namespace Ipop {
   /// <summary>Provides an interface to the Virtual Network device known as a

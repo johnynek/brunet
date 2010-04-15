@@ -205,8 +205,8 @@ namespace Ipop.Dht {
             "data/" + ipop_config.GroupVPN.Group + "/revocation_list");
         revocation_url = revocation_url.Replace("https", "http");
         var icv = new GroupCertificateVerification(revocation_url, cacert_path);
-        _current_node.Bso.CertificateHandler.AddCertificateVerification(icv);
-        icv.RevocationUpdate += _current_node.Bso.CheckSAs;
+        _current_node.AppNode.SecurityOverlord.CertificateHandler.AddCertificateVerification(icv);
+        icv.RevocationUpdate += _current_node.AppNode.SecurityOverlord.CheckSAs;
       }
 
       Console.WriteLine("Starting IPOP: " + DateTime.UtcNow);

@@ -18,7 +18,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using Brunet;
 using Brunet.Applications;
-using Brunet.DistributedServices;
+using Brunet.Services.Dht;
+using Brunet.Symphony;
+using Brunet.Util;
 using Ipop;
 using NetworkPackets;
 using System;
@@ -44,11 +46,11 @@ namespace Ipop.Dht {
     public DhtIpopNode(NodeConfig node_config, IpopConfig ipop_config,
         DHCPConfig dhcp_config) : base(node_config, ipop_config, dhcp_config)
     {
-      _address_resolver = new DhtAddressResolver(Dht, _ipop_config.IpopNamespace);
+      _address_resolver = new DhtAddressResolver(AppNode.Dht, _ipop_config.IpopNamespace);
 
       _connected = false;
-      Brunet.StateChangeEvent += StateChangeHandler;
-      StateChangeHandler(Brunet, Brunet.ConState);
+      AppNode.Node.StateChangeEvent += StateChangeHandler;
+      StateChangeHandler(AppNode.Node, AppNode.Node.ConState);
     }
 
     public DhtIpopNode(NodeConfig node_config, IpopConfig ipop_config) :
@@ -67,7 +69,7 @@ namespace Ipop.Dht {
           if(_connected) {
             return;
           }
-          Brunet.StateChangeEvent -= StateChangeHandler;
+          AppNode.Node.StateChangeEvent -= StateChangeHandler;
           _connected = true;
         } else {
           return;
@@ -84,7 +86,7 @@ namespace Ipop.Dht {
         DhcpServer dhcp_server = GetDhcpServer();
         foreach(MemBlock ip in ips) {
           try {
-            dhcp_server.RequestLease(ip, true, Brunet.Address.ToString(),
+            dhcp_server.RequestLease(ip, true, AppNode.Node.Address.ToString(),
                 _ipop_config.AddressData.Hostname);
           } catch(Exception e) {
             ProtocolLog.WriteIf(IpopLog.DhcpLog, e.Message);
@@ -105,7 +107,7 @@ namespace Ipop.Dht {
       // Easiest approach is to simply update the mapping...
       DhcpServer dhcp_server = GetDhcpServer();
       try {
-        dhcp_server.RequestLease(ip, true, Brunet.Address.ToString(),
+        dhcp_server.RequestLease(ip, true, AppNode.Node.Address.ToString(),
             _ipop_config.AddressData.Hostname);
       } catch(Exception e) {
         ProtocolLog.WriteIf(IpopLog.DhcpLog, e.Message);
@@ -132,7 +134,7 @@ namespace Ipop.Dht {
             MemBlock.Reference(Utils.StringToBytes(_dhcp_config.IPBase, '.')),
             MemBlock.Reference(Utils.StringToBytes(_dhcp_config.Netmask, '.')),
             _ipop_config.Dns.NameServer, _ipop_config.Dns.ForwardQueries,
-            Dht, _ipop_config.IpopNamespace);
+            AppNode.Dht, _ipop_config.IpopNamespace);
       } else {
         base.SetDns();
       }
@@ -170,7 +172,7 @@ namespace Ipop.Dht {
       WaitCallback wcb = delegate(object o) {
         Hashtable[] results = null;
         try {
-          results = Dht.Get(Encoding.UTF8.GetBytes(_ipop_config.IpopNamespace + ".multicast.ipop"));
+          results = AppNode.Dht.Get(Encoding.UTF8.GetBytes(_ipop_config.IpopNamespace + ".multicast.ipop"));
         } catch {
           return;
         }
@@ -202,7 +204,7 @@ namespace Ipop.Dht {
         bool success = false;
         DHCPConfig dhcp_config = null;
         try {
-          dhcp_config = DhtDhcpServer.GetDhcpConfig(Dht, _ipop_config.IpopNamespace);
+          dhcp_config = DhtDhcpServer.GetDhcpConfig(AppNode.Dht, _ipop_config.IpopNamespace);
           success = true;
         } catch(Exception e) {
           ProtocolLog.WriteIf(IpopLog.DhcpLog, e.ToString());
@@ -211,7 +213,7 @@ namespace Ipop.Dht {
         if(success) {
           lock(_sync) {
             _dhcp_config = dhcp_config;
-            _dhcp_server = new DhtDhcpServer(Dht, _dhcp_config, _ipop_config.EnableMulticast);
+            _dhcp_server = new DhtDhcpServer(AppNode.Dht, _dhcp_config, _ipop_config.EnableMulticast);
           }
         }
         base.GetDhcpConfig();
@@ -223,7 +225,7 @@ namespace Ipop.Dht {
     }
 
     protected override DhcpServer GetDhcpServer() {
-      return new DhtDhcpServer(Dht, _dhcp_config, _ipop_config.EnableMulticast);
+      return new DhtDhcpServer(AppNode.Dht, _dhcp_config, _ipop_config.EnableMulticast);
     }
   }
 }

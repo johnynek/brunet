@@ -1,4 +1,5 @@
 using Brunet;
+using Brunet.Util;
 using System.Runtime.InteropServices;
 
 namespace Ipop.Tap {

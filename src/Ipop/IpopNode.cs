@@ -18,7 +18,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 using Brunet;
 using Brunet.Applications;
+using Brunet.Messaging;
 using Brunet.Security;
+using Brunet.Symphony;
 using Brunet.Util;
 using NetworkPackets;
 using NetworkPackets.Dhcp;
@@ -51,14 +53,14 @@ namespace Ipop {
   /// cluster, and allows machines in the same cluster to talk directly with
   /// each other. </remarks>
   public abstract class IpopNode : BasicNode, IDataHandler, IRpcHandler {
+    /// <summary>Stores the underlying ApplicationNode</summary>
+    public readonly ApplicationNode AppNode;
     /// <summary>The IpopConfig for this IpopNode</summary>
     protected readonly IpopConfig _ipop_config;
     /// <summary>The Virtual Network handler</summary>
     public readonly Ethernet Ethernet;
     /// <summary>The Rpc handler for Information</summary>
     public readonly Information Info;
-    /// <summary>The Brunet.Node for this IpopNode</summary>
-    public readonly StructuredNode Brunet;
     /// <summary>Chota for Brunet.</summary>
     protected readonly ChotaConnectionOverlord _chota;
     /// <summary>Resolves IP Addresses to Brunet.Addresses</summary>
@@ -77,7 +79,6 @@ namespace Ipop {
     protected readonly bool _broadcast;
     /// <summary>Enables IP over secure senders.</summary>
     protected bool _secure_senders;
-    protected Information _info;
 
     /// <summary>Mapping of Ethernet address to IP Address.</summary>
     protected Dictionary<MemBlock, MemBlock> _ether_to_ip;
@@ -105,6 +106,7 @@ namespace Ipop {
     /// have shown up.</summary>
     protected DateTime _last_check_node;
 
+
 #region Public
     /// <summary>Creates an IpopNode given a NodeConfig and an IpopConfig.
     /// Also sets up the Information, Ethernet device, and subscribes
@@ -114,24 +116,23 @@ namespace Ipop {
     public IpopNode(NodeConfig node_config, IpopConfig ipop_config,
         DHCPConfig dhcp_config) : base(node_config)
     {
-      CreateNode();
-      _node.DisconnectOnOverload = false;
-      this.Brunet = _node;
-      _chota = Brunet.Cco;
+      AppNode = CreateNode(node_config);
+      AppNode.Node.DisconnectOnOverload = false;
+      _chota = AppNode.Node.Cco;
       _ipop_config = ipop_config;
 
       Ethernet = new Ethernet(_ipop_config.VirtualNetworkDevice);
       Ethernet.Subscribe(this, null);
 
-      _info = new Information(Brunet, "IpopNode");
-      _info.UserData["IpopNamespace"] = _ipop_config.IpopNamespace;
+      Info = new Information(AppNode.Node, "IpopNode");
+      Info.UserData["IpopNamespace"] = _ipop_config.IpopNamespace;
 
-      if(_ipop_config.EndToEndSecurity && _bso != null) {
+      if(_ipop_config.EndToEndSecurity && AppNode.SecurityOverlord != null) {
         _secure_senders = true;
       } else {
         _secure_senders = false;
       }
-      Brunet.GetTypeSource(PType.Protocol.IP).Subscribe(this, null);
+      AppNode.Node.GetTypeSource(PType.Protocol.IP).Subscribe(this, null);
 
       _sync = new object();
       _lock = 0;
@@ -152,22 +153,20 @@ namespace Ipop {
       }
       _checked_out = new Hashtable();
 
-      Brunet.HeartBeatEvent += CheckNode;
+      AppNode.Node.HeartBeatEvent += CheckNode;
       _last_check_node = DateTime.UtcNow;
 
-      Brunet.Rpc.AddHandler("Ipop", this);
+      AppNode.Node.Rpc.AddHandler("Ipop", this);
     }
 
     /// <summary>Starts the execution of the IpopNode, this passes the caller 
     /// to execute the Brunet.Connect to eventually become Brunet.AnnounceThread.
     /// </summary>
     public override void Run() {
-      StartServices();
       if(_shutdown != null) {
         _shutdown.OnExit += Ethernet.Stop;
       }
-      Brunet.Connect();
-      StopServices();
+      AppNode.Node.Connect();
     }
 
 #endregion
@@ -242,8 +241,8 @@ namespace Ipop {
         if(ex.Issue == AddressResolutionException.Issues.DoesNotExist) {
           ProtocolLog.WriteIf(IpopLog.ResolverLog, "Notifying remote node of " +
               " missing address: " + addr + ":" + ipp.SSourceIP);
-          ISender sender = new AHExactSender(Brunet, addr);
-          Brunet.Rpc.Invoke(sender, null, "Ipop.NoSuchMapping", ipp.SSourceIP);
+          ISender sender = new AHExactSender(AppNode.Node, addr);
+          AppNode.Node.Rpc.Invoke(sender, null, "Ipop.NoSuchMapping", ipp.SSourceIP);
           return;
         } else {
           throw;
@@ -336,7 +335,7 @@ namespace Ipop {
                             "Brunet destination ID: {0}", target));
         }
         SendIP(target, packet.Payload);
-        Brunet.Cco.Increment(target);
+        _chota.Increment(target);
       }
     }
 
@@ -403,7 +402,7 @@ namespace Ipop {
          // Otherwise nothing to do, mapping doesn't exist...
        }
 
-       if(Brunet.Address.Equals(baddr) || baddr == null) {
+       if(AppNode.Node.Address.Equals(baddr) || baddr == null) {
          return;
        }
      }
@@ -464,7 +463,7 @@ namespace Ipop {
       ISender s = null;
       if(_secure_senders) {
         try {
-          s = _bso.GetSecureSender(target);
+          s = AppNode.SecurityOverlord.GetSecureSender(target);
         }
         catch(Exception e) {
           Console.WriteLine(e);
@@ -472,7 +471,7 @@ namespace Ipop {
         }
       }
       else {
-        s = new AHExactSender(Brunet, target);
+        s = new AHExactSender(AppNode.Node, target);
       }
       s.Send(new CopyList(PType.Protocol.IP, packet));
     }
@@ -561,7 +560,7 @@ namespace Ipop {
         DhcpPacket rpacket = null;
         try {
           rpacket = dhcp_server.ProcessPacket(dhcp_packet,
-              Brunet.Address.ToString(), last_ipb);
+              AppNode.Node.Address.ToString(), last_ipb);
         } catch(Exception e) {
           ProtocolLog.WriteIf(IpopLog.DhcpLog, e.Message);
           CheckInDhcpServer(dhcp_server);
@@ -623,7 +622,7 @@ namespace Ipop {
 
         try {
           res_ip = dhcp_server.RequestLease(ip, true,
-              Brunet.Address.ToString(),
+              AppNode.Node.Address.ToString(),
               _ipop_config.AddressData.Hostname);
         } catch(Exception e) {
           ProtocolLog.WriteIf(IpopLog.DhcpLog, e.Message);
@@ -774,7 +773,7 @@ namespace Ipop {
           ips.Add(Utils.MemBlockToString(ip, '.'));
         }
       }
-      _info.UserData["VirtualIPs"] = ips;
+      Info.UserData["VirtualIPs"] = ips;
 
       ProtocolLog.WriteIf(IpopLog.DhcpLog, String.Format(
         "IP Address for {0} changed to {1}.",
