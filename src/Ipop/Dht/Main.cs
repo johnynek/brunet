@@ -27,107 +27,107 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
 namespace Ipop.Dht {
+  public class DhtNodeParameters : RuntimeParameters {
+    public const string DHCP_XSD = "Dhcp.xsd";
+    public const string IPOP_XSD = "Ipop.xsd";
+
+    public IpopConfig IpopConfig { get { return _ipop_config; } }
+    public DHCPConfig DhcpConfig { get { return _dhcp_config; } }
+    public bool GroupVPN { get { return _group_vpn; } }
+
+    protected IpopConfig _ipop_config;
+    protected string _ipop_config_path = string.Empty;
+    protected DHCPConfig _dhcp_config;
+    protected string _dhcp_config_path = string.Empty;
+    protected bool _group_vpn;
+
+    public DhtNodeParameters() :
+      base("DhtIpop", "DhtIpop - Virtual Networking Daemon.")
+    {
+      _options.Add("i|IpopConfig=", "Path to an IpopConfig file.",
+          v => _ipop_config_path = v);
+      _options.Add("d|DhcpConfig=", "Path to a DHCPConfig file.",
+          v => _dhcp_config_path = v);
+    }
+
+    public override int Parse(string[] args)
+    {
+      if(base.Parse(args) != 0) {
+        return -1;
+      }
+
+      if(_ipop_config_path == string.Empty || !File.Exists(_ipop_config_path)) {
+        _error_message = "Missing IpopConfig";
+        return -1;
+      }
+
+      try {
+        Validator.Validate(_ipop_config_path, IPOP_XSD);
+        _ipop_config = Utils.ReadConfig<IpopConfig>(_ipop_config_path);
+        _ipop_config.Path = _ipop_config_path;
+      } catch (Exception e) {
+        _error_message = "Invalid IpopConfig file:" + e.Message;
+        return -1;
+      }
+
+      if(_dhcp_config_path != string.Empty) {
+        if(!File.Exists(_dhcp_config_path)) {
+          _error_message = "No such DhtIpop file";
+          return -1;
+        }
+
+        try {
+          Validator.Validate(_dhcp_config_path, DHCP_XSD);
+          _dhcp_config = Utils.ReadConfig<DHCPConfig>(_dhcp_config_path);
+        } catch(Exception e) {
+          _error_message = "Invalid DhcpConfig file: " + e.Message;
+          return -1;
+        }
+
+        if(!_dhcp_config.Namespace.Equals(_ipop_config.IpopNamespace)) {
+          _error_message = "IpopConfig.Namespace isn't the same as DHCPConfig.Namespace";
+          return -1;
+        }
+      }
+
+      _group_vpn = _node_config.Security.Enabled &&
+        _ipop_config.GroupVPN.Enabled &&
+        _ipop_config.EndToEndSecurity;
+      return 0;
+    }
+  }
+
   public class Runner {
     public static DhtIpopNode CurrentNode { get { return _current_node; } }
     protected static DhtIpopNode _current_node;
 
-    public static int Main(String[] args) {
-      string node_config_path = string.Empty;
-      string ipop_config_path = string.Empty;
-      string dhcp_config_path = string.Empty;
-      bool show_help = false;
-
-      OptionSet opts = new OptionSet() {
-        { "n|NodeConfig=", "Path to a NodeConfig file.",
-          v => node_config_path = v },
-        { "i|IpopConfig=", "Path to an IpopConfig file.",
-          v => ipop_config_path = v },
-        { "d|DhcpConfig=", "Path to a DHCPConfig file.",
-          v => dhcp_config_path = v },
-        { "h|help", "Display this help and exit.",
-          v => show_help = v != null },
-      };
-
-      try {
-        opts.Parse(args);
-      } catch (OptionException e) {
-        PrintError(e.Message);
+    public static int Main(string[] args)
+    {
+      DhtNodeParameters parameters= new DhtNodeParameters();
+      if(parameters.Parse(args) != 0) {
+        Console.WriteLine(parameters.ErrorMessage);
+        parameters.ShowHelp();
         return -1;
+      } else if(parameters.Help) {
+        parameters.ShowHelp();
+        return 0;
       }
 
-      if(show_help) {
-        ShowHelp(opts);
-        return -1;
-      }
+      DHCPConfig dhcp_config = parameters.DhcpConfig;
+      IpopConfig ipop_config = parameters.IpopConfig;
+      NodeConfig node_config = parameters.NodeConfig;
 
-      if(node_config_path == string.Empty || !File.Exists(node_config_path)) {
-        PrintError("Missing NodeConfig");
-        return -1;
-      }
-
-      if(ipop_config_path == string.Empty || !File.Exists(ipop_config_path)) {
-        PrintError("Missing IpopConfig");
-        return -1;
-      }
-
-      ConfigurationValidator cv = new ConfigurationValidator();
-      NodeConfig node_config = null;
-      try {
-        cv.Validate(node_config_path, "Node.xsd");
-        node_config = Utils.ReadConfig<NodeConfig>(node_config_path);
-        node_config.Path = node_config_path;
-      } catch (Exception e) {
-        Console.WriteLine("Invalid NodeConfig file:");
-        Console.WriteLine("\t" + e.Message);
-        return -1;
-      }
 
       if(node_config.NodeAddress == null) {
         node_config.NodeAddress = (Utils.GenerateAHAddress()).ToString();
         node_config.WriteConfig();
       }
 
-      IpopConfig ipop_config = null;
-      try {
-        cv.Validate(ipop_config_path, "Ipop.xsd");
-        ipop_config = Utils.ReadConfig<IpopConfig>(ipop_config_path);
-        ipop_config.Path = ipop_config_path;
-      } catch (Exception e) {
-        Console.WriteLine("Invalid IpopConfig file:");
-        Console.WriteLine("\t" + e.Message);
-        return -1;
-      }
-
-      DHCPConfig dhcp_config = null;
-      if(dhcp_config_path != string.Empty) {
-        if(!File.Exists(dhcp_config_path)) {
-          PrintError("No such DhtIpop file");
-          return -1;
-        }
-        try {
-          cv.Validate(dhcp_config_path, "Dhcp.xsd");
-          dhcp_config = Utils.ReadConfig<DHCPConfig>(dhcp_config_path);
-        } catch(Exception e) {
-          Console.WriteLine("Invalid DhcpConfig file:");
-          Console.WriteLine("\t" + e.Message);
-          return -1;
-        }
-
-        if(!dhcp_config.Namespace.Equals(ipop_config.IpopNamespace)) {
-          PrintError("IpopConfig.Namespace isn't the same as DHCPConfig.Namespace");
-          return -1;
-        }
-      }
-
-      bool groupvpn = node_config.Security.Enabled &&
-        ipop_config.GroupVPN.Enabled &&
-        ipop_config.EndToEndSecurity;
-      
-      // enable GroupVPN!
-      if(groupvpn) {
+      if(parameters.GroupVPN) {
         // check to see if we have a valid private key
         RSACryptoServiceProvider public_key = new RSACryptoServiceProvider();
         bool create = true;
+        // If this succeeds, the key is good, if it fails, we need to create a new one...
         if(File.Exists(node_config.Security.KeyPath)) {
           try {
             using(FileStream fs = File.Open(node_config.Security.KeyPath, FileMode.Open)) {
@@ -153,8 +153,9 @@ namespace Ipop.Dht {
         // verify we have a cacert
         string cacert_path = Path.Combine(node_config.Security.CertificatePath, "cacert");
         if(!File.Exists(cacert_path)) {
-          Console.WriteLine("DhtIpop: ");
-          Console.WriteLine("\tMissing CACert: " + cacert_path);
+          Console.WriteLine("Missing CACert: " + cacert_path);
+          parameters.ShowHelp();
+          return -1;
         }
 
         // do we already have a certificate that matches our node id?
@@ -165,8 +166,9 @@ namespace Ipop.Dht {
           // prepare access to the groupvpn site
           string webcert_path = Path.Combine(node_config.Security.CertificatePath, "webcert");
           if(!File.Exists(webcert_path)) {
-            Console.WriteLine("DhtIpop: ");
-            Console.WriteLine("\tMissing Servers signed cert: " + webcert_path);
+            Console.WriteLine("Missing Servers signed cert: " + webcert_path);
+            parameters.ShowHelp();
+            return -1;
           }
 
           X509Certificate webcert = X509Certificate.CreateFromCertFile(webcert_path);
@@ -179,8 +181,8 @@ namespace Ipop.Dht {
               public_key);
           gvc.Start();
           if(gvc.State != GroupVPNClient.States.Finished) {
-            Console.WriteLine("DhtIpop: ");
-            Console.WriteLine("\tFailure attempting to use GroupVPN");
+            Console.WriteLine("Failure attempting to use GroupVPN");
+            parameters.ShowHelp();
             return -1;
           }
 
@@ -197,7 +199,7 @@ namespace Ipop.Dht {
         _current_node = new DhtIpopNode(node_config, ipop_config);
       }
       
-      if(groupvpn) {
+      if(parameters.GroupVPN) {
         // hack until I can come up with a cleaner solution to add features
         // that don't break config files on previous IPOP
         string cacert_path = Path.Combine(node_config.Security.CertificatePath, "cacert");
@@ -212,20 +214,6 @@ namespace Ipop.Dht {
       Console.WriteLine("Starting IPOP: " + DateTime.UtcNow);
       _current_node.Run();
       return 0;
-    }
-
-    public static void ShowHelp(OptionSet p) {
-      Console.WriteLine("Usage: DhtIpop --IpopConfig=filename --NodeConfig=filename");
-      Console.WriteLine("DhtIpop - Virtual Networking Daemon.");
-      Console.WriteLine();
-      Console.WriteLine("Options:");
-      p.WriteOptionDescriptions(Console.Out);
-    }
-
-    public static void PrintError(string error) {
-      Console.WriteLine("DhtIpop: ");
-      Console.WriteLine("\t" + error);
-      Console.WriteLine("Try `DhtIpop.exe --help' for more information.");
     }
   }
 }
