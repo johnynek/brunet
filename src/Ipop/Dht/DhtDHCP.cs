@@ -28,7 +28,7 @@ using System.Text;
 using System.Xml;
 using System.Xml.Serialization;
 
-namespace Ipop.DhtNode {
+namespace Ipop.Dht {
   /**
   <summary>The DhtDHCPLeaseController provides mechanisms to acquire IP
   Addresses in the Dht.  This is responsible for IP Address allocation,

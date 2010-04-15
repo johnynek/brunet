@@ -23,7 +23,7 @@ using System.Net;
 using Brunet;
 using Brunet.Applications;
 
-namespace Ipop.ManagedNode {
+namespace Ipop.Managed {
   /// <summary>
   /// This class implements various methods needed for the ManagedIpopNode
   /// </summary>

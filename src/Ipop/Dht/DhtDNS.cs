@@ -26,7 +26,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
-namespace Ipop.DhtNode {
+namespace Ipop.Dht {
   /**
   <summary>This class provides the ability to lookup names using the Dht.  To
   add a name into the Dht either add a Hostname node into your AddressData node

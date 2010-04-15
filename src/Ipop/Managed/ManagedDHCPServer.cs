@@ -26,7 +26,7 @@ using System.Collections;
 using System.IO;
 using System.Text;
 
-namespace Ipop.ManagedNode {
+namespace Ipop.Managed {
 
   /// <summary>
   /// Subclass of DHCPServer implements GetDHCPLeaseController method

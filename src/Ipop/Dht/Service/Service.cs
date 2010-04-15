@@ -3,9 +3,8 @@ using System.Diagnostics;
 using System.ServiceProcess;
 using System.Threading;
 
-namespace WindowsService {
+namespace Ipop.Dht.Service {
   class WindowsService : ServiceBase {
-    object _sync;
     Thread _thread;
 
     public WindowsService()
@@ -19,7 +18,6 @@ namespace WindowsService {
       CanShutdown = true;
       CanStop = true;
       AutoLog = true;
-      _sync = new object();
     }
 
     public static void Main()
@@ -34,8 +32,9 @@ namespace WindowsService {
 
     protected override void OnStart(string[] args)
     {
-      lock(_sync) {
-        _thread = new Thread(Start);
+      Thread thread = new Thread(Start);
+      if(Interlocked.CompareExchange<Thread>(ref _thread, null, thread) != null) {
+        return;
       }
 
       _thread.Start();
@@ -50,22 +49,17 @@ namespace WindowsService {
 
       string app_dir = AppDomain.CurrentDomain.SetupInformation.ApplicationBase;
       System.IO.Directory.SetCurrentDirectory(app_dir);
-      Ipop.DhtNode.Runner.Main(args);
+      Ipop.Dht.Runner.Main(args);
       Thread.MemoryBarrier();
     }
 
     protected override void OnStop()
     {
-      Thread thread = null;
-      lock(_sync) {
-        thread = _thread;
-        _thread = null;
-      }
+      Thread thread = Interlocked.Exchange(ref _thread, null);
       if(thread == null) {
         return;
       }
-
-      Ipop.DhtNode.Runner.CurrentNode.Shutdown.Exit();
+      Ipop.Dht.Runner.CurrentNode.Shutdown.Exit();
       thread.Join();
       base.OnStop();
     }
@@ -90,15 +84,14 @@ namespace WindowsService {
       base.OnCustomCommand(command);
     }
 
-    protected override bool OnPowerEvent(PowerBroadcastStatus powerStatus)
+    protected override bool OnPowerEvent(PowerBroadcastStatus status)
     {
-      return base.OnPowerEvent(powerStatus);
+      return base.OnPowerEvent(status);
     }
 
-    protected override void OnSessionChange(
-              SessionChangeDescription changeDescription)
+    protected override void OnSessionChange(SessionChangeDescription description)
     {
-      base.OnSessionChange(changeDescription);
+      base.OnSessionChange(description);
     }
   }
 }

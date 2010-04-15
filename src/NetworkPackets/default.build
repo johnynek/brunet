@@ -21,6 +21,7 @@
     <csc target="library" define="NUNIT" output="${build.dir}/NetworkPackets.Test.dll">
       <sources failonempty="true">
         <include name="*.cs"/>
+        <include name="Dns/*.cs"/>
       </sources>
       <references basedir="${build.dir}">
         <include name="Brunet.dll"/>

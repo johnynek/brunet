@@ -27,7 +27,7 @@ using System.Net.Sockets;
 using NUnit.Framework;
 #endif
 
-namespace NetworkPackets.DNS {
+namespace NetworkPackets.Dns {
   /**
   <summary>Represents a DNS Question</summary>
   <remarks><para>Sadly the size of these can only be determined by parsing

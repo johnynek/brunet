@@ -27,10 +27,10 @@ using System.Net;
 using System.Threading;
 
 /**
-\namespace Ipop::ManagedNode
-\brief Defines Ipop.ManagedNode provide the ability to set up translation tables via Managed
+\namespace Ipop::Managed
+\brief Defines Ipop.Managed provide the ability to set up translation tables via Managed
 */
-namespace Ipop.ManagedNode {
+namespace Ipop.Managed {
   /// <summary>
   /// This class is a subclass of IpopNode
   /// </summary>

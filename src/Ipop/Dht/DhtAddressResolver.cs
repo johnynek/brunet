@@ -25,7 +25,7 @@ using System.Net;
 using System.Text;
 using System.Collections;
 
-namespace Ipop.DhtNode {
+namespace Ipop.Dht {
   /**
   <summary>This class provides a method to do address resolution over the
   Brunet Dht, where entries are listed in the dht by means of the 

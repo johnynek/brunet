@@ -2,13 +2,14 @@
 <project name="ipop-common" default="build" basedir=".">
   <description> Builds the Ipop dll </description>
   <property name="brunet.dir" value="../brunet" unless="${property::exists('brunet.dir')}" />
-  <property name="lib.dir" value="../../lib"/>
+  <property name="root" value="../../.." />
+  <property name="lib.dir" value="${root}/lib"/>
+  <property name="bin.dir" value="${root}/bin"/>
   <property name="build.dir" value="build" />
-  <property name="bin.dir" value="../../bin"/>
   <target name="clean" description="Remove build directory">
     <delete dir="${build.dir}" failonerror="true"/>
   </target>
-  <target name="build" description="Build GroupVPNService">
+  <target name="build" description="Build DhtIpopNode.exe">
     <mkdir dir="${build.dir}" failonerror="true"/>
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${lib.dir}">
@@ -22,14 +23,14 @@
         <include name="NDesk.Options.dll"/>
       </fileset>
     </copy>
-    <csc target="exe" output="${build.dir}/GroupVPNService.exe" main="WindowsService.WindowsService" optimize="true" unsafe="true">
+    <csc target="exe" output="${build.dir}/DhtIpopNode.exe" main="Ipop.Dht.Runner" optimize="true" unsafe="true">
       <sources failonempty="true">
         <include name="*.cs"/>
-        <include name="../DhtNode/*.cs"/>
-        <include name="../IpopNode/*.cs"/>
+        <include name="../*.cs"/>
         <include name="../Tap/*.cs"/>
-        <include name="../NetworkPackets/*.cs"/>
-        <include name="../../${brunet.dir}/src/BasicNode/*.cs"/>
+        <include name="${root}/src/NetworkPackets/*.cs"/>
+        <include name="${root}/src/NetworkPackets/Dns/*.cs"/>
+        <include name="${root}/${brunet.dir}/src/BasicNode/*.cs"/>
       </sources>
       <references basedir="${build.dir}">
         <include name="Brunet.dll"/>
@@ -42,19 +43,17 @@
         <include name="Mono.Security.dll"/>
         <include name="Brunet.Coordinate.dll"/>
         <include name="NDesk.Options.dll"/>
-        <include name="System.Configuration.Install.dll"/>
-        <include name="System.ServiceProcess.dll"/>
       </references>
       <resources>
-        <include name="../IpopNode/Dhcp.xsd"/>
-        <include name="../IpopNode/Ipop.xsd"/>
-        <include name="../../${brunet.dir}/src/BasicNode/Node.xsd"/>
+        <include name="../Dhcp.xsd"/>
+        <include name="../Ipop.xsd"/>
+        <include name="${root}/${brunet.dir}/src/BasicNode/Node.xsd"/>
       </resources>
     </csc>
     <mkdir dir="${bin.dir}" failonerror="true"/>
     <copy todir="${bin.dir}" failonerror="true">
       <fileset basedir="${build.dir}">
-        <include name="GroupVPNService.exe"/>
+        <include name="DhtIpopNode.exe" />
       </fileset>
     </copy>
   </target>

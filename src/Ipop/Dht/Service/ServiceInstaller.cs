@@ -3,7 +3,7 @@ using System.ComponentModel;
 using System.Configuration.Install;
 using System.ServiceProcess;
 
-namespace WindowsService {
+namespace Ipop.Dht.Service {
   [RunInstaller(true)]
   public class WindowsServiceInstaller : Installer {
     public WindowsServiceInstaller()
@@ -20,8 +20,8 @@ namespace WindowsService {
 
       serviceInstaller.ServiceName = "GroupVPN";
 
-      this.Installers.Add(serviceProcessInstaller);
-      this.Installers.Add(serviceInstaller);
+      Installers.Add(serviceProcessInstaller);
+      Installers.Add(serviceInstaller);
     }
   }
 }

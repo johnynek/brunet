@@ -14,8 +14,6 @@
       </fileset>
     </copy>
 
-    <nant buildfile="src/DhtNode/default.build" />
-    <nant buildfile="src/GroupVPNService/default.build" />
-    <nant buildfile="src/ManagedNode/default.build" />
+    <nant buildfile="src/Ipop/default.build" />
   </target>
 </project>

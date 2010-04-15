@@ -26,7 +26,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
-namespace Ipop.DhtNode {
+namespace Ipop.Dht {
   public class Runner {
     public static DhtIpopNode CurrentNode { get { return _current_node; } }
     protected static DhtIpopNode _current_node;

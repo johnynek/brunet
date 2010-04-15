@@ -23,7 +23,7 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 
-namespace NetworkPackets.DNS {
+namespace NetworkPackets.Dns {
   /**
   <summary>This is for a SOA type Response and would be considered
   a AR and not an RR.</summary>

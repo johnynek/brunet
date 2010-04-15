@@ -1,7 +1,7 @@
 using Brunet;
 using Brunet.Applications;
 using NetworkPackets;
-using NetworkPackets.DNS;
+using NetworkPackets.Dns;
 using System;
 using System.Collections;
 using System.Net;

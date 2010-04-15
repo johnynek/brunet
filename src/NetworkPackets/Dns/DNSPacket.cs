@@ -28,10 +28,10 @@ using NUnit.Framework;
 #endif
 
 /**
-\namespace NetworkPackets::DNS
-\brief Defines DNS Packets.
+\namespace NetworkPackets::nsD
+\brief Defines Dns Packets.
 */
-namespace NetworkPackets.DNS {
+namespace NetworkPackets.Dns {
   /**
   <summary>Supports the parsing of DNS Packets.</summary>
   <remarks><para>This is a very naive implementation and lacks support for

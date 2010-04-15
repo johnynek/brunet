@@ -27,7 +27,7 @@ using System.Net.Sockets;
 using NUnit.Framework;
 #endif
 
-namespace NetworkPackets.DNS {
+namespace NetworkPackets.Dns {
   /**
   <summary>A response type is all the other blocks of data in a DNS packet
   after the question, they can be RR, AR, and NS types based upon the RDATA

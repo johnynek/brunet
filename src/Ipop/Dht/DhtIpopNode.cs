@@ -32,7 +32,7 @@ using System.Threading;
 \namespace Ipop::DhtNode
 \brief Defines DhtIpopNode and the utilities necessary to use Ipop over Dht.
 */
-namespace Ipop.DhtNode {
+namespace Ipop.Dht {
   /// <summary>This class provides an IpopNode that does address and name
   /// resolution using Brunet's Dht.  Multicast is supported.</summary>
   public class DhtIpopNode: IpopNode {
@@ -202,7 +202,7 @@ namespace Ipop.DhtNode {
         bool success = false;
         DHCPConfig dhcp_config = null;
         try {
-          dhcp_config = DhtNode.DhtDHCPServer.GetDHCPConfig(Dht, _ipop_config.IpopNamespace);
+          dhcp_config = DhtDHCPServer.GetDHCPConfig(Dht, _ipop_config.IpopNamespace);
           success = true;
         } catch(Exception e) {
           ProtocolLog.WriteIf(IpopLog.DHCPLog, e.ToString());
@@ -211,7 +211,7 @@ namespace Ipop.DhtNode {
         if(success) {
           lock(_sync) {
             _dhcp_config = dhcp_config;
-            _dhcp_server = new DhtNode.DhtDHCPServer(Dht, _dhcp_config, _ipop_config.EnableMulticast);
+            _dhcp_server = new DhtDHCPServer(Dht, _dhcp_config, _ipop_config.EnableMulticast);
           }
         }
         base.GetDHCPConfig();
@@ -223,7 +223,7 @@ namespace Ipop.DhtNode {
     }
 
     protected override DHCPServer GetDHCPServer() {
-      return new DhtNode.DhtDHCPServer(Dht, _dhcp_config, _ipop_config.EnableMulticast);
+      return new DhtDHCPServer(Dht, _dhcp_config, _ipop_config.EnableMulticast);
     }
   }
 }

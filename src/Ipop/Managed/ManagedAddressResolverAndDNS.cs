@@ -21,7 +21,7 @@ using Brunet;
 using Brunet.Applications;
 using Brunet.DistributedServices;
 using NetworkPackets;
-using NetworkPackets.DNS;
+using NetworkPackets.Dns;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -32,7 +32,7 @@ using System.Net.Sockets;
 using NUnit.Framework;
 #endif
 
-namespace Ipop.ManagedNode {
+namespace Ipop.Managed {
   /// <summary>
   /// This class implements DNS, IAddressResolver, IManagedHandler, and
   /// ITranslator. It provides most functionality needed by ManagedIpopNode.
