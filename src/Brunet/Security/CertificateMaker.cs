@@ -124,7 +124,7 @@ namespace Brunet.Security {
       sb.Append(_signature != null);
       if(_serial_number != null) {
         sb.Append("\nSerialNumber: ");
-        sb.Append(new BigInteger(_serial_number));
+        sb.Append(new Brunet.Util.BigInteger(_serial_number));
       }
       if(_node_address != null) {
         sb.Append("\nNodeAddress: ");

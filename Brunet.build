@@ -14,6 +14,7 @@
     <nant buildfile="src/Brunet/Services/XmlRpc/default.build" />
     <nant buildfile="src/Brunet/Security/default.build" />
     <nant buildfile="src/Brunet/Applications/default.build" />
+    <nant buildfile="src/Brunet/Messaging/Mock/default.build" />
     <nant buildfile="tests/protocol/default.build" />
   </target>
 
@@ -43,6 +44,7 @@
     <nant buildfile="src/Brunet/Services/Dht/default.build" />
     <nant buildfile="src/Brunet/Services/Coordinate/default.build" />
     <nant buildfile="src/Brunet/Services/XmlRpc/default.build" />
+    <nant buildfile="src/Brunet/Security/default.build" />
     <nant buildfile="src/Brunet/Simulator/default.build" />
     <nant buildfile="src/Brunet/Graph/default.build" />
   </target>
@@ -52,11 +54,13 @@
     <nant buildfile="src/Brunet/Services/Dht/default.build" />
     <nant buildfile="src/Brunet/Services/Coordinate/default.build" />
     <nant buildfile="src/Brunet/Services/XmlRpc/default.build" />
+    <nant buildfile="src/Brunet/Security/default.build" />
     <nant target="test" buildfile="src/Brunet/Simulator/default.build" />
 
     <nant buildfile="src/Brunet/default.build" />
     <nant target="test" buildfile="src/Brunet/Services/Dht/default.build" />
     <nant target="test" buildfile="src/Brunet/Services/Coordinate/default.build" />
     <nant target="nunit_test" buildfile="src/Brunet/default.build" />
+    <nant target="test" buildfile="src/Brunet/Security/default.build" />
   </target>
 </project>

@@ -30,7 +30,7 @@ using System.IO;
 using System.Security.Cryptography;
 
 #if BRUNET_NUNIT
-using Brunet.Mock;
+using Brunet.Messaging.Mock;
 using NUnit.Framework;
 using System.Threading;
 #endif
@@ -772,7 +772,8 @@ namespace Brunet.Security {
       if(level == 3 || level == 0) {
         ch.AddSignedCertificate(x509);
       }
-      ReqrepManager rrm = new ReqrepManager("so" + name);
+      Random rand = new Random();
+      ReqrepManager rrm = new ReqrepManager("so" + name + rand.Next());
       _timeout += rrm.TimeoutChecker;
       SecurityOverlord so = new SecurityOverlord(rsa_safe, rrm, ch);
       so.AnnounceSA += AnnounceSA;

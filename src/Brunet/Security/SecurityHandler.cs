@@ -242,7 +242,7 @@ namespace Brunet.Security {
       rng.GetBytes(data);
       SecurityDataMessage sdm = new SecurityDataMessage();
       sdm.SPI = 5;
-      sdm.Data = MemBlock.Reference(data);
+      sdm.Data = Brunet.Util.MemBlock.Reference(data);
       sh.SignAndEncrypt(sdm);
       SecurityDataMessage sdm_d = new SecurityDataMessage(sdm.Packet);
       sh.DecryptAndVerify(sdm_d);

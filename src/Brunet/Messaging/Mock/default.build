@@ -2,8 +2,9 @@
 <project name="Brunet.Mock" default="build">
   <description> Builds Brunet.Mock.dll </description>
   <property name="build.dir" value="build"/>
-  <property name="lib.dir" value="../../lib"/>
-  <property name="bin.dir" value="../../bin"/>
+  <property name="root" value="../../../.." />
+  <property name="lib.dir" value="${root}/lib"/>
+  <property name="bin.dir" value="${root}/bin"/>
 
   <target name="test" description="Configures a nunit testable build">
     <copy todir="${build.dir}">

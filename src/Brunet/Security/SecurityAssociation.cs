@@ -29,7 +29,7 @@ using System.Security.Cryptography;
 using System.Threading;
 
 #if BRUNET_NUNIT
-using Brunet.Mock;
+using Brunet.Messaging.Mock;
 using NUnit.Framework;
 #endif
 

@@ -23,6 +23,8 @@ THE SOFTWARE.
 */
 
 using Brunet;
+using Brunet.Concurrent;
+using Brunet.Util;
 using System;
 
 #if BRUNET_NUNIT
