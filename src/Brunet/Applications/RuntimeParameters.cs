@@ -23,16 +23,19 @@ using System.Collections.Generic;
 
 namespace Brunet.Applications {
   public class RuntimeParameters {
+    public const string NODE_XSD = "Node.xsd";
     public readonly string AppName;
     public readonly string AppDescription;
+    public readonly ConfigurationValidator Validator;
 
     public NodeConfig NodeConfig { get { return _node_config; } }
     public bool Help { get { return _help; } }
     public string ErrorMessage { get { return _error_message; } }
     public OptionSet Options { get { return _options; } }
 
+
     protected NodeConfig _node_config;
-    protected string _node_config_path;
+    protected string _node_config_path = string.Empty;
     protected bool _help = false;
     protected string _error_message = string.Empty;
     protected OptionSet _options;
@@ -41,6 +44,7 @@ namespace Brunet.Applications {
     {
       AppName = app_name;
       AppDescription = app_description;
+      Validator = new ConfigurationValidator();
 
       _options = new OptionSet() {
         { "n|NodeConfig=", "Path to a NodeConfig file.",
@@ -59,10 +63,18 @@ namespace Brunet.Applications {
         return -1;
       }
 
+      if(_node_config_path == string.Empty || !System.IO.File.Exists(_node_config_path)) {
+        _error_message = "Missing NodeConfig";
+        return -1;
+      }
+
       try {
-        _node_config = NodeConfig.ReadConfig(_node_config_path);
+        Validator.Validate(_node_config_path, NODE_XSD);
+        _node_config = Utils.ReadConfig<NodeConfig>(_node_config_path);
+        _node_config.Path = _node_config_path;
       } catch (Exception e) {
         _error_message = "Invalid NodeConfig file: " + e.Message;
+        Console.WriteLine(e);
         return -1;
       }
 

@@ -31,7 +31,7 @@ namespace Brunet.Applications {
     public readonly ProtocolSecurityOverlord SecurityOverlord;
 
     public ApplicationNode(StructuredNode node, IDht dht, RpcDhtProxy dht_proxy,
-        NCService ncservice ,ProtocolSecurityOverlord security_overlord)
+        NCService ncservice, ProtocolSecurityOverlord security_overlord)
     {
       Node = node;
       Dht = dht;
