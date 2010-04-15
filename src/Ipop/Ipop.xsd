@@ -12,7 +12,7 @@
       <xs:element ref="DHCPPort" minOccurs="0" />
       <xs:element name="AllowStaticAddresses" type="xs:boolean" minOccurs="0" />
       <xs:element ref="GroupVPN" minOccurs="0" />
-      <xs:element ref="DNS" minOccurs="0" />
+      <xs:element ref="Dns" minOccurs="0" />
     </xs:all>
   </xs:complexType>
 </xs:element>
@@ -28,14 +28,14 @@
   </xs:complexType>
 </xs:element>
 
-<xs:element name="DNS">
+<xs:element name="Dns">
   <xs:complexType>
     <xs:all>
       <xs:element name="Type" minOccurs="0">
         <xs:simpleType>
           <xs:restriction base="xs:string">
-            <xs:enumeration value="StaticDNS"/>
-            <xs:enumeration value="DhtDNS"/>
+            <xs:enumeration value="StaticDns"/>
+            <xs:enumeration value="DhtDns"/>
           </xs:restriction>
         </xs:simpleType>
       </xs:element>
