@@ -32,24 +32,24 @@ namespace NetworkPackets.Dns {
   RDATA</para>
   <code>
   +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-  /                     MNAME                     /
+  /                     MName                     /
   /                                               /
   +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-  /                     RNAME                     /
+  /                     RName                     /
   +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-  |                    SERIAL                     |
+  |                    Serial                     |
   |                                               |
   +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-  |                    REFRESH                    |
+  |                    Refresh                    |
   |                                               |
   +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-  |                     RETRY                     |
+  |                     Retry                     |
   |                                               |
   +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-  |                    EXPIRE                     |
+  |                    Expire                     |
   |                                               |
   +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-  |                    MINIMUM                    |
+  |                    Minimum                    |
   |                                               |
   +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
   </code>
@@ -57,19 +57,19 @@ namespace NetworkPackets.Dns {
   */
   public class ZoneAuthority: DataPacket {
     /// <summary>Incomplete</summary>
-    public readonly string MNAME;
+    public readonly string MName;
     /// <summary>Incomplete</summary>
-    public readonly string RNAME;
+    public readonly string RName;
     /// <summary>Incomplete</summary>
-    public readonly int SERIAL;
+    public readonly int Serial;
     /// <summary>Incomplete</summary>
-    public readonly int REFRESH;
+    public readonly int Refresh;
     /// <summary>Incomplete</summary>
-    public readonly int RETRY;
+    public readonly int Retry;
     /// <summary>Incomplete</summary>
-    public readonly int EXPIRE;
+    public readonly int Expire;
     /// <summary>Incomplete</summary>
-    public readonly int MINIMUM;
+    public readonly int Minimum;
 
     /**
     <summary>Constructor when creating a ZoneAuthority from a MemBlock, this
@@ -77,39 +77,39 @@ namespace NetworkPackets.Dns {
     */
     public ZoneAuthority(MemBlock data) {
       int idx = 0;
-      MNAME = String.Empty;
+      MName = String.Empty;
       while(data[idx] != 0) {
         byte length = data[idx++];
         for(int i = 0; i < length; i++) {
-          MNAME += (char) data[idx++];
+          MName += (char) data[idx++];
         }
         if(data[idx] != 0) {
-          MNAME  += ".";
+          MName  += ".";
         }
       }
       idx++;
 
-      RNAME = String.Empty;
+      RName = String.Empty;
       while(data[idx] != 0) {
         byte length = data[idx++];
         for(int i = 0; i < length; i++) {
-          RNAME += (char) data[idx++];
+          RName += (char) data[idx++];
         }
         if(data[idx] != 0) {
-          RNAME  += ".";
+          RName  += ".";
         }
       }
       idx++;
 
-      SERIAL = (data[idx++] << 24) + (data[idx++] << 16) +
+      Serial = (data[idx++] << 24) + (data[idx++] << 16) +
           (data[idx++] << 8) + data[idx++] << 24;
-      REFRESH = (data[idx++] << 24) + (data[idx++] << 16) +
+      Refresh = (data[idx++] << 24) + (data[idx++] << 16) +
           (data[idx++] << 8) + data[idx++] << 24;
-      RETRY = (data[idx++] << 24) + (data[idx++] << 16) +
+      Retry = (data[idx++] << 24) + (data[idx++] << 16) +
           (data[idx++] << 8) + data[idx++] << 24;
-      EXPIRE = (data[idx++] << 24) + (data[idx++] << 16) +
+      Expire = (data[idx++] << 24) + (data[idx++] << 16) +
           (data[idx++] << 8) + data[idx++] << 24;
-      MINIMUM = (data[idx++] << 24) + (data[idx++] << 16) +
+      Minimum = (data[idx++] << 24) + (data[idx++] << 16) +
           (data[idx++] << 8) + data[idx++] << 24;
       _icpacket = _packet = data.Slice(0, idx);
     }
@@ -118,40 +118,40 @@ namespace NetworkPackets.Dns {
     <summary>Creates a Zone authority from field data in the parameters,
     this is incomplete.</summary>
     */
-    public ZoneAuthority(string MNAME, string RNAME, int SERIAL,
-                          int REFRESH, int RETRY, int EXPIRE, int MINIMUM) {
-      this.MNAME = MNAME;
-      this.RNAME = RNAME;
-      this.SERIAL = SERIAL;
-      this.REFRESH = REFRESH;
-      this.RETRY = RETRY;
-      this.EXPIRE = EXPIRE;
-      this.MINIMUM = MINIMUM;
+    public ZoneAuthority(string MName, string RName, int Serial,
+                          int Refresh, int Retry, int Expire, int Minimum) {
+      this.MName = MName;
+      this.RName = RName;
+      this.Serial = Serial;
+      this.Refresh = Refresh;
+      this.Retry = Retry;
+      this.Expire = Expire;
+      this.Minimum = Minimum;
 
- //     MemBlock mname = DNSPacket.NameStringToBytes(MNAME, DNSPacket.TYPES.A);
-//      MemBlock rname = DNSPacket.NameStringToBytes(RNAME, DNSPacket.TYPES.A);
+ //     MemBlock mname = DnsPacket.NameStringToBytes(MName, DnsPacket.TYPES.A);
+//      MemBlock rname = DnsPacket.NameStringToBytes(RName, DnsPacket.TYPES.A);
       byte[] rest = new byte[20];
       int idx = 0;
-      rest[idx++] = (byte) ((SERIAL >> 24) & 0xFF);
-      rest[idx++] = (byte) ((SERIAL >> 16) & 0xFF);
-      rest[idx++] = (byte) ((SERIAL >> 8) & 0xFF);
-      rest[idx++] = (byte) (SERIAL  & 0xFF);
-      rest[idx++] = (byte) ((REFRESH >> 24) & 0xFF);
-      rest[idx++] = (byte) ((REFRESH >> 16) & 0xFF);
-      rest[idx++] = (byte) ((REFRESH >> 8) & 0xFF);
-      rest[idx++] = (byte) (REFRESH  & 0xFF);
-      rest[idx++] = (byte) ((RETRY >> 24) & 0xFF);
-      rest[idx++] = (byte) ((RETRY >> 16) & 0xFF);
-      rest[idx++] = (byte) ((RETRY >> 8) & 0xFF);
-      rest[idx++] = (byte) (RETRY  & 0xFF);
-      rest[idx++] = (byte) ((EXPIRE >> 24) & 0xFF);
-      rest[idx++] = (byte) ((EXPIRE >> 16) & 0xFF);
-      rest[idx++] = (byte) ((EXPIRE >> 8) & 0xFF);
-      rest[idx++] = (byte) (EXPIRE  & 0xFF);
-      rest[idx++] = (byte) ((MINIMUM >> 24) & 0xFF);
-      rest[idx++] = (byte) ((MINIMUM >> 16) & 0xFF);
-      rest[idx++] = (byte) ((MINIMUM >> 8) & 0xFF);
-      rest[idx++] = (byte) (MINIMUM  & 0xFF);
+      rest[idx++] = (byte) ((Serial >> 24) & 0xFF);
+      rest[idx++] = (byte) ((Serial >> 16) & 0xFF);
+      rest[idx++] = (byte) ((Serial >> 8) & 0xFF);
+      rest[idx++] = (byte) (Serial  & 0xFF);
+      rest[idx++] = (byte) ((Refresh >> 24) & 0xFF);
+      rest[idx++] = (byte) ((Refresh >> 16) & 0xFF);
+      rest[idx++] = (byte) ((Refresh >> 8) & 0xFF);
+      rest[idx++] = (byte) (Refresh  & 0xFF);
+      rest[idx++] = (byte) ((Retry >> 24) & 0xFF);
+      rest[idx++] = (byte) ((Retry >> 16) & 0xFF);
+      rest[idx++] = (byte) ((Retry >> 8) & 0xFF);
+      rest[idx++] = (byte) (Retry  & 0xFF);
+      rest[idx++] = (byte) ((Expire >> 24) & 0xFF);
+      rest[idx++] = (byte) ((Expire >> 16) & 0xFF);
+      rest[idx++] = (byte) ((Expire >> 8) & 0xFF);
+      rest[idx++] = (byte) (Expire  & 0xFF);
+      rest[idx++] = (byte) ((Minimum >> 24) & 0xFF);
+      rest[idx++] = (byte) ((Minimum >> 16) & 0xFF);
+      rest[idx++] = (byte) ((Minimum >> 8) & 0xFF);
+      rest[idx++] = (byte) (Minimum  & 0xFF);
   //    _icpacket = new CopyList(mname, rname, MemBlock.Reference(rest));
     }
 

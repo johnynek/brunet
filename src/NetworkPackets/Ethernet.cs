@@ -47,8 +47,8 @@ namespace NetworkPackets {
     public enum Types {
       /// <summary>Payload is an IP Packet</summary>
       IP = 0x800,
-      /// <summary>Payload is an ARP Packet</summary>
-      ARP = 0x806
+      /// <summary>Payload is an Arp Packet</summary>
+      Arp = 0x806
     }
 
     /// <summary>The type for the Ethernet payload</summary>

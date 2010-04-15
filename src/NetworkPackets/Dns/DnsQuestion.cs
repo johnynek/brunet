@@ -29,7 +29,7 @@ using NUnit.Framework;
 
 namespace NetworkPackets.Dns {
   /**
-  <summary>Represents a DNS Question</summary>
+  <summary>Represents a Dns Question</summary>
   <remarks><para>Sadly the size of these can only be determined by parsing
   the entire packet.</para>
   <para>It looks like this:</para>
@@ -38,12 +38,12 @@ namespace NetworkPackets.Dns {
     0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
   +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
   |                                               |
-  /                     QNAME                     /
+  /                     QName                     /
   /                                               /
   +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-  |                     QTYPE                     |
+  |                     QType                     |
   +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-  |                     QCLASS                    |
+  |                     QClass                    |
   +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
   </code></remarks>
   */
@@ -51,71 +51,71 @@ namespace NetworkPackets.Dns {
     /// <summary>What type of qname do we have ptr or name</summary>
     public enum Types {
       /// <summary>a pointer / ip address</summary>
-      IP_ADDR,
+      IpAddr,
       /// <summary>name</summary>
-      CHAR_ARRAY
+      CharArray
     };
     /// <summary>string representation of the qname</summary>
-    public readonly String QNAME;
+    public readonly String QName;
     /// <summary>the blob format for the qname</summary>
-    public readonly MemBlock QNAME_BLOB;
+    public readonly MemBlock QNameBlob;
     /// <summary>the query type</summary>
-    public readonly DNSPacket.TYPES QTYPE;
+    public readonly DnsPacket.Types QType;
     /// <summary>the network class</summary>
-    public readonly DNSPacket.CLASSES QCLASS;
+    public readonly DnsPacket.Classes QClass;
 
     /**
-    <summary>Constructor when creating a DNS Query</summary>
-    <param name="QNAME">the name of resource you are looking up, IP Address 
-    when QTYPE = PTR otherwise hostname</param>
-    <param name="QTYPE"> the type of look up to perform</param>
-    <param name="QCLASS">should always be IN</param>
+    <summary>Constructor when creating a Dns Query</summary>
+    <param name="QName">the name of resource you are looking up, IP Address 
+    when QType = Ptr otherwise hostname</param>
+    <param name="QType"> the type of look up to perform</param>
+    <param name="QClass">should always be IN</param>
     */
-    public Question(String QNAME, DNSPacket.TYPES QTYPE, DNSPacket.CLASSES QCLASS) {
-      this.QNAME = QNAME;
-      this.QTYPE = QTYPE;
-      this.QCLASS = QCLASS;
+    public Question(String QName, DnsPacket.Types QType, DnsPacket.Classes QClass) {
+      this.QName = QName;
+      this.QType = QType;
+      this.QClass = QClass;
 
-      if(QTYPE == DNSPacket.TYPES.A) {
-        QNAME_BLOB = DNSPacket.HostnameStringToMemBlock(QNAME);
+      if(QType == DnsPacket.Types.A) {
+        QNameBlob = DnsPacket.HostnameStringToMemBlock(QName);
       }
-      else if(QTYPE == DNSPacket.TYPES.PTR) {
-        QNAME_BLOB = DNSPacket.PtrStringToMemBlock(QNAME);
+      else if(QType == DnsPacket.Types.Ptr) {
+        QNameBlob = DnsPacket.PtrStringToMemBlock(QName);
       }
       else {
-        throw new Exception("Invalid QTYPE: " + QTYPE + "!");
+        throw new Exception("Invalid QType: " + QType + "!");
       }
 
-        // 2 for QTYPE + 2 for QCLASS
+        // 2 for QType + 2 for QClass
       byte[] data = new byte[4];
       int idx = 0;
-      data[idx++] = (byte) ((((int) QTYPE) >> 8) & 0xFF);
-      data[idx++] = (byte) (((int) QTYPE) & 0xFF);
-      data[idx++] = (byte) ((((int) QCLASS) >> 8) & 0xFF);
-      data[idx++] = (byte) (((int) QCLASS) & 0xFF);
-      _icpacket = new CopyList(QNAME_BLOB, MemBlock.Reference(data));
+      data[idx++] = (byte) ((((int) QType) >> 8) & 0xFF);
+      data[idx++] = (byte) (((int) QType) & 0xFF);
+      data[idx++] = (byte) ((((int) QClass) >> 8) & 0xFF);
+      data[idx++] = (byte) (((int) QClass) & 0xFF);
+      _icpacket = new CopyList(QNameBlob, MemBlock.Reference(data));
     }
 
     /**
-    <summary>Constructor when parsing a DNS Query</summary>
+    <summary>Constructor when parsing a Dns Query</summary>
     <param name="Data"> must pass in the entire packet from where the question
     begins, after parsing, can check Data.Length to find where next
     container begins.</param>
     */
     public Question(MemBlock Data, int Start) {
       int idx = 0;
-      QNAME_BLOB = DNSPacket.RetrieveBlob(Data, Start, out idx);
+      QNameBlob = DnsPacket.RetrieveBlob(Data, Start, out idx);
       int qtype = (Data[idx++] << 8) + Data[idx++];
-      QTYPE = (DNSPacket.TYPES) qtype;
+      QType = (DnsPacket.Types) qtype;
 
       int qclass = (Data[idx++] << 8) + Data[idx];
-      QCLASS = (DNSPacket.CLASSES) qclass;
+      QClass = (DnsPacket.Classes) qclass;
 
-      if(QTYPE == DNSPacket.TYPES.A) {
-        QNAME = DNSPacket.HostnameMemBlockToString(QNAME_BLOB);
+      if(QType == DnsPacket.Types.A) {
+        QName = DnsPacket.HostnameMemBlockToString(QNameBlob);
       }
-      else if(QTYPE == DNSPacket.TYPES.PTR) {
-        QNAME = DNSPacket.PtrMemBlockToString(QNAME_BLOB);
+      else if(QType == DnsPacket.Types.Ptr) {
+        QName = DnsPacket.PtrMemBlockToString(QNameBlob);
       }
 
       _icpacket = _packet = Data.Slice(Start, idx + 1 - Start);
@@ -124,12 +124,12 @@ namespace NetworkPackets.Dns {
 
 #if NUNIT
   [TestFixture]
-  public class DNSQuestionTest {
+  public class DnsQuestionTest {
     [Test]
-    public void DNSPtrTest() {
+    public void DnsPtrTest() {
       String NAME = "64.233.169.104";
-      DNSPacket.TYPES TYPE = DNSPacket.TYPES.PTR;
-      DNSPacket.CLASSES CLASS = DNSPacket.CLASSES.IN;
+      DnsPacket.Types TYPE = DnsPacket.Types.Ptr;
+      DnsPacket.Classes CLASS = DnsPacket.Classes.IN;
       Question qp = new Question(NAME, TYPE, CLASS);
 
       MemBlock ptrm = MemBlock.Reference(new byte[] {0x03, 0x31, 0x30, 0x34,
@@ -139,17 +139,17 @@ namespace NetworkPackets.Dns {
       Question qm = new Question(ptrm, 0);
 
       Assert.AreEqual(qp.Packet, ptrm, "Packet");
-      Assert.AreEqual(qm.QNAME, NAME, "NAME");
-      Assert.AreEqual(qm.QTYPE, TYPE, "TYPE");
-      Assert.AreEqual(qm.QCLASS, CLASS, "CLASS");
+      Assert.AreEqual(qm.QName, NAME, "NAME");
+      Assert.AreEqual(qm.QType, TYPE, "TYPE");
+      Assert.AreEqual(qm.QClass, CLASS, "CLASS");
     }
 
 
     [Test]
-    public void DNSATest() {
+    public void DnsATest() {
       String NAME = "www.cnn.com";
-      DNSPacket.TYPES TYPE = DNSPacket.TYPES.A;
-      DNSPacket.CLASSES CLASS = DNSPacket.CLASSES.IN;
+      DnsPacket.Types TYPE = DnsPacket.Types.A;
+      DnsPacket.Classes CLASS = DnsPacket.Classes.IN;
       Question qp = new Question(NAME, TYPE, CLASS);
 
       MemBlock namem = MemBlock.Reference(new byte[] {0x03, 0x77, 0x77, 0x77,
@@ -158,9 +158,9 @@ namespace NetworkPackets.Dns {
       Question qm = new Question(namem, 0);
 
       Assert.AreEqual(qp.Packet, namem, "Packet");
-      Assert.AreEqual(qm.QNAME, NAME, "NAME");
-      Assert.AreEqual(qm.QTYPE, TYPE, "TYPE");
-      Assert.AreEqual(qm.QCLASS, CLASS, "CLASS");
+      Assert.AreEqual(qm.QName, NAME, "NAME");
+      Assert.AreEqual(qm.QType, TYPE, "TYPE");
+      Assert.AreEqual(qm.QClass, CLASS, "CLASS");
     }
   }
 #endif

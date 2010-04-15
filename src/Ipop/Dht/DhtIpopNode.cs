@@ -80,14 +80,14 @@ namespace Ipop.Dht {
       }
 
       WaitCallback callback = delegate(object o) {
-        // Get a new DHCP server so we get new state!
-        DHCPServer dhcp_server = GetDHCPServer();
+        // Get a new Dhcp server so we get new state!
+        DhcpServer dhcp_server = GetDhcpServer();
         foreach(MemBlock ip in ips) {
           try {
             dhcp_server.RequestLease(ip, true, Brunet.Address.ToString(),
                 _ipop_config.AddressData.Hostname);
           } catch(Exception e) {
-            ProtocolLog.WriteIf(IpopLog.DHCPLog, e.Message);
+            ProtocolLog.WriteIf(IpopLog.DhcpLog, e.Message);
           }
         }
       };
@@ -103,45 +103,45 @@ namespace Ipop.Dht {
       }
 
       // Easiest approach is to simply update the mapping...
-      DHCPServer dhcp_server = GetDHCPServer();
+      DhcpServer dhcp_server = GetDhcpServer();
       try {
         dhcp_server.RequestLease(ip, true, Brunet.Address.ToString(),
             _ipop_config.AddressData.Hostname);
       } catch(Exception e) {
-        ProtocolLog.WriteIf(IpopLog.DHCPLog, e.Message);
+        ProtocolLog.WriteIf(IpopLog.DhcpLog, e.Message);
       }
 
       return true;
     }
 
-    protected override bool SupportedDNS(string dns) {
-      if("DhtDNS".Equals(dns)) {
+    protected override bool SupportedDns(string dns) {
+      if("DhtDns".Equals(dns)) {
         return true;
       }
 
-      return base.SupportedDNS(dns);
+      return base.SupportedDns(dns);
     }
 
-    protected override void SetDNS() {
+    protected override void SetDns() {
       if(_dns != null) {
         return;
       }
 
-      if("DhtDNS".Equals(_ipop_config.DNS.Type)) {
-        _dns = new DhtDNS(
+      if("DhtDns".Equals(_ipop_config.Dns.Type)) {
+        _dns = new DhtDns(
             MemBlock.Reference(Utils.StringToBytes(_dhcp_config.IPBase, '.')),
             MemBlock.Reference(Utils.StringToBytes(_dhcp_config.Netmask, '.')),
-            _ipop_config.DNS.NameServer, _ipop_config.DNS.ForwardQueries,
+            _ipop_config.Dns.NameServer, _ipop_config.Dns.ForwardQueries,
             Dht, _ipop_config.IpopNamespace);
       } else {
-        base.SetDNS();
+        base.SetDns();
       }
     }
 
-    /// <summary>This calls a DNS Lookup using ThreadPool.</summary>
-    /// <param name="ipp">The IP Packet containing the DNS query.</param>
+    /// <summary>This calls a Dns Lookup using ThreadPool.</summary>
+    /// <param name="ipp">The IP Packet containing the Dns query.</param>
     /// <returns>Returns true since this is implemented.</returns>
-    protected override bool HandleDNS(IPPacket ipp) {
+    protected override bool HandleDns(IPPacket ipp) {
       WaitCallback wcb = delegate(object o) {
         try {
           WriteIP(_dns.LookUp(ipp).ICPacket);
@@ -193,7 +193,7 @@ namespace Ipop.Dht {
 
     /// <summary>We need to get the DHCPConfig as soon as possible so that we
     /// can allocate static addresses, this method helps us do that.</summary>
-    protected override void GetDHCPConfig() {
+    protected override void GetDhcpConfig() {
       if(Interlocked.Exchange(ref _lock, 1) == 1) {
         return;
       }
@@ -202,19 +202,19 @@ namespace Ipop.Dht {
         bool success = false;
         DHCPConfig dhcp_config = null;
         try {
-          dhcp_config = DhtDHCPServer.GetDHCPConfig(Dht, _ipop_config.IpopNamespace);
+          dhcp_config = DhtDhcpServer.GetDhcpConfig(Dht, _ipop_config.IpopNamespace);
           success = true;
         } catch(Exception e) {
-          ProtocolLog.WriteIf(IpopLog.DHCPLog, e.ToString());
+          ProtocolLog.WriteIf(IpopLog.DhcpLog, e.ToString());
         }
 
         if(success) {
           lock(_sync) {
             _dhcp_config = dhcp_config;
-            _dhcp_server = new DhtDHCPServer(Dht, _dhcp_config, _ipop_config.EnableMulticast);
+            _dhcp_server = new DhtDhcpServer(Dht, _dhcp_config, _ipop_config.EnableMulticast);
           }
         }
-        base.GetDHCPConfig();
+        base.GetDhcpConfig();
 
         Interlocked.Exchange(ref _lock, 0);
       };
@@ -222,8 +222,8 @@ namespace Ipop.Dht {
       ThreadPool.QueueUserWorkItem(wcb);
     }
 
-    protected override DHCPServer GetDHCPServer() {
-      return new DhtDHCPServer(Dht, _dhcp_config, _ipop_config.EnableMulticast);
+    protected override DhcpServer GetDhcpServer() {
+      return new DhtDhcpServer(Dht, _dhcp_config, _ipop_config.EnableMulticast);
     }
   }
 }

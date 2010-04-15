@@ -10,14 +10,14 @@ using NUnit.Framework;
 
 namespace Ipop {
   /// <summary>Provides a static mapping for all nodes, just so that they can
-  /// have a unique DNS name as required by classical applications such as
+  /// have a unique Dns name as required by classical applications such as
   /// Condor.  They will be of the format C111222333.ipop, where the ip address
   /// is 000.111.222.333.</summary>
   /// <remarks>An IP Address of 11.22.33.44 would translate into C022033044.ipop,
   /// the extra "0"s are necessary and keep all names at a constant length of 15
   /// (including the domain name .ipop).</remarks>
-  public class StaticDNS : DNS {
-    public StaticDNS(MemBlock ip_address, MemBlock netmask, string name_server,
+  public class StaticDns : Dns {
+    public StaticDns(MemBlock ip_address, MemBlock netmask, string name_server,
         bool forward_queries) : 
       base(ip_address, netmask, name_server, forward_queries)
     {
@@ -75,10 +75,10 @@ namespace Ipop {
 
 #if NUNIT
   [TestFixture]
-  public class StaticDNSTest {
+  public class StaticDnsTest {
     [Test]
     public void Test() {
-      StaticDNS dns = new StaticDNS(
+      StaticDns dns = new StaticDns(
           MemBlock.Reference(Utils.StringToBytes("10.250.0.0", '.')),
           MemBlock.Reference(Utils.StringToBytes("255.255.0.0", '.')),
           string.Empty, false);
@@ -99,7 +99,7 @@ namespace Ipop {
         Assert.AreEqual(dns.AddressLookUp("C250001001.blah"), null, "AddressLookUp Dns set bad dns name: blah.");
       } catch { }
 
-      dns = new StaticDNS(
+      dns = new StaticDns(
           MemBlock.Reference(Utils.StringToBytes("10.251.0.0", '.')),
           MemBlock.Reference(Utils.StringToBytes("255.255.0.0", '.')),
           string.Empty, false);
@@ -113,7 +113,7 @@ namespace Ipop {
 
     [Test]
     public void SmallMaskTest() {
-      StaticDNS dns = new StaticDNS(
+      StaticDns dns = new StaticDns(
           MemBlock.Reference(Utils.StringToBytes("10.1.2.0", '.')),
           MemBlock.Reference(Utils.StringToBytes("255.255.255.0", '.')),
           string.Empty, false);

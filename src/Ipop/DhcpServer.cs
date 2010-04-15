@@ -19,7 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using Brunet;
 using Brunet.Applications;
 using NetworkPackets;
-using NetworkPackets.DHCP;
+using NetworkPackets.Dhcp;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -31,7 +31,7 @@ using NUnit.Framework;
 #endif
 
 namespace Ipop {
-  public abstract class DHCPServer {
+  public abstract class DhcpServer {
     /// <summary>The Server's IP Address</summary>
     public readonly byte[] ServerIP;
     /// <summary>The broadcast address for the network.</summary>
@@ -55,7 +55,7 @@ namespace Ipop {
     protected MemBlock _mtu;
 
     /// <summary></summary>
-    public DHCPServer(DHCPConfig config) {
+    public DhcpServer(DHCPConfig config) {
       Config = config;
       Netmask = Utils.StringToBytes(config.Netmask, '.');
       BaseIP = Utils.StringToBytes(config.IPBase, '.');
@@ -109,44 +109,44 @@ namespace Ipop {
     }
 
     /// <summary></summary>
-    public DHCPPacket ProcessPacket(DHCPPacket packet, string unique_id,
+    public DhcpPacket ProcessPacket(DhcpPacket packet, string unique_id,
         byte[] last_ip, params object[] dhcp_params)
     {
-      DHCPPacket.MessageTypes message_type = (DHCPPacket.MessageTypes)
-                                  packet.Options[DHCPPacket.OptionTypes.MESSAGE_TYPE][0];
+      DhcpPacket.MessageTypes message_type = (DhcpPacket.MessageTypes)
+                                  packet.Options[DhcpPacket.OptionTypes.MESSAGE_TYPE][0];
 
       byte[] requested_ip = last_ip;
       bool renew = false;
 
-      if(message_type == DHCPPacket.MessageTypes.DISCOVER) {
-        message_type = DHCPPacket.MessageTypes.OFFER;
-      } else if(message_type == DHCPPacket.MessageTypes.REQUEST) {
-        if(packet.Options.ContainsKey(DHCPPacket.OptionTypes.REQUESTED_IP)) {
-          requested_ip = packet.Options[DHCPPacket.OptionTypes.REQUESTED_IP];
+      if(message_type == DhcpPacket.MessageTypes.DISCOVER) {
+        message_type = DhcpPacket.MessageTypes.OFFER;
+      } else if(message_type == DhcpPacket.MessageTypes.REQUEST) {
+        if(packet.Options.ContainsKey(DhcpPacket.OptionTypes.REQUESTED_IP)) {
+          requested_ip = packet.Options[DhcpPacket.OptionTypes.REQUESTED_IP];
         } else if(!packet.ciaddr.Equals(IPPacket.ZeroAddress)) {
           requested_ip = packet.ciaddr;
         }
         renew = true;
-        message_type = DHCPPacket.MessageTypes.ACK;
+        message_type = DhcpPacket.MessageTypes.ACK;
       } else {
         throw new Exception("Unsupported message type!");
       }
 
       byte[] reply_ip = RequestLease(requested_ip, renew, unique_id, dhcp_params);
 
-      Dictionary<DHCPPacket.OptionTypes, MemBlock> options =
-        new Dictionary<DHCPPacket.OptionTypes, MemBlock>();
+      Dictionary<DhcpPacket.OptionTypes, MemBlock> options =
+        new Dictionary<DhcpPacket.OptionTypes, MemBlock>();
 
-      options[DHCPPacket.OptionTypes.DOMAIN_NAME] = Encoding.UTF8.GetBytes(DNS.DomainName);
+      options[DhcpPacket.OptionTypes.DOMAIN_NAME] = Encoding.UTF8.GetBytes(Dns.DomainName);
 //  The following option is needed for dhcp to "succeed" in Vista, but they break Linux
-//    options[DHCPPacket.OptionTypes.ROUTER] = reply.ip;
-      options[DHCPPacket.OptionTypes.DOMAIN_NAME_SERVER] = MemBlock.Reference(ServerIP);
-      options[DHCPPacket.OptionTypes.SUBNET_MASK] = MemBlock.Reference(Netmask);
-      options[DHCPPacket.OptionTypes.LEASE_TIME] = _lease_time;
-      options[DHCPPacket.OptionTypes.MTU] = _mtu;
-      options[DHCPPacket.OptionTypes.SERVER_ID] = MemBlock.Reference(ServerIP);
-      options[DHCPPacket.OptionTypes.MESSAGE_TYPE] = MemBlock.Reference(new byte[]{(byte) message_type});
-      DHCPPacket rpacket = new DHCPPacket(2, packet.xid, packet.ciaddr, reply_ip,
+//    options[DhcpPacket.OptionTypes.ROUTER] = reply.ip;
+      options[DhcpPacket.OptionTypes.DOMAIN_NAME_SERVER] = MemBlock.Reference(ServerIP);
+      options[DhcpPacket.OptionTypes.SUBNET_MASK] = MemBlock.Reference(Netmask);
+      options[DhcpPacket.OptionTypes.LEASE_TIME] = _lease_time;
+      options[DhcpPacket.OptionTypes.MTU] = _mtu;
+      options[DhcpPacket.OptionTypes.SERVER_ID] = MemBlock.Reference(ServerIP);
+      options[DhcpPacket.OptionTypes.MESSAGE_TYPE] = MemBlock.Reference(new byte[]{(byte) message_type});
+      DhcpPacket rpacket = new DhcpPacket(2, packet.xid, packet.ciaddr, reply_ip,
                                ServerIP, packet.chaddr, options);
       return rpacket;
     }
@@ -254,7 +254,7 @@ namespace Ipop {
   }
 #if NUNIT
   [TestFixture]
-  public class DHCPTest {
+  public class DhcpTest {
     public static DHCPConfig BasicConfig() {
       DHCPConfig config = new DHCPConfig();
       config.LeaseTime = 10;
@@ -272,7 +272,7 @@ namespace Ipop {
       config.ReservedIPs[0].IPBase = "130.0.0.0";
       config.ReservedIPs[0].Mask = "255.0.0.0";
 
-      TestDHCPServer ds = new TestDHCPServer(config);
+      TestDhcpServer ds = new TestDhcpServer(config);
       byte[] ip = new byte[4] { 128, 0, 0, 1};
 
       Assert.IsFalse(ds.ValidIP(ip), "Server IP");
@@ -314,7 +314,7 @@ namespace Ipop {
       config.ReservedIPs[0].IPBase = "128.250.3.22";
       config.ReservedIPs[0].Mask = "255.255.255.255";
 
-      TestDHCPServer ds = new TestDHCPServer(config);
+      TestDhcpServer ds = new TestDhcpServer(config);
       byte[] ip = new byte[4] { 128, 250, 3, 1};
 
       Assert.IsFalse(ds.ValidIP(ip), "Server IP");
@@ -346,8 +346,8 @@ namespace Ipop {
   }
 
 
-  public class TestDHCPServer : DHCPServer {
-    public TestDHCPServer(DHCPConfig config) : base(config) { }
+  public class TestDhcpServer : DhcpServer {
+    public TestDhcpServer(DHCPConfig config) : base(config) { }
 
     public override byte[] RequestLease(byte[] address, bool renew,
                                        string node_address, params object[] para)

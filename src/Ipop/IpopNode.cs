@@ -21,7 +21,7 @@ using Brunet.Applications;
 using Brunet.Security;
 using Brunet.Util;
 using NetworkPackets;
-using NetworkPackets.DHCP;
+using NetworkPackets.Dhcp;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -31,7 +31,7 @@ using System.Threading;
 /// \brief Ipop provides the IP over P2P library that is to be used in
 /// conjunction with Brunet.
 /// Main features of this library include Virtual Ethernet (tap) handler,
-/// DHCP Server, DNS Server, and network packet parsing.
+/// Dhcp Server, Dns Server, and network packet parsing.
 /// This is a filter between Brunet and the host system via the Virtual Ethernet
 /// device.  Data is read from the ethernet device, parsed and sent to the
 /// proper handler if one exists or a query to resolve the ip to a Brunet
@@ -64,7 +64,7 @@ namespace Ipop {
     /// <summary>Resolves IP Addresses to Brunet.Addresses</summary>
     protected IAddressResolver _address_resolver;
     /// <summary>Resolves hostnames and IP Addresses</summary>
-    protected DNS _dns;
+    protected Dns _dns;
     /// <summary>If necessary, acts as a DNAT / SNAT</summary>
     protected ITranslator _translator;
     /// <summary>Global lock</summary>
@@ -85,17 +85,17 @@ namespace Ipop {
     protected Dictionary<MemBlock, MemBlock> _ip_to_ether;
 
     /// <summary>Provides network information, used to get lease information.<summary>
-    protected DHCPServer _dhcp_server;
-    /// <summary>Port number to use for the DHCP Server, typically 67.</summary>
+    protected DhcpServer _dhcp_server;
+    /// <summary>Port number to use for the Dhcp Server, typically 67.</summary>
     protected readonly int _dhcp_server_port;
-    /// <summary>Port number to use for the DHCP Client, typically 68.</summary>
+    /// <summary>Port number to use for the Dhcp Client, typically 68.</summary>
     protected readonly int _dhcp_client_port;
-    /// <summary>Mapping of Ethernet to the its DHCP server.</summary>
-    protected Dictionary<MemBlock, DHCPServer> _ether_to_dhcp_server;
+    /// <summary>Mapping of Ethernet to the its Dhcp server.</summary>
+    protected Dictionary<MemBlock, DhcpServer> _ether_to_dhcp_server;
     protected Dictionary<MemBlock, SimpleTimer> _static_mapping;
     /// <summary>Used to hold configuration information.</summary>
-    protected DHCPServer _static_dhcp_server;
-    /// <summary>A hashtable used to lock DHCP Servers.</summary>
+    protected DhcpServer _static_dhcp_server;
+    /// <summary>A hashtable used to lock Dhcp Servers.</summary>
     protected Hashtable _checked_out;
     /// <summary>We use this to set our L3 network</summary>
     protected DHCPConfig _dhcp_config;
@@ -141,14 +141,14 @@ namespace Ipop {
 
       _dhcp_server_port = _ipop_config.DHCPPort != 0 ? _ipop_config.DHCPPort : 67;
       _dhcp_client_port = _dhcp_server_port + 1;
-      ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
-          "Setting DHCP Ports to: {0},{1}", _dhcp_server_port, _dhcp_client_port));
-      _ether_to_dhcp_server = new Dictionary<MemBlock, DHCPServer>();
+      ProtocolLog.WriteIf(IpopLog.DhcpLog, String.Format(
+          "Setting Dhcp Ports to: {0},{1}", _dhcp_server_port, _dhcp_client_port));
+      _ether_to_dhcp_server = new Dictionary<MemBlock, DhcpServer>();
       _static_mapping = new Dictionary<MemBlock, SimpleTimer>();
       _dhcp_config = dhcp_config;
       if(_dhcp_config != null) {
-        SetDNS();
-        _dhcp_server = GetDHCPServer();
+        SetDns();
+        _dhcp_server = GetDhcpServer();
       }
       _checked_out = new Hashtable();
 
@@ -184,8 +184,8 @@ namespace Ipop {
         EthernetPacket ep = new EthernetPacket(b);
 
         switch (ep.Type) {
-          case EthernetPacket.Types.ARP:
-            HandleARP(ep.Payload);
+          case EthernetPacket.Types.Arp:
+            HandleArp(ep.Payload);
             break;
           case EthernetPacket.Types.IP:
             HandleIPOut(ep, ret);
@@ -263,7 +263,7 @@ namespace Ipop {
     /// <summary>This method handles IPPackets that come from the TAP Device, i.e.,
     /// local system.</summary>
     /// <remarks>Currently this supports HandleMulticast (ip[0] >= 244 &&
-    /// ip[0]<=239), HandleDNS (dport = 53 and ip[3] == 1), dhcp (sport 68 and
+    /// ip[0]<=239), HandleDns (dport = 53 and ip[3] == 1), dhcp (sport 68 and
     /// dport 67.</remarks>
     /// <param name="packet">The packet from the TAP device</param>
     /// <param name="from"> This should always be the tap device</param>
@@ -281,16 +281,16 @@ namespace Ipop {
         return;
       }
 
-      UDPPacket udpp = null;
+      UdpPacket udpp = null;
       switch(ipp.Protocol) {
-        case IPPacket.Protocols.UDP:
-          udpp = new UDPPacket(ipp.Payload);
+        case IPPacket.Protocols.Udp:
+          udpp = new UdpPacket(ipp.Payload);
           if(udpp.SourcePort == _dhcp_client_port && udpp.DestinationPort == _dhcp_server_port) {
-            if(HandleDHCP(ipp)) {
+            if(HandleDhcp(ipp)) {
               return;
             }
           } else if(udpp.DestinationPort == 53 && ipp.DestinationIP.Equals(_dhcp_server.ServerIP)) {
-            if(HandleDNS(ipp)) {
+            if(HandleDns(ipp)) {
               return;
             }
           }
@@ -340,33 +340,33 @@ namespace Ipop {
       }
     }
 
-    /// <summary>Parses ARP Packets and writes to the Ethernet the translation.</summary>
+    /// <summary>Parses Arp Packets and writes to the Ethernet the translation.</summary>
     /// <remarks>IpopRouter makes nodes think they are in the same Layer 2 network
     /// so that two nodes in the same network can communicate directly with each
     /// other.  IpopRouter masquerades for those that are not local.</remarks>
     /// <param name="ep">The Ethernet packet to translate</param>
-    protected virtual void HandleARP(MemBlock packet)
+    protected virtual void HandleArp(MemBlock packet)
     {
       // Can't do anything until we have network connectivity!
       if(_dhcp_server == null) {
         return;
       }
 
-      ARPPacket ap = new ARPPacket(packet);
+      ArpPacket ap = new ArpPacket(packet);
 
       // Not in our range!
       if(!_dhcp_server.IPInRange((byte[]) ap.TargetProtoAddress) &&
           !_dhcp_server.IPInRange((byte[]) ap.SenderProtoAddress))
       {
-        ProtocolLog.WriteIf(IpopLog.ARP, String.Format("Bad ARP request from {0} for {1}",
+        ProtocolLog.WriteIf(IpopLog.Arp, String.Format("Bad Arp request from {0} for {1}",
             Utils.MemBlockToString(ap.SenderProtoAddress, '.'),
             Utils.MemBlockToString(ap.TargetProtoAddress, '.')));
         return;
       }
 
 
-      if(ap.Operation == ARPPacket.Operations.Reply) {
-        // This would be a unsolicited ARP
+      if(ap.Operation == ArpPacket.Operations.Reply) {
+        // This would be a unsolicited Arp
         if(ap.TargetProtoAddress.Equals(IPPacket.BroadcastAddress) &&
             !ap.SenderHWAddress.Equals(EthernetPacket.BroadcastAddress))
         {
@@ -376,7 +376,7 @@ namespace Ipop {
       }
 
       // We only support request operation hereafter
-      if(ap.Operation != ARPPacket.Operations.Request) {
+      if(ap.Operation != ArpPacket.Operations.Request) {
         return;
       }
 
@@ -408,13 +408,13 @@ namespace Ipop {
        }
      }
 
-     ProtocolLog.WriteIf(IpopLog.ARP, String.Format("Sending ARP response for: {0}",
+     ProtocolLog.WriteIf(IpopLog.Arp, String.Format("Sending Arp response for: {0}",
          Utils.MemBlockToString(ap.TargetProtoAddress, '.')));
 
-      ARPPacket response = ap.Respond(EthernetPacket.UnicastAddress);
+      ArpPacket response = ap.Respond(EthernetPacket.UnicastAddress);
 
       EthernetPacket res_ep = new EthernetPacket(ap.SenderHWAddress,
-        EthernetPacket.UnicastAddress, EthernetPacket.Types.ARP,
+        EthernetPacket.UnicastAddress, EthernetPacket.Types.Arp,
         response.ICPacket);
       Ethernet.Send(res_ep.ICPacket);
     }
@@ -448,12 +448,12 @@ namespace Ipop {
     }
 
     /// <summary>If a request is sent to address a.b.c.255 with the dns port (53),
-    /// this method will be called by HandleIPOut.  If you want DNS, implement this
+    /// this method will be called by HandleIPOut.  If you want Dns, implement this
     /// method, responses should be written directly to the tap interface using
     /// Ethernet.Send()</summary>
-    /// <param name="ipp"> The IPPacket contain the DNS packet</param>
+    /// <param name="ipp"> The IPPacket contain the Dns packet</param>
     /// <returns>True if implemented, false otherwise.</returns>
-    protected virtual bool HandleDNS(IPPacket ipp) {
+    protected virtual bool HandleDns(IPPacket ipp) {
       return false;
     }
 
@@ -504,11 +504,11 @@ namespace Ipop {
       Ethernet.Send(res_ep.ICPacket);
     }
 
-    ///<summary>This sends an ICMP Request to the specified address, we want
+    ///<summary>This sends an Icmp Request to the specified address, we want
     ///him to respond to us, so we can guarantee that by pretending to be the
     ///Server (i.e. x.y.z.1).  We'll get a response in our main thread.</summary>
     ///<param name="dest_ip">Destination IP of our request.</summary>
-    protected virtual void SendICMPRequest(MemBlock dest_ip) {
+    protected virtual void SendIcmpRequest(MemBlock dest_ip) {
       if(_dhcp_server == null) {
         return;
       }
@@ -517,35 +517,35 @@ namespace Ipop {
         ether_addr = EthernetPacket.BroadcastAddress;
       }
 
-      ICMPPacket icmp = new ICMPPacket(ICMPPacket.Types.EchoRequest);
-      IPPacket ip = new IPPacket(IPPacket.Protocols.ICMP, _dhcp_server.ServerIP,
+      IcmpPacket icmp = new IcmpPacket(IcmpPacket.Types.EchoRequest);
+      IPPacket ip = new IPPacket(IPPacket.Protocols.Icmp, _dhcp_server.ServerIP,
           dest_ip, icmp.Packet);
       EthernetPacket ether = new EthernetPacket(ether_addr,
           EthernetPacket.UnicastAddress, EthernetPacket.Types.IP, ip.ICPacket);
       Ethernet.Send(ether.ICPacket);
     }
 #endregion
-#region DHCPandStaticHandlers
+#region DhcpandStaticHandlers
     /// <summary>This is used to process a dhcp packet on the node side, that
     /// includes placing data such as the local Brunet Address, Ipop Namespace,
     /// and other optional parameters in our request to the dhcp server.  When
     /// receiving the results, if it is successful, the results are written to
     /// the TAP device.</summary>
-    /// <param name="ipp"> The IPPacket that contains the DHCP Request</param>
+    /// <param name="ipp"> The IPPacket that contains the Dhcp Request</param>
     /// <param name="dhcp_params"> an object containing any extra parameters for 
     /// the dhcp server</param>
     /// <returns> true on if dhcp is supported.</returns>
-    protected virtual bool HandleDHCP(IPPacket ipp)
+    protected virtual bool HandleDhcp(IPPacket ipp)
     {
-      UDPPacket udpp = new UDPPacket(ipp.Payload);
-      DHCPPacket dhcp_packet = new DHCPPacket(udpp.Payload);
+      UdpPacket udpp = new UdpPacket(ipp.Payload);
+      DhcpPacket dhcp_packet = new DhcpPacket(udpp.Payload);
       MemBlock ether_addr = dhcp_packet.chaddr;
 
       if(_dhcp_config == null) {
         return true;
       }
 
-      DHCPServer dhcp_server = CheckOutDHCPServer(ether_addr);
+      DhcpServer dhcp_server = CheckOutDhcpServer(ether_addr);
       if(dhcp_server == null) {
         return true;
       }
@@ -555,16 +555,16 @@ namespace Ipop {
       byte[] last_ipb = (last_ip == null) ? null : (byte[]) last_ip;
 
       WaitCallback wcb = delegate(object o) {
-        ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
-            "Attempting DHCP for: {0}", Utils.MemBlockToString(ether_addr, '.')));
+        ProtocolLog.WriteIf(IpopLog.DhcpLog, String.Format(
+            "Attempting Dhcp for: {0}", Utils.MemBlockToString(ether_addr, '.')));
 
-        DHCPPacket rpacket = null;
+        DhcpPacket rpacket = null;
         try {
           rpacket = dhcp_server.ProcessPacket(dhcp_packet,
               Brunet.Address.ToString(), last_ipb);
         } catch(Exception e) {
-          ProtocolLog.WriteIf(IpopLog.DHCPLog, e.Message);
-          CheckInDHCPServer(dhcp_server);
+          ProtocolLog.WriteIf(IpopLog.DhcpLog, e.Message);
+          CheckInDhcpServer(dhcp_server);
           return;
         }
 
@@ -577,13 +577,13 @@ namespace Ipop {
           destination_ip = IPPacket.BroadcastAddress;
         }
 
-        UDPPacket res_udpp = new UDPPacket(_dhcp_server_port, _dhcp_client_port, rpacket.Packet);
-        IPPacket res_ipp = new IPPacket(IPPacket.Protocols.UDP, rpacket.siaddr,
+        UdpPacket res_udpp = new UdpPacket(_dhcp_server_port, _dhcp_client_port, rpacket.Packet);
+        IPPacket res_ipp = new IPPacket(IPPacket.Protocols.Udp, rpacket.siaddr,
             destination_ip, res_udpp.ICPacket);
         EthernetPacket res_ep = new EthernetPacket(ether_addr, EthernetPacket.UnicastAddress,
             EthernetPacket.Types.IP, res_ipp.ICPacket);
         Ethernet.Send(res_ep.ICPacket);
-        CheckInDHCPServer(dhcp_server);
+        CheckInDhcpServer(dhcp_server);
       };
 
       ThreadPool.QueueUserWorkItem(wcb);
@@ -608,12 +608,12 @@ namespace Ipop {
         return;
       }
 
-      DHCPServer dhcp_server = CheckOutDHCPServer(ether_addr);
+      DhcpServer dhcp_server = CheckOutDhcpServer(ether_addr);
       if(dhcp_server == null) {
         return;
       }
 
-      ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
+      ProtocolLog.WriteIf(IpopLog.DhcpLog, String.Format(
           "Static Address request for: {0}", Utils.MemBlockToString(ip, '.')));
 
       WaitCallback wcb = null;
@@ -626,11 +626,11 @@ namespace Ipop {
               Brunet.Address.ToString(),
               _ipop_config.AddressData.Hostname);
         } catch(Exception e) {
-          ProtocolLog.WriteIf(IpopLog.DHCPLog, e.Message);
+          ProtocolLog.WriteIf(IpopLog.DhcpLog, e.Message);
         }
 
         if(res_ip == null) {
-          ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
+          ProtocolLog.WriteIf(IpopLog.DhcpLog, String.Format(
                 "Request for {0} failed!", Utils.MemBlockToString(ip, '.')));
         } else {
           lock(_sync) {
@@ -653,54 +653,54 @@ namespace Ipop {
           }
         }
 
-        CheckInDHCPServer(dhcp_server);
+        CheckInDhcpServer(dhcp_server);
       };
 
       ThreadPool.QueueUserWorkItem(wcb);
     }
 #endregion
-#region DHCPHelpers
+#region DhcpHelpers
     /// <summary>We need to get the DHCPConfig as soon as possible so that we
     /// can allocate static addresses, this method helps us do that.</summary>
-    protected virtual void GetDHCPConfig() {
+    protected virtual void GetDhcpConfig() {
       if(_dhcp_config != null) {
-        SetDNS();
+        SetDns();
       }
     }
 
-    protected virtual bool SupportedDNS(string dns) {
-      if("StaticDNS".Equals(dns)) {
+    protected virtual bool SupportedDns(string dns) {
+      if("StaticDns".Equals(dns)) {
         return true;
       }
       return false;
     }
 
-    protected virtual void SetDNS() {
+    protected virtual void SetDns() {
       if(_dns != null) {
         return;
       }
 
-      if(!SupportedDNS(_ipop_config.DNS.Type) || _ipop_config.DNS.Type == "StaticDNS") {
-        _dns = new StaticDNS(
+      if(!SupportedDns(_ipop_config.Dns.Type) || _ipop_config.Dns.Type == "StaticDns") {
+        _dns = new StaticDns(
             MemBlock.Reference(Utils.StringToBytes(_dhcp_config.IPBase, '.')),
             MemBlock.Reference(Utils.StringToBytes(_dhcp_config.Netmask, '.')),
-            _ipop_config.DNS.NameServer, _ipop_config.DNS.ForwardQueries);
+            _ipop_config.Dns.NameServer, _ipop_config.Dns.ForwardQueries);
       }
     }
 
-    /// <summary>Used to retrieve an instance of the DHCPServer associated with
+    /// <summary>Used to retrieve an instance of the DhcpServer associated with
     /// this type of node.</summary>
-    protected abstract DHCPServer GetDHCPServer();
+    protected abstract DhcpServer GetDhcpServer();
 
     /// <summary>Static addresses are handled nearly identically to dynamic, so
     /// we use one shared method to pull a dhcp server from the list of dhcp
     /// servers.  We only want one request per Ethernet / IP at a time.</summary>
-    protected DHCPServer CheckOutDHCPServer(MemBlock ether_addr) {
-      DHCPServer dhcp_server = null;
+    protected DhcpServer CheckOutDhcpServer(MemBlock ether_addr) {
+      DhcpServer dhcp_server = null;
 
       lock(_sync) {
         if(!_ether_to_dhcp_server.TryGetValue(ether_addr, out dhcp_server)) {
-          dhcp_server = GetDHCPServer();
+          dhcp_server = GetDhcpServer();
           _ether_to_dhcp_server.Add(ether_addr, dhcp_server);
         }
       }
@@ -717,7 +717,7 @@ namespace Ipop {
 
     /// <summary>The request on the IP allocation space (DHT) has returned.  So
     /// we're done with the server.</summary>
-    protected void CheckInDHCPServer(DHCPServer dhcp_server) {
+    protected void CheckInDhcpServer(DhcpServer dhcp_server) {
       lock(_checked_out.SyncRoot) {
         _checked_out.Remove(dhcp_server);
       }
@@ -735,7 +735,7 @@ namespace Ipop {
     protected void CheckNode(object o, EventArgs ea) {
       lock(_sync) {
         if(_dhcp_config == null) {
-          GetDHCPConfig();
+          GetDhcpConfig();
           if(_dhcp_config == null) {
             return;
           }
@@ -776,17 +776,17 @@ namespace Ipop {
       }
       _info.UserData["VirtualIPs"] = ips;
 
-      ProtocolLog.WriteIf(IpopLog.DHCPLog, String.Format(
+      ProtocolLog.WriteIf(IpopLog.DhcpLog, String.Format(
         "IP Address for {0} changed to {1}.",
         BitConverter.ToString((byte[]) ether_addr).Replace("-", ":"),
         Utils.MemBlockToString(ip_addr, '.')));
     }
 
     ///<summary>This let's us discover all machines in our subnet if and
-    ///only if they allow responding to broadcast ICMP Requests, which for
+    ///only if they allow responding to broadcast Icmp Requests, which for
     ///some reason doesn't seem to be defaulted in my Linux machines!</summary>
     protected virtual void CheckNetwork(object o) {
-      SendICMPRequest(MemBlock.Reference(_dhcp_server.Broadcast));
+      SendIcmpRequest(MemBlock.Reference(_dhcp_server.Broadcast));
     }
 
     public void HandleRpc(ISender caller, string method, IList args, object rs) {

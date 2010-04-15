@@ -28,18 +28,18 @@ namespace Ipop {
     outgoing packets</summary>*/
     public static BooleanSwitch PacketLog =
         new BooleanSwitch("PacketLog", "Logs incoming and outgoing packets");
-    /// <summary>Prints DHCP information.</summary>
-    public static BooleanSwitch DHCPLog = 
-        new BooleanSwitch("DHCPLog", "Logs DHCP state data");
+    /// <summary>Prints Dhcp information.</summary>
+    public static BooleanSwitch DhcpLog = 
+        new BooleanSwitch("DhcpLog", "Logs Dhcp state data");
     /// <summary>Prints Resolver information.</summary>
     public static BooleanSwitch ResolverLog =
         new BooleanSwitch("ResolverLog", "Logs routing data");
-    /// <summary>Prints DNS information.</summary>
-    public static BooleanSwitch DNS =
-        new BooleanSwitch("DNS", "All about DNS");
-    /// <summary>Prints ARP information.</summary>
-    public static BooleanSwitch ARP =
-        new BooleanSwitch("ARP", "All about ARP");
+    /// <summary>Prints Dns information.</summary>
+    public static BooleanSwitch Dns =
+        new BooleanSwitch("Dns", "All about Dns");
+    /// <summary>Prints Arp information.</summary>
+    public static BooleanSwitch Arp =
+        new BooleanSwitch("Arp", "All about Arp");
     /// <summary>Prints TAP Info.</summary>
     public static BooleanSwitch TapLog =
         new BooleanSwitch("TapLog", "All about Tap");

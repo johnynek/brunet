@@ -62,7 +62,7 @@ namespace NetworkPackets {
     <description>13 - no fragmenting unnecessary</description>
   </item>
   <item>
-    <term>TTL</term>
+    <term>Ttl</term>
     <description>8 bits - 64 seems reasonable if not absurd!</description>
   </item>
   <item>
@@ -135,13 +135,13 @@ namespace NetworkPackets {
     /// <summary> Enumeration of Protocols used by Ipop.</summary>
     public enum Protocols {
       /// <summary> Internet Control Message Protocol.</summary>
-      ICMP = 1,
+      Icmp = 1,
       /// <summary>Internet Group Management Protocol.</summary>
-      IGMP = 2,
+      Igmp = 2,
       /// <summary>Transmission Control Protocol.</summary>
-      TCP = 6,
+      Tcp = 6,
       /// <summary>User Datagram Protocol.</summary>
-      UDP = 17
+      Udp = 17
     };
     /// <summary>The protocol for this packet.</summary>
     public readonly Protocols Protocol;
@@ -182,7 +182,7 @@ namespace NetworkPackets {
       header[5] = 0;
       header[6] = 0;
       header[7] = 0;
-      // TTL
+      // Ttl
       header[8] = 64;
       header[9] = (byte) Protocol;
       for(int i = 0; i < 4; i++) {
@@ -228,7 +228,7 @@ namespace NetworkPackets {
       header[5] = hdr[5];
       header[6] = hdr[6];
       header[7] = hdr[7];
-      // TTL
+      // Ttl
       header[8] = hdr[8];
       header[9] = hdr[9]; 
       for(int i = 0; i < 4; i++) {
@@ -277,18 +277,18 @@ namespace NetworkPackets {
 
       bool fragment = ((Packet[6] & 0x1F) | Packet[7]) != 0;
 
-      if(p == Protocols.UDP && !fragment) {
+      if(p == Protocols.Udp && !fragment) {
         // Zero out the checksum to disable it
         new_packet[length + 6] = 0;
         new_packet[length + 7] = 0;
       }
-      else if(p == Protocols.TCP && !fragment) {
+      else if(p == Protocols.Tcp && !fragment) {
         // Zero out the checksum so we don't use it in our future calculations
         new_packet[length + 16] = 0;
         new_packet[length + 17] = 0;
         MemBlock payload = MemBlock.Reference(new_packet).Slice(length);
         MemBlock pseudoheader = IPPacket.MakePseudoHeader(SourceIP,
-            DestinationIP, (byte) Protocols.TCP, (ushort) (Packet.Length - 20));
+            DestinationIP, (byte) Protocols.Tcp, (ushort) (Packet.Length - 20));
         checksum = IPPacket.GenerateChecksum(payload, pseudoheader);
         new_packet[length + 16] = (byte) ((checksum >> 8) & 0xFF);
         new_packet[length + 17] = (byte) (checksum & 0xFF);

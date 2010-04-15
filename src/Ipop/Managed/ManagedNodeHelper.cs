@@ -37,7 +37,7 @@ namespace Ipop.Managed {
     public static MemBlock GetNetwork(string networkdevice, MemBlock startip) {
       MemBlock netip = startip;
       ArrayList used_networks = new ArrayList();
-      IPHostEntry entry = Dns.GetHostEntry(Dns.GetHostName());
+      IPHostEntry entry = System.Net.Dns.GetHostEntry(System.Net.Dns.GetHostName());
 
       foreach(IPAddress ip in entry.AddressList) {
         byte[] address = ip.GetAddressBytes();

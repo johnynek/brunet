@@ -9,17 +9,17 @@ using System.Net.Sockets;
 
 namespace Ipop {
   /**
-  <summary>A basic abstract DNS server.  Must implement the translation process
+  <summary>A basic abstract Dns server.  Must implement the translation process
   using NameLookUp and AddressLookUp.</summary>
   */
-  public abstract class DNS {
+  public abstract class Dns {
     /// <summary>The base ip address to perfom lookups on</summary>
     protected MemBlock _base_address;
     /// <summary>The mask for the ip address to perform lookups on.</summary>
     protected MemBlock _netmask;
-    /// <summary>DNS Server </summary>
+    /// <summary>Dns Server </summary>
     protected EndPoint _name_server; 
-    /// <summary>Is true if IPOP is asked to forward DNS queries to external nameserver </summary>
+    /// <summary>Is true if IPOP is asked to forward Dns queries to external nameserver </summary>
     protected bool _forward_queries;
     /// <summary>Domain name is:</summary>
     public static string DomainName = "ipop";
@@ -29,12 +29,12 @@ namespace Ipop {
     /// <param name="netmask">The netmask for the range.</param>
     /// <param name="name_server">The external name server to be queried.</param>
     /// <param name="forward_queries">Set if queries are to be forwarded to external name server.</param>
-    public DNS(MemBlock ip_address, MemBlock netmask, string name_server,
+    public Dns(MemBlock ip_address, MemBlock netmask, string name_server,
         bool forward_queries)
     {
       if(forward_queries) {
         if(name_server == null || name_server == string.Empty) {
-          // GoogleDNS
+          // GoogleDns
           name_server = "8.8.8.8";
         }
 
@@ -51,23 +51,23 @@ namespace Ipop {
       _base_address = MemBlock.Reference(ba);
     }
 
-    /// <summary>Look up a hostname given a DNS request in the form of IPPacket
+    /// <summary>Look up a hostname given a Dns request in the form of IPPacket
     /// </summary>
-    /// <param name="req_ipp">An IPPacket containing the DNS request</param>
+    /// <param name="req_ipp">An IPPacket containing the Dns request</param>
     /// <returns>An IPPacket containing the results</returns>
     public virtual IPPacket LookUp(IPPacket req_ipp)
     {
-      UDPPacket req_udpp = new UDPPacket(req_ipp.Payload);
-      DNSPacket dnspacket = new DNSPacket(req_udpp.Payload);
+      UdpPacket req_udpp = new UdpPacket(req_ipp.Payload);
+      DnsPacket dnspacket = new DnsPacket(req_udpp.Payload);
       ICopyable rdnspacket = null;
       string qname = string.Empty;
 
       try {
         string qname_response = String.Empty;
-        qname = dnspacket.Questions[0].QNAME;
-        if(dnspacket.Questions[0].QTYPE == DNSPacket.TYPES.A) {
+        qname = dnspacket.Questions[0].QName;
+        if(dnspacket.Questions[0].QType == DnsPacket.Types.A) {
           qname_response = AddressLookUp(qname);
-        } else if(dnspacket.Questions[0].QTYPE == DNSPacket.TYPES.PTR) {
+        } else if(dnspacket.Questions[0].QType == DnsPacket.Types.Ptr) {
           qname_response = NameLookUp(qname);
         }
 
@@ -75,12 +75,12 @@ namespace Ipop {
           throw new Exception("Unable to resolve");
         }
 
-        Response response = new Response(qname, dnspacket.Questions[0].QTYPE,
-            dnspacket.Questions[0].QCLASS, 1800, qname_response);
+        Response response = new Response(qname, dnspacket.Questions[0].QType,
+            dnspacket.Questions[0].QClass, 1800, qname_response);
         //Host resolver will not accept if recursive is not available 
         //when it is desired
-        DNSPacket res_packet = new DNSPacket(dnspacket.ID, false,
-            dnspacket.OPCODE, true, dnspacket.RD, dnspacket.RD,
+        DnsPacket res_packet = new DnsPacket(dnspacket.ID, false,
+            dnspacket.Opcode, true, dnspacket.RD, dnspacket.RD,
             dnspacket.Questions, new Response[] {response}, null, null);
 
         rdnspacket = res_packet.ICPacket;
@@ -98,14 +98,14 @@ namespace Ipop {
         }
 
         if(!_forward_queries || failed_resolve) {
-          ProtocolLog.WriteIf(IpopLog.DNS, "Failed to resolve: " + qname + "\t" + e.Message);
-          rdnspacket = DNSPacket.BuildFailedReplyPacket(dnspacket);
+          ProtocolLog.WriteIf(IpopLog.Dns, "Failed to resolve: " + qname + "\t" + e.Message);
+          rdnspacket = DnsPacket.BuildFailedReplyPacket(dnspacket);
         }
       }
 
-      UDPPacket res_udpp = new UDPPacket(req_udpp.DestinationPort,
+      UdpPacket res_udpp = new UdpPacket(req_udpp.DestinationPort,
                                          req_udpp.SourcePort, rdnspacket);
-      IPPacket res_ipp = new IPPacket(IPPacket.Protocols.UDP,
+      IPPacket res_ipp = new IPPacket(IPPacket.Protocols.Udp,
                                        req_ipp.DestinationIP,
                                        req_ipp.SourceIP,
                                        res_udpp.ICPacket);
@@ -113,7 +113,7 @@ namespace Ipop {
     }
 
     /// <summary>Determines if an IP Address is in  the applicable range for
-    /// the DNS server</summary>
+    /// the Dns server</summary>
     /// <param name="IP">The IP Address to test.</param>
     /// <returns>False if the IP Address or netmask is undefined or the Address
     /// is not in applicable range, True if it is.</returns>
@@ -132,10 +132,10 @@ namespace Ipop {
     }
 
     /// <summary>
-    /// Sends DNS query to DNS Server and returns the response. 
+    /// Sends Dns query to Dns Server and returns the response. 
     /// </summary>
-    /// <param name="dns_server">The IPEndPoint of the DNS Server 
-    /// <param name="request"> DNS Packet to be sent</param>
+    /// <param name="dns_server">The IPEndPoint of the Dns Server 
+    /// <param name="request"> Dns Packet to be sent</param>
     /// <returns></returns>
     public MemBlock Resolve(EndPoint server, byte[] request)
     {

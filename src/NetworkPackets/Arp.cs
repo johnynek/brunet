@@ -20,8 +20,8 @@ using Brunet;
 using System;
 
 namespace NetworkPackets {
-  /// <summary>Encapsulates an ARP Packet and provides the mechanisms to
-  /// generate new ARP Packets.  This is immutable.</summary>
+  /// <summary>Encapsulates an Arp Packet and provides the mechanisms to
+  /// generate new Arp Packets.  This is immutable.</summary>
   /// <remarks>
   /// The Header is of the format:
   /// <list type="table">
@@ -40,7 +40,7 @@ namespace NetworkPackets {
   ///   <item><term>Target Proto Address</term><description>Proto Length</description></item>
   /// </list>
   /// </remarks>
-  public class ARPPacket : NetworkPacket {
+  public class ArpPacket : NetworkPacket {
     /// <summary>Hardware type -- Ethernet is 1.</summary>
     public readonly int HardwareType;
     /// <summary>Protocol Type -- IP is 0x0800.</summary>
@@ -60,7 +60,7 @@ namespace NetworkPackets {
     public readonly MemBlock TargetHWAddress;
     public readonly MemBlock TargetProtoAddress;
 
-    public ARPPacket(MemBlock Packet)
+    public ArpPacket(MemBlock Packet)
     {
       _icpacket = _packet = Packet;
       HardwareType = NumberSerializer.ReadShort(Packet, 0);
@@ -78,7 +78,7 @@ namespace NetworkPackets {
       TargetProtoAddress = MemBlock.Reference(Packet, pos, proto_len);
     }
 
-    public ARPPacket(int HardwareType, int ProtocolType, Operations Operation,
+    public ArpPacket(int HardwareType, int ProtocolType, Operations Operation,
         MemBlock SenderHWAddress, MemBlock SenderProtoAddress, MemBlock TargetHWAddress,
         MemBlock TargetProtoAddress)
     {
@@ -93,14 +93,14 @@ namespace NetworkPackets {
           SenderProtoAddress, TargetHWAddress, TargetProtoAddress);
     }
 
-    public ARPPacket Respond(MemBlock response)
+    public ArpPacket Respond(MemBlock response)
     {
       MemBlock target_proto = SenderProtoAddress;
       if(SenderProtoAddress.Equals(IPPacket.ZeroAddress)) {
         target_proto = IPPacket.BroadcastAddress;
       }
 
-      return new ARPPacket(HardwareType, ProtocolType, Operations.Reply,
+      return new ArpPacket(HardwareType, ProtocolType, Operations.Reply,
           response, TargetProtoAddress, SenderHWAddress, target_proto);
     }
   }

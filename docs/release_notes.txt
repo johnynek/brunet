@@ -1,4 +1,17 @@
 ===============================================================================
+Revision 9.4.5
+-------------------------------------------------------------------------------
+- Fixed a bug in Local TA Discovery (was broken)
+- Improved daemon script
+- Added a recursive Dns system useful when resolvconf isn't installed or the
+  resolver stops after the first entry (more and more modern Linux
+  distributions are displaying this behavior)
+- Directory restructuring to match namespace
+- Last feature version before 9.5, this will become maintained for a short
+  time for maintenance purposes
+- Renamed files/classes to support better mapping to C# naming style, this was
+  done to make porting (potential) back and forth between versions easier
+===============================================================================
 Revision 9.4.4
 -------------------------------------------------------------------------------
 - Shortcut contruction is explicit on outgoing packets now

@@ -36,7 +36,7 @@ namespace Ipop.Managed {
   /// </summary>
   public class ManagedIpopNode: IpopNode {
     /// <summary>Provides Address resolution, dns, and translation.</summary>
-    protected ManagedAddressResolverAndDNS _marad;
+    protected ManagedAddressResolverAndDns _marad;
 
     /// <summary>
     /// The constructor takes two config files
@@ -46,29 +46,29 @@ namespace Ipop.Managed {
     public ManagedIpopNode(NodeConfig node_config, IpopConfig ipop_config) :
       base(node_config, ipop_config, null)
     {
-      _dhcp_server = ManagedDHCPServer.GetManagedDHCPServer(_ipop_config.VirtualNetworkDevice);  
+      _dhcp_server = ManagedDhcpServer.GetManagedDhcpServer(_ipop_config.VirtualNetworkDevice);  
       _dhcp_config = _dhcp_server.Config;
-      _marad = new ManagedAddressResolverAndDNS(Brunet, _dhcp_server,
-          ((ManagedDHCPServer) _dhcp_server).LocalIP, _ipop_config.DNS.NameServer,
-          _ipop_config.DNS.ForwardQueries);
+      _marad = new ManagedAddressResolverAndDns(Brunet, _dhcp_server,
+          ((ManagedDhcpServer) _dhcp_server).LocalIP, _ipop_config.Dns.NameServer,
+          _ipop_config.Dns.ForwardQueries);
       _dns = _marad;
       _address_resolver = _marad;
       _translator = _marad;
     }
 
-    protected override DHCPServer GetDHCPServer() {
+    protected override DhcpServer GetDhcpServer() {
       return _dhcp_server;
     }
 
-    protected override void GetDHCPConfig() {
+    protected override void GetDhcpConfig() {
     }
 
     /// <summary>
-    /// This method handles incoming DNS Packets
+    /// This method handles incoming Dns Packets
     /// </summary>
-    /// <param name="ipp">A DNS IPPacket to be processed</param>
+    /// <param name="ipp">A Dns IPPacket to be processed</param>
     /// <returns>A boolean result</returns>
-    protected override bool HandleDNS(IPPacket ipp) {
+    protected override bool HandleDns(IPPacket ipp) {
       WriteIP(_dns.LookUp(ipp).ICPacket);
       return true;
     }

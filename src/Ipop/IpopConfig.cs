@@ -42,8 +42,8 @@ namespace Ipop {
     public int DHCPPort;
     /// <summary>Allow static addresses</summary>
     public bool AllowStaticAddresses;
-    /// <summary>DNS Configuration Setting, default none</summary>
-    public DNSInfo DNS;
+    /// <summary>Dns Configuration Setting, default none</summary>
+    public DnsInfo Dns;
     /// <summary>GroupVPN configuration settings, default none</summary>
     public GroupVPNInfo GroupVPN;
 
@@ -62,10 +62,10 @@ namespace Ipop {
       public string EthernetAddress;
     }
 
-    public class DNSInfo {
-      /// <summary> A supported DNS type </summary>
+    public class DnsInfo {
+      /// <summary> A supported Dns type </summary>
       public string Type;
-      /// <summary> Enables IPOP DNS to forward DNS queries to specified NameServer </summary>
+      /// <summary> Enables IPOP Dns to forward Dns queries to specified NameServer </summary>
       public bool ForwardQueries;
       /// <summary> The NameServer to be used when Forward Queries is set true </summary>
       public string NameServer;

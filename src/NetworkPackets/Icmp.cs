@@ -21,7 +21,7 @@ using System;
 
 namespace NetworkPackets {
   /// <summary>Internet Control Message Packets (Ping)</summary>
-  public class ICMPPacket: DataPacket {
+  public class IcmpPacket: DataPacket {
     public enum Types {
       EchoReply = 0,
       EchoRequest = 8
@@ -33,7 +33,7 @@ namespace NetworkPackets {
     public readonly short SequenceNumber;
     public readonly MemBlock Data;
 
-    public ICMPPacket(Types type, short id, short seq_num) {
+    public IcmpPacket(Types type, short id, short seq_num) {
       Type = type;
       Identifier = id;
       SequenceNumber = seq_num;
@@ -58,12 +58,12 @@ namespace NetworkPackets {
       _packet = MemBlock.Reference(msg);
     }
 
-    public ICMPPacket(Types type) : this(type, 0, 0) {
+    public IcmpPacket(Types type) : this(type, 0, 0) {
     }
 
-    public ICMPPacket(MemBlock Packet) {
+    public IcmpPacket(MemBlock Packet) {
       if(Packet.Length < 4) {
-        throw new Exception("ICMP: Not long enough!");
+        throw new Exception("Icmp: Not long enough!");
       }
 
       _icpacket = Packet;

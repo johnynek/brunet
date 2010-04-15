@@ -30,12 +30,12 @@ using System.Xml.Serialization;
 
 namespace Ipop.Dht {
   /**
-  <summary>The DhtDHCPLeaseController provides mechanisms to acquire IP
+  <summary>The DhtDhcpLeaseController provides mechanisms to acquire IP
   Addresses in the Dht.  This is responsible for IP Address allocation,
   hostname reservation, and multicast subscribing, which is done in GetLease.
   </summary>
   */
-  public class DhtDHCPServer: DHCPServer {
+  public class DhtDhcpServer: DhcpServer {
     /// <summary>The dht object used to stored lease information.</summary>
     protected IDht _dht;
     /// <summary>Multicast enabled.</summary>
@@ -46,14 +46,14 @@ namespace Ipop.Dht {
     protected DateTime _current_quarter_lifetime;
 
     /**
-    <summary>Creates a DhtDHCPLeaseController for a specific namespace</summary>
+    <summary>Creates a DhtDhcpLeaseController for a specific namespace</summary>
     <param name="dht">The dht object use to store lease information.</param>
     <param name="config">The DHCPConfig used to define the Lease
     parameters.</param>
     <param name="EnableMulticast">Defines if Multicast is to be enabled during
     the lease.</param>
     */
-    public DhtDHCPServer(IDht dht, DHCPConfig config, bool EnableMulticast) :
+    public DhtDhcpServer(IDht dht, DHCPConfig config, bool EnableMulticast) :
       base(config)
     {
       _dht = dht;
@@ -103,7 +103,7 @@ namespace Ipop.Dht {
       if(para.Length > 0 && para[0] is string) {
         string shostname = para[0] as string;
         if(!shostname.Equals(string.Empty)) {
-          hostname = Encoding.UTF8.GetBytes(Config.Namespace + "." + shostname + "." + DNS.DomainName);
+          hostname = Encoding.UTF8.GetBytes(Config.Namespace + "." + shostname + "." + Dns.DomainName);
         }
       }
 
@@ -117,7 +117,7 @@ namespace Ipop.Dht {
 
       while (attempts-- > 0) {
         string str_addr = Utils.BytesToString(RequestedAddr, '.');
-        ProtocolLog.WriteIf(IpopLog.DHCPLog, "Attempting to allocate IP Address:" + str_addr);
+        ProtocolLog.WriteIf(IpopLog.DhcpLog, "Attempting to allocate IP Address:" + str_addr);
 
         byte[] dhcp_key = Encoding.UTF8.GetBytes("dhcp:" + Config.Namespace + ":" + str_addr);
         byte[] ip_addr = Encoding.UTF8.GetBytes(str_addr);
@@ -137,7 +137,7 @@ namespace Ipop.Dht {
 //            _dht.Put(node_addr, dhcp_key, Config.LeaseTime);
           }
           catch(Exception e) {
-            ProtocolLog.WriteIf(IpopLog.DHCPLog, "Unable to allocate: " + e.Message);
+            ProtocolLog.WriteIf(IpopLog.DhcpLog, "Unable to allocate: " + e.Message);
             res = false;
           }
         }
@@ -160,12 +160,12 @@ namespace Ipop.Dht {
       return RequestedAddr;
     }
 
-    public static DhtDHCPServer GetDhtDHCPServer(IDht dht, string ipop_namespace, bool enable_multicast) {
-      DHCPConfig config = GetDHCPConfig(dht, ipop_namespace);
-      return new DhtDHCPServer(dht, config, enable_multicast);
+    public static DhtDhcpServer GetDhtDhcpServer(IDht dht, string ipop_namespace, bool enable_multicast) {
+      DHCPConfig config = GetDhcpConfig(dht, ipop_namespace);
+      return new DhtDhcpServer(dht, config, enable_multicast);
     }
 
-    public static DHCPConfig GetDHCPConfig(IDht dht, string ipop_namespace) {
+    public static DHCPConfig GetDhcpConfig(IDht dht, string ipop_namespace) {
       byte[] ns_key = Encoding.UTF8.GetBytes("dhcp:" + ipop_namespace);
       Hashtable[] results = dht.Get(ns_key);
 

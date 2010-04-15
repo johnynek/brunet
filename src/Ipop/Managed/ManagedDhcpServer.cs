@@ -20,7 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 using Brunet;
 using Brunet.Applications;
 using NetworkPackets;
-using NetworkPackets.DHCP;
+using NetworkPackets.Dhcp;
 using System;
 using System.Collections;
 using System.IO;
@@ -29,9 +29,9 @@ using System.Text;
 namespace Ipop.Managed {
 
   /// <summary>
-  /// Subclass of DHCPServer implements GetDHCPLeaseController method
+  /// Subclass of DhcpServer implements GetDhcpLeaseController method
   /// </summary>
-  public class ManagedDHCPServer : DHCPServer {
+  public class ManagedDhcpServer : DhcpServer {
     public readonly byte[] LocalIP;
 
     /// <summary>
@@ -39,19 +39,19 @@ namespace Ipop.Managed {
     /// </summary>
     /// <param name="networkdevice">A string indicating starting point for
     /// network probe</param>
-    protected ManagedDHCPServer(DHCPConfig config) : base(config) {
+    protected ManagedDhcpServer(DHCPConfig config) : base(config) {
       LocalIP = new byte[4];
       BaseIP.CopyTo(LocalIP, 0);
       LocalIP[3] = 2;
     }
 
-    public static ManagedDHCPServer GetManagedDHCPServer(string networkdevice) {
+    public static ManagedDhcpServer GetManagedDhcpServer(string networkdevice) {
       MemBlock IP = ManagedNodeHelper.GetNetwork(networkdevice, MemBlock.Reference(new byte[]{172, 31, 0, 0}));
       byte[] nm = new byte[4] { 255, 255, 0, 0 };
-      return GetManagedDHCPServer(IP, MemBlock.Reference(nm));
+      return GetManagedDhcpServer(IP, MemBlock.Reference(nm));
     }
 
-    public static ManagedDHCPServer GetManagedDHCPServer(MemBlock ip, MemBlock netmask) {
+    public static ManagedDhcpServer GetManagedDhcpServer(MemBlock ip, MemBlock netmask) {
       DHCPConfig config = new DHCPConfig();
       config.LeaseTime = 3200;
       config.Netmask = Utils.MemBlockToString(netmask, '.');
@@ -67,7 +67,7 @@ namespace Ipop.Managed {
       config.ReservedIPs[0].IPBase = Utils.BytesToString(local_ip, '.');
       config.ReservedIPs[0].Mask = "255.255.255.255";
 
-      return new ManagedDHCPServer(config);
+      return new ManagedDhcpServer(config);
     }
 
 

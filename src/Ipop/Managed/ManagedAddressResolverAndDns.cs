@@ -34,10 +34,10 @@ using NUnit.Framework;
 
 namespace Ipop.Managed {
   /// <summary>
-  /// This class implements DNS, IAddressResolver, IManagedHandler, and
+  /// This class implements Dns, IAddressResolver, IManagedHandler, and
   /// ITranslator. It provides most functionality needed by ManagedIpopNode.
   /// </summary>
-  public class ManagedAddressResolverAndDNS : DNS, IAddressResolver, ITranslator {
+  public class ManagedAddressResolverAndDns : Dns, IAddressResolver, ITranslator {
     /// <summary>The node to do ping checks on.</summary>
     protected StructuredNode _node;
     /// <summary>Contains ip:hostname mapping.</summary>
@@ -53,7 +53,7 @@ namespace Ipop.Managed {
     /// <summary>MemBlock of the IP mapped to local node</summary>
     protected MemBlock _local_ip;
     /// <summary>Helps assign remote end points</summary>
-    protected DHCPServer _dhcp;
+    protected DhcpServer _dhcp;
     /// <summary>Array list of multicast addresses</summary>
     public ArrayList mcast_addr;
     protected object _sync;
@@ -62,7 +62,7 @@ namespace Ipop.Managed {
     /// Constructor for the class, it initializes various objects
     /// </summary>
     /// <param name="node">Takes in a structured node</param>
-    public ManagedAddressResolverAndDNS(StructuredNode node, DHCPServer dhcp,
+    public ManagedAddressResolverAndDns(StructuredNode node, DhcpServer dhcp,
         MemBlock local_ip, string name_server, bool forward_queries) :
       base(MemBlock.Reference(dhcp.BaseIP), MemBlock.Reference(dhcp.Netmask),
           name_server, forward_queries)
@@ -86,7 +86,7 @@ namespace Ipop.Managed {
     }
 
     /// <summary>
-    /// This method does an inverse lookup for the DNS
+    /// This method does an inverse lookup for the Dns
     /// </summary>
     /// <param name="IP">IP address of the name that's being looked up</param>
     /// <returns>Returns the name as string of the IP specified</returns>
@@ -95,7 +95,7 @@ namespace Ipop.Managed {
     }
 
     /// <summary>
-    /// This method does an address lookup on the DNS
+    /// This method does an address lookup on the Dns
     /// </summary>
     /// <param name="Name">Takes in name as string to lookup</param>
     /// <returns>The result as a String Ip address</returns>
@@ -118,26 +118,26 @@ namespace Ipop.Managed {
         throw new Exception("Invalid mapping " + from + ".");
       }
 
-      // Attempt to translate a MDNS packet
+      // Attempt to translate a MDns packet
       IPPacket ipp = new IPPacket(packet);
       MemBlock hdr = packet.Slice(0,12);
       bool fragment = ((packet[6] & 0x1F) | packet[7]) != 0;
 
-      if(ipp.Protocol == IPPacket.Protocols.UDP && !fragment) {
-        UDPPacket udpp = new UDPPacket(ipp.Payload);
-        // MDNS runs on 5353
+      if(ipp.Protocol == IPPacket.Protocols.Udp && !fragment) {
+        UdpPacket udpp = new UdpPacket(ipp.Payload);
+        // MDns runs on 5353
         if(udpp.DestinationPort == 5353) {
-          DNSPacket dnsp = new DNSPacket(udpp.Payload);
-          String ss_ip = DNSPacket.IPMemBlockToString(source_ip);
+          DnsPacket dnsp = new DnsPacket(udpp.Payload);
+          String ss_ip = DnsPacket.IPMemBlockToString(source_ip);
           bool change = mDnsTranslate(dnsp.Answers, ss_ip);
           change |= mDnsTranslate(dnsp.Authority, ss_ip);
           change |= mDnsTranslate(dnsp.Additional, ss_ip);
           // If we make a change let's make a new packet!
           if(change) {
-            dnsp = new DNSPacket(dnsp.ID, dnsp.QUERY, dnsp.OPCODE, dnsp.AA,
+            dnsp = new DnsPacket(dnsp.ID, dnsp.Query, dnsp.Opcode, dnsp.AA,
                                  dnsp.RA, dnsp.RD, dnsp.Questions, dnsp.Answers,
                                  dnsp.Authority, dnsp.Additional);
-            udpp = new UDPPacket(udpp.SourcePort, udpp.DestinationPort,
+            udpp = new UdpPacket(udpp.SourcePort, udpp.DestinationPort,
                                  dnsp.ICPacket);
             ipp = new IPPacket(ipp.Protocol, source_ip, ipp.DestinationIP,
                                hdr, udpp.ICPacket);
@@ -164,17 +164,17 @@ namespace Ipop.Managed {
     public static bool mDnsTranslate(Response[] responses, String ss_ip) {
       bool change = false;
       for(int i = 0; i < responses.Length; i++) {
-        if(responses[i].TYPE == DNSPacket.TYPES.A) {
+        if(responses[i].Type == DnsPacket.Types.A) {
           change = true;
           Response old = responses[i];
-          responses[i] = new Response(old.NAME, old.TYPE, old.CLASS,
-                                         old.CACHE_FLUSH, old.TTL, ss_ip);
+          responses[i] = new Response(old.Name, old.Type, old.Class,
+                                         old.CacheFlush, old.Ttl, ss_ip);
         }
-        else if(responses[i].TYPE == DNSPacket.TYPES.PTR) {
+        else if(responses[i].Type == DnsPacket.Types.Ptr) {
           Response old = responses[i];
-          if(DNSPacket.StringIsIP(old.NAME)) {
-            responses[i] = new Response(ss_ip, old.TYPE,  old.CLASS,
-                                        old.CACHE_FLUSH, old.TTL, old.RDATA);
+          if(DnsPacket.StringIsIP(old.Name)) {
+            responses[i] = new Response(ss_ip, old.Type,  old.Class,
+                                        old.CacheFlush, old.Ttl, old.RData);
             change = true;
           }
         }
@@ -185,12 +185,12 @@ namespace Ipop.Managed {
     /// <summary>
     /// Check to see if it's a SIP packet and translates
     /// </summary>
-    /// <param name="payload">UDP payload</param>
+    /// <param name="payload">Udp payload</param>
     /// <param name="source_ip">New source IP</param>
     /// <param name="old_ss_ip">Old source IP</param>
     /// <param name="old_sd_ip">Old destination IP</param>
-    /// <returns>Returns a UDP packet</returns>
-    public UDPPacket SIPTranslate(UDPPacket udpp, MemBlock source_ip, 
+    /// <returns>Returns a Udp packet</returns>
+    public UdpPacket SIPTranslate(UdpPacket udpp, MemBlock source_ip, 
                                     string old_ss_ip, string old_sd_ip) {
       string new_ss_ip = Utils.MemBlockToString(source_ip, '.');
       string new_sd_ip = Utils.MemBlockToString(_local_ip, '.'); 
@@ -198,7 +198,7 @@ namespace Ipop.Managed {
       MemBlock payload = ManagedNodeHelper.TextTranslate(udpp.Payload, old_ss_ip,
                                              old_sd_ip, new_ss_ip, new_sd_ip,
                                              packet_id); 
-      return new UDPPacket(udpp.SourcePort, udpp.DestinationPort, payload);
+      return new UdpPacket(udpp.SourcePort, udpp.DestinationPort, payload);
     }
 
     /// <summary>
@@ -218,7 +218,7 @@ namespace Ipop.Managed {
     /// Registers a name and addr combination and returns an IP.  Idempotent
     /// and changes the hostname if one already exists.
     /// </summary>
-    /// <param name="name">A string name to be added to DNS</param>
+    /// <param name="name">A string name to be added to Dns</param>
     /// <param name="addr">A brunet address that is to be mapped</param>
     public string RegisterMapping(String name, Address addr) {
       String ips = null;
@@ -292,11 +292,11 @@ namespace Ipop.Managed {
     }
 
     /// <summary>
-    /// Sets up DNS for localhost
+    /// Sets up Dns for localhost
     /// </summary>
-    /// <param name="name">The DNS alias for the localhost</param>
+    /// <param name="name">The Dns alias for the localhost</param>
     /// <returns>true if successful</returns>
-    public bool MapLocalDNS(string name) {
+    public bool MapLocalDns(string name) {
       _dns_a.Add(name, LocalIP);
       _dns_ptr.Add(LocalIP, name);
       return true;
@@ -314,23 +314,23 @@ namespace Ipop.Managed {
         0x6C, 0x6F, 0x63, 0x61, 0x6C, 0x00, 0x00, 0xFF, 0x00, 0x01, 0xC0, 0x0C,
         0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x78, 0x00, 0x04, 0x0A, 0xFE,
         0x00, 0x01});
-      DNSPacket mdns = new DNSPacket(mdnsm);
+      DnsPacket mdns = new DnsPacket(mdnsm);
       String ss_ip = "10.254.112.232";
-      bool change = ManagedAddressResolverAndDNS.mDnsTranslate(mdns.Answers, ss_ip);
-      change |= ManagedAddressResolverAndDNS.mDnsTranslate(mdns.Authority, ss_ip);
-      change |= ManagedAddressResolverAndDNS.mDnsTranslate(mdns.Additional, ss_ip);
+      bool change = ManagedAddressResolverAndDns.mDnsTranslate(mdns.Answers, ss_ip);
+      change |= ManagedAddressResolverAndDns.mDnsTranslate(mdns.Authority, ss_ip);
+      change |= ManagedAddressResolverAndDns.mDnsTranslate(mdns.Additional, ss_ip);
       // If we make a change let's make a new packet!
       if(change) {
-          mdns = new DNSPacket(mdns.ID, mdns.QUERY, mdns.OPCODE, mdns.AA,
+          mdns = new DnsPacket(mdns.ID, mdns.Query, mdns.Opcode, mdns.AA,
                                mdns.RA, mdns.RD, mdns.Questions, mdns.Answers,
                                mdns.Authority, mdns.Additional);
       }
-      Assert.AreEqual(mdns.Authority[0].NAME, "davidiw-laptop.local", "NAME");
-      Assert.AreEqual(mdns.Authority[0].TYPE, DNSPacket.TYPES.A, "TYPE");
-      Assert.AreEqual(mdns.Authority[0].CLASS, DNSPacket.CLASSES.IN, "CLASS");
-      Assert.AreEqual(mdns.Authority[0].CACHE_FLUSH, false, "CACHE_FLUSH");
-      Assert.AreEqual(mdns.Authority[0].TTL, 120, "TTL");
-      Assert.AreEqual(mdns.Authority[0].RDATA, "10.254.112.232", "RDATA");
+      Assert.AreEqual(mdns.Authority[0].Name, "davidiw-laptop.local", "Name");
+      Assert.AreEqual(mdns.Authority[0].Type, DnsPacket.Types.A, "Type");
+      Assert.AreEqual(mdns.Authority[0].Class, DnsPacket.Classes.IN, "Class");
+      Assert.AreEqual(mdns.Authority[0].CacheFlush, false, "CacheFlush");
+      Assert.AreEqual(mdns.Authority[0].Ttl, 120, "Ttl");
+      Assert.AreEqual(mdns.Authority[0].RData, "10.254.112.232", "RData");
     }
   } 
 #endif

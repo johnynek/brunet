@@ -33,17 +33,17 @@ using NUnit.Framework;
 */
 namespace NetworkPackets.Dns {
   /**
-  <summary>Supports the parsing of DNS Packets.</summary>
+  <summary>Supports the parsing of Dns Packets.</summary>
   <remarks><para>This is a very naive implementation and lacks support for
-  services other than address lookup (TYPE=A) and pointer look up (TYPE=PTR).
+  services other than address lookup (Type=A) and pointer look up (Type=Ptr).
   Because I haven't found a service that used inverse querying for name look
   up, only pointer look up is implemented.</para>
 
   <para>Exceptions will not occur when parsing byte arrays, only when
-  attempting to create from scratch new packets with unsupported TYPES.</para>
+  attempting to create from scratch new packets with unsupported Types.</para>
 
   <code>
-  A DNS packet ...
+  A Dns packet ...
   1  1  1  1  1  1
   0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
   +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
@@ -60,7 +60,7 @@ namespace NetworkPackets.Dns {
   |                    ARCOUNT                    |
   +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
   |                                               |
-  /                    QUERYS                     /
+  /                    QueryS                     /
   /                                               /
   +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
   |                                               |
@@ -129,29 +129,29 @@ namespace NetworkPackets.Dns {
   </list>
   </remarks>
   */
-  public class DNSPacket: DataPacket {
+  public class DnsPacket: DataPacket {
     /// <summary>the standard ptr suffix</summary>
     public const String INADDR_ARPA = ".in-addr.arpa";
-  /// <summary>DNS Query / Response / Record types</summary>
-    public enum TYPES {
+  /// <summary>Dns Query / Response / Record types</summary>
+    public enum Types {
     /// <summary>Host address(name)</summary>
       A = 1,
     /// <summary>zone authority</summary>
-      SOA = 6,
+      Soa = 6,
     /// <summary>domain name pointer (ip address)</summary>
-      PTR = 12
+      Ptr = 12
     };
   /// <summary>supported network classes</summary>
-    public enum CLASSES {
+    public enum Classes {
     /// <summary>The Internet</summary>
       IN = 1
     };
     /// <summary>Unique packet ID</summary>
     public readonly short ID;
     /// <summary>Query if true, otherwise a response</summary>
-    public readonly bool QUERY;
+    public readonly bool Query;
     /// <summary>0 = Query, 1 = Inverse Query, 2 = Status</summary>
-    public readonly byte OPCODE;
+    public readonly byte Opcode;
     /// <summary>Authoritative answer (if you have a resolution, set)</summary>
     public readonly bool AA;
     public readonly bool RD;
@@ -164,18 +164,18 @@ namespace NetworkPackets.Dns {
     public readonly Response[] Additional;
 
     /**
-    <summary>Creates a DNS packet from the parameters provided.</summary>
+    <summary>Creates a Dns packet from the parameters provided.</summary>
     <param name="ID">A unique ID for the packet, responses should be the same
     as the query</param>
-    <param name="QUERY">True if a query, false if a response</param>
-    <param name="OPCODE">0 = Query, which is the only supported parsing method
+    <param name="Query">True if a query, false if a response</param>
+    <param name="Opcode">0 = Query, which is the only supported parsing method
     </param>
     <param name="AA">Authoritative Answer, true if there is a resolution for
     the lookup.</param>
     <param name="Questions">A list of Questions.</param>
     <param name="Answers">A list of Answers.</param>
     */
-    public DNSPacket(short ID, bool QUERY, byte OPCODE, bool AA, bool RA,
+    public DnsPacket(short ID, bool Query, byte Opcode, bool AA, bool RA,
                      bool RD, Question[] Questions, Response[] Answers,
                      Response[] Authority, Response[] Additional) {
       byte[] header = new byte[12];
@@ -184,13 +184,13 @@ namespace NetworkPackets.Dns {
       header[0] = (byte) ((ID >> 8) & 0xFF);
       header[1] = (byte) (ID & 0xFF);
 
-      this.QUERY = QUERY;
-      if(!QUERY) {
+      this.Query = Query;
+      if(!Query) {
         header[2] |= 0x80;
       }
 
-      this.OPCODE = OPCODE;
-      header[2] |= (byte) (OPCODE << 3);
+      this.Opcode = Opcode;
+      header[2] |= (byte) (Opcode << 3);
 
       this.AA = AA;
       if(AA) {
@@ -266,14 +266,14 @@ namespace NetworkPackets.Dns {
     }
 
     /**
-    <summary>Parses a MemBlock as a DNSPacket.</summary>
-    <param name="Packet">The payload containing hte DNS Packet in byte format.
+    <summary>Parses a MemBlock as a DnsPacket.</summary>
+    <param name="Packet">The payload containing hte Dns Packet in byte format.
     </param>
     */
-    public DNSPacket(MemBlock Packet) {
+    public DnsPacket(MemBlock Packet) {
       ID = (short) ((Packet[0] << 8) + Packet[1]);
-      QUERY = (bool) (((Packet[2] & 0x80) >> 7) == 0);
-      OPCODE = (byte) ((Packet[2] & 0x78) >> 3);
+      Query = (bool) (((Packet[2] & 0x80) >> 7) == 0);
+      Opcode = (byte) ((Packet[2] & 0x78) >> 3);
 
       if((Packet[2] & 0x4) == 0x4) {
         AA = true;
@@ -330,13 +330,13 @@ namespace NetworkPackets.Dns {
     }
 
     /**
-    <summary>Given a DNSPacket, it will generate a failure message so that
+    <summary>Given a DnsPacket, it will generate a failure message so that
     the local resolver can move on to the next nameserver without timeouting
     on the this one.</summary>
     <param name="Packet">The base packet to translate into a failed response
     </param>
     */
-    public static MemBlock BuildFailedReplyPacket(DNSPacket Packet) {
+    public static MemBlock BuildFailedReplyPacket(DnsPacket Packet) {
       byte[] res = new byte[Packet.Packet.Length];
       Packet.Packet.CopyTo(res, 0);
       res[3] |= 5;
@@ -372,7 +372,7 @@ namespace NetworkPackets.Dns {
           Byte.Parse(res[i]);
         }
         catch {
-          throw new Exception("Invalid IP PTR");
+          throw new Exception("Invalid IP Ptr");
         }
         name += res[i] + ".";
       }
@@ -454,10 +454,10 @@ namespace NetworkPackets.Dns {
     }
 
     /**
-    <summary>Given a NAME as a string converts it into bytes given the type
+    <summary>Given a Name as a string converts it into bytes given the type
     of query.</summary>
     <param name="name">The name to convert (and resolve).</param>
-    <param name="TYPE">The type of response packet.</param>
+    <param name="Type">The type of response packet.</param>
     */
     public static MemBlock HostnameStringToMemBlock(String name) {
       String[] pieces = name.Split('.');
@@ -475,7 +475,7 @@ namespace NetworkPackets.Dns {
     }
 
     /**
-    <summary>A blob is a fully resolved name.  DNS uses pointers to reduce
+    <summary>A blob is a fully resolved name.  Dns uses pointers to reduce
     memory consumption in packets, this can traverse all pointers and return a
     complete name.  The blob starts a Start and Ends at End.  This is used so
     that the parsing program knows where to continue reading data from.
@@ -520,7 +520,7 @@ namespace NetworkPackets.Dns {
 
 #if NUNIT
   [TestFixture]
-  public class DNSPacketTest {
+  public class DnsPacketTest {
     [Test]
     public void TestHostname() {
       String hostname = "yo-in-f104.google.com";
@@ -528,15 +528,15 @@ namespace NetworkPackets.Dns {
         0x2d, 0x69, 0x6e, 0x2d, 0x66, 0x31, 0x30, 0x34, 0x06, 0x67, 0x6f, 0x6f,
         0x67, 0x6c, 0x65, 0x03, 0x63, 0x6f, 0x6d, 0x00});
 
-      Assert.AreEqual(hostname, DNSPacket.HostnameMemBlockToString(hostnamem),
+      Assert.AreEqual(hostname, DnsPacket.HostnameMemBlockToString(hostnamem),
                       "HostnameMemBlockToString");
-      Assert.AreEqual(hostnamem, DNSPacket.HostnameStringToMemBlock(hostname),
+      Assert.AreEqual(hostnamem, DnsPacket.HostnameStringToMemBlock(hostname),
                       "HostnameStringToMemBlock");
-      Assert.AreEqual(hostname, DNSPacket.HostnameMemBlockToString(
-                      DNSPacket.HostnameStringToMemBlock(hostname)),
+      Assert.AreEqual(hostname, DnsPacket.HostnameMemBlockToString(
+                      DnsPacket.HostnameStringToMemBlock(hostname)),
                       "Hostname String dual");
-      Assert.AreEqual(hostnamem, DNSPacket.HostnameStringToMemBlock(
-                      DNSPacket.HostnameMemBlockToString(hostnamem)),
+      Assert.AreEqual(hostnamem, DnsPacket.HostnameStringToMemBlock(
+                      DnsPacket.HostnameMemBlockToString(hostnamem)),
                       "Hostname MemBlock dual");
     }
 
@@ -544,21 +544,21 @@ namespace NetworkPackets.Dns {
     public void TestIP() {
       String ip = "208.80.152.3";
       MemBlock ipm = MemBlock.Reference(new byte[] {0xd0, 0x50, 0x98, 0x03});
-      Assert.AreEqual(ip, DNSPacket.IPMemBlockToString(ipm),
+      Assert.AreEqual(ip, DnsPacket.IPMemBlockToString(ipm),
                       "IPMemBlockToString");
-      Assert.AreEqual(ipm, DNSPacket.IPStringToMemBlock(ip),
+      Assert.AreEqual(ipm, DnsPacket.IPStringToMemBlock(ip),
                       "IPStringToMemBlock");
-      Assert.AreEqual(ip, DNSPacket.IPMemBlockToString(
-                      DNSPacket.IPStringToMemBlock(ip)),
+      Assert.AreEqual(ip, DnsPacket.IPMemBlockToString(
+                      DnsPacket.IPStringToMemBlock(ip)),
                       "IP String dual");
-      Assert.AreEqual(ipm, DNSPacket.IPStringToMemBlock(
-                      DNSPacket.IPMemBlockToString(ipm)),
+      Assert.AreEqual(ipm, DnsPacket.IPStringToMemBlock(
+                      DnsPacket.IPMemBlockToString(ipm)),
                       "IP MemBlock dual");
 
       String bad_ip = "Test.Test.Test.123";
       MemBlock bad_ipm = null;
       try {
-        bad_ipm = DNSPacket.IPStringToMemBlock(bad_ip);
+        bad_ipm = DnsPacket.IPStringToMemBlock(bad_ip);
       } catch {}
       Assert.AreEqual(null, bad_ipm, "Bad IP");
     }
@@ -570,15 +570,15 @@ namespace NetworkPackets.Dns {
         0x03, 0x31, 0x36, 0x39, 0x03, 0x32, 0x33, 0x33, 0x02, 0x36, 0x34, 0x07,
         0x69, 0x6e, 0x2d, 0x61, 0x64, 0x64, 0x72, 0x04, 0x61, 0x72, 0x70, 0x61,
         0x00});
-      Assert.AreEqual(ptr, DNSPacket.PtrMemBlockToString(ptrm),
+      Assert.AreEqual(ptr, DnsPacket.PtrMemBlockToString(ptrm),
                       "PtrMemBlockToString");
-      Assert.AreEqual(ptrm, DNSPacket.PtrStringToMemBlock(ptr),
+      Assert.AreEqual(ptrm, DnsPacket.PtrStringToMemBlock(ptr),
                       "PtrStringToMemBlock");
-      Assert.AreEqual(ptr, DNSPacket.PtrMemBlockToString(
-                      DNSPacket.PtrStringToMemBlock(ptr)),
+      Assert.AreEqual(ptr, DnsPacket.PtrMemBlockToString(
+                      DnsPacket.PtrStringToMemBlock(ptr)),
                       "Ptr String dual");
-      Assert.AreEqual(ptrm, DNSPacket.PtrStringToMemBlock(
-                      DNSPacket.PtrMemBlockToString(ptrm)),
+      Assert.AreEqual(ptrm, DnsPacket.PtrStringToMemBlock(
+                      DnsPacket.PtrMemBlockToString(ptrm)),
                       "Ptr MemBlock dual");
     }
 
@@ -586,21 +586,21 @@ namespace NetworkPackets.Dns {
     public void TestPtrRPacketWithCompression() {
       int id = 55885;
       short ID = (short) id;
-      bool QUERY = false;
-      byte OPCODE = 0;
+      bool Query = false;
+      byte Opcode = 0;
       bool AA = false;
 
-      String QNAME = "64.233.169.104";
-      DNSPacket.TYPES QTYPE = DNSPacket.TYPES.PTR;
-      DNSPacket.CLASSES QCLASS = DNSPacket.CLASSES.IN;
-    //  Question qp = new Question(QNAME, QTYPE, QCLASS);
+      String QName = "64.233.169.104";
+      DnsPacket.Types QType = DnsPacket.Types.Ptr;
+      DnsPacket.Classes QClass = DnsPacket.Classes.IN;
+    //  Question qp = new Question(QName, QType, QClass);
 
-      String NAME = "64.233.169.104";
-      DNSPacket.TYPES TYPE = DNSPacket.TYPES.PTR;
-      DNSPacket.CLASSES CLASS = DNSPacket.CLASSES.IN;
-      int TTL = 30;
-      String RDATA = "yo-in-f104.google.com";
-  //    Response rp = new Response(NAME, TYPE, CLASS, TTL, RDATA);
+      String Name = "64.233.169.104";
+      DnsPacket.Types Type = DnsPacket.Types.Ptr;
+      DnsPacket.Classes Class = DnsPacket.Classes.IN;
+      int Ttl = 30;
+      String RData = "yo-in-f104.google.com";
+  //    Response rp = new Response(Name, Type, Class, Ttl, RData);
 
       MemBlock ptrm = MemBlock.Reference(new byte[] {0xda, 0x4d, 0x81, 0x80,
         0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x03, 0x31, 0x30, 0x34,
@@ -611,29 +611,29 @@ namespace NetworkPackets.Dns {
         0x66, 0x31, 0x30, 0x34, 0x06, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x03,
         0x63, 0x6f, 0x6d, 0x00});
 
-      DNSPacket dm = new DNSPacket(ptrm);
-      DNSPacket dp = new DNSPacket(ID, QUERY, OPCODE, AA, dm.RD, dm.RA,
+      DnsPacket dm = new DnsPacket(ptrm);
+      DnsPacket dp = new DnsPacket(ID, Query, Opcode, AA, dm.RD, dm.RA,
                                    dm.Questions, dm.Answers, null, null);
 
       Assert.AreEqual(dm.ID, ID, "ID");
-      Assert.AreEqual(dm.QUERY, QUERY, "QUERY");
-      Assert.AreEqual(dm.OPCODE, OPCODE, "OPCODE");
+      Assert.AreEqual(dm.Query, Query, "Query");
+      Assert.AreEqual(dm.Opcode, Opcode, "Opcode");
       Assert.AreEqual(dm.AA, AA, "AA");
       Assert.AreEqual(dm.Questions.Length, 1, "Questions");
       Assert.AreEqual(dm.Answers.Length, 1, "Answers");
       Assert.AreEqual(dm.Packet, ptrm, "MemBlock");
 
       Response rm = dm.Answers[0];
-      Assert.AreEqual(rm.NAME, NAME, "NAME");
-      Assert.AreEqual(rm.TYPE, TYPE, "TYPE");
-      Assert.AreEqual(rm.CLASS, CLASS, "CLASS");
-      Assert.AreEqual(rm.TTL, TTL, "TTL");
-      Assert.AreEqual(rm.RDATA, RDATA, "RDATA");
+      Assert.AreEqual(rm.Name, Name, "Name");
+      Assert.AreEqual(rm.Type, Type, "Type");
+      Assert.AreEqual(rm.Class, Class, "Class");
+      Assert.AreEqual(rm.Ttl, Ttl, "Ttl");
+      Assert.AreEqual(rm.RData, RData, "RData");
 
       Question qm = dm.Questions[0];
-      Assert.AreEqual(qm.QNAME, QNAME, "QNAME");
-      Assert.AreEqual(qm.QTYPE, QTYPE, "QTYPE");
-      Assert.AreEqual(qm.QCLASS, QCLASS, "QCLASS");
+      Assert.AreEqual(qm.QName, QName, "QName");
+      Assert.AreEqual(qm.QType, QType, "QType");
+      Assert.AreEqual(qm.QClass, QClass, "QClass");
 
       /// @todo add compression when creating dns packets... then we can
       /// build dp.Packet without using blobs and compare it to ptrm and it
@@ -645,23 +645,23 @@ namespace NetworkPackets.Dns {
     public void TestPtrRPacketWithoutCompression() {
       int id = 55885;
       short ID = (short) id;
-      bool QUERY = false;
-      byte OPCODE = 0;
+      bool Query = false;
+      byte Opcode = 0;
       bool AA = false;
 
-      String QNAME = "64.233.169.104";
-      DNSPacket.TYPES QTYPE = DNSPacket.TYPES.PTR;
-      DNSPacket.CLASSES QCLASS = DNSPacket.CLASSES.IN;
-      Question qp = new Question(QNAME, QTYPE, QCLASS);
+      String QName = "64.233.169.104";
+      DnsPacket.Types QType = DnsPacket.Types.Ptr;
+      DnsPacket.Classes QClass = DnsPacket.Classes.IN;
+      Question qp = new Question(QName, QType, QClass);
 
-      String NAME = "64.233.169.104";
-      DNSPacket.TYPES TYPE = DNSPacket.TYPES.PTR;
-      DNSPacket.CLASSES CLASS = DNSPacket.CLASSES.IN;
-      int TTL = 30;
-      String RDATA = "yo-in-f104.google.com";
-      Response rp = new Response(NAME, TYPE, CLASS, TTL, RDATA);
+      String Name = "64.233.169.104";
+      DnsPacket.Types Type = DnsPacket.Types.Ptr;
+      DnsPacket.Classes Class = DnsPacket.Classes.IN;
+      int Ttl = 30;
+      String RData = "yo-in-f104.google.com";
+      Response rp = new Response(Name, Type, Class, Ttl, RData);
 
-      DNSPacket dp = new DNSPacket(ID, QUERY, OPCODE, AA, false, false, 
+      DnsPacket dp = new DnsPacket(ID, Query, Opcode, AA, false, false, 
                                    new Question[] {qp}, new Response[] {rp},
                                    null, null);
 
@@ -676,32 +676,32 @@ namespace NetworkPackets.Dns {
         0x69, 0x6e, 0x2d, 0x66, 0x31, 0x30, 0x34, 0x06, 0x67, 0x6f, 0x6f, 0x67,
         0x6c, 0x65, 0x03, 0x63, 0x6f, 0x6d, 0x00});
 
-        DNSPacket dm = new DNSPacket(ptrm);
+        DnsPacket dm = new DnsPacket(ptrm);
         Assert.AreEqual(dm.ID, ID, "ID");
-        Assert.AreEqual(dm.QUERY, QUERY, "QUERY");
-        Assert.AreEqual(dm.OPCODE, OPCODE, "OPCODE");
+        Assert.AreEqual(dm.Query, Query, "Query");
+        Assert.AreEqual(dm.Opcode, Opcode, "Opcode");
         Assert.AreEqual(dm.AA, AA, "AA");
         Assert.AreEqual(dm.Questions.Length, 1, "Questions");
         Assert.AreEqual(dm.Answers.Length, 1, "Answers");
         Assert.AreEqual(dm.Packet, ptrm, "MemBlock");
 
         Response rm = dm.Answers[0];
-        Assert.AreEqual(rm.NAME, NAME, "NAME");
-        Assert.AreEqual(rm.TYPE, TYPE, "TYPE");
-        Assert.AreEqual(rm.CLASS, CLASS, "CLASS");
-        Assert.AreEqual(rm.TTL, TTL, "TTL");
-        Assert.AreEqual(rm.RDATA, RDATA, "RDATA");
+        Assert.AreEqual(rm.Name, Name, "Name");
+        Assert.AreEqual(rm.Type, Type, "Type");
+        Assert.AreEqual(rm.Class, Class, "Class");
+        Assert.AreEqual(rm.Ttl, Ttl, "Ttl");
+        Assert.AreEqual(rm.RData, RData, "RData");
 
         Question qm = dm.Questions[0];
-        Assert.AreEqual(qm.QNAME, NAME, "QNAME");
-        Assert.AreEqual(qm.QTYPE, TYPE, "QTYPE");
-        Assert.AreEqual(qm.QCLASS, CLASS, "QCLASS");
+        Assert.AreEqual(qm.QName, Name, "QName");
+        Assert.AreEqual(qm.QType, Type, "QType");
+        Assert.AreEqual(qm.QClass, Class, "QClass");
 
-        Assert.AreEqual(dp.Packet, ptrm, "DNS Packet");
+        Assert.AreEqual(dp.Packet, ptrm, "Dns Packet");
     }
 
     [Test]
-    public void TestMDNS() {
+    public void TestMDns() {
       MemBlock mdnsm = MemBlock.Reference(new byte[] {0x00, 0x00, 0x84, 0x00,
         0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x01, 0x12, 0x4c, 0x61, 0x70,
         0x70, 0x79, 0x40, 0x64, 0x61, 0x76, 0x69, 0x64, 0x2d, 0x6c, 0x61, 0x70,
@@ -725,64 +725,64 @@ namespace NetworkPackets.Dns {
         0x00, 0x11, 0x94, 0x00, 0x02, 0xc0, 0x0c, 0xc0, 0x45, 0x00, 0x01, 0x80,
         0x01, 0x00, 0x00, 0x00, 0x78, 0x00, 0x04, 0x0a, 0xe3, 0x38, 0x88});
 
-      DNSPacket mdns = new DNSPacket(mdnsm);
+      DnsPacket mdns = new DnsPacket(mdnsm);
 
       Assert.AreEqual(mdns.Questions.Length, 0, "Questions");
       Assert.AreEqual(mdns.Answers.Length, 4, "Answers");
       Assert.AreEqual(mdns.Authority.Length, 0, "Authority");
       Assert.AreEqual(mdns.Additional.Length, 1, "Additional");
-      DNSPacket dnsp = new DNSPacket(mdns.ID, mdns.QUERY, mdns.OPCODE, mdns.AA,
+      DnsPacket dnsp = new DnsPacket(mdns.ID, mdns.Query, mdns.Opcode, mdns.AA,
                                      mdns.RD, mdns.RA, null, mdns.Answers,
                                      null, mdns.Additional);
 
       Assert.AreEqual(mdnsm, dnsp.Packet, "Packet");
-      Assert.AreEqual(dnsp.Additional[0].NAME, "david-laptop.local", "NAME");
-      Assert.AreEqual(dnsp.Additional[0].TYPE, DNSPacket.TYPES.A, "TYPE");
-      Assert.AreEqual(dnsp.Additional[0].CLASS, DNSPacket.CLASSES.IN, "CLASS");
-      Assert.AreEqual(dnsp.Additional[0].CACHE_FLUSH, true, "CACHE_FLUSH");
-      Assert.AreEqual(dnsp.Additional[0].TTL, 120, "TTL");
-      Assert.AreEqual(dnsp.Additional[0].RDATA, "10.227.56.136", "RDATA");
+      Assert.AreEqual(dnsp.Additional[0].Name, "david-laptop.local", "Name");
+      Assert.AreEqual(dnsp.Additional[0].Type, DnsPacket.Types.A, "Type");
+      Assert.AreEqual(dnsp.Additional[0].Class, DnsPacket.Classes.IN, "Class");
+      Assert.AreEqual(dnsp.Additional[0].CacheFlush, true, "CacheFlush");
+      Assert.AreEqual(dnsp.Additional[0].Ttl, 120, "Ttl");
+      Assert.AreEqual(dnsp.Additional[0].RData, "10.227.56.136", "RData");
     }
 
     [Test]
-    public void TestMDNS0() {
+    public void TestMDns0() {
       MemBlock mdnsm = MemBlock.Reference(new byte[] {0x00, 0x00, 0x00, 0x00,
         0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x0E, 0x64, 0x61, 0x76,
         0x69, 0x64, 0x69, 0x77, 0x2D, 0x6C, 0x61, 0x70, 0x74, 0x6F, 0x70, 0x05,
         0x6C, 0x6F, 0x63, 0x61, 0x6C, 0x00, 0x00, 0xFF, 0x00, 0x01, 0xC0, 0x0C,
         0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x78, 0x00, 0x04, 0x0A, 0xFE,
         0x00, 0x01});
-      DNSPacket mdns = new DNSPacket(mdnsm);
+      DnsPacket mdns = new DnsPacket(mdnsm);
 
       Assert.AreEqual(mdns.Questions.Length, 1, "Questions");
       Assert.AreEqual(mdns.Answers.Length, 0, "Answers");
       Assert.AreEqual(mdns.Authority.Length, 1, "Authority");
       Assert.AreEqual(mdns.Additional.Length, 0, "Additional");
-      DNSPacket dnsp = new DNSPacket(mdns.ID, mdns.QUERY, mdns.OPCODE, mdns.AA,
+      DnsPacket dnsp = new DnsPacket(mdns.ID, mdns.Query, mdns.Opcode, mdns.AA,
                                      mdns.RD, mdns.RA, mdns.Questions, mdns.Answers,
                                      mdns.Authority, mdns.Additional);
 
-      Assert.AreEqual(dnsp.Authority[0].NAME, "davidiw-laptop.local", "NAME");
-      Assert.AreEqual(dnsp.Authority[0].TYPE, DNSPacket.TYPES.A, "TYPE");
-      Assert.AreEqual(dnsp.Authority[0].CLASS, DNSPacket.CLASSES.IN, "CLASS");
-      Assert.AreEqual(dnsp.Authority[0].CACHE_FLUSH, false, "CACHE_FLUSH");
-      Assert.AreEqual(dnsp.Authority[0].TTL, 120, "TTL");
-      Assert.AreEqual(dnsp.Authority[0].RDATA, "10.254.0.1", "RDATA");
+      Assert.AreEqual(dnsp.Authority[0].Name, "davidiw-laptop.local", "Name");
+      Assert.AreEqual(dnsp.Authority[0].Type, DnsPacket.Types.A, "Type");
+      Assert.AreEqual(dnsp.Authority[0].Class, DnsPacket.Classes.IN, "Class");
+      Assert.AreEqual(dnsp.Authority[0].CacheFlush, false, "CacheFlush");
+      Assert.AreEqual(dnsp.Authority[0].Ttl, 120, "Ttl");
+      Assert.AreEqual(dnsp.Authority[0].RData, "10.254.0.1", "RData");
 
       Response old = mdns.Authority[0];
-      mdns.Authority[0] = new Response(old.NAME, old.TYPE, old.CLASS,
-                                         old.CACHE_FLUSH, old.TTL, "10.254.111.252");
+      mdns.Authority[0] = new Response(old.Name, old.Type, old.Class,
+                                         old.CacheFlush, old.Ttl, "10.254.111.252");
 
-      dnsp = new DNSPacket(mdns.ID, mdns.QUERY, mdns.OPCODE, mdns.AA,
+      dnsp = new DnsPacket(mdns.ID, mdns.Query, mdns.Opcode, mdns.AA,
                                      mdns.RD, mdns.RA, mdns.Questions, mdns.Answers,
                                      mdns.Authority, mdns.Additional);
 
-      Assert.AreEqual(dnsp.Authority[0].NAME, "davidiw-laptop.local", "NAME");
-      Assert.AreEqual(dnsp.Authority[0].TYPE, DNSPacket.TYPES.A, "TYPE");
-      Assert.AreEqual(dnsp.Authority[0].CLASS, DNSPacket.CLASSES.IN, "CLASS");
-      Assert.AreEqual(dnsp.Authority[0].CACHE_FLUSH, false, "CACHE_FLUSH");
-      Assert.AreEqual(dnsp.Authority[0].TTL, 120, "TTL");
-      Assert.AreEqual(dnsp.Authority[0].RDATA, "10.254.111.252", "RDATA");
+      Assert.AreEqual(dnsp.Authority[0].Name, "davidiw-laptop.local", "Name");
+      Assert.AreEqual(dnsp.Authority[0].Type, DnsPacket.Types.A, "Type");
+      Assert.AreEqual(dnsp.Authority[0].Class, DnsPacket.Classes.IN, "Class");
+      Assert.AreEqual(dnsp.Authority[0].CacheFlush, false, "CacheFlush");
+      Assert.AreEqual(dnsp.Authority[0].Ttl, 120, "Ttl");
+      Assert.AreEqual(dnsp.Authority[0].RData, "10.254.111.252", "RData");
     }
 
     [Test]
@@ -795,19 +795,19 @@ namespace NetworkPackets.Dns {
         0x0C, 0x00, 0x21, 0x00, 0x01, 0x00, 0x00, 0x00, 0x78, 0x00, 0x0D, 0x00,
         0x00, 0x00, 0x00, 0x0E, 0x69, 0x04, 0x50, 0x49, 0x42, 0x4D, 0xC0,
         0x2});
-      DNSPacket mdns = new DNSPacket(mdnsm);
+      DnsPacket mdns = new DnsPacket(mdnsm);
       Assert.AreEqual(mdns.Questions.Length, 1, "Questions");
       Assert.AreEqual(mdns.Answers.Length, 0, "Answers");
       Assert.AreEqual(mdns.Authority.Length, 1, "Authority");
       Assert.AreEqual(mdns.Additional.Length, 0, "Additional");
 
-      Assert.AreEqual(mdns.Questions[0].QNAME_BLOB, 
+      Assert.AreEqual(mdns.Questions[0].QNameBlob, 
         MemBlock.Reference(new byte[]{0x10, 0x50, 0x69, 0x65, 0x72, 0x72, 0x65,
         0x27, 0x73, 0x20, 0x4C, 0x69, 0x62, 0x72, 0x61, 0x72, 0x79, 0x05, 0x5F,
         0x64, 0x61, 0x61, 0x70, 0x04, 0x5F, 0x74, 0x63, 0x70, 0x05, 0x6C, 0x6F,
-        0x63, 0x61, 0x6C, 0x00}), "QNAME");
-      Assert.AreEqual(mdns.Questions[0].QTYPE, (DNSPacket.TYPES) 0xFF, "QTYPE");
-      Assert.AreEqual(mdns.Questions[0].QCLASS, DNSPacket.CLASSES.IN, "QCLASS");
+        0x63, 0x61, 0x6C, 0x00}), "QName");
+      Assert.AreEqual(mdns.Questions[0].QType, (DnsPacket.Types) 0xFF, "QType");
+      Assert.AreEqual(mdns.Questions[0].QClass, DnsPacket.Classes.IN, "QClass");
     }
 
     [Test]
@@ -856,7 +856,7 @@ namespace NetworkPackets.Dns {
         0x1c, 0x80, 0x01, 0x00, 0x00, 0x00, 0x78, 0x00, 0x10, 0xfe, 0x80, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa9, 0xff, 0xfe, 0xe4, 0x23,
         0x5f});
-      DNSPacket mdns = new DNSPacket(mdnsm);
+      DnsPacket mdns = new DnsPacket(mdnsm);
 
       Assert.AreEqual(mdns.Questions.Length, 0, "Questions");
       Assert.AreEqual(mdns.Answers.Length, 8, "Answers");
@@ -867,17 +867,17 @@ namespace NetworkPackets.Dns {
         0x35, 0x37, 0x38, 0x32, 0x41, 0x43, 0x32, 0x46, 0x43, 0x46, 0x31, 0x41,
         0x43, 0x05, 0x5f, 0x64, 0x61, 0x63, 0x70, 0x04, 0x5f, 0x74, 0x63, 0x70,
         0x05, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x00});
-      Assert.AreEqual(mdns.Answers[5].NAME_BLOB, test, "Answers[5].NAME");
-      Assert.AreEqual(mdns.Additional[0].NAME, "pierre.local",
-                      "Additional[0].NAME");
-      Assert.AreEqual(mdns.Additional[0].RDATA, "10.254.0.1",
-                      "Additional[0].RDATA");
-      Assert.AreEqual(mdns.Answers[2].TYPE, DNSPacket.TYPES.PTR,
-                      "Answers[2].TYPE");
+      Assert.AreEqual(mdns.Answers[5].NameBlob, test, "Answers[5].Name");
+      Assert.AreEqual(mdns.Additional[0].Name, "pierre.local",
+                      "Additional[0].Name");
+      Assert.AreEqual(mdns.Additional[0].RData, "10.254.0.1",
+                      "Additional[0].RData");
+      Assert.AreEqual(mdns.Answers[2].Type, DnsPacket.Types.Ptr,
+                      "Answers[2].Type");
       Response original = mdns.Answers[2];
-      Response copy = new Response(original.NAME, original.TYPE,
-                                   original.CLASS, original.CACHE_FLUSH,
-                                   original.TTL, original.RDATA);
+      Response copy = new Response(original.Name, original.Type,
+                                   original.Class, original.CacheFlush,
+                                   original.Ttl, original.RData);
       MemBlock original_expanded = MemBlock.Reference(new byte[]{0x09, 0x5f,
         0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x73, 0x07, 0x5f, 0x64, 0x6e,
         0x73, 0x2d, 0x73, 0x64, 0x04, 0x5f, 0x75, 0x64, 0x70, 0x05, 0x6c, 0x6f,

@@ -34,7 +34,7 @@ namespace Ipop.Dht {
   of acceptable hostnames is [a-zA-Z0-9-_\.]*.ipop (i.e. must end in
   .ipop)</summary>
   */
-  public class DhtDNS: DNS {
+  public class DhtDns: Dns {
     /// <summary>Maps names to IP Addresses</summary>
     protected Cache dns_a = new Cache(100);
     /// <summary>Maps IP Addresses to names</summary>
@@ -46,10 +46,10 @@ namespace Ipop.Dht {
     protected object _sync;
 
     /**
-    <summary>Create a DhtDNS using the specified Dht object</summary>
+    <summary>Create a DhtDns using the specified Dht object</summary>
     <param name="dht">A Dht object used to acquire name translations</param>
     */
-    public DhtDNS(MemBlock ip, MemBlock netmask, string name_server,
+    public DhtDns(MemBlock ip, MemBlock netmask, string name_server,
         bool forward_queries, IDht dht, String ipop_namespace) :
       base(ip, netmask, name_server, forward_queries)
     {
@@ -69,7 +69,7 @@ namespace Ipop.Dht {
      */
     public override String AddressLookUp(String name) {
       if(!name.EndsWith(DomainName)) {
-        throw new Exception("Invalid DNS name: " + name);
+        throw new Exception("Invalid Dns name: " + name);
       }
       String ip = (String) dns_a[name];
       if(ip == null) {

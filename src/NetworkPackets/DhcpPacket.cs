@@ -23,15 +23,15 @@ using System.Collections;
 using System.Collections.Generic;
 
 /**
-\namespace NetworkPacket::DHCP
-\brief Defines DHCP Packets.
+\namespace NetworkPacket::Dhcp
+\brief Defines Dhcp Packets.
 */
-namespace NetworkPackets.DHCP {
+namespace NetworkPackets.Dhcp {
   /**
-  <summary>Encapsulates a DHCP Packet in an immutable object providing both
+  <summary>Encapsulates a Dhcp Packet in an immutable object providing both
   a byte array and a parsed version of the dhcp information</summary>
   <remarks>
-  The outline of a DHCP Packet:
+  The outline of a Dhcp Packet:
   <code>
   0                   1                   2                   3
   0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
@@ -136,7 +136,7 @@ namespace NetworkPackets.DHCP {
   </list>
   </remarks>
   */
-  public class DHCPPacket: DataPacket {
+  public class DhcpPacket: DataPacket {
     /// <summary>The type of dhcp message.</summary>
     public enum MessageTypes {
       /// <summary>A node looking for an IP Address</summary>
@@ -177,7 +177,7 @@ namespace NetworkPackets.DHCP {
       REQUESTED_IP = 50,
       /// <summary>The length of a dhcp lease.</summary>
       LEASE_TIME = 51,
-      /// <summary>Type of a DHCP message.</summary>
+      /// <summary>Type of a Dhcp message.</summary>
       MESSAGE_TYPE = 53,
       /// <summary>The IP of the responding server, use a.b.c.1</summary>
       SERVER_ID = 54,
@@ -204,12 +204,12 @@ namespace NetworkPackets.DHCP {
         MemBlock.Reference(new byte[4] {99, 130, 83, 99});
 
     /**
-    <summary>Parse a MemBlock packet into a DHCP Packet</summary>
+    <summary>Parse a MemBlock packet into a Dhcp Packet</summary>
     <param name="Packet">The dhcp packet to parse</param>
     */
-    public DHCPPacket(MemBlock Packet) {
+    public DhcpPacket(MemBlock Packet) {
       if(Packet.Length < 240) {
-        throw new Exception("Invalid DHCP Packet:  Length < 240.");
+        throw new Exception("Invalid Dhcp Packet:  Length < 240.");
       }
 
       _packet = Packet;
@@ -222,7 +222,7 @@ namespace NetworkPackets.DHCP {
       chaddr = Packet.Slice(28, hlen);
       MemBlock key = Packet.Slice(236, 4);
       if(!key.Equals(magic_key)) {
-        throw new Exception("Invalid DHCP Packet: Invalid magic key.");
+        throw new Exception("Invalid Dhcp Packet: Invalid magic key.");
       }
       int idx = 240;
 
@@ -243,7 +243,7 @@ namespace NetworkPackets.DHCP {
       }
     }
 
-    public DHCPPacket(byte op, MemBlock xid, MemBlock ciaddr, MemBlock yiaddr,
+    public DhcpPacket(byte op, MemBlock xid, MemBlock ciaddr, MemBlock yiaddr,
                      MemBlock siaddr, MemBlock chaddr, Dictionary<OptionTypes, MemBlock> Options) {
       this.op = op;
       this.xid = xid;

@@ -23,7 +23,7 @@ namespace NetworkPackets {
   /**
   <summary>Unsupported, this class is too big to support now!</summary>
   */
-  public class IGMPPacket: NetworkPacket {
+  public class IgmpPacket: NetworkPacket {
   /**
   <summary>Unsupported, this class is too big to support now!</summary>
   */
@@ -31,14 +31,14 @@ namespace NetworkPackets {
     public readonly byte Type;
     public readonly MemBlock GroupAddress;
 
-    public IGMPPacket(MemBlock packet) {
+    public IgmpPacket(MemBlock packet) {
       _icpacket = _packet = packet;
       Type = packet[0];
       GroupAddress = packet.Slice(4, 4);
       _icpayload = _payload = packet.Slice(8);
     }
 
-    public IGMPPacket(byte Type, MemBlock GroupAddress) {
+    public IgmpPacket(byte Type, MemBlock GroupAddress) {
 //      byte[] header = new byte[8];
     }
   }
