@@ -59,9 +59,10 @@ namespace Brunet.Transport {
 
     protected bool _running;
     protected readonly Thread _timer_thread;
-    protected readonly int _period = 1000;
-    protected readonly FuzzyEvent _fe;
-    protected long _next_check;
+    public const int RRM_PERIOD = 1000;
+    public const int EDGE_PERIOD = 300000;
+    protected readonly FuzzyEvent _rrm_fe;
+    protected readonly FuzzyEvent _edge_fe;
 
     //Methods:
 
@@ -78,14 +79,19 @@ namespace Brunet.Transport {
       Rpc.AddHandler("sys:pathing", this);
       _el.EdgeEvent += HandleEdge;
       _running = true;
-      _next_check = DateTime.UtcNow.Ticks;
 
       if(thread) {
         _timer_thread = new Thread(
           delegate() {
+            int counter = 0;
+            int max_counter = EDGE_PERIOD / 1000;
             while(_running) {
               Thread.Sleep(1000);
-              TimeoutCheck();
+              ReqrepTimeoutChecker();
+              if(++counter == max_counter) {
+                counter = 0;
+                EdgeTimeoutChecker();
+              }
             }
           }
         );
@@ -106,24 +112,30 @@ namespace Brunet.Transport {
      * @param el the EdgeListener to multiplex
      */
     public PathELManager(EdgeListener el, IActionQueue queue) : this(el, false) {
-      PathELManagerAction pema = new PathELManagerAction(this);
-
-      Action<DateTime> torun = delegate(DateTime now) {
-        queue.EnqueueAction(pema);
+      PathELManagerAction pema_rrm = new PathELManagerAction(this, ReqrepTimeoutChecker);
+      Action<DateTime> torun_rrm = delegate(DateTime now) {
+        queue.EnqueueAction(pema_rrm);
       };
+      _rrm_fe = Brunet.Util.FuzzyTimer.Instance.DoEvery(torun_rrm, RRM_PERIOD, (RRM_PERIOD / 2) + 1);
 
-      _fe = Brunet.Util.FuzzyTimer.Instance.DoEvery(torun, _period, _period / 2 + 1);
+      PathELManagerAction pema_edge = new PathELManagerAction(this, EdgeTimeoutChecker);
+      Action<DateTime> torun_edge = delegate(DateTime now) {
+        queue.EnqueueAction(pema_edge);
+      };
+      _edge_fe = Brunet.Util.FuzzyTimer.Instance.DoEvery(torun_edge, EDGE_PERIOD, (EDGE_PERIOD / 2) + 1);
     }
 
     protected class PathELManagerAction : IAction {
       protected readonly PathELManager _pem;
+      protected readonly ThreadStart _callback;
 
-      public PathELManagerAction(PathELManager pem) {
+      public PathELManagerAction(PathELManager pem, ThreadStart callback) {
         _pem = pem;
+        _callback = callback;
       }
 
       public void Start() {
-        _pem.TimeoutCheck();
+        _callback();
       }
     }
 
@@ -131,21 +143,13 @@ namespace Brunet.Transport {
      * Handles Rrm TimeoutChecking as well as removing stale entries from the
      * _unannounced Edge dictionary.
      */
-    protected void TimeoutCheck() {
+    protected void ReqrepTimeoutChecker() {
       _rrm.TimeoutChecker(null, null);
+    }
 
-      DateTime now = DateTime.UtcNow;
-      long next = _next_check;
-      if(next < now.Ticks) {
-        // If someone else is checking it, let's just end it here
-        long current = Interlocked.Exchange(ref _next_check, now.AddMinutes(5).Ticks);
-        if(next != current) {
-          return;
-        }
-      }
-
+    protected void EdgeTimeoutChecker() {
       // Get the list of old edges
-      DateTime remove_timeout = now.AddMinutes(-5);
+      DateTime remove_timeout = DateTime.UtcNow.AddMinutes(-5);
       List<Edge> to_close =  new List<Edge>();
       lock(_sync) {
         foreach(Edge e in _unannounced.Keys) {
@@ -165,7 +169,7 @@ namespace Brunet.Transport {
         try {
           pe.Close();
         } catch(Exception ex) {
-          Console.WriteLine(ex);
+          ProtocolLog.WriteIf(ProtocolLog.Exceptions, ex.ToString());
         }
       }
 
@@ -289,6 +293,13 @@ namespace Brunet.Transport {
             }
           }
           if( pe == null ) {
+            if(! _pel_map.ContainsKey(Root) ) {
+              ProtocolLog.WriteIf(ProtocolLog.Pathing, "No root, can't create edge");
+              if(e != null) {
+                e.Close();
+              }
+              return;
+            }
             /*
              * This must be a "default path" incoming connection
              */
@@ -305,7 +316,8 @@ namespace Brunet.Transport {
             pe.Close();  
           }
           else if( e != null ) {
-            Console.WriteLine("Closing ({0}) due to: {1}", e, x);
+            ProtocolLog.WriteIf(ProtocolLog.Pathing,
+                String.Format("Closing ({0}) due to: {1}", e, x));
             e.Close();  
           }
         }
@@ -347,13 +359,19 @@ namespace Brunet.Transport {
         try {
           e.Close();
         } catch(Exception ex) {
-          Console.WriteLine(ex);
+          ProtocolLog.WriteIf(ProtocolLog.Exceptions, ex.ToString());
         }
       }
 
       _running = false;
-      if(_fe != null) {
-        _fe.TryCancel();
+      if(_rrm_fe != null) {
+        _rrm_fe.TryCancel();
+      }
+      if(_edge_fe != null) {
+        _edge_fe.TryCancel();
+      }
+      if(_timer_thread != null) {
+        _timer_thread.Join();
       }
       _el.Stop();
    }
@@ -371,7 +389,8 @@ namespace Brunet.Transport {
       }
       catch(Exception x) {
         //Didn't work out, make sure the edges is closed
-        Console.WriteLine("Closing ({0}) due to: {1}", e, x);
+        ProtocolLog.WriteIf(ProtocolLog.Pathing,
+            String.Format("Closing ({0}) due to: {1}", e, x));
         e.Close();
       }
     }
@@ -471,7 +490,6 @@ namespace Brunet.Transport {
               RpcResult res = (RpcResult)results.Dequeue();
               object o = res.Result;
               if(o is Exception) {
-                Console.WriteLine(o);
                 throw (o as Exception);
               }
               //If we get here, everything looks good:

@@ -44,6 +44,8 @@ namespace Brunet.Util {
         new BooleanSwitch("Security", "Security logging.");
     public static BooleanSwitch SecurityExceptions =
         new BooleanSwitch("SecurityExceptions", "Security Handling Exception logging.");
+    public static BooleanSwitch Pathing =
+        new BooleanSwitch("Pathing", "Log for pathing");
 
     public static bool CTL_enabled = false;
 

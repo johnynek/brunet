@@ -50,6 +50,7 @@ namespace Brunet.Simulator {
     public readonly string BrunetNamespace;
 
     protected readonly double _broken;
+    protected readonly bool _pathing;
     protected readonly bool _secure_edges;
     protected readonly bool _secure_senders;
     public bool NCEnable;
@@ -73,6 +74,7 @@ namespace Brunet.Simulator {
       _broken = 0;
       _secure_edges = parameters.SecureEdges;
       _secure_senders = parameters.SecureSenders;
+      _pathing = parameters.Pathing;
       if(_secure_edges || _secure_senders) {
         _se_key = new RSACryptoServiceProvider();
         byte[] blob = _se_key.ExportCspBlob(false);
@@ -102,7 +104,6 @@ namespace Brunet.Simulator {
     public bool Complete(bool quiet)
     {
       DateTime start = DateTime.UtcNow;
-      long ticks_start = start.Ticks;
       long ticks_end = start.AddHours(1).Ticks;
       bool success = false;
       while(DateTime.UtcNow.Ticks < ticks_end) {
@@ -256,6 +257,14 @@ namespace Brunet.Simulator {
         node.HeartBeatEvent += so.Heartbeat;
       }
 
+      if(_pathing) {
+        nm.PathEM = new PathELManager(el);
+        nm.PathEM.Start();
+        el = nm.PathEM.CreatePath();
+        PType path_p = PType.Protocol.Pathing;
+        nm.Node.DemuxHandler.GetTypeSource(path_p).Subscribe(nm.PathEM, path_p);
+      }
+
       if(_secure_edges) {
         node.EdgeVerifyMethod = EdgeVerify.AddressInSubjectAltName;
         el = new SecureEdgeListener(el, nm.BSO);
@@ -293,6 +302,9 @@ namespace Brunet.Simulator {
       }
       TakenIDs.Remove(nm.ID);
       Nodes.Remove(node.Address);
+      if(_pathing) {
+        nm.PathEM.Stop();
+      }
       CurrentNetworkSize--;
     }
 
@@ -703,6 +715,7 @@ namespace Brunet.Simulator {
     public Node Node;
     public ProtocolSecurityOverlord BSO;
     public NCService NCService;
+    public PathELManager PathEM;
   }
 
   /// <summary> Randomly breaks all edges to remote entity.</summary>

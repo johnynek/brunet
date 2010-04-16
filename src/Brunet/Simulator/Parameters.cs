@@ -35,6 +35,7 @@ namespace Brunet.Simulator {
     public int EvaluationTime { get { return _runtime; } }
     public bool HeavyChurn { get { return _heavy_churn; } }
     public bool Help { get { return _help; } }
+    public bool Pathing {get { return _pathing; } }
     public bool SecureEdges { get { return _se; } }
     public bool SecureSenders { get { return _ss; } }
     public int Seed { get { return _seed; } }
@@ -49,6 +50,7 @@ namespace Brunet.Simulator {
     protected bool _evaluation = false;
     protected bool _heavy_churn = false;
     protected bool _help = false;
+    protected bool _pathing = false;
     protected int _seed = -1;
     protected bool _se = false;
     protected int _size = 100;
@@ -69,6 +71,7 @@ namespace Brunet.Simulator {
         {"s|size=", "Network size", v => _size = Int32.Parse(v)},
         {"t|execution_time=", "Time in sec to run the evaluation",
           v => _runtime = Int32.Parse(v) * 1000},
+        {"p|pathing", "Enable pathing", v => _pathing = true},
         {"se|secure_edges", "SecureEdges", v => _se = true},
         {"ss|secure_senders", "SecureSenders", v => _ss = true},
         {"hc|heavy_churn", "HeavyChurn Test", v => _heavy_churn = true},
