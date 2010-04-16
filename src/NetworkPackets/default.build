@@ -11,7 +11,7 @@
   <target name="build" description="Nothing to build">
   </target>
 
-  <target name="test" description="Build NetworkPackets.dll">
+  <target name="test" description="Build NetworkPackets.Test.dll">
     <mkdir dir="${build.dir}" failonerror="true"/>
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${lib.dir}">
