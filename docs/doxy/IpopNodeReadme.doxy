@@ -46,7 +46,7 @@ portions are documented in this section.
 \subsection DHCP Setting Up the Dht DHCP Server
 In order for DHCP to work with DhtIpopNode and CondorIpopNode, a
 DHCPServerConfig needs to be entered into the DHCP first.  An example is
-provided in the config/dht_dhcp_namespace.  It is important to keep the lack
+provided in the config/dhcp.config.  It is important to keep the lack
 of white space in that document as the dht is limited to 1024 bytes per entry.
 
 Below is a sample DHCPServerConfig in XML format:
