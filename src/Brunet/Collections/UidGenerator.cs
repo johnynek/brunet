@@ -35,6 +35,8 @@ public class UidGenerator<T> : IEnumerable<T> {
   protected readonly bool _nonneg;
   protected readonly Dictionary<int, T> _obj_map;
 
+  public int Count { get { return _obj_map.Count; } }
+
   public UidGenerator(Random r) : this(r, false) { }
 
   public UidGenerator(Random r, bool nonneg) {
@@ -110,6 +112,10 @@ public class UidGenerator<T> : IEnumerable<T> {
     else {
       return false;
     }
+  }
+
+  public Dictionary<int, T> ToDictionary() {
+    return new Dictionary<int, T>(_obj_map);
   }
 }
 
