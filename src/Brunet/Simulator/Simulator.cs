@@ -29,6 +29,7 @@ using Brunet.Concurrent;
 using Brunet.Connections;
 using Brunet.Messaging;
 using Brunet.Security;
+using Brunet.Security.Dtls;
 using Brunet.Security.PeerSec;
 using Brunet.Security.PeerSec.Symphony;
 using Brunet.Security.Transport;
@@ -249,13 +250,24 @@ namespace Brunet.Simulator {
           address.ToString());
         Certificate cert = cm.Sign(_ca_cert, _se_key);
 
-        CertificateHandler ch = new CertificateHandler();
+        CertificateHandler ch = null;
+        if(_dtls) {
+          ch = new OpenSslCertificateHandler();
+        } else {
+          ch = new CertificateHandler();
+        }
         ch.AddCACertificate(_ca_cert.X509);
         ch.AddSignedCertificate(cert.X509);
 
-        nm.BSO = new SymphonySecurityOverlord(node, rsa_copy, ch, node.Rrm);
-        nm.BSO.Subscribe(node, null);
-        node.GetTypeSource(PeerSecOverlord.Security).Subscribe(nm.BSO, null);
+        if(_dtls) {
+          nm.SO = new DtlsOverlord(rsa_copy, ch, PeerSecOverlord.Security);
+        } else {
+          nm.BSO = new SymphonySecurityOverlord(node, rsa_copy, ch, node.Rrm);
+          nm.SO = nm.BSO;
+        }
+
+        nm.SO.Subscribe(node, null);
+        node.GetTypeSource(PeerSecOverlord.Security).Subscribe(nm.SO, null);
       }
 
       if(_pathing) {
@@ -268,7 +280,7 @@ namespace Brunet.Simulator {
 
       if(_secure_edges) {
         node.EdgeVerifyMethod = EdgeVerify.AddressInSubjectAltName;
-        el = new SecureEdgeListener(el, nm.BSO);
+        el = new SecureEdgeListener(el, nm.SO);
       }
 
       node.AddEdgeListener(el);
@@ -715,6 +727,7 @@ namespace Brunet.Simulator {
     public int ID;
     public Node Node;
     public SymphonySecurityOverlord BSO;
+    public SecurityOverlord SO;
     public NCService NCService;
     public PathELManager PathEM;
   }

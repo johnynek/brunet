@@ -30,6 +30,7 @@ namespace Brunet.Simulator {
     public double Broken { get { return _broken; } }
     public bool Complete { get { return _complete; } }
     public string Dataset { get { return _dataset; } }
+    public bool Dtls { get { return _dtls; } }
     public string ErrorMessage { get { return _error_message; } }
     public bool Evaluation { get { return _evaluation; } }
     public int EvaluationTime { get { return _runtime; } }
@@ -46,6 +47,7 @@ namespace Brunet.Simulator {
     protected double _broken = 0;
     protected bool _complete = false;
     protected string _dataset = string.Empty;
+    protected bool _dtls = false;
     protected string _error_message = string.Empty;
     protected bool _evaluation = false;
     protected bool _heavy_churn = false;
@@ -65,18 +67,19 @@ namespace Brunet.Simulator {
       AppDescription = app_description;
 
       _options = new OptionSet() {
-        {"b|broken", "Ratio of broken edges", v => _broken = Double.Parse(v)},
+        {"b|broken=", "Ratio of broken edges", v => _broken = Double.Parse(v)},
         {"c|complete", "Complete full connectivity and quit", v => _complete = true},
         {"e|evaluation", "Evaluation", v => _evaluation = true},
         {"s|size=", "Network size", v => _size = Int32.Parse(v)},
         {"t|execution_time=", "Time in sec to run the evaluation",
           v => _runtime = Int32.Parse(v) * 1000},
         {"p|pathing", "Enable pathing", v => _pathing = true},
-        {"se|secure_edges", "SecureEdges", v => _se = true},
-        {"ss|secure_senders", "SecureSenders", v => _ss = true},
-        {"hc|heavy_churn", "HeavyChurn Test", v => _heavy_churn = true},
+        {"secure_edges", "SecureEdges", v => _se = true},
+        {"secure_senders", "SecureSenders", v => _ss = true},
+        {"heavy_churn", "HeavyChurn Test", v => _heavy_churn = true},
         {"seed=", "Random number seed", v => _seed = Int32.Parse(v)},
         {"d|dataset=", "Peer latency latency_map", v => _dataset = v},
+        {"dtls", "Use Dtls instead of PeerSec", v => _dtls = true},
         {"h|help", "Help", v => _help = true},
       };
     }

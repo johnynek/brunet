@@ -52,6 +52,27 @@ public class RSAPrivateKeyToDER {
     return pem.GetBytes();
   }
 
+  public const string BEGIN_MARKER = "-----BEGIN PRIVATE KEY-----";
+  public const string END_MARKER = "-----END PRIVATE KEY-----";
+
+
+  public static string RSAKeyToPEM(RSAParameters PrivateKey) {
+    byte[] der = RSAKeyToASN1(PrivateKey);
+    string base64 = Convert.ToBase64String(der);
+
+    StringBuilder sb = new StringBuilder();
+    sb.Append(BEGIN_MARKER);
+    sb.Append("\n");
+    for(int i = 0; i < base64.Length; i+=64) {
+      int length = Math.Min(64, base64.Length - i);
+      sb.Append(base64.Substring(i, length));
+      sb.Append("\n");
+    }
+    sb.Append(END_MARKER);
+    sb.Append("\n");
+    return sb.ToString();
+  }
+
   public static void Main(string[] args) {
     string path = args[0];
     byte[] blob = null;

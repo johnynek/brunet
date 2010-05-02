@@ -12,9 +12,11 @@
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${lib.dir}">
         <include name="Brunet.dll"/>
+        <include name="Brunet.Services.Coordinate.dll"/>
         <include name="Brunet.Services.Dht.dll"/>
         <include name="Brunet.Security.dll"/>
-        <include name="Brunet.Services.Coordinate.dll"/>
+        <include name="Brunet.Security.Dtls.dll"/>
+        <include name="ManagedOpenSsl.dll"/>
         <include name="NDesk.Options.dll"/>
       </fileset>
     </copy>
@@ -30,6 +32,8 @@
         <include name="Brunet.Services.Dht.dll"/>
         <include name="Brunet.Services.Coordinate.dll"/>
         <include name="Brunet.Security.dll"/>
+        <include name="Brunet.Security.Dtls.dll"/>
+        <include name="ManagedOpenSsl.dll"/>
         <include name="NDesk.Options.dll"/>
       </references>
     </csc>
@@ -45,6 +49,8 @@
         <include name="Brunet.Services.Dht.dll"/>
         <include name="Brunet.Services.Coordinate.dll"/>
         <include name="Brunet.Security.dll"/>
+        <include name="Brunet.Security.Dtls.dll"/>
+        <include name="ManagedOpenSsl.dll"/>
         <include name="NDesk.Options.dll"/>
       </references>
     </csc>
@@ -63,6 +69,8 @@
         <include name="Brunet.Services.Dht.dll"/>
         <include name="Brunet.Services.Coordinate.dll"/>
         <include name="Brunet.Security.dll"/>
+        <include name="Brunet.Security.Dtls.dll"/>
+        <include name="ManagedOpenSsl.dll"/>
         <include name="NDesk.Options.dll"/>
         <include name="nunit.framework.dll" />
       </references>
