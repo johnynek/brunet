@@ -31,14 +31,6 @@ namespace Brunet.Security.Transport {
   public class SecureEdgeListener: WrapperEdgeListener {
     protected SecurityOverlord _so;
 
-    ///<summary>This is the default Edge Security Parameters index.</summary>
-    public static readonly int DefaultEdgeSPI = 432145;
-
-    ///<summary>This is the default Edge Security Parameters.</summary>
-    static SecureEdgeListener() {
-      new SecurityPolicy(432145, "NullEncryption", "HMACSHA1");
-    }
-
     public SecureEdgeListener(EdgeListener el, SecurityOverlord so): base(el) {
       _so = so;
       _so.AnnounceSA += AnnounceSA;
@@ -49,7 +41,7 @@ namespace Brunet.Security.Transport {
     ///is idempotent.</summary>
     protected override void WrapEdge(Edge edge) {
       edge.Subscribe(_so, null);
-      SecurityAssociation sa = _so.CreateSecurityAssociation(edge, DefaultEdgeSPI, !edge.IsInbound);
+      SecurityAssociation sa = _so.CreateSecurityAssociation(edge, !edge.IsInbound);
       if(edge.IsClosed) {
         sa.Close("Edge closed too quickly.");
       }
@@ -57,12 +49,9 @@ namespace Brunet.Security.Transport {
 
     ///<summary>When a SecurityAssociation changes amongst inactive, active,
     ///or closed this gets notified.</summary>
-    protected void AnnounceSA(object o, EventArgs ea) {
-      SecurityAssociation sa = o as SecurityAssociation;
-      if(sa == null) {
-        throw new Exception("Needs to be a SecurityAssociation");
-      }
-
+    protected void AnnounceSA(SecurityAssociation sa,
+        SecurityAssociation.States state)
+    {
       Edge e = sa.Sender as Edge;
       // if e is an edge, let's see if he's creating a SE
       // or maybe it isn't our edge!
@@ -72,7 +61,7 @@ namespace Brunet.Security.Transport {
         return;
       }
 
-      if(sa.Active) {
+      if(state == SecurityAssociation.States.Active) {
         SecureEdge se = new SecureEdge(e, sa);
         sa.Subscribe(se, null);
         try {

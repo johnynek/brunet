@@ -11,5 +11,14 @@ namespace Brunet.Simulator {
       Simulator sim = new Simulator(p);
       Assert.IsTrue(sim.Complete(true), "Simulation failed to complete the ring");
     }
+
+    [Test]
+    public void CompleteTheSecureRing() {
+      Parameters p = new Parameters("Test", "Test");
+      string[] args = "-b=.2 -c -se -s=250".Split(' ');
+      p.Parse(args);
+      Simulator sim = new Simulator(p);
+      Assert.IsTrue(sim.Complete(true), "Simulation failed to complete the ring");
+    }
   }
 }

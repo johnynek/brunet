@@ -24,7 +24,7 @@ using System;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 
-namespace Brunet.Security {
+namespace Brunet.Security.PeerSec {
   /// <summary>Each SP supports a specific SymmetricAlgorithm and HashAlgorithm.  This class
   /// is thread-safe.</summary>
   public class SecurityPolicy {

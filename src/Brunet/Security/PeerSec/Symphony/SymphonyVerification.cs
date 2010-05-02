@@ -1,5 +1,5 @@
 /*
-Copyright (C) 2008  David Wolinsky <davidiw@ufl.edu>, University of Florida
+Copyright (C) 2009 David Wolinsky <davidiw@ufl.edu>, University of Florida
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -20,37 +20,27 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
-using System;
-using System.Security.Cryptography;
-
-#if BRUNET_NUNIT
-using NUnit.Framework;
-#endif
+using Brunet.Messaging;
+using Brunet.Symphony;
+using Mono.Security.X509;
 
 namespace Brunet.Security {
-  /// <summary>Provides a Null HashAlgorithm, its blazing fast!  Typically,
-  /// these classes  are not thread-safe, but the block-size is 1, there
-  /// is no history, and the result is always an empty byte array.</summary>
-  public class NullHash : HashAlgorithm {
-    public NullHash()
+  public class SymphonyVerification : ICertificateVerification {
+    protected CertificateHandler _ch;
+
+    public SymphonyVerification(CertificateHandler ch)
     {
-      HashSizeValue = 0;
+      _ch = ch;
     }
 
-    protected override void HashCore(byte[] rgb, int start, int size)
+    public bool Verify(X509Certificate certificate, ISender sender)
     {
-    }
-
-    protected override byte[] HashFinal()
-    {
-      return new byte[0];
-    }
-
-    public override void Initialize()
-    {
+      AHSender ahsender = sender as AHSender;
+      if(ahsender == null) {
+        return true;
+      }
+      
+      return _ch.Verify(certificate, ahsender.Destination.ToString());
     }
   }
-#if BRUNET_NUNIT
-#endif
 }
-

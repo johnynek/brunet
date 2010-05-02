@@ -28,7 +28,7 @@ using System.Threading;
 using NUnit.Framework;
 #endif
 
-namespace Brunet.Security {
+namespace Brunet.Security.PeerSec {
   ///<summary>Provides encryption, decryption, and authentication through
   /// a single object.  The format for packets is 2 bytes for index, 2 bytes for
   /// sequence id, data, and signature, with data, and signature being

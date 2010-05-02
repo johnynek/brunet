@@ -21,6 +21,8 @@ THE SOFTWARE.
 */
 
 using Brunet;
+using Brunet.Messaging;
+using Brunet.Util;
 using Mono.Security.X509;
 using Mono.Security.X509.Extensions;
 using System;
@@ -28,7 +30,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
-using BU = Brunet.Util;
 #if BRUNET_NUNIT
 using NUnit.Framework;
 using Mono.Math;
@@ -116,38 +117,52 @@ namespace Brunet.Security {
     /// <param name="x509">The certificate to check</param>
     /// <param name="RemoteID">The URI to look for</param>
     /// <returns>True if the URI exists, false otherwise</returns>
-    public virtual bool Verify(X509Certificate x509, string RemoteID) {
-      if(!Verify(x509)) {
-        throw new Exception("Invalid certificate!");
+    virtual public bool Verify(X509Certificate x509, ISender sender,
+        string remote_id)
+    {
+      if(Verify(x509, sender) && Verify(x509, remote_id)) {
+        return true;
       }
+      throw new Exception("Invalid certificate.");
+    }
 
-      bool valid_address = false;
-      foreach(X509Extension ex in x509.Extensions) {
-        // SubjectAltName
-        if(ex.Oid != "2.5.29.17") {
+    ///<summary>Given a string, this looks inside the certificates SANE to see
+    ///if the string is present.  This isn't inefficient as it looks, there
+    ///tends to be no entries at most of those places, so this usually has
+    ///runtime of 1.</summary>
+    virtual public bool Verify(X509Certificate x509, string remote_id) {
+      foreach(X509Extension ext in x509.Extensions) {
+        if(!ext.Oid.Equals("2.5.29.17")) {
           continue;
         }
-        SubjectAltNameExtension sane = new SubjectAltNameExtension(ex);
-        foreach(string uri in sane.UniformResourceIdentifiers) {
-          if(uri == RemoteID) {
-            valid_address = true;
-            break;
+        SubjectAltNameExtension sane = new SubjectAltNameExtension(ext);
+        foreach(string name in sane.RFC822) {
+          if(name.Equals(remote_id)) {
+            return true;
           }
         }
-        if(valid_address) {
-          break;
+        foreach(string name in sane.DNSNames) {
+          if(name.Equals(remote_id)) {
+            return true;
+          }
+        }
+        foreach(string name in sane.IPAddresses) {
+          if(name.Equals(remote_id)) {
+            return true;
+          }
+        }
+        foreach(string name in sane.UniformResourceIdentifiers) {
+          if(name.Equals(remote_id)) {
+            return true;
+          }
         }
       }
-      if(!valid_address) {
-        throw new Exception("Missing a valid SubjectAltName!");
-      }
-
-      return true;
+      throw new Exception("Missing a valid SubjectAltName!");
     }
 
     /// <summary>True if this certificate is signed by a CA whose cetificate
     /// we have, false otherwise.</summary>
-    public bool Verify(X509Certificate x509) {
+    public bool Verify(X509Certificate x509, ISender sender) {
       Brunet.Util.MemBlock sn = Brunet.Util.MemBlock.Reference(x509.SerialNumber);
       lock(_sync) {
         if(!_cas.ContainsKey(sn)) {
@@ -159,7 +174,7 @@ namespace Brunet.Security {
       }
 
       foreach(ICertificateVerification icv in _certificate_verifiers) {
-        if(!icv.Verify(x509)) {
+        if(!icv.Verify(x509, sender)) {
           throw new Exception("Certificate not valid, reason unsure");
         }
       }
@@ -182,7 +197,7 @@ namespace Brunet.Security {
           AddCertificate(filename);
         }
         catch (Exception e) {
-          BU.ProtocolLog.WriteIf(BU.ProtocolLog.Security, e.ToString());
+          ProtocolLog.WriteIf(ProtocolLog.Security, e.ToString());
         }
       }
     }
@@ -211,7 +226,7 @@ namespace Brunet.Security {
     }
 
     /// <summary>Adds CA certificate to this CH.</summary>
-    public bool AddCACertificate(X509Certificate cert) {
+    virtual public bool AddCACertificate(X509Certificate cert) {
       Brunet.Util.MemBlock sn = Brunet.Util.MemBlock.Reference(cert.SerialNumber);
       lock(_sync) {
         _cas[sn] = cert;
@@ -221,7 +236,7 @@ namespace Brunet.Security {
     }
 
     /// <summary>Adds a local signed public certificate to this CH.</summary>
-    public bool AddSignedCertificate(X509Certificate cert) {
+    virtual public bool AddSignedCertificate(X509Certificate cert) {
       Brunet.Util.MemBlock sn = Brunet.Util.MemBlock.Reference(cert.SerialNumber);
       lock(_sync) {
         _lc[sn] = cert;
@@ -269,10 +284,10 @@ namespace Brunet.Security {
       cm = new CertificateMaker("US", "UFL", "ACIS", "David Wolinsky",
           "davidiw@ufl.edu", rsa_pub, ID);
       Certificate cert_1 = cm.Sign(cm, rsa);
-      Assert.IsTrue(ch.Verify(cert_0.X509, ID), "Valid");
+      Assert.IsTrue(ch.Verify(cert_0.X509, null, ID), "Valid");
       bool success = false;
       try {
-        success = ch.Verify(cert_1.X509, ID);
+        success = ch.Verify(cert_1.X509, null, ID);
       } catch { }
       Assert.IsTrue(!success, "Valid cert2");
     }

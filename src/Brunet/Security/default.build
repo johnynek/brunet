@@ -17,7 +17,8 @@
       <sources failonempty="true">
         <include name="Transport/*.cs"/>
         <include name="*.cs"/>
-        <include name="Protocol/*.cs"/>
+        <include name="PeerSec/*.cs"/>
+        <include name="PeerSec/Symphony/*.cs"/>
       </sources>
       <references basedir="${build.dir}">
         <include name="Mono.Security.dll" />
@@ -43,7 +44,8 @@
       <sources failonempty="true">
         <include name="Transport/*.cs"/>
         <include name="*.cs"/>
-        <include name="Protocol/*.cs"/>
+        <include name="PeerSec/*.cs"/>
+        <include name="PeerSec/Symphony/*.cs"/>
       </sources>
       <references basedir="${build.dir}">
         <include name="Mono.Security.dll"/>

@@ -174,14 +174,18 @@ namespace Brunet.Security.Transport {
     ///nothing to this.</summary>
     public override void UpdateLocalTAs(Edge e, TransportAddress ta) {
       WrapperEdge edge = e as WrapperEdge;
-      _el.UpdateLocalTAs(edge.WrappedEdge, ta);
+      if(edge != null) {
+        _el.UpdateLocalTAs(edge.WrappedEdge, ta);
+      }
     }
     
     ///<summary>This is passed tothe underlying EdgeListener.  By default we do
     ///nothing to this.</summary>
     public override void UpdateRemoteTAs(IList<TransportAddress> list, Edge e, TransportAddress ta) {
       WrapperEdge edge = e as WrapperEdge;
-      _el.UpdateRemoteTAs(list, edge.WrappedEdge, ta);
+      if(edge != null) {
+        _el.UpdateRemoteTAs(list, edge.WrappedEdge, ta);
+      }
     }
 
     ///<summary>A new underlying edge has been created, this is used to add the
@@ -293,7 +297,7 @@ namespace Brunet.Security.Transport {
         if(System.Threading.Interlocked.Exchange(ref _called, 1) == 1) {
           return;
         }
-        ExternalECB(success, e, x);
+        ExternalECB(false, e, x);
       } else {
         Parent.AddEdge(this);
       }

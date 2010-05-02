@@ -29,7 +29,8 @@ using Brunet.Concurrent;
 using Brunet.Connections;
 using Brunet.Messaging;
 using Brunet.Security;
-using Brunet.Security.Protocol;
+using Brunet.Security.PeerSec;
+using Brunet.Security.PeerSec.Symphony;
 using Brunet.Security.Transport;
 using Brunet.Services;
 using Brunet.Services.Coordinate;
@@ -53,6 +54,7 @@ namespace Brunet.Simulator {
     protected readonly bool _pathing;
     protected readonly bool _secure_edges;
     protected readonly bool _secure_senders;
+    protected readonly bool _dtls;
     public bool NCEnable;
     protected RSACryptoServiceProvider _se_key;
     protected Certificate _ca_cert;
@@ -75,6 +77,7 @@ namespace Brunet.Simulator {
       _secure_edges = parameters.SecureEdges;
       _secure_senders = parameters.SecureSenders;
       _pathing = parameters.Pathing;
+      _dtls = parameters.Dtls;
       if(_secure_edges || _secure_senders) {
         _se_key = new RSACryptoServiceProvider();
         byte[] blob = _se_key.ExportCspBlob(false);
@@ -147,7 +150,7 @@ namespace Brunet.Simulator {
     public bool Crawl(bool log, bool secure)
     {
       NodeMapping nm = (NodeMapping) Nodes.GetByIndex(0);
-      ProtocolSecurityOverlord bso = null;
+      SymphonySecurityOverlord bso = null;
       if(secure) {
         bso = nm.BSO;
       }
@@ -250,11 +253,9 @@ namespace Brunet.Simulator {
         ch.AddCACertificate(_ca_cert.X509);
         ch.AddSignedCertificate(cert.X509);
 
-        ProtocolSecurityOverlord so = new ProtocolSecurityOverlord(node, rsa_copy, node.Rrm, ch);
-        so.Subscribe(node, null);
-        node.GetTypeSource(SecurityOverlord.Security).Subscribe(so, null);
-        nm.BSO = so;
-        node.HeartBeatEvent += so.Heartbeat;
+        nm.BSO = new SymphonySecurityOverlord(node, rsa_copy, ch, node.Rrm);
+        nm.BSO.Subscribe(node, null);
+        node.GetTypeSource(PeerSecOverlord.Security).Subscribe(nm.BSO, null);
       }
 
       if(_pathing) {
@@ -454,9 +455,9 @@ namespace Brunet.Simulator {
       protected Address _first_left;
       protected Address _previous;
       public bool Success { get { return _crawled.Count == _count; } }
-      protected ProtocolSecurityOverlord _bso;
+      protected SymphonySecurityOverlord _bso;
 
-      public CrawlHelper(Node node, int count, ProtocolSecurityOverlord bso, bool log) {
+      public CrawlHelper(Node node, int count, SymphonySecurityOverlord bso, bool log) {
         _count = count;
         _node = node;
         Interlocked.Exchange(ref _done, 0);
@@ -713,7 +714,7 @@ namespace Brunet.Simulator {
   public class NodeMapping {
     public int ID;
     public Node Node;
-    public ProtocolSecurityOverlord BSO;
+    public SymphonySecurityOverlord BSO;
     public NCService NCService;
     public PathELManager PathEM;
   }

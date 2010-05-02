@@ -35,7 +35,8 @@ using Brunet.Services.Coordinate;
 using Brunet.Services.Dht;
 using Brunet.Services.XmlRpc;
 using Brunet.Security;
-using Brunet.Security.Protocol;
+using Brunet.Security.PeerSec;
+using Brunet.Security.PeerSec.Symphony;
 using Brunet.Security.Transport;
 using Brunet.Relay;
 using Brunet.Transport;
@@ -165,7 +166,7 @@ namespace Brunet.Applications {
       StructuredNode node = new StructuredNode(address, node_config.BrunetNamespace);
       IEnumerable addresses = IPAddresses.GetIPAddresses(node_config.DevicesToBind);
 
-      ProtocolSecurityOverlord pso = null;
+      SymphonySecurityOverlord pso = null;
       // Enable Security if requested
       if(node_config.Security.Enabled) {
         if(node_config.Security.SelfSignedCertificates) {
@@ -183,11 +184,10 @@ namespace Brunet.Applications {
         rsa_private.ImportCspBlob(blob);
 
         CertificateHandler ch = new CertificateHandler(node_config.Security.CertificatePath);
-        pso = new ProtocolSecurityOverlord(node, rsa_private, node.Rrm, ch);
+        pso = new SymphonySecurityOverlord(node, rsa_private, ch, node.Rrm);
         pso.Subscribe(node, null);
 
-        node.GetTypeSource(SecurityOverlord.Security).Subscribe(pso, null);
-        node.HeartBeatEvent += pso.Heartbeat;
+        node.GetTypeSource(PeerSecOverlord.Security).Subscribe(pso, null);
 
         // A hack to enable a test for security that doesn't require each peer
         // to exchange certificates
@@ -244,7 +244,6 @@ namespace Brunet.Applications {
       // Create the tunnel and potentially wrap it in a SecureEL
       el = new Relay.RelayEdgeListener(node, ito);
       if(node_config.Security.SecureEdgesEnabled) {
-        node.EdgeVerifyMethod = EdgeVerify.AddressInSubjectAltName;
         el = new SecureEdgeListener(el, pso);
       }
       node.AddEdgeListener(el);

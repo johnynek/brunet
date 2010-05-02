@@ -50,11 +50,7 @@
   </target>
 
   <target name="test" description="nunit test brunet!">
-    <nant target="simulator" buildfile="src/Brunet/default.build" />
-    <nant buildfile="src/Brunet/Services/Dht/default.build" />
-    <nant buildfile="src/Brunet/Services/Coordinate/default.build" />
-    <nant buildfile="src/Brunet/Services/XmlRpc/default.build" />
-    <nant buildfile="src/Brunet/Security/default.build" />
+    <call target="simulator" />
     <nant target="test" buildfile="src/Brunet/Simulator/default.build" />
 
     <nant buildfile="src/Brunet/default.build" />

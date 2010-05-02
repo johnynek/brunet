@@ -20,7 +20,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
-using Brunet.Security;
+using Brunet.Messaging;
+using Brunet.Symphony;
 using Brunet.Util;
 using Mono.Security.X509;
 using System;
@@ -29,23 +30,21 @@ using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 
-using Brunet.Messaging;
-using Brunet.Symphony;
-namespace Brunet.Security.Protocol {
+namespace Brunet.Security.PeerSec.Symphony {
   /// <summary>Very thin wrapper used to support AHSenders. This class is
   /// thread-safe.</summary>
-  public class ProtocolSecurityOverlord : SecurityOverlord, IRpcHandler {
+  public class SymphonySecurityOverlord : PeerSecOverlord, IRpcHandler {
     protected Node _node;
     protected Dictionary<Address, SecurityAssociation> _address_to_sa;
     protected Dictionary<SecurityAssociation, Address> _sa_to_address;
 
-    public ProtocolSecurityOverlord(Node node,
-        RSACryptoServiceProvider rsa,
-        ReqrepManager rrman,
-        CertificateHandler ch) :
-        base(rsa, rrman, ch)
+    public SymphonySecurityOverlord(Node node, RSACryptoServiceProvider rsa,
+        CertificateHandler ch, ReqrepManager rrman) :
+      base(rsa, ch, rrman)
     {
+      _ch.AddCertificateVerification(new SymphonyVerification(ch));
       _node = node;
+      node.EdgeVerifyMethod = EdgeVerify.AddressInSubjectAltName;
       _address_to_sa = new Dictionary<Address, SecurityAssociation>();
       _sa_to_address = new Dictionary<SecurityAssociation, Address>();
       lock(_sync) {
@@ -78,11 +77,11 @@ namespace Brunet.Security.Protocol {
     // Provides an Exact AH Secure Sender using the default SPI  given an address
     public SecurityAssociation GetSecureSender(Address target)
     {
-      SecurityAssociation sa = null;
+      PeerSecAssociation sa = null;
       bool new_sa = false;
       lock(_sync) {
         if(_address_to_sa.ContainsKey(target)) {
-          sa = _address_to_sa[target];
+          sa = _address_to_sa[target] as PeerSecAssociation;
         } else {
           AHSender sender = new AHExactSender(_node, target);
           sa = base.CreateSecurityAssociation(sender, SecurityPolicy.DefaultSPI);
@@ -100,16 +99,16 @@ namespace Brunet.Security.Protocol {
     }
 
     // We override the underlying method so that we can properly wrap incoming AHSenders
-    protected override SecurityAssociation CreateSecurityAssociation(ISender sender, int spi)
+    override protected PeerSecAssociation CreateSecurityAssociation(ISender sender, int spi)
     {
-      SecurityAssociation sa = null;
+      PeerSecAssociation sa = null;
       lock(_sync) {
         sa = base.CreateSecurityAssociation(sender, spi);
         AHSender ahsender = sender as AHSender;
         if(ahsender != null) {
           Address target = ahsender.Destination;
           if(_address_to_sa.ContainsKey(target)) {
-            sa = _address_to_sa[target];
+            sa = _address_to_sa[target] as PeerSecAssociation;
           } else {
             sa = base.CreateSecurityAssociation(sender, spi);
             _address_to_sa[target] = sa;
@@ -121,7 +120,7 @@ namespace Brunet.Security.Protocol {
     }
 
     /// <summary>Removes the specified SA from our database.</summary>
-    protected override void RemoveSA(SecurityAssociation sa)
+    override protected void RemoveSA(SecurityAssociation sa)
     {
       lock(_sync) {
         AHSender sender = sa.Sender as AHSender;
@@ -131,17 +130,6 @@ namespace Brunet.Security.Protocol {
         }
         base.RemoveSA(sa);
       }
-    }
-
-    /// <summary>Overridden because we know the Brunet address.</summary>
-    protected override bool Verify(SecurityAssociation sa)
-    {
-      lock(_sync) {
-        if(_sa_to_address.ContainsKey(sa)) {
-          return  sa.VerifyCertificateBySubjectAltName(_sa_to_address[sa].ToString());
-        }
-      }
-      return base.Verify(sa);
     }
   }
 }

@@ -30,7 +30,7 @@ using System.Security.Cryptography;
 using NUnit.Framework;
 #endif
 
-namespace Brunet.Security {
+namespace Brunet.Security.PeerSec {
   /// <summary>Parses and creates SecurityControlMessages.  In general, this
   /// class is not thread-safe.</summary>
   /// <remarks>The format for said packets is:

@@ -23,7 +23,7 @@ THE SOFTWARE.
 using Brunet;
 using Brunet.Util;
 
-namespace Brunet.Security {
+namespace Brunet.Security.PeerSec {
   /// <summary>Just an abstract packet class.  This is thread-safe.</summary>
   public abstract class DataPacket {
     /// <summary>The packet in ICopyable format.</summary>

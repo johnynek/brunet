@@ -59,7 +59,7 @@ using System.Security.Cryptography;
 using NUnit.Framework;
 #endif
 
-namespace Brunet.Security {
+namespace Brunet.Security.PeerSec {
   /// <summary>This wraps SymmetricAlgorithm to be better supported for lossy
   /// communication.  This class is not thread-safe.</summary>
   public class SymmetricEncryption {

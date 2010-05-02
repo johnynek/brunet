@@ -20,12 +20,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
+using Brunet.Messaging;
 using Mono.Security.X509;
 
 namespace Brunet.Security {
-
-public interface ICertificateVerification {
-  bool Verify(X509Certificate certificate);
-}
-
+  public interface ICertificateVerification {
+    bool Verify(X509Certificate certificate, ISender sender);
+  }
 }

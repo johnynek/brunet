@@ -16,11 +16,11 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 
-using Brunet.Symphony;
+using Brunet.Security.PeerSec.Symphony;
 using Brunet.Services.Coordinate;
 using Brunet.Services.Dht;
 using Brunet.Services.XmlRpc;
-using Brunet.Security.Protocol;
+using Brunet.Symphony;
 
 namespace Brunet.Applications {
   public class ApplicationNode {
@@ -28,10 +28,10 @@ namespace Brunet.Applications {
     public readonly IDht Dht;
     public readonly RpcDhtProxy DhtProxy;
     public readonly NCService NCService;
-    public readonly ProtocolSecurityOverlord SecurityOverlord;
+    public readonly SymphonySecurityOverlord SecurityOverlord;
 
     public ApplicationNode(StructuredNode node, IDht dht, RpcDhtProxy dht_proxy,
-        NCService ncservice, ProtocolSecurityOverlord security_overlord)
+        NCService ncservice, SymphonySecurityOverlord security_overlord)
     {
       Node = node;
       Dht = dht;

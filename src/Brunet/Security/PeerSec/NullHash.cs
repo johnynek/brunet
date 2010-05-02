@@ -21,21 +21,36 @@ THE SOFTWARE.
 */
 
 using System;
-using Brunet.Security.Transport;
-using Brunet.Transport;
+using System.Security.Cryptography;
 
-namespace Brunet.Security.Protocol {
-  ///<summary>This provides different methods to verify Secure Edges.</summary>
-  public class EdgeVerify {
-    ///<summary>Verify the edge by comparing the address in the certificate to
-    ///the one provided in the overlay.</summary>
-    public static bool AddressInSubjectAltName(Node node, Edge e, Address addr) {
-      SecureEdge se = e as SecureEdge;
-      if(se == null) {
-        throw new Exception("Invalid edge type!");
-      }
+#if BRUNET_NUNIT
+using NUnit.Framework;
+#endif
 
-      return se.SA.VerifyCertificateBySubjectAltName(addr.ToString());
+namespace Brunet.Security.PeerSec {
+  /// <summary>Provides a Null HashAlgorithm, its blazing fast!  Typically,
+  /// these classes  are not thread-safe, but the block-size is 1, there
+  /// is no history, and the result is always an empty byte array.</summary>
+  public class NullHash : HashAlgorithm {
+    public NullHash()
+    {
+      HashSizeValue = 0;
+    }
+
+    protected override void HashCore(byte[] rgb, int start, int size)
+    {
+    }
+
+    protected override byte[] HashFinal()
+    {
+      return new byte[0];
+    }
+
+    public override void Initialize()
+    {
     }
   }
+#if BRUNET_NUNIT
+#endif
 }
+

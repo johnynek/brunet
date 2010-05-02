@@ -150,6 +150,13 @@ namespace Brunet.Messaging {
         }
       }
     }
+
+    public virtual void Handle(MemBlock b, ISender retpath) {
+      Subscriber sub = _sub;
+      if(sub != null) {
+        sub.Handle(b, retpath);
+      }
+    }
   }
 
   /// <summary>Provides multiple subscribers of an ISource.</summary>
