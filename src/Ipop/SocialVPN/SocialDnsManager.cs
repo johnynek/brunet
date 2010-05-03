@@ -72,7 +72,7 @@ namespace Ipop.SocialVPN {
       switch(method) {
         case "sdns.lookup":
           SearchFriends(request["query"]);
-          request["response"] = GetState();
+          request["response"] = SearchLocalCache(request["query"]);
           break;
 
         case "sdns.addmapping":
@@ -193,7 +193,6 @@ namespace Ipop.SocialVPN {
     }
 
     protected void SearchFriends(string query) {
-      Console.WriteLine("calling search friends " + query);
       SocialUser[] friends = _node.GetFriends();
       foreach(SocialUser friend in friends) {
         if(friend.Access != AccessTypes.Block.ToString()) {
@@ -217,32 +216,29 @@ namespace Ipop.SocialVPN {
     }
 
     protected bool AddMapping(DnsMapping mapping) {
-      Console.WriteLine("Adding " + mapping);
       _mappings.Add(mapping.Alias, mapping);
       _node.AddDnsMapping(mapping.Alias, mapping.IP);
       return true;
     }
 
     protected bool SearchMapping(string address, string pattern) {
-      Console.WriteLine("Searching for pattern " + pattern);
       foreach(string alias in _mappings.Keys) {
         if(Regex.IsMatch(alias, pattern, RegexOptions.IgnoreCase)) {
           DnsMapping mapping = _mappings[alias];
-          mapping.Referrer = _local_user.Address;
           string method = "AddTmpMapping";
           SendRpcMessage(address, method, mapping.ToString());
-          Console.WriteLine("Found match " + mapping.ToString());
         }
       }
       return true;
     }
 
     protected bool AddTmpMapping(string address, string mapping) {
-      return AddTmpMapping(DnsMapping.Create(mapping));
+      DnsMapping new_mapping = DnsMapping.Create(mapping);
+      new_mapping.Referrer = address;
+      return AddTmpMapping(new_mapping);
     }
 
     protected bool AddTmpMapping(DnsMapping mapping) {
-      Console.WriteLine("Adding tmp " + mapping);
       SocialUser[] friends = _node.GetFriends();
       foreach(SocialUser friend in friends) {
         if(friend.Address == mapping.Address) {
@@ -252,8 +248,7 @@ namespace Ipop.SocialVPN {
       }
       foreach (DnsMapping tmapping in _tmappings) {
         if (mapping.Equals(tmapping)) {
-          Console.WriteLine("Incrementing rating");
-          tmapping.Rating++;
+          tmapping.IP = mapping.IP;   //Updates ip
           return true;
         }
       }
@@ -265,12 +260,36 @@ namespace Ipop.SocialVPN {
       _tmappings.Clear();
     }
 
+    protected string SearchLocalCache(string pattern) {
+      List<DnsMapping> searchlist = new List<DnsMapping>();
+      foreach(DnsMapping mapping in _tmappings) {
+        if(Regex.IsMatch(mapping.Alias, pattern, RegexOptions.IgnoreCase)) {
+          bool mapping_found = false;
+          foreach(DnsMapping tmp_mapping in searchlist) {
+            if(tmp_mapping.WeakEquals(mapping)) {
+              tmp_mapping.Rating++;
+              mapping_found = true;
+              break;
+            }
+          }
+          if(!mapping_found) {
+            searchlist.Add(DnsMapping.Create(mapping));
+          }
+        }
+      }
+      return GetState(searchlist);
+    }
+
     protected string GetState() {
+      return SearchLocalCache("");
+    }
+
+    protected string GetState(List<DnsMapping> tmappings) {
       DnsState state = new DnsState();
       state.Mappings = new DnsMapping[_mappings.Count];
       _mappings.Values.CopyTo(state.Mappings, 0);
-      _tmappings.Sort(new MappingComparer());
-      state.TmpMappings = _tmappings.ToArray();
+      tmappings.Sort(new MappingComparer());
+      state.TmpMappings = tmappings.ToArray();
       return SocialUtils.ObjectToXml<DnsState>(state);
     }
   }
@@ -279,6 +298,7 @@ namespace Ipop.SocialVPN {
 
     public const char DELIM = '=';
     public const string MISS = "miss";
+
     public string Alias;
     public string Address;
     public string IP;
@@ -293,16 +313,34 @@ namespace Ipop.SocialVPN {
       Address = address;
       Source = source;
       Rating = 1;
+      IP = "0.0.0.0";
+      CheckAlias();
+    }
+
+    private void CheckAlias() {
+      if(!Alias.EndsWith("." + SocialNode.DNSSUFFIX)) {
+        Alias = Alias + "." + SocialNode.DNSSUFFIX;
+      }
     }
 
     public static DnsMapping Create(string mapping) {
-      Console.WriteLine("creating " + mapping);
       string[] parts = mapping.Split(DnsMapping.DELIM);
       return new DnsMapping(parts[0], parts[1], parts[2]);
     }
 
-    public bool Equals(DnsMapping mapping) {
+    public static DnsMapping Create(DnsMapping mapping) {
+      DnsMapping new_mapping = DnsMapping.Create(mapping.ToString());
+      new_mapping.IP = mapping.IP;
+      return new_mapping;
+    }
+
+    public bool WeakEquals(DnsMapping mapping) {
       return (mapping.Alias == Alias && mapping.Address == Address);
+    }
+
+    public bool Equals(DnsMapping mapping) {
+      return (mapping.Alias == Alias && mapping.Address == Address
+        && mapping.Referrer == Referrer);
     }
 
     public override string ToString() {
@@ -317,7 +355,13 @@ namespace Ipop.SocialVPN {
 
   public class MappingComparer : IComparer<DnsMapping> {
     public int Compare(DnsMapping x, DnsMapping y) {
-      return y.Rating - x.Rating;
+      int val = y.Rating - x.Rating;
+      if(val == 0) {
+        return String.Compare(x.Alias, y.Alias);
+      }
+      else {
+        return val;
+      }
     }
   }
 

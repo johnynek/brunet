@@ -118,6 +118,7 @@ function loadHeader() {
   else {
     createElem("li", "Login", "login_id", "", menu, loadLogin); 
   }
+  setStatus(global_status);
 }
 
 function loadUser() {
@@ -134,7 +135,6 @@ function loadUser() {
   img_usr.setAttribute("height", "50");
   var innerHTML = uid + " <em>(" + pcid + ")</em>";
   createElem("h2", innerHTML, "", "", "user_content", "");
-  setStatus("");
   local_user = uid;
 }
 
@@ -299,7 +299,7 @@ function makeLogout() {
 function setStatus(message) {
   var status_elem = document.getElementById('status_id');
   if (status_elem != null) {
-    status_elem.innerHTML = message + " ...";
+    status_elem.innerHTML = "... " + message + " ...";
   }
 }
 

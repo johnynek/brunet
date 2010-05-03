@@ -3,7 +3,7 @@
   <description> Builds SocialVPN </description>
   <property name="lib.dir" value="../../../lib"/>
   <property name="build.dir" value="build" />
-  <property name="bin.dir" value="../../../bin"/>
+  <property name="release.dir" value="../../../svpn_release"/>
   <property name="config.dir" value="../../../config"/>
   <property name="scripts.dir" value="../../../scripts/socialvpn"/>
   <property name="web.dir" value="web"/>
@@ -20,7 +20,6 @@
       </fileset>
     </copy>
 
-    <mkdir dir="${bin.dir}" failonerror="true"/>
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${web.dir}">
         <include name="socialvpn.js" />
@@ -87,8 +86,8 @@
     </csc>
   </target>
 
-  <target name="release" description="Test SocialVPN">
-    <copy todir="${bin.dir}" failonerror="true">
+  <target name="release" description="Release build">
+    <copy todir="${release.dir}" failonerror="true">
       <fileset basedir="${build.dir}">
         <include name="Brunet.dll" />
         <include name="Brunet.Dht.dll" />
@@ -100,7 +99,6 @@
         <include name="CookComputing.XmlRpcV2.dll" />
         <include name="Mono.Security.dll"/>
         <include name="ManagedIpopNode.dll" />
-        <include name="libtuntap.dll" />
         <include name="jabber-net.dll" />
         <include name="SocialVPN.exe" />
         <include name="SocialVPNService.exe" />
@@ -114,6 +112,7 @@
         <include name="start_socialvpn.cmd" />
         <include name="stop_socialvpn.cmd" />
         <include name="setup.sh" />
+        <include name="install.cmd" />
         <include name="uninstall.cmd" />
         <include name="create_cert.js" />
         <include name="brunet.config" />
@@ -121,7 +120,6 @@
         <include name="SocialVPN.exe.config" />
         <include name="SocialVPNService.exe.config" />
         <include name="pic.png" />
-        <include name="README.txt" />
       </fileset>
     </copy>
   </target>

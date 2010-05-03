@@ -3,9 +3,6 @@
   <description> Builds SocialVPN </description>
   <property name="lib.dir" value="../../../../lib"/>
   <property name="build.dir" value="build" />
-  <property name="bin.dir" value="../../../../bin"/>
-  <property name="config.dir" value="../../../../config"/>
-  <property name="scripts.dir" value="../../../../scripts/socialvpn"/>
   <property name="svpn.build.dir" value="../build"/>
 
   <target name="clean" description="Remove build directory">
@@ -14,12 +11,10 @@
 
   <target name="build" description="Build SocialVPN.exe">
     <mkdir dir="${build.dir}" failonerror="true"/>
-    <mkdir dir="${bin.dir}" failonerror="true"/>
 
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${svpn.build.dir}">
-        <include name="SocialVPN.exe" />
-        <include name="*.dll" />
+        <include name="*" />
       </fileset>
     </copy>
 
@@ -35,11 +30,5 @@
         <include name="SocialVPN.exe" />
       </references>
     </csc>
-
-    <copy todir="${bin.dir}" failonerror="true">
-      <fileset basedir="${build.dir}">
-        <include name="SocialVPNService.exe" />
-      </fileset>
-    </copy>
   </target>
 </project>

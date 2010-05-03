@@ -1,0 +1,31 @@
+SocialVPN
+=========
+Get IP connectivity to your friends
+
+Building SocialVPN
+==================
+NAnt build tool is required.
+
+For Debian-based systems:
+apt-get install nant uml-utilities
+
+For RedHat-based systems:
+yum install nant tunctl
+
+To compile, run:
+
+nant socialvpn
+
+SocialVPN binaries will be under src/Ipop/SocialVPN/build.
+
+Source Code
+===========
+SocialVPN source code is located under src/Ipop/SocialVPN.
+
+Questions/Comments:
+===================
+Contact Pierre St Juste <ptony82@ufl.edu> for any questions.
+
+License:
+========
+This code is licensed under the GPLv2 (or at your option any later version).

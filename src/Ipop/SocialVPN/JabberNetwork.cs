@@ -52,16 +52,14 @@ namespace Ipop.SocialVPN {
 
     public const string SVPNRESOURCE = "SVPN_XMPP";
 
-    public event EventHandler ProcessEvent;
-
     protected readonly JabberClient _jclient;
 
     protected readonly RosterManager _rman;
 
-    protected readonly SocialUser _user;
+    protected readonly SocialNode _node;
 
     public JabberNetwork(string network_host, string jabber_port,
-      bool autoFriend, SocialUser user) {
+      bool autoFriend, SocialNode node) {
 
       _jclient = new JabberClient();
       _jclient.Port = Int32.Parse(jabber_port);
@@ -88,11 +86,12 @@ namespace Ipop.SocialVPN {
       _jclient.OnWriteText += HandleOnWriteText;
 
       _rman = null;
-      _user = user;
+      _node = node;
+
       if(autoFriend) {
         _rman = new RosterManager();
-        _rman.AutoAllow = jabber.client.AutoSubscriptionHanding.AllowAll;
         _rman.Stream = _jclient;
+        _rman.AutoAllow = jabber.client.AutoSubscriptionHanding.AllowAll;
       }
     }
     
@@ -164,38 +163,16 @@ namespace Ipop.SocialVPN {
       }
     }
 
-    protected string UpdateStatus(StatusTypes status) {
-      Dictionary<string, string> request = new Dictionary<string,string>();
-      request["m"] = "updatestat";
-      request["status"] = status.ToString();
-      return FireEvent(request);
+    protected void UpdateStatus(StatusTypes status) {
+      _node.UpdateStatus(status);
     }
 
     protected string GetQueryResponse() {
-      return _user.Certificate;
+      return _node.LocalUser.Certificate;
     }
 
-    protected string ProcessResponse(string cert, string uid) {
-      Dictionary<string, string> request = new Dictionary<string,string>();
-      request["m"] = "add";
-      request["cert"] = cert;
-      request["uid"] = uid;
-      return FireEvent(request);
-    }
-
-    protected string FireEvent(Dictionary<string,string> request) {
-      EventHandler process_event = ProcessEvent;
-      string response = String.Empty;
-      if (process_event != null) {
-        try {
-          process_event(request, EventArgs.Empty);
-          response = request["response"];
-        } catch (Exception e) {
-          response = e.Message;
-          Console.WriteLine(response);
-        }
-      } 
-      return response;
+    protected void ProcessResponse(string cert, string uid) {
+      _node.AddCertificate(cert, uid);
     }
 
     public void Login(string username, string password) {
@@ -239,7 +216,7 @@ namespace Ipop.SocialVPN {
   public class JabberNetworkTester {
     [Test]
     public void JabberNetworkTest() {
-      JabberNetwork jabber = new JabberNetwork(null, "5222");
+      JabberNetwork jabber = new JabberNetwork(null, "5222", true, null, null);
       Console.Write("Please enter jabber id and password: ");
       string input = Console.ReadLine();
       string[] parts = input.Split(' ');

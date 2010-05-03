@@ -144,11 +144,8 @@ namespace Ipop.SocialVPN {
       char[] delims = new char[] {'@','.'};
       string[] parts = uid.Split(delims);
       string alias = String.Empty;
-      for(int i = 0; i < parts.Length-1; i++) {
+      for(int i = 0; i < parts.Length; i++) {
         alias += parts[i] + ".";
-      }
-      if(parts[parts.Length-1] == "com") {
-        alias += "com.";
       }
       alias = (pcid + "." + alias + SocialNode.DNSSUFFIX).ToLower();
       return alias;

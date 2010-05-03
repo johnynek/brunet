@@ -146,9 +146,14 @@ namespace Ipop.SocialVPN {
     protected void Block(string uid) {
       foreach(SocialUser user in GetFriends()) {
         if(user.Uid == uid && user.Access != AccessTypes.Block.ToString()) {
-          _marad.RemoveIPMapping(user.IP);
-          string access = AccessTypes.Block.ToString();
-          UpdateFriend(user.Alias, user.IP, user.Time, access, user.Status);
+          try{
+            _marad.RemoveIPMapping(user.IP);
+            string access = AccessTypes.Block.ToString();
+            UpdateFriend(user.Alias, user.IP, user.Time, access, user.Status);
+          }
+          catch(Exception e) {
+            Console.WriteLine(e);
+          }
         }
       }
 
@@ -163,10 +168,15 @@ namespace Ipop.SocialVPN {
     protected void Unblock(string uid) {
       foreach(SocialUser user in GetFriends()) {
         if(user.Uid == uid && user.Access == AccessTypes.Block.ToString()) {
-          Address addr = AddressParser.Parse(user.Address);
-          user.IP = _marad.AddIPMapping(user.IP, addr);
-          string access = AccessTypes.Allow.ToString();
-          UpdateFriend(user.Alias, user.IP, user.Time, access, user.Status);
+          try{
+            Address addr = AddressParser.Parse(user.Address);
+            _marad.AddIPMapping(user.IP, addr);
+            string access = AccessTypes.Allow.ToString();
+            UpdateFriend(user.Alias, user.IP, user.Time, access, user.Status);
+          }
+          catch(Exception e) {
+            Console.WriteLine(e);
+          }
         }
       }
 
@@ -199,7 +209,11 @@ namespace Ipop.SocialVPN {
       return SocialUtils.ObjectToXml<SocialState>(state);
     }
 
-    public void LoadState() {
+    protected void SetGlobalBlock(bool global_block) {
+      _global_block.Value = global_block;
+    }
+
+    protected void LoadState() {
       try {
         SocialState state = Utils.ReadConfig<SocialState>(STATEPATH);
         foreach (string user in state.BlockedFriends) {
@@ -229,8 +243,8 @@ namespace Ipop.SocialVPN {
       return friends;
     }
 
-    public void SetGlobalBlock(bool global_block) {
-      _global_block.Value = global_block;
+    public void UpdateStatus(StatusTypes status) {
+      _status = status.ToString();
     }
 
     public void UpdateFriend(string alias, string ip, string time, 
@@ -248,6 +262,9 @@ namespace Ipop.SocialVPN {
       }
     }
 
+    public void AddCertificate(string b64_cert, string uid) {
+      AddFriend(b64_cert, uid, null);
+    }
     public void AddDnsMapping(string alias, string ip) {
       _marad.AddDnsMapping(alias, ip, false);
     }
@@ -282,14 +299,6 @@ namespace Ipop.SocialVPN {
           Unblock(request["uid"]);
           break;
 
-        case "getcert":
-          request["response"] = _local_user.Certificate;
-          break;
-
-        case "updatestat":
-          _status = request["status"];
-          break;
-
         default:
           break;
       }
@@ -315,12 +324,11 @@ namespace Ipop.SocialVPN {
       JabberNetwork jabber = new JabberNetwork(social_config.JabberHost,
                                                social_config.JabberPort,
                                                social_config.AutoFriend,
-                                               node.LocalUser);
+                                               node);
 
       http_ui.ProcessEvent += node.ProcessHandler;
       http_ui.ProcessEvent += jabber.ProcessHandler;
       http_ui.ProcessEvent += dns_manager.ProcessHandler;
-      jabber.ProcessEvent += node.ProcessHandler;
 
       node.Shutdown.OnExit += http_ui.Stop;
       node.Shutdown.OnExit += jabber.Logout;
