@@ -116,7 +116,7 @@ namespace Ipop.SocialVPN {
         new Dictionary<string, string>();
 
       parameters["m"] = "jabber.login";
-      parameters["user"] = user;
+      parameters["uid"] = user;
       parameters["pass"] = pass;
       return Print(SocialUtils.Request(_url, parameters));
     }

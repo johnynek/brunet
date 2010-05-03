@@ -64,6 +64,9 @@ namespace Ipop.SocialVPN.Service {
 
     protected virtual void Start()
     {
+      string app_dir = AppDomain.CurrentDomain.SetupInformation.ApplicationBase;
+      System.IO.Directory.SetCurrentDirectory(app_dir);
+
       _node = Ipop.SocialVPN.SocialNode.CreateNode();
       _node.Run();
     }

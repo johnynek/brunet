@@ -1,0 +1,5 @@
+SocialVPN 0.4.0
+===============
+-- Added more options in social.config file such as autologin, autoblock
+-- Updated Web UI to make it less confusing
+-- Gravatar support

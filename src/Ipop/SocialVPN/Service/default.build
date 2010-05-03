@@ -30,5 +30,12 @@
         <include name="SocialVPN.exe" />
       </references>
     </csc>
+
+    <copy todir="${svpn.build.dir}" failonerror="true">
+      <fileset basedir="${build.dir}">
+        <include name="SocialVPNService.exe" />
+      </fileset>
+    </copy>
+
   </target>
 </project>

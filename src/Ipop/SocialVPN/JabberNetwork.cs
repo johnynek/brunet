@@ -156,7 +156,7 @@ namespace Ipop.SocialVPN {
           iq.Query.SetAttribute("value", GetQueryResponse());
           _jclient.Write(iq);
         }
-        else if (iq.Type == IQType.result) {
+        else if(iq.Type == IQType.result) {
           string uid = iq.From.User + "@" + iq.From.Server;
           ProcessResponse(iq.Query.GetAttribute("value"), uid);
         }
@@ -164,15 +164,25 @@ namespace Ipop.SocialVPN {
     }
 
     protected void UpdateStatus(StatusTypes status) {
+#if SVPN_NUNIT
+#else
       _node.UpdateStatus(status);
+#endif
     }
 
     protected string GetQueryResponse() {
+#if SVPN_NUNIT
+      return "";
+#else
       return _node.LocalUser.Certificate;
+#endif
     }
 
     protected void ProcessResponse(string cert, string uid) {
+#if SVPN_NUNIT
+#else
       _node.AddCertificate(cert, uid);
+#endif
     }
 
     public void Login(string username, string password) {
@@ -216,7 +226,7 @@ namespace Ipop.SocialVPN {
   public class JabberNetworkTester {
     [Test]
     public void JabberNetworkTest() {
-      JabberNetwork jabber = new JabberNetwork(null, "5222", true, null, null);
+      JabberNetwork jabber = new JabberNetwork(null, "5222", true, null);
       Console.Write("Please enter jabber id and password: ");
       string input = Console.ReadLine();
       string[] parts = input.Split(' ');
