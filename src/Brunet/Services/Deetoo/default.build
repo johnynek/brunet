@@ -45,11 +45,11 @@
     <csc target="library" define="BRUNET_NUNIT" optimize="true" output="${build.dir}/${assembly}.NUnit.Test.dll">
       <sources>
         <include name="*.cs"/>
-	<include name="../BasicNode/Utils.cs"/>
+        <include name="../BasicNode/Utils.cs"/>
       </sources>
       <references basedir="${build.dir}">
-	<include name="Brunet.dll"/>
-	<include name="Brunet.IPAddresses.dll"/>
+        <include name="Brunet.dll"/>
+        <include name="Brunet.IPAddresses.dll"/>
         <include name="nunit.framework.dll" />
         <include name="System.Web.dll"/>
       </references>
