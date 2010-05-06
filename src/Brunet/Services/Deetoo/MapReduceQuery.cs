@@ -62,7 +62,6 @@ namespace Brunet.Services.Deetoo {
       my_entry["count"] = 1;
       my_entry["height"] = 1;
       q.Enqueue(my_entry);
-      return;
     }
       
     /**
@@ -81,12 +80,7 @@ namespace Brunet.Services.Deetoo {
       //ISender child_sender = child_rpc.ResultSender;
       string query_type = (string)reduce_arg;
       object child_result = null;
-      try {
-        child_result = child_rpc.Result;
-      }
-      catch {
-        throw new Exception("no rpc result.") ;
-      }
+      child_result = child_rpc.Result;
       //child result is a valid result
       if (current_result == null) {
         q.Enqueue(new Brunet.Collections.Pair<object, bool>(child_result, done) );
@@ -132,7 +126,6 @@ namespace Brunet.Services.Deetoo {
       else {
         q.Enqueue(new AdrException(-32608, "This query type {0} is not supported." + query_type) );
       }
-      return;
     }
   }
 }

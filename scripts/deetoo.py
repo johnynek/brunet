@@ -46,6 +46,7 @@ def cache(alpha, object):
   ht = {}
   ht["task_name"] = "Brunet.Services.Deetoo.MapReduceCache"
   rpc, net_size = setXmlRpcServer()
+  print net_size
   rg_start, rg_end = getRange(net_size, alpha)
   ht["gen_arg"] = [rg_start.str, rg_end.str]
   ht["map_arg"] = [object, alpha, rg_start.str, rg_end.str]

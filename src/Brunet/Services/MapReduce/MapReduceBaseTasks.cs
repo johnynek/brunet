@@ -62,7 +62,7 @@ namespace Brunet.Services.MapReduce {
       q.Enqueue(retval.ToArray(typeof(MapReduceInfo)));
     }
   }
-  
+ 
   /** The following class provides the base class for tasks utilizing the
    *  BoundedBroadcastTree generation.
    */
@@ -200,11 +200,6 @@ namespace Brunet.Services.MapReduce {
           retval = GenerateTreeInRange(start_addr, end_addr, left_cons, true, mr_args);
           List<MapReduceInfo> ret_right = GenerateTreeInRange(start_addr, end_addr, right_cons, false, mr_args);
           retval.AddRange(ret_right);
-        }
-        else {  //this node is a leaf node.
-          //MapReduceInfo mr_info = null;
-          //retval.Add(mr_info);
-          //Console.WriteLine("no connection in the range: return null info");
         }
       }
       else { // _node is out of range. Just pass it to the closest to the middle of range.
@@ -348,7 +343,7 @@ namespace Brunet.Services.MapReduce {
       foreach(Connection c in cl) {
         AHAddress adr = (AHAddress)c.Address;
         //if(adr.IsBetweenFromLeft(t_addr, end) ) {
-        if (InRange(adr, start, t_addr) ) {
+        if (InRange(adr, t_addr, end) ) {
           left_con_list.Add(c);
         }
         //else if (adr.IsBetweenFromLeft(start, t_addr) ) {
@@ -412,3 +407,4 @@ namespace Brunet.Services.MapReduce {
     } 
   }
 }
+

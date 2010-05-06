@@ -73,7 +73,6 @@ namespace Brunet.Services.Deetoo {
       my_entry["height"]=1;
       my_entry["success"]=result;
       q.Enqueue(my_entry);
-      return;
       //return my_entry;
     }
     
@@ -111,7 +110,6 @@ namespace Brunet.Services.Deetoo {
         my_entry["height"] = z; 
       }
       q.Enqueue(new Brunet.Collections.Pair<object, bool>(my_entry,done));
-      return;
     }
   }
 }

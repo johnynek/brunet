@@ -18,6 +18,7 @@
         <include name="Brunet.Services.Coordinate.dll" />
         <include name="Brunet.Services.XmlRpc.dll" />
         <include name="Brunet.Services.Dht.dll"/>
+        <include name="Brunet.Services.Deetoo.dll"/>
         <include name="NDesk.Options.dll"/>
         <include name="Mono.Security.dll" />
         <include name="Brunet.Security.dll"/>

@@ -134,6 +134,7 @@ namespace Brunet.Services.Deetoo
         // If the node is out of new range, entry will be removed from local list.
         //_cl.Stabilize(_median_network_size);
         _cl.RemoveEntries(_median_network_size);
+	Console.WriteLine("In Put method: median network size is {0}",_median_network_size);
         foreach(DictionaryEntry de in _cl) {
           Entry ce = (Entry)de.Value;
           Channel queue = new Channel(1);
@@ -263,8 +264,8 @@ namespace Brunet.Services.Deetoo
             int total_int = total.IntValue();
             _local_network_size = total_int;
           }
+	  GetMedianEstimation(obj, eargs);
         };
-	GetMedianEstimation(obj, eargs);
       }
       catch(Exception x) {
         if(CacheList.DeetooLog.Enabled) {
@@ -304,8 +305,8 @@ namespace Brunet.Services.Deetoo
           int median_size = GetMedian(size_list);
           _median_network_size = median_size;
           //_rpc.SendResult(req_state,mean_size);
+	  ConnectionHandler(obj,eargs);
         };
-	ConnectionHandler(obj,eargs);
       }
     }
     protected int GetMedian(List<int> list) {

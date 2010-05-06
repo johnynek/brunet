@@ -77,6 +77,7 @@
     <nant buildfile="src/Brunet/Services/Dht/default.build" />
     <nant buildfile="src/Brunet/Services/Coordinate/default.build" />
     <nant buildfile="src/Brunet/Services/XmlRpc/default.build" />
+    <nant buildfile="src/Brunet/Services/Deetoo/default.build" />
     <nant buildfile="src/Brunet/Security/default.build" />
     <nant buildfile="src/Brunet/Applications/default.build" />
     <nant buildfile="tests/util/default.build" />
@@ -95,6 +96,7 @@
     <nant buildfile="src/Brunet/Services/Dht/default.build" />
     <nant buildfile="src/Brunet/Services/Coordinate/default.build" />
     <nant buildfile="src/Brunet/Services/XmlRpc/default.build" />
+    <nant buildfile="src/Brunet/Services/Deetoo/default.build" />
     <nant buildfile="tests/util/default.build" />
     <nant buildfile="tests/Brunet/default.build" target="plab-log"/>
 
@@ -206,6 +208,7 @@
     <nant buildfile="src/Brunet/Services/Dht/default.build" />
     <nant buildfile="src/Brunet/Services/Coordinate/default.build" />
     <nant buildfile="src/Brunet/Services/XmlRpc/default.build" />
+    <nant buildfile="src/Brunet/Services/Deetoo/default.build" />
     <nant buildfile="tests/simulator/default.build" />
     <nant buildfile="tests/graph/default.build" />
   </target>
