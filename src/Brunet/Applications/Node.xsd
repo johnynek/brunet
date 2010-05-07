@@ -13,6 +13,17 @@
       <xs:element ref="DevicesToBind" minOccurs="0" maxOccurs="1"/>
       <xs:element name="NodeAddress" type="xs:string" minOccurs="0" maxOccurs="1"/>   
       <xs:element name="Path" type="xs:string" minOccurs="0" maxOccurs="1"/>      
+      <xs:element ref="XmppServices" minOccurs="0" maxOccurs="1" />
+      <xs:element ref="PrivateNodeConfig" minOccurs="0" maxOccurs="1" />
+    </xs:all>
+  </xs:complexType>
+</xs:element>
+
+<xs:element name="PrivateNodeConfig">
+  <xs:complexType>
+    <xs:all>
+      <xs:element name="BrunetNamespace" type="xs:string" minOccurs="1"/>
+      <xs:element ref="Security" minOccurs="0" maxOccurs="1"/>
     </xs:all>
   </xs:complexType>
 </xs:element>

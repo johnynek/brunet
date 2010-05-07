@@ -47,7 +47,7 @@ namespace Brunet.Applications {
     {
       _count = count;
       _nodes = new List<ApplicationNode>(count);
-      _threads = new List<Thread>(count - 1);
+      _threads = new List<Thread>();
     }
 
     /// <summary>This is where the magic happens!  Sets up Shutdown, creates all
@@ -63,6 +63,14 @@ namespace Brunet.Applications {
         Thread thread = new Thread(node.Node.Connect);
         thread.Start();
         _threads.Add(thread);
+
+        if(node.PrivateNode != null) {
+          ApplicationNode pnode = node.PrivateNode;
+          new Information(pnode.Node, "MultiPrivateNode", pnode.SecurityOverlord);
+          thread = new Thread(pnode.Node.Connect);
+          thread.Start();
+          _threads.Add(thread);
+        }
       }
 
       _node_config.NodeAddress = node_addr;
@@ -71,6 +79,14 @@ namespace Brunet.Applications {
       _nodes.Add(_app_node);
       Console.WriteLine("Starting at {0}, {1} is connecting to {2}.",
           DateTime.UtcNow, _app_node.Node.Address, _app_node.Node.Realm);
+
+      if(_app_node.PrivateNode != null) {
+        ApplicationNode pnode = _app_node.PrivateNode;
+        new Information(pnode.Node, "MultiPrivateNode", pnode.SecurityOverlord);
+        Thread thread = new Thread(pnode.Node.Connect);
+        thread.Start();
+        _threads.Add(thread);
+      }
       _app_node.Node.Connect();
     }
 
@@ -82,6 +98,12 @@ namespace Brunet.Applications {
         if(node.Node.ConState != Node.ConnectionState.Disconnected) {
           stop = false;
           break;
+        }
+        if(node.PrivateNode != null) {
+          if(node.PrivateNode.Node.ConState != Node.ConnectionState.Disconnected) {
+            stop = false;
+            break;
+          }
         }
       }
 
@@ -97,6 +119,9 @@ namespace Brunet.Applications {
     {
       foreach(ApplicationNode node in _nodes) {
         node.Node.Disconnect();
+        if(node.PrivateNode != null) {
+          node.PrivateNode.Node.Disconnect();
+        }
       }
       base.OnExit();
     }

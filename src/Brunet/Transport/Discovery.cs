@@ -41,28 +41,30 @@ namespace Brunet.Transport {
     }
 
     /// <summary>We need some TAs.</summary>
-    public void BeginFindingTAs()
+    virtual public bool BeginFindingTAs()
     {
       if(Interlocked.Exchange(ref _running, 1) == 1) {
-        return;
+        return false;
       }
 
       _fe = Brunet.Util.FuzzyTimer.Instance.DoEvery(SeekTAs, DELAY_MS, DELAY_MS / 2);
       // If we don't execute this now, the first one won't be called for DELAY_MS
       SeekTAs(DateTime.UtcNow);
+      return true;
     }
 
     /// <summary>No more TAs are necessary.</summary>
-    public void EndFindingTAs()
+    virtual public bool EndFindingTAs()
     {
       FuzzyEvent fe = _fe;
       if(Interlocked.Exchange(ref _running, 0) == 0) {
-        return;
+        return false;
       }
 
       if(fe != null) {
         fe.TryCancel();
       }
+      return true;
     }
 
     virtual public bool Stop()
@@ -101,6 +103,11 @@ namespace Brunet.Transport {
           ProtocolLog.WriteIf(ProtocolLog.Exceptions, "Unexpected exception: " + e);
         }
       }
+      UpdateRemoteTAs(tas);
+    }
+
+    protected void UpdateRemoteTAs(List<TransportAddress> tas)
+    {
       _ta_handler.UpdateRemoteTAs(tas);
     }
 

@@ -51,9 +51,23 @@ namespace Brunet.Applications {
   ///     <Enabled>true</Enabled>
   ///     <Port>23322</Port>
   ///   </XmlRpcManager>
+  ///   <PrivateNodeConfig>
+  ///     ...
+  ///   </PrivateNodeConfig>
   /// </NodeConfig>
   /// </code>
   /// </remarks>
+
+  public class PrivateNodeConfig {
+    public PrivateNodeConfig() {
+      Security = new NodeConfig.SecurityPolicy();
+      BrunetNamespace = String.Empty;
+    }
+
+    public String BrunetNamespace;
+    public NodeConfig.SecurityPolicy Security;
+  }
+
   public class NodeConfig {
     public NodeConfig() {
       EdgeListeners = new EdgeListener[0];
@@ -62,6 +76,20 @@ namespace Brunet.Applications {
       XmlRpcManager = new Service();
       NCService = new NCServiceConfig();
       Security = new SecurityPolicy();
+      PrivateNodeConfig = new PrivateNodeConfig();
+      BrunetNamespace = String.Empty;
+    }
+
+    /// <summary>Create a new node config given a public node config and a
+    /// private node config, used to generate the private node.</summary>
+    public static NodeConfig GetPrivateNodeConfig(NodeConfig nc)
+    {
+      NodeConfig private_config = Utils.Copy<NodeConfig>(nc);
+      private_config.PrivateNodeConfig = null;
+      private_config.BrunetNamespace = nc.PrivateNodeConfig.BrunetNamespace;
+      private_config.Security = nc.PrivateNodeConfig.Security;
+      private_config.RemoteTAs = new String[0];
+      return private_config;
     }
 
     /**  <summary>This is equivalent to Node.Realm, only Nodes in the same
@@ -86,6 +114,8 @@ namespace Brunet.Applications {
     </summary>*/
     [XmlArrayItem (typeof(String), ElementName = "Device")]
     public String[] DevicesToBind;
+    public NCServiceConfig NCService;
+    public PrivateNodeConfig PrivateNodeConfig;
     /**  <summary>Specifies XmlRpc configuration.  This is optional and only
     required if XmlRpc is desired.</summary>*/
     public Service XmlRpcManager;

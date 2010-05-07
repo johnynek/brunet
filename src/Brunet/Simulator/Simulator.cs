@@ -44,8 +44,8 @@ using Brunet.Util;
 namespace Brunet.Simulator {
   public class Simulator {
     public int StartingNetworkSize;
-    public SortedList Nodes = new SortedList();
-    protected SortedList TakenIDs = new SortedList();
+    public SortedList<Address, NodeMapping> Nodes;
+    public SortedList<int, NodeMapping> TakenIDs;
 
     public int CurrentNetworkSize;
     protected Random _rand;
@@ -59,22 +59,30 @@ namespace Brunet.Simulator {
     public bool NCEnable;
     protected RSACryptoServiceProvider _se_key;
     protected Certificate _ca_cert;
+    protected readonly Parameters _parameters;
 
-    public Simulator(Parameters parameters)
+
+    public Simulator(Parameters parameters) : this(parameters, false)
     {
+    }
+
+    public Simulator(Parameters parameters, bool do_not_start)
+    {
+      _parameters = parameters;
       StartingNetworkSize = parameters.Size;
       CurrentNetworkSize = 0;
-      Nodes = new SortedList();
-      TakenIDs = new SortedList();
+      Nodes = new SortedList<Address, NodeMapping>();
+      TakenIDs = new SortedList<int, NodeMapping>();
 
       if(parameters.Seed != -1) {
+        Console.WriteLine(parameters.Seed);
         _rand = new Random(parameters.Seed);
       } else {
-        _rand = new Random(parameters.Seed);
+        _rand = new Random();
       }
 
       BrunetNamespace = "testing" + _rand.Next();
-      _broken = 0;
+      _broken = parameters.Broken;
       _secure_edges = parameters.SecureEdges;
       _secure_senders = parameters.SecureSenders;
       _pathing = parameters.Pathing;
@@ -95,7 +103,14 @@ namespace Brunet.Simulator {
         SimulationEdgeListener.LatencyMap = parameters.LatencyMap;
       }
 
-      for(int i = 0; i < parameters.Size; i++) {
+      if(!do_not_start) {
+        Start();
+      }
+    }
+
+    protected void Start()
+    {
+      for(int i = 0; i < _parameters.Size; i++) {
         AddNode();
       }
     }
@@ -122,6 +137,8 @@ namespace Brunet.Simulator {
         if(success) {
           Console.WriteLine("It took {0} to complete the ring", DateTime.UtcNow - start);
         } else {
+          PrintConnections();
+          PrintConnectionState();
           Console.WriteLine("Unable to complete ring.");
         }
       }
@@ -150,10 +167,10 @@ namespace Brunet.Simulator {
 
     public bool Crawl(bool log, bool secure)
     {
-      NodeMapping nm = (NodeMapping) Nodes.GetByIndex(0);
+      NodeMapping nm = Nodes.Values[0];
       SymphonySecurityOverlord bso = null;
       if(secure) {
-        bso = nm.BSO;
+        bso = nm.Sso;
       }
 
       CrawlHelper ch = new CrawlHelper(nm.Node, Nodes.Count, bso, log);
@@ -169,7 +186,7 @@ namespace Brunet.Simulator {
     protected int TakeID()
     {
       int id = TakenIDs.Count;
-      while(TakenIDs.Contains(id)) {
+      while(TakenIDs.ContainsKey(id)) {
         id = _rand.Next(0, Int32.MaxValue);
       }
       return id;
@@ -181,7 +198,7 @@ namespace Brunet.Simulator {
       _rand.NextBytes(addr);
       Address.SetClass(addr, AHAddress._class);
       AHAddress ah_addr = new AHAddress(MemBlock.Reference(addr));
-      if(Nodes.Contains(ah_addr)) {
+      if(Nodes.ContainsKey(ah_addr)) {
         ah_addr = GenerateAddress();
       }
       return ah_addr;
@@ -215,7 +232,7 @@ namespace Brunet.Simulator {
     {
       var RemoteTAs = new List<TransportAddress>();
       for(int i = 0; i < 5 && i < TakenIDs.Count; i++) {
-        int rid = (int) TakenIDs.GetByIndex(_rand.Next(0, TakenIDs.Count));
+        int rid = TakenIDs.Keys[_rand.Next(0, TakenIDs.Count)];
         RemoteTAs.Add(TransportAddressFactory.CreateInstance("b.s://" + rid));
       }
       if(_broken != 0) {
@@ -227,14 +244,15 @@ namespace Brunet.Simulator {
 
     protected virtual StructuredNode PrepareNode(int id, AHAddress address)
     {
-      if(TakenIDs.Contains(id)) {
+      if(TakenIDs.ContainsKey(id)) {
         throw new Exception("ID already taken");
       }
 
       StructuredNode node = new StructuredNode(address, BrunetNamespace);
 
       NodeMapping nm = new NodeMapping();
-      TakenIDs[id] = nm.ID = id;
+      nm.ID = id;
+      TakenIDs[id] = nm;
       nm.Node = node;
       Nodes.Add((Address) address, nm);
 
@@ -262,8 +280,8 @@ namespace Brunet.Simulator {
         if(_dtls) {
           nm.SO = new DtlsOverlord(rsa_copy, ch, PeerSecOverlord.Security);
         } else {
-          nm.BSO = new SymphonySecurityOverlord(node, rsa_copy, ch, node.Rrm);
-          nm.SO = nm.BSO;
+          nm.Sso = new SymphonySecurityOverlord(node, rsa_copy, ch, node.Rrm);
+          nm.SO = nm.Sso;
         }
 
         nm.SO.Subscribe(node, null);
@@ -271,7 +289,7 @@ namespace Brunet.Simulator {
       }
 
       if(_pathing) {
-        nm.PathEM = new PathELManager(el);
+        nm.PathEM = new PathELManager(el, nm.Node);
         nm.PathEM.Start();
         el = nm.PathEM.CreatePath();
         PType path_p = PType.Protocol.Pathing;
@@ -299,15 +317,20 @@ namespace Brunet.Simulator {
 
       if(_broken != 0) {
         el = new Relay.RelayEdgeListener(node, ito);
+        if(_secure_edges) {
+          el = new SecureEdgeListener(el, nm.SO);
+        }
         node.AddEdgeListener(el);
       }
       // Enables Dht data store
       new TableServer(node);
+      nm.Dht = new Dht(node, 3, 20);
+      nm.DhtProxy = new RpcDhtProxy(nm.Dht, node);
       return node;
     }
 
     public void RemoveNode(Node node, bool cleanly) {
-      NodeMapping nm = (NodeMapping) Nodes[node.Address];
+      NodeMapping nm = Nodes[node.Address];
       if(cleanly) {
         node.Disconnect();
       } else {
@@ -324,7 +347,7 @@ namespace Brunet.Simulator {
     // removes a node from the pool
     public void RemoveNode(bool output, bool cleanly) {
       int index = _rand.Next(0, Nodes.Count);
-      NodeMapping nm = (NodeMapping) Nodes.GetByIndex(index);
+      NodeMapping nm = Nodes.Values[index];
       if(output) {
         Console.WriteLine("Removing: " + nm.Node.Address);
       }
@@ -352,13 +375,13 @@ namespace Brunet.Simulator {
       }
 
       Dictionary<AHAddress, bool> found = new Dictionary<AHAddress, bool>();
-      Address start_addr = (Address) Nodes.GetKeyList()[0];
+      Address start_addr = Nodes.Keys[0];
       Address curr_addr = start_addr;
       int count = 0;
 
       while(count < Nodes.Count) {
         found[curr_addr as AHAddress] = true;
-        Node node = ((NodeMapping) Nodes[curr_addr]).Node;
+        Node node = Nodes[curr_addr].Node;
         ConnectionTable con_table = node.ConnectionTable;
 
         Connection con = null;
@@ -378,7 +401,7 @@ namespace Brunet.Simulator {
 
         Connection lc = null;
         try {
-          Node tnode = ((NodeMapping)Nodes[next_addr]).Node;
+          Node tnode = Nodes[next_addr].Node;
           lc = tnode.ConnectionTable.GetRightStructuredNeighborOf((AHAddress) next_addr);
         } catch {}
 
@@ -404,8 +427,7 @@ namespace Brunet.Simulator {
           Console.WriteLine("Ring properly formed!");
         }
       } else {
-        ICollection keys = Nodes.Keys;
-        foreach(AHAddress addr in keys) {
+        foreach(AHAddress addr in Nodes.Keys) {
           if(!found.ContainsKey(addr)) {
             missing.Add(addr);
           }
@@ -418,8 +440,8 @@ namespace Brunet.Simulator {
     /// <summary>Prints all the connections for the nodes in the simulator.</summary>
     public void PrintConnections()
     {
-      foreach(DictionaryEntry de in Nodes) {
-        Node node = ((NodeMapping)de.Value).Node;
+      foreach(NodeMapping nm in Nodes.Values) {
+        Node node = nm.Node;
         PrintConnections(node);
         Console.WriteLine("==============================================================");
       }
@@ -436,8 +458,8 @@ namespace Brunet.Simulator {
     public void PrintConnectionState()
     {
       int count = 0;
-      foreach(DictionaryEntry de in Nodes) {
-        Node node = ((NodeMapping)de.Value).Node;
+      foreach(NodeMapping nm in Nodes.Values) {
+        Node node = nm.Node;
         Console.WriteLine(node.Address + " " + node.ConState);
         count = node.IsConnected ? count + 1 : count;
       }
@@ -447,8 +469,8 @@ namespace Brunet.Simulator {
     /// <summary>Disconnects all the nodes in the simulator.</summary>
     public void Disconnect()
     {
-      foreach(DictionaryEntry de in Nodes) {
-        Node node = ((NodeMapping) de.Value).Node;
+      foreach(NodeMapping nm in Nodes.Values) {
+        Node node = nm.Node;
         node.Disconnect();
       }
       Nodes.Clear();
@@ -483,7 +505,7 @@ namespace Brunet.Simulator {
         if(_log && _crawled.Count < _count) {
           Console.WriteLine("Current address: " + addr);
         }
-        if(_crawled.Contains(addr)) {
+        if(_crawled.ContainsKey(addr)) {
           finished = true;
         } else {
           _crawled.Add(addr, true);
@@ -557,7 +579,7 @@ namespace Brunet.Simulator {
     protected class AllToAllHelper {
       protected long _total_latency;
       protected long _count;
-      protected SortedList _nodes;
+      protected SortedList<Address, NodeMapping> _nodes;
       protected int _done;
       protected long _waiting_on;
       public int Done { get { return _done; } }
@@ -565,7 +587,8 @@ namespace Brunet.Simulator {
       protected object _sync;
       protected bool _secure;
 
-      public AllToAllHelper(SortedList nodes, bool secure) {
+      public AllToAllHelper(SortedList<Address, NodeMapping> nodes, bool secure)
+      {
         _nodes = nodes;
         _count = 0;
         _total_latency = 0;
@@ -576,7 +599,8 @@ namespace Brunet.Simulator {
         _secure = secure;
       }
 
-      protected void Callback(object o, EventArgs ea) {
+      protected void Callback(object o, EventArgs ea)
+      {
         Channel q = o as Channel;
         try {
           RpcResult res = (RpcResult) q.Dequeue();
@@ -608,7 +632,7 @@ namespace Brunet.Simulator {
 
             ISender sender = null;
             if(_secure) {
-              sender = nm_from.BSO.GetSecureSender(nm_to.Node.Address);
+              sender = nm_from.Sso.GetSecureSender(nm_to.Node.Address);
             } else {
               sender = new AHGreedySender(nm_from.Node, nm_to.Node.Address);
             }
@@ -724,12 +748,14 @@ namespace Brunet.Simulator {
   }
 
   public class NodeMapping {
+    public IDht Dht;
+    public RpcDhtProxy DhtProxy;
     public int ID;
-    public Node Node;
-    public SymphonySecurityOverlord BSO;
-    public SecurityOverlord SO;
     public NCService NCService;
+    public Node Node;
     public PathELManager PathEM;
+    public SecurityOverlord SO;
+    public SymphonySecurityOverlord Sso;
   }
 
   /// <summary> Randomly breaks all edges to remote entity.</summary>

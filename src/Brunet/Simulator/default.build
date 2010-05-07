@@ -54,15 +54,36 @@
         <include name="NDesk.Options.dll"/>
       </references>
     </csc>
+
+    <csc target="exe" define="SUBRING" output="${build.dir}/SubringSimulator.exe" main="Brunet.Simulator.Runner">
+      <sources failonempty="true">
+        <include name="Simulator.cs"/>
+        <include name="Parameters.cs"/>
+        <include name="SubringParameters.cs"/>
+        <include name="SubringSimulator.cs"/>
+        <include name="Main.cs"/>
+      </sources>
+      <references basedir="${build.dir}">
+        <include name="Brunet.dll"/>
+        <include name="Brunet.Services.Dht.dll"/>
+        <include name="Brunet.Services.Coordinate.dll"/>
+        <include name="Brunet.Security.dll"/>
+        <include name="Brunet.Security.Dtls.dll"/>
+        <include name="ManagedOpenSsl.dll"/>
+        <include name="NDesk.Options.dll"/>
+      </references>
+    </csc>
   </target>
 
   <target name="test" description="Builds nunit testable Simulator">
     <mkdir dir="${build.dir}" failonerror="true"/>
     <csc target="library" define="BRUNET_NUNIT" optimize="true" output="${build.dir}/Simulator.Test.dll">
       <sources>
+        <include name="SubringParameters.cs"/>
         <include name="Parameters.cs"/>
         <include name="Simulator.cs"/>
         <include name="SimulatorUnit.cs"/>
+        <include name="SubringSimulator.cs"/>
       </sources>
       <references basedir="${build.dir}">
         <include name="Brunet.dll"/>

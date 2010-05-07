@@ -84,6 +84,25 @@ namespace Brunet.Simulator {
       };
     }
 
+    /// <summary>Copy constructor.</summary>
+    public Parameters(Parameters copy)
+    {
+      _broken = copy.Broken;
+      _complete = copy.Complete;
+      _dataset = copy.Dataset;
+      _dtls = copy.Dtls;
+      _error_message = copy.ErrorMessage;
+      _evaluation = copy.Evaluation;
+      _runtime = copy.EvaluationTime;
+      _heavy_churn = copy.HeavyChurn;
+      _pathing = copy.Pathing;
+      _se = copy.SecureEdges;
+      _ss = copy.SecureSenders;
+      _seed = copy.Seed;
+      _size = copy.Size;
+      _latency_map = copy.LatencyMap;
+    }
+
     public virtual int Parse(string[] args)
     {
       try {
@@ -95,13 +114,6 @@ namespace Brunet.Simulator {
 
       if(_size <= 0) {
         _error_message = "Size needs to be positive.";
-        return -1;
-      }
-
-      if(_seed == -1) {
-        _seed = (new Random()).Next();
-      } else if(_seed < 0) {
-        _error_message = "Seed is less than 0";
         return -1;
       }
 

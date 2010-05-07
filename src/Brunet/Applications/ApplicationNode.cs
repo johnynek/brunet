@@ -29,6 +29,7 @@ namespace Brunet.Applications {
     public readonly RpcDhtProxy DhtProxy;
     public readonly NCService NCService;
     public readonly SymphonySecurityOverlord SecurityOverlord;
+    public ApplicationNode PrivateNode;
 
     public ApplicationNode(StructuredNode node, IDht dht, RpcDhtProxy dht_proxy,
         NCService ncservice, SymphonySecurityOverlord security_overlord)

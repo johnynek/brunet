@@ -137,6 +137,12 @@ namespace Brunet.Symphony {
      */
     static protected readonly string struc_chota = "structured.chota";
 
+    public override TAAuthorizer TAAuth { get { return _ta_auth;} }
+    protected readonly static TAAuthorizer _ta_auth = new TATypeAuthorizer(
+          new TransportAddress.TAType[]{TransportAddress.TAType.Subring},
+          TAAuthorizer.Decision.Deny,
+          TAAuthorizer.Decision.None);
+
     public ChotaConnectionOverlord(Node n)
     {
       _node = n;

@@ -32,6 +32,8 @@ using System.Collections;
 using Brunet.Util;
 using Brunet.Connections;
 using Brunet.Messaging;
+using Brunet.Transport;
+
 namespace Brunet.Symphony {
 
   /**
@@ -324,6 +326,12 @@ namespace Brunet.Symphony {
       }
     }
     
+    public override TAAuthorizer TAAuth { get { return _ta_auth;} }
+    protected readonly static TAAuthorizer _ta_auth = new TATypeAuthorizer(
+          new TransportAddress.TAType[]{TransportAddress.TAType.Subring},
+          TAAuthorizer.Decision.Deny,
+          TAAuthorizer.Decision.None);
+
     ///////////////// Methods //////////////////////
     
     /**

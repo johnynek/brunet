@@ -27,7 +27,11 @@ namespace Brunet.Simulator {
   public class Runner {
     public static int Main(string []args)
     {
+#if SUBRING
+      SubringParameters p = new SubringParameters();
+#else
       Parameters p = new Parameters("Simulator", "Simulator - Brunet Time Based Simulator");
+#endif
       if(p.Parse(args) != 0) {
         Console.WriteLine(p.ErrorMessage);
         p.ShowHelp();
@@ -37,7 +41,11 @@ namespace Brunet.Simulator {
         return -1;
       }
 
+#if SUBRING
+      SubringSimulator sim = new SubringSimulator(p);
+#else
       Simulator sim = new Simulator(p);
+#endif
 
       if(p.Complete) {
         sim.Complete();

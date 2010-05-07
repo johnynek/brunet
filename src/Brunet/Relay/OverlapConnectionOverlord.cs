@@ -39,7 +39,8 @@ namespace Brunet.Relay {
 
     public override TAAuthorizer TAAuth { get { return _ta_auth;} }
     protected readonly static TAAuthorizer _ta_auth = new TATypeAuthorizer(
-          new TransportAddress.TAType[]{TransportAddress.TAType.Relay},
+          new TransportAddress.TAType[]{TransportAddress.TAType.Relay,
+            TransportAddress.TAType.Subring},
           TAAuthorizer.Decision.Deny,
           TAAuthorizer.Decision.None);
 

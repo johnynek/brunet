@@ -80,10 +80,10 @@ namespace Brunet.Simulator {
     {
       NodeMapping nm1 = new NodeMapping();
       nm1.ID = TakeID();
-      TakenIDs[nm1.ID] = nm1.ID;
+      TakenIDs[nm1.ID] = nm1;
       NodeMapping nm2 = new NodeMapping();
       nm2.ID = TakeID();
-      TakenIDs[nm2.ID] = nm2.ID;
+      TakenIDs[nm2.ID] = nm2;
 
       AddBrokenNode(ref nm1, address1, nm2.ID, nctunnel);
       Nodes[address1] = nm1;

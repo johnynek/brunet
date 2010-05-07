@@ -116,7 +116,21 @@ namespace Brunet.Applications {
 
         node.Node.DisconnectOnOverload = true;
         start_time = DateTime.UtcNow;
+
+        Thread pthread = null;
+        if(node.PrivateNode != null) {
+          new Information(node.PrivateNode.Node, "PrivateBasicNode");
+          pthread = new Thread(node.PrivateNode.Node.Connect);
+          pthread.Start();
+        }
+
         node.Node.Connect();
+
+        if(node.PrivateNode != null) {
+          ApplicationNode pnode = node.PrivateNode;
+          pnode.Node.Disconnect();
+          pthread.Join();
+        }
 
         if(!_running) {
           break;
@@ -137,7 +151,6 @@ namespace Brunet.Applications {
         _type_to_pem.Clear();
 
         DateTime now = DateTime.UtcNow;
-        Console.WriteLine("Going to sleep for {0} seconds. Current time is: {1}", sleep, now);
         Thread.Sleep(sleep * 1000);
 
         if(now - start_time < TimeSpan.FromSeconds(sleep_max)) {
@@ -266,12 +279,36 @@ namespace Brunet.Applications {
         new RpcDht(dht, node);
       }
 
+      if(node_config.PrivateNodeConfig != null &&
+          node_config.PrivateNodeConfig.BrunetNamespace != string.Empty)
+      {
+        CreatePrivateNode(app_node, NodeConfig.GetPrivateNodeConfig(node_config));
+      }
       return app_node;
+    }
+
+    /// <summary>Create a PrivateNode given a shared node and a node_config.</summary>
+    protected void CreatePrivateNode(ApplicationNode shared,
+        NodeConfig node_config)
+    {
+      // Not necessary, but its nice to map the public and private overlay nodes
+      node_config.NodeAddress = shared.Node.Address.ToString();
+      ApplicationNode app_node = CreateNode(node_config);
+
+      EdgeListener el = new SubringEdgeListener(shared.Node, app_node.Node);
+      if(node_config.Security.SecureEdgesEnabled) {
+        el = new SecureEdgeListener(el, app_node.SecurityOverlord);
+      }
+      app_node.Node.AddEdgeListener(el);
+      Discovery d = new DhtDiscovery(app_node.Node as StructuredNode,
+          shared.Dht, shared.Node.Realm, shared.DhtProxy);
+      app_node.Node.AddTADiscovery(d);
+      shared.PrivateNode = app_node;
     }
 
     protected virtual string GetXmlRpcUri(ApplicationNode appnode)
     {
-      return appnode.Node.Address.ToString();
+      return appnode.Node.Realm + ":" + appnode.Node.Address;
     }
 
 

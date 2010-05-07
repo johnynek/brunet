@@ -239,6 +239,7 @@ public class AHSender : ISender {
   }
 
   protected Node _n;
+  public Node Node { get { return _n; } }
   protected readonly Address _dest;
   public Address Destination { get { return _dest; } }
   protected readonly Address _source;

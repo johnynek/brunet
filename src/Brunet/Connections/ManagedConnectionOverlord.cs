@@ -29,7 +29,9 @@ using System.Net;
 using System.Net.Sockets;
 using Brunet.Connections;
 using Brunet.Messaging;
+using Brunet.Transport;
 using BU = Brunet.Util;
+
 namespace Brunet.Connections
 {
 
@@ -70,6 +72,12 @@ namespace Brunet.Connections
       get { return _active; }
       set { _active = value; }
     }
+
+    public override TAAuthorizer TAAuth { get { return _ta_auth;} }
+    protected readonly static TAAuthorizer _ta_auth = new TATypeAuthorizer(
+          new TransportAddress.TAType[]{TransportAddress.TAType.Subring},
+          TAAuthorizer.Decision.Deny,
+          TAAuthorizer.Decision.None);
 
     public ManagedConnectionOverlord(Node node) {
       _sync = new Object();

@@ -248,10 +248,11 @@ namespace Brunet.Transport
       Tcp,
       Udp,
       Function,
-      S,
-      Tls,
-      TlsTest,
       Relay,
+      S,
+      Subring,
+      Tls,
+      TlsTest
     }
 
    protected static readonly string _UDP_S = "udp";
@@ -259,6 +260,7 @@ namespace Brunet.Transport
    protected static readonly string _FUNCTION_S = "function";
    protected static readonly string _TUNNEL_S = "tunnel";
    protected static readonly string _SIMULATION_S = "s";
+   protected static readonly string _SUBRING_S = "subring";
     /**
      * .Net methods are not always so fast here
      */
@@ -274,6 +276,8 @@ namespace Brunet.Transport
           return _TCP_S;
         case TAType.Function:
           return _FUNCTION_S;
+        case TAType.Subring:
+          return _SUBRING_S;
         default:
           return t.ToString().ToLower();
       }
