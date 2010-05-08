@@ -145,7 +145,7 @@ namespace Ipop {
     }
 
     /// <summary>True upon a non-revoked certificate, an exception otherwise.</summary>
-    public bool Verify(X509Certificate x509)
+    public bool Verify(X509Certificate x509, Brunet.Messaging.ISender sender)
     {
       Certificate cert = new Certificate(x509.RawData);
       if(!_revoked_users.Contains(cert.Subject.Name)) {
