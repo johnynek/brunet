@@ -102,7 +102,7 @@ namespace Brunet.Symphony {
    *  structured connections between pairs of highly communicating nodes.
    *  Chota - in Hindi means small. 
    */
-  public class ChotaConnectionOverlord : ConnectionOverlord, IDataHandler {
+  public class ChotaConnectionOverlord : ConnectionOverlord {
     //used for locking
     protected object _sync;
     //our random number generator
@@ -155,10 +155,6 @@ namespace Brunet.Symphony {
       lock( _sync ) {
       	// we assess trimming/growing situation on every heart beat
         _node.HeartBeatEvent += this.CheckState;
-	      //subscribe the ip_handler to IP packets
-//        _node.GetTypeSource(PType.Protocol.IP).Subscribe(this, null);
-        // this is for security
-//        _node.GetTypeSource(new PType(29)).Subscribe(this, null);
       }
     }
 
@@ -234,7 +230,6 @@ namespace Brunet.Symphony {
         return;
       }
 
-
       lock(_sync) {
         NodeRankInformation node_rank =
           (NodeRankInformation) _dest_to_node_rank[dest];
@@ -246,18 +241,6 @@ namespace Brunet.Symphony {
         // Increment by SAMPLE_SIZE
         node_rank.Count += SAMPLE_SIZE;
       }
-    }
-
-    /**
-     * We count incoming IP packets here
-     */
-    public void HandleData(MemBlock p, ISender from, object state) {
-      AHSender ahs = from as AHSender;
-      if( ahs == null ) {
-        return;
-      }
-
-      Increment(ahs.Destination);
     }
 
     /**
