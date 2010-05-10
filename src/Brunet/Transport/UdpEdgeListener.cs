@@ -180,7 +180,13 @@ namespace Brunet.Transport
           //Actually update:
           var rta = TransportAddressFactory.CreateInstance(TransportAddress.TAType.Udp,(IPEndPoint)End);
           if( TAAuth.Authorize(rta) != TAAuthorizer.Decision.Deny ) {
-            edge.End = End;
+            IPEndPoint this_end = (IPEndPoint)End;
+            /*
+             * .Net overwrites the End variable (passed by ref) into the Socket
+             * we explicitly copy here to make it clear that the End can't change
+             * by being passed to the socket
+             */
+            edge.End = new IPEndPoint(this_end.Address, this_end.Port);
             var dp = new RemoteMappingChangePoint(DateTime.UtcNow, edge);
             EL._pub_state.Update(new AddNatData(dp));
             //Tell the other guy:
@@ -781,16 +787,11 @@ namespace Brunet.Transport
     protected static IPEndPoint GuessLocalEndPoint(int defport, IEnumerable tas) {
       try {
         foreach(IPTransportAddress ta in tas) {
-	  var a = ta.GetIPAddress();
-          if(!IPAddress.IsLoopback(a)) {
-            //Check to see if it is any:
-            byte[] addr = a.GetAddressBytes();
-            bool is_any_addr = ((addr[0] | addr[1] | addr[2] | addr[3]) == 0);
-            if(false == is_any_addr) {
-              //Here is a good IP address:
-              int port = ta.Port;
-              return new IPEndPoint(a, port);
-            }
+          var a = ta.GetIPAddress();
+          if((false == IPAddress.IsLoopback(a)) &&
+             (false == IPAddress.Any.Equals(a))) {
+            //Here is a good IP address:
+            return new IPEndPoint(a, ta.Port);
           }
         }
       }
