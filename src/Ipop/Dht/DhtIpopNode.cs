@@ -46,7 +46,9 @@ namespace Ipop.Dht {
     public DhtIpopNode(NodeConfig node_config, IpopConfig ipop_config,
         DHCPConfig dhcp_config) : base(node_config, ipop_config, dhcp_config)
     {
-      _address_resolver = new DhtAddressResolver(AppNode.Dht, _ipop_config.IpopNamespace);
+      DhtAddressResolver dar = new DhtAddressResolver(AppNode.Dht, _ipop_config.IpopNamespace);
+      Shutdown.OnExit += dar.Stop;
+      _address_resolver = dar;
 
       _connected = false;
       AppNode.Node.StateChangeEvent += StateChangeHandler;
