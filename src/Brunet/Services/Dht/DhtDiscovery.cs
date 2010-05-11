@@ -118,7 +118,12 @@ namespace Brunet.Services.Dht {
         chan.EnqueueEvent += handler;
       }
       chan.CloseEvent += handler;
-      _dht.AsyncGet(_private_dht_key, chan);
+
+      try {
+        _dht.AsyncGet(_private_dht_key, chan);
+      } catch(DhtException) {
+        chan.Close();
+      }
     }
 
     /// <summary>Make sure there are no entries in the Dht, who we should be

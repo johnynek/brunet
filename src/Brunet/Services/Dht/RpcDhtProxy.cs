@@ -185,7 +185,11 @@ namespace Brunet.Services.Dht {
         }
       };
 
-      _dht.AsyncPut(entry.Key, entry.Value, entry.Ttl, returns);
+      try {
+        _dht.AsyncPut(entry.Key, entry.Value, entry.Ttl, returns);
+      } catch(DhtException) {
+        returns.Close();
+      }
     }
 
     ///<summary> This class keeps Entry, whose element is key, value, ttl, and
