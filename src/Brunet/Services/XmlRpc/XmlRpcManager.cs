@@ -550,13 +550,13 @@ namespace Brunet.Services.XmlRpc {
     /// and Remove.
     /// </summary>
     void CheckAndSetDefaultManager() {
-        if (_xrm_mappings.Count == 1) {
-          // Add an alias for the first node.
-          foreach(var pair in _xrm_mappings) {
-            RemotingServices.Marshal(pair.Value, "xm.rem");
-            // Since only one pair, break here.
-            break;
-          }
+      if (_xrm_mappings.Count == 1) {
+        // Add an alias for the first node.
+        foreach(var pair in _xrm_mappings) {
+          RemotingServices.Marshal(pair.Value, "xm.rem");
+          // Since only one pair, break here.
+          break;
+        }
       }
     }
 
@@ -584,6 +584,14 @@ namespace Brunet.Services.XmlRpc {
           }
         }
         return ret.ToArray(typeof(string)) as string[];
+      }
+
+      public override object InitializeLifetimeService() {
+        ILease lease = (ILease)base.InitializeLifetimeService();
+        if (lease.CurrentState == LeaseState.Initial) {
+          lease.InitialLeaseTime = TimeSpan.Zero; //infinite lifetime
+        }
+        return lease;
       }
     }
   }
