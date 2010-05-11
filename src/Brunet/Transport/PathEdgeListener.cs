@@ -461,15 +461,17 @@ namespace Brunet.Transport {
     readonly EdgeListener _el;
     readonly PathELManager _pem;
     int _is_started;
+    int _count;
     
     public PathEdgeListener(PathELManager pem, string path, EdgeListener el) {
       _path = path;
       _el = el;
       _pem = pem;
       _is_started = 0;
+      _count = 0;
     }
 
-    public override int Count { get { return _el.Count; } }
+    public override int Count { get { return _count; } }
 
     public override IEnumerable LocalTAs {
       get {
@@ -493,48 +495,66 @@ namespace Brunet.Transport {
       public readonly EdgeListener.EdgeCreationCallback ECB;  
 
       readonly PathEdgeListener _pel;
+      readonly bool _root;
 
       public CreateState(PathEdgeListener pel, string rem, string loc,
-                         EdgeListener.EdgeCreationCallback ecb) {
+                         EdgeListener.EdgeCreationCallback ecb, bool root) {
         _pel = pel;
         RemotePath = rem;
         LocalPath = loc;
         ECB = ecb;
+        _root = root;
       }
 
       public void HandleEC(bool succ, Edge e, Exception x) {
-        if( succ ) {
-          /*
-           * Got the underlying Edge, now do the path protocol
-           */ 
-          Channel results = new Channel(1);
-          results.CloseEvent += delegate(object q, EventArgs args) {
-            try {
-              RpcResult res = (RpcResult)results.Dequeue();
-              object o = res.Result;
-              if(o is Exception) {
-                throw (o as Exception);
-              }
-              //If we get here, everything looks good:
-              PathEdge pe = new PathEdge(e, LocalPath, RemotePath);
-              //Start sending e's packets into pe
-              pe.Subscribe();
-              ECB(true, pe, null);
-            }
-            catch(Exception cx) {
-              ECB(false, null, cx);
-            }
-          };
-          //Make sure we hear the packets on this edge:
-          e.Subscribe(_pel._pem, null);
-          //Now make the rpc call:
-          _pel._pem.Rpc.Invoke(e, results, "sys:pathing.create", LocalPath, RemotePath ); 
-        }
-        else {
+        if(!succ) {
           ECB(false, null, x);
+          return;
+        } else if(_root) {
+          Interlocked.Increment(ref _pel._count);
+          e.CloseEvent += _pel.CloseHandler;
+          ECB(succ, e, x);
+          return;
         }
+
+        /*
+         * Got the underlying Edge, now do the path protocol
+         */ 
+        Channel results = new Channel(1);
+        results.CloseEvent += delegate(object q, EventArgs args) {
+          try {
+            RpcResult res = (RpcResult)results.Dequeue();
+            object o = res.Result;
+            if(o is Exception) {
+              throw (o as Exception);
+            }
+          } catch(Exception cx) {
+            e.Close();
+            ECB(false, null, cx);
+            return;
+          }
+
+          //If we get here, everything looks good:
+          PathEdge pe = new PathEdge(e, LocalPath, RemotePath);
+          //Start sending e's packets into pe
+          pe.Subscribe();
+          pe.CloseEvent += _pel.CloseHandler;
+          Interlocked.Increment(ref _pel._count);
+          ECB(true, pe, null);
+        };
+
+        //Make sure we hear the packets on this edge:
+        e.Subscribe(_pel._pem, null);
+        //Now make the rpc call:
+        _pel._pem.Rpc.Invoke(e, results, "sys:pathing.create", LocalPath, RemotePath ); 
       }
     }
+
+    protected void CloseHandler(object o, EventArgs ea)
+    {
+      Interlocked.Decrement(ref _count);
+    }
+
     /** creates a new outgoing Edge using the pathing protocol
      */
     public override void CreateEdgeTo(TransportAddress ta,
@@ -544,19 +564,12 @@ namespace Brunet.Transport {
       }
       string rempath;
       TransportAddress base_ta = PathELManager.SplitPath(ta, out rempath);
+      bool root = false;
       if( _path == PathELManager.Root && rempath == PathELManager.Root ) {
-        /*
-         * This is "normal" case, and we can skip all this stuff
-         */
-        _el.CreateEdgeTo(ta, ecb);
+        root = true;
       }
-      else {
-        CreateState cs = new CreateState(this, rempath, _path, ecb);
-        /*
-         * Make the underlying Edge:
-         */
-        _el.CreateEdgeTo(base_ta, cs.HandleEC);
-      }
+      CreateState cs = new CreateState(this, rempath, _path, ecb, root);
+      _el.CreateEdgeTo(base_ta, cs.HandleEC);
     }
 
     public override void Start() {
@@ -580,6 +593,8 @@ namespace Brunet.Transport {
      */
     public void SendPathEdgeEvent(PathEdge pe) {
       if( 1 == _is_started ) {
+        pe.CloseEvent += CloseHandler;
+        Interlocked.Increment(ref _count);
         SendEdgeEvent(pe);
       }
       else {
