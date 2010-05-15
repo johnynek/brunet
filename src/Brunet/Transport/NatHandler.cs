@@ -431,7 +431,10 @@ public class ConeNatHandler : NatHandler {
   }
   //Remote the TA from the set
   protected void RemoveRemoteTA(Hashtable ht, int port, TransportAddress ta) {
-    ArrayList l = (ArrayList)ht[ port ];
+    ArrayList l = ht[ port ] as ArrayList;
+    if(l == null) {
+      return;
+    }
     l.Remove(ta);
     if( l.Count == 0 ) {
       //Get this out of here.
