@@ -13,16 +13,16 @@
       <fileset basedir="${lib.dir}">
         <include name="Brunet.dll" />
         <include name="Brunet.Dht.dll" />
-        <include name="CookComputing.XmlRpcV2.dll" />
-        <include name="Ipop.IBlockingQueue.dll" />
-        <include name="Brunet.Services.Coordinate.dll" />
-        <include name="Brunet.Services.XmlRpc.dll" />
-        <include name="Brunet.Services.Dht.dll"/>
-        <include name="NDesk.Options.dll"/>
-        <include name="Mono.Security.dll" />
         <include name="Brunet.Security.dll"/>
+        <include name="Brunet.Services.Coordinate.dll" />
+        <include name="Brunet.Services.Dht.dll"/>
+        <include name="Brunet.Services.XmlRpc.dll" />
         <include name="Brunet.Xmpp.dll"/>
+        <include name="CookComputing.XmlRpcV2.dll" />
+        <include name="Mono.Security.dll" />
+        <include name="NDesk.Options.dll"/>
         <include name="jabber-net.dll" />
+        <include name="zlib.net.dll" />
       </fileset>
     </copy>
 
@@ -38,18 +38,19 @@
         <include name="*.cs"/>
       </sources>
       <references basedir="${build.dir}">
-        <include name="Brunet.dll"/>
-        <include name="Ipop.IBlockingQueue.dll"/>
+        <include name="Brunet.dll" />
+        <include name="Brunet.Dht.dll" />
+        <include name="Brunet.Security.dll"/>
         <include name="Brunet.Services.Coordinate.dll" />
-        <include name="Brunet.Services.XmlRpc.dll" />
         <include name="Brunet.Services.Dht.dll"/>
+        <include name="Brunet.Services.XmlRpc.dll" />
         <include name="Brunet.Xmpp.dll"/>
         <include name="CookComputing.XmlRpcV2.dll" />
+        <include name="Mono.Posix.dll" />
+        <include name="Mono.Security.dll" />
         <include name="NDesk.Options.dll"/>
-        <include name="Brunet.Security.dll"/>
-        <include name="System.Runtime.Remoting.dll"/>
         <include name="jabber-net.dll" />
-        <include name="Mono.Posix.dll"/>
+        <include name="zlib.net.dll" />
       </references>
       <resources>
         <include name="Node.xsd"/>
