@@ -57,6 +57,7 @@ namespace Brunet.Security {
     /// <summary>Default directory for storing certificates.</summary>
     public readonly String CertDir;
     protected object _sync;
+    protected readonly string _local_id;
     public bool Available {
       get {
         return _cas.Count > 0;
@@ -93,13 +94,18 @@ namespace Brunet.Security {
     /// <summary>List of supported CAs serial numbers.</summary>
     public List<Brunet.Util.MemBlock> SupportedCAs { get { return _supported_cas; } }
 
-    public CertificateHandler() : this("certificates")
+    public CertificateHandler() : this("certificates", String.Empty)
     {
     }
 
-    public CertificateHandler(string cert_dir) {
+    public CertificateHandler(string cert_dir) : this(cert_dir, String.Empty)
+    {
+    }
+
+    public CertificateHandler(string cert_dir, string local_id) {
       _sync = new object();
       lock(_sync) {
+        _local_id = local_id;
         _certificate_verifiers = new List<ICertificateVerification>();
         CertDir = cert_dir;
         _cas = new Dictionary<Brunet.Util.MemBlock, X509Certificate>();
@@ -237,6 +243,10 @@ namespace Brunet.Security {
 
     /// <summary>Adds a local signed public certificate to this CH.</summary>
     virtual public bool AddSignedCertificate(X509Certificate cert) {
+      if(_local_id != String.Empty && !Verify(cert, _local_id)) {
+        throw new Exception("Invalid certificate: " + cert);
+      }
+
       Brunet.Util.MemBlock sn = Brunet.Util.MemBlock.Reference(cert.SerialNumber);
       lock(_sync) {
         _lc[sn] = cert;
@@ -266,6 +276,30 @@ namespace Brunet.Security {
 #if BRUNET_NUNIT
   [TestFixture]
   public class CHUnitTest {
+    [Test]
+    public void AddBadLocalCert() {
+      CertificateHandler ch = new CertificateHandler("certs", "12345");
+      RSACryptoServiceProvider rsa = new RSACryptoServiceProvider(512);
+      byte[] blob = rsa.ExportCspBlob(false);
+      RSACryptoServiceProvider rsa_pub = new RSACryptoServiceProvider();
+      rsa_pub.ImportCspBlob(blob);
+      string ID = "brunet:node:PXYSWDL5SZDHDDXJKZCLFENOP2KZDMBU";
+      CertificateMaker cm = new CertificateMaker("US", "UFL", "ACIS", "David Wolinsky",
+          "davidiw@ufl.edu", rsa_pub, ID);
+      Certificate cert_0 = cm.Sign(cm, rsa);
+      ch.AddCACertificate(cert_0.X509);
+      try {
+        ch.AddSignedCertificate(cert_0.X509);
+        Assert.IsTrue(false, "Shouldn't add this certificate!");
+      } catch {
+      }
+
+      CertificateMaker cm0 = new CertificateMaker("US", "UFL", "ACIS", "David Wolinsky",
+          "davidiw@ufl.edu", rsa_pub, "12345");
+      Certificate cert_1 = cm0.Sign(cm, rsa);
+      ch.AddSignedCertificate(cert_1.X509);
+    }
+
     [Test]
     public void ValidityTest() {
       CertificateHandler ch = new CertificateHandler();

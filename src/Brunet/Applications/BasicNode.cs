@@ -205,7 +205,8 @@ namespace Brunet.Applications {
         RSACryptoServiceProvider rsa_private = new RSACryptoServiceProvider();
         rsa_private.ImportCspBlob(blob);
 
-        CertificateHandler ch = new CertificateHandler(node_config.Security.CertificatePath);
+        CertificateHandler ch = new CertificateHandler(
+            node_config.Security.CertificatePath, address.ToString());
         pso = new SymphonySecurityOverlord(node, rsa_private, ch, node.Rrm);
         pso.Subscribe(node, null);
 
