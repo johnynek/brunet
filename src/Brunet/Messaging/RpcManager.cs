@@ -289,9 +289,16 @@ public class RpcManager : IReplyHandler, IDataHandler {
     if( bq != null ) {
       object data = AdrConverter.Deserialize(payload);
       RpcResult res = new RpcResult(ret_path, data, statistics);
-      bq.Enqueue(res);
-      //Keep listening unless the queue is closed
-      return (!bq.Closed);
+      //handle possible exception:
+      try {
+        bq.Enqueue(res);
+        //Keep listening unless the queue is closed
+        return (!bq.Closed);
+      }
+      catch(System.InvalidOperationException) {
+        //The queue is closed, stop listening for more results:
+        return false;
+      }
     }
     else {
       //If they didn't even pass us a queue, I guess they didn't want to
