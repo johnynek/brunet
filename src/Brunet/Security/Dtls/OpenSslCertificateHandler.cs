@@ -92,7 +92,7 @@ namespace Brunet.Security.Dtls {
       osch.AddCACertificate(cert_0.X509);
       var ocert = OpenSslCertificateHandler.OpenSslX509ToMonoX509(osch.LocalCertificate);
       Assert.AreEqual(cert_0.X509.RawData, ocert.RawData, "local check");
-      Assert.IsTrue(osch.Verify(ocert, ID), "Valid");
+      Assert.IsTrue(CertificateHandler.Verify(ocert, ID), "Valid");
     }
   }
 #endif

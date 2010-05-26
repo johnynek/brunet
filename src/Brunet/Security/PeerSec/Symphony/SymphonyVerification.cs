@@ -40,7 +40,7 @@ namespace Brunet.Security {
         return true;
       }
       
-      return _ch.Verify(certificate, ahsender.Destination.ToString());
+      return CertificateHandler.Verify(certificate, ahsender.Destination.ToString());
     }
   }
 }

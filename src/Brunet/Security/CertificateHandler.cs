@@ -135,8 +135,9 @@ namespace Brunet.Security {
     ///<summary>Given a string, this looks inside the certificates SANE to see
     ///if the string is present.  This isn't inefficient as it looks, there
     ///tends to be no entries at most of those places, so this usually has
-    ///runtime of 1.</summary>
-    virtual public bool Verify(X509Certificate x509, string remote_id) {
+    ///runtime of 1.  Also this doesn't actually verify any other properties
+    ///of the certificate, such as being properly signed.</summary>
+    static public bool Verify(X509Certificate x509, string remote_id) {
       foreach(X509Extension ext in x509.Extensions) {
         if(!ext.Oid.Equals("2.5.29.17")) {
           continue;
