@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import sys, tempfile, os
+import sys, tempfile, os, shutil
 
 def replace_license(filename, newlicense, oldlicenseid):
   sourcef = open(filename)
@@ -26,7 +26,7 @@ def replace_license(filename, newlicense, oldlicenseid):
 
   os.close(tempf)
   sourcef.close()
-  os.rename(tempn, filename)
+  shutil.move(tempn, filename)
 
 if __name__ == "__main__":
   licensef = open(sys.argv[1])
