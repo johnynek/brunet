@@ -17,6 +17,7 @@
     <nant buildfile="src/Brunet/Applications/default.build" />
     <nant buildfile="src/Brunet/Messaging/Mock/default.build" />
     <nant buildfile="tests/protocol/default.build" />
+    <nant buildfile="src/Ipop/default.build" />
   </target>
 
   <target name="clean" description="Deletes the current configuration">
@@ -54,10 +55,13 @@
     <call target="simulator" />
     <nant target="test" buildfile="src/Brunet/Simulator/default.build" failonerror="false" />
 
-    <nant buildfile="src/Brunet/default.build" />
+    <call target ="build" />
     <nant target="test" buildfile="src/Brunet/Services/Dht/default.build" failonerror="false" />
     <nant target="test" buildfile="src/Brunet/Services/Coordinate/default.build" failonerror="false" />
     <nant target="nunit_test" buildfile="src/Brunet/default.build" failonerror="false" />
     <nant target="test" buildfile="src/Brunet/Security/default.build" failonerror="false" />
+    <nant target="test" buildfile="src/Ipop/default.build" />
+    <nant target="test" buildfile="src/Ipop/Managed/default.build" />
+    <nant target="test" buildfile="src/NetworkPackets/default.build" />
   </target>
 </project>

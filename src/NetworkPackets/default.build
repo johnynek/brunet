@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<project name="ipop-common" default="build" basedir=".">
+  <description> Builds the Ipop dll </description>
+  <property name="brunet.dir" value="../brunet" unless="${property::exists('brunet.dir')}" />
+  <property name="lib.dir" value="../../lib"/>
+  <property name="build.dir" value="build" />
+  <property name="doc.dir" value="../../docs"/>
+  <target name="clean" description="Remove build directory">
+    <delete dir="${build.dir}" failonerror="true"/>
+  </target>
+  <target name="build" description="Nothing to build">
+  </target>
+
+  <target name="test" description="Build NetworkPackets.Test.dll">
+    <mkdir dir="${build.dir}" failonerror="true"/>
+    <copy todir="${build.dir}" failonerror="true">
+      <fileset basedir="${lib.dir}">
+        <include name="Brunet.dll" />
+      </fileset>
+    </copy>
+    <csc target="library" define="NUNIT" output="${build.dir}/NetworkPackets.Test.dll">
+      <sources failonempty="true">
+        <include name="*.cs"/>
+        <include name="Dns/*.cs"/>
+      </sources>
+      <references basedir="${build.dir}">
+        <include name="Brunet.dll"/>
+        <include name="nunit.framework.dll" />
+      </references>
+    </csc>
+    <nunit2>
+      <formatter type="Plain" />
+      <test assemblyname="${build.dir}/NetworkPackets.Test.dll"/>
+    </nunit2>
+  </target>
+</project>

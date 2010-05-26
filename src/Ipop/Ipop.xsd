@@ -1,0 +1,93 @@
+<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"> 
+
+<xs:element name="IpopConfig">
+  <xs:complexType>
+    <xs:all>
+      <xs:element name="IpopNamespace" type="xs:string" minOccurs="1" maxOccurs="1"/>
+      <xs:element name="VirtualNetworkDevice" type="xs:string" minOccurs="1" maxOccurs="1"/>
+      <xs:element ref="AddressData" minOccurs="0" />
+      <xs:element name="EnableMulticast" type="xs:boolean" minOccurs="0" />
+      <xs:element name="EndToEndSecurity" type="xs:boolean" minOccurs="0" />
+      <xs:element ref="DHCPPort" minOccurs="0" />
+      <xs:element name="AllowStaticAddresses" type="xs:boolean" minOccurs="0" />
+      <xs:element ref="GroupVPN" minOccurs="0" />
+      <xs:element ref="Dns" minOccurs="0" />
+    </xs:all>
+  </xs:complexType>
+</xs:element>
+
+<xs:element name="AddressData">
+  <xs:complexType>
+    <xs:all>
+      <xs:element name="Hostname" type="xs:string" minOccurs="0"/>
+      <xs:element ref="IPAddress" minOccurs="0" />
+      <xs:element ref="Netmask" minOccurs="0" />
+      <xs:element ref="EthernetAddress" minOccurs="0" />
+    </xs:all>
+  </xs:complexType>
+</xs:element>
+
+<xs:element name="Dns">
+  <xs:complexType>
+    <xs:all>
+      <xs:element name="Type" minOccurs="0">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:enumeration value="StaticDns"/>
+            <xs:enumeration value="DhtDns"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:element>
+      <xs:element name="ForwardQueries" type="xs:boolean" minOccurs="0" />
+      <xs:element name="NameServer" type="xs:string" minOccurs="0"/>
+    </xs:all>
+  </xs:complexType>
+</xs:element>
+
+<xs:element name="GroupVPN">
+  <xs:complexType>
+    <xs:all>
+      <xs:element name="ServerURI" type="xs:string" minOccurs="0"/>
+      <xs:element name="Group" type="xs:string" minOccurs="0"/>
+      <xs:element name="UserName" type="xs:string" minOccurs="0"/>
+      <xs:element name="Secret" type="xs:string" minOccurs="0"/>
+      <xs:element name="Enabled" type="xs:boolean" />
+    </xs:all>
+  </xs:complexType>
+</xs:element>
+
+<xs:element name="DHCPPort">
+  <xs:simpleType>
+    <xs:restriction base="xs:integer">
+      <xs:minInclusive value="0"/>
+      <xs:maxInclusive value="65536"/>
+    </xs:restriction>
+  </xs:simpleType>
+</xs:element>
+
+<xs:element name="Netmask">
+  <xs:simpleType>
+    <xs:restriction base="xs:string">
+      <xs:pattern value="((1?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])\.){3}(1?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])" />
+    </xs:restriction>
+  </xs:simpleType>
+</xs:element>
+
+<xs:element name="IPAddress">
+  <xs:simpleType>
+    <xs:restriction base="xs:string">
+      <xs:pattern value="((1?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])\.){3}(1?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])" />
+    </xs:restriction>
+  </xs:simpleType>
+</xs:element>
+
+<xs:element name="EthernetAddress">
+  <xs:simpleType>
+    <xs:restriction base="xs:string">
+      <xs:pattern value="([0-9a-fA-F][0-9a-fA-F](-|:)){5}([0-9a-fA-F][0-9a-fA-F])" />
+    </xs:restriction>
+  </xs:simpleType>
+</xs:element>
+
+</xs:schema>

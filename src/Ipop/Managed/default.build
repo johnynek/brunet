@@ -1,0 +1,100 @@
+<?xml version="1.0"?>
+<project name="ipop-common" default="build" basedir=".">
+  <description> Builds the ManagedNode dll </description>
+  <property name="root" value="../../.." />
+  <property name="lib.dir" value="${root}/lib"/>
+  <property name="bin.dir" value="${root}/bin"/>
+  <property name="build.dir" value="build" />
+
+  <target name="clean" description="Remove build directory">
+    <delete dir="${build.dir}" failonerror="true"/>
+  </target>
+
+  <target name="build" description="Build ManagedIpopNode.dll">
+    <mkdir dir="${build.dir}" failonerror="true"/>
+    <copy todir="${build.dir}" failonerror="true">
+      <fileset basedir="${lib.dir}">
+        <include name="Brunet.dll" />
+        <include name="Brunet.Security.dll"/>
+        <include name="Brunet.Services.Coordinate.dll"/>
+        <include name="Brunet.Services.Dht.dll" />
+        <include name="Brunet.Services.XmlRpc.dll" />
+        <include name="Brunet.Xmpp.dll"/>
+        <include name="CookComputing.XmlRpcV2.dll" />
+        <include name="jabber-net.dll"/>
+        <include name="Mono.Security.dll"/>
+        <include name="NDesk.Options.dll"/>
+      </fileset>
+    </copy>
+
+    <csc target="library" output="${build.dir}/ManagedIpopNode.dll" unsafe="true" >
+      <sources failonempty="true">
+        <include name="*.cs"/>
+        <include name="${root}/src/NetworkPackets/*.cs"/>
+        <include name="${root}/src/NetworkPackets/Dns/*.cs"/>
+        <include name="../*.cs"/> 
+        <include name="../Tap/*.cs"/>
+        <include name="${root}/src/Brunet/Applications/*.cs"/>
+      </sources>
+      <references basedir="${build.dir}">
+        <include name="Brunet.dll" />
+        <include name="Brunet.Security.dll"/>
+        <include name="Brunet.Services.Coordinate.dll"/>
+        <include name="Brunet.Services.Dht.dll" />
+        <include name="Brunet.Services.XmlRpc.dll" />
+        <include name="Brunet.Xmpp.dll"/>
+        <include name="CookComputing.XmlRpcV2.dll" />
+        <include name="jabber-net.dll"/>
+        <include name="Mono.Security.dll"/>
+        <include name="NDesk.Options.dll"/>
+        <include name="Mono.Posix.dll"/>
+        <include name="System.Runtime.Remoting.dll"/>
+      </references>
+    </csc>
+
+    <mkdir dir="${lib.dir}" failonerror="true"/>
+    <copy todir="${lib.dir}" failonerror="true">
+      <fileset basedir="${build.dir}">
+        <include name="ManagedIpopNode.dll" />
+      </fileset>
+    </copy>
+  </target>
+
+  <target name="test" description="Test ManagedIpopNode">
+    <csc target="library" define="ManagedIpopNodeNUNIT" output="${build.dir}/ManagedIpopNode.test.dll" unsafe="true">
+      <sources failonempty="true">
+        <include name="*.cs"/>
+        <include name="${root}/src/NetworkPackets/*.cs"/>
+        <include name="${root}/src/NetworkPackets/Dns/*.cs"/>
+        <include name="../Tap/*.cs"/>
+        <include name="../*.cs"/>
+        <include name="${root}/src/Brunet/Applications/*.cs"/>
+      </sources>
+      <references basedir="${build.dir}">
+        <include name="Brunet.dll" />
+        <include name="Brunet.Security.dll"/>
+        <include name="Brunet.Services.Coordinate.dll"/>
+        <include name="Brunet.Services.Dht.dll" />
+        <include name="Brunet.Services.XmlRpc.dll" />
+        <include name="Brunet.Xmpp.dll"/>
+        <include name="CookComputing.XmlRpcV2.dll" />
+        <include name="jabber-net.dll"/>
+        <include name="Mono.Security.dll"/>
+        <include name="NDesk.Options.dll"/>
+        <include name="Mono.Posix.dll"/>
+        <include name="nunit.framework.dll" />
+        <include name="System.Runtime.Remoting.dll"/>
+      </references>
+      <resources>
+        <include name="../Dhcp.xsd"/>
+        <include name="../Ipop.xsd"/>
+        <include name="${root}/src/Brunet/Applications/Node.xsd"/>
+      </resources>
+    </csc>
+
+    <nunit2>
+      <formatter type="Plain" />
+      <test assemblyname="${build.dir}/ManagedIpopNode.test.dll"/>
+    </nunit2>
+  </target>
+</project>

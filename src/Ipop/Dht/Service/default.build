@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<project name="ipop-common" default="build" basedir=".">
+  <description> Builds the Ipop dll </description>
+  <property name="root" value="../../../.." />
+  <property name="lib.dir" value="${root}/lib"/>
+  <property name="bin.dir" value="${root}/bin"/>
+  <property name="build.dir" value="build" />
+  <target name="clean" description="Remove build directory">
+    <delete dir="${build.dir}" failonerror="true"/>
+  </target>
+  <target name="build" description="Build GroupVPNService">
+    <mkdir dir="${build.dir}" failonerror="true"/>
+    <copy todir="${build.dir}" failonerror="true">
+      <fileset basedir="${lib.dir}">
+        <include name="Brunet.dll" />
+        <include name="Brunet.Security.dll"/>
+        <include name="Brunet.Services.Coordinate.dll"/>
+        <include name="Brunet.Services.Dht.dll" />
+        <include name="Brunet.Services.XmlRpc.dll" />
+        <include name="Brunet.Xmpp.dll"/>
+        <include name="CookComputing.XmlRpcV2.dll" />
+        <include name="jabber-net.dll"/>
+        <include name="Mono.Security.dll"/>
+        <include name="NDesk.Options.dll"/>
+      </fileset>
+    </copy>
+    <csc target="exe" output="${build.dir}/GroupVPNService.exe" main="Ipop.Dht.Service.WindowsService" optimize="true" unsafe="true">
+      <sources failonempty="true">
+        <include name="*.cs"/>
+        <include name="../*.cs"/>
+        <include name="../../*.cs"/>
+        <include name="../../Tap/*.cs"/>
+        <include name="${root}/src/NetworkPackets/*.cs"/>
+        <include name="${root}/src/NetworkPackets/Dns/*.cs"/>
+        <include name="${root}/src/Brunet/Applications/*.cs"/>
+      </sources>
+      <references basedir="${build.dir}">
+        <include name="Brunet.dll" />
+        <include name="Brunet.Security.dll"/>
+        <include name="Brunet.Services.Coordinate.dll"/>
+        <include name="Brunet.Services.Dht.dll" />
+        <include name="Brunet.Services.XmlRpc.dll" />
+        <include name="Brunet.Xmpp.dll"/>
+        <include name="CookComputing.XmlRpcV2.dll" />
+        <include name="jabber-net.dll"/>
+        <include name="Mono.Security.dll"/>
+        <include name="NDesk.Options.dll"/>
+        <include name="Mono.Posix.dll"/>
+        <include name="System.Runtime.Remoting.dll"/>
+        <include name="System.Configuration.Install.dll"/>
+        <include name="System.ServiceProcess.dll"/>
+      </references>
+      <resources>
+        <include name="../../Dhcp.xsd"/>
+        <include name="../../Ipop.xsd"/>
+        <include name="${root}/src/Brunet/Applications/Node.xsd"/>
+      </resources>
+    </csc>
+    <mkdir dir="${bin.dir}" failonerror="true"/>
+    <copy todir="${bin.dir}" failonerror="true">
+      <fileset basedir="${build.dir}">
+        <include name="GroupVPNService.exe"/>
+      </fileset>
+    </copy>
+  </target>
+</project>

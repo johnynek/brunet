@@ -1,0 +1,6 @@
+# The files in this directory are copied from OpenVPN only the IpopTap.inf has
+# been modified from the original OpenVPN file.
+# The source for IpopTap, or rather Windows tap, can be found at
+# http://openvpn.net/release/openvpn-2.1.1.tar.gz
+# The source for "driverhelper.exe" comes from devcon, 'devcon' can be built
+# from the Windows Driver Kit (formerly known as DDK)
