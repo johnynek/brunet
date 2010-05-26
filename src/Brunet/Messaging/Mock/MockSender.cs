@@ -40,20 +40,35 @@ namespace Brunet.Messaging.Mock {
     public ISender ReturnPath;
     public object State;
     int _remove_n_ptypes;
+    double _drop_rate;
+    Random _rand;
 
     public MockSender(ISender ReturnPath, object State, IDataHandler Receiver,
-        int RemoveNPTypes)
+        int RemoveNPTypes) : this(ReturnPath, State, Receiver, RemoveNPTypes, 0)
+    {
+    }
+
+    public MockSender(ISender ReturnPath, object State, IDataHandler Receiver,
+        int RemoveNPTypes, double drop_rate)
     {
       this.ReturnPath = ReturnPath;
       this.State = State;
       this.Receiver = Receiver;
       _remove_n_ptypes = RemoveNPTypes;
+      _drop_rate = drop_rate;
+      _rand = new Random();
     }
 
-    public void Send(ICopyable Data) {
-      byte[] data = new byte[Data.Length];
-      Data.CopyTo(data, 0);
-      MemBlock mdata = MemBlock.Reference(data);
+    public virtual void Send(ICopyable data) {
+      if( _rand.NextDouble() < _drop_rate) {
+        return;
+      }
+
+      MemBlock mdata = data as MemBlock;
+      if(mdata == null) {
+        mdata = MemBlock.Copy(data);
+      }
+
       for(int i = 0; i < _remove_n_ptypes; i++) {
         MemBlock payload = mdata;
         PType.Parse(mdata, out payload);

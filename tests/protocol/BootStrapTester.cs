@@ -479,7 +479,7 @@ namespace Brunet
     }
     ArrayList node_list = new ArrayList();
     Hashtable add_to_node = new Hashtable();
-    
+    PathELManager pem = null;
     for (int loop=0;loop<net_size;loop++)
     {
       //create and initialize new host
@@ -493,47 +493,69 @@ namespace Brunet
       
       //long small_add = 2*(loop+1);
       //Node tmp_node = new StructuredNode(new AHAddress( new BigInteger(small_add)) );
+      PType path_p = PType.Protocol.Pathing;
       switch(net_type) {
         case "tcp":
-		tmp_node.AddEdgeListener(new TcpEdgeListener(port+loop));
+          tmp_node.AddEdgeListener(new TcpEdgeListener(port+loop));
 	        break;
         case "udp":
-		tmp_node.AddEdgeListener(new UdpEdgeListener(port+loop));
-		break;
-	case "function":
-                tmp_node.AddEdgeListener(new FunctionEdgeListener(port+loop));
-                break;
-	default:
-		throw new Exception("Unknown net type: " + net_type);
+          tmp_node.AddEdgeListener(new UdpEdgeListener(port+loop));
+          break;
+        case "function":
+          tmp_node.AddEdgeListener(new FunctionEdgeListener(port+loop));
+          break;
+        case "path":
+          if( pem == null ) {
+            EdgeListener el = new UdpEdgeListener(port);
+            pem = new PathELManager(el);  
+            pem.Start();
+          }
+          //Pass path messages to the pem:
+          tmp_node.DemuxHandler.GetTypeSource(path_p).Subscribe(pem, path_p);
+          tmp_node.AddEdgeListener(pem.CreatePath( (port+loop).ToString() ));
+          Console.WriteLine(port+loop);
+          break;
+        case "single_path":
+          EdgeListener myel = new UdpEdgeListener(port+loop);
+          //Test "default" path edge listener:
+          pem = new PathELManager(myel);
+          pem.Start();
+          tmp_node.DemuxHandler.GetTypeSource(path_p).Subscribe(pem, path_p);
+          //Make the default path:
+          tmp_node.AddEdgeListener(pem.CreateRootPath());
+          break;
+        default:
+          throw new Exception("Unknown net type: " + net_type);
       }
       //tmp_node.AddEdgeListener(new FunctionEdgeListener(port+loop));
-      for (int loop2=0;loop2<net_size;loop2++)
-      {
-      if (loop != loop2)
-      {
-          int other_port = port+loop2;
-	  string ta_str = null;
-          switch(net_type) {
-            case "tcp":
-		ta_str = "brunet.tcp://127.0.0.1:";
-	        break;
-            case "udp":
-		ta_str = "brunet.udp://127.0.0.1:";
-	        break;
-            case "udp-as":
-		ta_str = "brunet.udp://127.0.0.1:";
-	        break;
-	    case "function":
-		ta_str = "brunet.function://localhost:";
-                break;
-	    default:
-		throw new Exception("Unknown net type: " + net_type);
-          }
-	  ta_str = ta_str + other_port.ToString();
-	  TransportAddress this_ta =
-	                    TransportAddressFactory.CreateInstance(ta_str);
-          tmp_node.RemoteTAs.Add(this_ta);
-          }
+      for (int loop2=0;loop2<net_size;loop2++) {
+        if (loop == loop2) {
+          continue;
+        }
+        int other_port = port+loop2;
+        string ta_str = null;
+        switch(net_type) {
+          case "tcp":
+            ta_str = "brunet.tcp://127.0.0.1:";
+            break;
+          case "udp":
+            ta_str = "brunet.udp://127.0.0.1:";
+            break;
+          case "function":
+            ta_str = "brunet.function://localhost:";
+            break;
+          case "path":
+            ta_str = String.Format("brunet.udp://127.0.0.1:{0}/",port);
+           break;
+          case "single_path":
+            ta_str = "brunet.udp://127.0.0.1:";
+            break;
+          default:
+            throw new Exception("Unknown net type: " + net_type);
+        }
+        ta_str = ta_str + other_port.ToString();
+        TransportAddress this_ta = TransportAddressFactory.CreateInstance(ta_str);
+        tmp_node.RemoteTAs.Add(this_ta);
       }
     }
     
@@ -646,6 +668,9 @@ namespace Brunet
     foreach(Node n in node_list)
     {
       n.Disconnect();
+    }
+    if( pem != null ) {
+      pem.Stop();
     }
     //Block until all Connect threads finish.
     //foreach(Thread t in c_threads) {

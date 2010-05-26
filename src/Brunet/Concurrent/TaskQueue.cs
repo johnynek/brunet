@@ -36,6 +36,10 @@ public interface IAction {
   void Start();
 }
 
+public interface IActionQueue {
+  void EnqueueAction(IAction a);
+}
+
 /** an IAction that does nothing.
  * This is a Singleton
  */

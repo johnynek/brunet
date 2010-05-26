@@ -112,6 +112,7 @@ public class PType : Brunet.Util.ICopyable {
     public static readonly PType Tftp = new PType("tftp");
     public static readonly PType Chat = new PType("chat");
     public static readonly PType IP = new PType("i");
+    public static readonly PType Pathing = new PType("/");
     public static readonly PType ReqRep = new PType("r");
     public static readonly PType Rpc = new PType("p");
   }
