@@ -212,6 +212,10 @@ namespace Brunet.Applications {
 
         node.GetTypeSource(PeerSecOverlord.Security).Subscribe(pso, null);
 
+        if(node_config.Security.SecureEdges) {
+          node.EdgeVerifyMethod = EdgeVerify.AddressInSubjectAltName;
+        }
+
         // A hack to enable a test for security that doesn't require each peer
         // to exchange certificates
         if(node_config.Security.TestEnable) {

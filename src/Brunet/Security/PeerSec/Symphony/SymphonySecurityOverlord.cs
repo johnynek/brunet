@@ -44,7 +44,6 @@ namespace Brunet.Security.PeerSec.Symphony {
     {
       _ch.AddCertificateVerification(new SymphonyVerification(ch));
       _node = node;
-      node.EdgeVerifyMethod = EdgeVerify.AddressInSubjectAltName;
       _address_to_sa = new Dictionary<Address, SecurityAssociation>();
       _sa_to_address = new Dictionary<SecurityAssociation, Address>();
       lock(_sync) {
