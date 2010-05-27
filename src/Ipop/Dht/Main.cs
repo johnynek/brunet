@@ -37,6 +37,7 @@ namespace Ipop.Dht {
 
     public IpopConfig IpopConfig { get { return _ipop_config; } }
     public DHCPConfig DhcpConfig { get { return _dhcp_config; } }
+    public NodeConfig.SecurityPolicy Security { get { return _sp; } }
     public bool GroupVPN { get { return _group_vpn; } }
 
     protected IpopConfig _ipop_config;
@@ -44,6 +45,7 @@ namespace Ipop.Dht {
     protected DHCPConfig _dhcp_config;
     protected string _dhcp_config_path = string.Empty;
     protected bool _group_vpn;
+    protected NodeConfig.SecurityPolicy _sp;
 
     public DhtNodeParameters() :
       base("DhtIpop", "DhtIpop - Virtual Networking Daemon.")
@@ -94,9 +96,15 @@ namespace Ipop.Dht {
         }
       }
 
-      _group_vpn = _node_config.Security.Enabled &&
+      if(_node_config.PrivateNodeConfig != null) {
+        _sp = _node_config.PrivateNodeConfig.Security;
+      } else {
+        _sp = _node_config.Security;
+      }
+
+      _group_vpn = _sp.Enabled &&
         _ipop_config.GroupVPN.Enabled &&
-        _ipop_config.EndToEndSecurity;
+        (_ipop_config.EndToEndSecurity || _sp != _node_config.Security);
       return 0;
     }
   }
@@ -120,6 +128,7 @@ namespace Ipop.Dht {
       DHCPConfig dhcp_config = parameters.DhcpConfig;
       IpopConfig ipop_config = parameters.IpopConfig;
       NodeConfig node_config = parameters.NodeConfig;
+      NodeConfig.SecurityPolicy security = parameters.Security;
 
 
       if(node_config.NodeAddress == null) {
@@ -132,9 +141,9 @@ namespace Ipop.Dht {
         RSACryptoServiceProvider public_key = new RSACryptoServiceProvider();
         bool create = true;
         // If this succeeds, the key is good, if it fails, we need to create a new one...
-        if(File.Exists(node_config.Security.KeyPath)) {
+        if(File.Exists(security.KeyPath)) {
           try {
-            using(FileStream fs = File.Open(node_config.Security.KeyPath, FileMode.Open)) {
+            using(FileStream fs = File.Open(security.KeyPath, FileMode.Open)) {
               byte[] blob = new byte[fs.Length];
               fs.Read(blob, 0, blob.Length);
               public_key.ImportCspBlob(blob);
@@ -146,7 +155,7 @@ namespace Ipop.Dht {
 
         // we don't, let's create one
         if(create) {
-          using(FileStream fs = File.Open(node_config.Security.KeyPath, FileMode.Create)) {
+          using(FileStream fs = File.Open(security.KeyPath, FileMode.Create)) {
             RSACryptoServiceProvider private_key = new RSACryptoServiceProvider(2048);
             byte[] blob = private_key.ExportCspBlob(true);
             fs.Write(blob, 0, blob.Length);
@@ -155,7 +164,7 @@ namespace Ipop.Dht {
         }
 
         // verify we have a cacert
-        string cacert_path = Path.Combine(node_config.Security.CertificatePath, "cacert");
+        string cacert_path = Path.Combine(security.CertificatePath, "cacert");
         if(!File.Exists(cacert_path)) {
           Console.WriteLine("Missing CACert: " + cacert_path);
           parameters.ShowHelp();
@@ -163,12 +172,12 @@ namespace Ipop.Dht {
         }
 
         // do we already have a certificate that matches our node id?
-        string cert_path = Path.Combine(node_config.Security.CertificatePath,
+        string cert_path = Path.Combine(security.CertificatePath,
             "lc." + node_config.NodeAddress.Substring(12));
         // no, let's create one
         if(create || !File.Exists(cert_path)) {
           // prepare access to the groupvpn site
-          string webcert_path = Path.Combine(node_config.Security.CertificatePath, "webcert");
+          string webcert_path = Path.Combine(security.CertificatePath, "webcert");
           if(!File.Exists(webcert_path)) {
             Console.WriteLine("Missing Servers signed cert: " + webcert_path);
             parameters.ShowHelp();
@@ -206,7 +215,7 @@ namespace Ipop.Dht {
       if(parameters.GroupVPN) {
         // hack until I can come up with a cleaner solution to add features
         // that don't break config files on previous IPOP
-        string cacert_path = Path.Combine(node_config.Security.CertificatePath, "cacert");
+        string cacert_path = Path.Combine(security.CertificatePath, "cacert");
         string revocation_url = ipop_config.GroupVPN.ServerURI.Replace("mono/GroupVPN.rem",
             "data/" + ipop_config.GroupVPN.Group + "/revocation_list");
         revocation_url = revocation_url.Replace("https", "http");

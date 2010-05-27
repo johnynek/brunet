@@ -59,12 +59,18 @@ namespace Ipop {
   public abstract class IpopNode : BasicNode, IDataHandler, IRpcHandler {
     /// <summary>Stores the underlying ApplicationNode</summary>
     public readonly ApplicationNode AppNode;
+    /// <summary>Stores the public overlays ApplicationNode.  It will be the
+    /// same as AppNode, if there is no private overlay.</summary>
+    public readonly ApplicationNode PublicNode;
     /// <summary>The IpopConfig for this IpopNode</summary>
     protected readonly IpopConfig _ipop_config;
     /// <summary>The Virtual Network handler</summary>
     public readonly Ethernet Ethernet;
     /// <summary>The Rpc handler for Information</summary>
     public readonly Information Info;
+    /// <summary>The Rpc handler for the Public overlays Information.  It will
+    /// be the same as AppNode's, if there is no private overlay.</summary>
+    public readonly Information PublicInfo;
     /// <summary>Chota for Brunet.</summary>
     protected readonly ChotaConnectionOverlord _chota;
     /// <summary>Resolves IP Addresses to Brunet.Addresses</summary>
@@ -120,16 +126,30 @@ namespace Ipop {
     public IpopNode(NodeConfig node_config, IpopConfig ipop_config,
         DHCPConfig dhcp_config) : base(node_config)
     {
-      AppNode = CreateNode(node_config);
-      AppNode.Node.DisconnectOnOverload = false;
+      PublicNode = CreateNode(node_config);
+      PublicNode.Node.DisconnectOnOverload = false;
+      if(PublicNode.PrivateNode == null) {
+        AppNode = PublicNode;
+      } else {
+        AppNode = PublicNode.PrivateNode;
+        AppNode.Node.DisconnectOnOverload = false;
+      }
+
       _chota = AppNode.Node.Cco;
       _ipop_config = ipop_config;
 
       Ethernet = new Ethernet(_ipop_config.VirtualNetworkDevice);
       Ethernet.Subscribe(this, null);
 
-      Info = new Information(AppNode.Node, "IpopNode");
+      Info = new Information(AppNode.Node, "IpopNode", AppNode.SecurityOverlord);
       Info.UserData["IpopNamespace"] = _ipop_config.IpopNamespace;
+      if(PublicNode == AppNode) {
+        PublicInfo = Info;
+      } else {
+        PublicInfo = new Information(PublicNode.Node, "PrivateIpopNode",
+            PublicNode.SecurityOverlord);
+        PublicInfo.UserData["IpopNamespace"] = _ipop_config.IpopNamespace;
+      }
 
       if(_ipop_config.EndToEndSecurity && AppNode.SymphonySecurityOverlord != null) {
         _secure_senders = true;
@@ -170,7 +190,18 @@ namespace Ipop {
       if(_shutdown != null) {
         _shutdown.OnExit += Ethernet.Stop;
       }
+
+      Thread thread = null;
+      if(PublicNode != AppNode) {
+        thread = new Thread(PublicNode.Node.Connect);
+        thread.Start();
+      }
+
       AppNode.Node.Connect();
+
+      if(thread != null) {
+        thread.Join();
+      }
     }
 
 #endregion
@@ -778,6 +809,9 @@ namespace Ipop {
         }
       }
       Info.UserData["VirtualIPs"] = ips;
+      if(PublicInfo != Info) {
+        PublicInfo.UserData["VirtualIPs"] = ips;
+      }
 
       ProtocolLog.WriteIf(IpopLog.DhcpLog, String.Format(
         "IP Address for {0} changed to {1}.",
