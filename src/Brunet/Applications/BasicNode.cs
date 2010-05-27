@@ -119,7 +119,7 @@ namespace Brunet.Applications {
         ApplicationNode node = CreateNode(_node_config);
         _app_node = node;
 
-        new Information(node.Node, "BasicNode");
+        new Information(node.Node, "BasicNode", node.SecurityOverlord);
         Console.WriteLine("Starting at {0}, {1} is connecting to {2}.",
             DateTime.UtcNow, node.Node.Address, node.Node.Realm);
 
@@ -128,7 +128,7 @@ namespace Brunet.Applications {
 
         Thread pthread = null;
         if(node.PrivateNode != null) {
-          new Information(node.PrivateNode.Node, "PrivateBasicNode");
+          new Information(node.PrivateNode.Node, "PrivateBasicNode", node.SecurityOverlord);
           pthread = new Thread(node.PrivateNode.Node.Connect);
           pthread.Start();
         }
