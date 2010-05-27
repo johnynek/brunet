@@ -256,6 +256,7 @@ class Crawler:
       r1consistency += consis[1]
       l2consistency += consis[2]
       r2consistency += consis[3]
+      node = self.nodes[addr]
       sas += node['sas']
       cons += node['cons']
       wedges += node['wedges']
