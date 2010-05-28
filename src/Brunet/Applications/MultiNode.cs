@@ -113,17 +113,5 @@ namespace Brunet.Applications {
         }
       }
     }
-
-    /// <summary>Disconnect all the nodes.  Called by Shutdown.OnExit</summary>
-    public override void OnExit()
-    {
-      foreach(ApplicationNode node in _nodes) {
-        node.Node.Disconnect();
-        if(node.PrivateNode != null) {
-          node.PrivateNode.Node.Disconnect();
-        }
-      }
-      base.OnExit();
-    }
   }
 }

@@ -186,6 +186,7 @@ namespace Brunet.Applications {
 
       // Create the Node state
       StructuredNode node = new StructuredNode(address, node_config.BrunetNamespace);
+      _shutdown.OnExit += node.Disconnect;
       IEnumerable addresses = IPAddresses.GetIPAddresses(node_config.DevicesToBind);
 
       SymphonySecurityOverlord pso = null;
@@ -414,7 +415,6 @@ namespace Brunet.Applications {
 
       NCService ncservice = null;
       if(appnode != null) {
-        appnode.Node.Disconnect();
         ncservice = appnode.NCService;
       }
 
