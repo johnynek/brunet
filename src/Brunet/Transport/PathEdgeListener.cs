@@ -606,10 +606,25 @@ namespace Brunet.Transport {
            String.Format("PathEdgeListener{0} not yet started", _path));
       }
     }
+
+    public override void UpdateLocalTAs(Edge e, TransportAddress ta) {
+      PathEdge pe = e as PathEdge;
+      if(pe != null) {
+        _el.UpdateLocalTAs(pe.Edge, ta);
+      }
+    }
+
+    public override void UpdateRemoteTAs(IList<TransportAddress> list, Edge e, TransportAddress ta) {
+      PathEdge pe = e as PathEdge;
+      if(pe != null) {
+        _el.UpdateRemoteTAs(list, pe.Edge, ta);
+      }
+    }
   }
 
 
   public class PathEdge : Edge, IDataHandler {
+    public Edge Edge { get { return _e; } }
     readonly Edge _e;
     public readonly string LocalPath;
     public readonly string RemotePath;
