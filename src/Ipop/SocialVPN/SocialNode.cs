@@ -58,6 +58,8 @@ namespace Ipop.SocialVPN {
 
     protected readonly SocialUser _local_user;
 
+    protected readonly SecurityOverlord _bso;
+
     protected readonly object _sync;
 
     private WriteOnce<bool> _global_block;
@@ -69,7 +71,7 @@ namespace Ipop.SocialVPN {
     }
 
     public Node RpcNode {
-      get { return _node; }
+      get { return AppNode.Node; }
     }
 
     public SocialNode(NodeConfig brunetConfig, IpopConfig ipopConfig,
@@ -83,6 +85,7 @@ namespace Ipop.SocialVPN {
       _local_user.Certificate = certificate;
       _local_user.IP = _marad.LocalIP;
       _marad.AddDnsMapping(_local_user.Alias, _local_user.IP, true);
+      _bso = AppNode.SecurityOverlord;
       _bso.CertificateHandler.AddCACertificate(_local_user.GetCert().X509);
       _bso.CertificateHandler.AddSignedCertificate(_local_user.GetCert().X509);
     }
@@ -110,7 +113,7 @@ namespace Ipop.SocialVPN {
 
       Address addr = AddressParser.Parse(user.Address);
       _bso.CertificateHandler.AddCACertificate(user.GetCert().X509);
-      _node.ManagedCO.AddAddress(addr);
+      AppNode.Node.ManagedCO.AddAddress(addr);
       user.IP = _marad.AddIPMapping(ip, addr);
       _marad.AddDnsMapping(user.Alias, user.IP, true);
       user.Access = AccessTypes.Allow.ToString();
@@ -133,7 +136,7 @@ namespace Ipop.SocialVPN {
 
       SocialUser user = _friends[alias];
       Address addr = AddressParser.Parse(user.Address);
-      _node.ManagedCO.RemoveAddress(addr);
+      AppNode.Node.ManagedCO.RemoveAddress(addr);
       _marad.RemoveIPMapping(user.IP);
       _marad.RemoveDnsMapping(user.Alias, true);
 

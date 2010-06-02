@@ -49,7 +49,7 @@ namespace Ipop.SocialVPN {
       _mappings = new Dictionary<string, DnsMapping>();
       _tmappings = new List<DnsMapping>();
       _node = node;
-      _node.Rpc.AddHandler("SocialDNS", this);
+      _node.RpcNode.Rpc.AddHandler("SocialDNS", this);
       _local_user = _node.LocalUser;
       _beat_counter = 0;
       _node.RpcNode.HeartBeatEvent += HeartBeatHandler;
@@ -117,7 +117,7 @@ namespace Ipop.SocialVPN {
                             String.Format("RPC HANDLER FAILURE: {0} {1}" + 
                             DateTime.Now.TimeOfDay, args[0]));
       }
-      _node.Rpc.SendResult(req_state, result);
+      _node.RpcNode.Rpc.SendResult(req_state, result);
     }
 
     protected void SendRpcMessage(string address, string method, 
@@ -148,7 +148,7 @@ namespace Ipop.SocialVPN {
                       DateTime.Now.TimeOfDay, address, query, method));
 
       ISender sender = new AHExactSender(_node.RpcNode, addr);
-      _node.Rpc.Invoke(sender, q, method, _local_user.Address, query);
+      _node.RpcNode.Rpc.Invoke(sender, q, method, _local_user.Address, query);
     }
 
     protected void PingFriends() {
