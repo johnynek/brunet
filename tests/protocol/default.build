@@ -45,7 +45,6 @@
   </target>
 
   <target name="clean-logs" description="Deletes old log files">
-    <call target="${project.config}"/>
     <delete>
       <fileset>
         <include name="${out.dir}/BootGraph_*" />
