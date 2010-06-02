@@ -68,7 +68,7 @@ namespace Ipop.SocialVPN {
       _jclient.AutoStartTLS = true;
       _jclient.AutoStartCompression = false;
       _jclient.KeepAlive = 30F;
-      _jclient.AutoPresence = false;
+      _jclient.AutoPresence = true;
       _jclient.AutoRoster = false;
       _jclient.LocalCertificate = null;
       Random rand = new Random();

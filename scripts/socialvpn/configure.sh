@@ -8,9 +8,9 @@ if [[ $user == "root" ]]; then
 fi
 
 if [[ $user != "root"  ]]; then
-  echo -n "Enter userid (jabberid@host.com): "
+  echo -n "Enter userid (example: jabberid@host.com): "
   read userid
-  echo -n "Enter PCID (home-pc): "
+  echo -n "Enter PCID (example: homepc): "
   read pcid
   echo "Creating certificate..."
   mono svpncmd.exe cert $userid $pcid 

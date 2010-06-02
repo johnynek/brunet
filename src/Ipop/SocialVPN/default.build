@@ -8,7 +8,7 @@
   <property name="docs.dir" value="../../../docs/socialvpn"/>
   <property name="scripts.dir" value="../../../scripts/socialvpn"/>
   <property name="web.dir" value="web"/>
-  <property name="release.dir" value="socialvpn_0.4.0"/>
+  <property name="release.dir" value="socialvpn_0.4.1"/>
 
   <target name="clean" description="Remove build directory">
     <delete dir="${build.dir}" failonerror="true"/>
