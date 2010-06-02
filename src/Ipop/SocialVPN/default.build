@@ -4,7 +4,7 @@
   <property name="lib.dir" value="../../../lib"/>
   <property name="build.dir" value="build" />
   <property name="drivers.dir" value="../../../drivers"/>
-  <property name="config.dir" value="../../../config"/>
+  <property name="config.dir" value="../../../config/socialvpn"/>
   <property name="docs.dir" value="../../../docs/socialvpn"/>
   <property name="scripts.dir" value="../../../scripts/socialvpn"/>
   <property name="web.dir" value="web"/>
