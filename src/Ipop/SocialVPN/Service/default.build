@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<project name="socialvpn" default="build" basedir=".">
+  <description> Builds SocialVPN </description>
+  <property name="lib.dir" value="../../../../lib"/>
+  <property name="build.dir" value="build" />
+  <property name="svpn.build.dir" value="../build"/>
+
+  <target name="clean" description="Remove build directory">
+    <delete dir="${build.dir}" failonerror="true"/>
+  </target>
+
+  <target name="build" description="Build SocialVPN.exe">
+    <mkdir dir="${build.dir}" failonerror="true"/>
+
+    <copy todir="${build.dir}" failonerror="true">
+      <fileset basedir="${svpn.build.dir}">
+        <include name="*" />
+      </fileset>
+    </copy>
+
+    <csc target="exe" main="Ipop.SocialVPN.Service.WindowsService" 
+    output="${build.dir}/SocialVPNService.exe">
+      <sources failonempty="true">
+        <include name="Service.cs"/>
+        <include name="ServiceInstaller.cs"/>
+      </sources>
+      <references basedir="${build.dir}">
+        <include name="System.Configuration.Install.dll"/>
+        <include name="System.ServiceProcess.dll"/>
+        <include name="SocialVPN.exe" />
+      </references>
+    </csc>
+
+    <copy todir="${svpn.build.dir}" failonerror="true">
+      <fileset basedir="${build.dir}">
+        <include name="SocialVPNService.exe" />
+      </fileset>
+    </copy>
+
+  </target>
+</project>
