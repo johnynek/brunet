@@ -306,6 +306,84 @@ namespace Ipop.Managed {
       _dns_ptr.Add(LocalIP, name);
       return true;
     }
+
+    /// <summary>
+    /// Maps IP address to Brunet address.
+    /// </summary>
+    /// <param name="ip">IP address to map</param>
+    /// <param name="addr">Brunet address to map</param>
+    /// <returns>IP string of the allocated IP</returns>
+    public string AddIPMapping(string ip, Address addr) {
+      MemBlock ip_bytes;
+
+      lock(_sync) {
+        if(ip == null || ip == String.Empty) {
+          do {
+            ip_bytes = MemBlock.Reference(_dhcp.RandomIPAddress());
+          } while (_ip_addr.ContainsValue(ip_bytes));
+        }
+        else {
+          ip_bytes = MemBlock.Reference(Utils.StringToBytes(ip, '.'));
+          if (!_dhcp.ValidIP(ip_bytes)) {
+            throw new Exception("Invalid IP");
+          }
+        }
+
+        if (_ip_addr.ContainsValue(addr) || _addr_ip.ContainsValue(ip_bytes)) {
+          throw new Exception("IP/P2P address is already found");
+        }
+
+        _ip_addr.Add(ip_bytes, addr);
+        _addr_ip.Add(addr, ip_bytes);
+        mcast_addr.Add(addr);
+      }
+      return Utils.BytesToString(ip_bytes, '.');
+    }
+
+    /// <summary>
+    /// Remove IP to Brunet address mapping.
+    /// </summary>
+    /// <param name="ip">IP address to remove</param>
+    public void RemoveIPMapping(string ip) {
+      MemBlock ip_bytes = MemBlock.Reference(Utils.StringToBytes(ip, '.'));
+      Address addr = (Address) _ip_addr[ip_bytes];
+      lock(_sync) {
+        _ip_addr.Remove(ip_bytes);
+        _addr_ip.Remove(addr);
+        mcast_addr.Remove(addr);
+      }
+    }
+
+    /// <summary>
+    /// Maps DNS alias to IP address.
+    /// </summary>
+    /// <param name="alias">Dns alias to map</param>
+    /// <param name="ip">IP address to map</param>
+    /// <param name="reverse">If true, add reverve mapping</param>
+    public void AddDnsMapping(string alias, string ip, bool reverse) {
+      lock(_sync) {
+        _dns_a.Add(alias, ip);
+        if (reverse) {
+          _dns_ptr.Add(ip, alias);
+        }
+      }
+    }
+
+    /// <summary>
+    /// Remove Dns alias mapping.
+    /// </summary>
+    /// <param name="alias">Dns alias to remove</param>
+    /// <param name="reverse">If true, remove reverse mapping</param>
+    public void RemoveDnsMapping(string alias, bool reverse) {
+      string ip = (string)_dns_a[alias];
+      lock (_sync) {
+        _dns_a.Remove(alias);
+        if (reverse) {
+          _dns_ptr.Remove(ip);
+        }
+      }
+    }
+
   }
 
 #if ManagedIpopNodeNUNIT
