@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# set variables
+key=private_key
+root=`whoami`
+device=tapipop
+platform=linux
+mac_path=/dev/tap0
+pid_file=/var/run/dhclient.$device.pid
+
+if [[ -e $mac_path ]]; then
+  platform=mac
+fi
+
+if [[ $root != root ]]; then
+  echo "Please run as root"
+  exit 1
+fi
+
+if [[ -f $key ]]; then
+  user=$(ls -l private_key | awk '{ print $3 }')
+  if [[ $platform == linux ]]; then
+    /usr/sbin/tunctl -d $device
+    /usr/sbin/tunctl -u $user -t $device
+    chmod 666 /dev/net/tun
+  elif [[ $platform == mac ]]; then
+    chmod 666 /dev/tap0
+  fi
+  su $user -c "mono SocialVPN.exe &> log.txt &"
+else
+  echo "Run ./setup as non-root"
+  exit 1
+fi
+
+sleep 3
+
+if [[ $platform == linux ]]; then
+  if [[ -f $pid_file ]]; then
+    /bin/kill $(cat $pid_file)
+  fi
+  /sbin/dhclient -1 -pf $pid_file -lf /var/lib/dhcp3/dhclient.$device.leases $device
+elif [[  $platform == mac ]]; then
+  /usr/sbin/ipconfig set tap0 DHCP
+  /sbin/ifconfig tap0 mtu 1200
+fi
+
+echo "Point your browser to http://127.0.0.1:58888"
