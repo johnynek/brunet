@@ -70,6 +70,7 @@ class Crawler:
     # sort of like a "join" statement
     self.done = thread.allocate_lock()
     self.nodes = {}
+    self.attempts = 3
 
   def start(self):
     node = self.rpc.localproxy("sys:link.GetNeighbors")['self']
@@ -83,7 +84,7 @@ class Crawler:
     self.consistency()
 
   def run(self, node):
-    attempts = 3
+    attempts = self.attempts
 
     # query the node and parse the results
     while attempts > 0:
@@ -98,24 +99,25 @@ class Crawler:
           res["neighbors"] = {}
         res = [res]
       self.logger(str(res))
-      (peers, info) = self.parse(res)
-      if peers != [] or info != {}:
-        break;
+      (peers, info) = self.parse(res, self.attempts - attempts)
+      if peers != [] and info != {}:
+        break
       attempts -= 1
-
-
+      
     to_query = []
 
     # add the results to the table and determine any new nodes that need to be queried
     self.lock.acquire()
-    self.nodes[node] = info
+    if info != {}:
+      self.nodes[node] = info
+    else:
+      self.nodes[node] = self.parse([{"type" : "error"}], self.attempts)[1]
     for neighbor in peers:
       if neighbor in self.nodes:
         continue
       to_query.append(neighbor)
       self.nodes[neighbor] = True
 
-    self.nodes[node] = info
     if to_query == 0:
       # no new nodes, we're done
       self.threads -= 1
@@ -142,12 +144,12 @@ class Crawler:
     thread.exit()
 
   # parse the result of an rpc
-  def parse(self, node_info):
+  def parse(self, node_info, retries):
     # if no data, return empty sets
     if len(node_info) == 0:
       return ([], {})
     node_info = node_info[0]
-    neighbors = node_info['neighbors']
+    neighbors = node_info['neighbors'] if 'neighbors' in node_info else {}
 
     peers = []
     for k, v in neighbors.iteritems():
@@ -174,7 +176,7 @@ class Crawler:
     info['type'] = node_info['type'] if 'type' in node_info else ''
     info['virtual_ip'] = node_info['VirtualIPs'][0] if 'VirtualIPs' in node_info else ''
     info['namespace'] = node_info['IpopNamespace'] if 'IpopNamespace' in node_info else ''
-    info['retries'] = 0
+    info['retries'] = retries
     info['cons'] = node_info['cons'] if 'cons' in node_info else 0
     info['tcp'] = node_info['tcp'] if 'tcp' in node_info else 0
     info['tunnel'] = node_info['tunnel'] if 'tunnel' in node_info else 0
@@ -182,6 +184,7 @@ class Crawler:
     info['subring'] = node_info['subring'] if 'subring' in node_info else 0
     info['sas'] = node_info['sas'] if 'sas' in node_info else 0
     info['wedges'] = node_info['wedges'] if 'wedges' in node_info else 0
+    info['geo_loc'] = node_info['geo_loc'] if 'geo_loc' in node_info else ''
 
     return (peers, info)
 
@@ -212,24 +215,16 @@ class Crawler:
   def consis(self, addr):
     node = self.nodes[addr]
 
-    lcon = 1 if('right' in node and \
-        node['right'] in self.nodes and \
-        'left' in self.nodes[node['right']] and \
+    lcon = 1 if(node['right'] in self.nodes and \
         self.nodes[node['right']]['left'] == addr) \
         else 0
-    rcon = 1 if('left' in node and \
-        node['left'] in self.nodes and \
-        'right' in self.nodes[node['left']] and \
+    rcon = 1 if(node['left'] in self.nodes and \
         self.nodes[node['left']]['right'] == addr) \
         else 0
-    lcon2 = 1 if('left2' in node and \
-        node['left2'] in self.nodes and \
-        'right2' in self.nodes[node['left2']] and \
+    lcon2 = 1 if(node['left2'] in self.nodes and 
         self.nodes[node['left2']]['right2'] == addr) \
         else 0
-    rcon2 = 1 if('right2' in node and \
-        node['right2'] in self.nodes and \
-        'left2' in self.nodes[node['right2']] and \
+    rcon2 = 1 if(node['right2'] in self.nodes and \
         self.nodes[node['right2']]['left2'] == addr) \
         else 0
 
@@ -250,13 +245,13 @@ class Crawler:
     wedges = 0
     subring = 0
     for addr in self.nodes:
+      node = self.nodes[addr]
       count += 1
       consis = self.consis(addr)
       l1consistency += consis[0]
       r1consistency += consis[1]
       l2consistency += consis[2]
       r2consistency += consis[3]
-      node = self.nodes[addr]
       sas += node['sas']
       cons += node['cons']
       wedges += node['wedges']
