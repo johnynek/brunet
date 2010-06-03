@@ -11,6 +11,7 @@
     <nant buildfile="Dht/default.build" />
     <nant buildfile="Dht/Service/default.build" />
     <nant buildfile="Managed/default.build" />
+    <nant buildfile="SocialVPN/default.build" />
   </target>
 
   <target name="test" description="Build IpopNode.Test.dll">
