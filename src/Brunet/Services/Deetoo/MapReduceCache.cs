@@ -36,6 +36,7 @@ namespace Brunet.Services.Deetoo {
     //list of Deetoo object in a node, 
     //[content, start_range, end_range, replication_factor]
     private CacheList _cl;
+    private Entry _ce;
     //private Node _node;
     /*
      * @param cl CacheList object for caching.
@@ -57,6 +58,7 @@ namespace Brunet.Services.Deetoo {
       AHAddress a = (AHAddress)AddressParser.Parse(st);
       AHAddress b = (AHAddress)AddressParser.Parse(ed);
       Entry ce = new Entry(input, alpha, a, b);
+      _ce = ce;
       int result = 0;   // if caching is successful, result will set to 1.
       int previous_count = _cl.Count;
       try {
@@ -90,7 +92,31 @@ namespace Brunet.Services.Deetoo {
       bool done = false;
       //ISender child_sender = child_rpc.ResultSender;
       //the following can throw an exception, will be handled by the framework
-      object child_result = child_rpc.Result;
+      try {
+        object child_result = child_rpc.Result;
+      }
+      catch(Brunet.Util.AdrException Exception x) {
+        /*
+        if (x.Equals("Child did not return") ) {
+          //there might be at least one timeout from children.
+	  //Start boundedcasting again
+          IDictionary ht;
+          string task_name = "Brunet.Services.Deetoo.MapReduceCache;
+	  ht["task_name"] = task_name 
+	  IDictionary map_arg;
+	  IDictionary gen_arg;
+
+	  = (IDictionary) args[0];
+          MapReduceArgs mr_args = new MapReduceArgs(ht);
+          //string task_name = mr_args.TaskName;
+          MapReduceTask task;
+          if (_name_to_task.TryGetValue(task_name, out task)) {
+            MapReduceComputation mr = new MapReduceComputation(_node, req_state, task, mr_args);
+            mr.Start();
+          }
+	}
+        */
+      } 
       
       //child result is a valid result
       if (current_result == null) {

@@ -150,7 +150,6 @@ namespace Brunet.Services.Deetoo
         /**
     <summary>Determine size of bounded broadcasting range based on estimated network size.</summary>
     <returns>The range size as b biginteger.</returns>
-    */
     public BigInteger GetRangeSize(int size) {
       double alpha = this.Alpha;
       double a_n = alpha / (double)size;
@@ -170,5 +169,6 @@ namespace Brunet.Services.Deetoo
       }
       return result;
     }
+    */
   }
 }

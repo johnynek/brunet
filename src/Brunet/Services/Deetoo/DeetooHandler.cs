@@ -133,8 +133,8 @@ namespace Brunet.Services.Deetoo
         // Before data are transferred, recalculate each object's range
         // If the node is out of new range, entry will be removed from local list.
         //_cl.Stabilize(_median_network_size);
-        _cl.RemoveEntries(_median_network_size);
-        Console.WriteLine("In Put method: median network size is {0}",_median_network_size);
+        //Console.WriteLine("In Put method: median network size is {0}",_median_network_size);
+	MapReduceBoundedBroadcast mrbb = new MapReduceBoundedBroadcast(_node);
         foreach(DictionaryEntry de in _cl) {
           Entry ce = (Entry)de.Value;
           Channel queue = new Channel(1);
@@ -154,7 +154,6 @@ namespace Brunet.Services.Deetoo
             }
           };
           */
-	  MapReduceBoundedBroadcast mrbb = new MapReduceBoundedBroadcast(_node);
           AHAddress addr = (AHAddress)con.Address;
 	  AHAddress start = ce.Start as AHAddress;
 	  AHAddress end = ce.End as AHAddress;
@@ -216,41 +215,47 @@ namespace Brunet.Services.Deetoo
     </param>
     */
     protected void ConnectionHandler(object o, EventArgs eargs) {
-      ConnectionTable tab = _node.ConnectionTable;
+      //ConnectionTable tab = _node.ConnectionTable;
+      ConnectionEventArgs cargs = eargs as ConnectionEventArgs;
+      ConnectionList cons = cargs.CList;
+      Connection lc = cons.GetLeftNeighborOf(_node.Address);
+      Connection rc = cons.GetRightNeighborOf(_node.Address);
+      //Console.WriteLine("left con: {0}, right con: {1}", lc.Address, rc.Address);
+      /* 
       Connection lc = null, rc = null;
       try {
         lc = tab.GetLeftStructuredNeighborOf((AHAddress) _node.Address);
-    }
+      }
       catch(Exception) {}
       try {
         rc = tab.GetRightStructuredNeighborOf((AHAddress) _node.Address);
       }
       catch(Exception) {}
+      */
       if(lc != null) {
         if(!lc.Address.Equals(_left_addr)) {
           _left_addr = lc.Address;
-        }
-        if(Count > 0) {
-          Put(lc); 
+          if(Count > 0) {
+            Put(lc); 
+          }
         }
       }
       if(rc != null) {
         if(!rc.Address.Equals(_right_addr)) {
           _right_addr = rc.Address;
-        }
-        if(Count > 0) {
-          Put(rc); 
+          if(Count > 0) {
+            Put(rc); 
+          }
         }
       }
     }
     protected void GetEstimatedSize(object obj, EventArgs eargs) {
       try {
+        Channel queue = new Channel(1);
         short logN0 = (short)(Math.Log(_local_network_size) ); 
         if (logN0 < 1) { logN0 = 1;}
         Address target = new DirectionalAddress(DirectionalAddress.Direction.Left); 
         ISender send = new AHSender(_node, target, logN0, AHHeader.Options.Last); ///log N0-hop away node
-        Channel queue = new Channel(1);
-        _rpc.Invoke(send, queue, "sys:link.Ping",0);
         queue.CloseEvent += delegate(object o, EventArgs args) {
           Channel q = (Channel)o;
           if (q.Count > 0) {
@@ -263,30 +268,44 @@ namespace Brunet.Services.Deetoo
             BigInteger total = Address.Full / inv_density;  ///new estimation
             int total_int = total.IntValue();
             _local_network_size = total_int;
+	    //Console.WriteLine("local size: {0}", _local_network_size);
           }
           GetMedianEstimation(obj, eargs);
+          _cl.RemoveEntries(_median_network_size);
         };
+        _rpc.Invoke(send, queue, "sys:link.Ping",0);
       }
       catch(Exception x) {
         if(CacheList.DeetooLog.Enabled) {
           ProtocolLog.Write(CacheList.DeetooLog, x.ToString());
         }
       }
+    /*}
+    protected class D2State {
+      public readonly Connection Left;
+      public readonly Connection Right;
+      public readonly ImmutableList<Entry> Entry;
+
+      public D2State() {
+             
+      }
     }
+    */
     protected void GetMedianEstimation(object obj, EventArgs eargs) {
       //_median_network_size = _local_network_size;
       ConnectionTable tab = _node.ConnectionTable;
       IEnumerable structs = tab.GetConnections("structured.shortcut");
+      //ConnectionList structs = tab.GetConnections("structured.shortcut") as ConnectionList;
+      
       List<Connection> cons = new List<Connection>();
       foreach (Connection c in structs) {
         cons.Add(c);
       }
+      
       int q_size = cons.Count;
+      //int q_size = structs.Count;
       if (q_size > 0) {
         Channel queue = new Channel(q_size);
-        foreach(Connection c in structs) {
-          _rpc.Invoke(c.Edge, queue, "Deetoo.getestimatedsize",0);
-        }
         queue.CloseEvent += delegate(object o, EventArgs args) {
           Channel q = (Channel)o;
           List<int> size_list = new List<int>();
@@ -307,7 +326,15 @@ namespace Brunet.Services.Deetoo
           //_rpc.SendResult(req_state,mean_size);
           ConnectionHandler(obj,eargs);
         };
+        foreach(Connection c in structs) {
+          _rpc.Invoke(c.Edge, queue, "Deetoo.getestimatedsize",0);
+        }
       }
+      /*
+      else {
+        _median_network_size = _local_network_size;
+      }
+      */
     }
     protected int GetMedian(List<int> list) {
       int idx;

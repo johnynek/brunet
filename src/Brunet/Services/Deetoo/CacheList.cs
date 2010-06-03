@@ -31,7 +31,7 @@ using Brunet.Symphony;
 
 #if BRUNET_NUNIT
 using NUnit.Framework;
-//using Brunet.Applications;
+using Brunet.Applications;
 #endif
 
 namespace Brunet.Services.Deetoo
@@ -144,11 +144,12 @@ namespace Brunet.Services.Deetoo
           "In node {0}, stabilization is called",_node.Address));
       }
       List<string> to_be_removed = new List<string>();
+      MapReduceBoundedBroadcast mrbb = new MapReduceBoundedBroadcast(_node);
       foreach (DictionaryEntry dic in _data) {
         string this_key = (string)dic.Key;
         Entry ce = (Entry)dic.Value;
         /// Recalculate size of range.
-        BigInteger rg_size = ce.GetRangeSize(size);
+        BigInteger rg_size = GetRangeSize(ce.Alpha,size);
         /// reassign range info based on recalculated range.
         if(CacheList.DeetooLog.Enabled) {
           ProtocolLog.Write(CacheList.DeetooLog, String.Format(
@@ -159,7 +160,6 @@ namespace Brunet.Services.Deetoo
           ProtocolLog.Write(CacheList.DeetooLog, String.Format(
           "+++range after reassignment, start: {0}, end: {1}", ce.Start, ce.End));
         }
-	MapReduceBoundedBroadcast mrbb = new MapReduceBoundedBroadcast(_node);
         AHAddress addr = (AHAddress)_node.Address;
 	AHAddress start = ce.Start as AHAddress;
 	AHAddress end = ce.End as AHAddress;	
@@ -177,25 +177,83 @@ namespace Brunet.Services.Deetoo
         _data.Remove(to_be_removed[i]);
       } 
     }
+    /*
+    <summary>Determine size of bounded broadcasting range based on estimated network size.</summary>
+    <returns>The range size as a biginteger.</returns>
+    */    
+    public BigInteger GetRangeSize(double alpha, int size) {
+      //double alpha = this.Alpha;
+      double a_n = alpha / (double)size;
+      double sqrt_an = Math.Sqrt(a_n);
+      double log_san = Math.Log(sqrt_an,2.0);
+      //int exponent = (int)(log_san + 160);
+      double exponent = log_san + 160;
+      int exponent_i = (int)(exponent) - 63;
+      double exponent_f = exponent - exponent_i;
+      ulong twof = (ulong)Math.Pow(2,exponent_f); //exponent_f should be less than 64
+      BigInteger bi_one = new BigInteger(1);
+      BigInteger result = (bi_one << exponent_i)*twof;  
+      if (result % 2 == 1) { result += 1; } // make this even number.
+      //Console.WriteLine("a/n: {0}, sqrt(a/n): {1}, log_san: {2}, exponent: {3}, exponent_i: {4}, exp_f: {5}, twof: {6}, bi_one: {7}, result: {8}", a_n, sqrt_an, log_san, exponent, exponent_i, exponent_f, twof, bi_one, result);
+      if(CacheList.DeetooLog.Enabled) {
+        ProtocolLog.Write(CacheList.DeetooLog, String.Format(
+          "network size estimation: {0}, new range size: {1}", size, result));
+      }
+      return result;
+    }
+
   }
 #if BRUNET_NUNIT
   [TestFixture]
   public class CacheListTester {  
     [Test]
     public void RangeTest() {
-      for (int i = 100; i < 10000000; i+=100) {
+      AHAddress a, b, start, end;
+      Entry ce;
+      BigInteger distance;
+      for (int i = 100; i < 1000000; i+=20000) {
         for (double alpha = 0.5; alpha < 5.0; alpha +=0.5) {
-          AHAddress a = Utils.GenerateAHAddress();
-          AHAddress b = Utils.GenerateAHAddress();
-          Entry ce = new Entry(alpha.ToString(), alpha, a,b );
+          a = Utils.GenerateAHAddress();
+          b = Utils.GenerateAHAddress();
+          ce = new Entry(alpha.ToString(), alpha, a,b );
           ce.Alpha = alpha;
-          BigInteger rg_size = ce.GetRangeSize(i);
+          CacheList cl = new CacheList(new StructuredNode(a) );
+          BigInteger rg_size = cl.GetRangeSize(alpha,i);
           ce.ReAssignRange(rg_size);
-          AHAddress start = (AHAddress)ce.Start;
-          AHAddress end = (AHAddress)ce.End;
-          BigInteger distance = start.LeftDistanceTo(end);
-          Assert.AreEqual(distance, rg_size, "Testing equality of ranges");
+          start = (AHAddress)ce.Start;
+          end = (AHAddress)ce.End;
+          distance = start.LeftDistanceTo(end);
+          Assert.AreEqual(distance, rg_size, "Test of equality of ranges fails");
         }
+      }
+    }
+    public void WrapAroudTest() {
+      AHAddress start, end;
+      Entry ce;
+      BigInteger distance;
+      for (int i = 100; i < 1000000; i+=20000) {
+        for (double alpha = 0.5; alpha < 10; alpha += 0.5) {
+          AHAddress node_addr_first = new AHAddress(2);
+          AHAddress node_addr_last = new AHAddress(Address.Full-2);
+          ce = new Entry(alpha.ToString(), alpha, node_addr_first, node_addr_last);
+          CacheList  cl_first = new CacheList(new StructuredNode(node_addr_first) );
+          CacheList cl_last = new CacheList(new StructuredNode(node_addr_last) );
+          BigInteger rg_size_first = cl_first.GetRangeSize(alpha,i);
+          BigInteger rg_size_last = cl_last.GetRangeSize(alpha,i);
+
+          ce.ReAssignRange(rg_size_first);
+          start = (AHAddress)ce.Start;
+          end = (AHAddress)ce.End;
+          distance = start.LeftDistanceTo(end);
+          Assert.AreEqual(distance, rg_size_first, "Test of equality of ranges fails");
+                 
+          ce.ReAssignRange(rg_size_last);
+          start = (AHAddress)ce.Start;
+          end = (AHAddress)ce.End;
+          distance = start.LeftDistanceTo(end);
+          Assert.AreEqual(distance, rg_size_last, "Test of equality of ranges fails");
+          }
+        
       }
     }
   }

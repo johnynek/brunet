@@ -76,12 +76,13 @@ def setXmlRpcServer(query=False):
   """
   url = 0
   net_size = 0
-  #port = 9845  #port number for cache node
-  port = 10001  #port number for cache node
+  port = 9845  #port number for cache node
+  #port = 10001  #port number for cache node
   svc = "cache"  #name of service 
   if query:
     svc = "query" # name of service
-  url = "http://127.0.0.1:" + str(port) + "/" + svc + ".rem"
+  #url = "http://127.0.0.1:" + str(port) + "/" + svc + ".rem"
+  url = "http://pl1.sos.info.hiroshima-cu.ac.jp:" + str(port) + "/" + svc + ".rem"
   print url
   rpc = xmlrpclib.Server(url) # ser xmlrpc server
   net_size = rpc.localproxy("Deetoo.medianestimatedsize")  # estimated network size (StructuredNode.GetSize)

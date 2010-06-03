@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 
 <project name="Brunet" default="build">
-  <description> Builds Brunet.Deetoo.dll </description>
+  <description> Builds Brunet.Services.Deetoo.dll </description>
   <property name="assembly" value="Brunet.Services.Deetoo"/>
   <property name="build.dir" value="build"/>
   <property name="lib.dir" value="../../../../lib"/>
@@ -45,7 +45,7 @@
     <csc target="library" define="BRUNET_NUNIT" optimize="true" output="${build.dir}/${assembly}.NUnit.Test.dll">
       <sources>
         <include name="*.cs"/>
-        <include name="../BasicNode/Utils.cs"/>
+	<include name="../../Applications/Utils.cs"/>
       </sources>
       <references basedir="${build.dir}">
         <include name="Brunet.dll"/>
