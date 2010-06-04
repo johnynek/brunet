@@ -84,7 +84,7 @@ namespace Brunet.Util {
       cycle = SimpleTimer.Minimum / TimeSpan.TicksPerMillisecond;
 
       System.DateTime last = System.DateTime.UtcNow;
-      while(diff > cycle) {
+      while(diff >= cycle) {
         System.DateTime now = System.DateTime.UtcNow;
         if(last.AddSeconds(5) < now) {
           last = now;
@@ -95,6 +95,8 @@ namespace Brunet.Util {
         Brunet.DateTime.SetTime(cycle);
         cycle = SimpleTimer.Run() / TimeSpan.TicksPerMillisecond;
       }
+
+      Brunet.DateTime.SetTime(diff);
     }
 
     public static void RunStep() {
