@@ -36,14 +36,10 @@ namespace Brunet.Transport
 {
 
   /**
-  * A EdgeListener that allows local nodes to communicate
-  * with one another.  No system interfaces are used,
-  * the packets are simply passed by method calls.
-  *
-  * SimulationEdges are for debugging with several nodes  * within one process
-  *
-  */
-
+   * Allows local nodes to communicate directly without the use of the
+   * networking stack.  This class is not thread-safe and meant for single
+   * threaded simulation environments.
+   */
   public class SimulationEdgeListener : EdgeListener, IEdgeSendHandler
   {
     /// A mapping of delays to use based upon id (port) number.
@@ -150,9 +146,7 @@ namespace Brunet.Transport
           // id != 0, so we reduce all by 1
           delay = LatencyMap[_listener_id][remote_id] / 1000;
         } else {
-          lock(_sync) {
-            delay = _rand.Next(10, 250);
-          }
+          delay = _rand.Next(10, 250);
         }
       }
 
@@ -191,17 +185,13 @@ namespace Brunet.Transport
     protected void AddEdge(Edge edge)
     {
       edge.CloseEvent += CloseHandler;
-      lock(_sync) {
-        _edges.Add(edge, edge);
-      }
+      _edges.Add(edge, edge);
     }
 
     protected void CloseHandler(object edge, EventArgs ea)
     {
       (edge as SimulationEdge).Partner = null;
-      lock(_sync) {
-        _edges.Remove(edge);
-      }
+      _edges.Remove(edge);
     }
 
     public override void Start()
@@ -209,9 +199,7 @@ namespace Brunet.Transport
       if( 1 == Interlocked.Exchange(ref _is_started, 1) ) {
         throw new Exception("Can only call SimulationEdgeListener.Start() once!"); 
       }
-      lock( _listener_map.SyncRoot ) {
-        _listener_map[ _listener_id ] = this;
-      }
+      _listener_map[ _listener_id ] = this;
     }
 
     public override void Stop()
@@ -221,10 +209,7 @@ namespace Brunet.Transport
         _listener_map.Remove(_listener_id);
       }
 
-      ArrayList list = null;
-      lock(_sync) {
-        list = new ArrayList(_edges.Values);
-      }
+      ArrayList list = new ArrayList(_edges.Values);
 
       foreach(Edge e in list) {
         try {
@@ -235,20 +220,16 @@ namespace Brunet.Transport
 
     public void HandleEdgeSend(Edge from, ICopyable p) {
       if(_ploss_prob > 0) {
-        lock(_rand) {
-          if(_rand.NextDouble() < _ploss_prob) {
-            return;
-          }
+        if(_rand.NextDouble() < _ploss_prob) {
+          return;
         }
       }
 
       MemBlock mb = p as MemBlock;
       if(mb == null) {
-        lock(_sync) {
-          int offset = p.CopyTo(_ba.Buffer, _ba.Offset);
-          mb = MemBlock.Reference(_ba.Buffer, _ba.Offset, offset);
-          _ba.AdvanceBuffer(offset);
-        }
+        int offset = p.CopyTo(_ba.Buffer, _ba.Offset);
+        mb = MemBlock.Reference(_ba.Buffer, _ba.Offset, offset);
+        _ba.AdvanceBuffer(offset);
       }
 
       SimulationEdge se_from = (SimulationEdge)from;
