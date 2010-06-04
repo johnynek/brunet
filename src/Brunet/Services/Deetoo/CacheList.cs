@@ -28,6 +28,9 @@ using Brunet.Messaging;
 using Brunet.Util;
 using Brunet.Services.MapReduce;
 using Brunet.Symphony;
+using Brunet.Collections;
+using Brunet.Connections;
+using Brunet.Concurrent;
 
 #if BRUNET_NUNIT
 using NUnit.Framework;
@@ -41,17 +44,156 @@ namespace Brunet.Services.Deetoo
    key = content, value = Entry
    */
   public class CacheList : IEnumerable {
+    public class CacheListState {
+      public readonly ImmutableList<Entry> Data;
+      public readonly ConnectionList Structs;
+      public readonly AHAddress Local;
+      public readonly Connection Left; 
+      public readonly Connection Right;
+
+      public CacheListState(ImmutableList<Entry> data,
+                            ConnectionList structs,
+                            AHAddress local) {
+        Data = data;
+        Structs = structs;
+        Local = local;
+        
+        Left = Structs.GetLeftNeighborOf(Local);
+        Right = Structs.GetRightNeighborOf(Local);
+      }
+      public CacheListState SetData(ImmutableList<Entry> data) {
+        return new CacheListState(data, Structs, Local);
+      } 
+      public CacheListState SetStructs(ConnectionList structs) {
+        return new CacheListState(Data, structs, Local);
+      }
+    }
+    public class AddEntry : Mutable<CacheListState>.Updater {
+      private readonly Entry ToAdd;
+      public AddEntry(Entry e) {
+        ToAdd = e;
+      }
+      public CacheListState ComputeNewState(CacheListState old) {
+        bool add_item = true;
+        foreach(Entry e in old.Data) {
+          /*
+           * @todo we might want to be more careful, perhaps
+           * we should potentially increase the range to the larger
+           * of the two items
+           */
+          if(e.Content.Equals(ToAdd.Content)) {
+            //It's already present
+            add_item = false; 
+          }
+        }
+        if(add_item) {
+          var new_data = old.Data.PushIntoNew(ToAdd);
+          return old.SetData(new_data);
+        }
+        else {
+          return old;
+        }
+      }
+    }
+    public class Resize : Mutable<CacheListState>.Updater<Pair<IList<Entry>,
+                                                                  IList<Entry>>> {
+      private readonly int NewSize;
+      public Resize(int newsize) {
+        NewSize = newsize;
+      }
+      /*
+       * the side result has the list of items to send to left and right
+       */
+      public Pair<CacheListState, Pair<IList<Entry>,IList<Entry>>>
+          ComputeNewStateSide(CacheListState old)
+      {
+        var new_data = ImmutableList<Entry>.Empty;
+        var send_left = new List<Entry>();
+        var send_right = new List<Entry>();
+        foreach(Entry e in old.Data) {
+          // Recalculate size of range.
+          BigInteger rg_size = CacheList.GetRangeSize(e.Alpha, NewSize);
+          // reassign range info based on recalculated range.
+          if(CacheList.DeetooLog.Enabled) {
+            ProtocolLog.Write(CacheList.DeetooLog, String.Format(
+            "---range before reassignment, start: {0}, end: {1}", e.Start, e.End));
+          }
+          Entry new_e = e.ReAssignRange(rg_size);
+          if(CacheList.DeetooLog.Enabled) {
+            ProtocolLog.Write(CacheList.DeetooLog, String.Format(
+            "+++range after reassignment, start: {0}, end: {1}", new_e.Start, new_e.End));
+          }
+          if (!MapReduceBoundedBroadcast.InRange(old.Local, new_e.Start, new_e.End)) {
+            //This node is not in this entry's range. 
+            //Remove this entry.
+            if(CacheList.DeetooLog.Enabled) {
+              ProtocolLog.Write(CacheList.DeetooLog, String.Format(
+              "entry {0} needs to be removed from node {1}", e.Content, old.Local));
+            }
+          }
+          else {
+            //This one is in the range, we keep it:
+            new_data = new_data.PushIntoNew(new_e);
+          }
+          //Now check the ones to be sent left:
+          AHAddress old_left = old.Left != null ? (AHAddress)old.Left.Address : null;
+          bool s_left = (old_left != null) && 
+            MapReduceBoundedBroadcast.InRange(old_left, new_e.Start, new_e.End) &&
+            (!MapReduceBoundedBroadcast.InRange(old_left, e.Start, e.End) );
+          if(s_left) { send_left.Add(new_e); }
+          //Now check the ones to be sent right:
+          AHAddress old_right = old.Left != null ? (AHAddress)old.Right.Address : null;
+          bool s_right = (old_right != null) && 
+            MapReduceBoundedBroadcast.InRange(old_right, new_e.Start, new_e.End) &&
+            (!MapReduceBoundedBroadcast.InRange(old_right, e.Start, e.End) );
+          if(s_right) { send_right.Add(new_e); }
+        }
+        var to_send = new Pair<IList<Entry>,IList<Entry>>(send_left, send_right);
+        var new_state = old.SetData(new_data);
+        return new Pair<CacheListState, Pair<IList<Entry>,IList<Entry>>>(new_state, to_send);
+      }
+      
+    }
+    public class HandleNewConnection : Mutable<CacheListState>.Updater {
+      private readonly Connection NewCon;
+      private readonly ConnectionList CList;
+      public HandleNewConnection(Connection c, ConnectionList cl) {
+        NewCon = c;
+        CList = cl;
+      }
+      public CacheListState ComputeNewState(CacheListState old) {
+        if(CList.MainType == ConnectionType.Structured) {
+          return old.SetStructs(CList);
+        }
+        else {
+          return old;
+        }
+      }
+    }
+
     //LiskedList<MemBlock> list_of_contents = new LinkedList<MemBlock>();
     /// <summary>The log enabler for the dht.</summary>
     public static BooleanSwitch DeetooLog = new BooleanSwitch("DeetooLog", "Log for Deetoo!");
-    protected Hashtable _data = new Hashtable();
-    protected Node _node;
-    protected RpcManager _rpc;
+    protected readonly Node _node;
+    protected readonly RpcManager _rpc;
+    public readonly Mutable<CacheListState> MState;   
+
     /// <summary>number of string objects in the table.</summary>
-    public int Count { get { return _data.Count; } }
+    public int Count { get { return MState.State.Data.Count; } }
     /// <summary>The node of this hashtable.</summary>
     public Address Owner { get { return _node.Address; } }
-    public Hashtable Data { get { return _data; } }
+    public Hashtable Data {
+      get {
+        var d_list = MState.State.Data;
+        //Put it in a hashtable,
+        //@todo, remove this
+        Hashtable ht = new Hashtable(d_list.Count);
+        foreach(Entry e in d_list) {
+          ht[e.Content] = e;
+        }
+        return ht;
+      }
+    }
     /*
      <summary>Create a new set of chached data(For now, data is strings).</summary>
      * 
@@ -60,59 +202,51 @@ namespace Brunet.Services.Deetoo
       _node = node;
       //_rpc = RpcManager.GetInstance(node);
       _rpc = _node.Rpc;
+      var structs = _node.ConnectionTable.GetConnections(ConnectionType.Structured);
+      var state = new CacheListState(ImmutableList<Entry>.Empty, structs, (AHAddress)_node.Address);
+      MState = new Mutable<CacheListState>(state);
       ///add handler for deetoo data insertion and search.
       _rpc.AddHandler("Deetoo", new DeetooHandler(node,this));
     }
     /// <summary>need this for iteration</summary>
     public IEnumerator GetEnumerator() {
-      IDictionaryEnumerator en = _data.GetEnumerator();
-      while(en.MoveNext() ) {
-        yield return en.Current;
-      }
+      return Data.GetEnumerator();
     }
 
     /*
      <summary></summay>Object insertion method.</summary>
      <param name="ce">A Entry which is inserted to this node.</param>
      */
-    public void Insert(Entry ce) {
-      string Key = ce.Content;
-      if (!_data.ContainsKey(Key)  ) {
-        _data.Add(Key,ce);
+    public bool Insert(Entry ce) {
+      var states = MState.Update(new AddEntry(ce));
+      var old_s = states.First;
+      var new_s = states.Second;
+      bool added = old_s != new_s;
+      if (added) {
         if(CacheList.DeetooLog.Enabled) {
           ProtocolLog.Write(CacheList.DeetooLog, String.Format(
-            "data {0} added to node {1}", Key, _node.Address));
+            "data {0} added to node {1}", ce.Content, _node.Address));
         }
       }
       else {
         if(CacheList.DeetooLog.Enabled) {
           ProtocolLog.Write(CacheList.DeetooLog, String.Format(
-            "data {0} already exists in node {1}", Key, _node.Address));
+            "data {0} already exists in node {1}", ce.Content, _node.Address));
         }
       }
-    }
-    /**
-     <summary>Overrided method for insertion, create new Entry with inputs, then, insert Entry to the CacheList.</summary>
-     <param name="str">Content, this is key of hashtable.<param>
-     <param name="alpha">replication factor.<param>
-     <param name="a">start address of range.<param>
-     <param name="b">end address of range.<param>
-     */
-    public void Insert(string str, double alpha, Address a, Address b) {
-      Entry ce = new Entry(str, alpha, a, b);
-      Insert(ce);
+      return added;
     }
     /**
      <summary>Regular Expression search method.</summary>
      <return>An array of matching strings from CacheList.</return>
      <param name = "pattern">A pattern of string one wish to find.</param>
     */
-    public ArrayList RegExMatch(string pattern) { 
-      ArrayList result = new ArrayList();
+    public IList<string> RegExMatch(string pattern) { 
+      var result = new List<string>();
       Regex match_pattern = new Regex(pattern);
-      foreach(DictionaryEntry de in _data)
-      {
-        string this_key = (string)(de.Key);
+      var data = MState.State.Data;
+      foreach(Entry e in data) {
+        string this_key = (string)e.Content;
         if (match_pattern.IsMatch(this_key)) {
           result.Add(this_key);
         }
@@ -127,61 +261,20 @@ namespace Brunet.Services.Deetoo
      */
     public string ExactMatch(string key) {
       string result = null;
-      if (_data.ContainsKey(key) )
-      {
-        result = key;
+      var data = MState.State.Data;
+      foreach(Entry e in data) {
+        result = e.Content as string;
+        if(key.Equals(result)) {
+          return result;
+        }
       }
-      return result;
+      return null;
     } 
-     /**
-      <summary>Recalculate and replace range info for each Entry. 
-      Remove Entries whose range is not in the  
-      recalculated bounded broadcasting range.</summary>
-     */
-    public void RemoveEntries(int size) {
-      if(CacheList.DeetooLog.Enabled) {
-        ProtocolLog.Write(CacheList.DeetooLog, String.Format(
-          "In node {0}, stabilization is called",_node.Address));
-      }
-      List<string> to_be_removed = new List<string>();
-      MapReduceBoundedBroadcast mrbb = new MapReduceBoundedBroadcast(_node);
-      foreach (DictionaryEntry dic in _data) {
-        string this_key = (string)dic.Key;
-        Entry ce = (Entry)dic.Value;
-        /// Recalculate size of range.
-        BigInteger rg_size = GetRangeSize(ce.Alpha,size);
-        /// reassign range info based on recalculated range.
-        if(CacheList.DeetooLog.Enabled) {
-          ProtocolLog.Write(CacheList.DeetooLog, String.Format(
-          "---range before reassignment, start: {0}, end: {1}", ce.Start, ce.End));
-        }
-        ce.ReAssignRange(rg_size);
-        if(CacheList.DeetooLog.Enabled) {
-          ProtocolLog.Write(CacheList.DeetooLog, String.Format(
-          "+++range after reassignment, start: {0}, end: {1}", ce.Start, ce.End));
-        }
-        AHAddress addr = (AHAddress)_node.Address;
-	AHAddress start = ce.Start as AHAddress;
-	AHAddress end = ce.End as AHAddress;	
-        if (!mrbb.InRange(addr, start, end)) {
-          //This node is not in this entry's range. 
-          //Remove this entry.
-          if(CacheList.DeetooLog.Enabled) {
-            ProtocolLog.Write(CacheList.DeetooLog, String.Format(
-            "entry {0} needs to be removed from node {1}", ce.Content, _node.Address));
-          }
-          to_be_removed.Add(this_key);
-        }
-      }
-      for (int i = 0; i < to_be_removed.Count; i++) {
-        _data.Remove(to_be_removed[i]);
-      } 
-    }
     /*
     <summary>Determine size of bounded broadcasting range based on estimated network size.</summary>
     <returns>The range size as a biginteger.</returns>
     */    
-    public BigInteger GetRangeSize(double alpha, int size) {
+    public static BigInteger GetRangeSize(double alpha, int size) {
       //double alpha = this.Alpha;
       double a_n = alpha / (double)size;
       double sqrt_an = Math.Sqrt(a_n);

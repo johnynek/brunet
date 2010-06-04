@@ -382,7 +382,7 @@ namespace Brunet.Services.MapReduce {
      * @param start, the beginning address of range
      * @param end, the ending address of range
      */
-    public bool InRange(AHAddress addr, AHAddress start, AHAddress end) {
+    public static bool InRange(AHAddress addr, AHAddress start, AHAddress end) {
       return addr.IsBetweenFromLeft(start, end) || addr.Equals(start) || addr.Equals(end);
     }
   }

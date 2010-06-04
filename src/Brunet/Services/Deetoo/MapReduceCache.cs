@@ -35,8 +35,8 @@ namespace Brunet.Services.Deetoo {
   public class MapReduceCache: MapReduceBoundedBroadcast {
     //list of Deetoo object in a node, 
     //[content, start_range, end_range, replication_factor]
-    private CacheList _cl;
-    private Entry _ce;
+    private readonly CacheList _cl;
+    private static readonly object UNSET = new object();
     //private Node _node;
     /*
      * @param cl CacheList object for caching.
@@ -58,16 +58,18 @@ namespace Brunet.Services.Deetoo {
       AHAddress a = (AHAddress)AddressParser.Parse(st);
       AHAddress b = (AHAddress)AddressParser.Parse(ed);
       Entry ce = new Entry(input, alpha, a, b);
-      _ce = ce;
       int result = 0;   // if caching is successful, result will set to 1.
       int previous_count = _cl.Count;
       try {
-        _cl.Insert(ce);
-        result = 1;
+        if( _cl.Insert(ce) ) {
+          result = 1;
+        }
+        else {
+          result = 0;
+        }
       }
       catch {
-        //insertion failed.
-
+        result = 0;
       }
       if (_cl.Count > previous_count) { result = 1; }
       IDictionary my_entry = new ListDictionary();
@@ -75,7 +77,6 @@ namespace Brunet.Services.Deetoo {
       my_entry["height"]=1;
       my_entry["success"]=result;
       q.Enqueue(my_entry);
-      //return my_entry;
     }
     
     /**
@@ -92,10 +93,11 @@ namespace Brunet.Services.Deetoo {
       bool done = false;
       //ISender child_sender = child_rpc.ResultSender;
       //the following can throw an exception, will be handled by the framework
+      object child_result = UNSET;
       try {
-        object child_result = child_rpc.Result;
+        child_result = child_rpc.Result;
       }
-      catch(Brunet.Util.AdrException Exception x) {
+      catch(Exception x) {
         /*
         if (x.Equals("Child did not return") ) {
           //there might be at least one timeout from children.
@@ -117,13 +119,17 @@ namespace Brunet.Services.Deetoo {
 	}
         */
       } 
-      
+      if( child_result == UNSET ) {
+        //The child threw an exception
+        q.Enqueue(new Brunet.Collections.Pair<object, bool> (current_result, done));
+        return;
+      } 
       //child result is a valid result
       if (current_result == null) {
         q.Enqueue(new Brunet.Collections.Pair<object, bool> (child_result, done));
         return;
       }
-      
+      //else combine them: 
       IDictionary my_entry = current_result as IDictionary;
       IDictionary value = child_result as IDictionary;
       int max_height = (int) my_entry["height"];

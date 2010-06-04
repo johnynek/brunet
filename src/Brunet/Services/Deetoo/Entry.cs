@@ -31,46 +31,16 @@ namespace Brunet.Services.Deetoo
    The data is stored in a hashtable, which allows this to be casted to and from a hashtable.</summary>
    */
   public class Entry {
-    /// <summary>The hashtable where Entry data is stored.</summary>
-    protected Hashtable _ht = new Hashtable(4);
-    /**
-    <summary>Provides the ability to cast from an Entry to a hashtable.
-    </summary>
-    <returns>The data store hashtable</returns>
-    */    
-    public static explicit operator Hashtable(Entry c) {
-      return c._ht;
-    }
-    
-    /**
-    <summary>Provides conversion from a hashtable to an Entry object</summary>
-    <returns>A new Entry object using the hashtable as the data store</returns>
-    */
-    public static explicit operator Entry(Hashtable ht) {
-      return new Entry(ht);
-    }
     /* <summary>The actual content(for now, it is a string).</summary>
     <remarks>Content is stored as a string for now. </remarks>
     */
-    public string Content {
-      get { return (string) _ht["content"]; }
-      set { _ht["content"] = value; }
-    }
+    public readonly string Content;
     /// <summary>Replication factor for deciding bounded broadcasting range. </summary>
-    public double Alpha {
-      get { return (double) _ht["alpha"]; }
-      set { _ht["alpha"] = value; }
-    }
+    public readonly double Alpha;
     /// <summary> Start address of a range. </summary>
-    public Address Start {
-      get { return (Address) _ht["start"]; }
-      set { _ht["start"] = value; }
-    }
+    public readonly AHAddress Start;
     /// <summary> End address of a range. </summary>
-    public Address End {
-      get { return (Address) _ht["end"]; }
-      set { _ht["end"] = value; }
-    }
+    public readonly AHAddress End;
     /**
     <summary>Creates a new Entry given the content, alpha, start address, and end address.</summary>
     <param name="content">The content which is replicated in a range.</param>
@@ -79,96 +49,40 @@ namespace Brunet.Services.Deetoo
     <param name="end">The end address of bounded broadcasting range.</param>
     </param>
     */    
-    public Entry(string content, double alpha, Address start, Address end) {
-      this.Content = content;
-      this.Alpha = alpha;
-      this.Start = start;
-      this.End = end;
-    }
-    /**
-    <summary>Uses the hashtable as the data store for the Deetoo data</summary>
-    <param name="ht">A hashtable containing content,alpha, start, and end as keys</param>
-    */
-    public Entry(Hashtable ht) {
-      _ht = ht;
-    }    
-    /**
-    <summary>Compares the contents for two Entrys.</summary>
-    <returns>True if they are equal, false otherwise.</returns>
-    */
-    public bool Equal(Entry ce) {
-      if (this.Content == ce.Content) {
-        return true;
-      }
-      else
-      {
-        return false;
-      }
+    public Entry(string content, double alpha, AHAddress start, AHAddress end) {
+      Content = content;
+      Alpha = alpha;
+      Start = start;
+      End = end;
     }
     /**
     <summary>Reassign range info(Start and End) based on recalculated range.</summary>
     <param name = "rg_size">Current range size(round distance between start address and end address of this Entry).</param>
     <remarks>new_start = mid - rg_size/2, new_end = mid + rg_size/2 </remarks>
      */
-    public void ReAssignRange(BigInteger rg_size) {
-      AHAddress start_addr = (AHAddress)this.Start;
-      AHAddress end_addr = (AHAddress)this.End;
+    public Entry ReAssignRange(BigInteger rg_size) {
       // calculate middle address of range
-      BigInteger start_int = start_addr.ToBigInteger();
-      BigInteger end_int = end_addr.ToBigInteger();
+      BigInteger start_int = Start.ToBigInteger();
+      BigInteger end_int = End.ToBigInteger();
       BigInteger mid_int =  (start_int + end_int) / 2;  
       if (mid_int % 2 == 1) { mid_int = mid_int -1; }
       AHAddress mid_addr = new AHAddress(mid_int);
-      if (!mid_addr.IsBetweenFromLeft(start_addr, end_addr)) {
+      /*
+       * If we have a case where start -> end includes zero,
+       * this is the wrap around.  So, we can imagine that
+       * we have end' = end + Address.Full.  So,
+       * mid' = (start + end')/2 = (start + end)/2 + Address.Full/2
+              = (start + end)/ 2 + Address.Half
+       */
+      if (!mid_addr.IsBetweenFromLeft(Start, End)) {
         mid_int += Address.Half;
-        mid_addr = new AHAddress(mid_int);
       }
       //addresses for new range
       BigInteger rg_half = rg_size / 2;
       if (rg_half % 2 == 1) { rg_half -= 1; }
-      BigInteger n_st = mid_int - rg_half;
-      /*
-      if (n_st < 0) { //underflow
-        n_st += AHAddress.Full; 
-      }
-      */
-      BigInteger n_ed = n_st + rg_size;
-      /*
-      if (n_ed > AHAddress.Full) { //overflow
-        n_ed -= AHAddress.Full; 
-      }
-      */
-      /// underflow and overflow are handled by AHAddress class.
-      AHAddress n_a = new AHAddress(n_st);
-      AHAddress n_b = new AHAddress(n_ed);
-      this.Start = n_a;
-      this.End = n_b;
+      AHAddress n_a = new AHAddress(mid_int - rg_half);
+      AHAddress n_b = new AHAddress(mid_int + rg_half);
+      return new Entry(Content, Alpha, n_a, n_b);
     }
-    /*
-     * determine size of bounded broadcasting range
-     */
-        /**
-    <summary>Determine size of bounded broadcasting range based on estimated network size.</summary>
-    <returns>The range size as b biginteger.</returns>
-    public BigInteger GetRangeSize(int size) {
-      double alpha = this.Alpha;
-      double a_n = alpha / (double)size;
-      double sqrt_an = Math.Sqrt(a_n);
-      double log_san = Math.Log(sqrt_an,2);
-      //int exponent = (int)(log_san + 160);
-      double exponent = log_san + 160;
-      int exponent_i = (int)(exponent) - 63;
-      double exponent_f = exponent - exponent_i;
-      long twof = (long)Math.Pow(2,exponent_f);
-      BigInteger bi_one = new BigInteger(1);
-      BigInteger result = (bi_one << exponent_i)*twof;  
-      if (result % 2 == 1) { result += 1; } // make this even number.
-      if(CacheList.DeetooLog.Enabled) {
-        ProtocolLog.Write(CacheList.DeetooLog, String.Format(
-          "network size estimation: {0}, new range size: {1}", size, result));
-      }
-      return result;
-    }
-    */
   }
 }
