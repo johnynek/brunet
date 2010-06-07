@@ -311,7 +311,7 @@ namespace Brunet.Applications {
         _c_dht_proxy = new RpcDhtProxy(_c_dht, current_node);
         _cs = new CacheList(current_node);
         current_node.MapReduce.SubscribeTask(new MapReduceCache(current_node,_cs));
-        Console.WriteLine("MapReduceCacheTask is subscribed at {0}", current_node.Address);
+        //Console.WriteLine("MapReduceCacheTask is subscribed at {0}", current_node.Address);
         _c_node = current_node;
       }
       else {
@@ -319,7 +319,7 @@ namespace Brunet.Applications {
         _q_dht_proxy = new RpcDhtProxy(_c_dht, current_node);
         CacheList q_cs = new CacheList(current_node);
         current_node.MapReduce.SubscribeTask(new MapReduceQuery(current_node,_cs));
-        Console.WriteLine("MapReduceQueryTask is subscribed at {0}", current_node.Address);
+        //Console.WriteLine("MapReduceQueryTask is subscribed at {0}", current_node.Address);
         _q_node = current_node;
       }
 

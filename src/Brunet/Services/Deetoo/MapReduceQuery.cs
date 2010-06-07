@@ -48,12 +48,10 @@ namespace Brunet.Services.Deetoo {
       string query_type = (string)(map_args[1]);
       IDictionary my_entry = new ListDictionary();
       if (query_type == "regex") {
-        ArrayList query_result = (ArrayList)(_cl.RegExMatch(pattern));
-        my_entry["query_result"] = query_result;
+        my_entry["query_result"] = _cl.RegExMatch(pattern);
       }
       else if (query_type == "exact") {
-        string exact_result = _cl.ExactMatch(pattern);
-        my_entry["query_result"] = exact_result;
+        my_entry["query_result"] = _cl.ExactMatch(pattern);
       }
       else {
         q.Enqueue(new AdrException(-32608, "No Deetoo match option with this name: " +  query_type) );
@@ -117,10 +115,12 @@ namespace Brunet.Services.Deetoo {
         q.Enqueue(new Brunet.Collections.Pair<object, bool>(my_entry, done));
       }
       else if (query_type == "regex") {
-        ArrayList q_result = (ArrayList)(my_entry["query_result"]);
-        ArrayList c_result = (ArrayList)(value["query_result"]);
-        q_result.AddRange(c_result); //concatenate current result with child result
-        my_entry["query_result"] = q_result;
+        IList q_result = (IList)(my_entry["query_result"]);
+        IList c_result = (IList)(value["query_result"]);
+	ArrayList combined = new ArrayList();
+        combined.AddRange(q_result); //concatenate current result with child result
+        combined.AddRange(c_result); //concatenate current result with child result
+        my_entry["query_result"] = combined;
         q.Enqueue(new Brunet.Collections.Pair<object, bool>(my_entry, done));
       }
       else {

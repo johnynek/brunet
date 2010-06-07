@@ -58,8 +58,14 @@ namespace Brunet.Services.Deetoo
         Structs = structs;
         Local = local;
         
-        Left = Structs.GetLeftNeighborOf(Local);
-        Right = Structs.GetRightNeighborOf(Local);
+	if (structs.Count > 0) {
+          Left = Structs.GetLeftNeighborOf(Local);
+          Right = Structs.GetRightNeighborOf(Local);
+	}
+	else {
+          Left = null;
+	  Right = null;
+	}
       }
       public CacheListState SetData(ImmutableList<Entry> data) {
         return new CacheListState(data, Structs, Local);
@@ -241,7 +247,9 @@ namespace Brunet.Services.Deetoo
      <return>An array of matching strings from CacheList.</return>
      <param name = "pattern">A pattern of string one wish to find.</param>
     */
+    //public ArrayList RegExMatch(string pattern) { 
     public IList<string> RegExMatch(string pattern) { 
+      //var result = new ArrayList();
       var result = new List<string>();
       Regex match_pattern = new Regex(pattern);
       var data = MState.State.Data;
@@ -309,13 +317,13 @@ namespace Brunet.Services.Deetoo
           a = Utils.GenerateAHAddress();
           b = Utils.GenerateAHAddress();
           ce = new Entry(alpha.ToString(), alpha, a,b );
-          ce.Alpha = alpha;
-          CacheList cl = new CacheList(new StructuredNode(a) );
-          BigInteger rg_size = cl.GetRangeSize(alpha,i);
-          ce.ReAssignRange(rg_size);
-          start = (AHAddress)ce.Start;
-          end = (AHAddress)ce.End;
+          //BigInteger rg_size = cl.GetRangeSize(alpha,i);
+          BigInteger rg_size = CacheList.GetRangeSize(alpha,i);
+          Entry new_e = ce.ReAssignRange(rg_size);
+          start = (AHAddress)new_e.Start;
+          end = (AHAddress)new_e.End;
           distance = start.LeftDistanceTo(end);
+	  //Console.WriteLine("distance: {0}, rg_size: {1}", distance, rg_size );
           Assert.AreEqual(distance, rg_size, "Test of equality of ranges fails");
         }
       }
@@ -329,20 +337,21 @@ namespace Brunet.Services.Deetoo
           AHAddress node_addr_first = new AHAddress(2);
           AHAddress node_addr_last = new AHAddress(Address.Full-2);
           ce = new Entry(alpha.ToString(), alpha, node_addr_first, node_addr_last);
-          CacheList  cl_first = new CacheList(new StructuredNode(node_addr_first) );
-          CacheList cl_last = new CacheList(new StructuredNode(node_addr_last) );
-          BigInteger rg_size_first = cl_first.GetRangeSize(alpha,i);
-          BigInteger rg_size_last = cl_last.GetRangeSize(alpha,i);
+          //BigInteger rg_size_first = cl_first.GetRangeSize(alpha,i);
+          //BigInteger rg_size_last = cl_last.GetRangeSize(alpha,i);
+          BigInteger rg_size_first = CacheList.GetRangeSize(alpha,i);
+          BigInteger rg_size_last = CacheList.GetRangeSize(alpha,i);
 
-          ce.ReAssignRange(rg_size_first);
-          start = (AHAddress)ce.Start;
-          end = (AHAddress)ce.End;
+          Entry new_e = ce.ReAssignRange(rg_size_first);
+          start = (AHAddress)new_e.Start;
+          end = (AHAddress)new_e.End;
           distance = start.LeftDistanceTo(end);
+	  //Console.WriteLine("distance: {0}, rg_size: {1}", distance, rg_size_first );
           Assert.AreEqual(distance, rg_size_first, "Test of equality of ranges fails");
                  
-          ce.ReAssignRange(rg_size_last);
-          start = (AHAddress)ce.Start;
-          end = (AHAddress)ce.End;
+          new_e = ce.ReAssignRange(rg_size_last);
+          start = (AHAddress)new_e.Start;
+          end = (AHAddress)new_e.End;
           distance = start.LeftDistanceTo(end);
           Assert.AreEqual(distance, rg_size_last, "Test of equality of ranges fails");
           }
