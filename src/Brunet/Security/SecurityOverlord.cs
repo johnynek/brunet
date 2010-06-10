@@ -120,7 +120,9 @@ namespace Brunet.Security {
         }
 
         if(!valid) {
-          sa.Close(message);
+          try {
+            sa.Close(message);
+          } catch { }
         }
       }
     }
