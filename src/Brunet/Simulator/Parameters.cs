@@ -31,14 +31,14 @@ namespace Brunet.Simulator {
     public readonly string AppName;
     public readonly string AppDescription;
 
+    public int Broadcast { get { return _broadcast; } }
     public double Broken { get { return _broken; } }
     public bool Complete { get { return _complete; } }
     public string Dataset { get { return _dataset; } }
     public bool Dtls { get { return _dtls; } }
     public string ErrorMessage { get { return _error_message; } }
     public bool Evaluation { get { return _evaluation; } }
-    public int EvaluationTime { get { return _runtime; } }
-    public bool HeavyChurn { get { return _heavy_churn; } }
+    public int HeavyChurn { get { return _heavy_churn; } }
     public bool Help { get { return _help; } }
     public bool Pathing {get { return _pathing; } }
     public bool SecureEdges { get { return _se; } }
@@ -47,23 +47,25 @@ namespace Brunet.Simulator {
     public int Size { get { return _size; } }
     public List<List<int>> LatencyMap { get { return _latency_map; } }
     public OptionSet Options { get { return _options; } }
+    public string Output { get { return _output; } }
 
+    protected int _broadcast = -2;
     protected double _broken = 0;
     protected bool _complete = false;
     protected string _dataset = string.Empty;
     protected bool _dtls = false;
     protected string _error_message = string.Empty;
     protected bool _evaluation = false;
-    protected bool _heavy_churn = false;
+    protected int _heavy_churn = -1;
     protected bool _help = false;
     protected bool _pathing = false;
     protected int _seed = -1;
     protected bool _se = false;
     protected int _size = 100;
     protected bool _ss = false;
-    protected int _runtime = 3600000;
     protected List<List<int>> _latency_map = null;
     protected OptionSet _options;
+    protected string _output = "output.out";
 
     public Parameters(string app_name, string app_description)
     {
@@ -71,19 +73,19 @@ namespace Brunet.Simulator {
       AppDescription = app_description;
 
       _options = new OptionSet() {
+        {"broadcast=", "Broadcast evaluation", v => _broadcast = Int32.Parse(v)} ,
         {"b|broken=", "Ratio of broken edges", v => _broken = Double.Parse(v)},
         {"c|complete", "Complete full connectivity and quit", v => _complete = true},
         {"e|evaluation", "Evaluation", v => _evaluation = true},
         {"s|size=", "Network size", v => _size = Int32.Parse(v)},
-        {"t|execution_time=", "Time in sec to run the evaluation",
-          v => _runtime = Int32.Parse(v) * 1000},
         {"p|pathing", "Enable pathing", v => _pathing = true},
         {"secure_edges", "SecureEdges", v => _se = true},
         {"secure_senders", "SecureSenders", v => _ss = true},
-        {"heavy_churn", "HeavyChurn Test", v => _heavy_churn = true},
+        {"heavy_churn=", "HeavyChurn Test and time", v => _heavy_churn = Int32.Parse(v)},
         {"seed=", "Random number seed", v => _seed = Int32.Parse(v)},
         {"d|dataset=", "Peer latency latency_map", v => _dataset = v},
         {"dtls", "Use Dtls instead of PeerSec", v => _dtls = true},
+        {"output=", "Output file name", v => _output = v}, 
         {"h|help", "Help", v => _help = true},
       };
     }
@@ -91,13 +93,13 @@ namespace Brunet.Simulator {
     /// <summary>Copy constructor.</summary>
     public Parameters(Parameters copy)
     {
+      _broadcast = copy.Broadcast;
       _broken = copy.Broken;
       _complete = copy.Complete;
       _dataset = copy.Dataset;
       _dtls = copy.Dtls;
       _error_message = copy.ErrorMessage;
       _evaluation = copy.Evaluation;
-      _runtime = copy.EvaluationTime;
       _heavy_churn = copy.HeavyChurn;
       _pathing = copy.Pathing;
       _se = copy.SecureEdges;

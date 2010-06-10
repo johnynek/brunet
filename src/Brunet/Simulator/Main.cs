@@ -53,20 +53,43 @@ namespace Brunet.Simulator {
 
       if(p.Complete) {
         sim.Complete();
+      } else if(p.Broadcast > -2) {
+        Broadcast(sim, p.Broadcast);
+      } else if(p.HeavyChurn > 0) {
+        HeavyChurn(sim, p.HeavyChurn);
       } else if(p.Evaluation) {
-        DateTime now = DateTime.UtcNow;
-        sim.Complete();
-        SimpleTimer.RunSteps(p.EvaluationTime, false);
-        sim.Complete();
-        Console.WriteLine("Time spent setting up: " + (DateTime.UtcNow - now).ToString());
-        sim.AllToAll();
-        sim.Crawl();
-      } else if(p.HeavyChurn) {
-        HeavyChurn(sim, p.EvaluationTime);
+        Evaluate(sim, p);
       } else {
         Commands(sim);
       }
-       return 0;
+      return 0;
+    }
+
+    protected static void Broadcast(Simulator sim, int forwarders)
+    {
+      DateTime now = DateTime.UtcNow;
+      SimpleTimer.RunSteps(360000, false);
+      sim.Complete(true);
+      SimpleTimer.RunSteps(3600000, false);
+      sim.Complete(true);
+      Console.WriteLine("Time spent setting up: " + (DateTime.UtcNow - now).ToString());
+      for(int i = 0; i < sim.Nodes.Count; i++) {
+        sim.Broadcast(i, forwarders);
+      }
+    }
+
+    protected static void Evaluate(Simulator sim, Parameters p)
+    {
+//      DateTime now = DateTime.UtcNow;
+      SimpleTimer.RunSteps(360000, false);
+      sim.Complete(true);
+      SimpleTimer.RunSteps(3600000, false);
+      sim.Complete(true);
+      sim.AddNode();
+      sim.Complete(false);
+//      Console.WriteLine("Time spent setting up: " + (DateTime.UtcNow - now).ToString());
+//      sim.AllToAll();
+//      sim.Crawl();
     }
 
     public static void HeavyChurn(Simulator sim, int time)
@@ -87,9 +110,9 @@ namespace Brunet.Simulator {
             continue;
           }
 
-// This is due to some bug that I can no longer remember
+// This is due to bugs in Abort don't handle closing of ELs and maybe other stuff
 //          sim.RemoveNode(node, prob > .9);
-          sim.RemoveNode(node, true);
+          sim.RemoveNode(node, true, false);
           to_remove.Add(node);
         }
 
@@ -123,6 +146,10 @@ namespace Brunet.Simulator {
           }
 
           switch(command) {
+            case "B":
+              int forwarders = (parts.Length >= 2) ? Int32.Parse(parts[1]) : -1;
+              sim.Broadcast(forwarders);
+              break;
             case "C":
               sim.CheckRing(true);
               break;
@@ -145,7 +172,7 @@ namespace Brunet.Simulator {
               sim.RemoveNode(true, true);
               break;
             case "R":
-              sim.RemoveNode(true, false);
+              sim.RemoveNode(false, true);
               break;
             case "RUN":
               int steps = (parts.Length >= 2) ? Int32.Parse(parts[1]) : 0;

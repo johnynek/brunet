@@ -30,6 +30,7 @@ using System.Security.Cryptography;
 using System.Threading;
 
 using Brunet.Concurrent;
+using Brunet.Collections;
 using Brunet.Connections;
 using Brunet.Messaging;
 using Brunet.Security;
@@ -55,6 +56,7 @@ namespace Brunet.Simulator {
     protected Random _rand;
     public readonly string BrunetNamespace;
 
+    protected bool _start;
     protected readonly double _broken;
     protected readonly bool _pathing;
     protected readonly bool _secure_edges;
@@ -65,6 +67,7 @@ namespace Brunet.Simulator {
     protected Certificate _ca_cert;
     protected readonly Parameters _parameters;
 
+    protected readonly BroadcastHelper _bcast;
 
     public Simulator(Parameters parameters) : this(parameters, false)
     {
@@ -77,6 +80,7 @@ namespace Brunet.Simulator {
       CurrentNetworkSize = 0;
       Nodes = new SortedList<Address, NodeMapping>();
       TakenIDs = new SortedList<int, NodeMapping>();
+      _bcast = new BroadcastHelper();
 
       if(parameters.Seed != -1) {
         Console.WriteLine(parameters.Seed);
@@ -107,15 +111,44 @@ namespace Brunet.Simulator {
         SimulationEdgeListener.LatencyMap = parameters.LatencyMap;
       }
 
+      _start = parameters.Evaluation;
       if(!do_not_start) {
         Start();
       }
+      _start = false;
     }
 
     protected void Start()
     {
       for(int i = 0; i < _parameters.Size; i++) {
         AddNode();
+      }
+
+      if(_start) {
+        for(int idx = 0; idx < Nodes.Count; idx++) {
+          NodeMapping nm = Nodes.Values[idx];
+          var tas = new List<TransportAddress>();
+          int cidx = idx + 1;
+          cidx = cidx >= Nodes.Count ? cidx - Nodes.Count : cidx;
+          tas.Add(Nodes.Values[cidx].Node.LocalTAs[0]);
+
+          cidx = idx + 2;
+          cidx = cidx >= Nodes.Count ? cidx - Nodes.Count : cidx;
+          tas.Add(Nodes.Values[cidx].Node.LocalTAs[0]);
+
+          cidx = idx - 1;
+          cidx = cidx >= 0 ? cidx : cidx + Nodes.Count;
+          tas.Add(Nodes.Values[cidx].Node.LocalTAs[0]);
+
+          cidx = idx - 2;
+          cidx = cidx >= 0 ? cidx : cidx + Nodes.Count;
+          tas.Add(Nodes.Values[cidx].Node.LocalTAs[0]);
+
+          nm.Node.RemoteTAs = tas;
+        }
+        foreach(NodeMapping nm in Nodes.Values) {
+          nm.Node.Connect();
+        }
       }
     }
 
@@ -162,6 +195,59 @@ namespace Brunet.Simulator {
       while(a2ah.Done == 0) {
         SimpleTimer.RunStep();
       }
+    }
+
+    /// <summary>Randomly selects a node to perform broadcasting using the
+    /// specified amount of forwarders.</summary>
+    public void Broadcast(int forwarders)
+    {
+      Broadcast(_rand.Next(0, Nodes.Count), forwarders);
+    }
+
+    /// <summary>Performs a broadcast from the node at idx using the specified
+    /// amount of forwarders.</summary>
+    public void Broadcast(int idx, int forwarders)
+    {
+      _bcast.Start();
+      NodeMapping nm = Nodes.Values[idx];
+      BroadcastSender bs = new BroadcastSender(nm.Node as StructuredNode, forwarders);
+      bs.Send(BroadcastHelper.PType);
+
+      DateTime start = DateTime.UtcNow;
+      int to_run = (int) ((_bcast.EstimatedTimeLeft - start).Ticks /
+          TimeSpan.TicksPerMillisecond);
+
+      while(to_run > 0) {
+        SimpleTimer.RunSteps(to_run);
+        to_run = (int) ((_bcast.EstimatedTimeLeft - DateTime.UtcNow).Ticks /
+            TimeSpan.TicksPerMillisecond);
+      }
+
+      StreamWriter sw = null;
+      if(_parameters.Broadcast >= -1) {
+        FileStream fs = new FileStream(_parameters.Output, FileMode.Append);
+        sw = new StreamWriter(fs);
+      }
+
+      int slowest = -1;
+      List<int> sent_to = new List<int>();
+      foreach(BroadcastReceiver br in _bcast.Results) {
+        sent_to.Add(br.SentTo);
+        if(sw != null) {
+          sw.WriteLine(br.SentTo + ", " + br.Hops);
+        }
+        slowest = Math.Max(slowest, br.Hops);
+      }
+
+      if(sw != null) {
+        sw.Close();
+      }
+
+      sent_to.Add(bs.SentTo);
+      double avg = Average(sent_to);
+      double stddev = StandardDeviation(sent_to, avg);
+      Console.WriteLine("Average: {0}, StdDev: {1}", avg, stddev);
+      Console.WriteLine("Hit: {0}, in: {1} ", _bcast.Results.Count, slowest);
     }
 
     public void Crawl()
@@ -217,7 +303,9 @@ namespace Brunet.Simulator {
     public virtual Node AddNode(int id, AHAddress address)
     {
       StructuredNode node = PrepareNode(id, address);
-      node.Connect();
+      if(!_start) {
+        node.Connect();
+      }
       CurrentNetworkSize++;
       return node;
     }
@@ -267,8 +355,9 @@ namespace Brunet.Simulator {
         RSACryptoServiceProvider rsa_copy = new RSACryptoServiceProvider();
         rsa_copy.ImportCspBlob(blob);
 
+        string username = address.ToString().Replace('=', '0');
         CertificateMaker cm = new CertificateMaker("United States", "UFL", 
-          "ACIS", "David Wolinsky", "davidiw@ufl.edu", rsa_copy,
+          "ACIS", username, "davidiw@ufl.edu", rsa_copy,
           address.ToString());
         Certificate cert = cm.Sign(_ca_cert, _se_key);
 
@@ -288,6 +377,9 @@ namespace Brunet.Simulator {
           nm.SO = nm.Sso;
         }
 
+        var brh = new BroadcastRevocationHandler(_ca_cert, nm.SO);
+        node.GetTypeSource(BroadcastRevocationHandler.PType).Subscribe(brh, null);
+        ch.AddCertificateVerification(brh);
         nm.SO.Subscribe(node, null);
         node.GetTypeSource(PeerSecOverlord.Security).Subscribe(nm.SO, null);
       }
@@ -307,7 +399,9 @@ namespace Brunet.Simulator {
 
       node.AddEdgeListener(el);
 
-      node.RemoteTAs = GetRemoteTAs();
+      if(!_start) {
+        node.RemoteTAs = GetRemoteTAs();
+      }
 
       IRelayOverlap ito = null;
       if(NCEnable) {
@@ -326,6 +420,11 @@ namespace Brunet.Simulator {
         }
         node.AddEdgeListener(el);
       }
+
+      BroadcastHandler bhandler = new BroadcastHandler(node as StructuredNode);
+      node.DemuxHandler.GetTypeSource(BroadcastSender.PType).Subscribe(bhandler, null);
+      node.DemuxHandler.GetTypeSource(BroadcastHelper.PType).Subscribe(_bcast, null);
+
       // Enables Dht data store
       new TableServer(node);
       nm.Dht = new Dht(node, 3, 20);
@@ -333,8 +432,12 @@ namespace Brunet.Simulator {
       return node;
     }
 
-    public void RemoveNode(Node node, bool cleanly) {
+    // removes a node from the pool
+    public void RemoveNode(Node node, bool cleanly, bool output) {
       NodeMapping nm = Nodes[node.Address];
+      if(output) {
+        Console.WriteLine("Removing: " + nm.Node.Address);
+      }
       if(cleanly) {
         node.Disconnect();
       } else {
@@ -348,21 +451,10 @@ namespace Brunet.Simulator {
       CurrentNetworkSize--;
     }
 
-    // removes a node from the pool
-    public void RemoveNode(bool output, bool cleanly) {
+    public void RemoveNode(bool cleanly, bool output) {
       int index = _rand.Next(0, Nodes.Count);
       NodeMapping nm = Nodes.Values[index];
-      if(output) {
-        Console.WriteLine("Removing: " + nm.Node.Address);
-      }
-      if(cleanly) {
-        nm.Node.Disconnect();
-      } else {
-        nm.Node.Abort();
-      }
-      TakenIDs.Remove(nm.ID);
-      Nodes.RemoveAt(index);
-      CurrentNetworkSize--;
+      RemoveNode(nm.Node, cleanly, output);
     }
 
     /// <summary>Performs a crawl of the network using the ConnectionTable of
@@ -478,6 +570,28 @@ namespace Brunet.Simulator {
         node.Disconnect();
       }
       Nodes.Clear();
+    }
+
+    protected class BroadcastHelper : IDataHandler {
+      public static readonly PType PType = new PType("simbcast");
+      public DateTime EstimatedTimeLeft { get { return _estimated_time_left; } }
+      protected DateTime _estimated_time_left;
+
+      public List<BroadcastReceiver> Results { get { return _results; } }
+      protected List<BroadcastReceiver> _results;
+
+      public void Start()
+      {
+        _estimated_time_left = DateTime.UtcNow.AddSeconds(1);
+        _results = new List<BroadcastReceiver>();
+      }
+
+      public void HandleData(MemBlock data, ISender sender, object state)
+      {
+        BroadcastReceiver br = sender as BroadcastReceiver; 
+        _estimated_time_left = DateTime.UtcNow.AddSeconds(1);
+        _results.Add(br);
+      }
     }
 
     /// <summary>Helps performing a live crawl on the Simulator</summary>
@@ -749,6 +863,30 @@ namespace Brunet.Simulator {
         dht.AsyncGet(_key, returns);
       }
     }
+
+    /// <summary>Calculates the average of a data set.</summary>
+    public static double Average(List<int> data)
+    {
+      long total = 0;
+      foreach(int point in data) {
+        total += point;
+      }
+
+      return (double) total / data.Count;
+    }
+
+    /// <summary>Calculates the standard deviation given a data set and the
+    /// average.</summary>
+    public static double StandardDeviation(List<int> data, double avg)
+    {
+      double variance = 0;
+      foreach(int point in data) {
+        variance += Math.Pow(point - avg, 2.0);
+      }
+
+      return Math.Sqrt(variance / (data.Count - 1));
+    }
+
   }
 
   public class NodeMapping {
