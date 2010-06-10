@@ -174,6 +174,9 @@ namespace Brunet.Simulator {
             case "R":
               sim.RemoveNode(false, true);
               break;
+            case "REVOKE":
+              sim.Revoke(true);
+              break;
             case "RUN":
               int steps = (parts.Length >= 2) ? Int32.Parse(parts[1]) : 0;
               if(steps > 0) {

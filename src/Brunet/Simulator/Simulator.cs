@@ -272,6 +272,24 @@ namespace Brunet.Simulator {
       return ch.Success;
     }
 
+    public NodeMapping Revoke(bool log)
+    {
+      NodeMapping revoked = Nodes.Values[_rand.Next(0, Nodes.Count)];
+      NodeMapping revoker = Nodes.Values[_rand.Next(0, Nodes.Count)];
+      while(revoked != revoker) {
+        revoker = Nodes.Values[_rand.Next(0, Nodes.Count)];
+      }
+ 
+      string username = revoked.Node.Address.ToString().Replace('=', '0');
+      UserRevocationMessage urm = new UserRevocationMessage(_se_key, username);
+      BroadcastSender bs = new BroadcastSender(revoker.Node as StructuredNode);
+      bs.Send(new CopyList(BroadcastRevocationHandler.PType, urm));
+      if(log) {
+        Console.WriteLine("Revoked: " + revoked.Node.Address);
+      }
+      return revoked;
+    }
+
     /// <summary>Remove and return the next ID from availability.</summary>
     protected int TakeID()
     {
