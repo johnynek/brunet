@@ -166,7 +166,6 @@ namespace Brunet.Security.PeerSec {
       }
 
       PeerSecAssociation sa = null;
-      int count = 0;
       lock(_sync) {
         Dictionary<ISender, PeerSecAssociation> sender_to_sa = null;
         if(_spi.ContainsKey(SPI)) {

@@ -63,7 +63,7 @@ namespace Brunet.Security {
       _private_key = private_key;
       _ch = ch;
       _stopped = 0;
-      _sa_check = FuzzyTimer.Instance.DoEvery(CheckSAs, CHECK_SA_PERIOD, CHECK_SA_PERIOD / 2);
+      _sa_check = FuzzyTimer.Instance.DoEvery(CheckSAs, CHECK_SA_PERIOD, 0);//CHECK_SA_PERIOD / 2);
     }
 
 #if BRUNET_NUNIT
@@ -120,9 +120,7 @@ namespace Brunet.Security {
         }
 
         if(!valid) {
-          try {
-            sa.Close(message);
-          } catch { }
+          sa.Close(message);
         }
       }
     }

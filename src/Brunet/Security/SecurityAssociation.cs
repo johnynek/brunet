@@ -58,17 +58,9 @@ namespace Brunet.Security {
     public delegate void StateChangeHandler(SecurityAssociation sa, States state);
     /// <summary></summary>
     public event StateChangeHandler StateChangeEvent;
-#if BRUNET_NUNIT
-    // This may need to be tweaked for slower machines
-    public static readonly int TIMEOUT = 500;
-#else
-    public static readonly int TIMEOUT = 60000;
-#endif
     public ISender WrappedSender { get { return Sender; } }
     ///<summary>The insecure sender we send over.</summary>
     public readonly ISender Sender;
-    /// <summary></summary>
-    public readonly DateTime CreationTime;
     ///<summary>The state of the SA.</summary>
     public States State { get { return _state; } }
     /// <summary></summary>
@@ -80,7 +72,8 @@ namespace Brunet.Security {
 
     protected CertificateHandler _ch;
     protected int _closed;
-    protected bool _running;
+    protected bool _sending;
+    protected bool _receiving;
     protected States _state;
     protected object _state_lock;
 
@@ -89,9 +82,9 @@ namespace Brunet.Security {
     {
       Sender = sender;
       _ch = ch;
-      CreationTime = DateTime.UtcNow;
       _closed = 0;
-      _running = false;
+      _receiving = true;
+      _sending = true;
       _state = States.Waiting;
       _state_lock = new object();
     }
@@ -99,14 +92,10 @@ namespace Brunet.Security {
     /// <summary></summary>
     public void CheckState()
     {
-      bool running = _running;
-      _running = false;
-      DateTime now = DateTime.UtcNow;
-#if BRUNET_NUNIT
+      bool running = _sending || _receiving;
+      _sending = false;
+      _receiving = false;
       if(!running) {
-#else
-      if(!running && CreationTime.AddSeconds(TIMEOUT) < now) {
-#endif
         Close("Inactivity");
       }
     }
@@ -127,13 +116,16 @@ namespace Brunet.Security {
     ///<summary>All incoming data filters through here.</summary>
     public void HandleData(MemBlock data, ISender return_path, object state)
     {
+      if(Closed) {
+        throw new Exception("Cannot send on a closed SA");
+      }
       MemBlock app_data = null;
       if(!HandleIncoming(data, out app_data)) {
         return;
       }
 
+      _receiving = true;
       Handle(app_data, this);
-      _running = true;
     }
 
     /// <summary></summary>
@@ -145,13 +137,16 @@ namespace Brunet.Security {
     ///<summary>All outgoing data filters through here.</summary>
     public void Send(ICopyable app_data)
     {
+      if(Closed) {
+        throw new Exception("Cannot send on a closed SA");
+      }
       ICopyable data = null;
       if(!HandleOutgoing(app_data, out data)) {
         return;
       }
 
+      _sending = app_data != null;
       Sender.Send(data);
-      _running = true;
     }
 
     public override string ToString()
@@ -179,9 +174,7 @@ namespace Brunet.Security {
     protected void UpdateState(States current, States next, bool if_current)
     {
       lock(_state_lock) {
-        if(if_current && _state != current) {
-          return;
-        } else if(_state == next || _state == States.Closed) {
+        if(_state == States.Closed || _state == next || (if_current && _state != current)) {
           return;
         }
 

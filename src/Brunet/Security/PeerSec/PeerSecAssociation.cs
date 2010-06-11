@@ -85,6 +85,7 @@ namespace Brunet.Security.PeerSec {
     public int CurrentEpoch { get { return _current_epoch; } }
     protected int _current_epoch;
 
+    public readonly int TIMEOUT = 60000;
     protected DateTime _last_called_request_update;
     protected SecurityHandler _current_sh;
     protected DiffieHellman _dh;
@@ -168,8 +169,7 @@ namespace Brunet.Security.PeerSec {
     ///an equivalent time of two timeouts has occurred.</summary>
     public bool Reset() {
       lock(_sync) {
-        if(_running || _closed == 1)
-        {
+        if(_receiving || _closed == 1) {
           return false;
         }
         
@@ -186,7 +186,8 @@ namespace Brunet.Security.PeerSec {
         _ldhe = null;
         _hash_verified = false;
         _called_enable = 0;
-        _running = true;
+        _receiving = true;
+        _sending = true;
       }
 
       UpdateState(States.Active, States.Updating);
@@ -366,7 +367,6 @@ namespace Brunet.Security.PeerSec {
         }
       }
 
-      _running = true;
       app_data = sdm.Data;
       return true;
     }

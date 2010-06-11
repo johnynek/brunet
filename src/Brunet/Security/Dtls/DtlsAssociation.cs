@@ -99,6 +99,10 @@ namespace Brunet.Security.Dtls {
       _fe_lock = 0;
     }
 
+    ~DtlsAssociation() {
+      _ssl.Dispose();
+    }
+
     override protected bool HandleIncoming(MemBlock data, out MemBlock app_data)
     {
       app_data = null;
@@ -203,6 +207,9 @@ namespace Brunet.Security.Dtls {
     /// later.</summary>
     protected void HandleWouldBlock()
     {
+      if(Closed) {
+        return;
+      }
       long to = _ssl.GetTimeout();
       if(to == 0) {
         _ssl.TimerExpired();
@@ -245,7 +252,6 @@ namespace Brunet.Security.Dtls {
       }
 
       _ssl.Shutdown();
-      Send(null);
       return true;
     }
 
@@ -260,6 +266,10 @@ namespace Brunet.Security.Dtls {
     /// peers to start using a new set of symmetric keys.</summary>
     public void Renegotiate()
     {
+      if(Closed) {
+        throw new Exception("Closed!");
+      }
+
       UpdateState(States.Updating);
       _ssl.Renegotiate();
       _ssl.DoHandshake();
