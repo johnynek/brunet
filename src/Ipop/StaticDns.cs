@@ -36,14 +36,19 @@ namespace Ipop {
       String res = null;
       // C 123 123 123 . domain.length
       int length = 1 + 9 + 1 + DomainName.Length;
-      if(name.Length == length && name[0] == 'C' && name.EndsWith(DomainName)) {
-        res = String.Empty;
-        for(int i = 0; i < 3; i++) {
-          res += Int32.Parse(name.Substring((3*i)+1, 3)) + ".";
-        }
-        res = _base_address[0] + "." + res.Substring(0, res.Length - 1);
+
+      if(name.Length != length ||
+          (name[0] != 'c' && name[0] != 'C') ||
+          !name.EndsWith(DomainName, StringComparison.OrdinalIgnoreCase))
+      {
+        return null;
       }
-      return res;
+
+      res = String.Empty;
+      for(int i = 0; i < 3; i++) {
+        res += Int32.Parse(name.Substring((3*i)+1, 3)) + ".";
+      }
+      return _base_address[0] + "." + res.Substring(0, res.Length - 1);
     }
 
     /// <summary>Called during LookUp to perfrom a translation from IP to hostname.</summary>
@@ -119,8 +124,8 @@ namespace Ipop {
           MemBlock.Reference(Utils.StringToBytes("255.255.255.0", '.')),
           string.Empty, false);
 
-      Assert.AreEqual(dns.NameLookUp("10.1.2.94"), "C001002094.ipop");
-      Assert.AreEqual(dns.AddressLookUp("C001002094.ipop"), "10.1.2.94");
+      Assert.AreEqual(dns.NameLookUp("10.1.2.94"), "C001002094.ipop", "test1");
+      Assert.AreEqual(dns.AddressLookUp("C001002094.ipop"), "10.1.2.94", "test2");
     }
   }
 #endif
