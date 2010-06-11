@@ -146,7 +146,7 @@ namespace Brunet.Transport
           // id != 0, so we reduce all by 1
           delay = LatencyMap[_listener_id][remote_id] / 1000;
         } else {
-          delay = _rand.Next(10, 250);
+          delay = 100;
         }
       }
 
