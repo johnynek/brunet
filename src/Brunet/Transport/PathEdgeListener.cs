@@ -42,13 +42,11 @@ namespace Brunet.Transport {
    * Here's how to use this class:
    *  //Do this once for all the nodes you want to share the EL for:
    *   EdgeListener el = new UdpEdgeListener(port);
-   *   PType path_p = PType.Protocol.Pathing;
    *   PathELManager pem = new PathELManager(el);
    *   pem.Start();
    *
    *   //For each node, do this to create a new PathEdgeListener
    *   //In this example, we used "/tmp_node_path" as the path, you can use any string.
-   *   tmp_node.DemuxHandler.GetTypeSource(path_p).Subscribe(pem, path_p);
    *   tmp_node.AddEdgeListener(pem.CreatePath("/tmp_node_path"));
    */
   public class PathELManager : IDataHandler, IRpcHandler {
@@ -312,7 +310,7 @@ namespace Brunet.Transport {
              * This must be a "default path" incoming connection
              */
             pel = _pel_map[Root];
-            pe = new PathEdge(e, Root, Root);
+            pe = new PathEdge(this, e, Root, Root);
           }
           pel.SendPathEdgeEvent(pe);
           pe.Subscribe();
@@ -436,7 +434,7 @@ namespace Brunet.Transport {
         string local_path = (string)args[1];
         PathEdgeListener el = _pel_map[local_path];
         if( el.IsStarted ) {
-          PathEdge npe = new PathEdge(calling_edge, local_path, remote_path);
+          PathEdge npe = new PathEdge(this, calling_edge, local_path, remote_path);
           lock( _sync ) {
             //We don't announce yet, wait till we get some data, which
             //verifies that the other side has seen it.
@@ -539,7 +537,7 @@ namespace Brunet.Transport {
           }
 
           //If we get here, everything looks good:
-          PathEdge pe = new PathEdge(e, LocalPath, RemotePath);
+          PathEdge pe = new PathEdge(_pel._pem, e, LocalPath, RemotePath);
           //Start sending e's packets into pe
           pe.Subscribe();
           pe.CloseEvent += _pel.CloseHandler;
@@ -628,9 +626,11 @@ namespace Brunet.Transport {
     readonly Edge _e;
     public readonly string LocalPath;
     public readonly string RemotePath;
+    protected readonly IDataHandler _pem;
 
-    public PathEdge(Edge e, string local_path, string remote_path)
+    public PathEdge(IDataHandler path_handler, Edge e, string local_path, string remote_path)
        : base(null, e.IsInbound) {
+      _pem = path_handler;
       _e = e;
       LocalPath = local_path;
       RemotePath = remote_path;
@@ -647,6 +647,11 @@ namespace Brunet.Transport {
      * Handle the data from our underlying edge
      */
     public void HandleData(MemBlock b, ISender ret, object state) {
+      MemBlock tmp = b.Slice(0, PType.Protocol.Pathing.Length);
+      if(tmp.Equals(PType.Protocol.Pathing.ToMemBlock())) {
+        _pem.HandleData(b, ret, null);
+        return;
+      }
       ReceivedPacketEvent(b);
     }
 
