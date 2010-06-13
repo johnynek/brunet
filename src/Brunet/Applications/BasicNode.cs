@@ -35,6 +35,7 @@ using Brunet.Services.Coordinate;
 using Brunet.Services.Dht;
 using Brunet.Services.XmlRpc;
 using Brunet.Security;
+using Brunet.Security.Dtls;
 using Brunet.Security.PeerSec;
 using Brunet.Security.PeerSec.Symphony;
 using Brunet.Security.Transport;
@@ -189,7 +190,7 @@ namespace Brunet.Applications {
       _shutdown.OnExit += node.Disconnect;
       IEnumerable addresses = IPAddresses.GetIPAddresses(node_config.DevicesToBind);
 
-      SymphonySecurityOverlord pso = null;
+      SecurityOverlord so = null;
       // Enable Security if requested
       if(node_config.Security.Enabled) {
         if(node_config.Security.SelfSignedCertificates) {
@@ -206,12 +207,15 @@ namespace Brunet.Applications {
         RSACryptoServiceProvider rsa_private = new RSACryptoServiceProvider();
         rsa_private.ImportCspBlob(blob);
 
-        CertificateHandler ch = new CertificateHandler(
-            node_config.Security.CertificatePath, address.ToString());
-        pso = new SymphonySecurityOverlord(node, rsa_private, ch, node.Rrm);
-        pso.Subscribe(node, null);
+        CertificateHandler ch = null;
+        if(node_config.Security.Dtls) {
+          ch = new OpenSslCertificateHandler(node_config.Security.CertificatePath,
+              address.ToString());
+        } else {
+          ch = new CertificateHandler(node_config.Security.CertificatePath,
+              address.ToString());
+        }
 
-        node.GetTypeSource(PeerSecOverlord.Security).Subscribe(pso, null);
 
         if(node_config.Security.SecureEdges) {
           node.EdgeVerifyMethod = EdgeVerify.AddressInSubjectAltName;
@@ -235,6 +239,16 @@ namespace Brunet.Applications {
           ch.AddCACertificate(cacert.X509);
           ch.AddSignedCertificate(cert.X509);
         }
+
+        if(node_config.Security.Dtls) {
+          OpenSslCertificateHandler ssl_ch = ch as OpenSslCertificateHandler;
+          so = new DtlsOverlord(rsa_private, ssl_ch, new PType(20));
+          node.GetTypeSource(new PType(20)).Subscribe(so, null);
+        } else {
+          so = new SymphonySecurityOverlord(node, rsa_private, ch, node.Rrm);
+          node.GetTypeSource(PeerSecOverlord.Security).Subscribe(so, null);
+        }
+        so.Subscribe(node, null);
       }
 
       // Add Dht
@@ -257,14 +271,14 @@ namespace Brunet.Applications {
       }
 
       // Create the ApplicationNode
-      ApplicationNode app_node = new ApplicationNode(node, dht, dht_proxy, ncservice, pso);
+      ApplicationNode app_node = new ApplicationNode(node, dht, dht_proxy, ncservice, so);
 
       // Add Edge listeners
       EdgeListener el = null;
       foreach(NodeConfig.EdgeListener item in node_config.EdgeListeners) {
         el = CreateEdgeListener(item, app_node, addresses);
         if(node_config.Security.SecureEdgesEnabled) {
-          el = new SecureEdgeListener(el, pso);
+          el = new SecureEdgeListener(el, so);
         }
         node.AddEdgeListener(el);
       }
@@ -272,7 +286,7 @@ namespace Brunet.Applications {
       // Create the tunnel and potentially wrap it in a SecureEL
       el = new Relay.RelayEdgeListener(node, ito);
       if(node_config.Security.SecureEdgesEnabled) {
-        el = new SecureEdgeListener(el, pso);
+        el = new SecureEdgeListener(el, so);
       }
       node.AddEdgeListener(el);
 
@@ -340,8 +354,6 @@ namespace Brunet.Applications {
       }
 
       EdgeListener el = pem.CreatePath();
-      PType path_p = PType.Protocol.Pathing;
-      node.Node.DemuxHandler.GetTypeSource(path_p).Subscribe(pem, path_p);
       return el;
     }
 

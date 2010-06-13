@@ -20,6 +20,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
+using Brunet.Security;
 using Brunet.Security.PeerSec.Symphony;
 using Brunet.Services.Coordinate;
 using Brunet.Services.Dht;
@@ -32,17 +33,19 @@ namespace Brunet.Applications {
     public readonly IDht Dht;
     public readonly RpcDhtProxy DhtProxy;
     public readonly NCService NCService;
-    public readonly SymphonySecurityOverlord SecurityOverlord;
+    public readonly SecurityOverlord SecurityOverlord;
+    public readonly SymphonySecurityOverlord SymphonySecurityOverlord;
     public ApplicationNode PrivateNode;
 
     public ApplicationNode(StructuredNode node, IDht dht, RpcDhtProxy dht_proxy,
-        NCService ncservice, SymphonySecurityOverlord security_overlord)
+        NCService ncservice, SecurityOverlord security_overlord)
     {
       Node = node;
       Dht = dht;
       DhtProxy = dht_proxy;
       NCService = ncservice;
       SecurityOverlord = security_overlord;
+      SymphonySecurityOverlord = security_overlord as SymphonySecurityOverlord;
     }
   }
 }

@@ -20,13 +20,14 @@
       <fileset basedir="${lib.dir}">
         <include name="Brunet.dll" />
         <include name="libtuntap.so" />
-        <include name="CookComputing.XmlRpcV2.dll" />
         <include name="Brunet.Security.dll"/>
         <include name="Brunet.Services.Coordinate.dll"/>
         <include name="Brunet.Services.Dht.dll" />
         <include name="Brunet.Services.XmlRpc.dll" />
         <include name="Brunet.Xmpp.dll"/>
+        <include name="CookComputing.XmlRpcV2.dll" />
         <include name="jabber-net.dll"/>
+        <include name="ManagedOpenSsl.dll"/>
         <include name="Mono.Security.dll"/>
         <include name="NDesk.Options.dll"/>
       </fileset>
@@ -51,10 +52,11 @@
         <include name="Brunet.Xmpp.dll"/>
         <include name="CookComputing.XmlRpcV2.dll" />
         <include name="jabber-net.dll"/>
-        <include name="System.Runtime.Remoting.dll"/>
+        <include name="ManagedOpenSsl.dll"/>
         <include name="Mono.Posix.dll"/>
         <include name="Mono.Security.dll"/>
         <include name="nunit.framework.dll" />
+        <include name="System.Runtime.Remoting.dll"/>
       </references>
     </csc>
     <nunit2>

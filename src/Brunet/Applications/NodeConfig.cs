@@ -129,6 +129,7 @@ namespace Brunet.Applications {
         CertificatePath = "certificates";
       }
 
+      public bool Dtls;
       public bool Enabled;
       public bool SecureEdges;
       public bool TestEnable;

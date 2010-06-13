@@ -22,6 +22,7 @@
         <include name="Brunet.Xmpp.dll"/>
         <include name="CookComputing.XmlRpcV2.dll" />
         <include name="jabber-net.dll"/>
+        <include name="ManagedOpenSsl.dll"/>
         <include name="Mono.Security.dll"/>
         <include name="NDesk.Options.dll"/>
       </fileset>
@@ -45,6 +46,7 @@
         <include name="Brunet.Xmpp.dll"/>
         <include name="CookComputing.XmlRpcV2.dll" />
         <include name="jabber-net.dll"/>
+        <include name="ManagedOpenSsl.dll"/>
         <include name="Mono.Security.dll"/>
         <include name="NDesk.Options.dll"/>
         <include name="Mono.Posix.dll"/>
@@ -79,6 +81,7 @@
         <include name="Brunet.Xmpp.dll"/>
         <include name="CookComputing.XmlRpcV2.dll" />
         <include name="jabber-net.dll"/>
+        <include name="ManagedOpenSsl.dll"/>
         <include name="Mono.Security.dll"/>
         <include name="NDesk.Options.dll"/>
         <include name="Mono.Posix.dll"/>

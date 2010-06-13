@@ -131,7 +131,7 @@ namespace Ipop {
       Info = new Information(AppNode.Node, "IpopNode");
       Info.UserData["IpopNamespace"] = _ipop_config.IpopNamespace;
 
-      if(_ipop_config.EndToEndSecurity && AppNode.SecurityOverlord != null) {
+      if(_ipop_config.EndToEndSecurity && AppNode.SymphonySecurityOverlord != null) {
         _secure_senders = true;
       } else {
         _secure_senders = false;
@@ -467,7 +467,7 @@ namespace Ipop {
       ISender s = null;
       if(_secure_senders) {
         try {
-          s = AppNode.SecurityOverlord.GetSecureSender(target);
+          s = AppNode.SymphonySecurityOverlord.GetSecureSender(target);
         }
         catch(Exception e) {
           Console.WriteLine(e);

@@ -15,7 +15,6 @@
         <include name="Brunet.Services.Coordinate.dll"/>
         <include name="Brunet.Services.Dht.dll"/>
         <include name="Brunet.Security.dll"/>
-        <include name="Brunet.Security.Dtls.dll"/>
         <include name="ManagedOpenSsl.dll"/>
         <include name="NDesk.Options.dll"/>
       </fileset>
@@ -32,7 +31,6 @@
         <include name="Brunet.Services.Dht.dll"/>
         <include name="Brunet.Services.Coordinate.dll"/>
         <include name="Brunet.Security.dll"/>
-        <include name="Brunet.Security.Dtls.dll"/>
         <include name="ManagedOpenSsl.dll"/>
         <include name="NDesk.Options.dll"/>
       </references>
@@ -49,7 +47,6 @@
         <include name="Brunet.Services.Dht.dll"/>
         <include name="Brunet.Services.Coordinate.dll"/>
         <include name="Brunet.Security.dll"/>
-        <include name="Brunet.Security.Dtls.dll"/>
         <include name="ManagedOpenSsl.dll"/>
         <include name="NDesk.Options.dll"/>
       </references>
@@ -68,7 +65,6 @@
         <include name="Brunet.Services.Dht.dll"/>
         <include name="Brunet.Services.Coordinate.dll"/>
         <include name="Brunet.Security.dll"/>
-        <include name="Brunet.Security.Dtls.dll"/>
         <include name="ManagedOpenSsl.dll"/>
         <include name="NDesk.Options.dll"/>
       </references>
@@ -90,7 +86,6 @@
         <include name="Brunet.Services.Dht.dll"/>
         <include name="Brunet.Services.Coordinate.dll"/>
         <include name="Brunet.Security.dll"/>
-        <include name="Brunet.Security.Dtls.dll"/>
         <include name="ManagedOpenSsl.dll"/>
         <include name="NDesk.Options.dll"/>
         <include name="nunit.framework.dll" />

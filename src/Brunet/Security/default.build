@@ -52,21 +52,11 @@
         <include name="*.cs"/>
         <include name="PeerSec/*.cs"/>
         <include name="PeerSec/Symphony/*.cs"/>
-      </sources>
-      <references basedir="${build.dir}">
-        <include name="Mono.Security.dll"/>
-        <include name="Brunet.dll" />
-      </references>
-    </csc>
-
-    <csc target="library" define="" output="${build.dir}/Brunet.Security.Dtls.dll">
-      <sources failonempty="true">
         <include name="Dtls/*.cs"/>
         <include name="Utils/RSAPrivateKeyToDER.cs"/>
       </sources>
       <references basedir="${build.dir}">
         <include name="Brunet.dll" />
-        <include name="Brunet.Security.dll" />
         <include name="ManagedOpenSsl.dll"/>
         <include name="Mono.Security.dll"/>
       </references>
@@ -75,7 +65,6 @@
     <copy todir="${lib.dir}">
       <fileset basedir="${build.dir}">
        <include name="Brunet.Security.dll" />
-       <include name="Brunet.Security.Dtls.dll" />
       </fileset>
     </copy>
 
