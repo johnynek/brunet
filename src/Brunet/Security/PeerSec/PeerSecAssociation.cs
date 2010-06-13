@@ -93,6 +93,7 @@ namespace Brunet.Security.PeerSec {
     protected int _called_enable;
     protected WriteOnceX509 _remote_cert;
     protected WriteOnceX509 _local_cert;
+    protected bool _just_created;
 
     ///<summary>Local half of the DHE</summary>
     public MemBlock LDHE {
@@ -165,11 +166,18 @@ namespace Brunet.Security.PeerSec {
       }
     }
 
+    override public void CheckState() {
+      if(_just_created) {
+        _just_created = _receiving;
+      }
+      base.CheckState();
+    }
+
     ///<summary>This is called when we want to reset the state of the SA after
     ///an equivalent time of two timeouts has occurred.</summary>
     public bool Reset() {
       lock(_sync) {
-        if(_receiving || _closed == 1) {
+        if(_just_created || _closed == 1) {
           return false;
         }
         
@@ -188,6 +196,7 @@ namespace Brunet.Security.PeerSec {
         _called_enable = 0;
         _receiving = true;
         _sending = true;
+        _just_created = true;
       }
 
       UpdateState(States.Active, States.Updating);
@@ -424,7 +433,8 @@ namespace Brunet.Security.PeerSec {
 
     public override string ToString() 
     {
-      return "SecurityAssociation for " + Sender + " SPI: " + SPI;
+      return String.Format("PeerSecAssociation for {0}, SPI: {1}, State: {2}",
+          Sender, SPI, State);
     }
 
     ///<summary>This closes the SA and cleans up its state.</summary>

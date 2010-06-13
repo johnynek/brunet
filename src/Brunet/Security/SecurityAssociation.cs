@@ -90,7 +90,7 @@ namespace Brunet.Security {
     }
 
     /// <summary></summary>
-    public void CheckState()
+    virtual public void CheckState()
     {
       bool running = _sending || _receiving;
       _sending = false;

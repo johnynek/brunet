@@ -249,9 +249,9 @@ namespace Brunet.Security.PeerSec {
         try {
           ps = payload.GetString(System.Text.Encoding.ASCII);
         } catch { }
-          ProtocolLog.WriteIf(ProtocolLog.SecurityExceptions, String.Format(
-                "Security Packet Handling Exception: {3}\n\tType: {0}\n\t\n\tFrom: {1}\n\tData: {2}",
-                t, return_path, ps, e));
+        ProtocolLog.WriteIf(ProtocolLog.SecurityExceptions, String.Format(
+              "Security Packet Handling Exception, Type: {0}, From: {1}\n\tData: {2}\n\tException:{3}\n\tStack Trace:{4}",
+              t, return_path, ps, e, new System.Diagnostics.StackTrace(true)));
       }
     }
 
@@ -748,14 +748,20 @@ namespace Brunet.Security.PeerSec {
       SecurityAssociation sa1 = so1.CreateSecurityAssociation(ms1, spi, true);
       Assert.AreEqual(sa0.State, SecurityAssociation.States.Active, "sa0 should be active!");
       Assert.AreEqual(sa1.State, SecurityAssociation.States.Active, "sa1 should be active!");
+
+      sa0.CheckState();
+      sa1.CheckState();
+      sa1.Send(MemBlock.Reference(new byte[] {0, 1, 2, 3}));
+
       Assert.AreEqual(so0.SACount, 1, "so0 should contain just one! 0");
       Assert.AreEqual(so1.SACount, 1, "so1 should contain just one! 0");
 
       sa0.CheckState();
       sa0.CheckState();
-      Assert.AreEqual(so0.SACount, 0, "so0 should contain just zero!");
       sa1.CheckState();
+      Assert.AreEqual(so0.SACount, 0, "so0 should contain just zero!");
       Assert.AreEqual(so1.SACount, 1, "so1 should contain just one! 1");
+
       sa1.Send(MemBlock.Reference(new byte[] {0, 1, 2, 3}));
       Assert.AreEqual(so0.SACount, 1, "so0 should contain just one! 2");
       Assert.AreEqual(so1.SACount, 1, "so1 should contain just one! 1");
