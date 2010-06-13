@@ -30,7 +30,13 @@ namespace Brunet.Security.Dtls {
     {
     }
 
-    public OpenSslCertificateHandler(string cert_dir) : base(cert_dir)
+    public OpenSslCertificateHandler(string cert_dir) :
+      this(cert_dir, string.Empty)
+    {
+    }
+
+    public OpenSslCertificateHandler(string cert_dir, string local_id) :
+      base(cert_dir, local_id)
     {
       Store = new ox509.X509Store();
     }
