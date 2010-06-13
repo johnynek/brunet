@@ -20,13 +20,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
-using Brunet;
-using Brunet.Transport;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 
-namespace Brunet.Security.Transport {
+namespace Brunet.Transport {
   ///<summary>Wraps the underlying EdgeListener by listening for new edges and
   ///wrapping those edges.  This class is thread-safe.</summary>
   ///<remarks>This could be an abstract class, but it was fully implemented for

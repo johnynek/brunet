@@ -200,17 +200,23 @@ namespace Brunet.Relay {
       while(stack.Count > 0) {
         IEnumerator<Connection> cons = stack.Pop() as IEnumerator<Connection>;
         while(cons.MoveNext()) {
-          RelayEdge te = cons.Current.Edge as RelayEdge;
-          if(te == null) {
-            return false;
+          RelayEdge re = cons.Current.Edge as RelayEdge;
+          if(re == null) {
+            var we = cons.Current.Edge as WrapperEdge;
+            if(we != null) {
+              re = we.WrappedEdge as RelayEdge;
+            }
+            if(re == null) {
+              return false;
+            }
           }
 
-          if(have_passed.ContainsKey(te)) {
+          if(have_passed.ContainsKey(re)) {
             continue;
           }
-          have_passed[te] = true;
+          have_passed[re] = true;
           stack.Push(cons);
-          cons = te.Overlap.GetEnumerator();
+          cons = re.Overlap.GetEnumerator();
         }
       }
       return true;
@@ -252,6 +258,57 @@ namespace Brunet.Relay {
       overlap.Add(t4con);
       RelayEdge te5 = new RelayEdge(null, tta, tta, new SimpleForwarderSelector(), overlap);
       Connection t5con = new Connection(te5, addr, "structured", null, null);
+
+      Assert.AreEqual(te5.ShouldClose(), false, "Shouldn't close yet...");
+      te1.DisconnectionHandler(fcon);
+      Assert.AreEqual(te5.ShouldClose(), true, "Should close...");
+
+      overlap.Add(t5con);
+      overlap.Add(t3con);
+      overlap.Add(t1con);
+      te2.UpdateNeighborIntersection(overlap);
+      Assert.AreEqual(te5.ShouldClose(), true, "Should close... 2");
+    }
+
+    [Test]
+    public void WrapperEdgeRegressionTest()
+    {
+      AHAddress addr = new AHAddress(new System.Security.Cryptography.RNGCryptoServiceProvider());
+      TransportAddress ta = TransportAddressFactory.CreateInstance("brunet.tcp://169.0.5.1:5000");
+      FakeEdge fe = new FakeEdge(ta, ta);
+      WrapperEdge we_fe = new WrapperEdge(fe);
+      Connection fcon = new Connection(we_fe, addr, "structured", null, null);
+
+      List<Connection> overlap = new List<Connection>();
+      overlap.Add(fcon);
+      RelayTransportAddress tta = new RelayTransportAddress(addr, overlap);
+      RelayEdge te1 = new RelayEdge(null, tta, tta, new SimpleForwarderSelector(), overlap);
+      WrapperEdge we_te1 = new WrapperEdge(te1);
+      Connection t1con = new Connection(we_te1, addr, "structured", null, null);
+
+      overlap = new List<Connection>();
+      overlap.Add(t1con);
+      RelayEdge te2 = new RelayEdge(null, tta, tta, new SimpleForwarderSelector(), overlap);
+      WrapperEdge we_te2 = new WrapperEdge(te2);
+      Connection t2con = new Connection(we_te2, addr, "structured", null, null);
+
+      overlap = new List<Connection>();
+      overlap.Add(t2con);
+      RelayEdge te3 = new RelayEdge(null, tta, tta, new SimpleForwarderSelector(), overlap);
+      WrapperEdge we_te3 = new WrapperEdge(te3);
+      Connection t3con = new Connection(we_te3, addr, "structured", null, null);
+
+      overlap = new List<Connection>();
+      overlap.Add(t3con);
+      RelayEdge te4 = new RelayEdge(null, tta, tta, new SimpleForwarderSelector(), overlap);
+      WrapperEdge we_te4 = new WrapperEdge(te4);
+      Connection t4con = new Connection(we_te4, addr, "structured", null, null);
+
+      overlap = new List<Connection>();
+      overlap.Add(t4con);
+      RelayEdge te5 = new RelayEdge(null, tta, tta, new SimpleForwarderSelector(), overlap);
+      WrapperEdge we_te5 = new WrapperEdge(te5);
+      Connection t5con = new Connection(we_te5, addr, "structured", null, null);
 
       Assert.AreEqual(te5.ShouldClose(), false, "Shouldn't close yet...");
       te1.DisconnectionHandler(fcon);

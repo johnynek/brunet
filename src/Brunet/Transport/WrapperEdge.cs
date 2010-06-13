@@ -24,12 +24,10 @@ using System;
 using System.Threading;
 using System.Collections;
 
-using Brunet;
-using Brunet.Util;
-using Brunet.Transport;
-
 using Brunet.Messaging;
-namespace Brunet.Security.Transport {
+using Brunet.Util;
+
+namespace Brunet.Transport {
   ///<summary>Provides a Wrapper for edges, this allows us to control input,
   ///output, and state of the edge.  This class is thread-safe.</summary>
   ///<remarks>This could be an abstract class, but it was fully implemented for
