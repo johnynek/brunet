@@ -34,7 +34,6 @@ namespace Brunet.Transport {
   ///testing purposes</summary>
   public class WrapperEdge: Edge, IDataHandler {
     protected Edge _edge;
-    protected int _weclosed;
     ///<summary>The underlying edge.</summary>
     public Edge WrappedEdge { get { return _edge; } }
     public WrapperEdge(Edge edge): this(edge, true)
@@ -45,7 +44,6 @@ namespace Brunet.Transport {
     ///<param name="edge">The edge to wrap.</param>
     ///<param name="SubscribeToEdge">Should this subscribe to the edge.</param>
     public WrapperEdge(Edge edge, bool SubscribeToEdge) {
-      _weclosed = 0;
       _edge = edge;
       if(SubscribeToEdge) {
         _edge.Subscribe(this, null);
@@ -58,10 +56,9 @@ namespace Brunet.Transport {
     }
 
     public override bool Close() {
-      if(Interlocked.Exchange(ref _weclosed, 1) == 1) {
+      if(!base.Close()) {
         return false;
       }
-      base.Close();
       _edge.Close();
       return true;
     }

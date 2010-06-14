@@ -35,34 +35,31 @@ namespace Brunet.Security.Transport {
   public class SecureEdge: WrapperEdge, IDataHandler {
     ///<summary>The Security provider.</summary>
     public readonly SecurityAssociation SA;
-    protected int _closed;
 
     public SecureEdge(Edge edge, SecurityAssociation sa):
       base(edge, false)
     {
       SA = sa;
-      _closed = 0;
     }
 
     ///<summary>Pushes the data to the SecurityAssociation who will send it
     ///over the underlying edge.</summary>
     public override void Send(ICopyable data) {
-      if(_closed == 1) {
+      if(IsClosed) {
         throw new EdgeClosedException("SecureEdge has been closed.");
       }
       try {
         SA.Send(data);
       } catch(Exception e) {
-        throw new EdgeException(_closed == 1, "Unable to send on SE", e);
+        throw new EdgeException(IsClosed, "Unable to send on SE", e);
       }
     }
 
     public override bool Close() {
-      if(Interlocked.Exchange(ref _closed, 1) == 1) {
+      if(!base.Close()) {
         return false;
       }
       SA.Close("Edge closed!");
-      base.Close();
       return true;
     }
 
