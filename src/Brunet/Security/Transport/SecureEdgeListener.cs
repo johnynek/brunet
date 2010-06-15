@@ -126,7 +126,7 @@ namespace Brunet.Security.Transport {
         } catch {
           se.Close();
         }
-      } else {
+      } else if(state == SecurityAssociation.States.Closed) {
         e.Close();
       }
     }
