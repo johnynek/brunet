@@ -221,9 +221,11 @@ namespace Brunet.Security.Dtls {
         Send(null);
       }
 
+#if !BRUNET_SIMULATOR
       if(to > 0 && Interlocked.Exchange(ref _fe_lock, 1) == 0) {
         _fe = FuzzyTimer.Instance.DoAfter(HandleWouldBlock, (int) to, 250);
       }
+#endif
     }
 
     /// <summary>Timercall back for internal ssl timeout.</summary>
