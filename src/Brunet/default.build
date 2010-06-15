@@ -66,7 +66,7 @@
     </nunit2>
   </target>
 
-  <target name="build_brunet">
+  <target name="build">
     <mkdir dir="${build.dir}" failonerror="true"/>
 
     <csc target="library" debug="${build.debug}" define="${build.define}" optimize="true" output="${build.dir}/${assembly}.dll">
@@ -88,22 +88,11 @@
       </references>
     </csc>
 
-
-    <copy todir="${lib.dir}" overwrite="true">
-       <fileset basedir="${build.dir}">
-          <include name="${assembly}.dll" />
-       </fileset>
+    <copy todir="${lib.dir}">
+      <fileset basedir="${build.dir}">
+        <include name="${assembly}.dll" />
+      </fileset>
     </copy>
-  </target>
-
-  <target name="build" description="Builds the current configuration">
-    <call target="build_brunet"/>
-  </target>
-
-  <target name="simulator" description="Builds a Brunet Simulator!">
-    <property name="build.define" value="${build.define},BRUNET_SIMULATOR"/>
-    <property name="build.dir" value="${build.dir}/simulator" />
-    <call target="build_brunet"/>
   </target>
 
   <target name="clean" description="Deletes all the configurations">

@@ -7,18 +7,41 @@
   <target name="clean" description="Remove build directory">
     <delete dir="${build.dir}" failonerror="true"/>
   </target>
+
   <target name="build" description="Build Integration tests">
     <mkdir dir="${build.dir}" failonerror="true"/>
     <copy todir="${build.dir}" failonerror="true">
       <fileset basedir="${lib.dir}">
-        <include name="Brunet.dll"/>
-        <include name="Brunet.Services.Coordinate.dll"/>
-        <include name="Brunet.Services.Dht.dll"/>
-        <include name="Brunet.Security.dll"/>
         <include name="ManagedOpenSsl.dll"/>
         <include name="NDesk.Options.dll"/>
       </fileset>
     </copy>
+
+    <csc target="library" define="TRACE,BRUNET_SIMULATOR" optimize ="true" output="${build.dir}/Brunet.Simulator.dll">
+      <sources>
+        <include name="../*.cs"/>
+        <include name="../Collections/*.cs"/>
+        <include name="../Concurrent/*.cs"/>
+        <include name="../Connections/*.cs"/>
+        <include name="../Messaging/*.cs"/>
+        <include name="../Relay/*.cs"/>
+        <include name="../Security/*.cs"/>
+        <include name="../Security/*/*.cs"/>
+        <include name="../Security/*/*/*.cs"/>
+        <include name="../Services/*.cs"/>
+        <include name="../Services/Coordinate/*.cs"/>
+        <include name="../Services/Dht/*.cs"/>
+        <include name="../Services/MapReduce/*.cs"/>
+        <include name="../Symphony/*.cs"/>
+        <include name="../Transport/*.cs"/>
+        <include name="../Util/*.cs"/>
+      </sources>
+      <references basedir="${build.dir}">
+        <include name="ManagedOpenSsl.dll"/>
+        <include name="Mono.Security.dll"/>
+        <include name="System.Web.dll"/>
+      </references>
+    </csc>
 
     <csc target="exe" output="${build.dir}/Simulator.exe" main="Brunet.Simulator.Runner">
       <sources failonempty="true">
@@ -27,11 +50,7 @@
         <include name="Simulator.cs"/>
       </sources>
       <references basedir="${build.dir}">
-        <include name="Brunet.dll"/>
-        <include name="Brunet.Services.Dht.dll"/>
-        <include name="Brunet.Services.Coordinate.dll"/>
-        <include name="Brunet.Security.dll"/>
-        <include name="ManagedOpenSsl.dll"/>
+        <include name="Brunet.Simulator.dll"/>
         <include name="NDesk.Options.dll"/>
       </references>
     </csc>
@@ -43,11 +62,7 @@
         <include name="Parameters.cs"/>
       </sources>
       <references basedir="${build.dir}">
-        <include name="Brunet.dll"/>
-        <include name="Brunet.Services.Dht.dll"/>
-        <include name="Brunet.Services.Coordinate.dll"/>
-        <include name="Brunet.Security.dll"/>
-        <include name="ManagedOpenSsl.dll"/>
+        <include name="Brunet.Simulator.dll"/>
         <include name="NDesk.Options.dll"/>
       </references>
     </csc>
@@ -61,11 +76,7 @@
         <include name="Main.cs"/>
       </sources>
       <references basedir="${build.dir}">
-        <include name="Brunet.dll"/>
-        <include name="Brunet.Services.Dht.dll"/>
-        <include name="Brunet.Services.Coordinate.dll"/>
-        <include name="Brunet.Security.dll"/>
-        <include name="ManagedOpenSsl.dll"/>
+        <include name="Brunet.Simulator.dll"/>
         <include name="NDesk.Options.dll"/>
       </references>
     </csc>
@@ -82,10 +93,7 @@
         <include name="SubringSimulator.cs"/>
       </sources>
       <references basedir="${build.dir}">
-        <include name="Brunet.dll"/>
-        <include name="Brunet.Services.Dht.dll"/>
-        <include name="Brunet.Services.Coordinate.dll"/>
-        <include name="Brunet.Security.dll"/>
+        <include name="Brunet.Simulator.dll"/>
         <include name="ManagedOpenSsl.dll"/>
         <include name="NDesk.Options.dll"/>
         <include name="nunit.framework.dll" />

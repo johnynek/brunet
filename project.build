@@ -16,6 +16,7 @@
     <nant buildfile="src/Brunet/Xmpp/default.build" />
     <nant buildfile="src/Brunet/Applications/default.build" />
     <nant buildfile="src/Brunet/Messaging/Mock/default.build" />
+    <nant buildfile="src/Brunet/Simulator/default.build" />
     <nant buildfile="tests/protocol/default.build" />
     <nant buildfile="src/Ipop/default.build" />
   </target>
@@ -41,21 +42,7 @@
 
   </target>
 
-  <target name="simulator" description="compiles the simulator">
-    <nant target="simulator" buildfile="src/Brunet/default.build" />
-    <nant buildfile="src/Brunet/Services/Dht/default.build" />
-    <nant buildfile="src/Brunet/Services/Coordinate/default.build" />
-    <nant buildfile="src/Brunet/Services/XmlRpc/default.build" />
-    <nant buildfile="src/Brunet/Security/default.build" />
-    <nant buildfile="src/Brunet/Simulator/default.build" />
-    <nant buildfile="src/Brunet/Graph/default.build" />
-  </target>
-
   <target name="test" description="nunit test brunet!">
-    <call target="simulator" />
-    <nant target="test" buildfile="src/Brunet/Simulator/default.build" failonerror="false" />
-
-    <call target ="build" />
     <nant target="test" buildfile="src/Brunet/Services/Dht/default.build" failonerror="false" />
     <nant target="test" buildfile="src/Brunet/Services/Coordinate/default.build" failonerror="false" />
     <nant target="nunit_test" buildfile="src/Brunet/default.build" failonerror="false" />
@@ -63,5 +50,6 @@
     <nant target="test" buildfile="src/Ipop/default.build" />
     <nant target="test" buildfile="src/Ipop/Managed/default.build" />
     <nant target="test" buildfile="src/NetworkPackets/default.build" />
+    <nant target="test" buildfile="src/Brunet/Simulator/default.build" failonerror="false" />
   </target>
 </project>
