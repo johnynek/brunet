@@ -234,12 +234,13 @@ namespace Brunet.Security.Dtls {
       DtlsAssociation sa;
       try {
         _it.Parse(data, out payload, out localid, out remoteid);
+        _it.TryGet(localid, remoteid, out cp);
       } catch(Exception e) {
         ProtocolLog.WriteIf(ProtocolLog.SecurityExceptions, e.Message);
         return;
       }
 
-      if(_it.TryGet(localid, remoteid, out cp)) {
+      if(cp != null) {
         sa = cp as DtlsAssociation;
       } else {
         NoSuchSA(return_path, remoteid, false, out sa);
