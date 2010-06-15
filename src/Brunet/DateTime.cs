@@ -68,14 +68,14 @@ namespace Brunet {
     }
 
     public static void SetTime(long now) {
-      _cticks = TimeSpan.TicksPerMillisecond * now;
+      _cticks = now;
     }
 
     public static void Increment(long ms) {
-      _cticks += TimeSpan.TicksPerMillisecond * ms;
+      _cticks += ms;
     }
 
-    protected static long _cticks = 0;
+    protected static long _cticks = System.DateTime.UtcNow.Ticks;
     public static DateTime UtcNow {
       get {
         return new DateTime(_cticks);

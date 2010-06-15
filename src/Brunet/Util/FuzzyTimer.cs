@@ -42,11 +42,7 @@ public class FuzzyEvent : Interval<DateTime> {
   protected readonly System.Action<DateTime> _todo;
 
   public FuzzyEvent(System.Action<DateTime> todo, DateTime start, DateTime end)
-#if BRUNET_SIMULATOR
-       : base(end, false, end, false, Comparer<DateTime>.Default) {
-#else
        : base(start, false, end, false, Comparer<DateTime>.Default) {
-#endif
     _todo = todo;
     _has_run = 0;
   }
@@ -80,7 +76,7 @@ public class RepeatingFuzzyEvent : FuzzyEvent {
 
   protected readonly TimeSpan _interval;
 
-  protected class Flag { 
+  public class Flag { 
     protected int _val;
     public bool Value {
       get { return _val == 1; }
@@ -247,31 +243,32 @@ public class FuzzyTimer : IDisposable {
   }
 
 #if BRUNET_SIMULATOR
-  // Simulator does not need a lock as it is single threaded
-  Heap<FuzzyEvent> _events = new Heap<FuzzyEvent>();
+  public class FuzzySimpleTimer : SimpleTimer {
+    protected readonly FuzzyEvent _fe;
 
-  public long Minimum {
-    get {
-      if(_events.Count == 0) {
-        return long.MaxValue;
-      }
-      return _events.Peek().Start.Ticks;
+    public FuzzySimpleTimer(FuzzyEvent fe) :
+      base(Run, null, (int) (fe.End - DateTime.UtcNow).TotalMilliseconds, 0)
+    {
+      _fe = fe;
     }
-  }
 
-  public long Run() {
-    DateTime now = DateTime.UtcNow;
-    while(_events.Count > 0 && _events.Peek().Start <= now) {
-      FuzzyEvent fe = _events.Pop();
-      fe.TryRun(now);
+    public static FuzzySimpleTimer Enqueue(FuzzyEvent fe)
+    {
+      FuzzySimpleTimer timer = new FuzzySimpleTimer(fe);
+      timer.Start();
+      return timer;
     }
-    return Minimum;
+
+    protected void Run(object o)
+    {
+      _fe.TryRun(DateTime.UtcNow);
+    }
   }
 #endif
 
   public void Schedule(FuzzyEvent e) {
 #if BRUNET_SIMULATOR
-    _events.Add(e);
+    FuzzySimpleTimer.Enqueue(e);
 #else
     _incoming_events.Enqueue(e);
 #endif

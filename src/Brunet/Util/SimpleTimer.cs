@@ -70,18 +70,17 @@ namespace Brunet.Util {
         if(!_timers.Empty) {
           minimum = _timers.Peek()._next_run;
         }
-        return System.Math.Min(minimum, FuzzyTimer.Instance.Minimum);
+        return minimum;
       }
     }
 
-    public static void RunSteps(int cycles) {
-      RunSteps(cycles, true);
+    public static void RunSteps(int ms) {
+      RunSteps(ms, true);
     }
 
-    public static void RunSteps(int cycles, bool log) {
-      long cycle = DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond;
-      long diff = cycle + cycles;
-      cycle = SimpleTimer.Minimum / TimeSpan.TicksPerMillisecond;
+    public static void RunSteps(int ms, bool log) {
+      long cycle = DateTime.UtcNow.Ticks;
+      long diff = cycle + (ms * TimeSpan.TicksPerMillisecond);
 
       System.DateTime last = System.DateTime.UtcNow;
       while(diff >= cycle) {
@@ -93,7 +92,7 @@ namespace Brunet.Util {
           }
         }
         Brunet.DateTime.SetTime(cycle);
-        cycle = SimpleTimer.Run() / TimeSpan.TicksPerMillisecond;
+        cycle = SimpleTimer.Run();
       }
 
       Brunet.DateTime.SetTime(diff);
@@ -101,7 +100,7 @@ namespace Brunet.Util {
 
     public static void RunStep() {
       long next = SimpleTimer.Minimum;
-      Brunet.DateTime.SetTime(next / TimeSpan.TicksPerMillisecond);
+      Brunet.DateTime.SetTime(next);
       SimpleTimer.Run();
     }
 #endif
@@ -158,10 +157,6 @@ namespace Brunet.Util {
           timer.Stop();
         }
       }
-
-#if BRUNET_SIMULATOR
-      min_next_run = System.Math.Min(min_next_run, FuzzyTimer.Instance.Run());
-#endif
 
       return min_next_run;
     }
