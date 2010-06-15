@@ -143,24 +143,21 @@ namespace Brunet.Security.PeerSec {
 
     /// <summary>This (idempotently) returns a new SecurityAssociation for the
     /// specified sender using the default SPI and starts it if requested to.</summary>
-    override public SecurityAssociation CreateSecurityAssociation(ISender Sender, bool start) {
-      return CreateSecurityAssociation(Sender, SecurityPolicy.DefaultSPI, start);
+    override public SecurityAssociation CreateSecurityAssociation(ISender Sender) {
+      return CreateSecurityAssociation(Sender, SecurityPolicy.DefaultSPI);
     }
 
     /// <summary>This (idempotently) returns a new SecurityAssociation for the
     /// specified sender using the specified SPI and starts it if requested to.</summary>
-    public PeerSecAssociation CreateSecurityAssociation(ISender Sender, int SPI, bool start) {
-      PeerSecAssociation sa = CreateSecurityAssociation(Sender, SPI);
-      if(start && sa.State != SecurityAssociation.States.Active) {
-        StartSA(sa);
-      }
-
-      return sa;
+    virtual public PeerSecAssociation CreateSecurityAssociation(ISender Sender, int SPI) {
+      return CreateSecurityAssociation(Sender, SPI, true);
     }
 
     /// <summary>This (idempotently) returns a new SecurityAssociation for the
     /// specified sender using the specified SA.</summary>
-    virtual protected PeerSecAssociation CreateSecurityAssociation(ISender Sender, int SPI) {
+    protected PeerSecAssociation CreateSecurityAssociation(ISender Sender,
+        int SPI, bool start)
+    {
       if(!SecurityPolicy.Supports(SPI)) {
         throw new Exception("Unsupported SPI");
       }
@@ -184,6 +181,10 @@ namespace Brunet.Security.PeerSec {
           sa.RequestUpdate += SARequestUpdate;
           sender_to_sa[Sender] = sa;
         }
+      }
+
+      if(start && sa.State != SecurityAssociation.States.Active) {
+        StartSA(sa);
       }
       return sa;
     }
@@ -722,8 +723,8 @@ namespace Brunet.Security.PeerSec {
       MockSender ms1 = new MockSender(ms0, null, so0, 0);
       ms0.ReturnPath = ms1;
 
-      SecurityAssociation sa0 = so0.CreateSecurityAssociation(ms0, spi, true);
-      SecurityAssociation sa1 = so1.CreateSecurityAssociation(ms1, spi, true);
+      SecurityAssociation sa0 = so0.CreateSecurityAssociation(ms0, spi);
+      SecurityAssociation sa1 = so1.CreateSecurityAssociation(ms1, spi);
       Assert.AreEqual(sa0.State, SecurityAssociation.States.Active, "sa0 should be active!");
       Assert.AreEqual(sa1.State, SecurityAssociation.States.Active, "sa1 should be active!");
       Assert.AreEqual(so0.SACount, 1, "so0 should contain just one!");
@@ -744,8 +745,8 @@ namespace Brunet.Security.PeerSec {
       MockSender ms1 = new MockSender(ms0, null, so0, 0);
       ms0.ReturnPath = ms1;
 
-      SecurityAssociation sa0 = so0.CreateSecurityAssociation(ms0, spi, true);
-      SecurityAssociation sa1 = so1.CreateSecurityAssociation(ms1, spi, true);
+      SecurityAssociation sa0 = so0.CreateSecurityAssociation(ms0, spi);
+      SecurityAssociation sa1 = so1.CreateSecurityAssociation(ms1, spi);
       Assert.AreEqual(sa0.State, SecurityAssociation.States.Active, "sa0 should be active!");
       Assert.AreEqual(sa1.State, SecurityAssociation.States.Active, "sa1 should be active!");
 
@@ -781,8 +782,8 @@ namespace Brunet.Security.PeerSec {
         MockSender ms1 = new MockSender(ms0, null, so0, 0);
         ms0.ReturnPath = ms1;
 
-        SecurityAssociation sa0 = so0.CreateSecurityAssociation(ms0, true);
-        SecurityAssociation sa1 = so1.CreateSecurityAssociation(ms1, true);
+        SecurityAssociation sa0 = so0.CreateSecurityAssociation(ms0);
+        SecurityAssociation sa1 = so1.CreateSecurityAssociation(ms1);
         Assert.AreEqual(sa0.State, SecurityAssociation.States.Active, "sa0 should be active!");
         Assert.AreEqual(sa1.State, SecurityAssociation.States.Active, "sa1 should be active!");
         Assert.AreEqual(so0.SACount, 1, "so0 should contain just one!");
@@ -795,7 +796,7 @@ namespace Brunet.Security.PeerSec {
         sa1.Send(mb);
 
         new SecurityPolicy(12345, "DES", "MD5");
-        sa0 = so0.CreateSecurityAssociation(ms0, 12345, true);
+        sa0 = so0.CreateSecurityAssociation(ms0, 12345);
         Assert.AreEqual(sa0.State, SecurityAssociation.States.Active, "sa0 should be active!");
         Assert.AreEqual(so0.SACount, 2, "so0 should contain just one!");
         Assert.AreEqual(so1.SACount, 2, "so1 should contain just one!");
@@ -813,9 +814,9 @@ namespace Brunet.Security.PeerSec {
         MockSender msb = new MockSender(msa, null, so0, 0);
         msa.ReturnPath = msb;
 
-        SecurityAssociation sab = so.CreateSecurityAssociation(msb, true);
+        SecurityAssociation sab = so.CreateSecurityAssociation(msb);
         Assert.AreEqual(sab.State, SecurityAssociation.States.Active, "sab should be active! " + i);
-        SecurityAssociation saa = so0.CreateSecurityAssociation(msa, true);
+        SecurityAssociation saa = so0.CreateSecurityAssociation(msa);
         Assert.AreEqual(saa.State, SecurityAssociation.States.Active, "saa should be active! " + i);
 
         MockDataHandler mdha = new MockDataHandler();
@@ -844,8 +845,8 @@ namespace Brunet.Security.PeerSec {
         MockSender msb = new MockSender(msa, null, so0, 0);
         msa.ReturnPath = msb;
 
-        SecurityAssociation sab = so.CreateSecurityAssociation(msb, true);
-        SecurityAssociation saa = so0.CreateSecurityAssociation(msa, true);
+        SecurityAssociation sab = so.CreateSecurityAssociation(msb);
+        SecurityAssociation saa = so0.CreateSecurityAssociation(msa);
         Assert.AreEqual(sab.State, SecurityAssociation.States.Waiting, "sab should be waiting! " + i);
         Assert.AreEqual(saa.State, SecurityAssociation.States.Waiting, "saa should be waiting! " + i);
       }
@@ -857,9 +858,9 @@ namespace Brunet.Security.PeerSec {
         MockSender msb = new MockSender(msa, null, so0, 0);
         msa.ReturnPath = msb;
 
-        SecurityAssociation sab = so.CreateSecurityAssociation(msb, true);
+        SecurityAssociation sab = so.CreateSecurityAssociation(msb);
         Assert.AreEqual(sab.State, SecurityAssociation.States.Active, "sab should be active! " + i);
-        SecurityAssociation saa = so0.CreateSecurityAssociation(msa, true);
+        SecurityAssociation saa = so0.CreateSecurityAssociation(msa);
         Assert.AreEqual(saa.State, SecurityAssociation.States.Active, "saa should be active! " + i);
 
         MockDataHandler mdha = new MockDataHandler();

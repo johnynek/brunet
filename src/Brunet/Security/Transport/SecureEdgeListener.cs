@@ -53,7 +53,7 @@ namespace Brunet.Security.Transport {
           _edge_to_inbound.Add(edge, true);
         }
       } else {
-        SecurityAssociation sa = _so.CreateSecurityAssociation(edge, true);
+        SecurityAssociation sa = _so.CreateSecurityAssociation(edge);
         lock(_sync) {
           _edge_to_sa.Add(edge, sa);
         }

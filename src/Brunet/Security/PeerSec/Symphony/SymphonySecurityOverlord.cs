@@ -98,7 +98,7 @@ namespace Brunet.Security.PeerSec.Symphony {
     }
 
     // We override the underlying method so that we can properly wrap incoming AHSenders
-    override protected PeerSecAssociation CreateSecurityAssociation(ISender sender, int spi)
+    override public PeerSecAssociation CreateSecurityAssociation(ISender sender, int spi)
     {
       PeerSecAssociation sa = null;
       lock(_sync) {

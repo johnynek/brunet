@@ -125,12 +125,6 @@ namespace Brunet.Security {
       }
     }
 
-    /// <summary></summary>
-    public SecurityAssociation CreateSecurityAssociation(ISender sender)
-    {
-      return CreateSecurityAssociation(sender, true);
-    }
-
     /// <summary>Whenever an SA changes amongst inactive, active, and closed
     /// this is called.</summary>
     /// <param name="o">The SA whose state changes.</summary>
@@ -155,7 +149,7 @@ namespace Brunet.Security {
     }
 
     /// <summary></summary>
-    abstract public SecurityAssociation CreateSecurityAssociation(ISender sender, bool start);
+    abstract public SecurityAssociation CreateSecurityAssociation(ISender sender);
     /// <summary></summary>
     abstract public void HandleData(MemBlock data, ISender return_path, object state);
     /// <summary></summary>
