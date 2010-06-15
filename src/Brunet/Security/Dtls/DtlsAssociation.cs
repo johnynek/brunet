@@ -60,9 +60,9 @@ namespace Brunet.Security.Dtls {
     protected readonly IdentifierPair _ip;
     protected FuzzyEvent _fe;
     protected int _fe_lock;
-    public readonly BIO _read;
-    public readonly BIO _write;
-    public readonly Ssl _ssl;
+    protected readonly BIO _read;
+    protected readonly BIO _write;
+    protected readonly Ssl _ssl;
 
     /// <summary>Create a DtlsFilter.</summary>
     /// <param name="key">A CryptoKey initialized by the OpenSSL.NET library.</param>
@@ -233,6 +233,7 @@ namespace Brunet.Security.Dtls {
       try {
         HandleWouldBlock();
       } catch (Exception e) {
+        Close("Unhandled exception: " + e.ToString());
         ProtocolLog.WriteIf(ProtocolLog.SecurityExceptions,
             this + "\n" + e.ToString());
       }
@@ -243,16 +244,6 @@ namespace Brunet.Security.Dtls {
         X509Certificate cert, X509Chain chain, int depth, VerifyResult result)
     {
       return result == VerifyResult.X509_V_OK;
-    }
-
-    override public bool Close(string reason)
-    {
-      if(!base.Close(reason)) {
-        return false;
-      }
-
-      _ssl.Shutdown();
-      return true;
     }
 
     /// <summary>Start the session earlier than waiting for a packet to be sent.
