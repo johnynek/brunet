@@ -43,9 +43,10 @@
   </target>
 
   <target name="test" description="nunit test brunet!">
+    <call target="build" />
     <nant target="test" buildfile="src/Brunet/Services/Dht/default.build" failonerror="false" />
     <nant target="test" buildfile="src/Brunet/Services/Coordinate/default.build" failonerror="false" />
-    <nant target="nunit_test" buildfile="src/Brunet/default.build" failonerror="false" />
+    <nant target="test" buildfile="src/Brunet/default.build" failonerror="false" />
     <nant target="test" buildfile="src/Brunet/Security/default.build" failonerror="false" />
     <nant target="test" buildfile="src/Ipop/default.build" />
     <nant target="test" buildfile="src/Ipop/Managed/default.build" />

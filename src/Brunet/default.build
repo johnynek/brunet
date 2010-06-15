@@ -7,41 +7,10 @@
   <property name="build.define" value="TRACE"/>
   <property name="build.debug" value="false"/>
 
-  <target name="test" description="Makes a NUnit2 testable build">
+  <target name="test" description="Builds nunit testable Brunet.dll">
     <mkdir dir="${build.dir}" failonerror="true"/>
 
-    <csc target="library" define="BRUNET_NUNIT" output="${build.dir}/${assembly}.Test.dll">
-      <sources failonempty="true">
-        <include name="*.cs"/>
-        <include name="Collections/*.cs"/>
-        <include name="Concurrent/*.cs"/>
-        <include name="Connections/*.cs"/>
-        <include name="Services/MapReduce/*.cs"/>
-        <include name="Services/*.cs"/>
-        <include name="Symphony/*.cs"/>
-        <include name="Messaging/*.cs"/>
-        <include name="Transport/*.cs"/>
-        <include name="Relay/*.cs"/>
-        <include name="Util/*.cs"/>
-      </sources>
-      <references>
-        <!-- <include name="${lib.dir}/NUnit.Framework.dll" /> -->
-        <include name="nunit.framework.dll" />
-        <include name="System.Web.dll"/>
-      </references>
-    </csc>
-
-    <copy todir="${lib.dir}">
-      <fileset basedir="${build.dir}">
-          <include name="${assembly}.Test.dll" />
-       </fileset>
-    </copy>
-  </target>
-
-  <target name="nunit_test" description="Builds nunit testable Brunet.dll">
-    <mkdir dir="${build.dir}" failonerror="true"/>
-
-    <csc target="library" define="BRUNET_NUNIT" optimize="true" output="${build.dir}/${assembly}.NUnit.Test.dll">
+    <csc target="library" define="BRUNET_NUNIT" optimize="true" output="${build.dir}/${assembly}.Test.dll">
       <sources>
         <include name="*.cs"/>
         <include name="Collections/*.cs"/>
