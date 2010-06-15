@@ -187,10 +187,10 @@ namespace Brunet.Symphony
       _cco.IsActive = true;
       _mco.IsActive = true;
 
-#if !BRUNET_SIMULATOR
       _leafco.Activate();
       _ssco.Activate();
       _snco.Activate();
+#if !BRUNET_SIMULATOR
       _cco.Activate();
       _mco.Activate();
       AnnounceThread();
