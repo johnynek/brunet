@@ -124,7 +124,7 @@ namespace Brunet.Security {
         return;
       }
 
-      _receiving = true;
+      _receiving = State == States.Active;
       Handle(app_data, this);
     }
 
@@ -145,7 +145,7 @@ namespace Brunet.Security {
         return;
       }
 
-      _sending = app_data != null;
+      _sending = State == States.Active;
       Sender.Send(data);
     }
 
