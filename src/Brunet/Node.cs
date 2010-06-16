@@ -663,7 +663,7 @@ namespace Brunet
      */
     public void EnqueueAction(IAction a) {
 #if BRUNET_SIMULATOR
-      a.Start();
+      SimpleTimer.Enqueue(a, 0, 0);
       return;
 #else
       int queue_size = _packet_queue.Count;

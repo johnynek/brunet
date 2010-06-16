@@ -20,7 +20,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 
-using Brunet;
+using Brunet.Concurrent;
+
 using System.Threading;
 using System.Collections.Generic;
 using System;
@@ -36,6 +37,7 @@ namespace Brunet.Util {
   /// by Mono's System.Threading.Timer. </summary>
   public class SimpleTimer : IComparable<SimpleTimer> {
     protected readonly WaitCallback _callback;
+    protected readonly IAction _action;
     protected readonly object _state;
     /// <summary>How often the timer will be called.</summary>
     public int Period { get { return _period_ms; } }
@@ -146,7 +148,11 @@ namespace Brunet.Util {
 #endif
 
         try {
-          timer._callback(timer._state);
+          if(timer._callback != null) {
+            timer._callback(timer._state);
+          } else {
+            timer._action.Start();
+          }
         } catch (Exception e) {
           //ProtocolLog is not in Brunet.Util:
           Console.WriteLine(e);
@@ -178,7 +184,22 @@ namespace Brunet.Util {
     }
 
     /// <summary>Creates a new timer.</summary>
-    public SimpleTimer(WaitCallback callback, object state, int dueTime, int period)
+    public SimpleTimer(WaitCallback callback, object state, int dueTime, int period) :
+      this(dueTime, period)
+
+    {
+      _callback = callback;
+      _state = state;
+    }
+
+    /// <summary>Creates a new timer.</summary>
+    public SimpleTimer(IAction action, int dueTime, int period) :
+      this(dueTime, period)
+    {
+      _action = action;
+    }
+
+    protected SimpleTimer(int dueTime, int period)
     {
       if(dueTime < -1) {
         throw new ArgumentOutOfRangeException("dueTime");
@@ -187,11 +208,26 @@ namespace Brunet.Util {
       }
 
       _first_run = dueTime;
-      _callback = callback;
-      _state = state;
       _period_ms = period;
       _stopped = false;
       _started = 0;
+    }
+
+    /// <summary>Creates and starts a timer.</summary>
+    public static SimpleTimer Enqueue(WaitCallback callback, object state,
+        int dueTime, int period)
+    {
+      SimpleTimer st = new SimpleTimer(callback, state, dueTime, period);
+      st.Start();
+      return st;
+    }
+
+    /// <summary>Creates and starts a timer.</summary>
+    public static SimpleTimer Enqueue(IAction action, int dueTime, int period)
+    {
+      SimpleTimer st = new SimpleTimer(action, dueTime, period);
+      st.Start();
+      return st;
     }
 
     /// <summary>Puts the timer in the queue to be executed!  Can only be
