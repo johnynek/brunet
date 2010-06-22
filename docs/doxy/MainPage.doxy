@@ -1,4 +1,69 @@
 /**
-\mainpage Welcome to ACIS' P2P Applications
-Please use this in reference to documentation found at www.ipop-project.org 
+\mainpage ACIS P2P Library and Applications
+
+Overview
+===============================================================================
+This library provides a basic P2P framework with the following key features:
+- Transports layer (UDP, TCP, relay, XMPP, etc)
+- Structured overlay layer (Symphony)
+- Distributed Hash Table
+- VPN (IPOP / SocialVPN / GroupVPN)
+- XMLRPC Bridge
+- NAT Traversal using UDP hole punching and relaying
+
+The library has been built around mono and can be run on .NET, though special
+care must be taken to actually compile the soruce in .NET.
+
+Tests
+===============================================================================
+This suite contains many tests, both unit and integration tests implemented
+using nunit.  An automated nunit test can be executed by using "nant test" in
+the root directory.
+
+Examples
+===============================================================================
+For simple examples of writing applications, navigate to the directory
+src/Brunet/Applications/Examples.
+
+Links
+===============================================================================
+Brunet -- The P2P library - Site out of date (see IPOP for now)
+- http://boykin.acis.ufl.edu/wiki/index.php/Brunet
+IPOP -- Internet Protocol over Peer-to-Peer
+- http://www.ipop-project.org
+GroupVPN -- Using groups as a medium to connect IPOP
+- http://www.grid-appliance.org/wiki/index.php/GroupVPN
+SocialVPN -- using social links (like IM) as a medium to connect IPOP 
+- http://www.socialvpn.org
+Overlay Readme -- Creating your own bootstrap overlay and other overlay basics
+- http://www.grid-appliance.org/wiki/index.php/BasicNodeReadme
+IpopNode Readme -- Using IPOP without GroupVPN or SocialVPN
+- http://www.grid-appliance.org/wiki/index.php/IpopNodeReadme
+
+
+Contact
+===============================================================================
+Join the P2P Mailing list at Google Groups:
+Development issues: http://groups.google.com/group/acisp2p
+User issues: http://groups.google.com/group/acisp2pusers
+
+License
+===============================================================================
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 */
