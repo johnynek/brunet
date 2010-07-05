@@ -61,8 +61,11 @@ def query(alpha, object, q_type):
   rpc, net_size = setXmlRpcServer(True)
   rg_start, rg_end = getRange(net_size, alpha)
   ht["gen_arg"] = [rg_start.str, rg_end.str]
-  ht["map_arg"] = [object, q_type]
-  ht["reduce_arg"] = q_type
+  ht["map_arg"] = [q_type, object]
+  if q_type == "exact":
+    ht["reduce_arg"] = ["maxcount", 1]
+  else:
+    ht["reduce_arg"] = ["concat", True] #second arg is ignored.
   result = rpc.localproxy("mapreduce.Start", ht)
   return result
   

@@ -50,8 +50,8 @@ namespace Brunet.Services.Deetoo {
      * @param map_arg [content,alpha,start,end]
      */
     public override void Map(Channel q, object map_arg) {
-      ArrayList arg = map_arg as ArrayList;	    
-      string input = arg[0] as string;
+      IList arg = map_arg as IList;	    
+      object input = arg[0];
       double alpha = (double)arg[1]; //replication factor
       string st = arg[2] as string;  // start brunet address of range
       string ed = arg[3] as string;  // end brunet address of range 
@@ -130,8 +130,8 @@ namespace Brunet.Services.Deetoo {
         return;
       }
       //else combine them: 
-      IDictionary my_entry = current_result as IDictionary;
-      IDictionary value = child_result as IDictionary;
+      IDictionary my_entry = (IDictionary)current_result;
+      IDictionary value = (IDictionary)child_result;
       int max_height = (int) my_entry["height"];
       int count = (int) my_entry["count"];
       my_entry["success"] = (int) my_entry["success"] + (int) value["success"];

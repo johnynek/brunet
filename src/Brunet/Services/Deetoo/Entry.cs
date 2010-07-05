@@ -34,7 +34,7 @@ namespace Brunet.Services.Deetoo
     /* <summary>The actual content(for now, it is a string).</summary>
     <remarks>Content is stored as a string for now. </remarks>
     */
-    public readonly string Content;
+    public readonly object Content;
     /// <summary>Replication factor for deciding bounded broadcasting range. </summary>
     public readonly double Alpha;
     /// <summary> Start address of a range. </summary>
@@ -49,7 +49,7 @@ namespace Brunet.Services.Deetoo
     <param name="end">The end address of bounded broadcasting range.</param>
     </param>
     */    
-    public Entry(string content, double alpha, AHAddress start, AHAddress end) {
+    public Entry(object content, double alpha, AHAddress start, AHAddress end) {
       Content = content;
       Alpha = alpha;
       Start = start;

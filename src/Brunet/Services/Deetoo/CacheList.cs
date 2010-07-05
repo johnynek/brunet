@@ -242,42 +242,6 @@ namespace Brunet.Services.Deetoo
       }
       return added;
     }
-    /**
-     <summary>Regular Expression search method.</summary>
-     <return>An array of matching strings from CacheList.</return>
-     <param name = "pattern">A pattern of string one wish to find.</param>
-    */
-    //public ArrayList RegExMatch(string pattern) { 
-    public IList<string> RegExMatch(string pattern) { 
-      //var result = new ArrayList();
-      var result = new List<string>();
-      Regex match_pattern = new Regex(pattern);
-      var data = MState.State.Data;
-      foreach(Entry e in data) {
-        string this_key = (string)e.Content;
-        if (match_pattern.IsMatch(this_key)) {
-          result.Add(this_key);
-        }
-      }
-      return result;
-    }
-    /**
-     <summary>Perform an exact match.</summary>
-     <return>A matching string in the CacheList.</return>
-     <param name = "key">A string one wish to find.<param>
-     <remarks>returns null if no matching string with a given key.</remarks>
-     */
-    public string ExactMatch(string key) {
-      string result = null;
-      var data = MState.State.Data;
-      foreach(Entry e in data) {
-        result = e.Content as string;
-        if(key.Equals(result)) {
-          return result;
-        }
-      }
-      return null;
-    } 
     /*
     <summary>Determine size of bounded broadcasting range based on estimated network size.</summary>
     <returns>The range size as a biginteger.</returns>

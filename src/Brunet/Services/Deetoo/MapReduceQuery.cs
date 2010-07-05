@@ -1,7 +1,8 @@
 /*
 This program is part of BruNet, a library for the creation of efficient overlay
 networks.
-Copyright (C) 2008 Taewoong Choi <twchoi@ufl.edu> University of Florida  
+Copyright (C) 2008-2010 Taewoong Choi <twchoi@ufl.edu> University of Florida  
+Copyright (C) 2010 P. Oscar Boykin <boykin@pobox.com> University of Florida  
 
 This program is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -27,6 +28,7 @@ using System.Text.RegularExpressions;
 using Brunet.Services.MapReduce; 
 using Brunet.Messaging;
 using Brunet.Concurrent;
+using Brunet.Collections;
 using Brunet.Util;
 namespace Brunet.Services.Deetoo {
   /**
@@ -34,94 +36,114 @@ namespace Brunet.Services.Deetoo {
    * expression search using Bounded Broadcasting. 
    */ 
   public class MapReduceQuery: MapReduceBoundedBroadcast {
-    private CacheList _cl;
+    private readonly CacheList _cl;
+    private readonly Mutable<MRQState> _mut; 
+    private class MRQState {
+      public readonly ImmutableHashtable<string, Converter<object,QueryMatcher>> QMFact;
+      public readonly ImmutableHashtable<string, Converter<object,HitCombiner>> HCFact;
+      public MRQState() {
+        QMFact = ImmutableHashtable<string, Converter<object,QueryMatcher>>.Empty;
+        HCFact = ImmutableHashtable<string, Converter<object,HitCombiner>>.Empty;
+      }
+      private MRQState(ImmutableHashtable<string, Converter<object,QueryMatcher>> qm,
+                       ImmutableHashtable<string, Converter<object,HitCombiner>> hc) {
+        QMFact = qm;
+        HCFact = hc;
+      }
+      public MRQState AddQM(string type, Converter<object,QueryMatcher> fact) {
+        return new MRQState(QMFact.InsertIntoNew(type, fact), HCFact);
+      }
+      public MRQState AddHC(string type, Converter<object,HitCombiner> fact) {
+        return new MRQState(QMFact, HCFact.InsertIntoNew(type, fact));
+      }
+    }
     public MapReduceQuery(Node n, CacheList cl): base(n) {
       _cl = cl;
+      _mut = new Mutable<MRQState>(new MRQState());
+      //Add the default query handlers:
+      AddQueryMatcher("regex", delegate(object pattern) {
+                                 return new RegexMatcher((string)pattern);
+                               });
+      AddQueryMatcher("exact", delegate(object pattern) { return new ExactMatcher(pattern); });
+      AddHitCombiner("concat", delegate(object arg) { return ConcatCombiner.Instance; });
+      AddHitCombiner("maxcount", delegate(object arg) { return new MaxCountCombiner((int)arg); });
+    }
+    public void AddQueryMatcher(string type, Converter<object,QueryMatcher> qmf) {
+      _mut.Update(delegate(MRQState old) { return old.AddQM(type, qmf); });
+    }
+    public void AddHitCombiner(string type, Converter<object,HitCombiner> hcf) {
+      _mut.Update(delegate(MRQState old) { return old.AddHC(type, hcf); });
     }
     /*
      * Map method to add CachEntry to CacheList
      * @param map_arg [pattern, query_type]
      */
     public override void Map(Channel q, object map_arg) {
-      ArrayList map_args = map_arg as ArrayList;
-      string pattern = (string)(map_args[0]);
-      string query_type = (string)(map_args[1]);
-      IDictionary my_entry = new ListDictionary();
-      if (query_type == "regex") {
-        my_entry["query_result"] = _cl.RegExMatch(pattern);
-      }
-      else if (query_type == "exact") {
-        my_entry["query_result"] = _cl.ExactMatch(pattern);
+      IList map_args = (IList)map_arg;
+      string query_type = (string)(map_args[0]);
+      Converter<object,QueryMatcher> qmf = null;
+      if( _mut.State.QMFact.TryGetValue(query_type, out qmf) ) {
+        QueryMatcher qm = qmf(map_args[1]);
+        var my_entry = new ListDictionary();
+        var results = new ArrayList();
+        foreach(Entry e in _cl.MState.State.Data) {
+          object cont = e.Content;
+          if(qm.Match(cont)) {
+            results.Add(cont);
+          }
+        }
+        my_entry["query_result"] = results;
+        my_entry["count"] = 1;
+        my_entry["height"] = 1;
+        q.Enqueue(my_entry);
       }
       else {
         q.Enqueue(new AdrException(-32608, "No Deetoo match option with this name: " +  query_type) );
         return;
       }
-      my_entry["count"] = 1;
-      my_entry["height"] = 1;
-      q.Enqueue(my_entry);
     }
       
     /**
      * Reduce method
-     * @param reduce_arg argument for reduce
+     * @param reduce_args argument for reduce
      * @param current_result result of current map 
      * @param child_rpc results from children 
-     * @param done if done is true, stop reducing and return result
      * return table of hop count, tree depth, and query result
      */  
-    public override void Reduce(Channel q, object reduce_arg, 
-                                  object current_result, RpcResult child_rpc
-                                  ) {
-
-      bool done = false;
-      //ISender child_sender = child_rpc.ResultSender;
-      string query_type = (string)reduce_arg;
+    public override void Reduce(Channel q, object reduce_args, 
+                                  object current_result, RpcResult child_rpc) {
       object child_result = null;
       child_result = child_rpc.Result;
-      //child result is a valid result
-      if (current_result == null) {
-        q.Enqueue(new Brunet.Collections.Pair<object, bool>(child_result, done) );
-        return;
-      }
-      IDictionary my_entry = current_result as IDictionary;
-      IDictionary value = child_result as IDictionary;
-      int max_height = (int) (my_entry["height"]);
-      int count = (int) (my_entry["count"]);
-      int y = (int) value["count"];
-      my_entry["count"] = count + y;
-      int z = (int) value["height"] + 1;
-      if (z > max_height) {
-        my_entry["height"] = z; 
-      }
-      if (query_type == "exact") {
-        string m_result = (string)(my_entry["query_result"]); //current result
-        string c_result = (string)(value["query_result"]); //child result
-        if (m_result != null) {
-          // if query type is exact matching and current result is not an empty string, 
-          // stop searching and return the result immediately.
-          done = true;
+      Converter<object,HitCombiner> hcf = null;
+      IList args = (IList)reduce_args;
+      string query_type = (string)args[0];
+      object hc_arg = args[1];
+      if( _mut.State.HCFact.TryGetValue(query_type, out hcf) ) {
+        HitCombiner hc = hcf(hc_arg);
+        if( current_result == null ) {
+          IDictionary child_val = (IDictionary)child_result;
+          //Initially, we are empty:
+          var res = hc.Combine(new ArrayList(), (IList)child_val["query_result"]);
+          var ret_val = new ListDictionary();
+          ret_val["height"] = child_val["height"];
+          ret_val["count"] = child_val["count"];
+          ret_val["query_result"] = res.First;
+          q.Enqueue(new Brunet.Collections.Pair<object, bool>(ret_val, res.Second));
         }
         else {
-          if (c_result != null) {
-            done = true;
-            my_entry["query_result"] = c_result;
-          }
-          else {
-            //there is no valid result, return null for the entry
-            my_entry["query_result"] = null;
-          }
+          IDictionary current_val = (IDictionary)current_result;
+          IDictionary child_val = (IDictionary)child_result;
+          
+          var ret_val = new ListDictionary();
+          ret_val["count"] = (int)current_val["count"] + (int)child_val["count"];
+          ret_val["height"] = Math.Max((int)current_val["height"],
+                                      1 + (int)child_val["height"]);
+          
+          var res = hc.Combine((IList)current_val["query_result"],
+                                 (IList)child_val["query_result"]);
+          ret_val["query_result"] = res.First;
+          q.Enqueue(new Brunet.Collections.Pair<object, bool>(ret_val, res.Second));
         }
-        q.Enqueue(new Brunet.Collections.Pair<object, bool>(my_entry, done));
-      }
-      else if (query_type == "regex") {
-        IList q_result = (IList)(my_entry["query_result"]);
-        IList c_result = (IList)(value["query_result"]);
-	ArrayList combined = new ArrayList();
-        combined.AddRange(q_result); //concatenate current result with child result
-        combined.AddRange(c_result); //concatenate current result with child result
-        my_entry["query_result"] = combined;
-        q.Enqueue(new Brunet.Collections.Pair<object, bool>(my_entry, done));
       }
       else {
         q.Enqueue(new AdrException(-32608, "This query type {0} is not supported." + query_type) );
