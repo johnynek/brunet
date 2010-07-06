@@ -53,17 +53,32 @@ namespace Brunet.Simulator {
       Node snode = _shared_overlay.AddNode();
       NodeMapping snm = _shared_overlay.Nodes[snode.Address];
 
-      Node node = AddNode(snm.ID, snode.Address as AHAddress);
-      EdgeListener el = new SubringEdgeListener(snode, node);
-      if(_secure_edges) {
-        NodeMapping pnm = Nodes[node.Address] as NodeMapping;
-        el = new SecureEdgeListener(el, pnm.SO);
-      }
-      node.AddEdgeListener(el);
-      node.AddTADiscovery(new DhtDiscovery(node as StructuredNode,
-            snm.Dht, snm.Node.Realm, snm.DhtProxy));
-      StartingNetworkSize++;
-      return node;
+      // Must do this to remove it after successfully creating the new node
+      Node.StateChangeHandler add_node = null;
+      
+      // Delayed add, removes ~15 seconds off bootstrapping time
+      add_node = delegate(Node n, Node.ConnectionState cs) {
+        if(cs != Node.ConnectionState.Connected) {
+          return;
+        }
+        snm.Node.StateChangeEvent -= add_node;
+
+        Node node = AddNode(snm.ID, snode.Address as AHAddress);
+        EdgeListener el = new SubringEdgeListener(snode, node);
+        if(_secure_edges) {
+          NodeMapping pnm = Nodes[node.Address] as NodeMapping;
+          el = new SecureEdgeListener(el, pnm.SO);
+        }
+        node.AddEdgeListener(el);
+        node.AddTADiscovery(new DhtDiscovery(node as StructuredNode,
+              snm.Dht, snm.Node.Realm, snm.DhtProxy));
+        CurrentNetworkSize--;
+      };
+
+      // Check will return true, since the Node is unregistered
+      CurrentNetworkSize++;
+      snm.Node.StateChangeEvent += add_node;
+      return snode;
     }
 
     /// <summary>Overriden to setup PathELs.</summary>

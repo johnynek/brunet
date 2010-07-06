@@ -128,10 +128,21 @@ namespace Brunet.Applications {
         start_time = DateTime.UtcNow;
 
         Thread pthread = null;
+        // Must do this to remove it after successfully creating the new node
+        Node.StateChangeHandler add_node = null;
         if(node.PrivateNode != null) {
-          new Information(node.PrivateNode.Node, "PrivateBasicNode", node.SecurityOverlord);
-          pthread = new Thread(node.PrivateNode.Node.Connect);
-          pthread.Start();
+          // Delayed add, removes ~15 seconds off bootstrapping time
+          add_node = delegate(Node n, Node.ConnectionState cs) {
+            if(cs != Node.ConnectionState.Connected) {
+              return;
+            }
+            node.Node.StateChangeEvent -= add_node;
+
+            new Information(node.PrivateNode.Node, "PrivateBasicNode", node.SecurityOverlord);
+            pthread = new Thread(node.PrivateNode.Node.Connect);
+            pthread.Start();
+          };
+          node.Node.StateChangeEvent += add_node;
         }
 
         node.Node.Connect();
@@ -139,7 +150,9 @@ namespace Brunet.Applications {
         if(node.PrivateNode != null) {
           ApplicationNode pnode = node.PrivateNode;
           pnode.Node.Disconnect();
-          pthread.Join();
+          if(pthread != null) {
+            pthread.Join();
+          }
         }
 
         if(!_running) {
