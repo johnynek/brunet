@@ -146,6 +146,8 @@ namespace Brunet.Symphony
 
     override public void Activate()
     {
+      // This forces CheckAndConnect to execute regardless how recently it was called
+      _last_retry = DateTime.MinValue;
       //Starts the process of looking for a Leaf connection
       CheckAndConnectHandler(null, null);
     }

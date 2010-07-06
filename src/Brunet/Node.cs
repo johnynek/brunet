@@ -1028,7 +1028,7 @@ namespace Brunet
     /**
      * Updates the RemoteTA list hosted by the Node.
      */
-    public void UpdateRemoteTAs(IList<TransportAddress> tas_to_add)
+    virtual public void UpdateRemoteTAs(IList<TransportAddress> tas_to_add)
     {
       lock(_sync) {
         // Remove duplicates in tas_to_add

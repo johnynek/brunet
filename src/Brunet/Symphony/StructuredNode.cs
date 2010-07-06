@@ -24,6 +24,7 @@ THE SOFTWARE.
 
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Diagnostics;
 
@@ -532,6 +533,15 @@ namespace Brunet.Symphony
             ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
               "CallGetStatus(right) on {0} failed: {1}", rc, x));
         }
+      }
+    }
+
+    override public void UpdateRemoteTAs(IList<TransportAddress> tas_to_add)
+    {
+      base.UpdateRemoteTAs(tas_to_add);
+      ConnectionState cs = ConState;
+      if(cs == ConnectionState.SeekingConnections || cs == ConnectionState.Joining) {
+        _leafco.Activate();
       }
     }
   }
