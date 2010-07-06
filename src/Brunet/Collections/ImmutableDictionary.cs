@@ -270,6 +270,36 @@ public class ImmutableDictionary<K,V> : IDictionary<K,V>
   protected int CompareKV(KeyValuePair<K,V> kv0, KeyValuePair<K,V> kv1) {
     return kv0.Key.CompareTo(kv1.Key);
   }
+  
+  override public bool Equals(object o) {
+    if( object.ReferenceEquals(this, o) ) { return true; }
+    var other = o as ImmutableDictionary<K,V>;
+    if( other != null ) {
+      //Equivalent must have same count:
+      if( other._count != this._count ) { return false; }
+      //Now go element by element:
+      bool all_equal = true;
+      //Enumeration goes in a sorted order:
+      var this_enum = this.GetEnumerator();
+      var o_enum = other.GetEnumerator();
+      while(all_equal) {
+        bool can_move = this_enum.MoveNext();
+        //Only one cannot continue:
+        if( o_enum.MoveNext() != can_move ) { return false; }
+        //Both are finished, but were equal to this point:
+        if( false == can_move ) { return true; }
+        var tkv = this_enum.Current;
+        var okv = o_enum.Current;
+        all_equal = tkv.Key.Equals(okv.Key) &&
+                    //Handle case of null values:
+                    object.Equals(tkv.Value, okv.Value);
+      }
+      return all_equal;
+    }
+    else {
+      return false;
+    }
+  }
 
   /** Fix the root balance if LTDict and GTDict have good balance
    * Used to keep the depth less than 1.44 log_2 N (AVL tree)
@@ -362,6 +392,17 @@ public class ImmutableDictionary<K,V> : IDictionary<K,V>
         to_visit.Push(new ImmutableDictionary<K,V>(this_d.Key, this_d.Value));
         to_visit.Push(this_d.GTDict);
       }
+    }
+  }
+  /** XOR min key and value pair hashcodes.  Cost Log N
+   */
+  override public int GetHashCode() {
+    var imd = this.Min;
+    if( imd != Empty ) {
+      return imd.Key.GetHashCode() ^ (imd.Value != null ? imd.Value.GetHashCode() : 0);
+    }
+    else {
+      return 0;
     }
   }
 
@@ -607,6 +648,33 @@ public class ImDictTest {
       Assert.IsTrue(d.Depth >= mindepth,
        String.Format("Depth is too small: AVL Tree: {0} < {1}",
        d.Depth, mindepth));
+  }
+  [Test]
+  public void EqualsTest() {
+    var r = new System.Random();
+    var dict = ImmutableDictionary<int,int>.Empty;
+    var good_d = new Dictionary<int, int>();
+    for(int i = 0; i < 100; i++) {
+      int k = r.Next();
+      int v = r.Next();
+      var new_dict = dict.InsertIntoNew(k,v);
+      good_d[k] = v;
+      Assert.AreEqual(new_dict, new ImmutableDictionary<int,int>(good_d), "Equality with good");
+      Assert.AreEqual(new_dict, new_dict, "Self equality (new)");
+      Assert.AreEqual(dict, dict, "Self equality");
+      if( dict.ContainsKey(k) == false ) {
+        Assert.AreNotEqual(new_dict, dict, "new is different");
+        int k2;
+        do {
+          k2 = r.Next();
+        }
+        while(new_dict.ContainsKey(k2));
+        dict = dict.InsertIntoNew(k2, k2);
+        //These have the same count, but should be different, harder case:
+        Assert.AreNotEqual(new_dict, dict, "Hard non-equality");
+      }
+      dict = new_dict;
+    }
   }
   [Test]
   public void Test() {
