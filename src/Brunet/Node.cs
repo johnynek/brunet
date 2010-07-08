@@ -1030,11 +1030,13 @@ namespace Brunet
      */
     virtual public void UpdateRemoteTAs(IList<TransportAddress> tas_to_add)
     {
+      IList<TransportAddress> local_tas = LocalTAs;
+
       lock(_sync) {
         // Remove duplicates in tas_to_add
         var dup_test = new Dictionary<TransportAddress, bool>();
         foreach(TransportAddress ta in tas_to_add) {
-          if(dup_test.ContainsKey(ta)) {
+          if(dup_test.ContainsKey(ta) || local_tas.Contains(ta)) {
             continue;
           }
           dup_test.Add(ta, true);
