@@ -37,6 +37,7 @@ namespace Brunet
    */
   public class AddressParser
   {
+#if !BRUNET_SIMULATOR
     /*
      * Here is a cache so we don't have to parse the same
      * address over and over.  It is used for the string
@@ -52,6 +53,8 @@ namespace Brunet
       _address_cache = new Cache(CACHE_SIZE);
       _mb_cache = new Address[ UInt16.MaxValue + 1 ];
     }
+#endif
+
     /** Parse without looking at the cache
      */
     protected static Address NoCacheParse(string ascii) {
@@ -91,6 +94,9 @@ namespace Brunet
      */
     public static Address Parse(string ascii)
     {
+#if BRUNET_SIMULATOR
+      return NoCacheParse(ascii);
+#else
       Cache add_cache = Interlocked.Exchange<Cache>(ref _address_cache, null);
       //If add_cache is non-null, we have a cache to use, woohoo!
       Address a = null;
@@ -114,6 +120,7 @@ namespace Brunet
         a = NoCacheParse(ascii);
       }
       return a;
+#endif
     }
 
     /**
@@ -123,6 +130,9 @@ namespace Brunet
      */
     static public Address Parse(MemBlock mb)
     {
+#if BRUNET_SIMULATOR
+      Address a = null;
+#else
       //Read some of the least significant bytes out,
       //AHAddress all have last bit 0, so we skip the last byte which
       //will have less entropy
@@ -133,6 +143,7 @@ namespace Brunet
           return a;
         }
       }
+#endif
       //Else we need to read the address and put it in the cache
       try {
         if( 2 * mb.Length < mb.ReferencedBufferLength ) {
@@ -157,8 +168,10 @@ namespace Brunet
                                    add_class + ", buffer:" +
                                    mb.ToString());
         }
+#if !BRUNET_SIMULATOR
         //Cache this result:
         _mb_cache[ idx ] = a;
+#endif
         return a;
       }
       catch(ArgumentOutOfRangeException ex) {

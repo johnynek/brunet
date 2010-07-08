@@ -93,6 +93,9 @@ namespace Brunet.Connections
      * commonly used NodeInfo objects
      */
     public static NodeInfo CreateInstance(Address a) {
+#if BRUNET_SIMULATOR
+      return new NodeInfo(a);
+#else
       //Read some of the least significant bytes out,
       //AHAddress all have last bit 0, so we skip the last byte which
       //will have less entropy
@@ -107,8 +110,12 @@ namespace Brunet.Connections
       ni = new NodeInfo(a);
       _mb_cache[idx] = ni;
       return ni;
+#endif
     }
     public static NodeInfo CreateInstance(Address a, TransportAddress ta) {
+#if BRUNET_SIMULATOR
+        return new NodeInfo(a, ta);
+#else
       NodeInfo result = null;
       Cache ni_cache = Interlocked.Exchange<Cache>(ref _cache, null);
       if( ni_cache != null ) {
@@ -137,8 +144,12 @@ namespace Brunet.Connections
         result = new NodeInfo(a, ta);
       }
       return result;
+#endif
     }
     public static NodeInfo CreateInstance(Address a, IList ta) {
+#if BRUNET_SIMULATOR
+      return new NodeInfo(a, ta);
+#else
       NodeInfo result = null;
       Cache ni_cache = Interlocked.Exchange<Cache>(ref _cache, null);
       if( ni_cache != null ) {
@@ -165,6 +176,7 @@ namespace Brunet.Connections
         result = new NodeInfo(a, ta);
       }
       return result;
+#endif
     }
     public static NodeInfo CreateInstance(IDictionary d) {
       Address address = null;

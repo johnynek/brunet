@@ -50,6 +50,9 @@ namespace Brunet.Transport
   public class TransportAddressFactory {
     //adding some kind of factory methods
     public static TransportAddress CreateInstance(string s) {
+#if BRUNET_SIMULATOR
+      return NoCacheCreateInstance(s);
+#else
       Cache ta_cache = Interlocked.Exchange<Cache>(ref _ta_cache, null);
       TransportAddress result = null;
       if( ta_cache != null ) {
@@ -73,6 +76,7 @@ namespace Brunet.Transport
         result = NoCacheCreateInstance(s);
       }
       return result;
+#endif
     }
     protected static TransportAddress NoCacheCreateInstance(string s) {
       string scheme = s.Substring(0, s.IndexOf(":"));
@@ -136,6 +140,9 @@ namespace Brunet.Transport
 
     public static TransportAddress CreateInstance(TransportAddress.TAType t,
               string host, int port) {  
+#if BRUNET_SIMULATOR
+      return new IPTransportAddress(t, host, port);
+#else
       Cache ta_cache = Interlocked.Exchange<Cache>(ref _ta_cache, null);
       if( ta_cache != null ) {
         TransportAddress ta = null;
@@ -155,10 +162,14 @@ namespace Brunet.Transport
       else {
         return new IPTransportAddress(t, host, port);
       }
+#endif
     }
 
     public static TransportAddress CreateInstance(TransportAddress.TAType t,
                             IPAddress host, int port) {
+#if BRUNET_SIMULATOR
+      return new IPTransportAddress(t, host, port);
+#else
       Cache ta_cache = Interlocked.Exchange<Cache>(ref _ta_cache, null);
       if( ta_cache != null ) {
         TransportAddress ta = null;
@@ -178,6 +189,7 @@ namespace Brunet.Transport
       else {
         return new IPTransportAddress(t, host, port);
       }
+#endif
     }
 
     public static TransportAddress CreateInstance(TransportAddress.TAType t,
