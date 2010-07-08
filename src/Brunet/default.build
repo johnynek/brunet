@@ -31,7 +31,7 @@
     </csc>
     <nunit2>
       <formatter type="Plain" />
-      <test assemblyname="${build.dir}/${assembly}.NUnit.Test.dll"/>
+      <test assemblyname="${build.dir}/${assembly}.Test.dll"/>
     </nunit2>
   </target>
 
