@@ -96,6 +96,10 @@ namespace Brunet.Services.Dht {
       Channel chan = new Channel();
 
       EventHandler handler = delegate(object o, EventArgs ea) {
+        if(!chan.Closed && chan.Count < 8) {
+          return;
+        }
+
         List<TransportAddress> tas = new List<TransportAddress>();
         while(chan.Count > 0) {
           AHAddress addr = null;
