@@ -243,32 +243,20 @@ public class FuzzyTimer : IDisposable {
   }
 
 #if BRUNET_SIMULATOR
-  public class FuzzySimpleTimer : SimpleTimer {
-    protected readonly FuzzyEvent _fe;
-
-    public FuzzySimpleTimer(FuzzyEvent fe) :
-      base(Run, null, (int) (fe.End - DateTime.UtcNow).TotalMilliseconds, 0)
-    {
-      _fe = fe;
+  protected static void FuzzyEventRunner(object o) {
+    FuzzyEvent fe = o as FuzzyEvent;
+    if(o == null) {
+      throw new Exception("o is not a FuzzyEvent!");
     }
-
-    public static FuzzySimpleTimer Enqueue(FuzzyEvent fe)
-    {
-      FuzzySimpleTimer timer = new FuzzySimpleTimer(fe);
-      timer.Start();
-      return timer;
-    }
-
-    protected void Run(object o)
-    {
-      _fe.TryRun(DateTime.UtcNow);
-    }
+    fe.TryRun(DateTime.UtcNow);
   }
 #endif
 
   public void Schedule(FuzzyEvent e) {
 #if BRUNET_SIMULATOR
-    FuzzySimpleTimer.Enqueue(e);
+    int delay = (int) (e.End - DateTime.UtcNow).TotalMilliseconds;
+    SimpleTimer st = new SimpleTimer(FuzzyEventRunner, e, delay, 0);
+    st.Start();
 #else
     _incoming_events.Enqueue(e);
 #endif
