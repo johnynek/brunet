@@ -283,16 +283,16 @@ public class ImmutableDictionary<K,V> : IDictionary<K,V>
       var this_enum = this.GetEnumerator();
       var o_enum = other.GetEnumerator();
       while(all_equal) {
-        bool can_move = this_enum.MoveNext();
-        //Only one cannot continue:
-        if( o_enum.MoveNext() != can_move ) { return false; }
+        this_enum.MoveNext();
+        //Since we have the same count, this must return same as above
         //Both are finished, but were equal to this point:
-        if( false == can_move ) { return true; }
+        if( false == o_enum.MoveNext() ) { return true; }
         var tkv = this_enum.Current;
         var okv = o_enum.Current;
         all_equal = tkv.Key.Equals(okv.Key) &&
                     //Handle case of null values:
-                    object.Equals(tkv.Value, okv.Value);
+                    (null != tkv.Value ? tkv.Value.Equals(okv.Value)
+                                       : null == okv.Value);
       }
       return all_equal;
     }
