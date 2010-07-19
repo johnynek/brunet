@@ -257,7 +257,14 @@ namespace Brunet.Transport {
     public void HandleData(MemBlock data, ISender retpath, object state) {
       MemBlock rest_of_data;
       PType p;
+
       if( state == null ) {
+        try {
+          p = PType.Parse(data, out rest_of_data);
+        } catch(ParseException) {
+          ProtocolLog.WriteIf(ProtocolLog.Pathing, "Invalid PType from: " + data);
+          return;
+        }
         p = PType.Parse(data, out rest_of_data);
       }
       else {
@@ -265,6 +272,7 @@ namespace Brunet.Transport {
         p = (PType)state;
         rest_of_data = data;
       }
+
       if( PType.Protocol.Pathing.Equals(p) ) {
         /*
          * We use a special PType to denote this transaction so
