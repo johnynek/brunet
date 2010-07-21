@@ -5,7 +5,9 @@ using System.Threading;
 
 namespace Ipop.Dht.Service {
   class WindowsService : ServiceBase {
-    Thread _thread;
+    protected bool _running;
+    protected Thread _thread;
+    protected object _lock;
 
     public WindowsService()
     {
@@ -18,6 +20,9 @@ namespace Ipop.Dht.Service {
       CanShutdown = true;
       CanStop = true;
       AutoLog = true;
+      _lock = new object();
+      _thread = null;
+      _running = false;
     }
 
     public static void Main()
@@ -32,34 +37,47 @@ namespace Ipop.Dht.Service {
 
     protected override void OnStart(string[] args)
     {
-      Thread thread = new Thread(Start);
-      if(Interlocked.CompareExchange<Thread>(ref _thread, null, thread) != null) {
-        return;
+      lock(_lock) {
+        if(_running) {
+          return;
+        }
+        _running = true;
+        _thread = new Thread(Start);
       }
-
       _thread.Start();
       base.OnStart(args);
     }
 
     protected virtual void Start()
     {
-
       string[] args = new string[] {"-d", "dhcp.config", "-i", "ipop.config",
         "-n", "node.config"};
 
       string app_dir = AppDomain.CurrentDomain.SetupInformation.ApplicationBase;
       System.IO.Directory.SetCurrentDirectory(app_dir);
       Ipop.Dht.Runner.Main(args);
-      Thread.MemoryBarrier();
     }
 
     protected override void OnStop()
     {
-      Thread thread = Interlocked.Exchange(ref _thread, null);
-      if(thread == null) {
+      Brunet.Applications.BasicNode current_node = null;
+      Thread thread = null;
+
+      lock(_lock) {
+        if(!_running) {
+          return;
+        }
+        _running = false;
+        thread = _thread;
+        _thread = null;
+        current_node = Ipop.Dht.Runner.CurrentNode;
+      }
+
+      if(thread == null || current_node == null) {
         return;
       }
-      Ipop.Dht.Runner.CurrentNode.Shutdown.Exit();
+
+      current_node.Shutdown.Exit();
       thread.Join();
       base.OnStop();
     }
