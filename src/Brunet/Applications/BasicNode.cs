@@ -322,7 +322,7 @@ namespace Brunet.Applications {
       }
 
       if(node_config.PrivateNodeConfig != null &&
-          node_config.PrivateNodeConfig.BrunetNamespace != string.Empty)
+          node_config.PrivateNodeConfig.Enabled)
       {
         CreatePrivateNode(app_node, NodeConfig.GetPrivateNodeConfig(node_config));
       }

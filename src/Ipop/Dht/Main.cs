@@ -96,7 +96,7 @@ namespace Ipop.Dht {
         }
       }
 
-      if(_node_config.PrivateNodeConfig != null) {
+      if(_node_config.PrivateNodeConfig != null && _node_config.PrivateNodeConfig.Enabled) {
         _sp = _node_config.PrivateNodeConfig.Security;
       } else {
         _sp = _node_config.Security;

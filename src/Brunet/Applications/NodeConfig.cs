@@ -66,6 +66,7 @@ namespace Brunet.Applications {
 
     public String BrunetNamespace;
     public NodeConfig.SecurityPolicy Security;
+    public bool Enabled;
   }
 
   public class NodeConfig {
