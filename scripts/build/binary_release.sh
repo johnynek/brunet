@@ -18,7 +18,7 @@ cd -
 
 # Copy files to the binary directory
 mkdir -p $version/acisp2p/bin
-lib_files="Brunet.dll Brunet.Services.Dht.dll Brunet.Services.XmlRpc.dll Mono.Security.dll Brunet.Services.Coordinate.dll Brunet.Security.dll NDesk.Options.dll CookComputing.XmlRpcV2.dll System.Runtime.Remoting.dll.use_for_mono_2"
+lib_files="Brunet.dll Brunet.Services.Dht.dll Brunet.Services.XmlRpc.dll Mono.Security.dll Brunet.Services.Coordinate.dll Brunet.Security.dll NDesk.Options.dll CookComputing.XmlRpcV2.dll Brunet.Xmpp.dll jabber-net.dll zlib.net.dll ManagedOpenSsl.dll"
 bin_files="P2PNode.exe DhtIpopNode.exe GroupVPNService.exe"
 for file in $lib_files; do
   cp $version/acisp2p.src/lib/$file $version/acisp2p/bin/.
