@@ -25,6 +25,7 @@ THE SOFTWARE.
 #if BRUNET_NUNIT
 using NUnit.Framework;
 #endif
+using System;
 
 namespace Brunet.Util {
 
@@ -133,6 +134,13 @@ public class MemBlock : System.IComparable, System.ICloneable, ICopyable {
    */
   public static implicit operator MemBlock(byte[] data) {
     return Reference(data);
+  }
+
+  /** perform some READONLY action on the MemBlock, byte, off, length
+   * If you modify the byte array in this action, expect hard to find bugs
+   */
+  public void Act(Action<byte[], int, int> act) {
+    act(_buffer, _offset, _length);
   }
 
   /**
@@ -432,6 +440,12 @@ public class MemBlock : System.IComparable, System.ICloneable, ICopyable {
       }
     }
     return -1;
+  }
+  /** perform some READONLY operation on the MemBlock, byte, off, length
+   * If you modify the byte array in this action, expect hard to find bugs
+   */
+  public T Read<T>(Func<byte[], int, int, T> op) {
+    return op(_buffer, _offset, _length);
   }
 
   /**
