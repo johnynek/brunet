@@ -617,6 +617,8 @@ namespace Brunet.Transport {
       PathEdge pe = e as PathEdge;
       if(pe != null) {
         _el.UpdateLocalTAs(pe.Edge, ta);
+      } else {
+        _el.UpdateLocalTAs(e, ta);
       }
     }
 
