@@ -59,8 +59,10 @@ namespace Brunet.Transport
 
     /*
      * Holds the information needed to send a packet
-     * used as the "Customer" in the ExclusiveServer to
-     * make sure only one Send happens at a time
+     * to make sure only one Send happens at a time
+     * READ THIS: Linux sometimes blocks for seconds on UDP send
+     * if the sends are not in their own thread, that blocks the whole
+     * system.
      */
     protected sealed class SendState {
       public readonly int LocalID;
@@ -75,22 +77,44 @@ namespace Brunet.Transport
       }
     }
   
-    /*
+    /**
      * Ensures that only one write is happening at a time without locks.
-     * If a second write overlaps with the first, it is handled by the currently
-     * sending thread after the current send completes.  This could cause
-     * starvation in cases of heavy sending, but in that case the node is
-     * probably too overloaded to function correctly anyway.
+     * READ THIS: Linux sometimes blocks for seconds on UDP send
+     * if the sends are not in their own thread, that blocks the whole
+     * system.  IF you decide to change this, REMEMBER!
      */
-    protected sealed class SendServer : Brunet.Concurrent.ExclusiveServer<SendState> {
+    protected sealed class SendServer {
       private readonly Socket _socket;
       private readonly byte[] _buffer;
+      private readonly LFBlockingQueue<SendState> _queue;
+      private readonly int MAX = 512;
       public SendServer(Socket s, byte[] buffer) {
         _socket = s;
         _buffer = buffer;
+        _queue = new LFBlockingQueue<SendState>();
+      }
+      public bool Add(SendState ss) {
+        if( _queue.Count < MAX ) {
+          _queue.Enqueue(ss);
+          return true;
+        }
+        else {
+          return false;
+        }
+      }
+      public void Run() {
+        bool got;
+        SendState ss = _queue.Dequeue(-1, out got);
+        while( null != ss ) {
+          Serve(ss);
+          ss = _queue.Dequeue(-1, out got);
+        }
+      }
+      public void Stop() {
+        _queue.Enqueue(null);
       }
       //This method should never throw an exception
-      protected override void Serve(SendState state) {
+      private void Serve(SendState state) {
         //Write the IDs of the edge:
         //[local id 4 bytes][remote id 4 bytes][packet]
         try {
@@ -808,7 +832,10 @@ namespace Brunet.Transport
     public void HandleEdgeSend(Edge from, ICopyable p) {
       UdpEdge sender = (UdpEdge) from;
       var ss = new SendState(sender.ID, sender.RemoteID, p, sender.End);
-      _send_server.Add(ss);
+      if( false == _send_server.Add(ss) ) {
+        //This is a transient error, the queue is full:
+        throw new Brunet.Messaging.SendException(true, "UDP Queue full, can't send"); 
+      }
     }
 
     /**
@@ -882,6 +909,8 @@ namespace Brunet.Transport
     {
       _pub_state.Update(new StartUpdater());
       _listen_thread.Start();
+      Thread t = new Thread(_send_server.Run);
+      t.Start();
     }
 
     /**
@@ -895,6 +924,7 @@ namespace Brunet.Transport
         WakeListen(); 
         _listen_thread.Join();
       }
+      _send_server.Stop();
     }
   }
 }
