@@ -158,7 +158,7 @@ namespace Brunet
         IAction cec_act = new HeartBeatAction(this, this.CheckEdgesCallback);
         _check_edges = Brunet.Util.FuzzyTimer.Instance.DoEvery(delegate(DateTime dt) {
           this.EnqueueAction(cec_act);
-        }, 15000, 1000);
+        }, 5000, 500);
       }
     }
  //////////////
