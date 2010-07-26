@@ -54,43 +54,48 @@ namespace Ipop {
 
     /// <summary>Look up a hostname given a Dns request in the form of IPPacket
     /// </summary>
-    /// <param name="req_ipp">An IPPacket containing the Dns request</param>
+    /// <param name="in_ip">An IPPacket containing the Dns request</param>
     /// <returns>An IPPacket containing the results</returns>
-    public virtual IPPacket LookUp(IPPacket req_ipp)
+    public virtual IPPacket LookUp(IPPacket in_ip)
     {
-      UdpPacket req_udpp = new UdpPacket(req_ipp.Payload);
-      DnsPacket dnspacket = new DnsPacket(req_udpp.Payload);
-      ICopyable rdnspacket = null;
+      UdpPacket in_udp = new UdpPacket(in_ip.Payload);
+      DnsPacket in_dns = new DnsPacket(in_udp.Payload);
+      ICopyable out_dns = null;
       string qname = string.Empty;
+      bool invalid_qtype = false;
 
       try {
         string qname_response = String.Empty;
-        qname = dnspacket.Questions[0].QName;
-        if(dnspacket.Questions[0].QType == DnsPacket.Types.A) {
+        qname = in_dns.Questions[0].QName;
+        DnsPacket.Types type = in_dns.Questions[0].QType;
+
+        if(type == DnsPacket.Types.A || type == DnsPacket.Types.AAAA) {
           qname_response = AddressLookUp(qname);
-        } else if(dnspacket.Questions[0].QType == DnsPacket.Types.Ptr) {
+        } else if(type == DnsPacket.Types.Ptr) {
           qname_response = NameLookUp(qname);
+        } else {
+          invalid_qtype = true;
         }
 
         if(qname_response == null) {
           throw new Exception("Unable to resolve");
         }
 
-        Response response = new Response(qname, dnspacket.Questions[0].QType,
-            dnspacket.Questions[0].QClass, 1800, qname_response);
+        Response response = new Response(qname, in_dns.Questions[0].QType,
+            in_dns.Questions[0].QClass, 1800, qname_response);
         //Host resolver will not accept if recursive is not available 
         //when it is desired
-        DnsPacket res_packet = new DnsPacket(dnspacket.ID, false,
-            dnspacket.Opcode, true, dnspacket.RD, dnspacket.RD,
-            dnspacket.Questions, new Response[] {response}, null, null);
+        DnsPacket res_packet = new DnsPacket(in_dns.ID, false,
+            in_dns.Opcode, true, in_dns.RD, in_dns.RD,
+            in_dns.Questions, new Response[] {response}, null, null);
 
-        rdnspacket = res_packet.ICPacket;
+        out_dns = res_packet.ICPacket;
       } catch(Exception e) {
         bool failed_resolve = false;
         // The above resolver failed, let's see if another resolver works
         if(_forward_queries) {
           try {
-            rdnspacket = Resolve(_name_server, (byte[]) dnspacket.Packet);
+            out_dns = Resolve(_name_server, (byte[]) in_dns.Packet);
           } catch(Exception ex) {
             e = ex;
             failed_resolve = true;
@@ -99,17 +104,15 @@ namespace Ipop {
 
         if(!_forward_queries || failed_resolve) {
           ProtocolLog.WriteIf(IpopLog.Dns, "Failed to resolve: " + qname + "\n\t" + e.Message);
-          rdnspacket = DnsPacket.BuildFailedReplyPacket(dnspacket);
+          out_dns = DnsPacket.BuildFailedReplyPacket(in_dns, !invalid_qtype);
         }
       }
 
-      UdpPacket res_udpp = new UdpPacket(req_udpp.DestinationPort,
-                                         req_udpp.SourcePort, rdnspacket);
-      IPPacket res_ipp = new IPPacket(IPPacket.Protocols.Udp,
-                                       req_ipp.DestinationIP,
-                                       req_ipp.SourceIP,
-                                       res_udpp.ICPacket);
-      return res_ipp;
+      UdpPacket out_udp = new UdpPacket(in_udp.DestinationPort,
+                                         in_udp.SourcePort, out_dns);
+      return new IPPacket(IPPacket.Protocols.Udp, in_ip.DestinationIP,
+                                       in_ip.SourceIP,
+                                       out_udp.ICPacket);
     }
 
     /// <summary>Determines if an IP Address is in  the applicable range for

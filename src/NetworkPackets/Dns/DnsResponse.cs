@@ -102,7 +102,7 @@ namespace NetworkPackets.Dns {
       CacheFlush = cache_flush;
       RData = rdata;
 
-      if(Type == DnsPacket.Types.A) {
+      if(Type == DnsPacket.Types.A || Type == DnsPacket.Types.AAAA) {
         NameBlob = DnsPacket.HostnameStringToMemBlock(Name);
         RDataBlob = DnsPacket.IPStringToMemBlock(RData);
       }

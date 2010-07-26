@@ -81,7 +81,7 @@ namespace NetworkPackets.Dns {
       this.QType = QType;
       this.QClass = QClass;
 
-      if(QType == DnsPacket.Types.A) {
+      if(QType == DnsPacket.Types.A || QType == DnsPacket.Types.AAAA) {
         QNameBlob = DnsPacket.HostnameStringToMemBlock(QName);
       }
       else if(QType == DnsPacket.Types.Ptr) {
@@ -116,7 +116,7 @@ namespace NetworkPackets.Dns {
       int qclass = (Data[idx++] << 8) + Data[idx];
       QClass = (DnsPacket.Classes) qclass;
 
-      if(QType == DnsPacket.Types.A) {
+      if(QType == DnsPacket.Types.A || QType == DnsPacket.Types.AAAA) {
         QName = DnsPacket.HostnameMemBlockToString(QNameBlob);
       }
       else if(QType == DnsPacket.Types.Ptr) {

@@ -137,18 +137,21 @@ namespace NetworkPackets.Dns {
   public class DnsPacket: DataPacket {
     /// <summary>the standard ptr suffix</summary>
     public const String INADDR_ARPA = ".in-addr.arpa";
-  /// <summary>Dns Query / Response / Record types</summary>
+    /// <summary>Dns Query / Response / Record types</summary>
     public enum Types {
-    /// <summary>Host address(name)</summary>
+      /// <summary>Host address(name)</summary>
       A = 1,
-    /// <summary>zone authority</summary>
+      /// <summary>zone authority</summary>
       Soa = 6,
-    /// <summary>domain name pointer (ip address)</summary>
-      Ptr = 12
+      /// <summary>domain name pointer (ip address)</summary>
+      Ptr = 12,
+      /// <summary>Host address IPv6</summary>
+      AAAA = 28
     };
-  /// <summary>supported network classes</summary>
+
+    /// <summary>supported network classes</summary>
     public enum Classes {
-    /// <summary>The Internet</summary>
+      /// <summary>The Internet</summary>
       IN = 1
     };
     /// <summary>Unique packet ID</summary>
@@ -341,10 +344,16 @@ namespace NetworkPackets.Dns {
     <param name="Packet">The base packet to translate into a failed response
     </param>
     */
-    public static MemBlock BuildFailedReplyPacket(DnsPacket Packet) {
+    public static MemBlock BuildFailedReplyPacket(DnsPacket Packet,
+        bool refused_implemented)
+    {
       byte[] res = new byte[Packet.Packet.Length];
       Packet.Packet.CopyTo(res, 0);
-      res[3] |= 5;
+      if(refused_implemented) {
+        res[3] |= 5;
+      } else {
+        res[3] |= 4;
+      }
       res[2] |= 0x80;
       return MemBlock.Reference(res);
     }
