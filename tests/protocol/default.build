@@ -35,7 +35,6 @@
   </target>
 
   <target name="clean" depends="clean-logs" description="Deletes the current configuration">
-    <call target="${project.config}"/>
     <delete>
        <fileset>
          <include name="${build.dir}/*.exe" />
