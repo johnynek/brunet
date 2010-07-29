@@ -56,6 +56,9 @@ namespace NetworkPackets {
     <param name="packet">The MemBlock containing the Udp Packet</param>
      */
     public UdpPacket(MemBlock packet) {
+      if(packet.Length < 8) {
+        throw new Exception("Invalid UDP Packet");
+      }
       _icpacket = _packet = packet;
       SourcePort = (packet[0] << 8) | packet[1];
       DestinationPort = (packet[2] << 8) | packet[3];
