@@ -105,7 +105,7 @@ function start()
         exit
       fi
     fi
-    $DHCP >- 2>- <- &
+    $DHCP 1>&- 2>&- <&- &
   fi
 
 # setup logging
