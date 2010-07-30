@@ -51,4 +51,5 @@ echo $version > $version/acisp2p/version
 cd $version
 zip -r9 ../acisp2p.$version.zip acisp2p
 # All done
+cd -
 rm -rf $version
