@@ -217,6 +217,7 @@ namespace Brunet.Services.Dht {
         Hashtable ht = new Hashtable(2);
         ht["Key"] = e.Key;
         ht["Value"] = e.Value;
+        ht["Ttl"] = e.Ttl;
         return ht;
       }
     }
