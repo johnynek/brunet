@@ -12,10 +12,9 @@ for DISTRIBUTION in $DISTRIBUTIONS; do
 
   mkdir -p $PACKAGE_DIR/DEBIAN
   cp control_$DISTRIBUTION $DEBIANDIR/control
-  cp postinst $DEBIANDIR/.
-  cp prerm $DEBIANDIR/.
   version=$VERSION"_"$DISTRIBUTION
   echo "Version: $version" >> $DEBIANDIR/control
+  cp conffiles $DEBIANDIR/.
 
   dpkg-deb -b $PACKAGE_DIR
   rm -rf $PACKAGE_DIR
