@@ -489,6 +489,9 @@ namespace Brunet.Simulator {
       }
 
       Dictionary<AHAddress, bool> found = new Dictionary<AHAddress, bool>();
+      if(Nodes.Count == 0) {
+        return new List<AHAddress>(0);
+      }
       Address start_addr = Nodes.Keys[0];
       Address curr_addr = start_addr;
       int count = 0;
