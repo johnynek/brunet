@@ -26,6 +26,7 @@ function stop()
   pid=`get_pid DhtIpopNode.exe`
 
   if [[ $pid ]]; then
+    hostname localhost
     $DIR/bin/dump_dht_proxy.py $DIR/etc/dht_proxy
     kill -SIGINT $pid &> /dev/null
 
@@ -64,8 +65,15 @@ function start()
 
   if [[ "$USE_IPOP_HOSTNAME" ]]; then
     #service will throw exceptions if we don't have a FQDN
-    oldhostname=`hostname`
     hostname localhost
+    if [[ ! "$STATIC" ]]; then
+      exit_hook=/etc/dhcp3/dhclient-exit-hooks.d
+      if test -e $exit_hook; then
+        if ! test -e $exit_hook/ipop_hostname; then
+          ln -s $DIR/bin/hostname.sh $exit_hook/ipop_hostname
+        fi
+      fi
+    fi
   fi
 
   if [[ ! -e /proc/sys/net/ipv4/neigh/tapipop ]]; then
@@ -97,6 +105,9 @@ function start()
 
   if [[ "$STATIC" ]]; then
     ifconfig $DEVICE $IP netmask $NETMASK mtu 1200
+    if [[ "$USE_IPOP_HOSTNAME" ]]; then
+      $DIR/bin/hostname.sh
+    fi
   else
     if [[ ! "$DHCP" ]]; then
       if [[ "`which dhclient3 2> /dev/null`" ]]; then

@@ -28,6 +28,7 @@ for file in $bin_files; do
   cp $version/acisp2p.src/bin/$file $version/acisp2p/bin/.
 done
 
+cp hostname.sh $version/acisp2p/bin/.
 cp groupvpn* $version/acisp2p/bin/.
 cp daemon.py $version/acisp2p/bin/.
 cp install* $version/acisp2p/.
