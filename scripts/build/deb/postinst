@@ -1,0 +1,4 @@
+#!/bin/bash
+if [[ $(ps uax | grep DhtIpopNode.exe | grep -v grep) ]]; then
+  service groupvpn.sh restart
+fi

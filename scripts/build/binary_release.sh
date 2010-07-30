@@ -37,7 +37,7 @@ cp deb/* $version/acisp2p/deb/.
 
 cp -axf ../../drivers $version/acisp2p/.
 
-scripts="bget.py bput.py crawl.py pybru.py"
+scripts="bget.py bput.py crawl.py pybru.py load_dht_proxy.py dump_dht_proxy.py"
 for file in $scripts; do
   cp $version/acisp2p.src/scripts/$file $version/acisp2p/bin/.
 done

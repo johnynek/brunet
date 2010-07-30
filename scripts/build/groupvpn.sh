@@ -26,6 +26,7 @@ function stop()
   pid=`get_pid DhtIpopNode.exe`
 
   if [[ $pid ]]; then
+    $DIR/bin/dump_dht_proxy.py $DIR/etc/dht_proxy
     kill -SIGINT $pid &> /dev/null
 
     while [[ `get_pid DhtIpopNode.exe` ]]; do
@@ -86,6 +87,10 @@ function start()
   if [[ ! $pid ]]; then
     echo "Error starting IPOP!"
     exit
+  fi
+
+  if test -e $DIR/etc/dht_proxy; then
+    $DIR/bin/load_dht_proxy.py $DIR/etc/dht_proxy &> /dev/null
   fi
 
   renice -19 -p $pid &> /dev/null
