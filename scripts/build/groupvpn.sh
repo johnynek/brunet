@@ -91,7 +91,7 @@ function start()
   renice -19 -p $pid &> /dev/null
 
   if [[ "$STATIC" ]]; then
-    ifconfig $DEVICE $IP netmask $NETMASK
+    ifconfig $DEVICE $IP netmask $NETMASK mtu 1200
   else
     if [[ ! "$DHCP" ]]; then
       if [[ "`which dhclient3 2> /dev/null`" ]]; then
