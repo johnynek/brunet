@@ -54,7 +54,7 @@ namespace Brunet.Security {
 
     abstract protected IEnumerable<SecurityAssociation> _sas { get; }
 
-    public const int CHECK_SA_PERIOD = 300000;
+    public const int CHECK_SA_PERIOD = 450000;
 
     /// <summary></summary>
     public SecurityOverlord(RSACryptoServiceProvider private_key,

@@ -166,18 +166,21 @@ namespace Brunet.Security.PeerSec {
       }
     }
 
-    override public void CheckState() {
-      if(_just_created) {
-        _just_created = _receiving;
-      }
-      base.CheckState();
-    }
-
     ///<summary>This is called when we want to reset the state of the SA after
     ///an equivalent time of two timeouts has occurred.</summary>
     public bool Reset() {
       lock(_sync) {
-        if(_just_created || _closed == 1) {
+        DateTime now = DateTime.UtcNow;
+        // State is not reset if:
+        // - It has been done within the past 120 seconds
+        // - This is closed
+        // - A packet has been received since the last SA check
+        if((_last_update != DateTime.MinValue &&
+              _last_update.AddSeconds(120) > now &&
+              State != States.Active) ||
+            _closed == 1 ||
+            (_receiving && State == States.Active))
+        {
           return false;
         }
         
