@@ -1,0 +1,4 @@
+#!/bin/bash
+if test -e /etc/ipop.vpn.config; then
+  cp /etc/ipop.vpn.config /etc/ipop.vpn.config.tmp
+fi

@@ -1,4 +1,9 @@
 #!/bin/bash
+if test -e /etc/ipop.vpn.config.tmp; then
+  cp /etc/ipop.vpn.config /etc/ipop.vpn.config.bak
+  cp /etc/ipop.vpn.config.tmp /etc/ipop.vpn.config
+fi
+
 if [[ $(ps uax | grep DhtIpopNode.exe | grep -v grep) ]]; then
   service groupvpn.sh restart
 fi

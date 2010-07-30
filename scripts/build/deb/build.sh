@@ -15,6 +15,7 @@ for DISTRIBUTION in $DISTRIBUTIONS; do
   version=$VERSION"_"$DISTRIBUTION
   echo "Version: $version" >> $DEBIANDIR/control
   cp postinst $DEBIANDIR/.
+  cp preinst $DEBIANDIR/.
 #  cp conffiles $DEBIANDIR/.
 
   dpkg-deb -b $PACKAGE_DIR
