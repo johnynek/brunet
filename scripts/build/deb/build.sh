@@ -1,6 +1,6 @@
 #!/bin/bash
 VERSION=`cat ../version`
-DISTRIBUTIONS="ubuntu8.10 ubuntu9.04"
+DISTRIBUTIONS="ubuntu9.04"
 for DISTRIBUTION in $DISTRIBUTIONS; do
   export PACKAGE_DIR=ipop\_$VERSION\_$DISTRIBUTION\_all
   DEBIANDIR=$PACKAGE_DIR/DEBIAN
