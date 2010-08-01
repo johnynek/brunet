@@ -26,9 +26,8 @@ using Brunet.Collections;
 using Brunet.Concurrent;
 using Brunet.Services.Dht;
 using Brunet.Util;
-using Ipop;
+
 using System;
-using System.Net;
 using System.Text;
 using System.Collections;
 using System.Collections.Generic;
@@ -37,20 +36,13 @@ namespace Ipop.Dht {
   /// <summary>This class provides a method to do address resolution over the
   /// Brunet Dht, where entries are listed in the dht by means of the 
   /// DhtDHCPServer.</summary>
-  /// <remarks>Entries are stored in a Dictionary (_results) that gets cleared
-  /// every 10 minutes.  After the 10 minute mark, the results are pushed into
-  /// a single stage garbage collection (_last_results).  If _results has a 
-  /// miss but _last_results has a hit, the result is returned but is also
-  /// queried into the Dht.</remarks>
   public class DhtAddressResolver: IAddressResolver {
     /// <summary>Clean up the cache entries every 10 minutes.</summary>
     public const int CLEANUP_TIME_MS = 600000;
+    /// <summary>Address cache</summary>
+    protected readonly TimeBasedCache<MemBlock, Address> _cache;
     /// <summary>A lock synchronizer for the hashtables and cache.</summary>
     protected readonly Object _sync = new Object();
-    /// <summary>Contains IP::Address mappings.</summary>
-    protected Dictionary<MemBlock, Address> _results;
-    /// <summary>_results pre-garbage collection cache.</summary>
-    protected Dictionary<MemBlock, Address> _last_results;
     /// <summary>Failed query attempts.</summary>
     protected readonly Dictionary<MemBlock, int> _attempts;
     /// <summary>Contains which IP Address Misses are pending.</summary>
@@ -61,10 +53,6 @@ namespace Ipop.Dht {
     protected readonly IDht _dht;
     /// <summary>The ipop namespace where the dhcp server is storing names</summary>
     protected readonly string _ipop_namespace;
-    /// <summary>Timer that handles the garbage collection of mappings.</summary>
-    protected readonly FuzzyEvent _fe;
-    /// <summary>The DhtAddressResolver is done, if _stopped == 1.</summary>
-    protected int _stopped;
 
     /// <summary>Creates a DhtAddressResolver Object.</summary>
     /// <param name="dht">The dht object to use for dht interactions.</param>
@@ -74,22 +62,10 @@ namespace Ipop.Dht {
     {
       _dht = dht;
       _ipop_namespace = ipop_namespace;
-
-      _last_results = new Dictionary<MemBlock, Address>();
-      _results = new Dictionary<MemBlock, Address>();
+      _cache = new TimeBasedCache<MemBlock, Address>(CLEANUP_TIME_MS);
       _attempts = new Dictionary<MemBlock, int>();
       _queued = new Dictionary<MemBlock, bool>();
       _mapping = new Dictionary<Channel, MemBlock>();
-      _fe = Brunet.Util.FuzzyTimer.Instance.DoEvery(CleanUp, CLEANUP_TIME_MS, CLEANUP_TIME_MS / 10);
-      _stopped = 0;
-    }
-
-    protected void CleanUp(DateTime now)
-    {
-      lock(_sync) {
-        _last_results = _results;
-        _results = new Dictionary<MemBlock, Address>();
-      }
     }
 
     /// <summary>Translates an IP Address to a Brunet Address.  If it is in the
@@ -100,14 +76,12 @@ namespace Ipop.Dht {
     /// one exists in the cache</returns>
     public Address Resolve(MemBlock ip)
     {
-      Address addr = null;
-      lock(_sync) {
-        if(_results.TryGetValue(ip, out addr)) {
-          return addr;
-        }
-        _last_results.TryGetValue(ip, out addr);
+      Address addr;
+      bool update;
+      bool success = _cache.TryGetValue(ip, out addr, out update);
+      if(update || !success) {
+        Miss(ip);
       }
-      Miss(ip);
       return addr;
     }
 
@@ -118,45 +92,21 @@ namespace Ipop.Dht {
     {
       // Check current results
       Address stored_addr = null;
-      lock(_sync) {
-        _results.TryGetValue(ip, out stored_addr);
-      }
-
+      bool update;
+      bool exists = _cache.TryGetValue(ip, out stored_addr, out update);
       if(addr.Equals(stored_addr)) {
-        // Match!
+        if(update) {
+          Miss(ip);
+        }
         return true;
-      } else if(stored_addr == null) {
-        // No entry, check previous contents
-        lock(_sync) {
-          _last_results.TryGetValue(ip, out stored_addr);
-        }
-        if(Miss(ip)) {
-          IncrementMisses(ip);
-        }
-        return addr.Equals(stored_addr);
+      } else if(!exists) {
+        Miss(ip);
+        return false;
       } else {
         // Bad mapping
-        Miss(ip);
         throw new AddressResolutionException(String.Format(
               "IP:Address mismatch, expected: {0}, got: {1}",
               addr, stored_addr), AddressResolutionException.Issues.Mismatch);
-      }
-    }
-
-    protected void IncrementMisses(MemBlock ip)
-    {
-      lock(_attempts) {
-        int count = 1;
-        if(_attempts.ContainsKey(ip)) {
-          count =  _attempts[ip] + 1;
-        }
-        _attempts[ip] = count;
-
-        if(count >= 3) {
-          _attempts.Remove(ip);
-          throw new AddressResolutionException("No Address mapped to: " + Utils.MemBlockToString(ip, '.'),
-              AddressResolutionException.Issues.DoesNotExist);
-        }
       }
     }
 
@@ -171,12 +121,23 @@ namespace Ipop.Dht {
 
       lock(_sync) {
         // Already looking up or found
-        if(_queued.ContainsKey(ip) || _results.ContainsKey(ip)) {
+        if(_queued.ContainsKey(ip)) {
           return false;
         }
 
-        _queued[ip] = true;
+        int count = 1;
+        if(_attempts.ContainsKey(ip)) {
+          count =  _attempts[ip] + 1;
+        }
+        _attempts[ip] = count;
 
+        if(count >= 3) {
+          _attempts.Remove(ip);
+          throw new AddressResolutionException("No Address mapped to: " + Utils.MemBlockToString(ip, '.'),
+              AddressResolutionException.Issues.DoesNotExist);
+        }
+
+        _queued[ip] = true;
         queue = new Channel(1);
         queue.CloseEvent += MissCallback;
         _mapping[queue] = ip;
@@ -233,7 +194,7 @@ namespace Ipop.Dht {
 
       lock(_sync) {
         if(addr != null) {
-          _results[ip] = addr;
+          _cache.Update(ip, addr);
           _attempts.Remove(ip);
         }
 
@@ -246,11 +207,7 @@ namespace Ipop.Dht {
     /// will need to be constructed, if used in the same process.</summary>
     public void Stop()
     {
-      if(System.Threading.Interlocked.Exchange(ref _stopped, 1) == 0) {
-        return;
-      }
-
-      _fe.TryCancel();
+      _cache.Stop();
     }
   }
 }
