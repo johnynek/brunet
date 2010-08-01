@@ -25,13 +25,19 @@ using Brunet.Applications;
 using Brunet.Messaging;
 using Brunet.Security;
 using Brunet.Symphony;
+using Brunet.Transport;
 using Brunet.Util;
 using NetworkPackets;
 using NetworkPackets.Dhcp;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Net;
 using System.Threading;
+
+#if NUNIT
+using NUnit.Framework;
+#endif
 
 /// \namespace Ipop
 /// \brief Ipop provides the IP over P2P library that is to be used in
@@ -173,6 +179,7 @@ namespace Ipop {
       _dhcp_config = dhcp_config;
       if(_dhcp_config != null) {
         SetDns();
+        SetTAAuth();
         _dhcp_server = GetDhcpServer();
       }
       _checked_out = new Hashtable();
@@ -699,7 +706,35 @@ namespace Ipop {
     protected virtual void GetDhcpConfig() {
       if(_dhcp_config != null) {
         SetDns();
+        SetTAAuth();
       }
+    }
+
+    protected void SetTAAuth()
+    {
+      // Setup a TAAuth for the given range so we don't try to form Edges over IPOP
+      IPAddress ip = IPAddress.Parse(_dhcp_config.IPBase);
+      int netmask = CalculateNetmaskCidr(_dhcp_config.Netmask);
+      TAAuthorizer ip_auth = new NetmaskTAAuthorizer(ip, netmask,
+          TAAuthorizer.Decision.Deny, TAAuthorizer.Decision.None);
+
+      foreach(EdgeListener el in AppNode.Node.EdgeListenerList) {
+        TAAuthorizer current_auth = el.TAAuth;
+        TAAuthorizer[] series_auth = new TAAuthorizer[] {ip_auth, current_auth};
+        el.TAAuth = new SeriesTAAuthorizer(series_auth);
+      }
+    }
+
+    /// <summary>Converts from a.b.c.d to the number of 1s in a.b.c.d (CIDR notation).</summary>
+    public static int CalculateNetmaskCidr(string netmask) {
+      byte[] nmb = Utils.StringToBytes(netmask, '.');
+      int nm = (nmb[0] << 24) | (nmb[1] << 16) | (nmb[2] << 8) | nmb[3];
+      int cidr = 0;
+      while(nm != 0) {
+        cidr++;
+        nm *= 2;
+      }
+      return cidr;
     }
 
     protected virtual bool SupportedDns(string dns) {
@@ -891,4 +926,21 @@ namespace Ipop {
     /// <returns>The translated IP Packet.</returns>
     MemBlock Translate(MemBlock packet, Address from);
   }
+
+#if NUNIT
+  [TestFixture]
+  public class IpopTest {
+    [Test]
+    public void CidrTest() {
+      Assert.AreEqual(1, IpopNode.CalculateNetmaskCidr("128.0.0.0"));
+      Assert.AreEqual(4, IpopNode.CalculateNetmaskCidr("240.0.0.0"));
+      Assert.AreEqual(7, IpopNode.CalculateNetmaskCidr("254.0.0.0"));
+      Assert.AreEqual(10, IpopNode.CalculateNetmaskCidr("255.192.0.0"));
+      Assert.AreEqual(14, IpopNode.CalculateNetmaskCidr("255.252.0.0"));
+      Assert.AreEqual(18, IpopNode.CalculateNetmaskCidr("255.255.192.0"));
+      Assert.AreEqual(31, IpopNode.CalculateNetmaskCidr("255.255.255.254"));
+      Assert.AreEqual(32, IpopNode.CalculateNetmaskCidr("255.255.255.255"));
+    }
+  }
+#endif
 }
