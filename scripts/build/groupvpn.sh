@@ -26,7 +26,9 @@ function stop()
   pid=`get_pid DhtIpopNode.exe`
 
   if [[ $pid ]]; then
-    hostname localhost
+    if [[ "$USE_IPOP_HOSTNAME" ]]; then
+      hostname localhost
+    fi
     $DIR/bin/dump_dht_proxy.py $DIR/etc/dht_proxy
     kill -SIGINT $pid &> /dev/null
 
