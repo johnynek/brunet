@@ -47,6 +47,7 @@ namespace Brunet.Connections {
     public ConnectionLockManager(ConnectionTable tab) {
       _sync = new object();
       _address_locks = new Hashtable();
+      _cts = tab.State;
       //Watch for new Connections or lost connections
       tab.ConnectionEvent += UpdateState;
       tab.DisconnectionEvent += UpdateState;
