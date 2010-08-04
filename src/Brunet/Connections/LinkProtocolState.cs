@@ -370,8 +370,7 @@ namespace Brunet.Connections
      * Unlock any lock which is held by this state
      */
     public void Unlock() {
-      ConnectionTable tab = _node.ConnectionTable;
-      tab.Unlock( _contype, this );
+      _node.LockMgr.Unlock( _contype, this );
     }
 
     protected LinkMessage MakeLM() {
@@ -458,14 +457,12 @@ namespace Brunet.Connections
        * once, and once it happens a future attempt will throw an exception
        */
       _lm_reply.Value = lm;
-      
-      ConnectionTable tab = _node.ConnectionTable;
       /*
        * This throws an exception if:
        * 0) we can't get the lock.
        * 1) we already have set _target_lock to something else
        */
-      tab.Lock( lm.Local.Address, _contype, this );
+      _node.LockMgr.Lock( lm.Local.Address, _contype, this );
     }
 
     /**

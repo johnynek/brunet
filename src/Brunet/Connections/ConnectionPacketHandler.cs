@@ -435,7 +435,6 @@ namespace Brunet.Connections
      */
     protected bool CanConnect(CphState cph, out ErrorMessage err)
     {
-      ConnectionTable tab = _node.ConnectionTable;
       Address local_add = _node.Address;
       LinkMessage lm = cph.LM;
       err = null;
@@ -476,7 +475,7 @@ namespace Brunet.Connections
               "ConnectionPacketHandler - Trying to lock connection table: {0},{1}",
                                   lm.Local.Address, lm.ConTypeString));
 
-          tab.Lock( lm.Local.Address, lm.ConTypeString, cph );
+          _node.LockMgr.Lock( lm.Local.Address, lm.ConTypeString, cph );
           if(ProtocolLog.LinkDebug.Enabled)
             ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
               "ConnectionPacketHandler - Successfully locked connection table: {0},{1}",
@@ -516,8 +515,7 @@ namespace Brunet.Connections
         }
       }
       if( cphstate != null ) {
-        ConnectionTable tab = _node.ConnectionTable;
-        tab.Unlock( cphstate.LM.ConTypeString, cphstate );
+        _node.LockMgr.Unlock( cphstate.LM.ConTypeString, cphstate );
       }
     }
   }

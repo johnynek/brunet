@@ -844,14 +844,12 @@ namespace Brunet.Connections
       if( _target.Equals( LocalNode.Address ) ) {
         throw new LinkException("cannot connect to self");
       }
- 
-      ConnectionTable tab = LocalNode.ConnectionTable;
       /*
        * This throws an exception if:
        * 0) we can't get the lock.
        * 1) we already have set _target_lock to something else
        */
-      tab.Lock( _target, _contype, this);
+      LocalNode.LockMgr.Lock( _target, _contype, this);
     }
     
     /**
@@ -934,8 +932,7 @@ namespace Brunet.Connections
      * (in which case nothing happens).
      */
     protected void Unlock() {
-      ConnectionTable tab = LocalNode.ConnectionTable;
-      tab.Unlock( _contype, this );
+      LocalNode.LockMgr.Unlock( _contype, this );
     }
   }
 }

@@ -728,15 +728,6 @@ namespace Brunet.Connections
   public sealed class ConnectionTable : IEnumerable
   {
     /**
-     * These are the addresses we are trying to connect to.
-     * The key is the address, the value is the object that
-     * holds the lock.
-     */
-    private readonly Hashtable _address_locks;
-
-    /** an object to lock for thread sync */
-    private readonly object _sync;
-    /**
      * When there is a new connection, this event
      * is fired.
      */
@@ -756,8 +747,6 @@ namespace Brunet.Connections
      */
     public event EventHandler StateEvent;
 
-    private readonly Address _local;
-
     private readonly Mutable<ConnectionTableState> _cts;
 
     public ConnectionTableState State {
@@ -770,18 +759,10 @@ namespace Brunet.Connections
    * @param local the Address associated with the local node
    */
 
-    public ConnectionTable(Address local)
+    public ConnectionTable()
     {
-      _local = local;
       _cts = new Mutable<ConnectionTableState>(new ConnectionTableState());
-      _sync = new Object();
-      _address_locks = new Hashtable();
     }
-
-    /**
-     * Make a ConnectionTable with the default address comparer
-     */
-    public ConnectionTable() : this(null) { }
 
     /**
      * When an Edge is added, the ConnectionTable listens
@@ -898,75 +879,6 @@ namespace Brunet.Connections
     }
 
     /**
-     * @param a the Address to lock
-     * @param t the type of connection
-     * @param locker the object wishing to hold the lock
-     *
-     * We use this to make sure that two linkers are not
-     * working on the same address for the same connection type
-     *
-     * @throws ConnectionExistsException if there is already a connection to this address
-     * @throws CTLockException if we cannot get the lock
-     * @throws CTLockException if lockedvar is not null or a, when called. 
-     */
-    public void Lock(Address a, string t, ILinkLocker locker)
-    {
-      ConnectionType mt = Connection.StringToMainType(t);
-      lock( _sync ) {
-        if( null == a ) { return; }
-        if( locker.TargetLock != null && (false == a.Equals(locker.TargetLock)) ) {
-          //We only overwrite the locker.TargetLock() if it is null:
-          throw new CTLockException(
-                  String.Format("locker.TargetLock() not null, set to: {0}", locker.TargetLock));
-        }
-        var list = _cts.State.GetConnections(mt);
-        if( list.Contains(a) ) {
-          /**
-           * We already have a connection of this type to this node.
-           */
-          throw new ConnectionExistsException(list[a]);
-        }
-        Hashtable locks = (Hashtable)_address_locks[mt];
-        if( locks == null ) {
-          locks = new Hashtable();
-          _address_locks[mt] = locks;
-        }
-        ILinkLocker old_locker = (ILinkLocker)locks[a];
-        if( null == old_locker ) {
-          locks[a] = locker;
-          locker.TargetLock = a;
-          if(ProtocolLog.ConnectionTableLocks.Enabled) {
-            ProtocolLog.Write(ProtocolLog.ConnectionTableLocks,
-              String.Format("{0}, locker: {1} Unlocking: {2}",
-                            _local, locker, a));
-          }
-        }
-        else if (old_locker == locker) {
-          //This guy already holds the lock
-          locker.TargetLock = a;
-        }
-        else if ( old_locker.AllowLockTransfer(a,t,locker) ) {
-        //See if we can transfer the lock:
-          locks[a] = locker;
-          locker.TargetLock = a;
-          //Make sure the lock is null
-          old_locker.TargetLock = null;
-        }
-        else {
-          if(ProtocolLog.ConnectionTableLocks.Enabled) {
-            ProtocolLog.Write(ProtocolLog.ConnectionTableLocks,
-              String.Format("{0}, {1} tried to lock {2}, but {3} holds the lock",
-              _local, locker, a, locks[a]));
-          }
-          throw new CTLockException(
-                      String.Format(
-                        "Lock on {0} cannot be transferred from {1} to {2}",
-                        a, old_locker, locker));
-        }
-      }
-    }
-
-    /**
      * Remove the connection associated with an edge from the table
      * @param e Edge whose connection should be removed
      * @param add_unconnected if true, keep a reference to the edge in the
@@ -1039,48 +951,6 @@ namespace Brunet.Connections
           if(ProtocolLog.Exceptions.Enabled)
             ProtocolLog.Write(ProtocolLog.Exceptions, String.Format(
               "ConnectionEvent triggered exception: {0}\n{1}", cea, x));
-        }
-      }
-    }
-
-    /**
-     * We use this to make sure that two linkers are not
-     * working on the same address
-     * @param t the type of connection.
-     * @param locker the object which holds the lock.
-     * @throw Exception if the lock is not held by locker
-     */
-    public void Unlock(string t, ILinkLocker locker)
-    {
-      ConnectionType mt = Connection.StringToMainType(t);
-      lock( _sync ) {
-        if( locker.TargetLock != null ) {
-          Hashtable locks = (Hashtable)_address_locks[mt];
-          if(ProtocolLog.ConnectionTableLocks.Enabled) {
-            ProtocolLog.Write(ProtocolLog.ConnectionTableLocks,
-              String.Format("{0} Unlocking {1}", _local, locker.TargetLock));
-          }
-
-          object real_locker = locks[locker.TargetLock];
-          if(null == real_locker) {
-            string err = String.Format("On node " + _local + ", " + locker +
-              " tried to unlock " + locker.TargetLock + " but no such lock" );
-            if(ProtocolLog.ConnectionTableLocks.Enabled) {
-              ProtocolLog.Write(ProtocolLog.ConnectionTableLocks, err);
-            }
-            throw new Exception(err);
-          }
-          else if(real_locker != locker) {
-            string err = String.Format("On node " + _local + ", " + locker +
-                " tried to unlock " + locker.TargetLock + " but not the owner");
-            if(ProtocolLog.ConnectionTableLocks.Enabled) {
-              ProtocolLog.Write(ProtocolLog.ConnectionTableLocks, err);
-            }
-            throw new Exception(err);
-          }
-
-          locks.Remove(locker.TargetLock);
-          locker.TargetLock = null;
         }
       }
     }
@@ -1397,52 +1267,6 @@ namespace Brunet.Connections
       }
     }
 
-    [Test]
-    public void LockTest() {
-      byte[]  abuf = new byte[20];
-      Address a = new AHAddress(abuf);
-
-      ConnectionTable tab = new ConnectionTable();
-      TestLinkLocker lt = new TestLinkLocker(true);
-      TestLinkLocker lf = new TestLinkLocker(false);
-
-      //Get a lock on a.
-      tab.Lock(a, "structured.near", lt);
-      Assert.AreEqual(a, lt.TargetLock, "lt has lock");
-      tab.Unlock("structured.near", lt);
-      Assert.IsNull(lt.TargetLock, "Unlock nulling test");
-      //Unlock null should be fine:
-      tab.Unlock("structured.near", lt); 
-      Assert.IsNull(lt.TargetLock, "Unlock nulling test");
-      //We can't unlock if we don't have the lock:
-      lt.TargetLock = a;
-
-      try {
-        tab.Unlock("structured.near", lt);
-        Assert.IsFalse(true, "We were able to unlock an address incorrectly");
-      } catch { }
-      //Get a lock and transfer:
-      tab.Lock(a, "structured.near", lt);
-      Assert.AreEqual(a, lt.TargetLock, "lt has lock");
-      tab.Lock(a, "structured.near", lf);
-      Assert.IsTrue(lf.TargetLock == a, "Lock was transferred to lf");
-      //lt.TargetLock should be null;
-      Assert.IsNull(lt.TargetLock, "lock was transfered and we are null");
-      
-      //Now, lt should not be able to get the lock:
-      try {
-        tab.Lock(a, "structured.near", lt);
-        Assert.IsFalse(true, "We somehow got the lock");
-      }
-      catch { }
-      Assert.IsNull(lt.TargetLock, "lt shouldn't hold the lock");
-      Assert.AreEqual(lf.TargetLock, a, "lf still holds the lock");
-      //Now let's unlock:
-      tab.Unlock("structured.near", lf);
-      //lf.TargetLock should be null;
-      Assert.IsNull(lf.TargetLock, "lock was transfered and we are null");
-
-    }
     [Test]
     public void LoopTest() {
       //Make some fake edges: 

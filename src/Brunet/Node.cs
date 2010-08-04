@@ -105,8 +105,9 @@ namespace Brunet
         _send_pings = 1;
         _LOG = ProtocolLog.Monitor.Enabled;
 
-        _connection_table = new ConnectionTable(_local_add);
+        _connection_table = new ConnectionTable();
         _connection_table.ConnectionEvent += this.ConnectionHandler;
+        LockMgr = new ConnectionLockManager(_connection_table);
 
         //We start off offline.
         _con_state = Node.ConnectionState.Offline;
@@ -341,6 +342,7 @@ namespace Brunet
      * Manages the various mappings associated with connections
      */
     public virtual ConnectionTable ConnectionTable { get { return _connection_table; } }
+    public readonly ConnectionLockManager LockMgr;
     /**
      * Brunet IPHandler service!
      */
