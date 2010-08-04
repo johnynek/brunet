@@ -23,7 +23,6 @@ THE SOFTWARE.
 */
 
 //#define RPC_DEBUG
-//#define DAVID_ASYNC_INVOKE
 using System;
 using System.IO;
 using System.Collections;
@@ -116,11 +115,6 @@ public class RpcManager : IReplyHandler, IDataHandler {
   
   //Here are the methods that don't want the return_path
   protected Hashtable _method_handlers;
-
-#if DAVID_ASYNC_INVOKE
-  protected BlockingQueue _rpc_command;
-  protected Thread _rpc_thread;
-#endif
 
   /**
    * This is the "standard" RpcHandler for a set of objects.
@@ -235,13 +229,6 @@ public class RpcManager : IReplyHandler, IDataHandler {
     _rrman = rrm;
     _method_cache = new Cache(CACHE_SIZE);
     _method_handlers = new Hashtable();
-
-#if DAVID_ASYNC_INVOKE
-    _rpc_command = new BlockingQueue();
-    _rpc_thread = new Thread(RpcCommandRun);
-    _rpc_thread.IsBackground = true;
-    _rpc_thread.Start();
-#endif
   }
 
   /**
@@ -388,16 +375,7 @@ public class RpcManager : IReplyHandler, IDataHandler {
       }
 
       ArrayList pa = (ArrayList)l[1];
-#if DAVID_ASYNC_INVOKE
-      object[] odata = new object[4];
-      odata[0] = handler;
-      odata[1] = ret_path;
-      odata[2] = mname;
-      odata[3] = pa;
-      _rpc_command.Enqueue(odata);
-#else
       handler.HandleRpc(ret_path, mname, pa, ret_path);
-#endif
     }
     catch(ArgumentException argx) {
       exception = new AdrException(-32602, argx);
@@ -516,24 +494,6 @@ public class RpcManager : IReplyHandler, IDataHandler {
     }
   }
 
-#if DAVID_ASYNC_INVOKE
-  protected void RpcCommandRun() {
-    while(true) {
-      try {
-        object[] data = (object[]) _rpc_command.Dequeue();
-        IRpcHandler handler = (IRpcHandler) data[0];
-        ISender ret_path = (ISender) data[1];
-        string methname = (string) data[2];
-        IList param_list = (IList) data[3];
-        handler.HandleRpc(ret_path, methname, param_list, ret_path);
-      }
-      catch (Exception x) {
-        Console.Error.WriteLine("Exception in RpcCommandRun: {0}", x);
-      }
-    }
-  }
-
-#endif
   /**
    * This is used to send a result from an IRpcHandler
    * @param request_state this is passed to the IRpcHandler
