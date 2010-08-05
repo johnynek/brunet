@@ -151,9 +151,7 @@ namespace Brunet.Symphony {
       Connection con = _node.ConnectionTable.GetConnection(MAIN_TYPE, addr);
 
       bool value;
-      if(!_cache.TryGetValue(con.Address, out value) && con != null &&
-          con.ConType.Equals(TYPE))
-      {
+      if(!_cache.TryGetValue(addr, out value) && con != null && con.ConType.Equals(TYPE)) {
         DelayedRemove(addr);
       } else if(_active && con == null) {
         DelayedConnectTo(addr, false);
