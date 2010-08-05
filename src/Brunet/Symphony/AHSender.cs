@@ -250,6 +250,7 @@ public class AHSender : ISender {
   public short Ttl { get { return _ttl; } }
   protected ushort _options;
   public ushort Options { get { return _options; } }
+  public readonly short HopsTaken;
 
   private static BufferAllocator _buf_alloc;
 
@@ -275,15 +276,21 @@ public class AHSender : ISender {
     : this(n, n, destination, ttl, options) {
 
   }
-  public AHSender(Node n, ISender from, Address destination, short ttl, ushort options) {
+
+  public AHSender(Node n, ISender from, Address destination, short ttl, ushort options)
+    : this(n, from, destination, ttl, options, 0) {
+
+  }
+
+  public AHSender(Node n, ISender from, Address destination, short ttl, ushort options, short hops_taken) {
     _n = n;
     _from = from;
     //Here are the fields in the order they appear:
-    _hops = 0;
     _ttl = ttl;
     _source = n.Address;
     _dest = destination;
     _options = options;
+    HopsTaken = hops_taken;
   }
   /**
    * This is probably the most commonly used AHSender
@@ -745,9 +752,9 @@ public class AHHandler : IDataHandler {
       Pair<Connection, bool> result = alg.NextConnection(ret_path as Edge, header);
       if( result.Second ) {
         //Send a response exactly back to the node that sent to us
-        var resp_send = new AHSender(_n, ret_path, header.Source,
+        var resp_send = new AHSender(_n, ret_path, header.Source, 
                                        AHSender.DefaultTTLFor(_n.NetworkSize),
-                                       AHHeader.Options.Exact);
+                                       AHHeader.Options.Exact, header.Hops);
         _n.HandleData( payload, resp_send, this); 
       }
       next_con = result.First;
