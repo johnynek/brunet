@@ -155,10 +155,6 @@ namespace Brunet.Applications {
           }
         }
 
-        if(!_running) {
-          break;
-        }
-
         // Assist in garbage collection
         if(_xrm != null) {
           _xrm.Remove(node.Node);
@@ -172,6 +168,10 @@ namespace Brunet.Applications {
         }
 
         _type_to_pem.Clear();
+
+        if(!_running) {
+          break;
+        }
 
         DateTime now = DateTime.UtcNow;
         Thread.Sleep(sleep * 1000);
