@@ -238,23 +238,16 @@ public class AHSender : ISender {
     return new AHSender(n, target, option);
   }
 
-  protected Node _n;
-  public Node Node { get { return _n; } }
-  protected readonly Address _dest;
-  public Address Destination { get { return _dest; } }
-  protected readonly Address _source;
-  public Address Source { get { return _source; } }
-  protected short _hops;
-  public short Hops { get { return _hops; } }
-  protected short _ttl;
-  public short Ttl { get { return _ttl; } }
-  protected ushort _options;
-  public ushort Options { get { return _options; } }
+  public readonly Node Node;
+  public readonly Address Destination;
+  public readonly Address Source;
+  public readonly short Hops;
+  public readonly short Ttl;
+  public readonly ushort Options;
   public readonly short HopsTaken;
 
   private static BufferAllocator _buf_alloc;
 
-  protected ISender _from;
   /*
    * Every packet comes from somewhere, it is either locally generated,
    * or it came from an edge.  This ISender sends "back" from where the
@@ -262,7 +255,7 @@ public class AHSender : ISender {
    *
    * If this a local packet, it was Received from the local node
    */
-  public ISender ReceivedFrom { get { return _from; } }
+  public readonly ISender ReceivedFrom;
   //This is the serialized header:
   protected MemBlock _header;
   protected int _header_length;
@@ -283,13 +276,13 @@ public class AHSender : ISender {
   }
 
   public AHSender(Node n, ISender from, Address destination, short ttl, ushort options, short hops_taken) {
-    _n = n;
-    _from = from;
+    Node = n;
+    ReceivedFrom = from;
     //Here are the fields in the order they appear:
-    _ttl = ttl;
-    _source = n.Address;
-    _dest = destination;
-    _options = options;
+    Ttl = ttl;
+    Source = n.Address;
+    Destination = destination;
+    Options = options;
     HopsTaken = hops_taken;
   }
   /**
@@ -337,14 +330,14 @@ public class AHSender : ISender {
     AHSender ahs = o as AHSender;
     bool eq = false;
     if( ahs != null ) {
-      eq = ahs.Destination.Equals( _dest );
-      eq &= ( ahs._options == _options );
+      eq = ahs.Destination.Equals( Destination );
+      eq &= ( ahs.Options == Options );
     }
     return eq;
   }
 
   override public int GetHashCode() {
-    return _dest.GetHashCode();
+    return Destination.GetHashCode();
   }
 
   public void Send(ICopyable data) {
@@ -352,7 +345,7 @@ public class AHSender : ISender {
      * Assemble an AHPacket:
      */
     if( _header == null ) {
-      AHHeader ahh = new AHHeader(_hops, _ttl, _source, _dest, _options);
+      AHHeader ahh = new AHHeader(Hops, Ttl, Source, Destination, Options);
       _header = MemBlock.Copy(new CopyList( PType.Protocol.AH, ahh));
       _header_length = _header.Length;
     }
@@ -396,11 +389,11 @@ public class AHSender : ISender {
      * Now we announce this packet, the AHHandler will
      * handle routing it for us
      */
-    _n.HandleData(mb_packet, _from, this);
+    Node.HandleData(mb_packet, ReceivedFrom, this);
   }
 
   public override string ToString() {
-    return System.String.Format("AHSender(dest={0})",_dest);
+    return System.String.Format("AHSender(dest={0})",Destination);
   }
 
   /**
@@ -409,8 +402,8 @@ public class AHSender : ISender {
    */
   public string ToUri() {
     return System.String.Format("sender:ah?dest={0}&mode={1}",
-                                _dest.ToMemBlock().ToBase32String(),
-                                AHHeader.Options.UShortToString(_options));
+                                Destination.ToMemBlock().ToBase32String(),
+                                AHHeader.Options.UShortToString(Options));
   }
 
 }
