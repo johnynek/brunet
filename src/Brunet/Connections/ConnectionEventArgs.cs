@@ -39,7 +39,8 @@ namespace Brunet.Connections
 
     public Address RemoteAddress { get { return Connection.Address; } }
     public ConnectionType ConnectionType { get { return Connection.MainType; } }
-    public Edge Edge { get { return Connection.Edge; } }
+    private readonly Edge _e;
+    public Edge Edge { get { return _e; } }
     
     /**
      * This is the ConnectionList that the Connection was
@@ -69,6 +70,7 @@ namespace Brunet.Connections
     public ConnectionEventArgs(Connection c, int idx,
                                ConnectionTableState old, ConnectionTableState news) {
       Connection = c;
+      _e = c.State.Edge;
       Index = idx;
       OldState = old;
       NewState = news;

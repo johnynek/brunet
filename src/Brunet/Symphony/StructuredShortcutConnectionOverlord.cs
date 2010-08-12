@@ -584,7 +584,7 @@ namespace Brunet.Symphony {
          * First half of the token is initiator address, while the other half 
          * is the start of the range.
          */
-        string token = sc.PeerLinkMessage.Token;
+        string token = sc.State.PeerLinkMessage.Token;
         if (token == null || token == String.Empty) {
           continue;
         }
@@ -599,7 +599,7 @@ namespace Brunet.Symphony {
       if (shortcuts.Count > 0) {
         // Pick a random shortcut and check for optimality.
         Connection sc = (Connection)shortcuts[ _rand.Next(shortcuts.Count) ];
-        string token = sc.PeerLinkMessage.Token;
+        string token = sc.State.PeerLinkMessage.Token;
         // Second half of the token is the random target for the shortcut.
         Address random_target = AddressParser.Parse(token.Substring(token.Length/2));
         if (LogEnabled) {
@@ -646,7 +646,7 @@ namespace Brunet.Symphony {
         //find the connection and trim it.
         Connection to_trim = null;
         foreach(Connection c in _node.ConnectionTable.GetConnections(STRUC_SHORT) ) {
-          string token = c.PeerLinkMessage.Token;
+          string token = c.State.PeerLinkMessage.Token;
           if (token == null || token == String.Empty) {
             continue;
           }
@@ -670,7 +670,7 @@ namespace Brunet.Symphony {
             _sum_con_lifetime += total_secs;
             _trim_count++;
           }
-          _node.GracefullyClose(to_trim.Edge);
+          _node.GracefullyClose(to_trim.State.Edge);
         }
       } else {
         if (LogEnabled) {
@@ -696,7 +696,7 @@ namespace Brunet.Symphony {
       
       ArrayList bypass_cons = new ArrayList();
       foreach(Connection c in _node.ConnectionTable.GetConnections(STRUC_BYPASS) ) {
-        string token = c.PeerLinkMessage.Token;
+        string token = c.State.PeerLinkMessage.Token;
         if(token == null || token.Equals(_node.Address.ToString())) {
           continue;
         }
@@ -717,7 +717,7 @@ namespace Brunet.Symphony {
             _sum_con_lifetime += total_secs;
             _trim_count++;
           }
-          _node.GracefullyClose(bp.Edge);
+          _node.GracefullyClose(bp.State.Edge);
         } else if (LogEnabled) {
           ProtocolLog.Write(ProtocolLog.SCO,
               String.Format("SCO local: {0}, Bypass is optimal: {1}.",
@@ -870,7 +870,7 @@ namespace Brunet.Symphony {
 #if POB_DEBUG
      Console.Error.WriteLine("Attempt to trim Shortcut: {0}", to_trim);
 #endif
-      _node.GracefullyClose( to_trim.Edge, "SCO, shortcut connection trim" );
+      _node.GracefullyClose( to_trim.State.Edge, "SCO, shortcut connection trim" );
     }
   }
 }

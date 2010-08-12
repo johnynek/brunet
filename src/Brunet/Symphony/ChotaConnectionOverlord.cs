@@ -170,7 +170,7 @@ namespace Brunet.Symphony {
       ConnectionList cons = _node.ConnectionTable.GetConnections(Connection.StringToMainType(struc_chota));
 
       // Trim and add OUTSIDE of the lock!
-      List<Edge> to_trim = new List<Edge>();
+      var to_trim = new List<Connection>();
       List<Address> to_add = new List<Address>();
 
       lock(_sync) {
@@ -183,7 +183,7 @@ namespace Brunet.Symphony {
           // Now check to see if ChotaCO owns this connections and add to_trim if it does
           int idx = cons.IndexOf(node_rank.Addr);
           if(idx >= 0 && cons[idx].ConType.Equals(struc_chota)) {
-            to_trim.Add(cons[idx].Edge);
+            to_trim.Add(cons[idx]);
           }
         }
 
@@ -207,8 +207,8 @@ namespace Brunet.Symphony {
         }
       }
 
-      foreach(Edge e in to_trim) {
-        _node.GracefullyClose(e, "From Chota, low score trim.");
+      foreach(Connection c in to_trim) {
+        _node.GracefullyClose(c.State.Edge, "From Chota, low score trim.");
       }
 
       foreach(Address addr in to_add) {

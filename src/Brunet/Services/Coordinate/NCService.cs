@@ -161,7 +161,7 @@ namespace Brunet.Services.Coordinate {
               _rpc.SendResult(req_state, l);
             }
         };
-        _rpc.Invoke(next_closest.Edge, result, "ncserver.ComputePathLatencyTo", a.ToString());
+        _rpc.Invoke(next_closest, result, "ncserver.ComputePathLatencyTo", a.ToString());
       }
       else {
         //We are the end of the line, send the result:
@@ -184,10 +184,8 @@ namespace Brunet.Services.Coordinate {
                                                  double latency); 
       //local node
       protected readonly Node _node;
-      //target address
-      protected readonly Address _target_address;
       //edge over which we do the sampling
-      protected readonly Edge _target_edge;
+      protected readonly Connection _target;
       //vivaldi state as retrieved from the remote node
       protected WriteOnce<Hashtable> _state_result;
       //callback function when finished
@@ -202,7 +200,7 @@ namespace Brunet.Services.Coordinate {
         ArrayList con_list = new ArrayList();
         foreach (Connection con in _node.ConnectionTable.GetConnections(ConnectionType.Structured))
         {
-          if (con.Edge is Relay.RelayEdge) {
+          if (con.State.Edge is Relay.RelayEdge) {
             continue;
           }
           con_list.Add(con);
@@ -212,9 +210,7 @@ namespace Brunet.Services.Coordinate {
           throw new Exception("Cannot initialize a trial state (No usable structured connections).");
         }
         
-        Connection target = (Connection) con_list[_rand.Next(con_list.Count)];
-        _target_address = target.Address;
-        _target_edge = target.Edge;
+        _target = (Connection) con_list[_rand.Next(con_list.Count)];
         _state_result = new WriteOnce<Hashtable>();
         _num_samples = 0;
         _started = 0;
@@ -227,7 +223,7 @@ namespace Brunet.Services.Coordinate {
           return;
         }
 #if NC_DEBUG        
-        Console.Error.WriteLine("[NCService] {0} Starting trial to: {1}.", _node.Address, _target_address);
+        Console.Error.WriteLine("[NCService] {0} Starting trial to: {1}.", _node.Address, _target.Address);
 #endif
         //retrieve the vivaldi state
         GetVivaldiState(); 
@@ -239,7 +235,7 @@ namespace Brunet.Services.Coordinate {
        */
       protected void GetVivaldiState() {
 #if NC_DEBUG        
-        Console.Error.WriteLine("[NCService] {0} Requesting vivaldi state from: {1}.", _node.Address, _target_address);
+        Console.Error.WriteLine("[NCService] {0} Requesting vivaldi state from: {1}.", _node.Address, _target.Address);
 #endif
         Channel q = new Channel(1);
         q.CloseEvent += delegate(object o, EventArgs args) {
@@ -259,13 +255,13 @@ namespace Brunet.Services.Coordinate {
             //do nothing, looks like things are not going well with this trial
             //termination
 #if NC_DEBUG        
-            Console.Error.WriteLine("[NCService] {0} Rpc (GetVivaldiState) failed: {1}.", _node.Address, _target_address);
+            Console.Error.WriteLine("[NCService] {0} Rpc (GetVivaldiState) failed: {1}.", _node.Address, _target.Address);
 #endif
           }
         };
         
         try {
-          _node.Rpc.Invoke(_target_edge, q, "ncserver.EchoVivaldiState", new object[]{});
+          _node.Rpc.Invoke(_target, q, "ncserver.EchoVivaldiState", new object[]{});
         } catch(Exception) {}
       }
       
@@ -277,7 +273,7 @@ namespace Brunet.Services.Coordinate {
        */
       protected void GetLatencySample() {
 #if NC_DEBUG        
-        Console.Error.WriteLine("[NCService] {0} Requesting latency sample from: {1}.", _node.Address, _target_address);
+        Console.Error.WriteLine("[NCService] {0} Requesting latency sample from: {1}.", _node.Address, _target.Address);
 #endif
         DateTime start = DateTime.UtcNow;
         Channel q = new Channel(1);
@@ -293,7 +289,7 @@ namespace Brunet.Services.Coordinate {
               }
               else {
 #if NC_DEBUG
-                Console.Error.WriteLine("[NCService] {0} multiple sends for: {1}.", _node.Address, _target_address);
+                Console.Error.WriteLine("[NCService] {0} multiple sends for: {1}.", _node.Address, _target.Address);
 #endif
               }
             } catch(Exception) {}
@@ -305,12 +301,12 @@ namespace Brunet.Services.Coordinate {
 #if NC_DEBUG        
             Console.Error.WriteLine("[NCService] {0} Got latency sample from: {1}, sample #: {2}.", 
                                     _node.Address, 
-                                    _target_address,
+                                    _target.Address,
                                     count);
 #endif
             
             if (count >= TrialState.MIN_LATENCY_SAMPLES) {
-              _callback(this, DateTime.UtcNow, _target_address, _state_result.Value, elapsed);
+              _callback(this, DateTime.UtcNow, _target.Address, _state_result.Value, elapsed);
               //termination
             }
             else {
@@ -322,13 +318,13 @@ namespace Brunet.Services.Coordinate {
             //do nothing, looks like things are not going well with this trial
             //termination
 #if NC_DEBUG        
-            Console.Error.WriteLine("[NCService] {0} Rpc (GetLatencySample) failed: {1}.", _node.Address, _target_address);
+            Console.Error.WriteLine("[NCService] {0} Rpc (GetLatencySample) failed: {1}.", _node.Address, _target.Address);
 #endif
           }
         };
         
         try {
-          _node.Rpc.Invoke(_target_edge, q, "ncserver.Echo", new object[]{});
+          _node.Rpc.Invoke(_target, q, "ncserver.Echo", new object[]{});
         } catch (Exception) {}
       }
     }

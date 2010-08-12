@@ -131,7 +131,6 @@ namespace Brunet
          */
         _connection_table.ConnectionEvent += this.CheckForStateChange;
         _connection_table.DisconnectionEvent += this.CheckForStateChange;
-        _connection_table.StatusChangedEvent += this.CheckForStateChange;
 
         _codeinjection = new Brunet.Services.CodeInjection(this);
         _codeinjection.LoadLocalModules();
@@ -1005,13 +1004,20 @@ namespace Brunet
     {
       ConnectionEventArgs ce_args = (ConnectionEventArgs) args;
       Edge edge = ce_args.Edge;
+      var con = ce_args.Connection;
+      con.StateChangeEvent +=
+        delegate(Connection c,
+                 Pair<Brunet.Connections.ConnectionState,
+                      Brunet.Connections.ConnectionState> oldnew) {
+          //Need to check if we we have to change state:
+          this.CheckForStateChange(null, null); 
+        };
       edge.Subscribe(this, edge);
       //Our peer's remote is us
-      TransportAddress reported_ta =
-            ce_args.Connection.PeerLinkMessage.Remote.FirstTA;
+      var cs = ce_args.Connection.State;
+      TransportAddress reported_ta = cs.PeerLinkMessage.Remote.FirstTA;
       //Our peer's local is them
-      TransportAddress remote_ta =
-            ce_args.Connection.PeerLinkMessage.Local.FirstTA;
+      TransportAddress remote_ta = cs.PeerLinkMessage.Local.FirstTA;
       /*
        * Make a copy so that _remote_ta never changes while
        * someone is using it
@@ -1178,7 +1184,7 @@ namespace Brunet
       int count = 0;
       DateTime now = DateTime.UtcNow;
       foreach(Connection con in _connection_table) {
-        Edge e = con.Edge;
+        Edge e = con.State.Edge;
         double this_int = (now - e.LastInPacketDateTime).TotalMilliseconds;
         sum += this_int;
         sum2 += this_int * this_int;
@@ -1222,7 +1228,7 @@ namespace Brunet
        * we ping them, and if we don't get a response, we close them
        */
       foreach(Connection c in _connection_table) {
-        Edge e = c.Edge;
+        Edge e = c.State.Edge;
         TimeSpan since_last_in = now - e.LastInPacketDateTime; 
         if( (1 == _send_pings) && ( since_last_in > _connection_timeout ) ) {
 

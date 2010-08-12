@@ -324,7 +324,7 @@ namespace Brunet.Connections
     /**
      * ConnectionList objects are immutable.  This method replaces a
      * Connection with a given Connection, and returns the new
-     * ConnectionList.  This is used for updating StatusMessage objects.
+     * ConnectionList. 
      * @param cl the ConnectionList to start with
      * @param old the Connection we are replacing
      * @param new_c the Connection we are replacing with.
@@ -465,7 +465,7 @@ namespace Brunet.Connections
           foreach(Connection c in _connections) {
             ArrayList c_vals = new ArrayList();
             c_vals.Add(c.Address.ToString());
-            c_vals.Add(c.Edge.ToUri());
+            c_vals.Add(c.State.Edge.ToUri());
             c_vals.Add(c.SubType);
             result.Add(c_vals);
           }
@@ -547,18 +547,19 @@ namespace Brunet.Connections
 
     public Pair<ConnectionTableState,int> AddConnection(Connection c) {
       if( Closed ) { throw new TableClosedException(); }
-      Connection c_present = GetConnection(c.Edge);
+      var state = c.State;
+      Connection c_present = GetConnection(state.Edge);
       if( c_present != null ) {
         throw new ConnectionExistsException(c_present);
       }
       var newd = new Dictionary<Edge, Connection>(_edge_to_con);
-      newd[c.Edge] = c;
+      newd[state.Edge] = c;
       int mt_idx = (int)c.MainType;
       var old_clist = _type_to_conlist[ mt_idx ];
       var newt_to_c = (ConnectionList[])_type_to_conlist.Clone();
       int c_idx;
       newt_to_c[ mt_idx ] = ConnectionList.InsertInto(old_clist, c, out c_idx);
-      var unc = Unconnected.RemoveFromNew(c.Edge);
+      var unc = Unconnected.RemoveFromNew(state.Edge);
       var cts = new ConnectionTableState(false, View + 1,
                                       newt_to_c,
                                       newd,
@@ -613,7 +614,7 @@ namespace Brunet.Connections
       ConnectionTableState newcts;
       if(_edge_to_con.TryGetValue(e, out c)) { 
         var newd = new Dictionary<Edge, Connection>(_edge_to_con);
-        newd.Remove(c.Edge);
+        newd.Remove(c.State.Edge);
         int mt_idx = (int)c.MainType;
         var old_clist = _type_to_conlist[ mt_idx ];
         var newt_to_c = (ConnectionList[])_type_to_conlist.Clone();
@@ -644,31 +645,6 @@ namespace Brunet.Connections
                                       _edge_to_con,
                                       unc);
 
-    }
-    /*
-     * @throws Exception if con is not in the table
-     */
-    public Pair<ConnectionTableState, Pair<Connection,int>> UpdateStatus(Connection con, StatusMessage sm) {
-      if( Closed ) { throw new TableClosedException(); }
-      Address a = con.Address;
-      Edge e = con.Edge;
-      string con_type = con.ConType;
-      LinkMessage plm = con.PeerLinkMessage;
-        //Make the new connection and replace it in our data structures:
-      Connection newcon = new Connection(e,a,con_type,sm,plm);
-      var new_d = new Dictionary<Edge, Connection>(_edge_to_con);
-      new_d[con.Edge] = newcon;
-      int mt_idx = (int)con.MainType;
-      var old_cl = _type_to_conlist[mt_idx];
-      var newt_to_c = (ConnectionList[])_type_to_conlist.Clone();
-      int index;
-      newt_to_c[mt_idx] = ConnectionList.Replace(old_cl, con, newcon, out index);
-      var newcts = new ConnectionTableState(false, View + 1,
-                                      newt_to_c,
-                                      new_d,
-                                      Unconnected);
-      var side = new Pair<Connection, int>(newcon, index);
-      return new Pair<ConnectionTableState,Pair<Connection,int>>(newcts, side);
     }
     /**
      * Handles enumerating connection types, not just all
@@ -737,10 +713,6 @@ namespace Brunet.Connections
      */
     public event EventHandler DisconnectionEvent;
     /**
-     * When status changes, this event is fired
-     */
-    public event EventHandler StatusChangedEvent;
-    /**
      * ANY time the ConnectionTableState State changes, this is fired
      * the EventArg is a ConnectionEventArgs with potentially null Connection, and idx = -1,
      * in the case of table closing, and AddUnconnected
@@ -780,7 +752,7 @@ namespace Brunet.Connections
     {
       Converter<ConnectionTableState, Pair<ConnectionTableState,int>> add_up =
         delegate(ConnectionTableState cts) {
-          var ncts = cts.RemoveUnconnected(c.Edge);
+          var ncts = cts.RemoveUnconnected(c.State.Edge);
           return ncts.AddConnection(c);
         };
       Triple<ConnectionTableState,ConnectionTableState,int> res
@@ -791,10 +763,10 @@ namespace Brunet.Connections
       SendEvent(StateEvent, cea);
       try {
         //If this edge is already closed, the below throws
-        c.Edge.CloseEvent += RemoveHandler;
+        c.State.Edge.CloseEvent += RemoveHandler;
       }
       catch {
-        RemoveHandler(c.Edge, null);
+        RemoveHandler(c.State.Edge, null);
         throw;
       }
       
@@ -955,31 +927,6 @@ namespace Brunet.Connections
       }
     }
 
-    /**
-     * update the StatusMessage for a particular Connection.  Since 
-     * Connections are immutable so we make a new Connection object 
-     * with the new StatusMessage. All other constructor arguments
-     * are taken from the old Connection instance.
-     * This will fail if the con argument is not present.
-     * @param con Connection to update.
-     * @param sm StatusMessage to replace the old.
-     * @return the new Connection
-     * @throws Exception if con is not in the table
-     */
-    public ConnectionEventArgs UpdateStatus(Connection con, StatusMessage sm)
-    {
-      Converter<ConnectionTableState,Pair<ConnectionTableState,
-                                          Pair<Connection,int>>> upcon =
-        delegate(ConnectionTableState ct) {
-          return ct.UpdateStatus(con, sm);
-        };
-      var res = _cts.Update<Pair<Connection,int>>(upcon);
-      Pair<Connection,int> side = res.Third;
-      ConnectionEventArgs cea = new ConnectionEventArgs(side.First, side.Second, res.First, res.Second);
-      SendEvent(StatusChangedEvent, cea);
-      SendEvent(StateEvent, cea);
-      return cea;
-    }
  // /////////////
  // Deprecated Methods.  These are not safe for concurrent programing because
  // The state can change between calls.  Prefer to read the State, and use the methods
@@ -1411,11 +1358,6 @@ namespace Brunet.Connections
           Assert.AreEqual( cts.GetConnection(c.Edge),
                            cts.GetConnections(ConnectionType.Structured)[c.Address],
                            "Edge equals Address lookup");
-          //Check to see that UpdateStatus basically works
-          ConnectionEventArgs cea = tab.UpdateStatus(c, null);
-          Connection c2 = cea.Connection;
-          Assert.AreEqual(cts, cea.OldState, "old state check");
-          cts = cea.NewState;
           Assert.AreEqual( c2, cts.GetConnection(c.Edge), "Edge lookup 2");
           Assert.AreEqual( c2, cts.GetConnections(ConnectionType.Structured)[c.Address],
                            "Edge equals Address lookup");

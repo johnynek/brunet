@@ -56,7 +56,7 @@ namespace Brunet.Services.MapReduce {
       Connection next_closest = structs.GetNearestTo((AHAddress) _node.Address, a);
       if (next_closest != null) {
         //arguments do not change at all
-        MapReduceInfo mr_info = new MapReduceInfo(next_closest.Edge, mr_args);
+        MapReduceInfo mr_info = new MapReduceInfo(next_closest, mr_args);
         retval.Add(mr_info);
       }
       
@@ -113,7 +113,7 @@ namespace Brunet.Services.MapReduce {
           MapReduceInfo mr_info = null;
           ISender sender = null;
           Connection con = (Connection) con_list[i];
-          sender = (ISender) con.Edge;
+          sender = con;
           //check if last connection
           if (i == con_list.Count - 1) {
             mr_info = new MapReduceInfo( (ISender) sender, 
@@ -244,7 +244,7 @@ namespace Brunet.Services.MapReduce {
           ArrayList gen_arg = new ArrayList();
           Connection next_c = cons[i];
           AHAddress next_addr = (AHAddress)next_c.Address;
-          ISender sender = next_c.Edge;
+          ISender sender = next_c;
           if (i==0) {  // The last bit
             if (left) {
               // the left nearest neighbor 

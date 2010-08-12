@@ -159,7 +159,7 @@ namespace Brunet.Relay {
       lock(_sync) {
         tunnels = new List<Connection>(_tunnels.Count);
         foreach(Connection ccon in _tunnels) {
-          if(con.Edge.Equals(ccon.Edge)){
+          if(con.Equals(ccon)){
             continue;
           }
           tunnels.Add(ccon);
@@ -200,9 +200,9 @@ namespace Brunet.Relay {
       while(stack.Count > 0) {
         IEnumerator<Connection> cons = stack.Pop() as IEnumerator<Connection>;
         while(cons.MoveNext()) {
-          RelayEdge re = cons.Current.Edge as RelayEdge;
+          RelayEdge re = cons.Current.State.Edge as RelayEdge;
           if(re == null) {
-            var we = cons.Current.Edge as WrapperEdge;
+            var we = cons.Current.State.Edge as WrapperEdge;
             if(we != null) {
               re = we.WrappedEdge as RelayEdge;
             }

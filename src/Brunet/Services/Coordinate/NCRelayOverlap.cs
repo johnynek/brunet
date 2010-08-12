@@ -161,7 +161,7 @@ namespace Brunet.Services.Coordinate {
         // Since there are no guarantees about routing over two tunnels, we do
         // not consider cases where we are connected to the overlapping tunnels
         // peers via tunnels
-        if(con.Edge.TAType.Equals(TransportAddress.TAType.Relay)) {
+        if(con.State.Edge.TAType.Equals(TransportAddress.TAType.Relay)) {
           Hashtable values = de.Value as Hashtable;
           TransportAddress.TAType tatype =
             TransportAddressFactory.StringToType(values["ta"] as string);
@@ -186,7 +186,7 @@ namespace Brunet.Services.Coordinate {
       if(current_overlap != null) {
         foreach(Connection con in current_overlap) {
           Hashtable info = new Hashtable(3);
-          info["ta"] = TransportAddress.TATypeToString(con.Edge.TAType);
+          info["ta"] = TransportAddress.TATypeToString(con.State.Edge.TAType);
           info["lat"] = _ncservice.GetMeasuredLatency(con.Address);
           info["ct"] = (int) (now - con.CreationTime).TotalMilliseconds;
           ht[con.Address.ToMemBlock()] = info;
@@ -201,7 +201,7 @@ namespace Brunet.Services.Coordinate {
         // No need to verify it is >= 0, since addr comes from cons in a
         // previous stage
         Hashtable info = new Hashtable(3);
-        info["ta"] = TransportAddress.TATypeToString(con.Edge.TAType);
+        info["ta"] = TransportAddress.TATypeToString(con.State.Edge.TAType);
         info["lat"] = _ncservice.GetMeasuredLatency(con.Address);
         info["ct"] = (int) (now - con.CreationTime).TotalMilliseconds;
         ht[key] = info;

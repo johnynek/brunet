@@ -165,7 +165,7 @@ namespace Brunet.Symphony {
         if(next < cons.Count) {
           nto = GetLeftNearTarget(cons[next].Address as AHAddress);
         }
-        con.Edge.Send(new CopyList(PType, Source.ToMemBlock(),
+        con.Send(new CopyList(PType, Source.ToMemBlock(),
               nfrom.ToMemBlock(), nto.ToMemBlock(), _forwarders, _hops, data));
       }
 

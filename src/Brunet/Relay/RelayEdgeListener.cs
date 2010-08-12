@@ -146,7 +146,7 @@ namespace Brunet.Relay {
         if( left_pos >= StructuredNearConnectionOverlord.DESIRED_NEIGHBORS &&
             right_pos >= StructuredNearConnectionOverlord.DESIRED_NEIGHBORS )
         {
-          _node.GracefullyClose(con.Edge, "OCO, unused overlapped connection");
+          _node.GracefullyClose(con.State.Edge, "OCO, unused overlapped connection");
         }
       }
     }
@@ -485,7 +485,7 @@ namespace Brunet.Relay {
         sender.Send(new CopyList(PType.Protocol.Relaying, te.MId, data));
       } else {
         try {
-          forwarder.Edge.Send(new CopyList(te.Header, te.MId, data));
+          forwarder.Send(new CopyList(te.Header, te.MId, data));
         } catch {
           // We could be sending aon a closed edge... we could deal with this
           // better, but let's just let the system take its natural course.

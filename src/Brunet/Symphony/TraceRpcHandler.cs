@@ -116,7 +116,7 @@ public class TraceRpcHandler : IRpcHandler {
           _rpc.SendResult(req_state, l);
         }
       };
-      _rpc.Invoke(next_closest.Edge, result, "trace.GetRouteTo", a.ToString());
+      _rpc.Invoke(next_closest, result, "trace.GetRouteTo", a.ToString());
     }
     else {
       //We are the end of the line, send the result:
@@ -166,7 +166,7 @@ public class TraceRpcHandler : IRpcHandler {
       };
       object [] new_args = new object[margs.Count];
       margs.CopyTo(new_args, 0);
-      _rpc.Invoke(next_closest.Edge, result, "trace.RecursiveCall", new_args);
+      _rpc.Invoke(next_closest, result, "trace.RecursiveCall", new_args);
     }
     else {
       //We are the end of the line, send the result:

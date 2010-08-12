@@ -305,7 +305,7 @@ namespace Brunet.Symphony
         IEnumerable lenum = _local.ConnectionTable.GetConnections(ConnectionType.Leaf);
         ArrayList all_leafs = new ArrayList();
         foreach(Connection c in lenum) {
-          all_leafs.Add(c.Edge);
+          all_leafs.Add(c.State.Edge);
         }
         int leafs = all_leafs.Count;
         int surplus = leafs - DesiredConnections;

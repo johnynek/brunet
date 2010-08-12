@@ -242,7 +242,7 @@ namespace Brunet.Symphony
       //There is no way unconnected edges could have become Connections,
       //so we should put the connections in last.
       foreach(Connection c in _connection_table) {
-        edges_to_close.Add( c.Edge );
+        edges_to_close.Add( c.State.Edge );
       }
       //edges_to_close has all the connections and unconnected edges.
       IList copy = edges_to_close.ToArray();
@@ -440,22 +440,20 @@ namespace Brunet.Symphony
      * Call the GetStatus method on the given connection
      */
     protected void CallGetStatus(string type, Connection c) {
-      ConnectionTable tab = this.ConnectionTable;
       if( c != null ) {
         StatusMessage req = GetStatus(type, c.Address);
         Channel stat_res = new Channel(1);
         EventHandler handle_result = delegate(object q, EventArgs eargs) {
           try {
             RpcResult r = (RpcResult)stat_res.Dequeue();
-            StatusMessage sm = new StatusMessage( (IDictionary)r.Result );
-            tab.UpdateStatus(c, sm);
+            c.SetStatus(new StatusMessage( (IDictionary)r.Result ));
           }
           catch(Exception) {
             //Looks like lc disappeared before we could update it
           }
         };
         stat_res.CloseEvent += handle_result;
-        _rpc.Invoke(c.Edge, stat_res, "sys:link.GetStatus", req.ToDictionary() );
+        _rpc.Invoke(c, stat_res, "sys:link.GetStatus", req.ToDictionary() );
       }
     }
     /**
@@ -499,7 +497,7 @@ namespace Brunet.Symphony
       catch(EdgeException ex) {
         if( !ex.IsTransient ) {
           //Make sure this Edge is closed before going forward
-          lc.Edge.Close();
+          lc.State.Edge.Close();
         }
       }
       catch(Exception x) {
@@ -525,7 +523,7 @@ namespace Brunet.Symphony
       catch(EdgeException ex) {
         if( !ex.IsTransient ) {
           //Make sure this Edge is closed before going forward
-          rc.Edge.Close();
+          rc.State.Edge.Close();
         }
       }
       catch(Exception x) {

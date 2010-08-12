@@ -1,6 +1,7 @@
 /*
 This program is part of BruNet, a library for the creation of efficient overlay networks.
 Copyright (C) 2005  University of California
+Copyright (C) 2010 P. Oscar Boykin <boykin@pobox.com>  University of Florida
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -31,6 +32,7 @@ using System.Collections.Generic;
 using System.Collections.Specialized;
 using Brunet.Transport;
 using Brunet.Concurrent;
+using Brunet.Collections;
 
 namespace Brunet.Connections {
 
@@ -47,13 +49,26 @@ namespace Brunet.Connections {
     Unknown                     //Refers to all connections which are not in the above
   }
 
+  /** Mutable state of a Connection
+   */
+  public class ConnectionState {
+    public readonly Edge Edge;
+    public readonly StatusMessage StatusMessage;
+    public readonly LinkMessage PeerLinkMessage;
+    public ConnectionState(Edge e, StatusMessage sm, LinkMessage lm) {
+      Edge = e;
+      PeerLinkMessage = lm;
+      StatusMessage = sm;      
+    }
+  }
+
   /**
    * Holds all the data about a connection
    */
 #if BRUNET_NUNIT
   [TestFixture]
 #endif
-  public class Connection {
+  public class Connection : Brunet.Messaging.ISender {
 #if BRUNET_NUNIT
     //NUnit needs a default constructor
     public Connection() { }
@@ -66,59 +81,70 @@ namespace Brunet.Connections {
 		      string connectiontype,
 		      StatusMessage sm, LinkMessage peerlm)
     {
-      _e = e;
-      _a = a;
-      _ct = String.Intern(connectiontype);
-      _stat = sm;
-      _lm = peerlm;
-      _creation_time = DateTime.UtcNow;
-      MainType = StringToMainType(_ct);
-      _as_dict = new WriteOnce<ListDictionary>();
-      _sub_type = new WriteOnce<string>();
+      Address = a;
+      ConType = String.Intern(connectiontype);
+      CreationTime = DateTime.UtcNow;
+      MainType = StringToMainType(ConType);
+      //Mutable state:
+      var cs = new ConnectionState(e, sm, peerlm);
+      _state = new Mutable<ConnectionState>(cs);
     }
 
-    protected DateTime _creation_time;
-    public DateTime CreationTime { get { return _creation_time; } }
-    protected Address _a;
-    public Address Address { get { return _a; } }
-    
-    protected Edge _e;
-    public Edge Edge { get { return _e; } }
-    
-    protected readonly string _ct;
+    public readonly DateTime CreationTime;
+    public readonly Address Address;
     public readonly ConnectionType MainType;
-    public string ConType { get { return _ct; } }
-   
-    protected LinkMessage _lm;
-    /**
-     * Holds the link message that our peer sent us when we made
-     * this connection.  This may hold useful information for
-     * dealing with NAT or Firewall settings
-     */
-    public LinkMessage PeerLinkMessage { get { return _lm; } }
-    
-    protected StatusMessage _stat;
-    public StatusMessage Status { get { return _stat; } }
-  
+    public readonly string ConType;
+
+    public event Action<Connection, Pair<ConnectionState, ConnectionState>> StateChangeEvent;
+
+    protected readonly Mutable<ConnectionState> _state;   
+    public ConnectionState State { get { return _state.State; } }
+
     public string SubType {
       get {
         string res;
-        if( false == _sub_type.TryGet(out res) ) {
-          int dot_idx = _ct.IndexOf('.');
-          if( dot_idx >= 0 ) {
-            res = _ct.Substring(dot_idx);
-          }
-          else {
-            res = String.Empty;
-          }
-          _sub_type.TrySet(res);
+        int dot_idx = ConType.IndexOf('.');
+        if( dot_idx >= 0 ) {
+          res = ConType.Substring(dot_idx);
+        }
+        else {
+          res = String.Empty;
         }
         return res;
       }
     }
-   
-    protected readonly WriteOnce<ListDictionary> _as_dict;
-    protected readonly WriteOnce<string> _sub_type; 
+
+// ///////////////
+// Methods
+// ///////////////
+
+    /** return the old state, and new state
+     */
+    public Pair<ConnectionState,ConnectionState> SetEdge(Edge e, LinkMessage lm) {
+      var res = _state.Update(delegate(ConnectionState old_state) {
+        var new_state = new ConnectionState(e, old_state.StatusMessage, lm);
+        return new_state;
+      });
+      var ev = StateChangeEvent;
+      if( null != ev ) {
+        ev(this, res);
+      }
+      return res;
+    }
+    /** return the old state, and new state
+     */
+    public Pair<ConnectionState,ConnectionState> SetStatus(StatusMessage sm) {
+      var res = _state.Update(delegate(ConnectionState old_state) {
+        var new_state = new ConnectionState(old_state.Edge, sm, old_state.PeerLinkMessage);
+        return new_state;
+      });
+      var ev = StateChangeEvent;
+      if( null != ev ) {
+        ev(this, res);
+      }
+      return res;
+    }
+
     /**
      * Return the string for a connection type
      */
@@ -145,23 +171,27 @@ namespace Brunet.Connections {
     static public ConnectionType StringToMainType(string s)
     {
       ConnectionType result;
-      if( false ==_string_to_main_type.TryGetValue(s, out result)) {
-        int dot_idx = s.IndexOf('.');
-        string maintype = s;
-        if( dot_idx > 0 ) {
-          maintype = s.Substring(0, dot_idx);
-        }
-        try {
-          result = (ConnectionType)Enum.Parse(typeof(ConnectionType),
+      lock( _string_to_main_type ) {
+        if( false ==_string_to_main_type.TryGetValue(s, out result)) {
+          int dot_idx = s.IndexOf('.');
+          string maintype = s;
+          if( dot_idx > 0 ) {
+            maintype = s.Substring(0, dot_idx);
+          }
+          try {
+            result = (ConnectionType)Enum.Parse(typeof(ConnectionType),
                                                maintype,
                                                true);
-        }
-        catch { result = ConnectionType.Unknown; }
-        lock( _string_to_main_type ) {
+          }
+          catch { result = ConnectionType.Unknown; }
           _string_to_main_type[String.Intern(s)] = result;
         }
       }
       return result;
+    }
+
+    public void Send(Brunet.Util.ICopyable data) {
+      State.Edge.Send(data);
     }
  
     /** Return a version of the Dictionary suitable for ADR use
@@ -172,15 +202,10 @@ namespace Brunet.Connections {
      */
 
     public IDictionary ToDictionary() {
-      ListDictionary d;
-      if( _as_dict.TryGet(out d) ) {
-        return d;
-      }
       ListDictionary ld = new ListDictionary();
       ld.Add("address", Address.ToString());
-      ld.Add("sender", Edge.ToUri());
+      ld.Add("sender", _state.State.Edge.ToUri());
       ld.Add("type", ConType);
-      _as_dict.TrySet(ld);
       return ld;
     }
     //Keys used in the ToDictionary method
@@ -192,7 +217,10 @@ namespace Brunet.Connections {
     public override string ToString()
     {
       return String.Format("Edge: {0}, Address: {1}, ConnectionType: {2}",
-                                    _e, _a, _ct);
+                                    State.Edge, Address, ConType);
+    }
+    public string ToUri() {
+      throw new NotImplementedException("Connection.ToUri() not implement");
     }
 #if BRUNET_NUNIT
     [Test]

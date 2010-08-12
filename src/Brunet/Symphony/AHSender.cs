@@ -554,7 +554,7 @@ public class AnnealingRouting : AHRoutingAlgorithm {
          */
         to_send = _local_con != next_con ? next_con : other_con;
       }
-      else if(next_con.Edge == from) {
+      else if(next_con.State.Edge == from) {
         //Don't send it back the way it came:
         to_send = other_con;
       }
@@ -759,7 +759,7 @@ public class AHHandler : IDataHandler {
                                     header.IncrementHops(),
                                     payload);
       try {
-        next_con.Edge.Send(new_packet);
+        next_con.Send(new_packet);
       }
       catch(EdgeException) {
         //Just drop the packet...

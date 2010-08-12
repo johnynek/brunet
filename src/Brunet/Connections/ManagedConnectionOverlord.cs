@@ -289,7 +289,7 @@ namespace Brunet.Connections
       ConnectionType ct = Connection.StringToMainType(struc_managed);
       Connection c = _node.ConnectionTable.GetConnection(ct, RemoteAddress);
       if(c != null && c.ConType.Equals(struc_managed)) {
-        _node.GracefullyClose(c.Edge, "RemoveAddress called from ManagedCO");
+        _node.GracefullyClose(c.State.Edge, "RemoveAddress called from ManagedCO");
       }
       return true;
     }

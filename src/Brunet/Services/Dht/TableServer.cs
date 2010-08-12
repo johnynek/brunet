@@ -39,6 +39,7 @@ using Brunet.Connections;
 
 using Brunet.Messaging;
 using Brunet.Symphony;
+using BT = Brunet.Transport;
 namespace Brunet.Services.Dht {
   /**
   <summary>The TableServer provides the Dht server end point.</summary>
@@ -215,11 +216,11 @@ namespace Brunet.Services.Dht {
         // We need to forward this to the appropriate node!
         if(((AHAddress)_node.Address).IsLeftOf((AHAddress) key_address)) {
           var con = structs.GetRightNeighborOf(_node.Address);
-          s = con.Edge;
+          s = con;
         }
         else {
           var con = structs.GetLeftNeighborOf(_node.Address);
-          s = con.Edge;
+          s = con;
         }
         _rpc.Invoke(s, remote_put, "dht.PutHandler", key, value, ttl, unique);
       }
@@ -602,15 +603,14 @@ namespace Brunet.Services.Dht {
           queue.CloseEvent += this.NextTransfer;
           int ttl = (int) (ent.EndTime - DateTime.UtcNow).TotalSeconds;
           try {
-            _ts._rpc.Invoke(_con.Edge, queue, "dht.PutHandler", ent.Key, ent.Value, ttl, false);
+            _ts._rpc.Invoke(_con, queue, "dht.PutHandler", ent.Key, ent.Value, ttl, false);
           }
-          catch {
-            if(_con.Edge.IsClosed) {
-              _interrupted = true;
-              Done();
-              break;
-            }
+          catch(BT.EdgeClosedException) {
+            _interrupted = true;
+            Done();
+            break;
           }
+          catch { }
         }
       }
 
@@ -646,13 +646,12 @@ namespace Brunet.Services.Dht {
         try {
           queue.Dequeue();
         }
-        catch (Exception){
-          if(_con.Edge.IsClosed) {
-            _interrupted = true;
-            Done();
-            return;
-          }
+        catch(BT.EdgeClosedException){
+          _interrupted = true;
+          Done();
+          return;
         }
+        catch { }
 
         /* An exception could be thrown if Done is called in another thread or
         there are no more entries available. */
@@ -671,13 +670,12 @@ namespace Brunet.Services.Dht {
           queue.CloseEvent += this.NextTransfer;
           int ttl = (int) (ent.EndTime - DateTime.UtcNow).TotalSeconds;
           try {
-            _ts._rpc.Invoke(_con.Edge, queue, "dht.PutHandler", ent.Key, ent.Value, ttl, false);
+            _ts._rpc.Invoke(_con, queue, "dht.PutHandler", ent.Key, ent.Value, ttl, false);
           }
-          catch {
-            if(_con.Edge.IsClosed) {
-              _interrupted = true;
-            }
+          catch(BT.EdgeClosedException) {
+            _interrupted = true;
           }
+          catch { }
         }
         else {
           Done();

@@ -42,7 +42,7 @@ namespace Brunet.Simulator {
     {
       foreach(Connection con in node.ConnectionTable.GetConnections(Relay.OverlapConnectionOverlord.STRUC_OVERLAP)) {
         Console.WriteLine("Closing: " + con);
-        con.Edge.Close();
+        con.State.Edge.Close();
       }
     }
 
@@ -64,7 +64,7 @@ namespace Brunet.Simulator {
           continue;
         }
         Connection con = cl[index];
-        int delay = (ov_con.Edge as SimulationEdge).Delay + (con.Edge as SimulationEdge).Delay;
+        int delay = (ov_con.State.Edge as SimulationEdge).Delay + (con.State.Edge as SimulationEdge).Delay;
         Console.WriteLine("Delay: " + delay);
       }
     }

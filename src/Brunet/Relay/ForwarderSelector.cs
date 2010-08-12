@@ -75,10 +75,10 @@ namespace Brunet.Relay {
       // would probably be closer in the ring then one of our tunnel forwarders
       List<Connection> no_tunnels = new List<Connection>();
       foreach(Connection con in cons) {
-        if(con.Edge is RelayEdge) {
+        if(con.State.Edge is RelayEdge) {
           continue;
         }
-        if(con.Edge.IsClosed) {
+        if(con.State.Edge.IsClosed) {
           continue;
         }
         no_tunnels.Add(con);

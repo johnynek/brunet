@@ -304,7 +304,7 @@ namespace Brunet.Connections
                                              lm.Local.Address );
           if( c != null ) {
             RpcManager rpc = _node.Rpc;
-            rpc.Invoke(c.Edge, null, "sys:link.Ping", String.Empty);
+            rpc.Invoke(c, null, "sys:link.Ping", String.Empty);
           }
         }
       }
@@ -382,7 +382,7 @@ namespace Brunet.Connections
         Connection c = tab.GetConnection(from);
         if( c != null ) {
           fadd = c.Address;
-            tab.UpdateStatus(c, sm);
+          c.SetStatus(sm);
         }
         response = _node.GetStatus( sm.NeighborType, fadd );
       }

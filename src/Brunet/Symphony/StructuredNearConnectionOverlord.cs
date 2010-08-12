@@ -72,7 +72,6 @@ namespace Brunet.Symphony {
         //Listen for connection events:
         _node.ConnectionTable.DisconnectionEvent += DisconnectHandler;
         _node.ConnectionTable.ConnectionEvent += ConnectHandler;
-        _node.ConnectionTable.StatusChangedEvent += StatusChangedHandler;
         
         _node.HeartBeatEvent += CheckState;
       }
@@ -194,7 +193,7 @@ namespace Brunet.Symphony {
              * guy has no neighbors other than us
              */
             bool only_us = true;
-            foreach(NodeInfo ni in rc.Status.Neighbors) {
+            foreach(NodeInfo ni in rc.State.StatusMessage.Neighbors) {
               only_us = only_us && ni.Address.Equals(our_addr);
             }
             return only_us;
@@ -205,7 +204,7 @@ namespace Brunet.Symphony {
           AHAddress right_addr = rc.Address as AHAddress;
           
           //we have to make sure than nothing is between us and left
-          foreach (NodeInfo n_info in lc.Status.Neighbors) {
+          foreach (NodeInfo n_info in lc.State.StatusMessage.Neighbors) {
             AHAddress stat_addr = n_info.Address as AHAddress;
             if (stat_addr.IsBetweenFromLeft(our_addr, left_addr)) {
               //we are expecting a better candidate for left neighbor!
@@ -217,7 +216,7 @@ namespace Brunet.Symphony {
           }
           
           //we have to make sure than nothing is between us and left
-          foreach (NodeInfo n_info in rc.Status.Neighbors) {
+          foreach (NodeInfo n_info in rc.State.StatusMessage.Neighbors) {
             AHAddress stat_addr = n_info.Address as AHAddress;
             if (stat_addr.IsBetweenFromRight(our_addr, right_addr)) {
               //we are expecting a better candidate for left neighbor!
@@ -487,6 +486,8 @@ namespace Brunet.Symphony {
 
       ConnectionEventArgs args = (ConnectionEventArgs)eargs;
       Connection new_con = args.Connection;
+      new_con.StateChangeEvent += this.StatusChangedHandler;
+        
       ConnectionList structs = null;
 
       if( new_con.MainType == ConnectionType.Structured ) {
@@ -507,7 +508,7 @@ namespace Brunet.Symphony {
         }
         structs = _node.ConnectionTable.GetConnections(ConnectionType.Structured);
       }
-      ConnectToNearer(structs, new_con.Address, new_con.Status.Neighbors);
+      ConnectToNearer(structs, new_con.Address, new_con.State.StatusMessage.Neighbors);
     }
 
     
@@ -740,19 +741,12 @@ namespace Brunet.Symphony {
     /**
      * This method is called when there is a change in a Connection's status
      */
-    protected void StatusChangedHandler(object connectiontable,EventArgs args)
-    {
+    protected void StatusChangedHandler(Connection c,
+                              Brunet.Collections.Pair<ConnectionState, ConnectionState> oldnew) {
       //Console.Error.WriteLine("Status Changed:\n{0}\n{1}\n{2}\n{3}",c, c.Status, nltarget, nrtarget);
-      ConnectionEventArgs ceargs = (ConnectionEventArgs)args;
-      Connection c = ceargs.Connection; 
-      ConnectionList structs;
-      if( c.MainType == ConnectionType.Structured ) {
-        structs = ceargs.CList; 
-      }
-      else {
-        structs = _node.ConnectionTable.GetConnections(ConnectionType.Structured);
-      }
-      ConnectToNearer(structs, c.Address, c.Status.Neighbors);
+      ConnectionList structs = _node.ConnectionTable.GetConnections(ConnectionType.Structured);
+      ConnectToNearer(structs, c.Address,
+                      oldnew.Second.StatusMessage.Neighbors);
     }
     
     /**
@@ -815,7 +809,7 @@ namespace Brunet.Symphony {
 #if POB_DEBUG
         Console.Error.WriteLine("Attempt to trim Near: {0}", to_trim);
 #endif
-      _node.GracefullyClose( to_trim.Edge, "SCO, near connection trim" );
+      _node.GracefullyClose( to_trim.State.Edge, "SCO, near connection trim" );
     }
   }
 }
