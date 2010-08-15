@@ -528,6 +528,7 @@ namespace Brunet
           throw new Exception("Unknown net type: " + net_type);
       }
       //tmp_node.AddEdgeListener(new FunctionEdgeListener(port+loop));
+      var my_rem_tas = new List<TransportAddress>();
       for (int loop2=0;loop2<net_size;loop2++) {
         if (loop == loop2) {
           continue;
@@ -555,8 +556,9 @@ namespace Brunet
         }
         ta_str = ta_str + other_port.ToString();
         TransportAddress this_ta = TransportAddressFactory.CreateInstance(ta_str);
-        tmp_node.RemoteTAs.Add(this_ta);
+        my_rem_tas.Add(this_ta);
       }
+      tmp_node.RemoteTAs = my_rem_tas;
     }
     
     //This logs the changes in connection table
