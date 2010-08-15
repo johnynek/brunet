@@ -226,25 +226,6 @@ namespace Brunet
         }
       }
     }
-    private class EdgeCloseAction : IAction {
-      protected Edge EdgeToClose;
-      public EdgeCloseAction(Edge e) {
-        EdgeToClose = e;
-      }
-      public void Start() {
-        EdgeToClose.Close();
-      }
-      public override string ToString() {
-        return "EdgeCloseAction: " + EdgeToClose.ToString();
-      }
-    }
-
-    public class GracefulCloseAction : Triple<Node, Edge, string>, IAction {
-      public GracefulCloseAction(Node n, Edge e, string r) : base(n, e, r) { }
-      public void Start() {
-        First.GracefullyClose(Second, Third);
-      }
-    }
 
     /**
      * This is a TaskQueue where new TaskWorkers are started
@@ -659,7 +640,7 @@ namespace Brunet
     protected void Close(Edge e) {
       try {
         //This can throw an exception if the _packet_queue is closed
-        EnqueueAction(new EdgeCloseAction(e));
+        EnqueueAction(new Edge.CloseAction(e));
       }
       catch {
         e.Close();
@@ -1003,8 +984,8 @@ namespace Brunet
     public virtual void ConnectionHandler(object ct, EventArgs args)
     {
       ConnectionEventArgs ce_args = (ConnectionEventArgs) args;
-      Edge edge = ce_args.Edge;
       var con = ce_args.Connection;
+      var edge = ce_args.ConnectionState.Edge;
       con.StateChangeEvent +=
         delegate(Connection c,
                  Pair<Brunet.Connections.ConnectionState,
@@ -1123,51 +1104,6 @@ namespace Brunet
       return new StatusMessage( con_type_string, neighbors );
     }
     
-    /**
-     * Close the edge after we get a response CloseMessage
-     * from the node on the other end.
-     * This method is to try to make sure both sides of an edge
-     * know that the edge is closing.
-     * @param e Edge to close
-     */
-    public void GracefullyClose(Edge e)
-    {
-      GracefullyClose(e, String.Empty);
-    }
-    /**
-     * @param e Edge to close
-     * @param cm message to send to other node
-     * This method is used if we want to use a particular CloseMessage
-     * If not, we can use the method with the same name with one fewer
-     * parameters
-     */
-    public void GracefullyClose(Edge e, string message)
-    {
-      /**
-       * Close any connection on this edge, and
-       * put the edge into the list of unconnected edges
-       */
-      _connection_table.Disconnect(e);
-      
-      ListDictionary close_info = new ListDictionary();
-      string reason = message;
-      if( reason != String.Empty ) {
-        close_info["reason"] = reason;
-      }
-      ProtocolLog.WriteIf(ProtocolLog.EdgeClose, String.Format(
-                          "GracefulCLose - " + e + ": " + reason));
-
-      var results = new BCon.Channel(1);
-      EventHandler close_eh = delegate(object o, EventArgs args) {
-        e.Close(); 
-      };
-      results.CloseEvent += close_eh;
-      try {
-        _rpc.Invoke(e, results, "sys:link.Close", close_info);
-      }
-      catch { Close(e); }
-    }
-
     /**
      * Implements the IDataHandler interface
      */

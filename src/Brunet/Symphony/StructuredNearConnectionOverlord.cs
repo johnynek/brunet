@@ -809,7 +809,7 @@ namespace Brunet.Symphony {
 #if POB_DEBUG
         Console.Error.WriteLine("Attempt to trim Near: {0}", to_trim);
 #endif
-      _node.GracefullyClose( to_trim.State.Edge, "SCO, near connection trim" );
+       to_trim.Close(_node.Rpc, "SCO, near connection trim" );
     }
   }
 }

@@ -670,7 +670,7 @@ namespace Brunet.Symphony {
             _sum_con_lifetime += total_secs;
             _trim_count++;
           }
-          _node.GracefullyClose(to_trim.State.Edge);
+          to_trim.Close(_node.Rpc, String.Empty);
         }
       } else {
         if (LogEnabled) {
@@ -717,7 +717,7 @@ namespace Brunet.Symphony {
             _sum_con_lifetime += total_secs;
             _trim_count++;
           }
-          _node.GracefullyClose(bp.State.Edge);
+          bp.Close(_node.Rpc, String.Empty);
         } else if (LogEnabled) {
           ProtocolLog.Write(ProtocolLog.SCO,
               String.Format("SCO local: {0}, Bypass is optimal: {1}.",
@@ -870,7 +870,7 @@ namespace Brunet.Symphony {
 #if POB_DEBUG
      Console.Error.WriteLine("Attempt to trim Shortcut: {0}", to_trim);
 #endif
-      _node.GracefullyClose( to_trim.State.Edge, "SCO, shortcut connection trim" );
+      to_trim.Close(_node.Rpc, "SCO, shortcut connection trim" );
     }
   }
 }

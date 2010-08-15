@@ -33,6 +33,7 @@ using System.Collections.Specialized;
 using Brunet.Transport;
 using Brunet.Concurrent;
 using Brunet.Collections;
+using BM = Brunet.Messaging;
 
 namespace Brunet.Connections {
 
@@ -55,10 +56,12 @@ namespace Brunet.Connections {
     public readonly Edge Edge;
     public readonly StatusMessage StatusMessage;
     public readonly LinkMessage PeerLinkMessage;
-    public ConnectionState(Edge e, StatusMessage sm, LinkMessage lm) {
+    public readonly bool Disconnected;
+    public ConnectionState(Edge e, StatusMessage sm, LinkMessage lm, bool discon) {
       Edge = e;
       PeerLinkMessage = lm;
-      StatusMessage = sm;      
+      StatusMessage = sm;
+      Disconnected = discon;
     }
   }
 
@@ -86,7 +89,7 @@ namespace Brunet.Connections {
       CreationTime = DateTime.UtcNow;
       MainType = StringToMainType(ConType);
       //Mutable state:
-      var cs = new ConnectionState(e, sm, peerlm);
+      var cs = new ConnectionState(e, sm, peerlm, false);
       _state = new Mutable<ConnectionState>(cs);
     }
 
@@ -117,12 +120,60 @@ namespace Brunet.Connections {
 // ///////////////
 // Methods
 // ///////////////
+    /*** Immediately close the underlying edge, and don't warn the other node.
+     * Prefer Connection.Close if possible.  This is idempotent.
+     * @return the old state, new state pair.
+     */
+    public Pair<ConnectionState,ConnectionState> Abort() {
+      var res = _state.Update(delegate(ConnectionState old_state) {
+        if( old_state.Disconnected ) { return old_state; }
+        else {
+          return new ConnectionState(old_state.Edge,
+                                     old_state.StatusMessage,
+                                     old_state.PeerLinkMessage, true);
+        }
+      });
+      if( res.First != res.Second ) {
+        //Only send the event if there is an actual change
+        var ev = StateChangeEvent;
+        if( null != ev ) {
+          ev(this, res);
+        }
+      }
+      return res;
+    }
+    /*** Gracefully close this connection, if it is not already disconnected.
+     * Idempotent (calling it twice is the same as once).
+     * @return the old state, new state pair.
+     */
+    public Pair<ConnectionState,ConnectionState> Close(BM.RpcManager rpc, string reason) {
+      var old_new = Abort();
+      if( old_new.First.Disconnected != true ) {
+        //Now try to tell the other node:
+        var close_info = new ListDictionary(); 
+        if( reason != String.Empty ) {
+          close_info["reason"] = reason;
+        }
+        Edge e = old_new.Second.Edge;
+        var results = new Channel(1);
+        //Either the RPC call times out, or we get a response.
+        results.CloseEvent += delegate(object o, EventArgs args) {
+          e.Close();
+        };
+        try { rpc.Invoke(e, results, "sys:link.Close", close_info); }
+        catch { e.Close(); }
+      }
+      return old_new;
+    }
 
     /** return the old state, and new state
      */
     public Pair<ConnectionState,ConnectionState> SetEdge(Edge e, LinkMessage lm) {
       var res = _state.Update(delegate(ConnectionState old_state) {
-        var new_state = new ConnectionState(e, old_state.StatusMessage, lm);
+        if( old_state.Disconnected ) {
+          throw new Exception(String.Format("Connection: {0} is disconnected",this));
+        }
+        var new_state = new ConnectionState(e, old_state.StatusMessage, lm, false);
         return new_state;
       });
       var ev = StateChangeEvent;
@@ -135,7 +186,10 @@ namespace Brunet.Connections {
      */
     public Pair<ConnectionState,ConnectionState> SetStatus(StatusMessage sm) {
       var res = _state.Update(delegate(ConnectionState old_state) {
-        var new_state = new ConnectionState(old_state.Edge, sm, old_state.PeerLinkMessage);
+        if( old_state.Disconnected ) {
+          throw new Exception(String.Format("Connection: {0} is disconnected",this));
+        }
+        var new_state = new ConnectionState(old_state.Edge, sm, old_state.PeerLinkMessage, false);
         return new_state;
       });
       var ev = StateChangeEvent;

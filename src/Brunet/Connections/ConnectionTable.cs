@@ -646,6 +646,22 @@ namespace Brunet.Connections
                                       unc);
 
     }
+    public Pair<ConnectionTableState,Pair<Connection,int>> ReplaceEdge(Edge olde, Edge newe) {
+      Connection c;
+      int idx = -1;
+      ConnectionTableState newcts = this;
+      if( _edge_to_con.TryGetValue(olde, out c) ) {
+        var newd = new Dictionary<Edge, Connection>(_edge_to_con);
+        newd.Remove(olde);
+        newd[newe] = c;
+        newcts = new ConnectionTableState(Closed, View + 1,
+                                      _type_to_conlist,
+                                      newd,
+                                      Unconnected);
+      }
+      var sideinfo = new Pair<Connection,int>(c, idx);
+      return new Pair<ConnectionTableState, Pair<Connection,int>>(newcts, sideinfo);
+    }
     /**
      * Handles enumerating connection types, not just all
      * connections.
@@ -750,23 +766,45 @@ namespace Brunet.Connections
      */
     public ConnectionEventArgs Add(Connection c)
     {
+      var cs = c.State;
+      Edge e = cs.Edge;
       Converter<ConnectionTableState, Pair<ConnectionTableState,int>> add_up =
         delegate(ConnectionTableState cts) {
-          var ncts = cts.RemoveUnconnected(c.State.Edge);
+          var ncts = cts.RemoveUnconnected(e);
           return ncts.AddConnection(c);
         };
       Triple<ConnectionTableState,ConnectionTableState,int> res
         = _cts.Update<int>(add_up);
       
-      var cea = new ConnectionEventArgs(c, res.Third, res.First, res.Second);
+      var cea = new ConnectionEventArgs(c, cs, res.Third, res.First, res.Second);
       SendEvent(ConnectionEvent, cea);
       SendEvent(StateEvent, cea);
+      /*
+       * Watch to see if the Edge inside this connection changes:
+       */
+      c.StateChangeEvent += delegate(Connection cx, Pair<ConnectionState,ConnectionState> oldnew) {
+        if( oldnew.Second.Disconnected ) {
+          Remove(oldnew.Second.Edge, true);
+        }
+        else if( oldnew.First.Edge != oldnew.Second.Edge ) {
+          _cts.Update<Pair<Connection,int>>(delegate(ConnectionTableState cts) {
+            return cts.ReplaceEdge(oldnew.First.Edge, oldnew.Second.Edge);
+          });
+          //Make sure we watch if this edge is closed:
+          Edge ne = oldnew.Second.Edge;
+          try { ne.CloseEvent += RemoveHandler; }
+          catch { RemoveHandler(ne, null); }
+        }
+      };
+      /*
+       * Make sure to watch if the edge closes
+       */
       try {
         //If this edge is already closed, the below throws
-        c.State.Edge.CloseEvent += RemoveHandler;
+        e.CloseEvent += RemoveHandler;
       }
       catch {
-        RemoveHandler(c.State.Edge, null);
+        RemoveHandler(e, null);
         throw;
       }
       
@@ -806,7 +844,7 @@ namespace Brunet.Connections
       var res = _cts.Update(addunc);
       if( res.First != res.Second ) {
         //There was actually a state change:
-        var cea = new ConnectionEventArgs(null, -1, res.First, res.Second);
+        var cea = new ConnectionEventArgs(null, null, -1, res.First, res.Second);
         SendEvent(StateEvent, cea);
         try {
           e.CloseEvent += RemoveHandler;
@@ -832,22 +870,10 @@ namespace Brunet.Connections
         };
       var res = _cts.Update(close);
       if( res.First != res.Second ) {
-        var cea = new ConnectionEventArgs(null, -1, res.First, res.Second);
+        var cea = new ConnectionEventArgs(null, null, -1, res.First, res.Second);
         SendEvent(StateEvent, cea);
       }
       return res;
-    }
-
-    /**
-     * This method removes the connection associated with an Edge,
-     * then it adds this edge to the list of unconnected nodes.
-     * 
-     * @param e The edge to disconnect
-     */
-    public ConnectionEventArgs Disconnect(Edge e)
-    {
-      //Remove the edge, but keep a reference to it.
-      return Remove(e, true);
     }
 
     /**
@@ -884,8 +910,9 @@ namespace Brunet.Connections
       Triple<ConnectionTableState,ConnectionTableState,Pair<Connection,int>> ures
         = _cts.Update<Pair<Connection,int>>(remcon);
       Connection c = ures.Third.First;
+      ConnectionState cs = null != c ? c.State : null;
       int idx = ures.Third.Second;
-      var cea = new ConnectionEventArgs(c, idx, ures.First, ures.Second);
+      var cea = new ConnectionEventArgs(c, cs, idx, ures.First, ures.Second);
       if( idx != -1 ) {
         if(ProtocolLog.Connections.Enabled) {
           DateTime now = DateTime.UtcNow;
@@ -911,10 +938,8 @@ namespace Brunet.Connections
      */
     private void RemoveHandler(object edge, EventArgs args)
     {
-      Edge e = (Edge)edge;
-      e.CloseEvent -= this.RemoveHandler;
       //Get rid of the edge and don't add it to our _unconnected list
-      Remove(e, false);
+      Remove((Edge)edge, false);
     }
     private void SendEvent(EventHandler eh, ConnectionEventArgs cea) {
       if( eh != null ) {

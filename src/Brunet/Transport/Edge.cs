@@ -44,6 +44,22 @@ namespace Brunet.Transport
 
   public abstract class Edge : BM.SimpleSource, IComparable, BM.ISender
   {
+    // ///////////////
+    // Inner classes
+    // ///////////////
+    
+    /*** For use with IActionQueue 
+     * Add this event to put a Close action into another thread/actionqueue
+     */
+    public class CloseAction : IAction {
+      public readonly Edge ToClose;
+      public CloseAction(Edge e) {
+        ToClose = e;
+      }
+      public void Start() {
+        ToClose.Close();
+      }
+    }
     /*
      * Static code stuffs
      */

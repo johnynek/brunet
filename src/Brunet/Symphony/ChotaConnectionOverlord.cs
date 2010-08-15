@@ -208,7 +208,7 @@ namespace Brunet.Symphony {
       }
 
       foreach(Connection c in to_trim) {
-        _node.GracefullyClose(c.State.Edge, "From Chota, low score trim.");
+        c.Close(_node.Rpc, "From Chota, low score trim.");
       }
 
       foreach(Address addr in to_add) {

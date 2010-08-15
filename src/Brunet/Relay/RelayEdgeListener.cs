@@ -146,7 +146,7 @@ namespace Brunet.Relay {
         if( left_pos >= StructuredNearConnectionOverlord.DESIRED_NEIGHBORS &&
             right_pos >= StructuredNearConnectionOverlord.DESIRED_NEIGHBORS )
         {
-          _node.GracefullyClose(con.State.Edge, "OCO, unused overlapped connection");
+          con.Close(_node.Rpc, "OCO, unused overlapped connection");
         }
       }
     }

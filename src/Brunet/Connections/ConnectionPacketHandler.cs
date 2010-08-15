@@ -119,7 +119,9 @@ namespace Brunet.Connections
       if(ProtocolLog.LinkDebug.Enabled)
         ProtocolLog.Write(ProtocolLog.LinkDebug, String.Format(
           "sys:link.Close on {0} connection: {1}", from, c));
-      tab.Disconnect(from);
+      if( c != null ) {
+        c.Abort(); //Go ahead and end this connection
+      }
       /** 
        * Release locks when the close message arrives; do not wait
        * until the edge actually closes.
@@ -138,7 +140,7 @@ namespace Brunet.Connections
        * Try to close the edge after a small time span:
        */
       Brunet.Util.FuzzyTimer.Instance.DoAfter(delegate(DateTime now) {
-        _node.EnqueueAction(new Node.GracefulCloseAction(_node, from, "CPH, delayed close"));
+        _node.EnqueueAction(new Edge.CloseAction(from));
       }, 5000, 1000);
       return new ListDictionary();
     }

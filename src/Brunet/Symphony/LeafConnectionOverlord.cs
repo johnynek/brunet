@@ -27,6 +27,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using Brunet.Connections;
+using BCol = Brunet.Collections;
 using Brunet.Transport;
 namespace Brunet.Symphony
 {
@@ -133,14 +134,13 @@ namespace Brunet.Symphony
     }
 
     //We use this to get the oldest edge
-    protected class EdgeDateComparer : IComparer {
-      public int Compare(object o1, object o2) {
+    protected class ConDateComparer : IComparer<Connection> {
+      public static ConDateComparer Instance = new ConDateComparer();
+      public int Compare(Connection o1, Connection o2) {
         if ( o1 == o2 ) {
           return 0;
         }
-        Edge e1 = (Edge)o1;
-        Edge e2 = (Edge)o2;
-        return e1.CreatedDateTime.CompareTo( e2.CreatedDateTime );
+        return o1.CreationTime.CompareTo(o2.CreationTime);
       }
     }
 
@@ -297,16 +297,14 @@ namespace Brunet.Symphony
         }
       }
       if( do_trim ) {
-        Edge to_close = null;
+        Connection to_close = null;
         /*
          * There is no need to lock the table, this IEnumerable
          * won't have problems because it never changes
          */
         IEnumerable lenum = _local.ConnectionTable.GetConnections(ConnectionType.Leaf);
-        ArrayList all_leafs = new ArrayList();
-        foreach(Connection c in lenum) {
-          all_leafs.Add(c.State.Edge);
-        }
+        var all_leafs = new List<Connection>();
+        all_leafs.AddRange(new BCol.Functional.CastEnumerable<Connection>(lenum));
         int leafs = all_leafs.Count;
         int surplus = leafs - DesiredConnections;
         if( surplus > 0 ) {
@@ -331,16 +329,16 @@ namespace Brunet.Symphony
           if( _rnd.NextDouble() < prob ) {
             //as surplus -> infinity, prob -> 1, and we always close.
             //Now sort them, and get the oldest:
-            all_leafs.Sort(new EdgeDateComparer());
+            all_leafs.Sort(ConDateComparer.Instance);
             //Here is the oldest:
-            to_close = (Edge)all_leafs[0];
+            to_close = all_leafs[0];
           }
           else {
             //We just add the new edge without closing
           }
         }
         if( to_close != null ) {
-          _local.GracefullyClose( to_close, "From LeafCO, too many leaf connections." );
+          to_close.Close(_local.Rpc, "From LeafCO, too many leaf connections." );
         }
       }
     }
