@@ -268,25 +268,25 @@ namespace Brunet
      * is called, and the global graph is written out
      */
     void ConnectionTableChangeHandler(object o, EventArgs arg) {
-      lock( _sync ) {
-        _idx++;
+     int idx = Interlocked.Increment(ref _idx);
+     try {
 #if EVERY_20
-        if( _idx % 20 == 0 ) { 
-	      //Only print every 20'th change.  This is a hack...
-          ToDotFile();
-        }
+       if( idx % 20 == 0 ) { 
+	 //Only print every 20'th change.  This is a hack...
+         ToDotFile(idx);
+       }
 #else
-        ToDotFile();
+       ToDotFile(idx);
 #endif
 	//Node n = (Node)_ctable_to_node[o];
 	//Console.Error.WriteLine("Node({0}).IsConnected == {1}", n.Address, n.IsConnected);
-      }
+     }
+     catch { } //Don't throw exception on too many open files
     }
     
-    public void ToDotFile()
+    public void ToDotFile(int index)
     {
       ArrayList node_list = _node_list;
-      int index = _idx;
       //Make the list of all addresses:
       ArrayList all_adds = new ArrayList();
       Hashtable addresses = new Hashtable();
@@ -480,6 +480,7 @@ namespace Brunet
     ArrayList node_list = new ArrayList();
     Hashtable add_to_node = new Hashtable();
     PathELManager pem = null;
+    Random rnd = new Random();
     for (int loop=0;loop<net_size;loop++)
     {
       //create and initialize new host
@@ -500,6 +501,10 @@ namespace Brunet
 	        break;
         case "udp":
           tmp_node.AddEdgeListener(new UdpEdgeListener(port+loop));
+          break;
+        case "udp-tcp":
+          tmp_node.AddEdgeListener(new UdpEdgeListener(port+loop));
+          tmp_node.AddEdgeListener(new TcpEdgeListener(port+loop));
           break;
         case "function":
           tmp_node.AddEdgeListener(new FunctionEdgeListener(port+loop));
@@ -542,6 +547,14 @@ namespace Brunet
           case "udp":
             ta_str = "brunet.udp://127.0.0.1:";
             break;
+          case "udp-tcp":
+            if( rnd.Next(2) == 0 ) {
+              ta_str = "brunet.udp://127.0.0.1:";
+            }
+            else {
+              ta_str = "brunet.tcp://127.0.0.1:";
+            }
+            break;
           case "function":
             ta_str = "brunet.function://localhost:";
             break;
@@ -570,7 +583,6 @@ namespace Brunet
     //Get Connected:
     int total_started = 0;
     ArrayList rnd_list = (ArrayList)node_list.Clone();
-    Random rnd = new Random();
     for(int j = 0; j < rnd_list.Count; j++) {
           //Swap the j^th position with this position:
           int i = rnd.Next(j, rnd_list.Count);
