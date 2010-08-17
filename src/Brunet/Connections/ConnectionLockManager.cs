@@ -70,6 +70,7 @@ namespace Brunet.Connections {
      */
     public void Lock(Address a, string t, ILinkLocker locker)
     {
+ #if false
       if( null == a ) { return; }
       ConnectionType mt = Connection.StringToMainType(t);
       lock( _sync ) {
@@ -122,6 +123,7 @@ namespace Brunet.Connections {
                         a, old_locker, locker));
         }
       }
+ #endif
     }
 
     /**
@@ -132,6 +134,7 @@ namespace Brunet.Connections {
      * @throw Exception if the lock is not held by locker
      */
     public void Unlock(string t, ILinkLocker locker) {
+ #if false
       ConnectionType mt = Connection.StringToMainType(t);
       lock( _sync ) {
         if( locker.TargetLock != null ) {
@@ -163,6 +166,7 @@ namespace Brunet.Connections {
           locker.TargetLock = null;
         }
       }
+#endif
     }
 
     private void UpdateState(object tab, EventArgs args) {

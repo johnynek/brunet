@@ -105,7 +105,7 @@ namespace Brunet
         _send_pings = 1;
         _LOG = ProtocolLog.Monitor.Enabled;
 
-        _connection_table = new ConnectionTable();
+        _connection_table = new ConnectionTable(new DefaultERPolicy(addr));
         _connection_table.ConnectionEvent += this.ConnectionHandler;
         LockMgr = new ConnectionLockManager(_connection_table);
 
