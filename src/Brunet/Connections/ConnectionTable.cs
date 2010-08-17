@@ -237,7 +237,7 @@ namespace Brunet.Connections
      */
     public static ConnectionList InsertInto(ConnectionList cl, Connection c, out int idx) {
       idx = cl.IndexOf(c.Address);
-      if( idx > 0 ) {
+      if( idx >= 0 ) {
         throw new ConnectionExistsException( cl[idx] );
       }
       idx = ~idx;
