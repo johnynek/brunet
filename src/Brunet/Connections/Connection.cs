@@ -182,6 +182,22 @@ namespace Brunet.Connections {
       }
       return res;
     }
+    public Pair<ConnectionState,ConnectionState> SetState(ConnectionState cs) {
+      var res = _state.Update(delegate(ConnectionState old_state) {
+        if( old_state.Disconnected ) {
+          throw new Exception(String.Format("Connection: {0} is disconnected",this));
+        }
+        return cs;
+      });
+      if( res.First != res.Second ) {
+        //Only send the event if there is an actual change
+        var ev = StateChangeEvent;
+        if( null != ev ) {
+          ev(this, res);
+        }
+      }
+      return res;
+    }
     /** return the old state, and new state
      */
     public Pair<ConnectionState,ConnectionState> SetStatus(StatusMessage sm) {

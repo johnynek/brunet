@@ -742,14 +742,14 @@ namespace Brunet.Connections
         return _cts.State;
       }
     }
+    private readonly IEdgeReplacementPolicy _erp;
   
-  /**
-   * @param local the Address associated with the local node
-   */
+    public ConnectionTable() : this(NeverReplacePolicy.Instance) { }
 
-    public ConnectionTable()
+    public ConnectionTable(IEdgeReplacementPolicy erp)
     {
       _cts = new Mutable<ConnectionTableState>(new ConnectionTableState());
+      _erp = erp;
     }
 
     /**
@@ -771,12 +771,35 @@ namespace Brunet.Connections
       Converter<ConnectionTableState, Pair<ConnectionTableState,int>> add_up =
         delegate(ConnectionTableState cts) {
           var ncts = cts.RemoveUnconnected(e);
-          return ncts.AddConnection(c);
+          try {
+            return ncts.AddConnection(c);
+          }
+          catch(ConnectionExistsException) {
+            //The state didn't change, we just replaced an edge:
+            return new Pair<ConnectionTableState, int>(cts, -1);
+          }
         };
       Triple<ConnectionTableState,ConnectionTableState,int> res
         = _cts.Update<int>(add_up);
       
       var cea = new ConnectionEventArgs(c, cs, res.Third, res.First, res.Second);
+      if( res.First == res.Second ) {
+        /*
+         * A connection to this Address already exists:
+         * See about replacement:
+         */
+        ConnectionTableState cts = res.Second;
+        Connection old_con = cts.GetConnections(c.MainType)[c.Address];
+        ConnectionState old_cs = old_con.State; 
+        ConnectionState rep = _erp.GetReplacement(cts, old_con, old_cs, cs);
+        if( old_cs != rep ) {
+          old_con.SetState(rep);
+          //The old edge is now unconnected:
+          AddUnconnected(old_cs.Edge);
+        }
+        //No ConnectionTableState change, so no need to send an event
+        return cea;
+      }
       SendEvent(ConnectionEvent, cea);
       SendEvent(StateEvent, cea);
       /*
