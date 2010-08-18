@@ -123,6 +123,9 @@ namespace Brunet.Transport
           int plength = state.Data.CopyTo(_buffer, 8);
           _socket.SendTo(_buffer, 8 + plength, SocketFlags.None, state.End);
         }
+        catch(System.ObjectDisposedException) {
+          //This happens when the _socket is closed by the listen thread
+        }
         catch(Exception x) {
           if(ProtocolLog.Exceptions.Enabled) {
             ProtocolLog.Write(ProtocolLog.Exceptions, x.ToString());
