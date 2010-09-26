@@ -149,8 +149,7 @@ namespace Brunet.Connections {
        * the Connector starts.  If it returns true, the Connector
        * will finish immediately without sending an ConnectToMessage
        */
-      Linker l = new Linker(_node, target, null, ConnectionType,
-          _node.Address.ToString());
+      Linker l = new Linker(_node, target, null, ConnectionType, token);
       object link_task = l.Task;
       Connector.AbortCheck abort = delegate(Connector c) {
         bool stop = false;

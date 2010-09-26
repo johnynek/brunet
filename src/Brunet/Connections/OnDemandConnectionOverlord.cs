@@ -81,7 +81,7 @@ namespace Brunet.Symphony {
       }
 
       ProtocolLog.WriteIf(ProtocolLog.OnDemandCO, "Trying: " + dest);
-      ConnectTo(dest, TYPE);
+      ConnectTo(dest, TYPE, _node.Address.ToString());
       return false;
     }
 
@@ -168,7 +168,7 @@ namespace Brunet.Symphony {
         bool value;
         if(_cache.TryGetValue(addr, out value)) {
           ProtocolLog.WriteIf(ProtocolLog.OnDemandCO, "Retrying: " + addr);
-          ConnectTo(addr, TYPE);
+          ConnectTo(addr, TYPE, _node.Address.ToString());
         }
       };
 
@@ -193,6 +193,11 @@ namespace Brunet.Symphony {
         if(con == null) {
           return;
         }
+        // This node didn't create it, let the other node close it...
+        if(_node.Address.ToString().Equals(con.PeerLinkMessage.Token)) {
+          return;
+        }
+
         ProtocolLog.WriteIf(ProtocolLog.OnDemandCO, "Closing: " + con);
         con.State.Edge.Close();
       };
