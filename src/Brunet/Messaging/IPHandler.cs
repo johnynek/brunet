@@ -249,9 +249,8 @@ namespace Brunet.Messaging
     public static IPAddress[] GetLocalIPAddresses() {
       IPAddress[] base_addresses = null;
       try {
-        base_addresses = Dns.GetHostAddresses(Dns.GetHostName());
-      }
-      catch {
+        base_addresses = Dns.GetHostAddresses(string.Empty);
+      } catch {
         base_addresses = new IPAddress[0];
       }
 
@@ -432,7 +431,7 @@ namespace Brunet.Messaging
   public class IPHandlerTest{
     [Test]
     public void Test() {
-      IPAddress[] base_addresses = Dns.GetHostAddresses(Dns.GetHostName());
+      IPAddress[] base_addresses = Dns.GetHostAddresses(string.Empty);
       ArrayList local_ips = new ArrayList(base_addresses);
       local_ips.Add(IPAddress.Loopback);
       ArrayList ips = new ArrayList(IPHandler.GetLocalIPAddresses());
