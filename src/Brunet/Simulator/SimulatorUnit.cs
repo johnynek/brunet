@@ -21,7 +21,7 @@ namespace Brunet.Simulator {
       Assert.IsTrue(sim.Complete(true), "Simulation failed to complete the ring");
     }
 
-    [Test]
+//    [Test]
     public void CompleteTheDtlsRing() {
       Parameters p = new Parameters("Test", "Test");
       string[] args = "-b=.2 --dtls -c --secure_edges -s=25".Split(' ');
@@ -33,7 +33,7 @@ namespace Brunet.Simulator {
     [Test]
     public void CompleteTheSubring() {
       SubringParameters p = new SubringParameters();
-      string[] args = "-b=.2 --dtls -c --secure_edges -s=25 --subring=10".Split(' ');
+      string[] args = "-b=.2 -c --secure_edges -s=25 --subring=10".Split(' ');
       Assert.AreNotEqual(-1, p.Parse(args), "Unable to parse" + p.ErrorMessage);;
       SubringSimulator sim = new SubringSimulator(p);
       Assert.IsTrue(sim.Complete(true), "Simulation failed to complete the ring");
