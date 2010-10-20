@@ -75,7 +75,7 @@ namespace Brunet.Collections {
 #endif
     {
       if(_stopped == 1) {
-        throw new Exception("Stopped!");
+        return;
       }
 
       Dictionary<K, V> removed = null;
