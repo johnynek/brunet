@@ -64,7 +64,7 @@ namespace Ipop.SocialVPN {
 
     protected readonly SecurityOverlord _bso;
 
-    protected readonly object _sync;
+    protected readonly object _social_sync;
 
     private WriteOnce<bool> _global_block;
 
@@ -82,7 +82,7 @@ namespace Ipop.SocialVPN {
                       string certificate) : base(brunetConfig, ipopConfig) {
       _friends = new Dictionary<string, SocialUser>();
       _bfriends = new List<string>();
-      _sync = new object();
+      _social_sync = new object();
       _status = StatusTypes.Offline.ToString();
       _global_block = new WriteOnce<bool>();
       _local_user = new SocialUser();
@@ -122,7 +122,7 @@ namespace Ipop.SocialVPN {
       _marad.AddDnsMapping(user.Alias, user.IP, true);
       user.Access = AccessTypes.Allow.ToString();
 
-      lock (_sync) {
+      lock (_social_sync) {
         _friends.Add(user.Alias, user);
       }
       // Check global block option and block if necessary
@@ -144,7 +144,7 @@ namespace Ipop.SocialVPN {
       _marad.RemoveIPMapping(user.IP);
       _marad.RemoveDnsMapping(user.Alias, true);
 
-      lock (_sync) {
+      lock (_social_sync) {
         _friends.Remove(user.Alias);
       }
       GetState(true);
@@ -164,7 +164,7 @@ namespace Ipop.SocialVPN {
         }
       }
 
-      lock (_sync) {
+      lock (_social_sync) {
         if(!_bfriends.Contains(uid)) {
           _bfriends.Add(uid);
         }
@@ -187,7 +187,7 @@ namespace Ipop.SocialVPN {
         }
       }
 
-      lock (_sync) {
+      lock (_social_sync) {
         _bfriends.Remove(uid);
       }
       GetState(true);
@@ -224,7 +224,7 @@ namespace Ipop.SocialVPN {
       try {
         SocialState state = Utils.ReadConfig<SocialState>(STATEPATH);
         foreach (string user in state.BlockedFriends) {
-          lock (_sync) {
+          lock (_social_sync) {
             _bfriends.Add(user);
           }
         }
@@ -239,7 +239,7 @@ namespace Ipop.SocialVPN {
 
     public SocialUser[] GetFriends() {
       SocialUser[] friends;
-      lock(_sync) {
+      lock(_social_sync) {
         friends = new SocialUser[_friends.Count];
         int i = 0;
         foreach(SocialUser user in _friends.Values) {
@@ -259,7 +259,7 @@ namespace Ipop.SocialVPN {
       SocialUser user;
       if(_friends.TryGetValue(alias, out user)) {
         SocialUser new_user = user.ChangedCopy(ip, time, access, status);
-        lock(_sync) {
+        lock(_social_sync) {
           _friends.Remove(new_user.Alias);
           _friends.Add(new_user.Alias, new_user);
         }
@@ -314,7 +314,7 @@ namespace Ipop.SocialVPN {
       }
     }
 
-    public static new SocialNode CreateNode() {
+    public static SocialNode CreateNode() {
       SocialConfig social_config;
       NodeConfig node_config;
       IpopConfig ipop_config;
