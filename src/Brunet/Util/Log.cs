@@ -10,6 +10,8 @@ namespace Brunet.Util {
       new BooleanSwitch("ConnectionTable", "Logs connections");
     public static BooleanSwitch ConnectionTableLocks = 
         new BooleanSwitch("ConnectionTableLocks", "Logs locks in the ConnectionTable");
+    public static BooleanSwitch OnDemandCO =
+        new BooleanSwitch("OnDemandCO", "On demand connections.");
     public static BooleanSwitch Exceptions =
         new BooleanSwitch("ERROR", "Logs exceptions");
     public static BooleanSwitch NodeLog =

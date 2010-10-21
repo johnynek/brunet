@@ -77,8 +77,8 @@ namespace Ipop {
     /// <summary>The Rpc handler for the Public overlays Information.  It will
     /// be the same as AppNode's, if there is no private overlay.</summary>
     public readonly Information PublicInfo;
-    /// <summary>Chota for Brunet.</summary>
-    protected readonly ChotaConnectionOverlord _chota;
+    /// <summary>OnDemand for Brunet.</summary>
+    protected readonly OnDemandConnectionOverlord _ondemand;
     /// <summary>Resolves IP Addresses to Brunet.Addresses</summary>
     protected IAddressResolver _address_resolver;
     /// <summary>Resolves hostnames and IP Addresses</summary>
@@ -141,7 +141,7 @@ namespace Ipop {
         AppNode.Node.DisconnectOnOverload = false;
       }
 
-      _chota = AppNode.Node.Cco;
+      _ondemand = AppNode.Node.Odco;
       _ipop_config = ipop_config;
 
       Ethernet = new Ethernet(_ipop_config.VirtualNetworkDevice);
@@ -377,7 +377,7 @@ namespace Ipop {
                             "Brunet destination ID: {0}", target));
         }
         SendIP(target, packet.Payload);
-        _chota.Increment(target);
+        _ondemand.Active(target);
       }
     }
 

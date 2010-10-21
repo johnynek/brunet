@@ -62,10 +62,10 @@ namespace Brunet.Symphony
       }
     }
 
-    protected readonly ChotaConnectionOverlord _cco;
-    public ChotaConnectionOverlord Cco {
+    protected readonly ConnectionOverlord _odco;
+    public OnDemandConnectionOverlord Odco {
       get {
-        return _cco;
+        return _odco as OnDemandConnectionOverlord;
       }
     }
 
@@ -104,7 +104,7 @@ namespace Brunet.Symphony
       _leafco = new LeafConnectionOverlord(this);
       _snco = new StructuredNearConnectionOverlord(this);
       _ssco = new StructuredShortcutConnectionOverlord(this);
-      _cco = new ChotaConnectionOverlord(this);
+      _odco = new OnDemandConnectionOverlord(this);
       _mco = new ManagedConnectionOverlord(this);
 #if !BRUNET_SIMULATOR
       _iphandler = new IPHandler();
@@ -173,11 +173,12 @@ namespace Brunet.Symphony
 #if !BRUNET_SIMULATOR
       _iphandler.Stop();
 #endif
+      (_odco as OnDemandConnectionOverlord).Stop();
 
       _leafco.IsActive = false;
       _snco.IsActive = false;
       _ssco.IsActive = false;
-      _cco.IsActive = false;
+      _odco.IsActive = false;
       _mco.IsActive = false;
       StopAllEdgeListeners();
     }
@@ -195,14 +196,13 @@ namespace Brunet.Symphony
       _leafco.IsActive = true;
       _snco.IsActive = true;
       _ssco.IsActive = true;
-      _cco.IsActive = true;
+      _odco.IsActive = true;
       _mco.IsActive = true;
 
       _leafco.Activate();
       _ssco.Activate();
       _snco.Activate();
 #if !BRUNET_SIMULATOR
-      _cco.Activate();
       _mco.Activate();
       AnnounceThread();
 #endif
@@ -224,10 +224,11 @@ namespace Brunet.Symphony
 #if !BRUNET_SIMULATOR
       _iphandler.Stop();
 #endif
+      (_odco as OnDemandConnectionOverlord).Stop();
       _leafco.IsActive = false;
       _snco.IsActive = false;
       _ssco.IsActive = false;
-      _cco.IsActive = false;
+      _odco.IsActive = false;
       _mco.IsActive = false;
 
       //Stop notifying neighbors of disconnection, we are the one leaving
