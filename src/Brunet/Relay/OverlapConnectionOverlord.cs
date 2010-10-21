@@ -51,12 +51,6 @@ namespace Brunet.Relay {
       _sync = new object();
     }
 
-    /// <summary>We don't do anything here... </summary>
-    override public void Activate()
-    {
-      throw new NotImplementedException();
-    }
-
     protected volatile bool _active;
     override public bool IsActive
     {

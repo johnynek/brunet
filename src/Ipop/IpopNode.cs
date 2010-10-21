@@ -22,6 +22,7 @@ THE SOFTWARE.
 
 using Brunet;
 using Brunet.Applications;
+using Brunet.Connections;
 using Brunet.Messaging;
 using Brunet.Security;
 using Brunet.Symphony;
@@ -141,7 +142,8 @@ namespace Ipop {
         AppNode.Node.DisconnectOnOverload = false;
       }
 
-      _ondemand = AppNode.Node.Odco;
+      _ondemand = new OnDemandConnectionOverlord(AppNode.Node);
+      AppNode.Node.AddConnectionOverlord(_ondemand);
       _ipop_config = ipop_config;
 
       Ethernet = new Ethernet(_ipop_config.VirtualNetworkDevice);
@@ -377,7 +379,7 @@ namespace Ipop {
                             "Brunet destination ID: {0}", target));
         }
         SendIP(target, packet.Payload);
-        _ondemand.Active(target);
+        _ondemand.Set(target);
       }
     }
 

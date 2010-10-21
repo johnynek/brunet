@@ -48,7 +48,20 @@ namespace Brunet.Connections {
     /**
      * If IsActive, then start trying to get connections.
      */
-    abstract public void Activate();
+    virtual public void Activate()
+    {
+    }
+
+    virtual public void Start()
+    {
+      IsActive = true;
+      Activate();
+    }
+
+    virtual public void Stop()
+    {
+      IsActive = false;
+    }
 
     /**
      * When IsActive is false, the ConnectionOverlord does nothing

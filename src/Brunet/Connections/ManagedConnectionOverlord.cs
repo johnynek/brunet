@@ -30,7 +30,7 @@ using System.Net.Sockets;
 using Brunet.Connections;
 using Brunet.Messaging;
 using Brunet.Transport;
-using BU = Brunet.Util;
+using Brunet.Util;
 
 namespace Brunet.Connections
 {
@@ -45,8 +45,7 @@ namespace Brunet.Connections
   /// disconnects, this will automatically attempt to repair the connection
   /// by acting as if the address had just been added.  All this is handled
   /// by using _connection_state as the state holder per address.</remarks>
-  public class ManagedConnectionOverlord: ConnectionOverlord
-  {
+  public class ManagedConnectionOverlord: PolicyBasedConnectionOverlord {
     public enum MCState {
       ///<summary>Attempted 3 times and failed, wait...</summary>
       Off,
@@ -60,68 +59,47 @@ namespace Brunet.Connections
 
     /// <summary> Keeps the state for all registered addresses</summary>
     protected Dictionary<Address, MCState> _connection_state;
-    protected DateTime _last_call;
-    protected readonly RpcManager _rpc;
     protected Object _sync;
-    protected volatile bool _active;
+    protected FuzzyEvent _check_state;
 
-    public static readonly string struc_managed = "structured.managed";
+    protected const string _type = "structured.managed";
+    override public string Type { get { return _type; } }
+    protected static readonly ConnectionType _main_type =
+      Connection.StringToMainType(_type);
+    override public ConnectionType MainType { get { return _main_type; } }
 
-    public override bool IsActive
-    {
-      get { return _active; }
-      set { _active = value; }
-    }
-
-    public override TAAuthorizer TAAuth { get { return _ta_auth;} }
+    override public TAAuthorizer TAAuth { get { return _ta_auth;} }
     protected readonly static TAAuthorizer _ta_auth = new TATypeAuthorizer(
           new TransportAddress.TAType[]{TransportAddress.TAType.Subring},
           TAAuthorizer.Decision.Deny,
           TAAuthorizer.Decision.None);
 
-    public ManagedConnectionOverlord(Node node) {
+    public ManagedConnectionOverlord(Node node) : base(node) {
       _sync = new Object();
-      _active = false;
       _node = node;
       _connection_state = new Dictionary<Address, MCState>();
-      _last_call = DateTime.MinValue;
-    }
-
-    ///<summary>Enables HeartBeat and ConnectionTable hooks</summary>
-    protected void Enable() {
-      lock(_sync) {
-        _node.HeartBeatEvent += CheckState;
-        _node.ConnectionTable.ConnectionEvent += ConnectHandler;
-        _node.ConnectionTable.DisconnectionEvent += DisconnectHandler;
-      }
-    }
-
-    ///<summary>Disables HeartBeat and ConnectionTable hooks</summary>
-    protected void Disable() {
-      lock(_sync) {
-        _node.HeartBeatEvent -= CheckState;
-        _node.ConnectionTable.ConnectionEvent -= ConnectHandler;
-        _node.ConnectionTable.DisconnectionEvent -= DisconnectHandler;
-      }
     }
 
     ///<summary>Once every hour, the CO will attempt to connect to remote end
     ///points in _connection_state that aren't connected</summary>
-    public void CheckState(object o, EventArgs ea) {
-      DateTime now = DateTime.UtcNow;
-      lock(_sync) {
-        if(_last_call.AddHours(1) > now) {
-          return;
-        }
-        _last_call = now;
-      }
+    protected void Activate(DateTime now) {
       Activate();
     }
 
+    override public void Start() {
+      _check_state = FuzzyTimer.Instance.DoEvery(Activate, 3600000, 500);
+      base.Start();
+    }
+
+    override public void Stop() {
+      _check_state.TryCancel();
+      base.Stop();
+    }
+
     ///<summary>Once every hour, the CO will attempt to connect to remote end
     ///points in _connection_state that aren't connected</summary>
-    public override void Activate() {
-      if(!_active) {
+    override public void Activate() {
+      if(!IsActive) {
         return;
       }
       List<Address> connect_to = new List<Address>();
@@ -133,90 +111,18 @@ namespace Brunet.Connections
         }
       }
       foreach(Address addr in connect_to) {
-        ConnectTo(addr, struc_managed);
+        ConnectTo(addr);
       }
     }
 
-    ///<summary>This isn't used for this CO</summary>
-    public override bool NeedConnection {
-      get { return false; }
-    }
-
-    ///<summary>This isn't used for this CO</summary>
-    public override bool IsConnected
+    override protected bool ConnectionDesired(Address addr)
     {
-      get {
-        throw new Exception("Not implemented!  LocalConnectionOverlord.IsConnected");
-      }
-    }
-
-    /// <summary>This method is called when there is connection added to the
-    /// ConnectionTable.  We set the connection state to true and thus won't
-    /// attempt reconnecting to it, unless there is a disconnection</summary>
-    protected void ConnectHandler(object tab, EventArgs eargs) {
-      Connection new_con = ((ConnectionEventArgs)eargs).Connection;
       lock(_sync) {
-        if(!_connection_state.ContainsKey(new_con.Address)) {
-          return;
-        }
-        _connection_state[new_con.Address] = MCState.On;
-      }
-
-      if(BU.ProtocolLog.ManagedCO.Enabled) {
-        BU.ProtocolLog.Write(BU.ProtocolLog.ManagedCO, String.Format(
-                          "Connect a {0}: {1} at: {2}",
-                          struc_managed, new_con, DateTime.UtcNow));
+        return _connection_state.ContainsKey(addr);
       }
     }
 
-    /// <summary>This method is called when there is a Disconnection from
-    /// the ConnectionTable.  If a disconnect occurs and it is an address
-    /// managed by the ManagedCO, reconnect.</summary>
-    protected void DisconnectHandler(object tab, EventArgs eargs) {
-      Connection new_con = ((ConnectionEventArgs)eargs).Connection;
-      lock(_sync) {
-        if(!_connection_state.ContainsKey(new_con.Address)) {
-         return;
-        }
-        
-        _connection_state[new_con.Address] = MCState.Off;
-      }
-
-      if(BU.ProtocolLog.ManagedCO.Enabled) {
-        BU.ProtocolLog.Write(BU.ProtocolLog.ManagedCO, String.Format(
-                          "Disconnect a {0}: {1} at: {2}",
-                          struc_managed, new_con, DateTime.UtcNow));
-      }
-      if(_active) {
-        ConnectTo(new_con.Address, struc_managed);
-      }
-    }
-
-    /// <summary>Find out if the Connector succeeded, if not, let's call
-    /// UpdateStatus.</summary>
-    override protected void ConnectorEndHandler(object o, EventArgs eargs)
-    {
-      Connector con = o as Connector;
-      Address addr = con.State as Address;
-      if(addr != null && con.ReceivedCTMs.Count == 0) {
-        UpdateState(addr);
-      }
-    }
-
-    /// <summary>If we get here, a Connector attempt has ended, let's call
-    /// UpdateStatus.</summary>
-    override protected void LinkerEndHandler(object o, EventArgs eargs)
-    {
-      Linker linker = o as Linker;
-      Address addr = linker.Target;
-      if(addr != null) {
-        UpdateState(addr);
-      }
-    }
-
-    /// <summary>We will check to see if the connection succeeded.  If it
-    /// hasn't, we attempt to connect again.</summary>
-    protected void UpdateState(Address addr)
+    override protected void FailedConnectionAttempt(Address addr)
     {
       lock(_sync) {
         // First case, why are we here
@@ -238,60 +144,73 @@ namespace Brunet.Connections
             return;
         }
       }
-      if(_active) {
+      if(IsActive) {
         // Well we should be connected, but we aren't, try again!
-        ConnectTo(addr, struc_managed);
+        DelayedConnectTo(addr, true);
       }
     }
 
-    /// <summary>Add a specific address that you would like to get connected
-    /// to.</summary>
-    /// <param name="RemoteAddress">The address to get connected to</param>
-    /// <returns>Should always be true, unless an unhandled exception
-    /// occurs.</returns>
-    public bool AddAddress(Address RemoteAddress)
+    override protected void LostConnection(Connection con)
     {
       lock(_sync) {
-        if(_connection_state.ContainsKey(RemoteAddress)) {
-          return true;
+        if(!_connection_state.ContainsKey(con.Address)) {
+         return;
         }
-        _connection_state[RemoteAddress] = MCState.Off;
+        
+        _connection_state[con.Address] = MCState.Off;
+      }
 
-        if(_connection_state.Count == 1) {
-          Enable();
-        }
+      if(ProtocolLog.ManagedCO.Enabled) {
+        ProtocolLog.Write(ProtocolLog.ManagedCO, String.Format(
+                          "Disconnection: {0} at {1}",
+                          con, DateTime.UtcNow));
       }
-      if(_active) {
-        ConnectTo(RemoteAddress, struc_managed);
+      if(IsActive) {
+        ConnectTo(con.Address);
       }
-      return true;
     }
 
-    /// <summary>Remove a specific address from being automatically connected
-    /// to and close an existing managed connection if one exists.</summary>
-    /// <param name="RemoteAddress">The address to get disconnected from and
-    /// stop connecting to through the ManagedCO.</param>
-    /// <returns>Should always be true, unless an unhandled exception
-    /// occurs.</returns>
-    public bool RemoveAddress(Address RemoteAddress)
+    override protected void ObtainedConnection(Connection con)
     {
       lock(_sync) {
-        if(!_connection_state.ContainsKey(RemoteAddress)) {
-          return true;
+        if(!_connection_state.ContainsKey(con.Address)) {
+          return;
         }
-        _connection_state.Remove(RemoteAddress);
-
-        if(_connection_state.Count == 0) {
-          Disable();
-        }
+        _connection_state[con.Address] = MCState.On;
       }
 
-      ConnectionType ct = Connection.StringToMainType(struc_managed);
-      Connection c = _node.ConnectionTable.GetConnection(ct, RemoteAddress);
-      if(c != null && c.ConType.Equals(struc_managed)) {
-        c.Close(_node.Rpc, "RemoveAddress called from ManagedCO");
+      if(ProtocolLog.ManagedCO.Enabled) {
+        ProtocolLog.Write(ProtocolLog.ManagedCO, String.Format(
+                          "Connection: {0} at {1}",
+                          con, DateTime.UtcNow));
       }
-      return true;
+    }
+
+    override public void Set(Address addr)
+    {
+      lock(_sync) {
+        if(_connection_state.ContainsKey(addr)) {
+          return;
+        }
+        _connection_state[addr] = MCState.Off;
+      }
+
+
+      if(IsActive) {
+        ConnectTo(addr);
+      }
+    }
+
+    override public void Unset(Address addr)
+    {
+      lock(_sync) {
+        if(!_connection_state.ContainsKey(addr)) {
+          return;
+        }
+        _connection_state.Remove(addr);
+      }
+
+      DelayedRemove(addr);
     }
   }
 }

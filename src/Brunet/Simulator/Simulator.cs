@@ -551,7 +551,7 @@ namespace Brunet.Simulator {
         }
       }
 
-      if(count != CurrentNetworkSize) {
+      if(count < CurrentNetworkSize) {
         // A node must be registered, but uncreated
         missing.Add(default(AHAddress));
       }

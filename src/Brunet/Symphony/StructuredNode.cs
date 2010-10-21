@@ -62,16 +62,6 @@ namespace Brunet.Symphony
       }
     }
 
-    protected readonly ConnectionOverlord _odco;
-    public OnDemandConnectionOverlord Odco {
-      get {
-        return _odco as OnDemandConnectionOverlord;
-      }
-    }
-
-    protected readonly ManagedConnectionOverlord _mco;
-    public ManagedConnectionOverlord ManagedCO { get { return _mco; } }
-
     //maximum number of neighbors we report in our status
     protected static readonly int MAX_NEIGHBORS = 4;
     public readonly ConnectionPacketHandler sys_link;
@@ -102,10 +92,11 @@ namespace Brunet.Symphony
        * Here are the ConnectionOverlords
        */ 
       _leafco = new LeafConnectionOverlord(this);
+      AddConnectionOverlord(_leafco);
       _snco = new StructuredNearConnectionOverlord(this);
+      AddConnectionOverlord(_snco);
       _ssco = new StructuredShortcutConnectionOverlord(this);
-      _odco = new OnDemandConnectionOverlord(this);
-      _mco = new ManagedConnectionOverlord(this);
+      AddConnectionOverlord(_ssco);
 #if !BRUNET_SIMULATOR
       _iphandler = new IPHandler();
       _iphandler.Subscribe(this, null);
@@ -173,13 +164,7 @@ namespace Brunet.Symphony
 #if !BRUNET_SIMULATOR
       _iphandler.Stop();
 #endif
-      (_odco as OnDemandConnectionOverlord).Stop();
-
-      _leafco.IsActive = false;
-      _snco.IsActive = false;
-      _ssco.IsActive = false;
-      _odco.IsActive = false;
-      _mco.IsActive = false;
+      StopConnectionOverlords();
       StopAllEdgeListeners();
     }
 
@@ -192,18 +177,8 @@ namespace Brunet.Symphony
     {
       base.Connect();
       StartAllEdgeListeners();
-
-      _leafco.IsActive = true;
-      _snco.IsActive = true;
-      _ssco.IsActive = true;
-      _odco.IsActive = true;
-      _mco.IsActive = true;
-
-      _leafco.Activate();
-      _ssco.Activate();
-      _snco.Activate();
+      StartConnectionOverlords();
 #if !BRUNET_SIMULATOR
-      _mco.Activate();
       AnnounceThread();
 #endif
     }
@@ -224,13 +199,7 @@ namespace Brunet.Symphony
 #if !BRUNET_SIMULATOR
       _iphandler.Stop();
 #endif
-      (_odco as OnDemandConnectionOverlord).Stop();
-      _leafco.IsActive = false;
-      _snco.IsActive = false;
-      _ssco.IsActive = false;
-      _odco.IsActive = false;
-      _mco.IsActive = false;
-
+      StopConnectionOverlords();
       //Stop notifying neighbors of disconnection, we are the one leaving
       _connection_table.DisconnectionEvent -= this.UpdateNeighborStatus;
 

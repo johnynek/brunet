@@ -86,10 +86,11 @@
     <mkdir dir="${build.dir}" failonerror="true"/>
     <csc target="library" define="BRUNET_NUNIT" optimize="true" output="${build.dir}/Simulator.Test.dll">
       <sources>
-        <include name="SubringParameters.cs"/>
         <include name="Parameters.cs"/>
+        <include name="RelayOverlapSimulator.cs"/>
         <include name="Simulator.cs"/>
         <include name="SimulatorUnit.cs"/>
+        <include name="SubringParameters.cs"/>
         <include name="SubringSimulator.cs"/>
       </sources>
       <references basedir="${build.dir}">

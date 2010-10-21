@@ -118,6 +118,7 @@ namespace Brunet.Simulator {
       nm.Node.AddEdgeListener(new Relay.RelayEdgeListener(nm.Node, ito));
       nm.Node.RemoteTAs = GetRemoteTAs();
       nm.Node.Connect();
+      CurrentNetworkSize++;
     }
 
     // Static Members
@@ -127,11 +128,15 @@ namespace Brunet.Simulator {
       Address addr1 = null, addr2 = null;
       sim.AddDisconnectedPair(out addr1, out addr2, sim.NCEnable);
       sim.Complete();
-
       SimpleTimer.RunSteps(1000000, false);
+
       StructuredNode node1 = (sim.Nodes[addr1] as NodeMapping).Node as StructuredNode;
       StructuredNode node2 = (sim.Nodes[addr2] as NodeMapping).Node as StructuredNode;
-      node1.ManagedCO.AddAddress(addr2);
+
+      ManagedConnectionOverlord mco = new ManagedConnectionOverlord(node1);
+      mco.Start();
+      node1.AddConnectionOverlord(mco);
+      mco.Set(addr2);
       SimpleTimer.RunSteps(100000, false);
 
       Console.WriteLine(addr1 + "<=>" + addr2 + ":");
@@ -191,7 +196,11 @@ namespace Brunet.Simulator {
       StructuredNode node1 = (sim.Nodes[addr1] as NodeMapping).Node as StructuredNode;
       StructuredNode node2 = (sim.Nodes[addr2] as NodeMapping).Node as StructuredNode;
       sim.Complete(true);
-      node1.ManagedCO.AddAddress(addr2);
+
+      ManagedConnectionOverlord mco = new ManagedConnectionOverlord(node1);
+      mco.Start();
+      node1.AddConnectionOverlord(mco);
+      mco.Set(addr2);
 
       Connection con1 = node1.ConnectionTable.GetConnection(ConnectionType.Structured, addr2);
       while(con1 == null) {
