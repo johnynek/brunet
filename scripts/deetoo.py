@@ -25,7 +25,11 @@ def main():
       elif k == "--alpha":
         alpha = float(v)
       elif k == "--object":
-        obj = str(v)
+        try:
+          #allow any python code, lists, dicts, etc.. not just strings
+          obj = eval(v)
+        except:
+          obj = str(v)
       elif k == "--q_type":
         q_type = str(v)
       elif k == "--help":
