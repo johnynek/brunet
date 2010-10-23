@@ -43,79 +43,79 @@ public abstract class ExclusiveServer<C> {
    * This state encapsulates the state machine for ExclusiveServer
    * this is for use with Mutable
    */
-  protected class SQState<c> {
+  protected class SQState {
     public readonly int MaxServers;
     public readonly int CustomersInServiceCount;
-    public readonly ImmutableList<c> CustomersWaiting;
+    public readonly ImmutableList<C> CustomersWaiting;
 
     public SQState(int maxservers) : this(maxservers, 0,
-                                             ImmutableList<c>.Empty) {
+                                             ImmutableList<C>.Empty) {
     }
 
-    protected SQState(int servs, int count, ImmutableList<c> waiting) {
+    public SQState(int servs, int count, ImmutableList<C> waiting) {
       MaxServers = servs;
       CustomersInServiceCount = count;
       CustomersWaiting = waiting;
     }
 
-    public SQState<c> AddCustomer(c newcust) {
+    public SQState AddCustomer(C newcust) {
       if( CustomersInServiceCount < MaxServers ) {
-        return new SQState<c>(MaxServers,
+        return new SQState(MaxServers,
                            CustomersInServiceCount + 1,
                            CustomersWaiting);
       }
       else {
-        return new SQState<c>(MaxServers,
+        return new SQState(MaxServers,
                            CustomersInServiceCount,
                            CustomersWaiting.PushIntoNew(newcust));
 
       }
     }
 
-    public SQState<c> FinishCustomer() {
+    public SQState FinishCustomer() {
       if( !CustomersWaiting.IsEmpty ) {
-        return new SQState<c>(MaxServers,
+        return new SQState(MaxServers,
                          CustomersInServiceCount,
                          CustomersWaiting.Tail);
       }
       else {
         //There is no one else to serve:
-        return new SQState<c>(MaxServers,
+        return new SQState(MaxServers,
                          CustomersInServiceCount - 1,
-                         ImmutableList<c>.Empty);
+                         ImmutableList<C>.Empty);
       }
     }
   }
 
-  protected class AddCust<c> : Mutable<SQState<c>>.Updater {
-    protected readonly c NewCust;
-    public AddCust(c newCust) { NewCust = newCust; }
-    public SQState<c> ComputeNewState(SQState<c> old_state) {
+  protected class AddCust : Mutable<SQState>.Updater {
+    protected readonly C NewCust;
+    public AddCust(C newCust) { NewCust = newCust; }
+    public SQState ComputeNewState(SQState old_state) {
       return old_state.AddCustomer(NewCust);
     }
   }
-  protected class FinishCust<c> : Mutable<SQState<c>>.Updater {
-    public SQState<c> ComputeNewState(SQState<c> old_state) {
+  protected class FinishCust : Mutable<SQState>.Updater {
+    public SQState ComputeNewState(SQState old_state) {
       return old_state.FinishCustomer();
     }
   }
 
-  private readonly Mutable<SQState<C>> _state;
-  private static readonly FinishCust<C> FINISH_UPDATE = new FinishCust<C>();
+  private readonly Mutable<SQState> _state;
+  private static readonly FinishCust FINISH_UPDATE = new FinishCust();
 
   public ExclusiveServer(int max_servers) {
-    _state = new Mutable<SQState<C>>(new SQState<C>(max_servers));
+    _state = new Mutable<SQState>(new SQState(max_servers));
   }
   public ExclusiveServer() : this(1) { }
 
   public void Add(C customer) {
-    var res = _state.Update(new AddCust<C>(customer));
+    var res = _state.Update(new AddCust(customer));
     var old_s = res.First;
     var new_s = res.Second;
     if(old_s.CustomersInServiceCount < new_s.CustomersInServiceCount) {
       //We have to do work now:
       C to_serve = customer;
-      Pair<SQState<C>,SQState<C>> sres = null;
+      Pair<SQState,SQState> sres = null;
       ImmutableList<C> waiting;
       do {
         Serve(to_serve);
