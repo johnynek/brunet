@@ -1402,30 +1402,23 @@ namespace Brunet.Connections
           }
           //Look at the first connection:
           Connection c = cts.GetConnections(ConnectionType.Structured)[0];
-          Assert.AreEqual( c, cts.GetConnection(c.Edge), "Edge lookup");
-          Assert.AreEqual( cts.GetConnection(c.Edge),
+          Assert.AreEqual( c, cts.GetConnection(c.State.Edge), "Edge lookup");
+          Assert.AreEqual( cts.GetConnection(c.State.Edge),
                            cts.GetConnections(ConnectionType.Structured)[c.Address],
-                           "Edge equals Address lookup");
-          Assert.AreEqual( c2, cts.GetConnection(c.Edge), "Edge lookup 2");
-          Assert.AreEqual( c2, cts.GetConnections(ConnectionType.Structured)[c.Address],
                            "Edge equals Address lookup");
 
           int before = cts.GetConnections(ConnectionType.Structured).Count;
           int uc_count = cts.Unconnected.Count;
-          cea = tab.Disconnect(c.Edge);
-          Assert.AreEqual(cts, cea.OldState, "old state check");
-          cts = cea.NewState;
+          c.State.Edge.Close();
+          cts = tab.State;
           int after = cts.GetConnections(ConnectionType.Structured).Count;
           int uc_count_a = cts.Unconnected.Count;
           Assert.AreEqual( before, (after + 1), "Disconnect subtracted one");
-          Assert.AreEqual( uc_count, (uc_count_a - 1), "Disconnect added one _unconnected");
+          Assert.AreEqual( uc_count, uc_count_a, "Disconnect added one _unconnected");
           Assert.IsTrue( cts.GetConnections(ConnectionType.Structured).IndexOf(c.Address) < 0, "Removal worked");
-          Assert.IsNull( cts.GetConnection(c.Edge), "Connection is gone");
-          Assert.IsTrue( cts.Unconnected.Contains(c.Edge), "Edge is _unconnected" );
-          c.Edge.Close(); //Should trigger removal completely:
-          cts = tab.State;
-          Assert.IsFalse( cts.Unconnected.Contains(c.Edge), "Edge is completely gone");
-          Assert.IsNull( cts.GetConnection( c.Edge ), "Connection is still gone");
+          Assert.IsNull( cts.GetConnection(c.State.Edge), "Connection is gone");
+          Assert.IsTrue( !cts.Unconnected.Contains(c.State.Edge), "Edge is _unconnected" );
+          Assert.IsNull( cts.GetConnection( c.State.Edge ), "Connection is still gone");
         }
       }
     }
