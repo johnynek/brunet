@@ -85,12 +85,13 @@ namespace Brunet.Collections {
       _first = new Dictionary<K, V>();
       _sync.ReleaseWriterLock();
 
-      if(EvictionHandler == null) {
+      var eh = EvictionHandler;
+      if(eh == null) {
         return;
       }
 
       foreach(KeyValuePair<K, V> kvp in removed) {
-        EvictionHandler(this, new EvictionArgs(kvp.Key, kvp.Value));
+        eh(this, new EvictionArgs(kvp.Key, kvp.Value));
       }
     }
 
