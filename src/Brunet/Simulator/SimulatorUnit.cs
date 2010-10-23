@@ -72,10 +72,10 @@ namespace Brunet.Simulator {
       Assert.IsTrue(node1.ConnectionTable.GetConnection(ConnectionType.Structured, addr2) != null);
 
       foreach(Connection con in node1.ConnectionTable.GetConnections(Relay.OverlapConnectionOverlord.STRUC_OVERLAP)) {
-        con.Edge.Close();
+        con.State.Edge.Close();
       }
       foreach(Connection con in node2.ConnectionTable.GetConnections(Relay.OverlapConnectionOverlord.STRUC_OVERLAP)) {
-        con.Edge.Close();
+        con.State.Edge.Close();
       }
 
       SimpleTimer.RunSteps(100000, false);
