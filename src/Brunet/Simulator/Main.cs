@@ -24,6 +24,8 @@ using System;
 using System.IO;
 using System.Collections;
 using System.Collections.Generic;
+using Brunet.Security.PeerSec.Symphony;
+using Brunet.Simulator.Tasks;
 using Brunet.Transport;
 using Brunet.Util;
 
@@ -52,9 +54,9 @@ namespace Brunet.Simulator {
 #endif
 
       if(p.Complete) {
-        sim.Complete();
+        sim.Complete(false);
       } else if(p.Broadcast > -2) {
-        Broadcast(sim, p.Broadcast);
+        Broadcast(sim, p.Broadcast, p.Output);
       } else if(p.HeavyChurn > 0) {
         HeavyChurn(sim, p.HeavyChurn);
       } else if(p.Evaluation) {
@@ -65,7 +67,7 @@ namespace Brunet.Simulator {
       return 0;
     }
 
-    protected static void Broadcast(Simulator sim, int forwarders)
+    protected static void Broadcast(Simulator sim, int forwarders, string filename)
     {
       DateTime now = DateTime.UtcNow;
       SimpleTimer.RunSteps(360000, false);
@@ -74,7 +76,11 @@ namespace Brunet.Simulator {
       sim.Complete(true);
       Console.WriteLine("Time spent setting up: " + (DateTime.UtcNow - now).ToString());
       for(int i = 0; i < sim.Nodes.Count; i++) {
-        sim.Broadcast(i, forwarders);
+        Broadcast bcast = new Broadcast(sim.SimBroadcastHandler,
+            sim.Nodes.Values[i].Node, forwarders, TaskFinished);
+        bcast.Start();
+        RunUntilTaskFinished();
+        bcast.WriteResultsToDisk(filename);
       }
     }
 
@@ -87,14 +93,11 @@ namespace Brunet.Simulator {
       sim.Complete(true);
       sim.AddNode();
       sim.Complete(false);
-//      Console.WriteLine("Time spent setting up: " + (DateTime.UtcNow - now).ToString());
-//      sim.AllToAll();
-//      sim.Crawl();
     }
 
     public static void HeavyChurn(Simulator sim, int time)
     {
-      sim.Complete();
+      sim.Complete(false);
       Dictionary<Node, Node> volatile_nodes = new Dictionary<Node, Node>();
       int fifteen_mins = (int) ((new TimeSpan(0, 15, 0)).Ticks / TimeSpan.TicksPerMillisecond);
 
@@ -137,18 +140,21 @@ namespace Brunet.Simulator {
         Console.Write("#: ");
         // Commands can have parameters separated by spaces
         string[] parts = Console.ReadLine().Split(' ');
-        command = parts[0];
+        command = parts[0].ToUpper();
 
         try {
           if(command.Equals("S")) {
             secure = true;
-            command = parts[1];
+            command = parts[1].ToUpper();;
           }
 
           switch(command) {
             case "B":
               int forwarders = (parts.Length >= 2) ? Int32.Parse(parts[1]) : -1;
-              sim.Broadcast(forwarders);
+              Broadcast bcast = new Broadcast(sim.SimBroadcastHandler,
+                  sim.RandomNode().Node, forwarders, TaskFinished);
+              bcast.Start();
+              RunUntilTaskFinished();
               break;
             case "C":
               sim.CheckRing(true);
@@ -160,10 +166,19 @@ namespace Brunet.Simulator {
               Console.WriteLine("Memory Usage: " + GC.GetTotalMemory(true));
               break;
             case "CR":
-              sim.Crawl(true, secure);
+              NodeMapping nm = sim.Nodes.Values[0];
+              SymphonySecurityOverlord bso = null;
+              if(secure) {
+                bso = nm.Sso;
+              }
+              Crawl c = new Crawl(nm.Node, sim.Nodes.Count, bso, TaskFinished);
+              c.Start();
+              RunUntilTaskFinished();
               break;
             case "A2A":
-              sim.AllToAll(secure);
+              AllToAll atoa = new AllToAll(sim.Nodes, secure, TaskFinished);
+              atoa.Start();
+              RunUntilTaskFinished();
               break;
             case "A":
               sim.AddNode();
@@ -211,6 +226,21 @@ namespace Brunet.Simulator {
         }
         Console.WriteLine();
       }
+    }
+
+    protected static bool _finished;
+    protected static void RunUntilTaskFinished()
+    {
+      _finished = false;
+      while(!_finished) {
+        SimpleTimer.RunStep();
+      }
+    }
+
+    protected static void TaskFinished(object sender, EventArgs ea)
+    {
+      _finished = true;
+      Console.WriteLine(sender);
     }
   }
 }

@@ -127,7 +127,7 @@ namespace Brunet.Simulator {
     {
       Address addr1 = null, addr2 = null;
       sim.AddDisconnectedPair(out addr1, out addr2, sim.NCEnable);
-      sim.Complete();
+      sim.Complete(false);
       SimpleTimer.RunSteps(1000000, false);
 
       StructuredNode node1 = (sim.Nodes[addr1] as NodeMapping).Node as StructuredNode;
@@ -190,7 +190,7 @@ namespace Brunet.Simulator {
     public static void Run(RelayOverlapSimulator sim, Address addr1, Address addr2)
     {
       Console.WriteLine("Beginning");
-      sim.Complete();
+      sim.Complete(false);
 
       SimpleTimer.RunSteps(1000000, false);
       StructuredNode node1 = (sim.Nodes[addr1] as NodeMapping).Node as StructuredNode;
@@ -230,7 +230,7 @@ namespace Brunet.Simulator {
       }
 
       RelayOverlapSimulator sim = new RelayOverlapSimulator(p);
-      sim.Complete();
+      sim.Complete(false);
       if(p.Evaluation) {
         Evaluator(sim);
       } else {

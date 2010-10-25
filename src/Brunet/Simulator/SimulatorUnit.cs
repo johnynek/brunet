@@ -1,3 +1,4 @@
+#if BRUNET_NUNIT
 using Brunet;
 using Brunet.Connections;
 using Brunet.Util;
@@ -84,3 +85,4 @@ namespace Brunet.Simulator {
     }
   }
 }
+#endif

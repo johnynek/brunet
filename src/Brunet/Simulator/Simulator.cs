@@ -47,6 +47,17 @@ using Brunet.Relay;
 using Brunet.Util;
 
 namespace Brunet.Simulator {
+  public class NodeMapping {
+    public IDht Dht;
+    public RpcDhtProxy DhtProxy;
+    public int ID;
+    public NCService NCService;
+    public Node Node;
+    public PathELManager PathEM;
+    public SecurityOverlord SO;
+    public SymphonySecurityOverlord Sso;
+  }
+
   public class Simulator {
     public int StartingNetworkSize;
     public SortedList<Address, NodeMapping> Nodes;
@@ -67,7 +78,8 @@ namespace Brunet.Simulator {
     protected Certificate _ca_cert;
     protected readonly Parameters _parameters;
 
-    protected readonly BroadcastHelper _bcast;
+    public static readonly PType SimBroadcastPType = new PType("simbcast");
+    public readonly SimpleFilter SimBroadcastHandler;
 
     public Simulator(Parameters parameters) : this(parameters, false)
     {
@@ -80,7 +92,7 @@ namespace Brunet.Simulator {
       CurrentNetworkSize = 0;
       Nodes = new SortedList<Address, NodeMapping>();
       TakenIDs = new SortedList<int, NodeMapping>();
-      _bcast = new BroadcastHelper();
+      SimBroadcastHandler = new SimpleFilter();
 
       if(parameters.Seed != -1) {
         Console.WriteLine(parameters.Seed);
@@ -152,11 +164,9 @@ namespace Brunet.Simulator {
       }
     }
 
-    public bool Complete()
-    {
-      return Complete(false);
-    }
+    // The following are some helper functions
 
+    /// <summary>This is an example of an
     public bool Complete(bool quiet)
     {
       DateTime start = DateTime.UtcNow;
@@ -183,95 +193,12 @@ namespace Brunet.Simulator {
       return success;
     }
 
-    public void AllToAll()
+    public NodeMapping RandomNode()
     {
-      AllToAll(_secure_senders);
+      return Nodes.Values[_rand.Next(0, Nodes.Count)];
     }
 
-    public void AllToAll(bool secure)
-    {
-      AllToAllHelper a2ah = new AllToAllHelper(Nodes, secure);
-      a2ah.Start();
-      while(a2ah.Done == 0) {
-        SimpleTimer.RunStep();
-      }
-    }
-
-    /// <summary>Randomly selects a node to perform broadcasting using the
-    /// specified amount of forwarders.</summary>
-    public void Broadcast(int forwarders)
-    {
-      Broadcast(_rand.Next(0, Nodes.Count), forwarders);
-    }
-
-    /// <summary>Performs a broadcast from the node at idx using the specified
-    /// amount of forwarders.</summary>
-    public void Broadcast(int idx, int forwarders)
-    {
-      _bcast.Start();
-      NodeMapping nm = Nodes.Values[idx];
-      BroadcastSender bs = new BroadcastSender(nm.Node as StructuredNode, forwarders);
-      bs.Send(BroadcastHelper.PType);
-
-      DateTime start = DateTime.UtcNow;
-      int to_run = (int) ((_bcast.EstimatedTimeLeft - start).Ticks /
-          TimeSpan.TicksPerMillisecond);
-
-      while(to_run > 0) {
-        SimpleTimer.RunSteps(to_run);
-        to_run = (int) ((_bcast.EstimatedTimeLeft - DateTime.UtcNow).Ticks /
-            TimeSpan.TicksPerMillisecond);
-      }
-
-      StreamWriter sw = null;
-      if(_parameters.Broadcast >= -1) {
-        FileStream fs = new FileStream(_parameters.Output, FileMode.Append);
-        sw = new StreamWriter(fs);
-      }
-
-      int slowest = -1;
-      List<int> sent_to = new List<int>();
-      foreach(BroadcastReceiver br in _bcast.Results) {
-        sent_to.Add(br.SentTo);
-        if(sw != null) {
-          sw.WriteLine(br.SentTo + ", " + br.Hops);
-        }
-        slowest = Math.Max(slowest, br.Hops);
-      }
-
-      if(sw != null) {
-        sw.Close();
-      }
-
-      sent_to.Add(bs.SentTo);
-      double avg = Average(sent_to);
-      double stddev = StandardDeviation(sent_to, avg);
-      Console.WriteLine("Average: {0}, StdDev: {1}", avg, stddev);
-      Console.WriteLine("Hit: {0}, in: {1} ", _bcast.Results.Count, slowest);
-    }
-
-    public void Crawl()
-    {
-      Crawl(false, _secure_edges);
-    }
-
-    public bool Crawl(bool log, bool secure)
-    {
-      NodeMapping nm = Nodes.Values[0];
-      SymphonySecurityOverlord bso = null;
-      if(secure) {
-        bso = nm.Sso;
-      }
-
-      CrawlHelper ch = new CrawlHelper(nm.Node, Nodes.Count, bso, log);
-      ch.Start();
-      while(ch.Done == 0) {
-        SimpleTimer.RunStep();
-      }
-
-      return ch.Success;
-    }
-
+    /// <summary>Revoke a random node from a random node.</summary>
     public NodeMapping Revoke(bool log)
     {
       NodeMapping revoked = Nodes.Values[_rand.Next(0, Nodes.Count)];
@@ -290,6 +217,8 @@ namespace Brunet.Simulator {
       return revoked;
     }
 
+    // The follow methods are used to add nodes to the current simulation
+
     /// <summary>Remove and return the next ID from availability.</summary>
     protected int TakeID()
     {
@@ -300,6 +229,8 @@ namespace Brunet.Simulator {
       return id;
     }
 
+    /// <summary>Generate a new unique address, there is potential for
+    /// collissions when we make the address space small.</summary>
     protected AHAddress GenerateAddress()
     {
       byte[] addr = new byte[Address.MemSize];
@@ -312,32 +243,18 @@ namespace Brunet.Simulator {
       return ah_addr;
     }
 
-    // Adds a node to the pool
-    public virtual Node AddNode()
-    {
-      return AddNode(TakeID(), GenerateAddress());
-    }
-
-    public virtual Node AddNode(int id, AHAddress address)
-    {
-      StructuredNode node = PrepareNode(id, address);
-      if(!_start) {
-        node.Connect();
-      }
-      CurrentNetworkSize++;
-      return node;
-    }
-
+    /// <summary>Return the SimulationEdgeListener.</summary>
     protected virtual EdgeListener CreateEdgeListener(int id)
     {
       TAAuthorizer auth = null;
       if(_broken != 0 && id > 0) {
-        auth = new BrokenTAAuth(_broken);
+        auth = new BrokenTAAuth(_rand, _broken);
       }
 
       return new SimulationEdgeListener(id, 0, auth, true);
     }
 
+    /// <summary>Return a small list of random TAs.</summary>
     protected virtual List<TransportAddress> GetRemoteTAs()
     {
       var RemoteTAs = new List<TransportAddress>();
@@ -441,7 +358,7 @@ namespace Brunet.Simulator {
 
       BroadcastHandler bhandler = new BroadcastHandler(node as StructuredNode);
       node.DemuxHandler.GetTypeSource(BroadcastSender.PType).Subscribe(bhandler, null);
-      node.DemuxHandler.GetTypeSource(BroadcastHelper.PType).Subscribe(_bcast, null);
+      node.DemuxHandler.GetTypeSource(SimBroadcastPType).Subscribe(SimBroadcastHandler, null);
 
       // Enables Dht data store
       new TableServer(node);
@@ -449,6 +366,25 @@ namespace Brunet.Simulator {
       nm.DhtProxy = new RpcDhtProxy(nm.Dht, node);
       return node;
     }
+
+    ///<summary>Add a new (random) node to the simulation.</summary>
+    public virtual Node AddNode()
+    {
+      return AddNode(TakeID(), GenerateAddress());
+    }
+
+    ///<summary>Add a new specific node to the simulation.</summary>
+    public virtual Node AddNode(int id, AHAddress address)
+    {
+      StructuredNode node = PrepareNode(id, address);
+      if(!_start) {
+        node.Connect();
+      }
+      CurrentNetworkSize++;
+      return node;
+    }
+
+    // The next set of methods handle the removal of nodes from the simulation
 
     // removes a node from the pool
     public void RemoveNode(Node node, bool cleanly, bool output) {
@@ -482,6 +418,8 @@ namespace Brunet.Simulator {
       return FindMissing(log).Count == 0;
     }
 
+    /// <summary>Returns a list of missing nodes, while crawling the simulation.
+    /// This is an example of a PassiveTask.</summary>
     public List<AHAddress> FindMissing(bool log)
     {
       if(log) {
@@ -494,9 +432,8 @@ namespace Brunet.Simulator {
       }
       Address start_addr = Nodes.Keys[0];
       Address curr_addr = start_addr;
-      int count = 0;
 
-      while(count < Nodes.Count) {
+      while(found.Count < Nodes.Count) {
         found[curr_addr as AHAddress] = true;
         Node node = Nodes[curr_addr].Node;
         ConnectionTable con_table = node.ConnectionTable;
@@ -512,7 +449,7 @@ namespace Brunet.Simulator {
         }
 
         if(log) {
-          Console.WriteLine("Hop {2}\t Address {0}\n\t Connection to left {1}\n", curr_addr, con, count);
+          Console.WriteLine("Hop {2}\t Address {0}\n\t Connection to left {1}\n", curr_addr, con, found.Count);
         }
         Address next_addr = con.Address;
 
@@ -532,14 +469,13 @@ namespace Brunet.Simulator {
           break;
         }
         curr_addr = next_addr;
-        count++;
         if(curr_addr.Equals(start_addr)) {
           break;
         }
       }
 
       List<AHAddress> missing = new List<AHAddress>();
-      if(count == Nodes.Count) {
+      if(found.Count == Nodes.Count) {
         if(log) {
           Console.WriteLine("Ring properly formed!");
         }
@@ -551,12 +487,14 @@ namespace Brunet.Simulator {
         }
       }
 
-      if(count < CurrentNetworkSize) {
+      if(found.Count < CurrentNetworkSize) {
         // A node must be registered, but uncreated
         missing.Add(default(AHAddress));
       }
       return missing;
     }
+
+    // The following method print out the current state of the simulation
 
     /// <summary>Prints all the connections for the nodes in the simulator.</summary>
     public void PrintConnections()
@@ -595,363 +533,6 @@ namespace Brunet.Simulator {
         node.Disconnect();
       }
       Nodes.Clear();
-    }
-
-    protected class BroadcastHelper : IDataHandler {
-      public static readonly PType PType = new PType("simbcast");
-      public DateTime EstimatedTimeLeft { get { return _estimated_time_left; } }
-      protected DateTime _estimated_time_left;
-
-      public List<BroadcastReceiver> Results { get { return _results; } }
-      protected List<BroadcastReceiver> _results;
-
-      public void Start()
-      {
-        _estimated_time_left = DateTime.UtcNow.AddSeconds(1);
-        _results = new List<BroadcastReceiver>();
-      }
-
-      public void HandleData(MemBlock data, ISender sender, object state)
-      {
-        BroadcastReceiver br = sender as BroadcastReceiver; 
-        _estimated_time_left = DateTime.UtcNow.AddSeconds(1);
-        _results.Add(br);
-      }
-    }
-
-    /// <summary>Helps performing a live crawl on the Simulator</summary>
-    protected class CrawlHelper {
-      protected int _count;
-      protected Hashtable _crawled;
-      protected DateTime _start;
-      protected Node _node;
-      protected int _done;
-      public int Done { get { return _done; } }
-      protected int _consistency;
-      protected bool _log;
-      protected Address _first_left;
-      protected Address _previous;
-      public bool Success { get { return _crawled.Count == _count; } }
-      protected SymphonySecurityOverlord _bso;
-
-      public CrawlHelper(Node node, int count, SymphonySecurityOverlord bso, bool log) {
-        _count = count;
-        _node = node;
-        Interlocked.Exchange(ref _done, 0);
-        _crawled = new Hashtable(count);
-        _log = log;
-        _bso = bso;
-      }
-
-      protected void CrawlNext(Address addr) {
-        bool finished = false;
-        if(_log && _crawled.Count < _count) {
-          Console.WriteLine("Current address: " + addr);
-        }
-        if(_crawled.ContainsKey(addr)) {
-          finished = true;
-        } else {
-          _crawled.Add(addr, true);
-          try {
-            ISender sender = null;
-            if(_bso != null) {
-              sender = _bso.GetSecureSender(addr);
-            } else {
-              sender = new AHGreedySender(_node, addr);
-            }
-
-            Channel q = new Channel(1);
-            q.CloseEvent += CrawlHandler;
-            _node.Rpc.Invoke(sender, q, "sys:link.GetNeighbors");
-          } catch(Exception e) {
-            if(_log) {
-              Console.WriteLine("Crawl failed" + e);
-            }
-            finished = true;
-          }
-        }
-
-        if(finished) {
-          Interlocked.Exchange(ref _done, 1);
-          if(_log) {
-            Console.WriteLine("Crawl stats: {0}/{1}", _crawled.Count, _count);
-            Console.WriteLine("Consistency: {0}/{1}", _consistency, _crawled.Count);
-            Console.WriteLine("Finished in: {0}", (DateTime.UtcNow - _start));
-          }
-        }
-      }
-
-      public void Start() {
-        _start = DateTime.UtcNow;
-        CrawlNext(_node.Address);
-      }
-
-      protected void CrawlHandler(object o, EventArgs ea) {
-        Address addr = _node.Address;
-        Channel q = (Channel) o;
-        try {
-          RpcResult res = (RpcResult) q.Dequeue();
-          Hashtable ht = (Hashtable) res.Result;
-
-          Address left = AddressParser.Parse((String) ht["left"]);
-          Address next = AddressParser.Parse((String) ht["right"]);
-          Address current = AddressParser.Parse((String) ht["self"]);
-          if(left.Equals(_previous)) {
-            _consistency++;
-          } else if(_previous == null) {
-            _first_left = left;
-          }
-
-          if(current.Equals(_first_left) && _node.Address.Equals(next)) {
-            _consistency++;
-          }
-
-          _previous = current;
-          addr = next;
-        } catch(Exception e) {
-          if(_log) {
-            Console.WriteLine("Crawl failed due to exception...");
-            Console.WriteLine(e);
-          }
-        }
-        CrawlNext(addr);
-      }
-    }
-
-    /// <summary>Helps performing a live AllToAll metrics on the Simulator</summary>
-    protected class AllToAllHelper {
-      protected long _total_latency;
-      protected long _count;
-      protected SortedList<Address, NodeMapping> _nodes;
-      protected int _done;
-      protected long _waiting_on;
-      public int Done { get { return _done; } }
-      protected long _start_time;
-      protected object _sync;
-      protected bool _secure;
-
-      public AllToAllHelper(SortedList<Address, NodeMapping> nodes, bool secure)
-      {
-        _nodes = nodes;
-        _count = 0;
-        _total_latency = 0;
-        _waiting_on = 0;
-        _start_time = DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond;
-        _done = 0;
-        _sync = new object();
-        _secure = secure;
-      }
-
-      protected void Callback(object o, EventArgs ea)
-      {
-        Channel q = o as Channel;
-        try {
-          RpcResult res = (RpcResult) q.Dequeue();
-          int result = (int) res.Result;
-          if(result != 0) {
-            throw new Exception(res.Result.ToString());
-          }
-
-          _total_latency += (DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond) - _start_time;
-        } catch {
-//        } catch(Exception e) {
-//          Console.WriteLine(e);
-        }
-        if(Interlocked.Decrement(ref _waiting_on) == 0) {
-          Interlocked.Exchange(ref _done, 1);
-          Console.WriteLine("Performed {0} tests on {1} nodes", _count, _nodes.Count);
-          Console.WriteLine("Latency avg: {0}", _total_latency / _count);
-          DateTime start = new DateTime(_start_time * TimeSpan.TicksPerMillisecond);
-          Console.WriteLine("Finished in: {0}", (DateTime.UtcNow - start));
-        }
-      }
-
-      public void Start() {
-        foreach(NodeMapping nm_from in _nodes.Values) {
-          foreach(NodeMapping nm_to in _nodes.Values) {
-            if(nm_from == nm_to) {
-              continue;
-            }
-
-            ISender sender = null;
-            if(_secure) {
-              sender = nm_from.Sso.GetSecureSender(nm_to.Node.Address);
-            } else {
-              sender = new AHGreedySender(nm_from.Node, nm_to.Node.Address);
-            }
-
-            Channel q = new Channel(1);
-            q.CloseEvent += Callback;
-            try {
-              nm_from.Node.Rpc.Invoke(sender, q, "sys:link.Ping", 0);
-              _count++;
-              _waiting_on++;
-            } catch {
-//            } catch(Exception e) {
-//              Console.WriteLine(e);
-            }
-          }
-        }
-      }
-    }
-
-    /// <summary>Used to perform a DhtPut from a specific node.</summary>
-    protected class DhtPut {
-      public bool Done { get { return _done; } }
-      protected bool _done;
-      protected readonly Node _node;
-      protected readonly MemBlock _key;
-      protected readonly MemBlock _value;
-      protected readonly int _ttl;
-      protected readonly EventHandler _callback;
-      public bool Successful { get { return _successful; } }
-      protected bool _successful;
-
-      public DhtPut(Node node, MemBlock key, MemBlock value, int ttl, EventHandler callback)
-      {
-        _node = node;
-        _key = key;
-        _value = value;
-        _ttl = ttl;
-        _callback = callback;
-        _successful = false;
-      }
-
-      public void Start()
-      {
-        Channel returns = new Channel();
-        returns.CloseEvent += delegate(object o, EventArgs ea) {
-          try {
-            _successful = (bool) returns.Dequeue();
-          } catch {
-          }
-
-          _done = true;
-          if(_callback != null) {
-            _callback(this, EventArgs.Empty);
-          }
-        };
-        Dht dht = new Dht(_node, 3, 20);
-        dht.AsyncPut(_key, _value, _ttl, returns);
-      }
-    }
-
-    /// <summary>Used to perform a DhtGet from a specific node.</summary>
-    protected class DhtGet {
-      public bool Done { get { return _done; } }
-      protected bool _done;
-      public Queue<MemBlock> Results;
-      public readonly Node Node;
-      protected readonly MemBlock _key;
-      protected readonly EventHandler _enqueue;
-      protected readonly EventHandler _close;
-
-      public DhtGet(Node node, MemBlock key, EventHandler enqueue, EventHandler close)
-      {
-        Node = node;
-        _key = key;
-        _enqueue = enqueue;
-        _close = close;
-        Results = new Queue<MemBlock>();
-      }
-
-      public void Start()
-      {
-        Channel returns = new Channel();
-        returns.EnqueueEvent += delegate(object o, EventArgs ea) {
-          while(returns.Count > 0) {
-            Hashtable result = null;
-            try {
-              result = returns.Dequeue() as Hashtable;
-            } catch {
-              continue;
-            }
-
-            byte[] res = result["value"] as byte[];
-            if(res != null) {
-              Results.Enqueue(MemBlock.Reference(res));
-            }
-          }
-          if(_enqueue != null) {
-            _enqueue(this, EventArgs.Empty);
-          }
-        };
-
-        returns.CloseEvent += delegate(object o, EventArgs ea) {
-          if(_close != null) {
-            _close(this, EventArgs.Empty);
-          }
-          _done = true;
-        };
-
-        Dht dht = new Dht(Node, 3, 20);
-        dht.AsyncGet(_key, returns);
-      }
-    }
-
-    /// <summary>Calculates the average of a data set.</summary>
-    public static double Average(List<int> data)
-    {
-      long total = 0;
-      foreach(int point in data) {
-        total += point;
-      }
-
-      return (double) total / data.Count;
-    }
-
-    /// <summary>Calculates the standard deviation given a data set and the
-    /// average.</summary>
-    public static double StandardDeviation(List<int> data, double avg)
-    {
-      double variance = 0;
-      foreach(int point in data) {
-        variance += Math.Pow(point - avg, 2.0);
-      }
-
-      return Math.Sqrt(variance / (data.Count - 1));
-    }
-
-  }
-
-  public class NodeMapping {
-    public IDht Dht;
-    public RpcDhtProxy DhtProxy;
-    public int ID;
-    public NCService NCService;
-    public Node Node;
-    public PathELManager PathEM;
-    public SecurityOverlord SO;
-    public SymphonySecurityOverlord Sso;
-  }
-
-  /// <summary> Randomly breaks all edges to remote entity.</summary>
-  public class BrokenTAAuth : TAAuthorizer {
-    double _prob;
-    Hashtable _allowed;
-    Random _rand;
-
-    public BrokenTAAuth(double probability) {
-      _prob = probability;
-      _allowed = new Hashtable();
-      _rand = new Random();
-    }
-
-    public override TAAuthorizer.Decision Authorize(TransportAddress a) {
-      int id = ((SimulationTransportAddress) a).ID;
-      if(id == 0) {
-        return TAAuthorizer.Decision.Allow;
-      }
-
-      if(!_allowed.Contains(id)) {
-        if(_rand.NextDouble() > _prob) {
-          _allowed[id] = TAAuthorizer.Decision.Allow;
-        } else {
-          _allowed[id] = TAAuthorizer.Decision.Deny;
-        }
-      }
-
-      return (TAAuthorizer.Decision) _allowed[id];
     }
   }
 }

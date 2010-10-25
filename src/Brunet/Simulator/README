@@ -12,6 +12,5 @@ to move to cause a new event to occur)
 RUN with an integer parameter (like RUN 1000000) will execute 1000000 ms or
 16.667 minutes (each cycle is 1 ms)
 
-To compile execute nant simulator in Brunet's root directory.  Note, the
-Brunet.dll generated will NOT work with any other code in the codebase, you
-will need to recompile to perform other tasks.
+To compile execute nant in this directory.  This will compile Brunet's code
+to support simulation.  This code will not work with non-simulation code.

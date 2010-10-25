@@ -45,9 +45,9 @@
 
     <csc target="exe" output="${build.dir}/Simulator.exe" main="Brunet.Simulator.Runner">
       <sources failonempty="true">
-        <include name="Main.cs"/>
-        <include name="Parameters.cs"/>
-        <include name="Simulator.cs"/>
+        <include name="*.cs"/>
+        <include name="Tasks/*.cs"/>
+        <include name="Tasks/*.cs"/>
       </sources>
       <references basedir="${build.dir}">
         <include name="Brunet.Simulator.dll"/>
@@ -57,9 +57,9 @@
 
     <csc target="exe" output="${build.dir}/RelayOverlapSimulator.exe" main="Brunet.Simulator.RelayOverlapSimulator">
       <sources failonempty="true">
-        <include name="RelayOverlapSimulator.cs"/>
-        <include name="Simulator.cs"/>
-        <include name="Parameters.cs"/>
+        <include name="*.cs"/>
+        <include name="Tasks/*.cs"/>
+        <include name="Tasks/*.cs"/>
       </sources>
       <references basedir="${build.dir}">
         <include name="Brunet.Simulator.dll"/>
@@ -69,11 +69,9 @@
 
     <csc target="exe" define="SUBRING" output="${build.dir}/SubringSimulator.exe" main="Brunet.Simulator.Runner">
       <sources failonempty="true">
-        <include name="Simulator.cs"/>
-        <include name="Parameters.cs"/>
-        <include name="SubringParameters.cs"/>
-        <include name="SubringSimulator.cs"/>
-        <include name="Main.cs"/>
+        <include name="*.cs"/>
+        <include name="Tasks/*.cs"/>
+        <include name="Tasks/*.cs"/>
       </sources>
       <references basedir="${build.dir}">
         <include name="Brunet.Simulator.dll"/>
@@ -86,12 +84,9 @@
     <mkdir dir="${build.dir}" failonerror="true"/>
     <csc target="library" define="BRUNET_NUNIT" optimize="true" output="${build.dir}/Simulator.Test.dll">
       <sources>
-        <include name="Parameters.cs"/>
-        <include name="RelayOverlapSimulator.cs"/>
-        <include name="Simulator.cs"/>
-        <include name="SimulatorUnit.cs"/>
-        <include name="SubringParameters.cs"/>
-        <include name="SubringSimulator.cs"/>
+        <include name="*.cs"/>
+        <include name="Tasks/*.cs"/>
+        <include name="Tasks/*.cs"/>
       </sources>
       <references basedir="${build.dir}">
         <include name="Brunet.Simulator.dll"/>
