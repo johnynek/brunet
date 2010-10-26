@@ -48,58 +48,48 @@ namespace Brunet.Connections
    * This class is immutable
    */
 
-  public class LinkMessage
-  {
-
-    public LinkMessage(ConnectionType t,
-                       NodeInfo local,
-                       NodeInfo remote,
-                       string token)
+  public class LinkMessage {
+    public LinkMessage(ConnectionType con_type, NodeInfo local,
+        NodeInfo remote, string realm, string token) :
+      this(Connection.ConnectionTypeToString(con_type), local, remote, realm, token)
     {
-      _attributes = new StringDictionary();
-      _attributes["type"] = Connection.ConnectionTypeToString(t);
-      _local_ni = local;
-      _remote_ni = remote;
-      _token = token;
     }
 
-    public LinkMessage(string connection_type, NodeInfo local, NodeInfo remote, string token)
+    public LinkMessage(string con_type, NodeInfo local, NodeInfo remote,
+        string realm, string token)
     {
-      _attributes = new StringDictionary();
-      _attributes["type"] = String.Intern( connection_type );
-      _local_ni = local;
-      _remote_ni = remote;
-      _token = token;
+      Local = local;
+      Remote = remote;
+      Token = String.Intern(token);
+      ConTypeString = String.Intern(con_type);
+      Realm = String.Intern(realm);
     }
-    public LinkMessage(StringDictionary attributes, NodeInfo local, NodeInfo remote, string token)
-    {
-      _attributes = attributes;
-      _local_ni = local;
-      _remote_ni = remote;
-      _token = token;
-    }
+
     public LinkMessage(IDictionary ht) {
       IDictionaryEnumerator en = ht.GetEnumerator();
-      _attributes = new StringDictionary();
       while( en.MoveNext() ) {
         if( en.Key.Equals( "local" ) ) {
           IDictionary lht = en.Value as IDictionary;
-          if( lht != null ) { _local_ni = NodeInfo.CreateInstance(lht); }
-        }
-        else if( en.Key.Equals( "remote" ) ) {
+          if( lht != null ) { Local = NodeInfo.CreateInstance(lht); }
+        } else if( en.Key.Equals( "remote" ) ) {
           IDictionary rht = en.Value as IDictionary;
-          if( rht != null ) { _remote_ni = NodeInfo.CreateInstance(rht); }
-        }
-        else if (en.Key.Equals( "token" ) ) {
-          _token = (string) ht["token"];
-        }
-        else {
-          _attributes[ String.Intern( en.Key.ToString() ) ] = String.Intern( en.Value.ToString() );
+          if( rht != null ) { Remote = NodeInfo.CreateInstance(rht); }
+        } else if (en.Key.Equals( "token" ) ) {
+          Token = String.Intern((string) en.Value);
+        } else if (en.Key.Equals( "realm" ) ) {
+          Realm = String.Intern((string) en.Value);
+        } else if (en.Key.Equals( "type" ) ) {
+          ConTypeString = String.Intern((string) en.Value);
         }
       }
     }
 
-    /* These are attributes in the <link/> tag */
+    public readonly NodeInfo Local;
+    public readonly NodeInfo Remote;
+    public readonly string ConTypeString;
+    public readonly string Realm;
+    public readonly string Token;
+
     /**
      * @returns the Main ConnectionType of this message.
      * @todo Make sure the usage of this is consistent
@@ -108,80 +98,43 @@ namespace Brunet.Connections
       get { return Connection.StringToMainType( ConTypeString ); }
     }
     
-    protected StringDictionary _attributes;
-    public StringDictionary Attributes {
-      get { return _attributes; }
-    }
-    public string ConTypeString { get { return _attributes["type"]; } }
-
-    protected NodeInfo _local_ni;
-    public NodeInfo Local {
-      get { return _local_ni; }
-    }
-
-    protected NodeInfo _remote_ni;
-    public NodeInfo Remote {
-      get { return _remote_ni; } 
-    }
-
-    protected string _token;
-    public string Token {
-      get {
-        return _token;
-      }
-    }
     /**
      * @return true if olm is equivalent to this
      */
     public override bool Equals(object olm)
     {
       LinkMessage lm = olm as LinkMessage;
+      bool same = false;
       if ( lm != null ) {
-        bool same = true;
-	same &= (lm.Attributes.Count == Attributes.Count );
-	same &= lm.ConTypeString == ConTypeString;
+        same = lm.ConTypeString.Equals(ConTypeString);
         same &= lm.Token.Equals(Token);
-	if( same ) {
-          //Make sure all the attributes match:
-	  foreach(string key in lm.Attributes.Keys) {
-            same &= lm.Attributes[key] == Attributes[key];
-	  }
-	}
-	same &= lm.Local.Equals(_local_ni);
-	same &= lm.Remote.Equals(_remote_ni);
-	return same;
+        same &= lm.Remote.Equals(Remote);
+        same &= lm.Local.Equals(Local);
+        same &= lm.Realm.Equals(Realm);
       }
-      else {
-        return false;
-      }
+      return same;
     }
    
     public override int GetHashCode() {
-      return _remote_ni.GetHashCode();
+      return Remote.GetHashCode();
     }
 
     public IDictionary ToDictionary() {
       IDictionary ht = new ListDictionary();
-      if( _local_ni != null ) {
-        ht["local"] = _local_ni.ToDictionary();
+      if( Local != null ) {
+        ht["local"] = Local.ToDictionary();
       }
-      if( _remote_ni != null ) {
-        ht["remote"] = _remote_ni.ToDictionary();
+      if( Remote != null ) {
+        ht["remote"] = Remote.ToDictionary();
       }
-      if (_token != null) {
-        ht["token"] = _token.ToString();
-      }
-      if( _attributes != null ) {
-        foreach(DictionaryEntry de in _attributes) {
-          ht[ de.Key ] = de.Value;
-        }
-      }
+      ht["token"] = Token;
+      ht["realm"] = Realm;
+      ht["type"] = ConTypeString;
       return ht;
     }
   }
 
 #if BRUNET_NUNIT
-//Here are some NUnit 2 test fixtures
   [TestFixture]
   public class LinkMessageTester {
 
@@ -199,17 +152,11 @@ namespace Brunet.Connections
       RandomNumberGenerator rng = new RNGCryptoServiceProvider();      
       AHAddress tmp_add = new AHAddress(rng);
       LinkMessage l1 = new LinkMessage(ConnectionType.Structured, n1,
-				       NodeInfo.CreateInstance(new DirectionalAddress(DirectionalAddress.Direction.Left),
-				       TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:837")), tmp_add.ToString() );
+               NodeInfo.CreateInstance(new DirectionalAddress(DirectionalAddress.Direction.Left),
+               TransportAddressFactory.CreateInstance("brunet.tcp://127.0.0.1:837")), string.Empty,
+               tmp_add.ToString() );
       RoundTripHT(l1);
-      StringDictionary attrs = new StringDictionary();
-      attrs["realm"] = "test_realm";
-      attrs["type"] = "structured.near";
-      LinkMessage l3 = new LinkMessage(attrs, n1, n1, tmp_add.ToString());
-      RoundTripHT(l3);
     }
   }
-
 #endif
-
 }

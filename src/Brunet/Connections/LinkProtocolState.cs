@@ -378,11 +378,7 @@ namespace Brunet.Connections
     protected LinkMessage MakeLM() {
       NodeInfo my_info = NodeInfo.CreateInstance( _node.Address, _e.LocalTA );
       NodeInfo remote_info = NodeInfo.CreateInstance( _linker.Target, _e.RemoteTA );
-      System.Collections.Specialized.StringDictionary attrs
-          = new System.Collections.Specialized.StringDictionary();
-      attrs["type"] = String.Intern( _contype );
-      attrs["realm"] = String.Intern( _node.Realm );
-      return new LinkMessage( attrs, my_info, remote_info , _linker.Token);
+      return new LinkMessage(_contype, my_info, remote_info , _node.Realm, _linker.Token);
     }
 
     public override void Start() {
@@ -434,9 +430,9 @@ namespace Brunet.Connections
       if( lm.ConTypeString != _contype ) {
         throw new LinkException("Link type mismatch: " + _contype + " != " + lm.ConTypeString );
       }
-      if( !lm.Attributes["realm"].Equals( _node.Realm ) ) {
+      if( !lm.Realm.Equals( _node.Realm ) ) {
         throw new LinkException("Realm mismatch: " +
-                                _node.Realm + " != " + lm.Attributes["realm"] );
+                                _node.Realm + " != " + lm.Realm );
       }
       if( lm.Local.Address == null ) {
         throw new LinkException("LinkMessage response has null Address");

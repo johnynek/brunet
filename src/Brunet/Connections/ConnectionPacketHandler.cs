@@ -284,11 +284,7 @@ namespace Brunet.Connections
         //We send a response:
         NodeInfo n_info = NodeInfo.CreateInstance( _node.Address, from.LocalTA );
         NodeInfo remote_info = NodeInfo.CreateInstance( null, from.RemoteTA );
-        System.Collections.Specialized.StringDictionary attrs =
-                new System.Collections.Specialized.StringDictionary();
-        attrs["type"] = String.Intern( lm.ConTypeString );
-        attrs["realm"] = String.Intern( _node.Realm );
-        lm_resp = new LinkMessage( attrs, n_info, remote_info , lm.Token);
+        lm_resp = new LinkMessage(lm.ConTypeString, n_info, remote_info , _node.Realm, lm.Token);
       }
       else {
         if( err.Ec == ErrorMessage.ErrorCode.AlreadyConnected ) {
@@ -443,7 +439,7 @@ namespace Brunet.Connections
       /* We lock the connection table so it doesn't change between
        * the call to Contains and the call to Lock
        */
-      if( lm.Attributes["realm"] != _node.Realm ) {
+      if( lm.Realm != _node.Realm ) {
         err = new ErrorMessage(ErrorMessage.ErrorCode.RealmMismatch,
                                "We are not in the same realm");
       }
