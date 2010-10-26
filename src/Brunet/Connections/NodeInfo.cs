@@ -56,128 +56,95 @@ namespace Brunet.Connections
       _address = a;
       _tas = transports;
     }
+
     /**
      * We will often create NodeInfo objects with only one
      * TransportAddress.  This constructor makes that easy.
      */
-    protected NodeInfo(Address a, TransportAddress ta)
+    protected NodeInfo(Address a, TransportAddress ta) :
+      this(a, new TransportAddress[] { ta })
     {
-      _address = a;
-      _tas = new TransportAddress[]{ ta };
     }
-    /**
-     * Here is a NodeInfo with no TransportAddress
-     */
-    protected NodeInfo(Address a)
-    {
-      _address = a;
-      _tas = EmptyTas;
-    }
+
     /*
      * This constructor is only used for the _cache_key object
      * so we only have to have one of them
      */
     protected NodeInfo() {
-
     }
-    //A cache of commonly used NodeInfo objects
-    protected static Cache _cache = new Cache(512);
+
+    static NodeInfo()
+    {
+      _cache = new WeakValueTable<int, NodeInfo>();
+      _cache_key = new NodeInfo();
+      _ta_list = new TransportAddress[1];
+    }
+
+    //A ni_cache of currently in use NodeInfo objects
+    protected static WeakValueTable<int, NodeInfo> _cache;
     protected static NodeInfo _cache_key = new NodeInfo();
     //For _cache_key when there is only one ta:
     protected static TransportAddress[] _ta_list = new TransportAddress[1];
 
-    //Here's the cache for the Address -> NodeInfo case
-    protected static readonly NodeInfo[] _mb_cache = new NodeInfo[UInt16.MaxValue + 1];
     /**
      * Factory method to reduce memory allocations by caching
      * commonly used NodeInfo objects
      */
     public static NodeInfo CreateInstance(Address a) {
-#if BRUNET_SIMULATOR
-      return new NodeInfo(a);
-#else
-      //Read some of the least significant bytes out,
-      //AHAddress all have last bit 0, so we skip the last byte which
-      //will have less entropy
-      MemBlock mb = a.ToMemBlock();
-      ushort idx = (ushort)NumberSerializer.ReadShort(mb, Address.MemSize - 3);
-      NodeInfo ni = _mb_cache[idx];
-      if( ni != null ) {
-        if (a.Equals(ni._address)) {
-          return ni;
-        }
-      }
-      ni = new NodeInfo(a);
-      _mb_cache[idx] = ni;
-      return ni;
-#endif
+      return CreateInstance(a, EmptyTas, null);
     }
-    public static NodeInfo CreateInstance(Address a, TransportAddress ta) {
-#if BRUNET_SIMULATOR
-        return new NodeInfo(a, ta);
-#else
-      NodeInfo result = null;
-      Cache ni_cache = Interlocked.Exchange<Cache>(ref _cache, null);
-      if( ni_cache != null ) {
-        //Only one thread at the time can be in here:
-        try {
-          //Set up the key:
-          _cache_key._done_hash = false;
-          _cache_key._address = a;
-          _ta_list[0] = ta;
-          _cache_key._tas = _ta_list;
 
-          result = (NodeInfo)ni_cache[_cache_key];
-          if( result == null ) {
-            //This may look weird, but we are using a NodeInfo as a key
-            //to lookup NodeInfos, this will allow us to only keep one
-            //identical NodeInfo in scope at a time.
-            result = new NodeInfo(a, ta);
-            ni_cache[result] = result;
-          }
-        }
-        finally {
-          Interlocked.Exchange<Cache>(ref _cache, ni_cache);
-        }
-      }
-      else {
-        result = new NodeInfo(a, ta);
-      }
-      return result;
-#endif
+    public static NodeInfo CreateInstance(Address a, TransportAddress ta) {
+      return CreateInstance(a, null, ta);
     }
-    public static NodeInfo CreateInstance(Address a, IList ta) {
-#if BRUNET_SIMULATOR
-      return new NodeInfo(a, ta);
-#else
+
+    public static NodeInfo CreateInstance(Address a, IList tas) {
+      return CreateInstance(a, tas, null);
+    }
+
+    protected static NodeInfo CreateInstance(Address a, IList tas, TransportAddress ta) {
       NodeInfo result = null;
-      Cache ni_cache = Interlocked.Exchange<Cache>(ref _cache, null);
-      if( ni_cache != null ) {
+      var ni_cache = Interlocked.Exchange<WeakValueTable<int, NodeInfo>>(ref _cache, null);
+      if(ni_cache != null) {
         try {
           //Set up the key:
           _cache_key._done_hash = false;
           _cache_key._address = a;
-          _cache_key._tas = ta;
+          if(tas == null) {
+           if(ta == null) {
+              _cache_key._tas = EmptyTas;
+            } else {
+              _ta_list[0] = ta;
+              _cache_key._tas = _ta_list;
+            }
+          } else {
+            _cache_key._tas = tas;
+          }
           
-          result = (NodeInfo)ni_cache[_cache_key];
-          if( result == null ) {
+          result = ni_cache.GetValue(_cache_key.GetHashCode());
+          if( !_cache_key.Equals(result) ) {
             //This may look weird, but we are using a NodeInfo as a key
             //to lookup NodeInfos, this will allow us to only keep one
             //identical NodeInfo in scope at a time.
-            result = new NodeInfo(a, ta);
-            ni_cache[result] = result;
+            if(ta == null) {
+              result = new NodeInfo(a, tas);
+            } else {
+              result = new NodeInfo(a, ta);
+            }
+            ni_cache.Replace(result.GetHashCode(), result);
           }
-        }
-        finally {
-          Interlocked.Exchange<Cache>(ref _cache, ni_cache);
+        } finally {
+          Interlocked.Exchange<WeakValueTable<int, NodeInfo>>(ref _cache, ni_cache);
         }
       }
-      else {
+      else if(ta == null) {
+        result = new NodeInfo(a, tas);
+      } else {
         result = new NodeInfo(a, ta);
       }
       return result;
-#endif
     }
+
     public static NodeInfo CreateInstance(IDictionary d) {
       Address address = null;
       IList tas;
