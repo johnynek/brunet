@@ -1,0 +1,260 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="3.5" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">x86</Platform>
+    <ProductVersion>9.0.21022</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{FB45E7FA-731D-4C23-B792-6F569B74F49D}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>brunet</RootNamespace>
+    <AssemblyName>brunet</AssemblyName>
+    <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
+    <StartupObject>Brunet.Simulator.Runner</StartupObject>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Debug</OutputPath>
+    <DefineConstants>DEBUG BRUNET_SIMULATOR</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <PlatformTarget>x86</PlatformTarget>
+    <Commandlineparameters>--evaluation --size=2 --secure_edges --dtls</Commandlineparameters>
+    <ConsolePause>false</ConsolePause>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
+    <DebugType>none</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Release</OutputPath>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <PlatformTarget>x86</PlatformTarget>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Runtime.Remoting" />
+    <Reference Include="System.Security" />
+    <Reference Include="System.Web" />
+    <Reference Include="System.Xml" />
+    <Reference Include="CookComputing.XmlRpcV2, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\lib\CookComputing.XmlRpcV2.dll</HintPath>
+    </Reference>
+    <Reference Include="jabber-net, Version=2.0.0.613, Culture=neutral, PublicKeyToken=924c5b18328d6f09">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\lib\jabber-net.dll</HintPath>
+    </Reference>
+    <Reference Include="ManagedOpenSsl, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\lib\ManagedOpenSsl.dll</HintPath>
+    </Reference>
+    <Reference Include="Mono.Posix">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\lib\Mono.Posix.dll</HintPath>
+    </Reference>
+    <Reference Include="Mono.Security">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\lib\Mono.Security.dll</HintPath>
+    </Reference>
+    <Reference Include="NDesk.Options, Version=0.2.1.0, Culture=neutral, PublicKeyToken=null">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\lib\NDesk.Options.dll</HintPath>
+    </Reference>
+    <Reference Include="zlib.net, Version=1.0.3.0, Culture=neutral, PublicKeyToken=924c5b18328d6f09">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\lib\zlib.net.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\src\Brunet\Address.cs" />
+    <Compile Include="..\src\Brunet\AddressParser.cs" />
+    <Compile Include="..\src\Brunet\DateTime.cs" />
+    <Compile Include="..\src\Brunet\Node.cs" />
+    <Compile Include="..\src\Brunet\Collections\Cache.cs" />
+    <Compile Include="..\src\Brunet\Collections\CacheLinkedList.cs" />
+    <Compile Include="..\src\Brunet\Collections\Functional.cs" />
+    <Compile Include="..\src\Brunet\Collections\Heap.cs" />
+    <Compile Include="..\src\Brunet\Collections\ImmutableDictionary.cs" />
+    <Compile Include="..\src\Brunet\Collections\ImmutableList.cs" />
+    <Compile Include="..\src\Brunet\Collections\Interval.cs" />
+    <Compile Include="..\src\Brunet\Collections\TimeBasedCache.cs" />
+    <Compile Include="..\src\Brunet\Collections\Tuple.cs" />
+    <Compile Include="..\src\Brunet\Collections\UidGenerator.cs" />
+    <Compile Include="..\src\Brunet\Collections\WeakHashtable.cs" />
+    <Compile Include="..\src\Brunet\Collections\WeakValueTable.cs" />
+    <Compile Include="..\src\Brunet\Concurrent\BlockingQueue.cs" />
+    <Compile Include="..\src\Brunet\Concurrent\ExclusiveServer.cs" />
+    <Compile Include="..\src\Brunet\Concurrent\FireOnceEvent.cs" />
+    <Compile Include="..\src\Brunet\Concurrent\LockFreeQueue.cs" />
+    <Compile Include="..\src\Brunet\Concurrent\LockFreeStack.cs" />
+    <Compile Include="..\src\Brunet\Concurrent\Mutable.cs" />
+    <Compile Include="..\src\Brunet\Concurrent\TaskQueue.cs" />
+    <Compile Include="..\src\Brunet\Concurrent\WriteOnce.cs" />
+    <Compile Include="..\src\Brunet\Concurrent\WriteOnceIdempotent.cs" />
+    <Compile Include="..\src\Brunet\Connections\CloseMessage.cs" />
+    <Compile Include="..\src\Brunet\Connections\ConnectToMessage.cs" />
+    <Compile Include="..\src\Brunet\Connections\Connection.cs" />
+    <Compile Include="..\src\Brunet\Connections\ConnectionEventArgs.cs" />
+    <Compile Include="..\src\Brunet\Connections\ConnectionLockManager.cs" />
+    <Compile Include="..\src\Brunet\Connections\ConnectionOverlord.cs" />
+    <Compile Include="..\src\Brunet\Connections\ConnectionPacketHandler.cs" />
+    <Compile Include="..\src\Brunet\Connections\ConnectionTable.cs" />
+    <Compile Include="..\src\Brunet\Connections\Connector.cs" />
+    <Compile Include="..\src\Brunet\Connections\CtmRequestHandler.cs" />
+    <Compile Include="..\src\Brunet\Connections\ErrorMessage.cs" />
+    <Compile Include="..\src\Brunet\Connections\ILinkLocker.cs" />
+    <Compile Include="..\src\Brunet\Connections\IEdgeReplacementPolicy.cs" />
+    <Compile Include="..\src\Brunet\Connections\LinkException.cs" />
+    <Compile Include="..\src\Brunet\Connections\LinkMessage.cs" />
+    <Compile Include="..\src\Brunet\Connections\LinkProtocolState.cs" />
+    <Compile Include="..\src\Brunet\Connections\Linker.cs" />
+    <Compile Include="..\src\Brunet\Connections\ManagedConnectionOverlord.cs" />
+    <Compile Include="..\src\Brunet\Connections\NodeInfo.cs" />
+    <Compile Include="..\src\Brunet\Connections\OnDemandConnectionOverlord.cs" />
+    <Compile Include="..\src\Brunet\Connections\PolicyBasedConnectionOverlord.cs" />
+    <Compile Include="..\src\Brunet\Connections\StatusMessage.cs" />
+    <Compile Include="..\src\Brunet\Messaging\BrunetRpc.cs" />
+    <Compile Include="..\src\Brunet\Messaging\EchoHandler.cs" />
+    <Compile Include="..\src\Brunet\Messaging\Filter.cs" />
+    <Compile Include="..\src\Brunet\Messaging\IPHandler.cs" />
+    <Compile Include="..\src\Brunet\Messaging\IReplyHandler.cs" />
+    <Compile Include="..\src\Brunet\Messaging\ISender.cs" />
+    <Compile Include="..\src\Brunet\Messaging\IdentifierPair.cs" />
+    <Compile Include="..\src\Brunet\Messaging\IdentifierTable.cs" />
+    <Compile Include="..\src\Brunet\Messaging\ReqrepManager.cs" />
+    <Compile Include="..\src\Brunet\Messaging\RpcManager.cs" />
+    <Compile Include="..\src\Brunet\Messaging\SenderFactory.cs" />
+    <Compile Include="..\src\Brunet\Messaging\Source.cs" />
+    <Compile Include="..\src\Brunet\Relay\ForwarderSelector.cs" />
+    <Compile Include="..\src\Brunet\Relay\OverlapConnectionOverlord.cs" />
+    <Compile Include="..\src\Brunet\Relay\RelayEdge.cs" />
+    <Compile Include="..\src\Brunet\Relay\RelayEdgeListener.cs" />
+    <Compile Include="..\src\Brunet\Relay\RelayOverlap.cs" />
+    <Compile Include="..\src\Brunet\Relay\RelayTransportAddress.cs" />
+    <Compile Include="..\src\Brunet\Xmpp\XmppDiscovery.cs" />
+    <Compile Include="..\src\Brunet\Xmpp\XmppEdge.cs" />
+    <Compile Include="..\src\Brunet\Xmpp\XmppEdgeListener.cs" />
+    <Compile Include="..\src\Brunet\Xmpp\XmppRelay.cs" />
+    <Compile Include="..\src\Brunet\Xmpp\XmppService.cs" />
+    <Compile Include="..\src\Brunet\Xmpp\XmppTA.cs" />
+    <Compile Include="..\src\Brunet\Xmpp\XmppTransportAddress.cs" />
+    <Compile Include="..\src\Brunet\Util\AdrConverter.cs" />
+    <Compile Include="..\src\Brunet\Util\Base32.cs" />
+    <Compile Include="..\src\Brunet\Util\BigInteger.cs" />
+    <Compile Include="..\src\Brunet\Util\BufferAllocator.cs" />
+    <Compile Include="Delegates.cs" />
+    <Compile Include="..\src\Brunet\Util\FuzzyTimer.cs" />
+    <Compile Include="..\src\Brunet\Util\ICopyable.cs" />
+    <Compile Include="..\src\Brunet\Util\Log.cs" />
+    <Compile Include="..\src\Brunet\Util\MemBlock.cs" />
+    <Compile Include="..\src\Brunet\Util\NumberSerializer.cs" />
+    <Compile Include="..\src\Brunet\Util\PType.cs" />
+    <Compile Include="..\src\Brunet\Util\ParseException.cs" />
+    <Compile Include="..\src\Brunet\Util\Scheduler.cs" />
+    <Compile Include="..\src\Brunet\Util\SecureRandom.cs" />
+    <Compile Include="..\src\Brunet\Util\SimpleTimer.cs" />
+    <Compile Include="..\src\Brunet\Security\CertificateHandler.cs" />
+    <Compile Include="..\src\Brunet\Security\CertificateMaker.cs" />
+    <Compile Include="..\src\Brunet\Security\ICertificateVerification.cs" />
+    <Compile Include="..\src\Brunet\Security\SecurityAssociation.cs" />
+    <Compile Include="..\src\Brunet\Security\SecurityOverlord.cs" />
+    <Compile Include="..\src\Brunet\Security\Transport\SecureEdge.cs" />
+    <Compile Include="..\src\Brunet\Security\Transport\SecureEdgeListener.cs" />
+    <Compile Include="..\src\Brunet\Security\PeerSec\DataPacket.cs" />
+    <Compile Include="..\src\Brunet\Security\PeerSec\NullEncryption.cs" />
+    <Compile Include="..\src\Brunet\Security\PeerSec\NullHash.cs" />
+    <Compile Include="..\src\Brunet\Security\PeerSec\PeerSecAssociation.cs" />
+    <Compile Include="..\src\Brunet\Security\PeerSec\PeerSecOverlord.cs" />
+    <Compile Include="..\src\Brunet\Security\PeerSec\SecurityControlMessage.cs" />
+    <Compile Include="..\src\Brunet\Security\PeerSec\SecurityDataMessage.cs" />
+    <Compile Include="..\src\Brunet\Security\PeerSec\SecurityHandler.cs" />
+    <Compile Include="..\src\Brunet\Security\PeerSec\SecurityPolicy.cs" />
+    <Compile Include="..\src\Brunet\Security\PeerSec\SymmetricEncryption.cs" />
+    <Compile Include="..\src\Brunet\Security\PeerSec\Symphony\EdgeVerification.cs" />
+    <Compile Include="..\src\Brunet\Security\PeerSec\Symphony\SymphonySecurityOverlord.cs" />
+    <Compile Include="..\src\Brunet\Security\PeerSec\Symphony\SymphonyVerification.cs" />
+    <Compile Include="..\src\Brunet\Security\Dtls\DtlsAssociation.cs" />
+    <Compile Include="..\src\Brunet\Security\Dtls\DtlsOverlord.cs" />
+    <Compile Include="..\src\Brunet\Security\Dtls\OpenSslCertificateHandler.cs" />
+    <Compile Include="..\src\Brunet\Security\Utils\Keymaker.cs" />
+    <Compile Include="..\src\Brunet\Security\Utils\RSAPrivateKeyToDER.cs" />
+    <Compile Include="..\src\Brunet\Services\CodeInjection.cs" />
+    <Compile Include="..\src\Brunet\Services\Coordinate\NCRelayOverlap.cs" />
+    <Compile Include="..\src\Brunet\Services\Coordinate\NCService.cs" />
+    <Compile Include="..\src\Brunet\Services\Coordinate\Point.cs" />
+    <Compile Include="..\src\Brunet\Services\Coordinate\Sample.cs" />
+    <Compile Include="..\src\Brunet\Services\Coordinate\VivaldiTargetSelector.cs" />
+    <Compile Include="..\src\Brunet\Services\Dht\Dht.cs" />
+    <Compile Include="..\src\Brunet\Services\Dht\DhtDiscovery.cs" />
+    <Compile Include="..\src\Brunet\Services\Dht\Entry.cs" />
+    <Compile Include="..\src\Brunet\Services\Dht\IDht.cs" />
+    <Compile Include="..\src\Brunet\Services\Dht\RpcDht.cs" />
+    <Compile Include="..\src\Brunet\Services\Dht\RpcDhtProxy.cs" />
+    <Compile Include="..\src\Brunet\Services\Dht\TableServer.cs" />
+    <Compile Include="..\src\Brunet\Services\Dht\TableServerData.cs" />
+    <Compile Include="..\src\Brunet\Services\MapReduce\MapReduce.cs" />
+    <Compile Include="..\src\Brunet\Services\MapReduce\MapReduceBaseTasks.cs" />
+    <Compile Include="..\src\Brunet\Services\MapReduce\MapReduceRangeCounter.cs" />
+    <Compile Include="..\src\Brunet\Services\MapReduce\MapReduceTrace.cs" />
+    <Compile Include="..\src\Brunet\Services\XmlRpc\AdrXmlRpcConverter.cs" />
+    <Compile Include="..\src\Brunet\Services\XmlRpc\XmlRpcManager.cs" />
+    <Compile Include="..\src\Brunet\Symphony\AHAddress.cs" />
+    <Compile Include="..\src\Brunet\Symphony\AHAddressComparer.cs" />
+    <Compile Include="..\src\Brunet\Symphony\AHSender.cs" />
+    <Compile Include="..\src\Brunet\Symphony\ConnectionLeftComparer.cs" />
+    <Compile Include="..\src\Brunet\Symphony\ConnectionRightComparer.cs" />
+    <Compile Include="..\src\Brunet\Symphony\DirectionalAddress.cs" />
+    <Compile Include="..\src\Brunet\Symphony\LeafConnectionOverlord.cs" />
+    <Compile Include="..\src\Brunet\Symphony\PacketForwarder.cs" />
+    <Compile Include="..\src\Brunet\Symphony\StructuredAddress.cs" />
+    <Compile Include="..\src\Brunet\Symphony\StructuredNearConnectionOverlord.cs" />
+    <Compile Include="..\src\Brunet\Symphony\StructuredNode.cs" />
+    <Compile Include="..\src\Brunet\Symphony\StructuredShortcutConnectionOverlord.cs" />
+    <Compile Include="..\src\Brunet\Symphony\SubringEdge.cs" />
+    <Compile Include="..\src\Brunet\Symphony\SubringEdgeListener.cs" />
+    <Compile Include="..\src\Brunet\Symphony\SubringTransportAddress.cs" />
+    <Compile Include="..\src\Brunet\Symphony\TargetSelector.cs" />
+    <Compile Include="..\src\Brunet\Symphony\TraceRpcHandler.cs" />
+    <Compile Include="..\src\Brunet\Transport\Discovery.cs" />
+    <Compile Include="..\src\Brunet\Transport\Edge.cs" />
+    <Compile Include="..\src\Brunet\Transport\EdgeException.cs" />
+    <Compile Include="..\src\Brunet\Transport\EdgeFactory.cs" />
+    <Compile Include="..\src\Brunet\Transport\EdgeListener.cs" />
+    <Compile Include="..\src\Brunet\Transport\FakeEdge.cs" />
+    <Compile Include="..\src\Brunet\Transport\FunctionEdge.cs" />
+    <Compile Include="..\src\Brunet\Transport\FunctionEdgeListener.cs" />
+    <Compile Include="..\src\Brunet\Transport\ITAHandler.cs" />
+    <Compile Include="..\src\Brunet\Transport\LocalDiscovery.cs" />
+    <Compile Include="..\src\Brunet\Transport\NatHandler.cs" />
+    <Compile Include="..\src\Brunet\Transport\PathEdgeListener.cs" />
+    <Compile Include="..\src\Brunet\Transport\SimulationEdge.cs" />
+    <Compile Include="..\src\Brunet\Transport\SimulationEdgeListener.cs" />
+    <Compile Include="..\src\Brunet\Transport\TAAuthorizer.cs" />
+    <Compile Include="..\src\Brunet\Transport\TcpEdge.cs" />
+    <Compile Include="..\src\Brunet\Transport\TcpEdgeListener.cs" />
+    <Compile Include="..\src\Brunet\Transport\TransportAddress.cs" />
+    <Compile Include="..\src\Brunet\Transport\UdpEdge.cs" />
+    <Compile Include="..\src\Brunet\Transport\UdpEdgeListener.cs" />
+    <Compile Include="..\src\Brunet\Transport\WrapperEdge.cs" />
+    <Compile Include="..\src\Brunet\Transport\WrapperEdgeListener.cs" />
+    <Compile Include="..\src\Brunet\Simulator\BrokenTAAuth.cs" />
+    <Compile Include="..\src\Brunet\Simulator\Main.cs" />
+    <Compile Include="..\src\Brunet\Simulator\Parameters.cs" />
+    <Compile Include="..\src\Brunet\Simulator\Simulator.cs" />
+    <Compile Include="..\src\Brunet\Simulator\Utils.cs" />
+    <Compile Include="..\src\Brunet\Simulator\Tasks\AllToAll.cs" />
+    <Compile Include="..\src\Brunet\Simulator\Tasks\Broadcast.cs" />
+    <Compile Include="..\src\Brunet\Simulator\Tasks\Crawl.cs" />
+    <Compile Include="..\src\Brunet\Simulator\Tasks\DhtGet.cs" />
+    <Compile Include="..\src\Brunet\Simulator\Tasks\DhtPut.cs" />
+    <Compile Include="..\src\Brunet\Simulator\Tasks\Task.cs" />
+    <Compile Include="..\src\Brunet\Symphony\BroadcastHandler.cs" />
+    <Compile Include="..\src\Brunet\Symphony\BroadcastReceiver.cs" />
+    <Compile Include="..\src\Brunet\Symphony\BroadcastSender.cs" />
+    <Compile Include="..\src\Brunet\Security\BroadcastRevocationHandler.cs" />
+    <Compile Include="..\src\Brunet\Security\UserRevocationMessage.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+</Project>
