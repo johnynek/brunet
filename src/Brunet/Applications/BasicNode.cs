@@ -85,6 +85,7 @@ namespace Brunet.Applications {
 
     protected Dictionary<string, PathELManager> _type_to_pem;
     protected Random _rand;
+    protected FuzzyEvent _fe_stop_pem;
     public readonly XmppService XmppService;
 
     /// <summary>Prepares a BasicNode.</summary>
@@ -418,6 +419,8 @@ namespace Brunet.Applications {
         foreach(PathELManager pem in _type_to_pem.Values) {
           pem.Stop();
         }
+        _type_to_pem.Clear();
+        _fe_stop_pem.TryCancel();
       }
     }
 
@@ -454,7 +457,7 @@ namespace Brunet.Applications {
         }
       }
 
-      Brunet.Util.FuzzyTimer.Instance.DoEvery(StopPem, 500, 500);
+      _fe_stop_pem = Brunet.Util.FuzzyTimer.Instance.DoEvery(StopPem, 500, 500);
     }
   }
 }
