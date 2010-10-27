@@ -95,7 +95,6 @@ namespace Brunet.Simulator {
       SimBroadcastHandler = new SimpleFilter();
 
       if(parameters.Seed != -1) {
-        Console.WriteLine(parameters.Seed);
         _rand = new Random(parameters.Seed);
       } else {
         _rand = new Random();
