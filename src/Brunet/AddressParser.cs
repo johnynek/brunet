@@ -37,7 +37,24 @@ namespace Brunet
    */
   public class AddressParser
   {
-#if !BRUNET_SIMULATOR
+#if BRUNET_SIMULATOR
+    protected static WeakValueTable<int, Address> _cache;
+
+    static AddressParser() {
+      _cache = new WeakValueTable<int, Address>();
+    }
+
+    /// Simulator != thread-safe!
+    protected static Address SimulatorCache(Address a) {
+      int idx = NumberSerializer.ReadInt(a.ToMemBlock(), 0);
+      Address tmp = _cache.GetValue(idx);
+      if(a.Equals(tmp)) {
+        return tmp;
+      }
+      _cache.Replace(idx, a);
+      return a;
+    }
+#else
     /*
      * Here is a cache so we don't have to parse the same
      * address over and over.  It is used for the string
@@ -95,7 +112,7 @@ namespace Brunet
     public static Address Parse(string ascii)
     {
 #if BRUNET_SIMULATOR
-      return NoCacheParse(ascii);
+      return SimulatorCache(NoCacheParse(ascii));
 #else
       Cache add_cache = Interlocked.Exchange<Cache>(ref _address_cache, null);
       //If add_cache is non-null, we have a cache to use, woohoo!
@@ -168,11 +185,13 @@ namespace Brunet
                                    add_class + ", buffer:" +
                                    mb.ToString());
         }
-#if !BRUNET_SIMULATOR
+#if BRUNET_SIMULATOR
+        return SimulatorCache(a);
+#else
         //Cache this result:
         _mb_cache[ idx ] = a;
-#endif
         return a;
+#endif
       }
       catch(ArgumentOutOfRangeException ex) {
         throw new ParseException("Address too short: " +
