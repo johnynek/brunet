@@ -50,14 +50,11 @@ namespace Brunet.Transport
   public class TransportAddressFactory {
     //adding some kind of factory methods
     public static TransportAddress CreateInstance(string s) {
-#if BRUNET_SIMULATOR
-      return NoCacheCreateInstance(s);
-#else
-      Cache ta_cache = Interlocked.Exchange<Cache>(ref _ta_cache, null);
+      var ta_cache = Interlocked.Exchange<WeakValueTable<string, TransportAddress>>(ref _ta_cache, null);
       TransportAddress result = null;
       if( ta_cache != null ) {
         try {
-          result = (TransportAddress)ta_cache[s];
+          result = ta_cache.GetValue(s);
           if( result == null ) {
             result = NoCacheCreateInstance(s);
             string r_ts = result.ToString();
@@ -65,19 +62,19 @@ namespace Brunet.Transport
               //Keep the internal reference which is being saved already
               s = r_ts;
             }
-            ta_cache[ s ] = result;
+            ta_cache.Replace(s, result);
           }
         }
         finally {
-          Interlocked.Exchange<Cache>(ref _ta_cache, ta_cache);
+          Interlocked.Exchange<WeakValueTable<string, TransportAddress>>(ref _ta_cache, ta_cache);
         }
       }
       else {
         result = NoCacheCreateInstance(s);
       }
       return result;
-#endif
     }
+
     protected static TransportAddress NoCacheCreateInstance(string s) {
       string scheme = s.Substring(0, s.IndexOf(":"));
       string t = scheme.Substring(scheme.IndexOf('.') + 1).ToLower();
@@ -90,7 +87,6 @@ namespace Brunet.Transport
         throw new ParseException("Cannot parse: " + s);
       }
     }
-    
 
     private static readonly Dictionary<string,TransportAddress.TAType> _string_to_type;
     private static readonly Dictionary<string, Converter<string,TransportAddress>> _ta_factories;
@@ -101,12 +97,11 @@ namespace Brunet.Transport
      * we can keep a cache of them so we don't have to waste
      * time doing multiple TAs over and over again.
      */
-    protected static Cache _ta_cache;
-    protected const int CACHE_SIZE = 1024;
+    protected static WeakValueTable<string, TransportAddress> _ta_cache;
     
     static TransportAddressFactory() {
       _string_to_type = new Dictionary<string,TransportAddress.TAType>();
-      _ta_cache = new Cache(CACHE_SIZE);
+      _ta_cache = new WeakValueTable<string, TransportAddress>();
       _ta_factories = new Dictionary<string,Converter<string,TransportAddress>>();
       AddFactoryMethod("tcp", IPTransportAddress.Create);
       AddFactoryMethod("udp", IPTransportAddress.Create);
@@ -140,56 +135,32 @@ namespace Brunet.Transport
 
     public static TransportAddress CreateInstance(TransportAddress.TAType t,
               string host, int port) {  
-#if BRUNET_SIMULATOR
-      return new IPTransportAddress(t, host, port);
-#else
-      Cache ta_cache = Interlocked.Exchange<Cache>(ref _ta_cache, null);
-      if( ta_cache != null ) {
-        TransportAddress ta = null;
-        try {
-          CacheKey key = new CacheKey(host, port, t);
-          ta = (TransportAddress) ta_cache[key];
-          if( ta == null ) {
-            ta = new IPTransportAddress(t, host, port);
-            ta_cache[key] = ta; 
-           }
-        }
-        finally {
-          Interlocked.Exchange<Cache>(ref _ta_cache, ta_cache);
-        }
-        return ta;
-      }
-      else {
-        return new IPTransportAddress(t, host, port);
-      }
-#endif
+      var ta = new IPTransportAddress(t, host, port);
+      return CacheInstance(ta);
     }
 
     public static TransportAddress CreateInstance(TransportAddress.TAType t,
                             IPAddress host, int port) {
-#if BRUNET_SIMULATOR
-      return new IPTransportAddress(t, host, port);
-#else
-      Cache ta_cache = Interlocked.Exchange<Cache>(ref _ta_cache, null);
+      var ta = new IPTransportAddress(t, host, port);
+      return CacheInstance(ta);
+    }
+
+    protected static TransportAddress CacheInstance(TransportAddress ta) {
+      var ta_cache = Interlocked.Exchange<WeakValueTable<string, TransportAddress>>(ref _ta_cache, null);
       if( ta_cache != null ) {
-        TransportAddress ta = null;
         try {
-          CacheKey key = new CacheKey(host, port, t);
-          ta = (TransportAddress) ta_cache[key];
-          if( ta == null ) {
-            ta = new IPTransportAddress(t, host, port);
-            ta_cache[key] = ta; 
-           }
+          var ta2 = ta_cache.GetValue(ta.ToString());
+          if(ta.Equals(ta2)) {
+            ta = ta2;
+          } else {
+            ta_cache.Replace(ta.ToString(), ta);
+          }
         }
         finally {
-          Interlocked.Exchange<Cache>(ref _ta_cache, ta_cache);
+          Interlocked.Exchange<WeakValueTable<string, TransportAddress>>(ref _ta_cache, ta_cache);
         }
-        return ta;
       }
-      else {
-        return new IPTransportAddress(t, host, port);
-      }
-#endif
+      return ta;
     }
 
     public static TransportAddress CreateInstance(TransportAddress.TAType t,
