@@ -161,7 +161,7 @@ namespace Brunet.Collections {
     /// <summary> Must stop the Recycling thread.</summary>
     public void Stop()
     {
-      if(System.Threading.Interlocked.Exchange(ref _stopped, 1) == 0) {
+      if(System.Threading.Interlocked.Exchange(ref _stopped, 1) == 1) {
         return;
       }
 
