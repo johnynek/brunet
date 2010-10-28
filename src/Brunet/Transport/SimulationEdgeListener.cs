@@ -189,8 +189,13 @@ namespace Brunet.Transport
 
     protected void CloseHandler(object edge, EventArgs ea)
     {
-      (edge as SimulationEdge).Partner = null;
-      _edges.Remove(edge as Edge);
+      SimulationEdge se = edge as SimulationEdge;
+      // Speed up GC
+      if(se.Partner != null) {
+        se.Partner.Partner = null;
+        se.Partner = null;
+      }
+      _edges.Remove(se);
     }
 
     public override void Start()
