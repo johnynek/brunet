@@ -28,65 +28,38 @@ using System;
 using System.Threading;
 using System.Collections;
 
-namespace Brunet.Transport
-{
-  /**
-  * A Edge which does its transport locally
-  * by calling a method on the other edge
-  *
-  * This Edge is for debugging purposes on
-  * a single machine in a single process.
-  */
-
-  public class SimulationEdge : Edge
-  {
-
-    public static Random _rand = new Random();
-
-    protected readonly int _l_id;
-    protected readonly int _r_id;
+namespace Brunet.Transport {
+  /// <summary>Single-threaded edge listener for simulation purposes.</summary>
+  public class SimulationEdge : Edge {
     protected readonly IEdgeSendHandler _sh;
+
     public readonly int Delay;
+    public readonly int ListenerId;
+    public readonly int RemoteID;
 
-
-    public SimulationEdge(IEdgeSendHandler s, int local_id, int remote_id, bool is_in)
-      : this(s, local_id, remote_id, is_in, 0) {
+    public SimulationEdge(IEdgeSendHandler s, int local_id, int remote_id,
+        bool is_in) : this(s, local_id, remote_id, is_in, 0)
+    {
     }
 
-    public SimulationEdge(IEdgeSendHandler s, int local_id, int remote_id, bool is_in, int delay) : base(s, is_in)
+    public SimulationEdge(IEdgeSendHandler s, int local_id, int remote_id,
+        bool is_in, int delay) : base(s, is_in)
     {
       _sh = s;
-      _l_id = local_id;
-      _r_id = remote_id;
       Delay = delay;
+      ListenerId = local_id;
+      RemoteID = remote_id;
     }
 
-    protected SimulationEdge _partner;
-    public SimulationEdge Partner
-    {
-      get
-      {
-        return _partner;
-      }
-      set
-      {
-        Interlocked.Exchange<SimulationEdge>(ref _partner, value);
-      }
-    }
-
-
+    public SimulationEdge Partner;
     public override TransportAddress.TAType TAType { get { return TransportAddress.TAType.S; } }
-
-    public int ListenerId {
-      get { return _l_id; }
-    }
 
     protected TransportAddress _local_ta;
     public override TransportAddress LocalTA
     {
       get {
         if ( _local_ta == null ) {
-          _local_ta = TransportAddressFactory.CreateInstance("b.s://" + _l_id);
+          _local_ta = TransportAddressFactory.CreateInstance("b.s://" + ListenerId);
         }
         return _local_ta;
       }
@@ -97,24 +70,29 @@ namespace Brunet.Transport
     {
       get {
         if ( _remote_ta == null ) {
-          _remote_ta = TransportAddressFactory.CreateInstance("b.s://" + _r_id);
+          _remote_ta = TransportAddressFactory.CreateInstance("b.s://" + RemoteID);
         }
         return _remote_ta;
       }
     }
 
-    public void Push(Brunet.Util.MemBlock p) {
-      if( 0 == _is_closed ) {
-        if(Delay > 0) {
-          var timer = new Brunet.Util.SimpleTimer(DelayedPush, p, Delay, 0);
-          timer.Start();
-        } else {
-          ReceivedPacketEvent(p);
-        }
+    /// <summary>Receive data from the remote end point.</summary>
+    public void Push(Brunet.Util.MemBlock p)
+    {
+      if( 1 == _is_closed ) {
+        return;
+      }
+
+      if(Delay > 0) {
+        var timer = new Brunet.Util.SimpleTimer(DelayedPush, p, Delay, 0);
+        timer.Start();
+      } else {
+        ReceivedPacketEvent(p);
       }
     }
 
-    protected void DelayedPush(object o) {
+    protected void DelayedPush(object o)
+    {
       if( 0 == _is_closed ) {
         ReceivedPacketEvent((Brunet.Util.MemBlock) o);
       }

@@ -528,6 +528,7 @@ namespace Brunet.Simulator {
     /// <summary>Disconnects all the nodes in the simulator.</summary>
     public void Disconnect()
     {
+      SimulationEdgeListener.Clear();
       foreach(NodeMapping nm in Nodes.Values) {
         Node node = nm.Node;
         node.Disconnect();

@@ -104,30 +104,46 @@ namespace Brunet.Simulator {
       int max = sim.StartingNetworkSize * 2;
       Random rand = new Random();
       DateTime end = DateTime.UtcNow.AddSeconds(time);
+      List<Node> to_disconnect = new List<Node>();
+      List<Node> to_abort = new List<Node>();
       while(end > DateTime.UtcNow) {
         SimpleTimer.RunSteps(fifteen_mins);
-        List<Node> to_remove = new List<Node>();
         foreach(Node node in volatile_nodes.Keys) {
           double prob = rand.NextDouble();
           if(prob <= .7) {
             continue;
           }
 
-// This is due to bugs in Abort don't handle closing of ELs and maybe other stuff
-//          sim.RemoveNode(node, prob > .9);
-          sim.RemoveNode(node, true, false);
-          to_remove.Add(node);
+          if(prob > .9) {
+            to_disconnect.Add(node);
+          } else {
+            to_abort.Add(node);
+          }
         }
 
-        foreach(Node node in to_remove) {
-          volatile_nodes.Remove(node);
-        }
-
-        Console.WriteLine("Removed: {0} Nodes" , to_remove.Count);
-        while(volatile_nodes.Count < max) {
+        int added = 0;
+        int removed = to_disconnect.Count + to_abort.Count;
+        while(volatile_nodes.Count < max + removed) {
+          added++;
           Node node = sim.AddNode();
           volatile_nodes.Add(node, node);
         }
+
+        foreach(Node node in to_disconnect) {
+          sim.RemoveNode(node, true, false);
+          volatile_nodes.Remove(node);
+        }
+        to_disconnect.Clear();
+
+        foreach(Node node in to_abort) {
+// This is due to bugs in Abort don't handle closing of ELs and maybe other stuff
+//          sim.RemoveNode(node, false, false);
+          sim.RemoveNode(node, true, false);
+          volatile_nodes.Remove(node);
+        }
+        to_abort.Clear();
+
+        Console.WriteLine("Nodes:  Added: {0}, Removed: {1}", added, removed);
       }
     }
 

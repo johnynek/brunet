@@ -14,6 +14,7 @@ namespace Brunet.Simulator {
       Assert.AreNotEqual(-1, p.Parse(args), "Unable to parse" + p.ErrorMessage);;
       Simulator sim = new Simulator(p);
       Assert.IsTrue(sim.Complete(true), "Simulation failed to complete the ring");
+      sim.Disconnect();
     }
 
     [Test]
@@ -23,6 +24,7 @@ namespace Brunet.Simulator {
       Assert.AreNotEqual(-1, p.Parse(args), "Unable to parse" + p.ErrorMessage);;
       Simulator sim = new Simulator(p);
       Assert.IsTrue(sim.Complete(true), "Simulation failed to complete the ring");
+      sim.Disconnect();
     }
 
 //    [Test]
@@ -32,6 +34,7 @@ namespace Brunet.Simulator {
       Assert.AreNotEqual(-1, p.Parse(args), "Unable to parse" + p.ErrorMessage);;
       Simulator sim = new Simulator(p);
       Assert.IsTrue(sim.Complete(true), "Simulation failed to complete the ring");
+      sim.Disconnect();
     }
 
     [Test]
@@ -41,6 +44,7 @@ namespace Brunet.Simulator {
       Assert.AreNotEqual(-1, p.Parse(args), "Unable to parse" + p.ErrorMessage);;
       SubringSimulator sim = new SubringSimulator(p);
       Assert.IsTrue(sim.Complete(true), "Simulation failed to complete the ring");
+      sim.Disconnect();
     }
 
     [Test]

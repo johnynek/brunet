@@ -46,39 +46,36 @@ namespace Brunet.Transport
     public static List<List<int>> LatencyMap;
     /// whether or not to use delays, set in the constructor
     protected bool _use_delay;
+    protected long _bytes = 0;
+    public long BytesSent { get { return _bytes; } }
 
-    /**
-     * Each listener has an integer associated with it.
-     * This map allows us to look up a listener
-     * based on the id.
-     */
-    static protected Hashtable _listener_map = new Hashtable();
+    ///<summary>Map EL id to EL.</summary>
+    static protected Dictionary<int, SimulationEdgeListener> _listener_map;
+    ///<summary>Performance enhancement to reduce pressure on GC.</summary>
+    static protected BufferAllocator _ba;
 
     /**
      * The id of this listener
      */
     protected int _listener_id;
     protected Random _rand;
-    protected Hashtable _edges;
+    protected Dictionary<Edge, Edge> _edges;
 
     protected ArrayList _tas;
     /**
      * The uri's for this type look like:
      * brunet.function:[edge_id]
      */
-    public override IEnumerable LocalTAs
-    {
-      get
-      {
-        return ArrayList.ReadOnly(_tas);
-      }
-    }
+    public override IEnumerable LocalTAs { get { return ArrayList.ReadOnly(_tas); } }
 
     protected double _ploss_prob;
-    protected BufferAllocator _ba;
-    protected object _sync;
     public override TransportAddress.TAType TAType { get { return TransportAddress.TAType.S; } }
 
+    static SimulationEdgeListener()
+    {
+      _listener_map = new Dictionary<int, SimulationEdgeListener>();
+      _ba = new BufferAllocator(Int16.MaxValue);
+    }
 
     public SimulationEdgeListener(int id):this(id, 0.05, null) {}
     public SimulationEdgeListener(int id, double loss_prob, TAAuthorizer ta_auth) :
@@ -86,10 +83,8 @@ namespace Brunet.Transport
 
     public SimulationEdgeListener(int id, double loss_prob, TAAuthorizer ta_auth, bool use_delay)
     {
-      _edges = new Hashtable();
+      _edges = new Dictionary<Edge, Edge>();
       _use_delay = use_delay;
-      _sync = new object();
-      _ba = new BufferAllocator(Int16.MaxValue);
       _listener_id = id;
       _ploss_prob = loss_prob;
       if (ta_auth == null) {
@@ -100,6 +95,11 @@ namespace Brunet.Transport
       _tas = new ArrayList();
       _tas.Add(TransportAddressFactory.CreateInstance("b.s://" + _listener_id));
       _rand = new Random();
+    }
+
+    static public void Clear()
+    {
+      _listener_map.Clear();
     }
 
     protected int _is_started = 0;
@@ -137,7 +137,6 @@ namespace Brunet.Transport
       }
       
       int remote_id = ((SimulationTransportAddress) ta).ID;
-      //Get the edgelistener: 
 
       //Outbound edge:
       int delay = 0;
@@ -153,8 +152,8 @@ namespace Brunet.Transport
       SimulationEdge se_l = new SimulationEdge(this, _listener_id, remote_id, false, delay);
       AddEdge(se_l);
 
-      SimulationEdgeListener remote = (SimulationEdgeListener) _listener_map[remote_id];
-      if( remote != null ) {
+      if(_listener_map.ContainsKey(remote_id)) {
+        var remote = _listener_map[remote_id];
         //
         // Make sure that the remote listener does not deny 
         // our TAs.
@@ -191,22 +190,33 @@ namespace Brunet.Transport
     protected void CloseHandler(object edge, EventArgs ea)
     {
       (edge as SimulationEdge).Partner = null;
-      _edges.Remove(edge);
+      _edges.Remove(edge as Edge);
     }
 
     public override void Start()
     {
-      if( 1 == Interlocked.Exchange(ref _is_started, 1) ) {
+      if(_is_started == 1) {
         throw new Exception("Can only call SimulationEdgeListener.Start() once!"); 
       }
-      _listener_map[ _listener_id ] = this;
+
+      if(_listener_map.ContainsKey(_listener_id)) {
+        throw new Exception("SimulationEdgeListener already exists: " + _listener_id);
+      }
+      _is_started = 1;
+      _listener_map[_listener_id] = this;
     }
 
     public override void Stop()
     {
-      Interlocked.Exchange(ref _is_started, 0);
-      lock ( _listener_map.SyncRoot ) {
-        _listener_map.Remove(_listener_id);
+      if(_is_started == 0) {
+        return;
+      }
+      _is_started = 0;
+      // If two simulations exist in the same space, this could have been overwritten
+      if(_listener_map.ContainsKey(_listener_id)) {
+        if(_listener_map[_listener_id] == this) {
+          _listener_map.Remove(_listener_id);
+        }
       }
 
       ArrayList list = new ArrayList(_edges.Values);
@@ -230,6 +240,7 @@ namespace Brunet.Transport
         int offset = p.CopyTo(_ba.Buffer, _ba.Offset);
         mb = MemBlock.Reference(_ba.Buffer, _ba.Offset, offset);
         _ba.AdvanceBuffer(offset);
+        _bytes += offset;
       }
 
       SimulationEdge se_from = (SimulationEdge)from;
