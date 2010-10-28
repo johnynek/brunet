@@ -272,9 +272,13 @@ namespace Brunet.Util {
     }
 
     public int CompareTo(SimpleTimer t) {
+#if BRUNET_SIMULATOR
+      return this._next_run.CompareTo(t._next_run);
+#else
       lock(_sync) {
         return this._next_run.CompareTo(t._next_run);
       }
+#endif
     }
   }
 
